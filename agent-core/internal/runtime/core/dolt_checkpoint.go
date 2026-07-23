@@ -283,6 +283,7 @@ func createSchema(db Database) error {
 			iteration INT NOT NULL,
 			ts VARCHAR(64) NOT NULL,
 			command_name VARCHAR(255) NOT NULL,
+			label VARCHAR(255),
 			PRIMARY KEY (run_id, step_index)
 		)`,
 		fmt.Sprintf(`CREATE TABLE IF NOT EXISTS tool_outputs (
@@ -310,6 +311,31 @@ func createSchema(db Database) error {
 			return fmt.Errorf("%w: schema: %v", ErrDolt, err)
 		}
 	}
+	if err := ensureExecutionStepLabelColumn(db); err != nil {
+		return err
+	}
+	return nil
+}
+
+// ensureExecutionStepLabelColumn upgrades databases created before authored
+// labels existed. Dolt supports ADD COLUMN but not its IF NOT EXISTS form, so
+// the information_schema check makes the migration safe to rerun.
+func ensureExecutionStepLabelColumn(db Database) error {
+	var count int
+	err := db.QueryRow(`SELECT COUNT(*)
+		FROM information_schema.columns
+		WHERE table_schema = DATABASE()
+			AND table_name = 'execution_steps'
+			AND column_name = 'label'`).Scan(&count)
+	if err != nil {
+		return fmt.Errorf("%w: schema: inspect execution_steps.label: %v", ErrDolt, err)
+	}
+	if count > 0 {
+		return nil
+	}
+	if err := db.Exec(`ALTER TABLE execution_steps ADD COLUMN label VARCHAR(255)`); err != nil {
+		return fmt.Errorf("%w: schema: add execution_steps.label: %v", ErrDolt, err)
+	}
 	return nil
 }
 
@@ -330,6 +356,8 @@ func writeMachine(tx Transaction, runID string, p Position) error {
 
 // writeStep appends one Execution entry across transitions, execution_steps,
 // tool_outputs, and receipts, keyed by (run_id, step_index) for idempotent retry.
+// The nullable execution_steps label preserves an authored address separately
+// from command_name; unlabeled and legacy rows restore an empty label.
 // The forward plane (tool_outputs) always gets a row; the reverse plane (receipts)
 // gets a row only when the entry carries a receipt, so an empty receipt is
 // represented by row absence and restores "" on Load. Both writes share the one
@@ -343,8 +371,8 @@ func writeStep(tx Transaction, runID string, step int, e Entry) error {
 		return fmt.Errorf("%w: save: transition: %v", ErrDolt, err)
 	}
 	if err := tx.Exec(
-		`REPLACE INTO execution_steps (run_id, step_index, iteration, ts, command_name) VALUES (?, ?, ?, ?, ?)`,
-		runID, step, e.Iteration, formatTS(e.Timestamp), e.CommandName,
+		`REPLACE INTO execution_steps (run_id, step_index, iteration, ts, command_name, label) VALUES (?, ?, ?, ?, ?, ?)`,
+		runID, step, e.Iteration, formatTS(e.Timestamp), e.CommandName, nullString(e.Label),
 	); err != nil {
 		return fmt.Errorf("%w: save: step: %v", ErrDolt, err)
 	}
@@ -411,7 +439,7 @@ func loadMachine(db Database, runID string) (Position, error) {
 // absent row restores "" (srd036-dolt-state-persistence R3, R5.2).
 func loadExecution(db Database, runID string) (Execution, error) {
 	rows, err := db.Query(
-		fmt.Sprintf(`SELECT es.step_index, es.iteration, es.ts, es.command_name,
+		fmt.Sprintf(`SELECT es.step_index, es.iteration, es.ts, es.command_name, es.label,
 			t.from_state, t.to_state, t.%[1]s,
 			o.%[1]s, o.output, o.error, o.cost_duration, o.cost_tokens_in, o.cost_tokens_out, o.cost_dollars, r.receipt
 			FROM execution_steps es
@@ -432,13 +460,13 @@ func loadExecution(db Database, runID string) (Execution, error) {
 			stepIndex, iteration                  int
 			ts, commandName                       string
 			fromState, toState, signal, resSignal string
-			output, errStr, receipt               sql.NullString
+			label, output, errStr, receipt        sql.NullString
 			costDuration                          int64
 			costTokensIn, costTokensOut           int
 			costDollars                           float64
 		)
 		if err := rows.Scan(
-			&stepIndex, &iteration, &ts, &commandName,
+			&stepIndex, &iteration, &ts, &commandName, &label,
 			&fromState, &toState, &signal,
 			&resSignal, &output, &errStr, &costDuration, &costTokensIn, &costTokensOut, &costDollars, &receipt,
 		); err != nil {
@@ -448,6 +476,7 @@ func loadExecution(db Database, runID string) (Execution, error) {
 			Iteration:   iteration,
 			Timestamp:   parseTS(ts),
 			CommandName: commandName,
+			Label:       label.String,
 			FromState:   State(fromState),
 			ToState:     State(toState),
 			Signal:      Signal(signal),

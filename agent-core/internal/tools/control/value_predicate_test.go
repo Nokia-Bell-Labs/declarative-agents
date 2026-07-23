@@ -3,6 +3,7 @@
 package control
 
 import (
+	"errors"
 	"strings"
 	"testing"
 
@@ -352,6 +353,43 @@ func TestValuePredicateUnreachableLabelIsAFault(t *testing.T) {
 			}
 		})
 	}
+}
+
+func TestValuePredicatePreservesTypedCommandStateErrors(t *testing.T) {
+	t.Parallel()
+
+	t.Run("unresolved label", func(t *testing.T) {
+		t.Parallel()
+		got := runWithView(t, `{"mapped":{"count":"6"}}`, stubView{}, ValuePredicateBuilder{
+			Left: "$.mapped.count", Op: OpGt, Right: "$from(before).mapped.count",
+		})
+		var target *core.UnresolvedLabelError
+		if !errors.As(got.Err, &target) {
+			t.Fatalf("error %v does not preserve UnresolvedLabelError", got.Err)
+		}
+		if target.Label != "before" {
+			t.Errorf("unresolved label = %q, want before", target.Label)
+		}
+	})
+
+	t.Run("unresolved path", func(t *testing.T) {
+		t.Parallel()
+		view := core.NewCommandStateView(core.Execution{{
+			CommandName: "collect",
+			Label:       "before",
+			Result:      core.ResultDigest{Output: `{"mapped":{}}`},
+		}})
+		got := runWithView(t, `{"mapped":{"count":"6"}}`, view, ValuePredicateBuilder{
+			Left: "$.mapped.count", Op: OpGt, Right: "$from(before).mapped.count",
+		})
+		var target *core.UnresolvedPathError
+		if !errors.As(got.Err, &target) {
+			t.Fatalf("error %v does not preserve UnresolvedPathError", got.Err)
+		}
+		if target.Label != "before" || target.Path != "mapped.count" {
+			t.Errorf("unresolved path = %#v, want before/mapped.count", target)
+		}
+	})
 }
 
 // TestValuePredicatePreviousResultOperandsStillWork proves the original operand

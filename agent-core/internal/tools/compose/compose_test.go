@@ -4,6 +4,7 @@ package compose
 
 import (
 	"encoding/json"
+	"errors"
 	"testing"
 
 	"github.com/stretchr/testify/require"
@@ -56,6 +57,9 @@ func TestComposeMissingSelectorRendersEmptyAndReports(t *testing.T) {
 	require.Error(t, res.Err, "the unresolved selector is reported")
 	require.Contains(t, res.Output, "Q: hi|C: ", "the missing chunk renders empty")
 	require.Contains(t, res.Err.Error(), "chunks")
+	var unresolved *core.UnresolvedLabelError
+	require.True(t, errors.As(res.Err, &unresolved), "compose wrapping preserves the typed cause")
+	require.Equal(t, "rag", unresolved.Label)
 }
 
 func TestComposeMostRecentWins(t *testing.T) {

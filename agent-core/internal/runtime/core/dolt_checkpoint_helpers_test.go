@@ -26,6 +26,7 @@ type execRow struct {
 	iteration   int
 	ts          string
 	commandName string
+	label       *string
 }
 
 type resultRow struct {
@@ -91,7 +92,9 @@ type fakeDB struct {
 	failOn string
 	// outputBytes accumulates the size of every output blob written to
 	// tool_outputs, so a benchmark can measure the per-step write-layer cost.
-	outputBytes int
+	outputBytes            int
+	executionStepsExists   bool
+	executionStepsHasLabel bool
 }
 
 func newFakeDB() *fakeDB {
@@ -114,7 +117,16 @@ func (f *fakeDB) Exec(query string, args ...any) error {
 		return sql.ErrConnDone
 	}
 	switch {
+	case strings.Contains(query, "CREATE TABLE IF NOT EXISTS execution_steps"):
+		if !f.executionStepsExists {
+			f.executionStepsExists = true
+			f.executionStepsHasLabel = strings.Contains(query, "label VARCHAR(255)")
+		}
+		return nil
 	case strings.Contains(query, "CREATE TABLE"):
+		return nil
+	case strings.Contains(query, "ALTER TABLE execution_steps ADD COLUMN label"):
+		f.executionStepsHasLabel = true
 		return nil
 	case strings.Contains(query, "DOLT_CHECKOUT('main')"):
 		f.current = "main"
@@ -183,7 +195,7 @@ func (f *fakeDB) Exec(query string, args ...any) error {
 		return nil
 	case strings.Contains(query, "REPLACE INTO execution_steps"):
 		f.store.steps[rowKey(args[0].(string), args[1].(int))] = execRow{
-			iteration: args[2].(int), ts: args[3].(string), commandName: args[4].(string),
+			iteration: args[2].(int), ts: args[3].(string), commandName: args[4].(string), label: strPtr(args[5]),
 		}
 		return nil
 	case strings.Contains(query, "REPLACE INTO tool_outputs"):
@@ -223,6 +235,12 @@ func deleteRowsAtOrAfter[T any](rows map[string]T, runID string, step int) {
 func (f *fakeDB) QueryRow(query string, args ...any) Scanner {
 	f.calls = append(f.calls, query)
 	switch {
+	case strings.Contains(query, "information_schema.columns"):
+		count := 0
+		if f.executionStepsHasLabel {
+			count = 1
+		}
+		return &fakeScanner{kind: "count", count: count}
 	case strings.Contains(query, "FROM machines"):
 		m, ok := f.store.machines[args[0].(string)]
 		return &fakeScanner{kind: "machine", machine: m, missing: !ok}
@@ -250,7 +268,7 @@ func (f *fakeDB) Query(query string, args ...any) (Rows, error) {
 		tr := f.store.transitions[k]
 		r := f.store.results[k]
 		joined = append(joined, joinRow{
-			stepIndex: step, iteration: es.iteration, ts: es.ts, commandName: es.commandName,
+			stepIndex: step, iteration: es.iteration, ts: es.ts, commandName: es.commandName, label: es.label,
 			fromState: tr.fromState, toState: tr.toState, signal: tr.signal,
 			resSignal: r.signal, output: r.output, errStr: r.errStr, receipt: f.store.receipts[k],
 			costDuration: r.costDuration, costTokensIn: r.costTokensIn, costTokensOut: r.costTokensOut, costDollars: r.costDollars,
@@ -276,6 +294,7 @@ type fakeScanner struct {
 	kind    string
 	machine machineRow
 	hash    string
+	count   int
 	missing bool
 }
 
@@ -284,6 +303,8 @@ func (s *fakeScanner) Scan(dest ...any) error {
 		return sql.ErrNoRows
 	}
 	switch s.kind {
+	case "count":
+		*dest[0].(*int) = s.count
 	case "machine":
 		*dest[0].(*string) = s.machine.currentState
 		*dest[1].(*string) = s.machine.lastSignal
@@ -302,7 +323,7 @@ type joinRow struct {
 	stepIndex, iteration                  int
 	ts, commandName                       string
 	fromState, toState, signal, resSignal string
-	output, errStr, receipt               *string
+	label, output, errStr, receipt        *string
 	costDuration                          int64
 	costTokensIn, costTokensOut           int
 	costDollars                           float64
@@ -325,17 +346,18 @@ func (r *fakeRows) Scan(dest ...any) error {
 	*dest[1].(*int) = row.iteration
 	*dest[2].(*string) = row.ts
 	*dest[3].(*string) = row.commandName
-	*dest[4].(*string) = row.fromState
-	*dest[5].(*string) = row.toState
-	*dest[6].(*string) = row.signal
-	*dest[7].(*string) = row.resSignal
-	*dest[8].(*sql.NullString) = nsFromPtr(row.output)
-	*dest[9].(*sql.NullString) = nsFromPtr(row.errStr)
-	*dest[10].(*int64) = row.costDuration
-	*dest[11].(*int) = row.costTokensIn
-	*dest[12].(*int) = row.costTokensOut
-	*dest[13].(*float64) = row.costDollars
-	*dest[14].(*sql.NullString) = nsFromPtr(row.receipt)
+	*dest[4].(*sql.NullString) = nsFromPtr(row.label)
+	*dest[5].(*string) = row.fromState
+	*dest[6].(*string) = row.toState
+	*dest[7].(*string) = row.signal
+	*dest[8].(*string) = row.resSignal
+	*dest[9].(*sql.NullString) = nsFromPtr(row.output)
+	*dest[10].(*sql.NullString) = nsFromPtr(row.errStr)
+	*dest[11].(*int64) = row.costDuration
+	*dest[12].(*int) = row.costTokensIn
+	*dest[13].(*int) = row.costTokensOut
+	*dest[14].(*float64) = row.costDollars
+	*dest[15].(*sql.NullString) = nsFromPtr(row.receipt)
 	return nil
 }
 
@@ -383,7 +405,7 @@ func sampleExecution() Execution {
 	ts := time.Date(2026, 7, 3, 12, 0, 0, 0, time.UTC)
 	return Execution{
 		{
-			Iteration: 1, Timestamp: ts, CommandName: "invoke",
+			Iteration: 1, Timestamp: ts, CommandName: "invoke", Label: "draft",
 			FromState: "Start", ToState: "Working", Signal: LLMResponded,
 			Result:  ResultDigest{Signal: LLMResponded, Output: "hi", Cost: Cost{Duration: 2 * time.Second, TokensIn: 10, TokensOut: 5, Dollars: 0.01}},
 			Receipt: `{"file":"a.txt"}`,

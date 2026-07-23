@@ -39,16 +39,21 @@ requirements:
       - R1.1: The command-state store SHALL present a read-only forward view over the run's execution Entries; it SHALL NOT let a word write, mutate, or delete another step's recorded output.
       - R1.2: Entries SHALL be keyed internally by (run_id, step_index); step_index SHALL NOT be part of the authoring surface (see R2.3).
       - R1.3: During a run the store SHALL be populated from the in-memory Execution Entries the loop already records; it SHALL NOT introduce a second source of truth for step output.
-      - R1.4: After a process restart the store SHALL rehydrate from the srd036 tool_outputs plane so a resumed run resolves the same labels it resolved before suspension.
+      - R1.4: After a process restart the store SHALL rehydrate outputs from the srd036 tool_outputs plane and step labels from the persisted execution metadata so a resumed run resolves the same authored labels it resolved before suspension.
       - R1.5: A selector that resolves to no recorded entry SHALL surface a typed error that names the unresolved label; it SHALL NOT silently yield an empty value.
+      - R1.6: Persisted execution metadata SHALL store the optional authored label separately from command_name. An existing row with no label SHALL remain readable and addressable by command_name after schema upgrade.
   R2:
     title: Label addressing
     items:
-      - R2.1: An author SHALL reference an earlier step through a $from(<command-name-or-label>).<dotted-path> selector, where <dotted-path> is a $.-style path into that step's declared param fields.
-      - R2.2: When two steps in a run share a label, $from SHALL resolve to the most recent (highest step_index) matching step.
+      - R2.1: An author SHALL set an optional TransitionSpec label and reference an earlier step through a $from(<command-name-or-label>).<dotted-path> selector, where <dotted-path> is a $.-style path into that step's declared param fields.
+      - R2.2: Lookup SHALL scan completed steps from highest to lowest step_index and match either the authored label or executed command name. Duplicate labels and collisions between one step's label and another step's command name therefore resolve through the same most-recent-match rule.
       - R2.3: Absolute step indices SHALL NOT be part of the authoring surface; authors address steps only by command name or label.
       - R2.4: Label resolution SHALL be scoped to the current run; a selector SHALL NOT resolve to a step in any other run (see R6 non-goal on cross-run addressing).
       - R2.5: Current-value and $from selectors SHALL share one dotted-path grammar that rejects empty components, whitespace or control characters, malformed parentheses, and empty labels or paths.
+      - R2.6: "A TransitionSpec label SHALL satisfy the same label grammar ParseSelector accepts inside $from(...): no dots, parentheses, whitespace, or control characters. Duplicate valid labels SHALL remain legal."
+      - R2.7: A transition with no authored label SHALL remain addressable by its executed command name. The same fallback SHALL apply to legacy persisted entries and programmatic TransitionTable runs with no MachineSpec label.
+      - R2.8: A labeled $tool transition SHALL record the transition label as its stable authored address and the dynamically selected tool as its command name. Both addresses SHALL resolve to that step.
+      - R2.9: TransitionSpec label SHALL be distinct from metric_labels; command-state selection SHALL NOT read observability labels.
   R3:
     title: Authority boundary
     items:
@@ -79,11 +84,11 @@ non_goals:
 
 acceptance_criteria:
   - id: AC1
-    criterion: The store is a read-only forward view keyed by (run_id, step_index), populated from in-memory Entries during a run and rehydrated from the srd036 tool_outputs plane after restart, with a typed error for an unresolved label.
-    traces: [R1.1, R1.2, R1.3, R1.4, R1.5]
+    criterion: The store is a read-only forward view keyed by (run_id, step_index), populated from in-memory Entries during a run and rehydrated from persisted outputs and execution metadata after restart. Authored labels persist separately from command names, legacy rows remain readable, and an unresolved label produces a typed error.
+    traces: [R1.1, R1.2, R1.3, R1.4, R1.5, R1.6]
   - id: AC2
-    criterion: Authors select an earlier step by command name or label through a canonical $from(<label>).<dotted-path> grammar, duplicate labels resolve most-recent-wins, absolute step indices are not part of the authoring surface, and resolution is run-scoped.
-    traces: [R2.1, R2.2, R2.3, R2.4, R2.5]
+    criterion: Authors optionally label a transition and select an earlier step by command name or label through a canonical $from(<label>).<dotted-path> grammar. One newest-to-oldest rule resolves duplicate labels and label/command-name collisions. Unlabeled, legacy, and programmatic steps retain command-name addressing; labeled $tool steps retain both addresses; absolute indices and metric_labels are excluded from the authoring surface.
+    traces: [R2.1, R2.2, R2.3, R2.4, R2.5, R2.6, R2.7, R2.8, R2.9]
   - id: AC3
     criterion: A consumer receives only the fields it selects into declared params, selectors can never name transport authority and are rejected when they try, receipts are structurally unaddressable via the srd036 split, and undeclared targets are rejected.
     traces: [R3.1, R3.2, R3.3, R3.4]
@@ -110,7 +115,9 @@ neighboring_contracts: |
   tool_outputs/receipts split (srd036 R3 today records tool_results; the split is
   a sibling documentation change). srd036 R4.3 terminal merge-and-delete and R6
   Revert supply srd038 R4's lifetime semantics; srd038 adds no lifetime machinery
-  of its own.
+  of its own. Execution metadata persists the optional authored label in a
+  nullable field. The adapter upgrades an existing schema idempotently; old rows
+  restore an empty label and retain command-name addressing.
 
 depends_on:
   - srd_id: srd035-checkpoint-port
@@ -124,11 +131,12 @@ depends_on:
 
 implementation_status:
   done:
-    - Core CommandStateView (internal/runtime/core/command_state.go): a read-only, receipt-blind forward view over the run's execution log with $from-style label lookup (Lookup), most-recent-wins on duplicate labels, and ok=false (never an error) on a miss. Built from a projected struct that omits Entry.Receipt so the receipt is unreachable by construction (R1, R2, R3). The engine injects it before dispatch into commands implementing CommandStateAware, mirroring MonitorRecorderAware. Rehydrates from the execution restored by the checkpoint port (in-memory and Dolt tool_outputs) so a resumed run resolves the same labels (R1.4). Delivered by GH-277.
+    - Core CommandStateView (internal/runtime/core/command_state.go): a read-only, receipt-blind forward view over the run's execution log. One newest-to-oldest scan matches either an authored label or executed command name, while the projected struct omits Entry.Receipt so receipts are unreachable by construction (R1, R2, R3). The engine injects it before dispatch into commands implementing CommandStateAware, mirroring MonitorRecorderAware. Initially delivered by GH-277 and extended with authored labels and typed lookup errors by GH-488.
     - REST body_source command_state consumption and $from(label).path selector validation (V32): clientCmd implements CommandStateAware and resolves selectors against the injected view, with the no-store rejection enforced at runtime (R13.5). Delivered by GH-278.
     - rel07.0-uc001 tracer bullet (a three-word chain where word 3 selects word 1 non-adjacently and the run resumes mid-chain) and a commit-per-step large-blob storage benchmark showing per-step write cost bounded by the new blob (~linear, not cumulative). Delivered by GH-279.
     - Shared $from resolution: core.ParseFromSelector and core.ResolveFromSelector factor the selector parse and path walk out of the REST client so a second consumer, the compose builtin, resolves $from(label).path against the same view. The compose word renders a template from $from selectors, letting a later word (invoke_llm) receive one composed input assembled from non-adjacent prior steps without carry_forward chains. Delivered by GH-342.
     - Canonical selector AST: core.ParseSelector validates both $.path and $from(label).path forms, and the parsed selector owns the shared nested-map resolver used by core and REST consumers.
+    - "GH-488: TransitionSpec authored labels are validated with the canonical selector grammar, recorded separately from command names, resolved with exported typed label/path errors, and persisted through an idempotent nullable Dolt schema upgrade. Real MachineSpec execution proves dynamic-tool separation, command-name fallback, duplicate-label newest-match behavior, and fresh-view restart rehydration."
 
 diagrams:
   requirements_trace: |
