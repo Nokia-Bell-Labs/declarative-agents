@@ -45,6 +45,56 @@ tools:
       rest_ref: embedding
       operation: embed_query
 
+  - name: declare_query_model
+    type: builtin
+    init: compose
+    visibility: internal
+    category: response
+    description: Put the query embedding model identity into command state.
+    problem: |
+      srd002 R3.3 excludes a RAG whose reported embedding model does not match the
+      query embedding's model, so the comparison needs the query's model identity as
+      an addressable command-state value. The embedding provider's legacy
+      /api/embeddings response carries only the vector, so the identity is the model
+      this agent asks the provider for, declared here from the same environment
+      reference the embed_query request body uses.
+    goals:
+      - Render the configured query embedding model identity as a command-state value.
+      - Keep the identity addressable as $from(declare_query_model).model for each per-RAG comparison.
+    requirements:
+      input:
+        - The identity is configuration, not runtime input; no selector is read.
+      output:
+        - Output is a JSON object whose model field names the query embedding model.
+      errors:
+        - Rendering a configured constant does not fail.
+    non_goals:
+      - Does not call the embedding provider or read the vector.
+      - Does not choose the model the request body sends; both read one environment reference.
+    parameters:
+      type: object
+      properties: {}
+      additionalProperties: false
+    emits: [QueryModelDeclared]
+    output:
+      description: The query embedding model identity.
+      schema:
+        type: object
+        properties:
+          model: {type: string}
+    side_effects: []
+    reversibility:
+      classification: reversible
+      undo: noop
+    undo:
+      strategy: noop
+      description: Rendering a configured constant has no durable effect.
+    config:
+      signal: QueryModelDeclared
+      inputs: {}
+      template: |
+        {"model": "${CHATBOT_EMBEDDING_MODEL:-qwen3-embedding:8b}"}
+
   - name: route
     type: builtin
     init: invoke_llm

@@ -58,6 +58,105 @@ tools:
     config:
       rest_ref: rag{{ $i }}
       operation: rag{{ $i }}_query
+
+  - name: compare_model{{ $i }}
+    type: builtin
+    init: compare_state
+    visibility: internal
+    category: response
+    description: Compare RAG server {{ $i }} ({{ $unit.name }}) reported embedding model with the query embedding's model.
+    problem: |
+      A 400 from the RAG server only catches a vector the collection rejects, which is a
+      dimension mismatch. Two models of the same width produce a 200, so without this
+      comparison the turn composes chunks retrieved in a different embedding space than
+      the query (srd002 R3.3).
+    goals:
+      - Compare the query embedding model identity with the model this RAG reported.
+      - Emit a distinct signal for a matching and a differing identity so exclusion is a visible transition.
+    requirements:
+      input:
+        - Both operands are read from prior steps through command-state $from() addressing.
+      output:
+        - Output records the verdict and both compared identities.
+      errors:
+        - An unresolved operand emits CommandError, so the source degrades rather than being silently kept.
+    non_goals:
+      - Does not drop the chunks itself; the machine routes past the keep word for a differing identity.
+      - Does not call any provider.
+    parameters:
+      type: object
+      properties: {}
+      additionalProperties: false
+    emits: [ModelMatched, ModelDiffered, CommandError]
+    output:
+      description: The embedding-model comparison verdict.
+      schema:
+        type: object
+        properties:
+          verdict: {type: string}
+          left: {type: string}
+          right: {type: string}
+    side_effects: []
+    reversibility:
+      classification: reversible
+      undo: noop
+    undo:
+      strategy: noop
+      description: Comparing two command-state values has no durable effect.
+    config:
+      left: $from(declare_query_model).model
+      right: $from(rag_query{{ $i }}).mapped.embedding_model
+      matched: ModelMatched
+      differed: ModelDiffered
+
+  - name: keep_chunks{{ $i }}
+    type: builtin
+    init: compose
+    visibility: internal
+    category: response
+    description: Keep RAG server {{ $i }} ({{ $unit.name }}) chunks for composition after its embedding model matched.
+    problem: |
+      A machine transition alone cannot exclude a source, because the queried chunks stay
+      addressable in command state after a differing identity. The machine dispatches this
+      word only on the matching path, so the composed prompt reads chunks through a label
+      that exists only for a source that survived (srd002 R3.3).
+    goals:
+      - Republish this RAG's chunks under a label that exists only when the source survived.
+      - Leave an excluded or degraded source unresolved, which compose renders empty.
+    requirements:
+      input:
+        - The chunks are selected from rag_query{{ $i }} through command-state $from() addressing.
+      output:
+        - Output is a JSON object whose documents field carries the surviving chunks.
+      errors:
+        - Reached only after a matching comparison, so the selector resolves.
+    non_goals:
+      - Does not order, cap, or rewrite chunks.
+      - Does not decide whether the source survived; compare_model{{ $i }} and the machine do.
+    parameters:
+      type: object
+      properties: {}
+      additionalProperties: false
+    emits: [ChunksKept{{ $i }}]
+    output:
+      description: The surviving chunks from RAG server {{ $i }}.
+      schema:
+        type: object
+        properties:
+          documents: {type: array}
+    side_effects: []
+    reversibility:
+      classification: reversible
+      undo: noop
+    undo:
+      strategy: noop
+      description: Republishing chunks has no durable effect.
+    config:
+      signal: ChunksKept{{ $i }}
+      inputs:
+        documents: $from(rag_query{{ $i }}).mapped.documents
+      template: |
+        {{ printf "{\"documents\": {{ documents }}}" }}
 {{- end }}
 
   - name: compose_prompt
@@ -103,7 +202,7 @@ tools:
       inputs:
         message: $from(embed_query).carried.input
 {{- range $i, $unit := .Values.ragUnits }}
-        chunks{{ $i }}: $from(rag_query{{ $i }}).mapped.documents
+        chunks{{ $i }}: $from(keep_chunks{{ $i }}).documents
 {{- end }}
       template: |
         A user asked the following question:

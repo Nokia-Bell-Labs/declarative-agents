@@ -1,16 +1,24 @@
 name: chatbot-turn
 purpose: |-
   One request-scoped chat turn. The chat endpoint seeds this machine with the
-  request body (message and history). embed_query embeds the message once; rag_query0
-  then rag_query1 fan that one vector out sequentially to the declared RAG servers
-  (each reading it through command-state $from(embed_query)). A RAG that failed
-  (CommandError, degraded) or whose embedding model mismatched (a 400 mapped to
-  QueryRejected, excluded) routes on to the next RAG state, so degradation and
-  exclusion are visible machine transitions rather than a merge word; each RAG's
-  outcome stays in command state for the response-metadata step. compose_prompt then
-  builds a grounding prompt from the original message and the surviving per-RAG chunk
-  lists ($from(rag_query0)/$from(rag_query1), each under its own [ragN] header), an
-  unresolved source rendering empty. route then classifies the composed prompt to a
+  request body (message and history). embed_query embeds the message once and
+  declare_query_model puts the query embedding model identity into command state;
+  rag_query0 then rag_query1 fan that one vector out sequentially to the declared RAG
+  servers (each reading it through command-state $from(embed_query)). Each answered
+  RAG is then checked: compare_modelN compares the model that RAG reported with
+  $from(declare_query_model).model, and only a matching source reaches keep_chunksN,
+  which republishes its chunks under a label that exists only for a source that
+  survived. A RAG that failed (CommandError, degraded), whose vector the collection
+  rejected (a 400 mapped to QueryRejected, excluded), or whose embedding model
+  differed (ModelDiffered, excluded per srd002 R3.3) skips the keep and routes on, so
+  degradation and exclusion are visible machine transitions rather than a merge word;
+  each RAG's outcome stays in command state for the response-metadata step.
+  compose_prompt then builds a grounding prompt from the original message and the
+  surviving per-RAG chunk lists ($from(keep_chunks0)/$from(keep_chunks1), each under
+  its own [ragN] header), an unresolved source rendering empty. Reading the chunks
+  through the keep labels rather than $from(rag_queryN) is what makes exclusion
+  effective: an excluded source's chunks stay in command state, so a transition alone
+  would not keep them out of the prompt. route then classifies the composed prompt to a
   chat-LLM word ($tool over invoke_llm_fast and invoke_llm_deep) and the chosen word
   answers, reading the composed prompt through command-state $from(compose_prompt)
   (agent-core user_prompt_from) since the $tool dispatch passes the router tool call
@@ -21,12 +29,20 @@ purpose: |-
   failing the turn.
 initial_state: AwaitingRequest
 budget:
-  max_iterations: 10
+  # A fully grounded two-RAG turn now dispatches twelve words: embed, declare the
+  # query model, then per RAG a query, a model comparison, and a keep, then compose,
+  # route, parse, and answer. The previous ceiling of ten cut that turn short.
+  max_iterations: 20
 states:
   - {name: AwaitingRequest, meaning: Seeded by the trusted chat endpoint with the request body.}
   - {name: Embedding, meaning: The message is being embedded once at the embedding provider.}
+  - {name: DeclaringModel, meaning: The query embedding model identity is being put into command state for the per-RAG comparisons.}
   - {name: Retrieving0, meaning: The first RAG server is being queried with the message vector.}
+  - {name: Checking0, meaning: The first RAG's reported embedding model is being compared with the query embedding's model.}
+  - {name: Keeping0, meaning: The first RAG's chunks are being kept for composition after its embedding model matched.}
   - {name: Retrieving1, meaning: The second RAG server is being queried with the same vector.}
+  - {name: Checking1, meaning: The second RAG's reported embedding model is being compared with the query embedding's model.}
+  - {name: Keeping1, meaning: The second RAG's chunks are being kept for composition after its embedding model matched.}
   - {name: Composing, meaning: The grounding prompt is being composed from the message and the surviving per-RAG chunk lists.}
   - {name: Routing, meaning: The router classifier is picking a chat-LLM word for the composed prompt.}
   - {name: Parsing, meaning: The router response is being parsed into one chat-LLM tool call.}
@@ -40,7 +56,12 @@ signals:
   - {name: Seed, trigger: The chat endpoint starts a request-scoped turn.}
   - {name: QueryEmbedded, trigger: The provider returned the message embedding.}
   - {name: QueryResponded, trigger: The RAG server returned chunks.}
-  - {name: QueryRejected, trigger: The RAG server rejected the query embedding (embedding-space mismatch, a mapped 400); the source is excluded.}
+  - {name: QueryRejected, trigger: The RAG server rejected the query embedding (a mapped 400, which is a vector the collection would not accept); the source is excluded.}
+  - {name: QueryModelDeclared, trigger: The query embedding model identity is in command state.}
+  - {name: ModelMatched, trigger: The RAG's reported embedding model matches the query embedding's model; the source survives.}
+  - {name: ModelDiffered, trigger: The RAG's reported embedding model differs from the query embedding's model; the source is excluded (srd002 R3.3).}
+  - {name: ChunksKept0, trigger: The first RAG's chunks were kept for composition.}
+  - {name: ChunksKept1, trigger: The second RAG's chunks were kept for composition.}
   - {name: Composed, trigger: The grounding prompt was rendered.}
   - {name: LLMResponded, trigger: A model word produced a response.}
   - {name: ToolDone, trigger: The router response parsed to one chat-LLM tool call.}
@@ -50,14 +71,27 @@ signals:
 transitions:
   - {state: AwaitingRequest, signal: Seed,           next: Embedding,     action: embed_query}
   - {state: AwaitingRequest, signal: CommandError,   next: Failed}
-  - {state: Embedding,       signal: QueryEmbedded,  next: Retrieving0,   action: rag_query0}
+  - {state: Embedding,       signal: QueryEmbedded,  next: DeclaringModel, action: declare_query_model}
   - {state: Embedding,       signal: CommandError,   next: Failed}
-  - {state: Retrieving0,     signal: QueryResponded, next: Retrieving1,   action: rag_query1}
+  - {state: DeclaringModel,  signal: QueryModelDeclared, next: Retrieving0, action: rag_query0}
+  - {state: DeclaringModel,  signal: CommandError,   next: Failed}
+  # A queried source is checked before its chunks are kept. A source that failed
+  # (CommandError, degraded) or whose vector the collection rejected (a mapped 400,
+  # excluded) skips both the check and the keep, so its chunks never reach compose.
+  - {state: Retrieving0,     signal: QueryResponded, next: Checking0,     action: compare_model0}
   - {state: Retrieving0,     signal: CommandError,   next: Retrieving1,   action: rag_query1}
   - {state: Retrieving0,     signal: QueryRejected,  next: Retrieving1,   action: rag_query1}
-  - {state: Retrieving1,     signal: QueryResponded, next: Composing,     action: compose_prompt}
+  - {state: Checking0,       signal: ModelMatched,   next: Keeping0,      action: keep_chunks0}
+  - {state: Checking0,       signal: ModelDiffered,  next: Retrieving1,   action: rag_query1}
+  - {state: Checking0,       signal: CommandError,   next: Retrieving1,   action: rag_query1}
+  - {state: Keeping0,        signal: ChunksKept0,    next: Retrieving1,   action: rag_query1}
+  - {state: Retrieving1,     signal: QueryResponded, next: Checking1,     action: compare_model1}
   - {state: Retrieving1,     signal: CommandError,   next: Composing,     action: compose_prompt}
   - {state: Retrieving1,     signal: QueryRejected,  next: Composing,     action: compose_prompt}
+  - {state: Checking1,       signal: ModelMatched,   next: Keeping1,      action: keep_chunks1}
+  - {state: Checking1,       signal: ModelDiffered,  next: Composing,     action: compose_prompt}
+  - {state: Checking1,       signal: CommandError,   next: Composing,     action: compose_prompt}
+  - {state: Keeping1,        signal: ChunksKept1,    next: Composing,     action: compose_prompt}
   - {state: Composing,       signal: Composed,       next: Routing,       action: route}
   - {state: Composing,       signal: CommandError,   next: Routing,       action: route}
   - {state: Routing,         signal: LLMResponded,   next: Parsing,       action: parse_route}

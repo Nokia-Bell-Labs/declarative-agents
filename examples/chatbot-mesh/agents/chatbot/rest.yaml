@@ -69,7 +69,11 @@ rest:
               input: $.message
             carry_forward: [input]
           body:
-            model: qwen3-embedding:8b
+            # One environment reference names the query embedding model for both this
+            # request and declare_query_model, which puts that identity into command
+            # state for the per-RAG comparison (srd002 R3.3). Keep the two in step: a
+            # drift between them would compare against an identity nothing embedded with.
+            model: ${CHATBOT_EMBEDDING_MODEL:-qwen3-embedding:8b}
             prompt: "{{ params.input }}"
           success: {status: [200], signal: QueryEmbedded}
           response:

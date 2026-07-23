@@ -14,8 +14,9 @@ import (
 // TestChatbotFanOutCoGeneratedForNRags locks the chatbot request-machine fan-out
 // chain and the request-fanout rag_queryN words to the ragUnits list, so a values
 // change scales the fan-out breadth with the topology. A three-RAG render must
-// carry the full Retrieving0->1->2->Composing chain, one rag_queryN word per unit,
-// and a matching compose input per source.
+// carry the full Retrieving/Checking/Keeping chain through to Composing, one
+// rag_queryN, compare_modelN, and keep_chunksN word per unit, and a matching
+// compose input per source.
 func TestChatbotFanOutCoGeneratedForNRags(t *testing.T) {
 	if _, err := exec.LookPath("helm"); err != nil {
 		t.Skip("helm not on PATH")
@@ -40,35 +41,53 @@ func TestChatbotFanOutCoGeneratedForNRags(t *testing.T) {
 		t.Fatal("co-generated request-machine.yaml or request-fanout.yaml key not found")
 	}
 
-	// The chain: each RAG state routes on to the next; the last routes to Composing.
+	// The chain: an answered RAG is checked against the query embedding model
+	// before its chunks are kept, and every other outcome routes straight on to
+	// the next RAG; the last routes to Composing (srd002 R3.3, GH-765).
 	wantTransitions := []string{
-		"state: Embedding,       signal: QueryEmbedded,  next: Retrieving0,   action: rag_query0",
+		"state: Embedding,       signal: QueryEmbedded,  next: DeclaringModel, action: declare_query_model",
+		"state: DeclaringModel,  signal: QueryModelDeclared, next: Retrieving0, action: rag_query0",
+		"state: Retrieving0,     signal: QueryResponded, next: Checking0,  action: compare_model0",
 		"state: Retrieving0,     signal: QueryRejected,  next: Retrieving1, action: rag_query1",
+		"state: Checking0,       signal: ModelMatched,   next: Keeping0,   action: keep_chunks0",
+		"state: Checking0,       signal: ModelDiffered,  next: Retrieving1, action: rag_query1",
+		"state: Keeping0,        signal: ChunksKept0, next: Retrieving1, action: rag_query1",
 		"state: Retrieving1,     signal: CommandError,   next: Retrieving2, action: rag_query2",
-		"state: Retrieving2,     signal: QueryResponded, next: Composing, action: compose_prompt",
+		"state: Retrieving2,     signal: QueryResponded, next: Checking2,  action: compare_model2",
+		"state: Checking2,       signal: ModelDiffered,  next: Composing, action: compose_prompt",
+		"state: Keeping2,        signal: ChunksKept2, next: Composing, action: compose_prompt",
 	}
 	for _, tr := range wantTransitions {
 		if !strings.Contains(machine, tr) {
 			t.Errorf("co-generated machine missing transition: %s", tr)
 		}
 	}
-	if strings.Contains(machine, "Retrieving3") {
-		t.Error("co-generated machine has a Retrieving3 state for a three-RAG values set")
-	}
-	// One rag_queryN word and one compose input per unit.
-	for i := 0; i < 3; i++ {
-		if !strings.Contains(fanout, fmt.Sprintf("name: rag_query%d", i)) {
-			t.Errorf("co-generated fanout missing rag_query%d", i)
+	for _, state := range []string{"Retrieving3", "Checking3", "Keeping3"} {
+		if strings.Contains(machine, state) {
+			t.Errorf("co-generated machine has a %s state for a three-RAG values set", state)
 		}
-		if !strings.Contains(fanout, fmt.Sprintf("chunks%d: $from(rag_query%d).mapped.documents", i, i)) {
+	}
+	// One rag_queryN, compare_modelN, and keep_chunksN word per unit, and a
+	// compose input reading that unit through its keep label: composing from
+	// $from(rag_queryN) directly would keep an excluded source's chunks, since
+	// they stay addressable in command state after the exclusion.
+	for i := 0; i < 3; i++ {
+		for _, word := range []string{"rag_query", "compare_model", "keep_chunks"} {
+			if !strings.Contains(fanout, fmt.Sprintf("name: %s%d", word, i)) {
+				t.Errorf("co-generated fanout missing %s%d", word, i)
+			}
+		}
+		if !strings.Contains(fanout, fmt.Sprintf("chunks%d: $from(keep_chunks%d).documents", i, i)) {
 			t.Errorf("co-generated compose missing chunks%d input", i)
 		}
 		if !strings.Contains(fanout, fmt.Sprintf("[rag%d]", i)) {
 			t.Errorf("co-generated compose template missing [rag%d] header", i)
 		}
 	}
-	if strings.Contains(fanout, "name: rag_query3") {
-		t.Error("co-generated fanout has rag_query3 for a three-RAG values set")
+	for _, word := range []string{"rag_query3", "compare_model3", "keep_chunks3"} {
+		if strings.Contains(fanout, "name: "+word) {
+			t.Errorf("co-generated fanout has %s for a three-RAG values set", word)
+		}
 	}
 	// The runtime {{ chunksN }} template body must survive Helm rendering literally.
 	if !strings.Contains(fanout, "{{ chunks2 }}") {

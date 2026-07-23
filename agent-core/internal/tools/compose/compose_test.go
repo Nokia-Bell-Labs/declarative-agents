@@ -81,3 +81,52 @@ func TestComposeNoViewRendersEmptyAndReports(t *testing.T) {
 	require.Error(t, res.Err)
 	require.Equal(t, "[]", res.Output)
 }
+
+// TestComposeRendersResolvableJSONObject pins the contract the chatbot's
+// exclusion path depends on (GH-765): a compose word whose template renders a
+// JSON object republishes values that a later word can address with
+// $from(label).path. ResolveFromSelector requires the referenced step's output
+// to be a JSON object, so a template that renders a bare scalar or array would
+// not be addressable and the gate would silently resolve nothing.
+func TestComposeRendersResolvableJSONObject(t *testing.T) {
+	keep := Builder{
+		ToolName: "keep_chunks0",
+		Template: `{"documents": {{ documents }}}`,
+		Inputs:   map[string]string{"documents": "$from(rag_query0).mapped.documents"},
+		Signal:   "ChunksKept0",
+	}.Build(core.Result{})
+	keep.(core.CommandStateAware).SetCommandState(viewFrom(
+		core.Entry{CommandName: "rag_query0", Result: core.ResultDigest{
+			Output: `{"mapped":{"documents":["chunk about the rig","chunk about kind"]}}`}},
+	))
+
+	res := keep.Execute()
+	require.NoError(t, res.Err)
+	require.Equal(t, core.Signal("ChunksKept0"), res.Signal)
+
+	// The rendered output must itself be addressable by a later word.
+	view := viewFrom(core.Entry{CommandName: "keep_chunks0", Result: core.ResultDigest{Output: res.Output}})
+	value, err := core.ResolveFromSelector(view, "$from(keep_chunks0).documents")
+	require.NoError(t, err)
+	require.Equal(t, []interface{}{"chunk about the rig", "chunk about kind"}, value)
+}
+
+// TestComposeRendersResolvableConstantObject pins the same contract for a word
+// that renders a configured constant with no inputs, which is how the chatbot
+// puts its query embedding model identity into command state (GH-765).
+func TestComposeRendersResolvableConstantObject(t *testing.T) {
+	declare := Builder{
+		ToolName: "declare_query_model",
+		Template: `{"model": "qwen3-embedding:8b"}`,
+		Signal:   "QueryModelDeclared",
+	}.Build(core.Result{})
+	declare.(core.CommandStateAware).SetCommandState(viewFrom())
+
+	res := declare.Execute()
+	require.NoError(t, res.Err)
+
+	view := viewFrom(core.Entry{CommandName: "declare_query_model", Result: core.ResultDigest{Output: res.Output}})
+	value, err := core.ResolveFromSelector(view, "$from(declare_query_model).model")
+	require.NoError(t, err)
+	require.Equal(t, "qwen3-embedding:8b", value)
+}

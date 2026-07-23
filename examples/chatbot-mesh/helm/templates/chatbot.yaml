@@ -69,6 +69,14 @@ spec:
             # pod never does (srd013 R5.7, GH-728).
             - name: OLLAMA_URL
               value: {{ include "chatbot-mesh.llmURL" . | quote }}
+            # declare_query_model puts the query embedding model identity into
+            # command state for the per-RAG comparison, and it lives in the
+            # verbatim-mounted request declarations. Without this its packaged
+            # default would be compared against a deployment that embedded with a
+            # different model, excluding every source. The co-generated
+            # embed_query request body reads the same value (srd002 R3.3, GH-765).
+            - name: CHATBOT_EMBEDDING_MODEL
+              value: {{ .Values.chatbot.embeddingModel | quote }}
           ports:
             - {name: chat, containerPort: {{ .Values.chatbot.ports.chat }}}
             - {name: control, containerPort: {{ .Values.chatbot.ports.control }}}
