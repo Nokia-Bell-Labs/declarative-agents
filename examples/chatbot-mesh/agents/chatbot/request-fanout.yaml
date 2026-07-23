@@ -200,7 +200,7 @@ tools:
       inputs:
         documents: $from(rag_query0).mapped.documents
       template: |
-        {"documents": {{ documents }}}
+        {"documents": {{ documents }}, "outcome": "composed", "reason": ""}
 
   - name: compare_model1
     type: builtin
@@ -299,7 +299,367 @@ tools:
       inputs:
         documents: $from(rag_query1).mapped.documents
       template: |
-        {"documents": {{ documents }}}
+        {"documents": {{ documents }}, "outcome": "composed", "reason": ""}
+
+  - name: mark_excluded_model0
+    type: builtin
+    init: compose
+    visibility: internal
+    category: response
+    description: Record that the first RAG was excluded for an embedding-model mismatch.
+    problem: |
+      srd002 R3.3 requires the exclusion to be reported in the response metadata, so the reason must be recorded where the response can read it.
+    goals:
+      - Record this source's outcome under a label the response metadata reads.
+      - Keep the outcome a visible machine transition rather than an inference the client makes.
+    requirements:
+      input:
+        - The outcome is fixed by the transition that dispatched this word; no selector is read.
+      output:
+        - Output is a JSON object naming the outcome and its reason.
+      errors:
+        - Rendering a configured constant does not fail.
+    non_goals:
+      - Does not decide the outcome; the machine transition that reaches this word does.
+      - Does not call any provider.
+    parameters:
+      type: object
+      properties: {}
+      additionalProperties: false
+    emits: [SourceMarked0]
+    output:
+      description: This source's outcome for the response metadata.
+      schema:
+        type: object
+        properties:
+          outcome: {type: string}
+          reason: {type: string}
+    side_effects: []
+    reversibility:
+      classification: reversible
+      undo: noop
+    undo:
+      strategy: noop
+      description: Recording an outcome has no durable effect.
+    config:
+      signal: SourceMarked0
+      inputs: {}
+      template: |
+        {"outcome": "excluded", "reason": "embedding_model"}
+
+  - name: mark_rejected0
+    type: builtin
+    init: compose
+    visibility: internal
+    category: response
+    description: Record that the first RAG rejected the query vector.
+    problem: |
+      A mapped 400 excludes this source for a different reason than an identity mismatch, and R3.3 requires the two to be distinguishable in the response metadata.
+    goals:
+      - Record this source's outcome under a label the response metadata reads.
+      - Keep the outcome a visible machine transition rather than an inference the client makes.
+    requirements:
+      input:
+        - The outcome is fixed by the transition that dispatched this word; no selector is read.
+      output:
+        - Output is a JSON object naming the outcome and its reason.
+      errors:
+        - Rendering a configured constant does not fail.
+    non_goals:
+      - Does not decide the outcome; the machine transition that reaches this word does.
+      - Does not call any provider.
+    parameters:
+      type: object
+      properties: {}
+      additionalProperties: false
+    emits: [SourceMarked0]
+    output:
+      description: This source's outcome for the response metadata.
+      schema:
+        type: object
+        properties:
+          outcome: {type: string}
+          reason: {type: string}
+    side_effects: []
+    reversibility:
+      classification: reversible
+      undo: noop
+    undo:
+      strategy: noop
+      description: Recording an outcome has no durable effect.
+    config:
+      signal: SourceMarked0
+      inputs: {}
+      template: |
+        {"outcome": "excluded", "reason": "vector_rejected"}
+
+  - name: mark_degraded0
+    type: builtin
+    init: compose
+    visibility: internal
+    category: response
+    description: Record that the first RAG failed and the turn degraded without it.
+    problem: |
+      srd002 R3.2 requires a per-RAG failure to be noted in the response metadata rather than left as a silently thinner answer.
+    goals:
+      - Record this source's outcome under a label the response metadata reads.
+      - Keep the outcome a visible machine transition rather than an inference the client makes.
+    requirements:
+      input:
+        - The outcome is fixed by the transition that dispatched this word; no selector is read.
+      output:
+        - Output is a JSON object naming the outcome and its reason.
+      errors:
+        - Rendering a configured constant does not fail.
+    non_goals:
+      - Does not decide the outcome; the machine transition that reaches this word does.
+      - Does not call any provider.
+    parameters:
+      type: object
+      properties: {}
+      additionalProperties: false
+    emits: [SourceMarked0]
+    output:
+      description: This source's outcome for the response metadata.
+      schema:
+        type: object
+        properties:
+          outcome: {type: string}
+          reason: {type: string}
+    side_effects: []
+    reversibility:
+      classification: reversible
+      undo: noop
+    undo:
+      strategy: noop
+      description: Recording an outcome has no durable effect.
+    config:
+      signal: SourceMarked0
+      inputs: {}
+      template: |
+        {"outcome": "degraded", "reason": "query_failed"}
+
+  - name: mark_excluded_model1
+    type: builtin
+    init: compose
+    visibility: internal
+    category: response
+    description: Record that the second RAG was excluded for an embedding-model mismatch.
+    problem: |
+      srd002 R3.3 requires the exclusion to be reported in the response metadata, so the reason must be recorded where the response can read it.
+    goals:
+      - Record this source's outcome under a label the response metadata reads.
+      - Keep the outcome a visible machine transition rather than an inference the client makes.
+    requirements:
+      input:
+        - The outcome is fixed by the transition that dispatched this word; no selector is read.
+      output:
+        - Output is a JSON object naming the outcome and its reason.
+      errors:
+        - Rendering a configured constant does not fail.
+    non_goals:
+      - Does not decide the outcome; the machine transition that reaches this word does.
+      - Does not call any provider.
+    parameters:
+      type: object
+      properties: {}
+      additionalProperties: false
+    emits: [SourceMarked1]
+    output:
+      description: This source's outcome for the response metadata.
+      schema:
+        type: object
+        properties:
+          outcome: {type: string}
+          reason: {type: string}
+    side_effects: []
+    reversibility:
+      classification: reversible
+      undo: noop
+    undo:
+      strategy: noop
+      description: Recording an outcome has no durable effect.
+    config:
+      signal: SourceMarked1
+      inputs: {}
+      template: |
+        {"outcome": "excluded", "reason": "embedding_model"}
+
+  - name: mark_rejected1
+    type: builtin
+    init: compose
+    visibility: internal
+    category: response
+    description: Record that the second RAG rejected the query vector.
+    problem: |
+      A mapped 400 excludes this source for a different reason than an identity mismatch, and R3.3 requires the two to be distinguishable in the response metadata.
+    goals:
+      - Record this source's outcome under a label the response metadata reads.
+      - Keep the outcome a visible machine transition rather than an inference the client makes.
+    requirements:
+      input:
+        - The outcome is fixed by the transition that dispatched this word; no selector is read.
+      output:
+        - Output is a JSON object naming the outcome and its reason.
+      errors:
+        - Rendering a configured constant does not fail.
+    non_goals:
+      - Does not decide the outcome; the machine transition that reaches this word does.
+      - Does not call any provider.
+    parameters:
+      type: object
+      properties: {}
+      additionalProperties: false
+    emits: [SourceMarked1]
+    output:
+      description: This source's outcome for the response metadata.
+      schema:
+        type: object
+        properties:
+          outcome: {type: string}
+          reason: {type: string}
+    side_effects: []
+    reversibility:
+      classification: reversible
+      undo: noop
+    undo:
+      strategy: noop
+      description: Recording an outcome has no durable effect.
+    config:
+      signal: SourceMarked1
+      inputs: {}
+      template: |
+        {"outcome": "excluded", "reason": "vector_rejected"}
+
+  - name: mark_degraded1
+    type: builtin
+    init: compose
+    visibility: internal
+    category: response
+    description: Record that the second RAG failed and the turn degraded without it.
+    problem: |
+      srd002 R3.2 requires a per-RAG failure to be noted in the response metadata rather than left as a silently thinner answer.
+    goals:
+      - Record this source's outcome under a label the response metadata reads.
+      - Keep the outcome a visible machine transition rather than an inference the client makes.
+    requirements:
+      input:
+        - The outcome is fixed by the transition that dispatched this word; no selector is read.
+      output:
+        - Output is a JSON object naming the outcome and its reason.
+      errors:
+        - Rendering a configured constant does not fail.
+    non_goals:
+      - Does not decide the outcome; the machine transition that reaches this word does.
+      - Does not call any provider.
+    parameters:
+      type: object
+      properties: {}
+      additionalProperties: false
+    emits: [SourceMarked1]
+    output:
+      description: This source's outcome for the response metadata.
+      schema:
+        type: object
+        properties:
+          outcome: {type: string}
+          reason: {type: string}
+    side_effects: []
+    reversibility:
+      classification: reversible
+      undo: noop
+    undo:
+      strategy: noop
+      description: Recording an outcome has no durable effect.
+    config:
+      signal: SourceMarked1
+      inputs: {}
+      template: |
+        {"outcome": "degraded", "reason": "query_failed"}
+
+  - name: compose_response
+    type: builtin
+    init: compose
+    visibility: internal
+    category: response
+    description: Compose the chat response from the answer and each RAG source's outcome.
+    problem: |
+      srd002 R3.2 and R3.3 require a degraded or excluded source to be reported in the
+      response metadata, but the terminal response body selects only from the response
+      word's output, so the answer and the metadata have to reach it together. The
+      answer comes from whichever chat-LLM word the router dispatched, which no
+      $from(label) names, so it is read from the previous result.
+    goals:
+      - Pair the answer with one metadata entry per declared RAG source.
+      - Name each source's outcome and, for an exclusion, which of the two reasons applies.
+      - Report every source on every turn, so a fully grounded turn is distinguishable from a degraded one.
+    requirements:
+      input:
+        - The answer is the previous result; each source's outcome is selected from the word that marked it.
+      output:
+        - Output is a JSON object carrying the answer and the per-source metadata.
+      errors:
+        - Exactly one outcome word resolves per source; the other three are unresolved and render empty, which is how the concatenation yields that source's single outcome.
+    non_goals:
+      - Does not decide any outcome; the machine transitions and their marker words do.
+      - Does not alter the answer text.
+    parameters:
+      type: object
+      properties: {}
+      additionalProperties: false
+    emits: [ResponseComposed]
+    output:
+      description: The chat answer with per-source grounding metadata.
+      schema:
+        type: object
+        properties:
+          answer: {type: string}
+          metadata: {type: object}
+    side_effects: []
+    reversibility:
+      classification: reversible
+      undo: noop
+    undo:
+      strategy: noop
+      description: Composing a response has no durable effect.
+    config:
+      signal: ResponseComposed
+      inputs:
+        answer: $.
+        o_keep0: $from(keep_chunks0).outcome
+        o_model0: $from(mark_excluded_model0).outcome
+        o_vector0: $from(mark_rejected0).outcome
+        o_degraded0: $from(mark_degraded0).outcome
+        r_keep0: $from(keep_chunks0).reason
+        r_model0: $from(mark_excluded_model0).reason
+        r_vector0: $from(mark_rejected0).reason
+        r_degraded0: $from(mark_degraded0).reason
+        em0: $from(rag_query0).mapped.embedding_model
+        o_keep1: $from(keep_chunks1).outcome
+        o_model1: $from(mark_excluded_model1).outcome
+        o_vector1: $from(mark_rejected1).outcome
+        o_degraded1: $from(mark_degraded1).outcome
+        r_keep1: $from(keep_chunks1).reason
+        r_model1: $from(mark_excluded_model1).reason
+        r_vector1: $from(mark_rejected1).reason
+        r_degraded1: $from(mark_degraded1).reason
+        em1: $from(rag_query1).mapped.embedding_model
+        qmodel: $from(declare_query_model).model
+      template: |
+        {
+          "answer": {{ json answer }},
+          "metadata": {
+            "query_embedding_model": {{ json qmodel }},
+            "sources": [
+          {"name": "rag0", "outcome": "{{ o_keep0 }}{{ o_model0 }}{{ o_vector0 }}{{ o_degraded0 }}",
+           "reason": "{{ r_keep0 }}{{ r_model0 }}{{ r_vector0 }}{{ r_degraded0 }}",
+           "reported_embedding_model": {{ json em0 }}},
+          {"name": "rag1", "outcome": "{{ o_keep1 }}{{ o_model1 }}{{ o_vector1 }}{{ o_degraded1 }}",
+           "reason": "{{ r_keep1 }}{{ r_model1 }}{{ r_vector1 }}{{ r_degraded1 }}",
+           "reported_embedding_model": {{ json em1 }}}
+            ]
+          }
+        }
 
   - name: compose_prompt
     type: builtin

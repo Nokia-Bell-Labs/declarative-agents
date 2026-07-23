@@ -167,6 +167,10 @@ func (Integration) EmbeddingExclusion() error {
 		return fmt.Errorf("chat turn returned an empty answer")
 	}
 
+	if err := assertExclusionMetadata(resp); err != nil {
+		return err
+	}
+
 	prompt, err := composedPromptFromMockLog(exclusionURL(portEmbedding) + "/_mock/log")
 	if err != nil {
 		return err
@@ -179,7 +183,7 @@ func (Integration) EmbeddingExclusion() error {
 		return fmt.Errorf("the composed prompt lost the chunk from the matching source; the exclusion must drop only the mismatched one:\n%s", prompt)
 	}
 
-	fmt.Printf("integration:embeddingExclusion passed: %q excluded (reported %s), %q composed (reported %s)\n",
+	fmt.Printf("integration:embeddingExclusion passed: %q excluded (reported %s), %q composed (reported %s); metadata reports both outcomes\n",
 		exclusionExcludedChunk, exclusionForeignModel, exclusionKeptChunk, exclusionQueryModel)
 	return nil
 }
@@ -221,22 +225,73 @@ func startExclusionMocks(binary, coreRoot, mockProfile, work string) ([]func(boo
 	return stops, nil
 }
 
+// exclusionResponse is the chat response with its grounding metadata
+// (srd002 R3.2, R3.3).
+type exclusionResponse struct {
+	Answer   string `json:"answer"`
+	Metadata struct {
+		QueryEmbeddingModel string `json:"query_embedding_model"`
+		Sources             []struct {
+			Name                   string `json:"name"`
+			Outcome                string `json:"outcome"`
+			Reason                 string `json:"reason"`
+			ReportedEmbeddingModel string `json:"reported_embedding_model"`
+		} `json:"sources"`
+	} `json:"metadata"`
+}
+
 // postExclusionChatTurn posts one turn to the port-shifted chatbot. It does not
-// reuse postChatTurn, which addresses the shipped chat port.
-func postExclusionChatTurn(message string) (chatResponse, int, error) {
+// reuse postChatTurn, which addresses the shipped chat port and reads only the
+// answer.
+func postExclusionChatTurn(message string) (exclusionResponse, int, error) {
 	body, err := json.Marshal(map[string]string{"message": message})
 	if err != nil {
-		return chatResponse{}, 0, err
+		return exclusionResponse{}, 0, err
 	}
 	data, status, err := requestInference("POST", exclusionURL(portChat)+"/api/v1/chat", string(body), "chat turn")
 	if err != nil {
-		return chatResponse{}, status, err
+		return exclusionResponse{}, status, err
 	}
-	var resp chatResponse
+	var resp exclusionResponse
 	if err := json.Unmarshal(data, &resp); err != nil {
-		return chatResponse{}, status, fmt.Errorf("decode chat response: %w: %s", err, data)
+		return exclusionResponse{}, status, fmt.Errorf("decode chat response: %w: %s", err, data)
 	}
 	return resp, status, nil
+}
+
+// assertExclusionMetadata proves the response reports why each source did or did
+// not ground the answer (srd002 R3.2, R3.3). A reader must be able to tell an
+// embedding-model exclusion from a rejected vector and from a failed query
+// without inferring it from a thinner answer.
+func assertExclusionMetadata(resp exclusionResponse) error {
+	if len(resp.Metadata.Sources) != 2 {
+		return fmt.Errorf("response metadata reports %d sources, want 2: every declared source is reported on every turn", len(resp.Metadata.Sources))
+	}
+	if resp.Metadata.QueryEmbeddingModel != exclusionQueryModel {
+		return fmt.Errorf("metadata query_embedding_model = %q, want %q", resp.Metadata.QueryEmbeddingModel, exclusionQueryModel)
+	}
+	byName := map[string]struct{ outcome, reason, model string }{}
+	for _, s := range resp.Metadata.Sources {
+		byName[s.Name] = struct{ outcome, reason, model string }{s.Outcome, s.Reason, s.ReportedEmbeddingModel}
+	}
+	rag0, ok := byName["rag0"]
+	if !ok {
+		return fmt.Errorf("metadata names no rag0 source: %+v", resp.Metadata.Sources)
+	}
+	if rag0.outcome != "excluded" || rag0.reason != "embedding_model" {
+		return fmt.Errorf("rag0 metadata = {outcome: %q, reason: %q}, want an embedding_model exclusion: a rejected vector or a failed query must not read the same", rag0.outcome, rag0.reason)
+	}
+	if rag0.model != exclusionForeignModel {
+		return fmt.Errorf("rag0 reported_embedding_model = %q, want %q", rag0.model, exclusionForeignModel)
+	}
+	rag1, ok := byName["rag1"]
+	if !ok {
+		return fmt.Errorf("metadata names no rag1 source: %+v", resp.Metadata.Sources)
+	}
+	if rag1.outcome != "composed" {
+		return fmt.Errorf("rag1 metadata outcome = %q, want composed: a fully grounded source is reported too, not only the failures", rag1.outcome)
+	}
+	return nil
 }
 
 func stopAll(stops []func(bool) error) {

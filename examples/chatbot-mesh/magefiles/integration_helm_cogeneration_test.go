@@ -48,21 +48,27 @@ func TestChatbotFanOutCoGeneratedForNRags(t *testing.T) {
 		"state: Embedding,       signal: QueryEmbedded,  next: DeclaringModel, action: declare_query_model",
 		"state: DeclaringModel,  signal: QueryModelDeclared, next: Retrieving0, action: rag_query0",
 		"state: Retrieving0,     signal: QueryResponded, next: Checking0,  action: compare_model0",
-		"state: Retrieving0,     signal: QueryRejected,  next: Retrieving1, action: rag_query1",
+		"state: Retrieving0,     signal: QueryRejected,  next: Marking0,   action: mark_rejected0",
 		"state: Checking0,       signal: ModelMatched,   next: Keeping0,   action: keep_chunks0",
-		"state: Checking0,       signal: ModelDiffered,  next: Retrieving1, action: rag_query1",
+		"state: Checking0,       signal: ModelDiffered,  next: Marking0,   action: mark_excluded_model0",
+		"state: Retrieving0,     signal: CommandError,   next: Marking0,   action: mark_degraded0",
 		"state: Keeping0,        signal: ChunksKept0, next: Retrieving1, action: rag_query1",
-		"state: Retrieving1,     signal: CommandError,   next: Retrieving2, action: rag_query2",
+		"state: Marking0,        signal: SourceMarked0, next: Retrieving1, action: rag_query1",
+		"state: Retrieving1,     signal: CommandError,   next: Marking1,   action: mark_degraded1",
+		"state: Marking1,        signal: SourceMarked1, next: Retrieving2, action: rag_query2",
 		"state: Retrieving2,     signal: QueryResponded, next: Checking2,  action: compare_model2",
-		"state: Checking2,       signal: ModelDiffered,  next: Composing, action: compose_prompt",
+		"state: Checking2,       signal: ModelDiffered,  next: Marking2,   action: mark_excluded_model2",
 		"state: Keeping2,        signal: ChunksKept2, next: Composing, action: compose_prompt",
+		"state: Marking2,        signal: SourceMarked2, next: Composing, action: compose_prompt",
+		"state: Answering,       signal: LLMResponded,   next: Reporting,     action: compose_response",
+		"state: Reporting,       signal: ResponseComposed, next: LLMResponded",
 	}
 	for _, tr := range wantTransitions {
 		if !strings.Contains(machine, tr) {
 			t.Errorf("co-generated machine missing transition: %s", tr)
 		}
 	}
-	for _, state := range []string{"Retrieving3", "Checking3", "Keeping3"} {
+	for _, state := range []string{"Retrieving3", "Checking3", "Keeping3", "Marking3"} {
 		if strings.Contains(machine, state) {
 			t.Errorf("co-generated machine has a %s state for a three-RAG values set", state)
 		}
@@ -72,7 +78,7 @@ func TestChatbotFanOutCoGeneratedForNRags(t *testing.T) {
 	// $from(rag_queryN) directly would keep an excluded source's chunks, since
 	// they stay addressable in command state after the exclusion.
 	for i := 0; i < 3; i++ {
-		for _, word := range []string{"rag_query", "compare_model", "keep_chunks"} {
+		for _, word := range []string{"rag_query", "compare_model", "keep_chunks", "mark_excluded_model", "mark_rejected", "mark_degraded"} {
 			if !strings.Contains(fanout, fmt.Sprintf("name: %s%d", word, i)) {
 				t.Errorf("co-generated fanout missing %s%d", word, i)
 			}
@@ -84,7 +90,7 @@ func TestChatbotFanOutCoGeneratedForNRags(t *testing.T) {
 			t.Errorf("co-generated compose template missing [rag%d] header", i)
 		}
 	}
-	for _, word := range []string{"rag_query3", "compare_model3", "keep_chunks3"} {
+	for _, word := range []string{"rag_query3", "compare_model3", "keep_chunks3", "mark_degraded3"} {
 		if strings.Contains(fanout, "name: "+word) {
 			t.Errorf("co-generated fanout has %s for a three-RAG values set", word)
 		}

@@ -156,8 +156,226 @@ tools:
       inputs:
         documents: $from(rag_query{{ $i }}).mapped.documents
       template: |
-        {{ printf "{\"documents\": {{ documents }}}" }}
+        {{ printf "{\"documents\": {{ documents }}, \"outcome\": \"composed\", \"reason\": \"\"}" }}
+
+  - name: mark_excluded_model{{ $i }}
+    type: builtin
+    init: compose
+    visibility: internal
+    category: response
+    description: Record that RAG server {{ $i }} ({{ $unit.name }}) was excluded for an embedding-model mismatch.
+    problem: |
+      srd002 R3.3 requires the exclusion to be reported in the response metadata, so the
+      reason must be recorded where the response can read it.
+    goals:
+      - Record this source's outcome under a label the response metadata reads.
+      - Keep the outcome a visible machine transition rather than an inference the client makes.
+    requirements:
+      input:
+        - The outcome is fixed by the transition that dispatched this word; no selector is read.
+      output:
+        - Output is a JSON object naming the outcome and its reason.
+      errors:
+        - Rendering a configured constant does not fail.
+    non_goals:
+      - Does not decide the outcome; the machine transition that reaches this word does.
+      - Does not call any provider.
+    parameters:
+      type: object
+      properties: {}
+      additionalProperties: false
+    emits: [SourceMarked{{ $i }}]
+    output:
+      description: This source's outcome for the response metadata.
+      schema:
+        type: object
+        properties:
+          outcome: {type: string}
+          reason: {type: string}
+    side_effects: []
+    reversibility:
+      classification: reversible
+      undo: noop
+    undo:
+      strategy: noop
+      description: Recording an outcome has no durable effect.
+    config:
+      signal: SourceMarked{{ $i }}
+      inputs: {}
+      template: |
+        {{ printf "{\"outcome\": \"excluded\", \"reason\": \"embedding_model\"}" }}
+
+  - name: mark_rejected{{ $i }}
+    type: builtin
+    init: compose
+    visibility: internal
+    category: response
+    description: Record that RAG server {{ $i }} ({{ $unit.name }}) rejected the query vector.
+    problem: |
+      A mapped 400 excludes this source for a different reason than an identity mismatch,
+      and R3.3 requires the two to be distinguishable in the response metadata.
+    goals:
+      - Record this source's outcome under a label the response metadata reads.
+      - Keep the outcome a visible machine transition rather than an inference the client makes.
+    requirements:
+      input:
+        - The outcome is fixed by the transition that dispatched this word; no selector is read.
+      output:
+        - Output is a JSON object naming the outcome and its reason.
+      errors:
+        - Rendering a configured constant does not fail.
+    non_goals:
+      - Does not decide the outcome; the machine transition that reaches this word does.
+      - Does not call any provider.
+    parameters:
+      type: object
+      properties: {}
+      additionalProperties: false
+    emits: [SourceMarked{{ $i }}]
+    output:
+      description: This source's outcome for the response metadata.
+      schema:
+        type: object
+        properties:
+          outcome: {type: string}
+          reason: {type: string}
+    side_effects: []
+    reversibility:
+      classification: reversible
+      undo: noop
+    undo:
+      strategy: noop
+      description: Recording an outcome has no durable effect.
+    config:
+      signal: SourceMarked{{ $i }}
+      inputs: {}
+      template: |
+        {{ printf "{\"outcome\": \"excluded\", \"reason\": \"vector_rejected\"}" }}
+
+  - name: mark_degraded{{ $i }}
+    type: builtin
+    init: compose
+    visibility: internal
+    category: response
+    description: Record that RAG server {{ $i }} ({{ $unit.name }}) failed and the turn degraded without it.
+    problem: |
+      srd002 R3.2 requires a per-RAG failure to be noted in the response metadata rather
+      than left as a silently thinner answer.
+    goals:
+      - Record this source's outcome under a label the response metadata reads.
+      - Keep the outcome a visible machine transition rather than an inference the client makes.
+    requirements:
+      input:
+        - The outcome is fixed by the transition that dispatched this word; no selector is read.
+      output:
+        - Output is a JSON object naming the outcome and its reason.
+      errors:
+        - Rendering a configured constant does not fail.
+    non_goals:
+      - Does not decide the outcome; the machine transition that reaches this word does.
+      - Does not call any provider.
+    parameters:
+      type: object
+      properties: {}
+      additionalProperties: false
+    emits: [SourceMarked{{ $i }}]
+    output:
+      description: This source's outcome for the response metadata.
+      schema:
+        type: object
+        properties:
+          outcome: {type: string}
+          reason: {type: string}
+    side_effects: []
+    reversibility:
+      classification: reversible
+      undo: noop
+    undo:
+      strategy: noop
+      description: Recording an outcome has no durable effect.
+    config:
+      signal: SourceMarked{{ $i }}
+      inputs: {}
+      template: |
+        {{ printf "{\"outcome\": \"degraded\", \"reason\": \"query_failed\"}" }}
 {{- end }}
+
+  - name: compose_response
+    type: builtin
+    init: compose
+    visibility: internal
+    category: response
+    description: Compose the chat response from the answer and each RAG source's outcome.
+    problem: |
+      srd002 R3.2 and R3.3 require a degraded or excluded source to be reported in the
+      response metadata, but the terminal response body selects only from the response
+      word's output, so the answer and the metadata have to reach it together. The
+      answer comes from whichever chat-LLM word the router dispatched, which no
+      $from(label) names, so it is read from the previous result.
+    goals:
+      - Pair the answer with one metadata entry per declared RAG source.
+      - Name each source's outcome and, for an exclusion, which of the two reasons applies.
+      - Report every source on every turn, so a fully grounded turn is distinguishable from a degraded one.
+    requirements:
+      input:
+        - The answer is the previous result; each source's outcome is selected from the word that marked it.
+      output:
+        - Output is a JSON object carrying the answer and the per-source metadata.
+      errors:
+        - Exactly one outcome word resolves per source; the other three are unresolved and render empty, which is how the concatenation yields that source's single outcome.
+    non_goals:
+      - Does not decide any outcome; the machine transitions and their marker words do.
+      - Does not alter the answer text.
+    parameters:
+      type: object
+      properties: {}
+      additionalProperties: false
+    emits: [ResponseComposed]
+    output:
+      description: The chat answer with per-source grounding metadata.
+      schema:
+        type: object
+        properties:
+          answer: {type: string}
+          metadata: {type: object}
+    side_effects: []
+    reversibility:
+      classification: reversible
+      undo: noop
+    undo:
+      strategy: noop
+      description: Composing a response has no durable effect.
+    config:
+      signal: ResponseComposed
+      inputs:
+        answer: $.
+{{- range $i, $unit := .Values.ragUnits }}
+        o_keep{{ $i }}: $from(keep_chunks{{ $i }}).outcome
+        o_model{{ $i }}: $from(mark_excluded_model{{ $i }}).outcome
+        o_vector{{ $i }}: $from(mark_rejected{{ $i }}).outcome
+        o_degraded{{ $i }}: $from(mark_degraded{{ $i }}).outcome
+        r_keep{{ $i }}: $from(keep_chunks{{ $i }}).reason
+        r_model{{ $i }}: $from(mark_excluded_model{{ $i }}).reason
+        r_vector{{ $i }}: $from(mark_rejected{{ $i }}).reason
+        r_degraded{{ $i }}: $from(mark_degraded{{ $i }}).reason
+        em{{ $i }}: $from(rag_query{{ $i }}).mapped.embedding_model
+{{- end }}
+        qmodel: $from(declare_query_model).model
+      template: |
+        {
+          "answer": {{ printf "{{ json answer }}" }},
+          "metadata": {
+            "query_embedding_model": {{ printf "{{ json qmodel }}" }},
+            "sources": [
+{{- range $i, $unit := .Values.ragUnits }}
+{{- $comma := "," }}{{ if eq $i (sub (len $.Values.ragUnits) 1) }}{{ $comma = "" }}{{ end }}
+              {"name": "{{ $unit.name }}", "outcome": "{{ printf "{{ o_keep%d }}{{ o_model%d }}{{ o_vector%d }}{{ o_degraded%d }}" $i $i $i $i }}",
+               "reason": "{{ printf "{{ r_keep%d }}{{ r_model%d }}{{ r_vector%d }}{{ r_degraded%d }}" $i $i $i $i }}",
+               "reported_embedding_model": {{ printf "{{ json em%d }}" $i }}}{{ $comma }}
+{{- end }}
+            ]
+          }
+        }
 
   - name: compose_prompt
     type: builtin

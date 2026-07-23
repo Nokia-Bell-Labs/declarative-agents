@@ -40,13 +40,16 @@ states:
   - {name: Retrieving0, meaning: The first RAG server is being queried with the message vector.}
   - {name: Checking0, meaning: The first RAG's reported embedding model is being compared with the query embedding's model.}
   - {name: Keeping0, meaning: The first RAG's chunks are being kept for composition after its embedding model matched.}
+  - {name: Marking0, meaning: The first RAG's non-composed outcome (excluded or degraded) is being recorded for the response metadata.}
   - {name: Retrieving1, meaning: The second RAG server is being queried with the same vector.}
   - {name: Checking1, meaning: The second RAG's reported embedding model is being compared with the query embedding's model.}
   - {name: Keeping1, meaning: The second RAG's chunks are being kept for composition after its embedding model matched.}
+  - {name: Marking1, meaning: The second RAG's non-composed outcome (excluded or degraded) is being recorded for the response metadata.}
   - {name: Composing, meaning: The grounding prompt is being composed from the message and the surviving per-RAG chunk lists.}
   - {name: Routing, meaning: The router classifier is picking a chat-LLM word for the composed prompt.}
   - {name: Parsing, meaning: The router response is being parsed into one chat-LLM tool call.}
   - {name: Answering, meaning: The chosen chat-LLM word is answering over the composed prompt.}
+  - {name: Reporting, meaning: The answer and each source's outcome are being composed into the chat response.}
   - {name: LLMResponded, meaning: Terminal. A grounded answer is ready for the HTTP response.}
   - {name: Failed, meaning: Terminal. An embedding or model boundary word failed.}
 terminal_states:
@@ -62,6 +65,9 @@ signals:
   - {name: ModelDiffered, trigger: The RAG's reported embedding model differs from the query embedding's model; the source is excluded (srd002 R3.3).}
   - {name: ChunksKept0, trigger: The first RAG's chunks were kept for composition.}
   - {name: ChunksKept1, trigger: The second RAG's chunks were kept for composition.}
+  - {name: SourceMarked0, trigger: The first RAG's non-composed outcome was recorded.}
+  - {name: SourceMarked1, trigger: The second RAG's non-composed outcome was recorded.}
+  - {name: ResponseComposed, trigger: The answer and the per-source metadata were composed into the response.}
   - {name: Composed, trigger: The grounding prompt was rendered.}
   - {name: LLMResponded, trigger: A model word produced a response.}
   - {name: ToolDone, trigger: The router response parsed to one chat-LLM tool call.}
@@ -79,19 +85,21 @@ transitions:
   # (CommandError, degraded) or whose vector the collection rejected (a mapped 400,
   # excluded) skips both the check and the keep, so its chunks never reach compose.
   - {state: Retrieving0,     signal: QueryResponded, next: Checking0,     action: compare_model0}
-  - {state: Retrieving0,     signal: CommandError,   next: Retrieving1,   action: rag_query1}
-  - {state: Retrieving0,     signal: QueryRejected,  next: Retrieving1,   action: rag_query1}
+  - {state: Retrieving0,     signal: CommandError,   next: Marking0,      action: mark_degraded0}
+  - {state: Retrieving0,     signal: QueryRejected,  next: Marking0,      action: mark_rejected0}
   - {state: Checking0,       signal: ModelMatched,   next: Keeping0,      action: keep_chunks0}
-  - {state: Checking0,       signal: ModelDiffered,  next: Retrieving1,   action: rag_query1}
-  - {state: Checking0,       signal: CommandError,   next: Retrieving1,   action: rag_query1}
+  - {state: Checking0,       signal: ModelDiffered,  next: Marking0,      action: mark_excluded_model0}
+  - {state: Checking0,       signal: CommandError,   next: Marking0,      action: mark_degraded0}
   - {state: Keeping0,        signal: ChunksKept0,    next: Retrieving1,   action: rag_query1}
+  - {state: Marking0,        signal: SourceMarked0,  next: Retrieving1,   action: rag_query1}
   - {state: Retrieving1,     signal: QueryResponded, next: Checking1,     action: compare_model1}
-  - {state: Retrieving1,     signal: CommandError,   next: Composing,     action: compose_prompt}
-  - {state: Retrieving1,     signal: QueryRejected,  next: Composing,     action: compose_prompt}
+  - {state: Retrieving1,     signal: CommandError,   next: Marking1,      action: mark_degraded1}
+  - {state: Retrieving1,     signal: QueryRejected,  next: Marking1,      action: mark_rejected1}
   - {state: Checking1,       signal: ModelMatched,   next: Keeping1,      action: keep_chunks1}
-  - {state: Checking1,       signal: ModelDiffered,  next: Composing,     action: compose_prompt}
-  - {state: Checking1,       signal: CommandError,   next: Composing,     action: compose_prompt}
+  - {state: Checking1,       signal: ModelDiffered,  next: Marking1,      action: mark_excluded_model1}
+  - {state: Checking1,       signal: CommandError,   next: Marking1,      action: mark_degraded1}
   - {state: Keeping1,        signal: ChunksKept1,    next: Composing,     action: compose_prompt}
+  - {state: Marking1,        signal: SourceMarked1,  next: Composing,     action: compose_prompt}
   - {state: Composing,       signal: Composed,       next: Routing,       action: route}
   - {state: Composing,       signal: CommandError,   next: Routing,       action: route}
   - {state: Routing,         signal: LLMResponded,   next: Parsing,       action: parse_route}
@@ -99,5 +107,11 @@ transitions:
   - {state: Parsing,         signal: ToolDone,       next: Answering,     action: $tool}
   - {state: Parsing,         signal: ParseFailed,    next: Answering,     action: invoke_llm_fast}
   - {state: Parsing,         signal: TaskCompleted,  next: Answering,     action: invoke_llm_fast}
-  - {state: Answering,       signal: LLMResponded,   next: LLMResponded}
+  - {state: Answering,       signal: LLMResponded,   next: Reporting,     action: compose_response}
   - {state: Answering,       signal: CommandError,   next: Failed}
+  # compose_response reports unresolved selectors for every source outcome that
+  # did not happen, which is by design: three of the four outcome words are
+  # absent for each source. Both signals therefore reach the terminal state, and
+  # the response is keyed by that state rather than by the signal.
+  - {state: Reporting,       signal: ResponseComposed, next: LLMResponded}
+  - {state: Reporting,       signal: CommandError,   next: LLMResponded}

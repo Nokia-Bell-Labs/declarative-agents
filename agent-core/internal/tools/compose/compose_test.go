@@ -214,3 +214,62 @@ func TestComposeRawFormUnchanged(t *testing.T) {
 	require.Contains(t, res.Output, "Q: what is x?")
 	require.Contains(t, res.Output, `Ctx: ["chunk-a"]`)
 }
+
+// TestComposePreviousResultSelector proves compose can read the previous
+// Result. The chatbot's answer comes from whichever chat-LLM word the router
+// dispatched, so no $from(label) names it (GH-766).
+func TestComposePreviousResultSelector(t *testing.T) {
+	answer := "The rig runs six scenarios.\nIt said \"passed\"."
+	cmd := Builder{
+		ToolName: "compose_response",
+		Template: `{"answer": {{ json answer }}, "model": {{ json model }}}`,
+		Inputs: map[string]string{
+			"answer": "$.",
+			"model":  "$from(declare_query_model).model",
+		},
+	}.Build(core.Result{Output: answer})
+	cmd.(core.CommandStateAware).SetCommandState(viewFrom(
+		core.Entry{CommandName: "declare_query_model", Result: core.ResultDigest{Output: `{"model":"qwen3-embedding:8b"}`}},
+	))
+
+	res := cmd.Execute()
+	require.NoError(t, res.Err)
+
+	var decoded struct {
+		Answer string `json:"answer"`
+		Model  string `json:"model"`
+	}
+	require.NoError(t, json.Unmarshal([]byte(res.Output), &decoded), "output: %s", res.Output)
+	require.Equal(t, answer, decoded.Answer, "the answer must survive verbatim, quotes and newlines included")
+	require.Equal(t, "qwen3-embedding:8b", decoded.Model)
+}
+
+// TestComposePreviousResultPath proves a $.path selector walks the previous
+// step's output when that output is a JSON object.
+func TestComposePreviousResultPath(t *testing.T) {
+	cmd := Builder{
+		ToolName: "c",
+		Template: "{{ v }}",
+		Inputs:   map[string]string{"v": "$.mapped.answer"},
+	}.Build(core.Result{Output: `{"mapped":{"answer":"forty-two"}}`})
+	cmd.(core.CommandStateAware).SetCommandState(viewFrom())
+
+	res := cmd.Execute()
+	require.NoError(t, res.Err)
+	require.Equal(t, "forty-two", res.Output)
+}
+
+// TestComposePreviousResultPathMissing proves a $.path that does not resolve is
+// reported like any other unresolved selector rather than silently passing.
+func TestComposePreviousResultPathMissing(t *testing.T) {
+	cmd := Builder{
+		ToolName: "c",
+		Template: "[{{ v }}]",
+		Inputs:   map[string]string{"v": "$.mapped.absent"},
+	}.Build(core.Result{Output: `{"mapped":{"answer":"x"}}`})
+	cmd.(core.CommandStateAware).SetCommandState(viewFrom())
+
+	res := cmd.Execute()
+	require.Error(t, res.Err)
+	require.Equal(t, "[]", res.Output)
+}

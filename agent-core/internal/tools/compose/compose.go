@@ -32,12 +32,13 @@ type Builder struct {
 
 // Build returns a compose command. The engine injects the command-state view
 // before dispatch (core.CommandStateAware).
-func (b Builder) Build(_ core.Result) core.Command {
+func (b Builder) Build(prev core.Result) core.Command {
 	return &composeCmd{
 		name:     b.ToolName,
 		template: b.Template,
 		inputs:   b.Inputs,
 		signal:   b.Signal,
+		prev:     prev,
 	}
 }
 
@@ -46,6 +47,7 @@ type composeCmd struct {
 	template string
 	inputs   map[string]string
 	signal   core.Signal
+	prev     core.Result
 	view     core.CommandStateView
 }
 
@@ -69,7 +71,7 @@ func (c *composeCmd) Execute() core.Result {
 	var missing []string
 	for _, key := range sortedKeys(c.inputs) {
 		selector := c.inputs[key]
-		value, err := core.ResolveFromSelector(c.view, selector)
+		value, err := c.resolve(selector)
 		if err != nil {
 			missing = append(missing, fmt.Sprintf("%s: %v", key, err))
 			value = ""
@@ -85,6 +87,41 @@ func (c *composeCmd) Execute() core.Result {
 		res.Err = fmt.Errorf("compose: unresolved selectors: %s", strings.Join(missing, "; "))
 	}
 	return res
+}
+
+// resolve reads one input selector. A $from(label).path selector reads a
+// labeled prior step; a $.path selector reads the previous Result, and a bare
+// $. reads that Result's output verbatim.
+//
+// The previous-result form exists because a word's output is not always
+// reachable by label: the chatbot's answer comes from whichever chat-LLM word
+// the router dispatched, so no single $from(label) names it (srd002 R2).
+func (c *composeCmd) resolve(selector string) (interface{}, error) {
+	if strings.HasPrefix(selector, "$from(") {
+		return core.ResolveFromSelector(c.view, selector)
+	}
+	// A bare $. is the whole previous output. ParseSelector requires a path, so
+	// this form is recognized here rather than there: the output of a model word
+	// is prose, not a JSON object with a path to walk.
+	if selector == "$." {
+		return c.prev.Output, nil
+	}
+	parsed, ok := core.ParseSelector(selector)
+	if !ok || parsed.Label != "" {
+		return nil, fmt.Errorf("selector %q is not a $. or $from(label).path selector", selector)
+	}
+	if len(parsed.Path) == 0 {
+		return c.prev.Output, nil
+	}
+	var decoded map[string]interface{}
+	if err := json.Unmarshal([]byte(c.prev.Output), &decoded); err != nil {
+		return nil, fmt.Errorf("selector %q: the previous step's output is not a JSON object", selector)
+	}
+	value, found := parsed.Resolve(decoded)
+	if !found {
+		return nil, fmt.Errorf("selector %q: path not found in the previous step's output", selector)
+	}
+	return value, nil
 }
 
 // substitute replaces a key's placeholders. "{{ key }}" inserts the value as

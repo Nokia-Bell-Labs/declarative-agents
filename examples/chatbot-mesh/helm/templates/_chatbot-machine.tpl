@@ -32,7 +32,7 @@ initial_state: AwaitingRequest
 budget:
   # Nine fixed words (embed, declare the query model, compose, route, parse, answer
   # and headroom) plus three per RAG: the query, the model comparison, and the keep.
-  max_iterations: {{ add 9 (mul 3 (len .Values.ragUnits)) }}
+  max_iterations: {{ add 10 (mul 4 (len .Values.ragUnits)) }}
 states:
   - {name: AwaitingRequest, meaning: Seeded by the trusted chat endpoint with the request body.}
   - {name: Embedding, meaning: The message is being embedded once at the embedding provider.}
@@ -41,11 +41,13 @@ states:
   - {name: Retrieving{{ $i }}, meaning: RAG server {{ $i }} ({{ $unit.name }}) is being queried with the message vector.}
   - {name: Checking{{ $i }}, meaning: RAG server {{ $i }} ({{ $unit.name }}) reported embedding model is being compared with the query embedding's model.}
   - {name: Keeping{{ $i }}, meaning: RAG server {{ $i }} ({{ $unit.name }}) chunks are being kept for composition after its embedding model matched.}
+  - {name: Marking{{ $i }}, meaning: RAG server {{ $i }} ({{ $unit.name }}) non-composed outcome (excluded or degraded) is being recorded for the response metadata.}
 {{- end }}
   - {name: Composing, meaning: The grounding prompt is being composed from the message and the surviving per-RAG chunk lists.}
   - {name: Routing, meaning: The router classifier is picking a chat-LLM word for the composed prompt.}
   - {name: Parsing, meaning: The router response is being parsed into one chat-LLM tool call.}
   - {name: Answering, meaning: The chosen chat-LLM word is answering over the composed prompt.}
+  - {name: Reporting, meaning: The answer and each source outcome are being composed into the chat response.}
   - {name: LLMResponded, meaning: Terminal. A grounded answer is ready for the HTTP response.}
   - {name: Failed, meaning: Terminal. An embedding or model boundary word failed.}
 terminal_states:
@@ -61,7 +63,9 @@ signals:
   - {name: ModelDiffered, trigger: The RAG's reported embedding model differs from the query embedding's model; the source is excluded (srd002 R3.3).}
 {{- range $i, $unit := .Values.ragUnits }}
   - {name: ChunksKept{{ $i }}, trigger: RAG server {{ $i }} ({{ $unit.name }}) chunks were kept for composition.}
+  - {name: SourceMarked{{ $i }}, trigger: RAG server {{ $i }} ({{ $unit.name }}) non-composed outcome was recorded.}
 {{- end }}
+  - {name: ResponseComposed, trigger: The answer and the per-source metadata were composed into the response.}
   - {name: Composed, trigger: The grounding prompt was rendered.}
   - {name: LLMResponded, trigger: A model word produced a response.}
   - {name: ToolDone, trigger: The router response parsed to one chat-LLM tool call.}
@@ -80,22 +84,24 @@ transitions:
 {{- $next := "Composing" }}
 {{- $act := "compose_prompt" }}
   - {state: Retrieving{{ $i }},     signal: QueryResponded, next: Checking{{ $i }},  action: compare_model{{ $i }}}
-  - {state: Retrieving{{ $i }},     signal: CommandError,   next: {{ $next }}, action: {{ $act }}}
-  - {state: Retrieving{{ $i }},     signal: QueryRejected,  next: {{ $next }}, action: {{ $act }}}
+  - {state: Retrieving{{ $i }},     signal: CommandError,   next: Marking{{ $i }},   action: mark_degraded{{ $i }}}
+  - {state: Retrieving{{ $i }},     signal: QueryRejected,  next: Marking{{ $i }},   action: mark_rejected{{ $i }}}
   - {state: Checking{{ $i }},       signal: ModelMatched,   next: Keeping{{ $i }},   action: keep_chunks{{ $i }}}
-  - {state: Checking{{ $i }},       signal: ModelDiffered,  next: {{ $next }}, action: {{ $act }}}
-  - {state: Checking{{ $i }},       signal: CommandError,   next: {{ $next }}, action: {{ $act }}}
+  - {state: Checking{{ $i }},       signal: ModelDiffered,  next: Marking{{ $i }},   action: mark_excluded_model{{ $i }}}
+  - {state: Checking{{ $i }},       signal: CommandError,   next: Marking{{ $i }},   action: mark_degraded{{ $i }}}
   - {state: Keeping{{ $i }},        signal: ChunksKept{{ $i }}, next: {{ $next }}, action: {{ $act }}}
+  - {state: Marking{{ $i }},        signal: SourceMarked{{ $i }}, next: {{ $next }}, action: {{ $act }}}
 {{- else }}
 {{- $next := printf "Retrieving%d" (add $i 1) }}
 {{- $act := printf "rag_query%d" (add $i 1) }}
   - {state: Retrieving{{ $i }},     signal: QueryResponded, next: Checking{{ $i }},  action: compare_model{{ $i }}}
-  - {state: Retrieving{{ $i }},     signal: CommandError,   next: {{ $next }}, action: {{ $act }}}
-  - {state: Retrieving{{ $i }},     signal: QueryRejected,  next: {{ $next }}, action: {{ $act }}}
+  - {state: Retrieving{{ $i }},     signal: CommandError,   next: Marking{{ $i }},   action: mark_degraded{{ $i }}}
+  - {state: Retrieving{{ $i }},     signal: QueryRejected,  next: Marking{{ $i }},   action: mark_rejected{{ $i }}}
   - {state: Checking{{ $i }},       signal: ModelMatched,   next: Keeping{{ $i }},   action: keep_chunks{{ $i }}}
-  - {state: Checking{{ $i }},       signal: ModelDiffered,  next: {{ $next }}, action: {{ $act }}}
-  - {state: Checking{{ $i }},       signal: CommandError,   next: {{ $next }}, action: {{ $act }}}
+  - {state: Checking{{ $i }},       signal: ModelDiffered,  next: Marking{{ $i }},   action: mark_excluded_model{{ $i }}}
+  - {state: Checking{{ $i }},       signal: CommandError,   next: Marking{{ $i }},   action: mark_degraded{{ $i }}}
   - {state: Keeping{{ $i }},        signal: ChunksKept{{ $i }}, next: {{ $next }}, action: {{ $act }}}
+  - {state: Marking{{ $i }},        signal: SourceMarked{{ $i }}, next: {{ $next }}, action: {{ $act }}}
 {{- end }}
 {{- end }}
   - {state: Composing,       signal: Composed,       next: Routing,       action: route}
@@ -105,6 +111,8 @@ transitions:
   - {state: Parsing,         signal: ToolDone,       next: Answering,     action: $tool}
   - {state: Parsing,         signal: ParseFailed,    next: Answering,     action: invoke_llm_fast}
   - {state: Parsing,         signal: TaskCompleted,  next: Answering,     action: invoke_llm_fast}
-  - {state: Answering,       signal: LLMResponded,   next: LLMResponded}
+  - {state: Answering,       signal: LLMResponded,   next: Reporting,     action: compose_response}
   - {state: Answering,       signal: CommandError,   next: Failed}
+  - {state: Reporting,       signal: ResponseComposed, next: LLMResponded}
+  - {state: Reporting,       signal: CommandError,   next: LLMResponded}
 {{- end -}}

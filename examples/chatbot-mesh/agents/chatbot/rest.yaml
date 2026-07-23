@@ -231,13 +231,19 @@ rest:
                 message: $.message
                 history: $.history
             response:
-              terminal_signals:
+              # Keyed by terminal state, not signal: compose_response reports the
+              # unresolved selectors for every source outcome that did not happen,
+              # so the turn can reach LLMResponded on either ResponseComposed or
+              # CommandError and both must map to the same 200 (rest-tool-format
+              # machine_request_response_mapping, GH-615).
+              terminal_states:
                 LLMResponded:
                   status: 200
                   content_type: application/json
                   body:
-                    answer: $.output
-                CommandError:
+                    answer: $.answer
+                    metadata: $.metadata
+                Failed:
                   status: 500
                   content_type: application/json
                   body:
