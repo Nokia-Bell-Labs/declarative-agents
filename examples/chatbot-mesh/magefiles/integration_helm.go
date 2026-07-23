@@ -248,14 +248,17 @@ func chartProfilePrograms() []chartProfileProgram {
 }
 
 // stageProfilePath copies one staging entry, whether it names a directory or a
-// single file.
+// single file, and prunes the test fixtures out of a staged directory.
 func stageProfilePath(src, dst string) error {
 	info, err := os.Stat(src)
 	if err != nil {
 		return fmt.Errorf("stage %s: %w", src, err)
 	}
 	if info.IsDir() {
-		return copyDirContents(src, dst)
+		if err := copyDirContents(src, dst); err != nil {
+			return err
+		}
+		return pruneStagedTests(dst)
 	}
 	if err := os.MkdirAll(filepath.Dir(dst), 0o755); err != nil {
 		return fmt.Errorf("create %s: %w", filepath.Dir(dst), err)
@@ -266,6 +269,41 @@ func stageProfilePath(src, dst string) error {
 	}
 	return nil
 }
+
+// pruneStagedTests removes the agent test fixtures a staged profile directory
+// carries. The rig fixtures under agents/<name>/tests -- mock LLM and RAG
+// definitions, scenarios, and their own profiles -- configure test doubles and
+// have no role at runtime, but every staged file becomes a ConfigMap key and a
+// projected mount item in *every* agent pod (profiles-configmap.yaml and
+// profilesVolume both glob profiles/**). Shipping them means production pods
+// mount mock service definitions and the ConfigMap grows with the test suite
+// rather than with the product.
+//
+// This is the pruning GH-702 did for the ux tree, which the epic GH-662 fixtures
+// reintroduced by arriving after it. It is done here rather than in
+// copyDirContents because that helper also copies the chart itself and
+// agent-core's tools, neither of which should learn what an agent fixture is.
+//
+// Pruning after the copy rather than filtering during it keeps one copy
+// mechanism and catches a tests directory at any depth, including one added
+// later.
+func pruneStagedTests(dst string) error {
+	return filepath.WalkDir(dst, func(path string, entry os.DirEntry, err error) error {
+		if err != nil {
+			return err
+		}
+		if !entry.IsDir() || entry.Name() != stagedTestsDir {
+			return nil
+		}
+		if err := os.RemoveAll(path); err != nil {
+			return fmt.Errorf("prune staged tests %s: %w", path, err)
+		}
+		return filepath.SkipDir
+	})
+}
+
+// stagedTestsDir is the directory name an agent keeps its rig fixtures under.
+const stagedTestsDir = "tests"
 
 func copyDirContents(src, dst string) error {
 	if err := os.MkdirAll(dst, 0o755); err != nil {
