@@ -197,7 +197,10 @@ func TestValuePredicateRegistrationRejectsMalformedConfig(t *testing.T) {
 		{"missing left operand", "", OpGt, "1", "", "Yes", "No", "left operand"},
 		{"binary operator with no right operand", "$.v", OpGt, "", "", "Yes", "No", "right operand"},
 		{"unknown operand type", "$.v", OpGt, "1", "decimal", "Yes", "No", "operand type"},
-		{"command-state operand", "$from(step).v", OpGt, "1", "", "Yes", "No", "command state"},
+		// A $from operand is accepted since GH-774, but a malformed one still
+		// fails at registration rather than at dispatch.
+		{"empty from label", "$from().v", OpGt, "1", "", "Yes", "No", "$from(label).path"},
+		{"from selector with no path", "$from(step)", OpGt, "1", "", "Yes", "No", "$from(label).path"},
 	} {
 		t.Run(tc.name, func(t *testing.T) {
 			err := ValidateValuePredicateConfig("countIsPositive", tc.left, tc.op, tc.right, tc.operandType, tc.yes, tc.no)
@@ -249,5 +252,113 @@ func TestValuePredicateDrivesTwoTransitions(t *testing.T) {
 	undo := cmd.Undo(ingested)
 	if undo.Signal != core.NoopUndo("predicate").Signal {
 		t.Errorf("undo signal = %s, want the noop undo signal", undo.Signal)
+	}
+}
+
+// stubView is a command-state view over fixed labelled step outputs.
+type stubView map[string]string
+
+func (v stubView) Lookup(label string) (string, bool) { out, ok := v[label]; return out, ok }
+
+// runWithView dispatches the predicate with a command-state view attached, the
+// way the engine injects one before dispatch.
+func runWithView(t *testing.T, prevOutput string, view core.CommandStateView, b ValuePredicateBuilder) core.Result {
+	t.Helper()
+	b.ToolName = "predicate"
+	b.Satisfied = sigYes
+	b.Unsatisfied = sigNo
+	cmd := b.Build(core.Result{Output: prevOutput})
+	cmd.(core.CommandStateAware).SetCommandState(view)
+	return cmd.Execute()
+}
+
+// TestValuePredicateComparesAcrossAnInterveningWord is the case GH-774 exists
+// for. A predicate compares a value from an earlier labelled step against one
+// from the previous Result, so a machine can measure a delta across a word whose
+// Result carries nothing forward -- an exec word running a child, for instance.
+// Before this, the earlier value was unreachable and only the collection total
+// could be judged.
+func TestValuePredicateComparesAcrossAnInterveningWord(t *testing.T) {
+	view := stubView{"count_before": `{"mapped":{"count":"4"}}`}
+
+	// The run wrote documents: after (6) is greater than before (4).
+	grew := runWithView(t, `{"mapped":{"count":"6"}}`, view, ValuePredicateBuilder{
+		Left: "$.mapped.count", Op: OpGt, Right: "$from(count_before).mapped.count",
+	})
+	if grew.Signal != sigYes {
+		t.Errorf("6 > 4 across the step boundary = %s, want %s (output %q)", grew.Signal, sigYes, grew.Output)
+	}
+
+	// The run wrote nothing: the collection is unchanged, which a total-only
+	// comparison against zero would have reported as success.
+	unchanged := runWithView(t, `{"mapped":{"count":"4"}}`, view, ValuePredicateBuilder{
+		Left: "$.mapped.count", Op: OpGt, Right: "$from(count_before).mapped.count",
+	})
+	if unchanged.Signal != sigNo {
+		t.Errorf("4 > 4 across the step boundary = %s, want %s; an unchanged collection means the run wrote nothing",
+			unchanged.Signal, sigNo)
+	}
+
+	// Both operands may address earlier steps.
+	both := runWithView(t, "", stubView{
+		"count_before": `{"mapped":{"count":"1"}}`,
+		"count_after":  `{"mapped":{"count":"9"}}`,
+	}, ValuePredicateBuilder{
+		Left: "$from(count_after).mapped.count", Op: OpGt, Right: "$from(count_before).mapped.count",
+	})
+	if both.Signal != sigYes {
+		t.Errorf("9 > 1 with two $from operands = %s, want %s", both.Signal, sigYes)
+	}
+}
+
+// TestValuePredicateUnreachableLabelIsAFault proves the failure separation holds
+// for the new operand form too. A label that never ran must not read as a false
+// comparison, exactly as a mistyped path must not (srd041 R4.2).
+func TestValuePredicateUnreachableLabelIsAFault(t *testing.T) {
+	for _, tc := range []struct {
+		name, wantInText string
+		view             core.CommandStateView
+		builder          ValuePredicateBuilder
+	}{
+		{
+			name:       "no step carries the label",
+			view:       stubView{"other_step": `{"mapped":{"count":"4"}}`},
+			builder:    ValuePredicateBuilder{Left: "$.mapped.count", Op: OpGt, Right: "$from(count_before).mapped.count"},
+			wantInText: "count_before",
+		},
+		{
+			name:       "the labelled step lacks the path",
+			view:       stubView{"count_before": `{"mapped":{}}`},
+			builder:    ValuePredicateBuilder{Left: "$.mapped.count", Op: OpGt, Right: "$from(count_before).mapped.count"},
+			wantInText: "not found",
+		},
+		{
+			name:       "no view is configured",
+			view:       nil,
+			builder:    ValuePredicateBuilder{Left: "$.mapped.count", Op: OpGt, Right: "$from(count_before).mapped.count"},
+			wantInText: "command-state view",
+		},
+	} {
+		t.Run(tc.name, func(t *testing.T) {
+			got := runWithView(t, `{"mapped":{"count":"6"}}`, tc.view, tc.builder)
+			if got.Signal != core.CommandError {
+				t.Fatalf("signal = %s, want CommandError; an unreachable label must not answer as a comparison", got.Signal)
+			}
+			if got.Signal == sigNo {
+				t.Error("an unreachable label was reported as the unsatisfied signal, the silent failure R4.2 rules out")
+			}
+			if !strings.Contains(got.Output, tc.wantInText) {
+				t.Errorf("output %q does not explain the failure (want %q)", got.Output, tc.wantInText)
+			}
+		})
+	}
+}
+
+// TestValuePredicatePreviousResultOperandsStillWork proves the original operand
+// form is unchanged by the addition.
+func TestValuePredicatePreviousResultOperandsStillWork(t *testing.T) {
+	got := run(t, `{"mapped":{"count":"6"}}`, ValuePredicateBuilder{Left: "$.mapped.count", Op: OpGt, Right: "0"})
+	if got.Signal != sigYes {
+		t.Errorf("previous-Result operand = %s, want %s", got.Signal, sigYes)
 	}
 }

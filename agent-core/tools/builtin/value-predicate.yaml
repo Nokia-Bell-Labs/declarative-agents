@@ -24,7 +24,7 @@ tools:
   non_goals:
   - Does not transform operands; it compares them and does nothing else.
   - Does not combine several comparisons; a machine composes predicate words across states so each branch stays a visible transition.
-  - Does not read command state; operands resolve against the previous Result, and a $from(label) operand is refused at registration.
+  - Does not record or label steps itself; it reads what command state already holds, so reaching an earlier step needs that step to carry a label.
   parameters:
     type: object
     properties: {}
@@ -56,7 +56,12 @@ tools:
     - the word whose Result the operands select from
   config:
     # The operands, the comparison, and both outcome signal names. left and
-    # right are selectors when they begin with "$." and literals otherwise.
+    # right resolve against the previous Result when they begin with "$.",
+    # against an earlier labelled step when they begin with "$from(", and are
+    # literals otherwise. The $from form is what lets a predicate compare across
+    # a word whose Result carries nothing forward -- an exec word running a
+    # child, for instance -- which is how a machine measures a change rather
+    # than a level (GH-774).
     # operand_type defaults to number when absent, so a count that arrives from
     # a REST read as the string "6" compares as six rather than as text.
     # The values below are a valid default so the declaration loads standalone;
