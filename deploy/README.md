@@ -11,6 +11,10 @@ links resolve.
   [`examples/chatbot-mesh/README.md`](../examples/chatbot-mesh/README.md).
 - The Helm chart, its values schema, and the values-to-config co-generation:
   [`examples/chatbot-mesh/helm/README.md`](../examples/chatbot-mesh/helm/README.md).
+- The browser prerequisite for driving any UI headless (we use `puppeteer-core`,
+  so the host supplies Chrome and names it in `PUPPETEER_EXECUTABLE_PATH` or
+  `CHROME_BIN`):
+  [`agent-core/README.md`](../agent-core/README.md#browser-end-to-end-tests).
 
 The control-plane deployment API is the executor
 ([srd006](../examples/chatbot-mesh/docs/specs/software-requirements/srd006-executor.yaml)),

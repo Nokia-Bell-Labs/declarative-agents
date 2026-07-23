@@ -281,6 +281,46 @@ release, `docker run --rm agent-core:latest --help` started the packaged
 `agent` binary, and `docker run --rm agent-core:latest` reported that
 `--profile` is required.
 
+## Browser End-to-End Tests
+
+The documentation-curator UI carries the repository's only browser test suite,
+under `internal/knowledge/documentation/ui`. We depend on `puppeteer-core`
+rather than `puppeteer`, so npm downloads no browser. The host supplies one,
+and the test reads its path from `PUPPETEER_EXECUTABLE_PATH`, falling back to
+`CHROME_BIN`. Table 1 lists what a machine needs before the suite runs.
+
+Table 1: Browser test prerequisites
+
+| Requirement | Detail |
+|---|---|
+| Node dependencies | `npm ci` inside `internal/knowledge/documentation/ui` |
+| A browser | System Chrome or Chromium, installed by the host |
+| Browser path | `PUPPETEER_EXECUTABLE_PATH`, or `CHROME_BIN` as the fallback |
+
+Run the suite from inside the package directory:
+
+```bash
+cd internal/knowledge/documentation/ui
+npm ci
+export PUPPETEER_EXECUTABLE_PATH="/Applications/Google Chrome.app/Contents/MacOS/Google Chrome"
+npm run test:e2e:machine-request
+```
+
+Two details cost more time than they should. The scripts are ES modules, and
+ES module resolution ignores `NODE_PATH`, so a script that lives outside the
+package cannot reach its `node_modules` that way; run it from the package
+directory, or point its import at an absolute path. And `puppeteer-core`
+launches nothing without `executablePath`, so a missing browser variable
+surfaces as a launch failure rather than as a clear missing-configuration
+message. The suite checks the variable itself and fails with
+`PUPPETEER_EXECUTABLE_PATH or CHROME_BIN is required`.
+
+We choose `puppeteer-core` deliberately. The full `puppeteer` package
+downloads its own Chromium on every install, which we do not want in CI images
+or on developer machines that already carry a browser. Adding `puppeteer` to
+resolve a missing-browser error reverses that choice; set the path variable
+instead.
+
 ## Installation
 
 ```bash
