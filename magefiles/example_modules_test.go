@@ -33,12 +33,29 @@ func TestChatbotMeshIsAnExampleModule(t *testing.T) {
 }
 
 // TestExampleModulesExcludedFromSubModules proves example modules do not enter
-// the Build, Stats, and All gates, which iterate subModules and would fail on a
-// module that defines no build/stats/default target.
+// the Build and All gates, which iterate subModules and would fail on a module
+// that defines no build/default target.
 func TestExampleModulesExcludedFromSubModules(t *testing.T) {
 	for _, mod := range exampleModules {
 		if contains(subModules, mod) {
-			t.Fatalf("subModules must not contain example module %q (it has no build/stats target)", mod)
+			t.Fatalf("subModules must not contain example module %q (it has no build target)", mod)
+		}
+	}
+}
+
+// TestStatsParticipantsIncludeExampleModules proves the root stats gate
+// dispatches to the example modules, so the repo-wide agents total cannot
+// silently drop the example agents (GH-754).
+func TestStatsParticipantsIncludeExampleModules(t *testing.T) {
+	participants := statsParticipants()
+	for _, mod := range exampleModules {
+		if !contains(participants, mod) {
+			t.Fatalf("statsParticipants() = %#v, missing example module %q", participants, mod)
+		}
+	}
+	for _, mod := range subModules {
+		if !contains(participants, mod) {
+			t.Fatalf("statsParticipants() = %#v, missing sub-module %q", participants, mod)
 		}
 	}
 }
