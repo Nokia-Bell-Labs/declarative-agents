@@ -33,7 +33,7 @@ test_cases:
     name: Documentation curator profile UX and lifecycle tracer
     follow_up_issue: "#107"
     integration_target: mage integration:documentationCurator
-    go_test: go test ./magefiles -run 'TestPrepareDocumentationCuratorIntegrationWritesEphemeralProfile|TestDocumentationActionEndpointsUseMachineRequestBinding'
+    go_test: go test ./magefiles -run 'TestPrepareDocumentationCuratorIntegrationWritesEphemeralProfile|TestDocumentationActionEndpointsUseMachineRequestBinding|TestDocumentationPatchDecisionClientsMapMissingPatches'
     status: implemented
     description: |
       Run the concrete Knowledge Manager/documentation-curator proof from
@@ -49,6 +49,7 @@ test_cases:
     expected:
       terminal_signal: DocumentDetailReady
       action_terminal_signal: RESTResponded
+      missing_patch_terminal_signal: RESTMissing
       legacy_action_envelope_used: false
       trace_fields: [server, route, machine, terminal_signal, status]
       lifecycle_signal: ExitRequested

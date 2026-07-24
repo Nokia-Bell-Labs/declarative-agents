@@ -297,6 +297,23 @@ func TestStandaloneServerProxiesPatchActionsThroughRequestMachines(t *testing.T)
 	require.Equal(t, rejectPatchID, rejectData["patch_id"])
 	require.Equal(t, "rejected", rejectData["status"])
 	require.Equal(t, "reviewer", rejectData["decided_by"])
+
+	for _, action := range []struct {
+		name string
+		body string
+	}{
+		{name: "approve", body: `{"decided_by":"reviewer","note":"missing patch"}`},
+		{name: "reject", body: `{"decided_by":"reviewer","reason":"missing patch"}`},
+	} {
+		t.Run("missing_"+action.name, func(t *testing.T) {
+			missing := postDocsJSON(t, handler,
+				"/api/v1/actions/patches/patch-does-not-exist/"+action.name,
+				action.body)
+			require.Equal(t, http.StatusNotFound, missing.Code, missing.Body.String())
+			require.Contains(t, missing.Body.String(), `"error":"patch_missing"`)
+			requireActionMachineTrace(t, missing.Body.Bytes(), action.name+"_action", "RESTMissing")
+		})
+	}
 }
 
 func TestStandaloneServerRejectsLegacyActionEnvelope(t *testing.T) {

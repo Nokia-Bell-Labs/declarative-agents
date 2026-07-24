@@ -253,6 +253,9 @@ rest:
             status: [200, 202]
             signal: RESTResponded
             response_ref: patch_decision
+          failures:
+            - status: [404]
+              signal: RESTMissing
           response_ref: patch_decision
           side_effects:
             - kind: external_api
@@ -286,6 +289,9 @@ rest:
             status: [200, 202]
             signal: RESTResponded
             response_ref: patch_decision
+          failures:
+            - status: [404]
+              signal: RESTMissing
           response_ref: patch_decision
           side_effects:
             - kind: external_api

@@ -1249,8 +1249,9 @@ test_cases:
       Post browser-shaped validation, suggestion, approval, and rejection
       requests through the documentation host. The same-origin proxy must
       return each configured request-machine trace, and the shared PatchStore
-      must retain suggestions across the short-lived action machines. The
-      removed generic action envelope returns 404.
+      must retain suggestions across the short-lived action machines. Unknown
+      patch IDs must route through RESTMissing to the configured 404 response,
+      while the removed generic action envelope also returns 404.
     inputs:
       configured_routes:
         - POST /api/v1/actions/validate
@@ -1267,6 +1268,9 @@ test_cases:
       suggestion_terminal_signal: RESTAccepted
       approval_terminal_signal: RESTResponded
       rejection_terminal_signal: RESTResponded
+      missing_patch_terminal_signal: RESTMissing
+      missing_patch_status: 404
+      missing_patch_error: patch_missing
       patch_store_survives_action_runs: true
       action_trace_present: true
       profile_wiring_test: TestDocumentationActionEndpointsUseMachineRequestBinding
