@@ -55,6 +55,23 @@ func agentProfileAsset(root, rel string) string {
 	return filepath.Join(root, filepath.FromSlash(rel))
 }
 
+// conformanceAsset resolves a fixture under the agent-profiles
+// testdata/conformance tree. GH-328 moved the rest/control/lifecycle fixture
+// families there from the agents tree, so harnesses resolve them against the
+// repository root rather than the profiles root. The profiles root is either
+// <repo>/agents or the repository root itself (normalizeAgentProfilesRoot
+// accepts both layouts), so probe both and fall back to the parent join so a
+// miss reports the expected location (GH-821).
+func conformanceAsset(profileRoot, rel string) string {
+	for _, base := range []string{filepath.Dir(profileRoot), profileRoot} {
+		path := filepath.Join(base, "testdata", "conformance", filepath.FromSlash(rel))
+		if _, err := os.Stat(path); err == nil {
+			return path
+		}
+	}
+	return filepath.Join(filepath.Dir(profileRoot), "testdata", "conformance", filepath.FromSlash(rel))
+}
+
 func resolveAgentProfilesRepoRoot(rootDir string) (string, error) {
 	for _, candidate := range agentProfileRootCandidates(rootDir) {
 		root := normalizeAgentProfilesRepoRoot(candidate)

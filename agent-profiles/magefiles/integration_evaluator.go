@@ -120,8 +120,11 @@ func assertEvaluatorGeneratorOutput(outputDir string) error {
 	if err != nil {
 		return err
 	}
-	if meta.Harness != "generator" {
-		return fmt.Errorf("meta harness = %q, want generator", meta.Harness)
+	// The harness is the executor profile: GH-326 renamed the generator family
+	// to executor and the suite config runs agents/executor/profile.yaml, so
+	// the assertion follows the rename (GH-822).
+	if meta.Harness != "executor" {
+		return fmt.Errorf("meta harness = %q, want executor", meta.Harness)
 	}
 	if meta.Sample != "greet" {
 		return fmt.Errorf("meta sample = %q, want greet", meta.Sample)

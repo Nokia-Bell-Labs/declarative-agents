@@ -128,9 +128,9 @@ func monitoredQwenProfileValues(rootDir, profileRoot, tmpDir string) map[string]
 		"TOOLS_PATH":                filepath.Join(tmpDir, "tools.yaml"),
 		"LLM_DECLARATIONS_PATH":     abs(rootDir, "tools/builtin/llm/all.yaml"),
 		"LLM_OVERRIDE_PATH":         filepath.Join(tmpDir, "llm.yaml"),
-		"OLLAMA_DECLARATIONS_PATH":  profileAbs(profileRoot, "rest/ollama-declarations.yaml"),
+		"OLLAMA_DECLARATIONS_PATH":  conformanceAsset(profileRoot, "rest/ollama-declarations.yaml"),
 		"MONITOR_DECLARATIONS_PATH": profileAbs(profileRoot, "monitor/declarations.yaml"),
-		"OLLAMA_REST_PATH":          profileAbs(profileRoot, "rest/ollama-rest.yaml"),
+		"OLLAMA_REST_PATH":          conformanceAsset(profileRoot, "rest/ollama-rest.yaml"),
 		"MONITOR_REST_PATH":         filepath.Join(tmpDir, "monitor-rest.yaml"),
 	}
 }
