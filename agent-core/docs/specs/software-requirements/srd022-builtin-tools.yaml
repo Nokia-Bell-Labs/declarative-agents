@@ -197,7 +197,6 @@ implementation:
   - internal/tools/lifecycle/ (planned lifecycle builtin tools)
   - internal/tools/validation/ (planned validation builtin tools)
   - internal/tools/undo/ (planned undo payload helpers)
-  - internal/tools/stl/ (temporary compatibility facade)
 
 related_documents:
   - cfg-tool-authoring-standard
