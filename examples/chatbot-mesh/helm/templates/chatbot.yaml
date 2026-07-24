@@ -78,6 +78,9 @@ spec:
             - {{ . | quote }}
             {{- end }}
           env:
+            {{- with include "chatbot-mesh.integrationResourceAttributes" . }}
+            - {name: OTEL_RESOURCE_ATTRIBUTES, value: {{ . | quote }}}
+            {{- end }}
             # The staged tool declarations reach the LLM provider through this
             # reference. The chart co-generates the REST client's base_url, but
             # the declarations are mounted verbatim, so their localhost default

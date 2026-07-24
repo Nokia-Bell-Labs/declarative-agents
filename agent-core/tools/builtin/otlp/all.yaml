@@ -51,7 +51,7 @@ tools:
     before: [await_spans, otlp_receiver_stop]
   config:
     receiver: ingress
-    address: 0.0.0.0:4317
+    address: ${COLLECTOR_RECEIVER_ADDRESS:-0.0.0.0:4317}
     queue_capacity: 16
     overflow_policy: reject
     shutdown_timeout: 5s

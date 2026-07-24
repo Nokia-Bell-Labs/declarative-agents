@@ -55,7 +55,6 @@ data:
         verbosity: basic
     service:
       pipelines:
-        {{- if not $agent }}
         traces:
           receivers: [otlp]
           processors: [{{ if $external }}resource/integration, {{ end }}batch]
@@ -69,7 +68,6 @@ data:
             {{- if and (not .Values.jaeger.enabled) (not $external) }}
             - debug
             {{- end }}
-        {{- end }}
         metrics:
           receivers: [otlp{{ if .Values.dolt.enabled }}, prometheus/dolt{{ end }}]
           processors: [{{ if $external }}resource/integration, {{ end }}batch]
@@ -114,7 +112,7 @@ spec:
           env:
             - {name: COLLECTOR_BIND_HOST, value: "0.0.0.0"}
             - {name: COLLECTOR_RECEIVER_ADDRESS, value: "0.0.0.0:{{ .Values.collector.otlpGRPCPort }}"}
-            - {name: COLLECTOR_RELAY_ENDPOINT, value: "{{ $fullname }}-jaeger:{{ .Values.jaeger.otlpGRPCPort }}"}
+            - {name: COLLECTOR_RELAY_ENDPOINT, value: {{ default (printf "%s-jaeger:%v" $fullname .Values.jaeger.otlpGRPCPort) $external | quote }}}
             - {name: COLLECTOR_SPOOL_PATH, value: "{{ .Values.profiles.workMountPath }}/traces/collector.ndjson"}
             - {name: COLLECTOR_MODE, value: {{ ternary "relay" "spool" .Values.jaeger.enabled | quote }}}
           ports:

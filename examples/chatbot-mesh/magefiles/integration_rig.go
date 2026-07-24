@@ -4,12 +4,21 @@ package main
 
 import (
 	"bytes"
+	"context"
 	"fmt"
+	"net"
+	"net/http"
 	"os"
 	"os/exec"
 	"path/filepath"
 	"regexp"
+	"strings"
 	"time"
+
+	coltracepb "go.opentelemetry.io/proto/otlp/collector/trace/v1"
+	"google.golang.org/grpc"
+	"google.golang.org/grpc/credentials/insecure"
+	"google.golang.org/protobuf/encoding/protojson"
 )
 
 const rigProfile = "testdata/rig/profile.yaml"
@@ -69,6 +78,9 @@ func (Integration) Rig() error {
 	if err := os.WriteFile(staged, data, 0o755); err != nil {
 		return err
 	}
+	if err := runCollectorIntakeScenario(staged, coreRoot, exampleRoot, binDir); err != nil {
+		return fmt.Errorf("collector intake-filter scenario: %w", err)
+	}
 
 	trace := filepath.Join(binDir, "rig.otel.json")
 	args := []string{
@@ -121,6 +133,119 @@ func (Integration) Rig() error {
 	}
 	fmt.Printf("integration:rig passed in %s: %d scenarios across two roots, verdicts %v; shared Jaeger retained run %s after process exit\n",
 		time.Since(start).Round(time.Millisecond), len(verdicts), verdicts, runID)
+	return nil
+}
+
+type collectorIntakeScenario struct {
+	Batch             string `yaml:"batch"`
+	ExpectedSpanCount int    `yaml:"expected_span_count"`
+	ExpectedService   string `yaml:"expected_service"`
+}
+
+// runCollectorIntakeScenario drives the shipped collector profile over a real
+// OTLP/gRPC boundary with a canned protobuf-JSON batch. The spool assertion is
+// the deterministic rig verdict for the receive -> positive-span filter -> spool leg.
+func runCollectorIntakeScenario(binary, coreRoot, exampleRoot, workDir string) error {
+	scenarioDir := filepath.Join(exampleRoot, "agents/collector/tests/intake-filter")
+	var scenario collectorIntakeScenario
+	if err := readIntegrationYAML(filepath.Join(scenarioDir, "scenario.yaml"), "collector scenario", &scenario); err != nil {
+		return err
+	}
+	batchJSON, err := os.ReadFile(filepath.Join(scenarioDir, scenario.Batch))
+	if err != nil {
+		return fmt.Errorf("read collector batch: %w", err)
+	}
+	var batch coltracepb.ExportTraceServiceRequest
+	if err := protojson.Unmarshal(batchJSON, &batch); err != nil {
+		return fmt.Errorf("parse collector batch: %w", err)
+	}
+	receiver, err := freeLoopbackAddr()
+	if err != nil {
+		return err
+	}
+	control, err := freeLoopbackAddr()
+	if err != nil {
+		return err
+	}
+	_, controlPort, err := net.SplitHostPort(control)
+	if err != nil {
+		return err
+	}
+	monitor, err := freeLoopbackAddr()
+	if err != nil {
+		return err
+	}
+	_, monitorPort, err := net.SplitHostPort(monitor)
+	if err != nil {
+		return err
+	}
+	spool := filepath.Join(workDir, "collector.ndjson")
+	cmd := exec.Command(binary,
+		"--profile", "agents/collector/profile.yaml",
+		"--core-root", coreRoot,
+		"--directory", workDir,
+	)
+	cmd.Dir = exampleRoot
+	cmd.Env = append(os.Environ(),
+		"COLLECTOR_BIND_HOST=127.0.0.1",
+		"COLLECTOR_RECEIVER_ADDRESS="+receiver,
+		"COLLECTOR_CONTROL_PORT="+controlPort,
+		"COLLECTOR_MONITOR_PORT="+monitorPort,
+		"COLLECTOR_SPOOL_PATH="+spool,
+		"COLLECTOR_MODE=spool",
+	)
+	var output bytes.Buffer
+	cmd.Stdout, cmd.Stderr = &output, &output
+	if err := cmd.Start(); err != nil {
+		return err
+	}
+	defer func() {
+		if cmd.ProcessState == nil {
+			_ = cmd.Process.Kill()
+			_, _ = cmd.Process.Wait()
+		}
+	}()
+	controlURL := "http://" + control
+	if err := waitHTTPStatus(controlURL+"/api/lifecycle/health", http.StatusOK, 20*time.Second); err != nil {
+		return fmt.Errorf("collector health: %w\n%s", err, output.String())
+	}
+	ctx, cancel := context.WithTimeout(context.Background(), 10*time.Second)
+	defer cancel()
+	conn, err := grpc.NewClient(receiver, grpc.WithTransportCredentials(insecure.NewCredentials()))
+	if err != nil {
+		return err
+	}
+	defer conn.Close()
+	if _, err := coltracepb.NewTraceServiceClient(conn).Export(ctx, &batch, grpc.WaitForReady(true)); err != nil {
+		return fmt.Errorf("export canned batch: %w\n%s", err, output.String())
+	}
+	var spooled []byte
+	deadline := time.Now().Add(10 * time.Second)
+	for time.Now().Before(deadline) {
+		spooled, err = os.ReadFile(spool)
+		if err == nil && len(bytes.TrimSpace(spooled)) > 0 {
+			break
+		}
+		time.Sleep(100 * time.Millisecond)
+	}
+	lines := bytes.Split(bytes.TrimSpace(spooled), []byte("\n"))
+	if len(lines) != scenario.ExpectedSpanCount {
+		return fmt.Errorf("spooled spans = %d, want %d\n%s", len(lines), scenario.ExpectedSpanCount, output.String())
+	}
+	if !bytes.Contains(spooled, []byte(scenario.ExpectedService)) {
+		return fmt.Errorf("spool does not preserve service %q", scenario.ExpectedService)
+	}
+	req, _ := http.NewRequest(http.MethodPost,
+		controlURL+"/api/lifecycle/exit", strings.NewReader(`{"reason":"rig complete"}`))
+	req.Header.Set("Content-Type", "application/json")
+	resp, err := http.DefaultClient.Do(req)
+	if err != nil {
+		return fmt.Errorf("stop collector: %w", err)
+	}
+	_ = resp.Body.Close()
+	if err := cmd.Wait(); err != nil {
+		return fmt.Errorf("collector exit: %w\n%s", err, output.String())
+	}
 	return nil
 }
 

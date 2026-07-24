@@ -97,6 +97,12 @@ Metrics remain on collector-contrib while agent owns trace ingress.
 {{- end -}}
 {{- end -}}
 
+{{- define "chatbot-mesh.integrationResourceAttributes" -}}
+{{- if .Values.collector.externalOTLPEndpoint -}}
+test.repository={{ .Values.collector.integrationResource.repository }},test.module={{ .Values.collector.integrationResource.module }},test.target={{ .Values.collector.integrationResource.target }},vcs.ref.head.revision={{ .Values.collector.integrationResource.commit }},test.run.id={{ .Values.collector.integrationResource.runID }}
+{{- end -}}
+{{- end -}}
+
 {{/*
 The mesh view (srd003 R4) the executor serves on its read path, projected as
 JSON from the same values that render the topology, so what the panel reads is

@@ -3,6 +3,7 @@
 package main
 
 import (
+	"bytes"
 	"encoding/json"
 	"fmt"
 	"net/http"
@@ -10,6 +11,8 @@ import (
 	"os"
 	"os/exec"
 	"path/filepath"
+	"regexp"
+	"runtime"
 	"sort"
 	"strings"
 	"time"
@@ -234,6 +237,16 @@ func runHelmSmoke(coreRoot, profilesRoot, chartDir string) error {
 		return err
 	}
 	defer cleanupChart()
+	dependencyImages, err := smokeDependencyImages(chartDir)
+	if err != nil {
+		return err
+	}
+	for _, image := range dependencyImages {
+		fmt.Printf("helmSmoke: preloading dependency image %s\n", image)
+		if out, pullErr := exec.Command("docker", "pull", "--platform", "linux/"+runtime.GOARCH, image).CombinedOutput(); pullErr != nil {
+			return fmt.Errorf("pull smoke dependency %s: %w: %s", image, pullErr, strings.TrimSpace(string(out)))
+		}
+	}
 
 	kindConfig, cleanupKindConfig, err := stageTelemetryKindConfig(helmKindConfig(chartDir), telemetry)
 	if err != nil {
@@ -253,6 +266,11 @@ func runHelmSmoke(coreRoot, profilesRoot, chartDir string) error {
 
 	if err := kindrig.LoadImage(helmKindCluster, helmImage); err != nil {
 		return err
+	}
+	for _, image := range dependencyImages {
+		if err := loadSmokeDependencyImage(helmKindCluster, image); err != nil {
+			return err
+		}
 	}
 	if err := helmInstallSmoke(stagedChart, helmImage, telemetry); err != nil {
 		return err
@@ -282,6 +300,13 @@ func runHelmSmoke(coreRoot, profilesRoot, chartDir string) error {
 		[]string{"apiserver", "chatbot", "rag0", "rag0-chroma"}, helmSpanTimeout); err != nil {
 		return err
 	}
+	if err := assertCollectorSpoolIdentity(sharedJaegerBase(), helmRelease, telemetry.RunID,
+		[]string{"chatbot", "rag0"}, helmSpanTimeout); err != nil {
+		return err
+	}
+	if err := assertNoCollectorSelfIngest(sharedJaegerBase(), telemetry.RunID); err != nil {
+		return err
+	}
 	if err := verifySharedTelemetryEvidence(
 		sharedJaegerBase(), sharedPrometheusBase(), telemetry, helmSpanTimeout); err != nil {
 		return err
@@ -300,6 +325,71 @@ func runHelmSmoke(coreRoot, profilesRoot, chartDir string) error {
 	}
 
 	fmt.Printf("integration:helmSmoke PASS - shared backends retained control-plane, agent, Chroma, GenAI, and Dolt evidence for run %s after cluster cleanup\n", telemetry.RunID)
+	return nil
+}
+
+type smokeImage struct {
+	Repository string `yaml:"repository"`
+	Tag        string `yaml:"tag"`
+}
+
+func smokeDependencyImages(chartDir string) ([]string, error) {
+	var values struct {
+		Collector struct {
+			Image smokeImage `yaml:"image"`
+		} `yaml:"collector"`
+		Chroma struct {
+			Image smokeImage `yaml:"image"`
+		} `yaml:"chroma"`
+		Dolt struct {
+			Image smokeImage `yaml:"image"`
+		} `yaml:"dolt"`
+		Jaeger struct {
+			Image smokeImage `yaml:"image"`
+		} `yaml:"jaeger"`
+	}
+	if err := readIntegrationYAML(filepath.Join(chartDir, "values.yaml"), "chart values", &values); err != nil {
+		return nil, err
+	}
+	refs := []smokeImage{
+		values.Collector.Image,
+		values.Chroma.Image,
+		values.Dolt.Image,
+		values.Jaeger.Image,
+	}
+	images := make([]string, 0, len(refs))
+	for _, image := range refs {
+		if image.Repository == "" || image.Tag == "" {
+			return nil, fmt.Errorf("smoke dependency image requires repository and tag")
+		}
+		images = append(images, image.Repository+":"+image.Tag)
+	}
+	return images, nil
+}
+
+func loadSmokeDependencyImage(cluster, image string) error {
+	save := exec.Command("docker", "save", image)
+	stream, err := save.StdoutPipe()
+	if err != nil {
+		return err
+	}
+	node := cluster + "-control-plane"
+	load := exec.Command("docker", "exec", "-i", node, "ctr", "--namespace=k8s.io",
+		"images", "import", "--platform=linux/"+runtime.GOARCH, "--snapshotter=overlayfs", "-")
+	load.Stdin = stream
+	var output bytes.Buffer
+	load.Stdout, load.Stderr = &output, &output
+	if err := load.Start(); err != nil {
+		return err
+	}
+	if err := save.Run(); err != nil {
+		_ = load.Process.Kill()
+		_ = load.Wait()
+		return fmt.Errorf("save smoke dependency %s: %w", image, err)
+	}
+	if err := load.Wait(); err != nil {
+		return fmt.Errorf("load smoke dependency %s: %w: %s", image, err, strings.TrimSpace(output.String()))
+	}
 	return nil
 }
 
@@ -590,6 +680,60 @@ func collectorDiagnostics(release string) string {
 		}
 	}
 	return b.String()
+}
+
+var spoolTraceIDPattern = regexp.MustCompile(`"TraceID":"([0-9a-f]+)"`)
+
+func assertCollectorSpoolIdentity(jaegerBase, release, runID string, services []string, timeout time.Duration) error {
+	target := "deploy/" + release + "-chatbot-mesh-collector"
+	path := "/work/traces/collector.ndjson"
+	deadline := time.Now().Add(timeout)
+	var last string
+	for time.Now().Before(deadline) {
+		out, err := exec.Command("kubectl", "exec", target, "--", "sh", "-c",
+			"test -s "+path+" && cat "+path).CombinedOutput()
+		last = string(out)
+		if err == nil && strings.Contains(last, runID) {
+			all := true
+			for _, service := range services {
+				if !strings.Contains(last, service) {
+					all = false
+					break
+				}
+			}
+			if all {
+				spooledIDs := make(map[string]bool)
+				for _, match := range spoolTraceIDPattern.FindAllStringSubmatch(last, -1) {
+					spooledIDs[match[1]] = true
+				}
+				for _, service := range services {
+					traces, queryErr := sharedTraces(jaegerBase, service, runID, time.Time{})
+					if queryErr != nil {
+						break
+					}
+					for _, trace := range traces {
+						if spooledIDs[trace.TraceID] {
+							return nil
+						}
+					}
+				}
+			}
+		}
+		time.Sleep(2 * time.Second)
+	}
+	return fmt.Errorf("collector spool lacks run %q and services %v%s",
+		runID, services, collectorDiagnostics(release))
+}
+
+func assertNoCollectorSelfIngest(jaegerBase, runID string) error {
+	traces, err := sharedTraces(jaegerBase, "collector", runID, time.Now().Add(-time.Hour))
+	if err != nil {
+		return fmt.Errorf("query collector self-ingest: %w", err)
+	}
+	if len(traces) != 0 {
+		return fmt.Errorf("collector self-ingested %d traces for run %s", len(traces), runID)
+	}
+	return nil
 }
 
 func assertSharedSmokeSpans(jaegerBase, runID string, services []string, timeout time.Duration) error {

@@ -12,7 +12,7 @@ rest:
       network:
         schemes: [http]
         hosts: [127.0.0.1, localhost]
-        ports: [18191]
+        ports: [${COLLECTOR_CONTROL_PORT:-18191}]
         allow_public_listener: true
     monitor:
       timeout: 5s
@@ -23,11 +23,11 @@ rest:
       network:
         schemes: [http]
         hosts: [127.0.0.1, localhost]
-        ports: [18192]
+        ports: [${COLLECTOR_MONITOR_PORT:-18192}]
         allow_public_listener: true
   servers:
     collector_control:
-      address: ${COLLECTOR_BIND_HOST:-127.0.0.1}:18191
+      address: ${COLLECTOR_BIND_HOST:-127.0.0.1}:${COLLECTOR_CONTROL_PORT:-18191}
       limits_ref: control
       queue: {name: collector_control, capacity: 8, timeout: 100ms}
       shutdown: {timeout: 5s, drain_policy: drain_then_stop}
@@ -46,7 +46,7 @@ rest:
             output: {accepted: "true"}
         health: {method: GET, path: /api/lifecycle/health, binding: health}
     collector_monitor:
-      address: ${COLLECTOR_BIND_HOST:-127.0.0.1}:18192
+      address: ${COLLECTOR_BIND_HOST:-127.0.0.1}:${COLLECTOR_MONITOR_PORT:-18192}
       limits_ref: monitor
       queue: {name: collector_monitor, capacity: 8, overflow: reject, timeout: 100ms}
       shutdown:

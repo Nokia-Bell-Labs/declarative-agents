@@ -151,6 +151,9 @@ spec:
             - {{ . | quote }}
             {{- end }}
           env:
+            {{- with include "chatbot-mesh.integrationResourceAttributes" . }}
+            - {name: OTEL_RESOURCE_ATTRIBUTES, value: {{ . | quote }}}
+            {{- end }}
             - {name: EXECUTOR_BIND_HOST, value: "0.0.0.0"}
             # The workspace the agent writes its values file into, the same path
             # mounted as the work volume below and passed as --directory, so the

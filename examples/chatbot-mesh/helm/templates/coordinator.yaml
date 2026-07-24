@@ -44,6 +44,9 @@ spec:
           # and it binds 0.0.0.0 so its Services route to the pod. It holds no
           # deployment-API credential.
           env:
+            {{- with include "chatbot-mesh.integrationResourceAttributes" . }}
+            - {name: OTEL_RESOURCE_ATTRIBUTES, value: {{ . | quote }}}
+            {{- end }}
             - {name: COORDINATOR_BIND_HOST, value: "0.0.0.0"}
             - {name: CREATOR_URL, value: "http://{{ $fullname }}-creator:{{ .Values.controlPlane.creator.ports.instance }}"}
             - {name: CREATOR_HOST, value: "{{ $fullname }}-creator"}

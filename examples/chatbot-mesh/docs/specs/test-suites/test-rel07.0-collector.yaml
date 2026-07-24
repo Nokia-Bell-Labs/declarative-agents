@@ -12,7 +12,7 @@ preconditions:
 test_cases:
   - use_case: rel07.0-uc001-collector-ingress
     name: Collector profile validates in test and relay modes
-    status: planned
+    status: implemented
     description: Both mode overlays load the same profile and every action, signal, declaration, control route, and monitor route validates.
     expected:
       test_mode: spool without relay dependency
@@ -22,8 +22,8 @@ test_cases:
 
   - use_case: rel07.0-uc001-collector-ingress
     name: A real client batch reaches stdouttrace spool and Jaeger unchanged
-    integration_target: mage integration:collector
-    status: planned
+    integration_target: mage integration:helmSmoke
+    status: implemented
     description: A real OTLP client exports parent and child spans with full run identity; spool and Jaeger agree on every identity field.
     expected:
       trace_id_match: true
@@ -31,6 +31,18 @@ test_cases:
       parent_id_match: true
       service_and_run_identity_match: true
       complete_ndjson_lines: true
+    traces: [rel07.0-uc001-collector-ingress S2, srd007-collector-agent AC2]
+
+  - use_case: rel07.0-uc001-collector-ingress
+    name: Canned positive-span batch takes the collector filter-to-spool leg
+    integration_target: mage integration:rig
+    go_test: go test ./magefiles -run '^TestCollectorIntakeFilterScenario$'
+    status: implemented
+    description: The hermetic rig launches the shipped collector profile, exports a canned parent/child OTLP batch over gRPC, and requires two attributable stdouttrace spool lines.
+    expected:
+      positive_filter_decision: true
+      spooled_span_count: 2
+      service_identity_preserved: collector-rig-fixture
     traces: [rel07.0-uc001-collector-ingress S2, srd007-collector-agent AC2]
 
   - use_case: rel07.0-uc001-collector-ingress
@@ -46,8 +58,8 @@ test_cases:
 
   - use_case: rel07.0-uc001-collector-ingress
     name: Collector process telemetry cannot enter its receiver
-    integration_target: mage integration:collector
-    status: planned
+    integration_target: mage integration:helmSmoke
+    status: implemented
     description: Client spans enter while collector lifecycle and tool spans appear only in the collector file; equivalent relay self-endpoints fail validation.
     expected:
       client_batch_received: true
@@ -58,7 +70,7 @@ test_cases:
   - use_case: rel07.0-uc001-collector-ingress
     name: Agent trace mode retains contrib metrics and Dolt scraping
     integration_target: mage integration:helmSmoke
-    status: planned
+    status: implemented
     description: The rendered and live staged topology sends traces through the collector agent while agent metrics and Dolt scrape samples remain available through contrib.
     expected:
       trace_ingress: collector_agent
@@ -71,7 +83,7 @@ test_cases:
   - use_case: rel07.0-uc001-collector-ingress
     name: Persistent evidence survives mesh teardown
     integration_target: mage integration:observabilityEvidence
-    status: planned
+    status: implemented
     description: After chart and cluster teardown, representative trace ids, service/run identity, agent metrics, and Dolt metrics remain queryable.
     expected:
       trace_evidence_retained: true
