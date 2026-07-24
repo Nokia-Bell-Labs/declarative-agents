@@ -85,7 +85,7 @@ releases:
       The mesh deploys as one Helm chart (srd003) with values-driven RAG pairs,
       co-generated chatbot client config and N-RAG fan-out from one source, a
       tiered hot swap (repoint is a Service change; add-RAG re-renders and rolls
-      the chatbot with a Dolt checkpoint resume), and OTLP observability. The
+      the chatbot after draining active turns), and OTLP observability. The
       provisioning deployment API (srd003 R4) is the control-plane release
       (rel05.0); this release covers the topology and the swap paths.
     status: implemented
@@ -93,7 +93,7 @@ releases:
       - srd003-chatbot-deployment
     use_cases:
       - id: rel03.0-uc001-mesh-deployment
-        summary: One Helm chart deploys the mesh on a kind cluster with values-to-config co-generation, a Service repoint, and an add-RAG rollout with checkpoint resume.
+        summary: One Helm chart deploys the mesh on a kind cluster with values-to-config co-generation, a Service repoint, and an add-RAG rollout that drains active turns.
         status: implemented
     test_suites:
       - id: test-rel03.0-mesh-deployment
@@ -132,7 +132,7 @@ releases:
       holds the deployment-API authority. A provisioning intent flows chatbot ->
       coordinator -> creator: the chatbot delegates through a declared client, the
       coordinator sequences corpus-ingest runs and the rollout, the creator executes
-      the checkpoint-resume rollout through the deployment API (srd003 R4) and
+      the request-draining rollout through the deployment API (srd003 R4) and
       reports health, and the new source serves a grounded turn.
     status: partial
     srds:

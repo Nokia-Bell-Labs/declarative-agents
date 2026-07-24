@@ -108,13 +108,13 @@ rest:
           reversibility:
             classification: reversible
             undo: noop
-{{- range $i, $unit := .Values.ragUnits }}
-    rag{{ $i }}:
+{{- range $unit := .Values.ragUnits }}
+    {{ $unit.name }}:
       base_url: http://{{ $fullname }}-{{ $unit.name }}:{{ $q }}
       auth_ref: none
       limits_ref: local_provider
       operations:
-        rag{{ $i }}_query:
+        {{ $unit.name }}_query:
           method: POST
           path: /api/v1/rag/query
           params:
@@ -194,6 +194,12 @@ rest:
     chatbot_chat:
       address: 0.0.0.0:{{ .Values.chatbot.ports.chat }}
       limits_ref: local_chat_requests
+      # A rollout asks the host machine to stop through the lifecycle endpoint.
+      # Give an active machine_request the full endpoint bound plus drain
+      # headroom before the old pod exits (GH-812).
+      shutdown:
+        timeout: 135s
+        drain_policy: drain_then_stop
       endpoints:
         chat:
           method: POST

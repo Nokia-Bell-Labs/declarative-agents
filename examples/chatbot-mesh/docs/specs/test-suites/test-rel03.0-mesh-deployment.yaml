@@ -83,24 +83,27 @@ test_cases:
     description: |
       Integration.HelmSwap proves the tiered-swap rollout mechanics on a kind
       cluster. Repointing a rag Service selector leaves the chatbot pod unchanged
-      (R3.1); adding a RAG stands up the new unit, re-renders the co-generated
-      rest.yaml with the new client (locked by the drift test), and rolls the
-      chatbot Deployment via its checksum/profiles annotation (R3.2). The target
-      asserts the rollout infrastructure contracts (pod identity, workload
-      existence, ConfigMap breadth, rolled generation) via kubectl and helm, so it
-      needs docker/kind/helm/kubectl but not Ollama; it skips cleanly otherwise and
-      deletes the cluster in all paths. It does not prove checkpoint-resume: the
-      chart renders --dolt-dsn but not --resume-checkpoint, and no restored
-      pre-rollout state is observed. The R3.2 resume-checkpoint rendering and a
-      Dolt state-restored-after-rollout tracer are not covered here.
+      (R3.1); replacing middle unit rag1 in rag0/rag1/rag2 with rag4 removes the
+      old workload, preserves rag2 and rag4 identities in the co-generated
+      rest.yaml, and rolls the chatbot Deployment via its checksum/profiles
+      annotation (R3.2). A host-side deterministic Ollama mock
+      holds one machine_request answer open while Helm replaces the chatbot. The
+      target requires that response to complete through the old pod's declared
+      shutdown drain, then reconnects to the Service and requires another answer
+      from the replacement pod. It needs docker/kind/helm/kubectl but no installed
+      Ollama models; it skips cleanly when the toolchain is absent and deletes a
+      cluster it created in all paths.
     inputs:
       chart: examples/chatbot-mesh/helm/
-      values_rag_list: [rag0]
+      values_rag_list: [rag0, rag1, rag2]
       swap_repoint: rag0 Service selector change
-      swap_add: rag1 values entry
+      swap_replace_middle: remove rag1 and add rag4
     expected:
       repoint_leaves_chatbot_pod_unchanged: true
-      add_rag_rerenders_and_rolls_chatbot: true
+      middle_rag_replacement_rerenders_and_rolls_chatbot: true
+      later_rag_identity_does_not_drift: true
+      active_turn_completes_before_old_pod_exits: true
+      replacement_pod_serves_next_turn: true
     traces:
       - rel03.0-uc001-mesh-deployment S3
       - srd003-chatbot-deployment AC3

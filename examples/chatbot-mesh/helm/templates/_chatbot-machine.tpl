@@ -24,7 +24,7 @@ purpose: |-
   R3.3) skips the keep and routes on, so degradation and exclusion are visible
   machine transitions; each RAG's outcome stays in command state. compose_prompt then
   builds the grounding prompt from the surviving per-RAG chunk lists read through the
-  keep labels, each under its own [ragN] header. route classifies the
+  keep labels, each under its topology-name header. route classifies the
   prompt to a chat-LLM word and the chosen word answers; a router misparse or
   error falls back to invoke_llm_fast. A RAG failure degrades to a mapped 200
   rather than a 500.

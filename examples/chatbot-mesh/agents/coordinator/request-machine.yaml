@@ -27,7 +27,7 @@ budget:
 states:
   - {name: AwaitingRequest, meaning: Seeded by the trusted intent endpoint with the provisioning intent body.}
   - {name: Ingesting, meaning: The creator is running the corpus-ingest for the requested directory and verifying the collection count.}
-  - {name: Reconfiguring, meaning: The coordinator forwarded the desired values document and the creator is executing the checkpoint-resume rollout.}
+  - {name: Reconfiguring, meaning: The coordinator forwarded the desired values document and the creator is executing the request-draining rollout.}
   - {name: Reconfigured, meaning: Terminal. The rollout completed and the aggregated status is ready for the HTTP response.}
   - {name: Rejected, meaning: Terminal. The creator reported the ingest did not meet the requested source.}
   - {name: Failed, meaning: Terminal. A creator boundary word failed.}

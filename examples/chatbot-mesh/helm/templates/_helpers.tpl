@@ -109,9 +109,9 @@ per-agent runtime endpoint appears, so the read state carries no agent authority
 
 {{/*
 The MySQL-wire DSN to the Dolt sql-server checkpoint backend (agent-core
-srd035/srd036), or empty when Dolt is disabled. The chatbot persists its host
-machine's checkpoints here, so a rollout resumes from durable state rather than
-cold-starting.
+srd035/srd036), or empty when Dolt is disabled. The chatbot persists checkpoints
+here for explicit history, rollback, and resume operations. A Deployment rollout
+drains active HTTP turns; persistence cannot reattach an existing client socket.
 */}}
 {{- define "chatbot-mesh.doltDSN" -}}
 {{- if .Values.dolt.enabled -}}

@@ -9,7 +9,7 @@ summary: |
   from the creator (srd005), verifies the collection counts, decides the values
   changes that add the new RAG source, and requests a rollout of the affected
   agents. The creator (srd005) realizes each operation -- selecting the profile and
-  rendered config, spawning the ingest child run, executing the checkpoint-resume
+  rendered config, spawning the ingest child run, executing the request-draining
   rollout through the deployment API (srd003 R3.2), and verifying post-rollout
   health -- and reports health back to the coordinator, which aggregates status for
   the provisioning panel. The new source then serves a grounded turn. All
@@ -35,7 +35,7 @@ flow:
   - id: F3
     text: The coordinator decides the values changes that add the new RAG source and requests a rollout of the affected agents from the creator.
   - id: F4
-    text: The creator selects each instance's profile and rendered config, spawns the ingest child run, executes the checkpoint-resume rollout through the deployment API, and verifies post-rollout health.
+    text: The creator selects each instance's profile and rendered config, spawns the ingest child run, executes the request-draining rollout through the deployment API, and verifies post-rollout health.
   - id: F5
     text: The creator reports health to the coordinator, which aggregates status for the provisioning panel; a subsequent chat turn is grounded in the newly added source.
 
@@ -51,7 +51,7 @@ touchpoints:
     reason: The coordinator is the sole author of the values decision and requests the rollout.
   - id: T4
     target: srd005-creator AC3
-    reason: The creator spawns the ingest run and executes the checkpoint-resume rollout through the deployment API.
+    reason: The creator spawns the ingest run and executes the request-draining rollout through the deployment API.
   - id: T5
     target: srd005-creator AC5
     reason: The creator alone holds the deployment-API credentials and passes no endpoint into a running agent.
@@ -73,7 +73,7 @@ success_criteria:
       - srd004-coordinator R2.2
       - srd004-coordinator AC2
   - id: S3
-    criterion: The coordinator decides the values changes and requests a rollout; the creator executes the checkpoint-resume rollout through the deployment API and verifies health.
+    criterion: The coordinator decides the values changes and requests a rollout; the creator executes the request-draining rollout through the deployment API and verifies health.
     traces:
       - srd004-coordinator R3.1
       - srd005-creator R3.2

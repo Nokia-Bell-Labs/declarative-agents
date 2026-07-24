@@ -10,7 +10,8 @@ summary: |
   source of truth. The operator then exercises the tiered hot swap: repointing an
   existing RAG is a Service change touching no agent config, and adding a RAG is a
   values change that re-renders ConfigMaps and rolls out the chatbot with a
-  checkpoint resume.
+  drained handoff: the old pod completes active HTTP turns before it exits, and
+  the replacement pod serves subsequent turns.
 
 actor: An operator deploying and evolving the mesh.
 
@@ -21,7 +22,7 @@ trigger: |
 preconditions:
   - A kind cluster is available and the rel06.0 binary-only runtime image is loadable.
   - The chart, values schema, and the chatbot/RAG profiles are chart-owned artifacts.
-  - The Dolt backend is deployable for chatbot checkpoint and resume.
+  - The Dolt backend is deployable for chatbot checkpoint persistence.
 
 flow:
   - id: F1
@@ -31,7 +32,7 @@ flow:
   - id: F3
     text: The operator repoints an existing RAG by changing a Kubernetes Service selector or endpoint, with no agent config change and no agent restart.
   - id: F4
-    text: The operator adds a RAG by editing the values list; the chart re-renders the ConfigMaps and rolls out the chatbot, which resumes from its Dolt checkpoint via --dolt-dsn and --resume-checkpoint.
+    text: The operator adds a RAG by editing the values list; the chart re-renders the ConfigMaps and rolls out the chatbot. Kubernetes asks the old pod to execute its declared lifecycle exit, the chat server drains each active machine_request response, and the replacement pod serves subsequent turns.
   - id: F5
     text: Every agent exports OTLP to the collector, and the trace backend is available for the observability panel to query.
 
@@ -44,7 +45,7 @@ touchpoints:
     reason: Co-generation renders the chatbot RAG clients from the RAG values list and validates the rendered rest.yaml.
   - id: T3
     target: srd003-chatbot-deployment AC3
-    reason: The tiered swap is a Service repoint or a values re-render plus checkpoint-resume rollout.
+    reason: The tiered swap is a Service repoint or a values re-render plus a request-draining rollout.
   - id: T4
     target: test-rel03.0-mesh-deployment mesh_deployment
     reason: The suite records the kind-cluster install, the repoint, and the add-RAG rollout with expected outcomes.
@@ -63,7 +64,7 @@ success_criteria:
       - srd003-chatbot-deployment R2.2
       - srd003-chatbot-deployment AC2
   - id: S3
-    criterion: Repointing an existing RAG is a Service change with no agent config change; adding a RAG is a values re-render plus a rollout in which the chatbot resumes from its Dolt checkpoint.
+    criterion: Repointing an existing RAG is a Service change with no agent config change; adding a RAG is a values re-render plus a rollout in which the old chatbot completes every active HTTP turn before exit and the replacement serves the next turn.
     traces:
       - srd003-chatbot-deployment R3.1
       - srd003-chatbot-deployment R3.2
