@@ -69,6 +69,10 @@ spec:
             # pod never does (srd013 R5.7, GH-728).
             - name: OLLAMA_URL
               value: {{ include "chatbot-mesh.llmURL" . | quote }}
+            # The local profile resolves ux/app/dist from the checkout. Packaged
+            # assets are mounted under the profiles ConfigMap instead.
+            - name: CHATBOT_UI_ROOT
+              value: {{ printf "%s/ux/app/dist" .Values.profiles.mountPath | quote }}
             # declare_query_model puts the query embedding model identity into
             # command state for the per-RAG comparison, and it lives in the
             # verbatim-mounted request declarations. Without this its packaged
