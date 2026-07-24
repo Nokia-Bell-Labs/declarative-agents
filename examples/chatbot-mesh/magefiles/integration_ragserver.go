@@ -134,13 +134,16 @@ func startRagServer(binary, profilesRoot, coreRoot string) (func(kill bool) erro
 	if err != nil {
 		return nil, err
 	}
-	cmd := exec.Command(binary,
+	args := []string{
 		"--profile", filepath.Join(profilesRoot, ragServerProfile),
 		"--directory", os.TempDir(),
 		"--core-root", coreRoot,
 		"--otel-log-file", trace,
-	)
+	}
+	telemetryArgs, resourceEnv := hostIntegrationTelemetry("integration:ragServer", "rag-server", profilesRoot)
+	cmd := exec.Command(binary, append(args, telemetryArgs...)...)
 	cmd.Dir = profilesRoot
+	cmd.Env = append(os.Environ(), resourceEnv)
 	cmd.Stdout = os.Stderr
 	cmd.Stderr = os.Stderr
 	if err := cmd.Start(); err != nil {

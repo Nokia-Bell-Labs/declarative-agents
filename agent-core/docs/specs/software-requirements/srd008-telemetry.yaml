@@ -12,6 +12,7 @@ goals:
   - G2: Satisfy the internal/observability/tracing.Tracer interface with a TraceAdapter implementation.
   - G3: Support offline replay of recorded trace files.
   - G4: Provide OpenTelemetry metric export paths that can consume normalized monitor samples.
+  - G5: Define retained, attributable telemetry for host and kind integration runs through one shared OTLP ingress.
 
 requirements:
   R1:
@@ -77,10 +78,24 @@ requirements:
       - R8.4: Metric export SHALL apply the low-cardinality and redaction rules from sm-tool-metrics-monitoring before emitting attributes.
       - R8.5: Metric export failure SHALL be reported as telemetry or monitor diagnostics and SHALL NOT change command Result.Signal.
 
+  R9:
+    title: Persistent integration observability
+    items:
+      - R9.1: Integration runs SHALL keep the file exporter as deterministic evidence and add OTLP export to the shared integration ingress; live export SHALL NOT replace file assertions.
+      - R9.2: Every integration span and metric SHALL carry repository, module, target or scenario, git commit, and a unique run id as resource identity so concurrent and historical runs remain filterable.
+      - R9.3: Integration service.name values SHALL use stable role names and SHALL add an instance suffix for scaled roles such as RAG agents and Chroma stores.
+      - R9.4: The shared ingress SHALL be an OTLP endpoint contract, not a collector image contract. A conforming ingress SHALL accept OTLP gRPC and HTTP, route traces to Jaeger and metrics to a Prometheus-compatible backend, and remain healthy outside any one integration lifecycle.
+      - R9.5: Integration teardown SHALL NOT delete the shared ingress or its backend data. Trace and metric evidence SHALL remain queryable after host subprocesses and disposable kind clusters stop.
+      - R9.6: A component implementing the shared ingress SHALL NOT export its own telemetry back to that ingress.
+      - R9.7: OTel Logs and native Ollama server tracing are not part of this contract. Agent GenAI client spans represent Ollama calls until Ollama provides a native server signal used by the suite.
+
 non_goals:
   - TLS or authenticated OTLP connections.
   - Defining tool-specific metric meaning; ToolDef declarations and tool families own that vocabulary.
-  - Custom resource attributes beyond service name.
+  - Custom production resource attributes beyond service name; integration runs add only the bounded identity in R9.2.
+  - Replacing deterministic file evidence with a live backend.
+  - Defining a particular Collector distribution as the integration ingress.
+  - Introducing OTel Logs or claiming native Ollama server tracing.
 
 acceptance_criteria:
   - id: AC1
@@ -119,6 +134,10 @@ acceptance_criteria:
     criterion: ReplayFile reads an OTLP JSON file, sends spans to the endpoint, and optionally logs lifecycle events.
     traces: [R7.1, R7.2, R7.3]
 
+  - id: AC10
+    criterion: Integration runs dual-export file and OTLP evidence with bounded run identity and stable service names through an implementation-independent ingress that retains Jaeger traces and Prometheus-compatible metrics after scenario teardown, avoids a telemetry self-loop, and states the OTel Logs and Ollama limitations.
+    traces: [R9.1, R9.2, R9.3, R9.4, R9.5, R9.6, R9.7]
+
 related_documents:
   - docs/specs/semantic-models/tool-metrics-monitoring.yaml
 
@@ -135,6 +154,7 @@ diagrams:
       Goals --> R6["R6: TraceAdapter"]
       Goals --> R7["R7: Offline replay"]
       Goals --> R8["R8: Monitor metric export"]
+      Goals --> R9["R9: Persistent integration observability"]
       AC1["AC1: ExporterConfig requires at least one exporter. NewRoot re..."]
       R1 --> AC1
       AC2["AC2: Trace.Push creates a child span. Trace.Event records an e..."]
@@ -154,4 +174,6 @@ diagrams:
       R6 --> AC8
       AC9["AC9: ReplayFile reads an OTLP JSON file, sends spans to the en..."]
       R7 --> AC9
+      AC10["AC10: Integration runs retain attributable trace and metric evidence..."]
+      R9 --> AC10
     ```

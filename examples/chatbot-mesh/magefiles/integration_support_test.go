@@ -98,6 +98,99 @@ func TestDetachedAgentCleanupReportsProcessOutcomes(t *testing.T) {
 	}
 }
 
+func TestDetachedAgentDualExportsAndStampsResourceIdentity(t *testing.T) {
+	root := t.TempDir()
+	argsPath := filepath.Join(root, "args.txt")
+	attrsPath := filepath.Join(root, "attrs.txt")
+	binary := filepath.Join(root, "fake-agent")
+	script := "#!/bin/sh\nprintf '%s\\n' \"$@\" > \"$ARGS_FILE\"\nprintf '%s' \"$OTEL_RESOURCE_ATTRIBUTES\" > \"$ATTRS_FILE\"\n"
+	if err := os.WriteFile(binary, []byte(script), 0o700); err != nil {
+		t.Fatal(err)
+	}
+	stop, err := startDetachedAgentWithEnv(agentLaunch{
+		Binary:       binary,
+		ProfilesRoot: root,
+		CoreRoot:     root,
+		Profile:      "agents/rag-server/profile.yaml",
+		TracePath:    filepath.Join(root, "trace.json"),
+		OTLPEndpoint: "127.0.0.1:4317",
+		ServiceName:  "rag0",
+		Target:       "integration:chatbot",
+		RunID:        "run-123",
+		GitCommit:    "abc123",
+		Env:          []string{"ARGS_FILE=" + argsPath, "ATTRS_FILE=" + attrsPath},
+		GracefulWait: time.Second,
+	})
+	if err != nil {
+		t.Fatal(err)
+	}
+	if err := stop(false); err != nil {
+		t.Fatal(err)
+	}
+	argsData, err := os.ReadFile(argsPath)
+	if err != nil {
+		t.Fatal(err)
+	}
+	args := string(argsData)
+	for _, want := range []string{
+		"--otel-log-file\n", "--otel-otlp-endpoint\n127.0.0.1:4317\n",
+		"--otel-service-name\nrag0\n",
+	} {
+		if !strings.Contains(args, want) {
+			t.Errorf("args missing %q:\n%s", want, args)
+		}
+	}
+	attrsData, err := os.ReadFile(attrsPath)
+	if err != nil {
+		t.Fatal(err)
+	}
+	attrs := string(attrsData)
+	for _, want := range []string{
+		"test.repository=Nokia-Bell-Labs%2Fdeclarative-agents",
+		"test.module=examples%2Fchatbot-mesh",
+		"test.target=integration%3Achatbot",
+		"vcs.ref.head.revision=abc123",
+		"test.run.id=run-123",
+	} {
+		if !strings.Contains(attrs, want) {
+			t.Errorf("resource attributes missing %q: %s", want, attrs)
+		}
+	}
+}
+
+func TestDetachedAgentKeepsFileOnlyArgsWithoutEndpoint(t *testing.T) {
+	t.Setenv(integrationOTLPEndpointEnv, "")
+	root := t.TempDir()
+	argsPath := filepath.Join(root, "args.txt")
+	binary := filepath.Join(root, "fake-agent")
+	if err := os.WriteFile(binary, []byte("#!/bin/sh\nprintf '%s\\n' \"$@\" > \"$ARGS_FILE\"\n"), 0o700); err != nil {
+		t.Fatal(err)
+	}
+	stop, err := startDetachedAgentWithEnv(agentLaunch{
+		Binary: binary, ProfilesRoot: root, CoreRoot: root,
+		Profile: "profile.yaml", TracePath: filepath.Join(root, "trace.json"),
+		RunID: "run-123", GitCommit: "abc123",
+		Env: []string{"ARGS_FILE=" + argsPath}, GracefulWait: time.Second,
+	})
+	if err != nil {
+		t.Fatal(err)
+	}
+	if err := stop(false); err != nil {
+		t.Fatal(err)
+	}
+	argsData, err := os.ReadFile(argsPath)
+	if err != nil {
+		t.Fatal(err)
+	}
+	args := string(argsData)
+	if strings.Contains(args, "--otel-otlp-endpoint") || strings.Contains(args, "--otel-service-name") {
+		t.Fatalf("file-only launch gained live-export args:\n%s", args)
+	}
+	if !strings.Contains(args, "--otel-log-file") {
+		t.Fatalf("file-only launch lost trace file arg:\n%s", args)
+	}
+}
+
 type meshRoundTripFunc func(*http.Request) (*http.Response, error)
 
 func (f meshRoundTripFunc) RoundTrip(req *http.Request) (*http.Response, error) {

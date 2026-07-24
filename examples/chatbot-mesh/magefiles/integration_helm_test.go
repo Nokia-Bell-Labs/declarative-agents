@@ -3,9 +3,12 @@
 package main
 
 import (
+	"encoding/json"
 	"net/http"
 	"net/http/httptest"
+	"os"
 	"os/exec"
+	"path/filepath"
 	"strings"
 	"testing"
 	"time"
@@ -25,6 +28,208 @@ func TestSplitImageRef(t *testing.T) {
 		if repo != c.repo || tag != c.tag {
 			t.Errorf("splitImageRef(%q) = (%q, %q), want (%q, %q)", c.image, repo, tag, c.repo, c.tag)
 		}
+	}
+}
+
+func TestCollectorDefaultRenderStaysSelfContained(t *testing.T) {
+	if _, err := exec.LookPath("helm"); err != nil {
+		t.Skip("helm not on PATH")
+	}
+	out, err := exec.Command("helm", "template", "t", findChartDir(t)).CombinedOutput()
+	if err != nil {
+		t.Fatalf("helm template: %v\n%s", err, out)
+	}
+	render := string(out)
+	if !strings.Contains(render, "endpoint: t-chatbot-mesh-jaeger:4317") {
+		t.Fatal("default collector does not export traces to embedded Jaeger")
+	}
+	for _, forbidden := range []string{"otlp/external:", "resource/integration:", "test.run.id"} {
+		if strings.Contains(render, forbidden) {
+			t.Errorf("default production render contains integration-only %q", forbidden)
+		}
+	}
+}
+
+func TestCollectorKindOverlayExportsBothSignalsWithRunIdentity(t *testing.T) {
+	if _, err := exec.LookPath("helm"); err != nil {
+		t.Skip("helm not on PATH")
+	}
+	chart := findChartDir(t)
+	out, err := exec.Command("helm", "template", "t", chart,
+		"--values", filepath.Join(chart, "ci", "kind-values.yaml")).CombinedOutput()
+	if err != nil {
+		t.Fatalf("helm template kind overlay: %v\n%s", err, out)
+	}
+	render := string(out)
+	for _, want := range []string{
+		"endpoint: t-chatbot-mesh-jaeger:4317",
+		"otlp/external:",
+		`endpoint: "host.docker.internal:4317"`,
+		"resource/integration:",
+		"key: test.repository",
+		`value: "Nokia-Bell-Labs/declarative-agents"`,
+		"key: test.module",
+		"key: test.target",
+		"key: vcs.ref.head.revision",
+		"key: test.run.id",
+		"metrics:",
+		"prometheus/dolt:",
+		`t-chatbot-mesh-dolt:11228`,
+		"CHROMA_OPEN_TELEMETRY__ENDPOINT",
+		`http://t-chatbot-mesh-collector:4317`,
+		"CHROMA_OPEN_TELEMETRY__SERVICE_NAME",
+		`value: "rag0-chroma"`,
+		`args: ["--config", "/etc/dolt/config.yaml"]`,
+	} {
+		if !strings.Contains(render, want) {
+			t.Errorf("kind collector render missing %q", want)
+		}
+	}
+}
+
+func TestStageTelemetryKindConfigEnablesControlPlaneTracing(t *testing.T) {
+	base := filepath.Join(t.TempDir(), "kind.yaml")
+	if err := os.WriteFile(base, []byte(`kind: Cluster
+apiVersion: kind.x-k8s.io/v1alpha4
+nodes:
+  - role: control-plane
+    image: kindest/node:v1.36.1@sha256:test
+`), 0o644); err != nil {
+		t.Fatal(err)
+	}
+	path, cleanup, err := stageTelemetryKindConfig(base, helmTelemetryIdentity{
+		OTLPEndpoint: "host.docker.internal:4317",
+		RunID:        "run-123",
+		Commit:       "abc123",
+	})
+	if err != nil {
+		t.Fatal(err)
+	}
+	defer cleanup()
+	data, err := os.ReadFile(path)
+	if err != nil {
+		t.Fatal(err)
+	}
+	generated := string(data)
+	for _, want := range []string{
+		"tracing-config-file", "/etc/kubernetes/tracing.yaml",
+		"OTEL_RESOURCE_ATTRIBUTES", "test.run.id=run-123",
+		"kind: KubeletConfiguration", "host.docker.internal:4317",
+		"samplingRatePerMillion: 1000000",
+	} {
+		if !strings.Contains(generated, want) {
+			t.Errorf("generated kind config missing %q:\n%s", want, generated)
+		}
+	}
+}
+
+func TestHelmInstallSmokePassesRunIdentityToGateway(t *testing.T) {
+	var command []string
+	run := func(name string, args ...string) ([]byte, error) {
+		command = append([]string{name}, args...)
+		return nil, nil
+	}
+	telemetry := helmTelemetryIdentity{
+		OTLPEndpoint: "host.docker.internal:4317",
+		RunID:        "run-123",
+		Commit:       "abc123",
+	}
+	if err := helmInstallSmokeWithRunner("/chart", helmImage, telemetry, run); err != nil {
+		t.Fatal(err)
+	}
+	joined := strings.Join(command, " ")
+	for _, want := range []string{
+		"collector.externalOTLPEndpoint=host.docker.internal:4317",
+		"collector.integrationResource.target=integration:helmSmoke",
+		"collector.integrationResource.commit=abc123",
+		"collector.integrationResource.runID=run-123",
+	} {
+		if !strings.Contains(joined, want) {
+			t.Errorf("helm command missing %q: %s", want, joined)
+		}
+	}
+}
+
+func TestSharedTraceCountFiltersByRunID(t *testing.T) {
+	server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		if r.URL.Query().Get("service") != "chatbot" ||
+			!strings.Contains(r.URL.Query().Get("tags"), `"test.run.id":"run-123"`) {
+			t.Errorf("unexpected query: %s", r.URL.RawQuery)
+		}
+		_, _ = w.Write([]byte(`{"data":[{"traceID":"abc"}]}`))
+	}))
+	defer server.Close()
+	count, err := sharedTraceCount(server.URL, "chatbot", "run-123")
+	if err != nil {
+		t.Fatal(err)
+	}
+	if count != 1 {
+		t.Fatalf("trace count = %d, want 1", count)
+	}
+}
+
+func TestCollectSharedTelemetryEvidenceIdentifiesSlowComponent(t *testing.T) {
+	started := time.Now().Add(-time.Minute)
+	jaeger := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		service := r.URL.Query().Get("service")
+		duration := int64(1000)
+		tags := []map[string]any{}
+		if service == "rag0-chroma" {
+			duration = 9000
+		}
+		if service == "chatbot" {
+			tags = []map[string]any{
+				{"key": "gen_ai.operation.name", "value": "chat"},
+				{"key": "gen_ai.provider.name", "value": "ollama"},
+				{"key": "gen_ai.request.model", "value": "qwen2.5:3b"},
+			}
+		}
+		_ = json.NewEncoder(w).Encode(map[string]any{"data": []any{map[string]any{
+			"traceID": service + "-trace",
+			"spans": []any{map[string]any{
+				"operationName": service + ".operation",
+				"processID":     "p1",
+				"duration":      duration,
+				"tags":          tags,
+			}},
+			"processes": map[string]any{"p1": map[string]any{"serviceName": service}},
+		}}})
+	}))
+	defer jaeger.Close()
+
+	prometheus := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		selector := r.URL.Query().Get("match[]")
+		var series []map[string]string
+		switch {
+		case strings.HasPrefix(selector, "target_info"):
+			series = []map[string]string{{"job": "chatbot"}, {"job": "rag0"}, {"job": "dolt"}}
+		case strings.HasPrefix(selector, "dispatch_count_total"):
+			series = []map[string]string{
+				{"__name__": "dispatch_count_total", "job": "chatbot"},
+				{"__name__": "dispatch_count_total", "job": "rag0"},
+			}
+		default:
+			series = []map[string]string{{"__name__": "dss_concurrent_queries", "job": "dolt"}}
+		}
+		_ = json.NewEncoder(w).Encode(map[string]any{"status": "success", "data": series})
+	}))
+	defer prometheus.Close()
+
+	evidence, err := collectSharedTelemetryEvidence(jaeger.URL, prometheus.URL, helmTelemetryIdentity{
+		RunID: "run-123", Started: started,
+	})
+	if err != nil {
+		t.Fatal(err)
+	}
+	if evidence.SlowestService != "rag0-chroma" ||
+		evidence.SlowestOperation != "rag0-chroma.operation" {
+		t.Fatalf("slowest evidence = %s/%s, want rag0-chroma/rag0-chroma.operation",
+			evidence.SlowestService, evidence.SlowestOperation)
+	}
+	if !containsString(evidence.AgentMetrics, "dispatch_count_total") ||
+		!containsString(evidence.DoltMetrics, "dss_concurrent_queries") {
+		t.Fatalf("metric evidence missing: agent=%v dolt=%v",
+			evidence.AgentMetrics, evidence.DoltMetrics)
 	}
 }
 

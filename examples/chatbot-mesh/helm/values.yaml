@@ -112,6 +112,7 @@ dolt:
   enabled: true
   image: {repository: dolthub/dolt-sql-server, tag: latest, pullPolicy: IfNotPresent}
   port: 3306
+  metricsPort: 11228
   storage: 1Gi
   rootHost: "%"
   # The MySQL-wire user and database the chatbot's checkpoint DSN targets. The
@@ -132,6 +133,15 @@ collector:
   image: {repository: otel/opentelemetry-collector-contrib, tag: "0.127.0", pullPolicy: IfNotPresent}
   otlpGRPCPort: 4317
   otlpHTTPPort: 4318
+  # Integration overlays may forward through this chart-local gateway to the
+  # persistent host ingress. Empty keeps production self-contained.
+  externalOTLPEndpoint: ""
+  integrationResource:
+    repository: ""
+    module: ""
+    target: ""
+    commit: ""
+    runID: ""
 
 jaeger:
   enabled: true

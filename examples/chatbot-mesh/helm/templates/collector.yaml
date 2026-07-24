@@ -1,5 +1,6 @@
 {{- if .Values.collector.enabled }}
 {{- $fullname := include "chatbot-mesh.fullname" . -}}
+{{- $external := .Values.collector.externalOTLPEndpoint -}}
 apiVersion: v1
 kind: ConfigMap
 metadata:
@@ -16,12 +17,36 @@ data:
             endpoint: 0.0.0.0:{{ .Values.collector.otlpGRPCPort }}
           http:
             endpoint: 0.0.0.0:{{ .Values.collector.otlpHTTPPort }}
+      {{- if .Values.dolt.enabled }}
+      prometheus/dolt:
+        config:
+          scrape_configs:
+            - job_name: dolt
+              scrape_interval: 5s
+              static_configs:
+                - targets: [{{ printf "%s-dolt:%v" $fullname .Values.dolt.metricsPort | quote }}]
+      {{- end }}
     processors:
       batch: {}
+      {{- if $external }}
+      resource/integration:
+        attributes:
+          - {key: test.repository, value: {{ .Values.collector.integrationResource.repository | quote }}, action: upsert}
+          - {key: test.module, value: {{ .Values.collector.integrationResource.module | quote }}, action: upsert}
+          - {key: test.target, value: {{ .Values.collector.integrationResource.target | quote }}, action: upsert}
+          - {key: vcs.ref.head.revision, value: {{ .Values.collector.integrationResource.commit | quote }}, action: upsert}
+          - {key: test.run.id, value: {{ .Values.collector.integrationResource.runID | quote }}, action: upsert}
+      {{- end }}
     exporters:
       {{- if .Values.jaeger.enabled }}
       otlp/jaeger:
         endpoint: {{ $fullname }}-jaeger:{{ .Values.jaeger.otlpGRPCPort }}
+        tls:
+          insecure: true
+      {{- end }}
+      {{- if $external }}
+      otlp/external:
+        endpoint: {{ $external | quote }}
         tls:
           insecure: true
       {{- end }}
@@ -31,8 +56,26 @@ data:
       pipelines:
         traces:
           receivers: [otlp]
-          processors: [batch]
-          exporters: [{{ if .Values.jaeger.enabled }}otlp/jaeger{{ else }}debug{{ end }}]
+          processors: [{{ if $external }}resource/integration, {{ end }}batch]
+          exporters:
+            {{- if .Values.jaeger.enabled }}
+            - otlp/jaeger
+            {{- end }}
+            {{- if $external }}
+            - otlp/external
+            {{- end }}
+            {{- if and (not .Values.jaeger.enabled) (not $external) }}
+            - debug
+            {{- end }}
+        metrics:
+          receivers: [otlp{{ if .Values.dolt.enabled }}, prometheus/dolt{{ end }}]
+          processors: [{{ if $external }}resource/integration, {{ end }}batch]
+          exporters:
+            {{- if $external }}
+            - otlp/external
+            {{- else }}
+            - debug
+            {{- end }}
 ---
 apiVersion: apps/v1
 kind: Deployment

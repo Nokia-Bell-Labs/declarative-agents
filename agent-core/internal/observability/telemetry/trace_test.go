@@ -35,6 +35,31 @@ func TestNewRoot_FileExporter(t *testing.T) {
 	require.NoError(t, err, "trace file should exist after shutdown")
 }
 
+func TestNewRoot_MergesEnvironmentResourceAndKeepsExplicitServiceName(t *testing.T) {
+	t.Setenv("OTEL_RESOURCE_ATTRIBUTES",
+		"test.repository=declarative-agents,test.module=agent-core,test.target=unit,test.run.id=run-123,service.name=environment-name")
+	path := filepath.Join(t.TempDir(), "trace.json")
+
+	_, shutdown, err := NewRoot("explicit-name", "test-root",
+		ExporterConfig{FilePath: path}, context.Background())
+	require.NoError(t, err)
+	shutdown()
+
+	data, err := os.ReadFile(path)
+	require.NoError(t, err)
+	output := string(data)
+	for _, value := range []string{
+		"test.repository", "declarative-agents",
+		"test.module", "agent-core",
+		"test.target", "unit",
+		"test.run.id", "run-123",
+		"service.name", "explicit-name",
+	} {
+		require.Contains(t, output, value)
+	}
+	require.NotContains(t, output, "environment-name")
+}
+
 func TestNewRoot_TempFileUsesServiceName(t *testing.T) {
 	t.Parallel()
 	dir := t.TempDir()

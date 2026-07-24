@@ -6,13 +6,16 @@ import (
 	"encoding/json"
 	"fmt"
 	"net/http"
+	"net/url"
 	"os"
 	"os/exec"
 	"path/filepath"
+	"sort"
 	"strings"
 	"time"
 
 	"github.com/Nokia-Bell-Labs/declarative-agents/magefiles/kindrig"
+	"gopkg.in/yaml.v3"
 )
 
 const (
@@ -20,10 +23,8 @@ const (
 	helmKindCluster = "da-chatbot-mesh-smoke"
 	helmImage       = "declarative-agents/agent-core:smoke"
 
-	helmChatURL    = "http://127.0.0.1:18080/api/v1/chat"
-	helmHealthURL  = "http://127.0.0.1:18081/api/lifecycle/health"
-	helmJaegerBase = "http://127.0.0.1:16686"
-
+	helmChatURL        = "http://127.0.0.1:18080/api/v1/chat"
+	helmHealthURL      = "http://127.0.0.1:18081/api/lifecycle/health"
 	helmInstallTimeout = 5 * time.Minute
 	helmClusterWait    = 120 * time.Second
 	helmReadyTimeout   = 90 * time.Second
@@ -93,7 +94,137 @@ func helmSmokeSkipReason(profilesRoot, coreRoot string) string {
 	return chatbotOllamaSkipReason(profilesRoot)
 }
 
+type helmTelemetryIdentity struct {
+	OTLPEndpoint string
+	RunID        string
+	Commit       string
+	Started      time.Time
+}
+
+func newHelmTelemetryIdentity(repoRoot string) helmTelemetryIdentity {
+	runID := strings.TrimSpace(os.Getenv(integrationRunIDEnv))
+	if runID == "" {
+		runID = generatedRunID("integration:helmSmoke")
+	}
+	commit := strings.TrimSpace(os.Getenv(integrationCommitEnv))
+	if commit == "" {
+		commit = gitCommit(repoRoot)
+	}
+	endpoint := strings.TrimSpace(os.Getenv(integrationOTLPEndpointEnv))
+	if endpoint == "" {
+		endpoint = "host.docker.internal:" + envOrDefault("DA_OTEL_GRPC_PORT", "4317")
+	} else {
+		endpoint = strings.Replace(endpoint, "127.0.0.1", "host.docker.internal", 1)
+		endpoint = strings.Replace(endpoint, "localhost", "host.docker.internal", 1)
+	}
+	return helmTelemetryIdentity{
+		OTLPEndpoint: endpoint, RunID: runID, Commit: commit, Started: time.Now(),
+	}
+}
+
+func sharedJaegerBase() string {
+	return "http://127.0.0.1:" + envOrDefault("DA_JAEGER_QUERY_PORT", "16686")
+}
+
+func sharedPrometheusBase() string {
+	return "http://127.0.0.1:" + envOrDefault("DA_PROMETHEUS_QUERY_PORT", "9090")
+}
+
+func requireSharedObservability(timeout time.Duration) error {
+	checks := []string{
+		"http://127.0.0.1:" + envOrDefault("DA_OTEL_HEALTH_PORT", "13133") + "/",
+		sharedJaegerBase() + "/api/services",
+		sharedPrometheusBase() + "/-/healthy",
+	}
+	for _, endpoint := range checks {
+		if err := waitHTTPStatus(endpoint, http.StatusOK, timeout); err != nil {
+			return err
+		}
+	}
+	return nil
+}
+
+func stageTelemetryKindConfig(basePath string, telemetry helmTelemetryIdentity) (string, func(), error) {
+	data, err := os.ReadFile(basePath)
+	if err != nil {
+		return "", nil, fmt.Errorf("read kind config: %w", err)
+	}
+	var config struct {
+		Kind                 string           `yaml:"kind"`
+		APIVersion           string           `yaml:"apiVersion"`
+		Nodes                []map[string]any `yaml:"nodes"`
+		KubeadmConfigPatches []string         `yaml:"kubeadmConfigPatches,omitempty"`
+	}
+	if err := yaml.Unmarshal(data, &config); err != nil {
+		return "", nil, fmt.Errorf("parse kind config: %w", err)
+	}
+	if len(config.Nodes) == 0 {
+		return "", nil, fmt.Errorf("kind config has no nodes")
+	}
+	dir, err := os.MkdirTemp("", "chatbot-mesh-kind-telemetry-*")
+	if err != nil {
+		return "", nil, err
+	}
+	cleanup := func() { _ = os.RemoveAll(dir) }
+	tracingPath := filepath.Join(dir, "tracing.yaml")
+	tracing := fmt.Sprintf(`apiVersion: apiserver.config.k8s.io/v1beta1
+kind: TracingConfiguration
+endpoint: %s
+samplingRatePerMillion: 1000000
+`, telemetry.OTLPEndpoint)
+	if err := os.WriteFile(tracingPath, []byte(tracing), 0o644); err != nil {
+		cleanup()
+		return "", nil, fmt.Errorf("write API-server tracing config: %w", err)
+	}
+	mounts, _ := config.Nodes[0]["extraMounts"].([]any)
+	config.Nodes[0]["extraMounts"] = append(mounts, map[string]any{
+		"hostPath": tracingPath, "containerPath": "/etc/kubernetes/tracing.yaml",
+		"readOnly": true,
+	})
+	resourceAttrs := integrationResourceAttributes(
+		"integration:helmSmoke", telemetry.RunID, telemetry.Commit)
+	config.KubeadmConfigPatches = append(config.KubeadmConfigPatches,
+		fmt.Sprintf(`apiVersion: kubeadm.k8s.io/v1beta4
+kind: ClusterConfiguration
+apiServer:
+  extraArgs:
+    - name: tracing-config-file
+      value: /etc/kubernetes/tracing.yaml
+  extraEnvs:
+    - name: OTEL_RESOURCE_ATTRIBUTES
+      value: %q
+  extraVolumes:
+    - name: tracing-config
+      hostPath: /etc/kubernetes/tracing.yaml
+      mountPath: /etc/kubernetes/tracing.yaml
+      readOnly: true
+      pathType: File
+`, resourceAttrs),
+		fmt.Sprintf(`apiVersion: kubelet.config.k8s.io/v1beta1
+kind: KubeletConfiguration
+tracing:
+  endpoint: %s
+  samplingRatePerMillion: 1000000
+`, telemetry.OTLPEndpoint),
+	)
+	generated, err := yaml.Marshal(config)
+	if err != nil {
+		cleanup()
+		return "", nil, fmt.Errorf("marshal kind tracing config: %w", err)
+	}
+	generatedPath := filepath.Join(dir, "kind-config.yaml")
+	if err := os.WriteFile(generatedPath, generated, 0o644); err != nil {
+		cleanup()
+		return "", nil, fmt.Errorf("write generated kind config: %w", err)
+	}
+	return generatedPath, cleanup, nil
+}
+
 func runHelmSmoke(coreRoot, profilesRoot, chartDir string) error {
+	telemetry := newHelmTelemetryIdentity(profilesRoot)
+	if err := requireSharedObservability(helmReadyTimeout); err != nil {
+		return fmt.Errorf("shared observability stack is required: %w", err)
+	}
 	fmt.Printf("helmSmoke: building runtime image %s from %s\n", helmImage, coreRoot)
 	if err := buildSmokeRuntimeImage(coreRoot, helmImage); err != nil {
 		return err
@@ -104,16 +235,26 @@ func runHelmSmoke(coreRoot, profilesRoot, chartDir string) error {
 	}
 	defer cleanupChart()
 
-	cluster, err := kindrig.EnsureCluster(kindrig.DefaultRun, helmKindCluster, helmKindConfig(chartDir), helmClusterWait)
+	kindConfig, cleanupKindConfig, err := stageTelemetryKindConfig(helmKindConfig(chartDir), telemetry)
 	if err != nil {
 		return err
 	}
-	defer cluster.Release(kindrig.DefaultRun)
+	defer cleanupKindConfig()
+	cluster, err := kindrig.EnsureCluster(kindrig.DefaultRun, helmKindCluster, kindConfig, helmClusterWait)
+	if err != nil {
+		return err
+	}
+	released := false
+	defer func() {
+		if !released {
+			cluster.Release(kindrig.DefaultRun)
+		}
+	}()
 
 	if err := kindrig.LoadImage(helmKindCluster, helmImage); err != nil {
 		return err
 	}
-	if err := helmInstallSmoke(stagedChart, helmImage); err != nil {
+	if err := helmInstallSmoke(stagedChart, helmImage, telemetry); err != nil {
 		return err
 	}
 
@@ -121,7 +262,11 @@ func runHelmSmoke(coreRoot, profilesRoot, chartDir string) error {
 	if err != nil {
 		return err
 	}
-	defer stop()
+	defer func() {
+		if stop != nil {
+			stop()
+		}
+	}()
 	if err := waitHTTPStatus(helmHealthURL, http.StatusOK, helmReadyTimeout); err != nil {
 		return fmt.Errorf("chatbot control health not ready: %w", err)
 	}
@@ -133,17 +278,28 @@ func runHelmSmoke(coreRoot, profilesRoot, chartDir string) error {
 	if err := assertSmokeChatServed(helmChatURL); err != nil {
 		return err
 	}
-
-	stopJaeger, err := kubectlPortForward("svc/"+helmRelease+"-chatbot-mesh-jaeger", 16686)
-	if err != nil {
+	if err := assertSharedSmokeSpans(sharedJaegerBase(), telemetry.RunID,
+		[]string{"apiserver", "chatbot", "rag0", "rag0-chroma"}, helmSpanTimeout); err != nil {
 		return err
 	}
-	defer stopJaeger()
-	if err := assertSmokeSpans(helmJaegerBase, 2, helmSpanTimeout); err != nil {
+	if err := verifySharedTelemetryEvidence(
+		sharedJaegerBase(), sharedPrometheusBase(), telemetry, helmSpanTimeout); err != nil {
+		return err
+	}
+	stop()
+	stop = nil
+	cluster.Release(kindrig.DefaultRun)
+	released = true
+	if err := assertSharedSmokeSpans(sharedJaegerBase(), telemetry.RunID,
+		[]string{"apiserver", "chatbot", "rag0", "rag0-chroma"}, helmSpanTimeout); err != nil {
+		return err
+	}
+	if err := verifySharedTelemetryEvidence(
+		sharedJaegerBase(), sharedPrometheusBase(), telemetry, helmSpanTimeout); err != nil {
 		return err
 	}
 
-	fmt.Println("integration:helmSmoke PASS - chart deployed the mesh on kind, the chatbot served a turn, and Jaeger reported spans from more than one service")
+	fmt.Printf("integration:helmSmoke PASS - shared backends retained control-plane, agent, Chroma, GenAI, and Dolt evidence for run %s after cluster cleanup\n", telemetry.RunID)
 	return nil
 }
 
@@ -316,21 +472,36 @@ func copyDirContents(src, dst string) error {
 	return nil
 }
 
-func helmInstallSmoke(chartPath, image string) error {
+func helmInstallSmoke(chartPath, image string, telemetry helmTelemetryIdentity) error {
+	return helmInstallSmokeWithRunner(chartPath, image, telemetry, runHelmSmokeCommand)
+}
+
+func helmInstallSmokeWithRunner(chartPath, image string, telemetry helmTelemetryIdentity, run helmLLMCommandRunner) error {
 	repo, tag := splitImageRef(image)
-	cmd := exec.Command("helm", "install", helmRelease, chartPath,
+	args := []string{"install", helmRelease, chartPath,
 		"--values", filepath.Join(chartPath, "ci", "kind-values.yaml"),
-		"--set", "image.repository="+repo,
-		"--set", "image.tag="+tag,
+		"--set", "image.repository=" + repo,
+		"--set", "image.tag=" + tag,
 		"--set", "image.pullPolicy=Never",
 		"--set", "llm.externalURL=http://host.docker.internal:11434",
+		"--set-string", "collector.externalOTLPEndpoint=" + telemetry.OTLPEndpoint,
+		"--set-string", "collector.integrationResource.target=integration:helmSmoke",
+		"--set-string", "collector.integrationResource.commit=" + telemetry.Commit,
+		"--set-string", "collector.integrationResource.runID=" + telemetry.RunID,
 		"--wait", "--timeout", helmInstallTimeout.String(),
-	)
-	cmd.Stdout, cmd.Stderr = os.Stderr, os.Stderr
-	if err := cmd.Run(); err != nil {
-		return fmt.Errorf("helm install %s: %w", helmRelease, err)
+	}
+	out, err := run("helm", args...)
+	if len(out) > 0 {
+		_, _ = os.Stderr.Write(out)
+	}
+	if err != nil {
+		return fmt.Errorf("helm install %s: %w: %s", helmRelease, err, strings.TrimSpace(string(out)))
 	}
 	return nil
+}
+
+var runHelmSmokeCommand helmLLMCommandRunner = func(name string, args ...string) ([]byte, error) {
+	return exec.Command(name, args...).CombinedOutput()
 }
 
 // splitImageRef splits repo:tag on the last colon so a registry port in the repo
@@ -418,6 +589,291 @@ func collectorDiagnostics(release string) string {
 		}
 	}
 	return b.String()
+}
+
+func assertSharedSmokeSpans(jaegerBase, runID string, services []string, timeout time.Duration) error {
+	deadline := time.Now().Add(timeout)
+	var missing []string
+	var lastErr error
+	for time.Now().Before(deadline) {
+		missing = missing[:0]
+		for _, service := range services {
+			count, err := sharedTraceCount(jaegerBase, service, runID)
+			if err != nil {
+				lastErr = err
+				missing = append(missing, service)
+				continue
+			}
+			if count == 0 {
+				missing = append(missing, service)
+			}
+		}
+		if len(missing) == 0 {
+			fmt.Printf("helmSmoke: shared Jaeger retained run %s services: %s\n",
+				runID, strings.Join(services, ", "))
+			return nil
+		}
+		lastErr = fmt.Errorf("shared Jaeger missing run %s services: %s",
+			runID, strings.Join(missing, ", "))
+		time.Sleep(2 * time.Second)
+	}
+	return lastErr
+}
+
+func sharedTraceCount(jaegerBase, service, runID string) (int, error) {
+	traces, err := sharedTraces(jaegerBase, service, runID, time.Time{})
+	return len(traces), err
+}
+
+type sharedTrace struct {
+	TraceID string `json:"traceID"`
+	Spans   []struct {
+		OperationName string `json:"operationName"`
+		ProcessID     string `json:"processID"`
+		Duration      int64  `json:"duration"`
+		Tags          []struct {
+			Key   string `json:"key"`
+			Value any    `json:"value"`
+		} `json:"tags"`
+	} `json:"spans"`
+	Processes map[string]struct {
+		ServiceName string `json:"serviceName"`
+	} `json:"processes"`
+}
+
+func sharedTraces(jaegerBase, service, runID string, since time.Time) ([]sharedTrace, error) {
+	tags, err := json.Marshal(map[string]string{"test.run.id": runID})
+	if err != nil {
+		return nil, err
+	}
+	query := url.Values{
+		"service": {service},
+		"limit":   {"20"},
+	}
+	if runID != "" {
+		query.Set("tags", string(tags))
+	}
+	if !since.IsZero() {
+		query.Set("start", fmt.Sprint(since.UnixMicro()))
+		query.Set("end", fmt.Sprint(time.Now().UnixMicro()))
+	}
+	data, status, err := requestHTTP(http.MethodGet, jaegerBase+"/api/traces?"+query.Encode(), "")
+	if err != nil {
+		return nil, err
+	}
+	if status != http.StatusOK {
+		return nil, fmt.Errorf("shared Jaeger traces status %d: %s", status, strings.TrimSpace(string(data)))
+	}
+	var response struct {
+		Data []sharedTrace `json:"data"`
+	}
+	if err := json.Unmarshal(data, &response); err != nil {
+		return nil, fmt.Errorf("decode shared Jaeger traces: %w", err)
+	}
+	return response.Data, nil
+}
+
+func verifySharedTelemetryEvidence(
+	jaegerBase, prometheusBase string,
+	telemetry helmTelemetryIdentity,
+	timeout time.Duration,
+) error {
+	deadline := time.Now().Add(timeout)
+	var lastErr error
+	for time.Now().Before(deadline) {
+		evidence, err := collectSharedTelemetryEvidence(jaegerBase, prometheusBase, telemetry)
+		if err == nil {
+			fmt.Printf(
+				"helmSmoke: retained evidence traces=%s agent_metrics=%s dolt_metrics=%s slowest=%s/%s %.1fms\n",
+				strings.Join(evidence.TraceIDs, ","),
+				strings.Join(evidence.AgentMetrics, ","),
+				strings.Join(evidence.DoltMetrics, ","),
+				evidence.SlowestService, evidence.SlowestOperation,
+				float64(evidence.SlowestDuration)/1000,
+			)
+			return nil
+		}
+		lastErr = err
+		time.Sleep(2 * time.Second)
+	}
+	return lastErr
+}
+
+type sharedTelemetryEvidence struct {
+	TraceIDs         []string
+	AgentMetrics     []string
+	DoltMetrics      []string
+	SlowestService   string
+	SlowestOperation string
+	SlowestDuration  int64
+}
+
+func collectSharedTelemetryEvidence(
+	jaegerBase, prometheusBase string,
+	telemetry helmTelemetryIdentity,
+) (sharedTelemetryEvidence, error) {
+	evidence := sharedTelemetryEvidence{}
+	for _, service := range []string{"apiserver", "chatbot", "rag0", "rag0-chroma"} {
+		traces, err := sharedTraces(jaegerBase, service, telemetry.RunID, time.Time{})
+		if err != nil {
+			return evidence, err
+		}
+		if len(traces) == 0 {
+			return evidence, fmt.Errorf("shared Jaeger missing retained %s traces for run %s", service, telemetry.RunID)
+		}
+		evidence.TraceIDs = append(evidence.TraceIDs, service+":"+traces[0].TraceID)
+		updateSlowestTraceEvidence(&evidence, service, traces)
+		if service == "chatbot" {
+			if err := requireOllamaGenAISpan(traces); err != nil {
+				return evidence, err
+			}
+		}
+	}
+	kubelet, err := sharedTraces(
+		jaegerBase, "kubelet", "", telemetry.Started.Add(-time.Minute))
+	if err != nil {
+		return evidence, err
+	}
+	if len(kubelet) == 0 {
+		return evidence, fmt.Errorf("shared Jaeger missing kubelet traces in run window")
+	}
+	evidence.TraceIDs = append(evidence.TraceIDs, "kubelet:"+kubelet[0].TraceID)
+	updateSlowestTraceEvidence(&evidence, "kubelet", kubelet)
+
+	start := telemetry.Started.Add(-time.Minute)
+	end := time.Now().Add(time.Minute)
+	targets, err := prometheusSeries(prometheusBase,
+		fmt.Sprintf(`target_info{test_run_id=%q}`, telemetry.RunID), start, end)
+	if err != nil {
+		return evidence, err
+	}
+	if err := requireMetricJobs(targets, []string{"chatbot", "rag0", "dolt"}); err != nil {
+		return evidence, err
+	}
+	agent, err := prometheusSeries(prometheusBase,
+		`dispatch_count_total{job=~"chatbot|rag0"}`, start, end)
+	if err != nil {
+		return evidence, err
+	}
+	if err := requireMetricJobs(agent, []string{"chatbot", "rag0"}); err != nil {
+		return evidence, err
+	}
+	evidence.AgentMetrics = metricNames(agent)
+	dolt, err := prometheusSeries(prometheusBase,
+		`{__name__=~"dss_.*",job="dolt"}`, start, end)
+	if err != nil {
+		return evidence, err
+	}
+	if len(dolt) == 0 {
+		return evidence, fmt.Errorf("shared Prometheus missing Dolt dss_* metrics for run %s", telemetry.RunID)
+	}
+	evidence.DoltMetrics = metricNames(dolt)
+	if evidence.SlowestDuration <= 0 {
+		return evidence, fmt.Errorf("retained traces contain no positive span duration")
+	}
+	return evidence, nil
+}
+
+func requireOllamaGenAISpan(traces []sharedTrace) error {
+	for _, trace := range traces {
+		for _, span := range trace.Spans {
+			tags := spanTags(span.Tags)
+			if tags["gen_ai.operation.name"] == "chat" &&
+				tags["gen_ai.provider.name"] == "ollama" &&
+				fmt.Sprint(tags["gen_ai.request.model"]) != "" &&
+				span.Duration > 0 {
+				return nil
+			}
+		}
+	}
+	return fmt.Errorf("retained chatbot traces missing Ollama GenAI model and latency evidence")
+}
+
+func spanTags(tags []struct {
+	Key   string `json:"key"`
+	Value any    `json:"value"`
+}) map[string]any {
+	out := make(map[string]any, len(tags))
+	for _, tag := range tags {
+		out[tag.Key] = tag.Value
+	}
+	return out
+}
+
+func updateSlowestTraceEvidence(evidence *sharedTelemetryEvidence, service string, traces []sharedTrace) {
+	for _, trace := range traces {
+		for _, span := range trace.Spans {
+			process, ok := trace.Processes[span.ProcessID]
+			if !ok || process.ServiceName != service || span.Duration <= evidence.SlowestDuration {
+				continue
+			}
+			evidence.SlowestService = service
+			evidence.SlowestOperation = span.OperationName
+			evidence.SlowestDuration = span.Duration
+		}
+	}
+}
+
+func prometheusSeries(
+	prometheusBase, selector string,
+	start, end time.Time,
+) ([]map[string]string, error) {
+	query := url.Values{
+		"match[]": {selector},
+		"start":   {fmt.Sprint(start.Unix())},
+		"end":     {fmt.Sprint(end.Unix())},
+	}
+	data, status, err := requestHTTP(
+		http.MethodGet, prometheusBase+"/api/v1/series?"+query.Encode(), "")
+	if err != nil {
+		return nil, err
+	}
+	if status != http.StatusOK {
+		return nil, fmt.Errorf("shared Prometheus series status %d: %s",
+			status, strings.TrimSpace(string(data)))
+	}
+	var response struct {
+		Status string              `json:"status"`
+		Data   []map[string]string `json:"data"`
+	}
+	if err := json.Unmarshal(data, &response); err != nil {
+		return nil, fmt.Errorf("decode shared Prometheus series: %w", err)
+	}
+	if response.Status != "success" {
+		return nil, fmt.Errorf("shared Prometheus series query failed")
+	}
+	return response.Data, nil
+}
+
+func requireMetricJobs(series []map[string]string, expected []string) error {
+	seen := make(map[string]bool, len(series))
+	for _, item := range series {
+		seen[item["job"]] = true
+	}
+	var missing []string
+	for _, job := range expected {
+		if !seen[job] {
+			missing = append(missing, job)
+		}
+	}
+	if len(missing) > 0 {
+		return fmt.Errorf("shared Prometheus missing jobs: %s", strings.Join(missing, ", "))
+	}
+	return nil
+}
+
+func metricNames(series []map[string]string) []string {
+	seen := make(map[string]bool, len(series))
+	var names []string
+	for _, item := range series {
+		name := item["__name__"]
+		if name != "" && !seen[name] {
+			seen[name] = true
+			names = append(names, name)
+		}
+	}
+	sort.Strings(names)
+	return names
 }
 
 // assertSmokeSpans queries Jaeger for the services that have reported spans and

@@ -46,6 +46,9 @@ func (Integration) Rig() error {
 		fmt.Printf("SKIP integration:rig: agent-core checkout not found at %s\n", coreRoot)
 		return nil
 	}
+	if err := requireSharedObservability(helmReadyTimeout); err != nil {
+		return fmt.Errorf("shared observability stack is required: %w", err)
+	}
 	binary, err := buildAgent(coreRoot)
 	if err != nil {
 		return err
@@ -68,13 +71,26 @@ func (Integration) Rig() error {
 	}
 
 	trace := filepath.Join(binDir, "rig.otel.json")
-	cmd := exec.Command(binary,
+	args := []string{
 		"--profile", rigProfile,
 		"--core-root", coreRoot,
 		"--otel-log-file", trace,
+	}
+	endpoint := firstNonEmpty(
+		os.Getenv(integrationOTLPEndpointEnv),
+		"127.0.0.1:"+envOrDefault("DA_OTEL_GRPC_PORT", "4317"),
 	)
+	runID := firstNonEmpty(os.Getenv(integrationRunIDEnv), generatedRunID("integration:rig"))
+	commit := firstNonEmpty(os.Getenv(integrationCommitEnv), gitCommit(exampleRoot))
+	telemetryArgs := integrationTelemetryArgs(endpoint, "assembler-rig")
+	resourceEnv := "OTEL_RESOURCE_ATTRIBUTES=" +
+		integrationResourceAttributes("integration:rig", runID, commit)
+	cmd := exec.Command(binary, append(args, telemetryArgs...)...)
 	cmd.Dir = exampleRoot
-	cmd.Env = append(os.Environ(), "PATH="+binDir+string(os.PathListSeparator)+os.Getenv("PATH"))
+	cmd.Env = append(os.Environ(),
+		"PATH="+binDir+string(os.PathListSeparator)+os.Getenv("PATH"),
+		resourceEnv,
+	)
 	var out bytes.Buffer
 	cmd.Stdout = &out
 	cmd.Stderr = &out
@@ -99,8 +115,12 @@ func (Integration) Rig() error {
 				i, verdicts[i], want, verdicts)
 		}
 	}
-	fmt.Printf("integration:rig passed in %s: %d scenarios across two roots, verdicts %v\n",
-		time.Since(start).Round(time.Millisecond), len(verdicts), verdicts)
+	if err := assertSharedSmokeSpans(
+		sharedJaegerBase(), runID, []string{"assembler-rig"}, helmSpanTimeout); err != nil {
+		return fmt.Errorf("retained host rig evidence: %w", err)
+	}
+	fmt.Printf("integration:rig passed in %s: %d scenarios across two roots, verdicts %v; shared Jaeger retained run %s after process exit\n",
+		time.Since(start).Round(time.Millisecond), len(verdicts), verdicts, runID)
 	return nil
 }
 

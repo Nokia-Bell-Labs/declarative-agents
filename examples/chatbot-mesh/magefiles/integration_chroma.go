@@ -382,14 +382,17 @@ func runChromaIngest(binary, profilesRoot, coreRoot string) error {
 func runChromaAgent(binary, profilesRoot, coreRoot, profile, directory, tracePath string) error {
 	ctx, cancel := context.WithTimeout(context.Background(), 5*time.Minute)
 	defer cancel()
-	cmd := exec.CommandContext(ctx, binary,
+	args := []string{
 		"--profile", profile,
 		"--directory", directory,
 		"--core-root", coreRoot,
 		"--verbose-trace",
 		"--otel-log-file", tracePath,
-	)
+	}
+	telemetryArgs, resourceEnv := hostIntegrationTelemetry("integration:chroma", "corpus-ingest", profilesRoot)
+	cmd := exec.CommandContext(ctx, binary, append(args, telemetryArgs...)...)
 	cmd.Dir = profilesRoot
+	cmd.Env = append(os.Environ(), resourceEnv)
 	out, err := cmd.CombinedOutput()
 	if err != nil {
 		return fmt.Errorf("%w\n%s", err, out)

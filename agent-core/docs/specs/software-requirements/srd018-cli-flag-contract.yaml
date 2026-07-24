@@ -12,6 +12,7 @@ goals:
   - G2: Provide PropagateArgs for building child-process argument slices with traceparent and budget propagation.
   - G3: Provide helpers for remaining-budget calculation and ad-hoc flag formatting.
   - G4: Define the persistent checkpoint-backend flag and default-backend behavior for the agent binary.
+  - G5: Define explicit OTLP destination and service identity flags for direct and child agent runs.
 
 requirements:
   R1:
@@ -25,14 +26,17 @@ requirements:
       - R1.6: FlagLLMTimeout ("llm-timeout") — per-LLM-call timeout.
       - R1.7: FlagPrompt ("prompt") — path to the prompt/task file.
       - R1.8: FlagOllamaURL ("ollama-url") — base URL of the Ollama API server.
+      - R1.9: FlagOTelOTLPEndpoint ("otel-otlp-endpoint") — OTLP gRPC endpoint used for live trace and metric export.
+      - R1.10: FlagOTelServiceName ("otel-service-name") — stable OpenTelemetry service.name for the agent process.
 
   R2:
     title: PropagateArgs struct and Build method
     items:
-      - R2.1: "PropagateArgs fields: SpanContext (trace.SpanContext), TraceFile (string), Model (string), Directory (string), Prompt (string), OllamaURL (string), MaxTime (time.Duration), LLMTimeout (time.Duration)."
+      - R2.1: "PropagateArgs fields: SpanContext (trace.SpanContext), TraceFile (string), OTLPEndpoint (string), OTelServiceName (string), Model (string), Directory (string), Prompt (string), OllamaURL (string), MaxTime (time.Duration), LLMTimeout (time.Duration)."
       - R2.2: Build() serialises SpanContext via telemetry.FormatTraceparent and emits --otel-parent-span only when the span context is valid.
       - R2.3: Build() omits flags whose values are zero/empty, producing a minimal argument slice.
       - R2.4: Build() emits durations using Go's Duration.String() format (e.g. "5m0s").
+      - R2.5: Build() SHALL propagate non-empty OTLPEndpoint and OTelServiceName values unchanged so a child joins the same integration ingress under its own declared service identity.
 
   R3:
     title: RemainingBudget helper
@@ -62,6 +66,14 @@ requirements:
       - R6.4: A suspended run SHALL exit 0, because a suspension is a deliberate pause with a persisted checkpoint that a caller resumes rather than a failure (srd025-rollback-lifecycle R5.3).
       - R6.5: --validate-config SHALL keep its documented preflight codes, 0 for a valid corpus and non-zero for an invalid one, independently of any run.
 
+  R7:
+    title: Live telemetry flags
+    items:
+      - R7.1: --otel-otlp-endpoint SHALL enable live OTLP trace and metric export to the named gRPC endpoint and SHALL compose with --otel-log-file for dual export.
+      - R7.2: --otel-service-name SHALL set the OpenTelemetry service.name resource attribute and SHALL NOT replace the profile as the source of agent program identity.
+      - R7.3: Integration launchers SHALL pass both flags explicitly. Stable names SHALL identify an agent role and, for scaled roles, its instance.
+      - R7.4: An empty --otel-otlp-endpoint SHALL leave live export disabled; an empty --otel-service-name SHALL use the runtime's documented default service name.
+
 non_goals:
   - Flag registration with cobra/pflag (that is the responsibility of each CLI binary's main).
   - Parsing inbound flags (each binary uses its own flag set).
@@ -69,12 +81,12 @@ non_goals:
 
 acceptance_criteria:
   - id: AC1
-    criterion: Eight standard flag name constants are exported and match the canonical CLI surface.
-    traces: [R1.1, R1.2, R1.3, R1.4, R1.5, R1.6, R1.7, R1.8]
+    criterion: Ten standard flag name constants are exported and match the canonical CLI surface.
+    traces: [R1.1, R1.2, R1.3, R1.4, R1.5, R1.6, R1.7, R1.8, R1.9, R1.10]
 
   - id: AC2
-    criterion: PropagateArgs.Build() produces a correct flag slice, omitting flags with zero values and formatting traceparent via telemetry.FormatTraceparent.
-    traces: [R2.1, R2.2, R2.3, R2.4]
+    criterion: PropagateArgs.Build() produces a correct flag slice, omitting flags with zero values, formatting traceparent via telemetry.FormatTraceparent, and preserving explicit OTLP endpoint and service identity values.
+    traces: [R2.1, R2.2, R2.3, R2.4, R2.5]
 
   - id: AC3
     criterion: RemainingBudget returns 0 for unlimited or exhausted budgets, and the correct remainder otherwise.
@@ -91,6 +103,10 @@ acceptance_criteria:
   - id: AC5
     criterion: The agent documents --dolt-dsn as the MySQL-wire DSN selecting the Dolt-backed persistent backend, defaults to NoopCheckpoint when empty, registers the "dolt" driver at the composition root, and supersedes the legacy FileStore state-store directory.
     traces: [R5.1, R5.2, R5.3, R5.4]
+
+  - id: AC7
+    criterion: The live telemetry flags compose file and OTLP export, set stable service identity without changing profile identity, propagate to child agents, and preserve disabled defaults when omitted.
+    traces: [R7.1, R7.2, R7.3, R7.4]
 
 depends_on:
   - srd_id: srd016-traceparent
@@ -112,6 +128,8 @@ diagrams:
       Goals --> R3["R3: RemainingBudget helper"]
       Goals --> R4["R4: FormatFlag helper"]
       Goals --> R5["R5: Persistent checkpoint-backend flag"]
+      Goals --> R6["R6: Process exit code contract"]
+      Goals --> R7["R7: Live telemetry flags"]
       AC1["AC1: Eight standard flag name constants are exported and match..."]
       R1 --> AC1
       AC2["AC2: PropagateArgs.Build() produces a correct flag slice, omit..."]
@@ -122,4 +140,6 @@ diagrams:
       R4 --> AC4
       AC5["AC5: --dolt-dsn selects the Dolt backend; Noop default; driver at root..."]
       R5 --> AC5
+      AC7["AC7: Live telemetry flags compose dual export and stable service identity..."]
+      R7 --> AC7
     ```

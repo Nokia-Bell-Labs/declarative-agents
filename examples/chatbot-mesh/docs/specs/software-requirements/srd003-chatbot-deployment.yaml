@@ -5,7 +5,7 @@ context: |
   The chatbot mesh runs as a set of container agents on Kubernetes: one chatbot
   agent (srd002) fronting N RAG server agents (srd001), each RAG paired with its
   Chroma database, plus a chat LLM (in-cluster or external), a Dolt checkpoint
-  backend, and an OTel collector with a trace backend. This SRD owns the Helm
+  backend, and an OTel collector with trace and metric backends. This SRD owns the Helm
   topology, the values-driven co-generation of RAG topology and chatbot client
   config, the tiered hot-swap model and the observability wiring.
 
@@ -31,7 +31,7 @@ goals:
   - G2: Co-generate the chatbot's rest.yaml RAG client entries from the same values list that creates the RAG Deployments and Services, so topology and client config share one source of truth and the rendered config is validated.
   - G3: Define a tiered hot-swap model -- Service repoint, values re-render plus a request-draining rollout -- and exclude in-process client-registry mutation.
   - G4: Define the provisioning surface as a config-plane deployment API, authenticated apart from the chat path, that never submits an endpoint to a running agent.
-  - G5: Define the OTLP export and trace-backend wiring the observability panel queries.
+  - G5: Define self-contained production observability and an explicit integration overlay that retains trace and metric evidence in a shared host sink.
   - G6: Define an in-cluster LLM tier -- an optional Ollama subchart, enabled by default, with model preload, readiness gating, and GPU scheduling -- so a fresh-cluster install is self-contained, while an operator-supplied external endpoint remains a values switch that leaves the co-generation contract (R2) unchanged.
 
 requirements:
@@ -76,6 +76,16 @@ requirements:
       - R5.1: Every agent SHALL export OTLP to the in-cluster OTel collector.
       - R5.2: A trace backend (for example Tempo or Jaeger) SHALL be a chart dependency that the observability panel queries for cross-agent traces.
       - R5.3: Cross-agent trace continuity SHALL rely on HTTP traceparent propagation (agent-core srd016 R4/R5); without it the observability panel v1 SHALL fall back to per-agent monitor SSE correlated by request id.
+      - R5.4: >-
+          Production defaults SHALL remain self-contained: the chart-local
+          Collector and Jaeger SHALL work without a host observability stack.
+      - R5.5: The integration values overlay SHALL retain the chart-local Collector as a gateway where useful and SHALL export through it to the pre-existing host integration ingress. The overlay SHALL NOT make the external sink a production default.
+      - R5.6: Integration services SHALL use stable service.name values for chatbot, each RAG agent, each Chroma instance, and enabled Kubernetes control-plane components. Every signal SHALL carry repository, module, target, commit, and unique run identity.
+      - R5.7: Chroma SHALL export native OTLP traces through the gateway. Agent-to-Chroma HTTP calls SHALL inject traceparent so Chroma spans join the caller trace.
+      - R5.8: Dolt SHALL expose Prometheus metrics, and the Collector metric pipeline SHALL scrape and export them to the shared Prometheus-compatible backend.
+      - R5.9: Kind integration configuration SHALL enable supported control-plane tracing to the shared ingress. Because helm and kubectl do not propagate traceparent, those traces SHALL be correlated by run identity and time rather than claimed as one agent waterfall.
+      - R5.10: Integration evidence SHALL remain queryable after chart and cluster teardown. It SHALL record sink health, run identity, representative trace ids and services, and agent and Dolt metric availability.
+      - R5.11: Native Ollama server tracing and OTel Logs are explicit limitations. Ollama evidence SHALL use agent-core GenAI client spans until native server tracing is available.
   R6:
     title: In-cluster LLM tier
     items:
@@ -91,6 +101,9 @@ non_goals:
   - Owning the SPA panel content; the observability panel is its own issue.
   - Replacing the rel06.0 mounted-profile image contract or building per-role images.
   - Matching GPU production sizing on the kind smoke path; the smoke path runs CPU-only small models and diverges from production sizing by design (R6.4).
+  - Replacing the self-contained production Collector and Jaeger defaults with an integration-only host dependency.
+  - Claiming one propagated trace across helm or kubectl and the Kubernetes API server.
+  - Introducing OTel Logs or claiming native Ollama server tracing.
 
 acceptance_criteria:
   - id: AC1
@@ -112,8 +125,8 @@ acceptance_criteria:
     tests:
       - "test-rel06.0-executor: The panel route reaches only the authorized surface"
   - id: AC5
-    criterion: The observability wiring is specified with OTLP export, a trace-backend chart dependency the panel queries, and the traceparent-or-SSE fallback for cross-agent continuity.
-    traces: [R5.1, R5.2, R5.3]
+    criterion: The observability wiring preserves self-contained production defaults and defines an integration-only gateway to a persistent host sink, stable run and service identity, Chroma trace propagation, Dolt metrics, separately correlated kind control-plane traces, retained evidence, and the Ollama and OTel Logs limitations.
+    traces: [R5.1, R5.2, R5.3, R5.4, R5.5, R5.6, R5.7, R5.8, R5.9, R5.10, R5.11]
   - id: AC6
     criterion: The in-cluster LLM tier is specified -- an optional Ollama subchart enabled by default with PVC model storage and an enabled/external switch that leaves R2 unchanged, a model-preload Job pulling the embedding, chat, and router models named once in values, agent readiness gated on model presence, GPU scheduling as values with a CPU-only path, and a recorded single-instance default topology.
     traces: [R6.1, R6.2, R6.3, R6.4, R6.5]
@@ -137,6 +150,12 @@ platform_dependencies:
     provider: agent-core
     symbols_used: [R6]
   - srd_id: srd016-traceparent
+    provider: agent-core
+    symbols_used: [R5]
+  - srd_id: srd008-telemetry
+    provider: agent-core
+    symbols_used: [R5]
+  - srd_id: srd018-cli-flag-contract
     provider: agent-core
     symbols_used: [R5]
 
@@ -166,6 +185,10 @@ implementation_status:
     - >-
       A live on-cluster hot-swap turn citing a newly added corpus, paired with a
       Docker and Ollama host run.
+    - >-
+      The integration-only shared-sink overlay, native Chroma tracing, Dolt
+      metric scraping, kind control-plane tracing, and retained evidence
+      assertions specified by R5.5-R5.11.
 
 diagrams:
   deployment: |
@@ -181,7 +204,11 @@ diagrams:
       Chatbot -->|OTLP| Collector["OTel collector"]
       RAG1 -->|OTLP| Collector
       RAGn -->|OTLP| Collector
+      Chroma["Chroma stores"] -->|native OTLP traces| Collector
+      Dolt -->|Prometheus scrape| Collector
       Collector --> Backend["Trace backend (Tempo/Jaeger)"]
+      Collector --> Metrics["Prometheus-compatible metrics backend"]
+      Collector -. integration overlay .-> HostIngress["Persistent host OTLP ingress"]
       Values["values.yaml RAG list"] -->|co-generate| RAGConfig["RAG Deployments + Services"]
       Values -->|co-generate| ClientConfig["chatbot rest.yaml RAG clients (ValidateDefinition)"]
     ```

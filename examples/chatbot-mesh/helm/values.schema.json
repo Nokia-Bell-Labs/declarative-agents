@@ -75,8 +75,30 @@
         }
       }
     },
-    "dolt": {"type": "object", "properties": {"enabled": {"type": "boolean"}}},
-    "collector": {"type": "object", "properties": {"enabled": {"type": "boolean"}}},
+    "dolt": {
+      "type": "object",
+      "properties": {
+        "enabled": {"type": "boolean"},
+        "metricsPort": {"type": "integer", "minimum": 1024, "maximum": 49151}
+      }
+    },
+    "collector": {
+      "type": "object",
+      "properties": {
+        "enabled": {"type": "boolean"},
+        "externalOTLPEndpoint": {"type": "string"},
+        "integrationResource": {
+          "type": "object",
+          "properties": {
+            "repository": {"type": "string"},
+            "module": {"type": "string"},
+            "target": {"type": "string"},
+            "commit": {"type": "string"},
+            "runID": {"type": "string"}
+          }
+        }
+      }
+    },
     "jaeger": {"type": "object", "properties": {"enabled": {"type": "boolean"}}},
     "ingress": {
       "type": "object",
@@ -106,6 +128,37 @@
       "then": {
         "required": ["llm"],
         "properties": {"llm": {"required": ["externalURL"], "properties": {"externalURL": {"type": "string", "minLength": 1}}}}
+      }
+    },
+    {
+      "$comment": "An external integration sink requires complete bounded run identity.",
+      "if": {
+        "required": ["collector"],
+        "properties": {
+          "collector": {
+            "required": ["externalOTLPEndpoint"],
+            "properties": {"externalOTLPEndpoint": {"minLength": 1}}
+          }
+        }
+      },
+      "then": {
+        "properties": {
+          "collector": {
+            "required": ["integrationResource"],
+            "properties": {
+              "integrationResource": {
+                "required": ["repository", "module", "target", "commit", "runID"],
+                "properties": {
+                  "repository": {"minLength": 1},
+                  "module": {"minLength": 1},
+                  "target": {"minLength": 1},
+                  "commit": {"minLength": 1},
+                  "runID": {"minLength": 1}
+                }
+              }
+            }
+          }
+        }
       }
     }
   ]
