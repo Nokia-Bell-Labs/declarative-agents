@@ -1241,6 +1241,40 @@ test_cases:
       - srd030-machine-request-rest-binding AC7
       - srd031-declarative-document-resources AC2
 
+  - use_case: rel03.0-uc007-machine-request-documentation-ux
+    name: Documentation browser actions use configured request-machine routes
+    go_test: TestStandaloneServerProxiesValidateActionThroughRequestMachine, TestStandaloneServerRejectsLegacyActionEnvelope
+    status: done
+    description: |
+      Post a browser-shaped validation request through the documentation host.
+      The same-origin proxy must return the configured request-machine trace,
+      while the removed generic action envelope returns 404. Profile wiring
+      tests cover all four configured action paths, and the Puppeteer tracer
+      captures validation through the active UI.
+    inputs:
+      configured_routes:
+        - POST /api/v1/actions/validate
+        - POST /api/v1/actions/suggest
+        - POST /api/v1/actions/patches/{patch_id}/approve
+        - POST /api/v1/actions/patches/{patch_id}/reject
+      removed_route: POST /api/v1/actions
+      request_machine: documentation-curator-request
+    expected:
+      private_action_registry_used: false
+      direct_command_execute_used: false
+      legacy_action_envelope_status: 404
+      validation_terminal_signal: RESTResponded
+      action_trace_present: true
+      profile_wiring_test: TestDocumentationActionEndpointsUseMachineRequestBinding
+      profile_ux_test: TestDocumentationUXActionsUseRequestMachineRoutes
+      browser_validation_trace: validate_action
+    traces:
+      - rel03.0-uc007-machine-request-documentation-ux S7
+      - srd030-machine-request-rest-binding AC1
+      - srd030-machine-request-rest-binding AC2
+      - srd030-machine-request-rest-binding AC3
+      - srd030-machine-request-rest-binding AC7
+
   - use_case: rel03.0-uc001-rest-client-sync
     name: REST observability redacts secrets and reports failure stages
     go_test: TestRESTTools_TracingRedactionAndErrors

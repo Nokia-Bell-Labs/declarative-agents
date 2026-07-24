@@ -187,6 +187,7 @@ func TestCuratorUXConfigMatchesRouteAndActionContracts(t *testing.T) {
 	require.NoError(t, err)
 
 	requireUXRoutesMatchREST(t, ux, collection.Servers["docs_runtime_requests"].Endpoints)
+	requireUXActionRoutesMatchREST(t, ux, collection.Servers["docs_runtime_requests"].Endpoints)
 	requireUXActionsSelected(t, ux, toolNames(defs), machineActionNames(machine))
 }
 
@@ -219,7 +220,7 @@ func TestMachineRequestFactoriesRegisterSelectedRESTClients(t *testing.T) {
 	require.True(t, ok)
 }
 
-func TestDocumentationValidateActionRunsThroughRequestMachine(t *testing.T) {
+func TestStandaloneServerProxiesValidateActionThroughRequestMachine(t *testing.T) {
 	root := t.TempDir()
 	docsDir := filepath.Join(root, "docs")
 	writeDocFixture(t, docsDir, "VISION.yaml", "title: Vision\n")
@@ -230,14 +231,21 @@ func TestDocumentationValidateActionRunsThroughRequestMachine(t *testing.T) {
 	}))
 	t.Cleanup(internalAPI.Close)
 	profilePath := curatorProfileWithRESTAddress(t, internalAPI.URL)
-	proxy := NewLazyMachineRequestProxy(profilePath, docsDir)
-	t.Cleanup(func() { require.NoError(t, proxy.Close()) })
+	handler := NewServer(HostConfig{
+		DocsDir: docsDir, ProfilePath: profilePath,
+		Assets: fstest.MapFS{"index.html": &fstest.MapFile{Data: []byte("<html>docs app</html>")}},
+	}).Handler()
+	t.Cleanup(func() {
+		closer, ok := handler.(interface{ Close() error })
+		require.True(t, ok)
+		require.NoError(t, closer.Close())
+	})
 	req := httptest.NewRequest(http.MethodPost, "/api/v1/actions/validate",
 		strings.NewReader(`{"paths":["VISION.yaml"],"strict":false}`))
 	req.Header.Set("Content-Type", "application/json")
 	rec := httptest.NewRecorder()
 
-	proxy.ServeHTTP(rec, req)
+	handler.ServeHTTP(rec, req)
 
 	require.Equal(t, http.StatusOK, rec.Code, rec.Body.String())
 	require.Contains(t, rec.Body.String(), `"status":"findings"`)
@@ -246,6 +254,18 @@ func TestDocumentationValidateActionRunsThroughRequestMachine(t *testing.T) {
 	require.Equal(t, "validate_action", trace["route"])
 	require.Equal(t, "docs-runtime-request", trace["machine"])
 	require.Equal(t, "RESTResponded", trace["terminal_signal"])
+}
+
+func TestStandaloneServerRejectsLegacyActionEnvelope(t *testing.T) {
+	t.Parallel()
+	handler := NewServer(HostConfig{
+		Assets: fstest.MapFS{"index.html": &fstest.MapFile{Data: []byte("<html>docs app</html>")}},
+	}).Handler()
+
+	rec := postDocsJSON(t, handler, "/api/v1/actions",
+		`{"type":"doc_validate","params":{"paths":["VISION.yaml"]}}`)
+
+	require.Equal(t, http.StatusNotFound, rec.Code)
 }
 
 func curatorProfileWithRESTAddress(t *testing.T, baseURL string) string {

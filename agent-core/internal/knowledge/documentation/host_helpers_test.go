@@ -5,7 +5,6 @@ package docsapi
 import (
 	"github.com/Nokia-Bell-Labs/declarative-agents/agent-core/internal/runtime/core"
 	"github.com/Nokia-Bell-Labs/declarative-agents/agent-core/pkg/spec"
-	"net/http"
 	"os"
 	"path/filepath"
 	"runtime"
@@ -41,16 +40,6 @@ func (c staticDocsSignalCmd) Execute() core.Result {
 
 func (c staticDocsSignalCmd) Undo(_ core.Result) core.Result {
 	return core.NoopUndo(c.name)
-}
-
-type fakeWorkflowRunner struct{}
-
-func (fakeWorkflowRunner) Run(r *http.Request) (ActionResponse, error) {
-	defer func() { _ = r.Body.Close() }()
-	return ActionResponse{
-		Data: map[string]interface{}{"status": "valid"},
-		Tool: "doc_validate", Signal: "RESTResponded",
-	}, nil
 }
 
 func repoRootFromDocsTest(t *testing.T) string {
@@ -426,15 +415,23 @@ actions:
     route: docs_detail
   validate_document:
     ui_action: doc_validate
+    request_machine_action: doc_validate
+    request_machine_route: /actions/validate
     route: docs_detail
   suggest_changes:
     ui_action: doc_suggest_changes
+    request_machine_action: doc_suggest_changes
+    request_machine_route: /actions/suggest
     route: docs_detail
   approve_patch:
     ui_action: doc_patch_approve
+    request_machine_action: doc_patch_approve
+    request_machine_route: /actions/patches/{patch_id}/approve
     route: docs_detail
   reject_patch:
     ui_action: doc_patch_reject
+    request_machine_action: doc_patch_reject
+    request_machine_route: /actions/patches/{patch_id}/reject
     route: docs_detail
   reopen_patch:
     ui_action: doc_patch_reopen

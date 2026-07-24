@@ -41,6 +41,14 @@ type documentationRESTConfig struct {
 	} `yaml:"rest"`
 }
 
+type documentationUXConfig struct {
+	Actions map[string]struct {
+		UIAction             string `yaml:"ui_action"`
+		RequestMachineAction string `yaml:"request_machine_action"`
+		RequestMachineRoute  string `yaml:"request_machine_route"`
+	} `yaml:"actions"`
+}
+
 func TestDocumentationRequestMachineSequencesConfiguredActions(t *testing.T) {
 	var machine documentationRequestMachine
 	readDocumentationCuratorYAML(t, "request-machine.yaml", &machine)
@@ -82,6 +90,30 @@ func TestDocumentationActionEndpointsUseMachineRequestBinding(t *testing.T) {
 			if _, ok := endpoint.MachineRequest.Response.TerminalStates[terminal]; !ok {
 				t.Errorf("endpoint %q missing terminal state response %q", name, terminal)
 			}
+		}
+	}
+}
+
+func TestDocumentationUXActionsUseRequestMachineRoutes(t *testing.T) {
+	var ux documentationUXConfig
+	readDocumentationCuratorYAML(t, filepath.Join("ui", "ux.yaml"), &ux)
+
+	for name, want := range map[string]struct {
+		action string
+		route  string
+	}{
+		"validate_document": {"doc_validate", "/actions/validate"},
+		"suggest_changes":   {"doc_suggest_changes", "/actions/suggest"},
+		"approve_patch":     {"doc_patch_approve", "/actions/patches/{patch_id}/approve"},
+		"reject_patch":      {"doc_patch_reject", "/actions/patches/{patch_id}/reject"},
+	} {
+		action, ok := ux.Actions[name]
+		if !ok {
+			t.Fatalf("missing UX action %q", name)
+		}
+		if action.UIAction != want.action || action.RequestMachineAction != want.action ||
+			action.RequestMachineRoute != want.route {
+			t.Fatalf("UX action %q = %+v", name, action)
 		}
 	}
 }
