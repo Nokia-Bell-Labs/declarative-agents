@@ -57,6 +57,20 @@ func TestChromaRequiredModelsFromConfig(t *testing.T) {
 	}
 }
 
+func TestChromaRequiredModelsUseDeploymentEnvironment(t *testing.T) {
+	t.Setenv("CORPUS_EMBEDDING_MODEL", "all-minilm")
+	t.Setenv("CORPUS_CHAT_MODEL", "qwen2.5:0.5b")
+	root := filepath.Dir(findChartDir(t))
+	got, err := chromaRequiredModels(root)
+	if err != nil {
+		t.Fatalf("chromaRequiredModels: %v", err)
+	}
+	want := []string{"all-minilm", "qwen2.5:0.5b"}
+	if len(got) != len(want) || got[0] != want[0] || got[1] != want[1] {
+		t.Fatalf("required models = %v, want environment-selected %v", got, want)
+	}
+}
+
 func TestChromaRequiredModelsMissingInvokeLLM(t *testing.T) {
 	root := t.TempDir()
 	writeChromaConfigFile(t, filepath.Join(root, corpusRestAsset),

@@ -11,3 +11,4 @@ magefiles/mage_output_file.go
 deploy/chatbot-mesh/profiles/agents/
 deploy/chatbot-mesh/*.tgz
 deploy/chatbot-mesh/charts/
+examples/chatbot-mesh/helm/dist/

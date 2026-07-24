@@ -69,6 +69,10 @@ spec:
             # pod never does (srd013 R5.7, GH-728).
             - name: OLLAMA_URL
               value: {{ include "chatbot-mesh.llmURL" . | quote }}
+            # The local profile resolves ux/app/dist from the checkout. Packaged
+            # assets are mounted under the profiles ConfigMap instead.
+            - name: CHATBOT_UI_ROOT
+              value: {{ printf "%s/ux/app/dist" .Values.profiles.mountPath | quote }}
             # declare_query_model puts the query embedding model identity into
             # command state for the per-RAG comparison, and it lives in the
             # verbatim-mounted request declarations. Without this its packaged
@@ -77,6 +81,16 @@ spec:
             # embed_query request body reads the same value (srd002 R3.3, GH-765).
             - name: CHATBOT_EMBEDDING_MODEL
               value: {{ .Values.chatbot.embeddingModel | quote }}
+            # The mounted declarations keep local-development defaults, while a
+            # chart deployment selects every required LLM from ollama.models.
+            # With one chat model both answer words use it; with several, the
+            # fast word uses the first and the deep word uses the last.
+            - name: CHATBOT_ROUTER_MODEL
+              value: {{ .Values.ollama.models.router | quote }}
+            - name: CHATBOT_FAST_MODEL
+              value: {{ first .Values.ollama.models.chat | quote }}
+            - name: CHATBOT_DEEP_MODEL
+              value: {{ last .Values.ollama.models.chat | quote }}
           ports:
             - {name: chat, containerPort: {{ .Values.chatbot.ports.chat }}}
             - {name: control, containerPort: {{ .Values.chatbot.ports.control }}}

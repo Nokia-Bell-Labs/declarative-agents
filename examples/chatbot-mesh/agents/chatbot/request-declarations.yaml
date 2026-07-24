@@ -155,7 +155,7 @@ tools:
       after:
         - compose_prompt
     config:
-      model: "qwen2.5:3b"
+      model: "${CHATBOT_ROUTER_MODEL:-qwen2.5:3b}"
       provider: ollama
       provider_url: "${OLLAMA_URL:-http://localhost:11434}"
       # manifest_state is the tool manifest the router selects over and the state
@@ -294,7 +294,7 @@ tools:
         - compose_prompt
         - parse_route
     config:
-      model: "qwen2.5:3b"
+      model: "${CHATBOT_FAST_MODEL:-qwen2.5:3b}"
       provider: ollama
       provider_url: "${OLLAMA_URL:-http://localhost:11434}"
       manifest_state: Answering
@@ -375,7 +375,7 @@ tools:
         - compose_prompt
         - parse_route
     config:
-      model: "ornith:9b"
+      model: "${CHATBOT_DEEP_MODEL:-ornith:9b}"
       provider: ollama
       provider_url: "${OLLAMA_URL:-http://localhost:11434}"
       manifest_state: Answering

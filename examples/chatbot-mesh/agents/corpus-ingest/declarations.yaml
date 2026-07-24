@@ -393,6 +393,7 @@ tools:
   - name: list_resource
     type: builtin
     init: list_resource
+    visibility: internal
     category: boundary
     description: List the corpus documents so the model can choose which to ingest.
     problem: The model must discover the corpus files from trusted configuration, not guess paths.
@@ -412,7 +413,7 @@ tools:
     parameters:
       type: object
       properties:
-        resource: {type: string}
+        resource: {type: string, enum: [corpus]}
         prefix: {type: string}
       required: [resource]
     emits: [DocumentListReady, DocumentResourceDenied, CommandError]
@@ -444,6 +445,7 @@ tools:
     relationships:
       before: [read_resource]
     config:
+      resource: corpus
       resources:
         corpus:
           root: "."
@@ -474,7 +476,7 @@ tools:
     parameters:
       type: object
       properties:
-        resource: {type: string}
+        resource: {type: string, enum: [corpus]}
         path: {type: string}
       required: [resource, path]
     emits: [DocumentReady, DocumentMissing, DocumentResourceDenied, DocumentParseFailed, CommandError]
@@ -512,6 +514,7 @@ tools:
       after: [list_resource]
       before: [embed_document]
     config:
+      resource: corpus
       resources:
         corpus:
           root: "."
@@ -580,22 +583,25 @@ tools:
         state_after_failure: conversation history is unchanged unless the provider response was already appended
     relationships:
       after: [chroma_ready, ollama_ready]
-      before: [list_resource, read_resource]
+      before: [read_resource]
     config:
-      model: "ornith:9b"
+      model: "${CORPUS_CHAT_MODEL:-ornith:9b}"
       provider: ollama
       provider_url: "${OLLAMA_URL:-http://localhost:11434}"
       manifest_state: Composing
       response_profile: qwen
-      max_time: 120
-      llm_timeout: 120
+      max_time: 300
+      llm_timeout: 300
       system_prompt: |
         You load a document corpus into a vector database by choosing files to read.
 
         Rules:
-        - First call list_resource with resource "corpus" to see the available files.
-        - Then call read_resource once for each listed file, using resource "corpus"
+        - The machine lists the corpus before calling you. The conversation contains
+          a JSON array whose path fields are the only files you may choose.
+        - Call read_resource once for each listed file, using resource "corpus"
           and the file's exact path. Read every file exactly once.
+        - Never invent or rewrite a path. Copy the path field byte-for-byte from
+          the list_resource result.
         - After every listed file has been read, call done.
         - Do not read a file twice. Do not invent paths that were not listed.
         - You never embed or store content yourself; the system does that after each read.

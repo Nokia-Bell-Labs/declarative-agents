@@ -55,6 +55,23 @@ GPU scheduling is values-driven: set `ollama.gpu.count` and provide `ollama.node
 
 Realized as chart-owned templates rather than a nested Helm subchart so the Ollama Service keeps the `<release>-chatbot-mesh-ollama` name the co-generated LLM URL depends on.
 
+## Package and install from a checkout
+
+The canonical agent programs live beside the chart under `agents/` and `ux/`;
+the source `helm/` directory is not an install artifact by itself. Package it
+first so every required profile and SPA asset is staged into the chart:
+
+```bash
+cd examples/chatbot-mesh
+mage helm:package
+helm install chatbot-mesh helm/dist/chatbot-mesh-*.tgz \
+  -f helm/ci/kind-llm-values.yaml
+```
+
+`HELM_PACKAGE_DIR=/path mage helm:package` overrides the output directory. The
+package target prunes profile test fixtures and stages only the UX descriptor
+and built SPA, keeping the profiles ConfigMap below Kubernetes' size limit.
+
 ## Technology choices
 
 Profiles ride in a ConfigMap projected to nested paths through `items[].path`, because ConfigMap keys cannot contain `/`; this keeps one image and lets a values edit re-render an agent's program. Jaeger all-in-one is the trace backend because its query API is the simplest target for the observability panel's cross-agent waterfall.

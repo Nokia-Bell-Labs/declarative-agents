@@ -250,7 +250,7 @@ rest:
           path: /ui/{path...}
           binding: static_assets
           static_assets:
-            root: ux/app/dist
+            root: "${CHATBOT_UI_ROOT:-ux/app/dist}"
             index: index.html
             spa: true
           request:
