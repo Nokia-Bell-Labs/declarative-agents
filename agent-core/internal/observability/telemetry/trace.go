@@ -28,10 +28,11 @@ import (
 )
 
 // ExporterConfig controls which exporters NewRoot sets up.
-// At least one of FilePath or OTLPEndpoint must be non-empty.
+// At least one exporter endpoint or FilePath must be non-empty.
 type ExporterConfig struct {
-	FilePath     string
-	OTLPEndpoint string
+	FilePath           string
+	OTLPEndpoint       string
+	MetricOTLPEndpoint string
 }
 
 // Trace bundles an OpenTelemetry tracer, a context carrying the active span,
@@ -98,7 +99,7 @@ func NewTraceFromProvider(tp trace.TracerProvider, serviceName string, ctx conte
 // events; failures at that stage are returned as errors and logged to
 // stderr via log.Printf (pre-root boundary).
 func NewRoot(serviceName, name string, cfg ExporterConfig, parentCtx context.Context) (Trace, func(), error) {
-	if cfg.FilePath == "" && cfg.OTLPEndpoint == "" {
+	if cfg.FilePath == "" && cfg.OTLPEndpoint == "" && cfg.MetricOTLPEndpoint == "" {
 		return Trace{}, nil, fmt.Errorf("ExporterConfig: at least one exporter required")
 	}
 
@@ -139,6 +140,7 @@ func NewRoot(serviceName, name string, cfg ExporterConfig, parentCtx context.Con
 	span.SetAttributes(
 		attribute.Bool("exporter.file_enabled", cfg.FilePath != ""),
 		attribute.Bool("exporter.otlp_enabled", cfg.OTLPEndpoint != ""),
+		attribute.Bool("exporter.metric_otlp_enabled", metricOTLPEndpoint(cfg) != ""),
 	)
 
 	shutdown := buildShutdown(tp, mp, file, cfg.FilePath, span)
@@ -150,7 +152,10 @@ func logExporterConfig(cfg ExporterConfig) {
 		log.Printf("telemetry: file exporter -> %s", cfg.FilePath)
 	}
 	if cfg.OTLPEndpoint != "" {
-		log.Printf("telemetry: OTLP exporter -> %s", cfg.OTLPEndpoint)
+		log.Printf("telemetry: OTLP trace exporter -> %s", cfg.OTLPEndpoint)
+	}
+	if endpoint := metricOTLPEndpoint(cfg); endpoint != "" {
+		log.Printf("telemetry: OTLP metric exporter -> %s", endpoint)
 	}
 }
 
@@ -221,11 +226,17 @@ func buildProviders(
 	}
 
 	if cfg.OTLPEndpoint != "" {
-		traceExp, metricExp, err := otlpExporters(cfg.OTLPEndpoint)
+		traceExp, err := otlpTraceExporter(cfg.OTLPEndpoint)
 		if err != nil {
 			return nil, nil, nil, err
 		}
 		spanOpts = append(spanOpts, sdktrace.WithBatcher(traceExp))
+	}
+	if endpoint := metricOTLPEndpoint(cfg); endpoint != "" {
+		metricExp, err := otlpMetricExporter(endpoint)
+		if err != nil {
+			return nil, nil, nil, err
+		}
 		metricOpts = append(metricOpts, sdkmetric.WithReader(
 			sdkmetric.NewPeriodicReader(metricExp),
 		))
@@ -262,21 +273,33 @@ func fileExporters(path, serviceName string) (
 	return f, traceExp, metricExp, nil
 }
 
-func otlpExporters(endpoint string) (sdktrace.SpanExporter, sdkmetric.Exporter, error) {
+func metricOTLPEndpoint(cfg ExporterConfig) string {
+	if cfg.MetricOTLPEndpoint != "" {
+		return cfg.MetricOTLPEndpoint
+	}
+	return cfg.OTLPEndpoint
+}
+
+func otlpTraceExporter(endpoint string) (sdktrace.SpanExporter, error) {
 	ctx := context.Background()
 	traceExp, err := otlptracegrpc.New(ctx,
 		otlptracegrpc.WithEndpoint(endpoint),
 		otlptracegrpc.WithInsecure(),
 	)
 	if err != nil {
-		return nil, nil, fmt.Errorf("OTLP trace exporter: %w", err)
+		return nil, fmt.Errorf("OTLP trace exporter: %w", err)
 	}
+	return traceExp, nil
+}
+
+func otlpMetricExporter(endpoint string) (sdkmetric.Exporter, error) {
+	ctx := context.Background()
 	metricExp, err := otlpmetricgrpc.New(ctx,
 		otlpmetricgrpc.WithEndpoint(endpoint),
 		otlpmetricgrpc.WithInsecure(),
 	)
 	if err != nil {
-		return nil, nil, fmt.Errorf("OTLP metric exporter: %w", err)
+		return nil, fmt.Errorf("OTLP metric exporter: %w", err)
 	}
-	return traceExp, metricExp, nil
+	return metricExp, nil
 }

@@ -18,8 +18,8 @@ requirements:
   R1:
     title: ExporterConfig
     items:
-      - R1.1: ExporterConfig struct with FilePath and OTLPEndpoint string fields.
-      - R1.2: At least one of FilePath or OTLPEndpoint must be non-empty. NewRoot returns an error otherwise.
+      - R1.1: ExporterConfig struct with FilePath, OTLPEndpoint, and MetricOTLPEndpoint string fields.
+      - R1.2: At least one exporter field must be non-empty. NewRoot returns an error otherwise.
 
   R2:
     title: Trace type
@@ -52,7 +52,7 @@ requirements:
     title: OTLP exporter
     items:
       - R5.1: Sends traces via gRPC to the configured endpoint.
-      - R5.2: Sends metrics via gRPC to the configured endpoint.
+      - R5.2: Sends metrics via gRPC to MetricOTLPEndpoint when declared, otherwise to OTLPEndpoint for compatibility.
       - R5.3: Uses insecure credentials (no TLS).
 
   R6:
