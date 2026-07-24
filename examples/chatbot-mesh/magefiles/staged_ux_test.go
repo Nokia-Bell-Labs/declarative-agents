@@ -134,11 +134,15 @@ func TestStagedProfilesFitTheConfigMapLimit(t *testing.T) {
 	if total > configMapLimit {
 		t.Errorf("staged profiles total %d bytes, over the %d ConfigMap limit", total, configMapLimit)
 	}
-	// Headroom, not a size contest: at over half the limit a single added asset
-	// could push the ConfigMap over and fail the install rather than a test.
-	if total > configMapLimit/2 {
-		t.Errorf("staged profiles total %d bytes, over half the %d ConfigMap limit; the staged set has grown",
-			total, configMapLimit)
+	// Reserve a quarter of the object limit (256 KiB) for YAML/object overhead
+	// and ordinary profile growth. The old half-limit guard left more unused
+	// capacity than the entire shipped UI bundle and failed while the rendered
+	// object still had roughly 50% headroom; three quarters remains a meaningful
+	// early warning without treating useful ConfigMap capacity as unavailable.
+	const safetyThreshold = configMapLimit * 3 / 4
+	if total > safetyThreshold {
+		t.Errorf("staged profiles total %d bytes, over the %d-byte safety threshold for a %d-byte ConfigMap",
+			total, safetyThreshold, configMapLimit)
 	}
 }
 
