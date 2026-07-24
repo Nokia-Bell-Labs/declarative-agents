@@ -437,30 +437,30 @@ releases:
       order. The ingress profile exports its own telemetry to file only. This
       release receives traces only; deployments that require the persistent
       metrics evidence from srd008 R9 retain a separate metrics path.
-    status: planned
+    status: implemented
     planned_work:
       - id: gh-858
         summary: Specify the OTLP receiver tool family, use case, and formal test plan.
-        status: in_progress
+        status: implemented
       - id: gh-859
         summary: Implement OTLP/gRPC receive, bounded state, launch, and stop.
-        status: open
+        status: implemented
       - id: gh-860
         summary: Implement await_spans and stdouttrace-compatible spool output.
-        status: open
+        status: implemented
       - id: gh-861
         summary: Implement declared OTLP batch relay and self-loop rejection.
-        status: open
+        status: implemented
     srds:
       - srd042-otlp-receiver-tools
     use_cases:
       - id: rel11.0-uc001-otlp-receiver-await
         summary: A persistent machine receives, records, and relays OTLP trace batches through declared words.
-        status: specified
+        status: implemented
     test_suites:
       - id: test-rel11.0-otlp-receiver
-        summary: Planned tests for receive, backpressure, await, spool compatibility, relay identity, lifecycle cleanup, and self-loop prevention.
-        status: specified
+        summary: Formal tests for receive, backpressure, await, spool compatibility, relay identity, lifecycle cleanup, and self-loop prevention.
+        status: implemented
     proof:
       - go test ./internal/tools/otlp
       - mage audit
