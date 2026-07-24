@@ -432,7 +432,7 @@ tools:
     role: word
     selected_by: [planner]
     inputs_from: [invoke_llm]
-    feeds_into: [create_issue]
+    feeds_into: [format_issue]
     side_effects: pipeline_state_mutation
     output_contract: missing
     undo: restore_previous_plan
@@ -443,25 +443,48 @@ tools:
       - mutates CurrentPlan; needs undo contract
     migration_priority: medium
 
-  - name: create_issue
-    role: boundary
+  - name: format_issue
+    role: stateful_internal
     selected_by: [planner]
     inputs_from: [parse_plan]
-    feeds_into: [execute_task]
-    side_effects: bd_database_write
-    output_contract: missing
-    undo: boundary_compensation (compensating_action, captures issue_id + pipeline_state_snapshot)
+    feeds_into: [write]
+    side_effects: planner_state_read
+    output_contract: structured tracker-neutral parameters
+    undo: restore_previous_pipeline_snapshot
+    overlaps: []
+    issues: []
+    migration_priority: low
+
+  - name: create_tracker_issue
+    role: boundary
+    selected_by: [planner]
+    inputs_from: [write, format_issue]
+    feeds_into: [record_tracker_issue]
+    side_effects: configured_tracker_write
+    output_contract: profile-declared JSON id
+    undo: boundary_compensation (compensating_action, captures issue_id)
     overlaps:
       - tool: issue_create
-        difference: create_issue uses parsed planner state; issue_create is direct bd CLI wrapper
-    issues:
-      - output.schema for created issue ID and metadata
-    migration_priority: medium
+        difference: create_tracker_issue is the planner profile's replaceable tracker boundary; issue_create is a shared direct bd CLI word
+    issues: []
+    migration_priority: low
+
+  - name: record_tracker_issue
+    role: stateful_internal
+    selected_by: [planner]
+    inputs_from: [create_tracker_issue]
+    feeds_into: [execute_task, extract_task]
+    side_effects: pipeline_state_mutation
+    output_contract: structured issue_id
+    undo: restore_previous_pipeline_snapshot
+    overlaps: []
+    issues: []
+    migration_priority: low
 
   - name: execute_task
     role: boundary
     selected_by: [planner]
-    inputs_from: [create_issue, extract_task]
+    inputs_from: [record_tracker_issue, extract_task]
     feeds_into: [check_result]
     side_effects: child_agent_process, workspace_mutation
     output_contract: missing
@@ -988,8 +1011,8 @@ tools:
     output_contract: missing
     undo: boundary_compensation (compensating_action, captures created_issue_id + workspace_paths)
     overlaps:
-      - tool: create_issue
-        difference: issue_create is raw bd CLI wrapper; create_issue consumes planner state
+      - tool: create_tracker_issue
+        difference: issue_create is a shared direct bd CLI wrapper; create_tracker_issue is selected and configured by the planner profile
     issues:
       - output.schema for created issue ID
     migration_priority: low
@@ -1034,7 +1057,7 @@ boundary_tools_with_compensation:
     - suspend
     - checkpoint_rollback
     - self_invoke
-    - create_issue
+    - create_tracker_issue
     - execute_task
     - run_point
     - run_agent

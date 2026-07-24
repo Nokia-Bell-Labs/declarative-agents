@@ -63,9 +63,6 @@ func RegisterFactories(br *toolregistry.BuiltinRegistry, deps FactoryDeps) {
 	br.Register("record_tracker_issue", func(def catalog.ToolDef, vars map[string]string) (core.Builder, error) {
 		return &RecordTrackerIssueBuilder{PS: initPS(def)}, nil
 	})
-	br.Register("create_issue", func(def catalog.ToolDef, vars map[string]string) (core.Builder, error) {
-		return &CreateIssueBuilder{PS: initPS(def)}, nil
-	})
 	br.Register("execute_task", func(def catalog.ToolDef, vars map[string]string) (core.Builder, error) {
 		var childCfg catalog.ChildAgentConfig
 		if err := catalog.DecodeToolConfig(def, &childCfg); err != nil {

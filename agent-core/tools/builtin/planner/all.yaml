@@ -8,7 +8,6 @@ includes:
   - ../format-issue.yaml
   - ../write.yaml
   - ../record-tracker-issue.yaml
-  - ../create-issue.yaml
   - ../execute-task.yaml
   - ../check-result.yaml
 

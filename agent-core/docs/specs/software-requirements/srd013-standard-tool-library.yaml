@@ -29,6 +29,7 @@ goals:
   - G7: Machine-declared validation sequences using atomic build, lint, and test tools; validate remains only as an internal compatibility aggregator.
   - G8: Cross-reference focused tool SRDs rather than duplicating their detailed architectural contracts.
   - G9: Split long-term tool implementations into focused internal/tools packages without a facade package.
+  - G10: Supply narrow planner state adapters while external profiles own tracker CLI selection and arguments.
 
 requirements:
   R1:
@@ -129,6 +130,13 @@ requirements:
       - R10.7: summarize_point_results emits ResultsCollected from already-populated oracle, trace, and version state.
       - R10.8: collect_metrics writes evaluation metadata (exit code, duration, test results, tokens) to meta.json.
 
+  R11:
+    title: Planner state adapters
+    items:
+      - R11.1: format_issue serializes the current implementation plan and emits tracker-neutral parameters for the shared write word and a later tracker exec word.
+      - R11.2: record_tracker_issue validates the configured tracker's common JSON id result and records IssueID and TaskDeps with reversible pipeline state.
+      - R11.3: Agent-core SHALL NOT invoke or name a tracker CLI in planner production Go; the external planner profile SHALL select the tracker exec declaration.
+
 target_package_layout:
   status: current
   notes:
@@ -198,6 +206,10 @@ acceptance_criteria:
     criterion: Evaluation harness tools orchestrate a complete evaluation point lifecycle with machine-declared atomic workspace setup, workspace isolation, config snapshotting, oracle checking, trace token extraction, version checking, result summarization, and metrics persistence.
     traces: [R10.0, R10.0.1, R10.0.2, R10.0.3, R10.0.4, R10.0.5, R10.1, R10.1.1, R10.1.2, R10.1.3, R10.1.4, R10.1.5, R10.1.6, R10.2, R10.3, R10.4, R10.5, R10.6, R10.7, R10.8]
 
+  - id: AC11
+    criterion: Planner state adapters format tracker-neutral inputs and record the configured tracker result, while tracker CLI policy remains in the external profile.
+    traces: [R11.1, R11.2, R11.3]
+
 depends_on:
   - srd_id: srd001-core-types
     symbols_used: [Command, Result, Signal, Cost, Builder, ToolDone, ToolFailed, CommandError]
@@ -231,6 +243,7 @@ diagrams:
       Goals --> R8["R8: Validation tool"]
       Goals --> R9["R9: Nudge and done tools"]
       Goals --> R10["R10: Evaluation harness tools"]
+      Goals --> R11["R11: Planner state adapters"]
       AC1["AC1: File tools (read, write, edit, find, list_files) operate..."]
       R1 --> AC1
       R6 --> AC1
@@ -249,4 +262,6 @@ diagrams:
       R9 --> AC8
       AC9["AC9: Evaluation harness tools orchestrate a complete evaluatio..."]
       R10 --> AC9
+      AC11["AC11: Planner adapters keep tracker policy profile-owned"]
+      R11 --> AC11
     ```

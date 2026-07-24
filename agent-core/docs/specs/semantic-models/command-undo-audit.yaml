@@ -44,8 +44,8 @@ compensation_boundaries:
     operator or higher-level compensation, but it does not pretend external
     audit history, subprocess behavior, or human/model decisions can be erased.
   commands:
-    - command: create_issue
-      receipt_payload: issue_id_and_pipeline_snapshot
+    - command: create_tracker_issue
+      receipt_payload: configured_tracker_issue_id
     - command: execute_task
       receipt_payload: child_task_and_workspace_paths
     - command: self_invoke
@@ -110,12 +110,15 @@ receipt_undo:
     - command: parse_plan
       strategy: pipeline_state_restore
       receipt: reversible_pipeline_snapshot
+    - command: format_issue
+      strategy: pipeline_state_restore
+      receipt: reversible_pipeline_snapshot
+    - command: record_tracker_issue
+      strategy: pipeline_state_restore
+      receipt: reversible_pipeline_snapshot
     - command: check_result
       strategy: pipeline_state_restore
       receipt: reversible_pipeline_snapshot
-    - command: create_issue
-      strategy: pipeline_state_restore_only
-      receipt: compensatable_pipeline_snapshot
   workspace_state:
     - command: write
       strategy: file_snapshot_restore
@@ -197,10 +200,10 @@ receipt_undo:
       strategy: resume_or_checkpoint_rollback
       receipt: compensatable_boundary_compensation
       captures: [reason, checkpoint_required]
-    - command: create_issue
+    - command: create_tracker_issue
       strategy: close_or_delete_created_issue
-      receipt: compensatable_pipeline_snapshot_and_boundary_compensation
-      captures: [issue_id, pipeline_state_snapshot]
+      receipt: compensatable_boundary_compensation
+      captures: [issue_id]
     - command: execute_task
       strategy: child_agent_workspace_restore
       receipt: compensatable_boundary_compensation

@@ -328,10 +328,10 @@ example_tools:
       - "The command-owned state mutation has an exact undo strategy."
 
   compensatable_boundary:
-    name: create_issue
+    name: create_tracker_issue
     category: boundary
-    problem: "The planner needs a word that materializes an accepted plan into an issue tracker item."
-    emits: [Materialized, MaterializeFailed, CommandError]
+    problem: "The planner profile needs an exec word that creates an issue through its selected tracker CLI."
+    emits: [ToolDone, ToolFailed, CommandError]
     side_effects:
       - kind: external_service_write
         target: issue_tracker
@@ -344,7 +344,7 @@ example_tools:
       strategy: compensating_action
       description: "Decode the created issue id from the receipt and close it or mark it superseded; external audit history cannot be erased."
     why_good:
-      - "The boundary and external side effect are named directly."
+      - "The external profile owns the tracker binary, arguments, and common output contract."
       - "The contract does not pretend the external write is perfectly reversible."
 
   irreversible_confirmation:

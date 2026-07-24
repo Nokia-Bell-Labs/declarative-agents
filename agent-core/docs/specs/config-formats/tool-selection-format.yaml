@@ -68,11 +68,12 @@ selection_files:
       to build the nested point registry.
 
   - file: <profile-root>/planner/tools.yaml
-    tool_count: 12
+    tool_count: 16
     description: |
       Selects planning tools (extract_task, extract_all,
-      assemble_prompt, parse_plan, create_issue, execute_task,
-      check_result), LLM tools (invoke_llm, reset_history),
+      assemble_prompt, parse_plan, format_issue, write,
+      create_tracker_issue, record_tracker_issue, execute_task, check_result),
+      LLM tools (invoke_llm, reset_history),
       and direct build/test transition tools (build, vet, test).
 
   - file: <profile-root>/jurist/tools.yaml

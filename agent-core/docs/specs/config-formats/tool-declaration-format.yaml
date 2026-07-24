@@ -600,9 +600,9 @@ boundary_compensation_example: |
       }
     }
 
-  Tools with boundary_compensation: validate, suspend, create_issue,
+  Tools with boundary_compensation: validate, suspend,
   execute_task, run_point, run_agent, serve_ui, launch_eval, commit,
-  issue_create, issue_close.
+  issue_create, issue_close, and profile-owned tracker exec words.
 
 inline_pattern: |
   All agents now use the declaration+selection split. Current profiles
@@ -688,7 +688,7 @@ target_grouped_layout:
       owns: [validate]
       kind: shared compatibility
     - path: tools/builtin/planner/
-      owns: [extract_task, extract_all, assemble_prompt, parse_plan, create_issue, execute_task, check_result]
+      owns: [extract_task, extract_all, assemble_prompt, parse_plan, format_issue, write, record_tracker_issue, execute_task, check_result]
       kind: shared planner-family declarations
     - path: tools/builtin/critic-session/
       owns: [parse_suite_config, discover_suite_samples, expand_eval_grid, init_eval_session, report_suite_summary, next_point, run_point, report_session]

@@ -3,11 +3,8 @@
 package pipeline
 
 import (
-	"context"
 	"fmt"
 
-	"github.com/Nokia-Bell-Labs/declarative-agents/agent-core/internal/observability/tracing"
-	"github.com/Nokia-Bell-Labs/declarative-agents/agent-core/internal/planning/materialize"
 	"github.com/Nokia-Bell-Labs/declarative-agents/agent-core/internal/planning/plan"
 	"github.com/Nokia-Bell-Labs/declarative-agents/agent-core/internal/runtime/core"
 )
@@ -28,27 +25,5 @@ func DoParsePlan(cmdName, rawResp string) (plan.ImplementationPlan, core.Result)
 		CommandName: cmdName,
 		Signal:      SigPlanReady,
 		Output:      fmt.Sprintf("parsed plan: %s (%d files, %d requirements)", p.Title, len(p.Files), len(p.Requirements)),
-	}
-}
-
-// DoMaterialize creates a bd issue from an implementation plan.
-// Returns the issue ID and a core.Result with SigMaterialized on
-// success or core.CommandError on failure. Used by both pipeline
-// and apply state machines.
-func DoMaterialize(ctx context.Context, tracer tracing.Tracer, p plan.ImplementationPlan, dir string, deps map[string]string, cmdName string) (string, core.Result) {
-	m := materialize.NewMaterializeTask()
-	issueID, err := m.Execute(ctx, tracer, p, dir, deps)
-	if err != nil {
-		return "", core.Result{
-			CommandName: cmdName,
-			Signal:      core.CommandError,
-			Err:         err,
-			Output:      err.Error(),
-		}
-	}
-	return issueID, core.Result{
-		CommandName: cmdName,
-		Signal:      SigMaterialized,
-		Output:      fmt.Sprintf("created issue %s for plan %q", issueID, p.Title),
 	}
 }
