@@ -21,11 +21,13 @@ import (
 
 // TestNewRoot_OTLPExporter asserts an OTLP endpoint is accepted: NewRoot's OTLP
 // exporter construction succeeds and the exporters shut down cleanly. It
-// exercises otlpExporters directly rather than the full NewRoot so the test
+// exercises both exporter constructors directly rather than the full NewRoot so the test
 // stays offline — the lazily-connected exporters never dial an endpoint.
 func TestNewRoot_OTLPExporter(t *testing.T) {
 	t.Parallel()
-	traceExp, metricExp, err := otlpExporters("localhost:4317")
+	traceExp, err := otlpTraceExporter("localhost:4317")
+	require.NoError(t, err)
+	metricExp, err := otlpMetricExporter("localhost:4318")
 	require.NoError(t, err)
 	require.NotNil(t, traceExp)
 	require.NotNil(t, metricExp)

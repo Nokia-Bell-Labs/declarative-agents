@@ -2,12 +2,12 @@ id: chatbot-mesh-example-specifications
 title: Chatbot Mesh Example Specification Index
 
 overview: |
-  Specification index for the standalone chatbot mesh example. Six SRDs define the
+  Specification index for the standalone chatbot mesh example. Seven SRDs define the
   program: three data-plane -- the RAG server agent (srd001), the chatbot agent
   (srd002), and the Helm deployment model (srd003) -- two control-plane -- the
   coordinator (srd004) and the creator (srd005) -- and the deployment-plane executor
-  (srd006). Eight use cases exercise them across seven releases (rel00.0 through
-  rel06.0), each with a formal test suite.
+  (srd006), plus the collector agent (srd007). Nine use cases exercise them
+  across eight releases (rel00.0 through rel07.0), each with a formal test suite.
 
   The example runs on the agent-core runtime and cites agent-core platform SRDs
   (srd021, srd028, srd029, srd030, srd033, srd034, srd035, srd036, and srd016
@@ -60,6 +60,11 @@ roadmap_summary:
     use_cases_done: 0
     use_cases_total: 1
     status: planned
+  - version: "07.0"
+    name: Declarative collector agent
+    use_cases_done: 0
+    use_cases_total: 1
+    status: planned
 
 srd_index:
   - id: srd001-rag-server-agent
@@ -86,6 +91,10 @@ srd_index:
     title: Executor Agent Functional Block
     summary: Declarative deployment API that validates a values patch against the chart schema, applies it as a rollout, verifies it, and rolls back, binding the helm and kubectl CLIs as exec tools.
     path: docs/specs/software-requirements/srd006-executor.yaml
+  - id: srd007-collector-agent
+    title: Collector Agent Functional Block
+    summary: Persistent trace ingress that composes bounded OTLP receive, deterministic spool, unchanged relay, control, monitor, and self-loop prevention while contrib retains metrics.
+    path: docs/specs/software-requirements/srd007-collector-agent.yaml
 
 use_case_index:
   - id: rel00.0-uc001-rag-server-query
@@ -136,6 +145,12 @@ use_case_index:
     status: planned
     test_suite: test-rel06.0-executor
     path: docs/specs/use-cases/rel06.0-uc001-declarative-executor.yaml
+  - id: rel07.0-uc001-collector-ingress
+    title: The Collector Agent Retains and Relays an Attributable Trace Batch
+    release: "07.0"
+    status: specified
+    test_suite: test-rel07.0-collector
+    path: docs/specs/use-cases/rel07.0-uc001-collector-ingress.yaml
 
 test_suite_index:
   - id: test-rel00.0-chatbot-mesh
@@ -173,3 +188,8 @@ test_suite_index:
     release: "06.0"
     traces: [rel06.0-uc001-declarative-executor]
     path: docs/specs/test-suites/test-rel06.0-executor.yaml
+  - id: test-rel07.0-collector
+    title: Test Suite for Release 07.0 Collector Agent
+    release: "07.0"
+    traces: [rel07.0-uc001-collector-ingress]
+    path: docs/specs/test-suites/test-rel07.0-collector.yaml

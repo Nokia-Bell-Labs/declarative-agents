@@ -17,6 +17,7 @@ func TestFlagConstants(t *testing.T) {
 	assert.Equal(t, "otel-log-file", FlagOTelLogFile)
 	assert.Equal(t, "otel-parent-span", FlagOTelParent)
 	assert.Equal(t, "otel-otlp-endpoint", FlagOTelOTLPEndpoint)
+	assert.Equal(t, "otel-metric-otlp-endpoint", FlagOTelMetricOTLPEndpoint)
 	assert.Equal(t, "otel-service-name", FlagOTelServiceName)
 	assert.Equal(t, "model", FlagModel)
 	assert.Equal(t, "directory", FlagDirectory)
@@ -31,16 +32,17 @@ func TestPropagateArgs_Build_Full(t *testing.T) {
 	require.NoError(t, err)
 
 	p := PropagateArgs{
-		SpanContext:     sc,
-		TraceFile:       "/tmp/trace.json",
-		OTLPEndpoint:    "127.0.0.1:4317",
-		OTelServiceName: "child-agent",
-		Model:           "qwen3.6:35b-mlx",
-		Directory:       "/tmp/workspace",
-		Prompt:          "task.yaml",
-		OllamaURL:       "http://localhost:11434",
-		MaxTime:         5 * time.Minute,
-		LLMTimeout:      2 * time.Minute,
+		SpanContext:        sc,
+		TraceFile:          "/tmp/trace.json",
+		OTLPEndpoint:       "127.0.0.1:4317",
+		MetricOTLPEndpoint: "127.0.0.1:4319",
+		OTelServiceName:    "child-agent",
+		Model:              "qwen3.6:35b-mlx",
+		Directory:          "/tmp/workspace",
+		Prompt:             "task.yaml",
+		OllamaURL:          "http://localhost:11434",
+		MaxTime:            5 * time.Minute,
+		LLMTimeout:         2 * time.Minute,
 	}
 
 	args := p.Build()
@@ -51,6 +53,8 @@ func TestPropagateArgs_Build_Full(t *testing.T) {
 	assert.Contains(t, args, "/tmp/trace.json")
 	assert.Contains(t, args, "--otel-otlp-endpoint")
 	assert.Contains(t, args, "127.0.0.1:4317")
+	assert.Contains(t, args, "--otel-metric-otlp-endpoint")
+	assert.Contains(t, args, "127.0.0.1:4319")
 	assert.Contains(t, args, "--otel-service-name")
 	assert.Contains(t, args, "child-agent")
 	assert.Contains(t, args, "--model")
@@ -79,6 +83,7 @@ func TestPropagateArgs_Build_Minimal(t *testing.T) {
 	assert.NotContains(t, args, "--llm-timeout")
 	assert.NotContains(t, args, "--prompt")
 	assert.NotContains(t, args, "--otel-otlp-endpoint")
+	assert.NotContains(t, args, "--otel-metric-otlp-endpoint")
 	assert.NotContains(t, args, "--otel-service-name")
 	assert.Contains(t, args, "--otel-log-file")
 	assert.Contains(t, args, "--model")

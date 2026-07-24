@@ -1,0 +1,246 @@
+tools:
+  - name: launch_collector_control
+    type: builtin
+    init: rest_server_launch
+    category: boundary
+    visibility: internal
+    emits: [ServerLaunched, CommandError]
+    description: Launch collector lifecycle control routes.
+    problem: Persistent intake needs health and graceful exit outside OTLP handlers.
+    goals: [Bind trusted control routes, Keep lifecycle routing in MachineSpec]
+    requirements:
+      input: [Trusted config names collector_control]
+      output: [Reports bound server identity]
+      errors: [Bind and config faults emit CommandError]
+    non_goals: [Does not execute lifecycle behavior in HTTP handlers]
+    parameters: {type: object, properties: {}}
+    output:
+      description: REST launch result.
+      schema: {type: object}
+    side_effects:
+      - {kind: network_listen, target: collector_control, state: listener_started}
+    reversibility: {classification: compensatable, undo: rest_server_stop}
+    undo: {strategy: compensating_action, description: Stop the owned control listener.}
+    errors:
+      - {signal: CommandError, condition: config or bind failure, state_after_failure: no new control listener remains}
+    relationships: {before: [await_collector_control]}
+    config: {rest_ref: collector_control}
+
+  - name: launch_collector_monitor
+    type: builtin
+    init: rest_server_launch
+    category: boundary
+    visibility: internal
+    emits: [ServerLaunched, CommandError]
+    description: Launch collector monitor snapshot and stream routes.
+    problem: Operators need bounded collector state without exposing raw span payloads.
+    goals: [Expose standard monitor views, Keep monitor reads side-effect free]
+    requirements:
+      input: [Trusted config names collector_monitor]
+      output: [Reports bound server identity]
+      errors: [Bind and config faults emit CommandError]
+    non_goals: [Does not expose queued span payloads]
+    parameters: {type: object, properties: {}}
+    output: {description: REST launch result, schema: {type: object}}
+    side_effects:
+      - {kind: network_listen, target: collector_monitor, state: listener_started}
+    reversibility: {classification: compensatable, undo: rest_server_stop}
+    undo: {strategy: compensating_action, description: Stop the owned monitor listener.}
+    errors:
+      - {signal: CommandError, condition: config or bind failure, state_after_failure: no new monitor listener remains}
+    relationships: {before: [await_collector_control]}
+    config: {rest_ref: collector_monitor}
+
+  - name: await_collector_control
+    type: builtin
+    init: rest_await_event
+    category: boundary
+    visibility: internal
+    emits: [ExitRequested, AwaitTimedOut, ServerStopped, CommandError]
+    description: Check control and monitor queues for lifecycle exit between intake waits.
+    problem: A single-threaded machine must remain responsive to exit while awaiting trace traffic.
+    goals: [Fan in both exit routes, Use a short bounded wait]
+    requirements:
+      input: [Trusted config names control sources]
+      output: [Returns one selected lifecycle event]
+      errors: [Stopped or absent sources remain distinct]
+    non_goals: [Does not inspect monitor snapshots]
+    parameters: {type: object, properties: {}}
+    output: {description: Selected lifecycle event, schema: {type: object}}
+    side_effects:
+      - {kind: state_mutation, target: rest_server_queue, state: selected_event_consumed}
+    reversibility: {classification: irreversible, undo: none}
+    undo: {strategy: none, description: A consumed concurrent event is not restored.}
+    errors:
+      - {signal: CommandError, condition: source lookup or queue read fails, state_after_failure: listeners remain unchanged}
+    relationships: {after: [launch_collector_control, launch_collector_monitor]}
+    config:
+      sources:
+        - {server: collector_control, routes: [exit], signals: [ExitRequested]}
+        - {server: collector_monitor, routes: [control_exit], signals: [ExitRequested]}
+      timeout: 100ms
+      stopped_behavior: emit_server_stopped
+
+  - name: filter_collector_batch
+    type: builtin
+    init: value_predicate
+    category: word
+    visibility: internal
+    emits: [Satisfied, Unsatisfied, CommandError]
+    description: Accept only a received batch whose span count is positive.
+    problem: Empty transport batches must not create spool or relay evidence.
+    goals: [Keep acceptance as a visible machine branch]
+    requirements:
+      input: [Read span_count from the preceding await result]
+      output: [Report the declared comparison]
+      errors: [A broken selector emits CommandError]
+    non_goals: [Does not mutate or sample spans]
+    parameters: {type: object, properties: {}}
+    output: {description: Predicate result, schema: {type: object}}
+    side_effects:
+      - {kind: none, target: batch metadata, state: unchanged}
+    reversibility: {classification: reversible, undo: noop}
+    undo: {strategy: noop, description: Comparison changes nothing.}
+    errors:
+      - {signal: CommandError, condition: selector or coercion failure, state_after_failure: no branch outcome is emitted}
+    relationships: {after: [await_spans], before: [spool_collector_spans]}
+    config:
+      left: $.span_count
+      op: gt
+      right: "0"
+      operand_type: number
+      satisfied: Satisfied
+      unsatisfied: Unsatisfied
+
+  - name: spool_collector_spans
+    type: builtin
+    init: spool_spans
+    category: boundary
+    visibility: internal
+    emits: [SpansSpooled, CommandError]
+    description: Spool the last accepted batch before any relay.
+    problem: Live relay is not deterministic retained evidence.
+    goals: [Write complete NDJSON lines, Preserve the batch for relay]
+    requirements:
+      input: [Select the labeled await batch from command state]
+      output: [Report path counts bytes and unchanged batch]
+      errors: [Selection append rotation and sync failures emit CommandError]
+    non_goals: [Does not relay spans]
+    parameters: {type: object, properties: {}}
+    output: {description: Spool result and batch, schema: {type: object}}
+    side_effects:
+      - {kind: filesystem_write, target: collector trace spool, state: durable_lines_appended}
+    reversibility: {classification: irreversible, undo: none}
+    undo: {strategy: none, description: Audit evidence remains retained.}
+    errors:
+      - {signal: CommandError, condition: selection or filesystem failure, state_after_failure: command-state source remains}
+    relationships: {after: [filter_collector_batch], before: [decide_collector_relay]}
+    config:
+      path: ${COLLECTOR_SPOOL_PATH:-traces/collector.ndjson}
+      batch_source: $from(received_batch).batch
+      max_bytes: 10485760
+      max_files: 3
+
+  - name: decide_collector_relay
+    type: builtin
+    init: value_predicate
+    category: word
+    visibility: internal
+    emits: [Satisfied, Unsatisfied, CommandError]
+    description: Branch to relay only when the declared collector mode is relay.
+    problem: Test and relay modes must share one profile without hiding the branch in Go.
+    goals: [Keep mode selection visible]
+    requirements:
+      input: [Compare the deployment-expanded mode literal]
+      output: [Report the comparison]
+      errors: [Malformed config emits CommandError]
+    non_goals: [Does not inspect or mutate spans]
+    parameters: {type: object, properties: {}}
+    output: {description: Mode predicate result, schema: {type: object}}
+    side_effects:
+      - {kind: none, target: mode literal, state: unchanged}
+    reversibility: {classification: reversible, undo: noop}
+    undo: {strategy: noop, description: Comparison changes nothing.}
+    errors:
+      - {signal: CommandError, condition: malformed mode predicate, state_after_failure: relay is not invoked}
+    relationships: {after: [spool_collector_spans], before: [relay_collector_spans]}
+    config:
+      left: ${COLLECTOR_MODE:-relay}
+      op: eq
+      right: relay
+      operand_type: string
+      satisfied: Satisfied
+      unsatisfied: Unsatisfied
+
+  - name: relay_collector_spans
+    type: builtin
+    init: relay_spans
+    category: boundary
+    visibility: internal
+    emits: [SpansRelayed, CommandError]
+    description: Relay the labeled spooled batch unchanged to Jaeger OTLP.
+    problem: Persistent trace query needs accepted batches upstream after local evidence.
+    goals: [Preserve protobuf identity, Surface partial rejection]
+    requirements:
+      input: [Select the labeled spool batch and trusted endpoint]
+      output: [Report accepted count]
+      errors: [Connection timeout RPC and rejection emit CommandError]
+    non_goals: [Does not retry or retract spans]
+    parameters: {type: object, properties: {}}
+    output: {description: Relay acceptance result, schema: {type: object}}
+    side_effects:
+      - {kind: external_api, target: Jaeger OTLP, state: spans_may_be_retained}
+    reversibility: {classification: irreversible, undo: none}
+    undo: {strategy: none, description: OTLP cannot retract accepted spans.}
+    errors:
+      - {signal: CommandError, condition: selection transport or rejection failure, state_after_failure: spool evidence remains}
+    relationships: {after: [spool_collector_spans]}
+    config:
+      endpoint: ${COLLECTOR_RELAY_ENDPOINT:-jaeger:4317}
+      receiver_address: ${COLLECTOR_RECEIVER_ADDRESS:-0.0.0.0:4317}
+      batch_source: $from(spooled_batch).batch
+      timeout: 10s
+
+  - name: stop_collector_monitor
+    type: builtin
+    init: rest_server_stop
+    category: boundary
+    visibility: internal
+    emits: [ServerStopped, CommandError]
+    description: Stop the collector monitor listener.
+    problem: Clean terminal shutdown must release the monitor address.
+    goals: [Release the owned monitor listener]
+    requirements: {input: [Trusted monitor reference], output: [Reports stopped state], errors: [Stop faults emit CommandError]}
+    non_goals: [Does not delete monitor history]
+    parameters: {type: object, properties: {}}
+    output: {description: REST stop result, schema: {type: object}}
+    side_effects:
+      - {kind: network_listener_shutdown, target: collector_monitor, state: listener_stopped}
+    reversibility: {classification: irreversible, undo: none}
+    undo: {strategy: none, description: Relaunch is an explicit action.}
+    errors:
+      - {signal: CommandError, condition: stop fails, state_after_failure: listener may be partially stopped}
+    relationships: {before: [stop_collector_control]}
+    config: {rest_ref: collector_monitor}
+
+  - name: stop_collector_control
+    type: builtin
+    init: rest_server_stop
+    category: boundary
+    visibility: internal
+    emits: [ServerStopped, CommandError]
+    description: Stop the collector control listener.
+    problem: Clean terminal shutdown must release the control address.
+    goals: [Release the owned control listener]
+    requirements: {input: [Trusted control reference], output: [Reports stopped state], errors: [Stop faults emit CommandError]}
+    non_goals: [Does not relaunch control]
+    parameters: {type: object, properties: {}}
+    output: {description: REST stop result, schema: {type: object}}
+    side_effects:
+      - {kind: network_listener_shutdown, target: collector_control, state: listener_stopped}
+    reversibility: {classification: irreversible, undo: none}
+    undo: {strategy: none, description: Relaunch is an explicit action.}
+    errors:
+      - {signal: CommandError, condition: stop fails, state_after_failure: listener may be partially stopped}
+    relationships: {after: [stop_collector_monitor]}
+    config: {rest_ref: collector_control}

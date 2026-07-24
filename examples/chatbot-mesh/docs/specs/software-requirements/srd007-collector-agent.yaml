@@ -1,0 +1,119 @@
+id: srd007-collector-agent
+title: Collector Agent Functional Block
+
+context: |
+  The collector is a persistent declarative agent that implements the mesh's
+  OTLP trace-ingress contract with agent-core srd042 words. It replaces the
+  contrib collector on the trace path while MachineSpec owns receive, inspect,
+  spool, relay, retry, control, and monitor behavior.
+
+  Migration is staged. The existing contrib deployment temporarily retains
+  OTLP metrics export and Dolt Prometheus scraping required by srd003 R5 and
+  issue #816. The collector agent therefore satisfies trace ingress only; the
+  chart does not claim the full shared-ingress contract without that metrics
+  path.
+
+problem: |
+  The chart's third-party collector hides trace intake and routing outside the
+  agent grammar. The mesh needs its own trace ingress as a declarative agent,
+  without losing persistent run identity, deterministic file evidence,
+  upstream Jaeger traces, or the metrics evidence the current collector owns.
+
+goals:
+  - G1: Run OTLP trace intake, spool, and relay as a persistent profile over agent-core srd042.
+  - G2: Preserve repository, module, target, commit, run, service, trace, span, and parent identity.
+  - G3: Expose control and monitor surfaces using the standard persistent-agent pattern.
+  - G4: Support deterministic test mode and upstream relay mode from one profile.
+  - G5: Prevent collector telemetry from feeding its own receiver.
+
+requirements:
+  R1:
+    title: Persistent trace intake
+    items:
+      - R1.1: The collector SHALL launch one named OTLP/gRPC receiver on a values-configured address with a bounded queue and declared overflow policy.
+      - R1.2: Its persistent machine SHALL loop through await, policy, spool, optional relay, and await again; these SHALL remain separate visible words.
+      - R1.3: The profile SHALL accept traces only; metrics and logs SHALL NOT be registered as collector-agent receiver words.
+      - R1.4: Queue overflow, await timeout, stop, spool failure, and relay failure SHALL route through explicit machine transitions.
+
+  R2:
+    title: Identity and deterministic spool
+    items:
+      - R2.1: The collector SHALL preserve every received resource span, scope span, trace id, span id, parent id, timestamp, event, link, status, and attribute.
+      - R2.2: Repository, module, target or scenario, git commit, unique run id, and stable service.name identity from srd003 R5.6 SHALL remain addressable after await and unchanged after relay.
+      - R2.3: Accepted batches SHALL append to a values-configured stdouttrace-compatible NDJSON spool before relay.
+      - R2.4: Spool rotation SHALL be bounded by values and SHALL occur only between complete batches.
+
+  R3:
+    title: Modes and policy
+    items:
+      - R3.1: Test mode SHALL receive and spool without requiring Jaeger; its success evidence SHALL be the deterministic spool plus receiver monitor state.
+      - R3.2: Relay mode SHALL spool first and then export the unchanged selected batch to the configured Jaeger OTLP endpoint.
+      - R3.3: Filtering and sampling SHALL use declared machine words over await metadata; transport handlers SHALL NOT hide those decisions.
+      - R3.4: Retry after relay failure SHALL be a declared transition and SHALL retain the spooled batch as evidence.
+
+  R4:
+    title: Control and monitor
+    items:
+      - R4.1: The profile SHALL run standard control and monitor servers with health, lifecycle exit, state, event, and stream surfaces.
+      - R4.2: Lifecycle exit SHALL stop the OTLP receiver, unblock await, release the listener, and then stop monitor and control servers.
+      - R4.3: Monitor state SHALL report launch, received, spooled, relayed, rejected, dropped, timed-out, and stopped outcomes without exposing raw span payloads.
+
+  R5:
+    title: Self-loop exclusion
+    items:
+      - R5.1: The collector process SHALL configure its own agent telemetry with a file exporter only and SHALL have no OTLP exporter endpoint.
+      - R5.2: Relay registration SHALL reject an endpoint equivalent to the receiver address after wildcard and loopback normalization.
+      - R5.3: Proof SHALL export a client-agent batch and observe it at the receiver while collector launch, await, spool, relay, monitor, and stop spans remain only in the collector trace file.
+      - R5.4: A received resource whose service.name equals collector SHALL NOT be dropped solely by name; self-loop prevention is configuration and process ownership, not service filtering.
+
+  R6:
+    title: Staged Helm migration
+    items:
+      - R6.1: Values SHALL select `contrib` or `agent` trace ingress while preserving the existing default until the agent path passes persistent integration evidence.
+      - R6.2: In agent mode, mesh agents and Chroma SHALL send traces to the collector agent, which SHALL relay to Jaeger.
+      - R6.3: During the staged release, contrib SHALL retain OTLP metric intake, Prometheus-compatible export, and Dolt scraping required by issue #816 and srd003 R5.8.
+      - R6.4: Agent-mode health SHALL require both the collector-agent trace path and the retained metrics path; neither path alone SHALL be reported as full ingress conformance.
+      - R6.5: Teardown SHALL NOT delete persistent host trace or metric evidence.
+
+non_goals:
+  - Reimplementing OTLP transport in the profile.
+  - Receiving OTLP metrics or logs in the collector agent.
+  - Removing the contrib metrics path in this release.
+  - General-purpose collector throughput or multi-tenant isolation.
+  - Querying Jaeger from the collector profile.
+
+acceptance_criteria:
+  - id: AC1
+    criterion: A persistent profile launches bounded OTLP trace intake and visibly composes await, policy, spool, relay, retry, and stop.
+    traces: [R1.1, R1.2, R1.3, R1.4]
+  - id: AC2
+    criterion: Spool and relay preserve complete span and integration identity, with bounded rotation between complete batches.
+    traces: [R2.1, R2.2, R2.3, R2.4]
+  - id: AC3
+    criterion: One profile supports deterministic spool-only test mode and spool-first relay mode with declared filtering and retry.
+    traces: [R3.1, R3.2, R3.3, R3.4]
+  - id: AC4
+    criterion: Control and monitor surfaces expose bounded lifecycle outcomes and lifecycle exit releases every listener and waiter.
+    traces: [R4.1, R4.2, R4.3]
+  - id: AC5
+    criterion: File-only process telemetry and normalized endpoint validation prevent a self-loop, proven by client spans entering while collector spans do not.
+    traces: [R5.1, R5.2, R5.3, R5.4]
+  - id: AC6
+    criterion: The Helm migration switches trace ingress independently while contrib retains the required metrics and Dolt-scrape path, and health and retained evidence cover both.
+    traces: [R6.1, R6.2, R6.3, R6.4, R6.5]
+
+depends_on:
+  - srd_id: srd003-chatbot-deployment
+    symbols_used: [R5]
+
+platform_dependencies:
+  - srd_id: srd042-otlp-receiver-tools
+    provider: agent-core
+    symbols_used: [R1, R2, R3, R4, R5, R6, R7, R8]
+  - srd_id: srd008-telemetry
+    provider: agent-core
+    symbols_used: [R9]
+
+implementation_status:
+  planned:
+    - Collector profile, chart switch, staged metrics topology, and persistent rig proof under GH-820.

@@ -76,7 +76,7 @@ func TestCollectorKindOverlayExportsBothSignalsWithRunIdentity(t *testing.T) {
 		"prometheus/dolt:",
 		`t-chatbot-mesh-dolt:11228`,
 		"CHROMA_OPEN_TELEMETRY__ENDPOINT",
-		`http://t-chatbot-mesh-collector:4317`,
+		`http://t-chatbot-mesh-collector-metrics:4317`,
 		"CHROMA_OPEN_TELEMETRY__SERVICE_NAME",
 		`value: "rag0-chroma"`,
 		`args: ["--config", "/etc/dolt/config.yaml"]`,

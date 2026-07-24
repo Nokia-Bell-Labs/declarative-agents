@@ -62,10 +62,17 @@ spec:
             - "--otel-service-name"
             - {{ $unit.name | quote }}
             {{- end }}
+            {{- with include "chatbot-mesh.otlpMetricEndpoint" $root }}
+            - "--otel-metric-otlp-endpoint"
+            - {{ . | quote }}
+            {{- end }}
           # The rag-server profile is env-parameterized (GH-369): one mounted
           # profile points at this unit's Chroma Service and collection and binds
           # 0.0.0.0 so its Services route to the pod.
           env:
+            {{- with include "chatbot-mesh.integrationResourceAttributes" $root }}
+            - {name: OTEL_RESOURCE_ATTRIBUTES, value: {{ . | quote }}}
+            {{- end }}
             - {name: CHROMA_URL, value: "http://{{ $chromaName }}:{{ $root.Values.chroma.port }}"}
             - {name: CHROMA_HOST, value: {{ $chromaName | quote }}}
             - {name: RAG_COLLECTION, value: {{ $unit.collection | quote }}}
@@ -136,10 +143,13 @@ spec:
         - name: chroma
           image: "{{ $root.Values.chroma.image.repository }}:{{ $root.Values.chroma.image.tag }}"
           imagePullPolicy: {{ $root.Values.chroma.image.pullPolicy }}
-          {{- with include "chatbot-mesh.otlpEndpoint" $root }}
+          {{- with (ternary (include "chatbot-mesh.otlpMetricEndpoint" $root) (include "chatbot-mesh.otlpEndpoint" $root) (eq $root.Values.collector.implementation "agent")) }}
           env:
             - {name: CHROMA_OPEN_TELEMETRY__ENDPOINT, value: {{ printf "http://%s" . | quote }}}
             - {name: CHROMA_OPEN_TELEMETRY__SERVICE_NAME, value: {{ printf "%s-chroma" $unit.name | quote }}}
+            {{- with include "chatbot-mesh.integrationResourceAttributes" $root }}
+            - {name: OTEL_RESOURCE_ATTRIBUTES, value: {{ . | quote }}}
+            {{- end }}
           {{- end }}
           ports:
             - {name: http, containerPort: {{ $root.Values.chroma.port }}}

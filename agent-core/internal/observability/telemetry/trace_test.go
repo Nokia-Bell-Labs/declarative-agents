@@ -19,6 +19,15 @@ func TestNewRoot_EmptyConfigError(t *testing.T) {
 	require.Contains(t, err.Error(), "at least one exporter required")
 }
 
+func TestMetricOTLPEndpoint(t *testing.T) {
+	t.Parallel()
+	require.Equal(t, "trace:4317", metricOTLPEndpoint(ExporterConfig{OTLPEndpoint: "trace:4317"}))
+	require.Equal(t, "metrics:4317", metricOTLPEndpoint(ExporterConfig{
+		OTLPEndpoint:       "trace:4317",
+		MetricOTLPEndpoint: "metrics:4317",
+	}))
+}
+
 func TestNewRoot_FileExporter(t *testing.T) {
 	t.Parallel()
 	dir := t.TempDir()

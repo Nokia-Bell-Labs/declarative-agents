@@ -32,6 +32,7 @@ var (
 	flagCoreRoot         string
 	flagOTelLog          string
 	flagOTelOTLP         string
+	flagOTelMetricOTLP   string
 	flagOTelService      string
 	flagOTelParent       string
 	flagDirectory        string
@@ -101,6 +102,7 @@ func init() {
 	f.StringVar(&flagCoreRoot, "core-root", "", "maps /opt/agent-core paths in the profile to this directory (development checkout)")
 	f.StringVar(&flagOTelLog, "otel-log-file", "", "path to OTel trace output file")
 	f.StringVar(&flagOTelOTLP, "otel-otlp-endpoint", "", "OTLP gRPC endpoint for OTel spans (host:port); enables the OTLP exporter (srd008)")
+	f.StringVar(&flagOTelMetricOTLP, "otel-metric-otlp-endpoint", "", "optional OTLP gRPC endpoint for OTel metrics; defaults to --otel-otlp-endpoint (srd008)")
 	f.StringVar(&flagOTelService, "otel-service-name", "agent", "OTel resource service.name for this agent, so a cross-agent trace distinguishes agents")
 	f.StringVar(&flagOTelParent, "otel-parent-span", "", "W3C traceparent for parent span")
 	f.StringVar(&flagDirectory, "directory", "", "workspace directory")
@@ -423,11 +425,15 @@ func buildPreparedRun(cmd *cobra.Command, resources runResources) (preparedRun, 
 }
 
 func initRunTelemetry(cfg runtimeConfig) (tracing.Tracer, metric.Meter, func(), error) {
-	if cfg.OTelLog == "" && cfg.OTelOTLP == "" {
+	if cfg.OTelLog == "" && cfg.OTelOTLP == "" && cfg.OTelMetricOTLP == "" {
 		return tracing.NoopTracer{}, nil, func() {}, nil
 	}
 	parentCtx, _ := telemetry.ParseParentSpan(cfg.OTelParent)
-	exporter := telemetry.ExporterConfig{FilePath: cfg.OTelLog, OTLPEndpoint: cfg.OTelOTLP}
+	exporter := telemetry.ExporterConfig{
+		FilePath:           cfg.OTelLog,
+		OTLPEndpoint:       cfg.OTelOTLP,
+		MetricOTLPEndpoint: cfg.OTelMetricOTLP,
+	}
 	serviceName := cfg.OTelService
 	if serviceName == "" {
 		serviceName = "agent"
