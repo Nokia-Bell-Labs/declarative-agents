@@ -65,6 +65,47 @@ func TestOllamaTierRendersWithDefaults(t *testing.T) {
 	assertLLMGatedWorkloads(t, render, expectedGatedWorkloads(t, "t"))
 }
 
+// TestKindLLMModelsReachDeployedDeclarations locks the values-to-profile half of
+// srd003 R2/R6. The readiness gate is insufficient if the mounted declarations
+// still register their local-development model defaults after preload.
+func TestKindLLMModelsReachDeployedDeclarations(t *testing.T) {
+	if _, err := exec.LookPath("helm"); err != nil {
+		t.Skip("helm not on PATH")
+	}
+	chart := findChartDir(t)
+	staged, cleanup, err := stageSmokeChart(chart, filepath.Dir(chart))
+	if err != nil {
+		t.Fatalf("stage chart: %v", err)
+	}
+	defer cleanup()
+
+	out, err := exec.Command("helm", "template", "t", staged,
+		"--values", filepath.Join(staged, "ci", "kind-llm-values.yaml"),
+	).CombinedOutput()
+	if err != nil {
+		t.Fatalf("helm template: %v\n%s", err, out)
+	}
+	render := string(out)
+	for _, want := range []string{
+		`name: CHATBOT_ROUTER_MODEL`,
+		`name: CHATBOT_FAST_MODEL`,
+		`name: CHATBOT_DEEP_MODEL`,
+		`value: "qwen2.5:0.5b"`,
+		`model: "${CHATBOT_ROUTER_MODEL:-qwen2.5:3b}"`,
+		`model: "${CHATBOT_FAST_MODEL:-qwen2.5:3b}"`,
+		`model: "${CHATBOT_DEEP_MODEL:-ornith:9b}"`,
+	} {
+		if !strings.Contains(render, want) {
+			t.Errorf("kind LLM render missing %q", want)
+		}
+	}
+	for _, stale := range []string{`model: "qwen2.5:3b"`, `model: "ornith:9b"`} {
+		if strings.Contains(render, stale) {
+			t.Errorf("kind LLM render still registers unconfigured model %q", stale)
+		}
+	}
+}
+
 // expectedGatedWorkloads names the agent workloads that must wait on the LLM
 // preload under the chart defaults: the chatbot and one rag-server per declared
 // ragUnit, each named <release>-chatbot-mesh-<unit> as rag-units.yaml renders it.
