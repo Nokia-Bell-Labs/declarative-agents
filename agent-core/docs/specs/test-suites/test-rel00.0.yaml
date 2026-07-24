@@ -981,9 +981,8 @@ test_cases:
 
   - use_case: rel00.0-uc001-domain-agent-integration
     name: Integration telemetry dual export and retained backend evidence
-    integration_target: mage observability:status
-    status: planned
-    follow_up_issue: "#817, #818"
+    integration_target: cd ../examples/chatbot-mesh && mage integration:rig
+    status: implemented
     inputs:
       exporters: [file, otlp]
       identity: [repository, module, target, git_commit, run_id, service_name]

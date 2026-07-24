@@ -56,8 +56,7 @@ test_cases:
   - use_case: rel02.0-uc001-observability
     name: Retained integration trace and metric evidence
     integration_target: mage integration:helmSmoke
-    status: planned
-    follow_up_issue: "#818, #819"
+    status: implemented
     description: |
       A representative kind mesh dual-exports file and OTLP evidence through
       the chart gateway to the shared host ingress. The test records run
@@ -70,7 +69,7 @@ test_cases:
     inputs:
       shared_trace_backend: jaeger
       shared_metric_backend: prometheus
-      expected_trace_services: [chatbot, rag0, chroma-rag0, kube-apiserver]
+      expected_trace_services: [chatbot, rag0, rag0-chroma, apiserver, kubelet]
       expected_metrics: [agent_runtime, dolt_sql_server]
     expected:
       file_and_otlp_dual_export: true
