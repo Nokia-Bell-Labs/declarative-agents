@@ -7,6 +7,7 @@ import (
 	"path/filepath"
 	"regexp"
 	"sort"
+	"strings"
 	"testing"
 )
 
@@ -66,13 +67,21 @@ func TestStagedProfilesCoverEnabledDeployments(t *testing.T) {
 // slash appended, because a staging entry may name a single file (GH-702).
 func TestPackagingDocMatchesStagingList(t *testing.T) {
 	chartDir := findChartDir(t)
-	doc, err := os.ReadFile(filepath.Join(chartDir, "profiles", "PACKAGING.md"))
+	doc, err := os.ReadFile(filepath.Join(chartDir, "PACKAGING.md"))
 	if err != nil {
 		t.Fatalf("read PACKAGING.md: %v", err)
 	}
 	for _, p := range chartProfilePrograms() {
 		if !containsStr(string(doc), p.rel) {
 			t.Errorf("PACKAGING.md does not document staged program %q (%s)", p.src, p.rel)
+		}
+	}
+}
+
+func TestStagedProfilesExcludePackagingDocs(t *testing.T) {
+	for _, key := range renderedProfileKeys(t) {
+		if strings.Contains(key, "PACKAGING.md") {
+			t.Errorf("rendered ConfigMap carries documentation key %q; packaging docs are not runtime profile input", key)
 		}
 	}
 }
