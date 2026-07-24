@@ -76,10 +76,10 @@ func bootSmoke(root, coreRoot string) error {
 // ValidateToolEmits and ValidateReceiptContracts over the selected ToolDefs
 // (GH-494), then exits without binding a listener or running the machine.
 //
-// The static wiring checks in validateProfiles read the YAML shape only, so they
-// pass for a profile the runtime rejects. This closes that gap: a mis-declared
-// lifecycle word or an unknown REST field fails the audit instead of surfacing
-// the first time an agent actually starts (GH-614).
+// Bundle validation checks path ownership and portability only. Runtime-owned
+// semantics stay here: a mis-declared lifecycle word or an unknown REST field
+// fails the audit instead of surfacing when an agent first starts (GH-514,
+// GH-614).
 //
 // Every profile is attempted before reporting, so one broken declaration does not
 // hide the rest.

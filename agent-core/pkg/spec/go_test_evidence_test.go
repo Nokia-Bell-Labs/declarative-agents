@@ -188,6 +188,20 @@ func TestValidateSpecCorpusPathsAcceptsRepositoryEvidence(t *testing.T) {
 	}
 }
 
+func TestRuntimeImplementationCorpusDetection(t *testing.T) {
+	externalRoot := t.TempDir()
+	if hasRuntimeImplementationCorpus(externalRoot) {
+		t.Fatal("external profile repository must not be treated as a runtime implementation corpus")
+	}
+	coreRoot := t.TempDir()
+	if err := os.MkdirAll(filepath.Join(coreRoot, "internal", "runtime", "core"), 0o755); err != nil {
+		t.Fatal(err)
+	}
+	if !hasRuntimeImplementationCorpus(coreRoot) {
+		t.Fatal("agent-core source layout should enable implementation path evidence")
+	}
+}
+
 func TestBareTestNames(t *testing.T) {
 	if _, ok := bareTestNames("TestFoo, TestBar"); !ok {
 		t.Errorf("comma-separated names should parse as bare names")

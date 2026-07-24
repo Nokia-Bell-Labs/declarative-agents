@@ -25,6 +25,21 @@ var criticSessionWords = []string{
 	"report_suite_summary",
 }
 
+type criticMachineConfig struct {
+	Transitions []criticTransition `yaml:"transitions"`
+}
+
+type criticTransition struct {
+	State  string `yaml:"state"`
+	Signal string `yaml:"signal"`
+	Next   string `yaml:"next"`
+	Action string `yaml:"action"`
+}
+
+type criticToolSelectionFile struct {
+	Tools []string `yaml:"tools"`
+}
+
 // TestCriticSelectsSentenceWords proves the shipped session selection asks for
 // the replacement words and no longer asks for the retired load_suite.
 func TestCriticSelectsSentenceWords(t *testing.T) {
@@ -67,10 +82,10 @@ func criticProfilePath(t *testing.T, name string) string {
 	return filepath.Join(repoRootFromTest(t), "agents", "critic", name)
 }
 
-func criticMachine(t *testing.T, name string) machineConfig {
+func criticMachine(t *testing.T, name string) criticMachineConfig {
 	t.Helper()
-	machine, err := loadMachine(criticProfilePath(t, name))
-	if err != nil {
+	var machine criticMachineConfig
+	if err := readYAML(criticProfilePath(t, name), &machine); err != nil {
 		t.Fatalf("load critic %s: %v", name, err)
 	}
 	return machine
@@ -78,7 +93,7 @@ func criticMachine(t *testing.T, name string) machineConfig {
 
 func criticToolSelection(t *testing.T, name string) []string {
 	t.Helper()
-	var selection toolSelectionFile
+	var selection criticToolSelectionFile
 	if err := readYAML(criticProfilePath(t, name), &selection); err != nil {
 		t.Fatalf("load critic %s: %v", name, err)
 	}
@@ -104,7 +119,7 @@ func requireNotSelected(t *testing.T, selection []string, word string) {
 	}
 }
 
-func assertTransition(t *testing.T, machine machineConfig, state, signal, next, action string) {
+func assertTransition(t *testing.T, machine criticMachineConfig, state, signal, next, action string) {
 	t.Helper()
 	for _, tr := range machine.Transitions {
 		if tr.State == state && tr.Signal == signal {

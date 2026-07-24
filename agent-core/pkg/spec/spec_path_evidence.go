@@ -22,6 +22,14 @@ type srdPathEvidence struct {
 	} `yaml:"test_trace_plan"`
 }
 
+// hasRuntimeImplementationCorpus distinguishes agent-core's implementation
+// evidence from external profile repositories that reuse the binary's formal
+// go_test audit but do not own runtime source paths.
+func hasRuntimeImplementationCorpus(rootDir string) bool {
+	info, err := os.Stat(filepath.Join(rootDir, "internal", "runtime", "core"))
+	return err == nil && info.IsDir()
+}
+
 // ValidateSpecCorpusPaths verifies existing implementation and Go-test file
 // paths named by SRDs. Entries explicitly annotated as planned do not claim
 // existing evidence and are skipped.
