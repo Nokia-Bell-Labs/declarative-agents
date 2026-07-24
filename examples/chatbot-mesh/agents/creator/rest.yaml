@@ -394,9 +394,9 @@ rest:
                   body:
                     schema_version: "1"
                     status: ingested
-                    # The predicate exposes both counts, but adding either to this
-                    # response changes the endpoint contract and is tracked
-                    # separately. Do not declare a field until that contract does.
+                    # The predicate's left operand is the post-run collection
+                    # count it judged, kept raw and selectable by srd041 R4.4.
+                    count: $.left
                     status_detail: documents were written
                 IngestRejected:
                   status: 422
