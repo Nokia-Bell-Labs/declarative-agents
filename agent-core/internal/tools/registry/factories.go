@@ -20,6 +20,7 @@ type StandardFactoryDeps struct {
 	RegisterDocumentation  FactoryRegistrar
 	RegisterCompose        FactoryRegistrar
 	RegisterService        FactoryRegistrar
+	RegisterOTLP           FactoryRegistrar
 }
 
 // StandardFactoryCatalogEntry describes one selected-init-gated factory family.
@@ -70,6 +71,7 @@ func StandardFactoryCatalog(deps StandardFactoryDeps) []StandardFactoryCatalogEn
 		hookFactory("rest", []string{"rest_client_get", "rest_client_set", "rest_client_create", "rest_client_delete", "rest_client_invoke", "rest_client_send", "rest_client_await", "rest_server_launch", "rest_server_await", "rest_server_stop", "rest_await_event"}, deps.RegisterREST),
 		hookFactory("documentation", []string{"launch_documentation", "stop_documentation"}, deps.RegisterDocumentation),
 		hookFactory("compose", []string{"compose"}, deps.RegisterCompose),
+		hookFactory("otlp", []string{"otlp_receiver_launch", "otlp_receiver_stop"}, deps.RegisterOTLP),
 		// The rig's service words. The init names are literal here because the
 		// service package imports this one, so the list cannot be read from it.
 		hookFactory("service", []string{
