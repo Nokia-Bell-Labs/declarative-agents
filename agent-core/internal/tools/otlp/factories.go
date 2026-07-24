@@ -14,7 +14,7 @@ import (
 
 // StandardInits lists the receiver lifecycle init names.
 var StandardInits = []string{
-	InitReceiverLaunch, InitAwaitSpans, InitSpoolSpans, InitReceiverStop,
+	InitReceiverLaunch, InitAwaitSpans, InitSpoolSpans, InitRelaySpans, InitReceiverStop,
 }
 
 // ReceiverToolConfig is the YAML ToolDef config shared by launch and stop.
@@ -41,6 +41,14 @@ type SpoolToolConfig struct {
 	MaxFiles    int    `json:"max_files"`
 }
 
+// RelayToolConfig is the declared relay_spans configuration.
+type RelayToolConfig struct {
+	Endpoint        string `json:"endpoint"`
+	ReceiverAddress string `json:"receiver_address"`
+	BatchSource     string `json:"batch_source"`
+	Timeout         string `json:"timeout"`
+}
+
 // RegisterFactories registers receiver lifecycle factories over one shared state.
 func RegisterFactories(br *toolregistry.BuiltinRegistry, state *State) {
 	if state == nil {
@@ -52,9 +60,40 @@ func RegisterFactories(br *toolregistry.BuiltinRegistry, state *State) {
 			br.Register(init, awaitFactory(state))
 		case InitSpoolSpans:
 			br.Register(init, spoolFactory())
+		case InitRelaySpans:
+			br.Register(init, relayFactory())
 		default:
 			br.Register(init, receiverFactory(init, state))
 		}
+	}
+}
+
+func relayFactory() toolregistry.BuiltinFactory {
+	return func(def catalog.ToolDef, _ map[string]string) (core.Builder, error) {
+		var raw RelayToolConfig
+		if err := catalog.DecodeToolConfig(def, &raw); err != nil {
+			return nil, err
+		}
+		timeout := defaultRelayTimeout
+		if raw.Timeout != "" {
+			parsed, err := time.ParseDuration(raw.Timeout)
+			if err != nil {
+				return nil, fmt.Errorf("tool %q config has invalid timeout %q", def.Name, raw.Timeout)
+			}
+			timeout = parsed
+		}
+		source := raw.BatchSource
+		if source == "" {
+			source = defaultBatchSource
+		}
+		config := RelayConfig{
+			Endpoint: raw.Endpoint, ReceiverAddress: raw.ReceiverAddress,
+			BatchSource: source, Timeout: timeout,
+		}
+		if err := validateRelayConfig(def.Name, config); err != nil {
+			return nil, err
+		}
+		return RelayBuilder{ToolName: def.Name, Config: config}, nil
 	}
 }
 

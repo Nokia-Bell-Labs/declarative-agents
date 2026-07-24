@@ -170,6 +170,60 @@ tools:
     max_bytes: 10485760
     max_files: 3
 
+- name: relay_spans
+  type: builtin
+  init: relay_spans
+  category: boundary
+  visibility: internal
+  emits: [SpansRelayed, CommandError]
+  description: Export a selected complete trace batch unchanged to one trusted OTLP/gRPC endpoint.
+  problem: Persistent backends need accepted batches, but relay and retry order must remain visible in MachineSpec.
+  goals:
+  - Preserve protobuf resource and span identity at the upstream.
+  - Separate upstream rejection from successful acceptance.
+  - Reject a statically equivalent receiver and relay endpoint.
+  requirements:
+    input:
+    - Endpoint, receiver address, batch selector, and timeout come from trusted config.
+    output:
+    - Output reports endpoint, span count, and accepted span count.
+    errors:
+    - Selection, connection, timeout, RPC, and partial-success rejection emit CommandError.
+  non_goals:
+  - Does not retry, sample, mutate, or retract spans.
+  parameters: {type: object, properties: {}}
+  output:
+    description: Upstream endpoint and accepted span count.
+    schema:
+      type: object
+      properties:
+        endpoint: {type: string}
+        span_count: {type: integer}
+        accepted_span_count: {type: integer}
+      required: [endpoint, span_count, accepted_span_count]
+  side_effects:
+  - kind: external_api
+    target: configured OTLP/gRPC endpoint
+    state: upstream may retain accepted spans
+  reversibility:
+    classification: irreversible
+    undo: none
+  undo:
+    strategy: none
+    description: OTLP has no operation that retracts accepted spans.
+  errors:
+  - signal: CommandError
+    condition: batch selection, connection, timeout, RPC, or upstream partial success fails
+    message_shape: 'tool <name>: relay spans to <endpoint>: <cause>'
+    state_after_failure: local spool evidence and command-state batch remain available for declared retry
+  relationships:
+    after: [spool_spans, await_spans]
+  config:
+    endpoint: jaeger:4317
+    receiver_address: 0.0.0.0:4317
+    batch_source: $.batch
+    timeout: 10s
+
 - name: otlp_receiver_stop
   type: builtin
   init: otlp_receiver_stop
