@@ -185,3 +185,24 @@ releases:
       - id: test-rel06.0-executor
         summary: Tracer for the validate -> apply -> verify -> rollback flow against the executor agent, asserting schema rejection, values-file apply, rollout verification, and the authority boundary. Realized as mage integration:executor, which drives the shipped profile against recording fake helm and kubectl; the chart schema is proven against real helm and the enabled chart against its render. The live on-cluster tier is mage integration:executorLive (GH-735). The state-read chain (GH-750/752/753) is covered by unit tests pinning every hop's field mapping and failure-status behavior, plus a manual live verification against real creator/coordinator binaries; mage integration:controlPlane's automated live assertion of the same round trip is blocked by a pre-existing, unrelated bug (GH-755).
         status: implemented
+
+  - version: "07.0"
+    name: Declarative collector agent
+    description: |
+      A persistent collector profile replaces contrib on the OTLP trace path.
+      Its machine visibly composes bounded receive, await, policy, deterministic
+      stdouttrace spool, optional unchanged relay to Jaeger, retry, monitor,
+      control, and stop. Its own telemetry is file-only, with a direct self-loop
+      proof. Migration is staged: contrib retains agent metrics export and Dolt
+      Prometheus scraping until a later metrics-ingress replacement is specified.
+    status: planned
+    srds:
+      - srd007-collector-agent
+    use_cases:
+      - id: rel07.0-uc001-collector-ingress
+        summary: A chatbot trace batch enters the collector agent, remains attributable in spool and Jaeger, while contrib retains metrics evidence.
+        status: specified
+    test_suites:
+      - id: test-rel07.0-collector
+        summary: Profile, lifecycle, self-loop, staged Helm, identity, and retained-evidence proofs for collector ingress.
+        status: specified

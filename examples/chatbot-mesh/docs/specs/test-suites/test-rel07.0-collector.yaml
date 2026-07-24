@@ -1,0 +1,80 @@
+id: test-rel07.0-collector
+title: Test Suite for Release 07.0 Collector Agent
+release: "07.0"
+
+traces: [rel07.0-uc001-collector-ingress]
+
+preconditions:
+  - agent-core srd042 receiver, await, spool, relay, and stop words are available.
+  - The collector profile exports its process telemetry to file only.
+  - The staged chart keeps contrib running for OTLP metrics and Dolt scraping.
+
+test_cases:
+  - use_case: rel07.0-uc001-collector-ingress
+    name: Collector profile validates in test and relay modes
+    status: planned
+    description: Both mode overlays load the same profile and every action, signal, declaration, control route, and monitor route validates.
+    expected:
+      test_mode: spool without relay dependency
+      relay_mode: spool precedes relay
+      hidden_transport_policy: false
+    traces: [rel07.0-uc001-collector-ingress S1, rel07.0-uc001-collector-ingress S3, srd007-collector-agent AC1, srd007-collector-agent AC3]
+
+  - use_case: rel07.0-uc001-collector-ingress
+    name: A real client batch reaches stdouttrace spool and Jaeger unchanged
+    integration_target: mage integration:collector
+    status: planned
+    description: A real OTLP client exports parent and child spans with full run identity; spool and Jaeger agree on every identity field.
+    expected:
+      trace_id_match: true
+      span_id_match: true
+      parent_id_match: true
+      service_and_run_identity_match: true
+      complete_ndjson_lines: true
+    traces: [rel07.0-uc001-collector-ingress S2, srd007-collector-agent AC2]
+
+  - use_case: rel07.0-uc001-collector-ingress
+    name: Collector lifecycle releases receiver control and monitor listeners
+    integration_target: mage integration:collector
+    status: planned
+    description: Lifecycle exit unblocks await and permits every configured address to bind again, with final monitor outcomes recorded.
+    expected:
+      blocked_await_released: true
+      all_addresses_rebind: true
+      final_monitor_state_bounded: true
+    traces: [rel07.0-uc001-collector-ingress S4, srd007-collector-agent AC4]
+
+  - use_case: rel07.0-uc001-collector-ingress
+    name: Collector process telemetry cannot enter its receiver
+    integration_target: mage integration:collector
+    status: planned
+    description: Client spans enter while collector lifecycle and tool spans appear only in the collector file; equivalent relay self-endpoints fail validation.
+    expected:
+      client_batch_received: true
+      collector_batch_received: false
+      equivalent_self_endpoint_rejected: true
+    traces: [rel07.0-uc001-collector-ingress S5, srd007-collector-agent AC5]
+
+  - use_case: rel07.0-uc001-collector-ingress
+    name: Agent trace mode retains contrib metrics and Dolt scraping
+    integration_target: mage integration:helmSmoke
+    status: planned
+    description: The rendered and live staged topology sends traces through the collector agent while agent metrics and Dolt scrape samples remain available through contrib.
+    expected:
+      trace_ingress: collector_agent
+      metric_ingress: contrib
+      agent_metrics_available: true
+      dolt_metrics_available: true
+      combined_health_required: true
+    traces: [rel07.0-uc001-collector-ingress S6, srd007-collector-agent AC6, srd003-chatbot-deployment AC5]
+
+  - use_case: rel07.0-uc001-collector-ingress
+    name: Persistent evidence survives mesh teardown
+    integration_target: mage integration:observabilityEvidence
+    status: planned
+    description: After chart and cluster teardown, representative trace ids, service/run identity, agent metrics, and Dolt metrics remain queryable.
+    expected:
+      trace_evidence_retained: true
+      metric_evidence_retained: true
+      run_identity_filterable: true
+    traces: [rel07.0-uc001-collector-ingress S6, srd007-collector-agent AC6, srd003-chatbot-deployment AC5]

@@ -1,0 +1,75 @@
+id: rel07.0-uc001-collector-ingress
+title: The collector agent retains and relays an attributable trace batch
+
+summary: |
+  An operator enables agent trace ingress. The collector profile starts its
+  receiver, control, and monitor surfaces. A chatbot run exports an attributable
+  batch; the collector awaits it, records stdouttrace-compatible evidence, and
+  relays the unchanged request to Jaeger. The collector's own lifecycle spans
+  remain in its file exporter. Contrib continues the metrics and Dolt-scrape
+  path during the staged migration.
+
+actor: Mesh integration operator
+trigger: A values overlay selects collector implementation agent and starts a chatbot scenario with unique run identity.
+
+flow:
+  - F1: Helm renders the collector-agent profile and points trace producers at its OTLP/gRPC Service while retaining contrib for metrics.
+  - F2: The collector launches control, monitor, and bounded OTLP receiver listeners and enters await.
+  - F3: A chatbot scenario exports spans carrying repository, module, target, commit, run id, and stable service identity.
+  - F4: Await returns one complete batch and declared policy accepts it.
+  - F5: Spool appends complete stdouttrace-compatible NDJSON lines and syncs them.
+  - F6: Relay mode exports the unchanged batch to Jaeger and returns to await; test mode returns directly to await.
+  - F7: Evidence asserts matching trace, span, parent, service, and run identity in the spool and Jaeger.
+  - F8: Evidence asserts agent and Dolt metrics through the retained contrib path.
+  - F9: Lifecycle exit stops receiver, monitor, and control while persistent evidence remains queryable.
+
+touchpoints:
+  - "srd007-collector-agent R1 -- persistent bounded intake and visible machine sentence"
+  - "srd007-collector-agent R2 -- complete integration identity in spool and relay"
+  - "srd007-collector-agent R3 -- test and relay modes"
+  - "srd007-collector-agent R4 -- control, monitor, and lifecycle cleanup"
+  - "srd007-collector-agent R5 -- file-only telemetry and self-loop proof"
+  - "srd007-collector-agent R6 -- staged trace switch with retained metrics path"
+  - "srd003-chatbot-deployment R5 -- retained persistent trace and metric evidence"
+
+success_criteria:
+  - id: S1
+    criterion: The collector profile receives a real chatbot OTLP batch through declared bounded intake.
+    traces: [srd007-collector-agent AC1]
+  - id: S2
+    criterion: Spool and Jaeger contain matching trace, span, parent, service, and unique run identity.
+    traces: [srd007-collector-agent AC2]
+  - id: S3
+    criterion: The same profile passes spool-only test mode and spool-first relay mode.
+    traces: [srd007-collector-agent AC3]
+  - id: S4
+    criterion: Control exit releases listeners and blocked waits while monitor reports bounded outcomes.
+    traces: [srd007-collector-agent AC4]
+  - id: S5
+    criterion: Client spans enter the receiver and collector-process spans remain only in its file.
+    traces: [srd007-collector-agent AC5]
+  - id: S6
+    criterion: Agent and Dolt metrics remain available through contrib and retained evidence survives teardown.
+    traces: [srd007-collector-agent AC6]
+
+failure_scenarios:
+  - id: E1
+    scenario: Agent mode removes contrib and loses Dolt metrics.
+    expected: Rejected; the staged topology retains and health-checks the metrics path.
+  - id: E2
+    scenario: Collector lifecycle spans arrive at its own receiver.
+    expected: Rejected; collector telemetry is file-only and the proof observes no self batch.
+  - id: E3
+    scenario: Relay succeeds before deterministic spool.
+    expected: Rejected; spool is the preceding visible state and failure cannot route implicitly to relay.
+  - id: E4
+    scenario: Trace ids match but run or service identity changes.
+    expected: Rejected; all bounded integration resource identity must match end to end.
+
+out_of_scope:
+  - Collector-agent metrics and logs intake.
+  - Removing contrib metrics support.
+  - Jaeger query behavior beyond evidence assertions.
+
+test_suite_trace: test-rel07.0-collector
+status: specified
