@@ -92,7 +92,7 @@ tools:
         received_at: {type: string}
       required: [batch, batch_id, span_count, service_names, trace_ids, resource_attributes]
   side_effects:
-  - kind: queue
+  - kind: state_mutation
     target: configured receiver
     state: consumes one FIFO batch
   reversibility:
@@ -147,7 +147,7 @@ tools:
         batch: {type: object}
       required: [path, span_count, bytes_written, batch]
   side_effects:
-  - kind: filesystem
+  - kind: filesystem_write
     target: configured spool path
     state: appends durable audit evidence and may rotate bounded generations
   reversibility:
@@ -242,6 +242,8 @@ tools:
     - Output reports status, queue counts, drop counts, and drain policy.
     side_effects:
     - Closes the listener and mutates receiver lifecycle state.
+    errors:
+    - Missing receiver, shutdown timeout, or cleanup failure emits CommandError.
   non_goals:
   - Does not retract already relayed or spooled spans.
   parameters: {type: object, properties: {}}

@@ -1,0 +1,14 @@
+tools:
+  - otlp_receiver_launch
+  - launch_collector_control
+  - launch_collector_monitor
+  - await_spans
+  - filter_collector_batch
+  - spool_collector_spans
+  - decide_collector_relay
+  - relay_collector_spans
+  - await_collector_control
+  - exit_agent
+  - otlp_receiver_stop
+  - stop_collector_monitor
+  - stop_collector_control
