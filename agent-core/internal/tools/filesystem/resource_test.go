@@ -57,6 +57,22 @@ func TestReadResourceReturnsRawAndParsedYAML(t *testing.T) {
 	require.NotNil(t, detail.Parsed)
 }
 
+func TestResourceBuildersUseConfiguredResource(t *testing.T) {
+	t.Parallel()
+	root := t.TempDir()
+	writeResourceFixture(t, root, "docs/VISION.yaml", "title: Vision\n")
+	config := resourceTestConfig()
+	config.Resource = "docs"
+
+	list := (&ListResourceBuilder{Root: root, Resources: config}).
+		Build(toolReq(`{"resource":"invented"}`)).Execute()
+	require.Equal(t, SignalDocumentListReady, list.Signal)
+
+	read := (&ReadResourceBuilder{Root: root, Resources: config}).
+		Build(toolReq(`{"resource":"invented","path":"VISION.yaml"}`)).Execute()
+	require.Equal(t, SignalDocumentReady, read.Signal)
+}
+
 func TestReadResourceMissingFileEmitsDocumentMissing(t *testing.T) {
 	t.Parallel()
 	root := t.TempDir()

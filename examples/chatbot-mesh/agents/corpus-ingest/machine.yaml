@@ -1,24 +1,24 @@
 name: corpus-ingest
 purpose: |-
   The Chroma ingest profile loads a repository corpus into a local Chroma
-  collection. It checks the Chroma and Ollama servers, then lets the model drive
-  a per-document loop: the model lists the corpus (list_resource), chooses the
-  next file to read (read_resource), or signals done. After each read the machine
+  collection. It checks the Chroma and Ollama servers, lists the configured
+  corpus once, then lets the model drive a per-document loop: the model chooses
+  the next listed file to read (read_resource), or signals done. After each read the machine
   sequences the deterministic embedding steps -- embed the document at Ollama,
   create-or-get the collection (which resolves the returned collection id and
   carries the embedding, document, and id forward), and add the agent-supplied
   vector to Chroma -- before returning to the model for the next file. When the
   model is done the machine re-resolves the collection and verifies the count.
 
-  Only listing and file selection are model-driven; the embed-to-add vector step
-  is machine-sequenced because a model cannot author a raw embedding vector. The
+  Only file selection is model-driven; discovery and the embed-to-add vector step
+  are machine-sequenced because a model cannot author a trusted path list or raw embedding vector. The
   vector rides between boundary words through the agent-core previous-Result
   parameter threading (srd028 R12).
 invariants:
   - REST authority lives in corpus-rest.yaml.
   - MachineSpec owns sequencing between read, embed, and Chroma words.
-  - The model chooses only which file to list or read, or when to stop; it never authors an embedding vector.
-  - The model-visible manifest contains only list_resource, read_resource, and done.
+  - The model chooses only which listed file to read, or when to stop; it never authors a path or embedding vector.
+  - The model-visible manifest contains only read_resource and done.
   - The Chroma and Ollama servers are external preconditions, surfaced through chroma_ready and ollama_ready, not started by the agent.
 initial_state: Idle
 budget:
@@ -31,8 +31,10 @@ states:
     meaning: The Chroma v2 heartbeat is being checked.
   - name: CheckingOllama
     meaning: The Ollama version endpoint is being checked.
+  - name: ListingCorpus
+    meaning: The machine is listing trusted paths before model control starts.
   - name: Composing
-    meaning: The model is listing the corpus, choosing a file, or signalling done; and the machine routes a completed tool by its result signal.
+    meaning: The model is choosing a listed file or signalling done; and the machine routes a completed tool by its result signal.
   - name: Parsing
     meaning: The model response is being parsed into one tool request.
   - name: Embedding
@@ -106,9 +108,19 @@ transitions:
     next: Failed
   - state: CheckingOllama
     signal: OllamaReady
+    next: ListingCorpus
+    action: list_resource
+  - state: CheckingOllama
+    signal: CommandError
+    next: Failed
+  - state: ListingCorpus
+    signal: DocumentListReady
     next: Composing
     action: invoke_llm
-  - state: CheckingOllama
+  - state: ListingCorpus
+    signal: DocumentResourceDenied
+    next: Failed
+  - state: ListingCorpus
     signal: CommandError
     next: Failed
   - state: Composing
@@ -140,10 +152,6 @@ transitions:
   - state: Parsing
     signal: CommandError
     next: Failed
-  - state: Composing
-    signal: DocumentListReady
-    next: Composing
-    action: invoke_llm
   - state: Composing
     signal: DocumentReady
     next: Embedding

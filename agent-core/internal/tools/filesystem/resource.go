@@ -28,6 +28,7 @@ const (
 // ResourceConfig defines trusted filesystem resources available to resource words.
 type ResourceConfig struct {
 	Resources map[string]ResourceDefinition `json:"resources"`
+	Resource  string                        `json:"resource,omitempty"`
 }
 
 // ResourceDefinition defines one read-only filesystem resource.
@@ -131,7 +132,7 @@ type ListResourceBuilder struct {
 func (b *ListResourceBuilder) Build(res core.Result) core.Command {
 	return &listResourceCmd{
 		root:      b.Root,
-		resource:  extractStringParam(res.Output, "resource"),
+		resource:  configuredResource(b.Resources, res.Output),
 		prefix:    extractStringParam(res.Output, "prefix"),
 		resources: b.Resources,
 	}
@@ -150,10 +151,17 @@ func (b *ReadResourceBuilder) Build(res core.Result) core.Command {
 	}
 	return &readResourceCmd{
 		root:      b.Root,
-		resource:  extractStringParam(res.Output, "resource"),
+		resource:  configuredResource(b.Resources, res.Output),
 		path:      p,
 		resources: b.Resources,
 	}
+}
+
+func configuredResource(config ResourceConfig, output string) string {
+	if config.Resource != "" {
+		return config.Resource
+	}
+	return extractStringParam(output, "resource")
 }
 
 func listResourceEntries(base string, def ResourceDefinition, prefix string) ([]resourceEntry, error) {
