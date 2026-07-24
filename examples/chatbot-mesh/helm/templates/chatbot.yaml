@@ -8,6 +8,13 @@ metadata:
     app.kubernetes.io/component: chatbot
 spec:
   replicas: {{ .Values.chatbot.replicas }}
+  strategy:
+    type: RollingUpdate
+    rollingUpdate:
+      # Keep a Ready replacement behind the Service while the old pod drains
+      # its active machine_request responses (GH-812).
+      maxUnavailable: 0
+      maxSurge: 1
   selector:
     matchLabels:
       {{- include "chatbot-mesh.selectorLabels" . | nindent 6 }}

@@ -106,6 +106,8 @@ func TestChatbotRolloutDrainsActiveRequests(t *testing.T) {
 	}
 	render := string(out)
 	for _, want := range []string{
+		"maxUnavailable: 0",
+		"maxSurge: 1",
 		"terminationGracePeriodSeconds: 150",
 		"preStop:",
 		`--post-data='{"reason":"kubernetes rollout","status":"success"}'`,
