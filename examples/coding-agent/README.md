@@ -1,0 +1,114 @@
+# coding-agent
+
+A deployable planner, executor, and critic coding loop built from canonical
+`agent-profiles` library agents.
+
+## What this is
+
+The coding agent is an application composition. A planner turns SRD context into
+a task and delegates it to an executor. The executor changes an isolated
+workspace and runs declared validation. A critic evaluates the produced change
+and gates the final outcome.
+
+Composition, integration fixtures, packaging, and deployment belong to this
+application. The three agent families keep their canonical profiles and
+requirements in `agent-profiles/`:
+
+- `srd002-executor`
+- `srd003-critic`
+- `srd004-planner`
+
+This scaffold establishes the application home and test contract before
+follow-up issues add code, fixtures, packaging, and Helm assets.
+
+## Coding loop
+
+```mermaid
+flowchart LR
+  SRD[SRD and requirement graph] --> P[Planner]
+  P -->|materialized task| E[Executor]
+  E -->|changed workspace and validation| P
+  P -->|change and evidence| C[Critic]
+  C -->|accept or reject| G{Application gate}
+```
+
+The integration contract has three ordered stages:
+
+1. A live executor completes the greet task and leaves `go test ./...` green.
+2. The real planner materializes that task and delegates through the real built
+   agent binary to the real executor.
+3. The critic evaluates the produced change and its report gates the terminal
+   application state.
+
+No stage may replace an agent boundary with `writeGeneratorChildAgent`, a shell
+script, or another fake agent binary.
+
+## Packaging and runtime boundary
+
+The application references library agents instead of forking them. Packaging
+pins an `agent-profiles/v0.*` tag and resolves the transitive closure of profiles,
+declarations, tools, and configuration into a per-application profile tree.
+Missing assets fail package construction.
+
+The agent-core runtime image stays profile-free. Kubernetes runs planner,
+executor, and critic as separate containers using the same runtime image. Each
+container mounts the packaged tree under `/profiles` and selects its own profile.
+Profiles are application package content, not runtime image content.
+
+## Status
+
+The vision, architecture, release, use case, and three-stage test suite are
+specified. The following assets are planned in later issues:
+
+- coding-loop integration fixtures and Mage targets;
+- pinned library reference resolution and package assembly;
+- a Helm chart with one container per agent.
+
+All executable stages remain marked as planned, with no integration evidence
+claimed by this scaffold.
+
+## Layout
+
+```text
+examples/coding-agent/
+  docs/
+    VISION.yaml
+    ARCHITECTURE.yaml
+    road-map.yaml
+    SPECIFICATIONS.yaml
+    specs/
+      use-cases/
+      test-suites/
+  README.md
+  magefile.go
+```
+
+There is no local `specs/software-requirements/` content. Application behavior
+traces to the library SRDs, so copying them here would create a second canonical
+home.
+
+## Audit
+
+From this directory:
+
+```bash
+mage audit
+```
+
+The audit parses every YAML document, checks the required document fields,
+validates indexed paths and reciprocal use-case/test-suite traces, and confirms
+the three planned stages expose explicit inputs and expected outputs.
+
+Integration commands are added with the integration implementation. The planned
+entry points are `mage integration:executorLive`,
+`mage integration:plannerDelegation`, `mage integration:criticGate`, and the
+aggregate `mage integration:codingLoop`.
+
+## Documents
+
+- [Vision](docs/VISION.yaml)
+- [Architecture](docs/ARCHITECTURE.yaml)
+- [Road map](docs/road-map.yaml)
+- [Specification index](docs/SPECIFICATIONS.yaml)
+- [Coding-loop use case](docs/specs/use-cases/rel01.0-uc001-coding-loop.yaml)
+- [Coding-loop test suite](docs/specs/test-suites/test-rel01.0-coding-loop.yaml)

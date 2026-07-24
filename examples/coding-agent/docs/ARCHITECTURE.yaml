@@ -1,0 +1,239 @@
+id: architecture-coding-agent-example
+title: Coding Agent Architecture
+
+overview:
+  summary: |
+    The coding agent composes three canonical agent-profiles library agents.
+    The planner reads a requirement graph and SRD context, materializes a task,
+    and delegates it to the executor. The executor changes an isolated
+    workspace and returns validation evidence. The critic evaluates that result
+    with a suite and oracle; its verdict gates the application outcome.
+
+    The application owns composition, packaging, deployment, and end-to-end
+    tests. Agent behavior remains profile-owned, and execution capability
+    remains agent-core-owned. At package time, a pinned library reference is
+    resolved into a closed application profile tree. At runtime, Kubernetes
+    starts one profile-free agent-core image per agent and mounts that tree.
+  coding_loop_diagram: |
+    ```mermaid
+    flowchart LR
+      O[Operator or automation] -->|SRD, graph, workspace| P[Planner]
+      P -->|materialized task| E[Executor]
+      E -->|changed workspace and validation| P
+      P -->|change, suite, samples, oracle| C[Critic]
+      C -->|Done or Failed verdict| G{Application gate}
+      G -->|accepted| S[Succeeded]
+      G -->|rejected| F[Failed]
+    ```
+  packaging_diagram: |
+    ```mermaid
+    flowchart LR
+      M[Application references] -->|pinned agent-profiles/v0.*| R[Reference resolver]
+      L[Canonical library profiles] --> R
+      R -->|transitive closure| B[Application profile bundle]
+      B -->|mounted profile tree| P[Planner pod]
+      B -->|mounted profile tree| E[Executor pod]
+      B -->|mounted profile tree| C[Critic pod]
+      I[Profile-free agent-core image] --> P
+      I --> E
+      I --> C
+    ```
+
+interfaces:
+  - name: coding request
+    summary: |
+      The application input names an SRD, requirement graph, mounted workspace,
+      planning model config, execution model config, critic suite, samples, and
+      oracle command.
+  - name: planner-to-executor delegation
+    summary: |
+      The planner passes a materialized task, workspace location, and model
+      selection to the canonical executor profile through child-profile
+      execution. No fake agent binary satisfies the application contract.
+  - name: executor result
+    summary: |
+      The executor returns a changed workspace, terminal status, tool and
+      validation results, and a traceable task summary to the planner.
+  - name: critic gate
+    summary: |
+      The critic receives the changed workspace plus suite, samples, model or
+      profile grid, and oracle command. Point results, metrics, and the session
+      report determine the final gate.
+  - name: packaged profile mount
+    summary: |
+      Each container starts the agent-core runtime with a profile selected from
+      the package-time closure mounted under `/profiles`. The image itself
+      contains no planner, executor, critic, or application profile.
+
+components:
+  - name: planner
+    source: agent-profiles/agents/planner/
+    library_requirement: agent-profiles/docs/specs/software-requirements/srd004-planner.yaml
+    responsibility: |
+      Traverse the requirement graph, assemble and parse a plan, materialize the
+      coding task, delegate to the executor, and record execution and validation
+      outcomes. The application references this profile; it does not fork it.
+  - name: executor
+    source: agent-profiles/agents/executor/
+    library_requirement: agent-profiles/docs/specs/software-requirements/srd002-executor.yaml
+    responsibility: |
+      Receive the task and mounted workspace, invoke the model boundary,
+      dispatch filesystem and validation tools, and terminate only after
+      machine-declared validation. The application references this profile; it
+      does not fork it.
+  - name: critic
+    source: agent-profiles/agents/critic/
+    library_requirement: agent-profiles/docs/specs/software-requirements/srd003-critic.yaml
+    responsibility: |
+      Parse the evaluation suite, expand points, prepare isolated point
+      workspaces, invoke the configured profile, run oracle checks, and produce
+      the session verdict that gates the coding result. The application
+      references this profile; it does not fork it.
+  - name: application package
+    path: packaging/
+    status: planned
+    responsibility: |
+      Pin the library version, resolve direct references, collect the transitive
+      profile/config/declaration/tool closure, and emit a self-contained
+      application profile tree without modifying the runtime image.
+  - name: Kubernetes deployment
+    path: helm/
+    status: planned
+    responsibility: |
+      Run planner, executor, and critic as separate workloads, mount the
+      packaged profiles and workspace at declared paths, and expose only the
+      delegation and result interfaces required by the coding loop.
+  - name: documentation
+    path: docs/
+    responsibility: |
+      Own the application vision, architecture, road map, coding-loop use case,
+      and staged integration test contract.
+
+design_decisions:
+  - id: 1
+    title: Reference canonical library agents
+    decision: |
+      The application records references to planner, executor, and critic in
+      `agent-profiles/`. It does not copy profiles, declarations, or SRDs.
+    benefits:
+      - Each agent has one canonical maintenance and conformance boundary.
+      - Library fixes reach applications through an explicit version update.
+      - Application documents describe composition instead of restating family
+        requirements.
+  - id: 2
+    title: Assemble profile closure at package time
+    decision: |
+      Packaging pins an `agent-profiles/v0.*` tag and resolves each direct
+      profile reference plus its transitive profiles, declarations, tools, and
+      configuration into the per-application profile tree.
+    benefits:
+      - Deployment has no runtime dependency on the source repository layout.
+      - Missing transitive assets fail packaging instead of a live workload.
+      - The package records the exact library version used by all three agents.
+  - id: 3
+    title: Keep the runtime image profile-free
+    decision: |
+      The existing agent-core image is shared unchanged. Profiles enter a
+      workload only through the packaged tree mounted at runtime; the
+      `containerSmoke` profile-free invariant remains in force.
+    benefits:
+      - Runtime releases and application releases remain independent.
+      - One image executes different declarative applications.
+      - Application profile provenance is visible in its package.
+  - id: 4
+    title: Run one container per agent
+    decision: |
+      Kubernetes runs planner, executor, and critic separately. Each selects one
+      profile from the same packaged closure and receives only its required
+      mounts and authority.
+    benefits:
+      - Workspace and subprocess authority can be scoped per role.
+      - Agent lifecycle and evidence remain attributable.
+      - The deployment mirrors the composition boundary.
+  - id: 5
+    title: Prove the loop in ordered stages
+    decision: |
+      The integration suite first proves a live executor, then real planner
+      delegation to that executor, then the critic gate. Each stage names its
+      inputs and expected outputs and uses no fake agent binary.
+    benefits:
+      - A failure identifies the first broken application boundary.
+      - The suite proves real composition rather than paired stubs.
+      - Documentation gates implementation in specification-driven order.
+
+technology_choices:
+  - component: Agent runtime
+    technology: agent-core
+    purpose: Execute profile-declared machines and builtin tools without
+      embedding application profiles in the image.
+  - component: Reusable agents
+    technology: agent-profiles
+    purpose: Supply canonical planner, executor, and critic profiles and their
+      library SRDs.
+  - component: Application specification
+    technology: YAML
+    purpose: Keep the vision, architecture, road map, use case, and test suite
+      machine-readable and auditable.
+  - component: Packaging
+    technology: Pinned profile reference and transitive closure
+    purpose: Produce a self-contained profile tree before deployment.
+  - component: Deployment
+    technology: Helm and Kubernetes
+    purpose: Run one container per agent with explicit mounts and boundaries.
+  - component: Integration orchestration
+    technology: Mage
+    purpose: Expose documentation audit now and staged coding-loop integration
+      targets in the implementation follow-up.
+
+project_structure:
+  application:
+    - path: docs/
+      role: Application-level design and specification corpus.
+    - path: testdata/integration/
+      role: Planned coding-loop fixtures owned by this application.
+    - path: packaging/
+      role: Planned library references and assembled profile closure.
+    - path: helm/
+      role: Planned one-container-per-agent deployment chart.
+    - path: magefile.go
+      role: Application audit entry; integration targets are added separately.
+  library:
+    - path: agent-profiles/agents/planner/
+      role: Canonical planner profile.
+    - path: agent-profiles/agents/executor/
+      role: Canonical coding executor profile.
+    - path: agent-profiles/agents/critic/
+      role: Canonical critic profile.
+    - path: agent-profiles/docs/specs/software-requirements/
+      role: Canonical srd002, srd003, and srd004 family requirements.
+
+implementation_status:
+  current_focus: |
+    The application documentation and coding-loop test contract are specified.
+    Integration fixtures, the reference resolver, packaging, and Helm deployment
+    remain planned follow-up work.
+  progress:
+    - specified: The planner -> executor -> critic coding loop and three-stage
+        integration contract.
+    - specified: The reference-not-fork, package-time closure, profile-free
+        runtime image, and one-container-per-agent decisions.
+    - planned: Live executor, real planner delegation, and critic-gate
+        integration targets.
+    - planned: Versioned library reference resolution and package assembly.
+    - planned: Kubernetes deployment and Helm chart.
+
+related_documents:
+  - doc: docs/VISION.yaml
+    purpose: Application goals, scope, and success criteria.
+  - doc: docs/road-map.yaml
+    purpose: Release status and sequencing.
+  - doc: docs/specs/use-cases/rel01.0-uc001-coding-loop.yaml
+    purpose: End-to-end planner, executor, and critic flow.
+  - doc: docs/specs/test-suites/test-rel01.0-coding-loop.yaml
+    purpose: Inputs and expected outputs for the three integration stages.
+  - doc: agent-profiles/docs/specs/software-requirements/srd002-executor.yaml
+    purpose: Canonical executor family contract.
+  - doc: agent-profiles/docs/specs/software-requirements/srd003-critic.yaml
+    purpose: Canonical critic family contract.
+  - doc: agent-profiles/docs/specs/software-requirements/srd004-planner.yaml
+    purpose: Canonical planner family contract.

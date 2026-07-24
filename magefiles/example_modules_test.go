@@ -32,6 +32,15 @@ func TestChatbotMeshIsAnExampleModule(t *testing.T) {
 	}
 }
 
+func TestCodingAgentParticipatesInAudit(t *testing.T) {
+	if !contains(auditParticipants(), "examples/coding-agent") {
+		t.Fatalf("auditParticipants() = %#v, want coding-agent", auditParticipants())
+	}
+	if contains(exampleModules, "examples/coding-agent") {
+		t.Fatal("coding-agent must remain audit-only until it owns test and stats targets")
+	}
+}
+
 // TestExampleModulesExcludedFromSubModules proves example modules do not enter
 // the Build and All gates, which iterate subModules and would fail on a module
 // that defines no build/default target.

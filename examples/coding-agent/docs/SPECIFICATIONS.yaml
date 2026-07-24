@@ -1,0 +1,89 @@
+id: coding-agent-example-specifications
+title: Coding Agent Example Specification Index
+
+overview: |
+  This index governs the coding application's composition documents. Release
+  01.0 has one use case and one three-stage test suite. The application owns no
+  agent-family SRD: it references the canonical executor (srd002), critic
+  (srd003), and planner (srd004) requirements in `agent-profiles/`.
+
+  Library references are not forks. Packaging resolves a pinned
+  `agent-profiles/v0.*` version and assembles the transitive profile closure
+  before deployment. The shared agent-core runtime image remains profile-free.
+
+roadmap_summary:
+  - version: "01.0"
+    name: Planner, executor, and critic coding loop
+    use_cases_done: 0
+    use_cases_total: 1
+    status: specified
+
+foundation_document_index:
+  - id: coding-agent-example
+    title: Coding Agent Application Vision
+    summary: Goals, boundaries, and success criteria for the deployable coding composition.
+    path: docs/VISION.yaml
+  - id: architecture-coding-agent-example
+    title: Coding Agent Architecture
+    summary: Coding-loop components, package boundary, deployment intent, and design decisions.
+    path: docs/ARCHITECTURE.yaml
+  - id: coding-agent-example-roadmap
+    title: Coding Agent Example Road Map
+    summary: Specification-first release plan for the coding loop.
+    path: docs/road-map.yaml
+
+srd_index: []
+
+library_srd_references:
+  - id: srd002-executor
+    owner: agent-profiles
+    title: Executor Functional Block
+    path: ../../agent-profiles/docs/specs/software-requirements/srd002-executor.yaml
+    usage: The live executor stage and planner delegation use its coding-agent inputs, outputs, validation, and terminal outcomes.
+  - id: srd003-critic
+    owner: agent-profiles
+    title: Critic Functional Block
+    path: ../../agent-profiles/docs/specs/software-requirements/srd003-critic.yaml
+    usage: The critic-gate stage uses its suite, point, oracle, report, and terminal-outcome contract.
+  - id: srd004-planner
+    owner: agent-profiles
+    title: Planner Functional Block
+    path: ../../agent-profiles/docs/specs/software-requirements/srd004-planner.yaml
+    usage: The planner-delegation stage uses its requirement traversal, task materialization, child-profile execution, and validation contract.
+
+config_format_index: []
+
+semantic_model_index: []
+
+use_case_index:
+  - id: rel01.0-uc001-coding-loop
+    title: Planner Materializes, Executor Changes, and Critic Gates
+    release: "01.0"
+    status: specified
+    test_suite: test-rel01.0-coding-loop
+    path: docs/specs/use-cases/rel01.0-uc001-coding-loop.yaml
+
+test_suite_index:
+  - id: test-rel01.0-coding-loop
+    title: Test Suite for Release 01.0 Coding Loop
+    release: "01.0"
+    test_case_count: 3
+    traces: [rel01.0-uc001-coding-loop]
+    path: docs/specs/test-suites/test-rel01.0-coding-loop.yaml
+
+coverage_gaps:
+  - id: coding-loop-integration
+    status: planned
+    description: |
+      The three test stages are specified but have no executable Mage targets
+      until the coding-loop integration issue adds fixtures and evidence.
+  - id: library-reference-resolution
+    status: planned
+    description: |
+      The package-time resolver and pinned reference format are design
+      decisions; their implementation and validation arrive in a later issue.
+  - id: kubernetes-deployment
+    status: planned
+    description: |
+      The one-container-per-agent topology is architectural intent. The Helm
+      chart and cluster evidence are not part of this documentation scaffold.

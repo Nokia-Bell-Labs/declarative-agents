@@ -1,0 +1,88 @@
+id: coding-agent-example
+title: "Coding Agent: A Planner, Executor, and Critic Application"
+
+executive_summary: |
+  The coding agent is a deployable application that turns a software
+  requirement into a planned task, a validated workspace change, and an
+  independent quality verdict. It composes the planner, executor, and critic
+  profiles from the agent-profiles library instead of copying or redefining
+  them.
+
+  Packaging resolves the application's pinned library references and assembles
+  their transitive profile closure. Kubernetes then runs one agent-core
+  container per agent with the packaged profile tree mounted. The shared
+  runtime image contains no profiles.
+
+problem: |
+  The planner, executor, and critic exist as reusable library agents, but no
+  application document defines their end-to-end coding loop. Existing boundary
+  tests do not prove a real planner delegating to a real executor and then
+  passing the changed workspace to a critic. Without an application home,
+  deployment ownership, integration evidence, and package boundaries remain
+  ambiguous.
+
+what_this_does: |
+  The application accepts an SRD and workspace. The planner traverses the
+  requirement graph, materializes a task, and delegates it to the executor. The
+  executor edits the mounted workspace and runs declared validation. The critic
+  evaluates the produced change with a suite and oracle and gates the final
+  application outcome.
+
+  This directory owns the composition documents, application integration tests,
+  package manifest, and deployment chart as those assets are delivered. The
+  canonical agent profiles and their family requirements remain in
+  `agent-profiles/`.
+
+why_we_build_this: |
+  An application-level composition makes the complete coding loop testable and
+  deployable without weakening the library boundary. Readers can distinguish
+  reusable profile behavior from application sequencing, and operators can pin
+  one library version, package a closed profile tree, and deploy the same
+  composition consistently.
+
+success_criteria:
+  traceable_coding_loop: |
+    The application traces planner task materialization, executor workspace
+    validation, and critic gating from one use case to three explicit
+    integration stages.
+  canonical_library_agents: |
+    Planner, executor, and critic each have one canonical home under
+    `agent-profiles/`; this application records references and never forks their
+    profiles or SRDs.
+  closed_package: |
+    Packaging resolves a pinned `agent-profiles/v0.*` version and assembles the
+    transitive closure of referenced profiles, declarations, tools, and config
+    into the application profile tree.
+  profile_free_runtime: |
+    The agent-core runtime image remains profile-free. Each workload mounts the
+    packaged application profile tree and selects its own profile at startup.
+  deployable_topology: |
+    Kubernetes runs planner, executor, and critic as separate containers with
+    explicit workspace, delegation, and result interfaces.
+
+not:
+  - We do not copy planner, executor, critic, or their SRDs into this example.
+  - We do not add application behavior to the agent-core runtime image.
+  - We do not define the library reference resolver or Helm chart in this
+    documentation scaffold.
+  - We do not claim the coding-loop integration stages are implemented before
+    their follow-up issue supplies executable evidence.
+  - We do not make every agent profile a library member; library membership is
+    governed by independent usefulness or multiple consumers.
+
+canonical_documents:
+  - docs/ARCHITECTURE.yaml
+  - docs/road-map.yaml
+  - docs/SPECIFICATIONS.yaml
+  - docs/specs/use-cases/rel01.0-uc001-coding-loop.yaml
+  - docs/specs/test-suites/test-rel01.0-coding-loop.yaml
+  - README.md
+
+library_references:
+  note: |
+    These are canonical library requirements. The application cites them and
+    packages their profile implementations by reference.
+  requirements:
+    - agent-profiles srd002-executor
+    - agent-profiles srd003-critic
+    - agent-profiles srd004-planner
