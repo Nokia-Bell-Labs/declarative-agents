@@ -108,13 +108,13 @@ rest:
           reversibility:
             classification: reversible
             undo: noop
-{{- range $i, $unit := .Values.ragUnits }}
-    rag{{ $i }}:
+{{- range $unit := .Values.ragUnits }}
+    {{ $unit.name }}:
       base_url: http://{{ $fullname }}-{{ $unit.name }}:{{ $q }}
       auth_ref: none
       limits_ref: local_provider
       operations:
-        rag{{ $i }}_query:
+        {{ $unit.name }}_query:
           method: POST
           path: /api/v1/rag/query
           params:

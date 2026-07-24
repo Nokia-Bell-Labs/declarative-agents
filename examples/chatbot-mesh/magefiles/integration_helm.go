@@ -582,17 +582,17 @@ func assertSwapRepoint() error {
 	return nil
 }
 
-// assertSwapAddRag upgrades the release to two RAG units and asserts the new RAG
-// workload stands up, the co-generated chatbot profile ConfigMap now carries the
-// second RAG client, and the chatbot Deployment rolled to a new generation
-// (srd003 R3.2).
+// assertSwapAddRag upgrades the release to two RAG units with a non-positional
+// name and asserts the new workload stands up, the co-generated chatbot profile
+// preserves that topology identity, and the chatbot Deployment rolls to a new
+// generation (srd003 R2/R3.2).
 func assertSwapAddRag(chartPath string) error {
 	genBefore, err := chatbotDeploymentGeneration()
 	if err != nil {
 		return err
 	}
 	extra := []string{
-		"--set", "ragUnits[1].name=rag1",
+		"--set", "ragUnits[1].name=rag4",
 		"--set", "ragUnits[1].collection=corpus2",
 		"--set", "ragUnits[1].embeddingModel=qwen3-embedding:8b",
 		"--set", "ragUnits[1].replicas=1",
@@ -600,15 +600,18 @@ func assertSwapAddRag(chartPath string) error {
 	if err := helmSwapDeploy(chartPath, "upgrade", extra); err != nil {
 		return err
 	}
-	if err := kubectlResourceExists("deployment", helmSwapRelease+"-chatbot-mesh-rag1"); err != nil {
-		return fmt.Errorf("add-RAG did not stand up the rag1 Deployment: %w", err)
+	if err := kubectlResourceExists("deployment", helmSwapRelease+"-chatbot-mesh-rag4"); err != nil {
+		return fmt.Errorf("add-RAG did not stand up the rag4 Deployment: %w", err)
 	}
 	cm, err := kubectlConfigMapKey(helmSwapRelease+"-chatbot-mesh-profiles", "agents__chatbot__rest.yaml")
 	if err != nil {
 		return err
 	}
-	if !strings.Contains(cm, "rag1:") {
-		return fmt.Errorf("add-RAG did not re-render the chatbot rest.yaml with the rag1 client (R2/R3.2)")
+	if !strings.Contains(cm, "rag4:") || !strings.Contains(cm, "rag4_query:") {
+		return fmt.Errorf("add-RAG did not preserve the rag4 topology identity in chatbot rest.yaml (R2/R3.2)")
+	}
+	if strings.Contains(cm, "\n    rag1:") {
+		return fmt.Errorf("add-RAG renumbered rag4 to positional client rag1 in chatbot rest.yaml (R2)")
 	}
 	genAfter, err := chatbotDeploymentGeneration()
 	if err != nil {

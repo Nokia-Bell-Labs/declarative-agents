@@ -56,8 +56,8 @@ tools:
       strategy: noop
       description: Querying the RAG server does not mutate state.
     config:
-      rest_ref: rag{{ $i }}
-      operation: rag{{ $i }}_query
+      rest_ref: {{ $unit.name }}
+      operation: {{ $unit.name }}_query
 
   - name: compare_model{{ $i }}
     type: builtin
@@ -388,7 +388,7 @@ tools:
     problem: The answer step needs the original message and the non-adjacent retrieved chunks from every RAG source in one prompt without carry_forward chains.
     goals:
       - Read the original message from embed_query and each RAG's chunks through command-state $from().
-      - Render one grounding prompt for the model, each source under its own [ragN] header.
+      - Render one grounding prompt for the model, each source under its topology-name header.
       - Render an unresolved source (a degraded or excluded RAG) as empty, so the turn still yields a prompt from the surviving sources.
     requirements:
       input:
@@ -434,7 +434,7 @@ tools:
         grouped by the RAG source they came from.
 {{- range $i, $unit := .Values.ragUnits }}
 
-        [rag{{ $i }}]
+        [{{ $unit.name }}]
         {{ printf "{{ chunks%d }}" $i }}
 {{- end }}
 

@@ -86,8 +86,15 @@ func TestChatbotFanOutCoGeneratedForNRags(t *testing.T) {
 		if !strings.Contains(fanout, fmt.Sprintf("chunks%d: $from(keep_chunks%d).documents", i, i)) {
 			t.Errorf("co-generated compose missing chunks%d input", i)
 		}
-		if !strings.Contains(fanout, fmt.Sprintf("[rag%d]", i)) {
-			t.Errorf("co-generated compose template missing [rag%d] header", i)
+		name := []string{"alpha", "bravo", "charlie"}[i]
+		if !strings.Contains(fanout, "rest_ref: "+name) {
+			t.Errorf("co-generated query %d does not select topology client %q", i, name)
+		}
+		if !strings.Contains(fanout, "operation: "+name+"_query") {
+			t.Errorf("co-generated query %d does not select topology operation %q", i, name+"_query")
+		}
+		if !strings.Contains(fanout, "["+name+"]") {
+			t.Errorf("co-generated compose template missing [%s] header", name)
 		}
 	}
 	for _, word := range []string{"rag_query3", "compare_model3", "keep_chunks3", "mark_degraded3"} {
@@ -133,12 +140,18 @@ func TestChatbotRestCoGeneratedFromRagUnits(t *testing.T) {
 		t.Fatal("co-generated agents__chatbot__rest.yaml key not found in render")
 	}
 
-	// One client per unit, named by index, pointed at the unit's Service DNS.
-	for i, u := range units {
-		client := fmt.Sprintf("rag%d:", i)
+	// One client per unit, preserving its topology identity and pointing at its
+	// Service DNS. Positional aliases would silently rename later sources after
+	// an operator removes or replaces a unit.
+	for _, u := range units {
+		client := u.name + ":"
+		operation := u.name + "_query:"
 		url := fmt.Sprintf("http://t-chatbot-mesh-%s:18085", u.name)
 		if !strings.Contains(rest, client) {
 			t.Errorf("co-generated rest.yaml missing client %q", client)
+		}
+		if !strings.Contains(rest, operation) {
+			t.Errorf("co-generated rest.yaml missing operation %q", operation)
 		}
 		if !strings.Contains(rest, url) {
 			t.Errorf("co-generated rest.yaml missing base_url %q", url)
@@ -148,10 +161,12 @@ func TestChatbotRestCoGeneratedFromRagUnits(t *testing.T) {
 			t.Errorf("co-generated rest.yaml missing monitor_proxy upstream %q", upstream)
 		}
 	}
-	// A fourth client index must not appear for a three-unit render, and the
-	// packaged rag1@loopback entry must not survive the override.
-	if strings.Contains(rest, "rag3:") {
-		t.Error("co-generated rest.yaml has a rag3 client for a three-unit values set")
+	// No positional client alias may appear, and the packaged rag1@loopback entry
+	// must not survive the override.
+	for _, alias := range []string{"rag0:", "rag1:", "rag2:", "rag3:"} {
+		if strings.Contains(rest, "\n    "+alias) {
+			t.Errorf("co-generated rest.yaml has positional client alias %q", alias)
+		}
 	}
 	if strings.Contains(rest, "http://127.0.0.1:18095") {
 		t.Error("packaged loopback RAG client leaked into the co-generated rest.yaml")
