@@ -9,6 +9,7 @@ import (
 	"os"
 	"os/exec"
 	"path/filepath"
+	"reflect"
 	"runtime"
 	"strings"
 	"time"
@@ -27,6 +28,68 @@ const (
 	executorLiveRolloutURL = "http://127.0.0.1:18090/provisioning/api/rollout"
 	executorLiveApplyURL   = "http://127.0.0.1:18090/provisioning/api/apply"
 )
+
+// executorLiveRollbackHook is test-only chart instrumentation. A post-upgrade
+// hook runs after Helm has waited for the ordinary resources and before the
+// upgrade command returns. For the reserved fixture value it uses the real
+// kubectl in the executor image to regress the chatbot Deployment. That makes
+// the following declared kubectl rollout status fail deterministically, without
+// racing an out-of-band patch against Helm's own --wait.
+//
+// The extra Role is installed by the host-side initial install. The executor
+// therefore already holds these test-only permissions when an in-cluster upgrade
+// re-applies the chart; no production chart or production RBAC is widened.
+const executorLiveRollbackHook = `{{- if .Values.executor.enabled }}
+{{- $fullname := include "chatbot-mesh.fullname" . -}}
+apiVersion: rbac.authorization.k8s.io/v1
+kind: Role
+metadata:
+  name: {{ $fullname }}-executor-live-rollback-trigger
+rules:
+  - apiGroups: [""]
+    resources: [pods]
+    verbs: [get, list, watch, create, delete]
+  - apiGroups: [apps]
+    resources: [deployments]
+    verbs: [get, patch]
+---
+apiVersion: rbac.authorization.k8s.io/v1
+kind: RoleBinding
+metadata:
+  name: {{ $fullname }}-executor-live-rollback-trigger
+roleRef:
+  apiGroup: rbac.authorization.k8s.io
+  kind: Role
+  name: {{ $fullname }}-executor-live-rollback-trigger
+subjects:
+  - kind: ServiceAccount
+    name: {{ $fullname }}-executor
+{{- if eq (int .Values.executor.params.nResults) 751 }}
+---
+apiVersion: v1
+kind: Pod
+metadata:
+  name: {{ $fullname }}-executor-live-rollback-trigger
+  annotations:
+    helm.sh/hook: post-upgrade
+    helm.sh/hook-delete-policy: before-hook-creation,hook-succeeded
+spec:
+  serviceAccountName: {{ $fullname }}-executor
+  restartPolicy: Never
+  containers:
+    - name: regress-chatbot
+      image: "{{ .Values.executor.image.repository }}:{{ .Values.executor.image.tag }}"
+      imagePullPolicy: {{ .Values.executor.image.pullPolicy }}
+      command: [kubectl]
+      args:
+        - patch
+        - deployment/{{ $fullname }}-chatbot
+        - --type=strategic
+        - -p
+        - '{"spec":{"template":{"spec":{"containers":[{"name":"chatbot","image":"invalid.local/executor-live-rollback:missing"}]}}}}'
+{{- end }}
+{{- end }}
+`
 
 // ExecutorLive proves the executor against a real cluster, which the fake-CLI
 // tracer cannot: integration:executor drives recording stand-ins that take their
@@ -71,8 +134,15 @@ func runExecutorLive(coreRoot, profilesRoot string) error {
 	if err := buildSmokeRuntimeImage(coreRoot, helmImage); err != nil {
 		return err
 	}
+	chartDir := exampleChartDir(profilesRoot)
+	staged, cleanupChart, err := stageExecutorLiveChart(chartDir, profilesRoot)
+	if err != nil {
+		return err
+	}
+	defer cleanupChart()
+
 	fmt.Printf("executorLive: building executor image %s on %s\n", executorLiveImage, helmImage)
-	if err := buildExecutorImage(profilesRoot, helmImage, executorLiveImage); err != nil {
+	if err := buildExecutorImage(profilesRoot, staged, helmImage, executorLiveImage); err != nil {
 		return err
 	}
 	if err := assertExecutorImageCarriesItsTools(executorLiveImage); err != nil {
@@ -93,12 +163,6 @@ func runExecutorLive(coreRoot, profilesRoot string) error {
 		return err
 	}
 
-	chartDir := exampleChartDir(profilesRoot)
-	staged, cleanupChart, err := stageSmokeChart(chartDir, profilesRoot)
-	if err != nil {
-		return err
-	}
-	defer cleanupChart()
 	if err := helmInstallExecutorLive(staged); err != nil {
 		return err
 	}
@@ -110,8 +174,26 @@ func runExecutorLive(coreRoot, profilesRoot string) error {
 	}
 	fmt.Println("integration:executorLive PASS - the executor runs on kind from an image built on the runtime " +
 		"under test, reads a real Deployment's rollout, applies a values patch that moves the release to a new " +
-		"revision, and rejects a non-conforming one against the real chart schema without touching it")
+		"revision, compensates a post-upgrade verification failure with a real Helm rollback, and rejects a " +
+		"non-conforming patch against the real chart schema without touching it")
 	return nil
+}
+
+// stageExecutorLiveChart gives only this live tier a deterministic post-upgrade
+// regression hook. Both the host-side install and /chart in the executor image
+// use this same staged directory, so Helm records and rolls back one coherent
+// instrumented chart.
+func stageExecutorLiveChart(chartDir, profilesRoot string) (string, func(), error) {
+	staged, cleanup, err := stageSmokeChart(chartDir, profilesRoot)
+	if err != nil {
+		return "", nil, err
+	}
+	hook := filepath.Join(staged, "templates", "executor-live-rollback-trigger.yaml")
+	if err := os.WriteFile(hook, []byte(executorLiveRollbackHook), 0o644); err != nil {
+		cleanup()
+		return "", nil, fmt.Errorf("stage executor live rollback trigger: %w", err)
+	}
+	return staged, cleanup, nil
 }
 
 // helmInstallExecutorLive installs the mesh with the executor enabled. The two
@@ -154,8 +236,8 @@ func waitExecutorDeploymentReady() error {
 }
 
 // buildExecutorImage builds the executor image from the locally built runtime
-// image rather than a published tag, so the live tier runs the code under test
-// the way the smoke does.
+// image and the supplied staged chart rather than published artifacts, so the
+// live tier runs the code under test the way the smoke does.
 //
 // The build context carries the *staged* chart, not the one in the repo. The
 // Dockerfile's `COPY helm /chart` takes whatever the context has, and the chart
@@ -172,14 +254,7 @@ func waitExecutorDeploymentReady() error {
 // arm64 image carrying amd64 helm and kubectl, which crash the first time an
 // exec word runs one. The kind nodes are the host's architecture, so the image
 // has to be too.
-func buildExecutorImage(profilesRoot, runtimeImage, image string) error {
-	chartDir := exampleChartDir(profilesRoot)
-	staged, cleanupChart, err := stageSmokeChart(chartDir, profilesRoot)
-	if err != nil {
-		return fmt.Errorf("stage the chart the image ships: %w", err)
-	}
-	defer cleanupChart()
-
+func buildExecutorImage(profilesRoot, staged, runtimeImage, image string) error {
 	buildCtx, err := os.MkdirTemp("", "executor-image-ctx-*")
 	if err != nil {
 		return err
@@ -336,6 +411,9 @@ func assertExecutorServesItsSurface(profilesRoot string) error {
 	if err := assertLiveApplyChangesTheRelease(profilesRoot); err != nil {
 		return err
 	}
+	if err := assertLiveRollbackRestoresTheRelease(profilesRoot); err != nil {
+		return err
+	}
 	if err := assertLiveSchemaRejection(profilesRoot); err != nil {
 		return err
 	}
@@ -427,6 +505,73 @@ func assertLiveApplyChangesTheRelease(profilesRoot string) error {
 	return nil
 }
 
+// assertLiveRollbackRestoresTheRelease proves the compensating action with real
+// Helm and kubectl (srd006 R3.2, GH-751). The staged post-upgrade hook regresses
+// the chatbot only after helm upgrade --wait has succeeded. The executor must
+// therefore reach Verifying, observe kubectl's real timeout, run helm rollback,
+// and map RolledBack to the distinct 500 response.
+//
+// Helm rollback creates a new release revision; it does not move the revision
+// number backwards. Restoration is proved by comparing the computed release
+// values and by waiting for the chatbot Deployment to become ready again.
+func assertLiveRollbackRestoresTheRelease(profilesRoot string) error {
+	beforeRevision, err := helmReleaseRevision(executorLiveRelease)
+	if err != nil {
+		return err
+	}
+	beforeValues, err := helmReleaseValues(executorLiveRelease)
+	if err != nil {
+		return err
+	}
+	patch, err := executorValuesPatch(profilesRoot, "rollback-trigger.yaml")
+	if err != nil {
+		return err
+	}
+
+	client := &http.Client{Timeout: executorReadyWait}
+	body, status, err := requestHTTPWithClient(client, http.MethodPost, executorLiveApplyURL, patch)
+	if err != nil {
+		return fmt.Errorf("rollback-triggering apply request failed: %w", err)
+	}
+	if status != http.StatusInternalServerError {
+		return fmt.Errorf("rollback-triggering apply status = %d, want 500: %s\n%s",
+			status, body, executorPodDiagnostics())
+	}
+	for _, want := range []string{`"error":"rolled_back"`, `"status":"rolled_back"`} {
+		if !strings.Contains(string(body), want) {
+			return fmt.Errorf("rollback response does not contain %s: %s", want, body)
+		}
+	}
+
+	afterRevision, err := helmReleaseRevision(executorLiveRelease)
+	if err != nil {
+		return err
+	}
+	if afterRevision < beforeRevision+2 {
+		return fmt.Errorf("release revision moved from %d to %d, want an upgrade and a rollback revision",
+			beforeRevision, afterRevision)
+	}
+	afterValues, err := helmReleaseValues(executorLiveRelease)
+	if err != nil {
+		return err
+	}
+	if !reflect.DeepEqual(afterValues, beforeValues) {
+		beforeJSON, _ := json.Marshal(beforeValues)
+		afterJSON, _ := json.Marshal(afterValues)
+		return fmt.Errorf("helm rollback did not restore the prior computed values:\nbefore: %s\nafter:  %s",
+			beforeJSON, afterJSON)
+	}
+
+	deployment := "deployment/" + executorLiveRelease + "-chatbot-mesh-chatbot"
+	cmd := exec.Command("kubectl", "rollout", "status", deployment, "--timeout", executorReadyWait.String())
+	if out, err := cmd.CombinedOutput(); err != nil {
+		return fmt.Errorf("chatbot Deployment did not recover after rollback: %w\n%s", err, out)
+	}
+	fmt.Printf("executorLive: real helm rollback restored revision %d values in new revision %d and recovered the chatbot\n",
+		beforeRevision, afterRevision)
+	return nil
+}
+
 // assertLiveSchemaRejection closes the loop GH-732 opened with a local dry-run:
 // the same non-conforming document, now against a real release on a cluster.
 // The release must not move -- a rejected patch applies nothing (srd006 R2.1).
@@ -505,4 +650,18 @@ func helmReleaseRevision(release string) (int, error) {
 		return 0, fmt.Errorf("decode helm metadata: %w: %s", err, out)
 	}
 	return metadata.Revision, nil
+}
+
+// helmReleaseValues reads the fully computed values so a rollback is compared
+// by released state, not by its ever-increasing numeric revision.
+func helmReleaseValues(release string) (map[string]any, error) {
+	out, err := exec.Command("helm", "get", "values", release, "--all", "-o", "json").CombinedOutput()
+	if err != nil {
+		return nil, fmt.Errorf("helm get values %s: %w\n%s", release, err, out)
+	}
+	var values map[string]any
+	if err := json.Unmarshal(out, &values); err != nil {
+		return nil, fmt.Errorf("decode helm values: %w: %s", err, out)
+	}
+	return values, nil
 }

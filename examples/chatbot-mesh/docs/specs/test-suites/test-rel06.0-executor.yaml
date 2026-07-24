@@ -135,7 +135,7 @@ test_cases:
 
   - use_case: rel06.0-uc001-declarative-executor
     name: A live on-cluster rollout through the executor
-    integration_target: mage integration:executorLive (GH-735)
+    integration_target: mage integration:executorLive (GH-735, GH-751)
     status: done
     description: |
       What the fake CLIs cannot stand in for. The executor image is built on the
@@ -143,6 +143,22 @@ test_cases:
       executor enabled; a values patch then goes through the apply endpoint and
       the release moves to a new revision, which is the evidence a 200 is not --
       the fake tier returns one of those without helm existing.
+
+      The compensating leg is live too. The tier stages a test-only post-upgrade
+      hook and permissions into both the installed chart and the chart at /chart.
+      A reserved valid parameter patch activates the hook. Helm first waits for
+      the ordinary upgrade, then the hook uses the executor image's real kubectl
+      to regress the chatbot Deployment before helm upgrade returns. The
+      executor's subsequent declared kubectl rollout status therefore times out
+      deterministically, reaches RollingBack, and invokes real helm rollback.
+      The case requires the 500 rolled_back response, two new Helm revisions
+      (upgrade and rollback), restored computed values, and a ready chatbot
+      Deployment. It does not expect the revision number to move backwards:
+      Helm records a rollback as a new revision.
+
+      This hook closes the narrow timing window without racing an out-of-band
+      scale or patch against helm --wait. It exists only in the live tier's
+      temporary staged chart; the shipped chart and its RBAC are unchanged.
 
       The same non-conforming document the schema case validates locally is
       rejected here against the real chart schema, leaving the release untouched.
@@ -157,9 +173,13 @@ test_cases:
     inputs:
       cluster: kind with the executor image built and loaded
       patch: testdata/integration/executor-values/conforming.yaml
+      rollback_trigger: testdata/integration/executor-values/rollback-trigger.yaml
       rejected: testdata/integration/executor-values/non-conforming.yaml
     expected:
       real_helm_upgrade_changes_the_release: true
+      post_upgrade_verify_failure_reaches_rolled_back: true
+      real_helm_rollback_restores_prior_computed_values: true
+      chatbot_deployment_recovers_after_rollback: true
       rollout_endpoint_reports_complete_with_real_counts: true
       non_conforming_patch_rejected_on_the_cluster: true
     traces:

@@ -1,0 +1,7 @@
+# A valid values-plane patch reserved by integration:executorLive for the
+# compensating rollback leg (srd006 R3.2, GH-751). The live tier's staged chart
+# recognizes this otherwise ordinary parameter value and runs a post-upgrade
+# hook that regresses the chatbot only after Helm has accepted the upgrade.
+executor:
+  params:
+    nResults: 751
