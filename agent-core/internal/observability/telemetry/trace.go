@@ -102,17 +102,9 @@ func NewRoot(serviceName, name string, cfg ExporterConfig, parentCtx context.Con
 		return Trace{}, nil, fmt.Errorf("ExporterConfig: at least one exporter required")
 	}
 
-	envResource, err := resource.New(parentCtx, resource.WithFromEnv())
+	res, err := newServiceResource(parentCtx, serviceName)
 	if err != nil {
-		return Trace{}, nil, fmt.Errorf("telemetry resource: %w", err)
-	}
-	explicitResource := resource.NewWithAttributes(
-		semconv.SchemaURL,
-		semconv.ServiceNameKey.String(serviceName),
-	)
-	res, err := resource.Merge(envResource, explicitResource)
-	if err != nil {
-		return Trace{}, nil, fmt.Errorf("telemetry resource merge: %w", err)
+		return Trace{}, nil, err
 	}
 
 	// Pre-root boundary: buildProviders failures are log-only because
@@ -143,6 +135,25 @@ func NewRoot(serviceName, name string, cfg ExporterConfig, parentCtx context.Con
 
 	shutdown := buildShutdown(tp, mp, file, cfg.FilePath, span)
 	return Trace{tracer: tracer, ctx: ctx, meter: meter}, shutdown, nil
+}
+
+// newServiceResource builds the OTel resource for serviceName, merging
+// env-derived attributes (OTEL_RESOURCE_ATTRIBUTES) with the explicit
+// service name; the explicit name wins on conflict.
+func newServiceResource(parentCtx context.Context, serviceName string) (*resource.Resource, error) {
+	envResource, err := resource.New(parentCtx, resource.WithFromEnv())
+	if err != nil {
+		return nil, fmt.Errorf("telemetry resource: %w", err)
+	}
+	explicitResource := resource.NewWithAttributes(
+		semconv.SchemaURL,
+		semconv.ServiceNameKey.String(serviceName),
+	)
+	res, err := resource.Merge(envResource, explicitResource)
+	if err != nil {
+		return nil, fmt.Errorf("telemetry resource merge: %w", err)
+	}
+	return res, nil
 }
 
 func logExporterConfig(cfg ExporterConfig) {

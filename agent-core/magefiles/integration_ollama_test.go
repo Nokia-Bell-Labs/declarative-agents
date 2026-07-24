@@ -19,6 +19,8 @@ func TestConfiguredOllamaModelFollowsShippedProfile(t *testing.T) {
 		{name: "Qwen variant", content: "tools:\n  - name: invoke_llm\n    config:\n      model: qwen3.6:35b-mlx\n", want: "qwen3.6:35b-mlx"},
 		{name: "alternate variant", content: "tools:\n  - name: invoke_llm\n    config:\n      model: qwen3:8b\n", want: "qwen3:8b"},
 		{name: "missing model", content: "tools:\n  - name: invoke_llm\n    config: {}\n", wantErr: true},
+		{name: "schema placeholder before config", content: "tools:\n  - name: invoke_llm\n    requirements:\n      request_shape:\n        model: {type: string}\n    config:\n      model: qwen3.6:35b-mlx\n", want: "qwen3.6:35b-mlx"},
+		{name: "schema placeholder only", content: "tools:\n  - name: invoke_llm\n    requirements:\n      request_shape:\n        model: {type: string}\n", wantErr: true},
 		{name: "wrong tool", content: "tools:\n  - name: other\n    config:\n      model: unrelated:9b\n", wantErr: true},
 		{name: "malformed YAML", content: "tools: [", wantErr: true},
 	}
@@ -27,7 +29,7 @@ func TestConfiguredOllamaModelFollowsShippedProfile(t *testing.T) {
 		t.Run(tt.name, func(t *testing.T) {
 			t.Parallel()
 			root := t.TempDir()
-			path := filepath.Join(root, filepath.FromSlash(ollamaLLMRel))
+			path := filepath.Join(root, "testdata", "conformance", filepath.FromSlash(ollamaLLMRel))
 			if err := os.MkdirAll(filepath.Dir(path), 0o700); err != nil {
 				t.Fatalf("create fixture directory: %v", err)
 			}
