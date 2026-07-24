@@ -9,3 +9,4 @@ tool_config_dirs:
 tool_declarations:
   - builtin.yaml
   - llm/default.yaml
+  - tracker-exec.yaml

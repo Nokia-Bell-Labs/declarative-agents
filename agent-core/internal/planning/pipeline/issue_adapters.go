@@ -14,7 +14,7 @@ import (
 
 const SigIssueFormatted core.Signal = "IssueFormatted"
 
-const plannerIssueBodyPath = ".agent/planner/issue-body.yaml"
+const plannerIssueBodyPath = ".git/agent-planner/issue-body.yaml"
 
 type formatIssueCmd struct {
 	ps          *State

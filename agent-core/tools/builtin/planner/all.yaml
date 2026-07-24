@@ -6,6 +6,7 @@ includes:
   - ../assemble-prompt.yaml
   - ../parse-plan.yaml
   - ../format-issue.yaml
+  - ../write.yaml
   - ../record-tracker-issue.yaml
   - ../create-issue.yaml
   - ../execute-task.yaml

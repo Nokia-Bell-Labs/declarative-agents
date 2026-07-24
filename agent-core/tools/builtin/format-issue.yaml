@@ -25,7 +25,10 @@ tools:
   non_goals:
   - Does not write the issue body.
   - Does not select or invoke an issue tracker.
-  side_effects: []
+  side_effects:
+  - kind: state_read
+    target: planner_pipeline_state
+    description: Reads the current plan, workspace directory, and dependency IDs without mutating them.
   reversibility:
     classification: reversible
     undo: planner_state_restore
