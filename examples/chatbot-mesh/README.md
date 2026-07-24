@@ -62,6 +62,7 @@ The example carries its own magefile. From this directory:
 
 ```bash
 mage audit                     # validate the example's specification corpus
+mage helm:package              # stage profiles and build the installable chart
 mage integration:chatbot       # run a routed fan-out chatbot turn
 mage integration:controlPlane  # exercise the coordinator and creator control plane
 ```
