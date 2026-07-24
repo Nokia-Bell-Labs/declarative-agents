@@ -21,6 +21,14 @@ type documentationRequestMachine struct {
 
 type documentationRESTConfig struct {
 	Rest struct {
+		Clients map[string]struct {
+			Operations map[string]struct {
+				Failures []struct {
+					Status []int  `yaml:"status"`
+					Signal string `yaml:"signal"`
+				} `yaml:"failures"`
+			} `yaml:"operations"`
+		} `yaml:"clients"`
 		Servers map[string]struct {
 			Endpoints map[string]struct {
 				Method         string `yaml:"method"`
@@ -90,6 +98,29 @@ func TestDocumentationActionEndpointsUseMachineRequestBinding(t *testing.T) {
 			if _, ok := endpoint.MachineRequest.Response.TerminalStates[terminal]; !ok {
 				t.Errorf("endpoint %q missing terminal state response %q", name, terminal)
 			}
+		}
+	}
+}
+
+func TestDocumentationPatchDecisionClientsMapMissingPatches(t *testing.T) {
+	var config documentationRESTConfig
+	readDocumentationCuratorYAML(t, "rest.yaml", &config)
+	operations := config.Rest.Clients["documentation"].Operations
+
+	for _, name := range []string{"doc_patch_approve", "doc_patch_reject"} {
+		operation, ok := operations[name]
+		if !ok {
+			t.Fatalf("missing operation %q", name)
+		}
+		found := false
+		for _, failure := range operation.Failures {
+			if len(failure.Status) == 1 && failure.Status[0] == 404 && failure.Signal == "RESTMissing" {
+				found = true
+				break
+			}
+		}
+		if !found {
+			t.Errorf("operation %q does not map status 404 to RESTMissing", name)
 		}
 	}
 }
