@@ -4,6 +4,8 @@ package main
 
 import (
 	"encoding/json"
+	"os"
+	"path/filepath"
 	"reflect"
 	"testing"
 )
@@ -47,4 +49,64 @@ func TestChatResponseDecodesTrace(t *testing.T) {
 	if got := citedRecordNumbers(resp.Answer); !reflect.DeepEqual(got, []int{1}) {
 		t.Fatalf("citedRecordNumbers = %v, want [1]", got)
 	}
+}
+
+func TestChatbotRequiredModelsResolveShippedDefaults(t *testing.T) {
+	for _, name := range []string{
+		"CORPUS_EMBEDDING_MODEL",
+		"CHATBOT_EMBEDDING_MODEL",
+		"CHATBOT_ROUTER_MODEL",
+		"CHATBOT_FAST_MODEL",
+		"CHATBOT_DEEP_MODEL",
+	} {
+		unsetTestEnv(t, name)
+	}
+
+	got, err := chatbotRequiredModels(filepath.Dir(findChartDir(t)))
+	if err != nil {
+		t.Fatalf("chatbotRequiredModels: %v", err)
+	}
+	want := []string{"ornith:9b", "qwen2.5:3b", "qwen3-embedding:8b"}
+	if !reflect.DeepEqual(got, want) {
+		t.Fatalf("required models = %v, want shipped defaults %v", got, want)
+	}
+}
+
+func TestChatbotRequiredModelsUseDeploymentEnvironment(t *testing.T) {
+	t.Setenv("CORPUS_EMBEDDING_MODEL", "corpus-embed")
+	t.Setenv("CHATBOT_EMBEDDING_MODEL", "chatbot-embed")
+	t.Setenv("CHATBOT_ROUTER_MODEL", "chatbot-router")
+	t.Setenv("CHATBOT_FAST_MODEL", "chatbot-fast")
+	t.Setenv("CHATBOT_DEEP_MODEL", "chatbot-deep")
+
+	got, err := chatbotRequiredModels(filepath.Dir(findChartDir(t)))
+	if err != nil {
+		t.Fatalf("chatbotRequiredModels: %v", err)
+	}
+	want := []string{"chatbot-deep", "chatbot-embed", "chatbot-fast", "chatbot-router", "corpus-embed"}
+	if !reflect.DeepEqual(got, want) {
+		t.Fatalf("required models = %v, want environment-selected %v", got, want)
+	}
+}
+
+func TestResolveModelReferenceLeavesLiteralName(t *testing.T) {
+	const model = "qwen2.5:3b"
+	if got := resolveModelReference(model); got != model {
+		t.Fatalf("resolveModelReference(%q) = %q", model, got)
+	}
+}
+
+func unsetTestEnv(t *testing.T, name string) {
+	t.Helper()
+	value, set := os.LookupEnv(name)
+	if err := os.Unsetenv(name); err != nil {
+		t.Fatalf("unset %s: %v", name, err)
+	}
+	t.Cleanup(func() {
+		if set {
+			_ = os.Setenv(name, value)
+		} else {
+			_ = os.Unsetenv(name)
+		}
+	})
 }
