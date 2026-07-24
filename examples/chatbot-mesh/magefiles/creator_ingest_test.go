@@ -115,11 +115,11 @@ func TestCreatorIngestMapsItsTerminals(t *testing.T) {
 	if ingested.Status != 200 {
 		t.Errorf("Ingested status = %d, want 200", ingested.Status)
 	}
-	// The success body still omits the count. The predicate now exposes its
-	// operands, but adopting that field in the endpoint response is a separate
-	// profile contract change; this test prevents an undeclared null mapping.
-	if _, present := ingested.Body["count"]; present {
-		t.Error("Ingested declares a count before the endpoint contract adopts one")
+	// ingest_wrote_documents is the terminal word. Its raw left operand is the
+	// post-run count, so the response must select that field rather than losing
+	// the judged value at the terminal boundary (agent-core srd041 R4.4).
+	if got := ingested.Body["count"]; got != "$.left" {
+		t.Errorf("Ingested count = %q, want terminal predicate left operand $.left", got)
 	}
 
 	failed, ok := states["IngestFailed"]
@@ -326,17 +326,20 @@ func TestCreatorIngestShortfallIsAClientError(t *testing.T) {
 	}
 }
 
-// TestCoordinatorIngestReachesTheIngestEndpoint proves the delegation targets the
-// endpoint that runs a child. It posted at /api/v1/instance until GH-763, where
-// every operation took the values-apply leg whatever it named, so this hop ran no
-// ingest at all.
-func TestCoordinatorIngestReachesTheIngestEndpoint(t *testing.T) {
+// TestCoordinatorIngestReachesEndpointAndMapsCount proves the delegation targets
+// the endpoint that runs a child and carries its judged post-run count forward.
+// It posted at /api/v1/instance until GH-763, where every operation took the
+// values-apply leg whatever it named, so this hop ran no ingest at all.
+func TestCoordinatorIngestReachesEndpointAndMapsCount(t *testing.T) {
 	op := clientOperationNamed(t, "coordinator", "creator", "creator_ingest")
 	if op.Path != "/api/v1/ingest" {
 		t.Errorf("creator_ingest path = %q, want /api/v1/ingest", op.Path)
 	}
 	if op.Success.Signal != "IngestReported" {
 		t.Errorf("success signal = %q, want IngestReported", op.Success.Signal)
+	}
+	if got := op.Response.Output["count"]; got != "$.count" {
+		t.Errorf("creator_ingest count mapping = %q, want $.count", got)
 	}
 	// The 422 must map to Rejected, or a shortfall would surface as an
 	// unmapped status and collapse into CommandError.

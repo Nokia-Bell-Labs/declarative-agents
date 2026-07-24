@@ -55,7 +55,7 @@ requirements:
   R3:
     title: Instance operations
     items:
-      - R3.1: The creator SHALL create child agent runs -- a corpus-ingest instance per requested directory -- and return each run's outcome. For an ingest, the outcome SHALL measure the change in the target collection's document count across that child run, not the collection's accumulated total. A run whose post-run count does not exceed its pre-run count SHALL be rejected as an ingest shortfall, including an unchanged re-ingest; idempotent storage state does not satisfy a request to contribute documents.
+      - R3.1: The creator SHALL create child agent runs -- a corpus-ingest instance per requested directory -- and return each run's outcome. For an ingest, the outcome SHALL measure the change in the target collection's document count across that child run, not the collection's accumulated total. A successful response SHALL include the post-run count the creator judged. A run whose post-run count does not exceed its pre-run count SHALL be rejected as an ingest shortfall, including an unchanged re-ingest; idempotent storage state does not satisfy a request to contribute documents.
       - R3.2: The creator SHALL execute a checkpoint-resume rollout of a reconfigured agent through the deployment API (srd003 R3.2), so the agent resumes from its Dolt checkpoint via --dolt-dsn and --resume-checkpoint rather than cold-starting.
       - R3.3: The creator SHALL terminate an instance on request and handle resource allocation for a created instance.
   R4:
@@ -84,7 +84,7 @@ acceptance_criteria:
     criterion: Template selection resolves a role to a profile path and rendered ConfigMap under the mounted-profile contract without authoring the config.
     traces: [R2.1, R2.2]
   - id: AC3
-    criterion: The instance operations -- child ingest runs measured by their document-count delta, checkpoint-resume rollout restarts through the deployment API, and termination with resource allocation -- are specified; a zero-delta run is rejected even when the collection was already populated or the same directory was ingested before.
+    criterion: The instance operations -- child ingest runs measured by their document-count delta, checkpoint-resume rollout restarts through the deployment API, and termination with resource allocation -- are specified; a successful ingest returns the judged post-run count, and a zero-delta run is rejected even when the collection was already populated or the same directory was ingested before.
     traces: [R3.1, R3.2, R3.3]
   - id: AC4
     criterion: Post-operation health verification via monitor reads is reported to the coordinator for the provisioning panel.
@@ -157,7 +157,9 @@ implementation_status:
       promises a run contribution, not merely an already-satisfied storage state.
       The corpus-ingest contract remains unchanged for its other callers. A count
       that will not resolve reaches IngestFailed rather than IngestRejected,
-      because a broken read is not an empty corpus.
+      because a broken read is not an empty corpus. GH-790 carried the judged
+      post-run count from the terminal predicate's raw left operand into the
+      creator success response and through the coordinator client mapping.
   planned:
     - >-
       Ingesting into a caller-named collection. The coordinator sends a collection

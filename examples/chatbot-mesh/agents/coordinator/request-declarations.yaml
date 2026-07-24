@@ -13,7 +13,7 @@ tools:
       input:
         - The directory and collection are selected from the seeded intent body.
       output:
-        - Output includes the creator-reported collection and count, with the intent fields carried forward.
+        - Output includes the creator-reported post-run count, with the intent fields carried forward.
       errors:
         - Network, timeout, schema, and mapping failures emit CommandError; a creator 422 emits IngestRejected.
     non_goals:
@@ -26,7 +26,7 @@ tools:
         collection: {type: string}
     emits: [IngestReported, Rejected, CommandError]
     output:
-      description: Creator-reported ingest result with the carried intent.
+      description: Creator-reported post-run count with the carried intent.
       schema:
         type: object
         properties:

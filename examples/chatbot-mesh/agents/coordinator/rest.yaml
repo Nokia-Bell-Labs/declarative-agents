@@ -98,23 +98,18 @@ rest:
           failures:
             - {status: [422], signal: Rejected}
           response:
-            # Neither collection nor count survives this hop, and the GH-686 rule
-            # is to stop declaring what no hop serves rather than ship undefined.
-            #
             # collection: the corpus-ingest profile owns its collection name and
             # agent-core exec tools pass no environment, so the child always
             # writes that profile's collection whatever the intent named. The
             # coordinator already carries the requested one in its own params
             # (carry_forward below).
             #
-            # count: the creator's success response cannot carry it, because a
-            # response body maps from the last word's output and that word is the
-            # shortfall predicate, whose output is its comparison rather than the
-            # count it judged.
-            #
-            # The decision itself still arrives, which is what this leg acts on:
-            # 200 advances to the rollout, 422 lands in Rejected.
-            output: {}
+            # The creator returns the post-run count selected from the terminal
+            # predicate's raw left operand (agent-core srd041 R4.4). Carry that
+            # judged count through this boundary while the status still controls
+            # the branch: 200 advances to rollout and 422 lands in Rejected.
+            output:
+              count: $.count
           side_effects:
             - kind: external_api
               target: creator.instance
