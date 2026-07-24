@@ -12,7 +12,13 @@ Open the running servers after they start:
 - Control (lifecycle exit): [[http://127.0.0.1:18082][http://127.0.0.1:18082]]
 - Monitor: [[http://localhost:18084/ui/][http://localhost:18084/ui/]]
 
-.play start_knowledge_manager.go /START OMIT/,/END OMIT/
+Run the shipped profile directly from the agent-profiles root:
+
+	agent --profile agents/knowledge-manager/documentation-curator/profile.yaml --directory . --core-root ../agent-core
+
+Or build agent-core and run the same profile through Mage:
+
+	mage demo:knowledgeManager
 
 * Call the lifecycle exit API
 
