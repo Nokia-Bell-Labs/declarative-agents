@@ -5,8 +5,8 @@ summary: |
   The documentation-curator profile owns the Knowledge Manager browser and
   document-resource proof. The profile-owned integration target loads the
   concrete profile from agent-profiles, starts its documentation host and control
-  routes through agent-core, exercises document machine_request endpoints, and
-  shuts the profile down through declared lifecycle vocabulary.
+  routes through agent-core, exercises document and curator-action machine_request
+  endpoints, and shuts the profile down through declared lifecycle vocabulary.
 
   This tracer belongs in agent-profiles because the profile, UX config, request
   machine, REST definitions, and UI assets live beside the profile. agent-core
@@ -35,8 +35,10 @@ flow:
   - id: F4
     text: The document index and detail routes dispatch through the profile-owned request machine.
   - id: F5
-    text: The response trace records server, route, request machine, terminal signal, and succeeded status.
+    text: The browser posts validation and patch-review inputs to profile-owned action routes; the request machine dispatches the configured REST words.
   - id: F6
+    text: Document and action response traces record server, route, request machine, terminal signal, and succeeded status.
+  - id: F7
     text: The control route emits ExitRequested and the profile reaches Done after releasing listeners.
 
 touchpoints:
@@ -68,10 +70,14 @@ success_criteria:
     criterion: Lifecycle exit reaches Done and releases documentation/control listeners.
     traces:
       - sm-multi-agent-profile-system dependency_directions documentation-curator->control
+  - id: S5
+    criterion: Validation, suggestion, approval, and rejection browser calls use the configured action machine_request endpoints, not a generic action envelope.
+    traces:
+      - srd011-knowledge-manager AC1
 
 out_of_scope:
   - Re-testing generic REST route matching in agent-core.
-  - Applying documentation patches to the source tree.
+  - Applying approved patch records to source files.
   - Requiring agent-core to know the documentation-curator profile path.
 
 test_suite_trace: test-rel07.0-profile-integrations

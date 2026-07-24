@@ -39,34 +39,40 @@ invariants:
 - run_point builds the nested point registry from agents/critic/tools-point.yaml
 lifecycle: |-
   1. Idle → CreatingPointDir: create_point_dir
-  2. CreatingPointDir → CopyingSampleWorkspace: copy_sample_workspace
+  2. CreatingPointDir → CopyingSampleWorkspace: copy_dir
   3. CopyingSampleWorkspace → CopyingSampleDocs: copy_sample_docs
-  4. CopyingSampleDocs → InitializingWorkspaceRepo: init_workspace_repo
-  5. InitializingWorkspaceRepo → StagingWorkspaceBaseline: stage_workspace_baseline
+  4. CopyingSampleDocs → InitializingWorkspaceRepo: git_init
+  5. InitializingWorkspaceRepo → StagingWorkspaceBaseline: stage_all
   6. StagingWorkspaceBaseline → CommittingWorkspaceBaseline: commit_workspace_baseline
-  7. CommittingWorkspaceBaseline → SnapshotConfig: dump_config
-  8. SnapshotConfig → RunningAgent: run_agent
-  9. RunningAgent → RunningOracleCheck: run_oracle_check (on any harness outcome)
-  10. RunningOracleCheck → CollectingTraceTokens: collect_trace_tokens (on pass or fail)
-  11. CollectingTraceTokens → CheckingAgentVersion: check_agent_version
-  12. CheckingAgentVersion → SummarizingPointResults: summarize_point_results (checked or mismatch)
-  13. SummarizingPointResults → CollectingMetrics: collect_metrics
-  14. CollectingMetrics → Done
+  7. CommittingWorkspaceBaseline → ResolvingAgentCommit: rev_parse
+  8. ResolvingAgentCommit → RecordingAgentCommit: record_agent_commit
+  9. RecordingAgentCommit → SnapshotConfig: dump_config
+  10. SnapshotConfig → RunningAgent: run_agent
+  11. RunningAgent → RunningOracleCheck: run_oracle_check (on any harness outcome)
+  12. RunningOracleCheck → RecordingOracleResult: record_oracle_result (on pass or fail)
+  13. RecordingOracleResult → CollectingTraceTokens: collect_trace_tokens
+  14. CollectingTraceTokens → CheckingAgentVersion: check_agent_version
+  15. CheckingAgentVersion → SummarizingPointResults: summarize_point_results (checked or mismatch)
+  16. SummarizingPointResults → CollectingMetrics: collect_metrics
+  17. CollectingMetrics → Done
 pipeline_diagram: |-
   ```mermaid
   flowchart LR
-    A[create_point_dir] --> B[copy_sample_workspace]
+    A[create_point_dir] --> B[copy_dir]
     B --> C[copy_sample_docs]
-    C --> D[init_workspace_repo]
-    D --> E[stage_workspace_baseline]
+    C --> D[git_init]
+    D --> E[stage_all]
     E --> F[commit_workspace_baseline]
-    F --> G[dump_config]
-    G --> H[run_agent]
-    H -->|any outcome| I[run_oracle_check]
-    I --> J[collect_trace_tokens]
-    J --> K[check_agent_version]
-    K --> L[summarize_point_results]
-    L --> M[collect_metrics]
+    F --> G[rev_parse]
+    G --> H[record_agent_commit]
+    H --> I[dump_config]
+    I --> J[run_agent]
+    J -->|any outcome| K[run_oracle_check]
+    K --> L[record_oracle_result]
+    L --> M[collect_trace_tokens]
+    M --> N[check_agent_version]
+    N --> O[summarize_point_results]
+    O --> P[collect_metrics]
   ```
 initial_state: Idle
 budget:
@@ -86,12 +92,18 @@ states:
   meaning: Staging all point workspace files for the baseline commit.
 - name: CommittingWorkspaceBaseline
   meaning: Creating the baseline git commit for the point workspace.
+- name: ResolvingAgentCommit
+  meaning: Resolving commit provenance through the selected rev_parse exec word.
+- name: RecordingAgentCommit
+  meaning: Recording resolved commit provenance in point state.
 - name: SnapshotConfig
   meaning: Serializing the full experiment configuration into experiment.yaml.
 - name: RunningAgent
   meaning: The executor agent is running as a subprocess.
 - name: RunningOracleCheck
-  meaning: Running deterministic oracle tests in the point workspace.
+  meaning: Running the profile-configured oracle command in the point workspace.
+- name: RecordingOracleResult
+  meaning: Mapping the configured oracle result into point state and domain signals.
 - name: CollectingTraceTokens
   meaning: Reading trace.ndjson and extracting token usage.
 - name: CheckingAgentVersion
@@ -114,18 +126,16 @@ signals:
   trigger: Infrastructure-level error.
 - name: PointDirCreated
   trigger: Point artifact directory created and PointContext paths recorded.
-- name: SampleWorkspaceCopied
-  trigger: Sample workspace copied into the point directory.
 - name: SampleDocsCopied
   trigger: Optional sample docs copied, or no docs were present.
-- name: WorkspaceRepoInitialized
-  trigger: Git repository initialized in the point workspace.
-- name: WorkspaceBaselineStaged
-  trigger: Baseline workspace files staged in the git index.
-- name: WorkspaceBaselineCommitted
-  trigger: Baseline git commit created.
+- name: ToolDone
+  trigger: A selected shared exec word completed successfully.
+- name: ToolFailed
+  trigger: A selected shared exec word exited unsuccessfully.
 - name: ConfigDumped
   trigger: Experiment configuration snapshot written to experiment.yaml.
+- name: AgentCommitRecorded
+  trigger: Commit provenance from rev_parse was stored in point state.
 - name: HarnessFinished
   trigger: The executor agent exited normally (exit code 0).
 - name: HarnessFailed
@@ -154,25 +164,37 @@ transitions:
 - state: CreatingPointDir
   signal: PointDirCreated
   next: CopyingSampleWorkspace
-  action: copy_sample_workspace
+  action: copy_dir
 - state: CopyingSampleWorkspace
-  signal: SampleWorkspaceCopied
+  signal: ToolDone
   next: CopyingSampleDocs
   action: copy_sample_docs
 - state: CopyingSampleDocs
   signal: SampleDocsCopied
   next: InitializingWorkspaceRepo
-  action: init_workspace_repo
+  action: git_init
 - state: InitializingWorkspaceRepo
-  signal: WorkspaceRepoInitialized
+  signal: ToolDone
   next: StagingWorkspaceBaseline
-  action: stage_workspace_baseline
+  action: stage_all
 - state: StagingWorkspaceBaseline
-  signal: WorkspaceBaselineStaged
+  signal: ToolDone
   next: CommittingWorkspaceBaseline
   action: commit_workspace_baseline
 - state: CommittingWorkspaceBaseline
-  signal: WorkspaceBaselineCommitted
+  signal: ToolDone
+  next: ResolvingAgentCommit
+  action: rev_parse
+- state: ResolvingAgentCommit
+  signal: ToolDone
+  next: RecordingAgentCommit
+  action: record_agent_commit
+- state: ResolvingAgentCommit
+  signal: ToolFailed
+  next: RecordingAgentCommit
+  action: record_agent_commit
+- state: RecordingAgentCommit
+  signal: AgentCommitRecorded
   next: SnapshotConfig
   action: dump_config
 - state: SnapshotConfig
@@ -192,10 +214,18 @@ transitions:
   next: RunningOracleCheck
   action: run_oracle_check
 - state: RunningOracleCheck
+  signal: ToolDone
+  next: RecordingOracleResult
+  action: record_oracle_result
+- state: RunningOracleCheck
+  signal: ToolFailed
+  next: RecordingOracleResult
+  action: record_oracle_result
+- state: RecordingOracleResult
   signal: OracleCheckPassed
   next: CollectingTraceTokens
   action: collect_trace_tokens
-- state: RunningOracleCheck
+- state: RecordingOracleResult
   signal: OracleCheckFailed
   next: CollectingTraceTokens
   action: collect_trace_tokens
@@ -222,16 +252,28 @@ transitions:
   signal: CommandError
   next: Failed
 - state: CopyingSampleWorkspace
+  signal: ToolFailed
+  next: Failed
+- state: CopyingSampleWorkspace
   signal: CommandError
   next: Failed
 - state: CopyingSampleDocs
   signal: CommandError
   next: Failed
 - state: InitializingWorkspaceRepo
+  signal: ToolFailed
+  next: Failed
+- state: InitializingWorkspaceRepo
   signal: CommandError
   next: Failed
 - state: StagingWorkspaceBaseline
+  signal: ToolFailed
+  next: Failed
+- state: StagingWorkspaceBaseline
   signal: CommandError
+  next: Failed
+- state: CommittingWorkspaceBaseline
+  signal: ToolFailed
   next: Failed
 - state: CommittingWorkspaceBaseline
   signal: CommandError
@@ -239,10 +281,19 @@ transitions:
 - state: SnapshotConfig
   signal: CommandError
   next: Failed
+- state: ResolvingAgentCommit
+  signal: CommandError
+  next: Failed
+- state: RecordingAgentCommit
+  signal: CommandError
+  next: Failed
 - state: RunningAgent
   signal: CommandError
   next: Failed
 - state: RunningOracleCheck
+  signal: CommandError
+  next: Failed
+- state: RecordingOracleResult
   signal: CommandError
   next: Failed
 - state: CollectingTraceTokens

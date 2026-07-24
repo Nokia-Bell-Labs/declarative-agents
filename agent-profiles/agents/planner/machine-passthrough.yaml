@@ -1,10 +1,8 @@
 name: planner-passthrough
 purpose: |-
-  The planner is a pipeline agent that decomposes a requirement graph
-  into tasks, generates implementation plans via LLM, materializes
-  them as issues, executes them by invoking the generator agent, and
-  validates the results. It loops over the requirement graph until
-  all tasks are done, all are blocked, or a batch limit is reached.
+  The planner pass-through variant loads a requirement graph, extracts
+  executable tasks without LLM planning or issue materialization, invokes the
+  executor profile, and validates the resulting workspace.
 
   Variant: pass-through execution skips LLM plan generation and executes extracted tasks directly.
 configuration:
@@ -18,43 +16,32 @@ configuration:
   - agents/planner/machine-passthrough.yaml
   - agents/planner/machine-plan-only.yaml
 invariants:
-- Conversation history is reset between tasks
-- Each task gets a fresh prompt with SRD context
-- Failed tasks can be retried before moving on
+- The requirement graph is collapsed into one aggregate executable task
+- No LLM planning or issue tracker command runs
+- Failed execution can be retried directly
 - Graph nodes are marked done/failed to track progress
-- The planner terminates when no more tasks are extractable
+- The planner terminates as completed, stalled, or failed
 lifecycle: |-
-  1. Idle → Extracting: extract_task from requirement graph
-  2. Extracting → Resetting: task extracted, clear LLM history
-  3. Resetting → PromptAssembly: assemble_prompt with SRD context
-  4. PromptAssembly → PlanInvoking: invoke_llm for plan generation
-  5. PlanInvoking → PlanParsing: parse_plan from LLM response
-  6. PlanParsing → Materializing: create_issue (bd create)
-  7. Materializing → Executing: execute_task (run generator agent)
-  8. Executing → Vetting → Building → Testing: validation pipeline
-  9. Testing → CheckingResult: evaluate pass/fail
-  10. CheckingResult → Extracting: success or retries exhausted, next task
-  10a. CheckingResult → Resetting: retry available, re-plan
+  1. Idle → Loading: load_graph reads the requirement corpus
+  2. Loading → Extracting: extract_all creates one executable aggregate task
+  3. Extracting → Executing: execute_task invokes the executor profile
+  4. Executing → Vetting → Building → Testing: validation pipeline
+  5. Testing → CheckingResult: evaluate pass/fail
+  6. CheckingResult → Completed: validation succeeded
+  6a. CheckingResult → Executing: retry available
 
-  The outer loop (Extracting → ... → CheckingResult → Extracting)
-  repeats until the graph is fully resolved.
+  The variant executes one aggregate task; retries return directly to Executing.
 pipeline_diagram: |-
   ```mermaid
   flowchart TD
-    A[Idle] -->|Seed| B[Extracting]
-    B -->|TaskExtracted| C[Resetting]
-    C --> D[PromptAssembly]
-    D --> E[PlanInvoking]
-    E --> F[PlanParsing]
-    F --> G[Materializing]
-    G --> H[Executing]
+    A[Idle] -->|Seed| L[Loading]
+    L -->|GraphLoaded| B[Extracting]
+    B -->|TaskExtracted| H[Executing]
     H --> I[Vet / Build / Test]
     I --> J[CheckingResult]
-    J -->|Success| B
-    J -->|Retry| C
-    B -->|AllDone| K[Completed]
-    B -->|AllBlocked| L[Stalled]
-    B -->|BatchLimit| M[Paused]
+    J -->|Success| K[Completed]
+    J -->|Retry| H
+    J -->|Retries exhausted| S[Stalled]
   ```
 initial_state: Idle
 states:
@@ -63,9 +50,7 @@ states:
 - name: Loading
   meaning: Loading the specification corpus and building the requirement graph.
 - name: Extracting
-  meaning: |
-    Selecting the next ready task from the requirement graph.
-    May terminate if all tasks are done, blocked, or batch limit reached.
+  meaning: Creating one aggregate executable task from all ready requirements.
 - name: Executing
   meaning: Running the generator agent to implement the task.
 - name: Vetting
@@ -76,8 +61,8 @@ states:
   meaning: Running go test on the workspace.
 - name: CheckingResult
   meaning: |
-    Evaluating execution outcome. On success, marks the graph node
-    done and extracts the next task. On failure, retries if available.
+    Evaluating execution outcome. On success, completes the aggregate graph.
+    On failure, retries execution if available.
 - name: Completed
   meaning: Terminal. All tasks in the graph are done.
 - name: Stalled

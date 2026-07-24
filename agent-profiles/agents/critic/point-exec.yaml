@@ -1,0 +1,137 @@
+tools:
+- name: run_oracle_check
+  type: exec
+  binary: go
+  args:
+  - test
+  - ./...
+  visibility: internal
+  emits:
+  - ToolDone
+  - ToolFailed
+  - CommandError
+  description: Run the critic profile's configured Go oracle across the point workspace.
+  category: boundary
+  problem: The critic needs profile-owned oracle command and package arguments instead of a Go implementation that hard-codes go test.
+  goals:
+  - Run the configured oracle command through the shared exec runtime.
+  - Preserve raw test output for the point-result adapter.
+  requirements:
+    input:
+    - must execute in the current PointContext working directory
+    output:
+    - must emit ToolDone on success and ToolFailed on test failure
+    side_effects:
+    - must execute one configured child process
+    undo:
+    - must not require rollback for read-only validation
+    errors:
+    - must emit CommandError when the configured binary cannot be started
+  non_goals:
+  - Does not update PointContext directly.
+  - Does not choose the next critic point state.
+  side_effects:
+  - kind: child_process
+    target: go_toolchain
+    state: read_only
+    description: Runs the configured Go oracle in the point workspace.
+  - kind: filesystem_read
+    target: point_workspace
+    description: Reads source, module, and test files from the point workspace.
+  reversibility:
+    classification: reversible
+    undo: noop
+    requires_confirmation: false
+  undo:
+    strategy: noop
+    description: Oracle validation does not mutate repository state.
+  errors:
+  - signal: ToolFailed
+    condition: configured oracle exits non-zero
+    message_shape: <captured oracle output>
+    state_after_failure: point workspace is unchanged
+  - signal: CommandError
+    condition: configured oracle cannot be started
+    message_shape: 'run_oracle_check: <error>'
+    state_after_failure: point workspace is unchanged
+  relationships:
+    before:
+    - run_agent
+    after:
+    - record_oracle_result
+  output:
+    description: Raw configured oracle output.
+    schema:
+      type: string
+- name: commit_workspace_baseline
+  type: exec
+  binary: git
+  args:
+  - -c
+  - user.name=agent-core
+  - -c
+  - user.email=agent-core@example.invalid
+  - commit
+  - -m
+  - baseline
+  - --allow-empty
+  visibility: internal
+  emits:
+  - ToolDone
+  - ToolFailed
+  - CommandError
+  description: Create the deterministic baseline commit for a critic point workspace.
+  category: boundary
+  problem: The critic needs a profile-configured baseline commit with a stable local identity rather than a Go command that invokes git directly.
+  goals:
+  - Create the point workspace baseline commit through the shared exec runtime.
+  - Keep critic-specific commit identity and message policy in profile configuration.
+  requirements:
+    input:
+    - must execute in the current PointContext working directory
+    output:
+    - must emit ToolDone when git creates the baseline commit
+    side_effects:
+    - must create one git commit from the staged point workspace
+    undo:
+    - must rely on workspace restoration or an explicit compensating revert
+    errors:
+    - must emit ToolFailed when git exits non-zero
+    - must emit CommandError when git cannot be started
+  non_goals:
+  - Does not stage workspace files.
+  - Does not choose the next critic point state.
+  side_effects:
+  - kind: filesystem_write
+    target: point_workspace_git_history
+    paths:
+    - .git
+    description: Creates the baseline commit in the point workspace repository.
+  reversibility:
+    classification: compensatable
+    undo: workspace_restore_or_revert_commit
+    requires_confirmation: false
+  undo:
+    strategy: compensating_action
+    description: Restore the point workspace ref when checkpointed or compensate with an explicit revert policy.
+    payload: boundary_compensation
+    captures:
+    - workspace_paths
+    - git_ref
+    requires:
+    - Workspace
+    - git_ref
+  errors:
+  - signal: ToolFailed
+    condition: git exits non-zero
+    message_shape: <captured git output>
+    state_after_failure: baseline commit is absent
+  - signal: CommandError
+    condition: git cannot be started
+    message_shape: 'commit_workspace_baseline: <error>'
+    state_after_failure: baseline commit is absent
+  relationships:
+    before:
+    - stage_all
+    after:
+    - dump_config

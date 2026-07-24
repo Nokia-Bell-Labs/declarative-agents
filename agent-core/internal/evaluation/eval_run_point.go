@@ -9,6 +9,7 @@ import (
 	"github.com/Nokia-Bell-Labs/declarative-agents/agent-core/internal/observability/tracing"
 	"github.com/Nokia-Bell-Labs/declarative-agents/agent-core/internal/runtime/core"
 	"github.com/Nokia-Bell-Labs/declarative-agents/agent-core/internal/tools/catalog"
+	toolexec "github.com/Nokia-Bell-Labs/declarative-agents/agent-core/internal/tools/exec"
 	toolregistry "github.com/Nokia-Bell-Labs/declarative-agents/agent-core/internal/tools/registry"
 )
 
@@ -116,7 +117,7 @@ func RunPointFactory(es *EvalSessionState) toolregistry.BuiltinFactory {
 			return nil, err
 		}
 		es.PointMachine = cfg.PointMachine
-		pointRegistry, err := buildPointRegistry(&es.EvalState, cfg.PointTools)
+		pointRegistry, err := buildPointRegistry(&es.EvalState, cfg)
 		if err != nil {
 			return nil, err
 		}
@@ -124,43 +125,38 @@ func RunPointFactory(es *EvalSessionState) toolregistry.BuiltinFactory {
 	}
 }
 
-func buildPointRegistry(es *EvalState, selectionPath string) (*core.Registry, error) {
-	selection, err := catalog.LoadToolSelection(selectionPath)
+func buildPointRegistry(es *EvalState, cfg catalog.RunPointConfig) (*core.Registry, error) {
+	selection, err := catalog.LoadToolSelection(cfg.PointTools)
 	if err != nil {
 		return nil, err
 	}
+	declarationPaths := make([]string, len(cfg.PointToolDeclarations))
+	for i, path := range cfg.PointToolDeclarations {
+		declarationPaths[i] = catalog.ResolveConfiguredPath("", path)
+	}
+	declarations, err := catalog.LoadToolDeclarations(declarationPaths)
+	if err != nil {
+		return nil, err
+	}
+	selected, err := catalog.SelectTools(declarations, selection)
+	if err != nil {
+		return nil, err
+	}
+
 	reg := core.NewRegistry()
-	for _, name := range selection {
-		switch name {
-		case "create_point_dir":
-			reg.Register(core.ToolSpec{Name: name, Visibility: core.Internal}, &CreatePointDirBuilder{ES: es})
-		case "copy_sample_workspace":
-			reg.Register(core.ToolSpec{Name: name, Visibility: core.Internal}, &CopySampleWorkspaceBuilder{ES: es})
-		case "copy_sample_docs":
-			reg.Register(core.ToolSpec{Name: name, Visibility: core.Internal}, &CopySampleDocsBuilder{ES: es})
-		case "init_workspace_repo":
-			reg.Register(core.ToolSpec{Name: name, Visibility: core.Internal}, &InitWorkspaceRepoBuilder{ES: es})
-		case "stage_workspace_baseline":
-			reg.Register(core.ToolSpec{Name: name, Visibility: core.Internal}, &StageWorkspaceBaselineBuilder{ES: es})
-		case "commit_workspace_baseline":
-			reg.Register(core.ToolSpec{Name: name, Visibility: core.Internal}, &CommitWorkspaceBaselineBuilder{ES: es})
-		case "dump_config":
-			reg.Register(core.ToolSpec{Name: name, Visibility: core.Internal}, &DumpConfigBuilder{ES: es})
-		case "run_agent":
-			reg.Register(core.ToolSpec{Name: name, Visibility: core.Internal}, &RunAgentBuilder{ES: es})
-		case "run_oracle_check":
-			reg.Register(core.ToolSpec{Name: name, Visibility: core.Internal}, &RunOracleCheckBuilder{ES: es})
-		case "collect_trace_tokens":
-			reg.Register(core.ToolSpec{Name: name, Visibility: core.Internal}, &CollectTraceTokensBuilder{ES: es})
-		case "check_agent_version":
-			reg.Register(core.ToolSpec{Name: name, Visibility: core.Internal}, &CheckAgentVersionBuilder{ES: es})
-		case "summarize_point_results":
-			reg.Register(core.ToolSpec{Name: name, Visibility: core.Internal}, &SummarizePointResultsBuilder{ES: es})
-		case "collect_metrics":
-			reg.Register(core.ToolSpec{Name: name, Visibility: core.Internal}, &CollectMetricsBuilder{ES: es})
-		default:
-			return nil, fmt.Errorf("run_point: unsupported point tool %q in %s", name, selectionPath)
+	builtins := toolregistry.NewBuiltinRegistry()
+	RegisterEvalPointFactories(builtins, es)
+	pointRoot := func() string {
+		if es == nil || es.PC == nil {
+			return ""
 		}
+		return es.PC.PointDir
+	}
+	execFactory := func(def catalog.ToolDef, _ string) core.Builder {
+		return &toolexec.ExecBuilder{Def: def, RootFunc: pointRoot}
+	}
+	if err := toolregistry.RegisterUnifiedTools(reg, builtins, "", selected, nil, execFactory); err != nil {
+		return nil, fmt.Errorf("run_point: register selected point tools: %w", err)
 	}
 	return reg, nil
 }

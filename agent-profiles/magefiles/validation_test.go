@@ -12,14 +12,14 @@ import (
 	"testing"
 )
 
-func TestValidateProfilesResolvesExternalCoreToolRefs(t *testing.T) {
+func TestValidatePortableProfileRefsResolvesExternalCoreToolRefs(t *testing.T) {
 	root := t.TempDir()
 	coreRoot := t.TempDir()
 	writeProfileFixture(t, root, "generator")
 	mkdir(t, filepath.Join(coreRoot, "tools", "builtin", "llm"))
 
-	if err := validateProfiles(root, coreRoot); err != nil {
-		t.Fatalf("validateProfiles returned error: %v", err)
+	if err := validatePortableProfileRefs(root, coreRoot); err != nil {
+		t.Fatalf("validatePortableProfileRefs returned error: %v", err)
 	}
 }
 
@@ -42,7 +42,7 @@ func TestDiscoverProfilesIncludesVariants(t *testing.T) {
 	}
 }
 
-func TestValidateProfilesValidatesProfileVariants(t *testing.T) {
+func TestValidatePortableProfileRefsValidatesProfileVariants(t *testing.T) {
 	root := t.TempDir()
 	coreRoot := t.TempDir()
 	writeProfileFixture(t, root, "generator")
@@ -51,38 +51,54 @@ func TestValidateProfilesValidatesProfileVariants(t *testing.T) {
 	writeNamedProfileFixture(t, root, "rest", "ollama-profile.yaml")
 	mkdir(t, filepath.Join(coreRoot, "tools", "builtin", "llm"))
 
-	if err := validateProfiles(root, coreRoot); err != nil {
-		t.Fatalf("validateProfiles returned error: %v", err)
+	if err := validatePortableProfileRefs(root, coreRoot); err != nil {
+		t.Fatalf("validatePortableProfileRefs returned error: %v", err)
 	}
 }
 
-func TestValidateProfilesRejectsCopiedCoreAgentRefs(t *testing.T) {
+func TestValidatePortableProfileRefsRejectsCopiedCoreAgentRefs(t *testing.T) {
 	root := t.TempDir()
 	coreRoot := t.TempDir()
 	writeProfileFixture(t, root, "generator")
 	profilePath := filepath.Join(root, "agents", "generator", "profile.yaml")
 	appendFile(t, profilePath, "tool_declarations:\n  - /opt/agent-core/agents/executor/profile.yaml\n")
 
-	err := validateProfiles(root, coreRoot)
+	err := validatePortableProfileRefs(root, coreRoot)
 	if err == nil {
-		t.Fatal("validateProfiles returned nil error for copied agent asset reference")
+		t.Fatal("validatePortableProfileRefs returned nil error for copied agent asset reference")
 	}
 	if !strings.Contains(err.Error(), "must not require copied core agent assets") {
 		t.Fatalf("error = %q, want copied asset rejection", err)
 	}
 }
 
-func TestValidateProfilesReportsMissingReference(t *testing.T) {
+func TestValidatePortableProfileRefsReportsMissingReference(t *testing.T) {
 	root := t.TempDir()
 	coreRoot := t.TempDir()
 	writeProfileFixture(t, root, "generator")
 
-	err := validateProfiles(root, coreRoot)
+	err := validatePortableProfileRefs(root, coreRoot)
 	if err == nil {
-		t.Fatal("validateProfiles returned nil error for missing core tools")
+		t.Fatal("validatePortableProfileRefs returned nil error for missing core tools")
 	}
 	if !strings.Contains(err.Error(), "missing referenced path /opt/agent-core/tools/builtin/llm") {
 		t.Fatalf("error = %q, want missing core tool path", err)
+	}
+}
+
+func TestPortableProfileValidationLeavesRuntimeSemanticsToAgentCore(t *testing.T) {
+	root := t.TempDir()
+	coreRoot := t.TempDir()
+	writeProfileFixture(t, root, "generator")
+	mkdir(t, filepath.Join(coreRoot, "tools", "builtin", "llm"))
+
+	// The selected word is intentionally absent from all declarations. Portable
+	// validation owns only reference policy; bootSmokeProfiles delegates this
+	// semantic rejection to agent --validate-config.
+	writeFile(t, filepath.Join(root, "agents", "generator", "tools.yaml"), "tools:\n  - undeclared_word\n")
+
+	if err := validatePortableProfileRefs(root, coreRoot); err != nil {
+		t.Fatalf("portable validation duplicated runtime semantics: %v", err)
 	}
 }
 

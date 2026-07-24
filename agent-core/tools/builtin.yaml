@@ -480,30 +480,6 @@ tools:
       strategy: session_state_restore
       description: "Restore the pipeline state snapshot captured before parsing."
 
-  - name: create_issue
-    type: builtin
-    init: create_issue
-    description: "Create an issue from the parsed implementation plan."
-    visibility: internal
-    emits: [Materialized, MaterializeFailed, CommandError]
-    category: boundary
-    side_effects:
-      - kind: external_api
-        target: issue_tracker
-        description: "Materializes the parsed plan as an issue and records the issue ID in pipeline state."
-      - kind: state_mutation
-        target: pipeline_state
-        state: issue_id_recorded
-        description: "Stores the materialized issue ID for downstream task execution."
-    reversibility:
-      classification: compensatable
-      undo: "pipeline_state_restore_and_issue_compensation"
-    undo:
-      strategy: compensating_action
-      description: "Restore pipeline state; issue tracker side effects require explicit close/delete compensation."
-      payload: boundary_compensation
-      captures: [issue_id, pipeline_state_snapshot]
-
   - name: execute_task
     type: builtin
     init: execute_task
@@ -731,25 +707,6 @@ tools:
       description: "Restore point context and artifact workspace state from persisted receipts."
       requires: [Receipt]
 
-  - name: copy_sample_workspace
-    type: builtin
-    init: copy_sample_workspace
-    visibility: internal
-    emits: [SampleWorkspaceCopied, CommandError]
-    description: "Copy the sample workspace contents into the current point directory."
-    category: word
-    side_effects:
-      - kind: filesystem_write
-        target: point_workspace
-        description: "Copies sample workspace files into PointContext.PointDir."
-    reversibility:
-      classification: reversible
-      undo: "workspace_restore"
-    undo:
-      strategy: workspace_restore
-      description: "Restore point workspace files from the persisted receipt."
-      requires: [Receipt]
-
   - name: copy_sample_docs
     type: builtin
     init: copy_sample_docs
@@ -769,64 +726,6 @@ tools:
       strategy: workspace_restore
       description: "Restore copied point documentation from the persisted receipt."
       requires: [Receipt]
-
-  - name: init_workspace_repo
-    type: builtin
-    init: init_workspace_repo
-    visibility: internal
-    emits: [WorkspaceRepoInitialized, CommandError]
-    description: "Initialize a git repository in the current point workspace."
-    category: word
-    side_effects:
-      - kind: filesystem_write
-        target: point_workspace_git_metadata
-        paths: [.git]
-        description: "Creates git metadata in PointContext.PointDir."
-    reversibility:
-      classification: compensatable
-      undo: "remove_git_metadata_or_recreate_workspace"
-    undo:
-      strategy: compensating_action
-      description: "Remove generated git metadata or recreate the point workspace from source artifacts."
-
-  - name: stage_workspace_baseline
-    type: builtin
-    init: stage_workspace_baseline
-    visibility: internal
-    emits: [WorkspaceBaselineStaged, CommandError]
-    description: "Stage all current point workspace files for the baseline commit."
-    category: word
-    side_effects:
-      - kind: state_mutation
-        target: git_index
-        state: all_changes_staged
-        description: "Stages all files in the point workspace git index."
-    reversibility:
-      classification: reversible
-      undo: "git_index_restore"
-    undo:
-      strategy: workspace_restore
-      description: "Restore point workspace state from the persisted receipt."
-      requires: [Receipt]
-
-  - name: commit_workspace_baseline
-    type: builtin
-    init: commit_workspace_baseline
-    visibility: internal
-    emits: [WorkspaceBaselineCommitted, CommandError]
-    description: "Create the baseline git commit for the current point workspace."
-    category: word
-    side_effects:
-      - kind: filesystem_write
-        target: point_workspace_git_history
-        paths: [.git]
-        description: "Creates the baseline commit in the point workspace repository."
-    reversibility:
-      classification: compensatable
-      undo: "reset_or_recreate_workspace_repo"
-    undo:
-      strategy: compensating_action
-      description: "Reset the point repository to the intended baseline or recreate the point workspace."
 
   - name: run_agent
     type: builtin
@@ -856,18 +755,18 @@ tools:
       captures: [point_context_snapshot, point_workspace, trace_path, result_path]
       requires: [Receipt]
 
-  - name: run_oracle_check
+  - name: record_oracle_result
     type: builtin
-    init: run_oracle_check
+    init: record_oracle_result
     visibility: internal
     emits: [OracleCheckPassed, OracleCheckFailed, CommandError]
-    description: "Run the point workspace oracle tests and record pass/fail output."
-    category: word
+    description: "Record the configured oracle exec result in the current point context."
+    category: stateful_internal
     side_effects:
       - kind: state_mutation
         target: point_context
         state: test_result_recorded
-        description: "Sets PointContext.TestsPassed and PointContext.TestOutput from go test ./... in the point workspace."
+        description: "Sets PointContext.TestsPassed and PointContext.TestOutput from the configured oracle exec result."
     reversibility:
       classification: reversible
       undo: "point_context_restore"
@@ -953,6 +852,25 @@ tools:
       strategy: workspace_restore
       description: "Restore point artifact files from the persisted receipt."
       requires: [Receipt]
+
+  - name: record_agent_commit
+    type: builtin
+    init: record_agent_commit
+    visibility: internal
+    emits: [AgentCommitRecorded, CommandError]
+    description: "Record a configured rev_parse result in the current point context."
+    category: stateful_internal
+    side_effects:
+      - kind: state_mutation
+        target: point_context
+        state: agent_commit_recorded
+        description: "Sets PointContext.AgentCommit from declared command output."
+    reversibility:
+      classification: reversible
+      undo: "point_context_restore"
+    undo:
+      strategy: session_state_restore
+      description: "Restore PointContext.AgentCommit from the prior snapshot."
 
   - name: dump_config
     type: builtin

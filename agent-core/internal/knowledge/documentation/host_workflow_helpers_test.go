@@ -125,6 +125,21 @@ func requireUXRoutesMatchREST(t *testing.T, ux UXConfig, endpoints map[string]re
 	require.Equal(t, endpoints["document"].Binding, "machine_request")
 }
 
+func requireUXActionRoutesMatchREST(t *testing.T, ux UXConfig, endpoints map[string]rest.Endpoint) {
+	t.Helper()
+	for actionName, endpointName := range map[string]string{
+		"validate_document": "validate_action",
+		"suggest_changes":   "suggest_action",
+		"approve_patch":     "approve_action",
+		"reject_patch":      "reject_action",
+	} {
+		action := ux.Actions[actionName]
+		endpoint := endpoints[endpointName]
+		require.Equal(t, "machine_request", endpoint.Binding)
+		require.Equal(t, restEndpointUIPath(endpoint.Path), action.RequestMachineRoute)
+	}
+}
+
 func requireUXActionsSelected(t *testing.T, ux UXConfig, selected, machineActions map[string]bool) {
 	t.Helper()
 	for name, action := range ux.Actions {

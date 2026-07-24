@@ -59,19 +59,21 @@ selection_files:
     tool_count: 13
     description: |
       Selects per-point tools for <profile-root>/evaluator/point.yaml:
-      create_point_dir, copy_sample_workspace, copy_sample_docs,
-      init_workspace_repo, stage_workspace_baseline,
-      commit_workspace_baseline, dump_config, run_agent,
-      run_oracle_check, collect_trace_tokens, check_agent_version,
+      create_point_dir, copy_dir, copy_sample_docs,
+      git_init, stage_all,
+      commit_workspace_baseline, rev_parse, record_agent_commit,
+      dump_config, run_agent, run_oracle_check, record_oracle_result,
+      collect_trace_tokens, check_agent_version,
       summarize_point_results, and collect_metrics. Loaded by run_point
       to build the nested point registry.
 
   - file: <profile-root>/planner/tools.yaml
-    tool_count: 12
+    tool_count: 16
     description: |
       Selects planning tools (extract_task, extract_all,
-      assemble_prompt, parse_plan, create_issue, execute_task,
-      check_result), LLM tools (invoke_llm, reset_history),
+      assemble_prompt, parse_plan, format_issue, write,
+      create_tracker_issue, record_tracker_issue, execute_task, check_result),
+      LLM tools (invoke_llm, reset_history),
       and direct build/test transition tools (build, vet, test).
 
   - file: <profile-root>/jurist/tools.yaml

@@ -119,7 +119,6 @@ func (c launchDocumentationCmd) Execute() core.Result {
 		ConfigsDir:  c.config.ConfigsDir,
 		SourceDir:   c.config.SourceDir,
 		ProfilePath: c.config.ProfilePath,
-		Workflow:    NewLazyProfileWorkflowRunner(c.config.ProfilePath, c.config.DocsDir),
 	})
 	if err != nil {
 		return core.Result{Signal: core.CommandError, CommandName: c.Name(), Err: err, Output: err.Error()}

@@ -73,7 +73,15 @@ func AuditGoTestEvidence(rootDir string) ([]Finding, error) {
 	if err != nil {
 		return nil, err
 	}
-	return ValidateGoTestEvidence(inv, suites), nil
+	findings := ValidateGoTestEvidence(inv, suites)
+	if !hasRuntimeImplementationCorpus(rootDir) {
+		return findings, nil
+	}
+	pathFindings, err := ValidateSpecCorpusPaths(rootDir)
+	if err != nil {
+		return nil, err
+	}
+	return append(findings, pathFindings...), nil
 }
 
 // ValidateGoTestEvidence checks the go_test evidence of every test case in

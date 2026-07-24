@@ -48,6 +48,7 @@ type UXGroupMeta struct {
 type UXAction struct {
 	UIAction             string `json:"ui_action" yaml:"ui_action"`
 	RequestMachineAction string `json:"request_machine_action,omitempty" yaml:"request_machine_action,omitempty"`
+	RequestMachineRoute  string `json:"request_machine_route,omitempty" yaml:"request_machine_route,omitempty"`
 	Route                string `json:"route" yaml:"route"`
 }
 
@@ -110,21 +111,30 @@ func validateUXConfig(cfg UXConfig) error {
 }
 
 func validateUXActions(actions map[string]UXAction, routes map[string]UXRoute) error {
-	requiredActions := map[string]string{
-		"list_documents":    "doc_list",
-		"read_document":     "doc_get",
-		"validate_document": "doc_validate",
-		"suggest_changes":   "doc_suggest_changes",
-		"approve_patch":     "doc_patch_approve",
-		"reject_patch":      "doc_patch_reject",
+	type requiredAction struct {
+		uiAction, machineAction, machineRoute string
 	}
-	for name, uiAction := range requiredActions {
+	requiredActions := map[string]requiredAction{
+		"list_documents":    {uiAction: "doc_list", machineAction: "doc_list_resource"},
+		"read_document":     {uiAction: "doc_get", machineAction: "doc_read_resource"},
+		"validate_document": {uiAction: "doc_validate", machineAction: "doc_validate", machineRoute: "/actions/validate"},
+		"suggest_changes":   {uiAction: "doc_suggest_changes", machineAction: "doc_suggest_changes", machineRoute: "/actions/suggest"},
+		"approve_patch":     {uiAction: "doc_patch_approve", machineAction: "doc_patch_approve", machineRoute: "/actions/patches/{patch_id}/approve"},
+		"reject_patch":      {uiAction: "doc_patch_reject", machineAction: "doc_patch_reject", machineRoute: "/actions/patches/{patch_id}/reject"},
+	}
+	for name, want := range requiredActions {
 		action, ok := actions[name]
 		if !ok {
 			return fmt.Errorf("action %q is required", name)
 		}
-		if action.UIAction != uiAction {
-			return fmt.Errorf("action %q must use UI action %q", name, uiAction)
+		if action.UIAction != want.uiAction {
+			return fmt.Errorf("action %q must use UI action %q", name, want.uiAction)
+		}
+		if action.RequestMachineAction != want.machineAction {
+			return fmt.Errorf("action %q must use request machine action %q", name, want.machineAction)
+		}
+		if action.RequestMachineRoute != want.machineRoute {
+			return fmt.Errorf("action %q must use request machine route %q", name, want.machineRoute)
 		}
 		if _, ok := routes[action.Route]; !ok {
 			return fmt.Errorf("action %q references unknown route %q", name, action.Route)

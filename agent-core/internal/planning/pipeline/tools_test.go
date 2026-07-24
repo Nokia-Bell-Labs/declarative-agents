@@ -328,34 +328,6 @@ func TestCheckResultBuilder_UndoRestoresRetryCount(t *testing.T) {
 	require.Equal(t, 0, ps.retryCount)
 }
 
-func TestCreateIssueBuilder_UndoRestoresIssueState(t *testing.T) {
-	ps := minimalState(t)
-	task := ps.Extractor.ExtractNext(ps.Graph, ps.MaxWeight)
-	require.NotNil(t, task)
-	ps.CurrentTask = task
-	ps.CurrentPlan = &plan.ImplementationPlan{Title: "plan"}
-	ps.IssueID = "old-issue"
-	ps.TaskDeps = map[string]string{"old-task": "old-issue"}
-
-	prevMaterializePlan := materializePlan
-	materializePlan = func(context.Context, tracing.Tracer, plan.ImplementationPlan, string, map[string]string, string) (string, core.Result) {
-		return "new-issue", core.Result{Signal: SigMaterialized, Output: "created issue"}
-	}
-	t.Cleanup(func() { materializePlan = prevMaterializePlan })
-
-	builder := &CreateIssueBuilder{PS: ps}
-	cmd := builder.Build(core.Result{})
-	result := cmd.Execute()
-	require.Equal(t, SigMaterialized, result.Signal)
-	require.Equal(t, "new-issue", ps.IssueID)
-	require.Equal(t, "new-issue", ps.TaskDeps[task.ID])
-
-	undo := cmd.Undo(core.Result{})
-	require.Equal(t, core.ToolDone, undo.Signal)
-	require.Equal(t, "old-issue", ps.IssueID)
-	require.Equal(t, map[string]string{"old-task": "old-issue"}, ps.TaskDeps)
-}
-
 func TestPlannerAssembler_PrependsSystem(t *testing.T) {
 	t.Parallel()
 

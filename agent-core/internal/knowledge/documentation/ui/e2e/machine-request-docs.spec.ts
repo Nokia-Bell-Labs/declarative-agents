@@ -106,6 +106,13 @@ async function runProof(browser: Browser) {
   assertMachineRequestTrace(detail.body, 'document', 'DocumentDetailReady')
   assertNoActionPostsForReads()
 
+  const validationResponse = waitForPOST(page, '/api/v1/actions/validate')
+  await page.click('.curator-panel-header .curator-button')
+  await page.waitForSelector('.curator-status')
+  const validation = await captureResponse(await validationResponse)
+  assert(validation.status === 200, `validation response status ${validation.status}`)
+  assertMachineRequestTrace(validation.body, 'validate_action', 'RESTResponded')
+
   const rendered = await page.$eval('.doc-viewer', node => node.textContent ?? '')
   assert(rendered.includes('Agent Core Specification Index'), 'pretty view rendered title')
 
@@ -135,7 +142,7 @@ async function runProof(browser: Browser) {
   assert(roadmap.status === 200, `roadmap response status ${roadmap.status}`)
   assertMachineRequestTrace(roadmap.body, 'document', 'DocumentDetailReady')
 
-  await writeArtifacts('success', { index, walk, semantic, detail, nested, roadmap })
+  await writeArtifacts('success', { index, walk, semantic, detail, validation, nested, roadmap })
 }
 
 async function expandCategories(page: Page) {
@@ -215,6 +222,11 @@ function documentPath(path: string): string {
 function waitForGET(page: Page, endpoint: string): Promise<HTTPResponse> {
   const expected = new URL(endpoint, baseURL).href
   return page.waitForResponse(res => res.request().method() === 'GET' && res.url() === expected)
+}
+
+function waitForPOST(page: Page, endpoint: string): Promise<HTTPResponse> {
+  const expected = new URL(endpoint, baseURL).href
+  return page.waitForResponse(res => res.request().method() === 'POST' && res.url() === expected)
 }
 
 async function captureResponse(response: HTTPResponse): Promise<CapturedResponse> {

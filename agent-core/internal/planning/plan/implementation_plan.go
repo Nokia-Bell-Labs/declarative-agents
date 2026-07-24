@@ -1,13 +1,13 @@
 // Copyright (c) 2026 Nokia. All rights reserved.
 
-// Package plan defines the ImplementationPlan types produced by the
-// planning engine and consumed by the materializer.
+// Package plan defines the ImplementationPlan types produced and formatted by
+// the planning engine.
 package plan
 
 // ImplementationPlan describes what files to create or modify, which
 // requirements they satisfy, key design choices, and checkable outcomes.
-// The struct mirrors the issue-format constitution schema so the
-// materializer can map it directly to an issue description.
+// The struct mirrors the issue-format constitution schema so planner state
+// adapters can map it directly to an issue description.
 type ImplementationPlan struct {
 	Title              string            `yaml:"title"`
 	Summary            string            `yaml:"summary,omitempty"`

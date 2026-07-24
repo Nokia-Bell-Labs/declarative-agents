@@ -2,18 +2,32 @@
 
 # Knowledge Manager Demo
 
-We drive the knowledge-manager documentation agent from a Go present deck,
+We drive the knowledge-manager documentation agent from
 [knowledge-manager.slide](knowledge-manager.slide). The deck has two steps: it
-starts the documentation-curator agent, then posts a lifecycle-exit request to
-its control server.
+starts the shipped documentation-curator profile, then posts a lifecycle-exit
+request to its control server.
 
 ## Steps
 
-The first slide runs [start_knowledge_manager.go](start_knowledge_manager.go),
-which launches `agent-core/cmd/agent` against the documentation-curator profile
-and serves the documentation, control, and monitor endpoints. The second slide
-runs the lifecycle-exit agent through the same interpreter to post the exit
-request and stop the curator.
+The first slide launches the profile directly from the `agent-profiles` root:
+
+    agent \
+      --profile agents/knowledge-manager/documentation-curator/profile.yaml \
+      --directory . \
+      --core-root ../agent-core
+
+`--directory` supplies the profile repository as the documentation workspace.
+`--core-root` maps the profile's installed `/opt/agent-core` declaration path to
+a development checkout. An installed runtime does not need `--core-root`.
+
+For a source checkout, Mage can build the binary from the sibling
+`agent-core` checkout and run the same command:
+
+    mage demo:knowledgeManager
+
+Set `AGENT_CORE_ROOT` when the core checkout is not the sibling
+`../agent-core`. The second slide runs the lifecycle-exit agent through the
+same interpreter to post the exit request and stop the curator.
 
 ## The lifecycle-exit agent
 
@@ -31,15 +45,3 @@ endpoint carries no transport authority (`auth: none`). Run it with:
 Expressing the exit call as a machine rather than a Go binary makes the demo an
 instance of the system's own thesis: runtime behavior lives in YAML and is run
 by the interpreter. It replaces the former `call_lifecycle_exit/main.go`.
-
-## Why start_knowledge_manager.go stays a Go binary
-
-`start_knowledge_manager.go` is a launcher, not agent behavior. It resolves the
-demo's repository paths, prepares a temporary profile overlay that points the
-curator at a sibling `agent-core` checkout, and runs `agent-core/cmd/agent`. It
-embeds no agent logic of its own; it is the harness that starts the interpreter,
-the same role magefiles and `cmd/agent` wiring play elsewhere. Converting it to
-an agent profile would have nothing to declare -- the agent it launches is the
-documentation-curator profile it already runs. It is therefore exempt from the
-executables-are-agents rule and remains a launcher. The recurring
-declarative-decomposition audit cites this instead of re-flagging the launcher.

@@ -5,7 +5,6 @@ package evaluation
 import (
 	"fmt"
 	"os"
-	"os/exec"
 	"path/filepath"
 	"strings"
 
@@ -13,7 +12,40 @@ import (
 	"gopkg.in/yaml.v3"
 )
 
-const SigConfigDumped core.Signal = "ConfigDumped"
+const (
+	SigAgentCommitRecorded core.Signal = "AgentCommitRecorded"
+	SigConfigDumped        core.Signal = "ConfigDumped"
+)
+
+type recordAgentCommitCmd struct {
+	pc          *PointContext
+	prior       core.Result
+	snapshot    pointContextSnapshot
+	hasSnapshot bool
+}
+
+func (c *recordAgentCommitCmd) Name() string { return "record_agent_commit" }
+func (c *recordAgentCommitCmd) Undo(_ core.Result) core.Result {
+	return undoPointContextSnapshot(c.Name(), c.pc, c.snapshot, c.hasSnapshot)
+}
+
+func (c *recordAgentCommitCmd) Execute() core.Result {
+	c.snapshot = snapshotPointContext(c.pc)
+	c.hasSnapshot = true
+	commit := ""
+	if c.prior.Signal == core.ToolDone {
+		commit = strings.TrimSpace(c.prior.Output)
+	}
+	if commit == "" {
+		commit = "unknown"
+	}
+	c.pc.AgentCommit = commit
+	return core.Result{
+		CommandName: c.Name(),
+		Signal:      SigAgentCommitRecorded,
+		Output:      commit,
+	}
+}
 
 // dumpConfigCmd writes a materialized experiment.yaml into the point
 // directory, capturing the full configuration used for this experiment.
@@ -48,7 +80,7 @@ func (c *dumpConfigCmd) Execute() core.Result {
 		exp.Repetition = fmt.Sprintf("%v", v)
 	}
 
-	exp.AgentCommit = gitCommitHash()
+	exp.AgentCommit = pc.AgentCommit
 
 	out, err := yaml.Marshal(exp)
 	if err != nil {
@@ -97,15 +129,6 @@ type experimentSample struct {
 	Name string `yaml:"name"`
 }
 
-func gitCommitHash() string {
-	cmd := exec.Command("git", "rev-parse", "--short", "HEAD")
-	out, err := cmd.Output()
-	if err != nil {
-		return "unknown"
-	}
-	return strings.TrimSpace(string(out))
-}
-
 // DumpConfigBuilder creates dumpConfigCmd instances.
 type DumpConfigBuilder struct {
 	ES *EvalState
@@ -116,4 +139,16 @@ func (b *DumpConfigBuilder) Build(_ core.Result) core.Command {
 		return &failCmd{err: fmt.Errorf("dump_config: EvalState.PC not initialized")}
 	}
 	return &dumpConfigCmd{pc: b.ES.PC}
+}
+
+// RecordAgentCommitBuilder maps a configured rev_parse result into point state.
+type RecordAgentCommitBuilder struct {
+	ES *EvalState
+}
+
+func (b *RecordAgentCommitBuilder) Build(res core.Result) core.Command {
+	if b.ES == nil || b.ES.PC == nil {
+		return &failCmd{err: fmt.Errorf("record_agent_commit: EvalState.PC not initialized")}
+	}
+	return &recordAgentCommitCmd{pc: b.ES.PC, prior: res}
 }

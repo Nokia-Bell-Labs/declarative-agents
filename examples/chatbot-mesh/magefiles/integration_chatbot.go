@@ -606,7 +606,7 @@ func chatbotEmbedModelFromConfig(profilesRoot string) (string, error) {
 	if err := readIntegrationYAML(path, "chatbot rest asset", &cfg); err != nil {
 		return "", err
 	}
-	model := cfg.Rest.Clients["embedding"].Operations["embed_query"].Body.Model
+	model := resolveModelReference(cfg.Rest.Clients["embedding"].Operations["embed_query"].Body.Model)
 	if model == "" {
 		return "", fmt.Errorf("no embedding model in %s", path)
 	}
@@ -631,8 +631,9 @@ func chatbotToolModels(profilesRoot string) (map[string]string, error) {
 	}
 	models := map[string]string{}
 	for _, tool := range cfg.Tools {
-		if tool.Init == "invoke_llm" && tool.Config.Model != "" {
-			models[tool.Name] = tool.Config.Model
+		model := resolveModelReference(tool.Config.Model)
+		if tool.Init == "invoke_llm" && model != "" {
+			models[tool.Name] = model
 		}
 	}
 	if len(models) == 0 {

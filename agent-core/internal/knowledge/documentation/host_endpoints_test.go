@@ -11,7 +11,9 @@ import (
 	"github.com/stretchr/testify/require"
 	"net/http"
 	"net/http/httptest"
+	"os"
 	"path/filepath"
+	"strings"
 	"testing"
 	"testing/fstest"
 )
@@ -185,6 +187,7 @@ func TestCuratorUXConfigMatchesRouteAndActionContracts(t *testing.T) {
 	require.NoError(t, err)
 
 	requireUXRoutesMatchREST(t, ux, collection.Servers["docs_runtime_requests"].Endpoints)
+	requireUXActionRoutesMatchREST(t, ux, collection.Servers["docs_runtime_requests"].Endpoints)
 	requireUXActionsSelected(t, ux, toolNames(defs), machineActionNames(machine))
 }
 
@@ -194,7 +197,7 @@ func TestMachineRequestFactoriesUseSelectedInits(t *testing.T) {
 	registerMachineRequestFactories(builtins, map[string]bool{
 		"list_resource":      true,
 		"doc_index_response": true,
-	}, core.NewRegistry())
+	}, core.NewRegistry(), rest.Collection{})
 
 	_, ok := builtins.Resolve("list_resource")
 	require.True(t, ok)
@@ -204,6 +207,180 @@ func TestMachineRequestFactoriesUseSelectedInits(t *testing.T) {
 	require.False(t, ok)
 	_, ok = builtins.Resolve("doc_detail_response")
 	require.False(t, ok)
+}
+
+func TestMachineRequestFactoriesRegisterSelectedRESTClients(t *testing.T) {
+	t.Parallel()
+	builtins := toolregistry.NewBuiltinRegistry()
+	registerMachineRequestFactories(builtins, map[string]bool{
+		rest.InitClientInvoke: true,
+	}, core.NewRegistry(), rest.Collection{})
+
+	_, ok := builtins.Resolve(rest.InitClientInvoke)
+	require.True(t, ok)
+}
+
+func TestStandaloneServerProxiesValidateActionThroughRequestMachine(t *testing.T) {
+	root := t.TempDir()
+	docsDir := filepath.Join(root, "docs")
+	writeDocFixture(t, docsDir, "VISION.yaml", "title: Vision\n")
+	docs := NewHandler(docsDir)
+	internalAPI := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		require.Equal(t, "/api/v1/docs/validate", r.URL.Path)
+		docs.Validate(w, r)
+	}))
+	t.Cleanup(internalAPI.Close)
+	profilePath := curatorProfileWithRESTAddress(t, internalAPI.URL)
+	handler := NewServer(HostConfig{
+		DocsDir: docsDir, ProfilePath: profilePath,
+		Assets: fstest.MapFS{"index.html": &fstest.MapFile{Data: []byte("<html>docs app</html>")}},
+	}).Handler()
+	t.Cleanup(func() {
+		closer, ok := handler.(interface{ Close() error })
+		require.True(t, ok)
+		require.NoError(t, closer.Close())
+	})
+	req := httptest.NewRequest(http.MethodPost, "/api/v1/actions/validate",
+		strings.NewReader(`{"paths":["VISION.yaml"],"strict":false}`))
+	req.Header.Set("Content-Type", "application/json")
+	rec := httptest.NewRecorder()
+
+	handler.ServeHTTP(rec, req)
+
+	require.Equal(t, http.StatusOK, rec.Code, rec.Body.String())
+	require.Contains(t, rec.Body.String(), `"status":"findings"`)
+	trace := responseTrace(t, rec.Body.Bytes())
+	require.Equal(t, "docs_runtime_requests", trace["server"])
+	require.Equal(t, "validate_action", trace["route"])
+	require.Equal(t, "docs-runtime-request", trace["machine"])
+	require.Equal(t, "RESTResponded", trace["terminal_signal"])
+}
+
+func TestStandaloneServerProxiesPatchActionsThroughRequestMachines(t *testing.T) {
+	root := t.TempDir()
+	docsDir := filepath.Join(root, "docs")
+	writeDocFixture(t, docsDir, "VISION.yaml", "title: Vision\n")
+	docs := NewHandler(docsDir)
+	internalMux := http.NewServeMux()
+	internalMux.HandleFunc("POST /api/v1/docs/suggestions", docs.Suggest)
+	internalMux.HandleFunc("POST /api/v1/docs/patches/{patch_id}/approve", docs.Approve)
+	internalMux.HandleFunc("POST /api/v1/docs/patches/{patch_id}/reject", docs.Reject)
+	internalAPI := httptest.NewServer(internalMux)
+	t.Cleanup(internalAPI.Close)
+	profilePath := curatorProfileWithRESTAddress(t, internalAPI.URL)
+	handler := NewServer(HostConfig{
+		DocsDir: docsDir, ProfilePath: profilePath,
+		Assets: fstest.MapFS{"index.html": &fstest.MapFile{Data: []byte("<html>docs app</html>")}},
+	}).Handler()
+	t.Cleanup(func() {
+		closer, ok := handler.(interface{ Close() error })
+		require.True(t, ok)
+		require.NoError(t, closer.Close())
+	})
+
+	approvePatchID := suggestPatchThroughRequestMachine(t, handler, "Clarify the vision")
+	approve := postDocsJSON(t, handler, "/api/v1/actions/patches/"+approvePatchID+"/approve",
+		`{"decided_by":"reviewer","note":"ready"}`)
+	require.Equal(t, http.StatusOK, approve.Code, approve.Body.String())
+	requireActionMachineTrace(t, approve.Body.Bytes(), "approve_action", "RESTResponded")
+	approveData := actionResponseData(t, approve.Body.Bytes())
+	require.Equal(t, approvePatchID, approveData["patch_id"])
+	require.Equal(t, "approved_pending_apply", approveData["status"])
+	require.Equal(t, "reviewer", approveData["decided_by"])
+
+	rejectPatchID := suggestPatchThroughRequestMachine(t, handler, "Remove ambiguity")
+	reject := postDocsJSON(t, handler, "/api/v1/actions/patches/"+rejectPatchID+"/reject",
+		`{"decided_by":"reviewer","reason":"needs evidence"}`)
+	require.Equal(t, http.StatusOK, reject.Code, reject.Body.String())
+	requireActionMachineTrace(t, reject.Body.Bytes(), "reject_action", "RESTResponded")
+	rejectData := actionResponseData(t, reject.Body.Bytes())
+	require.Equal(t, rejectPatchID, rejectData["patch_id"])
+	require.Equal(t, "rejected", rejectData["status"])
+	require.Equal(t, "reviewer", rejectData["decided_by"])
+
+	for _, action := range []struct {
+		name string
+		body string
+	}{
+		{name: "approve", body: `{"decided_by":"reviewer","note":"missing patch"}`},
+		{name: "reject", body: `{"decided_by":"reviewer","reason":"missing patch"}`},
+	} {
+		t.Run("missing_"+action.name, func(t *testing.T) {
+			missing := postDocsJSON(t, handler,
+				"/api/v1/actions/patches/patch-does-not-exist/"+action.name,
+				action.body)
+			require.Equal(t, http.StatusNotFound, missing.Code, missing.Body.String())
+			require.Contains(t, missing.Body.String(), `"error":"patch_missing"`)
+			requireActionMachineTrace(t, missing.Body.Bytes(), action.name+"_action", "RESTMissing")
+		})
+	}
+}
+
+func TestStandaloneServerRejectsLegacyActionEnvelope(t *testing.T) {
+	t.Parallel()
+	handler := NewServer(HostConfig{
+		Assets: fstest.MapFS{"index.html": &fstest.MapFile{Data: []byte("<html>docs app</html>")}},
+	}).Handler()
+
+	rec := postDocsJSON(t, handler, "/api/v1/actions",
+		`{"type":"doc_validate","params":{"paths":["VISION.yaml"]}}`)
+
+	require.Equal(t, http.StatusNotFound, rec.Code)
+}
+
+func suggestPatchThroughRequestMachine(t *testing.T, handler http.Handler, instruction string) string {
+	t.Helper()
+	body, err := json.Marshal(map[string]string{
+		"path": "VISION.yaml", "instruction": instruction, "context": "runtime coverage",
+	})
+	require.NoError(t, err)
+	rec := postDocsJSON(t, handler, "/api/v1/actions/suggest", string(body))
+	require.Equal(t, http.StatusAccepted, rec.Code, rec.Body.String())
+	requireActionMachineTrace(t, rec.Body.Bytes(), "suggest_action", "RESTAccepted")
+	data := actionResponseData(t, rec.Body.Bytes())
+	patchID, _ := data["patch_id"].(string)
+	require.NotEmpty(t, patchID)
+	require.Equal(t, "VISION.yaml", data["path"])
+	return patchID
+}
+
+func requireActionMachineTrace(t *testing.T, body []byte, route, terminalSignal string) {
+	t.Helper()
+	trace := responseTrace(t, body)
+	require.Equal(t, "docs_runtime_requests", trace["server"])
+	require.Equal(t, route, trace["route"])
+	require.Equal(t, "docs-runtime-request", trace["machine"])
+	require.Equal(t, terminalSignal, trace["terminal_signal"])
+}
+
+func actionResponseData(t *testing.T, body []byte) map[string]interface{} {
+	t.Helper()
+	var response struct {
+		Data map[string]interface{} `json:"data"`
+	}
+	require.NoError(t, json.Unmarshal(body, &response))
+	require.NotNil(t, response.Data)
+	return response.Data
+}
+
+func curatorProfileWithRESTAddress(t *testing.T, baseURL string) string {
+	t.Helper()
+	profilePath := writeDocsRuntimeProfile(t)
+	fixturePath := curatorRestPath(t)
+	data, err := os.ReadFile(fixturePath)
+	require.NoError(t, err)
+	port := strings.TrimPrefix(baseURL, "http://127.0.0.1:")
+	data = []byte(strings.ReplaceAll(string(data), "18081", port))
+	restPath := filepath.Join(filepath.Dir(profilePath), "rest.yaml")
+	require.NoError(t, os.WriteFile(restPath, data, 0o644))
+	openAPIData, err := os.ReadFile(filepath.Join(filepath.Dir(fixturePath), "openapi.yaml"))
+	require.NoError(t, err)
+	require.NoError(t, os.WriteFile(filepath.Join(filepath.Dir(profilePath), "openapi.yaml"), openAPIData, 0o644))
+	profileData, err := os.ReadFile(profilePath)
+	require.NoError(t, err)
+	profileData = []byte(strings.Replace(string(profileData), fixturePath, restPath, 1))
+	require.NoError(t, os.WriteFile(profilePath, profileData, 0o644))
+	return profilePath
 }
 
 func TestStandaloneServerServesContextFiles(t *testing.T) {

@@ -1,0 +1,55 @@
+tools:
+- name: record_oracle_result
+  type: builtin
+  init: record_oracle_result
+  visibility: internal
+  emits:
+  - OracleCheckPassed
+  - OracleCheckFailed
+  - CommandError
+  description: Record the configured oracle exec result in the current point context.
+  category: stateful_internal
+  problem: The critic needs to preserve oracle status and output after a profile-configured exec word without hard-coding the subprocess in Go.
+  goals:
+  - Map ToolDone and ToolFailed into oracle domain signals.
+  - Store the configured command output for point aggregation.
+  requirements:
+    input:
+    - must consume the immediately preceding oracle exec result
+    output:
+    - must emit OracleCheckPassed for ToolDone and OracleCheckFailed for ToolFailed
+    side_effects:
+    - must update PointContext.TestsPassed and PointContext.TestOutput
+    undo:
+    - must restore the prior point context snapshot
+    errors:
+    - must emit CommandError when point state is unavailable
+  non_goals:
+  - Does not invoke an oracle command.
+  - Does not choose the next point-machine state.
+  side_effects:
+  - kind: state_mutation
+    target: point_context
+    state: oracle_result_recorded
+    description: Stores pass/fail status and command output from the configured oracle exec word.
+  reversibility:
+    classification: reversible
+    undo: point_context_restore
+    requires_confirmation: false
+  undo:
+    strategy: session_state_restore
+    description: Restore PointContext test result fields from the prior snapshot.
+  errors:
+  - signal: CommandError
+    condition: point state is unavailable
+    message_shape: 'record_oracle_result: <error>'
+    state_after_failure: previous point context is preserved
+  relationships:
+    before:
+    - run_oracle_check
+    after:
+    - collect_trace_tokens
+  output:
+    description: Configured oracle command output.
+    schema:
+      type: string

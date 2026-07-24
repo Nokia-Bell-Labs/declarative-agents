@@ -158,7 +158,6 @@ implementation:
   - internal/tools/catalog/ (planned ToolDef, declaration loading, and selection)
   - internal/tools/exec/ (planned ExecBuilder and ExecCmd)
   - internal/tools/undo/ (planned shared undo payload helpers)
-  - internal/tools/stl/ (temporary compatibility facade)
 
 related_documents:
   - cfg-tool-authoring-standard

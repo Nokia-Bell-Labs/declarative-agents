@@ -47,6 +47,7 @@ type PointContext struct {
 	PointDir        string
 	TracePath       string
 	ResultPath      string
+	AgentCommit     string
 	Tokens          int
 	TestsPassed     bool
 	TestOutput      string

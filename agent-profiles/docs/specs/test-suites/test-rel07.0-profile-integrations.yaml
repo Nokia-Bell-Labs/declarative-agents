@@ -33,14 +33,14 @@ test_cases:
     name: Documentation curator profile UX and lifecycle tracer
     follow_up_issue: "#107"
     integration_target: mage integration:documentationCurator
-    go_test: go test ./magefiles -run TestPrepareDocumentationCuratorIntegrationWritesEphemeralProfile
+    go_test: go test ./magefiles -run 'TestPrepareDocumentationCuratorIntegrationWritesEphemeralProfile|TestDocumentationActionEndpointsUseMachineRequestBinding|TestDocumentationPatchDecisionClientsMapMissingPatches'
     status: implemented
     description: |
       Run the concrete Knowledge Manager/documentation-curator proof from
       agent-profiles. The target runs the shipped profile through an ephemeral
-      profile overlay, proves machine_request document routes and profile-owned
-      UI assets, records trace metadata, and shuts down through lifecycle
-      control.
+      profile overlay, proves machine_request document and curator-action routes,
+      serves profile-owned UI assets, records trace metadata, and shuts down
+      through lifecycle control.
     inputs:
       profile: agents/knowledge-manager/documentation-curator/profile.yaml
       ux_config: agents/knowledge-manager/documentation-curator/ui/ux.yaml
@@ -48,6 +48,9 @@ test_cases:
       fixture_docs: testdata/integration/rel07-documentation-curator/
     expected:
       terminal_signal: DocumentDetailReady
+      action_terminal_signal: RESTResponded
+      missing_patch_terminal_signal: RESTMissing
+      legacy_action_envelope_used: false
       trace_fields: [server, route, machine, terminal_signal, status]
       lifecycle_signal: ExitRequested
       terminal_state: Done
@@ -58,6 +61,7 @@ test_cases:
       - rel07.0-uc001-documentation-curator-profile-ux S2
       - rel07.0-uc001-documentation-curator-profile-ux S3
       - rel07.0-uc001-documentation-curator-profile-ux S4
+      - rel07.0-uc001-documentation-curator-profile-ux S5
       - sm-agent-role-taxonomy documentation-curator
 
   - use_case: rel07.0-uc002-evaluator-generator-profile-boundary

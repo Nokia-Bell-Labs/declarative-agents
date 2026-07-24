@@ -32,7 +32,7 @@ public Go APIs.
 - `internal/model`: LLM clients, provider adapters, prompt rendering, model
   profiles, and tool manifest assembly.
 - `internal/planning`: task extraction, spec graphs used for planning,
-  implementation plans, issue materialization, and pipeline orchestration.
+  implementation plans, tracker-result state adapters, and pipeline orchestration.
 - `internal/audit`: jurist orchestration and audit-specific tool
   glue. Shared specification parsing and validation remain in `pkg/spec`.
 - `internal/observability`: tracing ports, OpenTelemetry adapters, GenAI span
@@ -62,7 +62,6 @@ Generated from `go list ./...` after the internal package migration:
 - `internal/planning`
 - `internal/planning/extract`
 - `internal/planning/graph`
-- `internal/planning/materialize`
 - `internal/planning/pipeline`
 - `internal/planning/plan`
 - `internal/runtime`

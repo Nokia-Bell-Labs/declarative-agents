@@ -1,0 +1,70 @@
+tools:
+- name: format_issue
+  type: builtin
+  init: format_issue
+  description: Format planner state as tracker-agnostic issue parameters.
+  visibility: internal
+  emits:
+  - IssueFormatted
+  - CommandError
+  category: stateful_internal
+  problem: A declarative tracker sentence needs issue content and arguments derived from planner state without embedding tracker invocation in Go.
+  goals:
+  - Serialize the current implementation plan using the issue-format contract.
+  - Expose write and tracker inputs as structured parameters.
+  requirements:
+    input:
+    - must require a current implementation plan
+    output:
+    - must emit IssueFormatted with title, body, body-file path, workspace directory, and dependency IDs
+    - must sort and comma-join dependency IDs deterministically
+    undo:
+    - must restore the prior planner state snapshot
+    errors:
+    - must emit CommandError when current plan state is unavailable or serialization fails
+  non_goals:
+  - Does not write the issue body.
+  - Does not select or invoke an issue tracker.
+  side_effects:
+  - kind: state_read
+    target: planner_pipeline_state
+    description: Reads the current plan, workspace directory, and dependency IDs without mutating them.
+  reversibility:
+    classification: reversible
+    undo: planner_state_restore
+    requires_confirmation: false
+  undo:
+    strategy: session_state_restore
+    description: Restore the planner state captured before formatting.
+  errors:
+  - signal: CommandError
+    condition: current plan state is unavailable or cannot be serialized
+    message_shape: 'format_issue: <error>'
+    state_after_failure: planner state is preserved
+  relationships:
+    before:
+    - parse_plan
+    after:
+    - write
+  output:
+    description: Parameters consumed by the issue-body write and configured tracker exec words.
+    schema:
+      type: object
+      properties:
+        parameters:
+          type: object
+          properties:
+            title:
+              type: string
+            path:
+              type: string
+            body_file:
+              type: string
+            content:
+              type: string
+            directory:
+              type: string
+            deps:
+              type: string
+          required: [title, path, body_file, content, directory, deps]
+      required: [parameters]

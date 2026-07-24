@@ -28,17 +28,6 @@ func (b *CreatePointDirBuilder) Build(_ core.Result) core.Command {
 	})
 }
 
-// CopySampleWorkspaceBuilder creates copySampleWorkspaceCmd instances.
-type CopySampleWorkspaceBuilder struct {
-	ES *EvalState
-}
-
-func (b *CopySampleWorkspaceBuilder) Build(_ core.Result) core.Command {
-	return buildPointCommand(b.ES, "copy_sample_workspace", func(pc *PointContext) core.Command {
-		return &copySampleWorkspaceCmd{pc: pc}
-	})
-}
-
 // CopySampleDocsBuilder creates copySampleDocsCmd instances.
 type CopySampleDocsBuilder struct {
 	ES *EvalState
@@ -47,39 +36,6 @@ type CopySampleDocsBuilder struct {
 func (b *CopySampleDocsBuilder) Build(_ core.Result) core.Command {
 	return buildPointCommand(b.ES, "copy_sample_docs", func(pc *PointContext) core.Command {
 		return &copySampleDocsCmd{pc: pc}
-	})
-}
-
-// InitWorkspaceRepoBuilder creates initWorkspaceRepoCmd instances.
-type InitWorkspaceRepoBuilder struct {
-	ES *EvalState
-}
-
-func (b *InitWorkspaceRepoBuilder) Build(_ core.Result) core.Command {
-	return buildPointCommand(b.ES, "init_workspace_repo", func(pc *PointContext) core.Command {
-		return &initWorkspaceRepoCmd{pc: pc}
-	})
-}
-
-// StageWorkspaceBaselineBuilder creates stageWorkspaceBaselineCmd instances.
-type StageWorkspaceBaselineBuilder struct {
-	ES *EvalState
-}
-
-func (b *StageWorkspaceBaselineBuilder) Build(_ core.Result) core.Command {
-	return buildPointCommand(b.ES, "stage_workspace_baseline", func(pc *PointContext) core.Command {
-		return &stageWorkspaceBaselineCmd{pc: pc}
-	})
-}
-
-// CommitWorkspaceBaselineBuilder creates commitWorkspaceBaselineCmd instances.
-type CommitWorkspaceBaselineBuilder struct {
-	ES *EvalState
-}
-
-func (b *CommitWorkspaceBaselineBuilder) Build(_ core.Result) core.Command {
-	return buildPointCommand(b.ES, "commit_workspace_baseline", func(pc *PointContext) core.Command {
-		return &commitWorkspaceBaselineCmd{pc: pc}
 	})
 }
 
@@ -99,16 +55,16 @@ func (b *RunAgentBuilder) Build(_ core.Result) core.Command {
 	}
 }
 
-// RunOracleCheckBuilder creates runOracleCheckCmd instances.
-type RunOracleCheckBuilder struct {
+// RecordOracleResultBuilder maps the configured oracle exec result into point state.
+type RecordOracleResultBuilder struct {
 	ES *EvalState
 }
 
-func (b *RunOracleCheckBuilder) Build(_ core.Result) core.Command {
+func (b *RecordOracleResultBuilder) Build(res core.Result) core.Command {
 	if b.ES == nil || b.ES.PC == nil {
-		return &failCmd{err: fmt.Errorf("run_oracle_check: EvalState.PC not initialized")}
+		return &failCmd{err: fmt.Errorf("record_oracle_result: EvalState.PC not initialized")}
 	}
-	return &runOracleCheckCmd{pc: b.ES.PC}
+	return &recordOracleResultCmd{pc: b.ES.PC, prior: res}
 }
 
 // CollectTraceTokensBuilder creates collectTraceTokensCmd instances.

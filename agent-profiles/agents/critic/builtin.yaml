@@ -95,7 +95,7 @@ tools:
   - Keep point-machine configuration declarative in YAML rather than hardcoded in Go.
   requirements:
     input:
-    - must require point_machine and point_tools in config
+    - must require point_machine, point_tools, and point_tool_declarations in config
     - must consume the current point context selected by next_point
     output:
     - must emit PointDone after the nested point machine reaches its configured success state
@@ -172,6 +172,10 @@ tools:
   config:
     point_machine: agents/critic/point.yaml
     point_tools: agents/critic/tools-point.yaml
+    point_tool_declarations:
+    - /opt/agent-core/tools/builtin/critic-point/all.yaml
+    - /opt/agent-core/tools/exec/all.yaml
+    - agents/critic/point-exec.yaml
     agent_name: critic-point
     max_iterations: 20
     success_state: Done

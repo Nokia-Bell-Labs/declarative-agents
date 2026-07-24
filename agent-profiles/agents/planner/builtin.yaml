@@ -86,7 +86,7 @@ tools:
         message_shape: "execute_task failed: <status/output>"
         state_after_failure: "workspace may contain child edits and must be restored from checkpoint if rollback is requested"
     relationships:
-      before: [create_issue, extract_task, extract_all]
+      before: [record_tracker_issue, extract_task, extract_all]
       after: [check_result, build, vet, test]
       overlaps:
         - tool: launch_eval

@@ -22,8 +22,8 @@ type FactoryDeps struct {
 }
 
 // RegisterFactories registers all pipeline builtin tool factories
-// (extract_task, extract_all, assemble_prompt, parse_plan, create_issue,
-// execute_task, check_result) into the provided BuiltinRegistry.
+// (extract_task, extract_all, assemble_prompt, parse_plan, issue state
+// adapters, execute_task, check_result) into the provided BuiltinRegistry.
 // Pipeline state is lazily initialized on first factory call.
 func RegisterFactories(br *toolregistry.BuiltinRegistry, deps FactoryDeps) {
 	var ps *State
@@ -57,8 +57,11 @@ func RegisterFactories(br *toolregistry.BuiltinRegistry, deps FactoryDeps) {
 	br.Register("parse_plan", func(def catalog.ToolDef, vars map[string]string) (core.Builder, error) {
 		return &ParsePlanBuilder{PS: initPS(def)}, nil
 	})
-	br.Register("create_issue", func(def catalog.ToolDef, vars map[string]string) (core.Builder, error) {
-		return &CreateIssueBuilder{PS: initPS(def)}, nil
+	br.Register("format_issue", func(def catalog.ToolDef, vars map[string]string) (core.Builder, error) {
+		return &FormatIssueBuilder{PS: initPS(def)}, nil
+	})
+	br.Register("record_tracker_issue", func(def catalog.ToolDef, vars map[string]string) (core.Builder, error) {
+		return &RecordTrackerIssueBuilder{PS: initPS(def)}, nil
 	})
 	br.Register("execute_task", func(def catalog.ToolDef, vars map[string]string) (core.Builder, error) {
 		var childCfg catalog.ChildAgentConfig
