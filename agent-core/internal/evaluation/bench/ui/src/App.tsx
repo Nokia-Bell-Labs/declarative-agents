@@ -1,4 +1,4 @@
-import { Routes, Route, NavLink } from 'react-router-dom'
+import { Routes, Route, NavLink } from 'react-router'
 import Dashboard from './pages/Dashboard'
 import SessionDetail from './pages/SessionDetail'
 import TraceViewer from './pages/TraceViewer'

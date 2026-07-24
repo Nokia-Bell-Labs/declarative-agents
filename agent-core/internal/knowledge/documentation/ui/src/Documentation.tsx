@@ -1,5 +1,5 @@
 import { useState, useEffect, useRef, useCallback, useMemo, type ReactNode } from 'react'
-import { useParams, useNavigate } from 'react-router-dom'
+import { useParams, useNavigate } from 'react-router'
 import {
   listDocs, getDoc, getConfig, getSource, getUXConfig, validateDocs, suggestDocChanges,
   approvePatch, rejectPatch,

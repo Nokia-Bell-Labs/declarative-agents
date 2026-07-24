@@ -256,6 +256,49 @@ func TestStandaloneServerProxiesValidateActionThroughRequestMachine(t *testing.T
 	require.Equal(t, "RESTResponded", trace["terminal_signal"])
 }
 
+func TestStandaloneServerProxiesPatchActionsThroughRequestMachines(t *testing.T) {
+	root := t.TempDir()
+	docsDir := filepath.Join(root, "docs")
+	writeDocFixture(t, docsDir, "VISION.yaml", "title: Vision\n")
+	docs := NewHandler(docsDir)
+	internalMux := http.NewServeMux()
+	internalMux.HandleFunc("POST /api/v1/docs/suggestions", docs.Suggest)
+	internalMux.HandleFunc("POST /api/v1/docs/patches/{patch_id}/approve", docs.Approve)
+	internalMux.HandleFunc("POST /api/v1/docs/patches/{patch_id}/reject", docs.Reject)
+	internalAPI := httptest.NewServer(internalMux)
+	t.Cleanup(internalAPI.Close)
+	profilePath := curatorProfileWithRESTAddress(t, internalAPI.URL)
+	handler := NewServer(HostConfig{
+		DocsDir: docsDir, ProfilePath: profilePath,
+		Assets: fstest.MapFS{"index.html": &fstest.MapFile{Data: []byte("<html>docs app</html>")}},
+	}).Handler()
+	t.Cleanup(func() {
+		closer, ok := handler.(interface{ Close() error })
+		require.True(t, ok)
+		require.NoError(t, closer.Close())
+	})
+
+	approvePatchID := suggestPatchThroughRequestMachine(t, handler, "Clarify the vision")
+	approve := postDocsJSON(t, handler, "/api/v1/actions/patches/"+approvePatchID+"/approve",
+		`{"decided_by":"reviewer","note":"ready"}`)
+	require.Equal(t, http.StatusOK, approve.Code, approve.Body.String())
+	requireActionMachineTrace(t, approve.Body.Bytes(), "approve_action", "RESTResponded")
+	approveData := actionResponseData(t, approve.Body.Bytes())
+	require.Equal(t, approvePatchID, approveData["patch_id"])
+	require.Equal(t, "approved_pending_apply", approveData["status"])
+	require.Equal(t, "reviewer", approveData["decided_by"])
+
+	rejectPatchID := suggestPatchThroughRequestMachine(t, handler, "Remove ambiguity")
+	reject := postDocsJSON(t, handler, "/api/v1/actions/patches/"+rejectPatchID+"/reject",
+		`{"decided_by":"reviewer","reason":"needs evidence"}`)
+	require.Equal(t, http.StatusOK, reject.Code, reject.Body.String())
+	requireActionMachineTrace(t, reject.Body.Bytes(), "reject_action", "RESTResponded")
+	rejectData := actionResponseData(t, reject.Body.Bytes())
+	require.Equal(t, rejectPatchID, rejectData["patch_id"])
+	require.Equal(t, "rejected", rejectData["status"])
+	require.Equal(t, "reviewer", rejectData["decided_by"])
+}
+
 func TestStandaloneServerRejectsLegacyActionEnvelope(t *testing.T) {
 	t.Parallel()
 	handler := NewServer(HostConfig{
@@ -266,6 +309,41 @@ func TestStandaloneServerRejectsLegacyActionEnvelope(t *testing.T) {
 		`{"type":"doc_validate","params":{"paths":["VISION.yaml"]}}`)
 
 	require.Equal(t, http.StatusNotFound, rec.Code)
+}
+
+func suggestPatchThroughRequestMachine(t *testing.T, handler http.Handler, instruction string) string {
+	t.Helper()
+	body, err := json.Marshal(map[string]string{
+		"path": "VISION.yaml", "instruction": instruction, "context": "runtime coverage",
+	})
+	require.NoError(t, err)
+	rec := postDocsJSON(t, handler, "/api/v1/actions/suggest", string(body))
+	require.Equal(t, http.StatusAccepted, rec.Code, rec.Body.String())
+	requireActionMachineTrace(t, rec.Body.Bytes(), "suggest_action", "RESTAccepted")
+	data := actionResponseData(t, rec.Body.Bytes())
+	patchID, _ := data["patch_id"].(string)
+	require.NotEmpty(t, patchID)
+	require.Equal(t, "VISION.yaml", data["path"])
+	return patchID
+}
+
+func requireActionMachineTrace(t *testing.T, body []byte, route, terminalSignal string) {
+	t.Helper()
+	trace := responseTrace(t, body)
+	require.Equal(t, "docs_runtime_requests", trace["server"])
+	require.Equal(t, route, trace["route"])
+	require.Equal(t, "docs-runtime-request", trace["machine"])
+	require.Equal(t, terminalSignal, trace["terminal_signal"])
+}
+
+func actionResponseData(t *testing.T, body []byte) map[string]interface{} {
+	t.Helper()
+	var response struct {
+		Data map[string]interface{} `json:"data"`
+	}
+	require.NoError(t, json.Unmarshal(body, &response))
+	require.NotNil(t, response.Data)
+	return response.Data
 }
 
 func curatorProfileWithRESTAddress(t *testing.T, baseURL string) string {

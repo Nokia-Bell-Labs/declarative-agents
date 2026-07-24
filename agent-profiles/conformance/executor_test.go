@@ -72,8 +72,9 @@ func runBoundedShippedGenerator(t *testing.T, relProfile, model string) {
 
 	result := Run(t, RunConfig{Profile: profilePath, Directory: t.TempDir()})
 
-	// srd002 R3.2: a clean terminal outcome with a single root and no error spans.
-	result.RequireExit(t, 0)
+	// srd002 R3.2: BudgetExceeded is an intentional completed-run failure. The
+	// CLI reports domain failures with exit 2, while the trace remains clean.
+	result.RequireExit(t, 2)
 	result.RootRequired(t)
 	result.RequireNoErrorSpans(t)
 

@@ -1,5 +1,5 @@
 import { useState, useEffect } from 'react'
-import { useParams, Link } from 'react-router-dom'
+import { useParams, Link } from 'react-router'
 import { getTrace, getExperiment, TraceData, ExperimentConfig } from '../api/client'
 
 export default function TraceViewer() {

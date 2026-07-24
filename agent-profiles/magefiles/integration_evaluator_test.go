@@ -45,9 +45,9 @@ func TestWriteGeneratorChildAgentExercisesGeneratorProfile(t *testing.T) {
 
 func TestAssertEvaluatorGeneratorOutputRequiresBoundaryEvidence(t *testing.T) {
 	outputDir := t.TempDir()
-	pointDir := filepath.Join(outputDir, "rel07", "greet--generator--unknown--rep1")
+	pointDir := filepath.Join(outputDir, "rel07", "greet--executor--unknown--rep1")
 	writeFile(t, filepath.Join(pointDir, "meta.json"), `{
-  "harness": "generator",
+  "harness": "executor",
   "model": "unknown",
   "sample": "greet",
   "exit_code": 0,
@@ -71,9 +71,9 @@ func Hello(name string) string {
 
 func TestAssertEvaluatorGeneratorOutputRejectsMissingOraclePass(t *testing.T) {
 	outputDir := t.TempDir()
-	pointDir := filepath.Join(outputDir, "rel07", "greet--generator--unknown--rep1")
+	pointDir := filepath.Join(outputDir, "rel07", "greet--executor--unknown--rep1")
 	writeFile(t, filepath.Join(pointDir, "meta.json"), `{
-  "harness": "generator",
+  "harness": "executor",
   "model": "unknown",
   "sample": "greet",
   "exit_code": 0,
