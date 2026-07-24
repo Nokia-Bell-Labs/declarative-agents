@@ -4,7 +4,7 @@ A Helm chart that deploys the chatbot mesh on Kubernetes: the browser-facing cha
 
 ## Architectural thesis
 
-One runtime image serves every agent role. Each agent's program is a profile supplied from a ConfigMap and mounted at `/profiles`, not baked into the image, so the same image runs the chatbot and every rag-server and a values change re-renders the topology without rebuilding images (the agent-core mounted-profile contract; see `docs/SPECIFICATIONS.yaml` platform references). The RAG topology is one values list: each entry renders a rag-server Deployment/Service and a Chroma StatefulSet/Service, and (srd003 R2) the chatbot's RAG client entries, so the deployed topology and the chatbot's client configuration cannot drift.
+One runtime image serves every agent role. Each agent's program is a profile supplied from a ConfigMap and mounted at `/profiles`, not baked into the image, so the same image runs the chatbot and every rag-server and a values change re-renders the topology without rebuilding images (the agent-core mounted-profile contract; see `docs/SPECIFICATIONS.yaml` platform references). The RAG topology is one values list: each entry renders a rag-server Deployment/Service and a Chroma StatefulSet/Service, and (srd003 R2) the chatbot's RAG client entries under the same topology name, so the deployed topology and the chatbot's client configuration cannot drift.
 
 ## Topology
 
@@ -25,7 +25,7 @@ flowchart LR
 
 ## Scope and status
 
-This chart is the deployment topology: chatbot, N RAG units from `ragUnits`, LLM, Dolt, collector, and Jaeger, with ingress and internal Services, over the runtime image with ConfigMap-mounted profiles (srd003 R1, R5). The `helm template`/`helm lint` render is verified. The chart co-generates the chatbot `rest.yaml` and ux from `ragUnits` and supports the checkpoint-resume warm swap (srd003 R2, R3). The kind smoke test values live under `ci/`. Control-plane provisioning is out of scope for this data-plane example.
+This chart is the deployment topology: chatbot, N RAG units from `ragUnits`, LLM, Dolt, collector, and Jaeger, with ingress and internal Services, over the runtime image with ConfigMap-mounted profiles (srd003 R1, R5). The `helm template`/`helm lint` render is verified. The chart co-generates the chatbot `rest.yaml` and ux from `ragUnits`; add/remove rollouts ask the old chatbot to drain active HTTP turns before it exits, then route subsequent turns to the replacement pod (srd003 R2, R3). Dolt persists checkpoints but cannot preserve an existing client socket. The kind smoke test values live under `ci/`. Control-plane provisioning is out of scope for this data-plane example.
 
 ## Repository structure
 

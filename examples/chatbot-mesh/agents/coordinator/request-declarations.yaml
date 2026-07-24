@@ -59,7 +59,7 @@ tools:
     type: builtin
     init: rest_client_invoke
     category: boundary
-    description: Forward the desired values document and delegate the checkpoint-resume rollout to the creator.
+    description: Forward the desired values document and delegate the request-draining rollout to the creator.
     problem: The mesh values-plane list is replaced wholesale on apply, so the coordinator forwards the caller's full desired mesh state rather than a delta, realizing it by delegating the rollout to the creator rather than editing config itself.
     goals:
       - Thread the caller's full desired values document from the carried intent.

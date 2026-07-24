@@ -194,6 +194,12 @@ rest:
     chatbot_chat:
       address: 0.0.0.0:{{ .Values.chatbot.ports.chat }}
       limits_ref: local_chat_requests
+      # A rollout asks the host machine to stop through the lifecycle endpoint.
+      # Give an active machine_request the full endpoint bound plus drain
+      # headroom before the old pod exits (GH-812).
+      shutdown:
+        timeout: 135s
+        drain_policy: drain_then_stop
       endpoints:
         chat:
           method: POST

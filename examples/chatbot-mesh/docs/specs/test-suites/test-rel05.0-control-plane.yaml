@@ -14,7 +14,7 @@ overview: |
   API), the request/response sequencing, and the authority boundary (no endpoint or
   credential crosses, only the creator calls the deployment API). It does not prove
   the behavioral lifecycle: a real corpus-ingest with count verification, a real
-  checkpoint-resume rollout, distinct create/restart/terminate workflows, or a
+  request-draining rollout, distinct create/restart/terminate workflows, or a
   grounded turn on a newly added source. Those need the real executor and profiles
   (the executor behavioral tracer is integration:executor) and are not asserted
   here; the trace links below relate the case to the srd004/srd005 acceptance
@@ -43,7 +43,7 @@ test_cases:
       and coordinator submit no endpoint or credential, and only the creator calls
       the deployment API. The deployment API is a fake, so this proves transport
       sequencing and authority, not the behavioral lifecycle -- a real corpus-ingest
-      with count verification, a real checkpoint-resume rollout, or a grounded turn
+      with count verification, a real request-draining rollout, or a grounded turn
       on the new source are not asserted (see overview).
     inputs:
       intent: add a directory as a knowledge source
@@ -56,7 +56,7 @@ test_cases:
       creator_drives_apply_and_reads_rollout_via_deployment_api: true
       only_creator_calls_deployment_api: true
       # Not proven by this fake-backed tracer (see overview): real corpus-ingest
-      # count verification, a real checkpoint-resume rollout, and a grounded turn
+      # count verification, a real request-draining rollout, and a grounded turn
       # on the newly added source.
     traces:
       - rel05.0-uc001-control-plane-provisioning S1

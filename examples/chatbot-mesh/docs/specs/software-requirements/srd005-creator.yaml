@@ -6,8 +6,8 @@ context: |
   running instances match what the coordinator (srd004) decided. Acting on the
   coordinator's requests, it selects the profile and rendered config for an
   instance (template selection), spawns corpus-ingest child runs (instance
-  creation), restarts reconfigured agents via checkpoint-resume rollouts
-  (termination and creation with resume, srd003 R3.2), verifies post-rollout health
+  creation), restarts reconfigured agents via request-draining rollouts
+  (srd003 R3.2), verifies post-rollout health
   (health monitoring), and handles resource allocation. It plays the
   reference-architecture Creator role (template-selection, instance-creation,
   health-monitoring, termination, resource-allocation), the acting half of the
@@ -22,10 +22,10 @@ context: |
   and monitor clients stay profile-owned.
 
 problem: |
-  A decided reconfiguration -- add a RAG, restart an agent with resume, ingest a
+  A decided reconfiguration -- add a RAG, restart an agent safely, ingest a
   directory -- must be realized against real instances: resolving a role to a
   profile and rendered config under the mounted-profile contract, spawning child
-  runs, executing a checkpoint-resume rollout through the deployment API, and
+  runs, executing a request-draining rollout through the deployment API, and
   verifying health afterward. The mesh needs an agent that performs those
   mechanics behind one boundary, holds the deployment-API authority alone, and
   reports health back to the coordinator, without deciding what to change. The
@@ -36,7 +36,7 @@ problem: |
 goals:
   - G1: Model the creator as a persistent LCM agent that binds a decided instance operation from the coordinator to a request-scoped run.
   - G2: Resolve a requested role to its profile path and rendered ConfigMap under the rel06.0 mounted-profile contract (agent-core srd034), so an instance runs one image with a supplied profile.
-  - G3: Perform instance operations -- create child ingest runs, execute checkpoint-resume rollouts of reconfigured agents through the deployment API, and terminate instances.
+  - G3: Perform instance operations -- create child ingest runs, execute request-draining rollouts of reconfigured agents through the deployment API, and terminate instances.
   - G4: Verify post-operation health via monitor reads and report it to the coordinator.
   - G5: Hold the deployment-API authority alone, authenticated apart from chat, and never hand an endpoint or credential to a running agent.
 
@@ -56,7 +56,7 @@ requirements:
     title: Instance operations
     items:
       - R3.1: The creator SHALL create child agent runs -- a corpus-ingest instance per requested directory -- and return each run's outcome. For an ingest, the outcome SHALL measure the change in the target collection's document count across that child run, not the collection's accumulated total. A successful response SHALL include the post-run count the creator judged. A run whose post-run count does not exceed its pre-run count SHALL be rejected as an ingest shortfall, including an unchanged re-ingest; idempotent storage state does not satisfy a request to contribute documents.
-      - R3.2: The creator SHALL execute a checkpoint-resume rollout of a reconfigured agent through the deployment API (srd003 R3.2), so the agent resumes from its Dolt checkpoint via --dolt-dsn and --resume-checkpoint rather than cold-starting.
+      - R3.2: The creator SHALL execute a request-draining rollout of a reconfigured agent through the deployment API (srd003 R3.2), so the old instance completes active HTTP work before exit and the replacement serves subsequent requests.
       - R3.3: The creator SHALL terminate an instance on request and handle resource allocation for a created instance.
   R4:
     title: Health monitoring
@@ -84,7 +84,7 @@ acceptance_criteria:
     criterion: Template selection resolves a role to a profile path and rendered ConfigMap under the mounted-profile contract without authoring the config.
     traces: [R2.1, R2.2]
   - id: AC3
-    criterion: The instance operations -- child ingest runs measured by their document-count delta, checkpoint-resume rollout restarts through the deployment API, and termination with resource allocation -- are specified; a successful ingest returns the judged post-run count, and a zero-delta run is rejected even when the collection was already populated or the same directory was ingested before.
+    criterion: The instance operations -- child ingest runs measured by their document-count delta, request-draining rollout restarts through the deployment API, and termination with resource allocation -- are specified; a successful ingest returns the judged post-run count, and a zero-delta run is rejected even when the collection was already populated or the same directory was ingested before.
     traces: [R3.1, R3.2, R3.3]
   - id: AC4
     criterion: Post-operation health verification via monitor reads is reported to the coordinator for the provisioning panel.

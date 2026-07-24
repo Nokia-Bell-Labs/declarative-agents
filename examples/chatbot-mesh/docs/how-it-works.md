@@ -70,7 +70,7 @@ Table 1: Mesh components
 | RAG server agent (`agents/rag-server/`) | data | Vector-in retrieval against one Chroma collection; one agent per corpus |
 | Corpus-ingest agent (`agents/corpus-ingest/`) | data | Seed a Chroma collection from a document directory under model control |
 | Coordinator (`agents/coordinator/`) | control | Decide the values change; sequence ingest and reconfiguration |
-| Creator (`agents/creator/`) | control | Act: agent lifecycle, checkpoint-resume rollout; holds deployment-API authority |
+| Creator (`agents/creator/`) | control | Act: agent lifecycle and request-draining rollout; holds deployment-API authority |
 | Executor (`agents/executor/`) | control | Declarative deployment API (srd006) the creator drives; validate-apply-verify-rollback binding helm/kubectl exec words |
 | User interface (`ux/`) | both | The SPA with chat, observability, and provisioning panels |
 | Helm chart (`helm/`) | deploy | Deploy the whole mesh as one chart from values-driven RAG pairs |
@@ -154,8 +154,8 @@ sequenceDiagram
   CR-->>CO: collection counts verified
   CO->>CO: decide the values change (sole author)
   CO->>CR: rollout request
-  CR->>API: edit values + checkpoint-resume rollout
-  Note over CR,API: reconfigured agents resume from their<br/>Dolt checkpoint, not a cold start
+  CR->>API: edit values + request-draining rollout
+  Note over CR,API: old pods complete active HTTP turns;<br/>replacement pods serve later turns
   CR-->>CO: health OK
   CO-->>U: aggregated status
   Note over U: the new source now answers grounded turns
@@ -165,8 +165,11 @@ The transport-authority boundary holds across this flow: the user's intent never
 carries a host, URL, method, or credential. Endpoints are fixed in declared REST
 clients, and runtime input cannot acquire transport authority (srd002 R6, srd003
 R4, srd004 R4, srd005 R5). The creator alone holds deployment-API credentials.
-The rollout is checkpoint-resume — reconfigured agents resume from a Dolt
-checkpoint through `--resume-checkpoint` rather than cold-starting (srd005 R3.2).
+The rollout drains active requests. Kubernetes invokes the old chatbot's declared
+lifecycle exit, its HTTP server completes active `machine_request` responses, and
+the replacement pod serves later turns (srd003 R3.2). Dolt remains the durable
+checkpoint backend for explicit history, rollback, and resume operations; it
+cannot reattach an HTTP connection owned by a terminated process.
 
 ## How it deploys
 

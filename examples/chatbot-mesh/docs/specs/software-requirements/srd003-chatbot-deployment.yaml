@@ -29,7 +29,7 @@ problem: |
 goals:
   - G1: Define one Helm chart deploying the chatbot agent, N RAG (agent + Chroma) pairs from a values list, the chat LLM, the Dolt backend, and the OTel collector, using rel06.0 binary-only images with profiles from ConfigMaps.
   - G2: Co-generate the chatbot's rest.yaml RAG client entries from the same values list that creates the RAG Deployments and Services, so topology and client config share one source of truth and the rendered config is validated.
-  - G3: Define a tiered hot-swap model -- Service repoint, values re-render plus checkpoint-resume rollout -- and exclude in-process client-registry mutation.
+  - G3: Define a tiered hot-swap model -- Service repoint, values re-render plus a request-draining rollout -- and exclude in-process client-registry mutation.
   - G4: Define the provisioning surface as a config-plane deployment API, authenticated apart from the chat path, that never submits an endpoint to a running agent.
   - G5: Define the OTLP export and trace-backend wiring the observability panel queries.
   - G6: Define an in-cluster LLM tier -- an optional Ollama subchart, enabled by default, with model preload, readiness gating, and GPU scheduling -- so a fresh-cluster install is self-contained, while an operator-supplied external endpoint remains a values switch that leaves the co-generation contract (R2) unchanged.
@@ -52,7 +52,15 @@ requirements:
     title: Tiered hot swap
     items:
       - R3.1: Repointing an existing RAG source SHALL be a Kubernetes Service selector or endpoint change that touches no agent configuration and requires no agent restart.
-      - R3.2: Adding or removing a RAG source SHALL be a values change that re-renders the ConfigMaps followed by a rollout in which the chatbot resumes from its Dolt checkpoint (agent-core srd035/srd036) via --dolt-dsn and --resume-checkpoint.
+      - R3.2: >-
+          Adding or removing a RAG source SHALL be a values change that
+          re-renders the ConfigMaps followed by a rollout whose old chatbot pod
+          stops accepting new work, drains every active machine_request through
+          its declared REST shutdown path, and exits only after those HTTP
+          responses complete. A replacement pod SHALL serve subsequent turns.
+          Dolt persistence SHALL NOT be described as preserving an existing HTTP
+          connection: --resume-checkpoint starts a new process from selected
+          machine state and cannot reattach a client socket.
       - R3.3: In-process client-registry mutation of a running agent SHALL be a non-goal, deferred until rollout latency is shown inadequate.
   R4:
     title: Provisioning authority boundary
@@ -92,7 +100,7 @@ acceptance_criteria:
     criterion: Co-generation renders the chatbot RAG client entries from the same values list that creates the RAG Deployments and Services, the rendered rest.yaml passes ValidateDefinition, and each entry carries the served embedding-model identity.
     traces: [R2.1, R2.2, R2.3]
   - id: AC3
-    criterion: The tiered swap is specified -- Service repoint with no agent change, add/remove via values re-render plus a checkpoint-resume rollout -- with in-process registry mutation excluded.
+    criterion: The tiered swap is specified -- Service repoint with no agent change, add/remove via values re-render plus a request-draining rollout -- with in-process registry mutation excluded.
     traces: [R3.1, R3.2, R3.3]
   - id: AC4
     criterion: The provisioning surface is a separately-authenticated deployment API that edits values and triggers rollouts and never submits an endpoint to a running agent, stated as the deployment-plane counterpart of agent-core srd028 V30 with the cross-reference.
@@ -147,7 +155,8 @@ implementation_status:
     - >-
       Tiered hot swap (R3): repoint is a Kubernetes Service change touching no
       agent config; add or remove a RAG re-renders the ConfigMaps and rolls the
-      chatbot, which resumes from its Dolt checkpoint.
+      chatbot; the old pod drains active machine_request responses before it
+      exits, and the replacement pod serves subsequent turns.
     - >-
       Observability wiring (R5) and the in-cluster LLM tier (R6): every agent
       exports OTLP to the collector and on to Jaeger; an optional Ollama tier
@@ -157,13 +166,6 @@ implementation_status:
     - >-
       A live on-cluster hot-swap turn citing a newly added corpus, paired with a
       Docker and Ollama host run.
-    - >-
-      The R3.2 checkpoint-resume rollout is not yet fully realized: the chart
-      renders --dolt-dsn but not --resume-checkpoint, and Integration.HelmSwap
-      proves the rollout mechanics (re-render, rolled Deployment generation), not a
-      restored checkpoint. Rendering the resume argument (once the rollout's
-      checkpoint-selection is defined) and a Dolt tracer proving pre-rollout state
-      is restored afterward remain to do.
 
 diagrams:
   deployment: |
@@ -175,7 +177,7 @@ diagrams:
       Chatbot -->|invoke_llm / embed| LLM["LLM tier: Ollama subchart (default) or external endpoint"]
       Preload["Model-preload Job"] -->|pull models to PVC| LLM
       LLM -.->|/api/tags readiness gate| Chatbot
-      Chatbot -->|checkpoint/resume| Dolt["Dolt backend"]
+      Chatbot -->|checkpoint persistence| Dolt["Dolt backend"]
       Chatbot -->|OTLP| Collector["OTel collector"]
       RAG1 -->|OTLP| Collector
       RAGn -->|OTLP| Collector

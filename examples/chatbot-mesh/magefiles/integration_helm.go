@@ -476,10 +476,11 @@ const (
 // cluster (srd003 R3): repointing a RAG is a Service selector change that does not
 // roll the chatbot (R3.1), and adding a RAG re-renders the co-generated profile and
 // rolls the chatbot (R3.2). It asserts the infrastructure contracts (pod identity,
-// workload existence, the co-generated ConfigMap breadth) via kubectl and helm, so
-// it needs docker, kind, helm, and kubectl but not Ollama: pod readiness is the
-// health endpoint, and grounded retrieval is the deploy-smoke's concern. Teardown
-// (kind delete) runs in all paths.
+// workload existence, the co-generated ConfigMap breadth) via kubectl and helm,
+// and holds a deterministic mock-model answer open during the rollout to prove the
+// old pod drains the active HTTP turn before it exits. It needs docker, kind, helm,
+// and kubectl but no installed Ollama models. Teardown (kind delete) runs in all
+// paths.
 func (Integration) HelmSwap() error {
 	profilesRoot, err := os.Getwd()
 	if err != nil {
@@ -508,6 +509,11 @@ func runHelmSwap(coreRoot, profilesRoot, chartDir string) error {
 	if err := buildSmokeRuntimeImage(coreRoot, helmImage); err != nil {
 		return err
 	}
+	llmMock, err := startHelmSwapLLMMock()
+	if err != nil {
+		return err
+	}
+	defer llmMock.close()
 	stagedChart, cleanupChart, err := stageSmokeChart(chartDir, profilesRoot)
 	if err != nil {
 		return err
@@ -524,17 +530,17 @@ func runHelmSwap(coreRoot, profilesRoot, chartDir string) error {
 	}
 
 	// Deploy with one RAG unit (the ci values default).
-	if err := helmSwapDeploy(stagedChart, "install", nil); err != nil {
+	if err := helmSwapDeploy(stagedChart, "install", llmMock.helmArgs()); err != nil {
 		return err
 	}
 
 	if err := assertSwapRepoint(); err != nil {
 		return err
 	}
-	if err := assertSwapAddRag(stagedChart); err != nil {
+	if err := assertSwapAddRag(stagedChart, llmMock); err != nil {
 		return err
 	}
-	fmt.Println("integration:helmSwap PASS - repoint left the chatbot pod unchanged; adding a RAG re-rendered the co-generated profile, rolled the chatbot, and stood up the new RAG unit")
+	fmt.Println("integration:helmSwap PASS - repoint left the chatbot pod unchanged; adding a named RAG preserved an in-flight turn, re-rendered the co-generated profile, rolled the chatbot, and served a turn from the replacement pod")
 	return nil
 }
 
@@ -586,19 +592,54 @@ func assertSwapRepoint() error {
 // name and asserts the new workload stands up, the co-generated chatbot profile
 // preserves that topology identity, and the chatbot Deployment rolls to a new
 // generation (srd003 R2/R3.2).
-func assertSwapAddRag(chartPath string) error {
+func assertSwapAddRag(chartPath string, llmMock *helmSwapLLMMock) error {
 	genBefore, err := chatbotDeploymentGeneration()
 	if err != nil {
 		return err
 	}
-	extra := []string{
+	stopForward, err := kubectlPortForward("svc/"+helmSwapRelease+"-chatbot-mesh-chatbot", 18080, 18081)
+	if err != nil {
+		return err
+	}
+	defer func() {
+		if stopForward != nil {
+			stopForward()
+		}
+	}()
+	if err := waitHTTPStatus(helmHealthURL, http.StatusOK, helmReadyTimeout); err != nil {
+		return fmt.Errorf("chatbot did not become reachable before warm swap: %w", err)
+	}
+	turnResult := make(chan error, 1)
+	go func() { turnResult <- assertSmokeChatServed(helmChatURL) }()
+	if err := llmMock.waitForAnswer(helmReadyTimeout); err != nil {
+		return err
+	}
+
+	extra := append(llmMock.helmArgs(),
 		"--set", "ragUnits[1].name=rag4",
 		"--set", "ragUnits[1].collection=corpus2",
 		"--set", "ragUnits[1].embeddingModel=qwen3-embedding:8b",
 		"--set", "ragUnits[1].replicas=1",
-	}
+	)
 	if err := helmSwapDeploy(chartPath, "upgrade", extra); err != nil {
 		return err
+	}
+	if err := <-turnResult; err != nil {
+		return fmt.Errorf("add-RAG rollout dropped the in-flight chat turn: %w", err)
+	}
+	stopForward()
+	stopForward = nil
+
+	stopReplacementForward, err := kubectlPortForward("svc/"+helmSwapRelease+"-chatbot-mesh-chatbot", 18080, 18081)
+	if err != nil {
+		return err
+	}
+	defer stopReplacementForward()
+	if err := waitHTTPStatus(helmHealthURL, http.StatusOK, helmReadyTimeout); err != nil {
+		return fmt.Errorf("replacement chatbot did not become reachable: %w", err)
+	}
+	if err := assertSmokeChatServed(helmChatURL); err != nil {
+		return fmt.Errorf("replacement chatbot did not serve a turn: %w", err)
 	}
 	if err := kubectlResourceExists("deployment", helmSwapRelease+"-chatbot-mesh-rag4"); err != nil {
 		return fmt.Errorf("add-RAG did not stand up the rag4 Deployment: %w", err)

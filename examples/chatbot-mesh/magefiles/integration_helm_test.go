@@ -5,6 +5,8 @@ package main
 import (
 	"net/http"
 	"net/http/httptest"
+	"os/exec"
+	"strings"
 	"testing"
 	"time"
 )
@@ -91,5 +93,28 @@ func TestHelmSmokeSkipReasonMissingBinary(t *testing.T) {
 	t.Setenv("PATH", "")
 	if reason := helmSmokeSkipReason(t.TempDir(), t.TempDir()); reason == "" {
 		t.Fatal("helmSmokeSkipReason should report a skip when required binaries are absent")
+	}
+}
+
+func TestChatbotRolloutDrainsActiveRequests(t *testing.T) {
+	if _, err := exec.LookPath("helm"); err != nil {
+		t.Skip("helm not on PATH")
+	}
+	out, err := exec.Command("helm", "template", "t", findChartDir(t)).CombinedOutput()
+	if err != nil {
+		t.Fatalf("helm template: %v\n%s", err, out)
+	}
+	render := string(out)
+	for _, want := range []string{
+		"terminationGracePeriodSeconds: 150",
+		"preStop:",
+		`--post-data='{"reason":"kubernetes rollout","status":"success"}'`,
+		`"$base/exit"`,
+		"timeout: 135s",
+		"drain_policy: drain_then_stop",
+	} {
+		if !strings.Contains(render, want) {
+			t.Errorf("rendered chatbot rollout contract missing %q", want)
+		}
 	}
 }

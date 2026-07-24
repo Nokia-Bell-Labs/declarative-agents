@@ -14,4 +14,5 @@ Reach the chat UI:
   open http://127.0.0.1:{{ .Values.chatbot.ports.chat }}/ui/
 
 Add or remove a RAG source by editing the ragUnits values and re-running helm
-upgrade (co-generation and the checkpoint-resume rollout land with GH-314).
+upgrade. Co-generation rolls the chatbot; the old pod drains active turns before
+exit and the replacement serves subsequent turns.

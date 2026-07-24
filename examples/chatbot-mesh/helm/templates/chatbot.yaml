@@ -20,10 +20,15 @@ spec:
       annotations:
         # Roll the chatbot when its co-generated profile ConfigMap changes, so a
         # values-driven RAG add/remove re-renders the profile and rolls the pod
-        # (srd015 R3.2), which resumes from its Dolt checkpoint. Repointing a RAG
-        # does not touch the ConfigMap, so it does not roll the chatbot (R3.1).
+        # (srd015 R3.2). The lifecycle hook below drains active request machines
+        # before this pod exits. Repointing a RAG does not touch the ConfigMap,
+        # so it does not roll the chatbot (R3.1).
         checksum/profiles: {{ include (print $.Template.BasePath "/profiles-configmap.yaml") . | sha256sum }}
     spec:
+      # The chat endpoint allows 130 seconds per request and its declared
+      # shutdown allows 135 seconds to drain. Kubernetes must not SIGKILL the
+      # old pod before that contract can finish (GH-812).
+      terminationGracePeriodSeconds: 150
       {{- if or .Values.validateProfiles .Values.ollama.enabled }}
       initContainers:
         {{- if .Values.validateProfiles }}
@@ -95,6 +100,24 @@ spec:
             - {name: chat, containerPort: {{ .Values.chatbot.ports.chat }}}
             - {name: control, containerPort: {{ .Values.chatbot.ports.control }}}
             - {name: monitor, containerPort: {{ .Values.chatbot.ports.monitor }}}
+          lifecycle:
+            preStop:
+              exec:
+                # Ask the host machine to execute its declared shutdown path,
+                # then keep the preStop hook alive until the process has closed
+                # its control listener. SIGTERM arrives only after this hook.
+                command:
+                  - /bin/sh
+                  - -c
+                  - |
+                    set -eu
+                    base="http://127.0.0.1:{{ .Values.chatbot.ports.control }}/api/lifecycle"
+                    wget -qO- --header='Content-Type: application/json' \
+                      --post-data='{"reason":"kubernetes rollout","status":"success"}' \
+                      "$base/exit" >/dev/null
+                    while wget -qO- "$base/health" >/dev/null 2>&1; do
+                      sleep 1
+                    done
           readinessProbe:
             httpGet: {path: /api/lifecycle/health, port: control}
             initialDelaySeconds: 5
