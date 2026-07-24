@@ -167,7 +167,7 @@ machine_composition:
 
   examples:
     good:
-      - sequence: "create_point_dir -> copy_sample_workspace -> init_workspace_repo -> commit_workspace_baseline"
+      - sequence: "create_point_dir -> copy_dir -> copy_sample_docs -> git_init -> stage_all -> commit_workspace_baseline"
         reason: "Workspace preparation is visible in point.yaml as separate words."
       - sequence: "run_oracle_check -> collect_trace_tokens -> check_agent_version -> summarize_point_results"
         reason: "Correctness, metrics, version checks, and summary are distinct point words."
@@ -408,10 +408,10 @@ example_tools:
       - "The sequence belongs in the point machine."
     replacement:
       - create_point_dir
-      - copy_sample_workspace
+      - copy_dir
       - copy_sample_docs
-      - init_workspace_repo
-      - stage_workspace_baseline
+      - git_init
+      - stage_all
       - commit_workspace_baseline
     why_replacement_is_better:
       - "Each intermediate filesystem or git side effect has its own emitted signal."

@@ -47,9 +47,8 @@ type evalPointFactorySpec struct {
 // (session-level: parse_suite_config, discover_suite_samples,
 // expand_eval_grid, init_eval_session, report_suite_summary, next_point,
 // run_point, report_session;
-// per-point: create_point_dir, copy_sample_workspace, copy_sample_docs,
-// init_workspace_repo, stage_workspace_baseline, commit_workspace_baseline,
-// dump_config, run_agent, run_oracle_check, collect_trace_tokens,
+// per-point: create_point_dir, copy_sample_docs, dump_config, run_agent,
+// run_oracle_check, collect_trace_tokens,
 // check_agent_version, summarize_point_results, collect_metrics) into the
 // provided registry.BuiltinRegistry. Session state is lazily initialized on first
 // factory call.
@@ -137,11 +136,7 @@ func evalConfiguredFactorySpecs() []evalConfiguredFactorySpec {
 func evalPointFactorySpecs() []evalPointFactorySpec {
 	return []evalPointFactorySpec{
 		{name: "create_point_dir", build: func(es *EvalState) core.Builder { return &CreatePointDirBuilder{ES: es} }},
-		{name: "copy_sample_workspace", build: func(es *EvalState) core.Builder { return &CopySampleWorkspaceBuilder{ES: es} }},
 		{name: "copy_sample_docs", build: func(es *EvalState) core.Builder { return &CopySampleDocsBuilder{ES: es} }},
-		{name: "init_workspace_repo", build: func(es *EvalState) core.Builder { return &InitWorkspaceRepoBuilder{ES: es} }},
-		{name: "stage_workspace_baseline", build: func(es *EvalState) core.Builder { return &StageWorkspaceBaselineBuilder{ES: es} }},
-		{name: "commit_workspace_baseline", build: func(es *EvalState) core.Builder { return &CommitWorkspaceBaselineBuilder{ES: es} }},
 		{name: "run_agent", build: func(es *EvalState) core.Builder { return &RunAgentBuilder{ES: es} }},
 		{name: "run_oracle_check", build: func(es *EvalState) core.Builder { return &RunOracleCheckBuilder{ES: es} }},
 		{name: "collect_trace_tokens", build: func(es *EvalState) core.Builder { return &CollectTraceTokensBuilder{ES: es} }},

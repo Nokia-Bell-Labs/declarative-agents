@@ -33,7 +33,7 @@ tools:
     input:
     - must consume parameters from tool input, prior Result, or configured command/domain state
     output:
-    - must emit one declared signal and return machine-readable output when available
+    - must emit PointDirCreated with copy_dir source and destination parameters
     errors:
     - must emit CommandError for infrastructure failures and preserve domain failures as declared signals
   non_goals:
@@ -48,15 +48,21 @@ tools:
     before:
     - machine-selected predecessor
     after:
-    - machine-selected successor
+    - copy_dir
   output:
-    description: create_point_dir command result summary.
+    description: Shared copy_dir parameters for the sample workspace and point directory.
     schema:
       type: object
       properties:
-        message:
-          type: string
-        signal:
-          type: string
+        parameters:
+          type: object
+          properties:
+            source:
+              type: string
+            destination:
+              type: string
+          required:
+          - source
+          - destination
       required:
-      - message
+      - parameters

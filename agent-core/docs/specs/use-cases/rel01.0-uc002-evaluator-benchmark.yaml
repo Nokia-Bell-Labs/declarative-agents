@@ -35,7 +35,7 @@ flow:
   - F2: parse_suite_config reads the suite's profiles list, resolves each profile relative to the suite file, and rejects obsolete suite fields that bypass profile-selected runtime configuration (srd019).
   - F3: The session machine enters AdvancingPoint; next_point returns the first (profile, gridpoint, sample, rep) combination. For the integration suite this means generator-qwen35b, then generator-qwen27b, over the discovered samples (srd019).
   - F4: The session machine enters RunningPoint; run_point launches a nested core.Loop with the point machine (evaluator/point.yaml relative to the profile root) (srd005, evaluator/machine.yaml, evaluator/point.yaml).
-  - F5: The point machine runs create_point_dir, copy_sample_workspace, copy_sample_docs, init_workspace_repo, stage_workspace_baseline, and commit_workspace_baseline to prepare an isolated workspace (srd019).
+  - F5: The point machine runs create_point_dir, shared copy_dir, copy_sample_docs, shared git_init and stage_all, and the profile-configured commit_workspace_baseline exec alias to prepare an isolated workspace (srd019).
   - F6: dump_config serializes the resolved profile path, model, harness label, sample, timeout, and repetition into experiment.yaml for reproducibility (srd019).
   - F7: run_agent spawns the generator binary as a subprocess with OTel traceparent propagation and passes --profile for profile-based points (srd016, srd018, srd019).
   - F8: run_oracle_check, collect_trace_tokens, check_agent_version, and summarize_point_results classify the point outcome and collect trace-derived result state (srd019).

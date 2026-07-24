@@ -77,6 +77,25 @@ func TestCriticPointFailureSignals(t *testing.T) {
 	assertTransition(t, machine, "SummarizingPointResults", "ResultsCollected", "CollectingMetrics", "collect_metrics")
 }
 
+func TestCriticPointSelectsSharedWorkspaceExecWords(t *testing.T) {
+	selection := criticToolSelection(t, "tools-point.yaml")
+	for _, word := range []string{"copy_dir", "git_init", "stage_all", "commit_workspace_baseline"} {
+		requireSelected(t, selection, word)
+	}
+	for _, retired := range []string{"copy_sample_workspace", "init_workspace_repo", "stage_workspace_baseline"} {
+		requireNotSelected(t, selection, retired)
+	}
+}
+
+func TestCriticPointWorkspaceSequenceUsesSharedExecSignals(t *testing.T) {
+	machine := criticMachine(t, "point.yaml")
+	assertTransition(t, machine, "CreatingPointDir", "PointDirCreated", "CopyingSampleWorkspace", "copy_dir")
+	assertTransition(t, machine, "CopyingSampleWorkspace", "ToolDone", "CopyingSampleDocs", "copy_sample_docs")
+	assertTransition(t, machine, "CopyingSampleDocs", "SampleDocsCopied", "InitializingWorkspaceRepo", "git_init")
+	assertTransition(t, machine, "InitializingWorkspaceRepo", "ToolDone", "StagingWorkspaceBaseline", "stage_all")
+	assertTransition(t, machine, "StagingWorkspaceBaseline", "ToolDone", "CommittingWorkspaceBaseline", "commit_workspace_baseline")
+}
+
 func criticProfilePath(t *testing.T, name string) string {
 	t.Helper()
 	return filepath.Join(repoRootFromTest(t), "agents", "critic", name)

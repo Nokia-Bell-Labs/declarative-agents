@@ -39,10 +39,10 @@ invariants:
 - run_point builds the nested point registry from agents/critic/tools-point.yaml
 lifecycle: |-
   1. Idle → CreatingPointDir: create_point_dir
-  2. CreatingPointDir → CopyingSampleWorkspace: copy_sample_workspace
+  2. CreatingPointDir → CopyingSampleWorkspace: copy_dir
   3. CopyingSampleWorkspace → CopyingSampleDocs: copy_sample_docs
-  4. CopyingSampleDocs → InitializingWorkspaceRepo: init_workspace_repo
-  5. InitializingWorkspaceRepo → StagingWorkspaceBaseline: stage_workspace_baseline
+  4. CopyingSampleDocs → InitializingWorkspaceRepo: git_init
+  5. InitializingWorkspaceRepo → StagingWorkspaceBaseline: stage_all
   6. StagingWorkspaceBaseline → CommittingWorkspaceBaseline: commit_workspace_baseline
   7. CommittingWorkspaceBaseline → SnapshotConfig: dump_config
   8. SnapshotConfig → RunningAgent: run_agent
@@ -55,10 +55,10 @@ lifecycle: |-
 pipeline_diagram: |-
   ```mermaid
   flowchart LR
-    A[create_point_dir] --> B[copy_sample_workspace]
+    A[create_point_dir] --> B[copy_dir]
     B --> C[copy_sample_docs]
-    C --> D[init_workspace_repo]
-    D --> E[stage_workspace_baseline]
+    C --> D[git_init]
+    D --> E[stage_all]
     E --> F[commit_workspace_baseline]
     F --> G[dump_config]
     G --> H[run_agent]
@@ -114,16 +114,12 @@ signals:
   trigger: Infrastructure-level error.
 - name: PointDirCreated
   trigger: Point artifact directory created and PointContext paths recorded.
-- name: SampleWorkspaceCopied
-  trigger: Sample workspace copied into the point directory.
 - name: SampleDocsCopied
   trigger: Optional sample docs copied, or no docs were present.
-- name: WorkspaceRepoInitialized
-  trigger: Git repository initialized in the point workspace.
-- name: WorkspaceBaselineStaged
-  trigger: Baseline workspace files staged in the git index.
-- name: WorkspaceBaselineCommitted
-  trigger: Baseline git commit created.
+- name: ToolDone
+  trigger: A selected shared exec word completed successfully.
+- name: ToolFailed
+  trigger: A selected shared exec word exited unsuccessfully.
 - name: ConfigDumped
   trigger: Experiment configuration snapshot written to experiment.yaml.
 - name: HarnessFinished
@@ -154,25 +150,25 @@ transitions:
 - state: CreatingPointDir
   signal: PointDirCreated
   next: CopyingSampleWorkspace
-  action: copy_sample_workspace
+  action: copy_dir
 - state: CopyingSampleWorkspace
-  signal: SampleWorkspaceCopied
+  signal: ToolDone
   next: CopyingSampleDocs
   action: copy_sample_docs
 - state: CopyingSampleDocs
   signal: SampleDocsCopied
   next: InitializingWorkspaceRepo
-  action: init_workspace_repo
+  action: git_init
 - state: InitializingWorkspaceRepo
-  signal: WorkspaceRepoInitialized
+  signal: ToolDone
   next: StagingWorkspaceBaseline
-  action: stage_workspace_baseline
+  action: stage_all
 - state: StagingWorkspaceBaseline
-  signal: WorkspaceBaselineStaged
+  signal: ToolDone
   next: CommittingWorkspaceBaseline
   action: commit_workspace_baseline
 - state: CommittingWorkspaceBaseline
-  signal: WorkspaceBaselineCommitted
+  signal: ToolDone
   next: SnapshotConfig
   action: dump_config
 - state: SnapshotConfig
@@ -222,16 +218,28 @@ transitions:
   signal: CommandError
   next: Failed
 - state: CopyingSampleWorkspace
+  signal: ToolFailed
+  next: Failed
+- state: CopyingSampleWorkspace
   signal: CommandError
   next: Failed
 - state: CopyingSampleDocs
   signal: CommandError
   next: Failed
 - state: InitializingWorkspaceRepo
+  signal: ToolFailed
+  next: Failed
+- state: InitializingWorkspaceRepo
   signal: CommandError
   next: Failed
 - state: StagingWorkspaceBaseline
+  signal: ToolFailed
+  next: Failed
+- state: StagingWorkspaceBaseline
   signal: CommandError
+  next: Failed
+- state: CommittingWorkspaceBaseline
+  signal: ToolFailed
   next: Failed
 - state: CommittingWorkspaceBaseline
   signal: CommandError

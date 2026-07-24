@@ -1,0 +1,73 @@
+tools:
+- name: commit_workspace_baseline
+  type: exec
+  binary: git
+  args:
+  - -c
+  - user.name=agent-core
+  - -c
+  - user.email=agent-core@example.invalid
+  - commit
+  - -m
+  - baseline
+  - --allow-empty
+  visibility: internal
+  emits:
+  - ToolDone
+  - ToolFailed
+  - CommandError
+  description: Create the deterministic baseline commit for a critic point workspace.
+  category: boundary
+  problem: The critic needs a profile-configured baseline commit with a stable local identity rather than a Go command that invokes git directly.
+  goals:
+  - Create the point workspace baseline commit through the shared exec runtime.
+  - Keep critic-specific commit identity and message policy in profile configuration.
+  requirements:
+    input:
+    - must execute in the current PointContext working directory
+    output:
+    - must emit ToolDone when git creates the baseline commit
+    side_effects:
+    - must create one git commit from the staged point workspace
+    undo:
+    - must rely on workspace restoration or an explicit compensating revert
+    errors:
+    - must emit ToolFailed when git exits non-zero
+    - must emit CommandError when git cannot be started
+  non_goals:
+  - Does not stage workspace files.
+  - Does not choose the next critic point state.
+  side_effects:
+  - kind: filesystem_write
+    target: point_workspace_git_history
+    paths:
+    - .git
+    description: Creates the baseline commit in the point workspace repository.
+  reversibility:
+    classification: compensatable
+    undo: workspace_restore_or_revert_commit
+    requires_confirmation: false
+  undo:
+    strategy: compensating_action
+    description: Restore the point workspace ref when checkpointed or compensate with an explicit revert policy.
+    payload: boundary_compensation
+    captures:
+    - workspace_paths
+    - git_ref
+    requires:
+    - Workspace
+    - git_ref
+  errors:
+  - signal: ToolFailed
+    condition: git exits non-zero
+    message_shape: <captured git output>
+    state_after_failure: baseline commit is absent
+  - signal: CommandError
+    condition: git cannot be started
+    message_shape: 'commit_workspace_baseline: <error>'
+    state_after_failure: baseline commit is absent
+  relationships:
+    before:
+    - stage_all
+    after:
+    - dump_config
