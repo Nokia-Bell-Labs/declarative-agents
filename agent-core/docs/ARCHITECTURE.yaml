@@ -443,12 +443,13 @@ overview:
       word: |
         Normal vocabulary words are single deterministic verbs with typed
         input, typed output, declared side effects, explicit errors, and a
-        rollback story. Examples include read, edit, build, run_oracle_check,
+        rollback story. Examples include read, edit, build,
         and collect_trace_tokens.
       stateful_internal: |
         Stateful internal words mutate agent or command/domain state rather
         than visible workspace state. Examples include report_parse_error,
-        reset_history, nudge_reread, parse_suite_config, and next_point. These
+        reset_history, nudge_reread, parse_suite_config, next_point,
+        record_oracle_result, and record_agent_commit. These
         are usually machine actions, not LLM-visible manifest entries.
       boundary: |
         Boundary tools intentionally cross into a model, human, child
@@ -456,7 +457,7 @@ overview:
         is still a word from the parent machine's point of view, but its
         contract must make the boundary, emitted signals, side effects, and
         undo/compensation explicit. Examples include invoke_llm, serve_ui,
-        run_agent, run_point, launch_eval, and self_invoke.
+        run_agent, run_oracle_check, run_point, launch_eval, and self_invoke.
       sentence: |
         Sentence tools hide multiple observable verbs behind one name. New
         tools should not use this category except to mark legacy compatibility.

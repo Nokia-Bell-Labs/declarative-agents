@@ -64,7 +64,7 @@ func StandardFactoryCatalog(deps StandardFactoryDeps) []StandardFactoryCatalogEn
 		hookFactory("validation", []string{"validate"}, deps.RegisterValidation),
 		hookFactory("control", []string{"self_invoke", "value_predicate"}, deps.RegisterControl),
 		hookFactory("planning", []string{"load_graph", "extract_task", "extract_all", "assemble_prompt", "parse_plan", "create_issue", "execute_task", "check_result"}, deps.RegisterPlanning),
-		hookFactory("evaluation", []string{"parse_suite_config", "discover_suite_samples", "expand_eval_grid", "init_eval_session", "report_suite_summary", "next_point", "run_point", "report_session", "run_agent", "run_oracle_check", "collect_trace_tokens", "check_agent_version", "summarize_point_results", "collect_metrics", "dump_config"}, deps.RegisterEvaluation),
+		hookFactory("evaluation", []string{"parse_suite_config", "discover_suite_samples", "expand_eval_grid", "init_eval_session", "report_suite_summary", "next_point", "run_point", "report_session", "run_agent", "record_oracle_result", "collect_trace_tokens", "check_agent_version", "summarize_point_results", "collect_metrics", "record_agent_commit", "dump_config"}, deps.RegisterEvaluation),
 		hookFactory("bench", []string{"serve_ui", "launch_eval"}, deps.RegisterBench),
 		hookFactory("spec_validation", []string{"load_corpus", "validate_specs", "format_report"}, deps.RegisterSpecValidation),
 		hookFactory("rest", []string{"rest_client_get", "rest_client_set", "rest_client_create", "rest_client_delete", "rest_client_invoke", "rest_client_send", "rest_client_await", "rest_server_launch", "rest_server_await", "rest_server_stop", "rest_await_event"}, deps.RegisterREST),

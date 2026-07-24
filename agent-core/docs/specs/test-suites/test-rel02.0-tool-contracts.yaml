@@ -291,7 +291,7 @@ test_cases:
       test-rel07.1-profile-conformance (GH-512).
     inputs:
       migrated_sequence: [load_input, prepare_work, report_result]
-      point_words: [run_oracle_check, collect_trace_tokens, check_agent_version, summarize_point_results]
+      point_words: [record_oracle_result, collect_trace_tokens, check_agent_version, summarize_point_results, record_agent_commit]
       failure_points: [step_failed]
     expected:
       each_stage_failure_transition: explicit

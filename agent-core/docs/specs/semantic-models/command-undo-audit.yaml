@@ -169,7 +169,10 @@ receipt_undo:
     - command: create_point_dir
       strategy: point_context_restore
       receipt: reversible_point_context_snapshot
-    - command: run_oracle_check
+    - command: record_oracle_result
+      strategy: point_context_restore
+      receipt: reversible_point_context_snapshot
+    - command: record_agent_commit
       strategy: point_context_restore
       receipt: reversible_point_context_snapshot
     - command: collect_trace_tokens

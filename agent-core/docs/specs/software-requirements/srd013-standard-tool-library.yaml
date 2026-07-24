@@ -121,9 +121,9 @@ requirements:
       - R10.1.4: git_init initializes git in the current point directory through the shared exec runtime.
       - R10.1.5: stage_all stages the baseline workspace contents through the shared exec runtime.
       - R10.1.6: commit_workspace_baseline is a profile-configured exec alias that creates the baseline git commit.
-      - R10.2: dump_config serializes the full experiment configuration (harness, model, tools, tool declarations, LLM config, budget) into experiment.yaml.
+      - R10.2: rev_parse and record_agent_commit resolve configured commit provenance before dump_config serializes the full experiment configuration into experiment.yaml.
       - R10.3: run_agent executes the generator binary as a subprocess with flag propagation and collects exit code, timing, and output.
-      - R10.4: run_oracle_check runs oracle tests and records PointContext.TestsPassed and PointContext.TestOutput, using OracleCheckPassed or OracleCheckFailed to distinguish domain failure from CommandError.
+      - R10.4: run_oracle_check is a profile-configured exec word; record_oracle_result records PointContext.TestsPassed and PointContext.TestOutput, using OracleCheckPassed or OracleCheckFailed to distinguish domain failure from CommandError.
       - R10.5: collect_trace_tokens parses trace files to extract token usage into PointContext.Tokens; a missing trace file is a successful zero-token result.
       - R10.6: check_agent_version compares configured harness version against trace metadata and emits AgentVersionMismatch as a warning signal when they differ.
       - R10.7: summarize_point_results emits ResultsCollected from already-populated oracle, trace, and version state.

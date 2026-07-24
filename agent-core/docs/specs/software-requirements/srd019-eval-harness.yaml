@@ -56,9 +56,9 @@ requirements:
       - R3.1.4: git_init SHALL initialize git only in PointContext.PointDir through the shared exec runtime.
       - R3.1.5: stage_all SHALL stage all current point workspace files through the shared exec runtime.
       - R3.1.6: commit_workspace_baseline SHALL be a profile-configured exec alias that creates the baseline commit with deterministic local identity.
-      - R3.2: dump_config serializes the resolved profile path, harness label, model, timeout, repetition, and sample into experiment.yaml.
+      - R3.2: rev_parse and record_agent_commit resolve commit provenance through the selected exec declaration before dump_config serializes it with the resolved profile path, harness label, model, timeout, repetition, and sample into experiment.yaml.
       - R3.3: run_agent executes the harness binary as a subprocess with timeout and OTel context. Each point passes --profile <path>.
-      - R3.4: run_oracle_check runs oracle tests and records pass/fail output independently from trace parsing.
+      - R3.4: run_oracle_check SHALL be a profile-configured exec declaration whose command and package arguments are not hard-coded in Go; record_oracle_result SHALL map ToolDone or ToolFailed and command output into PointContext independently from trace parsing.
       - R3.5: collect_trace_tokens parses trace files for token counts and treats a missing trace as a successful zero-token result.
       - R3.6: check_agent_version compares configured harness version with traced agent version and emits a warning signal on mismatch.
       - R3.7: summarize_point_results emits ResultsCollected after oracle, trace, and version fields are populated.

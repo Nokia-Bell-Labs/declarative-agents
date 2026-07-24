@@ -115,9 +115,9 @@ func TestBuiltinFactoryCatalogCoversSelectedActiveInits(t *testing.T) {
 		"create_issue", "execute_task", "check_result",
 		"parse_suite_config", "discover_suite_samples", "expand_eval_grid",
 		"init_eval_session", "report_suite_summary", "next_point", "run_point",
-		"report_session", "run_agent", "run_oracle_check", "collect_trace_tokens",
+		"report_session", "run_agent", "record_oracle_result", "collect_trace_tokens",
 		"check_agent_version", "summarize_point_results", "collect_metrics",
-		"dump_config", "serve_ui", "launch_eval", "load_corpus", "validate_specs",
+		"record_agent_commit", "dump_config", "serve_ui", "launch_eval", "load_corpus", "validate_specs",
 		"format_report", "launch_documentation", "stop_documentation",
 	} {
 		require.True(t, covered[init], "catalog should cover init %q", init)

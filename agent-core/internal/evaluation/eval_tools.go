@@ -102,23 +102,25 @@ func copyDir(src, dst string) error {
 	return os.CopyFS(dst, os.DirFS(src))
 }
 
-// runOracleCheckCmd runs the sample's oracle tests and records pass/fail output.
-type runOracleCheckCmd struct {
+// recordOracleResultCmd maps the configured oracle exec result into point state.
+type recordOracleResultCmd struct {
 	pc          *PointContext
+	prior       core.Result
 	snapshot    pointContextSnapshot
 	hasSnapshot bool
 }
 
-func (c *runOracleCheckCmd) Name() string { return "run_oracle_check" }
-func (c *runOracleCheckCmd) Undo(_ core.Result) core.Result {
+func (c *recordOracleResultCmd) Name() string { return "record_oracle_result" }
+func (c *recordOracleResultCmd) Undo(_ core.Result) core.Result {
 	return undoPointContextSnapshot(c.Name(), c.pc, c.snapshot, c.hasSnapshot)
 }
 
-func (c *runOracleCheckCmd) Execute() core.Result {
+func (c *recordOracleResultCmd) Execute() core.Result {
 	pc := c.pc
 	c.snapshot = snapshotPointContext(pc)
 	c.hasSnapshot = true
-	pc.TestsPassed, pc.TestOutput = runOracleCheck(pc.PointDir)
+	pc.TestsPassed = c.prior.Signal == core.ToolDone
+	pc.TestOutput = c.prior.Output
 
 	signal := SigOracleCheckPassed
 	if !pc.TestsPassed {

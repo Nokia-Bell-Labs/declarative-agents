@@ -119,7 +119,8 @@ func TestCriticConfig_PointTransitionTable(t *testing.T) {
 	require.ElementsMatch(t, []string{
 		"create_point_dir", "copy_dir", "copy_sample_docs",
 		"git_init", "stage_all", "commit_workspace_baseline",
-		"dump_config", "run_agent", "run_oracle_check", "collect_trace_tokens",
+		"rev_parse", "record_agent_commit", "dump_config", "run_agent",
+		"run_oracle_check", "record_oracle_result", "collect_trace_tokens",
 		"check_agent_version", "summarize_point_results", "collect_metrics",
 	}, tools)
 	machine := readShippedMachine(t, root, "critic", "point.yaml")
@@ -129,6 +130,9 @@ func TestCriticConfig_PointTransitionTable(t *testing.T) {
 		{Name: "initialize repository", State: "CopyingSampleDocs", Signal: "SampleDocsCopied", Next: "InitializingWorkspaceRepo", Action: "git_init"},
 		{Name: "stage baseline", State: "InitializingWorkspaceRepo", Signal: "ToolDone", Next: "StagingWorkspaceBaseline", Action: "stage_all"},
 		{Name: "commit baseline", State: "StagingWorkspaceBaseline", Signal: "ToolDone", Next: "CommittingWorkspaceBaseline", Action: "commit_workspace_baseline"},
+		{Name: "resolve commit", State: "CommittingWorkspaceBaseline", Signal: "ToolDone", Next: "ResolvingAgentCommit", Action: "rev_parse"},
+		{Name: "record commit", State: "ResolvingAgentCommit", Signal: "ToolDone", Next: "RecordingAgentCommit", Action: "record_agent_commit"},
+		{Name: "record oracle", State: "RunningOracleCheck", Signal: "ToolDone", Next: "RecordingOracleResult", Action: "record_oracle_result"},
 		{Name: "terminal", State: "CollectingMetrics", Signal: "MetricsCollected", Next: "Done"},
 	} {
 		t.Run(tc.Name, func(t *testing.T) {

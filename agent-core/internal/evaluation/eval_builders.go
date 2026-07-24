@@ -55,16 +55,16 @@ func (b *RunAgentBuilder) Build(_ core.Result) core.Command {
 	}
 }
 
-// RunOracleCheckBuilder creates runOracleCheckCmd instances.
-type RunOracleCheckBuilder struct {
+// RecordOracleResultBuilder maps the configured oracle exec result into point state.
+type RecordOracleResultBuilder struct {
 	ES *EvalState
 }
 
-func (b *RunOracleCheckBuilder) Build(_ core.Result) core.Command {
+func (b *RecordOracleResultBuilder) Build(res core.Result) core.Command {
 	if b.ES == nil || b.ES.PC == nil {
-		return &failCmd{err: fmt.Errorf("run_oracle_check: EvalState.PC not initialized")}
+		return &failCmd{err: fmt.Errorf("record_oracle_result: EvalState.PC not initialized")}
 	}
-	return &runOracleCheckCmd{pc: b.ES.PC}
+	return &recordOracleResultCmd{pc: b.ES.PC, prior: res}
 }
 
 // CollectTraceTokensBuilder creates collectTraceTokensCmd instances.

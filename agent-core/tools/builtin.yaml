@@ -779,18 +779,18 @@ tools:
       captures: [point_context_snapshot, point_workspace, trace_path, result_path]
       requires: [Receipt]
 
-  - name: run_oracle_check
+  - name: record_oracle_result
     type: builtin
-    init: run_oracle_check
+    init: record_oracle_result
     visibility: internal
     emits: [OracleCheckPassed, OracleCheckFailed, CommandError]
-    description: "Run the point workspace oracle tests and record pass/fail output."
-    category: word
+    description: "Record the configured oracle exec result in the current point context."
+    category: stateful_internal
     side_effects:
       - kind: state_mutation
         target: point_context
         state: test_result_recorded
-        description: "Sets PointContext.TestsPassed and PointContext.TestOutput from go test ./... in the point workspace."
+        description: "Sets PointContext.TestsPassed and PointContext.TestOutput from the configured oracle exec result."
     reversibility:
       classification: reversible
       undo: "point_context_restore"
@@ -876,6 +876,25 @@ tools:
       strategy: workspace_restore
       description: "Restore point artifact files from the persisted receipt."
       requires: [Receipt]
+
+  - name: record_agent_commit
+    type: builtin
+    init: record_agent_commit
+    visibility: internal
+    emits: [AgentCommitRecorded, CommandError]
+    description: "Record a configured rev_parse result in the current point context."
+    category: stateful_internal
+    side_effects:
+      - kind: state_mutation
+        target: point_context
+        state: agent_commit_recorded
+        description: "Sets PointContext.AgentCommit from declared command output."
+    reversibility:
+      classification: reversible
+      undo: "point_context_restore"
+    undo:
+      strategy: session_state_restore
+      description: "Restore PointContext.AgentCommit from the prior snapshot."
 
   - name: dump_config
     type: builtin

@@ -13,19 +13,25 @@ import (
 	"github.com/Nokia-Bell-Labs/declarative-agents/agent-core/internal/runtime/core"
 )
 
-func TestRunOracleCheckPassesAndFailsWithDomainSignals(t *testing.T) {
+func TestRecordOracleResultMapsConfiguredExecSignals(t *testing.T) {
 	passPC := pointResultFixture(t, "func TestPass(t *testing.T) {}\n")
-	res := (&runOracleCheckCmd{pc: passPC}).Execute()
+	res := (&recordOracleResultCmd{
+		pc:    passPC,
+		prior: core.Result{Signal: core.ToolDone, Output: "ok configured oracle"},
+	}).Execute()
 	requireSignal(t, res, SigOracleCheckPassed)
 	require.True(t, passPC.TestsPassed)
-	require.Contains(t, passPC.TestOutput, "ok")
+	require.Equal(t, "ok configured oracle", passPC.TestOutput)
 
 	failPC := pointResultFixture(t, "func TestFail(t *testing.T) { t.Fatal(\"boom\") }\n")
-	res = (&runOracleCheckCmd{pc: failPC}).Execute()
+	res = (&recordOracleResultCmd{
+		pc:    failPC,
+		prior: core.Result{Signal: core.ToolFailed, Output: "configured oracle: boom"},
+	}).Execute()
 	require.Equal(t, SigOracleCheckFailed, res.Signal)
 	require.NoError(t, res.Err)
 	require.False(t, failPC.TestsPassed)
-	require.Contains(t, failPC.TestOutput, "boom")
+	require.Equal(t, "configured oracle: boom", failPC.TestOutput)
 }
 
 func TestCollectTraceTokensHandlesMissingTrace(t *testing.T) {

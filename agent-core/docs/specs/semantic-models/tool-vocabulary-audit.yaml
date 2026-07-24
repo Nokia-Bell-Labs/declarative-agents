@@ -633,7 +633,7 @@ tools:
     role: boundary
     selected_by: [evaluator_point]
     inputs_from: [stage_all]
-    feeds_into: [dump_config]
+    feeds_into: [rev_parse]
     side_effects: git_commit_create
     output_contract: missing
     undo: workspace_restore
@@ -644,10 +644,22 @@ tools:
       - needs output.schema for commit hash
     migration_priority: medium
 
+  - name: record_agent_commit
+    role: stateful_internal
+    selected_by: [evaluator_point]
+    inputs_from: [rev_parse]
+    feeds_into: [dump_config]
+    side_effects: point_context_commit_mutation
+    output_contract: commit provenance string
+    undo: restore_point_context
+    overlaps: []
+    issues: []
+    migration_priority: low
+
   - name: dump_config
     role: word
     selected_by: [evaluator_point]
-    inputs_from: [commit_workspace_baseline, point_context]
+    inputs_from: [record_agent_commit, point_context]
     feeds_into: [run_agent]
     side_effects: filesystem_write
     output_contract: missing
@@ -674,24 +686,35 @@ tools:
     migration_priority: medium
 
   - name: run_oracle_check
-    role: word
+    role: boundary
     selected_by: [evaluator_point]
     inputs_from: [run_agent]
-    feeds_into: [collect_trace_tokens]
-    side_effects: point_context_test_result_mutation
-    output_contract: declared_by_signal
-    undo: restore_point_context
+    feeds_into: [record_oracle_result]
+    side_effects: configured_child_process
+    output_contract: raw configured oracle output
+    undo: noop
     overlaps:
       - tool: test
-        difference: run_oracle_check executes the point workspace oracle after agent execution; generic test runs workspace validation
-    issues:
-      - output.schema still needs full structured result contract
-    migration_priority: medium
+        difference: run_oracle_check is a critic profile alias with profile-owned command arguments; generic test accepts a package parameter
+    issues: []
+    migration_priority: low
+
+  - name: record_oracle_result
+    role: stateful_internal
+    selected_by: [evaluator_point]
+    inputs_from: [run_oracle_check]
+    feeds_into: [collect_trace_tokens]
+    side_effects: point_context_test_result_mutation
+    output_contract: configured oracle output
+    undo: restore_point_context
+    overlaps: []
+    issues: []
+    migration_priority: low
 
   - name: collect_trace_tokens
     role: word
     selected_by: [evaluator_point]
-    inputs_from: [run_oracle_check, trace_ndjson]
+    inputs_from: [record_oracle_result, trace_ndjson]
     feeds_into: [check_agent_version]
     side_effects: point_context_token_mutation
     output_contract: declared_by_signal
@@ -719,7 +742,7 @@ tools:
   - name: summarize_point_results
     role: word
     selected_by: [evaluator_point]
-    inputs_from: [run_oracle_check, collect_trace_tokens, check_agent_version]
+    inputs_from: [record_oracle_result, collect_trace_tokens, check_agent_version]
     feeds_into: [collect_metrics]
     side_effects: none
     output_contract: missing
@@ -912,9 +935,9 @@ tools:
 
   - name: rev_parse
     role: word
-    selected_by: []
-    inputs_from: [commit, workspace]
-    feeds_into: [logs, metadata]
+    selected_by: [evaluator_point]
+    inputs_from: [commit, commit_workspace_baseline, workspace]
+    feeds_into: [logs, metadata, record_agent_commit]
     side_effects: none
     output_contract: missing
     undo: noop

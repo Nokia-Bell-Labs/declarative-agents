@@ -8,9 +8,12 @@ tools:
   - git_init
   - stage_all
   - commit_workspace_baseline
+  - rev_parse
+  - record_agent_commit
   - dump_config
   - run_agent
   - run_oracle_check
+  - record_oracle_result
   - collect_trace_tokens
   - check_agent_version
   - summarize_point_results

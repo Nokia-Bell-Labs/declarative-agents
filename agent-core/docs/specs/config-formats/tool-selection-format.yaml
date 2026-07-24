@@ -61,8 +61,9 @@ selection_files:
       Selects per-point tools for <profile-root>/evaluator/point.yaml:
       create_point_dir, copy_dir, copy_sample_docs,
       git_init, stage_all,
-      commit_workspace_baseline, dump_config, run_agent,
-      run_oracle_check, collect_trace_tokens, check_agent_version,
+      commit_workspace_baseline, rev_parse, record_agent_commit,
+      dump_config, run_agent, run_oracle_check, record_oracle_result,
+      collect_trace_tokens, check_agent_version,
       summarize_point_results, and collect_metrics. Loaded by run_point
       to build the nested point registry.
 

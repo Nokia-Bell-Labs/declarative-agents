@@ -1,4 +1,68 @@
 tools:
+- name: run_oracle_check
+  type: exec
+  binary: go
+  args:
+  - test
+  - ./...
+  visibility: internal
+  emits:
+  - ToolDone
+  - ToolFailed
+  - CommandError
+  description: Run the critic profile's configured Go oracle across the point workspace.
+  category: boundary
+  problem: The critic needs profile-owned oracle command and package arguments instead of a Go implementation that hard-codes go test.
+  goals:
+  - Run the configured oracle command through the shared exec runtime.
+  - Preserve raw test output for the point-result adapter.
+  requirements:
+    input:
+    - must execute in the current PointContext working directory
+    output:
+    - must emit ToolDone on success and ToolFailed on test failure
+    side_effects:
+    - must execute one configured child process
+    undo:
+    - must not require rollback for read-only validation
+    errors:
+    - must emit CommandError when the configured binary cannot be started
+  non_goals:
+  - Does not update PointContext directly.
+  - Does not choose the next critic point state.
+  side_effects:
+  - kind: child_process
+    target: go_toolchain
+    state: read_only
+    description: Runs the configured Go oracle in the point workspace.
+  - kind: filesystem_read
+    target: point_workspace
+    description: Reads source, module, and test files from the point workspace.
+  reversibility:
+    classification: reversible
+    undo: noop
+    requires_confirmation: false
+  undo:
+    strategy: noop
+    description: Oracle validation does not mutate repository state.
+  errors:
+  - signal: ToolFailed
+    condition: configured oracle exits non-zero
+    message_shape: <captured oracle output>
+    state_after_failure: point workspace is unchanged
+  - signal: CommandError
+    condition: configured oracle cannot be started
+    message_shape: 'run_oracle_check: <error>'
+    state_after_failure: point workspace is unchanged
+  relationships:
+    before:
+    - run_agent
+    after:
+    - record_oracle_result
+  output:
+    description: Raw configured oracle output.
+    schema:
+      type: string
 - name: commit_workspace_baseline
   type: exec
   binary: git

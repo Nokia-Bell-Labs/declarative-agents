@@ -9,7 +9,7 @@ purpose: |
   semantics, and a rollback story.
 
 principle: |
-  A tool is a word, not a sentence. "read_file", "run_oracle_check", and
+  A tool is a word, not a sentence. "read_file", "record_oracle_result", and
   "collect_trace_tokens" are words. "prepare a workspace, initialize git,
   run tests, parse traces, and write metrics" is a sentence and belongs in
   machine.yaml as a sequence of tool actions.
@@ -23,7 +23,7 @@ tool_categories:
     examples:
       - read
       - write
-      - run_oracle_check
+      - record_oracle_result
       - collect_trace_tokens
 
   stateful_internal:
@@ -169,7 +169,7 @@ machine_composition:
     good:
       - sequence: "create_point_dir -> copy_dir -> copy_sample_docs -> git_init -> stage_all -> commit_workspace_baseline"
         reason: "Workspace preparation is visible in point.yaml as separate words."
-      - sequence: "run_oracle_check -> collect_trace_tokens -> check_agent_version -> summarize_point_results"
+      - sequence: "run_oracle_check -> record_oracle_result -> collect_trace_tokens -> check_agent_version -> summarize_point_results"
         reason: "Correctness, metrics, version checks, and summary are distinct point words."
     bad:
       - tool: prepare_workspace

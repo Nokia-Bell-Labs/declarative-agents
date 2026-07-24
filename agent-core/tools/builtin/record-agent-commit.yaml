@@ -1,0 +1,54 @@
+tools:
+- name: record_agent_commit
+  type: builtin
+  init: record_agent_commit
+  visibility: internal
+  emits:
+  - AgentCommitRecorded
+  - CommandError
+  description: Record a configured rev_parse result in the current point context.
+  category: stateful_internal
+  problem: Experiment configuration needs commit provenance from a declared exec result rather than a hidden git subprocess.
+  goals:
+  - Store a successful rev_parse output as PointContext.AgentCommit.
+  - Preserve the previous unknown-on-failure behavior.
+  requirements:
+    input:
+    - must consume the immediately preceding rev_parse result
+    output:
+    - must emit AgentCommitRecorded with the normalized commit or unknown
+    side_effects:
+    - must update PointContext.AgentCommit
+    undo:
+    - must restore the prior point context snapshot
+    errors:
+    - must emit CommandError when point state is unavailable
+  non_goals:
+  - Does not invoke git.
+  - Does not serialize experiment.yaml.
+  side_effects:
+  - kind: state_mutation
+    target: point_context
+    state: agent_commit_recorded
+    description: Stores commit provenance from the configured rev_parse exec word.
+  reversibility:
+    classification: reversible
+    undo: point_context_restore
+    requires_confirmation: false
+  undo:
+    strategy: session_state_restore
+    description: Restore PointContext.AgentCommit from the prior snapshot.
+  errors:
+  - signal: CommandError
+    condition: point state is unavailable
+    message_shape: 'record_agent_commit: <error>'
+    state_after_failure: previous point context is preserved
+  relationships:
+    before:
+    - rev_parse
+    after:
+    - dump_config
+  output:
+    description: Normalized commit provenance value.
+    schema:
+      type: string

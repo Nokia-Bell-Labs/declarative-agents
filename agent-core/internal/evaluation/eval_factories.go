@@ -47,8 +47,8 @@ type evalPointFactorySpec struct {
 // (session-level: parse_suite_config, discover_suite_samples,
 // expand_eval_grid, init_eval_session, report_suite_summary, next_point,
 // run_point, report_session;
-// per-point: create_point_dir, copy_sample_docs, dump_config, run_agent,
-// run_oracle_check, collect_trace_tokens,
+// per-point: create_point_dir, copy_sample_docs, record_agent_commit,
+// dump_config, run_agent, record_oracle_result, collect_trace_tokens,
 // check_agent_version, summarize_point_results, collect_metrics) into the
 // provided registry.BuiltinRegistry. Session state is lazily initialized on first
 // factory call.
@@ -138,11 +138,12 @@ func evalPointFactorySpecs() []evalPointFactorySpec {
 		{name: "create_point_dir", build: func(es *EvalState) core.Builder { return &CreatePointDirBuilder{ES: es} }},
 		{name: "copy_sample_docs", build: func(es *EvalState) core.Builder { return &CopySampleDocsBuilder{ES: es} }},
 		{name: "run_agent", build: func(es *EvalState) core.Builder { return &RunAgentBuilder{ES: es} }},
-		{name: "run_oracle_check", build: func(es *EvalState) core.Builder { return &RunOracleCheckBuilder{ES: es} }},
+		{name: "record_oracle_result", build: func(es *EvalState) core.Builder { return &RecordOracleResultBuilder{ES: es} }},
 		{name: "collect_trace_tokens", build: func(es *EvalState) core.Builder { return &CollectTraceTokensBuilder{ES: es} }},
 		{name: "check_agent_version", build: func(es *EvalState) core.Builder { return &CheckAgentVersionBuilder{ES: es} }},
 		{name: "summarize_point_results", build: func(es *EvalState) core.Builder { return &SummarizePointResultsBuilder{ES: es} }},
 		{name: "collect_metrics", build: func(es *EvalState) core.Builder { return &CollectMetricsBuilder{ES: es} }},
+		{name: "record_agent_commit", build: func(es *EvalState) core.Builder { return &RecordAgentCommitBuilder{ES: es} }},
 		{name: "dump_config", build: func(es *EvalState) core.Builder { return &DumpConfigBuilder{ES: es} }},
 	}
 }
