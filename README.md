@@ -29,6 +29,25 @@ mage tag        # create root and module release tags
 
 Each sub-module also has its own mage targets. Run `mage -l` inside any directory with a `magefiles/` folder to list available targets.
 
+### Persistent integration observability
+
+Start the shared OTLP ingress and retained Jaeger and Prometheus backends before
+telemetry-required integrations. `down` keeps backend volumes; only `reset`
+deletes them.
+
+```bash
+mage observability:up
+mage observability:status
+mage observability:down
+mage observability:reset
+```
+
+Defaults expose OTLP gRPC on `4317`, OTLP HTTP on `4318`, Collector health on
+`13133`, Jaeger query on `16686`, and Prometheus query on `9090`. Override them
+with `DA_OTEL_GRPC_PORT`, `DA_OTEL_HTTP_PORT`, `DA_OTEL_HEALTH_PORT`,
+`DA_JAEGER_QUERY_PORT`, and `DA_PROMETHEUS_QUERY_PORT`. Integration targets may
+reuse a healthy stack but do not stop or reset it.
+
 Root releases use `mage audit` as the analysis gate and `mage test` as the
 unit-test gate. `mage tag` runs from `main` and creates the repository tag
 `v0.YYYYMMDD.N` plus module-scoped tags for release-relevant directories:

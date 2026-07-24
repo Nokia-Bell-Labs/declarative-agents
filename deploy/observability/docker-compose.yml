@@ -1,0 +1,153 @@
+# Persistent integration telemetry ingress and signal-specific backends.
+# Lifecycle: mage observability:up|status|down|reset
+name: declarative-agents-observability
+
+services:
+  collector:
+    image: otel/opentelemetry-collector-contrib:0.157.0
+    container_name: declarative-agents-otel-collector
+    command: ["--config=/etc/otelcol-contrib/config.yaml"]
+    configs:
+      - source: collector
+        target: /etc/otelcol-contrib/config.yaml
+    ports:
+      - "127.0.0.1:${DA_OTEL_GRPC_PORT:-4317}:4317"
+      - "127.0.0.1:${DA_OTEL_HTTP_PORT:-4318}:4318"
+      - "127.0.0.1:${DA_OTEL_HEALTH_PORT:-13133}:13133"
+    depends_on:
+      jaeger:
+        condition: service_healthy
+      prometheus:
+        condition: service_healthy
+    healthcheck:
+      test: ["CMD", "/otelcol-contrib", "validate", "--config=/etc/otelcol-contrib/config.yaml"]
+      interval: 5s
+      timeout: 5s
+      retries: 20
+    restart: unless-stopped
+
+  jaeger:
+    image: cr.jaegertracing.io/jaegertracing/jaeger:2.20.0
+    container_name: declarative-agents-jaeger
+    user: "0"
+    command: ["--config=/jaeger/config.yaml"]
+    configs:
+      - source: jaeger
+        target: /jaeger/config.yaml
+    ports:
+      - "127.0.0.1:${DA_JAEGER_QUERY_PORT:-16686}:16686"
+    volumes:
+      - jaeger-data:/badger
+    healthcheck:
+      test: ["CMD", "/cmd/jaeger/jaeger-linux", "--version"]
+      interval: 5s
+      timeout: 5s
+      retries: 20
+    restart: unless-stopped
+
+  prometheus:
+    image: prom/prometheus:v3.13.1
+    container_name: declarative-agents-prometheus
+    command:
+      - "--config.file=/etc/prometheus/prometheus.yml"
+      - "--storage.tsdb.path=/prometheus"
+      - "--storage.tsdb.retention.time=30d"
+      - "--web.enable-remote-write-receiver"
+    ports:
+      - "127.0.0.1:${DA_PROMETHEUS_QUERY_PORT:-9090}:9090"
+    volumes:
+      - prometheus-data:/prometheus
+    healthcheck:
+      test: ["CMD-SHELL", "wget -q -O - http://127.0.0.1:9090/-/healthy >/dev/null"]
+      interval: 5s
+      timeout: 5s
+      retries: 20
+    restart: unless-stopped
+
+volumes:
+  jaeger-data:
+  prometheus-data:
+
+configs:
+  collector:
+    content: |
+      extensions:
+        health_check:
+          endpoint: 0.0.0.0:13133
+
+      receivers:
+        otlp:
+          protocols:
+            grpc:
+              endpoint: 0.0.0.0:4317
+            http:
+              endpoint: 0.0.0.0:4318
+
+      processors:
+        batch: {}
+
+      exporters:
+        otlp_grpc/jaeger:
+          endpoint: jaeger:4317
+          tls:
+            insecure: true
+        prometheus_remote_write:
+          endpoint: http://prometheus:9090/api/v1/write
+
+      service:
+        extensions: [health_check]
+        pipelines:
+          traces:
+            receivers: [otlp]
+            processors: [batch]
+            exporters: [otlp_grpc/jaeger]
+          metrics:
+            receivers: [otlp]
+            processors: [batch]
+            exporters: [prometheus_remote_write]
+
+  jaeger:
+    content: |
+      extensions:
+        healthcheckv2:
+          use_v2: true
+          http: {}
+        jaeger_query:
+          storage:
+            traces: badger_store
+        jaeger_storage:
+          backends:
+            badger_store:
+              badger:
+                directories:
+                  keys: /badger/keys
+                  values: /badger/values
+                ephemeral: false
+                ttl:
+                  spans: 720h
+
+      receivers:
+        otlp:
+          protocols:
+            grpc:
+              endpoint: 0.0.0.0:4317
+            http:
+              endpoint: 0.0.0.0:4318
+
+      processors:
+        batch: {}
+
+      exporters:
+        jaeger_storage_exporter:
+          trace_storage: badger_store
+
+      service:
+        extensions: [jaeger_storage, jaeger_query, healthcheckv2]
+        pipelines:
+          traces:
+            receivers: [otlp]
+            processors: [batch]
+            exporters: [jaeger_storage_exporter]
+        telemetry:
+          resource:
+            service.name: jaeger
