@@ -10,6 +10,51 @@ import (
 	"gopkg.in/yaml.v3"
 )
 
+func TestCollectorImplementationsRender(t *testing.T) {
+	t.Parallel()
+	chartDir := findChartDir(t)
+	tests := []struct {
+		implementation string
+		want           []string
+		notWant        []string
+	}{
+		{
+			implementation: "agent",
+			want: []string{
+				"agents/collector/profile.yaml",
+				"--otel-metric-otlp-endpoint",
+				"collector-metrics",
+			},
+		},
+		{
+			implementation: "contrib",
+			want:           []string{"--config=/etc/collector/config.yaml", "name: otlp-http"},
+			notWant:        []string{"agents/collector/profile.yaml", "--otel-metric-otlp-endpoint"},
+		},
+	}
+	for _, tt := range tests {
+		tt := tt
+		t.Run(tt.implementation, func(t *testing.T) {
+			out, err := exec.Command("helm", "template", "test", chartDir,
+				"--set", "collector.implementation="+tt.implementation).CombinedOutput()
+			if err != nil {
+				t.Fatalf("render collector implementation %s: %v\n%s", tt.implementation, err, out)
+			}
+			rendered := string(out)
+			for _, want := range tt.want {
+				if !strings.Contains(rendered, want) {
+					t.Errorf("rendered %s collector missing %q", tt.implementation, want)
+				}
+			}
+			for _, notWant := range tt.notWant {
+				if strings.Contains(rendered, notWant) {
+					t.Errorf("rendered %s collector unexpectedly contains %q", tt.implementation, notWant)
+				}
+			}
+		})
+	}
+}
+
 // This is the check that would have caught GH-736. The chart pinned
 // otel/opentelemetry-collector-contrib:0.116.0, whose arm64 image ships a
 // dynamically linked binary needing /lib/ld-linux-aarch64.so.1 -- a loader a

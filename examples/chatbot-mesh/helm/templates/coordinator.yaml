@@ -35,6 +35,10 @@ spec:
             - "--otel-service-name"
             - "coordinator"
             {{- end }}
+            {{- with include "chatbot-mesh.otlpMetricEndpoint" . }}
+            - "--otel-metric-otlp-endpoint"
+            - {{ . | quote }}
+            {{- end }}
           # The coordinator delegates every instance op to the creator through its
           # declared client; the creator Service DNS is the only endpoint it needs,
           # and it binds 0.0.0.0 so its Services route to the pod. It holds no

@@ -146,6 +146,10 @@ spec:
             - "--otel-service-name"
             - "executor"
             {{- end }}
+            {{- with include "chatbot-mesh.otlpMetricEndpoint" . }}
+            - "--otel-metric-otlp-endpoint"
+            - {{ . | quote }}
+            {{- end }}
           env:
             - {name: EXECUTOR_BIND_HOST, value: "0.0.0.0"}
             # The workspace the agent writes its values file into, the same path

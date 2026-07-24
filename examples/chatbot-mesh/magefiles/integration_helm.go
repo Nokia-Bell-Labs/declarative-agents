@@ -398,6 +398,7 @@ func chartProfilePrograms() []chartProfileProgram {
 		{"agents/coordinator", "profiles/agents/coordinator"},
 		{"agents/creator", "profiles/agents/creator"},
 		{"agents/executor", "profiles/agents/executor"},
+		{"agents/collector", "profiles/agents/collector"},
 		{"ux/ux.yaml", "profiles/ux/ux.yaml"},
 		{"ux/app/dist", "profiles/ux/app/dist"},
 	}

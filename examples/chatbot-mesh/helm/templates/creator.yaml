@@ -39,6 +39,10 @@ spec:
             - "--otel-service-name"
             - "creator"
             {{- end }}
+            {{- with include "chatbot-mesh.otlpMetricEndpoint" . }}
+            - "--otel-metric-otlp-endpoint"
+            - {{ . | quote }}
+            {{- end }}
           # The creator reaches the executor deployment API (srd006). The executor's
           # apply surface is network-authenticated (NetworkPolicy), so no bearer is
           # required; the optional token mount below (the #392 file-mount pattern)

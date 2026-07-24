@@ -125,6 +125,9 @@ dolt:
 # backend that the observability panel queries (R5.2).
 collector:
   enabled: true
+  # agent moves trace ingress into the declarative collector profile. The
+  # contrib option preserves the previous combined trace/metric gateway.
+  implementation: agent
   # 0.127.0 ships a statically linked arm64 binary. The 0.116.0 arm64 image is
   # dynamically linked against /lib/ld-linux-aarch64.so.1, which a distroless
   # image does not carry, so the collector exited 255 with
