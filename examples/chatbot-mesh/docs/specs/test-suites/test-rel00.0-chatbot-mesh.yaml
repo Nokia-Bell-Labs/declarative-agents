@@ -58,7 +58,7 @@ test_cases:
   - use_case: rel00.0-uc002-chatbot-turn
     name: Single-RAG chatbot turn tracer with a degraded RAG
     integration_target: mage integration:chatbot
-    go_test: go test ./magefiles -run '^TestCitedRecordNumbersBracketed$|^TestCitedRecordNumbersDedupesAndSorts$|^TestCitedRecordNumbersUngrounded$|^TestChatResponseDecodesTrace$'
+    go_test: go test ./magefiles -run '^TestCitedRecordNumbersBracketed$|^TestCitedRecordNumbersDedupesAndSorts$|^TestCitedRecordNumbersUngrounded$|^TestChatResponseDecodesTrace$|^TestChatbotRequiredModelsResolveShippedDefaults$|^TestChatbotRequiredModelsUseDeploymentEnvironment$|^TestResolveModelReferenceLeavesLiteralName$'
     status: implemented
     description: |
       Integration.Chatbot drives the chat machine_request endpoint and asserts the
@@ -70,7 +70,10 @@ test_cases:
       message alone rather than a 500, carrying prior turns as client-side history
       (R4). The router and the two-RAG fan-out this target also exercises are
       validated by the 01.0 suite. Verified end to end against live Docker and
-      Ollama; skips cleanly without them, naming a missing model.
+      Ollama; skips cleanly without them, naming a missing model. Before probing
+      Ollama, the target resolves the shipped model environment references by the
+      same rules as the runtime, while preserving configured overrides and literal
+      model names.
     inputs:
       chatbot_profile: agents/chatbot/profile.yaml
       turns: a turn answered from retrieved chunks, then a degraded follow-up with history
@@ -80,6 +83,9 @@ test_cases:
       compose_reads_via_from: true
       degraded_turn_returns_200_not_500: true
       stateless_history_from_browser: true
+      preflight_recognizes_shipped_model_defaults: true
+      preflight_honors_model_environment_overrides: true
+      preflight_preserves_literal_model_names: true
     traces:
       - rel00.0-uc002-chatbot-turn S1
       - rel00.0-uc002-chatbot-turn S2

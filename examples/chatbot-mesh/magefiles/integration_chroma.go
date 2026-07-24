@@ -175,7 +175,7 @@ func chromaEmbedModelFromConfig(profilesRoot string) (string, error) {
 	if err := readIntegrationYAML(path, "chroma rest asset", &cfg); err != nil {
 		return "", err
 	}
-	model := resolveChromaModelReference(cfg.Rest.Clients["ollama"].Operations["embed"].Body.Model)
+	model := resolveModelReference(cfg.Rest.Clients["ollama"].Operations["embed"].Body.Model)
 	if model == "" {
 		return "", fmt.Errorf("no ollama embed model in %s", path)
 	}
@@ -199,7 +199,7 @@ func chromaChatModelFromConfig(profilesRoot, profile string) (string, error) {
 	}
 	for _, tool := range cfg.Tools {
 		if tool.Name == "invoke_llm" {
-			model := resolveChromaModelReference(tool.Config.Model)
+			model := resolveModelReference(tool.Config.Model)
 			if model == "" {
 				return "", fmt.Errorf("invoke_llm has no model in %s", path)
 			}
@@ -209,12 +209,12 @@ func chromaChatModelFromConfig(profilesRoot, profile string) (string, error) {
 	return "", fmt.Errorf("no invoke_llm tool in %s", path)
 }
 
-var chromaModelReference = regexp.MustCompile(`^\$\{([A-Za-z_][A-Za-z0-9_]*):-([^}]*)\}$`)
+var modelReference = regexp.MustCompile(`^\$\{([A-Za-z_][A-Za-z0-9_]*):-([^}]*)\}$`)
 
-// resolveChromaModelReference mirrors the runtime's ${VAR:-default} selection
-// for the Seed target's model preflight.
-func resolveChromaModelReference(model string) string {
-	match := chromaModelReference.FindStringSubmatch(model)
+// resolveModelReference mirrors the runtime's ${VAR:-default} selection for
+// integration preflights that read unexpanded profile YAML.
+func resolveModelReference(model string) string {
+	match := modelReference.FindStringSubmatch(model)
 	if match == nil {
 		return model
 	}
