@@ -45,10 +45,16 @@ type criticToolDeclarations struct {
 }
 
 type criticToolDeclaration struct {
-	Name   string   `yaml:"name"`
-	Type   string   `yaml:"type"`
-	Binary string   `yaml:"binary"`
-	Args   []string `yaml:"args"`
+	Name         string   `yaml:"name"`
+	Type         string   `yaml:"type"`
+	Binary       string   `yaml:"binary"`
+	Args         []string `yaml:"args"`
+	Requirements struct {
+		Input []string `yaml:"input"`
+	} `yaml:"requirements"`
+	Config struct {
+		PointToolDeclarations []string `yaml:"point_tool_declarations"`
+	} `yaml:"config"`
 }
 
 // TestCriticSelectsSentenceWords proves the shipped session selection asks for
@@ -128,6 +134,28 @@ func TestCriticPointOracleCommandIsProfileConfiguredExec(t *testing.T) {
 		}
 	}
 	t.Fatal("run_oracle_check exec declaration not found")
+}
+
+func TestCriticRunPointContractNamesToolDeclarations(t *testing.T) {
+	var declarations criticToolDeclarations
+	if err := readYAML(criticProfilePath(t, "builtin.yaml"), &declarations); err != nil {
+		t.Fatalf("load critic builtin declarations: %v", err)
+	}
+	for _, declaration := range declarations.Tools {
+		if declaration.Name != "run_point" {
+			continue
+		}
+		if len(declaration.Config.PointToolDeclarations) == 0 {
+			t.Fatal("run_point config has no point_tool_declarations")
+		}
+		for _, requirement := range declaration.Requirements.Input {
+			if requirement == "must require point_machine, point_tools, and point_tool_declarations in config" {
+				return
+			}
+		}
+		t.Fatalf("run_point input requirements do not name point_tool_declarations: %v", declaration.Requirements.Input)
+	}
+	t.Fatal("run_point declaration not found")
 }
 
 func criticProfilePath(t *testing.T, name string) string {
