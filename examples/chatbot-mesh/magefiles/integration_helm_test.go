@@ -5,6 +5,7 @@ package main
 import (
 	"net/http"
 	"net/http/httptest"
+	"os"
 	"os/exec"
 	"path/filepath"
 	"strings"
@@ -75,6 +76,87 @@ func TestCollectorKindOverlayExportsBothSignalsWithRunIdentity(t *testing.T) {
 		if !strings.Contains(render, want) {
 			t.Errorf("kind collector render missing %q", want)
 		}
+	}
+}
+
+func TestStageTelemetryKindConfigEnablesControlPlaneTracing(t *testing.T) {
+	base := filepath.Join(t.TempDir(), "kind.yaml")
+	if err := os.WriteFile(base, []byte(`kind: Cluster
+apiVersion: kind.x-k8s.io/v1alpha4
+nodes:
+  - role: control-plane
+    image: kindest/node:v1.36.1@sha256:test
+`), 0o644); err != nil {
+		t.Fatal(err)
+	}
+	path, cleanup, err := stageTelemetryKindConfig(base, helmTelemetryIdentity{
+		OTLPEndpoint: "host.docker.internal:4317",
+		RunID:        "run-123",
+		Commit:       "abc123",
+	})
+	if err != nil {
+		t.Fatal(err)
+	}
+	defer cleanup()
+	data, err := os.ReadFile(path)
+	if err != nil {
+		t.Fatal(err)
+	}
+	generated := string(data)
+	for _, want := range []string{
+		"tracing-config-file", "/etc/kubernetes/tracing.yaml",
+		"OTEL_RESOURCE_ATTRIBUTES", "test.run.id=run-123",
+		"kind: KubeletConfiguration", "host.docker.internal:4317",
+		"samplingRatePerMillion: 1000000",
+	} {
+		if !strings.Contains(generated, want) {
+			t.Errorf("generated kind config missing %q:\n%s", want, generated)
+		}
+	}
+}
+
+func TestHelmInstallSmokePassesRunIdentityToGateway(t *testing.T) {
+	var command []string
+	run := func(name string, args ...string) ([]byte, error) {
+		command = append([]string{name}, args...)
+		return nil, nil
+	}
+	telemetry := helmTelemetryIdentity{
+		OTLPEndpoint: "host.docker.internal:4317",
+		RunID:        "run-123",
+		Commit:       "abc123",
+	}
+	if err := helmInstallSmokeWithRunner("/chart", helmImage, telemetry, run); err != nil {
+		t.Fatal(err)
+	}
+	joined := strings.Join(command, " ")
+	for _, want := range []string{
+		"collector.externalOTLPEndpoint=host.docker.internal:4317",
+		"collector.integrationResource.target=integration:helmSmoke",
+		"collector.integrationResource.commit=abc123",
+		"collector.integrationResource.runID=run-123",
+	} {
+		if !strings.Contains(joined, want) {
+			t.Errorf("helm command missing %q: %s", want, joined)
+		}
+	}
+}
+
+func TestSharedTraceCountFiltersByRunID(t *testing.T) {
+	server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		if r.URL.Query().Get("service") != "chatbot" ||
+			!strings.Contains(r.URL.Query().Get("tags"), `"test.run.id":"run-123"`) {
+			t.Errorf("unexpected query: %s", r.URL.RawQuery)
+		}
+		_, _ = w.Write([]byte(`{"data":[{"traceID":"abc"}]}`))
+	}))
+	defer server.Close()
+	count, err := sharedTraceCount(server.URL, "chatbot", "run-123")
+	if err != nil {
+		t.Fatal(err)
+	}
+	if count != 1 {
+		t.Fatalf("trace count = %d, want 1", count)
 	}
 }
 
