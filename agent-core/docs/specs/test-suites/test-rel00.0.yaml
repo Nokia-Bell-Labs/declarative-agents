@@ -973,11 +973,32 @@ test_cases:
     name: Standard CLI flag constants match contract
     go_test: TestFlagConstants
     inputs:
-      constants: "standard child-agent flags"
+      constants: "standard child-agent flags including otel-otlp-endpoint and otel-service-name"
     expected:
       flag_names_match: true
     traces:
       - srd018-cli-flag-contract AC1
+
+  - use_case: rel00.0-uc001-domain-agent-integration
+    name: Integration telemetry dual export and retained backend evidence
+    integration_target: mage observability:status
+    status: planned
+    follow_up_issue: "#817, #818"
+    inputs:
+      exporters: [file, otlp]
+      identity: [repository, module, target, git_commit, run_id, service_name]
+      backends: [jaeger, prometheus]
+    expected:
+      child_endpoint_propagated: true
+      child_service_identity_explicit: true
+      file_evidence_preserved: true
+      backend_evidence_retained_after_run: true
+      ingress_self_loop_absent: true
+    traces:
+      - rel00.0-uc001-domain-agent-integration S13
+      - srd008-telemetry AC10
+      - srd018-cli-flag-contract AC2
+      - srd018-cli-flag-contract AC7
 
   - use_case: rel00.0-uc001-domain-agent-integration
     name: FormatFlag emits prefixed flag pair

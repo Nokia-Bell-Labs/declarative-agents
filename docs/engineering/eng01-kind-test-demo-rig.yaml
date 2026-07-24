@@ -124,15 +124,59 @@ sections:
       `ci/kind-values.yaml` overlay, and the assertions that make its
       integration verbs meaningful.
 
+  - title: "Persistent integration observability"
+    content: |
+      Integration telemetry enters one host-level OTLP ingress that starts
+      before scenario processes and kind clusters. The ingress is a contract,
+      not a required Collector image: it accepts OTLP gRPC and HTTP, routes
+      traces to Jaeger and metrics to a Prometheus-compatible backend, exposes
+      health and query endpoints, and retains both signals after a scenario
+      tears down. The checked-in Collector stack is the reference
+      implementation.
+
+      The stack has explicit `up`, `status`, `reset`, and `down` Mage verbs.
+      `up` is idempotent and reuses a healthy operator-owned stack. A scenario
+      may check or use that stack but never stops or resets it. Fixed ports are
+      configurable. Preflight reports the process holding a configured port
+      before starting containers instead of failing later with a bind error.
+      The ingress must not export its own telemetry back to itself.
+
+      Host agent processes dual-export: `--otel-log-file` remains the hermetic
+      assertion artifact, while `--otel-otlp-endpoint` sends live traces and
+      metrics to the shared ingress. `--otel-service-name` identifies the role.
+      Provider resources stamp repository, module, target or scenario, git
+      commit, and a unique run id on every signal. Scaled roles append their
+      instance identity so concurrent RAG units and repeated runs are distinct.
+
+      A kind chart may keep its chart-local Collector as a gateway, but the
+      integration values overlay sends that gateway to the host ingress. The
+      chart's production defaults remain self-contained and retain their local
+      Collector and Jaeger. Generated kind configuration enables supported
+      API-server and kubelet tracing. helm and kubectl do not propagate
+      traceparent, so control-plane traces are correlated to the scenario by
+      run identity and time; they are not part of one agent waterfall.
+
+      Chroma exports native OTLP traces with one stable service name per RAG
+      unit. Agent REST calls to Chroma inject traceparent. Dolt exposes its
+      Prometheus endpoint, which a Collector metric receiver scrapes and
+      forwards to the shared metrics backend. Ollama is represented by the
+      agent runtime's GenAI client spans until native Ollama server tracing is
+      available. OTel Logs are not part of this rig.
+
   - title: "Evidence and failure capture"
     content: |
       A failed cluster run must leave enough behind to diagnose without
       re-running. On any integration failure the rig runs
       `kind export logs` into the evidence directory the existing
       test-evidence machinery manages, alongside `kubectl describe` and
-      pod logs for the namespaces the scenario touched. Successful runs
-      keep the existing convention of a single PASS line stating what
-      was proven, so transcript grep remains the audit trail.
+      pod logs for the namespaces the scenario touched. Before teardown, both
+      failed runs and successful release gates record shared-sink health, the
+      run identity, representative trace ids and service names, and the
+      availability of expected agent and Dolt metrics. Backend data stays
+      queryable after the subprocesses and cluster are gone.
+
+      Successful runs keep the existing convention of a single PASS line
+      stating what was proven, so transcript grep remains the audit trail.
 
   - title: "Deferred: podman"
     content: |

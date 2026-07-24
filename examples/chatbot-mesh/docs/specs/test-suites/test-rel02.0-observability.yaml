@@ -17,6 +17,7 @@ preconditions:
   - agent-core is available with HTTP trace propagation (agent-core rel08.0), so the request-scoped machine exports spans and propagates traceparent.
   - The chatbot serves the SPA and the monitor_proxy binding; a trace backend is reachable for the waterfall (else the panel degrades to a notice).
   - This example owns the chatbot ui assets and ux.yaml monitored_agents, under examples/chatbot-mesh/ux/.
+  - The integration-only shared OTLP ingress is healthy before telemetry-required host or kind scenarios start.
 
 test_cases:
   - use_case: rel02.0-uc001-observability
@@ -51,3 +52,34 @@ test_cases:
       - rel02.0-uc001-observability S2
       - rel02.0-uc001-observability S3
       - srd002-chatbot-agent AC5
+
+  - use_case: rel02.0-uc001-observability
+    name: Retained integration trace and metric evidence
+    integration_target: mage integration:helmSmoke
+    status: planned
+    follow_up_issue: "#818, #819"
+    description: |
+      A representative kind mesh dual-exports file and OTLP evidence through
+      the chart gateway to the shared host ingress. The test records run
+      identity and representative services and metrics, tears down its owned
+      cluster, then queries the host backends again. Agent and Chroma spans
+      remain filterable by run id. Kubernetes control-plane traces are
+      correlated by run id and time rather than parentage. Agent and Dolt
+      metrics remain queryable. The production chart render still contains its
+      self-contained Collector and Jaeger defaults.
+    inputs:
+      shared_trace_backend: jaeger
+      shared_metric_backend: prometheus
+      expected_trace_services: [chatbot, rag0, chroma-rag0, kube-apiserver]
+      expected_metrics: [agent_runtime, dolt_sql_server]
+    expected:
+      file_and_otlp_dual_export: true
+      run_identity_on_signals: true
+      traces_queryable_after_cluster_teardown: true
+      metrics_queryable_after_cluster_teardown: true
+      production_chart_self_contained: true
+      otel_logs_required: false
+      native_ollama_server_trace_required: false
+    traces:
+      - rel02.0-uc001-observability S4
+      - srd003-chatbot-deployment AC5

@@ -29,7 +29,9 @@ invocation: |
     agent --profile /work/agent-profiles/agents/<agent>/profile.yaml \
           [--request <file>] [--output <dir>] \
           [--directory <path>] [--dolt-dsn <dsn>] \
-          [--resume-checkpoint <id>] [--resume-signal <signal>]
+          [--resume-checkpoint <id>] [--resume-signal <signal>] \
+          [--otel-log-file <file>] [--otel-otlp-endpoint <host:port>] \
+          [--otel-service-name <name>]
 
   Lifecycle profile invocations.
     agent --profile /work/agent-profiles/testdata/conformance/lifecycle/history/profile.yaml \
@@ -67,6 +69,10 @@ invocation: |
   Diagnostic flags.
     --verbose-trace      Record boundary-tool input/output in OTel traces.
     --otel-log-file      OTel trace output file.
+    --otel-otlp-endpoint OTLP gRPC endpoint for live trace and metric export.
+                         It composes with --otel-log-file for dual export.
+    --otel-service-name  Stable OpenTelemetry service.name. Scaled integration
+                         roles include their instance in this value.
     --otel-parent-span   W3C traceparent for distributed tracing.
 
   Removed configuration flags.
@@ -87,6 +93,31 @@ invocation: |
   and persists runs through the srd035 checkpoint port (Save/Load) rather than
   key/blob store paths. Use the DSN for shared operator storage, retained
   artifacts, or tests that need durable state outside the process.
+
+integration_telemetry: |
+  Integration launchers keep deterministic file evidence and add live OTLP
+  export. They pass --otel-log-file, --otel-otlp-endpoint, and
+  --otel-service-name explicitly. The shared OTLP endpoint is an ingress
+  contract: its implementation accepts host and kind telemetry, routes traces
+  to Jaeger and metrics to a Prometheus-compatible backend, and outlives any
+  one subprocess or disposable cluster.
+
+  A run stamps bounded resource identity at provider setup: repository, module,
+  target or scenario, git commit, and a unique run id. Every span and metric
+  inherits those values. service.name identifies the agent role; scaled roles
+  append their instance identity. Child process launchers propagate the
+  endpoint and choose the child's service name rather than inheriting the
+  parent's role name.
+
+  The file remains the hermetic assertion source. A live backend adds retained
+  diagnostic evidence and does not make a unit test depend on network
+  availability. Integration teardown may stop owned subprocesses and kind
+  clusters, but it must not stop or reset an operator-owned shared ingress.
+  The ingress must not export its own spans back to itself.
+
+  OTel Logs are outside this runtime contract. Ollama calls are represented by
+  agent-core GenAI client spans; the contract does not claim native Ollama
+  server spans.
 
 startup_sequence:
   - step: 1
@@ -407,6 +438,8 @@ invariants:
     of universal CLI flags such as --request, --output, --directory, and
     lifecycle/telemetry flags serve as runtime data channels. Model/provider
     settings are boundary-tool config.
+  - Integration launchers dual-export file and OTLP evidence, stamp bounded run
+    identity, and assign stable role-based service names.
   - Machine files reference tools by name; tools are resolved from the registry.
   - Named action tools may declare emitted signals with emits; declared emits
     are checked against the machine's signal and transition contract at startup.
@@ -555,6 +588,8 @@ related_documents:
   - srd026-lifecycle-tools
   - srd035-checkpoint-port
   - srd036-dolt-state-persistence
+  - srd008-telemetry
+  - srd018-cli-flag-contract
 
 implementation:
   - cmd/agent/main.go
