@@ -9,6 +9,7 @@ includes:
   - critic-point/all.yaml
   - bench/all.yaml
   - spec-validation/all.yaml
+  - otlp/all.yaml
 
 # REST declarations live in rest/all.yaml and are selected explicitly by
 # profiles that load REST definition files.

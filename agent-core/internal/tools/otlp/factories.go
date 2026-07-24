@@ -4,6 +4,7 @@ package otlp
 
 import (
 	"fmt"
+	"path/filepath"
 	"time"
 
 	"github.com/Nokia-Bell-Labs/declarative-agents/agent-core/internal/runtime/core"
@@ -12,7 +13,9 @@ import (
 )
 
 // StandardInits lists the receiver lifecycle init names.
-var StandardInits = []string{InitReceiverLaunch, InitReceiverStop}
+var StandardInits = []string{
+	InitReceiverLaunch, InitAwaitSpans, InitSpoolSpans, InitReceiverStop,
+}
 
 // ReceiverToolConfig is the YAML ToolDef config shared by launch and stop.
 type ReceiverToolConfig struct {
@@ -24,13 +27,34 @@ type ReceiverToolConfig struct {
 	DrainPolicy     string `json:"drain_policy"`
 }
 
+// AwaitToolConfig is the declared await_spans configuration.
+type AwaitToolConfig struct {
+	Receiver string `json:"receiver"`
+	Timeout  string `json:"timeout"`
+}
+
+// SpoolToolConfig is the declared spool_spans configuration.
+type SpoolToolConfig struct {
+	Path        string `json:"path"`
+	BatchSource string `json:"batch_source"`
+	MaxBytes    int64  `json:"max_bytes"`
+	MaxFiles    int    `json:"max_files"`
+}
+
 // RegisterFactories registers receiver lifecycle factories over one shared state.
 func RegisterFactories(br *toolregistry.BuiltinRegistry, state *State) {
 	if state == nil {
 		state = NewState()
 	}
 	for _, init := range StandardInits {
-		br.Register(init, receiverFactory(init, state))
+		switch init {
+		case InitAwaitSpans:
+			br.Register(init, awaitFactory(state))
+		case InitSpoolSpans:
+			br.Register(init, spoolFactory())
+		default:
+			br.Register(init, receiverFactory(init, state))
+		}
 	}
 }
 
@@ -50,6 +74,65 @@ func receiverFactory(init string, state *State) toolregistry.BuiltinFactory {
 			}
 		}
 		return ReceiverBuilder{ToolName: def.Name, Init: init, Config: cfg, State: state}, nil
+	}
+}
+
+func awaitFactory(state *State) toolregistry.BuiltinFactory {
+	return func(def catalog.ToolDef, _ map[string]string) (core.Builder, error) {
+		var raw AwaitToolConfig
+		if err := catalog.DecodeToolConfig(def, &raw); err != nil {
+			return nil, err
+		}
+		if raw.Receiver == "" {
+			return nil, fmt.Errorf("tool %q config requires receiver", def.Name)
+		}
+		timeout := defaultBatchAwaitTimeout
+		if raw.Timeout != "" {
+			parsed, err := time.ParseDuration(raw.Timeout)
+			if err != nil || parsed <= 0 {
+				return nil, fmt.Errorf("tool %q config has invalid timeout %q", def.Name, raw.Timeout)
+			}
+			timeout = parsed
+		}
+		return AwaitBuilder{
+			ToolName: def.Name, Config: AwaitConfig{Receiver: raw.Receiver, Timeout: timeout},
+			State: state,
+		}, nil
+	}
+}
+
+func spoolFactory() toolregistry.BuiltinFactory {
+	return func(def catalog.ToolDef, vars map[string]string) (core.Builder, error) {
+		var raw SpoolToolConfig
+		if err := catalog.DecodeToolConfig(def, &raw); err != nil {
+			return nil, err
+		}
+		if raw.Path == "" {
+			return nil, fmt.Errorf("tool %q config requires path", def.Name)
+		}
+		source := raw.BatchSource
+		if source == "" {
+			source = defaultBatchSource
+		}
+		if _, ok := core.ParseSelector(source); !ok {
+			return nil, fmt.Errorf("tool %q config has invalid batch_source %q", def.Name, source)
+		}
+		if raw.MaxBytes < 0 {
+			return nil, fmt.Errorf("tool %q config max_bytes must not be negative", def.Name)
+		}
+		if raw.MaxFiles < 0 {
+			return nil, fmt.Errorf("tool %q config max_files must not be negative", def.Name)
+		}
+		path := raw.Path
+		if !filepath.IsAbs(path) && vars["directory"] != "" {
+			path = filepath.Join(vars["directory"], path)
+		}
+		return SpoolBuilder{
+			ToolName: def.Name,
+			Config: SpoolConfig{
+				Path: path, BatchSource: source, MaxBytes: raw.MaxBytes, MaxFiles: raw.MaxFiles,
+			},
+		}, nil
 	}
 }
 

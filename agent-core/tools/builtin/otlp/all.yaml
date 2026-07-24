@@ -1,0 +1,227 @@
+tools:
+- name: otlp_receiver_launch
+  type: builtin
+  init: otlp_receiver_launch
+  category: boundary
+  visibility: internal
+  emits: [ReceiverLaunched, CommandError]
+  description: Bind a declared OTLP/gRPC trace receiver and return without waiting for traffic.
+  problem: A machine cannot own trace-ingress lifecycle unless listener launch is an explicit word.
+  goals:
+  - Bind one named trace receiver with a bounded queue.
+  - Keep the launch-to-await transition visible in MachineSpec.
+  requirements:
+    input:
+    - Receiver name, address, queue capacity, overflow policy, and shutdown policy come from trusted config.
+    output:
+    - Output reports receiver, bound address, queue capacity, and overflow policy.
+    side_effects:
+    - Opens a network listener and registers receiver state.
+    errors:
+    - Invalid config, duplicate live name, or bind failure emits CommandError.
+  non_goals:
+  - Does not wait for or process a trace batch.
+  parameters: {type: object, properties: {}}
+  output:
+    description: Bound receiver identity and queue policy.
+    schema:
+      type: object
+      properties:
+        receiver: {type: string}
+        address: {type: string}
+        queue_capacity: {type: integer}
+        overflow_policy: {type: string}
+      required: [receiver, address, queue_capacity, overflow_policy]
+  side_effects:
+  - kind: network_listen
+    target: configured OTLP/gRPC address
+    state: named receiver remains live until stop or undo
+  reversibility:
+    classification: compensatable
+    undo: otlp_receiver_stop
+  undo:
+    strategy: compensating_action
+    description: Stop the listener owned by this launch.
+  errors:
+  - signal: CommandError
+    condition: config is invalid, the receiver is live, or the address cannot bind
+    message_shape: 'tool <name>: bind OTLP receiver <receiver>: <cause>'
+    state_after_failure: no newly bound receiver remains
+  relationships:
+    before: [await_spans, otlp_receiver_stop]
+  config:
+    receiver: ingress
+    address: 0.0.0.0:4317
+    queue_capacity: 16
+    overflow_policy: reject
+    shutdown_timeout: 5s
+    drain_policy: preserve
+
+- name: await_spans
+  type: builtin
+  init: await_spans
+  category: boundary
+  visibility: internal
+  emits: [SpansReceived, AwaitTimedOut, ReceiverStopped, CommandError]
+  description: Wait for and consume one complete FIFO trace batch from a named OTLP receiver.
+  problem: OTLP handler goroutines cannot decide machine policy, so accepted batches need a bounded handoff into the grammar.
+  goals:
+  - Return one complete request and bounded decision metadata.
+  - Distinguish timeout, lifecycle stop, and transport faults.
+  requirements:
+    input:
+    - Receiver and timeout come from trusted config.
+    output:
+    - Output includes batch, batch_id, span_count, service_names, trace_ids, resource_attributes, and received_at.
+    errors:
+    - An absent receiver or canceled wait emits CommandError; timeout and receiver stop have distinct signals.
+  non_goals:
+  - Does not filter, spool, relay, or mutate spans.
+  parameters: {type: object, properties: {}}
+  output:
+    description: Complete OTLP batch plus bounded metadata used by declared decisions.
+    schema:
+      type: object
+      properties:
+        batch: {type: object}
+        batch_id: {type: string}
+        span_count: {type: integer}
+        service_names: {type: array}
+        trace_ids: {type: array}
+        resource_attributes: {type: object}
+        received_at: {type: string}
+      required: [batch, batch_id, span_count, service_names, trace_ids, resource_attributes]
+  side_effects:
+  - kind: queue
+    target: configured receiver
+    state: consumes one FIFO batch
+  reversibility:
+    classification: irreversible
+    undo: none
+  undo:
+    strategy: none
+    description: A consumed concurrent queue item cannot be restored in original order.
+  errors:
+  - signal: CommandError
+    condition: receiver is absent or context cancellation is not the declared timeout
+    message_shape: 'tool <name>: OTLP receiver <receiver>: <cause>'
+    state_after_failure: no batch is returned
+  relationships:
+    before: [spool_spans, relay_spans]
+    after: [otlp_receiver_launch]
+  config:
+    receiver: ingress
+    timeout: 30s
+
+- name: spool_spans
+  type: builtin
+  init: spool_spans
+  category: boundary
+  visibility: internal
+  emits: [SpansSpooled, CommandError]
+  description: Append a selected OTLP batch as complete stdouttrace-compatible NDJSON span lines.
+  problem: A live backend is not deterministic test evidence, so received spans need a local format existing assertions already read.
+  goals:
+  - Preserve span and resource identity in stdouttrace-compatible objects.
+  - Rotate only before a complete batch and sync evidence before success.
+  requirements:
+    input:
+    - Path, batch selector, and rotation bounds come from trusted config.
+    output:
+    - Output reports path, span count, bytes written, and repeats the selected batch for declared relay.
+    side_effects:
+    - Appends and syncs a trace evidence file.
+    errors:
+    - Selector, conversion, rotation, append, and sync failures emit CommandError.
+  non_goals:
+  - Does not relay, query, or delete accepted backend spans.
+  parameters: {type: object, properties: {}}
+  output:
+    description: Spool result plus the unchanged selected OTLP batch.
+    schema:
+      type: object
+      properties:
+        path: {type: string}
+        span_count: {type: integer}
+        bytes_written: {type: integer}
+        batch: {type: object}
+      required: [path, span_count, bytes_written, batch]
+  side_effects:
+  - kind: filesystem
+    target: configured spool path
+    state: appends durable audit evidence and may rotate bounded generations
+  reversibility:
+    classification: irreversible
+    undo: none
+  undo:
+    strategy: none
+    description: Appended audit evidence is retained.
+  errors:
+  - signal: CommandError
+    condition: batch selection, encoding, rotation, append, or sync fails
+    message_shape: 'tool <name>: <spool operation>: <cause>'
+    state_after_failure: relay is not invoked and the source batch remains in command state
+  relationships:
+    before: [relay_spans]
+    after: [await_spans]
+  config:
+    path: traces/collector.ndjson
+    batch_source: $.batch
+    max_bytes: 10485760
+    max_files: 3
+
+- name: otlp_receiver_stop
+  type: builtin
+  init: otlp_receiver_stop
+  category: boundary
+  visibility: internal
+  emits: [ReceiverStopped, CommandError]
+  description: Stop a named OTLP receiver, reject new exports, and unblock waiting commands.
+  problem: A machine-owned listener needs an explicit terminal lifecycle word that releases transport resources.
+  goals:
+  - Stop intake and unblock every waiter within a declared bound.
+  - Report retained and dropped queue state.
+  requirements:
+    input:
+    - Receiver, shutdown timeout, and drain policy come from trusted config.
+    output:
+    - Output reports status, queue counts, drop counts, and drain policy.
+    side_effects:
+    - Closes the listener and mutates receiver lifecycle state.
+  non_goals:
+  - Does not retract already relayed or spooled spans.
+  parameters: {type: object, properties: {}}
+  output:
+    description: Final receiver queue and drop state.
+    schema:
+      type: object
+      properties:
+        receiver: {type: string}
+        address: {type: string}
+        status: {type: string}
+        queued_batches: {type: integer}
+        dropped_batches: {type: integer}
+        dropped_spans: {type: integer}
+        drain_policy: {type: string}
+      required: [receiver, address, status, queued_batches, drain_policy]
+  side_effects:
+  - kind: network_listen
+    target: configured OTLP/gRPC address
+    state: releases the listener and marks receiver stopped
+  reversibility:
+    classification: irreversible
+    undo: none
+  undo:
+    strategy: none
+    description: A stopped listener is relaunched by a later explicit launch word.
+  errors:
+  - signal: CommandError
+    condition: the named receiver was never launched or graceful shutdown exceeds its bound
+    message_shape: 'tool <name>: shutdown OTLP receiver <receiver>: <cause>'
+    state_after_failure: forced stop still releases the listener when graceful shutdown times out
+  relationships:
+    after: [otlp_receiver_launch, await_spans]
+  config:
+    receiver: ingress
+    shutdown_timeout: 5s
+    drain_policy: preserve
