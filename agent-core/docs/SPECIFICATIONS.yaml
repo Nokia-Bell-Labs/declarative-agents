@@ -2,8 +2,8 @@ id: agent-core-specifications
 title: Agent Core Specification Index
 
 overview: |
-  Specification index for the agent-core framework. Thirty-nine SRDs define the
-  generic agentic loop engine and its supporting packages across nine releases.
+  Specification index for the agent-core framework. Forty-two SRDs define the
+  generic agentic loop engine and its supporting packages.
   Releases 00.0, 01.0, 02.0, 04.0, 05.0, and 06.0 have implemented proof in the
   indexed use cases and test suites. Release 03.0 remains open for REST
   conformance follow-up work: named-test alignment and rollback-time REST
@@ -27,8 +27,9 @@ overview: |
   process-restart lifecycle tracer is component-level, see test-rel07.0). Release 08.0 covers
   the amended srd016 for HTTP trace propagation. Release 09.0 covers srd039 and
   srd040 for the scenario rig runtime: the mock REST endpoint binding and the
-  service-child, validator, and scenario-discovery tools. Release 99.0 covers
-  srd037 planning work.
+  service-child, validator, and scenario-discovery tools. Release 10.0 covers
+  srd041 for the value predicate word. Release 11.0 covers srd042 for the OTLP
+  receiver tool family. Release 99.0 covers srd037 planning work.
 
   Release 02.0 storage revision.
   - srd035-checkpoint-port replaces the key/blob StateStore with a two-method
@@ -82,6 +83,16 @@ roadmap_summary:
     status: done
   - version: "09.0"
     name: Scenario rig runtime
+    use_cases_done: 0
+    use_cases_total: 1
+    status: planned
+  - version: "10.0"
+    name: Value predicate word
+    use_cases_done: 1
+    use_cases_total: 1
+    status: implemented
+  - version: "11.0"
+    name: OTLP receiver tools
     use_cases_done: 0
     use_cases_total: 1
     status: planned
@@ -273,6 +284,16 @@ srd_index:
     summary: Words for a rig machine that composes other machines - start_service, await_healthy, and stop_service for background serve-mode children with injected environment and process-group reaping; run_validators for concurrent run-to-completion validators with per-validator terminal states and a bounded timeout; and list_scenarios for deterministic scenario discovery under declared roots.
     status: planned
     path: docs/specs/software-requirements/srd040-service-child-tools.yaml
+  - id: srd041-value-predicate-tool
+    title: Value Predicate Tool
+    summary: A pure builtin word that resolves declared operands, compares them under a closed operator and type set, and emits configured satisfied or unsatisfied signals while treating selector and coercion failures as CommandError.
+    status: implemented
+    path: docs/specs/software-requirements/srd041-value-predicate-tool.yaml
+  - id: srd042-otlp-receiver-tools
+    title: OTLP Receiver Tools
+    summary: Trace-only boundary words for OTLP/gRPC launch, bounded batch await, stdouttrace-compatible spool, unchanged upstream relay, lifecycle stop, and ingress self-loop prevention.
+    status: planned
+    path: docs/specs/software-requirements/srd042-otlp-receiver-tools.yaml
 
 config_format_index:
   - id: cfg-machine-format
@@ -493,6 +514,18 @@ use_case_index:
     status: specified
     test_suite: test-rel09.0-scenario-rig
     path: docs/specs/use-cases/rel09.0-uc001-scenario-rig-run.yaml
+  - id: rel10.0-uc001-value-predicate-branch
+    title: A machine branches on a value it read from a service
+    release: "10.0"
+    status: implemented
+    test_suite: test-rel10.0-value-predicate
+    path: docs/specs/use-cases/rel10.0-uc001-value-predicate-branch.yaml
+  - id: rel11.0-uc001-otlp-receiver-await
+    title: A persistent machine receives, records, and relays OTLP trace batches
+    release: "11.0"
+    status: specified
+    test_suite: test-rel11.0-otlp-receiver
+    path: docs/specs/use-cases/rel11.0-uc001-otlp-receiver-await.yaml
   - id: rel99.0-uc001-tool-dispatch-simplification
     title: Maintainer simplifies tool dispatch wiring without changing core dispatch
     release: "99.0"
@@ -596,6 +629,22 @@ test_suite_index:
     formal_test_cases: 10
     status: specified
     path: docs/specs/test-suites/test-rel09.0-scenario-rig.yaml
+  - id: test-rel10.0-value-predicate
+    title: Test Suite for Release 10.0 Value Predicate Tool
+    release: "10.0"
+    traces:
+      - rel10.0-uc001-value-predicate-branch
+    formal_test_cases: 8
+    status: implemented
+    path: docs/specs/test-suites/test-rel10.0-value-predicate.yaml
+  - id: test-rel11.0-otlp-receiver
+    title: Test Suite for Release 11.0 OTLP Receiver Tools
+    release: "11.0"
+    traces:
+      - rel11.0-uc001-otlp-receiver-await
+    formal_test_cases: 7
+    status: specified
+    path: docs/specs/test-suites/test-rel11.0-otlp-receiver.yaml
   - id: test-rel99.0-tool-dispatch-simplification
     title: Test Suite for Release 99.0 Tool Dispatch Simplification
     release: "99.0"

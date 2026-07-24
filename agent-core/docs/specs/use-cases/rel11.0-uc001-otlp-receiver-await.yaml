@@ -1,0 +1,95 @@
+id: rel11.0-uc001-otlp-receiver-await
+title: A persistent machine receives, records, and relays OTLP trace batches
+
+summary: |
+  An operator starts a profile whose machine binds an OTLP/gRPC receiver and
+  waits for trace batches. A client agent exports one batch. The receiver queues
+  it, the await word returns it to the machine, and visible transitions decide
+  whether to spool and relay it. The spool uses the same NDJSON shape as
+  deterministic agent trace files. Relay preserves the request's resource and
+  span identity for a persistent upstream backend.
+
+  The receiver process exports its own runtime telemetry to a file, not to the
+  endpoint it owns. Metrics continue through a separate ingress path because
+  this release defines trace words only.
+
+actor: Operator running a declarative agent as an OTLP trace ingress
+
+trigger: |
+  The operator starts the ingress profile and a client agent exports an
+  `ExportTraceServiceRequest` to its configured OTLP/gRPC endpoint.
+
+flow:
+  - F1: The profile machine dispatches `otlp_receiver_launch` with a receiver name, isolated bind address, queue capacity, and overflow policy (srd042 R1).
+  - F2: Launch returns `ReceiverLaunched`; the machine enters its persistent await loop.
+  - F3: A client exports one OTLP trace request. The gRPC handler decodes and enqueues the complete request under bounded backpressure rules (srd042 R2).
+  - F4: "`await_spans` consumes the oldest batch and returns its protobuf payload plus bounded metadata as `SpansReceived` (srd042 R3)."
+  - F5: The machine evaluates declared policy with ordinary vocabulary and routes the accepted batch to `spool_spans`; rejected policy remains a visible transition.
+  - F6: "`spool_spans` resolves the batch from declared command state and appends complete stdouttrace-compatible NDJSON lines (srd042 R4)."
+  - F7: In relay mode, the machine dispatches `relay_spans`; the upstream receives the unchanged trace request and returns success (srd042 R5).
+  - F8: The machine returns to `await_spans` for the next batch.
+  - F9: A lifecycle control event routes to `otlp_receiver_stop`, which stops intake, unblocks awaiters, and reaches a success terminal (srd042 R6).
+
+touchpoints:
+  - T1: "srd042-otlp-receiver-tools R0 -- transport words stay separate and MachineSpec owns their sentence"
+  - T2: "srd042-otlp-receiver-tools R1 -- declared launch binds OTLP/gRPC and returns without waiting"
+  - T3: "srd042-otlp-receiver-tools R2 -- complete requests enter a bounded concurrent FIFO queue"
+  - T4: "srd042-otlp-receiver-tools R3 -- await returns one batch or a distinct timeout, stop, or fault signal"
+  - T5: "srd042-otlp-receiver-tools R4 -- deterministic spool matches existing stdouttrace NDJSON readers"
+  - T6: "srd042-otlp-receiver-tools R5 -- declared relay preserves protobuf identity"
+  - T7: "srd042-otlp-receiver-tools R6 -- stop owns listener and waiter cleanup"
+  - T8: "srd042-otlp-receiver-tools R7 -- file-only process telemetry prevents ingress self-export"
+  - T9: "srd042-otlp-receiver-tools R8 -- metrics remain on a separate conforming path"
+  - T10: "srd008-telemetry R9 -- integration evidence keeps stable service and run identity"
+
+success_criteria:
+  - id: S1
+    criterion: A real OTLP/gRPC client exports a complete trace batch that the declared await word returns to the machine.
+    traces:
+      - srd042-otlp-receiver-tools AC1
+  - id: S2
+    criterion: The batch is appended in the existing stdouttrace-compatible NDJSON shape with trace, parent, service, and run identity intact.
+    traces:
+      - srd042-otlp-receiver-tools AC2
+  - id: S3
+    criterion: Relay delivers the unchanged batch to an upstream OTLP server, and an upstream rejection reaches the machine as CommandError.
+    traces:
+      - srd042-otlp-receiver-tools AC3
+  - id: S4
+    criterion: Lifecycle stop releases the listener, unblocks waits, and leaves no background goroutine.
+    traces:
+      - srd042-otlp-receiver-tools AC4
+  - id: S5
+    criterion: Client spans arrive while the receiver process's own spans remain only in its deterministic file.
+    traces:
+      - srd042-otlp-receiver-tools AC5
+  - id: S6
+    criterion: The deployment keeps its required metrics evidence on a separate path and makes no metrics claim for these trace-only words.
+    traces:
+      - srd042-otlp-receiver-tools AC6
+
+failure_scenarios:
+  - id: E1
+    scenario: A full queue silently drops a batch.
+    expected: Rejected; configured overflow behavior reports rejected or dropped span counts and never blocks indefinitely.
+  - id: E2
+    scenario: A spool write fails and the tool relays the batch anyway.
+    expected: Rejected; spool emits CommandError and relay can occur only through a later explicit machine transition.
+  - id: E3
+    scenario: Relay rewrites service.name or a trace identifier.
+    expected: Rejected; protobuf span and resource fields arrive unchanged at the upstream.
+  - id: E4
+    scenario: The receiver exports its own lifecycle spans to its listening endpoint.
+    expected: Rejected; the profile uses file-only telemetry and the self-loop proof observes no collector-process batch.
+  - id: E5
+    scenario: A deployment removes its metrics gateway when adopting the trace receiver.
+    expected: Rejected while srd008 R9 metrics evidence applies; trace-only adoption retains a separate metrics path.
+
+out_of_scope:
+  - OTLP metrics and logs.
+  - General-purpose collector throughput or multi-tenant isolation.
+  - Jaeger query and trace search behavior.
+  - TLS and authenticated transport.
+
+test_suite_trace: test-rel11.0-otlp-receiver
+status: specified

@@ -423,6 +423,48 @@ releases:
       - go test ./internal/tools/control
       - mage audit
 
+  - version: "11.0"
+    name: OTLP receiver tools
+    description: |
+      Release 11.0 gives a declarative agent a trace-ingress vocabulary without
+      moving receive policy into a hidden collector process. Focused
+      `internal/tools/otlp` words launch and stop an OTLP/gRPC listener, await
+      complete bounded trace batches, append accepted spans in the existing
+      stdouttrace NDJSON shape, and relay a selected batch unchanged to an
+      upstream OTLP endpoint.
+
+      MachineSpec owns launch, await, filtering, spool, relay, retry, and stop
+      order. The ingress profile exports its own telemetry to file only. This
+      release receives traces only; deployments that require the persistent
+      metrics evidence from srd008 R9 retain a separate metrics path.
+    status: planned
+    planned_work:
+      - id: gh-858
+        summary: Specify the OTLP receiver tool family, use case, and formal test plan.
+        status: in_progress
+      - id: gh-859
+        summary: Implement OTLP/gRPC receive, bounded state, launch, and stop.
+        status: open
+      - id: gh-860
+        summary: Implement await_spans and stdouttrace-compatible spool output.
+        status: open
+      - id: gh-861
+        summary: Implement declared OTLP batch relay and self-loop rejection.
+        status: open
+    srds:
+      - srd042-otlp-receiver-tools
+    use_cases:
+      - id: rel11.0-uc001-otlp-receiver-await
+        summary: A persistent machine receives, records, and relays OTLP trace batches through declared words.
+        status: specified
+    test_suites:
+      - id: test-rel11.0-otlp-receiver
+        summary: Planned tests for receive, backpressure, await, spool compatibility, relay identity, lifecycle cleanup, and self-loop prevention.
+        status: specified
+    proof:
+      - go test ./internal/tools/otlp
+      - mage audit
+
   - version: "99.0"
     name: Tool dispatch simplification planning
     description: |

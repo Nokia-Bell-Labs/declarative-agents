@@ -1,0 +1,166 @@
+id: test-rel11.0-otlp-receiver
+title: Test Suite for Release 11.0 OTLP Receiver Tools
+release: "11.0"
+
+traces:
+  - rel11.0-uc001-otlp-receiver-await
+
+preconditions:
+  - srd042-otlp-receiver-tools defines launch, bounded queue, await, spool, relay, stop, and self-loop behavior.
+  - srd008-telemetry defines OTLP export, stdouttrace evidence, stable integration identity, and the ingress self-loop rule.
+  - The tests bind isolated loopback ports and do not require a persistent external collector.
+  - Go tests remain planned until the implementation children of GH-820 land; planned names are not formal executable evidence.
+
+test_cases:
+  - use_case: rel11.0-uc001-otlp-receiver-await
+    name: OTLP export enters the bounded queue and reaches await
+    planned_go_test: go test ./internal/tools/otlp -run TestReceiverExportAwait
+    status: planned
+    description: |
+      A real OTLP TraceService client exports a request containing two resource
+      spans to a receiver bound on an isolated address. Launch returns before
+      export. Await consumes exactly one complete FIFO batch and reports its
+      span count, service names, trace IDs, and resource attributes.
+    inputs:
+      queue_capacity: 2
+      overflow_policy: reject
+      batches:
+        - services: [chatbot, rag0]
+          spans: 3
+    expected:
+      launch_signal: ReceiverLaunched
+      await_signal: SpansReceived
+      batch_count: 1
+      span_count: 3
+      services: [chatbot, rag0]
+    traces:
+      - rel11.0-uc001-otlp-receiver-await S1
+      - srd042-otlp-receiver-tools AC1
+
+  - use_case: rel11.0-uc001-otlp-receiver-await
+    name: Queue overflow follows each declared policy
+    planned_go_test: go test ./internal/tools/otlp -run TestReceiverOverflowPolicies
+    status: planned
+    description: |
+      A capacity-one queue receives two batches before an await. Reject reports
+      the incoming span count as partial success. Drop-oldest retains the newer
+      batch, and drop-newest retains the older batch. Concurrent exporters do
+      not race or exceed capacity.
+    inputs:
+      queue_capacity: 1
+      policies: [reject, drop_oldest, drop_newest]
+      concurrent_exporters: 8
+    expected:
+      queue_depth_max: 1
+      reject: incoming batch reported rejected
+      drop_oldest: newest batch awaits
+      drop_newest: oldest batch awaits
+    traces:
+      - rel11.0-uc001-otlp-receiver-await S1
+      - srd042-otlp-receiver-tools AC1
+
+  - use_case: rel11.0-uc001-otlp-receiver-await
+    name: Spool output matches stdouttrace readers and rotates by complete batch
+    planned_go_test: go test ./internal/tools/otlp -run TestSpoolStdoutTraceAndRotation
+    status: planned
+    description: |
+      Spool converts a received request into one NDJSON object per span. The
+      existing trace-reader shape decodes every line. Trace IDs, parent IDs,
+      timestamps, span attributes, service.name, and integration run identity
+      equal the source request. Rotation occurs before a batch and leaves no
+      partial JSON line.
+    inputs:
+      max_files: 2
+      max_bytes: one complete batch plus one byte
+      batches: 3
+    expected:
+      parse_errors: 0
+      retained_files_max: 2
+      identity: unchanged
+      partial_lines: 0
+    traces:
+      - rel11.0-uc001-otlp-receiver-await S2
+      - srd042-otlp-receiver-tools AC2
+
+  - use_case: rel11.0-uc001-otlp-receiver-await
+    name: Relay preserves the complete OTLP request and reports rejection
+    planned_go_test: go test ./internal/tools/otlp -run TestRelayPreservesBatch
+    status: planned
+    description: |
+      Relay sends the batch selected from command state to an in-process
+      TraceService server. The upstream request is protobuf-equal to the
+      received request. A second upstream returns partial success and relay
+      emits CommandError without modifying or deleting local spool evidence.
+    inputs:
+      upstreams: [accept_all, reject_one]
+      batch_source: declared command-state selector
+    expected:
+      accept_all_signal: SpansRelayed
+      request_fields: protobuf-equal
+      reject_one_signal: CommandError
+      spool_after_rejection: unchanged
+    traces:
+      - rel11.0-uc001-otlp-receiver-await S3
+      - srd042-otlp-receiver-tools AC3
+
+  - use_case: rel11.0-uc001-otlp-receiver-await
+    name: Stop releases the listener and unblocks every awaiter
+    planned_go_test: go test ./internal/tools/otlp -run TestReceiverStopUnblocksAndReleases
+    status: planned
+    description: |
+      Several awaits block on an empty receiver. Stop unblocks all of them with
+      ReceiverStopped, rejects later exports, and releases the address so a new
+      listener can bind it. Repeated stop is safe and the goroutine count
+      returns to its bounded baseline.
+    inputs:
+      blocked_awaiters: 4
+      drain_policies: [preserve, drop]
+    expected:
+      await_signals: [ReceiverStopped, ReceiverStopped, ReceiverStopped, ReceiverStopped]
+      rebind: succeeds
+      repeated_stop: ReceiverStopped
+      leaked_goroutines: 0
+    traces:
+      - rel11.0-uc001-otlp-receiver-await S4
+      - srd042-otlp-receiver-tools AC4
+
+  - use_case: rel11.0-uc001-otlp-receiver-await
+    name: Ingress process telemetry cannot loop into its receiver
+    planned_go_test: go test ./internal/tools/otlp -run TestReceiverRejectsSelfLoopConfiguration
+    status: planned
+    description: |
+      Registration normalizes equivalent wildcard and loopback endpoints and
+      rejects a receiver whose declared relay points back to itself. The
+      profile-level proof configures file-only telemetry: a client span enters
+      the queue while collector lifecycle spans appear only in the file.
+    inputs:
+      equivalent_endpoints:
+        - ["0.0.0.0:4317", "127.0.0.1:4317"]
+        - ["[::]:4317", "[::1]:4317"]
+      collector_telemetry: file_only
+    expected:
+      static_loop: registration failure
+      client_spans_received: true
+      collector_spans_received: false
+    traces:
+      - rel11.0-uc001-otlp-receiver-await S5
+      - srd042-otlp-receiver-tools AC5
+
+  - use_case: rel11.0-uc001-otlp-receiver-await
+    name: Trace receiver makes no metrics claim
+    status: specified
+    description: |
+      Specification and declaration validation expose only the OTLP trace
+      service. No metric or log receiver factory is registered. Deployment
+      documentation retains a separate metrics route while the persistent
+      integration contract requires Prometheus and Dolt evidence.
+    inputs:
+      protocols: [trace, metric, log]
+    expected:
+      trace: declared
+      metric: not_declared
+      log: not_declared
+      deployment_metrics_path: separate
+    traces:
+      - rel11.0-uc001-otlp-receiver-await S6
+      - srd042-otlp-receiver-tools AC6
