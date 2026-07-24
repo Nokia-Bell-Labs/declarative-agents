@@ -16,7 +16,6 @@ import (
 	"strings"
 
 	"go.opentelemetry.io/otel/attribute"
-	"gopkg.in/yaml.v3"
 
 	"github.com/Nokia-Bell-Labs/declarative-agents/agent-core/internal/observability/tracing"
 	"github.com/Nokia-Bell-Labs/declarative-agents/agent-core/internal/planning/plan"
@@ -86,8 +85,6 @@ func (m *MaterializeTask) Execute(
 	return issueID, nil
 }
 
-// --- issue description formatting (R1) ---
-
 type issueDescription struct {
 	DeliverableType    string                 `yaml:"deliverable_type"`
 	RequiredReading    []string               `yaml:"required_reading"`
@@ -100,25 +97,7 @@ type issueDescription struct {
 // FormatIssueDescription produces a YAML string conforming to the
 // issue-format constitution from an ImplementationPlan.
 func FormatIssueDescription(p plan.ImplementationPlan) (string, error) {
-	reading := make([]string, len(p.Files))
-	for i, f := range p.Files {
-		reading[i] = f.Path
-	}
-
-	desc := issueDescription{
-		DeliverableType:    "code",
-		RequiredReading:    reading,
-		Files:              p.Files,
-		Requirements:       p.Requirements,
-		DesignDecisions:    p.DesignDecisions,
-		AcceptanceCriteria: p.AcceptanceCriteria,
-	}
-
-	data, err := yaml.Marshal(desc)
-	if err != nil {
-		return "", fmt.Errorf("format issue description: %w", err)
-	}
-	return string(data), nil
+	return plan.FormatIssueDescription(p)
 }
 
 // --- bd CLI invocation (R2, R3, R4, R5) ---
