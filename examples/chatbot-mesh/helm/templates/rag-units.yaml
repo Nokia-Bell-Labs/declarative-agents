@@ -136,6 +136,11 @@ spec:
         - name: chroma
           image: "{{ $root.Values.chroma.image.repository }}:{{ $root.Values.chroma.image.tag }}"
           imagePullPolicy: {{ $root.Values.chroma.image.pullPolicy }}
+          {{- with include "chatbot-mesh.otlpEndpoint" $root }}
+          env:
+            - {name: CHROMA_OPEN_TELEMETRY__ENDPOINT, value: {{ printf "http://%s" . | quote }}}
+            - {name: CHROMA_OPEN_TELEMETRY__SERVICE_NAME, value: {{ printf "%s-chroma" $unit.name | quote }}}
+          {{- end }}
           ports:
             - {name: http, containerPort: {{ $root.Values.chroma.port }}}
           readinessProbe:

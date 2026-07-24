@@ -75,7 +75,13 @@
         }
       }
     },
-    "dolt": {"type": "object", "properties": {"enabled": {"type": "boolean"}}},
+    "dolt": {
+      "type": "object",
+      "properties": {
+        "enabled": {"type": "boolean"},
+        "metricsPort": {"type": "integer", "minimum": 1024, "maximum": 49151}
+      }
+    },
     "collector": {
       "type": "object",
       "properties": {

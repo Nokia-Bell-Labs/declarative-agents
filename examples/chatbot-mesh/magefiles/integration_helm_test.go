@@ -3,6 +3,7 @@
 package main
 
 import (
+	"encoding/json"
 	"net/http"
 	"net/http/httptest"
 	"os"
@@ -72,6 +73,13 @@ func TestCollectorKindOverlayExportsBothSignalsWithRunIdentity(t *testing.T) {
 		"key: vcs.ref.head.revision",
 		"key: test.run.id",
 		"metrics:",
+		"prometheus/dolt:",
+		`t-chatbot-mesh-dolt:11228`,
+		"CHROMA_OPEN_TELEMETRY__ENDPOINT",
+		`http://t-chatbot-mesh-collector:4317`,
+		"CHROMA_OPEN_TELEMETRY__SERVICE_NAME",
+		`value: "rag0-chroma"`,
+		`args: ["--config", "/etc/dolt/config.yaml"]`,
 	} {
 		if !strings.Contains(render, want) {
 			t.Errorf("kind collector render missing %q", want)
@@ -157,6 +165,71 @@ func TestSharedTraceCountFiltersByRunID(t *testing.T) {
 	}
 	if count != 1 {
 		t.Fatalf("trace count = %d, want 1", count)
+	}
+}
+
+func TestCollectSharedTelemetryEvidenceIdentifiesSlowComponent(t *testing.T) {
+	started := time.Now().Add(-time.Minute)
+	jaeger := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		service := r.URL.Query().Get("service")
+		duration := int64(1000)
+		tags := []map[string]any{}
+		if service == "rag0-chroma" {
+			duration = 9000
+		}
+		if service == "chatbot" {
+			tags = []map[string]any{
+				{"key": "gen_ai.operation.name", "value": "chat"},
+				{"key": "gen_ai.provider.name", "value": "ollama"},
+				{"key": "gen_ai.request.model", "value": "qwen2.5:3b"},
+			}
+		}
+		_ = json.NewEncoder(w).Encode(map[string]any{"data": []any{map[string]any{
+			"traceID": service + "-trace",
+			"spans": []any{map[string]any{
+				"operationName": service + ".operation",
+				"processID":     "p1",
+				"duration":      duration,
+				"tags":          tags,
+			}},
+			"processes": map[string]any{"p1": map[string]any{"serviceName": service}},
+		}}})
+	}))
+	defer jaeger.Close()
+
+	prometheus := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		selector := r.URL.Query().Get("match[]")
+		var series []map[string]string
+		switch {
+		case strings.HasPrefix(selector, "target_info"):
+			series = []map[string]string{{"job": "chatbot"}, {"job": "rag0"}, {"job": "dolt"}}
+		case strings.HasPrefix(selector, "dispatch_count_total"):
+			series = []map[string]string{
+				{"__name__": "dispatch_count_total", "job": "chatbot"},
+				{"__name__": "dispatch_count_total", "job": "rag0"},
+			}
+		default:
+			series = []map[string]string{{"__name__": "dss_concurrent_queries", "job": "dolt"}}
+		}
+		_ = json.NewEncoder(w).Encode(map[string]any{"status": "success", "data": series})
+	}))
+	defer prometheus.Close()
+
+	evidence, err := collectSharedTelemetryEvidence(jaeger.URL, prometheus.URL, helmTelemetryIdentity{
+		RunID: "run-123", Started: started,
+	})
+	if err != nil {
+		t.Fatal(err)
+	}
+	if evidence.SlowestService != "rag0-chroma" ||
+		evidence.SlowestOperation != "rag0-chroma.operation" {
+		t.Fatalf("slowest evidence = %s/%s, want rag0-chroma/rag0-chroma.operation",
+			evidence.SlowestService, evidence.SlowestOperation)
+	}
+	if !containsString(evidence.AgentMetrics, "dispatch_count_total") ||
+		!containsString(evidence.DoltMetrics, "dss_concurrent_queries") {
+		t.Fatalf("metric evidence missing: agent=%v dolt=%v",
+			evidence.AgentMetrics, evidence.DoltMetrics)
 	}
 }
 

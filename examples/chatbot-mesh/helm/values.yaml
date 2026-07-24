@@ -112,6 +112,7 @@ dolt:
   enabled: true
   image: {repository: dolthub/dolt-sql-server, tag: latest, pullPolicy: IfNotPresent}
   port: 3306
+  metricsPort: 11228
   storage: 1Gi
   rootHost: "%"
   # The MySQL-wire user and database the chatbot's checkpoint DSN targets. The

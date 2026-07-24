@@ -1,5 +1,25 @@
 {{- if .Values.dolt.enabled }}
 {{- $fullname := include "chatbot-mesh.fullname" . -}}
+apiVersion: v1
+kind: ConfigMap
+metadata:
+  name: {{ $fullname }}-dolt
+  labels:
+    {{- include "chatbot-mesh.labels" . | nindent 4 }}
+    app.kubernetes.io/component: dolt
+data:
+  config.yaml: |
+    log_level: info
+    data_dir: /var/lib/dolt
+    listener:
+      host: 0.0.0.0
+      port: {{ .Values.dolt.port }}
+    metrics:
+      host: 0.0.0.0
+      port: {{ .Values.dolt.metricsPort }}
+      labels:
+        service: dolt
+---
 apiVersion: apps/v1
 kind: StatefulSet
 metadata:
@@ -24,17 +44,31 @@ spec:
         - name: dolt
           image: "{{ .Values.dolt.image.repository }}:{{ .Values.dolt.image.tag }}"
           imagePullPolicy: {{ .Values.dolt.image.pullPolicy }}
+          args: ["--config", "/etc/dolt/config.yaml"]
           env:
             - {name: DOLT_ROOT_HOST, value: {{ .Values.dolt.rootHost | quote }}}
           ports:
             - {name: mysql, containerPort: {{ .Values.dolt.port }}}
+            - {name: metrics, containerPort: {{ .Values.dolt.metricsPort }}}
           readinessProbe:
             exec:
-              command: ["dolt", "sql", "-q", "SELECT 1"]
+              command:
+                - dolt
+                - "--host=127.0.0.1"
+                - {{ printf "--port=%v" .Values.dolt.port | quote }}
+                - --no-tls
+                - sql
+                - -q
+                - SELECT 1
             initialDelaySeconds: 10
             periodSeconds: 10
           volumeMounts:
             - {name: data, mountPath: /var/lib/dolt}
+            - {name: config, mountPath: /etc/dolt, readOnly: true}
+      volumes:
+        - name: config
+          configMap:
+            name: {{ $fullname }}-dolt
   volumeClaimTemplates:
     - metadata:
         name: data
@@ -57,4 +91,5 @@ spec:
     app.kubernetes.io/component: dolt
   ports:
     - {name: mysql, port: {{ .Values.dolt.port }}, targetPort: mysql}
+    - {name: metrics, port: {{ .Values.dolt.metricsPort }}, targetPort: metrics}
 {{- end }}
