@@ -296,7 +296,7 @@ func (p *LazyMachineRequestProxy) launchBackend() (string, restServerLifecycle, 
 		return "", nil, err
 	}
 	def.Server.Address = "127.0.0.1:0"
-	def.MachineRequestRunner = p.requestRunner()
+	def.MachineRequestRunner = p.requestRunner(collection)
 	state := p.newServer()
 	output, err := state.Launch(def)
 	if err != nil {
@@ -306,15 +306,25 @@ func (p *LazyMachineRequestProxy) launchBackend() (string, restServerLifecycle, 
 	return "http://" + output["address"].(string), state, nil
 }
 
-func (p *LazyMachineRequestProxy) requestRunner() rest.MachineRequestRunner {
+func (p *LazyMachineRequestProxy) requestRunner(collection rest.Collection) rest.MachineRequestRunner {
 	return rest.NewProfileMachineRequestRunner(rest.ProfileMachineRequestRunnerDeps{
-		BaseDir:          filepath.Dir(p.profilePath),
-		Directory:        docsResourceRoot(p.docsDir),
-		RegisterBuiltins: registerMachineRequestFactories,
+		BaseDir:   filepath.Dir(p.profilePath),
+		Directory: docsResourceRoot(p.docsDir),
+		RegisterBuiltins: func(br *toolregistry.BuiltinRegistry, selected map[string]bool, reg *core.Registry) {
+			registerMachineRequestFactories(br, selected, reg, collection)
+		},
 	})
 }
 
-func registerMachineRequestFactories(br *toolregistry.BuiltinRegistry, selected map[string]bool, _ *core.Registry) {
+func registerMachineRequestFactories(
+	br *toolregistry.BuiltinRegistry,
+	selected map[string]bool,
+	_ *core.Registry,
+	collection rest.Collection,
+) {
+	if selectedActionRESTClient(selected) {
+		rest.RegisterFactories(br, rest.FactoryDeps{Definitions: collection})
+	}
 	if selectedBuiltinInit(selected, "list_resource") {
 		registerResourceFactory(br, "list_resource", func(root string, cfg filesystem.ResourceConfig) core.Builder {
 			return requestListResourceBuilder{root: root, resources: cfg}
@@ -327,6 +337,15 @@ func registerMachineRequestFactories(br *toolregistry.BuiltinRegistry, selected 
 	}
 	registerSelectedResponseFactory(br, selected, "doc_index_response", "DocumentIndexReady")
 	registerSelectedResponseFactory(br, selected, "doc_detail_response", "DocumentDetailReady")
+}
+
+func selectedActionRESTClient(selected map[string]bool) bool {
+	for init := range actionRESTClientInits {
+		if selected[init] {
+			return true
+		}
+	}
+	return false
 }
 
 func selectedBuiltinInit(selected map[string]bool, init string) bool {

@@ -408,6 +408,179 @@ rest:
                   content_type: application/json
                   body:
                     error: command_error
+        validate_action:
+          method: POST
+          path: /api/v1/actions/validate
+          request:
+            body_schema:
+              type: object
+              properties:
+                paths:
+                  type: array
+                  items: {type: string}
+                strict: {type: boolean}
+          binding: machine_request
+          machine_request:
+            profile: profile.yaml
+            machine: request-machine.yaml
+            initial_signal: ValidateRequested
+            timeout: 15s
+            request:
+              body:
+                paths: $.paths
+                strict: $.strict
+            response:
+              terminal_states:
+                ActionCompleted:
+                  status: 200
+                  content_type: application/json
+                  body:
+                    data: $.mapped
+                ActionRejected:
+                  status: 422
+                  content_type: application/json
+                  body:
+                    data: $.mapped
+                    error: validation_failed
+                Failed:
+                  status: 500
+                  content_type: application/json
+                  body:
+                    error: command_error
+        suggest_action:
+          method: POST
+          path: /api/v1/actions/suggest
+          request:
+            body_schema:
+              type: object
+              properties:
+                path: {type: string}
+                instruction: {type: string}
+                context: {type: string}
+              required: [path, instruction]
+          binding: machine_request
+          machine_request:
+            profile: profile.yaml
+            machine: request-machine.yaml
+            initial_signal: SuggestRequested
+            timeout: 15s
+            request:
+              body:
+                path: $.path
+                instruction: $.instruction
+                context: $.context
+            response:
+              terminal_states:
+                ActionCompleted:
+                  status: 202
+                  content_type: application/json
+                  body:
+                    data: $.mapped
+                ActionRejected:
+                  status: 422
+                  content_type: application/json
+                  body:
+                    data: $.mapped
+                    error: suggestion_failed
+                Failed:
+                  status: 500
+                  content_type: application/json
+                  body:
+                    error: command_error
+        approve_action:
+          method: POST
+          path: /api/v1/actions/patches/{patch_id}/approve
+          request:
+            path:
+              patch_id: {type: string}
+            body_schema:
+              type: object
+              properties:
+                decided_by: {type: string}
+                note: {type: string}
+              required: [decided_by]
+          binding: machine_request
+          machine_request:
+            profile: profile.yaml
+            machine: request-machine.yaml
+            initial_signal: ApproveRequested
+            timeout: 15s
+            request:
+              path:
+                patch_id: $.patch_id
+              body:
+                decided_by: $.decided_by
+                note: $.note
+            response:
+              terminal_states:
+                ActionCompleted:
+                  status: 200
+                  content_type: application/json
+                  body:
+                    data: $.mapped
+                ActionRejected:
+                  status: 422
+                  content_type: application/json
+                  body:
+                    data: $.mapped
+                    error: approval_failed
+                ActionMissing:
+                  status: 404
+                  content_type: application/json
+                  body:
+                    error: patch_missing
+                Failed:
+                  status: 500
+                  content_type: application/json
+                  body:
+                    error: command_error
+        reject_action:
+          method: POST
+          path: /api/v1/actions/patches/{patch_id}/reject
+          request:
+            path:
+              patch_id: {type: string}
+            body_schema:
+              type: object
+              properties:
+                decided_by: {type: string}
+                reason: {type: string}
+              required: [decided_by]
+          binding: machine_request
+          machine_request:
+            profile: profile.yaml
+            machine: request-machine.yaml
+            initial_signal: RejectRequested
+            timeout: 15s
+            request:
+              path:
+                patch_id: $.patch_id
+              body:
+                decided_by: $.decided_by
+                reason: $.reason
+            response:
+              terminal_states:
+                ActionCompleted:
+                  status: 200
+                  content_type: application/json
+                  body:
+                    data: $.mapped
+                ActionRejected:
+                  status: 422
+                  content_type: application/json
+                  body:
+                    data: $.mapped
+                    error: rejection_failed
+                ActionMissing:
+                  status: 404
+                  content_type: application/json
+                  body:
+                    error: patch_missing
+                Failed:
+                  status: 500
+                  content_type: application/json
+                  body:
+                    error: command_error
 
     docs_runtime_control:
       address: 127.0.0.1:18082
