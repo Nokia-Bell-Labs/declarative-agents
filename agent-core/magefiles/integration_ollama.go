@@ -75,7 +75,7 @@ func configuredOllamaModel() (string, error) {
 }
 
 func configuredOllamaModelFromRoot(profileRoot string) (string, error) {
-	data, err := os.ReadFile(profileAbs(profileRoot, ollamaLLMRel))
+	data, err := os.ReadFile(conformanceAsset(profileRoot, ollamaLLMRel))
 	if err != nil {
 		return "", err
 	}
@@ -179,14 +179,14 @@ tool_declarations:
   - %s
 rest_definitions:
   - %s
-`, profileAbs(profileRoot, "rest/ollama-machine.yaml"), profileAbs(profileRoot, "rest/ollama-tools.yaml"),
+`, conformanceAsset(profileRoot, "rest/ollama-machine.yaml"), conformanceAsset(profileRoot, "rest/ollama-tools.yaml"),
 		abs(rootDir, "tools/builtin/llm/all.yaml"), llmPath,
-		profileAbs(profileRoot, "rest/ollama-declarations.yaml"), profileAbs(profileRoot, "rest/ollama-rest.yaml"))
+		conformanceAsset(profileRoot, "rest/ollama-declarations.yaml"), conformanceAsset(profileRoot, "rest/ollama-rest.yaml"))
 	return os.WriteFile(profilePath, []byte(profile), 0o644)
 }
 
 func writeOllamaLLMOverride(profileRoot, outPath, model string) error {
-	data, err := os.ReadFile(profileAbs(profileRoot, ollamaLLMRel))
+	data, err := os.ReadFile(conformanceAsset(profileRoot, ollamaLLMRel))
 	if err != nil {
 		return err
 	}
