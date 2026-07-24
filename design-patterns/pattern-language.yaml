@@ -310,6 +310,13 @@ patterns:
         cite: reference-implementation
         kind: internal
         note: A coding agent whose whole control flow lives in machine.yaml; deleting one transition makes the engine reject the machine at load time.
+        evidence:
+          classification: shipped
+          checks:
+            - path: agent-profiles/agents/executor/machine.yaml
+              contains: [Composing, Parsing, Validating]
+            - path: agent-core/internal/runtime/core/machine_parsing_test.go
+              contains: [unknown transition signal]
     provenance: [reference-implementation, external-corroboration]
 
   # ---------------------------------------------------------------------------
@@ -408,7 +415,14 @@ patterns:
       - system: Reference implementation — one binary, many agents
         cite: reference-implementation
         kind: internal
-        note: A coding agent (generator), an evaluator (evaluator), a benchmark orchestrator (bench), and a deterministic spec validator (jurist) are four profile directories over the same binary.
+        note: A coding agent (executor), an evaluator (critic), a benchmark orchestrator (bench), and a deterministic spec validator (jurist) are four profile directories over the same binary.
+        evidence:
+          classification: shipped
+          checks:
+            - path: agent-profiles/agents/executor/profile.yaml
+            - path: agent-profiles/agents/critic/profile.yaml
+            - path: agent-profiles/agents/bench/profile.yaml
+            - path: agent-profiles/agents/jurist/profile.yaml
     provenance: [reference-implementation, external-corroboration]
 
   # ---------------------------------------------------------------------------
@@ -507,6 +521,13 @@ patterns:
         cite: reference-implementation
         kind: internal
         note: Tools are validated at load time; an incomplete contract fails before the agent runs, and reversibility tiers drive receipt-driven undo through the checkpoint_rollback lifecycle tool with no special-casing in the engine.
+        evidence:
+          classification: shipped
+          checks:
+            - path: agent-core/tools/builtin/checkpoint-rollback.yaml
+              contains: [checkpoint_rollback, reversibility]
+            - path: agent-core/internal/tools/lifecycle/receipt_rollback.go
+              contains: [Undo]
     provenance: [reference-implementation, external-corroboration]
 
   # ---------------------------------------------------------------------------
@@ -583,7 +604,14 @@ patterns:
       - system: Reference implementation — generator and evaluator agents
         cite: reference-implementation
         kind: internal
-        note: Making build invisible during Composing stopped mid-edit build failures; making run_agent invisible past Running stopped re-running the subject during checking.
+        note: The runtime registry filters phase-scoped tools from the model manifest outside their declared states, and its availability tests cover both manifest generation and dynamic dispatch.
+        evidence:
+          classification: shipped
+          checks:
+            - path: agent-core/internal/runtime/core/registry.go
+              contains: [Manifest, PhaseMatch]
+            - path: agent-core/internal/runtime/core/registry_test.go
+              contains: [TestManifestAndAvailableExternalToolNamesUseAvailabilityRule]
     provenance: [reference-implementation, external-corroboration]
 
   # ---------------------------------------------------------------------------
@@ -661,6 +689,12 @@ patterns:
         cite: reference-implementation
         kind: internal
         note: Generators share one machine and tool set but bind qwen27b.yaml, deepseek.yaml, or devstral.yaml, yielding a directly comparable grid because the harness is held constant.
+        evidence:
+          classification: shipped
+          checks:
+            - path: agent-profiles/agents/executor/profile-qwen27b.yaml
+            - path: agent-profiles/agents/executor/deepseek-coding-agent.yaml
+            - path: agent-profiles/agents/executor/llm/devstral.yaml
     provenance: [reference-implementation, external-corroboration]
 
   # ---------------------------------------------------------------------------
@@ -747,6 +781,8 @@ patterns:
         cite: reference-implementation
         kind: internal
         note: Design intent, not a shipped profile. The checkpoint_rollback lifecycle tool reverts the Dolt history to the last good step and replays the intervening receipts to restore the files; a coding-agent profile that triggers this automatically on validation failure so the model retries with clean context is intended, but no shipped agent profile wires checkpoint_rollback into such a flow.
+        evidence:
+          classification: design_intent
     provenance: [reference-implementation, external-corroboration]
 
   # ---------------------------------------------------------------------------
@@ -829,6 +865,13 @@ patterns:
         cite: reference-implementation
         kind: internal
         note: The evaluator consumes NDJSON span files, not running agents; per-run cost is read from span attributes, and convergence is classified from the tool-metric snapshots recorded during the run rather than from span or state patterns.
+        evidence:
+          classification: shipped
+          checks:
+            - path: agent-core/internal/evaluation/eval_convergence.go
+              contains: [ToolSnapshot, Convergence, NO_DATA]
+            - path: agent-core/internal/evaluation/eval_report.go
+              contains: [CleanRate]
     provenance: [reference-implementation, external-corroboration]
 
   # ---------------------------------------------------------------------------
@@ -908,7 +951,14 @@ patterns:
       - system: Reference implementation — bench/evaluator/generator stack
         cite: reference-implementation
         kind: internal
-        note: Bench delegates to evaluators via subprocess launch_eval; evaluators run generators via nested run_point; a benchmark point traverses all three with complexity isolated at each level.
+        note: Bench delegates to critics via subprocess launch_eval; critics run executors via nested run_point; a benchmark point traverses all three with complexity isolated at each level.
+        evidence:
+          classification: shipped
+          checks:
+            - path: agent-profiles/agents/bench/machine.yaml
+              contains: [launch_eval]
+            - path: agent-profiles/agents/critic/machine.yaml
+              contains: [run_point]
     provenance: [reference-implementation, external-corroboration]
 
   # ---------------------------------------------------------------------------
@@ -988,6 +1038,12 @@ patterns:
         cite: reference-implementation
         kind: internal
         note: The approval gate is shipped only as a conformance fixture (agent-profiles/testdata/conformance/lifecycle/approval). A deployed coding agent that gates between validation and deployment — approval deploys, rejection rolls back to the pre-deployment checkpoint, each decision recorded for compliance — is design intent, not a shipped profile.
+        evidence:
+          classification: conformance_fixture
+          checks:
+            - path: agent-profiles/testdata/conformance/lifecycle/approval/profile.yaml
+            - path: agent-profiles/testdata/conformance/lifecycle/approval/machine.yaml
+              contains: [AwaitApproval, Approved, Rejected]
     provenance: [reference-implementation, external-corroboration]
 
   # ---------------------------------------------------------------------------
@@ -1077,6 +1133,13 @@ patterns:
         cite: reference-implementation
         kind: internal
         note: The reference evaluator classifies each run's per-tool metric snapshots into a six-class progression and derives aggregate Recovery/Stuck rates; per-type colored badges and a thresholded CI regression gate are design intent, not yet shipped.
+        evidence:
+          classification: shipped
+          checks:
+            - path: agent-core/internal/evaluation/eval_convergence.go
+              contains: [CLEAN, CONVERGED, IMPROVING, FLAT, REGRESSING, NO_DATA]
+            - path: agent-core/internal/evaluation/eval_report.go
+              contains: [RecoveryRate, StuckRate]
     provenance: [reference-implementation]
 
   # ---------------------------------------------------------------------------
@@ -1167,6 +1230,8 @@ patterns:
         cite: reference-implementation
         kind: internal
         note: Design intent, not a shipped profile. An operator watching transitions stream past could spot Stuck-pattern cycles and inject a rollback signal to restore the last checkpoint and try a different approach; no shipped agent profile defines a RollbackRequested signal today.
+        evidence:
+          classification: design_intent
     provenance: [reference-implementation, external-corroboration]
 
 # =============================================================================
