@@ -23,7 +23,6 @@ type HostConfig struct {
 	SourceDir   string
 	ProfilePath string
 	Assets      fs.FS
-	Workflow    WorkflowRunner
 }
 
 // Server serves the Knowledge Manager documentation API and UI assets.
@@ -34,7 +33,6 @@ type Server struct {
 	sourceDir   string
 	profilePath string
 	assets      fs.FS
-	workflow    WorkflowRunner
 }
 
 // RunningServer is a launched documentation host.
@@ -58,7 +56,6 @@ func NewServer(cfg HostConfig) *Server {
 		sourceDir:   cfg.SourceDir,
 		profilePath: cfg.ProfilePath,
 		assets:      assets,
-		workflow:    cfg.Workflow,
 	}
 }
 
@@ -76,7 +73,8 @@ func (s *Server) Handler() http.Handler {
 	mux.HandleFunc("POST /api/v1/docs/patches/{patch_id}/approve", docs.Approve)
 	mux.HandleFunc("POST /api/v1/docs/patches/{patch_id}/reject", docs.Reject)
 	mux.HandleFunc("POST /api/v1/docs/patches/{patch_id}/reopen", docs.Reopen)
-	mux.HandleFunc("POST /api/v1/actions", s.handleAction)
+	mux.HandleFunc("POST /api/v1/actions", http.NotFound)
+	mux.Handle("POST /api/v1/actions/", requests)
 	mux.HandleFunc("GET /api/v1/ux", s.handleUX)
 	mux.HandleFunc("GET /api/v1/configs/{path...}", s.handleGetConfig)
 	mux.HandleFunc("GET /api/v1/source/{path...}", s.handleGetSource)
@@ -159,19 +157,6 @@ func (r *RunningServer) cleanupBackend() error {
 
 func (s *Server) handleHealth(w http.ResponseWriter, r *http.Request) {
 	writeJSON(w, http.StatusOK, map[string]string{"status": "ok"})
-}
-
-func (s *Server) handleAction(w http.ResponseWriter, r *http.Request) {
-	runner := s.workflow
-	if runner == nil {
-		runner = NewLazyProfileWorkflowRunner(s.profilePath, s.docsDir)
-	}
-	result, err := runner.Run(r)
-	if err != nil {
-		writeError(w, http.StatusBadRequest, err.Error())
-		return
-	}
-	writeJSON(w, http.StatusOK, result)
 }
 
 func (s *Server) handleUX(w http.ResponseWriter, _ *http.Request) {

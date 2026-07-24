@@ -1,0 +1,97 @@
+tools:
+- name: create_tracker_issue
+  type: exec
+  binary: bd
+  args:
+  - create
+  - --json
+  - -t
+  - task
+  - -l
+  - code
+  visibility: internal
+  emits:
+  - ToolDone
+  - ToolFailed
+  - CommandError
+  description: Create a planner issue through the tracker selected by this profile.
+  category: boundary
+  problem: Planner issue materialization must select tracker policy in profile configuration rather than Go.
+  goals:
+  - Invoke exactly one configured tracker command.
+  - Preserve the tracker's JSON result for the planner state adapter.
+  requirements:
+    input:
+    - must select title, body-file path, workspace directory, and dependency IDs from the labeled format_issue result
+    output:
+    - must emit ToolDone with a JSON object containing a non-empty id
+    side_effects:
+    - must create one issue in the configured tracker
+    undo:
+    - must require explicit tracker compensation
+    errors:
+    - must emit ToolFailed when the tracker rejects issue creation
+    - must emit CommandError when parameters cannot be resolved or the tracker binary cannot start
+  non_goals:
+  - Does not format the issue body.
+  - Does not update planner pipeline state.
+  parameters:
+    type: object
+    properties:
+      title:
+        type: string
+        flag: --title
+        position: 1
+        source: $from(issue_input).parameters.title
+      body_file:
+        type: string
+        flag: --body-file
+        position: 2
+        source: $from(issue_input).parameters.body_file
+      directory:
+        type: string
+        flag: -C
+        position: 3
+        source: $from(issue_input).parameters.directory
+      deps:
+        type: string
+        flag: --deps
+        position: 4
+        source: $from(issue_input).parameters.deps
+    required: [title, body_file, directory]
+  side_effects:
+  - kind: external_api
+    target: configured_issue_tracker
+    description: Creates one issue through the profile-selected tracker CLI.
+  reversibility:
+    classification: compensatable
+    undo: tracker_issue_close
+    requires_confirmation: false
+  undo:
+    strategy: compensating_action
+    description: Close or delete the created tracker issue through an explicit profile-owned compensation.
+    payload: boundary_compensation
+    captures:
+    - issue_id
+  errors:
+  - signal: ToolFailed
+    condition: configured tracker exits non-zero
+    message_shape: <captured tracker output>
+    state_after_failure: planner state does not record a new issue
+  - signal: CommandError
+    condition: a command-state source is unresolved or the tracker cannot start
+    message_shape: 'create_tracker_issue: <error>'
+    state_after_failure: planner state does not record a new issue
+  relationships:
+    before:
+    - write
+    after:
+    - record_tracker_issue
+  output:
+    description: Raw JSON from the profile-selected tracker.
+    schema:
+      type: object
+      properties:
+        id:
+          type: string
+      required: [id]

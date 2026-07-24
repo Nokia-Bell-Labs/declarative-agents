@@ -13,6 +13,26 @@ preconditions:
   - Legacy sentence tools can be represented as deprecated compatibility declarations while replacement words are selected.
 
 test_cases:
+  - use_case: rel02.0-uc004-sentence-tool-migration
+    name: Planner tracker sentence keeps CLI policy outside state adapters
+    go_test: TestFormatIssueEmitsTrackerAgnosticParameters, TestRecordTrackerIssueMapsConfiguredOutputAndUndo, TestRecordTrackerIssueRejectsInvalidOutputWithoutMutation
+    status: done
+    description: |
+      Format an implementation plan into parameters consumed by separate write
+      and exec words, then record a configured tracker's JSON result. Verify the
+      adapters contain no tracker invocation, update only planner state, and
+      restore that state on undo or malformed output.
+    inputs:
+      current_plan: implementation_plan
+      configured_tracker_result: '{"id":"tracker-42"}'
+    expected:
+      tracker_neutral_parameters: true
+      issue_id_recorded: tracker-42
+      dependency_mapping_recorded: true
+      invalid_output_preserves_state: true
+    traces:
+      - srd013-standard-tool-library AC11
+
   - use_case: rel02.0-uc003-tool-authoring
     name: Declared provider address is an environment reference the loader expands
     go_test: TestLoadToolDefsExpandsEnvReference, TestLoadToolDefsUsesDefaultWhenUnset, TestLoadToolDefsLeavesSelectorsUntouched
@@ -291,7 +311,7 @@ test_cases:
       test-rel07.1-profile-conformance (GH-512).
     inputs:
       migrated_sequence: [load_input, prepare_work, report_result]
-      point_words: [run_oracle_check, collect_trace_tokens, check_agent_version, summarize_point_results]
+      point_words: [record_oracle_result, collect_trace_tokens, check_agent_version, summarize_point_results, record_agent_commit]
       failure_points: [step_failed]
     expected:
       each_stage_failure_transition: explicit

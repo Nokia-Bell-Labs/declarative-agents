@@ -78,7 +78,7 @@ language_model:
 tool_categories:
   word:
     definition: Single deterministic verb with one primary effect and structured output.
-    examples: [read, write, edit, find, parse_response, run_oracle_check]
+    examples: [read, write, edit, find, parse_response, record_oracle_result]
     composition: freely composed by MachineSpec or LLM-selected $tool dispatch.
     undo_model: noop for read-only words; workspace_restore or command-specific undo for mutating words.
   stateful_internal:

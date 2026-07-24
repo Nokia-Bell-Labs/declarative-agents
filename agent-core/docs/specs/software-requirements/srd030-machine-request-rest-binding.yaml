@@ -17,6 +17,7 @@ goals:
   - G2: Keep request handling composition in MachineSpec transitions instead of direct Go handlers.
   - G3: Define request input mapping, response extraction, error mapping, timeout behavior, and trace recording.
   - G4: Keep profile, machine, tool selection, and response policy under trusted configuration.
+  - G5: Route active documentation browser actions through configured machine_request endpoints.
 
 requirements:
   R1:
@@ -27,6 +28,7 @@ requirements:
       - R1.3: The binding SHALL use the same core.Loop execution model as other configured agent programs.
       - R1.4: The binding SHALL NOT implement demo request behavior as direct Go handler workflow composition.
       - R1.5: The binding SHALL support short-lived request/response executions, not long-running background agent sessions.
+      - R1.6: Documentation UI validation, suggestion, approval, and rejection requests SHALL enter configured machine_request routes rather than a private tool registry or direct command execution path.
 
   R2:
     title: Configured machine authority
@@ -94,7 +96,7 @@ non_goals:
 acceptance_criteria:
   - id: AC1
     criterion: The SRD defines machine_request as a REST server binding that turns one inbound HTTP request into one short-lived MachineSpec execution.
-    traces: [R1.1, R1.2, R1.3, R1.5]
+    traces: [R1.1, R1.2, R1.3, R1.5, R1.6]
 
   - id: AC2
     criterion: The SRD states that direct Go handlers are not the composition mechanism for demo request behavior.
@@ -145,11 +147,12 @@ related_documents:
 implementation_status:
   implemented:
     - internal/tools/rest implements the machine_request endpoint binding.
-    - agents/knowledge-manager/documentation-curator/rest.yaml routes document index and detail requests through documentation_curator_requests machine_request endpoints.
+    - agents/knowledge-manager/documentation-curator/rest.yaml routes document index, detail, validation, suggestion, approval, and rejection requests through documentation_curator_requests machine_request endpoints.
     - agents/knowledge-manager/documentation-curator/request-machine.yaml defines the short-lived request machine used by the generic REST server path.
     - ProfileMachineRequestRunner loads request ToolDefs from trusted profile declaration roots and selects only request MachineSpec action names.
     - internal/tools/rest emits server, route, request machine, terminal signal, iteration, and run status trace fields in the generic machine_request response envelope.
     - internal/knowledge/documentation owns the documentation_curator_requests lifecycle through a same-origin proxy that stays a transport adapter over the generic REST server.
+    - The documentation browser resolves profile-owned request_machine_route values, and the host has no private action registry or direct Build(...).Execute() workflow path.
     - Plain go test covers generic request-to-machine response behavior, trace evidence, selected request factories, and same-origin proxy lifecycle cleanup; the concrete browser tracer belongs to agent-profiles.
     - Configured machine_request terminal response schemas are enforced before success responses; invalid terminal output maps to response_invalid error handling.
     - Response mapping accepts terminal_states alongside terminal_signals and resolves state first, so an exec-driven request machine returns a distinct response per outcome; examples/chatbot-mesh executor apply maps Done, Rejected, RolledBack, and Failed to 200, 400, 500, and 500.

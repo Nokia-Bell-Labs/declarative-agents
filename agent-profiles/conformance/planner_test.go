@@ -76,9 +76,9 @@ func TestPlannerShippedProfileWiring(t *testing.T) {
 // It is Ollama-gated: the shipped planner machine declares invoke_llm, which
 // pings Ollama at tool registration, so with no reachable model the profile
 // cannot start (see ollama.go). The full pipeline tail beyond the graph boundary
-// (assemble_prompt -> invoke_llm -> parse_plan -> create_issue via beads ->
-// execute_task via a generator child -> vet/build/test) needs a beads project,
-// a child agent, and the Go toolchain, which the conformance harness
+// (assemble_prompt -> invoke_llm -> parse_plan -> profile-selected tracker
+// sentence -> execute_task via a generator child -> vet/build/test) needs a
+// tracker project, a child agent, and the Go toolchain, which the conformance harness
 // deliberately does not provide; the shipped planner is therefore behaviorally
 // exercised to its requirement-graph boundary here and no further, so no clean
 // terminal is asserted. The remaining boundary wiring is proven ungated by

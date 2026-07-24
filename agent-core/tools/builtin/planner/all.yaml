@@ -5,7 +5,9 @@ includes:
   - ../extract-all.yaml
   - ../assemble-prompt.yaml
   - ../parse-plan.yaml
-  - ../create-issue.yaml
+  - ../format-issue.yaml
+  - ../write.yaml
+  - ../record-tracker-issue.yaml
   - ../execute-task.yaml
   - ../check-result.yaml
 

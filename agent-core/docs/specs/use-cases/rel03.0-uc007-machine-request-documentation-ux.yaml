@@ -3,9 +3,9 @@ title: Knowledge Manager UX uses machine_request document resources
 
 summary: |
   A developer opens the Knowledge Manager documentation UX. Browser requests for
-  the document index and a raw YAML document enter through machine_request
-  endpoints. Each accepted HTTP request runs one short-lived MachineSpec
-  sentence that reads configured document resources and returns a response word
+  document reads and curator actions enter through machine_request endpoints.
+  Each accepted HTTP request runs one short-lived MachineSpec sentence that
+  dispatches configured resource or REST words and returns configured terminal
   output. Puppeteer drives the browser proof and captures request trace evidence.
 
 actor: Developer browsing Agent Core documentation in a browser
@@ -25,8 +25,10 @@ flow:
   - F8: The request machine dispatches a document get word. Path policy denies traversal and permits only configured YAML or Markdown extensions.
   - F9: The response word returns raw YAML and parsed content according to the document resource response mode.
   - F10: The UI shows the document as HTML and exposes the raw YAML view.
-  - F11: Puppeteer verifies visible content, raw YAML retrieval, rendered HTML, nested document path evidence, captured request IDs, machine names, terminal signals, and RunResult summaries.
-  - F12: Browser, server, or machine failures produce a structured Puppeteer failure report with screenshot, console output, network log, and captured trace metadata.
+  - F11: The browser resolves profile-owned action routes and posts validation, suggestion, approval, and rejection input directly to configured machine_request endpoints.
+  - F12: Each action request dispatches its selected REST word through the request machine; the legacy generic action envelope and private direct command runner are absent.
+  - F13: Puppeteer verifies visible content, raw YAML retrieval, rendered HTML, action dispatch, nested document path evidence, captured request IDs, machine names, terminal signals, and RunResult summaries.
+  - F14: Browser, server, or machine failures produce a structured Puppeteer failure report with screenshot, console output, network log, and captured trace metadata.
 
 touchpoints:
   - T1: "srd030-machine-request-rest-binding R1, R2 -- one accepted HTTP request runs one configured MachineSpec sentence"
@@ -65,9 +67,14 @@ success_criteria:
     criterion: Failures report the page URL, screenshot path, browser console output, network log, and machine_request trace metadata.
     traces:
       - srd030-machine-request-rest-binding AC6
+  - id: S7
+    criterion: Browser validation, suggestion, approval, and rejection use profile-owned machine_request routes and inherit standard dispatch trace, timeout, and metrics behavior.
+    traces:
+      - srd030-machine-request-rest-binding AC1
+      - srd030-machine-request-rest-binding AC7
 
 out_of_scope:
-  - Applying documentation patches from the browser.
+  - Applying an approved patch to source files; approval records review state only.
   - Replacing the rel03.0-uc006 direct-host smoke scenario.
   - Running Puppeteer against non-local public listener addresses.
   - Letting browser input choose document roots, parser modes, or machine files.

@@ -25,6 +25,32 @@ var criticSessionWords = []string{
 	"report_suite_summary",
 }
 
+type criticMachineConfig struct {
+	Transitions []criticTransition `yaml:"transitions"`
+}
+
+type criticTransition struct {
+	State  string `yaml:"state"`
+	Signal string `yaml:"signal"`
+	Next   string `yaml:"next"`
+	Action string `yaml:"action"`
+}
+
+type criticToolSelectionFile struct {
+	Tools []string `yaml:"tools"`
+}
+
+type criticToolDeclarations struct {
+	Tools []criticToolDeclaration `yaml:"tools"`
+}
+
+type criticToolDeclaration struct {
+	Name   string   `yaml:"name"`
+	Type   string   `yaml:"type"`
+	Binary string   `yaml:"binary"`
+	Args   []string `yaml:"args"`
+}
+
 // TestCriticSelectsSentenceWords proves the shipped session selection asks for
 // the replacement words and no longer asks for the retired load_suite.
 func TestCriticSelectsSentenceWords(t *testing.T) {
@@ -56,10 +82,52 @@ func TestCriticPointFailureSignals(t *testing.T) {
 	machine := criticMachine(t, "point.yaml")
 	assertTransition(t, machine, "RunningAgent", "HarnessFailed", "RunningOracleCheck", "run_oracle_check")
 	assertTransition(t, machine, "RunningAgent", "HarnessTimedOut", "RunningOracleCheck", "run_oracle_check")
-	assertTransition(t, machine, "RunningOracleCheck", "OracleCheckFailed", "CollectingTraceTokens", "collect_trace_tokens")
+	assertTransition(t, machine, "RunningOracleCheck", "ToolFailed", "RecordingOracleResult", "record_oracle_result")
+	assertTransition(t, machine, "RecordingOracleResult", "OracleCheckFailed", "CollectingTraceTokens", "collect_trace_tokens")
 	assertTransition(t, machine, "CollectingTraceTokens", "TraceTokensCollected", "CheckingAgentVersion", "check_agent_version")
 	assertTransition(t, machine, "CheckingAgentVersion", "AgentVersionMismatch", "SummarizingPointResults", "summarize_point_results")
 	assertTransition(t, machine, "SummarizingPointResults", "ResultsCollected", "CollectingMetrics", "collect_metrics")
+}
+
+func TestCriticPointSelectsSharedWorkspaceExecWords(t *testing.T) {
+	selection := criticToolSelection(t, "tools-point.yaml")
+	for _, word := range []string{"copy_dir", "git_init", "stage_all", "commit_workspace_baseline"} {
+		requireSelected(t, selection, word)
+	}
+	for _, retired := range []string{"copy_sample_workspace", "init_workspace_repo", "stage_workspace_baseline"} {
+		requireNotSelected(t, selection, retired)
+	}
+}
+
+func TestCriticPointWorkspaceSequenceUsesSharedExecSignals(t *testing.T) {
+	machine := criticMachine(t, "point.yaml")
+	assertTransition(t, machine, "CreatingPointDir", "PointDirCreated", "CopyingSampleWorkspace", "copy_dir")
+	assertTransition(t, machine, "CopyingSampleWorkspace", "ToolDone", "CopyingSampleDocs", "copy_sample_docs")
+	assertTransition(t, machine, "CopyingSampleDocs", "SampleDocsCopied", "InitializingWorkspaceRepo", "git_init")
+	assertTransition(t, machine, "InitializingWorkspaceRepo", "ToolDone", "StagingWorkspaceBaseline", "stage_all")
+	assertTransition(t, machine, "StagingWorkspaceBaseline", "ToolDone", "CommittingWorkspaceBaseline", "commit_workspace_baseline")
+	assertTransition(t, machine, "CommittingWorkspaceBaseline", "ToolDone", "ResolvingAgentCommit", "rev_parse")
+	assertTransition(t, machine, "ResolvingAgentCommit", "ToolDone", "RecordingAgentCommit", "record_agent_commit")
+	assertTransition(t, machine, "RecordingAgentCommit", "AgentCommitRecorded", "SnapshotConfig", "dump_config")
+}
+
+func TestCriticPointOracleCommandIsProfileConfiguredExec(t *testing.T) {
+	var declarations criticToolDeclarations
+	if err := readYAML(criticProfilePath(t, "point-exec.yaml"), &declarations); err != nil {
+		t.Fatalf("load critic point exec declarations: %v", err)
+	}
+	for _, declaration := range declarations.Tools {
+		if declaration.Name == "run_oracle_check" {
+			if declaration.Type != "exec" || declaration.Binary != "go" {
+				t.Fatalf("run_oracle_check declaration = %#v, want configured go exec", declaration)
+			}
+			if len(declaration.Args) != 2 || declaration.Args[0] != "test" || declaration.Args[1] != "./..." {
+				t.Fatalf("run_oracle_check args = %v, want [test ./...]", declaration.Args)
+			}
+			return
+		}
+	}
+	t.Fatal("run_oracle_check exec declaration not found")
 }
 
 func criticProfilePath(t *testing.T, name string) string {
@@ -67,10 +135,10 @@ func criticProfilePath(t *testing.T, name string) string {
 	return filepath.Join(repoRootFromTest(t), "agents", "critic", name)
 }
 
-func criticMachine(t *testing.T, name string) machineConfig {
+func criticMachine(t *testing.T, name string) criticMachineConfig {
 	t.Helper()
-	machine, err := loadMachine(criticProfilePath(t, name))
-	if err != nil {
+	var machine criticMachineConfig
+	if err := readYAML(criticProfilePath(t, name), &machine); err != nil {
 		t.Fatalf("load critic %s: %v", name, err)
 	}
 	return machine
@@ -78,7 +146,7 @@ func criticMachine(t *testing.T, name string) machineConfig {
 
 func criticToolSelection(t *testing.T, name string) []string {
 	t.Helper()
-	var selection toolSelectionFile
+	var selection criticToolSelectionFile
 	if err := readYAML(criticProfilePath(t, name), &selection); err != nil {
 		t.Fatalf("load critic %s: %v", name, err)
 	}
@@ -104,7 +172,7 @@ func requireNotSelected(t *testing.T, selection []string, word string) {
 	}
 }
 
-func assertTransition(t *testing.T, machine machineConfig, state, signal, next, action string) {
+func assertTransition(t *testing.T, machine criticMachineConfig, state, signal, next, action string) {
 	t.Helper()
 	for _, tr := range machine.Transitions {
 		if tr.State == state && tr.Signal == signal {

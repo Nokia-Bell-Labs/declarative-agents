@@ -1,8 +1,8 @@
 name: documentation-curator-request
 purpose: |-
-  Request-scoped machine for Knowledge Manager document resource requests.
-  REST machine_request endpoints use this grammar to keep list and read
-  behavior in profile-owned configuration.
+  Request-scoped machine for Knowledge Manager document resource and action
+  requests. REST machine_request endpoints keep list, read, validate, suggest,
+  approve, and reject behavior in profile-owned configuration.
 initial_state: AwaitingRequest
 budget:
   max_iterations: 4
@@ -17,10 +17,24 @@ states:
     meaning: The machine is preparing document index output for HTTP response mapping.
   - name: ShapingDocumentDetail
     meaning: The machine is preparing document detail output for HTTP response mapping.
+  - name: ValidatingDocuments
+    meaning: The machine is executing configured documentation validation.
+  - name: SuggestingChanges
+    meaning: The machine is creating a configured documentation patch suggestion.
+  - name: ApprovingPatch
+    meaning: The machine is approving one configured pending patch.
+  - name: RejectingPatch
+    meaning: The machine is rejecting one configured pending patch.
   - name: DocumentIndexReady
     meaning: Terminal. Document index data is ready for HTTP response mapping.
   - name: DocumentDetailReady
     meaning: Terminal. Document detail data is ready for HTTP response mapping.
+  - name: ActionCompleted
+    meaning: Terminal. A documentation action completed and its result is ready for HTTP response mapping.
+  - name: ActionRejected
+    meaning: Terminal. A documentation action returned a domain failure.
+  - name: ActionMissing
+    meaning: Terminal. A documentation action addressed a patch that does not exist.
   - name: DocumentNotFound
     meaning: Terminal. The requested document path is absent.
   - name: RequestDenied
@@ -30,6 +44,9 @@ states:
 terminal_states:
   - DocumentIndexReady
   - DocumentDetailReady
+  - ActionCompleted
+  - ActionRejected
+  - ActionMissing
   - DocumentNotFound
   - RequestDenied
   - Failed
@@ -38,6 +55,14 @@ signals:
     trigger: Machine request endpoint starts a list request.
   - name: ReadRequested
     trigger: Machine request endpoint starts a detail request.
+  - name: ValidateRequested
+    trigger: Machine request endpoint starts documentation validation.
+  - name: SuggestRequested
+    trigger: Machine request endpoint starts patch suggestion.
+  - name: ApproveRequested
+    trigger: Machine request endpoint starts patch approval.
+  - name: RejectRequested
+    trigger: Machine request endpoint starts patch rejection.
   - name: DocumentListReady
     trigger: doc_list_resource returned configured resource entries.
   - name: DocumentReady
@@ -52,6 +77,14 @@ signals:
     trigger: A resource command rejected the requested path or extension.
   - name: DocumentParseFailed
     trigger: A resource command could not parse configured document content.
+  - name: RESTResponded
+    trigger: A configured action REST word returned a synchronous success response.
+  - name: RESTAccepted
+    trigger: A configured action REST word accepted asynchronous work.
+  - name: RESTDomainFailed
+    trigger: A configured action REST word returned a declared domain failure.
+  - name: RESTMissing
+    trigger: A configured action REST word could not find the requested patch.
   - name: CommandError
     trigger: Resource configuration or filesystem access failed.
 transitions:
@@ -63,6 +96,22 @@ transitions:
     signal: ReadRequested
     next: ReadingDocument
     action: doc_read_resource
+  - state: AwaitingRequest
+    signal: ValidateRequested
+    next: ValidatingDocuments
+    action: doc_validate
+  - state: AwaitingRequest
+    signal: SuggestRequested
+    next: SuggestingChanges
+    action: doc_suggest_changes
+  - state: AwaitingRequest
+    signal: ApproveRequested
+    next: ApprovingPatch
+    action: doc_patch_approve
+  - state: AwaitingRequest
+    signal: RejectRequested
+    next: RejectingPatch
+    action: doc_patch_reject
   - state: ListingDocuments
     signal: DocumentListReady
     next: ShapingDocumentIndex
@@ -93,5 +142,50 @@ transitions:
     signal: DocumentParseFailed
     next: Failed
   - state: ReadingDocument
+    signal: CommandError
+    next: Failed
+  - state: ValidatingDocuments
+    signal: RESTResponded
+    next: ActionCompleted
+  - state: ValidatingDocuments
+    signal: RESTDomainFailed
+    next: ActionRejected
+  - state: ValidatingDocuments
+    signal: CommandError
+    next: Failed
+  - state: SuggestingChanges
+    signal: RESTAccepted
+    next: ActionCompleted
+  - state: SuggestingChanges
+    signal: RESTResponded
+    next: ActionCompleted
+  - state: SuggestingChanges
+    signal: RESTDomainFailed
+    next: ActionRejected
+  - state: SuggestingChanges
+    signal: CommandError
+    next: Failed
+  - state: ApprovingPatch
+    signal: RESTResponded
+    next: ActionCompleted
+  - state: ApprovingPatch
+    signal: RESTDomainFailed
+    next: ActionRejected
+  - state: ApprovingPatch
+    signal: RESTMissing
+    next: ActionMissing
+  - state: ApprovingPatch
+    signal: CommandError
+    next: Failed
+  - state: RejectingPatch
+    signal: RESTResponded
+    next: ActionCompleted
+  - state: RejectingPatch
+    signal: RESTDomainFailed
+    next: ActionRejected
+  - state: RejectingPatch
+    signal: RESTMissing
+    next: ActionMissing
+  - state: RejectingPatch
     signal: CommandError
     next: Failed

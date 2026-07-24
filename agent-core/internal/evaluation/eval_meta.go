@@ -6,7 +6,6 @@ import (
 	"encoding/json"
 	"fmt"
 	"os"
-	"os/exec"
 	"path/filepath"
 	"strings"
 	"time"
@@ -34,13 +33,6 @@ func EvalPointID(sample, harness, model string, gridPoint GridPoint, rep int) st
 		parts = append(parts, gridStr)
 	}
 	return fmt.Sprintf("%s--rep%d", strings.Join(parts, "--"), rep)
-}
-
-func runOracleCheck(workspaceDir string) (bool, string) {
-	cmd := exec.Command("go", "test", "./...")
-	cmd.Dir = workspaceDir
-	out, err := cmd.CombinedOutput()
-	return err == nil, string(out)
 }
 
 func writeMetaJSON(pc *PointContext) ([]byte, error) {

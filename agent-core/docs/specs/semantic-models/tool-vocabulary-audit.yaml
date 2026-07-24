@@ -432,7 +432,7 @@ tools:
     role: word
     selected_by: [planner]
     inputs_from: [invoke_llm]
-    feeds_into: [create_issue]
+    feeds_into: [format_issue]
     side_effects: pipeline_state_mutation
     output_contract: missing
     undo: restore_previous_plan
@@ -443,25 +443,48 @@ tools:
       - mutates CurrentPlan; needs undo contract
     migration_priority: medium
 
-  - name: create_issue
-    role: boundary
+  - name: format_issue
+    role: stateful_internal
     selected_by: [planner]
     inputs_from: [parse_plan]
-    feeds_into: [execute_task]
-    side_effects: bd_database_write
-    output_contract: missing
-    undo: boundary_compensation (compensating_action, captures issue_id + pipeline_state_snapshot)
+    feeds_into: [write]
+    side_effects: planner_state_read
+    output_contract: structured tracker-neutral parameters
+    undo: restore_previous_pipeline_snapshot
+    overlaps: []
+    issues: []
+    migration_priority: low
+
+  - name: create_tracker_issue
+    role: boundary
+    selected_by: [planner]
+    inputs_from: [write, format_issue]
+    feeds_into: [record_tracker_issue]
+    side_effects: configured_tracker_write
+    output_contract: profile-declared JSON id
+    undo: boundary_compensation (compensating_action, captures issue_id)
     overlaps:
       - tool: issue_create
-        difference: create_issue uses parsed planner state; issue_create is direct bd CLI wrapper
-    issues:
-      - output.schema for created issue ID and metadata
-    migration_priority: medium
+        difference: create_tracker_issue is the planner profile's replaceable tracker boundary; issue_create is a shared direct bd CLI word
+    issues: []
+    migration_priority: low
+
+  - name: record_tracker_issue
+    role: stateful_internal
+    selected_by: [planner]
+    inputs_from: [create_tracker_issue]
+    feeds_into: [execute_task, extract_task]
+    side_effects: pipeline_state_mutation
+    output_contract: structured issue_id
+    undo: restore_previous_pipeline_snapshot
+    overlaps: []
+    issues: []
+    migration_priority: low
 
   - name: execute_task
     role: boundary
     selected_by: [planner]
-    inputs_from: [create_issue, extract_task]
+    inputs_from: [record_tracker_issue, extract_task]
     feeds_into: [check_result]
     side_effects: child_agent_process, workspace_mutation
     output_contract: missing
@@ -606,95 +629,60 @@ tools:
     role: word
     selected_by: [evaluator_point]
     inputs_from: [next_point]
-    feeds_into: [copy_sample_workspace]
+    feeds_into: [copy_dir]
     side_effects: filesystem_write, point_context_mutation
-    output_contract: missing
+    output_contract: copy_dir source and destination parameters
     undo: workspace_restore
     overlaps: []
-    issues:
-      - needs output.schema for point_dir and trace_path
-      - needs full problem/goals/non_goals/reversibility metadata
-    migration_priority: medium
-
-  - name: copy_sample_workspace
-    role: word
-    selected_by: [evaluator_point]
-    inputs_from: [create_point_dir]
-    feeds_into: [copy_sample_docs]
-    side_effects: filesystem_write
-    output_contract: missing
-    undo: workspace_restore
-    overlaps:
-      - tool: copy_dir
-        difference: copy_sample_workspace copies the selected sample workspace from PointContext; copy_dir is a generic CLI wrapper
-    issues:
-      - needs output.schema for copied file count or destination
-    migration_priority: medium
+    issues: []
+    migration_priority: low
 
   - name: copy_sample_docs
     role: word
     selected_by: [evaluator_point]
-    inputs_from: [copy_sample_workspace]
-    feeds_into: [init_workspace_repo]
+    inputs_from: [copy_dir]
+    feeds_into: [git_init]
     side_effects: filesystem_write_or_none
     output_contract: missing
     undo: workspace_restore
     overlaps:
-      - tool: copy_sample_workspace
-        difference: copy_sample_docs copies optional documentation only; copy_sample_workspace copies executable workspace files
+      - tool: copy_dir
+        difference: copy_sample_docs preserves an optional no-docs success branch; copy_dir performs the required workspace copy
     issues:
       - no-ops successfully when no docs exist, which should be explicit in output.schema
     migration_priority: medium
 
-  - name: init_workspace_repo
-    role: word
-    selected_by: [evaluator_point]
-    inputs_from: [copy_sample_docs]
-    feeds_into: [stage_workspace_baseline]
-    side_effects: git_repo_create
-    output_contract: missing
-    undo: workspace_restore
-    overlaps:
-      - tool: git_init
-        difference: init_workspace_repo initializes the current PointContext workspace; git_init is a generic CLI wrapper
-    issues:
-      - needs output.schema and reversibility contract
-    migration_priority: medium
-
-  - name: stage_workspace_baseline
-    role: word
-    selected_by: [evaluator_point]
-    inputs_from: [init_workspace_repo]
-    feeds_into: [commit_workspace_baseline]
-    side_effects: git_index_mutation
-    output_contract: missing
-    undo: git_reset_index_or_workspace_restore
-    overlaps:
-      - tool: stage_all
-        difference: stage_workspace_baseline stages the PointContext workspace baseline; stage_all is a generic CLI wrapper
-    issues:
-      - needs output.schema and undo metadata
-    migration_priority: medium
-
   - name: commit_workspace_baseline
-    role: word
+    role: boundary
     selected_by: [evaluator_point]
-    inputs_from: [stage_workspace_baseline]
-    feeds_into: [dump_config]
+    inputs_from: [stage_all]
+    feeds_into: [rev_parse]
     side_effects: git_commit_create
     output_contract: missing
     undo: workspace_restore
     overlaps:
       - tool: commit
-        difference: commit_workspace_baseline creates a local point-workspace baseline; commit is a generic repo-history operation
+        difference: commit_workspace_baseline is a profile-configured alias with deterministic local identity and message; commit accepts caller input
     issues:
       - needs output.schema for commit hash
     migration_priority: medium
 
+  - name: record_agent_commit
+    role: stateful_internal
+    selected_by: [evaluator_point]
+    inputs_from: [rev_parse]
+    feeds_into: [dump_config]
+    side_effects: point_context_commit_mutation
+    output_contract: commit provenance string
+    undo: restore_point_context
+    overlaps: []
+    issues: []
+    migration_priority: low
+
   - name: dump_config
     role: word
     selected_by: [evaluator_point]
-    inputs_from: [commit_workspace_baseline, point_context]
+    inputs_from: [record_agent_commit, point_context]
     feeds_into: [run_agent]
     side_effects: filesystem_write
     output_contract: missing
@@ -721,24 +709,35 @@ tools:
     migration_priority: medium
 
   - name: run_oracle_check
-    role: word
+    role: boundary
     selected_by: [evaluator_point]
     inputs_from: [run_agent]
-    feeds_into: [collect_trace_tokens]
-    side_effects: point_context_test_result_mutation
-    output_contract: declared_by_signal
-    undo: restore_point_context
+    feeds_into: [record_oracle_result]
+    side_effects: configured_child_process
+    output_contract: raw configured oracle output
+    undo: noop
     overlaps:
       - tool: test
-        difference: run_oracle_check executes the point workspace oracle after agent execution; generic test runs workspace validation
-    issues:
-      - output.schema still needs full structured result contract
-    migration_priority: medium
+        difference: run_oracle_check is a critic profile alias with profile-owned command arguments; generic test accepts a package parameter
+    issues: []
+    migration_priority: low
+
+  - name: record_oracle_result
+    role: stateful_internal
+    selected_by: [evaluator_point]
+    inputs_from: [run_oracle_check]
+    feeds_into: [collect_trace_tokens]
+    side_effects: point_context_test_result_mutation
+    output_contract: configured oracle output
+    undo: restore_point_context
+    overlaps: []
+    issues: []
+    migration_priority: low
 
   - name: collect_trace_tokens
     role: word
     selected_by: [evaluator_point]
-    inputs_from: [run_oracle_check, trace_ndjson]
+    inputs_from: [record_oracle_result, trace_ndjson]
     feeds_into: [check_agent_version]
     side_effects: point_context_token_mutation
     output_contract: declared_by_signal
@@ -766,7 +765,7 @@ tools:
   - name: summarize_point_results
     role: word
     selected_by: [evaluator_point]
-    inputs_from: [run_oracle_check, collect_trace_tokens, check_agent_version]
+    inputs_from: [record_oracle_result, collect_trace_tokens, check_agent_version]
     feeds_into: [collect_metrics]
     side_effects: none
     output_contract: missing
@@ -877,15 +876,13 @@ tools:
   # Workspace and git exec tools
   - name: copy_dir
     role: word
-    selected_by: []
-    inputs_from: [tool_call]
-    feeds_into: [git_init, build, test]
+    selected_by: [evaluator_point]
+    inputs_from: [create_point_dir, tool_call]
+    feeds_into: [copy_sample_docs, git_init, build, test]
     side_effects: filesystem_write
     output_contract: missing
     undo: workspace_restore
-    overlaps:
-      - tool: copy_sample_workspace
-        difference: copy_dir is a generic CLI wrapper; copy_sample_workspace copies the evaluator sample workspace from PointContext
+    overlaps: []
     issues:
       - legacy scalar side_effects
     migration_priority: medium
@@ -905,24 +902,22 @@ tools:
 
   - name: git_init
     role: word
-    selected_by: []
-    inputs_from: [make_dir, workspace]
+    selected_by: [evaluator_point]
+    inputs_from: [copy_sample_docs, make_dir, workspace]
     feeds_into: [stage_all, commit]
     side_effects: filesystem_write_git_metadata
     output_contract: missing
     undo: workspace_restore
-    overlaps:
-      - tool: init_workspace_repo
-        difference: git_init is a generic CLI wrapper; init_workspace_repo initializes the evaluator point workspace from PointContext
+    overlaps: []
     issues:
       - legacy scalar side_effects
     migration_priority: medium
 
   - name: stage_all
     role: word
-    selected_by: []
-    inputs_from: [workspace_changes]
-    feeds_into: [commit]
+    selected_by: [evaluator_point]
+    inputs_from: [git_init, workspace_changes]
+    feeds_into: [commit, commit_workspace_baseline]
     side_effects: git_index_mutation
     output_contract: missing
     undo: git_reset_index_or_workspace_restore
@@ -963,9 +958,9 @@ tools:
 
   - name: rev_parse
     role: word
-    selected_by: []
-    inputs_from: [commit, workspace]
-    feeds_into: [logs, metadata]
+    selected_by: [evaluator_point]
+    inputs_from: [commit, commit_workspace_baseline, workspace]
+    feeds_into: [logs, metadata, record_agent_commit]
     side_effects: none
     output_contract: missing
     undo: noop
@@ -1016,8 +1011,8 @@ tools:
     output_contract: missing
     undo: boundary_compensation (compensating_action, captures created_issue_id + workspace_paths)
     overlaps:
-      - tool: create_issue
-        difference: issue_create is raw bd CLI wrapper; create_issue consumes planner state
+      - tool: create_tracker_issue
+        difference: issue_create is a shared direct bd CLI wrapper; create_tracker_issue is selected and configured by the planner profile
     issues:
       - output.schema for created issue ID
     migration_priority: low
@@ -1062,7 +1057,7 @@ boundary_tools_with_compensation:
     - suspend
     - checkpoint_rollback
     - self_invoke
-    - create_issue
+    - create_tracker_issue
     - execute_task
     - run_point
     - run_agent

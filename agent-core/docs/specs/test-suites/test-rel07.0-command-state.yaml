@@ -392,13 +392,16 @@ test_cases:
       - srd036-dolt-state-persistence AC4
 
   - use_case: rel07.0-uc002-two-plane-revert
-    name: Receipt walk reverses the surviving step from the reverse plane
+    name: Dolt component restores surviving receipts after reaping later rows
     go_test: go test ./internal/runtime/core -run TestDoltCheckpointReceiptWalkReversesSurvivingStep
     status: implemented
     description: |
-      After Revert to step 1 the rollback receipt walk reads the surviving step-1
-      receipt from the receipts plane and reverses that step's external effect; no
-      forward selector can reach any receipt.
+      This component test calls Revert and Load through the Dolt adapter, then
+      manually walks the restored entries and invokes a synthetic Reverser. It
+      proves that the reverse plane retains surviving receipts and reaps later
+      receipts; it is not evidence that the production checkpoint_rollback
+      adapter invoked the receipt walk. The production invocation is covered by
+      TestCheckpointRollbackRestoresFileViaPersistedReceipt in test-rel02.0.
     inputs:
       surviving_step: 1
       receipt_source: receipts

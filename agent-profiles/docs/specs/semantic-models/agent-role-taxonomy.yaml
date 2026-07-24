@@ -95,7 +95,7 @@ roles:
     runtime_dependencies:
       - agent-core planning tool implementations
       - agent-core model boundary
-      - issue tracker CLI
+      - profile-selected issue tracker CLI declaration
     outputs:
       - implementation plan
       - created issue
@@ -108,7 +108,7 @@ roles:
       - Failed
     checks:
       - Confirm planner invokes executor as a child profile.
-      - Confirm issues are materialized through the issue tracker.
+      - Confirm issues are materialized through format, write, profile-selected tracker exec, and result-recording words.
       - Confirm graph terminal states are explicit.
       - Trace planner to executor with rel07.0-uc003-planner-generator-profile-boundary.
 

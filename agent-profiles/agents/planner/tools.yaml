@@ -5,6 +5,7 @@
 # Usage:
 #   agent --tools-declaration tools/builtin.yaml \
 #         --tools-declaration agents/planner/builtin.yaml \
+#         --tools-declaration agents/planner/tracker-exec.yaml \
 #         --tools-declaration tools/exec.yaml \
 #         --tools agents/planner/tools.yaml \
 #         --machine agents/planner/machine.yaml
@@ -18,7 +19,10 @@ tools:
   - extract_all          # action: passthrough
   - assemble_prompt      # action: full, plan-only
   - parse_plan           # action: full, plan-only
-  - create_issue         # action: full, plan-only
+  - format_issue         # action: full, plan-only
+  - write                # action: full, plan-only
+  - create_tracker_issue # action: full, plan-only
+  - record_tracker_issue # action: full, plan-only
 
   # Execution phase (full + passthrough)
   - execute_task         # action: full, passthrough

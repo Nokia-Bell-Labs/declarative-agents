@@ -35,11 +35,12 @@ var sessionWords = []string{
 // pointWords are the evaluator point words whose failure paths the point
 // machine routes on. agent-core owns their declarations too.
 var pointWords = []string{
-	"run_oracle_check",
+	"record_oracle_result",
 	"collect_trace_tokens",
 	"check_agent_version",
 	"summarize_point_results",
 	"collect_metrics",
+	"record_agent_commit",
 }
 
 // TestSessionWordsDeclareFullContract proves the core-owned session

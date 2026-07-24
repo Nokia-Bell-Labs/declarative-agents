@@ -1,0 +1,58 @@
+tools:
+- name: record_tracker_issue
+  type: builtin
+  init: record_tracker_issue
+  description: Record an issue ID returned by the configured tracker exec word.
+  visibility: internal
+  emits:
+  - Materialized
+  - CommandError
+  category: stateful_internal
+  problem: Planner dependency wiring needs the created issue ID without giving Go code ownership of tracker invocation.
+  goals:
+  - Parse the common tracker-result contract from the preceding exec result.
+  - Store the issue ID and current-task dependency mapping in planner state.
+  requirements:
+    input:
+    - must consume a successful adjacent tracker exec result containing a non-empty JSON id
+    output:
+    - must emit Materialized with the recorded issue ID
+    side_effects:
+    - must update IssueID and the current task's TaskDeps entry
+    undo:
+    - must restore the prior planner state snapshot
+    errors:
+    - must emit CommandError without mutation for failed, malformed, or empty tracker results
+  non_goals:
+  - Does not invoke or select an issue tracker.
+  - Does not interpret tracker command-line arguments.
+  side_effects:
+  - kind: state_mutation
+    target: planner_pipeline_state
+    state: issue_id_recorded
+    description: Records the created issue ID for task execution and dependent issues.
+  reversibility:
+    classification: reversible
+    undo: planner_state_restore
+    requires_confirmation: false
+  undo:
+    strategy: session_state_restore
+    description: Restore IssueID and TaskDeps from the prior planner snapshot.
+  errors:
+  - signal: CommandError
+    condition: tracker result failed, is malformed JSON, or contains an empty id
+    message_shape: 'record_tracker_issue: <error>'
+    state_after_failure: previous planner state is preserved
+  relationships:
+    before:
+    - tracker exec word
+    after:
+    - execute_task
+  output:
+    description: The issue ID recorded in planner state.
+    schema:
+      type: object
+      properties:
+        issue_id:
+          type: string
+      required: [issue_id]

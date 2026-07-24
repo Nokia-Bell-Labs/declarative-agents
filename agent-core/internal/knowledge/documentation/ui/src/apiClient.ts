@@ -97,6 +97,7 @@ export interface UXGroup {
 export interface UXAction {
   ui_action: string
   request_machine_action?: string
+  request_machine_route?: string
   route: string
 }
 
@@ -120,8 +121,8 @@ async function postJSON<T>(path: string, body: unknown): Promise<T> {
   return payload.data
 }
 
-async function postAction<T>(type: string, params: Record<string, unknown> = {}): Promise<T> {
-  return postJSON<T>('/actions', { type, params })
+async function postAction<T>(path: string, params: Record<string, unknown> = {}): Promise<T> {
+  return postJSON<T>(path, params)
 }
 
 function documentPath(path: string): string {
@@ -133,11 +134,17 @@ export function getUXConfig(): Promise<UXConfig> {
   return uxConfig
 }
 
-async function uiAction(name: string): Promise<string> {
+async function actionRoute(name: string, pathParams: Record<string, string> = {}): Promise<string> {
   const cfg = await getUXConfig()
   const action = cfg.actions[name]
   if (!action) throw new Error(`missing UX action: ${name}`)
-  return action.ui_action
+  if (!action.request_machine_route) throw new Error(`missing request machine route: ${name}`)
+  let route = action.request_machine_route
+  for (const [key, value] of Object.entries(pathParams)) {
+    route = route.replace(`{${key}}`, encodeURIComponent(value))
+  }
+  if (route.includes('{')) throw new Error(`unresolved request machine route: ${name}`)
+  return route
 }
 
 async function routePath(id: string): Promise<string> {
@@ -165,14 +172,14 @@ export const getDoc = (path: string) => fetchDoc(path)
 export const getConfig = (path: string) => fetchJSON<ConfigDetail>(`/configs/${path}`)
 export const getSource = (path: string) => fetchJSON<SourceDetail>(`/source/${path}`)
 export const validateDocs = async (paths: string[], strict = false) => {
-  return postAction<ValidationReport>(await uiAction('validate_document'), { paths, strict })
+  return postAction<ValidationReport>(await actionRoute('validate_document'), { paths, strict })
 }
 export const suggestDocChanges = async (path: string, instruction: string, context = '') => {
-  return postAction<SuggestionResponse>(await uiAction('suggest_changes'), { path, instruction, context })
+  return postAction<SuggestionResponse>(await actionRoute('suggest_changes'), { path, instruction, context })
 }
 export const approvePatch = async (patchId: string, decidedBy: string, note = '') => {
-  return postAction<PatchDecision>(await uiAction('approve_patch'), { patch_id: patchId, decided_by: decidedBy, note })
+  return postAction<PatchDecision>(await actionRoute('approve_patch', { patch_id: patchId }), { decided_by: decidedBy, note })
 }
 export const rejectPatch = async (patchId: string, decidedBy: string, reason = '') => {
-  return postAction<PatchDecision>(await uiAction('reject_patch'), { patch_id: patchId, decided_by: decidedBy, reason })
+  return postAction<PatchDecision>(await actionRoute('reject_patch', { patch_id: patchId }), { decided_by: decidedBy, reason })
 }

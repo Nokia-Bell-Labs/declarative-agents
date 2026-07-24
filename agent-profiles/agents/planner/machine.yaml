@@ -12,6 +12,7 @@ configuration:
   tool_declarations:
   - tools/builtin.yaml
   - tools/exec.yaml
+  - agents/planner/tracker-exec.yaml
   variants:
   - agents/planner/machine-passthrough.yaml
   - agents/planner/machine-plan-only.yaml
@@ -27,12 +28,13 @@ lifecycle: |-
   3. Resetting → PromptAssembly: assemble_prompt with SRD context
   4. PromptAssembly → PlanInvoking: invoke_llm for plan generation
   5. PlanInvoking → PlanParsing: parse_plan from LLM response
-  6. PlanParsing → Materializing: create_issue (bd create)
-  7. Materializing → Executing: execute_task (run generator profile)
-  8. Executing → Vetting → Building → Testing: validation pipeline
-  9. Testing → CheckingResult: evaluate pass/fail
-  10. CheckingResult → Extracting: success or retries exhausted, next task
-  10a. CheckingResult → Resetting: retry available, re-plan
+  6. PlanParsing → IssueFormatting → IssueBodyWriting: format_issue then write
+  7. IssueBodyWriting → IssueCreating → IssueRecording: selected tracker exec then record_tracker_issue
+  8. IssueRecording → Executing: execute_task (run generator profile)
+  9. Executing → Vetting → Building → Testing: validation pipeline
+  10. Testing → CheckingResult: evaluate pass/fail
+  11. CheckingResult → Extracting: success or retries exhausted, next task
+  11a. CheckingResult → Resetting: retry available, re-plan
 
   The outer loop (Extracting → ... → CheckingResult → Extracting)
   repeats until the graph is fully resolved.
@@ -44,7 +46,7 @@ pipeline_diagram: |-
     C --> D[PromptAssembly]
     D --> E[PlanInvoking]
     E --> F[PlanParsing]
-    F --> G[Materializing]
+    F --> G[Format / Write / Tracker Exec / Record]
     G --> H[Executing]
     H --> I[Vet / Build / Test]
     I --> J[CheckingResult]
@@ -74,8 +76,14 @@ states:
   meaning: Calling the LLM to generate an implementation plan.
 - name: PlanParsing
   meaning: Parsing the LLM response as a YAML implementation plan.
-- name: Materializing
-  meaning: Creating an issue (bd create) from the parsed plan.
+- name: IssueFormatting
+  meaning: Formatting the parsed plan as tracker-neutral issue parameters.
+- name: IssueBodyWriting
+  meaning: Writing the issue body to the configured workspace file.
+- name: IssueCreating
+  meaning: Creating an issue through the tracker exec word selected by the profile.
+- name: IssueRecording
+  meaning: Recording the configured tracker's issue ID in planner state.
 - name: Executing
   meaning: Running the generator profile to implement the task.
 - name: Vetting
@@ -122,12 +130,12 @@ signals:
   trigger: The LLM returned a response.
 - name: PlanReady
   trigger: The LLM response was parsed as a valid implementation plan.
+- name: IssueFormatted
+  trigger: Planner state was serialized as tracker-neutral issue parameters.
 - name: ParseFailed
   trigger: The LLM response could not be parsed as a valid plan.
 - name: Materialized
   trigger: An issue was created from the plan.
-- name: MaterializeFailed
-  trigger: Issue creation failed.
 - name: ExecutionDone
   trigger: The generator agent completed successfully.
 - name: ExecutionFailed
@@ -191,8 +199,9 @@ transitions:
   next: Failed
 - state: PlanParsing
   signal: PlanReady
-  next: Materializing
-  action: create_issue
+  next: IssueFormatting
+  action: format_issue
+  label: issue_input
 - state: PlanParsing
   signal: ParseFailed
   next: Extracting
@@ -200,14 +209,38 @@ transitions:
 - state: PlanParsing
   signal: CommandError
   next: Failed
-- state: Materializing
+- state: IssueFormatting
+  signal: IssueFormatted
+  next: IssueBodyWriting
+  action: write
+- state: IssueFormatting
+  signal: CommandError
+  next: Failed
+- state: IssueBodyWriting
+  signal: ToolDone
+  next: IssueCreating
+  action: create_tracker_issue
+- state: IssueBodyWriting
+  signal: ToolFailed
+  next: Failed
+- state: IssueBodyWriting
+  signal: CommandError
+  next: Failed
+- state: IssueCreating
+  signal: ToolDone
+  next: IssueRecording
+  action: record_tracker_issue
+- state: IssueCreating
+  signal: ToolFailed
+  next: Failed
+- state: IssueCreating
+  signal: CommandError
+  next: Failed
+- state: IssueRecording
   signal: Materialized
   next: Executing
   action: execute_task
-- state: Materializing
-  signal: MaterializeFailed
-  next: Failed
-- state: Materializing
+- state: IssueRecording
   signal: CommandError
   next: Failed
 - state: Executing

@@ -20,8 +20,13 @@ func TestValidateRunPointConfigRequiresFields(t *testing.T) {
 	require.ErrorContains(t, ValidateRunPointConfig("run_point", RunPointConfig{
 		PointMachine: "point.yaml",
 	}), "requires point_tools")
-	require.NoError(t, ValidateRunPointConfig("run_point", RunPointConfig{
+	require.ErrorContains(t, ValidateRunPointConfig("run_point", RunPointConfig{
 		PointMachine: "point.yaml",
 		PointTools:   "tools-point.yaml",
+	}), "requires point_tool_declarations")
+	require.NoError(t, ValidateRunPointConfig("run_point", RunPointConfig{
+		PointMachine:          "point.yaml",
+		PointTools:            "tools-point.yaml",
+		PointToolDeclarations: []string{"point-builtins.yaml", "exec.yaml"},
 	}))
 }

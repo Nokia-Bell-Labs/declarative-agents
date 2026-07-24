@@ -5,7 +5,6 @@ package docsapi
 import (
 	"github.com/Nokia-Bell-Labs/declarative-agents/agent-core/internal/runtime/core"
 	"github.com/Nokia-Bell-Labs/declarative-agents/agent-core/pkg/spec"
-	"net/http"
 	"os"
 	"path/filepath"
 	"runtime"
@@ -41,16 +40,6 @@ func (c staticDocsSignalCmd) Execute() core.Result {
 
 func (c staticDocsSignalCmd) Undo(_ core.Result) core.Result {
 	return core.NoopUndo(c.name)
-}
-
-type fakeWorkflowRunner struct{}
-
-func (fakeWorkflowRunner) Run(r *http.Request) (ActionResponse, error) {
-	defer func() { _ = r.Body.Close() }()
-	return ActionResponse{
-		Data: map[string]interface{}{"status": "valid"},
-		Tool: "doc_validate", Signal: "RESTResponded",
-	}, nil
 }
 
 func repoRootFromDocsTest(t *testing.T) string {
@@ -162,15 +151,26 @@ states:
   - name: ReadingDocument
   - name: ShapingDocumentIndex
   - name: ShapingDocumentDetail
+  - name: ValidatingDocuments
+  - name: SuggestingChanges
+  - name: ApprovingPatch
+  - name: RejectingPatch
   - name: DocumentIndexReady
   - name: DocumentDetailReady
+  - name: ActionCompleted
+  - name: ActionRejected
+  - name: ActionMissing
   - name: DocumentNotFound
   - name: RequestDenied
   - name: Failed
-terminal_states: [DocumentIndexReady, DocumentDetailReady, DocumentNotFound, RequestDenied, Failed]
+terminal_states: [DocumentIndexReady, DocumentDetailReady, ActionCompleted, ActionRejected, ActionMissing, DocumentNotFound, RequestDenied, Failed]
 signals:
   - name: Seed
   - name: ReadRequested
+  - name: ValidateRequested
+  - name: SuggestRequested
+  - name: ApproveRequested
+  - name: RejectRequested
   - name: DocumentListReady
   - name: DocumentReady
   - name: DocumentIndexReady
@@ -178,6 +178,10 @@ signals:
   - name: DocumentMissing
   - name: DocumentResourceDenied
   - name: DocumentParseFailed
+  - name: RESTResponded
+  - name: RESTAccepted
+  - name: RESTDomainFailed
+  - name: RESTMissing
   - name: CommandError
 transitions:
   - state: AwaitingRequest
@@ -188,6 +192,22 @@ transitions:
     signal: ReadRequested
     next: ReadingDocument
     action: doc_read_resource
+  - state: AwaitingRequest
+    signal: ValidateRequested
+    next: ValidatingDocuments
+    action: doc_validate
+  - state: AwaitingRequest
+    signal: SuggestRequested
+    next: SuggestingChanges
+    action: doc_suggest_changes
+  - state: AwaitingRequest
+    signal: ApproveRequested
+    next: ApprovingPatch
+    action: doc_patch_approve
+  - state: AwaitingRequest
+    signal: RejectRequested
+    next: RejectingPatch
+    action: doc_patch_reject
   - state: ListingDocuments
     signal: DocumentListReady
     next: ShapingDocumentIndex
@@ -224,6 +244,51 @@ transitions:
     signal: DocumentParseFailed
     next: Failed
   - state: ReadingDocument
+    signal: CommandError
+    next: Failed
+  - state: ValidatingDocuments
+    signal: RESTResponded
+    next: ActionCompleted
+  - state: ValidatingDocuments
+    signal: RESTDomainFailed
+    next: ActionRejected
+  - state: ValidatingDocuments
+    signal: CommandError
+    next: Failed
+  - state: SuggestingChanges
+    signal: RESTAccepted
+    next: ActionCompleted
+  - state: SuggestingChanges
+    signal: RESTResponded
+    next: ActionCompleted
+  - state: SuggestingChanges
+    signal: RESTDomainFailed
+    next: ActionRejected
+  - state: SuggestingChanges
+    signal: CommandError
+    next: Failed
+  - state: ApprovingPatch
+    signal: RESTResponded
+    next: ActionCompleted
+  - state: ApprovingPatch
+    signal: RESTDomainFailed
+    next: ActionRejected
+  - state: ApprovingPatch
+    signal: RESTMissing
+    next: ActionMissing
+  - state: ApprovingPatch
+    signal: CommandError
+    next: Failed
+  - state: RejectingPatch
+    signal: RESTResponded
+    next: ActionCompleted
+  - state: RejectingPatch
+    signal: RESTDomainFailed
+    next: ActionRejected
+  - state: RejectingPatch
+    signal: RESTMissing
+    next: ActionMissing
+  - state: RejectingPatch
     signal: CommandError
     next: Failed
 `
@@ -350,15 +415,23 @@ actions:
     route: docs_detail
   validate_document:
     ui_action: doc_validate
+    request_machine_action: doc_validate
+    request_machine_route: /actions/validate
     route: docs_detail
   suggest_changes:
     ui_action: doc_suggest_changes
+    request_machine_action: doc_suggest_changes
+    request_machine_route: /actions/suggest
     route: docs_detail
   approve_patch:
     ui_action: doc_patch_approve
+    request_machine_action: doc_patch_approve
+    request_machine_route: /actions/patches/{patch_id}/approve
     route: docs_detail
   reject_patch:
     ui_action: doc_patch_reject
+    request_machine_action: doc_patch_reject
+    request_machine_route: /actions/patches/{patch_id}/reject
     route: docs_detail
   reopen_patch:
     ui_action: doc_patch_reopen
