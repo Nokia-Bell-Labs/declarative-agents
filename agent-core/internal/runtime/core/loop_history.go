@@ -74,6 +74,17 @@ func DigestResult(res Result) ResultDigest {
 	if res.Err != nil {
 		digest.Error = res.Err.Error()
 	}
+	if status == OutputRedactionOmitted {
+		return omitResultDigest(digest)
+	}
+	return digest
+}
+
+func omitResultDigest(digest ResultDigest) ResultDigest {
+	digest.Output = ""
+	digest.RedactionVersion = OutputRedactionVersion1
+	digest.RedactedPaths = nil
+	digest.RedactionStatus = OutputRedactionOmitted
 	return digest
 }
 

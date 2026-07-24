@@ -165,8 +165,8 @@ implementation_status:
     - NoopCheckpoint and InMemoryCheckpoint adapters, with DoltCheckpoint as the persistent backend when configured.
     - Save-after-dispatch timing, single resume path, and retirement of CheckpointPolicy and the engine undo-walk.
     - Boundary-value JSON round trips, byte-exact valid UTF-8 receipts, caller-memory isolation, nil/empty execution preservation, and invalid conversation rejection.
-  planned:
     - "GH-489: Versioned typed output-redaction metadata, pre-Entry field removal, adapter enforcement, and selector denial for unversioned legacy output (R7)."
+  planned: []
 
 diagrams:
   requirements_trace: |

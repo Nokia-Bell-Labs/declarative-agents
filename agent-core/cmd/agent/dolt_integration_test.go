@@ -61,7 +61,7 @@ func TestDoltCheckpointSuspendResumeRoundTrip(t *testing.T) {
 		FromState:   "Start",
 		ToState:     "AwaitingApproval",
 		Signal:      core.AwaitApproval,
-		Result:      core.ResultDigest{Signal: core.AwaitApproval},
+		Result:      core.DigestResult(core.Result{Signal: core.AwaitApproval}),
 		Receipt:     `{"kind":"boundary"}`,
 	}}
 	require.NoError(t, saver.Save(pos, exec))
@@ -145,7 +145,7 @@ func runDoltProcessProofChild(t *testing.T, mode string) {
 		execution := core.Execution{{
 			Iteration: 1, CommandName: "suspend", FromState: "Start",
 			ToState: "AwaitingApproval", Signal: core.AwaitApproval,
-			Result:  core.ResultDigest{Signal: core.AwaitApproval},
+			Result:  core.DigestResult(core.Result{Signal: core.AwaitApproval}),
 			Receipt: `{"kind":"process-boundary"}`,
 		}}
 		require.NoError(t, checkpoint.Save(position, execution))
@@ -180,7 +180,10 @@ func TestDoltCommandStateRehydratesThroughRealAdapter(t *testing.T) {
 	exec := core.Execution{{
 		Iteration: 1, CommandName: "embed_query", FromState: "Start", ToState: "Working",
 		Signal: core.LLMResponded,
-		Result: core.ResultDigest{Signal: core.LLMResponded, Output: `{"mapped":{"embedding":[0.1,0.2]}}`},
+		Result: core.DigestResult(core.Result{
+			Signal: core.LLMResponded,
+			Output: `{"mapped":{"embedding":[0.1,0.2]}}`,
+		}),
 	}}
 	require.NoError(t, saver.Save(core.Position{CurrentState: "Working", LastSignal: core.LLMResponded}, exec))
 	require.NoError(t, saver.Close())

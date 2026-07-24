@@ -416,9 +416,9 @@ func writeMachine(tx Transaction, runID string, p Position) error {
 // per-step transaction, so a step with an output row but no matching receipt row
 // is never committed (srd036-dolt-state-persistence R3, R4.1, R4.4).
 func writeStep(tx Transaction, runID string, step int, e Entry) error {
-	redactedPaths, err := json.Marshal(e.Result.RedactedPaths)
+	redactedPaths, err := redactedPathsArgument(e.Result.RedactedPaths)
 	if err != nil {
-		return fmt.Errorf("%w: save: output redacted paths: %v", ErrDolt, err)
+		return err
 	}
 	if err := tx.Exec(
 		fmt.Sprintf(`REPLACE INTO transitions (run_id, step_index, from_state, %s, to_state) VALUES (?, ?, ?, ?, ?)`, doltSignalColumn),
@@ -439,7 +439,7 @@ func writeStep(tx Transaction, runID string, step int, e Entry) error {
 			VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`, doltSignalColumn),
 		runID, step, string(e.Result.Signal),
 		nullString(e.Result.Output), nullString(e.Result.Error),
-		int(e.Result.RedactionVersion), string(redactedPaths), string(e.Result.RedactionStatus),
+		int(e.Result.RedactionVersion), redactedPaths, string(e.Result.RedactionStatus),
 		int64(e.Result.Cost.Duration), e.Result.Cost.TokensIn, e.Result.Cost.TokensOut, e.Result.Cost.Dollars,
 	); err != nil {
 		return fmt.Errorf("%w: save: output: %v", ErrDolt, err)
@@ -453,6 +453,17 @@ func writeStep(tx Transaction, runID string, step int, e Entry) error {
 		}
 	}
 	return nil
+}
+
+func redactedPathsArgument(paths []OutputRedactionPath) (interface{}, error) {
+	if len(paths) == 0 {
+		return nil, nil
+	}
+	encoded, err := json.Marshal(paths)
+	if err != nil {
+		return nil, fmt.Errorf("%w: save: output redacted paths: %v", ErrDolt, err)
+	}
+	return string(encoded), nil
 }
 
 // loadMachine reads the Position row, returning sql.ErrNoRows when absent.

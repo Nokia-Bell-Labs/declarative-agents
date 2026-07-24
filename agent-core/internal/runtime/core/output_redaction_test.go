@@ -167,12 +167,21 @@ func TestOutputRedactionFailsClosed(t *testing.T) {
 
 			require.Empty(t, entry.Result.Output)
 			require.Empty(t, entry.Result.RedactedPaths)
+			require.Equal(t, OutputRedactionVersion1, entry.Result.RedactionVersion)
 			require.Equal(t, OutputRedactionOmitted, entry.Result.RedactionStatus)
 
-			view := NewCommandStateView(Execution{entry})
+			checkpoint := &InMemoryCheckpoint{}
+			require.NoError(t, checkpoint.Save(Position{}, Execution{entry}))
+			_, restored, err := checkpoint.Load()
+			require.NoError(t, err)
+			require.Empty(t, restored[0].Result.Output)
+			require.Equal(t, OutputRedactionVersion1, restored[0].Result.RedactionVersion)
+			require.Equal(t, OutputRedactionOmitted, restored[0].Result.RedactionStatus)
+
+			view := NewCommandStateView(restored)
 			_, ok := view.Lookup("unsafe")
 			require.False(t, ok)
-			_, err := ResolveFromSelector(view, "$from(unsafe).secret")
+			_, err = ResolveFromSelector(view, "$from(unsafe).secret")
 			var unavailable *CommandStateOutputUnavailableError
 			require.True(t, errors.As(err, &unavailable))
 		})

@@ -94,7 +94,7 @@ func TestDoltCheckpointReappliesAndPersistsOutputRedaction(t *testing.T) {
 	require.ErrorAs(t, err, &missing)
 }
 
-func TestDoltCheckpointRedactionFailureDoesNotBeginOrCommit(t *testing.T) {
+func TestDoltCheckpointPersistsFailClosedRedactionRow(t *testing.T) {
 	t.Parallel()
 
 	db := newFakeDB()
@@ -102,11 +102,23 @@ func TestDoltCheckpointRedactionFailureDoesNotBeginOrCommit(t *testing.T) {
 	entry := redactionCheckpointEntry("must-not-persist")
 	entry.Result.RedactedPaths = []OutputRedactionPath{{" secret"}}
 
-	err := cp.Save(samplePosition(), Execution{entry})
-	require.ErrorContains(t, err, "output redaction")
-	require.Empty(t, db.toolOutputArgs)
-	require.Empty(t, db.commits)
-	require.Empty(t, db.store.results)
+	require.NoError(t, cp.Save(samplePosition(), Execution{entry}))
+	require.Len(t, db.toolOutputArgs, 1)
+	require.NotContains(t, fmt.Sprint(db.toolOutputArgs[0]), "must-not-persist")
+	require.Len(t, db.commits, 1)
+
+	stored := db.store.results[rowKey("invalid-redaction", 0)]
+	require.Nil(t, stored.output)
+	require.Equal(t, int64(OutputRedactionVersion1), *stored.redactionVersion)
+	require.Nil(t, stored.redactedPaths)
+	require.Equal(t, string(OutputRedactionOmitted), *stored.status)
+
+	_, restored, err := NewDoltCheckpoint(db, "invalid-redaction", nil).Load()
+	require.NoError(t, err)
+	require.Equal(t, `{"opaque":"receipt"}`, restored[0].Receipt)
+	_, err = ResolveFromSelector(NewCommandStateView(restored), "$from(fetch).secret")
+	var unavailable *CommandStateOutputUnavailableError
+	require.ErrorAs(t, err, &unavailable)
 }
 
 func TestDoltCheckpointSchemaUpgradeAddsRedactionMetadata(t *testing.T) {

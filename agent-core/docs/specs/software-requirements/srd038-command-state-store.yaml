@@ -150,8 +150,8 @@ implementation_status:
     - Canonical selector AST: core.ParseSelector validates both $.path and $from(label).path forms, and the parsed selector owns the shared nested-map resolver used by core and REST consumers.
     - "GH-488: TransitionSpec authored labels are validated with the canonical selector grammar, recorded separately from command names, resolved with exported typed label/path errors, and persisted through an idempotent nullable Dolt schema upgrade. Real MachineSpec execution proves dynamic-tool separation, command-name fallback, duplicate-label newest-match behavior, and fresh-view restart rehydration."
     - "GH-786: Exec parameter source declarations resolve through CommandStateAware after command construction, and machine_request exposes its initial Result through the reserved seed entry."
-  planned:
     - "GH-489: Typed output-redaction metadata, pre-Entry removal, checkpoint defense in depth, selector denial for unsafe and legacy output, and persisted REST conformance evidence (R1.8, R5)."
+  planned: []
 
 diagrams:
   requirements_trace: |

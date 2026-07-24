@@ -61,13 +61,9 @@ func TestRESTClient_RedactionRunsBeforePersistence(t *testing.T) {
 		{"mapped", "secret_copy"},
 	}, result.Redaction.Paths)
 
-	digest := core.ResultDigest{
-		Signal:           result.Signal,
-		Output:           result.Output,
-		RedactionVersion: result.Redaction.Version,
-		RedactedPaths:    result.Redaction.Paths,
-		RedactionStatus:  core.OutputRedactionApplied,
-	}
+	digest := core.DigestResult(result)
+	require.NotContains(t, digest.Output, `"secret"`)
+	require.NotContains(t, digest.Output, "secret_copy")
 	execution := core.Execution{{
 		CommandName: result.CommandName,
 		Label:       "fetch",

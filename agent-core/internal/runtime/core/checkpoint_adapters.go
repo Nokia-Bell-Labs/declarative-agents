@@ -100,7 +100,7 @@ func sanitizeExecutionForSave(execution Execution) (Execution, error) {
 
 func sanitizeResultDigestForSave(result ResultDigest) (ResultDigest, error) {
 	if result.RedactionVersion != OutputRedactionVersion1 {
-		return ResultDigest{}, fmt.Errorf("unsupported or missing version %d", result.RedactionVersion)
+		return omitResultDigest(result), nil
 	}
 	switch result.RedactionStatus {
 	case OutputRedactionApplied:
@@ -110,17 +110,17 @@ func sanitizeResultDigestForSave(result ResultDigest) (ResultDigest, error) {
 			result.RedactedPaths,
 		)
 		if status != OutputRedactionApplied {
-			return ResultDigest{}, fmt.Errorf("cannot safely apply typed paths")
+			return omitResultDigest(result), nil
 		}
 		result.Output = output
 		result.RedactedPaths = paths
 		return result, nil
 	case OutputRedactionOmitted:
 		if result.Output != "" || len(result.RedactedPaths) != 0 {
-			return ResultDigest{}, fmt.Errorf("omitted output carries data or paths")
+			return omitResultDigest(result), nil
 		}
 		return result, nil
 	default:
-		return ResultDigest{}, fmt.Errorf("unsupported or missing status %q", result.RedactionStatus)
+		return omitResultDigest(result), nil
 	}
 }

@@ -295,28 +295,33 @@ test_cases:
       - srd028-rest-client-tools AC12
 
   - use_case: rel07.0-uc001-command-state-threading
-    name: REST response mapping applies its configured local redaction
+    name: REST response mapping emits typed redaction before persistence
     go_test: go test ./internal/tools/rest -run TestRESTClient_RedactionRunsBeforePersistence
     status: implemented
-    coverage: unit
+    coverage: component-integration
     description: |
       mapClientResponse applies the REST operation's configured selector before
-      Execute returns Result. This unit test inspects only that Result. It does
-      not construct a live Execution Entry, call Checkpoint.Save or Load,
-      inspect tool_outputs, or resolve a later $from selector.
+      Execute returns Result, preserving the immediate marker contract and
+      attaching typed paths. The test passes that Result through core.DigestResult,
+      constructs a live Execution, saves and reloads it through
+      InMemoryCheckpoint, and proves a later $from selector cannot recover the
+      field.
     inputs:
       configured_selector: body.secret
       response_secret: body-secret
     expected:
       original_secret_absent_from_result: true
       replacement_marker_present_in_result: true
+      field_absent_from_live_entry: true
+      field_absent_after_reload: true
+      selector_resolves_field: false
     traces:
       - srd028-rest-client-tools AC7
       - srd028-rest-client-tools AC8
 
   - use_case: rel07.0-uc001-command-state-threading
     name: Typed redaction denies sensitive output live and after persistence
-    go_test: go test ./internal/runtime/core ./internal/tools/rest -run 'Test(DoltCheckpointReappliesAndPersistsOutputRedaction|OutputRedactionFailsClosed|CommandStateRejectsUnversionedLegacyOutput|RESTClient_RedactionRunsBeforePersistence)'
+    go_test: go test ./internal/runtime/core ./internal/tools/rest -run 'Test(DoltCheckpoint(ReappliesAndPersistsOutputRedaction|PersistsFailClosedRedactionRow)|OutputRedactionFailsClosed|CommandStateRejectsUnversionedLegacyOutput|RESTClient_RedactionRunsBeforePersistence)'
     status: implemented
     owner: GH-489
     coverage: component-integration

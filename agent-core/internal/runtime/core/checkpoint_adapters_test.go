@@ -237,23 +237,68 @@ func TestInMemoryCheckpointReappliesOutputRedaction(t *testing.T) {
 	require.ErrorAs(t, err, &missing)
 }
 
-func TestInMemoryCheckpointRedactionFailurePreservesLastSave(t *testing.T) {
+func TestInMemoryCheckpointPersistsFailClosedRedaction(t *testing.T) {
 	t.Parallel()
 
-	cp := &InMemoryCheckpoint{}
-	valid := Execution{redactionCheckpointEntry("first-secret")}
-	require.NoError(t, cp.Save(Position{CurrentState: "Valid"}, valid))
+	tests := []struct {
+		name   string
+		mutate func(*ResultDigest)
+	}{
+		{
+			name: "unknown version",
+			mutate: func(result *ResultDigest) {
+				result.RedactionVersion = 99
+			},
+		},
+		{
+			name: "malformed path",
+			mutate: func(result *ResultDigest) {
+				result.RedactedPaths = []OutputRedactionPath{{}}
+			},
+		},
+		{
+			name: "marked non-object",
+			mutate: func(result *ResultDigest) {
+				result.Output = `"second-secret"`
+			},
+		},
+		{
+			name: "missing metadata",
+			mutate: func(result *ResultDigest) {
+				result.RedactionVersion = 0
+				result.RedactionStatus = ""
+			},
+		},
+	}
+	for _, tc := range tests {
+		tc := tc
+		t.Run(tc.name, func(t *testing.T) {
+			t.Parallel()
+			cp := &InMemoryCheckpoint{}
+			invalid := Execution{redactionCheckpointEntry("second-secret")}
+			invalid[0].Result.Signal = ToolFailed
+			invalid[0].Result.Error = "lifecycle-visible"
+			invalid[0].Result.Cost = Cost{TokensIn: 7}
+			tc.mutate(&invalid[0].Result)
+			require.NoError(t, cp.Save(Position{CurrentState: "FailClosed"}, invalid))
 
-	invalid := Execution{redactionCheckpointEntry("second-secret")}
-	invalid[0].Result.RedactedPaths = []OutputRedactionPath{{}}
-	err := cp.Save(Position{CurrentState: "Invalid"}, invalid)
-	require.ErrorContains(t, err, "output redaction")
+			position, restored, loadErr := cp.Load()
+			require.NoError(t, loadErr)
+			require.Equal(t, State("FailClosed"), position.CurrentState)
+			require.Empty(t, restored[0].Result.Output)
+			require.Equal(t, OutputRedactionVersion1, restored[0].Result.RedactionVersion)
+			require.Empty(t, restored[0].Result.RedactedPaths)
+			require.Equal(t, OutputRedactionOmitted, restored[0].Result.RedactionStatus)
+			require.Equal(t, ToolFailed, restored[0].Result.Signal)
+			require.Equal(t, "lifecycle-visible", restored[0].Result.Error)
+			require.Equal(t, 7, restored[0].Result.Cost.TokensIn)
+			require.Equal(t, `{"opaque":"receipt"}`, restored[0].Receipt)
 
-	position, restored, loadErr := cp.Load()
-	require.NoError(t, loadErr)
-	require.Equal(t, State("Valid"), position.CurrentState)
-	require.NotContains(t, restored[0].Result.Output, "first-secret")
-	require.Equal(t, `{"opaque":"receipt"}`, restored[0].Receipt)
+			_, err := ResolveFromSelector(NewCommandStateView(restored), "$from(fetch).secret")
+			var unavailable *CommandStateOutputUnavailableError
+			require.ErrorAs(t, err, &unavailable)
+		})
+	}
 }
 
 func redactionCheckpointEntry(secret string) Entry {
