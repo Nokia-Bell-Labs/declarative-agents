@@ -25,7 +25,10 @@ func incompatibleCheckpoint() *InMemoryCheckpoint {
 	cp := &InMemoryCheckpoint{}
 	_ = cp.Save(
 		Position{CurrentState: "RemovedState", LastSignal: AwaitApproval},
-		Execution{{Iteration: 1, CommandName: "suspend", ToState: "RemovedState", Signal: AwaitApproval}},
+		Execution{{
+			Iteration: 1, CommandName: "suspend", ToState: "RemovedState", Signal: AwaitApproval,
+			Result: checkpointDigest(AwaitApproval, "", Cost{}),
+		}},
 	)
 	return cp
 }
@@ -84,7 +87,10 @@ func TestResumeCompatibilityUsesMachineSpecBeforeTableBuilt(t *testing.T) {
 		cp := &InMemoryCheckpoint{}
 		_ = cp.Save(
 			Position{CurrentState: state, LastSignal: AwaitApproval},
-			Execution{{Iteration: 1, CommandName: "suspend", ToState: state, Signal: AwaitApproval}},
+			Execution{{
+				Iteration: 1, CommandName: "suspend", ToState: state, Signal: AwaitApproval,
+				Result: checkpointDigest(AwaitApproval, "", Cost{}),
+			}},
 		)
 		return cp
 	}

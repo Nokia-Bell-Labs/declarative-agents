@@ -3,6 +3,8 @@
 package core
 
 import (
+	"encoding/json"
+	"strings"
 	"time"
 )
 
@@ -47,19 +49,120 @@ func dispatchEntry(iteration int, fromState, toState State, transitionSignal Sig
 		FromState:   fromState,
 		ToState:     toState,
 		Signal:      transitionSignal,
-		Result:      digestResult(res),
+		Result:      DigestResult(res),
 		Receipt:     res.Receipt,
 	}
 }
 
-func digestResult(res Result) ResultDigest {
+// DigestResult applies the core output-redaction boundary and returns the
+// serializable forward-plane projection of a Result. Synthetic execution
+// producers use this same boundary as loop dispatch (srd035 R7, srd038 R5).
+func DigestResult(res Result) ResultDigest {
+	version := res.Redaction.Version
+	if version == 0 && len(res.Redaction.Paths) == 0 {
+		version = OutputRedactionVersion1
+	}
+	output, paths, status := applyOutputRedaction(res.Output, version, res.Redaction.Paths)
 	digest := ResultDigest{
-		Signal: res.Signal,
-		Output: res.Output,
-		Cost:   res.Cost,
+		Signal:           res.Signal,
+		Output:           output,
+		Cost:             res.Cost,
+		RedactionVersion: version,
+		RedactedPaths:    paths,
+		RedactionStatus:  status,
 	}
 	if res.Err != nil {
 		digest.Error = res.Err.Error()
 	}
+	if status == OutputRedactionOmitted {
+		return omitResultDigest(digest)
+	}
 	return digest
+}
+
+func omitResultDigest(digest ResultDigest) ResultDigest {
+	digest.Output = ""
+	digest.RedactionVersion = OutputRedactionVersion1
+	digest.RedactedPaths = nil
+	digest.RedactionStatus = OutputRedactionOmitted
+	return digest
+}
+
+// applyOutputRedaction removes typed paths from JSON object output. It returns
+// whole-output omission for unsafe metadata or shape mismatches. Missing paths
+// are successful so applying the same metadata again is idempotent.
+func applyOutputRedaction(
+	output string,
+	version uint16,
+	paths []OutputRedactionPath,
+) (string, []OutputRedactionPath, OutputRedactionStatus) {
+	if version != OutputRedactionVersion1 || !validOutputRedactionPaths(paths) {
+		return "", nil, OutputRedactionOmitted
+	}
+	clonedPaths := cloneOutputRedactionPaths(paths)
+	if len(paths) == 0 {
+		return output, clonedPaths, OutputRedactionApplied
+	}
+
+	var object map[string]interface{}
+	if err := json.Unmarshal([]byte(output), &object); err != nil || object == nil {
+		return "", nil, OutputRedactionOmitted
+	}
+	for _, path := range paths {
+		if !removeOutputPath(object, path) {
+			return "", nil, OutputRedactionOmitted
+		}
+	}
+	sanitized, err := json.Marshal(object)
+	if err != nil {
+		return "", nil, OutputRedactionOmitted
+	}
+	return string(sanitized), clonedPaths, OutputRedactionApplied
+}
+
+func validOutputRedactionPaths(paths []OutputRedactionPath) bool {
+	for _, path := range paths {
+		if len(path) == 0 {
+			return false
+		}
+		selector := "$." + strings.Join(path, ".")
+		parsed, ok := ParseSelector(selector)
+		if !ok || len(parsed.Path) != len(path) {
+			return false
+		}
+		for i := range path {
+			if parsed.Path[i] != path[i] {
+				return false
+			}
+		}
+	}
+	return true
+}
+
+func removeOutputPath(object map[string]interface{}, path OutputRedactionPath) bool {
+	current := object
+	for _, segment := range path[:len(path)-1] {
+		next, exists := current[segment]
+		if !exists {
+			return true
+		}
+		nested, ok := next.(map[string]interface{})
+		if !ok {
+			return false
+		}
+		current = nested
+	}
+	delete(current, path[len(path)-1])
+	return true
+}
+
+func cloneOutputRedactionPaths(paths []OutputRedactionPath) []OutputRedactionPath {
+	if len(paths) == 0 {
+		return nil
+	}
+	cloned := make([]OutputRedactionPath, len(paths))
+	for i, path := range paths {
+		cloned[i] = append(OutputRedactionPath(nil), path...)
+	}
+	return cloned
 }

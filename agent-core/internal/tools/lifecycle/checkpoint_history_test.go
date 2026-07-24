@@ -20,8 +20,8 @@ func TestCheckpointHistoryExecuteFormatsExecutionLog(t *testing.T) {
 			Snapshot:     core.AgentSnapshot{State: "Working", Signal: core.ToolDone, Iteration: 2},
 		},
 		core.Execution{
-			{Iteration: 1, CommandName: "read", FromState: "Idle", ToState: "Reading", Signal: core.ToolDone},
-			{Iteration: 2, CommandName: "write", FromState: "Reading", ToState: "Working", Signal: core.ToolDone, Receipt: `{"path":"a.txt"}`},
+			{Iteration: 1, CommandName: "read", FromState: "Idle", ToState: "Reading", Signal: core.ToolDone, Result: safeHistoryResult()},
+			{Iteration: 2, CommandName: "write", FromState: "Reading", ToState: "Working", Signal: core.ToolDone, Result: safeHistoryResult(), Receipt: `{"path":"a.txt"}`},
 		},
 	))
 
@@ -76,7 +76,7 @@ func TestCheckpointHistoryEchoesExplicitRunSelector(t *testing.T) {
 	t.Parallel()
 	cp := &core.InMemoryCheckpoint{}
 	require.NoError(t, cp.Save(core.Position{CurrentState: "Working"},
-		core.Execution{{Iteration: 1, CommandName: "read", Signal: core.ToolDone}}))
+		core.Execution{{Iteration: 1, CommandName: "read", Signal: core.ToolDone, Result: safeHistoryResult()}}))
 
 	cmd := (&CheckpointHistoryBuilder{
 		Config:     catalog.CheckpointHistoryConfig{Checkpoint: "run-42"},
@@ -92,4 +92,12 @@ func TestCheckpointHistoryEchoesExplicitRunSelector(t *testing.T) {
 	require.NoError(t, json.Unmarshal([]byte(res.Output), &out))
 	require.Equal(t, "run-42", out.Run)
 	require.NotEmpty(t, out.History)
+}
+
+func safeHistoryResult() core.ResultDigest {
+	return core.ResultDigest{
+		Signal:           core.ToolDone,
+		RedactionVersion: core.OutputRedactionVersion1,
+		RedactionStatus:  core.OutputRedactionApplied,
+	}
 }

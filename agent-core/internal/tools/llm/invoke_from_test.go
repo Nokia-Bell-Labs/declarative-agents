@@ -12,6 +12,10 @@ import (
 )
 
 func viewFrom(entries ...core.Entry) core.CommandStateView {
+	for i := range entries {
+		entries[i].Result.RedactionVersion = core.OutputRedactionVersion1
+		entries[i].Result.RedactionStatus = core.OutputRedactionApplied
+	}
 	return core.NewCommandStateView(core.Execution(entries))
 }
 

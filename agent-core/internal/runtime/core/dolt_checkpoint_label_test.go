@@ -43,7 +43,7 @@ func TestDoltCheckpointSchemaUpgradeAddsNullableLabel(t *testing.T) {
 	require.NoError(t, err)
 	require.Empty(t, restored[0].Label)
 	output, ok := NewCommandStateView(restored).Lookup("invoke")
-	require.True(t, ok, "a legacy null label falls back to command_name")
+	require.True(t, ok, "a null label falls back to command_name")
 	require.Equal(t, "hi", output)
 }
 

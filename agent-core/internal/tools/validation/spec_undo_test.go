@@ -53,7 +53,14 @@ func TestSpecReceiptRestoresStateFromFreshInstance(t *testing.T) {
 	require.NotEmpty(t, receipt)
 
 	cp := &core.InMemoryCheckpoint{}
-	require.NoError(t, cp.Save(core.Position{}, core.Execution{{CommandName: "validate_specs", Receipt: receipt}}))
+	require.NoError(t, cp.Save(core.Position{}, core.Execution{{
+		CommandName: "validate_specs",
+		Result: core.ResultDigest{
+			RedactionVersion: core.OutputRedactionVersion1,
+			RedactionStatus:  core.OutputRedactionApplied,
+		},
+		Receipt: receipt,
+	}}))
 	_, exec, err := cp.Load()
 	require.NoError(t, err)
 	require.Len(t, exec, 1)

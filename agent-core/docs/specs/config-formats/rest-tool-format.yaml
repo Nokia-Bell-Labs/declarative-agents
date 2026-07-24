@@ -77,7 +77,7 @@ schema:
         - field: document_resources
           type: map[string]document_resource
           required: false
-          description: Reserved target-format field for named filesystem-backed document resources. ValidateDefinition rejects this field in release 03.0. Knowledge Manager behavior uses profile-selected filesystem resource ToolDefs instead.
+          description: Reserved target-format field for named filesystem-backed document resources. ValidateDefinition rejects this field. Knowledge Manager behavior uses profile-selected filesystem resource ToolDefs instead.
 
   rest_client:
     fields:
@@ -309,7 +309,7 @@ schema:
       - field: cidrs
         type: "[]string"
         required: false
-        description: Allowed destination or listener CIDR ranges. Parsed and enforced in release 03.0.
+        description: Allowed destination or listener CIDR ranges. Parsed and enforced by the network policy.
       - field: ports
         type: "[]int"
         required: false
@@ -547,6 +547,10 @@ schema:
         type: map[string]string
         required: false
         description: Selector mapping from validated body fields to RequestEvent fields.
+      - field: sensitive
+        type: "[]string"
+        required: false
+        description: Mapped request field names whose values core removes from the synthetic seed entry before live selection or persistence. Every name must be a key declared by path, query, headers, or body; metadata contains names only, never request values.
 
   machine_request_response_mapping:
     note: default_signal, response_word, and missing_response_stage were previously documented but never implemented; they are reserved and rejected at load (GH-486).
@@ -1402,7 +1406,7 @@ validation_rules:
   - id: V10
     rule: Server endpoints that bind public addresses MUST declare an explicit network policy.
   - id: V11
-    rule: Auth type values MUST be one of none, basic, bearer, header_token, or query_token for release 03.0.
+    rule: Auth type values MUST be one of none, basic, bearer, header_token, or query_token.
   - id: V12
     rule: OpenAPI operation IDs in expose and bind MUST exist exactly once in the imported document.
   - id: V13
@@ -1506,7 +1510,7 @@ invalid_examples:
       - body references params.customer without a declared body_schema or request binding.
 
   unsupported_auth: |
-    # Auth types are limited to the release 03.0 set.
+    # Auth types are limited to the supported set.
     rest:
       version: v1
       auth:
@@ -1515,7 +1519,7 @@ invalid_examples:
           token_ref: cloud_token
 
     invalid_because:
-      - magic_signature is not a release 03.0 auth type.
+      - magic_signature is not a supported auth type.
 
   duplicate_openapi_operation: |
     # Imported operation IDs must remain unique in one REST definition.
@@ -1583,4 +1587,4 @@ implementation_status:
     - machine_request.document_resources config. ValidateDefinition rejects this field.
     - lifecycle_control endpoint config.
   planned_follow_up:
-    - agent-core-guhn.4: align formal release 03.0 suite cases with exact named Go tests for closed conformance behavior.
+    - agent-core-guhn.4: align formal suite cases with exact named Go tests for closed conformance behavior.

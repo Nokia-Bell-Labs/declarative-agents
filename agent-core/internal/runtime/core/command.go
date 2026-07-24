@@ -120,9 +120,28 @@ type ToolMetrics struct {
 	Details map[string]any `json:"details,omitempty"`
 }
 
+const (
+	// OutputRedactionVersion1 is the first persisted output-redaction contract.
+	OutputRedactionVersion1 uint16 = 1
+)
+
+// OutputRedactionPath is a typed path through JSON object keys. Tool families
+// translate their own selector syntax into this representation; secret values
+// never become metadata (srd035 R7.1, srd038 R5.1).
+type OutputRedactionPath []string
+
+// OutputRedaction declares sensitive fields in a Result output. Version zero
+// with no paths is the compatibility form for a command that declares no
+// sensitive fields; digestResult records it as the current version.
+type OutputRedaction struct {
+	Version uint16
+	Paths   []OutputRedactionPath
+}
+
 // Result carries the output of a Command execution.
 type Result struct {
 	Output      string
+	Redaction   OutputRedaction
 	Signal      Signal
 	State       State
 	Cost        Cost

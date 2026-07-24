@@ -5,6 +5,7 @@ package rest
 import (
 	"context"
 	"encoding/json"
+	"errors"
 	"net/http"
 	"net/http/httptest"
 	"testing"
@@ -173,6 +174,101 @@ func TestMachineRequestSeedCommandStateAddress(t *testing.T) {
 	resumed := append(fresh, core.Entry{CommandName: "count_before", Label: "count_before"})
 	require.Len(t, machineRequestSeedExecution(seed, resumed), 2)
 	require.Equal(t, 1, countExecutionLabel(resumed, "seed"))
+}
+
+func TestMachineRequestSeedRedactionLiveAndReloaded(t *testing.T) {
+	t.Parallel()
+
+	mapping := MachineRequestMapping{
+		Body: map[string]string{
+			"directory": "$.directory",
+			"token":     "$.token",
+		},
+		Sensitive: []string{"token"},
+	}
+	seed := requestSeed(MachineRequestRun{
+		Payload: map[string]interface{}{
+			"directory": "/tmp/corpus",
+			"token":     "request-secret",
+		},
+		Config: MachineRequest{Request: mapping},
+	}, core.Seed)
+	require.Equal(t, []core.OutputRedactionPath{{"parameters", "token"}}, seed.Redaction.Paths)
+
+	fresh := machineRequestSeedExecution(seed, nil)
+	require.Len(t, fresh, 1)
+	require.NotContains(t, fresh[0].Result.Output, "request-secret")
+	require.NotContains(t, fresh[0].Result.Output, `"token"`)
+	require.Equal(t, core.OutputRedactionApplied, fresh[0].Result.RedactionStatus)
+	assertSeedSelection(t, fresh, "$from(seed).parameters.directory", "/tmp/corpus")
+	assertSeedPathMissing(t, fresh, "$from(seed).parameters.token")
+
+	checkpoint := &core.InMemoryCheckpoint{}
+	require.NoError(t, checkpoint.Save(core.Position{}, fresh))
+	_, loaded, err := checkpoint.Load()
+	require.NoError(t, err)
+	require.NotContains(t, loaded[0].Result.Output, "request-secret")
+	assertSeedSelection(t, loaded, "$from(seed).parameters.directory", "/tmp/corpus")
+	assertSeedPathMissing(t, loaded, "$from(seed).parameters.token")
+
+	resumed := append(loaded, core.Entry{CommandName: "count_before", Label: "count_before"})
+	require.Len(t, machineRequestSeedExecution(seed, resumed), 2)
+	require.Equal(t, 1, countExecutionLabel(resumed, "seed"))
+}
+
+func TestMachineRequestSeedRedactionFailsClosed(t *testing.T) {
+	t.Parallel()
+
+	seed := requestSeed(MachineRequestRun{
+		Payload: map[string]interface{}{"token": "request-secret"},
+	}, core.Seed)
+	seed.Redaction.Paths = []core.OutputRedactionPath{{"parameters", ""}}
+
+	execution := machineRequestSeedExecution(seed, nil)
+	require.Empty(t, execution[0].Result.Output)
+	require.Equal(t, core.OutputRedactionOmitted, execution[0].Result.RedactionStatus)
+	_, err := core.ResolveFromSelector(
+		core.NewCommandStateView(execution),
+		"$from(seed).parameters.token",
+	)
+	var unavailable *core.CommandStateOutputUnavailableError
+	require.True(t, errors.As(err, &unavailable), err)
+}
+
+func TestMachineRequestSensitiveFieldsMustBeMapped(t *testing.T) {
+	t.Parallel()
+
+	require.NoError(t, validateMachineRequestSensitiveFields(MachineRequestMapping{
+		Body:      map[string]string{"token": "$.token"},
+		Sensitive: []string{"token"},
+	}))
+	require.ErrorContains(t, validateMachineRequestSensitiveFields(MachineRequestMapping{
+		Sensitive: []string{"token"},
+	}), "not a mapped request field")
+	require.ErrorContains(t, validateMachineRequestSensitiveFields(MachineRequestMapping{
+		Body:      map[string]string{"token": "$.token"},
+		Sensitive: []string{"token", "token"},
+	}), "duplicated")
+}
+
+func assertSeedSelection(
+	t *testing.T,
+	execution core.Execution,
+	selector string,
+	want interface{},
+) {
+	t.Helper()
+	got, err := core.ResolveFromSelector(core.NewCommandStateView(execution), selector)
+	require.NoError(t, err)
+	require.Equal(t, want, got)
+}
+
+func assertSeedPathMissing(t *testing.T, execution core.Execution, selector string) {
+	t.Helper()
+	got, err := core.ResolveFromSelector(core.NewCommandStateView(execution), selector)
+	require.Nil(t, got)
+	var missing *core.UnresolvedPathError
+	require.True(t, errors.As(err, &missing), err)
 }
 
 type seedInterveningBuilder struct{}

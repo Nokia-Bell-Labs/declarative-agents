@@ -55,7 +55,11 @@ func TestResetHistory_ReceiptRestoresFromFreshInstance(t *testing.T) {
 	require.Equal(t, 0, history.Len())
 
 	cp := &core.InMemoryCheckpoint{}
-	require.NoError(t, cp.Save(core.Position{}, core.Execution{{CommandName: "reset_history", Receipt: res.Receipt}}))
+	require.NoError(t, cp.Save(core.Position{}, core.Execution{{
+		CommandName: "reset_history",
+		Result:      safeCheckpointResult(),
+		Receipt:     res.Receipt,
+	}}))
 	_, exec, err := cp.Load()
 	require.NoError(t, err)
 	require.Len(t, exec, 1)
@@ -66,4 +70,11 @@ func TestResetHistory_ReceiptRestoresFromFreshInstance(t *testing.T) {
 	require.Equal(t, 2, history.Len())
 	require.Equal(t, "hello", history.History()[0].Content)
 	require.Equal(t, "hi", history.History()[1].Content)
+}
+
+func safeCheckpointResult() core.ResultDigest {
+	return core.ResultDigest{
+		RedactionVersion: core.OutputRedactionVersion1,
+		RedactionStatus:  core.OutputRedactionApplied,
+	}
 }

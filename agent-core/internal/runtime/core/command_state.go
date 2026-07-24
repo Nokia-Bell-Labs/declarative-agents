@@ -28,9 +28,11 @@ type CommandStateView interface {
 // unreachable by construction: a compile error, not a runtime filter, guards the
 // boundary (srd038-command-state-store R3.3).
 type commandStateEntry struct {
-	label       string
-	commandName string
-	output      string
+	label            string
+	commandName      string
+	output           string
+	redactionVersion uint16
+	redactionStatus  OutputRedactionStatus
 }
 
 type commandStateView struct {
@@ -43,10 +45,22 @@ type commandStateView struct {
 func NewCommandStateView(execution Execution) CommandStateView {
 	projected := make([]commandStateEntry, 0, len(execution))
 	for _, e := range execution {
+		output := e.Result.Output
+		status := e.Result.RedactionStatus
+		if e.Result.RedactionVersion == OutputRedactionVersion1 &&
+			status == OutputRedactionApplied {
+			output, _, status = applyOutputRedaction(
+				output,
+				e.Result.RedactionVersion,
+				e.Result.RedactedPaths,
+			)
+		}
 		projected = append(projected, commandStateEntry{
-			label:       e.Label,
-			commandName: e.CommandName,
-			output:      e.Result.Output,
+			label:            e.Label,
+			commandName:      e.CommandName,
+			output:           output,
+			redactionVersion: e.Result.RedactionVersion,
+			redactionStatus:  status,
 		})
 	}
 	return &commandStateView{entries: projected}
@@ -56,13 +70,29 @@ func NewCommandStateView(execution Execution) CommandStateView {
 // label or command name. One scan makes duplicate labels and cross-address
 // collisions resolve to the highest step index (srd038 R2.2, R2.7).
 func (v *commandStateView) Lookup(label string) (string, bool) {
+	output, found, err := v.lookup(label)
+	return output, found && err == nil
+}
+
+// lookup preserves the public CommandStateView compatibility surface while
+// giving selector resolution a typed reason when the newest matching entry is
+// unsafe. An unavailable newest match does not fall back to an older match.
+func (v *commandStateView) lookup(label string) (string, bool, error) {
 	for i := len(v.entries) - 1; i >= 0; i-- {
-		if (v.entries[i].label != "" && v.entries[i].label == label) ||
-			v.entries[i].commandName == label {
-			return v.entries[i].output, true
+		entry := v.entries[i]
+		if (entry.label != "" && entry.label == label) || entry.commandName == label {
+			if entry.redactionVersion != OutputRedactionVersion1 ||
+				entry.redactionStatus != OutputRedactionApplied {
+				return "", true, &CommandStateOutputUnavailableError{
+					Label:   label,
+					Version: entry.redactionVersion,
+					Status:  entry.redactionStatus,
+				}
+			}
+			return entry.output, true, nil
 		}
 	}
-	return "", false
+	return "", false, nil
 }
 
 var _ CommandStateView = (*commandStateView)(nil)
@@ -184,6 +214,24 @@ func (e *UnresolvedPathError) Error() string {
 	return fmt.Sprintf("path %q not found in step %q output", e.Path, e.Label)
 }
 
+// CommandStateOutputUnavailableError reports a matched Entry whose output
+// cannot cross the selector boundary because its redaction metadata is missing,
+// unknown, or records whole-output omission (srd038 R1.8, R5.6).
+type CommandStateOutputUnavailableError struct {
+	Label   string
+	Version uint16
+	Status  OutputRedactionStatus
+}
+
+func (e *CommandStateOutputUnavailableError) Error() string {
+	return fmt.Sprintf(
+		"output for step %q is unavailable to command-state selectors (redaction version %d, status %q)",
+		e.Label,
+		e.Version,
+		e.Status,
+	)
+}
+
 // ResolveFromSelector resolves a $from(label).path selector against the
 // command-state view: it looks up the most recent step labeled label, decodes its
 // output, and walks the dotted path. It returns a typed error for a malformed
@@ -199,7 +247,19 @@ func ResolveFromSelector(view CommandStateView, selector string) (interface{}, e
 	if view == nil {
 		return nil, fmt.Errorf("selector %q: no command-state view is configured", selector)
 	}
-	output, found := view.Lookup(label)
+	var output string
+	var found bool
+	if detailed, ok := view.(interface {
+		lookup(string) (string, bool, error)
+	}); ok {
+		var err error
+		output, found, err = detailed.lookup(label)
+		if err != nil {
+			return nil, fmt.Errorf("selector %q: %w", selector, err)
+		}
+	} else {
+		output, found = view.Lookup(label)
+	}
 	if !found {
 		return nil, fmt.Errorf("selector %q: %w", selector, &UnresolvedLabelError{Label: label})
 	}

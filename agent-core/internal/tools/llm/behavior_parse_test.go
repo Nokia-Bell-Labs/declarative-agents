@@ -199,7 +199,11 @@ func TestReportParseError_ReceiptRestoresRetryCounterFromFreshInstance(t *testin
 	require.Equal(t, 1, tracker.Snapshot())
 
 	cp := &core.InMemoryCheckpoint{}
-	require.NoError(t, cp.Save(core.Position{}, core.Execution{{CommandName: "report_parse_error", Receipt: res.Receipt}}))
+	require.NoError(t, cp.Save(core.Position{}, core.Execution{{
+		CommandName: "report_parse_error",
+		Result:      safeCheckpointResult(),
+		Receipt:     res.Receipt,
+	}}))
 	_, exec, err := cp.Load()
 	require.NoError(t, err)
 	require.Len(t, exec, 1)

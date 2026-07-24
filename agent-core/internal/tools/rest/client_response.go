@@ -44,10 +44,17 @@ func mapClientResponse(
 	if carried := carriedInputs(def.Operation.Params, params); carried != nil {
 		output["carried"] = carried
 	}
-	redactClientOutput(output, clientRedactionSelectors(def, mapping))
+	redactionSelectors := clientRedactionSelectors(def, mapping)
+	redactClientOutput(output, redactionSelectors)
+	redactClientDerivedOutput(output, responseMap, redactionSelectors)
 	return core.Result{
 		Signal: core.Signal(signal), CommandName: commandName,
-		Output:  jsonOutput(output),
+		Output: jsonOutput(output),
+		Redaction: clientOutputRedaction(
+			def,
+			mapping,
+			redactionSelectors,
+		),
 		Metrics: clientMetrics(response.StatusCode, attempts, duration, signal, responseBytes),
 	}, nil
 }

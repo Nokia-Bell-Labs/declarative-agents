@@ -3,6 +3,7 @@
 package core
 
 import (
+	"fmt"
 	"github.com/stretchr/testify/require"
 	"strings"
 	"testing"
@@ -62,6 +63,103 @@ func TestDoltCheckpointSingleTransactionAtomicity(t *testing.T) {
 	err := cp.Save(samplePosition(), sampleExecution()[:1])
 	require.Error(t, err, "a fault on the receipts write fails the save")
 	require.Equal(t, 0, countCalls(db.calls, "DOLT_COMMIT"), "no commit is issued when a step is only partially written")
+}
+
+func TestDoltCheckpointReappliesAndPersistsOutputRedaction(t *testing.T) {
+	t.Parallel()
+
+	db := newFakeDB()
+	cp := NewDoltCheckpoint(db, "redacted-run", nil)
+	entry := redactionCheckpointEntry("dolt-secret")
+	require.NoError(t, cp.Save(samplePosition(), Execution{entry}))
+
+	require.Len(t, db.toolOutputArgs, 1)
+	require.NotContains(t, fmt.Sprint(db.toolOutputArgs[0]), "dolt-secret")
+	stored := db.store.results[rowKey("redacted-run", 0)]
+	require.NotNil(t, stored.output)
+	require.JSONEq(t, `{"public":"ok"}`, *stored.output)
+	require.Equal(t, int64(OutputRedactionVersion1), *stored.redactionVersion)
+	require.JSONEq(t, `[["secret"]]`, *stored.redactedPaths)
+	require.Equal(t, string(OutputRedactionApplied), *stored.status)
+	require.Equal(t, `{"opaque":"receipt"}`, *db.store.receipts[rowKey("redacted-run", 0)])
+
+	fresh := NewDoltCheckpoint(db, "redacted-run", nil)
+	_, restored, err := fresh.Load()
+	require.NoError(t, err)
+	value, err := ResolveFromSelector(NewCommandStateView(restored), "$from(fetch).public")
+	require.NoError(t, err)
+	require.Equal(t, "ok", value)
+	_, err = ResolveFromSelector(NewCommandStateView(restored), "$from(fetch).secret")
+	var missing *UnresolvedPathError
+	require.ErrorAs(t, err, &missing)
+}
+
+func TestDoltCheckpointPersistsFailClosedRedactionRow(t *testing.T) {
+	t.Parallel()
+
+	db := newFakeDB()
+	cp := NewDoltCheckpoint(db, "invalid-redaction", nil)
+	entry := redactionCheckpointEntry("must-not-persist")
+	entry.Result.RedactedPaths = []OutputRedactionPath{{" secret"}}
+
+	require.NoError(t, cp.Save(samplePosition(), Execution{entry}))
+	require.Len(t, db.toolOutputArgs, 1)
+	require.NotContains(t, fmt.Sprint(db.toolOutputArgs[0]), "must-not-persist")
+	require.Len(t, db.commits, 1)
+
+	stored := db.store.results[rowKey("invalid-redaction", 0)]
+	require.Nil(t, stored.output)
+	require.Equal(t, int64(OutputRedactionVersion1), *stored.redactionVersion)
+	require.Nil(t, stored.redactedPaths)
+	require.Equal(t, string(OutputRedactionOmitted), *stored.status)
+
+	_, restored, err := NewDoltCheckpoint(db, "invalid-redaction", nil).Load()
+	require.NoError(t, err)
+	require.Equal(t, `{"opaque":"receipt"}`, restored[0].Receipt)
+	_, err = ResolveFromSelector(NewCommandStateView(restored), "$from(fetch).secret")
+	var unavailable *CommandStateOutputUnavailableError
+	require.ErrorAs(t, err, &unavailable)
+}
+
+func TestDoltCheckpointSchemaUpgradeAddsRedactionMetadata(t *testing.T) {
+	t.Parallel()
+
+	db := newFakeDB()
+	db.toolOutputsExists = true
+	require.NoError(t, createSchema(db))
+	require.NoError(t, createSchema(db), "redaction schema upgrade is idempotent")
+
+	for _, column := range []string{"redaction_version", "redacted_paths", "redaction_status"} {
+		require.True(t, db.redactionColumns[column])
+		require.Equal(t, 1, countCalls(db.calls, "ADD COLUMN "+column))
+	}
+}
+
+func TestDoltCheckpointLegacyOutputLoadsButSelectorsDenyIt(t *testing.T) {
+	t.Parallel()
+
+	db := newFakeDB()
+	cp := NewDoltCheckpoint(db, "legacy-output", nil)
+	require.NoError(t, cp.Save(samplePosition(), sampleExecution()[:1]))
+
+	key := rowKey("legacy-output", 0)
+	row := db.store.results[key]
+	row.redactionVersion = nil
+	row.redactedPaths = nil
+	row.status = nil
+	db.store.results[key] = row
+	db.redactionColumns = map[string]bool{}
+
+	_, restored, err := NewDoltCheckpoint(db, "legacy-output", nil).Load()
+	require.NoError(t, err)
+	for _, column := range []string{"redaction_version", "redacted_paths", "redaction_status"} {
+		require.True(t, db.redactionColumns[column], "Load upgrades the legacy forward-plane schema")
+	}
+	require.Equal(t, `{"file":"a.txt"}`, restored[0].Receipt)
+	_, err = ResolveFromSelector(NewCommandStateView(restored), "$from(draft).value")
+	var unavailable *CommandStateOutputUnavailableError
+	require.ErrorAs(t, err, &unavailable)
+	require.Zero(t, unavailable.Version)
 }
 
 func TestDoltCheckpointQuotesReservedSignalColumn(t *testing.T) {

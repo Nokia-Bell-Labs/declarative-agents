@@ -192,8 +192,12 @@ func TestWrite_ReceiptUndoRestoresFromFreshInstance(t *testing.T) {
 	cp := &core.InMemoryCheckpoint{}
 	require.NoError(t, cp.Save(core.Position{}, core.Execution{{
 		CommandName: "write",
-		Result:      core.ResultDigest{Signal: res.Signal},
-		Receipt:     res.Receipt,
+		Result: core.ResultDigest{
+			Signal:           res.Signal,
+			RedactionVersion: core.OutputRedactionVersion1,
+			RedactionStatus:  core.OutputRedactionApplied,
+		},
+		Receipt: res.Receipt,
 	}}))
 	_, exec, err := cp.Load()
 	require.NoError(t, err)

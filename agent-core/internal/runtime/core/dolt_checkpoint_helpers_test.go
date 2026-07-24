@@ -4,13 +4,12 @@ package core
 
 import (
 	"database/sql"
-	"encoding/json"
-	"github.com/stretchr/testify/require"
 	"sort"
 	"strconv"
 	"strings"
 	"testing"
-	"time"
+
+	"github.com/stretchr/testify/require"
 )
 
 type machineRow struct {
@@ -32,6 +31,8 @@ type execRow struct {
 type resultRow struct {
 	signal                      string
 	output, errStr              *string
+	redactionVersion            *int64
+	redactedPaths, status       *string
 	costDuration                int64
 	costTokensIn, costTokensOut int
 	costDollars                 float64
@@ -95,13 +96,17 @@ type fakeDB struct {
 	outputBytes            int
 	executionStepsExists   bool
 	executionStepsHasLabel bool
+	toolOutputsExists      bool
+	redactionColumns       map[string]bool
+	toolOutputArgs         [][]any
 }
 
 func newFakeDB() *fakeDB {
 	return &fakeDB{
-		store:    newFakeStore(),
-		branches: map[string]bool{"main": true},
-		current:  "main",
+		store:            newFakeStore(),
+		branches:         map[string]bool{"main": true},
+		current:          "main",
+		redactionColumns: map[string]bool{},
 	}
 }
 
@@ -123,10 +128,25 @@ func (f *fakeDB) Exec(query string, args ...any) error {
 			f.executionStepsHasLabel = strings.Contains(query, "label VARCHAR(255)")
 		}
 		return nil
+	case strings.Contains(query, "CREATE TABLE IF NOT EXISTS tool_outputs"):
+		if !f.toolOutputsExists {
+			f.toolOutputsExists = true
+			for _, column := range []string{"redaction_version", "redacted_paths", "redaction_status"} {
+				f.redactionColumns[column] = strings.Contains(query, column)
+			}
+		}
+		return nil
 	case strings.Contains(query, "CREATE TABLE"):
 		return nil
 	case strings.Contains(query, "ALTER TABLE execution_steps ADD COLUMN label"):
 		f.executionStepsHasLabel = true
+		return nil
+	case strings.Contains(query, "ALTER TABLE tool_outputs ADD COLUMN"):
+		for _, column := range []string{"redaction_version", "redacted_paths", "redaction_status"} {
+			if strings.Contains(query, "ADD COLUMN "+column+" ") {
+				f.redactionColumns[column] = true
+			}
+		}
 		return nil
 	case strings.Contains(query, "DOLT_CHECKOUT('main')"):
 		f.current = "main"
@@ -199,17 +219,22 @@ func (f *fakeDB) Exec(query string, args ...any) error {
 		}
 		return nil
 	case strings.Contains(query, "REPLACE INTO tool_outputs"):
+		f.toolOutputArgs = append(f.toolOutputArgs, append([]any(nil), args...))
 		if s, ok := args[3].(string); ok {
 			f.outputBytes += len(s)
 		}
+		version := int64(args[5].(int))
 		f.store.results[rowKey(args[0].(string), args[1].(int))] = resultRow{
-			signal:        args[2].(string),
-			output:        strPtr(args[3]),
-			errStr:        strPtr(args[4]),
-			costDuration:  args[5].(int64),
-			costTokensIn:  args[6].(int),
-			costTokensOut: args[7].(int),
-			costDollars:   args[8].(float64),
+			signal:           args[2].(string),
+			output:           strPtr(args[3]),
+			errStr:           strPtr(args[4]),
+			redactionVersion: &version,
+			redactedPaths:    strPtr(args[6]),
+			status:           strPtr(args[7]),
+			costDuration:     args[8].(int64),
+			costTokensIn:     args[9].(int),
+			costTokensOut:    args[10].(int),
+			costDollars:      args[11].(float64),
 		}
 		return nil
 	case strings.Contains(query, "REPLACE INTO receipts"):
@@ -237,8 +262,14 @@ func (f *fakeDB) QueryRow(query string, args ...any) Scanner {
 	switch {
 	case strings.Contains(query, "information_schema.columns"):
 		count := 0
-		if f.executionStepsHasLabel {
+		if strings.Contains(query, "table_name = 'execution_steps'") && f.executionStepsHasLabel {
 			count = 1
+		}
+		for column, exists := range f.redactionColumns {
+			if strings.Contains(query, "table_name = 'tool_outputs'") &&
+				strings.Contains(query, "column_name = '"+column+"'") && exists {
+				count = 1
+			}
 		}
 		return &fakeScanner{kind: "count", count: count}
 	case strings.Contains(query, "FROM machines"):
@@ -270,7 +301,9 @@ func (f *fakeDB) Query(query string, args ...any) (Rows, error) {
 		joined = append(joined, joinRow{
 			stepIndex: step, iteration: es.iteration, ts: es.ts, commandName: es.commandName, label: es.label,
 			fromState: tr.fromState, toState: tr.toState, signal: tr.signal,
-			resSignal: r.signal, output: r.output, errStr: r.errStr, receipt: f.store.receipts[k],
+			resSignal: r.signal, output: r.output, errStr: r.errStr,
+			redactionVersion: r.redactionVersion, redactedPaths: r.redactedPaths, redactionStatus: r.status,
+			receipt:      f.store.receipts[k],
 			costDuration: r.costDuration, costTokensIn: r.costTokensIn, costTokensOut: r.costTokensOut, costDollars: r.costDollars,
 		})
 	}
@@ -324,6 +357,8 @@ type joinRow struct {
 	ts, commandName                       string
 	fromState, toState, signal, resSignal string
 	label, output, errStr, receipt        *string
+	redactionVersion                      *int64
+	redactedPaths, redactionStatus        *string
 	costDuration                          int64
 	costTokensIn, costTokensOut           int
 	costDollars                           float64
@@ -353,11 +388,14 @@ func (r *fakeRows) Scan(dest ...any) error {
 	*dest[8].(*string) = row.resSignal
 	*dest[9].(*sql.NullString) = nsFromPtr(row.output)
 	*dest[10].(*sql.NullString) = nsFromPtr(row.errStr)
-	*dest[11].(*int64) = row.costDuration
-	*dest[12].(*int) = row.costTokensIn
-	*dest[13].(*int) = row.costTokensOut
-	*dest[14].(*float64) = row.costDollars
-	*dest[15].(*sql.NullString) = nsFromPtr(row.receipt)
+	*dest[11].(*sql.NullInt64) = niFromPtr(row.redactionVersion)
+	*dest[12].(*sql.NullString) = nsFromPtr(row.redactedPaths)
+	*dest[13].(*sql.NullString) = nsFromPtr(row.redactionStatus)
+	*dest[14].(*int64) = row.costDuration
+	*dest[15].(*int) = row.costTokensIn
+	*dest[16].(*int) = row.costTokensOut
+	*dest[17].(*float64) = row.costDollars
+	*dest[18].(*sql.NullString) = nsFromPtr(row.receipt)
 	return nil
 }
 
@@ -374,6 +412,13 @@ func nsFromPtr(p *string) sql.NullString {
 		return sql.NullString{}
 	}
 	return sql.NullString{String: *p, Valid: true}
+}
+
+func niFromPtr(p *int64) sql.NullInt64 {
+	if p == nil {
+		return sql.NullInt64{}
+	}
+	return sql.NullInt64{Int64: *p, Valid: true}
 }
 
 func countCalls(calls []string, substr string) int {
@@ -399,78 +444,4 @@ func requireNoUnquotedSignalColumn(t *testing.T, query string) {
 	} {
 		require.NotContains(t, normalized, token)
 	}
-}
-
-func sampleExecution() Execution {
-	ts := time.Date(2026, 7, 3, 12, 0, 0, 0, time.UTC)
-	return Execution{
-		{
-			Iteration: 1, Timestamp: ts, CommandName: "invoke", Label: "draft",
-			FromState: "Start", ToState: "Working", Signal: LLMResponded,
-			Result:  ResultDigest{Signal: LLMResponded, Output: "hi", Cost: Cost{Duration: 2 * time.Second, TokensIn: 10, TokensOut: 5, Dollars: 0.01}},
-			Receipt: `{"file":"a.txt"}`,
-		},
-		{
-			Iteration: 2, Timestamp: ts.Add(time.Second), CommandName: "read",
-			FromState: "Working", ToState: "Done", Signal: TaskCompleted,
-			Result:  ResultDigest{Signal: TaskCompleted, Output: "done", Cost: Cost{TokensIn: 3, TokensOut: 1, Dollars: 0.002}},
-			Receipt: "",
-		},
-	}
-}
-
-// threeStepExecution is a three-entry run where every step carries a distinct
-// receipt, used to prove revert and terminal reaping across both planes.
-func threeStepExecution() Execution {
-	ts := time.Date(2026, 7, 3, 12, 0, 0, 0, time.UTC)
-	return Execution{
-		{
-			Iteration: 1, Timestamp: ts, CommandName: "invoke",
-			FromState: "Start", ToState: "Working", Signal: LLMResponded,
-			Result:  ResultDigest{Signal: LLMResponded, Output: "s0", Cost: Cost{TokensIn: 1}},
-			Receipt: `{"step":0}`,
-		},
-		{
-			Iteration: 2, Timestamp: ts.Add(time.Second), CommandName: "read",
-			FromState: "Working", ToState: "Working", Signal: LLMResponded,
-			Result:  ResultDigest{Signal: LLMResponded, Output: "s1", Cost: Cost{TokensIn: 2}},
-			Receipt: `{"step":1}`,
-		},
-		{
-			Iteration: 3, Timestamp: ts.Add(2 * time.Second), CommandName: "write",
-			FromState: "Working", ToState: "Done", Signal: TaskCompleted,
-			Result:  ResultDigest{Signal: TaskCompleted, Output: "s2", Cost: Cost{TokensIn: 3}},
-			Receipt: `{"step":2}`,
-		},
-	}
-}
-
-func samplePosition() Position {
-	return Position{
-		CurrentState: "Working",
-		LastSignal:   LLMResponded,
-		Snapshot: AgentSnapshot{
-			State:        "Working",
-			Signal:       LLMResponded,
-			Iteration:    1,
-			TokensIn:     10,
-			TokensOut:    5,
-			TotalCost:    0.01,
-			Conversation: json.RawMessage(`[{"role":"user","content":"hi"}]`),
-		},
-	}
-}
-
-// receiptReverser is a receipt-consuming test command: its Undo records the
-// opaque receipt it was handed, standing in for a tool that reverses its own
-// external effect from the receipt.
-type receiptReverser struct{ seen string }
-
-func (r *receiptReverser) Name() string { return "reverser" }
-
-func (r *receiptReverser) Execute() Result { return Result{} }
-
-func (r *receiptReverser) Undo(prior Result) Result {
-	r.seen = prior.Receipt
-	return NoopUndo(r.Name())
 }

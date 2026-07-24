@@ -107,21 +107,27 @@ test_cases:
       - srd023-cli-exec-tools AC4
 
   - use_case: rel07.0-uc001-command-state-threading
-    name: Machine request seed remains addressable after intervening words
-    go_test: go test ./internal/tools/rest -run TestMachineRequestSeedCommandStateAddress
+    name: Machine request seed stays safe and addressable after intervening words
+    go_test: go test ./internal/tools/rest -run 'TestMachineRequest(Seed(CommandStateAddress|RedactionLiveAndReloaded|RedactionFailsClosed)|SensitiveFieldsMustBeMapped)'
     status: implemented
-    owner: GH-786
+    owner: GH-489
     description: |
       A fresh machine_request execution contains one synthetic entry labelled
-      seed whose output matches InitialResult. An exec word after intervening
-      reads resolves mapped input through $from(seed).parameters.directory, and
-      resumed execution does not prepend a second seed.
+      seed. Core removes its configured sensitive field before the entry becomes
+      live or reaches checkpoint storage. An exec word after intervening reads
+      still resolves non-sensitive input through
+      $from(seed).parameters.directory, and resumed execution does not prepend a
+      second seed. Malformed metadata omits the whole seed output.
     inputs:
       selector: "$from(seed).parameters.directory"
+      sensitive_selector: "$from(seed).parameters.token"
       intervening_words: 2
       resume_with_seed_entry: true
     expected:
       directory_resolved: true
+      sensitive_field_resolved: false
+      sensitive_value_persisted: false
+      malformed_output_omitted: true
       seed_entries_fresh_run: 1
       seed_entries_resumed_run: 1
     traces:
@@ -129,6 +135,7 @@ test_cases:
       - rel07.0-uc001-command-state-threading S3
       - srd038-command-state-store AC1
       - srd038-command-state-store AC2
+      - srd038-command-state-store AC5
       - srd030-machine-request-rest-binding AC4
 
   - use_case: rel07.0-uc001-command-state-threading
@@ -288,22 +295,61 @@ test_cases:
       - srd028-rest-client-tools AC12
 
   - use_case: rel07.0-uc001-command-state-threading
-    name: Redaction runs before persistence so a redacted field is unreadable
+    name: REST response mapping emits typed redaction before persistence
     go_test: go test ./internal/tools/rest -run TestRESTClient_RedactionRunsBeforePersistence
     status: implemented
+    coverage: component-integration
     description: |
-      A response field removed by redaction is never written to tool_outputs and
-      never resolves through a later $from selector, live or resumed. Redaction
-      runs inside mapClientResponse before Execute returns the Result the loop
-      persists, so the field is already absent from the checkpointed output.
+      mapClientResponse applies the REST operation's configured selector before
+      Execute returns Result, preserving the immediate marker contract and
+      attaching typed paths. The test passes that Result through core.DigestResult,
+      constructs a live Execution, saves and reloads it through
+      InMemoryCheckpoint, and proves a later $from selector cannot recover the
+      field.
     inputs:
-      redacted_field: api_key
-      selector: $from(fetch).api_key
+      configured_selector: body.secret
+      response_secret: body-secret
     expected:
-      field_absent_in_tool_outputs: true
+      original_secret_absent_from_result: true
+      replacement_marker_present_in_result: true
+      field_absent_from_live_entry: true
+      field_absent_after_reload: true
       selector_resolves_field: false
     traces:
+      - srd028-rest-client-tools AC7
+      - srd028-rest-client-tools AC8
+
+  - use_case: rel07.0-uc001-command-state-threading
+    name: Typed redaction denies sensitive output live and after persistence
+    go_test: go test ./internal/runtime/core ./internal/tools/rest -run 'Test(DoltCheckpoint(ReappliesAndPersistsOutputRedaction|PersistsFailClosedRedactionRow)|OutputRedactionFailsClosed|CommandStateRejectsUnversionedLegacyOutput|RESTClient_RedactionRunsBeforePersistence)'
+    status: implemented
+    owner: GH-489
+    coverage: component-integration
+    description: |
+      A REST Result translates its configured selector into versioned typed paths
+      covering direct and mapped output. Live CommandStateView and
+      InMemoryCheckpoint reload cannot recover the field. The Dolt adapter proof
+      inspects tool_outputs write arguments and fresh-load selection. Companion
+      core cases exercise malformed metadata, marked non-object output, and an
+      unversioned legacy row.
+    inputs:
+      redacted_field: body.secret
+      selector: $from(fetch).body.secret
+      persistence_backends: [in_memory, dolt]
+      failure_cases: [invalid_path, non_object_output, unversioned_legacy]
+    expected:
+      field_absent_from_live_entry: true
+      field_absent_in_tool_outputs: true
+      selector_resolves_field: false
+      unsafe_output_omitted: true
+      legacy_selector_error_typed: true
+      receipt_unchanged: true
+    traces:
       - rel07.0-uc001-command-state-threading S5
+      - rel07.0-uc001-command-state-threading E4
+      - rel07.0-uc001-command-state-threading E5
+      - srd035-checkpoint-port AC7
+      - srd036-dolt-state-persistence AC3
       - srd038-command-state-store AC5
 
   - use_case: rel07.0-uc002-two-plane-revert

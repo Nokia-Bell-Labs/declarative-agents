@@ -34,7 +34,7 @@ func suspendedCheckpoint() *InMemoryCheckpoint {
 			FromState:   "Start",
 			ToState:     "AwaitingApproval",
 			Signal:      AwaitApproval,
-			Result:      ResultDigest{Signal: AwaitApproval},
+			Result:      checkpointDigest(AwaitApproval, "", Cost{}),
 		}},
 	)
 	return cp

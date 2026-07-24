@@ -11,6 +11,14 @@ import (
 	"github.com/Nokia-Bell-Labs/declarative-agents/agent-core/internal/runtime/core"
 )
 
+func commandStateDigest(output string) core.ResultDigest {
+	return core.ResultDigest{
+		Output:           output,
+		RedactionVersion: core.OutputRedactionVersion1,
+		RedactionStatus:  core.OutputRedactionApplied,
+	}
+}
+
 func TestResponseSelectorsShareNestedMapSemantics(t *testing.T) {
 	t.Parallel()
 	items := []interface{}{map[string]interface{}{"id": "first"}}
@@ -56,7 +64,7 @@ func TestCurrentAndFromSelectorsResolveEquivalentPaths(t *testing.T) {
 	require.True(t, ok)
 	view := core.NewCommandStateView(core.Execution{{
 		CommandName: "load",
-		Result:      core.ResultDigest{Output: output},
+		Result:      commandStateDigest(output),
 	}})
 	prior, err := core.ResolveFromSelector(view, "$from(load).data.id")
 	require.NoError(t, err)
