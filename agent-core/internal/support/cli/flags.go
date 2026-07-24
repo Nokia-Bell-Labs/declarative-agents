@@ -13,28 +13,32 @@ import (
 
 // Standard flag names used across all agent CLIs.
 const (
-	FlagOTelLogFile = "otel-log-file"
-	FlagOTelParent  = "otel-parent-span"
-	FlagModel       = "model"
-	FlagDirectory   = "directory"
-	FlagMaxTime     = "max-time"
-	FlagLLMTimeout  = "llm-timeout"
-	FlagPrompt      = "prompt"
-	FlagOllamaURL   = "ollama-url"
+	FlagOTelLogFile      = "otel-log-file"
+	FlagOTelParent       = "otel-parent-span"
+	FlagOTelOTLPEndpoint = "otel-otlp-endpoint"
+	FlagOTelServiceName  = "otel-service-name"
+	FlagModel            = "model"
+	FlagDirectory        = "directory"
+	FlagMaxTime          = "max-time"
+	FlagLLMTimeout       = "llm-timeout"
+	FlagPrompt           = "prompt"
+	FlagOllamaURL        = "ollama-url"
 )
 
 // PropagateArgs builds CLI flags for invoking a child agent process.
 // It serialises the parent's current span as a traceparent and computes
 // the remaining time budget so the child can manage its own shutdown.
 type PropagateArgs struct {
-	SpanContext trace.SpanContext // current span to propagate
-	TraceFile   string            // --otel-log-file for child
-	Model       string
-	Directory   string
-	Prompt      string
-	OllamaURL   string
-	MaxTime     time.Duration // remaining wall-clock budget; 0 = omit
-	LLMTimeout  time.Duration // per-LLM-call timeout; 0 = omit
+	SpanContext     trace.SpanContext // current span to propagate
+	TraceFile       string            // --otel-log-file for child
+	OTLPEndpoint    string            // --otel-otlp-endpoint for child
+	OTelServiceName string            // --otel-service-name for child
+	Model           string
+	Directory       string
+	Prompt          string
+	OllamaURL       string
+	MaxTime         time.Duration // remaining wall-clock budget; 0 = omit
+	LLMTimeout      time.Duration // per-LLM-call timeout; 0 = omit
 }
 
 // Build returns the flag slice ready for exec.Command.
@@ -46,6 +50,12 @@ func (p PropagateArgs) Build() []string {
 	}
 	if p.TraceFile != "" {
 		args = append(args, "--"+FlagOTelLogFile, p.TraceFile)
+	}
+	if p.OTLPEndpoint != "" {
+		args = append(args, "--"+FlagOTelOTLPEndpoint, p.OTLPEndpoint)
+	}
+	if p.OTelServiceName != "" {
+		args = append(args, "--"+FlagOTelServiceName, p.OTelServiceName)
 	}
 	if p.Model != "" {
 		args = append(args, "--"+FlagModel, p.Model)

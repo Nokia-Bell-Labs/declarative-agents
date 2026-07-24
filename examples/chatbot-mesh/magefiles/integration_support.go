@@ -8,6 +8,7 @@ import (
 	"io"
 	"net"
 	"net/http"
+	"net/url"
 	"os"
 	"os/exec"
 	"path/filepath"
@@ -35,6 +36,12 @@ const integrationInferenceTimeoutDefault = 120 * time.Second
 // integrationInferenceTimeoutEnv overrides the inference bound, so a slower host
 // or a larger model does not require a code change.
 const integrationInferenceTimeoutEnv = "MESH_INFERENCE_TIMEOUT"
+
+const (
+	integrationOTLPEndpointEnv = "DA_INTEGRATION_OTLP_ENDPOINT"
+	integrationRunIDEnv        = "DA_INTEGRATION_RUN_ID"
+	integrationCommitEnv       = "DA_INTEGRATION_GIT_COMMIT"
+)
 
 var integrationHTTPClient = &http.Client{Timeout: integrationHTTPRequestTimeout}
 
@@ -100,6 +107,11 @@ type agentLaunch struct {
 	CoreRoot     string
 	Profile      string
 	TracePath    string
+	OTLPEndpoint string
+	ServiceName  string
+	Target       string
+	RunID        string
+	GitCommit    string
 	Workdir      string   // defaults to os.TempDir()
 	Env          []string // appended to the parent environment
 	GracefulWait time.Duration
@@ -117,18 +129,31 @@ func startDetachedAgentWithEnv(launch agentLaunch) (func(kill bool) error, error
 	if workdir == "" {
 		workdir = os.TempDir()
 	}
-	cmd := exec.Command(launch.Binary,
+	args := []string{
 		"--profile", profilePath,
 		"--directory", workdir,
 		"--core-root", launch.CoreRoot,
 		"--otel-log-file", launch.TracePath,
-	)
+	}
+	endpoint := firstNonEmpty(launch.OTLPEndpoint, os.Getenv(integrationOTLPEndpointEnv))
+	serviceName := firstNonEmpty(launch.ServiceName, profileServiceName(profile))
+	args = append(args, integrationTelemetryArgs(endpoint, serviceName)...)
+	cmd := exec.Command(launch.Binary, args...)
 	cmd.Dir = profilesRoot
 	cmd.Stdout = os.Stderr
 	cmd.Stderr = os.Stderr
-	if len(launch.Env) > 0 {
-		cmd.Env = append(os.Environ(), launch.Env...)
+	target := firstNonEmpty(launch.Target, profile)
+	runID := firstNonEmpty(launch.RunID, os.Getenv(integrationRunIDEnv))
+	if runID == "" {
+		runID = generatedRunID(target)
 	}
+	commit := firstNonEmpty(launch.GitCommit, os.Getenv(integrationCommitEnv))
+	if commit == "" {
+		commit = gitCommit(profilesRoot)
+	}
+	resourceAttrs := integrationResourceAttributes(target, runID, commit)
+	cmd.Env = append(append(os.Environ(), launch.Env...),
+		"OTEL_RESOURCE_ATTRIBUTES="+resourceAttrs)
 	if err := cmd.Start(); err != nil {
 		return nil, fmt.Errorf("start %s: %w", profile, err)
 	}
@@ -160,6 +185,76 @@ func startDetachedAgentWithEnv(launch agentLaunch) (func(kill bool) error, error
 			return fmt.Errorf("%s did not stop within %s", profile, gracefulWait)
 		}
 	}, nil
+}
+
+func firstNonEmpty(values ...string) string {
+	for _, value := range values {
+		if value = strings.TrimSpace(value); value != "" {
+			return value
+		}
+	}
+	return ""
+}
+
+func profileServiceName(profile string) string {
+	clean := filepath.Clean(profile)
+	if filepath.Base(clean) == "profile.yaml" {
+		return filepath.Base(filepath.Dir(clean))
+	}
+	return strings.TrimSuffix(filepath.Base(clean), filepath.Ext(clean))
+}
+
+func generatedRunID(target string) string {
+	return fmt.Sprintf("%s-%d-%d", profileServiceName(target), time.Now().UTC().UnixNano(), os.Getpid())
+}
+
+func gitCommit(dir string) string {
+	cmd := exec.Command("git", "rev-parse", "HEAD")
+	cmd.Dir = dir
+	out, err := cmd.Output()
+	if err != nil {
+		return "unknown"
+	}
+	return strings.TrimSpace(string(out))
+}
+
+func integrationResourceAttributes(target, runID, commit string) string {
+	attrs := [][2]string{
+		{"test.repository", "Nokia-Bell-Labs/declarative-agents"},
+		{"test.module", "examples/chatbot-mesh"},
+		{"test.target", target},
+		{"vcs.ref.head.revision", commit},
+		{"test.run.id", runID},
+	}
+	encoded := make([]string, 0, len(attrs))
+	for _, attr := range attrs {
+		encoded = append(encoded, attr[0]+"="+url.QueryEscape(attr[1]))
+	}
+	return strings.Join(encoded, ",")
+}
+
+func integrationTelemetryArgs(endpoint, serviceName string) []string {
+	if endpoint == "" {
+		return nil
+	}
+	return []string{
+		"--otel-otlp-endpoint", endpoint,
+		"--otel-service-name", serviceName,
+	}
+}
+
+func hostIntegrationTelemetry(target, serviceName, repoRoot string) ([]string, string) {
+	endpoint := strings.TrimSpace(os.Getenv(integrationOTLPEndpointEnv))
+	runID := strings.TrimSpace(os.Getenv(integrationRunIDEnv))
+	if runID == "" {
+		runID = generatedRunID(target)
+	}
+	commit := strings.TrimSpace(os.Getenv(integrationCommitEnv))
+	if commit == "" {
+		commit = gitCommit(repoRoot)
+	}
+	return integrationTelemetryArgs(endpoint, serviceName),
+		"OTEL_RESOURCE_ATTRIBUTES=" + integrationResourceAttributes(target, runID, commit)
 }
 
 func waitHTTPStatus(url string, want int, timeout time.Duration) error {

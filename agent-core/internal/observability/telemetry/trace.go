@@ -14,12 +14,12 @@ import (
 	"go.opentelemetry.io/otel"
 	"go.opentelemetry.io/otel/attribute"
 	"go.opentelemetry.io/otel/codes"
-	"go.opentelemetry.io/otel/propagation"
 	"go.opentelemetry.io/otel/exporters/otlp/otlpmetric/otlpmetricgrpc"
 	"go.opentelemetry.io/otel/exporters/otlp/otlptrace/otlptracegrpc"
 	"go.opentelemetry.io/otel/exporters/stdout/stdoutmetric"
 	"go.opentelemetry.io/otel/exporters/stdout/stdouttrace"
 	"go.opentelemetry.io/otel/metric"
+	"go.opentelemetry.io/otel/propagation"
 	sdkmetric "go.opentelemetry.io/otel/sdk/metric"
 	"go.opentelemetry.io/otel/sdk/resource"
 	sdktrace "go.opentelemetry.io/otel/sdk/trace"
@@ -102,10 +102,18 @@ func NewRoot(serviceName, name string, cfg ExporterConfig, parentCtx context.Con
 		return Trace{}, nil, fmt.Errorf("ExporterConfig: at least one exporter required")
 	}
 
-	res := resource.NewWithAttributes(
+	envResource, err := resource.New(parentCtx, resource.WithFromEnv())
+	if err != nil {
+		return Trace{}, nil, fmt.Errorf("telemetry resource: %w", err)
+	}
+	explicitResource := resource.NewWithAttributes(
 		semconv.SchemaURL,
 		semconv.ServiceNameKey.String(serviceName),
 	)
+	res, err := resource.Merge(envResource, explicitResource)
+	if err != nil {
+		return Trace{}, nil, fmt.Errorf("telemetry resource merge: %w", err)
+	}
 
 	// Pre-root boundary: buildProviders failures are log-only because
 	// no span exists yet to record events on.

@@ -68,13 +68,18 @@ func (Integration) Rig() error {
 	}
 
 	trace := filepath.Join(binDir, "rig.otel.json")
-	cmd := exec.Command(binary,
+	args := []string{
 		"--profile", rigProfile,
 		"--core-root", coreRoot,
 		"--otel-log-file", trace,
-	)
+	}
+	telemetryArgs, resourceEnv := hostIntegrationTelemetry("integration:rig", "assembler-rig", exampleRoot)
+	cmd := exec.Command(binary, append(args, telemetryArgs...)...)
 	cmd.Dir = exampleRoot
-	cmd.Env = append(os.Environ(), "PATH="+binDir+string(os.PathListSeparator)+os.Getenv("PATH"))
+	cmd.Env = append(os.Environ(),
+		"PATH="+binDir+string(os.PathListSeparator)+os.Getenv("PATH"),
+		resourceEnv,
+	)
 	var out bytes.Buffer
 	cmd.Stdout = &out
 	cmd.Stderr = &out
