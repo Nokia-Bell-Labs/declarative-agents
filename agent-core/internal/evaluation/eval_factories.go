@@ -101,10 +101,17 @@ func registerEvalConfiguredFactories(br *toolregistry.BuiltinRegistry, state *ev
 }
 
 func registerEvalPointFactories(br *toolregistry.BuiltinRegistry, state *evalFactoryState) {
+	RegisterEvalPointFactories(br, &state.init().EvalState)
+}
+
+// RegisterEvalPointFactories registers the stateful critic-point words against
+// an existing EvalState. Nested point registries use this hook alongside the
+// unified declaration registry rather than rebuilding a name switch.
+func RegisterEvalPointFactories(br *toolregistry.BuiltinRegistry, es *EvalState) {
 	for _, spec := range evalPointFactorySpecs() {
 		spec := spec
 		br.Register(spec.name, func(catalog.ToolDef, map[string]string) (core.Builder, error) {
-			return spec.build(&state.init().EvalState), nil
+			return spec.build(es), nil
 		})
 	}
 }

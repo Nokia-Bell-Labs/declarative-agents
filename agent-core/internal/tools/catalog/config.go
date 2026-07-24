@@ -130,11 +130,12 @@ type LoadSuiteConfig struct {
 
 // RunPointConfig holds config for the run_point tool.
 type RunPointConfig struct {
-	PointMachine  string `json:"point_machine"`
-	PointTools    string `json:"point_tools"`
-	AgentName     string `json:"agent_name"`
-	MaxIterations int    `json:"max_iterations"`
-	SuccessState  string `json:"success_state"`
+	PointMachine          string   `json:"point_machine"`
+	PointTools            string   `json:"point_tools"`
+	PointToolDeclarations []string `json:"point_tool_declarations"`
+	AgentName             string   `json:"agent_name"`
+	MaxIterations         int      `json:"max_iterations"`
+	SuccessState          string   `json:"success_state"`
 }
 
 // ServeUIToolConfig holds config for the serve_ui bench tool.
@@ -162,6 +163,9 @@ func ValidateRunPointConfig(toolName string, cfg RunPointConfig) error {
 	}
 	if cfg.PointTools == "" {
 		return fmt.Errorf("tool %q config requires point_tools", toolName)
+	}
+	if len(cfg.PointToolDeclarations) == 0 {
+		return fmt.Errorf("tool %q config requires point_tool_declarations", toolName)
 	}
 	return nil
 }

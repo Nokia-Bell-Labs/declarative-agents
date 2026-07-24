@@ -172,6 +172,9 @@ tools:
   config:
     point_machine: agents/critic/point.yaml
     point_tools: agents/critic/tools-point.yaml
+    point_tool_declarations:
+    - /opt/agent-core/tools/builtin/critic-point/all.yaml
+    - /opt/agent-core/tools/exec/all.yaml
     agent_name: critic-point
     max_iterations: 20
     success_state: Done

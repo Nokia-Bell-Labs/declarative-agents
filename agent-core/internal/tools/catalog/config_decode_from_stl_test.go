@@ -94,14 +94,16 @@ func TestDecodeToolConfigRunPoint(t *testing.T) {
 	def := ToolDef{
 		Name: "run_point",
 		Config: map[string]interface{}{
-			"point_machine": "agents/critic/point.yaml",
-			"point_tools":   "agents/critic/tools-point.yaml",
+			"point_machine":           "agents/critic/point.yaml",
+			"point_tools":             "agents/critic/tools-point.yaml",
+			"point_tool_declarations": []interface{}{"tools/builtin/critic-point/all.yaml", "tools/exec/all.yaml"},
 		},
 	}
 	var cfg RunPointConfig
 	require.NoError(t, DecodeToolConfig(def, &cfg))
 	assert.Equal(t, "agents/critic/point.yaml", cfg.PointMachine)
 	assert.Equal(t, "agents/critic/tools-point.yaml", cfg.PointTools)
+	assert.Equal(t, []string{"tools/builtin/critic-point/all.yaml", "tools/exec/all.yaml"}, cfg.PointToolDeclarations)
 }
 
 func TestDecodeToolConfigServeUI(t *testing.T) {

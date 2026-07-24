@@ -73,6 +73,13 @@ func resolveProfilePath(base, p string) string {
 	return filepath.Join(base, p)
 }
 
+// ResolveConfiguredPath resolves an agent-core install path or a path relative
+// to base. Nested profile-owned configuration uses the same mapping contract as
+// top-level profile references.
+func ResolveConfiguredPath(base, path string) string {
+	return resolveProfilePath(base, path)
+}
+
 func resolveInstalledAgentCorePath(p string) string {
 	return spec.MapInstalledCorePath(p)
 }

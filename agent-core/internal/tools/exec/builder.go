@@ -23,8 +23,9 @@ func RegisterToolDefs(reg *core.Registry, root string, defs []catalog.ToolDef) {
 
 // ExecBuilder is the generic Builder for YAML-defined exec tools.
 type ExecBuilder struct {
-	Def  catalog.ToolDef
-	Root string
+	Def      catalog.ToolDef
+	Root     string
+	RootFunc func() string
 }
 
 // Build extracts adjacent parameters from the previous result and defers
@@ -49,24 +50,25 @@ func (b *ExecBuilder) Build(res core.Result) core.Command {
 			params[pm.Name] = val
 		}
 	}
-	return &ExecCmd{def: b.Def, root: b.Root, params: params, sources: sources}
+	return &ExecCmd{def: b.Def, root: b.Root, rootFunc: b.RootFunc, params: params, sources: sources}
 }
 
 // BuildReverser returns an exec command configured only for receipt-driven Undo:
 // the receipt carries the undo strategy/description, so the rollback receipt
 // walk needs no extracted params (core.Reverser; srd035-checkpoint-port R3).
 func (b *ExecBuilder) BuildReverser() core.Command {
-	return &ExecCmd{def: b.Def, root: b.Root}
+	return &ExecCmd{def: b.Def, root: b.Root, rootFunc: b.RootFunc}
 }
 
 // ExecCmd is the generic Command for YAML-defined exec tools.
 type ExecCmd struct {
-	def     catalog.ToolDef
-	root    string
-	params  map[string]string
-	sources []catalog.ParamMapping
-	view    core.CommandStateView
-	rec     monitor.ToolMetricsRecorder
+	def      catalog.ToolDef
+	root     string
+	rootFunc func() string
+	params   map[string]string
+	sources  []catalog.ParamMapping
+	view     core.CommandStateView
+	rec      monitor.ToolMetricsRecorder
 }
 
 func (c *ExecCmd) Name() string { return c.def.Name }
@@ -169,13 +171,17 @@ func (c *ExecCmd) resolveSourceParams() error {
 }
 
 func (c *ExecCmd) execDir() string {
+	root := c.root
+	if c.rootFunc != nil {
+		root = c.rootFunc()
+	}
 	if c.def.Dir == "" {
-		return c.root
+		return root
 	}
 	if filepath.IsAbs(c.def.Dir) {
 		return c.def.Dir
 	}
-	return filepath.Join(c.root, c.def.Dir)
+	return filepath.Join(root, c.def.Dir)
 }
 
 func (c *ExecCmd) buildArgs() []string {
