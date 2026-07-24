@@ -79,14 +79,23 @@ func configuredOllamaModelFromRoot(profileRoot string) (string, error) {
 	if err != nil {
 		return "", err
 	}
+	// Only the model under the entry's config: block counts; spec-corpus
+	// sections above it carry schema lines like "model: {type: string}"
+	// that must not win (GH-866).
 	inInvokeLLM := false
+	inConfig := false
 	for _, line := range strings.Split(string(data), "\n") {
 		trimmed := strings.TrimSpace(line)
 		if strings.HasPrefix(trimmed, "- name:") {
 			inInvokeLLM = strings.TrimSpace(strings.TrimPrefix(trimmed, "- name:")) == "invoke_llm"
+			inConfig = false
 			continue
 		}
-		if inInvokeLLM && strings.HasPrefix(trimmed, "model:") {
+		if inInvokeLLM && trimmed == "config:" {
+			inConfig = true
+			continue
+		}
+		if inInvokeLLM && inConfig && strings.HasPrefix(trimmed, "model:") {
 			model := strings.Trim(strings.TrimSpace(strings.TrimPrefix(trimmed, "model:")), `"'`)
 			if model != "" {
 				return model, nil
