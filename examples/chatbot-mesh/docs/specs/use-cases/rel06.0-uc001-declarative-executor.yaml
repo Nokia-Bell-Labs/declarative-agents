@@ -17,6 +17,13 @@ summary: |
   required: the actuation is a state machine binding the helm and kubectl CLIs in the
   executor's container.
 
+  The live cluster tier proves both sides of the apply path. A successful patch
+  moves the real Helm release. A test-only post-upgrade hook then creates a
+  deterministic regression after Helm accepts a second upgrade; the real kubectl
+  verification fails, the executor returns 500 rolled_back, and real helm rollback
+  restores the prior computed values and a ready chatbot Deployment. The hook and
+  its permissions exist only in the temporary chart staged by the live test.
+
 actor: The creator agent, realizing a decided instance operation behind the deployment API.
 
 trigger: |
@@ -80,7 +87,7 @@ success_criteria:
       - srd003-chatbot-deployment R2.1
       - srd006-executor AC2
   - id: S4
-    criterion: The rollout is verified via kubectl rollout status and its phase reported, and an apply or verify failure rolls the release back.
+    criterion: The rollout is verified via kubectl rollout status and its phase reported, and an apply or verify failure rolls the release back. The live cluster tier forces a deterministic post-upgrade verification failure and proves the compensating helm rollback restores the prior computed release values and a ready Deployment.
     traces:
       - srd006-executor R3.1
       - srd006-executor R3.2
@@ -115,4 +122,4 @@ out_of_scope:
   - The chat turn path itself (route, embed, fan-out, compose), which is srd002.
 
 test_suite_trace: test-rel06.0-executor
-status: planned
+status: implemented

@@ -4,6 +4,7 @@ package main
 
 import (
 	"errors"
+	"os"
 	"os/exec"
 	"path/filepath"
 	"strings"
@@ -155,6 +156,54 @@ func TestFakeScriptsClassifyTheDeclaredInvocations(t *testing.T) {
 				t.Errorf("%s classified as some other leg (exit %d, want the planned 42)", tc.word, code)
 			}
 		})
+	}
+}
+
+// TestExecutorLiveRollbackTriggerIsPostUpgradeOnly pins the live tier's
+// deterministic failure injection (srd006 R3.2, GH-751). Ordinary values must
+// not render the mutating hook; the reserved fixture must render a post-upgrade
+// Pod that uses real kubectl only after Helm has accepted the ordinary rollout.
+func TestExecutorLiveRollbackTriggerIsPostUpgradeOnly(t *testing.T) {
+	if _, err := exec.LookPath("helm"); err != nil {
+		t.Skip("helm not on PATH")
+	}
+	chartDir := findChartDir(t)
+	staged, cleanup, err := stageExecutorLiveChart(chartDir, filepath.Dir(chartDir))
+	if err != nil {
+		t.Fatalf("stage executor live chart: %v", err)
+	}
+	defer cleanup()
+
+	render := func(extra ...string) string {
+		t.Helper()
+		args := append([]string{"template", "live", staged}, extra...)
+		out, err := exec.Command("helm", args...).CombinedOutput()
+		if err != nil {
+			t.Fatalf("helm %s: %v\n%s", strings.Join(args, " "), err, out)
+		}
+		return string(out)
+	}
+	if ordinary := render(); strings.Contains(ordinary, "invalid.local/executor-live-rollback") {
+		t.Fatal("ordinary values render the rollback trigger")
+	}
+
+	fixture, err := os.ReadFile(filepath.Join(filepath.Dir(chartDir),
+		"testdata", "integration", "executor-values", "rollback-trigger.yaml"))
+	if err != nil {
+		t.Fatal(err)
+	}
+	triggered := render("--set", "executor.params.nResults=751")
+	for _, want := range []string{
+		"helm.sh/hook: post-upgrade",
+		"command: [kubectl]",
+		"invalid.local/executor-live-rollback:missing",
+	} {
+		if !strings.Contains(triggered, want) {
+			t.Errorf("triggered render does not contain %q", want)
+		}
+	}
+	if !strings.Contains(string(fixture), "nResults: 751") {
+		t.Fatal("rollback fixture no longer selects the staged trigger")
 	}
 }
 
