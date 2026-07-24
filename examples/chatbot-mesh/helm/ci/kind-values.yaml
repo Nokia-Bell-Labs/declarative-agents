@@ -28,6 +28,18 @@ chroma:
 dolt:
   storage: 256Mi
 
+# The chart-local Collector remains the pod-facing gateway while forwarding
+# integration traces and metrics to the persistent host ingress. The Mage
+# launcher overrides commit and runID for each scenario.
+collector:
+  externalOTLPEndpoint: host.docker.internal:4317
+  integrationResource:
+    repository: Nokia-Bell-Labs/declarative-agents
+    module: examples/chatbot-mesh
+    target: integration:helm
+    commit: unknown
+    runID: local-kind
+
 ingress:
   enabled: false
 

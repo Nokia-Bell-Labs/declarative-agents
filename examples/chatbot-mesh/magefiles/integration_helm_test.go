@@ -6,6 +6,7 @@ import (
 	"net/http"
 	"net/http/httptest"
 	"os/exec"
+	"path/filepath"
 	"strings"
 	"testing"
 	"time"
@@ -24,6 +25,55 @@ func TestSplitImageRef(t *testing.T) {
 		repo, tag := splitImageRef(c.image)
 		if repo != c.repo || tag != c.tag {
 			t.Errorf("splitImageRef(%q) = (%q, %q), want (%q, %q)", c.image, repo, tag, c.repo, c.tag)
+		}
+	}
+}
+
+func TestCollectorDefaultRenderStaysSelfContained(t *testing.T) {
+	if _, err := exec.LookPath("helm"); err != nil {
+		t.Skip("helm not on PATH")
+	}
+	out, err := exec.Command("helm", "template", "t", findChartDir(t)).CombinedOutput()
+	if err != nil {
+		t.Fatalf("helm template: %v\n%s", err, out)
+	}
+	render := string(out)
+	if !strings.Contains(render, "endpoint: t-chatbot-mesh-jaeger:4317") {
+		t.Fatal("default collector does not export traces to embedded Jaeger")
+	}
+	for _, forbidden := range []string{"otlp/external:", "resource/integration:", "test.run.id"} {
+		if strings.Contains(render, forbidden) {
+			t.Errorf("default production render contains integration-only %q", forbidden)
+		}
+	}
+}
+
+func TestCollectorKindOverlayExportsBothSignalsWithRunIdentity(t *testing.T) {
+	if _, err := exec.LookPath("helm"); err != nil {
+		t.Skip("helm not on PATH")
+	}
+	chart := findChartDir(t)
+	out, err := exec.Command("helm", "template", "t", chart,
+		"--values", filepath.Join(chart, "ci", "kind-values.yaml")).CombinedOutput()
+	if err != nil {
+		t.Fatalf("helm template kind overlay: %v\n%s", err, out)
+	}
+	render := string(out)
+	for _, want := range []string{
+		"endpoint: t-chatbot-mesh-jaeger:4317",
+		"otlp/external:",
+		`endpoint: "host.docker.internal:4317"`,
+		"resource/integration:",
+		"key: test.repository",
+		`value: "Nokia-Bell-Labs/declarative-agents"`,
+		"key: test.module",
+		"key: test.target",
+		"key: vcs.ref.head.revision",
+		"key: test.run.id",
+		"metrics:",
+	} {
+		if !strings.Contains(render, want) {
+			t.Errorf("kind collector render missing %q", want)
 		}
 	}
 }
