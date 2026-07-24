@@ -101,6 +101,33 @@ func TestChartSchemaConstrainsTheRAGUnitName(t *testing.T) {
 		t.Error("values.schema.json no longer requires at least one RAG unit; " +
 			"a patch emptying the mesh would validate")
 	}
+	for _, reserved := range []string{"embedding", "coordinator"} {
+		if !strings.Contains(schema, `"`+reserved+`"`) {
+			t.Errorf("values.schema.json no longer reserves client name %q; a RAG could overwrite a generated REST client", reserved)
+		}
+	}
+}
+
+func TestChartSchemaRejectsReservedRAGClientNames(t *testing.T) {
+	if _, err := exec.LookPath("helm"); err != nil {
+		t.Skip("helm not on PATH")
+	}
+	for _, reserved := range []string{"embedding", "coordinator"} {
+		t.Run(reserved, func(t *testing.T) {
+			out, err := exec.Command("helm", "template", "t", findChartDir(t),
+				"--set", "ragUnits[0].name="+reserved,
+				"--set", "ragUnits[0].collection=corpus",
+				"--set", "ragUnits[0].embeddingModel=all-minilm").CombinedOutput()
+			if err == nil {
+				t.Fatalf("reserved RAG client name %q rendered clean:\n%s", reserved, out)
+			}
+			for _, want := range []string{"schema", "/ragUnits/0/name", "'not' failed"} {
+				if !strings.Contains(string(out), want) {
+					t.Errorf("reserved-name rejection does not mention %q:\n%s", want, out)
+				}
+			}
+		})
+	}
 }
 
 func readSchemaText(t *testing.T) (string, error) {

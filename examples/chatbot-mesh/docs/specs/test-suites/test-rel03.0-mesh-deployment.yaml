@@ -83,9 +83,10 @@ test_cases:
     description: |
       Integration.HelmSwap proves the tiered-swap rollout mechanics on a kind
       cluster. Repointing a rag Service selector leaves the chatbot pod unchanged
-      (R3.1); adding named RAG rag4 stands up the new unit, preserves that identity
-      in the co-generated rest.yaml, and rolls the chatbot Deployment via its
-      checksum/profiles annotation (R3.2). A host-side deterministic Ollama mock
+      (R3.1); replacing middle unit rag1 in rag0/rag1/rag2 with rag4 removes the
+      old workload, preserves rag2 and rag4 identities in the co-generated
+      rest.yaml, and rolls the chatbot Deployment via its checksum/profiles
+      annotation (R3.2). A host-side deterministic Ollama mock
       holds one machine_request answer open while Helm replaces the chatbot. The
       target requires that response to complete through the old pod's declared
       shutdown drain, then reconnects to the Service and requires another answer
@@ -94,12 +95,13 @@ test_cases:
       cluster it created in all paths.
     inputs:
       chart: examples/chatbot-mesh/helm/
-      values_rag_list: [rag0]
+      values_rag_list: [rag0, rag1, rag2]
       swap_repoint: rag0 Service selector change
-      swap_add: rag4 values entry
+      swap_replace_middle: remove rag1 and add rag4
     expected:
       repoint_leaves_chatbot_pod_unchanged: true
-      add_rag_rerenders_and_rolls_chatbot: true
+      middle_rag_replacement_rerenders_and_rolls_chatbot: true
+      later_rag_identity_does_not_drift: true
       active_turn_completes_before_old_pod_exits: true
       replacement_pod_serves_next_turn: true
     traces:

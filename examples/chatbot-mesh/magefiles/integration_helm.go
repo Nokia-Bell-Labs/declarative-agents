@@ -529,18 +529,29 @@ func runHelmSwap(coreRoot, profilesRoot, chartDir string) error {
 		return err
 	}
 
-	// Deploy with one RAG unit (the ci values default).
-	if err := helmSwapDeploy(stagedChart, "install", llmMock.helmArgs()); err != nil {
+	// Deploy three units so the rollout can remove the middle identity without
+	// changing the later unit's name.
+	initial := append(llmMock.helmArgs(),
+		"--set", "ragUnits[1].name=rag1",
+		"--set", "ragUnits[1].collection=corpus1",
+		"--set", "ragUnits[1].embeddingModel=qwen3-embedding:8b",
+		"--set", "ragUnits[1].replicas=1",
+		"--set", "ragUnits[2].name=rag2",
+		"--set", "ragUnits[2].collection=corpus2",
+		"--set", "ragUnits[2].embeddingModel=qwen3-embedding:8b",
+		"--set", "ragUnits[2].replicas=1",
+	)
+	if err := helmSwapDeploy(stagedChart, "install", initial); err != nil {
 		return err
 	}
 
 	if err := assertSwapRepoint(); err != nil {
 		return err
 	}
-	if err := assertSwapAddRag(stagedChart, llmMock); err != nil {
+	if err := assertSwapReplaceMiddleRag(stagedChart, llmMock); err != nil {
 		return err
 	}
-	fmt.Println("integration:helmSwap PASS - repoint left the chatbot pod unchanged; adding a named RAG preserved an in-flight turn, re-rendered the co-generated profile, rolled the chatbot, and served a turn from the replacement pod")
+	fmt.Println("integration:helmSwap PASS - repoint left the chatbot pod unchanged; replacing middle unit rag1 with rag4 preserved rag2 identity and an in-flight turn, rolled the chatbot, and served a turn from the replacement pod")
 	return nil
 }
 
@@ -588,11 +599,10 @@ func assertSwapRepoint() error {
 	return nil
 }
 
-// assertSwapAddRag upgrades the release to two RAG units with a non-positional
-// name and asserts the new workload stands up, the co-generated chatbot profile
-// preserves that topology identity, and the chatbot Deployment rolls to a new
-// generation (srd003 R2/R3.2).
-func assertSwapAddRag(chartPath string, llmMock *helmSwapLLMMock) error {
+// assertSwapReplaceMiddleRag removes rag1 from the middle of rag0/rag1/rag2 and
+// adds rag4, then proves rag2 kept its identity, the active turn drained, and the
+// chatbot Deployment rolled to the replacement config (srd003 R2/R3.2).
+func assertSwapReplaceMiddleRag(chartPath string, llmMock *helmSwapLLMMock) error {
 	genBefore, err := chatbotDeploymentGeneration()
 	if err != nil {
 		return err
@@ -616,16 +626,20 @@ func assertSwapAddRag(chartPath string, llmMock *helmSwapLLMMock) error {
 	}
 
 	extra := append(llmMock.helmArgs(),
-		"--set", "ragUnits[1].name=rag4",
+		"--set", "ragUnits[1].name=rag2",
 		"--set", "ragUnits[1].collection=corpus2",
 		"--set", "ragUnits[1].embeddingModel=qwen3-embedding:8b",
 		"--set", "ragUnits[1].replicas=1",
+		"--set", "ragUnits[2].name=rag4",
+		"--set", "ragUnits[2].collection=corpus4",
+		"--set", "ragUnits[2].embeddingModel=qwen3-embedding:8b",
+		"--set", "ragUnits[2].replicas=1",
 	)
 	if err := helmSwapDeploy(chartPath, "upgrade", extra); err != nil {
 		return err
 	}
 	if err := <-turnResult; err != nil {
-		return fmt.Errorf("add-RAG rollout dropped the in-flight chat turn: %w", err)
+		return fmt.Errorf("middle-RAG replacement dropped the in-flight chat turn: %w", err)
 	}
 	stopForward()
 	stopForward = nil
@@ -642,17 +656,22 @@ func assertSwapAddRag(chartPath string, llmMock *helmSwapLLMMock) error {
 		return fmt.Errorf("replacement chatbot did not serve a turn: %w", err)
 	}
 	if err := kubectlResourceExists("deployment", helmSwapRelease+"-chatbot-mesh-rag4"); err != nil {
-		return fmt.Errorf("add-RAG did not stand up the rag4 Deployment: %w", err)
+		return fmt.Errorf("middle-RAG replacement did not stand up the rag4 Deployment: %w", err)
+	}
+	if out, err := exec.Command("kubectl", "get", "deployment", helmSwapRelease+"-chatbot-mesh-rag1").CombinedOutput(); err == nil {
+		return fmt.Errorf("middle-RAG replacement left the removed rag1 Deployment present: %s", strings.TrimSpace(string(out)))
 	}
 	cm, err := kubectlConfigMapKey(helmSwapRelease+"-chatbot-mesh-profiles", "agents__chatbot__rest.yaml")
 	if err != nil {
 		return err
 	}
-	if !strings.Contains(cm, "rag4:") || !strings.Contains(cm, "rag4_query:") {
-		return fmt.Errorf("add-RAG did not preserve the rag4 topology identity in chatbot rest.yaml (R2/R3.2)")
+	for _, identity := range []string{"rag0", "rag2", "rag4"} {
+		if !strings.Contains(cm, "\n    "+identity+":") || !strings.Contains(cm, identity+"_query:") {
+			return fmt.Errorf("middle-RAG replacement did not preserve %s in chatbot rest.yaml (R2/R3.2)", identity)
+		}
 	}
 	if strings.Contains(cm, "\n    rag1:") {
-		return fmt.Errorf("add-RAG renumbered rag4 to positional client rag1 in chatbot rest.yaml (R2)")
+		return fmt.Errorf("middle-RAG replacement left positional or removed client rag1 in chatbot rest.yaml (R2)")
 	}
 	genAfter, err := chatbotDeploymentGeneration()
 	if err != nil {
