@@ -14,19 +14,17 @@ import (
 )
 
 type extractTaskCmd struct {
-	ps          *State
-	snapshot    pipelineSnapshot
-	hasSnapshot bool
+	ps *State
 }
 
 func (c *extractTaskCmd) Name() string { return "extract_task" }
-func (c *extractTaskCmd) Undo(_ core.Result) core.Result {
-	return undoPipelineSnapshot(c.Name(), c.ps, c.snapshot, c.hasSnapshot)
+func (c *extractTaskCmd) Undo(prior core.Result) core.Result {
+	return undoPipelineReceipt(c.Name(), c.ps, nil, prior.Receipt)
 }
 
-func (c *extractTaskCmd) Execute() core.Result {
-	c.snapshot = snapshotPipelineState(c.ps)
-	c.hasSnapshot = true
+func (c *extractTaskCmd) Execute() (result core.Result) {
+	snapshot := snapshotPipelineState(c.ps)
+	defer func() { result = withPipelineReceipt(result, snapshot, nil) }()
 	task := c.ps.Extractor.ExtractNext(c.ps.Graph, c.ps.MaxWeight)
 	if task == nil {
 		sig, msg := c.ps.classifyEmpty()
@@ -58,20 +56,22 @@ func (b *ExtractTaskBuilder) Build(_ core.Result) core.Command {
 	return &extractTaskCmd{ps: b.PS}
 }
 
+func (b *ExtractTaskBuilder) BuildReverser() core.Command {
+	return &extractTaskCmd{ps: b.PS}
+}
+
 type extractAllCmd struct {
-	ps          *State
-	snapshot    pipelineSnapshot
-	hasSnapshot bool
+	ps *State
 }
 
 func (c *extractAllCmd) Name() string { return "extract_all" }
-func (c *extractAllCmd) Undo(_ core.Result) core.Result {
-	return undoPipelineSnapshot(c.Name(), c.ps, c.snapshot, c.hasSnapshot)
+func (c *extractAllCmd) Undo(prior core.Result) core.Result {
+	return undoPipelineReceipt(c.Name(), c.ps, nil, prior.Receipt)
 }
 
-func (c *extractAllCmd) Execute() core.Result {
-	c.snapshot = snapshotPipelineState(c.ps)
-	c.hasSnapshot = true
+func (c *extractAllCmd) Execute() (result core.Result) {
+	snapshot := snapshotPipelineState(c.ps)
+	defer func() { result = withPipelineReceipt(result, snapshot, nil) }()
 	ready := c.ps.Graph.Ready()
 	if len(ready) == 0 {
 		sig, msg := c.ps.classifyEmpty()
@@ -106,5 +106,9 @@ type ExtractAllBuilder struct {
 }
 
 func (b *ExtractAllBuilder) Build(_ core.Result) core.Command {
+	return &extractAllCmd{ps: b.PS}
+}
+
+func (b *ExtractAllBuilder) BuildReverser() core.Command {
 	return &extractAllCmd{ps: b.PS}
 }

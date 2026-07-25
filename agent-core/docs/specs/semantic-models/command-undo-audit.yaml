@@ -95,6 +95,9 @@ receipt_undo:
       strategy: parse_retry_counter_restore_when_tracker_enabled
       receipt: reversible_parse_retry_counter_snapshot
   planner_state:
+    - command: load_graph
+      strategy: pipeline_state_restore
+      receipt: reversible_pipeline_snapshot
     - command: extract_task
       strategy: pipeline_state_restore
       receipt: reversible_pipeline_snapshot
@@ -102,9 +105,6 @@ receipt_undo:
       strategy: pipeline_state_restore
       receipt: reversible_pipeline_snapshot
     - command: parse_plan
-      strategy: pipeline_state_restore
-      receipt: reversible_pipeline_snapshot
-    - command: format_issue
       strategy: pipeline_state_restore
       receipt: reversible_pipeline_snapshot
     - command: record_tracker_issue

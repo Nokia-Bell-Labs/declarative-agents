@@ -7,6 +7,7 @@ package pipeline
 
 import (
 	"context"
+	"encoding/json"
 	"fmt"
 
 	"github.com/Nokia-Bell-Labs/declarative-agents/agent-core/internal/observability/tracing"
@@ -50,44 +51,65 @@ type State struct {
 }
 
 type pipelineSnapshot struct {
-	currentTask *extract.Task
-	currentPlan *plan.ImplementationPlan
-	issueID     string
-	taskDeps    map[string]string
-	nodeStates  map[string]nodeSnapshot
+	CurrentTask      *extract.Task            `json:"current_task,omitempty"`
+	CurrentPlan      *plan.ImplementationPlan `json:"current_plan,omitempty"`
+	IssueID          string                   `json:"issue_id,omitempty"`
+	TaskDeps         map[string]string        `json:"task_deps,omitempty"`
+	NodeStates       map[string]nodeSnapshot  `json:"node_states,omitempty"`
+	GraphPresent     bool                     `json:"graph_present"`
+	CorpusPresent    bool                     `json:"corpus_present"`
+	ExtractorPresent bool                     `json:"extractor_present"`
 }
 
 type nodeSnapshot struct {
-	status  graph.Status
-	retries int
+	Status  graph.Status `json:"status"`
+	Retries int          `json:"retries"`
+}
+
+type pipelineReceipt struct {
+	Version       int              `json:"version"`
+	Snapshot      pipelineSnapshot `json:"snapshot"`
+	PreviousRetry *int             `json:"previous_retry,omitempty"`
 }
 
 func snapshotPipelineState(ps *State) pipelineSnapshot {
 	snap := pipelineSnapshot{
-		currentTask: cloneTask(ps.CurrentTask),
-		currentPlan: clonePlan(ps.CurrentPlan),
-		issueID:     ps.IssueID,
-		taskDeps:    cloneStringMap(ps.TaskDeps),
+		CurrentTask:      cloneTask(ps.CurrentTask),
+		CurrentPlan:      clonePlan(ps.CurrentPlan),
+		IssueID:          ps.IssueID,
+		TaskDeps:         cloneStringMap(ps.TaskDeps),
+		GraphPresent:     ps.Graph != nil,
+		CorpusPresent:    ps.Corpus != nil,
+		ExtractorPresent: ps.Extractor != nil,
 	}
 	if ps.Graph != nil {
-		snap.nodeStates = make(map[string]nodeSnapshot)
+		snap.NodeStates = make(map[string]nodeSnapshot)
 		for _, n := range ps.Graph.Nodes() {
-			snap.nodeStates[n.ID] = nodeSnapshot{status: n.Status, retries: n.Retries}
+			snap.NodeStates[n.ID] = nodeSnapshot{Status: n.Status, Retries: n.Retries}
 		}
 	}
 	return snap
 }
 
 func (s pipelineSnapshot) restore(ps *State) {
-	ps.CurrentTask = cloneTask(s.currentTask)
-	ps.CurrentPlan = clonePlan(s.currentPlan)
-	ps.IssueID = s.issueID
-	ps.TaskDeps = cloneStringMap(s.taskDeps)
+	ps.CurrentTask = cloneTask(s.CurrentTask)
+	ps.CurrentPlan = clonePlan(s.CurrentPlan)
+	ps.IssueID = s.IssueID
+	ps.TaskDeps = cloneStringMap(s.TaskDeps)
+	if !s.GraphPresent {
+		ps.Graph = nil
+	}
+	if !s.CorpusPresent {
+		ps.Corpus = nil
+	}
+	if !s.ExtractorPresent {
+		ps.Extractor = nil
+	}
 	if ps.Graph != nil {
-		for id, ns := range s.nodeStates {
+		for id, ns := range s.NodeStates {
 			if n, ok := ps.Graph.Node(id); ok {
-				n.Status = ns.status
-				n.Retries = ns.retries
+				n.Status = ns.Status
+				n.Retries = ns.Retries
 			}
 		}
 	}
@@ -125,13 +147,40 @@ func cloneStringMap(in map[string]string) map[string]string {
 	return out
 }
 
-func undoPipelineSnapshot(commandName string, ps *State, snap pipelineSnapshot, ok bool) core.Result {
-	if !ok {
-		err := fmt.Errorf("undo %s: no pipeline snapshot recorded", commandName)
-		return core.Result{Signal: core.CommandError, CommandName: commandName, Output: err.Error(), Err: err}
+func withPipelineReceipt(result core.Result, snap pipelineSnapshot, previousRetry *int) core.Result {
+	data, err := json.Marshal(pipelineReceipt{Version: 1, Snapshot: snap, PreviousRetry: previousRetry})
+	if err != nil {
+		return pipelineReceiptError(result.CommandName, fmt.Errorf("encode pipeline receipt: %w", err))
 	}
-	snap.restore(ps)
+	result.Receipt = string(data)
+	return result
+}
+
+type retryRestorer interface {
+	Restore(int)
+}
+
+func undoPipelineReceipt(commandName string, ps *State, retry retryRestorer, receipt string) core.Result {
+	if receipt == "" {
+		return pipelineReceiptError(commandName, fmt.Errorf("pipeline receipt is required"))
+	}
+	var decoded pipelineReceipt
+	if err := json.Unmarshal([]byte(receipt), &decoded); err != nil {
+		return pipelineReceiptError(commandName, fmt.Errorf("decode pipeline receipt: %w", err))
+	}
+	if decoded.Version != 1 {
+		return pipelineReceiptError(commandName, fmt.Errorf("unsupported pipeline receipt version %d", decoded.Version))
+	}
+	decoded.Snapshot.restore(ps)
+	if retry != nil && decoded.PreviousRetry != nil {
+		retry.Restore(*decoded.PreviousRetry)
+	}
 	return core.Result{Signal: core.ToolDone, CommandName: commandName, Output: "undo: restored pipeline state"}
+}
+
+func pipelineReceiptError(commandName string, err error) core.Result {
+	wrapped := fmt.Errorf("undo %s: %w", commandName, err)
+	return core.Result{Signal: core.CommandError, CommandName: commandName, Output: wrapped.Error(), Err: wrapped}
 }
 
 // classifyEmpty determines whether the graph is fully done or blocked.

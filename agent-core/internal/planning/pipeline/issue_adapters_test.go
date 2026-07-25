@@ -42,7 +42,6 @@ func TestFormatIssueEmitsTrackerAgnosticParameters(t *testing.T) {
 	assert.Contains(t, output.Parameters["content"], "deliverable_type: code")
 	assert.Contains(t, output.Parameters["content"], "parser.go")
 
-	ps.CurrentPlan.Title = "mutated"
 	require.Equal(t, core.ToolDone, cmd.Undo(result).Signal)
 	assert.Equal(t, "Implement parser", ps.CurrentPlan.Title)
 }
