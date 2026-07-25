@@ -35,11 +35,13 @@ overview: |
   integration consumption back to the SRD and semantic models.
   The traceability gap is closed.
 
-  Release 07.0 implements profile-owned integration tracer bullets for concrete
-  state machines and profile-to-profile boundaries. The implemented use cases
-  cover documentation-curator UX, evaluator to generator, planner to generator,
-  bench to evaluator, and monitor/control evidence that lives with the profile
-  assets.
+  Release 07.0 implements profile-owned integration tracer bullets for the
+  documentation-curator UX, bench-to-critic launch, and monitor/control
+  boundaries. The former evaluator-to-generator and planner-to-generator
+  library tracers are retired because their shell children fabricated the
+  claimed behavior. Their real critic/executor and planner/executor replacement
+  evidence is application-owned under examples/coding-agent and remains
+  separate from this release's implemented library targets.
 
   Release 08.0 adds the Chroma corpus agents: an ingest profile and a reader
   profile that use a local Chroma vector database as a retrieval boundary. Both
@@ -77,9 +79,11 @@ roadmap_summary:
     name: Profile-owned integration tracer bullets
     status: done
     scope: |
-      Implemented profile-owned tracer bullets for concrete profile state
-      machines, profile-to-profile execution, and human/operator boundaries.
-      The release proof is the profile-owned Mage integration target set.
+      Implemented profile-owned tracer bullets for documentation-curator,
+      bench-to-critic, and monitor/control boundaries. The retired
+      critic-to-executor and planner-to-executor library tracers point to
+      application-owned replacements under examples/coding-agent and are not
+      counted as implemented Release 07 proof.
   - version: "07.1"
     name: Per-family SRDs and profile coverage
     status: in-progress
@@ -346,13 +350,15 @@ use_case_index:
     path: docs/specs/use-cases/rel07.0-uc001-documentation-curator-profile-ux.yaml
   - id: rel07.0-uc002-evaluator-generator-profile-boundary
     title: Evaluator to Generator Profile Boundary
-    summary: Evaluator runs generator as the benchmark subject profile.
-    status: implemented
+    summary: Retired library tracer; examples/coding-agent owns the real
+      critic-to-executor replacement target.
+    status: planned
     path: docs/specs/use-cases/rel07.0-uc002-evaluator-generator-profile-boundary.yaml
   - id: rel07.0-uc003-planner-generator-profile-boundary
     title: Planner to Generator Profile Boundary
-    summary: Planner materializes a task and executes it through generator.
-    status: implemented
+    summary: Retired library tracer; examples/coding-agent owns the real
+      planner-to-executor replacement target.
+    status: planned
     path: docs/specs/use-cases/rel07.0-uc003-planner-generator-profile-boundary.yaml
   - id: rel07.0-uc004-bench-evaluator-profile-boundary
     title: Bench to Evaluator Profile Boundary
@@ -495,9 +501,10 @@ test_suite_index:
     path: docs/specs/test-suites/test-rel06.0-agent-profiles.yaml
   - id: test-rel07.0-profile-integrations
     title: Test Suite for Release 07.0 Profile Integrations
-    summary: Implemented profile-owned tracer bullets for
-      documentation-curator UX, evaluator-generator, planner-generator,
-      bench-evaluator, and monitor/control boundaries.
+    summary: Implemented profile-owned tracer bullets for documentation-curator
+      UX, bench-to-critic, and monitor/control boundaries, plus retired
+      critic-to-executor and planner-to-executor entries that point to
+      application-owned replacement targets.
     status: implemented
     path: docs/specs/test-suites/test-rel07.0-profile-integrations.yaml
   - id: test-rel07.1-profile-boundaries
@@ -601,13 +608,15 @@ coverage_gaps: |
   deferred follow-up issue.
 
   Release 07.0 implements the documentation-curator profile UX tracer,
-  evaluator-to-generator boundary tracer, planner-to-generator boundary tracer,
-  bench-to-evaluator launch tracer, and monitor/control boundary tracer. The
-  monitor/control target records profile-owned configuration evidence while
-  agent-core retains runtime ownership for REST and lifecycle builtin behavior.
-  The fixture-to-consumer mapping for every testdata/integration fixture is
-  recorded in testdata/integration/README.md, and mage integration:all runs the
-  profile-owned tracer targets with a pass/fail/skip summary.
+  bench-to-critic launch tracer, and monitor/control boundary tracer. The
+  evaluator-to-generator and planner-to-generator library tracers are retired:
+  their shell children fabricated the claimed workspace and trace evidence.
+  examples/coding-agent owns the real critic-to-executor and
+  planner-to-executor replacements, which run the canonical profiles through
+  the built agent binary and remain outside this release's implemented library
+  proof. The monitor/control target records profile-owned configuration
+  evidence while agent-core retains runtime ownership for REST and lifecycle
+  builtin behavior.
 
   Release 07.1 adds per-family boundary use cases for the jurist, lifecycle, and
   rest families, which release 07.0 covered only through the generic rel06.0

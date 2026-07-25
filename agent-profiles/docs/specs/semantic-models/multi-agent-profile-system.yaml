@@ -192,7 +192,10 @@ validation_views:
   - Integration tests check profile relationships such as bench to critic,
     critic to executor, planner to executor, and Knowledge Manager control
     exit.
-  - Release 07.0 records implemented relationship checks in
-    test-rel07.0-profile-integrations.
+  - Release 07.0 records implemented documentation-curator, bench-to-critic,
+    and monitor/control relationship checks in
+    test-rel07.0-profile-integrations; its critic-to-executor and
+    planner-to-executor entries are retired library tracers that point to
+    application-owned replacements.
   - Documentation review checks that requirements describe profiles as
     configured blocks rather than Go packages.

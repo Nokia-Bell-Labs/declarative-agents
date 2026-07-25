@@ -188,7 +188,9 @@ implementation_status:
     - done: Formal migration use cases and test suites document the
         implemented profile repository workflow.
     - done: Profile-owned integration tracer bullets cover documentation-curator,
-        evaluator-generator, planner-generator, bench-evaluator, and monitor/control boundaries.
+        bench-to-critic, and monitor/control boundaries. Retired
+        critic-to-executor and planner-to-executor library tracers point to
+        application-owned replacements under examples/coding-agent.
     - done: Library membership, member obligations, one-canonical-home,
         application reference, exact v0 release compatibility, and migration
         contracts are recorded.

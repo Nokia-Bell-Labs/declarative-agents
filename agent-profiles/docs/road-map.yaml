@@ -117,10 +117,13 @@ releases:
       Knowledge Manager/documentation-curator UX, evaluator to generator,
       planner to generator, bench to evaluator, and monitor/control boundaries.
 
-      The release now includes executable profile-owned tracer bullets for
-      Knowledge Manager/documentation-curator UX, evaluator to generator,
-      planner to generator, bench to evaluator, and monitor/control boundaries.
-      Each listed Mage target has profile-owned evidence.
+      The release includes executable profile-owned tracer bullets for
+      Knowledge Manager/documentation-curator UX, bench to critic, and
+      monitor/control boundaries. The former evaluator-to-generator and
+      planner-to-generator library tracers are retired because they used shell
+      children that fabricated the claimed behavior. Their real
+      critic-to-executor and planner-to-executor replacements belong to
+      examples/coding-agent and are not counted as implemented library proof.
     status: done
     related_agent_core_release: "07.0"
     planned_work:
