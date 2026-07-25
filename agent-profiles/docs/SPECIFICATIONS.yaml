@@ -249,36 +249,26 @@ srd_index:
     status: planned
     path: docs/specs/software-requirements/srd014-chatbot-agent.yaml
   - id: srd015-chatbot-deployment
-    title: Chatbot Mesh Deployment and Provisioning Model
-    summary: One Helm chart deploying the chatbot, N values-driven RAG (agent +
-      Chroma) pairs, the LLM, the Dolt backend, and the OTel collector over
-      rel06.0 binary-only images with ConfigMap-mounted profiles; values-to-config
-      co-generation of the chatbot RAG clients (ValidateDefinition-checked);
-      tiered hot swap (Service repoint, values re-render plus checkpoint-resume
-      rollout); a config-plane provisioning boundary (deployment-plane counterpart
-      of srd028 V30); and OTLP/trace-backend observability wiring.
-    status: planned
+    title: Chatbot Mesh Deployment Model (Relocated)
+    summary: Pointer-only historical identifier; canonical deployment
+      requirements and evidence live with examples/chatbot-mesh.
+    status: relocated
     path: docs/specs/software-requirements/srd015-chatbot-deployment.yaml
+    canonical_path: examples/chatbot-mesh/docs/specs/software-requirements/srd003-chatbot-deployment.yaml
   - id: srd016-coordinator
-    title: Coordinator Agent Functional Block
-    summary: The mesh control plane's workflow orchestrator; the UX agent delegates
-      a provisioning intent to it, and it sequences the ingestion and reconfiguration
-      workflows, decides the values and config changes, resolves conflicts, and
-      aggregates status, delegating every instance operation to the creator through
-      a declared client and holding no deployment-API authority. Relocated to
-      examples/chatbot-mesh as srd004-coordinator (GH-430); the example is canonical.
-    status: planned
+    title: Coordinator Agent Functional Block (Relocated)
+    summary: Pointer-only historical identifier; canonical coordinator
+      requirements and evidence live with examples/chatbot-mesh.
+    status: relocated
     path: docs/specs/software-requirements/srd016-coordinator.yaml
+    canonical_path: examples/chatbot-mesh/docs/specs/software-requirements/srd004-coordinator.yaml
   - id: srd017-creator
-    title: Creator Agent Functional Block
-    summary: The mesh control plane's agent lifecycle management agent; acting on the
-      coordinator's requests it selects templates, creates child ingest runs, executes
-      checkpoint-resume rollout restarts through the deployment API, terminates
-      instances, and verifies health, holding the deployment-API authority alone and
-      passing no endpoint or credential into a running agent. Relocated to
-      examples/chatbot-mesh as srd005-creator (GH-430); the example is canonical.
-    status: planned
+    title: Creator Agent Functional Block (Relocated)
+    summary: Pointer-only historical identifier; canonical creator requirements
+      and evidence live with examples/chatbot-mesh.
+    status: relocated
     path: docs/specs/software-requirements/srd017-creator.yaml
+    canonical_path: examples/chatbot-mesh/docs/specs/software-requirements/srd005-creator.yaml
   - id: srd018-assembler
     title: Assembler Functional Block
     summary: The repository's test rig, named for the reference-architecture Assembler
@@ -436,28 +426,26 @@ use_case_index:
     status: implemented
     path: docs/specs/use-cases/rel09.2-uc001-observability.yaml
   - id: rel09.3-uc001-mesh-deployment
-    title: Helm Chart Deploys the Mesh and Hot-Swaps a RAG Source
-    summary: One chart deploys the mesh on a kind cluster with values-to-config
-      co-generation, a Service repoint, and an add-RAG rollout that resumes from
-      the Dolt checkpoint, provisioned through a separately-authenticated API.
-    status: implemented
+    title: Mesh Deployment and Tiered Swap (Relocated)
+    summary: Pointer-only historical identifier; the canonical use case and
+      traces live with examples/chatbot-mesh release 03.0.
+    status: relocated
     path: docs/specs/use-cases/rel09.3-uc001-mesh-deployment.yaml
+    canonical_path: examples/chatbot-mesh/docs/specs/use-cases/rel03.0-uc001-mesh-deployment.yaml
   - id: rel09.4-uc001-control-plane-provisioning
-    title: A Provisioning Intent Flows Chatbot to Coordinator to Creator and Serves
-    summary: A user's add-a-source intent flows from the chatbot to the coordinator,
-      which sequences ingest via the creator and decides the values changes; the
-      creator executes the checkpoint-resume rollout through the deployment API and
-      reports health; the new source serves, with deployment-API authority held by
-      the creator alone.
-    status: specified
+    title: Control-Plane Provisioning (Relocated)
+    summary: Pointer-only historical identifier; the canonical use case and
+      traces live with examples/chatbot-mesh release 05.0.
+    status: relocated
     path: docs/specs/use-cases/rel09.4-uc001-control-plane-provisioning.yaml
+    canonical_path: examples/chatbot-mesh/docs/specs/use-cases/rel05.0-uc001-control-plane-provisioning.yaml
   - id: rel09.5-uc001-in-cluster-llm-tier
-    title: A Fresh-Cluster Install Answers a Turn With No External LLM Dependency
-    summary: A default helm install deploys the Ollama subchart with model preload
-      and readiness gating so a fresh cluster is self-contained; ollama.enabled=false
-      with an endpoint override reproduces the external endpoint, R2 unchanged.
-    status: implemented
+    title: In-Cluster LLM Tier (Relocated)
+    summary: Pointer-only historical identifier; the canonical use case and
+      traces live with examples/chatbot-mesh release 04.0.
+    status: relocated
     path: docs/specs/use-cases/rel09.5-uc001-in-cluster-llm-tier.yaml
+    canonical_path: examples/chatbot-mesh/docs/specs/use-cases/rel04.0-uc001-in-cluster-llm-tier.yaml
   - id: rel10.0-uc001-role-catalog-renames
     title: Evaluator and Generator Families Renamed to Critic and Executor
     summary: The evaluator family is renamed to critic and generator to executor
@@ -558,26 +546,26 @@ test_suite_index:
     status: implemented
     path: docs/specs/test-suites/test-rel09.2-observability.yaml
   - id: test-rel09.3-mesh-deployment
-    title: Test Suite for Release 09.3 Mesh Deployment and Tiered Swap
-    summary: Tracers for the kind deploy smoke, the co-generation drift lock, the
-      repoint and add-RAG swaps, and the provisioning deployment API, via
-      Integration.HelmSmoke/HelmSwap/Provisioning.
-    status: implemented
+    title: Test Suite for Release 09.3 Mesh Deployment and Tiered Swap (Relocated)
+    summary: Pointer-only historical identifier; the canonical suite and proof
+      commands live with examples/chatbot-mesh release 03.0.
+    status: relocated
     path: docs/specs/test-suites/test-rel09.3-mesh-deployment.yaml
+    canonical_path: examples/chatbot-mesh/docs/specs/test-suites/test-rel03.0-mesh-deployment.yaml
   - id: test-rel09.4-control-plane
-    title: Test Suite for Release 09.4 Control Plane
-    summary: Planned tracer for the provisioning intent across chatbot, coordinator,
-      and creator -- intent, ingest, reconfigure, checkpoint-resume restart, serve --
-      with the deployment-API authority held by the creator alone.
-    status: specified
+    title: Test Suite for Release 09.4 Control Plane (Relocated)
+    summary: Pointer-only historical identifier; the canonical suite and proof
+      commands live with examples/chatbot-mesh release 05.0.
+    status: relocated
     path: docs/specs/test-suites/test-rel09.4-control-plane.yaml
+    canonical_path: examples/chatbot-mesh/docs/specs/test-suites/test-rel05.0-control-plane.yaml
   - id: test-rel09.5-llm-tier
-    title: Test Suite for Release 09.5 In-Cluster LLM Tier
-    summary: Tracers for the default-install turn with no external LLM dependency,
-      the preload-gated agent readiness, and the disabled-tier endpoint override
-      that leaves the co-generated client entries unchanged.
-    status: implemented
+    title: Test Suite for Release 09.5 In-Cluster LLM Tier (Relocated)
+    summary: Pointer-only historical identifier; the canonical suite and proof
+      commands live with examples/chatbot-mesh release 04.0.
+    status: relocated
     path: docs/specs/test-suites/test-rel09.5-llm-tier.yaml
+    canonical_path: examples/chatbot-mesh/docs/specs/test-suites/test-rel04.0-llm-tier.yaml
   - id: test-rel10.0-role-catalog
     title: Test Suite for Release 10.0 Reference-Architecture Role Alignment
     summary: Implemented cases validate the critic/executor renames, the Chroma
