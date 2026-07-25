@@ -1,6 +1,7 @@
 # Chatbot mesh values. The ragUnits list is the single source of truth for the RAG
 # topology: each entry renders a rag-server Deployment/Service and a Chroma
-# StatefulSet/Service, and (in GH-314) the chatbot rest.yaml RAG client entries.
+# StatefulSet/Service, the chatbot's declared runtime topology, REST network
+# allowlist, and monitor upstream. The chatbot program itself is source-count independent.
 
 # The rel06.0 mounted-profile runtime image, one image across every agent role.
 image:

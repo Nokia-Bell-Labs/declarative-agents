@@ -28,7 +28,7 @@ problem: |
 
 goals:
   - G1: Define one Helm chart deploying the chatbot agent, N RAG (agent + Chroma) pairs from a values list, the chat LLM, the Dolt backend, and the OTel collector, using rel06.0 binary-only images with profiles from ConfigMaps.
-  - G2: Co-generate the chatbot's rest.yaml RAG client entries from the same values list that creates the RAG Deployments and Services, so topology and client config share one source of truth and the rendered config is validated.
+  - G2: Co-generate the chatbot's declared runtime topology, REST network allowlist, and monitor upstreams from the same values list that creates the RAG Deployments and Services, while one selected-target REST operation serves every unit.
   - G3: Define a tiered hot-swap model -- Service repoint, values re-render plus a request-draining rollout -- and exclude in-process client-registry mutation.
   - G4: Define the provisioning surface as a config-plane deployment API, authenticated apart from the chat path, that never submits an endpoint to a running agent.
   - G5: Define self-contained production observability and an explicit integration overlay that retains trace and metric evidence in a shared host sink.
@@ -45,7 +45,7 @@ requirements:
   R2:
     title: Values-to-config co-generation
     items:
-      - R2.1: The values list that creates the RAG Deployments and Services SHALL also render the chatbot rest.yaml RAG client entries, so topology and client configuration derive from one source of truth and cannot drift.
+      - R2.1: The values list that creates the RAG Deployments and Services SHALL also render the chatbot's ordered runtime topology, REST network allowlist, and monitor upstreams. The chatbot SHALL retain one selected-target RAG operation and one source-count-independent for_each regardless of list length.
       - R2.2: The rendered chatbot rest.yaml SHALL pass ValidateDefinition, enforced by a chart-level check or an init-container validation before the chatbot serves.
       - R2.3: Each rendered RAG client entry SHALL carry the served collection's embedding-model identity (srd001 R2.3) so the chatbot can apply embedding-space mismatch handling (srd002 R3.3).
   R3:
@@ -110,7 +110,7 @@ acceptance_criteria:
     criterion: One chart is specified deploying the chatbot, N values-driven RAG (agent + Chroma) pairs, the LLM, the Dolt backend, and the collector, with ingress and internal Services, over rel06.0 binary-only images with ConfigMap-mounted profiles.
     traces: [R1.1, R1.2, R1.3, R1.4]
   - id: AC2
-    criterion: Co-generation renders the chatbot RAG client entries from the same values list that creates the RAG Deployments and Services, the rendered rest.yaml passes ValidateDefinition, and each entry carries the served embedding-model identity.
+    criterion: Co-generation renders the chatbot topology data, REST allowlist, and monitor upstreams from the same values list that creates the RAG objects; rest.yaml retains one validated selected-target operation, and a third unit changes no chatbot word or state count.
     traces: [R2.1, R2.2, R2.3]
   - id: AC3
     criterion: The tiered swap is specified -- Service repoint with no agent change, add/remove via values re-render plus a request-draining rollout -- with in-process registry mutation excluded.

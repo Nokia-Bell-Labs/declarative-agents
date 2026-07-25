@@ -1,0 +1,45 @@
+# Local two-source topology. The Helm chart co-generates this one declaration
+# from ragUnits; changing the list changes only this data array, never the number
+# of words or machine states.
+tools:
+  - name: declare_rag_topology
+    type: builtin
+    init: compose
+    visibility: internal
+    category: response
+    description: Declare the ordered trusted RAG topology for this chatbot instance.
+    problem: MachineSpec for_each needs one runtime array whose size may change without changing the program.
+    goals:
+      - Keep source identity and selected REST authority together.
+      - Preserve declaration order for sequential fan-out and reporting.
+    requirements:
+      input:
+        - Topology is trusted profile configuration, not model or request input.
+      output:
+        - Output contains an items array of source names and absolute base URLs.
+      errors:
+        - Rendering configured JSON is deterministic.
+    non_goals:
+      - Does not select a subset of sources or accept credentials.
+    parameters: {type: object, properties: {}, additionalProperties: false}
+    emits: [RagTopologyDeclared]
+    output:
+      description: Ordered RAG topology.
+      schema:
+        type: object
+        properties:
+          items: {type: array}
+        required: [items]
+    side_effects: []
+    reversibility: {classification: reversible, undo: noop}
+    undo: {strategy: noop, description: Declaring topology changes no external state.}
+    config:
+      signal: RagTopologyDeclared
+      inputs: {}
+      template: |
+        {
+          "items": [
+            {"name": "rag0", "base_url": "http://127.0.0.1:18085"},
+            {"name": "rag1", "base_url": "http://127.0.0.1:18095"}
+          ]
+        }

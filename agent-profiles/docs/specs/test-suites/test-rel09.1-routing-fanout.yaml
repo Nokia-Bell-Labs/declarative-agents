@@ -5,9 +5,9 @@ release: "09.1"
 overview: |
   This suite validates the routing and fan-out extension of the chatbot turn
   (srd014 R2, R3): the LLM $tool router that dispatches one chat-LLM word, and the
-  sequential two-RAG fan-out that cites both disjoint corpora, degrades on a per-RAG
-  failure (CommandError), and excludes an embedding-space mismatch (QueryRejected)
-  through visible machine transitions.
+  single sequential for_each over declared topology that cites both shipped
+  disjoint corpora, collects per-source QueryRejected and CommandError outcomes,
+  partitions reported embedding-model mismatches, and renders compatible chunks.
 
   This retained suite is a historical relocation pointer. The canonical suite,
   profiles, tests, and integration target live under examples/chatbot-mesh as
@@ -34,10 +34,12 @@ test_cases:
       drives the chat endpoint. A factual turn and an analytical turn exercise the
       $tool router; the chatbot span log is asserted to show both the fast and the
       deep chat model answered (the router dispatched each word). A spanning turn
-      draws the disjoint rag1 corpus into the answer (sequential fan-out; compose
-      renders each RAG under its own [ragN] header, no merge word). Stopping rag1
-      degrades the next turn to a 200 with the disjoint corpus absent (R3.2 via the
-      CommandError machine transition). Verified end to end against live Docker and
+      draws the disjoint rag1 corpus into the answer (one sequential for_each;
+      render_each formats compatible sources, and partition is a generic filter,
+      not a merge word). Stopping rag1 degrades the next turn to a 200 with its
+      CommandError join entry retained in query_failed metadata. Verified against
+      the source-count-independent Helm topology render and end to end against
+      live Docker and
       Ollama; skips cleanly without them, naming a missing model.
     inputs:
       chatbot_profile: ../examples/chatbot-mesh/agents/chatbot/profile.yaml
@@ -49,6 +51,8 @@ test_cases:
       fanout_draws_both_corpora: true
       degraded_turn_omits_stopped_corpus: true
       excluded_source_routes_on_queryrejected: true
+      machine_for_each_count: 1
+      adding_third_source_changes_word_or_state_count: false
     traces:
       - rel09.1-uc001-routed-fanout S1
       - rel09.1-uc001-routed-fanout S2

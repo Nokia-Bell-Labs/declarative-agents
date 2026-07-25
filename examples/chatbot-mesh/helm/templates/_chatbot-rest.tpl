@@ -1,8 +1,8 @@
 {{/*
-The chatbot rest.yaml, co-generated from .Values.ragUnits (srd015 R2). The RAG
-client entries, the provider egress allowlist, and the monitor_proxy upstreams
-all derive from the same list that renders the RAG Deployments and Services, so
-the deployed topology and the chatbot's client configuration cannot drift. The
+The chatbot rest.yaml, co-generated from .Values.ragUnits (srd015 R2). One
+selected-target RAG operation serves every declared topology item; the provider
+egress allowlist and monitor_proxy upstreams derive from the same list that
+renders the RAG objects, so selected authority and deployment cannot drift. The
 packaged agents/chatbot/rest.yaml stays the local integration source; this render
 overrides that ConfigMap key in the cluster. Server addresses bind 0.0.0.0 so the
 Services route to the pod. Runtime {{`{{ params.x }}`}} bodies are emitted
@@ -15,6 +15,7 @@ literally.
 {{- $llmURL := include "chatbot-mesh.llmURL" . -}}
 {{- $llmHost := (urlParse $llmURL).hostname -}}
 {{- $embedModel := .Values.chatbot.embeddingModel -}}
+{{- $firstRag := first .Values.ragUnits -}}
 rest:
   version: v1
   auth:
@@ -108,15 +109,18 @@ rest:
           reversibility:
             classification: reversible
             undo: noop
-{{- range $unit := .Values.ragUnits }}
-    {{ $unit.name }}:
-      base_url: http://{{ $fullname }}-{{ $unit.name }}:{{ $q }}
+    rag:
+      # A configured fallback remains required by the REST client schema. The
+      # operation selects each declared item's authority through command state.
+      base_url: http://{{ $fullname }}-{{ $firstRag.name }}:{{ $q }}
       auth_ref: none
       limits_ref: local_provider
       operations:
-        {{ $unit.name }}_query:
+        query:
           method: POST
           path: /api/v1/rag/query
+          base_url_source: command_state
+          base_url_selector: $from(rag_unit).base_url
           params:
             body_schema:
               type: object
@@ -147,7 +151,6 @@ rest:
           reversibility:
             classification: reversible
             undo: noop
-{{- end }}
 {{- if .Values.controlPlane.enabled }}
     # The declared client the provisioning panel uses to delegate a provisioning
     # intent to the coordinator (srd002 R5.1, srd004 R1). Fixed authority: the

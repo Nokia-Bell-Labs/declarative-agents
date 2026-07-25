@@ -55,9 +55,9 @@ requirements:
   R3:
     title: Multi-RAG fan-out and degradation
     items:
-      - R3.1: The turn SHALL query the declared RAG clients for the selected set; v1 fan-out SHALL be sequential over those clients.
-      - R3.2: A per-RAG query failure SHALL degrade rather than fail the turn, so the answer SHALL be composed from the remaining chunks and the failure SHALL be noted in the response metadata.
-      - R3.3: A RAG whose reported embedding model (srd001 R2.3) does not match the query embedding's model SHALL be excluded from the composed chunks and the exclusion SHALL be reported in the response metadata.
+      - R3.1: The turn SHALL declare one ordered RAG topology and query it through exactly one source-count-independent MachineSpec sequential for_each; its ordered join SHALL retain each source input, signal, and structured REST output.
+      - R3.2: Generic partition SHALL separate QueryResponded join entries from QueryRejected and CommandError entries. A per-RAG failure SHALL degrade rather than fail the turn, so the answer SHALL be composed from remaining chunks and the failed entry SHALL remain in response metadata.
+      - R3.3: Generic partition SHALL compare each answered source's reported embedding model (srd001 R2.3) with the query model. A mismatch SHALL be excluded from render_each grounding and reported separately from vector rejection in response metadata.
   R4:
     title: Stateless sessions
     items:
@@ -71,8 +71,8 @@ requirements:
   R6:
     title: Transport-authority boundary
     items:
-      - R6.1: RAG and LLM endpoints SHALL be declared rest.yaml clients with fixed authority; the turn machine and the UX SHALL NOT feed hosts, URLs, methods, or credentials into a running request (agent-core srd028 V30 lineage).
-      - R6.2: Router and RAG selection SHALL choose among declared words and declared clients only, never a runtime-supplied endpoint.
+      - R6.1: RAG and LLM endpoints SHALL be declared rest.yaml operations. The generic RAG operation MAY select its base URL only from the trusted declared topology through command_state; its method, path, auth, operation, and network allowlist SHALL remain fixed configuration (agent-core srd028 R14).
+      - R6.2: Router and RAG selection SHALL choose among declared words and trusted topology entries only, never a model-authored or request-supplied endpoint.
 
 non_goals:
   - Define Go package APIs for the agent-core request, static-asset, monitor, or command-state runtime.
@@ -89,7 +89,7 @@ acceptance_criteria:
     criterion: The router is specified as one classifier call parsed to a $tool selection over the declared chat-LLM words, with a normative fallback to a configured default word on misparse or out-of-set selection.
     traces: [R2.1, R2.2, R2.3]
   - id: AC3
-    criterion: Sequential multi-RAG fan-out is specified with per-RAG failure degradation and embedding-model mismatch exclusion, both reported in the response metadata.
+    criterion: One sequential for_each over declared topology feeds generic partitions and render_each; query failure degradation, vector rejection, and embedding-model mismatch exclusion remain distinguishable in response metadata.
     traces: [R3.1, R3.2, R3.3]
   - id: AC4
     criterion: Stateless-v1 sessions (browser-sent history, no server store) and the durable-session follow-on are stated as requirements and non-goals rather than prose.
@@ -98,7 +98,7 @@ acceptance_criteria:
     criterion: The three-panel ux.yaml surface over a static_assets-served SPA is declared, with panel content and SPA build deferred to their own issues.
     traces: [R5.1, R5.2]
   - id: AC6
-    criterion: The transport-authority boundary is stated so declared rest.yaml clients hold authority and neither the turn machine nor the UX can supply a runtime endpoint.
+    criterion: The transport-authority boundary permits only trusted topology-selected RAG authorities while method, path, auth, operation, and network policy remain declared and model/request input cannot supply an endpoint.
     traces: [R6.1, R6.2]
 
 depends_on:
@@ -135,10 +135,12 @@ implementation_status:
       LLM $tool router (R2): a classifier word routes to one chat-LLM word with a
       normative fallback to the default word on misparse or out-of-set selection.
     - >-
-      Sequential multi-RAG fan-out (R3): the one embedding fans out to the
-      declared RAG clients; a failed source degrades and an embedding-mismatch
-      source is excluded, both as visible machine transitions, with compose
-      assembling the surviving per-source chunks.
+      Sequential multi-RAG fan-out (R3, GH-901): one MachineSpec for_each walks
+      the trusted ordered topology through one selected-target REST operation.
+      Its structured join feeds generic query-signal and embedding-model
+      partitions, then render_each formats compatible chunks. Source additions
+      change topology data but no word or state count; response metadata keeps
+      compatible, model-excluded, vector-rejected, and degraded outcomes distinct.
     - >-
       Stateless sessions (R4) and the two-panel UX surface (R5) over a
       static_assets-served SPA; the observability panels (per-agent monitor and

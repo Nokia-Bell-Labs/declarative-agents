@@ -1,714 +1,179 @@
-# The multi-RAG fan-out words: one rag_queryN per declared RAG server plus the
-# compose that assembles the surviving per-source chunk lists into the grounding
-# prompt. This file is the two-RAG local default; a values-driven deploy renders it
-# (and request-machine.yaml) for N RAGs from the ragUnits list, keeping the fan-out
-# breadth and the RAG topology from one source (srd003 R2, GH-372). Kept separate
-# from request-declarations.yaml so only this small file varies with the RAG count.
+# Source-count-independent multi-RAG fan-out. request-topology.yaml declares the
+# ordered topology; one sequential MachineSpec for_each dispatches rag_query over
+# it. The join retains each item and its structured REST output, so generic
+# partition and render_each words can filter and render without indexed words.
 tools:
-  - name: rag_query0
+  - name: rag_query
     type: builtin
     init: rest_client_invoke
     visibility: internal
     category: boundary
-    description: Query the first RAG server with the message vector.
-    problem: The chatbot fans the one message embedding out to each declared RAG server for grounding chunks.
+    description: Query the currently bound RAG source with the message vector.
+    problem: The chatbot must fan one embedding out over an ordered runtime topology without one word per source.
     goals:
-      - Thread the message embedding into the first RAG server query.
-      - Return the retrieved chunk ids, documents, distances, and embedding model.
+      - Read the selected RAG authority from the trusted for_each item binding.
+      - Return chunks and the source's reported embedding model.
     requirements:
       input:
-        - The query embedding is selected from embed_query through command-state $from() addressing.
+        - The query embedding and current topology item are selected from command state.
       output:
-        - Output includes the retrieved chunk ids, documents, distances, and the RAG embedding model.
+        - Output includes ids, documents, distances, and embedding_model.
       errors:
-        - Network, timeout, schema, and mapping failures emit CommandError so the turn degrades to the next RAG.
-        - A 400 embedding-space mismatch (srd001 R2.3) emits QueryRejected so this source is excluded from the composed chunks.
+        - A mapped 400 emits QueryRejected; transport and mapping failures emit CommandError.
     non_goals:
-      - Does not author the query vector.
-      - Does not accept runtime method, URL, host, or auth overrides.
+      - Does not accept a model-authored URL, method, credential, or operation.
     parameters:
       type: object
-      properties:
-        query_embeddings: {type: array}
+      properties: {}
+      additionalProperties: false
     emits: [QueryResponded, QueryRejected, CommandError]
     output:
-      description: Mapped RAG server query result.
+      description: Mapped RAG query response.
       schema:
         type: object
         properties:
-          ids: {type: array}
-          documents: {type: array}
-          distances: {type: array}
-          embedding_model: {type: string}
+          mapped: {type: object}
     side_effects:
-      - kind: external_api
-        target: rag_server.query
-        state: read_only
-    reversibility:
-      classification: reversible
-      undo: noop
-    undo:
-      strategy: noop
-      description: Querying the RAG server does not mutate state.
+      - {kind: external_api, target: rag_server.query, state: read_only}
+    reversibility: {classification: reversible, undo: noop}
+    undo: {strategy: noop, description: Querying a RAG source does not mutate it.}
     config:
-      rest_ref: rag0
-      operation: rag0_query
+      rest_ref: rag
+      operation: query
 
-  - name: rag_query1
+  - name: partition_query_results
     type: builtin
-    init: rest_client_invoke
-    visibility: internal
-    category: boundary
-    description: Query the second RAG server with the same message vector.
-    problem: The chatbot fans the one message embedding out to each declared RAG server for grounding chunks.
-    goals:
-      - Thread the same message embedding into the second RAG server query.
-      - Return the retrieved chunk ids, documents, distances, and embedding model.
-    requirements:
-      input:
-        - The query embedding is selected from embed_query through command-state $from() addressing.
-      output:
-        - Output includes the retrieved chunk ids, documents, distances, and the RAG embedding model.
-      errors:
-        - Network, timeout, schema, and mapping failures emit CommandError so the turn degrades with the remaining chunks.
-        - A 400 embedding-space mismatch (srd001 R2.3) emits QueryRejected so this source is excluded from the composed chunks.
-    non_goals:
-      - Does not author the query vector.
-      - Does not accept runtime method, URL, host, or auth overrides.
-    parameters:
-      type: object
-      properties:
-        query_embeddings: {type: array}
-    emits: [QueryResponded, QueryRejected, CommandError]
-    output:
-      description: Mapped RAG server query result.
-      schema:
-        type: object
-        properties:
-          ids: {type: array}
-          documents: {type: array}
-          distances: {type: array}
-          embedding_model: {type: string}
-    side_effects:
-      - kind: external_api
-        target: rag_server.query
-        state: read_only
-    reversibility:
-      classification: reversible
-      undo: noop
-    undo:
-      strategy: noop
-      description: Querying the RAG server does not mutate state.
-    config:
-      rest_ref: rag1
-      operation: rag1_query
-
-  - name: compare_model0
-    type: builtin
-    init: value_predicate
+    init: partition
     visibility: internal
     category: response
-    description: Compare the first RAG's reported embedding model with the query embedding's model.
-    problem: |
-      A 400 from the RAG server only catches a vector the collection rejects, which is a
-      dimension mismatch. Two models of the same width produce a 200, so without this
-      comparison the turn composes chunks retrieved in a different embedding space than
-      the query (srd002 R3.3).
+    description: Separate answered RAG queries from rejected or degraded queries.
+    problem: Only successful REST results contain structured chunks and a reported embedding model.
     goals:
-      - Compare the query embedding model identity with the model this RAG reported.
-      - Emit a distinct signal for a matching and a differing identity so exclusion is a visible transition.
+      - Preserve topology order in answered and failed sets.
+      - Keep QueryRejected distinguishable from CommandError in the unmatched entries.
     requirements:
       input:
-        - Both operands are read from prior steps through command-state $from() addressing.
+        - The for_each join items are selected through one fixed command-state selector.
       output:
-        - Output records the verdict and both compared identities.
+        - matched contains QueryResponded items; unmatched contains rejected and degraded items.
       errors:
-        - An unresolved operand emits CommandError, so the source degrades rather than being silently kept.
+        - An unresolved or malformed join emits CommandError.
     non_goals:
-      - Does not drop the chunks itself; the machine routes past the keep word for a differing identity.
-      - Does not call any provider.
-    parameters:
-      type: object
-      properties: {}
-      additionalProperties: false
-    emits: [ModelMatched, ModelDiffered, CommandError]
+      - Does not interpret embedding model identity.
+    parameters: {type: object, properties: {}, additionalProperties: false}
+    emits: [QueryResultsPartitioned, CommandError]
     output:
-      description: The embedding-model comparison verdict.
-      schema:
-        type: object
-        properties:
-          verdict: {type: string}
-          left: {type: string}
-          right: {type: string}
+      description: Ordered answered and failed query outcomes.
+      schema: {type: object}
     side_effects: []
-    reversibility:
-      classification: reversible
-      undo: noop
-    undo:
-      strategy: noop
-      description: Comparing two command-state values has no durable effect.
+    reversibility: {classification: reversible, undo: noop}
+    undo: {strategy: noop, description: Partitioning changes no external state.}
     config:
-      left: $from(declare_query_model).model
+      items: $from(rag_queries).items
+      field: result.signal
       op: eq
-      right: $from(rag_query0).mapped.embedding_model
+      right: QueryResponded
       operand_type: string
-      satisfied: ModelMatched
-      unsatisfied: ModelDiffered
+      satisfied: QueryResultsPartitioned
 
-  - name: keep_chunks0
+  - name: partition_embedding_models
     type: builtin
-    init: compose
+    init: partition
     visibility: internal
     category: response
-    description: Keep the first RAG's chunks for composition after its embedding model matched.
-    problem: |
-      A machine transition alone cannot exclude a source, because rag_query0's chunks stay
-      addressable in command state after a differing identity. The machine dispatches this
-      word only on the matching path, so the composed prompt reads chunks through a label
-      that exists only for a source that survived (srd002 R3.3).
+    description: Keep answered sources whose reported embedding model matches the query model.
+    problem: A same-width foreign embedding can return 200, so vector acceptance alone does not prove model compatibility.
     goals:
-      - Republish the first RAG's chunks under a label that exists only when the source survived.
-      - Leave an excluded or degraded source unresolved, which compose renders empty.
+      - Exclude model-mismatched sources from grounding.
+      - Preserve the mismatched entries for explicit response metadata.
     requirements:
       input:
-        - The chunks are selected from rag_query0 through command-state $from() addressing.
+        - Answered join entries expose redacted JSON at result.structured_output.
       output:
-        - Output is a JSON object whose documents field carries the surviving chunks.
+        - matched sources may ground the answer; unmatched sources are embedding-model exclusions.
       errors:
-        - Reached only after a matching comparison, so the selector resolves.
+        - Missing structured output or model fields emit CommandError.
     non_goals:
-      - Does not order, cap, or rewrite chunks.
-      - Does not decide whether the source survived; compare_model0 and the machine do.
-    parameters:
-      type: object
-      properties: {}
-      additionalProperties: false
-    emits: [ChunksKept0]
+      - Does not merge, rank, or rewrite chunks.
+    parameters: {type: object, properties: {}, additionalProperties: false}
+    emits: [EmbeddingModelsPartitioned, CommandError]
     output:
-      description: The surviving chunks from the first RAG.
-      schema:
-        type: object
-        properties:
-          documents: {type: array}
+      description: Ordered model-compatible and model-excluded query results.
+      schema: {type: object}
     side_effects: []
-    reversibility:
-      classification: reversible
-      undo: noop
-    undo:
-      strategy: noop
-      description: Republishing chunks has no durable effect.
+    reversibility: {classification: reversible, undo: noop}
+    undo: {strategy: noop, description: Partitioning changes no external state.}
     config:
-      signal: ChunksKept0
-      inputs:
-        documents: $from(rag_query0).mapped.documents
-      template: |
-        {"documents": {{ documents }}, "outcome": "composed", "reason": ""}
-
-  - name: compare_model1
-    type: builtin
-    init: value_predicate
-    visibility: internal
-    category: response
-    description: Compare the second RAG's reported embedding model with the query embedding's model.
-    problem: |
-      A 400 from the RAG server only catches a vector the collection rejects, which is a
-      dimension mismatch. Two models of the same width produce a 200, so without this
-      comparison the turn composes chunks retrieved in a different embedding space than
-      the query (srd002 R3.3).
-    goals:
-      - Compare the query embedding model identity with the model this RAG reported.
-      - Emit a distinct signal for a matching and a differing identity so exclusion is a visible transition.
-    requirements:
-      input:
-        - Both operands are read from prior steps through command-state $from() addressing.
-      output:
-        - Output records the verdict and both compared identities.
-      errors:
-        - An unresolved operand emits CommandError, so the source degrades rather than being silently kept.
-    non_goals:
-      - Does not drop the chunks itself; the machine routes past the keep word for a differing identity.
-      - Does not call any provider.
-    parameters:
-      type: object
-      properties: {}
-      additionalProperties: false
-    emits: [ModelMatched, ModelDiffered, CommandError]
-    output:
-      description: The embedding-model comparison verdict.
-      schema:
-        type: object
-        properties:
-          verdict: {type: string}
-          left: {type: string}
-          right: {type: string}
-    side_effects: []
-    reversibility:
-      classification: reversible
-      undo: noop
-    undo:
-      strategy: noop
-      description: Comparing two command-state values has no durable effect.
-    config:
-      left: $from(declare_query_model).model
+      items: $from(partition_query_results).matched
+      field: result.structured_output.mapped.embedding_model
       op: eq
-      right: $from(rag_query1).mapped.embedding_model
+      right: $from(declare_query_model).model
       operand_type: string
-      satisfied: ModelMatched
-      unsatisfied: ModelDiffered
+      satisfied: EmbeddingModelsPartitioned
 
-  - name: keep_chunks1
+  - name: render_grounding
     type: builtin
-    init: compose
+    init: render_each
     visibility: internal
     category: response
-    description: Keep the second RAG's chunks for composition after its embedding model matched.
-    problem: |
-      A machine transition alone cannot exclude a source, because rag_query1's chunks stay
-      addressable in command state after a differing identity. The machine dispatches this
-      word only on the matching path, so the composed prompt reads chunks through a label
-      that exists only for a source that survived (srd002 R3.3).
+    description: Render model-compatible RAG chunks under their topology names.
+    problem: Grounding must scale with topology size without indexed compose inputs.
     goals:
-      - Republish the second RAG's chunks under a label that exists only when the source survived.
-      - Leave an excluded or degraded source unresolved, which compose renders empty.
+      - Render compatible sources in declared order.
+      - Produce an empty string when no source survives.
     requirements:
       input:
-        - The chunks are selected from rag_query1 through command-state $from() addressing.
+        - The model-compatible partition is selected through one fixed selector.
       output:
-        - Output is a JSON object whose documents field carries the surviving chunks.
+        - Output is the joined per-source grounding text.
       errors:
-        - Reached only after a matching comparison, so the selector resolves.
+        - Missing source names or documents emit CommandError.
     non_goals:
-      - Does not order, cap, or rewrite chunks.
-      - Does not decide whether the source survived; compare_model1 and the machine do.
-    parameters:
-      type: object
-      properties: {}
-      additionalProperties: false
-    emits: [ChunksKept1]
-    output:
-      description: The surviving chunks from the second RAG.
-      schema:
-        type: object
-        properties:
-          documents: {type: array}
+      - Does not filter, rank, or merge source arrays.
+    parameters: {type: object, properties: {}, additionalProperties: false}
+    emits: [GroundingRendered, CommandError]
+    output: {description: Joined grounding sections., schema: {type: string}}
     side_effects: []
-    reversibility:
-      classification: reversible
-      undo: noop
-    undo:
-      strategy: noop
-      description: Republishing chunks has no durable effect.
+    reversibility: {classification: reversible, undo: noop}
+    undo: {strategy: noop, description: Rendering changes no external state.}
     config:
-      signal: ChunksKept1
-      inputs:
-        documents: $from(rag_query1).mapped.documents
-      template: |
-        {"documents": {{ documents }}, "outcome": "composed", "reason": ""}
-
-  - name: mark_excluded_model0
-    type: builtin
-    init: compose
-    visibility: internal
-    category: response
-    description: Record that the first RAG was excluded for an embedding-model mismatch.
-    problem: |
-      srd002 R3.3 requires the exclusion to be reported in the response metadata, so the reason must be recorded where the response can read it.
-    goals:
-      - Record this source's outcome under a label the response metadata reads.
-      - Keep the outcome a visible machine transition rather than an inference the client makes.
-    requirements:
-      input:
-        - The outcome is fixed by the transition that dispatched this word; no selector is read.
-      output:
-        - Output is a JSON object naming the outcome and its reason.
-      errors:
-        - Rendering a configured constant does not fail.
-    non_goals:
-      - Does not decide the outcome; the machine transition that reaches this word does.
-      - Does not call any provider.
-    parameters:
-      type: object
-      properties: {}
-      additionalProperties: false
-    emits: [SourceMarked0]
-    output:
-      description: This source's outcome for the response metadata.
-      schema:
-        type: object
-        properties:
-          outcome: {type: string}
-          reason: {type: string}
-    side_effects: []
-    reversibility:
-      classification: reversible
-      undo: noop
-    undo:
-      strategy: noop
-      description: Recording an outcome has no durable effect.
-    config:
-      signal: SourceMarked0
-      inputs: {}
-      template: |
-        {"outcome": "excluded", "reason": "embedding_model"}
-
-  - name: mark_rejected0
-    type: builtin
-    init: compose
-    visibility: internal
-    category: response
-    description: Record that the first RAG rejected the query vector.
-    problem: |
-      A mapped 400 excludes this source for a different reason than an identity mismatch, and R3.3 requires the two to be distinguishable in the response metadata.
-    goals:
-      - Record this source's outcome under a label the response metadata reads.
-      - Keep the outcome a visible machine transition rather than an inference the client makes.
-    requirements:
-      input:
-        - The outcome is fixed by the transition that dispatched this word; no selector is read.
-      output:
-        - Output is a JSON object naming the outcome and its reason.
-      errors:
-        - Rendering a configured constant does not fail.
-    non_goals:
-      - Does not decide the outcome; the machine transition that reaches this word does.
-      - Does not call any provider.
-    parameters:
-      type: object
-      properties: {}
-      additionalProperties: false
-    emits: [SourceMarked0]
-    output:
-      description: This source's outcome for the response metadata.
-      schema:
-        type: object
-        properties:
-          outcome: {type: string}
-          reason: {type: string}
-    side_effects: []
-    reversibility:
-      classification: reversible
-      undo: noop
-    undo:
-      strategy: noop
-      description: Recording an outcome has no durable effect.
-    config:
-      signal: SourceMarked0
-      inputs: {}
-      template: |
-        {"outcome": "excluded", "reason": "vector_rejected"}
-
-  - name: mark_degraded0
-    type: builtin
-    init: compose
-    visibility: internal
-    category: response
-    description: Record that the first RAG failed and the turn degraded without it.
-    problem: |
-      srd002 R3.2 requires a per-RAG failure to be noted in the response metadata rather than left as a silently thinner answer.
-    goals:
-      - Record this source's outcome under a label the response metadata reads.
-      - Keep the outcome a visible machine transition rather than an inference the client makes.
-    requirements:
-      input:
-        - The outcome is fixed by the transition that dispatched this word; no selector is read.
-      output:
-        - Output is a JSON object naming the outcome and its reason.
-      errors:
-        - Rendering a configured constant does not fail.
-    non_goals:
-      - Does not decide the outcome; the machine transition that reaches this word does.
-      - Does not call any provider.
-    parameters:
-      type: object
-      properties: {}
-      additionalProperties: false
-    emits: [SourceMarked0]
-    output:
-      description: This source's outcome for the response metadata.
-      schema:
-        type: object
-        properties:
-          outcome: {type: string}
-          reason: {type: string}
-    side_effects: []
-    reversibility:
-      classification: reversible
-      undo: noop
-    undo:
-      strategy: noop
-      description: Recording an outcome has no durable effect.
-    config:
-      signal: SourceMarked0
-      inputs: {}
-      template: |
-        {"outcome": "degraded", "reason": "query_failed"}
-
-  - name: mark_excluded_model1
-    type: builtin
-    init: compose
-    visibility: internal
-    category: response
-    description: Record that the second RAG was excluded for an embedding-model mismatch.
-    problem: |
-      srd002 R3.3 requires the exclusion to be reported in the response metadata, so the reason must be recorded where the response can read it.
-    goals:
-      - Record this source's outcome under a label the response metadata reads.
-      - Keep the outcome a visible machine transition rather than an inference the client makes.
-    requirements:
-      input:
-        - The outcome is fixed by the transition that dispatched this word; no selector is read.
-      output:
-        - Output is a JSON object naming the outcome and its reason.
-      errors:
-        - Rendering a configured constant does not fail.
-    non_goals:
-      - Does not decide the outcome; the machine transition that reaches this word does.
-      - Does not call any provider.
-    parameters:
-      type: object
-      properties: {}
-      additionalProperties: false
-    emits: [SourceMarked1]
-    output:
-      description: This source's outcome for the response metadata.
-      schema:
-        type: object
-        properties:
-          outcome: {type: string}
-          reason: {type: string}
-    side_effects: []
-    reversibility:
-      classification: reversible
-      undo: noop
-    undo:
-      strategy: noop
-      description: Recording an outcome has no durable effect.
-    config:
-      signal: SourceMarked1
-      inputs: {}
-      template: |
-        {"outcome": "excluded", "reason": "embedding_model"}
-
-  - name: mark_rejected1
-    type: builtin
-    init: compose
-    visibility: internal
-    category: response
-    description: Record that the second RAG rejected the query vector.
-    problem: |
-      A mapped 400 excludes this source for a different reason than an identity mismatch, and R3.3 requires the two to be distinguishable in the response metadata.
-    goals:
-      - Record this source's outcome under a label the response metadata reads.
-      - Keep the outcome a visible machine transition rather than an inference the client makes.
-    requirements:
-      input:
-        - The outcome is fixed by the transition that dispatched this word; no selector is read.
-      output:
-        - Output is a JSON object naming the outcome and its reason.
-      errors:
-        - Rendering a configured constant does not fail.
-    non_goals:
-      - Does not decide the outcome; the machine transition that reaches this word does.
-      - Does not call any provider.
-    parameters:
-      type: object
-      properties: {}
-      additionalProperties: false
-    emits: [SourceMarked1]
-    output:
-      description: This source's outcome for the response metadata.
-      schema:
-        type: object
-        properties:
-          outcome: {type: string}
-          reason: {type: string}
-    side_effects: []
-    reversibility:
-      classification: reversible
-      undo: noop
-    undo:
-      strategy: noop
-      description: Recording an outcome has no durable effect.
-    config:
-      signal: SourceMarked1
-      inputs: {}
-      template: |
-        {"outcome": "excluded", "reason": "vector_rejected"}
-
-  - name: mark_degraded1
-    type: builtin
-    init: compose
-    visibility: internal
-    category: response
-    description: Record that the second RAG failed and the turn degraded without it.
-    problem: |
-      srd002 R3.2 requires a per-RAG failure to be noted in the response metadata rather than left as a silently thinner answer.
-    goals:
-      - Record this source's outcome under a label the response metadata reads.
-      - Keep the outcome a visible machine transition rather than an inference the client makes.
-    requirements:
-      input:
-        - The outcome is fixed by the transition that dispatched this word; no selector is read.
-      output:
-        - Output is a JSON object naming the outcome and its reason.
-      errors:
-        - Rendering a configured constant does not fail.
-    non_goals:
-      - Does not decide the outcome; the machine transition that reaches this word does.
-      - Does not call any provider.
-    parameters:
-      type: object
-      properties: {}
-      additionalProperties: false
-    emits: [SourceMarked1]
-    output:
-      description: This source's outcome for the response metadata.
-      schema:
-        type: object
-        properties:
-          outcome: {type: string}
-          reason: {type: string}
-    side_effects: []
-    reversibility:
-      classification: reversible
-      undo: noop
-    undo:
-      strategy: noop
-      description: Recording an outcome has no durable effect.
-    config:
-      signal: SourceMarked1
-      inputs: {}
-      template: |
-        {"outcome": "degraded", "reason": "query_failed"}
-
-  - name: compose_response
-    type: builtin
-    init: compose
-    visibility: internal
-    category: response
-    description: Compose the chat response from the answer and each RAG source's outcome.
-    problem: |
-      srd002 R3.2 and R3.3 require a degraded or excluded source to be reported in the
-      response metadata, but the terminal response body selects only from the response
-      word's output, so the answer and the metadata have to reach it together. The
-      answer comes from whichever chat-LLM word the router dispatched, which no
-      $from(label) names, so it is read from the previous result.
-    goals:
-      - Pair the answer with one metadata entry per declared RAG source.
-      - Name each source's outcome and, for an exclusion, which of the two reasons applies.
-      - Report every source on every turn, so a fully grounded turn is distinguishable from a degraded one.
-    requirements:
-      input:
-        - The answer is the previous result; each source's outcome is selected from the word that marked it.
-      output:
-        - Output is a JSON object carrying the answer and the per-source metadata.
-      errors:
-        - Exactly one outcome word resolves per source; the other three are unresolved and render empty, which is how the concatenation yields that source's single outcome.
-    non_goals:
-      - Does not decide any outcome; the machine transitions and their marker words do.
-      - Does not alter the answer text.
-    parameters:
-      type: object
-      properties: {}
-      additionalProperties: false
-    emits: [ResponseComposed]
-    output:
-      description: The chat answer with per-source grounding metadata.
-      schema:
-        type: object
-        properties:
-          answer: {type: string}
-          metadata: {type: object}
-    side_effects: []
-    reversibility:
-      classification: reversible
-      undo: noop
-    undo:
-      strategy: noop
-      description: Composing a response has no durable effect.
-    config:
-      signal: ResponseComposed
-      inputs:
-        answer: $.
-        o_keep0: $from(keep_chunks0).outcome
-        o_model0: $from(mark_excluded_model0).outcome
-        o_vector0: $from(mark_rejected0).outcome
-        o_degraded0: $from(mark_degraded0).outcome
-        r_keep0: $from(keep_chunks0).reason
-        r_model0: $from(mark_excluded_model0).reason
-        r_vector0: $from(mark_rejected0).reason
-        r_degraded0: $from(mark_degraded0).reason
-        em0: $from(rag_query0).mapped.embedding_model
-        o_keep1: $from(keep_chunks1).outcome
-        o_model1: $from(mark_excluded_model1).outcome
-        o_vector1: $from(mark_rejected1).outcome
-        o_degraded1: $from(mark_degraded1).outcome
-        r_keep1: $from(keep_chunks1).reason
-        r_model1: $from(mark_excluded_model1).reason
-        r_vector1: $from(mark_rejected1).reason
-        r_degraded1: $from(mark_degraded1).reason
-        em1: $from(rag_query1).mapped.embedding_model
-        qmodel: $from(declare_query_model).model
-      template: |
-        {
-          "answer": {{ json answer }},
-          "metadata": {
-            "query_embedding_model": {{ json qmodel }},
-            "sources": [
-          {"name": "rag0", "outcome": "{{ o_keep0 }}{{ o_model0 }}{{ o_vector0 }}{{ o_degraded0 }}",
-           "reason": "{{ r_keep0 }}{{ r_model0 }}{{ r_vector0 }}{{ r_degraded0 }}",
-           "reported_embedding_model": {{ json em0 }}},
-          {"name": "rag1", "outcome": "{{ o_keep1 }}{{ o_model1 }}{{ o_vector1 }}{{ o_degraded1 }}",
-           "reason": "{{ r_keep1 }}{{ r_model1 }}{{ r_vector1 }}{{ r_degraded1 }}",
-           "reported_embedding_model": {{ json em1 }}}
-            ]
-          }
-        }
+      items: $from(partition_embedding_models).matched
+      item_template: |-
+        [{{ input.name }}]
+        {{ json result.structured_output.mapped.documents }}
+      separator: "\n\n"
+      signal: GroundingRendered
 
   - name: compose_prompt
     type: builtin
     init: compose
     visibility: internal
     category: response
-    description: Compose the grounding prompt from the message and each RAG's retrieved chunks.
-    problem: The answer step needs the original message and the non-adjacent retrieved chunks from every RAG source in one prompt without carry_forward chains.
+    description: Compose the question and rendered compatible grounding sections.
+    problem: The answer model needs one fixed prompt independent of the RAG source count.
     goals:
-      - Read the original message from embed_query and each surviving RAG's chunks from keep_chunks0 and keep_chunks1 through command-state $from().
-      - Render one grounding prompt for the model, each source under its own [ragN] header.
-      - Render an unresolved source (a degraded or excluded RAG) as empty, so the turn still yields a prompt from the surviving sources.
+      - Preserve the original question.
+      - Include only model-compatible rendered sources.
     requirements:
       input:
-        - The message and each RAG's chunks are selected from prior steps through $from() addressing.
+        - The question and rendered grounding are selected from command state.
       output:
-        - Output is the rendered grounding prompt.
+        - Output is the complete grounding prompt.
       errors:
-        - An unresolved selector renders empty and is reported, so a degraded or excluded RAG still yields a prompt.
+        - Selector failures emit CommandError.
     non_goals:
-      - Does not call any provider or author chunks.
-      - Does not receive transport authority.
-      - Does not order or cap chunks; per-source top-k is bounded upstream by the RAG query n_results (srd001 R2.1).
-    parameters:
-      type: object
-      properties: {}
-      additionalProperties: false
+      - Does not call a model or choose sources.
+    parameters: {type: object, properties: {}, additionalProperties: false}
     emits: [Composed]
-    output:
-      description: The rendered grounding prompt.
-      schema:
-        type: object
+    output: {description: Grounded answer prompt., schema: {type: string}}
     side_effects: []
-    reversibility:
-      classification: reversible
-      undo: noop
-    undo:
-      strategy: noop
-      description: Rendering a prompt has no durable effect.
+    reversibility: {classification: reversible, undo: noop}
+    undo: {strategy: noop, description: Prompt composition changes no external state.}
     config:
       signal: Composed
       inputs:
         message: $from(embed_query).carried.input
-        chunks0: $from(keep_chunks0).documents
-        chunks1: $from(keep_chunks1).documents
+        grounding: $.
       template: |
         A user asked the following question:
 
@@ -718,11 +183,56 @@ tools:
         is a document; cite the retrieved chunk when you use it. The chunks are
         grouped by the RAG source they came from.
 
-        [rag0]
-        {{ chunks0 }}
-
-        [rag1]
-        {{ chunks1 }}
+        {{ grounding }}
 
         Answer the user's question using only these retrieved chunks. If the chunks
         do not contain the answer, say so plainly and do not speculate.
+
+  - name: compose_response
+    type: builtin
+    init: compose
+    visibility: internal
+    category: response
+    description: Compose the answer with complete source outcome metadata.
+    problem: Every declared source must remain reportable without rebuilding an indexed metadata array.
+    goals:
+      - Report compatible, model-excluded, and query-failed sources as distinct ordered sets.
+      - Preserve QueryRejected versus CommandError in each failed join entry.
+    requirements:
+      input:
+        - Fixed selectors read the query partition counts and both generic partitions.
+      output:
+        - Output carries answer, query model, and all per-source outcomes.
+      errors:
+        - Missing fixed pipeline outputs emit CommandError.
+    non_goals:
+      - Does not infer outcomes or merge collections.
+    parameters: {type: object, properties: {}, additionalProperties: false}
+    emits: [ResponseComposed]
+    output: {description: Answer and source outcome metadata., schema: {type: object}}
+    side_effects: []
+    reversibility: {classification: reversible, undo: noop}
+    undo: {strategy: noop, description: Response composition changes no external state.}
+    config:
+      signal: ResponseComposed
+      inputs:
+        answer: $.
+        query_model: $from(declare_query_model).model
+        succeeded: $from(partition_query_results).matched_count
+        failed: $from(partition_query_results).unmatched_count
+        composed: $from(partition_embedding_models).matched
+        model_excluded: $from(partition_embedding_models).unmatched
+        query_failed: $from(partition_query_results).unmatched
+      template: |
+        {
+          "answer": {{ json answer }},
+          "metadata": {
+            "query_embedding_model": {{ json query_model }},
+            "query_counts": {"succeeded": {{ succeeded }}, "failed": {{ failed }}},
+            "sources": {
+              "composed": {{ json composed }},
+              "embedding_model_excluded": {{ json model_excluded }},
+              "query_failed": {{ json query_failed }}
+            }
+          }
+        }

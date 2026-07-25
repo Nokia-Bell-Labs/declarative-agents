@@ -18,10 +18,19 @@ type chatbotMachine struct {
 	States      []struct{ Name string } `yaml:"states"`
 	Signals     []struct{ Name string } `yaml:"signals"`
 	Transitions []struct {
-		State  string `yaml:"state"`
-		Signal string `yaml:"signal"`
-		Next   string `yaml:"next"`
-		Action string `yaml:"action"`
+		State   string `yaml:"state"`
+		Signal  string `yaml:"signal"`
+		Next    string `yaml:"next"`
+		Action  string `yaml:"action"`
+		ForEach *struct {
+			Items   string `yaml:"items"`
+			As      string `yaml:"as"`
+			Mode    string `yaml:"mode"`
+			Failure string `yaml:"failure"`
+			Join    struct {
+				Label string `yaml:"label"`
+			} `yaml:"join"`
+		} `yaml:"for_each"`
 	} `yaml:"transitions"`
 }
 
@@ -50,7 +59,8 @@ func loadChatbotMachine(t *testing.T) chatbotMachine {
 }
 
 // TestChatbotFanOutHasNoMergeWord locks that rag_merge is gone from the chatbot
-// turn: no Merging state, no Merged signal, no rag_merge action.
+// turn. partition is a generic ordered filter, not a domain merge word: it
+// preserves matched and unmatched inputs instead of combining RAG payloads.
 func TestChatbotFanOutHasNoMergeWord(t *testing.T) {
 	m := loadChatbotMachine(t)
 	for _, s := range m.States {
@@ -70,44 +80,44 @@ func TestChatbotFanOutHasNoMergeWord(t *testing.T) {
 	}
 }
 
-// TestChatbotFanOutRoutesDegradedAndExcluded locks that each RAG state routes on
-// via both CommandError (degraded, R3.2) and QueryRejected (embedding-mismatch
-// excluded, R3.3), so both outcomes are visible machine transitions.
+// TestChatbotFanOutRoutesDegradedAndExcluded locks one sequential iterator over
+// the declared topology. QueryRejected and CommandError are collected as failed
+// item outcomes, while QueryResponded is successful; generic partitions retain
+// vector rejection, degradation, and model mismatch as distinct sets.
 func TestChatbotFanOutRoutesDegradedAndExcluded(t *testing.T) {
 	m := loadChatbotMachine(t)
-
-	has := func(state, signal string) bool {
+	var iterators int
+	for _, tr := range m.Transitions {
+		if tr.ForEach == nil {
+			continue
+		}
+		iterators++
+		if tr.Action != "rag_query" || tr.ForEach.Items != "$from(declare_rag_topology).items" ||
+			tr.ForEach.As != "rag_unit" || tr.ForEach.Mode != "sequential" ||
+			tr.ForEach.Failure != "collect_all" || tr.ForEach.Join.Label != "rag_queries" {
+			t.Errorf("unexpected chatbot iterator: %+v", tr)
+		}
+	}
+	if iterators != 1 {
+		t.Fatalf("chatbot machine has %d for_each transitions, want exactly one", iterators)
+	}
+	for _, indexed := range []string{"Retrieving0", "Retrieving1", "rag_query0", "rag_query1", "compare_model0", "keep_chunks0"} {
+		for _, state := range m.States {
+			if state.Name == indexed {
+				t.Errorf("indexed fan-out state remains: %s", indexed)
+			}
+		}
 		for _, tr := range m.Transitions {
-			if tr.State == state && tr.Signal == signal {
-				return true
+			if tr.Action == indexed {
+				t.Errorf("indexed fan-out action remains: %s", indexed)
 			}
 		}
-		return false
-	}
-	for _, state := range []string{"Retrieving0", "Retrieving1"} {
-		for _, signal := range []string{"QueryResponded", "CommandError", "QueryRejected"} {
-			if !has(state, signal) {
-				t.Errorf("machine has no transition for (%s, %s); each RAG state must route degraded and excluded outcomes", state, signal)
-			}
-		}
-	}
-	// QueryRejected must be a declared signal.
-	declared := false
-	for _, s := range m.Signals {
-		if s.Name == "QueryRejected" {
-			declared = true
-		}
-	}
-	if !declared {
-		t.Error("QueryRejected signal is not declared")
 	}
 }
 
-// TestChatbotComposeReadsEachRagSource locks that compose_prompt reads each RAG's
-// documents directly (no rag_merge indirection) so a degraded/excluded source
-// renders empty rather than failing the compose. The fan-out words live in
-// request-fanout.yaml (split out in GH-372 so only that file varies with the RAG
-// count); the base declarations must carry no fan-out residue.
+// TestChatbotComposeReadsEachRagSource locks the fixed-selector collection
+// pipeline: query outcomes are partitioned by signal, successful structured
+// outputs by embedding model, and only the compatible set is rendered.
 func TestChatbotComposeReadsEachRagSource(t *testing.T) {
 	fanout := chatbotAssetPath("request-fanout.yaml")
 	data := readRequiredChatbotAsset(t, fanout)
@@ -115,9 +125,16 @@ func TestChatbotComposeReadsEachRagSource(t *testing.T) {
 	if strings.Contains(text, "rag_merge") || strings.Contains(text, "$from(rag_merge)") {
 		t.Error("request-fanout.yaml still references rag_merge (GH-365)")
 	}
-	for _, sel := range []string{"$from(rag_query0).mapped.documents", "$from(rag_query1).mapped.documents"} {
+	for _, sel := range []string{
+		"$from(rag_queries).items",
+		"result.structured_output.mapped.embedding_model",
+		"$from(partition_embedding_models).matched",
+		"result.structured_output.mapped.documents",
+		"query_failed: $from(partition_query_results).unmatched",
+		"\"embedding_model_excluded\": {{ json model_excluded }}",
+	} {
 		if !strings.Contains(text, sel) {
-			t.Errorf("compose_prompt does not read %s directly", sel)
+			t.Errorf("source-count-independent fan-out is missing %s", sel)
 		}
 	}
 	// The base declarations must no longer carry the fan-out words.
@@ -126,7 +143,7 @@ func TestChatbotComposeReadsEachRagSource(t *testing.T) {
 	if strings.Contains(string(bdata), "rag_merge") {
 		t.Error("request-declarations.yaml still references rag_merge (GH-365)")
 	}
-	if strings.Contains(string(bdata), "name: rag_query0") {
-		t.Error("request-declarations.yaml still declares the fan-out words; they moved to request-fanout.yaml (GH-372)")
+	if strings.Contains(string(bdata), "name: rag_query") {
+		t.Error("request-declarations.yaml still declares the fan-out words")
 	}
 }

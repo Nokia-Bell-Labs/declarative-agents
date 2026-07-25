@@ -4,7 +4,7 @@ A Helm chart that deploys the chatbot mesh on Kubernetes: the browser-facing cha
 
 ## Architectural thesis
 
-One runtime image serves every agent role. Each agent's program is a profile supplied from a ConfigMap and mounted at `/profiles`, not baked into the image, so the same image runs the chatbot and every rag-server and a values change re-renders the topology without rebuilding images (the agent-core mounted-profile contract; see `docs/SPECIFICATIONS.yaml` platform references). The RAG topology is one values list: each entry renders a rag-server Deployment/Service and a Chroma StatefulSet/Service, and (srd003 R2) the chatbot's RAG client entries under the same topology name, so the deployed topology and the chatbot's client configuration cannot drift.
+One runtime image serves every agent role. Each agent's program is a profile supplied from a ConfigMap and mounted at `/profiles`, not baked into the image, so the same image runs the chatbot and every rag-server and a values change re-renders the topology without rebuilding images (the agent-core mounted-profile contract; see `docs/SPECIFICATIONS.yaml` platform references). The RAG topology is one values list: each entry renders a rag-server Deployment/Service and a Chroma StatefulSet/Service plus the chatbot's ordered topology data, network allowlist, and monitor upstream. The chatbot retains one selected-target REST operation and one sequential `for_each` regardless of source count.
 
 ## Topology
 

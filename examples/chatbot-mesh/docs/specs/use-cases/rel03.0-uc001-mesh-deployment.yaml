@@ -6,7 +6,7 @@ summary: |
   cluster: the chatbot agent, two RAG (agent + Chroma) pairs from a values list,
   a chat LLM, a Dolt backend, and an OTel collector, all over rel06.0 binary-only
   images with profiles from ConfigMaps. The values list co-generates both the RAG
-  Deployments/Services and the chatbot's rest.yaml RAG client entries from one
+  Deployments/Services and the chatbot's topology data and REST allowlist from one
   source of truth. The operator then exercises the tiered hot swap: repointing an
   existing RAG is a Service change touching no agent config, and adding a RAG is a
   values change that re-renders ConfigMaps and rolls out the chatbot with a
@@ -28,7 +28,7 @@ flow:
   - id: F1
     text: helm install deploys the chatbot, two values-driven RAG pairs, the LLM, the Dolt backend, and the collector, with ingress to the chatbot UX and internal Services for each component.
   - id: F2
-    text: The chart renders the chatbot rest.yaml RAG client entries from the same values list that creates the RAG Deployments and Services; the rendered rest.yaml passes ValidateDefinition before the chatbot serves.
+    text: The chart renders the chatbot's ordered RAG topology, REST network allowlist, and monitor upstreams from the same values list that creates the RAG objects; one selected-target REST operation passes ValidateDefinition before serving.
   - id: F3
     text: The operator repoints an existing RAG by changing a Kubernetes Service selector or endpoint, with no agent config change and no agent restart.
   - id: F4
@@ -58,7 +58,7 @@ success_criteria:
       - srd003-chatbot-deployment R1.3
       - srd003-chatbot-deployment AC1
   - id: S2
-    criterion: The chatbot RAG client entries are co-generated from the same values list that creates the RAG Deployments and Services, and the rendered rest.yaml passes ValidateDefinition.
+    criterion: The chatbot topology data and REST allowlist are co-generated from the RAG object list, while one selected-target operation validates and the machine remains source-count independent.
     traces:
       - srd003-chatbot-deployment R2.1
       - srd003-chatbot-deployment R2.2

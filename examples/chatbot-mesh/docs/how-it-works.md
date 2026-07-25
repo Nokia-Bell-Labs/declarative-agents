@@ -174,9 +174,11 @@ cannot reattach an HTTP connection owned by a terminated process.
 ## How it deploys
 
 One Helm chart deploys the whole mesh. The property that keeps it coherent is
-values co-generation: a single `ragUnits` list renders both the RAG server
-Deployments and Services and the chatbot's RAG client entries, so topology and
-client configuration cannot drift (srd003 R2).
+values co-generation: a single `ragUnits` list renders the RAG server objects,
+the chatbot's ordered runtime topology, REST network allowlist, and monitor
+upstreams. One selected-target RAG operation and one sequential `for_each` serve
+the whole list, so authority cannot drift while word and state counts stay fixed
+(srd003 R2).
 
 ```mermaid
 flowchart TB
