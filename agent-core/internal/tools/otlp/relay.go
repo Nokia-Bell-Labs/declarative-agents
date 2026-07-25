@@ -61,18 +61,28 @@ func (c *relayCommand) ExecuteContext(ctx context.Context) core.Result {
 	if err != nil {
 		return receiverError(c.Name(), fmt.Errorf("%s: %w", c.Name(), err))
 	}
-	timeout := c.config.Timeout
-	if timeout == 0 {
-		timeout = defaultRelayTimeout
+	response, err := c.relay(ctx, request)
+	if err != nil {
+		return receiverError(c.Name(), err)
 	}
-	exportCtx, cancel := context.WithTimeout(ctx, timeout)
+	if err := c.rejectionError(response); err != nil {
+		return receiverError(c.Name(), err)
+	}
+	return c.relayResult(request)
+}
+
+func (c *relayCommand) relay(
+	ctx context.Context,
+	request *coltracepb.ExportTraceServiceRequest,
+) (*coltracepb.ExportTraceServiceResponse, error) {
+	exportCtx, cancel := context.WithTimeout(ctx, relayTimeout(c.config.Timeout))
 	defer cancel()
 	conn, err := grpc.NewClient(
 		c.config.Endpoint,
 		grpc.WithTransportCredentials(insecure.NewCredentials()),
 	)
 	if err != nil {
-		return receiverError(c.Name(), fmt.Errorf("connect relay endpoint %s: %w", c.config.Endpoint, err))
+		return nil, fmt.Errorf("connect relay endpoint %s: %w", c.config.Endpoint, err)
 	}
 	defer conn.Close()
 	response, err := coltracepb.NewTraceServiceClient(conn).Export(exportCtx, request)
@@ -80,15 +90,23 @@ func (c *relayCommand) ExecuteContext(ctx context.Context) core.Result {
 		if exportCtx.Err() != nil {
 			err = exportCtx.Err()
 		}
-		return receiverError(c.Name(), fmt.Errorf("relay spans to %s: %w", c.config.Endpoint, err))
+		return nil, fmt.Errorf("relay spans to %s: %w", c.config.Endpoint, err)
 	}
+	return response, nil
+}
+
+func (c *relayCommand) rejectionError(response *coltracepb.ExportTraceServiceResponse) error {
 	rejected := int(response.GetPartialSuccess().GetRejectedSpans())
-	if rejected > 0 {
-		return receiverError(c.Name(), fmt.Errorf(
-			"relay spans to %s: %d spans rejected: %s",
-			c.config.Endpoint, rejected, response.GetPartialSuccess().GetErrorMessage(),
-		))
+	if rejected == 0 {
+		return nil
 	}
+	return fmt.Errorf(
+		"relay spans to %s: %d spans rejected: %s",
+		c.config.Endpoint, rejected, response.GetPartialSuccess().GetErrorMessage(),
+	)
+}
+
+func (c *relayCommand) relayResult(request *coltracepb.ExportTraceServiceRequest) core.Result {
 	output, err := json.Marshal(map[string]any{
 		"endpoint": c.config.Endpoint, "span_count": requestSpanCount(request),
 		"accepted_span_count": requestSpanCount(request),
@@ -97,6 +115,13 @@ func (c *relayCommand) ExecuteContext(ctx context.Context) core.Result {
 		return receiverError(c.Name(), err)
 	}
 	return core.Result{Signal: core.Signal("SpansRelayed"), CommandName: c.Name(), Output: string(output)}
+}
+
+func relayTimeout(configured time.Duration) time.Duration {
+	if configured == 0 {
+		return defaultRelayTimeout
+	}
+	return configured
 }
 
 func (c *relayCommand) Undo(_ core.Result) core.Result {

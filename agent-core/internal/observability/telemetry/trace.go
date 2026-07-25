@@ -35,6 +35,12 @@ type ExporterConfig struct {
 	MetricOTLPEndpoint string
 }
 
+type providerOptions struct {
+	spans   []sdktrace.TracerProviderOption
+	metrics []sdkmetric.Option
+	file    *os.File
+}
+
 // Trace bundles an OpenTelemetry tracer, a context carrying the active span,
 // and a meter. Immutable after construction; Push returns a new Trace.
 type Trace struct {
@@ -217,45 +223,63 @@ func buildProviders(
 	res *resource.Resource,
 	serviceName string,
 ) (*sdktrace.TracerProvider, *sdkmetric.MeterProvider, *os.File, error) {
-	var spanOpts []sdktrace.TracerProviderOption
-	var metricOpts []sdkmetric.Option
-	var file *os.File
-
-	spanOpts = append(spanOpts, sdktrace.WithResource(res))
-	metricOpts = append(metricOpts, sdkmetric.WithResource(res))
-
-	if cfg.FilePath != "" {
-		f, traceExp, metricExp, err := fileExporters(cfg.FilePath, serviceName)
-		if err != nil {
-			return nil, nil, nil, err
-		}
-		file = f
-		spanOpts = append(spanOpts, sdktrace.WithBatcher(traceExp))
-		metricOpts = append(metricOpts, sdkmetric.WithReader(
-			sdkmetric.NewPeriodicReader(metricExp),
-		))
+	options := newProviderOptions(res)
+	if err := options.addFileExporters(cfg.FilePath, serviceName); err != nil {
+		return nil, nil, nil, err
 	}
-
-	if cfg.OTLPEndpoint != "" {
-		traceExp, err := otlpTraceExporter(cfg.OTLPEndpoint)
-		if err != nil {
-			return nil, nil, nil, err
-		}
-		spanOpts = append(spanOpts, sdktrace.WithBatcher(traceExp))
+	if err := options.addOTLPTraceExporter(cfg.OTLPEndpoint); err != nil {
+		return nil, nil, nil, err
 	}
-	if endpoint := metricOTLPEndpoint(cfg); endpoint != "" {
-		metricExp, err := otlpMetricExporter(endpoint)
-		if err != nil {
-			return nil, nil, nil, err
-		}
-		metricOpts = append(metricOpts, sdkmetric.WithReader(
-			sdkmetric.NewPeriodicReader(metricExp),
-		))
+	if err := options.addOTLPMetricExporter(metricOTLPEndpoint(cfg)); err != nil {
+		return nil, nil, nil, err
 	}
+	return sdktrace.NewTracerProvider(options.spans...),
+		sdkmetric.NewMeterProvider(options.metrics...), options.file, nil
+}
 
-	tp := sdktrace.NewTracerProvider(spanOpts...)
-	mp := sdkmetric.NewMeterProvider(metricOpts...)
-	return tp, mp, file, nil
+func newProviderOptions(res *resource.Resource) *providerOptions {
+	return &providerOptions{
+		spans:   []sdktrace.TracerProviderOption{sdktrace.WithResource(res)},
+		metrics: []sdkmetric.Option{sdkmetric.WithResource(res)},
+	}
+}
+
+func (o *providerOptions) addFileExporters(path, serviceName string) error {
+	if path == "" {
+		return nil
+	}
+	file, traceExp, metricExp, err := fileExporters(path, serviceName)
+	if err != nil {
+		return err
+	}
+	o.file = file
+	o.spans = append(o.spans, sdktrace.WithBatcher(traceExp))
+	o.metrics = append(o.metrics, sdkmetric.WithReader(sdkmetric.NewPeriodicReader(metricExp)))
+	return nil
+}
+
+func (o *providerOptions) addOTLPTraceExporter(endpoint string) error {
+	if endpoint == "" {
+		return nil
+	}
+	exporter, err := otlpTraceExporter(endpoint)
+	if err != nil {
+		return err
+	}
+	o.spans = append(o.spans, sdktrace.WithBatcher(exporter))
+	return nil
+}
+
+func (o *providerOptions) addOTLPMetricExporter(endpoint string) error {
+	if endpoint == "" {
+		return nil
+	}
+	exporter, err := otlpMetricExporter(endpoint)
+	if err != nil {
+		return err
+	}
+	o.metrics = append(o.metrics, sdkmetric.WithReader(sdkmetric.NewPeriodicReader(exporter)))
+	return nil
 }
 
 // fileExporters writes to a temp file in the same directory; buildShutdown

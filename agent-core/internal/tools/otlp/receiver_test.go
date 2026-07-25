@@ -107,6 +107,38 @@ func TestReceiverStopUnblocksAndReleases(t *testing.T) {
 	require.NoError(t, err)
 }
 
+func TestReceiverStopAppliesDrainPolicy(t *testing.T) {
+	tests := []struct {
+		name            string
+		policy          DrainPolicy
+		expectedDropped int
+		expectedQueued  int
+	}{
+		{name: "preserve", policy: DrainPreserve, expectedQueued: 2},
+		{name: "drop", policy: DrainDrop, expectedDropped: 2},
+	}
+	for _, test := range tests {
+		t.Run(test.name, func(t *testing.T) {
+			state := NewState()
+			cfg := testReceiverConfig("drain-" + test.name)
+			cfg.DrainPolicy = test.policy
+			_, err := state.Launch(cfg)
+			require.NoError(t, err)
+			runtime, err := state.runtime(cfg.Name)
+			require.NoError(t, err)
+			runtime.queue <- Batch{ID: "first", Request: traceRequest("first", 1)}
+			runtime.queue <- Batch{ID: "second", Request: traceRequest("second", 2)}
+
+			output, err := state.Stop(cfg.Name)
+			require.NoError(t, err)
+			require.Equal(t, 2, output["queued_batches"])
+			require.Equal(t, test.expectedDropped, output["dropped_on_stop"])
+			require.Equal(t, test.expectedDropped, output["dropped_batches"])
+			require.Equal(t, test.expectedQueued, len(runtime.queue))
+		})
+	}
+}
+
 func TestReceiverRegistrationRejectsMalformedConfig(t *testing.T) {
 	br := toolregistry.NewBuiltinRegistry()
 	RegisterFactories(br, NewState())
