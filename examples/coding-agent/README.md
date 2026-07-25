@@ -136,8 +136,10 @@ run the bounded packaged-chart proof with `mage integration:helmSmoke`.
 
 ## Status
 
-All three coding-loop stages and pinned, transitive profile packaging are
-implemented with the production agent-core binary and canonical profiles. The
+All three coding-loop stages and compatible-checkout, transitive profile
+packaging are implemented with the production agent-core binary and canonical
+profiles. The package records the source revision without claiming release
+provenance unless the checkout exactly matches the declared clean release. The
 critic receives the existing Stage B workspace, writes its own accepted or
 rejected verdict, and the application maps that verdict to Succeeded or Failed.
 Application-owned serving profiles now keep planner, executor, and critic alive
