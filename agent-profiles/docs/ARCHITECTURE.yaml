@@ -128,8 +128,9 @@ design_decisions:
       explicit migration note and coordinated consumer update.
 
       Mock, assembler, rig-subject, and testdata/conformance runtime scaffolding
-      test agent-core rather than constituting shipped application agents. A
-      follow-up will relocate them to agent-core; this decision moves no files.
+      test agent-core rather than constituting shipped application agents. They
+      remain internal in their current paths; no relocation is scheduled or
+      tracked by this decision.
     benefits:
       - Reusable fixes flow upstream to every consumer.
       - Application composition and library behavior have visible owners.
@@ -194,8 +195,9 @@ implementation_status:
     - done: Library membership, member obligations, one-canonical-home,
         application reference, exact v0 release compatibility, and migration
         contracts are recorded.
-    - planned: Relocate mock, assembler, rig-subject, and runtime conformance
-        scaffolding to agent-core without changing their behavior.
+    - done: Mock, assembler, rig-subject, and runtime conformance scaffolding
+        are classified as internal rather than shipped library members; no
+        relocation is scheduled.
 
 related_documents:
   - doc: ../agent-core/docs/specs/config-formats/runtime-contract.yaml

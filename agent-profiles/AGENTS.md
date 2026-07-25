@@ -19,9 +19,9 @@ machine/tool/signal/terminal contracts, request shapes, configuration names, and
 closure membership as compatibility-sensitive. Record breaking migrations and
 update consumers in the coordinated release.
 
-Mock/assembler/rig and `testdata/conformance` runtime scaffolding are pending
-relocation to `agent-core`; do not promote them as application library members
-or broaden their contract while they remain here.
+Mock/assembler/rig and `testdata/conformance` runtime scaffolding are internal
+to their current paths and are not scheduled for relocation; do not promote
+them as application library members or broaden their contract.
 
 ## Non-Interactive Shell Commands
 
