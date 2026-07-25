@@ -356,6 +356,16 @@ func validateEndpoint(name string, endpoint Endpoint) error {
 	if endpoint.Binding == bindingDynamicSignal && len(endpoint.AllowedSignals) == 0 {
 		return fmt.Errorf("endpoint %q emit_dynamic_signal requires allowed_signals", name)
 	}
+	if endpoint.Binding == bindingDynamicSignal {
+		if len(endpoint.SignalMapping) > 0 && endpoint.SignalField == "" {
+			return fmt.Errorf("endpoint %q signal_mapping requires signal_field", name)
+		}
+		for value, signal := range endpoint.SignalMapping {
+			if !allowedSignal(signal, endpoint.AllowedSignals) {
+				return fmt.Errorf("endpoint %q signal_mapping value %q maps to disallowed signal %q", name, value, signal)
+			}
+		}
+	}
 	if err := validateQueueConfig("endpoint "+name, endpoint.Queue); err != nil {
 		return err
 	}

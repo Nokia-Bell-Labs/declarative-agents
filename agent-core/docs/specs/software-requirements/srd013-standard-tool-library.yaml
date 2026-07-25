@@ -226,7 +226,7 @@ depends_on:
   - srd_id: srd023-cli-exec-tools
     symbols_used: [ExecBuilder]
   - srd_id: srd024-blocking-input-tools
-    symbols_used: [invoke_llm, serve_ui]
+    symbols_used: [invoke_llm, rest_await_event]
 
 diagrams:
   requirements_trace: |

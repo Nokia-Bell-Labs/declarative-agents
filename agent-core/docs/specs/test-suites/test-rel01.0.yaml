@@ -297,18 +297,16 @@ test_cases:
       - srd020-bench-web-ui AC1
 
   - use_case: rel01.0-uc003-bench-visualization
-    name: Bench tools load serve_ui and launch_eval
+    name: Bench tools load generic lifecycle and child boundaries
     go_test: TestBenchConfig_ToolsLoad
     status: implemented
     inputs:
       tools: agents/bench/tools.yaml
       declarations: agents/bench/builtin.yaml
     expected:
-      # Coverage is split across two tests. The go_test above asserts
-      # launch_eval loads from profile config; serve_ui selection is asserted by
-      # TestBenchConformance (the bench transition case below, cross-module).
-      serve_ui_selected: true
-      launch_eval_selected: true
+      rest_lifecycle_selected: true
+      value_predicate_selected: true
+      self_invoke_selected: true
     traces:
       - srd020-bench-web-ui AC1
       - srd022-builtin-tools AC1
@@ -322,8 +320,8 @@ test_cases:
       machine: agents/bench/machine.yaml
       selected_tools: agents/bench/tools.yaml
     expected:
-      serving_action: serve_ui
-      launching_action: launch_eval
+      serving_action: await_bench_action
+      launching_action: launch_evaluator
       emitted_signals_have_transitions: true
     traces:
       - srd005-agentic-loop AC5
@@ -331,14 +329,14 @@ test_cases:
       - srd022-builtin-tools AC4
 
   - use_case: rel01.0-uc003-bench-visualization
-    name: launch_eval accepts profile-first evaluator config
-    go_test: TestLaunchEvalFactoryAcceptsProfileConfig
+    name: Evaluation artifact queries preserve bench data
+    go_test: TestEvaluationArtifactQueriesPreserveBenchData
     inputs:
-      tool: launch_eval
-      profile: ${AGENT_PROFILES_ROOT}/agents/critic/profile.yaml
+      tools: [list_evaluation_sessions, analyze_evaluation_session, list_evaluation_points, read_evaluation_trace]
+      data: eval-results
     expected:
-      profile_config_accepted: true
-      legacy_machine_flags_not_required: true
+      http_independent_statistics: true
+      traversal_rejected: true
     traces:
       - srd020-bench-web-ui AC4
       - srd021-agent-cli-exec-tool AC2
@@ -385,7 +383,7 @@ test_cases:
 
   - use_case: rel01.0-uc003-bench-visualization
     name: Bench session APIs return evaluation artifacts
-    go_test: TestSessionAPIsReturnEvaluationArtifacts
+    go_test: TestEvaluationArtifactQueriesPreserveBenchData
     inputs:
       eval_results: "meta.json, trace.ndjson, experiment.yaml"
     expected:
@@ -398,7 +396,7 @@ test_cases:
 
   - use_case: rel01.0-uc003-bench-visualization
     name: Bench documentation API routes are not mounted
-    go_test: TestDocsAPIRoutesAreNotMounted
+    go_test: TestBenchProfileRoutesExcludeDocumentation
     inputs:
       route_prefix: /api/v1/docs
     expected:
@@ -446,7 +444,7 @@ test_cases:
 
   - use_case: rel01.0-uc003-bench-visualization
     name: Bench action endpoint applies single pending action backpressure
-    go_test: TestActionEndpointAppliesSinglePendingActionBackpressure
+    go_test: TestRESTServer_QueueOverflowPolicies
     inputs:
       action_queue_capacity: 1
     expected:
@@ -483,7 +481,7 @@ test_cases:
     name: Builtin tool config decodes typed structs and errors
     go_test: go test ./internal/tools/catalog -run 'TestDecodeToolConfig'
     inputs:
-      configs: "child agent, LLM, load suite, run point, serve_ui"
+      configs: "child agent, LLM, load suite, run point, evaluation artifacts"
     expected:
       typed_configs_decoded: true
       type_mismatch_mentions_tool: true

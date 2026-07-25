@@ -157,8 +157,8 @@ roles:
       - Done
       - Failed
     checks:
-      - Confirm serve_ui is the blocking human boundary.
-      - Confirm launch_eval delegates session execution to critic.
+      - Confirm rest_await_event is the blocking human boundary.
+      - Confirm self_invoke delegates session execution to critic.
       - Trace bench to critic with rel07.0-uc004-bench-evaluator-profile-boundary.
 
   - id: monitor

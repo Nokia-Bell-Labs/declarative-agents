@@ -106,23 +106,14 @@ func TestDecodeToolConfigRunPoint(t *testing.T) {
 	assert.Equal(t, []string{"tools/builtin/critic-point/all.yaml", "tools/exec/all.yaml"}, cfg.PointToolDeclarations)
 }
 
-func TestDecodeToolConfigServeUI(t *testing.T) {
+func TestDecodeToolConfigEvaluationArtifacts(t *testing.T) {
 	def := ToolDef{
-		Name: "serve_ui",
+		Name: "list_evaluation_sessions",
 		Config: map[string]interface{}{
-			"addr":         ":8080",
-			"data_dir":     "eval-results",
-			"configs_dir":  "agents",
-			"docs_dir":     "docs",
-			"profiles_dir": "internal/model/llm/profiles",
+			"data_dir": "eval-results",
 		},
 	}
-	var cfg ServeUIToolConfig
+	var cfg EvaluationArtifactsConfig
 	require.NoError(t, DecodeToolConfig(def, &cfg))
-	assert.Equal(t, ":8080", cfg.Addr)
 	assert.Equal(t, "eval-results", cfg.DataDir)
-	assert.Equal(t, "agents", cfg.ConfigsDir)
-	assert.Equal(t, "docs", cfg.DocsDir)
-	assert.Equal(t, "internal/model/llm/profiles", cfg.ProfilesDir)
-	assert.Empty(t, cfg.SourceDir)
 }

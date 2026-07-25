@@ -4,8 +4,10 @@ package evaluation
 
 import (
 	"context"
+	"fmt"
 	"io"
 	"os"
+	"path/filepath"
 
 	"github.com/Nokia-Bell-Labs/declarative-agents/agent-core/internal/runtime/core"
 	"github.com/Nokia-Bell-Labs/declarative-agents/agent-core/internal/tools/catalog"
@@ -21,6 +23,7 @@ type EvalFactoryDeps struct {
 	OutputDir        string
 	OllamaURL        string
 	ChildAgentBinary string
+	Directory        string
 }
 
 type evalFactoryState struct {
@@ -57,6 +60,32 @@ func RegisterEvalFactories(br *toolregistry.BuiltinRegistry, deps EvalFactoryDep
 	registerEvalSessionFactories(br, state)
 	registerEvalConfiguredFactories(br, state)
 	registerEvalPointFactories(br, state)
+	registerEvalArtifactFactories(br, deps.Directory)
+}
+
+func registerEvalArtifactFactories(br *toolregistry.BuiltinRegistry, root string) {
+	for _, operation := range []string{
+		"list_evaluation_sessions",
+		"analyze_evaluation_session",
+		"list_evaluation_points",
+		"read_evaluation_trace",
+	} {
+		operation := operation
+		br.Register(operation, func(def catalog.ToolDef, _ map[string]string) (core.Builder, error) {
+			var cfg catalog.EvaluationArtifactsConfig
+			if err := catalog.DecodeToolConfig(def, &cfg); err != nil {
+				return nil, err
+			}
+			if cfg.DataDir == "" {
+				return nil, fmt.Errorf("tool %q config requires data_dir", def.Name)
+			}
+			dataDir := cfg.DataDir
+			if !filepath.IsAbs(dataDir) {
+				dataDir = filepath.Join(root, dataDir)
+			}
+			return &EvaluationArtifactBuilder{Name: def.Name, Operation: operation, DataDir: dataDir}, nil
+		})
+	}
 }
 
 func (s *evalFactoryState) init() *EvalSessionState {

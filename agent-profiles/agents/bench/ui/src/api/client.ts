@@ -147,7 +147,7 @@ export async function postAction(action: ActionPayload): Promise<{ status: strin
     throw new Error(body.error || `Action failed: ${res.status}`)
   }
   const body = await res.json()
-  return body
+  return { status: body.status || (body.accepted ? 'accepted' : 'unknown') }
 }
 
 export const listSessions = () => fetchJSON<Session[]>('/sessions')

@@ -89,8 +89,8 @@ tools:
       before: [record_tracker_issue, extract_task, extract_all]
       after: [check_result, build, vet, test]
       overlaps:
-        - tool: launch_eval
-          difference: "launch_eval starts an evaluator session from bench; execute_task starts a executor for a planner task."
+        - tool: self_invoke
+          difference: "self_invoke starts a configured child profile; execute_task starts an executor for a planner task."
         - tool: run_point
           difference: "run_point invokes an in-process nested machine; execute_task spawns a child agent process."
     config:

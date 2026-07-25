@@ -258,18 +258,17 @@ test_cases:
       - sm-agent-role-taxonomy knowledge-manager
 
   - family: bench
-    name: Bench serve_ui launcher conformance
+    name: Bench declarative REST launcher conformance
     status: implemented
     test: conformance/bench_test.go
     coverage: shipped-behavioral
-    coverage_note: Copies the shipped agents/bench/profile.yaml and patches only the hard-coded serve_ui listen address in builtin.yaml.
+    coverage_note: Copies the shipped agents/bench profile, patches only its REST listen address, and uses a fixture critic child.
     description: |
-      Launches the bench profile with the async serve harness, exercises the
-      serve_ui UI action, requests a clean shutdown, and waits for the agent to
-      exit. Asserts the serve_ui vocabulary in the trace and a Done terminal state
-      with no error-status spans.
+      Launches the profile-owned static UI and machine_request routes, exercises
+      session/config/source reads, dispatches a launch through value_predicate and
+      self_invoke, requests clean shutdown, and waits for the host machine to exit.
     expected:
-      asserted_tool_spans: [serve_ui]
+      asserted_tool_spans: [launch_bench_http, await_bench_action, list_evaluation_sessions, list_resource, read_resource, validate_eval_suite, self_invoke, stop_bench_http]
       error_status_spans: 0
       terminal_states: [Done]
     traces:

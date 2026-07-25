@@ -1,3 +1,6 @@
 tools:
-  - serve_ui
-  - launch_eval
+  - launch_bench_http
+  - await_bench_action
+  - validate_eval_suite
+  - launch_evaluator
+  - stop_bench_http

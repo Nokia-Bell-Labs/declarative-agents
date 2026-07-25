@@ -62,7 +62,7 @@ overview:
         REQGRAPH[internal/planning/graph]
         EXEC[internal/support/execute]
         SPEC[pkg/spec]
-        BENCH[internal/evaluation/bench]
+        BENCH[external bench profile]
       end
 
       subgraph Infra["Reusable Infrastructure"]
@@ -454,8 +454,8 @@ overview:
         process, nested machine, external CLI, external API, or workspace. It
         is still a word from the parent machine's point of view, but its
         contract must make the boundary, emitted signals, side effects, and
-        undo/compensation explicit. Examples include invoke_llm, serve_ui,
-        run_agent, run_oracle_check, run_point, launch_eval, and self_invoke.
+        undo/compensation explicit. Examples include invoke_llm,
+        rest_server_launch, run_agent, run_point, and self_invoke.
       sentence: |
         Sentence tools hide multiple observable verbs behind one name. New
         tools should not use this category except to mark legacy compatibility.
@@ -1314,11 +1314,9 @@ project_structure:
 
   bench:
     - path: internal/evaluation/
-      role: Evaluator session/point runtime, result artifacts, metrics, convergence, and trace analysis
-    - path: internal/evaluation/bench/
-      role: Bench server, API handlers, state machine tools (serve_ui, launch_eval)
-    - path: internal/evaluation/bench/ui/
-      role: Embedded React frontend for experiment browsing and launching
+      role: Evaluator session/point runtime, result artifacts, metrics, convergence, trace analysis, and HTTP-independent artifact query words
+    - path: ../agent-profiles/agents/bench/
+      role: External profile-owned REST routes, host/request machines, declarations, and React frontend
 
   engine:
     - path: internal/runtime/core/
@@ -1403,7 +1401,7 @@ package_specification_coverage: |
 
   Configured-agent packages are covered at the release layer. cmd/agent is
   governed by cfg-runtime-contract, release 01.0 use cases, lifecycle use cases,
-  test-rel01.0, and Go tests. internal/evaluation and internal/evaluation/bench
+  test-rel01.0, and Go tests. internal/evaluation and the external bench profile
   are covered by srd019, srd020, rel01.0 evaluator and bench use cases,
   test-rel01.0, and package tests. internal/support/execute is covered by
   srd021, srd022 AC6, evaluator use cases, and child-agent tests.
@@ -1416,9 +1414,8 @@ package_specification_coverage: |
 
   Package roots such as internal/model, internal/observability,
   internal/planning, internal/runtime, internal/support, and internal/tools do
-  not define standalone runtime behavior. internal/evaluation/bench/ui embeds
-  React assets behind the bench API. The documentation-curator UI and workflow
-  are external profile assets served by the generic REST runtime.
+  not define standalone runtime behavior. Bench and documentation-curator UI
+  assets and workflows are external profiles served by the generic REST runtime.
 
   Remaining gaps are narrow. Browser-level bench UI proof remains manual or
   skipped until an automated browser harness joins the quality gate. Planner
@@ -1443,7 +1440,7 @@ implementation_status:
     - done: Agent execution (internal/support/execute) — subprocess execution with process groups
     - done: Specification tooling (pkg/spec) — corpus parsing, graph, validation
     - done: Unified agent binary (cmd/agent) — generator, evaluator, planner, jurist, bench
-    - done: Bench agent (internal/evaluation/bench) — state-machine-driven web UI for experiment browsing and eval launching
+    - done: Bench profile — profile-owned REST routes, host/request machines, static React assets, evaluation queries, and self-invoke launch boundary
     - done: Evaluation runtime (internal/evaluation) — profile suites, point execution, result artifacts, metrics, convergence, and trace analysis
     - done: YAML tool definitions — shared builtin and exec declaration directories, compatibility aggregate files, plus agent-local overrides
     - done: External agent profiles and configurations — generator, evaluator, planner, jurist, bench, REST, monitor, control, lifecycle, and Knowledge Manager profiles are supplied from agent-profiles through explicit --profile paths to a checkout or bundle mounted or copied beside the workspace

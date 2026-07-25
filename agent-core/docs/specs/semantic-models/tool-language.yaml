@@ -88,7 +88,7 @@ tool_categories:
     undo_model: command/domain restore, such as conversation_truncate or evaluator_session_restore.
   boundary:
     definition: Tool that crosses a program, model, human, nested-machine, child-process, external-API, or workspace boundary.
-    examples: [agent, serve_ui, validate, self_invoke, launch_eval, run_agent, checkpoint_rollback]
+    examples: [agent, rest_server_launch, rest_await_event, validate, self_invoke, run_agent, checkpoint_rollback]
     composition: allowed as a word only when the boundary and emitted signals are explicit.
     undo_model: workspace_restore, compensation, child-workspace restore, or irreversible confirmation.
   sentence:

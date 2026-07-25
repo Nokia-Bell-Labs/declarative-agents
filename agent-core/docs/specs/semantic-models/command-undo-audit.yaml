@@ -50,10 +50,6 @@ compensation_boundaries:
       receipt_payload: child_task_and_workspace_paths
     - command: self_invoke
       receipt_payload: child_run_id_machine_tools_and_trace_artifact
-    - command: launch_eval
-      receipt_payload: suite_output_dir_child_machine_and_tools
-    - command: serve_ui
-      receipt_payload: server_addr_and_user_action
     - command: run_agent
       receipt_payload: point_context_workspace_and_artifact_paths
     - command: run_point
@@ -220,14 +216,6 @@ receipt_undo:
       strategy: point_workspace_restore_and_child_process_compensation
       receipt: compensatable_boundary_compensation
       captures: [point_context_snapshot, workspace_paths, artifact_paths]
-    - command: launch_eval
-      strategy: child_eval_artifact_compensation
-      receipt: compensatable_boundary_compensation
-      captures: [suite_path, output_dir, child_machine, child_tools]
-    - command: serve_ui
-      strategy: server_shutdown_or_user_action_compensation
-      receipt: compensatable_boundary_compensation
-      captures: [server_addr, user_action]
 
 declaration_mismatches: []
 

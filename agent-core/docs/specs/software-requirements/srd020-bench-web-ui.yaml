@@ -9,19 +9,19 @@ problem: |
   ad-hoc scripting.
 
 goals:
-  - G1: Serve an embedded web UI for interactive evaluation result exploration.
-  - G2: Provide REST API endpoints for session, point, trace, experiment, config, source, and action data.
-  - G3: Support dual-mode asset loading (filesystem for dev, embedded for prod).
+  - G1: Serve a profile-owned web UI for interactive evaluation result exploration.
+  - G2: Declare REST and machine_request endpoints for session, point, trace, experiment, config, source, and action data.
+  - G3: Keep application assets, routes, and workflow outside the universal Go runtime.
   - G4: Display LLM configuration profiles and agent configs alongside results.
 
 requirements:
   R1:
     title: HTTP server and SPA routing
     items:
-      - R1.1: The bench web UI is started via `agent --profile "$AGENT_PROFILES_ROOT/bench/profile.yaml"`. The profile resolves the bench machine, selected tools, and tool declarations; the serve_ui tool starts the HTTP server with address and data directory configured in the tool YAML config block.
+      - R1.1: The bench web UI is started via `agent --profile "$AGENT_PROFILES_ROOT/agents/bench/profile.yaml"`. The profile launches the generic REST server and awaits operator events through its host MachineSpec.
       - R1.2: API routes are namespaced under /api/v1/.
-      - R1.3: Non-API routes serve the embedded frontend assets with SPA fallback to index.html (200 OK).
-      - R1.4: Assets are loaded via Go build tags — os.DirFS in dev mode, embed.FS with -tags production.
+      - R1.3: Non-API routes serve profile-owned static assets with SPA fallback to index.html (200 OK).
+      - R1.4: The agent binary SHALL NOT embed or import bench frontend assets.
 
   R2:
     title: Session API
@@ -53,8 +53,8 @@ requirements:
   R5:
     title: Build integration
     items:
-      - R5.1: Mage Build target builds the frontend in internal/evaluation/bench/ui/ and compiles cmd/agent with -tags production.
-      - R5.2: Production binary is compiled with -tags production to embed frontend assets from internal/evaluation/bench/ui/dist/.
+      - R5.1: The frontend builds from agent-profiles/agents/bench/ui and emits profile-owned dist assets.
+      - R5.2: Core builds and audits do not require production build tags or bench asset embedding.
 
   R6:
     title: Documentation ownership boundary
@@ -73,7 +73,8 @@ requirements:
     title: Actions API
     items:
       - R8.1: POST /api/v1/actions accepts UserAction payloads from the frontend.
-      - R8.2: Actions are forwarded to the serve_ui tool via the BenchState action channel.
+      - R8.2: Allowed launch and shutdown signals enter the generic REST event queue.
+      - R8.3: Launch input is validated by value_predicate and dispatched through self_invoke with request cancellation and trace propagation.
 
 non_goals:
   - Real-time streaming of in-progress evaluations.
@@ -82,7 +83,7 @@ non_goals:
 
 acceptance_criteria:
   - id: AC1
-    criterion: The agent, configured with the bench machine, serves the React frontend and API from a single binary with embedded assets.
+    criterion: The agent, configured with the bench profile, serves profile-owned React assets and API routes through the generic REST runtime.
     traces: [R1.1, R1.2, R1.3, R1.4, R5.1, R5.2]
 
   - id: AC2
@@ -95,7 +96,7 @@ acceptance_criteria:
 
   - id: AC4
     criterion: Config, source, and actions API endpoints work, and documentation API routes are not mounted by bench.
-    traces: [R3.1, R3.2, R3.3, R6.1, R6.2, R7.1, R7.2, R7.3, R8.1, R8.2]
+    traces: [R3.1, R3.2, R3.3, R6.1, R6.2, R7.1, R7.2, R7.3, R8.1, R8.2, R8.3]
 
 depends_on:
   - srd_id: srd019-eval-harness

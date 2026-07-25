@@ -1,0 +1,104 @@
+name: bench-request
+purpose: Execute one bench read request through atomic evaluation, filesystem, and transform words.
+initial_state: AwaitingRequest
+budget: {max_iterations: 8}
+states:
+  - {name: AwaitingRequest, meaning: Seeded by one trusted machine_request route.}
+  - {name: Querying, meaning: Reading evaluation artifacts.}
+  - {name: ListingConfigs, meaning: Listing allowlisted profile configuration.}
+  - {name: WrappingConfigs, meaning: Wrapping config entries as bounded jq input.}
+  - {name: ShapingConfigs, meaning: Grouping configuration entries for the UI.}
+  - {name: ReadingConfig, meaning: Reading one allowlisted YAML configuration.}
+  - {name: WrappingConfig, meaning: Wrapping config detail as bounded jq input.}
+  - {name: ShapingConfig, meaning: Building the configuration and graph response.}
+  - {name: ReadingSource, meaning: Reading one allowlisted source file.}
+  - {name: ShapingSource, meaning: Building source display metadata.}
+  - {name: CapturingExperiment, meaning: Constructing the allowlisted experiment resource path.}
+  - {name: ReadingExperiment, meaning: Reading one evaluator experiment artifact.}
+  - {name: ShapingExperiment, meaning: Returning parsed experiment YAML.}
+  - {name: ListingProfiles, meaning: Reading model profile summaries.}
+  - {name: Ready, meaning: Terminal successful response.}
+  - {name: Missing, meaning: Terminal missing artifact response.}
+  - {name: Denied, meaning: Terminal denied path response.}
+  - {name: Failed, meaning: Terminal infrastructure response.}
+terminal_states: [Ready, Missing, Denied, Failed]
+signals:
+  - Seed
+  - SessionRequested
+  - PointsRequested
+  - TraceRequested
+  - ConfigsRequested
+  - ConfigRequested
+  - SourceRequested
+  - ExperimentRequested
+  - ProfilesRequested
+  - EvaluationDataReady
+  - EvaluationMissing
+  - EvaluationDenied
+  - DocumentListReady
+  - DocumentReady
+  - DocumentMissing
+  - DocumentResourceDenied
+  - DocumentParseFailed
+  - InputReady
+  - ToolDone
+  - ToolFailed
+  - ResponseReady
+  - CommandError
+transitions:
+  - {state: AwaitingRequest, signal: Seed, next: Querying, action: list_evaluation_sessions}
+  - {state: AwaitingRequest, signal: SessionRequested, next: Querying, action: analyze_evaluation_session}
+  - {state: AwaitingRequest, signal: PointsRequested, next: Querying, action: list_evaluation_points}
+  - {state: AwaitingRequest, signal: TraceRequested, next: Querying, action: read_evaluation_trace}
+  - {state: Querying, signal: EvaluationDataReady, next: Ready}
+  - {state: Querying, signal: EvaluationMissing, next: Missing}
+  - {state: Querying, signal: EvaluationDenied, next: Denied}
+  - {state: Querying, signal: CommandError, next: Failed}
+
+  - {state: AwaitingRequest, signal: ConfigsRequested, next: ListingConfigs, action: list_bench_configs}
+  - {state: ListingConfigs, signal: DocumentListReady, next: WrappingConfigs, action: wrap_bench_input, label: config_entries}
+  - {state: WrappingConfigs, signal: InputReady, next: ShapingConfigs, action: shape_bench_configs}
+  - {state: ShapingConfigs, signal: ToolDone, next: Ready}
+
+  - {state: AwaitingRequest, signal: ConfigRequested, next: ReadingConfig, action: read_bench_config}
+  - {state: ReadingConfig, signal: DocumentReady, next: WrappingConfig, action: wrap_bench_input, label: config_detail}
+  - {state: WrappingConfig, signal: InputReady, next: ShapingConfig, action: shape_bench_config}
+  - {state: ShapingConfig, signal: ToolDone, next: Ready}
+
+  - {state: AwaitingRequest, signal: SourceRequested, next: ReadingSource, action: read_bench_source}
+  - {state: ReadingSource, signal: DocumentReady, next: ShapingSource, action: shape_bench_source}
+  - {state: ShapingSource, signal: ResponseReady, next: Ready}
+
+  - {state: AwaitingRequest, signal: ExperimentRequested, next: CapturingExperiment, action: capture_experiment_path}
+  - {state: CapturingExperiment, signal: InputReady, next: ReadingExperiment, action: read_bench_experiment}
+  - {state: ReadingExperiment, signal: DocumentReady, next: ShapingExperiment, action: shape_bench_experiment}
+  - {state: ShapingExperiment, signal: ResponseReady, next: Ready}
+
+  - {state: AwaitingRequest, signal: ProfilesRequested, next: ListingProfiles, action: list_bench_profiles}
+  - {state: ListingProfiles, signal: ToolDone, next: Ready}
+
+  - {state: ListingConfigs, signal: DocumentResourceDenied, next: Denied}
+  - {state: ReadingConfig, signal: DocumentMissing, next: Missing}
+  - {state: ReadingSource, signal: DocumentMissing, next: Missing}
+  - {state: ReadingExperiment, signal: DocumentMissing, next: Missing}
+  - {state: ReadingConfig, signal: DocumentResourceDenied, next: Denied}
+  - {state: ReadingSource, signal: DocumentResourceDenied, next: Denied}
+  - {state: ReadingExperiment, signal: DocumentResourceDenied, next: Denied}
+  - {state: ReadingConfig, signal: DocumentParseFailed, next: Failed}
+  - {state: ReadingSource, signal: DocumentParseFailed, next: Failed}
+  - {state: ReadingExperiment, signal: DocumentParseFailed, next: Failed}
+  - {state: ListingConfigs, signal: CommandError, next: Failed}
+  - {state: ShapingConfigs, signal: ToolFailed, next: Failed}
+  - {state: ShapingConfigs, signal: CommandError, next: Failed}
+  - {state: WrappingConfigs, signal: CommandError, next: Failed}
+  - {state: ReadingConfig, signal: CommandError, next: Failed}
+  - {state: WrappingConfig, signal: CommandError, next: Failed}
+  - {state: ShapingConfig, signal: ToolFailed, next: Failed}
+  - {state: ShapingConfig, signal: CommandError, next: Failed}
+  - {state: ReadingSource, signal: CommandError, next: Failed}
+  - {state: ShapingSource, signal: CommandError, next: Failed}
+  - {state: ReadingExperiment, signal: CommandError, next: Failed}
+  - {state: CapturingExperiment, signal: CommandError, next: Failed}
+  - {state: ShapingExperiment, signal: CommandError, next: Failed}
+  - {state: ListingProfiles, signal: ToolFailed, next: Failed}
+  - {state: ListingProfiles, signal: CommandError, next: Failed}

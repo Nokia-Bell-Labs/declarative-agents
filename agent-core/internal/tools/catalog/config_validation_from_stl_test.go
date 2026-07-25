@@ -13,6 +13,14 @@ func TestValidateChildAgentConfigRequiresFields(t *testing.T) {
 	require.NoError(t, ValidateChildAgentConfig("execute_task", ChildAgentConfig{
 		Profile: "agents/executor/profile.yaml",
 	}))
+	require.NoError(t, ValidateChildAgentConfig("self_invoke", ChildAgentConfig{
+		Profile:     "agents/critic/profile.yaml",
+		RequestFrom: "$from(action).payload.body.config.suite",
+		OutputFrom:  "$from(action).payload.body.config.output_dir",
+	}))
+	require.ErrorContains(t, ValidateChildAgentConfig("self_invoke", ChildAgentConfig{
+		Profile: "agents/critic/profile.yaml", RequestFrom: "$.suite",
+	}), "request_from")
 }
 
 func TestValidateRunPointConfigRequiresFields(t *testing.T) {

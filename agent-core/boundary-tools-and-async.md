@@ -3,11 +3,18 @@
 *Decoupling dispatch from receive for boundary words, with configurable UI
 and LLM tools as the primary applications.*
 
+> **Status:** Design exploration retained for the general asynchronous-boundary
+> discussion. Its `serve_ui`, `UIServerState`, and embedded-bench migration
+> sketches are historical. GH-888 implemented the bench boundary with the
+> generic REST `rest_server_launch` / `rest_await_event` / `rest_server_stop`
+> words, profile-owned static assets and routes, and `self_invoke`.
+
 ---
 
 ## Problem
 
-The current boundary tools (`invoke_llm`, `serve_ui`) are synchronous: they
+Some boundary tools, including `invoke_llm` and `rest_await_event`, are
+synchronous: they
 send a request and block until the response arrives. This works for simple
 agents with one boundary at a time, but prevents:
 
@@ -18,10 +25,10 @@ agents with one boundary at a time, but prevents:
 - **Work between send and receive** — can't prepare context or do cleanup
   while the LLM thinks.
 
-Additionally, `serve_ui` is tightly coupled to the bench experiment viewer:
-assets are embedded at compile time, action-to-signal mapping is hardcoded
-in Go, and API routes are bench-specific. To serve a different UI you'd
-need new Go code.
+Before GH-888, `serve_ui` was tightly coupled to the bench experiment viewer:
+assets were embedded at compile time, action-to-signal mapping was hardcoded
+in Go, and API routes were bench-specific. The current bench profile declares
+those concerns through generic REST configuration.
 
 This document designs:
 1. **The async boundary pattern** — splitting launch from await for any
@@ -44,16 +51,16 @@ This document designs:
    any active boundary — multiple UIs, an LLM response, or a mix. The
    inbox is a fan-in channel all active boundaries write to.
 
-3. **Backward compatible.** The fused blocking form (`invoke_llm`,
-   `serve_ui`) remains valid. It is simply a launch + await fused into
+3. **Blocking forms remain useful.** A fused blocking form such as `invoke_llm`
+   or a configured `rest_await_event` remains valid. It is simply a launch + await fused into
    one `Execute()`. Simple agents that need one boundary at a time
    don't change.
 
 ### Configurable UI tool
 
-4. **One Go implementation, many UI tools.** The same `launch_ui` /
-   `serve_ui` init serves a bench experiment viewer, an approval gate, a
-   monitoring dashboard, or any future interface — selected by YAML.
+4. **One generic implementation, many UI profiles.** Generic REST lifecycle,
+   static-asset, event, and machine-request bindings serve a bench viewer,
+   approval gate, monitoring dashboard, or future interface selected by YAML.
 
 5. **Multiple UI tools per agent.** One agent can have several configured
    UI boundary words (e.g., `launch_dashboard`, `launch_approval`). The
@@ -308,8 +315,8 @@ This means new actions and signals require only YAML changes.
 
 ### 4. Data mounts for domain content
 
-The current bench has hardcoded routes like `/api/v1/sessions`. The generic
-version replaces these with configurable data mounts:
+The pre-GH-888 bench had hardcoded routes such as `/api/v1/sessions`. This
+design proposed configurable data mounts:
 
 ```yaml
 data_mounts:
@@ -325,8 +332,10 @@ Each mount exposes a directory as a read-only JSON API:
 - `GET /data/{prefix}` → list entries
 - `GET /data/{prefix}/{path...}` → read file content
 
-The frontend knows its data mounts from `GET /api/state` and fetches
-accordingly. Domain-specific data shaping (if needed) is a future extension
+The implemented bench instead declares REST endpoints and `machine_request`
+bindings in profile YAML, with domain-specific shaping in request-machine
+tools. In this historical sketch, the frontend knows its data mounts from
+`GET /api/state` and fetches accordingly. Domain-specific data shaping
 via transform plugins.
 
 ### 5. Context injection from previous result
@@ -457,7 +466,7 @@ transitions:
   - state: Waiting
     signal: LaunchRequested
     next: Launching
-    action: launch_eval
+    action: launch_evaluator
 
   - state: Waiting
     signal: AlertAcknowledged
@@ -950,7 +959,7 @@ runs exactly as today. The REST surface is opt-in — launched by a
 
 ## Go Implementation Sketch
 
-### UIServerState (replaces BenchState)
+### Historical UIServerState sketch
 
 ```go
 type UIServerState struct {
@@ -1050,8 +1059,8 @@ func ServeUIFactory(state *UIServerState) stl.BuiltinFactory {
 }
 ```
 
-All tools using `init: serve_ui` share the same `UIServerState` instance
-and the same factory function. They differ only in their decoded config.
+This sketch predated the generic REST `ServerState`; current profiles share
+generic REST server state and differ through decoded REST definitions.
 
 ## Standard HTTP Endpoints
 
@@ -1243,27 +1252,19 @@ The frontend does NOT need to know about the grammar, signals, or state
 machine. It only knows: "here are the actions I can take" and "here is the
 data I can display."
 
-## Migration Path from Current Bench
+## Bench Migration Outcome
 
-1. **Extract generic UIServerState** from `BenchState` — the server, action
-   channel, and view management become `internal/tools/stl` or a new `pkg/ui` package.
+GH-888 completed the bench-specific part of this migration without introducing
+the proposed `UIServerState` abstraction:
 
-2. **Move action-to-signal mapping to YAML** — delete the `Signal()` switch
-   in `state.go`, replace with config-driven lookup.
+1. Generic REST server lifecycle and event words own listener and queue behavior.
+2. `signal_field` and `signal_mapping` declare action-to-signal routing.
+3. Static assets and API routes live under `agent-profiles/agents/bench`.
+4. `machine_request` runs profile-owned request machines.
+5. `self_invoke` launches the critic using command-state request/output selectors.
 
-3. **Make assets path configurable** — the bench tool declaration YAML gets
-   `config.assets: ./pkg/bench/ui/dist` (keeping existing behavior). The
-   embed fallback remains for single-binary builds.
-
-4. **Extract bench-specific API routes into data mounts** — sessions,
-   configs, profiles become data mount entries.
-
-5. **Rename and generalize** — `RegisterFactories` becomes the generic
-   `ServeUIFactory` with bench-specific config now living entirely in YAML.
-
-After migration, the bench is just one YAML configuration of the generic
-`serve_ui` implementation. The same implementation can serve an approval
-gate, a monitoring dashboard, or any other human-facing interface.
+The remaining sketches below are examples of the broader asynchronous-boundary
+design, not descriptions of the current bench implementation.
 
 ## Example: Approval Gate Tool
 
@@ -1532,7 +1533,7 @@ func (c *craftController) OnBeforeDispatch(state core.State, sig core.Signal, cm
 }
 ```
 
-This is the same channel-blocking pattern as `serve_ui`, but at the hook
+This is the same blocking actor pattern as `rest_await_event`, but at the hook
 level rather than the tool level. The grammar continues to dispatch tools
 normally — the hook silently gates them.
 

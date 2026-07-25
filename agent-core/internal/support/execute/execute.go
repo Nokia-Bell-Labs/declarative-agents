@@ -126,7 +126,7 @@ func Execute(ctx context.Context, tracer tracing.Tracer, cfg Config, taskID, wor
 
 // RunAgent invokes the agent binary with base args from cfg plus any
 // extra args. Unlike Execute, it does not write a task file. Suitable
-// for launch_eval, self_invoke, and other child agent invocations.
+// for self_invoke and other child agent invocations.
 func RunAgent(ctx context.Context, cfg Config, extraArgs ...string) *Result {
 	r := subprocess.Run(ctx, cfg.subprocessSpec(extraArgs...))
 	return &Result{

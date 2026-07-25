@@ -503,11 +503,9 @@ examples:
 
   - file: ../agent-profiles/agents/bench/machine.yaml
     description: |
-      5 states, human-in-the-loop interactive agent. Serves a web UI
-      and blocks waiting for user actions. Loops between serving and
-      launching evaluations. serve_ui is the bench equivalent of
-      invoke_llm. Rich state/signal metadata with purpose and
-      invariants.
+      Human-in-the-loop host machine. It launches the generic REST server,
+      awaits declared operator events, validates launch input, invokes the
+      critic through self_invoke, and drains the server on shutdown.
 
   - file: ../agent-profiles/agents/jurist/machine.yaml
     description: |

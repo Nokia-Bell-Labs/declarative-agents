@@ -86,13 +86,13 @@ func TestBuiltinFactoryCatalogSelectsEntriesByInit(t *testing.T) {
 
 	require.True(t, byName["planning"].selectedBy(map[string]bool{"execute_task": true}))
 	require.True(t, byName["evaluation"].selectedBy(map[string]bool{"run_point": true}))
-	require.True(t, byName["bench"].selectedBy(map[string]bool{"launch_eval": true}))
+	require.True(t, byName["evaluation"].selectedBy(map[string]bool{"list_evaluation_sessions": true}))
 	require.True(t, byName["spec_validation"].selectedBy(map[string]bool{"validate_specs": true}))
 	require.True(t, byName["lifecycle"].selectedBy(map[string]bool{"checkpoint_history": true}))
 	require.True(t, byName["lifecycle"].selectedBy(map[string]bool{"checkpoint_rollback": true}))
 	require.True(t, byName["rest"].selectedBy(map[string]bool{"rest_server_launch": true}))
 	require.True(t, byName["rest"].selectedBy(map[string]bool{"rest_server_stop": true}))
-	require.False(t, byName["planning"].selectedBy(map[string]bool{"launch_eval": true}))
+	require.False(t, byName["planning"].selectedBy(map[string]bool{"list_evaluation_sessions": true}))
 }
 
 func TestBuiltinFactoryCatalogCoversSelectedActiveInits(t *testing.T) {
@@ -117,7 +117,9 @@ func TestBuiltinFactoryCatalogCoversSelectedActiveInits(t *testing.T) {
 		"init_eval_session", "report_suite_summary", "next_point", "run_point",
 		"report_session", "run_agent", "record_oracle_result", "collect_trace_tokens",
 		"check_agent_version", "summarize_point_results", "collect_metrics",
-		"record_agent_commit", "dump_config", "serve_ui", "launch_eval", "load_corpus", "validate_specs",
+		"record_agent_commit", "dump_config", "list_evaluation_sessions",
+		"analyze_evaluation_session", "list_evaluation_points", "read_evaluation_trace",
+		"load_corpus", "validate_specs",
 		"format_report", "rest_server_launch", "rest_server_stop",
 	} {
 		require.True(t, covered[init], "catalog should cover init %q", init)

@@ -265,7 +265,8 @@ test_cases:
     inputs:
       boundary_tools:
         - run_agent
-        - serve_ui
+        - rest_await_event
+        - self_invoke
         - invoke_llm
     expected:
       category_boundary: true

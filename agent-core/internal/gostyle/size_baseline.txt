@@ -9,14 +9,6 @@ file:internal/tools/rest/factories.go
 file:internal/tools/rest/server_routes.go
 file:internal/tools/rest/validation.go
 func:cmd/agent/main.go:buildPreparedRun
-func:internal/evaluation/bench/api_configs.go:handleGetConfig
-func:internal/evaluation/bench/api_configs.go:handleListConfigs
-func:internal/evaluation/bench/api_configs.go:handleListProfiles
-func:internal/evaluation/bench/api_sessions.go:handleGetSession
-func:internal/evaluation/bench/api_sessions.go:handleListPoints
-func:internal/evaluation/bench/api_sessions.go:scanSession
-func:internal/evaluation/bench/api_source.go:handleGetSource
-func:internal/evaluation/bench/launch_eval.go:Execute
 func:internal/evaluation/eval_convergence.go:classifyTool
 func:internal/evaluation/eval_convergence.go:deriveOverall
 func:internal/evaluation/eval_dumpconfig.go:Execute

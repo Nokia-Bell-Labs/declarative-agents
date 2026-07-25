@@ -33,9 +33,10 @@ subprocess tools, process groups, lifecycle adapters, REST tools, and registry
 support.
 
 Evaluation, planning, and observability code lives in `internal/evaluation`,
-`internal/evaluation/bench`, `internal/planning`, and `internal/observability`.
-Those packages support evaluator runs, the bench UI, planner workflows, tracing
-ports, OpenTelemetry adapters, GenAI spans, and replay.
+`internal/planning`, and `internal/observability`. Those packages support
+evaluator runs and read-only artifact queries, planner workflows, tracing ports,
+OpenTelemetry adapters, GenAI spans, and replay. The bench application and UI
+live in the external `agent-profiles/agents/bench` profile.
 
 Support code lives in `internal/support`. Specification graph loading and
 cross-artifact validation live in `pkg/spec`.

@@ -10,8 +10,9 @@ summary: |
 
   The proof stays in agent-profiles because the bench profile, evaluator profile
   reference, launch fixture, and expected artifacts are profile-owned behavior.
-  agent-core owns the bench runtime and HTTP/tool implementations, but it should
-  not hard-code the concrete evaluator profile.
+  agent-core owns generic REST, evaluation artifact queries, and child-agent
+  execution; it does not own bench routes, assets, workflow, or the concrete
+  evaluator profile.
 
 actor: Human operator using the bench profile through a local harness.
 

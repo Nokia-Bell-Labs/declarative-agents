@@ -84,13 +84,11 @@ selection_files:
       shared builtin declaration directory.
 
   - file: <profile-root>/bench/tools.yaml
-    tool_count: 2
+    tool_count: 5
     description: |
-      Selects the two bench agent tools: serve_ui (blocks on
-      user input via web UI) and launch_eval (spawns the configured
-      evaluator profile as a child process). Shared declarations are
-      loaded from tools/builtin/ and bench-specific config comes from
-      <profile-root>/bench/builtin.yaml.
+      Selects profile aliases for generic REST launch/await/stop,
+      value_predicate, and self_invoke. Bench route and request-machine
+      declarations remain beside the profile.
 
 grouped_declaration_loading:
   status: planned

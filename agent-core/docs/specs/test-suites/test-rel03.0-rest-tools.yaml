@@ -1023,7 +1023,7 @@ test_cases:
       profile: agents/knowledge-manager/documentation-curator/profile.yaml
       listener: 127.0.0.1:18081
       frontend_builds:
-        - internal/evaluation/bench/ui
+        - ../agent-profiles/agents/bench/ui
         - ../agent-profiles/agents/knowledge-manager/documentation-curator/ui/docs
       bench_route_test: TestDocsAPIRoutesAreNotMounted
       lifecycle_exit_endpoint: POST /api/lifecycle/exit

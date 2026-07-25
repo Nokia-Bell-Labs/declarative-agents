@@ -490,8 +490,8 @@ tools:
     output_contract: missing
     undo: boundary_compensation (compensating_action, captures child_run_id + child_workspace_ref)
     overlaps:
-      - tool: launch_eval
-        difference: execute_task runs generator child for planner task; launch_eval runs evaluator child from bench
+      - tool: self_invoke
+        difference: execute_task runs the planner's executor contract; self_invoke runs an arbitrary configured child profile
     issues:
       - output.schema for execution result and workspace diff
     migration_priority: medium
@@ -794,36 +794,9 @@ tools:
       - needs output.schema for meta path and summary fields
     migration_priority: medium
 
-  # Bench tools
-  - name: serve_ui
-    role: boundary
-    selected_by: [bench]
-    inputs_from: [bench_state]
-    feeds_into: [launch_eval, terminal]
-    side_effects: http_server, user_interaction_block
-    output_contract: missing
-    undo: boundary_compensation (compensating_action, captures server_addr + user_action)
-    overlaps:
-      - tool: invoke_llm
-        difference: serve_ui blocks on human UI actions; invoke_llm blocks on model response
-    issues:
-      - output.schema for user action type and parameters
-    migration_priority: medium
-
-  - name: launch_eval
-    role: boundary
-    selected_by: [bench]
-    inputs_from: [serve_ui]
-    feeds_into: [serve_ui]
-    side_effects: child_agent_process, eval_results_write
-    output_contract: missing
-    undo: boundary_compensation (compensating_action, captures suite_path + output_dir + child_machine + child_tools)
-    overlaps:
-      - tool: execute_task
-        difference: launch_eval starts evaluator session; execute_task starts generator for planner task
-    issues:
-      - output.schema for evaluator session result summary
-    migration_priority: medium
+  # Bench owns no core-specific tools. Its profile aliases generic REST
+  # lifecycle/event, evaluation-query, predicate, compose, exec, filesystem,
+  # and self_invoke words.
 
   # Spec validation tools
   - name: load_corpus
@@ -1061,8 +1034,6 @@ boundary_tools_with_compensation:
     - execute_task
     - run_point
     - run_agent
-    - serve_ui
-    - launch_eval
     - commit
     - issue_create
     - issue_close

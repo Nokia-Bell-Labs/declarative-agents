@@ -15,7 +15,8 @@ problem: |
   The bench family needs its own requirements document so that changes to bench
   UI or launch behavior do not churn a shared cross-family file. The requirements
   must name profile-owned bench UI behavior separately from the evaluator profile
-  and agent-core bench tools.
+  and generic agent-core REST, filesystem, evaluation-query, predicate, and
+  child-agent primitives.
 
 goals:
   - G1: Model the bench profile as a human-operated evaluation launcher functional block.
@@ -33,8 +34,9 @@ requirements:
     title: Inputs, tools, and runtime dependencies
     items:
       - R2.1: Bench inputs must include a human UI action and an experiment configuration.
-      - R2.2: The bench profile must select the bench UI and evaluator launch tool families.
-      - R2.3: Bench runtime dependencies are the agent-core bench tools and the evaluator profile.
+      - R2.2: The bench profile must declare its UI assets, REST routes, host machine, and request machine.
+      - R2.3: Bench runtime dependencies are generic REST lifecycle and machine_request, filesystem resources, deterministic evaluation queries, value-predicate, self-invoke, compose, and exec.
+      - R2.4: No bench-specific HTTP server, action channel, or child launcher may be linked into the agent executable.
   R3:
     title: Outputs and outcomes
     items:
@@ -42,7 +44,7 @@ requirements:
       - R3.2: Bench terminal outcomes must be Done or Failed.
 
 non_goals:
-  - Define Go package APIs for the agent-core bench tools.
+  - Define a bench-specific Go HTTP or workflow package.
   - Reimplement evaluator session logic inside the bench profile.
   - Own cross-profile dependency-direction invariants; those stay in srd001.
 

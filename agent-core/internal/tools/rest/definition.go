@@ -148,6 +148,8 @@ type Endpoint struct {
 	Binding            string              `yaml:"binding"`
 	Signal             string              `yaml:"signal,omitempty"`
 	AllowedSignals     []string            `yaml:"allowed_signals,omitempty"`
+	SignalField        string              `yaml:"signal_field,omitempty"`
+	SignalMapping      map[string]string   `yaml:"signal_mapping,omitempty"`
 	LifecycleControl   LifecycleControl    `yaml:"lifecycle_control,omitempty"`
 	MonitorView        string              `yaml:"monitor_view,omitempty"`
 	Request            RequestBinding      `yaml:"request,omitempty"`

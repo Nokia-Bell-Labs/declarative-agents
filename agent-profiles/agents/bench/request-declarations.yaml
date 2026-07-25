@@ -1,0 +1,271 @@
+tools:
+  - &evaluation_query
+    name: list_evaluation_sessions
+    type: builtin
+    init: list_evaluation_sessions
+    visibility: internal
+    category: boundary
+    emits: [EvaluationDataReady, EvaluationMissing, EvaluationDenied, CommandError]
+    description: List evaluator sessions from persisted point artifacts.
+    problem: Bench reads need a deterministic, HTTP-independent evaluation artifact query.
+    goals: [Return sorted session counts from meta.json files.]
+    requirements: {input: [Configured evaluation root.], output: [Evaluation session summaries.], errors: [Filesystem failures remain distinct.]}
+    non_goals: [Does not serve HTTP or own UI policy.]
+    parameters: {type: object, properties: {}, additionalProperties: false}
+    output: {description: Evaluation session summaries, schema: {type: array}}
+    side_effects: [{kind: filesystem_read, target: evaluation_artifacts, state: read_only}]
+    reversibility: {classification: reversible, undo: noop}
+    undo: {strategy: noop, description: Artifact queries change nothing.}
+    errors: [{signal: CommandError, condition: Artifact reads fail, state_after_failure: No state changes.}]
+    config: &evaluation_root {data_dir: eval-results}
+
+  - name: analyze_evaluation_session
+    <<: *evaluation_query
+    init: analyze_evaluation_session
+    description: Compute model and sample statistics for one evaluation session.
+    goals: [Reuse deterministic evaluation statistics without HTTP dependencies.]
+    parameters:
+      type: object
+      properties: {suite: {type: string}, timestamp: {type: string}}
+      required: [suite, timestamp]
+    output: {description: Evaluation session statistics, schema: {type: object}}
+
+  - name: list_evaluation_points
+    <<: *evaluation_query
+    init: list_evaluation_points
+    description: List point outcomes and trace-derived metrics for one session.
+    goals: [Return stable point metrics from persisted evaluator artifacts.]
+    parameters:
+      type: object
+      properties: {suite: {type: string}, timestamp: {type: string}}
+      required: [suite, timestamp]
+    output: {description: Evaluation point summaries, schema: {type: array}}
+
+  - name: read_evaluation_trace
+    <<: *evaluation_query
+    init: read_evaluation_trace
+    description: Read and normalize one evaluator trace.
+    goals: [Return spans and tool snapshots from a bounded point path.]
+    parameters:
+      type: object
+      properties: {suite: {type: string}, timestamp: {type: string}, point_id: {type: string}}
+      required: [suite, timestamp, point_id]
+    output: {description: Normalized evaluation trace, schema: {type: object}}
+
+  - &resource_base
+    name: list_bench_configs
+    type: builtin
+    init: list_resource
+    visibility: internal
+    category: boundary
+    emits: [DocumentListReady, DocumentResourceDenied, CommandError]
+    description: List allowlisted bench configuration YAML.
+    problem: Profile views need path-safe generic filesystem discovery.
+    goals: [List YAML files under the configured agents root.]
+    requirements: {input: [Optional prefix only.], output: [Stable resource entries.], errors: [Denied and filesystem outcomes stay distinct.]}
+    non_goals: [Does not shape HTTP responses.]
+    parameters: {type: object, properties: {prefix: {type: string}}}
+    output: {description: Configuration resource entries, schema: {type: array}}
+    side_effects: [{kind: filesystem_read, target: bench_configs, state: read_only}]
+    reversibility: {classification: reversible, undo: noop}
+    undo: {strategy: noop, description: Resource reads change nothing.}
+    errors: [{signal: CommandError, condition: Filesystem access fails, state_after_failure: No state changes.}]
+    config: &config_resource
+      resource: configs
+      resources:
+        configs:
+          root: agents
+          include: ["**/*.yaml", "**/*.yml"]
+          extensions: [yaml, yml]
+          modes: [raw_yaml, parsed_yaml]
+          max_bytes: 1048576
+
+  - name: read_bench_config
+    <<: *resource_base
+    init: read_resource
+    emits: [DocumentReady, DocumentMissing, DocumentResourceDenied, DocumentParseFailed, CommandError]
+    description: Read one allowlisted bench configuration YAML.
+    goals: [Return raw and parsed configuration content.]
+    parameters: {type: object, properties: {path: {type: string}}, required: [path]}
+    output: {description: Configuration resource detail, schema: {type: object}}
+    config: *config_resource
+
+  - name: read_bench_source
+    <<: *resource_base
+    init: read_resource
+    emits: [DocumentReady, DocumentMissing, DocumentResourceDenied, DocumentParseFailed, CommandError]
+    description: Read one allowlisted text source file.
+    goals: [Expose bounded textual source through the generic resource word.]
+    parameters: {type: object, properties: {path: {type: string}}, required: [path]}
+    output: {description: Source resource detail, schema: {type: object}}
+    config:
+      resource: source
+      resources:
+        source:
+          root: .
+          include: []
+          extensions: [go, yaml, yml, ts, tsx, js, jsx, css, json, md, txt, toml, mod, sum, html, sh]
+          modes: [raw]
+          max_bytes: 1048576
+
+  - name: read_bench_experiment
+    <<: *resource_base
+    init: read_resource
+    emits: [DocumentReady, DocumentMissing, DocumentResourceDenied, DocumentParseFailed, CommandError]
+    description: Read one persisted evaluator experiment YAML.
+    goals: [Expose only experiment.yaml files below eval-results.]
+    parameters: {type: object, properties: {path: {type: string}}, required: [path]}
+    output: {description: Parsed evaluator experiment, schema: {type: object}}
+    config:
+      resource: experiments
+      resources:
+        experiments:
+          root: eval-results
+          include: ["**/experiment.yaml"]
+          extensions: [yaml]
+          modes: [raw_yaml, parsed_yaml]
+          max_bytes: 1048576
+
+  - &compose_base
+    name: wrap_bench_input
+    type: builtin
+    init: compose
+    visibility: internal
+    category: response
+    emits: [InputReady]
+    description: Wrap previous JSON as bounded jq input.
+    problem: Exec stdin accepts strings while resource words return structured JSON.
+    goals: [Preserve the complete prior output for one atomic transform.]
+    requirements: {input: [Previous JSON output.], output: [A payload string.], errors: [Invalid selectors emit CommandError.]}
+    non_goals: [Does not interpret the payload.]
+    parameters: {type: object, properties: {}, additionalProperties: false}
+    output: {description: Wrapped transform input, schema: {type: object}}
+    side_effects: []
+    reversibility: {classification: reversible, undo: noop}
+    undo: {strategy: noop, description: Composition changes nothing.}
+    errors: [{signal: CommandError, condition: Input composition fails, state_after_failure: No state changes.}]
+    config:
+      signal: InputReady
+      inputs: {payload: "$."}
+      template: '{"payload": {{ json payload }}}'
+
+  - name: capture_experiment_path
+    <<: *compose_base
+    description: Build the allowlisted experiment artifact path.
+    problem: Resource reads accept one relative path while REST supplies path components.
+    goals: [Join only declared route components.]
+    config:
+      signal: InputReady
+      inputs:
+        suite: $.parameters.suite
+        timestamp: $.parameters.timestamp
+        point_id: $.parameters.point_id
+      template: '{"path":"{{ suite }}/{{ timestamp }}/{{ point_id }}/experiment.yaml"}'
+
+  - name: shape_bench_configs
+    type: exec
+    binary: jq
+    args:
+      - -c
+      - >-
+        {data:(group_by(.path|split("/")[0]) |
+        map({category:(.[0].path|split("/")[0]),
+        files:map({path:.path,name:(.path|split("/")[1:]|join("/"))})}))}
+    stdin_source: $from(config_entries).payload
+    stdin_max_bytes: 2097152
+    visibility: internal
+    category: response
+    emits: [ToolDone, ToolFailed, CommandError]
+    description: Group configuration resources into the existing bench UI contract.
+    problem: Presentation shaping belongs in profile-owned deterministic transforms.
+    goals: [Sort categories and files using list_resource order.]
+    requirements: {input: [Wrapped resource JSON.], output: [Configuration categories.], errors: [Malformed JSON emits ToolFailed.]}
+    non_goals: [Does not access the filesystem.]
+    parameters: {type: object, properties: {}, additionalProperties: false}
+    output: {description: Bench configuration categories, mode: raw, schema: {type: array}}
+    side_effects: []
+    reversibility: {classification: reversible, undo: noop}
+    undo: {strategy: noop, description: Transform changes nothing.}
+    errors: [{signal: ToolFailed, condition: jq cannot shape input, state_after_failure: No state changes.}]
+
+  - name: shape_bench_config
+    type: exec
+    binary: jq
+    args:
+      - -c
+      - >-
+        . as $d | $d.parsed as $c | {data:(
+        {path:$d.path,content:$c,raw:$d.raw} +
+        (if (($c.states|type)=="array" and ($c.transitions|type)=="array") then
+          {graph:{states:[$c.states[]|select(type=="string")],
+          terminalStates:[($c.terminal_states//[])[]|select(type=="string")],
+          transitions:[$c.transitions[]|{from:(.state//""),signal:(.signal//""),
+          to:(.next//""),action:(.action//"")} ]}}
+        else {} end))}
+    stdin_source: $from(config_detail).payload
+    stdin_max_bytes: 2097152
+    visibility: internal
+    category: response
+    emits: [ToolDone, ToolFailed, CommandError]
+    description: Shape parsed YAML and optional machine graph for the bench UI.
+    problem: Graph presentation belongs beside the profile rather than in runtime Go.
+    goals: [Preserve raw content and the existing graph field names.]
+    requirements: {input: [Wrapped resource detail.], output: [Configuration detail.], errors: [Malformed JSON emits ToolFailed.]}
+    non_goals: [Does not parse paths or serve HTTP.]
+    parameters: {type: object, properties: {}, additionalProperties: false}
+    output: {description: Bench configuration detail, mode: raw, schema: {type: object}}
+    side_effects: []
+    reversibility: {classification: reversible, undo: noop}
+    undo: {strategy: noop, description: Transform changes nothing.}
+    errors: [{signal: ToolFailed, condition: jq cannot shape input, state_after_failure: No state changes.}]
+
+  - name: shape_bench_source
+    <<: *compose_base
+    emits: [ResponseReady]
+    description: Shape source resource output for the existing bench UI.
+    goals: [Return path, content, language, MIME type, and size.]
+    config:
+      signal: ResponseReady
+      inputs: {path: $.path, content: $.raw, language: $.extension, mime: $.content_type, size: $.size}
+      template: '{"data":{"path":{{ json path }},"content":{{ json content }},"language":{{ json language }},"mimeType":{{ json mime }},"size":{{ size }}}}'
+
+  - name: shape_bench_experiment
+    <<: *compose_base
+    emits: [ResponseReady]
+    description: Return parsed evaluator experiment configuration.
+    goals: [Preserve the historical experiment response body.]
+    config:
+      signal: ResponseReady
+      inputs: {content: $.parsed}
+      template: '{"data":{{ content }}}'
+
+  - name: list_bench_profiles
+    type: exec
+    binary: sh
+    args:
+      - -c
+      - >-
+        set -eu; root=../agent-core/internal/model/llm/profiles;
+        [ -d "$root" ] || { printf '[]\n'; exit 0; };
+        for f in "$root"/*.yaml; do
+          [ -f "$f" ] || continue;
+          name=$(awk '$1=="name:" {sub(/^name:[[:space:]]*/,""); print; exit}' "$f");
+          strict=$(awk '$1=="strict_format:" {print $2; exit}' "$f");
+          jq -cn --arg name "${name:-$(basename "$f" .yaml)}" --argjson strict "${strict:-false}"
+          '{name:$name,matchPrefixes:[],strictFormat:$strict,pipeline:[]}';
+        done | jq -cs '{data:sort_by(.name)}'
+      - bench-profiles
+    visibility: internal
+    category: response
+    emits: [ToolDone, ToolFailed, CommandError]
+    description: Shape model profile summaries from profile-owned configuration files.
+    problem: The optional profile route needs deterministic presentation without runtime handlers.
+    goals: [Return stable name and strict-format summaries.]
+    requirements: {input: [Configured checkout layout.], output: [Sorted profile summaries.], errors: [Tool failures remain visible.]}
+    non_goals: [Does not control model selection.]
+    parameters: {type: object, properties: {}, additionalProperties: false}
+    output: {description: Model profile summaries, mode: raw, schema: {type: array}}
+    side_effects: [{kind: filesystem_read, target: model_profiles, state: read_only}]
+    reversibility: {classification: reversible, undo: noop}
+    undo: {strategy: noop, description: Profile reads change nothing.}
+    errors: [{signal: ToolFailed, condition: Profile shaping fails, state_after_failure: No state changes.}]

@@ -259,10 +259,11 @@ builtin_fields:
       Decoded into typed Go structs via DecodeToolConfig at registration
       time. Type mismatches produce errors mentioning the tool name.
       Structure varies per tool. Boundary tools that spawn child agents use
-      profile-only child_agent_config for launch_eval, execute_task, and self_invoke.
+      profile-only child_agent_config for execute_task and self_invoke.
       LLMToolConfig configures invoke_llm. LoadSuiteConfig configures
       parse_suite_config and evaluator session setup tools. RunPointConfig
-      configures run_point. ServeUIToolConfig configures serve_ui.
+      configures run_point. EvaluationArtifactsConfig configures read-only
+      evaluation artifact query words.
       Filesystem document resource words use document_resource_config.
       See cfg-llm-config-format for invoke_llm details.
 
@@ -417,7 +418,7 @@ metric_declaration_fields:
 child_agent_config:
   purpose: |
     Defines config for builtin boundary tools that spawn another agent process.
-    This applies to execute_task, self_invoke, and launch_eval.
+    This applies to execute_task and self_invoke.
   fields:
     - field: profile
       type: string
@@ -441,12 +442,11 @@ child_agent_config:
     execute_task: |
       config:
         profile: ${AGENT_PROFILES_ROOT}/generator/profile.yaml
-    launch_eval: |
-      config:
-        profile: ${AGENT_PROFILES_ROOT}/evaluator/profile.yaml
     self_invoke: |
       config:
         profile: ${AGENT_PROFILES_ROOT}/generator/profile.yaml
+        request_from: $from(request).path
+        output_from: $from(request).output_dir
 
 exec_fields:
   - field: binary
@@ -602,7 +602,7 @@ boundary_compensation_example: |
   Boundary tools that cross process, issue, or human boundaries declare
   payload: boundary_compensation in their undo section. At runtime, the
   tool's UndoMemento() method serializes a BoundaryCompensationPayload
-  containing the values named in captures. Example from launch_eval:
+  containing the values named in captures. Example from self_invoke:
 
     undo:
       strategy: compensating_action
@@ -621,7 +621,7 @@ boundary_compensation_example: |
     }
 
   Tools with boundary_compensation: validate, suspend,
-  execute_task, run_point, run_agent, serve_ui, launch_eval, commit,
+  execute_task, run_point, run_agent, self_invoke, commit,
   issue_create, issue_close, and profile-owned tracker exec words.
 
 inline_pattern: |
@@ -664,7 +664,7 @@ mode_local_overrides: |
   blocks to tools declared in tools/builtin/. These are loaded after
   the shared declaration directory through profile tool_declarations:
 
-    <profile-root>/bench/builtin.yaml — bench-specific config (serve_ui, launch_eval)
+    <profile-root>/bench/builtin.yaml — profile aliases for generic REST lifecycle, predicate, and self_invoke words
     <profile-root>/evaluator/builtin.yaml — evaluator-specific config (suite/point tools)
     <profile-root>/planner/builtin.yaml — planner-specific config (child agent, issue tools)
 
@@ -716,9 +716,6 @@ target_grouped_layout:
       owns: [create_point_dir, copy_sample_docs, record_agent_commit, dump_config, run_agent, record_oracle_result, collect_trace_tokens, check_agent_version, summarize_point_results, collect_metrics]
       kind: shared critic-point declarations
       note: Workspace copying, git setup, and rev_parse reuse tools/exec declarations; the external critic profile owns its deterministic commit_workspace_baseline and run_oracle_check exec aliases.
-    - path: tools/builtin/bench/
-      owns: [serve_ui, launch_eval]
-      kind: shared bench declarations
     - path: tools/builtin/spec-validation/
       owns: [load_corpus, validate_specs, format_report]
       kind: shared jurist declarations

@@ -244,6 +244,9 @@ func copySourceTreeStrict(source, destination string) error {
 		if walkErr != nil {
 			return walkErr
 		}
+		if entry.IsDir() && entry.Name() == "node_modules" {
+			return filepath.SkipDir
+		}
 		rel, err := filepath.Rel(source, filename)
 		if err != nil {
 			return err

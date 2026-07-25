@@ -7,8 +7,6 @@ import (
 	"path/filepath"
 
 	"github.com/Nokia-Bell-Labs/declarative-agents/agent-core/internal/evaluation"
-	"github.com/Nokia-Bell-Labs/declarative-agents/agent-core/internal/evaluation/bench"
-	benchui "github.com/Nokia-Bell-Labs/declarative-agents/agent-core/internal/evaluation/bench/ui"
 	"github.com/Nokia-Bell-Labs/declarative-agents/agent-core/internal/model/llm"
 	"github.com/Nokia-Bell-Labs/declarative-agents/agent-core/internal/planning/pipeline"
 	"github.com/Nokia-Bell-Labs/declarative-agents/agent-core/internal/runtime/core"
@@ -57,7 +55,6 @@ func standardFactoryDeps(st *agentState) toolregistry.StandardFactoryDeps {
 		RegisterControl:        registerControlFactories(st),
 		RegisterPlanning:       registerPlanningFactories(st),
 		RegisterEvaluation:     registerEvaluationFactories(st),
-		RegisterBench:          registerBenchFactories(),
 		RegisterSpecValidation: registerSpecValidationFactories(st),
 		RegisterREST:           registerRESTFactories(st),
 		RegisterCompose:        registerComposeFactories(),
@@ -316,11 +313,15 @@ func selfInvokeFactory(st *agentState) toolregistry.BuiltinFactory {
 		if err != nil {
 			return nil, err
 		}
+		config := childExecuteConfig(parsed)
+		config.Binary = st.childAgentBinary
 		return &control.SelfInvokeBuilder{
-			Config:    childExecuteConfig(parsed),
-			ExtraArgs: directoryArgs(vars["directory"]),
-			Ctx:       st.ctx,
-			Tracer:    st.tracer,
+			Config:      config,
+			RequestFrom: parsed.RequestFrom,
+			OutputFrom:  parsed.OutputFrom,
+			ExtraArgs:   directoryArgs(vars["directory"]),
+			Ctx:         st.ctx,
+			Tracer:      st.tracer,
 		}, nil
 	}
 }
@@ -339,6 +340,8 @@ func decodeChildAgent(def catalog.ToolDef) (catalog.ChildAgentConfig, error) {
 func childExecuteConfig(parsed catalog.ChildAgentConfig) execute.Config {
 	return execute.Config{
 		Profile: parsed.Profile,
+		Request: parsed.Request,
+		Output:  parsed.Output,
 	}
 }
 
@@ -374,14 +377,9 @@ func registerEvaluationFactories(st *agentState) toolregistry.FactoryRegistrar {
 			Stderr:           os.Stderr,
 			SuitePath:        st.request,
 			OutputDir:        st.output,
+			Directory:        st.directory,
 			ChildAgentBinary: st.childAgentBinary,
 		})
-	}
-}
-
-func registerBenchFactories() toolregistry.FactoryRegistrar {
-	return func(br *toolregistry.BuiltinRegistry) {
-		bench.RegisterFactories(br, benchui.Assets())
 	}
 }
 

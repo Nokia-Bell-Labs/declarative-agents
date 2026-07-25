@@ -53,7 +53,7 @@ tools:
   # The corpus-ingest child run (srd005 R3.1), realized through agent-core's
   # agent-as-child-CLI contract (agent-core srd021): the creator runs the agent
   # binary its own image already carries against the corpus-ingest profile.
-  # launch_eval and run_agent are not reusable -- both are bench-harness words
+  # run_agent is evaluator-specific; profile child dispatch reuses self_invoke
   # needing a suite path or a point workspace -- and srd021 R1.1 prescribes
   # exactly this shape: type exec, binary agent.
   #

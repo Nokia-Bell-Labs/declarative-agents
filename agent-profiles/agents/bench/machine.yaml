@@ -1,63 +1,54 @@
 name: bench
 purpose: |-
-  The bench is an interactive agent that serves a web UI for browsing
-  experiment results, launching new evaluations, and comparing model
-  performance across harness/LLM combinations. Unlike other agents,
-  its input source is a human operator via HTTP rather than an LLM.
-
-  serve_ui is the bench equivalent of invoke_llm — it blocks waiting
-  for human input through the web UI. The state machine routes the
-  user's action signal identically to how the generator routes LLM
-  response signals.
+  Host the profile-owned bench REST application, route operator actions,
+  and invoke evaluator children through reusable runtime primitives.
 configuration:
   machine: agents/bench/machine.yaml
   tools: agents/bench/tools.yaml
   tool_declarations:
-  - agents/bench/serve_ui.yaml
+  - agents/bench/builtin.yaml
   - tools/builtin.yaml
 invariants:
 - The bench never calls an LLM directly
-- The HTTP server persists across serve_ui invocations (goroutine in BenchState)
-- User actions are the only input source — serve_ui is the human equivalent of invoke_llm
+- REST routes and UI assets are owned by the bench profile
+- Operator actions enter through the generic REST event queue
 - The web UI remains accessible during experiment execution for progress monitoring
-- All experiment execution launches the evaluator profile, which owns the session machine pipeline
+- All experiment execution uses self_invoke to launch the critic profile
 lifecycle: |-
-  1. Idle → Serving (Seed): serve_ui starts the HTTP server and blocks
-  2. Serving → Launching (ExperimentRequested): launch_eval spawns the evaluator profile
-  3. Launching → Serving (EvalCompleted/EvalFailed): return to serve_ui
-  4. Serving → Done (Shutdown): clean exit
-
-  The agent loops between Serving and Launching. Each cycle:
-  serve_ui blocks → user acts → state machine routes → tool executes →
-  result feeds back to serve_ui. Same loop as the generator's
-  invoke_llm → parse → tool → invoke_llm cycle.
+  1. Launch the generic REST server.
+  2. Await a declared operator launch or shutdown action.
+  3. Validate launch input and self-invoke the critic.
+  4. Return to the operator wait after child completion or failure.
+  5. Stop and drain the REST server on shutdown.
 pipeline_diagram: |-
   ```mermaid
   flowchart TD
-    A[Idle] -->|Seed| B[Serving]
-    B -->|ExperimentRequested| C[Launching]
-    C -->|EvalCompleted| B
-    C -->|EvalFailed| B
-    B -->|Shutdown| D[Done]
-    C -->|CommandError| E[Failed]
+    A[Idle] -->|Seed| B[Launching HTTP]
+    B -->|ServerLaunched| C[Awaiting Action]
+    C -->|ExperimentRequested| D[Validating Suite]
+    D -->|SuiteSelected| E[Launching Evaluator]
+    E -->|ToolDone or ToolFailed| C
+    C -->|Shutdown| F[Stopping HTTP]
+    F -->|ServerStopped| G[Done]
   ```
 initial_state: Idle
 budget:
   max_iterations: 10000
+metric_labels:
+  workflow: bench
 states:
 - name: Idle
   meaning: Initial state before the web server starts.
+- name: LaunchingHTTP
+  meaning: The generic profile-configured REST listener is starting.
 - name: Serving
-  meaning: |
-    The web UI is running and waiting for user input. serve_ui
-    blocks on an action channel until the user triggers an action
-    (launch experiment, shutdown, etc.). This is the main resting
-    state — the agent returns here after each completed action.
+  meaning: The UI is available while the host awaits one queued operator action.
+- name: Validating
+  meaning: The declared suite predicate is checking launch input.
 - name: Launching
-  meaning: |
-    An experiment is being executed. launch_eval has spawned
-    the evaluator profile as a subprocess and is blocking until it completes.
-    The web UI remains accessible for monitoring progress.
+  meaning: self_invoke is running the critic while REST remains available.
+- name: StoppingHTTP
+  meaning: The generic REST listener is draining and stopping.
 - name: Done
   meaning: Terminal. The user requested shutdown.
 - name: Failed
@@ -68,39 +59,86 @@ terminal_states:
 signals:
 - name: Seed
   trigger: Agent startup.
+- name: ServerLaunched
+  trigger: Generic REST listener started.
 - name: ExperimentRequested
   trigger: User clicked Launch in the web UI.
 - name: Shutdown
   trigger: User requested shutdown or Ctrl+C.
-- name: EvalCompleted
-  trigger: The evaluator session machine subprocess exited successfully.
-- name: EvalFailed
-  trigger: The evaluator session machine subprocess exited with an error.
+- name: SuiteSelected
+  trigger: The launch request includes a non-empty suite path.
+- name: SuiteMissing
+  trigger: The launch request omitted its suite path.
+- name: ToolDone
+  trigger: The evaluator child completed.
+- name: ToolFailed
+  trigger: The evaluator child failed.
+- name: ServerStopped
+  trigger: Generic REST listener stopped.
+- name: AwaitTimedOut
+  trigger: No operator action arrived before the configured bound.
 - name: CommandError
   trigger: Infrastructure-level error.
 transitions:
 - state: Idle
   signal: Seed
+  next: LaunchingHTTP
+  action: launch_bench_http
+- state: LaunchingHTTP
+  signal: ServerLaunched
   next: Serving
-  action: serve_ui
+  action: await_bench_action
+  label: operator_action
+- state: LaunchingHTTP
+  signal: CommandError
+  next: Failed
 - state: Serving
   signal: ExperimentRequested
-  next: Launching
-  action: launch_eval
+  next: Validating
+  action: validate_eval_suite
 - state: Serving
   signal: Shutdown
-  next: Done
+  next: StoppingHTTP
+  action: stop_bench_http
 - state: Serving
   signal: CommandError
   next: Failed
-- state: Launching
-  signal: EvalCompleted
+- state: Serving
+  signal: AwaitTimedOut
   next: Serving
-  action: serve_ui
-- state: Launching
-  signal: EvalFailed
+  action: await_bench_action
+  label: operator_action
+- state: Serving
+  signal: ServerStopped
+  next: Failed
+- state: Validating
+  signal: SuiteSelected
+  next: Launching
+  action: launch_evaluator
+- state: Validating
+  signal: SuiteMissing
   next: Serving
-  action: serve_ui
+  action: await_bench_action
+  label: operator_action
+- state: Validating
+  signal: CommandError
+  next: Failed
 - state: Launching
+  signal: ToolDone
+  next: Serving
+  action: await_bench_action
+  label: operator_action
+- state: Launching
+  signal: ToolFailed
+  next: Serving
+  action: await_bench_action
+  label: operator_action
+- state: Launching
+  signal: CommandError
+  next: Failed
+- state: StoppingHTTP
+  signal: ServerStopped
+  next: Done
+- state: StoppingHTTP
   signal: CommandError
   next: Failed

@@ -425,6 +425,14 @@ schema:
         type: "[]string"
         required: false
         description: Signal allowlist for emit_dynamic_signal endpoints.
+      - field: signal_field
+        type: string
+        required: false
+        description: Optional dotted validated-payload path whose string value selects an emit_dynamic_signal outcome.
+      - field: signal_mapping
+        type: "map[string]string"
+        required: false
+        description: Optional profile-owned mapping from signal_field values to allowed_signals; requires signal_field and every mapped result must be allowlisted.
       - field: lifecycle_control
         type: lifecycle_control_config
         required: false

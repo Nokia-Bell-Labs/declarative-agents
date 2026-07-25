@@ -19,10 +19,8 @@ import (
 
 const binDir = "bin"
 
-// Build compiles all cmd/ binaries into bin/.
-// If any embedded UI directories are found (internal/evaluation/bench/ui/, etc.),
-// their frontends are built first and Go is compiled with -tags
-// production to embed the assets.
+// Build compiles all cmd/ binaries into bin/. Application UI assets are owned
+// and built by their external profiles, not embedded into the core runtime.
 func Build() error {
 	pkgs, err := discoverCmdPackages()
 	if err != nil {
@@ -36,31 +34,10 @@ func Build() error {
 		return fmt.Errorf("mkdir %s: %w", binDir, err)
 	}
 
-	needsProduction := false
-	for _, uiDir := range embeddedUIDirs {
-		if hasUI(uiDir) {
-			fmt.Printf("installing frontend deps for %s\n", uiDir)
-			if err := runInDir(uiDir, "npm", "install"); err != nil {
-				return fmt.Errorf("%s npm install: %w", uiDir, err)
-			}
-			if err := auditUIDeps(uiDir); err != nil {
-				return err
-			}
-			fmt.Printf("building frontend for %s\n", uiDir)
-			if err := runInDir(uiDir, "npm", "run", "build"); err != nil {
-				return fmt.Errorf("%s frontend build: %w", uiDir, err)
-			}
-			needsProduction = true
-		}
-	}
-
 	for _, pkg := range pkgs {
 		name := filepath.Base(pkg)
 		out := filepath.Join(binDir, name)
 		args := []string{"build", "-o", out}
-		if needsProduction {
-			args = append(args, "-tags", "production")
-		}
 		args = append(args, pkg)
 		fmt.Printf("building %s → %s\n", pkg, out)
 		if err := sh.Run("go", args...); err != nil {
@@ -68,36 +45,6 @@ func Build() error {
 		}
 	}
 	return nil
-}
-
-var embeddedUIDirs = []string{
-	"internal/evaluation/bench/ui",
-}
-
-func hasUI(uiDir string) bool {
-	_, err := os.Stat(filepath.Join(uiDir, "package.json"))
-	return err == nil
-}
-
-// auditUIDeps fails the build when an embedded frontend has a known production
-// dependency vulnerability. These bundles are served to a browser, so a
-// sanitizer or other runtime dependency defect is a release finding rather than
-// a printed-and-ignored warning. Dev-only tooling (build/test) is out of scope,
-// so the gate omits dev dependencies and trips at the moderate advisory level.
-func auditUIDeps(uiDir string) error {
-	fmt.Printf("auditing frontend deps for %s\n", uiDir)
-	if err := runInDir(uiDir, "npm", "audit", "--omit=dev", "--audit-level=moderate"); err != nil {
-		return fmt.Errorf("%s npm audit: known production dependency vulnerability (run `npm audit fix` in %s): %w", uiDir, uiDir, err)
-	}
-	return nil
-}
-
-func runInDir(dir string, name string, args ...string) error {
-	cmd := exec.Command(name, args...)
-	cmd.Dir = dir
-	cmd.Stdout = os.Stdout
-	cmd.Stderr = os.Stderr
-	return cmd.Run()
 }
 
 // Audit runs the jurist agent against the project documentation.

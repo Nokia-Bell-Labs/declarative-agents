@@ -27,8 +27,8 @@ public Go APIs.
   for catalog loading, registration, file, exec, lifecycle, validation, control,
   undo, REST, and LLM tool implementations.
 - `internal/evaluation`: evaluator session/point runtime, result artifacts,
-  metrics, convergence, trace analysis, and bench orchestration/UI support.
-  Bench server, UI, and orchestration code live under `internal/evaluation/bench`.
+  metrics, convergence, trace analysis, and read-only artifact query words.
+  Bench routes, UI, and orchestration live in the external bench profile.
 - `internal/model`: LLM clients, provider adapters, prompt rendering, model
   profiles, and tool manifest assembly.
 - `internal/planning`: task extraction, spec graphs used for planning,
@@ -46,8 +46,6 @@ Generated from `go list ./...` after the internal package migration:
 
 - `cmd/agent`
 - `internal/evaluation`
-- `internal/evaluation/bench`
-- `internal/evaluation/bench/ui`
 - `internal/model`
 - `internal/model/llm`
 - `internal/model/llm/ollama`
@@ -96,9 +94,9 @@ Generated from `go list ./...` after the internal package migration:
    model-specific tool implementations. Done: generic tool behavior now lives in
    focused `internal/tools/*` packages, and evaluator session/point/result code
    lives under `internal/evaluation`.
-7. Move the remaining bench runtime under `internal/evaluation`. Done: bench
-   server, UI support, and bench-specific tools now live under
-   `internal/evaluation/bench`.
+7. Keep reusable evaluation analysis under `internal/evaluation`; move bench
+   routes, UI assets, and workflow policy to `agent-profiles/agents/bench`.
+   Done: the universal runtime links no bench application package.
 8. Keep shared specification parsing and validation in `pkg/spec`; move only
    jurist-specific orchestration under `internal/audit`.
 9. Update docs, build scripts, audit rules, and remove empty old package paths.

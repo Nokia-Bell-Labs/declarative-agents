@@ -55,5 +55,11 @@ func expectedEvalFactoryNames() []string {
 	for _, spec := range evalPointFactorySpecs() {
 		names = append(names, spec.name)
 	}
+	names = append(names,
+		"list_evaluation_sessions",
+		"analyze_evaluation_session",
+		"list_evaluation_points",
+		"read_evaluation_trace",
+	)
 	return names
 }

@@ -68,7 +68,7 @@ A tool is an operation: it accepts parameters, performs work (possibly with side
 Tools are categorized by the predictability of their outcome, which shapes how the machine handles variance:
 
 - A **deterministic tool** — `write_file`, `run_build`, `run_tests` — produces the same signal given identical inputs. The machine can rely on this and design transitions accordingly.
-- A **boundary tool** — `invoke_llm`, `serve_ui`, `run_agent` — crosses a boundary to an external actor: a language model, a human, or another system. Its response is not predictable from inputs alone. Boundary tools are the primary source of variance in execution. To handle this variance, the machine requires that every signal a boundary tool can emit appear explicitly in the transition table, giving the machine control over every possible outcome.
+- A **boundary tool** — `invoke_llm`, `rest_await_event`, `run_agent` — crosses a boundary to an external actor: a language model, a human, or another system. Its response is not predictable from inputs alone. Boundary tools are the primary source of variance in execution. To handle this variance, the machine requires that every signal a boundary tool can emit appear explicitly in the transition table, giving the machine control over every possible outcome.
 
 A tool may also be **non-terminal**: its `Execute` runs an entire sub-machine, and the parent machine receives a single signal when the sub-machine completes. This enables hierarchical composition (Chapter 9).
 
@@ -222,7 +222,7 @@ Three types of boundary tool recur, each configured through data rather than com
 | Actor type | Example tool | Shaping mechanism |
 |---|---|---|
 | **Model** | `invoke_llm` | System prompt + tool manifest |
-| **Human** | `serve_ui` | The interface presented |
+| **Human** | `rest_await_event` | The interface presented |
 | **Agent** | `run_agent` | The child profile |
 
 

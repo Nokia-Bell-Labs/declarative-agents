@@ -951,12 +951,12 @@ patterns:
       - system: Reference implementation — bench/evaluator/generator stack
         cite: reference-implementation
         kind: internal
-        note: Bench delegates to critics via subprocess launch_eval; critics run executors via nested run_point; a benchmark point traverses all three with complexity isolated at each level.
+        note: Bench delegates to critics via self_invoke; critics run executors via nested run_point; a benchmark point traverses all three with complexity isolated at each level.
         evidence:
           classification: shipped
           checks:
             - path: agent-profiles/agents/bench/machine.yaml
-              contains: [launch_eval]
+              contains: [self_invoke]
             - path: agent-profiles/agents/critic/machine.yaml
               contains: [run_point]
     provenance: [reference-implementation, external-corroboration]
