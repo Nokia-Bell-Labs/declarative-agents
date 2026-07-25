@@ -11,7 +11,7 @@ import (
 )
 
 // This is the check that would have caught GH-502. Each template was individually
-// correct there -- the ingress named a real Service, the executor NetworkPolicy
+// correct there -- the ingress named a real Service, the applier NetworkPolicy
 // named a real selector -- and only the two read together showed the browser route
 // was dead: an ingress-controller pod carries no creator label, so it could never
 // reach the apply port the ingress pointed it at.
@@ -123,7 +123,7 @@ func provisioningBackend(docs []renderedDoc) (service, port string, found bool) 
 }
 
 // TestProvisioningIngressRoutesToTheCoordinator pins the route half. The panel's
-// intake is the coordinator (srd004 R1.5); pointing this prefix at the executor's
+// intake is the coordinator (srd004 R1.5); pointing this prefix at the applier's
 // apply Service is the GH-502 defect.
 func TestProvisioningIngressRoutesToTheCoordinator(t *testing.T) {
 	docs := renderMesh(t, "controlPlane.enabled=true")
@@ -133,46 +133,46 @@ func TestProvisioningIngressRoutesToTheCoordinator(t *testing.T) {
 		t.Fatal("no /provisioning ingress rule rendered with the control plane enabled")
 	}
 	if !strings.HasSuffix(service, "-coordinator") {
-		t.Errorf("/provisioning routes to %q; the panel's intake is the coordinator, and routing it at the executor is what GH-502 fixed", service)
+		t.Errorf("/provisioning routes to %q; the panel's intake is the coordinator, and routing it at the applier is what GH-502 fixed", service)
 	}
-	if strings.Contains(service, "executor") {
-		t.Errorf("/provisioning routes to the executor Service %q, whose NetworkPolicy admits only creator-labelled pods", service)
+	if strings.Contains(service, "applier") {
+		t.Errorf("/provisioning routes to the applier Service %q, whose NetworkPolicy admits only creator-labelled pods", service)
 	}
 	if port != "intent" {
 		t.Errorf("/provisioning targets port %q, want intent", port)
 	}
 }
 
-// TestExecutorApplyStaysCreatorOnly pins the policy half. The executor policy was
+// TestApplierApplyStaysCreatorOnly pins the policy half. The applier policy was
 // never the defect and must not be widened to admit the ingress controller --
 // that would delete the authority boundary rather than route around it.
-func TestExecutorApplyStaysCreatorOnly(t *testing.T) {
+func TestApplierApplyStaysCreatorOnly(t *testing.T) {
 	docs := renderMesh(t, "controlPlane.enabled=true")
 
-	policy := findByKindComponent(docs, "NetworkPolicy", "executor")
+	policy := findByKindComponent(docs, "NetworkPolicy", "applier")
 	if policy == nil {
-		t.Fatal("no executor NetworkPolicy rendered")
+		t.Fatal("no applier NetworkPolicy rendered")
 	}
 	if len(policy.Spec.Ingress) == 0 {
-		t.Fatal("executor NetworkPolicy admits nothing; the apply surface would be unreachable even by the creator")
+		t.Fatal("applier NetworkPolicy admits nothing; the apply surface would be unreachable even by the creator")
 	}
 
 	for _, rule := range policy.Spec.Ingress {
 		for _, from := range rule.From {
 			if from.NamespaceSelector != nil {
-				t.Errorf("executor policy admits a namespaceSelector %v; the apply surface is creator-only (srd006 R4.1)", from.NamespaceSelector.MatchLabels)
+				t.Errorf("applier policy admits a namespaceSelector %v; the apply surface is creator-only (srd006 R4.1)", from.NamespaceSelector.MatchLabels)
 			}
 			if from.PodSelector == nil {
-				t.Error("executor policy has a from entry with no podSelector, which would widen the apply surface")
+				t.Error("applier policy has a from entry with no podSelector, which would widen the apply surface")
 				continue
 			}
 			if got := from.PodSelector.MatchLabels["app.kubernetes.io/component"]; got != "creator" {
-				t.Errorf("executor policy admits component %q on the apply surface, want creator only", got)
+				t.Errorf("applier policy admits component %q on the apply surface, want creator only", got)
 			}
 		}
 		for _, p := range rule.Ports {
 			if p.Port != "apply" {
-				t.Errorf("executor policy opens port %v, want apply only", p.Port)
+				t.Errorf("applier policy opens port %v, want apply only", p.Port)
 			}
 		}
 	}
@@ -180,7 +180,7 @@ func TestExecutorApplyStaysCreatorOnly(t *testing.T) {
 
 // TestCoordinatorAdmitsOnlyTheIngressControllerOnIntent proves the new opening is
 // narrow. The intake is browser-reachable by design; the monitor and control
-// ports are not, and an open port would be as wrong here as a widened executor
+// ports are not, and an open port would be as wrong here as a widened applier
 // policy.
 func TestCoordinatorAdmitsOnlyTheIngressControllerOnIntent(t *testing.T) {
 	docs := renderMesh(t, "controlPlane.enabled=true")
@@ -233,16 +233,16 @@ func TestNoProvisioningRouteWithoutTheControlPlane(t *testing.T) {
 	if policy := findByKindComponent(docs, "NetworkPolicy", "coordinator"); policy != nil {
 		t.Error("a coordinator NetworkPolicy rendered with the control plane disabled")
 	}
-	// The executor may still be enabled on its own; its policy must be unaffected.
-	if policy := findByKindComponent(docs, "NetworkPolicy", "executor"); policy == nil {
-		t.Error("the executor NetworkPolicy stopped rendering when the control plane is disabled")
+	// The applier may still be enabled on its own; its policy must be unaffected.
+	if policy := findByKindComponent(docs, "NetworkPolicy", "applier"); policy == nil {
+		t.Error("the applier NetworkPolicy stopped rendering when the control plane is disabled")
 	}
 }
 
 // TestCreatorInstanceIsCoordinatorOnly pins the policy GH-685 added. The creator
-// is the only pod the executor admits to its apply surface, so an unconstrained
+// is the only pod the applier admits to its apply surface, so an unconstrained
 // instance port was the widest remaining path to apply: reach the creator and it
-// reaches the executor for you. The GH-682 kind proof measured that reachability
+// reaches the applier for you. The GH-682 kind proof measured that reachability
 // before this policy existed.
 func TestCreatorInstanceIsCoordinatorOnly(t *testing.T) {
 	docs := renderMesh(t, "controlPlane.enabled=true")

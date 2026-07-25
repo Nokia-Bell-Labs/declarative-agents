@@ -11,21 +11,21 @@ import (
 	"gopkg.in/yaml.v3"
 )
 
-// These cover the executor-enabled render (GH-733): that the Deployment, its
+// These cover the applier-enabled render (GH-733): that the Deployment, its
 // Service, and the profile keys it mounts agree with each other.
 //
-// helm/ci/kind-values.yaml disables the executor -- its image bundles helm,
+// helm/ci/kind-values.yaml disables the applier -- its image bundles helm,
 // kubectl, and the chart, and the smoke tests kind-load only the runtime image --
 // so every cluster-level test in the example stands up a mesh without it. The
-// packaging path that carries the executor into a cluster is therefore proven
+// packaging path that carries the applier into a cluster is therefore proven
 // only here, at the render.
 //
-// The NetworkPolicy is already covered by TestExecutorApplyStaysCreatorOnly,
+// The NetworkPolicy is already covered by TestApplierApplyStaysCreatorOnly,
 // which walks its from-entries and ports; these do not repeat it.
 
-// executorRender is the subset of an executor manifest these tests read: the
+// applierRender is the subset of an applier manifest these tests read: the
 // Deployment's pod labels, args, and volumes, and the Service's selector.
-type executorRender struct {
+type applierRender struct {
 	Kind     string `yaml:"kind"`
 	Metadata struct {
 		Name string `yaml:"name"`
@@ -63,10 +63,10 @@ type executorRender struct {
 	} `yaml:"spec"`
 }
 
-// renderExecutorChart stages the chart through the production packaging path and
-// returns its executor manifests. Staging matters here: the profiles ConfigMap
+// renderApplierChart stages the chart through the production packaging path and
+// returns its applier manifests. Staging matters here: the profiles ConfigMap
 // carries what the packaging step copied, which is the thing GH-485 got wrong.
-func renderExecutorChart(t *testing.T, sets ...string) []executorRender {
+func renderApplierChart(t *testing.T, sets ...string) []applierRender {
 	t.Helper()
 	if _, err := exec.LookPath("helm"); err != nil {
 		t.Skip("helm not on PATH")
@@ -78,7 +78,7 @@ func renderExecutorChart(t *testing.T, sets ...string) []executorRender {
 	}
 	defer cleanup()
 
-	args := []string{"template", "rel", staged, "--set", "executor.enabled=true"}
+	args := []string{"template", "rel", staged, "--set", "applier.enabled=true"}
 	for _, set := range sets {
 		args = append(args, "--set", set)
 	}
@@ -86,9 +86,9 @@ func renderExecutorChart(t *testing.T, sets ...string) []executorRender {
 	if err != nil {
 		t.Fatalf("helm template: %v\n%s", err, out)
 	}
-	var docs []executorRender
+	var docs []applierRender
 	for _, chunk := range strings.Split(string(out), "\n---") {
-		var doc executorRender
+		var doc applierRender
 		if err := yaml.Unmarshal([]byte(chunk), &doc); err != nil {
 			continue // not a manifest, such as the NOTES preamble
 		}
@@ -102,33 +102,33 @@ func renderExecutorChart(t *testing.T, sets ...string) []executorRender {
 	return docs
 }
 
-// executorDoc finds the executor manifest of one kind.
-func executorDoc(t *testing.T, docs []executorRender, kind string) executorRender {
+// applierDoc finds the applier manifest of one kind.
+func applierDoc(t *testing.T, docs []applierRender, kind string) applierRender {
 	t.Helper()
 	for _, doc := range docs {
-		if doc.Kind == kind && strings.HasSuffix(doc.Metadata.Name, "-executor") {
+		if doc.Kind == kind && strings.HasSuffix(doc.Metadata.Name, "-applier") {
 			return doc
 		}
 	}
-	t.Fatalf("no executor %s rendered", kind)
-	return executorRender{}
+	t.Fatalf("no applier %s rendered", kind)
+	return applierRender{}
 }
 
-// TestExecutorServiceTargetsItsDeployment proves the Service selects the pods the
+// TestApplierServiceTargetsItsDeployment proves the Service selects the pods the
 // Deployment creates. Each is individually valid whatever the labels say; only
 // read together do they show whether the apply surface has anything behind it.
-func TestExecutorServiceTargetsItsDeployment(t *testing.T) {
-	docs := renderExecutorChart(t)
-	deployment := executorDoc(t, docs, "Deployment")
-	service := executorDoc(t, docs, "Service")
+func TestApplierServiceTargetsItsDeployment(t *testing.T) {
+	docs := renderApplierChart(t)
+	deployment := applierDoc(t, docs, "Deployment")
+	service := applierDoc(t, docs, "Service")
 
 	podLabels := deployment.Spec.Template.Metadata.Labels
 	if len(podLabels) == 0 {
-		t.Fatal("the executor Deployment sets no pod labels")
+		t.Fatal("the applier Deployment sets no pod labels")
 	}
 	selector := stringSelector(service.Spec.Selector)
 	if len(selector) == 0 {
-		t.Fatal("the executor Service selects nothing; it would route to no pod")
+		t.Fatal("the applier Service selects nothing; it would route to no pod")
 	}
 	for key, want := range selector {
 		if got, ok := podLabels[key]; !ok || got != want {
@@ -136,33 +136,33 @@ func TestExecutorServiceTargetsItsDeployment(t *testing.T) {
 				key, want, got)
 		}
 	}
-	if component := selector["app.kubernetes.io/component"]; component != "executor" {
-		t.Errorf("the Service selects component %q, want executor", component)
+	if component := selector["app.kubernetes.io/component"]; component != "applier" {
+		t.Errorf("the Service selects component %q, want applier", component)
 	}
 }
 
-// TestExecutorMountsEveryProfileItStarts proves the profile the Deployment's args
+// TestApplierMountsEveryProfileItStarts proves the profile the Deployment's args
 // name is actually projected into its mount. This is GH-485 asserted over the
-// render: the executor Deployment mounted a profile the staging list did not
-// copy, and an enabled executor started with nothing to run.
-func TestExecutorMountsEveryProfileItStarts(t *testing.T) {
-	docs := renderExecutorChart(t)
-	deployment := executorDoc(t, docs, "Deployment")
+// render: the applier Deployment mounted a profile the staging list did not
+// copy, and an enabled applier started with nothing to run.
+func TestApplierMountsEveryProfileItStarts(t *testing.T) {
+	docs := renderApplierChart(t)
+	deployment := applierDoc(t, docs, "Deployment")
 	if len(deployment.Spec.Template.Spec.Containers) == 0 {
-		t.Fatal("the executor Deployment declares no container")
+		t.Fatal("the applier Deployment declares no container")
 	}
 	container := deployment.Spec.Template.Spec.Containers[0]
 
 	profilePath := argAfter(container.Args, "--profile")
 	if profilePath == "" {
-		t.Fatal("the executor container names no --profile; it would not know what to run")
+		t.Fatal("the applier container names no --profile; it would not know what to run")
 	}
 	mountPath := profileMountPath(container.VolumeMounts)
 	if mountPath == "" {
-		t.Fatal("the executor container mounts no profiles volume")
+		t.Fatal("the applier container mounts no profiles volume")
 	}
 	if !strings.HasPrefix(profilePath, mountPath) {
-		t.Fatalf("the executor runs %s, which is not under its profiles mount %s", profilePath, mountPath)
+		t.Fatalf("the applier runs %s, which is not under its profiles mount %s", profilePath, mountPath)
 	}
 
 	// The path the agent opens, relative to the mount, must be a path the
@@ -173,17 +173,17 @@ func TestExecutorMountsEveryProfileItStarts(t *testing.T) {
 		t.Fatal("the profiles volume projects no items; every profile would be absent")
 	}
 	if !projected[wanted] {
-		t.Errorf("the executor starts %s but the profiles volume projects no such path; "+
-			"an enabled executor would start with no profile (GH-485)", wanted)
+		t.Errorf("the applier starts %s but the profiles volume projects no such path; "+
+			"an enabled applier would start with no profile (GH-485)", wanted)
 	}
 }
 
-// TestExecutorRendersItsWholeSurface proves an enabled executor brings its whole
+// TestApplierRendersItsWholeSurface proves an enabled applier brings its whole
 // object set, so a partial render cannot pass the narrower tests above.
-func TestExecutorRendersItsWholeSurface(t *testing.T) {
-	docs := renderExecutorChart(t)
+func TestApplierRendersItsWholeSurface(t *testing.T) {
+	docs := renderApplierChart(t)
 	for _, kind := range []string{"Deployment", "Service", "ServiceAccount", "NetworkPolicy"} {
-		executorDoc(t, docs, kind) // fails the test if absent
+		applierDoc(t, docs, kind) // fails the test if absent
 	}
 }
 
@@ -224,7 +224,7 @@ func profileMountPath(mounts []struct {
 
 // projectedProfilePaths returns the set of paths the profiles volume projects,
 // which is what actually appears under the mount.
-func projectedProfilePaths(deployment executorRender) map[string]bool {
+func projectedProfilePaths(deployment applierRender) map[string]bool {
 	paths := map[string]bool{}
 	for _, volume := range deployment.Spec.Template.Spec.Volumes {
 		if volume.Name != "profiles" {

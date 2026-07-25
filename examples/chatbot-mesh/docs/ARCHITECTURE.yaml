@@ -21,7 +21,7 @@ overview:
     This architecture covers the data plane and the control plane. The control plane
     -- a coordinator that sequences reconfiguration, a creator that manages agent
     lifecycle, and the provisioning surface -- is release rel05.0. Release rel06.0
-    realizes the provisioning surface as the executor declarative agent (srd006).
+    realizes the provisioning surface as the applier declarative agent (srd006).
 
   turn_flow_diagram: |
     ```mermaid
@@ -95,8 +95,8 @@ components:
       instance operation by driving the deployment API, verify the instance's health
       through a rollout read, and report back. The only agent that declares a
       deployment-API client; it alone holds that authority.
-  - name: executor
-    path: agents/executor/
+  - name: applier
+    path: agents/applier/
     responsibility: |
       The deployment-plane actuation agent (srd006): the declarative agent that
       realizes the deployment API (srd003 R4) the creator drives and the panel reads.
@@ -224,10 +224,10 @@ implementation_status:
     - done: The control-plane coordinator (srd004) and creator (srd005), realized
         as mage integration:controlPlane (rel05.0, deterministic, driving a fake
         deployment API).
-    - planned: The executor deployment surface (srd006) that replaces the Go
-        provisioner. Its behavioral tracer mage integration:executor is not yet
-        implemented, so integration:controlPlane is not executor evidence
-        (test-rel06.0-executor is planned).
+    - planned: The applier deployment surface (srd006) that replaces the Go
+        provisioner. Its behavioral tracer mage integration:applier is not yet
+        implemented, so integration:controlPlane is not applier evidence
+        (test-rel06.0-applier is planned).
 
 related_documents:
   - doc: docs/VISION.yaml
@@ -245,7 +245,7 @@ related_documents:
     purpose: The coordinator agent requirements (control plane).
   - doc: docs/specs/software-requirements/srd005-creator.yaml
     purpose: The creator agent requirements (control plane).
-  - doc: docs/specs/software-requirements/srd006-executor.yaml
-    purpose: The executor agent requirements (deployment plane) that replace the Go provisioner.
+  - doc: docs/specs/software-requirements/srd006-applier.yaml
+    purpose: The applier agent requirements (deployment plane) that replace the Go provisioner.
   - doc: README.md
     purpose: The decisions record and standalone-program framing.

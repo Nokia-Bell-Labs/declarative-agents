@@ -1,8 +1,8 @@
 # A values-plane patch of the shape the coordinator decides and the creator
-# forwards to the executor's apply endpoint (srd006 R1.4). It carries deployment
+# forwards to the applier's apply endpoint (srd006 R1.4). It carries deployment
 # values only: no host, URL, method, or credential for a running agent (R2.3).
 #
-# The executor validates a patch of this shape against the chart's
+# The applier validates a patch of this shape against the chart's
 # values.schema.json by a helm dry-run before applying it (R2.1).
 ragUnits:
   - name: rag0

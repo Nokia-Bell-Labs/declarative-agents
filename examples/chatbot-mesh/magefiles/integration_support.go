@@ -99,7 +99,7 @@ func startDetachedAgentWithTimeout(binary, profilesRoot, coreRoot, profile, trac
 
 // agentLaunch is one detached agent invocation. Workdir and Env exist for
 // integrations that must place the agent's workspace somewhere they control or
-// point its declared environment at test doubles -- the executor tracer runs the
+// point its declared environment at test doubles -- the applier tracer runs the
 // shipped profile against fake helm and kubectl on PATH (GH-731).
 type agentLaunch struct {
 	Binary       string

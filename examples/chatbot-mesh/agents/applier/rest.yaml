@@ -4,7 +4,7 @@ rest:
     none:
       type: none
   limits:
-    local_executor_apply:
+    local_applier_apply:
       timeout: 130s
       read_timeout: 130s
       max_request_bytes: 1048576
@@ -16,7 +16,7 @@ rest:
         hosts: [127.0.0.1, localhost]
         ports: [18090]
         allow_public_listener: true
-    local_executor_control:
+    local_applier_control:
       timeout: 30s
       read_timeout: 5s
       max_request_bytes: 16384
@@ -28,7 +28,7 @@ rest:
         hosts: [127.0.0.1, localhost]
         ports: [18091]
         allow_public_listener: true
-    local_executor_monitor:
+    local_applier_monitor:
       timeout: 5s
       read_timeout: 5s
       max_request_bytes: 4096
@@ -42,20 +42,20 @@ rest:
         allow_public_listener: true
 
   servers:
-    executor_apply:
+    applier_apply:
       # The apply endpoint is served on the Service name and port the provisioner
       # served (srd006 R1.1), so the creator's declared deployment_api client is
       # unchanged. It accepts a decided values-overrides document and SHALL NOT
       # accept an endpoint or credential for a running agent; no runtime input
       # supplies transport authority.
-      address: ${EXECUTOR_BIND_HOST:-127.0.0.1}:18090
-      limits_ref: local_executor_apply
+      address: ${APPLIER_BIND_HOST:-127.0.0.1}:18090
+      limits_ref: local_applier_apply
       endpoints:
         state:
           # Read the deployed mesh view for the provisioning panel (srd006 R1.5).
           # helm get values --all reads the release's fully computed values (chart
           # defaults merged with any applied overrides), so this works on a fresh
-          # install with no prior apply -- unlike the executor's own overrides
+          # install with no prior apply -- unlike the applier's own overrides
           # file, which exists only after the first apply.
           method: GET
           path: /provisioning/api/state
@@ -84,14 +84,14 @@ rest:
                     rags: $.ragUnits
                     llmInCluster: $.ollama.enabled
                     llmExternalURL: $.llm.externalURL
-                    llmChatModel: $.executor.params.chatModel
+                    llmChatModel: $.applier.params.chatModel
                     llmEmbedModel: $.chatbot.embeddingModel
                     llmChatModels: $.ollama.models.chat
                     llmRouterModel: $.ollama.models.router
                     llmTopology: $.ollama.topology
-                    paramsNResults: $.executor.params.nResults
-                    paramsChunkCap: $.executor.params.chunkCap
-                    paramsRouterDefault: $.executor.params.routerDefault
+                    paramsNResults: $.applier.params.nResults
+                    paramsChunkCap: $.applier.params.chunkCap
+                    paramsRouterDefault: $.applier.params.routerDefault
                 # helm could not read the release: absent, or a kubeconfig, RBAC,
                 # or API-server failure. Reporting a mapped-empty view here would
                 # render as a legitimate but topology-less mesh to the panel.
@@ -108,7 +108,7 @@ rest:
           binding: machine_request
           request:
             # The apply request carries the decided values-plane document as content
-            # under the versioned deployment_api_contract (srd006 R1.4); the executor
+            # under the versioned deployment_api_contract (srd006 R1.4); the applier
             # writes and applies it, deciding no values (R5.1).
             body_schema:
               type: object
@@ -132,7 +132,7 @@ rest:
                 # reference, so one mounted profile parameterizes per pod
                 # (srd013 R5.6, GH-728) and the write and the read cannot
                 # diverge. The default keeps a default render unchanged.
-                path: ${EXECUTOR_WORK_DIR:-/work}/overrides.yaml
+                path: ${APPLIER_WORK_DIR:-/work}/overrides.yaml
             response:
               # Keyed by terminal state, not terminal signal: every word in
               # apply-machine.yaml is an exec word emitting only ToolDone or
@@ -226,11 +226,11 @@ rest:
                     status: unavailable
                     error: rollout_read_failed
 
-    executor_control:
-      address: ${EXECUTOR_BIND_HOST:-127.0.0.1}:18091
-      limits_ref: local_executor_control
+    applier_control:
+      address: ${APPLIER_BIND_HOST:-127.0.0.1}:18091
+      limits_ref: local_applier_control
       queue:
-        name: executor_control
+        name: applier_control
         capacity: 8
         timeout: 30s
       shutdown:
@@ -257,10 +257,10 @@ rest:
           binding: health
 
     monitor:
-      address: ${EXECUTOR_BIND_HOST:-127.0.0.1}:18092
-      limits_ref: local_executor_monitor
+      address: ${APPLIER_BIND_HOST:-127.0.0.1}:18092
+      limits_ref: local_applier_monitor
       queue:
-        name: executor_monitor
+        name: applier_monitor
         capacity: 8
         overflow: reject
         timeout: 100ms

@@ -123,7 +123,7 @@ rest:
           # (srd004 R3.1; srd006 R1.4 content), threaded here from the carried intent.
           # A values-plane list is replaced wholesale on apply, so the intent carries
           # the complete desired values, not a delta; the creator applies it through
-          # the executor and returns the reported health.
+          # the applier and returns the reported health.
           #
           # This is the ingest leg's rollout: it reads $.carried.values, which
           # creator_ingest's carry_forward populates. The values-only leg cannot use
@@ -221,7 +221,7 @@ rest:
           # Read the deployed mesh view the creator reads from the deployment API,
           # so the coordinator can serve the panel's initial load (srd006 R1.5). A
           # read: it drives no instance operation and decides nothing. Flat
-          # fields, matching the executor's state_response contract -- they
+          # fields, matching the applier's state_response contract -- they
           # travel through unchanged rather than being regrouped here (GH-753).
           method: GET
           path: /api/v1/state
@@ -267,7 +267,7 @@ rest:
             # The intent carries the full desired mesh state as values: the operator's
             # panel serializes the complete desired values-plane document (the whole
             # ragUnits list, params, and LLM config) that the coordinator forwards to
-            # the creator and executor (srd004 R3.1). rag_name, directory, and
+            # the creator and applier (srd004 R3.1). rag_name, directory, and
             # collection name the new source to ingest before the rollout.
             body_schema:
               type: object
@@ -388,7 +388,7 @@ rest:
                   body:
                     schema_version: "1"
                     phase: $.mapped.phase
-                    # The counts the executor reads off the Deployment (srd006
+                    # The counts the applier reads off the Deployment (srd006
                     # R3.3), carried through the creator so the panel renders
                     # every field its RolloutStatus declares. GH-686.
                     ready: $.mapped.ready
@@ -420,7 +420,7 @@ rest:
             request:
               body: {}
             response:
-              # Flat fields, matching the executor's state_response contract
+              # Flat fields, matching the applier's state_response contract
               # (srd006 deployment_api_contract): machine_request response bodies
               # map one selector per named field, so a nested llm/params object
               # cannot be assembled here from several source paths in one step.

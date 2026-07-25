@@ -1,12 +1,12 @@
-name: executor-apply-request
+name: applier-apply-request
 purpose: |-
   One request-scoped run of a decided values patch. The machine_request apply
   endpoint seeds this machine with the overrides content and a fixed values-file
-  path. The executor writes the overrides to the file (write_overrides), validates
+  path. The applier writes the overrides to the file (write_overrides), validates
   them against the chart schema with a helm dry-run (helm_dry_run), applies the
   patch as an atomic rollout (helm_upgrade), and verifies the rollout
   (kubectl_rollout_status). A failed apply is self-rolled-back by --atomic; a
-  verify stall is compensated by helm_rollback. The executor authors no values
+  verify stall is compensated by helm_rollback. The applier authors no values
   decision and passes no endpoint or credential into a running agent.
 
   Every word here is an exec word, so each emits only ToolDone or ToolFailed. The

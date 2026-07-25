@@ -8,15 +8,15 @@ import { useCallback, useEffect, useRef, useState } from "react";
 //
 // The panel does not reach the deployment API. Its apply is an operator
 // desired-state decision (srd004 R3.1) submitted to the coordinator, which
-// orchestrates the creator, which alone calls the executor's apply surface
-// (srd003 R4.4, srd006 R4.1). Pointing the panel at the executor directly is what
-// GH-502 fixed: the executor NetworkPolicy admits only creator-labelled pods, so
+// orchestrates the creator, which alone calls the applier's apply surface
+// (srd003 R4.4, srd006 R4.1). Pointing the panel at the applier directly is what
+// GH-502 fixed: the applier NetworkPolicy admits only creator-labelled pods, so
 // that route was unreachable wherever policy is enforced. Provisioning changes
 // deployment values and triggers rollouts only (R4.2).
 export const PROVISIONING_BASE =
   (globalThis as { PROVISIONING_API?: string }).PROVISIONING_API ?? "/provisioning/api";
 
-// MeshView mirrors the executor values-plane view: RAG topology, the LLM
+// MeshView mirrors the applier values-plane view: RAG topology, the LLM
 // endpoint, and the interesting parameters. There is no per-agent runtime endpoint
 // field, so the panel cannot submit transport authority to a running agent.
 export interface RagView {
@@ -50,7 +50,7 @@ export interface MeshView {
 }
 
 // RolloutStatus is what the coordinator's rollout poll serves, field for field:
-// the phase the executor reads from kubectl and the counts it reads off the
+// the phase the applier reads from kubectl and the counts it reads off the
 // Deployment, carried through the creator (GH-686). There is no "unknown" phase
 // and no message -- a read the mesh cannot serve answers 502 at every hop rather
 // than a successful unknown, so fetchRollout throws instead of resolving.
@@ -63,7 +63,7 @@ export interface RolloutStatus {
 
 // MeshStateResponse is the flat wire shape GET /provisioning/api/state serves
 // (srd006 deployment_api_contract). machine_request response bodies map one
-// selector per named field, so the executor -> creator -> coordinator chain
+// selector per named field, so the applier -> creator -> coordinator chain
 // cannot assemble a nested llm/params object from several source paths in one
 // step (GH-753); fetchMeshState reassembles the MeshView the rest of the panel
 // renders from these flat fields -- the one reshape in this feature that

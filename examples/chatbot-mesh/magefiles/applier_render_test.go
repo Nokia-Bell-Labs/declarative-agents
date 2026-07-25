@@ -9,27 +9,27 @@ import (
 	"testing"
 )
 
-// executorExecBlock returns the agents__executor__exec-declarations.yaml value
+// applierExecBlock returns the agents__applier__exec-declarations.yaml value
 // from a rendered profiles ConfigMap, up to the next ConfigMap key.
-func executorExecBlock(rendered string) string {
-	const marker = "agents__executor__exec-declarations.yaml:"
+func applierExecBlock(rendered string) string {
+	const marker = "agents__applier__exec-declarations.yaml:"
 	i := strings.Index(rendered, marker)
 	if i < 0 {
 		return ""
 	}
 	rest := rendered[i:]
-	if j := strings.Index(rest, "agents__executor__profile.yaml:"); j > 0 {
+	if j := strings.Index(rest, "agents__applier__profile.yaml:"); j > 0 {
 		return rest[:j]
 	}
 	return rest
 }
 
-// TestExecutorExecDeclarationsRenderReleaseCoordinates proves the executor's
+// TestApplierExecDeclarationsRenderReleaseCoordinates proves the applier's
 // helm/kubectl exec args target the installed release, namespace, and chatbot
 // Deployment rather than a baked chatbot-mesh/default (GH-484). It stages the
 // chart through the production packaging path and renders under a non-default
 // release name and namespace.
-func TestExecutorExecDeclarationsRenderReleaseCoordinates(t *testing.T) {
+func TestApplierExecDeclarationsRenderReleaseCoordinates(t *testing.T) {
 	if _, err := exec.LookPath("helm"); err != nil {
 		t.Skip("helm not on PATH")
 	}
@@ -46,9 +46,9 @@ func TestExecutorExecDeclarationsRenderReleaseCoordinates(t *testing.T) {
 	if err != nil {
 		t.Fatalf("helm template: %v\n%s", err, out)
 	}
-	block := executorExecBlock(string(out))
+	block := applierExecBlock(string(out))
 	if block == "" {
-		t.Fatal("executor exec-declarations key not found in rendered ConfigMap")
+		t.Fatal("applier exec-declarations key not found in rendered ConfigMap")
 	}
 
 	// The release-derived coordinates must appear.
@@ -60,7 +60,7 @@ func TestExecutorExecDeclarationsRenderReleaseCoordinates(t *testing.T) {
 	}
 	for _, w := range wantPresent {
 		if !strings.Contains(block, w) {
-			t.Errorf("executor exec args missing %q under release relx/nsy", w)
+			t.Errorf("applier exec args missing %q under release relx/nsy", w)
 		}
 	}
 	// The baked defaults must be gone.
@@ -72,7 +72,7 @@ func TestExecutorExecDeclarationsRenderReleaseCoordinates(t *testing.T) {
 	}
 	for _, w := range wantAbsent {
 		if strings.Contains(block, w) {
-			t.Errorf("executor exec args still carry baked default %q", w)
+			t.Errorf("applier exec args still carry baked default %q", w)
 		}
 	}
 }

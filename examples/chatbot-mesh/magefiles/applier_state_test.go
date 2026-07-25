@@ -4,43 +4,43 @@ package main
 
 import "testing"
 
-// These cover the executor's state read (srd006 R1.5, GH-752). The provisioning
+// These cover the applier's state read (srd006 R1.5, GH-752). The provisioning
 // panel's initial load must work from a fresh install with no prior apply, so
 // this reads the release's fully computed values (chart defaults merged with any
 // applied overrides) via `helm get values --all -o json` rather than the
-// executor's own overrides file, which exists only after the first apply.
+// applier's own overrides file, which exists only after the first apply.
 
-func executorStateEndpoint(t *testing.T) rolloutEndpoint {
+func applierStateEndpoint(t *testing.T) rolloutEndpoint {
 	t.Helper()
 	var rest rolloutRest
-	readIntakeYAML(t, agentDir(t, "executor")+"/rest.yaml", &rest)
-	server, ok := rest.Rest.Servers["executor_apply"]
+	readIntakeYAML(t, agentDir(t, "applier")+"/rest.yaml", &rest)
+	server, ok := rest.Rest.Servers["applier_apply"]
 	if !ok {
-		t.Fatal("executor_apply server not declared")
+		t.Fatal("applier_apply server not declared")
 	}
 	endpoint, ok := server.Endpoints["state"]
 	if !ok {
-		t.Fatal("executor declares no state endpoint; the provisioning panel has nothing to load")
+		t.Fatal("applier declares no state endpoint; the provisioning panel has nothing to load")
 	}
 	return endpoint
 }
 
-func executorStateMachine(t *testing.T) rolloutMachine {
+func applierStateMachine(t *testing.T) rolloutMachine {
 	t.Helper()
-	endpoint := executorStateEndpoint(t)
+	endpoint := applierStateEndpoint(t)
 	if endpoint.MachineRequest.Machine == "" {
 		t.Fatal("state endpoint names no machine")
 	}
 	var machine rolloutMachine
-	readIntakeYAML(t, agentDir(t, "executor")+"/"+endpoint.MachineRequest.Machine, &machine)
+	readIntakeYAML(t, agentDir(t, "applier")+"/"+endpoint.MachineRequest.Machine, &machine)
 	return machine
 }
 
-// TestExecutorStateMachineReachesTwoTerminals proves the machine reaches Read and
+// TestApplierStateMachineReachesTwoTerminals proves the machine reaches Read and
 // Unavailable, and that helm_get_values is the word the Seed dispatches -- an
 // unreadable release must land in Unavailable rather than falling through.
-func TestExecutorStateMachineReachesTwoTerminals(t *testing.T) {
-	machine := executorStateMachine(t)
+func TestApplierStateMachineReachesTwoTerminals(t *testing.T) {
+	machine := applierStateMachine(t)
 
 	for _, want := range []string{"Read", "Unavailable"} {
 		if !containsString(machine.TerminalStates, want) {
@@ -73,11 +73,11 @@ func TestExecutorStateMachineReachesTwoTerminals(t *testing.T) {
 	}
 }
 
-// TestExecutorStateEndpointMapsTwoOutcomes proves the two terminal states map to
+// TestApplierStateEndpointMapsTwoOutcomes proves the two terminal states map to
 // two responses: a broken read answers 502 with no mesh-view fields, so the panel
 // never renders a topology-less mesh as if it were real.
-func TestExecutorStateEndpointMapsTwoOutcomes(t *testing.T) {
-	endpoint := executorStateEndpoint(t)
+func TestApplierStateEndpointMapsTwoOutcomes(t *testing.T) {
+	endpoint := applierStateEndpoint(t)
 	states := endpoint.MachineRequest.Response.TerminalStates
 	if len(states) == 0 {
 		t.Fatal("state maps no terminal states; helm_get_values emits only ToolDone and ToolFailed, so a signal cannot separate the two outcomes")
@@ -114,11 +114,11 @@ func TestExecutorStateEndpointMapsTwoOutcomes(t *testing.T) {
 	}
 }
 
-// TestExecutorStateTerminalMappingsAgree proves the mapped terminal states and the
+// TestApplierStateTerminalMappingsAgree proves the mapped terminal states and the
 // machine's declared terminal states are the same set (agent-core srd030 R4.8).
-func TestExecutorStateTerminalMappingsAgree(t *testing.T) {
-	machine := executorStateMachine(t)
-	mapped := executorStateEndpoint(t).MachineRequest.Response.TerminalStates
+func TestApplierStateTerminalMappingsAgree(t *testing.T) {
+	machine := applierStateMachine(t)
+	mapped := applierStateEndpoint(t).MachineRequest.Response.TerminalStates
 	for _, state := range machine.TerminalStates {
 		if _, ok := mapped[state]; !ok {
 			t.Errorf("terminal state %s is unmapped; the request would answer response_missing", state)
@@ -131,12 +131,12 @@ func TestExecutorStateTerminalMappingsAgree(t *testing.T) {
 	}
 }
 
-// TestExecutorGetValuesWordContract proves helm_get_values reads the installed
+// TestApplierGetValuesWordContract proves helm_get_values reads the installed
 // release's fully computed values as JSON, rather than a baked default or the
 // user-supplied overrides alone (which would omit chart defaults on a fresh
 // install with no prior apply).
-func TestExecutorGetValuesWordContract(t *testing.T) {
-	word := executorExecWord(t, "helm_get_values")
+func TestApplierGetValuesWordContract(t *testing.T) {
+	word := applierExecWord(t, "helm_get_values")
 
 	if word.Binary != "helm" {
 		t.Errorf("binary = %q, want helm", word.Binary)

@@ -1,4 +1,4 @@
-name: executor-rollout-request
+name: applier-rollout-request
 purpose: |-
   One request-scoped read of the chatbot Deployment's rollout status, serving the
   rollout GET endpoint (srd006 R1.1). The machine polls kubectl rollout status with a

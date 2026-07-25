@@ -15,9 +15,9 @@ var profileMountRE = regexp.MustCompile(`agents/([a-z0-9-]+)/profile\.yaml`)
 
 // TestStagedProfilesCoverEnabledDeployments proves the authoritative packaging
 // list (chartProfilePrograms) stages an agent profile for every profile mounted
-// by a chart Deployment. This is the GH-485 regression guard: the executor
-// Deployment mounts agents/executor/profile.yaml, so the staging list must copy
-// agents/executor or an enabled executor starts with no profile.
+// by a chart Deployment. This is the GH-485 regression guard: the applier
+// Deployment mounts agents/applier/profile.yaml, so the staging list must copy
+// agents/applier or an enabled applier starts with no profile.
 func TestStagedProfilesCoverEnabledDeployments(t *testing.T) {
 	chartDir := findChartDir(t)
 	templatesDir := filepath.Join(chartDir, "templates")

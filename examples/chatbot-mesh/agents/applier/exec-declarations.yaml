@@ -1,6 +1,6 @@
-# Exec tool declarations for the executor agent (srd006): the helm and kubectl
+# Exec tool declarations for the applier agent (srd006): the helm and kubectl
 # CLIs its container carries, bound as agent-core exec tools (agent-core srd021).
-# The executor's request-machine binds these words to realize a decided values
+# The applier's request-machine binds these words to realize a decided values
 # patch as a validate -> apply -> verify -> rollback rollout.
 #
 # The args are fully static: agent-core exec tools take no environment and map
@@ -8,36 +8,36 @@
 # ExtractStringParam), so a per-field parameter would be order-nondeterministic
 # (properties is a Go map) and unsourced. The only dynamic input is the values
 # file content, which the write_overrides word writes from the request seed to
-# the agent's workspace; helm reads the same ${EXECUTOR_WORK_DIR:-/work} path,
+# the agent's workspace; helm reads the same ${APPLIER_WORK_DIR:-/work} path,
 # so one mounted profile follows the workspace mount per pod (srd013 R5.6). The chatbot-mesh release,
 # default namespace, and chatbot-mesh-chatbot deployment below are placeholder
 # defaults kept as valid YAML for agent-core validation; when the chart packages
 # this file, profiles-configmap.yaml rewrites them to the installed release name,
-# namespace, and <fullname>-chatbot Deployment so an executor installed under any
+# namespace, and <fullname>-chatbot Deployment so an applier installed under any
 # release targets its own release (mounted-profile contract, srd003 R1.3/R2; GH-484).
 #
 # Each runs one child process and emits ToolDone on a zero exit and ToolFailed on
 # a non-zero exit (agent-core exec emits exactly these two); the request-machine
 # distinguishes success from failure by the state it is in.
 #
-# The helm flags below are helm 3's spellings, which is what executor.Dockerfile
+# The helm flags below are helm 3's spellings, which is what applier.Dockerfile
 # pins (ARG HELM_VERSION). helm 4 renamed both -- --atomic became
 # --rollback-on-failure and --dry-run prefers --dry-run=client -- and warns about
 # the old names, so a developer whose local helm is 4.x will see deprecation
 # warnings from tests that shell out to it. That is the local helm talking, not
 # this image: helm rejects an unknown flag outright, so migrating the spellings
 # without bumping the pin would fail every apply on the cluster. The two move
-# together, and TestExecutorHelmFlagsMatchTheShippedHelm fails if they do not
+# together, and TestApplierHelmFlagsMatchTheShippedHelm fails if they do not
 # (GH-739).
 tools:
   - name: helm_dry_run
     type: exec
     binary: helm
-    args: [upgrade, chatbot-mesh, /chart, --namespace, default, --reuse-values, --atomic, --dry-run, -f, "${EXECUTOR_WORK_DIR:-/work}/overrides.yaml"]
+    args: [upgrade, chatbot-mesh, /chart, --namespace, default, --reuse-values, --atomic, --dry-run, -f, "${APPLIER_WORK_DIR:-/work}/overrides.yaml"]
     category: boundary
     visibility: internal
     description: Validate a values patch against the chart values.schema.json without applying it, by rendering the release with helm upgrade --dry-run.
-    problem: The executor must reject a non-conforming values patch before any rollout, using the chart's own schema rather than a bespoke validator.
+    problem: The applier must reject a non-conforming values patch before any rollout, using the chart's own schema rather than a bespoke validator.
     goals:
       - Render the release with the written values file and --dry-run so helm validates it against values.schema.json.
       - Emit ToolDone on a clean render and ToolFailed when the schema or template rejects the patch.
@@ -86,11 +86,11 @@ tools:
   - name: helm_upgrade
     type: exec
     binary: helm
-    args: [upgrade, chatbot-mesh, /chart, --namespace, default, --reuse-values, --atomic, --wait, -f, "${EXECUTOR_WORK_DIR:-/work}/overrides.yaml"]
+    args: [upgrade, chatbot-mesh, /chart, --namespace, default, --reuse-values, --atomic, --wait, -f, "${APPLIER_WORK_DIR:-/work}/overrides.yaml"]
     category: boundary
     visibility: internal
     description: Apply a validated values patch by upgrading the release in place, re-rendering the co-generated topology and rolling the affected agents.
-    problem: The executor must realize a decided values patch as an in-place rollout without constructing per-field --set arguments.
+    problem: The applier must realize a decided values patch as an in-place rollout without constructing per-field --set arguments.
     goals:
       - Upgrade the release with the written values file, reusing prior values, atomically, waiting for readiness.
       - Emit ToolDone when the rollout succeeds and ToolFailed when it fails; --atomic self-rolls-back a failed upgrade.
@@ -191,7 +191,7 @@ tools:
     category: boundary
     visibility: internal
     description: Read the release's fully computed values (chart defaults merged with overrides) as JSON, for the state GET endpoint.
-    problem: The provisioning panel's state read (srd006 R1.5) needs the deployed mesh view -- topology, LLM configuration, and parameters -- and must work from a fresh install with no prior apply, not just from the executor's own last-written overrides file.
+    problem: The provisioning panel's state read (srd006 R1.5) needs the deployed mesh view -- topology, LLM configuration, and parameters -- and must work from a fresh install with no prior apply, not just from the applier's own last-written overrides file.
     goals:
       - Read the named release's computed values with --all, so chart defaults are present even when no apply has ever patched them.
       - Emit the values as one JSON object on stdout (-o json), so the response mapping can select individual fields rather than one opaque blob.
@@ -208,7 +208,7 @@ tools:
       - Does not mutate cluster state.
     emits: [ToolDone, ToolFailed]
     output:
-      description: The release's computed values, rendered by helm -o json so the response body maps ragUnits, llm, ollama, chatbot, and executor.params by field.
+      description: The release's computed values, rendered by helm -o json so the response body maps ragUnits, llm, ollama, chatbot, and applier.params by field.
       schema:
         type: object
         properties:
@@ -216,12 +216,12 @@ tools:
           # shape: ragUnits is an array of {name, collection, embeddingModel,
           # replicas}; llm.externalURL; ollama.enabled/topology/models
           # (embedding, chat, router); chatbot.embeddingModel;
-          # executor.params (nResults, chunkCap, routerDefault, chatModel).
+          # applier.params (nResults, chunkCap, routerDefault, chatModel).
           ragUnits: {type: array}
           llm: {type: object}
           ollama: {type: object}
           chatbot: {type: object}
-          executor: {type: object}
+          applier: {type: object}
     side_effects:
       - kind: child_process
         state: read_only
@@ -365,7 +365,7 @@ tools:
     category: boundary
     visibility: internal
     description: Verify the affected Deployment's rollout, letting kubectl compute the phase; a non-zero exit is a stalled or timed-out rollout.
-    problem: The executor must verify a rollout completed without computing the phase itself; kubectl rollout status does that and reports it through its exit code.
+    problem: The applier must verify a rollout completed without computing the phase itself; kubectl rollout status does that and reports it through its exit code.
     goals:
       - Report the Deployment's rollout completion via kubectl rollout status with a bounded timeout.
       - Emit ToolDone when the rollout completes and ToolFailed when it stalls or times out.

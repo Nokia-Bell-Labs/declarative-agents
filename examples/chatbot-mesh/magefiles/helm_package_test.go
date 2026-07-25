@@ -35,7 +35,7 @@ func TestHelmPackageContainsRequiredProfileEntrypoints(t *testing.T) {
 		"agents__rag-server__profile.yaml",
 		"agents__coordinator__profile.yaml",
 		"agents__creator__profile.yaml",
-		"agents__executor__profile.yaml",
+		"agents__applier__profile.yaml",
 		"ux__app__dist__index.html",
 	} {
 		if !strings.Contains(render, key+": |-") {

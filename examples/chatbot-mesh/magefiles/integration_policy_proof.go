@@ -13,7 +13,7 @@ import (
 )
 
 // The GH-502 defect was a route and a policy that disagreed: the ingress pointed
-// browser traffic at the executor's apply Service, whose NetworkPolicy admits only
+// browser traffic at the applier's apply Service, whose NetworkPolicy admits only
 // creator-labelled pods. Every template was individually valid, so nothing short of
 // a real request on a policy-enforcing cluster could see it.
 //
@@ -29,7 +29,7 @@ import (
 // It also pins the CNI rather than taking whatever the cluster has. kindnet, which
 // the other kind targets use, does implement NetworkPolicy (kindnetd v20260528 on
 // kind v0.32), so the self-test alone would not have caught running on it -- but
-// the executor's creator-only rule, which selects a named port, was observed to
+// the applier's creator-only rule, which selects a named port, was observed to
 // admit traffic under kindnet that Calico blocks. Two CNIs disagreeing about the
 // same rule is exactly why the proof names the one it was written against instead
 // of trusting the default (GH-682).
@@ -78,14 +78,14 @@ func policyProbes() []policyProbe {
 			Why: "the intake is the panel's only provisioning entry (srd004 R1.5)",
 		},
 		{
-			Name:   "ingress controller cannot reach the executor apply port",
-			FromNS: policyIngressNS, FromPod: "controller", ToPod: "executor", Port: 18090, Want: blocked,
+			Name:   "ingress controller cannot reach the applier apply port",
+			FromNS: policyIngressNS, FromPod: "controller", ToPod: "applier", Port: 18090, Want: blocked,
 			Why: "the apply surface is creator-only; routing the browser here was GH-502 (srd006 R4.1)",
 		},
 		{
 			Name:   "ingress controller cannot reach the creator instance port",
 			FromNS: policyIngressNS, FromPod: "controller", ToPod: "creator", Port: 18110, Want: blocked,
-			Why: "the creator is coordinator-facing only, and it is the one pod the executor admits (srd005 R5.4, GH-685)",
+			Why: "the creator is coordinator-facing only, and it is the one pod the applier admits (srd005 R5.4, GH-685)",
 		},
 		{
 			Name:   "coordinator reaches the creator instance port",
@@ -93,8 +93,8 @@ func policyProbes() []policyProbe {
 			Why: "the control plane chain must still work (srd005 R1.1)",
 		},
 		{
-			Name:   "creator reaches the executor apply port",
-			FromNS: policyMeshNS, FromPod: "creator", ToPod: "executor", Port: 18090, Want: reached,
+			Name:   "creator reaches the applier apply port",
+			FromNS: policyMeshNS, FromPod: "creator", ToPod: "applier", Port: 18090, Want: reached,
 			Why: "the creator alone realizes an apply (srd006 R4.1)",
 		},
 	}
@@ -114,7 +114,7 @@ func policyStandIns() []standInPod {
 	return []standInPod{
 		{Component: "coordinator", PortName: "intent", Port: 18100},
 		{Component: "creator", PortName: "instance", Port: 18110},
-		{Component: "executor", PortName: "apply", Port: 18090},
+		{Component: "applier", PortName: "apply", Port: 18090},
 	}
 }
 

@@ -11,7 +11,7 @@ import (
 	"testing"
 )
 
-// These bind the executor's declared helm flags to the helm the executor image
+// These bind the applier's declared helm flags to the helm the applier image
 // ships (GH-739).
 //
 // The flags are major-version-specific. helm 3 takes --atomic and --dry-run;
@@ -25,30 +25,30 @@ import (
 // straight to Failed with no compensating rollback *because* of it. Bump the
 // image to helm 4 and the flag first warns, then eventually goes; the apply
 // stops self-rolling-back and that leg leaves the release on a failed revision,
-// with every test still green -- integration:executor drives fake CLIs, which
+// with every test still green -- integration:applier drives fake CLIs, which
 // accept any flags at all.
 
-// helmVersionPattern matches the pinned version in the executor Dockerfile.
+// helmVersionPattern matches the pinned version in the applier Dockerfile.
 var helmVersionPattern = regexp.MustCompile(`(?m)^ARG HELM_VERSION=v(\d+)\.`)
 
-// helmFlagsByMajor is what each helm major calls the two behaviors the executor
+// helmFlagsByMajor is what each helm major calls the two behaviors the applier
 // depends on: rolling a failed upgrade back, and validating without applying.
 var helmFlagsByMajor = map[int]struct{ rollback, dryRun string }{
 	3: {rollback: "--atomic", dryRun: "--dry-run"},
 	4: {rollback: "--rollback-on-failure", dryRun: "--dry-run=client"},
 }
 
-// pinnedHelmMajor reads the helm major the executor image ships.
+// pinnedHelmMajor reads the helm major the applier image ships.
 func pinnedHelmMajor(t *testing.T) int {
 	t.Helper()
 	meshRoot := filepath.Dir(findChartDir(t))
-	data, err := os.ReadFile(filepath.Join(meshRoot, "executor.Dockerfile"))
+	data, err := os.ReadFile(filepath.Join(meshRoot, "applier.Dockerfile"))
 	if err != nil {
-		t.Fatalf("read executor.Dockerfile: %v", err)
+		t.Fatalf("read applier.Dockerfile: %v", err)
 	}
 	match := helmVersionPattern.FindSubmatch(data)
 	if match == nil {
-		t.Fatal("executor.Dockerfile pins no ARG HELM_VERSION=vN.…; the flag guard cannot tell which helm ships")
+		t.Fatal("applier.Dockerfile pins no ARG HELM_VERSION=vN.…; the flag guard cannot tell which helm ships")
 	}
 	major, err := strconv.Atoi(string(match[1]))
 	if err != nil {
@@ -57,19 +57,19 @@ func pinnedHelmMajor(t *testing.T) int {
 	return major
 }
 
-// TestExecutorHelmFlagsMatchTheShippedHelm proves the declared flags are the ones
+// TestApplierHelmFlagsMatchTheShippedHelm proves the declared flags are the ones
 // the pinned helm actually takes, in both directions: the right spelling present
 // and the other major's absent.
-func TestExecutorHelmFlagsMatchTheShippedHelm(t *testing.T) {
+func TestApplierHelmFlagsMatchTheShippedHelm(t *testing.T) {
 	major := pinnedHelmMajor(t)
 	want, known := helmFlagsByMajor[major]
 	if !known {
-		t.Fatalf("executor.Dockerfile pins helm %d, whose flag spellings this guard does not know; "+
+		t.Fatalf("applier.Dockerfile pins helm %d, whose flag spellings this guard does not know; "+
 			"decide what it calls the self-rollback and the dry-run, and add it to helmFlagsByMajor", major)
 	}
 
 	var decls execDeclarations
-	readIntakeYAML(t, filepath.Join(agentDir(t, "executor"), "exec-declarations.yaml"), &decls)
+	readIntakeYAML(t, filepath.Join(agentDir(t, "applier"), "exec-declarations.yaml"), &decls)
 	args := map[string][]string{}
 	for _, tool := range decls.Tools {
 		args[tool.Name] = tool.Args
@@ -77,7 +77,7 @@ func TestExecutorHelmFlagsMatchTheShippedHelm(t *testing.T) {
 
 	upgrade, ok := args["helm_upgrade"]
 	if !ok {
-		t.Fatal("the executor declares no helm_upgrade word")
+		t.Fatal("the applier declares no helm_upgrade word")
 	}
 	if !containsString(upgrade, want.rollback) {
 		t.Errorf("helm_upgrade does not pass %s, which helm %d calls the self-rollback; "+
@@ -87,7 +87,7 @@ func TestExecutorHelmFlagsMatchTheShippedHelm(t *testing.T) {
 	}
 	dryRun, ok := args["helm_dry_run"]
 	if !ok {
-		t.Fatal("the executor declares no helm_dry_run word")
+		t.Fatal("the applier declares no helm_dry_run word")
 	}
 	if !containsString(dryRun, want.dryRun) {
 		t.Errorf("helm_dry_run does not pass %s, which helm %d calls the validate-without-applying flag",
@@ -115,11 +115,11 @@ func TestExecutorHelmFlagsMatchTheShippedHelm(t *testing.T) {
 	}
 }
 
-// TestExecutorHelmFlagGuardCoversTheDeclaredWords proves the guard reads the
+// TestApplierHelmFlagGuardCoversTheDeclaredWords proves the guard reads the
 // words it claims to. A guard that silently matched nothing would pass forever.
-func TestExecutorHelmFlagGuardCoversTheDeclaredWords(t *testing.T) {
+func TestApplierHelmFlagGuardCoversTheDeclaredWords(t *testing.T) {
 	var decls execDeclarations
-	readIntakeYAML(t, filepath.Join(agentDir(t, "executor"), "exec-declarations.yaml"), &decls)
+	readIntakeYAML(t, filepath.Join(agentDir(t, "applier"), "exec-declarations.yaml"), &decls)
 	var helmWords int
 	for _, tool := range decls.Tools {
 		if tool.Binary == "helm" {
@@ -127,7 +127,7 @@ func TestExecutorHelmFlagGuardCoversTheDeclaredWords(t *testing.T) {
 		}
 	}
 	if helmWords < 3 {
-		t.Errorf("the executor declares %d helm words; the guard expects at least the dry-run, the upgrade, "+
+		t.Errorf("the applier declares %d helm words; the guard expects at least the dry-run, the upgrade, "+
 			"and the rollback, so a word may have been dropped or renamed", helmWords)
 	}
 	// helm_rollback runs no version-specific flag today; if it grows one, this

@@ -48,13 +48,13 @@ states:
   - {name: AwaitingRequest, meaning: Seeded by the trusted instance endpoint with the decided operation body.}
   - {name: Applying, meaning: The creator is realizing the operation by driving the deployment API.}
   - {name: Verifying, meaning: The creator is reading the rollout status to verify the instance's health.}
-  - {name: ReadingState, meaning: The creator is reading the deployed mesh view from the executor.}
+  - {name: ReadingState, meaning: The creator is reading the deployed mesh view from the applier.}
   - {name: ResolvingIngested, meaning: The ingested collection is being resolved to its id.}
   - {name: CountingBeforeIngest, meaning: The collection's document count before the child run is being read.}
   - {name: Ingesting, meaning: The corpus-ingest child agent is running over the requested directory.}
   - {name: CountingAfterIngest, meaning: The collection's document count after the child run is being read.}
   - {name: HealthReported, meaning: Terminal. The instance is healthy and the reported health is ready for the HTTP response.}
-  - {name: StateReported, meaning: Terminal. The executor reported the deployed mesh view.}
+  - {name: StateReported, meaning: Terminal. The applier reported the deployed mesh view.}
   - {name: JudgingIngest, meaning: The post-run count is being tested against the pre-run count to decide whether the run added documents.}
   - {name: Ingested, meaning: Terminal. The child run increased the collection's document count.}
   - {name: IngestRejected, meaning: Terminal. The child run completed but wrote no documents, so it did not meet the requested source.}

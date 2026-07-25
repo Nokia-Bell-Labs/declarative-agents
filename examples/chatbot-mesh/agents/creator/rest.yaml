@@ -86,7 +86,7 @@ rest:
           # (srd005 R3). The creator forwards the coordinator's decided values-plane
           # document as the versioned apply request content (srd006 R1.4); it authors
           # no values decision (srd005 R2.2). No endpoint or credential for a running
-          # agent is sent; the executor validates the content against the chart schema.
+          # agent is sent; the applier validates the content against the chart schema.
           method: POST
           path: /provisioning/api/apply
           params:
@@ -115,7 +115,7 @@ rest:
           # (srd005 R4.1) before reporting the operation complete. The rollout
           # response carries the phase and the Deployment's counts (srd006 R1.4,
           # R3.3); all four travel on so the panel renders what it declares. A
-          # read the executor could not serve answers 502, which is outside the
+          # read the applier could not serve answers 502, which is outside the
           # declared success status and so emits CommandError rather than a
           # phase.
           method: GET
@@ -143,7 +143,7 @@ rest:
           # (srd006 deployment_api_contract): machine_request response bodies map
           # one selector per named field, so these fields travel through
           # unchanged rather than being regrouped into a nested object at this
-          # hop. A read the executor could not serve answers 502, which is
+          # hop. A read the applier could not serve answers 502, which is
           # outside the declared success status and so emits CommandError rather
           # than a mapped-empty view.
           method: GET
@@ -257,7 +257,7 @@ rest:
           request:
             # The coordinator's rollout operation carries the decided values-plane
             # document as content (srd006 R1.4); the creator forwards it to the
-            # executor apply.
+            # applier apply.
             #
             # content is required, because every operation this endpoint realizes
             # goes through apply_instance, whose body is {schema_version, content}.
@@ -432,7 +432,7 @@ rest:
             response:
               # Keyed by terminal state. A read that fails must not arrive as a
               # successful mapped-empty view (agent-core srd030 R4.6, GH-615).
-              # The fields are flat, matching the executor's state_response
+              # The fields are flat, matching the applier's state_response
               # contract: machine_request response bodies map one selector per
               # named field, so they travel through unchanged rather than being
               # regrouped into a nested object at this hop (GH-753).

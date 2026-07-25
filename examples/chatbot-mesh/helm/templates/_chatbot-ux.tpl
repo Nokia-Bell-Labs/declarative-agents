@@ -62,7 +62,7 @@ trace_backend:
   name: jaeger
   query_path: /monitor-proxy/jaeger/api/traces/{trace_id}
 {{- end }}
-{{- if .Values.executor.enabled }}
+{{- if .Values.applier.enabled }}
 deployment_api:
   base_path: /provisioning/api
   auth: none
@@ -74,5 +74,5 @@ presentation:
   observability_per_agent_sse: true
   observability_turn_correlation: time-window
   observability_trace_waterfall: true
-  provisioning_panel: {{ .Values.executor.enabled }}
+  provisioning_panel: {{ .Values.applier.enabled }}
 {{- end -}}

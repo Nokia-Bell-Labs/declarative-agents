@@ -30,7 +30,7 @@ flowchart LR
 
 ## Scope and status
 
-The example spans both planes, and both are implemented. The data plane is the chatbot, the RAG servers, a corpus-ingest agent that seeds the vector store, observability, and Helm deployment. The control plane is a coordinator agent, a creator agent, and an executor that applies rollout changes to the running mesh. All six agents run on agent-core; `mage integration:controlPlane` exercises the coordinator and creator against a live mesh.
+The example spans both planes, and both are implemented. The data plane is the chatbot, the RAG servers, a corpus-ingest agent that seeds the vector store, observability, and Helm deployment. The control plane is a coordinator agent, a creator agent, and an applier that applies rollout changes to the running mesh. All six agents run on agent-core; `mage integration:controlPlane` exercises the coordinator and creator against a live mesh.
 
 ## Decisions
 
@@ -49,7 +49,7 @@ Four decisions frame the extraction. They are recorded here so a reader understa
 ```
 examples/chatbot-mesh/
   docs/          VISION, ARCHITECTURE, road-map, and the example's own specs
-  agents/        chatbot, rag-server, corpus-ingest (seed), coordinator, creator, executor
+  agents/        chatbot, rag-server, corpus-ingest (seed), coordinator, creator, applier
   ux/            the single-page application and UX config
   helm/          the deployment chart
   README.md      this file

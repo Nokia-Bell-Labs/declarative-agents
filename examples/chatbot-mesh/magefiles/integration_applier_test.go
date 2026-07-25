@@ -11,46 +11,46 @@ import (
 	"testing"
 )
 
-// These cover the executor tracer's assertions without launching an agent
+// These cover the applier tracer's assertions without launching an agent
 // (GH-731). The tracer itself is a mage target gated on a Go toolchain; what can
 // be checked cheaply is that its assertions actually reject the things they
 // name, and that its fakes classify the argv the shipped declarations construct.
 
-// TestAssertExecutorCallsRejectsMissingAndForbidden proves the call assertions
+// TestAssertApplierCallsRejectsMissingAndForbidden proves the call assertions
 // fail in both directions: a leg that did not invoke what it must, and a leg
 // that invoked what it must not. A tracer whose assertions passed vacuously
 // would report green while the machine skipped a word.
-func TestAssertExecutorCallsRejectsMissingAndForbidden(t *testing.T) {
-	scenario := executorScenario{
+func TestAssertApplierCallsRejectsMissingAndForbidden(t *testing.T) {
+	scenario := applierScenario{
 		name:        "example",
 		wantCalls:   []string{"helm upgrade"},
 		absentCalls: []string{"helm rollback"},
 	}
 
-	if err := assertExecutorCalls([]string{"helm upgrade chatbot-mesh /chart"}, scenario); err != nil {
+	if err := assertApplierCalls([]string{"helm upgrade chatbot-mesh /chart"}, scenario); err != nil {
 		t.Fatalf("a satisfied scenario should pass: %v", err)
 	}
-	err := assertExecutorCalls([]string{"kubectl rollout status"}, scenario)
+	err := assertApplierCalls([]string{"kubectl rollout status"}, scenario)
 	if err == nil || !strings.Contains(err.Error(), "helm upgrade") {
 		t.Errorf("a missing required call must fail, got %v", err)
 	}
-	err = assertExecutorCalls([]string{"helm upgrade", "helm rollback chatbot-mesh"}, scenario)
+	err = assertApplierCalls([]string{"helm upgrade", "helm rollback chatbot-mesh"}, scenario)
 	if err == nil || !strings.Contains(err.Error(), "must not reach") {
 		t.Errorf("a forbidden call must fail, got %v", err)
 	}
 }
 
-// TestExecutorAuthorityProblemRejectsTransportAuthority proves the authority
+// TestApplierAuthorityProblemRejectsTransportAuthority proves the authority
 // assertion catches an invocation carrying an endpoint, a credential, or a
-// per-field --set. The executor edits values and triggers rollouts only; it
+// per-field --set. The applier edits values and triggers rollouts only; it
 // accepts no endpoint or credential for a running agent (srd006 R2.3, R4.2) and
 // constructs no --set (R2.2).
-func TestExecutorAuthorityProblemRejectsTransportAuthority(t *testing.T) {
+func TestApplierAuthorityProblemRejectsTransportAuthority(t *testing.T) {
 	clean := []string{
 		"helm upgrade chatbot-mesh /chart --namespace default --reuse-values --atomic -f /work/overrides.yaml",
 		"kubectl rollout status deployment/chatbot-mesh-chatbot --namespace default --timeout 120s",
 	}
-	if problem := executorAuthorityProblem(clean); problem != "" {
+	if problem := applierAuthorityProblem(clean); problem != "" {
 		t.Errorf("the shipped invocations must pass the authority check, got %q", problem)
 	}
 
@@ -61,7 +61,7 @@ func TestExecutorAuthorityProblemRejectsTransportAuthority(t *testing.T) {
 		{"per-field set", "helm upgrade chatbot-mesh /chart --set ragUnits[0].name=rag9", "--set"},
 	} {
 		t.Run(tc.name, func(t *testing.T) {
-			problem := executorAuthorityProblem([]string{tc.call})
+			problem := applierAuthorityProblem([]string{tc.call})
 			if !strings.Contains(problem, tc.want) {
 				t.Errorf("problem = %q, want it to name %q", problem, tc.want)
 			}
@@ -69,12 +69,12 @@ func TestExecutorAuthorityProblemRejectsTransportAuthority(t *testing.T) {
 	}
 }
 
-// TestExecutorScenariosCoverEveryTerminal proves the tracer walks every terminal
+// TestApplierScenariosCoverEveryTerminal proves the tracer walks every terminal
 // both machines declare. A terminal added to a machine without a scenario here
 // would ship an outcome no test ever reaches -- which is how the rollout read
 // carried an unmapped outcome before GH-686.
-func TestExecutorScenariosCoverEveryTerminal(t *testing.T) {
-	scenarios := executorScenarios()
+func TestApplierScenariosCoverEveryTerminal(t *testing.T) {
+	scenarios := applierScenarios()
 	var applyLegs, rolloutLegs, stateLegs int
 	for _, scenario := range scenarios {
 		switch {
@@ -96,7 +96,7 @@ func TestExecutorScenariosCoverEveryTerminal(t *testing.T) {
 		{"state-machine.yaml", stateLegs},
 	} {
 		var machine rolloutMachine
-		readIntakeYAML(t, filepath.Join(agentDir(t, "executor"), tc.machine), &machine)
+		readIntakeYAML(t, filepath.Join(agentDir(t, "applier"), tc.machine), &machine)
 		if len(machine.TerminalStates) == 0 {
 			t.Fatalf("%s declares no terminal states", tc.machine)
 		}
@@ -113,14 +113,14 @@ func TestExecutorScenariosCoverEveryTerminal(t *testing.T) {
 // argument in exec-declarations.yaml and a scenario would otherwise keep passing
 // while priming a leg the run no longer takes.
 func TestFakeScriptsClassifyTheDeclaredInvocations(t *testing.T) {
-	fakes, err := newExecutorFakes()
+	fakes, err := newApplierFakes()
 	if err != nil {
 		t.Fatalf("build fakes: %v", err)
 	}
 	defer fakes.cleanup()
 
 	var decls execDeclarations
-	readIntakeYAML(t, filepath.Join(agentDir(t, "executor"), "exec-declarations.yaml"), &decls)
+	readIntakeYAML(t, filepath.Join(agentDir(t, "applier"), "exec-declarations.yaml"), &decls)
 	args := map[string][]string{}
 	for _, tool := range decls.Tools {
 		args[tool.Name] = tool.Args
@@ -140,7 +140,7 @@ func TestFakeScriptsClassifyTheDeclaredInvocations(t *testing.T) {
 		t.Run(tc.word, func(t *testing.T) {
 			declared, ok := args[tc.word]
 			if !ok {
-				t.Fatalf("the executor declares no %s word", tc.word)
+				t.Fatalf("the applier declares no %s word", tc.word)
 			}
 			if err := fakes.plan(map[string]int{tc.verb: 42}, nil); err != nil {
 				t.Fatal(err)
@@ -159,18 +159,18 @@ func TestFakeScriptsClassifyTheDeclaredInvocations(t *testing.T) {
 	}
 }
 
-// TestExecutorLiveRollbackTriggerIsPostUpgradeOnly pins the live tier's
+// TestApplierLiveRollbackTriggerIsPostUpgradeOnly pins the live tier's
 // deterministic failure injection (srd006 R3.2, GH-751). Ordinary values must
 // not render the mutating hook; the reserved fixture must render a post-upgrade
 // Pod that uses real kubectl only after Helm has accepted the ordinary rollout.
-func TestExecutorLiveRollbackTriggerIsPostUpgradeOnly(t *testing.T) {
+func TestApplierLiveRollbackTriggerIsPostUpgradeOnly(t *testing.T) {
 	if _, err := exec.LookPath("helm"); err != nil {
 		t.Skip("helm not on PATH")
 	}
 	chartDir := findChartDir(t)
-	staged, cleanup, err := stageExecutorLiveChart(chartDir, filepath.Dir(chartDir))
+	staged, cleanup, err := stageApplierLiveChart(chartDir, filepath.Dir(chartDir))
 	if err != nil {
-		t.Fatalf("stage executor live chart: %v", err)
+		t.Fatalf("stage applier live chart: %v", err)
 	}
 	defer cleanup()
 
@@ -183,20 +183,20 @@ func TestExecutorLiveRollbackTriggerIsPostUpgradeOnly(t *testing.T) {
 		}
 		return string(out)
 	}
-	if ordinary := render(); strings.Contains(ordinary, "invalid.local/executor-live-rollback") {
+	if ordinary := render(); strings.Contains(ordinary, "invalid.local/applier-live-rollback") {
 		t.Fatal("ordinary values render the rollback trigger")
 	}
 
 	fixture, err := os.ReadFile(filepath.Join(filepath.Dir(chartDir),
-		"testdata", "integration", "executor-values", "rollback-trigger.yaml"))
+		"testdata", "integration", "applier-values", "rollback-trigger.yaml"))
 	if err != nil {
 		t.Fatal(err)
 	}
-	triggered := render("--set", "executor.params.nResults=751")
+	triggered := render("--set", "applier.params.nResults=751")
 	for _, want := range []string{
 		"helm.sh/hook: post-upgrade",
 		"command: [kubectl]",
-		"invalid.local/executor-live-rollback:missing",
+		"invalid.local/applier-live-rollback:missing",
 	} {
 		if !strings.Contains(triggered, want) {
 			t.Errorf("triggered render does not contain %q", want)

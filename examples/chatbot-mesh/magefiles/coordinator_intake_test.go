@@ -13,10 +13,10 @@ import (
 )
 
 // These cover the coordinator as the panel's provisioning intake (GH-502,
-// GH-680). The panel used to POST its apply at the executor, which the executor
+// GH-680). The panel used to POST its apply at the applier, which the applier
 // NetworkPolicy blocks because only creator-labelled pods may reach the apply
 // surface. The intent now enters at the coordinator, which orchestrates the
-// creator, which alone calls the executor (srd003 R4.1/R4.4, srd004 R1.5/R1.6,
+// creator, which alone calls the applier (srd003 R4.1/R4.4, srd004 R1.5/R1.6,
 // srd006 R4.1).
 
 type intakeEndpoint struct {
@@ -332,7 +332,7 @@ func TestApplyMapsOutcomesByTerminalState(t *testing.T) {
 
 // The panel polls rollout progress from the coordinator, not from the deployment
 // API, which no browser may reach (srd003 R4.4, srd004 R1.3). The chain is
-// coordinator -> creator -> executor; these pin both hops the mesh owns (GH-684).
+// coordinator -> creator -> applier; these pin both hops the mesh owns (GH-684).
 
 // TestCoordinatorServesThePanelRolloutPoll proves the poll has somewhere to land.
 // After GH-681 the /provisioning prefix routes to the coordinator, so a missing
@@ -403,7 +403,7 @@ func TestRolloutReadFailureIsNotASuccessfulUnknown(t *testing.T) {
 
 // TestCreatorRolloutReadIsCoordinatorFacing proves the read exists on the creator
 // and stays off the browser path. The creator exposes no browser-facing surface
-// (srd005 R5.4) -- it is the only pod the executor admits to the apply surface, so
+// (srd005 R5.4) -- it is the only pod the applier admits to the apply surface, so
 // widening its reachability would widen the path to apply.
 func TestCreatorRolloutReadIsCoordinatorFacing(t *testing.T) {
 	var rest intakeRest
@@ -462,7 +462,7 @@ func TestCreatorHealthLegIsReusedNotDuplicated(t *testing.T) {
 	}
 }
 
-// The rollout counts hop tests (GH-686). The executor reads ready, desired, and
+// The rollout counts hop tests (GH-686). The applier reads ready, desired, and
 // revision off the Deployment (srd006 R3.3); each hop between it and the panel
 // must carry them or the panel renders "undefined/undefined ready (rev
 // undefined)" from an interface that promises four fields and delivers one.
@@ -526,17 +526,17 @@ func clientOperationNamed(t *testing.T, agent, client, operation string) clientO
 	return op
 }
 
-// rolloutCountFields are the three fields the executor added beyond the phase.
+// rolloutCountFields are the three fields the applier added beyond the phase.
 var rolloutCountFields = []string{"ready", "desired", "revision"}
 
 // TestRolloutCountsSurviveTheCreatorHop proves the creator maps the counts off
-// the executor's response and re-serves them, rather than discarding everything
+// the applier's response and re-serves them, rather than discarding everything
 // but the phase.
 func TestRolloutCountsSurviveTheCreatorHop(t *testing.T) {
 	op := clientOperationNamed(t, "creator", "deployment_api", "read_rollout")
 	for _, field := range rolloutCountFields {
 		if got := op.Response.Output[field]; got != "$."+field {
-			t.Errorf("read_rollout maps %s = %q, want $.%s; the executor serves it and the creator drops it", field, got, field)
+			t.Errorf("read_rollout maps %s = %q, want $.%s; the applier serves it and the creator drops it", field, got, field)
 		}
 	}
 	if op.Response.Output["health"] != "$.phase" {

@@ -16,6 +16,6 @@ links resolve.
   `CHROME_BIN`):
   [`agent-core/README.md`](../agent-core/README.md#browser-end-to-end-tests).
 
-The control-plane deployment API is the executor
-([srd006](../examples/chatbot-mesh/docs/specs/software-requirements/srd006-executor.yaml)),
+The control-plane deployment API is the applier
+([srd006](../examples/chatbot-mesh/docs/specs/software-requirements/srd006-applier.yaml)),
 which the creator drives; there is no separate provisioner.

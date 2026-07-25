@@ -12,18 +12,18 @@ import (
 )
 
 const (
-	execApplyURL   = "http://127.0.0.1:18090/provisioning/api/apply"
-	execRolloutURL = "http://127.0.0.1:18090/provisioning/api/rollout"
-	execStateURL   = "http://127.0.0.1:18090/provisioning/api/state"
-	execControlURL = "http://127.0.0.1:18091/api/lifecycle/health"
-	execReadyWait  = 30 * time.Second
+	applierApplyURL             = "http://127.0.0.1:18090/provisioning/api/apply"
+	applierRolloutURL           = "http://127.0.0.1:18090/provisioning/api/rollout"
+	applierStateURL             = "http://127.0.0.1:18090/provisioning/api/state"
+	applierControlURL           = "http://127.0.0.1:18091/api/lifecycle/health"
+	applierIntegrationReadyWait = 30 * time.Second
 )
 
-// Executor proves the executor's validate -> apply -> verify -> rollback flow and
+// Applier proves the applier's validate -> apply -> verify -> rollback flow and
 // its HTTP contracts against the shipped profile (srd006 R2, R3, R4; rel06.0
-// uc001). It is the tracer test-rel06.0-executor names.
+// uc001). It is the tracer test-rel06.0-applier names.
 //
-// The executor's exec words declare `binary: helm` and `binary: kubectl` with no
+// The applier's exec words declare `binary: helm` and `binary: kubectl` with no
 // path, so putting recording fakes ahead of the real tools on PATH is enough to
 // drive every leg. Nothing in the profile needs a test-only branch, which is the
 // point: this runs the declaration that ships, and a word dropped from the
@@ -34,40 +34,40 @@ const (
 // this is evidence about the machine, the arguments it constructs, and the
 // responses it maps -- not about a cluster. The chart schema is proven
 // separately against real helm, and the live tier is GH-735.
-func (Integration) Executor() error {
+func (Integration) Applier() error {
 	profilesRoot, err := os.Getwd()
 	if err != nil {
 		return err
 	}
 	coreRoot := envOrDefault(agentCoreRootEnv, siblingPath(profilesRoot, "agent-core"))
 	if err := requireProfilePaths(profilesRoot,
-		"agents/executor/profile.yaml", "agents/executor/apply-machine.yaml",
-		"agents/executor/rollout-machine.yaml", "agents/executor/state-machine.yaml",
-		"agents/executor/exec-declarations.yaml",
+		"agents/applier/profile.yaml", "agents/applier/apply-machine.yaml",
+		"agents/applier/rollout-machine.yaml", "agents/applier/state-machine.yaml",
+		"agents/applier/exec-declarations.yaml",
 	); err != nil {
 		return err
 	}
 	if !agentCoreAvailable(coreRoot) {
-		fmt.Printf("SKIP executor: agent-core checkout not found at %s (set %s)\n", coreRoot, agentCoreRootEnv)
+		fmt.Printf("SKIP applier: agent-core checkout not found at %s (set %s)\n", coreRoot, agentCoreRootEnv)
 		return nil
 	}
-	return runExecutorIntegration(profilesRoot, coreRoot)
+	return runApplierIntegration(profilesRoot, coreRoot)
 }
 
-func runExecutorIntegration(profilesRoot, coreRoot string) error {
+func runApplierIntegration(profilesRoot, coreRoot string) error {
 	binary, err := buildAgent(coreRoot)
 	if err != nil {
 		return err
 	}
 	defer func() { _ = os.Remove(binary) }()
 
-	fakes, err := newExecutorFakes()
+	fakes, err := newApplierFakes()
 	if err != nil {
 		return err
 	}
 	defer fakes.cleanup()
 
-	trace, traceCleanup, err := chromaTraceFile("executor")
+	trace, traceCleanup, err := chromaTraceFile("applier")
 	if err != nil {
 		return err
 	}
@@ -75,7 +75,7 @@ func runExecutorIntegration(profilesRoot, coreRoot string) error {
 
 	stop, err := startDetachedAgentWithEnv(agentLaunch{
 		Binary: binary, ProfilesRoot: profilesRoot, CoreRoot: coreRoot,
-		Profile: "agents/executor/profile.yaml", TracePath: trace,
+		Profile: "agents/applier/profile.yaml", TracePath: trace,
 		// The workspace the values file lands in, and the same value the
 		// deployment sets from workMountPath (GH-737). Without it write_overrides
 		// resolves /work against a workspace that does not contain it and every
@@ -83,7 +83,7 @@ func runExecutorIntegration(profilesRoot, coreRoot string) error {
 		Workdir: fakes.workDir,
 		Env: []string{
 			"PATH=" + fakes.binDir + string(os.PathListSeparator) + os.Getenv("PATH"),
-			"EXECUTOR_WORK_DIR=" + fakes.workDir,
+			"APPLIER_WORK_DIR=" + fakes.workDir,
 		},
 		GracefulWait: 15 * time.Second,
 	})
@@ -96,33 +96,33 @@ func runExecutorIntegration(profilesRoot, coreRoot string) error {
 			_ = stop(true)
 		}
 	}()
-	if err := waitHTTPStatus(execControlURL, http.StatusOK, execReadyWait); err != nil {
-		return fmt.Errorf("executor control health never came up: %w", err)
+	if err := waitHTTPStatus(applierControlURL, http.StatusOK, applierIntegrationReadyWait); err != nil {
+		return fmt.Errorf("applier control health never came up: %w", err)
 	}
 
-	for _, scenario := range executorScenarios() {
-		if err := runExecutorScenario(fakes, scenario); err != nil {
+	for _, scenario := range applierScenarios() {
+		if err := runApplierScenario(fakes, scenario); err != nil {
 			return fmt.Errorf("%s: %w", scenario.name, err)
 		}
-		fmt.Printf("executor: %s\n", scenario.name)
+		fmt.Printf("applier: %s\n", scenario.name)
 	}
 
 	stopped = true
 	if err := stop(true); err != nil {
 		return err
 	}
-	fmt.Println("integration:executor PASS - the shipped executor walked every apply and rollout leg, " +
+	fmt.Println("integration:applier PASS - the shipped applier walked every apply and rollout leg, " +
 		"constructed the declared helm and kubectl arguments, and mapped each terminal to its contract response")
 	return nil
 }
 
-// runExecutorScenario primes the fakes for one outcome, drives the endpoint, and
+// runApplierScenario primes the fakes for one outcome, drives the endpoint, and
 // checks the response and the calls the run actually made.
-func runExecutorScenario(fakes *executorFakes, scenario executorScenario) error {
+func runApplierScenario(fakes *applierFakes, scenario applierScenario) error {
 	if err := fakes.plan(scenario.exits, scenario.stdout); err != nil {
 		return err
 	}
-	body, status, err := executorRequest(scenario)
+	body, status, err := applierRequest(scenario)
 	if err != nil {
 		return err
 	}
@@ -138,23 +138,23 @@ func runExecutorScenario(fakes *executorFakes, scenario executorScenario) error 
 	if err != nil {
 		return err
 	}
-	return assertExecutorCalls(calls, scenario)
+	return assertApplierCalls(calls, scenario)
 }
 
-func executorRequest(scenario executorScenario) ([]byte, int, error) {
+func applierRequest(scenario applierScenario) ([]byte, int, error) {
 	if scenario.applyBody != "" {
-		return requestInference(http.MethodPost, execApplyURL, scenario.applyBody, "executor apply")
+		return requestInference(http.MethodPost, applierApplyURL, scenario.applyBody, "applier apply")
 	}
 	if scenario.stateRead {
-		return requestInference(http.MethodGet, execStateURL, "", "executor state read")
+		return requestInference(http.MethodGet, applierStateURL, "", "applier state read")
 	}
-	return requestInference(http.MethodGet, execRolloutURL, "", "executor rollout read")
+	return requestInference(http.MethodGet, applierRolloutURL, "", "applier rollout read")
 }
 
-// assertExecutorCalls checks what the run invoked, which is where an argv
+// assertApplierCalls checks what the run invoked, which is where an argv
 // contract lives. A response alone cannot tell a values-file apply from a
 // per-field --set one, nor prove that a rejected patch stopped before the apply.
-func assertExecutorCalls(calls []string, scenario executorScenario) error {
+func assertApplierCalls(calls []string, scenario applierScenario) error {
 	joined := strings.Join(calls, "\n")
 	for _, want := range scenario.wantCalls {
 		if !strings.Contains(joined, want) {
@@ -167,18 +167,18 @@ func assertExecutorCalls(calls []string, scenario executorScenario) error {
 				absent, joined)
 		}
 	}
-	// The authority boundary: the executor edits values and triggers rollouts
+	// The authority boundary: the applier edits values and triggers rollouts
 	// only. No invocation may carry an endpoint or credential for a running agent
 	// (srd006 R2.3, R4.2).
-	if problem := executorAuthorityProblem(calls); problem != "" {
+	if problem := applierAuthorityProblem(calls); problem != "" {
 		return fmt.Errorf("authority boundary: %s; calls were:\n%s", problem, joined)
 	}
 	return nil
 }
 
-// executorAuthorityProblem reports an invocation that carries transport
+// applierAuthorityProblem reports an invocation that carries transport
 // authority, or "" when none does.
-func executorAuthorityProblem(calls []string) string {
+func applierAuthorityProblem(calls []string) string {
 	for _, call := range calls {
 		for _, marker := range []string{"http://", "https://", "--token", "Bearer ", "--kubeconfig"} {
 			if strings.Contains(call, marker) {
@@ -194,10 +194,10 @@ func executorAuthorityProblem(calls []string) string {
 	return ""
 }
 
-// executorFakes is a PATH directory holding recording helm and kubectl stand-ins,
+// applierFakes is a PATH directory holding recording helm and kubectl stand-ins,
 // the workspace the values file lands in, and the plan the fakes read their exit
 // codes from.
-type executorFakes struct {
+type applierFakes struct {
 	root    string
 	binDir  string
 	planDir string
@@ -205,12 +205,12 @@ type executorFakes struct {
 	logPath string
 }
 
-func newExecutorFakes() (*executorFakes, error) {
-	root, err := os.MkdirTemp("", "executor-tracer-*")
+func newApplierFakes() (*applierFakes, error) {
+	root, err := os.MkdirTemp("", "applier-tracer-*")
 	if err != nil {
 		return nil, err
 	}
-	fakes := &executorFakes{
+	fakes := &applierFakes{
 		root:    root,
 		binDir:  filepath.Join(root, "bin"),
 		planDir: filepath.Join(root, "plan"),
@@ -236,11 +236,11 @@ func newExecutorFakes() (*executorFakes, error) {
 	return fakes, nil
 }
 
-func (f *executorFakes) cleanup() { _ = os.RemoveAll(f.root) }
+func (f *applierFakes) cleanup() { _ = os.RemoveAll(f.root) }
 
 // plan writes the exit code each verb should take and any stdout it should emit,
 // and clears the call log so a scenario sees only its own invocations.
-func (f *executorFakes) plan(exits map[string]int, stdout map[string]string) error {
+func (f *applierFakes) plan(exits map[string]int, stdout map[string]string) error {
 	if err := os.RemoveAll(f.planDir); err != nil {
 		return err
 	}
@@ -262,7 +262,7 @@ func (f *executorFakes) plan(exits map[string]int, stdout map[string]string) err
 	return os.WriteFile(f.logPath, nil, 0o644)
 }
 
-func (f *executorFakes) calls() ([]string, error) {
+func (f *applierFakes) calls() ([]string, error) {
 	data, err := os.ReadFile(f.logPath)
 	if err != nil {
 		return nil, fmt.Errorf("read recorded calls: %w", err)

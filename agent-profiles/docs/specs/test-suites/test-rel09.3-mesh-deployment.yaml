@@ -5,8 +5,8 @@ release: "09.3"
 overview: |
   Non-canonical historical record. The chatbot mesh was extracted to
   examples/chatbot-mesh/; its deployment specs are srd003 (chart) and srd006
-  (executor deployment API) with the test suites under examples/chatbot-mesh/.
-  The provisioner service this suite names was replaced by the executor
+  (applier deployment API) with the test suites under examples/chatbot-mesh/.
+  The provisioner service this suite names was replaced by the applier
   (srd006); the mage integration:provisioning target and the
   examples/chatbot-mesh/provisioner/ package no longer exist. This file remains
   only as a pointer to that history.
@@ -27,7 +27,7 @@ traces:
 preconditions:
   - agent-core is available as AGENT_CORE_ROOT or a sibling ../agent-core checkout.
   - A kind cluster and docker/helm/kubectl are available for the on-cluster tracers, and the rel06.0 runtime image is loadable.
-  - examples/chatbot-mesh owns the deployment chart, executor, and chatbot/RAG profiles named by the tracers.
+  - examples/chatbot-mesh owns the deployment chart, applier, and chatbot/RAG profiles named by the tracers.
 
 test_cases:
   - use_case: rel09.3-uc001-mesh-deployment
@@ -115,14 +115,14 @@ test_cases:
       - srd015-chatbot-deployment AC3
 
   - use_case: rel09.3-uc001-mesh-deployment
-    name: Declarative executor deployment API tracer
-    integration_target: cd ../examples/chatbot-mesh && mage integration:executor
+    name: Declarative applier deployment API tracer
+    integration_target: cd ../examples/chatbot-mesh && mage integration:applier
     status: planned
     follow_up_issue: "#483"
     description: |
-      The canonical rel06.0 suite plans an executor tracer for the deployment API
+      The canonical rel06.0 suite plans an applier tracer for the deployment API
       that replaced the deleted provisioner. The target must exercise the real
-      executor validate, apply, verify, rollback, state, and rollout paths. Until
+      applier validate, apply, verify, rollback, state, and rollout paths. Until
       that target exists, this retained historical case does not claim executable
       provisioning evidence.
     inputs:

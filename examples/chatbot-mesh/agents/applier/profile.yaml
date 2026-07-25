@@ -1,4 +1,4 @@
-name: executor
+name: applier
 machine: machine.yaml
 tools:
   - tools.yaml

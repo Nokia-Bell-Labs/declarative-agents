@@ -162,16 +162,16 @@ ingress:
 # that renders it from ragUnits lands in GH-314; the init check wires here.
 validateProfiles: true
 
-# The executor (srd006): the declarative deployment API (srd003 R4) -- the agent-core
+# The applier (srd006): the declarative deployment API (srd003 R4) -- the agent-core
 # runtime with a mounted profile whose request-machine binds the helm and kubectl CLIs
 # as exec words. It views the mesh and applies values edits that trigger a rollout,
 # never submitting an endpoint to a running agent. Reached same-origin via the chatbot
 # ingress at /provisioning.
-executor:
+applier:
   enabled: true
-  # The executor image bundles the runtime, helm, kubectl, and the chart at /chart
-  # (srd003 R1.3 sanctioned divergence). Built from examples/chatbot-mesh/executor.Dockerfile.
-  image: {repository: ghcr.io/nokia-bell-labs/declarative-agents/chatbot-mesh-executor, tag: "0.1.0", pullPolicy: IfNotPresent}
+  # The applier image bundles the runtime, helm, kubectl, and the chart at /chart
+  # (srd003 R1.3 sanctioned divergence). Built from examples/chatbot-mesh/applier.Dockerfile.
+  image: {repository: ghcr.io/nokia-bell-labs/declarative-agents/chatbot-mesh-applier, tag: "0.1.0", pullPolicy: IfNotPresent}
   ports: {apply: 18090, control: 18091, monitor: 18092}
   # allowApply grants the apply-path RBAC (helm upgrade manages the chart objects).
   allowApply: true
@@ -197,7 +197,7 @@ executor:
 #
 # The ingress /provisioning route is gated on this too, because the coordinator is
 # the panel's intake (srd004 R1.5). With the control plane off, no provisioning
-# route renders at all -- previously the route rendered against the executor, whose
+# route renders at all -- previously the route rendered against the applier, whose
 # NetworkPolicy admits only the creator, so it was present but dead (GH-502).
 controlPlane:
   enabled: false
@@ -206,7 +206,7 @@ controlPlane:
     ports: {intent: 18100, control: 18101, monitor: 18102}
     # The intent port is the panel's only provisioning intake, so it is the one
     # control-plane surface the ingress controller may reach. Admitting it here is
-    # what lets the browser route work while the executor's apply surface stays
+    # what lets the browser route work while the applier's apply surface stays
     # creator-only (srd006 R4.1, srd003 R4.5).
     #
     # Name your own ingress controller with these selectors; the defaults match a
@@ -229,7 +229,7 @@ controlPlane:
     ports: {instance: 18110, control: 18111, monitor: 18112}
     # The instance endpoint is reached only by the coordinator (srd005 R1.1, R5.4).
     # Without this the port is open to every pod in the cluster, and since the
-    # creator is the only pod the executor admits to its apply surface, that is the
+    # creator is the only pod the applier admits to its apply surface, that is the
     # widest remaining path to apply (GH-685).
     networkPolicy:
       enabled: true
@@ -237,9 +237,9 @@ controlPlane:
       requests: {cpu: 50m, memory: 64Mi}
       limits: {cpu: 500m, memory: 256Mi}
     # Optional deployment-API bearer token, mounted from a Secret separate from the
-    # chat path (the #392 file-mount pattern). The executor's apply surface is
+    # chat path (the #392 file-mount pattern). The applier's apply surface is
     # network-authenticated (NetworkPolicy), so this is unused unless an operator
-    # fronts the executor with an auth proxy; set name to point at your own Secret.
+    # fronts the applier with an auth proxy; set name to point at your own Secret.
     deploymentApiTokenSecret:
       name: ""
       key: applyToken

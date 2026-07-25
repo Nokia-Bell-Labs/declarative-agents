@@ -96,7 +96,7 @@ acceptance_criteria:
     criterion: The creator exposes no browser-facing surface and stays the sole caller of the apply surface, forwarding a decided values document whether the coordinator or the operator originated it.
     traces: [R5.4, R6.1]
     tests:
-      - "test-rel06.0-executor: The panel route reaches only the authorized surface"
+      - "test-rel06.0-applier: The panel route reaches only the authorized surface"
 
 depends_on:
   - srd_id: srd004-coordinator

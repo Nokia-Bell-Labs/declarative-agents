@@ -467,8 +467,8 @@ type chartProfileProgram struct{ src, rel string }
 // chartProfilePrograms is the single authoritative list of agent programs and
 // ux artifacts staged into the chart's profiles ConfigMap. It MUST cover every
 // agent profile mounted by an enabled Deployment (see helm/templates/*.yaml);
-// the executor (srd006) Deployment mounts agents/executor/profile.yaml, so
-// omitting it here left an enabled executor with no profile to start (GH-485).
+// the applier (srd006) Deployment mounts agents/applier/profile.yaml, so
+// omitting it here left an enabled applier with no profile to start (GH-485).
 // TestStagedProfilesCoverEnabledDeployments enforces the coverage.
 //
 // The ux contributes two entries rather than its whole tree, because every file
@@ -487,7 +487,7 @@ func chartProfilePrograms() []chartProfileProgram {
 		{"agents/rag-server", "profiles/agents/rag-server"},
 		{"agents/coordinator", "profiles/agents/coordinator"},
 		{"agents/creator", "profiles/agents/creator"},
-		{"agents/executor", "profiles/agents/executor"},
+		{"agents/applier", "profiles/agents/applier"},
 		{"agents/collector", "profiles/agents/collector"},
 		{"ux/ux.yaml", "profiles/ux/ux.yaml"},
 		{"ux/app/dist", "profiles/ux/app/dist"},

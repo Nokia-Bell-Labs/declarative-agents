@@ -34,7 +34,7 @@ flowchart TB
   subgraph CP["Control plane — reconfigures the mesh"]
     CO["Coordinator<br/>decides what changes"]
     CR["Creator<br/>acts: lifecycle + rollout"]
-    EX["Executor<br/>declarative deployment API (srd006)"]
+    EX["Applier<br/>declarative deployment API (srd006)"]
   end
 
   User -->|chat turn| CB
@@ -71,7 +71,7 @@ Table 1: Mesh components
 | Corpus-ingest agent (`agents/corpus-ingest/`) | data | Seed a Chroma collection from a document directory under model control |
 | Coordinator (`agents/coordinator/`) | control | Decide the values change; sequence ingest and reconfiguration |
 | Creator (`agents/creator/`) | control | Act: agent lifecycle and request-draining rollout; holds deployment-API authority |
-| Executor (`agents/executor/`) | control | Declarative deployment API (srd006) the creator drives; validate-apply-verify-rollback binding helm/kubectl exec words |
+| Applier (`agents/applier/`) | control | Declarative deployment API (srd006) the creator drives; validate-apply-verify-rollback binding helm/kubectl exec words |
 | User interface (`ux/`) | both | The SPA with chat, observability, and provisioning panels |
 | Helm chart (`helm/`) | deploy | Deploy the whole mesh as one chart from values-driven RAG pairs |
 
@@ -81,7 +81,7 @@ The normative detail lives in the SRDs: the RAG server in
 [srd003](specs/software-requirements/srd003-chatbot-deployment.yaml), the
 coordinator in [srd004](specs/software-requirements/srd004-coordinator.yaml), the
 creator in [srd005](specs/software-requirements/srd005-creator.yaml), and the
-executor in [srd006](specs/software-requirements/srd006-executor.yaml).
+applier in [srd006](specs/software-requirements/srd006-applier.yaml).
 
 ## A single chat turn
 

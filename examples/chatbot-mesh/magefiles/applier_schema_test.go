@@ -10,30 +10,30 @@ import (
 	"testing"
 )
 
-// These cover the chart schema the executor's validate step rests on (GH-732).
+// These cover the chart schema the applier's validate step rests on (GH-732).
 //
-// The executor rejects a non-conforming values patch by rendering the chart with
+// The applier rejects a non-conforming values patch by rendering the chart with
 // a helm dry-run, which validates against values.schema.json (srd006 R2.1, AC2).
-// That rejection is the executor's entire input-validation story, and
-// integration:executor cannot prove it: its fake helm returns whatever exit code
+// That rejection is the applier's entire input-validation story, and
+// integration:applier cannot prove it: its fake helm returns whatever exit code
 // the scenario sets, so a schema that accepted every document would pass that
 // tracer unchanged. Only real helm against the real chart can say whether the
 // schema rejects anything.
 //
-// Substitution, stated because it matters: the executor runs
+// Substitution, stated because it matters: the applier runs
 // `helm upgrade --dry-run`, which needs a reachable cluster --
 // "kubernetes cluster unreachable" is as far as it gets here. `helm template`
 // validates values against the same values.schema.json without one, so that is
-// what these run. The command form the executor itself issues is proven on a
+// what these run. The command form the applier itself issues is proven on a
 // live cluster by GH-735.
 
-// executorValuesFixture returns a values fixture path from the example's testdata.
-func executorValuesFixture(t *testing.T, name string) string {
+// applierValuesFixture returns a values fixture path from the example's testdata.
+func applierValuesFixture(t *testing.T, name string) string {
 	t.Helper()
 	// findChartDir walks up to the mesh root's helm directory; testdata sits
 	// beside it.
 	meshRoot := filepath.Dir(findChartDir(t))
-	return filepath.Join(meshRoot, "testdata", "integration", "executor-values", name)
+	return filepath.Join(meshRoot, "testdata", "integration", "applier-values", name)
 }
 
 // renderWithValues renders the chart with one values file, returning helm's
@@ -51,7 +51,7 @@ func renderWithValues(t *testing.T, values string) (string, bool) {
 // values shape the coordinator actually decides. A schema that rejected
 // everything would pass the rejection test below while breaking every apply.
 func TestChartSchemaAcceptsAConformingPatch(t *testing.T) {
-	out, ok := renderWithValues(t, executorValuesFixture(t, "conforming.yaml"))
+	out, ok := renderWithValues(t, applierValuesFixture(t, "conforming.yaml"))
 	if !ok {
 		t.Fatalf("the conforming patch did not render:\n%s", out)
 	}
@@ -64,12 +64,12 @@ func TestChartSchemaAcceptsAConformingPatch(t *testing.T) {
 	}
 }
 
-// TestChartSchemaRejectsANonConformingPatch is the assertion integration:executor
+// TestChartSchemaRejectsANonConformingPatch is the assertion integration:applier
 // cannot make. It requires the rejection to name the constraint that caused it:
 // helm exiting non-zero proves nothing on its own, since a chart that failed to
 // render for an unrelated reason exits non-zero too.
 func TestChartSchemaRejectsANonConformingPatch(t *testing.T) {
-	out, ok := renderWithValues(t, executorValuesFixture(t, "non-conforming.yaml"))
+	out, ok := renderWithValues(t, applierValuesFixture(t, "non-conforming.yaml"))
 	if ok {
 		t.Fatalf("the non-conforming patch rendered clean; values.schema.json is not enforcing the RAG unit name")
 	}

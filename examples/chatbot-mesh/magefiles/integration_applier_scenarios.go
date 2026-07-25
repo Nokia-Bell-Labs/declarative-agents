@@ -2,10 +2,10 @@
 
 package main
 
-// executorScenario is one leg of the executor's two request machines: what the
+// applierScenario is one leg of the applier's two request machines: what the
 // fakes should do, what the endpoint must answer, and what the run must (and
 // must not) have invoked.
-type executorScenario struct {
+type applierScenario struct {
 	name string
 	// applyBody drives the apply endpoint; empty drives the rollout read, unless
 	// stateRead selects the state read instead.
@@ -23,7 +23,7 @@ type executorScenario struct {
 
 // applyPatch is a values-plane document of the shape the coordinator decides and
 // the creator forwards (srd006 R1.4). It carries no host, URL, method, or
-// credential -- the executor accepts none (R2.3).
+// credential -- the applier accepts none (R2.3).
 const applyPatch = `{"schema_version":"1","content":"ragUnits:\n  - name: rag0\n    collection: corpus\n"}`
 
 // countsJSON is what kubectl_get_rollout_counts renders off the Deployment: one
@@ -32,21 +32,21 @@ const countsJSON = `{"ready":2,"desired":2,"revision":7}`
 
 // stateValuesJSON is what helm get values --all -o json renders for the release:
 // one JSON object the state response maps by field (srd006 R1.5, GH-752). --all
-// is what makes ragUnits and executor.params present even when no operator apply
+// is what makes ragUnits and applier.params present even when no operator apply
 // has ever patched them -- a fresh install's chart defaults, not just overrides.
 const stateValuesJSON = `{"ragUnits":[{"name":"rag0","collection":"corpus","embeddingModel":"qwen3-embedding:8b","replicas":1}],` +
 	`"llm":{"externalURL":"http://ollama.default.svc.cluster.local:11434"},` +
 	`"ollama":{"enabled":true,"topology":"single","models":{"embedding":"qwen3-embedding:8b","chat":["qwen2.5:3b","ornith:9b"],"router":"qwen2.5:3b"}},` +
 	`"chatbot":{"embeddingModel":"qwen3-embedding:8b"},` +
-	`"executor":{"params":{"nResults":5,"chunkCap":0,"routerDefault":"invoke_llm_fast","chatModel":"qwen2.5:3b"}}}`
+	`"applier":{"params":{"nResults":5,"chunkCap":0,"routerDefault":"invoke_llm_fast","chatModel":"qwen2.5:3b"}}}`
 
-// executorScenarios walks every terminal of all three machines. The apply
+// applierScenarios walks every terminal of all three machines. The apply
 // machine has four (Done, Rejected, RolledBack, Failed), the rollout machine
 // three (Complete, Progressing, Unavailable), and the state machine two (Read,
 // Unavailable); each is reached by failing a different word, which is the only
 // way an exec-word machine tells its outcomes apart.
-func executorScenarios() []executorScenario {
-	return []executorScenario{
+func applierScenarios() []applierScenario {
+	return []applierScenario{
 		{
 			name:       "a valid patch applies as a values file and verifies",
 			applyBody:  applyPatch,
@@ -57,7 +57,7 @@ func executorScenarios() []executorScenario {
 				"helm upgrade", "--dry-run",
 				// The apply is a values-file rollout, atomic and waited (R2.2).
 				"--reuse-values", "--atomic", "--wait", "-f",
-				// The rollout is verified by kubectl, not by the executor computing a phase.
+				// The rollout is verified by kubectl, not by the applier computing a phase.
 				"kubectl rollout status",
 			},
 			absentCalls: []string{"helm rollback"},

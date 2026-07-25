@@ -38,7 +38,7 @@ func (w stageWords) Execute() core.Result {
 	return core.Result{Signal: core.ToolFailed, CommandName: w.name, Output: `{"stage":"` + w.name + `"}`}
 }
 
-// applyShapedMachine mirrors examples/chatbot-mesh/agents/executor/apply-machine.yaml:
+// applyShapedMachine mirrors examples/chatbot-mesh/agents/applier/apply-machine.yaml:
 // a validate stage whose failure is the caller's fault, and an apply stage whose
 // failure is the server's. Both failures arrive as ToolFailed.
 func applyShapedMachine() *core.MachineSpec {

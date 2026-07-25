@@ -8,7 +8,7 @@ overview: |
   ids are renumbered to the example's own scheme (srd001-003, rel00.0+). The
   control plane (coordinator srd004, creator srd005, and the provisioning surface)
   is release rel05.0. Release rel06.0 replaces the standard-library Go provisioning
-  surface with the executor (srd006), a declarative agent that binds the helm and
+  surface with the applier (srd006), a declarative agent that binds the helm and
   kubectl CLIs in its container.
 
 releases:
@@ -163,10 +163,10 @@ releases:
         status: implemented
 
   - version: "06.0"
-    name: Declarative executor agent
+    name: Declarative applier agent
     description: |
       The deployment API (srd003 R4) moves from the standard-library Go provisioner
-      to the executor (srd006), a declarative agent whose container carries the helm
+      to the applier (srd006), a declarative agent whose container carries the helm
       and kubectl CLIs bound as exec tools. A decided values patch from the creator
       is validated against the chart's values.schema.json by a helm dry-run, applied
       as a values-file rollout (helm upgrade --reuse-values --atomic) rather than
@@ -176,14 +176,14 @@ releases:
       config -- and no agent-core change is required.
     status: implemented
     srds:
-      - srd006-executor
+      - srd006-applier
     use_cases:
-      - id: rel06.0-uc001-declarative-executor
-        summary: The executor agent validates a values patch against the chart schema, applies it as a values-file rollout, verifies the rollout, and rolls back on failure, replacing the Go provisioner with zero agent-core changes. The live on-cluster rollout shipped with GH-735, proving a patch applied through the executor changes a real release. The provisioning panel's initial mesh-view load (GET /provisioning/api/state, srd006 R1.5) shipped with GH-750/752/753 -- the executor reads the deployed release's computed values, and the creator and coordinator carry the flat response through to the panel, which reassembles it client-side.
+      - id: rel06.0-uc001-declarative-applier
+        summary: The applier agent validates a values patch against the chart schema, applies it as a values-file rollout, verifies the rollout, and rolls back on failure, replacing the Go provisioner with zero agent-core changes. The live on-cluster rollout shipped with GH-735, proving a patch applied through the applier changes a real release. The provisioning panel's initial mesh-view load (GET /provisioning/api/state, srd006 R1.5) shipped with GH-750/752/753 -- the applier reads the deployed release's computed values, and the creator and coordinator carry the flat response through to the panel, which reassembles it client-side.
         status: implemented
     test_suites:
-      - id: test-rel06.0-executor
-        summary: Tracer for the validate -> apply -> verify -> rollback flow against the executor agent, asserting schema rejection, values-file apply, rollout verification, and the authority boundary. Realized as mage integration:executor, which drives the shipped profile against recording fake helm and kubectl; the chart schema is proven against real helm and the enabled chart against its render. The live on-cluster tier is mage integration:executorLive (GH-735). The state-read chain (GH-750/752/753) is covered by unit tests pinning every hop's field mapping and failure-status behavior, plus a manual live verification against real creator/coordinator binaries; mage integration:controlPlane's automated live assertion of the same round trip is blocked by a pre-existing, unrelated bug (GH-755).
+      - id: test-rel06.0-applier
+        summary: Tracer for the validate -> apply -> verify -> rollback flow against the applier agent, asserting schema rejection, values-file apply, rollout verification, and the authority boundary. Realized as mage integration:applier, which drives the shipped profile against recording fake helm and kubectl; the chart schema is proven against real helm and the enabled chart against its render. The live on-cluster tier is mage integration:applierLive (GH-735). The state-read chain (GH-750/752/753) is covered by unit tests pinning every hop's field mapping and failure-status behavior, plus a manual live verification against real creator/coordinator binaries; mage integration:controlPlane's automated live assertion of the same round trip is blocked by a pre-existing, unrelated bug (GH-755).
         status: implemented
 
   - version: "07.0"

@@ -10,7 +10,7 @@ import (
 	"text/template"
 )
 
-// These cover the executor's rollout read (GH-686). `kubectl rollout status`
+// These cover the applier's rollout read (GH-686). `kubectl rollout status`
 // exits non-zero both for a rollout that is still progressing and for one it
 // could not read at all -- an absent Deployment, a wrong kubeconfig, a denied
 // RBAC read, an unreachable API server -- so a phase taken from that exit code
@@ -83,42 +83,42 @@ type execDeclarations struct {
 	Tools []execDeclaration `yaml:"tools"`
 }
 
-func executorRolloutEndpoint(t *testing.T) rolloutEndpoint {
+func applierRolloutEndpoint(t *testing.T) rolloutEndpoint {
 	t.Helper()
 	var rest rolloutRest
-	readIntakeYAML(t, filepath.Join(agentDir(t, "executor"), "rest.yaml"), &rest)
-	server, ok := rest.Rest.Servers["executor_apply"]
+	readIntakeYAML(t, filepath.Join(agentDir(t, "applier"), "rest.yaml"), &rest)
+	server, ok := rest.Rest.Servers["applier_apply"]
 	if !ok {
-		t.Fatal("executor_apply server not declared")
+		t.Fatal("applier_apply server not declared")
 	}
 	endpoint, ok := server.Endpoints["rollout"]
 	if !ok {
-		t.Fatal("executor declares no rollout endpoint; the creator has nothing to read")
+		t.Fatal("applier declares no rollout endpoint; the creator has nothing to read")
 	}
 	return endpoint
 }
 
-func executorRolloutMachine(t *testing.T) rolloutMachine {
+func applierRolloutMachine(t *testing.T) rolloutMachine {
 	t.Helper()
-	endpoint := executorRolloutEndpoint(t)
+	endpoint := applierRolloutEndpoint(t)
 	if endpoint.MachineRequest.Machine == "" {
 		t.Fatal("rollout endpoint names no machine")
 	}
 	var machine rolloutMachine
-	readIntakeYAML(t, filepath.Join(agentDir(t, "executor"), endpoint.MachineRequest.Machine), &machine)
+	readIntakeYAML(t, filepath.Join(agentDir(t, "applier"), endpoint.MachineRequest.Machine), &machine)
 	return machine
 }
 
-func executorExecWord(t *testing.T, name string) execDeclaration {
+func applierExecWord(t *testing.T, name string) execDeclaration {
 	t.Helper()
 	var decls execDeclarations
-	readIntakeYAML(t, filepath.Join(agentDir(t, "executor"), "exec-declarations.yaml"), &decls)
+	readIntakeYAML(t, filepath.Join(agentDir(t, "applier"), "exec-declarations.yaml"), &decls)
 	for _, tool := range decls.Tools {
 		if tool.Name == name {
 			return tool
 		}
 	}
-	t.Fatalf("executor declares no %s exec word", name)
+	t.Fatalf("applier declares no %s exec word", name)
 	return execDeclaration{}
 }
 
@@ -131,11 +131,11 @@ func containsString(values []string, want string) bool {
 	return false
 }
 
-// TestExecutorRolloutMachineSeparatesBrokenRead proves the machine reaches three
+// TestApplierRolloutMachineSeparatesBrokenRead proves the machine reaches three
 // terminal outcomes, not two: a failed counts read lands in Unavailable from
 // either phase leg rather than joining the progressing one.
-func TestExecutorRolloutMachineSeparatesBrokenRead(t *testing.T) {
-	machine := executorRolloutMachine(t)
+func TestApplierRolloutMachineSeparatesBrokenRead(t *testing.T) {
+	machine := applierRolloutMachine(t)
 
 	for _, want := range []string{"Complete", "Progressing", "Unavailable"} {
 		if !containsString(machine.TerminalStates, want) {
@@ -181,11 +181,11 @@ func TestExecutorRolloutMachineSeparatesBrokenRead(t *testing.T) {
 	}
 }
 
-// TestExecutorRolloutEndpointMapsThreeOutcomes proves the three terminal states
+// TestApplierRolloutEndpointMapsThreeOutcomes proves the three terminal states
 // map to three responses: a broken read answers 502, and both live phases carry
 // the counts the panel's RolloutStatus declares.
-func TestExecutorRolloutEndpointMapsThreeOutcomes(t *testing.T) {
-	endpoint := executorRolloutEndpoint(t)
+func TestApplierRolloutEndpointMapsThreeOutcomes(t *testing.T) {
+	endpoint := applierRolloutEndpoint(t)
 	states := endpoint.MachineRequest.Response.TerminalStates
 	if len(states) == 0 {
 		t.Fatal("rollout maps no terminal states; both exec words emit only ToolDone and ToolFailed, so signals cannot separate three outcomes")
@@ -227,13 +227,13 @@ func TestExecutorRolloutEndpointMapsThreeOutcomes(t *testing.T) {
 	}
 }
 
-// TestExecutorRolloutTerminalMappingsAgree proves the mapped terminal states and
+// TestApplierRolloutTerminalMappingsAgree proves the mapped terminal states and
 // the machine's declared terminal states are the same set: an unmapped terminal
 // falls through at runtime and a mapped non-terminal fails config validation
 // (agent-core srd030 R4.8).
-func TestExecutorRolloutTerminalMappingsAgree(t *testing.T) {
-	machine := executorRolloutMachine(t)
-	mapped := executorRolloutEndpoint(t).MachineRequest.Response.TerminalStates
+func TestApplierRolloutTerminalMappingsAgree(t *testing.T) {
+	machine := applierRolloutMachine(t)
+	mapped := applierRolloutEndpoint(t).MachineRequest.Response.TerminalStates
 	for _, state := range machine.TerminalStates {
 		if _, ok := mapped[state]; !ok {
 			t.Errorf("terminal state %s is unmapped; the request would answer response_missing", state)
@@ -246,16 +246,16 @@ func TestExecutorRolloutTerminalMappingsAgree(t *testing.T) {
 	}
 }
 
-// TestExecutorRolloutCountsWordContract proves the counts word targets the
+// TestApplierRolloutCountsWordContract proves the counts word targets the
 // installed release rather than a baked default (GH-484) and carries the full
 // contract metadata, errors and relationships included (GH-691).
-func TestExecutorRolloutCountsWordContract(t *testing.T) {
-	word := executorExecWord(t, "kubectl_get_rollout_counts")
+func TestApplierRolloutCountsWordContract(t *testing.T) {
+	word := applierExecWord(t, "kubectl_get_rollout_counts")
 
 	if word.Binary != "kubectl" {
 		t.Errorf("binary = %q, want kubectl", word.Binary)
 	}
-	// The placeholder coordinates the chart rewrites per release; the executor
+	// The placeholder coordinates the chart rewrites per release; the applier
 	// render test proves the rewrite reaches them.
 	if !containsString(word.Args, "deployment/chatbot-mesh-chatbot") {
 		t.Errorf("args %v do not name the chatbot Deployment placeholder the chart rewrites", word.Args)
@@ -291,15 +291,15 @@ func TestExecutorRolloutCountsWordContract(t *testing.T) {
 	}
 }
 
-// TestExecutorRolloutCountsRenderJSON runs the declared go-template over the
+// TestApplierRolloutCountsRenderJSON runs the declared go-template over the
 // Deployment shapes a rollout passes through and proves each renders parseable
 // JSON with the declared fields. A Deployment carries no readyReplicas until a
 // replica is ready and no revision annotation until the controller writes one,
 // so an ungated field would emit `<no value>` mid-object and the response body
 // selectors would find nothing. The template runs with missingkey=zero, which is
 // what kubectl's --allow-missing-template-keys=true sets.
-func TestExecutorRolloutCountsRenderJSON(t *testing.T) {
-	word := executorExecWord(t, "kubectl_get_rollout_counts")
+func TestApplierRolloutCountsRenderJSON(t *testing.T) {
+	word := applierExecWord(t, "kubectl_get_rollout_counts")
 	var raw string
 	for _, arg := range word.Args {
 		if strings.HasPrefix(arg, "go-template=") {

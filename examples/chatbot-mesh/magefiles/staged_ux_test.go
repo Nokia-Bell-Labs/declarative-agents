@@ -170,7 +170,7 @@ func TestStagedProfilesExcludeTestFixtures(t *testing.T) {
 // distinction matters because a prune runs after that list is satisfied.
 func TestStagedProfilesKeepWhatAnAgentRuns(t *testing.T) {
 	keys := renderedProfileKeys(t)
-	for _, agent := range []string{"chatbot", "rag-server", "coordinator", "creator", "executor"} {
+	for _, agent := range []string{"chatbot", "rag-server", "coordinator", "creator", "applier"} {
 		want := "agents__" + agent + "__profile.yaml"
 		var found bool
 		for _, key := range keys {
