@@ -110,7 +110,7 @@ func TestBuiltinFactoryCatalogCoversSelectedActiveInits(t *testing.T) {
 		"file_read", "file_write", "file_edit", "file_find", "file_list",
 		"invoke_llm", "parse_response", "report_parse_error", "reset_history",
 		"nudge_reread", "done", "suspend", "checkpoint_history",
-		"checkpoint_rollback", "validate", "self_invoke",
+		"checkpoint_rollback", "self_invoke",
 		"extract_task", "extract_all", "assemble_prompt", "parse_plan",
 		"format_issue", "record_tracker_issue", "execute_task", "mark_task_done",
 		"remaining_work",
@@ -125,6 +125,7 @@ func TestBuiltinFactoryCatalogCoversSelectedActiveInits(t *testing.T) {
 	} {
 		require.True(t, covered[init], "catalog should cover init %q", init)
 	}
+	require.False(t, covered["validate"], "retired validate aggregator must not have a builtin factory")
 }
 
 func TestRootCommandHasNoLifecycleSubcommands(t *testing.T) {

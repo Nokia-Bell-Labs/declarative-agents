@@ -268,7 +268,7 @@ schema:
 action_semantics:
   - mode: Named tool
     description: |
-      A literal tool name (e.g. invoke_llm, prepare_workspace, validate).
+      A literal tool name (e.g. invoke_llm, prepare_workspace, build).
       The tool is resolved from the tool registry at build time via
       BuildTransitionTable. If the name is not found, the build fails.
     example: invoke_llm

@@ -58,8 +58,8 @@ overall_findings:
     The desired lifecycle history and rollback tools are first-class STL
     builtin adapters selected by lifecycle profiles. Legacy exec wrappers and
     hidden Cobra history/rollback commands are migration artifacts only.
-  - validate is retained as a deprecated internal boundary aggregator for
-    compatibility, but current generator validation is machine-declared.
+  - Generator validation is machine-declared through explicit build, lint, and
+    test states; the deprecated validate aggregator has been retired.
   - Boundary tools carry explicit category (boundary) classification in their
     declarations.
   - Runtime output is still mostly human-readable core.Result.Output strings.
@@ -360,29 +360,6 @@ tools:
     issues:
       - runtime output is not yet structured according to output.schema
     migration_priority: medium
-
-  - name: validate
-    role: boundary
-    status: deprecated_compatibility
-    selected_by: []
-    inputs_from: [tool_tracker, configured_validation_order]
-    feeds_into: [ValidationPassed, ValidationFailed]
-    side_effects: child_tool_execution
-    output_contract: declared
-    undo: boundary_compensation (child_command_undo, captures ran_child_tools)
-    overlaps:
-      - tool: build
-        difference: validate aggregates multiple tools; build is one command
-      - tool: lint
-        difference: validate aggregates multiple tools; lint is one command
-      - tool: test
-        difference: validate aggregates multiple tools; test is one command
-    issues:
-      - retained only for compatibility with machines that explicitly select it
-      - new generator validation sequences should be expressed in machine.yaml
-    split_recommendation:
-      - do not use for new validation flows; compose build/lint/test as state-machine transitions
-    migration_priority: low
 
   # Planner tools
   - name: extract_task
@@ -846,7 +823,7 @@ tools:
   # Spec validation tools
   - name: load_corpus
     role: stateful_internal
-    selected_by: [validate]
+    selected_by: [jurist]
     inputs_from: [workspace_specs]
     feeds_into: [validate_specs]
     side_effects: validation_state_mutation
@@ -863,22 +840,19 @@ tools:
 
   - name: validate_specs
     role: word
-    selected_by: [validate]
+    selected_by: [jurist]
     inputs_from: [load_corpus]
     feeds_into: [format_report]
     side_effects: validation_state_mutation
     output_contract: missing
     undo: restore_validation_findings
-    overlaps:
-      - tool: validate
-        difference: validate_specs runs spec consistency checks; validate aggregates skipped validation tools
     issues:
       - mutates validation findings, so undo contract must be explicit
     migration_priority: medium
 
   - name: format_report
     role: word
-    selected_by: [validate]
+    selected_by: [jurist]
     inputs_from: [validate_specs]
     feeds_into: [terminal]
     side_effects: none
@@ -1071,7 +1045,6 @@ boundary_tools_with_compensation:
     All boundary tools now implement UndoMementoProvider and declare
     payload: boundary_compensation with captures in their tool YAML.
   tools:
-    - validate
     - suspend
     - checkpoint_rollback
     - self_invoke

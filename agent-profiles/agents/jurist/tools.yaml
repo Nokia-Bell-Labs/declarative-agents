@@ -1,4 +1,4 @@
-# Tool selection for the validate state machine.
+# Tool selection for the jurist state machine.
 # Used with: agent --machine agents/jurist/machine.yaml --tools agents/jurist/tools.yaml
 # Declarations live in tools/builtin.yaml.
 

@@ -6,6 +6,7 @@ import (
 	"os"
 	"path/filepath"
 	"runtime"
+	"strings"
 	"testing"
 
 	"github.com/stretchr/testify/require"
@@ -36,6 +37,21 @@ type shippedProfile struct {
 	Machine          string   `yaml:"machine"`
 	Tools            []string `yaml:"tools"`
 	ToolDeclarations []string `yaml:"tool_declarations"`
+}
+
+func TestShippedProfilesDoNotSelectRetiredValidateAggregator(t *testing.T) {
+	root := requireAgentProfilesRoot(t)
+	err := filepath.WalkDir(filepath.Join(root, "agents"), func(path string, entry os.DirEntry, err error) error {
+		require.NoError(t, err)
+		if entry.IsDir() || filepath.Ext(entry.Name()) != ".yaml" || !strings.Contains(entry.Name(), "tools") {
+			return nil
+		}
+		var selection shippedTools
+		readShippedYAML(t, path, &selection)
+		require.NotContains(t, selection.Tools, "validate", path)
+		return nil
+	})
+	require.NoError(t, err)
 }
 
 func TestExecutorConfig_MachineLoads(t *testing.T) {

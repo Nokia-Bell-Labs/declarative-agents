@@ -23,7 +23,7 @@ The way to make a harness adjustable is to separate the control flow from the co
 
 Harness as data is easy to adjust. When the control flow is imperative code — buried in callbacks, tangled with the rest of the system — every adjustment is a code change that carries the risk of breaking unrelated behaviour, and that must pass through the full development cycle before it reaches production. When the control flow is a data file, the adjustment is a configuration change. The imperative logic is untouched, the full control flow is readable in the transition table, and the change can be deployed without rebuilding the binary.
 
-Fig. 1 shows the architecture. The Engine is a fixed binary. It reads the Machine — a state machine transition table — and dispatches Tools by name. The tool Registry keeps track of tools, which are the agent's verbs: `read`, `write`, `validate`, `invoke_llm`. One tool, `invoke_llm`, crosses the model boundary and returns probabilistic results. Other tool are deterministic. The Model is external to the agent. The engine reaches it only through its tool, and swapping the model is a configuration change that touches neither the engine nor the other tools.
+Fig. 1 shows the architecture. The Engine is a fixed binary. It reads the Machine — a state machine transition table — and dispatches Tools by name. The tool Registry keeps track of tools, which are the agent's verbs: `read`, `write`, `test`, `invoke_llm`. One tool, `invoke_llm`, crosses the model boundary and returns probabilistic results. Other tool are deterministic. The Model is external to the agent. The engine reaches it only through its tool, and swapping the model is a configuration change that touches neither the engine nor the other tools.
 
 ![](figures/fig-01-architecture.png)
 
@@ -68,10 +68,14 @@ transitions:
   - { state: Composing,   signal: Seed,             next: Composing,   action: invoke_llm }
   - { state: Composing,   signal: LLMResponded,     next: Parsing,     action: parse_response }
   - { state: Parsing,     signal: ToolCall,         next: Dispatching, action: $tool }
-  - { state: Parsing,     signal: Completion,       next: Validating,  action: validate }
+  - { state: Parsing,     signal: Completion,       next: ValidatingBuild, action: build }
   - { state: Dispatching, signal: ToolDone,         next: Composing,   action: invoke_llm }
-  - { state: Validating,  signal: ValidationPassed, next: Succeeded }
-  - { state: Validating,  signal: ValidationFailed, next: Composing,   action: invoke_llm }
+  - { state: ValidatingBuild, signal: ToolDone,     next: ValidatingLint, action: lint }
+  - { state: ValidatingBuild, signal: ToolFailed,   next: Composing,   action: invoke_llm }
+  - { state: ValidatingLint,  signal: ToolDone,     next: ValidatingTest, action: test }
+  - { state: ValidatingLint,  signal: ToolFailed,   next: Composing,   action: invoke_llm }
+  - { state: ValidatingTest,  signal: ToolDone,     next: Succeeded }
+  - { state: ValidatingTest,  signal: ToolFailed,   next: Composing,   action: invoke_llm }
   # ... ToolFailed retries via Composing; BudgetExceeded routes to Failed
 ```
 
@@ -93,7 +97,9 @@ tools:
   - invoke_llm      # the model boundary (Composing)
   - parse_response  # extract the tool call (Parsing)
   - done            # the model declares the task complete
-  - validate        # run the build and tests
+  - build           # explicit validation pipeline
+  - lint
+  - test
 ```
 ### The profile
 The **profile** binds the machine to its tools and names the model to call:
@@ -109,7 +115,7 @@ tool_config_dirs:
   - /opt/agent-core/tools/exec/go
 ```
 
-Now introduce a bug: delete the `Validating` transition for `ValidationFailed`. It is tempting, because the happy path (`ValidationPassed` to `Succeeded`) still looks complete. The agent never starts. The engine loads the machine and the tool declarations, checks that every signal each tool can emit has a corresponding transition in every state where that tool can be dispatched, and finds a gap: `validate` declares it can emit `ValidationFailed`, but the machine has no transition for it. The engine rejects the machine before the model is called even once. The bug is a load-time error, not a silent dead end found the first time a test fails in production.
+Now introduce a bug: delete the `ValidatingTest` transition for `ToolFailed`. It is tempting, because the happy path (`ToolDone` to `Succeeded`) still looks complete. The agent never starts. The engine loads the machine and the tool declarations, checks that every signal each tool can emit has a corresponding transition in every state where that tool can be dispatched, and finds a gap: `test` declares it can emit `ToolFailed`, but the machine has no transition for it. The engine rejects the machine before the model is called even once. The bug is a load-time error, not a silent dead end found the first time a test fails in production.
 ## Design patterns for declarative agents
 
 The chapters that follow describe eleven design patterns for building declarative agents, organized in the style of the Gang of Four [@gamma-gof-1994]. Each pattern isolates one recurring problem in agent construction — expressing the loop, scoping tools per phase, swapping models, rolling back effects, delegating to sub-agents, classifying outcomes — and names a solution that transfers across teams, frameworks, and model generations. The patterns come from a working implementation; the reference harness whose coding agent appears throughout these chapters.

@@ -214,8 +214,8 @@ schema:
           Names of the runtime values captured in the UndoMemento
           payload. These document the information persisted for
           later compensation or inspection. Examples include
-          ran_child_tools, issue_id, child_run_id, workspace_paths,
-          server_addr, and suite_path.
+          issue_id, child_run_id, workspace_paths, server_addr, and
+          suite_path.
       - field: requires
         type: "[]string"
         description: |
@@ -574,9 +574,8 @@ declaration_files:
       file operations (read, write, edit, find, list_files), the LLM
       pipeline (parse_response, report_parse_error, reset_history),
       completion and control (done, suspend, nudge_reread, self_invoke),
-      compatibility aggregate validation (validate), planner tools,
-      evaluator session and point tools, bench tools, and spec validation
-      tools. Note: invoke_llm is declared per-agent in <profile-root>/*/llm/*.yaml,
+      planner tools, evaluator session and point tools, bench tools, and spec
+      validation tools. Note: invoke_llm is declared per-agent in <profile-root>/*/llm/*.yaml,
       not in this directory. The tool count evolves with the codebase;
       consult the directory directly for the current set.
 
@@ -620,8 +619,8 @@ boundary_compensation_example: |
       }
     }
 
-  Tools with boundary_compensation: validate, suspend,
-  execute_task, run_point, run_agent, self_invoke, commit,
+  Tools with boundary_compensation: suspend, execute_task, run_point,
+  run_agent, self_invoke, commit,
   issue_create, issue_close, and profile-owned tracker exec words.
 
 inline_pattern: |
@@ -703,9 +702,6 @@ target_grouped_layout:
     - path: tools/builtin/control/
       owns: [self_invoke]
       kind: shared
-    - path: tools/builtin/validation/
-      owns: [validate]
-      kind: shared compatibility
     - path: tools/builtin/planner/
       owns: [extract_task, extract_all, assemble_prompt, parse_plan, format_issue, write, record_tracker_issue, execute_task, mark_task_done, remaining_work]
       kind: shared planner-family declarations

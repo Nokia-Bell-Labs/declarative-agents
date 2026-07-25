@@ -51,7 +51,6 @@ func standardFactoryDeps(st *agentState) toolregistry.StandardFactoryDeps {
 		RegisterFilesystem:     registerFilesystemFactories(),
 		RegisterLLM:            registerLLMFactories(st),
 		RegisterLifecycle:      registerLifecycleFactories(st),
-		RegisterValidation:     registerValidationFactory(st),
 		RegisterControl:        registerControlFactories(st),
 		RegisterPlanning:       registerPlanningFactories(st),
 		RegisterEvaluation:     registerEvaluationFactories(st),
@@ -253,14 +252,6 @@ func checkpointRollbackFactory(st *agentState) toolregistry.BuiltinFactory {
 	}
 }
 
-func registerValidationFactory(st *agentState) toolregistry.FactoryRegistrar {
-	return func(br *toolregistry.BuiltinRegistry) {
-		br.Register("validate", func(def catalog.ToolDef, vars map[string]string) (core.Builder, error) {
-			return &validation.ValidateBuilder{Tracker: st.tracker, Registry: st.registry, Tracer: st.tracer, Verbose: st.verbose}, nil
-		})
-	}
-}
-
 func registerControlFactories(st *agentState) toolregistry.FactoryRegistrar {
 	return func(br *toolregistry.BuiltinRegistry) {
 		br.Register("self_invoke", selfInvokeFactory(st))
@@ -422,7 +413,6 @@ func requestLocalState(host *agentState, reg *core.Registry) *agentState {
 	local.conversation = llm.NewConversation(nil, "", llm.ChatOptions{})
 	local.isolateConversations = true
 	local.manifestState = ""
-	local.tracker = validation.NewToolTracker()
 	maxConsecutive := 0
 	if host.parseRetries != nil {
 		maxConsecutive = host.parseRetries.MaxConsecutive

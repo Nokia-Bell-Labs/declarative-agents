@@ -274,9 +274,9 @@ overview:
             - internal/planning
       - path: internal/tools/validation/
         responsibility: |
-          Validation owns validate compatibility aggregation, spec audit tools, validation
-          report formatting, and any validation-only ToolTracker behavior. New
-          build, lint, and test order stays in MachineSpec transitions.
+          Validation owns spec audit tools and validation report formatting.
+          Build, lint, and test order stays in MachineSpec transitions, and
+          those words execute through normal machine dispatch.
         dependencies:
           may_depend_on:
             - internal/runtime/core

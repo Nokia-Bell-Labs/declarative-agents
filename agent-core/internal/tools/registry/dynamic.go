@@ -13,15 +13,9 @@ import (
 	"github.com/Nokia-Bell-Labs/declarative-agents/agent-core/internal/runtime/core"
 )
 
-// ToolTracker records dynamically dispatched tool names.
-type ToolTracker interface {
-	Record(name string)
-}
-
 // DynamicToolActionDeps are the runtime ports for $tool dispatch.
 type DynamicToolActionDeps struct {
 	Registry *core.Registry
-	Tracker  ToolTracker
 	Tracer   tracing.Tracer
 	Verbose  bool
 }
@@ -41,9 +35,6 @@ func BuildDynamicToolAction(deps DynamicToolActionDeps) core.ActionFunc {
 			return &standardFailCmd{err: fmt.Errorf("tool %q is not available for dynamic dispatch", treq.ToolName)}
 		case core.ExternalToolUnavailableInState:
 			return &standardFailCmd{err: fmt.Errorf("tool %q is not available for dynamic dispatch in state %q", treq.ToolName, r.State)}
-		}
-		if deps.Tracker != nil {
-			deps.Tracker.Record(treq.ToolName)
 		}
 		cmd := builder.Build(core.Result{Output: r.Output})
 		if !deps.Verbose {

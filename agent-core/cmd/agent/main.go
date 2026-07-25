@@ -23,7 +23,6 @@ import (
 	toollm "github.com/Nokia-Bell-Labs/declarative-agents/agent-core/internal/tools/llm"
 	toolregistry "github.com/Nokia-Bell-Labs/declarative-agents/agent-core/internal/tools/registry"
 	toolrest "github.com/Nokia-Bell-Labs/declarative-agents/agent-core/internal/tools/rest"
-	"github.com/Nokia-Bell-Labs/declarative-agents/agent-core/internal/tools/validation"
 	"github.com/Nokia-Bell-Labs/declarative-agents/agent-core/pkg/spec"
 )
 
@@ -119,7 +118,6 @@ func init() {
 type agentState struct {
 	parser        llm.ResponseParser
 	conversation  *llm.Conversation
-	tracker       *validation.ToolTracker
 	registry      *core.Registry
 	tracer        tracing.Tracer
 	model         string
@@ -433,7 +431,6 @@ func checkpointOrNoop(cp core.Checkpoint) core.Checkpoint {
 func newAgentState(cfg runtimeConfig, deps agentStateDeps) *agentState {
 	return &agentState{
 		conversation:        llm.NewConversation(nil, "", llm.ChatOptions{}),
-		tracker:             validation.NewToolTracker(),
 		registry:            deps.Registry,
 		tracer:              deps.Tracer,
 		parseRetries:        deps.ParseRetries,
@@ -472,7 +469,6 @@ type loopParamDeps struct {
 func loopParams(cfg runtimeConfig, deps loopParamDeps) core.LoopParams {
 	toolAction := toolregistry.BuildDynamicToolAction(toolregistry.DynamicToolActionDeps{
 		Registry: deps.Registry,
-		Tracker:  deps.State.tracker,
 		Tracer:   deps.Tracer,
 		Verbose:  cfg.VerboseTrace,
 	})

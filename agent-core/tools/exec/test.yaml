@@ -86,9 +86,6 @@ tools:
     - increment_retry
     - mark_task_done
     - invoke_llm
-    overlaps:
-    - tool: validate
-      difference: test runs one validation command; validate is a compatibility aggregator.
   undo:
     strategy: noop
     description: Validation command has no direct repository mutations to reverse.

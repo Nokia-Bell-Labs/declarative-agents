@@ -106,7 +106,7 @@ test_cases:
     go_test: TestMainRuntimeDoesNotBranchOnAgentModeNames
     inputs:
       source: "cmd/agent/main.go"
-      forbidden_branches: "if/switch comparisons against generator, planner, evaluator, bench, validate"
+      forbidden_branches: "if/switch comparisons against executor, planner, critic, bench, jurist"
     expected:
       bootstrap_boundary: "selected tool init gates are allowed; mode branches are not"
     traces:

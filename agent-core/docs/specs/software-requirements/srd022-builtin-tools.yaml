@@ -106,7 +106,6 @@ declaration_layout:
     - tools/builtin/llm/
     - tools/builtin/lifecycle/
     - tools/builtin/control/
-    - tools/builtin/validation/
     - tools/builtin/planner/
     - tools/builtin/critic-session/
     - tools/builtin/critic-point/
@@ -178,7 +177,6 @@ implementation:
   - tools/builtin/llm/ (planned grouped declarations)
   - tools/builtin/lifecycle/ (planned grouped declarations)
   - tools/builtin/control/ (planned grouped declarations)
-  - tools/builtin/validation/ (planned grouped declarations)
   - tools/builtin/planner/ (planned grouped declarations)
   - tools/builtin/critic-session/ (planned grouped declarations)
   - tools/builtin/critic-point/ (planned grouped declarations)

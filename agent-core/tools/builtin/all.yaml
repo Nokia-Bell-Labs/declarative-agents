@@ -3,7 +3,6 @@ includes:
   - filesystem/all.yaml
   - llm/all.yaml
   - lifecycle/all.yaml
-  - validation/all.yaml
   - planner/all.yaml
   - critic-session/all.yaml
   - critic-point/all.yaml

@@ -306,7 +306,6 @@ type Command interface {
 | `find` | Nothing | No-op |
 | `list_files` | Nothing | No-op |
 | `build` / `test` / `vet` / `lint` | Nothing persistent | No-op |
-| `validate` | Nothing persistent | No-op |
 | `done` | Nothing | No-op |
 | `extract_task` | Pipeline graph state | Restores graph snapshot |
 | `execute_task` | Spawns sub-agent | Roll back sub-agent workspace |

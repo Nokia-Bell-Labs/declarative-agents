@@ -174,14 +174,18 @@ transitions:
   - {state: Composing,   signal: LLMResponded,     next: Parsing,     action: parse_response}
   - {state: Composing,   signal: BudgetExceeded,   next: Failed}
   - {state: Parsing,     signal: ToolCall,         next: Dispatching, action: $tool}
-  - {state: Parsing,     signal: Completion,       next: Validating,  action: validate}
+  - {state: Parsing,     signal: Completion,       next: ValidatingBuild, action: build}
   - {state: Dispatching, signal: ToolDone,         next: Composing,   action: invoke_llm}
   - {state: Dispatching, signal: ToolFailed,       next: Composing,   action: invoke_llm}
-  - {state: Validating,  signal: ValidationPassed, next: Succeeded}
-  - {state: Validating,  signal: ValidationFailed, next: Composing,   action: invoke_llm}
+  - {state: ValidatingBuild, signal: ToolDone,      next: ValidatingLint, action: lint}
+  - {state: ValidatingBuild, signal: ToolFailed,    next: Composing,   action: invoke_llm}
+  - {state: ValidatingLint,  signal: ToolDone,      next: ValidatingTest, action: test}
+  - {state: ValidatingLint,  signal: ToolFailed,    next: Composing,   action: invoke_llm}
+  - {state: ValidatingTest,  signal: ToolDone,      next: Succeeded}
+  - {state: ValidatingTest,  signal: ToolFailed,    next: Composing,   action: invoke_llm}
 ```
 
-From `Composing`, the seed invokes the model; the response is parsed; a tool call is dispatched dynamically through `$tool` and fed back; a completion routes to validation; passing validation succeeds, while a failed validation or tool returns to `Composing` so the model can react, and an exhausted budget routes to `Failed`. Every legal run is an execution in the language this machine defines. Fig. 5 renders the same table as a state machine.
+From `Composing`, the seed invokes the model; the response is parsed; a tool call is dispatched dynamically through `$tool` and fed back; a completion routes through explicit build, lint, and test states; passing every validation succeeds, while a failed validation or tool returns to `Composing` so the model can react, and an exhausted budget routes to `Failed`. Every legal run is an execution in the language this machine defines. Fig. 5 renders the same table as a state machine.
 
 ![](figures/fig-05-canonical-machine.png)
 

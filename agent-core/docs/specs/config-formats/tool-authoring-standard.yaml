@@ -240,7 +240,6 @@ declaration_placement:
     llm: tools/builtin/llm/
     lifecycle: tools/builtin/lifecycle/
     control: tools/builtin/control/
-    validation: tools/builtin/validation/
     planner: tools/builtin/planner/
     evaluator_session: tools/builtin/critic-session/
     evaluator_point: tools/builtin/critic-point/

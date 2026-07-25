@@ -10,7 +10,6 @@ type StandardFactoryDeps struct {
 	RegisterFilesystem     FactoryRegistrar
 	RegisterLLM            FactoryRegistrar
 	RegisterLifecycle      FactoryRegistrar
-	RegisterValidation     FactoryRegistrar
 	RegisterControl        FactoryRegistrar
 	RegisterPlanning       FactoryRegistrar
 	RegisterEvaluation     FactoryRegistrar
@@ -60,7 +59,6 @@ func StandardFactoryCatalog(deps StandardFactoryDeps) []StandardFactoryCatalogEn
 		hookFactory("filesystem", []string{"file_read", "file_write", "file_edit", "file_find", "file_list", "list_resource", "read_resource"}, deps.RegisterFilesystem),
 		hookFactory("llm", []string{"invoke_llm", "parse_response", "report_parse_error", "reset_history", "nudge_reread", "done"}, deps.RegisterLLM),
 		hookFactory("lifecycle", []string{"delay", "suspend", "checkpoint_history", "checkpoint_rollback", "exit_agent"}, deps.RegisterLifecycle),
-		hookFactory("validation", []string{"validate"}, deps.RegisterValidation),
 		hookFactory("control", []string{"self_invoke", "value_predicate"}, deps.RegisterControl),
 		hookFactory("planning", []string{"load_graph", "extract_task", "extract_all", "assemble_prompt", "parse_plan", "format_issue", "record_tracker_issue", "execute_task", "mark_task_done", "remaining_work"}, deps.RegisterPlanning),
 		hookFactory("evaluation", []string{"parse_suite_config", "discover_suite_samples", "expand_eval_grid", "init_eval_session", "report_suite_summary", "next_point", "run_point", "report_session", "run_agent", "record_oracle_result", "collect_trace_tokens", "check_agent_version", "summarize_point_results", "collect_metrics", "record_agent_commit", "dump_config", "list_evaluation_sessions", "analyze_evaluation_session", "list_evaluation_points", "read_evaluation_trace"}, deps.RegisterEvaluation),

@@ -12,14 +12,6 @@ import (
 	toollm "github.com/Nokia-Bell-Labs/declarative-agents/agent-core/internal/tools/llm"
 )
 
-type recordingTracker struct {
-	names []string
-}
-
-func (r *recordingTracker) Record(name string) {
-	r.names = append(r.names, name)
-}
-
 type namedBuilder struct {
 	name     string
 	executed *bool
@@ -63,19 +55,17 @@ func TestTracedDynamicToolForwardsCommandState(t *testing.T) {
 	require.Equal(t, view, inner.view)
 }
 
-func TestBuildDynamicToolActionDispatchesAndTracks(t *testing.T) {
+func TestBuildDynamicToolActionDispatches(t *testing.T) {
 	t.Parallel()
 	reg := core.NewRegistry()
 	reg.Register(core.ToolSpec{Name: "read"}, namedBuilder{name: "read"})
-	tracker := &recordingTracker{}
-	action := BuildDynamicToolAction(DynamicToolActionDeps{Registry: reg, Tracker: tracker})
+	action := BuildDynamicToolAction(DynamicToolActionDeps{Registry: reg})
 
 	cmd := action(core.Result{Output: `{"tool":"read","parameters":{"path":"x"}}`})
 	res := cmd.Execute()
 
 	require.Equal(t, "read", cmd.Name())
 	require.Equal(t, core.ToolDone, res.Signal)
-	require.Equal(t, []string{"read"}, tracker.names)
 }
 
 func TestBuildDynamicToolActionUnknownToolReturnsCommandError(t *testing.T) {
@@ -95,8 +85,7 @@ func TestBuildDynamicToolActionRejectsInternalTool(t *testing.T) {
 	reg.Register(core.ToolSpec{Name: "launch_monitor_rest", Visibility: core.Internal}, namedBuilder{
 		name: "launch_monitor_rest", executed: &executed,
 	})
-	tracker := &recordingTracker{}
-	action := BuildDynamicToolAction(DynamicToolActionDeps{Registry: reg, Tracker: tracker})
+	action := BuildDynamicToolAction(DynamicToolActionDeps{Registry: reg})
 
 	cmd := action(core.Result{Output: `{"tool":"launch_monitor_rest","parameters":{}}`})
 	res := cmd.Execute()
@@ -105,7 +94,6 @@ func TestBuildDynamicToolActionRejectsInternalTool(t *testing.T) {
 	require.Equal(t, core.CommandError, res.Signal)
 	require.Contains(t, res.Output, "not available for dynamic dispatch")
 	require.False(t, executed)
-	require.Empty(t, tracker.names)
 }
 
 func TestBuildDynamicToolActionRejectsOutOfStateTool(t *testing.T) {
@@ -115,8 +103,7 @@ func TestBuildDynamicToolActionRejectsOutOfStateTool(t *testing.T) {
 	reg.Register(core.ToolSpec{Name: "write", Visibility: core.External, Phases: []core.State{"Reviewing"}, PhaseScoped: true}, namedBuilder{
 		name: "write", executed: &executed,
 	})
-	tracker := &recordingTracker{}
-	action := BuildDynamicToolAction(DynamicToolActionDeps{Registry: reg, Tracker: tracker})
+	action := BuildDynamicToolAction(DynamicToolActionDeps{Registry: reg})
 
 	cmd := action(core.Result{State: "Composing", Output: `{"tool":"write","parameters":{}}`})
 	res := cmd.Execute()
@@ -125,7 +112,6 @@ func TestBuildDynamicToolActionRejectsOutOfStateTool(t *testing.T) {
 	require.Equal(t, core.CommandError, res.Signal)
 	require.Contains(t, res.Output, `tool "write" is not available for dynamic dispatch in state "Composing"`)
 	require.False(t, executed)
-	require.Empty(t, tracker.names)
 }
 
 func TestDynamicToolActionAndParseResponseShareAvailabilityRule(t *testing.T) {

@@ -56,8 +56,6 @@ compensation_boundaries:
       receipt_payload: eval_session_snapshot_and_nested_machine
     - command: suspend
       receipt_payload: approval_reason_and_checkpoint_requirement
-    - command: validate
-      receipt_payload: ran_child_tools
 
 expected_noop_long_term:
   - read
@@ -188,10 +186,6 @@ receipt_undo:
       strategy: validation_state_restore
       receipt: reversible_validation_state_snapshot
   boundary_compensation:
-    - command: validate
-      strategy: child_command_undo
-      receipt: compensatable_boundary_compensation
-      captures: [ran_child_tools]
     - command: suspend
       strategy: resume_or_checkpoint_rollback
       receipt: compensatable_boundary_compensation

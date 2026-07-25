@@ -134,11 +134,15 @@ declarative_agent:
         - { state: Composing,   signal: LLMResponded,     next: Parsing,     action: parse_response }
         - { state: Composing,   signal: BudgetExceeded,   next: Failed }
         - { state: Parsing,     signal: ToolCall,         next: Dispatching, action: $tool }
-        - { state: Parsing,     signal: Completion,       next: Validating,  action: validate }
+        - { state: Parsing,     signal: Completion,       next: ValidatingBuild, action: build }
         - { state: Dispatching, signal: ToolDone,         next: Composing,   action: invoke_llm }
         - { state: Dispatching, signal: ToolFailed,       next: Composing,   action: invoke_llm }
-        - { state: Validating,  signal: ValidationPassed, next: Succeeded }
-        - { state: Validating,  signal: ValidationFailed, next: Composing,   action: invoke_llm }
+        - { state: ValidatingBuild, signal: ToolDone,     next: ValidatingLint, action: lint }
+        - { state: ValidatingBuild, signal: ToolFailed,   next: Composing,   action: invoke_llm }
+        - { state: ValidatingLint,  signal: ToolDone,     next: ValidatingTest, action: test }
+        - { state: ValidatingLint,  signal: ToolFailed,   next: Composing,   action: invoke_llm }
+        - { state: ValidatingTest,  signal: ToolDone,     next: Succeeded }
+        - { state: ValidatingTest,  signal: ToolFailed,   next: Composing,   action: invoke_llm }
     tools: |
       tools:
         - read
@@ -147,7 +151,9 @@ declarative_agent:
         - invoke_llm
         - parse_response
         - done
-        - validate
+        - build
+        - lint
+        - test
     profile: |
       name: generator
       machine: machine.yaml
@@ -157,11 +163,11 @@ declarative_agent:
         - /opt/agent-core/tools/builtin/filesystem
         - /opt/agent-core/tools/exec/go
     validation_story: >
-      If the Validating / ValidationFailed transition is removed, the engine
-      rejects the machine at load time because validate declares that it can emit
-      ValidationFailed in a state where that signal is unhandled. This is the
-      central promise: an unexpected outcome becomes a validation error before
-      the model runs, not a production dead end.
+      If any explicit validation state's ToolFailed transition is removed, the
+      engine rejects the machine at load time because the selected build, lint,
+      or test word can emit ToolFailed where that signal is unhandled. This is
+      the central promise: an unexpected outcome becomes a validation error
+      before the model runs, not a production dead end.
 
 conventions:
   confidence_scale:
