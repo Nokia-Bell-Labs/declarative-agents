@@ -39,8 +39,8 @@ requirements:
       - R1.2: write tool creates or overwrites a file at a validated path.
       - R1.3: edit tool performs search-and-replace operations on files.
       - R1.4: find tool searches file contents using ripgrep with workspace confinement.
-      - R1.5: list_files tool lists directory contents.
-      - R1.6: All file tools validate paths against the workspace root via ValidatePath.
+      - R1.5: list_files is a declared exec word that uses GNU find to list directory contents in deterministic tree order, does not follow symlinks, honors max_depth, and caps output at 200 lines.
+      - R1.6: All file tools confine requested paths to the workspace root; Go builtins use ValidatePath and the list_files exec declaration resolves and checks its working directory before invoking find.
 
   R2:
     title: Build tools
@@ -170,7 +170,7 @@ non_goals:
 
 acceptance_criteria:
   - id: AC1
-    criterion: File tools (read, write, edit, find, list_files) operate within workspace root boundaries. ValidatePath rejects path escapes.
+    criterion: File tools (read, write, edit, find, list_files) operate within workspace root boundaries. Go file tools use ValidatePath, while the declared list_files exec boundary rejects resolved paths outside the workspace and invokes bounded GNU find with deterministic, capped output.
     traces: [R1.1, R1.2, R1.3, R1.4, R1.5, R1.6, R6.1]
 
   - id: AC2

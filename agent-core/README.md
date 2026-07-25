@@ -155,8 +155,9 @@ AGENT_PROFILES_ROOT=../agent-profiles \
 Repository builds use a multi-stage Dockerfile for the release runtime image.
 During the builder stage, the image clones Agent Core from GitLab, runs
 `go test ./...`, and builds `agent`. The final Alpine runtime image contains
-only the `agent` binary, git, common Unix utilities, and core-owned shared tool
-assets under `/opt/agent-core/tools`.
+only the `agent` binary, git, common Unix utilities (including GNU `find` from
+`findutils`, required by `list_files`), and core-owned shared tool assets under
+`/opt/agent-core/tools`.
 
 Runtime images intentionally exclude the Go toolchain, source checkout,
 test dependencies, `golangci-lint`, and agent profile trees. Exec tools such as

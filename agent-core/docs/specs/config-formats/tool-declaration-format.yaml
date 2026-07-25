@@ -569,9 +569,10 @@ parameter_extensions:
 declaration_files:
   - file: tools/builtin/
     description: |
-      Directory of individual shared builtin tool declarations loaded by
-      current profiles through tool_config_dirs. The declarations cover
-      file operations (read, write, edit, find, list_files), the LLM
+      Directory of individual shared filesystem and builtin tool declarations
+      loaded by current profiles through tool_config_dirs. The declarations
+      cover file operations (read, write, edit, find, and the exec-bound
+      list_files declaration), the LLM
       pipeline (parse_response, report_parse_error, reset_history),
       completion and control (done, suspend, nudge_reread, self_invoke),
       planner tools, evaluator session and point tools, bench tools, and spec

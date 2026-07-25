@@ -63,6 +63,24 @@ test_cases:
       - srd023-cli-exec-tools AC4
 
   - use_case: rel01.0-uc001-generator-coding
+    name: list_files executes bounded find within the workspace
+    go_test: TestListFilesDeclarationUsesBoundedFindExec, TestListFilesExecPreservesTreeContract, TestListFilesExecHonorsDepthAndSubpath, TestListFilesExecRejectsMissingAndEscapingPaths, TestListFilesExecCapsOutput
+    status: implemented
+    inputs:
+      declaration: tools/builtin/list-files.yaml
+      executable_dependency: GNU find (findutils)
+      cases: [hidden_entries, symlinks, deterministic_order, depth_and_subpath, missing_and_escaping_paths, output_cap]
+    expected:
+      production_go_walk: absent
+      workspace_escape: rejected
+      symlinks_followed: false
+      output_line_cap: 200
+    traces:
+      - srd013-standard-tool-library AC1
+      - srd023-cli-exec-tools AC2
+      - srd023-cli-exec-tools AC3
+
+  - use_case: rel01.0-uc001-generator-coding
     name: Executor transition table validates selected tool emits
     go_test: TestExecutorConfig_TransitionTable
     status: implemented

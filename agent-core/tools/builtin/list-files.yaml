@@ -1,8 +1,81 @@
 tools:
 - name: list_files
-  type: builtin
-  category: word
-  init: file_list
+  type: exec
+  category: boundary
+  binary: bash
+  args:
+  - -o
+  - pipefail
+  - -c
+  - |
+    path=$1
+    depth=$2
+
+    numeric_depth=${depth#-}
+    case "$numeric_depth" in
+      ''|*[!0-9]*)
+        printf 'list_files: invalid max_depth: %s\n' "$depth" >&2
+        exit 1
+        ;;
+    esac
+    if [ "$depth" -le 0 ]; then
+      depth=4
+    fi
+
+    if [ ! -e "$path" ]; then
+      printf 'list_files: path not found: %s\n' "$path" >&2
+      exit 1
+    fi
+    if [ ! -d "$path" ]; then
+      printf 'list_files: not a directory: %s\n' "$path" >&2
+      exit 1
+    fi
+
+    workspace=$(pwd -P)
+    if ! cd -- "$path" 2>/dev/null; then
+      printf 'list_files: path not found: %s\n' "$path" >&2
+      exit 1
+    fi
+    target=$(pwd -P)
+    case "$target" in
+      "$workspace") target_rel=. ;;
+      "$workspace"/*) target_rel=${target#"$workspace"/} ;;
+      *)
+        printf 'list_files: path rejected: path %s is outside the workspace\n' "$path" >&2
+        exit 1
+        ;;
+    esac
+    cd "$workspace" || exit 1
+
+    start=.
+    if [ "$target_rel" != . ]; then
+      start=./$target_rel
+    fi
+    tab=$(printf '\t')
+    find -P "$start" -mindepth 1 -maxdepth "$depth" -print |
+      awk '{ key=$0; gsub("/", "\001", key); print key "\001\t" $0 }' |
+      LC_ALL=C sort |
+      while IFS="$tab" read -r _ entry; do
+        workspace_rel=${entry#./}
+        if [ "$target_rel" = . ]; then
+          local_path=$workspace_rel
+        else
+          local_path=${workspace_rel#"$target_rel"/}
+        fi
+        indent=
+        rest=$local_path
+        while [ "${rest#*/}" != "$rest" ]; do
+          indent="$indent  "
+          rest=${rest#*/}
+        done
+        suffix=
+        if [ -d "$entry" ] && [ ! -L "$entry" ]; then
+          suffix=/
+        fi
+        printf '%s%s%s\n' "$indent" "$workspace_rel" "$suffix"
+      done
+  - list_files
+  output_cap: 200
   emits:
   - ToolDone
   - ToolFailed
@@ -13,10 +86,20 @@ tools:
       path:
         type: string
         description: 'Subdirectory to list (default: workspace root)'
+        positional: true
+        position: 1
+        default: .
       max_depth:
         type: integer
         description: 'Maximum directory depth to traverse (default: 4)'
+        positional: true
+        position: 2
+        default: '4'
   side_effects:
+  - kind: child_process
+    target: find
+    state: read_only
+    description: Runs GNU find with a fixed workspace working directory and bounded depth.
   - kind: filesystem_read
     target: workspace_tree
     description: Reads workspace directory entries without mutating state.
@@ -33,9 +116,13 @@ tools:
   - Keep sequencing outside the tool implementation and in machine.yaml.
   requirements:
     input:
-    - must consume parameters from tool input, prior Result, or configured command/domain state
+    - must run from the configured workspace root
+    - must resolve the requested directory beneath that root before invoking find
+    - must limit find traversal to max_depth (default 4)
     output:
-    - must emit one declared signal and return machine-readable output when available
+    - must preserve the existing tree-shaped, workspace-relative output
+    - must include hidden entries and list symlinks without following them
+    - must order entries deterministically and cap output at 200 lines
     errors:
     - must emit CommandError for infrastructure failures and preserve domain failures as declared signals
   non_goals:
@@ -43,22 +130,19 @@ tools:
   - Does not hide unrelated tool execution behind this word.
   errors:
   - signal: CommandError
-    condition: required input, configuration, or runtime state is invalid
+    condition: bash, find, awk, or sort cannot be started
     message_shape: 'list_files: <error>'
     state_after_failure: no additional workflow step is executed by this tool
+  - signal: ToolFailed
+    condition: the path is missing, not a directory, outside the workspace, or find exits non-zero
+    message_shape: 'list_files: <error>'
+    state_after_failure: workspace unchanged
   relationships:
     before:
     - machine-selected predecessor
     after:
     - machine-selected successor
   output:
-    description: list_files command result summary.
+    description: Deterministically ordered, workspace-relative tree text.
     schema:
-      type: object
-      properties:
-        message:
-          type: string
-        signal:
-          type: string
-      required:
-      - message
+      type: string

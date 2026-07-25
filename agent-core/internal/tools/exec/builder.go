@@ -7,6 +7,7 @@ import (
 	"fmt"
 	"os"
 	"path/filepath"
+	"strconv"
 
 	"github.com/Nokia-Bell-Labs/declarative-agents/agent-core/internal/observability/monitor"
 	"github.com/Nokia-Bell-Labs/declarative-agents/agent-core/internal/runtime/core"
@@ -39,6 +40,11 @@ func (b *ExecBuilder) Build(res core.Result) core.Command {
 			continue
 		}
 		val := ExtractStringParam(res.Output, pm.Name)
+		if val == "" {
+			if n := ExtractIntParam(res.Output, pm.Name); n != 0 {
+				val = strconv.Itoa(n)
+			}
+		}
 		if val == "" && pm.Default != "" {
 			val = pm.Default
 		}

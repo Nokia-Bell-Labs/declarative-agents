@@ -180,7 +180,8 @@ overview:
         responsibility: |
           Exec owns ExecBuilder, ExecCmd, CLI parameter-to-argv mapping,
           precondition handling, output caps, subprocess result conversion,
-          and exec undo memento creation.
+          exec undo memento creation, and execution of the declared find-backed
+          list_files boundary.
         dependencies:
           may_depend_on:
             - internal/runtime/core
@@ -193,9 +194,10 @@ overview:
             - internal/planning
       - path: internal/tools/filesystem/
         responsibility: |
-          Filesystem owns read, write, edit, find, list_files, ValidatePath, path
+          Filesystem owns read, write, edit, find, ValidatePath, path
           normalization, binary detection, file snapshots, and workspace
-          restore mementos for direct filesystem effects.
+          restore mementos for direct filesystem effects. list_files is an
+          exec declaration rather than production Go in this package.
         dependencies:
           may_depend_on:
             - internal/runtime/core

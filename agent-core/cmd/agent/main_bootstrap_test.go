@@ -107,7 +107,7 @@ func TestBuiltinFactoryCatalogCoversSelectedActiveInits(t *testing.T) {
 	}
 
 	for _, init := range []string{
-		"file_read", "file_write", "file_edit", "file_find", "file_list",
+		"file_read", "file_write", "file_edit", "file_find",
 		"invoke_llm", "parse_response", "report_parse_error", "reset_history",
 		"nudge_reread", "done", "suspend", "checkpoint_history",
 		"checkpoint_rollback", "self_invoke",

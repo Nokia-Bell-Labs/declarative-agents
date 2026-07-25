@@ -101,7 +101,6 @@ func registerFilesystemFactories() toolregistry.FactoryRegistrar {
 				return &filesystem.EditBuilder{Root: root, Metrics: metrics}
 			}},
 			{"file_find", func(root string, _ core.MetricConfig) core.Builder { return &filesystem.FindBuilder{Root: root} }},
-			{"file_list", func(root string, _ core.MetricConfig) core.Builder { return &filesystem.ListFilesBuilder{Root: root} }},
 		}
 		for _, entry := range fileFactories {
 			registerFileFactory(br, entry.init, entry.builder)
