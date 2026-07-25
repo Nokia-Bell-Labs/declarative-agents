@@ -7,7 +7,7 @@ import (
 	"os"
 	"path/filepath"
 
-	"github.com/Nokia-Bell-Labs/declarative-agents/agent-core/pkg/spec"
+	"github.com/Nokia-Bell-Labs/declarative-agents/agent-core/internal/support/corepath"
 	"gopkg.in/yaml.v3"
 )
 
@@ -81,5 +81,5 @@ func ResolveConfiguredPath(base, path string) string {
 }
 
 func resolveInstalledAgentCorePath(p string) string {
-	return spec.MapInstalledCorePath(p)
+	return corepath.Map(p)
 }
