@@ -64,7 +64,7 @@ roadmap_summary:
     name: Declarative collector agent
     use_cases_done: 0
     use_cases_total: 1
-    status: planned
+    status: partial
 
 srd_index:
   - id: srd001-rag-server-agent
@@ -148,7 +148,7 @@ use_case_index:
   - id: rel07.0-uc001-collector-ingress
     title: The Collector Agent Retains and Relays an Attributable Trace Batch
     release: "07.0"
-    status: specified
+    status: partial
     test_suite: test-rel07.0-collector
     path: docs/specs/use-cases/rel07.0-uc001-collector-ingress.yaml
 
