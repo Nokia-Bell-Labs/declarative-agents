@@ -58,8 +58,8 @@ func TestExecutorQwen27bConformance(t *testing.T) {
 // no error-status spans. It is Ollama-gated on model.
 func runBoundedShippedGenerator(t *testing.T, relProfile, model string) {
 	t.Helper()
+	liveTimeout := RequireLiveModel(t, model)
 	RequireCoreRoot(t)
-	RequireOllama(t, model)
 
 	// Bound the machine to one iteration: Idle -> Composing (invoke_llm), then
 	// the iteration budget is exhausted before a second cycle, so the run
@@ -70,7 +70,9 @@ func runBoundedShippedGenerator(t *testing.T, relProfile, model string) {
 		"max_iterations: 100": "max_iterations: 1",
 	})
 
-	result := Run(t, RunConfig{Profile: profilePath, Directory: t.TempDir()})
+	result := Run(t, RunConfig{
+		Profile: profilePath, Directory: t.TempDir(), Timeout: liveTimeout,
+	})
 
 	// srd002 R3.2: BudgetExceeded is an intentional completed-run failure. The
 	// CLI reports domain failures with exit 2, while the trace remains clean.

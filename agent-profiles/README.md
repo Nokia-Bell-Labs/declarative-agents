@@ -104,10 +104,20 @@ Release evidence is:
 go test ./...
 mage validate
 mage audit
-mage conformance
+mage conformance       # deterministic release gate; never performs live inference
+mage liveConformance   # explicit live-model opt-in; unavailable exact models skip
 mage integration:all
 mage containerSmoke   # when the agent-core image prerequisite is present
 ```
+
+`go test ./...`, `mage test`, and `mage conformance` do not initiate model
+inference merely because Ollama or a declared model is installed. The six live
+paths (the three executor variants, planner, the REST Ollama variant, and the
+chatbot source router) require `AGENT_PROFILES_LIVE_CONFORMANCE=1`; `mage
+liveConformance` sets that opt-in. Live runs still require each test's exact
+declared model and never substitute another model. They use a five-minute
+per-run default, configurable with a positive Go duration such as
+`AGENT_PROFILES_LIVE_TIMEOUT=10m mage liveConformance`.
 
 `mage validate` derives its profile inventory from real profile-shaped files
 under `agents/`; family conformance and specification indexes provide the
