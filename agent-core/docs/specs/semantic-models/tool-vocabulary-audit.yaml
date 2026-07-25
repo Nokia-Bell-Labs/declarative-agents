@@ -301,7 +301,7 @@ tools:
     role: boundary
     selected_by: [generator, planner]
     inputs_from: [workspace_files]
-    feeds_into: [lint, test, check_result]
+    feeds_into: [lint, test, increment_retry]
     side_effects: subprocess, possible_build_cache_or_binary
     output_contract: missing
     undo: noop_or_workspace_restore_if_artifacts
@@ -320,7 +320,7 @@ tools:
     role: boundary
     selected_by: [generator, planner]
     inputs_from: [workspace_files]
-    feeds_into: [LLM_reasoning, check_result]
+    feeds_into: [LLM_reasoning, increment_retry]
     side_effects: subprocess
     output_contract: missing
     undo: noop
@@ -350,7 +350,7 @@ tools:
     role: boundary
     selected_by: [generator, planner]
     inputs_from: [workspace_files]
-    feeds_into: [done, check_result]
+    feeds_into: [done, increment_retry, mark_task_done]
     side_effects: subprocess, possible_test_cache
     output_contract: declared
     undo: noop
@@ -485,7 +485,7 @@ tools:
     role: boundary
     selected_by: [planner]
     inputs_from: [record_tracker_issue, extract_task]
-    feeds_into: [check_result]
+    feeds_into: [vet, build, test]
     side_effects: child_agent_process, workspace_mutation
     output_contract: missing
     undo: boundary_compensation (compensating_action, captures child_run_id + child_workspace_ref)
@@ -496,20 +496,65 @@ tools:
       - output.schema for execution result and workspace diff
     migration_priority: medium
 
-  - name: check_result
+  - name: reset_retry_count
+    role: word
+    selected_by: [planner]
+    inputs_from: [TaskExtracted]
+    feeds_into: [increment_retry]
+    side_effects: none
+    output_contract: labelled command-state zero
+    undo: noop (history truncation removes output)
+    overlaps: []
+    issues: []
+    migration_priority: low
+
+  - name: increment_retry
+    role: word
+    selected_by: [planner]
+    inputs_from: [labelled_command_state]
+    feeds_into: [check_retry_limit]
+    side_effects: none
+    output_contract: structured retry count
+    undo: noop (history truncation removes output)
+    overlaps: []
+    issues: []
+    migration_priority: low
+
+  - name: check_retry_limit
+    role: word
+    selected_by: [planner]
+    inputs_from: [increment_retry]
+    feeds_into: [execute_task, remaining_work]
+    side_effects: none
+    output_contract: declared predicate signals
+    undo: noop
+    overlaps: []
+    issues: []
+    migration_priority: low
+
+  - name: mark_task_done
     role: stateful_internal
     selected_by: [planner]
-    inputs_from: [execute_task, build, vet, test]
-    feeds_into: [extract_task, execute_task]
-    side_effects: pipeline_retry_counter
-    output_contract: missing
-    undo: restore_retry_counter
-    overlaps:
-      - tool: validate
-        difference: check_result decides retry/advance; validate runs skipped validation tools
-    issues:
-      - decision logic is acceptable as stateful internal, but needs explicit output and undo contracts
-    migration_priority: medium
+    inputs_from: [test]
+    feeds_into: [remaining_work]
+    side_effects: pipeline_graph_completion
+    output_contract: declared TaskCompleted signal
+    undo: restore_pipeline_graph_snapshot
+    overlaps: []
+    issues: []
+    migration_priority: low
+
+  - name: remaining_work
+    role: word
+    selected_by: [planner]
+    inputs_from: [mark_task_done, check_retry_limit]
+    feeds_into: [extract_task, Completed, Stalled]
+    side_effects: none
+    output_contract: declared WorkRemaining, AllDone, or Blocked signal
+    undo: noop
+    overlaps: []
+    issues: []
+    migration_priority: low
 
   # Evaluator session tools
   - name: parse_suite_config

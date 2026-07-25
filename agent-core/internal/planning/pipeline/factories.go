@@ -23,7 +23,8 @@ type FactoryDeps struct {
 
 // RegisterFactories registers all pipeline builtin tool factories
 // (extract_task, extract_all, assemble_prompt, parse_plan, issue state
-// adapters, execute_task, check_result) into the provided BuiltinRegistry.
+// adapters, execute_task, mark_task_done, remaining_work) into the provided
+// BuiltinRegistry.
 // Pipeline state is lazily initialized on first factory call.
 func RegisterFactories(br *toolregistry.BuiltinRegistry, deps FactoryDeps) {
 	var ps *State
@@ -78,7 +79,10 @@ func RegisterFactories(br *toolregistry.BuiltinRegistry, deps FactoryDeps) {
 		}
 		return &ExecuteTaskBuilder{PS: ps}, nil
 	})
-	br.Register("check_result", func(def catalog.ToolDef, vars map[string]string) (core.Builder, error) {
-		return &CheckResultBuilder{PS: initPS(def)}, nil
+	br.Register("mark_task_done", func(def catalog.ToolDef, vars map[string]string) (core.Builder, error) {
+		return &MarkTaskDoneBuilder{PS: initPS(def)}, nil
+	})
+	br.Register("remaining_work", func(def catalog.ToolDef, vars map[string]string) (core.Builder, error) {
+		return &RemainingWorkBuilder{PS: initPS(def)}, nil
 	})
 }

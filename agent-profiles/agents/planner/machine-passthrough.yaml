@@ -24,11 +24,11 @@ invariants:
 lifecycle: |-
   1. Idle → Loading: load_graph reads the requirement corpus
   2. Loading → Extracting: extract_all creates one executable aggregate task
-  3. Extracting → Executing: execute_task invokes the executor profile
+  3. Extracting → InitializingRetry → Executing: seed visible retry count, then invoke the executor
   4. Executing → Vetting → Building → Testing: validation pipeline
-  5. Testing → CheckingResult: evaluate pass/fail
-  6. CheckingResult → Completed: validation succeeded
-  6a. CheckingResult → Executing: retry available
+  5. Validation failure → IncrementingRetry → CheckingRetryLimit
+  6. RetryAvailable → Executing; RetriesExhausted → Exhausted → Stalled
+  7. Testing success → MarkingTaskDone → QueryingRemainingWork → Completed
 
   The variant executes one aggregate task; retries return directly to Executing.
 pipeline_diagram: |-
@@ -36,12 +36,17 @@ pipeline_diagram: |-
   flowchart TD
     A[Idle] -->|Seed| L[Loading]
     L -->|GraphLoaded| B[Extracting]
-    B -->|TaskExtracted| H[Executing]
+    B -->|TaskExtracted| Z[InitializingRetry]
+    Z --> H[Executing]
     H --> I[Vet / Build / Test]
-    I --> J[CheckingResult]
-    J -->|Success| K[Completed]
-    J -->|Retry| H
-    J -->|Retries exhausted| S[Stalled]
+    I -->|Success| J[MarkingTaskDone]
+    J --> Q[QueryingRemainingWork]
+    Q --> K[Completed]
+    I -->|Failure| R[IncrementingRetry]
+    R --> P[CheckingRetryLimit]
+    P -->|RetryAvailable| H
+    P -->|RetriesExhausted| X[Exhausted]
+    X --> S[Stalled]
   ```
 initial_state: Idle
 states:
@@ -51,6 +56,8 @@ states:
   meaning: Loading the specification corpus and building the requirement graph.
 - name: Extracting
   meaning: Creating one aggregate executable task from all ready requirements.
+- name: InitializingRetry
+  meaning: Seeding retry count zero in labelled command state for the aggregate task.
 - name: Executing
   meaning: Running the generator agent to implement the task.
 - name: Vetting
@@ -59,10 +66,16 @@ states:
   meaning: Running go build on the workspace.
 - name: Testing
   meaning: Running go test on the workspace.
-- name: CheckingResult
-  meaning: |
-    Evaluating execution outcome. On success, completes the aggregate graph.
-    On failure, retries execution if available.
+- name: IncrementingRetry
+  meaning: Incrementing the latest labelled retry count with jq.
+- name: CheckingRetryLimit
+  meaning: Comparing the visible retry count with the declared limit.
+- name: Exhausted
+  meaning: Retry limit reached; query graph state before stalling.
+- name: MarkingTaskDone
+  meaning: Mutating only the aggregate task's graph nodes to Done.
+- name: QueryingRemainingWork
+  meaning: Reading graph state before preserving pass-through completion routing.
 - name: Completed
   meaning: Terminal. All tasks in the graph are done.
 - name: Stalled
@@ -80,6 +93,8 @@ signals:
   trigger: The requirement graph was loaded and seeded into pipeline state.
 - name: TaskExtracted
   trigger: A task was extracted from the requirement graph.
+- name: RetryCountInitialized
+  trigger: Retry count zero was recorded in labelled command state.
 - name: AllDone
   trigger: All tasks in the graph are done.
 - name: Blocked
@@ -92,12 +107,14 @@ signals:
   trigger: The generator agent completed successfully.
 - name: ExecutionFailed
   trigger: The generator agent failed.
-- name: ValidationPassed
-  trigger: Build/vet/test validation passed.
 - name: RetryAvailable
   trigger: Retries remain for the current task.
 - name: RetriesExhausted
   trigger: All retries consumed for the current task.
+- name: TaskCompleted
+  trigger: The current task's graph nodes were marked Done.
+- name: WorkRemaining
+  trigger: At least one graph task remains ready after the aggregate task.
 - name: CommandError
   trigger: Infrastructure-level error.
 transitions:
@@ -114,8 +131,16 @@ transitions:
   next: Failed
 - state: Extracting
   signal: TaskExtracted
+  next: InitializingRetry
+  action: reset_retry_count
+  label: retry_count
+- state: InitializingRetry
+  signal: RetryCountInitialized
   next: Executing
   action: execute_task
+- state: InitializingRetry
+  signal: CommandError
+  next: Failed
 - state: Extracting
   signal: AllDone
   next: Completed
@@ -142,8 +167,9 @@ transitions:
   action: build
 - state: Vetting
   signal: ToolFailed
-  next: CheckingResult
-  action: check_result
+  next: IncrementingRetry
+  action: increment_retry
+  label: retry_count
 - state: Vetting
   signal: CommandError
   next: Failed
@@ -153,32 +179,73 @@ transitions:
   action: test
 - state: Building
   signal: ToolFailed
-  next: CheckingResult
-  action: check_result
+  next: IncrementingRetry
+  action: increment_retry
+  label: retry_count
 - state: Building
   signal: CommandError
   next: Failed
 - state: Testing
   signal: ToolDone
-  next: CheckingResult
-  action: check_result
+  next: MarkingTaskDone
+  action: mark_task_done
 - state: Testing
   signal: ToolFailed
-  next: CheckingResult
-  action: check_result
+  next: IncrementingRetry
+  action: increment_retry
+  label: retry_count
 - state: Testing
   signal: CommandError
   next: Failed
-- state: CheckingResult
-  signal: ValidationPassed
-  next: Completed
-- state: CheckingResult
+- state: IncrementingRetry
+  signal: ToolDone
+  next: CheckingRetryLimit
+  action: check_retry_limit
+- state: IncrementingRetry
+  signal: ToolFailed
+  next: Failed
+- state: IncrementingRetry
+  signal: CommandError
+  next: Failed
+- state: CheckingRetryLimit
   signal: RetryAvailable
   next: Executing
   action: execute_task
-- state: CheckingResult
+- state: CheckingRetryLimit
   signal: RetriesExhausted
+  next: Exhausted
+  action: remaining_work
+- state: CheckingRetryLimit
+  signal: CommandError
+  next: Failed
+- state: Exhausted
+  signal: WorkRemaining
   next: Stalled
-- state: CheckingResult
+- state: Exhausted
+  signal: AllDone
+  next: Completed
+- state: Exhausted
+  signal: Blocked
+  next: Stalled
+- state: Exhausted
+  signal: CommandError
+  next: Failed
+- state: MarkingTaskDone
+  signal: TaskCompleted
+  next: QueryingRemainingWork
+  action: remaining_work
+- state: MarkingTaskDone
+  signal: CommandError
+  next: Failed
+- state: QueryingRemainingWork
+  signal: WorkRemaining
+  next: Completed
+- state: QueryingRemainingWork
+  signal: AllDone
+  next: Completed
+- state: QueryingRemainingWork
+  signal: Blocked
+  next: Stalled
+- state: QueryingRemainingWork
   signal: CommandError
   next: Failed

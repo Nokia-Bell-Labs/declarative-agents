@@ -310,7 +310,9 @@ type Command interface {
 | `done` | Nothing | No-op |
 | `extract_task` | Pipeline graph state | Restores graph snapshot |
 | `execute_task` | Spawns sub-agent | Roll back sub-agent workspace |
-| `check_result` | Pipeline retry counter | Restores counter |
+| `increment_retry` | Command-state output only | History truncation removes the increment |
+| `mark_task_done` | Pipeline graph state | Restores graph snapshot |
+| `remaining_work` / `check_retry_limit` | Nothing | No-op |
 
 ---
 

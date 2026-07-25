@@ -87,7 +87,7 @@ tools:
         state_after_failure: "workspace may contain child edits and must be restored from checkpoint if rollback is requested"
     relationships:
       before: [record_tracker_issue, extract_task, extract_all]
-      after: [check_result, build, vet, test]
+      after: [build, vet, test, increment_retry, mark_task_done]
       overlaps:
         - tool: self_invoke
           difference: "self_invoke starts a configured child profile; execute_task starts an executor for a planner task."
@@ -95,3 +95,157 @@ tools:
           difference: "run_point invokes an in-process nested machine; execute_task spawns a child agent process."
     config:
       profile: agents/executor/profile.yaml
+
+  - name: reset_retry_count
+    type: builtin
+    init: compose
+    description: "Seed the visible retry count for a newly extracted task."
+    problem: "Each extracted task needs a retry baseline that remains visible to the machine instead of hidden in planner session state."
+    goals:
+      - "Publish retry count zero under a stable command-state label."
+      - "Let later increments replace the label by normal newest-entry semantics."
+    requirements:
+      input:
+        - "must require no model or request input"
+      output:
+        - "must emit RetryCountInitialized with a JSON object whose output field is the string zero"
+      errors:
+        - "must report CommandError if the declared composition cannot be rendered"
+    non_goals:
+      - "Does not increment or compare the retry count."
+      - "Does not mutate graph or planner session state."
+    visibility: internal
+    emits: [RetryCountInitialized, CommandError]
+    category: word
+    parameters: {type: object, properties: {}, additionalProperties: false}
+    output:
+      description: "Initial retry count addressable through the retry_count label."
+      schema:
+        type: object
+        properties:
+          output: {type: string}
+        required: [output]
+    side_effects:
+      - kind: none
+        description: "Produces command output without mutating domain state."
+    reversibility: {classification: reversible, undo: noop}
+    undo: {strategy: noop, description: "The retry count lives only in command history."}
+    errors:
+      - signal: CommandError
+        condition: "the declared retry-count composition cannot be rendered"
+        message_shape: "reset_retry_count: <error>"
+        state_after_failure: "no retry-count entry is published"
+    relationships:
+      before: [extract_task, extract_all]
+      after: [reset_history, execute_task, increment_retry]
+    config:
+      signal: RetryCountInitialized
+      inputs: {}
+      template: '{"output":"0"}'
+
+  - name: increment_retry
+    type: exec
+    binary: jq
+    args: ["-c", ". + 1"]
+    stdin_source: $from(retry_count).output
+    stdin_max_bytes: 32
+    description: "Increment the latest command-state retry count."
+    problem: "A retry attempt must advance a visible count without moving policy into planner Go state."
+    goals:
+      - "Read the newest retry_count output and add exactly one."
+      - "Republish structured output that the next loop iteration and predicate can address."
+    requirements:
+      input:
+        - "must read a numeric string from $from(retry_count).output through bounded stdin"
+      output:
+        - "must emit ToolDone with the incremented count in structured output"
+      errors:
+        - "must emit CommandError when command-state input cannot resolve"
+        - "must emit ToolFailed when jq cannot increment the supplied value"
+    non_goals:
+      - "Does not compare the count with a retry limit."
+      - "Does not choose retry or exhaustion routing."
+    visibility: internal
+    emits: [ToolDone, ToolFailed, CommandError]
+    category: word
+    parameters: {type: object, properties: {}, additionalProperties: false}
+    output:
+      description: "Incremented retry count wrapped for the next loop iteration."
+      mode: structured
+      schema:
+        type: object
+        properties:
+          output: {type: string}
+          exit_code: {type: integer}
+        required: [output, exit_code]
+    side_effects:
+      - kind: none
+        description: "Runs a deterministic transform and changes no domain state."
+    reversibility: {classification: reversible, undo: noop}
+    undo: {strategy: noop, description: "Rollback removes the command-history entry."}
+    errors:
+      - signal: CommandError
+        condition: "retry_count input is absent, malformed, empty, or exceeds the declared stdin bound"
+        message_shape: "increment_retry: resolve exec input: <error>"
+        state_after_failure: "no incremented retry-count entry is published"
+      - signal: ToolFailed
+        condition: "jq cannot parse or increment the retry count"
+        message_shape: "<captured jq output>"
+        state_after_failure: "no domain state is changed"
+    relationships:
+      before: [reset_retry_count, vet, build, test]
+      after: [check_retry_limit]
+
+  - name: check_retry_limit
+    type: builtin
+    init: value_predicate
+    description: "Compare the visible retry count with the declared two-attempt limit."
+    problem: "Retry availability must be a machine-visible comparison rather than a branch hidden inside a state-mutating tool."
+    goals:
+      - "Compare the newest retry count numerically with the declared limit."
+      - "Emit distinct signals for retry availability and exhaustion."
+    requirements:
+      input:
+        - "must resolve the latest retry_count output from command state"
+      output:
+        - "must emit RetryAvailable when the count is below two and RetriesExhausted otherwise"
+      errors:
+        - "must emit CommandError when the count cannot resolve or coerce to a number"
+    non_goals:
+      - "Does not increment retries."
+      - "Does not mutate graph state or select the next machine state."
+    visibility: internal
+    emits: [RetryAvailable, RetriesExhausted, CommandError]
+    category: word
+    parameters: {type: object, properties: {}, additionalProperties: false}
+    output:
+      description: "Resolved retry comparison and whether the declared limit predicate held."
+      schema:
+        type: object
+        properties:
+          left: {}
+          right: {}
+          op: {type: string}
+          operand_type: {type: string}
+          held: {type: boolean}
+        required: [left, right, op, operand_type, held]
+    side_effects:
+      - kind: none
+        description: "Compares command-state values without mutation."
+    reversibility: {classification: reversible, undo: noop}
+    undo: {strategy: noop, description: "Comparison changes nothing."}
+    errors:
+      - signal: CommandError
+        condition: "retry_count output cannot resolve or cannot coerce to a number"
+        message_shape: "check_retry_limit: <error>"
+        state_after_failure: "no comparison outcome is reported and no state is changed"
+    relationships:
+      before: [increment_retry]
+      after: [reset_history, execute_task, remaining_work]
+    config:
+      left: $from(retry_count).output
+      op: lt
+      right: "2"
+      operand_type: number
+      satisfied: RetryAvailable
+      unsatisfied: RetriesExhausted

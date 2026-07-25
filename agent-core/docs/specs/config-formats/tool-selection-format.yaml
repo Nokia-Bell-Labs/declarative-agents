@@ -68,11 +68,13 @@ selection_files:
       to build the nested point registry.
 
   - file: <profile-root>/planner/tools.yaml
-    tool_count: 16
+    tool_count: 20
     description: |
       Selects planning tools (extract_task, extract_all,
       assemble_prompt, parse_plan, format_issue, write,
-      create_tracker_issue, record_tracker_issue, execute_task, check_result),
+      create_tracker_issue, record_tracker_issue, execute_task,
+      reset_retry_count, increment_retry, check_retry_limit,
+      mark_task_done, remaining_work),
       LLM tools (invoke_llm, reset_history),
       and direct build/test transition tools (build, vet, test).
 

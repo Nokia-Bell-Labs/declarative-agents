@@ -504,24 +504,91 @@ tools:
       captures: [child_run_id, child_workspace_ref]
       requires: [Receipt]
 
-  - name: check_result
+  - name: mark_task_done
     type: builtin
-    init: check_result
-    description: "Evaluate validation results and decide retry vs. advance vs. fail."
+    init: mark_task_done
+    description: "Mark the current planner task's graph nodes done."
+    problem: "Successful validation needs one focused graph completion mutation."
+    goals:
+      - "Mutate graph completion state without deciding retry or remaining-work policy."
+    requirements:
+      input:
+        - "The current task and graph must exist in planner pipeline state."
+      output:
+        - "TaskCompleted is emitted after all current task nodes reach Done."
+      errors:
+        - "CommandError is emitted for missing state or invalid node transitions."
+    non_goals:
+      - "Does not inspect validation results."
+      - "Does not count retries or query remaining work."
     visibility: internal
-    emits: [ValidationPassed, RetryAvailable, RetriesExhausted, CommandError]
+    emits: [TaskCompleted, CommandError]
     category: stateful_internal
     side_effects:
       - kind: state_mutation
         target: pipeline_state
-        state: retry_count_or_task_status_updated
-        description: "Updates retry counters and task status based on execution result."
+        state: current_task_completed
+        description: "Advances only the current task's graph nodes to Done."
     reversibility:
       classification: reversible
       undo: "pipeline_state_restore"
     undo:
       strategy: session_state_restore
-      description: "Restore the pipeline state snapshot captured before result evaluation."
+      description: "Restore the graph snapshot captured before task completion."
+    output:
+      description: "Human-readable confirmation naming the completed planner task."
+      schema:
+        type: string
+    errors:
+      - signal: CommandError
+        condition: "The current task or graph is missing, or a task node cannot transition to Done."
+        message_shape: "mark_task_done: <error>"
+        state_after_failure: "The machine does not route completion; rollback restores any graph nodes changed before the error."
+    relationships:
+      before: [test]
+      after: [remaining_work]
+
+  - name: remaining_work
+    type: builtin
+    init: remaining_work
+    description: "Query whether the planner graph has ready, completed, or blocked work."
+    problem: "Remaining-work routing belongs in the planner machine, not a graph-mutating word."
+    goals:
+      - "Report ready work separately from a fully done or blocked graph."
+    requirements:
+      input:
+        - "A loaded graph must exist in planner pipeline state."
+      output:
+        - "WorkRemaining, AllDone, or Blocked describes the graph."
+      errors:
+        - "CommandError is emitted when no graph is loaded."
+    non_goals:
+      - "Does not extract tasks or mutate graph state."
+      - "Does not decide where the planner routes next."
+    visibility: internal
+    emits: [WorkRemaining, AllDone, Blocked, CommandError]
+    category: word
+    side_effects:
+      - kind: none
+        description: "Reads graph state without mutating it."
+    reversibility:
+      classification: reversible
+      undo: "noop"
+    undo:
+      strategy: noop
+      description: "The graph query has no effects to reverse."
+    output:
+      description: "Human-readable ready, complete, or blocked graph summary."
+      schema:
+        type: string
+    errors:
+      - signal: CommandError
+        condition: "No planner graph is loaded."
+        message_shape: "remaining_work: graph is required"
+        state_after_failure: "Graph and planner state remain unchanged."
+    relationships:
+      before: [mark_task_done, check_retry_limit]
+      after: [extract_task]
 
   # --- evaluator session tools ---
   - name: parse_suite_config

@@ -30,6 +30,7 @@ requirements:
       - R1.1: The planner profile must model requirement graph traversal, prompt assembly, plan parsing, issue materialization, generator execution, and build-vet-test validation.
       - R1.2: Planner relationships must show that it invokes the generator as a child profile and does not implement generator behavior itself.
       - R1.3: Issue materialization must be a visible format, write, tracker exec, and result-recording sentence; the profile declaration selects the tracker binary, arguments, parameter sources, and output contract.
+      - R1.4: Validation retry increment, retry-limit comparison, exhaustion, task completion, and remaining-work routing must be visible machine states and transitions composed from focused words.
   R2:
     title: Inputs, tools, and runtime dependencies
     items:
@@ -57,6 +58,9 @@ acceptance_criteria:
   - id: AC3
     criterion: Planner outputs and terminal outcomes are checkable by mounted execution or integration targets.
     traces: [R3.1, R3.2]
+  - id: AC4
+    criterion: Full and pass-through planner machines expose retry and graph-completion policy while preserving successful, exhausted, and blocked outcomes.
+    traces: [R1.4, R3.1, R3.2]
 
 depends_on:
   - srd_id: srd001-agent-functional-blocks
@@ -73,4 +77,5 @@ diagrams:
       R1 --> AC1["AC1: Configured planner invoking generator"]
       R2 --> AC2["AC2: Inputs, tools, dependencies named"]
       R3 --> AC3["AC3: Outputs and outcomes checkable"]
+      R1 --> AC4["AC4: Visible retry and completion policy"]
     ```

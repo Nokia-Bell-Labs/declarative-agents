@@ -16,8 +16,8 @@ problem: |
   holds zero documents or five hundred. Exec tools emit exactly ToolDone and
   ToolFailed from a process exit code (srd023), so the comparison has to live
   inside a child program that happens to exist and happens to be the right place
-  for it. check_result is a planning-pipeline word built around a retry budget,
-  not a general predicate.
+  for it. The former planner check_result word was built around a retry budget,
+  illustrating why a reusable predicate was needed instead.
 
   Without the primitive the fallback is a bespoke Go tool per comparison, or a
   contract distortion: pushing a caller's decision into an unrelated agent so
@@ -88,7 +88,7 @@ non_goals:
   - Defining the BuiltinRegistry factory mechanism; that is srd022 R2.
   - Arithmetic, string manipulation, or any transformation of operands; the word compares and does nothing else.
   - Multi-clause predicates with boolean connectives; a machine composes several predicate words across states, which keeps the branch visible in the grammar rather than inside a word.
-  - Replacing check_result, whose retry-budget behavior is planning-pipeline specific.
+  - Defining planner retry policy; planner MachineSpec composes this generic predicate with its own declared count and limit.
 
 acceptance_criteria:
   - id: AC1

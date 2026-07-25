@@ -112,7 +112,7 @@ receipt_undo:
     - command: record_tracker_issue
       strategy: pipeline_state_restore
       receipt: reversible_pipeline_snapshot
-    - command: check_result
+    - command: mark_task_done
       strategy: pipeline_state_restore
       receipt: reversible_pipeline_snapshot
   workspace_state:

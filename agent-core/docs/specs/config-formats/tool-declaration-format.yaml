@@ -707,7 +707,7 @@ target_grouped_layout:
       owns: [validate]
       kind: shared compatibility
     - path: tools/builtin/planner/
-      owns: [extract_task, extract_all, assemble_prompt, parse_plan, format_issue, write, record_tracker_issue, execute_task, check_result]
+      owns: [extract_task, extract_all, assemble_prompt, parse_plan, format_issue, write, record_tracker_issue, execute_task, mark_task_done, remaining_work]
       kind: shared planner-family declarations
     - path: tools/builtin/critic-session/
       owns: [parse_suite_config, discover_suite_samples, expand_eval_grid, init_eval_session, report_suite_summary, next_point, run_point, report_session]

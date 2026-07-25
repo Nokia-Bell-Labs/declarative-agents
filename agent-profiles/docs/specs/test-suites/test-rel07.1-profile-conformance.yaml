@@ -447,6 +447,19 @@ test_cases:
       - sm-agent-role-taxonomy planner
 
   - family: planner
+    name: Planner declarative retry policy wiring
+    status: implemented
+    test: conformance/planner_test.go TestPlannerRetryPolicyWiring
+    coverage: load-and-wiring
+    coverage_note: Ungated, model-free; parses both shipped machines and planner declarations.
+    description: |
+      Asserts labelled retry reset/increment steps, the value-predicate limit,
+      focused task completion and remaining-work words, and explicit routes in
+      both full and pass-through planner variants.
+    traces:
+      - srd004-planner AC4
+
+  - family: planner
     name: Planner shipped-profile terminal task execution
     status: implemented
     test: conformance/planner_test.go TestPlannerShippedProfileTerminalExecution
@@ -458,10 +471,28 @@ test_cases:
     description: |
       Loads a real specification corpus, extracts all ready graph nodes, selects
       execute_task, invokes the configured child executable, runs vet/build/test,
-      maps validation success through check_result, and reaches Completed.
+      marks the task done, queries remaining work, and reaches Completed.
     traces:
       - srd004-planner AC1
       - srd004-planner AC3
+      - srd004-planner AC4
+      - sm-agent-role-taxonomy planner
+
+  - family: planner
+    name: Planner visible retry and exhaustion routing
+    status: implemented
+    test: conformance/planner_test.go TestPlannerShippedProfileRetryExhaustion
+    coverage: shipped-behavioral
+    coverage_note: |
+      Runs the shipped pass-through machine with a permanently failing test so
+      the first declared comparison retries and the second exhausts the limit.
+    description: |
+      Proves two execute_task attempts, two command-state retry increments, the
+      value-predicate limit comparison, no graph completion mutation, and the
+      final Stalled route through remaining_work.
+    traces:
+      - srd004-planner AC3
+      - srd004-planner AC4
       - sm-agent-role-taxonomy planner
 
   - family: rest

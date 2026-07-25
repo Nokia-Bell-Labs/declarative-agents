@@ -83,7 +83,8 @@ tools:
     - done
     - execute_task
     after:
-    - check_result
+    - increment_retry
+    - mark_task_done
     - invoke_llm
     overlaps:
     - tool: validate
