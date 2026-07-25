@@ -104,5 +104,13 @@ out_of_scope:
   - Authoring scenarios for the existing mesh agents, which is examples-owned work.
   - Bounded parallel validator iteration; sequential dispatch is intentional until MachineSpec supports a bounded parallel mode.
 
+evidence_gaps:
+  - Current rig evidence asserts ordered scenario and aggregate verdicts but not
+    the failing validator's name or reason.
+  - Child-stop item spans and two consecutive runs show dispatch and
+    repeatability but do not inspect operating-system process survival.
+  - No current test induces mock-start failure and then verifies failure-path
+    teardown.
+
 test_suite_trace: test-rel11.0-assembler-rig
-status: specified
+status: in-progress

@@ -198,6 +198,10 @@ implementation_status:
     - done: Mock, assembler, rig-subject, and runtime conformance scaffolding
         are classified as internal rather than shipped library members; no
         relocation is scheduled.
+    - in-progress: Release 11 assembler and mock implementation is present with
+        profile, fixture, conformance, and rig evidence; validator semantics,
+        serving-startup rejection, process survival, named failure causes, and
+        mock-start-failure cleanup remain unproven.
 
 related_documents:
   - doc: ../agent-core/docs/specs/config-formats/runtime-contract.yaml

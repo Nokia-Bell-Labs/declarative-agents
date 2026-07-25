@@ -576,7 +576,14 @@ releases:
       the profile-owned documentation; the mock lands in GH-668, the assembler
       in GH-669, and the reference subject with its scenarios and the mage
       target in GH-670. Epic #662.
-    status: planned
+
+      The implementation issues are complete and the shipped profiles, fixtures,
+      conformance tests, and mage rig target exist. Release status remains
+      in-progress because current evidence does not execute validator assertions
+      over right and wrong request logs, exercise malformed-fixture serving
+      startup, inspect child-process survival, or induce mock-start-failure
+      teardown.
+    status: in-progress
     related_agent_core_release: "09.0"
     planned_work:
       - id: gh-665
@@ -599,15 +606,23 @@ releases:
       - srd019-mock
     use_cases:
       - id: rel11.0-uc001-assembler-scenario-run
-        summary: The assembler runs an agent's scenarios to a verdict with no live services, a fresh subject per scenario, and a failing scenario that names its cause.
-        status: specified
+        summary: The assembler runs an agent's scenarios with no live services,
+          reports ordered pass/fail verdicts, exposes machine-visible child-stop
+          dispatches, and repeats without observed port or state leakage.
+        status: in-progress
       - id: rel11.0-uc002-mock-serves-fixtures
-        summary: One mock profile stands in for any REST dependency, scripts response sequences, and records a request log validators assert against.
-        status: specified
+        summary: One mock profile stands in for any REST dependency, scripts
+          response sequences, and exposes a per-instance request log whose
+          contents are inspected by conformance tests.
+        status: in-progress
     test_suites:
       - id: test-rel11.0-assembler-rig
-        summary: Cases for fixture serving and sequencing, two mocks from one profile, request-log verification, malformed-fixture rejection, an end-to-end scenario verdict, several scenarios per subject, a scripted dependency failure, a deliberate rig failure, no-orphan repeatable runs, cross-root discovery, and shipped-profile validation.
-        status: specified
+        summary: Cases for fixture serving and sequencing, two mocks from one
+          profile, direct request-log inspection, malformed-fixture
+          --validate-config rejection, scenario verdicts, visible stop
+          dispatches, repeatable runs, cross-root discovery, and shipped-profile
+          validation.
+        status: in-progress
     proof:
       - mage validate
       - AGENT_CORE_ROOT=/path/to/agent-core mage rig

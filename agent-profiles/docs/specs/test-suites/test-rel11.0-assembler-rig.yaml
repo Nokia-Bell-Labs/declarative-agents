@@ -2,33 +2,15 @@ id: test-rel11.0-assembler-rig
 title: Test Suite for Release 11.0 Assembler Test Rig
 
 release: "11.0"
+status: in-progress
 
 overview: |
   This suite validates the assembler test rig: one shipped rig profile that
   composes a scenario from profile-owned data, and one shipped mock profile
-  that stands in for any REST dependency. It exists before the implementation
-  issues start (no implementation issue before a test suite exists for its use
-  case): GH-668 delivers the mock, GH-669 the assembler, and GH-670 the
-  reference subject with its scenarios and the mage target that runs them.
-
-  Cases carry planned_go_test and planned_integration_target rather than
-  go_test and integration_target until the named tests and targets exist,
-  because the formal evidence validator checks every cited command against the
-  real inventory. Each implementing issue renames the field and sets status to
-  implemented when its evidence lands.
-
-  GH-668 delivered the mock (the request-log case cites the delivered name
-  TestMockRequestLogRecordsCalls), GH-669 the assembler profile, and GH-670 the
-  reference subject, its three scenarios, the TestRigSelfProof conformance
-  test, and the mage rig target, so those cases now carry real evidence. The
-  no-orphan case cites TestRigSelfProof, whose two consecutive full runs are
-  the delivered repeatability proof alongside the agent-core teardown test.
-  GH-671 added the first examples scenario (the chatbot-mesh rag-server
-  against a mock Chroma) and the cross-root proof: the example's
-  mage integration:rig runs one assembler over the mesh agents and the
-  agent-profiles reference subject in a single pass, so every case now
-  carries real evidence. The chatbot-turn scenarios continue in a
-  follow-on issue.
+  that stands in for any REST dependency. GH-668 delivered the mock, GH-669
+  the assembler profile, and GH-670 the reference subject, its scenarios,
+  TestRigSelfProof, and mage rig. GH-671 added the chatbot-mesh rag-server
+  scenario and cross-root proof. Every cited command now exists.
 
   Evidence remains narrower than the complete requirements. The current tests
   inspect request-log contents directly rather than running a validator over

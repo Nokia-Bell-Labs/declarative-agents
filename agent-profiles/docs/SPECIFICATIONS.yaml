@@ -109,7 +109,7 @@ roadmap_summary:
 
   - version: "11.0"
     name: Assembler test rig
-    status: planned
+    status: in-progress
     scope: |
       Two test-time role families over the agent-core release 09.0 words. The
       assembler (srd018) discovers scenarios under configurable roots covering
@@ -124,6 +124,12 @@ roadmap_summary:
       calls. Tests are profile-owned data in tests/<scenario>/ beside the agent,
       so one subject carries several tests, adding one never edits the rig, and
       no scenario needs a live service or a per-test container image.
+
+      The implementation issues are complete and the profiles, fixtures, tests,
+      and mage target exist. Evidence is still partial: current tests inspect
+      request logs directly, validate malformed fixtures only with
+      --validate-config, and infer cleanup from stop spans plus repeatability
+      without checking process survival or mock-start-failure teardown.
 
 foundation_document_index:
   - id: agent-profiles
@@ -284,7 +290,7 @@ srd_index:
       states to a verdict that names a failing validator, and tears every child down.
       Scenarios are profile-owned data in tests/<scenario>/ beside the agent, so one
       subject carries several tests and adding one never edits the rig.
-    status: planned
+    status: in-progress
     path: docs/specs/software-requirements/srd018-assembler.yaml
   - id: srd019-mock
     title: Mock Functional Block
@@ -294,7 +300,7 @@ srd_index:
       environment so a new dependency needs a fixture rather than a profile or an
       image, exposes a health route, and records a per-instance request log validators
       read to verify a subject's outbound calls.
-    status: planned
+    status: in-progress
     path: docs/specs/software-requirements/srd019-mock.yaml
 
 config_format_index: []
@@ -475,20 +481,20 @@ use_case_index:
     path: docs/specs/use-cases/rel10.0-uc003-conformance-fixture-relocation.yaml
   - id: rel11.0-uc001-assembler-scenario-run
     title: The Assembler Runs an Agent's Scenarios to a Verdict Without Live Services
-    summary: The assembler discovers a scenario beside an agent, starts its mocks,
-      starts the subject with its dependency redirected, runs the validators, and
-      reduces their terminals to a verdict; a second scenario is added as data only,
-      a scripted dependency failure drives the subject's failure path, and a wrong
-      expectation makes the rig fail and name the failing validator.
-    status: specified
+    summary: The assembler discovers scenarios beside an agent, starts mocks and
+      a redirected subject, dispatches validators, reports ordered pass/fail
+      verdicts, exposes child-stop spans, and repeats without observed port or
+      state leakage. Named validator causes and process non-survival are not yet
+      asserted.
+    status: in-progress
     path: docs/specs/use-cases/rel11.0-uc001-assembler-scenario-run.yaml
   - id: rel11.0-uc002-mock-serves-fixtures
     title: One Mock Profile Stands In for Any REST Dependency and Records What It Received
-    summary: One shipped mock serves a scenario's fixture routes, scripts a response
-      sequence so a failure lands on a chosen call, 404s and records unmatched calls,
-      and exposes a per-instance request log a validator reads to verify the subject's
-      outbound calls; a second dependency needs another fixture, not another profile.
-    status: specified
+    summary: One shipped mock serves fixture routes, scripts response sequences,
+      records unmatched calls, and exposes a per-instance request log inspected
+      directly by conformance tests; malformed fixtures are rejected by
+      --validate-config, while serving-startup rejection remains unproven.
+    status: in-progress
     path: docs/specs/use-cases/rel11.0-uc002-mock-serves-fixtures.yaml
 
 test_suite_index:
@@ -581,14 +587,14 @@ test_suite_index:
     path: docs/specs/test-suites/test-rel10.0-role-catalog.yaml
   - id: test-rel11.0-assembler-rig
     title: Test Suite for Release 11.0 Assembler Test Rig
-    summary: Cases for mock fixture serving and sequencing, two mocks from one
-      profile, request-log verification of a subject's outbound calls,
-      malformed-fixture rejection, an end-to-end scenario verdict, several scenarios
-      per subject added as data only, a scripted dependency failure, a deliberate rig
-      failure that names its cause, no-orphan repeatable runs, cross-root discovery,
-      and shipped-profile validation. Exists before the implementing issues; cases
-      carry planned_go_test and planned_integration_target until their evidence lands.
-    status: specified
+    summary: Implemented cases cover fixture serving and sequencing, two mocks
+      from one profile, direct request-log inspection, malformed-fixture
+      --validate-config rejection, ordered scenario verdicts, visible child-stop
+      dispatches, repeatable runs, cross-root discovery, and shipped-profile
+      validation. Validator pass/fail assertions, serving-startup rejection,
+      process survival, named causes, and mock-start-failure cleanup remain
+      evidence gaps.
+    status: in-progress
     path: docs/specs/test-suites/test-rel11.0-assembler-rig.yaml
 
 coverage_gaps: |
