@@ -15,14 +15,14 @@ invariants:
 lifecycle: |-
   1. Idle → Loading (Seed): load_corpus from project directory
   2. Loading → Validating (ToolDone): validate_specs
-  3. Validating → Reporting (ValidationPassed): format_report
-  3a. Validating → Reporting (ValidationFailed): format_report
-  4. Reporting → Passed (ToolDone): validation completed successfully
-  4a. Reporting → Failed (ToolFailed): report indicates errors
-  5. Loading → Failed (CommandError): infrastructure error
-  5a. Reporting → Failed (CommandError): infrastructure error
+  3. Validating → Searching: run one declared jurist_rg word per grep_check
+  4. Searching → Reducing (GrepSearched): reduce_grep_checks
+  5. Reducing → Reporting (ValidationPassed/ValidationFailed): format_report
+  6. Reporting → Passed (ToolDone): validation completed successfully
+  6a. Reporting → Failed (ToolFailed): report indicates errors
+  7. Any active step → Failed (CommandError): infrastructure error
 
-  This is a linear pipeline with no loops or LLM calls.
+  Search iteration is deterministic and sequential, with no LLM calls.
 initial_state: Idle
 states:
 - name: Idle
@@ -36,6 +36,10 @@ states:
     Running consistency checks on the specification graph:
     orphan detection, missing references, duplicate IDs, cycle
     detection, and coverage gap analysis.
+- name: Searching
+  meaning: Running declared ripgrep searches for each grep_check plan.
+- name: Reducing
+  meaning: Shaping ripgrep events into match or missing findings with provenance.
 - name: Reporting
   meaning: Formatting the validation results into a human-readable report.
 - name: Passed
@@ -58,11 +62,14 @@ signals:
   trigger: All consistency checks passed.
 - name: ValidationFailed
   trigger: One or more consistency checks failed.
+- name: GrepSearched
+  trigger: All grep_check searches completed, including no-match outcomes.
 transitions:
 - state: Idle
   signal: Seed
   next: Loading
   action: load_corpus
+  label: loaded_corpus
 - state: Loading
   signal: ToolDone
   next: Validating
@@ -72,13 +79,63 @@ transitions:
   next: Failed
 - state: Validating
   signal: ValidationPassed
+  next: Searching
+  action: jurist_rg
+  label: grep_result
+  for_each:
+    items: $from(loaded_corpus).grep_checks
+    as: grep_check
+    mode: sequential
+    failure: collect_all
+    continue_on: [ToolDone, ToolFailed]
+    abort_on: [CommandError]
+    join:
+      next: Searching
+      label: grep_results
+      signals:
+        all_success: GrepSearched
+        partial: CommandError
+        failed: CommandError
+        empty: GrepSearched
+- state: Validating
+  signal: ValidationFailed
+  next: Searching
+  action: jurist_rg
+  label: grep_result
+  for_each:
+    items: $from(loaded_corpus).grep_checks
+    as: grep_check
+    mode: sequential
+    failure: collect_all
+    continue_on: [ToolDone, ToolFailed]
+    abort_on: [CommandError]
+    join:
+      next: Searching
+      label: grep_results
+      signals:
+        all_success: GrepSearched
+        partial: CommandError
+        failed: CommandError
+        empty: GrepSearched
+- state: Validating
+  signal: CommandError
+  next: Failed
+- state: Searching
+  signal: GrepSearched
+  next: Reducing
+  action: reduce_grep_checks
+- state: Searching
+  signal: CommandError
+  next: Failed
+- state: Reducing
+  signal: ValidationPassed
   next: Reporting
   action: format_report
-- state: Validating
+- state: Reducing
   signal: ValidationFailed
   next: Reporting
   action: format_report
-- state: Validating
+- state: Reducing
   signal: CommandError
   next: Failed
 - state: Reporting

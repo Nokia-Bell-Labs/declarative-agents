@@ -64,7 +64,7 @@ func TestJuristConformance(t *testing.T) {
 		result.RequireNoErrorSpans(t)
 
 		// srd005-jurist R2: the jurist tool pipeline is visible as tool spans.
-		result.RequireToolSpans(t, "load_corpus", "validate_specs", "format_report")
+		result.RequireToolSpans(t, "load_corpus", "validate_specs", "reduce_grep_checks", "format_report")
 
 		// srd005-jurist R3.1/R3.3: a corpus that carries no error-level violation
 		// reaches the Passed terminal with a formatted report.
@@ -85,7 +85,7 @@ func TestJuristConformance(t *testing.T) {
 		result.RequireExit(t, 2)
 		result.RootRequired(t)
 		result.RequireNoErrorSpans(t)
-		result.RequireToolSpans(t, "load_corpus", "validate_specs", "format_report")
+		result.RequireToolSpans(t, "load_corpus", "validate_specs", "reduce_grep_checks", "format_report")
 
 		// srd005-jurist R3.3: a corpus with an error-level violation reaches the
 		// Failed terminal.

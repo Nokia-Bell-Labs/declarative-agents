@@ -15,6 +15,7 @@ type specValidationConfig struct {
 	CharterSuites  []string `json:"charter_suites"`
 	Charters       []string `json:"charters"`
 	CorpusOptional bool     `json:"corpus_optional"`
+	ResultsFrom    string   `json:"results_from"`
 }
 
 // RegisterSpecFactories registers spec validation builtin tool factories.
@@ -26,6 +27,13 @@ func RegisterSpecFactories(br *toolregistry.BuiltinRegistry, directory string) {
 		}
 		return vs
 	}
+	registerLoadCorpusFactory(br, initVS)
+	registerValidateSpecsFactory(br, initVS)
+	registerReduceGrepFactory(br, initVS)
+	registerFormatReportFactory(br, initVS)
+}
+
+func registerLoadCorpusFactory(br *toolregistry.BuiltinRegistry, initVS func() *SpecState) {
 	br.Register("load_corpus", func(def catalog.ToolDef, vars map[string]string) (core.Builder, error) {
 		s := initVS()
 		if dir := vars["directory"]; dir != "" {
@@ -37,6 +45,9 @@ func RegisterSpecFactories(br *toolregistry.BuiltinRegistry, directory string) {
 		}
 		return &LoadCorpusBuilder{VS: s}, nil
 	})
+}
+
+func registerValidateSpecsFactory(br *toolregistry.BuiltinRegistry, initVS func() *SpecState) {
 	br.Register("validate_specs", func(def catalog.ToolDef, vars map[string]string) (core.Builder, error) {
 		s := initVS()
 		if err := applySpecValidationConfig(s, def, vars); err != nil {
@@ -44,6 +55,23 @@ func RegisterSpecFactories(br *toolregistry.BuiltinRegistry, directory string) {
 		}
 		return &ValidateSpecsBuilder{VS: s}, nil
 	})
+}
+
+func registerReduceGrepFactory(br *toolregistry.BuiltinRegistry, initVS func() *SpecState) {
+	br.Register("reduce_grep_checks", func(def catalog.ToolDef, vars map[string]string) (core.Builder, error) {
+		s := initVS()
+		var cfg specValidationConfig
+		if err := catalog.DecodeToolConfig(def, &cfg); err != nil {
+			return nil, err
+		}
+		if cfg.ResultsFrom == "" {
+			cfg.ResultsFrom = "$from(grep_results).items"
+		}
+		return &ReduceGrepChecksBuilder{VS: s, ResultsFrom: cfg.ResultsFrom}, nil
+	})
+}
+
+func registerFormatReportFactory(br *toolregistry.BuiltinRegistry, initVS func() *SpecState) {
 	br.Register("format_report", func(def catalog.ToolDef, vars map[string]string) (core.Builder, error) {
 		s := initVS()
 		if err := applySpecValidationConfig(s, def, vars); err != nil {

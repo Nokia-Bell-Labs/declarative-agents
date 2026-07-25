@@ -33,7 +33,8 @@ requirements:
     items:
       - R2.1: Jurist inputs must include a filesystem target directory and one or more deterministic charter suite paths.
       - R2.2: The jurist profile must select the specification validation tool family backed by agent-core spec validation tools.
-      - R2.3: Jurist responsibilities must cover corpus loading, graph validation, consistency checks, and report formatting.
+      - R2.3: Jurist responsibilities must cover corpus loading, graph validation, consistency checks, external rg search, finding reduction, and report formatting.
+      - R2.4: grep_check search and reduction must be visible machine steps; the search word must declare rg as its executable dependency and consume charter pattern, root, include, and exclude inputs.
   R3:
     title: Outputs and outcomes
     items:
@@ -51,8 +52,8 @@ acceptance_criteria:
     criterion: The jurist profile is described as a deterministic, LLM-free validator rather than a Go package.
     traces: [R1.1, R1.2]
   - id: AC2
-    criterion: Jurist inputs, selected tool family, and responsibilities are named and separated from agent-core runtime capability.
-    traces: [R2.1, R2.2, R2.3]
+    criterion: Jurist inputs, selected tool family, visible rg search/reduction steps, and responsibilities are named and separated from agent-core runtime capability.
+    traces: [R2.1, R2.2, R2.3, R2.4]
   - id: AC3
     criterion: Jurist outputs, provenance-rich findings, and terminal outcomes are checkable by profile validation.
     traces: [R3.1, R3.2, R3.3]

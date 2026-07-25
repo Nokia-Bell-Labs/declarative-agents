@@ -3,5 +3,6 @@ includes:
   - ../load-corpus.yaml
   - ../validate-specs.yaml
   - ../format-report.yaml
+  - reduce-grep-checks.yaml
 
 tools: []

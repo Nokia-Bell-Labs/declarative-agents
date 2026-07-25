@@ -21,6 +21,15 @@ determinism: |
   reporting so two runs over the same inputs produce the same pass/fail status
   and finding order.
 
+grep_execution: |
+  load_corpus lowers each grep_check to a deterministic search plan containing
+  the charter pattern, root, and effective include/exclude globs. The jurist
+  MachineSpec iterates those plans through the declared jurist_rg exec word and
+  then invokes reduce_grep_checks to map rg JSON events and exit-one no-match
+  outcomes into findings. pkg/spec does not scan target files for grep matches.
+  The rg executable is the same runtime dependency used by the filesystem find
+  tool and is installed in the agent runtime image.
+
 suite_selection: |
   The spec-validation builtin tools load charter suites from ToolDef config or
   runtime variables. ToolDef config accepts suite_paths, charter_suites, and
@@ -233,8 +242,8 @@ kind_required_fields:
     required_fields:
       - patterns
     notes: |
-      regex: true also requires each pattern to compile as a Go regular
-      expression. mode defaults to match.
+      regex: true also requires each pattern to compile as a supported regular
+      expression. mode defaults to match. Search uses ripgrep regex syntax.
 
   - kind: ref_check
     required_fields:

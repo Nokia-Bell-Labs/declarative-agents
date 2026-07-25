@@ -42,7 +42,6 @@ func:internal/tools/catalog/tooldef.go:ExtractParamMappings
 func:internal/tools/rest/collection.go:RunMachineRequest
 func:internal/tools/rest/server_routes.go:proxyMonitor
 func:internal/tools/rest/validation.go:validateEndpoint
-func:pkg/spec/charter_grep.go:executeGrepCheck
 func:pkg/spec/corpus.go:LoadCorpus
 func:pkg/spec/corpus.go:discoverAndParseMachines
 func:pkg/spec/corpus.go:discoverAndParseToolDeclarations

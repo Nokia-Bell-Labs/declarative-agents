@@ -37,9 +37,9 @@ test_cases:
     status: specified
     description: |
       Run the jurist profile against a target directory and the demo charter
-      suite. Confirm the machine runs the linear load, validate, and report
-      pipeline with no LLM tool family and produces a provenance-rich report for
-      both pass and fail outcomes.
+      suite. Confirm the machine exposes load, validation, rg search, finding
+      reduction, and report steps with no LLM tool family and produces a
+      provenance-rich report for both pass and fail outcomes.
     inputs:
       profile: agents/jurist/profile.yaml
       machine: agents/jurist/machine.yaml
@@ -47,7 +47,9 @@ test_cases:
       charter_suite: agents/jurist/suites/demo-charter.yaml
       target_directory: a specification corpus directory
     expected:
-      selected_tools: [load_corpus, validate_specs, format_report]
+      selected_tools: [load_corpus, validate_specs, jurist_rg, reduce_grep_checks, format_report]
+      executable_dependency: rg
+      visible_grep_steps: [jurist_rg, reduce_grep_checks]
       llm_tool_family_selected: false
       report_formatted_on_pass: true
       report_formatted_on_fail: true

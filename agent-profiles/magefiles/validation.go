@@ -120,10 +120,12 @@ tool_config_dirs:
   - %q
 tool_declarations:
   - %q
+  - %q
 `, filepath.Join(profilesRoot, juristProfileDir, "machine.yaml"),
 		filepath.Join(profilesRoot, juristProfileDir, "tools.yaml"),
 		filepath.Join(coreRoot, "tools", "builtin", "spec-validation"),
-		toolDeclPath)
+		toolDeclPath,
+		filepath.Join(profilesRoot, juristProfileDir, "ripgrep.yaml"))
 	if err := os.WriteFile(profilePath, []byte(profile), 0o644); err != nil {
 		return "", fmt.Errorf("write jurist demo profile: %w", err)
 	}
@@ -263,8 +265,8 @@ func requireDocker(lookPath lookPathFunc) error {
 }
 
 func runContainerSmoke(run commandRunner, root, coreRoot, image string) error {
-	if err := run(dockerEngine, "run", "--rm", "--entrypoint", "sh", image, "-c", "test ! -e /opt/agent-core/agents"); err != nil {
-		return fmt.Errorf("check image excludes bundled agent assets: %w", err)
+	if err := run(dockerEngine, "run", "--rm", "--entrypoint", "sh", image, "-c", "test ! -e /opt/agent-core/agents && command -v rg >/dev/null"); err != nil {
+		return fmt.Errorf("check image layout and shared find/jurist rg dependency: %w", err)
 	}
 	args := []string{
 		"run", "--rm",

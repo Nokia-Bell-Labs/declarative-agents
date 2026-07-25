@@ -45,6 +45,7 @@ RUN apk add --no-cache \
     gzip \
     make \
     openssh-client \
+    ripgrep \
     sed \
     tar \
     unzip
