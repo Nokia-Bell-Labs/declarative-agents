@@ -1,0 +1,64 @@
+id: srd001-serving-contract
+title: Persistent Coding-Agent Serving Contract
+status: implemented
+
+problem: |
+  The canonical planner, executor, and critic are finite batch machines. A
+  Kubernetes Deployment needs a persistent process with truthful lifecycle
+  health, while the application needs network boundaries between roles without
+  copying reusable library behavior or allowing requests to choose profiles,
+  workspace roots, endpoints, or credentials.
+
+requirements:
+  - id: R1
+    title: Persistent role hosts
+    items:
+      - id: R1.1
+        text: The application shall own one persistent serving profile for planner, executor, and critic.
+      - id: R1.2
+        text: Each host shall launch a declared role request server and lifecycle server, remain in a non-terminal awaiting-control state, and stop through the declared lifecycle exit path.
+      - id: R1.3
+        text: Each lifecycle server shall expose GET /api/lifecycle/health through the agent-core health binding; no sidecar, sleep process, or unmodeled idle loop shall report health.
+  - id: R2
+    title: Canonical role composition
+    items:
+      - id: R2.1
+        text: The executor endpoint shall run the canonical executor profile as a profile-backed machine_request.
+      - id: R2.2
+        text: The critic endpoint shall run the canonical changed-workspace critic profile as a profile-backed machine_request.
+      - id: R2.3
+        text: The planner request machine shall reuse canonical planner LLM configuration, planner builtin tools, and plan parsing while owning only application sequencing.
+      - id: R2.4
+        text: Existing canonical batch profiles and local coding-loop integrations shall remain unchanged.
+  - id: R3
+    title: Remote application sequence
+    items:
+      - id: R3.1
+        text: A planner coding request shall invoke the executor through a declared REST client and invoke the critic through a second declared REST client only after executor success.
+      - id: R3.2
+        text: Executor failure, critic rejection, and infrastructure failure shall map to distinct declared terminal outcomes and HTTP responses.
+      - id: R3.3
+        text: Runtime input shall provide a task and opaque workspace identity but shall not choose a filesystem root, profile, machine, URL, host, or credential.
+  - id: R4
+    title: Shared workspace and trace
+    items:
+      - id: R4.1
+        text: All three processes shall bind the same operator-supplied runtime directory, suitable for one Kubernetes shared workspace volume.
+      - id: R4.2
+        text: The workspace identity shall be carried as correlation metadata while the trusted process directory remains the filesystem authority.
+      - id: R4.3
+        text: The planner inbound machine_request and both outbound REST operations shall use agent-core W3C trace propagation so all role spans share one trace identifier.
+
+acceptance_criteria:
+  - id: AC1
+    criterion: All three profiles boot with the real agent binary and return HTTP 200 from their declared lifecycle health endpoints.
+    traces: [R1.1, R1.2, R1.3]
+  - id: AC2
+    criterion: A localhost planner request changes the shared workspace through the remote canonical executor and receives an accepting verdict from the remote canonical critic.
+    traces: [R2.1, R2.2, R2.3, R3.1, R3.2, R4.1]
+  - id: AC3
+    criterion: Planner, executor, and critic trace output for the remote request contains the caller's W3C trace identifier.
+    traces: [R4.3]
+  - id: AC4
+    criterion: The existing local batch coding-loop tests and integrations remain valid.
+    traces: [R2.4]

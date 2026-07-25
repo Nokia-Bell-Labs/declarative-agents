@@ -106,6 +106,14 @@ components:
       Run planner, executor, and critic as separate workloads, mount the
       packaged profiles and workspace at declared paths, and expose only the
       delegation and result interfaces required by the coding loop.
+  - name: Persistent serving composition
+    path: agents/serving/
+    status: implemented
+    responsibility: |
+      Host truthful role request and lifecycle endpoints. The planner request
+      reuses canonical planner model and parsing words, invokes the executor and
+      critic through declared REST clients, and keeps filesystem authority in
+      the shared runtime directory rather than in request input.
   - name: documentation
     path: docs/
     responsibility: |
@@ -182,6 +190,20 @@ design_decisions:
       - Library profiles carry no coding-application values.
       - Package contents have the same semantics as mounted profile contents.
       - Later Helm and bundle consumers can reuse one closure contract.
+  - id: 7
+    title: Separate persistent hosts from finite role runs
+    decision: |
+      Application-owned host profiles launch the role and lifecycle listeners
+      and await declared control events. machine_request starts finite canonical
+      executor and critic runs; the planner request profile owns only the remote
+      executor-then-critic sequence and reuses canonical planner LLM and parser
+      assets. All processes receive the same trusted runtime directory. The
+      caller supplies an opaque workspace identity for correlation, never a
+      filesystem root or transport authority.
+    benefits:
+      - Health describes a live agent-owned listener instead of a sidecar or sleep.
+      - Canonical batch profiles remain valid for local callers.
+      - Built-in REST trace propagation connects every remote role boundary.
 
 technology_choices:
   - component: Agent runtime
@@ -218,6 +240,8 @@ project_structure:
       role: Planned coding-loop fixtures owned by this application.
     - path: magefiles/profiles_closure.go
       role: Deterministic transitive library-profile closure assembly.
+    - path: agents/serving/
+      role: Persistent planner, executor, and critic host profiles and remote request composition.
     - path: helm/
       role: Planned one-container-per-agent deployment chart.
     - path: magefiles/
@@ -236,8 +260,8 @@ implementation_status:
   current_focus: |
     The application documentation, portable integration fixtures, live executor,
     real planner delegation, canonical critic verdict gate, application
-    reference manifest, and profile closure packaging are implemented. Helm
-    deployment remains planned follow-up work.
+    reference manifest, profile closure packaging, and persistent serving
+    contract are implemented. Helm deployment remains planned follow-up work.
   progress:
     - implemented: The planner -> executor -> critic coding loop and three-stage
         integration contract.
@@ -247,7 +271,10 @@ implementation_status:
         deployment decisions.
     - implemented: Live executor, real planner delegation, and changed-workspace
         critic gate targets using the real built binary and canonical profiles.
-    - planned: Kubernetes deployment and Helm chart.
+    - implemented: Persistent planner, executor, and critic serving profiles
+        with lifecycle health, shared-workspace handoff, remote sequencing, and
+        connected W3C traces.
+    - planned: Kubernetes resources and Helm chart.
 
 related_documents:
   - doc: docs/VISION.yaml

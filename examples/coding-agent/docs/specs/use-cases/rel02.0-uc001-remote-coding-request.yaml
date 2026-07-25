@@ -1,0 +1,49 @@
+id: rel02.0-uc001-remote-coding-request
+title: Persistent Planner Delegates to Executor and Critic
+status: implemented
+
+summary: |
+  A caller submits one task and opaque workspace identity to the persistent
+  planner. The planner reuses canonical planning words, delegates execution to
+  the executor service, and submits the same shared volume to the critic service.
+  Each role is a real persistent agent profile with lifecycle health.
+
+actor: A delivery system submitting a coding task to a deployed coding application.
+trigger: POST /api/v1/coding with a task and workspace_id.
+
+preconditions:
+  - All three serving processes mount the same workspace at their trusted runtime directory.
+  - The assembled profile tree contains the application serving profiles and canonical library closure.
+  - The canonical planner and executor model is reachable.
+
+flow:
+  - id: F1
+    text: The planner host accepts the declared request and starts its trusted request profile.
+  - id: F2
+    text: Canonical planner model and parsing words produce a structured plan.
+  - id: F3
+    text: The planner invokes the declared executor REST client; agent-core injects traceparent.
+  - id: F4
+    text: The executor endpoint runs the canonical executor profile against its trusted shared runtime directory.
+  - id: F5
+    text: After executor success, the planner invokes the declared critic REST client with the carried workspace identity.
+  - id: F6
+    text: The critic endpoint runs the canonical changed-workspace critic and maps acceptance or rejection to the declared HTTP response.
+
+success_criteria:
+  - id: S1
+    criterion: Planner, executor, and critic health endpoints report from live profile-owned listeners.
+    traces: [srd001-serving-contract R1, srd001-serving-contract AC1]
+  - id: S2
+    criterion: The executor changes the shared workspace and the critic accepts it through two remote boundaries.
+    traces: [srd001-serving-contract R2, srd001-serving-contract R3, srd001-serving-contract AC2]
+  - id: S3
+    criterion: The three role trace files contain one caller-supplied W3C trace identifier.
+    traces: [srd001-serving-contract R4.3, srd001-serving-contract AC3]
+
+out_of_scope:
+  - Helm resources, profile ConfigMap sizing, and closure sharding.
+  - Per-request filesystem roots or dynamically supplied transport authority.
+  - Replacing the local canonical batch integrations.
+
+test_suite: test-rel02.0-serving-contract

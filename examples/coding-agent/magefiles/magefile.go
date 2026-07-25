@@ -41,6 +41,10 @@ func Audit() error {
 	if _, err := assembleProfileClosure(manifest, roots.Profiles, packagedRoot, source); err != nil {
 		return fmt.Errorf("assemble canonical profile closure: %w", err)
 	}
+	servingRoot := filepath.Join(packagedRoot, "applications", "coding-agent")
+	if err := copyTree(filepath.Join(root, "agents", "serving"), servingRoot); err != nil {
+		return fmt.Errorf("stage application serving profiles: %w", err)
+	}
 	binary, cleanup, err := buildAgent(roots.Core)
 	if err != nil {
 		return err
@@ -49,6 +53,9 @@ func Audit() error {
 	profiles := make([]string, 0, len(manifest.AgentProfiles.References))
 	for _, ref := range manifest.AgentProfiles.References {
 		profiles = append(profiles, filepath.Join(packagedRoot, filepath.FromSlash(ref.RuntimePath)))
+	}
+	for _, role := range servingRoles {
+		profiles = append(profiles, filepath.Join(servingRoot, role, "profile.yaml"))
 	}
 	if err := bootSmokeProfiles(binary, roots.Core, profiles); err != nil {
 		return err
@@ -115,7 +122,7 @@ func bootSmokeProfiles(binary, coreRoot string, profiles []string) error {
 	if len(failures) > 0 {
 		return fmt.Errorf("canonical profile boot smoke failed:\n%s", strings.Join(failures, "\n"))
 	}
-	fmt.Printf("boot smoke passed for %d canonical coding profiles\n", len(profiles))
+	fmt.Printf("boot smoke passed for %d coding profiles\n", len(profiles))
 	return nil
 }
 

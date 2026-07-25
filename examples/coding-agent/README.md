@@ -19,8 +19,9 @@ requirements in `agent-profiles/`:
 - `srd004-planner`
 
 This directory owns the application reference manifest, profile-closure
-packaging, live integration targets, and portable fixture in addition to the
-application specification. Helm assets remain follow-up work.
+packaging, persistent serving composition, live integration targets, and
+portable fixture in addition to the application specification. Helm assets
+remain follow-up work.
 
 ## Coding loop
 
@@ -46,11 +47,12 @@ script, or another fake agent binary.
 
 ## Packaging and runtime boundary
 
-`agents/application.yaml` is the only application-owned agent asset. It names
-the planner, executor, critic session, and critic changed-workspace entry
-profiles by paths relative to the `agent-profiles` root. It also pins the
-compatible `agent-profiles/v0.*` release and records the existing configuration
-surfaces; it does not copy or template library programs.
+`agents/application.yaml` names the planner, executor, critic session, and
+critic changed-workspace entry profiles by paths relative to the
+`agent-profiles` root. `agents/serving/` contains only application composition:
+persistent host lifecycle, declared remote boundaries, and terminal response
+mapping. It references canonical library assets and does not copy their
+machines, declarations, or reusable role behavior.
 
 From this directory, assemble the closed runtime tree:
 
@@ -101,7 +103,11 @@ All three coding-loop stages and pinned, transitive profile packaging are
 implemented with the production agent-core binary and canonical profiles. The
 critic receives the existing Stage B workspace, writes its own accepted or
 rejected verdict, and the application maps that verdict to Succeeded or Failed.
-A Helm chart with one container per agent remains planned.
+Application-owned serving profiles now keep planner, executor, and critic alive
+behind real lifecycle health endpoints. A request to the planner crosses
+declared executor and critic REST clients, while all three processes bind the
+same trusted workspace directory and agent-core propagates `traceparent` across
+the two remote boundaries. A Helm chart remains planned.
 
 The existing critic benchmark/session profile remains available unchanged; the
 changed-workspace mode is a separate canonical profile variant.
@@ -112,6 +118,11 @@ changed-workspace mode is a separate canonical profile variant.
 examples/coding-agent/
   agents/
     application.yaml
+    serving/
+      common/
+      planner/
+      executor/
+      critic/
   docs/
     VISION.yaml
     ARCHITECTURE.yaml
@@ -147,7 +158,12 @@ without turning skipped live runs into passed evidence.
 
 The integration entry points are `mage integration:executorLive`,
 `mage integration:plannerDelegation`, `mage integration:criticGate`, and the
-aggregate `mage integration:codingLoop`.
+aggregate `mage integration:codingLoop`. `mage integration:servingHealth`
+always proves all three persistent health endpoints and a deterministic critic
+request. `mage integration:servingRemote` proves the real
+planner → executor → critic localhost flow with deterministic
+Ollama-compatible model responses and production profile, REST, workspace,
+critic, lifecycle, and trace behavior.
 
 ## Documents
 

@@ -165,15 +165,20 @@ func requestToolDefs(profile catalog.AgentProfile, machine core.MachineSpec) ([]
 	selection := machineActionNames(machine)
 	if machineHasDynamicDispatch(machine) {
 		// A $tool transition dispatches an LLM-selected external word that may not
-		// appear as a literal transition action (for example a chat-LLM word the
-		// router picks but the machine never names directly). Include the external
-		// vocabulary so those words are selected and registered, without
-		// duplicating a word already named as a transition action.
+		// appear as a literal transition action. Restrict that vocabulary to the
+		// trusted profile's tools selection: declaration directories can contain
+		// unrelated external words whose signals the selected machine does not
+		// handle (for example generic document-resource words beside a coding
+		// executor's filesystem tools).
+		profileSelection, err := catalog.LoadToolSelections(profile.Tools)
+		if err != nil {
+			return nil, fmt.Errorf("machine_config_invalid: load request tool selection: %w", err)
+		}
 		seen := make(map[string]bool, len(selection))
 		for _, name := range selection {
 			seen[name] = true
 		}
-		for _, name := range dynamicDispatchVocabulary(merged) {
+		for _, name := range selectedDynamicDispatchVocabulary(merged, profileSelection) {
 			if !seen[name] {
 				seen[name] = true
 				selection = append(selection, name)
@@ -185,6 +190,20 @@ func requestToolDefs(profile catalog.AgentProfile, machine core.MachineSpec) ([]
 		return nil, fmt.Errorf("machine_config_invalid: select request tools: %w", err)
 	}
 	return defs, nil
+}
+
+func selectedDynamicDispatchVocabulary(defs []catalog.ToolDef, selected []string) []string {
+	allowed := make(map[string]bool, len(selected))
+	for _, name := range selected {
+		allowed[name] = true
+	}
+	var vocabulary []string
+	for _, name := range dynamicDispatchVocabulary(defs) {
+		if allowed[name] {
+			vocabulary = append(vocabulary, name)
+		}
+	}
+	return vocabulary
 }
 
 // machineHasDynamicDispatch reports whether any transition dispatches via $tool.

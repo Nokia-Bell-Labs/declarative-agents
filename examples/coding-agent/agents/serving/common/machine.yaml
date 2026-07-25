@@ -1,0 +1,37 @@
+name: coding-agent-role-server
+purpose: Persistently host one coding role's request and lifecycle surfaces.
+initial_state: Idle
+budget:
+  max_iterations: 10000
+states:
+  - {name: Idle, meaning: No listeners have started.}
+  - {name: LaunchingRequests, meaning: The role request listener is starting.}
+  - {name: LaunchingControl, meaning: The lifecycle listener is starting.}
+  - {name: AwaitingControl, meaning: Both listeners are healthy and serving.}
+  - {name: Exiting, meaning: A declared lifecycle exit is being applied.}
+  - {name: StoppingRequests, meaning: The request listener is draining.}
+  - {name: Done, meaning: Terminal after graceful shutdown.}
+  - {name: Failed, meaning: Terminal after a listener or lifecycle failure.}
+terminal_states: [Done, Failed]
+signals:
+  - {name: Seed, trigger: Process startup.}
+  - {name: ServerLaunched, trigger: A declared listener started.}
+  - {name: ExitRequested, trigger: The control endpoint accepted an exit request.}
+  - {name: AwaitTimedOut, trigger: No lifecycle event arrived before the bounded wait elapsed.}
+  - {name: ServerStopped, trigger: An owned listener stopped.}
+  - {name: AgentExited, trigger: The lifecycle exit word completed.}
+  - {name: CommandError, trigger: A boundary operation failed.}
+transitions:
+  - {state: Idle, signal: Seed, next: LaunchingRequests, action: launch_role_requests}
+  - {state: LaunchingRequests, signal: ServerLaunched, next: LaunchingControl, action: launch_role_control}
+  - {state: LaunchingRequests, signal: CommandError, next: Failed}
+  - {state: LaunchingControl, signal: ServerLaunched, next: AwaitingControl, action: await_role_control}
+  - {state: LaunchingControl, signal: CommandError, next: Failed}
+  - {state: AwaitingControl, signal: ExitRequested, next: Exiting, action: exit_agent}
+  - {state: AwaitingControl, signal: AwaitTimedOut, next: AwaitingControl, action: await_role_control}
+  - {state: AwaitingControl, signal: ServerStopped, next: Failed}
+  - {state: AwaitingControl, signal: CommandError, next: Failed}
+  - {state: Exiting, signal: AgentExited, next: StoppingRequests, action: stop_role_requests}
+  - {state: Exiting, signal: CommandError, next: Failed}
+  - {state: StoppingRequests, signal: ServerStopped, next: Done}
+  - {state: StoppingRequests, signal: CommandError, next: Failed}

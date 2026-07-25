@@ -38,7 +38,7 @@ requirements:
       - R2.3: Runtime HTTP callers SHALL NOT choose the machine file, profile path, tool declarations, model boundary config, or filesystem roots.
       - R2.4: The request machine SHALL use selected vocabulary words exactly like any other MachineSpec execution.
       - R2.5: The binding SHALL reject configuration that references missing machines, missing tools, unresolved response words, or undeclared terminal signals.
-      - R2.6: Profile-backed request runners SHALL load ToolDefs only from trusted profile declaration roots and SHALL narrow the selected vocabulary to action names used by the configured request MachineSpec.
+      - R2.6: Profile-backed request runners SHALL load ToolDefs only from trusted profile declaration roots, SHALL select literal action names used by the configured request MachineSpec, and for a dynamic $tool action SHALL add only external words named by the trusted profile tools selection.
       - R2.7: A request MachineSpec action that is missing from the trusted selected vocabulary SHALL fail configuration validation before any HTTP request starts a machine run.
 
   R3:
@@ -149,7 +149,7 @@ implementation_status:
     - internal/tools/rest implements the machine_request endpoint binding.
     - agents/knowledge-manager/documentation-curator/rest.yaml routes document index, detail, validation, suggestion, approval, and rejection requests through documentation_curator_requests machine_request endpoints.
     - agents/knowledge-manager/documentation-curator/request-machine.yaml defines the short-lived request machine used by the generic REST server path.
-    - ProfileMachineRequestRunner loads request ToolDefs from trusted profile declaration roots and selects only request MachineSpec action names.
+    - ProfileMachineRequestRunner loads request ToolDefs from trusted profile declaration roots, selects literal request MachineSpec action names, and limits dynamic-dispatch vocabulary to the trusted profile tools selection.
     - internal/tools/rest emits server, route, request machine, terminal signal, iteration, and run status trace fields in the generic machine_request response envelope.
     - internal/knowledge/documentation owns the documentation_curator_requests lifecycle through a same-origin proxy that stays a transport adapter over the generic REST server.
     - The documentation browser resolves profile-owned request_machine_route values, and the host has no private action registry or direct Build(...).Execute() workflow path.

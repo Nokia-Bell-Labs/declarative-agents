@@ -63,10 +63,9 @@ success_criteria:
 not:
   - We do not copy planner, executor, critic, or their SRDs into this example.
   - We do not add application behavior to the agent-core runtime image.
-  - We do not define the library reference resolver or Helm chart in this
-    documentation scaffold.
-  - We do not claim the coding-loop integration stages are implemented before
-    their follow-up issue supplies executable evidence.
+  - We do not let request input choose profiles, filesystem roots, endpoints,
+    or credentials.
+  - We do not treat a sidecar or unmodeled idle process as agent health.
   - We do not make every agent profile a library member; library membership is
     governed by independent usefulness or multiple consumers.
 

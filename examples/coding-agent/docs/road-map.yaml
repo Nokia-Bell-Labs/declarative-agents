@@ -30,3 +30,21 @@ releases:
       - id: test-rel01.0-coding-loop
         summary: Three stages prove a live executor run, real planner delegation, and the critic verdict with explicit inputs and outputs.
         status: implemented
+  - version: "02.0"
+    name: Persistent remote coding request
+    description: |
+      Application-owned serving profiles keep planner, executor, and critic
+      alive behind truthful lifecycle endpoints. A planner request reuses
+      canonical planning words, crosses declared executor and critic REST
+      boundaries over one trusted shared workspace, and retains one W3C trace.
+    status: implemented
+    application_srds:
+      - srd001-serving-contract
+    use_cases:
+      - id: rel02.0-uc001-remote-coding-request
+        summary: A persistent planner delegates one coding request to remote executor and critic services.
+        status: implemented
+    test_suites:
+      - id: test-rel02.0-serving-contract
+        summary: Real health, canonical critic, remote coding, and connected trace evidence.
+        status: implemented

@@ -86,7 +86,7 @@ tools:
     config:
       model: "qwen3.6:35b-mlx"
       provider: ollama
-      provider_url: "http://localhost:11434"
+      provider_url: "${OLLAMA_URL:-http://localhost:11434}"
       manifest_state: Composing
       response_profile: qwen
       system_prompt: |

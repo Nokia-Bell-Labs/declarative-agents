@@ -209,7 +209,7 @@ func TestCodingApplicationManifestStagesEveryMountedProfile(t *testing.T) {
 	}
 }
 
-func TestCodingApplicationAgentsContainReferencesNotLibraryCopies(t *testing.T) {
+func TestCodingApplicationAgentsContainOnlyCompositionAndServingAssets(t *testing.T) {
 	agentsDir := filepath.Join("..", "agents")
 	var files []string
 	err := filepath.WalkDir(agentsDir, func(filename string, entry fs.DirEntry, walkErr error) error {
@@ -228,8 +228,24 @@ func TestCodingApplicationAgentsContainReferencesNotLibraryCopies(t *testing.T) 
 	if err != nil {
 		t.Fatal(err)
 	}
-	if want := []string{"application.yaml"}; !reflect.DeepEqual(files, want) {
-		t.Fatalf("application agents files = %#v, want only %#v", files, want)
+	want := []string{
+		"application.yaml",
+		"serving/common/declarations.yaml",
+		"serving/common/machine.yaml",
+		"serving/common/tools.yaml",
+		"serving/critic/profile.yaml",
+		"serving/critic/rest.yaml",
+		"serving/executor/profile.yaml",
+		"serving/executor/rest.yaml",
+		"serving/planner/profile.yaml",
+		"serving/planner/request-declarations.yaml",
+		"serving/planner/request-machine.yaml",
+		"serving/planner/request-profile.yaml",
+		"serving/planner/request-tools.yaml",
+		"serving/planner/rest.yaml",
+	}
+	if !reflect.DeepEqual(files, want) {
+		t.Fatalf("application agents files = %#v, want composition-only %#v", files, want)
 	}
 }
 

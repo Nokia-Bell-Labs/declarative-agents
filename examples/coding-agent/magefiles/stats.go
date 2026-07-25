@@ -4,8 +4,9 @@ package main
 
 import "fmt"
 
-// Stats reports no application-owned agents: the coding application resolves
-// canonical profiles from agent-profiles instead of copying them.
+// Stats reports no additional reusable agent implementations. The persistent
+// profiles under agents/serving are application composition around the
+// planner, executor, and critic already counted by agent-profiles.
 func Stats() {
 	fmt.Println(`{}`)
 }

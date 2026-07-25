@@ -3,9 +3,10 @@ title: Coding Agent Example Specification Index
 
 overview: |
   This index governs the coding application's composition documents. Release
-  01.0 has one use case and one three-stage test suite. The application owns no
-  agent-family SRD: it references the canonical executor (srd002), critic
-  (srd003), and planner (srd004) requirements in `agent-profiles/`.
+  01.0 defines the local three-stage loop. Release 02.0 adds the
+  application-owned persistent serving contract while continuing to reference
+  the canonical executor (srd002), critic (srd003), and planner (srd004)
+  requirements in `agent-profiles/`.
 
   Library references are not forks. Packaging resolves a pinned
   `agent-profiles/v0.*` version and assembles the transitive profile closure
@@ -14,7 +15,12 @@ overview: |
 roadmap_summary:
   - version: "01.0"
     name: Planner, executor, and critic coding loop
-    use_cases_done: 0
+    use_cases_done: 1
+    use_cases_total: 1
+    status: implemented
+  - version: "02.0"
+    name: Persistent remote coding request
+    use_cases_done: 1
     use_cases_total: 1
     status: implemented
 
@@ -32,7 +38,11 @@ foundation_document_index:
     summary: Specification-first release plan for the coding loop.
     path: docs/road-map.yaml
 
-srd_index: []
+srd_index:
+  - id: srd001-serving-contract
+    title: Persistent Coding-Agent Serving Contract
+    status: implemented
+    path: docs/specs/software-requirements/srd001-serving-contract.yaml
 
 library_srd_references:
   - id: srd002-executor
@@ -62,6 +72,12 @@ use_case_index:
     status: implemented
     test_suite: test-rel01.0-coding-loop
     path: docs/specs/use-cases/rel01.0-uc001-coding-loop.yaml
+  - id: rel02.0-uc001-remote-coding-request
+    title: Persistent Planner Delegates to Executor and Critic
+    release: "02.0"
+    status: implemented
+    test_suite: test-rel02.0-serving-contract
+    path: docs/specs/use-cases/rel02.0-uc001-remote-coding-request.yaml
 
 test_suite_index:
   - id: test-rel01.0-coding-loop
@@ -70,13 +86,14 @@ test_suite_index:
     test_case_count: 3
     traces: [rel01.0-uc001-coding-loop]
     path: docs/specs/test-suites/test-rel01.0-coding-loop.yaml
+  - id: test-rel02.0-serving-contract
+    title: Persistent Coding-Agent Serving Contract Suite
+    release: "02.0"
+    test_case_count: 2
+    traces: [rel02.0-uc001-remote-coding-request]
+    path: docs/specs/test-suites/test-rel02.0-serving-contract.yaml
 
 coverage_gaps:
-  - id: library-reference-resolution
-    status: planned
-    description: |
-      The package-time resolver and pinned reference format are design
-      decisions; their implementation and validation arrive in a later issue.
   - id: kubernetes-deployment
     status: planned
     description: |
