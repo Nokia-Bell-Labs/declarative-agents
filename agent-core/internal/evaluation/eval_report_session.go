@@ -17,23 +17,23 @@ type ReportSessionBuilder struct {
 }
 
 func (b *ReportSessionBuilder) Build(_ core.Result) core.Command {
-	return &reportSessionCmd{es: b.ES}
+	return &evaluatorReceiptCmd{inner: &reportSessionCmd{es: b.ES}, session: b.ES}
+}
+
+func (b *ReportSessionBuilder) BuildReverser() core.Command {
+	return &evaluatorReceiptCmd{inner: &reportSessionCmd{es: b.ES}, session: b.ES}
 }
 
 type reportSessionCmd struct {
-	es          *EvalSessionState
-	snapshot    evalSessionSnapshot
-	hasSnapshot bool
+	es *EvalSessionState
 }
 
 func (c *reportSessionCmd) Name() string { return "report_session" }
-func (c *reportSessionCmd) Undo(_ core.Result) core.Result {
-	return undoEvalSessionSnapshot(c.Name(), c.es, c.snapshot, c.hasSnapshot)
+func (c *reportSessionCmd) Undo(prior core.Result) core.Result {
+	return (&evaluatorReceiptCmd{inner: c, session: c.es}).Undo(prior)
 }
 
 func (c *reportSessionCmd) Execute() core.Result {
-	c.snapshot = snapshotEvalSession(c.es)
-	c.hasSnapshot = true
 	c.es.FinalizeSession()
 	r := &c.es.Result
 

@@ -16,12 +16,12 @@ tools:
     description: Writes resolved experiment configuration for reproducibility.
   reversibility:
     classification: reversible
-    undo: workspace_restore
+    undo: owned_artifact_removal_and_point_context_restore
   undo:
-    strategy: workspace_restore
-    description: Restore experiment artifacts to a previous workspace ref.
-    requires:
-    - Workspace
+    strategy: owned_artifact_removal_and_point_context_restore
+    description: Remove the receipt-recorded experiment config and restore PointContext.
+    payload: evaluator_point_snapshot
+    captures: [point_context, owned_artifact_paths]
   problem: The machine needs a declared word for dumping evaluator point configuration without embedding that workflow step in Go control flow.
   goals:
   - Perform the dump_config action as one machine-selected word.

@@ -62,8 +62,10 @@ type tracedDynamicToolCmd struct {
 	params   string
 }
 
-func (t *tracedDynamicToolCmd) Name() string                   { return t.inner.Name() }
-func (t *tracedDynamicToolCmd) Undo(_ core.Result) core.Result { return t.inner.Undo(core.Result{}) }
+func (t *tracedDynamicToolCmd) Name() string { return t.inner.Name() }
+func (t *tracedDynamicToolCmd) Undo(prior core.Result) core.Result {
+	return t.inner.Undo(prior)
+}
 
 // SetCommandState forwards the engine-injected command-state view to the wrapped
 // command when it is command-state-aware, so a $tool-dispatched word (for example

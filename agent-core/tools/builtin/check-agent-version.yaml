@@ -21,8 +21,10 @@ tools:
     classification: reversible
     undo: point_context_restore
   undo:
-    strategy: session_state_restore
-    description: Restore PointContext version fields from the prior snapshot.
+    strategy: point_context_restore
+    description: Restore PointContext from the persisted pre-command receipt.
+    payload: point_context_snapshot
+    captures: [point_context]
   problem: The machine needs a declared word for checking traced agent version metadata without embedding that workflow step in Go control flow.
   goals:
   - Perform the check_agent_version action as one machine-selected word.

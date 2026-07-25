@@ -73,28 +73,24 @@ func (b *AssemblePromptBuilder) Build(_ core.Result) core.Command {
 }
 
 type parsePlanCmd struct {
-	ps          *State
-	rawResp     string
-	retry       *toollm.ParseErrorRetryTracker
-	prevRetries int
-	snapshot    pipelineSnapshot
-	hasSnapshot bool
+	ps      *State
+	rawResp string
+	retry   *toollm.ParseErrorRetryTracker
 }
 
 func (c *parsePlanCmd) Name() string { return "parse_plan" }
-func (c *parsePlanCmd) Undo(_ core.Result) core.Result {
-	if c.retry != nil {
-		c.retry.Restore(c.prevRetries)
-	}
-	return undoPipelineSnapshot(c.Name(), c.ps, c.snapshot, c.hasSnapshot)
+func (c *parsePlanCmd) Undo(prior core.Result) core.Result {
+	return undoPipelineReceipt(c.Name(), c.ps, c.retry, prior.Receipt)
 }
 
-func (c *parsePlanCmd) Execute() core.Result {
-	c.snapshot = snapshotPipelineState(c.ps)
-	c.hasSnapshot = true
+func (c *parsePlanCmd) Execute() (result core.Result) {
+	snapshot := snapshotPipelineState(c.ps)
+	var previousRetry *int
 	if c.retry != nil {
-		c.prevRetries = c.retry.Snapshot()
+		value := c.retry.Snapshot()
+		previousRetry = &value
 	}
+	defer func() { result = withPipelineReceipt(result, snapshot, previousRetry) }()
 	p, res := DoParsePlan(c.Name(), c.rawResp)
 	c.retry.RecordParseResult(res.Signal)
 	if res.Signal == core.ParseFailed {
@@ -118,6 +114,10 @@ type ParsePlanBuilder struct {
 
 func (b *ParsePlanBuilder) Build(res core.Result) core.Command {
 	return &parsePlanCmd{ps: b.PS, rawResp: res.Output, retry: b.Retry}
+}
+
+func (b *ParsePlanBuilder) BuildReverser() core.Command {
+	return &parsePlanCmd{ps: b.PS, retry: b.Retry}
 }
 
 // PlannerAssembler implements llm.PromptAssembler for the planning pipeline.

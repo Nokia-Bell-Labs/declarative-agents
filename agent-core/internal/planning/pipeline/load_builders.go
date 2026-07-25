@@ -33,21 +33,23 @@ func (b *LoadGraphBuilder) Build(_ core.Result) core.Command {
 	return &loadGraphCmd{ps: b.PS}
 }
 
+func (b *LoadGraphBuilder) BuildReverser() core.Command {
+	return &loadGraphCmd{ps: b.PS}
+}
+
 type loadGraphCmd struct {
-	ps          *State
-	snapshot    pipelineSnapshot
-	hasSnapshot bool
+	ps *State
 }
 
 func (c *loadGraphCmd) Name() string { return "load_graph" }
 
-func (c *loadGraphCmd) Undo(_ core.Result) core.Result {
-	return undoPipelineSnapshot(c.Name(), c.ps, c.snapshot, c.hasSnapshot)
+func (c *loadGraphCmd) Undo(prior core.Result) core.Result {
+	return undoPipelineReceipt(c.Name(), c.ps, nil, prior.Receipt)
 }
 
-func (c *loadGraphCmd) Execute() core.Result {
-	c.snapshot = snapshotPipelineState(c.ps)
-	c.hasSnapshot = true
+func (c *loadGraphCmd) Execute() (result core.Result) {
+	snapshot := snapshotPipelineState(c.ps)
+	defer func() { result = withPipelineReceipt(result, snapshot, nil) }()
 
 	corpus, err := spec.LoadCorpus(c.ps.Directory)
 	if err != nil {

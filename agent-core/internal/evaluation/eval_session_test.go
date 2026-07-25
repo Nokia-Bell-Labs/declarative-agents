@@ -106,12 +106,13 @@ samples_dir: samples
 	requireSignal(t, (&expandEvalGridCmd{es: es}).Execute(), SigEvalGridExpanded)
 	requireSignal(t, (&initEvalSessionCmd{es: es}).Execute(), SigEvalSessionInitialized)
 
-	cmd := &nextPointCmd{es: es}
-	requireSignal(t, cmd.Execute(), SigPointReady)
+	builder := &NextPointBuilder{ES: es}
+	result := builder.Build(core.Result{}).Execute()
+	requireSignal(t, result, SigPointReady)
 	require.NotNil(t, es.PC)
 	require.True(t, es.started)
 
-	undo := cmd.Undo(core.Result{})
+	undo := builder.BuildReverser().Undo(result)
 	requireSignal(t, undo, core.ToolDone)
 	require.Nil(t, es.PC)
 	require.False(t, es.started)

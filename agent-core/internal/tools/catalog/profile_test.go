@@ -6,13 +6,13 @@ import (
 	"path/filepath"
 	"testing"
 
-	"github.com/Nokia-Bell-Labs/declarative-agents/agent-core/pkg/spec"
+	"github.com/Nokia-Bell-Labs/declarative-agents/agent-core/internal/support/corepath"
 )
 
 func TestResolveProfilePathMapsInstalledCoreHome(t *testing.T) {
 	coreHome := t.TempDir()
-	spec.SetAgentCoreInstallRoot(coreHome)
-	t.Cleanup(func() { spec.SetAgentCoreInstallRoot("") })
+	corepath.SetInstallRoot(coreHome)
+	t.Cleanup(func() { corepath.SetInstallRoot("") })
 
 	got := resolveProfilePath("/profiles/agents/executor", "/opt/agent-core/tools/builtin/llm")
 	want := filepath.Join(coreHome, "tools", "builtin", "llm")
@@ -22,8 +22,8 @@ func TestResolveProfilePathMapsInstalledCoreHome(t *testing.T) {
 }
 
 func TestResolveProfilePathLeavesInstalledCorePathWithoutOverride(t *testing.T) {
-	spec.SetAgentCoreInstallRoot("")
-	t.Cleanup(func() { spec.SetAgentCoreInstallRoot("") })
+	corepath.SetInstallRoot("")
+	t.Cleanup(func() { corepath.SetInstallRoot("") })
 
 	got := resolveProfilePath("/profiles/agents/executor", "/opt/agent-core/tools/builtin/llm")
 	want := "/opt/agent-core/tools/builtin/llm"

@@ -3,6 +3,7 @@
 package registry
 
 import (
+	"fmt"
 	"testing"
 
 	"github.com/stretchr/testify/require"
@@ -41,6 +42,19 @@ type stateAwareCmd struct {
 
 func (c *stateAwareCmd) SetCommandState(view core.CommandStateView) { c.view = view }
 
+type receiptCmd struct {
+	namedCmd
+	undone core.Result
+}
+
+func (c *receiptCmd) Undo(prior core.Result) core.Result {
+	c.undone = prior
+	if prior.Receipt != "persisted-receipt" {
+		return core.Result{Signal: core.CommandError, Err: fmt.Errorf("missing persisted receipt")}
+	}
+	return core.NoopUndo(c.Name())
+}
+
 // The verbose $tool wrapper must forward the engine-injected command-state view
 // to a command-state-aware inner (for example invoke_llm with user_prompt_from),
 // which it would otherwise hide behind its own type.
@@ -53,6 +67,24 @@ func TestTracedDynamicToolForwardsCommandState(t *testing.T) {
 	view := core.NewCommandStateView(core.Execution{})
 	aware.SetCommandState(view)
 	require.Equal(t, view, inner.view)
+}
+
+func TestTracedDynamicToolForwardsPersistedUndoResult(t *testing.T) {
+	t.Parallel()
+	inner := &receiptCmd{namedCmd: namedCmd{name: "write"}}
+	wrapper := &tracedDynamicToolCmd{inner: inner, tracer: tracing.NoopTracer{}, toolName: "write"}
+	prior := core.Result{
+		Output:      "persisted output",
+		Signal:      core.ToolDone,
+		CommandName: "write",
+		Receipt:     "persisted-receipt",
+	}
+
+	res := wrapper.Undo(prior)
+
+	require.NoError(t, res.Err)
+	require.Equal(t, core.ToolDone, res.Signal)
+	require.Equal(t, prior, inner.undone)
 }
 
 func TestBuildDynamicToolActionDispatches(t *testing.T) {

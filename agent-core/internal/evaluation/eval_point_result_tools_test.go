@@ -62,11 +62,12 @@ func TestCollectTraceTokensUndoRestoresPointContext(t *testing.T) {
 	pc.Tokens = 7
 	require.NoError(t, os.WriteFile(pc.TracePath, sampleNDJSON, 0o644))
 
-	cmd := &collectTraceTokensCmd{pc: pc}
-	requireSignal(t, cmd.Execute(), SigTraceTokensCollected)
+	builder := &CollectTraceTokensBuilder{ES: &EvalState{PC: pc}}
+	result := builder.Build(core.Result{}).Execute()
+	requireSignal(t, result, SigTraceTokensCollected)
 	require.Equal(t, 150, pc.Tokens)
 
-	undo := cmd.Undo(core.Result{})
+	undo := builder.BuildReverser().Undo(result)
 	requireSignal(t, undo, core.ToolDone)
 	require.Equal(t, 7, pc.Tokens)
 }

@@ -95,6 +95,9 @@ receipt_undo:
       strategy: parse_retry_counter_restore_when_tracker_enabled
       receipt: reversible_parse_retry_counter_snapshot
   planner_state:
+    - command: load_graph
+      strategy: pipeline_state_restore
+      receipt: reversible_pipeline_snapshot
     - command: extract_task
       strategy: pipeline_state_restore
       receipt: reversible_pipeline_snapshot
@@ -102,9 +105,6 @@ receipt_undo:
       strategy: pipeline_state_restore
       receipt: reversible_pipeline_snapshot
     - command: parse_plan
-      strategy: pipeline_state_restore
-      receipt: reversible_pipeline_snapshot
-    - command: format_issue
       strategy: pipeline_state_restore
       receipt: reversible_pipeline_snapshot
     - command: record_tracker_issue
@@ -152,20 +152,29 @@ receipt_undo:
       strategy: evaluator_session_restore
       receipt: reversible_eval_session_snapshot
     - command: init_eval_session
-      strategy: evaluator_session_restore
-      receipt: reversible_eval_session_snapshot
+      strategy: owned_artifact_removal_and_evaluator_session_restore
+      receipt: reversible_eval_session_snapshot_and_owned_artifact_paths
     - command: next_point
       strategy: evaluator_session_restore
       receipt: reversible_eval_session_snapshot
     - command: run_point
-      strategy: evaluator_session_restore
-      receipt: compensatable_eval_session_snapshot
+      strategy: compensating_action
+      receipt: compensatable_eval_session_snapshot_and_boundary_compensation
     - command: report_session
       strategy: evaluator_session_restore
       receipt: reversible_eval_session_snapshot
     - command: create_point_dir
-      strategy: point_context_restore
-      receipt: reversible_point_context_snapshot
+      strategy: owned_artifact_removal_and_point_context_restore
+      receipt: reversible_point_context_snapshot_and_owned_artifact_paths
+    - command: copy_sample_docs
+      strategy: owned_artifact_removal_and_point_context_restore
+      receipt: reversible_point_context_snapshot_and_owned_artifact_paths
+    - command: dump_config
+      strategy: owned_artifact_removal_and_point_context_restore
+      receipt: reversible_point_context_snapshot_and_owned_artifact_paths
+    - command: collect_metrics
+      strategy: owned_artifact_removal_and_point_context_restore
+      receipt: reversible_point_context_snapshot_and_owned_artifact_paths
     - command: record_oracle_result
       strategy: point_context_restore
       receipt: reversible_point_context_snapshot

@@ -106,7 +106,7 @@ func TestExtractTaskBuilder_UndoRestoresPipelineState(t *testing.T) {
 	require.Equal(t, SigTaskExtracted, result.Signal)
 	require.NotNil(t, ps.CurrentTask)
 
-	undo := cmd.Undo(core.Result{})
+	undo := cmd.Undo(result)
 	require.Equal(t, core.ToolDone, undo.Signal)
 	require.Nil(t, ps.CurrentTask)
 }
@@ -149,7 +149,7 @@ func TestExtractAllBuilder_UndoRestoresPipelineState(t *testing.T) {
 	require.Equal(t, SigTaskExtracted, result.Signal)
 	require.NotNil(t, ps.CurrentTask)
 
-	undo := cmd.Undo(core.Result{})
+	undo := cmd.Undo(result)
 	require.Equal(t, core.ToolDone, undo.Signal)
 	require.Nil(t, ps.CurrentTask)
 	require.Nil(t, ps.CurrentPlan)
@@ -219,7 +219,7 @@ func TestParsePlanBuilder_UndoRestoresPreviousPlan(t *testing.T) {
 	require.Equal(t, SigPlanReady, result.Signal)
 	require.Equal(t, "Implement config parser", ps.CurrentPlan.Title)
 
-	undo := cmd.Undo(core.Result{})
+	undo := cmd.Undo(result)
 	require.Equal(t, core.ToolDone, undo.Signal)
 	require.Equal(t, "previous", ps.CurrentPlan.Title)
 }
@@ -303,7 +303,7 @@ func TestMarkTaskDoneBuilder_UndoRestoresGraphStatus(t *testing.T) {
 		require.Equal(t, graph.Done, n.Status)
 	}
 
-	undo := cmd.Undo(core.Result{})
+	undo := cmd.Undo(result)
 	require.Equal(t, core.ToolDone, undo.Signal)
 	for _, id := range task.NodeIDs {
 		n, _ := ps.Graph.Node(id)

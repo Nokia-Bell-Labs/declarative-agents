@@ -8,6 +8,7 @@ import (
 	"fmt"
 
 	"github.com/Nokia-Bell-Labs/declarative-agents/agent-core/internal/runtime/core"
+	"github.com/Nokia-Bell-Labs/declarative-agents/agent-core/internal/tools/undo"
 )
 
 // RestBuilder constructs declarative REST boundary commands.
@@ -42,8 +43,18 @@ func (b ServerBuilder) Build(_ core.Result) core.Command {
 	return serverCmd{toolName: b.ToolName, init: b.Init, server: b.Server, state: b.State}
 }
 
+// BuildReverser creates a fresh server command for receipt-driven rollback.
+func (b ServerBuilder) BuildReverser() core.Command {
+	return serverCmd{toolName: b.ToolName, init: b.Init, server: b.Server, state: b.State}
+}
+
 // Build creates one REST event fan-in command.
 func (b AwaitEventBuilder) Build(_ core.Result) core.Command {
+	return awaitEventCmd{toolName: b.ToolName, options: b.Options, state: b.State}
+}
+
+// BuildReverser creates a fresh fan-in command for receipt-driven rollback.
+func (b AwaitEventBuilder) BuildReverser() core.Command {
 	return awaitEventCmd{toolName: b.ToolName, options: b.Options, state: b.State}
 }
 
@@ -101,10 +112,16 @@ func (c serverCmd) ExecuteContext(ctx context.Context) core.Result {
 	if err != nil {
 		return commandError(c.toolName, err)
 	}
-	return core.Result{Signal: core.Signal(signal), CommandName: c.toolName, Output: eventOutput(event)}
+	return c.awaitResult(event, signal)
 }
 
-func (c serverCmd) Undo(_ core.Result) core.Result {
+func (c serverCmd) Undo(prior core.Result) core.Result {
+	if c.init == InitServerAwait {
+		return restoreAwaitReceipt(c.toolName, c.state, prior.Receipt)
+	}
+	if c.init == InitServerStop {
+		return c.undoStop(prior.Receipt)
+	}
 	if c.init != InitServerLaunch {
 		return core.NoopUndo(c.toolName)
 	}
@@ -128,7 +145,7 @@ func (c serverCmd) await() core.Result {
 	if err != nil {
 		return commandError(c.toolName, err)
 	}
-	return core.Result{Signal: core.Signal(signal), CommandName: c.toolName, Output: eventOutput(event)}
+	return c.awaitResult(event, signal)
 }
 
 func (c serverCmd) stop() core.Result {
@@ -136,7 +153,20 @@ func (c serverCmd) stop() core.Result {
 	if err != nil {
 		return commandError(c.toolName, err)
 	}
-	return core.Result{Signal: core.Signal("ServerStopped"), CommandName: c.toolName, Output: jsonOutput(output)}
+	receipt := undo.EncodeBoundaryReceipt(undo.BoundaryCompensationPayload{
+		BoundaryCompensation: undo.BoundaryCompensation{
+			Strategy:     "server_shutdown_or_user_action_compensation",
+			Reason:       "server listener stopped and queued events drained",
+			Requires:     []string{"machine_owned_server_relaunch"},
+			ServerAddr:   stringValue(output["address"]),
+			RestRef:      c.server.Name,
+			Compensation: output,
+		},
+	})
+	return core.Result{
+		Signal: core.Signal("ServerStopped"), CommandName: c.toolName,
+		Output: jsonOutput(output), Receipt: receipt,
+	}
 }
 
 func (c awaitEventCmd) Name() string { return c.toolName }
@@ -146,7 +176,7 @@ func (c awaitEventCmd) Execute() core.Result {
 	if err != nil {
 		return commandError(c.toolName, err)
 	}
-	return core.Result{Signal: core.Signal(signal), CommandName: c.toolName, Output: eventOutput(event)}
+	return awaitCommandResult(c.toolName, event, signal)
 }
 
 func (c awaitEventCmd) ExecuteContext(ctx context.Context) core.Result {
@@ -154,11 +184,75 @@ func (c awaitEventCmd) ExecuteContext(ctx context.Context) core.Result {
 	if err != nil {
 		return commandError(c.toolName, err)
 	}
-	return core.Result{Signal: core.Signal(signal), CommandName: c.toolName, Output: eventOutput(event)}
+	return awaitCommandResult(c.toolName, event, signal)
 }
 
-func (c awaitEventCmd) Undo(_ core.Result) core.Result {
-	return core.NoopUndo(c.toolName)
+func (c awaitEventCmd) Undo(prior core.Result) core.Result {
+	return restoreAwaitReceipt(c.toolName, c.state, prior.Receipt)
+}
+
+type awaitReceipt struct {
+	Server string       `json:"server"`
+	Event  InboundEvent `json:"event"`
+}
+
+func (c serverCmd) awaitResult(event InboundEvent, signal string) core.Result {
+	return awaitCommandResult(c.toolName, event, signal)
+}
+
+func awaitCommandResult(commandName string, event InboundEvent, signal string) core.Result {
+	result := core.Result{Signal: core.Signal(signal), CommandName: commandName, Output: eventOutput(event)}
+	if event.Signal == "" {
+		return result
+	}
+	receipt, err := json.Marshal(awaitReceipt{Server: event.Source, Event: event})
+	if err != nil {
+		return commandError(commandName, fmt.Errorf("encode REST await receipt: %w", err))
+	}
+	result.Receipt = string(receipt)
+	return result
+}
+
+func restoreAwaitReceipt(commandName string, state *ServerState, receipt string) core.Result {
+	if receipt == "" {
+		return core.NoopUndo(commandName)
+	}
+	var decoded awaitReceipt
+	if err := json.Unmarshal([]byte(receipt), &decoded); err != nil {
+		return commandError(commandName, fmt.Errorf("decode REST await receipt: %w", err))
+	}
+	if decoded.Server == "" || decoded.Event.Signal == "" {
+		return commandError(commandName, fmt.Errorf("decode REST await receipt: server and event signal are required"))
+	}
+	if err := state.RestoreEvent(decoded.Server, decoded.Event); err != nil {
+		return commandError(commandName, fmt.Errorf("restore REST await event: %w", err))
+	}
+	return core.Result{Signal: core.ToolDone, CommandName: commandName, Output: "restored consumed REST event"}
+}
+
+func (c serverCmd) undoStop(receipt string) core.Result {
+	compensation, ok, err := undo.DecodeBoundaryReceipt(receipt)
+	if err != nil {
+		return commandError(c.toolName, err)
+	}
+	if !ok || compensation.Strategy != "server_shutdown_or_user_action_compensation" {
+		return commandError(c.toolName, fmt.Errorf("REST stop receipt has no server relaunch compensation"))
+	}
+	if compensation.RestRef != c.server.Name {
+		return commandError(c.toolName, fmt.Errorf(
+			"REST stop receipt server %q does not match configured server %q",
+			compensation.RestRef, c.server.Name,
+		))
+	}
+	return undo.BoundaryCompensationUndo(c.toolName, fmt.Sprintf(
+		"MachineSpec must relaunch server %q at %q; stop drained %v queued events",
+		compensation.RestRef, compensation.ServerAddr, compensation.Compensation["drained_events"],
+	))
+}
+
+func stringValue(value interface{}) string {
+	text, _ := value.(string)
+	return text
 }
 
 func commandError(commandName string, err error) core.Result {

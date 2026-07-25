@@ -16,12 +16,12 @@ tools:
     description: Copies sample docs into PointContext.PointDir/doc when docs exist.
   reversibility:
     classification: reversible
-    undo: workspace_restore
+    undo: owned_artifact_removal_and_point_context_restore
   undo:
-    strategy: workspace_restore
-    description: Restore copied point documentation from a previous workspace ref.
-    requires:
-    - Workspace
+    strategy: owned_artifact_removal_and_point_context_restore
+    description: Remove receipt-recorded copied documentation and restore PointContext.
+    payload: evaluator_point_snapshot
+    captures: [point_context, owned_artifact_paths]
   problem: The machine needs a declared word for copying sample documentation without embedding that workflow step in Go control flow.
   goals:
   - Perform the copy_sample_docs action as one machine-selected word.

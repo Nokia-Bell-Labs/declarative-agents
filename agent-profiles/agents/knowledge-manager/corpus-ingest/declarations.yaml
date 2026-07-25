@@ -321,12 +321,13 @@ tools:
         target: chroma.records
         state: records_added
     reversibility:
-      classification: irreversible
-      undo: noop
+      classification: compensatable
+      undo: delete_records
     undo:
-      strategy: noop
-      description: Records can be removed by a separate delete word, which is a
-        machine-selected action rather than a receipt-consuming undo of this word.
+      strategy: compensating_action
+      description: Delete the receipt-recorded IDs from the trusted Chroma collection.
+      payload: boundary_compensation
+      captures: [collection, ids, operation]
     errors:
       - signal: CommandError
         condition: The Chroma add call fails on network, timeout, schema, or mapping.
