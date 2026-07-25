@@ -15,8 +15,8 @@ overview: |
   credential crosses, only the creator calls the deployment API). It does not prove
   the behavioral lifecycle: a real corpus-ingest with count verification, a real
   request-draining rollout, distinct create/restart/terminate workflows, or a
-  grounded turn on a newly added source. Those need the real executor and profiles
-  (the executor behavioral tracer is integration:executor) and are not asserted
+  grounded turn on a newly added source. Those need the real applier and profiles
+  (the applier behavioral tracer is integration:applier) and are not asserted
   here; the trace links below relate the case to the srd004/srd005 acceptance
   criteria structurally, not as behavioral proof.
 

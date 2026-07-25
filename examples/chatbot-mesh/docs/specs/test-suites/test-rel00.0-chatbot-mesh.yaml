@@ -17,17 +17,17 @@ traces:
 preconditions:
   - agent-core is available as AGENT_CORE_ROOT or a sibling ../agent-core checkout.
   - A Chroma server and an Ollama (or external LLM) are reachable with the configured embedding and answer models.
-  - This example owns the RAG server and chatbot assets named by the tracers, under examples/chatbot-mesh/agents/.
+  - This example owns RAG/chatbot assets and corpus-ingest REST parameterization; agent-profiles owns the canonical corpus-ingest program selected by the wrapper.
 
 test_cases:
   - use_case: rel00.0-uc001-rag-server-query
     name: RAG server vector-in query tracer
     integration_target: mage integration:ragServer
-    go_test: go test ./magefiles -run '^TestParseRagQueryResponseChunksAndMetadata$|^TestParseRagQueryResponseEmptyChunks$|^TestParseRagQueryResponseNoIDs$|^TestRagQueryBodyMarshalsVector$'
+    go_test: go test ./magefiles -run '^TestParseRagQueryResponseChunksAndMetadata$|^TestParseRagQueryResponseEmptyChunks$|^TestParseRagQueryResponseNoIDs$|^TestRagQueryBodyMarshalsVector$|^TestCorpusIngestApplicationDirectoryContainsOnlyWrapperAndREST$|^TestCorpusIngestRuntimeStagesCanonicalLibraryProgram$|^TestChartStagesCanonicalCorpusIngestReference$'
     status: implemented
     description: |
-      Integration.RagServer starts a Chroma container, seeds a collection by
-      running the ingest profile, launches the rag-server as a long-running
+      Integration.RagServer starts a Chroma container, seeds a collection through
+      the mesh wrapper around the canonical library ingest profile, launches the rag-server as a long-running
       subprocess, embeds a query at Ollama for a matching-dimension vector, posts
       it to the machine_request query endpoint, and asserts the returned chunks
       with record ids and distances, the embedding-model metadata, a mapped 400

@@ -2,9 +2,10 @@ id: agent-profiles
 title: Agent Profiles Repository Vision
 
 executive_summary: |
-  agent-profiles owns external agent programs and profile assets for
-  agent-core. Under that boundary, YAML agent programs, profile-local config,
-  demos, and integration fixtures describe agent behavior.
+  agent-profiles is the versioned library of reusable declarative agents for
+  agent-core applications. Under that boundary, canonical YAML programs,
+  profile-local config, conformance, demos, and integration fixtures describe
+  reusable agent behavior.
 
   agent-core owns the runtime. It provides the agent binary, Go packages,
   builtin tool implementations, shared runtime assets, and release container
@@ -22,9 +23,10 @@ problem: |
   should load them from an explicit external path.
 
 what_this_does: |
-  This repository collects profile-owned agent assets under stable paths. The
-  `agents/` tree stores profile.yaml files, MachineSpec YAML, tools.yaml
-  selections, profile-local declarations, boundary config, and UI assets.
+  This repository collects reusable agent families under stable, tagged paths.
+  The `agents/` tree stores profile.yaml files, MachineSpec YAML, tools.yaml
+  selections, profile-local declarations, boundary config, and UI assets for
+  members that are independently useful or have multiple consumers.
 
   Future `demo/` and `testdata/integration/` trees store profile-owned demos,
   suites, and fixtures used by agent-core integration targets through
@@ -40,6 +42,10 @@ why_we_build_this: |
   and core-owned assets.
 
 success_criteria:
+  library_membership: |
+    Reusable agents have one canonical home, a family SRD, conformance,
+    portable references, and application-safe parameterization; application-only
+    composition stays under examples/.
   profile_ownership: |
     Profile-owned files live in this repository. Runtime packages, builtin tool
     implementations, and container build logic stay in agent-core.

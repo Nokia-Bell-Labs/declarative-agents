@@ -1,0 +1,122 @@
+{{- if .Values.ollama.enabled }}
+{{- $fullname := include "coding-agent.fullname" . -}}
+apiVersion: apps/v1
+kind: StatefulSet
+metadata:
+  name: {{ $fullname }}-ollama
+  labels:
+    {{- include "coding-agent.labels" . | nindent 4 }}
+    app.kubernetes.io/component: ollama
+spec:
+  serviceName: {{ $fullname }}-ollama
+  replicas: 1
+  selector:
+    matchLabels:
+      {{- include "coding-agent.selectorLabels" . | nindent 6 }}
+      app.kubernetes.io/component: ollama
+  template:
+    metadata:
+      labels:
+        {{- include "coding-agent.selectorLabels" . | nindent 8 }}
+        app.kubernetes.io/component: ollama
+    spec:
+      automountServiceAccountToken: false
+      {{- with .Values.ollama.nodeSelector }}
+      nodeSelector:
+        {{- toYaml . | nindent 8 }}
+      {{- end }}
+      {{- with .Values.ollama.tolerations }}
+      tolerations:
+        {{- toYaml . | nindent 8 }}
+      {{- end }}
+      containers:
+        - name: ollama
+          image: "{{ .Values.ollama.image.repository }}:{{ .Values.ollama.image.tag }}"
+          imagePullPolicy: {{ .Values.ollama.image.pullPolicy }}
+          securityContext:
+            {{- toYaml .Values.containerSecurityContext | nindent 12 }}
+          ports:
+            - {name: http, containerPort: {{ .Values.llm.port }}}
+          readinessProbe:
+            httpGet: {path: /api/tags, port: http}
+            initialDelaySeconds: 5
+            periodSeconds: 10
+          resources:
+            {{- $resources := deepCopy .Values.ollama.resources }}
+            {{- if gt (int .Values.ollama.gpu.count) 0 }}
+            {{- $_ := set (index $resources "limits") "nvidia.com/gpu" (.Values.ollama.gpu.count | toString) }}
+            {{- end }}
+            {{- toYaml $resources | nindent 12 }}
+          volumeMounts:
+            - {name: models, mountPath: /root/.ollama}
+            - {name: tmp, mountPath: /tmp}
+      volumes:
+        - name: tmp
+          emptyDir: {}
+  volumeClaimTemplates:
+    - metadata:
+        name: models
+      spec:
+        accessModes: [ReadWriteOnce]
+        {{- with .Values.ollama.persistence.storageClass }}
+        storageClassName: {{ . | quote }}
+        {{- end }}
+        resources:
+          requests:
+            storage: {{ .Values.ollama.persistence.size }}
+---
+apiVersion: v1
+kind: Service
+metadata:
+  name: {{ $fullname }}-ollama
+  labels:
+    {{- include "coding-agent.labels" . | nindent 4 }}
+    app.kubernetes.io/component: ollama
+spec:
+  selector:
+    {{- include "coding-agent.selectorLabels" . | nindent 4 }}
+    app.kubernetes.io/component: ollama
+  ports:
+    - {name: http, port: {{ .Values.llm.port }}, targetPort: http}
+---
+apiVersion: batch/v1
+kind: Job
+metadata:
+  name: {{ $fullname }}-ollama-preload
+  labels:
+    {{- include "coding-agent.labels" . | nindent 4 }}
+    app.kubernetes.io/component: ollama-preload
+  annotations:
+    checksum/models: {{ include "coding-agent.ollamaModels" . | sha256sum }}
+spec:
+  backoffLimit: 6
+  template:
+    metadata:
+      labels:
+        {{- include "coding-agent.selectorLabels" . | nindent 8 }}
+        app.kubernetes.io/component: ollama-preload
+    spec:
+      restartPolicy: OnFailure
+      automountServiceAccountToken: false
+      containers:
+        - name: preload
+          image: "{{ .Values.ollama.image.repository }}:{{ .Values.ollama.image.tag }}"
+          imagePullPolicy: {{ .Values.ollama.image.pullPolicy }}
+          securityContext:
+            {{- toYaml .Values.containerSecurityContext | nindent 12 }}
+          env:
+            - {name: OLLAMA_HOST, value: "http://{{ $fullname }}-ollama:{{ .Values.llm.port }}"}
+          command: ["/bin/sh", "-c"]
+          args:
+            - |
+              set -eu
+              until ollama list >/dev/null 2>&1; do sleep 3; done
+              for model in {{ include "coding-agent.ollamaModels" . }}; do
+                ollama pull "$model"
+              done
+          volumeMounts:
+            - {name: tmp, mountPath: /tmp}
+      volumes:
+        - name: tmp
+          emptyDir: {}
+{{- end }}

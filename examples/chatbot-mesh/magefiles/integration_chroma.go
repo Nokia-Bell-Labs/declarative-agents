@@ -17,9 +17,10 @@ import (
 )
 
 const (
-	chromaCorpusFixture = "testdata/integration/chroma-corpus"
-	chromaIngestProfile = "agents/corpus-ingest/profile.yaml"
-	corpusRestAsset     = "agents/corpus-ingest/corpus-rest.yaml"
+	chromaCorpusFixture        = "testdata/integration/chroma-corpus"
+	chromaIngestProfile        = "agents/corpus-ingest/profile.yaml"
+	corpusRestAsset            = "agents/corpus-ingest/corpus-rest.yaml"
+	corpusIngestLibraryProfile = "agents/knowledge-manager/corpus-ingest/profile.yaml"
 
 	chromaImage = "chromadb/chroma:1.5.3"
 
@@ -63,8 +64,8 @@ func (Integration) Chroma() error {
 	return runChromaIntegration(profilesRoot, coreRoot)
 }
 
-// Seed loads the example corpus into a running Chroma by running the copied
-// corpus-ingest profile, so a developer can populate the collection the rag-server
+// Seed loads the example corpus into a running Chroma through the mesh wrapper
+// around the canonical corpus-ingest profile, so a developer can populate the collection the rag-server
 // and chatbot serve. It embeds through Ollama and writes to Chroma at the declared
 // local ports. Skips cleanly when agent-core, Ollama with the configured models,
 // or Chroma is unavailable.
@@ -194,6 +195,11 @@ func chromaChatModelFromConfig(profilesRoot, profile string) (string, error) {
 		} `yaml:"tools"`
 	}
 	path := filepath.Join(profilesRoot, "agents", profile, "declarations.yaml")
+	if profile == "corpus-ingest" {
+		path = filepath.Join(
+			corpusIngestLibraryRoot(profilesRoot),
+			"agents", "knowledge-manager", "corpus-ingest", "declarations.yaml")
+	}
 	if err := readIntegrationYAML(path, "chroma declarations", &cfg); err != nil {
 		return "", err
 	}
@@ -357,13 +363,18 @@ func stopChromaContainer(containerID string) {
 
 func runChromaIngest(binary, profilesRoot, coreRoot string) error {
 	corpusDir := filepath.Join(profilesRoot, chromaCorpusFixture, "corpus")
+	runtimeRoot, cleanupRuntime, err := stageCorpusIngestRuntime(profilesRoot)
+	if err != nil {
+		return err
+	}
+	defer cleanupRuntime()
 	trace, cleanup, err := chromaTraceFile("ingest")
 	if err != nil {
 		return err
 	}
 	defer cleanup()
-	profile := filepath.Join(profilesRoot, chromaIngestProfile)
-	if err := runChromaAgent(binary, profilesRoot, coreRoot, profile, corpusDir, trace); err != nil {
+	profile := filepath.Join(runtimeRoot, chromaIngestProfile)
+	if err := runChromaAgent(binary, runtimeRoot, coreRoot, profile, corpusDir, trace); err != nil {
 		return fmt.Errorf("chroma ingest run failed: %w", err)
 	}
 	if err := assertChromaIngestTrace(trace); err != nil {
@@ -377,6 +388,36 @@ func runChromaIngest(binary, profilesRoot, coreRoot string) error {
 		return fmt.Errorf("ingest added no documents to the corpus collection")
 	}
 	return nil
+}
+
+func corpusIngestLibraryRoot(meshRoot string) string {
+	if info, err := os.Stat(filepath.Join(
+		meshRoot, filepath.FromSlash(corpusIngestLibraryProfile))); err == nil && !info.IsDir() {
+		return meshRoot
+	}
+	return envOrDefault("AGENT_PROFILES_ROOT", siblingPath(meshRoot, "agent-profiles"))
+}
+
+func stageCorpusIngestRuntime(meshRoot string) (string, func(), error) {
+	stage, err := os.MkdirTemp("", "chatbot-mesh-corpus-ingest-*")
+	if err != nil {
+		return "", nil, err
+	}
+	cleanup := func() { _ = os.RemoveAll(stage) }
+	if err := copyDirContents(
+		filepath.Join(meshRoot, "agents", "corpus-ingest"),
+		filepath.Join(stage, "agents", "corpus-ingest")); err != nil {
+		cleanup()
+		return "", nil, err
+	}
+	libraryRoot := corpusIngestLibraryRoot(meshRoot)
+	if err := copyDirContents(
+		filepath.Join(libraryRoot, "agents", "knowledge-manager", "corpus-ingest"),
+		filepath.Join(stage, "agents", "knowledge-manager", "corpus-ingest")); err != nil {
+		cleanup()
+		return "", nil, fmt.Errorf("stage canonical corpus-ingest profile: %w", err)
+	}
+	return stage, cleanup, nil
 }
 
 func runChromaAgent(binary, profilesRoot, coreRoot, profile, directory, tracePath string) error {

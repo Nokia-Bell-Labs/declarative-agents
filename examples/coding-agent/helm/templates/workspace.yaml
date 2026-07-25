@@ -1,0 +1,18 @@
+{{- if not .Values.workspace.existingClaim }}
+apiVersion: v1
+kind: PersistentVolumeClaim
+metadata:
+  name: {{ include "coding-agent.workspaceClaim" . }}
+  labels:
+    {{- include "coding-agent.labels" . | nindent 4 }}
+    app.kubernetes.io/component: workspace
+spec:
+  accessModes:
+    {{- toYaml .Values.workspace.accessModes | nindent 4 }}
+  {{- with .Values.workspace.storageClass }}
+  storageClassName: {{ . | quote }}
+  {{- end }}
+  resources:
+    requests:
+      storage: {{ .Values.workspace.size }}
+{{- end }}

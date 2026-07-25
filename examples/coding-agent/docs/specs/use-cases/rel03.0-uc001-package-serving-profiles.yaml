@@ -1,0 +1,51 @@
+id: rel03.0-uc001-package-serving-profiles
+title: Package Serving Profiles for Separate Containers
+status: implemented
+
+summary: |
+  A release builder resolves each application serving entry profile through the
+  canonical #847 closure walker and publishes three independent profile roots.
+  Each root is ready to mount at /profiles in one role container and carries
+  deterministic ConfigMap partition metadata for the later Helm chart.
+
+actor: A release builder producing coding-agent deployment artifacts.
+trigger: Run mage package from examples/coding-agent.
+
+preconditions:
+  - agents/application.yaml names the three serving entry profiles.
+  - The compatible agent-profiles checkout is available.
+  - Application and canonical source trees contain no symlinks.
+
+flow:
+  - id: F1
+    text: Validate canonical and serving references, runtime paths, and the profile-free image invariant.
+  - id: F2
+    text: Stage application and canonical sources into one temporary virtual profile namespace.
+  - id: F3
+    text: Resolve planner, executor, and critic independently with the existing transitive closure walker.
+  - id: F4
+    text: Sort each file set and partition encoded ConfigMap payload without splitting an individual entry.
+  - id: F5
+    text: Write role manifests and the deployment layout manifest, then atomically publish the complete output.
+  - id: F6
+    text: Boot-validate each role's packaged entry profile from its own root.
+
+success_criteria:
+  - id: S1
+    criterion: Each shard contains only one serving role and its reachable canonical assets.
+    traces: [srd002-deployment-profile-package R1]
+  - id: S2
+    criterion: Repeated packaging from the same inputs is byte-identical.
+    traces: [srd002-deployment-profile-package R2]
+  - id: S3
+    criterion: ConfigMap partition metadata covers every role file once within the payload bound.
+    traces: [srd002-deployment-profile-package R3]
+  - id: S4
+    criterion: All packaged role entry profiles validate with the real binary.
+    traces: [srd002-deployment-profile-package R4]
+
+out_of_scope:
+  - Helm templates and values schema.
+  - Live Kubernetes installation or smoke testing.
+
+test_suite: test-rel03.0-deployment-profile-package

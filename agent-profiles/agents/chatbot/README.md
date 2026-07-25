@@ -15,3 +15,10 @@ chart consume the canonical copy, and the shipped-UI reproducibility gate
 The agent-profiles rel09 mesh specifications (srd014, srd015, rel09.*) are the
 historical record of the mesh's development here before extraction; see
 examples/chatbot-mesh/docs for the canonical specifications.
+
+This relocation follows the library membership rule: chatbot is application
+composition with one consumer, not an independently reusable library member.
+Therefore its canonical program stays with chatbot-mesh. If a future reusable
+chat role emerges with multiple consumers and satisfies the library obligations
+(family SRD, conformance, parameterization, and portable closure), it must be
+promoted deliberately rather than copied back here.

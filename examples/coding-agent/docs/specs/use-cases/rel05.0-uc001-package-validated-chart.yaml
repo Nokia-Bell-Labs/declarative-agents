@@ -1,0 +1,45 @@
+id: rel05.0-uc001-package-validated-chart
+title: Produce a Validated Self-Contained Chart
+status: implemented
+
+summary: |
+  A release builder validates chart values and prepared role closures, renders
+  the supported configuration matrix, packages one Helm archive, checks its
+  complete file inventory, and renders that archive without source-tree files.
+
+actor: A release builder producing the coding-agent Helm artifact.
+trigger: Run mage helm:package.
+
+preconditions:
+  - Helm is available.
+  - The #875 role package can be regenerated.
+
+flow:
+  - id: F1
+    text: Regenerate role packages with content checksums and validate manifest/file/partition consistency.
+  - id: F2
+    text: Stage those exact profiles into a temporary chart.
+  - id: F3
+    text: Lint and render defaults, CI values, and all valid schema fixtures.
+  - id: F4
+    text: Package the temporary chart and inspect its gzip/tar entries for required source and profile files.
+  - id: F5
+    text: Lint and render the resulting archive independently.
+
+success_criteria:
+  - id: S1
+    criterion: Invalid values fail before Kubernetes output is produced.
+    traces: [srd004-helm-package-validation R1, srd004-helm-package-validation AC1]
+  - id: S2
+    criterion: Package tampering is rejected before chart staging.
+    traces: [srd004-helm-package-validation R2, srd004-helm-package-validation AC2]
+  - id: S3
+    criterion: The archive includes every generated role asset and renders independently.
+    traces: [srd004-helm-package-validation R3, srd004-helm-package-validation AC3]
+
+out_of_scope:
+  - Live Kubernetes installation.
+  - kind cluster setup and teardown.
+  - Operator deployment and teardown guide.
+
+test_suite: test-rel05.0-helm-package-validation

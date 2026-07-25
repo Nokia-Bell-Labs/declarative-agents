@@ -1,0 +1,5 @@
+roles:
+  critic:
+    resources:
+      requests:
+        memory: lots

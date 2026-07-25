@@ -45,7 +45,8 @@ func TestChromaRequiredModelsFromConfig(t *testing.T) {
 	writeChromaConfigFile(t, filepath.Join(root, corpusRestAsset),
 		"rest:\n  clients:\n    ollama:\n      operations:\n        embed:\n          body:\n            model: embed-model\n")
 	decl := "tools:\n  - name: read_resource\n  - name: invoke_llm\n    config:\n      model: chat-model\n"
-	writeChromaConfigFile(t, filepath.Join(root, "agents", "corpus-ingest", "declarations.yaml"), decl)
+	writeChromaConfigFile(t, filepath.Join(root, "agents", "knowledge-manager", "corpus-ingest", "profile.yaml"), "name: corpus-ingest\n")
+	writeChromaConfigFile(t, filepath.Join(root, "agents", "knowledge-manager", "corpus-ingest", "declarations.yaml"), decl)
 
 	got, err := chromaRequiredModels(root)
 	if err != nil {
@@ -75,7 +76,8 @@ func TestChromaRequiredModelsMissingInvokeLLM(t *testing.T) {
 	root := t.TempDir()
 	writeChromaConfigFile(t, filepath.Join(root, corpusRestAsset),
 		"rest:\n  clients:\n    ollama:\n      operations:\n        embed:\n          body:\n            model: embed-model\n")
-	writeChromaConfigFile(t, filepath.Join(root, "agents", "corpus-ingest", "declarations.yaml"), "tools:\n  - name: read_resource\n")
+	writeChromaConfigFile(t, filepath.Join(root, "agents", "knowledge-manager", "corpus-ingest", "profile.yaml"), "name: corpus-ingest\n")
+	writeChromaConfigFile(t, filepath.Join(root, "agents", "knowledge-manager", "corpus-ingest", "declarations.yaml"), "tools:\n  - name: read_resource\n")
 	if _, err := chromaRequiredModels(root); err == nil {
 		t.Fatal("expected an error when the ingest profile has no invoke_llm model")
 	}

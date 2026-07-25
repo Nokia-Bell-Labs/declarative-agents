@@ -1,0 +1,48 @@
+id: rel04.0-uc001-render-helm-topology
+title: Render the Persistent Coding-Agent Topology
+status: implemented
+
+summary: |
+  An operator prepares #875 role packages and renders a chart containing one
+  persistent planner, executor, and critic process. The roles share workspace
+  storage, communicate over fixed Services, report their real lifecycle health,
+  and export connected traces through the chart observability tier.
+
+actor: An operator preparing a coding-agent Kubernetes release.
+trigger: Run mage helmPrepare followed by helm lint or helm template.
+
+preconditions:
+  - The #875 package can resolve all serving role closures.
+  - Helm is available.
+
+flow:
+  - id: F1
+    text: helmPrepare regenerates and stages deployment and role package manifests and profile files.
+  - id: F2
+    text: Helm renders one or more ConfigMaps per role from the manifest partitions.
+  - id: F3
+    text: Each role Deployment projects only its ConfigMaps and selects its packaged serving profile.
+  - id: F4
+    text: Every role mounts the shared workspace claim and exposes request and control ports through a ClusterIP Service.
+  - id: F5
+    text: Planner resolves executor and critic through fixed Service URLs; W3C trace context flows through the serving contract.
+  - id: F6
+    text: Role OTLP exporters send to the collector, which sends traces to Jaeger; model clients use the selected Ollama endpoint.
+
+success_criteria:
+  - id: S1
+    criterion: The rendered topology contains exactly one real workload for each application role.
+    traces: [srd003-helm-topology R1, srd003-helm-topology AC1]
+  - id: S2
+    criterion: Role profile changes produce role-scoped rollout checksums.
+    traces: [srd003-helm-topology AC2]
+  - id: S3
+    criterion: Default, CI, and optional in-cluster Ollama renders are coherent.
+    traces: [srd003-helm-topology AC3, srd003-helm-topology AC4]
+
+out_of_scope:
+  - values.schema.json and negative schema fixtures.
+  - Packaged-chart archive testing.
+  - Live kind installation and deployment documentation.
+
+test_suite: test-rel04.0-helm-topology

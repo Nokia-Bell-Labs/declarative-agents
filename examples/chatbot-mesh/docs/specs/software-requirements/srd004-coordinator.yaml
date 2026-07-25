@@ -83,7 +83,7 @@ acceptance_criteria:
     criterion: The intent endpoint is the panel's only provisioning intake, it serves the panel's status polling rather than the deployment API doing so, and it accepts a values-only edit as well as an intent naming a source to ingest.
     traces: [R1.3, R1.5, R1.6]
     tests:
-      - "test-rel06.0-executor: The panel route reaches only the authorized surface"
+      - "test-rel06.0-applier: The panel route reaches only the authorized surface"
   - id: AC2
     criterion: The ingestion workflow sequences one corpus-ingest instance request per directory through the creator, verifies collection counts, and reports partial failures without advancing.
     traces: [R2.1, R2.2, R2.3]

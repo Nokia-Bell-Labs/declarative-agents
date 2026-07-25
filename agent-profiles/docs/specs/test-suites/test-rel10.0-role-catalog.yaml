@@ -48,7 +48,7 @@ test_cases:
 
   - use_case: rel10.0-uc002-knowledge-family-rescope
     name: Corpus ingest and reader relocate under knowledge-manager (rescope)
-    go_test: go test ./conformance -run TestKnowledgeManager
+    go_test: go test ./conformance -run 'Test(KnowledgeManager|CorpusIngest)'
     status: implemented
     description: |
       After the move, agents/knowledge-manager hosts corpus-ingest and
@@ -56,11 +56,10 @@ test_cases:
       the profiles resolve from the new paths (mage validate), the
       documentation-curator conformance test passes from the knowledge-manager
       family, and a zero-hit grep for agents/chroma. It does not validate
-      Chroma ingest/reader behavior: mage integration:chroma was relocated to
-      examples/chatbot-mesh (ingest-count only over the copied profile) and
-      TestKnowledgeManager exercises the documentation-curator server lifecycle,
-      not the corpus paths. The profile-owned corpus ingest+reader tracer is
-      pending (#251).
+      The canonical ListingCorpus/trusted-path contract is covered by
+      TestCorpusIngestListsTrustedCorpusBeforeModelControl, and the mesh
+      integration:chroma target consumes that library program by reference.
+      The standalone corpus-reader grounded-answer tracer remains separate.
     inputs:
       moved_profiles: [agents/knowledge-manager/corpus-ingest->agents/knowledge-manager/corpus-ingest, agents/knowledge-manager/corpus-reader->agents/knowledge-manager/corpus-reader]
     expected:

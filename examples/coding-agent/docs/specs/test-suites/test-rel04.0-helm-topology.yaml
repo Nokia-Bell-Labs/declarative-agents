@@ -1,0 +1,35 @@
+id: test-rel04.0-helm-topology
+title: Core Coding-Agent Helm Topology Suite
+release: "04.0"
+status: implemented
+
+overview: |
+  Focused deterministic renders prove role topology, package-driven ConfigMaps,
+  scoped checksums, shared storage, lifecycle probes, fixed URLs, security,
+  model modes, and OTLP routing. Schema matrices and live installation remain
+  follow-up suites.
+
+traces:
+  - rel04.0-uc001-render-helm-topology
+
+test_cases:
+  - use_case: rel04.0-uc001-render-helm-topology
+    name: Prepared package is chart source
+    go_test: go test ./magefiles -run '^TestHelmPrepare'
+    status: implemented
+    traces: [srd003-helm-topology R1.3, srd003-helm-topology R4.1]
+  - use_case: rel04.0-uc001-render-helm-topology
+    name: Core role topology
+    go_test: go test ./magefiles -run '^TestHelmCoreTopologyRendersRoleContract$'
+    status: implemented
+    traces: [srd003-helm-topology AC1]
+  - use_case: rel04.0-uc001-render-helm-topology
+    name: Role-scoped profile rollout
+    go_test: go test ./magefiles -run '^TestHelmProfileChangeRollsOnlyAffectedRole$'
+    status: implemented
+    traces: [srd003-helm-topology AC2]
+  - use_case: rel04.0-uc001-render-helm-topology
+    name: Small and in-cluster model renders
+    go_test: go test ./magefiles -run '^TestHelmSmallAndOllamaValuesRender$'
+    status: implemented
+    traces: [srd003-helm-topology AC3, srd003-helm-topology AC4]

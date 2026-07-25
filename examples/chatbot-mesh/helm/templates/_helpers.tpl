@@ -104,7 +104,7 @@ test.repository={{ .Values.collector.integrationResource.repository }},test.modu
 {{- end -}}
 
 {{/*
-The mesh view (srd003 R4) the executor serves on its read path, projected as
+The mesh view (srd003 R4) the applier serves on its read path, projected as
 JSON from the same values that render the topology, so what the panel reads is
 what the chart deploys. Values-plane only: RAG list, LLM endpoint, parameters. No
 per-agent runtime endpoint appears, so the read state carries no agent authority.
@@ -116,8 +116,8 @@ per-agent runtime endpoint appears, so the read state carries no agent authority
 {{- end -}}
 {{- $view := dict
   "rags" $rags
-  "llm" (dict "inCluster" .Values.ollama.enabled "externalURL" .Values.llm.externalURL "chatModel" (default "" .Values.executor.params.chatModel) "embedModel" .Values.chatbot.embeddingModel "chatModels" .Values.ollama.models.chat "routerModel" .Values.ollama.models.router "topology" .Values.ollama.topology)
-  "params" (dict "nResults" (int .Values.executor.params.nResults) "chunkCap" (int .Values.executor.params.chunkCap) "routerDefault" .Values.executor.params.routerDefault)
+  "llm" (dict "inCluster" .Values.ollama.enabled "externalURL" .Values.llm.externalURL "chatModel" (default "" .Values.applier.params.chatModel) "embedModel" .Values.chatbot.embeddingModel "chatModels" .Values.ollama.models.chat "routerModel" .Values.ollama.models.router "topology" .Values.ollama.topology)
+  "params" (dict "nResults" (int .Values.applier.params.nResults) "chunkCap" (int .Values.applier.params.chunkCap) "routerDefault" .Values.applier.params.routerDefault)
 -}}
 {{- $view | toJson -}}
 {{- end -}}

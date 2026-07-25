@@ -1,0 +1,6 @@
+tools:
+  - launch_role_requests
+  - launch_role_control
+  - await_role_control
+  - exit_agent
+  - stop_role_requests

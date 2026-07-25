@@ -12,9 +12,9 @@ data:
   {{- $key := $path | trimPrefix "profiles/" | replace "/" "__" }}
   {{- if not (has $key $cogen) }}
   {{ $key }}: |-
-  {{- if eq $key "agents__executor__exec-declarations.yaml" }}
-    {{- /* Rewrite the executor exec args' placeholder coordinates to the installed
-          release so an executor installed under any release name targets its own
+  {{- if eq $key "agents__applier__exec-declarations.yaml" }}
+    {{- /* Rewrite the applier exec args' placeholder coordinates to the installed
+          release so an applier installed under any release name targets its own
           release, namespace, and chatbot Deployment rather than a baked
           chatbot-mesh/default (GH-484). The deployment token is replaced before
           the bare release token because it contains it. */}}

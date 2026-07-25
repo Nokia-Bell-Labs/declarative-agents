@@ -225,43 +225,57 @@ func (r *receiverRuntime) stop() (map[string]any, error) {
 	var shutdownErr error
 	r.stopOnce.Do(func() {
 		r.closeStopped()
-		done := make(chan struct{})
-		go func() {
-			r.server.GracefulStop()
-			close(done)
-		}()
-		timer := time.NewTimer(r.config.ShutdownTimeout)
-		defer timer.Stop()
-		select {
-		case <-done:
-		case <-timer.C:
-			r.server.Stop()
-			<-done
-			shutdownErr = fmt.Errorf("shutdown OTLP receiver %q exceeded %s", r.name, r.config.ShutdownTimeout)
-		}
+		shutdownErr = r.stopServer()
 		_ = r.listener.Close()
-		r.mu.Lock()
-		queued := len(r.queue)
-		droppedOnStop := 0
-		if r.config.DrainPolicy == DrainDrop {
-			for len(r.queue) > 0 {
-				batch := <-r.queue
-				r.recordDrop(batch)
-				droppedOnStop++
-			}
-		}
-		r.stopOutput = map[string]any{
-			"receiver": r.name, "address": r.listener.Addr().String(),
-			"queued_batches": queued, "dropped_on_stop": droppedOnStop,
-			"dropped_batches": r.droppedBatches, "dropped_spans": r.droppedSpans,
-			"drain_policy": string(r.config.DrainPolicy), "status": "stopped",
-		}
-		r.mu.Unlock()
+		r.recordStopOutput()
 	})
 	r.mu.Lock()
 	output := cloneMap(r.stopOutput)
 	r.mu.Unlock()
 	return output, shutdownErr
+}
+
+func (r *receiverRuntime) stopServer() error {
+	done := make(chan struct{})
+	go func() {
+		r.server.GracefulStop()
+		close(done)
+	}()
+	timer := time.NewTimer(r.config.ShutdownTimeout)
+	defer timer.Stop()
+	select {
+	case <-done:
+		return nil
+	case <-timer.C:
+		r.server.Stop()
+		<-done
+		return fmt.Errorf("shutdown OTLP receiver %q exceeded %s", r.name, r.config.ShutdownTimeout)
+	}
+}
+
+func (r *receiverRuntime) recordStopOutput() {
+	r.mu.Lock()
+	defer r.mu.Unlock()
+	queued := len(r.queue)
+	droppedOnStop := r.dropQueuedBatches()
+	r.stopOutput = map[string]any{
+		"receiver": r.name, "address": r.listener.Addr().String(),
+		"queued_batches": queued, "dropped_on_stop": droppedOnStop,
+		"dropped_batches": r.droppedBatches, "dropped_spans": r.droppedSpans,
+		"drain_policy": string(r.config.DrainPolicy), "status": "stopped",
+	}
+}
+
+func (r *receiverRuntime) dropQueuedBatches() int {
+	if r.config.DrainPolicy != DrainDrop {
+		return 0
+	}
+	dropped := 0
+	for len(r.queue) > 0 {
+		r.recordDrop(<-r.queue)
+		dropped++
+	}
+	return dropped
 }
 
 func (r *receiverRuntime) closeStopped() {

@@ -4,7 +4,7 @@ purpose: |-
   panel polls while a reconfiguration proceeds and reads progress from the
   coordinator, not from the deployment API, which no browser may reach
   (srd003 R4.4, srd004 R1.3). The coordinator asks the creator
-  (read_creator_rollout), which reads the executor's rollout endpoint.
+  (read_creator_rollout), which reads the applier's rollout endpoint.
 
   This machine is separate from the provisioning request machine because a poll
   is a read: it drives no instance operation, decides nothing, and must not

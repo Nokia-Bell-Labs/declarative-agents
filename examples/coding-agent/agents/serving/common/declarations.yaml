@@ -1,0 +1,52 @@
+tools:
+  - name: launch_role_requests
+    type: builtin
+    init: rest_server_launch
+    visibility: internal
+    emits: [ServerLaunched, CommandError]
+    description: Launch the role's declared machine-request listener.
+    category: boundary
+    side_effects: [{kind: network_listen, target: role_requests, state: listener_started}]
+    reversibility: {classification: compensatable, undo: rest_server_stop}
+    undo: {strategy: compensating_action, description: Stop the request listener.}
+    config: {rest_ref: role_requests}
+
+  - name: launch_role_control
+    type: builtin
+    init: rest_server_launch
+    visibility: internal
+    emits: [ServerLaunched, CommandError]
+    description: Launch the role's real lifecycle health and exit listener.
+    category: boundary
+    side_effects: [{kind: network_listen, target: role_control, state: listener_started}]
+    reversibility: {classification: compensatable, undo: rest_server_stop}
+    undo: {strategy: compensating_action, description: Stop the control listener.}
+    config: {rest_ref: role_control}
+
+  - name: await_role_control
+    type: builtin
+    init: rest_await_event
+    visibility: internal
+    emits: [ExitRequested, AwaitTimedOut, ServerStopped, CommandError]
+    description: Keep the profile alive while selecting declared lifecycle events.
+    category: boundary
+    side_effects: [{kind: state_mutation, target: role_control_queue, state: selected_event_consumed}]
+    reversibility: {classification: irreversible, undo: noop}
+    undo: {strategy: noop, description: Consumed lifecycle events are not restored.}
+    config:
+      sources:
+        - {server: role_control, routes: [exit], signals: [ExitRequested]}
+      timeout: 600s
+      stopped_behavior: emit_server_stopped
+
+  - name: stop_role_requests
+    type: builtin
+    init: rest_server_stop
+    visibility: internal
+    emits: [ServerStopped, CommandError]
+    description: Drain and stop the role's request listener during lifecycle exit.
+    category: boundary
+    side_effects: [{kind: network_listener_shutdown, target: role_requests, state: listener_stopped}]
+    reversibility: {classification: reversible, undo: noop}
+    undo: {strategy: noop, description: Relaunch is a separate machine action.}
+    config: {rest_ref: role_requests}

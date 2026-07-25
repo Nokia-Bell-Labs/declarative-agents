@@ -1,0 +1,125 @@
+id: rel06.0-uc001-declarative-applier
+title: The Applier Agent Realizes the Deployment API and Rolls Out a Values Change
+
+summary: |
+  The creator (srd005) submits a decided, values-plane patch to the applier
+  (srd006) -- the declarative agent that replaces the standard-library Go
+  provisioner as the deployment API (srd003 R4). The applier validates the patch
+  against the chart's values schema with a helm dry-run, rejecting a non-conforming
+  patch without a rollout. For a valid patch it materializes the values as a file and
+  applies helm upgrade --reuse-values --atomic, re-rendering the co-generated
+  topology, then verifies the affected Deployment's rollout via kubectl rollout
+  status and reports the phase, rolling the release back on an apply or verify
+  failure. Throughout, the applier edits deployment values and triggers rollouts
+  only; the patch carries no host, URL, method, or credential for a running agent,
+  the apply path is reached only by the creator, and authority stays set by declared,
+  validated config (srd003 R4, agent-core srd028 V30). No agent-core change is
+  required: the actuation is a state machine binding the helm and kubectl CLIs in the
+  applier's container.
+
+  The live cluster tier proves both sides of the apply path. A successful patch
+  moves the real Helm release. A test-only post-upgrade hook then creates a
+  deterministic regression after Helm accepts a second upgrade; the real kubectl
+  verification fails, the applier returns 500 rolled_back, and real helm rollback
+  restores the prior computed values and a ready chatbot Deployment. The hook and
+  its permissions exist only in the temporary chart staged by the live test.
+
+actor: The creator agent, realizing a decided instance operation behind the deployment API.
+
+trigger: |
+  The coordinator decides a values change (add a RAG source, reconfigure a
+  parameter) and the creator submits it to the applier's apply endpoint.
+
+preconditions:
+  - The applier profile is deployed with its state, apply, and rollout servers on the Service name and port the provisioner served.
+  - The applier image carries the helm and kubectl CLIs, and its ServiceAccount can upgrade the release and read the Deployment.
+  - The chart carries a values.schema.json encoding the deployment values constraints.
+  - The apply path is reached only by the creator, authenticated apart from the chat path.
+
+flow:
+  - id: F1
+    text: The creator posts the decided values patch to the applier's apply endpoint through its declared client; it submits no host, URL, method, or credential for a running agent.
+  - id: F2
+    text: The applier validates the patch against the chart's values schema with a helm dry-run and rejects a non-conforming patch with a client error and no rollout.
+  - id: F3
+    text: The applier materializes the validated patch as a values file and applies helm upgrade --reuse-values --atomic, re-rendering the co-generated topology, rather than constructing per-field --set arguments.
+  - id: F4
+    text: The applier verifies the affected Deployment's rollout via kubectl rollout status and reports the phase with the Deployment's ready and desired replicas and revision, rolling the release back on an apply or verify failure.
+  - id: F5
+    text: The applier reports health to the creator, which reports it to the coordinator; a subsequent chat turn is grounded in the applied change.
+
+touchpoints:
+  - id: T1
+    target: srd006-applier AC1
+    reason: The applier exposes the state, apply, and rollout surface on the provisioner's Service name and port with a request-scoped apply endpoint.
+  - id: T2
+    target: srd006-applier AC2
+    reason: The applier validates the patch against the chart schema by a dry-run and applies it as a values-file rollout, values-plane only.
+  - id: T3
+    target: srd006-applier AC3
+    reason: The applier verifies the rollout and rolls back on an apply or verify failure.
+  - id: T4
+    target: srd006-applier AC4
+    reason: The actuation surface is authenticated apart from chat, reached only by the creator, and authority stays set by declared validated config.
+  - id: T5
+    target: srd006-applier AC5
+    reason: Deciding the values and owning lifecycle are non-goals; the applier image carries helm and kubectl as a recorded divergence.
+  - id: T6
+    target: srd003-chatbot-deployment AC4
+    reason: The applier realizes the separately-authenticated deployment API that never submits an endpoint to a running agent.
+
+success_criteria:
+  - id: S1
+    criterion: The applier exposes the state, apply, and rollout surface on the provisioner's Service name and port, so the creator's declared client is unchanged. The panel does not call this surface; it submits its intent to the coordinator, which drives the creator (srd003 R4.1, srd004 R1.5).
+    traces:
+      - srd006-applier R1.1
+      - srd006-applier R1.3
+      - srd006-applier AC1
+  - id: S2
+    criterion: A non-conforming values patch is rejected by the chart-schema dry-run with a client error and no rollout.
+    traces:
+      - srd006-applier R2.1
+      - srd006-applier AC2
+  - id: S3
+    criterion: A valid patch is materialized as a values file and applied with helm upgrade --reuse-values --atomic, re-rendering the co-generated topology, with no per-field --set construction.
+    traces:
+      - srd006-applier R2.2
+      - srd003-chatbot-deployment R2.1
+      - srd006-applier AC2
+  - id: S4
+    criterion: The rollout is verified via kubectl rollout status and its phase reported, and an apply or verify failure rolls the release back. The live cluster tier forces a deterministic post-upgrade verification failure and proves the compensating helm rollback restores the prior computed release values and a ready Deployment.
+    traces:
+      - srd006-applier R3.1
+      - srd006-applier R3.2
+      - srd006-applier AC3
+  - id: S5
+    criterion: The patch submits no endpoint or credential to a running agent, the apply path is reached only by the creator, and authority stays set by declared validated config.
+    traces:
+      - srd006-applier R4.1
+      - srd006-applier R4.2
+      - srd003-chatbot-deployment R4.2
+      - srd006-applier AC4
+      - srd003-chatbot-deployment AC4
+
+  - id: S6
+    criterion: The rendered chart routes browser provisioning traffic to the coordinator, not the apply surface, and the applier apply port stays reachable only from creator-labelled pods, so route and NetworkPolicy agree on one authority path.
+    traces:
+      - srd006-applier R4.4
+      - srd003-chatbot-deployment R4.4
+      - srd004-coordinator R1.5
+      - srd006-applier AC6
+      - srd003-chatbot-deployment AC7
+
+  - id: S7
+    criterion: The rollout read reports the phase with the Deployment's ready and desired replicas and revision, and a read the cluster cannot serve -- an absent Deployment, a wrong kubeconfig, a denied RBAC read, an unreachable API server -- returns a gateway error at every hop rather than a phase, so a broken read is never rendered as a progressing rollout.
+    traces:
+      - srd006-applier R3.3
+      - srd006-applier AC3
+
+out_of_scope:
+  - The decision of what to change, which is the coordinator's (srd004 R3.1).
+  - Template selection and agent lifecycle, which are the creator's (srd005).
+  - The chat turn path itself (route, embed, fan-out, compose), which is srd002.
+
+test_suite_trace: test-rel06.0-applier
+status: implemented

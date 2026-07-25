@@ -1,0 +1,5 @@
+# Tool selection for changed-workspace critic mode.
+tools:
+  - evaluate_candidate
+  - emit_accepted_verdict
+  - emit_rejected_verdict

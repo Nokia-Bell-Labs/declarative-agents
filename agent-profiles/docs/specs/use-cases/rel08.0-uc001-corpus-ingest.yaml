@@ -5,13 +5,10 @@ summary: |
   The ingest profile loads a repository corpus into a local Chroma collection.
   For each document it reads the file, computes an embedding at a local Ollama
   provider, and writes the document, id, and agent-supplied vector to Chroma,
-  then verifies the collection item count. The proof belongs in agent-profiles
-  because the Chroma and Ollama REST definitions, the collection identity, and
-  the corpus selection are profile-owned assets. The mage integration:chroma
-  target was relocated to examples/chatbot-mesh in the mesh extraction and proves
-  ingest over the example's copied profile; the profile-owned tracer over the
-  knowledge-manager corpus-ingest profile is pending (#251), so this use case is
-  specified, not yet behaviorally proven here.
+  then verifies the collection item count. Reusable machine, declarations, and
+  tool selection belong in agent-profiles. The mesh supplies its REST endpoints,
+  collection/model values, and corpus fixture through an application wrapper;
+  integration:chroma executes the canonical library program by reference.
 
   Chroma does not embed text server-side over its raw HTTP API, so the vector is
   computed by the embed word and threaded into the Chroma add word using the
@@ -21,12 +18,10 @@ summary: |
 actor: Profile maintainer or operator ingesting a repository corpus.
 
 trigger: |
-  A maintainer runs the Chroma corpus integration target with a running Chroma
-  server and a reachable Ollama. The target currently lives in the example
-  (examples/chatbot-mesh, ingest over the copied profile); a profile-owned
-  equivalent is pending (#251):
+  A maintainer runs the mesh-owned Chroma integration with a running Chroma
+  server and reachable Ollama; its wrapper selects this canonical profile:
 
-    AGENT_CORE_ROOT=/path/to/agent-core mage integration:chroma   # in examples/chatbot-mesh
+    cd examples/chatbot-mesh && mage integration:chroma
 
 preconditions:
   - A Chroma server is running against a persistence directory (chroma run --path <dir>), started by the harness or operator, not the agent.
@@ -61,8 +56,8 @@ touchpoints:
     target: srd012-chroma-corpus-agents AC5
     reason: The running Chroma server and persistence directory are external preconditions surfaced through chroma_ready.
   - id: T5
-    target: test-rel08.0-chroma-corpus corpus_ingest
-    reason: The suite records the integration target, inputs, and expected ingest evidence.
+    target: examples/chatbot-mesh integration:chroma
+    reason: The application integration runs the canonical library machine and declarations with mesh REST parameterization and verifies ingest count.
 
 success_criteria:
   - id: S1
@@ -85,5 +80,7 @@ out_of_scope:
   - Server-side embedding or a new embedding builtin word.
   - Ranking or answer generation, which belong to the query use case.
 
-test_suite_trace: test-rel08.0-chroma-corpus
-status: specified
+test_evidence:
+  target: examples/chatbot-mesh mage integration:chroma
+  conformance: go test ./conformance -run TestCorpusIngestListsTrustedCorpusBeforeModelControl
+status: implemented

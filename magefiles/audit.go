@@ -21,11 +21,17 @@ func auditSubModules(modules []string, stat statFunc, run auditRunner) error {
 	for _, mod := range modules {
 		mageDir := filepath.Join(mod, "magefiles")
 		if _, err := stat(mageDir); err != nil {
-			if os.IsNotExist(err) {
-				fmt.Printf("skipping %s (no magefiles/)\n", mod)
-				continue
+			if !os.IsNotExist(err) {
+				return fmt.Errorf("stat %s: %w", mageDir, err)
 			}
-			return fmt.Errorf("stat %s: %w", mageDir, err)
+			mageFile := filepath.Join(mod, "magefile.go")
+			if _, fileErr := stat(mageFile); fileErr != nil {
+				if os.IsNotExist(fileErr) {
+					fmt.Printf("skipping %s (no magefiles/ or magefile.go)\n", mod)
+					continue
+				}
+				return fmt.Errorf("stat %s: %w", mageFile, fileErr)
+			}
 		}
 		fmt.Printf("=== %s audit ===\n", mod)
 		if err := run(mod); err != nil {

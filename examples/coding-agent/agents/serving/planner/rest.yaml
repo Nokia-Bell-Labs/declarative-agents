@@ -1,0 +1,187 @@
+rest:
+  version: v1
+  auth:
+    none: {type: none}
+  limits:
+    executor_client:
+      timeout: 15m
+      read_timeout: 15m
+      max_request_bytes: 1048576
+      max_response_bytes: 1048576
+      redirect: {mode: none}
+      network:
+        schemes: [http]
+        hosts:
+          - ${EXECUTOR_HOST:-127.0.0.1}
+        ports: [18210]
+    critic_client:
+      timeout: 5m
+      read_timeout: 5m
+      max_request_bytes: 65536
+      max_response_bytes: 65536
+      redirect: {mode: none}
+      network:
+        schemes: [http]
+        hosts:
+          - ${CRITIC_HOST:-127.0.0.1}
+        ports: [18220]
+    role_request:
+      timeout: 20m
+      read_timeout: 20m
+      max_request_bytes: 1048576
+      max_response_bytes: 1048576
+      redirect: {mode: none}
+      network:
+        schemes: [http]
+        hosts: [127.0.0.1, localhost]
+        ports: [18200]
+        allow_public_listener: true
+    role_control:
+      timeout: 30s
+      read_timeout: 5s
+      max_request_bytes: 16384
+      max_response_bytes: 65536
+      redirect: {mode: none}
+      network:
+        schemes: [http]
+        hosts: [127.0.0.1, localhost]
+        ports: [18201]
+        allow_public_listener: true
+  clients:
+    executor:
+      base_url: ${EXECUTOR_URL:-http://127.0.0.1:18210}
+      auth_ref: none
+      limits_ref: executor_client
+      operations:
+        execute:
+          method: POST
+          path: /api/v1/execute
+          params:
+            body_schema:
+              type: object
+              required: [task, workspace_id]
+              properties:
+                task: {type: string}
+                workspace_id: {type: string}
+            body_source: command_state
+            input_mapping:
+              task: $from(seed).parameters.task
+              workspace_id: $from(seed).parameters.workspace_id
+            carry_forward: [workspace_id]
+          body:
+            task: "{{ params.task }}"
+            workspace_id: "{{ params.workspace_id }}"
+          success: {status: [200], signal: ExecutionDone}
+          failures:
+            - {status: [422], signal: ExecutionFailed}
+            - status: [500]
+              signal: CommandError
+              response:
+                output:
+                  message: $.error
+          response:
+            output:
+              status: $.status
+          side_effects:
+            - {kind: external_api, target: coding_executor.execute, state: workspace_mutated}
+          reversibility: {classification: compensatable, undo: workspace_restore}
+    critic:
+      base_url: ${CRITIC_URL:-http://127.0.0.1:18220}
+      auth_ref: none
+      limits_ref: critic_client
+      operations:
+        review:
+          method: POST
+          path: /api/v1/review
+          params:
+            body_schema:
+              type: object
+              required: [workspace_id]
+              properties:
+                workspace_id: {type: string}
+            body_source: previous_result
+            input_mapping:
+              workspace_id: $.carried.workspace_id
+            carry_forward: [workspace_id]
+          body:
+            workspace_id: "{{ params.workspace_id }}"
+          success: {status: [200], signal: CriticAccepted}
+          failures:
+            - {status: [422], signal: CriticRejected}
+          response:
+            output:
+              verdict: $.verdict
+              accepted: $.accepted
+          side_effects:
+            - {kind: external_api, target: coding_critic.review, state: verdict_recorded}
+          reversibility: {classification: reversible, undo: noop}
+  servers:
+    role_requests:
+      address: ${PLANNER_BIND_HOST:-127.0.0.1}:18200
+      limits_ref: role_request
+      shutdown: {timeout: 10s, drain_policy: drain_then_stop}
+      endpoints:
+        plan_execute_review:
+          method: POST
+          path: /api/v1/coding
+          binding: machine_request
+          request:
+            body_schema:
+              type: object
+              required: [task, workspace_id]
+              properties:
+                task: {type: string, min_length: 1}
+                workspace_id: {type: string, min_length: 1}
+          machine_request:
+            profile: request-profile.yaml
+            timeout: 20m
+            request:
+              body:
+                task: $.task
+                workspace_id: $.workspace_id
+            response:
+              terminal_states:
+                Succeeded:
+                  status: 200
+                  content_type: application/json
+                  body:
+                    status: succeeded
+                    verdict: $.mapped.verdict
+                    accepted: $.mapped.accepted
+                    workspace_id: $.carried.workspace_id
+                Rejected:
+                  status: 422
+                  content_type: application/json
+                  body:
+                    status: rejected
+                    verdict: $.mapped.verdict
+                    accepted: $.mapped.accepted
+                    workspace_id: $.carried.workspace_id
+                Failed:
+                  status: 500
+                  content_type: application/json
+                  body:
+                    status: failed
+                    message: $.output
+    role_control:
+      address: ${PLANNER_BIND_HOST:-127.0.0.1}:18201
+      limits_ref: role_control
+      queue: {name: planner_control, capacity: 8, timeout: 30s}
+      shutdown: {timeout: 5s, drain_policy: drain_then_stop}
+      endpoints:
+        exit:
+          method: POST
+          path: /api/lifecycle/exit
+          binding: emit_signal
+          signal: ExitRequested
+          request:
+            body_schema:
+              type: object
+              properties:
+                reason: {type: string}
+          response:
+            output: {accepted: "true"}
+        health:
+          method: GET
+          path: /api/lifecycle/health
+          binding: health

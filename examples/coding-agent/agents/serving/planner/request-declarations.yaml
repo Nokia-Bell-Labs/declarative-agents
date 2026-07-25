@@ -1,0 +1,35 @@
+tools:
+  - name: delegate_executor
+    type: builtin
+    init: rest_client_invoke
+    visibility: internal
+    emits: [ExecutionDone, ExecutionFailed, CommandError]
+    description: Send the trusted request task to the remote canonical executor host.
+    category: boundary
+    parameters:
+      type: object
+      properties:
+        task: {type: string}
+        workspace_id: {type: string}
+    side_effects:
+      - {kind: external_api, target: coding_executor.execute, state: workspace_mutated}
+    reversibility: {classification: compensatable, undo: workspace_restore}
+    undo: {strategy: compensating_action, description: Restore the external workspace checkpoint.}
+    config: {rest_ref: executor, operation: execute}
+
+  - name: delegate_critic
+    type: builtin
+    init: rest_client_invoke
+    visibility: internal
+    emits: [CriticAccepted, CriticRejected, CommandError]
+    description: Ask the remote canonical critic to gate the same shared workspace.
+    category: boundary
+    parameters:
+      type: object
+      properties:
+        workspace_id: {type: string}
+    side_effects:
+      - {kind: external_api, target: coding_critic.review, state: verdict_recorded}
+    reversibility: {classification: reversible, undo: noop}
+    undo: {strategy: noop, description: The critic verdict is an explicit workspace artifact.}
+    config: {rest_ref: critic, operation: review}

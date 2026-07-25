@@ -176,7 +176,7 @@ tools:
         - Output carries the creator-reported rollout phase and the Deployment's ready and desired replicas and revision.
       errors:
         - Network, timeout, schema, and mapping failures emit CommandError rather than an unknown phase.
-        - A creator read that answers 502 because the executor could not reach the Deployment is outside the declared success status and emits CommandError.
+        - A creator read that answers 502 because the applier could not reach the Deployment is outside the declared success status and emits CommandError.
     non_goals:
       - Does not drive an instance operation; a poll mutates nothing.
       - Does not accept a runtime method, URL, host, or credential for the creator.
@@ -229,7 +229,7 @@ tools:
         - Output carries the flat mesh-view fields the creator's state read reports.
       errors:
         - Network, timeout, schema, and mapping failures emit CommandError rather than an empty view.
-        - A creator read that answers 502 because the executor could not read the release is outside the declared success status and emits CommandError.
+        - A creator read that answers 502 because the applier could not read the release is outside the declared success status and emits CommandError.
     non_goals:
       - Does not drive an instance operation; a state read mutates nothing.
       - Does not accept a runtime method, URL, host, or credential for the creator.

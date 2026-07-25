@@ -1,0 +1,4 @@
+ollama:
+  enabled: false
+llm:
+  externalURL: https://models.example.internal:11434

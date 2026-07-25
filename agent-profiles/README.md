@@ -1,20 +1,118 @@
 # agent-profiles
 
-This repository owns the external agent programs and profile assets consumed by
-`agent-core`.
+This repository is the versioned library of reusable declarative agents for
+`agent-core` applications. Its public surface is the profile programs and
+profile-local assets published by `agent-profiles/v0.*` tags. `agent-core`
+executes those programs; applications under `examples/` compose them by
+reference.
 
 Under this root, YAML agent programs sit beside profile-local config,
 human-facing assets, demos, and integration fixtures. Runtime code stays
 elsewhere. Go packages, builtin tool implementations, the `agent` binary, and
 release image logic live in `agent-core`.
 
-## Repository Contract
+## Library contract
 
-Profile-owned programs live under `agents/`, grouped by agent family. The
-migrated tree includes the coding, evaluation, validation, REST, monitor,
-control, lifecycle, and Knowledge Manager profile families. Runnable examples
-belong in `demo/`; integration suites and fixture data belong in
-`testdata/integration/`.
+### Membership rule
+
+An agent belongs under `agents/<family>/` only when it is independently useful
+outside one application or has more than one real consumer. Application-specific
+orchestration, endpoint choices, topology, and UI stay with the application
+under `examples/<application>/`.
+
+Every agent has one canonical home. Applications reference a library member;
+they do not fork its machine, declarations, or reusable behavior. A generally
+useful improvement found in an application flows upstream to the library, as
+the chatbot-mesh corpus-ingest trusted-path sequence does. If behavior is useful
+only to that application, it stays application-owned.
+
+Relocation tombstones may remain under `agents/` to identify the canonical
+application home, but a tombstone is not a shipped library member.
+
+### Member obligations
+
+A library member owes consumers:
+
+- a canonical profile family under `agents/<family>/`, including every machine,
+  tool selection, declaration, REST/config asset, and documented variant needed
+  to close its runtime references;
+- an SRD under `docs/specs/software-requirements/` defining behavior and
+  ownership boundaries;
+- deterministic conformance coverage under `conformance/`, plus a live
+  integration target when behavior requires an external system;
+- parameterization through existing profile-local files, environment-expanded
+  declarations/REST definitions, explicit variants, runtime flags, and mounts,
+  sufficient for applications to configure the member without editing it;
+- portable paths, strict profile validation, formal test evidence, and release
+  provenance.
+
+A family that does not yet satisfy those obligations is not promoted as a new
+public library member. Experimental work remains on `exp/*` until distilled.
+
+### Ownership boundaries
+
+This repository owns reusable YAML programs, profile-local assets, family SRDs,
+conformance, and profile-owned fixtures. `agent-core` owns the interpreter,
+builtin implementations, CLI, runtime contracts, and image. Applications own
+composition manifests, app-specific wrappers/configuration, end-to-end tests,
+packaging, deployment, and operator UX.
+
+Runtime-test scaffolding is not part of the shipped agent library even when it
+currently sits in this repository. `mock`, `assembler`, rig-subject fixtures,
+and `testdata/conformance/` REST/control/lifecycle fixtures exercise
+`agent-core` behavior. Their relocation to `agent-core` is an explicit
+follow-up; this contract records the destination but moves no files in this
+issue.
+
+### Consumer contract
+
+Applications live under `examples/` and name library profiles by root-relative
+path. They pin a compatible `agent-profiles/v0.*` release and assemble the
+transitive closure at package time. The runtime receives a closed mounted tree;
+it is not a package resolver or registry.
+
+Consumers may add an application wrapper that selects canonical machine/tools
+and supplies app-owned REST or model configuration. Such wrappers must not copy
+reusable behavior. The coding application is the closure/provenance reference;
+chatbot-mesh corpus-ingest is the wrapper/parameterization reference.
+
+### Compatibility and release evidence
+
+`agent-profiles/v0.YYYYMMDD.N` identifies one immutable library bundle. An
+application's `compatible_release` means that its references and configuration
+were validated against that release family; it is not proof that a dirty or
+different checkout is the tagged release. Packaging records both compatibility
+and actual source provenance.
+
+The major version is zero: consumers must pin and validate an exact release.
+Within `v0.*`, profile paths, selected tool names/signals, terminal states,
+request/response shapes, configuration names/defaults, and closure membership
+are versioned public behavior. A breaking change requires an explicit migration
+note in the family SRD/roadmap and a consumer update in the same coordinated
+repository release; silent path or contract breaks are not compatible.
+
+Support states are intentionally simple: canonical members on `main` and in a
+release tag are the supported v0 surface; work on `exp/*` is unsupported and
+non-consumable; relocation tombstones and runtime-test scaffolding are
+informational/internal, not agent-library APIs. This avoids a second
+hand-maintained status registry that could drift from real profile paths,
+conformance, SRDs, and tags.
+
+Release evidence is:
+
+```bash
+go test ./...
+mage validate
+mage audit
+mage conformance
+mage integration:all
+mage containerSmoke   # when the agent-core image prerequisite is present
+```
+
+`mage validate` derives its profile inventory from real profile-shaped files
+under `agents/`; family conformance and specification indexes provide the
+machine-readable behavioral evidence. This documentation does not introduce a
+second catalog, package resolver, or runtime orchestrator.
 
 Documentation under `docs/` records purpose, structure, indexes, roadmap
 entries, and issue format rules. Core-owned runtime assets stay in
@@ -120,6 +218,45 @@ docker run --rm \
 Mount this repository read-only at `/profiles` (or another mount point). Pass
 that mount path to **`--profile`**. Mount the workspace and pass it to
 **`--directory`**.
+
+## Application reference and packaging contract
+
+Applications consume profiles by reference; they do not copy canonical library
+profiles into their source trees. An application manifest names each entry
+profile with a path relative to this `agent-profiles` root and pins a compatible
+`agent-profiles/v0.*` release. Packaging, not the runtime, resolves the complete
+closure into a tree mounted at `/profiles`.
+
+Reference resolution follows the runtime's existing path surfaces:
+
+- entry references and values beginning `agents/` are relative to this root;
+- profile-local machine, tool selection, declarations, config directories, and
+  REST files are relative to the YAML file that declares them;
+- child `profile` and critic `point_*` declaration references are transitive;
+- `/opt/agent-core/...` references remain external runtime assets and are not
+  copied;
+- copied files retain their root-relative destination, so a declaration that
+  names `agents/executor/profile.yaml` still resolves at
+  `/profiles/agents/executor/profile.yaml`.
+
+Packagers must reject repository traversal, disallowed absolute paths, runtime
+reference globs, symlinks, dangling references, and conflicting destination
+paths. Output must be deterministic and record the sorted file closure plus
+source provenance. A clean checkout exactly at the pinned tag may record
+`kind: release`. Any other checkout records `kind: checkout`, its commit (or an
+explicit unversioned fixture marker), dirty state when applicable, and the
+compatible release separately. Compatibility is not release provenance.
+
+Library profiles expose configuration through profile-local declarations,
+machines, explicit variants, and the existing runtime flags and mounts. An
+application packager may select or co-generate those existing assets, but this
+contract introduces no placeholders or template substitution. Application
+values must not be committed into canonical library profiles.
+
+`examples/coding-agent/agents/application.yaml` and its `mage package` target
+are the reference implementation. Its closure includes planner, executor,
+critic session, and `critic/profile-workspace.yaml`; the application directory
+contains composition/config inventory only, not copied library programs.
 
 ## Demos and Fixtures
 

@@ -1,0 +1,119 @@
+id: coding-agent-example-roadmap
+title: Coding Agent Example Road Map
+
+overview: |
+  The coding application starts with a specified end-to-end loop in release
+  01.0. The release composes the canonical planner, executor, and critic library
+  agents. Documentation and the test-suite contract land before integration
+  implementation, reference resolution, packaging, and deployment.
+
+releases:
+  - version: "01.0"
+    name: Planner, executor, and critic coding loop
+    description: |
+      An SRD and requirement graph enter the real planner. The planner
+      materializes a task and delegates to the real executor. The executor
+      changes an isolated workspace and returns successful declared validation.
+      The critic evaluates the resulting change and gates the terminal
+      application outcome. Three ordered integration stages prove those
+      boundaries without a fake agent binary.
+    status: implemented
+    library_srds:
+      - srd002-executor
+      - srd003-critic
+      - srd004-planner
+    use_cases:
+      - id: rel01.0-uc001-coding-loop
+        summary: A real planner materializes an SRD task, delegates it to a real executor, and submits the validated change to a critic gate.
+        status: implemented
+    test_suites:
+      - id: test-rel01.0-coding-loop
+        summary: Three stages prove a live executor run, real planner delegation, and the critic verdict with explicit inputs and outputs.
+        status: implemented
+  - version: "02.0"
+    name: Persistent remote coding request
+    description: |
+      Application-owned serving profiles keep planner, executor, and critic
+      alive behind truthful lifecycle endpoints. A planner request reuses
+      canonical planning words, crosses declared executor and critic REST
+      boundaries over one trusted shared workspace, and retains one W3C trace.
+    status: implemented
+    application_srds:
+      - srd001-serving-contract
+    use_cases:
+      - id: rel02.0-uc001-remote-coding-request
+        summary: A persistent planner delegates one coding request to remote executor and critic services.
+        status: implemented
+    test_suites:
+      - id: test-rel02.0-serving-contract
+        summary: Real health, canonical critic, remote coding, and connected trace evidence.
+        status: implemented
+  - version: "03.0"
+    name: Role-specific deployment profile package
+    description: |
+      The #847 resolver packages independent planner, executor, and critic
+      profile roots from one canonical source namespace. Deterministic manifests
+      retain provenance and partition each role for bounded ConfigMaps.
+    status: implemented
+    application_srds:
+      - srd002-deployment-profile-package
+    use_cases:
+      - id: rel03.0-uc001-package-serving-profiles
+        summary: A release builder emits one exact, mountable profile closure per serving role.
+        status: implemented
+    test_suites:
+      - id: test-rel03.0-deployment-profile-package
+        summary: Exact closures, reproducibility, safety failures, ConfigMap bounds, and real-binary boot validation.
+        status: implemented
+  - version: "04.0"
+    name: Core Helm topology
+    description: |
+      A package-driven chart renders persistent planner, executor, and critic
+      workloads with scoped profile ConfigMaps, shared workspace storage,
+      truthful health probes, fixed role Services, model endpoint selection,
+      and collector-to-Jaeger tracing.
+    status: implemented
+    application_srds:
+      - srd003-helm-topology
+    use_cases:
+      - id: rel04.0-uc001-render-helm-topology
+        summary: An operator prepares role shards and renders the core Kubernetes topology.
+        status: implemented
+    test_suites:
+      - id: test-rel04.0-helm-topology
+        summary: Deterministic topology, checksum, CI, model-tier, and trace-wiring renders.
+        status: implemented
+  - version: "05.0"
+    name: Helm values and package validation
+    description: |
+      Strict values and semantic guards reject unsafe topology. Prepared role
+      packages are checksum-validated, and a self-contained chart archive is
+      inventory-checked, linted, and rendered independently.
+    status: implemented
+    application_srds:
+      - srd004-helm-package-validation
+    use_cases:
+      - id: rel05.0-uc001-package-validated-chart
+        summary: A release builder produces one validated chart archive with every role asset.
+        status: implemented
+    test_suites:
+      - id: test-rel05.0-helm-package-validation
+        summary: Schema matrix, semantic invariants, tamper rejection, and independent archive rendering.
+        status: implemented
+  - version: "06.0"
+    name: Packaged-chart live Helm smoke
+    description: |
+      A bounded kind target installs only the packaged chart and proves truthful
+      role health, remote workspace mutation, critic acceptance, and one
+      planner/executor/critic trace with classified failures and cleanup.
+    status: implemented
+    application_srds:
+      - srd005-live-helm-smoke
+    use_cases:
+      - id: rel06.0-uc001-live-helm-smoke
+        summary: A developer proves the complete packaged topology on a disposable kind cluster.
+        status: implemented
+    test_suites:
+      - id: test-rel06.0-live-helm-smoke
+        summary: Skip, classification, diagnostic, fixture, cleanup, and live topology evidence.
+        status: implemented

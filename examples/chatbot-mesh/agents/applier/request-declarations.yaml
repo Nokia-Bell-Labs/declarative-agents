@@ -1,0 +1,65 @@
+tools:
+  - name: write_overrides
+    type: builtin
+    init: file_write
+    category: word
+    visibility: internal
+    description: Write the decided values overrides to the values file the helm words read.
+    problem: The decided values patch arrives on the apply request and must reach helm as a file, since the helm exec words take no per-field arguments.
+    goals:
+      - Write the seeded overrides content to the fixed values-file path.
+      - Emit ToolDone on a successful write and ToolFailed on a filesystem failure.
+    requirements:
+      input:
+        - The content and path are selected from the seeded apply body (parameters.content, parameters.path).
+      output:
+        - Output reports the written path and byte count.
+      errors:
+        - A filesystem failure emits ToolFailed.
+    non_goals:
+      - Does not decide the values; the coordinator does.
+      - Does not apply or render the patch; the helm words do.
+    parameters:
+      type: object
+      properties:
+        path:
+          type: string
+          description: The values-file path to write, seeded by the apply endpoint from the agent's workspace mount (APPLIER_WORK_DIR, /work by default).
+        content:
+          type: string
+          description: The values overrides content from the apply request.
+      required:
+        - path
+        - content
+    emits: [ToolDone, ToolFailed]
+    output:
+      description: Values-file write result.
+      schema:
+        type: object
+        properties:
+          path: {type: string}
+          bytes_written: {type: integer}
+        required: [path, bytes_written]
+    side_effects:
+      - kind: filesystem_write
+        target: workspace_file
+        description: Creates or overwrites the values file the helm words read.
+    reversibility:
+      classification: reversible
+      undo: workspace_restore
+    undo:
+      strategy: workspace_restore
+      description: Restore the workspace ref captured before the write.
+    errors:
+      - signal: ToolFailed
+        condition: The values file cannot be written.
+        message_shape: 'write_overrides: <error>'
+        state_after_failure: No values file is written; the request ends in Failed.
+    relationships:
+      before: [helm_dry_run]
+
+  # The `verified` word was removed with GH-615. It did no work: it existed only
+  # to emit TaskCompleted so the apply endpoint had a success signal distinct
+  # from the ToolDone/ToolFailed that exec words emit. Terminal-state response
+  # mapping makes Done distinguishable without it, so Verifying now transitions
+  # straight to Done.

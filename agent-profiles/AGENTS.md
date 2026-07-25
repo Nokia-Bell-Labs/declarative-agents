@@ -1,5 +1,28 @@
 # Agent Instructions
 
+## Repository Purpose
+
+`agent-profiles` is a versioned library of reusable declarative agents, not a
+general home for every YAML agent. A family belongs under `agents/` only when it
+is independently useful or has multiple consumers. Application-internal
+composition belongs under `examples/<application>/`.
+
+Maintain one canonical home per agent. Applications reference library programs
+and may supply wrappers/configuration, but must not fork reusable machines or
+declarations. Library members require a profile family, SRD, conformance
+coverage, portable closed references, and sufficient parameterization for
+consumers to configure them without edits. Runtime implementation remains in
+`agent-core`.
+
+The public surface is versioned by `agent-profiles/v0.*` tags. Treat path,
+machine/tool/signal/terminal contracts, request shapes, configuration names, and
+closure membership as compatibility-sensitive. Record breaking migrations and
+update consumers in the coordinated release.
+
+Mock/assembler/rig and `testdata/conformance` runtime scaffolding are pending
+relocation to `agent-core`; do not promote them as application library members
+or broaden their contract while they remain here.
+
 ## Non-Interactive Shell Commands
 
 **ALWAYS use non-interactive flags** with file operations to avoid hanging on confirmation prompts.

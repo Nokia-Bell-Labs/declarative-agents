@@ -1,10 +1,10 @@
 {{- if .Values.controlPlane.enabled }}
 {{- $fullname := include "chatbot-mesh.fullname" . -}}
-{{- $tokenSecret := .Values.controlPlane.creator.deploymentApiTokenSecret.name | default (printf "%s-executor" $fullname) -}}
+{{- $tokenSecret := .Values.controlPlane.creator.deploymentApiTokenSecret.name | default (printf "%s-applier" $fullname) -}}
 # --- Creator: the control plane's agent lifecycle manager (srd005). It reaches the
-# executor deployment API (srd006), which is authenticated apart from chat by a
+# applier deployment API (srd006), which is authenticated apart from chat by a
 # NetworkPolicy; the optional token mount below supports an operator-supplied auth
-# proxy in front of the executor. ---
+# proxy in front of the applier. ---
 apiVersion: apps/v1
 kind: Deployment
 metadata:
@@ -43,20 +43,20 @@ spec:
             - "--otel-metric-otlp-endpoint"
             - {{ . | quote }}
             {{- end }}
-          # The creator reaches the executor deployment API (srd006). The executor's
+          # The creator reaches the applier deployment API (srd006). The applier's
           # apply surface is network-authenticated (NetworkPolicy), so no bearer is
           # required; the optional token mount below (the #392 file-mount pattern)
-          # supplies a credential only when an operator fronts the executor with an
+          # supplies a credential only when an operator fronts the applier with an
           # auth proxy. It binds 0.0.0.0 so its Services route to the pod.
           env:
             {{- with include "chatbot-mesh.integrationResourceAttributes" . }}
             - {name: OTEL_RESOURCE_ATTRIBUTES, value: {{ . | quote }}}
             {{- end }}
             - {name: CREATOR_BIND_HOST, value: "0.0.0.0"}
-            # The deployment API is the executor agent (srd006); the creator's client
+            # The deployment API is the applier agent (srd006); the creator's client
             # reaches its apply Service.
-            - {name: DEPLOYMENT_API_URL, value: "http://{{ $fullname }}-executor:{{ .Values.executor.ports.apply }}"}
-            - {name: PROVISIONER_HOST, value: "{{ $fullname }}-executor"}
+            - {name: DEPLOYMENT_API_URL, value: "http://{{ $fullname }}-applier:{{ .Values.applier.ports.apply }}"}
+            - {name: PROVISIONER_HOST, value: "{{ $fullname }}-applier"}
             - {name: DEPLOYMENT_API_TOKEN_FILE, value: "/etc/creator-tokens/deployment-api"}
           ports:
             - {name: instance, containerPort: {{ .Values.controlPlane.creator.ports.instance }}}
@@ -103,7 +103,7 @@ spec:
 ---
 # The instance endpoint is reached only by the coordinator (srd005 R1.1, R5.4).
 # Until GH-685 this port carried no policy at all, so anything in the cluster could
-# ask the creator to act -- and the creator is the only pod the executor admits to
+# ask the creator to act -- and the creator is the only pod the applier admits to
 # its apply surface (srd006 R4.1), which made an unconstrained instance port the
 # widest remaining path to apply. The GH-682 kind proof measured exactly that: an
 # ingress-controller pod reached this port before this policy existed.

@@ -72,6 +72,14 @@ helm install chatbot-mesh helm/dist/chatbot-mesh-*.tgz \
 package target prunes profile test fixtures and stages only the UX descriptor
 and built SPA, keeping the profiles ConfigMap below Kubernetes' size limit.
 
+## Upgrading the deployment agent
+
+The rollout agent was renamed from executor to applier. This is a breaking
+values-key change: operator values files must rename the top-level `executor:`
+mapping to `applier:`. Image overrides must likewise move from
+`executor.image.*` to `applier.image.*`; the rendered workload and service are
+now named `<release>-chatbot-mesh-applier`.
+
 ## Technology choices
 
 Profiles ride in a ConfigMap projected to nested paths through `items[].path`, because ConfigMap keys cannot contain `/`; this keeps one image and lets a values edit re-render an agent's program. Jaeger all-in-one is the trace backend because its query API is the simplest target for the observability panel's cross-agent waterfall.

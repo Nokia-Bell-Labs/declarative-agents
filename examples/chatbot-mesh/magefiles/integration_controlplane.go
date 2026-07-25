@@ -27,7 +27,7 @@ const (
 // ControlPlane proves the realized mesh control-plane flow end to end without a
 // cluster: an operator's values-apply intent flows panel -> coordinator -> creator
 // -> deployment API. The coordinator and creator run as the real declarative
-// agents; a fake deployment API stands in for the executor (srd006) and records
+// agents; a fake deployment API stands in for the applier (srd006) and records
 // what the creator sends. The test drives the panel's apply the way the SPA does --
 // a POST to the coordinator's /provisioning/api/apply -- then asserts the
 // coordinator delegated the rollout to the creator, the creator drove the
@@ -180,7 +180,7 @@ func runControlPlaneIntegration(profilesRoot, coreRoot string) error {
 	// The provisioning panel's initial mesh-view load (srd006 R1.5, GH-753): a
 	// GET through the coordinator, which asks the creator, which reads the
 	// deployment API's state surface. Live evidence that the flat
-	// executor -> creator -> coordinator field mapping actually works end to
+	// applier -> creator -> coordinator field mapping actually works end to
 	// end, not just that the YAML declares it.
 	stateData, stateStatus, err := requestInference(http.MethodGet, cpCoordinatorState, "", "coordinator state read")
 	if err != nil {
@@ -243,7 +243,7 @@ type deploymentAPIRecorder struct {
 	authSeen bool
 	badField string
 	// content is the values-plane document the last apply carried, so the test can
-	// assert the decided values reached the executor rather than only that a call
+	// assert the decided values reached the applier rather than only that a call
 	// was made.
 	content string
 }
@@ -291,7 +291,7 @@ func (r *deploymentAPIRecorder) endpointAuthorityField() string {
 }
 
 // startFakeDeploymentAPI binds the deployment API's default address (:18090, the
-// executor's apply port) and answers the apply and rollout paths the creator drives,
+// applier's apply port) and answers the apply and rollout paths the creator drives,
 // recording each call. It returns a
 // stop function, or an error if the port is already bound.
 func startFakeDeploymentAPI(rec *deploymentAPIRecorder) (func(), error) {
@@ -315,10 +315,10 @@ func startFakeDeploymentAPIOnAddr(rec *deploymentAPIRecorder, address string) (f
 			rec.content = content
 		}
 		rec.mu.Unlock()
-		// Mirror the executor's versioned apply response (srd006 R1.4): a
+		// Mirror the applier's versioned apply response (srd006 R1.4): a
 		// schema_version-tagged status. Strict request validation (schema_version +
-		// content required, helm dry-run) is proven against the real executor by the
-		// integration:executor tracer (#602); here the fake records the call.
+		// content required, helm dry-run) is proven against the real applier by the
+		// integration:applier tracer (#602); here the fake records the call.
 		writeJSON(w, map[string]interface{}{"schema_version": "1", "status": "applied"})
 	})
 	mux.HandleFunc("/provisioning/api/rollout", func(w http.ResponseWriter, req *http.Request) {
@@ -326,7 +326,7 @@ func startFakeDeploymentAPIOnAddr(rec *deploymentAPIRecorder, address string) (f
 		rec.mu.Lock()
 		rec.rollouts++
 		rec.mu.Unlock()
-		// Mirror the executor's trimmed rollout response (srd006 R1.4): schema_version
+		// Mirror the applier's trimmed rollout response (srd006 R1.4): schema_version
 		// and phase only.
 		writeJSON(w, map[string]interface{}{"schema_version": "1", "phase": "complete"})
 	})
@@ -335,9 +335,9 @@ func startFakeDeploymentAPIOnAddr(rec *deploymentAPIRecorder, address string) (f
 		rec.mu.Lock()
 		rec.states++
 		rec.mu.Unlock()
-		// Mirror the executor's flat state_response (srd006 deployment_api_contract,
+		// Mirror the applier's flat state_response (srd006 deployment_api_contract,
 		// GH-752/GH-753): one selector per named field, so the fake sends what a real
-		// executor's helm_get_values read would produce.
+		// applier's helm_get_values read would produce.
 		writeJSON(w, map[string]interface{}{
 			"schema_version":      "1",
 			"rags":                []map[string]interface{}{{"name": "rag0", "collection": "corpus", "embeddingModel": "qwen3-embedding:8b", "replicas": 1}},

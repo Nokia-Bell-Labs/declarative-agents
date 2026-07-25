@@ -13,11 +13,19 @@ examples/chatbot-mesh/agents/chatbot/      -> profiles/agents/chatbot/
 examples/chatbot-mesh/agents/rag-server/   -> profiles/agents/rag-server/
 examples/chatbot-mesh/agents/coordinator/  -> profiles/agents/coordinator/   (control plane)
 examples/chatbot-mesh/agents/creator/      -> profiles/agents/creator/       (control plane)
-examples/chatbot-mesh/agents/executor/     -> profiles/agents/executor/       (deployment plane, srd006)
+examples/chatbot-mesh/agents/applier/     -> profiles/agents/applier/       (deployment plane, srd006)
 examples/chatbot-mesh/agents/collector/    -> profiles/agents/collector/      (trace ingress, srd007)
+examples/chatbot-mesh/agents/corpus-ingest/ -> profiles/agents/corpus-ingest/  (application wrapper + REST values)
+agent-profiles/agents/knowledge-manager/corpus-ingest/ -> profiles/agents/knowledge-manager/corpus-ingest/ (canonical program)
 examples/chatbot-mesh/ux/ux.yaml            -> profiles/ux/ux.yaml            (UI descriptor; co-generated key)
 examples/chatbot-mesh/ux/app/dist/          -> profiles/ux/app/dist/          (built SPA the chatbot serves at /ui)
 ```
+
+Corpus ingest is the reference-mechanism exception to the otherwise
+example-local source list: the mesh owns only a wrapper profile and its
+`corpus-rest.yaml` parameterization. Machine, tools, and declarations come from
+the canonical `agent-profiles` library directory and are staged at the same
+runtime path the wrapper references.
 
 The ux contributes those two entries, not its whole tree. Every file staged
 under `profiles/` becomes a ConfigMap key and a projected mount item in *every*

@@ -1,0 +1,159 @@
+{{- include "coding-agent.validateValues" . -}}
+{{- range $role := list "planner" "executor" "critic" }}
+{{- $roleValues := index $.Values.roles $role -}}
+{{- $context := dict "root" $ "role" $role -}}
+{{- $manifest := include "coding-agent.roleManifest" $context | fromYaml -}}
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: {{ include "coding-agent.fullname" $ }}-{{ $role }}
+  labels:
+    {{- include "coding-agent.labels" $ | nindent 4 }}
+    app.kubernetes.io/component: {{ $role }}
+spec:
+  replicas: {{ $roleValues.replicas }}
+  selector:
+    matchLabels:
+      {{- include "coding-agent.selectorLabels" $ | nindent 6 }}
+      app.kubernetes.io/component: {{ $role }}
+  template:
+    metadata:
+      labels:
+        {{- include "coding-agent.selectorLabels" $ | nindent 8 }}
+        app.kubernetes.io/component: {{ $role }}
+      annotations:
+        checksum/profiles: {{ include "coding-agent.profileChecksum" $context }}
+        {{- with $.Values.podAnnotations }}
+        {{- toYaml . | nindent 8 }}
+        {{- end }}
+    spec:
+      automountServiceAccountToken: false
+      terminationGracePeriodSeconds: 30
+      securityContext:
+        {{- toYaml $.Values.podSecurityContext | nindent 8 }}
+      {{- with $.Values.nodeSelector }}
+      nodeSelector:
+        {{- toYaml . | nindent 8 }}
+      {{- end }}
+      {{- with $.Values.tolerations }}
+      tolerations:
+        {{- toYaml . | nindent 8 }}
+      {{- end }}
+      {{- with $.Values.affinity }}
+      affinity:
+        {{- toYaml . | nindent 8 }}
+      {{- end }}
+      {{- if or $.Values.collector.enabled (and $.Values.ollama.enabled (or (eq $role "planner") (eq $role "executor"))) }}
+      initContainers:
+        {{- if $.Values.collector.enabled }}
+        - name: wait-for-collector
+          image: {{ $.Values.collector.utilityImage | quote }}
+          command: ["/bin/sh", "-c"]
+          args:
+            - until nc -z -w 2 {{ include "coding-agent.fullname" $ }}-collector {{ $.Values.collector.otlpGRPCPort }}; do sleep 2; done
+          securityContext:
+            {{- toYaml $.Values.containerSecurityContext | nindent 12 }}
+        {{- end }}
+        {{- if and $.Values.ollama.enabled (or (eq $role "planner") (eq $role "executor")) }}
+        - name: wait-for-models
+          image: {{ $.Values.ollama.utilityImage | quote }}
+          command: ["/bin/sh", "-c"]
+          args:
+            - |
+              set -eu
+              url="{{ include "coding-agent.llmURL" $ }}/api/tags"
+              for model in {{ include "coding-agent.ollamaModels" $ }}; do
+                base="${model%%:*}"
+                until wget -qO- "$url" | grep -q "$base"; do
+                  echo "waiting for model $model"; sleep 5
+                done
+              done
+          securityContext:
+            {{- toYaml $.Values.containerSecurityContext | nindent 12 }}
+        {{- end }}
+      {{- end }}
+      containers:
+        - name: {{ $role }}
+          image: {{ include "coding-agent.image" $ | quote }}
+          imagePullPolicy: {{ $.Values.image.pullPolicy }}
+          securityContext:
+            {{- toYaml $.Values.containerSecurityContext | nindent 12 }}
+          args:
+            - "--profile"
+            - "{{ $.Values.profiles.mountPath }}/{{ $manifest.profile }}"
+            - "--directory"
+            - "{{ $.Values.workspace.mountPath }}"
+            - "--otel-service-name"
+            - "coding-{{ $role }}"
+            {{- with include "coding-agent.otlpEndpoint" $ }}
+            - "--otel-otlp-endpoint"
+            - {{ . | quote }}
+            {{- end }}
+          env:
+            - name: {{ upper $role }}_BIND_HOST
+              value: "0.0.0.0"
+            - name: POD_NAME
+              valueFrom:
+                fieldRef: {fieldPath: metadata.name}
+            - name: OTEL_RESOURCE_ATTRIBUTES
+              value: "service.namespace=coding-agent,service.instance.id=$(POD_NAME)"
+            {{- if or (eq $role "planner") (eq $role "executor") }}
+            - name: OLLAMA_URL
+              value: {{ include "coding-agent.llmURL" $ | quote }}
+            {{- end }}
+            {{- if eq $role "planner" }}
+            - name: EXECUTOR_HOST
+              value: {{ printf "%s-executor" (include "coding-agent.fullname" $) | quote }}
+            - name: EXECUTOR_URL
+              value: {{ printf "http://%s-executor:%v" (include "coding-agent.fullname" $) $.Values.roles.executor.requestPort | quote }}
+            - name: CRITIC_HOST
+              value: {{ printf "%s-critic" (include "coding-agent.fullname" $) | quote }}
+            - name: CRITIC_URL
+              value: {{ printf "http://%s-critic:%v" (include "coding-agent.fullname" $) $.Values.roles.critic.requestPort | quote }}
+            {{- end }}
+          ports:
+            - {name: request, containerPort: {{ $roleValues.requestPort }}, protocol: TCP}
+            - {name: control, containerPort: {{ $roleValues.controlPort }}, protocol: TCP}
+          readinessProbe:
+            httpGet: {path: /api/lifecycle/health, port: control}
+            initialDelaySeconds: 2
+            periodSeconds: 5
+            timeoutSeconds: 2
+            failureThreshold: 6
+          livenessProbe:
+            httpGet: {path: /api/lifecycle/health, port: control}
+            initialDelaySeconds: 10
+            periodSeconds: 10
+            timeoutSeconds: 2
+            failureThreshold: 3
+          resources:
+            {{- toYaml $roleValues.resources | nindent 12 }}
+          volumeMounts:
+            - {name: profiles, mountPath: {{ $.Values.profiles.mountPath }}, readOnly: true}
+            - {name: workspace, mountPath: {{ $.Values.workspace.mountPath }}}
+            - {name: tmp, mountPath: /tmp}
+      volumes:
+        {{- include "coding-agent.profilesVolume" $context | nindent 8 }}
+        - name: workspace
+          persistentVolumeClaim:
+            claimName: {{ include "coding-agent.workspaceClaim" $ }}
+        - name: tmp
+          emptyDir: {}
+---
+apiVersion: v1
+kind: Service
+metadata:
+  name: {{ include "coding-agent.fullname" $ }}-{{ $role }}
+  labels:
+    {{- include "coding-agent.labels" $ | nindent 4 }}
+    app.kubernetes.io/component: {{ $role }}
+spec:
+  type: ClusterIP
+  selector:
+    {{- include "coding-agent.selectorLabels" $ | nindent 4 }}
+    app.kubernetes.io/component: {{ $role }}
+  ports:
+    - {name: request, port: {{ $roleValues.requestPort }}, targetPort: request}
+    - {name: control, port: {{ $roleValues.controlPort }}, targetPort: control}
+---
+{{ end }}

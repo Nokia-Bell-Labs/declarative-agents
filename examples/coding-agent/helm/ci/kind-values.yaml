@@ -1,0 +1,42 @@
+image:
+  repository: declarative-agents/coding-agent-smoke
+  tag: local
+  pullPolicy: Never
+
+workspace:
+  existingClaim: coding-agent-kind-workspace
+
+ollama:
+  enabled: false
+
+llm:
+  externalURL: http://coding-model:11434
+
+collector:
+  utilityImage: declarative-agents/coding-agent-smoke:local
+  image:
+    pullPolicy: Never
+  resources:
+    requests: {cpu: 25m, memory: 64Mi}
+    limits: {cpu: 250m, memory: 256Mi}
+
+jaeger:
+  image:
+    pullPolicy: Never
+  resources:
+    requests: {cpu: 25m, memory: 64Mi}
+    limits: {cpu: 500m, memory: 512Mi}
+
+roles:
+  planner:
+    resources:
+      requests: {cpu: 25m, memory: 64Mi}
+      limits: {cpu: "1", memory: 1Gi}
+  executor:
+    resources:
+      requests: {cpu: 50m, memory: 128Mi}
+      limits: {cpu: "2", memory: 2Gi}
+  critic:
+    resources:
+      requests: {cpu: 25m, memory: 64Mi}
+      limits: {cpu: "1", memory: 1Gi}

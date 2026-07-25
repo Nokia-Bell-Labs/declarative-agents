@@ -147,11 +147,11 @@ releases:
         summary: Knowledge Manager profile UX, document machine_request, trace, and lifecycle proof.
         status: implemented
       - id: rel07.0-uc002-evaluator-generator-profile-boundary
-        summary: Evaluator runs generator as a benchmark subject profile.
-        status: implemented
+        summary: Retired library tracer; application critic boundary is the replacement.
+        status: planned
       - id: rel07.0-uc003-planner-generator-profile-boundary
-        summary: Planner executes materialized work through generator.
-        status: implemented
+        summary: Retired library tracer; application planner delegation is the replacement.
+        status: planned
       - id: rel07.0-uc004-bench-evaluator-profile-boundary
         summary: Bench launches evaluator from a human/operator action.
         status: implemented
@@ -165,8 +165,6 @@ releases:
     proof:
       - mage integration:all
       - mage integration:documentationCurator
-      - mage integration:evaluatorGenerator
-      - mage integration:plannerGenerator
       - mage integration:benchEvaluator
       - mage integration:monitorControl
     success_markers:
@@ -279,9 +277,9 @@ releases:
       collection, and a reader profile that answers a question grounded in the
       retrieved chunks. Both are pure agent-profiles configuration over existing
       agent-core words -- REST client words, list_resource, read_resource, and
-      invoke_llm. The ingest is a model-driven loop: the model lists the corpus
-      and selects each file, and the machine sequences the deterministic embed
-      and add steps after each read (#251).
+      invoke_llm. The ingest machine lists trusted corpus paths before model
+      control; the model selects listed files, and the machine sequences the
+      deterministic embed and add steps after each read (#251, #849).
 
       Chroma does not embed text server-side over its raw HTTP API (spike #239),
       so the agents compute embeddings at a local Ollama provider (an
@@ -323,17 +321,14 @@ releases:
     use_cases:
       - id: rel08.0-uc001-corpus-ingest
         summary: Ingest profile lists and reads a corpus under model control, embeds at Ollama, and threads vectors into Chroma add.
-        status: specified
+        status: implemented
       - id: rel08.0-uc002-corpus-query
         summary: Reader profile embeds a question, threads the vector into Chroma query, and answers grounded in retrieved chunks.
         status: specified
-    test_suites:
-      - id: test-rel08.0-chroma-corpus
-        summary: Profile-owned tracer for Chroma ingest and query. The mage integration:chroma target was relocated to examples/chatbot-mesh (ingest count only over the copied profile); the profile-owned ingest+reader tracer is pending (#251).
-        status: planned
     proof:
       - mage validate
-      - AGENT_CORE_ROOT=/path/to/agent-core mage integration:chroma  # relocated to examples/chatbot-mesh (ingest only); profile-owned tracer pending #251
+      - cd examples/chatbot-mesh && mage integration:chroma  # mesh wrapper, canonical library ingest program
+      - go test ./conformance -run TestCorpusIngestListsTrustedCorpusBeforeModelControl
     success_markers:
       - The ingest and reader profiles are pure agent-profiles configuration over existing agent-core words.
       - Every Chroma add and query carries an agent-supplied embedding vector threaded from the Ollama embed word, never a model-authored or server-side vector.

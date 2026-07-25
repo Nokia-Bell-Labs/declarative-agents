@@ -241,16 +241,44 @@ func encodeStdoutTrace(request *coltracepb.ExportTraceServiceRequest) ([]byte, e
 }
 
 func stdoutSpan(span *tracepb.Span, resource []map[string]any, scope map[string]any) map[string]any {
-	events := make([]map[string]any, 0, len(span.GetEvents()))
-	for _, event := range span.GetEvents() {
+	return map[string]any{
+		"Name": span.GetName(),
+		"SpanContext": stdoutSpanContext(
+			span.GetTraceId(), span.GetSpanId(), span.GetFlags(), span.GetTraceState(),
+		),
+		"Parent":                 stdoutSpanContext(span.GetTraceId(), span.GetParentSpanId(), span.GetFlags(), ""),
+		"SpanKind":               int(span.GetKind()),
+		"StartTime":              unixNanoTime(span.GetStartTimeUnixNano()),
+		"EndTime":                unixNanoTime(span.GetEndTimeUnixNano()),
+		"Attributes":             stdoutAttributes(span.GetAttributes()),
+		"Events":                 stdoutSpanEvents(span.GetEvents()),
+		"Links":                  stdoutSpanLinks(span.GetLinks()),
+		"Status":                 stdoutSpanStatus(span.GetStatus()),
+		"DroppedAttributes":      span.GetDroppedAttributesCount(),
+		"DroppedEvents":          span.GetDroppedEventsCount(),
+		"DroppedLinks":           span.GetDroppedLinksCount(),
+		"ChildSpanCount":         0,
+		"Resource":               resource,
+		"InstrumentationScope":   scope,
+		"InstrumentationLibrary": scope,
+	}
+}
+
+func stdoutSpanEvents(spanEvents []*tracepb.Span_Event) []map[string]any {
+	events := make([]map[string]any, 0, len(spanEvents))
+	for _, event := range spanEvents {
 		events = append(events, map[string]any{
 			"Name": event.GetName(), "Attributes": stdoutAttributes(event.GetAttributes()),
 			"DroppedAttributeCount": event.GetDroppedAttributesCount(),
 			"Time":                  unixNanoTime(event.GetTimeUnixNano()),
 		})
 	}
-	links := make([]map[string]any, 0, len(span.GetLinks()))
-	for _, link := range span.GetLinks() {
+	return events
+}
+
+func stdoutSpanLinks(spanLinks []*tracepb.Span_Link) []map[string]any {
+	links := make([]map[string]any, 0, len(spanLinks))
+	for _, link := range spanLinks {
 		links = append(links, map[string]any{
 			"SpanContext": stdoutSpanContext(
 				link.GetTraceId(), link.GetSpanId(), link.GetFlags(), link.GetTraceState(),
@@ -259,28 +287,13 @@ func stdoutSpan(span *tracepb.Span, resource []map[string]any, scope map[string]
 			"DroppedAttributeCount": link.GetDroppedAttributesCount(),
 		})
 	}
+	return links
+}
+
+func stdoutSpanStatus(status *tracepb.Status) map[string]any {
 	return map[string]any{
-		"Name": span.GetName(),
-		"SpanContext": stdoutSpanContext(
-			span.GetTraceId(), span.GetSpanId(), span.GetFlags(), span.GetTraceState(),
-		),
-		"Parent":     stdoutSpanContext(span.GetTraceId(), span.GetParentSpanId(), span.GetFlags(), ""),
-		"SpanKind":   int(span.GetKind()),
-		"StartTime":  unixNanoTime(span.GetStartTimeUnixNano()),
-		"EndTime":    unixNanoTime(span.GetEndTimeUnixNano()),
-		"Attributes": stdoutAttributes(span.GetAttributes()),
-		"Events":     events, "Links": links,
-		"Status": map[string]any{
-			"Code":        int(span.GetStatus().GetCode()),
-			"Description": span.GetStatus().GetMessage(),
-		},
-		"DroppedAttributes":      span.GetDroppedAttributesCount(),
-		"DroppedEvents":          span.GetDroppedEventsCount(),
-		"DroppedLinks":           span.GetDroppedLinksCount(),
-		"ChildSpanCount":         0,
-		"Resource":               resource,
-		"InstrumentationScope":   scope,
-		"InstrumentationLibrary": scope,
+		"Code":        int(status.GetCode()),
+		"Description": status.GetMessage(),
 	}
 }
 

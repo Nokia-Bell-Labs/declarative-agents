@@ -3,10 +3,11 @@ title: Agent Profiles Architecture
 
 overview:
   summary: |
-    agent-profiles is a configuration and asset repository. At runtime,
-    agent-core loads external agent programs from it. Profile directories,
-    profile-local config, demos, integration fixtures, and structured docs live
-    here.
+    agent-profiles is the versioned library of reusable declarative agents. At
+    runtime, agent-core loads external agent programs from it. Applications
+    compose canonical members by reference and package their transitive closure.
+    Profile directories, profile-local config, conformance, demos, integration
+    fixtures, and structured docs live here.
 
     Runtime ownership remains in agent-core. That repository owns the Go
     engine, cmd/agent, builtin tool implementations, shared runtime assets, Mage
@@ -55,7 +56,8 @@ components:
   - name: agents
     path: agents/
     responsibility: |
-      Own migrated profile.yaml files, machines, tool selections,
+      Own reusable profile families that satisfy the membership rule, including
+      profile.yaml files, machines, tool selections,
       profile-local declarations, boundary configs, lifecycle profiles, monitor
       profiles, REST profiles, control profiles, and Knowledge Manager assets.
       Profiles may reference core-owned shared tool declarations through
@@ -109,6 +111,30 @@ design_decisions:
       - Integration targets work across machines and containers.
       - Container examples match the mounted-profile contract.
       - Release bundles can preserve the same directory contract.
+  - id: 4
+    title: Library membership and one canonical home
+    decision: |
+      An agent is a library member only when it is independently useful or has
+      multiple consumers. A member owns a profile family, SRD, deterministic
+      conformance, portable closure, and sufficient parameterization for
+      applications to configure it without edits. Application-only behavior
+      stays under examples/. Applications reference members and assemble
+      closures at package time; they do not fork reusable programs.
+
+      The public surface is versioned by exact agent-profiles/v0.* tags.
+      Profile paths, machines, selected tool/signal/terminal contracts,
+      request/response shapes, configuration names/defaults, and closure
+      membership are compatibility-sensitive. Breaking changes require an
+      explicit migration note and coordinated consumer update.
+
+      Mock, assembler, rig-subject, and testdata/conformance runtime scaffolding
+      test agent-core rather than constituting shipped application agents. A
+      follow-up will relocate them to agent-core; this decision moves no files.
+    benefits:
+      - Reusable fixes flow upstream to every consumer.
+      - Application composition and library behavior have visible owners.
+      - Release compatibility and migration evidence are reviewable.
+      - The runtime remains an interpreter rather than a profile registry.
 
 technology_choices:
   - component: Profile format
@@ -145,7 +171,7 @@ project_structure:
       role: Issue shape for future work.
 
 implementation_status:
-  current_focus: Implemented profile assets, validation, release tagging, and profile-owned integration tracer bullets.
+  current_focus: Versioned reusable agent library, validation, release tagging, conformance, and consumer reference contracts.
   progress:
     - done: Initial issue queue exists.
     - done: Repository purpose and ownership docs are defined.
@@ -163,6 +189,11 @@ implementation_status:
         implemented profile repository workflow.
     - done: Profile-owned integration tracer bullets cover documentation-curator,
         evaluator-generator, planner-generator, bench-evaluator, and monitor/control boundaries.
+    - done: Library membership, member obligations, one-canonical-home,
+        application reference, exact v0 release compatibility, and migration
+        contracts are recorded.
+    - planned: Relocate mock, assembler, rig-subject, and runtime conformance
+        scaffolding to agent-core without changing their behavior.
 
 related_documents:
   - doc: ../agent-core/docs/specs/config-formats/runtime-contract.yaml

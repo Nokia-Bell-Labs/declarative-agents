@@ -109,6 +109,41 @@ func TestSpoolStdoutTraceAndRotation(t *testing.T) {
 	require.Equal(t, "service.name", resource[1].(map[string]any)["Key"])
 }
 
+func TestStdoutSpanFormatsEventsLinksAndStatus(t *testing.T) {
+	eventTime := uint64(time.Unix(1_700_000_000, 1).UnixNano())
+	span := &tracepb.Span{
+		Events: []*tracepb.Span_Event{{
+			Name: "sent", TimeUnixNano: eventTime,
+			Attributes:             []*commonpb.KeyValue{stringAttribute("event.key", "event-value")},
+			DroppedAttributesCount: 1,
+		}},
+		Links: []*tracepb.Span_Link{{
+			TraceId: []byte{1, 2}, SpanId: []byte{3, 4}, Flags: 1, TraceState: "vendor=value",
+			Attributes:             []*commonpb.KeyValue{stringAttribute("link.key", "link-value")},
+			DroppedAttributesCount: 2,
+		}},
+		Status: &tracepb.Status{Code: tracepb.Status_STATUS_CODE_ERROR, Message: "failed"},
+	}
+
+	formatted := stdoutSpan(span, nil, nil)
+	event := formatted["Events"].([]map[string]any)[0]
+	require.Equal(t, "sent", event["Name"])
+	require.Equal(t, unixNanoTime(eventTime), event["Time"])
+	require.Equal(t, uint32(1), event["DroppedAttributeCount"])
+
+	link := formatted["Links"].([]map[string]any)[0]
+	context := link["SpanContext"].(map[string]any)
+	require.Equal(t, "0102", context["TraceID"])
+	require.Equal(t, "0304", context["SpanID"])
+	require.Equal(t, "01", context["TraceFlags"])
+	require.Equal(t, "vendor=value", context["TraceState"])
+	require.Equal(t, uint32(2), link["DroppedAttributeCount"])
+
+	status := formatted["Status"].(map[string]any)
+	require.Equal(t, int(tracepb.Status_STATUS_CODE_ERROR), status["Code"])
+	require.Equal(t, "failed", status["Description"])
+}
+
 func TestSpoolResolvesCommandStateBatch(t *testing.T) {
 	path := filepath.Join(t.TempDir(), "selected.ndjson")
 	awaitJSON, err := awaitOutput(Batch{

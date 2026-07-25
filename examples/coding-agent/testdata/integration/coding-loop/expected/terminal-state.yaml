@@ -1,0 +1,19 @@
+executor:
+  terminal_state: Succeeded
+  validation: passed
+planner:
+  terminal_state: Completed
+  materialized_tasks: 1
+  child_profile: agents/executor/profile.yaml
+  child_binary: real-built-agent
+critic_gate:
+  accepted:
+    critic_terminal_state: Succeeded
+    verdict: accepted
+    oracle: passed
+    application_terminal_state: Succeeded
+  rejected:
+    critic_terminal_state: Rejected
+    verdict: rejected
+    oracle: failed
+    application_terminal_state: Failed

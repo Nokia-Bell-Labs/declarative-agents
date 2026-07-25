@@ -1,0 +1,36 @@
+id: test-rel03.0-deployment-profile-package
+title: Role-Specific Deployment Profile Package Suite
+release: "03.0"
+status: implemented
+
+overview: |
+  Deterministic unit tests prove exact role closures, reproducible manifests,
+  ConfigMap boundaries, and strict source failures. The application audit
+  packages the same artifacts and validates every role entry profile with the
+  real production agent binary.
+
+traces:
+  - rel03.0-uc001-package-serving-profiles
+
+test_cases:
+  - use_case: rel03.0-uc001-package-serving-profiles
+    name: Exact deterministic role closures
+    go_test: go test ./magefiles -run '^TestDeploymentPackage(ContainsExactRoleClosures|IsDeterministic)$'
+    status: implemented
+    traces: [srd002-deployment-profile-package AC1]
+  - use_case: rel03.0-uc001-package-serving-profiles
+    name: ConfigMap partition boundaries
+    go_test: go test ./magefiles -run '^TestConfigMapPartition'
+    status: implemented
+    traces: [srd002-deployment-profile-package AC2]
+  - use_case: rel03.0-uc001-package-serving-profiles
+    name: Unsafe deployment sources fail
+    go_test: go test ./magefiles -run '^TestDeployment(SourceRejectsSymlink|ServingReference)'
+    status: implemented
+    traces: [srd002-deployment-profile-package AC2]
+  - use_case: rel03.0-uc001-package-serving-profiles
+    name: Profile-free packaged runtime validates
+    integration_target: mage packageValidate
+    go_test: go test ./magefiles -run '^TestDeploymentManifestPreservesProfileFreeRuntime$'
+    status: implemented
+    traces: [srd002-deployment-profile-package AC3]

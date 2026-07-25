@@ -13,10 +13,10 @@ import (
 // These cover the provisioning panel's initial mesh-view load (srd006 R1.5,
 // GH-753): the panel reads it from the coordinator, not from the deployment
 // API, which no browser may reach (srd003 R4.4). The chain is
-// coordinator -> creator -> executor, mirroring the rollout read (GH-686); these
+// coordinator -> creator -> applier, mirroring the rollout read (GH-686); these
 // pin every hop the mesh owns.
 
-// stateFields are the flat fields the executor's state_response contract
+// stateFields are the flat fields the applier's state_response contract
 // declares (srd006 deployment_api_contract). The wire shape is flat by
 // necessity: machine_request response bodies map one selector per named field,
 // so llm/params cannot be assembled from several source paths in one step.
@@ -154,13 +154,13 @@ func TestCreatorStateLegDrivesReadState(t *testing.T) {
 }
 
 // TestStateFieldsSurviveTheCreatorHop proves the creator maps every flat field
-// off the executor's response and re-serves it, rather than dropping fields the
+// off the applier's response and re-serves it, rather than dropping fields the
 // panel needs.
 func TestStateFieldsSurviveTheCreatorHop(t *testing.T) {
 	op := clientOperationNamed(t, "creator", "deployment_api", "read_state")
 	for _, field := range stateFields {
 		if got := op.Response.Output[field]; got != "$."+field {
-			t.Errorf("read_state maps %s = %q, want $.%s; the executor serves it and the creator drops it", field, got, field)
+			t.Errorf("read_state maps %s = %q, want $.%s; the applier serves it and the creator drops it", field, got, field)
 		}
 	}
 

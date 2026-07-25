@@ -1,0 +1,4 @@
+collector:
+  enabled: true
+jaeger:
+  enabled: false

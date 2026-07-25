@@ -1,0 +1,25 @@
+apiVersion: v1
+kind: PersistentVolume
+metadata:
+  name: coding-agent-kind-workspace
+spec:
+  capacity:
+    storage: 256Mi
+  accessModes: [ReadWriteMany]
+  persistentVolumeReclaimPolicy: Retain
+  storageClassName: ""
+  hostPath:
+    path: /tmp/coding-agent-workspace
+---
+apiVersion: v1
+kind: PersistentVolumeClaim
+metadata:
+  name: coding-agent-kind-workspace
+  namespace: coding-agent-smoke
+spec:
+  accessModes: [ReadWriteMany]
+  storageClassName: ""
+  volumeName: coding-agent-kind-workspace
+  resources:
+    requests:
+      storage: 256Mi

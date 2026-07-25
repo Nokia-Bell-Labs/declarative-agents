@@ -1,0 +1,9 @@
+id: coding-loop-fixture-roadmap
+title: Coding Loop Greet Fixture Road Map
+
+releases:
+  - version: "01.0"
+    name: Greeting
+    description: Implement the portable greeting requirement.
+    status: open
+    use_cases: []

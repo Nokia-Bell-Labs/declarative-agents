@@ -31,3 +31,13 @@ func TestDynamicDispatchVocabulary(t *testing.T) {
 	got := dynamicDispatchVocabulary(defs)
 	assert.ElementsMatch(t, []string{"invoke_llm_fast", "invoke_llm_deep"}, got)
 }
+
+func TestSelectedDynamicDispatchVocabularyExcludesUnselectedDeclarations(t *testing.T) {
+	defs := []catalog.ToolDef{
+		{Name: "read", Visibility: "external"},
+		{Name: "list_resource", Visibility: "external"},
+		{Name: "invoke_llm", Visibility: "internal"},
+	}
+	got := selectedDynamicDispatchVocabulary(defs, []string{"read", "invoke_llm"})
+	assert.Equal(t, []string{"read"}, got)
+}

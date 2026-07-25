@@ -5,7 +5,7 @@ overview: |
   Specification index for the standalone chatbot mesh example. Seven SRDs define the
   program: three data-plane -- the RAG server agent (srd001), the chatbot agent
   (srd002), and the Helm deployment model (srd003) -- two control-plane -- the
-  coordinator (srd004) and the creator (srd005) -- and the deployment-plane executor
+  coordinator (srd004) and the creator (srd005) -- and the deployment-plane applier
   (srd006), plus the collector agent (srd007). Nine use cases exercise them
   across eight releases (rel00.0 through rel07.0), each with a formal test suite.
 
@@ -13,7 +13,7 @@ overview: |
   (srd021, srd028, srd029, srd030, srd033, srd034, srd035, srd036, and srd016
   traceparent) as external references rather than indexing them here. The control
   plane (coordinator, creator, and the provisioning surface) is release rel05.0; the
-  executor (srd006) that replaces the Go provisioning surface with a declarative
+  applier (srd006) that replaces the Go provisioning surface with a declarative
   agent is release rel06.0.
 
   The corpus is validated by the jurist (mage audit): it loads and validates with no
@@ -56,7 +56,7 @@ roadmap_summary:
     use_cases_total: 1
     status: implemented
   - version: "06.0"
-    name: Declarative executor agent
+    name: Declarative applier agent
     use_cases_done: 0
     use_cases_total: 1
     status: planned
@@ -87,10 +87,10 @@ srd_index:
     title: Creator Agent Functional Block
     summary: Agent lifecycle manager that realizes decided instance operations and alone holds the deployment-API authority.
     path: docs/specs/software-requirements/srd005-creator.yaml
-  - id: srd006-executor
-    title: Executor Agent Functional Block
+  - id: srd006-applier
+    title: Applier Agent Functional Block
     summary: Declarative deployment API that validates a values patch against the chart schema, applies it as a rollout, verifies it, and rolls back, binding the helm and kubectl CLIs as exec tools.
-    path: docs/specs/software-requirements/srd006-executor.yaml
+    path: docs/specs/software-requirements/srd006-applier.yaml
   - id: srd007-collector-agent
     title: Collector Agent Functional Block
     summary: Persistent trace ingress that composes bounded OTLP receive, deterministic spool, unchanged relay, control, monitor, and self-loop prevention while contrib retains metrics.
@@ -139,12 +139,12 @@ use_case_index:
     status: implemented
     test_suite: test-rel05.0-control-plane
     path: docs/specs/use-cases/rel05.0-uc001-control-plane-provisioning.yaml
-  - id: rel06.0-uc001-declarative-executor
-    title: The Executor Agent Realizes the Deployment API and Rolls Out a Values Change
+  - id: rel06.0-uc001-declarative-applier
+    title: The Applier Agent Realizes the Deployment API and Rolls Out a Values Change
     release: "06.0"
     status: planned
-    test_suite: test-rel06.0-executor
-    path: docs/specs/use-cases/rel06.0-uc001-declarative-executor.yaml
+    test_suite: test-rel06.0-applier
+    path: docs/specs/use-cases/rel06.0-uc001-declarative-applier.yaml
   - id: rel07.0-uc001-collector-ingress
     title: The Collector Agent Retains and Relays an Attributable Trace Batch
     release: "07.0"
@@ -183,11 +183,11 @@ test_suite_index:
     release: "05.0"
     traces: [rel05.0-uc001-control-plane-provisioning]
     path: docs/specs/test-suites/test-rel05.0-control-plane.yaml
-  - id: test-rel06.0-executor
-    title: Test Suite for Release 06.0 Declarative Executor Agent
+  - id: test-rel06.0-applier
+    title: Test Suite for Release 06.0 Declarative Applier Agent
     release: "06.0"
-    traces: [rel06.0-uc001-declarative-executor]
-    path: docs/specs/test-suites/test-rel06.0-executor.yaml
+    traces: [rel06.0-uc001-declarative-applier]
+    path: docs/specs/test-suites/test-rel06.0-applier.yaml
   - id: test-rel07.0-collector
     title: Test Suite for Release 07.0 Collector Agent
     release: "07.0"

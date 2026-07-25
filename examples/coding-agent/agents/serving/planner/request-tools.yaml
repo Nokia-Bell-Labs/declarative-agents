@@ -1,0 +1,5 @@
+tools:
+  - invoke_llm
+  - parse_plan
+  - delegate_executor
+  - delegate_critic

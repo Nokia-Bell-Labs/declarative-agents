@@ -1,0 +1,49 @@
+id: srd004-helm-package-validation
+title: Helm Values and Package Validation
+status: implemented
+
+problem: |
+  A rendered source chart is insufficient release evidence. Values must reject
+  unsafe or incoherent topology, prepared profile packages must resist stale or
+  tampered metadata and content, and the installable archive must include every
+  role asset and render independently of the repository.
+
+requirements:
+  - id: R1
+    title: Strict values
+    items:
+      - id: R1.1
+        text: values.schema.json shall reject unknown keys and malformed image, replica, port, resource, storage, URL, mount, workspace, model, security, and telemetry values.
+      - id: R1.2
+        text: Schema conditions shall reject Jaeger without collector ingress and external model mode without an HTTP endpoint.
+      - id: R1.3
+        text: Template guards shall retain mount, fixed-role-port, telemetry, and model invariants when schema validation is bypassed.
+  - id: R2
+    title: Package integrity
+    items:
+      - id: R2.1
+        text: Role manifests shall carry a deterministic checksum over ordered path and content bytes.
+      - id: R2.2
+        text: Preparation shall strictly parse manifests and reject stale roles, unknown fields, missing or extra files, checksum mismatch, duplicate coverage, invalid partition sizes, and encoded-key conflicts.
+      - id: R2.3
+        text: Prepared package validation shall run before chart staging or packaging.
+  - id: R3
+    title: Self-contained Helm archive
+    items:
+      - id: R3.1
+        text: mage helm:package shall regenerate role packages, stage the chart, run default, CI, and valid-fixture renders, and create one chart archive.
+      - id: R3.2
+        text: Archive validation shall require Chart.yaml, values, schema, core templates, and every generated profile package file and shall reject links.
+      - id: R3.3
+        text: The resulting .tgz shall lint and render from a directory with no source checkout.
+
+acceptance_criteria:
+  - id: AC1
+    criterion: Every valid fixture lints and renders, and every invalid fixture fails with its intended field.
+    traces: [R1]
+  - id: AC2
+    criterion: Deterministic tamper tests reject stale manifests, files, partitions, checksums, conflicts, and omissions.
+    traces: [R2]
+  - id: AC3
+    criterion: A packaged .tgz contains all role assets and independently passes helm lint and helm template.
+    traces: [R3]
