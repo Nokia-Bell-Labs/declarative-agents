@@ -1,0 +1,59 @@
+id: srd002-deployment-profile-package
+title: Role-Specific Deployment Profile Package
+status: implemented
+
+problem: |
+  Separate planner, executor, and critic containers must not receive the full
+  application profile tree. Deployment packaging needs one deterministic
+  resolver-backed closure per role, with provenance and bounded ConfigMap
+  partitions, without creating a second reference walker or baking profiles
+  into the shared runtime image.
+
+requirements:
+  - id: R1
+    title: Role-specific closures
+    items:
+      - id: R1.1
+        text: The application manifest shall name exactly planner, executor, and critic serving entry profiles and their /profiles runtime paths.
+      - id: R1.2
+        text: Packaging shall use the existing profileClosure resolver to follow application and canonical library references.
+      - id: R1.3
+        text: Each role shard shall contain its application entry profile and exactly the reachable application and canonical assets required by that profile.
+  - id: R2
+    title: Safe reproducible package
+    items:
+      - id: R2.1
+        text: Role paths, file lists, shard order, ConfigMap partitions, and YAML manifests shall be deterministic.
+      - id: R2.2
+        text: Traversal, absolute non-core references, globs, dangling references, symlinks, non-regular files, and conflicting destinations shall fail before publication.
+      - id: R2.3
+        text: Publication shall atomically replace the prior output only after every role succeeds.
+      - id: R2.4
+        text: Deployment and role manifests shall retain compatible library release, library and application checkout revisions and dirty state, mount path, and profile-free image metadata.
+  - id: R3
+    title: ConfigMap partitions
+    items:
+      - id: R3.1
+        text: Packaging shall partition each sorted role closure into deterministic chunks no larger than 900 KiB of encoded key and value payload.
+      - id: R3.2
+        text: One asset that exceeds the payload limit shall fail as unshardable rather than producing an invalid install artifact.
+      - id: R3.3
+        text: Role manifests shall list every partition, its encoded size, and its ordered file membership exactly once.
+  - id: R4
+    title: Runtime proof
+    items:
+      - id: R4.1
+        text: Every packaged serving entry profile shall pass agent-core --validate-config from its own role root.
+      - id: R4.2
+        text: Local combined-tree serving integrations shall remain unchanged.
+
+acceptance_criteria:
+  - id: AC1
+    criterion: mage package emits deterministic planner, executor, and critic role roots plus deployment and role manifests.
+    traces: [R1, R2]
+  - id: AC2
+    criterion: Boundary tests prove deterministic partitioning and reject dangling, symlinked, conflicting, and oversized inputs.
+    traces: [R2.2, R3]
+  - id: AC3
+    criterion: mage audit boot-validates every produced role profile with the real agent binary.
+    traces: [R4]

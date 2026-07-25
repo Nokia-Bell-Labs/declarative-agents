@@ -97,6 +97,11 @@ agent_profiles:
 runtime:
   mount_path: /profiles
   image_contains_profiles: false
+deployment:
+  serving_profiles:
+    - {role: planner, source: agents/serving/planner/profile.yaml, runtime_path: applications/coding-agent/planner/profile.yaml}
+    - {role: executor, source: agents/serving/executor/profile.yaml, runtime_path: applications/coding-agent/executor/profile.yaml}
+    - {role: critic, source: agents/serving/critic/profile.yaml, runtime_path: applications/coding-agent/critic/profile.yaml}
 `)
 			if _, err := readApplicationProfileManifest(filename); err == nil {
 				t.Fatalf("manifest source %q was accepted", tc.source)

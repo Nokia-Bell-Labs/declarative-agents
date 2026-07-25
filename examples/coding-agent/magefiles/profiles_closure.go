@@ -33,6 +33,9 @@ type applicationProfileManifest struct {
 		MountPath             string `yaml:"mount_path"`
 		ImageContainsProfiles bool   `yaml:"image_contains_profiles"`
 	} `yaml:"runtime"`
+	Deployment struct {
+		ServingProfiles []profileReference `yaml:"serving_profiles"`
+	} `yaml:"deployment"`
 }
 
 type profileReference struct {
@@ -88,11 +91,11 @@ func Package() error {
 	if err != nil {
 		return err
 	}
-	files, err := assembleProfileClosure(manifest, profilesRoot, output, source)
+	shards, err := packageServingDeployment(appRoot, profilesRoot, output, manifest, source)
 	if err != nil {
 		return err
 	}
-	fmt.Printf("packaged %d profile assets in %s from %s %s\n", len(files), output, source.Kind, source.Revision)
+	fmt.Printf("packaged %d serving role shards in %s from %s %s\n", len(shards), output, source.Kind, source.Revision)
 	return nil
 }
 
@@ -123,23 +126,75 @@ func readApplicationProfileManifest(filename string) (applicationProfileManifest
 	if len(manifest.AgentProfiles.References) == 0 {
 		return manifest, errors.New("application profile manifest has no profile references")
 	}
-	roles := make(map[string]struct{}, len(manifest.AgentProfiles.References))
-	for _, ref := range manifest.AgentProfiles.References {
+	if err := validateProfileReferences(manifest.AgentProfiles.References, "profile"); err != nil {
+		return manifest, err
+	}
+	if err := validateServingReferences(manifest.Deployment.ServingProfiles); err != nil {
+		return manifest, err
+	}
+	return manifest, nil
+}
+
+func validateProfileReferences(references []profileReference, kind string) error {
+	roles := make(map[string]struct{}, len(references))
+	for _, ref := range references {
 		if strings.TrimSpace(ref.Role) == "" {
-			return manifest, errors.New("profile reference has no role")
+			return fmt.Errorf("%s reference has no role", kind)
 		}
 		if _, exists := roles[ref.Role]; exists {
-			return manifest, fmt.Errorf("duplicate profile role %q", ref.Role)
+			return fmt.Errorf("duplicate %s role %q", kind, ref.Role)
 		}
 		roles[ref.Role] = struct{}{}
 		if _, err := cleanRelativeProfilePath(ref.Source); err != nil {
-			return manifest, fmt.Errorf("profile role %s source: %w", ref.Role, err)
+			return fmt.Errorf("%s role %s source: %w", kind, ref.Role, err)
 		}
 		if _, err := cleanRelativeProfilePath(ref.RuntimePath); err != nil {
-			return manifest, fmt.Errorf("profile role %s runtime_path: %w", ref.Role, err)
+			return fmt.Errorf("%s role %s runtime_path: %w", kind, ref.Role, err)
 		}
 	}
-	return manifest, nil
+	return nil
+}
+
+func validateServingReferences(references []profileReference) error {
+	if len(references) == 0 {
+		return errors.New("application profile manifest has no deployment serving profiles")
+	}
+	if err := validateProfileReferences(references, "serving profile"); err != nil {
+		return err
+	}
+	want := map[string]profileReference{
+		"planner": {
+			Source: "agents/serving/planner/profile.yaml", RuntimePath: "applications/coding-agent/planner/profile.yaml",
+		},
+		"executor": {
+			Source: "agents/serving/executor/profile.yaml", RuntimePath: "applications/coding-agent/executor/profile.yaml",
+		},
+		"critic": {
+			Source: "agents/serving/critic/profile.yaml", RuntimePath: "applications/coding-agent/critic/profile.yaml",
+		},
+	}
+	for _, ref := range references {
+		expected, exists := want[ref.Role]
+		if !exists {
+			return fmt.Errorf("unsupported deployment serving role %q", ref.Role)
+		}
+		if ref.Source != expected.Source {
+			return fmt.Errorf("serving profile role %s source %q, want %q", ref.Role, ref.Source, expected.Source)
+		}
+		if ref.RuntimePath != expected.RuntimePath {
+			return fmt.Errorf("serving profile role %s runtime_path %q, want %q", ref.Role, ref.RuntimePath, expected.RuntimePath)
+		}
+		delete(want, ref.Role)
+	}
+	if len(want) > 0 {
+		missing := make([]string, 0, len(want))
+		for role := range want {
+			missing = append(missing, role)
+		}
+		sort.Strings(missing)
+		return fmt.Errorf("deployment serving profiles missing roles: %s", strings.Join(missing, ", "))
+	}
+	return nil
 }
 
 func isCompatibleProfileRelease(version string) bool {

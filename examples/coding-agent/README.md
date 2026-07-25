@@ -54,10 +54,11 @@ persistent host lifecycle, declared remote boundaries, and terminal response
 mapping. It references canonical library assets and does not copy their
 machines, declarations, or reusable role behavior.
 
-From this directory, assemble the closed runtime tree:
+From this directory, assemble the deployable role closures:
 
 ```bash
 mage package
+mage packageValidate
 ```
 
 The default output is `build/profiles`; set
@@ -71,25 +72,39 @@ Only `/opt/agent-core/...` absolute references are external. Traversal, other
 absolute paths, globs in runtime references, symlinks, dangling references, and
 two sources targeting one destination fail packaging.
 
-`build/profiles/package-manifest.yaml` lists the sorted closure and provenance.
+`build/profiles/deployment-manifest.yaml` records the profile-free runtime
+contract and the sorted `critic`, `executor`, and `planner` shards. Each role
+directory is an independent root mounted at `/profiles` and contains only its
+resolved closure. `build/profiles/manifests/<role>.yaml` lists the serving entry
+profile, exact reachable files, provenance, and deterministic ConfigMap
+partitions. Partitions are capped at 900 KiB of encoded key/value payload to
+leave Kubernetes object metadata headroom. A single entry above that bound
+fails as unshardable.
+
+`mage packageValidate` builds the production agent binary, packages into a
+temporary output, and runs `--validate-config` against each role entry profile
+from its own shard root.
+
 When the source checkout is exactly the compatible clean release, provenance
 records that release. Otherwise it records `kind: checkout`, the checkout
 revision (or `unversioned-checkout` for a fixture), and the compatible release
-separately; a checkout is never mislabeled as released.
+separately; a checkout is never mislabeled as released. Deployment and role
+manifests also record the application checkout revision and dirty state because
+the serving composition is application-owned.
 
 The agent-core runtime image stays profile-free. Kubernetes runs planner,
 executor, and critic as separate containers using the same runtime image. Each
-container mounts the packaged tree under `/profiles` and selects its own profile.
-Profiles are application package content, not runtime image content.
+container mounts its role directory under `/profiles` and selects the serving
+profile named by that role's manifest. Profiles are application package
+content, not runtime image content.
 
 ### Parameter inventory
 
-The coding application currently requires no generated override. Planner and
-executor use their canonical `llm/default.yaml` endpoint/model declarations and
-machine-local budgets. Planner's existing `execute_task.config.profile` selects
-`agents/executor/profile.yaml`. Both critic modes are deterministic and have no
-model, REST target, or child profile to override; their budgets remain in their
-canonical machines.
+The coding application currently requires no generated override. The serving
+planner reuses the canonical planner `llm/default.yaml`; the executor shard
+reuses the canonical executor profile, model declaration, machine, and tools;
+the critic shard reuses the deterministic changed-workspace profile. The local
+batch planner still uses its existing child-agent execution contract.
 
 These are existing profile surfaces, not a new substitution language. A later
 deployment may co-generate a profile-local declaration or machine variant and

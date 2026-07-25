@@ -11,7 +11,8 @@ rest:
       redirect: {mode: none}
       network:
         schemes: [http]
-        hosts: [${EXECUTOR_HOST:-127.0.0.1}]
+        hosts:
+          - ${EXECUTOR_HOST:-127.0.0.1}
         ports: [18210]
     critic_client:
       timeout: 5m
@@ -21,7 +22,8 @@ rest:
       redirect: {mode: none}
       network:
         schemes: [http]
-        hosts: [${CRITIC_HOST:-127.0.0.1}]
+        hosts:
+          - ${CRITIC_HOST:-127.0.0.1}
         ports: [18220]
     role_request:
       timeout: 20m

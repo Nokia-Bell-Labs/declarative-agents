@@ -92,7 +92,7 @@ components:
       coding result. The benchmark/session mode remains available separately.
       The application references these profiles; it does not fork them.
   - name: application package
-    path: agents/application.yaml and magefiles/profiles_closure.go
+    path: agents/application.yaml, magefiles/profiles_closure.go, and magefiles/profiles_deployment.go
     status: implemented
     responsibility: |
       Pin a compatible library release, identify checkout provenance, resolve
@@ -204,6 +204,20 @@ design_decisions:
       - Health describes a live agent-owned listener instead of a sidecar or sleep.
       - Canonical batch profiles remain valid for local callers.
       - Built-in REST trace propagation connects every remote role boundary.
+  - id: 8
+    title: Package one exact closure per serving role
+    decision: |
+      Deployment packaging stages application and canonical sources into one
+      temporary namespace, then invokes the #847 profileClosure resolver once
+      per serving entry profile. Each role root preserves /profiles paths and
+      receives only reachable assets. Sorted files are assigned sequentially to
+      900 KiB ConfigMap payload partitions; an individual oversized entry fails.
+      Deployment and role manifests record provenance, profile paths, partition
+      membership, and the profile-free image invariant.
+    benefits:
+      - Separate containers receive no unrelated role program.
+      - Resolver safety behavior has one implementation.
+      - Later Helm templates consume deterministic staging metadata.
 
 technology_choices:
   - component: Agent runtime
@@ -240,6 +254,8 @@ project_structure:
       role: Planned coding-loop fixtures owned by this application.
     - path: magefiles/profiles_closure.go
       role: Deterministic transitive library-profile closure assembly.
+    - path: magefiles/profiles_deployment.go
+      role: Role-specific closure publication and bounded ConfigMap partition metadata.
     - path: agents/serving/
       role: Persistent planner, executor, and critic host profiles and remote request composition.
     - path: helm/
@@ -260,8 +276,9 @@ implementation_status:
   current_focus: |
     The application documentation, portable integration fixtures, live executor,
     real planner delegation, canonical critic verdict gate, application
-    reference manifest, profile closure packaging, and persistent serving
-    contract are implemented. Helm deployment remains planned follow-up work.
+    reference manifest, role-specific profile closure packaging, and persistent
+    serving contract are implemented. Helm deployment remains planned follow-up
+    work.
   progress:
     - implemented: The planner -> executor -> critic coding loop and three-stage
         integration contract.
@@ -274,6 +291,9 @@ implementation_status:
     - implemented: Persistent planner, executor, and critic serving profiles
         with lifecycle health, shared-workspace handoff, remote sequencing, and
         connected W3C traces.
+    - implemented: Deterministic planner, executor, and critic deployment
+        closures with provenance, exact reachable assets, and ConfigMap
+        partition metadata.
     - planned: Kubernetes resources and Helm chart.
 
 related_documents:

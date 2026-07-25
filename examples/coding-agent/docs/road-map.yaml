@@ -48,3 +48,20 @@ releases:
       - id: test-rel02.0-serving-contract
         summary: Real health, canonical critic, remote coding, and connected trace evidence.
         status: implemented
+  - version: "03.0"
+    name: Role-specific deployment profile package
+    description: |
+      The #847 resolver packages independent planner, executor, and critic
+      profile roots from one canonical source namespace. Deterministic manifests
+      retain provenance and partition each role for bounded ConfigMaps.
+    status: implemented
+    application_srds:
+      - srd002-deployment-profile-package
+    use_cases:
+      - id: rel03.0-uc001-package-serving-profiles
+        summary: A release builder emits one exact, mountable profile closure per serving role.
+        status: implemented
+    test_suites:
+      - id: test-rel03.0-deployment-profile-package
+        summary: Exact closures, reproducibility, safety failures, ConfigMap bounds, and real-binary boot validation.
+        status: implemented

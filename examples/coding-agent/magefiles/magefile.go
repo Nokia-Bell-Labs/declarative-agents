@@ -41,9 +41,10 @@ func Audit() error {
 	if _, err := assembleProfileClosure(manifest, roots.Profiles, packagedRoot, source); err != nil {
 		return fmt.Errorf("assemble canonical profile closure: %w", err)
 	}
-	servingRoot := filepath.Join(packagedRoot, "applications", "coding-agent")
-	if err := copyTree(filepath.Join(root, "agents", "serving"), servingRoot); err != nil {
-		return fmt.Errorf("stage application serving profiles: %w", err)
+	deploymentRoot := filepath.Join(filepath.Dir(packagedRoot), "deployment")
+	shards, err := packageServingDeployment(root, roots.Profiles, deploymentRoot, manifest, source)
+	if err != nil {
+		return fmt.Errorf("package serving deployment: %w", err)
 	}
 	binary, cleanup, err := buildAgent(roots.Core)
 	if err != nil {
@@ -54,8 +55,9 @@ func Audit() error {
 	for _, ref := range manifest.AgentProfiles.References {
 		profiles = append(profiles, filepath.Join(packagedRoot, filepath.FromSlash(ref.RuntimePath)))
 	}
-	for _, role := range servingRoles {
-		profiles = append(profiles, filepath.Join(servingRoot, role, "profile.yaml"))
+	for _, shard := range shards {
+		profiles = append(profiles,
+			filepath.Join(deploymentRoot, shard.Path, filepath.FromSlash(shard.Profile)))
 	}
 	if err := bootSmokeProfiles(binary, roots.Core, profiles); err != nil {
 		return err
@@ -88,10 +90,22 @@ for path, fields in required.items():
     if missing:
         errors.append(f"{path.relative_to(root)} missing {sorted(missing)}")
 index = loaded[docs / "SPECIFICATIONS.yaml"]
-for section in ("foundation_document_index", "use_case_index", "test_suite_index"):
+for section in ("foundation_document_index", "srd_index", "use_case_index", "test_suite_index"):
     for entry in index[section]:
         if not (root / entry["path"]).is_file():
             errors.append(f"{section} path does not exist: {entry['path']}")
+suite_by_id = {
+    entry["id"]: loaded[root / entry["path"]]
+    for entry in index["test_suite_index"]
+}
+for entry in index["use_case_index"]:
+    use_case_doc = loaded[root / entry["path"]]
+    suite_id = use_case_doc.get("test_suite")
+    suite_doc = suite_by_id.get(suite_id)
+    if suite_doc is None:
+        errors.append(f"use case {entry['id']} names unknown test suite {suite_id}")
+    elif entry["id"] not in suite_doc.get("traces", []):
+        errors.append(f"test suite {suite_id} does not trace use case {entry['id']}")
 use_case = loaded[docs / "specs/use-cases/rel01.0-uc001-coding-loop.yaml"]
 suite = loaded[docs / "specs/test-suites/test-rel01.0-coding-loop.yaml"]
 if use_case.get("test_suite") != suite.get("id"):
