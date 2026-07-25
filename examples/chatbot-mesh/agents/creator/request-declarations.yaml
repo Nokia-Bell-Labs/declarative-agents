@@ -371,11 +371,11 @@ tools:
           llmChatModel: {type: string}
           llmEmbedModel: {type: string}
           llmChatModels: {type: array}
-          llmRouterModel: {type: string}
+          llmTierModel: {type: string}
           llmTopology: {type: string}
           paramsNResults: {type: integer}
           paramsChunkCap: {type: integer}
-          paramsRouterDefault: {type: string}
+          paramsTierDefault: {type: string}
     side_effects:
       - kind: external_api
         target: deployment_api.state

@@ -1,12 +1,13 @@
-# Chatbot Router Prompt
+# Chatbot Tier-Selector Prompt
 
-The router (`route` in
+The tier selector (`select_tier` in
 [request-declarations.yaml](request-declarations.yaml)) is a small fast
-classifier that picks one chat-LLM word for the composed grounding prompt before
-the turn answers (srd002 R2). The prompt below is the source of the `route`
-word's `system_prompt`; keep the two identical. The chat-LLM vocabulary the
-router chooses from is exactly the declared `$tool` words, and a misparse or an
-out-of-vocabulary pick falls back to the default word `invoke_llm_fast`.
+classifier that reads the original question and picks one chat-LLM word before
+the turn answers (srd002 R2). The prompt below is the source of the
+`select_tier` word's `system_prompt`; keep the two identical. The chat-LLM
+vocabulary the tier selector chooses from is exactly the declared `$tool` words,
+and a misparse or an out-of-vocabulary pick falls back to the default word
+`invoke_llm_fast`.
 
 ## Vocabulary
 
@@ -18,7 +19,7 @@ out-of-vocabulary pick falls back to the default word `invoke_llm_fast`.
 ## Prompt
 
 ```
-You route a user's question to one chat-LLM word. The user question
+You select one chat-LLM word for a user's question. The user question
 arrives as the message. Pick exactly one word by the question's difficulty:
 
 - invoke_llm_fast: a small fast model. Use it for short, factual lookups

@@ -32,15 +32,15 @@ const (
 	chromaCorpus2 = "corpus2"
 )
 
-// Chatbot proves the routed, two-RAG chat turn end to end across the mesh
+// Chatbot proves the tier-selected, two-RAG chat turn end to end across the mesh
 // topology: one Chroma container with two disjoint collections, two rag-server
 // agents (rag0 over the ingest fixture, rag1 over a seeded disjoint corpus), the
-// router-enabled chatbot, and an external Ollama for the embedding, router, and
+// tier-selector-enabled chatbot, and an external Ollama for the embedding, tier selector, and
 // two chat models. It drives the chat machine_request endpoint (not the browser):
 //
-//   - a factual turn and an analytical turn exercise the $tool router, and the
+//   - a factual turn and an analytical turn exercise the $tool tier selector, and the
 //     chatbot span log is asserted to show both the fast and the deep chat model
-//     answered (the router dispatched each word);
+//     answered (the tier selector dispatched each word);
 //   - a cross-corpus turn draws the disjoint rag1 corpus into the answer
 //     (sequential fan-out; compose renders each RAG under its [ragN] header, no
 //     merge word);
@@ -177,13 +177,13 @@ func runChatbotIntegration(profilesRoot, coreRoot string) error {
 		return err
 	}
 
-	// Router: a factual turn and an analytical turn. The chat trace (asserted after
+	// Tier selector: a factual turn and an analytical turn. The chat trace (asserted after
 	// exit) must show both the fast and the deep chat model answered.
-	if err := assertChatbotRoutedTurn("What do the Chroma corpus agents use to compute embeddings?"); err != nil {
-		return fmt.Errorf("factual routed turn: %w", err)
+	if err := assertChatbotTierSelectedTurn("What do the Chroma corpus agents use to compute embeddings?"); err != nil {
+		return fmt.Errorf("factual tier-selected turn: %w", err)
 	}
-	if err := assertChatbotRoutedTurn("Analyze and synthesize the trade-offs across the described systems with multi-step reasoning about their relative merits."); err != nil {
-		return fmt.Errorf("analytical routed turn: %w", err)
+	if err := assertChatbotTierSelectedTurn("Analyze and synthesize the trade-offs across the described systems with multi-step reasoning about their relative merits."); err != nil {
+		return fmt.Errorf("analytical tier-selected turn: %w", err)
 	}
 
 	// Fan-out: a cross-corpus turn cites chunks from both RAGs by their tags.
@@ -224,7 +224,7 @@ func runChatbotIntegration(profilesRoot, coreRoot string) error {
 	if err != nil {
 		return err
 	}
-	if err := assertChatbotRoutingTrace(chatTrace, fast, deep); err != nil {
+	if err := assertChatbotTierSelectionTrace(chatTrace, fast, deep); err != nil {
 		return err
 	}
 	// One connected cross-agent trace: the fan-out turn's chatbot spans and each
@@ -237,7 +237,7 @@ func runChatbotIntegration(profilesRoot, coreRoot string) error {
 		return fmt.Errorf("rag1 %w", err)
 	}
 
-	fmt.Println("integration:chatbot PASS - router dispatched both chat models, fan-out drew both RAG corpora, rag1-down turn degraded to a 200 with the disjoint corpus absent, and each rag-server joined the chatbot's connected trace")
+	fmt.Println("integration:chatbot PASS - tier selector dispatched both chat models, fan-out drew both RAG corpora, rag1-down turn degraded to a 200 with the disjoint corpus absent, and each rag-server joined the chatbot's connected trace")
 	return nil
 }
 
@@ -254,7 +254,7 @@ type chatResponse struct {
 
 func postChatTurn(message string, history string) (chatResponse, int, error) {
 	body := fmt.Sprintf(`{"message":%q,"history":%s}`, message, history)
-	// A chat turn embeds, routes, fans out to the RAG tier and answers, so it is
+	// A chat turn embeds, selects a model tier, fans out to the RAG tier and answers, so it is
 	// the longest inference chain in the mesh and never belongs on the probe
 	// bound (GH-709 R2).
 	data, status, err := requestInference(http.MethodPost, chatbotChatURL, body, "chatbot chat turn")
@@ -268,9 +268,10 @@ func postChatTurn(message string, history string) (chatResponse, int, error) {
 	return resp, status, nil
 }
 
-// assertChatbotRoutedTurn drives one routed turn and asserts a grounded 200. The
-// router's per-turn choice is asserted collectively from the trace afterwards.
-func assertChatbotRoutedTurn(message string) error {
+// assertChatbotTierSelectedTurn drives one tier-selected turn and asserts a
+// grounded 200. The selector's per-turn choice is asserted collectively from
+// the trace afterwards.
+func assertChatbotTierSelectedTurn(message string) error {
 	resp, status, err := postChatTurn(message, "[]")
 	if err != nil {
 		return err
@@ -347,10 +348,10 @@ func assertChatbotMonitorReachable() error {
 	return nil
 }
 
-// assertChatbotRoutingTrace proves, from the chatbot's own span log, that the
-// router dispatched both chat-LLM words over the turns: a genai chat span for the
+// assertChatbotTierSelectionTrace proves, from the chatbot's own span log, that
+// the tier selector dispatched both chat-LLM words over the turns: a genai chat span for the
 // fast model and one for the deep model.
-func assertChatbotRoutingTrace(tracePath, fastModel, deepModel string) error {
+func assertChatbotTierSelectionTrace(tracePath, fastModel, deepModel string) error {
 	spans, err := readChromaSpans(tracePath)
 	if err != nil {
 		return err
@@ -366,7 +367,7 @@ func assertChatbotRoutingTrace(tracePath, fastModel, deepModel string) error {
 	}
 	for _, want := range []string{fastModel, deepModel} {
 		if !models[want] {
-			return fmt.Errorf("chatbot trace shows no chat span for model %q (router must dispatch both chat words); saw %v", want, sortedModelKeys(models))
+			return fmt.Errorf("chatbot trace shows no chat span for model %q (tier selector must dispatch both chat words); saw %v", want, sortedModelKeys(models))
 		}
 	}
 	return nil
@@ -535,7 +536,7 @@ func generateRag1Variant(profilesRoot string) (string, func(), error) {
 
 // chatbotOllamaSkipReason returns a non-empty reason when Ollama is unreachable or
 // a model the chatbot integration needs is not installed: the chroma embed model
-// that seeds both collections, the chatbot's embedding model, and the router and
+// that seeds both collections, the chatbot's embedding model, and the tier-selector and
 // two chat models. Reading them from config keeps the gate from duplicating names.
 func chatbotOllamaSkipReason(profilesRoot string) string {
 	required, err := chatbotRequiredModels(profilesRoot)
@@ -614,7 +615,7 @@ func chatbotEmbedModelFromConfig(profilesRoot string) (string, error) {
 }
 
 // chatbotToolModels reads the model of every invoke_llm-init word in the chatbot's
-// request-declarations.yaml keyed by word name (route, invoke_llm_fast, invoke_llm_deep).
+// request-declarations.yaml keyed by word name (select_tier, invoke_llm_fast, invoke_llm_deep).
 func chatbotToolModels(profilesRoot string) (map[string]string, error) {
 	var cfg struct {
 		Tools []struct {

@@ -1,11 +1,11 @@
 # Mock for the Ollama provider, claiming these behaviors:
 # - GET /api/tags: model discovery, as read by agent-core's adapter checkModel
 #   (internal/model/llm/ollama/adapter.go tagsResp). It must list every model
-#   the chatbot's invoke_llm words declare: qwen2.5:3b (route, fast) and
+#   the chatbot's invoke_llm words declare: qwen2.5:3b (tier selector, fast) and
 #   ornith:9b (deep).
 # - POST /api/embeddings: the embed_query REST word maps $.embedding.
 # - POST /api/chat: adapter chatResp shape {message:{role,content},...}. The
-#   route call and the answer call hit this route in order, so the script's
+#   tier-selector call and the answer call hit this HTTP route in order, so the script's
 #   first response is a parseable tool call ({"tool": ...}, the parse_response
 #   contract) selecting the fast chat word, and the second is the answer.
 # The real-stack ladder (#408) validates these claims against live Ollama.

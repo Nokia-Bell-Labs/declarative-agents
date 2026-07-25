@@ -80,11 +80,11 @@ ollama:
   enabled: true
   image: {repository: ollama/ollama, tag: latest, pullPolicy: IfNotPresent}
   # The models, named once here, feed both the preload Job and the agents' rendered
-  # config: the embedding model, the chat models (fast + deep), and the router model.
+  # config: the embedding model, the chat models (fast + deep), and the tier-selector model.
   models:
     embedding: qwen3-embedding:8b
     chat: ["qwen2.5:3b", "ornith:9b"]
-    router: qwen2.5:3b
+    tier: qwen2.5:3b
   preload:
     # Test-only transition observation may install this Job suspended, assert
     # agents are unready, then resume it. Production defaults to immediate pull.
@@ -188,7 +188,7 @@ applier:
   params:
     nResults: 5
     chunkCap: 0
-    routerDefault: invoke_llm_fast
+    tierDefault: invoke_llm_fast
     chatModel: "qwen2.5:3b"
 
 # The control plane (srd004 coordinator, srd005 creator): two persistent agents on

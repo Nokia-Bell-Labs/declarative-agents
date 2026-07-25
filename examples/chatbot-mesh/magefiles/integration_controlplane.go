@@ -194,8 +194,8 @@ func runControlPlaneIntegration(profilesRoot, coreRoot string) error {
 		Rags          []struct {
 			Name string `json:"name"`
 		} `json:"rags"`
-		LLMInCluster        bool   `json:"llmInCluster"`
-		ParamsRouterDefault string `json:"paramsRouterDefault"`
+		LLMInCluster      bool   `json:"llmInCluster"`
+		ParamsTierDefault string `json:"paramsTierDefault"`
 	}
 	if err := json.Unmarshal(stateData, &stateResp); err != nil {
 		return fmt.Errorf("decode state response: %w: %s", err, stateData)
@@ -206,8 +206,8 @@ func runControlPlaneIntegration(profilesRoot, coreRoot string) error {
 	if len(stateResp.Rags) == 0 {
 		return fmt.Errorf("state carries no rags; the fake deployment API's topology did not survive the hop: %s", stateData)
 	}
-	if stateResp.ParamsRouterDefault == "" {
-		return fmt.Errorf("state carries no paramsRouterDefault; a flat field was dropped somewhere in the chain: %s", stateData)
+	if stateResp.ParamsTierDefault == "" {
+		return fmt.Errorf("state carries no paramsTierDefault; a flat field was dropped somewhere in the chain: %s", stateData)
 	}
 	if got := rec.stateCount(); got < 1 {
 		return fmt.Errorf("the creator did not read the deployment-API state surface (state count %d)", got)
@@ -339,18 +339,18 @@ func startFakeDeploymentAPIOnAddr(rec *deploymentAPIRecorder, address string) (f
 		// GH-752/GH-753): one selector per named field, so the fake sends what a real
 		// applier's helm_get_values read would produce.
 		writeJSON(w, map[string]interface{}{
-			"schema_version":      "1",
-			"rags":                []map[string]interface{}{{"name": "rag0", "collection": "corpus", "embeddingModel": "qwen3-embedding:8b", "replicas": 1}},
-			"llmInCluster":        true,
-			"llmExternalURL":      "http://ollama.default.svc.cluster.local:11434",
-			"llmChatModel":        "qwen2.5:3b",
-			"llmEmbedModel":       "qwen3-embedding:8b",
-			"llmChatModels":       []string{"qwen2.5:3b", "ornith:9b"},
-			"llmRouterModel":      "qwen2.5:3b",
-			"llmTopology":         "single",
-			"paramsNResults":      5,
-			"paramsChunkCap":      0,
-			"paramsRouterDefault": "invoke_llm_fast",
+			"schema_version":    "1",
+			"rags":              []map[string]interface{}{{"name": "rag0", "collection": "corpus", "embeddingModel": "qwen3-embedding:8b", "replicas": 1}},
+			"llmInCluster":      true,
+			"llmExternalURL":    "http://ollama.default.svc.cluster.local:11434",
+			"llmChatModel":      "qwen2.5:3b",
+			"llmEmbedModel":     "qwen3-embedding:8b",
+			"llmChatModels":     []string{"qwen2.5:3b", "ornith:9b"},
+			"llmTierModel":      "qwen2.5:3b",
+			"llmTopology":       "single",
+			"paramsNResults":    5,
+			"paramsChunkCap":    0,
+			"paramsTierDefault": "invoke_llm_fast",
 		})
 	})
 	srv := &http.Server{Handler: mux}

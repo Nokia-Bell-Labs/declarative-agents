@@ -87,13 +87,13 @@ func TestKindLLMModelsReachDeployedDeclarations(t *testing.T) {
 	}
 	render := string(out)
 	for _, want := range []string{
-		`name: CHATBOT_ROUTER_MODEL`,
+		`name: CHATBOT_TIER_MODEL`,
 		`name: CHATBOT_FAST_MODEL`,
 		`name: CHATBOT_DEEP_MODEL`,
 		`name: CHATBOT_UI_ROOT`,
 		`value: "/profiles/ux/app/dist"`,
 		`value: "qwen2.5:0.5b"`,
-		`model: "${CHATBOT_ROUTER_MODEL:-qwen2.5:3b}"`,
+		`model: "${CHATBOT_TIER_MODEL:-qwen2.5:3b}"`,
 		`model: "${CHATBOT_FAST_MODEL:-qwen2.5:3b}"`,
 		`model: "${CHATBOT_DEEP_MODEL:-ornith:9b}"`,
 		`root: "${CHATBOT_UI_ROOT:-ux/app/dist}"`,

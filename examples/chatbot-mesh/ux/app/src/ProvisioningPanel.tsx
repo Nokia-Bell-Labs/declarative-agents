@@ -116,11 +116,11 @@ export default function ProvisioningPanel() {
                 />
               </label>
               <label className="prov-field">
-                <span>router model</span>
+                <span>tier-selector model</span>
                 <input
-                  value={draft.llm.routerModel ?? ""}
+                  value={draft.llm.tierModel ?? ""}
                   onChange={(e) =>
-                    setDraft({ ...draft, llm: { ...draft.llm, routerModel: e.target.value } })
+                    setDraft({ ...draft, llm: { ...draft.llm, tierModel: e.target.value } })
                   }
                 />
               </label>
@@ -168,11 +168,11 @@ export default function ProvisioningPanel() {
               />
             </label>
             <label className="prov-field">
-              <span>router default word</span>
+              <span>tier-selector default word</span>
               <input
-                value={draft.params.routerDefault}
+                value={draft.params.tierDefault}
                 onChange={(e) =>
-                  setDraft({ ...draft, params: { ...draft.params, routerDefault: e.target.value } })
+                  setDraft({ ...draft, params: { ...draft.params, tierDefault: e.target.value } })
                 }
               />
             </label>

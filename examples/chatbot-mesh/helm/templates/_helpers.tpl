@@ -43,12 +43,12 @@ http://{{ include "chatbot-mesh.fullname" . }}-ollama:{{ .Values.llm.port }}
 
 {{/*
 The full list of models the LLM tier must hold: the embedding model, every chat
-model, and the router model, named once in values (GH-337). The preload Job pulls
+model, and the tier-selector model, named once in values (GH-337). The preload Job pulls
 these and the agent readiness probe checks for them, so a model cannot be preloaded
 but unrendered or gated-on but unpulled.
 */}}
 {{- define "chatbot-mesh.ollamaModels" -}}
-{{- $models := list .Values.ollama.models.embedding .Values.ollama.models.router -}}
+{{- $models := list .Values.ollama.models.embedding .Values.ollama.models.tier -}}
 {{- range .Values.ollama.models.chat -}}
 {{- $models = append $models . -}}
 {{- end -}}
@@ -116,8 +116,8 @@ per-agent runtime endpoint appears, so the read state carries no agent authority
 {{- end -}}
 {{- $view := dict
   "rags" $rags
-  "llm" (dict "inCluster" .Values.ollama.enabled "externalURL" .Values.llm.externalURL "chatModel" (default "" .Values.applier.params.chatModel) "embedModel" .Values.chatbot.embeddingModel "chatModels" .Values.ollama.models.chat "routerModel" .Values.ollama.models.router "topology" .Values.ollama.topology)
-  "params" (dict "nResults" (int .Values.applier.params.nResults) "chunkCap" (int .Values.applier.params.chunkCap) "routerDefault" .Values.applier.params.routerDefault)
+  "llm" (dict "inCluster" .Values.ollama.enabled "externalURL" .Values.llm.externalURL "chatModel" (default "" .Values.applier.params.chatModel) "embedModel" .Values.chatbot.embeddingModel "chatModels" .Values.ollama.models.chat "tierModel" .Values.ollama.models.tier "topology" .Values.ollama.topology)
+  "params" (dict "nResults" (int .Values.applier.params.nResults) "chunkCap" (int .Values.applier.params.chunkCap) "tierDefault" .Values.applier.params.tierDefault)
 -}}
 {{- $view | toJson -}}
 {{- end -}}

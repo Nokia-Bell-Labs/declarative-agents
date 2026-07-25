@@ -127,11 +127,11 @@ deployment_api_contract:
       - {name: llmChatModel, type: string, required: true, note: the panel's configured default chat model}
       - {name: llmEmbedModel, type: string, required: true, note: the embedding model the chatbot uses to embed a query}
       - {name: llmChatModels, type: array, required: true, note: the in-cluster tier's configured chat models}
-      - {name: llmRouterModel, type: string, required: true, note: the in-cluster tier's configured router model}
+      - {name: llmTierModel, type: string, required: true, note: the configured tier-selector model}
       - {name: llmTopology, type: string, required: true, note: "the in-cluster tier's topology: single or per-model"}
       - {name: paramsNResults, type: integer, required: true, note: the per-RAG retrieval bound}
       - {name: paramsChunkCap, type: integer, required: true, note: the chunk cap parameter}
-      - {name: paramsRouterDefault, type: string, required: true, note: the router's default word}
+      - {name: paramsTierDefault, type: string, required: true, note: the tier selector's default word}
       - {name: status, type: string, required: false, note: unavailable, on the 502 alone}
       - {name: error, type: string, required: false, note: state_read_failed, on the 502 alone}
 

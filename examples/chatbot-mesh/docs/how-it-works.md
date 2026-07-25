@@ -8,7 +8,7 @@ we link the software requirements document (SRD) rather than restate it.
 
 The one idea to carry through: there is no bespoke orchestration code. Every
 agent is a YAML profile the shared agent-core runtime loads, the way a jar runs
-on a JVM. The topology, the routing, the retrieval fan-out, and the deployment
+on a JVM. The topology, the tier selection, the retrieval fan-out, and the deployment
 are configuration.
 
 ## Two planes
@@ -22,7 +22,7 @@ flowchart TB
   User(["Browser SPA<br/>chat · observability · provisioning"])
 
   subgraph DP["Data plane — serves chat turns"]
-    CB["Chatbot agent<br/>route · fan out · compose"]
+    CB["Chatbot agent<br/>select tier · fan out · compose"]
     R0["RAG server 0"]
     R1["RAG server 1"]
     CH0[("Chroma<br/>collection 0")]
@@ -66,7 +66,7 @@ Table 1: Mesh components
 
 | Component | Plane | Job |
 |---|---|---|
-| Chatbot agent (`agents/chatbot/`) | data | Run the turn: embed once, route, fan out, compose, answer; host the SPA |
+| Chatbot agent (`agents/chatbot/`) | data | Run the turn: embed once, select a model tier, fan out, compose, answer; host the SPA |
 | RAG server agent (`agents/rag-server/`) | data | Vector-in retrieval against one Chroma collection; one agent per corpus |
 | Corpus-ingest wrapper (`agents/corpus-ingest/`) + canonical library agent | data | Seed Chroma after machine-owned trusted-path discovery; the mesh supplies REST/model/collection values |
 | Coordinator (`agents/coordinator/`) | control | Decide the values change; sequence ingest and reconfiguration |
@@ -96,7 +96,7 @@ sequenceDiagram
   participant B as Browser SPA
   participant CB as Chatbot agent
   participant O as Ollama (embed)
-  participant RT as LLM router
+  participant TS as LLM tier selector
   participant R0 as RAG server 0
   participant R1 as RAG server 1
 
@@ -104,8 +104,8 @@ sequenceDiagram
   CB->>O: embed the question (once)
   O-->>CB: query vector
 
-  CB->>RT: classify the question ($tool router)
-  RT-->>CB: pick a chat-LLM word<br/>(bad pick falls back to a default word)
+  CB->>TS: classify the original question ($tool tier selector)
+  TS-->>CB: pick a chat-LLM word<br/>(bad pick falls back to a default word)
 
   par fan out the same vector
     CB->>R0: query_embeddings
@@ -120,11 +120,11 @@ sequenceDiagram
   CB-->>B: grounded answer (+ degradation metadata)
 ```
 
-Two mechanics carry the turn. The router is one classifier LLM (large language
+Two mechanics carry the turn. The tier selector is one classifier LLM (large language
 model) call whose response the chatbot parses through a `$tool` indirection to
 select a chat-LLM word; a misparse or out-of-set pick falls back to a configured
 default word rather than failing the turn (srd002 R2). Composition reaches
-non-adjacent data — the original question, the routing decision, the retrieved
+non-adjacent data — the original question, the tier selection, the retrieved
 chunks — through command-state `$from(label).path` selectors rather than by
 threading it through every intervening machine step; the `compose` builtin
 renders the grounding prompt from those selectors (srd002 R1.2).

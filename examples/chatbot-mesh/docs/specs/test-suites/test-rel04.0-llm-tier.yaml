@@ -32,7 +32,7 @@ test_cases:
     inputs:
       chart: examples/chatbot-mesh/helm/
       values: defaults (ollama.enabled=true)
-      models: small CPU-only embedding, chat, and router models
+      models: small CPU-only embedding, chat, and tier-selector models
     expected:
       ollama_subchart_deployed_with_pvc: true
       preload_job_pulls_all_declared_models: true

@@ -36,9 +36,9 @@ const countsJSON = `{"ready":2,"desired":2,"revision":7}`
 // has ever patched them -- a fresh install's chart defaults, not just overrides.
 const stateValuesJSON = `{"ragUnits":[{"name":"rag0","collection":"corpus","embeddingModel":"qwen3-embedding:8b","replicas":1}],` +
 	`"llm":{"externalURL":"http://ollama.default.svc.cluster.local:11434"},` +
-	`"ollama":{"enabled":true,"topology":"single","models":{"embedding":"qwen3-embedding:8b","chat":["qwen2.5:3b","ornith:9b"],"router":"qwen2.5:3b"}},` +
+	`"ollama":{"enabled":true,"topology":"single","models":{"embedding":"qwen3-embedding:8b","chat":["qwen2.5:3b","ornith:9b"],"tier":"qwen2.5:3b"}},` +
 	`"chatbot":{"embeddingModel":"qwen3-embedding:8b"},` +
-	`"applier":{"params":{"nResults":5,"chunkCap":0,"routerDefault":"invoke_llm_fast","chatModel":"qwen2.5:3b"}}}`
+	`"applier":{"params":{"nResults":5,"chunkCap":0,"tierDefault":"invoke_llm_fast","chatModel":"qwen2.5:3b"}}}`
 
 // applierScenarios walks every terminal of all three machines. The apply
 // machine has four (Done, Rejected, RolledBack, Failed), the rollout machine
@@ -129,9 +129,9 @@ func applierScenarios() []applierScenario {
 				`"llmExternalURL":"http://ollama.default.svc.cluster.local:11434"`,
 				`"llmChatModel":"qwen2.5:3b"`,
 				`"llmEmbedModel":"qwen3-embedding:8b"`,
-				`"llmRouterModel":"qwen2.5:3b"`,
+				`"llmTierModel":"qwen2.5:3b"`,
 				`"llmTopology":"single"`,
-				`"paramsNResults":5`, `"paramsChunkCap":0`, `"paramsRouterDefault":"invoke_llm_fast"`,
+				`"paramsNResults":5`, `"paramsChunkCap":0`, `"paramsTierDefault":"invoke_llm_fast"`,
 			},
 			wantCalls: []string{"get values", "--all", "-o json"},
 		},

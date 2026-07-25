@@ -33,14 +33,14 @@ export interface LLMView {
   chatModel: string;
   embedModel: string;
   chatModels?: string[];
-  routerModel?: string;
+  tierModel?: string;
   topology?: string;
 }
 
 export interface ParamsView {
   nResults: number;
   chunkCap: number;
-  routerDefault: string;
+  tierDefault: string;
 }
 
 export interface MeshView {
@@ -76,11 +76,11 @@ interface MeshStateResponse {
   llmChatModel: string;
   llmEmbedModel: string;
   llmChatModels: string[];
-  llmRouterModel: string;
+  llmTierModel: string;
   llmTopology: string;
   paramsNResults: number;
   paramsChunkCap: number;
-  paramsRouterDefault: string;
+  paramsTierDefault: string;
 }
 
 function toMeshView(wire: MeshStateResponse): MeshView {
@@ -92,13 +92,13 @@ function toMeshView(wire: MeshStateResponse): MeshView {
       chatModel: wire.llmChatModel,
       embedModel: wire.llmEmbedModel,
       chatModels: wire.llmChatModels,
-      routerModel: wire.llmRouterModel,
+      tierModel: wire.llmTierModel,
       topology: wire.llmTopology,
     },
     params: {
       nResults: wire.paramsNResults,
       chunkCap: wire.paramsChunkCap,
-      routerDefault: wire.paramsRouterDefault,
+      tierDefault: wire.paramsTierDefault,
     },
   };
 }
@@ -164,8 +164,8 @@ export function diffMesh(current: MeshView, draft: MeshView): string[] {
   if (curChat !== nextChat) {
     lines.push(`LLM chat models ${curChat || "—"}→${nextChat || "—"}`);
   }
-  if ((current.llm.routerModel ?? "") !== (draft.llm.routerModel ?? "")) {
-    lines.push(`LLM router model ${current.llm.routerModel || "—"}→${draft.llm.routerModel || "—"}`);
+  if ((current.llm.tierModel ?? "") !== (draft.llm.tierModel ?? "")) {
+    lines.push(`LLM tier-selector model ${current.llm.tierModel || "—"}→${draft.llm.tierModel || "—"}`);
   }
   if (current.params.nResults !== draft.params.nResults) {
     lines.push(`params.nResults ${current.params.nResults}→${draft.params.nResults}`);
@@ -173,8 +173,8 @@ export function diffMesh(current: MeshView, draft: MeshView): string[] {
   if (current.params.chunkCap !== draft.params.chunkCap) {
     lines.push(`params.chunkCap ${current.params.chunkCap}→${draft.params.chunkCap}`);
   }
-  if (current.params.routerDefault !== draft.params.routerDefault) {
-    lines.push(`params.routerDefault ${current.params.routerDefault}→${draft.params.routerDefault}`);
+  if (current.params.tierDefault !== draft.params.tierDefault) {
+    lines.push(`params.tierDefault ${current.params.tierDefault}→${draft.params.tierDefault}`);
   }
   return lines;
 }

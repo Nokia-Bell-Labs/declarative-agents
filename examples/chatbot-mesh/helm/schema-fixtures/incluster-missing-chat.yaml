@@ -3,5 +3,5 @@ ollama:
   enabled: true
   models:
     embedding: qwen3-embedding:8b
-    router: qwen2.5:3b
+    tier: qwen2.5:3b
     chat: []

@@ -55,7 +55,7 @@ func TestChatbotRequiredModelsResolveShippedDefaults(t *testing.T) {
 	for _, name := range []string{
 		"CORPUS_EMBEDDING_MODEL",
 		"CHATBOT_EMBEDDING_MODEL",
-		"CHATBOT_ROUTER_MODEL",
+		"CHATBOT_TIER_MODEL",
 		"CHATBOT_FAST_MODEL",
 		"CHATBOT_DEEP_MODEL",
 	} {
@@ -75,7 +75,7 @@ func TestChatbotRequiredModelsResolveShippedDefaults(t *testing.T) {
 func TestChatbotRequiredModelsUseDeploymentEnvironment(t *testing.T) {
 	t.Setenv("CORPUS_EMBEDDING_MODEL", "corpus-embed")
 	t.Setenv("CHATBOT_EMBEDDING_MODEL", "chatbot-embed")
-	t.Setenv("CHATBOT_ROUTER_MODEL", "chatbot-router")
+	t.Setenv("CHATBOT_TIER_MODEL", "chatbot-tier")
 	t.Setenv("CHATBOT_FAST_MODEL", "chatbot-fast")
 	t.Setenv("CHATBOT_DEEP_MODEL", "chatbot-deep")
 
@@ -83,7 +83,7 @@ func TestChatbotRequiredModelsUseDeploymentEnvironment(t *testing.T) {
 	if err != nil {
 		t.Fatalf("chatbotRequiredModels: %v", err)
 	}
-	want := []string{"chatbot-deep", "chatbot-embed", "chatbot-fast", "chatbot-router", "corpus-embed"}
+	want := []string{"chatbot-deep", "chatbot-embed", "chatbot-fast", "chatbot-tier", "corpus-embed"}
 	if !reflect.DeepEqual(got, want) {
 		t.Fatalf("required models = %v, want environment-selected %v", got, want)
 	}

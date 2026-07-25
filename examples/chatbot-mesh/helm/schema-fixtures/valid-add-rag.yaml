@@ -4,4 +4,4 @@ ragUnits:
   - {name: rag1, collection: corpus2, embeddingModel: qwen3-embedding:8b, replicas: 1}
   - {name: rag2, collection: corpus3, embeddingModel: qwen3-embedding:8b, replicas: 1}
 applier:
-  params: {nResults: 8, chunkCap: 0, routerDefault: invoke_llm_fast}
+  params: {nResults: 8, chunkCap: 0, tierDefault: invoke_llm_fast}

@@ -4,7 +4,7 @@ purpose: |-
   control server, and a monitor server, then idles in AwaitingControl until a
   lifecycle exit event is enqueued, at which point it exits the agent and stops the
   servers. Each inbound chat request runs a request-scoped turn
-  (request-machine.yaml): it embeds the message once, routes to a chat-LLM word,
+  (request-machine.yaml): it embeds the message once, selects a chat-LLM tier,
   fans the one embedding out to the declared RAG servers, composes the answer
   prompt from the retrieved chunks, and answers.
 invariants:

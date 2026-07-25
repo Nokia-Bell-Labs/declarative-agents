@@ -46,11 +46,11 @@
         "image": {"type": "object", "properties": {"repository": {"type": "string"}, "tag": {"type": "string"}}},
         "models": {
           "type": "object",
-          "required": ["embedding", "chat", "router"],
+          "required": ["embedding", "chat", "tier"],
           "properties": {
             "embedding": {"type": "string", "minLength": 1},
             "chat": {"type": "array", "minItems": 1, "items": {"type": "string"}},
-            "router": {"type": "string", "minLength": 1}
+            "tier": {"type": "string", "minLength": 1}
           }
         },
         "preload": {"type": "object", "properties": {"suspend": {"type": "boolean"}}},
@@ -69,7 +69,7 @@
           "properties": {
             "nResults": {"type": "integer", "minimum": 1},
             "chunkCap": {"type": "integer", "minimum": 0},
-            "routerDefault": {"type": "string"},
+            "tierDefault": {"type": "string"},
             "chatModel": {"type": "string"}
           }
         }
@@ -111,7 +111,7 @@
   },
   "allOf": [
     {
-      "$comment": "In-cluster LLM tier requires the model set (MeshView.Validate in-cluster branch: embedding, router, and at least one chat model).",
+      "$comment": "In-cluster LLM tier requires the model set (MeshView.Validate in-cluster branch: embedding, tier selector, and at least one chat model).",
       "if": {
         "required": ["ollama"],
         "properties": {"ollama": {"properties": {"enabled": {"const": true}}}}

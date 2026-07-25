@@ -31,7 +31,7 @@ roadmap_summary:
     use_cases_total: 2
     status: implemented
   - version: "01.0"
-    name: Routing and multi-RAG fan-out
+    name: Tier selection and multi-RAG fan-out
     use_cases_done: 1
     use_cases_total: 1
     status: implemented
@@ -73,7 +73,7 @@ srd_index:
     path: docs/specs/software-requirements/srd001-rag-server-agent.yaml
   - id: srd002-chatbot-agent
     title: Chatbot Agent Functional Block
-    summary: Browser-facing agent whose request-scoped turn routes, fans out to RAG servers, composes, and answers.
+    summary: Browser-facing agent whose request-scoped turn selects a model tier, fans out to RAG servers, composes, and answers.
     path: docs/specs/software-requirements/srd002-chatbot-agent.yaml
   - id: srd003-chatbot-deployment
     title: Chatbot Mesh Deployment Model
@@ -110,7 +110,7 @@ use_case_index:
     test_suite: test-rel00.0-chatbot-mesh
     path: docs/specs/use-cases/rel00.0-uc002-chatbot-turn.yaml
   - id: rel01.0-uc001-routed-fanout
-    title: Chatbot Turn Routes and Fans Out Over Two RAGs
+    title: Chatbot Turn Selects a Model Tier and Fans Out Over Two RAGs
     release: "01.0"
     status: implemented
     test_suite: test-rel01.0-routing-fanout
@@ -159,7 +159,7 @@ test_suite_index:
     traces: [rel00.0-uc001-rag-server-query, rel00.0-uc002-chatbot-turn]
     path: docs/specs/test-suites/test-rel00.0-chatbot-mesh.yaml
   - id: test-rel01.0-routing-fanout
-    title: Test Suite for Release 01.0 Routing and Multi-RAG Fan-Out
+    title: Test Suite for Release 01.0 Tier Selection and Multi-RAG Fan-Out
     release: "01.0"
     traces: [rel01.0-uc001-routed-fanout]
     path: docs/specs/test-suites/test-rel01.0-routing-fanout.yaml

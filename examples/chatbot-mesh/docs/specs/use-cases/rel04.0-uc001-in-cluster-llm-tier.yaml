@@ -6,7 +6,7 @@ summary: |
   cluster. The in-cluster LLM tier (srd003 R6) -- an optional Ollama subchart
   enabled by default -- deploys Ollama with PVC-backed model storage and a
   model-preload Job that pulls the embedding model, every declared chat model, and
-  the router model before the tier reports ready. The agent pods gate their
+  the tier-selector model before the tier reports ready. The agent pods gate their
   readiness on those models being present, so no turn fails at runtime for a
   missing model. Once ready, a chat turn is answered end to end with zero external
   LLM dependency. An operator running a shared Ollama instead sets
@@ -22,13 +22,13 @@ trigger: |
 preconditions:
   - The chart ships the Ollama subchart enabled by default with the model names declared once in values.
   - A CPU-only kind cluster is available for the smoke path (GPU scheduling is values-driven for production).
-  - The embedding, chat, and router model names are the same values that render the agents' client config.
+  - The embedding, chat, and tier-selector model names are the same values that render the agents' client config.
 
 flow:
   - id: F1
     text: helm install with defaults deploys the Ollama subchart with PVC-backed model storage alongside the chatbot, RAG units, Dolt, and collector.
   - id: F2
-    text: A model-preload Job pulls the embedding model, every declared chat model, and the router model into the PVC before the LLM tier reports ready.
+    text: A model-preload Job pulls the embedding model, every declared chat model, and the tier-selector model into the PVC before the LLM tier reports ready.
   - id: F3
     text: The agent pods gate their readiness on the LLM tier reporting the required models present (Ollama /api/tags), so a missing model is a deploy-time gate rather than a runtime turn failure.
   - id: F4
@@ -54,7 +54,7 @@ success_criteria:
       - srd003-chatbot-deployment R6.1
       - srd003-chatbot-deployment AC6
   - id: S2
-    criterion: The model-preload Job pulls the embedding, chat, and router models -- named once in values -- into the PVC before the tier reports ready, and the same names render the agents' config.
+    criterion: The model-preload Job pulls the embedding, chat, and tier-selector models -- named once in values -- into the PVC before the tier reports ready, and the same names render the agents' config.
     traces:
       - srd003-chatbot-deployment R6.2
       - srd003-chatbot-deployment AC6

@@ -216,7 +216,7 @@ tools:
           # shape: ragUnits is an array of {name, collection, embeddingModel,
           # replicas}; llm.externalURL; ollama.enabled/topology/models
           # (embedding, chat, router); chatbot.embeddingModel;
-          # applier.params (nResults, chunkCap, routerDefault, chatModel).
+          # applier.params (nResults, chunkCap, tierDefault, chatModel).
           ragUnits: {type: array}
           llm: {type: object}
           ollama: {type: object}

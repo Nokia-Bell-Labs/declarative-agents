@@ -1,9 +1,9 @@
 id: rel09.1-uc001-routed-fanout
-title: Chatbot Turn Routes and Fans Out Over Declared RAG Topology
+title: Chatbot Turn Selects a Model Tier and Fans Out Over Declared RAG Topology
 
 summary: |
   A browser posts a chat turn to the chatbot agent (srd014). Beyond the core loop
-  (rel09.0-uc002), the turn adds an LLM classifier that routes to one chat-LLM word
+  (rel09.0-uc002), the turn adds an LLM classifier that selects one chat-LLM word
   through the $tool indirection, and exactly one sequential for_each that queries
   the ordered declared RAG topology with the one query embedding. The ordered join
   feeds generic query-signal and embedding-model partitions; render_each formats
@@ -18,12 +18,12 @@ trigger: |
 
 preconditions:
   - Two RAG server agents (rel09.0-uc001) are reachable as declared rest.yaml clients over disjoint corpora.
-  - A small router model and two chat-LLM models are reachable as declared clients.
-  - The chatbot profile validates and owns the turn machine, the router prompt, and the fan-out declarations.
+  - A small tier-selector model and two chat-LLM models are reachable as declared clients.
+  - The chatbot profile validates and owns the turn machine, the tier-selector prompt, and the fan-out declarations.
 
 flow:
   - id: F1
-    text: The router makes one classifier call over the original question, parsed to a $tool selection over the declared chat-LLM words, falling back to a default word on misparse or an out-of-set selection.
+    text: The tier selector makes one classifier call over the original question, parsed to a $tool selection over the declared chat-LLM words, falling back to a default word on misparse or an out-of-set selection.
   - id: F2
     text: embed_query embeds the query once; exactly one sequential MachineSpec for_each fans the vector over the ordered declared topology and emits one structured join.
   - id: F3
@@ -36,17 +36,17 @@ flow:
 touchpoints:
   - id: T1
     target: srd014-chatbot-agent AC2
-    reason: The router is one classifier call parsed to a $tool selection with a normative fallback.
+    reason: The tier selector is one classifier call parsed to a $tool selection with a normative fallback.
   - id: T2
     target: srd014-chatbot-agent AC3
     reason: One sequential iterator plus generic partitions degrades query failures and excludes embedding-model mismatches without indexed words or states.
   - id: T3
     target: test-rel09.1-routing-fanout routed_fanout
-    reason: The suite records the router dispatch, the two-RAG fan-out over disjoint corpora, and the degraded and excluded paths.
+    reason: The suite records tier selection, the two-RAG fan-out over disjoint corpora, and the degraded and excluded paths.
 
 success_criteria:
   - id: S1
-    criterion: The turn routes to a chat-LLM word through a $tool classifier selection and falls back to a configured default word on misparse or an out-of-set selection.
+    criterion: The turn selects a chat-LLM word through a $tool classifier and falls back to a configured default word on misparse or an out-of-set selection.
     traces:
       - srd014-chatbot-agent R2.1
       - srd014-chatbot-agent R2.3

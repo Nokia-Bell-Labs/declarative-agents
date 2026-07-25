@@ -6,7 +6,7 @@ purpose: |-
   join. Generic partitions first separate answered queries from QueryRejected and
   CommandError outcomes, then exclude answered sources whose reported embedding
   model differs from the query model. render_grounding renders only compatible
-  chunks; compose_prompt adds the original question. The router classifies that
+  chunks; compose_prompt adds the original question. The tier selector classifies that
   original question, not the composed grounding prompt, and the chosen answer word
   reads the composed prompt. Query failures degrade to a mapped 200, while response
   metadata retains compatible, model-excluded, and failed source sets.
@@ -25,8 +25,8 @@ states:
   - {name: PartitioningModels, meaning: Answered queries are being divided by embedding-model compatibility.}
   - {name: Rendering, meaning: Compatible source chunks are being rendered in topology order.}
   - {name: Composing, meaning: The original question and rendered grounding are being composed.}
-  - {name: Routing, meaning: The original question is being classified to a chat-LLM word.}
-  - {name: Parsing, meaning: The router response is being parsed.}
+  - {name: SelectingTier, meaning: The original question is being classified to a chat-LLM word.}
+  - {name: ParsingTier, meaning: The tier-selection response is being parsed.}
   - {name: Answering, meaning: The chosen chat-LLM word is answering over the composed grounding prompt.}
   - {name: Reporting, meaning: The answer and fixed-selector source metadata are being composed.}
   - {name: Finalizing, meaning: The composed response is being mapped to the terminal HTTP result.}
@@ -46,9 +46,9 @@ signals:
   - {name: GroundingRendered, trigger: Compatible chunks were rendered in topology order.}
   - {name: Composed, trigger: The grounding prompt was composed.}
   - {name: LLMResponded, trigger: A model word produced a response.}
-  - {name: ToolDone, trigger: The router selected a declared chat-LLM word.}
-  - {name: ParseFailed, trigger: The router output was malformed or out of vocabulary.}
-  - {name: TaskCompleted, trigger: The router emitted the done tool.}
+  - {name: ToolDone, trigger: The tier selector selected a declared chat-LLM word.}
+  - {name: ParseFailed, trigger: The tier-selector output was malformed or out of vocabulary.}
+  - {name: TaskCompleted, trigger: The tier selector emitted the done tool.}
   - {name: ResponseComposed, trigger: The answer and source metadata were composed.}
   - {name: CommandError, trigger: A boundary or collection operation failed.}
 transitions:
@@ -87,12 +87,12 @@ transitions:
   - {state: PartitioningModels, signal: CommandError, next: Failed}
   - {state: Rendering, signal: EmbeddingModelsPartitioned, next: Composing, action: render_grounding}
   - {state: Rendering, signal: CommandError, next: Failed}
-  - {state: Composing, signal: GroundingRendered, next: Routing, action: compose_prompt}
+  - {state: Composing, signal: GroundingRendered, next: SelectingTier, action: compose_prompt}
   - {state: Composing, signal: CommandError, next: Failed}
-  - {state: Routing, signal: Composed, next: Parsing, action: route}
-  - {state: Routing, signal: CommandError, next: Failed}
-  - {state: Parsing, signal: LLMResponded, next: Answering, action: parse_route}
-  - {state: Parsing, signal: CommandError, next: Reporting, action: invoke_llm_fast}
+  - {state: SelectingTier, signal: Composed, next: ParsingTier, action: select_tier}
+  - {state: SelectingTier, signal: CommandError, next: Failed}
+  - {state: ParsingTier, signal: LLMResponded, next: Answering, action: parse_tier}
+  - {state: ParsingTier, signal: CommandError, next: Reporting, action: invoke_llm_fast}
   - {state: Answering, signal: ToolDone, next: Reporting, action: $tool}
   - {state: Answering, signal: ParseFailed, next: Reporting, action: invoke_llm_fast}
   - {state: Answering, signal: TaskCompleted, next: Reporting, action: invoke_llm_fast}

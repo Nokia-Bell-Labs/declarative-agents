@@ -318,7 +318,7 @@ func stopAll(stops []func(bool) error) {
 }
 
 // composedPromptFromMockLog returns the body of the last POST /api/chat the
-// subject sent. The router call and the answer call both land on that route;
+// subject sent. The tier-selector call and the answer call both land on that route;
 // the last one carries the grounding prompt the answer was composed from.
 func composedPromptFromMockLog(logURL string) (string, error) {
 	data, status, err := requestHTTP("GET", logURL, "")
