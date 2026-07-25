@@ -9,13 +9,13 @@ preconditions:
   - srd042-otlp-receiver-tools defines launch, bounded queue, await, spool, relay, stop, and self-loop behavior.
   - srd008-telemetry defines OTLP export, stdouttrace evidence, stable integration identity, and the ingress self-loop rule.
   - The tests bind isolated loopback ports and do not require a persistent external collector.
-  - Go tests remain planned until the implementation children of GH-820 land; planned names are not formal executable evidence.
+  - Focused Go tests provide executable package evidence; deployment-only scope assertions remain identified as non-executable.
 
 test_cases:
   - use_case: rel11.0-uc001-otlp-receiver-await
     name: OTLP export enters the bounded queue and reaches await
-    planned_go_test: go test ./internal/tools/otlp -run TestReceiverExportAwait
-    status: planned
+    go_test: go test ./internal/tools/otlp -run TestReceiverExportAwait
+    status: implemented
     description: |
       A real OTLP TraceService client exports a request containing two resource
       spans to a receiver bound on an isolated address. Launch returns before
@@ -39,8 +39,8 @@ test_cases:
 
   - use_case: rel11.0-uc001-otlp-receiver-await
     name: Queue overflow follows each declared policy
-    planned_go_test: go test ./internal/tools/otlp -run TestReceiverOverflowPolicies
-    status: planned
+    go_test: go test ./internal/tools/otlp -run TestReceiverOverflowPolicies
+    status: implemented
     description: |
       A capacity-one queue receives two batches before an await. Reject reports
       the incoming span count as partial success. Drop-oldest retains the newer
@@ -61,8 +61,8 @@ test_cases:
 
   - use_case: rel11.0-uc001-otlp-receiver-await
     name: Spool output matches stdouttrace readers and rotates by complete batch
-    planned_go_test: go test ./internal/tools/otlp -run TestSpoolStdoutTraceAndRotation
-    status: planned
+    go_test: go test ./internal/tools/otlp -run TestSpoolStdoutTraceAndRotation
+    status: implemented
     description: |
       Spool converts a received request into one NDJSON object per span. The
       existing trace-reader shape decodes every line. Trace IDs, parent IDs,
@@ -84,8 +84,8 @@ test_cases:
 
   - use_case: rel11.0-uc001-otlp-receiver-await
     name: Relay preserves the complete OTLP request and reports rejection
-    planned_go_test: go test ./internal/tools/otlp -run TestRelayPreservesBatch
-    status: planned
+    go_test: go test ./internal/tools/otlp -run 'TestRelay(PreservesBatch|ReportsPartialRejection)'
+    status: implemented
     description: |
       Relay sends the batch selected from command state to an in-process
       TraceService server. The upstream request is protobuf-equal to the
@@ -105,8 +105,8 @@ test_cases:
 
   - use_case: rel11.0-uc001-otlp-receiver-await
     name: Stop releases the listener and unblocks every awaiter
-    planned_go_test: go test ./internal/tools/otlp -run TestReceiverStopUnblocksAndReleases
-    status: planned
+    go_test: go test ./internal/tools/otlp -run 'TestReceiverStop(UnblocksAndReleases|AppliesDrainPolicy)'
+    status: implemented
     description: |
       Several awaits block on an empty receiver. Stop unblocks all of them with
       ReceiverStopped, rejects later exports, and releases the address so a new
@@ -126,13 +126,16 @@ test_cases:
 
   - use_case: rel11.0-uc001-otlp-receiver-await
     name: Ingress process telemetry cannot loop into its receiver
-    planned_go_test: go test ./internal/tools/otlp -run TestReceiverRejectsSelfLoopConfiguration
-    status: planned
+    go_test: go test ./internal/tools/otlp -run TestReceiverRejectsSelfLoopConfiguration
+    status: implemented
     description: |
       Registration normalizes equivalent wildcard and loopback endpoints and
-      rejects a receiver whose declared relay points back to itself. The
-      profile-level proof configures file-only telemetry: a client span enters
-      the queue while collector lifecycle spans appear only in the file.
+      rejects a receiver whose declared relay points back to itself.
+    non_executable_scope_assertion: |
+      An ingress deployment configures file-only process telemetry so client
+      spans enter the queue while collector lifecycle spans remain in the file.
+      This deployment constraint is specified by srd042 R7.1 and is not package
+      test evidence.
     inputs:
       equivalent_endpoints:
         - ["0.0.0.0:4317", "127.0.0.1:4317"]
@@ -140,8 +143,6 @@ test_cases:
       collector_telemetry: file_only
     expected:
       static_loop: registration failure
-      client_spans_received: true
-      collector_spans_received: false
     traces:
       - rel11.0-uc001-otlp-receiver-await S5
       - srd042-otlp-receiver-tools AC5
