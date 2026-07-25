@@ -37,8 +37,10 @@ tools:
     undo: point_context_restore
     requires_confirmation: false
   undo:
-    strategy: session_state_restore
-    description: Restore PointContext test result fields from the prior snapshot.
+    strategy: point_context_restore
+    description: Restore PointContext from the persisted pre-command receipt.
+    payload: point_context_snapshot
+    captures: [point_context]
   errors:
   - signal: CommandError
     condition: point state is unavailable

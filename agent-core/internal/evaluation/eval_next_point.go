@@ -16,23 +16,23 @@ type NextPointBuilder struct {
 }
 
 func (b *NextPointBuilder) Build(_ core.Result) core.Command {
-	return &nextPointCmd{es: b.ES}
+	return &evaluatorReceiptCmd{inner: &nextPointCmd{es: b.ES}, session: b.ES}
+}
+
+func (b *NextPointBuilder) BuildReverser() core.Command {
+	return &evaluatorReceiptCmd{inner: &nextPointCmd{es: b.ES}, session: b.ES}
 }
 
 type nextPointCmd struct {
-	es          *EvalSessionState
-	snapshot    evalSessionSnapshot
-	hasSnapshot bool
+	es *EvalSessionState
 }
 
 func (c *nextPointCmd) Name() string { return "next_point" }
-func (c *nextPointCmd) Undo(_ core.Result) core.Result {
-	return undoEvalSessionSnapshot(c.Name(), c.es, c.snapshot, c.hasSnapshot)
+func (c *nextPointCmd) Undo(prior core.Result) core.Result {
+	return (&evaluatorReceiptCmd{inner: c, session: c.es}).Undo(prior)
 }
 
 func (c *nextPointCmd) Execute() core.Result {
-	c.snapshot = snapshotEvalSession(c.es)
-	c.hasSnapshot = true
 	pc, ok := c.es.NextPoint()
 	if !ok {
 		return core.Result{

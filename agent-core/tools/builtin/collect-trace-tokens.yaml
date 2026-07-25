@@ -17,8 +17,10 @@ tools:
     classification: reversible
     undo: point_context_restore
   undo:
-    strategy: session_state_restore
-    description: Restore PointContext token fields from the prior snapshot.
+    strategy: point_context_restore
+    description: Restore PointContext from the persisted pre-command receipt.
+    payload: point_context_snapshot
+    captures: [point_context]
   problem: The machine needs a declared word for collecting token counts from trace output without embedding that workflow step in Go control flow.
   goals:
   - Perform the collect_trace_tokens action as one machine-selected word.

@@ -18,20 +18,16 @@ const (
 )
 
 type recordAgentCommitCmd struct {
-	pc          *PointContext
-	prior       core.Result
-	snapshot    pointContextSnapshot
-	hasSnapshot bool
+	pc    *PointContext
+	prior core.Result
 }
 
 func (c *recordAgentCommitCmd) Name() string { return "record_agent_commit" }
-func (c *recordAgentCommitCmd) Undo(_ core.Result) core.Result {
-	return undoPointContextSnapshot(c.Name(), c.pc, c.snapshot, c.hasSnapshot)
+func (c *recordAgentCommitCmd) Undo(prior core.Result) core.Result {
+	return (&evaluatorReceiptCmd{inner: c, point: c.pc}).Undo(prior)
 }
 
 func (c *recordAgentCommitCmd) Execute() core.Result {
-	c.snapshot = snapshotPointContext(c.pc)
-	c.hasSnapshot = true
 	commit := ""
 	if c.prior.Signal == core.ToolDone {
 		commit = strings.TrimSpace(c.prior.Output)
@@ -138,7 +134,17 @@ func (b *DumpConfigBuilder) Build(_ core.Result) core.Command {
 	if b.ES == nil || b.ES.PC == nil {
 		return &failCmd{err: fmt.Errorf("dump_config: EvalState.PC not initialized")}
 	}
-	return &dumpConfigCmd{pc: b.ES.PC}
+	pc := b.ES.PC
+	return &evaluatorReceiptCmd{
+		inner: &dumpConfigCmd{pc: pc}, point: pc,
+		removePaths: func() []string { return []string{filepath.Join(pc.PointDir, ArtifactExperiment)} },
+	}
+}
+
+func (b *DumpConfigBuilder) BuildReverser() core.Command {
+	return buildPointCommand(b.ES, "dump_config", func(pc *PointContext) core.Command {
+		return &evaluatorReceiptCmd{inner: &dumpConfigCmd{pc: pc}, point: pc}
+	})
 }
 
 // RecordAgentCommitBuilder maps a configured rev_parse result into point state.
@@ -150,5 +156,11 @@ func (b *RecordAgentCommitBuilder) Build(res core.Result) core.Command {
 	if b.ES == nil || b.ES.PC == nil {
 		return &failCmd{err: fmt.Errorf("record_agent_commit: EvalState.PC not initialized")}
 	}
-	return &recordAgentCommitCmd{pc: b.ES.PC, prior: res}
+	return &evaluatorReceiptCmd{inner: &recordAgentCommitCmd{pc: b.ES.PC, prior: res}, point: b.ES.PC}
+}
+
+func (b *RecordAgentCommitBuilder) BuildReverser() core.Command {
+	return buildPointCommand(b.ES, "record_agent_commit", func(pc *PointContext) core.Command {
+		return &evaluatorReceiptCmd{inner: &recordAgentCommitCmd{pc: pc}, point: pc}
+	})
 }

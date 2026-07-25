@@ -24,7 +24,16 @@ type CreatePointDirBuilder struct {
 
 func (b *CreatePointDirBuilder) Build(_ core.Result) core.Command {
 	return buildPointCommand(b.ES, "create_point_dir", func(pc *PointContext) core.Command {
-		return &createPointDirCmd{pc: pc}
+		return &evaluatorReceiptCmd{
+			inner: &createPointDirCmd{pc: pc}, point: pc,
+			removePaths: func() []string { return []string{pc.PointDir} },
+		}
+	})
+}
+
+func (b *CreatePointDirBuilder) BuildReverser() core.Command {
+	return buildPointCommand(b.ES, "create_point_dir", func(pc *PointContext) core.Command {
+		return &evaluatorReceiptCmd{inner: &createPointDirCmd{pc: pc}, point: pc}
 	})
 }
 
@@ -35,7 +44,21 @@ type CopySampleDocsBuilder struct {
 
 func (b *CopySampleDocsBuilder) Build(_ core.Result) core.Command {
 	return buildPointCommand(b.ES, "copy_sample_docs", func(pc *PointContext) core.Command {
-		return &copySampleDocsCmd{pc: pc}
+		return &evaluatorReceiptCmd{
+			inner: &copySampleDocsCmd{pc: pc}, point: pc,
+			removePaths: func() []string {
+				if pc.Sample.DocDir == "" {
+					return nil
+				}
+				return []string{pc.PointDir + "/doc"}
+			},
+		}
+	})
+}
+
+func (b *CopySampleDocsBuilder) BuildReverser() core.Command {
+	return buildPointCommand(b.ES, "copy_sample_docs", func(pc *PointContext) core.Command {
+		return &evaluatorReceiptCmd{inner: &copySampleDocsCmd{pc: pc}, point: pc}
 	})
 }
 
@@ -49,9 +72,28 @@ func (b *RunAgentBuilder) Build(_ core.Result) core.Command {
 	if b.ES == nil || b.ES.PC == nil {
 		return &failCmd{err: fmt.Errorf("run_agent: EvalState.PC not initialized")}
 	}
-	return &runAgentCmd{
-		pc:  b.ES.PC,
-		ctx: b.ES.Ctx,
+	pc := b.ES.PC
+	return &evaluatorReceiptCmd{
+		inner: &runAgentCmd{pc: pc, ctx: b.ES.Ctx}, point: pc,
+		removePaths: func() []string { return []string{pc.ResultPath} },
+		boundary:    "harness child process and point workspace require compensation",
+		boundaryMetadata: func() any {
+			return map[string]any{
+				"binary": pc.Harness.Binary, "profile": pc.ProfilePath,
+				"point_dir": pc.PointDir, "trace_path": pc.TracePath, "result_path": pc.ResultPath,
+				"exit_code": pc.ExitCode, "timed_out": pc.TimedOut,
+			}
+		},
+	}
+}
+
+func (b *RunAgentBuilder) BuildReverser() core.Command {
+	if b.ES == nil || b.ES.PC == nil {
+		return &failCmd{err: fmt.Errorf("run_agent: EvalState.PC not initialized")}
+	}
+	return &evaluatorReceiptCmd{
+		inner: &runAgentCmd{pc: b.ES.PC, ctx: b.ES.Ctx}, point: b.ES.PC,
+		boundary: "harness child process and point workspace require compensation",
 	}
 }
 
@@ -64,7 +106,13 @@ func (b *RecordOracleResultBuilder) Build(res core.Result) core.Command {
 	if b.ES == nil || b.ES.PC == nil {
 		return &failCmd{err: fmt.Errorf("record_oracle_result: EvalState.PC not initialized")}
 	}
-	return &recordOracleResultCmd{pc: b.ES.PC, prior: res}
+	return &evaluatorReceiptCmd{inner: &recordOracleResultCmd{pc: b.ES.PC, prior: res}, point: b.ES.PC}
+}
+
+func (b *RecordOracleResultBuilder) BuildReverser() core.Command {
+	return buildPointCommand(b.ES, "record_oracle_result", func(pc *PointContext) core.Command {
+		return &evaluatorReceiptCmd{inner: &recordOracleResultCmd{pc: pc}, point: pc}
+	})
 }
 
 // CollectTraceTokensBuilder creates collectTraceTokensCmd instances.
@@ -76,7 +124,13 @@ func (b *CollectTraceTokensBuilder) Build(_ core.Result) core.Command {
 	if b.ES == nil || b.ES.PC == nil {
 		return &failCmd{err: fmt.Errorf("collect_trace_tokens: EvalState.PC not initialized")}
 	}
-	return &collectTraceTokensCmd{pc: b.ES.PC}
+	return &evaluatorReceiptCmd{inner: &collectTraceTokensCmd{pc: b.ES.PC}, point: b.ES.PC}
+}
+
+func (b *CollectTraceTokensBuilder) BuildReverser() core.Command {
+	return buildPointCommand(b.ES, "collect_trace_tokens", func(pc *PointContext) core.Command {
+		return &evaluatorReceiptCmd{inner: &collectTraceTokensCmd{pc: pc}, point: pc}
+	})
 }
 
 // CheckAgentVersionBuilder creates checkAgentVersionCmd instances.
@@ -88,7 +142,13 @@ func (b *CheckAgentVersionBuilder) Build(_ core.Result) core.Command {
 	if b.ES == nil || b.ES.PC == nil {
 		return &failCmd{err: fmt.Errorf("check_agent_version: EvalState.PC not initialized")}
 	}
-	return &checkAgentVersionCmd{pc: b.ES.PC}
+	return &evaluatorReceiptCmd{inner: &checkAgentVersionCmd{pc: b.ES.PC}, point: b.ES.PC}
+}
+
+func (b *CheckAgentVersionBuilder) BuildReverser() core.Command {
+	return buildPointCommand(b.ES, "check_agent_version", func(pc *PointContext) core.Command {
+		return &evaluatorReceiptCmd{inner: &checkAgentVersionCmd{pc: pc}, point: pc}
+	})
 }
 
 // SummarizePointResultsBuilder creates summarizePointResultsCmd instances.
@@ -112,7 +172,17 @@ func (b *CollectMetricsBuilder) Build(_ core.Result) core.Command {
 	if b.ES == nil || b.ES.PC == nil {
 		return &failCmd{err: fmt.Errorf("collect_metrics: EvalState.PC not initialized")}
 	}
-	return &collectMetricsCmd{pc: b.ES.PC}
+	pc := b.ES.PC
+	return &evaluatorReceiptCmd{
+		inner: &collectMetricsCmd{pc: pc}, point: pc,
+		removePaths: func() []string { return []string{pc.PointDir + "/meta.json"} },
+	}
+}
+
+func (b *CollectMetricsBuilder) BuildReverser() core.Command {
+	return buildPointCommand(b.ES, "collect_metrics", func(pc *PointContext) core.Command {
+		return &evaluatorReceiptCmd{inner: &collectMetricsCmd{pc: pc}, point: pc}
+	})
 }
 
 func buildPointCommand(es *EvalState, commandName string, build func(*PointContext) core.Command) core.Command {
