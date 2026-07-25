@@ -53,7 +53,16 @@ func (c *runAgentCmd) Execute() core.Result {
 	pc.ExitCode = result.ExitCode
 	pc.TimedOut = result.TimedOut
 
-	_ = os.WriteFile(pc.ResultPath, []byte(result.Stdout), 0o644)
+	if err := os.WriteFile(pc.ResultPath, []byte(result.Stdout), 0o644); err != nil {
+		err = fmt.Errorf("run_agent: write result artifact %q: %w", pc.ResultPath, err)
+		return core.Result{
+			CommandName: c.Name(),
+			Signal:      core.CommandError,
+			Err:         err,
+			Output:      err.Error(),
+			Cost:        core.Cost{Duration: pc.Duration},
+		}
+	}
 
 	sig := SigHarnessFinished
 	if pc.TimedOut {
