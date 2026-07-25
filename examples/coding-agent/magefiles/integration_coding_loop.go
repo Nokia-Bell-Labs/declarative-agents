@@ -69,46 +69,53 @@ func (Integration) PlannerDelegation() error {
 	const attempts = 1
 	var failures []string
 	for attempt := 1; attempt <= attempts; attempt++ {
-		if err := runPlannerAttempt(roots, binary); err != nil {
+		_, cleanupWorkspace, err := producePlannerCandidate(roots, binary)
+		if err != nil {
 			failures = append(failures, fmt.Sprintf("attempt %d: %v", attempt, err))
 			if attempt < attempts {
 				fmt.Printf("plannerDelegation: attempt %d/%d did not complete; retrying from a fresh workspace\n", attempt, attempts)
 			}
 			continue
 		}
+		cleanupWorkspace()
 		fmt.Println("integration:plannerDelegation PASS - canonical planner materialized a local task and delegated to the real canonical executor")
 		return nil
 	}
 	return fmt.Errorf("planner did not complete in %d bounded attempts:\n%s", attempts, strings.Join(failures, "\n"))
 }
 
-func runPlannerAttempt(roots integrationRoots, binary string) error {
+func producePlannerCandidate(roots integrationRoots, binary string) (string, func(), error) {
 	workspace, cleanupWorkspace, err := freshWorkspace(roots.Application)
 	if err != nil {
-		return err
+		return "", nil, err
 	}
-	defer cleanupWorkspace()
 	if err := initializePlannerWorkspace(workspace); err != nil {
-		return err
+		cleanupWorkspace()
+		return "", nil, err
 	}
 	run, err := runBuiltAgent(binary, roots.Profiles, roots.Core, "agents/planner/profile.yaml", workspace,
 		"--child-agent-binary", binary, "--verbose-trace")
 	if err != nil {
-		return err
+		cleanupWorkspace()
+		return "", nil, err
 	}
 	if run.ExitCode != 0 {
-		return fmt.Errorf("planner exited %d:\n%s\ntrace diagnostics:\n%s", run.ExitCode, run.Output, run.Trace)
+		cleanupWorkspace()
+		return "", nil, fmt.Errorf("planner exited %d:\n%s\ntrace diagnostics:\n%s", run.ExitCode, run.Output, run.Trace)
 	}
 	if run.FinalState != "Completed" {
-		return fmt.Errorf("planner final state = %q, want Completed:\n%s", run.FinalState, run.Output)
+		cleanupWorkspace()
+		return "", nil, fmt.Errorf("planner final state = %q, want Completed:\n%s", run.FinalState, run.Output)
 	}
 	if _, err := os.Stat(filepath.Join(workspace, ".git", "agent-planner", "issue-body.yaml")); err != nil {
-		return fmt.Errorf("planner did not materialize its task: %w", err)
+		cleanupWorkspace()
+		return "", nil, fmt.Errorf("planner did not materialize its task: %w", err)
 	}
 	if err := requireGreetingAndTests(workspace); err != nil {
-		return fmt.Errorf("delegated executor result: %w", err)
+		cleanupWorkspace()
+		return "", nil, fmt.Errorf("delegated executor result: %w", err)
 	}
-	return nil
+	return workspace, cleanupWorkspace, nil
 }
 
 func initializePlannerWorkspace(workspace string) error {
@@ -143,19 +150,17 @@ func requireGreetingAndTests(workspace string) error {
 	return nil
 }
 
-// CriticGate executes the strongest boundary the current canonical critic
-// contract supports: the real critic session invokes a real canonical executor,
-// runs the configured oracle, records metrics, and reaches Done. The critic
-// profile is a benchmark runner; it cannot consume an already-produced Stage B
-// workspace or emit an accept/reject verdict. That contract gap is recorded in
-// the application test suite and prevents this target from claiming the full
-// Stage C gate.
+// CriticGate gives the canonical changed-workspace critic two existing
+// candidates and maps only its machine-readable verdicts to application
+// outcomes. When the live planner is available, the accepted candidate is the
+// actual workspace it produced; otherwise the target records the clean Stage B
+// skip and uses the deterministic conforming candidate fixture.
 func (Integration) CriticGate() error {
 	roots, err := resolveIntegrationRoots()
 	if err != nil {
 		return err
 	}
-	if reason := liveSkipReason(roots); reason != "" {
+	if reason := baseIntegrationSkipReason(roots, "sh"); reason != "" {
 		fmt.Printf("SKIP criticGate: %s\n", reason)
 		return nil
 	}
@@ -164,97 +169,133 @@ func (Integration) CriticGate() error {
 		return err
 	}
 	defer cleanupBinary()
-	runDir, err := os.MkdirTemp("", "coding-loop-critic-*")
+
+	accepted, cleanupAccepted, acceptedSource, err := acceptedCriticCandidate(roots, binary)
 	if err != nil {
 		return err
 	}
-	defer os.RemoveAll(runDir)
-	suite, err := stageCriticSuite(roots, runDir)
+	defer cleanupAccepted()
+	rejected, cleanupRejected, err := freshCandidateFixture(roots.Application, "rejected")
 	if err != nil {
 		return err
 	}
-	outputDir := filepath.Join(runDir, "results")
-	workspace := filepath.Join(runDir, "critic-workspace")
-	if err := os.MkdirAll(workspace, 0o755); err != nil {
-		return err
+	defer cleanupRejected()
+
+	acceptedVerdict, err := runCanonicalCriticVerdict(binary, roots, accepted)
+	if err != nil {
+		return fmt.Errorf("accepted candidate from %s: %w", acceptedSource, err)
 	}
-	run, err := runBuiltAgent(binary, roots.Profiles, roots.Core, "agents/critic/profile.yaml", workspace,
-		"--request", suite, "--output", outputDir, "--child-agent-binary", binary)
+	rejectedVerdict, err := runCanonicalCriticVerdict(binary, roots, rejected)
+	if err != nil {
+		return fmt.Errorf("rejected candidate fixture: %w", err)
+	}
+	acceptedOutcome, err := applicationOutcome(acceptedVerdict)
 	if err != nil {
 		return err
 	}
-	if run.ExitCode != 0 {
-		return fmt.Errorf("critic exited %d:\n%s", run.ExitCode, run.Output)
+	rejectedOutcome, err := applicationOutcome(rejectedVerdict)
+	if err != nil {
+		return err
 	}
-	if run.FinalState != "Done" {
-		return fmt.Errorf("critic final state = %q, want Done:\n%s", run.FinalState, run.Output)
+	if acceptedOutcome != "Succeeded" || rejectedOutcome != "Failed" {
+		return fmt.Errorf("application outcomes accepted=%s rejected=%s, want Succeeded/Failed",
+			acceptedOutcome, rejectedOutcome)
 	}
-	if err := requirePassingCriticEvidence(outputDir); err != nil {
-		return fmt.Errorf("%w\n%s", err, run.Output)
-	}
-	fmt.Println("integration:criticGate LIMITED PASS - canonical critic recorded a real executor point and passing oracle; current critic contracts expose no existing-candidate accept/reject gate")
+	fmt.Printf("integration:criticGate PASS - canonical critic accepted the %s candidate -> Succeeded and rejected the non-conforming candidate -> Failed\n",
+		acceptedSource)
 	return nil
 }
 
-func stageCriticSuite(roots integrationRoots, runDir string) (string, error) {
-	fixture := filepath.Join(roots.Application, "testdata", "integration", "coding-loop")
-	staged := filepath.Join(runDir, "suite")
-	if err := copyTree(fixture, staged); err != nil {
-		return "", fmt.Errorf("stage critic fixture: %w", err)
+func acceptedCriticCandidate(roots integrationRoots, binary string) (string, func(), string, error) {
+	if reason := liveSkipReason(roots, "bd"); reason == "" {
+		workspace, cleanup, err := producePlannerCandidate(roots, binary)
+		return workspace, cleanup, "Stage B planner", err
+	} else {
+		fmt.Printf("SKIP criticGate Stage B candidate: %s; using deterministic conforming fixture\n", reason)
 	}
-	suite := filepath.Join(staged, "critic-suite.yaml")
-	data, err := os.ReadFile(suite)
-	if err != nil {
-		return "", err
-	}
-	data = []byte(strings.ReplaceAll(string(data), "@EXECUTOR_PROFILE@",
-		filepath.Join(roots.Profiles, "agents", "executor", "profile.yaml")))
-	if err := os.WriteFile(suite, data, 0o644); err != nil {
-		return "", err
-	}
-	return suite, nil
+	workspace, cleanup, err := freshCandidateFixture(roots.Application, "accepted")
+	return workspace, cleanup, "deterministic conforming fixture", err
 }
 
-func requirePassingCriticEvidence(outputDir string) error {
-	var metaPaths []string
-	if err := filepath.WalkDir(outputDir, func(path string, entry os.DirEntry, err error) error {
-		if err != nil {
-			return err
-		}
-		if !entry.IsDir() && entry.Name() == "meta.json" {
-			metaPaths = append(metaPaths, path)
-		}
-		return nil
-	}); err != nil {
-		return err
-	}
-	if len(metaPaths) != 1 {
-		return fmt.Errorf("critic produced %d point metadata files, want 1", len(metaPaths))
-	}
-	data, err := os.ReadFile(metaPaths[0])
+func freshCandidateFixture(appRoot, name string) (string, func(), error) {
+	runDir, err := os.MkdirTemp("", "coding-loop-critic-candidate-*")
 	if err != nil {
-		return err
+		return "", nil, err
 	}
-	var meta struct {
-		Harness     string `json:"harness"`
-		TestsPassed bool   `json:"tests_passed"`
-		TimedOut    bool   `json:"timed_out"`
-		ExitCode    int    `json:"exit_code"`
+	cleanup := func() { _ = os.RemoveAll(runDir) }
+	source := filepath.Join(appRoot, "testdata", "integration", "coding-loop", "candidates", name)
+	workspace := filepath.Join(runDir, name)
+	if err := copyTree(source, workspace); err != nil {
+		cleanup()
+		return "", nil, err
 	}
-	if err := json.Unmarshal(data, &meta); err != nil {
-		return fmt.Errorf("parse critic meta: %w", err)
-	}
-	if meta.Harness != "executor" || !meta.TestsPassed || meta.TimedOut || meta.ExitCode != 0 {
-		return fmt.Errorf("critic point evidence is not an accepted real executor run: %s", data)
-	}
-	trace, err := os.ReadFile(filepath.Join(filepath.Dir(metaPaths[0]), "trace.ndjson"))
+	return workspace, cleanup, nil
+}
+
+type canonicalCriticVerdict struct {
+	SchemaVersion string `json:"schema_version"`
+	Mode          string `json:"mode"`
+	Verdict       string `json:"verdict"`
+	Accepted      bool   `json:"accepted"`
+	Oracle        struct {
+		Command string `json:"command"`
+		Status  string `json:"status"`
+	} `json:"oracle"`
+}
+
+func runCanonicalCriticVerdict(binary string, roots integrationRoots, workspace string) (canonicalCriticVerdict, error) {
+	_ = os.Remove(filepath.Join(workspace, "critic-verdict.json"))
+	run, err := runBuiltAgent(binary, roots.Profiles, roots.Core,
+		"agents/critic/profile-workspace.yaml", workspace)
 	if err != nil {
-		return fmt.Errorf("read critic point trace: %w", err)
+		return canonicalCriticVerdict{}, err
 	}
-	if !strings.Contains(string(trace), "gen_ai.usage.input_tokens") {
-		return fmt.Errorf("critic point trace has no token evidence")
+	data, err := os.ReadFile(filepath.Join(workspace, "critic-verdict.json"))
+	if err != nil {
+		return canonicalCriticVerdict{}, fmt.Errorf("canonical critic emitted no verdict: %w\n%s", err, run.Output)
 	}
-	return nil
+	var verdict canonicalCriticVerdict
+	if err := json.Unmarshal(data, &verdict); err != nil {
+		return canonicalCriticVerdict{}, fmt.Errorf("parse canonical critic verdict: %w\n%s", err, data)
+	}
+	if verdict.SchemaVersion != "1" || verdict.Mode != "changed-workspace" ||
+		verdict.Oracle.Command != "go test ./..." {
+		return canonicalCriticVerdict{}, fmt.Errorf("invalid canonical critic verdict contract: %s", data)
+	}
+	switch verdict.Verdict {
+	case "accepted":
+		if !verdict.Accepted || verdict.Oracle.Status != "passed" ||
+			run.ExitCode != 0 || run.FinalState != "Succeeded" {
+			return canonicalCriticVerdict{}, fmt.Errorf("inconsistent accepting critic verdict/run: %s; exit=%d state=%s",
+				data, run.ExitCode, run.FinalState)
+		}
+	case "rejected":
+		if verdict.Accepted || verdict.Oracle.Status != "failed" ||
+			run.ExitCode != 2 || run.FinalState != "Rejected" {
+			return canonicalCriticVerdict{}, fmt.Errorf("inconsistent rejecting critic verdict/run: %s; exit=%d state=%s",
+				data, run.ExitCode, run.FinalState)
+		}
+	default:
+		return canonicalCriticVerdict{}, fmt.Errorf("unknown canonical critic verdict: %s", data)
+	}
+	return verdict, nil
+}
+
+func applicationOutcome(verdict canonicalCriticVerdict) (string, error) {
+	switch verdict.Verdict {
+	case "accepted":
+		if !verdict.Accepted {
+			return "", fmt.Errorf("accepted verdict has accepted=false")
+		}
+		return "Succeeded", nil
+	case "rejected":
+		if verdict.Accepted {
+			return "", fmt.Errorf("rejected verdict has accepted=true")
+		}
+		return "Failed", nil
+	default:
+		return "", fmt.Errorf("cannot map unknown critic verdict %q", verdict.Verdict)
+	}
 }
 
 // CodingLoop runs the three independently addressable stages in order.

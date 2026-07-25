@@ -18,7 +18,7 @@ preconditions:
   - Ollama is reachable with the configured planning and execution models; each live stage skips cleanly when it is unavailable.
   - The application package resolves planner, executor, and critic from one pinned agent-profiles version.
   - A fresh copy of the greet fixture workspace is used for each stage.
-  - The fixture carries its SRD, requirement graph, critic suite, samples, oracle, and expected terminal outcomes.
+  - The fixture carries its SRD, requirement graph, fallback candidate variants, and expected critic/application terminal outcomes.
 
 test_cases:
   - use_case: rel01.0-uc001-coding-loop
@@ -92,32 +92,30 @@ test_cases:
     name: Stage C - critic gate
     stage: C
     integration_target: mage integration:criticGate
-    status: planned
+    go_test: go test ./magefiles -run '^Test(ApplicationOutcomeMapsOnlyCanonicalVerdicts|CriticCandidateFixturesHaveOppositeOracleResults)$'
+    status: implemented
     description: |
-      The executable target currently proves the strongest honest canonical
-      critic boundary: the real critic invokes the real built agent binary with
-      the canonical executor, runs the oracle, records point metrics, and reaches
-      Done. It does not satisfy this Stage C case yet. The canonical critic
-      contract always starts a child profile from a baseline sample and exposes
-      no input for an existing Stage B workspace or output verdict that can gate
-      the application. Accept/reject gating therefore remains planned and needs
-      a separate profile-contract issue; a skipped or limited run is not passed
-      evidence for this case.
+      Pass the changed workspace produced by Stage B directly to the canonical
+      changed-workspace critic profile. The critic runs its declared oracle
+      without copying a baseline or launching a coding child, writes an explicit
+      machine-readable accepted verdict, and the application maps it to
+      Succeeded. A deliberately non-conforming candidate drives the critic's
+      rejected branch and maps to Failed. If Stage B cleanly skips for unavailable
+      model prerequisites, the same accepting proof uses the portable conforming
+      candidate fixture and reports that fallback.
     inputs:
       agent_binary: production agent-core binary used for critic point execution
-      critic_profile: agent-profiles/agents/critic/profile.yaml resolved through the application package
+      critic_profile: agent-profiles/agents/critic/profile-workspace.yaml resolved through the application package
       accepted_candidate: changed workspace produced by Stage B
       rejected_candidate: fixture variant whose greeting violates srd001-greet.yaml
-      suite: testdata/integration/coding-loop critic suite
-      samples: conforming and non-conforming candidate workspaces
-      profile_grid: canonical executor profile and configured model
-      oracle_command: fixture command that runs go test ./... and checks the required greeting
+      fallback_candidate: deterministic conforming fixture used only when Stage B model prerequisites skip
+      oracle_command: canonical profile declaration runs go test ./...
     expected_outputs:
-      point_directories: One isolated result directory exists for each candidate.
       oracle_results: The conforming candidate passes and the non-conforming candidate fails.
-      metrics: Trace token counts and evaluation metrics are present for each point.
-      accepted_session: The conforming candidate yields a Done report and an application Succeeded gate.
-      rejected_session: The non-conforming candidate yields a rejecting report and an application Failed gate.
+      accepted_verdict: critic-verdict.json records verdict accepted, accepted true, and oracle status passed.
+      rejected_verdict: critic-verdict.json records verdict rejected, accepted false, and oracle status failed.
+      accepted_session: The conforming candidate reaches Succeeded and maps to application Succeeded.
+      rejected_session: The non-conforming candidate reaches Rejected and maps to application Failed.
       fake_agent_invocations: 0
     traces:
       - rel01.0-uc001-coding-loop S3

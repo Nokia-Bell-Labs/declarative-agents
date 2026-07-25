@@ -1,0 +1,71 @@
+name: critic-workspace
+purpose: |-
+  Evaluate an existing changed Go workspace without cloning a sample or
+  launching a child coding agent. The declared oracle result selects an
+  explicit accepted or rejected verdict, which the profile writes as
+  critic-verdict.json in the supplied workspace.
+initial_state: Idle
+budget:
+  max_iterations: 4
+states:
+  - name: Idle
+    meaning: The changed workspace has not been evaluated.
+  - name: Evaluating
+    meaning: The declared candidate oracle is running in the supplied workspace.
+  - name: RecordingAccepted
+    meaning: The oracle passed and the accepting verdict is being written.
+  - name: RecordingRejected
+    meaning: The oracle failed and the rejecting verdict is being written.
+  - name: Succeeded
+    meaning: Terminal. The oracle passed and an explicit accepting verdict was recorded.
+  - name: Rejected
+    meaning: Terminal. The oracle failed and an explicit rejecting verdict was recorded.
+  - name: Failed
+    meaning: Terminal. Infrastructure prevented evaluation or verdict recording.
+terminal_states:
+  - Succeeded
+  - Rejected
+  - Failed
+signals:
+  - name: Seed
+    trigger: Loop initialization.
+  - name: ToolDone
+    trigger: The oracle passed or a verdict file was written.
+  - name: ToolFailed
+    trigger: The oracle completed with a rejecting result.
+  - name: CommandError
+    trigger: The oracle or verdict command could not run.
+transitions:
+  - state: Idle
+    signal: Seed
+    next: Evaluating
+    action: evaluate_candidate
+  - state: Evaluating
+    signal: ToolDone
+    next: RecordingAccepted
+    action: emit_accepted_verdict
+  - state: Evaluating
+    signal: ToolFailed
+    next: RecordingRejected
+    action: emit_rejected_verdict
+  - state: Evaluating
+    signal: CommandError
+    next: Failed
+  - state: RecordingAccepted
+    signal: ToolDone
+    next: Succeeded
+  - state: RecordingAccepted
+    signal: ToolFailed
+    next: Failed
+  - state: RecordingAccepted
+    signal: CommandError
+    next: Failed
+  - state: RecordingRejected
+    signal: ToolDone
+    next: Rejected
+  - state: RecordingRejected
+    signal: ToolFailed
+    next: Failed
+  - state: RecordingRejected
+    signal: CommandError
+    next: Failed

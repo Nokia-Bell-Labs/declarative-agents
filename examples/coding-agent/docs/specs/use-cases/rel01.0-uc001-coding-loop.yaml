@@ -20,7 +20,7 @@ preconditions:
   - The application package pins an agent-profiles library version and contains the resolved planner, executor, and critic profile closure.
   - The workspace contains the baseline source and its validation command.
   - The planner and executor model endpoints are reachable.
-  - The critic suite, samples, model or profile grid, and oracle command are available.
+  - The canonical changed-workspace critic profile and its declared oracle are available.
   - Planner, executor, and critic run as separate agent-core processes with their selected profiles mounted from the application package.
 
 flow:
@@ -35,9 +35,9 @@ flow:
   - id: F5
     text: The planner records the executor outcome and makes the changed workspace and evidence available to the application evaluation stage.
   - id: F6
-    text: The critic parses the suite, expands evaluation points, prepares isolated point workspaces from the produced change, invokes the configured profile, and runs each oracle.
+    text: The application supplies the produced workspace directly to the canonical changed-workspace critic, which runs its declared oracle in place without launching another coding agent.
   - id: F7
-    text: The critic collects point directories, oracle results, trace token counts, metrics, and the session report, then returns Done or Failed.
+    text: The critic selects its accepted or rejected machine branch from the oracle signal and writes critic-verdict.json with the explicit verdict and oracle evidence.
   - id: F8
     text: The application succeeds only when executor validation succeeds and the critic gate returns an accepting Done report; executor failure, budget exhaustion, or critic rejection produces a failed outcome with evidence.
 
@@ -80,7 +80,7 @@ success_criteria:
       - srd004-planner AC1
       - srd004-planner AC3
   - id: S3
-    criterion: The critic evaluates the produced change with the declared suite and oracle and emits a session report whose verdict gates the application outcome.
+    criterion: The canonical critic evaluates the produced change in place and emits a machine-readable accepted or rejected verdict whose value gates the application outcome.
     traces:
       - srd003-critic R1.1
       - srd003-critic R1.2
@@ -103,4 +103,4 @@ out_of_scope:
   - Replacing library conformance tests with this application integration suite.
 
 test_suite: test-rel01.0-coding-loop
-status: specified
+status: implemented

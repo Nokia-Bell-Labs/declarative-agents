@@ -16,7 +16,7 @@ roadmap_summary:
     name: Planner, executor, and critic coding loop
     use_cases_done: 0
     use_cases_total: 1
-    status: specified
+    status: implemented
 
 foundation_document_index:
   - id: coding-agent-example
@@ -59,7 +59,7 @@ use_case_index:
   - id: rel01.0-uc001-coding-loop
     title: Planner Materializes, Executor Changes, and Critic Gates
     release: "01.0"
-    status: specified
+    status: implemented
     test_suite: test-rel01.0-coding-loop
     path: docs/specs/use-cases/rel01.0-uc001-coding-loop.yaml
 
@@ -72,14 +72,6 @@ test_suite_index:
     path: docs/specs/test-suites/test-rel01.0-coding-loop.yaml
 
 coverage_gaps:
-  - id: coding-loop-integration
-    status: planned
-    description: |
-      Portable fixtures and executable Mage targets now prove the live executor
-      and real planner delegation stages. The critic target proves its real
-      session, child, oracle, trace, and metrics boundary, but the canonical
-      critic profile cannot consume an existing Stage B candidate or emit an
-      accept/reject application verdict. The full Stage C gate remains planned.
   - id: library-reference-resolution
     status: planned
     description: |

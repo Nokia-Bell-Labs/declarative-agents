@@ -6,6 +6,7 @@ import (
 	"net/http"
 	"net/http/httptest"
 	"os"
+	"os/exec"
 	"path/filepath"
 	"strings"
 	"testing"
@@ -87,18 +88,37 @@ func TestRequireSuccessfulExecutorChecksTerminalEditAndTests(t *testing.T) {
 	}
 }
 
-func TestRequirePassingCriticEvidenceRejectsFailedOracle(t *testing.T) {
-	output := t.TempDir()
-	point := filepath.Join(output, "session", "point")
-	writeTestFile(t, filepath.Join(point, "meta.json"), `{
-  "harness": "executor",
-  "tests_passed": false,
-  "timed_out": false,
-  "exit_code": 0,
-  "tokens": 10
-}`)
-	if err := requirePassingCriticEvidence(output); err == nil {
-		t.Fatal("expected failed oracle evidence to be rejected")
+func TestApplicationOutcomeMapsOnlyCanonicalVerdicts(t *testing.T) {
+	accepted := canonicalCriticVerdict{Verdict: "accepted", Accepted: true}
+	if got, err := applicationOutcome(accepted); err != nil || got != "Succeeded" {
+		t.Fatalf("accepted outcome = %q, %v", got, err)
+	}
+	rejected := canonicalCriticVerdict{Verdict: "rejected", Accepted: false}
+	if got, err := applicationOutcome(rejected); err != nil || got != "Failed" {
+		t.Fatalf("rejected outcome = %q, %v", got, err)
+	}
+	if _, err := applicationOutcome(canonicalCriticVerdict{Verdict: "accepted"}); err == nil {
+		t.Fatal("accepted verdict with accepted=false must not map to success")
+	}
+}
+
+func TestCriticCandidateFixturesHaveOppositeOracleResults(t *testing.T) {
+	appRoot := filepath.Clean(filepath.Join(".."))
+	for _, tc := range []struct {
+		name     string
+		wantPass bool
+	}{
+		{name: "accepted", wantPass: true},
+		{name: "rejected", wantPass: false},
+	} {
+		t.Run(tc.name, func(t *testing.T) {
+			cmd := exec.Command("go", "test", "./...")
+			cmd.Dir = filepath.Join(appRoot, "testdata", "integration", "coding-loop", "candidates", tc.name)
+			err := cmd.Run()
+			if (err == nil) != tc.wantPass {
+				t.Fatalf("go test error = %v, wantPass=%t", err, tc.wantPass)
+			}
+		})
 	}
 }
 

@@ -17,7 +17,7 @@ releases:
       The critic evaluates the resulting change and gates the terminal
       application outcome. Three ordered integration stages prove those
       boundaries without a fake agent binary.
-    status: specified
+    status: implemented
     library_srds:
       - srd002-executor
       - srd003-critic
@@ -25,8 +25,8 @@ releases:
     use_cases:
       - id: rel01.0-uc001-coding-loop
         summary: A real planner materializes an SRD task, delegates it to a real executor, and submits the validated change to a critic gate.
-        status: specified
+        status: implemented
     test_suites:
       - id: test-rel01.0-coding-loop
         summary: Three stages prove a live executor run, real planner delegation, and the critic verdict with explicit inputs and outputs.
-        status: specified
+        status: implemented

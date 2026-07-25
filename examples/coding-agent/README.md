@@ -58,20 +58,16 @@ Profiles are application package content, not runtime image content.
 
 ## Status
 
-The live executor and real planner-delegation stages are implemented with the
-production agent-core binary and canonical profiles. The critic target executes
-the real critic session, real executor child, oracle, trace, and metrics
-boundary. The following assets remain planned:
+All three coding-loop stages are implemented with the production agent-core
+binary and canonical profiles. The critic receives the existing Stage B
+workspace, writes its own accepted or rejected verdict, and the application
+maps that verdict to Succeeded or Failed. The following assets remain planned:
 
-- a critic profile contract that accepts an existing candidate and emits an
-  accept/reject application verdict;
 - pinned library reference resolution and package assembly;
 - a Helm chart with one container per agent.
 
-The critic gate test case remains planned: the current canonical critic is a
-benchmark runner that starts a child from a baseline sample, not a reviewer of
-the Stage B workspace. The executable target reports a limited pass instead of
-claiming that missing gate.
+The existing critic benchmark/session profile remains available unchanged; the
+changed-workspace mode is a separate canonical profile variant.
 
 ## Layout
 

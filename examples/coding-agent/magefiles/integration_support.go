@@ -69,6 +69,13 @@ func liveSkipReason(roots integrationRoots, extraBinaries ...string) string {
 	if probe := strings.TrimSpace(os.Getenv(ollamaProbeURLEnv)); probe != "" && probe != canonicalOllamaURL {
 		return fmt.Sprintf("%s=%s does not match canonical profile endpoint %s", ollamaProbeURLEnv, probe, canonicalOllamaURL)
 	}
+	if reason := baseIntegrationSkipReason(roots, extraBinaries...); reason != "" {
+		return reason
+	}
+	return ollamaSkipReason(prerequisiteHTTPClient, canonicalOllamaURL, canonicalModel)
+}
+
+func baseIntegrationSkipReason(roots integrationRoots, extraBinaries ...string) string {
 	for _, requirement := range []struct {
 		path  string
 		label string
@@ -78,6 +85,7 @@ func liveSkipReason(roots integrationRoots, extraBinaries ...string) string {
 		{filepath.Join(roots.Profiles, "agents", "executor", "profile.yaml"), "canonical executor profile"},
 		{filepath.Join(roots.Profiles, "agents", "planner", "profile.yaml"), "canonical planner profile"},
 		{filepath.Join(roots.Profiles, "agents", "critic", "profile.yaml"), "canonical critic profile"},
+		{filepath.Join(roots.Profiles, "agents", "critic", "profile-workspace.yaml"), "canonical changed-workspace critic profile"},
 	} {
 		if info, err := os.Stat(requirement.path); err != nil || info.IsDir() {
 			return fmt.Sprintf("%s not found at %s", requirement.label, requirement.path)
@@ -88,7 +96,7 @@ func liveSkipReason(roots integrationRoots, extraBinaries ...string) string {
 			return fmt.Sprintf("%s not found on PATH", binary)
 		}
 	}
-	return ollamaSkipReason(prerequisiteHTTPClient, canonicalOllamaURL, canonicalModel)
+	return ""
 }
 
 func ollamaSkipReason(client *http.Client, baseURL, model string) string {
@@ -217,7 +225,7 @@ func runBuiltAgent(binary, profilesRoot, coreRoot, profile, workspace string, ex
 }
 
 func traceFinalState(trace string) string {
-	for _, state := range []string{"Succeeded", "Failed", "BudgetExceeded", "Completed", "Stalled", "Paused", "Done"} {
+	for _, state := range []string{"Succeeded", "Failed", "BudgetExceeded", "Completed", "Stalled", "Paused", "Done", "Rejected"} {
 		if strings.Contains(trace, `"Key":"run.final_state","Value":{"Type":"STRING","Value":"`+state+`"}`) {
 			return state
 		}

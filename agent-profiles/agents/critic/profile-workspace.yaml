@@ -1,0 +1,6 @@
+name: critic-workspace
+machine: machine-workspace.yaml
+tools:
+  - tools-workspace.yaml
+tool_declarations:
+  - workspace-exec.yaml

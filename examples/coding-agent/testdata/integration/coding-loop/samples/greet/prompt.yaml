@@ -1,4 +1,0 @@
-prompt: |
-  Implement Hello in greet.go according to
-  doc/specs/software-requirements/srd001-greet.yaml. Do not modify tests.
-  Finish only after go test ./... passes.

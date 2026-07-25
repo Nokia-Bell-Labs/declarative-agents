@@ -6,8 +6,9 @@ overview:
     The coding agent composes three canonical agent-profiles library agents.
     The planner reads a requirement graph and SRD context, materializes a task,
     and delegates it to the executor. The executor changes an isolated
-    workspace and returns validation evidence. The critic evaluates that result
-    with a suite and oracle; its verdict gates the application outcome.
+    workspace and returns validation evidence. The critic evaluates that
+    existing candidate with its declared oracle; its explicit verdict gates the
+    application outcome.
 
     The application owns composition, packaging, deployment, and end-to-end
     tests. Agent behavior remains profile-owned, and execution capability
@@ -43,8 +44,8 @@ interfaces:
   - name: coding request
     summary: |
       The application input names an SRD, requirement graph, mounted workspace,
-      planning model config, execution model config, critic suite, samples, and
-      oracle command.
+      planning model config, execution model config, and the canonical critic
+      changed-workspace mode with its declared oracle.
   - name: planner-to-executor delegation
     summary: |
       The planner passes a materialized task, workspace location, and model
@@ -56,9 +57,10 @@ interfaces:
       validation results, and a traceable task summary to the planner.
   - name: critic gate
     summary: |
-      The critic receives the changed workspace plus suite, samples, model or
-      profile grid, and oracle command. Point results, metrics, and the session
-      report determine the final gate.
+      The canonical changed-workspace critic receives the existing candidate
+      through its runtime directory binding, runs its declared oracle in place,
+      and writes critic-verdict.json. The application maps accepted to Succeeded
+      and rejected to Failed.
   - name: packaged profile mount
     summary: |
       Each container starts the agent-core runtime with a profile selected from
@@ -85,10 +87,10 @@ components:
     source: agent-profiles/agents/critic/
     library_requirement: agent-profiles/docs/specs/software-requirements/srd003-critic.yaml
     responsibility: |
-      Parse the evaluation suite, expand points, prepare isolated point
-      workspaces, invoke the configured profile, run oracle checks, and produce
-      the session verdict that gates the coding result. The application
-      references this profile; it does not fork it.
+      Evaluate the existing changed workspace, branch on the declared oracle
+      result, and emit the explicit accepted or rejected verdict that gates the
+      coding result. The benchmark/session mode remains available separately.
+      The application references these profiles; it does not fork them.
   - name: application package
     path: packaging/
     status: planned
@@ -210,19 +212,16 @@ project_structure:
 implementation_status:
   current_focus: |
     The application documentation, portable integration fixtures, live executor,
-    and real planner delegation are implemented. The critic session boundary is
-    executable, but candidate verdict gating, the reference resolver, packaging,
-    and Helm deployment remain planned follow-up work.
+    real planner delegation, and canonical critic verdict gate are implemented.
+    The reference resolver, packaging, and Helm deployment remain planned
+    follow-up work.
   progress:
-    - specified: The planner -> executor -> critic coding loop and three-stage
+    - implemented: The planner -> executor -> critic coding loop and three-stage
         integration contract.
     - specified: The reference-not-fork, package-time closure, profile-free
         runtime image, and one-container-per-agent decisions.
-    - implemented: Live executor and real planner delegation targets using the
-        real built binary and canonical profiles.
-    - specified: A real critic session boundary with point, oracle, trace, and
-        metrics evidence; accept/reject application gating remains planned
-        because the canonical profile exposes no candidate-verdict contract.
+    - implemented: Live executor, real planner delegation, and changed-workspace
+        critic gate targets using the real built binary and canonical profiles.
     - planned: Versioned library reference resolution and package assembly.
     - planned: Kubernetes deployment and Helm chart.
 

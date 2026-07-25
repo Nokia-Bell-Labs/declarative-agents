@@ -33,6 +33,7 @@ func Audit() error {
 		filepath.Join(roots.Profiles, "agents", "executor", "profile.yaml"),
 		filepath.Join(roots.Profiles, "agents", "planner", "profile.yaml"),
 		filepath.Join(roots.Profiles, "agents", "critic", "profile.yaml"),
+		filepath.Join(roots.Profiles, "agents", "critic", "profile-workspace.yaml"),
 	}
 	if err := bootSmokeProfiles(binary, roots.Core, profiles); err != nil {
 		return err

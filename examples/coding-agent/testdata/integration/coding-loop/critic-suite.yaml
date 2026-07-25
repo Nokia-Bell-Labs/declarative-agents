@@ -1,6 +1,0 @@
-name: coding-loop-critic-boundary
-profiles:
-  - "@EXECUTOR_PROFILE@"
-samples_dir: samples
-timeout: 10m
-repetitions: 1
