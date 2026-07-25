@@ -43,8 +43,18 @@ spec:
       affinity:
         {{- toYaml . | nindent 8 }}
       {{- end }}
-      {{- if and $.Values.ollama.enabled (or (eq $role "planner") (eq $role "executor")) }}
+      {{- if or $.Values.collector.enabled (and $.Values.ollama.enabled (or (eq $role "planner") (eq $role "executor"))) }}
       initContainers:
+        {{- if $.Values.collector.enabled }}
+        - name: wait-for-collector
+          image: {{ $.Values.collector.utilityImage | quote }}
+          command: ["/bin/sh", "-c"]
+          args:
+            - until nc -z -w 2 {{ include "coding-agent.fullname" $ }}-collector {{ $.Values.collector.otlpGRPCPort }}; do sleep 2; done
+          securityContext:
+            {{- toYaml $.Values.containerSecurityContext | nindent 12 }}
+        {{- end }}
+        {{- if and $.Values.ollama.enabled (or (eq $role "planner") (eq $role "executor")) }}
         - name: wait-for-models
           image: {{ $.Values.ollama.utilityImage | quote }}
           command: ["/bin/sh", "-c"]
@@ -60,6 +70,7 @@ spec:
               done
           securityContext:
             {{- toYaml $.Values.containerSecurityContext | nindent 12 }}
+        {{- end }}
       {{- end }}
       containers:
         - name: {{ $role }}

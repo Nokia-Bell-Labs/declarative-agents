@@ -131,8 +131,8 @@ routing. `values.schema.json`, semantic template guards, and fixtures under
 `helm/schema-fixtures/` validate values. `mage helm:package` regenerates and
 checks prepared profiles, renders the supported matrix, writes
 `helm/dist/coding-agent-0.1.0.tgz`, verifies its complete inventory, and renders
-the archive independently. Live deployment instructions belong to the next
-issue.
+the archive independently. See the [deployment guide](docs/deployment.md), or
+run the bounded packaged-chart proof with `mage integration:helmSmoke`.
 
 ## Status
 
@@ -145,7 +145,7 @@ behind real lifecycle health endpoints. A request to the planner crosses
 declared executor and critic REST clients, while all three processes bind the
 same trusted workspace directory and agent-core propagates `traceparent` across
 the two remote boundaries. The package-driven core Helm topology is implemented;
-schema/package validation is implemented, and live cluster proof remains planned.
+schema/package validation and bounded kind deployment proof are implemented.
 
 The existing critic benchmark/session profile remains available unchanged; the
 changed-workspace mode is a separate canonical profile variant.
@@ -205,6 +205,9 @@ request. `mage integration:servingRemote` proves the real
 planner → executor → critic localhost flow with deterministic
 Ollama-compatible model responses and production profile, REST, workspace,
 critic, lifecycle, and trace behavior.
+`mage integration:helmSmoke` installs the packaged chart into kind and proves
+the same flow through Kubernetes, including shared workspace mutation and the
+connected Jaeger trace. It skips only for missing host prerequisites.
 
 ## Documents
 
@@ -212,5 +215,6 @@ critic, lifecycle, and trace behavior.
 - [Architecture](docs/ARCHITECTURE.yaml)
 - [Road map](docs/road-map.yaml)
 - [Specification index](docs/SPECIFICATIONS.yaml)
+- [Deployment and operations](docs/deployment.md)
 - [Coding-loop use case](docs/specs/use-cases/rel01.0-uc001-coding-loop.yaml)
 - [Coding-loop test suite](docs/specs/test-suites/test-rel01.0-coding-loop.yaml)

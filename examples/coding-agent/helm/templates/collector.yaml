@@ -60,6 +60,16 @@ spec:
       automountServiceAccountToken: false
       securityContext:
         {{- toYaml .Values.podSecurityContext | nindent 8 }}
+      {{- if .Values.jaeger.enabled }}
+      initContainers:
+        - name: wait-for-jaeger-otlp
+          image: {{ .Values.collector.utilityImage | quote }}
+          command: ["/bin/sh", "-c"]
+          args:
+            - until nc -z -w 2 {{ $fullname }}-jaeger {{ .Values.jaeger.otlpGRPCPort }}; do sleep 2; done
+          securityContext:
+            {{- toYaml .Values.containerSecurityContext | nindent 12 }}
+      {{- end }}
       containers:
         - name: collector
           image: "{{ .Values.collector.image.repository }}:{{ .Values.collector.image.tag }}"

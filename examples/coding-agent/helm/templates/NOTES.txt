@@ -9,5 +9,6 @@ role closure read-only at {{ .Values.profiles.mountPath }}. The image is
 profile-free. All roles share PVC {{ include "coding-agent.workspaceClaim" . }}
 at {{ .Values.workspace.mountPath }}.
 
-This source chart requires `mage helmPrepare` before lint or install. Schema,
-packaged-chart validation, and live deployment proof are delivered separately.
+This source chart requires `mage helmPrepare` before lint or install. Use the
+packaged artifact for deployment and `mage integration:helmSmoke` for the
+bounded kind proof.

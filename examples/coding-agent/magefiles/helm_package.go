@@ -31,6 +31,9 @@ var chartSourceInventory = []string{
 var chartArchiveInventory = []string{
 	"coding-agent/.helmignore",
 	"coding-agent/Chart.yaml",
+	"coding-agent/ci/kind-config.yaml",
+	"coding-agent/ci/kind-values.yaml",
+	"coding-agent/ci/kind-workspace.yaml",
 	"coding-agent/ci/small-values.yaml",
 	"coding-agent/schema-fixtures/README.md",
 	"coding-agent/schema-fixtures/invalid-image.yaml",

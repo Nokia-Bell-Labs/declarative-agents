@@ -34,7 +34,7 @@ spec:
             - {name: otlp-grpc, containerPort: {{ .Values.jaeger.otlpGRPCPort }}}
             - {name: query, containerPort: {{ .Values.jaeger.queryPort }}}
           readinessProbe:
-            httpGet: {path: /, port: query}
+            tcpSocket: {port: otlp-grpc}
             initialDelaySeconds: 5
             periodSeconds: 10
           resources:

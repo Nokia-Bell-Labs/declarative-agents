@@ -1,0 +1,34 @@
+id: test-rel06.0-live-helm-smoke
+title: Packaged-Chart Live Helm Smoke Suite
+release: "06.0"
+status: implemented
+
+overview: |
+  Deterministic unit tests pin prerequisite skips, infrastructure probes,
+  semantic classification, bounded diagnostics, profile-free image construction,
+  and kind fixtures. The live target supplies the Kubernetes evidence.
+
+traces:
+  - rel06.0-uc001-live-helm-smoke
+
+test_cases:
+  - use_case: rel06.0-uc001-live-helm-smoke
+    name: Missing prerequisite skip
+    go_test: go test ./magefiles -run '^TestCodingHelmSmokeSkipsMissingExternalPrerequisite$'
+    status: implemented
+    traces: [srd005-live-helm-smoke AC2]
+  - use_case: rel06.0-uc001-live-helm-smoke
+    name: Failure classification and diagnostics
+    go_test: go test ./magefiles -run '^TestCodingHelm(InfrastructureProbeClassification|FailureDistinguishesSemanticFromInfrastructure|DiagnosticsUseOneBoundedContext)$'
+    status: implemented
+    traces: [srd005-live-helm-smoke AC3]
+  - use_case: rel06.0-uc001-live-helm-smoke
+    name: Smoke image and kind fixtures
+    go_test: go test ./magefiles -run '^TestCodingHelm(FixturesMatchServingAndStorageContract|SmokeImageRemainsProfileFree)$'
+    status: implemented
+    traces: [srd005-live-helm-smoke R2]
+  - use_case: rel06.0-uc001-live-helm-smoke
+    name: Full packaged topology
+    integration_target: mage integration:helmSmoke
+    status: implemented
+    traces: [srd005-live-helm-smoke AC1]

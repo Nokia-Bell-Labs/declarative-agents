@@ -179,9 +179,10 @@
     "collector": {
       "type": "object",
       "additionalProperties": false,
-      "required": ["enabled", "image", "otlpGRPCPort", "otlpHTTPPort", "resources"],
+      "required": ["enabled", "utilityImage", "image", "otlpGRPCPort", "otlpHTTPPort", "resources"],
       "properties": {
         "enabled": {"type": "boolean"},
+        "utilityImage": {"type": "string", "pattern": "^[^[:space:]@]+:[A-Za-z0-9_][A-Za-z0-9_.-]{0,127}$"},
         "image": {"$ref": "#/definitions/image"},
         "otlpGRPCPort": {"type": "integer", "minimum": 1024, "maximum": 65535},
         "otlpHTTPPort": {"type": "integer", "minimum": 1024, "maximum": 65535},
@@ -203,9 +204,12 @@
     "podSecurityContext": {
       "type": "object",
       "additionalProperties": false,
-      "required": ["runAsNonRoot", "seccompProfile"],
+      "required": ["runAsNonRoot", "runAsUser", "runAsGroup", "fsGroup", "seccompProfile"],
       "properties": {
         "runAsNonRoot": {"const": true},
+        "runAsUser": {"type": "integer", "minimum": 1},
+        "runAsGroup": {"type": "integer", "minimum": 1},
+        "fsGroup": {"type": "integer", "minimum": 1},
         "seccompProfile": {
           "type": "object",
           "additionalProperties": false,

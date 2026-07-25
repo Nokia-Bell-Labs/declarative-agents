@@ -246,6 +246,21 @@ design_decisions:
       - Invalid topology fails before Kubernetes output.
       - Stale or tampered profile artifacts cannot enter a chart archive.
       - Release artifacts do not depend on source-tree files after packaging.
+  - id: 11
+    title: Prove the packaged topology with an owned kind rig
+    decision: |
+      `integration:helmSmoke` installs only the validated `.tgz` into a pinned
+      kind cluster through a temporary kubeconfig. It builds a local
+      profile-free agent image with the Go toolchain and a deterministic
+      Ollama-compatible boundary, uses a kind-only RWX hostPath fixture, and
+      verifies role health, workspace mutation, critic verdict, and a connected
+      Jaeger trace. Docker and Kubernetes probes classify infrastructure
+      outages separately from semantic failures; diagnostics and cleanup are
+      bounded.
+    benefits:
+      - Static chart evidence is connected to real Kubernetes behavior.
+      - Model nondeterminism does not weaken role or trace assertions.
+      - Reused clusters are not deleted and failures retain targeted evidence.
 
 technology_choices:
   - component: Agent runtime
@@ -305,8 +320,8 @@ implementation_status:
     The application documentation, portable integration fixtures, live executor,
     real planner delegation, canonical critic verdict gate, application
     reference manifest, role-specific profile closure packaging, persistent
-    serving contract, core Helm topology, strict values, and packaged-chart
-    validation are implemented. Live deployment remains follow-up work.
+    serving contract, core Helm topology, strict values, packaged-chart
+    validation, and bounded kind deployment proof are implemented.
   progress:
     - implemented: The planner -> executor -> critic coding loop and three-stage
         integration contract.
@@ -326,7 +341,9 @@ implementation_status:
         workspace, truthful probes, model selection, and OTLP-to-Jaeger routing.
     - implemented: Strict schema and semantic guards, profile package integrity,
         render matrix, and self-contained Helm archive validation.
-    - planned: Live kind proof and operator deployment guide.
+    - implemented: Packaged-chart kind smoke with deterministic model boundary,
+        RWX fixture, real role health, workspace/verdict proof, connected trace,
+        infrastructure classification, diagnostics, and cleanup.
 
 related_documents:
   - doc: docs/VISION.yaml

@@ -100,3 +100,20 @@ releases:
       - id: test-rel05.0-helm-package-validation
         summary: Schema matrix, semantic invariants, tamper rejection, and independent archive rendering.
         status: implemented
+  - version: "06.0"
+    name: Packaged-chart live Helm smoke
+    description: |
+      A bounded kind target installs only the packaged chart and proves truthful
+      role health, remote workspace mutation, critic acceptance, and one
+      planner/executor/critic trace with classified failures and cleanup.
+    status: implemented
+    application_srds:
+      - srd005-live-helm-smoke
+    use_cases:
+      - id: rel06.0-uc001-live-helm-smoke
+        summary: A developer proves the complete packaged topology on a disposable kind cluster.
+        status: implemented
+    test_suites:
+      - id: test-rel06.0-live-helm-smoke
+        summary: Skip, classification, diagnostic, fixture, cleanup, and live topology evidence.
+        status: implemented
