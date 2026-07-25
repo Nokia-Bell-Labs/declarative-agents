@@ -10,6 +10,7 @@ chatbot:
 
 ragUnits:
   - name: rag0
+    description: Kind smoke-test corpus.
     collection: corpus
     embeddingModel: qwen3-embedding:8b
     replicas: 1

@@ -1,11 +1,11 @@
 id: test-rel01.0-routing-fanout
-title: Test Suite for Release 01.0 Tier Selection and Multi-RAG Fan-Out
+title: Test Suite for Release 01.0 Source Routing, Tier Selection, and Multi-RAG Fan-Out
 release: "01.0"
 
 overview: |
-  This suite validates the tier-selection and fan-out extension of the chatbot turn
-  (srd002 R2, R3): the LLM $tool tier selector that dispatches one chat-LLM word, and the
-  single sequential for_each over declared topology that cites both shipped
+  This suite validates source routing, tier selection, and fan-out (srd002 R2,
+  R3, R6): separate source and tier classifiers, trusted subset selection, and the
+  single sequential for_each over selected topology entries that cites the needed
   disjoint corpora, collects per-source QueryRejected and CommandError outcomes,
   partitions reported embedding-model mismatches, and renders compatible chunks.
 
@@ -15,11 +15,11 @@ traces:
 preconditions:
   - agent-core is available as AGENT_CORE_ROOT or a sibling ../agent-core checkout.
   - A Chroma server and an Ollama are reachable with the configured embedding, tier-selector, and two chat-LLM models.
-  - This example owns the chatbot profile, the tier-selector prompt, and the fan-out declarations, under examples/chatbot-mesh/agents/.
+  - This example owns the chatbot profile, separate source-router and tier-selector prompts, and fan-out declarations, under examples/chatbot-mesh/agents/.
 
 test_cases:
   - use_case: rel01.0-uc001-routed-fanout
-    name: Tier-selected two-RAG fan-out tracer over disjoint corpora
+    name: Source-routed and tier-selected fan-out over disjoint corpora
     integration_target: mage integration:chatbot
     # Module-local unit evidence for the co-generated fan-out chain. The named
     # behaviors under expected are live outcomes proven by the integration target
@@ -51,16 +51,56 @@ test_cases:
       fault: rag1 stopped before the degraded turn
     expected:
       tier_selector_dispatches_both_chat_models: true
+      scoped_question_queries_only_selected_source: true
+      spanning_question_may_query_all_sources: true
       fanout_draws_both_corpora: true
       degraded_turn_omits_stopped_corpus: true
       excluded_source_routes_on_queryrejected: true
       machine_for_each_count: 1
       adding_third_source_changes_word_or_state_count: false
+      adding_third_source_is_selectable_from_rendered_catalog: true
     traces:
       - rel01.0-uc001-routed-fanout S1
       - rel01.0-uc001-routed-fanout S2
       - rel01.0-uc001-routed-fanout S3
       - rel01.0-uc001-routed-fanout S4
+      - srd002-chatbot-agent AC2
+      - srd002-chatbot-agent AC3
+      - srd002-chatbot-agent AC6
+
+  - use_case: rel01.0-uc001-routed-fanout
+    name: Source-selection trust boundary and full-set fallback matrix
+    go_test: cd ../../agent-profiles && go test ./magefiles -run '^TestChatbot(SourceSelectionUsesTrustedTopologyAndFallback|SourceRouterPromptMatchesDeclaration)$'
+    status: implemented
+    description: |
+      Profile wiring proves generic compose captures and JSON-escapes the adjacent
+      raw classifier reply, parse_structured validates names-only output,
+      select_subset resolves names against trusted topology entries, and for_each
+      reads only selected trusted entries. Mocked source-selector responses cover
+      scoped, spanning, mixed undeclared, malformed, empty, only-undeclared, and
+      classifier-error outcomes. Every fallback queries the complete declared set;
+      mixed picks discard undeclared names. Response metadata reports not_selected
+      separately and the classifier catalog contains no target/configuration data.
+    inputs:
+      source_responses:
+        scoped: '{"names":["rag0"]}'
+        spanning: '{"names":["rag0","rag1"]}'
+        mixed_undeclared: '{"names":["rag0","https://attacker.invalid"]}'
+        malformed: not-json
+        empty: '{"names":[]}'
+        only_undeclared: '{"names":["evil"]}'
+        classifier_error: connection failure
+    expected:
+      undeclared_names_reach_query_target: false
+      classifier_error_queries_all_declared: true
+      malformed_queries_all_declared: true
+      empty_queries_all_declared: true
+      only_undeclared_queries_all_declared: true
+      not_selected_distinct_from_queried_outcomes: true
+      prompt_matches_declaration: true
+    traces:
+      - rel01.0-uc001-routed-fanout S1
+      - rel01.0-uc001-routed-fanout S2
       - srd002-chatbot-agent AC2
       - srd002-chatbot-agent AC3
       - srd002-chatbot-agent AC6

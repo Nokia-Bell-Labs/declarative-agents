@@ -1,14 +1,16 @@
 id: rel01.0-uc001-routed-fanout
-title: Chatbot Turn Selects a Model Tier and Fans Out Over Declared RAG Topology
+title: Chatbot Turn Selects Sources and a Model Tier Before Trusted RAG Fan-Out
 
 summary: |
   A browser posts a chat turn to the chatbot agent (srd002). Beyond the core loop
-  (rel00.0-uc002), the turn adds an LLM classifier that selects one chat-LLM word
-  through the $tool indirection, and exactly one sequential for_each that queries
-  the ordered declared RAG topology with the one query embedding. The ordered join
+  (rel00.0-uc002), the turn adds separate classifiers for declared RAG sources and
+  one chat-LLM word through the $tool indirection. Structured parsing and subset
+  selection resolve model names to trusted topology entries before exactly one
+  sequential for_each queries that selected array with the one query embedding. The ordered join
   feeds generic query-signal and embedding-model partitions; render_each formats
   only compatible chunks under topology-name headers. QueryRejected, CommandError,
-  and reported-model mismatch remain distinct in response metadata.
+  declared-but-not-selected, QueryRejected, CommandError, and reported-model
+  mismatch outcomes remain distinct in response metadata.
 
 actor: A browser user sending a chat message across two corpora.
 
@@ -18,25 +20,28 @@ trigger: |
 
 preconditions:
   - Two RAG server agents (rel00.0-uc001) are reachable as declared rest.yaml clients over disjoint corpora.
-  - A small tier-selector model and two chat-LLM models are reachable as declared clients.
-  - The chatbot profile validates and owns the turn machine, the tier-selector prompt, and the fan-out declarations.
+  - A small classifier model and two chat-LLM models are reachable as declared clients.
+  - Each topology item has a required description and trusted target/config fields.
+  - The chatbot profile validates and owns the turn machine, separate source and tier prompts, and fan-out declarations.
 
 flow:
   - id: F1
-    text: The tier selector makes one classifier call over the original question, parsed to a $tool selection over the declared chat-LLM words, falling back to a default word on misparse or an out-of-set selection.
+    text: select_sources classifies the original question against the names-and-descriptions-only catalog; capture_source_selection JSON-escapes the adjacent raw reply into a fixed response field, parse_structured validates `{names:[string]}`, and select_subset resolves declared names to trusted topology entries. Classifier/capture error, malformed, empty, and only-undeclared outcomes select all declared entries; mixed picks discard undeclared names.
   - id: F2
-    text: embed_query embeds the query once; exactly one sequential MachineSpec for_each fans the vector over the ordered declared topology and emits one structured join.
+    text: The separate tier selector preserves its existing classifier, $tool vocabulary, and default-word fallback contract.
   - id: F3
-    text: partition_query_results separates QueryResponded entries from QueryRejected vector rejections and CommandError degradation entries; collect_all continues through every declared source.
+    text: embed_query embeds the query once; exactly one sequential MachineSpec for_each fans the vector over only the trusted selected array and emits one structured join.
   - id: F4
-    text: partition_embedding_models excludes answered sources whose reported model differs from the query model, then render_grounding formats only the matched entries under topology-name headers.
+    text: partition_query_results separates QueryResponded entries from QueryRejected vector rejections and CommandError degradation entries; collect_all continues through every selected source.
   - id: F5
+    text: partition_embedding_models excludes answered sources whose reported model differs from the query model, then render_grounding formats only the matched entries under topology-name headers.
+  - id: F6
     text: The $tool-dispatched invoke_llm word answers over the composed prompt, citing chunks from both corpora when both RAGs contribute.
 
 touchpoints:
   - id: T1
     target: srd002-chatbot-agent AC2
-    reason: The tier selector is one classifier call parsed to a $tool selection with a normative fallback.
+    reason: Separate source and tier classifiers retain atomic prompts, trusted subset selection, and normative fallbacks.
   - id: T2
     target: srd002-chatbot-agent AC3
     reason: One sequential iterator plus generic partitions degrades query failures and excludes embedding-model mismatches without indexed words or states.
@@ -46,15 +51,17 @@ touchpoints:
 
 success_criteria:
   - id: S1
-    criterion: The turn selects a chat-LLM word through a $tool classifier and falls back to a configured default word on misparse or an out-of-set selection.
+    criterion: The source classifier selects a scoped declared subset, spanning questions may select all, and every classifier/malformed/empty/only-undeclared fallback queries all declared sources.
     traces:
-      - srd002-chatbot-agent R2.1
-      - srd002-chatbot-agent R2.3
+      - srd002-chatbot-agent R2.4
+      - srd002-chatbot-agent R2.6
       - srd002-chatbot-agent AC2
   - id: S2
-    criterion: One query embedding fans out sequentially over the declared topology through one for_each, and a spanning question draws chunks from both shipped disjoint corpora.
+    criterion: One query embedding fans out sequentially over trusted selected entries through one for_each; undeclared names never reach query target and not-selected names are distinct metadata.
     traces:
       - srd002-chatbot-agent R3.1
+      - srd002-chatbot-agent R3.4
+      - srd002-chatbot-agent R6.2
       - srd002-chatbot-agent AC3
   - id: S3
     criterion: A per-RAG failure is retained in the join's query_failed metadata set and the turn returns a mapped 200 composed from remaining compatible chunks.

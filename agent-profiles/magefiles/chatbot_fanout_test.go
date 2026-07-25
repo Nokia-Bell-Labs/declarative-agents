@@ -22,6 +22,7 @@ type chatbotMachine struct {
 		Signal  string `yaml:"signal"`
 		Next    string `yaml:"next"`
 		Action  string `yaml:"action"`
+		Label   string `yaml:"label"`
 		ForEach *struct {
 			Items   string `yaml:"items"`
 			As      string `yaml:"as"`
@@ -81,7 +82,7 @@ func TestChatbotFanOutHasNoMergeWord(t *testing.T) {
 }
 
 // TestChatbotFanOutRoutesDegradedAndExcluded locks one sequential iterator over
-// the declared topology. QueryRejected and CommandError are collected as failed
+// trusted selected topology entries. QueryRejected and CommandError are collected as failed
 // item outcomes, while QueryResponded is successful; generic partitions retain
 // vector rejection, degradation, and model mismatch as distinct sets.
 func TestChatbotFanOutRoutesDegradedAndExcluded(t *testing.T) {
@@ -92,7 +93,7 @@ func TestChatbotFanOutRoutesDegradedAndExcluded(t *testing.T) {
 			continue
 		}
 		iterators++
-		if tr.Action != "rag_query" || tr.ForEach.Items != "$from(declare_rag_topology).items" ||
+		if tr.Action != "rag_query" || tr.ForEach.Items != "$from(selected_sources).selected" ||
 			tr.ForEach.As != "rag_unit" || tr.ForEach.Mode != "sequential" ||
 			tr.ForEach.Failure != "collect_all" || tr.ForEach.Join.Label != "rag_queries" {
 			t.Errorf("unexpected chatbot iterator: %+v", tr)
@@ -115,6 +116,85 @@ func TestChatbotFanOutRoutesDegradedAndExcluded(t *testing.T) {
 	}
 }
 
+func TestChatbotSourceSelectionUsesTrustedTopologyAndFallback(t *testing.T) {
+	parsed := loadChatbotMachine(t)
+	machine := string(readRequiredChatbotAsset(t, chatbotAssetPath("request-machine.yaml")))
+	declarations := string(readRequiredChatbotAsset(t, chatbotAssetPath("request-declarations.yaml")))
+	topology := string(readRequiredChatbotAsset(t, chatbotAssetPath("request-topology.yaml")))
+	for _, required := range []string{
+		"action: select_sources",
+		"action: capture_source_selection",
+		"action: parse_source_selection",
+		"response: $.",
+		`{"response": {{ json response }}}`,
+		"action: constrain_source_selection, label: selected_sources",
+		"action: select_all_sources, label: selected_sources",
+		"items: $from(selected_sources).selected",
+		"candidates: $from(parse_source_selection).names",
+		"source: $from(capture_source_selection).response",
+		"vocabulary: $from(declare_rag_topology).items",
+		"candidates: $from(declare_rag_topology).names",
+		"vocabulary: $from(selected_sources).matched",
+	} {
+		if !strings.Contains(machine+"\n"+declarations, required) {
+			t.Errorf("source-router flow missing %q", required)
+		}
+	}
+	if strings.Contains(declarations, "base_url_selector:") ||
+		strings.Contains(declarations, "http://127.0.0.1:18085") {
+		t.Error("source classifier declarations contain target data")
+	}
+	if !strings.Contains(topology, `"description":`) || !strings.Contains(topology, `"base_url":`) {
+		t.Error("trusted topology must carry descriptions and selected REST authorities")
+	}
+	for _, fallback := range []struct{ state, signal string }{
+		{"ComposingSourceSelection", "CommandError"},
+		{"SelectingSources", "CommandError"},
+		{"CapturingSourceSelection", "CommandError"},
+		{"ParsingSources", "ParseFailed"},
+		{"ParsingSources", "CommandError"},
+		{"ConstrainingSources", "SourcesEmpty"},
+		{"ConstrainingSources", "CommandError"},
+	} {
+		var found bool
+		for _, tr := range parsed.Transitions {
+			if tr.State == fallback.state && tr.Signal == fallback.signal {
+				found = tr.Action == "select_all_sources" && tr.Label == "selected_sources"
+				break
+			}
+		}
+		if !found {
+			t.Errorf("fallback (%s,%s) does not select the full trusted topology", fallback.state, fallback.signal)
+		}
+	}
+}
+
+func TestChatbotSourceRouterPromptMatchesDeclaration(t *testing.T) {
+	var declarations struct {
+		Tools []struct {
+			Name   string `yaml:"name"`
+			Config struct {
+				SystemPrompt string `yaml:"system_prompt"`
+			} `yaml:"config"`
+		} `yaml:"tools"`
+	}
+	data := readRequiredChatbotAsset(t, chatbotAssetPath("request-declarations.yaml"))
+	if err := yaml.Unmarshal(data, &declarations); err != nil {
+		t.Fatal(err)
+	}
+	var declared string
+	for _, tool := range declarations.Tools {
+		if tool.Name == "select_sources" {
+			declared = tool.Config.SystemPrompt
+			break
+		}
+	}
+	prompt := string(readRequiredChatbotAsset(t, chatbotAssetPath("source-router-prompt.md")))
+	if strings.TrimSuffix(declared, "\n") != strings.TrimSuffix(prompt, "\n") {
+		t.Error("source-router-prompt.md must be identical to select_sources system_prompt")
+	}
+}
+
 // TestChatbotComposeReadsEachRagSource locks the fixed-selector collection
 // pipeline: query outcomes are partitioned by signal, successful structured
 // outputs by embedding model, and only the compatible set is rendered.
@@ -131,6 +211,8 @@ func TestChatbotComposeReadsEachRagSource(t *testing.T) {
 		"$from(partition_embedding_models).matched",
 		"result.structured_output.mapped.documents",
 		"query_failed: $from(partition_query_results).unmatched",
+		"not_selected: $from(source_selection_report).unmatched",
+		"\"not_selected\": {{ json not_selected }}",
 		"\"embedding_model_excluded\": {{ json model_excluded }}",
 	} {
 		if !strings.Contains(text, sel) {

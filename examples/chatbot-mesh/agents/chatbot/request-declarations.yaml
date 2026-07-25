@@ -95,6 +95,275 @@ tools:
       template: |
         {"model": "${CHATBOT_EMBEDDING_MODEL:-qwen3-embedding:8b}"}
 
+  - name: compose_source_selection_prompt
+    type: builtin
+    init: compose
+    visibility: internal
+    category: response
+    description: Compose the original question and the human-readable declared source catalog.
+    problem: Source selection must reason over per-turn intent and topology descriptions without exposing trusted targets.
+    goals:
+      - Read the original question and the catalog rendered by the trusted topology declaration.
+      - Expose source names and descriptions to the classifier, but no REST authority or target configuration.
+    requirements:
+      input:
+        - The question comes from embed_query and the catalog comes from declare_rag_topology.
+      output:
+        - Output contains the original question and every declared source name and description.
+      errors:
+        - Selector failures emit CommandError.
+    non_goals:
+      - Does not select sources or expose base URLs, collections, or embedding configuration.
+    parameters: {type: object, properties: {}, additionalProperties: false}
+    emits: [SourceSelectionComposed, CommandError]
+    output: {description: Source-classifier input., schema: {type: string}}
+    side_effects: []
+    reversibility: {classification: reversible, undo: noop}
+    undo: {strategy: noop, description: Prompt composition changes no external state.}
+    config:
+      signal: SourceSelectionComposed
+      inputs:
+        question: $from(embed_query).carried.input
+        catalog: $from(declare_rag_topology).catalog
+      template: |-
+        Question:
+        {{ question }}
+
+        Declared source catalog:
+        {{ catalog }}
+
+  - name: select_sources
+    type: builtin
+    init: invoke_llm
+    visibility: internal
+    category: boundary
+    emits: [LLMResponded, CommandError]
+    description: Select declared RAG source names for the original user question.
+    problem: A turn should query only corpora relevant to the question while retaining safe full-fan-out fallback.
+    goals:
+      - Read the original question and rendered source catalog in one classifier message.
+      - Return only a JSON object containing a names array.
+      - Remain independent from the already-tested select_tier classifier contract.
+    requirements:
+      input:
+        - user_prompt_from must read compose_source_selection_prompt.
+        - The prompt contains only source names and descriptions, never target fields.
+      output:
+        - A successful response is passed to parse_source_selection for schema validation.
+      errors:
+        - Provider setup, model discovery, and chat failures emit CommandError for full-set fallback.
+    non_goals:
+      - Does not select a chat-LLM tier, query RAG, or author a URL or endpoint.
+    output:
+      description: Raw source-selector response.
+      schema: {type: string}
+    side_effects:
+      - {kind: external_api_call, target: ollama.chat, description: Classifies the question against declared source descriptions.}
+      - {kind: state_mutation, target: conversation_history, state: appended, description: Appends the source-selector response after success.}
+    reversibility: {classification: reversible, undo: conversation_truncate, requires_confirmation: false}
+    undo:
+      strategy: conversation_truncate
+      description: Restore conversation history captured before the source-selector call.
+      requires: [conversation_checkpoint]
+    config:
+      model: "${CHATBOT_TIER_MODEL:-qwen2.5:3b}"
+      provider: ollama
+      provider_url: "${OLLAMA_URL:-http://localhost:11434}"
+      manifest_state: CapturingSourceSelection
+      response_profile: qwen
+      user_prompt_from: "$from(compose_source_selection_prompt)"
+      answer_only: true
+      max_time: 60
+      llm_timeout: 60
+      # Kept byte-identical to source-router-prompt.md.
+      system_prompt: |
+        You select which declared RAG sources should be queried for a user's
+        question. The message contains the original question and a catalog of
+        source names with human-readable descriptions.
+
+        Return exactly one JSON object with one field named "names". Its value
+        must be an array of source-name strings. Select every source needed to
+        answer the question; a question spanning corpora may select all sources.
+        Use only names shown in the catalog. Select a source only when its
+        description directly covers the question. Do not include sources merely
+        because they might contain generally useful context. If exactly one
+        description directly covers the question, return exactly that one name.
+
+        Do not answer the question. Do not emit markdown, commentary, tool calls,
+        endpoints, URLs, collections, or configuration. Example:
+        {"names":["rag0"]}
+
+  - name: capture_source_selection
+    type: builtin
+    init: compose
+    visibility: internal
+    category: response
+    emits: [SourceSelectionCaptured, CommandError]
+    description: Shape the adjacent raw source-selector reply into an addressable JSON response field.
+    problem: parse_structured reads a command-state object path, while invoke_llm intentionally emits raw model text.
+    goals:
+      - Capture only the adjacent current Result through the generic compose current-result input.
+      - JSON-escape model text so it remains data and cannot author structure, selectors, or target fields.
+      - Publish one fixed response field for parse_source_selection.
+    requirements:
+      input:
+        - response must be the immediately preceding select_sources raw Result output selected as $.
+      output:
+        - Output is exactly one JSON object whose response field is the escaped raw model string.
+      errors:
+        - Compose or serialization failures emit CommandError for full-set fallback.
+    non_goals:
+      - Does not parse, repair, trust, or execute model text.
+      - Does not read topology targets or REST configuration.
+    parameters: {type: object, properties: {}, additionalProperties: false}
+    output:
+      description: Addressable raw source-selector response.
+      schema:
+        type: object
+        properties:
+          response: {type: string}
+        required: [response]
+        additionalProperties: false
+    side_effects: []
+    reversibility: {classification: reversible, undo: noop}
+    undo: {strategy: noop, description: Shaping model text changes no external state.}
+    config:
+      signal: SourceSelectionCaptured
+      inputs:
+        response: $.
+      template: |-
+        {"response": {{ json response }}}
+
+  - name: parse_source_selection
+    type: builtin
+    init: parse_structured
+    visibility: internal
+    category: word
+    emits: [SourcesParsed, ParseFailed, CommandError]
+    description: Parse source-classifier output as a names-only JSON object.
+    problem: Model text must be structurally valid before any declared-vocabulary lookup.
+    goals:
+      - Validate exactly the shape used by source selection.
+      - Route malformed or schema-invalid content to full-set fallback.
+    requirements:
+      input:
+        - Source is the captured response string from capture_source_selection.
+      output:
+        - Valid output contains names as an array of strings.
+    non_goals:
+      - Does not repair JSON, trust names, or inspect target data.
+    parameters: {type: object, properties: {}, additionalProperties: false}
+    output: {description: Validated source names., schema: {type: object}}
+    side_effects: []
+    reversibility: {classification: reversible, undo: noop}
+    undo: {strategy: noop, description: Parsing changes no external state.}
+    config:
+      source: $from(capture_source_selection).response
+      schema:
+        type: object
+        additionalProperties: false
+        properties:
+          names:
+            type: array
+            items: {type: string}
+        required: [names]
+      parsed: SourcesParsed
+      unparsed: ParseFailed
+
+  - name: constrain_source_selection
+    type: builtin
+    init: select_subset
+    visibility: internal
+    category: word
+    emits: [SourcesSelected, SourcesPartiallySelected, SourcesEmpty, CommandError]
+    description: Resolve model-selected names only to matching trusted topology entries.
+    problem: Untrusted names must never provide or influence a REST target.
+    goals:
+      - Drop undeclared names.
+      - Return selected entries copied only from the trusted topology vocabulary.
+    requirements:
+      input:
+        - Candidate names are schema-validated model output.
+        - Vocabulary entries are the trusted declared topology.
+      output:
+        - selected contains only trusted topology objects.
+    non_goals:
+      - Does not copy any field from model output except names used for membership checks.
+    parameters: {type: object, properties: {}, additionalProperties: false}
+    output: {description: Trusted selected topology entries., schema: {type: object}}
+    side_effects: []
+    reversibility: {classification: reversible, undo: noop}
+    undo: {strategy: noop, description: Set selection changes no external state.}
+    config:
+      candidates: $from(parse_source_selection).names
+      vocabulary: $from(declare_rag_topology).items
+      match_field: name
+      all_matched: SourcesSelected
+      partial: SourcesPartiallySelected
+      empty: SourcesEmpty
+
+  - name: select_all_sources
+    type: builtin
+    init: select_subset
+    visibility: internal
+    category: word
+    emits: [SourcesSelected, CommandError]
+    description: Select every trusted topology entry as the safe source-router fallback.
+    problem: Classifier, parse, empty, and only-undeclared outcomes must preserve prior full fan-out behavior.
+    goals:
+      - Resolve every trusted declared name back to its trusted topology entry.
+      - Produce the same selected shape as constrain_source_selection.
+    requirements:
+      input:
+        - Both names and topology entries come from declare_rag_topology.
+      output:
+        - selected equals the complete declared topology in declaration order.
+    non_goals:
+      - Does not read model output or synthesize target data.
+    parameters: {type: object, properties: {}, additionalProperties: false}
+    output: {description: Complete trusted topology selection., schema: {type: object}}
+    side_effects: []
+    reversibility: {classification: reversible, undo: noop}
+    undo: {strategy: noop, description: Set selection changes no external state.}
+    config:
+      candidates: $from(declare_rag_topology).names
+      vocabulary: $from(declare_rag_topology).items
+      match_field: name
+      all_matched: SourcesSelected
+      partial: SourcesSelected
+      empty: SourcesSelected
+
+  - name: report_source_selection
+    type: builtin
+    init: select_subset
+    visibility: internal
+    category: response
+    emits: [SourceSelectionReported, CommandError]
+    description: Derive declared source names absent from the trusted selected set.
+    problem: Not-selected sources must be distinct from queried sources later excluded or degraded.
+    goals:
+      - Compare all declared names with the constrained matched-name set.
+      - Report only names; do not expose topology target fields.
+    requirements:
+      input:
+        - Candidates are all trusted declared names and vocabulary is the constrained matched-name set.
+      output:
+        - unmatched is the ordered declared-but-not-selected name array.
+    non_goals:
+      - Does not influence retrieval or resolve a target.
+    parameters: {type: object, properties: {}, additionalProperties: false}
+    output: {description: Declared selected and not-selected names., schema: {type: object}}
+    side_effects: []
+    reversibility: {classification: reversible, undo: noop}
+    undo: {strategy: noop, description: Reporting changes no external state.}
+    config:
+      candidates: $from(declare_rag_topology).names
+      vocabulary: $from(selected_sources).matched
+      match_field: name
+      all_matched: SourceSelectionReported
+      partial: SourceSelectionReported
+      empty: SourceSelectionReported
+
   - name: select_tier
     type: builtin
     init: invoke_llm

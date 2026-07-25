@@ -193,10 +193,10 @@ tools:
     init: compose
     visibility: internal
     category: response
-    description: Compose the answer with complete source outcome metadata.
+    description: Compose the answer with complete source selection and query outcome metadata.
     problem: Every declared source must remain reportable without rebuilding an indexed metadata array.
     goals:
-      - Report compatible, model-excluded, and query-failed sources as distinct ordered sets.
+      - Report not-selected, compatible, model-excluded, and query-failed sources as distinct ordered sets.
       - Preserve QueryRejected versus CommandError in each failed join entry.
     requirements:
       input:
@@ -223,6 +223,7 @@ tools:
         composed: $from(partition_embedding_models).matched
         model_excluded: $from(partition_embedding_models).unmatched
         query_failed: $from(partition_query_results).unmatched
+        not_selected: $from(source_selection_report).unmatched
       template: |
         {
           "answer": {{ json answer }},
@@ -230,6 +231,7 @@ tools:
             "query_embedding_model": {{ json query_model }},
             "query_counts": {"succeeded": {{ succeeded }}, "failed": {{ failed }}},
             "sources": {
+              "not_selected": {{ json not_selected }},
               "composed": {{ json composed }},
               "embedding_model_excluded": {{ json model_excluded }},
               "query_failed": {{ json query_failed }}

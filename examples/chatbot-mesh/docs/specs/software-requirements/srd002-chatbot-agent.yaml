@@ -7,9 +7,9 @@ context: |
   machine_request, monitor, and control servers; a ui/ directory holding a built
   single-page app; and a ux.yaml actor configuration that places the panels.
 
-  Each chat turn is a request-scoped machine run. A turn selects one chat-LLM
-  word through an LLM classifier (the $tool indirection), embeds the
-  query once, fans out that one embedding to the declared RAG server agents
+  Each chat turn is a request-scoped machine run. A turn uses separate classifier
+  calls to select declared RAG sources and one chat-LLM word (the $tool
+  indirection), embeds the query once, fans out that one embedding to the selected RAG server agents
   (srd001, vector-in), composes the answer prompt from the returned chunks and
   the original query, and invokes the chosen chat-LLM word; the terminal signal
   maps to the HTTP chat response. Non-adjacent data -- the original query, the
@@ -33,8 +33,8 @@ problem: |
 
 goals:
   - G1: Model each chat turn as a request-scoped machine that selects a model tier, embeds, fans out to RAG servers, composes, and answers, with non-adjacent data flowing by command-state $from().
-  - G2: Define the LLM tier selector that selects a chat-LLM word through the $tool indirection with a normative misparse fallback.
-  - G3: Define sequential multi-RAG fan-out with per-RAG degradation and embedding-space mismatch exclusion.
+  - G2: Define separate source and tier classifiers with declared-vocabulary validation and normative fallbacks.
+  - G3: Define selected sequential multi-RAG fan-out with not-selected, per-RAG degradation, and embedding-space mismatch outcomes.
   - G4: Fix stateless-v1 sessions (browser sends history) and record durable sessions as a follow-on non-goal.
   - G5: Declare the two-panel UX surface in ux.yaml over a static_assets-served SPA, deferring panel content to their own requirements.
   - G6: Keep RAG and LLM endpoints declared rest.yaml clients so nothing in the turn machine or UX can alter transport authority.
@@ -47,17 +47,23 @@ requirements:
       - R1.2: The original query, the tier selection, and the retrieved chunks SHALL reach the compose and answer steps through command-state $from() addressing (agent-core srd038), not through carry_forward chains across intervening words. The compose step SHALL use the agent-core compose builtin, which renders a grounding template from $from(label).path selectors, so invoke_llm receives one composed prompt without carry_forward for the non-adjacent message hop.
       - R1.3: embed_query SHALL embed the incoming query once, and the single resulting vector SHALL be the fan-out input to every selected RAG server.
   R2:
-    title: LLM tier selection
+    title: Source and LLM tier selection
     items:
       - R2.1: The tier selector SHALL make one classifier LLM call over the original question whose response is parsed to a $tool selection over the declared chat-LLM words.
       - R2.2: The declared tool set for the tier selector SHALL be the chat-LLM words; the tier selector SHALL NOT select any word outside that declared set.
       - R2.3: A misparse or an out-of-set selection SHALL fall back to a configured default chat-LLM word rather than fail the turn.
+      - R2.4: Before retrieval, select_sources SHALL make a classifier call over the original question and a catalog rendered from every declared topology item's required human-readable name and description. The catalog SHALL NOT contain REST authority or target configuration.
+      - R2.5: A generic compose step immediately after select_sources SHALL JSON-escape the adjacent raw model reply into one fixed response field. parse_structured SHALL read that captured field and validate it as an object containing names as an array of strings. select_subset SHALL constrain those names against the declared topology and SHALL emit selected entries copied from that trusted topology, never from model-authored fields.
+      - R2.6: A select_sources or capture error, malformed or schema-invalid response, empty names array, or result containing no declared name SHALL fall back to selecting every declared topology entry, preserving full fan-out behavior.
+      - R2.7: A result containing declared and undeclared names SHALL discard the undeclared names and query only the trusted entries corresponding to declared names.
+      - R2.8: Source selection SHALL use a classifier call separate from select_tier so each prompt and word has one responsibility and the existing tier-selection contract remains unchanged.
   R3:
     title: Multi-RAG fan-out and degradation
     items:
-      - R3.1: The turn SHALL declare one ordered RAG topology and query it through exactly one source-count-independent MachineSpec sequential for_each; its ordered join SHALL retain each source input, signal, and structured REST output.
+      - R3.1: The turn SHALL declare one ordered RAG topology and query only select_subset's trusted selected array through exactly one source-count-independent MachineSpec sequential for_each; its ordered join SHALL retain each queried source input, signal, and structured REST output.
       - R3.2: Generic partition SHALL separate QueryResponded join entries from QueryRejected and CommandError entries. A per-RAG failure SHALL degrade rather than fail the turn, so the answer SHALL be composed from remaining chunks and the failed entry SHALL remain in response metadata.
       - R3.3: Generic partition SHALL compare each answered source's reported embedding model (srd001 R2.3) with the query model. A mismatch SHALL be excluded from render_each grounding and reported separately from vector rejection in response metadata.
+      - R3.4: Response metadata SHALL report declared but not selected source names separately from composed, embedding-model-excluded, vector-rejected, and degraded queried sources.
   R4:
     title: Stateless sessions
     items:
@@ -72,7 +78,7 @@ requirements:
     title: Transport-authority boundary
     items:
       - R6.1: RAG and LLM endpoints SHALL be declared rest.yaml operations. The generic RAG operation MAY select its base URL only from the trusted declared topology through command_state; its method, path, auth, operation, and network allowlist SHALL remain fixed configuration (agent-core srd028 R14).
-      - R6.2: Tier and RAG selection SHALL choose among declared words and trusted topology entries only, never a model-authored or request-supplied endpoint.
+      - R6.2: Tier and RAG selection SHALL choose among declared words and trusted topology entries only. Undeclared model names SHALL never reach a query target, and no model-authored or request-supplied endpoint, URL, host, credential, collection, or target configuration SHALL reach the REST operation.
 
 non_goals:
   - Define Go package APIs for the agent-core request, static-asset, monitor, or command-state runtime.
@@ -86,11 +92,11 @@ acceptance_criteria:
     criterion: The chat turn is described as a request-scoped machine (select tier, embed, fan-out, compose, answer) with the original query, tier selection, and chunks flowing by command-state $from() rather than carry_forward chains, and one embedding fanned out to every selected RAG.
     traces: [R1.1, R1.2, R1.3]
   - id: AC2
-    criterion: The tier selector is specified as one classifier call over the original question parsed to a $tool selection over the declared chat-LLM words, with a normative fallback to a configured default word on misparse or out-of-set selection.
-    traces: [R2.1, R2.2, R2.3]
+    criterion: Separate source and tier classifier calls preserve the tier $tool contract; source output is schema-validated and constrained to trusted topology entries, partial undeclared picks are discarded, and error, malformed, empty, or only-undeclared outcomes fall back to all declared sources.
+    traces: [R2.1, R2.2, R2.3, R2.4, R2.5, R2.6, R2.7, R2.8]
   - id: AC3
-    criterion: One sequential for_each over declared topology feeds generic partitions and render_each; query failure degradation, vector rejection, and embedding-model mismatch exclusion remain distinguishable in response metadata.
-    traces: [R3.1, R3.2, R3.3]
+    criterion: One sequential for_each over the trusted selected array feeds generic partitions and render_each; not-selected, composed, query failure degradation, vector rejection, and embedding-model mismatch exclusion remain distinguishable in response metadata.
+    traces: [R3.1, R3.2, R3.3, R3.4]
   - id: AC4
     criterion: Stateless-v1 sessions (browser-sent history, no server store) and the durable-session follow-on are stated as requirements and non-goals rather than prose.
     traces: [R4.1, R4.2]
@@ -145,6 +151,18 @@ implementation_status:
       change topology data but no word or state count; response metadata keeps
       compatible, model-excluded, vector-rejected, and degraded outcomes distinct.
     - >-
+      Source routing (R2.4-R2.8, R3.1, R3.4, R6.2, GH-903): required topology
+      descriptions render a names-and-descriptions-only catalog. A separate
+      select_sources classifier reads that catalog and the original question;
+      capture_source_selection JSON-escapes the adjacent raw reply into one fixed
+      response field, parse_structured validates `{names:[string]}`, and select_subset converts only
+      declared names to trusted selected topology entries. The single for_each reads
+      only that selected array, whose base URLs remain trusted command state.
+      Classifier/capture errors, malformed output, empty picks, and only-undeclared picks
+      select all declared sources; mixed picks discard undeclared names. Metadata
+      reports declared not-selected names separately. The separate-call design keeps
+      source routing atomic and preserves the tested select_tier contract.
+    - >-
       Stateless sessions (R4) and the two-panel UX surface (R5) over a
       static_assets-served SPA; the observability panels (per-agent monitor and
       the cross-agent trace waterfall) render from monitor SSE and the trace
@@ -166,8 +184,8 @@ diagrams:
       Goals --> R5["R5: UX surface"]
       Goals --> R6["R6: Transport-authority boundary"]
       R1 --> AC1["AC1: request-scoped turn, $from data flow, one embedding fanned out"]
-      R2 --> AC2["AC2: $tool tier selector with normative fallback"]
-      R3 --> AC3["AC3: sequential fan-out, degradation, mismatch exclusion"]
+      R2 --> AC2["AC2: separate source/tier classifiers with trusted fallback"]
+      R3 --> AC3["AC3: selected fan-out and distinct source outcomes"]
       R4 --> AC4["AC4: stateless v1, durable sessions follow-on"]
       R5 --> AC5["AC5: two-panel ux.yaml over static_assets SPA"]
       R6 --> AC6["AC6: declared clients hold transport authority"]

@@ -1,26 +1,34 @@
 name: chatbot-turn
 purpose: |-
   One source-count-independent chat turn. The request message is embedded once,
-  then declare_rag_topology publishes the trusted ordered RAG array. Exactly one
-  sequential for_each dispatches rag_query over that array and emits an ordered
-  join. Generic partitions first separate answered queries from QueryRejected and
-  CommandError outcomes, then exclude answered sources whose reported embedding
-  model differs from the query model. render_grounding renders only compatible
-  chunks; compose_prompt adds the original question. The tier selector classifies that
-  original question, not the composed grounding prompt, and the chosen answer word
-  reads the composed prompt. Query failures degrade to a mapped 200, while response
-  metadata retains compatible, model-excluded, and failed source sets.
+  then declare_rag_topology publishes trusted names, descriptions, configuration,
+  and REST authorities. A separate source classifier reads the original question
+  plus the rendered catalog. A generic compose step captures the adjacent raw model
+  reply into addressable JSON; parse_structured and select_subset constrain its names
+  to trusted topology entries. Every classifier, capture, parse, or empty-selection failure
+  selects all declared entries. Exactly one sequential for_each dispatches
+  rag_query over that selected array. Generic partitions separate answered,
+  rejected, degraded, and embedding-model-excluded outcomes. The independent tier
+  selector keeps its existing contract. Response metadata additionally reports
+  declared sources that were not selected.
 initial_state: AwaitingRequest
 budget:
   # Fixed pipeline plus one iteration per declared source. This source-independent
   # ceiling supports substantially more than the shipped two-source topology.
-  max_iterations: 64
+  max_iterations: 72
 states:
   - {name: AwaitingRequest, meaning: Seeded by the trusted chat endpoint.}
   - {name: Embedding, meaning: The original question is being embedded once.}
   - {name: DeclaringModel, meaning: The query embedding model is being declared.}
   - {name: DeclaringTopology, meaning: The trusted ordered RAG topology is being declared.}
-  - {name: Retrieving, meaning: One sequential for_each is querying every declared RAG source.}
+  - {name: ComposingSourceSelection, meaning: The original question and source catalog are being composed.}
+  - {name: SelectingSources, meaning: A separate classifier is choosing declared source names.}
+  - {name: CapturingSourceSelection, meaning: The adjacent raw classifier reply is being shaped into addressable JSON.}
+  - {name: ParsingSources, meaning: The source classifier JSON is being schema-validated.}
+  - {name: ConstrainingSources, meaning: Model names are being constrained to trusted topology entries.}
+  - {name: SelectingAllSources, meaning: A classifier, parse, or empty-selection failure is selecting all trusted entries.}
+  - {name: ReportingSourceSelection, meaning: Declared but not selected source names are being derived.}
+  - {name: Retrieving, meaning: One sequential for_each is querying only trusted selected RAG sources.}
   - {name: PartitioningQueries, meaning: The for_each join is being divided into answered and failed queries.}
   - {name: PartitioningModels, meaning: Answered queries are being divided by embedding-model compatibility.}
   - {name: Rendering, meaning: Compatible source chunks are being rendered in topology order.}
@@ -38,6 +46,13 @@ signals:
   - {name: QueryEmbedded, trigger: The provider returned the question embedding.}
   - {name: QueryModelDeclared, trigger: The query embedding model is addressable.}
   - {name: RagTopologyDeclared, trigger: The ordered trusted RAG array is addressable.}
+  - {name: SourceSelectionComposed, trigger: The original question and rendered source catalog were composed.}
+  - {name: SourceSelectionCaptured, trigger: The adjacent raw source-selector reply was captured as a response field.}
+  - {name: SourcesParsed, trigger: The source-selector output satisfied the declared names schema.}
+  - {name: SourcesSelected, trigger: Every requested name was declared and trusted entries were selected.}
+  - {name: SourcesPartiallySelected, trigger: Declared names were selected and undeclared names were discarded.}
+  - {name: SourcesEmpty, trigger: No requested name was declared or the requested set was empty.}
+  - {name: SourceSelectionReported, trigger: Declared but not selected source names were derived.}
   - {name: QueryResponded, trigger: One RAG returned chunks.}
   - {name: QueryRejected, trigger: One RAG rejected the query vector with mapped HTTP 400.}
   - {name: RagQueriesCollected, trigger: The iterator joined all handled query outcomes, including an empty topology.}
@@ -58,13 +73,30 @@ transitions:
   - {state: Embedding, signal: CommandError, next: Failed}
   - {state: DeclaringModel, signal: QueryModelDeclared, next: DeclaringTopology, action: declare_rag_topology}
   - {state: DeclaringModel, signal: CommandError, next: Failed}
-  - state: DeclaringTopology
-    signal: RagTopologyDeclared
+  - {state: DeclaringTopology, signal: RagTopologyDeclared, next: ComposingSourceSelection, action: compose_source_selection_prompt}
+  - {state: DeclaringTopology, signal: CommandError, next: Failed}
+  - {state: ComposingSourceSelection, signal: SourceSelectionComposed, next: SelectingSources, action: select_sources}
+  - {state: ComposingSourceSelection, signal: CommandError, next: SelectingAllSources, action: select_all_sources, label: selected_sources}
+  - {state: SelectingSources, signal: LLMResponded, next: CapturingSourceSelection, action: capture_source_selection}
+  - {state: SelectingSources, signal: CommandError, next: SelectingAllSources, action: select_all_sources, label: selected_sources}
+  - {state: CapturingSourceSelection, signal: SourceSelectionCaptured, next: ParsingSources, action: parse_source_selection}
+  - {state: CapturingSourceSelection, signal: CommandError, next: SelectingAllSources, action: select_all_sources, label: selected_sources}
+  - {state: ParsingSources, signal: SourcesParsed, next: ConstrainingSources, action: constrain_source_selection, label: selected_sources}
+  - {state: ParsingSources, signal: ParseFailed, next: SelectingAllSources, action: select_all_sources, label: selected_sources}
+  - {state: ParsingSources, signal: CommandError, next: SelectingAllSources, action: select_all_sources, label: selected_sources}
+  - {state: ConstrainingSources, signal: SourcesSelected, next: ReportingSourceSelection, action: report_source_selection, label: source_selection_report}
+  - {state: ConstrainingSources, signal: SourcesPartiallySelected, next: ReportingSourceSelection, action: report_source_selection, label: source_selection_report}
+  - {state: ConstrainingSources, signal: SourcesEmpty, next: SelectingAllSources, action: select_all_sources, label: selected_sources}
+  - {state: ConstrainingSources, signal: CommandError, next: SelectingAllSources, action: select_all_sources, label: selected_sources}
+  - {state: SelectingAllSources, signal: SourcesSelected, next: ReportingSourceSelection, action: report_source_selection, label: source_selection_report}
+  - {state: SelectingAllSources, signal: CommandError, next: Failed}
+  - state: ReportingSourceSelection
+    signal: SourceSelectionReported
     next: Retrieving
     action: rag_query
     label: rag_query
     for_each:
-      items: $from(declare_rag_topology).items
+      items: $from(selected_sources).selected
       as: rag_unit
       mode: sequential
       failure: collect_all
@@ -80,7 +112,7 @@ transitions:
           partial: RagQueriesCollected
           failed: RagQueriesCollected
           empty: RagQueriesCollected
-  - {state: DeclaringTopology, signal: CommandError, next: Failed}
+  - {state: ReportingSourceSelection, signal: CommandError, next: Failed}
   - {state: PartitioningQueries, signal: RagQueriesCollected, next: PartitioningModels, action: partition_query_results}
   - {state: PartitioningQueries, signal: CommandError, next: Failed}
   - {state: PartitioningModels, signal: QueryResultsPartitioned, next: Rendering, action: partition_embedding_models}

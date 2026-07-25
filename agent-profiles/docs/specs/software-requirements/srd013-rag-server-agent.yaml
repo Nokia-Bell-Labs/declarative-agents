@@ -74,6 +74,7 @@ non_goals:
   - Compose or answer over retrieved chunks; the chatbot agent (srd014) owns answering.
   - Change the srd012 ingest machine or its loading behavior.
   - In-agent multiplexing across databases, collections, or embedding models.
+  - Define source-routing descriptions; those are deployment-topology metadata owned by the chatbot/deployment profile, not the one-agent-one-corpus RAG server contract.
   - Durable per-session query state; the query path is request-scoped and stateless.
 
 acceptance_criteria:

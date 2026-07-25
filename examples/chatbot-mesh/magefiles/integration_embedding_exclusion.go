@@ -236,6 +236,7 @@ type exclusionResponse struct {
 	Metadata struct {
 		QueryEmbeddingModel string `json:"query_embedding_model"`
 		Sources             struct {
+			NotSelected            []string              `json:"not_selected"`
 			Composed               []joinedSourceOutcome `json:"composed"`
 			EmbeddingModelExcluded []joinedSourceOutcome `json:"embedding_model_excluded"`
 			QueryFailed            []joinedSourceOutcome `json:"query_failed"`
@@ -282,12 +283,15 @@ func postExclusionChatTurn(message string) (exclusionResponse, int, error) {
 // without inferring it from a thinner answer.
 func assertExclusionMetadata(resp exclusionResponse) error {
 	sources := resp.Metadata.Sources
-	total := len(sources.Composed) + len(sources.EmbeddingModelExcluded) + len(sources.QueryFailed)
+	total := len(sources.NotSelected) + len(sources.Composed) + len(sources.EmbeddingModelExcluded) + len(sources.QueryFailed)
 	if total != 2 {
 		return fmt.Errorf("response metadata reports %d sources, want 2: every declared source is reported once", total)
 	}
 	if resp.Metadata.QueryEmbeddingModel != exclusionQueryModel {
 		return fmt.Errorf("metadata query_embedding_model = %q, want %q", resp.Metadata.QueryEmbeddingModel, exclusionQueryModel)
+	}
+	if len(sources.NotSelected) != 0 {
+		return fmt.Errorf("not_selected = %+v, want empty; both declared sources were selected and queried", sources.NotSelected)
 	}
 	if len(sources.EmbeddingModelExcluded) != 1 {
 		return fmt.Errorf("embedding_model_excluded has %d entries, want 1", len(sources.EmbeddingModelExcluded))
@@ -373,6 +377,13 @@ routes:
   - method: POST
     path: /api/chat
     responses:
+      - status: 200
+        body:
+          message:
+            role: assistant
+            content: '{"names":["rag0","rag1"]}'
+          eval_count: 4
+          prompt_eval_count: 12
       - status: 200
         body:
           message:

@@ -13,6 +13,7 @@ chatbot:
 
 ragUnits:
   - name: rag0
+    description: In-cluster LLM smoke-test corpus.
     collection: corpus
     embeddingModel: all-minilm
     replicas: 1

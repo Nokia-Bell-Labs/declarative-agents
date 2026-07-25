@@ -24,6 +24,7 @@ func TestChatbotFanOutCoGeneratedForNRags(t *testing.T) {
 	for i, name := range []string{"alpha", "bravo", "charlie"} {
 		args = append(args,
 			"--set", fmt.Sprintf("ragUnits[%d].name=%s", i, name),
+			"--set", fmt.Sprintf("ragUnits[%d].description=%s corpus", i, name),
 			"--set", fmt.Sprintf("ragUnits[%d].collection=c%d", i, i),
 			"--set", fmt.Sprintf("ragUnits[%d].embeddingModel=m", i),
 		)
@@ -38,9 +39,14 @@ func TestChatbotFanOutCoGeneratedForNRags(t *testing.T) {
 	}
 	for _, name := range []string{"alpha", "bravo", "charlie"} {
 		if !strings.Contains(topology, `"name": "`+name+`"`) ||
+			!strings.Contains(topology, `"description": "`+name+` corpus"`) ||
 			!strings.Contains(topology, "t-chatbot-mesh-"+name+":18085") {
-			t.Errorf("topology does not declare %s with its selected authority", name)
+			t.Errorf("topology does not declare %s with its description and selected authority", name)
 		}
+	}
+	if strings.Contains(topology, `"catalog":`) &&
+		(strings.Contains(configMapCatalog(topology), "http://") || strings.Contains(configMapCatalog(topology), "collection")) {
+		t.Error("source classifier catalog exposes trusted target/configuration data")
 	}
 	if strings.Count(topology, "name: declare_rag_topology") != 1 {
 		t.Error("topology must contain exactly one declaration word")
@@ -56,8 +62,8 @@ func TestChatbotFanOutCoGeneratedForNRags(t *testing.T) {
 		t.Fatal(err)
 	}
 	if strings.Count(string(machine), "for_each:") != 1 ||
-		!strings.Contains(string(machine), "items: $from(declare_rag_topology).items") {
-		t.Error("packaged machine must contain one for_each over declared topology")
+		!strings.Contains(string(machine), "items: $from(selected_sources).selected") {
+		t.Error("packaged machine must contain one for_each over trusted selected topology entries")
 	}
 	if strings.Count(string(fanout), "name: rag_query\n") != 1 {
 		t.Error("fan-out declarations must contain one rag_query word")
@@ -85,6 +91,7 @@ func TestChatbotRestCoGeneratedFromRagUnits(t *testing.T) {
 	for i, u := range units {
 		args = append(args,
 			"--set", fmt.Sprintf("ragUnits[%d].name=%s", i, u.name),
+			"--set", fmt.Sprintf("ragUnits[%d].description=%s corpus", i, u.name),
 			"--set", fmt.Sprintf("ragUnits[%d].collection=%s", i, u.collection),
 			"--set", fmt.Sprintf("ragUnits[%d].embeddingModel=m", i),
 		)
@@ -143,7 +150,8 @@ func TestChatbotUXMonitoredAgentsCoGenerated(t *testing.T) {
 	}
 	chart := findChartDir(t)
 	out, err := exec.Command("helm", "template", "t", chart,
-		"--set", "ragUnits[0].name=only", "--set", "ragUnits[0].collection=c", "--set", "ragUnits[0].embeddingModel=m",
+		"--set", "ragUnits[0].name=only", "--set", "ragUnits[0].description=only corpus",
+		"--set", "ragUnits[0].collection=c", "--set", "ragUnits[0].embeddingModel=m",
 	).CombinedOutput()
 	if err != nil {
 		t.Fatalf("helm template: %v\n%s", err, out)
@@ -158,6 +166,19 @@ func TestChatbotUXMonitoredAgentsCoGenerated(t *testing.T) {
 	if strings.Contains(ux, "name: rag1") {
 		t.Error("packaged rag1 monitored-agent leaked into the co-generated ux.yaml")
 	}
+}
+
+func configMapCatalog(topology string) string {
+	start := strings.Index(topology, `"catalog":`)
+	if start < 0 {
+		return ""
+	}
+	rest := topology[start:]
+	end := strings.Index(rest, `"items":`)
+	if end < 0 {
+		return rest
+	}
+	return rest[:end]
 }
 
 // configMapKeyBlock returns the indented block value of a "  <key>: |-" entry in

@@ -5,9 +5,7 @@
 #   ornith:9b (deep).
 # - POST /api/embeddings: the embed_query REST word maps $.embedding.
 # - POST /api/chat: adapter chatResp shape {message:{role,content},...}. The
-#   tier-selector call and the answer call hit this HTTP route in order, so the script's
-#   first response is a parseable tool call ({"tool": ...}, the parse_response
-#   contract) selecting the fast chat word, and the second is the answer.
+#   source selector, tier selector, and answer call hit this HTTP route in order.
 # The real-stack ladder (#408) validates these claims against live Ollama.
 routes:
   - method: GET
@@ -29,6 +27,15 @@ routes:
   - method: POST
     path: /api/chat
     responses:
+      - status: 200
+        body:
+          message:
+            role: assistant
+            # Malformed output must select all declared sources. This scenario
+            # then observes rag0 success and rag1 degradation, proving full fan-out.
+            content: 'not-json'
+          eval_count: 4
+          prompt_eval_count: 12
       - status: 200
         body:
           message:

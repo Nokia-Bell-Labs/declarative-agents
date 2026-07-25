@@ -176,6 +176,9 @@ func runChatbotIntegration(profilesRoot, coreRoot string) error {
 	if err := assertChatbotMonitorReachable(); err != nil {
 		return err
 	}
+	if err := assertChatbotScopedSourceSelection(); err != nil {
+		return err
+	}
 
 	// Tier selector: a factual turn and an analytical turn. The chat trace (asserted after
 	// exit) must show both the fast and the deep chat model answered.
@@ -190,6 +193,7 @@ func runChatbotIntegration(profilesRoot, coreRoot string) error {
 	if err := assertChatbotFanOut(); err != nil {
 		return err
 	}
+	fmt.Println("integration:chatbot source routing PASS - rag0-only question queried only rag0 and reported rag1 not_selected; spanning question queried both declared sources")
 
 	// Degrade rag1: stop it gracefully (flushing its trace), then a turn still
 	// returns a 200 answered from rag0 alone.
@@ -237,7 +241,7 @@ func runChatbotIntegration(profilesRoot, coreRoot string) error {
 		return fmt.Errorf("rag1 %w", err)
 	}
 
-	fmt.Println("integration:chatbot PASS - tier selector dispatched both chat models, fan-out drew both RAG corpora, rag1-down turn degraded to a 200 with the disjoint corpus absent, and each rag-server joined the chatbot's connected trace")
+	fmt.Println("integration:chatbot PASS - source router scoped one turn and selected both corpora for a spanning turn, tier selector dispatched both chat models, rag1-down degraded to 200, and each rag-server joined the connected trace")
 	return nil
 }
 
@@ -250,6 +254,16 @@ type chatResponse struct {
 		Status         string `json:"status"`
 		TerminalSignal string `json:"terminal_signal"`
 	} `json:"trace"`
+	Metadata struct {
+		Sources struct {
+			NotSelected []string `json:"not_selected"`
+			Composed    []struct {
+				Input struct {
+					Name string `json:"name"`
+				} `json:"input"`
+			} `json:"composed"`
+		} `json:"sources"`
+	} `json:"metadata"`
 }
 
 func postChatTurn(message string, history string) (chatResponse, int, error) {
@@ -288,6 +302,25 @@ func assertChatbotTierSelectedTurn(message string) error {
 	return nil
 }
 
+func assertChatbotScopedSourceSelection() error {
+	resp, status, err := postChatTurn("Using only the rag0 declarative-agent corpus, how does the assembler rig validate plans?", "[]")
+	if err != nil {
+		return err
+	}
+	if status != http.StatusOK || resp.Trace.Status != "succeeded" {
+		return fmt.Errorf("scoped source turn failed: status=%d trace=%q error=%s", status, resp.Trace.Status, resp.Message+resp.Error)
+	}
+	if len(resp.Metadata.Sources.Composed) != 1 ||
+		resp.Metadata.Sources.Composed[0].Input.Name != "rag0" {
+		return fmt.Errorf("scoped source turn composed %+v, want only rag0", resp.Metadata.Sources.Composed)
+	}
+	if len(resp.Metadata.Sources.NotSelected) != 1 ||
+		resp.Metadata.Sources.NotSelected[0] != "rag1" {
+		return fmt.Errorf("scoped source turn not_selected = %v, want [rag1]", resp.Metadata.Sources.NotSelected)
+	}
+	return nil
+}
+
 // assertChatbotFanOut proves the sequential two-RAG fan-out reaches both corpora.
 // compose renders each RAG's surviving chunks under its own [ragN] header (no merge
 // word); citation is by record content, not an inline per-chunk tag. A spanning
@@ -306,6 +339,9 @@ func assertChatbotFanOut() error {
 	}
 	if !strings.Contains(strings.ToLower(resp.Answer), "solar ridge") {
 		return fmt.Errorf("fan-out answer omits the disjoint rag1 corpus (Solar Ridge); both RAGs must contribute; answer: %s", resp.Answer)
+	}
+	if len(resp.Metadata.Sources.NotSelected) != 0 {
+		return fmt.Errorf("spanning turn left sources unselected: %v", resp.Metadata.Sources.NotSelected)
 	}
 	return nil
 }
