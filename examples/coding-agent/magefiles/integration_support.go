@@ -266,17 +266,8 @@ func requireSuccessfulExecutor(workspace string, run agentRun) error {
 	if !strings.Contains(strings.ToLower(run.Output), "terminal state: succeeded") {
 		return fmt.Errorf("executor did not report Succeeded:\n%s", run.Output)
 	}
-	data, err := os.ReadFile(filepath.Join(workspace, "greet.go"))
-	if err != nil {
-		return fmt.Errorf("read executor result: %w", err)
-	}
-	if !strings.Contains(string(data), `return "Hello, " + name + "!"`) {
-		return fmt.Errorf("executor did not implement the greeting:\n%s", data)
-	}
-	cmd := exec.Command("go", "test", "./...")
-	cmd.Dir = workspace
-	if output, err := cmd.CombinedOutput(); err != nil {
-		return fmt.Errorf("workspace validation failed: %w\n%s", err, output)
+	if err := requireGreetingAndTests(workspace); err != nil {
+		return fmt.Errorf("executor workspace validation failed: %w", err)
 	}
 	return nil
 }

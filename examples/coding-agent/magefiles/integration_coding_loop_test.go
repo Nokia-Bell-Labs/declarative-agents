@@ -132,13 +132,16 @@ deployment:
 	}
 }
 
-func TestRequireSuccessfulExecutorChecksTerminalEditAndTests(t *testing.T) {
+func TestObservableGreetingValidationAcceptsEquivalentImplementation(t *testing.T) {
 	workspace := t.TempDir()
 	writeTestFile(t, filepath.Join(workspace, "go.mod"), "module greet\n\ngo 1.26\n")
-	writeTestFile(t, filepath.Join(workspace, "greet.go"), "package greet\n\nfunc Hello(name string) string { return \"Hello, \" + name + \"!\" }\n")
+	writeTestFile(t, filepath.Join(workspace, "greet.go"), "package greet\n\nimport \"fmt\"\n\nfunc Hello(name string) string { return fmt.Sprintf(\"Hello, %s!\", name) }\n")
 	writeTestFile(t, filepath.Join(workspace, "greet_test.go"), "package greet\n\nimport \"testing\"\n\nfunc TestHello(t *testing.T) { if Hello(\"Go\") != \"Hello, Go!\" { t.Fail() } }\n")
+	if err := requireGreetingAndTests(workspace); err != nil {
+		t.Fatalf("requireGreetingAndTests rejected equivalent implementation: %v", err)
+	}
 	if err := requireSuccessfulExecutor(workspace, agentRun{Output: "terminal state: Succeeded\n"}); err != nil {
-		t.Fatalf("requireSuccessfulExecutor: %v", err)
+		t.Fatalf("requireSuccessfulExecutor rejected equivalent implementation: %v", err)
 	}
 }
 

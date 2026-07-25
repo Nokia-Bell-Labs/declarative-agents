@@ -145,17 +145,10 @@ func initializePlannerWorkspace(workspace string) error {
 }
 
 func requireGreetingAndTests(workspace string) error {
-	data, err := os.ReadFile(filepath.Join(workspace, "greet.go"))
-	if err != nil {
-		return err
-	}
-	if !strings.Contains(string(data), `return "Hello, " + name + "!"`) {
-		return fmt.Errorf("greet.go does not contain the required implementation:\n%s", data)
-	}
 	cmd := exec.Command("go", "test", "./...")
 	cmd.Dir = workspace
 	if output, err := cmd.CombinedOutput(); err != nil {
-		return fmt.Errorf("go test ./...: %w\n%s", err, output)
+		return fmt.Errorf("workspace does not satisfy the greeting contract: go test ./...: %w\n%s", err, output)
 	}
 	return nil
 }
