@@ -580,10 +580,10 @@ test_suite_index:
     path: docs/specs/test-suites/test-rel09.5-llm-tier.yaml
   - id: test-rel10.0-role-catalog
     title: Test Suite for Release 10.0 Reference-Architecture Role Alignment
-    summary: Cases validating the critic/executor renames, the chroma rescope under
-      knowledge-manager, and the conformance-fixture relocation with mage validate,
-      mage conformance, go test, and zero-hit greps. Exists before the migrations.
-    status: specified
+    summary: Implemented cases validate the critic/executor renames, the Chroma
+      rescope under knowledge-manager, and the conformance-fixture relocation
+      with mage validate, mage conformance, go test, and zero-hit greps.
+    status: implemented
     path: docs/specs/test-suites/test-rel10.0-role-catalog.yaml
   - id: test-rel11.0-assembler-rig
     title: Test Suite for Release 11.0 Assembler Test Rig
