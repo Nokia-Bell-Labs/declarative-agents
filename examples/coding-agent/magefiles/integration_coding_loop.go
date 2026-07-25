@@ -27,6 +27,11 @@ func (Integration) ExecutorLive() error {
 		fmt.Printf("SKIP executorLive: %s\n", reason)
 		return nil
 	}
+	roots, cleanupProfiles, err := packageIntegrationRoots(roots)
+	if err != nil {
+		return err
+	}
+	defer cleanupProfiles()
 	binary, cleanupBinary, err := buildAgent(roots.Core)
 	if err != nil {
 		return err
@@ -61,6 +66,11 @@ func (Integration) PlannerDelegation() error {
 		fmt.Printf("SKIP plannerDelegation: %s\n", reason)
 		return nil
 	}
+	roots, cleanupProfiles, err := packageIntegrationRoots(roots)
+	if err != nil {
+		return err
+	}
+	defer cleanupProfiles()
 	binary, cleanupBinary, err := buildAgent(roots.Core)
 	if err != nil {
 		return err
@@ -164,6 +174,11 @@ func (Integration) CriticGate() error {
 		fmt.Printf("SKIP criticGate: %s\n", reason)
 		return nil
 	}
+	roots, cleanupProfiles, err := packageIntegrationRoots(roots)
+	if err != nil {
+		return err
+	}
+	defer cleanupProfiles()
 	binary, cleanupBinary, err := buildAgent(roots.Core)
 	if err != nil {
 		return err

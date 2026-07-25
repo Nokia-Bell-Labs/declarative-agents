@@ -55,6 +55,32 @@ func resolveIntegrationRoots() (integrationRoots, error) {
 	}, nil
 }
 
+// packageIntegrationRoots snapshots the canonical profile closure into a
+// disposable package. Live stages execute only from this returned root, so
+// later checkout mutations cannot alter an in-flight proof.
+func packageIntegrationRoots(roots integrationRoots) (integrationRoots, func(), error) {
+	manifest, err := readApplicationProfileManifest(filepath.Join(roots.Application, filepath.FromSlash(profileManifestPath)))
+	if err != nil {
+		return integrationRoots{}, nil, err
+	}
+	source, err := inspectPackageSource(roots.Profiles, manifest.AgentProfiles.CompatibleRelease)
+	if err != nil {
+		return integrationRoots{}, nil, err
+	}
+	runDir, err := os.MkdirTemp("", "coding-loop-profile-closure-*")
+	if err != nil {
+		return integrationRoots{}, nil, err
+	}
+	cleanup := func() { _ = os.RemoveAll(runDir) }
+	packageRoot := filepath.Join(runDir, "profiles")
+	if _, err := assembleProfileClosure(manifest, roots.Profiles, packageRoot, source); err != nil {
+		cleanup()
+		return integrationRoots{}, nil, fmt.Errorf("package integration profile closure: %w", err)
+	}
+	roots.Profiles = packageRoot
+	return roots, cleanup, nil
+}
+
 func envOrDefault(name, fallback string) string {
 	if value := strings.TrimSpace(os.Getenv(name)); value != "" {
 		return value

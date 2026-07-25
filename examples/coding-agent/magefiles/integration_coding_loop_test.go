@@ -78,6 +78,60 @@ func TestFreshWorkspaceIsPortableAndIsolated(t *testing.T) {
 	}
 }
 
+func TestPackagedIntegrationRootsDoNotObserveCheckoutMutations(t *testing.T) {
+	appRoot := t.TempDir()
+	profilesRoot := t.TempDir()
+	writeTestFile(t, filepath.Join(appRoot, "agents", "application.yaml"), `schema_version: 1
+application: test
+agent_profiles:
+  compatible_release: agent-profiles/v0.test
+  references:
+    - {role: executor, source: agents/executor/profile.yaml, runtime_path: agents/executor/profile.yaml}
+runtime:
+  mount_path: /profiles
+  image_contains_profiles: false
+deployment:
+  serving_profiles:
+    - {role: planner, source: agents/serving/planner/profile.yaml, runtime_path: applications/coding-agent/planner/profile.yaml}
+    - {role: executor, source: agents/serving/executor/profile.yaml, runtime_path: applications/coding-agent/executor/profile.yaml}
+    - {role: critic, source: agents/serving/critic/profile.yaml, runtime_path: applications/coding-agent/critic/profile.yaml}
+`)
+	sourceProfile := filepath.Join(profilesRoot, "agents", "executor", "profile.yaml")
+	writeTestFile(t, sourceProfile, "name: packaged-executor\n")
+
+	packaged, cleanup, err := packageIntegrationRoots(integrationRoots{
+		Application: appRoot,
+		Profiles:    profilesRoot,
+	})
+	if err != nil {
+		t.Fatalf("packageIntegrationRoots: %v", err)
+	}
+	packageParent := filepath.Dir(packaged.Profiles)
+	defer cleanup()
+	if packaged.Profiles == profilesRoot {
+		t.Fatal("integration profile root still points at the checkout")
+	}
+	packagedProfile := filepath.Join(packaged.Profiles, "agents", "executor", "profile.yaml")
+	before, err := os.ReadFile(packagedProfile)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if err := os.WriteFile(sourceProfile, []byte("name: mutated-checkout\n"), 0o644); err != nil {
+		t.Fatal(err)
+	}
+	after, err := os.ReadFile(packagedProfile)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if string(after) != string(before) || strings.Contains(string(after), "mutated-checkout") {
+		t.Fatalf("packaged profile observed checkout mutation:\n%s", after)
+	}
+	cleanup()
+	if _, err := os.Stat(packageParent); !os.IsNotExist(err) {
+		t.Fatalf("temporary closure still exists after cleanup: %v", err)
+	}
+}
+
 func TestRequireSuccessfulExecutorChecksTerminalEditAndTests(t *testing.T) {
 	workspace := t.TempDir()
 	writeTestFile(t, filepath.Join(workspace, "go.mod"), "module greet\n\ngo 1.26\n")
