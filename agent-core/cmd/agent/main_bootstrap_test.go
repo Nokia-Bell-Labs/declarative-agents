@@ -90,8 +90,8 @@ func TestBuiltinFactoryCatalogSelectsEntriesByInit(t *testing.T) {
 	require.True(t, byName["spec_validation"].selectedBy(map[string]bool{"validate_specs": true}))
 	require.True(t, byName["lifecycle"].selectedBy(map[string]bool{"checkpoint_history": true}))
 	require.True(t, byName["lifecycle"].selectedBy(map[string]bool{"checkpoint_rollback": true}))
-	require.True(t, byName["documentation"].selectedBy(map[string]bool{"launch_documentation": true}))
-	require.True(t, byName["documentation"].selectedBy(map[string]bool{"stop_documentation": true}))
+	require.True(t, byName["rest"].selectedBy(map[string]bool{"rest_server_launch": true}))
+	require.True(t, byName["rest"].selectedBy(map[string]bool{"rest_server_stop": true}))
 	require.False(t, byName["planning"].selectedBy(map[string]bool{"launch_eval": true}))
 }
 
@@ -118,7 +118,7 @@ func TestBuiltinFactoryCatalogCoversSelectedActiveInits(t *testing.T) {
 		"report_session", "run_agent", "record_oracle_result", "collect_trace_tokens",
 		"check_agent_version", "summarize_point_results", "collect_metrics",
 		"record_agent_commit", "dump_config", "serve_ui", "launch_eval", "load_corpus", "validate_specs",
-		"format_report", "launch_documentation", "stop_documentation",
+		"format_report", "rest_server_launch", "rest_server_stop",
 	} {
 		require.True(t, covered[init], "catalog should cover init %q", init)
 	}

@@ -411,7 +411,7 @@ metric_declaration_fields:
         - name: operation
           source: configured_operation
           cardinality: bounded
-          allowed_values: [documentation_curator_requests.documents]
+          allowed_values: [documentation_curator.documents]
           redaction: none
 
 child_agent_config:

@@ -4,20 +4,17 @@ rest:
     documentation_curator:
       path: openapi.yaml
       base_url: http://127.0.0.1:18081
-      expose:
-        - listDocuments
-        - readDocument
+      expose: [listDocuments, readDocument]
   auth:
-    none:
-      type: none
+    none: {type: none}
   limits:
-    local_docs_api:
-      timeout: 10s
+    local_docs_api: &docs_limits
+      timeout: 30s
       read_timeout: 10s
       max_request_bytes: 262144
-      max_response_bytes: 1048576
-      redirect:
-        mode: none
+      max_response_bytes: 2097152
+      max_header_bytes: 16384
+      redirect: {mode: none}
       network:
         schemes: [http]
         hosts: [127.0.0.1, localhost]
@@ -27,65 +24,35 @@ rest:
       read_timeout: 5s
       max_request_bytes: 16384
       max_response_bytes: 65536
-      redirect:
-        mode: none
+      redirect: {mode: none}
       network:
         schemes: [http]
         hosts: [127.0.0.1, localhost]
         ports: [18082]
-    local_machine_request_api:
-      timeout: 10s
-      read_timeout: 5s
-      max_request_bytes: 16384
-      max_response_bytes: 1048576
-      redirect:
-        mode: none
-      network:
-        schemes: [http]
-        hosts: [127.0.0.1, localhost]
-        ports: [18083]
     local_monitor:
       timeout: 2s
       read_timeout: 2s
       max_request_bytes: 4096
       max_response_bytes: 1048576
-      redirect:
-        mode: none
+      redirect: {mode: none}
       network:
         schemes: [http]
         hosts: [127.0.0.1, localhost]
         ports: [18084]
   response_mappings:
     doc_index:
-      output:
-        documents: $.data
-        count: $.count
+      output: {documents: $.data, count: $.count}
     doc_detail:
-      output:
-        path: $.path
-        content: $.content
-        raw: $.raw
+      output: {path: $.path, content: $.content, raw: $.raw}
     doc_search_results:
-      output:
-        query: $.query
-        matches: $.matches
-        count: $.count
+      output: {query: $.query, matches: $.matches, count: $.count}
     doc_validation_report:
-      output:
-        status: $.status
-        findings: $.findings
-        checked_paths: $.checked_paths
+      output: {status: $.status, findings: $.findings, checked_paths: $.checked_paths}
     doc_suggestions:
-      output:
-        patch_id: $.patch_id
-        path: $.path
-        suggestions: $.suggestions
+      output: {patch_id: $.patch_id, path: $.path, suggestions: $.suggestions, status: $.status}
       redact: [body.proposed_patch]
     patch_decision:
-      output:
-        patch_id: $.patch_id
-        status: $.status
-        decided_by: $.decided_by
+      output: {patch_id: $.patch_id, status: $.status, decided_by: $.decided_by, applied: $.applied}
   clients:
     documentation:
       base_url: http://127.0.0.1:18081
@@ -97,18 +64,10 @@ rest:
           operations:
             get:
               method: GET
-              success:
-                status: [200]
-                signal: RESTResourceRead
-                response_ref: doc_index
+              success: {status: [200], signal: RESTResourceRead, response_ref: doc_index}
               response_ref: doc_index
-              side_effects:
-                - kind: external_api
-                  target: documentation.index
-                  state: read_only
-              reversibility:
-                classification: reversible
-                undo: noop
+              side_effects: [{kind: external_api, target: documentation.index, state: read_only}]
+              reversibility: {classification: reversible, undo: noop}
         document:
           path: /api/v1/docs/{path...}
           operations:
@@ -116,24 +75,12 @@ rest:
               method: GET
               params:
                 path:
-                  path:
-                    type: string
-                    description: Slash-normalized documentation path inside the docs corpus.
-              success:
-                status: [200]
-                signal: RESTResourceRead
-                response_ref: doc_detail
-              failures:
-                - status: [404]
-                  signal: RESTMissing
+                  path: {type: string}
+              success: {status: [200], signal: RESTResourceRead, response_ref: doc_detail}
+              failures: [{status: [404], signal: RESTMissing}]
               response_ref: doc_detail
-              side_effects:
-                - kind: external_api
-                  target: documentation.document
-                  state: read_only
-              reversibility:
-                classification: reversible
-                undo: noop
+              side_effects: [{kind: external_api, target: documentation.document, state: read_only}]
+              reversibility: {classification: reversible, undo: noop}
       operations:
         doc_search:
           method: POST
@@ -141,463 +88,346 @@ rest:
           params:
             body_schema:
               type: object
-              properties:
-                query:
-                  type: string
-                category:
-                  type: string
-                limit:
-                  type: integer
+              properties: {query: {type: string}, category: {type: string}, limit: {type: integer}}
               required: [query]
-          body:
-            query: "{{ params.query }}"
-            category: "{{ params.category }}"
-            limit: "{{ params.limit }}"
-          success:
-            status: [200]
-            signal: RESTResponded
-            response_ref: doc_search_results
+          body: {query: "{{ params.query }}", category: "{{ params.category }}", limit: "{{ params.limit }}"}
+          success: {status: [200], signal: RESTResponded, response_ref: doc_search_results}
           response_ref: doc_search_results
-          side_effects:
-            - kind: external_api
-              target: documentation.search
-              state: read_only
-          reversibility:
-            classification: reversible
-            undo: noop
+          side_effects: [{kind: external_api, target: documentation.search, state: read_only}]
+          reversibility: {classification: reversible, undo: noop}
         doc_validate:
           method: POST
           path: /api/v1/docs/validate
           params:
             body_schema:
               type: object
-              properties:
-                paths:
-                  type: array
-                  items:
-                    type: string
-                strict:
-                  type: boolean
-          body:
-            paths: "{{ params.paths }}"
-            strict: "{{ params.strict }}"
-          success:
-            status: [200]
-            signal: RESTResponded
-            response_ref: doc_validation_report
-          failures:
-            - status: [422]
-              signal: RESTDomainFailed
-              domain_error_code: validation_failed
-              response_ref: doc_validation_report
+              properties: {paths: {type: array, items: {type: string}}, strict: {type: boolean}}
+          body: {paths: "{{ params.paths }}", strict: "{{ params.strict }}"}
+          success: {status: [200], signal: RESTResponded, response_ref: doc_validation_report}
+          failures: [{status: [422], signal: RESTDomainFailed, domain_error_code: validation_failed, response_ref: doc_validation_report}]
           response_ref: doc_validation_report
-          side_effects:
-            - kind: external_api
-              target: documentation.validation
-              state: read_only
-          reversibility:
-            classification: reversible
-            undo: noop
+          side_effects: [{kind: external_api, target: documentation.validation, state: read_only}]
+          reversibility: {classification: reversible, undo: noop}
         doc_suggest_changes:
           method: POST
           path: /api/v1/docs/suggestions
           params:
             body_schema:
               type: object
-              properties:
-                path:
-                  type: string
-                instruction:
-                  type: string
-                context:
-                  type: string
+              properties: {path: {type: string}, instruction: {type: string}, context: {type: string}}
               required: [path, instruction]
-          body:
-            path: "{{ params.path }}"
-            instruction: "{{ params.instruction }}"
-            context: "{{ params.context }}"
-          success:
-            status: [202]
-            signal: RESTAccepted
-            response_ref: doc_suggestions
+          body: {path: "{{ params.path }}", instruction: "{{ params.instruction }}", context: "{{ params.context }}"}
+          success: {status: [202], signal: RESTAccepted, response_ref: doc_suggestions}
           response_ref: doc_suggestions
-          side_effects:
-            - kind: external_api
-              target: documentation.suggestions
-              state: patch_suggestion_created
-          reversibility:
-            classification: compensatable
-            undo: doc_patch_reject
-          compensation:
-            operation: doc_patch_reject
-            reason: Reject the created suggestion before it is applied.
-        doc_patch_approve:
+          side_effects: [{kind: external_api, target: documentation.suggestions, state: review_persisted}]
+          reversibility: {classification: compensatable, undo: doc_patch_reject}
+          compensation: {operation: doc_patch_reject, reason: Reject the persisted pending review.}
+        doc_patch_approve: &approve_client
           method: POST
           path: /api/v1/docs/patches/{patch_id}/approve
           params:
-            path:
-              patch_id:
-                type: string
+            path: {patch_id: {type: string}}
             body_schema:
               type: object
-              properties:
-                decided_by:
-                  type: string
-                note:
-                  type: string
+              properties: {decided_by: {type: string}, note: {type: string}}
               required: [decided_by]
-          body:
-            decided_by: "{{ params.decided_by }}"
-            note: "{{ params.note }}"
-          success:
-            status: [200, 202]
-            signal: RESTResponded
-            response_ref: patch_decision
+          body: {decided_by: "{{ params.decided_by }}", note: "{{ params.note }}"}
+          success: {status: [200], signal: RESTResponded, response_ref: patch_decision}
           failures:
-            - status: [404]
-              signal: RESTMissing
+            - {status: [404], signal: RESTMissing}
+            - {status: [409, 422], signal: RESTDomainFailed, response_ref: patch_decision}
           response_ref: patch_decision
-          side_effects:
-            - kind: external_api
-              target: documentation.patch
-              state: patch_approved
-          reversibility:
-            classification: compensatable
-            undo: doc_patch_reject
-          compensation:
-            operation: doc_patch_reject
-            reason: Reverse an un-applied approval by rejecting the pending patch.
+          side_effects: [{kind: external_api, target: documentation.patch, state: approved}]
+          reversibility: {classification: compensatable, undo: doc_patch_reject}
+          compensation: {operation: doc_patch_reject, reason: Reject an un-applied approval.}
         doc_patch_reject:
-          method: POST
+          <<: *approve_client
           path: /api/v1/docs/patches/{patch_id}/reject
           params:
-            path:
-              patch_id:
-                type: string
+            path: {patch_id: {type: string}}
             body_schema:
               type: object
-              properties:
-                decided_by:
-                  type: string
-                reason:
-                  type: string
+              properties: {decided_by: {type: string}, reason: {type: string}}
               required: [decided_by]
-          body:
-            decided_by: "{{ params.decided_by }}"
-            reason: "{{ params.reason }}"
-          success:
-            status: [200, 202]
-            signal: RESTResponded
-            response_ref: patch_decision
-          failures:
-            - status: [404]
-              signal: RESTMissing
-          response_ref: patch_decision
-          side_effects:
-            - kind: external_api
-              target: documentation.patch
-              state: patch_rejected
-          reversibility:
-            classification: compensatable
-            undo: doc_patch_reopen
-          compensation:
-            operation: doc_patch_reopen
-            reason: Reopen the rejected patch when the service keeps pending patch state.
+          body: {decided_by: "{{ params.decided_by }}", reason: "{{ params.reason }}"}
+          side_effects: [{kind: external_api, target: documentation.patch, state: rejected}]
+          reversibility: {classification: compensatable, undo: doc_patch_reopen}
+          compensation: {operation: doc_patch_reopen, reason: Reopen the persisted rejected review.}
         doc_patch_reopen:
-          method: POST
+          <<: *approve_client
           path: /api/v1/docs/patches/{patch_id}/reopen
           params:
-            path:
-              patch_id:
-                type: string
+            path: {patch_id: {type: string}}
             body_schema:
               type: object
-              properties:
-                decided_by:
-                  type: string
-                reason:
-                  type: string
+              properties: {decided_by: {type: string}, reason: {type: string}}
               required: [decided_by]
-          body:
-            decided_by: "{{ params.decided_by }}"
-            reason: "{{ params.reason }}"
-          success:
-            status: [200, 202]
-            signal: RESTResponded
-            response_ref: patch_decision
-          response_ref: patch_decision
-          side_effects:
-            - kind: external_api
-              target: documentation.patch
-              state: patch_reopened
-          reversibility:
-            classification: compensatable
-            undo: doc_patch_reject
-          compensation:
-            operation: doc_patch_reject
-            reason: Reject the reopened patch when review should remain closed.
+          body: {decided_by: "{{ params.decided_by }}", reason: "{{ params.reason }}"}
+          side_effects: [{kind: external_api, target: documentation.patch, state: pending_review}]
+          reversibility: {classification: compensatable, undo: doc_patch_reject}
+          compensation: {operation: doc_patch_reject, reason: Reject the reopened review.}
   servers:
-    documentation_curator_requests:
-      address: 127.0.0.1:18083
-      limits_ref: local_machine_request_api
+    documentation_curator:
+      address: 127.0.0.1:18081
+      limits_ref: local_docs_api
+      shutdown: {timeout: 5s, drain_policy: drain_then_stop, stop_listeners: true}
       endpoints:
+        docs_health:
+          method: GET
+          path: /api/v1/health
+          binding: health
         documents:
           openapi_operation_id: listDocuments
           method: GET
           path: /api/v1/docs
           binding: machine_request
-          machine_request:
+          machine_request: &index_request
             profile: profile.yaml
             machine: request-machine.yaml
-            timeout: 5s
+            timeout: 10s
             request:
-              query:
-                prefix: $.prefix
+              query: {prefix: $.prefix}
             response:
-              terminal_signals:
+              terminal_states:
                 DocumentIndexReady:
                   status: 200
                   content_type: application/json
-                  body:
-                    data: $.documents
-                    count: $.count
-                DocumentResourceDenied:
-                  status: 403
-                  content_type: application/json
-                  body:
-                    error: document_resource_denied
-                CommandError:
-                  status: 500
-                  content_type: application/json
-                  body:
-                    error: command_error
+                  body: {data: $.data, documents: $.documents, count: $.count}
+                RequestDenied: {status: 403, content_type: application/json, body: {error: document_resource_denied}}
+                Failed: {status: 500, content_type: application/json, body: {error: command_error}}
         document:
           openapi_operation_id: readDocument
           method: GET
           path: /api/v1/docs/{path...}
           binding: machine_request
-          machine_request:
+          machine_request: &document_request
             profile: profile.yaml
             machine: request-machine.yaml
             initial_signal: ReadRequested
-            timeout: 5s
+            timeout: 10s
             request:
-              path:
-                path: $.path
+              path: {path: $.path}
             response:
-              terminal_signals:
+              terminal_states:
                 DocumentDetailReady:
                   status: 200
                   content_type: application/json
-                  body:
-                    data: $.content
-                    path: $.path
-                    raw: $.raw
-                    content_type: $.content_type
-                DocumentMissing:
-                  status: 404
-                  content_type: application/json
-                  body:
-                    error: document_missing
-                DocumentResourceDenied:
-                  status: 403
-                  content_type: application/json
-                  body:
-                    error: document_resource_denied
-                DocumentParseFailed:
-                  status: 422
-                  content_type: application/json
-                  body:
-                    error: document_parse_failed
-                CommandError:
-                  status: 500
-                  content_type: application/json
-                  body:
-                    error: command_error
-        validate_action:
+                  body: {data: $.content, path: $.path, content: $.content, raw: $.raw, content_type: $.content_type}
+                DocumentNotFound: {status: 404, content_type: application/json, body: {error: document_missing}}
+                RequestDenied: {status: 403, content_type: application/json, body: {error: document_resource_denied}}
+                Failed: {status: 500, content_type: application/json, body: {error: command_error}}
+        search:
           method: POST
-          path: /api/v1/actions/validate
+          path: /api/v1/docs/search
+          binding: machine_request
           request:
             body_schema:
               type: object
-              properties:
-                paths:
-                  type: array
-                  items: {type: string}
-                strict: {type: boolean}
+              properties: {query: {type: string}, category: {type: string}, limit: {type: integer}}
+              required: [query]
+          machine_request:
+            profile: profile.yaml
+            machine: request-machine.yaml
+            initial_signal: SearchRequested
+            timeout: 15s
+            request:
+              body: {query: $.query, category: $.category, limit: $.limit}
+            response:
+              terminal_states:
+                SearchReady:
+                  status: 200
+                  content_type: application/json
+                  body: {data: "$.", query: $.query, matches: $.matches, count: $.count}
+                Failed: {status: 500, content_type: application/json, body: {error: command_error}}
+        validate: &validate_endpoint
+          method: POST
+          path: /api/v1/docs/validate
           binding: machine_request
+          request:
+            body_schema:
+              type: object
+              properties: {paths: {type: array, items: {type: string}}, strict: {type: boolean}}
           machine_request:
             profile: profile.yaml
             machine: request-machine.yaml
             initial_signal: ValidateRequested
-            timeout: 15s
+            timeout: 30s
             request:
-              body:
-                paths: $.paths
-                strict: $.strict
+              body: {paths: $.paths, strict: $.strict}
             response:
               terminal_states:
-                ActionCompleted:
+                ValidationReady:
                   status: 200
                   content_type: application/json
-                  body:
-                    data: $.mapped
-                ActionRejected:
+                  body: {data: "$.", status: $.status, findings: $.findings, checked_paths: $.checked_paths}
+                ValidationRejected:
                   status: 422
                   content_type: application/json
-                  body:
-                    data: $.mapped
-                    error: validation_failed
-                Failed:
-                  status: 500
-                  content_type: application/json
-                  body:
-                    error: command_error
-        suggest_action:
+                  body: {data: "$.", status: $.status, findings: $.findings, checked_paths: $.checked_paths, error: validation_failed}
+                Failed: {status: 500, content_type: application/json, body: {error: command_error}}
+        validate_action:
+          <<: *validate_endpoint
+          path: /api/v1/actions/validate
+        suggest: &suggest_endpoint
           method: POST
-          path: /api/v1/actions/suggest
+          path: /api/v1/docs/suggestions
+          binding: machine_request
           request:
             body_schema:
               type: object
-              properties:
-                path: {type: string}
-                instruction: {type: string}
-                context: {type: string}
+              properties: {path: {type: string}, instruction: {type: string}, context: {type: string}}
               required: [path, instruction]
-          binding: machine_request
           machine_request:
             profile: profile.yaml
             machine: request-machine.yaml
             initial_signal: SuggestRequested
             timeout: 15s
             request:
-              body:
-                path: $.path
-                instruction: $.instruction
-                context: $.context
+              body: {path: $.path, instruction: $.instruction, context: $.context}
             response:
               terminal_states:
-                ActionCompleted:
+                SuggestionReady:
                   status: 202
                   content_type: application/json
-                  body:
-                    data: $.mapped
-                ActionRejected:
-                  status: 422
-                  content_type: application/json
-                  body:
-                    data: $.mapped
-                    error: suggestion_failed
-                Failed:
-                  status: 500
-                  content_type: application/json
-                  body:
-                    error: command_error
-        approve_action:
+                  body: {data: "$.", patch_id: $.patch_id, path: $.path, status: $.status, suggestions: $.suggestions, proposed_patch: $.proposed_patch}
+                DocumentNotFound: {status: 404, content_type: application/json, body: {error: document_missing}}
+                RequestDenied: {status: 403, content_type: application/json, body: {error: document_resource_denied}}
+                Failed: {status: 500, content_type: application/json, body: {error: command_error}}
+        suggest_action:
+          <<: *suggest_endpoint
+          path: /api/v1/actions/suggest
+        approve: &approve_endpoint
           method: POST
-          path: /api/v1/actions/patches/{patch_id}/approve
+          path: /api/v1/docs/patches/{patch_id}/approve
+          binding: machine_request
           request:
-            path:
-              patch_id: {type: string}
+            path: {patch_id: {type: string}}
             body_schema:
               type: object
-              properties:
-                decided_by: {type: string}
-                note: {type: string}
+              properties: {decided_by: {type: string}, note: {type: string}}
               required: [decided_by]
-          binding: machine_request
           machine_request:
             profile: profile.yaml
             machine: request-machine.yaml
             initial_signal: ApproveRequested
             timeout: 15s
             request:
-              path:
-                patch_id: $.patch_id
-              body:
-                decided_by: $.decided_by
-                note: $.note
-            response:
+              path: {patch_id: $.patch_id}
+              body: {decided_by: $.decided_by, note: $.note}
+            response: &decision_response
               terminal_states:
-                ActionCompleted:
+                DecisionReady:
                   status: 200
                   content_type: application/json
-                  body:
-                    data: $.mapped
-                ActionRejected:
-                  status: 422
-                  content_type: application/json
-                  body:
-                    data: $.mapped
-                    error: approval_failed
-                ActionMissing:
-                  status: 404
-                  content_type: application/json
-                  body:
-                    error: patch_missing
-                Failed:
-                  status: 500
-                  content_type: application/json
-                  body:
-                    error: command_error
-        reject_action:
-          method: POST
-          path: /api/v1/actions/patches/{patch_id}/reject
+                  body: {data: "$.", patch_id: $.patch_id, status: $.status, decided_by: $.decided_by, applied: $.applied}
+                ActionRejected: {status: 409, content_type: application/json, body: {error: invalid_patch_state}}
+                ActionMissing: {status: 404, content_type: application/json, body: {error: patch_missing}}
+                RequestDenied: {status: 403, content_type: application/json, body: {error: document_resource_denied}}
+                Failed: {status: 500, content_type: application/json, body: {error: command_error}}
+        approve_action:
+          <<: *approve_endpoint
+          path: /api/v1/actions/patches/{patch_id}/approve
+        reject: &reject_endpoint
+          <<: *approve_endpoint
+          path: /api/v1/docs/patches/{patch_id}/reject
           request:
-            path:
-              patch_id: {type: string}
+            path: {patch_id: {type: string}}
             body_schema:
               type: object
-              properties:
-                decided_by: {type: string}
-                reason: {type: string}
+              properties: {decided_by: {type: string}, reason: {type: string}}
               required: [decided_by]
-          binding: machine_request
           machine_request:
             profile: profile.yaml
             machine: request-machine.yaml
             initial_signal: RejectRequested
             timeout: 15s
             request:
-              path:
-                patch_id: $.patch_id
-              body:
-                decided_by: $.decided_by
-                reason: $.reason
+              path: {patch_id: $.patch_id}
+              body: {decided_by: $.decided_by, reason: $.reason}
+            response: *decision_response
+        reject_action:
+          <<: *reject_endpoint
+          path: /api/v1/actions/patches/{patch_id}/reject
+        reopen:
+          <<: *reject_endpoint
+          path: /api/v1/docs/patches/{patch_id}/reopen
+          machine_request:
+            profile: profile.yaml
+            machine: request-machine.yaml
+            initial_signal: ReopenRequested
+            timeout: 15s
+            request:
+              path: {patch_id: $.patch_id}
+              body: {decided_by: $.decided_by, reason: $.reason}
+            response: *decision_response
+        config:
+          method: GET
+          path: /api/v1/configs/{path...}
+          binding: machine_request
+          request:
+            path: {path: {type: string}}
+          machine_request:
+            profile: profile.yaml
+            machine: request-machine.yaml
+            initial_signal: ConfigRequested
+            timeout: 10s
+            request:
+              path: {path: $.path}
             response:
               terminal_states:
-                ActionCompleted:
+                ConfigReady:
                   status: 200
                   content_type: application/json
-                  body:
-                    data: $.mapped
-                ActionRejected:
-                  status: 422
+                  body: {data: $.data, path: $.path, content: $.content, raw: $.raw}
+                DocumentNotFound: {status: 404, content_type: application/json, body: {error: config_missing}}
+                RequestDenied: {status: 403, content_type: application/json, body: {error: resource_denied}}
+                Failed: {status: 500, content_type: application/json, body: {error: command_error}}
+        source:
+          method: GET
+          path: /api/v1/source/{path...}
+          binding: machine_request
+          request:
+            path: {path: {type: string}}
+          machine_request:
+            profile: profile.yaml
+            machine: request-machine.yaml
+            initial_signal: SourceRequested
+            timeout: 10s
+            request:
+              path: {path: $.path}
+            response:
+              terminal_states:
+                SourceReady:
+                  status: 200
                   content_type: application/json
-                  body:
-                    data: $.mapped
-                    error: rejection_failed
-                ActionMissing:
-                  status: 404
-                  content_type: application/json
-                  body:
-                    error: patch_missing
-                Failed:
-                  status: 500
-                  content_type: application/json
-                  body:
-                    error: command_error
+                  body: {data: $.data, path: $.path, content: $.content, language: $.language, mimeType: $.mimeType, size: $.size}
+                DocumentNotFound: {status: 404, content_type: application/json, body: {error: source_missing}}
+                RequestDenied: {status: 403, content_type: application/json, body: {error: resource_denied}}
+                Failed: {status: 500, content_type: application/json, body: {error: command_error}}
+        ux:
+          method: GET
+          path: /api/v1/ux
+          binding: static_assets
+          static_assets:
+            root: agents/knowledge-manager/documentation-curator/ui
+            index: ux.json
+            spa: false
+        ui:
+          method: GET
+          path: /{path...}
+          binding: static_assets
+          static_assets:
+            root: agents/knowledge-manager/documentation-curator/ui/docs/dist
+            index: index.html
+            spa: true
+          request:
+            path: {path: {type: string}}
 
     documentation_curator_control:
       address: 127.0.0.1:18082
       limits_ref: local_control_api
-      queue:
-        name: documentation_curator_control
-        capacity: 8
-        timeout: 30s
-      shutdown:
-        timeout: 5s
-        drain_policy: drain_then_stop
+      queue: {name: documentation_curator_control, capacity: 8, timeout: 30s}
+      shutdown: {timeout: 5s, drain_policy: drain_then_stop}
       endpoints:
         exit:
           method: POST
@@ -607,15 +437,9 @@ rest:
           request:
             body_schema:
               type: object
-              properties:
-                reason:
-                  type: string
-                status:
-                  type: string
-          response:
-            output:
-              accepted: "true"
-        health:
+              properties: {reason: {type: string}, status: {type: string}}
+          response: {output: {accepted: "true"}}
+        control_health:
           method: GET
           path: /api/lifecycle/health
           binding: health
@@ -623,82 +447,33 @@ rest:
     monitor:
       address: 127.0.0.1:18084
       limits_ref: local_monitor
-      queue:
-        name: documentation_curator_monitor
-        capacity: 8
-        overflow: reject
-        timeout: 100ms
-      shutdown:
-        timeout: 2s
-        drain_policy: drain
-        stop_listeners: true
-        unblock_await_signal: ServerStopped
+      queue: {name: documentation_curator_monitor, capacity: 8, overflow: reject, timeout: 100ms}
+      shutdown: {timeout: 2s, drain_policy: drain, stop_listeners: true, unblock_await_signal: ServerStopped}
       endpoints:
-        machine_spec:
-          method: GET
-          path: /monitor/machine
-          binding: read_state
-          monitor_view: machine_spec
-        current_state:
-          method: GET
-          path: /monitor/state
-          binding: read_state
-          monitor_view: current_state
-        tools:
-          method: GET
-          path: /monitor/tools
-          binding: read_state
-          monitor_view: tools
-        metrics:
-          method: GET
-          path: /monitor/metrics
-          binding: read_state
-          monitor_view: metrics
-        recent_events:
-          method: GET
-          path: /monitor/events
-          binding: read_state
-          monitor_view: events
-        event_stream:
-          method: GET
-          path: /monitor/events/stream
-          binding: stream_events
-          monitor_view: events
-        openapi:
-          method: GET
-          path: /monitor/openapi
-          binding: static_metadata
-          monitor_view: openapi
+        machine_spec: {method: GET, path: /monitor/machine, binding: read_state, monitor_view: machine_spec}
+        current_state: {method: GET, path: /monitor/state, binding: read_state, monitor_view: current_state}
+        tools: {method: GET, path: /monitor/tools, binding: read_state, monitor_view: tools}
+        metrics: {method: GET, path: /monitor/metrics, binding: read_state, monitor_view: metrics}
+        recent_events: {method: GET, path: /monitor/events, binding: read_state, monitor_view: events}
+        event_stream: {method: GET, path: /monitor/events/stream, binding: stream_events, monitor_view: events}
+        openapi: {method: GET, path: /monitor/openapi, binding: static_metadata, monitor_view: openapi}
         control_exit:
           method: POST
           path: /monitor/control/exit
           binding: emit_signal
           signal: ExitRequested
           request:
-            body_schema:
-              type: object
-              properties:
-                reason:
-                  type: string
-          response:
-            output:
-              accepted: "true"
+            body_schema: {type: object, properties: {reason: {type: string}}}
+          response: {output: {accepted: "true"}}
         monitor_ui:
           method: GET
           path: /ui/{path...}
           binding: static_assets
-          static_assets:
-            root: agents/knowledge-manager/documentation-curator/ui/monitor/dist
-            index: index.html
-            spa: true
+          static_assets: {root: agents/knowledge-manager/documentation-curator/ui/monitor/dist, index: index.html, spa: true}
           request:
-            path:
-              path:
-                type: string
+            path: {path: {type: string}}
         root_redirect:
           method: GET
           path: /
           binding: redirect
-          redirect:
-            location: "/ui/"
-            status: 302
+          redirect: {location: /ui/, status: 302}

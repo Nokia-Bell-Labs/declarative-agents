@@ -48,8 +48,6 @@ Generated from `go list ./...` after the internal package migration:
 - `internal/evaluation`
 - `internal/evaluation/bench`
 - `internal/evaluation/bench/ui`
-- `internal/knowledge/documentation`
-- `internal/knowledge/documentation/ui`
 - `internal/model`
 - `internal/model/llm`
 - `internal/model/llm/ollama`

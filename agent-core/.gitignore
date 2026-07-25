@@ -5,6 +5,7 @@
 pkg/bench/ui/dist/
 pkg/bench/ui/node_modules/
 internal/evaluation/bench/ui/node_modules/
+# Local dependency residue from the retired documentation UI location.
 internal/knowledge/documentation/ui/node_modules/
 bin/
 magefiles/mage_output_file.go

@@ -9,7 +9,6 @@ import (
 	"github.com/Nokia-Bell-Labs/declarative-agents/agent-core/internal/evaluation"
 	"github.com/Nokia-Bell-Labs/declarative-agents/agent-core/internal/evaluation/bench"
 	benchui "github.com/Nokia-Bell-Labs/declarative-agents/agent-core/internal/evaluation/bench/ui"
-	docsapi "github.com/Nokia-Bell-Labs/declarative-agents/agent-core/internal/knowledge/documentation"
 	"github.com/Nokia-Bell-Labs/declarative-agents/agent-core/internal/model/llm"
 	"github.com/Nokia-Bell-Labs/declarative-agents/agent-core/internal/planning/pipeline"
 	"github.com/Nokia-Bell-Labs/declarative-agents/agent-core/internal/runtime/core"
@@ -61,7 +60,6 @@ func standardFactoryDeps(st *agentState) toolregistry.StandardFactoryDeps {
 		RegisterBench:          registerBenchFactories(),
 		RegisterSpecValidation: registerSpecValidationFactories(st),
 		RegisterREST:           registerRESTFactories(st),
-		RegisterDocumentation:  registerDocumentationFactories(),
 		RegisterCompose:        registerComposeFactories(),
 		RegisterOTLP:           registerOTLPFactories(),
 		RegisterService:        registerServiceFactories(),
@@ -433,10 +431,4 @@ func requestLocalState(host *agentState, reg *core.Registry) *agentState {
 	}
 	local.parseRetries = &toollm.ParseErrorRetryTracker{MaxConsecutive: maxConsecutive}
 	return &local
-}
-
-func registerDocumentationFactories() toolregistry.FactoryRegistrar {
-	return func(br *toolregistry.BuiltinRegistry) {
-		docsapi.RegisterFactories(br)
-	}
 }

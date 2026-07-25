@@ -66,7 +66,7 @@ func (b staticSignalBuilder) Build(previous core.Result) core.Command {
 	// Once the machine begins tearing down, a launch tool re-dispatched during
 	// shutdown emits its afterExit signal instead of its launch signal. Teardown
 	// can span several steps (e.g. exit_agent -> stop_monitor_rest ->
-	// serve_documentation in the documentation-curator machine), so the switch
+	// launch_curator_http in the documentation-curator machine), so the switch
 	// fires on any teardown-phase signal, not just the AgentExited that opens it.
 	if b.afterExit != "" && isTeardownSignal(previous.Signal) {
 		return staticSignalCmd{name: b.name, signal: b.afterExit, output: b.output}

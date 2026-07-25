@@ -72,7 +72,6 @@ func Build() error {
 
 var embeddedUIDirs = []string{
 	"internal/evaluation/bench/ui",
-	"internal/knowledge/documentation/ui",
 }
 
 func hasUI(uiDir string) bool {

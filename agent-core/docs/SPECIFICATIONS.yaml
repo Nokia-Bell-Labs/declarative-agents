@@ -739,12 +739,12 @@ coverage_gaps: |
   machine-request demo as a profile-owned browser tracer in agent-profiles.
   Generic core tests fetch machine_request document responses through the
   generic REST server routes
-  documentation_curator_requests.documents and
-  documentation_curator_requests.document, checks raw YAML and rendered
+  documentation_curator.documents and
+  documentation_curator.document, checks raw YAML and rendered
   content, and records request trace evidence.
   internal/tools/rest, tools/builtin/rest declarations,
   OpenAPI import compilation, REST runtime tests, testdata/conformance/rest
-  profile examples, and the documentation host are implemented. docs/rel03-rest-design-audit.md records the design
+  profile examples, and the profile-owned documentation application are implemented. docs/rel03-rest-design-audit.md records the design
   audit result. REST side-effect vocabulary now accepts listener and listener
   shutdown effects in the contract audit. Credential resolution, redirect
   allowlists, request and response size limits, server query and header
@@ -755,7 +755,7 @@ coverage_gaps: |
   profile-owned documentation-curator proof, and machine_request browser proof
     now have formal release 03.0 coverage. Generic REST event fan-in, route and
     signal filters, timeout handling, machine_request fixture conformance,
-    documentation host route conformance, and REST-triggered lifecycle exit now
+    documentation route conformance, and REST-triggered lifecycle exit now
     have formal cases tied to Go tests and profile-owned uc006/uc007 evidence.
     rel03.0-uc008 now has executable staged
     await-any fan-in coverage that launches a later REST source after the first
@@ -831,11 +831,11 @@ coverage_gaps: |
   documentation stubs with no standalone runtime behavior. internal/runtime,
   internal/support, and internal/tools have the same status.
   internal/evaluation/bench/ui embeds React assets behind the bench API.
-  internal/knowledge/documentation/ui embeds React assets behind the
-  documentation-curator host. srd020 and rel03.0-uc006 cover the ownership
-  boundary. rel03.0-uc007 extends that boundary to implemented human actor
-  configuration for a machine_request-backed Knowledge Manager UX through the
-  generic REST server path.
+  The external documentation-curator profile owns its React source, built
+  assets, route configuration, request MachineSpec, and workflow ToolDefs.
+  srd020 and rel03.0-uc006 cover that ownership boundary, while rel03.0-uc007
+  covers the machine_request-backed human actor path through the generic REST
+  server.
 
   Residual documentation cleanup is tracked as follow-up work. Historical
   roll-backs.md and tools-as-dsl.md references should be normalized to canonical

@@ -18,7 +18,7 @@ import (
 	"gopkg.in/yaml.v3"
 )
 
-const integrationHTTPRequestTimeout = 2 * time.Second
+const integrationHTTPRequestTimeout = 30 * time.Second
 
 var integrationHTTPClient = &http.Client{Timeout: integrationHTTPRequestTimeout}
 

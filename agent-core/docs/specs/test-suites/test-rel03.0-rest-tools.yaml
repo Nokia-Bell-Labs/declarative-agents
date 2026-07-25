@@ -920,7 +920,7 @@ test_cases:
       - srd028-rest-client-tools AC7
 
   - use_case: rel03.0-uc006-documentation-curator
-    name: Profile-owned documentation curator loads host and REST tooling
+    name: Profile-owned documentation curator loads generic REST tooling
     go_test: mage integration:documentationCurator
     status: done
     description: |
@@ -931,7 +931,7 @@ test_cases:
     inputs:
       profile_owner: agent-profiles
       profile: agents/knowledge-manager/documentation-curator/profile.yaml
-      builtin_tool: serve_documentation
+      builtin_tool: launch_curator_http
       rest_tools:
         - doc_list
         - doc_get
@@ -953,17 +953,15 @@ test_cases:
       - srd028-rest-client-tools AC1
 
   - use_case: rel03.0-uc006-documentation-curator
-    name: Standalone documentation server serves docs API and SPA
-    go_test: TestStandaloneServerServesDocsAPIAndSPA
+    name: Generic profile server serves docs API and SPA
+    go_test: mage integration:documentationCurator
     status: done
     description: |
-      Start the documentation server handler with fixture docs and assets. Verify
-      /api/v1/docs returns documentation entries, a document detail route returns
-      parsed content, and a non-API route returns the SPA asset. This package
-      test proves the reusable host behavior with fixtures, not a shipped
-      profile path. Bench is not in the request path.
+      Launch the shipped profile with free loopback addresses and verify the
+      generic server becomes healthy, then exits through declared lifecycle
+      transitions. Detailed route behavior is covered by the profile integration.
     inputs:
-      server_package: internal/knowledge/documentation
+      server_package: internal/tools/rest
       docs_fixture: temporary_docs_root
       route_prefix: /api/v1/docs
     expected:
@@ -981,12 +979,12 @@ test_cases:
 
   - use_case: rel03.0-uc006-documentation-curator
     name: Documentation curator exposes validation and patch proposal workflow
-    go_test: TestHandlerServesCuratorSearchValidationAndPatchReview
+    go_test: mage integration:documentationCurator
     status: done
     description: |
-      Call the standalone documentation host APIs for search, validation,
-      suggestion generation, and patch review. The handler returns structured
-      findings and a pending patch proposal. Approval records the review
+      Call the profile-owned generic server APIs for search, validation,
+      suggestion generation, and patch review. Request MachineSpecs return
+      structured findings and a persisted pending review. Approval records the review
       decision but does not write documentation files.
     inputs:
       routes:
@@ -1026,7 +1024,7 @@ test_cases:
       listener: 127.0.0.1:18081
       frontend_builds:
         - internal/evaluation/bench/ui
-        - internal/knowledge/documentation/ui
+        - ../agent-profiles/agents/knowledge-manager/documentation-curator/ui/docs
       bench_route_test: TestDocsAPIRoutesAreNotMounted
       lifecycle_exit_endpoint: POST /api/lifecycle/exit
     expected:
@@ -1042,8 +1040,8 @@ test_cases:
       cancelled_output_absent: true
       documentation_listener_released: true
       control_listener_released: true
-      documentation_host_stop_go_test: TestCuratorMachineExitStopsDocumentationHost
-      serve_documentation_undo_go_test: TestServeDocumentationUndoStopsOwnedListener
+      documentation_host_stop_go_test: TestKnowledgeManagerConformance
+      launch_curator_http_undo: rest_server_stop
       clean_shutdown: true
       core_concrete_profile_required: false
     traces:
@@ -1103,7 +1101,7 @@ test_cases:
       request_run_count: 1
       terminal_signal: DocumentIndexReady
       machine_request_trace_required: true
-      generic_rest_route_used: documentation_curator_requests.documents
+      generic_rest_route_used: documentation_curator.documents
       direct_docs_handler_restored_fails: true
       document_resource_root: docs
     traces:
@@ -1127,14 +1125,14 @@ test_cases:
       response_modes: [raw_yaml, parsed_yaml]
       blocked_paths:
         - ../go.mod
-        - internal/knowledge/documentation/host.go
+        - cmd/agent/main.go
     expected:
       raw_yaml_returned: true
       nested_document_path_listed: true
       parsed_content_returned: true
       rendered_title_visible: true
       terminal_signal: DocumentDetailReady
-      generic_rest_route_used: documentation_curator_requests.document
+      generic_rest_route_used: documentation_curator.document
       traversal_request_denied: true
       disallowed_extension_denied: true
     traces:
@@ -1233,11 +1231,11 @@ test_cases:
       - srd030-machine-request-rest-binding AC7
 
   - use_case: rel03.0-uc007-machine-request-documentation-ux
-    name: Documentation host routes docs API through generic machine_request
-    go_test: go test ./internal/knowledge/documentation -run TestStandaloneServerConformanceUsesRESTMachineRequestRoutes
+    name: Documentation profile routes docs API through generic machine_request
+    go_test: mage integration:documentationCurator
     status: done
     description: |
-      Run the always-on documentation host conformance check. The docs API
+      Run the profile-owned documentation integration check. The docs API
       response trace must identify the generic REST machine_request server
       route, request machine, terminal signal, and request-scoped run summary.
       Browser evidence for a concrete profile belongs to agent-profiles.
@@ -1269,15 +1267,15 @@ test_cases:
 
   - use_case: rel03.0-uc007-machine-request-documentation-ux
     name: Documentation browser actions use configured request-machine routes
-    go_test: TestStandaloneServerProxiesValidateActionThroughRequestMachine, TestStandaloneServerProxiesPatchActionsThroughRequestMachines, TestStandaloneServerRejectsLegacyActionEnvelope
+    go_test: mage integration:documentationCurator
     status: done
     description: |
       Post browser-shaped validation, suggestion, approval, and rejection
-      requests through the documentation host. The same-origin proxy must
-      return each configured request-machine trace, and the shared PatchStore
-      must retain suggestions across the short-lived action machines. Unknown
-      patch IDs must route through RESTMissing to the configured 404 response,
-      while the removed generic action envelope also returns 404.
+      requests through the profile-launched generic REST server. Each route
+      returns configured request-machine trace metadata, and filesystem review
+      artifacts retain suggestions across short-lived action machines. Unknown
+      patch IDs route to the configured 404 response, while invalid review
+      transitions return a domain rejection.
     inputs:
       configured_routes:
         - POST /api/v1/actions/validate

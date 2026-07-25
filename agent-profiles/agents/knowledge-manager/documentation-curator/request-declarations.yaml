@@ -2,64 +2,29 @@ tools:
   - name: doc_list_resource
     type: builtin
     init: list_resource
+    visibility: internal
     category: boundary
-    description: List configured Knowledge Manager documentation resources.
-    problem: Document index requests need a profile-owned resource word instead of a documentation-specific Go route.
-    goals:
-      - Read the configured docs resource index.
-      - Return document entries for REST response mapping.
-    requirements:
-      input:
-        - Runtime input may supply an optional prefix inside the configured docs root.
-      output:
-        - Output includes path, name, category, extension, and size for each entry.
-      errors:
-        - Missing resource config emits CommandError.
-        - Denied paths emit DocumentResourceDenied.
-    non_goals:
-      - Does not expose arbitrary roots, glob rules, or parser modes.
-    parameters:
-      type: object
-      properties:
-        resource: {type: string}
-        prefix: {type: string}
     emits: [DocumentListReady, DocumentResourceDenied, CommandError]
-    output:
-      description: Configured documentation entries.
-      schema:
-        type: array
-        items:
-          type: object
-          properties:
-            path: {type: string}
-            name: {type: string}
-            category: {type: string}
-            extension: {type: string}
-            size: {type: integer}
-    side_effects:
-      - kind: filesystem_read
-        target: docs_resource
-        state: read_only
-    reversibility:
-      classification: reversible
-      undo: noop
-    undo:
-      strategy: noop
-      description: Listing documentation resources does not mutate state.
-    errors:
-      - signal: CommandError
-        condition: Resource configuration or filesystem access failed.
-        state_after_failure: No filesystem state is changed.
-    relationships:
-      before: [doc_read_resource]
-    config:
+    description: List allowlisted documentation resources.
+    problem: Index requests need path-safe filesystem discovery without a documentation handler.
+    goals: [Return stable metadata for allowed YAML and Markdown files.]
+    requirements:
+      input: [An optional prefix is the only runtime path input.]
+      output: [Entries contain path, name, category, extension, and size.]
+      errors: [Denied paths and filesystem failures emit declared signals.]
+    non_goals: [Does not shape an HTTP response.]
+    parameters: {type: object, properties: {prefix: {type: string}}}
+    output: {description: Documentation resource entries, schema: {type: array}}
+    side_effects: [{kind: filesystem_read, target: docs, state: read_only}]
+    reversibility: {classification: reversible, undo: noop}
+    undo: {strategy: noop, description: Resource listing changes nothing.}
+    errors: [{signal: CommandError, condition: Filesystem access fails, state_after_failure: No state changes.}]
+    config: &docs_resource
+      resource: docs
       resources:
         docs:
           root: docs
-          include:
-            - "**/*.yaml"
-            - "**/*.yml"
-            - "**/*.md"
+          include: ["**/*.yaml", "**/*.yml", "**/*.md"]
           extensions: [yaml, yml, md]
           modes: [raw_yaml, parsed_yaml, raw_markdown]
           max_bytes: 1048576
@@ -67,73 +32,549 @@ tools:
   - name: doc_read_resource
     type: builtin
     init: read_resource
+    visibility: internal
     category: boundary
-    description: Read one configured Knowledge Manager documentation resource.
-    problem: Document detail requests need a profile-owned resource word with path safety.
-    goals:
-      - Resolve one path inside the configured docs resource.
-      - Return raw and parsed content for response mapping.
+    emits: [DocumentReady, DocumentMissing, DocumentResourceDenied, DocumentParseFailed, CommandError]
+    description: Read one allowlisted documentation resource.
+    problem: Detail and suggestion requests need one path-safe document read.
+    goals: [Return parsed and raw content without exposing arbitrary roots.]
     requirements:
-      input:
-        - Runtime input supplies only resource and path fields.
-      output:
-        - Output includes path, raw content, parsed content, content type, extension, and size.
-      errors:
-        - Missing files emit DocumentMissing.
-        - Disallowed paths or extensions emit DocumentResourceDenied.
-        - YAML parse failures emit DocumentParseFailed.
-    non_goals:
-      - Does not write, patch, or validate documentation content.
+      input: [The request supplies one relative path.]
+      output: [Output includes raw, parsed, content type, extension, and size.]
+      errors: [Missing, denied, parse, and infrastructure failures remain distinct.]
+    non_goals: [Does not validate or mutate a document.]
+    parameters: {type: object, properties: {path: {type: string}}, required: [path]}
+    output: {description: Documentation detail, schema: {type: object}}
+    side_effects: [{kind: filesystem_read, target: docs, state: read_only}]
+    reversibility: {classification: reversible, undo: noop}
+    undo: {strategy: noop, description: Resource reads change nothing.}
+    errors: [{signal: CommandError, condition: Filesystem access fails, state_after_failure: No state changes.}]
+    config: *docs_resource
+
+  - name: config_read_resource
+    type: builtin
+    init: read_resource
+    visibility: internal
+    category: boundary
+    emits: [DocumentReady, DocumentMissing, DocumentResourceDenied, DocumentParseFailed, CommandError]
+    description: Read one allowlisted runtime config.
+    problem: The UI config viewer needs the generic resource boundary.
+    goals: [Allow YAML config reads under configs only.]
+    requirements:
+      input: [One relative config path.]
+      output: [Raw and parsed YAML.]
+      errors: [Unsafe paths are denied.]
+    non_goals: [Does not write configuration.]
+    parameters: {type: object, properties: {path: {type: string}}, required: [path]}
+    output: {description: Config detail, schema: {type: object}}
+    side_effects: [{kind: filesystem_read, target: configs, state: read_only}]
+    reversibility: {classification: reversible, undo: noop}
+    undo: {strategy: noop, description: Config reads change nothing.}
+    errors: [{signal: CommandError, condition: Filesystem access fails, state_after_failure: No state changes.}]
+    config:
+      resource: configs
+      resources:
+        configs:
+          root: configs
+          include: ["**/*.yaml", "**/*.yml"]
+          extensions: [yaml, yml]
+          modes: [raw_yaml, parsed_yaml]
+          max_bytes: 1048576
+
+  - name: source_read_resource
+    type: builtin
+    init: read_resource
+    visibility: internal
+    category: boundary
+    emits: [DocumentReady, DocumentMissing, DocumentResourceDenied, DocumentParseFailed, CommandError]
+    description: Read one allowlisted text source file.
+    problem: The source viewer needs a bounded generic resource read.
+    goals: [Allow known text extensions inside the workspace.]
+    requirements:
+      input: [One relative source path.]
+      output: [Raw content, extension, MIME type, and size.]
+      errors: [Traversal, binary, and disallowed extension reads are denied.]
+    non_goals: [Does not expose binary or arbitrary filesystem content.]
+    parameters: {type: object, properties: {path: {type: string}}, required: [path]}
+    output: {description: Source detail, schema: {type: object}}
+    side_effects: [{kind: filesystem_read, target: workspace_source, state: read_only}]
+    reversibility: {classification: reversible, undo: noop}
+    undo: {strategy: noop, description: Source reads change nothing.}
+    errors: [{signal: CommandError, condition: Filesystem access fails, state_after_failure: No state changes.}]
+    config:
+      resource: source
+      resources:
+        source:
+          root: .
+          include: ["**"]
+          extensions: [go, yaml, yml, ts, tsx, js, jsx, css, json, md, txt, toml, mod, sum, html, sh]
+          modes: [raw]
+          max_bytes: 1048576
+
+  - name: review_read_resource
+    type: builtin
+    init: read_resource
+    visibility: internal
+    category: boundary
+    emits: [DocumentReady, DocumentMissing, DocumentResourceDenied, DocumentParseFailed, CommandError]
+    description: Read one persisted curator review artifact.
+    problem: Decisions must survive process restarts instead of using an in-memory Go map.
+    goals: [Read only JSON reviews under the declared state directory.]
+    requirements:
+      input: [A capture word derives the review path from patch_id.]
+      output: [Parsed and raw review content.]
+      errors: [Missing reviews remain distinguishable.]
+    non_goals: [Does not decide or write review state.]
+    parameters: {type: object, properties: {path: {type: string}}, required: [path]}
+    output: {description: Persisted review detail, schema: {type: object}}
+    side_effects: [{kind: filesystem_read, target: curator_reviews, state: read_only}]
+    reversibility: {classification: reversible, undo: noop}
+    undo: {strategy: noop, description: Review reads change nothing.}
+    errors: [{signal: CommandError, condition: Filesystem access fails, state_after_failure: Review is unchanged.}]
+    config:
+      resource: reviews
+      resources:
+        reviews:
+          root: .documentation-curator
+          include: ["patches/*.json"]
+          extensions: [json]
+          modes: [raw, parsed_yaml]
+          max_bytes: 1048576
+
+  - &compose_base
+    name: doc_index_input
+    type: builtin
+    init: compose
+    visibility: internal
+    category: response
+    emits: [IndexInputReady]
+    description: Wrap list output as bounded jq stdin.
+    problem: The generic list word returns an array while the HTTP contract also needs count.
+    goals: [Preserve the complete list as a string for one atomic jq transform.]
+    requirements: {input: [Previous output is the resource array.], output: [Payload contains that JSON text.], errors: [Invalid selectors are reported.]}
+    non_goals: [Does not inspect list entries.]
+    parameters: {type: object, properties: {}, additionalProperties: false}
+    output: {description: Wrapped index input, schema: {type: object}}
+    side_effects: []
+    reversibility: {classification: reversible, undo: noop}
+    undo: {strategy: noop, description: Composition changes nothing.}
+    errors: [{signal: CommandError, condition: Composition fails, state_after_failure: No state changes.}]
+    config:
+      signal: IndexInputReady
+      inputs: {payload: "$."}
+      template: '{"payload": {{ json payload }}}'
+
+  - name: doc_index_jq
+    type: exec
+    binary: jq
+    args: [-c, "{data: ., documents: ., count: length}"]
+    stdin_source: $from(index_input).payload
+    stdin_max_bytes: 1048576
+    visibility: internal
+    emits: [ToolDone, ToolFailed, CommandError]
+    description: Shape a document list into the stable index response.
+    category: response
+    problem: Index count is a data transform, not interpreter policy.
+    goals: [Return data, documents, and count from one array.]
+    requirements: {input: [Bounded JSON list on stdin.], output: [Stable JSON response fields.], errors: [Malformed JSON emits ToolFailed.]}
+    non_goals: [Does not read the filesystem.]
+    parameters: {type: object, properties: {}}
+    output: {description: Document index response, mode: raw, schema: {type: object}}
+    side_effects: []
+    reversibility: {classification: reversible, undo: noop}
+    undo: {strategy: noop, description: jq changes nothing.}
+    errors: [{signal: ToolFailed, condition: Input is invalid JSON, state_after_failure: No state changes.}]
+
+  - name: doc_detail_response
+    <<: *compose_base
+    emits: [DocumentDetailReady]
+    description: Shape one resource detail for the browser.
+    problem: HTTP response shape belongs in profile configuration.
+    goals: [Preserve parsed content, raw content, path, and content type.]
+    config:
+      signal: DocumentDetailReady
+      inputs:
+        path: $.path
+        content: $.parsed
+        raw: $.raw
+        content_type: $.content_type
+      template: '{"data": {{ json content }}, "path": {{ json path }}, "content": {{ json content }}, "raw": {{ json raw }}, "content_type": {{ json content_type }}}'
+
+  - name: config_response
+    <<: *compose_base
+    emits: [ConfigReady]
+    description: Shape one config resource for the browser.
+    problem: Config response composition belongs in the request profile.
+    goals: [Return parsed and raw config content.]
+    config:
+      signal: ConfigReady
+      inputs: {path: $.path, content: $.parsed, raw: $.raw}
+      template: '{"data": {"path": {{ json path }}, "content": {{ json content }}, "raw": {{ json raw }}}, "path": {{ json path }}, "content": {{ json content }}, "raw": {{ json raw }}}'
+
+  - name: source_response
+    <<: *compose_base
+    emits: [SourceReady]
+    description: Shape one source resource for the browser.
+    problem: Source response composition belongs in the request profile.
+    goals: [Return content and display metadata.]
+    config:
+      signal: SourceReady
+      inputs: {path: $.path, content: $.raw, language: $.extension, mime: $.content_type, size: $.size}
+      template: '{"data": {"path": {{ json path }}, "content": {{ json content }}, "language": {{ json language }}, "mimeType": {{ json mime }}, "size": {{ size }}}, "path": {{ json path }}, "content": {{ json content }}, "language": {{ json language }}, "mimeType": {{ json mime }}, "size": {{ size }}}'
+
+  - name: capture_search
+    <<: *compose_base
+    emits: [SearchCaptured]
+    description: Capture declared search request fields.
+    problem: Later rg and jq words need stable command-state inputs.
+    goals: [Retain query, category, and limit without transport authority.]
+    config:
+      signal: SearchCaptured
+      inputs: {query: $.parameters.query, category: $.parameters.category, limit: $.parameters.limit}
+      template: '{"query": {{ json query }}, "category": {{ json category }}, "limit": "{{ limit }}"}'
+
+  - name: search_docs
+    type: exec
+    binary: sh
+    args: [-c, 'exec rg -i -n --json --max-count 1 -- "$1" docs', curator-search]
+    visibility: internal
+    emits: [ToolDone, ToolFailed, CommandError]
+    description: Search the configured docs corpus with ripgrep.
+    category: boundary
+    problem: Search is an external atomic corpus operation rather than Go workflow policy.
+    goals: [Run rg with a fixed root and bounded output.]
+    requirements: {input: [Query comes from captured command state.], output: [rg JSON events.], errors: [No matches emit ToolFailed and infrastructure errors emit CommandError.]}
+    non_goals: [Does not accept a runtime root or binary.]
     parameters:
       type: object
       properties:
-        resource: {type: string}
-        path: {type: string}
-    emits: [DocumentReady, DocumentMissing, DocumentResourceDenied, DocumentParseFailed, CommandError]
-    output:
-      description: Configured documentation detail.
-      schema:
-        type: object
-        properties:
-          path: {type: string}
-          raw: {type: string}
-          parsed: {type: object}
-          content_type: {type: string}
-          extension: {type: string}
-          size: {type: integer}
-    side_effects:
-      - kind: filesystem_read
-        target: docs_resource
-        state: read_only
-    reversibility:
-      classification: reversible
-      undo: noop
-    undo:
-      strategy: noop
-      description: Reading documentation resources does not mutate state.
-    errors:
-      - signal: DocumentMissing
-        condition: The requested path does not exist under the configured docs resource.
-        state_after_failure: No filesystem state is changed.
-      - signal: DocumentResourceDenied
-        condition: The requested path, extension, directory, or binary content is denied.
-        state_after_failure: No filesystem state is changed.
-      - signal: DocumentParseFailed
-        condition: Parsed YAML mode was requested and the file could not be parsed.
-        state_after_failure: No filesystem state is changed.
-      - signal: CommandError
-        condition: Resource configuration or filesystem access failed.
-        state_after_failure: No filesystem state is changed.
-    relationships:
-      after: [doc_list_resource]
+        query: {type: string, positional: true, position: 1, source: $from(search_request).query}
+      required: [query]
+    output: {description: ripgrep JSON event stream, mode: structured, schema: {type: object}}
+    output_cap: 1048576
+    side_effects: [{kind: child_process, target: rg, state: read_only}]
+    reversibility: {classification: reversible, undo: noop}
+    undo: {strategy: noop, description: Search changes nothing.}
+    errors: [{signal: ToolFailed, condition: No matches or rg rejects input, state_after_failure: No state changes.}]
+
+  - name: shape_search
+    type: exec
+    binary: sh
+    args:
+      - -c
+      - >-
+        limit=${3:-50};
+        jq -Rsc --arg query "$1" --arg category "$2" --argjson limit "$limit"
+        'split("\n") | map(fromjson? | select(.type == "match") | .data) |
+        map({path:(.path.text|sub("^docs/";"")), name:(.path.text|split("/")|last|sub("\\.[^.]+$";"")),
+        category:(.path.text|sub("^docs/";"")|if contains("/") then split("/")[0] else "overview" end),
+        snippet:(.lines.text|gsub("[\r\n]+";" ")|.[0:160])}) | unique_by(.path) |
+        map(select($category == "" or .category == $category)) | .[0:$limit] as $m |
+        {query:$query,matches:$m,count:($m|length)}'
+      - curator-search-shape
+    stdin_source: $from(search_matches).output
+    stdin_max_bytes: 1048576
+    visibility: internal
+    emits: [ToolDone, ToolFailed, CommandError]
+    description: Convert rg JSON events into the browser search contract.
+    category: response
+    problem: Search response policy should be declared as an atomic jq transform.
+    goals: [Apply category and limit and return stable match fields.]
+    requirements: {input: [Bounded rg output and captured request fields.], output: [Query, matches, and count JSON.], errors: [Malformed events emit ToolFailed.]}
+    non_goals: [Does not search or read files.]
+    parameters:
+      type: object
+      properties:
+        query: {type: string, positional: true, position: 1, source: $from(search_request).query}
+        category: {type: string, positional: true, position: 2, source: $from(search_request).category, default: ""}
+        limit: {type: string, positional: true, position: 3, source: $from(search_request).limit, default: "50"}
+      required: [query]
+    output: {description: Search response JSON, mode: raw, schema: {type: object}}
+    side_effects: []
+    reversibility: {classification: reversible, undo: noop}
+    undo: {strategy: noop, description: Response shaping changes nothing.}
+    errors: [{signal: ToolFailed, condition: jq cannot shape rg output, state_after_failure: No state changes.}]
+
+  - name: empty_search
+    <<: *compose_base
+    emits: [SearchEmpty]
+    description: Return a stable empty search response.
+    problem: rg uses exit one for no matches, which is a domain result rather than infrastructure failure.
+    goals: [Preserve query and return an empty array.]
     config:
-      resources:
-        docs:
-          root: docs
-          include:
-            - "**/*.yaml"
-            - "**/*.yml"
-            - "**/*.md"
-          extensions: [yaml, yml, md]
-          modes: [raw_yaml, parsed_yaml, raw_markdown]
-          max_bytes: 1048576
+      signal: SearchEmpty
+      inputs: {query: $from(search_request).query}
+      template: '{"query": {{ json query }}, "matches": [], "count": 0}'
+
+  - name: capture_validation
+    <<: *compose_base
+    emits: [ValidationCaptured]
+    description: Capture requested validation scope before the jurist pipeline.
+    problem: The report response needs request scope after multiple validation words.
+    goals: [Retain paths and strict mode in command state.]
+    config:
+      signal: ValidationCaptured
+      inputs: {paths: $.parameters.paths, strict: $.parameters.strict}
+      template: '{"paths": {{ json paths }}, "strict": {{ json strict }}}'
+
+  - name: valid_response
+    <<: *compose_base
+    emits: [ValidationReady]
+    description: Shape a successful jurist report for HTTP.
+    problem: Browser validation output needs a stable structured envelope.
+    goals: [Return valid status, no findings, requested paths, and report text.]
+    config:
+      signal: ValidationReady
+      inputs: {paths: $from(validation_request).paths, report: "$."}
+      template: '{"status":"valid","findings":[],"checked_paths":{{ json paths }},"report":{{ json report }}}'
+
+  - name: invalid_response
+    <<: *compose_base
+    emits: [ValidationReady]
+    description: Shape jurist findings for HTTP.
+    problem: Domain validation failure must remain distinct from infrastructure failure.
+    goals: [Return findings status and report provenance.]
+    config:
+      signal: ValidationReady
+      inputs: {paths: $from(validation_request).paths, report: "$."}
+      template: '{"status":"findings","findings":[{"code":"jurist_findings","severity":"error","path":"","message":{{ json report }}}],"checked_paths":{{ json paths }},"report":{{ json report }}}'
+
+  - name: capture_suggestion
+    <<: *compose_base
+    emits: [SuggestionCaptured]
+    description: Capture a suggestion request before reading its document.
+    problem: Stable hashing and artifact creation need the original declared fields.
+    goals: [Retain path, instruction, and context.]
+    config:
+      signal: SuggestionCaptured
+      inputs: {path: $.parameters.path, instruction: $.parameters.instruction, context: $.parameters.context}
+      template: '{"parameters":{"path":{{ json path }}},"path":{{ json path }},"instruction":{{ json instruction }},"context":{{ json context }}}'
+
+  - name: suggestion_hash_material
+    type: exec
+    binary: sh
+    args: [-c, 'printf "%s\n%s\n%s\n" "$1" "$2" "$3"; cat', curator-hash-material]
+    stdin_source: $from(suggestion_document).raw
+    stdin_max_bytes: 1048576
+    visibility: internal
+    emits: [ToolDone, ToolFailed, CommandError]
+    description: Compose stable scalar suggestion hash material.
+    category: response
+    problem: Hash input composition must stay profile-visible.
+    goals: [Combine request fields and the document content hash deterministically.]
+    requirements: {input: [Captured request fields and bounded document content.], output: [Stable textual hash material.], errors: [Unresolved inputs emit CommandError.]}
+    non_goals: [Does not hash or persist state.]
+    parameters:
+      type: object
+      properties:
+        path: {type: string, positional: true, position: 1, source: $from(suggestion_request).path}
+        instruction: {type: string, positional: true, position: 2, source: $from(suggestion_request).instruction}
+        context: {type: string, positional: true, position: 3, source: $from(suggestion_request).context, default: ""}
+      required: [path, instruction]
+    output: {description: Hash material, mode: structured, schema: {type: object}}
+    side_effects: []
+    reversibility: {classification: reversible, undo: noop}
+    undo: {strategy: noop, description: Composition changes nothing.}
+    errors: [{signal: CommandError, condition: A command-state source is unresolved, state_after_failure: No artifact exists.}]
+
+  - name: suggestion_sha256
+    type: exec
+    binary: sha256sum
+    stdin_source: $from(hash_material).output
+    stdin_max_bytes: 1048576
+    visibility: internal
+    emits: [ToolDone, ToolFailed, CommandError]
+    description: Hash stable suggestion material.
+    category: response
+    problem: Review identifiers should use a standard atomic hashing utility.
+    goals: [Return a deterministic SHA-256 identifier source.]
+    requirements: {input: [Bounded hash material on stdin.], output: [SHA-256 text.], errors: [Utility failures emit ToolFailed.]}
+    non_goals: [Does not create review state.]
+    parameters: {type: object, properties: {}}
+    output: {description: SHA-256 output, mode: structured, schema: {type: object}}
+    side_effects: []
+    reversibility: {classification: reversible, undo: noop}
+    undo: {strategy: noop, description: Hashing changes nothing.}
+    errors: [{signal: ToolFailed, condition: sha256sum fails, state_after_failure: No artifact exists.}]
+
+  - name: build_suggestion
+    type: exec
+    binary: sh
+    args:
+      - -c
+      - >-
+        raw=$(cat); hash=${4:-$3};
+        if [ -z "$4" ]; then context=""; else context="$3"; fi;
+        id=$(printf '%s' "$hash" | cut -c1-12);
+        jq -cn --arg id "patch-$id" --arg path "$1" --arg instruction "$2"
+        --arg context "$context" --arg raw "$raw" --arg source_hash "$hash"
+        '{patch_id:$id,path:$path,status:"pending_review",
+        suggestions:[("Review requested change: " + $instruction)],
+        proposed_patch:("# Proposed documentation patch\n# Path: " + $path +
+        "\n# Instruction: " + $instruction +
+        "\n# Approval required before any file write.\n"),
+        context:$context,source_sha256:($source_hash|split(" ")[0]),created_at:(now|todateiso8601),applied:false}' |
+        jq -c '{parameters:{path:(".documentation-curator/patches/" + .patch_id + ".json"),
+        content:(tojson)},response:.}'
+      - curator-suggest
+    stdin_source: $from(suggestion_document).raw
+    stdin_max_bytes: 1048576
+    visibility: internal
+    emits: [ToolDone, ToolFailed, CommandError]
+    description: Build one persistent pending review and write request.
+    category: response
+    problem: Suggestion policy and artifact shape belong in YAML, not a Go controller.
+    goals: [Create deterministic patch metadata without applying documentation writes.]
+    requirements: {input: [Captured request fields, hash, and bounded document content.], output: [A file_write request plus HTTP response.], errors: [jq failures emit ToolFailed.]}
+    non_goals: [Does not write or apply the proposed patch.]
+    parameters:
+      type: object
+      properties:
+        path: {type: string, positional: true, position: 1, source: $from(suggestion_request).path}
+        instruction: {type: string, positional: true, position: 2, source: $from(suggestion_request).instruction}
+        context: {type: string, positional: true, position: 3, source: $from(suggestion_request).context, default: ""}
+        hash: {type: string, positional: true, position: 4, source: $from(suggestion_hash).output}
+      required: [path, instruction, hash]
+    output: {description: Review write request, mode: raw, schema: {type: object}}
+    side_effects: []
+    reversibility: {classification: reversible, undo: noop}
+    undo: {strategy: noop, description: Building output changes nothing.}
+    errors: [{signal: ToolFailed, condition: jq cannot build the artifact, state_after_failure: No artifact exists.}]
+
+  - name: write_review
+    type: builtin
+    init: file_write
+    visibility: internal
+    category: boundary
+    emits: [ToolDone, ToolFailed, CommandError]
+    description: Persist a complete curator review artifact.
+    problem: Cross-request state must be durable and rollback-capable.
+    goals: [Write only the profile-composed path and complete JSON content.]
+    requirements: {input: [Previous output supplies path and content.], output: [A filesystem write receipt.], errors: [Unsafe paths and write failures are reported.]}
+    non_goals: [Does not construct or interpret review policy.]
+    parameters:
+      type: object
+      properties: {path: {type: string}, content: {type: string}}
+      required: [path, content]
+    output: {description: Filesystem write result, schema: {type: string}}
+    side_effects: [{kind: filesystem_write, target: curator_reviews, state: review_persisted}]
+    reversibility: {classification: reversible, undo: file_restore}
+    undo: {strategy: workspace_restore, description: Restore the prior file snapshot from the receipt.}
+    errors: [{signal: CommandError, condition: Path or write fails, state_after_failure: Receipt rollback restores prior state when available.}]
+
+  - name: suggestion_response
+    <<: *compose_base
+    emits: [SuggestionReady]
+    description: Return the persisted suggestion response.
+    problem: The write result should not replace the browser response body.
+    goals: [Republish the profile-built review response from command state.]
+    config:
+      signal: SuggestionReady
+      inputs: {response: $from(suggestion_write_request).response}
+      template: '{{ response }}'
+
+  - name: capture_approval
+    <<: *compose_base
+    emits: [DecisionCaptured]
+    description: Capture an approval request and derive its persistent review path.
+    problem: Patch identity and target status must remain visible request data.
+    goals: [Retain approval metadata and derive only the declared state path.]
+    config:
+      signal: DecisionCaptured
+      inputs: {patch_id: $.parameters.patch_id, decided_by: $.parameters.decided_by, note: $.parameters.note}
+      template: '{"parameters":{"path":"patches/{{ patch_id }}.json"},"patch_id":{{ json patch_id }},"expected_status":"pending_review","status":"approved","decided_by":{{ json decided_by }},"note":{{ json note }},"reason":""}'
+
+  - name: capture_rejection
+    <<: *compose_base
+    emits: [DecisionCaptured]
+    description: Capture a rejection request and derive its persistent review path.
+    problem: Patch identity and target status must remain visible request data.
+    goals: [Retain rejection metadata and derive only the declared state path.]
+    config:
+      signal: DecisionCaptured
+      inputs: {patch_id: $.parameters.patch_id, decided_by: $.parameters.decided_by, reason: $.parameters.reason}
+      template: '{"parameters":{"path":"patches/{{ patch_id }}.json"},"patch_id":{{ json patch_id }},"expected_status":"pending_review","status":"rejected","decided_by":{{ json decided_by }},"note":"","reason":{{ json reason }}}'
+
+  - name: capture_reopen
+    <<: *compose_base
+    emits: [DecisionCaptured]
+    description: Capture a reopen request and derive its persistent review path.
+    problem: Reopen compensation must validate the current rejected state.
+    goals: [Retain reviewer metadata and expected and target statuses.]
+    config:
+      signal: DecisionCaptured
+      inputs: {patch_id: $.parameters.patch_id, decided_by: $.parameters.decided_by, reason: $.parameters.reason}
+      template: '{"parameters":{"path":"patches/{{ patch_id }}.json"},"patch_id":{{ json patch_id }},"expected_status":"rejected","status":"pending_review","decided_by":{{ json decided_by }},"note":"","reason":{{ json reason }}}'
+
+  - name: review_pending
+    type: builtin
+    init: value_predicate
+    visibility: internal
+    category: response
+    emits: [ReviewPending, ReviewClosed, CommandError]
+    description: Permit decisions only for pending reviews.
+    problem: Review transitions need a profile-visible state guard.
+    goals: [Distinguish pending from already decided artifacts.]
+    requirements: {input: [Parsed review status from command state.], output: [A distinct branch signal.], errors: [Missing status emits CommandError.]}
+    non_goals: [Does not mutate the review.]
+    parameters: {type: object, properties: {}, additionalProperties: false}
+    output: {description: Review status predicate, schema: {type: object}}
+    side_effects: []
+    reversibility: {classification: reversible, undo: noop}
+    undo: {strategy: noop, description: Comparison changes nothing.}
+    errors: [{signal: CommandError, condition: Review status cannot resolve, state_after_failure: Review remains unchanged.}]
+    config:
+      left: $from(review).parsed.status
+      op: eq
+      right: $from(decision_request).expected_status
+      operand_type: string
+      satisfied: ReviewPending
+      unsatisfied: ReviewClosed
+
+  - name: build_approval
+    type: exec
+    binary: sh
+    args:
+      - -c
+      - >-
+        jq -c --arg status "$1" --arg by "$2" --arg note "$3" --arg reason "$4"
+        '.status=$status | .decided_by=$by | .note=$note | .reason=$reason |
+        .applied=false | .decided_at=(now|todateiso8601)' |
+        jq -c '{parameters:{path:(".documentation-curator/patches/" + .patch_id + ".json"),
+        content:(tojson)},response:{patch_id:.patch_id,status:.status,
+        decided_by:.decided_by,note:.note,reason:.reason,applied:false}}'
+      - curator-decision
+    stdin_source: $from(review).raw
+    stdin_max_bytes: 1048576
+    visibility: internal
+    emits: [ToolDone, ToolFailed, CommandError]
+    description: Build one guarded review decision and write request.
+    category: response
+    problem: Decision mutation belongs in an atomic profile jq transform.
+    goals: [Update status and reviewer metadata without applying documentation.]
+    requirements: {input: [Pending review JSON and captured decision fields.], output: [A file_write request plus HTTP response.], errors: [Malformed JSON emits ToolFailed.]}
+    non_goals: [Does not write or apply documentation.]
+    parameters:
+      type: object
+      properties:
+        status: {type: string, positional: true, position: 1, source: $from(decision_request).status}
+        decided_by: {type: string, positional: true, position: 2, source: $from(decision_request).decided_by}
+        note: {type: string, positional: true, position: 3, source: $from(decision_request).note, default: ""}
+        reason: {type: string, positional: true, position: 4, source: $from(decision_request).reason, default: ""}
+      required: [status, decided_by]
+    output: {description: Decision write request, mode: raw, schema: {type: object}}
+    side_effects: []
+    reversibility: {classification: reversible, undo: noop}
+    undo: {strategy: noop, description: Building output changes nothing.}
+    errors: [{signal: ToolFailed, condition: jq cannot build the decision, state_after_failure: Review remains unchanged.}]
+
+  - name: decision_response
+    <<: *compose_base
+    emits: [DecisionReady]
+    description: Return the persisted decision response.
+    problem: The write result should not replace review decision fields.
+    goals: [Republish the profile-built response after persistence.]
+    config:
+      signal: DecisionReady
+      inputs: {response: $from(decision_write_request).response}
+      template: '{{ response }}'

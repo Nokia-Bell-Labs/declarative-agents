@@ -283,8 +283,10 @@ release, `docker run --rm agent-core:latest --help` started the packaged
 
 ## Browser End-to-End Tests
 
-The documentation-curator UI carries the repository's only browser test suite,
-under `internal/knowledge/documentation/ui`. We depend on `puppeteer-core`
+The external documentation-curator profile carries the repository's browser
+test suite under
+`../agent-profiles/agents/knowledge-manager/documentation-curator/ui/docs`.
+We depend on `puppeteer-core`
 rather than `puppeteer`, so npm downloads no browser. The host supplies one,
 and the test reads its path from `PUPPETEER_EXECUTABLE_PATH`, falling back to
 `CHROME_BIN`. Table 1 lists what a machine needs before the suite runs.
@@ -293,14 +295,14 @@ Table 1: Browser test prerequisites
 
 | Requirement | Detail |
 |---|---|
-| Node dependencies | `npm ci` inside `internal/knowledge/documentation/ui` |
+| Node dependencies | `npm ci` inside the profile's `ui/docs` directory |
 | A browser | System Chrome or Chromium, installed by the host |
 | Browser path | `PUPPETEER_EXECUTABLE_PATH`, or `CHROME_BIN` as the fallback |
 
 Run the suite from inside the package directory:
 
 ```bash
-cd internal/knowledge/documentation/ui
+cd ../agent-profiles/agents/knowledge-manager/documentation-curator/ui/docs
 npm ci
 export PUPPETEER_EXECUTABLE_PATH="/Applications/Google Chrome.app/Contents/MacOS/Google Chrome"
 npm run test:e2e:machine-request

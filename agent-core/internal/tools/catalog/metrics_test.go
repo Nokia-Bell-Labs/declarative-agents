@@ -29,7 +29,7 @@ tools:
         - name: operation
           source: configured_operation
           cardinality: bounded
-          allowed_values: [documentation_curator_requests.documents]
+          allowed_values: [documentation_curator.documents]
           redaction: none
 `
 	defs, err := ParseToolDefs([]byte(yaml))
