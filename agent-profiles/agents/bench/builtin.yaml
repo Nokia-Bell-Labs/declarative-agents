@@ -33,8 +33,12 @@ tools:
   parameters: {type: object, properties: {}, additionalProperties: false}
   output: {description: Bench operator event, schema: {type: object}}
   side_effects: [{kind: state_mutation, target: bench_action_queue, state: event_consumed}]
-  reversibility: {classification: irreversible, undo: noop}
-  undo: {strategy: noop, description: Consumed operator events are not restored.}
+  reversibility: {classification: reversible, undo: queue_event_restore}
+  undo:
+    strategy: queue_event_restore
+    description: Restore the receipt-recorded event to the front of its source queue.
+    payload: rest_await_event
+    captures: [source, event]
   errors: [{signal: CommandError, condition: Queue is unavailable, state_after_failure: Listener is unchanged.}]
   relationships: {before: [launch_bench_http], after: [validate_eval_suite, stop_bench_http]}
   config:

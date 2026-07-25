@@ -112,8 +112,12 @@ tools:
     output: {description: Selected control event, schema: {type: object}}
     side_effects:
       - {kind: state_mutation, target: rest_server_queue, state: selected_event_consumed}
-    reversibility: {classification: irreversible, undo: noop}
-    undo: {strategy: noop, description: Consumed queue events are not restored.}
+    reversibility: {classification: reversible, undo: queue_event_restore}
+    undo:
+      strategy: queue_event_restore
+      description: Restore the receipt-recorded event to the front of its source queue.
+      payload: rest_await_event
+      captures: [source, event]
     errors:
       - {signal: CommandError, condition: The configured source is unavailable, state_after_failure: Listener state is unchanged.}
     relationships:

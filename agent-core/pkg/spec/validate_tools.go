@@ -233,6 +233,7 @@ var undoStrategiesByReversibility = map[string]map[string]bool{
 		"pipeline_state_restore":                           true,
 		"evaluator_session_restore":                        true,
 		"point_context_restore":                            true,
+		"queue_event_restore":                              true,
 		"validation_state_restore":                         true,
 	},
 	"compensatable": {

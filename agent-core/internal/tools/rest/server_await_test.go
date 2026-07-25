@@ -3,11 +3,13 @@
 package rest
 
 import (
-	"github.com/Nokia-Bell-Labs/declarative-agents/agent-core/internal/runtime/core"
-	"github.com/stretchr/testify/require"
+	"encoding/json"
 	"net/http"
 	"testing"
 	"time"
+
+	"github.com/Nokia-Bell-Labs/declarative-agents/agent-core/internal/runtime/core"
+	"github.com/stretchr/testify/require"
 )
 
 func TestRESTAwaitEvent_MultiSourceFanIn(t *testing.T) {
@@ -111,6 +113,41 @@ func TestRESTAwaitEvent_FactoryBuildsConfiguredCommand(t *testing.T) {
 	require.Contains(t, result.Output, `"source":"control"`)
 	require.Contains(t, result.Output, `"route":"approve"`)
 	require.Equal(t, core.ToolDone, command.Undo(core.Result{}).Signal)
+}
+
+func TestRESTAwaitEvent_PersistedUndoRestoresConsumedEventInOrder(t *testing.T) {
+	t.Parallel()
+
+	state, baseURL := launchRESTServer(t, controlServer(), LimitProfile{})
+	defer stopRESTServer(t, state, "control")
+	postStatus(t, baseURL+"/approve/123", `{}`, http.StatusAccepted)
+	postStatus(t, baseURL+"/approve/456", `{}`, http.StatusAccepted)
+
+	builder := AwaitEventBuilder{
+		ToolName: "await_control",
+		Options: AwaitAnyOptions{
+			Sources: []AwaitSource{{Server: "control"}},
+			Timeout: time.Second,
+		},
+		State: state,
+	}
+	result := builder.Build(core.Result{}).Execute()
+	require.NotEmpty(t, result.Receipt)
+	var consumed InboundEvent
+	require.NoError(t, json.Unmarshal([]byte(result.Output), &consumed))
+	require.Equal(t, "123", consumed.Payload["id"])
+
+	undo := builder.BuildReverser().Undo(core.Result{Receipt: result.Receipt})
+	require.Equal(t, core.ToolDone, undo.Signal, undo.Output)
+
+	restored, signal, err := state.Await("control")
+	require.NoError(t, err)
+	require.Equal(t, "Approved", signal)
+	require.Equal(t, consumed, restored)
+	next, signal, err := state.Await("control")
+	require.NoError(t, err)
+	require.Equal(t, "Approved", signal)
+	require.Equal(t, "456", next.Payload["id"])
 }
 
 func TestRESTAwaitEvent_RejectsUnsupportedReadPolicy(t *testing.T) {

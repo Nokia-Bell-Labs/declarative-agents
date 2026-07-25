@@ -513,10 +513,12 @@ tools:
         state: event_consumed
     reversibility:
       classification: reversible
-      undo: noop
+      undo: queue_event_restore
     undo:
-      strategy: noop
-      description: Await does not mutate remote state.
+      strategy: queue_event_restore
+      description: Restore the receipt-recorded event to the front of its server queue.
+      payload: rest_await_event
+      captures: [source, event]
     errors:
       - signal: CommandError
         condition: Missing server, queue closed, timeout, or payload decode failure.

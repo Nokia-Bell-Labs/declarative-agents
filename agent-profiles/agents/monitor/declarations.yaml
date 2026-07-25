@@ -96,11 +96,13 @@ tools:
         target: rest_server_queue
         state: selected_event_consumed
     reversibility:
-      classification: irreversible
-      undo: noop
+      classification: reversible
+      undo: queue_event_restore
     undo:
-      strategy: noop
-      description: Queue restore is not implemented.
+      strategy: queue_event_restore
+      description: Restore the receipt-recorded event to the front of its source queue.
+      payload: rest_await_event
+      captures: [source, event]
     errors:
       - signal: CommandError
         condition: Monitor control source is missing or stopped with command_error policy.
