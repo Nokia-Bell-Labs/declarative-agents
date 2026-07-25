@@ -145,10 +145,10 @@ releases:
           reconfigures the mesh; only the creator holds the deployment-API
           authority. The values-only apply -- the panel's operator intent -- is
           realized end to end and proven by mage integration:controlPlane. The
-          ingest-carrying intent is not: srd005 R3.1's corpus-ingest child run has
-          no implementation, so the "ingests, then the new source serves a grounded
-          turn" half of this use case does not hold. GH-755 established that; the
-          gap is tracked on its own issue.
+          corpus-ingest child run and count-delta checks are implemented and
+          covered independently, but no live integration drives one ingest-carrying
+          intent through ingest, rollout, and a grounded turn from the newly added
+          source. The complete use case therefore remains partial.
         status: partial
     test_suites:
       - id: test-rel05.0-control-plane
@@ -158,8 +158,9 @@ releases:
           each hop and the authority boundary holds. Realized as mage
           integration:controlPlane (deterministic, no cluster), which also reads
           the panel's mesh view back through both hops (srd006 R1.5). It does not
-          cover the ingest leg, which nothing realizes; the live grounded turn
-          rides on integration:chatbot and the deploy swap.
+          invoke the implemented ingest leg or join it to a live rollout and
+          grounded turn; integration:chatbot and the deploy swap prove those
+          behaviors separately.
         status: implemented
 
   - version: "06.0"

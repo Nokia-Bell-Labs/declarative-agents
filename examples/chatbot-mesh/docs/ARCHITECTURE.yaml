@@ -215,7 +215,8 @@ project_structure:
 
 implementation_status:
   current_focus: The example is a self-governing, standalone program; the data plane
-    and the control plane are both extracted and implemented here.
+    is implemented here, while the control plane has implemented components but
+    remains partial pending one live ingest-to-grounded-turn lifecycle proof.
   progress:
     - done: The data-plane mesh (RAG server, chat turn, routing, fan-out,
         observability, Helm deployment, in-cluster model tier) is implemented, with
@@ -225,6 +226,10 @@ implementation_status:
     - done: The control-plane coordinator (srd004) and creator (srd005), realized
         as mage integration:controlPlane (rel05.0, deterministic, driving a fake
         deployment API).
+    - done: The creator corpus-ingest child endpoint and count-delta checks
+        (srd005 R3.1), covered independently from integration:controlPlane.
+    - planned: One live integration that joins an ingest-carrying provisioning
+        intent, rollout, and a grounded turn from the newly added source.
     - planned: The applier deployment surface (srd006) that replaces the Go
         provisioner. Its behavioral tracer mage integration:applier is not yet
         implemented, so integration:controlPlane is not applier evidence

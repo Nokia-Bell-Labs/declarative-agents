@@ -136,7 +136,7 @@ use_case_index:
   - id: rel05.0-uc001-control-plane-provisioning
     title: A Provisioning Intent Flows Chatbot to Coordinator to Creator and Serves
     release: "05.0"
-    status: implemented
+    status: partial
     test_suite: test-rel05.0-control-plane
     path: docs/specs/use-cases/rel05.0-uc001-control-plane-provisioning.yaml
   - id: rel06.0-uc001-declarative-applier

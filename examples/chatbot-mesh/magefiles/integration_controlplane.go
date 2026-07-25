@@ -39,16 +39,11 @@ const (
 //
 // What this does NOT drive is the coordinator's other intake,
 // POST /api/v1/provision, whose Seed leg ingests a directory before reconfiguring.
-// Nothing realizes that ingest: srd005 R3.1 specifies the creator creating
-// corpus-ingest child runs, but the creator declares one client (deployment_api)
-// and its machine drives apply_instance on Seed whatever the operation says, so an
-// ingest was only ever a values apply wearing an operation label -- and the
-// {collection, count} the coordinator declares it reads back was never populated,
-// leaving the 422 shortfall leg unreachable. Driving it here asserted a flow the
-// mesh does not have, and it broke outright once apply_instance's body became
-// {schema_version, content} (GH-521): an ingest carries no content, so the request
-// died in rendering. GH-755 scoped this tracer to the path that is real; the
-// child-run gap is tracked on its own issue.
+// The creator now realizes srd005 R3.1 through its dedicated /api/v1/ingest
+// endpoint and SeedIngest leg, including pre/post collection-count checks. This
+// tracer remains scoped to the values-only path: it does not invoke that ingest
+// leg or prove one live lifecycle joining ingest, rollout, and a grounded turn
+// from the newly added source.
 func (Integration) ControlPlane() error {
 	profilesRoot, err := os.Getwd()
 	if err != nil {
