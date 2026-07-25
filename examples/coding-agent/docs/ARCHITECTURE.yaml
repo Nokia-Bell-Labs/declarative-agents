@@ -12,9 +12,10 @@ overview:
 
     The application owns composition, packaging, deployment, and end-to-end
     tests. Agent behavior remains profile-owned, and execution capability
-    remains agent-core-owned. At package time, a pinned library reference is
-    resolved into a closed application profile tree. At runtime, Kubernetes
-    starts one profile-free agent-core image per agent and mounts that tree.
+    remains agent-core-owned. At package time, the configured compatible
+    library checkout is snapshotted into a closed application profile tree and
+    its revision is recorded. At runtime, Kubernetes starts one profile-free
+    agent-core image per agent and mounts that tree.
   coding_loop_diagram: |
     ```mermaid
     flowchart LR
@@ -29,7 +30,7 @@ overview:
   packaging_diagram: |
     ```mermaid
     flowchart LR
-      M[Application references] -->|pinned agent-profiles/v0.*| R[Reference resolver]
+      M[Application references] -->|compatible checkout| R[Reference resolver]
       L[Canonical library profiles] --> R
       R -->|transitive closure| B[Application profile bundle]
       B -->|mounted profile tree| P[Planner pod]
@@ -95,10 +96,11 @@ components:
     path: agents/application.yaml, magefiles/profiles_closure.go, and magefiles/profiles_deployment.go
     status: implemented
     responsibility: |
-      Pin a compatible library release, identify checkout provenance, resolve
-      direct references, collect the transitive profile/config/declaration/tool
-      closure, and emit a deterministic self-contained application profile tree
-      without modifying the runtime image.
+      Select a checkout compatible with the declared library release, identify
+      its provenance, resolve direct references, collect the transitive
+      profile/config/declaration/tool closure, and emit a deterministic
+      self-contained application profile tree without modifying the runtime
+      image.
   - name: Kubernetes deployment
     path: helm/
     status: core_topology_implemented
@@ -128,17 +130,18 @@ design_decisions:
       `agent-profiles/`. It does not copy profiles, declarations, or SRDs.
     benefits:
       - Each agent has one canonical maintenance and conformance boundary.
-      - Library fixes reach applications through an explicit version update.
+      - Library changes reach applications only when a new checkout closure is packaged.
       - Application documents describe composition instead of restating family
         requirements.
   - id: 2
     title: Assemble profile closure at package time
     decision: |
-      `agents/application.yaml` pins a compatible `agent-profiles/v0.*` release
-      and names four direct references: planner, executor, critic session, and
-      critic changed-workspace. `mage package` resolves profile-local references
-      from their declaring YAML and `agents/...` references from the library
-      root, then preserves those paths in the per-application profile tree.
+      `agents/application.yaml` declares a compatible `agent-profiles/v0.*`
+      release and names four direct references: planner, executor, critic
+      session, and critic changed-workspace. `mage package` snapshots the
+      configured checkout, resolves profile-local references from their
+      declaring YAML and `agents/...` references from the library root, then
+      preserves those paths in the per-application profile tree.
       `/opt/agent-core/...` remains external. Unsafe, dangling, globbed, or
       conflicting references fail. A non-release checkout records its revision
       and compatible release separately instead of claiming release provenance.
@@ -276,7 +279,7 @@ technology_choices:
     purpose: Keep the vision, architecture, road map, use case, and test suite
       machine-readable and auditable.
   - component: Packaging
-    technology: Pinned profile reference and transitive closure
+    technology: Compatible checkout snapshot and transitive closure
     purpose: Produce a self-contained profile tree before deployment.
   - component: Deployment
     technology: Helm and Kubernetes
@@ -289,8 +292,8 @@ technology_choices:
 project_structure:
   application:
     - path: agents/application.yaml
-      role: App-specific composition references, compatible release pin, runtime
-        mount, and configuration-surface inventory.
+      role: App-specific composition references, compatible release declaration,
+        checkout provenance, runtime mount, and configuration-surface inventory.
     - path: docs/
       role: Application-level design and specification corpus.
     - path: testdata/integration/

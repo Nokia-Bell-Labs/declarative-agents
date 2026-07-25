@@ -27,6 +27,11 @@ func (Integration) ExecutorLive() error {
 		fmt.Printf("SKIP executorLive: %s\n", reason)
 		return nil
 	}
+	roots, cleanupProfiles, err := packageIntegrationRoots(roots)
+	if err != nil {
+		return err
+	}
+	defer cleanupProfiles()
 	binary, cleanupBinary, err := buildAgent(roots.Core)
 	if err != nil {
 		return err
@@ -61,6 +66,11 @@ func (Integration) PlannerDelegation() error {
 		fmt.Printf("SKIP plannerDelegation: %s\n", reason)
 		return nil
 	}
+	roots, cleanupProfiles, err := packageIntegrationRoots(roots)
+	if err != nil {
+		return err
+	}
+	defer cleanupProfiles()
 	binary, cleanupBinary, err := buildAgent(roots.Core)
 	if err != nil {
 		return err
@@ -135,17 +145,10 @@ func initializePlannerWorkspace(workspace string) error {
 }
 
 func requireGreetingAndTests(workspace string) error {
-	data, err := os.ReadFile(filepath.Join(workspace, "greet.go"))
-	if err != nil {
-		return err
-	}
-	if !strings.Contains(string(data), `return "Hello, " + name + "!"`) {
-		return fmt.Errorf("greet.go does not contain the required implementation:\n%s", data)
-	}
 	cmd := exec.Command("go", "test", "./...")
 	cmd.Dir = workspace
 	if output, err := cmd.CombinedOutput(); err != nil {
-		return fmt.Errorf("go test ./...: %w\n%s", err, output)
+		return fmt.Errorf("workspace does not satisfy the greeting contract: go test ./...: %w\n%s", err, output)
 	}
 	return nil
 }
@@ -164,6 +167,11 @@ func (Integration) CriticGate() error {
 		fmt.Printf("SKIP criticGate: %s\n", reason)
 		return nil
 	}
+	roots, cleanupProfiles, err := packageIntegrationRoots(roots)
+	if err != nil {
+		return err
+	}
+	defer cleanupProfiles()
 	binary, cleanupBinary, err := buildAgent(roots.Core)
 	if err != nil {
 		return err

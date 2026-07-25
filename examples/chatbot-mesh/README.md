@@ -30,7 +30,7 @@ flowchart LR
 
 ## Scope and status
 
-The example spans both planes, and both are implemented. The data plane is the chatbot, the RAG servers, a corpus-ingest agent that seeds the vector store, observability, and Helm deployment. The control plane is a coordinator agent, a creator agent, and an applier that applies rollout changes to the running mesh. All six agents run on agent-core; `mage integration:controlPlane` exercises the coordinator and creator against a live mesh.
+The example spans both planes. The data plane is the chatbot, the RAG servers, a corpus-ingest agent that seeds the vector store, observability, and Helm deployment. The control plane is a coordinator agent, a creator agent, and an applier that applies rollout changes to the running mesh. A seventh profile provides the staged declarative collector trace path while contrib retains metrics. The profiles run on agent-core. Release 05 remains partial pending one live ingest-to-grounded-turn proof, and Release 07 remains partial pending collector listener-rebind and final monitor-state lifecycle proof.
 
 ## Decisions
 
@@ -55,7 +55,7 @@ Four decisions frame the extraction. They are recorded here so a reader understa
 ```
 examples/chatbot-mesh/
   docs/          VISION, ARCHITECTURE, road-map, and the example's own specs
-  agents/        chatbot, rag-server, corpus-ingest (seed), coordinator, creator, applier
+  agents/        chatbot, rag-server, corpus-ingest, coordinator, creator, applier, collector
   ux/            the single-page application and UX config
   helm/          the deployment chart
   README.md      this file
@@ -71,9 +71,10 @@ mage audit                     # validate the example's specification corpus
 mage helm:package              # stage profiles and build the installable chart
 mage integration:chatbot       # run a routed fan-out chatbot turn
 mage integration:controlPlane  # exercise the coordinator and creator control plane
+mage integration:rig           # run hermetic agent scenarios, including collector intake
 ```
 
-Run `mage -l` to list the named `integration:*` targets (chatbot, ragServer, chroma, controlPlane, helmSmoke, helmSwap, helmLLMTier); each skips cleanly when its toolchain is absent.
+Run `mage -l` to list the named `integration:*` targets; each skips cleanly when its toolchain is absent. There is no `integration:collector` lifecycle target yet.
 
 `mage audit` is the self-governance gate. It runs the jurist validator over the example's own corpus, so it needs the agent-core runtime (`AGENT_CORE_ROOT`, default sibling `../agent-core`) and the jurist validator profile (`JURIST_PROFILE`, default sibling `agent-profiles/agents/jurist/profile.yaml`) — the two dev-time platform tools this gate depends on. Unlike the optional `integration:*` targets, it fails clearly rather than skipping when either tool is missing, so a copied-out example reports an honest failure instead of a false green.
 

@@ -78,13 +78,82 @@ func TestFreshWorkspaceIsPortableAndIsolated(t *testing.T) {
 	}
 }
 
-func TestRequireSuccessfulExecutorChecksTerminalEditAndTests(t *testing.T) {
+func TestPackagedIntegrationRootsDoNotObserveCheckoutMutations(t *testing.T) {
+	appRoot := t.TempDir()
+	profilesRoot := t.TempDir()
+	writeTestFile(t, filepath.Join(appRoot, "agents", "application.yaml"), `schema_version: 1
+application: test
+agent_profiles:
+  compatible_release: agent-profiles/v0.test
+  references:
+    - {role: executor, source: agents/executor/profile.yaml, runtime_path: agents/executor/profile.yaml}
+    - {role: planner, source: agents/planner/profile.yaml, runtime_path: agents/planner/profile.yaml}
+    - {role: critic, source: agents/critic/profile.yaml, runtime_path: agents/critic/profile.yaml}
+    - {role: critic-workspace, source: agents/critic/profile-workspace.yaml, runtime_path: agents/critic/profile-workspace.yaml}
+runtime:
+  mount_path: /profiles
+  image_contains_profiles: false
+deployment:
+  serving_profiles:
+    - {role: planner, source: agents/serving/planner/profile.yaml, runtime_path: applications/coding-agent/planner/profile.yaml}
+    - {role: executor, source: agents/serving/executor/profile.yaml, runtime_path: applications/coding-agent/executor/profile.yaml}
+    - {role: critic, source: agents/serving/critic/profile.yaml, runtime_path: applications/coding-agent/critic/profile.yaml}
+`)
+	sourceProfile := filepath.Join(profilesRoot, "agents", "executor", "profile.yaml")
+	writeTestFile(t, sourceProfile, "name: packaged-executor\n")
+	writeTestFile(t, filepath.Join(profilesRoot, "agents", "planner", "profile.yaml"), "name: packaged-planner\n")
+	writeTestFile(t, filepath.Join(profilesRoot, "agents", "critic", "profile.yaml"), "name: packaged-critic\n")
+	writeTestFile(t, filepath.Join(profilesRoot, "agents", "critic", "profile-workspace.yaml"), "name: packaged-critic-workspace\n")
+	coreRoot := t.TempDir()
+	writeTestFile(t, filepath.Join(coreRoot, "go.mod"), "module test-core\n\ngo 1.26\n")
+
+	packaged, cleanup, err := packageIntegrationRoots(integrationRoots{
+		Application: appRoot,
+		Core:        coreRoot,
+		Profiles:    profilesRoot,
+	})
+	if err != nil {
+		t.Fatalf("packageIntegrationRoots: %v", err)
+	}
+	packageParent := filepath.Dir(packaged.Profiles)
+	defer cleanup()
+	if packaged.Profiles == profilesRoot {
+		t.Fatal("integration profile root still points at the checkout")
+	}
+	if reason := baseIntegrationSkipReason(packaged); reason != "" {
+		t.Fatalf("packaged profile root was misclassified as unavailable: %s", reason)
+	}
+	packagedProfile := filepath.Join(packaged.Profiles, "agents", "executor", "profile.yaml")
+	before, err := os.ReadFile(packagedProfile)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if err := os.WriteFile(sourceProfile, []byte("name: mutated-checkout\n"), 0o644); err != nil {
+		t.Fatal(err)
+	}
+	after, err := os.ReadFile(packagedProfile)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if string(after) != string(before) || strings.Contains(string(after), "mutated-checkout") {
+		t.Fatalf("packaged profile observed checkout mutation:\n%s", after)
+	}
+	cleanup()
+	if _, err := os.Stat(packageParent); !os.IsNotExist(err) {
+		t.Fatalf("temporary closure still exists after cleanup: %v", err)
+	}
+}
+
+func TestObservableGreetingValidationAcceptsEquivalentImplementation(t *testing.T) {
 	workspace := t.TempDir()
 	writeTestFile(t, filepath.Join(workspace, "go.mod"), "module greet\n\ngo 1.26\n")
-	writeTestFile(t, filepath.Join(workspace, "greet.go"), "package greet\n\nfunc Hello(name string) string { return \"Hello, \" + name + \"!\" }\n")
+	writeTestFile(t, filepath.Join(workspace, "greet.go"), "package greet\n\nimport \"fmt\"\n\nfunc Hello(name string) string { return fmt.Sprintf(\"Hello, %s!\", name) }\n")
 	writeTestFile(t, filepath.Join(workspace, "greet_test.go"), "package greet\n\nimport \"testing\"\n\nfunc TestHello(t *testing.T) { if Hello(\"Go\") != \"Hello, Go!\" { t.Fail() } }\n")
+	if err := requireGreetingAndTests(workspace); err != nil {
+		t.Fatalf("requireGreetingAndTests rejected equivalent implementation: %v", err)
+	}
 	if err := requireSuccessfulExecutor(workspace, agentRun{Output: "terminal state: Succeeded\n"}); err != nil {
-		t.Fatalf("requireSuccessfulExecutor: %v", err)
+		t.Fatalf("requireSuccessfulExecutor rejected equivalent implementation: %v", err)
 	}
 }
 

@@ -17,7 +17,7 @@ trigger: |
   an isolated workspace, model configuration, and critic evaluation inputs.
 
 preconditions:
-  - The application package pins an agent-profiles library version and contains the resolved planner, executor, and critic profile closure.
+  - The application package records the configured agent-profiles checkout revision and compatible release and contains the resolved planner, executor, and critic profile closure.
   - The workspace contains the baseline source and its validation command.
   - The planner and executor model endpoints are reachable.
   - The canonical changed-workspace critic profile and its declared oracle are available.
@@ -89,7 +89,7 @@ success_criteria:
       - srd003-critic AC1
       - srd003-critic AC3
   - id: S4
-    criterion: All three stages use profiles from one pinned package-time closure while every process runs the unchanged profile-free agent-core image.
+    criterion: All three stages use profiles from one checkout-derived package-time closure while every process runs the unchanged profile-free agent-core image.
     traces:
       - architecture-coding-agent-example design_decisions 1
       - architecture-coding-agent-example design_decisions 2

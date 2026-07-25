@@ -55,6 +55,32 @@ func resolveIntegrationRoots() (integrationRoots, error) {
 	}, nil
 }
 
+// packageIntegrationRoots snapshots the canonical profile closure into a
+// disposable package. Live stages execute only from this returned root, so
+// later checkout mutations cannot alter an in-flight proof.
+func packageIntegrationRoots(roots integrationRoots) (integrationRoots, func(), error) {
+	manifest, err := readApplicationProfileManifest(filepath.Join(roots.Application, filepath.FromSlash(profileManifestPath)))
+	if err != nil {
+		return integrationRoots{}, nil, err
+	}
+	source, err := inspectPackageSource(roots.Profiles, manifest.AgentProfiles.CompatibleRelease)
+	if err != nil {
+		return integrationRoots{}, nil, err
+	}
+	runDir, err := os.MkdirTemp("", "coding-loop-profile-closure-*")
+	if err != nil {
+		return integrationRoots{}, nil, err
+	}
+	cleanup := func() { _ = os.RemoveAll(runDir) }
+	packageRoot := filepath.Join(runDir, "profiles")
+	if _, err := assembleProfileClosure(manifest, roots.Profiles, packageRoot, source); err != nil {
+		cleanup()
+		return integrationRoots{}, nil, fmt.Errorf("package integration profile closure: %w", err)
+	}
+	roots.Profiles = packageRoot
+	return roots, cleanup, nil
+}
+
 func envOrDefault(name, fallback string) string {
 	if value := strings.TrimSpace(os.Getenv(name)); value != "" {
 		return value
@@ -81,7 +107,6 @@ func baseIntegrationSkipReason(roots integrationRoots, extraBinaries ...string) 
 		label string
 	}{
 		{filepath.Join(roots.Core, "go.mod"), "agent-core checkout"},
-		{filepath.Join(roots.Profiles, "go.mod"), "agent-profiles checkout"},
 		{filepath.Join(roots.Profiles, "agents", "executor", "profile.yaml"), "canonical executor profile"},
 		{filepath.Join(roots.Profiles, "agents", "planner", "profile.yaml"), "canonical planner profile"},
 		{filepath.Join(roots.Profiles, "agents", "critic", "profile.yaml"), "canonical critic profile"},
@@ -240,17 +265,8 @@ func requireSuccessfulExecutor(workspace string, run agentRun) error {
 	if !strings.Contains(strings.ToLower(run.Output), "terminal state: succeeded") {
 		return fmt.Errorf("executor did not report Succeeded:\n%s", run.Output)
 	}
-	data, err := os.ReadFile(filepath.Join(workspace, "greet.go"))
-	if err != nil {
-		return fmt.Errorf("read executor result: %w", err)
-	}
-	if !strings.Contains(string(data), `return "Hello, " + name + "!"`) {
-		return fmt.Errorf("executor did not implement the greeting:\n%s", data)
-	}
-	cmd := exec.Command("go", "test", "./...")
-	cmd.Dir = workspace
-	if output, err := cmd.CombinedOutput(); err != nil {
-		return fmt.Errorf("workspace validation failed: %w\n%s", err, output)
+	if err := requireGreetingAndTests(workspace); err != nil {
+		return fmt.Errorf("executor workspace validation failed: %w", err)
 	}
 	return nil
 }

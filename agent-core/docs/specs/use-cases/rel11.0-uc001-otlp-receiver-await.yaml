@@ -92,4 +92,4 @@ out_of_scope:
   - TLS and authenticated transport.
 
 test_suite_trace: test-rel11.0-otlp-receiver
-status: specified
+status: implemented

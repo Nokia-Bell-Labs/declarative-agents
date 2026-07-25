@@ -269,9 +269,9 @@ rest:
             # ("body field \"content\" must be string") and surfaced as an opaque
             # 500, which is what broke mage integration:controlPlane. Declaring it
             # required turns that into a 400 the caller can read. The corpus-ingest
-            # child run srd005 R3.1 specifies is not implemented; it is tracked
-            # separately and needs its own leg and endpoint, not a values apply
-            # with a missing field.
+            # child run in srd005 R3.1 now has its own /api/v1/ingest endpoint and
+            # SeedIngest leg below; it does not pass through this values-apply
+            # endpoint.
             body_schema:
               type: object
               required: [operation, content]
