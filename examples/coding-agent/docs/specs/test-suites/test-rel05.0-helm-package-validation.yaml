@@ -1,0 +1,35 @@
+id: test-rel05.0-helm-package-validation
+title: Helm Values and Package Validation Suite
+release: "05.0"
+status: implemented
+
+overview: |
+  Schema fixtures, schema-bypass guards, manifest tamper cases, topology
+  combinations, and archive inventory/render tests form the deterministic
+  release gate. No test installs Kubernetes resources.
+
+traces:
+  - rel05.0-uc001-package-validated-chart
+
+test_cases:
+  - use_case: rel05.0-uc001-package-validated-chart
+    name: Values schema matrix
+    go_test: go test ./magefiles -run '^TestHelmSchemaFixtureMatrix$'
+    status: implemented
+    traces: [srd004-helm-package-validation AC1]
+  - use_case: rel05.0-uc001-package-validated-chart
+    name: Semantic guards and topology combinations
+    go_test: go test ./magefiles -run '^TestHelm(SemanticValidationSurvivesSchemaBypass|WorkspaceAndTelemetryCombinationsRender)$'
+    status: implemented
+    traces: [srd004-helm-package-validation R1.3]
+  - use_case: rel05.0-uc001-package-validated-chart
+    name: Prepared package tamper rejection
+    go_test: go test ./magefiles -run '^TestPreparedPackage'
+    status: implemented
+    traces: [srd004-helm-package-validation AC2]
+  - use_case: rel05.0-uc001-package-validated-chart
+    name: Self-contained chart archive
+    integration_target: mage helm:package
+    go_test: go test ./magefiles -run '^Test(HelmPackageArchiveIsSelfContained|ChartArchiveValidationRejectsOmissions)$'
+    status: implemented
+    traces: [srd004-helm-package-validation AC3]

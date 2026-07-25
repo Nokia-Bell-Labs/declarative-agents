@@ -3,6 +3,7 @@
 package main
 
 import (
+	"crypto/sha256"
 	"fmt"
 	"io/fs"
 	"os"
@@ -34,6 +35,7 @@ type rolePackageManifest struct {
 	ApplicationSource applicationPackageSource `yaml:"application_source"`
 	MountPath         string                   `yaml:"mount_path"`
 	Profile           string                   `yaml:"profile"`
+	Checksum          string                   `yaml:"checksum"`
 	Files             []string                 `yaml:"files"`
 	ConfigMaps        []configMapPartition     `yaml:"config_maps"`
 }
@@ -136,6 +138,10 @@ func packageServingDeployment(
 		if err != nil {
 			return nil, fmt.Errorf("serving role %s: %w", ref.Role, err)
 		}
+		checksum, err := roleClosureChecksum(virtualRoot, closure.assets, files)
+		if err != nil {
+			return nil, fmt.Errorf("serving role %s checksum: %w", ref.Role, err)
+		}
 		roleManifest := rolePackageManifest{
 			SchemaVersion:     1,
 			Application:       manifest.Application,
@@ -144,6 +150,7 @@ func packageServingDeployment(
 			ApplicationSource: applicationSource,
 			MountPath:         manifest.Runtime.MountPath,
 			Profile:           ref.RuntimePath,
+			Checksum:          checksum,
 			Files:             files,
 			ConfigMaps:        partitions,
 		}
@@ -177,6 +184,25 @@ func packageServingDeployment(
 		return nil, fmt.Errorf("publish deployment package: %w", err)
 	}
 	return shards, nil
+}
+
+func roleClosureChecksum(root string, assets map[string]string, files []string) (string, error) {
+	digest := sha256.New()
+	for _, path := range files {
+		source, err := secureSourcePath(root, assets[path])
+		if err != nil {
+			return "", err
+		}
+		data, err := os.ReadFile(source)
+		if err != nil {
+			return "", err
+		}
+		_, _ = digest.Write([]byte(path))
+		_, _ = digest.Write([]byte{0})
+		_, _ = digest.Write(data)
+		_, _ = digest.Write([]byte{0})
+	}
+	return fmt.Sprintf("%x", digest.Sum(nil)), nil
 }
 
 func inspectApplicationPackageSource(root string) applicationPackageSource {

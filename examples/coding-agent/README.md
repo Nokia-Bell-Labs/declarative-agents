@@ -121,13 +121,18 @@ mage helmPrepare
 helm lint helm
 helm template coding-agent helm
 helm template coding-agent helm -f helm/ci/small-values.yaml
+mage helm:package
 ```
 
 The chart renders one persistent agent-core container per role, projected
 read-only role ConfigMaps, one shared workspace claim, fixed internal role
 Services, lifecycle probes, optional Ollama, and collector-to-Jaeger OTLP
-routing. Strict values schema, packaged-chart testing, and live deployment
-instructions belong to the following issues.
+routing. `values.schema.json`, semantic template guards, and fixtures under
+`helm/schema-fixtures/` validate values. `mage helm:package` regenerates and
+checks prepared profiles, renders the supported matrix, writes
+`helm/dist/coding-agent-0.1.0.tgz`, verifies its complete inventory, and renders
+the archive independently. Live deployment instructions belong to the next
+issue.
 
 ## Status
 
@@ -140,7 +145,7 @@ behind real lifecycle health endpoints. A request to the planner crosses
 declared executor and critic REST clients, while all three processes bind the
 same trusted workspace directory and agent-core propagates `traceparent` across
 the two remote boundaries. The package-driven core Helm topology is implemented;
-schema/package validation and live cluster proof remain planned.
+schema/package validation is implemented, and live cluster proof remains planned.
 
 The existing critic benchmark/session profile remains available unchanged; the
 changed-workspace mode is a separate canonical profile variant.

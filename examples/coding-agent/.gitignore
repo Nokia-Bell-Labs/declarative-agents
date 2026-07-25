@@ -1,3 +1,4 @@
 /build/
+/helm/dist/
 /helm/profiles/
 /magefiles/mage_output_file.go

@@ -30,6 +30,9 @@ func prepareHelmProfiles(packageRoot, chartRoot string) error {
 	if _, err := os.Stat(filepath.Join(packageRoot, "deployment-manifest.yaml")); err != nil {
 		return fmt.Errorf("prepared profile package has no deployment manifest: %w", err)
 	}
+	if err := validatePreparedPackage(packageRoot); err != nil {
+		return fmt.Errorf("validate prepared profile package: %w", err)
+	}
 	parent := chartRoot
 	if err := os.MkdirAll(parent, 0o755); err != nil {
 		return err

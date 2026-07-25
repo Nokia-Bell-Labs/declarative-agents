@@ -231,6 +231,21 @@ design_decisions:
       - Helm values cannot drift from resolved profile membership.
       - A role profile edit rolls only that role.
       - Runtime health and remote boundaries match tested application profiles.
+  - id: 10
+    title: Validate values, package integrity, and archive inventory
+    decision: |
+      A strict draft-07 schema owns value shape and safe primitives; template
+      guards retain cross-field invariants under schema bypass. Role manifests
+      carry ordered-content checksums, and one strict validator compares
+      deployment metadata, role metadata, actual files, ConfigMap coverage,
+      encoded sizes, keys, and checksums before preparation and packaging.
+      `mage helm:package` validates the render matrix and requires every package
+      and chart file in the resulting archive before independently linting and
+      rendering it.
+    benefits:
+      - Invalid topology fails before Kubernetes output.
+      - Stale or tampered profile artifacts cannot enter a chart archive.
+      - Release artifacts do not depend on source-tree files after packaging.
 
 technology_choices:
   - component: Agent runtime
@@ -290,8 +305,8 @@ implementation_status:
     The application documentation, portable integration fixtures, live executor,
     real planner delegation, canonical critic verdict gate, application
     reference manifest, role-specific profile closure packaging, persistent
-    serving contract, and core Helm topology are implemented. Values schema,
-    packaged-chart validation, and live deployment remain follow-up work.
+    serving contract, core Helm topology, strict values, and packaged-chart
+    validation are implemented. Live deployment remains follow-up work.
   progress:
     - implemented: The planner -> executor -> critic coding loop and three-stage
         integration contract.
@@ -309,7 +324,9 @@ implementation_status:
         partition metadata.
     - implemented: Core Helm resources for role workloads and Services, shared
         workspace, truthful probes, model selection, and OTLP-to-Jaeger routing.
-    - planned: Strict values schema, packaged-chart matrix, and live kind proof.
+    - implemented: Strict schema and semantic guards, profile package integrity,
+        render matrix, and self-contained Helm archive validation.
+    - planned: Live kind proof and operator deployment guide.
 
 related_documents:
   - doc: docs/VISION.yaml

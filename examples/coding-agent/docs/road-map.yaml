@@ -83,3 +83,20 @@ releases:
       - id: test-rel04.0-helm-topology
         summary: Deterministic topology, checksum, CI, model-tier, and trace-wiring renders.
         status: implemented
+  - version: "05.0"
+    name: Helm values and package validation
+    description: |
+      Strict values and semantic guards reject unsafe topology. Prepared role
+      packages are checksum-validated, and a self-contained chart archive is
+      inventory-checked, linted, and rendered independently.
+    status: implemented
+    application_srds:
+      - srd004-helm-package-validation
+    use_cases:
+      - id: rel05.0-uc001-package-validated-chart
+        summary: A release builder produces one validated chart archive with every role asset.
+        status: implemented
+    test_suites:
+      - id: test-rel05.0-helm-package-validation
+        summary: Schema matrix, semantic invariants, tamper rejection, and independent archive rendering.
+        status: implemented

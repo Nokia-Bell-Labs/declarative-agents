@@ -1,0 +1,4 @@
+ollama:
+  enabled: false
+llm:
+  externalURL: ftp://models.example.invalid

@@ -83,3 +83,32 @@ app.kubernetes.io/instance: {{ .Release.Name }}
 {{- define "coding-agent.ollamaModels" -}}
 {{- .Values.ollama.models | uniq | join " " -}}
 {{- end -}}
+
+{{- define "coding-agent.validateValues" -}}
+{{- if ne .Values.profiles.mountPath "/profiles" -}}
+{{- fail "profiles.mountPath must be /profiles" -}}
+{{- end -}}
+{{- if ne .Values.workspace.mountPath "/work" -}}
+{{- fail "workspace.mountPath must be /work" -}}
+{{- end -}}
+{{- $ports := dict "planner request" .Values.roles.planner.requestPort "planner control" .Values.roles.planner.controlPort "executor request" .Values.roles.executor.requestPort "executor control" .Values.roles.executor.controlPort "critic request" .Values.roles.critic.requestPort "critic control" .Values.roles.critic.controlPort -}}
+{{- $seen := dict -}}
+{{- range $name, $port := $ports -}}
+{{- if hasKey $seen ($port | toString) -}}
+{{- fail (printf "role ports conflict at %v (%s and %s)" $port (index $seen ($port | toString)) $name) -}}
+{{- end -}}
+{{- $_ := set $seen ($port | toString) $name -}}
+{{- end -}}
+{{- if and .Values.collector.enabled (eq (int .Values.collector.otlpGRPCPort) (int .Values.collector.otlpHTTPPort)) -}}
+{{- fail "collector OTLP gRPC and HTTP ports must differ" -}}
+{{- end -}}
+{{- if and .Values.jaeger.enabled (not .Values.collector.enabled) -}}
+{{- fail "jaeger.enabled requires collector.enabled" -}}
+{{- end -}}
+{{- if and (not .Values.ollama.enabled) (not .Values.llm.externalURL) -}}
+{{- fail "llm.externalURL is required when ollama is disabled" -}}
+{{- end -}}
+{{- if and .Values.ollama.enabled (eq (len .Values.ollama.models) 0) -}}
+{{- fail "ollama.models must not be empty" -}}
+{{- end -}}
+{{- end -}}

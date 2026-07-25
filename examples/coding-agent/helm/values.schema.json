@@ -1,0 +1,256 @@
+{
+  "$schema": "https://json-schema.org/draft-07/schema#",
+  "title": "coding-agent values",
+  "type": "object",
+  "additionalProperties": false,
+  "required": ["image", "profiles", "workspace", "roles", "llm", "ollama", "collector", "jaeger", "podSecurityContext", "containerSecurityContext"],
+  "definitions": {
+    "image": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["repository", "tag", "pullPolicy"],
+      "properties": {
+        "repository": {"type": "string", "pattern": "^[a-z0-9]+([._/-][a-z0-9]+)*(:[0-9]+)?([/][a-z0-9]+([._-][a-z0-9]+)*)*$"},
+        "tag": {"type": "string", "pattern": "^[A-Za-z0-9_][A-Za-z0-9_.-]{0,127}$"},
+        "pullPolicy": {"type": "string", "enum": ["Always", "IfNotPresent", "Never"]}
+      }
+    },
+    "resourceQuantity": {
+      "type": "string",
+      "pattern": "^[1-9][0-9]*(m|Ki|Mi|Gi|Ti)?$"
+    },
+    "resources": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["requests", "limits"],
+      "properties": {
+        "requests": {
+          "type": "object",
+          "additionalProperties": false,
+          "required": ["cpu", "memory"],
+          "properties": {
+            "cpu": {"$ref": "#/definitions/resourceQuantity"},
+            "memory": {"$ref": "#/definitions/resourceQuantity"}
+          }
+        },
+        "limits": {
+          "type": "object",
+          "additionalProperties": false,
+          "required": ["cpu", "memory"],
+          "properties": {
+            "cpu": {"$ref": "#/definitions/resourceQuantity"},
+            "memory": {"$ref": "#/definitions/resourceQuantity"}
+          }
+        }
+      }
+    },
+    "role": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["replicas", "requestPort", "controlPort", "resources"],
+      "properties": {
+        "replicas": {"type": "integer", "minimum": 1, "maximum": 1},
+        "requestPort": {"type": "integer", "minimum": 1024, "maximum": 65535},
+        "controlPort": {"type": "integer", "minimum": 1024, "maximum": 65535},
+        "resources": {"$ref": "#/definitions/resources"}
+      }
+    },
+    "storageSize": {
+      "type": "string",
+      "pattern": "^[1-9][0-9]*(Ki|Mi|Gi|Ti)$"
+    },
+    "labels": {
+      "type": "object",
+      "additionalProperties": {"type": "string"}
+    },
+    "tolerations": {
+      "type": "array",
+      "items": {
+        "type": "object",
+        "additionalProperties": false,
+        "properties": {
+          "key": {"type": "string"},
+          "operator": {"type": "string", "enum": ["Exists", "Equal"]},
+          "value": {"type": "string"},
+          "effect": {"type": "string", "enum": ["NoSchedule", "PreferNoSchedule", "NoExecute"]},
+          "tolerationSeconds": {"type": "integer", "minimum": 0}
+        }
+      }
+    }
+  },
+  "properties": {
+    "nameOverride": {"type": "string", "pattern": "^[a-z0-9]([-a-z0-9]*[a-z0-9])?$"},
+    "image": {"$ref": "#/definitions/image"},
+    "profiles": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["mountPath"],
+      "properties": {"mountPath": {"const": "/profiles"}}
+    },
+    "workspace": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["mountPath", "existingClaim", "storageClass", "accessModes", "size"],
+      "properties": {
+        "mountPath": {"const": "/work"},
+        "existingClaim": {
+          "type": "string",
+          "pattern": "^$|^[a-z0-9]([-a-z0-9]*[a-z0-9])?$",
+          "maxLength": 63
+        },
+        "storageClass": {"type": "string", "maxLength": 253},
+        "accessModes": {
+          "type": "array",
+          "minItems": 1,
+          "uniqueItems": true,
+          "items": {"type": "string", "enum": ["ReadWriteOnce", "ReadOnlyMany", "ReadWriteMany", "ReadWriteOncePod"]}
+        },
+        "size": {"$ref": "#/definitions/storageSize"}
+      }
+    },
+    "roles": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["planner", "executor", "critic"],
+      "properties": {
+        "planner": {
+          "allOf": [
+            {"$ref": "#/definitions/role"},
+            {"properties": {"requestPort": {"const": 18200}, "controlPort": {"const": 18201}}}
+          ]
+        },
+        "executor": {
+          "allOf": [
+            {"$ref": "#/definitions/role"},
+            {"properties": {"requestPort": {"const": 18210}, "controlPort": {"const": 18211}}}
+          ]
+        },
+        "critic": {
+          "allOf": [
+            {"$ref": "#/definitions/role"},
+            {"properties": {"requestPort": {"const": 18220}, "controlPort": {"const": 18221}}}
+          ]
+        }
+      }
+    },
+    "llm": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["externalURL", "port"],
+      "properties": {
+        "externalURL": {"type": "string", "pattern": "^https?://[^[:space:]/]+(:[0-9]+)?(/[^[:space:]]*)?$"},
+        "port": {"type": "integer", "minimum": 1024, "maximum": 65535}
+      }
+    },
+    "ollama": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["enabled", "image", "utilityImage", "models", "persistence", "resources", "gpu", "nodeSelector", "tolerations"],
+      "properties": {
+        "enabled": {"type": "boolean"},
+        "image": {"$ref": "#/definitions/image"},
+        "utilityImage": {"type": "string", "pattern": "^[^[:space:]@]+:[A-Za-z0-9_][A-Za-z0-9_.-]{0,127}$"},
+        "models": {
+          "type": "array",
+          "minItems": 1,
+          "uniqueItems": true,
+          "items": {"type": "string", "minLength": 1, "pattern": "^[^[:space:]]+$"}
+        },
+        "persistence": {
+          "type": "object",
+          "additionalProperties": false,
+          "required": ["storageClass", "size"],
+          "properties": {
+            "storageClass": {"type": "string", "maxLength": 253},
+            "size": {"$ref": "#/definitions/storageSize"}
+          }
+        },
+        "resources": {"$ref": "#/definitions/resources"},
+        "gpu": {
+          "type": "object",
+          "additionalProperties": false,
+          "required": ["count"],
+          "properties": {"count": {"type": "integer", "minimum": 0}}
+        },
+        "nodeSelector": {"$ref": "#/definitions/labels"},
+        "tolerations": {"$ref": "#/definitions/tolerations"}
+      }
+    },
+    "collector": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["enabled", "image", "otlpGRPCPort", "otlpHTTPPort", "resources"],
+      "properties": {
+        "enabled": {"type": "boolean"},
+        "image": {"$ref": "#/definitions/image"},
+        "otlpGRPCPort": {"type": "integer", "minimum": 1024, "maximum": 65535},
+        "otlpHTTPPort": {"type": "integer", "minimum": 1024, "maximum": 65535},
+        "resources": {"$ref": "#/definitions/resources"}
+      }
+    },
+    "jaeger": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["enabled", "image", "otlpGRPCPort", "queryPort", "resources"],
+      "properties": {
+        "enabled": {"type": "boolean"},
+        "image": {"$ref": "#/definitions/image"},
+        "otlpGRPCPort": {"type": "integer", "minimum": 1024, "maximum": 65535},
+        "queryPort": {"type": "integer", "minimum": 1024, "maximum": 65535},
+        "resources": {"$ref": "#/definitions/resources"}
+      }
+    },
+    "podSecurityContext": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["runAsNonRoot", "seccompProfile"],
+      "properties": {
+        "runAsNonRoot": {"const": true},
+        "seccompProfile": {
+          "type": "object",
+          "additionalProperties": false,
+          "required": ["type"],
+          "properties": {"type": {"const": "RuntimeDefault"}}
+        }
+      }
+    },
+    "containerSecurityContext": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["allowPrivilegeEscalation", "readOnlyRootFilesystem", "capabilities"],
+      "properties": {
+        "allowPrivilegeEscalation": {"const": false},
+        "readOnlyRootFilesystem": {"const": true},
+        "capabilities": {
+          "type": "object",
+          "additionalProperties": false,
+          "required": ["drop"],
+          "properties": {
+            "drop": {
+              "type": "array",
+              "items": {"type": "string"},
+              "contains": {"const": "ALL"}
+            }
+          }
+        }
+      }
+    },
+    "podAnnotations": {
+      "type": "object",
+      "additionalProperties": {"type": "string"}
+    },
+    "nodeSelector": {"$ref": "#/definitions/labels"},
+    "tolerations": {"$ref": "#/definitions/tolerations"},
+    "affinity": {"type": "object"}
+  },
+  "allOf": [
+    {
+      "if": {"properties": {"ollama": {"properties": {"enabled": {"const": false}}}}},
+      "then": {"properties": {"llm": {"properties": {"externalURL": {"minLength": 1}}}}}
+    },
+    {
+      "if": {"properties": {"jaeger": {"properties": {"enabled": {"const": true}}}}},
+      "then": {"properties": {"collector": {"properties": {"enabled": {"const": true}}}}}
+    }
+  ]
+}

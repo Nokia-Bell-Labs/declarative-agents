@@ -1,3 +1,4 @@
+{{- include "coding-agent.validateValues" . -}}
 {{- range $role := list "planner" "executor" "critic" }}
 {{- $roleValues := index $.Values.roles $role -}}
 {{- $context := dict "root" $ "role" $role -}}

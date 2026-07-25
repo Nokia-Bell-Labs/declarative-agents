@@ -33,6 +33,11 @@ roadmap_summary:
     use_cases_done: 1
     use_cases_total: 1
     status: implemented
+  - version: "05.0"
+    name: Helm values and package validation
+    use_cases_done: 1
+    use_cases_total: 1
+    status: implemented
 
 foundation_document_index:
   - id: coding-agent-example
@@ -61,6 +66,10 @@ srd_index:
     title: Core Coding-Agent Helm Topology
     status: implemented
     path: docs/specs/software-requirements/srd003-helm-topology.yaml
+  - id: srd004-helm-package-validation
+    title: Helm Values and Package Validation
+    status: implemented
+    path: docs/specs/software-requirements/srd004-helm-package-validation.yaml
 
 library_srd_references:
   - id: srd002-executor
@@ -108,6 +117,12 @@ use_case_index:
     status: implemented
     test_suite: test-rel04.0-helm-topology
     path: docs/specs/use-cases/rel04.0-uc001-render-helm-topology.yaml
+  - id: rel05.0-uc001-package-validated-chart
+    title: Produce a Validated Self-Contained Chart
+    release: "05.0"
+    status: implemented
+    test_suite: test-rel05.0-helm-package-validation
+    path: docs/specs/use-cases/rel05.0-uc001-package-validated-chart.yaml
 
 test_suite_index:
   - id: test-rel01.0-coding-loop
@@ -134,11 +149,17 @@ test_suite_index:
     test_case_count: 4
     traces: [rel04.0-uc001-render-helm-topology]
     path: docs/specs/test-suites/test-rel04.0-helm-topology.yaml
+  - id: test-rel05.0-helm-package-validation
+    title: Helm Values and Package Validation Suite
+    release: "05.0"
+    test_case_count: 4
+    traces: [rel05.0-uc001-package-validated-chart]
+    path: docs/specs/test-suites/test-rel05.0-helm-package-validation.yaml
 
 coverage_gaps:
   - id: kubernetes-deployment
     status: partially_implemented
     description: |
       The one-container-per-agent Helm topology is implemented. Strict values
-      schema, packaged-chart validation, and live cluster evidence remain
-      follow-up work.
+      schema and packaged-chart validation are implemented; live cluster
+      evidence remains follow-up work.
