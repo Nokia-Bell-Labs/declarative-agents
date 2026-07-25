@@ -37,7 +37,7 @@ releases:
     follow_up:
       - id: gh-123
         summary: Generalize the jurist validator to deterministic data-driven charter suites
-        status: in_progress
+        status: done
 
   - version: "01.0"
     name: Unified agent binary and configuration-driven architecture

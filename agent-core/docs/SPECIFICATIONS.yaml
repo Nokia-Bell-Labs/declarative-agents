@@ -7,8 +7,9 @@ overview: |
   Releases 00.0 through 08.0 have implemented proof in their indexed use cases
   and test suites. Release 03.0 includes named executable REST conformance
   evidence and rollback-time compensation execution.
-  Twenty-three use cases exercise the SRDs across the nine releases. Nine formal YAML test suites cover 215 acceptance test
-  cases across releases 00.0 through 06.0; additional
+  Twenty-eight use cases exercise the SRDs across thirteen releases. Fourteen
+  formal YAML test suites cover 292 acceptance test cases across releases 00.0
+  through 11.0 and release 99.0; additional
   coverage comes from Go test functions across all packages (run
   `go test ./... -v` for current counts).
 
@@ -80,6 +81,16 @@ roadmap_summary:
     use_cases_done: 1
     use_cases_total: 1
     status: done
+  - version: "07.0"
+    name: Command-state store and two-plane persistence
+    use_cases_done: 2
+    use_cases_total: 2
+    status: implemented
+  - version: "08.0"
+    name: HTTP trace propagation
+    use_cases_done: 1
+    use_cases_total: 1
+    status: implemented
   - version: "09.0"
     name: Scenario rig runtime
     use_cases_done: 0
@@ -270,8 +281,8 @@ srd_index:
     path: docs/specs/software-requirements/srd037-tool-dispatch-simplification.yaml
   - id: srd038-command-state-store
     title: Command-State Store
-    summary: Planning requirements for a core-level read-only forward view over the run's execution log, letting any word select declared params from an earlier labeled step through a $from selector, rehydrated from the srd036 tool_outputs plane after restart, with a declared-param-only authority boundary that never exposes transport or receipts, branch-scoped lifetime tied to Revert and terminal reaping, and redaction before persistence.
-    status: planned
+    summary: Requirements for a core-level read-only forward view over the run's execution log, letting any word select declared params from an earlier labeled step through a $from selector, rehydrated from the srd036 tool_outputs plane after restart, with a declared-param-only authority boundary that never exposes transport or receipts, branch-scoped lifetime tied to Revert and terminal reaping, and redaction before persistence.
+    status: implemented
     path: docs/specs/software-requirements/srd038-command-state-store.yaml
   - id: srd039-mock-endpoint-binding
     title: Mock REST Endpoint Binding
@@ -539,7 +550,7 @@ test_suite_index:
     traces:
       - rel00.0-uc001-domain-agent-integration
       - rel00.0-uc002-spec-corpus-validation
-    formal_test_cases: 92
+    formal_test_cases: 97
     path: docs/specs/test-suites/test-rel00.0.yaml
   - id: test-rel01.0
     title: Test Suite for Release 01.0 Unified Agent Runtime
@@ -548,7 +559,7 @@ test_suite_index:
       - rel01.0-uc001-generator-coding
       - rel01.0-uc002-evaluator-benchmark
       - rel01.0-uc003-bench-visualization
-    formal_test_cases: 37
+    formal_test_cases: 38
     path: docs/specs/test-suites/test-rel01.0.yaml
   - id: test-rel02.0-lifecycle
     title: Test Suite for Release 02.0 Rollback Lifecycle
@@ -556,7 +567,7 @@ test_suite_index:
     traces:
       - rel02.0-uc001-approval-suspend-resume
       - rel02.0-uc002-history-rollback
-    formal_test_cases: 17
+    formal_test_cases: 15
     path: docs/specs/test-suites/test-rel02.0-lifecycle.yaml
   - id: test-rel02.0-tool-contracts
     title: Test Suite for Release 02.0 Tool Contracts
@@ -564,7 +575,7 @@ test_suite_index:
     traces:
       - rel02.0-uc003-tool-authoring
       - rel02.0-uc004-sentence-tool-migration
-    formal_test_cases: 13
+    formal_test_cases: 16
     path: docs/specs/test-suites/test-rel02.0-tool-contracts.yaml
   - id: test-rel03.0-rest-tools
     title: Test Suite for Release 03.0 REST Tools
@@ -578,7 +589,7 @@ test_suite_index:
       - rel03.0-uc006-documentation-curator
       - rel03.0-uc007-machine-request-documentation-ux
       - rel03.0-uc008-rest-await-any-fan-in
-    formal_test_cases: 42
+    formal_test_cases: 50
     status: implemented
     path: docs/specs/test-suites/test-rel03.0-rest-tools.yaml
   - id: test-rel04.0-monitor
@@ -587,7 +598,7 @@ test_suite_index:
     traces:
       - rel04.0-uc001-configurable-tool-metrics
       - rel04.0-uc002-monitor-rest-api
-    formal_test_cases: 11
+    formal_test_cases: 12
     path: docs/specs/test-suites/test-rel04.0-monitor.yaml
   - id: test-rel05.0-monitor-qwen
     title: Test Suite for Release 05.0 Qwen Monitor Integration
@@ -610,7 +621,7 @@ test_suite_index:
     traces:
       - rel07.0-uc001-command-state-threading
       - rel07.0-uc002-two-plane-revert
-    formal_test_cases: 9
+    formal_test_cases: 18
     status: implemented
     path: docs/specs/test-suites/test-rel07.0-command-state.yaml
   - id: test-rel08.0-trace-propagation
@@ -618,7 +629,7 @@ test_suite_index:
     release: "08.0"
     traces:
       - rel08.0-uc001-http-trace-propagation
-    formal_test_cases: 5
+    formal_test_cases: 6
     status: implemented
     path: docs/specs/test-suites/test-rel08.0-trace-propagation.yaml
   - id: test-rel09.0-scenario-rig
@@ -626,7 +637,7 @@ test_suite_index:
     release: "09.0"
     traces:
       - rel09.0-uc001-scenario-rig-run
-    formal_test_cases: 10
+    formal_test_cases: 15
     status: specified
     path: docs/specs/test-suites/test-rel09.0-scenario-rig.yaml
   - id: test-rel10.0-value-predicate
