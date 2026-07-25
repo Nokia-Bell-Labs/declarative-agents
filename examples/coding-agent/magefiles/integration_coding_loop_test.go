@@ -87,6 +87,9 @@ agent_profiles:
   compatible_release: agent-profiles/v0.test
   references:
     - {role: executor, source: agents/executor/profile.yaml, runtime_path: agents/executor/profile.yaml}
+    - {role: planner, source: agents/planner/profile.yaml, runtime_path: agents/planner/profile.yaml}
+    - {role: critic, source: agents/critic/profile.yaml, runtime_path: agents/critic/profile.yaml}
+    - {role: critic-workspace, source: agents/critic/profile-workspace.yaml, runtime_path: agents/critic/profile-workspace.yaml}
 runtime:
   mount_path: /profiles
   image_contains_profiles: false
@@ -98,9 +101,15 @@ deployment:
 `)
 	sourceProfile := filepath.Join(profilesRoot, "agents", "executor", "profile.yaml")
 	writeTestFile(t, sourceProfile, "name: packaged-executor\n")
+	writeTestFile(t, filepath.Join(profilesRoot, "agents", "planner", "profile.yaml"), "name: packaged-planner\n")
+	writeTestFile(t, filepath.Join(profilesRoot, "agents", "critic", "profile.yaml"), "name: packaged-critic\n")
+	writeTestFile(t, filepath.Join(profilesRoot, "agents", "critic", "profile-workspace.yaml"), "name: packaged-critic-workspace\n")
+	coreRoot := t.TempDir()
+	writeTestFile(t, filepath.Join(coreRoot, "go.mod"), "module test-core\n\ngo 1.26\n")
 
 	packaged, cleanup, err := packageIntegrationRoots(integrationRoots{
 		Application: appRoot,
+		Core:        coreRoot,
 		Profiles:    profilesRoot,
 	})
 	if err != nil {
@@ -110,6 +119,9 @@ deployment:
 	defer cleanup()
 	if packaged.Profiles == profilesRoot {
 		t.Fatal("integration profile root still points at the checkout")
+	}
+	if reason := baseIntegrationSkipReason(packaged); reason != "" {
+		t.Fatalf("packaged profile root was misclassified as unavailable: %s", reason)
 	}
 	packagedProfile := filepath.Join(packaged.Profiles, "agents", "executor", "profile.yaml")
 	before, err := os.ReadFile(packagedProfile)

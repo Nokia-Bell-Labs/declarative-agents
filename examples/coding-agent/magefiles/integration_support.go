@@ -107,7 +107,6 @@ func baseIntegrationSkipReason(roots integrationRoots, extraBinaries ...string) 
 		label string
 	}{
 		{filepath.Join(roots.Core, "go.mod"), "agent-core checkout"},
-		{filepath.Join(roots.Profiles, "go.mod"), "agent-profiles checkout"},
 		{filepath.Join(roots.Profiles, "agents", "executor", "profile.yaml"), "canonical executor profile"},
 		{filepath.Join(roots.Profiles, "agents", "planner", "profile.yaml"), "canonical planner profile"},
 		{filepath.Join(roots.Profiles, "agents", "critic", "profile.yaml"), "canonical critic profile"},
