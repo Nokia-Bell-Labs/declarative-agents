@@ -1,0 +1,11 @@
+apiVersion: v2
+name: coding-agent
+description: Persistent planner, executor, and critic agents over role-sharded mounted profiles.
+type: application
+version: 0.1.0
+appVersion: "0.1.0"
+keywords: [declarative-agents, coding-agent]
+maintainers:
+  - name: Nokia Bell Labs
+sources:
+  - https://github.com/Nokia-Bell-Labs/declarative-agents

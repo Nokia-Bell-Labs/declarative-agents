@@ -65,3 +65,21 @@ releases:
       - id: test-rel03.0-deployment-profile-package
         summary: Exact closures, reproducibility, safety failures, ConfigMap bounds, and real-binary boot validation.
         status: implemented
+  - version: "04.0"
+    name: Core Helm topology
+    description: |
+      A package-driven chart renders persistent planner, executor, and critic
+      workloads with scoped profile ConfigMaps, shared workspace storage,
+      truthful health probes, fixed role Services, model endpoint selection,
+      and collector-to-Jaeger tracing.
+    status: implemented
+    application_srds:
+      - srd003-helm-topology
+    use_cases:
+      - id: rel04.0-uc001-render-helm-topology
+        summary: An operator prepares role shards and renders the core Kubernetes topology.
+        status: implemented
+    test_suites:
+      - id: test-rel04.0-helm-topology
+        summary: Deterministic topology, checksum, CI, model-tier, and trace-wiring renders.
+        status: implemented

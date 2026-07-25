@@ -1,0 +1,13 @@
+The coding-agent topology is installed with three persistent role services:
+
+  Planner:  {{ include "coding-agent.fullname" . }}-planner:{{ .Values.roles.planner.requestPort }}
+  Executor: {{ include "coding-agent.fullname" . }}-executor:{{ .Values.roles.executor.requestPort }}
+  Critic:   {{ include "coding-agent.fullname" . }}-critic:{{ .Values.roles.critic.requestPort }}
+
+Each workload uses {{ include "coding-agent.image" . }} and mounts its prepared
+role closure read-only at {{ .Values.profiles.mountPath }}. The image is
+profile-free. All roles share PVC {{ include "coding-agent.workspaceClaim" . }}
+at {{ .Values.workspace.mountPath }}.
+
+This source chart requires `mage helmPrepare` before lint or install. Schema,
+packaged-chart validation, and live deployment proof are delivered separately.

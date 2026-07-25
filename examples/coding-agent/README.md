@@ -21,7 +21,7 @@ requirements in `agent-profiles/`:
 This directory owns the application reference manifest, profile-closure
 packaging, persistent serving composition, live integration targets, and
 portable fixture in addition to the application specification. Helm assets
-remain follow-up work.
+consume the role-sharded package without redefining profile membership.
 
 ## Coding loop
 
@@ -112,6 +112,23 @@ reference it from an application-owned profile, as the chatbot-mesh chart does.
 This packager copies references verbatim and does not interpret placeholders.
 No coding-application value is added to the library.
 
+## Core Helm topology
+
+Prepare #875 profile artifacts before linting or rendering the source chart:
+
+```bash
+mage helmPrepare
+helm lint helm
+helm template coding-agent helm
+helm template coding-agent helm -f helm/ci/small-values.yaml
+```
+
+The chart renders one persistent agent-core container per role, projected
+read-only role ConfigMaps, one shared workspace claim, fixed internal role
+Services, lifecycle probes, optional Ollama, and collector-to-Jaeger OTLP
+routing. Strict values schema, packaged-chart testing, and live deployment
+instructions belong to the following issues.
+
 ## Status
 
 All three coding-loop stages and pinned, transitive profile packaging are
@@ -122,7 +139,8 @@ Application-owned serving profiles now keep planner, executor, and critic alive
 behind real lifecycle health endpoints. A request to the planner crosses
 declared executor and critic REST clients, while all three processes bind the
 same trusted workspace directory and agent-core propagates `traceparent` across
-the two remote boundaries. A Helm chart remains planned.
+the two remote boundaries. The package-driven core Helm topology is implemented;
+schema/package validation and live cluster proof remain planned.
 
 The existing critic benchmark/session profile remains available unchanged; the
 changed-workspace mode is a separate canonical profile variant.
@@ -146,6 +164,9 @@ examples/coding-agent/
     specs/
       use-cases/
       test-suites/
+  helm/
+    ci/
+    templates/
   magefiles/
     profiles_closure.go
   testdata/integration/coding-loop/

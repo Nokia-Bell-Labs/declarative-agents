@@ -1,2 +1,3 @@
 /build/
+/helm/profiles/
 /magefiles/mage_output_file.go

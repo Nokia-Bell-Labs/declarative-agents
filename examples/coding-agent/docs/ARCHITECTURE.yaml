@@ -101,7 +101,7 @@ components:
       without modifying the runtime image.
   - name: Kubernetes deployment
     path: helm/
-    status: planned
+    status: core_topology_implemented
     responsibility: |
       Run planner, executor, and critic as separate workloads, mount the
       packaged profiles and workspace at declared paths, and expose only the
@@ -218,6 +218,19 @@ design_decisions:
       - Separate containers receive no unrelated role program.
       - Resolver safety behavior has one implementation.
       - Later Helm templates consume deterministic staging metadata.
+  - id: 9
+    title: Render Helm from prepared role manifests
+    decision: |
+      `mage helmPrepare` regenerates #875 artifacts and stages them as the
+      chart's only profile source. Helm reads role manifests to render bounded
+      ConfigMaps, projected mounts, profile arguments, and role-scoped rollout
+      checksums. The three agent workloads share one profile-free image and one
+      trusted workspace claim. Fixed Services realize the serving contract;
+      OLLAMA_URL and OTLP flags select optional model and observability tiers.
+    benefits:
+      - Helm values cannot drift from resolved profile membership.
+      - A role profile edit rolls only that role.
+      - Runtime health and remote boundaries match tested application profiles.
 
 technology_choices:
   - component: Agent runtime
@@ -276,9 +289,9 @@ implementation_status:
   current_focus: |
     The application documentation, portable integration fixtures, live executor,
     real planner delegation, canonical critic verdict gate, application
-    reference manifest, role-specific profile closure packaging, and persistent
-    serving contract are implemented. Helm deployment remains planned follow-up
-    work.
+    reference manifest, role-specific profile closure packaging, persistent
+    serving contract, and core Helm topology are implemented. Values schema,
+    packaged-chart validation, and live deployment remain follow-up work.
   progress:
     - implemented: The planner -> executor -> critic coding loop and three-stage
         integration contract.
@@ -294,7 +307,9 @@ implementation_status:
     - implemented: Deterministic planner, executor, and critic deployment
         closures with provenance, exact reachable assets, and ConfigMap
         partition metadata.
-    - planned: Kubernetes resources and Helm chart.
+    - implemented: Core Helm resources for role workloads and Services, shared
+        workspace, truthful probes, model selection, and OTLP-to-Jaeger routing.
+    - planned: Strict values schema, packaged-chart matrix, and live kind proof.
 
 related_documents:
   - doc: docs/VISION.yaml

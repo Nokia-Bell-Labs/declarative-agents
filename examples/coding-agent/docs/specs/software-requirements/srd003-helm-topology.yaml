@@ -1,0 +1,65 @@
+id: srd003-helm-topology
+title: Core Coding-Agent Helm Topology
+status: implemented
+
+problem: |
+  The packaged serving roles need a Kubernetes topology that preserves their
+  mounted-profile, shared-workspace, fixed-service, lifecycle, and tracing
+  contracts without baking application programs into the agent-core image or
+  duplicating #875 closure membership in Helm values.
+
+requirements:
+  - id: R1
+    title: Real role workloads
+    items:
+      - id: R1.1
+        text: The chart shall render one Deployment and ClusterIP Service for planner, executor, and critic.
+      - id: R1.2
+        text: Every role shall use the same profile-free agent-core image and select the serving profile named by its #875 role manifest.
+      - id: R1.3
+        text: Role ConfigMaps and projected volumes shall derive file and partition membership only from prepared #875 manifests.
+      - id: R1.4
+        text: A checksum of only the role's reachable profile files shall annotate its pod template.
+  - id: R2
+    title: Serving contract wiring
+    items:
+      - id: R2.1
+        text: All roles shall mount one trusted shared PVC at the configured runtime directory.
+      - id: R2.2
+        text: Planner shall receive fixed executor and critic Service hosts and URLs matching ports 18210 and 18220.
+      - id: R2.3
+        text: Readiness and liveness shall call each existing /api/lifecycle/health control endpoint.
+      - id: R2.4
+        text: Role pods shall use non-root, no-privilege-escalation, dropped-capability, read-only-root, and disabled service-account-token defaults.
+  - id: R3
+    title: Model and observability tiers
+    items:
+      - id: R3.1
+        text: Planner and executor shall receive one values-selected OLLAMA_URL, from either an external endpoint or the optional chart-owned Ollama Service.
+      - id: R3.2
+        text: The optional Ollama tier shall provide persistent model storage, configured preload, and model-presence startup gating.
+      - id: R3.3
+        text: Every role shall use a distinct OTel service name and export OTLP to the optional collector.
+      - id: R3.4
+        text: The collector shall receive OTLP and export traces to the optional Jaeger backend.
+  - id: R4
+    title: Reproducible preparation
+    items:
+      - id: R4.1
+        text: mage helmPrepare shall regenerate #875 package output and atomically stage it as the chart profile source.
+      - id: R4.2
+        text: Default and small-footprint CI values shall lint and render without requiring Helm schema work from the next issue.
+
+acceptance_criteria:
+  - id: AC1
+    criterion: Helm renders exactly three role Deployments with real profiles, shared workspace, fixed role Services, and truthful probes.
+    traces: [R1, R2]
+  - id: AC2
+    criterion: Editing one prepared role profile changes only that role's rollout checksum.
+    traces: [R1.3, R1.4]
+  - id: AC3
+    criterion: External and in-cluster model modes plus collector-to-Jaeger tracing render coherently.
+    traces: [R3]
+  - id: AC4
+    criterion: helm lint and default and CI helm template commands pass after mage helmPrepare.
+    traces: [R4]

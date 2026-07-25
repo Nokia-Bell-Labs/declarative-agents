@@ -1,0 +1,21 @@
+{{- range $role := list "planner" "executor" "critic" }}
+{{- $context := dict "root" $ "role" $role -}}
+{{- $manifest := include "coding-agent.roleManifest" $context | fromYaml -}}
+{{- range $partition := $manifest.config_maps }}
+apiVersion: v1
+kind: ConfigMap
+metadata:
+  name: {{ include "coding-agent.fullname" $ }}-{{ $role }}-profiles-{{ $partition.index }}
+  labels:
+    {{- include "coding-agent.labels" $ | nindent 4 }}
+    app.kubernetes.io/component: {{ $role }}-profiles
+  annotations:
+    coding-agent/profile-checksum: {{ include "coding-agent.profileChecksum" $context }}
+data:
+  {{- range $partition.files }}
+  {{ . | replace "/" "__" }}: |-
+    {{- $.Files.Get (printf "profiles/%s/%s" $role .) | nindent 4 }}
+  {{- end }}
+---
+{{ end }}
+{{ end }}
