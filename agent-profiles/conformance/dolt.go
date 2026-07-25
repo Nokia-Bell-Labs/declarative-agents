@@ -67,7 +67,17 @@ func StartDolt(t *testing.T) *DoltServer {
 	if err := os.MkdirAll(doltHome, 0o755); err != nil {
 		t.Fatalf("create dolt home: %v", err)
 	}
-	env := append(os.Environ(), "DOLT_ROOT_PATH="+doltHome)
+	// Dolt normally forks a detached `dolt send-metrics` process when a
+	// command exits. That process is reparented before cmd.Wait returns and can
+	// keep writing below DOLT_ROOT_PATH while t.TempDir cleanup runs. Suppress
+	// the first flush through the environment, then persist the supported
+	// fixture-local setting so every subsequent command (including sql-server)
+	// stays within the process ownership tracked below.
+	env := append(os.Environ(),
+		"DOLT_ROOT_PATH="+doltHome,
+		"DOLT_DISABLE_EVENT_FLUSH=1",
+	)
+	runDolt(t, root, env, "config", "--global", "--add", "metrics.disabled", "true")
 	runDolt(t, root, env, "config", "--global", "--add", "user.name", "conformance")
 	runDolt(t, root, env, "config", "--global", "--add", "user.email", "conformance@example.com")
 
