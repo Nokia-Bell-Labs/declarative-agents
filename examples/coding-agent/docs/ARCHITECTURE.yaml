@@ -92,12 +92,13 @@ components:
       coding result. The benchmark/session mode remains available separately.
       The application references these profiles; it does not fork them.
   - name: application package
-    path: packaging/
-    status: planned
+    path: agents/application.yaml and magefiles/profiles_closure.go
+    status: implemented
     responsibility: |
-      Pin the library version, resolve direct references, collect the transitive
-      profile/config/declaration/tool closure, and emit a self-contained
-      application profile tree without modifying the runtime image.
+      Pin a compatible library release, identify checkout provenance, resolve
+      direct references, collect the transitive profile/config/declaration/tool
+      closure, and emit a deterministic self-contained application profile tree
+      without modifying the runtime image.
   - name: Kubernetes deployment
     path: helm/
     status: planned
@@ -125,13 +126,18 @@ design_decisions:
   - id: 2
     title: Assemble profile closure at package time
     decision: |
-      Packaging pins an `agent-profiles/v0.*` tag and resolves each direct
-      profile reference plus its transitive profiles, declarations, tools, and
-      configuration into the per-application profile tree.
+      `agents/application.yaml` pins a compatible `agent-profiles/v0.*` release
+      and names four direct references: planner, executor, critic session, and
+      critic changed-workspace. `mage package` resolves profile-local references
+      from their declaring YAML and `agents/...` references from the library
+      root, then preserves those paths in the per-application profile tree.
+      `/opt/agent-core/...` remains external. Unsafe, dangling, globbed, or
+      conflicting references fail. A non-release checkout records its revision
+      and compatible release separately instead of claiming release provenance.
     benefits:
       - Deployment has no runtime dependency on the source repository layout.
       - Missing transitive assets fail packaging instead of a live workload.
-      - The package records the exact library version used by all three agents.
+      - The package records the exact source revision used by every entry profile.
   - id: 3
     title: Keep the runtime image profile-free
     decision: |
@@ -162,6 +168,20 @@ design_decisions:
       - A failure identifies the first broken application boundary.
       - The suite proves real composition rather than paired stubs.
       - Documentation gates implementation in specification-driven order.
+  - id: 6
+    title: Use existing configuration surfaces
+    decision: |
+      The application introduces no template language. The current composition
+      needs no value override: planner and executor use canonical profile-local
+      LLM declarations and machine budgets, planner uses its existing child
+      profile config, and both critic modes are deterministic with no model,
+      REST target, or child profile. Future deployment-specific values may be
+      co-generated into profile-local declarations or explicit variants, but
+      the closure resolver copies referenced files without substitution.
+    benefits:
+      - Library profiles carry no coding-application values.
+      - Package contents have the same semantics as mounted profile contents.
+      - Later Helm and bundle consumers can reuse one closure contract.
 
 technology_choices:
   - component: Agent runtime
@@ -184,21 +204,24 @@ technology_choices:
     purpose: Run one container per agent with explicit mounts and boundaries.
   - component: Integration orchestration
     technology: Mage
-    purpose: Expose documentation audit now and staged coding-loop integration
-      targets in the implementation follow-up.
+    purpose: Expose profile packaging, documentation audit, and staged
+      coding-loop integration targets.
 
 project_structure:
   application:
+    - path: agents/application.yaml
+      role: App-specific composition references, compatible release pin, runtime
+        mount, and configuration-surface inventory.
     - path: docs/
       role: Application-level design and specification corpus.
     - path: testdata/integration/
       role: Planned coding-loop fixtures owned by this application.
-    - path: packaging/
-      role: Planned library references and assembled profile closure.
+    - path: magefiles/profiles_closure.go
+      role: Deterministic transitive library-profile closure assembly.
     - path: helm/
       role: Planned one-container-per-agent deployment chart.
-    - path: magefile.go
-      role: Application audit entry; integration targets are added separately.
+    - path: magefiles/
+      role: Application packaging, audit, and staged integration targets.
   library:
     - path: agent-profiles/agents/planner/
       role: Canonical planner profile.
@@ -212,17 +235,18 @@ project_structure:
 implementation_status:
   current_focus: |
     The application documentation, portable integration fixtures, live executor,
-    real planner delegation, and canonical critic verdict gate are implemented.
-    The reference resolver, packaging, and Helm deployment remain planned
-    follow-up work.
+    real planner delegation, canonical critic verdict gate, application
+    reference manifest, and profile closure packaging are implemented. Helm
+    deployment remains planned follow-up work.
   progress:
     - implemented: The planner -> executor -> critic coding loop and three-stage
         integration contract.
-    - specified: The reference-not-fork, package-time closure, profile-free
-        runtime image, and one-container-per-agent decisions.
+    - implemented: The reference-not-fork and package-time closure decisions,
+        including deterministic checkout provenance and all four entry profiles.
+    - specified: The profile-free runtime image and one-container-per-agent
+        deployment decisions.
     - implemented: Live executor, real planner delegation, and changed-workspace
         critic gate targets using the real built binary and canonical profiles.
-    - planned: Versioned library reference resolution and package assembly.
     - planned: Kubernetes deployment and Helm chart.
 
 related_documents:

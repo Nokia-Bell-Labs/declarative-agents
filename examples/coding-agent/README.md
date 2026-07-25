@@ -18,9 +18,9 @@ requirements in `agent-profiles/`:
 - `srd003-critic`
 - `srd004-planner`
 
-This directory owns the live integration targets and portable fixture in
-addition to the application specification. Packaging and Helm assets remain
-follow-up work.
+This directory owns the application reference manifest, profile-closure
+packaging, live integration targets, and portable fixture in addition to the
+application specification. Helm assets remain follow-up work.
 
 ## Coding loop
 
@@ -46,25 +46,62 @@ script, or another fake agent binary.
 
 ## Packaging and runtime boundary
 
-The application references library agents instead of forking them. Packaging
-pins an `agent-profiles/v0.*` tag and resolves the transitive closure of profiles,
-declarations, tools, and configuration into a per-application profile tree.
-Missing assets fail package construction.
+`agents/application.yaml` is the only application-owned agent asset. It names
+the planner, executor, critic session, and critic changed-workspace entry
+profiles by paths relative to the `agent-profiles` root. It also pins the
+compatible `agent-profiles/v0.*` release and records the existing configuration
+surfaces; it does not copy or template library programs.
+
+From this directory, assemble the closed runtime tree:
+
+```bash
+mage package
+```
+
+The default output is `build/profiles`; set
+`CODING_AGENT_PROFILES_OUTPUT` to select another output directory and
+`AGENT_PROFILES_ROOT` to package a different checkout. The resolver follows
+profile-local `machine`, tool-selection, declaration, config-directory, REST,
+child-profile, and nested critic references. Relative references resolve from
+the YAML file that declares them; `agents/...` references resolve from the
+`agent-profiles` root. The copied destination preserves those runtime paths.
+Only `/opt/agent-core/...` absolute references are external. Traversal, other
+absolute paths, globs in runtime references, symlinks, dangling references, and
+two sources targeting one destination fail packaging.
+
+`build/profiles/package-manifest.yaml` lists the sorted closure and provenance.
+When the source checkout is exactly the compatible clean release, provenance
+records that release. Otherwise it records `kind: checkout`, the checkout
+revision (or `unversioned-checkout` for a fixture), and the compatible release
+separately; a checkout is never mislabeled as released.
 
 The agent-core runtime image stays profile-free. Kubernetes runs planner,
 executor, and critic as separate containers using the same runtime image. Each
 container mounts the packaged tree under `/profiles` and selects its own profile.
 Profiles are application package content, not runtime image content.
 
+### Parameter inventory
+
+The coding application currently requires no generated override. Planner and
+executor use their canonical `llm/default.yaml` endpoint/model declarations and
+machine-local budgets. Planner's existing `execute_task.config.profile` selects
+`agents/executor/profile.yaml`. Both critic modes are deterministic and have no
+model, REST target, or child profile to override; their budgets remain in their
+canonical machines.
+
+These are existing profile surfaces, not a new substitution language. A later
+deployment may co-generate a profile-local declaration or machine variant and
+reference it from an application-owned profile, as the chatbot-mesh chart does.
+This packager copies references verbatim and does not interpret placeholders.
+No coding-application value is added to the library.
+
 ## Status
 
-All three coding-loop stages are implemented with the production agent-core
-binary and canonical profiles. The critic receives the existing Stage B
-workspace, writes its own accepted or rejected verdict, and the application
-maps that verdict to Succeeded or Failed. The following assets remain planned:
-
-- pinned library reference resolution and package assembly;
-- a Helm chart with one container per agent.
+All three coding-loop stages and pinned, transitive profile packaging are
+implemented with the production agent-core binary and canonical profiles. The
+critic receives the existing Stage B workspace, writes its own accepted or
+rejected verdict, and the application maps that verdict to Succeeded or Failed.
+A Helm chart with one container per agent remains planned.
 
 The existing critic benchmark/session profile remains available unchanged; the
 changed-workspace mode is a separate canonical profile variant.
@@ -73,6 +110,8 @@ changed-workspace mode is a separate canonical profile variant.
 
 ```text
 examples/coding-agent/
+  agents/
+    application.yaml
   docs/
     VISION.yaml
     ARCHITECTURE.yaml
@@ -82,6 +121,7 @@ examples/coding-agent/
       use-cases/
       test-suites/
   magefiles/
+    profiles_closure.go
   testdata/integration/coding-loop/
   go.mod
   README.md
@@ -100,9 +140,10 @@ mage audit
 ```
 
 The audit parses every YAML document, checks required fields and reciprocal
-traces, builds the real agent, boot-validates the three canonical profiles, and
-validates formal test-evidence claims without turning skipped live runs into
-passed evidence.
+traces, assembles the application closure in a temporary tree, builds the real
+agent, boot-validates all four mounted entry profiles (including
+`critic/profile-workspace.yaml`), and validates formal test-evidence claims
+without turning skipped live runs into passed evidence.
 
 The integration entry points are `mage integration:executorLive`,
 `mage integration:plannerDelegation`, `mage integration:criticGate`, and the

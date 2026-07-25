@@ -121,6 +121,45 @@ Mount this repository read-only at `/profiles` (or another mount point). Pass
 that mount path to **`--profile`**. Mount the workspace and pass it to
 **`--directory`**.
 
+## Application reference and packaging contract
+
+Applications consume profiles by reference; they do not copy canonical library
+profiles into their source trees. An application manifest names each entry
+profile with a path relative to this `agent-profiles` root and pins a compatible
+`agent-profiles/v0.*` release. Packaging, not the runtime, resolves the complete
+closure into a tree mounted at `/profiles`.
+
+Reference resolution follows the runtime's existing path surfaces:
+
+- entry references and values beginning `agents/` are relative to this root;
+- profile-local machine, tool selection, declarations, config directories, and
+  REST files are relative to the YAML file that declares them;
+- child `profile` and critic `point_*` declaration references are transitive;
+- `/opt/agent-core/...` references remain external runtime assets and are not
+  copied;
+- copied files retain their root-relative destination, so a declaration that
+  names `agents/executor/profile.yaml` still resolves at
+  `/profiles/agents/executor/profile.yaml`.
+
+Packagers must reject repository traversal, disallowed absolute paths, runtime
+reference globs, symlinks, dangling references, and conflicting destination
+paths. Output must be deterministic and record the sorted file closure plus
+source provenance. A clean checkout exactly at the pinned tag may record
+`kind: release`. Any other checkout records `kind: checkout`, its commit (or an
+explicit unversioned fixture marker), dirty state when applicable, and the
+compatible release separately. Compatibility is not release provenance.
+
+Library profiles expose configuration through profile-local declarations,
+machines, explicit variants, and the existing runtime flags and mounts. An
+application packager may select or co-generate those existing assets, but this
+contract introduces no placeholders or template substitution. Application
+values must not be committed into canonical library profiles.
+
+`examples/coding-agent/agents/application.yaml` and its `mage package` target
+are the reference implementation. Its closure includes planner, executor,
+critic session, and `critic/profile-workspace.yaml`; the application directory
+contains composition/config inventory only, not copied library programs.
+
 ## Demos and Fixtures
 
 Profile-owned demos live in `demo/`. The Knowledge Manager example uses the same

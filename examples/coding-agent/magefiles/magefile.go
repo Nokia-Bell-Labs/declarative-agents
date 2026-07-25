@@ -24,16 +24,31 @@ func Audit() error {
 	if err != nil {
 		return err
 	}
+	manifest, err := readApplicationProfileManifest(filepath.Join(root, filepath.FromSlash(profileManifestPath)))
+	if err != nil {
+		return err
+	}
+	packagedRoot, err := os.MkdirTemp("", "coding-agent-profiles-*")
+	if err != nil {
+		return err
+	}
+	defer func() { _ = os.RemoveAll(packagedRoot) }()
+	packagedRoot = filepath.Join(packagedRoot, "profiles")
+	source, err := inspectPackageSource(roots.Profiles, manifest.AgentProfiles.CompatibleRelease)
+	if err != nil {
+		return err
+	}
+	if _, err := assembleProfileClosure(manifest, roots.Profiles, packagedRoot, source); err != nil {
+		return fmt.Errorf("assemble canonical profile closure: %w", err)
+	}
 	binary, cleanup, err := buildAgent(roots.Core)
 	if err != nil {
 		return err
 	}
 	defer cleanup()
-	profiles := []string{
-		filepath.Join(roots.Profiles, "agents", "executor", "profile.yaml"),
-		filepath.Join(roots.Profiles, "agents", "planner", "profile.yaml"),
-		filepath.Join(roots.Profiles, "agents", "critic", "profile.yaml"),
-		filepath.Join(roots.Profiles, "agents", "critic", "profile-workspace.yaml"),
+	profiles := make([]string, 0, len(manifest.AgentProfiles.References))
+	for _, ref := range manifest.AgentProfiles.References {
+		profiles = append(profiles, filepath.Join(packagedRoot, filepath.FromSlash(ref.RuntimePath)))
 	}
 	if err := bootSmokeProfiles(binary, roots.Core, profiles); err != nil {
 		return err
