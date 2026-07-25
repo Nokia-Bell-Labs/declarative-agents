@@ -37,7 +37,7 @@ releases:
     follow_up:
       - id: gh-123
         summary: Generalize the jurist validator to deterministic data-driven charter suites
-        status: in_progress
+        status: done
 
   - version: "01.0"
     name: Unified agent binary and configuration-driven architecture
@@ -126,8 +126,8 @@ releases:
       rollback execution, machine_request response schemas, and explicit
       document_resources reservation. Modeled lifecycle_control endpoints and
       non-default rest_await_event read policies remain reserved or rejected
-      until future work implements them. Active follow-up work covers named
-      conformance-test alignment.
+      until future work implements them. The formal suite maps the implemented
+      contracts to named executable tests.
     status: done
     srds:
       - srd027-rest-tool-runtime
@@ -141,7 +141,7 @@ releases:
       - sm-document-resource-language
     config_formats:
       - cfg-rest-tool-format
-    planned_use_cases:
+    use_cases:
       - id: rel03.0-uc001-rest-client-sync
         summary: Grammar invokes configured REST client resource words
         status: done
@@ -166,10 +166,10 @@ releases:
       - id: rel03.0-uc008-rest-await-any-fan-in
         summary: Staged REST await-any fan-in adds a later event source after the first selected event
         status: done
-    planned_test_suites:
+    test_suites:
       - id: test-rel03.0-rest-tools
-        summary: Formal tests for REST runtime, client/server tools, fan-in, lifecycle exit routing, listener shutdown, OpenAPI import, Ollama E2E proof, profile-owned documentation-curator evidence, browser machine_request UX coverage, closed REST conformance fixes, and planned named-test alignment tracked by agent-core-guhn.4
-        status: in_progress
+        summary: Formal tests for REST runtime, client/server tools, fan-in, lifecycle exit routing, listener shutdown, OpenAPI import, Ollama E2E proof, profile-owned documentation-curator evidence, browser machine_request UX coverage, and closed REST conformance fixes
+        status: implemented
 
   - version: "04.0"
     name: Embedded monitor metrics and REST API
@@ -346,20 +346,21 @@ releases:
 
       The rig itself — the assembler and mock profiles, scenario authoring
       conventions, and the reference subject — is agent-profiles release 11.0
-      work over these words (Epic #662). This release records the
-      documentation and the runtime contracts; the mock binding lands in
-      GH-666 and the service-child tools in GH-667.
-    status: planned
+      work over these words (Epic #662). This release implements the
+      documentation and runtime contracts through the mock binding from
+      GH-666 and the service-child tools from GH-667. The full end-to-end
+      scenario tracer remains planned.
+    status: in_progress
     planned_work:
       - id: gh-664
         summary: Specify the mock REST binding and service-child tools (this release's documentation).
         status: done
       - id: gh-666
         summary: Implement the mock REST endpoint binding.
-        status: open
+        status: done
       - id: gh-667
         summary: Add service-child, validator, and scenario-discovery builtin tools.
-        status: open
+        status: done
     srds:
       - srd039-mock-endpoint-binding
       - srd040-service-child-tools

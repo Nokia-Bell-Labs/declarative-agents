@@ -184,7 +184,7 @@ platform_dependencies:
     symbols_used: [V30]
 
 implementation_status:
-  planned:
+  implemented:
     - >-
       The applier profile (agents/applier) -- its apply/control/monitor servers,
       the validate-apply-verify-rollback request machine, and the declared helm and

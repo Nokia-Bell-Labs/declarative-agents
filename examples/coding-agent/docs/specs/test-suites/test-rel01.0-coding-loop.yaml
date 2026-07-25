@@ -16,7 +16,7 @@ traces:
 preconditions:
   - agent-core is available through AGENT_CORE_ROOT or the repository's agent-core directory and can build the real agent binary.
   - Ollama is reachable with the configured planning and execution models; each live stage skips cleanly when it is unavailable.
-  - The application package resolves planner, executor, and critic from one pinned agent-profiles version.
+  - The application package snapshots planner, executor, and critic from one compatible agent-profiles checkout and records its revision.
   - A fresh copy of the greet fixture workspace is used for each stage.
   - The fixture carries its SRD, requirement graph, fallback candidate variants, and expected critic/application terminal outcomes.
 

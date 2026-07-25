@@ -115,5 +115,15 @@ platform_dependencies:
     symbols_used: [R9]
 
 implementation_status:
+  implemented:
+    - >-
+      The collector profile, bounded OTLP intake, deterministic spool and relay
+      modes, self-loop exclusion, staged Helm trace switch, retained contrib
+      metrics path, and persistent evidence checks. mage integration:rig drives
+      a real client batch through the shipped filter-to-spool machine leg, while
+      Helm smoke and observability evidence cover live routing and identity.
   planned:
-    - Collector profile, chart switch, staged metrics topology, and persistent rig proof under GH-820.
+    - >-
+      One lifecycle integration that exits while await_spans is blocked, proves
+      the receiver, control, and monitor addresses all rebind, and records the
+      bounded final monitor outcome required by R4 and AC4.

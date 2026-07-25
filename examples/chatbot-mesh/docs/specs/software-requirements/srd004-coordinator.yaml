@@ -119,13 +119,16 @@ platform_dependencies:
     symbols_used: [V30]
 
 implementation_status:
-  planned:
+  implemented:
     - >-
       The coordinator profile (agents/coordinator) and its intent endpoint,
-      ingestion and reconfiguration workflow machines, and declared creator client.
-      Documentation-only until the control-plane release (rel05.0) builds the
-      profile; the provisioning panel drives the deployment API directly (srd003
-      R4) until the coordinator sequences the intent.
+      ingestion and reconfiguration workflow machines, and declared creator
+      clients. mage integration:controlPlane proves the values-only path through
+      the real coordinator and creator against a recording fake deployment API.
+      The ingest path delegates to the creator's implemented corpus-ingest child
+      endpoint and checks the returned count. These paths have independent
+      evidence; no live integration yet joins ingest, rollout, and a grounded turn
+      from the newly added source.
 
 diagrams:
   requirements_trace: |

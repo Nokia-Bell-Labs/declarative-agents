@@ -48,9 +48,15 @@ with `DA_OTEL_GRPC_PORT`, `DA_OTEL_HTTP_PORT`, `DA_OTEL_HEALTH_PORT`,
 `DA_JAEGER_QUERY_PORT`, and `DA_PROMETHEUS_QUERY_PORT`. Integration targets may
 reuse a healthy stack but do not stop or reset it.
 
-Root releases use `mage audit` as the analysis gate and `mage test` as the
-unit-test gate. `mage tag` runs from `main` and creates the repository tag
-`v0.YYYYMMDD.N` plus module-scoped tags for release-relevant directories:
+Root releases require every release gate to exit successfully before tagging:
+`mage audit`, `mage test`, both `agent-core` and `agent-profiles`
+`mage integration:all`, and `agent-profiles` `mage conformance` with
+`AGENT_CORE_ROOT` set to the release checkout. A documented skip reported by a
+gate is accepted only when that gate exits successfully. A failed gate cannot
+be waived; fix the failure and run the gates again before creating a tag.
+
+`mage tag` runs from `main` only after the gates pass and creates the repository
+tag `v0.YYYYMMDD.N` plus module-scoped tags for release-relevant directories:
 `agent-core/v0.YYYYMMDD.N`, `agent-profiles/v0.YYYYMMDD.N`, and
 `design-patterns/v0.YYYYMMDD.N`.
 

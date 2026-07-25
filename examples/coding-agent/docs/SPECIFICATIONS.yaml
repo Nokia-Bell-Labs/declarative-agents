@@ -8,9 +8,10 @@ overview: |
   the canonical executor (srd002), critic (srd003), and planner (srd004)
   requirements in `agent-profiles/`.
 
-  Library references are not forks. Packaging resolves a pinned
-  `agent-profiles/v0.*` version and assembles the transitive profile closure
-  before deployment. The shared agent-core runtime image remains profile-free.
+  Library references are not forks. Packaging snapshots the configured checkout
+  compatible with the declared `agent-profiles/v0.*` release, records its
+  revision, and assembles the transitive profile closure before deployment. The
+  shared agent-core runtime image remains profile-free.
 
 roadmap_summary:
   - version: "01.0"

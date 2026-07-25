@@ -5,9 +5,11 @@ release: "07.0"
 overview: |
   This suite defines profile-owned tracer bullets for concrete state machines
   and cross-profile boundaries. Release 06.0 proved that profiles can live in
-  this repository and be consumed by agent-core. Release 07.0 proves selected
-  profile relationships as use cases: documentation-curator UX, evaluator to
-  generator, planner to generator, bench to evaluator, and monitor/control.
+  this repository and be consumed by agent-core. Release 07.0 proves the
+  documentation-curator UX, bench-to-critic, and monitor/control relationships.
+  The retired evaluator-to-generator and planner-to-generator entries preserve
+  traceability to application-owned replacements; they are not implemented
+  library evidence.
 
   The suite deliberately separates implemented, planned, and blocked evidence.
   A tracer is implemented only when agent-profiles owns the target, fixtures,

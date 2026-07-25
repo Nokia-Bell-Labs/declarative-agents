@@ -1,14 +1,14 @@
 id: test-rel10.0-role-catalog
 title: Test Suite for Release 10.0 Reference-Architecture Role Alignment
 release: "10.0"
+status: implemented
 
 overview: |
-  This suite validates that the agents/ tree is renamed and moved to match the
-  reference role catalog with profile wiring and conformance intact. It exists
-  before any migration issue starts (no implementation issue before a test suite
-  exists for its use case): the migration issues #325-#328 and #330 implement
-  exactly the cases below. Every case names explicit proof commands and expected
-  outputs so the migrations are checkable.
+  This suite validates the completed agents/ tree alignment with the reference
+  role catalog while preserving profile wiring and conformance. Migration
+  issues #325-#328 and #330 delivered the three implemented cases below:
+  critic/executor renames, knowledge-family rescope, and conformance-fixture
+  relocation. Each case names its proof commands and expected outputs.
 
 traces:
   - rel10.0-uc001-role-catalog-renames

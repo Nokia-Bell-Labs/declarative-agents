@@ -60,9 +60,9 @@ packaging, deployment, and operator UX.
 Runtime-test scaffolding is not part of the shipped agent library even when it
 currently sits in this repository. `mock`, `assembler`, rig-subject fixtures,
 and `testdata/conformance/` REST/control/lifecycle fixtures exercise
-`agent-core` behavior. Their relocation to `agent-core` is an explicit
-follow-up; this contract records the destination but moves no files in this
-issue.
+`agent-core` behavior. They remain internal scaffolding in their current paths;
+no relocation is scheduled or tracked. A future move would require its own
+tracker item, destination contract, and acceptance criteria.
 
 ### Consumer contract
 

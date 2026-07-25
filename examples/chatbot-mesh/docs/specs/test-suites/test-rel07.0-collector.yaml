@@ -47,9 +47,9 @@ test_cases:
 
   - use_case: rel07.0-uc001-collector-ingress
     name: Collector lifecycle releases receiver control and monitor listeners
-    integration_target: mage integration:collector
+    integration_target: not implemented
     status: planned
-    description: Lifecycle exit unblocks await and permits every configured address to bind again, with final monitor outcomes recorded.
+    description: No mage target currently proves this case. The required integration must issue lifecycle exit while await is blocked, permit every configured address to bind again, and record the final bounded monitor outcome.
     expected:
       blocked_await_released: true
       all_addresses_rebind: true
