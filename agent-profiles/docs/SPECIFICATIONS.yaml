@@ -38,11 +38,11 @@ overview: |
   compute embeddings at a local Ollama provider and thread the vector into Chroma
   add and query through the agent-core previous-Result parameter capability
   (srd028 R12), because Chroma does not embed server-side over its raw HTTP API.
-  srd012 owns the family requirements; the 08.0 use cases and test suite trace to
-  it. The mage integration:chroma target was relocated to examples/chatbot-mesh
-  in the mesh extraction and proves ingest count only over the example's copied
-  profile, so the profile-owned ingest+reader tracer is pending (#251) and the
-  08.0 cases are planned, not yet behaviorally proven here.
+  srd012 owns the family requirements. The mesh's integration:chroma and
+  integration:ragServer targets consume the canonical corpus-ingest program by
+  reference and prove ingest/count and served retrieval behavior with
+  application-owned REST parameterization. The reader's standalone
+  grounded-answer path remains specified separately.
 
   A reader can now start at the SRD, follow the semantic model role entries,
   reach the two mounted-profile use cases, and land on named commands such as
@@ -90,11 +90,10 @@ roadmap_summary:
       agent-profiles configuration over existing agent-core words. Embeddings are
       computed at a local Ollama provider and threaded into Chroma add and query
       (srd028 R12), because Chroma does not embed server-side over its raw HTTP
-      API. The ingest is a model-driven loop that lists and reads the corpus while
-      the machine sequences the deterministic embed and add steps. The mage
-      integration:chroma target was relocated to examples/chatbot-mesh and proves
-      ingest count only over the example's copied profile; the profile-owned
-      ingest+reader tracer over the knowledge-manager profiles is pending (#251).
+      API. The ingest machine lists trusted corpus paths before the model selects
+      among them, then sequences deterministic embed and add steps. The mesh
+      integration:chroma target consumes that canonical program by reference and
+      proves ingest count; the standalone reader answer tracer remains pending.
 
   - version: "11.0"
     name: Assembler test rig
@@ -380,7 +379,7 @@ use_case_index:
     summary: Ingest profile reads a corpus, embeds each document at Ollama, and
       threads the vector and carried document and id into Chroma add, then
       verifies the collection count.
-    status: specified
+    status: implemented
     path: docs/specs/use-cases/rel08.0-uc001-corpus-ingest.yaml
   - id: rel08.0-uc002-corpus-query
     title: Corpus Query from Chroma
@@ -516,17 +515,6 @@ test_suite_index:
       polling proven at the agent-core package level.
     status: implemented
     path: docs/specs/test-suites/test-rel07.1-profile-conformance.yaml
-  - id: test-rel08.0-chroma-corpus
-    title: Test Suite for Release 08.0 Chroma Corpus Agents
-    summary: Profile-owned tracer for Chroma corpus ingest and query. Both
-      profiles embed at a local Ollama provider and thread the vector into Chroma
-      add and query (srd028 R12), because Chroma does not embed server-side. The
-      mage integration:chroma target was relocated to examples/chatbot-mesh and
-      proves ingest count only over the example's copied profile; the reader
-      grounded-answer path is not exercised, so both cases are planned pending a
-      restored profile-owned ingest+reader tracer (#251).
-    status: planned
-    path: docs/specs/test-suites/test-rel08.0-chroma-corpus.yaml
   - id: test-rel09.0-chatbot-mesh
     title: Test Suite for Release 09.0 RAG Server and Single-RAG Chatbot Turn
     summary: Profile-owned tracers for the RAG server vector-in query (srd013) and
@@ -661,23 +649,21 @@ coverage_gaps: |
 
   Release 08.0 adds the Chroma corpus agents. srd012 owns the family and the two
   use cases (rel08.0-uc001-corpus-ingest, rel08.0-uc002-corpus-query) trace to it
-  through touchpoints; test-rel08.0-chroma-corpus traces to both. The provider-embedding threading
+  through touchpoints. The provider-embedding threading
   that release 07.1 recorded as missing for the rest client head -- REST client
   tools enforcing a declared-only runtime input contract that verbatim output
   threading does not satisfy -- is now available: agent-core #245 added
   previous-Result parameter threading (srd028 R12, body_source previous_result,
   input_mapping, carry_forward, single-token vector reshape), which the Chroma
   add and query words use to carry the Ollama-computed vector. The implementation
-  landed: the profile-owned Chroma and Ollama REST asset, the ingest and reader
-  profiles, the corpus fixture, and the mage integration:chroma target and its
-  tracer (#242-#244). Running the agents surfaced runtime and reader defects,
-  fixed under #250, and revealed that the ingest could not load a corpus without
-  a model-driven loop; #251 redesigned the ingest so the model lists and reads
-  the corpus while the machine sequences the deterministic embed and add steps.
-  The mesh extraction then moved the mage integration:chroma target out of
-  agent-profiles into examples/chatbot-mesh, where it proves ingest count only
-  over the example's copied profile; the reader grounded-answer path is not
-  exercised there. So the 08.0 use cases and test suite are specified and planned,
-  not behaviorally proven here, pending a restored profile-owned ingest+reader
-  tracer (#251). The intended run requires a reachable Chroma server and an Ollama
-  with the configured models.
+  landed: the profile-owned Chroma and Ollama REST asset and the ingest and
+  reader profiles (#242-#244). The mesh integration:chroma target now consumes
+  the canonical ingest program by reference while retaining its application
+  REST configuration and corpus fixture. Running the agents surfaced runtime and reader defects,
+  fixed under #250, and revealed that trusted corpus discovery must precede
+  model file selection; #251 introduced that loop and #849 made it canonical.
+  The mesh extraction owns the live Chroma harness and application REST values,
+  while its wrapper selects the library ingest program. That target now proves
+  the canonical ingest/count path. The reader grounded-answer path is not
+  exercised there and remains separately specified. Live runs require a
+  reachable Chroma server and Ollama with the configured models.

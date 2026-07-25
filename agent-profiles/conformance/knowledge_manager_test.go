@@ -5,9 +5,13 @@ package conformance
 import (
 	"fmt"
 	"net/http"
+	"os"
 	"path/filepath"
+	"strings"
 	"testing"
 	"time"
+
+	"gopkg.in/yaml.v3"
 )
 
 // TestKnowledgeManagerConformance launches the documentation-curator profile,
@@ -86,4 +90,115 @@ func TestKnowledgeManagerConformance(t *testing.T) {
 
 	// srd011 R3.2: the machine reaches the Done terminal state.
 	result.RequireTerminalState(t, "Done")
+}
+
+func TestCorpusIngestListsTrustedCorpusBeforeModelControl(t *testing.T) {
+	var machine struct {
+		States []struct {
+			Name string `yaml:"name"`
+		} `yaml:"states"`
+		Transitions []struct {
+			State  string `yaml:"state"`
+			Signal string `yaml:"signal"`
+			Next   string `yaml:"next"`
+			Action string `yaml:"action"`
+		} `yaml:"transitions"`
+	}
+	readKnowledgeYAML(t,
+		filepath.Join("..", "agents", "knowledge-manager", "corpus-ingest", "machine.yaml"),
+		&machine)
+	if !containsKnowledgeState(machine.States, "ListingCorpus") {
+		t.Fatal("canonical corpus-ingest machine has no ListingCorpus state")
+	}
+	requireKnowledgeTransition(t, machine.Transitions,
+		"CheckingOllama", "OllamaReady", "ListingCorpus", "list_resource")
+	requireKnowledgeTransition(t, machine.Transitions,
+		"ListingCorpus", "DocumentListReady", "Composing", "invoke_llm")
+	for _, transition := range machine.Transitions {
+		if transition.State == "Composing" && transition.Signal == "DocumentListReady" {
+			t.Fatal("model-controlled Composing state still owns corpus discovery")
+		}
+	}
+
+	var declarations struct {
+		Tools []struct {
+			Name       string         `yaml:"name"`
+			Visibility string         `yaml:"visibility"`
+			Config     map[string]any `yaml:"config"`
+		} `yaml:"tools"`
+	}
+	path := filepath.Join("..", "agents", "knowledge-manager", "corpus-ingest", "declarations.yaml")
+	readKnowledgeYAML(t, path, &declarations)
+	list := knowledgeTool(t, declarations.Tools, "list_resource")
+	if list.Visibility != "internal" || list.Config["resource"] != "corpus" {
+		t.Fatalf("list_resource authority = visibility %q config %#v", list.Visibility, list.Config)
+	}
+	invoke := knowledgeTool(t, declarations.Tools, "invoke_llm")
+	model, _ := invoke.Config["model"].(string)
+	provider, _ := invoke.Config["provider_url"].(string)
+	if !strings.Contains(model, "CORPUS_CHAT_MODEL") ||
+		!strings.Contains(provider, "OLLAMA_URL") {
+		t.Fatalf("canonical model parameterization = model %q provider %q", model, provider)
+	}
+}
+
+func readKnowledgeYAML(t *testing.T, path string, target any) {
+	t.Helper()
+	data, err := os.ReadFile(path)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if err := yaml.Unmarshal(data, target); err != nil {
+		t.Fatal(err)
+	}
+}
+
+func containsKnowledgeState(states []struct {
+	Name string `yaml:"name"`
+}, name string) bool {
+	for _, state := range states {
+		if state.Name == name {
+			return true
+		}
+	}
+	return false
+}
+
+func requireKnowledgeTransition(t *testing.T, transitions []struct {
+	State  string `yaml:"state"`
+	Signal string `yaml:"signal"`
+	Next   string `yaml:"next"`
+	Action string `yaml:"action"`
+}, state, signal, next, action string) {
+	t.Helper()
+	for _, transition := range transitions {
+		if transition.State == state && transition.Signal == signal &&
+			transition.Next == next && transition.Action == action {
+			return
+		}
+	}
+	t.Fatalf("missing transition %s/%s -> %s action %s", state, signal, next, action)
+}
+
+func knowledgeTool(t *testing.T, tools []struct {
+	Name       string         `yaml:"name"`
+	Visibility string         `yaml:"visibility"`
+	Config     map[string]any `yaml:"config"`
+}, name string) struct {
+	Name       string         `yaml:"name"`
+	Visibility string         `yaml:"visibility"`
+	Config     map[string]any `yaml:"config"`
+} {
+	t.Helper()
+	for _, tool := range tools {
+		if tool.Name == name {
+			return tool
+		}
+	}
+	t.Fatalf("missing tool %s", name)
+	return struct {
+		Name       string         `yaml:"name"`
+		Visibility string         `yaml:"visibility"`
+		Config     map[string]any `yaml:"config"`
+	}{}
 }

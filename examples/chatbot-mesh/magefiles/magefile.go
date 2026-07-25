@@ -69,6 +69,18 @@ func Audit() error {
 	if err != nil {
 		return err
 	}
+	corpusRuntime, cleanupCorpusRuntime, err := stageCorpusIngestRuntime(root)
+	if err != nil {
+		return err
+	}
+	defer cleanupCorpusRuntime()
+	sourceCorpusProfile := filepath.Join(root, filepath.FromSlash(chromaIngestProfile))
+	for index, profile := range profiles {
+		if filepath.Clean(profile) == sourceCorpusProfile {
+			profiles[index] = filepath.Join(
+				corpusRuntime, filepath.FromSlash(chromaIngestProfile))
+		}
+	}
 	if err := bootSmokeProfiles(defaultSmokeRun, binary, coreRoot, profiles); err != nil {
 		return err
 	}

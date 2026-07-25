@@ -68,7 +68,7 @@ Table 1: Mesh components
 |---|---|---|
 | Chatbot agent (`agents/chatbot/`) | data | Run the turn: embed once, route, fan out, compose, answer; host the SPA |
 | RAG server agent (`agents/rag-server/`) | data | Vector-in retrieval against one Chroma collection; one agent per corpus |
-| Corpus-ingest agent (`agents/corpus-ingest/`) | data | Seed a Chroma collection from a document directory under model control |
+| Corpus-ingest wrapper (`agents/corpus-ingest/`) + canonical library agent | data | Seed Chroma after machine-owned trusted-path discovery; the mesh supplies REST/model/collection values |
 | Coordinator (`agents/coordinator/`) | control | Decide the values change; sequence ingest and reconfiguration |
 | Creator (`agents/creator/`) | control | Act: agent lifecycle and request-draining rollout; holds deployment-API authority |
 | Applier (`agents/applier/`) | control | Declarative deployment API (srd006) the creator drives; validate-apply-verify-rollback binding helm/kubectl exec words |

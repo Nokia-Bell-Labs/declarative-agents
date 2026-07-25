@@ -36,9 +36,15 @@ The example spans both planes, and both are implemented. The data plane is the c
 
 Four decisions frame the extraction. They are recorded here so a reader understands the shape of the example.
 
-1. Standalone program on a shared runtime. The example runs on the agent-core image and references no profile outside this directory. It cites agent-core platform requirements (REST client tools, machine_request binding, monitor, mounted profiles, checkpoint, command-state, traceparent) as external references rather than restating them. Agent-core the runtime is a dependency; the other profiles in the catalog are not.
+1. Standalone composition on a shared runtime. The example runs on the
+   agent-core image. Its corpus-ingest wrapper references the canonical
+   agent-profiles knowledge-manager program; all other application agents remain
+   local. Platform requirements are cited rather than restated.
 
-2. The mesh owns its Chroma retrieval config. The RAG server holds its Chroma REST config inline, and the copied corpus-ingest agent carries the retrieval config it needs. Nothing is shared with the knowledge-manager corpus demo, so a copy of the folder carries a working retrieval path.
+2. The mesh owns Chroma retrieval configuration, not reusable ingest behavior.
+   The RAG server keeps its Chroma REST config inline, and
+   `agents/corpus-ingest/` keeps the wrapper plus `corpus-rest.yaml`. Trusted
+   discovery, machine, declarations, and tools come from the canonical library.
 
 3. Helm and UX are top-level directories. The chart lives under `helm/` and the single-page application under `ux/`, each clearly marked, rather than under `deploy/` or nested beneath an agent.
 

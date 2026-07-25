@@ -75,12 +75,12 @@ components:
       request, query the configured Chroma collection, and return chunks with
       embedding-model metadata. The Chroma REST config is owned inline here.
   - name: corpus-ingest agent
-    path: agents/corpus-ingest/
+    path: agents/corpus-ingest/ wrapper; ../../agent-profiles/agents/knowledge-manager/corpus-ingest/ program
     responsibility: |
-      Seed a Chroma collection from a document directory under model control: the
-      model lists and reads the corpus, the machine embeds each document at Ollama
-      and threads the vector into a Chroma add. Used to make the example
-      self-seeding for its integration tests.
+      Seed a Chroma collection from a document directory: the canonical library
+      machine lists trusted paths, the model selects among them, and the machine
+      embeds each document and threads its vector into Chroma. The mesh owns only
+      the wrapper and corpus-rest endpoint/model/collection parameterization.
   - name: coordinator agent
     path: agents/coordinator/
     responsibility: |
@@ -127,25 +127,26 @@ components:
 
 design_decisions:
   - id: 1
-    title: Standalone program on a shared runtime
+    title: Application composition on a shared runtime
     decision: |
       The example runs on the published agent-core image. Agents are YAML
-      profiles the runtime loads; the example references no profile outside this
-      directory and cites agent-core platform requirements externally.
+      profiles the runtime loads. Corpus ingest references the canonical
+      agent-profiles library program; other agents remain application-local.
+      Platform requirements are cited externally.
     benefits:
-      - Copying the directory copies a working program.
+      - Reusable corpus-ingest fixes have one canonical home.
       - The example demonstrates that agent behavior is configuration on a
         reusable runtime.
       - Runtime changes stay covered by agent-core's own gates.
   - id: 2
     title: The mesh owns its Chroma retrieval config
     decision: |
-      The RAG server owns its Chroma REST config inline, and the copied
-      corpus-ingest agent carries the retrieval config it needs. The example does
-      not share retrieval config with the knowledge-manager corpus demo.
+      The RAG server owns its Chroma REST config inline. The corpus-ingest
+      wrapper supplies application REST/model/collection values while selecting
+      the canonical library machine, tools, and declarations.
     benefits:
-      - Self-containment: the folder carries everything the mesh queries and seeds.
-      - No cross-example coupling that breaks on a move.
+      - Application endpoints and collection identity stay mesh-owned.
+      - Trusted discovery and ingest behavior do not fork from the library.
   - id: 3
     title: Helm and UX are top-level directories
     decision: |

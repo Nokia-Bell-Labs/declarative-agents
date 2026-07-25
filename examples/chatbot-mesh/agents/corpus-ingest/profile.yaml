@@ -1,11 +1,9 @@
 name: corpus-ingest
-machine: machine.yaml
+machine: ../knowledge-manager/corpus-ingest/machine.yaml
 tools:
-  - tools.yaml
+  - ../knowledge-manager/corpus-ingest/tools.yaml
 tool_declarations:
-  - /opt/agent-core/tools/builtin/done.yaml
-  - /opt/agent-core/tools/builtin/parse-response.yaml
-  - /opt/agent-core/tools/builtin/report-parse-error.yaml
-  - declarations.yaml
+  - /opt/agent-core/tools/builtin/llm/all.yaml
+  - ../knowledge-manager/corpus-ingest/declarations.yaml
 rest_definitions:
   - corpus-rest.yaml

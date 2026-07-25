@@ -489,6 +489,8 @@ func chartProfilePrograms() []chartProfileProgram {
 		{"agents/creator", "profiles/agents/creator"},
 		{"agents/applier", "profiles/agents/applier"},
 		{"agents/collector", "profiles/agents/collector"},
+		{"agents/corpus-ingest", "profiles/agents/corpus-ingest"},
+		{"../../agent-profiles/agents/knowledge-manager/corpus-ingest", "profiles/agents/knowledge-manager/corpus-ingest"},
 		{"ux/ux.yaml", "profiles/ux/ux.yaml"},
 		{"ux/app/dist", "profiles/ux/app/dist"},
 	}

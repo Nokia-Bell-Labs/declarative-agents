@@ -57,9 +57,6 @@ touchpoints:
   - id: T4
     target: srd012-chroma-corpus-agents AC6
     reason: The retrieved chunk identities and grounded answer are the checkable reader outputs.
-  - id: T5
-    target: test-rel08.0-chroma-corpus corpus_query
-    reason: The suite records the integration target, inputs, and expected embed -> chroma_query -> invoke_llm trace order.
 
 success_criteria:
   - id: S1
@@ -82,5 +79,4 @@ out_of_scope:
   - Starting or stopping the Chroma or Ollama servers from the agent.
   - Evaluating answer quality beyond the grounded-retrieval trace order.
 
-test_suite_trace: test-rel08.0-chroma-corpus
 status: specified
