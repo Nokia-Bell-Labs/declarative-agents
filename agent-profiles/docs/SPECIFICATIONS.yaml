@@ -13,6 +13,14 @@ overview: |
   semantic models record role boundaries, dependency directions, and validation
   views.
 
+  Architecture decision 4 defines this repository as a versioned reusable-agent
+  library. Membership requires independent usefulness or multiple consumers,
+  one canonical home, a family SRD, conformance, portable closure, and
+  application-safe parameterization. Applications own composition and package
+  referenced closures against exact agent-profiles/v0.* releases. Runtime-test
+  scaffolding remains pending relocation to agent-core and is not promoted as a
+  shipped application-agent contract.
+
   Release 11.0 adds two test-time families over the agent-core release 09.0
   words: srd018-assembler is the reusable test rig that composes a scenario
   from profile-owned data and reduces validator terminals to a verdict, and

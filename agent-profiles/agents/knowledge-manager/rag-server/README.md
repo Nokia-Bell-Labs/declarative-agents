@@ -13,3 +13,9 @@ Helm chart consume the canonical copy.
 The agent-profiles rel09 mesh specifications are the historical record of the
 mesh's development here before extraction; see examples/chatbot-mesh/docs for the
 canonical specifications.
+
+This relocation follows the library membership rule: the current RAG server is
+mesh-specific composition with one consumer, while reusable corpus behavior
+remains in the Knowledge Manager library profiles. A future independently useful
+RAG server may be promoted only with a canonical family, SRD, conformance,
+parameterization, and portable closure; it must not be copied from the example.
