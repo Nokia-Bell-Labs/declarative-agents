@@ -184,8 +184,32 @@ rest:
               target: chroma.records
               state: records_added
           reversibility:
-            classification: reversible
-            undo: noop
+            classification: compensatable
+            undo: delete_records
+          compensation:
+            operation: delete_records
+            reason: Delete the inserted record IDs from the trusted collection.
+        delete_records:
+          method: POST
+          path: /api/v2/tenants/default_tenant/databases/default_database/collections/{collection}/delete
+          params:
+            path:
+              collection: {type: string}
+            body_schema:
+              type: object
+              required: [ids]
+              properties:
+                ids: {type: string}
+          body:
+            ids: ["{{ params.ids }}"]
+          success: {status: [200], signal: DocumentDeleted}
+          side_effects:
+            - kind: external_api
+              target: chroma.records
+              state: records_deleted
+          reversibility:
+            classification: irreversible
+            undo: irreversible
         count_records:
           method: GET
           path: /api/v2/tenants/default_tenant/databases/default_database/collections/{collection}/count
