@@ -290,6 +290,22 @@ test_cases:
     traces:
       - srd006-yaml-machine-config AC4
 
+  - use_case: rel00.0-uc001-domain-agent-integration
+    name: MachineSpec iterates trusted command-state arrays
+    go_test: go test ./internal/runtime/core -run 'TestLoopForEach(DispatchesItemsInOrderAndJoins|EmptyCollectionStillJoins|ResumeContinuesAfterLastPersistedItem|CollectAllJoinsPartialInInputOrder|AbortSignalStopsCollectAll)|TestMachineSpecForEach(Validation|RoundTrips)'
+    inputs:
+      items: $from(items).items
+      mode: sequential
+      policies: [fail_fast, collect_all]
+    expected:
+      deterministic_input_order: true
+      one_dispatch_and_receipt_per_item: true
+      join_recorded: true
+      resume_does_not_replay_completed_items: true
+      unsupported_parallel_rejected: true
+    traces:
+      - srd006-yaml-machine-config AC5
+
   # --- srd001: core types (verified by compilation and loop tests) ---
   - use_case: rel00.0-uc001-domain-agent-integration
     name: State and Signal are named string types with three generic constants

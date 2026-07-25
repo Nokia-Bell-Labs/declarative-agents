@@ -28,6 +28,7 @@ type loopRunner struct {
 	taskCompletedSig Signal
 	checkpoint       Checkpoint
 	execution        Execution
+	iterator         *IteratorSnapshot
 	// checkpointSaveErr holds the error from the most recent dispatch-cycle
 	// Save (nil on success). A periodic-save failure is a traced diagnostic, but
 	// the same failure on the dispatch that suspends the run is terminal: srd025
@@ -59,6 +60,7 @@ func newLoopRunner(sm *StateMachine, p LoopParams, tr tracing.Tracer, ctx contex
 		taskCompletedSig: taskCompletedSignal(p.Hooks),
 		checkpoint:       resolveCheckpoint(p.Checkpoint),
 		execution:        cloneExecution(p.InitialExecution),
+		iterator:         cloneIteratorSnapshot(p.InitialIterator),
 	}
 }
 
@@ -97,6 +99,9 @@ func (r *loopRunner) done() bool {
 		return true
 	}
 	r.applyBudget()
+	if r.iterator != nil && r.signal != BudgetExhausted {
+		return r.doneIterator()
+	}
 	nextState, cmd, transitionSignal, commandStateLabel, metricLabels := r.nextTransition()
 	if r.stopForTerminal(nextState) {
 		return true
@@ -144,6 +149,9 @@ func (r *loopRunner) nextTransition() (State, Command, Signal, string, MetricLab
 	if err != nil {
 		r.recordUnhandledTransition(err)
 	} else {
+		nextState, cmd, commandStateLabel = r.prepareIterator(
+			transitionSignal, nextState, cmd, commandStateLabel,
+		)
 		r.recordTransition(nextState)
 	}
 	return nextState, cmd, transitionSignal, commandStateLabel, labels
@@ -219,12 +227,13 @@ func (r *loopRunner) dispatch(
 	commandStateLabel string,
 	fromState State,
 ) {
-	injectCommandState(cmd, r.execution)
+	injectCommandStateBindings(cmd, r.execution, r.iteratorBindings())
 	r.result = dispatchWithMonitorContext(
 		r.ctx, cmd, r.trace, r.params.CommandTimeout, r.params.MonitorRecorder, r.dispatchContext(labels),
 	)
 	r.signal = r.result.Signal
 	r.applyAfterDispatch(cmd)
+	r.recordIteratorOutcome()
 	r.accumulateResult()
 	r.recordResultEvent(fromState)
 	r.saveCheckpoint(fromState, transitionSignal, commandStateLabel)
@@ -243,6 +252,7 @@ func (r *loopRunner) saveCheckpoint(fromState State, transitionSignal Signal, co
 		dispatchEntry(r.iteration, fromState, r.state, transitionSignal, commandStateLabel, r.result),
 	)
 	pos := dispatchPosition(r.state, r.signal, r.iteration, &r.run)
+	pos.Snapshot.Iterator = cloneIteratorSnapshot(r.iterator)
 	r.foldConversation(&pos)
 	r.checkpointSaveErr = r.checkpoint.Save(pos, r.execution)
 	if r.checkpointSaveErr != nil {

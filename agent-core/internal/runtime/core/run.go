@@ -96,23 +96,26 @@ type LoopParams struct {
 	// InitialExecution seeds the loop's Execution log so a resumed run continues
 	// appending to the persisted history instead of starting a fresh log (srd035).
 	InitialExecution Execution
-	Prompt           string
-	Registry         *Registry
-	Table            TransitionTable
-	IsTerminal       TerminalFunc
-	Trace            tracing.Tracer
-	Budget           Budget
-	CommandTimeout   time.Duration
-	ModelName        string
-	Directory        string
-	Hooks            LoopHooks
-	AgentName        string
-	AgentVersion     string
-	ProviderName     string
-	MachineFile      string
-	MachineSpec      *MachineSpec
-	InitFunc         func(reg *Registry) error
-	ToolAction       ActionFunc
+	// InitialIterator restores an in-progress sequential for_each frame. It is
+	// populated by LoadResume from the typed checkpoint snapshot.
+	InitialIterator *IteratorSnapshot
+	Prompt          string
+	Registry        *Registry
+	Table           TransitionTable
+	IsTerminal      TerminalFunc
+	Trace           tracing.Tracer
+	Budget          Budget
+	CommandTimeout  time.Duration
+	ModelName       string
+	Directory       string
+	Hooks           LoopHooks
+	AgentName       string
+	AgentVersion    string
+	ProviderName    string
+	MachineFile     string
+	MachineSpec     *MachineSpec
+	InitFunc        func(reg *Registry) error
+	ToolAction      ActionFunc
 	// Checkpoint is the typed persistence port (srd035). The loop saves the
 	// current Position and Execution through it after each dispatch cycle. A nil
 	// value defaults to NoopCheckpoint, preserving disabled-mode behavior.

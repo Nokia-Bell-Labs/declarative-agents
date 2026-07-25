@@ -63,14 +63,21 @@ func (c command) nextScenario() core.Result {
 		Signal: SignalScenarioReady, CommandName: c.toolName,
 		Output: jsonOutput(map[string]interface{}{
 			"subject": scenario.Subject, "scenario": scenario.Name,
-			"validators": len(scenario.Validators), "fixtures": len(scenario.Fixtures),
+			"validators": len(scenario.Validators), "fixtures": fixtureItems(scenario.Fixtures),
 		}),
 	}
 }
 
-// startMocks starts one mock per fixture the scenario declares, recording each
-// mock's runtime base URL against the environment variable the subject reads.
-func (c command) startMocks() core.Result {
+func fixtureItems(fixtures []string) []map[string]string {
+	items := make([]map[string]string, 0, len(fixtures))
+	for _, fixture := range fixtures {
+		items = append(items, map[string]string{"path": fixture})
+	}
+	return items
+}
+
+// startScenarioMock starts the one mock bound by MachineSpec for_each.
+func (c command) startScenarioMock() core.Result {
 	scenario, manifest, ok := c.session.Current()
 	if !ok {
 		return commandError(c.toolName, fmt.Errorf("%s: no current scenario", c.toolName))
@@ -78,22 +85,23 @@ func (c command) startMocks() core.Result {
 	if c.cfg.Profile == "" {
 		return commandError(c.toolName, fmt.Errorf("%s: requires the mock profile", c.toolName))
 	}
-
-	started := make([]runningMock, 0, len(scenario.Fixtures))
-	for _, fixture := range scenario.Fixtures {
-		mock, err := c.startOneMock(scenario, manifest, fixture)
-		if err != nil {
-			// Leave teardown to the machine's failure edge; children already
-			// started stay tracked in the shared service state.
-			return commandError(c.toolName, err)
-		}
-		c.session.RecordMock(mock)
-		started = append(started, mock)
+	fixtureValue, err := core.ResolveFromSelector(c.commandState, c.cfg.Fixture)
+	if err != nil {
+		return commandError(c.toolName, err)
 	}
-
+	fixture, ok := fixtureValue.(string)
+	if !ok || fixture == "" {
+		return commandError(c.toolName, fmt.Errorf("%s: fixture selector did not resolve to a string", c.toolName))
+	}
+	mock, err := c.startOneMock(scenario, manifest, fixture)
+	if err != nil {
+		return commandError(c.toolName, err)
+	}
+	c.session.RecordMock(mock)
 	return core.Result{
-		Signal: SignalMocksStarted, CommandName: c.toolName,
-		Output: jsonOutput(map[string]interface{}{"mocks": started}),
+		Signal: SignalMockStarted, CommandName: c.toolName,
+		Output:  jsonOutput(map[string]interface{}{"mock": mock}),
+		Receipt: jsonOutput(map[string]interface{}{"service": mock.Service}),
 	}
 }
 

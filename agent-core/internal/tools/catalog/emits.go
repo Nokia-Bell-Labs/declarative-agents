@@ -134,6 +134,9 @@ func validateNamedActionEmits(spec core.MachineSpec, actions map[string][]core.T
 }
 
 func validateActionTransitionEmits(spec core.MachineSpec, def ToolDef, tr core.TransitionSpec, transitionSet map[core.TransitionInput]bool, terminalSet map[string]bool) []string {
+	if tr.ForEach != nil {
+		return validateIteratorActionEmits(spec, def, tr)
+	}
 	if terminalSet[tr.Next] {
 		return nil
 	}
@@ -146,6 +149,30 @@ func validateActionTransitionEmits(spec core.MachineSpec, def ToolDef, tr core.T
 		}
 	}
 	return errs
+}
+
+func validateIteratorActionEmits(spec core.MachineSpec, def ToolDef, tr core.TransitionSpec) []string {
+	accepted := append(append([]string{}, tr.ForEach.ContinueOn...), tr.ForEach.AbortOn...)
+	var errs []string
+	for _, emit := range def.Emits {
+		if stringIn(emit, accepted) {
+			continue
+		}
+		errs = append(errs, fmt.Sprintf(
+			"tool %q emits %q in machine %q for_each after %s/%s, but it is absent from continue_on and abort_on",
+			def.Name, emit, spec.Name, tr.State, tr.Signal,
+		))
+	}
+	return errs
+}
+
+func stringIn(value string, values []string) bool {
+	for _, candidate := range values {
+		if candidate == value {
+			return true
+		}
+	}
+	return false
 }
 
 func validateDynamicEmits(spec core.MachineSpec, transitions []core.TransitionSpec, defs []ToolDef, transitionSet map[core.TransitionInput]bool, terminalSet map[string]bool) []string {

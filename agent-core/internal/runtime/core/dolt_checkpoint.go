@@ -279,7 +279,8 @@ func createSchema(db Database) error {
 			tokens_in INT NOT NULL,
 			tokens_out INT NOT NULL,
 			total_cost DOUBLE NOT NULL,
-			conversation LONGTEXT
+			conversation LONGTEXT,
+			iterator LONGTEXT
 		)`,
 		fmt.Sprintf(`CREATE TABLE IF NOT EXISTS transitions (
 			run_id VARCHAR(255) NOT NULL,
@@ -331,6 +332,9 @@ func createSchema(db Database) error {
 		return err
 	}
 	if err := ensureToolOutputRedactionColumns(db); err != nil {
+		return err
+	}
+	if err := ensureMachineIteratorColumn(db); err != nil {
 		return err
 	}
 	return nil
@@ -391,19 +395,53 @@ func ensureToolOutputRedactionColumns(db Database) error {
 	return nil
 }
 
+func ensureMachineIteratorColumn(db Database) error {
+	var count int
+	err := db.QueryRow(`SELECT COUNT(*)
+		FROM information_schema.columns
+		WHERE table_schema = DATABASE()
+			AND table_name = 'machines'
+			AND column_name = 'iterator'`).Scan(&count)
+	if err != nil {
+		return fmt.Errorf("%w: schema: inspect machines.iterator: %v", ErrDolt, err)
+	}
+	if count > 0 {
+		return nil
+	}
+	if err := db.Exec(`ALTER TABLE machines ADD COLUMN iterator LONGTEXT`); err != nil {
+		return fmt.Errorf("%w: schema: add machines.iterator: %v", ErrDolt, err)
+	}
+	return nil
+}
+
 // writeMachine upserts the resumable Position row keyed by run_id.
 func writeMachine(tx Transaction, runID string, p Position) error {
+	iterator, err := iteratorSnapshotArgument(p.Snapshot.Iterator)
+	if err != nil {
+		return err
+	}
 	if err := tx.Exec(
 		`REPLACE INTO machines
-			(run_id, current_state, last_signal, iteration, tokens_in, tokens_out, total_cost, conversation)
-			VALUES (?, ?, ?, ?, ?, ?, ?, ?)`,
+			(run_id, current_state, last_signal, iteration, tokens_in, tokens_out, total_cost, conversation, iterator)
+			VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)`,
 		runID, string(p.CurrentState), string(p.LastSignal),
 		p.Snapshot.Iteration, p.Snapshot.TokensIn, p.Snapshot.TokensOut, p.Snapshot.TotalCost,
-		nullString(string(p.Snapshot.Conversation)),
+		nullString(string(p.Snapshot.Conversation)), iterator,
 	); err != nil {
 		return fmt.Errorf("%w: save: machine: %v", ErrDolt, err)
 	}
 	return nil
+}
+
+func iteratorSnapshotArgument(snapshot *IteratorSnapshot) (interface{}, error) {
+	if snapshot == nil {
+		return nil, nil
+	}
+	encoded, err := json.Marshal(snapshot)
+	if err != nil {
+		return nil, fmt.Errorf("%w: save: iterator snapshot: %v", ErrDolt, err)
+	}
+	return string(encoded), nil
 }
 
 // writeStep appends one Execution entry across transitions, execution_steps,
@@ -475,11 +513,12 @@ func loadMachine(db Database, runID string) (Position, error) {
 		tokensOut     int
 		totalCost     float64
 		conversation  sql.NullString
+		iterator      sql.NullString
 	)
 	err := db.QueryRow(
-		`SELECT current_state, last_signal, iteration, tokens_in, tokens_out, total_cost, conversation
+		`SELECT current_state, last_signal, iteration, tokens_in, tokens_out, total_cost, conversation, iterator
 			FROM machines WHERE run_id = ?`, runID,
-	).Scan(&state, &signal, &iteration, &tokensIn, &tokensOut, &totalCost, &conversation)
+	).Scan(&state, &signal, &iteration, &tokensIn, &tokensOut, &totalCost, &conversation, &iterator)
 	if err != nil {
 		return Position{}, err
 	}
@@ -497,6 +536,11 @@ func loadMachine(db Database, runID string) (Position, error) {
 	}
 	if conversation.Valid && conversation.String != "" {
 		pos.Snapshot.Conversation = []byte(conversation.String)
+	}
+	if iterator.Valid && iterator.String != "" {
+		if err := json.Unmarshal([]byte(iterator.String), &pos.Snapshot.Iterator); err != nil {
+			return Position{}, fmt.Errorf("%w: load: iterator snapshot: %v", ErrDolt, err)
+		}
 	}
 	return pos, nil
 }

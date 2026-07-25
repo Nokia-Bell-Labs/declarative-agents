@@ -3,10 +3,12 @@
 package core
 
 import (
+	"encoding/json"
 	"fmt"
-	"github.com/stretchr/testify/require"
 	"strings"
 	"testing"
+
+	"github.com/stretchr/testify/require"
 )
 
 func TestDoltCheckpointImplementsPort(t *testing.T) {
@@ -21,6 +23,11 @@ func TestDoltCheckpointSaveLoadRoundTrip(t *testing.T) {
 	cp := NewDoltCheckpoint(db, "run-1", nil)
 	exec := sampleExecution()
 	pos := samplePosition()
+	pos.Snapshot.Iterator = &IteratorSnapshot{
+		TransitionState: "Loading", TransitionSignal: "Ready", BodyState: "Iterating",
+		Action: "item", Spec: ForEachSpec{As: "item"},
+		Items: []json.RawMessage{json.RawMessage(`{"name":"next"}`)}, NextIndex: 0,
+	}
 
 	require.NoError(t, cp.Save(pos, exec[:1]))
 	require.NoError(t, cp.Save(pos, exec))

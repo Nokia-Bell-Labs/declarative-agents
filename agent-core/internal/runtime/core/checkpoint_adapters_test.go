@@ -24,6 +24,10 @@ func samplePositionExecution() (Position, Execution) {
 			TokensOut:    20,
 			TotalCost:    1.5,
 			Conversation: json.RawMessage(`[{"role":"user","content":"hi"}]`),
+			Iterator: &IteratorSnapshot{
+				Action: "item", Spec: ForEachSpec{As: "item"},
+				Items: []json.RawMessage{json.RawMessage(`{"name":"next"}`)},
+			},
 		},
 	}
 	exec := Execution{
@@ -70,6 +74,7 @@ func TestInMemoryCheckpointRoundTripsConversationAndReceipts(t *testing.T) {
 	require.Equal(t, pos.LastSignal, gotPos.LastSignal)
 	require.Equal(t, pos.Snapshot.Iteration, gotPos.Snapshot.Iteration)
 	require.JSONEq(t, string(pos.Snapshot.Conversation), string(gotPos.Snapshot.Conversation))
+	require.Equal(t, pos.Snapshot.Iterator, gotPos.Snapshot.Iterator)
 	require.Equal(t, exec, gotExec)
 	require.Equal(t, `{"path":"a.txt","previous":null}`, gotExec[0].Receipt)
 	require.Empty(t, gotExec[1].Receipt)
@@ -92,12 +97,14 @@ func TestInMemoryCheckpointIsolatesCallerMutation(t *testing.T) {
 	require.NoError(t, err)
 	gotExec[1].CommandName = "tampered"
 	gotPos.Snapshot.Conversation[0] = 'X'
+	gotPos.Snapshot.Iterator.Items[0][0] = 'X'
 
 	reloadPos, reloadExec, err := cp.Load()
 	require.NoError(t, err)
 	require.Equal(t, `{"path":"a.txt","previous":null}`, reloadExec[0].Receipt)
 	require.Equal(t, "read", reloadExec[1].CommandName)
 	require.JSONEq(t, `[{"role":"user","content":"hi"}]`, string(reloadPos.Snapshot.Conversation))
+	require.JSONEq(t, `{"name":"next"}`, string(reloadPos.Snapshot.Iterator.Items[0]))
 }
 
 func TestCheckpointWireFormat(t *testing.T) {

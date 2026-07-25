@@ -11,13 +11,14 @@ goals:
   - G1: YAML schema for declarative state machine definition.
   - G2: Validation with referential integrity checks.
   - G3: BuildTransitionTable converting YAML to a core.TransitionTable.
+  - G4: Trusted data-driven iteration with deterministic join semantics.
 
 requirements:
   R1:
     title: YAML schema (MachineSpec)
     items:
       - R1.1: "Top-level fields: name (string), initial_state (string), states (list), terminal_states (list), signals (list), transitions (list of TransitionSpec), budget (optional BudgetSpec)."
-      - R1.2: "TransitionSpec fields: state (string), signal (string), next (string), action (string, optional), and label (string, optional)."
+      - R1.2: "TransitionSpec fields: state (string), signal (string), next (string), action (string, optional), label (string, optional), and for_each (optional ForEachSpec)."
       - R1.3: "action is either a tool name resolvable from the Registry, the special sentinel $tool for dynamic dispatch, or empty for terminal transitions."
       - R1.4: "$tool is resolved using a caller-supplied ActionFunc for runtime tool lookup."
       - R1.5: "label is the stable, authored command-state address for the action executed by that transition. It is distinct from action and metric_labels."
@@ -52,10 +53,24 @@ requirements:
       - R4.2: ParseMachineSpec(data []byte) parses YAML bytes and validates.
       - R4.3: File read errors and YAML parse errors are wrapped with context.
 
+  R5:
+    title: Data-driven iteration and join
+    items:
+      - R5.1: "for_each.items must be a $from(label).path selector that resolves at runtime to a JSON array; for_each.as is a valid temporary command-state label."
+      - R5.2: "The MVP supports deterministic sequential dispatch only. Each item is built through the named Registry action and executed through normal core dispatch, producing its own trace, budget iteration, checkpoint Entry, and opaque receipt."
+      - R5.3: "The iterator supports fail_fast and collect_all policies and emits one declared all_success, partial, failed, or empty join signal with outcomes retained in input order."
+      - R5.4: "The join itself is recorded as an engine-owned Entry whose labeled output reports ordered outcomes and succeeded and failed counts."
+      - R5.5: "AgentSnapshot persists selected items, the next item index, outcomes, and iterator grammar so resume does not replay completed items."
+      - R5.6: "Cancellation stops scheduling items and uses the ordinary command context. Receipt-bearing item Entries remain visible to the existing reverse rollback walk."
+      - R5.7: "for_each must reject dynamic $tool actions, malformed selectors and labels, undeclared signals or states, unsupported modes, and invalid policies during startup validation."
+      - R5.8: "Runtime data may supply items only; it cannot supply actions or executable expressions. The iterator does not provide general scripting."
+
 non_goals:
   - Dynamic table modification during a run.
   - Tool registration from YAML (tools are registered in Go and resolved by name).
   - CLI integration (domain agent responsibility).
+  - Bounded parallel iteration; this release rejects non-sequential mode.
+  - A general expression, mutation, or scripting language in machine YAML.
 
 acceptance_criteria:
   - id: AC1
@@ -73,6 +88,9 @@ acceptance_criteria:
   - id: AC4
     criterion: LoadMachineSpec reads and parses YAML files. ParseMachineSpec parses bytes with validation. Errors include context.
     traces: [R4.1, R4.2, R4.3]
+  - id: AC5
+    criterion: A trusted command-state array drives deterministic sequential named-action dispatches with per-item trace, checkpoint, receipt, cancellation, rollback visibility, ordered join output, and checkpoint-resume progress; unsupported parallel mode is rejected.
+    traces: [R5.1, R5.2, R5.3, R5.4, R5.5, R5.6, R5.7, R5.8]
 
 depends_on:
   - srd_id: srd001-core-types
@@ -91,6 +109,7 @@ diagrams:
       Goals --> R2["R2: Validation"]
       Goals --> R3["R3: BuildTransitionTable"]
       Goals --> R4["R4: File loading"]
+      Goals --> R5["R5: Data-driven iteration and join"]
       AC1["AC1: MachineSpec has name, initial_state, states, terminal_sta..."]
       R1 --> AC1
       AC2["AC2: Validation checks referential integrity for initial_state..."]
@@ -99,4 +118,6 @@ diagrams:
       R3 --> AC3
       AC4["AC4: LoadMachineSpec reads and parses YAML files. ParseMachine..."]
       R4 --> AC4
+      AC5["AC5: trusted sequential iteration, join, and resume"]
+      R5 --> AC5
     ```

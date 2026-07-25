@@ -66,7 +66,7 @@ tools:
       input:
         - The session holds the seeded work list.
       output:
-        - Output reports the subject, scenario, validator count, and fixture count.
+        - Output reports the subject, scenario, validator count, and fixture items.
       errors:
         - An unreadable scenario manifest emits CommandError.
     non_goals:
@@ -83,7 +83,7 @@ tools:
           subject: {type: string}
           scenario: {type: string}
           validators: {type: integer}
-          fixtures: {type: integer}
+          fixtures: {type: array}
     side_effects:
       - kind: state_mutation
         target: scenario_session
@@ -100,22 +100,23 @@ tools:
         state_after_failure: The cursor has advanced past the scenario.
     config: {}
 
-  - name: start_scenario_mocks
+  - name: start_scenario_mock
     type: builtin
-    init: start_scenario_mocks
+    init: start_scenario_mock
     visibility: internal
     category: boundary
-    description: Start one mock per fixture the current scenario declares.
+    description: Start the one fixture mock bound by the machine iterator.
     problem: A subject's REST dependencies must answer controlled responses rather than a live service.
     goals:
-      - Start the shipped mock profile once per fixture, each on its own address.
-      - Record each mock's runtime base URL against the variable the subject reads.
+      - Start the shipped mock profile for the current iterator item.
+      - Record that mock's runtime base URL against the variable the subject reads.
     requirements:
       input:
         - Tool config declares the mock profile the rig starts.
-        - The session holds the current scenario and its fixtures.
+        - The session holds the current scenario.
+        - The fixture path comes from the trusted $from(fixture).path iterator binding.
       output:
-        - Output reports each mock's fixture, service name, environment variable, and base URL.
+        - Output reports this mock's fixture, service name, environment variable, and base URL.
       errors:
         - A spawn or port failure emits CommandError.
     non_goals:
@@ -123,13 +124,13 @@ tools:
     parameters:
       type: object
       properties: {}
-    emits: [MocksStarted, CommandError]
+    emits: [MockStarted, CommandError]
     output:
       description: The mocks started for this scenario.
       schema:
         type: object
         properties:
-          mocks: {type: array}
+          mock: {type: object}
     side_effects:
       - kind: child_agent_execution
         target: mock_agent
@@ -139,16 +140,17 @@ tools:
         state: mocks_recorded
     reversibility:
       classification: compensatable
-      undo: teardown_scenario
+      undo: stop_service
     undo:
       strategy: compensating_action
-      description: Stop the scenario's children rather than leave them running.
+      description: Decode the per-item receipt and stop only this mock.
     errors:
       - signal: CommandError
         condition: A mock fails to spawn or no port can be reserved.
-        state_after_failure: Mocks started before the failure stay tracked for teardown.
+        state_after_failure: Earlier item dispatches remain separately visible and reversible.
     config:
       profile: ../../agent-profiles/agents/mock/profile.yaml
+      fixture: $from(fixture).path
 
   - name: start_scenario_subject
     type: builtin

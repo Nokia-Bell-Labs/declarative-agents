@@ -40,6 +40,26 @@ func scenarioTree(t *testing.T, subjects map[string]map[string][]string) string 
 	return root
 }
 
+func bindFixture(t *testing.T, cmd core.Command, session *ScenarioSessionState) {
+	t.Helper()
+	scenario, _, ok := session.Current()
+	require.True(t, ok)
+	require.NotEmpty(t, scenario.Fixtures)
+	aware, ok := cmd.(core.CommandStateAware)
+	require.True(t, ok)
+	aware.SetCommandState(fixtureStateView{output: jsonOutput(map[string]interface{}{
+		"path": scenario.Fixtures[0],
+	})})
+}
+
+type fixtureStateView struct {
+	output string
+}
+
+func (v fixtureStateView) Lookup(label string) (string, bool) {
+	return v.output, label == "fixture"
+}
+
 // TestScenarioSession_IteratesEachScenarioOnce covers the cursor contract: the
 // session walks every discovered scenario exactly once, then reports done.
 func TestScenarioSession_IteratesEachScenarioOnce(t *testing.T) {
@@ -217,15 +237,19 @@ func TestScenarioSteps_ThreadsMockURLIntoSubject(t *testing.T) {
 
 	// Start the mock: the test binary serving health, standing in for the
 	// dependency. Its address is chosen at runtime.
-	mockResult := Builder{
-		ToolName: "start_mocks", Init: InitStartMocks, State: state, Session: session,
+	mockCommand := Builder{
+		ToolName: "start_mock", Init: InitStartScenarioMock, State: state, Session: session,
 		Config: ToolConfig{
 			Profile: "mock-profile", Binary: os.Args[0],
 			AddressEnv: envChildAddr,
 			Env:        []string{envChildMode + "=serve"},
+			Fixture:    "$from(fixture).path",
 		},
-	}.Build(core.Result{}).Execute()
-	require.Equal(t, SignalMocksStarted, mockResult.Signal, mockResult.Output)
+	}.Build(core.Result{})
+	bindFixture(t, mockCommand, session)
+	mockResult := mockCommand.Execute()
+	require.Equal(t, SignalMockStarted, mockResult.Signal, mockResult.Output)
+	require.NotEmpty(t, mockResult.Receipt)
 
 	mocks := session.Mocks()
 	require.Len(t, mocks, 1)
@@ -287,14 +311,17 @@ func TestScenarioSteps_TeardownRunsOnFailurePath(t *testing.T) {
 	_, _, err = session.Next()
 	require.NoError(t, err)
 
-	mockResult := Builder{
-		ToolName: "start_mocks", Init: InitStartMocks, State: state, Session: session,
+	mockCommand := Builder{
+		ToolName: "start_mock", Init: InitStartScenarioMock, State: state, Session: session,
 		Config: ToolConfig{
 			Profile: "mock", Binary: os.Args[0], AddressEnv: envChildAddr,
-			Env: []string{envChildMode + "=serve"},
+			Env:     []string{envChildMode + "=serve"},
+			Fixture: "$from(fixture).path",
 		},
-	}.Build(core.Result{}).Execute()
-	require.Equal(t, SignalMocksStarted, mockResult.Signal)
+	}.Build(core.Result{})
+	bindFixture(t, mockCommand, session)
+	mockResult := mockCommand.Execute()
+	require.Equal(t, SignalMockStarted, mockResult.Signal)
 	require.Len(t, state.Running(), 1)
 
 	// The subject starts but never serves the health path, so the wait times out.
@@ -381,7 +408,7 @@ func TestScenarioSteps_RejectIncompleteDeclarations(t *testing.T) {
 	session := NewScenarioSession(NewState())
 
 	// A step word with no current scenario is an error, not a panic.
-	for _, init := range []string{InitStartMocks, InitStartSubject, InitRunScenarioTests} {
+	for _, init := range []string{InitStartScenarioMock, InitStartSubject, InitRunScenarioTests} {
 		result := Builder{
 			ToolName: init, Init: init, State: NewState(), Session: session,
 			Config: ToolConfig{Profile: "p"},
@@ -393,8 +420,8 @@ func TestScenarioSteps_RejectIncompleteDeclarations(t *testing.T) {
 			"%s: %s", init, result.Output)
 	}
 
-	// start_scenario_mocks needs the mock profile declared.
-	err := validateToolConfig("t", InitStartMocks, ToolConfig{})
+	// start_scenario_mock needs a mock profile and iterator selector.
+	err := validateToolConfig("t", InitStartScenarioMock, ToolConfig{})
 	require.Error(t, err)
 	require.Contains(t, err.Error(), "requires the mock profile")
 

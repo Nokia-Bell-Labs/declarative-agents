@@ -139,6 +139,29 @@ test_cases:
       - srd018-assembler AC4
 
   - use_case: rel11.0-uc001-assembler-scenario-run
+    name: Fixture array drives machine-visible sequential mock starts
+    go_test: cd ../agent-core && go test ./internal/runtime/core ./internal/tools/service -run '^(TestLoopForEach.*|TestScenarioSteps_ThreadsMockURLIntoSubject)$'
+    status: implemented
+    description: |
+      A labeled next_scenario output supplies fixture objects to MachineSpec.
+      The iterator starts one mock per object in input order through the normal
+      registry and dispatch path, records one receipt-bearing Entry per mock,
+      emits a labeled ordered join, and resumes after the last persisted item
+      without replay. The former start_scenario_mocks Go collection loop is gone.
+    inputs:
+      fixtures: [dep_a.yaml, dep_b.yaml]
+      mode: sequential
+    expected:
+      dispatch_order: [dep_a.yaml, dep_b.yaml]
+      entry_per_mock: true
+      receipt_per_mock: true
+      join_is_labeled: true
+      resume_skips_completed_items: true
+    traces:
+      - rel11.0-uc001-assembler-scenario-run S1
+      - srd018-assembler AC1
+
+  - use_case: rel11.0-uc001-assembler-scenario-run
     name: One subject carries several scenarios added as data only
     integration_target: mage rig
     status: implemented

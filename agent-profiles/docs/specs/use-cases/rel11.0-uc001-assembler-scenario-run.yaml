@@ -26,7 +26,7 @@ flow:
   - id: F1
     text: The assembler enumerates scenarios under its configured roots and takes the first, which names the subject, its validators, and its fixture files.
   - id: F2
-    text: The assembler starts one mock per fixture file, each on its own address, and awaits their health.
+    text: A labeled command-state fixture array drives sequential MachineSpec for_each dispatch; each item starts one mock on its own address, records its own receipt-bearing Entry, and joins in input order.
   - id: F3
     text: The assembler starts the subject with environment additions pointing its dependency base_url at the mock addresses, and awaits its health.
   - id: F4
@@ -61,7 +61,7 @@ touchpoints:
 
 success_criteria:
   - id: S1
-    criterion: A scenario runs end to end with no live external service, every dependency response coming from a mock fixture.
+    criterion: A scenario runs end to end with no live external service; fixture mocks start as ordered machine-visible item dispatches with separate checkpoint and rollback boundaries, and every dependency response comes from a mock fixture.
     traces:
       - srd018-assembler AC1
       - srd019-mock AC2

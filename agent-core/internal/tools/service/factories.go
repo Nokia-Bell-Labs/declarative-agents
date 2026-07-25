@@ -4,6 +4,7 @@ package service
 
 import (
 	"context"
+	"encoding/json"
 	"fmt"
 	"time"
 
@@ -24,7 +25,7 @@ const (
 	// transitions while working on data discovered at runtime (srd018 R1).
 	InitInitScenarioSession = "init_scenario_session"
 	InitNextScenario        = "next_scenario"
-	InitStartMocks          = "start_scenario_mocks"
+	InitStartScenarioMock   = "start_scenario_mock"
 	InitStartSubject        = "start_scenario_subject"
 	InitAwaitSubject        = "await_scenario_subject"
 	InitRunScenarioTests    = "run_scenario_validators"
@@ -36,7 +37,7 @@ const (
 // StandardInits lists every service builtin init name.
 var StandardInits = []string{
 	InitStartService, InitAwaitHealthy, InitStopService, InitRunValidators, InitListScenarios,
-	InitInitScenarioSession, InitNextScenario, InitStartMocks, InitStartSubject,
+	InitInitScenarioSession, InitNextScenario, InitStartScenarioMock, InitStartSubject,
 	InitAwaitSubject, InitRunScenarioTests, InitCollectVerdict, InitTeardownScenario,
 	InitReportSession,
 }
@@ -58,6 +59,7 @@ const (
 	SignalNoScenarios      core.Signal = "NoScenarios"
 	SignalScenarioReady    core.Signal = "ScenarioReady"
 	SignalAllScenariosDone core.Signal = "AllScenariosDone"
+	SignalMockStarted      core.Signal = "MockStarted"
 	SignalMocksStarted     core.Signal = "MocksStarted"
 	SignalSubjectStarted   core.Signal = "SubjectStarted"
 	SignalScenarioPassed   core.Signal = "ScenarioPassed"
@@ -85,6 +87,7 @@ type ToolConfig struct {
 
 	Validators []ValidatorSpec `yaml:"validators,omitempty"`
 	Roots      []string        `yaml:"roots,omitempty"`
+	Fixture    string          `yaml:"fixture,omitempty"`
 
 	// Reason forces a scenario verdict to fail with this text, so a machine
 	// can route a failed start or health step to a verdict that names the
@@ -166,9 +169,12 @@ func validateToolConfig(name, init string, cfg ToolConfig) error {
 		if len(cfg.Roots) == 0 {
 			return fmt.Errorf("tool %q (%s) requires at least one root", name, init)
 		}
-	case InitStartMocks:
+	case InitStartScenarioMock:
 		if cfg.Profile == "" {
 			return fmt.Errorf("tool %q (%s) requires the mock profile", name, init)
+		}
+		if _, _, ok := core.ParseFromSelector(cfg.Fixture); !ok {
+			return fmt.Errorf("tool %q (%s) fixture must be a $from(label).path selector", name, init)
 		}
 	}
 	return nil
@@ -189,22 +195,30 @@ func (b Builder) Build(_ core.Result) core.Command {
 	if session == nil {
 		session = NewScenarioSession(b.State)
 	}
-	return command{toolName: b.ToolName, init: b.Init, cfg: b.Config, state: b.State, session: session}
+	return &command{toolName: b.ToolName, init: b.Init, cfg: b.Config, state: b.State, session: session}
+}
+
+// BuildReverser reconstructs a receipt-only command for per-mock rollback.
+func (b Builder) BuildReverser() core.Command {
+	return b.Build(core.Result{})
 }
 
 type command struct {
-	toolName string
-	init     string
-	cfg      ToolConfig
-	state    *State
-	session  *ScenarioSessionState
+	toolName     string
+	init         string
+	cfg          ToolConfig
+	state        *State
+	session      *ScenarioSessionState
+	commandState core.CommandStateView
 }
 
-func (c command) Name() string { return c.toolName }
+func (c *command) Name() string { return c.toolName }
 
-func (c command) Execute() core.Result { return c.ExecuteContext(context.Background()) }
+func (c *command) SetCommandState(view core.CommandStateView) { c.commandState = view }
 
-func (c command) ExecuteContext(ctx context.Context) core.Result {
+func (c *command) Execute() core.Result { return c.ExecuteContext(context.Background()) }
+
+func (c *command) ExecuteContext(ctx context.Context) core.Result {
 	switch c.init {
 	case InitStartService:
 		return c.start()
@@ -220,8 +234,8 @@ func (c command) ExecuteContext(ctx context.Context) core.Result {
 		return c.initSession()
 	case InitNextScenario:
 		return c.nextScenario()
-	case InitStartMocks:
-		return c.startMocks()
+	case InitStartScenarioMock:
+		return c.startScenarioMock()
 	case InitStartSubject:
 		return c.startSubject()
 	case InitAwaitSubject:
@@ -243,19 +257,32 @@ func (c command) ExecuteContext(ctx context.Context) core.Result {
 // word is read-only or already terminal, so its undo is a noop (srd040 R1.5,
 // R3.3). The declarations must match this, or the corpus audit reports a
 // tool-undo mismatch.
-func (c command) Undo(_ core.Result) core.Result {
+func (c *command) Undo(prior core.Result) core.Result {
 	switch c.init {
 	case InitStartService:
 		output := c.state.Stop(c.cfg.Service, parseDuration(c.cfg.Grace, defaultStopGrace))
 		return core.Result{
 			Signal: SignalServiceStopped, CommandName: c.toolName, Output: jsonOutput(output),
 		}
-	case InitStartMocks, InitStartSubject:
-		// Both start children, so both reverse by tearing the scenario's
-		// children down rather than leaving a subtree running.
+	case InitStartScenarioMock:
+		return c.undoScenarioMock(prior)
+	case InitStartSubject:
 		return c.teardownScenario()
 	default:
 		return core.NoopUndo(c.toolName)
+	}
+}
+
+func (c *command) undoScenarioMock(prior core.Result) core.Result {
+	var receipt struct {
+		Service string `json:"service"`
+	}
+	if err := json.Unmarshal([]byte(prior.Receipt), &receipt); err != nil || receipt.Service == "" {
+		return commandError(c.toolName, fmt.Errorf("%s: invalid mock receipt", c.toolName))
+	}
+	output := c.state.Stop(receipt.Service, parseDuration(c.cfg.Grace, defaultStopGrace))
+	return core.Result{
+		Signal: SignalServiceStopped, CommandName: c.toolName, Output: jsonOutput(output),
 	}
 }
 
@@ -334,3 +361,6 @@ func parseDuration(value string, fallback time.Duration) time.Duration {
 	}
 	return parsed
 }
+
+var _ core.Reverser = Builder{}
+var _ core.CommandStateAware = (*command)(nil)

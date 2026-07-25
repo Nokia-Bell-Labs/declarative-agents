@@ -15,8 +15,8 @@ metric_labels:
   profile: assembler
 initial_state: Idle
 budget:
-  # Nine steps per scenario plus discovery and reporting. This bounds the
-  # scenario loop (srd018 R6.4); a corpus of twenty scenarios fits comfortably.
+  # The fixed scenario pipeline plus one dispatch per fixture and one join.
+  # This bounds both the scenario and fixture loops (srd018 R6.4).
   max_iterations: 200
 states:
   - name: Idle
@@ -26,7 +26,7 @@ states:
   - name: AdvancingScenario
     meaning: Taking the next scenario from the work list, or finding the list exhausted.
   - name: StartingMocks
-    meaning: Starting one mock per fixture the scenario declares.
+    meaning: Starting each declared fixture mock sequentially through MachineSpec iteration.
   - name: StartingSubject
     meaning: Starting the agent under test with each mock's runtime address injected.
   - name: AwaitingSubject
@@ -60,7 +60,9 @@ signals:
   - name: AllScenariosDone
     trigger: The work list is exhausted.
   - name: MocksStarted
-    trigger: Every mock the scenario declares is running.
+    trigger: The fixture iterator joined after every mock started, including an empty fixture list.
+  - name: MockStarted
+    trigger: One fixture mock started successfully.
   - name: SubjectStarted
     trigger: The agent under test is running with its dependencies redirected.
   - name: Healthy
@@ -94,6 +96,7 @@ transitions:
     signal: SessionSeeded
     next: AdvancingScenario
     action: next_scenario
+    label: current_scenario
   - state: Discovering
     signal: NoScenarios
     next: Failed
@@ -104,7 +107,22 @@ transitions:
   - state: AdvancingScenario
     signal: ScenarioReady
     next: StartingMocks
-    action: start_scenario_mocks
+    action: start_scenario_mock
+    label: started_mock
+    for_each:
+      items: $from(current_scenario).fixtures
+      as: fixture
+      mode: sequential
+      failure: fail_fast
+      continue_on: [MockStarted]
+      abort_on: [CommandError]
+      join:
+        next: StartingMocks
+        label: mocks_joined
+        signals:
+          all_success: MocksStarted
+          failed: CommandError
+          empty: MocksStarted
   - state: AdvancingScenario
     signal: AllScenariosDone
     next: Reporting
@@ -181,6 +199,7 @@ transitions:
     signal: ScenarioTornDown
     next: AdvancingScenario
     action: next_scenario
+    label: current_scenario
 
   - state: Reporting
     signal: SessionPassed

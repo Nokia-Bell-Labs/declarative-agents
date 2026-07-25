@@ -168,6 +168,7 @@ type TransitionSpec struct {
 	Next         string       `yaml:"next"`
 	Action       string       `yaml:"action,omitempty"`
 	Label        string       `yaml:"label,omitempty"`
+	ForEach      *ForEachSpec `yaml:"for_each,omitempty"`
 	MetricLabels MetricLabels `yaml:"metric_labels,omitempty"`
 	labelSet     bool
 }
@@ -321,9 +322,13 @@ func validateSpec(spec MachineSpec) error {
 				i, tr.Label,
 			))
 		}
+		errs = append(errs, validateForEachSpec(i, tr, stateSet, signalSet)...)
 		if err := ValidateMetricLabels(fmt.Sprintf("transition[%d].metric_labels", i), tr.MetricLabels); err != nil {
 			errs = append(errs, err.Error())
 		}
+	}
+	for i, tr := range spec.Transitions {
+		errs = append(errs, validateForEachJoinRouting(i, tr, transitionIndexes, terminalIndexes)...)
 	}
 
 	if err := ValidateMetricLabels("metric_labels", spec.MetricLabels); err != nil {
@@ -364,6 +369,7 @@ func DiagnoseMachineSpec(spec MachineSpec) []MachineDiagnostic {
 
 	for i, tr := range spec.Transitions {
 		usedSignals[tr.Signal] = true
+		markForEachSignals(usedSignals, tr.ForEach)
 		if !reachable[tr.State] {
 			diagnostics = append(diagnostics, MachineDiagnostic{
 				Severity:        MachineDiagnosticWarning,
@@ -408,6 +414,9 @@ func reachableStates(spec MachineSpec) map[string]bool {
 	adjacency := make(map[string][]string, len(spec.States))
 	for _, tr := range spec.Transitions {
 		adjacency[tr.State] = append(adjacency[tr.State], tr.Next)
+		if tr.ForEach != nil {
+			adjacency[tr.State] = append(adjacency[tr.State], tr.ForEach.Join.Next)
+		}
 	}
 	queue := []string{spec.InitialState}
 	reachable[spec.InitialState] = true

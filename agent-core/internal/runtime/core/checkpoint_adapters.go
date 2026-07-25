@@ -66,6 +66,7 @@ func clonePosition(p Position) Position {
 	if len(p.Snapshot.Conversation) > 0 {
 		p.Snapshot.Conversation = append(json.RawMessage(nil), p.Snapshot.Conversation...)
 	}
+	p.Snapshot.Iterator = cloneIteratorSnapshot(p.Snapshot.Iterator)
 	return p
 }
 

@@ -43,7 +43,7 @@ requirements:
       - R2.1: The adapter SHALL create a generic five-table schema, machines, transitions, execution_steps, tool_outputs, and receipts; it splits the spindle srd015 R2 tool_results table into a forward plane (tool_outputs) and a reverse plane (receipts).
       - R2.2: Schema creation SHALL be idempotent using CREATE TABLE IF NOT EXISTS.
       - R2.3: The schema SHALL NOT define per-machine or per-run tables; all runs share the same tables keyed by run_id and step_index.
-      - R2.4: machines and transitions SHALL capture the resumable Position (current_state, last_signal, and the AgentSnapshot counters and folded conversation); execution_steps SHALL capture the ordered Execution entries.
+      - R2.4: machines and transitions SHALL capture the resumable Position (current_state, last_signal, AgentSnapshot counters, folded conversation, and optional iterator snapshot); execution_steps SHALL capture the ordered Execution entries.
 
   R3:
     title: Forward-plane outputs and reverse-plane receipts
@@ -73,7 +73,7 @@ requirements:
     title: Load reconstruction
     items:
       - R5.1: Load SHALL reconstruct Position and Execution from the latest commit on the run branch, mirroring spindle srd015 R6.
-      - R5.2: Load SHALL restore the folded conversation snapshot, every entry's output from tool_outputs, and every entry's opaque receipt from receipts.
+      - R5.2: Load SHALL restore the folded conversation and iterator snapshots, every entry's output from tool_outputs, and every entry's opaque receipt from receipts.
       - R5.3: Load SHALL report a typed not-found result when the run branch or its rows do not exist.
       - R5.4: A run resumed in a fresh process SHALL Load an equivalent Position and Execution to the pre-suspend state.
 
@@ -111,7 +111,7 @@ acceptance_criteria:
     traces: [R4.1, R4.2, R4.3, R4.4, R4.5]
 
   - id: AC5
-    criterion: Load reconstructs Position and Execution (including conversation, per-entry output from tool_outputs, and per-entry receipt from receipts) from the latest commit on the run branch, reports not-found when absent, and lets a fresh process resume an equivalent state.
+    criterion: Load reconstructs Position and Execution (including conversation, iterator progress, per-entry output from tool_outputs, and per-entry receipt from receipts) from the latest commit on the run branch, reports not-found when absent, and lets a fresh process resume an equivalent state.
     traces: [R5.1, R5.2, R5.3, R5.4]
 
   - id: AC6

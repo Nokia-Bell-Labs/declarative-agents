@@ -17,6 +17,7 @@ type machineRow struct {
 	iteration, tokensIn, tokensOut int
 	totalCost                      float64
 	conversation                   *string
+	iterator                       *string
 }
 
 type transitionRow struct{ fromState, signal, toState string }
@@ -96,6 +97,7 @@ type fakeDB struct {
 	outputBytes            int
 	executionStepsExists   bool
 	executionStepsHasLabel bool
+	machinesHasIterator    bool
 	toolOutputsExists      bool
 	redactionColumns       map[string]bool
 	toolOutputArgs         [][]any
@@ -122,6 +124,9 @@ func (f *fakeDB) Exec(query string, args ...any) error {
 		return sql.ErrConnDone
 	}
 	switch {
+	case strings.Contains(query, "CREATE TABLE IF NOT EXISTS machines"):
+		f.machinesHasIterator = strings.Contains(query, "iterator LONGTEXT")
+		return nil
 	case strings.Contains(query, "CREATE TABLE IF NOT EXISTS execution_steps"):
 		if !f.executionStepsExists {
 			f.executionStepsExists = true
@@ -147,6 +152,9 @@ func (f *fakeDB) Exec(query string, args ...any) error {
 				f.redactionColumns[column] = true
 			}
 		}
+		return nil
+	case strings.Contains(query, "ALTER TABLE machines ADD COLUMN iterator"):
+		f.machinesHasIterator = true
 		return nil
 	case strings.Contains(query, "DOLT_CHECKOUT('main')"):
 		f.current = "main"
@@ -206,6 +214,7 @@ func (f *fakeDB) Exec(query string, args ...any) error {
 			tokensOut:    args[5].(int),
 			totalCost:    args[6].(float64),
 			conversation: strPtr(args[7]),
+			iterator:     strPtr(args[8]),
 		}
 		return nil
 	case strings.Contains(query, "REPLACE INTO transitions"):
@@ -262,6 +271,9 @@ func (f *fakeDB) QueryRow(query string, args ...any) Scanner {
 	switch {
 	case strings.Contains(query, "information_schema.columns"):
 		count := 0
+		if strings.Contains(query, "table_name = 'machines'") && f.machinesHasIterator {
+			count = 1
+		}
 		if strings.Contains(query, "table_name = 'execution_steps'") && f.executionStepsHasLabel {
 			count = 1
 		}
@@ -346,6 +358,7 @@ func (s *fakeScanner) Scan(dest ...any) error {
 		*dest[4].(*int) = s.machine.tokensOut
 		*dest[5].(*float64) = s.machine.totalCost
 		*dest[6].(*sql.NullString) = nsFromPtr(s.machine.conversation)
+		*dest[7].(*sql.NullString) = nsFromPtr(s.machine.iterator)
 	case "log":
 		*dest[0].(*string) = s.hash
 	}

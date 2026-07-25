@@ -56,11 +56,12 @@ requirements:
     title: Behavior model
     items:
       - R1.1: The assembler profile must model a deterministic pipeline that discovers scenarios, composes each one, collects a verdict, and reports an aggregate outcome.
-      - R1.2: For each scenario the assembler must start the scenario's mock children, start the subject agent, await health, run the scenario's validators, collect their terminal states, and tear the children down.
+      - R1.2: For each scenario the assembler must expose its fixture array as command state, dispatch start_scenario_mock once per fixture through MachineSpec sequential for_each, join those outcomes, start the subject agent, await health, run the scenario's validators, collect their terminal states, and tear the children down.
       - R1.3: The assembler must give each scenario a fresh subject instance, so scenarios stay independent of one another.
       - R1.4: Validators declared within one scenario must run against that scenario's single subject instance.
       - R1.5: The assembler must tear down every child it started, including on a failure path, so no child process outlives a scenario.
       - R1.6: The assembler must not invoke a model; its transitions are driven by tool results.
+      - R1.7: Each mock start must have its own trace, checkpoint Entry, opaque receipt, and rollback boundary; the assembler must not hide fixture iteration inside a collection Go tool.
 
   R2:
     title: Scenario layout
@@ -88,7 +89,7 @@ requirements:
     title: Inputs, tools, and runtime dependencies
     items:
       - R5.1: Assembler inputs must include the discovery roots and the discovered scenario data.
-      - R5.2: The assembler profile must select the service-child, validator-execution, and scenario-discovery tool families.
+      - R5.2: The assembler profile must select the atomic start_scenario_mock service word plus the subject, validator-execution, teardown, and scenario-discovery words.
       - R5.3: Assembler dependencies must name agent-core for child-process execution, validator execution, and discovery, and srd019-mock for the mock family it starts.
       - R5.4: The assembler must run the subject and the mocks as the same agent binary over mounted profiles, so no per-test container image is required.
 
@@ -98,7 +99,7 @@ requirements:
       - R6.1: A scenario must pass only when every validator in it reaches its passing terminal state.
       - R6.2: Assembler outputs must record the per-scenario verdict and, for a failure, which validator failed and why, so a failing run names its cause.
       - R6.3: Assembler terminal outcomes must be Passed or Failed, with the aggregate reflecting every scenario.
-      - R6.4: A scenario loop must be bounded by a declared iteration budget.
+      - R6.4: The scenario and per-fixture loops must be bounded by a declared iteration budget.
 
 non_goals:
   - Define Go package APIs for the agent-core child-process, validator, or discovery words.
@@ -106,11 +107,13 @@ non_goals:
   - Kubernetes, container, or hierarchical control-plane deployment of the rig; children are local processes at this release.
   - Span-based state assertion; validators witness through responses and the mock request log.
   - Own cross-profile dependency-direction invariants; those stay in srd001.
+  - Replacing validator concurrency or aggregate teardown in this tracer; full fan-out decomposition belongs to GH-887.
+  - Bounded parallel fixture dispatch; the MachineSpec iterator is sequential in this release.
 
 acceptance_criteria:
   - id: AC1
-    criterion: The assembler profile is described as a configured, deterministic scenario composition pipeline rather than a Go harness, and it composes, verdicts, and tears down each scenario with a fresh subject.
-    traces: [R1.1, R1.2, R1.3, R1.4, R1.5, R1.6]
+    criterion: The assembler profile is a configured, deterministic scenario composition pipeline; each fixture start is a machine-visible sequential iterator dispatch with its own trace, checkpoint Entry, receipt, and rollback boundary, and each scenario gets a fresh subject and teardown.
+    traces: [R1.1, R1.2, R1.3, R1.4, R1.5, R1.6, R1.7]
   - id: AC2
     criterion: The scenario layout lets one subject carry several self-contained tests as profile-owned data, with no assembler change required to add one.
     traces: [R2.1, R2.2, R2.3, R2.4]
@@ -132,6 +135,8 @@ depends_on:
     symbols_used: [R1]
   - srd_id: srd019-mock
     symbols_used: [R1, R2]
+  - srd_id: srd006-yaml-machine-config
+    symbols_used: [R5]
 
 diagrams:
   requirements_trace: |
@@ -155,8 +160,10 @@ diagrams:
     ```mermaid
     flowchart LR
       Discover["DiscoverScenarios"] --> Next["NextScenario"]
-      Next --> Mocks["StartMocks"]
-      Mocks --> Subject["StartSubject"]
+      Next --> Fixtures["Fixture array"]
+      Fixtures --> Mocks["for_each StartMock"]
+      Mocks --> Join["Join mock outcomes"]
+      Join --> Subject["StartSubject"]
       Subject --> Health["AwaitHealthy"]
       Health --> Validate["RunValidators"]
       Validate --> Collect["CollectVerdict"]

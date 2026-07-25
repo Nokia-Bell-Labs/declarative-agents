@@ -36,13 +36,18 @@ type commandStateEntry struct {
 }
 
 type commandStateView struct {
-	entries []commandStateEntry
+	entries  []commandStateEntry
+	bindings map[string]string
 }
 
 // NewCommandStateView projects the execution log into the receipt-blind view.
 // It retains both the optional authored label and the executed command name so
 // either can address a step. The projection never reads the receipt.
 func NewCommandStateView(execution Execution) CommandStateView {
+	return newCommandStateView(execution, nil)
+}
+
+func newCommandStateView(execution Execution, bindings map[string]string) CommandStateView {
 	projected := make([]commandStateEntry, 0, len(execution))
 	for _, e := range execution {
 		output := e.Result.Output
@@ -63,7 +68,7 @@ func NewCommandStateView(execution Execution) CommandStateView {
 			redactionStatus:  status,
 		})
 	}
-	return &commandStateView{entries: projected}
+	return &commandStateView{entries: projected, bindings: bindings}
 }
 
 // Lookup scans from the most recent entry backward and matches either authored
@@ -78,6 +83,9 @@ func (v *commandStateView) Lookup(label string) (string, bool) {
 // giving selector resolution a typed reason when the newest matching entry is
 // unsafe. An unavailable newest match does not fall back to an older match.
 func (v *commandStateView) lookup(label string) (string, bool, error) {
+	if output, ok := v.bindings[label]; ok {
+		return output, true, nil
+	}
 	for i := len(v.entries) - 1; i >= 0; i-- {
 		entry := v.entries[i]
 		if (entry.label != "" && entry.label == label) || entry.commandName == label {
@@ -102,8 +110,12 @@ var _ CommandStateView = (*commandStateView)(nil)
 // before the current one (the current entry is appended after dispatch), so the
 // view is a strictly-forward, receipt-blind read over completed steps.
 func injectCommandState(cmd Command, priorSteps Execution) {
+	injectCommandStateBindings(cmd, priorSteps, nil)
+}
+
+func injectCommandStateBindings(cmd Command, priorSteps Execution, bindings map[string]string) {
 	if aware, ok := cmd.(CommandStateAware); ok {
-		aware.SetCommandState(NewCommandStateView(priorSteps))
+		aware.SetCommandState(newCommandStateView(priorSteps, bindings))
 	}
 }
 
