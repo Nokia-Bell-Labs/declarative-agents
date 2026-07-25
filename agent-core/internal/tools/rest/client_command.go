@@ -138,6 +138,10 @@ func requestBuildFailureStage(err error) string {
 	if isCredentialResolutionError(err) {
 		return "auth_resolution"
 	}
+	var targetErr targetResolutionError
+	if errors.As(err, &targetErr) {
+		return "target_resolution"
+	}
 	return "request_rendering"
 }
 

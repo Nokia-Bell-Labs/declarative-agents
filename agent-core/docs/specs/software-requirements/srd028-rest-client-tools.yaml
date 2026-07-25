@@ -152,6 +152,15 @@ requirements:
       - R13.4: body_source previous_result SHALL remain supported and unchanged; command_state widens the addressable source from the immediately previous Result to any labeled prior step without altering the previous_result path.
       - R13.5: The R12.4 rejection of command_state SHALL be lifted only when a command-state store is configured; without a configured store, body_source command_state SHALL continue to be rejected with the existing clear message.
 
+  R14:
+    title: Trusted command-state operation targets
+    items:
+      - R14.1: A configured operation MAY declare base_url_source command_state and a base_url_selector in $from(<label>).<path> form to select an absolute HTTP or HTTPS base URL from a labeled prior command output; omission SHALL preserve the configured client base_url path unchanged.
+      - R14.2: Operation target selection SHALL remain distinct from runtime input_mapping, which SHALL continue to reject method, URL, authentication, redirect policy, and destination-host targets under R12.4 and R13.3.
+      - R14.3: A selected target SHALL be rejected before network I/O when the selector is missing, unresolved, empty, non-string, malformed, relative, carries user information, uses a non-HTTP scheme, or violates configured network or redirect policy.
+      - R14.4: Configured credentials SHALL NOT be sent to a selected authority different from the configured client authority unless the trusted operation explicitly sets allow_auth_on_selected_authority.
+      - R14.5: REST results and traces SHALL identify the selected scheme, host, and port without recording user information, query values, or credentials.
+
 non_goals:
   - Defining inbound REST server tools; see srd029-rest-server-tools.
   - Auto-wiring every lifecycle profile to a REST compensation executor; callers opt in through the core rollback options.
@@ -258,6 +267,10 @@ acceptance_criteria:
   - id: AC12
     criterion: A REST client operation with body_source command_state selects declared params through input_mapping $from(<label>).<path> selectors resolved against the srd038 command-state store (most-recent-wins, run-scoped), applies the R12.4 rejection list identically, leaves previous_result threading unchanged, and is rejected when no command-state store is configured.
     traces: [R13.1, R13.2, R13.3, R13.4, R13.5]
+
+  - id: AC13
+    criterion: A trusted REST operation selects a loopback child base URL from a labeled prior output, performs one request through normal REST dispatch, reports the selected authority, rejects unsafe target values and credential-scope changes before network I/O, preserves static configured targets, and leaves runtime authority parameters forbidden.
+    traces: [R14.1, R14.2, R14.3, R14.4, R14.5, R2.4, R2.5, R2.6]
 
 depends_on:
   - srd_id: srd001-core-types

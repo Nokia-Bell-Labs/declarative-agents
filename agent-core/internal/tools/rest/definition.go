@@ -46,6 +46,9 @@ type Operation struct {
 	OpenAPIOperationID string                 `yaml:"openapi_operation_id,omitempty"`
 	Method             string                 `yaml:"method,omitempty"`
 	Path               string                 `yaml:"path,omitempty"`
+	BaseURLSource      string                 `yaml:"base_url_source,omitempty"`
+	BaseURLSelector    string                 `yaml:"base_url_selector,omitempty"`
+	AllowSelectedAuth  bool                   `yaml:"allow_auth_on_selected_authority,omitempty"`
 	Params             RequestBinding         `yaml:"params,omitempty"`
 	Body               map[string]interface{} `yaml:"body,omitempty"`
 	Success            StatusMapping          `yaml:"success"`

@@ -119,6 +119,32 @@ test_cases:
       - srd028-rest-client-tools AC9
 
   - use_case: rel03.0-uc001-rest-client-sync
+    name: Trusted operation selects a child service target
+    go_test: TestRESTClient_CommandStateSelectsTrustedBaseURL
+    status: done
+    description: |
+      A service-start word records a loopback base_url under a labeled command
+      output. A configured health operation selects that value through
+      base_url_source command_state and performs one normal REST dispatch.
+      Unsafe values, network-policy violations, and credential-scope changes
+      fail before network I/O; runtime input still cannot set authority.
+    inputs:
+      configured_base_url: http://127.0.0.1:1
+      base_url_source: command_state
+      base_url_selector: $from(start_subject).base_url
+      operation_path: /healthz
+    expected:
+      selected_authority_reported: true
+      static_target_default_unchanged: true
+      unsafe_target_rejected_before_io: true
+      credential_scope_default_deny: true
+      runtime_authority_override_rejected: true
+    traces:
+      - rel03.0-uc001-rest-client-sync S1
+      - srd027-rest-tool-runtime AC2
+      - srd028-rest-client-tools AC13
+
+  - use_case: rel03.0-uc001-rest-client-sync
     name: REST client threads declared params from the previous Result
     go_test: TestRESTClient_ThreadsPreviousResultParams
     status: done

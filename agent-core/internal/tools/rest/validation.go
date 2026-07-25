@@ -208,6 +208,9 @@ func validateOperation(name string, operation Operation, mutatingResource bool, 
 	if err := validateDeclaredInputs(name, operation); err != nil {
 		return err
 	}
+	if err := validateBaseURLSource(name, operation); err != nil {
+		return err
+	}
 	if err := validateRequestBinding(name, operation.Params); err != nil {
 		return err
 	}
@@ -223,6 +226,26 @@ func validateOperation(name string, operation Operation, mutatingResource bool, 
 		return validateAsyncOperation(name, *operation.Async, clientOps)
 	}
 	return validateResponseMapping(name, operation.Response)
+}
+
+func validateBaseURLSource(name string, operation Operation) error {
+	switch operation.BaseURLSource {
+	case "":
+		if operation.BaseURLSelector != "" {
+			return fmt.Errorf("operation %q base_url_selector requires base_url_source command_state", name)
+		}
+		if operation.AllowSelectedAuth {
+			return fmt.Errorf("operation %q allow_auth_on_selected_authority requires base_url_source command_state", name)
+		}
+		return nil
+	case bodySourceCommandState:
+		if _, _, ok := core.ParseFromSelector(operation.BaseURLSelector); !ok {
+			return fmt.Errorf("operation %q base_url_selector %q must be a $from(label).path selector under base_url_source command_state", name, operation.BaseURLSelector)
+		}
+		return nil
+	default:
+		return fmt.Errorf("operation %q has unsupported base_url_source %q", name, operation.BaseURLSource)
+	}
 }
 
 func validateStatusMappings(name string, operation Operation) error {
