@@ -30,6 +30,13 @@ overview: |
   carries real evidence. The chatbot-turn scenarios continue in a
   follow-on issue.
 
+  Evidence remains narrower than the complete requirements. The current tests
+  inspect request-log contents directly rather than running a validator over
+  correct and incorrect calls; malformed fixtures are exercised only through
+  --validate-config; and repeatability plus stop-dispatch spans do not prove
+  process non-survival or mock-start-failure teardown. Those behaviors remain
+  specified, not claimed by the implemented cases below.
+
 traces:
   - rel11.0-uc001-assembler-scenario-run
   - rel11.0-uc002-mock-serves-fixtures
@@ -81,42 +88,37 @@ test_cases:
       - srd019-mock AC3
 
   - use_case: rel11.0-uc002-mock-serves-fixtures
-    name: Validator reads the mock request log to verify outbound calls
+    name: Request log exposes outbound calls and misses
     go_test: go test ./conformance -run TestMockRequestLogRecordsCalls
     status: implemented
     description: |
-      After a subject drives its dependency, the mock's log route returns the
-      received requests in order with method, path, and body, and a validator
-      distinguishes a correct call from a wrong or missing one, including an
-      unmatched call recorded as a miss.
+      The test calls the mock directly and inspects its log route. It asserts
+      that received requests retain order, method, path, body, and matched
+      state, including an unmatched call recorded as a miss. It does not run a
+      validator or prove correct-versus-wrong validator outcomes.
     inputs:
       subject_calls: [POST /deploy body A]
-      wrong_call_variant: [POST /deploy body B]
     expected:
-      correct_call_asserts_pass: true
-      wrong_call_asserts_fail: true
+      order_method_path_and_body_visible: true
       miss_visible_in_log: true
     traces:
-      - rel11.0-uc002-mock-serves-fixtures S3
-      - srd019-mock AC3
+      - srd019-mock R3.1
+      - srd019-mock R3.3
 
   - use_case: rel11.0-uc002-mock-serves-fixtures
-    name: Malformed fixture blocks the mock from serving
+    name: Configuration validation rejects malformed fixtures
     go_test: go test ./conformance -run TestMockMalformedFixtureFailsStartup
     status: implemented
     description: |
-      A mock started against a malformed fixture fails configuration
-      validation and startup with a named error, before serving any request,
-      rather than failing mid-scenario.
+      The test runs the shipped mock profile with --validate-config and asserts
+      a non-zero exit for unknown methods, empty response lists, and duplicate
+      routes. It does not start a serving process or probe an endpoint.
     inputs:
       fixtures: [unknown_method, empty_responses, duplicate_route]
     expected:
       validate_config_fails: true
-      server_start_fails: true
-      no_request_served: true
     traces:
-      - rel11.0-uc002-mock-serves-fixtures S4
-      - srd019-mock AC2
+      - srd019-mock R2.4
 
   - use_case: rel11.0-uc001-assembler-scenario-run
     name: Assembler runs one scenario end to end to a verdict
@@ -233,58 +235,51 @@ test_cases:
       - srd040-service-child-tools AC2
 
   - use_case: rel11.0-uc001-assembler-scenario-run
-    name: Scripted dependency failure drives the subject's failure path
+    name: Scripted dependency-failure scenario reaches a passing verdict
     integration_target: mage rig
     status: implemented
     description: |
-      A scenario whose fixture scripts a 500 on the dependency call drives the
-      subject to its clean failure terminal; the validator asserted that
-      outcome, so the scenario passes.
+      TestRigSelfProof asserts that the dep-failure scenario is the first of two
+      passing scenario verdicts in sorted discovery order. The test does not
+      separately assert the subject terminal or validator explanation.
     inputs:
       fixture_sequence: [500]
     expected:
-      subject_reaches_failure_terminal_cleanly: true
       scenario_verdict: Passed
     traces:
-      - rel11.0-uc001-assembler-scenario-run S3
-      - srd018-assembler AC6
+      - srd018-assembler R6.3
 
   - use_case: rel11.0-uc001-assembler-scenario-run
-    name: A wrong expectation makes the rig fail and name the cause
+    name: A wrong expectation makes the scenario and aggregate fail
     integration_target: mage rig
     status: implemented
     description: |
       A scenario carrying a deliberately wrong validator expectation drives the
-      assembler to Failed, and the output names which validator failed and why.
-      This proves the rig can fail, not only pass.
+      scenario verdict and aggregate terminal to Failed. TestRigSelfProof
+      asserts those failures; it does not assert a validator name or reason.
     inputs:
       scenario: broken, with an expectation the subject does not satisfy
     expected:
       assembler_terminal: Failed
-      failing_validator_named: true
+      broken_scenario_verdict: Failed
     traces:
-      - rel11.0-uc001-assembler-scenario-run S4
-      - srd018-assembler AC6
+      - srd018-assembler R6.3
 
   - use_case: rel11.0-uc001-assembler-scenario-run
-    name: Children do not outlive a scenario and runs are repeatable
+    name: Stop dispatches are visible and consecutive runs are repeatable
     go_test: go test ./conformance -run TestRigSelfProof
     status: implemented
     description: |
-      After a scenario, no subject or mock process from the assembler's child
-      groups survives after one visible stop dispatch per child, and a second
-      consecutive run passes without port or state leakage. A failure path
-      lists and iterates the same teardown items.
+      TestRigSelfProof observes child-stop item spans and completes two
+      consecutive full runs without a port or state collision. It does not
+      inspect operating-system process survival or induce a mock-start failure.
     inputs:
       runs: 2
-      failure_path_variant: mock start failure
     expected:
-      no_surviving_children: true
+      child_stop_dispatches_visible: true
       second_run_passes: true
-      failure_path_tears_down: true
     traces:
-      - rel11.0-uc001-assembler-scenario-run S5
-      - srd018-assembler AC1
+      - srd018-assembler R1.9
 
   - use_case: rel11.0-uc001-assembler-scenario-run
     name: Discovery covers the examples tree with no special-casing
