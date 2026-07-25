@@ -315,15 +315,18 @@ func TestValidateConfigInvalidReceiptContractExitsNonZero(t *testing.T) {
 	t.Cleanup(func() { restoreAgentFlags(restore) })
 
 	monitorDir := filepath.Dir(profilePathFromTest(t, "monitor/profile.yaml"))
-	// Corrupt one already-selected monitor tool back to the inconsistent form
-	// GH-494 targets: reversible with a state-mutating effect but a noop undo.
+	// Corrupt one selected monitor tool to the inconsistent form GH-494
+	// targets: reversible with a state-mutating effect but a noop undo.
 	// --validate-config must reject it (srd025 R3.5; GH-494).
 	realDecls, err := os.ReadFile(filepath.Join(monitorDir, "declarations.yaml"))
 	require.NoError(t, err)
 	corrupted := strings.Replace(string(realDecls),
-		"      classification: irreversible\n      undo: noop",
+		"      classification: reversible\n      undo: queue_event_restore",
 		"      classification: reversible\n      undo: noop", 1)
-	require.NotEqual(t, string(realDecls), corrupted, "expected an irreversible+noop tool to corrupt")
+	corrupted = strings.Replace(corrupted,
+		"    strategy: queue_event_restore",
+		"    strategy: noop", 1)
+	require.NotEqual(t, string(realDecls), corrupted, "expected a reversible queue-restore tool to corrupt")
 
 	dir := t.TempDir()
 	badDecls := filepath.Join(dir, "declarations.yaml")
