@@ -5,6 +5,7 @@ package service
 import (
 	"context"
 	"fmt"
+	"net/url"
 	"path/filepath"
 	"strings"
 
@@ -167,13 +168,29 @@ func (c command) startSubject() core.Result {
 	if err != nil {
 		return commandError(c.toolName, err)
 	}
+	return c.recordStartedSubject(name, profile, env, manifest, out)
+}
+
+func (c command) recordStartedSubject(
+	name, profile string,
+	env []string,
+	manifest ScenarioManifest,
+	out map[string]interface{},
+) core.Result {
 	baseURL := out["base_url"].(string)
 	c.session.RecordSubject(name, baseURL)
+	healthBaseURL, healthPath, err := subjectHealthTarget(baseURL, manifest.SubjectHealthPath)
+	if err != nil {
+		_ = c.session.Services.Stop(name, defaultStopGrace)
+		return commandError(c.toolName, err)
+	}
 
 	return core.Result{
 		Signal: SignalSubjectStarted, CommandName: c.toolName,
 		Output: jsonOutput(map[string]interface{}{
 			"subject": name, "profile": profile, "base_url": baseURL, "env": env,
+			"health_base_url": healthBaseURL, "health_path": healthPath,
+			"started_at": out["started_at"],
 		}),
 	}
 }
@@ -187,36 +204,27 @@ func subjectAddress(manifest ScenarioManifest) (string, error) {
 	return FreeAddress()
 }
 
-// awaitSubject health-checks the subject that this scenario started.
-func (c command) awaitSubject() core.Result {
-	_, baseURL := c.session.Subject()
-	if baseURL == "" {
-		return commandError(c.toolName, fmt.Errorf("%s: no subject started", c.toolName))
+// subjectHealthTarget separates the trusted runtime authority from the
+// scenario-authored path so the REST operation can select both from the
+// labeled subject-start result without accepting a caller-supplied URL.
+func subjectHealthTarget(baseURL, declared string) (string, string, error) {
+	if declared == "" {
+		declared = defaultSubjectHealthPath
 	}
-	_, manifest, _ := c.session.Current()
-	path := manifest.SubjectHealthPath
-	if path == "" {
-		path = c.cfg.URL
+	target, err := url.Parse(declared)
+	if err != nil {
+		return "", "", fmt.Errorf("subject health path %q: %w", declared, err)
 	}
-	if path == "" {
-		path = defaultSubjectHealthPath
+	if target.IsAbs() {
+		if target.Scheme != "http" && target.Scheme != "https" {
+			return "", "", fmt.Errorf("subject health URL scheme %q is not allowed", target.Scheme)
+		}
+		if target.Host == "" || target.User != nil {
+			return "", "", fmt.Errorf("subject health URL must have a host and no user information")
+		}
+		return target.Scheme + "://" + target.Host, strings.TrimPrefix(target.EscapedPath(), "/"), nil
 	}
-	target := baseURL + path
-	if strings.HasPrefix(path, "http://") || strings.HasPrefix(path, "https://") {
-		// Health on a different listener than the driven one.
-		target = path
-	}
-
-	output, healthy := c.session.Services.AwaitHealthy(
-		target,
-		parseDuration(c.cfg.Timeout, defaultHealthTimeout),
-		parseDuration(c.cfg.Interval, defaultHealthInterval),
-	)
-	signal := SignalHealthy
-	if !healthy {
-		signal = SignalHealthTimeout
-	}
-	return core.Result{Signal: signal, CommandName: c.toolName, Output: jsonOutput(output)}
+	return baseURL, strings.TrimPrefix(declared, "/"), nil
 }
 
 // runScenarioValidators runs the current scenario's validators concurrently

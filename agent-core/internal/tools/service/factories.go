@@ -15,7 +15,6 @@ import (
 
 const (
 	InitStartService  = "start_service"
-	InitAwaitHealthy  = "await_healthy"
 	InitStopService   = "stop_service"
 	InitRunValidators = "run_validators"
 	InitListScenarios = "list_scenarios"
@@ -27,7 +26,6 @@ const (
 	InitNextScenario        = "next_scenario"
 	InitStartScenarioMock   = "start_scenario_mock"
 	InitStartSubject        = "start_scenario_subject"
-	InitAwaitSubject        = "await_scenario_subject"
 	InitRunScenarioTests    = "run_scenario_validators"
 	InitCollectVerdict      = "collect_scenario_verdict"
 	InitTeardownScenario    = "teardown_scenario"
@@ -36,21 +34,17 @@ const (
 
 // StandardInits lists every service builtin init name.
 var StandardInits = []string{
-	InitStartService, InitAwaitHealthy, InitStopService, InitRunValidators, InitListScenarios,
+	InitStartService, InitStopService, InitRunValidators, InitListScenarios,
 	InitInitScenarioSession, InitNextScenario, InitStartScenarioMock, InitStartSubject,
-	InitAwaitSubject, InitRunScenarioTests, InitCollectVerdict, InitTeardownScenario,
+	InitRunScenarioTests, InitCollectVerdict, InitTeardownScenario,
 	InitReportSession,
 }
 
-// Result signals. Healthy and HealthTimeout are distinct so a machine can
-// route teardown on a failed wait (srd040 R2.3); ValidatorsCompleted and
-// ValidatorsIncomplete separate "all ran" from "one timed out or failed to
-// spawn" (R4.5).
+// Result signals. ValidatorsCompleted and ValidatorsIncomplete separate "all
+// ran" from "one timed out or failed to spawn" (srd040 R4.5).
 const (
 	SignalServiceStarted       core.Signal = "ServiceStarted"
 	SignalServiceStopped       core.Signal = "ServiceStopped"
-	SignalHealthy              core.Signal = "Healthy"
-	SignalHealthTimeout        core.Signal = "HealthTimeout"
 	SignalValidatorsCompleted  core.Signal = "ValidatorsCompleted"
 	SignalValidatorsIncomplete core.Signal = "ValidatorsIncomplete"
 	SignalScenariosListed      core.Signal = "ScenariosListed"
@@ -80,10 +74,8 @@ type ToolConfig struct {
 	Address   string   `yaml:"address,omitempty"`
 	Env       []string `yaml:"env,omitempty"`
 
-	URL      string `yaml:"url,omitempty"`
-	Timeout  string `yaml:"timeout,omitempty"`
-	Interval string `yaml:"interval,omitempty"`
-	Grace    string `yaml:"grace,omitempty"`
+	Timeout string `yaml:"timeout,omitempty"`
+	Grace   string `yaml:"grace,omitempty"`
 
 	Validators []ValidatorSpec `yaml:"validators,omitempty"`
 	Roots      []string        `yaml:"roots,omitempty"`
@@ -147,10 +139,6 @@ func validateToolConfig(name, init string, cfg ToolConfig) error {
 		}
 		if cfg.Service == "" {
 			return fmt.Errorf("tool %q (%s) requires a service name", name, init)
-		}
-	case InitAwaitHealthy:
-		if cfg.URL == "" {
-			return fmt.Errorf("tool %q (%s) requires a url", name, init)
 		}
 	case InitStopService:
 		if cfg.Service == "" {
@@ -222,8 +210,6 @@ func (c *command) ExecuteContext(ctx context.Context) core.Result {
 	switch c.init {
 	case InitStartService:
 		return c.start()
-	case InitAwaitHealthy:
-		return c.awaitHealthy()
 	case InitStopService:
 		return c.stop()
 	case InitRunValidators:
@@ -238,8 +224,6 @@ func (c *command) ExecuteContext(ctx context.Context) core.Result {
 		return c.startScenarioMock()
 	case InitStartSubject:
 		return c.startSubject()
-	case InitAwaitSubject:
-		return c.awaitSubject()
 	case InitRunScenarioTests:
 		return c.runScenarioValidators(ctx)
 	case InitCollectVerdict:
@@ -300,19 +284,6 @@ func (c command) start() core.Result {
 		return commandError(c.toolName, err)
 	}
 	return core.Result{Signal: SignalServiceStarted, CommandName: c.toolName, Output: jsonOutput(output)}
-}
-
-func (c command) awaitHealthy() core.Result {
-	output, healthy := c.state.AwaitHealthy(
-		c.cfg.URL,
-		parseDuration(c.cfg.Timeout, defaultHealthTimeout),
-		parseDuration(c.cfg.Interval, defaultHealthInterval),
-	)
-	signal := SignalHealthy
-	if !healthy {
-		signal = SignalHealthTimeout
-	}
-	return core.Result{Signal: signal, CommandName: c.toolName, Output: jsonOutput(output)}
 }
 
 func (c command) stop() core.Result {

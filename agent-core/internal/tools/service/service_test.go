@@ -97,10 +97,10 @@ func processAlive(pid int) bool {
 	return syscall.Kill(pid, 0) == nil
 }
 
-// TestServiceChild_StartAwaitStopNoOrphans covers srd040 AC1: a serve-mode
-// child starts with injected environment, reports healthy, stops, and leaves
-// no process behind. A repeated cycle passes, so ports and state do not leak.
-func TestServiceChild_StartAwaitStopNoOrphans(t *testing.T) {
+// TestServiceChild_StartStopNoOrphans covers srd040 AC1: a serve-mode child
+// starts with injected environment, stops, and leaves no process behind. A
+// repeated cycle passes, so ports and state do not leak.
+func TestServiceChild_StartStopNoOrphans(t *testing.T) {
 	for cycle := 1; cycle <= 2; cycle++ {
 		t.Run("cycle"+strconv.Itoa(cycle), func(t *testing.T) {
 			state := NewState()
@@ -115,11 +115,12 @@ func TestServiceChild_StartAwaitStopNoOrphans(t *testing.T) {
 			require.True(t, ok)
 			require.Equal(t, []string{"mock"}, state.Running())
 
-			health, healthy := state.AwaitHealthy(started["base_url"].(string)+"/healthz", 10*time.Second, 20*time.Millisecond)
-			require.True(t, healthy, "child should become healthy: %v", health)
-
-			// The injected environment reached the child.
-			resp, err := http.Get(started["base_url"].(string) + "/healthz")
+			// Test-only readiness keeps the service boundary free of HTTP.
+			var resp *http.Response
+			require.Eventually(t, func() bool {
+				resp, err = http.Get(started["base_url"].(string) + "/healthz")
+				return err == nil
+			}, 10*time.Second, 20*time.Millisecond)
 			require.NoError(t, err)
 			var body map[string]string
 			require.NoError(t, json.NewDecoder(resp.Body).Decode(&body))
@@ -190,26 +191,6 @@ func TestServiceChild_StartRejectsBadSpawn(t *testing.T) {
 	_, err = state.Start(childSpec(t, "dup", addr, ""))
 	require.Error(t, err)
 	require.Contains(t, err.Error(), "already running")
-}
-
-// TestServiceChild_AwaitHealthyTimeout covers srd040 AC2: an address that
-// never answers returns the timeout outcome within its declared bound rather
-// than polling without limit.
-func TestServiceChild_AwaitHealthyTimeout(t *testing.T) {
-	t.Parallel()
-
-	addr, err := FreeAddress()
-	require.NoError(t, err)
-
-	state := NewState()
-	start := time.Now()
-	out, healthy := state.AwaitHealthy("http://"+addr+"/healthz", 300*time.Millisecond, 20*time.Millisecond)
-	elapsed := time.Since(start)
-
-	require.False(t, healthy)
-	require.Equal(t, "300ms", out["timeout"])
-	require.Less(t, elapsed, 5*time.Second, "must respect the declared bound, not poll without limit")
-	require.GreaterOrEqual(t, out["attempts"].(int), 1)
 }
 
 // TestRunValidators_ConcurrentTerminalStatesAndTimeout covers srd040 AC3: each
@@ -365,7 +346,7 @@ func TestServiceTools_DeclarationsReversibilityAndUndo(t *testing.T) {
 	require.Empty(t, state.Running(), "undo must stop the started service")
 
 	// Every other word is a noop undo, matching its declaration.
-	for _, init := range []string{InitAwaitHealthy, InitStopService, InitRunValidators, InitListScenarios} {
+	for _, init := range []string{InitStopService, InitRunValidators, InitListScenarios} {
 		cmd := Builder{ToolName: init, Init: init, State: state}.Build(core.Result{})
 		require.Equal(t, core.NoopUndo(init).Signal, cmd.Undo(core.Result{}).Signal, init)
 	}
@@ -375,7 +356,6 @@ func TestServiceTools_DeclarationsReversibilityAndUndo(t *testing.T) {
 	RegisterBuiltins(br, FactoryDeps{State: state})
 	for init, want := range map[string]string{
 		InitStartService:  "requires a service name",
-		InitAwaitHealthy:  "requires a url",
 		InitStopService:   "requires a service name",
 		InitRunValidators: "requires at least one validator",
 		InitListScenarios: "requires at least one root",
@@ -390,32 +370,6 @@ func TestServiceTools_DeclarationsReversibilityAndUndo(t *testing.T) {
 		require.Error(t, err, init)
 		require.Contains(t, err.Error(), want, init)
 	}
-}
-
-// TestServiceCommand_AwaitHealthySignals covers srd040 R2.3: the healthy and
-// timeout outcomes are distinct signals a machine can route on.
-func TestServiceCommand_AwaitHealthySignals(t *testing.T) {
-	state := NewState()
-	addr, err := FreeAddress()
-	require.NoError(t, err)
-
-	_, err = state.Start(childSpec(t, "svc", addr, ""))
-	require.NoError(t, err)
-	defer state.StopAll(2 * time.Second)
-
-	healthy := Builder{
-		ToolName: "await", Init: InitAwaitHealthy, State: state,
-		Config: ToolConfig{URL: "http://" + addr + "/healthz", Timeout: "10s", Interval: "20ms"},
-	}.Build(core.Result{}).Execute()
-	require.Equal(t, SignalHealthy, healthy.Signal)
-
-	dead, err := FreeAddress()
-	require.NoError(t, err)
-	timedOut := Builder{
-		ToolName: "await", Init: InitAwaitHealthy, State: state,
-		Config: ToolConfig{URL: "http://" + dead + "/healthz", Timeout: "200ms", Interval: "20ms"},
-	}.Build(core.Result{}).Execute()
-	require.Equal(t, SignalHealthTimeout, timedOut.Signal)
 }
 
 // TestServiceCommand_RunValidatorsSignals covers srd040 R4.5: a completed run
@@ -489,7 +443,12 @@ func TestServiceCommand_UnsupportedInit(t *testing.T) {
 // observed the environment it was started with.
 func httpGetBody(t *testing.T, url string) string {
 	t.Helper()
-	resp, err := http.Get(url)
+	var resp *http.Response
+	var err error
+	require.Eventually(t, func() bool {
+		resp, err = http.Get(url)
+		return err == nil
+	}, 10*time.Second, 20*time.Millisecond)
 	require.NoError(t, err)
 	defer func() { _ = resp.Body.Close() }()
 	data, err := io.ReadAll(resp.Body)

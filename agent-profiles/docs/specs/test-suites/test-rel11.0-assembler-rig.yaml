@@ -181,6 +181,33 @@ test_cases:
       - srd018-assembler AC2
 
   - use_case: rel11.0-uc001-assembler-scenario-run
+    name: Subject readiness is a machine-visible REST retry loop
+    go_test: cd ../agent-core && go test ./internal/tools/lifecycle ./internal/tools/rest ./internal/tools/service -run '^(TestDelay_ElapsedAndDeadlineSignals|TestDelay_CancellationAndValidation|TestRESTClient_CommandStateSelectsTrustedBaseURL|TestSubjectHealthTarget_PreservesRelativeAndAlternateListenerPaths)$'
+    integration_target: mage rig
+    status: implemented
+    description: |
+      StartingSubject labels the runtime health authority, path, and start time.
+      ProbingHealth performs one configured REST request. Unavailable status or
+      transport error enters WaitingToRetry, where one cancellation-aware delay
+      either returns to ProbingHealth or emits HealthTimeout. Timeout and global
+      budget exhaustion route through the ordinary verdict and teardown words.
+    inputs:
+      target_source: command_state subject label
+      health_paths: [relative child route, absolute alternate listener]
+      retry_interval: 100ms
+      startup_deadline: 30s
+    expected:
+      requests_per_probe_dispatch: 1
+      retry_states_visible: true
+      healthy_timeout_and_error_signals_distinct: true
+      cancellation_bounded: true
+      teardown_on_exhaustion: true
+    traces:
+      - rel11.0-uc001-assembler-scenario-run S1
+      - srd018-assembler R1.8
+      - srd040-service-child-tools AC2
+
+  - use_case: rel11.0-uc001-assembler-scenario-run
     name: Scripted dependency failure drives the subject's failure path
     integration_target: mage rig
     status: implemented

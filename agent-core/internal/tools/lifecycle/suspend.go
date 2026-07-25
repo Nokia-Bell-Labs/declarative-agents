@@ -30,6 +30,13 @@ type FactoryDeps struct {
 
 // RegisterFactories registers lifecycle builtin factories.
 func RegisterFactories(br *toolregistry.BuiltinRegistry, deps FactoryDeps) {
+	br.Register("delay", func(def catalog.ToolDef, _ map[string]string) (core.Builder, error) {
+		var cfg DelayConfig
+		if err := catalog.DecodeToolConfig(def, &cfg); err != nil {
+			return nil, err
+		}
+		return newDelayBuilder(def.Name, cfg)
+	})
 	br.Register("suspend", func(def catalog.ToolDef, vars map[string]string) (core.Builder, error) {
 		var cfg SuspendConfig
 		if err := catalog.DecodeToolConfig(def, &cfg); err != nil {

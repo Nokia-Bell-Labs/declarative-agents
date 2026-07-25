@@ -16,7 +16,8 @@ metric_labels:
 initial_state: Idle
 budget:
   # The fixed scenario pipeline plus one dispatch per fixture and one join.
-  max_iterations: 200
+  max_iterations: 5000
+  max_duration: 15m
 states:
   - name: Idle
     meaning: Initial state before scenario discovery.
@@ -28,8 +29,10 @@ states:
     meaning: Starting each fixture mock sequentially through MachineSpec iteration.
   - name: StartingSubject
     meaning: Starting the agent under test with each mock's runtime address injected.
-  - name: AwaitingSubject
-    meaning: Waiting for the subject to serve before driving it.
+  - name: ProbingHealth
+    meaning: Performing one REST health request against the started subject.
+  - name: WaitingToRetry
+    meaning: Waiting one declared interval before the next health probe.
   - name: RunningValidators
     meaning: Running the scenario's validator machines against its subject.
   - name: CollectingVerdict
@@ -66,6 +69,10 @@ signals:
     trigger: The agent under test is running with its dependencies redirected.
   - name: Healthy
     trigger: The subject answered its health route.
+  - name: HealthUnavailable
+    trigger: One subject health probe returned a configured non-success status.
+  - name: HealthRetryReady
+    trigger: The retry delay elapsed before the subject startup deadline.
   - name: HealthTimeout
     trigger: The subject did not serve within the declared bound.
   - name: ValidatorsCompleted
@@ -84,6 +91,8 @@ signals:
     trigger: At least one scenario failed.
   - name: CommandError
     trigger: A rig word failed.
+  - name: BudgetExhausted
+    trigger: The rig's global iteration or wall-clock bound was reached.
 transitions:
   - state: Idle
     signal: Seed
@@ -136,6 +145,7 @@ transitions:
     signal: MocksStarted
     next: StartingSubject
     action: start_scenario_subject
+    label: subject
   - state: StartingMocks
     signal: CommandError
     next: MarkingFailure
@@ -143,25 +153,46 @@ transitions:
 
   - state: StartingSubject
     signal: SubjectStarted
-    next: AwaitingSubject
-    action: await_scenario_subject
+    next: ProbingHealth
+    action: probe_subject_health
   - state: StartingSubject
     signal: CommandError
     next: MarkingFailure
     action: fail_scenario_start
 
-  - state: AwaitingSubject
+  - state: ProbingHealth
     signal: Healthy
     next: RunningValidators
     action: run_scenario_validators
-  - state: AwaitingSubject
+  - state: ProbingHealth
+    signal: HealthUnavailable
+    next: WaitingToRetry
+    action: wait_health_retry
+  - state: ProbingHealth
+    signal: CommandError
+    next: WaitingToRetry
+    action: wait_health_retry
+  - state: ProbingHealth
+    signal: BudgetExhausted
+    next: MarkingFailure
+    action: fail_scenario_unhealthy
+
+  - state: WaitingToRetry
+    signal: HealthRetryReady
+    next: ProbingHealth
+    action: probe_subject_health
+  - state: WaitingToRetry
     signal: HealthTimeout
     next: MarkingFailure
     action: fail_scenario_unhealthy
-  - state: AwaitingSubject
+  - state: WaitingToRetry
     signal: CommandError
     next: MarkingFailure
     action: fail_scenario_start
+  - state: WaitingToRetry
+    signal: BudgetExhausted
+    next: MarkingFailure
+    action: fail_scenario_unhealthy
 
   # A validator that ran and failed still produced a verdict, so both outcomes
   # route to the same collection step; the verdict itself decides pass or fail.
@@ -191,6 +222,10 @@ transitions:
     signal: ScenarioFailed
     next: TearingDown
     action: teardown_scenario
+  - state: MarkingFailure
+    signal: BudgetExhausted
+    next: TearingDown
+    action: teardown_scenario
 
   # A failed scenario does not end the run: every scenario is exercised and the
   # aggregate reports at the end.
@@ -199,6 +234,9 @@ transitions:
     next: AdvancingScenario
     action: next_scenario
     label: current_scenario
+  - state: TearingDown
+    signal: BudgetExhausted
+    next: Failed
 
   - state: Reporting
     signal: SessionPassed

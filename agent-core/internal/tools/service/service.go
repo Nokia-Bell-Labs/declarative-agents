@@ -10,7 +10,6 @@ import (
 	"encoding/json"
 	"fmt"
 	"net"
-	"net/http"
 	"os"
 	"os/exec"
 	"sort"
@@ -20,10 +19,8 @@ import (
 )
 
 const (
-	defaultHealthTimeout  = 30 * time.Second
-	defaultHealthInterval = 100 * time.Millisecond
-	defaultStopGrace      = 3 * time.Second
-	defaultRunTimeout     = 10 * time.Minute
+	defaultStopGrace  = 3 * time.Second
+	defaultRunTimeout = 10 * time.Minute
 )
 
 // child is one running serve-mode agent process.
@@ -75,8 +72,8 @@ func FreeAddress() (string, error) {
 }
 
 // Start launches one serve-mode child in its own process group and returns
-// its handle and base URL. It does not wait for the child to become healthy;
-// AwaitHealthy does that.
+// its handle and base URL. Readiness is probed by an ordinary REST word in the
+// composing machine, not by this process-lifecycle boundary.
 func (s *State) Start(spec StartSpec) (map[string]interface{}, error) {
 	if err := validateStartSpec(spec); err != nil {
 		return nil, err
@@ -103,54 +100,12 @@ func (s *State) Start(spec StartSpec) (map[string]interface{}, error) {
 	entry := s.track(spec.Name, cmd, address)
 
 	return map[string]interface{}{
-		"service":  spec.Name,
-		"pid":      cmd.Process.Pid,
-		"address":  address,
-		"base_url": entry.baseURL,
+		"service":    spec.Name,
+		"pid":        cmd.Process.Pid,
+		"address":    address,
+		"base_url":   entry.baseURL,
+		"started_at": time.Now().UTC().Format(time.RFC3339Nano),
 	}, nil
-}
-
-// AwaitHealthy polls url until it answers or the bounded timeout elapses. It
-// never polls without a limit (srd040 R2.2), and reports healthy and timeout
-// as distinct outcomes so a machine can route teardown on failure.
-func (s *State) AwaitHealthy(url string, timeout, interval time.Duration) (map[string]interface{}, bool) {
-	if timeout <= 0 {
-		timeout = defaultHealthTimeout
-	}
-	if interval <= 0 {
-		interval = defaultHealthInterval
-	}
-	client := &http.Client{
-		Timeout:   interval * 4,
-		Transport: &http.Transport{DisableKeepAlives: true},
-	}
-	defer client.CloseIdleConnections()
-
-	deadline := time.Now().Add(timeout)
-	attempts := 0
-	for {
-		attempts++
-		resp, err := client.Get(url)
-		if err == nil {
-			status := resp.StatusCode
-			_ = resp.Body.Close()
-			if status < 400 {
-				return map[string]interface{}{
-					"url": url, "status": status, "attempts": attempts,
-				}, true
-			}
-		}
-		if time.Now().After(deadline) || time.Until(deadline) <= 0 {
-			return map[string]interface{}{
-				"url": url, "attempts": attempts, "timeout": timeout.String(),
-			}, false
-		}
-		sleep := interval
-		if remaining := time.Until(deadline); remaining < sleep {
-			sleep = remaining
-		}
-		time.Sleep(sleep)
-	}
 }
 
 // Stop ends one service: a graceful signal to the process group, a bounded

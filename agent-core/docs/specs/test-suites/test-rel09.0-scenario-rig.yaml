@@ -7,7 +7,7 @@ traces:
 
 preconditions:
   - srd039-mock-endpoint-binding defines the mock binding, fixture format, request log, and validation.
-  - srd040-service-child-tools defines start_service, await_healthy, stop_service, run_validators, and list_scenarios.
+  - srd040-service-child-tools defines start_service, stop_service, run_validators, and list_scenarios; readiness composes the REST client and delay words in MachineSpec.
   - GH-666 implements the mock binding; GH-667 implements the service-child tools. Test names below are the contracts those issues implement.
   - Cases carry planned_go_test rather than go_test until their named tests exist. The formal go_test evidence validator checks every go_test string against the real test inventory, so citing an unwritten test would record false evidence. Each implementing issue renames planned_go_test to go_test and sets status to implemented when its test lands.
   - GH-666 delivered the mock binding, so the four mock cases below now carry go_test and status implemented. The service-child cases stay planned until GH-667.
@@ -83,18 +83,17 @@ test_cases:
 
   - use_case: rel09.0-uc001-scenario-rig-run
     name: Serve-mode child lifecycle leaves no orphans
-    go_test: go test ./internal/tools/service -run TestServiceChild_StartAwaitStopNoOrphans
+    go_test: go test ./internal/tools/service -run TestServiceChild_StartStopNoOrphans
     status: implemented
     description: |
-      start_service spawns a serve-mode child with injected environment,
-      await_healthy reports healthy, stop_service stops it, and no process
-      from the child's group survives; a repeated cycle passes without port
-      leakage.
+      start_service spawns a serve-mode child with injected environment and
+      labels its runtime address and start time, stop_service stops it, and no
+      process from the child's group survives; a repeated cycle passes.
     inputs:
       child: serve-mode agent profile with env addition
       cycles: 2
     expected:
-      healthy_signal: true
+      runtime_target_reported: true
       child_group_gone_after_stop: true
       second_cycle_passes: true
     traces:
@@ -102,12 +101,13 @@ test_cases:
       - srd040-service-child-tools AC1
 
   - use_case: rel09.0-uc001-scenario-rig-run
-    name: await_healthy times out within its declared bound
-    go_test: go test ./internal/tools/service -run TestServiceChild_AwaitHealthyTimeout
+    name: Declarative REST health retry times out within its bound
+    go_test: go test ./internal/tools/lifecycle ./internal/tools/rest -run 'TestDelay_ElapsedAndDeadlineSignals|TestRESTClient_CommandStateSelectsTrustedBaseURL'
     status: implemented
     description: |
-      await_healthy against a never-healthy address emits the timeout signal
-      within the declared bound rather than polling forever.
+      Each REST dispatch probes the trusted labeled child URL once. The
+      cancellation-aware delay emits retry-ready until its deadline, then
+      HealthTimeout, so MachineSpec owns the visible bounded loop.
     inputs:
       target: reserved unserved port
       timeout: declared
@@ -165,7 +165,7 @@ test_cases:
       with a noop undo. A spawn failure surfaces as a tool error signal rather
       than a panic, and no word invokes a model.
     inputs:
-      words: [start_service, await_healthy, stop_service, run_validators, list_scenarios]
+      words: [start_service, stop_service, run_validators, list_scenarios]
       spawn_failure_case: nonexistent profile path
     expected:
       reversibility_consistent: true

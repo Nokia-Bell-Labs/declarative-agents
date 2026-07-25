@@ -211,61 +211,113 @@ tools:
     config: {}
     relationships:
       after: [start_scenario_mock]
-      before: [await_scenario_subject]
+      before: [probe_subject_health]
 
-  - name: await_scenario_subject
+  - name: probe_subject_health
     type: builtin
-    init: await_scenario_subject
+    init: rest_client_get
     visibility: internal
     category: boundary
-    description: Wait for the subject to serve before driving it.
+    description: Perform one declared REST probe against the started subject's health route.
     problem: Driving a subject that has not bound its port yields a false failure.
     goals:
-      - Poll the subject's health route within a declared bound.
-      - Report healthy and timeout as distinct signals the machine routes on.
+      - Resolve the trusted runtime health authority and path from the labeled subject start.
+      - Perform exactly one HTTP request so retry policy remains in MachineSpec.
     requirements:
       input:
-        - The session holds the started subject's base URL.
-        - Tool config declares the health path, timeout, and interval; a scenario may override the path.
+        - The subject label holds the started child's health_base_url and health_path.
       output:
-        - Output reports the URL polled, attempts, and outcome.
+        - Output reports the REST operation, status, duration, and one transport attempt.
       errors:
-        - No subject started emits CommandError.
+        - Target resolution, network, timeout, and response mapping failures emit CommandError.
     non_goals:
-      - Does not poll without a limit.
+      - Does not retry, sleep, or own the health deadline.
     parameters:
       type: object
       properties: {}
-    emits: [Healthy, HealthTimeout, CommandError]
+    emits: [Healthy, HealthUnavailable, CommandError]
     output:
-      description: Health poll result.
+      description: One health probe result.
       schema:
         type: object
         properties:
-          url: {type: string}
+          operation: {type: string}
           attempts: {type: integer}
           status: {type: integer}
     side_effects:
-      - kind: state_read
-        target: subject_agent
+      - kind: external_api
+        target: scenario_subject.health
         state: read_only
     reversibility:
       classification: reversible
       undo: noop
     undo:
       strategy: noop
-      description: Polling changes no state.
+      description: A health read changes no state.
     errors:
       - signal: CommandError
-        condition: No subject has been started for the current scenario.
-        state_after_failure: No child state changes.
+        condition: REST target resolution, network, timeout, or response mapping fails.
+        state_after_failure: The subject remains tracked for retry or teardown.
     config:
-      url: /healthz
-      timeout: 30s
-      interval: 100ms
+      rest_ref: scenario_subject
+      operation: health
     relationships:
       after: [start_scenario_subject]
-      before: [run_scenario_validators]
+      before: [wait_health_retry, run_scenario_validators]
+
+  - name: wait_health_retry
+    type: builtin
+    init: delay
+    visibility: internal
+    category: boundary
+    description: Wait once between subject health probes within the declared startup deadline.
+    problem: Immediate retries create a hot loop, while an unbounded wait can strand scenario children.
+    goals:
+      - Delay one retry interval without performing I/O.
+      - Emit HealthTimeout when the window anchored at subject start expires.
+    requirements:
+      input:
+        - The subject label holds an RFC3339 started_at timestamp.
+      output:
+        - Output reports the actual wait and whether the deadline was reached.
+      errors:
+        - A missing or malformed deadline source emits CommandError.
+    non_goals:
+      - Does not perform a health request or choose whether the machine retries.
+    parameters:
+      type: object
+      properties: {}
+    emits: [HealthRetryReady, HealthTimeout, CommandError]
+    output:
+      description: One bounded delay result.
+      schema:
+        type: object
+        properties:
+          waited: {type: string}
+          deadline_reached: {type: boolean}
+    side_effects:
+      - kind: state_read
+        target: local_clock
+        state: read_only
+    reversibility:
+      classification: reversible
+      undo: noop
+    undo:
+      strategy: noop
+      description: Waiting changes no state.
+    errors:
+      - signal: CommandError
+        condition: The deadline source cannot be resolved or parsed, or the wait is cancelled.
+        state_after_failure: The subject remains tracked for teardown.
+    config:
+      duration: 100ms
+      deadline: 30s
+      deadline_source: $from(subject).started_at
+      elapsed_signal: HealthRetryReady
+      deadline_signal: HealthTimeout
+    relationships:
+      after: [probe_subject_health]
+      before: [probe_subject_health]
 
   - name: run_scenario_validators
     type: builtin
@@ -318,7 +370,7 @@ tools:
     config:
       timeout: 5m
     relationships:
-      after: [await_scenario_subject]
+      after: [probe_subject_health]
       before: [collect_scenario_verdict]
 
   - name: collect_scenario_verdict

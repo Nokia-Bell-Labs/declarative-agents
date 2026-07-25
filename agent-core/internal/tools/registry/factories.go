@@ -61,7 +61,7 @@ func StandardFactoryCatalog(deps StandardFactoryDeps) []StandardFactoryCatalogEn
 	return []StandardFactoryCatalogEntry{
 		hookFactory("filesystem", []string{"file_read", "file_write", "file_edit", "file_find", "file_list", "list_resource", "read_resource"}, deps.RegisterFilesystem),
 		hookFactory("llm", []string{"invoke_llm", "parse_response", "report_parse_error", "reset_history", "nudge_reread", "done"}, deps.RegisterLLM),
-		hookFactory("lifecycle", []string{"suspend", "checkpoint_history", "checkpoint_rollback", "exit_agent"}, deps.RegisterLifecycle),
+		hookFactory("lifecycle", []string{"delay", "suspend", "checkpoint_history", "checkpoint_rollback", "exit_agent"}, deps.RegisterLifecycle),
 		hookFactory("validation", []string{"validate"}, deps.RegisterValidation),
 		hookFactory("control", []string{"self_invoke", "value_predicate"}, deps.RegisterControl),
 		hookFactory("planning", []string{"load_graph", "extract_task", "extract_all", "assemble_prompt", "parse_plan", "format_issue", "record_tracker_issue", "execute_task", "check_result"}, deps.RegisterPlanning),
@@ -77,9 +77,9 @@ func StandardFactoryCatalog(deps StandardFactoryDeps) []StandardFactoryCatalogEn
 		// The rig's service words. The init names are literal here because the
 		// service package imports this one, so the list cannot be read from it.
 		hookFactory("service", []string{
-			"start_service", "await_healthy", "stop_service", "run_validators", "list_scenarios",
+			"start_service", "stop_service", "run_validators", "list_scenarios",
 			"init_scenario_session", "next_scenario", "start_scenario_mock",
-			"start_scenario_subject", "await_scenario_subject", "run_scenario_validators",
+			"start_scenario_subject", "run_scenario_validators",
 			"collect_scenario_verdict", "teardown_scenario", "report_scenario_session",
 		}, deps.RegisterService),
 	}

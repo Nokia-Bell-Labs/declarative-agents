@@ -56,6 +56,16 @@ func rigVerdictSignals(result RunResult) []string {
 	return signals
 }
 
+func rigSpanCount(result RunResult, name string) int {
+	count := 0
+	for _, span := range result.Spans {
+		if span.Name == name {
+			count++
+		}
+	}
+	return count
+}
+
 // TestRigSelfProof runs the assembler over the shipped tree and asserts the
 // reference subject's three scenarios land exactly as designed: happy-path
 // and dep-failure pass, and the deliberately broken expectation fails — so the
@@ -96,6 +106,12 @@ func TestRigSelfProof(t *testing.T) {
 					t.Fatalf("verdict[%d] = %s, want %s (order: broken, dep-failure, happy-path)\nall: %v",
 						i, verdicts[i], want[i], verdicts)
 				}
+			}
+			if probes := rigSpanCount(result, "execute_tool probe_subject_health"); probes < len(want) {
+				t.Fatalf("health probe spans = %d, want at least %d", probes, len(want))
+			}
+			if hidden := rigSpanCount(result, "execute_tool await_scenario_subject"); hidden != 0 {
+				t.Fatalf("retired hidden health spans = %d, want 0", hidden)
 			}
 		})
 	}

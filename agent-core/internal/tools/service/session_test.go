@@ -276,14 +276,10 @@ func TestScenarioSteps_ThreadsMockURLIntoSubject(t *testing.T) {
 	require.Equal(t, filepath.Join(subjectDir, profileFileName), started["profile"],
 		"the subject is the agent under test, resolved from the scenario")
 
-	// The subject reports the mock URL it was given, proving the thread.
-	health := Builder{
-		ToolName: "await_subject", Init: InitAwaitSubject, State: state, Session: session,
-		Config: ToolConfig{URL: "/healthz", Timeout: "20s", Interval: "20ms"},
-	}.Build(core.Result{}).Execute()
-	require.Equal(t, SignalHealthy, health.Signal, health.Output)
-
 	_, subjectURL := session.Subject()
+	require.Equal(t, subjectURL, started["health_base_url"])
+	require.Equal(t, "healthz", started["health_path"])
+	require.NotEmpty(t, started["started_at"])
 	body := httpGetBody(t, subjectURL+"/healthz")
 	require.Contains(t, body, mocks[0].BaseURL,
 		"the subject observed the mock's runtime address in its environment")
@@ -324,7 +320,7 @@ func TestScenarioSteps_TeardownRunsOnFailurePath(t *testing.T) {
 	require.Equal(t, SignalMockStarted, mockResult.Signal)
 	require.Len(t, state.Running(), 1)
 
-	// The subject starts but never serves the health path, so the wait times out.
+	// The subject starts but never serves the health path.
 	subjectResult := Builder{
 		ToolName: "start_subject", Init: InitStartSubject, State: state, Session: session,
 		Config: ToolConfig{
@@ -334,13 +330,7 @@ func TestScenarioSteps_TeardownRunsOnFailurePath(t *testing.T) {
 	}.Build(core.Result{}).Execute()
 	require.Equal(t, SignalSubjectStarted, subjectResult.Signal)
 
-	health := Builder{
-		ToolName: "await_subject", Init: InitAwaitSubject, State: state, Session: session,
-		Config: ToolConfig{URL: "/healthz", Timeout: "300ms", Interval: "20ms"},
-	}.Build(core.Result{}).Execute()
-	require.Equal(t, SignalHealthTimeout, health.Signal, "a dead subject must not look healthy")
-
-	// The machine routes a failed health check to a forced verdict then teardown.
+	// The declarative machine's timeout edge records a forced verdict then teardown.
 	verdict := Builder{
 		ToolName: "collect", Init: InitCollectVerdict, State: state, Session: session,
 		Config: ToolConfig{Reason: "subject never became healthy"},
@@ -398,6 +388,26 @@ func TestScenarioSteps_SessionWordSignals(t *testing.T) {
 	report := Builder{ToolName: "report", Init: InitReportSession, State: state, Session: session2}.
 		Build(core.Result{}).Execute()
 	require.Equal(t, SignalSessionPassed, report.Signal)
+}
+
+func TestSubjectHealthTarget_PreservesRelativeAndAlternateListenerPaths(t *testing.T) {
+	t.Parallel()
+
+	base, path, err := subjectHealthTarget("http://127.0.0.1:1234", "/_subject/health")
+	require.NoError(t, err)
+	require.Equal(t, "http://127.0.0.1:1234", base)
+	require.Equal(t, "_subject/health", path)
+
+	base, path, err = subjectHealthTarget(
+		"http://127.0.0.1:1234",
+		"http://127.0.0.1:5678/api/lifecycle/health",
+	)
+	require.NoError(t, err)
+	require.Equal(t, "http://127.0.0.1:5678", base)
+	require.Equal(t, "api/lifecycle/health", path)
+
+	_, _, err = subjectHealthTarget("http://127.0.0.1:1234", "file:///tmp/health")
+	require.ErrorContains(t, err, "scheme")
 }
 
 // TestScenarioSteps_RejectIncompleteDeclarations covers build-time validation
