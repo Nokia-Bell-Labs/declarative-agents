@@ -21,6 +21,7 @@ goals:
   - G5: Clarify how exec tools differ from builtin tools.
   - G6: Define the target package ownership for exec declarations, command construction, and undo helpers.
   - G7: Let an exec parameter select a non-adjacent command-state value without changing adjacent previous-Result mapping.
+  - G8: Let one exec word consume a bounded, redacted output field from a prior labelled word over stdin without authoring a shell pipeline.
 
 requirements:
   R0:
@@ -37,8 +38,9 @@ requirements:
       - R1.3: An exec tool declaration SHALL provide binary, the executable name or path.
       - R1.4: An exec tool declaration MAY provide args, a base argument list prepended to every invocation.
       - R1.5: An exec tool declaration MAY provide dir, a working-directory override relative to the agent workspace.
-      - R1.6: An exec tool declaration MAY provide precondition, output_cap, side_effects, visibility, description, and parameters.
+      - R1.6: An exec tool declaration MAY provide precondition, output_cap, stdin_source, stdin_max_bytes, side_effects, visibility, description, and parameters.
       - R1.7: An exec tool declaration MAY provide emits, the set of Result.Signal values the command wrapper can return.
+      - R1.8: An exec output contract MAY set mode to structured. Structured mode SHALL wrap the captured command result as a JSON object with output and exit_code fields. Omitted or raw mode SHALL preserve the existing raw Result.Output string.
 
   R2:
     title: Parameter-to-argv mapping
@@ -83,6 +85,17 @@ requirements:
       - R5.3: A CLI SHOULD be modeled as an exec tool before introducing a bespoke builtin wrapper.
       - R5.4: Agent subprogram invocation SHOULD use the agent CLI exec tool contract when possible.
 
+  R6:
+    title: Command-state stdin
+    items:
+      - R6.1: stdin_source MAY contain one canonical $from(<label>).<dotted-path> selector resolved through the injected CommandStateView and ResolveFromSelector before process launch.
+      - R6.2: The selected value SHALL be a non-empty string from the prior step's redacted output object. Missing labels, missing paths, empty values, non-string values, unavailable redacted output, and malformed selectors SHALL fail before subprocess launch with CommandError or declaration-validation failure as applicable.
+      - R6.3: stdin_max_bytes MAY declare a positive byte limit only when stdin_source is present. The implementation SHALL apply a finite default when omitted and SHALL reject, rather than truncate, input exceeding the effective limit before launch.
+      - R6.4: One exec word SHALL still launch exactly one declared binary and argv. stdin_source SHALL NOT invoke a shell or accept a pipeline authoring surface.
+      - R6.5: ExecCmd SHALL implement ContextCommand. Cancellation or timeout SHALL close the stdin pipe, terminate the process group, wait for the subprocess, and join the stdin writer before returning.
+      - R6.6: Resolved stdin bytes SHALL NOT be added to trace attributes, metric attributes, or exec receipts. CommandStateView receipt blindness SHALL keep prior receipts unaddressable.
+      - R6.7: Structured producer output and its redaction metadata SHALL remain selectable after checkpoint save/load. Existing argv-only declarations SHALL retain their prior execution and output behavior.
+
 package_ownership:
   status: planned
   notes:
@@ -114,8 +127,8 @@ non_goals:
 
 acceptance_criteria:
   - id: AC1
-    criterion: Exec declarations support name, type, binary, args, dir, precondition, output_cap, side_effects, visibility, description, parameters, and optional emits.
-    traces: [R0.1, R0.2, R1.1, R1.2, R1.3, R1.4, R1.5, R1.6, R1.7]
+    criterion: Exec declarations support name, type, binary, args, dir, precondition, output_cap, optional command-state stdin, raw or structured output, side_effects, visibility, description, parameters, and optional emits.
+    traces: [R0.1, R0.2, R1.1, R1.2, R1.3, R1.4, R1.5, R1.6, R1.7, R1.8]
 
   - id: AC2
     criterion: Parameter mapping converts JSON tool parameters into deterministic argv using flag, positional, bool_flag, default, position, and optional command-state source extensions while stripping those extensions from the LLM-visible schema. Omitting source preserves immediately previous Result mapping.
@@ -132,6 +145,10 @@ acceptance_criteria:
   - id: AC5
     criterion: Architecture guidance prefers exec tools for external CLIs and builtin tools only for in-process behavior that cannot be represented declaratively.
     traces: [R5.1, R5.2, R5.3, R5.4]
+
+  - id: AC6
+    criterion: A structured-output producer can feed a selected redacted output string to a separate consumer binary over bounded stdin; invalid input prevents launch, cancellation joins the child, persistence preserves safe selection, receipts remain isolated, and telemetry does not capture stdin.
+    traces: [R1.8, R6.1, R6.2, R6.3, R6.4, R6.5, R6.6, R6.7]
 
 depends_on:
   - srd_id: srd001-core-types

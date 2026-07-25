@@ -3,11 +3,10 @@
 package exec
 
 import (
+	"context"
 	"fmt"
 	"os"
-	osexec "os/exec"
 	"path/filepath"
-	"time"
 
 	"github.com/Nokia-Bell-Labs/declarative-agents/agent-core/internal/observability/monitor"
 	"github.com/Nokia-Bell-Labs/declarative-agents/agent-core/internal/runtime/core"
@@ -77,7 +76,10 @@ func (c *ExecCmd) Name() string { return c.def.Name }
 // sources after Build and before subprocess launch (srd023 R2.8, R3.9).
 func (c *ExecCmd) SetCommandState(view core.CommandStateView) { c.view = view }
 
-var _ core.CommandStateAware = (*ExecCmd)(nil)
+var (
+	_ core.CommandStateAware = (*ExecCmd)(nil)
+	_ core.ContextCommand    = (*ExecCmd)(nil)
+)
 
 // Undo reverses the exec effect using the tool-owned receipt on the prior
 // Result, falling back to the declared undo contract for the live in-process
@@ -111,8 +113,15 @@ func (c *ExecCmd) Undo(prior core.Result) core.Result {
 }
 
 func (c *ExecCmd) Execute() core.Result {
-	if err := c.resolveSourceParams(); err != nil {
-		wrapped := fmt.Errorf("%s: resolve exec parameter source: %w", c.Name(), err)
+	return c.ExecuteContext(context.Background())
+}
+
+// ExecuteContext resolves all command-state input before launch, then runs one
+// binary whose process group is canceled and joined with the dispatch context.
+func (c *ExecCmd) ExecuteContext(ctx context.Context) core.Result {
+	stdin, err := c.resolveInputs()
+	if err != nil {
+		wrapped := fmt.Errorf("%s: resolve exec input: %w", c.Name(), err)
 		return core.Result{
 			Output:      wrapped.Error(),
 			Signal:      core.CommandError,
@@ -124,20 +133,24 @@ func (c *ExecCmd) Execute() core.Result {
 	if err := c.checkPrecondition(dir); err != nil {
 		return core.Result{Output: err.Error(), Signal: core.ToolFailed, CommandName: c.def.Name}
 	}
-	cmd := osexec.Command(c.def.Binary, c.buildArgs()...)
-	cmd.Dir = dir
-	start := time.Now()
-	out, err := cmd.CombinedOutput()
-	duration := time.Since(start)
+	out, duration, err := runExecProcess(ctx, c.def, dir, c.buildArgs(), stdin)
 	res := SubprocessResult(c.def.Name, out, err)
 	c.recordExecMetrics(duration, out, err)
 	if c.def.OutputCap > 0 {
 		res.Output = CapOutput(res.Output, c.def.OutputCap)
 	}
+	res = shapeExecOutput(c.def, res, err)
 	if res.Signal != core.CommandError {
 		res.Receipt = c.encodeReceipt()
 	}
 	return res
+}
+
+func (c *ExecCmd) resolveInputs() (string, error) {
+	if err := c.resolveSourceParams(); err != nil {
+		return "", fmt.Errorf("parameter source: %w", err)
+	}
+	return c.resolveStdin()
 }
 
 func (c *ExecCmd) resolveSourceParams() error {

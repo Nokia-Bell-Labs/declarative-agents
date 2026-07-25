@@ -122,10 +122,13 @@ schema:
     required: false
     description: |
       Contract field describing the structured output produced by the
-      tool. Contains optional description and schema fields. The schema
+      tool. Contains optional description, schema, and mode fields. The schema
       is JSON Schema-compatible and describes the machine-readable output
-      contract. This does not yet change core.Result.Output, which remains
-      the human-readable/runtime string channel during migration.
+      contract. For exec tools, mode may be raw (the default) or structured.
+      Structured mode sets core.Result.Output to a JSON object containing the
+      captured output string and exit_code so a later command-state selector can
+      address $from(<label>).output. Other tools and raw exec tools retain the
+      human-readable/runtime string channel.
 
   - field: metrics
     type: object
@@ -482,6 +485,23 @@ exec_fields:
       Maximum number of output lines captured from the tool's stdout.
       Excess lines are truncated to keep LLM context manageable.
 
+  - field: stdin_source
+    type: string
+    required: false
+    description: |
+      Canonical $from(<label>).<dotted-path> selector for a prior redacted
+      command-state output field. The resolved value must be a non-empty string
+      within stdin_max_bytes and is written to the declared binary's stdin.
+      Resolution and size validation finish before launch. No shell is invoked.
+
+  - field: stdin_max_bytes
+    type: int
+    required: false
+    description: |
+      Positive byte limit for stdin_source. It is invalid without stdin_source.
+      When omitted, the exec runtime applies its finite default limit. Oversized
+      input is rejected before launch rather than truncated.
+
   - field: includes
     type: "[]string"
     required: false
@@ -624,21 +644,20 @@ contract_validation: |
   boundary) instead of falling back to internal, external_builtin, or exec.
 
 structured_output_strategy: |
-  Tool output has two layers during migration:
+  Tool output has two compatible runtime forms:
 
-  1. Runtime string output: core.Result.Output remains the human-readable
-     command output used by existing machine transitions, parse-error repair,
-     logs, and tests.
+  1. Raw mode (default): core.Result.Output remains the human-readable command
+     output used by existing machine transitions, parse-error repair, logs, and
+     tests.
   2. Declarative output contract: tool declarations may provide output.schema
-     to describe the machine-readable data shape the tool should eventually
-     produce.
+     to describe machine-readable data. Exec declarations may additionally set
+     output.mode: structured to wrap captured output and exit code in a JSON
+     object for command-state selection.
 
-  output.schema is not injected into the LLM-facing input schema and does not
-  change command execution. It lets developers document success shape, failure
-  shape, and downstream composition expectations before migrating individual
-  commands to a structured result field such as Result.Data. When Result.Data
-  is added later, existing output.schema declarations should be reused rather
-  than redesigned.
+  output.schema and output.mode are not injected into the LLM-facing input
+  schema. Omitted mode does not change command execution. Structured exec mode
+  is opt-in so existing consumers remain compatible while producer output can
+  be selected as $from(<label>).output.
 
 mode_local_overrides: |
   Some agents have mode-local builtin override files that add config

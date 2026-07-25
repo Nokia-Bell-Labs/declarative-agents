@@ -23,38 +23,42 @@ var cliExtensionKeys = map[string]bool{
 
 // ToolDef is a declarative, YAML-driven tool definition.
 type ToolDef struct {
-	Name          string                 `yaml:"name"`
-	Type          string                 `yaml:"type,omitempty"`
-	Category      string                 `yaml:"category,omitempty"`
-	Contract      string                 `yaml:"contract,omitempty"`
-	Description   string                 `yaml:"description"`
-	Problem       string                 `yaml:"problem,omitempty"`
-	Goals         []string               `yaml:"goals,omitempty"`
-	Requirements  ToolRequirements       `yaml:"requirements,omitempty"`
-	NonGoals      []string               `yaml:"non_goals,omitempty"`
-	Output        ToolOutputContract     `yaml:"output,omitempty"`
-	Metrics       core.MetricConfig      `yaml:"metrics,omitempty"`
-	SideEffects   ToolSideEffects        `yaml:"side_effects,omitempty"`
-	Reversibility ToolReversibility      `yaml:"reversibility,omitempty"`
-	Undo          ToolUndoContract       `yaml:"undo,omitempty"`
-	Errors        []ToolErrorContract    `yaml:"errors,omitempty"`
-	Relationships ToolRelationships      `yaml:"relationships,omitempty"`
-	Binary        string                 `yaml:"binary,omitempty"`
-	Args          []string               `yaml:"args,omitempty"`
-	Init          string                 `yaml:"init,omitempty"`
-	Config        map[string]interface{} `yaml:"config,omitempty"`
-	Emits         []string               `yaml:"emits,omitempty"`
-	Parameters    map[string]interface{} `yaml:"parameters,omitempty"`
-	Dir           string                 `yaml:"dir,omitempty"`
-	Precondition  string                 `yaml:"precondition,omitempty"`
-	Visibility    string                 `yaml:"visibility,omitempty"`
-	Phases        []string               `yaml:"phases,omitempty"`
-	OutputCap     int                    `yaml:"output_cap,omitempty"`
-	phaseScoped   bool
+	Name           string                 `yaml:"name"`
+	Type           string                 `yaml:"type,omitempty"`
+	Category       string                 `yaml:"category,omitempty"`
+	Contract       string                 `yaml:"contract,omitempty"`
+	Description    string                 `yaml:"description"`
+	Problem        string                 `yaml:"problem,omitempty"`
+	Goals          []string               `yaml:"goals,omitempty"`
+	Requirements   ToolRequirements       `yaml:"requirements,omitempty"`
+	NonGoals       []string               `yaml:"non_goals,omitempty"`
+	Output         ToolOutputContract     `yaml:"output,omitempty"`
+	Metrics        core.MetricConfig      `yaml:"metrics,omitempty"`
+	SideEffects    ToolSideEffects        `yaml:"side_effects,omitempty"`
+	Reversibility  ToolReversibility      `yaml:"reversibility,omitempty"`
+	Undo           ToolUndoContract       `yaml:"undo,omitempty"`
+	Errors         []ToolErrorContract    `yaml:"errors,omitempty"`
+	Relationships  ToolRelationships      `yaml:"relationships,omitempty"`
+	Binary         string                 `yaml:"binary,omitempty"`
+	Args           []string               `yaml:"args,omitempty"`
+	Init           string                 `yaml:"init,omitempty"`
+	Config         map[string]interface{} `yaml:"config,omitempty"`
+	Emits          []string               `yaml:"emits,omitempty"`
+	Parameters     map[string]interface{} `yaml:"parameters,omitempty"`
+	Dir            string                 `yaml:"dir,omitempty"`
+	Precondition   string                 `yaml:"precondition,omitempty"`
+	Visibility     string                 `yaml:"visibility,omitempty"`
+	Phases         []string               `yaml:"phases,omitempty"`
+	OutputCap      int                    `yaml:"output_cap,omitempty"`
+	StdinSource    string                 `yaml:"stdin_source,omitempty"`
+	StdinMaxBytes  int                    `yaml:"stdin_max_bytes,omitempty"`
+	stdinSourceSet bool
+	stdinLimitSet  bool
+	phaseScoped    bool
 }
 
-// UnmarshalYAML validates command-state parameter sources while declarations
-// are loaded, before an exec tool can be registered or dispatched (srd023 R4.5).
+// UnmarshalYAML validates command-state selectors while declarations are loaded,
+// before an exec tool can be registered or dispatched (srd023 R4.5).
 func (td *ToolDef) UnmarshalYAML(value *yaml.Node) error {
 	type rawToolDef ToolDef
 	var decoded rawToolDef
@@ -62,7 +66,24 @@ func (td *ToolDef) UnmarshalYAML(value *yaml.Node) error {
 		return err
 	}
 	*td = ToolDef(decoded)
-	return td.validateParamSources()
+	td.stdinSourceSet = yamlFieldPresent(value, "stdin_source")
+	td.stdinLimitSet = yamlFieldPresent(value, "stdin_max_bytes")
+	if err := td.validateParamSources(); err != nil {
+		return err
+	}
+	return td.validateExecIO()
+}
+
+func yamlFieldPresent(value *yaml.Node, field string) bool {
+	if value.Kind != yaml.MappingNode {
+		return false
+	}
+	for i := 0; i+1 < len(value.Content); i += 2 {
+		if value.Content[i].Value == field {
+			return true
+		}
+	}
+	return false
 }
 
 func (td ToolDef) validateParamSources() error {
@@ -87,6 +108,34 @@ func (td ToolDef) validateParamSources() error {
 	return nil
 }
 
+func (td ToolDef) validateExecIO() error {
+	hasExecIO := td.stdinSourceSet || td.stdinLimitSet || td.Output.Mode != ""
+	if td.Type == "builtin" {
+		if hasExecIO {
+			return fmt.Errorf("builtin tool %q cannot declare exec input or output mode", td.Name)
+		}
+		return nil
+	}
+	if hasExecIO && td.Binary == "" {
+		return fmt.Errorf("tool %q exec input or output mode requires binary", td.Name)
+	}
+	if td.stdinSourceSet && td.StdinSource == "" {
+		return fmt.Errorf("tool %q stdin_source must not be empty", td.Name)
+	}
+	if td.StdinSource != "" {
+		if _, _, ok := core.ParseFromSelector(td.StdinSource); !ok {
+			return fmt.Errorf("tool %q stdin_source %q must be a $from(label).path selector", td.Name, td.StdinSource)
+		}
+	}
+	if td.stdinLimitSet && (td.StdinMaxBytes <= 0 || td.StdinSource == "") {
+		return fmt.Errorf("tool %q stdin_max_bytes requires stdin_source and must be positive", td.Name)
+	}
+	if td.Output.Mode != "" && td.Output.Mode != "raw" && td.Output.Mode != "structured" {
+		return fmt.Errorf("tool %q output mode %q must be raw or structured", td.Name, td.Output.Mode)
+	}
+	return nil
+}
+
 // ToolRequirements groups observable behaviors a tool must satisfy.
 type ToolRequirements struct {
 	Input       []string `yaml:"input,omitempty"`
@@ -100,6 +149,7 @@ type ToolRequirements struct {
 type ToolOutputContract struct {
 	Description string                 `yaml:"description,omitempty"`
 	Schema      map[string]interface{} `yaml:"schema,omitempty"`
+	Mode        string                 `yaml:"mode,omitempty"`
 }
 
 // ToolSideEffect describes one world mutation performed by a tool.
