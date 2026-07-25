@@ -230,10 +230,10 @@ implementation_status:
         (srd005 R3.1), covered independently from integration:controlPlane.
     - planned: One live integration that joins an ingest-carrying provisioning
         intent, rollout, and a grounded turn from the newly added source.
-    - planned: The applier deployment surface (srd006) that replaces the Go
-        provisioner. Its behavioral tracer mage integration:applier is not yet
-        implemented, so integration:controlPlane is not applier evidence
-        (test-rel06.0-applier is planned).
+    - done: The applier deployment surface (srd006) that replaces the Go
+        provisioner. mage integration:applier drives every declared apply and
+        rollout terminal against recording helm and kubectl, while mage
+        integration:applierLive proves real on-cluster apply and rollback.
 
 related_documents:
   - doc: docs/VISION.yaml
