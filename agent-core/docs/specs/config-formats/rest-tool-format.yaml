@@ -1623,5 +1623,3 @@ implementation_status:
     - top-level document_resources config. ValidateDefinition rejects this field.
     - machine_request.document_resources config. ValidateDefinition rejects this field.
     - lifecycle_control endpoint config.
-  planned_follow_up:
-    - agent-core-guhn.4: align formal suite cases with exact named Go tests for closed conformance behavior.
