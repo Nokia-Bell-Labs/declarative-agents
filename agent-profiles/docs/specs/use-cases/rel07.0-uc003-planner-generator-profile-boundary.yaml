@@ -2,11 +2,10 @@ id: rel07.0-uc003-planner-generator-profile-boundary
 title: Planner to Generator Profile Boundary
 
 summary: |
-  The planner profile proof shows that a small requirement graph can be loaded,
-  materialized into a local task, and executed through the generator profile as
-  a child boundary. The tracer is intentionally tiny: it proves task
-  orchestration and terminal state recording without becoming a full planning
-  benchmark.
+  This library-owned tracer is retired. It synthesized planner work in Mage and
+  delegated to a shell child that fabricated the workspace change. The
+  replacement belongs to the coding application and runs the canonical planner
+  and executor through the real built agent binary.
 
   Profile-owned fixtures define the requirement graph, issue/materialization
   shape, workspace, and expected terminal states. agent-core supplies planning
@@ -16,9 +15,9 @@ summary: |
 actor: Profile maintainer verifying planner orchestration.
 
 trigger: |
-  A maintainer runs the planner-generator integration target:
+  A maintainer runs the application-owned planner integration target:
 
-    AGENT_CORE_ROOT=/path/to/agent-core mage integration:plannerGenerator
+    cd examples/coding-agent && mage integration:plannerDelegation
 
 preconditions:
   - agents/planner/profile.yaml and agents/executor/profile.yaml validate.
@@ -71,4 +70,4 @@ out_of_scope:
   - Changing planner tool implementations in agent-core.
 
 test_suite_trace: test-rel07.0-profile-integrations
-status: implemented
+status: planned

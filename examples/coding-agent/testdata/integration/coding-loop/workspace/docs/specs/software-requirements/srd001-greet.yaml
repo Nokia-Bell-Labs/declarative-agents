@@ -1,0 +1,19 @@
+id: srd001-greet
+title: Greeting Function
+
+problem: |
+  The fixture needs a deterministic greeting implementation.
+
+goals:
+  - G1: Return the specified greeting for every supplied name.
+
+requirements:
+  R1:
+    title: Greeting behavior
+    items:
+      - R1.1: Hello(name) must return "Hello, <name>!" where <name> is the argument.
+
+acceptance_criteria:
+  - id: AC1
+    criterion: All tests in greet_test.go pass.
+    traces: [R1.1]

@@ -11,9 +11,8 @@ import (
 // stubGeneratorAgent is a fake child `agent` binary. The evaluator point machine
 // launches the generator profile as a subprocess from the configured
 // --child-agent-binary; this shim stands in for it so the session runs
-// deterministically with no live model. It mirrors
-// magefiles/integration_evaluator.go writeGeneratorChildAgent: it writes the
-// expected workspace edit and a minimal child trace, then exits cleanly.
+// deterministically with no live model. It is intentionally confined to
+// conformance; application integration must use the real built agent binary.
 const stubGeneratorAgent = `#!/bin/sh
 set -eu
 profile=

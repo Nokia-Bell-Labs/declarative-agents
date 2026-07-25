@@ -75,8 +75,11 @@ coverage_gaps:
   - id: coding-loop-integration
     status: planned
     description: |
-      The three test stages are specified but have no executable Mage targets
-      until the coding-loop integration issue adds fixtures and evidence.
+      Portable fixtures and executable Mage targets now prove the live executor
+      and real planner delegation stages. The critic target proves its real
+      session, child, oracle, trace, and metrics boundary, but the canonical
+      critic profile cannot consume an existing Stage B candidate or emit an
+      accept/reject application verdict. The full Stage C gate remains planned.
   - id: library-reference-resolution
     status: planned
     description: |

@@ -25,8 +25,7 @@ test_cases:
     name: Stage A - live executor run
     stage: A
     integration_target: mage integration:executorLive
-    go_test: mage integration:executorLive
-    status: planned
+    status: implemented
     description: |
       Build the production agent-core binary, start the canonical executor
       profile against Ollama, and give it the greet task in a fresh isolated
@@ -57,8 +56,7 @@ test_cases:
     name: Stage B - real planner delegation
     stage: B
     integration_target: mage integration:plannerDelegation
-    go_test: mage integration:plannerDelegation
-    status: planned
+    status: implemented
     description: |
       Start the canonical planner profile with the fixture requirement graph and
       SRD context. The planner must materialize the greet task and delegate it to
@@ -94,15 +92,17 @@ test_cases:
     name: Stage C - critic gate
     stage: C
     integration_target: mage integration:criticGate
-    go_test: mage integration:criticGate
     status: planned
     description: |
-      Pass the Stage B workspace and execution evidence to the canonical critic
-      profile with the fixture suite, samples, profile grid, and oracle. The
-      critic must run real point evaluation, report metrics and oracle results,
-      accept the conforming change, and reject a deliberately non-conforming
-      candidate. Those reports must select the corresponding application
-      terminal outcomes.
+      The executable target currently proves the strongest honest canonical
+      critic boundary: the real critic invokes the real built agent binary with
+      the canonical executor, runs the oracle, records point metrics, and reaches
+      Done. It does not satisfy this Stage C case yet. The canonical critic
+      contract always starts a child profile from a baseline sample and exposes
+      no input for an existing Stage B workspace or output verdict that can gate
+      the application. Accept/reject gating therefore remains planned and needs
+      a separate profile-contract issue; a skipped or limited run is not passed
+      evidence for this case.
     inputs:
       agent_binary: production agent-core binary used for critic point execution
       critic_profile: agent-profiles/agents/critic/profile.yaml resolved through the application package

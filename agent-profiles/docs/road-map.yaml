@@ -147,11 +147,11 @@ releases:
         summary: Knowledge Manager profile UX, document machine_request, trace, and lifecycle proof.
         status: implemented
       - id: rel07.0-uc002-evaluator-generator-profile-boundary
-        summary: Evaluator runs generator as a benchmark subject profile.
-        status: implemented
+        summary: Retired library tracer; application critic boundary is the replacement.
+        status: planned
       - id: rel07.0-uc003-planner-generator-profile-boundary
-        summary: Planner executes materialized work through generator.
-        status: implemented
+        summary: Retired library tracer; application planner delegation is the replacement.
+        status: planned
       - id: rel07.0-uc004-bench-evaluator-profile-boundary
         summary: Bench launches evaluator from a human/operator action.
         status: implemented
@@ -165,8 +165,6 @@ releases:
     proof:
       - mage integration:all
       - mage integration:documentationCurator
-      - mage integration:evaluatorGenerator
-      - mage integration:plannerGenerator
       - mage integration:benchEvaluator
       - mage integration:monitorControl
     success_markers:

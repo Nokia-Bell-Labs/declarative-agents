@@ -23,13 +23,12 @@ var subModules = []string{
 // corpus, not a platform module.
 var exampleModules = []string{
 	"examples/chatbot-mesh",
+	"examples/coding-agent",
 }
 
 // auditOnlyExampleModules participate in the documentation gate before they
 // grow Go tests, stats, or build targets.
-var auditOnlyExampleModules = []string{
-	"examples/coding-agent",
-}
+var auditOnlyExampleModules = []string{}
 
 // auditParticipants lists every module the root audit gate dispatches to: the
 // platform submodules plus every example that owns a mage audit target.

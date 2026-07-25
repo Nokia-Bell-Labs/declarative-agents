@@ -65,15 +65,17 @@ test_cases:
       - sm-agent-role-taxonomy documentation-curator
 
   - use_case: rel07.0-uc002-evaluator-generator-profile-boundary
-    name: Evaluator runs generator as benchmark subject
+    name: Evaluator-to-generator boundary retired from library integration
     follow_up_issue: "#108"
-    integration_target: mage integration:evaluatorGenerator
-    go_test: go test ./magefiles -run TestAssertEvaluatorGeneratorOutputRequiresBoundaryEvidence
-    status: implemented
+    replacement_target: examples/coding-agent mage integration:criticGate
+    status: planned
     description: |
-      Run evaluator with a tiny local suite whose subject profile is generator.
-      The target creates point/session output proving child profile invocation,
-      oracle accounting, trace evidence, and fixture-local result paths.
+      The former target used writeGeneratorChildAgent, a shell binary that
+      fabricated both the workspace edit and token trace. It is retired rather
+      than retained as a library contract because those artifacts did not prove
+      the declared child profile. The application-owned critic target now uses
+      the real built agent binary and canonical executor profile. Its current
+      profile-contract limitation remains planned rather than passed evidence.
     inputs:
       evaluator_profile: agents/critic/profile.yaml
       subject_profile: agents/executor/profile.yaml
@@ -85,7 +87,7 @@ test_cases:
       point_status_recorded: true
       session_summary_recorded: true
       oracle_accounting_recorded: true
-      target_owner: agent-profiles
+      target_owner: examples/coding-agent
     traces:
       - rel07.0-uc002-evaluator-generator-profile-boundary S1
       - rel07.0-uc002-evaluator-generator-profile-boundary S2
@@ -93,20 +95,17 @@ test_cases:
       - sm-multi-agent-profile-system dependency_directions evaluator->generator
 
   - use_case: rel07.0-uc003-planner-generator-profile-boundary
-    name: Planner-to-generator boundary (synthesized component evidence)
+    name: Planner-to-generator boundary retired from library integration
     follow_up_issue: "#109"
-    integration_target: mage integration:plannerGenerator
-    go_test: go test ./magefiles -run TestAssertPlannerGeneratorStateRequiresTraceAndTerminalState
-    status: implemented
-    coverage: synthesized-component
+    replacement_target: examples/coding-agent mage integration:plannerDelegation
+    status: planned
+    coverage: application-live
     description: |
-      Synthesized component evidence, not a full shipped-profile run. The target
-      drives graph load and task extraction with a Mage-side synthesized flow and
-      a stub generator child, recording graph terminal state and child run outcome
-      without writing real external issues. The shipped planner profile machine —
-      issue materialization, child delegation, checks, and a terminal trace as one
-      end-to-end flow — is not exercised here; that behavioral proof is tracked by
-      #109.
+      The former target synthesized materialization in Mage and delegated to the
+      same shell fake as the evaluator tracer. It is retired because it was not
+      an accurate cheap contract for the shipped planner. The application-owned
+      replacement runs the canonical planner, a disposable local tracker, and
+      the canonical executor through the real built agent binary.
     inputs:
       planner_profile: agents/planner/profile.yaml
       child_profile: agents/executor/profile.yaml
@@ -118,7 +117,7 @@ test_cases:
       child_profile: generator
       graph_terminal_state_recorded: true
       child_run_outcome_recorded: true
-      target_owner: agent-profiles
+      target_owner: examples/coding-agent
     traces:
       - rel07.0-uc003-planner-generator-profile-boundary S1
       - rel07.0-uc003-planner-generator-profile-boundary S2

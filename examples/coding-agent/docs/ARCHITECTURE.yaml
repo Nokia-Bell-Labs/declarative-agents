@@ -209,16 +209,20 @@ project_structure:
 
 implementation_status:
   current_focus: |
-    The application documentation and coding-loop test contract are specified.
-    Integration fixtures, the reference resolver, packaging, and Helm deployment
-    remain planned follow-up work.
+    The application documentation, portable integration fixtures, live executor,
+    and real planner delegation are implemented. The critic session boundary is
+    executable, but candidate verdict gating, the reference resolver, packaging,
+    and Helm deployment remain planned follow-up work.
   progress:
     - specified: The planner -> executor -> critic coding loop and three-stage
         integration contract.
     - specified: The reference-not-fork, package-time closure, profile-free
         runtime image, and one-container-per-agent decisions.
-    - planned: Live executor, real planner delegation, and critic-gate
-        integration targets.
+    - implemented: Live executor and real planner delegation targets using the
+        real built binary and canonical profiles.
+    - specified: A real critic session boundary with point, oracle, trace, and
+        metrics evidence; accept/reject application gating remains planned
+        because the canonical profile exposes no candidate-verdict contract.
     - planned: Versioned library reference resolution and package assembly.
     - planned: Kubernetes deployment and Helm chart.
 

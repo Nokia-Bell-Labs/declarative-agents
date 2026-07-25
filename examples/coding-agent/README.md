@@ -18,8 +18,9 @@ requirements in `agent-profiles/`:
 - `srd003-critic`
 - `srd004-planner`
 
-This scaffold establishes the application home and test contract before
-follow-up issues add code, fixtures, packaging, and Helm assets.
+This directory owns the live integration targets and portable fixture in
+addition to the application specification. Packaging and Helm assets remain
+follow-up work.
 
 ## Coding loop
 
@@ -57,15 +58,20 @@ Profiles are application package content, not runtime image content.
 
 ## Status
 
-The vision, architecture, release, use case, and three-stage test suite are
-specified. The following assets are planned in later issues:
+The live executor and real planner-delegation stages are implemented with the
+production agent-core binary and canonical profiles. The critic target executes
+the real critic session, real executor child, oracle, trace, and metrics
+boundary. The following assets remain planned:
 
-- coding-loop integration fixtures and Mage targets;
+- a critic profile contract that accepts an existing candidate and emits an
+  accept/reject application verdict;
 - pinned library reference resolution and package assembly;
 - a Helm chart with one container per agent.
 
-All executable stages remain marked as planned, with no integration evidence
-claimed by this scaffold.
+The critic gate test case remains planned: the current canonical critic is a
+benchmark runner that starts a child from a baseline sample, not a reviewer of
+the Stage B workspace. The executable target reports a limited pass instead of
+claiming that missing gate.
 
 ## Layout
 
@@ -79,8 +85,10 @@ examples/coding-agent/
     specs/
       use-cases/
       test-suites/
+  magefiles/
+  testdata/integration/coding-loop/
+  go.mod
   README.md
-  magefile.go
 ```
 
 There is no local `specs/software-requirements/` content. Application behavior
@@ -95,12 +103,12 @@ From this directory:
 mage audit
 ```
 
-The audit parses every YAML document, checks the required document fields,
-validates indexed paths and reciprocal use-case/test-suite traces, and confirms
-the three planned stages expose explicit inputs and expected outputs.
+The audit parses every YAML document, checks required fields and reciprocal
+traces, builds the real agent, boot-validates the three canonical profiles, and
+validates formal test-evidence claims without turning skipped live runs into
+passed evidence.
 
-Integration commands are added with the integration implementation. The planned
-entry points are `mage integration:executorLive`,
+The integration entry points are `mage integration:executorLive`,
 `mage integration:plannerDelegation`, `mage integration:criticGate`, and the
 aggregate `mage integration:codingLoop`.
 

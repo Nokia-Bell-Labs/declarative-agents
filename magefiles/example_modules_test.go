@@ -36,8 +36,8 @@ func TestCodingAgentParticipatesInAudit(t *testing.T) {
 	if !contains(auditParticipants(), "examples/coding-agent") {
 		t.Fatalf("auditParticipants() = %#v, want coding-agent", auditParticipants())
 	}
-	if contains(exampleModules, "examples/coding-agent") {
-		t.Fatal("coding-agent must remain audit-only until it owns test and stats targets")
+	if !contains(exampleModules, "examples/coding-agent") {
+		t.Fatal("coding-agent owns tests and stats and must participate as an example module")
 	}
 }
 

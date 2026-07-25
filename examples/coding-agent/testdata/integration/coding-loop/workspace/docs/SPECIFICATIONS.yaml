@@ -1,0 +1,21 @@
+id: coding-loop-fixture-specifications
+title: Coding Loop Greet Fixture
+
+overview: |
+  One portable requirement used by the coding application integration stages.
+
+roadmap_summary:
+  - version: "01.0"
+    name: Greeting
+    use_cases_done: 0
+    use_cases_total: 0
+    status: open
+
+srd_index:
+  - id: srd001-greet
+    title: Greeting Function
+    summary: Implement the fixture greeting.
+    path: docs/specs/software-requirements/srd001-greet.yaml
+
+use_case_index: []
+test_suite_index: []

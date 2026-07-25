@@ -1,0 +1,16 @@
+executor:
+  terminal_state: Succeeded
+  validation: passed
+planner:
+  terminal_state: Completed
+  materialized_tasks: 1
+  child_profile: agents/executor/profile.yaml
+  child_binary: real-built-agent
+critic_boundary:
+  terminal_state: Done
+  points: 1
+  oracle: passed
+  limitation: |
+    The canonical critic is an evaluation runner that always launches a child
+    profile from a baseline sample. It has no input or output contract for
+    reviewing an existing Stage B workspace and returning an accept/reject gate.
