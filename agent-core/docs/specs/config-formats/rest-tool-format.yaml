@@ -139,6 +139,28 @@ schema:
         type: string
         required: unless_openapi_operation_id_or_resource_path
         description: Path template. Resource operations may inherit the resource path. Absolute URLs are rejected unless network policy allows them.
+      - field: base_url_source
+        type: string
+        required: false
+        description: |
+          Optional command_state value that lets this trusted operation select
+          its base URL from a labeled prior command output. Omission preserves
+          the client's configured base_url.
+      - field: base_url_selector
+        type: string
+        required: when_base_url_source_is_command_state
+        description: |
+          A $from(<label>).<path> selector resolving to an absolute HTTP or
+          HTTPS URL. This is operation configuration, not a runtime parameter;
+          input_mapping remains forbidden from setting transport authority.
+      - field: allow_auth_on_selected_authority
+        type: bool
+        required: false
+        description: |
+          Explicitly permits configured credentials on an authority selected
+          through base_url_source. The default is false: authenticated
+          operations reject a selected authority that differs from the
+          configured client authority before network I/O.
       - field: params
         type: request_binding
         required: false
@@ -403,6 +425,14 @@ schema:
         type: "[]string"
         required: false
         description: Signal allowlist for emit_dynamic_signal endpoints.
+      - field: signal_field
+        type: string
+        required: false
+        description: Optional dotted validated-payload path whose string value selects an emit_dynamic_signal outcome.
+      - field: signal_mapping
+        type: "map[string]string"
+        required: false
+        description: Optional profile-owned mapping from signal_field values to allowed_signals; requires signal_field and every mapped result must be allowlisted.
       - field: lifecycle_control
         type: lifecycle_control_config
         required: false
@@ -1455,6 +1485,13 @@ validation_rules:
     rule: Inbound JSON bodies MUST contain exactly one object and satisfy declared string, number, integral integer, object, array, boolean, or null field types.
   - id: V35
     rule: $.path and $from(label).path selectors MUST use the shared dotted-path grammar; empty components, whitespace or control characters, malformed parentheses, and empty labels or paths are invalid.
+  - id: V36
+    rule: |
+      base_url_source, when present, MUST be command_state and MUST carry a
+      base_url_selector in $from(<label>).<path> form. The selected value MUST
+      be an absolute HTTP or HTTPS URL without user information and MUST pass
+      the operation's network, redirect, and credential-scope policies before
+      network I/O. Runtime input_mapping authority fields remain forbidden.
 
 invalid_examples:
   ambiguous_resource_operation: |

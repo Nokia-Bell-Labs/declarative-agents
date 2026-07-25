@@ -1,0 +1,50 @@
+rest:
+  version: v1
+  auth:
+    none:
+      type: none
+  limits:
+    health_probe:
+      timeout: 400ms
+      connect_timeout: 400ms
+      read_timeout: 400ms
+      max_response_bytes: 65536
+      redirect:
+        mode: none
+      network:
+        schemes: [http, https]
+        hosts: [127.0.0.1, localhost]
+  clients:
+    scenario_subject:
+      # The operation replaces this authority only from the trusted labeled
+      # start_scenario_subject result; runtime parameters cannot choose it.
+      base_url: http://127.0.0.1
+      auth_ref: none
+      limits_ref: health_probe
+      operations:
+        health:
+          method: GET
+          path: /{health_path...}
+          base_url_source: command_state
+          base_url_selector: $from(subject).health_base_url
+          params:
+            path:
+              health_path: {type: string}
+            body_source: command_state
+            input_mapping:
+              health_path: $from(subject).health_path
+          success:
+            # Preserve the retired readiness check's accepted HTTP outcomes:
+            # ordinary success plus standard redirects below 400.
+            status: [200, 201, 202, 203, 204, 205, 206, 207, 208, 226, 300, 301, 302, 303, 304, 305, 307, 308]
+            signal: Healthy
+          failures:
+            - status: [400, 401, 402, 403, 404, 405, 406, 407, 408, 409, 410, 411, 412, 413, 414, 415, 416, 417, 418, 421, 422, 423, 424, 425, 426, 428, 429, 431, 451, 500, 501, 502, 503, 504, 505, 506, 507, 508, 510, 511]
+              signal: HealthUnavailable
+          side_effects:
+            - kind: external_api
+              target: scenario_subject.health
+              state: read_only
+          reversibility:
+            classification: reversible
+            undo: noop

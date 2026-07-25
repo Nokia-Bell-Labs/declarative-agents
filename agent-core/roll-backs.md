@@ -306,11 +306,12 @@ type Command interface {
 | `find` | Nothing | No-op |
 | `list_files` | Nothing | No-op |
 | `build` / `test` / `vet` / `lint` | Nothing persistent | No-op |
-| `validate` | Nothing persistent | No-op |
 | `done` | Nothing | No-op |
 | `extract_task` | Pipeline graph state | Restores graph snapshot |
 | `execute_task` | Spawns sub-agent | Roll back sub-agent workspace |
-| `check_result` | Pipeline retry counter | Restores counter |
+| `increment_retry` | Command-state output only | History truncation removes the increment |
+| `mark_task_done` | Pipeline graph state | Restores graph snapshot |
+| `remaining_work` / `check_retry_limit` | Nothing | No-op |
 
 ---
 

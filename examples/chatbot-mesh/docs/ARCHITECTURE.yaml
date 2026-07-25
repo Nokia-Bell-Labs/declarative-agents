@@ -28,7 +28,7 @@ overview:
     flowchart LR
       U[Browser SPA] -->|chat request| CB[Chatbot agent]
       CB -->|embed once| OLL[Ollama embed]
-      CB -->|route question| RTR[$tool router -> chat-LLM word]
+      CB -->|select model tier| TS[$tool tier selector -> chat-LLM word]
       CB -->|fan out one embedding| R0[RAG server 0]
       CB -->|fan out one embedding| R1[RAG server 1]
       R0 -->|query_embeddings| CH0[(Chroma collection 0)]
@@ -63,7 +63,7 @@ components:
   - name: chatbot agent
     path: agents/chatbot/
     responsibility: |
-      Run the request-scoped turn: embed once, route the question to a chat-LLM
+      Run the request-scoped turn: embed once, select a chat-LLM word
       word through a $tool classifier, fan the embedding out to the configured RAG
       servers, thread each source through command-state $from() selectors, compose
       the answer prompt from the surviving chunks, and answer. Degrade to a

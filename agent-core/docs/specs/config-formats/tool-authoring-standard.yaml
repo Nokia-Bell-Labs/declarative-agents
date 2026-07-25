@@ -44,8 +44,8 @@ tool_categories:
     examples:
       - invoke_llm
       - run_point
-      - launch_eval
-      - serve_ui
+      - self_invoke
+      - rest_await_event
 
   sentence:
     meaning: |
@@ -240,7 +240,6 @@ declaration_placement:
     llm: tools/builtin/llm/
     lifecycle: tools/builtin/lifecycle/
     control: tools/builtin/control/
-    validation: tools/builtin/validation/
     planner: tools/builtin/planner/
     evaluator_session: tools/builtin/critic-session/
     evaluator_point: tools/builtin/critic-point/

@@ -1,0 +1,41 @@
+tools:
+- name: mark_task_done
+  type: builtin
+  init: mark_task_done
+  description: Mark only the current planner task's graph nodes done.
+  visibility: internal
+  emits: [TaskCompleted, CommandError]
+  category: stateful_internal
+  side_effects:
+  - kind: state_mutation
+    target: pipeline_graph
+    state: current_task_completed
+    description: Advances the current task's nodes to Done without choosing a route.
+  reversibility:
+    classification: reversible
+    undo: pipeline_state_restore
+  undo:
+    strategy: session_state_restore
+    description: Restore graph node statuses from the pre-completion snapshot.
+  problem: Successful validation needs one focused graph completion mutation.
+  goals:
+  - Mutate graph completion state without deciding retry or remaining-work policy.
+  requirements:
+    input: [The current task and graph must exist in planner pipeline state.]
+    output: [TaskCompleted is emitted after all current task nodes reach Done.]
+    errors: [CommandError is emitted for missing state or invalid node transitions.]
+  non_goals:
+  - Does not inspect validation results.
+  - Does not count retries or query remaining work.
+  output:
+    description: Human-readable confirmation naming the completed planner task.
+    schema:
+      type: string
+  errors:
+  - signal: CommandError
+    condition: The current task or graph is missing, or a task node cannot transition to Done.
+    message_shape: 'mark_task_done: <error>'
+    state_after_failure: The machine does not route completion; rollback restores any graph nodes changed before the error.
+  relationships:
+    before: [test]
+    after: [remaining_work]

@@ -50,18 +50,12 @@ compensation_boundaries:
       receipt_payload: child_task_and_workspace_paths
     - command: self_invoke
       receipt_payload: child_run_id_machine_tools_and_trace_artifact
-    - command: launch_eval
-      receipt_payload: suite_output_dir_child_machine_and_tools
-    - command: serve_ui
-      receipt_payload: server_addr_and_user_action
     - command: run_agent
       receipt_payload: point_context_workspace_and_artifact_paths
     - command: run_point
       receipt_payload: eval_session_snapshot_and_nested_machine
     - command: suspend
       receipt_payload: approval_reason_and_checkpoint_requirement
-    - command: validate
-      receipt_payload: ran_child_tools
 
 expected_noop_long_term:
   - read
@@ -116,7 +110,7 @@ receipt_undo:
     - command: record_tracker_issue
       strategy: pipeline_state_restore
       receipt: reversible_pipeline_snapshot
-    - command: check_result
+    - command: mark_task_done
       strategy: pipeline_state_restore
       receipt: reversible_pipeline_snapshot
   workspace_state:
@@ -192,10 +186,6 @@ receipt_undo:
       strategy: validation_state_restore
       receipt: reversible_validation_state_snapshot
   boundary_compensation:
-    - command: validate
-      strategy: child_command_undo
-      receipt: compensatable_boundary_compensation
-      captures: [ran_child_tools]
     - command: suspend
       strategy: resume_or_checkpoint_rollback
       receipt: compensatable_boundary_compensation
@@ -220,14 +210,6 @@ receipt_undo:
       strategy: point_workspace_restore_and_child_process_compensation
       receipt: compensatable_boundary_compensation
       captures: [point_context_snapshot, workspace_paths, artifact_paths]
-    - command: launch_eval
-      strategy: child_eval_artifact_compensation
-      receipt: compensatable_boundary_compensation
-      captures: [suite_path, output_dir, child_machine, child_tools]
-    - command: serve_ui
-      strategy: server_shutdown_or_user_action_compensation
-      receipt: compensatable_boundary_compensation
-      captures: [server_addr, user_action]
 
 declaration_mismatches: []
 

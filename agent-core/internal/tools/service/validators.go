@@ -4,9 +4,7 @@ package service
 
 import (
 	"context"
-	"sort"
 	"strings"
-	"sync"
 	"time"
 
 	"github.com/Nokia-Bell-Labs/declarative-agents/agent-core/internal/support/execute"
@@ -35,30 +33,10 @@ type ValidatorOutcome struct {
 	Error    string `json:"error,omitempty"`
 }
 
-// RunValidators runs every validator concurrently to completion through the
-// shared child-agent path and returns one outcome per validator, keyed by
-// name and sorted for determinism. The overall timeout bounds each child.
-func RunValidators(ctx context.Context, binary string, specs []ValidatorSpec, timeout time.Duration) []ValidatorOutcome {
+func runOneValidator(ctx context.Context, binary string, spec ValidatorSpec, timeout time.Duration) ValidatorOutcome {
 	if timeout <= 0 {
 		timeout = defaultRunTimeout
 	}
-	outcomes := make([]ValidatorOutcome, len(specs))
-
-	var wg sync.WaitGroup
-	for i, spec := range specs {
-		wg.Add(1)
-		go func(slot int, spec ValidatorSpec) {
-			defer wg.Done()
-			outcomes[slot] = runOneValidator(ctx, binary, spec, timeout)
-		}(i, spec)
-	}
-	wg.Wait()
-
-	sort.Slice(outcomes, func(i, j int) bool { return outcomes[i].Name < outcomes[j].Name })
-	return outcomes
-}
-
-func runOneValidator(ctx context.Context, binary string, spec ValidatorSpec, timeout time.Duration) ValidatorOutcome {
 	name := spec.Name
 	if name == "" {
 		name = spec.Profile

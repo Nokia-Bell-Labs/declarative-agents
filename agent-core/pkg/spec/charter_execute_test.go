@@ -75,7 +75,7 @@ func TestExecuteChartersRejectsUnknownSpecCorpusSubset(t *testing.T) {
 	require.ErrorContains(t, err, `unknown spec_corpus check "invented-check"`)
 }
 
-func TestExecuteChartersAggregatesDeterministicallyAcrossSuites(t *testing.T) {
+func TestExecuteChartersLeavesGrepChecksToJuristMachine(t *testing.T) {
 	root := t.TempDir()
 	writeTargetFile(t, root, "z.md", "cobbler\n")
 	writeTargetFile(t, root, "a.md", "cobbler\n")
@@ -106,15 +106,7 @@ func TestExecuteChartersAggregatesDeterministicallyAcrossSuites(t *testing.T) {
 	findings, err := ExecuteCharters(root, graph, corpus, charters)
 
 	require.NoError(t, err)
-	require.Len(t, findings, 4)
-	require.Equal(t, "suite-a", findings[0].SuiteID)
-	require.Equal(t, "a.md", findings[0].File)
-	require.Equal(t, "suite-a", findings[1].SuiteID)
-	require.Equal(t, "z.md", findings[1].File)
-	require.Equal(t, "suite-b", findings[2].SuiteID)
-	require.Equal(t, "a.md", findings[2].File)
-	require.Equal(t, "suite-b", findings[3].SuiteID)
-	require.Equal(t, "z.md", findings[3].File)
+	require.Empty(t, findings)
 }
 
 func findingTriples(findings []Finding) []Finding {

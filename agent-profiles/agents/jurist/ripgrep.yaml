@@ -1,0 +1,84 @@
+tools:
+  - name: jurist_rg
+    type: exec
+    binary: rg
+    args: [--json, --line-number, --no-ignore, --hidden, --text, --threads, "1", --sort, path]
+    visibility: internal
+    emits: [ToolDone, ToolFailed, CommandError]
+    description: Search one declared jurist grep_check with ripgrep.
+    category: boundary
+    problem: Charter text search must be an external, machine-visible filesystem operation.
+    goals:
+      - Run one deterministic rg search for each grep_check plan.
+      - Preserve JSON path, line, and matched-line evidence for reduction.
+    requirements:
+      input:
+        - query, root path, and effective include/exclude globs come from the current grep_check binding
+      output:
+        - emits rg JSON events and its exit code as structured output
+      errors:
+        - no matches emit ToolFailed with exit code one
+        - process startup failures emit CommandError
+    non_goals:
+      - Does not decide whether a match is a finding.
+      - Does not format the jurist report.
+    parameters:
+      type: object
+      properties:
+        include_glob:
+          type: string
+          flag: --glob
+          position: 1
+          source: $from(grep_check).include_glob
+        exclude_glob:
+          type: string
+          flag: --glob
+          position: 2
+          source: $from(grep_check).exclude_glob
+        query:
+          type: string
+          positional: true
+          position: 3
+          source: $from(grep_check).query
+        path:
+          type: string
+          positional: true
+          position: 4
+          source: $from(grep_check).path
+      required: [query, path]
+    output:
+      description: Structured ripgrep JSON event stream and exit code.
+      mode: structured
+      schema:
+        type: object
+        properties:
+          output: {type: string}
+          exit_code: {type: integer}
+        required: [output, exit_code]
+    output_cap: 1048576
+    side_effects:
+      - kind: child_process
+        target: rg
+        state: read_only
+        description: Searches target files without mutation.
+    reversibility:
+      classification: reversible
+      undo: noop
+    undo:
+      strategy: noop
+      description: Search changes nothing.
+    errors:
+      - signal: ToolFailed
+        condition: rg found no matches or rejected search input.
+        message_shape: rg output and structured exit code.
+        state_after_failure: No target or validation state changes.
+      - signal: CommandError
+        condition: rg could not be started.
+        message_shape: "jurist_rg: <process error>"
+        state_after_failure: No target or validation state changes.
+    relationships:
+      before: [validate_specs]
+      after: [reduce_grep_checks]
+      overlaps:
+        - tool: find
+          difference: jurist_rg consumes trusted charter plans and emits JSON evidence for finding reduction.

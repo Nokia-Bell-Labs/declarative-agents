@@ -62,10 +62,7 @@ func Audit() error {
 	if err := bootSmokeProfiles(binary, roots.Core, profiles); err != nil {
 		return err
 	}
-	if err := validateTestEvidence(binary, root); err != nil {
-		return err
-	}
-	return runTestEvidence(binary, root)
+	return runTestEvidenceAudit(binary, root, roots.Core, roots.Profiles)
 }
 
 func auditDocumentation(root string) error {

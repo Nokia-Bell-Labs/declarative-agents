@@ -46,6 +46,9 @@ type Operation struct {
 	OpenAPIOperationID string                 `yaml:"openapi_operation_id,omitempty"`
 	Method             string                 `yaml:"method,omitempty"`
 	Path               string                 `yaml:"path,omitempty"`
+	BaseURLSource      string                 `yaml:"base_url_source,omitempty"`
+	BaseURLSelector    string                 `yaml:"base_url_selector,omitempty"`
+	AllowSelectedAuth  bool                   `yaml:"allow_auth_on_selected_authority,omitempty"`
 	Params             RequestBinding         `yaml:"params,omitempty"`
 	Body               map[string]interface{} `yaml:"body,omitempty"`
 	Success            StatusMapping          `yaml:"success"`
@@ -145,6 +148,8 @@ type Endpoint struct {
 	Binding            string              `yaml:"binding"`
 	Signal             string              `yaml:"signal,omitempty"`
 	AllowedSignals     []string            `yaml:"allowed_signals,omitempty"`
+	SignalField        string              `yaml:"signal_field,omitempty"`
+	SignalMapping      map[string]string   `yaml:"signal_mapping,omitempty"`
 	LifecycleControl   LifecycleControl    `yaml:"lifecycle_control,omitempty"`
 	MonitorView        string              `yaml:"monitor_view,omitempty"`
 	Request            RequestBinding      `yaml:"request,omitempty"`

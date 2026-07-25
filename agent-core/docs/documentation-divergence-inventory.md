@@ -94,27 +94,23 @@ Status:
 ## Bench Launch Documentation
 
 Source evidence:
-- `agent-profiles/agents/bench/builtin.yaml` configures `launch_eval` as a
-  boundary word that runs the configured evaluator profile and propagates
-  profile/trace settings.
-- `docs/specs/config-formats/runtime-contract.yaml` says `launch_eval` reads
-  `config.profile` and invokes the child evaluator with `--profile`.
-- `agent-profiles/agents/bench/machine.yaml` says experiment execution launches
-  the evaluator profile.
+- `agent-profiles/agents/bench/builtin.yaml` aliases generic REST lifecycle,
+  `value_predicate`, and `self_invoke` words.
+- `agent-profiles/agents/bench/rest.yaml` owns routes, static assets, queue
+  configuration, and action-to-signal mapping.
+- `agent-profiles/agents/bench/machine.yaml` validates launch input and invokes
+  the critic profile through `self_invoke`.
 
-Documentation drift:
-- `docs/specs/use-cases/rel01.0-uc003-bench-visualization.yaml` still says
-  `launch_eval` "spawns the evaluator session machine as a subprocess" in the
-  summary, flow, and success criteria. The current boundary is profile-first:
-  it spawns an evaluator child agent configured by profile, whose profile owns
-  the session machine.
+Resolved drift:
+- GH-888 removed the `serve_ui` and `launch_eval` Go words and updated the bench
+  use case, runtime contract, SRDs, tool catalogs, and conformance evidence to
+  describe generic REST and `self_invoke`.
+- The browser action payload retains `type: launch_eval` as a REST compatibility
+  value; it is mapped declaratively to `ExperimentRequested` and is not a tool
+  init or Go package.
 
-Recommended edits:
-- Replace "evaluator session machine subprocess" phrasing with "evaluator
-  profile child process" or equivalent, while still noting that the evaluator
-  profile runs the session machine internally.
-
-Status: addressed by `agent-core-9ilp.2`.
+Status: profile-first wording was addressed by `agent-core-9ilp.2`; application
+ownership and generic-tool decomposition were completed by GH-888.
 
 ## Tool Declaration File Layout
 

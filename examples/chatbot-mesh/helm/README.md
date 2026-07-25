@@ -4,7 +4,7 @@ A Helm chart that deploys the chatbot mesh on Kubernetes: the browser-facing cha
 
 ## Architectural thesis
 
-One runtime image serves every agent role. Each agent's program is a profile supplied from a ConfigMap and mounted at `/profiles`, not baked into the image, so the same image runs the chatbot and every rag-server and a values change re-renders the topology without rebuilding images (the agent-core mounted-profile contract; see `docs/SPECIFICATIONS.yaml` platform references). The RAG topology is one values list: each entry renders a rag-server Deployment/Service and a Chroma StatefulSet/Service, and (srd003 R2) the chatbot's RAG client entries under the same topology name, so the deployed topology and the chatbot's client configuration cannot drift.
+One runtime image serves every agent role. Each agent's program is a profile supplied from a ConfigMap and mounted at `/profiles`, not baked into the image, so the same image runs the chatbot and every rag-server and a values change re-renders the topology without rebuilding images (the agent-core mounted-profile contract; see `docs/SPECIFICATIONS.yaml` platform references). The RAG topology is one values list: each entry renders a rag-server Deployment/Service and a Chroma StatefulSet/Service plus the chatbot's ordered topology data, network allowlist, and monitor upstream. The chatbot retains one selected-target REST operation and one sequential `for_each` regardless of source count.
 
 ## Topology
 
@@ -43,7 +43,7 @@ helm/
 
 The chart ships an in-cluster LLM tier (srd003 R6): an Ollama StatefulSet with a PVC for model storage, a model-preload `Job` that pulls the declared models, and a readiness gate so the chatbot waits (in an init container) until every model is present in Ollama `/api/tags` before it serves. It is enabled by default, so a fresh-cluster `helm install` is self-contained.
 
-The models are named once in `ollama.models` (the embedding model, the chat models, and the router model) and feed both the preload Job and the co-generated agent config, so a model cannot be preloaded but unrendered or gated-on but unpulled.
+The models are named once in `ollama.models` (the embedding model, the chat models, and the tier-selector model) and feed both the preload Job and the co-generated agent config, so a model cannot be preloaded but unrendered or gated-on but unpulled.
 
 To point at an operator-supplied Ollama instead, disable the tier and override the endpoint — the render is identical to the pre-tier external behavior and the co-generated client entries are unchanged (R2):
 

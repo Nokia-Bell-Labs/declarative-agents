@@ -3,8 +3,8 @@ title: Blocking Input Tools
 
 problem: |
   Some tools intentionally pause the state-machine loop while waiting for
-  an external actor. invoke_llm waits for a model response. serve_ui waits
-  for a human action submitted through the web UI. Future approval or
+  an external actor. invoke_llm waits for a model response. rest_await_event
+  waits for a human action submitted through profile-configured HTTP routes. Future approval or
   human-input tools will have the same shape. Without an explicit contract,
   these tools can blur the boundary between "tool execution" and "program
   control flow", leading to inconsistent cancellation, signal mapping, and
@@ -72,7 +72,7 @@ requirements:
     title: Tool examples
     items:
       - R6.1: invoke_llm is a blocking input tool whose external actor is an LLM provider; model output is parsed into tool calls or completion signals.
-      - R6.2: serve_ui is a blocking input tool whose external actor is a human using the Bench web UI; posted actions map to signals such as ExperimentRequested or Shutdown.
+      - R6.2: rest_await_event is a blocking input tool whose external actor uses a configured REST route; queued actions map to declared machine signals.
       - R6.3: Future human approval tools SHOULD follow the same Result and Signal mapping contract.
 
 non_goals:
@@ -102,7 +102,7 @@ acceptance_criteria:
     traces: [R5.1, R5.2, R5.3, R5.4, R5.5, R5.6]
 
   - id: AC6
-    criterion: invoke_llm and serve_ui are documented as blocking input tools following this contract.
+    criterion: invoke_llm and rest_await_event are documented as blocking input tools following this contract.
     traces: [R6.1, R6.2, R6.3]
 
 depends_on:
@@ -115,7 +115,7 @@ depends_on:
   - srd_id: srd009-ollama-adapter
     symbols_used: [Chat]
   - srd_id: srd020-bench-web-ui
-    symbols_used: [serve_ui]
+    symbols_used: [rest_await_event]
   - srd_id: srd022-builtin-tools
     symbols_used: [BuiltinRegistry]
 
@@ -125,7 +125,7 @@ related_documents:
 
 implementation_examples:
   - internal/tools/stl/llmtools.go
-  - internal/evaluation/bench/serve_ui.go
+  - internal/tools/rest/server_await.go
 
 diagrams:
   requirements_trace: |
@@ -150,6 +150,6 @@ diagrams:
       R4 --> AC4
       AC5["AC5: Long-running waits are observable through tracing, durati..."]
       R5 --> AC5
-      AC6["AC6: invoke_llm and serve_ui are documented as blocking input..."]
+      AC6["AC6: invoke_llm and rest_await_event are documented as blocking input..."]
       R6 --> AC6
     ```

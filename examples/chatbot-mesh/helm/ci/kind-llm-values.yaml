@@ -13,6 +13,7 @@ chatbot:
 
 ragUnits:
   - name: rag0
+    description: In-cluster LLM smoke-test corpus.
     collection: corpus
     embeddingModel: all-minilm
     replicas: 1
@@ -43,7 +44,7 @@ ollama:
   models:
     embedding: all-minilm
     chat: ["qwen2.5:0.5b"]
-    router: qwen2.5:0.5b
+    tier: qwen2.5:0.5b
   persistence:
     size: 2Gi
   resources:

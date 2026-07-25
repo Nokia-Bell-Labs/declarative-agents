@@ -106,7 +106,7 @@ The engine depends only on the Tracer port; switching from file tracing to OTLP 
 
 #### Standard tooling and quantitative analysis
 
-Traces are searchable and visualizable in Jaeger, Tempo, or Honeycomb, and yield metrics the execution cannot: wall-clock time per tool, LLM latency per iteration, token cost per run, recovery cost (the delta from first `ValidationFailed` to eventual `Succeeded`).
+Traces are searchable and visualizable in Jaeger, Tempo, or Honeycomb, and yield metrics the execution cannot: wall-clock time per tool, LLM latency per iteration, token cost per run, recovery cost (the delta from the first validation-state `ToolFailed` to eventual `Succeeded`).
 
 #### Model-attributable evaluation
 

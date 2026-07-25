@@ -33,9 +33,10 @@ subprocess tools, process groups, lifecycle adapters, REST tools, and registry
 support.
 
 Evaluation, planning, and observability code lives in `internal/evaluation`,
-`internal/evaluation/bench`, `internal/planning`, and `internal/observability`.
-Those packages support evaluator runs, the bench UI, planner workflows, tracing
-ports, OpenTelemetry adapters, GenAI spans, and replay.
+`internal/planning`, and `internal/observability`. Those packages support
+evaluator runs and read-only artifact queries, planner workflows, tracing ports,
+OpenTelemetry adapters, GenAI spans, and replay. The bench application and UI
+live in the external `agent-profiles/agents/bench` profile.
 
 Support code lives in `internal/support`. Specification graph loading and
 cross-artifact validation live in `pkg/spec`.
@@ -154,8 +155,9 @@ AGENT_PROFILES_ROOT=../agent-profiles \
 Repository builds use a multi-stage Dockerfile for the release runtime image.
 During the builder stage, the image clones Agent Core from GitLab, runs
 `go test ./...`, and builds `agent`. The final Alpine runtime image contains
-only the `agent` binary, git, common Unix utilities, and core-owned shared tool
-assets under `/opt/agent-core/tools`.
+only the `agent` binary, git, common Unix utilities (including GNU `find` from
+`findutils`, required by `list_files`), and core-owned shared tool assets under
+`/opt/agent-core/tools`.
 
 Runtime images intentionally exclude the Go toolchain, source checkout,
 test dependencies, `golangci-lint`, and agent profile trees. Exec tools such as
@@ -283,8 +285,10 @@ release, `docker run --rm agent-core:latest --help` started the packaged
 
 ## Browser End-to-End Tests
 
-The documentation-curator UI carries the repository's only browser test suite,
-under `internal/knowledge/documentation/ui`. We depend on `puppeteer-core`
+The external documentation-curator profile carries the repository's browser
+test suite under
+`../agent-profiles/agents/knowledge-manager/documentation-curator/ui/docs`.
+We depend on `puppeteer-core`
 rather than `puppeteer`, so npm downloads no browser. The host supplies one,
 and the test reads its path from `PUPPETEER_EXECUTABLE_PATH`, falling back to
 `CHROME_BIN`. Table 1 lists what a machine needs before the suite runs.
@@ -293,14 +297,14 @@ Table 1: Browser test prerequisites
 
 | Requirement | Detail |
 |---|---|
-| Node dependencies | `npm ci` inside `internal/knowledge/documentation/ui` |
+| Node dependencies | `npm ci` inside the profile's `ui/docs` directory |
 | A browser | System Chrome or Chromium, installed by the host |
 | Browser path | `PUPPETEER_EXECUTABLE_PATH`, or `CHROME_BIN` as the fallback |
 
 Run the suite from inside the package directory:
 
 ```bash
-cd internal/knowledge/documentation/ui
+cd ../agent-profiles/agents/knowledge-manager/documentation-curator/ui/docs
 npm ci
 export PUPPETEER_EXECUTABLE_PATH="/Applications/Google Chrome.app/Contents/MacOS/Google Chrome"
 npm run test:e2e:machine-request

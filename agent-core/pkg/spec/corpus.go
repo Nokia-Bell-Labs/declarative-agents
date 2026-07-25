@@ -68,6 +68,13 @@ func WithOptionalCorpus() CorpusOption {
 	return func(o *corpusOptions) { o.optional = true }
 }
 
+// LoadTestSuites loads only formal test-suite artifacts. It supports the
+// jurist's evidence-only audit variant for repositories whose broader
+// documentation schema is intentionally not an agent-core specification corpus.
+func LoadTestSuites(rootDir string) (map[string]TestSuite, error) {
+	return discoverAndParseTestSuites(rootDir)
+}
+
 // LoadCorpus discovers, parses, and validates all specification artifacts
 // under rootDir.
 func LoadCorpus(rootDir string, opts ...CorpusOption) (*Corpus, error) {

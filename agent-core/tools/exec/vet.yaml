@@ -76,11 +76,9 @@ tools:
     - done
     - execute_task
     after:
-    - check_result
+    - increment_retry
+    - mark_task_done
     - invoke_llm
-    overlaps:
-    - tool: validate
-      difference: vet runs one validation command; validate is a compatibility aggregator.
   undo:
     strategy: noop
     description: Validation command has no direct repository mutations to reverse.

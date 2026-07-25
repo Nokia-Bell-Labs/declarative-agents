@@ -434,12 +434,42 @@ func (r *serverRuntime) enqueueDynamicSignal(
 	endpoint Endpoint,
 	payload map[string]interface{},
 ) {
-	signal := signalFromRequest(req, payload)
+	signal := dynamicSignalFromRequest(req, payload, endpoint)
 	if !allowedSignal(signal, endpoint.AllowedSignals) {
 		http.Error(w, "signal is not allowed", http.StatusBadRequest)
 		return
 	}
 	r.enqueueSignal(w, req, name, signal, payload, endpoint.Response.Redact)
+}
+
+func dynamicSignalFromRequest(req *http.Request, payload map[string]interface{}, endpoint Endpoint) string {
+	if endpoint.SignalField == "" {
+		return signalFromRequest(req, payload)
+	}
+	value, ok := payloadPathString(payload, endpoint.SignalField)
+	if !ok {
+		return ""
+	}
+	if len(endpoint.SignalMapping) == 0 {
+		return value
+	}
+	return endpoint.SignalMapping[value]
+}
+
+func payloadPathString(payload map[string]interface{}, field string) (string, bool) {
+	var current interface{} = payload
+	for _, part := range strings.Split(field, ".") {
+		object, ok := current.(map[string]interface{})
+		if !ok {
+			return "", false
+		}
+		current, ok = object[part]
+		if !ok {
+			return "", false
+		}
+	}
+	value, ok := current.(string)
+	return value, ok
 }
 
 func (r *serverRuntime) enqueueLifecycleControl(

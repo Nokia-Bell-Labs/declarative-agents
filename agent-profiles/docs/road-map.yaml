@@ -340,7 +340,8 @@ releases:
   # epic (#295) had no use case. Release 09 is broken into one release per epic so
   # implementation traces one-to-one, and the too-broad rel09.0-uc002-chatbot-turn
   # is split -- its single-RAG reduction stays in 09.0 (the core-loop epic #293),
-  # and its router/fan-out/degradation criteria move to 09.1 (the routing epic
+  # and its tier-selection/fan-out/degradation criteria move to 09.1 (the
+  # tier-selection epic
   # #294). The rel09.0 use cases were status planned when this decision was made;
   # the use-case and test-suite files are renamed to their staged ids by the
   # follow-on spec issue GH-333, which also authors the observability (09.2),
@@ -378,14 +379,14 @@ releases:
         status: implemented
 
   - version: "09.1"
-    name: Routing and multi-RAG fan-out
+    name: Tier selection and multi-RAG fan-out
     relocated_to: >-
       Relocated to examples/chatbot-mesh (rel01.0). The mesh data-plane specs
       (SRDs, use cases, test suites) now live with the standalone example; this
       entry remains for history. The control plane (09.4) is relocated too (rel05.0, GH-430).
     description: |
       Release 09.1 extends the chatbot turn (srd014 R2, R3) with the LLM $tool
-      router that classifies a question to one chat-LLM word, and the sequential
+      tier selector that classifies a question to one chat-LLM word, and the sequential
       multi-RAG fan-out that embeds once and queries N RAGs, each degraded
       (CommandError) or embedding-mismatch-excluded (QueryRejected) source routing
       on as a visible machine transition, compose assembling the surviving
@@ -395,11 +396,11 @@ releases:
       - srd014-chatbot-agent
     use_cases:
       - id: rel09.1-uc001-routed-fanout
-        summary: A routed chat turn dispatches one chat-LLM word via $tool and fans the one embedding out to two RAGs, citing both corpora and degrading when one fails.
+        summary: A tier-selected chat turn dispatches one chat-LLM word via $tool and fans the one embedding out to two RAGs, citing both corpora and degrading when one fails.
         status: implemented
     test_suites:
       - id: test-rel09.1-routing-fanout
-        summary: Tracers for the $tool router word dispatch, the two-RAG fan-out over disjoint corpora, and the degraded and embedding-mismatch paths.
+        summary: Tracers for the $tool tier-selector dispatch, the two-RAG fan-out over disjoint corpora, and the degraded and embedding-mismatch paths.
         status: implemented
 
   - version: "09.2"
@@ -480,7 +481,7 @@ releases:
 
   # rel09.5 validates the completed rel09.0-09.3 mesh with an in-cluster LLM tier
   # (a minor release, no renumbering of the deployment releases). The epic proposed
-  # rel09.1 for this, but GH-332 assigned rel09.1 to routing/fan-out; 09.5 is the
+  # rel09.1 for this, but GH-332 assigned rel09.1 to tier selection/fan-out; 09.5 is the
   # next free number in the chatbot-mesh 09.x line.
   - version: "09.5"
     name: In-cluster LLM tier

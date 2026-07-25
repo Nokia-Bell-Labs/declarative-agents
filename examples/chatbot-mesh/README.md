@@ -18,7 +18,7 @@ For a reader's walkthrough of how the parts fit together — a single chat turn,
 flowchart LR
   U[Browser SPA] -->|chat request| CB[Chatbot agent]
   CB -->|embed once| OLL[Ollama embed]
-  CB -->|route question| RTR["$tool router → chat-LLM word"]
+  CB -->|select model tier| TS["$tool tier selector → chat-LLM word"]
   CB -->|fan out one embedding| R0[RAG server 0]
   CB -->|fan out one embedding| R1[RAG server 1]
   R0 -->|query_embeddings| CH0[(Chroma collection 0)]

@@ -22,8 +22,8 @@ import (
 // so llm/params cannot be assembled from several source paths in one step.
 var stateFields = []string{
 	"rags", "llmInCluster", "llmExternalURL", "llmChatModel", "llmEmbedModel",
-	"llmChatModels", "llmRouterModel", "llmTopology",
-	"paramsNResults", "paramsChunkCap", "paramsRouterDefault",
+	"llmChatModels", "llmTierModel", "llmTopology",
+	"paramsNResults", "paramsChunkCap", "paramsTierDefault",
 }
 
 // TestCoordinatorServesThePanelStateRead proves the panel's initial load has

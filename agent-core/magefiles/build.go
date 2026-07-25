@@ -13,16 +13,13 @@ import (
 	"strconv"
 	"strings"
 
-	"github.com/Nokia-Bell-Labs/declarative-agents/agent-core/pkg/spec"
 	"github.com/magefile/mage/sh"
 )
 
 const binDir = "bin"
 
-// Build compiles all cmd/ binaries into bin/.
-// If any embedded UI directories are found (internal/evaluation/bench/ui/, etc.),
-// their frontends are built first and Go is compiled with -tags
-// production to embed the assets.
+// Build compiles all cmd/ binaries into bin/. Application UI assets are owned
+// and built by their external profiles, not embedded into the core runtime.
 func Build() error {
 	pkgs, err := discoverCmdPackages()
 	if err != nil {
@@ -36,31 +33,10 @@ func Build() error {
 		return fmt.Errorf("mkdir %s: %w", binDir, err)
 	}
 
-	needsProduction := false
-	for _, uiDir := range embeddedUIDirs {
-		if hasUI(uiDir) {
-			fmt.Printf("installing frontend deps for %s\n", uiDir)
-			if err := runInDir(uiDir, "npm", "install"); err != nil {
-				return fmt.Errorf("%s npm install: %w", uiDir, err)
-			}
-			if err := auditUIDeps(uiDir); err != nil {
-				return err
-			}
-			fmt.Printf("building frontend for %s\n", uiDir)
-			if err := runInDir(uiDir, "npm", "run", "build"); err != nil {
-				return fmt.Errorf("%s frontend build: %w", uiDir, err)
-			}
-			needsProduction = true
-		}
-	}
-
 	for _, pkg := range pkgs {
 		name := filepath.Base(pkg)
 		out := filepath.Join(binDir, name)
 		args := []string{"build", "-o", out}
-		if needsProduction {
-			args = append(args, "-tags", "production")
-		}
 		args = append(args, pkg)
 		fmt.Printf("building %s → %s\n", pkg, out)
 		if err := sh.Run("go", args...); err != nil {
@@ -68,37 +44,6 @@ func Build() error {
 		}
 	}
 	return nil
-}
-
-var embeddedUIDirs = []string{
-	"internal/evaluation/bench/ui",
-	"internal/knowledge/documentation/ui",
-}
-
-func hasUI(uiDir string) bool {
-	_, err := os.Stat(filepath.Join(uiDir, "package.json"))
-	return err == nil
-}
-
-// auditUIDeps fails the build when an embedded frontend has a known production
-// dependency vulnerability. These bundles are served to a browser, so a
-// sanitizer or other runtime dependency defect is a release finding rather than
-// a printed-and-ignored warning. Dev-only tooling (build/test) is out of scope,
-// so the gate omits dev dependencies and trips at the moderate advisory level.
-func auditUIDeps(uiDir string) error {
-	fmt.Printf("auditing frontend deps for %s\n", uiDir)
-	if err := runInDir(uiDir, "npm", "audit", "--omit=dev", "--audit-level=moderate"); err != nil {
-		return fmt.Errorf("%s npm audit: known production dependency vulnerability (run `npm audit fix` in %s): %w", uiDir, uiDir, err)
-	}
-	return nil
-}
-
-func runInDir(dir string, name string, args ...string) error {
-	cmd := exec.Command(name, args...)
-	cmd.Dir = dir
-	cmd.Stdout = os.Stdout
-	cmd.Stderr = os.Stderr
-	return cmd.Run()
 }
 
 // Audit runs the jurist agent against the project documentation.
@@ -121,73 +66,24 @@ func Audit() error {
 		return err
 	}
 
-	cmd := exec.Command(binary,
-		"--profile", agentProfilePath(profileRoot, "jurist"),
-		"--directory", rootDir,
-		"--core-root", rootDir,
-	)
-	var output bytes.Buffer
-	cmd.Stdout = io.MultiWriter(os.Stdout, &output)
-	cmd.Stderr = io.MultiWriter(os.Stderr, &output)
-	if err := cmd.Run(); !agentRunCompleted(err) {
-		return err
+	for _, profileName := range []string{"profile.yaml", "audit-profile.yaml"} {
+		profilePath := agentProfileAsset(profileRoot, filepath.Join("jurist", profileName))
+		cmd := exec.Command(binary,
+			"--profile", profilePath,
+			"--directory", rootDir,
+			"--core-root", rootDir,
+		)
+		var output bytes.Buffer
+		cmd.Stdout = io.MultiWriter(os.Stdout, &output)
+		cmd.Stderr = io.MultiWriter(os.Stderr, &output)
+		if err := cmd.Run(); !agentRunCompleted(err) {
+			return err
+		}
+		if auditRunFailed(output.String()) {
+			return fmt.Errorf("audit failed: jurist profile %s reported failed terminal status", profileName)
+		}
 	}
-	if auditRunFailed(output.String()) {
-		return fmt.Errorf("audit failed: jurist reported failed terminal status")
-	}
-	if err := validateGoTestEvidence(rootDir); err != nil {
-		return err
-	}
-	// Resolution proves each named test exists; `go test -list` compiles the test
-	// binaries and runs none of them. A suite could therefore claim evidence for a
-	// test that fails and the audit stayed green, which is how a downstream case
-	// claimed a proof that had never passed (GH-701, GH-717). Run what the suites
-	// claim.
-	return runGoTestEvidence(rootDir)
-}
-
-// validateGoTestEvidence checks that every formal test suite's go_test evidence
-// resolves to a real Go test in this module. It is invoked explicitly from Audit
-// rather than through generic corpus loading, so a suite that cites a renamed,
-// deleted, or zero-match test fails the audit instead of silently passing.
-func validateGoTestEvidence(rootDir string) error {
-	fmt.Println("validating formal go_test evidence...")
-	findings, err := spec.AuditGoTestEvidence(rootDir)
-	if err != nil {
-		return fmt.Errorf("validate go_test evidence: %w", err)
-	}
-	return goTestEvidenceError(findings)
-}
-
-// runGoTestEvidence runs this module's tests once and checks that every test the
-// formal suites claim as evidence actually passed. It is the execution half of
-// the evidence gate: validateGoTestEvidence asks whether the named test exists,
-// this asks whether it holds. A skipped test is reported too -- it proves
-// nothing, and reads as success to anything watching only the exit code.
-func runGoTestEvidence(rootDir string) error {
-	fmt.Println("running formal go_test evidence...")
-	findings, err := spec.RunGoTestEvidence(rootDir)
-	if err != nil {
-		return fmt.Errorf("run go_test evidence: %w", err)
-	}
-	if len(findings) == 0 {
-		fmt.Println("every go_test claim ran and passed")
-		return nil
-	}
-	return goTestEvidenceError(findings)
-}
-
-// goTestEvidenceError renders the validator's findings as an audit error, or nil
-// when the evidence is clean.
-func goTestEvidenceError(findings []spec.Finding) error {
-	if len(findings) == 0 {
-		return nil
-	}
-	var b strings.Builder
-	for _, f := range findings {
-		fmt.Fprintf(&b, "  [%s] %s: %s\n", f.Level, f.SuiteID, f.Message)
-	}
-	return fmt.Errorf("go_test evidence validation failed: %d finding(s)\n%s", len(findings), b.String())
+	return nil
 }
 
 // JuristCharterSmoke runs the profile-owned demo charter against its fixture.

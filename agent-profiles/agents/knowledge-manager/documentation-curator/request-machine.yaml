@@ -1,191 +1,203 @@
 name: documentation-curator-request
 purpose: |-
-  Request-scoped machine for Knowledge Manager document resource and action
-  requests. REST machine_request endpoints keep list, read, validate, suggest,
-  approve, and reject behavior in profile-owned configuration.
+  Execute one curator HTTP request as visible, atomic profile transitions.
+  Filesystem resources enforce path policy, exec words perform bounded rg/jq
+  transforms, predicates guard review state, and file_write persists reviews.
 initial_state: AwaitingRequest
 budget:
-  max_iterations: 4
+  max_iterations: 16
 states:
-  - name: AwaitingRequest
-    meaning: Initial state seeded by a trusted REST endpoint.
-  - name: ListingDocuments
-    meaning: The machine is listing configured documentation resources.
-  - name: ReadingDocument
-    meaning: The machine is reading one configured documentation resource.
-  - name: ShapingDocumentIndex
-    meaning: The machine is preparing document index output for HTTP response mapping.
-  - name: ShapingDocumentDetail
-    meaning: The machine is preparing document detail output for HTTP response mapping.
-  - name: ValidatingDocuments
-    meaning: The machine is executing configured documentation validation.
-  - name: SuggestingChanges
-    meaning: The machine is creating a configured documentation patch suggestion.
-  - name: ApprovingPatch
-    meaning: The machine is approving one configured pending patch.
-  - name: RejectingPatch
-    meaning: The machine is rejecting one configured pending patch.
-  - name: DocumentIndexReady
-    meaning: Terminal. Document index data is ready for HTTP response mapping.
-  - name: DocumentDetailReady
-    meaning: Terminal. Document detail data is ready for HTTP response mapping.
-  - name: ActionCompleted
-    meaning: Terminal. A documentation action completed and its result is ready for HTTP response mapping.
-  - name: ActionRejected
-    meaning: Terminal. A documentation action returned a domain failure.
-  - name: ActionMissing
-    meaning: Terminal. A documentation action addressed a patch that does not exist.
-  - name: DocumentNotFound
-    meaning: Terminal. The requested document path is absent.
-  - name: RequestDenied
-    meaning: Terminal. The request selected a path outside configured resource rules.
-  - name: Failed
-    meaning: Terminal. The resource command failed.
+  - {name: AwaitingRequest, meaning: Seeded by a trusted machine_request route.}
+  - {name: ListingDocuments, meaning: List the configured docs resource.}
+  - {name: ShapingIndex, meaning: Shape list output for HTTP.}
+  - {name: ReadingDocument, meaning: Read one configured document.}
+  - {name: ShapingDetail, meaning: Shape one document for HTTP.}
+  - {name: ReadingConfig, meaning: Read one configured YAML config.}
+  - {name: ShapingConfig, meaning: Shape config content for HTTP.}
+  - {name: ReadingSource, meaning: Read one allowlisted source file.}
+  - {name: ShapingSource, meaning: Shape source content for HTTP.}
+  - {name: CapturingSearch, meaning: Capture declared search parameters.}
+  - {name: Searching, meaning: Run bounded ripgrep over the docs corpus.}
+  - {name: ShapingSearch, meaning: Convert rg output to stable JSON.}
+  - {name: CapturingValidation, meaning: Capture validation request scope.}
+  - {name: LoadingValidationCorpus, meaning: Load the jurist corpus.}
+  - {name: Validating, meaning: Execute declared spec validation.}
+  - {name: ReportingValidation, meaning: Format jurist findings.}
+  - {name: ShapingValid, meaning: Shape a successful validation response.}
+  - {name: ShapingInvalid, meaning: Shape a findings response.}
+  - {name: CapturingSuggestion, meaning: Capture suggestion inputs.}
+  - {name: ReadingSuggestionDocument, meaning: Read the suggested document.}
+  - {name: HashingSuggestionMaterial, meaning: Build and hash stable suggestion material.}
+  - {name: ShorteningSuggestionHash, meaning: Select the review identifier prefix.}
+  - {name: BuildingSuggestion, meaning: Build persistent review and HTTP output.}
+  - {name: WritingSuggestion, meaning: Persist the pending review artifact.}
+  - {name: ShapingSuggestion, meaning: Return persisted review metadata.}
+  - {name: CapturingDecision, meaning: Capture patch decision inputs.}
+  - {name: ReadingReview, meaning: Read one persistent review artifact.}
+  - {name: CheckingPendingReview, meaning: Guard the allowed decision state.}
+  - {name: BuildingApproval, meaning: Build an approved review artifact.}
+  - {name: BuildingRejection, meaning: Build a rejected review artifact.}
+  - {name: WritingDecision, meaning: Persist the decision artifact.}
+  - {name: ShapingDecision, meaning: Return the persisted decision.}
+  - {name: DocumentIndexReady, meaning: Terminal document index response.}
+  - {name: DocumentDetailReady, meaning: Terminal document detail response.}
+  - {name: ConfigReady, meaning: Terminal config response.}
+  - {name: SourceReady, meaning: Terminal source response.}
+  - {name: SearchReady, meaning: Terminal search response.}
+  - {name: ValidationReady, meaning: Terminal valid response.}
+  - {name: ValidationRejected, meaning: Terminal validation findings response.}
+  - {name: SuggestionReady, meaning: Terminal persisted suggestion response.}
+  - {name: DecisionReady, meaning: Terminal persisted decision response.}
+  - {name: ActionRejected, meaning: Terminal invalid review transition.}
+  - {name: ActionMissing, meaning: Terminal missing review.}
+  - {name: DocumentNotFound, meaning: Terminal missing resource.}
+  - {name: RequestDenied, meaning: Terminal denied resource path.}
+  - {name: Failed, meaning: Terminal infrastructure failure.}
 terminal_states:
   - DocumentIndexReady
   - DocumentDetailReady
-  - ActionCompleted
+  - ConfigReady
+  - SourceReady
+  - SearchReady
+  - ValidationReady
+  - ValidationRejected
+  - SuggestionReady
+  - DecisionReady
   - ActionRejected
   - ActionMissing
   - DocumentNotFound
   - RequestDenied
   - Failed
 signals:
-  - name: Seed
-    trigger: Machine request endpoint starts a list request.
-  - name: ReadRequested
-    trigger: Machine request endpoint starts a detail request.
-  - name: ValidateRequested
-    trigger: Machine request endpoint starts documentation validation.
-  - name: SuggestRequested
-    trigger: Machine request endpoint starts patch suggestion.
-  - name: ApproveRequested
-    trigger: Machine request endpoint starts patch approval.
-  - name: RejectRequested
-    trigger: Machine request endpoint starts patch rejection.
-  - name: DocumentListReady
-    trigger: doc_list_resource returned configured resource entries.
-  - name: DocumentReady
-    trigger: doc_read_resource returned configured resource content.
-  - name: DocumentIndexReady
-    trigger: doc_index_response shaped document entries for the browser.
-  - name: DocumentDetailReady
-    trigger: doc_detail_response shaped document content for the browser.
-  - name: DocumentMissing
-    trigger: doc_read_resource could not find the requested path.
-  - name: DocumentResourceDenied
-    trigger: A resource command rejected the requested path or extension.
-  - name: DocumentParseFailed
-    trigger: A resource command could not parse configured document content.
-  - name: RESTResponded
-    trigger: A configured action REST word returned a synchronous success response.
-  - name: RESTAccepted
-    trigger: A configured action REST word accepted asynchronous work.
-  - name: RESTDomainFailed
-    trigger: A configured action REST word returned a declared domain failure.
-  - name: RESTMissing
-    trigger: A configured action REST word could not find the requested patch.
-  - name: CommandError
-    trigger: Resource configuration or filesystem access failed.
+  - Seed
+  - ReadRequested
+  - ConfigRequested
+  - SourceRequested
+  - SearchRequested
+  - ValidateRequested
+  - SuggestRequested
+  - ApproveRequested
+  - RejectRequested
+  - ReopenRequested
+  - DocumentListReady
+  - DocumentReady
+  - DocumentMissing
+  - DocumentResourceDenied
+  - DocumentParseFailed
+  - IndexInputReady
+  - DocumentDetailReady
+  - ConfigReady
+  - SourceReady
+  - SearchCaptured
+  - SearchEmpty
+  - ValidationCaptured
+  - ValidationPassed
+  - ValidationFailed
+  - ValidationReady
+  - SuggestionCaptured
+  - HashMaterialReady
+  - SuggestionReady
+  - DecisionCaptured
+  - ReviewPending
+  - ReviewClosed
+  - DecisionReady
+  - ToolDone
+  - ToolFailed
+  - CommandError
 transitions:
-  - state: AwaitingRequest
-    signal: Seed
-    next: ListingDocuments
-    action: doc_list_resource
-  - state: AwaitingRequest
-    signal: ReadRequested
-    next: ReadingDocument
-    action: doc_read_resource
-  - state: AwaitingRequest
-    signal: ValidateRequested
-    next: ValidatingDocuments
-    action: doc_validate
-  - state: AwaitingRequest
-    signal: SuggestRequested
-    next: SuggestingChanges
-    action: doc_suggest_changes
-  - state: AwaitingRequest
-    signal: ApproveRequested
-    next: ApprovingPatch
-    action: doc_patch_approve
-  - state: AwaitingRequest
-    signal: RejectRequested
-    next: RejectingPatch
-    action: doc_patch_reject
-  - state: ListingDocuments
-    signal: DocumentListReady
-    next: ShapingDocumentIndex
-    action: doc_index_response
-  - state: ShapingDocumentIndex
-    signal: DocumentIndexReady
-    next: DocumentIndexReady
-  - state: ListingDocuments
-    signal: DocumentResourceDenied
-    next: RequestDenied
-  - state: ListingDocuments
-    signal: CommandError
-    next: Failed
-  - state: ReadingDocument
-    signal: DocumentReady
-    next: ShapingDocumentDetail
-    action: doc_detail_response
-  - state: ShapingDocumentDetail
-    signal: DocumentDetailReady
-    next: DocumentDetailReady
-  - state: ReadingDocument
-    signal: DocumentMissing
-    next: DocumentNotFound
-  - state: ReadingDocument
-    signal: DocumentResourceDenied
-    next: RequestDenied
-  - state: ReadingDocument
-    signal: DocumentParseFailed
-    next: Failed
-  - state: ReadingDocument
-    signal: CommandError
-    next: Failed
-  - state: ValidatingDocuments
-    signal: RESTResponded
-    next: ActionCompleted
-  - state: ValidatingDocuments
-    signal: RESTDomainFailed
-    next: ActionRejected
-  - state: ValidatingDocuments
-    signal: CommandError
-    next: Failed
-  - state: SuggestingChanges
-    signal: RESTAccepted
-    next: ActionCompleted
-  - state: SuggestingChanges
-    signal: RESTResponded
-    next: ActionCompleted
-  - state: SuggestingChanges
-    signal: RESTDomainFailed
-    next: ActionRejected
-  - state: SuggestingChanges
-    signal: CommandError
-    next: Failed
-  - state: ApprovingPatch
-    signal: RESTResponded
-    next: ActionCompleted
-  - state: ApprovingPatch
-    signal: RESTDomainFailed
-    next: ActionRejected
-  - state: ApprovingPatch
-    signal: RESTMissing
-    next: ActionMissing
-  - state: ApprovingPatch
-    signal: CommandError
-    next: Failed
-  - state: RejectingPatch
-    signal: RESTResponded
-    next: ActionCompleted
-  - state: RejectingPatch
-    signal: RESTDomainFailed
-    next: ActionRejected
-  - state: RejectingPatch
-    signal: RESTMissing
-    next: ActionMissing
-  - state: RejectingPatch
-    signal: CommandError
-    next: Failed
+  - {state: AwaitingRequest, signal: Seed, next: ListingDocuments, action: doc_list_resource, label: documents_list}
+  - {state: ListingDocuments, signal: DocumentListReady, next: ShapingIndex, action: doc_index_input, label: index_input}
+  - {state: ShapingIndex, signal: IndexInputReady, next: DocumentIndexReady, action: doc_index_jq, label: index_response}
+
+  - {state: AwaitingRequest, signal: ReadRequested, next: ReadingDocument, action: doc_read_resource, label: document}
+  - {state: ReadingDocument, signal: DocumentReady, next: ShapingDetail, action: doc_detail_response, label: document_response}
+  - {state: ShapingDetail, signal: DocumentDetailReady, next: DocumentDetailReady}
+
+  - {state: AwaitingRequest, signal: ConfigRequested, next: ReadingConfig, action: config_read_resource, label: config_document}
+  - {state: ReadingConfig, signal: DocumentReady, next: ShapingConfig, action: config_response, label: config_response}
+  - {state: ShapingConfig, signal: ConfigReady, next: ConfigReady}
+
+  - {state: AwaitingRequest, signal: SourceRequested, next: ReadingSource, action: source_read_resource, label: source_document}
+  - {state: ReadingSource, signal: DocumentReady, next: ShapingSource, action: source_response, label: source_response}
+  - {state: ShapingSource, signal: SourceReady, next: SourceReady}
+
+  - {state: AwaitingRequest, signal: SearchRequested, next: CapturingSearch, action: capture_search, label: search_request}
+  - {state: CapturingSearch, signal: SearchCaptured, next: Searching, action: search_docs, label: search_matches}
+  - {state: Searching, signal: ToolDone, next: ShapingSearch, action: shape_search, label: search_response}
+  - {state: Searching, signal: ToolFailed, next: SearchReady, action: empty_search, label: search_response}
+  - {state: ShapingSearch, signal: ToolDone, next: SearchReady}
+
+  - {state: AwaitingRequest, signal: ValidateRequested, next: CapturingValidation, action: capture_validation, label: validation_request}
+  - {state: CapturingValidation, signal: ValidationCaptured, next: LoadingValidationCorpus, action: load_corpus}
+  - {state: LoadingValidationCorpus, signal: ToolDone, next: Validating, action: validate_specs}
+  - {state: Validating, signal: ValidationPassed, next: ReportingValidation, action: format_report, label: validation_report}
+  - {state: Validating, signal: ValidationFailed, next: ReportingValidation, action: format_report, label: validation_report}
+  - {state: ReportingValidation, signal: ToolDone, next: ShapingValid, action: valid_response, label: validation_response}
+  - {state: ReportingValidation, signal: ToolFailed, next: ShapingInvalid, action: invalid_response, label: validation_response}
+  - {state: ShapingValid, signal: ValidationReady, next: ValidationReady}
+  - {state: ShapingInvalid, signal: ValidationReady, next: ValidationRejected}
+
+  - {state: AwaitingRequest, signal: SuggestRequested, next: CapturingSuggestion, action: capture_suggestion, label: suggestion_request}
+  - {state: CapturingSuggestion, signal: SuggestionCaptured, next: ReadingSuggestionDocument, action: doc_read_resource, label: suggestion_document}
+  - {state: ReadingSuggestionDocument, signal: DocumentReady, next: HashingSuggestionMaterial, action: suggestion_hash_material, label: hash_material}
+  - {state: HashingSuggestionMaterial, signal: ToolDone, next: ShorteningSuggestionHash, action: suggestion_sha256, label: suggestion_hash}
+  - {state: ShorteningSuggestionHash, signal: ToolDone, next: BuildingSuggestion, action: build_suggestion, label: suggestion_write_request}
+  - {state: BuildingSuggestion, signal: ToolDone, next: WritingSuggestion, action: write_review}
+  - {state: WritingSuggestion, signal: ToolDone, next: ShapingSuggestion, action: suggestion_response, label: suggestion_response}
+  - {state: ShapingSuggestion, signal: SuggestionReady, next: SuggestionReady}
+
+  - {state: AwaitingRequest, signal: ApproveRequested, next: CapturingDecision, action: capture_approval, label: decision_request}
+  - {state: AwaitingRequest, signal: RejectRequested, next: CapturingDecision, action: capture_rejection, label: decision_request}
+  - {state: AwaitingRequest, signal: ReopenRequested, next: CapturingDecision, action: capture_reopen, label: decision_request}
+  - {state: CapturingDecision, signal: DecisionCaptured, next: ReadingReview, action: review_read_resource, label: review}
+  - {state: ReadingReview, signal: DocumentReady, next: CheckingPendingReview, action: review_pending, label: review_state}
+  - {state: CheckingPendingReview, signal: ReviewPending, next: BuildingApproval, action: build_approval, label: decision_write_request}
+  - {state: CheckingPendingReview, signal: ReviewClosed, next: ActionRejected}
+  - {state: BuildingApproval, signal: ToolDone, next: WritingDecision, action: write_review}
+  - {state: WritingDecision, signal: ToolDone, next: ShapingDecision, action: decision_response, label: decision_response}
+  - {state: ShapingDecision, signal: DecisionReady, next: DecisionReady}
+
+  # Rejection uses a distinct predicate outcome so the same generic review guard
+  # can route to a different atomic jq transform without hidden controller logic.
+  - {state: CheckingPendingReview, signal: CommandError, next: Failed}
+
+  - {state: ListingDocuments, signal: DocumentResourceDenied, next: RequestDenied}
+  - {state: ReadingDocument, signal: DocumentMissing, next: DocumentNotFound}
+  - {state: ReadingConfig, signal: DocumentMissing, next: DocumentNotFound}
+  - {state: ReadingSource, signal: DocumentMissing, next: DocumentNotFound}
+  - {state: ReadingSource, signal: DocumentParseFailed, next: Failed}
+  - {state: ReadingSuggestionDocument, signal: DocumentMissing, next: DocumentNotFound}
+  - {state: ReadingReview, signal: DocumentMissing, next: ActionMissing}
+  - {state: ReadingDocument, signal: DocumentResourceDenied, next: RequestDenied}
+  - {state: ReadingConfig, signal: DocumentResourceDenied, next: RequestDenied}
+  - {state: ReadingSource, signal: DocumentResourceDenied, next: RequestDenied}
+  - {state: ReadingSuggestionDocument, signal: DocumentResourceDenied, next: RequestDenied}
+  - {state: ReadingSuggestionDocument, signal: DocumentParseFailed, next: Failed}
+  - {state: ReadingReview, signal: DocumentResourceDenied, next: RequestDenied}
+  - {state: ReadingDocument, signal: DocumentParseFailed, next: Failed}
+  - {state: ReadingConfig, signal: DocumentParseFailed, next: Failed}
+  - {state: ReadingReview, signal: DocumentParseFailed, next: Failed}
+  - {state: ListingDocuments, signal: CommandError, next: Failed}
+  - {state: ReadingDocument, signal: CommandError, next: Failed}
+  - {state: ReadingConfig, signal: CommandError, next: Failed}
+  - {state: ReadingSource, signal: CommandError, next: Failed}
+  - {state: Searching, signal: CommandError, next: Failed}
+  - {state: ShapingSearch, signal: ToolFailed, next: Failed}
+  - {state: ShapingSearch, signal: CommandError, next: Failed}
+  - {state: LoadingValidationCorpus, signal: CommandError, next: Failed}
+  - {state: Validating, signal: CommandError, next: Failed}
+  - {state: ReportingValidation, signal: CommandError, next: Failed}
+  - {state: ReadingSuggestionDocument, signal: CommandError, next: Failed}
+  - {state: HashingSuggestionMaterial, signal: CommandError, next: Failed}
+  - {state: HashingSuggestionMaterial, signal: ToolFailed, next: Failed}
+  - {state: ShorteningSuggestionHash, signal: CommandError, next: Failed}
+  - {state: ShorteningSuggestionHash, signal: ToolFailed, next: Failed}
+  - {state: BuildingSuggestion, signal: CommandError, next: Failed}
+  - {state: BuildingSuggestion, signal: ToolFailed, next: Failed}
+  - {state: WritingSuggestion, signal: CommandError, next: Failed}
+  - {state: WritingSuggestion, signal: ToolFailed, next: Failed}
+  - {state: ReadingReview, signal: CommandError, next: Failed}
+  - {state: BuildingApproval, signal: CommandError, next: Failed}
+  - {state: BuildingApproval, signal: ToolFailed, next: Failed}
+  - {state: WritingDecision, signal: CommandError, next: Failed}
+  - {state: WritingDecision, signal: ToolFailed, next: Failed}

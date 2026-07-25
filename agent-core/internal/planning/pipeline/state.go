@@ -20,15 +20,15 @@ import (
 
 // Pipeline signals aligned with agents/planner/machine.yaml.
 const (
-	SigTaskExtracted    core.Signal = "TaskExtracted"
-	SigAllDone          core.Signal = "AllDone"
-	SigBlocked          core.Signal = "Blocked"
-	SigPlanReady        core.Signal = "PlanReady"
-	SigMaterialized     core.Signal = "Materialized"
-	SigExecutionDone    core.Signal = "ExecutionDone"
-	SigExecutionFailed  core.Signal = "ExecutionFailed"
-	SigRetryAvailable   core.Signal = "RetryAvailable"
-	SigRetriesExhausted core.Signal = "RetriesExhausted"
+	SigTaskExtracted   core.Signal = "TaskExtracted"
+	SigAllDone         core.Signal = "AllDone"
+	SigBlocked         core.Signal = "Blocked"
+	SigPlanReady       core.Signal = "PlanReady"
+	SigMaterialized    core.Signal = "Materialized"
+	SigExecutionDone   core.Signal = "ExecutionDone"
+	SigExecutionFailed core.Signal = "ExecutionFailed"
+	SigTaskCompleted   core.Signal = "TaskCompleted"
+	SigWorkRemaining   core.Signal = "WorkRemaining"
 )
 
 // State holds the shared mutable state for a pipeline run.
@@ -43,12 +43,10 @@ type State struct {
 	TaskDeps    map[string]string
 	Directory   string
 	MaxWeight   int
-	MaxRetries  int
 	Tracer      tracing.Tracer
 
 	ExecConfig execute.Config
 	Ctx        context.Context
-	retryCount int
 }
 
 type pipelineSnapshot struct {
@@ -56,7 +54,6 @@ type pipelineSnapshot struct {
 	currentPlan *plan.ImplementationPlan
 	issueID     string
 	taskDeps    map[string]string
-	retryCount  int
 	nodeStates  map[string]nodeSnapshot
 }
 
@@ -71,7 +68,6 @@ func snapshotPipelineState(ps *State) pipelineSnapshot {
 		currentPlan: clonePlan(ps.CurrentPlan),
 		issueID:     ps.IssueID,
 		taskDeps:    cloneStringMap(ps.TaskDeps),
-		retryCount:  ps.retryCount,
 	}
 	if ps.Graph != nil {
 		snap.nodeStates = make(map[string]nodeSnapshot)
@@ -87,7 +83,6 @@ func (s pipelineSnapshot) restore(ps *State) {
 	ps.CurrentPlan = clonePlan(s.currentPlan)
 	ps.IssueID = s.issueID
 	ps.TaskDeps = cloneStringMap(s.taskDeps)
-	ps.retryCount = s.retryCount
 	if ps.Graph != nil {
 		for id, ns := range s.nodeStates {
 			if n, ok := ps.Graph.Node(id); ok {
@@ -157,11 +152,4 @@ func (s *State) countPending() int {
 		}
 	}
 	return count
-}
-
-func (s *State) currentTaskID() string {
-	if s.CurrentTask != nil {
-		return s.CurrentTask.ID
-	}
-	return ""
 }

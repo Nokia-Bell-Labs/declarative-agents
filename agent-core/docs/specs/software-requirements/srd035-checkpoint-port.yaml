@@ -45,7 +45,7 @@ requirements:
     title: Position and Execution values and wire format
     items:
       - R2.1: Position SHALL identify the resumable machine position through CurrentState and LastSignal.
-      - R2.2: Position SHALL embed an AgentSnapshot carrying the loop-owned counters iteration, tokens_in, tokens_out, and total_cost.
+      - R2.2: Position SHALL embed an AgentSnapshot carrying the loop-owned counters iteration, tokens_in, tokens_out, and total_cost, plus an optional in-progress sequential iterator snapshot.
       - R2.3: Execution SHALL be an ordered slice of Entry values that preserves dispatch order for forward inspection and reverse traversal.
       - R2.4: Each Entry SHALL record iteration, timestamp, command_name, from_state, to_state, the transition signal, and a result digest of signal, output, error, and cost.
       - R2.5: The wire format SHALL be JSON. Position SHALL serialize as an object with current_state, last_signal, and a nested snapshot object; Execution SHALL serialize as a JSON array, or null when empty.
@@ -69,7 +69,7 @@ requirements:
     title: Reference adapters and default backend
     items:
       - R5.1: NoopCheckpoint SHALL be the default when persistence is disabled; its Save SHALL be a no-op and its Load SHALL report not-found.
-      - R5.2: InMemoryCheckpoint SHALL be a reference adapter for tests that round-trips Position and Execution in process, including conversation and receipts.
+      - R5.2: InMemoryCheckpoint SHALL be a reference adapter for tests that round-trips Position and Execution in process, including conversation, iterator progress, and receipts.
       - R5.3: DoltCheckpoint SHALL be the default persistent backend; this SRD names it and defers its schema, commit-per-step, branch-per-run, and revert behavior to srd036.
       - R5.4: Disabled-mode (Noop) execution SHALL preserve current loop behavior and SHALL add no persistence overhead.
       - R5.5: InMemoryCheckpoint SHALL isolate saved and loaded caller memory, preserve nil versus empty Execution, and reject invalid conversation JSON without replacing the last valid checkpoint.
@@ -77,7 +77,7 @@ requirements:
   R6:
     title: Save timing, resume, and non-goals
     items:
-      - R6.1: The loop SHALL call Save once after each dispatch cycle, persisting the updated Position and the appended Entry, rather than before dispatch.
+      - R6.1: The loop SHALL call Save once after each dispatch cycle, persisting the updated Position (including the next iterator index when active) and the appended Entry, rather than before dispatch.
       - R6.2: "Resume SHALL be a single contract: Load the persisted Position and Execution and re-enter the same machine; there SHALL be exactly one resume path with no restore-hook fan-out."
       - R6.3: CheckpointPolicy SHALL be a non-goal; the engine SHALL NOT decide per loop event whether to persist.
       - R6.4: The engine reverse undo-walk SHALL be a non-goal; rollback SHALL be served by the Dolt adapter revert and a lifecycle-tool receipt walk specified by srd036 and the revised srd025.

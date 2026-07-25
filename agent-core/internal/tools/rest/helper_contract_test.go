@@ -19,15 +19,10 @@ func TestTestingHelpersAttributeFailuresToCallers(t *testing.T) {
 	_, file, _, ok := runtime.Caller(0)
 	require.True(t, ok)
 	restDir := filepath.Dir(file)
-	coreRoot := filepath.Clean(filepath.Join(restDir, "..", "..", ".."))
 	restTests, err := filepath.Glob(filepath.Join(restDir, "*_test.go"))
 	require.NoError(t, err)
-	docsTests, err := filepath.Glob(filepath.Join(
-		coreRoot, "internal", "knowledge", "documentation", "host_*_test.go",
-	))
-	require.NoError(t, err)
-	require.NotEmpty(t, docsTests)
-	files := append(restTests, docsTests...)
+	require.NotEmpty(t, restTests)
+	files := restTests
 
 	var missing []string
 	for _, path := range files {

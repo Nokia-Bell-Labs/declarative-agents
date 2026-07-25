@@ -6,3 +6,4 @@ tool_config_dirs:
   - /opt/agent-core/tools/builtin/spec-validation
 tool_declarations:
   - /opt/agent-core/tools/builtin/load-corpus.yaml
+  - ripgrep.yaml

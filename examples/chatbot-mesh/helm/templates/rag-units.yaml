@@ -105,6 +105,7 @@ metadata:
     app.kubernetes.io/component: rag-server
     chatbot-mesh/rag-unit: {{ $unit.name }}
   annotations:
+    chatbot-mesh/description: {{ $unit.description | quote }}
     chatbot-mesh/embedding-model: {{ $unit.embeddingModel | quote }}
     chatbot-mesh/collection: {{ $unit.collection | quote }}
 spec:

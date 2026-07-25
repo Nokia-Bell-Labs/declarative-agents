@@ -1,0 +1,51 @@
+tools:
+  - name: reduce_grep_checks
+    type: builtin
+    init: reduce_grep_checks
+    visibility: internal
+    emits: [ValidationPassed, ValidationFailed, CommandError]
+    description: Shape joined ripgrep events into deterministic jurist findings.
+    category: stateful_internal
+    config:
+      results_from: $from(grep_results).items
+    problem: grep_check match policy and finding provenance need a visible reduction step after external search.
+    goals:
+      - Map rg match and missing outcomes to charter findings.
+      - Preserve suite, check, severity, path, and line provenance.
+    requirements:
+      input:
+        - must consume the joined structured outputs of declared jurist_rg executions
+      output:
+        - must emit ValidationPassed or ValidationFailed from the complete finding set
+      errors:
+        - must reject malformed rg events and rg exit codes above one as CommandError
+    non_goals:
+      - Does not read or scan target files.
+      - Does not execute search subprocesses.
+    output:
+      description: Aggregate jurist finding count and error count.
+      schema:
+        type: object
+        properties:
+          message: {type: string}
+          signal: {type: string}
+        required: [message]
+    side_effects:
+      - kind: state_mutation
+        target: validation_state
+        state: grep_findings_recorded
+        description: Appends reduced grep findings to validation state.
+    reversibility:
+      classification: reversible
+      undo: validation_state_restore
+    undo:
+      strategy: session_state_restore
+      description: Restore validation state to the snapshot before grep reduction.
+    errors:
+      - signal: CommandError
+        condition: Joined rg output is malformed or reports an exit code above one.
+        message_shape: "reduce grep checks failed: <error>"
+        state_after_failure: No additional workflow step is executed.
+    relationships:
+      before: [jurist_rg]
+      after: [format_report]

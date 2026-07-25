@@ -233,17 +233,17 @@ test_cases:
     status: implemented
     test: conformance/knowledge_manager_test.go
     coverage: shipped-behavioral
-    coverage_note: Copies the shipped documentation-curator profile and patches only the four harness-controlled server addresses/ports and the corpus directories.
+    coverage_note: Copies the shipped documentation-curator profile and patches only the three generic REST listener addresses and ports.
     description: |
       Launches the documentation-curator profile with the async serve harness and
       dynamic multi-server configuration, waits for the documentation API, posts a
       lifecycle exit, and waits for the agent to exit. Asserts the documentation
-      host, control launch/await, monitor launch/stop, and exit_agent vocabulary
+      generic curator server, control launch/await, monitor launch/stop, and exit_agent vocabulary
       in the trace and a Done terminal state with no error-status spans.
     expected:
       asserted_tool_spans:
-        - launch_documentation
-        - stop_documentation
+        - launch_curator_http
+        - stop_curator_http
         - launch_curator_control
         - launch_monitor_rest
         - await_curator_control
@@ -258,18 +258,17 @@ test_cases:
       - sm-agent-role-taxonomy knowledge-manager
 
   - family: bench
-    name: Bench serve_ui launcher conformance
+    name: Bench declarative REST launcher conformance
     status: implemented
     test: conformance/bench_test.go
     coverage: shipped-behavioral
-    coverage_note: Copies the shipped agents/bench/profile.yaml and patches only the hard-coded serve_ui listen address in builtin.yaml.
+    coverage_note: Copies the shipped agents/bench profile, patches only its REST listen address, and uses a fixture critic child.
     description: |
-      Launches the bench profile with the async serve harness, exercises the
-      serve_ui UI action, requests a clean shutdown, and waits for the agent to
-      exit. Asserts the serve_ui vocabulary in the trace and a Done terminal state
-      with no error-status spans.
+      Launches the profile-owned static UI and machine_request routes, exercises
+      session/config/source reads, dispatches a launch through value_predicate and
+      self_invoke, requests clean shutdown, and waits for the host machine to exit.
     expected:
-      asserted_tool_spans: [serve_ui]
+      asserted_tool_spans: [launch_bench_http, await_bench_action, list_evaluation_sessions, list_resource, read_resource, validate_eval_suite, self_invoke, stop_bench_http]
       error_status_spans: 0
       terminal_states: [Done]
     traces:
@@ -448,6 +447,19 @@ test_cases:
       - sm-agent-role-taxonomy planner
 
   - family: planner
+    name: Planner declarative retry policy wiring
+    status: implemented
+    test: conformance/planner_test.go TestPlannerRetryPolicyWiring
+    coverage: load-and-wiring
+    coverage_note: Ungated, model-free; parses both shipped machines and planner declarations.
+    description: |
+      Asserts labelled retry reset/increment steps, the value-predicate limit,
+      focused task completion and remaining-work words, and explicit routes in
+      both full and pass-through planner variants.
+    traces:
+      - srd004-planner AC4
+
+  - family: planner
     name: Planner shipped-profile terminal task execution
     status: implemented
     test: conformance/planner_test.go TestPlannerShippedProfileTerminalExecution
@@ -459,10 +471,28 @@ test_cases:
     description: |
       Loads a real specification corpus, extracts all ready graph nodes, selects
       execute_task, invokes the configured child executable, runs vet/build/test,
-      maps validation success through check_result, and reaches Completed.
+      marks the task done, queries remaining work, and reaches Completed.
     traces:
       - srd004-planner AC1
       - srd004-planner AC3
+      - srd004-planner AC4
+      - sm-agent-role-taxonomy planner
+
+  - family: planner
+    name: Planner visible retry and exhaustion routing
+    status: implemented
+    test: conformance/planner_test.go TestPlannerShippedProfileRetryExhaustion
+    coverage: shipped-behavioral
+    coverage_note: |
+      Runs the shipped pass-through machine with a permanently failing test so
+      the first declared comparison retries and the second exhausts the limit.
+    description: |
+      Proves two execute_task attempts, two command-state retry increments, the
+      value-predicate limit comparison, no graph completion mutation, and the
+      final Stalled route through remaining_work.
+    traces:
+      - srd004-planner AC3
+      - srd004-planner AC4
       - sm-agent-role-taxonomy planner
 
   - family: rest

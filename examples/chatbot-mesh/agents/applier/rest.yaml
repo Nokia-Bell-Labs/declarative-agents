@@ -87,11 +87,11 @@ rest:
                     llmChatModel: $.applier.params.chatModel
                     llmEmbedModel: $.chatbot.embeddingModel
                     llmChatModels: $.ollama.models.chat
-                    llmRouterModel: $.ollama.models.router
+                    llmTierModel: $.ollama.models.tier
                     llmTopology: $.ollama.topology
                     paramsNResults: $.applier.params.nResults
                     paramsChunkCap: $.applier.params.chunkCap
-                    paramsRouterDefault: $.applier.params.routerDefault
+                    paramsTierDefault: $.applier.params.tierDefault
                 # helm could not read the release: absent, or a kubeconfig, RBAC,
                 # or API-server failure. Reporting a mapped-empty view here would
                 # render as a legitimate but topology-less mesh to the panel.

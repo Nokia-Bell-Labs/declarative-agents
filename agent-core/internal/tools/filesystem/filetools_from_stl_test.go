@@ -342,37 +342,6 @@ func TestEdit_AmbiguousMatch(t *testing.T) {
 	assert.Contains(t, res.Output, "ambiguous")
 }
 
-func TestListFiles_Basic(t *testing.T) {
-	t.Parallel()
-
-	root := t.TempDir()
-	require.NoError(t, os.MkdirAll(filepath.Join(root, "sub"), 0o755))
-	require.NoError(t, os.WriteFile(filepath.Join(root, "top.txt"), []byte("x"), 0o644))
-	require.NoError(t, os.WriteFile(filepath.Join(root, "sub", "deep.txt"), []byte("y"), 0o644))
-
-	b := &ListFilesBuilder{Root: root}
-	cmd := b.Build(toolReq(`{}`))
-	res := cmd.Execute()
-	assert.Equal(t, core.ToolDone, res.Signal)
-	assert.Contains(t, res.Output, "top.txt")
-	assert.Contains(t, res.Output, "sub/")
-	assert.Contains(t, res.Output, "deep.txt")
-}
-
-func TestListFiles_SubPath(t *testing.T) {
-	t.Parallel()
-
-	root := t.TempDir()
-	require.NoError(t, os.MkdirAll(filepath.Join(root, "a", "b"), 0o755))
-	require.NoError(t, os.WriteFile(filepath.Join(root, "a", "b", "c.txt"), []byte("z"), 0o644))
-
-	b := &ListFilesBuilder{Root: root}
-	cmd := b.Build(toolReq(`{"path":"a"}`))
-	res := cmd.Execute()
-	assert.Equal(t, core.ToolDone, res.Signal)
-	assert.Contains(t, res.Output, "c.txt")
-}
-
 func TestIsBinary(t *testing.T) {
 	t.Parallel()
 

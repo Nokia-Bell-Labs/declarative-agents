@@ -217,14 +217,14 @@ tool_parametrization: |
   Examples use one config owner per tool.
   invoke_llm reads model and provider_url from its own config. It also reads
   prompt fields, timeout fields, manifest_state, and response_profile.
-  launch_eval reads "profile" from its config and invokes the child evaluator
-  with --profile. execute_task reads "profile" and invokes the child generator
+  execute_task reads "profile" and invokes the child generator
   with --profile. self_invoke reads "profile" and invokes a configured child
-  agent with --profile. parse_suite_config and evaluator session setup tools
+  agent with --profile; optional request_from and output_from selectors bind
+  runtime data from command state. parse_suite_config and evaluator session setup tools
   read "output_dir", "reps", and "timeout" from config. run_point reads
   "point_machine" and "point_tools" to locate the nested machine YAML and build
-  its point-specific registry. serve_ui reads UI server config such as "addr",
-  "data_dir", and "configs_dir".
+  its point-specific registry. Generic REST lifecycle words read server refs
+  whose route, listener, queue, and static asset policy is declared in REST YAML.
 
 suite_input_contract: |
   Evaluator suite YAML is request data for evaluator tools, not a program
@@ -260,7 +260,7 @@ llm_parser_ownership: |
 
 nested_machines: |
   Some tools spawn nested core.Loop instances (run_point) or child
-  agent processes (launch_eval, execute_task, self_invoke). For nested loops,
+  agent processes (execute_task, self_invoke). For nested loops,
   the machine path is read from the tool's config block, not hardcoded.
 
   Nested core.Loop (same process):
@@ -269,9 +269,6 @@ nested_machines: |
     → core.Loop(LoopParams{MachineFile: ..., Registry: pointRegistry})
 
   Child process:
-    launch_eval reads config.profile
-    → subprocess.Run("agent", "--profile", ...)
-
     execute_task reads config.profile
     → subprocess.Run with the same flag
 
@@ -286,7 +283,7 @@ nested_machines: |
 
 child_agent_boundaries: |
   Child agent boundary tools are profile-only in the normal runtime contract.
-  execute_task, self_invoke, and launch_eval decode child-agent config from
+  execute_task and self_invoke decode child-agent config from
   their ToolDef config block. Config must include profile. Child processes
   receive that value as --profile with --directory, --request, --output, and
   telemetry flags.
@@ -297,8 +294,8 @@ child_agent_boundaries: |
   program-shaping paths as process flags.
 
   internal/support/execute.Config and internal/tools/catalog.ChildAgentConfig
-  are profile-only for child agent process boundaries. execute_task,
-  self_invoke, and launch_eval require profile at registration time.
+  are profile-only for child agent process boundaries. execute_task and
+  self_invoke require profile at registration time.
 
 lifecycle: |
   Lifecycle features are runtime ports around the same machine contract, not a
@@ -385,8 +382,11 @@ config_file_layout: |
       tools-point.yaml      # Per-point tool selection loaded by run_point
     bench/
       profile.yaml
-      machine.yaml          # Interactive web UI loop and semantics
-      tools.yaml            # serve_ui + launch_eval
+      machine.yaml          # Generic REST lifecycle and evaluator dispatch
+      request-machine.yaml  # One short-lived API request workflow
+      rest.yaml             # Routes, action queue, and static assets
+      tools.yaml            # Generic REST, predicate, and self_invoke aliases
+      ui/                   # Profile-owned React source and dist
     jurist/
       profile.yaml
       machine.yaml          # Spec validation pipeline and semantics
@@ -547,14 +547,6 @@ engine_policy_audit:
         entries, while machine.yaml still defines the workflow.
 
   migration_candidates:
-    - item: Parse-error retry fallback
-      symbols: [core.LoopHooks.AfterDispatch, stl.ParseErrorPolicy]
-      rationale: |
-        Generator-style grammars enforce max_consecutive_parse_errors through
-        the explicit report_parse_error word, which emits BudgetExhausted at
-        the configured limit. A remaining AfterDispatch hook is a
-        compatibility fallback for machines that do not route ParseFailed
-        through that internal word.
     - item: Result accumulator mutation
       symbols: [core.LoopHooks.OnResult]
       rationale: |

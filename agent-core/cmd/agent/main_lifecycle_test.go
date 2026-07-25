@@ -36,11 +36,11 @@ func TestDocumentationCuratorExitReachesDoneBeforeDeferredShutdown(t *testing.T)
 
 	result := runExitMachine(t, exitMachineCase{
 		machinePath:   profilePathFromTest(t, "knowledge-manager/documentation-curator/machine.yaml"),
-		launch:        "launch_documentation",
+		launch:        "launch_curator_http",
 		secondLaunch:  "launch_curator_control",
 		monitorLaunch: "launch_monitor_rest",
 		monitorStop:   "stop_monitor_rest",
-		docsStop:      "stop_documentation",
+		docsStop:      "stop_curator_http",
 		await:         "await_curator_control",
 		terminal:      "Done",
 		shutdown:      shutdown,

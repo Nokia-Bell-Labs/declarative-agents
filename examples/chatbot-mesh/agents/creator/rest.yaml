@@ -159,11 +159,11 @@ rest:
               llmChatModel: $.llmChatModel
               llmEmbedModel: $.llmEmbedModel
               llmChatModels: $.llmChatModels
-              llmRouterModel: $.llmRouterModel
+              llmTierModel: $.llmTierModel
               llmTopology: $.llmTopology
               paramsNResults: $.paramsNResults
               paramsChunkCap: $.paramsChunkCap
-              paramsRouterDefault: $.paramsRouterDefault
+              paramsTierDefault: $.paramsTierDefault
           side_effects:
             - kind: external_api
               target: deployment_api.state
@@ -448,11 +448,11 @@ rest:
                     llmChatModel: $.mapped.llmChatModel
                     llmEmbedModel: $.mapped.llmEmbedModel
                     llmChatModels: $.mapped.llmChatModels
-                    llmRouterModel: $.mapped.llmRouterModel
+                    llmTierModel: $.mapped.llmTierModel
                     llmTopology: $.mapped.llmTopology
                     paramsNResults: $.mapped.paramsNResults
                     paramsChunkCap: $.mapped.paramsChunkCap
-                    paramsRouterDefault: $.mapped.paramsRouterDefault
+                    paramsTierDefault: $.mapped.paramsTierDefault
                 Failed:
                   status: 502
                   content_type: application/json

@@ -1,8 +1,10 @@
-# Tool selection for the validate state machine.
+# Tool selection for the jurist state machine.
 # Used with: agent --machine agents/jurist/machine.yaml --tools agents/jurist/tools.yaml
 # Declarations live in tools/builtin.yaml.
 
 tools:
   - load_corpus
   - validate_specs
+  - jurist_rg
+  - reduce_grep_checks
   - format_report

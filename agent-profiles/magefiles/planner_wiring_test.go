@@ -57,6 +57,24 @@ func TestPlannerSelectsDeclarativeTrackerSentence(t *testing.T) {
 	}
 }
 
+func TestPlannerVariantsRouteParseRetriesExplicitly(t *testing.T) {
+	var selection plannerSelection
+	readPlannerYAML(t, "tools.yaml", &selection)
+	if !containsPlannerWord(selection.Tools, "report_parse_error") {
+		t.Fatal(`planner selection is missing "report_parse_error"`)
+	}
+
+	for _, file := range []string{"machine.yaml", "machine-plan-only.yaml"} {
+		t.Run(file, func(t *testing.T) {
+			var machine plannerMachine
+			readPlannerYAML(t, file, &machine)
+			requirePlannerTransition(t, machine, "PlanParsing", "ParseFailed", "ReportingParseError", "report_parse_error", "")
+			requirePlannerTransition(t, machine, "ReportingParseError", "ToolDone", "PlanInvoking", "invoke_llm", "")
+			requirePlannerTransition(t, machine, "ReportingParseError", "BudgetExhausted", "Failed", "", "")
+		})
+	}
+}
+
 func TestPlannerVariantsSequenceTrackerSentence(t *testing.T) {
 	for _, test := range []struct {
 		file      string

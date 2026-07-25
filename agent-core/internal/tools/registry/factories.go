@@ -10,14 +10,11 @@ type StandardFactoryDeps struct {
 	RegisterFilesystem     FactoryRegistrar
 	RegisterLLM            FactoryRegistrar
 	RegisterLifecycle      FactoryRegistrar
-	RegisterValidation     FactoryRegistrar
 	RegisterControl        FactoryRegistrar
 	RegisterPlanning       FactoryRegistrar
 	RegisterEvaluation     FactoryRegistrar
-	RegisterBench          FactoryRegistrar
 	RegisterSpecValidation FactoryRegistrar
 	RegisterREST           FactoryRegistrar
-	RegisterDocumentation  FactoryRegistrar
 	RegisterCompose        FactoryRegistrar
 	RegisterService        FactoryRegistrar
 	RegisterOTLP           FactoryRegistrar
@@ -59,28 +56,25 @@ func RegisterStandardBuiltinFactories(br *BuiltinRegistry, selected map[string]b
 // StandardFactoryCatalog returns the standard selected-init factory families.
 func StandardFactoryCatalog(deps StandardFactoryDeps) []StandardFactoryCatalogEntry {
 	return []StandardFactoryCatalogEntry{
-		hookFactory("filesystem", []string{"file_read", "file_write", "file_edit", "file_find", "file_list", "list_resource", "read_resource"}, deps.RegisterFilesystem),
-		hookFactory("llm", []string{"invoke_llm", "parse_response", "report_parse_error", "reset_history", "nudge_reread", "done"}, deps.RegisterLLM),
-		hookFactory("lifecycle", []string{"suspend", "checkpoint_history", "checkpoint_rollback", "exit_agent"}, deps.RegisterLifecycle),
-		hookFactory("validation", []string{"validate"}, deps.RegisterValidation),
-		hookFactory("control", []string{"self_invoke", "value_predicate"}, deps.RegisterControl),
-		hookFactory("planning", []string{"load_graph", "extract_task", "extract_all", "assemble_prompt", "parse_plan", "format_issue", "record_tracker_issue", "execute_task", "check_result"}, deps.RegisterPlanning),
-		hookFactory("evaluation", []string{"parse_suite_config", "discover_suite_samples", "expand_eval_grid", "init_eval_session", "report_suite_summary", "next_point", "run_point", "report_session", "run_agent", "record_oracle_result", "collect_trace_tokens", "check_agent_version", "summarize_point_results", "collect_metrics", "record_agent_commit", "dump_config"}, deps.RegisterEvaluation),
-		hookFactory("bench", []string{"serve_ui", "launch_eval"}, deps.RegisterBench),
+		hookFactory("filesystem", []string{"file_read", "file_write", "file_edit", "file_find", "list_resource", "read_resource"}, deps.RegisterFilesystem),
+		hookFactory("llm", []string{"invoke_llm", "parse_response", "parse_structured", "report_parse_error", "reset_history", "nudge_reread", "done"}, deps.RegisterLLM),
+		hookFactory("lifecycle", []string{"delay", "suspend", "checkpoint_history", "checkpoint_rollback", "exit_agent"}, deps.RegisterLifecycle),
+		hookFactory("control", []string{"self_invoke", "value_predicate", "partition", "select_subset"}, deps.RegisterControl),
+		hookFactory("planning", []string{"load_graph", "extract_task", "extract_all", "assemble_prompt", "parse_plan", "format_issue", "record_tracker_issue", "execute_task", "mark_task_done", "remaining_work"}, deps.RegisterPlanning),
+		hookFactory("evaluation", []string{"parse_suite_config", "discover_suite_samples", "expand_eval_grid", "init_eval_session", "report_suite_summary", "next_point", "run_point", "report_session", "run_agent", "record_oracle_result", "collect_trace_tokens", "check_agent_version", "summarize_point_results", "collect_metrics", "record_agent_commit", "dump_config", "list_evaluation_sessions", "analyze_evaluation_session", "list_evaluation_points", "read_evaluation_trace"}, deps.RegisterEvaluation),
 		hookFactory("spec_validation", []string{"load_corpus", "validate_specs", "format_report"}, deps.RegisterSpecValidation),
 		hookFactory("rest", []string{"rest_client_get", "rest_client_set", "rest_client_create", "rest_client_delete", "rest_client_invoke", "rest_client_send", "rest_client_await", "rest_server_launch", "rest_server_await", "rest_server_stop", "rest_await_event"}, deps.RegisterREST),
-		hookFactory("documentation", []string{"launch_documentation", "stop_documentation"}, deps.RegisterDocumentation),
-		hookFactory("compose", []string{"compose"}, deps.RegisterCompose),
+		hookFactory("compose", []string{"compose", "render_each"}, deps.RegisterCompose),
 		hookFactory("otlp", []string{
 			"otlp_receiver_launch", "await_spans", "spool_spans", "relay_spans", "otlp_receiver_stop",
 		}, deps.RegisterOTLP),
 		// The rig's service words. The init names are literal here because the
 		// service package imports this one, so the list cannot be read from it.
 		hookFactory("service", []string{
-			"start_service", "await_healthy", "stop_service", "run_validators", "list_scenarios",
-			"init_scenario_session", "next_scenario", "start_scenario_mocks",
-			"start_scenario_subject", "await_scenario_subject", "run_scenario_validators",
-			"collect_scenario_verdict", "teardown_scenario", "report_scenario_session",
+			"start_service", "stop_service", "list_scenarios",
+			"init_scenario_session", "next_scenario", "start_scenario_mock",
+			"start_scenario_subject", "run_scenario_validator", "record_scenario_validators",
+			"collect_scenario_verdict", "list_scenario_children", "report_scenario_session",
 		}, deps.RegisterService),
 	}
 }

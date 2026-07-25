@@ -1,0 +1,10 @@
+tools:
+  - load_test_claims
+  - go_module
+  - go_packages_raw
+  - go_packages
+  - go_test_inventory
+  - resolve_test_evidence
+  - go_test_run
+  - reduce_test_evidence_run
+  - format_report

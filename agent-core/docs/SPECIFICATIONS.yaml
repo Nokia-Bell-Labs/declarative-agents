@@ -191,7 +191,7 @@ srd_index:
     path: docs/specs/software-requirements/srd019-eval-harness.yaml
   - id: srd020-bench-web-ui
     title: Bench Web UI
-    summary: HTTP server with embedded React frontend, REST API for sessions/points/traces/experiments/configs/source/actions, SPA routing, documentation-route exclusion, and dual-mode asset loading in internal/evaluation/bench.
+    summary: Profile-owned React frontend, generic REST and machine_request routes, evaluation artifact queries, operator event routing, and self-invoke evaluator launch.
     path: docs/specs/software-requirements/srd020-bench-web-ui.yaml
   - id: srd021-agent-cli-exec-tool
     title: Agent CLI as an Exec Tool
@@ -207,7 +207,7 @@ srd_index:
     path: docs/specs/software-requirements/srd023-cli-exec-tools.yaml
   - id: srd024-blocking-input-tools
     title: Blocking Input Tools
-    summary: Requirements for tools like invoke_llm and serve_ui that intentionally block the loop while waiting for external model, human, or approval input.
+    summary: Requirements for tools such as invoke_llm and generic REST event waits that intentionally block the loop while waiting for external model, human, or approval input.
     path: docs/specs/software-requirements/srd024-blocking-input-tools.yaml
   - id: srd025-rollback-lifecycle
     title: Rollback, Checkpoint, Suspend, and Resume Lifecycle
@@ -281,7 +281,7 @@ srd_index:
     path: docs/specs/software-requirements/srd039-mock-endpoint-binding.yaml
   - id: srd040-service-child-tools
     title: Service-Child and Scenario Tools
-    summary: Words for a rig machine that composes other machines - start_service, await_healthy, and stop_service for background serve-mode children with injected environment and process-group reaping; run_validators for concurrent run-to-completion validators with per-validator terminal states and a bounded timeout; and list_scenarios for deterministic scenario discovery under declared roots.
+    summary: Words for a rig machine that composes other machines - start_service and stop_service for background serve-mode children with injected environment, trusted runtime targets, and process-group reaping; profile-visible REST probes and delay transitions own readiness retries and timeout; one-validator child execution composes through MachineSpec iteration and join; and list_scenarios discovers deterministic work under declared roots.
     status: planned
     path: docs/specs/software-requirements/srd040-service-child-tools.yaml
   - id: srd041-value-predicate-tool
@@ -739,12 +739,12 @@ coverage_gaps: |
   machine-request demo as a profile-owned browser tracer in agent-profiles.
   Generic core tests fetch machine_request document responses through the
   generic REST server routes
-  documentation_curator_requests.documents and
-  documentation_curator_requests.document, checks raw YAML and rendered
+  documentation_curator.documents and
+  documentation_curator.document, checks raw YAML and rendered
   content, and records request trace evidence.
   internal/tools/rest, tools/builtin/rest declarations,
   OpenAPI import compilation, REST runtime tests, testdata/conformance/rest
-  profile examples, and the documentation host are implemented. docs/rel03-rest-design-audit.md records the design
+  profile examples, and the profile-owned documentation application are implemented. docs/rel03-rest-design-audit.md records the design
   audit result. REST side-effect vocabulary now accepts listener and listener
   shutdown effects in the contract audit. Credential resolution, redirect
   allowlists, request and response size limits, server query and header
@@ -755,7 +755,7 @@ coverage_gaps: |
   profile-owned documentation-curator proof, and machine_request browser proof
     now have formal release 03.0 coverage. Generic REST event fan-in, route and
     signal filters, timeout handling, machine_request fixture conformance,
-    documentation host route conformance, and REST-triggered lifecycle exit now
+    documentation route conformance, and REST-triggered lifecycle exit now
     have formal cases tied to Go tests and profile-owned uc006/uc007 evidence.
     rel03.0-uc008 now has executable staged
     await-any fan-in coverage that launches a later REST source after the first
@@ -830,12 +830,11 @@ coverage_gaps: |
   internal/observability, and internal/planning are package roots or
   documentation stubs with no standalone runtime behavior. internal/runtime,
   internal/support, and internal/tools have the same status.
-  internal/evaluation/bench/ui embeds React assets behind the bench API.
-  internal/knowledge/documentation/ui embeds React assets behind the
-  documentation-curator host. srd020 and rel03.0-uc006 cover the ownership
-  boundary. rel03.0-uc007 extends that boundary to implemented human actor
-  configuration for a machine_request-backed Knowledge Manager UX through the
-  generic REST server path.
+  External bench and documentation-curator profiles own their React source,
+  built assets, route configuration, request MachineSpecs, and workflow ToolDefs.
+  srd020 and rel03.0-uc006 cover that ownership boundary, while rel03.0-uc007
+  covers the machine_request-backed human actor path through the generic REST
+  server.
 
   Residual documentation cleanup is tracked as follow-up work. Historical
   roll-backs.md and tools-as-dsl.md references should be normalized to canonical

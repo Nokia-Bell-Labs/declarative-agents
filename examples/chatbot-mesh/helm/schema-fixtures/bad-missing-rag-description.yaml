@@ -1,0 +1,3 @@
+# Required classifier description is absent.
+ragUnits:
+  - {name: rag0, collection: corpus, embeddingModel: qwen3-embedding:8b, replicas: 1}

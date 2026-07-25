@@ -3,7 +3,6 @@ purpose: Plan one coding request, delegate it to the remote executor, then gate 
 initial_state: AwaitingRequest
 budget:
   max_iterations: 8
-  max_consecutive_parse_errors: 1
 states:
   - {name: AwaitingRequest, meaning: The trusted endpoint has seeded a task and workspace identity.}
   - {name: Planning, meaning: Canonical planner model behavior is producing a structured plan.}

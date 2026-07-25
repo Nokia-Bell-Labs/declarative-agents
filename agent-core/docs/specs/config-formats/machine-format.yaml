@@ -114,11 +114,11 @@ schema:
         type: int
         description: |
           Maximum consecutive LLM parse failures before the machine
-          transitions via BudgetExhausted. For grammars that route
-          ParseFailed through report_parse_error, the value is read from
-          machine YAML and enforced by that explicit internal word. Machines
-          without report_parse_error may still use the compatibility
-          stl.ParseErrorPolicy AfterDispatch hook.
+          transitions via BudgetExhausted. The profile must select
+          report_parse_error, route ParseFailed through that word, and route
+          BudgetExhausted from the report transition's destination state.
+          Startup validation rejects the budget when any of that wiring is
+          absent; profiles that do not retry parse failures must omit it.
 
   - field: states
     type: "StateSpecs ([]string | []StateSpec)"
@@ -231,11 +231,44 @@ schema:
           transition. Transition labels override or extend machine-level
           labels by label name. They must follow the same low-cardinality safety
           policy as top-level metric_labels.
+      - field: for_each
+        type: object
+        required: false
+        description: |
+          Expand this transition's named action over an array selected from a
+          prior command-state entry. Dispatch is deterministic and sequential.
+          Each item is a normal registry-built command dispatch and therefore
+          gets its own trace, checkpoint Entry, receipt, cancellation boundary,
+          budget iteration, and rollback visibility.
+        sub_fields:
+          - field: items
+            type: string
+            description: A required $from(label).path selector resolving to a JSON array.
+          - field: as
+            type: string
+            description: Command-state binding label for the current item.
+          - field: mode
+            type: string
+            description: sequential, the only supported mode.
+          - field: failure
+            type: string
+            description: fail_fast (default) or collect_all.
+          - field: continue_on
+            type: "[]string"
+            description: Item result signals counted as successful.
+          - field: abort_on
+            type: "[]string"
+            description: Documented item failure signals; fail_fast stops after one.
+          - field: join
+            type: object
+            description: |
+              Declares the receiving state, optional output label, and signals
+              for all_success, partial (collect_all), failed, and empty.
 
 action_semantics:
   - mode: Named tool
     description: |
-      A literal tool name (e.g. invoke_llm, prepare_workspace, validate).
+      A literal tool name (e.g. invoke_llm, prepare_workspace, build).
       The tool is resolved from the tool registry at build time via
       BuildTransitionTable. If the name is not found, the build fails.
     example: invoke_llm
@@ -253,6 +286,36 @@ action_semantics:
       No command is executed. Used for terminal transitions where the
       machine simply moves to a halting state (e.g. Succeeded, Failed,
       BudgetExceeded).
+
+data_driven_iteration:
+  trust_boundary: |
+    items must come from a $from(label).path command-state selector. MachineSpec
+    supplies the action and binding name; runtime data cannot choose an action
+    or introduce executable expressions.
+  item_binding: |
+    Object items are exposed directly at $from(as).field. Scalar items are
+    exposed as $from(as).value. The binding exists only while that item is
+    dispatched and does not create a fake Execution entry.
+  join: |
+    for_each.join emits one engine-owned for_each.join Entry containing ordered
+    item outcomes and succeeded/failed counts. The join signal is selected by
+    the declared outcome map and is then routed through the normal transition
+    table. Each outcome retains result.output as a string. When that
+    already-redacted ResultDigest output is valid JSON with recognized applied
+    redaction metadata, result.structured_output also exposes its parsed object,
+    array, or scalar shape for dotted-path traversal. Plain text and
+    output_omitted results have no structured_output.
+  checkpoint_resume: |
+    AgentSnapshot persists the selected items, next index, ordered outcomes, and
+    iterator grammar. Resume continues at the next undispatched item.
+    structured_output is shaped only when the join payload is emitted and is not
+    added to IteratorSnapshot, preserving the persisted outcome format.
+  concurrency: |
+    Bounded parallel iteration is deferred. mode values other than sequential
+    fail validation rather than silently changing ordering or rollback behavior.
+  non_goal: |
+    for_each is not a scripting language: it has no expressions, mutation,
+    dynamic action names, nested programs, or unbounded concurrency.
 
 command_state_step_labels:
   purpose: |
@@ -376,6 +439,10 @@ validation_rules: |
   - terminal_states must be a subset of states
   - Each present transition label satisfies the canonical selector-label grammar
   - Duplicate valid transition labels are allowed
+  - for_each requires a named action, a valid $from selector and binding label,
+    declared continue/join signals, and a declared join state
+  - only sequential mode and fail_fast or collect_all failure policies are valid
+  - collect_all requires a partial join signal
 
   Phase 2 — BuildTransitionTable():
   - Named actions (not $tool, not empty) must resolve to a registered tool
@@ -442,11 +509,9 @@ examples:
 
   - file: ../agent-profiles/agents/bench/machine.yaml
     description: |
-      5 states, human-in-the-loop interactive agent. Serves a web UI
-      and blocks waiting for user actions. Loops between serving and
-      launching evaluations. serve_ui is the bench equivalent of
-      invoke_llm. Rich state/signal metadata with purpose and
-      invariants.
+      Human-in-the-loop host machine. It launches the generic REST server,
+      awaits declared operator events, validates launch input, invokes the
+      critic through self_invoke, and drains the server on shutdown.
 
   - file: ../agent-profiles/agents/jurist/machine.yaml
     description: |

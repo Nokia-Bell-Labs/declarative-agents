@@ -48,7 +48,7 @@ func buildClientRequest(
 	if err != nil {
 		return nil, nil, err
 	}
-	endpoint, err := renderURL(def, params)
+	endpoint, err := renderURL(def, params, view)
 	if err != nil {
 		return nil, nil, err
 	}
@@ -197,8 +197,12 @@ func declaredParamNames(binding RequestBinding) map[string]bool {
 	return names
 }
 
-func renderURL(def ClientOperationDefinition, params map[string]interface{}) (string, error) {
-	base, err := url.Parse(def.Client.BaseURL)
+func renderURL(def ClientOperationDefinition, params map[string]interface{}, view core.CommandStateView) (string, error) {
+	baseURL, selected, err := resolveOperationBaseURL(def.Operation, def.Client.BaseURL, view)
+	if err != nil {
+		return "", targetResolutionError{err: err}
+	}
+	base, err := url.Parse(baseURL)
 	if err != nil {
 		return "", err
 	}
@@ -213,6 +217,11 @@ func renderURL(def ClientOperationDefinition, params map[string]interface{}) (st
 		query.Set(name, fmt.Sprint(params[name]))
 	}
 	endpoint.RawQuery = query.Encode()
+	if selected {
+		if err := validateSelectedEndpoint(def, endpoint); err != nil {
+			return "", targetResolutionError{err: err}
+		}
+	}
 	return endpoint.String(), validateNetwork(endpoint, def.Limits.Network)
 }
 

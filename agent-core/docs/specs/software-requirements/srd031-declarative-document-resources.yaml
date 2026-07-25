@@ -3,8 +3,8 @@ title: Declarative Document Resources
 
 problem: |
   Knowledge Manager needs configured REST and machine_request words that read
-  documentation files from `docs/`. Current host routes work, but route wiring
-  and UI workflow policy still sit in the documentation host.
+  documentation files from `docs/`. Route wiring and UI workflow policy belong
+  to the external profile, not a documentation-specific runtime host.
 
   Document access belongs behind a resource definition. Trusted profile config
   should name corpus rules and UI placement, leaving Go code to provide safe
@@ -81,9 +81,7 @@ requirements:
       - R6.5: Generic document resource capability SHALL remain reusable without the Knowledge Manager UI.
 
 non_goals:
-  - Implementing generic REST document resource loading in this issue.
   - Defining mutating document writes or applying patches to files.
-  - Replacing all existing documentation host routes in this issue.
   - Letting browser input choose arbitrary filesystem roots or parser behavior.
   - Defining a general CMS or web framework.
 

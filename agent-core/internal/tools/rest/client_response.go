@@ -132,18 +132,26 @@ func responseOutput(
 ) map[string]interface{} {
 	responseMap := resolvedResponseMapping(def, mapping)
 	return map[string]interface{}{
-		"rest_ref":          def.RestRef,
-		"resource":          def.Resource,
-		"operation":         def.OperationName,
-		"status":            response.StatusCode,
-		"headers":           headerOutput(response.Header),
-		"body":              payload,
-		"mapped":            mappedOutput(responseMap.Output, payload),
-		"resource_id":       selectorValue(responseMap.ResourceID, payload),
-		"request_id":        selectorValue(responseMap.RequestID, payload),
-		"retry_count":       attempts - 1,
-		"domain_error_code": mapping.DomainErrorCode,
+		"rest_ref":           def.RestRef,
+		"resource":           def.Resource,
+		"operation":          def.OperationName,
+		"status":             response.StatusCode,
+		"headers":            headerOutput(response.Header),
+		"body":               payload,
+		"mapped":             mappedOutput(responseMap.Output, payload),
+		"resource_id":        selectorValue(responseMap.ResourceID, payload),
+		"request_id":         selectorValue(responseMap.RequestID, payload),
+		"retry_count":        attempts - 1,
+		"domain_error_code":  mapping.DomainErrorCode,
+		"selected_authority": responseAuthority(response),
 	}
+}
+
+func responseAuthority(response *http.Response) string {
+	if response == nil || response.Request == nil {
+		return ""
+	}
+	return canonicalAuthority(response.Request.URL)
 }
 
 // carriedInputs copies the operation's declared carry_forward params into a

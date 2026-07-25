@@ -4,10 +4,8 @@ package spec
 
 import (
 	"bufio"
-	"bytes"
 	"encoding/json"
 	"fmt"
-	"os/exec"
 	"regexp"
 	"sort"
 	"strings"
@@ -35,21 +33,20 @@ type GoTestInventory struct {
 	allTests   map[string]bool            // union of every top-level test name
 }
 
-// BuildGoTestInventory inventories the module rooted at moduleDir. It resolves
-// the module path and package set with `go list` and lists top-level tests with
-// `go test -json -list '^Test' ./...`, running each command once and executing
-// no test. `-list` compiles the test binaries but runs nothing, so a command
-// that names a nonexistent test still leaves a gap the validator can catch.
-func BuildGoTestInventory(moduleDir string) (*GoTestInventory, error) {
-	modulePath, err := goModulePath(moduleDir)
-	if err != nil {
-		return nil, err
+// ParseGoTestInventory builds an inventory from the outputs of the profile's
+// declared `go list -m`, `go list ./...`, and `go test -json -list` exec words.
+// Keeping command execution in the profile makes the subprocess boundary
+// visible while this package remains a deterministic schema reducer.
+func ParseGoTestInventory(moduleOutput, packagesOutput, testsOutput string) (*GoTestInventory, error) {
+	modulePath := strings.TrimSpace(moduleOutput)
+	if modulePath == "" {
+		return nil, fmt.Errorf("go list -m returned no module path")
 	}
-	packages, err := goListPackages(moduleDir)
-	if err != nil {
-		return nil, err
+	packages := parseGoPackages(packagesOutput)
+	if len(packages) == 0 {
+		return nil, fmt.Errorf("go list ./... returned no packages")
 	}
-	byPackage, allTests, err := goListTests(moduleDir)
+	byPackage, allTests, err := parseGoListTests(strings.NewReader(testsOutput))
 	if err != nil {
 		return nil, err
 	}
@@ -59,29 +56,6 @@ func BuildGoTestInventory(moduleDir string) (*GoTestInventory, error) {
 		byPackage:  byPackage,
 		allTests:   allTests,
 	}, nil
-}
-
-// AuditGoTestEvidence builds the Go test inventory for the module at rootDir,
-// parses its formal test suites, and validates every go_test evidence string.
-// It is the entry point mage audit invokes.
-func AuditGoTestEvidence(rootDir string) ([]Finding, error) {
-	inv, err := BuildGoTestInventory(rootDir)
-	if err != nil {
-		return nil, err
-	}
-	suites, err := discoverAndParseTestSuites(rootDir)
-	if err != nil {
-		return nil, err
-	}
-	findings := ValidateGoTestEvidence(inv, suites)
-	if !hasRuntimeImplementationCorpus(rootDir) {
-		return findings, nil
-	}
-	pathFindings, err := ValidateSpecCorpusPaths(rootDir)
-	if err != nil {
-		return nil, err
-	}
-	return append(findings, pathFindings...), nil
 }
 
 // ValidateGoTestEvidence checks the go_test evidence of every test case in
@@ -393,32 +367,14 @@ func stripQuotes(s string) string {
 	return s
 }
 
-// goModulePath returns the module path reported by `go list -m` in dir.
-func goModulePath(dir string) (string, error) {
-	out, err := runGoCommand(dir, "list", "-m")
-	if err != nil {
-		return "", err
-	}
-	path := strings.TrimSpace(out)
-	if path == "" {
-		return "", fmt.Errorf("go list -m in %s returned no module path", dir)
-	}
-	return path, nil
-}
-
-// goListPackages returns the set of import paths under dir from `go list ./...`.
-func goListPackages(dir string) (map[string]bool, error) {
-	out, err := runGoCommand(dir, "list", "./...")
-	if err != nil {
-		return nil, err
-	}
+func parseGoPackages(out string) map[string]bool {
 	packages := map[string]bool{}
 	for _, line := range strings.Split(out, "\n") {
 		if line = strings.TrimSpace(line); line != "" {
 			packages[line] = true
 		}
 	}
-	return packages, nil
+	return packages
 }
 
 // goListEvent is the subset of the `go test -json` event shape the inventory
@@ -429,20 +385,12 @@ type goListEvent struct {
 	Output  string
 }
 
-// goListTests lists top-level tests per package via `go test -json -list`. It
-// keeps only output lines that are valid test names, discarding the per-package
-// summary lines ("ok  pkg", "?  pkg [no test files]").
-func goListTests(dir string) (map[string]map[string]bool, map[string]bool, error) {
-	cmd := exec.Command("go", "test", "-json", "-list", "^Test", "./...")
-	cmd.Dir = dir
-	var stdout, stderr bytes.Buffer
-	cmd.Stdout = &stdout
-	cmd.Stderr = &stderr
-	runErr := cmd.Run()
-
+// parseGoListTests keeps only top-level test names from a go test -json -list
+// stream, discarding package summaries and other output events.
+func parseGoListTests(stream *strings.Reader) (map[string]map[string]bool, map[string]bool, error) {
 	byPackage := map[string]map[string]bool{}
 	allTests := map[string]bool{}
-	scanner := bufio.NewScanner(&stdout)
+	scanner := bufio.NewScanner(stream)
 	scanner.Buffer(make([]byte, 0, 64*1024), 4*1024*1024)
 	for scanner.Scan() {
 		var ev goListEvent
@@ -465,22 +413,5 @@ func goListTests(dir string) (map[string]map[string]bool, map[string]bool, error
 	if err := scanner.Err(); err != nil {
 		return nil, nil, fmt.Errorf("scan go test -list output: %w", err)
 	}
-	if runErr != nil && len(allTests) == 0 {
-		return nil, nil, fmt.Errorf("go test -list in %s: %w\n%s", dir, runErr, stderr.String())
-	}
 	return byPackage, allTests, nil
-}
-
-// runGoCommand runs `go <args>` in dir and returns stdout, wrapping any error
-// with the captured stderr.
-func runGoCommand(dir string, args ...string) (string, error) {
-	cmd := exec.Command("go", args...)
-	cmd.Dir = dir
-	var stdout, stderr bytes.Buffer
-	cmd.Stdout = &stdout
-	cmd.Stderr = &stderr
-	if err := cmd.Run(); err != nil {
-		return "", fmt.Errorf("go %s in %s: %w\n%s", strings.Join(args, " "), dir, err, stderr.String())
-	}
-	return stdout.String(), nil
 }

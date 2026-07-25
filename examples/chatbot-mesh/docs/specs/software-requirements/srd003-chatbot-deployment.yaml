@@ -28,7 +28,7 @@ problem: |
 
 goals:
   - G1: Define one Helm chart deploying the chatbot agent, N RAG (agent + Chroma) pairs from a values list, the chat LLM, the Dolt backend, and the OTel collector, using rel06.0 binary-only images with profiles from ConfigMaps.
-  - G2: Co-generate the chatbot's rest.yaml RAG client entries from the same values list that creates the RAG Deployments and Services, so topology and client config share one source of truth and the rendered config is validated.
+  - G2: Co-generate the chatbot's declared runtime topology, REST network allowlist, and monitor upstreams from the same values list that creates the RAG Deployments and Services, while one selected-target REST operation serves every unit.
   - G3: Define a tiered hot-swap model -- Service repoint, values re-render plus a request-draining rollout -- and exclude in-process client-registry mutation.
   - G4: Define the provisioning surface as a config-plane deployment API, authenticated apart from the chat path, that never submits an endpoint to a running agent.
   - G5: Define self-contained production observability and an explicit integration overlay that retains trace and metric evidence in a shared host sink.
@@ -45,7 +45,7 @@ requirements:
   R2:
     title: Values-to-config co-generation
     items:
-      - R2.1: The values list that creates the RAG Deployments and Services SHALL also render the chatbot rest.yaml RAG client entries, so topology and client configuration derive from one source of truth and cannot drift.
+      - R2.1: The values list that creates the RAG Deployments and Services SHALL also render the chatbot's ordered runtime topology, REST network allowlist, and monitor upstreams. The chatbot SHALL retain one selected-target RAG operation and one source-count-independent for_each regardless of list length.
       - R2.2: The rendered chatbot rest.yaml SHALL pass ValidateDefinition, enforced by a chart-level check or an init-container validation before the chatbot serves.
       - R2.3: Each rendered RAG client entry SHALL carry the served collection's embedding-model identity (srd001 R2.3) so the chatbot can apply embedding-space mismatch handling (srd002 R3.3).
   R3:
@@ -90,7 +90,7 @@ requirements:
     title: In-cluster LLM tier
     items:
       - R6.1: The chart SHALL include an optional Ollama subchart, enabled by default, that deploys Ollama in-cluster with PVC-backed model storage; when disabled (ollama.enabled=false) the embedding and chat endpoint values SHALL point at an operator-supplied service. Both paths SHALL render into the same co-generated client entries, so R2 is unchanged either way.
-      - R6.2: A model-preload Job (or init container) SHALL pull the embedding model, every declared chat model, and the router model into the PVC before the tier reports ready; the model names SHALL be declared once in values and flow to both the preload and the agents' rendered config, so a model cannot be preloaded but unrendered or vice versa.
+      - R6.2: A model-preload Job (or init container) SHALL pull the embedding model, every declared chat model, and the tier-selector model into the PVC before the tier reports ready; the model names SHALL be declared once in values and flow to both the preload and the agents' rendered config, so a model cannot be preloaded but unrendered or vice versa.
       - R6.3: Agent pods SHALL gate their readiness on the LLM tier reporting the required models present (Ollama /api/tags), so a missing model is a deploy-time gate rather than a runtime turn failure.
       - R6.4: GPU scheduling (nodeSelector, tolerations, resource requests/limits) SHALL be values; a CPU-only deployment SHALL be permitted for the kind smoke path.
       - R6.5: The single-instance-vs-per-model topology SHALL be a values decision; the default SHALL be a single Ollama instance serving all models, with per-model instances mapping to the two-logical-services (embedding vs chat) split when set. The choice and its rationale SHALL be recorded.
@@ -110,7 +110,7 @@ acceptance_criteria:
     criterion: One chart is specified deploying the chatbot, N values-driven RAG (agent + Chroma) pairs, the LLM, the Dolt backend, and the collector, with ingress and internal Services, over rel06.0 binary-only images with ConfigMap-mounted profiles.
     traces: [R1.1, R1.2, R1.3, R1.4]
   - id: AC2
-    criterion: Co-generation renders the chatbot RAG client entries from the same values list that creates the RAG Deployments and Services, the rendered rest.yaml passes ValidateDefinition, and each entry carries the served embedding-model identity.
+    criterion: Co-generation renders the chatbot topology data, REST allowlist, and monitor upstreams from the same values list that creates the RAG objects; rest.yaml retains one validated selected-target operation, and a third unit changes no chatbot word or state count.
     traces: [R2.1, R2.2, R2.3]
   - id: AC3
     criterion: The tiered swap is specified -- Service repoint with no agent change, add/remove via values re-render plus a request-draining rollout -- with in-process registry mutation excluded.
@@ -128,7 +128,7 @@ acceptance_criteria:
     criterion: The observability wiring preserves self-contained production defaults and defines an integration-only gateway to a persistent host sink, stable run and service identity, Chroma trace propagation, Dolt metrics, separately correlated kind control-plane traces, retained evidence, and the Ollama and OTel Logs limitations.
     traces: [R5.1, R5.2, R5.3, R5.4, R5.5, R5.6, R5.7, R5.8, R5.9, R5.10, R5.11]
   - id: AC6
-    criterion: The in-cluster LLM tier is specified -- an optional Ollama subchart enabled by default with PVC model storage and an enabled/external switch that leaves R2 unchanged, a model-preload Job pulling the embedding, chat, and router models named once in values, agent readiness gated on model presence, GPU scheduling as values with a CPU-only path, and a recorded single-instance default topology.
+    criterion: The in-cluster LLM tier is specified -- an optional Ollama subchart enabled by default with PVC model storage and an enabled/external switch that leaves R2 unchanged, a model-preload Job pulling the embedding, chat, and tier-selector models named once in values, agent readiness gated on model presence, GPU scheduling as values with a CPU-only path, and a recorded single-instance default topology.
     traces: [R6.1, R6.2, R6.3, R6.4, R6.5]
 
 depends_on:

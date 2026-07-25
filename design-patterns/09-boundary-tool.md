@@ -15,7 +15,7 @@ Chapter 2 distinguished terminal tools (atomic) from non-terminal tools (boundar
 |---|---|---|
 | None | local operation | `write_file`, `build` |
 | Model | LLM provider | `invoke_llm` |
-| Human | interactive UI | `serve_ui` |
+| Human | interactive UI | `rest_await_event` |
 | Child process | subprocess agent | `run_agent`, `execute_task` |
 | Nested machine | in-process FSM | `run_point` |
 
@@ -29,7 +29,7 @@ Boundary Tool fits when an agent must coordinate work across sub-agents or sub-m
 
 ## Structure
 
-In the working implementation the canonical composition is a three-tier process stack (bench, evaluator, generator) shown as a deployment diagram in Fig. 24. **Bench** (human-launched) dispatches `launch_eval` subprocess tools to start evaluators; each **Evaluator** runs **Generators** as nested machines via `run_point`. Each tier is a separate profile with its own machine.
+In the working implementation the canonical composition is a three-tier process stack (bench, critic, executor) shown as a deployment diagram in Fig. 24. **Bench** (human-launched) dispatches `self_invoke` to start critics; each **Critic** runs **Executors** as nested machines via `run_point`. Each tier is a separate profile with its own machine.
 
 ![](figures/fig-25-composition-deployment.png)
 
@@ -104,7 +104,7 @@ All composition flows parent-to-child; there is no peer-to-peer negotiation. Wor
 
 ### Three composition mechanisms
 
-**Subprocess child.** The parent spawns a separate OS process (`execute_task`, `run_agent`, `self_invoke`, `launch_eval`) with its own memory and trace file. Isolation is strong; cost is spawn plus serialization. **In-process nested machine.** The parent creates a new engine in the same process and runs a sub-machine (`run_point`); near-zero overhead, weaker isolation, suited to tight inner loops. **`$tool` dispatch.** Not a boundary but a composition tool: the engine resolves the tool from an LLM result, composing tools *within* one machine with no child execution.
+**Subprocess child.** The parent spawns a separate OS process (`execute_task`, `run_agent`, `self_invoke`) with its own memory and trace file. Isolation is strong; cost is spawn plus serialization. **In-process nested machine.** The parent creates a new engine in the same process and runs a sub-machine (`run_point`); near-zero overhead, weaker isolation, suited to tight inner loops. **`$tool` dispatch.** Not a boundary but a composition tool: the engine resolves the tool from an LLM result, composing tools *within* one machine with no child execution.
 
 | Mechanism | Isolation | Overhead | Child execution |
 |---|---|---|---|
@@ -128,7 +128,7 @@ Boundary Tool sits within Machine Interpreter and requires Machine Interpreter, 
 
 ## Known Uses
 
-**Bench/evaluator/generator stack.** The evaluation harness composes three tiers (Fig. 24): bench delegates to evaluators via subprocess `launch_eval`, evaluators run generators via nested `run_point`, and a single benchmark point traverses all three with complexity isolated at each level.
+**Bench/critic/executor stack.** The evaluation harness composes three tiers (Fig. 24): bench delegates to critics via `self_invoke`, critics run executors via nested `run_point`, and a single benchmark point traverses all three with complexity isolated at each level.
 
 **Planner/generator delegation.** A planner uses LLM inference to decompose a task, then dispatches `execute_task` per sub-task; each generator sees only its sub-task and produces an independently rollbackable execution, so a failed sub-task 3 reverts without disturbing sub-tasks 1 and 2. Security-review and migration planners reuse the mechanism with different child profiles.
 

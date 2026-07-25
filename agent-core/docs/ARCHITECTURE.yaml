@@ -62,7 +62,7 @@ overview:
         REQGRAPH[internal/planning/graph]
         EXEC[internal/support/execute]
         SPEC[pkg/spec]
-        BENCH[internal/evaluation/bench]
+        BENCH[external bench profile]
       end
 
       subgraph Infra["Reusable Infrastructure"]
@@ -180,7 +180,8 @@ overview:
         responsibility: |
           Exec owns ExecBuilder, ExecCmd, CLI parameter-to-argv mapping,
           precondition handling, output caps, subprocess result conversion,
-          and exec undo memento creation.
+          exec undo memento creation, and execution of the declared find-backed
+          list_files boundary.
         dependencies:
           may_depend_on:
             - internal/runtime/core
@@ -193,9 +194,10 @@ overview:
             - internal/planning
       - path: internal/tools/filesystem/
         responsibility: |
-          Filesystem owns read, write, edit, find, list_files, ValidatePath, path
+          Filesystem owns read, write, edit, find, ValidatePath, path
           normalization, binary detection, file snapshots, and workspace
-          restore mementos for direct filesystem effects.
+          restore mementos for direct filesystem effects. list_files is an
+          exec declaration rather than production Go in this package.
         dependencies:
           may_depend_on:
             - internal/runtime/core
@@ -206,7 +208,7 @@ overview:
             - internal/support/execute
       - path: internal/tools/llm/
         responsibility: |
-          LLM tools own invoke_llm, parse_response, report_parse_error, reset_history,
+          LLM tools own invoke_llm, parse_response, parse_structured, report_parse_error, reset_history,
           nudge_reread, done, model profile resolution for boundary tools,
           parse retry state, and conversation undo mementos.
         dependencies:
@@ -259,8 +261,10 @@ overview:
       - path: internal/tools/control/
         responsibility: |
           Control owns state-machine control tools that are not file, exec, LLM, or
-          lifecycle words. This includes self_invoke and child-agent boundary
-          wiring that maps ToolDef config into execute.Config.
+          lifecycle words. This includes self_invoke, value_predicate, partition,
+          select_subset, and child-agent boundary wiring that maps ToolDef config
+          into execute.Config. select_subset resolves untrusted names only to the
+          corresponding trusted vocabulary values and never forwards candidate payload.
         dependencies:
           may_depend_on:
             - internal/runtime/core
@@ -274,9 +278,9 @@ overview:
             - internal/planning
       - path: internal/tools/validation/
         responsibility: |
-          Validation owns validate compatibility aggregation, spec audit tools, validation
-          report formatting, and any validation-only ToolTracker behavior. New
-          build, lint, and test order stays in MachineSpec transitions.
+          Validation owns spec audit tools and validation report formatting.
+          Build, lint, and test order stays in MachineSpec transitions, and
+          those words execute through normal machine dispatch.
         dependencies:
           may_depend_on:
             - internal/runtime/core
@@ -285,6 +289,19 @@ overview:
             - pkg/spec for specification audit commands
           must_not_depend_on:
             - cmd/agent
+      - path: internal/tools/compose/
+        responsibility: |
+          Compose owns flat configured substitution and render_each owns ordered
+          per-item array rendering. The two words stay separate so compose does
+          not acquire a template control language.
+        dependencies:
+          may_depend_on:
+            - internal/runtime/core
+            - Go standard library
+          must_not_depend_on:
+            - cmd/agent
+            - internal/evaluation
+            - internal/planning
       - path: internal/tools/undo/
         responsibility: |
           Undo owns shared UndoMemento payload structs, workspace restore payloads,
@@ -454,8 +471,8 @@ overview:
         process, nested machine, external CLI, external API, or workspace. It
         is still a word from the parent machine's point of view, but its
         contract must make the boundary, emitted signals, side effects, and
-        undo/compensation explicit. Examples include invoke_llm, serve_ui,
-        run_agent, run_oracle_check, run_point, launch_eval, and self_invoke.
+        undo/compensation explicit. Examples include invoke_llm,
+        rest_server_launch, run_agent, run_point, and self_invoke.
       sentence: |
         Sentence tools hide multiple observable verbs behind one name. New
         tools should not use this category except to mark legacy compatibility.
@@ -572,12 +589,11 @@ overview:
       machine dispatches them.
 
       Machine request bindings and document resources extend this model for the
-      Knowledge Manager demo. For the document index,
-      documentation_curator_requests.documents is the generic REST server route.
-      For document detail requests, documentation_curator_requests.document is
-      the route. Each accepted request runs one short-lived MachineSpec
-      sentence. The same-origin documentation host owns that request server
-      lazily as a transport adapter over trusted REST profile configuration.
+      Knowledge Manager application. documentation_curator.documents and
+      documentation_curator.document are generic REST server routes. Each
+      accepted request runs one short-lived MachineSpec sentence. The external
+      profile launches the generic request server directly; no domain host or
+      same-origin proxy is linked into the runtime.
       Document resources expose a configured filesystem corpus such as docs/
       through reusable resource words. Knowledge Manager UI assets, labels,
       routes, actions, and placement live with the documentation-curator profile
@@ -616,8 +632,8 @@ overview:
         configured request machine, run core.Loop for that short-lived sentence,
         and map terminal response word output back to HTTP. The Knowledge
         Manager proof uses the generic REST server routes
-        documentation_curator_requests.documents and
-        documentation_curator_requests.document, not a docs-specific runner.
+        documentation_curator.documents and documentation_curator.document,
+        not a docs-specific runner.
         Profile-backed request runners load ToolDefs from trusted declaration
         roots and select only actions named by the request MachineSpec.
       document_resources: |
@@ -1315,11 +1331,9 @@ project_structure:
 
   bench:
     - path: internal/evaluation/
-      role: Evaluator session/point runtime, result artifacts, metrics, convergence, and trace analysis
-    - path: internal/evaluation/bench/
-      role: Bench server, API handlers, state machine tools (serve_ui, launch_eval)
-    - path: internal/evaluation/bench/ui/
-      role: Embedded React frontend for experiment browsing and launching
+      role: Evaluator session/point runtime, result artifacts, metrics, convergence, trace analysis, and HTTP-independent artifact query words
+    - path: ../agent-profiles/agents/bench/
+      role: External profile-owned REST routes, host/request machines, declarations, and React frontend
 
   engine:
     - path: internal/runtime/core/
@@ -1355,7 +1369,9 @@ project_structure:
     - path: internal/tools/lifecycle/
       role: Checkpoint history, rollback, and lifecycle adapter package
     - path: internal/tools/control/
-      role: Child-agent and loop-control boundary tool package
+      role: Child-agent, predicate, partition, and declared-subset control tool package
+    - path: internal/tools/compose/
+      role: Flat substitution and ordered per-item rendering tool package
     - path: internal/tools/validation/
       role: Validation and audit tool adapter package
     - path: internal/tools/undo/
@@ -1392,8 +1408,8 @@ project_structure:
       role: Mage build targets (build, lint, install, clean, tag, stats)
     - path: docs/
       role: Documentation, specifications, and roadmap
-    - path: internal/knowledge/documentation/
-      role: Standalone documentation HTTP server, API handlers, and embedded React UI
+    - path: external agent-profiles/agents/knowledge-manager/documentation-curator/
+      role: Profile-owned curator MachineSpecs, REST routes, ToolDefs, UX configuration, and React UI
 
 package_specification_coverage: |
   `go list ./...` defines the current Go package set. Coverage is layered
@@ -1404,7 +1420,7 @@ package_specification_coverage: |
 
   Configured-agent packages are covered at the release layer. cmd/agent is
   governed by cfg-runtime-contract, release 01.0 use cases, lifecycle use cases,
-  test-rel01.0, and Go tests. internal/evaluation and internal/evaluation/bench
+  test-rel01.0, and Go tests. internal/evaluation and the external bench profile
   are covered by srd019, srd020, rel01.0 evaluator and bench use cases,
   test-rel01.0, and package tests. internal/support/execute is covered by
   srd021, srd022 AC6, evaluator use cases, and child-agent tests.
@@ -1417,9 +1433,8 @@ package_specification_coverage: |
 
   Package roots such as internal/model, internal/observability,
   internal/planning, internal/runtime, internal/support, and internal/tools do
-  not define standalone runtime behavior. internal/evaluation/bench/ui embeds
-  React assets behind the bench API. internal/knowledge/documentation/ui embeds
-  React assets behind the documentation-curator host.
+  not define standalone runtime behavior. Bench and documentation-curator UI
+  assets and workflows are external profiles served by the generic REST runtime.
 
   Remaining gaps are narrow. Browser-level bench UI proof remains manual or
   skipped until an automated browser harness joins the quality gate. Planner
@@ -1444,7 +1459,7 @@ implementation_status:
     - done: Agent execution (internal/support/execute) — subprocess execution with process groups
     - done: Specification tooling (pkg/spec) — corpus parsing, graph, validation
     - done: Unified agent binary (cmd/agent) — generator, evaluator, planner, jurist, bench
-    - done: Bench agent (internal/evaluation/bench) — state-machine-driven web UI for experiment browsing and eval launching
+    - done: Bench profile — profile-owned REST routes, host/request machines, static React assets, evaluation queries, and self-invoke launch boundary
     - done: Evaluation runtime (internal/evaluation) — profile suites, point execution, result artifacts, metrics, convergence, and trace analysis
     - done: YAML tool definitions — shared builtin and exec declaration directories, compatibility aggregate files, plus agent-local overrides
     - done: External agent profiles and configurations — generator, evaluator, planner, jurist, bench, REST, monitor, control, lifecycle, and Knowledge Manager profiles are supplied from agent-profiles through explicit --profile paths to a checkout or bundle mounted or copied beside the workspace
@@ -1456,9 +1471,9 @@ implementation_status:
     - done: Release container runtime — slim multi-stage image with agent binary, Unix utilities, and shared YAML assets under /opt/agent-core
     - partial: REST runtime package -- internal/tools/rest implements declarative client, async client, server, fan-in, machine_request, monitor, OpenAPI import behavior, reserved-field validation, compensation mementos, and rollback-time REST compensation execution; active follow-up work is limited to agent-core-guhn.4 named conformance-test alignment
     - done: REST sample profile — agent-profiles owns REST profile assets while agent-core keeps core REST runtime conformance fixtures under testdata/integration/rel03-rest-tools
-    - done: Machine request REST path — documentation_curator_requests machine_request routes execute the external documentation-curator request machine for document index and detail requests, with request-machine actions selected from trusted profile declarations
+    - done: Machine request REST path — documentation_curator routes execute the external documentation-curator request machine for document, search, validation, suggestion, and decision requests, with actions selected from trusted profile declarations
     - done: Declarative document resources — documentation_corpus uses reusable filesystem resource words for docs/ list and read behavior
-    - done: Knowledge Manager machine_request proof — plain go test verifies generic REST route trace evidence and same-origin proxy lifecycle; agent-profiles owns the concrete browser tracer for raw YAML, rendered HTML, and nested document path evidence
+    - done: Knowledge Manager machine_request proof — agent-profiles conformance and integration verify generic REST lifecycle, trace evidence, raw YAML, rendered HTML, search, jurist validation, persistent review creation, and guarded approval
     - done: cobbler-scaffold dependency removed
     - done: Go test suite across all packages
     - done: SPECIFICATIONS.yaml and SRDs (srd001-srd026)

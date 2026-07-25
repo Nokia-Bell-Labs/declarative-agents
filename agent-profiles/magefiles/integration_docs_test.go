@@ -16,6 +16,7 @@ func TestPrepareDocumentationCuratorIntegrationWritesEphemeralProfile(t *testing
 	coreRoot := t.TempDir()
 	writeDocumentationCuratorFixture(t, profilesRoot)
 	writeFile(t, filepath.Join(coreRoot, "tools", "builtin", "lifecycle", "exit-agent.yaml"), "tools: []\n")
+	writeFile(t, filepath.Join(coreRoot, "tools", "builtin", "spec-validation", "all.yaml"), "tools: []\n")
 	writeFile(t, filepath.Join(coreRoot, "docs", "SPECIFICATIONS.yaml"), "id: specs\n")
 	writeFile(t, filepath.Join(coreRoot, "configs", "sample.yaml"), "id: sample\n")
 
@@ -31,27 +32,15 @@ func TestPrepareDocumentationCuratorIntegrationWritesEphemeralProfile(t *testing
 		filepath.Join(tmpDir, "builtin.yaml"),
 		filepath.Join(tmpDir, "rest.yaml"),
 		filepath.Join(coreRoot, "tools", "builtin", "lifecycle", "exit-agent.yaml"),
+		filepath.Join(coreRoot, "tools", "builtin", "spec-validation", "all.yaml"),
 	} {
 		if !strings.Contains(profile, want) {
 			t.Fatalf("profile missing %q:\n%s", want, profile)
 		}
 	}
 
-	builtin := readTestFile(t, filepath.Join(tmpDir, "builtin.yaml"))
-	for _, want := range []string{
-		"addr: " + quoteYAML(cfg.docsAddr),
-		"docs_dir: " + quoteYAML(filepath.Join(coreRoot, "docs")),
-		"configs_dir: " + quoteYAML(filepath.Join(coreRoot, "configs")),
-		"source_dir: " + quoteYAML(coreRoot),
-		"profile_path: " + quoteYAML(cfg.profilePath),
-	} {
-		if !strings.Contains(builtin, want) {
-			t.Fatalf("builtin missing %q:\n%s", want, builtin)
-		}
-	}
-
 	rest := readTestFile(t, filepath.Join(tmpDir, "rest.yaml"))
-	for _, absent := range []string{"18081", "18082", "18083"} {
+	for _, absent := range []string{"18081", "18082", "18084"} {
 		if strings.Contains(rest, absent) {
 			t.Fatalf("rest.yaml still contains fixed port %s:\n%s", absent, rest)
 		}
@@ -62,6 +51,9 @@ func TestPrepareDocumentationCuratorIntegrationWritesEphemeralProfile(t *testing
 	if !strings.Contains(rest, "address: "+cfg.controlAddr) {
 		t.Fatalf("rest.yaml missing control address %s:\n%s", cfg.controlAddr, rest)
 	}
+	if !strings.Contains(rest, "address: "+cfg.docsAddr) {
+		t.Fatalf("rest.yaml missing docs address %s:\n%s", cfg.docsAddr, rest)
+	}
 	if _, err := os.Stat(filepath.Join(tmpDir, "ui", "ux.yaml")); err != nil {
 		t.Fatalf("expected copied UX config: %v", err)
 	}
@@ -70,7 +62,7 @@ func TestPrepareDocumentationCuratorIntegrationWritesEphemeralProfile(t *testing
 func TestRequireDocumentTraceAcceptsMachineRequestTrace(t *testing.T) {
 	server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, _ *http.Request) {
 		w.Header().Set("Content-Type", "application/json")
-		_, _ = w.Write([]byte(`{"trace":{"server":"documentation_curator_requests","route":"document","machine":"documentation-curator-request","terminal_signal":"DocumentDetailReady","status":"succeeded"}}`))
+		_, _ = w.Write([]byte(`{"trace":{"server":"documentation_curator","route":"document","machine":"documentation-curator-request","terminal_signal":"DocumentDetailReady","status":"succeeded"}}`))
 	}))
 	defer server.Close()
 
@@ -106,13 +98,10 @@ func writeDocumentationCuratorFixture(t *testing.T, root string) {
 	writeFile(t, filepath.Join(base, "openapi.yaml"), "servers:\n  - url: http://127.0.0.1:18081\n")
 	writeFile(t, filepath.Join(base, "ui", "ux.yaml"), "id: documentation-curator-ui\n")
 	writeFile(t, filepath.Join(base, "builtin.yaml"), `tools:
-  - name: launch_documentation
+  - name: launch_curator_http
+    init: rest_server_launch
     config:
-      addr: :18081
-      docs_dir: docs
-      configs_dir: configs
-      source_dir: .
-      profile_path: agents/knowledge-manager/documentation-curator/profile.yaml
+      rest_ref: documentation_curator
 `)
 	writeFile(t, filepath.Join(base, "rest.yaml"), `rest:
   openapi:
@@ -128,12 +117,14 @@ func writeDocumentationCuratorFixture(t *testing.T, root string) {
         ports: [18082]
     local_machine_request_api:
       network:
-        ports: [18083]
+        ports: [18084]
   servers:
+    documentation_curator:
+      address: 127.0.0.1:18081
     documentation_curator_control:
       address: 127.0.0.1:18082
-    documentation_curator_requests:
-      address: 127.0.0.1:18083
+    monitor:
+      address: 127.0.0.1:18084
 `)
 }
 

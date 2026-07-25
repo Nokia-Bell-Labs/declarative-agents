@@ -18,7 +18,7 @@ are generated or stateful artifacts:
 
 - `.git` is very large, which suggests large files or generated artifacts were
   committed in history.
-- `internal/evaluation/bench/ui/node_modules` is tracked.
+- Profile UI dependency directories are external to agent-core and ignored by their owning profile repository.
 - UI `dist` bundles are checked in under internal UI directories.
 - Local binaries such as `agent`, `eval-analyze`, and `bin/` increase checkout
   size when present locally.

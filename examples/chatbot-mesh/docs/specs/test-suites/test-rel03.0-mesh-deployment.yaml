@@ -49,26 +49,25 @@ test_cases:
       - srd003-chatbot-deployment AC5
 
   - use_case: rel03.0-uc001-mesh-deployment
-    name: Chatbot rest.yaml co-generation drift lock
+    name: Chatbot topology and selected-target REST drift lock
     integration_target: mage integration:helmSmoke
     go_test: go test ./magefiles -run '^TestChatbotRestCoGeneratedFromRagUnits$|^TestChatbotUXMonitoredAgentsCoGenerated$|^TestChatbotFanOutCoGeneratedForNRags$'
     status: implemented
     description: |
-      Locks srd003 R2: the chatbot rest.yaml, ux.yaml, request-machine.yaml, and
-      request-fanout.yaml are rendered from the ragUnits list into the profiles
-      ConfigMap, overriding the packaged keys, so the RAG client entries, the
-      provider egress allowlist, the monitor_proxy upstreams, the monitored-agents
-      list, and the N-RAG fan-out chain derive from the same list that creates the
-      RAG objects and cannot drift. A helm template render with a three-RAG values
-      set is asserted to carry exactly those clients, upstreams, and Retrieving
-      states with no stale entry, the chatbot servers bind 0.0.0.0, and the
-      co-generated profile passes --validate-config (the init-container gate).
+      Locks srd003 R2: ragUnits renders the chatbot's ordered topology declaration,
+      REST network allowlist, monitor_proxy upstreams, and monitored-agent list.
+      request-machine.yaml and request-fanout.yaml remain packaged verbatim with
+      one for_each and one rag_query. A three-RAG render changes only topology data
+      and allowlisted/upstream hosts, retains one selected-target REST operation,
+      binds servers to 0.0.0.0, and passes the profile validation gate.
     inputs:
       chart: examples/chatbot-mesh/helm/
       values_rag_list: [alpha, bravo, charlie]
     expected:
-      client_config_cogenerated: true
-      one_client_and_fanout_state_per_rag_unit: true
+      topology_data_cogenerated: true
+      selected_target_rag_operation_count: 1
+      machine_for_each_count: 1
+      word_and_state_counts_independent_of_source_count: true
       no_drifted_or_stale_client: true
       rendered_profile_validates: true
     traces:

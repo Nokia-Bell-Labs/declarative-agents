@@ -5,7 +5,7 @@ tools:
     visibility: internal
     category: boundary
     description: Post one chat turn to the chatbot the rig started and map its answer.
-    problem: The chatbot's routed turn must be proven against controlled dependencies rather than live services.
+    problem: The chatbot's tier-selected turn must be proven against controlled dependencies rather than live services.
     goals:
       - Post a message to the chatbot at the address the rig published.
       - Map the response to the signal this scenario expects.

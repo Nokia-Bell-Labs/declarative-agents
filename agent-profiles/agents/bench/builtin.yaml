@@ -1,187 +1,116 @@
 tools:
-- name: serve_ui
+- name: launch_bench_http
   type: builtin
-  init: serve_ui
+  init: rest_server_launch
   visibility: internal
-  emits:
-  - ExperimentRequested
-  - Shutdown
-  - CommandError
-  description: Start the bench web UI server and block waiting for user actions (bench equivalent of invoke_llm).
+  emits: [ServerLaunched, CommandError]
+  description: Launch the profile-configured bench HTTP application.
+  category: boundary
+  problem: Bench needs a generic listener for profile-owned routes and assets.
+  goals: [Launch only the REST server selected by rest_ref.]
+  requirements: {input: [Trusted REST configuration.], output: [Server launch receipt.], errors: [Bind and configuration failures emit CommandError.]}
+  non_goals: [Does not implement routes or evaluation behavior.]
+  parameters: {type: object, properties: {}, additionalProperties: false}
+  output: {description: REST server launch result, schema: {type: object}}
+  side_effects: [{kind: network_listen, target: bench_http, state: listener_started}]
+  reversibility: {classification: compensatable, undo: stop_bench_http}
+  undo: {strategy: compensating_action, description: Stop the configured listener.}
+  errors: [{signal: CommandError, condition: Listener launch fails, state_after_failure: No route is exposed.}]
+  relationships: {before: [await_bench_action], after: [stop_bench_http]}
+  config: {rest_ref: bench}
+
+- name: await_bench_action
+  type: builtin
+  init: rest_await_event
+  visibility: internal
+  emits: [ExperimentRequested, Shutdown, AwaitTimedOut, ServerStopped, CommandError]
+  description: Await one declared operator action from the bench REST queue.
+  category: boundary
+  problem: The host machine needs profile-visible operator control while the UI remains available.
+  goals: [Return only launch and shutdown signals with their validated payload.]
+  requirements: {input: [The configured bench queue.], output: [One inbound event.], errors: [Timeout, stop, and infrastructure outcomes stay distinct.]}
+  non_goals: [Does not launch a child or interpret evaluation artifacts.]
+  parameters: {type: object, properties: {}, additionalProperties: false}
+  output: {description: Bench operator event, schema: {type: object}}
+  side_effects: [{kind: state_mutation, target: bench_action_queue, state: event_consumed}]
+  reversibility: {classification: irreversible, undo: noop}
+  undo: {strategy: noop, description: Consumed operator events are not restored.}
+  errors: [{signal: CommandError, condition: Queue is unavailable, state_after_failure: Listener is unchanged.}]
+  relationships: {before: [launch_bench_http], after: [validate_eval_suite, stop_bench_http]}
   config:
-    addr: :8080
-    data_dir: eval-results
-    configs_dir: agents
-    docs_dir: docs
-    profiles_dir: internal/model/llm/profiles
-  category: boundary
-  problem: The bench machine needs one human-boundary word that serves the UI and blocks until the operator emits an action signal.
-  goals:
-  - Start or reuse the bench HTTP server from YAML configuration.
-  - Translate user actions into declared machine signals.
-  - Keep UI address, data, docs, config, and profile paths in tool config.
-  requirements:
-    input:
-    - must read addr, data_dir, configs_dir, docs_dir, and profiles_dir from config
-    output:
-    - must emit ExperimentRequested, Shutdown, or CommandError
-    side_effects:
-    - must start or reuse an HTTP server and mutate bench UI state
-    undo:
-    - must compensate by stopping or marking the UI session when supported
-    errors:
-    - must emit CommandError when the server cannot start or action payload is invalid
-  non_goals:
-  - Does not run evaluator sessions itself.
-  - Does not inspect oracle results directly.
-  - Does not call an LLM.
-  output:
-    description: Bench UI action selected by the human operator.
-    schema:
-      type: object
-      properties:
-        action:
-          type: string
-        suite_path:
-          type: string
-        output_dir:
-          type: string
-        request_id:
-          type: string
-      required:
-      - action
-  side_effects:
-  - kind: human_boundary
-    target: bench_operator
-    description: Blocks waiting for operator input through the web UI.
-  - kind: state_mutation
-    target: bench_ui_state
-    state: server_running_or_action_received
-    description: Starts/reuses server state and records the received action.
-  reversibility:
-    classification: compensatable
-    undo: compensating_action
-    requires_confirmation: false
-  errors:
-  - signal: CommandError
-    condition: server startup fails or action payload cannot be decoded
-    message_shape: 'serve_ui: <error>'
-    state_after_failure: server may still be running and must be handled by bench lifecycle cleanup
-  relationships:
-    before:
-    - Idle
-    - Launching
-    after:
-    - launch_eval
-    overlaps:
-    - tool: invoke_llm
-      difference: serve_ui waits for human actions; invoke_llm waits for model responses.
-  undo:
-    strategy: compensating_action
-    description: Stop, ignore, or mark the pending UI action according to bench lifecycle policy.
-- name: launch_eval
+    sources:
+      - server: bench
+        routes: [actions]
+        signals: [ExperimentRequested, Shutdown]
+    timeout: 24h
+    stopped_behavior: emit_server_stopped
+
+- name: validate_eval_suite
   type: builtin
-  init: launch_eval
+  init: value_predicate
   visibility: internal
-  emits:
-  - EvalCompleted
-  - EvalFailed
-  - CommandError
-  description: Spawn a child agent as a subprocess to run an experiment.
+  emits: [SuiteSelected, SuiteMissing, CommandError]
+  description: Require a non-empty suite path before child dispatch.
+  category: response
+  problem: Child launch input must be guarded by profile-visible policy.
+  goals: [Reject empty suite paths without starting a child.]
+  requirements: {input: [Operator action payload.], output: [Branch signal.], errors: [Missing selectors emit CommandError.]}
+  non_goals: [Does not inspect or open the suite.]
+  parameters: {type: object, properties: {}, additionalProperties: false}
+  output: {description: Suite predicate result, schema: {type: object}}
+  side_effects: [{kind: state_read, target: bench_operator_event, state: read_only}]
+  reversibility: {classification: reversible, undo: noop}
+  undo: {strategy: noop, description: Comparison changes nothing.}
+  errors: [{signal: CommandError, condition: Suite selector cannot resolve, state_after_failure: No child started.}]
+  relationships: {before: [await_bench_action], after: [launch_evaluator]}
+  config:
+    left: $.payload.body.config.suite
+    op: non_empty
+    operand_type: string
+    satisfied: SuiteSelected
+    unsatisfied: SuiteMissing
+
+- name: launch_evaluator
+  type: builtin
+  init: self_invoke
+  visibility: internal
+  emits: [ToolDone, ToolFailed, CommandError]
+  description: Invoke the critic through the reusable child-agent boundary.
   category: boundary
-  problem: 'The bench machine needs a boundary word that starts a complete
-
-    evaluator session from a UI experiment request. This is not an
-
-    ordinary deterministic word because it spawns another agent program
-
-    that runs its own state machine and writes evaluation artifacts.
-
-    '
-  goals:
-  - Run the configured evaluator profile for the experiment requested by serve_ui.
-  - Propagate profile and trace configuration into the child agent invocation.
-  - Return evaluator completion status to the bench UI loop.
-  requirements:
-    input:
-    - must require profile in config
-    - must consume the experiment request emitted by serve_ui
-    output:
-    - must emit EvalCompleted when the evaluator child exits successfully
-    - must emit EvalFailed when the evaluator child exits with a failed run status
-    side_effects:
-    - must spawn one evaluator child agent process
-    - must allow the evaluator child to create session directories and result artifacts
-    - must propagate trace context to the child process
-    undo:
-    - must compensate by deleting, archiving, or marking the created eval session artifacts
-    errors:
-    - must emit CommandError when required config is missing or the child process cannot be started
-  non_goals:
-  - Does not run individual evaluation points itself.
-  - Does not inspect oracle results or aggregate metrics directly.
-  - Does not provide literal undo for results already exposed outside the workspace.
-  output:
-    description: Evaluator child process result.
-    schema:
-      type: object
-      properties:
-        experiment_id:
-          type: string
-        exit_code:
-          type: integer
-        stdout:
-          type: string
-        stderr:
-          type: string
-        elapsed_ms:
-          type: integer
-        result_dir:
-          type: string
-        traceparent:
-          type: string
-      required:
-      - exit_code
+  problem: Bench launches need cancellation, trace propagation, and normal child dispatch.
+  goals: [Resolve suite and output from the labelled operator event and invoke critic.]
+  requirements: {input: [Validated action payload.], output: [Child stdout and completion signal.], errors: [Resolution or child failures remain visible.]}
+  non_goals: [Does not parse HTTP or analyze evaluation results.]
+  parameters: {type: object, properties: {}, additionalProperties: false}
+  output: {description: Child evaluator output, schema: {type: string}}
   side_effects:
-  - kind: child_process
-    target: agent_cli
-    description: Starts the configured evaluator agent as a child process.
-  - kind: filesystem_write
-    target: eval_results
-    paths:
-    - eval-results
-    description: The evaluator child may create session directories and artifact files.
-  - kind: state_mutation
-    target: bench_ui_state
-    state: experiment_result_recorded
-    description: Returns evaluator status to the bench UI loop.
-  reversibility:
-    classification: compensatable
-    undo: artifact_compensation
-    requires_confirmation: false
-  undo:
-    strategy: compensating_action
-    description: Delete, archive, or mark the generated eval result directory according to the bench retention policy.
-    requires:
-    - result_dir
-  errors:
-  - signal: CommandError
-    condition: config is missing, experiment request is invalid, or child process cannot be started
-    message_shape: 'launch_eval: <error>'
-    state_after_failure: no new eval artifacts unless the child process already started
-  - signal: EvalFailed
-    condition: evaluator child exits with failed run status
-    message_shape: 'launch_eval failed: <status/output>'
-    state_after_failure: eval artifacts may exist and require compensation if rollback is requested
-  relationships:
-    before:
-    - serve_ui
-    after:
-    - serve_ui
-    overlaps:
-    - tool: execute_task
-      difference: execute_task starts a generator for one planner task; launch_eval starts a full evaluator session.
-    - tool: run_point
-      difference: run_point runs one point inside evaluator; launch_eval starts the evaluator process.
+    - {kind: child_process, target: critic_agent, state: evaluation_running}
+    - {kind: filesystem_write, target: eval_results, state: evaluator_owned}
+  reversibility: {classification: compensatable, undo: child_agent_workspace_restore}
+  undo: {strategy: compensating_action, description: Compensate evaluator artifacts according to child boundary policy.}
+  errors: [{signal: ToolFailed, condition: Critic exits unsuccessfully, state_after_failure: Partial evaluator artifacts may exist.}]
+  relationships: {before: [validate_eval_suite], after: [await_bench_action]}
   config:
     profile: agents/critic/profile.yaml
+    request_from: $from(operator_action).payload.body.config.suite
+    output_from: $from(operator_action).payload.body.config.output_dir
+
+- name: stop_bench_http
+  type: builtin
+  init: rest_server_stop
+  visibility: internal
+  emits: [ServerStopped, CommandError]
+  description: Stop and drain the generic bench REST server.
+  category: boundary
+  problem: Clean shutdown must release the profile-owned listener.
+  goals: [Apply the declared REST shutdown policy.]
+  requirements: {input: [The configured server reference.], output: [Stop receipt.], errors: [Shutdown failures emit CommandError.]}
+  non_goals: [Does not mutate evaluation artifacts.]
+  parameters: {type: object, properties: {}, additionalProperties: false}
+  output: {description: REST server stop result, schema: {type: object}}
+  side_effects: [{kind: network_listener_shutdown, target: bench_http, state: listener_stopped}]
+  reversibility: {classification: reversible, undo: noop}
+  undo: {strategy: noop, description: Relaunch is a separate action.}
+  errors: [{signal: CommandError, condition: Listener cannot stop, state_after_failure: Listener may be partially drained.}]
+  relationships: {before: [await_bench_action], after: []}
+  config: {rest_ref: bench}

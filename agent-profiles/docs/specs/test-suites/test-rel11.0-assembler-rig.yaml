@@ -139,6 +139,29 @@ test_cases:
       - srd018-assembler AC4
 
   - use_case: rel11.0-uc001-assembler-scenario-run
+    name: Fixture array drives machine-visible sequential mock starts
+    go_test: cd ../agent-core && go test ./internal/runtime/core ./internal/tools/service -run '^(TestLoopForEach.*|TestScenarioSteps_ThreadsMockURLIntoSubject)$'
+    status: implemented
+    description: |
+      A labeled next_scenario output supplies fixture objects to MachineSpec.
+      The iterator starts one mock per object in input order through the normal
+      registry and dispatch path, records one receipt-bearing Entry per mock,
+      emits a labeled ordered join, and resumes after the last persisted item
+      without replay. The former start_scenario_mocks Go collection loop is gone.
+    inputs:
+      fixtures: [dep_a.yaml, dep_b.yaml]
+      mode: sequential
+    expected:
+      dispatch_order: [dep_a.yaml, dep_b.yaml]
+      entry_per_mock: true
+      receipt_per_mock: true
+      join_is_labeled: true
+      resume_skips_completed_items: true
+    traces:
+      - rel11.0-uc001-assembler-scenario-run S1
+      - srd018-assembler AC1
+
+  - use_case: rel11.0-uc001-assembler-scenario-run
     name: One subject carries several scenarios added as data only
     integration_target: mage rig
     status: implemented
@@ -156,6 +179,58 @@ test_cases:
     traces:
       - rel11.0-uc001-assembler-scenario-run S2
       - srd018-assembler AC2
+
+  - use_case: rel11.0-uc001-assembler-scenario-run
+    name: Validator and teardown collections are machine-visible
+    go_test: cd ../agent-core && go test ./internal/tools/service -run '^(TestRunOneValidator_TerminalStateAndTimeout|TestRunScenarioValidator_EmitsItemReceipt|TestRecordScenarioValidators_PreservesJoinOrder|TestScenarioSteps_TeardownRunsOnFailurePath)$'
+    integration_target: mage rig
+    status: implemented
+    description: |
+      The current scenario exposes ordered validator items. Sequential
+      MachineSpec iteration dispatches one child execution per item, joins and
+      records outcomes, then lists the subject before its mocks and dispatches
+      stop_service once per child. Bounded parallel iteration is deferred, so
+      no service tool restores hidden validator goroutines.
+    inputs:
+      validators: [first, second]
+      teardown_order: [subject, mocks_in_start_order]
+      mode: sequential
+    expected:
+      entry_per_validator: true
+      entry_per_child_stop: true
+      joins_are_labeled_and_ordered: true
+      no_hidden_collection_loop: true
+    traces:
+      - rel11.0-uc001-assembler-scenario-run S1
+      - rel11.0-uc001-assembler-scenario-run S5
+      - srd018-assembler AC1
+
+  - use_case: rel11.0-uc001-assembler-scenario-run
+    name: Subject readiness is a machine-visible REST retry loop
+    go_test: cd ../agent-core && go test ./internal/tools/lifecycle ./internal/tools/rest ./internal/tools/service -run '^(TestDelay_ElapsedAndDeadlineSignals|TestDelay_CancellationAndValidation|TestRESTClient_CommandStateSelectsTrustedBaseURL|TestSubjectHealthTarget_PreservesRelativeAndAlternateListenerPaths)$'
+    integration_target: mage rig
+    status: implemented
+    description: |
+      StartingSubject labels the runtime health authority, path, and start time.
+      ProbingHealth performs one configured REST request. Unavailable status or
+      transport error enters WaitingToRetry, where one cancellation-aware delay
+      either returns to ProbingHealth or emits HealthTimeout. Timeout and global
+      budget exhaustion route through the ordinary verdict and teardown words.
+    inputs:
+      target_source: command_state subject label
+      health_paths: [relative child route, absolute alternate listener]
+      retry_interval: 100ms
+      startup_deadline: 30s
+    expected:
+      requests_per_probe_dispatch: 1
+      retry_states_visible: true
+      healthy_timeout_and_error_signals_distinct: true
+      cancellation_bounded: true
+      teardown_on_exhaustion: true
+    traces:
+      - rel11.0-uc001-assembler-scenario-run S1
+      - srd018-assembler R1.8
+      - srd040-service-child-tools AC2
 
   - use_case: rel11.0-uc001-assembler-scenario-run
     name: Scripted dependency failure drives the subject's failure path
@@ -197,8 +272,9 @@ test_cases:
     status: implemented
     description: |
       After a scenario, no subject or mock process from the assembler's child
-      groups survives, and a second consecutive run passes without port or
-      state leakage. A failure path tears children down as well.
+      groups survives after one visible stop dispatch per child, and a second
+      consecutive run passes without port or state leakage. A failure path
+      lists and iterates the same teardown items.
     inputs:
       runs: 2
       failure_path_variant: mock start failure

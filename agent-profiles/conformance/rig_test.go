@@ -56,6 +56,16 @@ func rigVerdictSignals(result RunResult) []string {
 	return signals
 }
 
+func rigSpanCount(result RunResult, name string) int {
+	count := 0
+	for _, span := range result.Spans {
+		if span.Name == name {
+			count++
+		}
+	}
+	return count
+}
+
 // TestRigSelfProof runs the assembler over the shipped tree and asserts the
 // reference subject's three scenarios land exactly as designed: happy-path
 // and dep-failure pass, and the deliberately broken expectation fails — so the
@@ -95,6 +105,26 @@ func TestRigSelfProof(t *testing.T) {
 				if verdicts[i] != want[i] {
 					t.Fatalf("verdict[%d] = %s, want %s (order: broken, dep-failure, happy-path)\nall: %v",
 						i, verdicts[i], want[i], verdicts)
+				}
+			}
+			if probes := rigSpanCount(result, "execute_tool probe_subject_health"); probes < len(want) {
+				t.Fatalf("health probe spans = %d, want at least %d", probes, len(want))
+			}
+			if hidden := rigSpanCount(result, "execute_tool await_scenario_subject"); hidden != 0 {
+				t.Fatalf("retired hidden health spans = %d, want 0", hidden)
+			}
+			if validators := rigSpanCount(result, "execute_tool run_scenario_validator"); validators != len(want) {
+				t.Fatalf("validator item spans = %d, want %d", validators, len(want))
+			}
+			if stops := rigSpanCount(result, "execute_tool stop_scenario_child"); stops < len(want) {
+				t.Fatalf("child stop item spans = %d, want at least %d", stops, len(want))
+			}
+			for _, retired := range []string{
+				"execute_tool run_scenario_validators",
+				"execute_tool teardown_scenario",
+			} {
+				if hidden := rigSpanCount(result, retired); hidden != 0 {
+					t.Fatalf("retired aggregate spans %q = %d, want 0", retired, hidden)
 				}
 			}
 		})

@@ -15,8 +15,8 @@ problem: |
   discovery word must enumerate them deterministically.
 
 goals:
-  - G1: Define start_service, await_healthy, and stop_service for background serve-mode child agents.
-  - G2: Define run_validators for concurrent run-to-completion validator children.
+  - G1: Define start_service and stop_service for background serve-mode child agents, with readiness composed from ordinary REST and delay words.
+  - G2: Define one-validator child execution for MachineSpec iteration and join.
   - G3: Define list_scenarios for deterministic scenario discovery under configured roots.
   - G4: Keep every word deterministic, LLM-free, and bounded in time.
   - G5: Declare honest reversibility and undo behavior for each word.
@@ -32,11 +32,12 @@ requirements:
       - R1.5: start_service SHALL declare itself reversible with stop_service as its undo.
 
   R2:
-    title: await_healthy
+    title: Declarative readiness
     items:
-      - R2.1: await_healthy SHALL poll a declared URL until a success response or a declared timeout.
-      - R2.2: The poll interval and timeout SHALL be declared in configuration; polling SHALL NOT be unbounded.
-      - R2.3: await_healthy SHALL emit distinct signals for healthy and for timeout, so the machine can route teardown on failure.
+      - R2.1: start_service SHALL expose the trusted runtime base URL and start timestamp needed by later profile-owned readiness words.
+      - R2.2: One REST readiness dispatch SHALL perform at most one HTTP request; MachineSpec SHALL own the visible probe, delay, retry, and timeout branches.
+      - R2.3: The readiness machine SHALL emit distinct Healthy, HealthTimeout, and CommandError signals and route timeout or budget exhaustion through teardown.
+      - R2.4: Service-child tools SHALL NOT implement HTTP transport or polling and SHALL NOT import net/http.
 
   R3:
     title: stop_service
@@ -46,13 +47,13 @@ requirements:
       - R3.3: stop_service undo SHALL be noop and the word SHALL be declared accordingly.
 
   R4:
-    title: run_validators
+    title: Validator child execution
     items:
-      - R4.1: run_validators SHALL accept one or more validator profile paths with per-validator environment additions.
-      - R4.2: run_validators SHALL run the validators concurrently to completion through the shared child-agent execution path.
-      - R4.3: run_validators output SHALL include each validator's terminal state and exit code, keyed by validator.
-      - R4.4: run_validators SHALL enforce a declared overall timeout; a validator still running at timeout SHALL be stopped and reported as timed out, not omitted.
-      - R4.5: run_validators SHALL emit a signal distinguishing all-validators-completed from any-timeout-or-spawn-failure.
+      - R4.1: One validator dispatch SHALL accept one profile path and its environment additions from the current MachineSpec iterator item.
+      - R4.2: Each dispatch SHALL run one validator to completion through the shared child-agent execution path.
+      - R4.3: Each output SHALL include that validator's terminal state and exit code.
+      - R4.4: Each dispatch SHALL enforce a declared timeout; a validator still running at timeout SHALL be stopped and reported as timed out.
+      - R4.5: MachineSpec sequential for_each SHALL expose every validator dispatch and its ordered join; a thin record word may retain joined outcomes for reporting.
 
   R5:
     title: list_scenarios
@@ -73,16 +74,17 @@ non_goals:
   - A Kubernetes or container backend for start_service; children are local processes in this SRD.
   - Span-based assertion words; validators assert over HTTP responses and the srd039 request log.
   - Scenario scheduling policy beyond one rig machine's sequential scenario loop; cross-scenario parallelism belongs to the caller.
+  - Bounded parallel validator iteration; until MachineSpec supports it, validators run sequentially rather than through hidden goroutines.
 
 acceptance_criteria:
   - id: AC1
-    criterion: A machine starts a serve-mode child with injected environment, awaits health, stops it, and no process from the child's group survives the parent.
+    criterion: A machine starts a serve-mode child with injected environment, probes its labeled runtime URL through the REST client, stops it, and no process from the child's group survives the parent.
     traces: [R1.1, R1.2, R1.3, R1.4, R2.1, R3.1, R3.2]
   - id: AC2
-    criterion: await_healthy against a never-healthy address returns the timeout signal within the declared bound rather than polling without limit.
-    traces: [R2.2, R2.3]
+    criterion: A never-healthy child follows machine-visible ProbingHealth and WaitingToRetry states, performs one request per REST dispatch, and returns HealthTimeout within the declared deadline.
+    traces: [R2.2, R2.3, R2.4]
   - id: AC3
-    criterion: run_validators over two validator profiles reports both terminal states keyed by validator, and a deliberately hung validator is stopped and reported as timed out within the declared bound.
+    criterion: MachineSpec dispatches one child execution per validator, joins outcomes in input order, and a hung validator is stopped and reported as timed out within its declared bound.
     traces: [R4.1, R4.2, R4.3, R4.4, R4.5]
   - id: AC4
     criterion: list_scenarios over a fixture tree returns the expected entries in sorted order with subject, scenario, validators, and fixtures, and repeated runs return identical output.

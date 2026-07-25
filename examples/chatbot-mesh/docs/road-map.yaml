@@ -39,9 +39,9 @@ releases:
         status: implemented
 
   - version: "01.0"
-    name: Routing and multi-RAG fan-out
+    name: Tier selection and multi-RAG fan-out
     description: |
-      The chatbot turn (srd002 R2, R3) gains the LLM $tool router that classifies a
+      The chatbot turn (srd002 R2, R3) gains the LLM $tool tier selector that classifies a
       question to one chat-LLM word, and the sequential multi-RAG fan-out that
       embeds once and queries N RAGs, each degraded (CommandError) or
       embedding-mismatch-excluded (QueryRejected) source routing on as a visible
@@ -51,11 +51,11 @@ releases:
       - srd002-chatbot-agent
     use_cases:
       - id: rel01.0-uc001-routed-fanout
-        summary: A routed chat turn dispatches one chat-LLM word via $tool and fans the one embedding out to two RAGs, citing both corpora and degrading when one fails.
+        summary: A tier-selected chat turn dispatches one chat-LLM word via $tool and fans the one embedding out to two RAGs, citing both corpora and degrading when one fails.
         status: implemented
     test_suites:
       - id: test-rel01.0-routing-fanout
-        summary: Tracers for the $tool router word dispatch, the two-RAG fan-out over disjoint corpora, and the degraded and embedding-mismatch paths.
+        summary: Tracers for the $tool tier-selector dispatch, the two-RAG fan-out over disjoint corpora, and the degraded and embedding-mismatch paths.
         status: implemented
 
   - version: "02.0"

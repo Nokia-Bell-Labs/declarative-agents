@@ -68,7 +68,7 @@ A tool is an operation: it accepts parameters, performs work (possibly with side
 Tools are categorized by the predictability of their outcome, which shapes how the machine handles variance:
 
 - A **deterministic tool** — `write_file`, `run_build`, `run_tests` — produces the same signal given identical inputs. The machine can rely on this and design transitions accordingly.
-- A **boundary tool** — `invoke_llm`, `serve_ui`, `run_agent` — crosses a boundary to an external actor: a language model, a human, or another system. Its response is not predictable from inputs alone. Boundary tools are the primary source of variance in execution. To handle this variance, the machine requires that every signal a boundary tool can emit appear explicitly in the transition table, giving the machine control over every possible outcome.
+- A **boundary tool** — `invoke_llm`, `rest_await_event`, `run_agent` — crosses a boundary to an external actor: a language model, a human, or another system. Its response is not predictable from inputs alone. Boundary tools are the primary source of variance in execution. To handle this variance, the machine requires that every signal a boundary tool can emit appear explicitly in the transition table, giving the machine control over every possible outcome.
 
 A tool may also be **non-terminal**: its `Execute` runs an entire sub-machine, and the parent machine receives a single signal when the sub-machine completes. This enables hierarchical composition (Chapter 9).
 
@@ -174,14 +174,18 @@ transitions:
   - {state: Composing,   signal: LLMResponded,     next: Parsing,     action: parse_response}
   - {state: Composing,   signal: BudgetExceeded,   next: Failed}
   - {state: Parsing,     signal: ToolCall,         next: Dispatching, action: $tool}
-  - {state: Parsing,     signal: Completion,       next: Validating,  action: validate}
+  - {state: Parsing,     signal: Completion,       next: ValidatingBuild, action: build}
   - {state: Dispatching, signal: ToolDone,         next: Composing,   action: invoke_llm}
   - {state: Dispatching, signal: ToolFailed,       next: Composing,   action: invoke_llm}
-  - {state: Validating,  signal: ValidationPassed, next: Succeeded}
-  - {state: Validating,  signal: ValidationFailed, next: Composing,   action: invoke_llm}
+  - {state: ValidatingBuild, signal: ToolDone,      next: ValidatingLint, action: lint}
+  - {state: ValidatingBuild, signal: ToolFailed,    next: Composing,   action: invoke_llm}
+  - {state: ValidatingLint,  signal: ToolDone,      next: ValidatingTest, action: test}
+  - {state: ValidatingLint,  signal: ToolFailed,    next: Composing,   action: invoke_llm}
+  - {state: ValidatingTest,  signal: ToolDone,      next: Succeeded}
+  - {state: ValidatingTest,  signal: ToolFailed,    next: Composing,   action: invoke_llm}
 ```
 
-From `Composing`, the seed invokes the model; the response is parsed; a tool call is dispatched dynamically through `$tool` and fed back; a completion routes to validation; passing validation succeeds, while a failed validation or tool returns to `Composing` so the model can react, and an exhausted budget routes to `Failed`. Every legal run is an execution in the language this machine defines. Fig. 5 renders the same table as a state machine.
+From `Composing`, the seed invokes the model; the response is parsed; a tool call is dispatched dynamically through `$tool` and fed back; a completion routes through explicit build, lint, and test states; passing every validation succeeds, while a failed validation or tool returns to `Composing` so the model can react, and an exhausted budget routes to `Failed`. Every legal run is an execution in the language this machine defines. Fig. 5 renders the same table as a state machine.
 
 ![](figures/fig-05-canonical-machine.png)
 
@@ -222,7 +226,7 @@ Three types of boundary tool recur, each configured through data rather than com
 | Actor type | Example tool | Shaping mechanism |
 |---|---|---|
 | **Model** | `invoke_llm` | System prompt + tool manifest |
-| **Human** | `serve_ui` | The interface presented |
+| **Human** | `rest_await_event` | The interface presented |
 | **Agent** | `run_agent` | The child profile |
 
 

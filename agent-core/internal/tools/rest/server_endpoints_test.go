@@ -20,6 +20,9 @@ func TestRESTServer_AwaitInboundSignals(t *testing.T) {
 	postStatus(t, baseURL+"/domain?signal=DomainEventReceived", `{}`, http.StatusAccepted)
 	requireAwaitSignal(t, state, "control", "DomainEventReceived")
 
+	postStatus(t, baseURL+"/action", `{"type":"launch_eval"}`, http.StatusAccepted)
+	requireAwaitSignal(t, state, "control", "ExperimentRequested")
+
 	postStatus(t, baseURL+"/domain?signal=Hidden", `{}`, http.StatusBadRequest)
 	requireAwaitSignal(t, state, "control", "AwaitTimedOut")
 }

@@ -37,15 +37,15 @@ not deployment inputs, and `node_modules` -- present whenever a developer has
 run `npm install` -- carries files over helm's 5 MiB per-file limit, which fails
 the render outright (GH-702).
 
-The chatbot `rest.yaml`, `ux/ux.yaml`, `request-machine.yaml`, and
-`request-fanout.yaml` are co-generated from the `ragUnits` values: the
-`profiles-configmap` skips these packaged keys and emits rendered versions in
-their place (`templates/_chatbot-rest.tpl`, `_chatbot-ux.tpl`,
-`_chatbot-machine.tpl`, `_chatbot-fanout.tpl`), so the deployed topology, the
-chatbot client config, and the fan-out breadth (one Retrieving state and one
-rag_queryN word per RAG) all share one source of truth. The packaged copies under
-the staged subtree remain the local integration source; the render overrides
-them in the cluster. The `rag-server` profile is env-parameterized, so the
+The chatbot `rest.yaml`, `ux/ux.yaml`, and `request-topology.yaml` are
+co-generated from `ragUnits`: the profiles ConfigMap emits rendered versions
+through `_chatbot-rest.tpl`, `_chatbot-ux.tpl`, and `_chatbot-topology.tpl`.
+The selected-target REST operation, its network allowlist, monitor upstreams,
+and ordered runtime topology therefore share one source of truth with the RAG
+objects. `request-machine.yaml` and `request-fanout.yaml` are packaged verbatim:
+they contain one sequential `for_each`, one `rag_query`, generic partitions, and
+`render_each`, so source additions change data but no word or state count. The
+`rag-server` profile is env-parameterized, so the
 packaged copy is used verbatim and the chart passes per-pod environment. SPA
 assets under `ux/app/dist` (~216 KiB) fit within the 1 MiB ConfigMap limit
 alongside the rest of the profile.

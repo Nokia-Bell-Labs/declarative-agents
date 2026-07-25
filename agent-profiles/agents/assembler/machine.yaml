@@ -15,9 +15,10 @@ metric_labels:
   profile: assembler
 initial_state: Idle
 budget:
-  # Nine steps per scenario plus discovery and reporting. This bounds the
-  # scenario loop (srd018 R6.4); a corpus of twenty scenarios fits comfortably.
-  max_iterations: 200
+  # The fixed pipeline plus one dispatch and join per fixture, validator, and
+  # child stop. All collection traversal is bounded by this global budget.
+  max_iterations: 5000
+  max_duration: 15m
 states:
   - name: Idle
     meaning: Initial state before scenario discovery.
@@ -26,19 +27,25 @@ states:
   - name: AdvancingScenario
     meaning: Taking the next scenario from the work list, or finding the list exhausted.
   - name: StartingMocks
-    meaning: Starting one mock per fixture the scenario declares.
+    meaning: Starting each declared fixture mock sequentially through MachineSpec iteration.
   - name: StartingSubject
     meaning: Starting the agent under test with each mock's runtime address injected.
-  - name: AwaitingSubject
-    meaning: Waiting for the subject to serve before driving it.
+  - name: ProbingHealth
+    meaning: Performing one REST health request against the started subject.
+  - name: WaitingToRetry
+    meaning: Waiting one declared interval before the next health probe.
   - name: RunningValidators
-    meaning: Running the scenario's validator machines against its subject.
+    meaning: Running each validator sequentially through MachineSpec iteration.
+  - name: RecordingValidators
+    meaning: Recording the validator iterator's ordered joined outcomes.
   - name: CollectingVerdict
     meaning: Deriving this scenario's verdict from its validator outcomes.
   - name: MarkingFailure
     meaning: Recording a verdict for a scenario that failed before its validators ran.
+  - name: ListingChildren
+    meaning: Exposing subject-first teardown items from the scenario session.
   - name: TearingDown
-    meaning: Stopping every child this scenario started.
+    meaning: Stopping each child sequentially through MachineSpec iteration.
   - name: Reporting
     meaning: Reducing every scenario verdict into the run result.
   - name: Passed
@@ -60,29 +67,45 @@ signals:
   - name: AllScenariosDone
     trigger: The work list is exhausted.
   - name: MocksStarted
-    trigger: Every mock the scenario declares is running.
+    trigger: The fixture iterator joined after every mock started, including an empty fixture list.
+  - name: MockStarted
+    trigger: One fixture mock started successfully.
   - name: SubjectStarted
     trigger: The agent under test is running with its dependencies redirected.
   - name: Healthy
     trigger: The subject answered its health route.
+  - name: HealthUnavailable
+    trigger: One subject health probe returned a configured non-success status.
+  - name: HealthRetryReady
+    trigger: The retry delay elapsed before the subject startup deadline.
   - name: HealthTimeout
     trigger: The subject did not serve within the declared bound.
+  - name: ValidatorCompleted
+    trigger: One validator ran to completion.
+  - name: ValidatorIncomplete
+    trigger: One validator timed out or failed to start.
   - name: ValidatorsCompleted
-    trigger: Every validator ran to completion.
-  - name: ValidatorsIncomplete
-    trigger: A validator timed out or failed to start.
+    trigger: The validator iterator joined with every child completed.
+  - name: ValidatorsRecorded
+    trigger: Ordered joined validator outcomes were stored in the session.
   - name: ScenarioPassed
     trigger: Every validator in the scenario passed.
   - name: ScenarioFailed
     trigger: A validator failed, or a step before them did.
+  - name: ScenarioChildrenListed
+    trigger: Subject-first teardown items are available to the iterator.
+  - name: ServiceStopped
+    trigger: One scenario child was stopped.
   - name: ScenarioTornDown
-    trigger: Every child the scenario started is stopped.
+    trigger: The child-stop iterator joined after every item.
   - name: SessionPassed
     trigger: Every scenario passed.
   - name: SessionFailed
     trigger: At least one scenario failed.
   - name: CommandError
     trigger: A rig word failed.
+  - name: BudgetExhausted
+    trigger: The rig's global iteration or wall-clock bound was reached.
 transitions:
   - state: Idle
     signal: Seed
@@ -94,6 +117,7 @@ transitions:
     signal: SessionSeeded
     next: AdvancingScenario
     action: next_scenario
+    label: current_scenario
   - state: Discovering
     signal: NoScenarios
     next: Failed
@@ -104,7 +128,22 @@ transitions:
   - state: AdvancingScenario
     signal: ScenarioReady
     next: StartingMocks
-    action: start_scenario_mocks
+    action: start_scenario_mock
+    label: started_mock
+    for_each:
+      items: $from(current_scenario).fixtures
+      as: fixture
+      mode: sequential
+      failure: fail_fast
+      continue_on: [MockStarted]
+      abort_on: [CommandError]
+      join:
+        next: StartingMocks
+        label: mocks_joined
+        signals:
+          all_success: MocksStarted
+          failed: CommandError
+          empty: MocksStarted
   - state: AdvancingScenario
     signal: AllScenariosDone
     next: Reporting
@@ -119,6 +158,7 @@ transitions:
     signal: MocksStarted
     next: StartingSubject
     action: start_scenario_subject
+    label: subject
   - state: StartingMocks
     signal: CommandError
     next: MarkingFailure
@@ -126,54 +166,130 @@ transitions:
 
   - state: StartingSubject
     signal: SubjectStarted
-    next: AwaitingSubject
-    action: await_scenario_subject
+    next: ProbingHealth
+    action: probe_subject_health
   - state: StartingSubject
     signal: CommandError
     next: MarkingFailure
     action: fail_scenario_start
 
-  - state: AwaitingSubject
+  - state: ProbingHealth
     signal: Healthy
     next: RunningValidators
-    action: run_scenario_validators
-  - state: AwaitingSubject
+    action: run_scenario_validator
+    label: validator_result
+    for_each:
+      items: $from(current_scenario).validators
+      as: validator
+      mode: sequential
+      # Bounded parallel iteration is deferred. Sequential dispatch preserves
+      # deterministic order without hiding goroutines inside a Go tool.
+      failure: collect_all
+      continue_on: [ValidatorCompleted, ValidatorIncomplete]
+      abort_on: [CommandError]
+      join:
+        next: RunningValidators
+        label: validators_joined
+        signals:
+          all_success: ValidatorsCompleted
+          partial: CommandError
+          failed: CommandError
+          empty: CommandError
+  - state: ProbingHealth
+    signal: HealthUnavailable
+    next: WaitingToRetry
+    action: wait_health_retry
+  - state: ProbingHealth
+    signal: CommandError
+    next: WaitingToRetry
+    action: wait_health_retry
+  - state: ProbingHealth
+    signal: BudgetExhausted
+    next: MarkingFailure
+    action: fail_scenario_unhealthy
+
+  - state: WaitingToRetry
+    signal: HealthRetryReady
+    next: ProbingHealth
+    action: probe_subject_health
+  - state: WaitingToRetry
     signal: HealthTimeout
     next: MarkingFailure
     action: fail_scenario_unhealthy
-  - state: AwaitingSubject
+  - state: WaitingToRetry
     signal: CommandError
     next: MarkingFailure
     action: fail_scenario_start
+  - state: WaitingToRetry
+    signal: BudgetExhausted
+    next: MarkingFailure
+    action: fail_scenario_unhealthy
 
-  # A validator that ran and failed still produced a verdict, so both outcomes
-  # route to the same collection step; the verdict itself decides pass or fail.
+  # The join owns collection traversal; this thin word only records its ordered
+  # item outputs for verdict and session reporting.
   - state: RunningValidators
     signal: ValidatorsCompleted
+    next: RecordingValidators
+    action: record_scenario_validators
+  - state: RunningValidators
+    signal: CommandError
+    next: MarkingFailure
+    action: fail_scenario_validators
+
+  - state: RecordingValidators
+    signal: ValidatorsRecorded
     next: CollectingVerdict
     action: collect_scenario_verdict
-  - state: RunningValidators
-    signal: ValidatorsIncomplete
-    next: CollectingVerdict
-    action: collect_scenario_verdict
-  - state: RunningValidators
+  - state: RecordingValidators
     signal: CommandError
     next: MarkingFailure
     action: fail_scenario_validators
 
   - state: CollectingVerdict
     signal: ScenarioPassed
-    next: TearingDown
-    action: teardown_scenario
+    next: ListingChildren
+    action: list_scenario_children
+    label: scenario_children
   - state: CollectingVerdict
     signal: ScenarioFailed
-    next: TearingDown
-    action: teardown_scenario
+    next: ListingChildren
+    action: list_scenario_children
+    label: scenario_children
 
   - state: MarkingFailure
     signal: ScenarioFailed
+    next: ListingChildren
+    action: list_scenario_children
+    label: scenario_children
+  - state: MarkingFailure
+    signal: BudgetExhausted
+    next: ListingChildren
+    action: list_scenario_children
+    label: scenario_children
+
+  - state: ListingChildren
+    signal: ScenarioChildrenListed
     next: TearingDown
-    action: teardown_scenario
+    action: stop_scenario_child
+    label: stopped_child
+    for_each:
+      items: $from(scenario_children).children
+      as: child
+      mode: sequential
+      failure: collect_all
+      continue_on: [ServiceStopped]
+      abort_on: [CommandError]
+      join:
+        next: TearingDown
+        label: teardown_joined
+        signals:
+          all_success: ScenarioTornDown
+          partial: CommandError
+          failed: CommandError
+          empty: ScenarioTornDown
+  - state: ListingChildren
+    signal: CommandError
+    next: Failed
 
   # A failed scenario does not end the run: every scenario is exercised and the
   # aggregate reports at the end.
@@ -181,6 +297,13 @@ transitions:
     signal: ScenarioTornDown
     next: AdvancingScenario
     action: next_scenario
+    label: current_scenario
+  - state: TearingDown
+    signal: BudgetExhausted
+    next: Failed
+  - state: TearingDown
+    signal: CommandError
+    next: Failed
 
   - state: Reporting
     signal: SessionPassed

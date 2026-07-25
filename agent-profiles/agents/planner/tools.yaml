@@ -26,10 +26,15 @@ tools:
 
   # Execution phase (full + passthrough)
   - execute_task         # action: full, passthrough
-  - check_result         # action: full, passthrough
+  - reset_retry_count    # action: full, passthrough
+  - increment_retry      # action: full, passthrough
+  - check_retry_limit    # action: full, passthrough
+  - mark_task_done       # action: full, passthrough
+  - remaining_work       # action: full, passthrough
 
   # LLM (full, plan-only)
   - invoke_llm           # action: full, plan-only
+  - report_parse_error   # action: full, plan-only
   - reset_history        # action: full, plan-only
 
   # Build/test — direct transition actions in full + passthrough

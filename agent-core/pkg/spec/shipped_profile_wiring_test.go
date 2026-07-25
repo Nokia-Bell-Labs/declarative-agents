@@ -6,6 +6,7 @@ import (
 	"os"
 	"path/filepath"
 	"runtime"
+	"strings"
 	"testing"
 
 	"github.com/stretchr/testify/require"
@@ -36,6 +37,21 @@ type shippedProfile struct {
 	Machine          string   `yaml:"machine"`
 	Tools            []string `yaml:"tools"`
 	ToolDeclarations []string `yaml:"tool_declarations"`
+}
+
+func TestShippedProfilesDoNotSelectRetiredValidateAggregator(t *testing.T) {
+	root := requireAgentProfilesRoot(t)
+	err := filepath.WalkDir(filepath.Join(root, "agents"), func(path string, entry os.DirEntry, err error) error {
+		require.NoError(t, err)
+		if entry.IsDir() || filepath.Ext(entry.Name()) != ".yaml" || !strings.Contains(entry.Name(), "tools") {
+			return nil
+		}
+		var selection shippedTools
+		readShippedYAML(t, path, &selection)
+		require.NotContains(t, selection.Tools, "validate", path)
+		return nil
+	})
+	require.NoError(t, err)
 }
 
 func TestExecutorConfig_MachineLoads(t *testing.T) {
@@ -154,22 +170,38 @@ func TestBenchConfig_MachineLoads(t *testing.T) {
 
 func TestBenchConfig_ToolsLoad(t *testing.T) {
 	tools := readShippedTools(t, requireAgentProfilesRoot(t), "bench", "tools.yaml")
-	require.Equal(t, []string{"serve_ui", "launch_eval"}, tools)
+	require.Equal(t, []string{
+		"launch_bench_http", "await_bench_action", "validate_eval_suite",
+		"launch_evaluator", "stop_bench_http",
+	}, tools)
 }
 
 func TestBenchConfig_TransitionTable(t *testing.T) {
 	machine := readShippedMachine(t, requireAgentProfilesRoot(t), "bench", "machine.yaml")
 	for _, tc := range []shippedTransition{
-		{Name: "serve UI", State: "Idle", Signal: "Seed", Next: "Serving", Action: "serve_ui"},
-		{Name: "launch evaluation", State: "Serving", Signal: "ExperimentRequested", Next: "Launching", Action: "launch_eval"},
-		{Name: "evaluation completed", State: "Launching", Signal: "EvalCompleted", Next: "Serving", Action: "serve_ui"},
-		{Name: "evaluation failed", State: "Launching", Signal: "EvalFailed", Next: "Serving", Action: "serve_ui"},
-		{Name: "shutdown", State: "Serving", Signal: "Shutdown", Next: "Done"},
+		{Name: "launch HTTP", State: "Idle", Signal: "Seed", Next: "LaunchingHTTP", Action: "launch_bench_http"},
+		{Name: "await action", State: "LaunchingHTTP", Signal: "ServerLaunched", Next: "Serving", Action: "await_bench_action"},
+		{Name: "validate launch", State: "Serving", Signal: "ExperimentRequested", Next: "Validating", Action: "validate_eval_suite"},
+		{Name: "launch evaluation", State: "Validating", Signal: "SuiteSelected", Next: "Launching", Action: "launch_evaluator"},
+		{Name: "evaluation completed", State: "Launching", Signal: "ToolDone", Next: "Serving", Action: "await_bench_action"},
+		{Name: "evaluation failed", State: "Launching", Signal: "ToolFailed", Next: "Serving", Action: "await_bench_action"},
+		{Name: "shutdown", State: "Serving", Signal: "Shutdown", Next: "StoppingHTTP", Action: "stop_bench_http"},
+		{Name: "stopped", State: "StoppingHTTP", Signal: "ServerStopped", Next: "Done"},
 	} {
 		t.Run(tc.Name, func(t *testing.T) {
 			requireShippedTransition(t, machine, tc.State, tc.Signal, tc.Next, tc.Action)
 		})
 	}
+}
+
+func TestBenchProfileRoutesExcludeDocumentation(t *testing.T) {
+	root := requireAgentProfilesRoot(t)
+	data, err := os.ReadFile(filepath.Join(root, "agents", "bench", "rest.yaml"))
+	require.NoError(t, err)
+	routes := string(data)
+	require.Contains(t, routes, "/api/v1/sessions")
+	require.Contains(t, routes, "binding: machine_request")
+	require.NotContains(t, routes, "/api/v1/docs")
 }
 
 // requireAgentProfilesRoot resolves the shipped profiles this wiring check

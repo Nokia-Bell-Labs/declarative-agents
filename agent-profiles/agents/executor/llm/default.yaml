@@ -81,8 +81,8 @@ tools:
       before: [assemble_prompt, report_parse_error, nudge_reread, reset_history]
       after: [parse_response, parse_plan]
       overlaps:
-        - tool: serve_ui
-          difference: "serve_ui blocks on human UI events; invoke_llm blocks on a model/provider response."
+        - tool: rest_await_event
+          difference: "rest_await_event blocks on configured HTTP events; invoke_llm blocks on a model/provider response."
     config:
       model: "qwen3.6:35b-mlx"
       provider: ollama

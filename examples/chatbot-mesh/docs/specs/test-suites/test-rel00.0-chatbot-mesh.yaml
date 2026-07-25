@@ -68,7 +68,7 @@ test_cases:
       non-adjacent message hop), and the invoke_llm word answers from the
       chunks. Stopping the RAG degrades the next turn to a 200 answered from the
       message alone rather than a 500, carrying prior turns as client-side history
-      (R4). The router and the two-RAG fan-out this target also exercises are
+      (R4). The tier selector and the two-RAG fan-out this target also exercises are
       validated by the 01.0 suite. Verified end to end against live Docker and
       Ollama; skips cleanly without them, naming a missing model. Before probing
       Ollama, the target resolves the shipped model environment references by the

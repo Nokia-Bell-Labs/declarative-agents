@@ -32,7 +32,6 @@ func (c *extractTaskCmd) Execute() core.Result {
 		sig, msg := c.ps.classifyEmpty()
 		return core.Result{CommandName: c.Name(), Signal: sig, Output: msg}
 	}
-	c.ps.retryCount = 0
 	c.ps.CurrentTask = task
 	if err := c.ps.advanceTaskNodesTo(graph.Planning); err != nil {
 		return core.Result{CommandName: c.Name(), Signal: core.CommandError, Err: err, Output: err.Error()}
@@ -78,7 +77,6 @@ func (c *extractAllCmd) Execute() core.Result {
 		sig, msg := c.ps.classifyEmpty()
 		return core.Result{CommandName: c.Name(), Signal: sig, Output: msg}
 	}
-	c.ps.retryCount = 0
 	c.ps.CurrentTask = allReadyTask(ready)
 	if err := c.ps.advanceTaskNodesTo(graph.Planning); err != nil {
 		return core.Result{CommandName: c.Name(), Signal: core.CommandError, Err: err, Output: err.Error()}

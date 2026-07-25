@@ -122,10 +122,13 @@ schema:
     required: false
     description: |
       Contract field describing the structured output produced by the
-      tool. Contains optional description and schema fields. The schema
+      tool. Contains optional description, schema, and mode fields. The schema
       is JSON Schema-compatible and describes the machine-readable output
-      contract. This does not yet change core.Result.Output, which remains
-      the human-readable/runtime string channel during migration.
+      contract. For exec tools, mode may be raw (the default) or structured.
+      Structured mode sets core.Result.Output to a JSON object containing the
+      captured output string and exit_code so a later command-state selector can
+      address $from(<label>).output. Other tools and raw exec tools retain the
+      human-readable/runtime string channel.
 
   - field: metrics
     type: object
@@ -211,8 +214,8 @@ schema:
           Names of the runtime values captured in the UndoMemento
           payload. These document the information persisted for
           later compensation or inspection. Examples include
-          ran_child_tools, issue_id, child_run_id, workspace_paths,
-          server_addr, and suite_path.
+          issue_id, child_run_id, workspace_paths, server_addr, and
+          suite_path.
       - field: requires
         type: "[]string"
         description: |
@@ -256,10 +259,11 @@ builtin_fields:
       Decoded into typed Go structs via DecodeToolConfig at registration
       time. Type mismatches produce errors mentioning the tool name.
       Structure varies per tool. Boundary tools that spawn child agents use
-      profile-only child_agent_config for launch_eval, execute_task, and self_invoke.
+      profile-only child_agent_config for execute_task and self_invoke.
       LLMToolConfig configures invoke_llm. LoadSuiteConfig configures
       parse_suite_config and evaluator session setup tools. RunPointConfig
-      configures run_point. ServeUIToolConfig configures serve_ui.
+      configures run_point. EvaluationArtifactsConfig configures read-only
+      evaluation artifact query words.
       Filesystem document resource words use document_resource_config.
       See cfg-llm-config-format for invoke_llm details.
 
@@ -408,13 +412,13 @@ metric_declaration_fields:
         - name: operation
           source: configured_operation
           cardinality: bounded
-          allowed_values: [documentation_curator_requests.documents]
+          allowed_values: [documentation_curator.documents]
           redaction: none
 
 child_agent_config:
   purpose: |
     Defines config for builtin boundary tools that spawn another agent process.
-    This applies to execute_task, self_invoke, and launch_eval.
+    This applies to execute_task and self_invoke.
   fields:
     - field: profile
       type: string
@@ -438,12 +442,11 @@ child_agent_config:
     execute_task: |
       config:
         profile: ${AGENT_PROFILES_ROOT}/generator/profile.yaml
-    launch_eval: |
-      config:
-        profile: ${AGENT_PROFILES_ROOT}/evaluator/profile.yaml
     self_invoke: |
       config:
         profile: ${AGENT_PROFILES_ROOT}/generator/profile.yaml
+        request_from: $from(request).path
+        output_from: $from(request).output_dir
 
 exec_fields:
   - field: binary
@@ -481,6 +484,23 @@ exec_fields:
     description: |
       Maximum number of output lines captured from the tool's stdout.
       Excess lines are truncated to keep LLM context manageable.
+
+  - field: stdin_source
+    type: string
+    required: false
+    description: |
+      Canonical $from(<label>).<dotted-path> selector for a prior redacted
+      command-state output field. The resolved value must be a non-empty string
+      within stdin_max_bytes and is written to the declared binary's stdin.
+      Resolution and size validation finish before launch. No shell is invoked.
+
+  - field: stdin_max_bytes
+    type: int
+    required: false
+    description: |
+      Positive byte limit for stdin_source. It is invalid without stdin_source.
+      When omitted, the exec runtime applies its finite default limit. Oversized
+      input is rejected before launch rather than truncated.
 
   - field: includes
     type: "[]string"
@@ -549,14 +569,14 @@ parameter_extensions:
 declaration_files:
   - file: tools/builtin/
     description: |
-      Directory of individual shared builtin tool declarations loaded by
-      current profiles through tool_config_dirs. The declarations cover
-      file operations (read, write, edit, find, list_files), the LLM
+      Directory of individual shared filesystem and builtin tool declarations
+      loaded by current profiles through tool_config_dirs. The declarations
+      cover file operations (read, write, edit, find, and the exec-bound
+      list_files declaration), the LLM
       pipeline (parse_response, report_parse_error, reset_history),
       completion and control (done, suspend, nudge_reread, self_invoke),
-      compatibility aggregate validation (validate), planner tools,
-      evaluator session and point tools, bench tools, and spec validation
-      tools. Note: invoke_llm is declared per-agent in <profile-root>/*/llm/*.yaml,
+      planner tools, evaluator session and point tools, bench tools, and spec
+      validation tools. Note: invoke_llm is declared per-agent in <profile-root>/*/llm/*.yaml,
       not in this directory. The tool count evolves with the codebase;
       consult the directory directly for the current set.
 
@@ -582,7 +602,7 @@ boundary_compensation_example: |
   Boundary tools that cross process, issue, or human boundaries declare
   payload: boundary_compensation in their undo section. At runtime, the
   tool's UndoMemento() method serializes a BoundaryCompensationPayload
-  containing the values named in captures. Example from launch_eval:
+  containing the values named in captures. Example from self_invoke:
 
     undo:
       strategy: compensating_action
@@ -600,8 +620,8 @@ boundary_compensation_example: |
       }
     }
 
-  Tools with boundary_compensation: validate, suspend,
-  execute_task, run_point, run_agent, serve_ui, launch_eval, commit,
+  Tools with boundary_compensation: suspend, execute_task, run_point,
+  run_agent, self_invoke, commit,
   issue_create, issue_close, and profile-owned tracker exec words.
 
 inline_pattern: |
@@ -624,28 +644,27 @@ contract_validation: |
   boundary) instead of falling back to internal, external_builtin, or exec.
 
 structured_output_strategy: |
-  Tool output has two layers during migration:
+  Tool output has two compatible runtime forms:
 
-  1. Runtime string output: core.Result.Output remains the human-readable
-     command output used by existing machine transitions, parse-error repair,
-     logs, and tests.
+  1. Raw mode (default): core.Result.Output remains the human-readable command
+     output used by existing machine transitions, parse-error repair, logs, and
+     tests.
   2. Declarative output contract: tool declarations may provide output.schema
-     to describe the machine-readable data shape the tool should eventually
-     produce.
+     to describe machine-readable data. Exec declarations may additionally set
+     output.mode: structured to wrap captured output and exit code in a JSON
+     object for command-state selection.
 
-  output.schema is not injected into the LLM-facing input schema and does not
-  change command execution. It lets developers document success shape, failure
-  shape, and downstream composition expectations before migrating individual
-  commands to a structured result field such as Result.Data. When Result.Data
-  is added later, existing output.schema declarations should be reused rather
-  than redesigned.
+  output.schema and output.mode are not injected into the LLM-facing input
+  schema. Omitted mode does not change command execution. Structured exec mode
+  is opt-in so existing consumers remain compatible while producer output can
+  be selected as $from(<label>).output.
 
 mode_local_overrides: |
   Some agents have mode-local builtin override files that add config
   blocks to tools declared in tools/builtin/. These are loaded after
   the shared declaration directory through profile tool_declarations:
 
-    <profile-root>/bench/builtin.yaml — bench-specific config (serve_ui, launch_eval)
+    <profile-root>/bench/builtin.yaml — profile aliases for generic REST lifecycle, predicate, and self_invoke words
     <profile-root>/evaluator/builtin.yaml — evaluator-specific config (suite/point tools)
     <profile-root>/planner/builtin.yaml — planner-specific config (child agent, issue tools)
 
@@ -684,11 +703,8 @@ target_grouped_layout:
     - path: tools/builtin/control/
       owns: [self_invoke]
       kind: shared
-    - path: tools/builtin/validation/
-      owns: [validate]
-      kind: shared compatibility
     - path: tools/builtin/planner/
-      owns: [extract_task, extract_all, assemble_prompt, parse_plan, format_issue, write, record_tracker_issue, execute_task, check_result]
+      owns: [extract_task, extract_all, assemble_prompt, parse_plan, format_issue, write, record_tracker_issue, execute_task, mark_task_done, remaining_work]
       kind: shared planner-family declarations
     - path: tools/builtin/critic-session/
       owns: [parse_suite_config, discover_suite_samples, expand_eval_grid, init_eval_session, report_suite_summary, next_point, run_point, report_session]
@@ -697,9 +713,6 @@ target_grouped_layout:
       owns: [create_point_dir, copy_sample_docs, record_agent_commit, dump_config, run_agent, record_oracle_result, collect_trace_tokens, check_agent_version, summarize_point_results, collect_metrics]
       kind: shared critic-point declarations
       note: Workspace copying, git setup, and rev_parse reuse tools/exec declarations; the external critic profile owns its deterministic commit_workspace_baseline and run_oracle_check exec aliases.
-    - path: tools/builtin/bench/
-      owns: [serve_ui, launch_eval]
-      kind: shared bench declarations
     - path: tools/builtin/spec-validation/
       owns: [load_corpus, validate_specs, format_report]
       kind: shared jurist declarations

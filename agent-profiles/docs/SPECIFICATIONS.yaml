@@ -230,8 +230,8 @@ srd_index:
   - id: srd014-chatbot-agent
     title: Chatbot Agent Functional Block
     summary: Browser-facing agent whose each chat turn is a request-scoped machine
-      (route, embed, RAG fan-out, compose, answer) with non-adjacent data flowing
-      by command-state $from() (srd038); an LLM $tool router with a normative
+      (select tier, embed, RAG fan-out, compose, answer) with non-adjacent data flowing
+      by command-state $from() (srd038); an LLM $tool tier selector with a normative
       misparse fallback; sequential multi-RAG fan-out with per-RAG degradation and
       embedding-space mismatch exclusion; stateless-v1 sessions; a three-panel
       ux.yaml over a static_assets SPA; and a preserved transport-authority
@@ -406,12 +406,12 @@ use_case_index:
     title: Chatbot Turn Embeds, Retrieves From One RAG, and Answers
     summary: Single-RAG request-scoped turn embeds once, retrieves, composes via
       command-state $from(), answers, and degrades to a mapped 200 when the RAG
-      fails (the core loop; routing and fan-out are 09.1).
+      fails (the core loop; tier selection and fan-out are 09.1).
     status: implemented
     path: docs/specs/use-cases/rel09.0-uc002-chatbot-turn.yaml
   - id: rel09.1-uc001-routed-fanout
-    title: Chatbot Turn Routes and Fans Out Over Two RAGs
-    summary: The turn routes via a $tool classifier and fans the one embedding out
+    title: Chatbot Turn Selects a Model Tier and Fans Out Over Two RAGs
+    summary: The turn selects a chat-LLM word via a $tool classifier and fans the one embedding out
       to two RAGs, citing both disjoint corpora, degrading on a per-RAG failure, and
       excluding an embedding-space mismatch through visible machine transitions.
     status: implemented
@@ -531,8 +531,8 @@ test_suite_index:
     status: implemented
     path: docs/specs/test-suites/test-rel09.0-chatbot-mesh.yaml
   - id: test-rel09.1-routing-fanout
-    title: Test Suite for Release 09.1 Routing and Multi-RAG Fan-Out
-    summary: Tracers for the $tool router word dispatch and the two-RAG fan-out over
+    title: Test Suite for Release 09.1 Tier Selection and Multi-RAG Fan-Out
+    summary: Tracers for the $tool tier-selector dispatch and the two-RAG fan-out over
       disjoint corpora with the degraded and embedding-mismatch paths, via
       Integration.Chatbot.
     status: implemented

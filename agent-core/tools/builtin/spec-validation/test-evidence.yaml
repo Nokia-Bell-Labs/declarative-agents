@@ -1,0 +1,84 @@
+tools:
+  - name: load_test_claims
+    type: builtin
+    init: load_test_claims
+    visibility: internal
+    emits: [ToolDone, CommandError]
+    description: Load formal test-suite claims without requiring a full specification corpus.
+    category: stateful_internal
+    output:
+      description: Number of formal test suites loaded.
+      schema:
+        type: object
+        properties:
+          message: {type: string}
+        required: [message]
+    side_effects:
+      - kind: state_mutation
+        target: validation_state
+        state: test_claims_loaded
+        description: Records formal test suites for evidence reduction.
+    reversibility:
+      classification: reversible
+      undo: validation_state_restore
+    undo:
+      strategy: session_state_restore
+      description: Restore validation state before claim loading.
+
+  - name: resolve_test_evidence
+    type: builtin
+    init: resolve_test_evidence
+    visibility: internal
+    emits: [ValidationPassed, ValidationFailed, CommandError]
+    description: Resolve formal go_test claims against declared Go inventory outputs.
+    category: stateful_internal
+    config:
+      module_from: $from(go_module).output
+      packages_from: $from(go_packages).output
+      tests_from: $from(go_test_inventory).output
+    output:
+      description: Aggregate finding and error counts after claim resolution.
+      schema:
+        type: object
+        properties:
+          message: {type: string}
+        required: [message]
+    side_effects:
+      - kind: state_mutation
+        target: validation_state
+        state: test_claims_resolved
+        description: Appends deterministic claim-resolution findings.
+    reversibility:
+      classification: reversible
+      undo: validation_state_restore
+    undo:
+      strategy: session_state_restore
+      description: Restore validation state before claim resolution.
+
+  - name: reduce_test_evidence_run
+    type: builtin
+    init: reduce_test_evidence_run
+    visibility: internal
+    emits: [ValidationPassed, ValidationFailed, CommandError]
+    description: Reduce declared go test JSON events against resolved formal claims.
+    category: stateful_internal
+    config:
+      run_from: $from(go_test_run).output
+    output:
+      description: Aggregate finding and error counts after test-result reduction.
+      schema:
+        type: object
+        properties:
+          message: {type: string}
+        required: [message]
+    side_effects:
+      - kind: state_mutation
+        target: validation_state
+        state: test_claim_results_reduced
+        description: Appends deterministic skipped, failed, or missing-run findings.
+    reversibility:
+      classification: reversible
+      undo: validation_state_restore
+    undo:
+      strategy: session_state_restore
+      description: Restore validation state before result reduction.

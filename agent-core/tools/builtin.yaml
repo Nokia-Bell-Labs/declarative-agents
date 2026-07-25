@@ -8,6 +8,10 @@
 includes:
   - builtin/checkpoint-history.yaml
   - builtin/checkpoint-rollback.yaml
+  - builtin/partition.yaml
+  - builtin/select-subset.yaml
+  - builtin/render-each.yaml
+  - builtin/parse-structured.yaml
 
 tools:
   # --- file tools ---
@@ -168,9 +172,82 @@ tools:
       description: "Search is read-only and has no effects to reverse."
 
   - name: list_files
-    type: builtin
-    category: word
-    init: file_list
+    type: exec
+    category: boundary
+    binary: bash
+    args:
+      - -o
+      - pipefail
+      - -c
+      - |
+        path=$1
+        depth=$2
+
+        numeric_depth=${depth#-}
+        case "$numeric_depth" in
+          ''|*[!0-9]*)
+            printf 'list_files: invalid max_depth: %s\n' "$depth" >&2
+            exit 1
+            ;;
+        esac
+        if [ "$depth" -le 0 ]; then
+          depth=4
+        fi
+
+        if [ ! -e "$path" ]; then
+          printf 'list_files: path not found: %s\n' "$path" >&2
+          exit 1
+        fi
+        if [ ! -d "$path" ]; then
+          printf 'list_files: not a directory: %s\n' "$path" >&2
+          exit 1
+        fi
+
+        workspace=$(pwd -P)
+        if ! cd -- "$path" 2>/dev/null; then
+          printf 'list_files: path not found: %s\n' "$path" >&2
+          exit 1
+        fi
+        target=$(pwd -P)
+        case "$target" in
+          "$workspace") target_rel=. ;;
+          "$workspace"/*) target_rel=${target#"$workspace"/} ;;
+          *)
+            printf 'list_files: path rejected: path %s is outside the workspace\n' "$path" >&2
+            exit 1
+            ;;
+        esac
+        cd "$workspace" || exit 1
+
+        start=.
+        if [ "$target_rel" != . ]; then
+          start=./$target_rel
+        fi
+        tab=$(printf '\t')
+        find -P "$start" -mindepth 1 -maxdepth "$depth" -print |
+          awk '{ key=$0; gsub("/", "\001", key); print key "\001\t" $0 }' |
+          LC_ALL=C sort |
+          while IFS="$tab" read -r _ entry; do
+            workspace_rel=${entry#./}
+            if [ "$target_rel" = . ]; then
+              local_path=$workspace_rel
+            else
+              local_path=${workspace_rel#"$target_rel"/}
+            fi
+            indent=
+            rest=$local_path
+            while [ "${rest#*/}" != "$rest" ]; do
+              indent="$indent  "
+              rest=${rest#*/}
+            done
+            suffix=
+            if [ -d "$entry" ] && [ ! -L "$entry" ]; then
+              suffix=/
+            fi
+            printf '%s%s%s\n' "$indent" "$workspace_rel" "$suffix"
+          done
+      - list_files
+    output_cap: 200
     emits: [ToolDone, ToolFailed]
     description: "List files and directories in a tree format. Use this first to understand the workspace layout before reading files."
     parameters:
@@ -179,10 +256,20 @@ tools:
         path:
           type: string
           description: "Subdirectory to list (default: workspace root)"
+          positional: true
+          position: 1
+          default: "."
         max_depth:
           type: integer
           description: "Maximum directory depth to traverse (default: 4)"
+          positional: true
+          position: 2
+          default: "4"
     side_effects:
+      - kind: child_process
+        target: find
+        state: read_only
+        description: "Runs GNU find with a fixed workspace working directory and bounded depth."
       - kind: filesystem_read
         target: workspace_tree
         description: "Reads workspace directory entries without mutating state."
@@ -251,97 +338,6 @@ tools:
     undo:
       strategy: conversation_restore
       description: "Restore the conversation snapshot captured before clearing history."
-
-  # --- validation ---
-  - name: validate
-    type: builtin
-    contract: migrated
-    init: validate
-    visibility: internal
-    emits: [ValidationPassed, ValidationFailed, CommandError]
-    description: "Deprecated compatibility aggregator for replaying skipped validation tools; new machines should declare validation sequences explicitly."
-    category: boundary
-    problem: |
-      Some older generator flows needed one internal action that could inspect
-      which validation tools the LLM had not already run and replay those
-      tools before declaring the task complete. Current generator behavior
-      expresses build, lint, and test as direct machine transitions, so this
-      tool remains only as a compatibility boundary aggregator.
-    goals:
-      - "G1: Preserve compatibility for machines that explicitly select validate."
-      - "G2: Make aggregate validation status available as ValidationPassed or ValidationFailed."
-      - "G3: Keep validate hidden from LLM tool manifests."
-    requirements:
-      input:
-        - "must receive its validation tool order from program configuration, not from the LLM."
-        - "must derive the skipped tool list from ToolTracker state."
-      output:
-        - "must emit ValidationPassed when all replayed tools pass or when no tools were skipped."
-        - "must emit ValidationFailed when a replayed validation tool reports ToolFailed."
-        - "must emit CommandError when a replayed validation tool reports CommandError."
-      side_effects:
-        - "must run selected child tool commands in the configured order until one fails or all pass."
-        - "must not expose itself as an LLM-callable tool."
-      undo:
-        - "must rely on child tool undo/workspace checkpoint mechanisms for effects created by replayed tools."
-        - "must have no direct undo beyond aggregating child command results."
-      errors:
-        - "must report which child validation tool failed."
-        - "must preserve infrastructure errors from child validation commands."
-    non_goals:
-      - "Does not define the preferred generator validation sequence; use machine.yaml transitions for that."
-      - "Does not replace build, lint, test, or other atomic validation tools."
-      - "Does not interpret LLM output or choose validation tools dynamically."
-      - "Does not provide rollback for child tool side effects."
-    output:
-      description: "Aggregate validation status and summary of replayed tools."
-      schema:
-        type: object
-        properties:
-          passed:
-            type: boolean
-          ran:
-            type: array
-            items:
-              type: string
-          failing_tool:
-            type: string
-          message:
-            type: string
-        required: [passed, message]
-    side_effects:
-      - kind: child_tool_execution
-        target: configured_validation_tools
-        description: "Executes skipped validation tools through their registered builders."
-    reversibility:
-      classification: compensatable
-      undo: "Replay child command undo or restore a workspace checkpoint created before aggregate validation."
-    undo:
-      strategy: child_command_undo
-      description: "Undo is delegated to the commands validate executed; validate has no independent state to reverse."
-      payload: boundary_compensation
-      captures: [ran_child_tools]
-    errors:
-      - signal: ValidationFailed
-        condition: "A replayed validation tool returned ToolFailed."
-        message_shape: "validation failed at <tool>: <output>"
-        state_after_failure: "child tool effects may already exist and require child undo or workspace restore"
-      - signal: CommandError
-        condition: "A replayed validation tool returned CommandError."
-        message_shape: "validation infrastructure error in <tool>: <output>"
-        state_after_failure: "child tool effects may already exist and require child undo or workspace restore"
-    relationships:
-      before:
-        - "compatibility machines after TaskCompleted"
-      after:
-        - "terminal pass/fail transitions"
-      overlaps:
-        - tool: build
-          difference: "build is one validation word; validate aggregates configured validation tools."
-        - tool: lint
-          difference: "lint is one validation word; validate aggregates configured validation tools."
-        - tool: test
-          difference: "test is one validation word; validate aggregates configured validation tools."
 
   - name: nudge_reread
     type: builtin
@@ -504,24 +500,91 @@ tools:
       captures: [child_run_id, child_workspace_ref]
       requires: [Receipt]
 
-  - name: check_result
+  - name: mark_task_done
     type: builtin
-    init: check_result
-    description: "Evaluate validation results and decide retry vs. advance vs. fail."
+    init: mark_task_done
+    description: "Mark the current planner task's graph nodes done."
+    problem: "Successful validation needs one focused graph completion mutation."
+    goals:
+      - "Mutate graph completion state without deciding retry or remaining-work policy."
+    requirements:
+      input:
+        - "The current task and graph must exist in planner pipeline state."
+      output:
+        - "TaskCompleted is emitted after all current task nodes reach Done."
+      errors:
+        - "CommandError is emitted for missing state or invalid node transitions."
+    non_goals:
+      - "Does not inspect validation results."
+      - "Does not count retries or query remaining work."
     visibility: internal
-    emits: [ValidationPassed, RetryAvailable, RetriesExhausted, CommandError]
+    emits: [TaskCompleted, CommandError]
     category: stateful_internal
     side_effects:
       - kind: state_mutation
         target: pipeline_state
-        state: retry_count_or_task_status_updated
-        description: "Updates retry counters and task status based on execution result."
+        state: current_task_completed
+        description: "Advances only the current task's graph nodes to Done."
     reversibility:
       classification: reversible
       undo: "pipeline_state_restore"
     undo:
       strategy: session_state_restore
-      description: "Restore the pipeline state snapshot captured before result evaluation."
+      description: "Restore the graph snapshot captured before task completion."
+    output:
+      description: "Human-readable confirmation naming the completed planner task."
+      schema:
+        type: string
+    errors:
+      - signal: CommandError
+        condition: "The current task or graph is missing, or a task node cannot transition to Done."
+        message_shape: "mark_task_done: <error>"
+        state_after_failure: "The machine does not route completion; rollback restores any graph nodes changed before the error."
+    relationships:
+      before: [test]
+      after: [remaining_work]
+
+  - name: remaining_work
+    type: builtin
+    init: remaining_work
+    description: "Query whether the planner graph has ready, completed, or blocked work."
+    problem: "Remaining-work routing belongs in the planner machine, not a graph-mutating word."
+    goals:
+      - "Report ready work separately from a fully done or blocked graph."
+    requirements:
+      input:
+        - "A loaded graph must exist in planner pipeline state."
+      output:
+        - "WorkRemaining, AllDone, or Blocked describes the graph."
+      errors:
+        - "CommandError is emitted when no graph is loaded."
+    non_goals:
+      - "Does not extract tasks or mutate graph state."
+      - "Does not decide where the planner routes next."
+    visibility: internal
+    emits: [WorkRemaining, AllDone, Blocked, CommandError]
+    category: word
+    side_effects:
+      - kind: none
+        description: "Reads graph state without mutating it."
+    reversibility:
+      classification: reversible
+      undo: "noop"
+    undo:
+      strategy: noop
+      description: "The graph query has no effects to reverse."
+    output:
+      description: "Human-readable ready, complete, or blocked graph summary."
+      schema:
+        type: string
+    errors:
+      - signal: CommandError
+        condition: "No planner graph is loaded."
+        message_shape: "remaining_work: graph is required"
+        state_after_failure: "Graph and planner state remain unchanged."
+    relationships:
+      before: [mark_task_done, check_retry_limit]
+      after: [extract_task]
 
   # --- evaluator session tools ---
   - name: parse_suite_config
@@ -890,54 +953,6 @@ tools:
     undo:
       strategy: workspace_restore
       description: "Restore experiment artifacts from the persisted receipt."
-      requires: [Receipt]
-
-  # --- bench tools ---
-  - name: serve_ui
-    type: builtin
-    init: serve_ui
-    visibility: internal
-    emits: [ExperimentRequested, Shutdown, CommandError]
-    description: "Start the bench web UI server and block waiting for user actions (bench equivalent of invoke_llm)."
-    category: boundary
-    side_effects:
-      - kind: child_process
-        target: bench_http_server
-        description: "Starts an HTTP server and waits for operator requests."
-      - kind: human_boundary
-        target: bench_operator
-        description: "Receives experiment requests or shutdown from a user."
-    reversibility:
-      classification: compensatable
-      undo: "server_shutdown"
-    undo:
-      strategy: compensating_action
-      description: "Stop the server or issue a shutdown signal; completed user-triggered work requires its own rollback."
-      payload: boundary_compensation
-      captures: [server_addr, user_action]
-
-  - name: launch_eval
-    type: builtin
-    init: launch_eval
-    visibility: internal
-    emits: [EvalCompleted, EvalFailed, CommandError]
-    description: "Spawn a child agent as a subprocess to run an experiment."
-    category: boundary
-    side_effects:
-      - kind: child_process
-        target: evaluator_agent
-        description: "Launches an evaluator agent subprocess."
-      - kind: filesystem_write
-        target: eval_results
-        description: "Evaluator subprocess writes experiment artifacts and metrics."
-    reversibility:
-      classification: compensatable
-      undo: "child_run_artifact_cleanup_or_workspace_restore"
-    undo:
-      strategy: compensating_action
-      description: "Use evaluator output cleanup, child history, or workspace restore for generated artifacts."
-      payload: boundary_compensation
-      captures: [suite_path, output_dir, child_machine, child_tools]
       requires: [Receipt]
 
   # --- spec validation tools ---

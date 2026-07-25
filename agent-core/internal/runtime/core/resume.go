@@ -64,6 +64,7 @@ func LoadResume(params LoopParams) (ResumeState, error) {
 		TotalCost:  pos.Snapshot.TotalCost,
 	}
 	params.InitialExecution = exec
+	params.InitialIterator = cloneIteratorSnapshot(pos.Snapshot.Iterator)
 	return ResumeState{Params: params, Position: pos, Execution: exec}, nil
 }
 

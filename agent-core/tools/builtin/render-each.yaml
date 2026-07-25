@@ -1,0 +1,47 @@
+tools:
+- name: render_each
+  type: builtin
+  init: render_each
+  category: word
+  visibility: internal
+  emits: [Rendered, CommandError]
+  description: Render each value in an ordered array with one item template and join the parts.
+  problem: Repeating a fixed item format over a runtime array should not require one authored state per index.
+  goals:
+  - Preserve array order while rendering and joining values.
+  - Keep flat compose substitution separate from array rendering.
+  requirements:
+    input:
+    - Trusted configuration selects the array, item template, separator, and signal.
+    output:
+    - Output is the joined string, or an empty string for an empty array.
+    errors:
+    - Invalid selection, item shape, or field access emits CommandError.
+  non_goals:
+  - Does not add conditions, loops inside templates, or nested programs.
+  parameters:
+    type: object
+    properties: {}
+  output:
+    description: Joined rendered text.
+    schema: {type: string}
+  side_effects: []
+  reversibility:
+    classification: reversible
+    undo: noop
+  undo:
+    strategy: noop
+    description: Rendering reads prior state and changes no external state.
+  errors:
+  - signal: CommandError
+    condition: The array selector does not resolve, its value is not an array, or an item field is absent.
+    message_shape: 'render_each: <error>'
+    state_after_failure: No successful rendered output is published.
+  relationships:
+    before: [compose, machine-selected successor]
+    after: [array-producing predecessor]
+  config:
+    items: $from(values).items
+    item_template: '{{ name }}'
+    separator: "\n"
+    signal: Rendered

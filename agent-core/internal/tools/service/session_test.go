@@ -3,7 +3,6 @@
 package service
 
 import (
-	"context"
 	"encoding/json"
 	"os"
 	"path/filepath"
@@ -38,6 +37,59 @@ func scenarioTree(t *testing.T, subjects map[string]map[string][]string) string 
 		}
 	}
 	return root
+}
+
+func bindFixture(t *testing.T, cmd core.Command, session *ScenarioSessionState) {
+	t.Helper()
+	scenario, _, ok := session.Current()
+	require.True(t, ok)
+	require.NotEmpty(t, scenario.Fixtures)
+	aware, ok := cmd.(core.CommandStateAware)
+	require.True(t, ok)
+	aware.SetCommandState(fixtureStateView{output: jsonOutput(map[string]interface{}{
+		"path": scenario.Fixtures[0],
+	})})
+}
+
+type fixtureStateView struct {
+	output string
+}
+
+func (v fixtureStateView) Lookup(label string) (string, bool) {
+	return v.output, label == "fixture"
+}
+
+type labeledStateView struct {
+	label  string
+	output string
+}
+
+func (v labeledStateView) Lookup(label string) (string, bool) {
+	return v.output, label == v.label
+}
+
+func stopScenarioChildren(t *testing.T, state *State, session *ScenarioSessionState) {
+	t.Helper()
+	listed := Builder{
+		ToolName: "list_children", Init: InitListScenarioChildren,
+		State: state, Session: session,
+	}.Build(core.Result{}).Execute()
+	require.Equal(t, SignalScenarioChildrenListed, listed.Signal)
+
+	for _, child := range session.Children() {
+		cmd := Builder{
+			ToolName: "stop_child", Init: InitStopService, State: state, Session: session,
+			Config: ToolConfig{Service: "$from(child).service", Grace: "2s"},
+		}.Build(core.Result{})
+		aware, ok := cmd.(core.CommandStateAware)
+		require.True(t, ok)
+		aware.SetCommandState(labeledStateView{
+			label: "child", output: jsonOutput(child),
+		})
+		result := cmd.Execute()
+		require.Equal(t, SignalServiceStopped, result.Signal)
+		require.NotEmpty(t, result.Receipt)
+	}
 }
 
 // TestScenarioSession_IteratesEachScenarioOnce covers the cursor contract: the
@@ -217,15 +269,19 @@ func TestScenarioSteps_ThreadsMockURLIntoSubject(t *testing.T) {
 
 	// Start the mock: the test binary serving health, standing in for the
 	// dependency. Its address is chosen at runtime.
-	mockResult := Builder{
-		ToolName: "start_mocks", Init: InitStartMocks, State: state, Session: session,
+	mockCommand := Builder{
+		ToolName: "start_mock", Init: InitStartScenarioMock, State: state, Session: session,
 		Config: ToolConfig{
 			Profile: "mock-profile", Binary: os.Args[0],
 			AddressEnv: envChildAddr,
 			Env:        []string{envChildMode + "=serve"},
+			Fixture:    "$from(fixture).path",
 		},
-	}.Build(core.Result{}).Execute()
-	require.Equal(t, SignalMocksStarted, mockResult.Signal, mockResult.Output)
+	}.Build(core.Result{})
+	bindFixture(t, mockCommand, session)
+	mockResult := mockCommand.Execute()
+	require.Equal(t, SignalMockStarted, mockResult.Signal, mockResult.Output)
+	require.NotEmpty(t, mockResult.Receipt)
 
 	mocks := session.Mocks()
 	require.Len(t, mocks, 1)
@@ -252,24 +308,16 @@ func TestScenarioSteps_ThreadsMockURLIntoSubject(t *testing.T) {
 	require.Equal(t, filepath.Join(subjectDir, profileFileName), started["profile"],
 		"the subject is the agent under test, resolved from the scenario")
 
-	// The subject reports the mock URL it was given, proving the thread.
-	health := Builder{
-		ToolName: "await_subject", Init: InitAwaitSubject, State: state, Session: session,
-		Config: ToolConfig{URL: "/healthz", Timeout: "20s", Interval: "20ms"},
-	}.Build(core.Result{}).Execute()
-	require.Equal(t, SignalHealthy, health.Signal, health.Output)
-
 	_, subjectURL := session.Subject()
+	require.Equal(t, subjectURL, started["health_base_url"])
+	require.Equal(t, "healthz", started["health_path"])
+	require.NotEmpty(t, started["started_at"])
 	body := httpGetBody(t, subjectURL+"/healthz")
 	require.Contains(t, body, mocks[0].BaseURL,
 		"the subject observed the mock's runtime address in its environment")
 
-	// Teardown stops both children.
-	teardown := Builder{
-		ToolName: "teardown", Init: InitTeardownScenario, State: state, Session: session,
-		Config: ToolConfig{Grace: "2s"},
-	}.Build(core.Result{}).Execute()
-	require.Equal(t, SignalScenarioTornDown, teardown.Signal)
+	// MachineSpec lists and stops each child through its own command boundary.
+	stopScenarioChildren(t, state, session)
 	require.Empty(t, state.Running(), "no child outlives the scenario")
 }
 
@@ -287,17 +335,20 @@ func TestScenarioSteps_TeardownRunsOnFailurePath(t *testing.T) {
 	_, _, err = session.Next()
 	require.NoError(t, err)
 
-	mockResult := Builder{
-		ToolName: "start_mocks", Init: InitStartMocks, State: state, Session: session,
+	mockCommand := Builder{
+		ToolName: "start_mock", Init: InitStartScenarioMock, State: state, Session: session,
 		Config: ToolConfig{
 			Profile: "mock", Binary: os.Args[0], AddressEnv: envChildAddr,
-			Env: []string{envChildMode + "=serve"},
+			Env:     []string{envChildMode + "=serve"},
+			Fixture: "$from(fixture).path",
 		},
-	}.Build(core.Result{}).Execute()
-	require.Equal(t, SignalMocksStarted, mockResult.Signal)
+	}.Build(core.Result{})
+	bindFixture(t, mockCommand, session)
+	mockResult := mockCommand.Execute()
+	require.Equal(t, SignalMockStarted, mockResult.Signal)
 	require.Len(t, state.Running(), 1)
 
-	// The subject starts but never serves the health path, so the wait times out.
+	// The subject starts but never serves the health path.
 	subjectResult := Builder{
 		ToolName: "start_subject", Init: InitStartSubject, State: state, Session: session,
 		Config: ToolConfig{
@@ -307,24 +358,14 @@ func TestScenarioSteps_TeardownRunsOnFailurePath(t *testing.T) {
 	}.Build(core.Result{}).Execute()
 	require.Equal(t, SignalSubjectStarted, subjectResult.Signal)
 
-	health := Builder{
-		ToolName: "await_subject", Init: InitAwaitSubject, State: state, Session: session,
-		Config: ToolConfig{URL: "/healthz", Timeout: "300ms", Interval: "20ms"},
-	}.Build(core.Result{}).Execute()
-	require.Equal(t, SignalHealthTimeout, health.Signal, "a dead subject must not look healthy")
-
-	// The machine routes a failed health check to a forced verdict then teardown.
+	// The declarative machine's timeout edge records a forced verdict then teardown.
 	verdict := Builder{
 		ToolName: "collect", Init: InitCollectVerdict, State: state, Session: session,
 		Config: ToolConfig{Reason: "subject never became healthy"},
 	}.Build(core.Result{}).Execute()
 	require.Equal(t, SignalScenarioFailed, verdict.Signal)
 
-	teardown := Builder{
-		ToolName: "teardown", Init: InitTeardownScenario, State: state, Session: session,
-		Config: ToolConfig{Grace: "2s"},
-	}.Build(core.Result{}).Execute()
-	require.Equal(t, SignalScenarioTornDown, teardown.Signal)
+	stopScenarioChildren(t, state, session)
 	require.Empty(t, state.Running(), "a failed scenario still leaves nothing running")
 
 	report := Builder{
@@ -373,6 +414,26 @@ func TestScenarioSteps_SessionWordSignals(t *testing.T) {
 	require.Equal(t, SignalSessionPassed, report.Signal)
 }
 
+func TestSubjectHealthTarget_PreservesRelativeAndAlternateListenerPaths(t *testing.T) {
+	t.Parallel()
+
+	base, path, err := subjectHealthTarget("http://127.0.0.1:1234", "/_subject/health")
+	require.NoError(t, err)
+	require.Equal(t, "http://127.0.0.1:1234", base)
+	require.Equal(t, "_subject/health", path)
+
+	base, path, err = subjectHealthTarget(
+		"http://127.0.0.1:1234",
+		"http://127.0.0.1:5678/api/lifecycle/health",
+	)
+	require.NoError(t, err)
+	require.Equal(t, "http://127.0.0.1:5678", base)
+	require.Equal(t, "api/lifecycle/health", path)
+
+	_, _, err = subjectHealthTarget("http://127.0.0.1:1234", "file:///tmp/health")
+	require.ErrorContains(t, err, "scheme")
+}
+
 // TestScenarioSteps_RejectIncompleteDeclarations covers build-time validation
 // of the new words.
 func TestScenarioSteps_RejectIncompleteDeclarations(t *testing.T) {
@@ -381,7 +442,7 @@ func TestScenarioSteps_RejectIncompleteDeclarations(t *testing.T) {
 	session := NewScenarioSession(NewState())
 
 	// A step word with no current scenario is an error, not a panic.
-	for _, init := range []string{InitStartMocks, InitStartSubject, InitRunScenarioTests} {
+	for _, init := range []string{InitStartScenarioMock, InitStartSubject} {
 		result := Builder{
 			ToolName: init, Init: init, State: NewState(), Session: session,
 			Config: ToolConfig{Profile: "p"},
@@ -393,45 +454,17 @@ func TestScenarioSteps_RejectIncompleteDeclarations(t *testing.T) {
 			"%s: %s", init, result.Output)
 	}
 
-	// start_scenario_mocks needs the mock profile declared.
-	err := validateToolConfig("t", InitStartMocks, ToolConfig{})
+	// start_scenario_mock needs a mock profile and iterator selector.
+	err := validateToolConfig("t", InitStartScenarioMock, ToolConfig{})
 	require.Error(t, err)
 	require.Contains(t, err.Error(), "requires the mock profile")
+
+	err = validateToolConfig("v", InitRunScenarioValidator, ToolConfig{})
+	require.Error(t, err)
+	require.Contains(t, err.Error(), "validator must be")
 
 	// init_scenario_session needs roots.
 	err = validateToolConfig("i", InitInitScenarioSession, ToolConfig{})
 	require.Error(t, err)
 	require.Contains(t, err.Error(), "requires at least one root")
-}
-
-// TestRunValidators_JudgesOnExitCode locks in the contract that makes the rig
-// able to fail: a machine that reached a failure terminal exits non-zero
-// (srd018 R6), so a validator is judged on its exit code, with the reported
-// terminal status kept as naming detail.
-func TestRunValidators_JudgesOnExitCode(t *testing.T) {
-	t.Parallel()
-
-	outcomes := RunValidators(context.Background(), os.Args[0], []ValidatorSpec{
-		{Name: "reports-failed", Profile: "p", Env: []string{envChildMode + "=exit0failed"}},
-		{Name: "reports-ok", Profile: "p", Env: []string{envChildMode + "=exit0"}},
-		{Name: "silent", Profile: "p", Env: []string{envChildMode + "=exit0silent"}},
-	}, 30*time.Second)
-
-	byName := map[string]ValidatorOutcome{}
-	for _, outcome := range outcomes {
-		byName[outcome.Name] = outcome
-	}
-
-	// A failure terminal exits non-zero and does not pass; the status is kept
-	// so a verdict can name it.
-	require.NotEqual(t, 0, byName["reports-failed"].ExitCode)
-	require.Equal(t, "failed", byName["reports-failed"].Terminal)
-	require.False(t, byName["reports-failed"].Passed)
-
-	require.True(t, byName["reports-ok"].Passed)
-	require.Equal(t, "succeeded", byName["reports-ok"].Terminal)
-
-	// A silent child that exits zero completed its run; the rig trusts the
-	// exit code rather than requiring a status line.
-	require.True(t, byName["silent"].Passed)
 }

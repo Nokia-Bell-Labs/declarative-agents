@@ -95,13 +95,39 @@ type Entry struct {
 // re-enters the loop with its prior conversation, replacing the former separate
 // conversation snapshot hook and store path (srd035-checkpoint-port R4).
 type AgentSnapshot struct {
-	State        State           `json:"state"`
-	Signal       Signal          `json:"signal"`
-	Iteration    int             `json:"iteration"`
-	TokensIn     int             `json:"tokens_in"`
-	TokensOut    int             `json:"tokens_out"`
-	TotalCost    float64         `json:"total_cost"`
-	Conversation json.RawMessage `json:"conversation,omitempty"`
+	State        State             `json:"state"`
+	Signal       Signal            `json:"signal"`
+	Iteration    int               `json:"iteration"`
+	TokensIn     int               `json:"tokens_in"`
+	TokensOut    int               `json:"tokens_out"`
+	TotalCost    float64           `json:"total_cost"`
+	Conversation json.RawMessage   `json:"conversation,omitempty"`
+	Iterator     *IteratorSnapshot `json:"iterator,omitempty"`
+}
+
+// IteratorSnapshot persists enough engine-owned state to continue a sequential
+// for_each after a checkpoint load without re-dispatching completed items.
+type IteratorSnapshot struct {
+	TransitionState  State             `json:"transition_state"`
+	TransitionSignal Signal            `json:"transition_signal"`
+	BodyState        State             `json:"body_state"`
+	Action           string            `json:"action"`
+	Label            string            `json:"label,omitempty"`
+	Spec             ForEachSpec       `json:"spec"`
+	Items            []json.RawMessage `json:"items"`
+	NextIndex        int               `json:"next_index"`
+	Outcomes         []IteratorOutcome `json:"outcomes,omitempty"`
+	Halted           bool              `json:"halted,omitempty"`
+}
+
+// IteratorOutcome is the deterministic, input-ordered persisted source used by
+// join. Join-time shaping may add derived fields from this redacted digest
+// without expanding the checkpoint format.
+type IteratorOutcome struct {
+	Index       int             `json:"index"`
+	Input       json.RawMessage `json:"input"`
+	CommandName string          `json:"command_name"`
+	Result      ResultDigest    `json:"result"`
 }
 
 // ResultDigest is the serializable portion of a command result retained in

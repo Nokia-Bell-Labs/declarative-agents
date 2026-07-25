@@ -26,7 +26,7 @@ type documentationCuratorConfig struct {
 	profilePath string
 	docsAddr    string
 	controlAddr string
-	requestAddr string
+	monitorAddr string
 }
 
 // DocumentationCurator proves the Knowledge Manager profile UX and lifecycle tracer.
@@ -52,7 +52,7 @@ func (Integration) DocumentationCurator() error {
 		return fmt.Errorf("documentation-curator did not become ready: %w\n%s", err, output.String())
 	}
 	if err := assertDocumentationCuratorHTTP(cfg.docsAddr); err != nil {
-		return err
+		return fmt.Errorf("%w\n%s", err, output.String())
 	}
 	if err := requestDocumentationCuratorExit(cfg.controlAddr); err != nil {
 		return err
@@ -97,7 +97,7 @@ func ephemeralDocumentationCuratorConfig(tmpDir string) (documentationCuratorCon
 	if err != nil {
 		return documentationCuratorConfig{}, err
 	}
-	requestAddr, err := freeLoopbackAddr()
+	monitorAddr, err := freeLoopbackAddr()
 	if err != nil {
 		return documentationCuratorConfig{}, err
 	}
@@ -105,7 +105,7 @@ func ephemeralDocumentationCuratorConfig(tmpDir string) (documentationCuratorCon
 		profilePath: filepath.Join(tmpDir, "profile.yaml"),
 		docsAddr:    docsAddr,
 		controlAddr: controlAddr,
-		requestAddr: requestAddr,
+		monitorAddr: monitorAddr,
 	}, nil
 }
 
@@ -137,6 +137,7 @@ tool_declarations:
   - %q
   - %q
   - %q
+  - %q
 rest_definitions:
   - %q
 `, filepath.Join(profileDir, "machine.yaml"),
@@ -145,23 +146,17 @@ rest_definitions:
 		filepath.Join(profileDir, "declarations.yaml"),
 		filepath.Join(profileDir, "request-declarations.yaml"),
 		filepath.Join(coreRoot, "tools", "builtin", "lifecycle", "exit-agent.yaml"),
+		filepath.Join(coreRoot, "tools", "builtin", "spec-validation", "all.yaml"),
 		filepath.Join(tmpDir, "rest.yaml"))
 	return os.WriteFile(filepath.Join(tmpDir, "profile.yaml"), []byte(profile), 0o644)
 }
 
-func writeDocumentationCuratorBuiltin(profilesRoot, coreRoot, tmpDir string, cfg documentationCuratorConfig) error {
+func writeDocumentationCuratorBuiltin(profilesRoot, _ string, tmpDir string, _ documentationCuratorConfig) error {
 	content, err := readDocumentationCuratorConfig(profilesRoot, "builtin.yaml")
 	if err != nil {
 		return err
 	}
-	replacements := map[string]string{
-		"addr: :18081":         "addr: " + fmt.Sprintf("%q", cfg.docsAddr),
-		"docs_dir: docs":       "docs_dir: " + fmt.Sprintf("%q", filepath.Join(coreRoot, "docs")),
-		"configs_dir: configs": "configs_dir: " + fmt.Sprintf("%q", filepath.Join(coreRoot, "configs")),
-		"source_dir: .":        "source_dir: " + fmt.Sprintf("%q", coreRoot),
-		"profile_path: agents/knowledge-manager/documentation-curator/profile.yaml": "profile_path: " + fmt.Sprintf("%q", cfg.profilePath),
-	}
-	return os.WriteFile(filepath.Join(tmpDir, "builtin.yaml"), []byte(replaceAll(content, replacements)), 0o644)
+	return os.WriteFile(filepath.Join(tmpDir, "builtin.yaml"), []byte(content), 0o644)
 }
 
 func writeDocumentationCuratorRest(profilesRoot, _ string, tmpDir string, cfg documentationCuratorConfig) error {
@@ -173,9 +168,10 @@ func writeDocumentationCuratorRest(profilesRoot, _ string, tmpDir string, cfg do
 		"http://127.0.0.1:18081":   "http://" + cfg.docsAddr,
 		"ports: [18081]":           "ports: [" + localPort(cfg.docsAddr) + "]",
 		"ports: [18082]":           "ports: [" + localPort(cfg.controlAddr) + "]",
-		"ports: [18083]":           "ports: [" + localPort(cfg.requestAddr) + "]",
+		"ports: [18084]":           "ports: [" + localPort(cfg.monitorAddr) + "]",
+		"address: 127.0.0.1:18081": "address: " + cfg.docsAddr,
 		"address: 127.0.0.1:18082": "address: " + cfg.controlAddr,
-		"address: 127.0.0.1:18083": "address: " + cfg.requestAddr,
+		"address: 127.0.0.1:18084": "address: " + cfg.monitorAddr,
 	}
 	return os.WriteFile(filepath.Join(tmpDir, "rest.yaml"), []byte(replaceAll(content, replacements)), 0o644)
 }
@@ -237,10 +233,48 @@ func assertDocumentationCuratorHTTP(addr string) error {
 	if err := requirePOSTStatus(addr, "/api/v1/docs/validate", `{"paths":["SPECIFICATIONS.yaml"]}`, http.StatusOK); err != nil {
 		return err
 	}
-	if err := requirePOSTStatus(addr, "/api/v1/docs/suggestions", `{"path":"SPECIFICATIONS.yaml","instruction":"Smoke check proposal."}`, http.StatusAccepted); err != nil {
+	if err := requirePOSTStatus(addr, "/api/v1/docs/search", `{"query":"agent core","limit":2}`, http.StatusOK); err != nil {
+		return err
+	}
+	patchID, err := createDocumentationSuggestion(addr, "Smoke check proposal.")
+	if err != nil {
+		return err
+	}
+	if err := requirePOSTStatus(addr, "/api/v1/docs/patches/"+patchID+"/approve", `{"decided_by":"integration","note":"profile proof"}`, http.StatusOK); err != nil {
+		return err
+	}
+	rejectedID, err := createDocumentationSuggestion(addr, "Smoke check rejection.")
+	if err != nil {
+		return err
+	}
+	if err := requirePOSTStatus(addr, "/api/v1/docs/patches/"+rejectedID+"/reject", `{"decided_by":"integration","reason":"rollback proof"}`, http.StatusOK); err != nil {
+		return err
+	}
+	if err := requirePOSTStatus(addr, "/api/v1/docs/patches/"+rejectedID+"/reopen", `{"decided_by":"integration","reason":"compensation proof"}`, http.StatusOK); err != nil {
 		return err
 	}
 	return requireHTML(addr, "/docs/SPECIFICATIONS.yaml")
+}
+
+func createDocumentationSuggestion(addr, instruction string) (string, error) {
+	body := fmt.Sprintf(`{"path":"SPECIFICATIONS.yaml","instruction":%q,"context":""}`, instruction)
+	data, status, err := requestDocumentation(addr, http.MethodPost, "/api/v1/docs/suggestions", body)
+	if err != nil {
+		return "", err
+	}
+	if status != http.StatusAccepted {
+		return "", fmt.Errorf("suggestion returned status %d: %s", status, data)
+	}
+	var payload struct {
+		PatchID string `json:"patch_id"`
+	}
+	if err := json.Unmarshal(data, &payload); err != nil {
+		return "", fmt.Errorf("decode suggestion: %w", err)
+	}
+	if payload.PatchID == "" {
+		return "", fmt.Errorf("suggestion response has empty patch_id: %s", data)
+	}
+	return payload.PatchID, nil
 }
 
 func requireDocumentTrace(addr, path string) error {
@@ -381,7 +415,7 @@ func assertDocumentationCuratorLifecycleExit(output string) error {
 }
 
 func waitDocumentationCuratorPortsFree(cfg documentationCuratorConfig) error {
-	for _, addr := range []string{cfg.docsAddr, cfg.controlAddr, cfg.requestAddr} {
+	for _, addr := range []string{cfg.docsAddr, cfg.controlAddr, cfg.monitorAddr} {
 		if err := waitTCPFree(addr); err != nil {
 			return err
 		}

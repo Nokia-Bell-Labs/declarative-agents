@@ -58,8 +58,8 @@ overall_findings:
     The desired lifecycle history and rollback tools are first-class STL
     builtin adapters selected by lifecycle profiles. Legacy exec wrappers and
     hidden Cobra history/rollback commands are migration artifacts only.
-  - validate is retained as a deprecated internal boundary aggregator for
-    compatibility, but current generator validation is machine-declared.
+  - Generator validation is machine-declared through explicit build, lint, and
+    test states; the deprecated validate aggregator has been retired.
   - Boundary tools carry explicit category (boundary) classification in their
     declarations.
   - Runtime output is still mostly human-readable core.Result.Output strings.
@@ -301,7 +301,7 @@ tools:
     role: boundary
     selected_by: [generator, planner]
     inputs_from: [workspace_files]
-    feeds_into: [lint, test, check_result]
+    feeds_into: [lint, test, increment_retry]
     side_effects: subprocess, possible_build_cache_or_binary
     output_contract: missing
     undo: noop_or_workspace_restore_if_artifacts
@@ -320,7 +320,7 @@ tools:
     role: boundary
     selected_by: [generator, planner]
     inputs_from: [workspace_files]
-    feeds_into: [LLM_reasoning, check_result]
+    feeds_into: [LLM_reasoning, increment_retry]
     side_effects: subprocess
     output_contract: missing
     undo: noop
@@ -350,7 +350,7 @@ tools:
     role: boundary
     selected_by: [generator, planner]
     inputs_from: [workspace_files]
-    feeds_into: [done, check_result]
+    feeds_into: [done, increment_retry, mark_task_done]
     side_effects: subprocess, possible_test_cache
     output_contract: declared
     undo: noop
@@ -360,29 +360,6 @@ tools:
     issues:
       - runtime output is not yet structured according to output.schema
     migration_priority: medium
-
-  - name: validate
-    role: boundary
-    status: deprecated_compatibility
-    selected_by: []
-    inputs_from: [tool_tracker, configured_validation_order]
-    feeds_into: [ValidationPassed, ValidationFailed]
-    side_effects: child_tool_execution
-    output_contract: declared
-    undo: boundary_compensation (child_command_undo, captures ran_child_tools)
-    overlaps:
-      - tool: build
-        difference: validate aggregates multiple tools; build is one command
-      - tool: lint
-        difference: validate aggregates multiple tools; lint is one command
-      - tool: test
-        difference: validate aggregates multiple tools; test is one command
-    issues:
-      - retained only for compatibility with machines that explicitly select it
-      - new generator validation sequences should be expressed in machine.yaml
-    split_recommendation:
-      - do not use for new validation flows; compose build/lint/test as state-machine transitions
-    migration_priority: low
 
   # Planner tools
   - name: extract_task
@@ -485,31 +462,76 @@ tools:
     role: boundary
     selected_by: [planner]
     inputs_from: [record_tracker_issue, extract_task]
-    feeds_into: [check_result]
+    feeds_into: [vet, build, test]
     side_effects: child_agent_process, workspace_mutation
     output_contract: missing
     undo: boundary_compensation (compensating_action, captures child_run_id + child_workspace_ref)
     overlaps:
-      - tool: launch_eval
-        difference: execute_task runs generator child for planner task; launch_eval runs evaluator child from bench
+      - tool: self_invoke
+        difference: execute_task runs the planner's executor contract; self_invoke runs an arbitrary configured child profile
     issues:
       - output.schema for execution result and workspace diff
     migration_priority: medium
 
-  - name: check_result
+  - name: reset_retry_count
+    role: word
+    selected_by: [planner]
+    inputs_from: [TaskExtracted]
+    feeds_into: [increment_retry]
+    side_effects: none
+    output_contract: labelled command-state zero
+    undo: noop (history truncation removes output)
+    overlaps: []
+    issues: []
+    migration_priority: low
+
+  - name: increment_retry
+    role: word
+    selected_by: [planner]
+    inputs_from: [labelled_command_state]
+    feeds_into: [check_retry_limit]
+    side_effects: none
+    output_contract: structured retry count
+    undo: noop (history truncation removes output)
+    overlaps: []
+    issues: []
+    migration_priority: low
+
+  - name: check_retry_limit
+    role: word
+    selected_by: [planner]
+    inputs_from: [increment_retry]
+    feeds_into: [execute_task, remaining_work]
+    side_effects: none
+    output_contract: declared predicate signals
+    undo: noop
+    overlaps: []
+    issues: []
+    migration_priority: low
+
+  - name: mark_task_done
     role: stateful_internal
     selected_by: [planner]
-    inputs_from: [execute_task, build, vet, test]
-    feeds_into: [extract_task, execute_task]
-    side_effects: pipeline_retry_counter
-    output_contract: missing
-    undo: restore_retry_counter
-    overlaps:
-      - tool: validate
-        difference: check_result decides retry/advance; validate runs skipped validation tools
-    issues:
-      - decision logic is acceptable as stateful internal, but needs explicit output and undo contracts
-    migration_priority: medium
+    inputs_from: [test]
+    feeds_into: [remaining_work]
+    side_effects: pipeline_graph_completion
+    output_contract: declared TaskCompleted signal
+    undo: restore_pipeline_graph_snapshot
+    overlaps: []
+    issues: []
+    migration_priority: low
+
+  - name: remaining_work
+    role: word
+    selected_by: [planner]
+    inputs_from: [mark_task_done, check_retry_limit]
+    feeds_into: [extract_task, Completed, Stalled]
+    side_effects: none
+    output_contract: declared WorkRemaining, AllDone, or Blocked signal
+    undo: noop
+    overlaps: []
+    issues: []
+    migration_priority: low
 
   # Evaluator session tools
   - name: parse_suite_config
@@ -794,41 +816,14 @@ tools:
       - needs output.schema for meta path and summary fields
     migration_priority: medium
 
-  # Bench tools
-  - name: serve_ui
-    role: boundary
-    selected_by: [bench]
-    inputs_from: [bench_state]
-    feeds_into: [launch_eval, terminal]
-    side_effects: http_server, user_interaction_block
-    output_contract: missing
-    undo: boundary_compensation (compensating_action, captures server_addr + user_action)
-    overlaps:
-      - tool: invoke_llm
-        difference: serve_ui blocks on human UI actions; invoke_llm blocks on model response
-    issues:
-      - output.schema for user action type and parameters
-    migration_priority: medium
-
-  - name: launch_eval
-    role: boundary
-    selected_by: [bench]
-    inputs_from: [serve_ui]
-    feeds_into: [serve_ui]
-    side_effects: child_agent_process, eval_results_write
-    output_contract: missing
-    undo: boundary_compensation (compensating_action, captures suite_path + output_dir + child_machine + child_tools)
-    overlaps:
-      - tool: execute_task
-        difference: launch_eval starts evaluator session; execute_task starts generator for planner task
-    issues:
-      - output.schema for evaluator session result summary
-    migration_priority: medium
+  # Bench owns no core-specific tools. Its profile aliases generic REST
+  # lifecycle/event, evaluation-query, predicate, compose, exec, filesystem,
+  # and self_invoke words.
 
   # Spec validation tools
   - name: load_corpus
     role: stateful_internal
-    selected_by: [validate]
+    selected_by: [jurist]
     inputs_from: [workspace_specs]
     feeds_into: [validate_specs]
     side_effects: validation_state_mutation
@@ -845,22 +840,19 @@ tools:
 
   - name: validate_specs
     role: word
-    selected_by: [validate]
+    selected_by: [jurist]
     inputs_from: [load_corpus]
     feeds_into: [format_report]
     side_effects: validation_state_mutation
     output_contract: missing
     undo: restore_validation_findings
-    overlaps:
-      - tool: validate
-        difference: validate_specs runs spec consistency checks; validate aggregates skipped validation tools
     issues:
       - mutates validation findings, so undo contract must be explicit
     migration_priority: medium
 
   - name: format_report
     role: word
-    selected_by: [validate]
+    selected_by: [jurist]
     inputs_from: [validate_specs]
     feeds_into: [terminal]
     side_effects: none
@@ -1053,7 +1045,6 @@ boundary_tools_with_compensation:
     All boundary tools now implement UndoMementoProvider and declare
     payload: boundary_compensation with captures in their tool YAML.
   tools:
-    - validate
     - suspend
     - checkpoint_rollback
     - self_invoke
@@ -1061,8 +1052,6 @@ boundary_tools_with_compensation:
     - execute_task
     - run_point
     - run_agent
-    - serve_ui
-    - launch_eval
     - commit
     - issue_create
     - issue_close

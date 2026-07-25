@@ -4,7 +4,9 @@ package service
 
 import (
 	"context"
+	"encoding/json"
 	"fmt"
+	"net/url"
 	"path/filepath"
 	"strings"
 
@@ -63,14 +65,32 @@ func (c command) nextScenario() core.Result {
 		Signal: SignalScenarioReady, CommandName: c.toolName,
 		Output: jsonOutput(map[string]interface{}{
 			"subject": scenario.Subject, "scenario": scenario.Name,
-			"validators": len(scenario.Validators), "fixtures": len(scenario.Fixtures),
+			"validators": validatorItems(scenario.Validators),
+			"fixtures":   fixtureItems(scenario.Fixtures),
 		}),
 	}
 }
 
-// startMocks starts one mock per fixture the scenario declares, recording each
-// mock's runtime base URL against the environment variable the subject reads.
-func (c command) startMocks() core.Result {
+func fixtureItems(fixtures []string) []map[string]string {
+	items := make([]map[string]string, 0, len(fixtures))
+	for _, fixture := range fixtures {
+		items = append(items, map[string]string{"path": fixture})
+	}
+	return items
+}
+
+func validatorItems(profiles []string) []map[string]string {
+	items := make([]map[string]string, 0, len(profiles))
+	for _, profile := range profiles {
+		items = append(items, map[string]string{
+			"name": validatorName(profile), "profile": profile,
+		})
+	}
+	return items
+}
+
+// startScenarioMock starts the one mock bound by MachineSpec for_each.
+func (c command) startScenarioMock() core.Result {
 	scenario, manifest, ok := c.session.Current()
 	if !ok {
 		return commandError(c.toolName, fmt.Errorf("%s: no current scenario", c.toolName))
@@ -78,22 +98,23 @@ func (c command) startMocks() core.Result {
 	if c.cfg.Profile == "" {
 		return commandError(c.toolName, fmt.Errorf("%s: requires the mock profile", c.toolName))
 	}
-
-	started := make([]runningMock, 0, len(scenario.Fixtures))
-	for _, fixture := range scenario.Fixtures {
-		mock, err := c.startOneMock(scenario, manifest, fixture)
-		if err != nil {
-			// Leave teardown to the machine's failure edge; children already
-			// started stay tracked in the shared service state.
-			return commandError(c.toolName, err)
-		}
-		c.session.RecordMock(mock)
-		started = append(started, mock)
+	fixtureValue, err := core.ResolveFromSelector(c.commandState, c.cfg.Fixture)
+	if err != nil {
+		return commandError(c.toolName, err)
 	}
-
+	fixture, ok := fixtureValue.(string)
+	if !ok || fixture == "" {
+		return commandError(c.toolName, fmt.Errorf("%s: fixture selector did not resolve to a string", c.toolName))
+	}
+	mock, err := c.startOneMock(scenario, manifest, fixture)
+	if err != nil {
+		return commandError(c.toolName, err)
+	}
+	c.session.RecordMock(mock)
 	return core.Result{
-		Signal: SignalMocksStarted, CommandName: c.toolName,
-		Output: jsonOutput(map[string]interface{}{"mocks": started}),
+		Signal: SignalMockStarted, CommandName: c.toolName,
+		Output:  jsonOutput(map[string]interface{}{"mock": mock}),
+		Receipt: jsonOutput(map[string]interface{}{"service": mock.Service}),
 	}
 }
 
@@ -159,14 +180,31 @@ func (c command) startSubject() core.Result {
 	if err != nil {
 		return commandError(c.toolName, err)
 	}
+	return c.recordStartedSubject(name, profile, env, manifest, out)
+}
+
+func (c command) recordStartedSubject(
+	name, profile string,
+	env []string,
+	manifest ScenarioManifest,
+	out map[string]interface{},
+) core.Result {
 	baseURL := out["base_url"].(string)
 	c.session.RecordSubject(name, baseURL)
+	healthBaseURL, healthPath, err := subjectHealthTarget(baseURL, manifest.SubjectHealthPath)
+	if err != nil {
+		_ = c.session.Services.Stop(name, defaultStopGrace)
+		return commandError(c.toolName, err)
+	}
 
 	return core.Result{
 		Signal: SignalSubjectStarted, CommandName: c.toolName,
 		Output: jsonOutput(map[string]interface{}{
 			"subject": name, "profile": profile, "base_url": baseURL, "env": env,
+			"health_base_url": healthBaseURL, "health_path": healthPath,
+			"started_at": out["started_at"],
 		}),
+		Receipt: jsonOutput(map[string]interface{}{"service": name}),
 	}
 }
 
@@ -179,72 +217,110 @@ func subjectAddress(manifest ScenarioManifest) (string, error) {
 	return FreeAddress()
 }
 
-// awaitSubject health-checks the subject that this scenario started.
-func (c command) awaitSubject() core.Result {
-	_, baseURL := c.session.Subject()
-	if baseURL == "" {
-		return commandError(c.toolName, fmt.Errorf("%s: no subject started", c.toolName))
+// subjectHealthTarget separates the trusted runtime authority from the
+// scenario-authored path so the REST operation can select both from the
+// labeled subject-start result without accepting a caller-supplied URL.
+func subjectHealthTarget(baseURL, declared string) (string, string, error) {
+	if declared == "" {
+		declared = defaultSubjectHealthPath
 	}
-	_, manifest, _ := c.session.Current()
-	path := manifest.SubjectHealthPath
-	if path == "" {
-		path = c.cfg.URL
+	target, err := url.Parse(declared)
+	if err != nil {
+		return "", "", fmt.Errorf("subject health path %q: %w", declared, err)
 	}
-	if path == "" {
-		path = defaultSubjectHealthPath
+	if target.IsAbs() {
+		if target.Scheme != "http" && target.Scheme != "https" {
+			return "", "", fmt.Errorf("subject health URL scheme %q is not allowed", target.Scheme)
+		}
+		if target.Host == "" || target.User != nil {
+			return "", "", fmt.Errorf("subject health URL must have a host and no user information")
+		}
+		return target.Scheme + "://" + target.Host, strings.TrimPrefix(target.EscapedPath(), "/"), nil
 	}
-	target := baseURL + path
-	if strings.HasPrefix(path, "http://") || strings.HasPrefix(path, "https://") {
-		// Health on a different listener than the driven one.
-		target = path
-	}
-
-	output, healthy := c.session.Services.AwaitHealthy(
-		target,
-		parseDuration(c.cfg.Timeout, defaultHealthTimeout),
-		parseDuration(c.cfg.Interval, defaultHealthInterval),
-	)
-	signal := SignalHealthy
-	if !healthy {
-		signal = SignalHealthTimeout
-	}
-	return core.Result{Signal: signal, CommandName: c.toolName, Output: jsonOutput(output)}
+	return baseURL, strings.TrimPrefix(declared, "/"), nil
 }
 
-// runScenarioValidators runs the current scenario's validators concurrently
-// against its single subject instance.
-func (c command) runScenarioValidators(ctx context.Context) core.Result {
-	scenario, _, ok := c.session.Current()
-	if !ok {
-		return commandError(c.toolName, fmt.Errorf("%s: no current scenario", c.toolName))
-	}
-	if len(scenario.Validators) == 0 {
-		return commandError(c.toolName, fmt.Errorf("%s: scenario %q declares no validator", c.toolName, scenario.Name))
+// runScenarioValidator runs the one validator bound by MachineSpec for_each.
+func (c command) runScenarioValidator(ctx context.Context) core.Result {
+	profile, name, err := c.validatorBinding()
+	if err != nil {
+		return commandError(c.toolName, err)
 	}
 	_, subjectURL := c.session.Subject()
-
-	specs := make([]ValidatorSpec, 0, len(scenario.Validators))
-	for _, profile := range scenario.Validators {
-		env := append([]string{"SUBJECT_URL=" + subjectURL}, c.session.SubjectEnv()...)
-		specs = append(specs, ValidatorSpec{
-			Name:      validatorName(profile),
-			Profile:   profile,
-			Directory: c.cfg.Directory,
-			Env:       append(env, c.cfg.Env...),
-		})
+	if subjectURL == "" {
+		return commandError(c.toolName, fmt.Errorf("%s: no subject started", c.toolName))
 	}
-
-	outcomes := RunValidators(ctx, c.cfg.Binary, specs, parseDuration(c.cfg.Timeout, defaultRunTimeout))
-	c.session.RecordValidators(outcomes)
-
-	signal := SignalValidatorsCompleted
-	if failure, failed := FirstFailure(outcomes); failed && (failure.TimedOut || failure.Error != "") {
-		signal = SignalValidatorsIncomplete
+	env := append([]string{"SUBJECT_URL=" + subjectURL}, c.session.SubjectEnv()...)
+	outcome := runOneValidator(ctx, c.cfg.Binary, ValidatorSpec{
+		Name: name, Profile: profile, Directory: c.cfg.Directory,
+		Env: append(env, c.cfg.Env...),
+	}, parseDuration(c.cfg.Timeout, defaultRunTimeout))
+	signal := SignalValidatorCompleted
+	if outcome.TimedOut || outcome.Error != "" {
+		signal = SignalValidatorIncomplete
 	}
 	return core.Result{
 		Signal: signal, CommandName: c.toolName,
+		Output:  jsonOutput(outcome),
+		Receipt: jsonOutput(map[string]interface{}{"validator": name}),
+	}
+}
+
+func (c command) validatorBinding() (string, string, error) {
+	value, err := core.ResolveFromSelector(c.commandState, c.cfg.Validator)
+	if err != nil {
+		return "", "", err
+	}
+	profile, ok := value.(string)
+	if !ok || profile == "" {
+		return "", "", fmt.Errorf("%s: validator selector did not resolve to a string", c.toolName)
+	}
+	return profile, validatorName(profile), nil
+}
+
+// recordScenarioValidators stores the ordered outcomes from the visible join.
+func (c command) recordScenarioValidators() core.Result {
+	value, err := core.ResolveFromSelector(c.commandState, c.cfg.Outcomes)
+	if err != nil {
+		return commandError(c.toolName, err)
+	}
+	items, ok := value.([]interface{})
+	if !ok {
+		return commandError(c.toolName, fmt.Errorf("%s: outcomes selector did not resolve to an array", c.toolName))
+	}
+	outcomes, err := decodeValidatorOutcomes(items)
+	if err != nil {
+		return commandError(c.toolName, err)
+	}
+	c.session.RecordValidators(outcomes)
+	return core.Result{
+		Signal: SignalValidatorsRecorded, CommandName: c.toolName,
 		Output: jsonOutput(map[string]interface{}{"validators": outcomes, "passed": AllPassed(outcomes)}),
 	}
+}
+
+func decodeValidatorOutcomes(items []interface{}) ([]ValidatorOutcome, error) {
+	outcomes := make([]ValidatorOutcome, 0, len(items))
+	for index, item := range items {
+		data, err := json.Marshal(item)
+		if err != nil {
+			return nil, fmt.Errorf("validator outcome %d: %w", index, err)
+		}
+		var joined struct {
+			Result struct {
+				Output string `json:"output"`
+			} `json:"result"`
+		}
+		if err := json.Unmarshal(data, &joined); err != nil {
+			return nil, fmt.Errorf("validator outcome %d: %w", index, err)
+		}
+		var outcome ValidatorOutcome
+		if err := json.Unmarshal([]byte(joined.Result.Output), &outcome); err != nil {
+			return nil, fmt.Errorf("validator outcome %d output: %w", index, err)
+		}
+		outcomes = append(outcomes, outcome)
+	}
+	return outcomes, nil
 }
 
 // collectVerdict derives this scenario's verdict from its validator outcomes.
@@ -257,23 +333,14 @@ func (c command) collectVerdict() core.Result {
 	return core.Result{Signal: signal, CommandName: c.toolName, Output: jsonOutput(verdict)}
 }
 
-// teardownScenario stops every child started for the current scenario. It runs
-// on the success path and on every failure edge, so no process outlives a
-// scenario (srd018 R1.5).
-func (c command) teardownScenario() core.Result {
-	grace := parseDuration(c.cfg.Grace, defaultStopGrace)
-	stopped := make([]map[string]interface{}, 0)
-
-	if name, _ := c.session.Subject(); name != "" {
-		stopped = append(stopped, c.session.Services.Stop(name, grace))
+// listScenarioChildren exposes subject-first teardown items to MachineSpec.
+func (c command) listScenarioChildren() core.Result {
+	if _, _, ok := c.session.Current(); !ok {
+		return commandError(c.toolName, fmt.Errorf("%s: no current scenario", c.toolName))
 	}
-	for _, mock := range c.session.Mocks() {
-		stopped = append(stopped, c.session.Services.Stop(mock.Service, grace))
-	}
-
 	return core.Result{
-		Signal: SignalScenarioTornDown, CommandName: c.toolName,
-		Output: jsonOutput(map[string]interface{}{"stopped": stopped, "running": c.session.Services.Running()}),
+		Signal: SignalScenarioChildrenListed, CommandName: c.toolName,
+		Output: jsonOutput(map[string]interface{}{"children": c.session.Children()}),
 	}
 }
 

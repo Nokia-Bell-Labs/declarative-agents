@@ -1,10 +1,21 @@
-# Bench Documentation UX Inventory
+# Historical Bench Documentation UX Inventory
 
-This inventory records the current bench documentation browser before it moves
-to a standalone Knowledge Manager host. It covers `agent-core-h0x9.1.1`. No code
-moved for this issue.
+This inventory records the bench documentation browser as it existed before it
+moved to the standalone Knowledge Manager host. It covers
+`agent-core-h0x9.1.1`; paths and `serve_ui` behavior below are intentionally a
+historical snapshot rather than current architecture.
 
-## Backend Ownership
+## Current Disposition
+
+- GH-881 removed the documentation-specific Go application from Agent Core and
+  moved documentation UX ownership to the Knowledge Manager profile.
+- GH-888 removed the remaining bench-specific Go HTTP server and `serve_ui` /
+  `launch_eval` workflow. Bench routes, request/host machines, and UI assets now
+  live under `agent-profiles/agents/bench`.
+- Agent Core now supplies generic REST, filesystem, compose, predicate,
+  self-invoke, and HTTP-independent evaluation artifact query primitives.
+
+## Historical Backend Ownership
 
 `internal/evaluation/bench/server.go` mounts the HTTP routes and wraps API
 responses with a `data` field on success or an `error` field on failure. The
@@ -24,7 +35,7 @@ Asset loading stays under `internal/evaluation/bench/ui`. In normal builds,
 With the `production` tag, `assets_prod.go` embeds `dist/*` and serves the
 embedded subdirectory.
 
-## Frontend Ownership
+## Historical Frontend Ownership
 
 `internal/evaluation/bench/ui/src/App.tsx` owns the React routes and top-level
 navigation. `api/client.ts` owns `/api/v1` helpers and the TypeScript response
@@ -38,7 +49,7 @@ uses the config API to suggest suite files and submits launch actions. These
 pages share the same embedded UI bundle, so standalone docs hosting must split
 or intentionally retain that bundle boundary.
 
-## Configuration
+## Historical Configuration
 
 `agents/bench/profile.yaml` selects `agents/bench/builtin.yaml`. The `serve_ui`
 tool config sets `addr`, `data_dir`, `configs_dir`, `docs_dir`, and
@@ -134,7 +145,7 @@ source API. Source overlay failures show `Failed to load source file (is
 Current source matching recognizes only `pkg/...` and `cmd/...`. It does not
 link `internal/...`, `agents/...`, or `tools/...` source paths.
 
-## Asset And Build Impact
+## Historical Asset And Build Impact
 
 Development mode still expects a built `dist/` directory. The current path does not proxy a
 Vite dev server. Production mode embeds the same `dist/` tree and uses
@@ -145,7 +156,7 @@ Vite dev server. Production mode embeds the same `dist/` tree and uses
 `-tags production`. A standalone documentation host needs its own asset
 directory or a planned update to `embeddedUIDirs`.
 
-## Test Impact
+## Historical Test Impact
 
 Executable coverage proves the bench machine loads, the bench tools
 select `serve_ui` and `launch_eval`, the UI action transitions validate, session

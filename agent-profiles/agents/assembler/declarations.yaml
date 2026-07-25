@@ -67,7 +67,7 @@ tools:
       input:
         - The session holds the seeded work list.
       output:
-        - Output reports the subject, scenario, validator count, and fixture count.
+        - Output reports the subject, scenario, validator items, and fixture items.
       errors:
         - An unreadable scenario manifest emits CommandError.
     non_goals:
@@ -83,8 +83,8 @@ tools:
         properties:
           subject: {type: string}
           scenario: {type: string}
-          validators: {type: integer}
-          fixtures: {type: integer}
+          validators: {type: array}
+          fixtures: {type: array}
     side_effects:
       - kind: state_mutation
         target: scenario_session
@@ -101,25 +101,26 @@ tools:
         state_after_failure: The cursor has advanced past the scenario.
     config: {}
     relationships:
-      after: [discover_scenarios, teardown_scenario]
-      before: [start_scenario_mocks, report_rig_session]
+      after: [discover_scenarios, stop_scenario_child]
+      before: [start_scenario_mock, report_rig_session]
 
-  - name: start_scenario_mocks
+  - name: start_scenario_mock
     type: builtin
-    init: start_scenario_mocks
+    init: start_scenario_mock
     visibility: internal
     category: boundary
-    description: Start one mock per fixture the current scenario declares.
+    description: Start the one fixture mock bound by the machine iterator.
     problem: A subject's REST dependencies must answer controlled responses rather than a live service.
     goals:
-      - Start the shipped mock profile once per fixture, each on its own address.
-      - Record each mock's runtime base URL against the variable the subject reads.
+      - Start the shipped mock profile for the current iterator item.
+      - Record that mock's runtime base URL against the variable the subject reads.
     requirements:
       input:
         - Tool config declares the mock profile the rig starts.
-        - The session holds the current scenario and its fixtures.
+        - The session holds the current scenario.
+        - The fixture path comes from the trusted $from(fixture).path iterator binding.
       output:
-        - Output reports each mock's fixture, service name, environment variable, and base URL.
+        - Output reports this mock's fixture, service name, environment variable, and base URL.
       errors:
         - A spawn or port failure emits CommandError.
     non_goals:
@@ -127,13 +128,13 @@ tools:
     parameters:
       type: object
       properties: {}
-    emits: [MocksStarted, CommandError]
+    emits: [MockStarted, CommandError]
     output:
       description: The mocks started for this scenario.
       schema:
         type: object
         properties:
-          mocks: {type: array}
+          mock: {type: object}
     side_effects:
       - kind: child_agent_execution
         target: mock_agent
@@ -143,16 +144,17 @@ tools:
         state: mocks_recorded
     reversibility:
       classification: compensatable
-      undo: teardown_scenario
+      undo: stop_service
     undo:
       strategy: compensating_action
-      description: Stop the scenario's children rather than leave them running.
+      description: Decode the per-item receipt and stop only the mock started by this dispatch.
     errors:
       - signal: CommandError
         condition: A mock fails to spawn or no port can be reserved.
-        state_after_failure: Mocks started before the failure stay tracked for teardown.
+        state_after_failure: Earlier item dispatches remain separately visible and reversible.
     config:
       profile: agents/mock/profile.yaml
+      fixture: $from(fixture).path
     relationships:
       after: [next_scenario]
       before: [start_scenario_subject]
@@ -198,111 +200,164 @@ tools:
         state: subject_recorded
     reversibility:
       classification: compensatable
-      undo: teardown_scenario
+      undo: stop_service
     undo:
       strategy: compensating_action
-      description: Stop the scenario's children rather than leave them running.
+      description: Decode the subject receipt and stop only that child.
     errors:
       - signal: CommandError
         condition: The subject profile is missing, or the process fails to spawn.
         state_after_failure: The scenario's mocks stay tracked for teardown.
     config: {}
     relationships:
-      after: [start_scenario_mocks]
-      before: [await_scenario_subject]
+      after: [start_scenario_mock]
+      before: [probe_subject_health]
 
-  - name: await_scenario_subject
+  - name: probe_subject_health
     type: builtin
-    init: await_scenario_subject
+    init: rest_client_get
     visibility: internal
     category: boundary
-    description: Wait for the subject to serve before driving it.
+    description: Perform one declared REST probe against the started subject's health route.
     problem: Driving a subject that has not bound its port yields a false failure.
     goals:
-      - Poll the subject's health route within a declared bound.
-      - Report healthy and timeout as distinct signals the machine routes on.
+      - Resolve the trusted runtime health authority and path from the labeled subject start.
+      - Perform exactly one HTTP request so retry policy remains in MachineSpec.
     requirements:
       input:
-        - The session holds the started subject's base URL.
-        - Tool config declares the health path, timeout, and interval; a scenario may override the path.
+        - The subject label holds the started child's health_base_url and health_path.
       output:
-        - Output reports the URL polled, attempts, and outcome.
+        - Output reports the REST operation, status, duration, and one transport attempt.
       errors:
-        - No subject started emits CommandError.
+        - Target resolution, network, timeout, and response mapping failures emit CommandError.
     non_goals:
-      - Does not poll without a limit.
+      - Does not retry, sleep, or own the health deadline.
     parameters:
       type: object
       properties: {}
-    emits: [Healthy, HealthTimeout, CommandError]
+    emits: [Healthy, HealthUnavailable, CommandError]
     output:
-      description: Health poll result.
+      description: One health probe result.
       schema:
         type: object
         properties:
-          url: {type: string}
+          operation: {type: string}
           attempts: {type: integer}
           status: {type: integer}
     side_effects:
-      - kind: state_read
-        target: subject_agent
+      - kind: external_api
+        target: scenario_subject.health
         state: read_only
     reversibility:
       classification: reversible
       undo: noop
     undo:
       strategy: noop
-      description: Polling changes no state.
+      description: A health read changes no state.
     errors:
       - signal: CommandError
-        condition: No subject has been started for the current scenario.
-        state_after_failure: No child state changes.
+        condition: REST target resolution, network, timeout, or response mapping fails.
+        state_after_failure: The subject remains tracked for retry or teardown.
     config:
-      url: /healthz
-      timeout: 30s
-      interval: 100ms
+      rest_ref: scenario_subject
+      operation: health
     relationships:
       after: [start_scenario_subject]
-      before: [run_scenario_validators]
+      before: [wait_health_retry, run_scenario_validator]
 
-  - name: run_scenario_validators
+  - name: wait_health_retry
     type: builtin
-    init: run_scenario_validators
+    init: delay
     visibility: internal
     category: boundary
-    description: Run this scenario's validator machines against its subject.
-    problem: A scenario's expectations are themselves machines, and several may share one subject.
+    description: Wait once between subject health probes within the declared startup deadline.
+    problem: Immediate retries create a hot loop, while an unbounded wait can strand scenario children.
     goals:
-      - Run every validator the scenario declares, concurrently, to completion.
-      - Report each terminal state so a verdict can name a failure.
+      - Delay one retry interval without performing I/O.
+      - Emit HealthTimeout when the window anchored at subject start expires.
     requirements:
       input:
-        - The session holds the current scenario's validator profiles and the subject URL.
-        - Tool config declares the overall timeout.
+        - The subject label holds an RFC3339 started_at timestamp.
       output:
-        - Output reports each validator's terminal state and whether all passed.
+        - Output reports the actual wait and whether the deadline was reached.
       errors:
-        - A scenario declaring no validator emits CommandError.
+        - A missing or malformed deadline source emits CommandError.
     non_goals:
-      - Does not decide the verdict; collect_scenario_verdict does.
+      - Does not perform a health request or choose whether the machine retries.
     parameters:
       type: object
       properties: {}
-    emits: [ValidatorsCompleted, ValidatorsIncomplete, CommandError]
+    emits: [HealthRetryReady, HealthTimeout, CommandError]
     output:
-      description: Validator outcomes for this scenario.
+      description: One bounded delay result.
       schema:
         type: object
         properties:
-          validators: {type: array}
+          waited: {type: string}
+          deadline_reached: {type: boolean}
+    side_effects:
+      - kind: state_read
+        target: local_clock
+        state: read_only
+    reversibility:
+      classification: reversible
+      undo: noop
+    undo:
+      strategy: noop
+      description: Waiting changes no state.
+    errors:
+      - signal: CommandError
+        condition: The deadline source cannot be resolved or parsed, or the wait is cancelled.
+        state_after_failure: The subject remains tracked for teardown.
+    config:
+      duration: 100ms
+      deadline: 30s
+      deadline_source: $from(subject).started_at
+      elapsed_signal: HealthRetryReady
+      deadline_signal: HealthTimeout
+    relationships:
+      after: [probe_subject_health]
+      before: [probe_subject_health]
+
+  - name: run_scenario_validator
+    type: builtin
+    init: run_scenario_validator
+    visibility: internal
+    category: boundary
+    description: Run the one validator bound by the machine iterator.
+    problem: Each validator child needs its own dispatch, trace, checkpoint entry, receipt, and rollback boundary.
+    goals:
+      - Run one validator to completion through the shared child-agent execution path.
+      - Report its terminal state without reducing sibling outcomes.
+    requirements:
+      input:
+        - The validator profile comes from the trusted $from(validator).profile iterator binding.
+        - The session holds the current subject URL.
+      output:
+        - Output reports this validator's terminal state and exit code.
+      errors:
+        - A missing binding or subject emits CommandError.
+    non_goals:
+      - Does not iterate, join, record sibling outcomes, or decide the verdict.
+      - Does not run validators concurrently; bounded parallel iteration is deferred.
+    parameters:
+      type: object
+      properties: {}
+    emits: [ValidatorCompleted, ValidatorIncomplete, CommandError]
+    output:
+      description: One validator outcome.
+      schema:
+        type: object
+        properties:
+          name: {type: string}
+          profile: {type: string}
+          exit_code: {type: integer}
           passed: {type: boolean}
+          timed_out: {type: boolean}
     side_effects:
       - kind: child_agent_execution
         target: validator_agent
-        state: validators_completed
-      - kind: state_mutation
-        target: scenario_session
-        state: outcomes_recorded
+        state: validator_completed
     reversibility:
       classification: irreversible
       undo: noop
@@ -311,12 +366,63 @@ tools:
       description: A validator run that already drove the subject cannot be unrun.
     errors:
       - signal: CommandError
-        condition: The scenario declares no validator machine.
-        state_after_failure: No validator ran and no outcome is recorded.
+        condition: The iterator binding or current subject is unavailable.
+        state_after_failure: The iterator join exposes the failed item.
     config:
+      validator: $from(validator).profile
       timeout: 5m
     relationships:
-      after: [await_scenario_subject]
+      after: [probe_subject_health]
+      before: [record_scenario_validators]
+
+  - name: record_scenario_validators
+    type: builtin
+    init: record_scenario_validators
+    visibility: internal
+    category: boundary
+    description: Record the validator iterator's ordered joined outcomes.
+    problem: Later verdict and report words need the machine-visible item results retained in the session.
+    goals:
+      - Decode the ordered join output without running or reducing validators.
+      - Store the outcomes for verdict reporting.
+    requirements:
+      input:
+        - The labeled validator join contains one result per dispatched item.
+      output:
+        - Output reports the ordered outcomes and their conjunction.
+      errors:
+        - Malformed join output emits CommandError.
+    non_goals:
+      - Does not launch children, iterate, or choose a verdict signal.
+    parameters:
+      type: object
+      properties: {}
+    emits: [ValidatorsRecorded, CommandError]
+    output:
+      description: Recorded validator outcomes.
+      schema:
+        type: object
+        properties:
+          validators: {type: array}
+          passed: {type: boolean}
+    side_effects:
+      - kind: state_mutation
+        target: scenario_session
+        state: outcomes_recorded
+    reversibility:
+      classification: irreversible
+      undo: noop
+    undo:
+      strategy: irreversible
+      description: Recorded outcomes remain part of this scenario's report.
+    errors:
+      - signal: CommandError
+        condition: The join output cannot be decoded.
+        state_after_failure: No validator outcomes are recorded.
+    config:
+      outcomes: $from(validators_joined).items
+    relationships:
+      after: [run_scenario_validator]
       before: [collect_scenario_verdict]
 
   - name: collect_scenario_verdict
@@ -367,8 +473,8 @@ tools:
         state_after_failure: No verdict is recorded for the scenario; the run ends in Failed.
     config: {}
     relationships:
-      after: [run_scenario_validators]
-      before: [teardown_scenario]
+      after: [record_scenario_validators]
+      before: [list_scenario_children]
 
   - name: fail_scenario_start
     type: builtin
@@ -520,55 +626,103 @@ tools:
     config:
       reason: the scenario's validators could not be run
 
-  - name: teardown_scenario
+  - name: list_scenario_children
     type: builtin
-    init: teardown_scenario
+    init: list_scenario_children
     visibility: internal
     category: boundary
-    description: Stop every child this scenario started.
-    problem: A child that outlives its scenario leaks a port and corrupts the next run.
+    description: Expose subject-first teardown items for the current scenario.
+    problem: MachineSpec needs a deterministic runtime list before it can dispatch one stop per child.
     goals:
-      - Stop the subject and every mock, gracefully then forcibly.
-      - Leave nothing running before the loop continues.
+      - List the subject followed by mocks in their start order.
+      - Leave child stopping to the iterator.
     requirements:
       input:
-        - The session holds the children started for the current scenario.
-        - Tool config declares the graceful stop budget.
+        - The session tracks children started for the current scenario.
       output:
-        - Output reports what was stopped and what remains running.
+        - Output contains ordered service-name objects.
       errors:
-        - None; stopping an already-stopped child succeeds.
+        - A missing current scenario emits CommandError.
     non_goals:
-      - Does not decide the verdict.
+      - Does not stop a child or iterate the list.
     parameters:
       type: object
       properties: {}
-    emits: [ScenarioTornDown]
+    emits: [ScenarioChildrenListed, CommandError]
     output:
-      description: Teardown result.
+      description: Ordered teardown items.
       schema:
         type: object
         properties:
-          stopped: {type: array}
-          running: {type: array}
+          children: {type: array}
+    side_effects:
+      - kind: state_read
+        target: scenario_session
+        state: read_only
+    reversibility:
+      classification: reversible
+      undo: noop
+    undo:
+      strategy: noop
+      description: Listing children changes no state.
+    errors:
+      - signal: CommandError
+        condition: The scenario session has no current scenario.
+        state_after_failure: No teardown list is emitted; the run ends in Failed.
+    config: {}
+    relationships:
+      after: [collect_scenario_verdict, fail_scenario_start, fail_scenario_unhealthy, fail_scenario_validators]
+      before: [stop_scenario_child]
+
+  - name: stop_scenario_child
+    type: builtin
+    init: stop_service
+    visibility: internal
+    category: boundary
+    description: Stop the one scenario child bound by the teardown iterator.
+    problem: Every child stop needs its own visible dispatch and checkpoint boundary.
+    goals:
+      - Reuse the atomic stop_service operation for one iterator item.
+      - Stop gracefully within a bound, then kill if needed.
+    requirements:
+      input:
+        - The service name comes from the trusted $from(child).service iterator binding.
+      output:
+        - Output and receipt report the stopped service.
+      errors:
+        - An invalid selector emits CommandError.
+    non_goals:
+      - Does not list, loop over, or reduce scenario children.
+    parameters:
+      type: object
+      properties: {}
+    emits: [ServiceStopped, CommandError]
+    output:
+      description: One child stop result.
+      schema:
+        type: object
+        properties:
+          service: {type: string}
+          stopped: {type: boolean}
     side_effects:
       - kind: child_process
-        target: scenario_children
-        state: children_stopped
+        target: scenario_child
+        state: child_stopped
     reversibility:
       classification: irreversible
       undo: noop
     undo:
       strategy: irreversible
-      description: A stopped child is restarted by a new scenario, not by an undo.
+      description: A stopped child is restarted by a new scenario, not by undo.
     errors:
       - signal: CommandError
-        condition: A scenario child cannot be torn down.
-        state_after_failure: Scenario children may still be running; the run ends in Failed.
+        condition: The iterator binding cannot resolve a service name.
+        state_after_failure: The join exposes the failed stop item.
     config:
+      service: $from(child).service
       grace: 5s
     relationships:
-      after: [collect_scenario_verdict, fail_scenario_start, fail_scenario_unhealthy, fail_scenario_validators]
+      after: [list_scenario_children]
       before: [next_scenario]
 
   - name: report_rig_session

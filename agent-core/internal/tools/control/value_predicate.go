@@ -208,8 +208,15 @@ func (c *valuePredicateCmd) resolveOperand(operand string, output map[string]int
 // compared numerically for one response and lexicographically for the next would
 // not be a contract.
 func (c *valuePredicateCmd) compare(left, right interface{}) (bool, error) {
-	if c.operandType == OperandString {
-		return compareStrings(c.op, formatOperand(left), formatOperand(right)), nil
+	return compareValues(c.op, c.operandType, left, right)
+}
+
+// compareValues is the shared scalar comparison path for value_predicate and
+// collection words. Keeping coercion here ensures both words implement the
+// same closed operator and operand-type contract.
+func compareValues(op, operandType string, left, right interface{}) (bool, error) {
+	if operandType == OperandString {
+		return compareStrings(op, formatOperand(left), formatOperand(right)), nil
 	}
 	leftNum, err := coerceNumber(left)
 	if err != nil {
@@ -219,7 +226,7 @@ func (c *valuePredicateCmd) compare(left, right interface{}) (bool, error) {
 	if err != nil {
 		return false, fmt.Errorf("right operand: %w", err)
 	}
-	return compareNumbers(c.op, leftNum, rightNum), nil
+	return compareNumbers(op, leftNum, rightNum), nil
 }
 
 func compareNumbers(op string, left, right float64) bool {

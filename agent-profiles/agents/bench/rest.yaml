@@ -1,0 +1,163 @@
+rest:
+  version: v1
+  auth:
+    none: {type: none}
+  limits:
+    local_bench:
+      timeout: 30s
+      read_timeout: 10s
+      max_request_bytes: 262144
+      max_response_bytes: 8388608
+      max_header_bytes: 16384
+      redirect: {mode: none}
+      network:
+        schemes: [http]
+        hosts: [127.0.0.1, localhost]
+        ports: [8080]
+  servers:
+    bench:
+      address: 127.0.0.1:8080
+      limits_ref: local_bench
+      queue: {name: bench_actions, capacity: 1, overflow: reject, timeout: 30s}
+      shutdown: {timeout: 5s, drain_policy: drain_then_stop, stop_listeners: true}
+      endpoints:
+        health:
+          method: GET
+          path: /api/v1/health
+          binding: health
+
+        sessions:
+          method: GET
+          path: /api/v1/sessions
+          binding: machine_request
+          machine_request: &sessions_request
+            profile: profile.yaml
+            machine: request-machine.yaml
+            timeout: 30s
+            response:
+              terminal_states:
+                Ready: {status: 200, content_type: application/json, body: {data: $.data}}
+                Missing: {status: 404, content_type: application/json, body: {error: evaluation_missing}}
+                Denied: {status: 400, content_type: application/json, body: {error: invalid_evaluation_path}}
+                Failed: {status: 500, content_type: application/json, body: {error: command_error}}
+
+        session:
+          method: GET
+          path: /api/v1/sessions/{suite}/{timestamp}
+          binding: machine_request
+          request:
+            path: {suite: {type: string}, timestamp: {type: string}}
+          machine_request:
+            <<: *sessions_request
+            initial_signal: SessionRequested
+            request:
+              path: {suite: $.suite, timestamp: $.timestamp}
+
+        points:
+          method: GET
+          path: /api/v1/sessions/{suite}/{timestamp}/points
+          binding: machine_request
+          request:
+            path: {suite: {type: string}, timestamp: {type: string}}
+          machine_request:
+            <<: *sessions_request
+            initial_signal: PointsRequested
+            request:
+              path: {suite: $.suite, timestamp: $.timestamp}
+
+        trace:
+          method: GET
+          path: /api/v1/sessions/{suite}/{timestamp}/points/{point_id}
+          binding: machine_request
+          request:
+            path: {suite: {type: string}, timestamp: {type: string}, point_id: {type: string}}
+          machine_request:
+            <<: *sessions_request
+            initial_signal: TraceRequested
+            request:
+              path: {suite: $.suite, timestamp: $.timestamp, point_id: $.point_id}
+
+        experiment:
+          method: GET
+          path: /api/v1/sessions/{suite}/{timestamp}/points/{point_id}/experiment
+          binding: machine_request
+          request:
+            path: {suite: {type: string}, timestamp: {type: string}, point_id: {type: string}}
+          machine_request:
+            <<: *sessions_request
+            initial_signal: ExperimentRequested
+            request:
+              path: {suite: $.suite, timestamp: $.timestamp, point_id: $.point_id}
+
+        configs:
+          method: GET
+          path: /api/v1/configs
+          binding: machine_request
+          machine_request:
+            <<: *sessions_request
+            initial_signal: ConfigsRequested
+
+        config:
+          method: GET
+          path: /api/v1/configs/{path...}
+          binding: machine_request
+          request:
+            path: {path: {type: string}}
+          machine_request:
+            <<: *sessions_request
+            initial_signal: ConfigRequested
+            request:
+              path: {path: $.path}
+
+        profiles:
+          method: GET
+          path: /api/v1/profiles
+          binding: machine_request
+          machine_request:
+            <<: *sessions_request
+            initial_signal: ProfilesRequested
+
+        source:
+          method: GET
+          path: /api/v1/source/{path...}
+          binding: machine_request
+          request:
+            path: {path: {type: string}}
+          machine_request:
+            <<: *sessions_request
+            initial_signal: SourceRequested
+            request:
+              path: {path: $.path}
+
+        actions:
+          method: POST
+          path: /api/v1/actions
+          binding: emit_dynamic_signal
+          allowed_signals: [ExperimentRequested, Shutdown]
+          signal_field: body.type
+          signal_mapping:
+            launch_eval: ExperimentRequested
+            shutdown: Shutdown
+          request:
+            body_schema:
+              type: object
+              properties:
+                type: {type: string}
+                config:
+                  type: object
+                  properties:
+                    suite: {type: string}
+                    output_dir: {type: string}
+                    request_id: {type: string}
+              required: [type]
+
+        ui:
+          method: GET
+          path: /{path...}
+          binding: static_assets
+          static_assets:
+            root: agents/bench/ui/dist
+            index: index.html
+            spa: true
+          request:
+            path: {path: {type: string}}

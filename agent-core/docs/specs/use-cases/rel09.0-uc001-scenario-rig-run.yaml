@@ -5,8 +5,8 @@ summary: |
   A rig machine tests a subject agent without live services. It discovers a
   scenario beside the subject, starts a mock child serving the
   scenario's mock fixtures, starts the subject with its dependency URL pointed
-  at the mock, awaits health, runs the scenario's validator machines
-  concurrently, and reduces their terminal states to a verdict. The validator
+  at the mock, awaits health, dispatches each validator machine visibly, joins
+  their terminal states, and reduces them to a verdict. The validator
   asserts both what the subject answered and, through the mock's request log,
   what the subject sent to its dependency. Everything is data: the scenario
   directory holds the validator machines and fixtures, and every child is the
@@ -22,10 +22,10 @@ flow:
   - F1: The rig runs list_scenarios over declared roots and receives the scenario entry naming the subject, validators, and fixtures (srd040 R5).
   - F2: The rig runs start_service for the mock profile with the scenario's fixture file; the mock serves the mock binding routes and its request log (srd039 R2, srd040 R1).
   - F3: The rig runs start_service for the subject with a dependency URL environment addition pointing at the mock's base URL, resolved through the subject's ${VAR:-default} base_url expansion (srd040 R1, srd028 R2).
-  - F4: The rig runs await_healthy against both children within declared bounds (srd040 R2).
-  - F5: The rig runs run_validators for the scenario's validator machines concurrently; each validator drives the subject over HTTP and asserts on responses and on the mock's request log (srd040 R4, srd039 R3).
-  - F6: The rig collects per-validator terminal states from run_validators output and derives the scenario verdict, passing only when every validator reached its Passed terminal.
-  - F7: The rig runs stop_service for the subject and the mock; no child process survives (srd040 R1.4, R3).
+  - F4: The rig probes each labeled child URL once per REST dispatch and routes retry delays and timeout visibly in MachineSpec (srd040 R2).
+  - F5: MachineSpec iterates one child execution per validator sequentially; each item drives the subject over HTTP and asserts on responses and on the mock's request log (srd040 R4, srd039 R3).
+  - F6: The rig joins per-validator terminal states in input order, records them, and derives the scenario verdict, passing only when every validator reached its Passed terminal.
+  - F7: The rig lists the subject and mocks, then iterates stop_service once per child; no child process survives (srd040 R1.4, R3).
   - F8: A scenario whose mock fixture scripts a failure response exercises the subject's failure path, and the validator asserts the subject's clean failure terminal, so the scenario still passes.
 
 touchpoints:
@@ -34,7 +34,7 @@ touchpoints:
   - T3: "srd040-service-child-tools R1 -- serve-mode children start with injected environment and a reported base URL"
   - T4: "srd040-service-child-tools R2 -- children are health-checked within a declared bound"
   - T5: "srd040-service-child-tools R3 -- children stop cleanly with no surviving process group"
-  - T6: "srd040-service-child-tools R4 -- validators run concurrently to completion with per-validator terminal states"
+  - T6: "srd040-service-child-tools R4 -- each validator is a visible child dispatch with an ordered join"
   - T7: "srd040-service-child-tools R5 -- scenarios are discovered as data under declared roots"
   - T8: "srd028-rest-client-tools R2 -- the subject's dependency base_url resolves through declared config with environment expansion"
 
@@ -52,7 +52,7 @@ success_criteria:
     traces:
       - srd040-service-child-tools AC1
   - id: S4
-    criterion: Concurrent validators produce per-validator terminal states, and the scenario verdict is the conjunction of their Passed terminals.
+    criterion: Machine-visible validator items produce ordered terminal states, and the scenario verdict is the conjunction of their Passed terminals.
     traces:
       - srd040-service-child-tools AC3
   - id: S5
@@ -66,7 +66,7 @@ failure_scenarios:
     expected: Rejected; fixture validation fails mock startup before any request (srd039 AC4), and the rig routes to teardown.
   - id: E2
     scenario: A validator hangs and the scenario blocks forever.
-    expected: Rejected; run_validators reports the hung validator as timed out within its declared bound (srd040 AC3).
+    expected: Rejected; the validator item reports timeout within its declared bound and the visible join retains that outcome (srd040 AC3).
   - id: E3
     scenario: The rig is killed mid-scenario and children survive as orphans.
     expected: Rejected; children are process-group managed and reaped with the parent (srd040 R1.4).
@@ -76,6 +76,7 @@ out_of_scope:
   - Span-based state assertion; the request log and subject responses are the witnesses here.
   - Kubernetes, containers, or a hierarchical control plane; children are local processes.
   - Refreshing fixtures from real-service responses; real-stack verification is a separate concern.
+  - Bounded parallel validator iteration; sequential for_each is intentional until that MachineSpec capability exists.
 
 test_suite_trace: test-rel09.0-scenario-rig
 status: specified

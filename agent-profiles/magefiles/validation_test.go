@@ -128,7 +128,7 @@ func TestRunContainerSmokeCommands(t *testing.T) {
 		t.Fatalf("runContainerSmoke returned error: %v", err)
 	}
 	want := [][]string{
-		{"docker", "run", "--rm", "--entrypoint", "sh", "agent-core:test", "-c", "test ! -e /opt/agent-core/agents"},
+		{"docker", "run", "--rm", "--entrypoint", "sh", "agent-core:test", "-c", "test ! -e /opt/agent-core/agents && command -v rg >/dev/null"},
 		{"docker", "run", "--rm", "-v", "/profiles-src:/profiles:ro", "-v", "/core-src/tools:/opt/agent-core/tools:ro", "-v", "/profiles-src:/work:ro", "-w", "/work", "agent-core:test", "--profile", "/profiles/agents/jurist/profile.yaml", "--directory", "/work"},
 	}
 	if !reflect.DeepEqual(calls, want) {
@@ -161,6 +161,9 @@ func TestWriteJuristCharterDemoProfileFiles(t *testing.T) {
 	}
 	if !strings.Contains(profile, filepath.Join(coreRoot, "tools", "builtin", "spec-validation")) {
 		t.Fatalf("profile = %q, want core spec-validation dir", profile)
+	}
+	if !strings.Contains(profile, filepath.Join(root, juristProfileDir, "ripgrep.yaml")) {
+		t.Fatalf("profile = %q, want jurist ripgrep declaration", profile)
 	}
 	if !strings.Contains(toolDecl, filepath.Join(coreRoot, "tools", "builtin", "load-corpus.yaml")) {
 		t.Fatalf("tool declaration = %q, want core load_corpus include", toolDecl)

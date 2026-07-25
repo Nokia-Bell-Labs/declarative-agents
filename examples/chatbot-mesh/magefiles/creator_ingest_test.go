@@ -151,7 +151,7 @@ func TestCreatorIngestMapsItsTerminals(t *testing.T) {
 
 // TestCorpusIngestChildRunFollowsSrd021 proves the child-run word is the
 // agent-as-child-CLI shape (agent-core srd021 R1): the agent binary, a profile
-// the child owns, and the requested directory as its workspace. launch_eval and
+// the child owns, and the requested directory as its workspace. self_invoke and
 // run_agent are not reusable -- both are bench-harness words needing a suite path
 // or a point workspace.
 func TestCorpusIngestChildRunFollowsSrd021(t *testing.T) {

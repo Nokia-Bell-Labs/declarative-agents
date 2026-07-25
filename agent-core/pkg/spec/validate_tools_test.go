@@ -220,25 +220,25 @@ tool_declarations:
 `), 0o644))
 	require.NoError(t, os.WriteFile(filepath.Join(root, "agents", "bench", "builtin.yaml"), []byte(`
 tools:
-  - name: serve_ui
+  - name: launch_bench_http
     type: builtin
-    init: serve_ui
+    init: rest_server_launch
     problem: local override
 `), 0o644))
-	require.NoError(t, os.WriteFile(filepath.Join(root, "tools", "builtin", "serve-ui.yaml"), []byte(`
+	require.NoError(t, os.WriteFile(filepath.Join(root, "tools", "builtin", "rest-server.yaml"), []byte(`
 tools:
-  - name: serve_ui
+  - name: launch_bench_http
     type: builtin
-    init: serve_ui
+    init: rest_server_launch
     problem: shared compatibility declaration
 `), 0o644))
 
 	decls, err := discoverAndParseToolDeclarations(root)
 
 	require.NoError(t, err)
-	require.Contains(t, decls, "serve_ui")
-	assert.Equal(t, "agents/bench/builtin.yaml", decls["serve_ui"].SourceFile)
-	assert.Equal(t, "local override", decls["serve_ui"].Problem)
+	require.Contains(t, decls, "launch_bench_http")
+	assert.Equal(t, "agents/bench/builtin.yaml", decls["launch_bench_http"].SourceFile)
+	assert.Equal(t, "local override", decls["launch_bench_http"].Problem)
 }
 
 func TestValidate_ToolEmitsSignalSet(t *testing.T) {

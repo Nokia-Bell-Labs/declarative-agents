@@ -152,7 +152,7 @@ non_goals:
   - Applying file edits or patch approvals.
   - Defining a browser UI framework.
   - Allowing runtime input to choose arbitrary roots, parser modes, or extension policies.
-  - Replacing all existing documentation host routes in this semantic model.
+  - Defining application route policy outside profile-owned MachineSpecs and REST YAML.
 
 related_documents:
   - srd031-declarative-document-resources

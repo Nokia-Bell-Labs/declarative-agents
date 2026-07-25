@@ -4,6 +4,8 @@ package main
 
 import (
 	"fmt"
+	"os"
+	"path/filepath"
 	"strings"
 	"testing"
 )
@@ -16,10 +18,10 @@ func TestValidateTestEvidencePassesOnCleanModule(t *testing.T) {
 		got = append([]string{binary}, args...)
 		return []byte("test evidence valid"), nil
 	}
-	if err := validateTestEvidence(run, "/tmp/agent", "/module"); err != nil {
+	if err := validateTestEvidence(run, "/tmp/agent", "/module", "/core"); err != nil {
 		t.Fatalf("clean evidence should pass, got %v", err)
 	}
-	want := "/tmp/agent --validate-test-evidence --directory /module"
+	want := "/tmp/agent --profile /module/agents/jurist/audit-profile.yaml --directory /module --core-root /core"
 	if strings.Join(got, " ") != want {
 		t.Errorf("invocation = %q, want %q", strings.Join(got, " "), want)
 	}
@@ -33,7 +35,7 @@ func TestValidateTestEvidenceFailsAuditOnFindings(t *testing.T) {
 	run := func(_ string, _ ...string) ([]byte, error) {
 		return []byte(report), fmt.Errorf("exit status 1")
 	}
-	err := validateTestEvidence(run, "/tmp/agent", "/module")
+	err := validateTestEvidence(run, "/tmp/agent", "/module", "/core")
 	if err == nil {
 		t.Fatal("findings should fail the audit")
 	}
@@ -50,8 +52,41 @@ func TestValidateTestEvidenceFallsBackToExitError(t *testing.T) {
 	run := func(_ string, _ ...string) ([]byte, error) {
 		return nil, fmt.Errorf("fork/exec: permission denied")
 	}
-	err := validateTestEvidence(run, "/tmp/agent", "/module")
+	err := validateTestEvidence(run, "/tmp/agent", "/module", "/core")
 	if err == nil || !strings.Contains(err.Error(), "permission denied") {
 		t.Fatalf("expected the exec error to surface, got %v", err)
+	}
+}
+
+func TestJuristAuditProfileDeclaresEvidencePipeline(t *testing.T) {
+	read := func(name string) string {
+		t.Helper()
+		data, err := os.ReadFile(filepath.Join("..", "agents", "jurist", name))
+		if err != nil {
+			t.Fatal(err)
+		}
+		return string(data)
+	}
+	profile := read("audit-profile.yaml")
+	machine := read("audit-machine.yaml")
+	tools := read("go-test.yaml")
+	for _, want := range []string{"audit-machine.yaml", "audit-tools.yaml", "go-test.yaml"} {
+		if !strings.Contains(profile, want) {
+			t.Errorf("audit profile missing %q", want)
+		}
+	}
+	for _, want := range []string{
+		"action: load_test_claims", "action: go_module", "action: go_packages_raw", "action: go_packages", "action: go_test_inventory",
+		"action: resolve_test_evidence", "action: go_test_run",
+		"action: reduce_test_evidence_run", "action: format_report",
+	} {
+		if !strings.Contains(machine, want) {
+			t.Errorf("audit machine missing %q", want)
+		}
+	}
+	for _, want := range []string{"binary: go", "args: [list, -m]", "args: [list, ./...]", "stdin_source: $from(go_packages_raw).output", "args: [test, -json, -count=1, ./...]"} {
+		if !strings.Contains(tools, want) {
+			t.Errorf("Go exec declarations missing %q", want)
+		}
 	}
 }

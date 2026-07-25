@@ -16,6 +16,7 @@ import (
 	"github.com/Nokia-Bell-Labs/declarative-agents/agent-core/internal/planning/plan"
 	"github.com/Nokia-Bell-Labs/declarative-agents/agent-core/internal/runtime/core"
 	"github.com/Nokia-Bell-Labs/declarative-agents/agent-core/internal/tools/catalog"
+	toollm "github.com/Nokia-Bell-Labs/declarative-agents/agent-core/internal/tools/llm"
 	toolregistry "github.com/Nokia-Bell-Labs/declarative-agents/agent-core/internal/tools/registry"
 	"github.com/Nokia-Bell-Labs/declarative-agents/agent-core/pkg/spec"
 )
@@ -98,19 +99,16 @@ func TestExtractTaskBuilder_ExtractsTask(t *testing.T) {
 func TestExtractTaskBuilder_UndoRestoresPipelineState(t *testing.T) {
 	t.Parallel()
 	ps := minimalState(t)
-	ps.retryCount = 3
 
 	builder := &ExtractTaskBuilder{PS: ps}
 	cmd := builder.Build(core.Result{})
 	result := cmd.Execute()
 	require.Equal(t, SigTaskExtracted, result.Signal)
 	require.NotNil(t, ps.CurrentTask)
-	require.Equal(t, 0, ps.retryCount)
 
 	undo := cmd.Undo(core.Result{})
 	require.Equal(t, core.ToolDone, undo.Signal)
 	require.Nil(t, ps.CurrentTask)
-	require.Equal(t, 3, ps.retryCount)
 }
 
 func TestExtractTaskBuilder_NoMoreTasks(t *testing.T) {
@@ -144,20 +142,17 @@ func TestExtractAllBuilder_ExtractsAllReady(t *testing.T) {
 func TestExtractAllBuilder_UndoRestoresPipelineState(t *testing.T) {
 	t.Parallel()
 	ps := minimalState(t)
-	ps.retryCount = 4
 
 	builder := &ExtractAllBuilder{PS: ps}
 	cmd := builder.Build(core.Result{})
 	result := cmd.Execute()
 	require.Equal(t, SigTaskExtracted, result.Signal)
 	require.NotNil(t, ps.CurrentTask)
-	require.Equal(t, 0, ps.retryCount)
 
 	undo := cmd.Undo(core.Result{})
 	require.Equal(t, core.ToolDone, undo.Signal)
 	require.Nil(t, ps.CurrentTask)
 	require.Nil(t, ps.CurrentPlan)
-	require.Equal(t, 4, ps.retryCount)
 }
 
 func TestExtractAllBuilder_NoReady(t *testing.T) {
@@ -241,15 +236,31 @@ func TestParsePlanBuilder_InvalidYAML(t *testing.T) {
 	assert.Nil(t, ps.CurrentPlan)
 }
 
-func TestCheckResultBuilder_Pass(t *testing.T) {
+func TestParsePlanBuilder_ValidPlanResetsExplicitRetryTracker(t *testing.T) {
+	t.Parallel()
+	ps := minimalState(t)
+	retry := &toollm.ParseErrorRetryTracker{MaxConsecutive: 3}
+	require.Equal(t, core.ToolDone, retry.ReportParseError())
+	require.Equal(t, 1, retry.Snapshot())
+
+	cmd := (&ParsePlanBuilder{PS: ps, Retry: retry}).Build(core.Result{Output: validRawPlan})
+	result := cmd.Execute()
+
+	require.Equal(t, SigPlanReady, result.Signal)
+	require.Zero(t, retry.Snapshot())
+
+	undo := cmd.Undo(result)
+	require.Equal(t, core.ToolDone, undo.Signal)
+	require.Equal(t, 1, retry.Snapshot())
+}
+
+func TestMarkTaskDoneBuilder_CompletesCurrentTask(t *testing.T) {
 	t.Parallel()
 	ps := minimalState(t)
 
 	task := ps.Extractor.ExtractNext(ps.Graph, ps.MaxWeight)
 	require.NotNil(t, task)
 	ps.CurrentTask = task
-	// The extract and execute phases advance the nodes before check runs; mirror
-	// that so check_result marks them Done from Executing (GH-507).
 	for _, id := range task.NodeIDs {
 		n, ok := ps.Graph.Node(id)
 		require.True(t, ok)
@@ -257,11 +268,11 @@ func TestCheckResultBuilder_Pass(t *testing.T) {
 		require.NoError(t, n.MarkExecuting())
 	}
 
-	builder := &CheckResultBuilder{PS: ps}
-	cmd := builder.Build(core.Result{Signal: core.ToolDone})
+	builder := &MarkTaskDoneBuilder{PS: ps}
+	cmd := builder.Build(core.Result{})
 	result := cmd.Execute()
 
-	assert.Equal(t, core.ValidationPassed, result.Signal)
+	assert.Equal(t, SigTaskCompleted, result.Signal)
 	assert.Contains(t, result.Output, "completed")
 	for _, id := range task.NodeIDs {
 		n, _ := ps.Graph.Node(id)
@@ -269,7 +280,7 @@ func TestCheckResultBuilder_Pass(t *testing.T) {
 	}
 }
 
-func TestCheckResultBuilder_UndoRestoresGraphStatusAfterPass(t *testing.T) {
+func TestMarkTaskDoneBuilder_UndoRestoresGraphStatus(t *testing.T) {
 	t.Parallel()
 	ps := minimalState(t)
 
@@ -283,10 +294,10 @@ func TestCheckResultBuilder_UndoRestoresGraphStatusAfterPass(t *testing.T) {
 		require.NoError(t, n.MarkExecuting())
 	}
 
-	builder := &CheckResultBuilder{PS: ps}
-	cmd := builder.Build(core.Result{Signal: core.ToolDone})
+	builder := &MarkTaskDoneBuilder{PS: ps}
+	cmd := builder.Build(core.Result{})
 	result := cmd.Execute()
-	require.Equal(t, core.ValidationPassed, result.Signal)
+	require.Equal(t, SigTaskCompleted, result.Signal)
 	for _, id := range task.NodeIDs {
 		n, _ := ps.Graph.Node(id)
 		require.Equal(t, graph.Done, n.Status)
@@ -300,32 +311,29 @@ func TestCheckResultBuilder_UndoRestoresGraphStatusAfterPass(t *testing.T) {
 	}
 }
 
-func TestCheckResultBuilder_Fail(t *testing.T) {
+func TestRemainingWorkBuilder_ReportsReadyWork(t *testing.T) {
 	t.Parallel()
 	ps := minimalState(t)
 
-	builder := &CheckResultBuilder{PS: ps}
-	cmd := builder.Build(core.Result{Signal: core.ToolFailed, Output: "build error"})
-	result := cmd.Execute()
-
-	assert.Equal(t, SigRetryAvailable, result.Signal)
-	assert.Contains(t, result.Output, "retry")
+	result := (&RemainingWorkBuilder{PS: ps}).Build(core.Result{}).Execute()
+	assert.Equal(t, SigWorkRemaining, result.Signal)
+	assert.Contains(t, result.Output, "1 tasks ready")
 }
 
-func TestCheckResultBuilder_UndoRestoresRetryCount(t *testing.T) {
+func TestRemainingWorkBuilder_ReportsBlockedGraphWithoutMutation(t *testing.T) {
 	t.Parallel()
 	ps := minimalState(t)
-	ps.retryCount = 0
+	node := ps.Graph.Nodes()[0]
+	node.Status = graph.Executing
 
-	builder := &CheckResultBuilder{PS: ps}
-	cmd := builder.Build(core.Result{Signal: core.ToolFailed, Output: "build error"})
+	cmd := (&RemainingWorkBuilder{PS: ps}).Build(core.Result{})
 	result := cmd.Execute()
-	require.Equal(t, SigRetryAvailable, result.Signal)
-	require.Equal(t, 1, ps.retryCount)
+	require.Equal(t, SigBlocked, result.Signal)
+	require.Equal(t, graph.Executing, node.Status)
 
-	undo := cmd.Undo(core.Result{})
+	undo := cmd.Undo(result)
 	require.Equal(t, core.ToolDone, undo.Signal)
-	require.Equal(t, 0, ps.retryCount)
+	require.Equal(t, graph.Executing, node.Status)
 }
 
 func TestPlannerAssembler_PrependsSystem(t *testing.T) {
@@ -434,10 +442,10 @@ func TestPlannerNodeLifecycleAdvancesAndDoesNotRepeat(t *testing.T) {
 	require.NoError(t, ps.advanceTaskNodesTo(graph.Executing))
 	require.Equal(t, graph.Executing, n.Status)
 
-	// Check marks it Done on success.
-	check := (&CheckResultBuilder{PS: ps}).Build(core.Result{Signal: core.ToolDone})
+	// The focused completion word marks it Done on success.
+	check := (&MarkTaskDoneBuilder{PS: ps}).Build(core.Result{})
 	res = check.Execute()
-	require.Equal(t, core.ValidationPassed, res.Signal, res.Output)
+	require.Equal(t, SigTaskCompleted, res.Signal, res.Output)
 	require.Equal(t, graph.Done, n.Status)
 
 	// A completed node is never re-selected: the next extract finds no work.

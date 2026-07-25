@@ -49,6 +49,18 @@ func checkMachineSignalCoverage(corpus *Corpus) []Finding {
 		received := make(map[string]bool)
 		for _, tr := range ms.Transitions {
 			received[tr.Signal] = true
+			if tr.ForEach != nil {
+				for _, signal := range tr.ForEach.ContinueOn {
+					received[signal] = true
+				}
+				for _, signal := range tr.ForEach.AbortOn {
+					received[signal] = true
+				}
+				received[tr.ForEach.Join.Signals.AllSuccess] = true
+				received[tr.ForEach.Join.Signals.Partial] = true
+				received[tr.ForEach.Join.Signals.Failed] = true
+				received[tr.ForEach.Join.Signals.Empty] = true
+			}
 		}
 		for _, sig := range ms.Signals {
 			if !received[sig.Name] {

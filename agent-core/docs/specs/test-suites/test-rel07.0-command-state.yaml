@@ -107,6 +107,41 @@ test_cases:
       - srd023-cli-exec-tools AC4
 
   - use_case: rel07.0-uc001-command-state-threading
+    name: Bounded exec stdin connects separate declarative words
+    go_test: go test ./internal/tools/catalog ./internal/tools/exec -run 'Test(ParseToolDefsExecIOContract|ParseToolDefsRejectsInvalidExecIO|ExecStdin)'
+    status: implemented
+    owner: GH-895
+    description: |
+      One exec producer opts into structured output and emits two words. A
+      separate consumer binary selects the producer's redacted output field and
+      receives it over bounded stdin without a shell or authored pipeline.
+      Companion cases reject malformed, missing, empty, non-string, oversized,
+      and receipt-shaped inputs before launch; cancel and join a blocked child;
+      and select the same safe value after checkpoint save/load without placing
+      stdin in traces, metrics, or receipts.
+    inputs:
+      chain: [produce_words, count_words]
+      producer_binary: printf
+      consumer_binary: wc
+      selector: "$from(produce_words).output"
+      invalid_sources: [malformed, missing, empty, non_string, oversized, receipt]
+      lifecycle: [cancel, checkpoint_save_load]
+    expected:
+      consumer_word_count: 2
+      shell_invoked: false
+      invalid_input_launches: 0
+      cancellation_joins_process: true
+      safe_output_survives_resume: true
+      stdin_in_telemetry_or_receipt: false
+    traces:
+      - rel07.0-uc001-command-state-threading S1
+      - rel07.0-uc001-command-state-threading S3
+      - rel07.0-uc001-command-state-threading S5
+      - srd038-command-state-store AC1
+      - srd038-command-state-store AC5
+      - srd023-cli-exec-tools AC6
+
+  - use_case: rel07.0-uc001-command-state-threading
     name: Machine request seed stays safe and addressable after intervening words
     go_test: go test ./internal/tools/rest -run 'TestMachineRequest(Seed(CommandStateAddress|RedactionLiveAndReloaded|RedactionFailsClosed)|SensitiveFieldsMustBeMapped)'
     status: implemented

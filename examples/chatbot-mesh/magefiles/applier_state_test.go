@@ -92,8 +92,8 @@ func TestApplierStateEndpointMapsTwoOutcomes(t *testing.T) {
 	}
 	for _, field := range []string{
 		"rags", "llmInCluster", "llmExternalURL", "llmChatModel", "llmEmbedModel",
-		"llmChatModels", "llmRouterModel", "llmTopology",
-		"paramsNResults", "paramsChunkCap", "paramsRouterDefault",
+		"llmChatModels", "llmTierModel", "llmTopology",
+		"paramsNResults", "paramsChunkCap", "paramsTierDefault",
 	} {
 		if _, present := read.Body[field]; !present {
 			t.Errorf("Read body does not map %s; the panel's MeshView needs it", field)

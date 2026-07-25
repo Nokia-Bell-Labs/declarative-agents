@@ -124,8 +124,18 @@ func namedControlServer(name string) Server {
 		Queue:    QueueConfig{Name: name, Capacity: 8, Timeout: "20ms"},
 		Shutdown: ShutdownConfig{Timeout: "200ms", DrainPolicy: "drain_then_stop"},
 		Endpoints: map[string]Endpoint{
-			"approve":  signalEndpoint("POST", "/approve/{id}", "Approved"),
-			"domain":   dynamicEndpoint("POST", "/domain"),
+			"approve": signalEndpoint("POST", "/approve/{id}", "Approved"),
+			"domain":  dynamicEndpoint("POST", "/domain"),
+			"action": {
+				Method: "POST", Path: "/action", Binding: bindingDynamicSignal,
+				AllowedSignals: []string{"ExperimentRequested", "Shutdown"},
+				SignalField:    "body.type",
+				SignalMapping: map[string]string{
+					"launch_eval": "ExperimentRequested",
+					"shutdown":    "Shutdown",
+				},
+				Request: RequestBinding{BodySchema: bodySchemaWithRequired("type")},
+			},
 			"health":   {Method: "GET", Path: "/health", Binding: bindingHealth},
 			"metadata": {Method: "GET", Path: "/metadata", Binding: bindingStaticMetadata},
 		},

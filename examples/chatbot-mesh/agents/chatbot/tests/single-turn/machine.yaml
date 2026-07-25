@@ -1,8 +1,10 @@
 name: chatbot-turn-validator
 purpose: |-
-  Drives one routed chatbot turn against mock dependencies and passes when the
-  turn returns an answer: embed at the mock provider, both RAG queries at mock
-  servers, the router's tool call, and the routed chat word all completed.
+  Drives one tier-selected chatbot turn against mock dependencies and passes when the
+  turn returns an answer: embed at the mock provider, source selection keeps rag0
+  while discarding an undeclared URL-shaped name, the tier selector's tool call,
+  and the selected chat word all completed. The undeclared name has no topology
+  entry and therefore cannot reach a REST target.
 
   The drive runs on the way into Checking so its signal decides the terminal
   state; routing straight to a terminal would pass regardless of the result.

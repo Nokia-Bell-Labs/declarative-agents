@@ -67,7 +67,7 @@ func bootSmoke(root, coreRoot string) error {
 	if err := bootSmokeProfiles(defaultSmokeRun, binary, coreRoot, profiles); err != nil {
 		return err
 	}
-	return validateTestEvidence(defaultSmokeRun, binary, root)
+	return validateTestEvidence(defaultSmokeRun, binary, root, coreRoot)
 }
 
 // bootSmokeProfiles runs `agent --validate-config` over each profile, which is

@@ -106,7 +106,7 @@ test_cases:
     go_test: TestMainRuntimeDoesNotBranchOnAgentModeNames
     inputs:
       source: "cmd/agent/main.go"
-      forbidden_branches: "if/switch comparisons against generator, planner, evaluator, bench, validate"
+      forbidden_branches: "if/switch comparisons against executor, planner, critic, bench, jurist"
     expected:
       bootstrap_boundary: "selected tool init gates are allowed; mode branches are not"
     traces:
@@ -289,6 +289,44 @@ test_cases:
       error: "not nil"
     traces:
       - srd006-yaml-machine-config AC4
+
+  - use_case: rel00.0-uc001-domain-agent-integration
+    name: MachineSpec iterates trusted command-state arrays
+    go_test: go test ./internal/runtime/core -run 'TestLoopForEach(DispatchesItemsInOrderAndJoins|EmptyCollectionStillJoins|ResumeContinuesAfterLastPersistedItem|CollectAllJoinsPartialInInputOrder|AbortSignalStopsCollectAll)|TestMachineSpecForEach(Validation|RoundTrips)|TestIteratorJoinStructuredOutput'
+    inputs:
+      items: $from(items).items
+      mode: sequential
+      policies: [fail_fast, collect_all]
+    expected:
+      deterministic_input_order: true
+      one_dispatch_and_receipt_per_item: true
+      join_recorded: true
+      resume_does_not_replay_completed_items: true
+      structured_projection_uses_redacted_digest_only: true
+      structured_projection_preserves_json_shapes: true
+      plain_text_and_omitted_output_have_no_projection: true
+      persisted_iterator_outcomes_unchanged: true
+      unsupported_parallel_rejected: true
+    traces:
+      - srd006-yaml-machine-config AC5
+
+  - use_case: rel00.0-uc001-domain-agent-integration
+    name: Builtin collection words transform and validate selected arrays and structured output
+    go_test: go test ./internal/tools/control ./internal/tools/compose ./internal/tools/llm -run 'Test(Partition|SelectSubset|ValidatePartition|ValidateSelectSubset|RenderEach|ValidateRenderEach|ParseStructured|CompileStructured)'
+    inputs:
+      words: [partition, select_subset, render_each, parse_structured]
+      outcomes: [full, partial, empty, malformed, schema_invalid, unresolved_selector]
+    expected:
+      input_order_preserved: true
+      undeclared_candidates_excluded: true
+      trusted_vocabulary_values_selected_in_candidate_order: true
+      duplicate_name_policy_deterministic: true
+      iterator_structured_output_traversable: true
+      empty_array_renders_empty: true
+      content_failure_uses_declared_signal: true
+      malformed_config_rejected_before_dispatch: true
+    traces:
+      - srd022-builtin-tools AC7
 
   # --- srd001: core types (verified by compilation and loop tests) ---
   - use_case: rel00.0-uc001-domain-agent-integration

@@ -1,6 +1,7 @@
 # Chatbot mesh values. The ragUnits list is the single source of truth for the RAG
 # topology: each entry renders a rag-server Deployment/Service and a Chroma
-# StatefulSet/Service, and (in GH-314) the chatbot rest.yaml RAG client entries.
+# StatefulSet/Service, the chatbot's declared runtime topology, REST network
+# allowlist, and monitor upstream. The chatbot program itself is source-count independent.
 
 # The rel06.0 mounted-profile runtime image, one image across every agent role.
 image:
@@ -29,15 +30,18 @@ chatbot:
     monitor: 18082
 
 # Each RAG unit is one rag-server agent paired with its own Chroma database.
-# name is a DNS label; collection is the Chroma collection it serves;
-# embeddingModel is the embedding-space identity the chatbot uses for mismatch
-# handling (srd013 R2.3, srd014 R3.3).
+# name is a DNS label; description is the required human-readable classifier
+# catalog entry; collection is the Chroma collection it serves; embeddingModel is
+# the embedding-space identity the chatbot uses for mismatch handling (srd013
+# R2.3, srd014 R3.3).
 ragUnits:
   - name: rag0
+    description: Primary declarative-agent and assembler rig behavior.
     collection: corpus
     embeddingModel: qwen3-embedding:8b
     replicas: 1
   - name: rag1
+    description: Secondary mock-dependency and Solar Ridge integration fixtures.
     collection: corpus2
     embeddingModel: qwen3-embedding:8b
     replicas: 1
@@ -79,11 +83,11 @@ ollama:
   enabled: true
   image: {repository: ollama/ollama, tag: latest, pullPolicy: IfNotPresent}
   # The models, named once here, feed both the preload Job and the agents' rendered
-  # config: the embedding model, the chat models (fast + deep), and the router model.
+  # config: the embedding model, the chat models (fast + deep), and the tier-selector model.
   models:
     embedding: qwen3-embedding:8b
     chat: ["qwen2.5:3b", "ornith:9b"]
-    router: qwen2.5:3b
+    tier: qwen2.5:3b
   preload:
     # Test-only transition observation may install this Job suspended, assert
     # agents are unready, then resume it. Production defaults to immediate pull.
@@ -187,7 +191,7 @@ applier:
   params:
     nResults: 5
     chunkCap: 0
-    routerDefault: invoke_llm_fast
+    tierDefault: invoke_llm_fast
     chatModel: "qwen2.5:3b"
 
 # The control plane (srd004 coordinator, srd005 creator): two persistent agents on

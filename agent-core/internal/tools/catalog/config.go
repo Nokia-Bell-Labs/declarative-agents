@@ -5,6 +5,8 @@ package catalog
 import (
 	"encoding/json"
 	"fmt"
+
+	"github.com/Nokia-Bell-Labs/declarative-agents/agent-core/internal/runtime/core"
 )
 
 const defaultCheckpointSelector = "latest"
@@ -26,7 +28,11 @@ func DecodeToolConfig(def ToolDef, target interface{}) error {
 
 // ChildAgentConfig holds child agent invocation parameters.
 type ChildAgentConfig struct {
-	Profile string `json:"profile"`
+	Profile     string `json:"profile"`
+	Request     string `json:"request,omitempty"`
+	Output      string `json:"output,omitempty"`
+	RequestFrom string `json:"request_from,omitempty"`
+	OutputFrom  string `json:"output_from,omitempty"`
 }
 
 // ComposeConfig holds the compose word's template and its $from(label).path input
@@ -35,6 +41,14 @@ type ComposeConfig struct {
 	Template string            `json:"template"`
 	Inputs   map[string]string `json:"inputs"`
 	Signal   string            `json:"signal"`
+}
+
+// RenderEachConfig holds ordered array rendering configuration.
+type RenderEachConfig struct {
+	Items        string `json:"items"`
+	ItemTemplate string `json:"item_template"`
+	Separator    string `json:"separator"`
+	Signal       string `json:"signal"`
 }
 
 // ValuePredicateConfig holds the value predicate word's operands, its
@@ -49,6 +63,34 @@ type ValuePredicateConfig struct {
 	OperandType string `json:"operand_type"`
 	Satisfied   string `json:"satisfied"`
 	Unsatisfied string `json:"unsatisfied"`
+}
+
+// PartitionConfig holds one array selector and scalar comparison.
+type PartitionConfig struct {
+	Items       string `json:"items"`
+	Field       string `json:"field"`
+	Op          string `json:"op"`
+	Right       string `json:"right"`
+	OperandType string `json:"operand_type"`
+	Satisfied   string `json:"satisfied"`
+}
+
+// SelectSubsetConfig holds candidate and declared-vocabulary selectors.
+type SelectSubsetConfig struct {
+	Candidates string `json:"candidates"`
+	Vocabulary string `json:"vocabulary"`
+	MatchField string `json:"match_field"`
+	AllMatched string `json:"all_matched"`
+	Partial    string `json:"partial"`
+	Empty      string `json:"empty"`
+}
+
+// ParseStructuredConfig holds selected model output, its schema, and outcomes.
+type ParseStructuredConfig struct {
+	Source   string                 `json:"source"`
+	Schema   map[string]interface{} `json:"schema"`
+	Parsed   string                 `json:"parsed"`
+	Unparsed string                 `json:"unparsed"`
 }
 
 // CheckpointHistoryConfig holds config for checkpoint_history.
@@ -102,16 +144,16 @@ type LLMToolConfig struct {
 	// word dispatched non-adjacently (for example a chat-LLM word reached through
 	// a $tool router) can read a non-adjacent composed prompt. Omitted: the user
 	// message stays the previous Result's Output.
-	UserPromptFrom  string `json:"user_prompt_from"`
+	UserPromptFrom string `json:"user_prompt_from"`
 	// AnswerOnly omits the tool manifest from the prompt so the word produces a
 	// final answer rather than a tool call. Set for a chat-LLM word a $tool router
 	// dispatches, which the manifest of the state it runs in would otherwise offer
 	// the chat-LLM vocabulary (including itself).
-	AnswerOnly      bool   `json:"answer_only"`
-	NumCtx          int    `json:"num_ctx"`
-	LLMTimeout      int    `json:"llm_timeout"`
-	MaxTime         int    `json:"max_time"`
-	MaxTokens       int    `json:"max_tokens"`
+	AnswerOnly bool `json:"answer_only"`
+	NumCtx     int  `json:"num_ctx"`
+	LLMTimeout int  `json:"llm_timeout"`
+	MaxTime    int  `json:"max_time"`
+	MaxTokens  int  `json:"max_tokens"`
 	// Temperature and Seed are optional decoding parameters. Pointers so an
 	// omitted field is distinguishable from an explicit zero: nil selects the
 	// deterministic defaults (temperature 0, seed 42) applied at build time.
@@ -138,20 +180,27 @@ type RunPointConfig struct {
 	SuccessState          string   `json:"success_state"`
 }
 
-// ServeUIToolConfig holds config for the serve_ui bench tool.
-type ServeUIToolConfig struct {
-	Addr        string `json:"addr"`
-	DataDir     string `json:"data_dir"`
-	ConfigsDir  string `json:"configs_dir"`
-	DocsDir     string `json:"docs_dir"`
-	SourceDir   string `json:"source_dir"`
-	ProfilesDir string `json:"profiles_dir"`
+// EvaluationArtifactsConfig selects the filesystem root queried by the
+// read-only evaluation artifact words.
+type EvaluationArtifactsConfig struct {
+	DataDir string `json:"data_dir"`
 }
 
 // ValidateChildAgentConfig checks fields required to invoke a child agent.
 func ValidateChildAgentConfig(toolName string, cfg ChildAgentConfig) error {
 	if cfg.Profile == "" {
 		return fmt.Errorf("tool %q config requires profile", toolName)
+	}
+	for name, selector := range map[string]string{
+		"request_from": cfg.RequestFrom,
+		"output_from":  cfg.OutputFrom,
+	} {
+		if selector == "" {
+			continue
+		}
+		if _, _, ok := core.ParseFromSelector(selector); !ok {
+			return fmt.Errorf("tool %q config %s must be a $from(label).path selector", toolName, name)
+		}
 	}
 	return nil
 }
@@ -166,6 +215,23 @@ func ValidateRunPointConfig(toolName string, cfg RunPointConfig) error {
 	}
 	if len(cfg.PointToolDeclarations) == 0 {
 		return fmt.Errorf("tool %q config requires point_tool_declarations", toolName)
+	}
+	return nil
+}
+
+// ValidateParseStructuredConfig checks fields needed before schema compilation.
+func ValidateParseStructuredConfig(toolName string, cfg ParseStructuredConfig) error {
+	if _, _, ok := core.ParseFromSelector(cfg.Source); !ok {
+		return fmt.Errorf("tool %q config source must be a $from(label).path selector", toolName)
+	}
+	if len(cfg.Schema) == 0 {
+		return fmt.Errorf("tool %q config requires schema", toolName)
+	}
+	if cfg.Parsed == "" {
+		return fmt.Errorf("tool %q config requires parsed signal", toolName)
+	}
+	if cfg.Unparsed == "" {
+		return fmt.Errorf("tool %q config requires unparsed signal", toolName)
 	}
 	return nil
 }

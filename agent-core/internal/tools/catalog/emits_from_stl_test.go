@@ -86,6 +86,29 @@ func TestValidateToolEmitsTerminalTargetSkipsFollowup(t *testing.T) {
 	require.NoError(t, ValidateToolEmits(spec, defs))
 }
 
+func TestValidateToolEmitsForEachUsesIteratorOutcomes(t *testing.T) {
+	spec := core.MachineSpec{
+		Name:           "iterator",
+		States:         core.StateSpecsFromNames("Loading", "Iterating", "Joined"),
+		TerminalStates: []string{"Joined"},
+		Signals:        core.SignalSpecsFromNames("Ready", "ItemDone", "CommandError", "AllDone", "Empty"),
+		Transitions: []core.TransitionSpec{{
+			State: "Loading", Signal: "Ready", Next: "Iterating", Action: "item",
+			ForEach: &core.ForEachSpec{
+				ContinueOn: []string{"ItemDone"}, AbortOn: []string{"CommandError"},
+			},
+		}},
+	}
+
+	require.NoError(t, ValidateToolEmits(spec, []ToolDef{{
+		Name: "item", Type: "builtin", Init: "item", Emits: []string{"ItemDone", "CommandError"},
+	}}))
+	err := ValidateToolEmits(spec, []ToolDef{{
+		Name: "item", Type: "builtin", Init: "item", Emits: []string{"ItemDone", "Unexpected"},
+	}})
+	require.ErrorContains(t, err, "absent from continue_on and abort_on")
+}
+
 func TestValidateToolEmitsDynamicToolMissingFollowupTransition(t *testing.T) {
 	spec := core.MachineSpec{
 		Name:           "grammar",

@@ -1,0 +1,62 @@
+tools:
+- name: select_subset
+  type: builtin
+  init: select_subset
+  category: word
+  visibility: internal
+  emits: [SubsetSelected, SubsetPartial, SubsetEmpty, CommandError]
+  description: Keep candidate names only when they occur in a declared vocabulary.
+  problem: Untrusted names must not select values outside a trusted declaration.
+  goals:
+  - Emit only candidate names present in the declared vocabulary.
+  - Return the corresponding trusted vocabulary values in candidate order.
+  - Distinguish full, partial, and empty selection outcomes.
+  requirements:
+    input:
+    - Trusted configuration selects candidate and vocabulary arrays and a vocabulary match field.
+    output:
+    - Output contains matched and unmatched names, their counts, and selected trusted vocabulary values.
+    - Repeated candidates repeat the selected trusted value; when vocabulary names repeat, the first declared value wins.
+    errors:
+    - Invalid selectors or array element shapes emit CommandError.
+  non_goals:
+  - Does not add, sort, rank, or infer names.
+  - Does not copy fields from candidate values; candidates are names only.
+  parameters:
+    type: object
+    properties: {}
+  output:
+    description: Candidate names divided by declared membership with the corresponding trusted values.
+    schema:
+      type: object
+      properties:
+        matched: {type: array, items: {type: string}}
+        unmatched: {type: array, items: {type: string}}
+        selected:
+          type: array
+          description: Trusted vocabulary values corresponding to matched names, in candidate order.
+        matched_count: {type: integer}
+        unmatched_count: {type: integer}
+      required: [matched, unmatched, selected, matched_count, unmatched_count]
+  side_effects: []
+  reversibility:
+    classification: reversible
+    undo: noop
+  undo:
+    strategy: noop
+    description: Selection reads prior state and changes no external state.
+  errors:
+  - signal: CommandError
+    condition: A selector does not resolve, a selected value is not an array, or an element has an invalid shape.
+    message_shape: 'select_subset: <error>'
+    state_after_failure: No successful subset output is published.
+  relationships:
+    before: [machine-selected successor]
+    after: [candidate-producing and vocabulary-producing predecessors]
+  config:
+    candidates: $from(candidates).names
+    vocabulary: $from(vocabulary).values
+    match_field: name
+    all_matched: SubsetSelected
+    partial: SubsetPartial
+    empty: SubsetEmpty

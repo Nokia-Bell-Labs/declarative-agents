@@ -9,6 +9,7 @@ includes:
   - ../write.yaml
   - ../record-tracker-issue.yaml
   - ../execute-task.yaml
-  - ../check-result.yaml
+  - ../mark-task-done.yaml
+  - ../remaining-work.yaml
 
 tools: []

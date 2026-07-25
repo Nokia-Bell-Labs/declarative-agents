@@ -1,8 +1,9 @@
 name: chatbot-turn-validator
 purpose: |-
-  Drives one routed chatbot turn while the first RAG mock fails every query.
-  Passing means the chatbot degraded the way srd002 requires: the failed
-  source is excluded and the turn still answers from the remaining one.
+  Drives one chatbot turn whose source classifier returns malformed JSON while
+  the first RAG mock fails every query. Passing means malformed selection fell
+  back to both declared sources and the chatbot degraded as srd002 requires: the
+  failed source is excluded and the turn still answers from the remaining one.
 
   The drive runs on the way into Checking so its signal decides the terminal
   state; routing straight to a terminal would pass regardless of the result.

@@ -36,7 +36,10 @@ func executeCharterCheck(targetDir string, graph *Graph, corpus *Corpus, charter
 	case "spec_corpus":
 		return executeSpecCorpusCheck(graph, corpus, charter, check)
 	case "grep_check":
-		return ExecuteGrepChecks(targetDir, []Charter{charter})
+		// grep_check is executed by the jurist machine's declared rg and
+		// reduce_grep_checks steps. Keeping it out of this interpreter makes
+		// external search visible in the machine trace.
+		return nil, nil
 	case "ref_check":
 		return ExecuteRefChecks(targetDir, []Charter{charter})
 	case "consistency_check":
@@ -82,4 +85,9 @@ func sortFindings(findings []Finding) {
 	sort.Slice(findings, func(i, j int) bool {
 		return findingLess(findings[i], findings[j])
 	})
+}
+
+// SortFindings applies the deterministic ordering used by charter execution.
+func SortFindings(findings []Finding) {
+	sortFindings(findings)
 }

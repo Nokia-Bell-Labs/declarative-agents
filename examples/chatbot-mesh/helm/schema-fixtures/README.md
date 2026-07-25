@@ -18,6 +18,7 @@ helm lint helm -f helm/schema-fixtures/<file>.yaml
 | valid-add-rag.yaml | a well-formed add-a-RAG patch lints clean |
 | dup-rag-name.yaml | ragUnit names must be unique (chart-render fail guard, GH-465) |
 | bad-rag-name.yaml | rag name must match `^[a-z]([-a-z0-9]*[a-z0-9])?$` |
+| bad-missing-rag-description.yaml | every selectable RAG unit requires a non-empty human-readable classifier description |
 | bad-nresults.yaml | applier.params.nResults must be >= 1 |
 | incluster-missing-chat.yaml | the in-cluster tier requires >= 1 chat model |
 | external-missing-url.yaml | disabling ollama requires a non-empty llm.externalURL |

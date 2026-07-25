@@ -265,7 +265,8 @@ test_cases:
     inputs:
       boundary_tools:
         - run_agent
-        - serve_ui
+        - rest_await_event
+        - self_invoke
         - invoke_llm
     expected:
       category_boundary: true
@@ -277,21 +278,22 @@ test_cases:
       - srd025-rollback-lifecycle AC6
 
   - use_case: rel02.0-uc004-sentence-tool-migration
-    name: Deprecated compatibility aggregate is hidden from new workflows
-    go_test: TestAuditToolContractsClassifiesCoverage, TestValidateToolContractsStrictAndLegacyModes
+    name: Deprecated compatibility aggregate is retired
+    go_test: TestShippedProfilesDoNotSelectRetiredValidateAggregator, TestBuiltinFactoryCatalogCoversSelectedActiveInits
     status: done
     description: |
-      Keep a legacy aggregate only as deprecated compatibility. It should be
-      hidden from LLM tool lists when internal-only, documented as a boundary or
-      deprecated compatibility tool, and excluded from new machine selections.
+      Remove the legacy aggregate implementation, declaration, and factory
+      registration. Shipped profiles and compatibility fixtures use explicit
+      validation states and ordinary validation words.
     inputs:
-      legacy_aggregate: validate
+      retired_aggregate: validate
       replacement_sequence: [build, lint, test]
     expected:
-      visibility: internal
-      deprecated_compatibility_documented: true
-      replacement_sequence_documented: true
-      new_machine_selection_excludes_aggregate: true
+      implementation_removed: true
+      declaration_removed: true
+      factory_registration_removed: true
+      shipped_profile_selection_excludes_aggregate: true
+      validation_uses_normal_machine_dispatch: true
     traces:
       - srd013-standard-tool-library AC8
       - srd022-builtin-tools AC1
