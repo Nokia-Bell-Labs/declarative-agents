@@ -346,20 +346,21 @@ releases:
 
       The rig itself — the assembler and mock profiles, scenario authoring
       conventions, and the reference subject — is agent-profiles release 11.0
-      work over these words (Epic #662). This release records the
-      documentation and the runtime contracts; the mock binding lands in
-      GH-666 and the service-child tools in GH-667.
-    status: planned
+      work over these words (Epic #662). This release implements the
+      documentation and runtime contracts through the mock binding from
+      GH-666 and the service-child tools from GH-667. The full end-to-end
+      scenario tracer remains planned.
+    status: in_progress
     planned_work:
       - id: gh-664
         summary: Specify the mock REST binding and service-child tools (this release's documentation).
         status: done
       - id: gh-666
         summary: Implement the mock REST endpoint binding.
-        status: open
+        status: done
       - id: gh-667
         summary: Add service-child, validator, and scenario-discovery builtin tools.
-        status: open
+        status: done
     srds:
       - srd039-mock-endpoint-binding
       - srd040-service-child-tools

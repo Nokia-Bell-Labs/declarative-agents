@@ -85,7 +85,7 @@ roadmap_summary:
     name: Scenario rig runtime
     use_cases_done: 0
     use_cases_total: 1
-    status: planned
+    status: in_progress
   - version: "10.0"
     name: Value predicate word
     use_cases_done: 1
@@ -277,12 +277,12 @@ srd_index:
   - id: srd039-mock-endpoint-binding
     title: Mock REST Endpoint Binding
     summary: A mock binding for inbound REST endpoints that serves canned responses from fixture data, with routes keyed by method and literal path, ordered response scripts whose last entry repeats, a 404-and-record miss path, a request log served for validator assertions, fixture validation at --validate-config and startup, and concurrency-safe sequencing.
-    status: planned
+    status: implemented
     path: docs/specs/software-requirements/srd039-mock-endpoint-binding.yaml
   - id: srd040-service-child-tools
     title: Service-Child and Scenario Tools
     summary: Words for a rig machine that composes other machines - start_service and stop_service for background serve-mode children with injected environment, trusted runtime targets, and process-group reaping; profile-visible REST probes and delay transitions own readiness retries and timeout; one-validator child execution composes through MachineSpec iteration and join; and list_scenarios discovers deterministic work under declared roots.
-    status: planned
+    status: implemented
     path: docs/specs/software-requirements/srd040-service-child-tools.yaml
   - id: srd041-value-predicate-tool
     title: Value Predicate Tool
