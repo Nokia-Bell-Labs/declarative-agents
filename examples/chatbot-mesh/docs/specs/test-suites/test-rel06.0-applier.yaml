@@ -134,6 +134,40 @@ test_cases:
       - srd006-applier AC1
 
   - use_case: rel06.0-uc001-declarative-applier
+    name: Live applier infrastructure failures are bounded and classified
+    integration_target: mage test (magefiles/applier_live_infrastructure_test.go, GH-872)
+    go_test: TestApplierLiveInfrastructureHealthy, TestApplierLiveInfrastructureClassifiesHostAPIFailure, TestApplierLiveInfrastructureClassifiesPodAPIFailure, TestApplierLiveDiagnosticsAreBoundedAndKeepFailures, TestApplierLiveApplyFailureClassification
+    status: implemented
+    description: |
+      Deterministic command-runner tests pin the live tier's infrastructure
+      boundary without claiming a cluster run succeeded. Before an apply, the host
+      must reach the Kubernetes readyz endpoint and kubectl running inside the real
+      applier Deployment must reach the same endpoint using the pod's mounted
+      service account and cluster network.
+
+      If an apply assertion fails, the target repeats those probes and collects
+      Helm status/history, pod readiness, events, and applier logs under one bounded
+      diagnostic deadline. A failed recheck is reported as infrastructure
+      unavailable while a healthy recheck preserves the machine or Helm assertion
+      as a semantic failure. Timeout and command-failure fixtures prove diagnostics
+      terminate and retain partial evidence even when the cluster is unhealthy.
+    inputs:
+      healthy: host and applier-pod readyz probes answer ok
+      host_failure: host Kubernetes API probe fails
+      pod_failure: in-pod Kubernetes API probe fails after the host probe succeeds
+      diagnostics: timed-out and failed command-runner responses
+    expected:
+      healthy_paths_reach_semantic_assertions: true
+      host_api_failure_classified_as_infrastructure: true
+      pod_network_or_api_failure_classified_as_infrastructure: true
+      diagnostics_have_one_overall_deadline: true
+      healthy_recheck_preserves_semantic_failure: true
+      unhealthy_recheck_does_not_claim_live_success: true
+    traces:
+      - rel06.0-uc001-declarative-applier S3
+      - srd006-applier AC3
+
+  - use_case: rel06.0-uc001-declarative-applier
     name: A live on-cluster rollout through the applier
     integration_target: mage integration:applierLive (GH-735, GH-751)
     status: done
@@ -162,6 +196,13 @@ test_cases:
 
       The same non-conforming document the schema case validates locally is
       rejected here against the real chart schema, leaving the release untouched.
+
+      Before each live apply, bounded host and in-pod readyz probes distinguish
+      Kubernetes API or pod-network loss from the semantic proof. An apply failure
+      triggers bounded Helm, pod, event, and applier-log diagnostics before cleanup.
+      Infrastructure-unavailable is a distinct failure classification and does not
+      satisfy this case: status done records what a healthy completed run proves,
+      not that an unhealthy environment passed.
 
       Finding this tier produced: the applier Role could not read the Secrets
       helm queries to find its own release, so an apply failed at the validate

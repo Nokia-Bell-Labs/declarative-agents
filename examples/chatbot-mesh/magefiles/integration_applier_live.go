@@ -408,13 +408,16 @@ func assertApplierServesItsSurface(profilesRoot string) error {
 
 	// The apply path, which is what the fake-CLI tracer cannot reach: a real
 	// helm upgrade against a real release (GH-747).
-	if err := assertLiveApplyChangesTheRelease(profilesRoot); err != nil {
+	if err := runApplierLiveApplyStep(runApplierLiveCommand, "upgrade",
+		func() error { return assertLiveApplyChangesTheRelease(profilesRoot) }); err != nil {
 		return err
 	}
-	if err := assertLiveRollbackRestoresTheRelease(profilesRoot); err != nil {
+	if err := runApplierLiveApplyStep(runApplierLiveCommand, "rollback",
+		func() error { return assertLiveRollbackRestoresTheRelease(profilesRoot) }); err != nil {
 		return err
 	}
-	if err := assertLiveSchemaRejection(profilesRoot); err != nil {
+	if err := runApplierLiveApplyStep(runApplierLiveCommand, "schema rejection",
+		func() error { return assertLiveSchemaRejection(profilesRoot) }); err != nil {
 		return err
 	}
 
@@ -487,7 +490,7 @@ func assertLiveApplyChangesTheRelease(profilesRoot string) error {
 		return fmt.Errorf("apply request failed: %w", err)
 	}
 	if status != http.StatusOK {
-		return fmt.Errorf("apply status = %d, want 200: %s\n%s", status, body, applierPodDiagnostics())
+		return fmt.Errorf("apply status = %d, want 200: %s", status, body)
 	}
 	if !strings.Contains(string(body), `"status":"applied"`) {
 		return fmt.Errorf("apply did not report applied: %s", body)
@@ -534,8 +537,7 @@ func assertLiveRollbackRestoresTheRelease(profilesRoot string) error {
 		return fmt.Errorf("rollback-triggering apply request failed: %w", err)
 	}
 	if status != http.StatusInternalServerError {
-		return fmt.Errorf("rollback-triggering apply status = %d, want 500: %s\n%s",
-			status, body, applierPodDiagnostics())
+		return fmt.Errorf("rollback-triggering apply status = %d, want 500: %s", status, body)
 	}
 	for _, want := range []string{`"error":"rolled_back"`, `"status":"rolled_back"`} {
 		if !strings.Contains(string(body), want) {
@@ -604,19 +606,6 @@ func assertLiveSchemaRejection(profilesRoot string) error {
 	}
 	fmt.Printf("applierLive: the non-conforming patch was rejected and left the release at revision %d\n", after)
 	return nil
-}
-
-// applierPodDiagnostics returns the applier's own log tail. A live apply that
-// fails reports only the terminal the machine reached; what helm actually said
-// is in the pod, and without it a failure here is a mystery rather than a
-// finding.
-func applierPodDiagnostics() string {
-	out, err := exec.Command("kubectl", "logs",
-		"-l", "app.kubernetes.io/component=applier", "--tail", "60").CombinedOutput()
-	if err != nil {
-		return fmt.Sprintf("(could not read applier logs: %v)", err)
-	}
-	return "applier log tail:\n" + string(out)
 }
 
 // applierValuesPatch reads a shared fixture and wraps it as the apply request
