@@ -45,7 +45,7 @@ func TestLoopForEachEmptyCollectionStillJoins(t *testing.T) {
 	_, execution, err := cp.Load()
 	require.NoError(t, err)
 	require.Equal(t, []string{"list", "for_each.join"}, entryCommands(execution))
-	require.JSONEq(t, `{"failed":0,"items":null,"policy":"fail_fast","succeeded":0}`, execution[1].Result.Output)
+	require.JSONEq(t, `{"failed":0,"items":[],"policy":"fail_fast","succeeded":0}`, execution[1].Result.Output)
 }
 
 func TestLoopForEachResumeContinuesAfterLastPersistedItem(t *testing.T) {

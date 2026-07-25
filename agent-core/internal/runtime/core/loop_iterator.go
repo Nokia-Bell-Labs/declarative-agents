@@ -167,8 +167,12 @@ func iteratorJoinResult(frame *IteratorSnapshot) Result {
 	case failed > 0:
 		signal = Signal(frame.Spec.Join.Signals.Partial)
 	}
+	outcomes := frame.Outcomes
+	if outcomes == nil {
+		outcomes = []IteratorOutcome{}
+	}
 	output, _ := json.Marshal(map[string]interface{}{
-		"items": frame.Outcomes, "succeeded": succeeded, "failed": failed,
+		"items": outcomes, "succeeded": succeeded, "failed": failed,
 		"policy": effectiveFailure(frame.Spec),
 	})
 	return Result{Signal: signal, CommandName: "for_each.join", Output: string(output)}

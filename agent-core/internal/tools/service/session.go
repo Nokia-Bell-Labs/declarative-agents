@@ -210,6 +210,20 @@ func (s *ScenarioSessionState) Subject() (string, string) {
 	return s.subject.service, s.subject.baseURL
 }
 
+// Children returns subject-first teardown items in deterministic start order.
+func (s *ScenarioSessionState) Children() []map[string]string {
+	s.mu.Lock()
+	defer s.mu.Unlock()
+	children := make([]map[string]string, 0, len(s.mocks)+1)
+	if s.subject.service != "" {
+		children = append(children, map[string]string{"service": s.subject.service})
+	}
+	for _, mock := range s.mocks {
+		children = append(children, map[string]string{"service": mock.Service})
+	}
+	return children
+}
+
 // RecordValidators stores the current scenario's validator outcomes.
 func (s *ScenarioSessionState) RecordValidators(outcomes []ValidatorOutcome) {
 	s.mu.Lock()

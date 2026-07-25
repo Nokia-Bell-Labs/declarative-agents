@@ -181,6 +181,31 @@ test_cases:
       - srd018-assembler AC2
 
   - use_case: rel11.0-uc001-assembler-scenario-run
+    name: Validator and teardown collections are machine-visible
+    go_test: cd ../agent-core && go test ./internal/tools/service -run '^(TestRunOneValidator_TerminalStateAndTimeout|TestRunScenarioValidator_EmitsItemReceipt|TestRecordScenarioValidators_PreservesJoinOrder|TestScenarioSteps_TeardownRunsOnFailurePath)$'
+    integration_target: mage rig
+    status: implemented
+    description: |
+      The current scenario exposes ordered validator items. Sequential
+      MachineSpec iteration dispatches one child execution per item, joins and
+      records outcomes, then lists the subject before its mocks and dispatches
+      stop_service once per child. Bounded parallel iteration is deferred, so
+      no service tool restores hidden validator goroutines.
+    inputs:
+      validators: [first, second]
+      teardown_order: [subject, mocks_in_start_order]
+      mode: sequential
+    expected:
+      entry_per_validator: true
+      entry_per_child_stop: true
+      joins_are_labeled_and_ordered: true
+      no_hidden_collection_loop: true
+    traces:
+      - rel11.0-uc001-assembler-scenario-run S1
+      - rel11.0-uc001-assembler-scenario-run S5
+      - srd018-assembler AC1
+
+  - use_case: rel11.0-uc001-assembler-scenario-run
     name: Subject readiness is a machine-visible REST retry loop
     go_test: cd ../agent-core && go test ./internal/tools/lifecycle ./internal/tools/rest ./internal/tools/service -run '^(TestDelay_ElapsedAndDeadlineSignals|TestDelay_CancellationAndValidation|TestRESTClient_CommandStateSelectsTrustedBaseURL|TestSubjectHealthTarget_PreservesRelativeAndAlternateListenerPaths)$'
     integration_target: mage rig
@@ -247,8 +272,9 @@ test_cases:
     status: implemented
     description: |
       After a scenario, no subject or mock process from the assembler's child
-      groups survives, and a second consecutive run passes without port or
-      state leakage. A failure path tears children down as well.
+      groups survives after one visible stop dispatch per child, and a second
+      consecutive run passes without port or state leakage. A failure path
+      lists and iterates the same teardown items.
     inputs:
       runs: 2
       failure_path_variant: mock start failure

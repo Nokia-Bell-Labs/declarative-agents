@@ -3,7 +3,6 @@
 package service
 
 import (
-	"context"
 	"encoding/json"
 	"fmt"
 	"io"
@@ -193,74 +192,22 @@ func TestServiceChild_StartRejectsBadSpawn(t *testing.T) {
 	require.Contains(t, err.Error(), "already running")
 }
 
-// TestRunValidators_ConcurrentTerminalStatesAndTimeout covers srd040 AC3: each
-// validator's terminal state is reported, keyed by name and sorted. The
-// hung-validator path is covered by RunsConcurrently and the signals test.
-func TestRunValidators_ConcurrentTerminalStatesAndTimeout(t *testing.T) {
+// TestRunOneValidator_TerminalStateAndTimeout covers the atomic child-execution
+// boundary used by MachineSpec iteration.
+func TestRunOneValidator_TerminalStateAndTimeout(t *testing.T) {
 	t.Parallel()
 
-	// The budget must clear real child startup: a race-instrumented re-exec of
-	// the test binary needs far longer than a trivial process would, and too
-	// tight a bound makes the passing child look like a timeout.
-	const budget = 30 * time.Second
+	passed := runOneValidator(t.Context(), os.Args[0], ValidatorSpec{
+		Name: "passing", Profile: "p", Env: []string{envChildMode + "=exit0"},
+	}, 30*time.Second)
+	require.True(t, passed.Passed)
+	require.Equal(t, "succeeded", passed.Terminal)
 
-	// No validator here hangs, so the generous budget costs nothing: the run
-	// ends as soon as the children exit. The timeout path is proven by
-	// TestRunValidators_RunsConcurrently and the signals test, which keep their
-	// own short bounds.
-	outcomes := RunValidators(context.Background(), os.Args[0], []ValidatorSpec{
-		{Name: "passing", Profile: "p", Env: []string{envChildMode + "=exit0"}},
-		{Name: "failing", Profile: "p", Env: []string{envChildMode + "=exit3"}},
-	}, budget)
-
-	require.Len(t, outcomes, 2)
-	require.Equal(t, []string{"failing", "passing"},
-		[]string{outcomes[0].Name, outcomes[1].Name}, "outcomes are sorted for determinism")
-
-	byName := map[string]ValidatorOutcome{}
-	for _, outcome := range outcomes {
-		byName[outcome.Name] = outcome
-	}
-	require.True(t, byName["passing"].Passed)
-	require.Equal(t, 0, byName["passing"].ExitCode)
-	require.False(t, byName["failing"].Passed)
-	require.Equal(t, 3, byName["failing"].ExitCode)
-
-	require.False(t, AllPassed(outcomes))
-	failure, failed := FirstFailure(outcomes)
-	require.True(t, failed)
-	require.Equal(t, "failing", failure.Name, "the first failure names the cause")
-
-	allGood := RunValidators(context.Background(), os.Args[0],
-		[]ValidatorSpec{{Name: "ok", Profile: "p", Env: []string{envChildMode + "=exit0"}}}, budget)
-	require.True(t, AllPassed(allGood))
-}
-
-// TestRunValidators_RunsConcurrently proves validators run concurrently rather
-// than in sequence: three children that all hang finish in about one timeout,
-// not three (srd040 R4.2).
-func TestRunValidators_RunsConcurrently(t *testing.T) {
-	t.Parallel()
-
-	const timeout = 1500 * time.Millisecond
-	specs := make([]ValidatorSpec, 3)
-	for i := range specs {
-		specs[i] = ValidatorSpec{
-			Name:    "hung" + strconv.Itoa(i),
-			Profile: "p",
-			Env:     []string{envChildMode + "=hang"},
-		}
-	}
-
-	start := time.Now()
-	outcomes := RunValidators(context.Background(), os.Args[0], specs, timeout)
-	elapsed := time.Since(start)
-
-	require.Len(t, outcomes, 3)
-	for _, outcome := range outcomes {
-		require.True(t, outcome.TimedOut, "%s should time out", outcome.Name)
-	}
-	require.Less(t, elapsed, 3*timeout, "concurrent execution should cost about one timeout, not three")
+	timedOut := runOneValidator(t.Context(), os.Args[0], ValidatorSpec{
+		Name: "hung", Profile: "p", Env: []string{envChildMode + "=hang"},
+	}, 300*time.Millisecond)
+	require.True(t, timedOut.TimedOut)
+	require.False(t, timedOut.Passed)
 }
 
 // TestListScenarios_DeterministicDiscovery covers srd040 AC4: discovery
@@ -346,7 +293,7 @@ func TestServiceTools_DeclarationsReversibilityAndUndo(t *testing.T) {
 	require.Empty(t, state.Running(), "undo must stop the started service")
 
 	// Every other word is a noop undo, matching its declaration.
-	for _, init := range []string{InitStopService, InitRunValidators, InitListScenarios} {
+	for _, init := range []string{InitStopService, InitListScenarios} {
 		cmd := Builder{ToolName: init, Init: init, State: state}.Build(core.Result{})
 		require.Equal(t, core.NoopUndo(init).Signal, cmd.Undo(core.Result{}).Signal, init)
 	}
@@ -357,7 +304,6 @@ func TestServiceTools_DeclarationsReversibilityAndUndo(t *testing.T) {
 	for init, want := range map[string]string{
 		InitStartService:  "requires a service name",
 		InitStopService:   "requires a service name",
-		InitRunValidators: "requires at least one validator",
 		InitListScenarios: "requires at least one root",
 	} {
 		factory, ok := br.Resolve(init)
@@ -370,35 +316,6 @@ func TestServiceTools_DeclarationsReversibilityAndUndo(t *testing.T) {
 		require.Error(t, err, init)
 		require.Contains(t, err.Error(), want, init)
 	}
-}
-
-// TestServiceCommand_RunValidatorsSignals covers srd040 R4.5: a completed run
-// and an incomplete one carry different signals, and the payload names the
-// first failure.
-func TestServiceCommand_RunValidatorsSignals(t *testing.T) {
-	t.Parallel()
-
-	run := func(specs []ValidatorSpec, timeout string) core.Result {
-		return Builder{
-			ToolName: "run", Init: InitRunValidators, State: NewState(),
-			Config: ToolConfig{Binary: os.Args[0], Validators: specs, Timeout: timeout},
-		}.Build(core.Result{}).Execute()
-	}
-
-	passed := run([]ValidatorSpec{{Name: "ok", Profile: "p", Env: []string{envChildMode + "=exit0"}}}, "1m")
-	require.Equal(t, SignalValidatorsCompleted, passed.Signal)
-	require.Contains(t, passed.Output, `"passed":true`)
-
-	// A validator that ran and failed still completed: the rig reads the verdict.
-	failed := run([]ValidatorSpec{{Name: "bad", Profile: "p", Env: []string{envChildMode + "=exit3"}}}, "1m")
-	require.Equal(t, SignalValidatorsCompleted, failed.Signal)
-	require.Contains(t, failed.Output, `"passed":false`)
-	require.Contains(t, failed.Output, `"first_failure"`)
-
-	// A validator that never finished did not complete.
-	hung := run([]ValidatorSpec{{Name: "hung", Profile: "p", Env: []string{envChildMode + "=hang"}}}, "300ms")
-	require.Equal(t, SignalValidatorsIncomplete, hung.Signal)
-	require.Contains(t, hung.Output, `"timed_out":true`)
 }
 
 // TestServiceCommand_ListScenariosOutput covers the discovery word's result

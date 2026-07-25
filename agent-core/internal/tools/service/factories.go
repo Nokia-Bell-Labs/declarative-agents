@@ -6,6 +6,7 @@ import (
 	"context"
 	"encoding/json"
 	"fmt"
+	"strings"
 	"time"
 
 	"github.com/Nokia-Bell-Labs/declarative-agents/agent-core/internal/runtime/core"
@@ -16,51 +17,52 @@ import (
 const (
 	InitStartService  = "start_service"
 	InitStopService   = "stop_service"
-	InitRunValidators = "run_validators"
 	InitListScenarios = "list_scenarios"
 
 	// The assembler's session words. Each per-scenario step reads the current
 	// scenario from the session, so the pipeline stays visible as machine
 	// transitions while working on data discovered at runtime (srd018 R1).
-	InitInitScenarioSession = "init_scenario_session"
-	InitNextScenario        = "next_scenario"
-	InitStartScenarioMock   = "start_scenario_mock"
-	InitStartSubject        = "start_scenario_subject"
-	InitRunScenarioTests    = "run_scenario_validators"
-	InitCollectVerdict      = "collect_scenario_verdict"
-	InitTeardownScenario    = "teardown_scenario"
-	InitReportSession       = "report_scenario_session"
+	InitInitScenarioSession  = "init_scenario_session"
+	InitNextScenario         = "next_scenario"
+	InitStartScenarioMock    = "start_scenario_mock"
+	InitStartSubject         = "start_scenario_subject"
+	InitRunScenarioValidator = "run_scenario_validator"
+	InitRecordValidators     = "record_scenario_validators"
+	InitCollectVerdict       = "collect_scenario_verdict"
+	InitListScenarioChildren = "list_scenario_children"
+	InitReportSession        = "report_scenario_session"
 )
 
 // StandardInits lists every service builtin init name.
 var StandardInits = []string{
-	InitStartService, InitStopService, InitRunValidators, InitListScenarios,
+	InitStartService, InitStopService, InitListScenarios,
 	InitInitScenarioSession, InitNextScenario, InitStartScenarioMock, InitStartSubject,
-	InitRunScenarioTests, InitCollectVerdict, InitTeardownScenario,
+	InitRunScenarioValidator, InitRecordValidators, InitCollectVerdict, InitListScenarioChildren,
 	InitReportSession,
 }
 
-// Result signals. ValidatorsCompleted and ValidatorsIncomplete separate "all
-// ran" from "one timed out or failed to spawn" (srd040 R4.5).
+// Result signals distinguish each child operation and thin session mutation.
 const (
-	SignalServiceStarted       core.Signal = "ServiceStarted"
-	SignalServiceStopped       core.Signal = "ServiceStopped"
-	SignalValidatorsCompleted  core.Signal = "ValidatorsCompleted"
-	SignalValidatorsIncomplete core.Signal = "ValidatorsIncomplete"
-	SignalScenariosListed      core.Signal = "ScenariosListed"
+	SignalServiceStarted      core.Signal = "ServiceStarted"
+	SignalServiceStopped      core.Signal = "ServiceStopped"
+	SignalValidatorCompleted  core.Signal = "ValidatorCompleted"
+	SignalValidatorIncomplete core.Signal = "ValidatorIncomplete"
+	SignalValidatorsRecorded  core.Signal = "ValidatorsRecorded"
+	SignalScenariosListed     core.Signal = "ScenariosListed"
 
-	SignalSessionSeeded    core.Signal = "SessionSeeded"
-	SignalNoScenarios      core.Signal = "NoScenarios"
-	SignalScenarioReady    core.Signal = "ScenarioReady"
-	SignalAllScenariosDone core.Signal = "AllScenariosDone"
-	SignalMockStarted      core.Signal = "MockStarted"
-	SignalMocksStarted     core.Signal = "MocksStarted"
-	SignalSubjectStarted   core.Signal = "SubjectStarted"
-	SignalScenarioPassed   core.Signal = "ScenarioPassed"
-	SignalScenarioFailed   core.Signal = "ScenarioFailed"
-	SignalScenarioTornDown core.Signal = "ScenarioTornDown"
-	SignalSessionPassed    core.Signal = "SessionPassed"
-	SignalSessionFailed    core.Signal = "SessionFailed"
+	SignalSessionSeeded          core.Signal = "SessionSeeded"
+	SignalNoScenarios            core.Signal = "NoScenarios"
+	SignalScenarioReady          core.Signal = "ScenarioReady"
+	SignalAllScenariosDone       core.Signal = "AllScenariosDone"
+	SignalMockStarted            core.Signal = "MockStarted"
+	SignalMocksStarted           core.Signal = "MocksStarted"
+	SignalSubjectStarted         core.Signal = "SubjectStarted"
+	SignalScenarioChildrenListed core.Signal = "ScenarioChildrenListed"
+	SignalScenarioPassed         core.Signal = "ScenarioPassed"
+	SignalScenarioFailed         core.Signal = "ScenarioFailed"
+	SignalScenarioTornDown       core.Signal = "ScenarioTornDown"
+	SignalSessionPassed          core.Signal = "SessionPassed"
+	SignalSessionFailed          core.Signal = "SessionFailed"
 )
 
 // ToolConfig is the declared config for every service word. Each word reads
@@ -77,9 +79,10 @@ type ToolConfig struct {
 	Timeout string `yaml:"timeout,omitempty"`
 	Grace   string `yaml:"grace,omitempty"`
 
-	Validators []ValidatorSpec `yaml:"validators,omitempty"`
-	Roots      []string        `yaml:"roots,omitempty"`
-	Fixture    string          `yaml:"fixture,omitempty"`
+	Roots     []string `yaml:"roots,omitempty"`
+	Fixture   string   `yaml:"fixture,omitempty"`
+	Validator string   `yaml:"validator,omitempty"`
+	Outcomes  string   `yaml:"outcomes,omitempty"`
 
 	// Reason forces a scenario verdict to fail with this text, so a machine
 	// can route a failed start or health step to a verdict that names the
@@ -142,15 +145,11 @@ func validateToolConfig(name, init string, cfg ToolConfig) error {
 		}
 	case InitStopService:
 		if cfg.Service == "" {
-			return fmt.Errorf("tool %q (%s) requires a service name", name, init)
+			return fmt.Errorf("tool %q (%s) requires a service name or selector", name, init)
 		}
-	case InitRunValidators:
-		if len(cfg.Validators) == 0 {
-			return fmt.Errorf("tool %q (%s) requires at least one validator", name, init)
-		}
-		for i, validator := range cfg.Validators {
-			if validator.Profile == "" {
-				return fmt.Errorf("tool %q (%s) validator %d requires a profile", name, init, i)
+		if strings.HasPrefix(cfg.Service, "$") {
+			if _, _, ok := core.ParseFromSelector(cfg.Service); !ok {
+				return fmt.Errorf("tool %q (%s) service must be a $from(label).path selector", name, init)
 			}
 		}
 	case InitListScenarios, InitInitScenarioSession:
@@ -163,6 +162,14 @@ func validateToolConfig(name, init string, cfg ToolConfig) error {
 		}
 		if _, _, ok := core.ParseFromSelector(cfg.Fixture); !ok {
 			return fmt.Errorf("tool %q (%s) fixture must be a $from(label).path selector", name, init)
+		}
+	case InitRunScenarioValidator:
+		if _, _, ok := core.ParseFromSelector(cfg.Validator); !ok {
+			return fmt.Errorf("tool %q (%s) validator must be a $from(label).path selector", name, init)
+		}
+	case InitRecordValidators:
+		if _, _, ok := core.ParseFromSelector(cfg.Outcomes); !ok {
+			return fmt.Errorf("tool %q (%s) outcomes must be a $from(label).path selector", name, init)
 		}
 	}
 	return nil
@@ -186,7 +193,7 @@ func (b Builder) Build(_ core.Result) core.Command {
 	return &command{toolName: b.ToolName, init: b.Init, cfg: b.Config, state: b.State, session: session}
 }
 
-// BuildReverser reconstructs a receipt-only command for per-mock rollback.
+// BuildReverser reconstructs a receipt-only command for child rollback.
 func (b Builder) BuildReverser() core.Command {
 	return b.Build(core.Result{})
 }
@@ -212,8 +219,6 @@ func (c *command) ExecuteContext(ctx context.Context) core.Result {
 		return c.start()
 	case InitStopService:
 		return c.stop()
-	case InitRunValidators:
-		return c.runValidators(ctx)
 	case InitListScenarios:
 		return c.listScenarios()
 	case InitInitScenarioSession:
@@ -224,12 +229,14 @@ func (c *command) ExecuteContext(ctx context.Context) core.Result {
 		return c.startScenarioMock()
 	case InitStartSubject:
 		return c.startSubject()
-	case InitRunScenarioTests:
-		return c.runScenarioValidators(ctx)
+	case InitRunScenarioValidator:
+		return c.runScenarioValidator(ctx)
+	case InitRecordValidators:
+		return c.recordScenarioValidators()
 	case InitCollectVerdict:
 		return c.collectVerdict()
-	case InitTeardownScenario:
-		return c.teardownScenario()
+	case InitListScenarioChildren:
+		return c.listScenarioChildren()
 	case InitReportSession:
 		return c.reportSession()
 	default:
@@ -249,20 +256,20 @@ func (c *command) Undo(prior core.Result) core.Result {
 			Signal: SignalServiceStopped, CommandName: c.toolName, Output: jsonOutput(output),
 		}
 	case InitStartScenarioMock:
-		return c.undoScenarioMock(prior)
+		return c.undoStartedChild(prior)
 	case InitStartSubject:
-		return c.teardownScenario()
+		return c.undoStartedChild(prior)
 	default:
 		return core.NoopUndo(c.toolName)
 	}
 }
 
-func (c *command) undoScenarioMock(prior core.Result) core.Result {
+func (c *command) undoStartedChild(prior core.Result) core.Result {
 	var receipt struct {
 		Service string `json:"service"`
 	}
 	if err := json.Unmarshal([]byte(prior.Receipt), &receipt); err != nil || receipt.Service == "" {
-		return commandError(c.toolName, fmt.Errorf("%s: invalid mock receipt", c.toolName))
+		return commandError(c.toolName, fmt.Errorf("%s: invalid child receipt", c.toolName))
 	}
 	output := c.state.Stop(receipt.Service, parseDuration(c.cfg.Grace, defaultStopGrace))
 	return core.Result{
@@ -287,24 +294,31 @@ func (c command) start() core.Result {
 }
 
 func (c command) stop() core.Result {
-	output := c.state.Stop(c.cfg.Service, parseDuration(c.cfg.Grace, defaultStopGrace))
-	return core.Result{Signal: SignalServiceStopped, CommandName: c.toolName, Output: jsonOutput(output)}
+	service, err := c.serviceName()
+	if err != nil {
+		return commandError(c.toolName, err)
+	}
+	output := c.state.Stop(service, parseDuration(c.cfg.Grace, defaultStopGrace))
+	encoded := jsonOutput(output)
+	return core.Result{
+		Signal: SignalServiceStopped, CommandName: c.toolName,
+		Output: encoded, Receipt: encoded,
+	}
 }
 
-func (c command) runValidators(ctx context.Context) core.Result {
-	outcomes := RunValidators(ctx, c.cfg.Binary, c.cfg.Validators, parseDuration(c.cfg.Timeout, defaultRunTimeout))
-	payload := map[string]interface{}{
-		"validators": outcomes,
-		"passed":     AllPassed(outcomes),
+func (c command) serviceName() (string, error) {
+	if _, _, selector := core.ParseFromSelector(c.cfg.Service); !selector {
+		return c.cfg.Service, nil
 	}
-	signal := SignalValidatorsCompleted
-	if failure, failed := FirstFailure(outcomes); failed {
-		payload["first_failure"] = failure
-		if failure.TimedOut || failure.Error != "" {
-			signal = SignalValidatorsIncomplete
-		}
+	value, err := core.ResolveFromSelector(c.commandState, c.cfg.Service)
+	if err != nil {
+		return "", err
 	}
-	return core.Result{Signal: signal, CommandName: c.toolName, Output: jsonOutput(payload)}
+	service, ok := value.(string)
+	if !ok || service == "" {
+		return "", fmt.Errorf("%s: service selector did not resolve to a string", c.toolName)
+	}
+	return service, nil
 }
 
 func (c command) listScenarios() core.Result {

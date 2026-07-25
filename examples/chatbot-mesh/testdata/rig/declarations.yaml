@@ -66,7 +66,7 @@ tools:
       input:
         - The session holds the seeded work list.
       output:
-        - Output reports the subject, scenario, validator count, and fixture items.
+        - Output reports the subject, scenario, validator items, and fixture items.
       errors:
         - An unreadable scenario manifest emits CommandError.
     non_goals:
@@ -82,7 +82,7 @@ tools:
         properties:
           subject: {type: string}
           scenario: {type: string}
-          validators: {type: integer}
+          validators: {type: array}
           fixtures: {type: array}
     side_effects:
       - kind: state_mutation
@@ -193,10 +193,10 @@ tools:
         state: subject_recorded
     reversibility:
       classification: compensatable
-      undo: teardown_scenario
+      undo: stop_service
     undo:
       strategy: compensating_action
-      description: Stop the scenario's children rather than leave them running.
+      description: Decode the subject receipt and stop only that child.
     errors:
       - signal: CommandError
         condition: The subject profile is missing, or the process fails to spawn.
@@ -303,44 +303,45 @@ tools:
       elapsed_signal: HealthRetryReady
       deadline_signal: HealthTimeout
 
-  - name: run_scenario_validators
+  - name: run_scenario_validator
     type: builtin
-    init: run_scenario_validators
+    init: run_scenario_validator
     visibility: internal
     category: boundary
-    description: Run this scenario's validator machines against its subject.
-    problem: A scenario's expectations are themselves machines, and several may share one subject.
+    description: Run the one validator bound by the machine iterator.
+    problem: Each validator child needs its own dispatch, trace, checkpoint entry, receipt, and rollback boundary.
     goals:
-      - Run every validator the scenario declares, concurrently, to completion.
-      - Report each terminal state so a verdict can name a failure.
+      - Run one validator to completion through the shared child-agent execution path.
+      - Report its terminal state without reducing sibling outcomes.
     requirements:
       input:
-        - The session holds the current scenario's validator profiles and the subject URL.
-        - Tool config declares the overall timeout.
+        - The validator profile comes from the trusted $from(validator).profile iterator binding.
+        - The session holds the current subject URL.
       output:
-        - Output reports each validator's terminal state and whether all passed.
+        - Output reports this validator's terminal state and exit code.
       errors:
-        - A scenario declaring no validator emits CommandError.
+        - A missing binding or subject emits CommandError.
     non_goals:
-      - Does not decide the verdict; collect_scenario_verdict does.
+      - Does not iterate, join, record sibling outcomes, or decide the verdict.
+      - Does not run validators concurrently; bounded parallel iteration is deferred.
     parameters:
       type: object
       properties: {}
-    emits: [ValidatorsCompleted, ValidatorsIncomplete, CommandError]
+    emits: [ValidatorCompleted, ValidatorIncomplete, CommandError]
     output:
-      description: Validator outcomes for this scenario.
+      description: One validator outcome.
       schema:
         type: object
         properties:
-          validators: {type: array}
+          name: {type: string}
+          profile: {type: string}
+          exit_code: {type: integer}
           passed: {type: boolean}
+          timed_out: {type: boolean}
     side_effects:
       - kind: child_agent_execution
         target: validator_agent
-        state: validators_completed
-      - kind: state_mutation
-        target: scenario_session
-        state: outcomes_recorded
+        state: validator_completed
     reversibility:
       classification: irreversible
       undo: noop
@@ -349,10 +350,58 @@ tools:
       description: A validator run that already drove the subject cannot be unrun.
     errors:
       - signal: CommandError
-        condition: The scenario declares no validator machine.
-        state_after_failure: No validator ran and no outcome is recorded.
+        condition: The iterator binding or current subject is unavailable.
+        state_after_failure: The iterator join exposes the failed item.
     config:
+      validator: $from(validator).profile
       timeout: 5m
+
+  - name: record_scenario_validators
+    type: builtin
+    init: record_scenario_validators
+    visibility: internal
+    category: boundary
+    description: Record the validator iterator's ordered joined outcomes.
+    problem: Later verdict and report words need the machine-visible item results retained in the session.
+    goals:
+      - Decode the ordered join output without running or reducing validators.
+      - Store the outcomes for verdict reporting.
+    requirements:
+      input:
+        - The labeled validator join contains one result per dispatched item.
+      output:
+        - Output reports the ordered outcomes and their conjunction.
+      errors:
+        - Malformed join output emits CommandError.
+    non_goals:
+      - Does not launch children, iterate, or choose a verdict signal.
+    parameters:
+      type: object
+      properties: {}
+    emits: [ValidatorsRecorded, CommandError]
+    output:
+      description: Recorded validator outcomes.
+      schema:
+        type: object
+        properties:
+          validators: {type: array}
+          passed: {type: boolean}
+    side_effects:
+      - kind: state_mutation
+        target: scenario_session
+        state: outcomes_recorded
+    reversibility:
+      classification: irreversible
+      undo: noop
+    undo:
+      strategy: irreversible
+      description: Recorded outcomes remain part of this scenario's report.
+    errors:
+      - signal: CommandError
+        condition: The join output cannot be decoded.
+        state_after_failure: No validator outcomes are recorded.
+    config:
+      outcomes: $from(validators_joined).items
 
   - name: collect_scenario_verdict
     type: builtin
@@ -540,49 +589,97 @@ tools:
     config:
       reason: the scenario's validators could not be run
 
-  - name: teardown_scenario
+  - name: list_scenario_children
     type: builtin
-    init: teardown_scenario
+    init: list_scenario_children
     visibility: internal
     category: boundary
-    description: Stop every child this scenario started.
-    problem: A child that outlives its scenario leaks a port and corrupts the next run.
+    description: Expose subject-first teardown items for the current scenario.
+    problem: MachineSpec needs a deterministic runtime list before it can dispatch one stop per child.
     goals:
-      - Stop the subject and every mock, gracefully then forcibly.
-      - Leave nothing running before the loop continues.
+      - List the subject followed by mocks in their start order.
+      - Leave child stopping to the iterator.
     requirements:
       input:
-        - The session holds the children started for the current scenario.
-        - Tool config declares the graceful stop budget.
+        - The session tracks children started for the current scenario.
       output:
-        - Output reports what was stopped and what remains running.
+        - Output contains ordered service-name objects.
       errors:
-        - None; stopping an already-stopped child succeeds.
+        - A missing current scenario emits CommandError.
     non_goals:
-      - Does not decide the verdict.
+      - Does not stop a child or iterate the list.
     parameters:
       type: object
       properties: {}
-    emits: [ScenarioTornDown]
+    emits: [ScenarioChildrenListed, CommandError]
     output:
-      description: Teardown result.
+      description: Ordered teardown items.
       schema:
         type: object
         properties:
-          stopped: {type: array}
-          running: {type: array}
+          children: {type: array}
+    side_effects:
+      - kind: state_read
+        target: scenario_session
+        state: read_only
+    reversibility:
+      classification: reversible
+      undo: noop
+    undo:
+      strategy: noop
+      description: Listing children changes no state.
+    errors:
+      - signal: CommandError
+        condition: The scenario session has no current scenario.
+        state_after_failure: No teardown list is emitted; the run ends in Failed.
+    config: {}
+
+  - name: stop_scenario_child
+    type: builtin
+    init: stop_service
+    visibility: internal
+    category: boundary
+    description: Stop the one scenario child bound by the teardown iterator.
+    problem: Every child stop needs its own visible dispatch and checkpoint boundary.
+    goals:
+      - Reuse the atomic stop_service operation for one iterator item.
+      - Stop gracefully within a bound, then kill if needed.
+    requirements:
+      input:
+        - The service name comes from the trusted $from(child).service iterator binding.
+      output:
+        - Output and receipt report the stopped service.
+      errors:
+        - An invalid selector emits CommandError.
+    non_goals:
+      - Does not list, loop over, or reduce scenario children.
+    parameters:
+      type: object
+      properties: {}
+    emits: [ServiceStopped, CommandError]
+    output:
+      description: One child stop result.
+      schema:
+        type: object
+        properties:
+          service: {type: string}
+          stopped: {type: boolean}
     side_effects:
       - kind: child_process
-        target: scenario_children
-        state: children_stopped
+        target: scenario_child
+        state: child_stopped
     reversibility:
       classification: irreversible
       undo: noop
     undo:
       strategy: irreversible
-      description: A stopped child is restarted by a new scenario, not by an undo.
-    errors: []
+      description: A stopped child is restarted by a new scenario, not by undo.
+    errors:
+      - signal: CommandError
+        condition: The iterator binding cannot resolve a service name.
+        state_after_failure: The join exposes the failed stop item.
     config:
+      service: $from(child).service
       grace: 5s
 
   - name: report_session

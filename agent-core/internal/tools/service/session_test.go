@@ -3,7 +3,6 @@
 package service
 
 import (
-	"context"
 	"encoding/json"
 	"os"
 	"path/filepath"
@@ -58,6 +57,39 @@ type fixtureStateView struct {
 
 func (v fixtureStateView) Lookup(label string) (string, bool) {
 	return v.output, label == "fixture"
+}
+
+type labeledStateView struct {
+	label  string
+	output string
+}
+
+func (v labeledStateView) Lookup(label string) (string, bool) {
+	return v.output, label == v.label
+}
+
+func stopScenarioChildren(t *testing.T, state *State, session *ScenarioSessionState) {
+	t.Helper()
+	listed := Builder{
+		ToolName: "list_children", Init: InitListScenarioChildren,
+		State: state, Session: session,
+	}.Build(core.Result{}).Execute()
+	require.Equal(t, SignalScenarioChildrenListed, listed.Signal)
+
+	for _, child := range session.Children() {
+		cmd := Builder{
+			ToolName: "stop_child", Init: InitStopService, State: state, Session: session,
+			Config: ToolConfig{Service: "$from(child).service", Grace: "2s"},
+		}.Build(core.Result{})
+		aware, ok := cmd.(core.CommandStateAware)
+		require.True(t, ok)
+		aware.SetCommandState(labeledStateView{
+			label: "child", output: jsonOutput(child),
+		})
+		result := cmd.Execute()
+		require.Equal(t, SignalServiceStopped, result.Signal)
+		require.NotEmpty(t, result.Receipt)
+	}
 }
 
 // TestScenarioSession_IteratesEachScenarioOnce covers the cursor contract: the
@@ -284,12 +316,8 @@ func TestScenarioSteps_ThreadsMockURLIntoSubject(t *testing.T) {
 	require.Contains(t, body, mocks[0].BaseURL,
 		"the subject observed the mock's runtime address in its environment")
 
-	// Teardown stops both children.
-	teardown := Builder{
-		ToolName: "teardown", Init: InitTeardownScenario, State: state, Session: session,
-		Config: ToolConfig{Grace: "2s"},
-	}.Build(core.Result{}).Execute()
-	require.Equal(t, SignalScenarioTornDown, teardown.Signal)
+	// MachineSpec lists and stops each child through its own command boundary.
+	stopScenarioChildren(t, state, session)
 	require.Empty(t, state.Running(), "no child outlives the scenario")
 }
 
@@ -337,11 +365,7 @@ func TestScenarioSteps_TeardownRunsOnFailurePath(t *testing.T) {
 	}.Build(core.Result{}).Execute()
 	require.Equal(t, SignalScenarioFailed, verdict.Signal)
 
-	teardown := Builder{
-		ToolName: "teardown", Init: InitTeardownScenario, State: state, Session: session,
-		Config: ToolConfig{Grace: "2s"},
-	}.Build(core.Result{}).Execute()
-	require.Equal(t, SignalScenarioTornDown, teardown.Signal)
+	stopScenarioChildren(t, state, session)
 	require.Empty(t, state.Running(), "a failed scenario still leaves nothing running")
 
 	report := Builder{
@@ -418,7 +442,7 @@ func TestScenarioSteps_RejectIncompleteDeclarations(t *testing.T) {
 	session := NewScenarioSession(NewState())
 
 	// A step word with no current scenario is an error, not a panic.
-	for _, init := range []string{InitStartScenarioMock, InitStartSubject, InitRunScenarioTests} {
+	for _, init := range []string{InitStartScenarioMock, InitStartSubject} {
 		result := Builder{
 			ToolName: init, Init: init, State: NewState(), Session: session,
 			Config: ToolConfig{Profile: "p"},
@@ -435,40 +459,12 @@ func TestScenarioSteps_RejectIncompleteDeclarations(t *testing.T) {
 	require.Error(t, err)
 	require.Contains(t, err.Error(), "requires the mock profile")
 
+	err = validateToolConfig("v", InitRunScenarioValidator, ToolConfig{})
+	require.Error(t, err)
+	require.Contains(t, err.Error(), "validator must be")
+
 	// init_scenario_session needs roots.
 	err = validateToolConfig("i", InitInitScenarioSession, ToolConfig{})
 	require.Error(t, err)
 	require.Contains(t, err.Error(), "requires at least one root")
-}
-
-// TestRunValidators_JudgesOnExitCode locks in the contract that makes the rig
-// able to fail: a machine that reached a failure terminal exits non-zero
-// (srd018 R6), so a validator is judged on its exit code, with the reported
-// terminal status kept as naming detail.
-func TestRunValidators_JudgesOnExitCode(t *testing.T) {
-	t.Parallel()
-
-	outcomes := RunValidators(context.Background(), os.Args[0], []ValidatorSpec{
-		{Name: "reports-failed", Profile: "p", Env: []string{envChildMode + "=exit0failed"}},
-		{Name: "reports-ok", Profile: "p", Env: []string{envChildMode + "=exit0"}},
-		{Name: "silent", Profile: "p", Env: []string{envChildMode + "=exit0silent"}},
-	}, 30*time.Second)
-
-	byName := map[string]ValidatorOutcome{}
-	for _, outcome := range outcomes {
-		byName[outcome.Name] = outcome
-	}
-
-	// A failure terminal exits non-zero and does not pass; the status is kept
-	// so a verdict can name it.
-	require.NotEqual(t, 0, byName["reports-failed"].ExitCode)
-	require.Equal(t, "failed", byName["reports-failed"].Terminal)
-	require.False(t, byName["reports-failed"].Passed)
-
-	require.True(t, byName["reports-ok"].Passed)
-	require.Equal(t, "succeeded", byName["reports-ok"].Terminal)
-
-	// A silent child that exits zero completed its run; the rig trusts the
-	// exit code rather than requiring a status line.
-	require.True(t, byName["silent"].Passed)
 }

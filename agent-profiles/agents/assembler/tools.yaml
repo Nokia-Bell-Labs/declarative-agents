@@ -11,10 +11,12 @@ tools:
   - start_scenario_subject
   - probe_subject_health
   - wait_health_retry
-  - run_scenario_validators
+  - run_scenario_validator
+  - record_scenario_validators
   - collect_scenario_verdict
   - fail_scenario_start
   - fail_scenario_unhealthy
   - fail_scenario_validators
-  - teardown_scenario
+  - list_scenario_children
+  - stop_scenario_child
   - report_rig_session

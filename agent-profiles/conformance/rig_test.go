@@ -113,6 +113,20 @@ func TestRigSelfProof(t *testing.T) {
 			if hidden := rigSpanCount(result, "execute_tool await_scenario_subject"); hidden != 0 {
 				t.Fatalf("retired hidden health spans = %d, want 0", hidden)
 			}
+			if validators := rigSpanCount(result, "execute_tool run_scenario_validator"); validators != len(want) {
+				t.Fatalf("validator item spans = %d, want %d", validators, len(want))
+			}
+			if stops := rigSpanCount(result, "execute_tool stop_scenario_child"); stops < len(want) {
+				t.Fatalf("child stop item spans = %d, want at least %d", stops, len(want))
+			}
+			for _, retired := range []string{
+				"execute_tool run_scenario_validators",
+				"execute_tool teardown_scenario",
+			} {
+				if hidden := rigSpanCount(result, retired); hidden != 0 {
+					t.Fatalf("retired aggregate spans %q = %d, want 0", retired, hidden)
+				}
+			}
 		})
 	}
 }

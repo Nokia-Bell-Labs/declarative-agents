@@ -15,7 +15,8 @@ metric_labels:
   profile: assembler
 initial_state: Idle
 budget:
-  # The fixed scenario pipeline plus one dispatch per fixture and one join.
+  # One dispatch and join per fixture, validator, and child stop keeps every
+  # collection traversal under the global iteration budget.
   max_iterations: 5000
   max_duration: 15m
 states:
@@ -34,13 +35,17 @@ states:
   - name: WaitingToRetry
     meaning: Waiting one declared interval before the next health probe.
   - name: RunningValidators
-    meaning: Running the scenario's validator machines against its subject.
+    meaning: Running each validator sequentially through MachineSpec iteration.
+  - name: RecordingValidators
+    meaning: Recording the validator iterator's ordered joined outcomes.
   - name: CollectingVerdict
     meaning: Deriving this scenario's verdict from its validator outcomes.
   - name: MarkingFailure
     meaning: Recording a verdict for a scenario that failed before its validators ran.
+  - name: ListingChildren
+    meaning: Exposing subject-first teardown items from the scenario session.
   - name: TearingDown
-    meaning: Stopping every child this scenario started.
+    meaning: Stopping each child sequentially through MachineSpec iteration.
   - name: Reporting
     meaning: Reducing every scenario verdict into the run result.
   - name: Passed
@@ -75,16 +80,24 @@ signals:
     trigger: The retry delay elapsed before the subject startup deadline.
   - name: HealthTimeout
     trigger: The subject did not serve within the declared bound.
+  - name: ValidatorCompleted
+    trigger: One validator ran to completion.
+  - name: ValidatorIncomplete
+    trigger: One validator timed out or failed to start.
   - name: ValidatorsCompleted
-    trigger: Every validator ran to completion.
-  - name: ValidatorsIncomplete
-    trigger: A validator timed out or failed to start.
+    trigger: The validator iterator joined with every child completed.
+  - name: ValidatorsRecorded
+    trigger: Ordered joined validator outcomes were stored in the session.
   - name: ScenarioPassed
     trigger: Every validator in the scenario passed.
   - name: ScenarioFailed
     trigger: A validator failed, or a step before them did.
+  - name: ScenarioChildrenListed
+    trigger: Subject-first teardown items are available to the iterator.
+  - name: ServiceStopped
+    trigger: One scenario child was stopped.
   - name: ScenarioTornDown
-    trigger: Every child the scenario started is stopped.
+    trigger: The child-stop iterator joined after every item.
   - name: SessionPassed
     trigger: Every scenario passed.
   - name: SessionFailed
@@ -163,7 +176,25 @@ transitions:
   - state: ProbingHealth
     signal: Healthy
     next: RunningValidators
-    action: run_scenario_validators
+    action: run_scenario_validator
+    label: validator_result
+    for_each:
+      items: $from(current_scenario).validators
+      as: validator
+      mode: sequential
+      # Bounded parallel iteration is deferred. Sequential dispatch preserves
+      # deterministic order without hiding goroutines inside a Go tool.
+      failure: collect_all
+      continue_on: [ValidatorCompleted, ValidatorIncomplete]
+      abort_on: [CommandError]
+      join:
+        next: RunningValidators
+        label: validators_joined
+        signals:
+          all_success: ValidatorsCompleted
+          partial: CommandError
+          failed: CommandError
+          empty: CommandError
   - state: ProbingHealth
     signal: HealthUnavailable
     next: WaitingToRetry
@@ -194,38 +225,71 @@ transitions:
     next: MarkingFailure
     action: fail_scenario_unhealthy
 
-  # A validator that ran and failed still produced a verdict, so both outcomes
-  # route to the same collection step; the verdict itself decides pass or fail.
+  # The join owns collection traversal; this thin word only records its ordered
+  # item outputs for verdict and session reporting.
   - state: RunningValidators
     signal: ValidatorsCompleted
+    next: RecordingValidators
+    action: record_scenario_validators
+  - state: RunningValidators
+    signal: CommandError
+    next: MarkingFailure
+    action: fail_scenario_validators
+
+  - state: RecordingValidators
+    signal: ValidatorsRecorded
     next: CollectingVerdict
     action: collect_scenario_verdict
-  - state: RunningValidators
-    signal: ValidatorsIncomplete
-    next: CollectingVerdict
-    action: collect_scenario_verdict
-  - state: RunningValidators
+  - state: RecordingValidators
     signal: CommandError
     next: MarkingFailure
     action: fail_scenario_validators
 
   - state: CollectingVerdict
     signal: ScenarioPassed
-    next: TearingDown
-    action: teardown_scenario
+    next: ListingChildren
+    action: list_scenario_children
+    label: scenario_children
   - state: CollectingVerdict
     signal: ScenarioFailed
-    next: TearingDown
-    action: teardown_scenario
+    next: ListingChildren
+    action: list_scenario_children
+    label: scenario_children
 
   - state: MarkingFailure
     signal: ScenarioFailed
-    next: TearingDown
-    action: teardown_scenario
+    next: ListingChildren
+    action: list_scenario_children
+    label: scenario_children
   - state: MarkingFailure
     signal: BudgetExhausted
+    next: ListingChildren
+    action: list_scenario_children
+    label: scenario_children
+
+  - state: ListingChildren
+    signal: ScenarioChildrenListed
     next: TearingDown
-    action: teardown_scenario
+    action: stop_scenario_child
+    label: stopped_child
+    for_each:
+      items: $from(scenario_children).children
+      as: child
+      mode: sequential
+      failure: collect_all
+      continue_on: [ServiceStopped]
+      abort_on: [CommandError]
+      join:
+        next: TearingDown
+        label: teardown_joined
+        signals:
+          all_success: ScenarioTornDown
+          partial: CommandError
+          failed: CommandError
+          empty: ScenarioTornDown
+  - state: ListingChildren
+    signal: CommandError
+    next: Failed
 
   # A failed scenario does not end the run: every scenario is exercised and the
   # aggregate reports at the end.
@@ -236,6 +300,9 @@ transitions:
     label: current_scenario
   - state: TearingDown
     signal: BudgetExhausted
+    next: Failed
+  - state: TearingDown
+    signal: CommandError
     next: Failed
 
   - state: Reporting

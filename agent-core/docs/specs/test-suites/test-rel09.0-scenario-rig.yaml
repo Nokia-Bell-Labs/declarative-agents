@@ -7,7 +7,7 @@ traces:
 
 preconditions:
   - srd039-mock-endpoint-binding defines the mock binding, fixture format, request log, and validation.
-  - srd040-service-child-tools defines start_service, stop_service, run_validators, and list_scenarios; readiness composes the REST client and delay words in MachineSpec.
+  - srd040-service-child-tools defines start_service, stop_service, one-validator child execution, and list_scenarios; MachineSpec owns readiness, validator iteration, joins, and teardown iteration.
   - GH-666 implements the mock binding; GH-667 implements the service-child tools. Test names below are the contracts those issues implement.
   - Cases carry planned_go_test rather than go_test until their named tests exist. The formal go_test evidence validator checks every go_test string against the real test inventory, so citing an unwritten test would record false evidence. Each implementing issue renames planned_go_test to go_test and sets status to implemented when its test lands.
   - GH-666 delivered the mock binding, so the four mock cases below now carry go_test and status implemented. The service-child cases stay planned until GH-667.
@@ -118,18 +118,18 @@ test_cases:
       - srd040-service-child-tools AC2
 
   - use_case: rel09.0-uc001-scenario-rig-run
-    name: run_validators reports concurrent terminal states and timeouts
-    go_test: go test ./internal/tools/service -run TestRunValidators_ConcurrentTerminalStatesAndTimeout
+    name: Validator item reports terminal state and timeout
+    go_test: go test ./internal/tools/service -run TestRunOneValidator_TerminalStateAndTimeout
     status: implemented
     description: |
-      Two validator profiles run concurrently and both terminal states are
-      reported keyed by validator; a deliberately hung validator is stopped at
-      the overall timeout and reported as timed out, not omitted.
+      One atomic child dispatch reports its validator terminal state. A
+      hung validator is stopped at its item timeout and reported
+      as timed out; MachineSpec iteration and join own collection behavior.
     inputs:
-      validators: [passing, failing, hung]
-      overall_timeout: declared
+      validators: [passing, hung]
+      item_timeout: declared
     expected:
-      per_validator_terminal_states: true
+      per_item_terminal_state: true
       hung_reported_timed_out: true
     traces:
       - rel09.0-uc001-scenario-rig-run S4
@@ -165,7 +165,7 @@ test_cases:
       with a noop undo. A spawn failure surfaces as a tool error signal rather
       than a panic, and no word invokes a model.
     inputs:
-      words: [start_service, stop_service, run_validators, list_scenarios]
+      words: [start_service, stop_service, run_scenario_validator, list_scenarios]
       spawn_failure_case: nonexistent profile path
     expected:
       reversibility_consistent: true

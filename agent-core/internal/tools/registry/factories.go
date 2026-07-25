@@ -77,10 +77,10 @@ func StandardFactoryCatalog(deps StandardFactoryDeps) []StandardFactoryCatalogEn
 		// The rig's service words. The init names are literal here because the
 		// service package imports this one, so the list cannot be read from it.
 		hookFactory("service", []string{
-			"start_service", "stop_service", "run_validators", "list_scenarios",
+			"start_service", "stop_service", "list_scenarios",
 			"init_scenario_session", "next_scenario", "start_scenario_mock",
-			"start_scenario_subject", "run_scenario_validators",
-			"collect_scenario_verdict", "teardown_scenario", "report_scenario_session",
+			"start_scenario_subject", "run_scenario_validator", "record_scenario_validators",
+			"collect_scenario_verdict", "list_scenario_children", "report_scenario_session",
 		}, deps.RegisterService),
 	}
 }

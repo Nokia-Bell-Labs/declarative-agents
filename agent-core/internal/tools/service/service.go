@@ -1,8 +1,8 @@
 // Copyright (c) 2026 Nokia. All rights reserved.
 
 // Package service provides the words a rig machine composes other machines
-// with (srd040): background serve-mode child agents, concurrent validator
-// runs, and scenario discovery. Every word is deterministic and calls no
+// with (srd040): background serve-mode child agents, one-validator child
+// execution, and scenario discovery. Every word is deterministic and calls no
 // model.
 package service
 

@@ -365,11 +365,11 @@ releases:
       - srd040-service-child-tools
     use_cases:
       - id: rel09.0-uc001-scenario-rig-run
-        summary: A rig machine runs one scenario hermetically to a verdict over a mock, a subject, and concurrent validators.
+        summary: A rig machine runs one scenario hermetically to a verdict over a mock, a subject, and machine-visible validator items.
         status: specified
     test_suites:
       - id: test-rel09.0-scenario-rig
-        summary: Formal tests for scripted mock responses, the request log, fixture validation, serve-mode child lifecycle, concurrent validators, deterministic discovery, and the end-to-end scenario tracer.
+        summary: Formal tests for scripted mock responses, the request log, fixture validation, serve-mode child lifecycle, validator item execution, deterministic discovery, and the end-to-end scenario tracer.
         status: specified
     proof:
       - go test ./internal/tools/rest -run 'TestRESTServer_MockBinding'

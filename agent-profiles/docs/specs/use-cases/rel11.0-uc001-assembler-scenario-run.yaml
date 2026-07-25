@@ -5,8 +5,8 @@ summary: |
   A profile author adds a tests/<scenario>/ directory beside an agent and runs
   the assembler. The assembler discovers the scenario, starts the mocks its
   fixtures declare, starts the subject with its REST dependency pointed at a
-  mock, awaits health, runs the scenario's validator machines, and reduces
-  their terminal states to a verdict. The subject gets a fresh instance per
+  mock, awaits health, dispatches each validator machine visibly, and reduces
+  the ordered join to a verdict. The subject gets a fresh instance per
   scenario, every child is torn down, and no live Chroma, Ollama, or
   Kubernetes is involved. A second scenario over the same subject scripts a
   dependency failure and asserts the subject's clean failure path.
@@ -30,9 +30,9 @@ flow:
   - id: F3
     text: The assembler starts the subject with environment additions pointing its dependency base_url at the mock addresses, and awaits its health.
   - id: F4
-    text: The assembler runs the scenario's validator machines; each drives the subject over HTTP and asserts on its responses and on the mock request log.
+    text: A labeled validator array drives sequential MachineSpec for_each dispatch; each child execution drives the subject over HTTP and records its own receipt-bearing Entry before an ordered join.
   - id: F5
-    text: The assembler collects the validators' terminal states, derives the scenario verdict, and tears down the subject and the mocks.
+    text: A thin word records joined validator outcomes and derives the verdict; the assembler then lists the subject before its mocks and iterates stop_service once per child before joining teardown.
   - id: F6
     text: The assembler repeats for the subject's remaining scenarios with a fresh subject each time, then reports the aggregate verdict as its terminal state.
 
@@ -61,7 +61,7 @@ touchpoints:
 
 success_criteria:
   - id: S1
-    criterion: A scenario runs end to end with no live external service; fixture mocks start as ordered machine-visible item dispatches with separate checkpoint and rollback boundaries, and every dependency response comes from a mock fixture.
+    criterion: A scenario runs end to end with no live external service; fixture starts, validator executions, and child stops are ordered machine-visible item dispatches with separate checkpoint, receipt, and rollback boundaries.
     traces:
       - srd018-assembler AC1
       - srd019-mock AC2
@@ -78,7 +78,7 @@ success_criteria:
     traces:
       - srd018-assembler AC6
   - id: S5
-    criterion: No child process survives a scenario, and a second consecutive run passes without port or state leakage.
+    criterion: No child process survives the ordered subject-first stop iterator, and a second consecutive run passes without port or state leakage.
     traces:
       - srd018-assembler AC1
   - id: S6
@@ -102,6 +102,7 @@ out_of_scope:
   - Kubernetes, containers, or a hierarchical control plane; children are local processes at this release.
   - Span-based state assertion; responses and the mock request log are the witnesses.
   - Authoring scenarios for the existing mesh agents, which is examples-owned work.
+  - Bounded parallel validator iteration; sequential dispatch is intentional until MachineSpec supports a bounded parallel mode.
 
 test_suite_trace: test-rel11.0-assembler-rig
 status: specified
