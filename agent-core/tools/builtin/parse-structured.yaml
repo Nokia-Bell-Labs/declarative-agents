@@ -1,0 +1,57 @@
+tools:
+- name: parse_structured
+  type: builtin
+  init: parse_structured
+  category: word
+  visibility: internal
+  emits: [Parsed, ParseFailed, CommandError]
+  description: Parse selected model output as JSON and validate it against a declared JSON Schema.
+  problem: A machine needs validated structured output without adding a specialized parser for each value shape.
+  goals:
+  - Compile the declared schema before a run starts.
+  - Route malformed or schema-invalid output through a configured failure signal.
+  requirements:
+    input:
+    - Trusted configuration selects the source, schema, and outcome signals.
+    output:
+    - Valid output is normalized JSON preserving the parsed value.
+    errors:
+    - Unresolved command-state selection emits CommandError; content failures emit the configured unparsed signal.
+  non_goals:
+  - Does not repair malformed JSON or infer a schema.
+  parameters:
+    type: object
+    properties: {}
+  output:
+    description: Normalized JSON when parsing and schema validation succeed, otherwise a failure explanation.
+    schema: {}
+  side_effects: []
+  reversibility:
+    classification: reversible
+    undo: noop
+  undo:
+    strategy: noop
+    description: Parsing reads prior state and changes no external state.
+  errors:
+  - signal: ParseFailed
+    condition: The selected model output is malformed JSON or does not satisfy the declared schema.
+    message_shape: 'malformed JSON: <error> or schema validation failed: <error>'
+    state_after_failure: The machine receives the configured unparsed signal and may retry.
+  - signal: CommandError
+    condition: The source selector does not resolve.
+    message_shape: 'parse_structured: <selector error>'
+    state_after_failure: No content validation is attempted.
+  relationships:
+    before: [machine-selected successor]
+    after: [model-output-producing predecessor]
+  config:
+    source: $from(response).value
+    schema:
+      type: object
+      properties:
+        names:
+          type: array
+          items: {type: string}
+      required: [names]
+    parsed: Parsed
+    unparsed: ParseFailed

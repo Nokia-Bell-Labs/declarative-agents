@@ -1,0 +1,56 @@
+tools:
+- name: partition
+  type: builtin
+  init: partition
+  category: word
+  visibility: internal
+  emits: [Partitioned, CommandError]
+  description: Split an ordered array into matched and unmatched values using one declared field comparison.
+  problem: A machine needs a reusable way to divide an array without expanding one state per index.
+  goals:
+  - Preserve input order in both output arrays.
+  - Apply the same closed comparisons and operand typing as value_predicate.
+  requirements:
+    input:
+    - Trusted configuration selects the array, item field, comparison, and outcome signal.
+    output:
+    - Output contains matched, unmatched, matched_count, and unmatched_count.
+    errors:
+    - Invalid selection, item shape, field access, or coercion emits CommandError.
+  non_goals:
+  - Does not sort, rank, mutate, or evaluate expressions.
+  parameters:
+    type: object
+    properties: {}
+  output:
+    description: Ordered matched and unmatched values with their counts.
+    schema:
+      type: object
+      properties:
+        matched: {type: array}
+        unmatched: {type: array}
+        matched_count: {type: integer}
+        unmatched_count: {type: integer}
+      required: [matched, unmatched, matched_count, unmatched_count]
+  side_effects: []
+  reversibility:
+    classification: reversible
+    undo: noop
+  undo:
+    strategy: noop
+    description: Partitioning reads prior state and changes no external state.
+  errors:
+  - signal: CommandError
+    condition: A selector does not resolve, the selected value is not an array, a field is absent, or coercion fails.
+    message_shape: 'partition: <error>'
+    state_after_failure: No successful partition output is published.
+  relationships:
+    before: [machine-selected successor]
+    after: [array-producing predecessor]
+  config:
+    items: $from(values).items
+    field: value
+    op: eq
+    right: accepted
+    operand_type: string
+    satisfied: Partitioned

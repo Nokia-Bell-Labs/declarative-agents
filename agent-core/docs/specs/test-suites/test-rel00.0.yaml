@@ -306,6 +306,23 @@ test_cases:
     traces:
       - srd006-yaml-machine-config AC5
 
+  - use_case: rel00.0-uc001-domain-agent-integration
+    name: Builtin collection words transform and validate selected arrays and structured output
+    go_test: go test ./internal/tools/control ./internal/tools/compose ./internal/tools/llm -run 'Test(Partition|SelectSubset|ValidatePartition|ValidateSelectSubset|RenderEach|ValidateRenderEach|ParseStructured|CompileStructured)'
+    inputs:
+      words: [partition, select_subset, render_each, parse_structured]
+      outcomes: [full, partial, empty, malformed, schema_invalid, unresolved_selector]
+    expected:
+      input_order_preserved: true
+      undeclared_candidates_excluded: true
+      trusted_vocabulary_values_selected_in_candidate_order: true
+      duplicate_name_policy_deterministic: true
+      empty_array_renders_empty: true
+      content_failure_uses_declared_signal: true
+      malformed_config_rejected_before_dispatch: true
+    traces:
+      - srd022-builtin-tools AC7
+
   # --- srd001: core types (verified by compilation and loop tests) ---
   - use_case: rel00.0-uc001-domain-agent-integration
     name: State and Signal are named string types with three generic constants

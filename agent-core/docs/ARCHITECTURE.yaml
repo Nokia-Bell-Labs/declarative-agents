@@ -208,7 +208,7 @@ overview:
             - internal/support/execute
       - path: internal/tools/llm/
         responsibility: |
-          LLM tools own invoke_llm, parse_response, report_parse_error, reset_history,
+          LLM tools own invoke_llm, parse_response, parse_structured, report_parse_error, reset_history,
           nudge_reread, done, model profile resolution for boundary tools,
           parse retry state, and conversation undo mementos.
         dependencies:
@@ -261,8 +261,10 @@ overview:
       - path: internal/tools/control/
         responsibility: |
           Control owns state-machine control tools that are not file, exec, LLM, or
-          lifecycle words. This includes self_invoke and child-agent boundary
-          wiring that maps ToolDef config into execute.Config.
+          lifecycle words. This includes self_invoke, value_predicate, partition,
+          select_subset, and child-agent boundary wiring that maps ToolDef config
+          into execute.Config. select_subset resolves untrusted names only to the
+          corresponding trusted vocabulary values and never forwards candidate payload.
         dependencies:
           may_depend_on:
             - internal/runtime/core
@@ -287,6 +289,19 @@ overview:
             - pkg/spec for specification audit commands
           must_not_depend_on:
             - cmd/agent
+      - path: internal/tools/compose/
+        responsibility: |
+          Compose owns flat configured substitution and render_each owns ordered
+          per-item array rendering. The two words stay separate so compose does
+          not acquire a template control language.
+        dependencies:
+          may_depend_on:
+            - internal/runtime/core
+            - Go standard library
+          must_not_depend_on:
+            - cmd/agent
+            - internal/evaluation
+            - internal/planning
       - path: internal/tools/undo/
         responsibility: |
           Undo owns shared UndoMemento payload structs, workspace restore payloads,
@@ -1354,7 +1369,9 @@ project_structure:
     - path: internal/tools/lifecycle/
       role: Checkpoint history, rollback, and lifecycle adapter package
     - path: internal/tools/control/
-      role: Child-agent and loop-control boundary tool package
+      role: Child-agent, predicate, partition, and declared-subset control tool package
+    - path: internal/tools/compose/
+      role: Flat substitution and ordered per-item rendering tool package
     - path: internal/tools/validation/
       role: Validation and audit tool adapter package
     - path: internal/tools/undo/

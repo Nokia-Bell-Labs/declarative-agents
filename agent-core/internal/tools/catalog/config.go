@@ -43,6 +43,14 @@ type ComposeConfig struct {
 	Signal   string            `json:"signal"`
 }
 
+// RenderEachConfig holds ordered array rendering configuration.
+type RenderEachConfig struct {
+	Items        string `json:"items"`
+	ItemTemplate string `json:"item_template"`
+	Separator    string `json:"separator"`
+	Signal       string `json:"signal"`
+}
+
 // ValuePredicateConfig holds the value predicate word's operands, its
 // comparison, and the signal it emits for each outcome (srd041 R1.2, R1.4).
 // OperandType defaults to number when absent, because the ordering operators are
@@ -55,6 +63,34 @@ type ValuePredicateConfig struct {
 	OperandType string `json:"operand_type"`
 	Satisfied   string `json:"satisfied"`
 	Unsatisfied string `json:"unsatisfied"`
+}
+
+// PartitionConfig holds one array selector and scalar comparison.
+type PartitionConfig struct {
+	Items       string `json:"items"`
+	Field       string `json:"field"`
+	Op          string `json:"op"`
+	Right       string `json:"right"`
+	OperandType string `json:"operand_type"`
+	Satisfied   string `json:"satisfied"`
+}
+
+// SelectSubsetConfig holds candidate and declared-vocabulary selectors.
+type SelectSubsetConfig struct {
+	Candidates string `json:"candidates"`
+	Vocabulary string `json:"vocabulary"`
+	MatchField string `json:"match_field"`
+	AllMatched string `json:"all_matched"`
+	Partial    string `json:"partial"`
+	Empty      string `json:"empty"`
+}
+
+// ParseStructuredConfig holds selected model output, its schema, and outcomes.
+type ParseStructuredConfig struct {
+	Source   string                 `json:"source"`
+	Schema   map[string]interface{} `json:"schema"`
+	Parsed   string                 `json:"parsed"`
+	Unparsed string                 `json:"unparsed"`
 }
 
 // CheckpointHistoryConfig holds config for checkpoint_history.
@@ -179,6 +215,23 @@ func ValidateRunPointConfig(toolName string, cfg RunPointConfig) error {
 	}
 	if len(cfg.PointToolDeclarations) == 0 {
 		return fmt.Errorf("tool %q config requires point_tool_declarations", toolName)
+	}
+	return nil
+}
+
+// ValidateParseStructuredConfig checks fields needed before schema compilation.
+func ValidateParseStructuredConfig(toolName string, cfg ParseStructuredConfig) error {
+	if _, _, ok := core.ParseFromSelector(cfg.Source); !ok {
+		return fmt.Errorf("tool %q config source must be a $from(label).path selector", toolName)
+	}
+	if len(cfg.Schema) == 0 {
+		return fmt.Errorf("tool %q config requires schema", toolName)
+	}
+	if cfg.Parsed == "" {
+		return fmt.Errorf("tool %q config requires parsed signal", toolName)
+	}
+	if cfg.Unparsed == "" {
+		return fmt.Errorf("tool %q config requires unparsed signal", toolName)
 	}
 	return nil
 }

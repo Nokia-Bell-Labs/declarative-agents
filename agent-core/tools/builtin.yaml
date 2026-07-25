@@ -8,6 +8,10 @@
 includes:
   - builtin/checkpoint-history.yaml
   - builtin/checkpoint-rollback.yaml
+  - builtin/partition.yaml
+  - builtin/select-subset.yaml
+  - builtin/render-each.yaml
+  - builtin/parse-structured.yaml
 
 tools:
   # --- file tools ---

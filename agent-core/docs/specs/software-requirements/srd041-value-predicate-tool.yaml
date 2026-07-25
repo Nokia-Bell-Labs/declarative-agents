@@ -89,6 +89,7 @@ non_goals:
   - Arithmetic, string manipulation, or any transformation of operands; the word compares and does nothing else.
   - Multi-clause predicates with boolean connectives; a machine composes several predicate words across states, which keeps the branch visible in the grammar rather than inside a word.
   - Defining planner retry policy; planner MachineSpec composes this generic predicate with its own declared count and limit.
+  - Dividing an array by the same scalar comparison; srd022 R7.1 defines partition as the array-valued form and requires it to reuse this word's comparison and coercion helpers.
 
 acceptance_criteria:
   - id: AC1

@@ -1,5 +1,8 @@
 # Full shared builtin declaration bundle.
 includes:
+  - partition.yaml
+  - select-subset.yaml
+  - render-each.yaml
   - filesystem/all.yaml
   - llm/all.yaml
   - lifecycle/all.yaml

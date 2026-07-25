@@ -76,6 +76,19 @@ func registerComposeFactories() toolregistry.FactoryRegistrar {
 				Signal:   core.Signal(cfg.Signal),
 			}, nil
 		})
+		br.Register("render_each", func(def catalog.ToolDef, _ map[string]string) (core.Builder, error) {
+			var cfg catalog.RenderEachConfig
+			if err := catalog.DecodeToolConfig(def, &cfg); err != nil {
+				return nil, err
+			}
+			if err := compose.ValidateRenderEachConfig(def.Name, cfg.Items, cfg.ItemTemplate, cfg.Signal); err != nil {
+				return nil, err
+			}
+			return compose.RenderEachBuilder{
+				ToolName: def.Name, Items: cfg.Items, ItemTemplate: cfg.ItemTemplate,
+				Separator: cfg.Separator, Signal: core.Signal(cfg.Signal),
+			}, nil
+		})
 	}
 }
 
@@ -144,6 +157,7 @@ func registerLLMFactories(st *agentState) toolregistry.FactoryRegistrar {
 	return func(br *toolregistry.BuiltinRegistry) {
 		br.Register("invoke_llm", invokeLLMFactory(st))
 		br.Register("parse_response", parseResponseFactory(st))
+		br.Register("parse_structured", parseStructuredFactory())
 		br.Register("report_parse_error", reportParseErrorFactory(st))
 		br.Register("reset_history", resetHistoryFactory(st))
 		br.Register("nudge_reread", func(def catalog.ToolDef, vars map[string]string) (core.Builder, error) {
@@ -152,6 +166,26 @@ func registerLLMFactories(st *agentState) toolregistry.FactoryRegistrar {
 		br.Register("done", func(def catalog.ToolDef, vars map[string]string) (core.Builder, error) {
 			return control.DoneBuilder{}, nil
 		})
+	}
+}
+
+func parseStructuredFactory() toolregistry.BuiltinFactory {
+	return func(def catalog.ToolDef, _ map[string]string) (core.Builder, error) {
+		var cfg catalog.ParseStructuredConfig
+		if err := catalog.DecodeToolConfig(def, &cfg); err != nil {
+			return nil, err
+		}
+		if err := catalog.ValidateParseStructuredConfig(def.Name, cfg); err != nil {
+			return nil, err
+		}
+		schema, err := toollm.CompileStructuredSchema(def.Name, cfg.Schema)
+		if err != nil {
+			return nil, err
+		}
+		return toollm.ParseStructuredBuilder{
+			ToolName: def.Name, Source: cfg.Source, Schema: schema,
+			Parsed: core.Signal(cfg.Parsed), Unparsed: core.Signal(cfg.Unparsed),
+		}, nil
 	}
 }
 
@@ -255,6 +289,46 @@ func registerControlFactories(st *agentState) toolregistry.FactoryRegistrar {
 	return func(br *toolregistry.BuiltinRegistry) {
 		br.Register("self_invoke", selfInvokeFactory(st))
 		br.Register("value_predicate", valuePredicateFactory())
+		br.Register("partition", partitionFactory())
+		br.Register("select_subset", selectSubsetFactory())
+	}
+}
+
+func partitionFactory() toolregistry.BuiltinFactory {
+	return func(def catalog.ToolDef, _ map[string]string) (core.Builder, error) {
+		var cfg catalog.PartitionConfig
+		if err := catalog.DecodeToolConfig(def, &cfg); err != nil {
+			return nil, err
+		}
+		if err := control.ValidatePartitionConfig(
+			def.Name, cfg.Items, cfg.Field, cfg.Op, cfg.Right, cfg.OperandType, cfg.Satisfied,
+		); err != nil {
+			return nil, err
+		}
+		return control.PartitionBuilder{
+			ToolName: def.Name, Items: cfg.Items, Field: cfg.Field, Op: cfg.Op,
+			Right: cfg.Right, OperandType: cfg.OperandType, Satisfied: core.Signal(cfg.Satisfied),
+		}, nil
+	}
+}
+
+func selectSubsetFactory() toolregistry.BuiltinFactory {
+	return func(def catalog.ToolDef, _ map[string]string) (core.Builder, error) {
+		var cfg catalog.SelectSubsetConfig
+		if err := catalog.DecodeToolConfig(def, &cfg); err != nil {
+			return nil, err
+		}
+		if err := control.ValidateSelectSubsetConfig(
+			def.Name, cfg.Candidates, cfg.Vocabulary, cfg.MatchField,
+			cfg.AllMatched, cfg.Partial, cfg.Empty,
+		); err != nil {
+			return nil, err
+		}
+		return control.SelectSubsetBuilder{
+			ToolName: def.Name, Candidates: cfg.Candidates, Vocabulary: cfg.Vocabulary,
+			MatchField: cfg.MatchField, AllMatched: core.Signal(cfg.AllMatched),
+			Partial: core.Signal(cfg.Partial), Empty: core.Signal(cfg.Empty),
+		}, nil
 	}
 }
 
