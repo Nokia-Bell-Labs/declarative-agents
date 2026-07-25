@@ -167,15 +167,48 @@ func iteratorJoinResult(frame *IteratorSnapshot) Result {
 	case failed > 0:
 		signal = Signal(frame.Spec.Join.Signals.Partial)
 	}
-	outcomes := frame.Outcomes
-	if outcomes == nil {
-		outcomes = []IteratorOutcome{}
-	}
+	outcomes := iteratorJoinOutcomes(frame.Outcomes)
 	output, _ := json.Marshal(map[string]interface{}{
 		"items": outcomes, "succeeded": succeeded, "failed": failed,
 		"policy": effectiveFailure(frame.Spec),
 	})
 	return Result{Signal: signal, CommandName: "for_each.join", Output: string(output)}
+}
+
+// iteratorJoinOutcome is a join-only projection. IteratorOutcome remains the
+// persisted checkpoint shape, while join output gains a traversable view of a
+// digest's already-redacted JSON output.
+type iteratorJoinOutcome struct {
+	Index       int                      `json:"index"`
+	Input       json.RawMessage          `json:"input"`
+	CommandName string                   `json:"command_name"`
+	Result      iteratorJoinResultDigest `json:"result"`
+}
+
+type iteratorJoinResultDigest struct {
+	ResultDigest
+	StructuredOutput json.RawMessage `json:"structured_output,omitempty"`
+}
+
+func iteratorJoinOutcomes(persisted []IteratorOutcome) []iteratorJoinOutcome {
+	outcomes := make([]iteratorJoinOutcome, 0, len(persisted))
+	for _, outcome := range persisted {
+		digest := iteratorJoinResultDigest{ResultDigest: outcome.Result}
+		if safeStructuredDigestOutput(outcome.Result) {
+			digest.StructuredOutput = cloneRawMessage(json.RawMessage(outcome.Result.Output))
+		}
+		outcomes = append(outcomes, iteratorJoinOutcome{
+			Index: outcome.Index, Input: cloneRawMessage(outcome.Input),
+			CommandName: outcome.CommandName, Result: digest,
+		})
+	}
+	return outcomes
+}
+
+func safeStructuredDigestOutput(digest ResultDigest) bool {
+	return digest.RedactionVersion == OutputRedactionVersion1 &&
+		digest.RedactionStatus == OutputRedactionApplied &&
+		json.Valid([]byte(digest.Output))
 }
 
 func iteratorCounts(frame *IteratorSnapshot) (int, int) {

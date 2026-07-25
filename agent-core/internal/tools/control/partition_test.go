@@ -37,6 +37,29 @@ func TestPartitionPreservesOrderAndCounts(t *testing.T) {
 	require.Equal(t, 1, output.UnmatchedCount)
 }
 
+func TestPartitionTraversesIteratorStructuredOutput(t *testing.T) {
+	cmd := PartitionBuilder{
+		ToolName: "partition", Items: "$from(join).items",
+		Field: "result.structured_output.mapped.score",
+		Op:    OpGte, Right: "6", Satisfied: "Partitioned",
+	}.Build(core.Result{})
+	cmd.(core.CommandStateAware).SetCommandState(stubView{
+		"join": `{"items":[
+			{"index":0,"result":{"output":"{\"mapped\":{\"score\":8}}","structured_output":{"mapped":{"score":8}}}},
+			{"index":1,"result":{"output":"{\"mapped\":{\"score\":2}}","structured_output":{"mapped":{"score":2}}}}
+		]}`,
+	})
+	res := cmd.Execute()
+	require.NoError(t, res.Err)
+	var output struct {
+		Matched   []map[string]interface{} `json:"matched"`
+		Unmatched []map[string]interface{} `json:"unmatched"`
+	}
+	require.NoError(t, json.Unmarshal([]byte(res.Output), &output))
+	require.Equal(t, float64(0), output.Matched[0]["index"])
+	require.Equal(t, float64(1), output.Unmatched[0]["index"])
+}
+
 func TestPartitionUnresolvedSelectorIsCommandError(t *testing.T) {
 	cmd := PartitionBuilder{
 		ToolName: "partition", Items: "$from(missing).items", Field: "value",

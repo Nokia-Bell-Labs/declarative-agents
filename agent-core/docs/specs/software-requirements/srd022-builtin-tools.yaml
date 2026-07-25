@@ -101,6 +101,7 @@ requirements:
       - R7.5: Each collection word SHALL decode typed config and reject missing signals, malformed selectors, unsupported operators or operand types, malformed templates, and invalid schemas during registration.
       - R7.6: The four words SHALL be internal, side-effect-free, reversible with noop undo, registered by their standard factory families, and declared in the shared builtin bundle.
       - R7.7: project SHALL remain omitted until a consuming program needs a separate field-plucking operation; select_subset exposes the consuming trusted entries directly under selected, while partition and render_each preserve values through their own operations.
+      - R7.8: partition and render_each SHALL traverse fields under for_each join outcome result.structured_output through their existing dotted-field behavior; they SHALL NOT parse or bypass the compatibility result.output string themselves.
 
 package_ownership:
   status: planned
@@ -174,7 +175,7 @@ acceptance_criteria:
 
   - id: AC7
     criterion: Generic collection words partition arrays, constrain candidate names, render ordered items, and validate structured model output through registered and load-time-validated builtin contracts.
-    traces: [R7.1, R7.2, R7.3, R7.4, R7.5, R7.6, R7.7]
+    traces: [R7.1, R7.2, R7.3, R7.4, R7.5, R7.6, R7.7, R7.8]
 
 depends_on:
   - srd_id: srd001-core-types

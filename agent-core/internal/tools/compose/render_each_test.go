@@ -27,6 +27,24 @@ func TestRenderEachRendersInOrder(t *testing.T) {
 	require.Equal(t, "[a]\n[1,2]\n\n[b]\n[]", res.Output)
 }
 
+func TestRenderEachTraversesIteratorStructuredOutput(t *testing.T) {
+	cmd := RenderEachBuilder{
+		ToolName: "render_each", Items: "$from(join).items",
+		ItemTemplate: "{{ result.structured_output.mapped.name }}",
+		Separator:    ",", Signal: "Rendered",
+	}.Build(core.Result{})
+	cmd.(core.CommandStateAware).SetCommandState(viewFrom(core.Entry{
+		CommandName: "join",
+		Result: core.ResultDigest{Output: `{"items":[
+			{"result":{"output":"{\"mapped\":{\"name\":\"a\"}}","structured_output":{"mapped":{"name":"a"}}}},
+			{"result":{"output":"{\"mapped\":{\"name\":\"b\"}}","structured_output":{"mapped":{"name":"b"}}}}
+		]}`},
+	}))
+	res := cmd.Execute()
+	require.NoError(t, res.Err)
+	require.Equal(t, "a,b", res.Output)
+}
+
 func TestRenderEachEmptyArrayRendersEmpty(t *testing.T) {
 	cmd := RenderEachBuilder{
 		ToolName: "render_each", Items: "$from(selected).matched",

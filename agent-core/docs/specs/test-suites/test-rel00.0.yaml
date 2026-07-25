@@ -292,7 +292,7 @@ test_cases:
 
   - use_case: rel00.0-uc001-domain-agent-integration
     name: MachineSpec iterates trusted command-state arrays
-    go_test: go test ./internal/runtime/core -run 'TestLoopForEach(DispatchesItemsInOrderAndJoins|EmptyCollectionStillJoins|ResumeContinuesAfterLastPersistedItem|CollectAllJoinsPartialInInputOrder|AbortSignalStopsCollectAll)|TestMachineSpecForEach(Validation|RoundTrips)'
+    go_test: go test ./internal/runtime/core -run 'TestLoopForEach(DispatchesItemsInOrderAndJoins|EmptyCollectionStillJoins|ResumeContinuesAfterLastPersistedItem|CollectAllJoinsPartialInInputOrder|AbortSignalStopsCollectAll)|TestMachineSpecForEach(Validation|RoundTrips)|TestIteratorJoinStructuredOutput'
     inputs:
       items: $from(items).items
       mode: sequential
@@ -302,6 +302,10 @@ test_cases:
       one_dispatch_and_receipt_per_item: true
       join_recorded: true
       resume_does_not_replay_completed_items: true
+      structured_projection_uses_redacted_digest_only: true
+      structured_projection_preserves_json_shapes: true
+      plain_text_and_omitted_output_have_no_projection: true
+      persisted_iterator_outcomes_unchanged: true
       unsupported_parallel_rejected: true
     traces:
       - srd006-yaml-machine-config AC5
@@ -317,6 +321,7 @@ test_cases:
       undeclared_candidates_excluded: true
       trusted_vocabulary_values_selected_in_candidate_order: true
       duplicate_name_policy_deterministic: true
+      iterator_structured_output_traversable: true
       empty_array_renders_empty: true
       content_failure_uses_declared_signal: true
       malformed_config_rejected_before_dispatch: true

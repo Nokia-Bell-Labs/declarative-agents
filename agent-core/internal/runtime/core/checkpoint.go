@@ -120,7 +120,9 @@ type IteratorSnapshot struct {
 	Halted           bool              `json:"halted,omitempty"`
 }
 
-// IteratorOutcome is the deterministic, input-ordered projection used by join.
+// IteratorOutcome is the deterministic, input-ordered persisted source used by
+// join. Join-time shaping may add derived fields from this redacted digest
+// without expanding the checkpoint format.
 type IteratorOutcome struct {
 	Index       int             `json:"index"`
 	Input       json.RawMessage `json:"input"`

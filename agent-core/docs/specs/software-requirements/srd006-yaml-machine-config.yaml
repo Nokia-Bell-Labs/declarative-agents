@@ -64,6 +64,7 @@ requirements:
       - R5.6: "Cancellation stops scheduling items and uses the ordinary command context. Receipt-bearing item Entries remain visible to the existing reverse rollback walk."
       - R5.7: "for_each must reject dynamic $tool actions, malformed selectors and labels, undeclared signals or states, unsupported modes, and invalid policies during startup validation."
       - R5.8: "Runtime data may supply items only; it cannot supply actions or executable expressions. The iterator does not provide general scripting."
+      - R5.9: "Each join outcome SHALL retain result.output as a string and SHALL add result.structured_output only when the already-redacted ResultDigest output has recognized applied redaction metadata and is valid JSON. The projection SHALL preserve object, array, and scalar JSON shapes, SHALL be absent for plain text and output_omitted results, and SHALL be shaped at join time without changing the persisted IteratorOutcome format."
 
 non_goals:
   - Dynamic table modification during a run.
@@ -90,7 +91,7 @@ acceptance_criteria:
     traces: [R4.1, R4.2, R4.3]
   - id: AC5
     criterion: A trusted command-state array drives deterministic sequential named-action dispatches with per-item trace, checkpoint, receipt, cancellation, rollback visibility, ordered join output, and checkpoint-resume progress; unsupported parallel mode is rejected.
-    traces: [R5.1, R5.2, R5.3, R5.4, R5.5, R5.6, R5.7, R5.8]
+    traces: [R5.1, R5.2, R5.3, R5.4, R5.5, R5.6, R5.7, R5.8, R5.9]
 
 depends_on:
   - srd_id: srd001-core-types

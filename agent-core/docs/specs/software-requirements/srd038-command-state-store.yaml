@@ -86,6 +86,7 @@ requirements:
       - R5.7: A field removed by redaction SHALL NOT be readable by any later word through a $from selector, whether the run is live or resumed.
       - R5.8: Receipts SHALL remain opaque and unchanged in the reverse plane; output redaction metadata SHALL neither inspect nor rewrite them.
       - R5.9: Synthetic forward entries, including machine_request seed, SHALL use the core Result-to-ResultDigest redaction boundary rather than constructing an unversioned ResultDigest directly. Trusted seed configuration SHALL identify sensitive mapped field names without carrying request values in metadata.
+      - R5.10: A for_each join MAY expose result.structured_output as a parsed projection only from a ResultDigest whose redaction version is recognized, whose status is applied, and whose retained output is valid JSON. It SHALL parse after DigestResult redaction, SHALL omit the projection for plain text and output_omitted results, and SHALL NOT read the original Result output or persist a second copy in IteratorSnapshot.
 
 non_goals:
   - Cross-run addressing; a selector resolves only within its own run and never reaches another run's steps.
@@ -110,7 +111,7 @@ acceptance_criteria:
     traces: [R4.1, R4.2, R4.3, R4.4]
   - id: AC5
     criterion: Tool families and synthetic forward-entry producers supply versioned typed sensitive-output paths; core removes marked fields before live Entry construction; malformed metadata and marked non-object output cause whole-output omission; checkpoint adapters reapply removal before storage; and selectors reject omitted, unknown-version, and unversioned legacy output live and after reload while receipts remain unchanged. Machine-request seed metadata contains configured field names, never request values.
-    traces: [R5.1, R5.2, R5.3, R5.4, R5.5, R5.6, R5.7, R5.8, R5.9]
+    traces: [R5.1, R5.2, R5.3, R5.4, R5.5, R5.6, R5.7, R5.8, R5.9, R5.10]
 
 neighboring_contracts: |
   srd028 R12 (REST client tools, previous_result threading) stays unchanged. Its

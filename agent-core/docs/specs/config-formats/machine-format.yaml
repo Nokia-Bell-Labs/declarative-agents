@@ -300,10 +300,16 @@ data_driven_iteration:
     for_each.join emits one engine-owned for_each.join Entry containing ordered
     item outcomes and succeeded/failed counts. The join signal is selected by
     the declared outcome map and is then routed through the normal transition
-    table.
+    table. Each outcome retains result.output as a string. When that
+    already-redacted ResultDigest output is valid JSON with recognized applied
+    redaction metadata, result.structured_output also exposes its parsed object,
+    array, or scalar shape for dotted-path traversal. Plain text and
+    output_omitted results have no structured_output.
   checkpoint_resume: |
     AgentSnapshot persists the selected items, next index, ordered outcomes, and
     iterator grammar. Resume continues at the next undispatched item.
+    structured_output is shaped only when the join payload is emitted and is not
+    added to IteratorSnapshot, preserving the persisted outcome format.
   concurrency: |
     Bounded parallel iteration is deferred. mode values other than sequential
     fail validation rather than silently changing ordering or rollback behavior.
