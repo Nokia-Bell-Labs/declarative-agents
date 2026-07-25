@@ -210,6 +210,7 @@ rest:
           reversibility:
             classification: irreversible
             undo: irreversible
+            requires_confirmation: true
         count_records:
           method: GET
           path: /api/v2/tenants/default_tenant/databases/default_database/collections/{collection}/count
