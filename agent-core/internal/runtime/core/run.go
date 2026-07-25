@@ -22,8 +22,7 @@ const (
 )
 
 // Budget controls iteration, token, and wall-clock limits for a run.
-// Domain agents extend budget checking via LoopHooks.BudgetExceeded
-// and LoopHooks.AfterDispatch for domain-specific policies.
+// Domain agents extend budget checking via LoopHooks.BudgetExceeded.
 type Budget struct {
 	MaxIterations int
 	MaxTokens     int
@@ -81,7 +80,6 @@ type LoopHooks struct {
 	BudgetExceeded       func(budget Budget, rr RunResult, iterations int) bool
 	TerminalStatus       func(s State) RunStatus
 	OnResult             func(rr RunResult, res Result) RunResult
-	AfterDispatch        func(cmd Command, res Result) Signal
 	TaskCompletedSignal  Signal
 	SnapshotConversation func() (json.RawMessage, error)
 	SnapshotDomain       func() (json.RawMessage, error)

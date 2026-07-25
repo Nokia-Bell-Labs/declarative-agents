@@ -114,11 +114,11 @@ schema:
         type: int
         description: |
           Maximum consecutive LLM parse failures before the machine
-          transitions via BudgetExhausted. For grammars that route
-          ParseFailed through report_parse_error, the value is read from
-          machine YAML and enforced by that explicit internal word. Machines
-          without report_parse_error may still use the compatibility
-          stl.ParseErrorPolicy AfterDispatch hook.
+          transitions via BudgetExhausted. The profile must select
+          report_parse_error, route ParseFailed through that word, and route
+          BudgetExhausted from the report transition's destination state.
+          Startup validation rejects the budget when any of that wiring is
+          absent; profiles that do not retry parse failures must omit it.
 
   - field: states
     type: "StateSpecs ([]string | []StateSpec)"

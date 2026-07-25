@@ -13,6 +13,7 @@ import (
 	"github.com/Nokia-Bell-Labs/declarative-agents/agent-core/internal/planning/extract"
 	"github.com/Nokia-Bell-Labs/declarative-agents/agent-core/internal/planning/plan"
 	"github.com/Nokia-Bell-Labs/declarative-agents/agent-core/internal/runtime/core"
+	toollm "github.com/Nokia-Bell-Labs/declarative-agents/agent-core/internal/tools/llm"
 	"github.com/Nokia-Bell-Labs/declarative-agents/agent-core/pkg/spec"
 )
 
@@ -74,19 +75,28 @@ func (b *AssemblePromptBuilder) Build(_ core.Result) core.Command {
 type parsePlanCmd struct {
 	ps          *State
 	rawResp     string
+	retry       *toollm.ParseErrorRetryTracker
+	prevRetries int
 	snapshot    pipelineSnapshot
 	hasSnapshot bool
 }
 
 func (c *parsePlanCmd) Name() string { return "parse_plan" }
 func (c *parsePlanCmd) Undo(_ core.Result) core.Result {
+	if c.retry != nil {
+		c.retry.Restore(c.prevRetries)
+	}
 	return undoPipelineSnapshot(c.Name(), c.ps, c.snapshot, c.hasSnapshot)
 }
 
 func (c *parsePlanCmd) Execute() core.Result {
 	c.snapshot = snapshotPipelineState(c.ps)
 	c.hasSnapshot = true
+	if c.retry != nil {
+		c.prevRetries = c.retry.Snapshot()
+	}
 	p, res := DoParsePlan(c.Name(), c.rawResp)
+	c.retry.RecordParseResult(res.Signal)
 	if res.Signal == core.ParseFailed {
 		c.ps.Tracer.Event("pipeline.parse_plan_failed", attribute.String("error", res.Output))
 		return res
@@ -102,11 +112,12 @@ func (c *parsePlanCmd) Execute() core.Result {
 
 // ParsePlanBuilder constructs parse_plan commands.
 type ParsePlanBuilder struct {
-	PS *State
+	PS    *State
+	Retry *toollm.ParseErrorRetryTracker
 }
 
 func (b *ParsePlanBuilder) Build(res core.Result) core.Command {
-	return &parsePlanCmd{ps: b.PS, rawResp: res.Output}
+	return &parsePlanCmd{ps: b.PS, rawResp: res.Output, retry: b.Retry}
 }
 
 // PlannerAssembler implements llm.PromptAssembler for the planning pipeline.

@@ -271,6 +271,45 @@ func TestValidateConfigInvalidRestExitsNonZero(t *testing.T) {
 	require.Contains(t, err.Error(), "unsupported type")
 }
 
+func TestValidateConfigRejectsImplicitParseRetryPolicy(t *testing.T) {
+	restore := snapshotAgentFlags()
+	t.Cleanup(func() { restoreAgentFlags(restore) })
+
+	monitorDir := filepath.Dir(profilePathFromTest(t, "monitor/profile.yaml"))
+	machineData, err := os.ReadFile(filepath.Join(monitorDir, "machine.yaml"))
+	require.NoError(t, err)
+	machineData = []byte(strings.Replace(
+		string(machineData),
+		"  max_iterations: 6",
+		"  max_iterations: 6\n  max_consecutive_parse_errors: 2",
+		1,
+	))
+
+	dir := t.TempDir()
+	machine := filepath.Join(dir, "machine.yaml")
+	require.NoError(t, os.WriteFile(machine, machineData, 0o644))
+	profile := filepath.Join(dir, "profile.yaml")
+	require.NoError(t, os.WriteFile(profile, []byte(fmt.Sprintf(
+		"name: implicit-parse-retry\nmachine: %s\ntools:\n  - %s\ntool_declarations:\n  - %s\nrest_definitions:\n  - %s\n",
+		machine,
+		filepath.Join(monitorDir, "tools.yaml"),
+		filepath.Join(monitorDir, "declarations.yaml"),
+		filepath.Join(monitorDir, "rest.yaml"),
+	)), 0o644))
+
+	clearAgentFlags()
+	flagProfile = profile
+	flagValidateConfig = true
+
+	_, err = captureStderr(t, func() error {
+		return run(rootCmd, nil)
+	})
+	require.Error(t, err)
+	require.Contains(t, err.Error(), "parse retry wiring validation")
+	require.Contains(t, err.Error(), `select "report_parse_error"`)
+	require.Contains(t, err.Error(), "remove the parse retry budget")
+}
+
 func TestValidateConfigInvalidReceiptContractExitsNonZero(t *testing.T) {
 	restore := snapshotAgentFlags()
 	t.Cleanup(func() { restoreAgentFlags(restore) })

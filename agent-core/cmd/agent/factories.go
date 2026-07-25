@@ -355,6 +355,7 @@ func registerPlanningFactories(st *agentState) toolregistry.FactoryRegistrar {
 			ChildAgentBinary: st.childAgentBinary,
 			Tracer:           st.tracer,
 			Ctx:              st.ctx,
+			ParseRetries:     st.parseRetries,
 		})
 	}
 }

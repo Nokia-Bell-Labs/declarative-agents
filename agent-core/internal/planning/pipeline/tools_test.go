@@ -16,6 +16,7 @@ import (
 	"github.com/Nokia-Bell-Labs/declarative-agents/agent-core/internal/planning/plan"
 	"github.com/Nokia-Bell-Labs/declarative-agents/agent-core/internal/runtime/core"
 	"github.com/Nokia-Bell-Labs/declarative-agents/agent-core/internal/tools/catalog"
+	toollm "github.com/Nokia-Bell-Labs/declarative-agents/agent-core/internal/tools/llm"
 	toolregistry "github.com/Nokia-Bell-Labs/declarative-agents/agent-core/internal/tools/registry"
 	"github.com/Nokia-Bell-Labs/declarative-agents/agent-core/pkg/spec"
 )
@@ -233,6 +234,24 @@ func TestParsePlanBuilder_InvalidYAML(t *testing.T) {
 
 	assert.Equal(t, core.ParseFailed, result.Signal)
 	assert.Nil(t, ps.CurrentPlan)
+}
+
+func TestParsePlanBuilder_ValidPlanResetsExplicitRetryTracker(t *testing.T) {
+	t.Parallel()
+	ps := minimalState(t)
+	retry := &toollm.ParseErrorRetryTracker{MaxConsecutive: 3}
+	require.Equal(t, core.ToolDone, retry.ReportParseError())
+	require.Equal(t, 1, retry.Snapshot())
+
+	cmd := (&ParsePlanBuilder{PS: ps, Retry: retry}).Build(core.Result{Output: validRawPlan})
+	result := cmd.Execute()
+
+	require.Equal(t, SigPlanReady, result.Signal)
+	require.Zero(t, retry.Snapshot())
+
+	undo := cmd.Undo(result)
+	require.Equal(t, core.ToolDone, undo.Signal)
+	require.Equal(t, 1, retry.Snapshot())
 }
 
 func TestMarkTaskDoneBuilder_CompletesCurrentTask(t *testing.T) {

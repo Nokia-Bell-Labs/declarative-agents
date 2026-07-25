@@ -21,7 +21,6 @@ invariants:
 initial_state: Idle
 budget:
   max_iterations: 16
-  max_consecutive_parse_errors: 2
 states:
   - name: Idle
     meaning: Initial state before the reader flow starts.

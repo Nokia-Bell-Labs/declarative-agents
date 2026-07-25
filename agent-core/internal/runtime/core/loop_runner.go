@@ -232,7 +232,6 @@ func (r *loopRunner) dispatch(
 		r.ctx, cmd, r.trace, r.params.CommandTimeout, r.params.MonitorRecorder, r.dispatchContext(labels),
 	)
 	r.signal = r.result.Signal
-	r.applyAfterDispatch(cmd)
 	r.recordIteratorOutcome()
 	r.accumulateResult()
 	r.recordResultEvent(fromState)
@@ -290,15 +289,6 @@ func (r *loopRunner) dispatchContext(labels MetricLabels) monitor.DispatchContex
 		State:        string(r.state),
 		Iteration:    r.iteration,
 		MetricLabels: labels,
-	}
-}
-
-func (r *loopRunner) applyAfterDispatch(cmd Command) {
-	if r.params.Hooks.AfterDispatch == nil {
-		return
-	}
-	if override := r.params.Hooks.AfterDispatch(cmd, r.result); override != "" {
-		r.signal = override
 	}
 }
 

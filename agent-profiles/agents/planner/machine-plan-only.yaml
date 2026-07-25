@@ -28,7 +28,8 @@ lifecycle: |-
   2. Extracting → Resetting: task extracted, clear LLM history
   3. Resetting → PromptAssembly: assemble_prompt with SRD context
   4. PromptAssembly → PlanInvoking: invoke_llm for plan generation
-  5. PlanInvoking → PlanParsing: parse_plan from LLM response
+  5. PlanInvoking → PlanParsing: parse_plan from LLM response; invalid plans
+     are reported and reinvoked until the explicit parse budget is exhausted
   6. PlanParsing → IssueFormatting → IssueBodyWriting: format_issue then write
   7. IssueBodyWriting → IssueCreating → IssueRecording: selected tracker exec then record_tracker_issue
   8. IssueRecording → Extracting: continue planning without task execution
@@ -43,6 +44,9 @@ pipeline_diagram: |-
     C --> D[PromptAssembly]
     D --> E[PlanInvoking]
     E --> F[PlanParsing]
+    F -->|ParseFailed| RPE[Report Parse Error]
+    RPE -->|ToolDone| E
+    RPE -->|BudgetExhausted| FAIL[Failed]
     F --> G[Format / Write / Tracker Exec / Record]
     G --> B
     B -->|AllDone| K[Completed]
@@ -69,6 +73,8 @@ states:
   meaning: Calling the LLM to generate an implementation plan.
 - name: PlanParsing
   meaning: Parsing the LLM response as a YAML implementation plan.
+- name: ReportingParseError
+  meaning: Feeding an invalid plan response back to the LLM and tracking the explicit parse retry budget.
 - name: IssueFormatting
   meaning: Formatting the parsed plan as tracker-neutral issue parameters.
 - name: IssueBodyWriting
@@ -113,6 +119,8 @@ signals:
   trigger: Planner state was serialized as tracker-neutral issue parameters.
 - name: ParseFailed
   trigger: The LLM response could not be parsed as a valid plan.
+- name: BudgetExhausted
+  trigger: The configured consecutive parse-error retry limit was reached.
 - name: Materialized
   trigger: An issue was created from the plan.
 - name: CommandError
@@ -173,9 +181,19 @@ transitions:
   label: issue_input
 - state: PlanParsing
   signal: ParseFailed
-  next: Extracting
-  action: extract_task
+  next: ReportingParseError
+  action: report_parse_error
 - state: PlanParsing
+  signal: CommandError
+  next: Failed
+- state: ReportingParseError
+  signal: ToolDone
+  next: PlanInvoking
+  action: invoke_llm
+- state: ReportingParseError
+  signal: BudgetExhausted
+  next: Failed
+- state: ReportingParseError
   signal: CommandError
   next: Failed
 - state: IssueFormatting

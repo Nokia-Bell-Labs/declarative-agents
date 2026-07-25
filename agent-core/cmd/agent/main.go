@@ -287,6 +287,10 @@ func loadRunResources() (runResources, error) {
 		shutdownTelemetry()
 		return runResources{}, fmt.Errorf("load machine spec for budget: %w", err)
 	}
+	if err := catalog.ValidateParseRetryWiring(machineSpec, defs); err != nil {
+		shutdownTelemetry()
+		return runResources{}, err
+	}
 	if err := catalog.ValidateToolEmits(machineSpec, defs); err != nil {
 		shutdownTelemetry()
 		return runResources{}, err
@@ -320,7 +324,7 @@ func buildPreparedRun(cmd *cobra.Command, resources runResources) (preparedRun, 
 	selectedInits := selectedBuiltinInits(resources.Definitions)
 	reg := core.NewRegistry()
 	builtins := toolregistry.NewBuiltinRegistry()
-	policy := parseErrorPolicy(resources.Machine, selectedInits)
+	retries := parseErrorRetryTracker(resources.Machine)
 	st := newAgentState(cfg, agentStateDeps{
 		Registry:            reg,
 		Tracer:              resources.Tracer,
@@ -330,7 +334,7 @@ func buildPreparedRun(cmd *cobra.Command, resources runResources) (preparedRun, 
 		Monitor:             monitorState(monitorRuntime.Store, &resources.Machine, resources.Definitions),
 		RestDefs:            resources.RestDefinitions,
 		shutdown:            shutdown.Request,
-		ParseRetries:        policy.Retries,
+		ParseRetries:        retries,
 	})
 
 	registerBuiltinFactories(builtins, st, selectedInits)
@@ -342,7 +346,6 @@ func buildPreparedRun(cmd *cobra.Command, resources runResources) (preparedRun, 
 	params := loopParams(cfg, loopParamDeps{
 		Machine: resources.Machine, State: st, Registry: reg, Tracer: resources.Tracer,
 		Checkpoint: checkpoint, MonitorRecorder: monitorRuntime.Recorder,
-		AfterDispatch: policy.AfterDispatch,
 	})
 	return preparedRun{
 		Config: cfg, Params: params, State: st, Ctx: loopCtx,
@@ -383,20 +386,12 @@ func loadRuntimeDefinitions(cfg runtimeConfig) ([]catalog.ToolDef, toolrest.Coll
 	return defs, restDefs, nil
 }
 
-type parsePolicy struct {
-	Retries       *toollm.ParseErrorRetryTracker
-	AfterDispatch func(core.Command, core.Result) core.Signal
-}
-
-func parseErrorPolicy(machine core.MachineSpec, selected map[string]bool) parsePolicy {
+func parseErrorRetryTracker(machine core.MachineSpec) *toollm.ParseErrorRetryTracker {
 	limit := parseErrorLimit(machine)
 	if limit == 0 {
-		return parsePolicy{}
+		return nil
 	}
-	if selected["report_parse_error"] {
-		return parsePolicy{Retries: &toollm.ParseErrorRetryTracker{MaxConsecutive: limit}}
-	}
-	return parsePolicy{AfterDispatch: toollm.ParseErrorPolicy(limit)}
+	return &toollm.ParseErrorRetryTracker{MaxConsecutive: limit}
 }
 
 func parseErrorLimit(machine core.MachineSpec) int {
@@ -463,7 +458,6 @@ type loopParamDeps struct {
 	Tracer          tracing.Tracer
 	Checkpoint      core.Checkpoint
 	MonitorRecorder monitor.RuntimeRecorder
-	AfterDispatch   func(core.Command, core.Result) core.Signal
 }
 
 func loopParams(cfg runtimeConfig, deps loopParamDeps) core.LoopParams {
@@ -486,7 +480,6 @@ func loopParams(cfg runtimeConfig, deps loopParamDeps) core.LoopParams {
 		Checkpoint:      deps.Checkpoint,
 		MonitorRecorder: deps.MonitorRecorder,
 		Hooks: core.LoopHooks{
-			AfterDispatch:        deps.AfterDispatch,
 			OnResult:             cliResultReporter,
 			SnapshotConversation: deps.State.snapshotConversation,
 		},

@@ -10,6 +10,7 @@ import (
 	"github.com/Nokia-Bell-Labs/declarative-agents/agent-core/internal/runtime/core"
 	"github.com/Nokia-Bell-Labs/declarative-agents/agent-core/internal/support/execute"
 	"github.com/Nokia-Bell-Labs/declarative-agents/agent-core/internal/tools/catalog"
+	toollm "github.com/Nokia-Bell-Labs/declarative-agents/agent-core/internal/tools/llm"
 	toolregistry "github.com/Nokia-Bell-Labs/declarative-agents/agent-core/internal/tools/registry"
 )
 
@@ -19,6 +20,7 @@ type FactoryDeps struct {
 	ChildAgentBinary string
 	Tracer           tracing.Tracer
 	Ctx              context.Context
+	ParseRetries     *toollm.ParseErrorRetryTracker
 }
 
 // RegisterFactories registers all pipeline builtin tool factories
@@ -56,7 +58,7 @@ func RegisterFactories(br *toolregistry.BuiltinRegistry, deps FactoryDeps) {
 		return &AssemblePromptBuilder{PS: initPS(def)}, nil
 	})
 	br.Register("parse_plan", func(def catalog.ToolDef, vars map[string]string) (core.Builder, error) {
-		return &ParsePlanBuilder{PS: initPS(def)}, nil
+		return &ParsePlanBuilder{PS: initPS(def), Retry: deps.ParseRetries}, nil
 	})
 	br.Register("format_issue", func(def catalog.ToolDef, vars map[string]string) (core.Builder, error) {
 		return &FormatIssueBuilder{PS: initPS(def)}, nil

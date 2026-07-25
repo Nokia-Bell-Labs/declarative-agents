@@ -547,14 +547,6 @@ engine_policy_audit:
         entries, while machine.yaml still defines the workflow.
 
   migration_candidates:
-    - item: Parse-error retry fallback
-      symbols: [core.LoopHooks.AfterDispatch, stl.ParseErrorPolicy]
-      rationale: |
-        Generator-style grammars enforce max_consecutive_parse_errors through
-        the explicit report_parse_error word, which emits BudgetExhausted at
-        the configured limit. A remaining AfterDispatch hook is a
-        compatibility fallback for machines that do not route ParseFailed
-        through that internal word.
     - item: Result accumulator mutation
       symbols: [core.LoopHooks.OnResult]
       rationale: |

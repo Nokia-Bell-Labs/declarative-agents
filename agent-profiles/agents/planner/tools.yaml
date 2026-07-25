@@ -34,6 +34,7 @@ tools:
 
   # LLM (full, plan-only)
   - invoke_llm           # action: full, plan-only
+  - report_parse_error   # action: full, plan-only
   - reset_history        # action: full, plan-only
 
   # Build/test — direct transition actions in full + passthrough
