@@ -301,11 +301,13 @@ tools:
         target: rest_server_state
         state: server_stopped
     reversibility:
-      classification: irreversible
-      undo: noop
+      classification: compensatable
+      undo: server_shutdown_or_user_action_compensation
     undo:
-      strategy: noop
-      description: Relaunch is a separate MachineSpec action.
+      strategy: server_shutdown_or_user_action_compensation
+      description: The receipt records shutdown loss; MachineSpec must relaunch the trusted payment webhook definition.
+      payload: boundary_compensation
+      captures: [server, address, drained_events, dropped_events, relaunch_requirement]
     errors:
       - signal: CommandError
         condition: Missing server, shutdown timeout, cleanup failure, or drain failure.

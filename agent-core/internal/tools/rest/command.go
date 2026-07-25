@@ -8,6 +8,7 @@ import (
 	"fmt"
 
 	"github.com/Nokia-Bell-Labs/declarative-agents/agent-core/internal/runtime/core"
+	"github.com/Nokia-Bell-Labs/declarative-agents/agent-core/internal/tools/undo"
 )
 
 // RestBuilder constructs declarative REST boundary commands.
@@ -118,6 +119,9 @@ func (c serverCmd) Undo(prior core.Result) core.Result {
 	if c.init == InitServerAwait {
 		return restoreAwaitReceipt(c.toolName, c.state, prior.Receipt)
 	}
+	if c.init == InitServerStop {
+		return c.undoStop(prior.Receipt)
+	}
 	if c.init != InitServerLaunch {
 		return core.NoopUndo(c.toolName)
 	}
@@ -149,7 +153,20 @@ func (c serverCmd) stop() core.Result {
 	if err != nil {
 		return commandError(c.toolName, err)
 	}
-	return core.Result{Signal: core.Signal("ServerStopped"), CommandName: c.toolName, Output: jsonOutput(output)}
+	receipt := undo.EncodeBoundaryReceipt(undo.BoundaryCompensationPayload{
+		BoundaryCompensation: undo.BoundaryCompensation{
+			Strategy:     "server_shutdown_or_user_action_compensation",
+			Reason:       "server listener stopped and queued events drained",
+			Requires:     []string{"machine_owned_server_relaunch"},
+			ServerAddr:   stringValue(output["address"]),
+			RestRef:      c.server.Name,
+			Compensation: output,
+		},
+	})
+	return core.Result{
+		Signal: core.Signal("ServerStopped"), CommandName: c.toolName,
+		Output: jsonOutput(output), Receipt: receipt,
+	}
 }
 
 func (c awaitEventCmd) Name() string { return c.toolName }
@@ -211,6 +228,31 @@ func restoreAwaitReceipt(commandName string, state *ServerState, receipt string)
 		return commandError(commandName, fmt.Errorf("restore REST await event: %w", err))
 	}
 	return core.Result{Signal: core.ToolDone, CommandName: commandName, Output: "restored consumed REST event"}
+}
+
+func (c serverCmd) undoStop(receipt string) core.Result {
+	compensation, ok, err := undo.DecodeBoundaryReceipt(receipt)
+	if err != nil {
+		return commandError(c.toolName, err)
+	}
+	if !ok || compensation.Strategy != "server_shutdown_or_user_action_compensation" {
+		return commandError(c.toolName, fmt.Errorf("REST stop receipt has no server relaunch compensation"))
+	}
+	if compensation.RestRef != c.server.Name {
+		return commandError(c.toolName, fmt.Errorf(
+			"REST stop receipt server %q does not match configured server %q",
+			compensation.RestRef, c.server.Name,
+		))
+	}
+	return undo.BoundaryCompensationUndo(c.toolName, fmt.Sprintf(
+		"MachineSpec must relaunch server %q at %q; stop drained %v queued events",
+		compensation.RestRef, compensation.ServerAddr, compensation.Compensation["drained_events"],
+	))
+}
+
+func stringValue(value interface{}) string {
+	text, _ := value.(string)
+	return text
 }
 
 func commandError(commandName string, err error) core.Result {

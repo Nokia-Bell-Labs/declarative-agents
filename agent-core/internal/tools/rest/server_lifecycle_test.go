@@ -3,12 +3,15 @@
 package rest
 
 import (
-	"github.com/Nokia-Bell-Labs/declarative-agents/agent-core/internal/runtime/core"
-	"github.com/stretchr/testify/require"
+	"context"
 	"net"
 	"net/http"
 	"testing"
 	"time"
+
+	"github.com/Nokia-Bell-Labs/declarative-agents/agent-core/internal/runtime/core"
+	"github.com/Nokia-Bell-Labs/declarative-agents/agent-core/internal/tools/undo"
+	"github.com/stretchr/testify/require"
 )
 
 func TestRESTServer_LaunchRegistersRoutes(t *testing.T) {
@@ -74,13 +77,49 @@ func TestRESTServer_StopDrainsAndUnblocks(t *testing.T) {
 		server := namedControlServer("blocking")
 		server.Queue.Timeout = "1s"
 		state, _ := launchRESTServer(t, server, LimitProfile{})
+		runtime, err := state.runtime("blocking")
+		require.NoError(t, err)
 		results := startRESTAwait(t, func() core.Result {
-			return awaitCommand(state, "blocking").Execute()
+			result := runtime.awaitMatching(
+				context.Background(),
+				awaitFilter{server: "blocking"},
+				StoppedSourceEmitServerStopped,
+			)
+			return core.Result{Signal: core.Signal(result.signal), Err: result.err}
 		})
 		requireAwaitBlocked(t, results)
 		require.Equal(t, "stopped", stopRESTServer(t, state, "blocking")["status"])
 		require.Equal(t, core.Signal("ServerStopped"), requireRESTResult(t, results).Signal)
 	})
+}
+
+func TestRESTServer_StopPersistsRelaunchCompensation(t *testing.T) {
+	t.Parallel()
+
+	state, baseURL := launchRESTServer(t, controlServer(), LimitProfile{})
+	postStatus(t, baseURL+"/approve/1", `{}`, http.StatusAccepted)
+	postStatus(t, baseURL+"/approve/2", `{}`, http.StatusAccepted)
+	builder := ServerBuilder{
+		ToolName: "stop_control", Init: InitServerStop,
+		Server: ServerDefinition{Name: "control", Server: controlServer()}, State: state,
+	}
+
+	result := builder.Build(core.Result{}).Execute()
+
+	require.Equal(t, core.Signal("ServerStopped"), result.Signal, result.Output)
+	require.NotEmpty(t, result.Receipt)
+	compensation, ok, err := undo.DecodeBoundaryReceipt(result.Receipt)
+	require.NoError(t, err)
+	require.True(t, ok)
+	require.Equal(t, "server_shutdown_or_user_action_compensation", compensation.Strategy)
+	require.Equal(t, "control", compensation.RestRef)
+	require.Equal(t, float64(2), compensation.Compensation["drained_events"])
+	require.Equal(t, []string{"machine_owned_server_relaunch"}, compensation.Requires)
+
+	undoResult := builder.BuildReverser().Undo(core.Result{Receipt: result.Receipt})
+	require.Equal(t, core.CommandError, undoResult.Signal)
+	require.ErrorContains(t, undoResult.Err, `MachineSpec must relaunch server "control"`)
+	require.ErrorContains(t, undoResult.Err, "drained 2 queued events")
 }
 
 func TestRESTAwaitCommandSupportsDispatchCancellation(t *testing.T) {

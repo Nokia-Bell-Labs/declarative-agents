@@ -113,8 +113,12 @@ tools:
   parameters: {type: object, properties: {}, additionalProperties: false}
   output: {description: REST server stop result, schema: {type: object}}
   side_effects: [{kind: network_listener_shutdown, target: bench_http, state: listener_stopped}]
-  reversibility: {classification: reversible, undo: noop}
-  undo: {strategy: noop, description: Relaunch is a separate action.}
+  reversibility: {classification: compensatable, undo: server_shutdown_or_user_action_compensation}
+  undo:
+    strategy: server_shutdown_or_user_action_compensation
+    description: The receipt records shutdown loss; MachineSpec must relaunch the trusted bench definition.
+    payload: boundary_compensation
+    captures: [server, address, drained_events, dropped_events, relaunch_requirement]
   errors: [{signal: CommandError, condition: Listener cannot stop, state_after_failure: Listener may be partially drained.}]
   relationships: {before: [await_bench_action], after: []}
   config: {rest_ref: bench}

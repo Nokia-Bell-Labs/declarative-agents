@@ -57,8 +57,12 @@ tools:
       schema: {type: object}
     side_effects:
       - {kind: network_listener_shutdown, target: documentation_curator_http, state: listener_stopped}
-    reversibility: {classification: reversible, undo: noop}
-    undo: {strategy: noop, description: Relaunch is a separate machine action.}
+    reversibility: {classification: compensatable, undo: server_shutdown_or_user_action_compensation}
+    undo:
+      strategy: server_shutdown_or_user_action_compensation
+      description: The receipt records shutdown loss; MachineSpec must relaunch the trusted curator definition.
+      payload: boundary_compensation
+      captures: [server, address, drained_events, dropped_events, relaunch_requirement]
     errors:
       - {signal: CommandError, condition: Curator server is absent or cannot stop, state_after_failure: Listener may be partially stopped.}
     relationships:
