@@ -17,6 +17,7 @@ type specSnapshot struct {
 	graph           *spec.Graph
 	charters        []spec.Charter
 	findings        []spec.Finding
+	testInventory   *spec.GoTestInventory
 	hasErrors       bool
 }
 
@@ -28,6 +29,7 @@ func snapshotSpec(vs *SpecState) specSnapshot {
 		graph:           vs.Graph,
 		charters:        append([]spec.Charter(nil), vs.Charters...),
 		findings:        append([]spec.Finding(nil), vs.Findings...),
+		testInventory:   vs.TestInventory,
 		hasErrors:       vs.HasErrors,
 	}
 }
@@ -39,6 +41,7 @@ func (s specSnapshot) restore(vs *SpecState) {
 	vs.Graph = s.graph
 	vs.Charters = append([]spec.Charter(nil), s.charters...)
 	vs.Findings = append([]spec.Finding(nil), s.findings...)
+	vs.TestInventory = s.testInventory
 	vs.HasErrors = s.hasErrors
 }
 
@@ -48,24 +51,26 @@ func (s specSnapshot) restore(vs *SpecState) {
 // before the step (to clear ones the step created) alongside the serializable
 // findings and error flag (srd035-checkpoint-port R3; #44 R2).
 type specReceipt struct {
-	TargetDirectory string         `json:"target_directory,omitempty"`
-	SuitePaths      []string       `json:"suite_paths,omitempty"`
-	CorpusLoaded    bool           `json:"corpus_loaded"`
-	GraphLoaded     bool           `json:"graph_loaded"`
-	Charters        []spec.Charter `json:"charters,omitempty"`
-	Findings        []spec.Finding `json:"findings,omitempty"`
-	HasErrors       bool           `json:"has_errors,omitempty"`
+	TargetDirectory     string         `json:"target_directory,omitempty"`
+	SuitePaths          []string       `json:"suite_paths,omitempty"`
+	CorpusLoaded        bool           `json:"corpus_loaded"`
+	GraphLoaded         bool           `json:"graph_loaded"`
+	Charters            []spec.Charter `json:"charters,omitempty"`
+	Findings            []spec.Finding `json:"findings,omitempty"`
+	TestInventoryLoaded bool           `json:"test_inventory_loaded"`
+	HasErrors           bool           `json:"has_errors,omitempty"`
 }
 
 func encodeSpecReceipt(snap specSnapshot) string {
 	b, err := json.Marshal(specReceipt{
-		TargetDirectory: snap.targetDirectory,
-		SuitePaths:      snap.suitePaths,
-		CorpusLoaded:    snap.corpus != nil,
-		GraphLoaded:     snap.graph != nil,
-		Charters:        snap.charters,
-		Findings:        snap.findings,
-		HasErrors:       snap.hasErrors,
+		TargetDirectory:     snap.targetDirectory,
+		SuitePaths:          snap.suitePaths,
+		CorpusLoaded:        snap.corpus != nil,
+		GraphLoaded:         snap.graph != nil,
+		Charters:            snap.charters,
+		Findings:            snap.findings,
+		TestInventoryLoaded: snap.testInventory != nil,
+		HasErrors:           snap.hasErrors,
 	})
 	if err != nil {
 		return ""
@@ -95,6 +100,9 @@ func (r specReceipt) restore(vs *SpecState) {
 	}
 	vs.Charters = append([]spec.Charter(nil), r.Charters...)
 	vs.Findings = append([]spec.Finding(nil), r.Findings...)
+	if !r.TestInventoryLoaded {
+		vs.TestInventory = nil
+	}
 	vs.HasErrors = r.HasErrors
 }
 

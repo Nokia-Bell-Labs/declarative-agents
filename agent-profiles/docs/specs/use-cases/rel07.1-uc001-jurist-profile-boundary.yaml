@@ -40,6 +40,8 @@ flow:
     text: The machine formats a report in the Reporting state via format_report for both pass and fail outcomes.
   - id: F5
     text: The machine reaches the Passed or Failed terminal state, and findings identify suite, check, severity, message, and any file and line provenance.
+  - id: F6
+    text: Audit gates select audit-profile.yaml, whose machine declares Go module, package, test-list, and full test-run exec steps, resolves formal claims, reduces pass, fail, skip, and did-not-run events, and reports through format_report.
 
 touchpoints:
   - id: T1
@@ -76,6 +78,11 @@ success_criteria:
       - srd005-jurist R3.1
       - srd005-jurist R3.2
       - srd005-jurist R3.3
+  - id: S4
+    criterion: Core, profile, and example audit gates invoke the jurist audit profile; the agent CLI has no test-evidence mode and pkg/spec performs only deterministic reduction.
+    traces:
+      - srd005-jurist R2.5
+      - srd005-jurist R3.1
 
 out_of_scope:
   - Adding an LLM boundary or network access to charter validation.

@@ -44,8 +44,6 @@ var (
 	flagResumeSignal     string
 	flagChildAgent       string
 	flagValidateConfig   bool
-	flagValidateEvidence bool
-	flagRunEvidence      bool
 )
 
 const (
@@ -114,8 +112,6 @@ func init() {
 	f.StringVar(&flagResumeSignal, "resume-signal", string(core.Approved), "signal to feed the state machine when resuming")
 	f.StringVar(&flagChildAgent, "child-agent-binary", "", "path to the child agent binary the evaluator launches (default: agent, resolved from PATH)")
 	f.BoolVar(&flagValidateConfig, "validate-config", false, "load and validate the profile, machine, and REST definitions, then exit 0 (valid) or 1 (invalid) without serving; for a rollout preflight (srd015 R2.2)")
-	f.BoolVar(&flagValidateEvidence, "validate-test-evidence", false, "resolve every formal test suite's go_test evidence under --directory against that module's real Go tests, then exit 0 (all resolve) or 1 (findings); for an audit gate in a module that does not import agent-core")
-	f.BoolVar(&flagRunEvidence, "run-test-evidence", false, "run the module under --directory once and check that every test its formal suites claim as evidence actually passed, then exit 0 (all passed) or 1 (findings); resolution proves a named test exists, this proves it holds")
 
 	rootCmd.Version = "v0.0.0-dev"
 }
@@ -192,12 +188,6 @@ func run(cmd *cobra.Command, args []string) error {
 	} else if env := strings.TrimSpace(os.Getenv("AGENT_CORE_ROOT")); env != "" {
 		spec.SetAgentCoreInstallRoot(env)
 	}
-	if flagValidateEvidence {
-		return validateTestEvidence(flagDirectory)
-	}
-	if flagRunEvidence {
-		return runTestEvidence(flagDirectory)
-	}
 	if flagValidateConfig {
 		return validateConfig()
 	}
@@ -218,68 +208,6 @@ func run(cmd *cobra.Command, args []string) error {
 	runExitCode = exitCodeForStatus(result.Status)
 	prepared.Shutdown.Apply()
 	return nil
-}
-
-// validateTestEvidence resolves every formal test suite's go_test evidence under
-// dir against the real Go tests of the module rooted there, and returns an error
-// listing each entry that cannot be resolved.
-//
-// agent-profiles and chatbot-mesh deliberately do not import agent-core, so they
-// cannot call spec.AuditGoTestEvidence in process. Exposing it here lets their
-// audit gates reach the same resolver through the agent binary they already
-// build, the way the GH-614 boot smoke reuses --validate-config (GH-652).
-func validateTestEvidence(dir string) error {
-	if strings.TrimSpace(dir) == "" {
-		cwd, err := os.Getwd()
-		if err != nil {
-			return fmt.Errorf("resolve working directory: %w", err)
-		}
-		dir = cwd
-	}
-	findings, err := spec.AuditGoTestEvidence(dir)
-	if err != nil {
-		return fmt.Errorf("validate test evidence in %s: %w", dir, err)
-	}
-	if len(findings) == 0 {
-		fmt.Fprintf(os.Stderr, "test evidence valid: every go_test entry under %s resolves\n", dir)
-		return nil
-	}
-	var b strings.Builder
-	for _, f := range findings {
-		fmt.Fprintf(&b, "  [%s] %s: %s\n", f.Level, f.SuiteID, f.Message)
-	}
-	return fmt.Errorf("test evidence validation failed in %s: %d finding(s)\n%s", dir, len(findings), b.String())
-}
-
-// runTestEvidence runs the module rooted at dir once and reports every test case
-// whose go_test evidence did not actually pass.
-//
-// This answers what --validate-test-evidence cannot. Resolution proves the named
-// test exists; `go test -list` compiles the test binaries and runs none of them,
-// so a suite could name a failing test and the gate stayed green (GH-717).
-// Exposed on the binary for the same reason as the resolver: agent-profiles and
-// chatbot-mesh do not import agent-core, so their audits reach it here.
-func runTestEvidence(dir string) error {
-	if strings.TrimSpace(dir) == "" {
-		cwd, err := os.Getwd()
-		if err != nil {
-			return fmt.Errorf("resolve working directory: %w", err)
-		}
-		dir = cwd
-	}
-	findings, err := spec.RunGoTestEvidence(dir)
-	if err != nil {
-		return fmt.Errorf("run test evidence in %s: %w", dir, err)
-	}
-	if len(findings) == 0 {
-		fmt.Fprintf(os.Stderr, "test evidence passed: every go_test claim under %s ran and passed\n", dir)
-		return nil
-	}
-	var b strings.Builder
-	for _, f := range findings {
-		fmt.Fprintf(&b, "  [%s] %s: %s\n", f.Level, f.SuiteID, f.Message)
-	}
-	return fmt.Errorf("test evidence run failed in %s: %d finding(s)\n%s", dir, len(findings), b.String())
 }
 
 // validateConfig loads the profile, machine spec, tool definitions, and REST

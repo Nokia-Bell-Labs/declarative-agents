@@ -3,8 +3,10 @@
 package spec
 
 import (
+	"encoding/json"
 	"fmt"
 	"os"
+	"os/exec"
 	"path/filepath"
 	"strings"
 	"testing"
@@ -16,9 +18,8 @@ import (
 // that fails and the audit stayed green. That is how a chatbot-mesh case claimed
 // a proof that had never passed (GH-701).
 //
-// Every test here injects a module runner. None shells out to `go test`: the
-// runner spawns `go test ./...` over its own module, so a test that let it run
-// for real would recurse into itself.
+// Test-only subprocess helpers inventory temporary fixture modules. Production
+// pkg/spec only parses outputs supplied by declared profile exec words.
 
 // evidenceFixture lays out a module with one test suite and returns its root.
 // The go.mod and package give BuildGoTestInventory a real module to inventory.
@@ -43,6 +44,64 @@ func evidenceFixture(t *testing.T, suite string, tests map[string]string) string
 	}
 	write(filepath.Join("subject", "subject_test.go"), body.String())
 	return root
+}
+
+type moduleTestRunner func(string) (map[testRef]testResult, error)
+
+func runGoTestEvidenceWith(root string, run moduleTestRunner) ([]Finding, error) {
+	inv, err := BuildGoTestInventory(root)
+	if err != nil {
+		return nil, err
+	}
+	suites, err := discoverAndParseTestSuites(root)
+	if err != nil {
+		return nil, err
+	}
+	_, findings := collectEvidenceClaims(inv, suites)
+	if len(findings) > 0 {
+		return findings, nil
+	}
+	results, err := run(root)
+	if err != nil {
+		return nil, err
+	}
+	var events strings.Builder
+	for ref, result := range results {
+		for _, line := range result.output {
+			data, _ := json.Marshal(goTestEvent{Action: "output", Package: ref.pkg, Test: ref.name, Output: line})
+			events.Write(data)
+			events.WriteByte('\n')
+		}
+		data, _ := json.Marshal(goTestEvent{Action: result.action, Package: ref.pkg, Test: ref.name})
+		events.Write(data)
+		events.WriteByte('\n')
+	}
+	return ReduceGoTestEvidenceRun(inv, suites, events.String())
+}
+
+func BuildGoTestInventory(root string) (*GoTestInventory, error) {
+	run := func(args ...string) (string, error) {
+		cmd := exec.Command("go", args...)
+		cmd.Dir = root
+		out, err := cmd.CombinedOutput()
+		if err != nil {
+			return "", fmt.Errorf("go %s: %w\n%s", strings.Join(args, " "), err, out)
+		}
+		return string(out), nil
+	}
+	module, err := run("list", "-m")
+	if err != nil {
+		return nil, err
+	}
+	packages, err := run("list", "./...")
+	if err != nil {
+		return nil, err
+	}
+	tests, err := run("test", "-json", "-list", "^Test", "./...")
+	if err != nil {
+		return nil, err
+	}
+	return ParseGoTestInventory(module, packages, tests)
 }
 
 // staticResults answers every lookup with one outcome, keyed by test name so a
@@ -106,7 +165,7 @@ func TestRunEvidenceFailsOnASkippedClaim(t *testing.T) {
 // run never reached -- a build tag, a filtered package. It proves nothing.
 func TestRunEvidenceFailsOnAClaimThatNeverRan(t *testing.T) {
 	root := evidenceFixture(t, passingSuite, map[string]string{"TestClaimed": ""})
-	findings, err := runGoTestEvidenceWith(root, staticResults(map[string]string{}))
+	findings, err := runGoTestEvidenceWith(root, staticResults(map[string]string{"TestOther": "pass"}))
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -124,6 +183,34 @@ func TestRunEvidencePassesWhenEveryClaimPasses(t *testing.T) {
 	}
 	if len(findings) != 0 {
 		t.Fatalf("a passing claim should raise nothing: %+v", findings)
+	}
+}
+
+func TestRunEvidenceRequiresEveryAmbiguousBareNameMatchToPass(t *testing.T) {
+	inv := &GoTestInventory{
+		modulePath: "example.test/fixture",
+		packages: map[string]bool{
+			"example.test/fixture/one": true,
+			"example.test/fixture/two": true,
+		},
+		byPackage: map[string]map[string]bool{
+			"example.test/fixture/one": {"TestShared": true},
+			"example.test/fixture/two": {"TestShared": true},
+		},
+		allTests: map[string]bool{"TestShared": true},
+	}
+	suites := map[string]TestSuite{"shared": {
+		ID: "shared", TestCases: []TestCase{{Name: "ambiguous proof", GoTest: "TestShared"}},
+	}}
+	events := `{"Action":"pass","Package":"example.test/fixture/one","Test":"TestShared"}
+{"Action":"fail","Package":"example.test/fixture/two","Test":"TestShared"}
+`
+	findings, err := ReduceGoTestEvidenceRun(inv, suites, events)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if len(findings) != 1 || !strings.Contains(findings[0].Message, "TestShared failed (example.test/fixture/two)") {
+		t.Fatalf("ambiguous bare name must require both package matches: %+v", findings)
 	}
 }
 
@@ -220,10 +307,9 @@ test_cases:
 	}
 }
 
-// TestRunEvidenceFailsWhenNothingIsClaimed guards the vacuous pass: a corpus
-// whose suites resolve to no runnable claim at all is a layout change, not a
-// clean bill of health.
-func TestRunEvidenceFailsWhenNothingIsClaimed(t *testing.T) {
+// TestRunEvidenceAllowsNothingClaimed preserves the audit behavior for modules
+// whose only executable evidence is handled by another gate.
+func TestRunEvidenceAllowsNothingClaimed(t *testing.T) {
 	suite := `
 id: test-rel09.0-example
 title: Example
@@ -232,21 +318,9 @@ test_cases:
     go_test: mage integration:thing
 `
 	root := evidenceFixture(t, suite, map[string]string{"TestClaimed": ""})
-	_, err := runGoTestEvidenceWith(root, staticResults(map[string]string{}))
-	if err == nil || !strings.Contains(err.Error(), "no runnable go_test evidence") {
-		t.Fatalf("an empty claim set must fail, got %v", err)
-	}
-}
-
-// TestRunEvidenceRefusesToRecurse proves the guard against the hazard that bit
-// during development: the runner shells out to `go test ./...` over its own
-// module, so calling it from a test in that module spawns a child that runs the
-// calling test. Without the guard that hangs until something kills it.
-func TestRunEvidenceRefusesToRecurse(t *testing.T) {
-	t.Setenv(evidenceRunEnv, "1")
-	_, err := RunGoTestEvidence(t.TempDir())
-	if err == nil || !strings.Contains(err.Error(), "would recurse") {
-		t.Fatalf("expected the recursion guard to fire, got %v", err)
+	findings, err := runGoTestEvidenceWith(root, staticResults(map[string]string{}))
+	if err != nil || len(findings) != 0 {
+		t.Fatalf("an empty claim set should be neutral, got findings=%v err=%v", findings, err)
 	}
 }
 

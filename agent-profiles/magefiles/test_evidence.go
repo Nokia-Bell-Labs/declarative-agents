@@ -4,28 +4,26 @@ package main
 
 import (
 	"fmt"
+	"path/filepath"
 	"strings"
 )
 
-// validateTestEvidence resolves every formal test suite's go_test evidence in
-// this module against its real Go tests, by invoking the agent binary's
-// --validate-test-evidence preflight.
-//
-// The resolver lives in agent-core (spec.AuditGoTestEvidence) and this module
-// deliberately does not import agent-core, so the check is reached through the
-// binary the audit already builds — the same way the boot smoke reuses
-// --validate-config. Without it, a suite command such as
-// `go test ./magefiles -run TestThatMovedAway` exits green while running no
-// test, and the documented proof is worthless (GH-592, GH-652).
-func validateTestEvidence(run profileSmokeRunner, binary, root string) error {
-	out, err := run(binary, "--validate-test-evidence", "--directory", root)
+// validateTestEvidence runs the declarative jurist audit profile, which owns
+// inventory, claim resolution, test execution, reduction, and reporting.
+func validateTestEvidence(run profileSmokeRunner, binary, root, coreRoot string) error {
+	profile := filepath.Join(root, "agents", "jurist", "audit-profile.yaml")
+	out, err := run(binary,
+		"--profile", profile,
+		"--directory", root,
+		"--core-root", coreRoot,
+	)
 	if err == nil {
-		fmt.Printf("validated formal go_test evidence under %s\n", root)
+		fmt.Printf("validated formal go_test evidence under %s through jurist audit profile\n", root)
 		return nil
 	}
 	detail := strings.TrimSpace(string(out))
 	if detail == "" {
 		detail = err.Error()
 	}
-	return fmt.Errorf("formal go_test evidence validation failed:\n%s", detail)
+	return fmt.Errorf("formal go_test evidence audit failed:\n%s", detail)
 }

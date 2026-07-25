@@ -1,0 +1,91 @@
+tools:
+  - name: go_module
+    type: exec
+    binary: go
+    args: [list, -m]
+    visibility: internal
+    emits: [ToolDone, ToolFailed, CommandError]
+    description: Read the target module path.
+    category: boundary
+    output: &structured_output
+      mode: structured
+      schema:
+        type: object
+        properties:
+          output: {type: string}
+          exit_code: {type: integer}
+        required: [output, exit_code]
+    output_cap: 1048576
+    side_effects: &read_only_process
+      - kind: child_process
+        target: go
+        state: read_only
+        description: Reads or compiles target module sources without mutation.
+    reversibility: &reversible
+      classification: reversible
+      undo: noop
+    undo: &noop
+      strategy: noop
+      description: The command changes no governed state.
+
+  - name: go_packages_raw
+    type: exec
+    binary: go
+    args: [list, ./...]
+    visibility: internal
+    emits: [ToolDone, ToolFailed, CommandError]
+    description: Inventory target module packages.
+    category: boundary
+    output: *structured_output
+    output_cap: 1048576
+    side_effects: *read_only_process
+    reversibility: *reversible
+    undo: *noop
+
+  - name: go_packages
+    type: exec
+    binary: sort
+    args: []
+    stdin_source: $from(go_packages_raw).output
+    stdin_max_bytes: 4194304
+    visibility: internal
+    emits: [ToolDone, ToolFailed, CommandError]
+    description: Deterministically normalize the declared Go package inventory.
+    category: boundary
+    output: *structured_output
+    output_cap: 1048576
+    side_effects:
+      - kind: child_process
+        target: sort
+        state: read_only
+        description: Sorts package inventory received through command-state stdin.
+    reversibility: *reversible
+    undo: *noop
+
+  - name: go_test_inventory
+    type: exec
+    binary: go
+    args: [test, -json, -list, ^Test, ./...]
+    visibility: internal
+    emits: [ToolDone, ToolFailed, CommandError]
+    description: Inventory top-level Go tests without executing them.
+    category: boundary
+    output: *structured_output
+    output_cap: 1048576
+    side_effects: *read_only_process
+    reversibility: *reversible
+    undo: *noop
+
+  - name: go_test_run
+    type: exec
+    binary: go
+    args: [test, -json, -count=1, ./...]
+    visibility: internal
+    emits: [ToolDone, ToolFailed, CommandError]
+    description: Execute the target module tests once for claim evaluation.
+    category: boundary
+    output: *structured_output
+    output_cap: 1048576
+    side_effects: *read_only_process
+    reversibility: *reversible
+    undo: *noop

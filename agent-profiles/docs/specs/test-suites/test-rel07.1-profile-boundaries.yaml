@@ -63,6 +63,34 @@ test_cases:
       - srd005-jurist AC3
       - sm-agent-role-taxonomy jurist
 
+  - use_case: rel07.1-uc001-jurist-profile-boundary
+    name: Jurist declarative test-evidence audit boundary
+    status: implemented
+    description: |
+      Confirm the explicit audit profile selects declared Go inventory and run
+      exec words, visible claim and result reducers, and the shared jurist report.
+      The runtime receives an ordinary profile invocation rather than a special
+      test-evidence CLI mode.
+    inputs:
+      profile: agents/jurist/audit-profile.yaml
+      machine: agents/jurist/audit-machine.yaml
+      tools: agents/jurist/audit-tools.yaml
+      declarations: agents/jurist/go-test.yaml
+    expected:
+      claims_step: load_test_claims
+      inventory_steps: [go_module, go_packages_raw, go_packages, go_test_inventory]
+      package_normalization_input: $from(go_packages_raw).output
+      resolution_step: resolve_test_evidence
+      execution_step: go_test_run
+      reduction_step: reduce_test_evidence_run
+      report_step: format_report
+      special_cli_mode: false
+    go_test: TestJuristAuditProfileDeclaresEvidencePipeline
+    traces:
+      - rel07.1-uc001-jurist-profile-boundary S4
+      - srd005-jurist R2.5
+      - srd005-jurist AC2
+
   - use_case: rel07.1-uc002-lifecycle-profile-boundary
     name: Lifecycle history, rollback, and approval boundary
     status: specified

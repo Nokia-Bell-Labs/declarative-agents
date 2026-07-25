@@ -147,6 +147,7 @@ func TestRootCommandHasNoLifecycleOnlyFlags(t *testing.T) {
 	for _, flag := range []string{
 		"checkpoint", "to-iteration", "machine", "tools",
 		"tools-declaration", "tool-config-dir", "profiles-dir", "input",
+		"validate-test-evidence", "run-test-evidence",
 	} {
 		require.Nil(t, rootCmd.PersistentFlags().Lookup(flag), "flag %q must not be public", flag)
 	}
@@ -162,6 +163,10 @@ func TestRootCommandHasNoLifecycleOnlyFlags(t *testing.T) {
 		"flagToolDeclarations":    true,
 		"flagToolConfigDirs":      true,
 		"flagProfilesDir":         true,
+		"flagValidateEvidence":    true,
+		"flagRunEvidence":         true,
+		"validateTestEvidence":    true,
+		"runTestEvidence":         true,
 		"flagInput":               true,
 	})
 }
@@ -171,7 +176,7 @@ func TestRootCommandHelpShowsProfileOnlyRuntimeFlags(t *testing.T) {
 
 	usage := rootCmd.UsageString()
 
-	for _, text := range []string{"--machine", "--tools", "--tools-declaration", "--tool-config-dir", "--profiles-dir", "--input"} {
+	for _, text := range []string{"--machine", "--tools", "--tools-declaration", "--tool-config-dir", "--profiles-dir", "--input", "--validate-test-evidence", "--run-test-evidence"} {
 		require.NotContains(t, usage, text)
 	}
 	for _, text := range []string{"--profile", "--request", "--output", "--directory"} {

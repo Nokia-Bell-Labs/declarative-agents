@@ -22,6 +22,7 @@ type SpecState struct {
 	Graph           *spec.Graph
 	Charters        []spec.Charter
 	Findings        []spec.Finding
+	TestInventory   *spec.GoTestInventory
 	HasErrors       bool
 	CorpusOptional  bool
 }
@@ -265,8 +266,12 @@ func (c *formatReportCmd) Execute() core.Result {
 }
 
 func specSummary(vs *SpecState) string {
+	nodes, edges := 0, 0
+	if vs.Graph != nil {
+		nodes, edges = vs.Graph.NodeCount(), len(vs.Graph.Edges())
+	}
 	return fmt.Sprintf("%d SRDs, %d use cases, %d test suites, %d machines, %d tool declarations, %d nodes, %d edges",
 		len(vs.Corpus.SRDs), len(vs.Corpus.UseCases), len(vs.Corpus.TestSuites),
 		len(vs.Corpus.Machines), len(vs.Corpus.ToolDeclarations),
-		vs.Graph.NodeCount(), len(vs.Graph.Edges()))
+		nodes, edges)
 }

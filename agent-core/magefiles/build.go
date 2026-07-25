@@ -13,7 +13,6 @@ import (
 	"strconv"
 	"strings"
 
-	"github.com/Nokia-Bell-Labs/declarative-agents/agent-core/pkg/spec"
 	"github.com/magefile/mage/sh"
 )
 
@@ -67,73 +66,24 @@ func Audit() error {
 		return err
 	}
 
-	cmd := exec.Command(binary,
-		"--profile", agentProfilePath(profileRoot, "jurist"),
-		"--directory", rootDir,
-		"--core-root", rootDir,
-	)
-	var output bytes.Buffer
-	cmd.Stdout = io.MultiWriter(os.Stdout, &output)
-	cmd.Stderr = io.MultiWriter(os.Stderr, &output)
-	if err := cmd.Run(); !agentRunCompleted(err) {
-		return err
+	for _, profileName := range []string{"profile.yaml", "audit-profile.yaml"} {
+		profilePath := agentProfileAsset(profileRoot, filepath.Join("jurist", profileName))
+		cmd := exec.Command(binary,
+			"--profile", profilePath,
+			"--directory", rootDir,
+			"--core-root", rootDir,
+		)
+		var output bytes.Buffer
+		cmd.Stdout = io.MultiWriter(os.Stdout, &output)
+		cmd.Stderr = io.MultiWriter(os.Stderr, &output)
+		if err := cmd.Run(); !agentRunCompleted(err) {
+			return err
+		}
+		if auditRunFailed(output.String()) {
+			return fmt.Errorf("audit failed: jurist profile %s reported failed terminal status", profileName)
+		}
 	}
-	if auditRunFailed(output.String()) {
-		return fmt.Errorf("audit failed: jurist reported failed terminal status")
-	}
-	if err := validateGoTestEvidence(rootDir); err != nil {
-		return err
-	}
-	// Resolution proves each named test exists; `go test -list` compiles the test
-	// binaries and runs none of them. A suite could therefore claim evidence for a
-	// test that fails and the audit stayed green, which is how a downstream case
-	// claimed a proof that had never passed (GH-701, GH-717). Run what the suites
-	// claim.
-	return runGoTestEvidence(rootDir)
-}
-
-// validateGoTestEvidence checks that every formal test suite's go_test evidence
-// resolves to a real Go test in this module. It is invoked explicitly from Audit
-// rather than through generic corpus loading, so a suite that cites a renamed,
-// deleted, or zero-match test fails the audit instead of silently passing.
-func validateGoTestEvidence(rootDir string) error {
-	fmt.Println("validating formal go_test evidence...")
-	findings, err := spec.AuditGoTestEvidence(rootDir)
-	if err != nil {
-		return fmt.Errorf("validate go_test evidence: %w", err)
-	}
-	return goTestEvidenceError(findings)
-}
-
-// runGoTestEvidence runs this module's tests once and checks that every test the
-// formal suites claim as evidence actually passed. It is the execution half of
-// the evidence gate: validateGoTestEvidence asks whether the named test exists,
-// this asks whether it holds. A skipped test is reported too -- it proves
-// nothing, and reads as success to anything watching only the exit code.
-func runGoTestEvidence(rootDir string) error {
-	fmt.Println("running formal go_test evidence...")
-	findings, err := spec.RunGoTestEvidence(rootDir)
-	if err != nil {
-		return fmt.Errorf("run go_test evidence: %w", err)
-	}
-	if len(findings) == 0 {
-		fmt.Println("every go_test claim ran and passed")
-		return nil
-	}
-	return goTestEvidenceError(findings)
-}
-
-// goTestEvidenceError renders the validator's findings as an audit error, or nil
-// when the evidence is clean.
-func goTestEvidenceError(findings []spec.Finding) error {
-	if len(findings) == 0 {
-		return nil
-	}
-	var b strings.Builder
-	for _, f := range findings {
-		fmt.Fprintf(&b, "  [%s] %s: %s\n", f.Level, f.SuiteID, f.Message)
-	}
-	return fmt.Errorf("go_test evidence validation failed: %d finding(s)\n%s", len(findings), b.String())
+	return nil
 }
 
 // JuristCharterSmoke runs the profile-owned demo charter against its fixture.

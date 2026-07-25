@@ -84,17 +84,11 @@ func Audit() error {
 	if err := bootSmokeProfiles(defaultSmokeRun, binary, coreRoot, profiles); err != nil {
 		return err
 	}
-	// A proof command can name a test that lives in another module and still exit
-	// green, so resolve this example's go_test evidence against its real tests.
-	if err := validateTestEvidence(defaultSmokeRun, binary, root); err != nil {
-		return err
+	evidenceProfile := filepath.Join(filepath.Dir(juristProfile), "audit-profile.yaml")
+	if _, err := os.Stat(evidenceProfile); err != nil {
+		return fmt.Errorf("audit: jurist test-evidence profile not found at %s: %w", evidenceProfile, err)
 	}
-	// Resolution proves the named test exists, not that it passes -- `go test
-	// -list` compiles and runs nothing. A suite claiming evidence for a failing
-	// test kept the gate green until someone ran the package by hand (GH-713), so
-	// run what the suites claim, through the same shared runner agent-core's own
-	// audit uses (GH-717).
-	return runTestEvidence(defaultSmokeRun, binary, root)
+	return runJurist(binary, evidenceProfile, root, coreRoot)
 }
 
 // resolveAuditTools locates the agent-core runtime checkout and the jurist
@@ -138,7 +132,7 @@ func runJurist(binary, juristProfile, root, coreRoot string) error {
 	case !ok:
 		return fmt.Errorf("audit: the jurist found errors in the example corpus at %s", filepath.Join(root, "docs", "specs"))
 	default:
-		fmt.Println("audit: example corpus validated with no errors")
+		fmt.Printf("audit: jurist profile %s completed with no errors\n", filepath.Base(juristProfile))
 		return nil
 	}
 }

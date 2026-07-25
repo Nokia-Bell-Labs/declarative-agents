@@ -4,11 +4,9 @@ package spec
 
 import (
 	"bufio"
-	"bytes"
 	"encoding/json"
 	"fmt"
-	"os"
-	"os/exec"
+	"io"
 	"regexp"
 	"sort"
 	"strings"
@@ -18,13 +16,6 @@ import (
 // raises, so a consumer can tell a claim that did not pass from a claim that did
 // not resolve.
 const goTestRunCheck = "go-test-evidence-run"
-
-// evidenceRunEnv marks the `go test` child this runner spawns. The runner shells
-// out to `go test ./...` over its own module, so calling it from a test *in* that
-// module recurses: the child runs the calling test, which spawns another child.
-// The guard turns that into an immediate, legible error instead of a hang. Unit
-// tests inject a runner through runGoTestEvidenceWith and never reach here.
-const evidenceRunEnv = "AGENT_CORE_EVIDENCE_RUN"
 
 // failureOutputLines caps the per-test output carried into a finding. Enough to
 // see the assertion that failed without pasting a package's whole log into an
@@ -47,59 +38,24 @@ type evidenceClaim struct {
 	tests    []testRef
 }
 
-// RunGoTestEvidence runs this module's tests once and reports every test case
-// whose go_test evidence did not actually pass.
-//
-// This is the question resolution cannot answer. AuditGoTestEvidence proves the
-// named test exists, which catches a renamed, deleted, or zero-match proof
-// command -- but `go test -json -list` compiles the test binaries and executes
-// none of them, so a suite could name a test that fails and the audit stayed
-// green. That is not hypothetical: it is how a chatbot-mesh case claimed
-// evidence for a test that had never passed since the day it was written
-// (GH-701, GH-713, GH-717).
-//
-// The whole module runs once and every claim is matched against the results,
-// rather than invoking `go test` per claim. Most evidence here is bare test
-// names, which scope to the whole module, so per-claim invocation would re-run
-// every package once per claim. One pass also sees a test that was *skipped*,
-// which neither resolution nor a per-claim `-run` invocation can distinguish
-// from success: `go test -run X` exits zero whether X passed or skipped.
-func RunGoTestEvidence(rootDir string) ([]Finding, error) {
-	if os.Getenv(evidenceRunEnv) != "" {
-		return nil, fmt.Errorf(
-			"RunGoTestEvidence called from inside its own `go test` run; it would recurse. "+
-				"Run it from an audit target or the agent binary, not from a test in the module under test (%s set)",
-			evidenceRunEnv)
-	}
-	return runGoTestEvidenceWith(rootDir, runModuleTests)
-}
-
-// moduleTestRunner runs a module's tests and returns each top-level test's
-// outcome. Injected so the runner's own tests never shell out to a real module.
-type moduleTestRunner func(dir string) (map[testRef]testResult, error)
-
-func runGoTestEvidenceWith(rootDir string, run moduleTestRunner) ([]Finding, error) {
-	inv, err := BuildGoTestInventory(rootDir)
-	if err != nil {
-		return nil, err
-	}
-	suites, err := discoverAndParseTestSuites(rootDir)
-	if err != nil {
-		return nil, err
-	}
+// ReduceGoTestEvidenceRun matches a declared `go test -json -count=1 ./...`
+// exec word's output against the formal claims. The profile owns execution;
+// this reducer owns only schema-aware claim expansion and deterministic result
+// evaluation.
+func ReduceGoTestEvidenceRun(inv *GoTestInventory, suites map[string]TestSuite, output string) ([]Finding, error) {
 	claims, findings := collectEvidenceClaims(inv, suites)
 	if len(findings) > 0 {
-		// A claim that cannot be read is reported before anything runs: a proof
-		// command nobody can parse is not a proof, and skipping it would recreate
-		// the silent pass this validator exists to close.
 		return findings, nil
 	}
 	if len(claims) == 0 {
-		return nil, fmt.Errorf("no runnable go_test evidence found under %s; the suites or their layout changed", rootDir)
+		return nil, nil
 	}
-	results, err := run(rootDir)
+	results, err := scanTestEvents(strings.NewReader(output))
 	if err != nil {
 		return nil, err
+	}
+	if len(results) == 0 {
+		return nil, fmt.Errorf("go test produced no top-level test results")
 	}
 	return evaluateClaims(claims, results), nil
 }
@@ -269,36 +225,10 @@ type goTestEvent struct {
 	Output  string
 }
 
-// runModuleTests runs the module's tests once and returns each top-level test's
-// outcome. -count=1 defeats the test cache: a cached pass is a claim about a
-// previous tree, and the audit is asking about this one.
-//
-// A non-zero exit is expected whenever a test fails, so it is not an error here;
-// the failures are reported per claim. An exit with no results at all is a real
-// error -- a build failure, not a test failure -- and surfaces as one.
-func runModuleTests(dir string) (map[testRef]testResult, error) {
-	cmd := exec.Command("go", "test", "-json", "-count=1", "./...")
-	cmd.Dir = dir
-	cmd.Env = append(os.Environ(), evidenceRunEnv+"=1")
-	var stdout, stderr bytes.Buffer
-	cmd.Stdout = &stdout
-	cmd.Stderr = &stderr
-	runErr := cmd.Run()
-
-	results, err := scanTestEvents(&stdout)
-	if err != nil {
-		return nil, err
-	}
-	if len(results) == 0 {
-		return nil, fmt.Errorf("go test in %s produced no test results: %w\n%s", dir, runErr, stderr.String())
-	}
-	return results, nil
-}
-
 // scanTestEvents folds a `go test -json` stream into per-test outcomes. Subtests
 // report as "Parent/child" and are ignored: the claim is on the parent, whose
 // own pass or fail already accounts for them.
-func scanTestEvents(stream *bytes.Buffer) (map[testRef]testResult, error) {
+func scanTestEvents(stream io.Reader) (map[testRef]testResult, error) {
 	results := map[testRef]testResult{}
 	scanner := bufio.NewScanner(stream)
 	scanner.Buffer(make([]byte, 0, 64*1024), 4*1024*1024)
