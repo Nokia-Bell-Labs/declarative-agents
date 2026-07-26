@@ -13,16 +13,18 @@ import (
 
 // EvalMeta records metadata for a single evaluation point.
 type EvalMeta struct {
-	Harness     string                 `json:"harness"`
-	Model       string                 `json:"model"`
-	Sample      string                 `json:"sample"`
-	GridParams  map[string]interface{} `json:"grid_params"`
-	Repetition  int                    `json:"repetition"`
-	ExitCode    int                    `json:"exit_code"`
-	Duration    time.Duration          `json:"duration_ns"`
-	TestsPassed bool                   `json:"tests_passed"`
-	TestOutput  string                 `json:"test_output"`
-	TimedOut    bool                   `json:"timed_out"`
+	Harness      string                 `json:"harness"`
+	Model        string                 `json:"model"`
+	Sample       string                 `json:"sample"`
+	GridParams   map[string]interface{} `json:"grid_params"`
+	Repetition   int                    `json:"repetition"`
+	ExitCode     int                    `json:"exit_code"`
+	Duration     time.Duration          `json:"duration_ns"`
+	TestsPassed  bool                   `json:"tests_passed"`
+	TestOutput   string                 `json:"test_output"`
+	TimedOut     bool                   `json:"timed_out"`
+	FailureStage string                 `json:"failure_stage,omitempty"`
+	FailureCause string                 `json:"failure_cause,omitempty"`
 }
 
 // EvalPointID produces the directory name for a single evaluation point.
@@ -37,16 +39,18 @@ func EvalPointID(sample, harness, model string, gridPoint GridPoint, rep int) st
 
 func writeMetaJSON(pc *PointContext) ([]byte, error) {
 	meta := EvalMeta{
-		Harness:     pc.Harness.Name,
-		Model:       pc.Model,
-		Sample:      pc.Sample.Name,
-		GridParams:  pc.GridPoint,
-		Repetition:  pc.Rep,
-		ExitCode:    pc.ExitCode,
-		Duration:    pc.Duration,
-		TestsPassed: pc.TestsPassed,
-		TestOutput:  pc.TestOutput,
-		TimedOut:    pc.TimedOut,
+		Harness:      pc.Harness.Name,
+		Model:        pc.Model,
+		Sample:       pc.Sample.Name,
+		GridParams:   pc.GridPoint,
+		Repetition:   pc.Rep,
+		ExitCode:     pc.ExitCode,
+		Duration:     pc.Duration,
+		TestsPassed:  pc.TestsPassed,
+		TestOutput:   pc.TestOutput,
+		TimedOut:     pc.TimedOut,
+		FailureStage: pc.FailureStage,
+		FailureCause: pc.FailureCause,
 	}
 
 	metaJSON, _ := json.MarshalIndent(meta, "", "  ")

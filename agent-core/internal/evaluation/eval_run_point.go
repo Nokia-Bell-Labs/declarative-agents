@@ -4,6 +4,8 @@ package evaluation
 
 import (
 	"fmt"
+	"os"
+	"path/filepath"
 	"time"
 
 	"github.com/Nokia-Bell-Labs/declarative-agents/agent-core/internal/observability/tracing"
@@ -98,6 +100,15 @@ func (c *runPointCmd) Execute() core.Result {
 		_, _ = fmt.Fprintf(c.es.Stderr, "    ERROR: %v\n", loopErr)
 	}
 
+	if err := preservePointFailureMetadata(pc, runResult); err != nil {
+		c.es.RecordPoint(pc)
+		return core.Result{
+			Signal:      core.CommandError,
+			Err:         err,
+			Output:      err.Error(),
+			CommandName: "run_point",
+		}
+	}
 	c.es.RecordPoint(pc)
 
 	status := "PASS"
@@ -114,6 +125,42 @@ func (c *runPointCmd) Execute() core.Result {
 		Output:      fmt.Sprintf("%s: %s", pc.PointID, status),
 		CommandName: "run_point",
 	}
+}
+
+// preservePointFailureMetadata closes the artifact contract when the nested
+// point machine exits before collect_metrics. Successful point machines that
+// wrote meta.json stay untouched.
+func preservePointFailureMetadata(pc *PointContext, runResult core.RunResult) error {
+	pointDir := pc.PointDir
+	if pointDir == "" {
+		pointDir = filepath.Join(pc.SessionDir, pc.PointID)
+		pc.PointDir = pointDir
+	}
+	metaPath := filepath.Join(pointDir, ArtifactMeta)
+	if _, err := os.Stat(metaPath); err == nil {
+		return nil
+	} else if !os.IsNotExist(err) {
+		return fmt.Errorf("run_point: inspect failure metadata for %s: %w", pc.PointID, err)
+	}
+
+	if len(runResult.Events) > 0 {
+		pc.FailureStage = runResult.Events[len(runResult.Events)-1].CommandName
+	}
+	if runResult.LastError != nil {
+		pc.FailureCause = runResult.LastError.Error()
+	} else {
+		pc.FailureCause = fmt.Sprintf(
+			"point machine ended in %s with status %s before writing %s",
+			runResult.FinalState, runResult.Status, ArtifactMeta,
+		)
+	}
+	if err := os.MkdirAll(pointDir, 0o755); err != nil {
+		return fmt.Errorf("run_point: create failure artifact directory for %s: %w", pc.PointID, err)
+	}
+	if _, err := writeMetaJSON(pc); err != nil {
+		return fmt.Errorf("run_point: preserve failure metadata for %s: %w", pc.PointID, err)
+	}
+	return nil
 }
 
 // RunPointFactory creates a registry.BuiltinFactory for run_point.

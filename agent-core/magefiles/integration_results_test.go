@@ -21,7 +21,7 @@ func TestValidateEvaluationResults(t *testing.T) {
 		wantErrText string
 	}{
 		{name: "success", points: []bool{true}, wantPassed: 1, wantTotal: 1},
-		{name: "partial success", points: []bool{false, true}, wantPassed: 1, wantTotal: 2},
+		{name: "partial success remains a failing gate", points: []bool{false, true}, wantPassed: 1, wantTotal: 2, wantErrText: "point point-0 failed at run_agent: synthetic failure"},
 		{name: "all fail", points: []bool{false, false}, wantTotal: 2, wantErrText: "all 2 evaluation points failed"},
 		{name: "missing metadata", wantErrText: "no valid point metadata"},
 		{name: "malformed metadata", points: []bool{true}, mutate: func(t *testing.T, root string) {
@@ -68,10 +68,18 @@ func writeResultPoint(t *testing.T, root string, index int, passed bool) {
 		t.Fatalf("create point: %v", err)
 	}
 	requireWriteResultFile(t, filepath.Join(point, "meta.json"), fmt.Sprintf(
-		`{"sample":"sample-%d","model":"model","tests_passed":%t}`, index, passed,
+		`{"sample":"sample-%d","model":"model","tests_passed":%t%s}`,
+		index, passed, failureMetadata(passed),
 	))
 	requireWriteResultFile(t, filepath.Join(point, "experiment.yaml"), "profile: test\n")
 	requireWriteResultFile(t, filepath.Join(point, "trace.ndjson"), "{}\n")
+}
+
+func failureMetadata(passed bool) string {
+	if passed {
+		return ""
+	}
+	return `,"failure_stage":"run_agent","failure_cause":"synthetic failure"`
 }
 
 func requireWriteResultFile(t *testing.T, path, content string) {

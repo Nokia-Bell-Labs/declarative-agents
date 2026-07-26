@@ -23,6 +23,7 @@ func TestPointWorkspaceToolsPrepareWorkspaceSequence(t *testing.T) {
 	requireSignal(t, createResult, SigPointDirCreated)
 	require.DirExists(t, pc.PointDir)
 	require.Equal(t, filepath.Join(pc.PointDir, ArtifactTrace), pc.TracePath)
+	require.Equal(t, filepath.Join(pc.PointDir, ArtifactResult), pc.ResultPath)
 
 	requireSignal(t, executePointWord(t, pc, "copy_dir", createResult), core.ToolDone)
 	require.FileExists(t, filepath.Join(pc.PointDir, "main.go"))

@@ -39,7 +39,7 @@ flow:
   - F6: dump_config serializes the resolved profile path, model, harness label, sample, timeout, and repetition into experiment.yaml for reproducibility (srd019).
   - F7: run_agent spawns the generator binary as a subprocess with OTel traceparent propagation and passes --profile for profile-based points (srd016, srd018, srd019).
   - F8: The profile-configured run_oracle_check exec word, record_oracle_result adapter, collect_trace_tokens, check_agent_version, and summarize_point_results classify the point outcome and collect trace-derived result state (srd019).
-  - F9: collect_metrics writes meta.json with point metadata, duration, and outcome classification (srd019).
+  - F9: collect_metrics writes meta.json with point metadata, duration, and outcome classification; if the point machine fails before that step, run_point preserves meta.json with the terminal failure stage and cause (srd019).
   - F10: The nested loop completes; control returns to the session machine which loops back to next_point.
   - F11: When the grid is exhausted, next_point emits AllPointsDone; report_session prints the summary.
   - F12: Results are written to eval-results/<suite>/<timestamp>/<point-id>/ with meta.json, trace.ndjson, and experiment.yaml (srd019).
@@ -87,6 +87,11 @@ success_criteria:
     criterion: Result directory contains meta.json and experiment.yaml for each point.
     traces:
       - srd019-eval-harness AC2
+  - id: S9
+    criterion: Every attempted point has machine-readable failure evidence, and the release gate reports each failed point while rejecting any failed benchmark.
+    traces:
+      - srd019-eval-harness AC2
+      - srd019-eval-harness AC3
 
 integration_test: mage integration:uc002
 test_data: testdata/integration/uc002-evaluator-benchmark

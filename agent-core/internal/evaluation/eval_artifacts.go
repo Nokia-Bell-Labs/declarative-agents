@@ -9,5 +9,6 @@ const (
 	ArtifactTrace      = "trace.ndjson"
 	ArtifactMeta       = "meta.json"
 	ArtifactExperiment = "experiment.yaml"
+	ArtifactResult     = "result.json"
 	ArtifactDocDir     = "doc"
 )

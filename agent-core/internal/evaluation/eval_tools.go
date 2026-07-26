@@ -35,6 +35,7 @@ func (c *createPointDirCmd) Execute() core.Result {
 	}
 	c.pc.PointDir = pointDir
 	c.pc.TracePath = filepath.Join(pointDir, ArtifactTrace)
+	c.pc.ResultPath = filepath.Join(pointDir, ArtifactResult)
 	output, _ := json.Marshal(map[string]any{
 		"parameters": map[string]string{
 			"source":      c.pc.Sample.WorkspaceDir + string(os.PathSeparator) + ".",

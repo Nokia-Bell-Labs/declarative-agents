@@ -299,6 +299,21 @@ test_cases:
       - srd019-eval-harness AC2
       - srd019-eval-harness AC4
 
+  - use_case: rel01.0-uc002-evaluator-benchmark
+    name: Failed point preserves diagnostic metadata
+    go_test: TestRunPointPreservesMetadataWhenNestedMachineFailsBeforeMetrics
+    status: implemented
+    inputs:
+      point_machine: deterministic failure before collect_metrics
+      release_results: mixed passing and failed points
+    expected:
+      failure_metadata_preserved: true
+      point_stage_and_cause_reported: true
+      failed_point_rejects_gate: true
+    traces:
+      - srd019-eval-harness AC2
+      - srd019-eval-harness AC3
+
   - use_case: rel01.0-uc003-bench-visualization
     name: Bench profile loads state machine
     go_test: TestBenchConfig_MachineLoads
