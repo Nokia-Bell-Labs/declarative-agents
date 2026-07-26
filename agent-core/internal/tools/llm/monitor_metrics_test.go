@@ -135,8 +135,30 @@ func runLLMMetricLoop(t *testing.T, cmd core.Command, signal core.Signal) []moni
 	t.Helper()
 	// Keep this fixture package-local so LLM assertions name model-boundary commands and signals.
 	store := monitor.NewStore(monitor.Limits{Samples: 10})
-	params := llmMetricLoopParams(cmd, signal, monitor.NewRecorder(store, nil))
-	_, err := core.Loop(params, context.Background())
+	attrs := []monitor.AttributePolicy{
+		{Name: "provider", AllowedValues: []string{"ollama"}},
+		{Name: "model", AllowedValues: []string{"qwen"}},
+	}
+	rec, err := monitor.NewRecorderWithConfig(store, nil, monitor.RecorderConfig{
+		GlobalAttributes: []monitor.AttributePolicy{
+			{Name: "use_case", AllowedValues: []string{"rel04.0-monitor"}},
+			{Name: "phase", AllowedValues: []string{"dispatch"}},
+			{Name: "agent.name", AllowedValues: []string{"llm-agent"}},
+		},
+		Bindings: []monitor.MetricBinding{
+			{ToolName: cmd.Name(), Schema: monitor.MetricSchema{
+				Name: "llm.prompt_tokens", Kind: monitor.InstrumentHistogram, Unit: "1",
+			}, Attributes: attrs},
+			{ToolName: cmd.Name(), Schema: monitor.MetricSchema{
+				Name: "llm.completion_tokens", Kind: monitor.InstrumentHistogram, Unit: "1",
+			}, Attributes: attrs},
+		},
+	})
+	if err != nil {
+		t.Fatalf("configure recorder: %v", err)
+	}
+	params := llmMetricLoopParams(cmd, signal, rec)
+	_, err = core.Loop(params, context.Background())
 	if err != nil {
 		t.Fatalf("loop failed: %v", err)
 	}

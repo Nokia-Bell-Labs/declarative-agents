@@ -362,7 +362,12 @@ func buildPreparedRun(cmd *cobra.Command, resources runResources) (preparedRun, 
 	checkpoints.Add(lifecycleCheckpoint)
 	loopCtx, loopCancel := context.WithCancel(commandContext(cmd))
 	shutdown := newDeferredShutdown(loopCancel)
-	monitorRuntime := newMonitorRuntime(resources.Machine, resources.Definitions, resources.RestDefinitions, resources.Meter)
+	monitorRuntime, err := newMonitorRuntime(
+		resources.Machine, resources.Definitions, resources.RestDefinitions, resources.Meter,
+	)
+	if err != nil {
+		return preparedRun{}, closeBuildFailure(err, loopCancel, &checkpoints, resources.shutdownTelemetry)
+	}
 	selectedInits := selectedBuiltinInits(resources.Definitions)
 	reg := core.NewRegistry()
 	builtins := toolregistry.NewBuiltinRegistry()

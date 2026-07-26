@@ -102,7 +102,8 @@ func monitorReleaseProof(t *testing.T) monitorProof {
 
 	reader := sdkmetric.NewManualReader()
 	provider := sdkmetric.NewMeterProvider(sdkmetric.WithReader(reader))
-	mon := newMonitorRuntime(machine, defs, restDefs, provider.Meter("agent"))
+	mon, err := newMonitorRuntime(machine, defs, restDefs, provider.Meter("agent"))
+	require.NoError(t, err)
 	require.NotNil(t, mon.Store)
 	require.NotNil(t, mon.Recorder)
 

@@ -130,7 +130,7 @@ func TestMonitorREST_FailureDoesNotMutateState(t *testing.T) {
 func TestMonitorREST_FactoryUsesLiveMonitorState(t *testing.T) {
 	t.Parallel()
 
-	monitorState, rec := liveMonitorState()
+	monitorState, rec := liveMonitorState(t)
 	state, baseURL := launchMonitorRESTServerFromFactory(t, "monitor_live", monitorState)
 	defer stopRESTServer(t, state, "monitor_live")
 
@@ -153,9 +153,19 @@ func TestMonitorREST_FactoryUsesLiveMonitorState(t *testing.T) {
 	requireQueueEmpty(t, state, "monitor_live")
 }
 
-func liveMonitorState() (MonitorState, *monitor.Recorder) {
+func liveMonitorState(t *testing.T) (MonitorState, *monitor.Recorder) {
+	t.Helper()
 	store := monitor.NewStore(monitor.Limits{Events: 5, Samples: 5})
-	rec := monitor.NewRecorder(store, nil)
+	rec, err := monitor.NewRecorderWithConfig(store, nil, monitor.RecorderConfig{
+		GlobalAttributes: []monitor.AttributePolicy{{Name: "profile", AllowedValues: []string{"monitor"}}},
+		Bindings: []monitor.MetricBinding{{
+			ToolName: "file_read",
+			Schema: monitor.MetricSchema{
+				Name: "filesystem.bytes_read", Kind: monitor.InstrumentHistogram, Unit: "By",
+			},
+		}},
+	})
+	require.NoError(t, err)
 	_ = rec.RecordRun(context.Background(), monitor.RunSnapshot{
 		RunID: "agent", Status: "running", State: "Serving", Iteration: 1,
 	})

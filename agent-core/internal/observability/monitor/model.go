@@ -36,6 +36,26 @@ type MetricSchema struct {
 	Attributes  []string
 }
 
+// AttributePolicy bounds one declared metric attribute to trusted values.
+type AttributePolicy struct {
+	Name          string
+	AllowedValues []string
+}
+
+// MetricBinding binds a declared schema to its owning tool. An empty ToolName
+// denotes a runtime-owned metric that may describe any dispatched tool.
+type MetricBinding struct {
+	ToolName   string
+	Schema     MetricSchema
+	Attributes []AttributePolicy
+}
+
+// RecorderConfig contains the trusted schemas selected during runtime setup.
+type RecorderConfig struct {
+	Bindings         []MetricBinding
+	GlobalAttributes []AttributePolicy
+}
+
 // MetricSample is a normalized monitor metric sample.
 type MetricSample struct {
 	Name        string

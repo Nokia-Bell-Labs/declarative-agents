@@ -171,12 +171,145 @@ func newMonitorRuntime(
 	defs []catalog.ToolDef,
 	restDefs toolrest.Collection,
 	meter metric.Meter,
-) monitorRuntime {
+) (monitorRuntime, error) {
 	if !monitorConfigured(machine, defs, restDefs) {
-		return monitorRuntime{}
+		return monitorRuntime{}, nil
 	}
 	store := monitor.NewStore(monitor.Limits{})
-	return monitorRuntime{Store: store, Recorder: monitor.NewRecorder(store, meter)}
+	cfg, err := monitorRecorderConfig(machine, defs)
+	if err != nil {
+		return monitorRuntime{}, err
+	}
+	recorder, err := monitor.NewRecorderWithConfig(store, meter, cfg)
+	if err != nil {
+		return monitorRuntime{}, fmt.Errorf("configure monitor recorder: %w", err)
+	}
+	return monitorRuntime{Store: store, Recorder: recorder}, nil
+}
+
+func monitorRecorderConfig(machine core.MachineSpec, defs []catalog.ToolDef) (monitor.RecorderConfig, error) {
+	workflowValues := machineMetricLabelValues(machine)
+	cfg := monitor.RecorderConfig{
+		GlobalAttributes: []monitor.AttributePolicy{{Name: "agent.name", AllowedValues: []string{"agent"}}},
+	}
+	for name, values := range workflowValues {
+		cfg.GlobalAttributes = append(cfg.GlobalAttributes, monitor.AttributePolicy{Name: name, AllowedValues: values})
+	}
+	for _, def := range defs {
+		bindings, err := toolMetricBindings(def, machine, workflowValues)
+		if err != nil {
+			return monitor.RecorderConfig{}, err
+		}
+		cfg.Bindings = append(cfg.Bindings, bindings...)
+	}
+	return cfg, nil
+}
+
+func toolMetricBindings(
+	def catalog.ToolDef,
+	machine core.MachineSpec,
+	workflowValues map[string][]string,
+) ([]monitor.MetricBinding, error) {
+	if def.Metrics.Disabled {
+		return nil, nil
+	}
+	declared := make(map[string]core.MetricAttribute, len(def.Metrics.Attributes))
+	for _, attr := range def.Metrics.Attributes {
+		declared[attr.Name] = attr
+	}
+	bindings := make([]monitor.MetricBinding, 0, len(def.Metrics.Instruments))
+	for _, instrument := range def.Metrics.Instruments {
+		binding, err := toolMetricBinding(def.Name, instrument, declared, machine, workflowValues)
+		if err != nil {
+			return nil, err
+		}
+		bindings = append(bindings, binding)
+	}
+	return bindings, nil
+}
+
+func toolMetricBinding(
+	toolName string,
+	instrument core.MetricInstrument,
+	declared map[string]core.MetricAttribute,
+	machine core.MachineSpec,
+	workflowValues map[string][]string,
+) (monitor.MetricBinding, error) {
+	binding := monitor.MetricBinding{
+		ToolName: toolName,
+		Schema: monitor.MetricSchema{
+			Name: instrument.Name, Kind: monitor.InstrumentKind(instrument.Kind),
+			Unit: instrument.Unit, Description: instrument.Description,
+		},
+	}
+	for _, name := range instrument.Attributes {
+		attr, ok := declared[name]
+		if !ok {
+			return monitor.MetricBinding{}, fmt.Errorf(
+				"tool %q metric %q attribute %q is not declared", toolName, instrument.Name, name,
+			)
+		}
+		if attr.Redaction == "omit" {
+			continue
+		}
+		values := metricAttributeAllowedValues(toolName, attr, machine, workflowValues)
+		if len(values) == 0 {
+			return monitor.MetricBinding{}, fmt.Errorf(
+				"tool %q metric %q attribute %q has no bounded allowed values",
+				toolName, instrument.Name, name,
+			)
+		}
+		binding.Attributes = append(binding.Attributes, monitor.AttributePolicy{Name: name, AllowedValues: values})
+	}
+	return binding, nil
+}
+
+func machineMetricLabelValues(machine core.MachineSpec) map[string][]string {
+	values := make(map[string]map[string]struct{})
+	add := func(labels core.MetricLabels) {
+		for name, value := range labels {
+			if values[name] == nil {
+				values[name] = make(map[string]struct{})
+			}
+			values[name][value] = struct{}{}
+		}
+	}
+	add(machine.MetricLabels)
+	for _, transition := range machine.Transitions {
+		add(transition.MetricLabels)
+	}
+	out := make(map[string][]string, len(values))
+	for name, set := range values {
+		for value := range set {
+			out[name] = append(out[name], value)
+		}
+	}
+	return out
+}
+
+func metricAttributeAllowedValues(
+	toolName string,
+	attr core.MetricAttribute,
+	machine core.MachineSpec,
+	workflowValues map[string][]string,
+) []string {
+	if len(attr.AllowedValues) > 0 {
+		return append([]string(nil), attr.AllowedValues...)
+	}
+	switch attr.Source {
+	case "tool_name":
+		return []string{toolName}
+	case "state":
+		return machine.States.Names()
+	case "signal":
+		return machine.Signals.Names()
+	case "status":
+		return []string{"success", "failure"}
+	case "workflow_label":
+		return append([]string(nil), workflowValues[attr.Name]...)
+	default:
+		return nil
+	}
 }
 
 func monitorState(store *monitor.Store, machine *core.MachineSpec, defs []catalog.ToolDef) toolrest.MonitorState {
