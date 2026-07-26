@@ -229,3 +229,245 @@ extraction_pipeline:
 	spec = reg.ResolveProfileSpec("llama3:latest")
 	assert.Equal(t, "default", spec.ProfileName)
 }
+
+func TestLoadProfilesFromBytes_ValidatesEveryPipelineOperation(t *testing.T) {
+	tests := []struct {
+		name string
+		step string
+	}{
+		{name: "strip code fences", step: "strip_code_fences"},
+		{name: "strip thinking blocks", step: "strip_thinking_blocks"},
+		{name: "extract braces", step: "extract_braces"},
+		{
+			name: "extract envelope",
+			step: "extract_envelope:\n      open: \"[tool_call]\"\n      close: \"[/tool_call]\"",
+		},
+		{
+			name: "extract native token",
+			step: "extract_native_token:\n      token: \"<|end|>\"",
+		},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			_, err := LoadProfilesFromBytes(singleProfileWithStep(tt.step))
+			require.NoError(t, err)
+		})
+	}
+}
+
+func TestLoadProfilesFromBytes_RejectsInvalidPipelineOperations(t *testing.T) {
+	tests := []struct {
+		name    string
+		step    string
+		wantErr string
+	}{
+		{
+			name:    "strip code fences parameter",
+			step:    "strip_code_fences:\n      unexpected: value",
+			wantErr: `operation "strip_code_fences" does not allow parameter "unexpected"`,
+		},
+		{
+			name:    "strip thinking blocks parameter",
+			step:    "strip_thinking_blocks:\n      unexpected: value",
+			wantErr: `operation "strip_thinking_blocks" does not allow parameter "unexpected"`,
+		},
+		{
+			name:    "extract braces parameter",
+			step:    "extract_braces:\n      unexpected: value",
+			wantErr: `operation "extract_braces" does not allow parameter "unexpected"`,
+		},
+		{
+			name:    "extract envelope missing close",
+			step:    "extract_envelope:\n      open: \"[tool_call]\"",
+			wantErr: `operation "extract_envelope" requires non-empty parameter "close"`,
+		},
+		{
+			name: "extract envelope unexpected parameter",
+			step: "extract_envelope:\n      open: \"[tool_call]\"\n      close: \"[/tool_call]\"" +
+				"\n      unexpected: value",
+			wantErr: `operation "extract_envelope" does not allow parameter "unexpected"`,
+		},
+		{
+			name:    "extract native token missing token",
+			step:    "extract_native_token: {}",
+			wantErr: `operation "extract_native_token" requires non-empty parameter "token"`,
+		},
+		{
+			name:    "extract native token unexpected parameter",
+			step:    "extract_native_token:\n      token: \"<|end|>\"\n      unexpected: value",
+			wantErr: `operation "extract_native_token" does not allow parameter "unexpected"`,
+		},
+		{
+			name:    "unknown operation",
+			step:    "extract_magic",
+			wantErr: `unknown operation "extract_magic"`,
+		},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			_, err := LoadProfilesFromBytes(singleProfileWithStep(tt.step))
+			require.Error(t, err)
+			assert.Contains(t, err.Error(), "profile invalid.yaml: extraction_pipeline[0]")
+			assert.Contains(t, err.Error(), tt.wantErr)
+		})
+	}
+}
+
+func TestLoadProfilesFromBytes_RejectsMalformedPipelineMaps(t *testing.T) {
+	tests := []struct {
+		name    string
+		step    string
+		wantErr string
+	}{
+		{
+			name:    "multiple operations",
+			step:    "{extract_braces: {}, strip_code_fences: {}}",
+			wantErr: "pipeline step map must have exactly one key",
+		},
+		{
+			name:    "non-map parameters",
+			step:    "extract_native_token: \"<|end|>\"",
+			wantErr: `pipeline step "extract_native_token" parameters must be a map`,
+		},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			_, err := LoadProfilesFromBytes(singleProfileWithStep(tt.step))
+			require.Error(t, err)
+			assert.Contains(t, err.Error(), "parse profile invalid.yaml")
+			assert.Contains(t, err.Error(), "extraction_pipeline[0]")
+			assert.Contains(t, err.Error(), tt.wantErr)
+		})
+	}
+}
+
+func TestLoadProfilesFromBytes_ReportsPipelineStepIndex(t *testing.T) {
+	files := map[string][]byte{
+		"profile.yaml": []byte(
+			"name: default\nextraction_pipeline:\n  - extract_braces\n  - extract_magic\n",
+		),
+	}
+
+	_, err := LoadProfilesFromBytes(files)
+	require.EqualError(
+		t,
+		err,
+		`profile profile.yaml: extraction_pipeline[1]: unknown operation "extract_magic"`,
+	)
+}
+
+func TestLoadProfilesFromBytes_RejectsRegistryAmbiguity(t *testing.T) {
+	tests := []struct {
+		name    string
+		files   map[string][]byte
+		wantErr string
+	}{
+		{
+			name: "duplicate name",
+			files: profileFileSet(
+				"profile-a.yaml", "qwen", "qwen",
+				"profile-b.yaml", "qwen", "other",
+			),
+			wantErr: `profile profile-b.yaml: duplicate name "qwen" (already declared in profile-a.yaml)`,
+		},
+		{
+			name: "duplicate default",
+			files: map[string][]byte{
+				"fallback-a.yaml": []byte("name: fallback-a\nextraction_pipeline:\n  - extract_braces\n"),
+				"fallback-b.yaml": []byte("name: fallback-b\nextraction_pipeline:\n  - extract_braces\n"),
+			},
+			wantErr: "profile fallback-b.yaml: duplicate default profile (already declared in fallback-a.yaml)",
+		},
+		{
+			name: "overlapping prefixes",
+			files: profileFileSet(
+				"profile-a.yaml", "qwen", "qwen",
+				"profile-b.yaml", "qwen3", "qwen3",
+			),
+			wantErr: `profile profile-b.yaml: match prefix "qwen3" is ambiguous with "qwen" from profile "qwen" in profile-a.yaml`,
+		},
+		{
+			name: "case-insensitive prefixes",
+			files: profileFileSet(
+				"profile-a.yaml", "qwen", "QWEN",
+				"profile-b.yaml", "other", "qwen",
+			),
+			wantErr: `profile profile-b.yaml: match prefix "qwen" is ambiguous with "qwen" from profile "qwen" in profile-a.yaml`,
+		},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			_, err := LoadProfilesFromBytes(tt.files)
+			require.EqualError(t, err, tt.wantErr)
+		})
+	}
+}
+
+func TestLoadProfilesFromBytes_RejectsEmptyPrefix(t *testing.T) {
+	files := map[string][]byte{
+		"00-default.yaml": []byte("name: default\nextraction_pipeline:\n  - extract_braces\n"),
+		"profile.yaml": []byte(
+			"name: qwen\nmatch_prefixes: [\" \"]\nextraction_pipeline:\n  - extract_braces\n",
+		),
+	}
+
+	_, err := LoadProfilesFromBytes(files)
+	require.EqualError(t, err, "profile profile.yaml: match_prefixes[0] must not be empty")
+}
+
+func TestLoadProfilesFromBytes_IsDeterministic(t *testing.T) {
+	files := map[string][]byte{
+		"z-default.yaml":  []byte("name: default\nextraction_pipeline:\n  - extract_braces\n"),
+		"b-qwen.yaml":     profileYAML("qwen", "qwen"),
+		"a-deepseek.yaml": profileYAML("deepseek", "deepseek"),
+	}
+
+	for range 100 {
+		reg, err := LoadProfilesFromBytes(files)
+		require.NoError(t, err)
+		assert.Equal(t, []string{"default", "deepseek", "qwen"}, reg.ProfileNames())
+		assert.Equal(t, "qwen", reg.ResolveProfileSpec("qwen3:latest").ProfileName)
+		assert.Equal(t, "deepseek", reg.ResolveProfileSpec("deepseek-r1").ProfileName)
+	}
+}
+
+func TestLoadProfilesFromBytes_HasDeterministicParameterDiagnostics(t *testing.T) {
+	files := singleProfileWithStep("extract_braces:\n      zeta: value\n      alpha: value")
+
+	for range 100 {
+		_, err := LoadProfilesFromBytes(files)
+		require.EqualError(
+			t,
+			err,
+			`profile invalid.yaml: extraction_pipeline[0]: operation "extract_braces" does not allow parameter "alpha"`,
+		)
+	}
+}
+
+func singleProfileWithStep(step string) map[string][]byte {
+	return map[string][]byte{
+		"invalid.yaml": []byte("name: default\nextraction_pipeline:\n  - " + step + "\n"),
+	}
+}
+
+func profileFileSet(
+	firstFile, firstName, firstPrefix string,
+	secondFile, secondName, secondPrefix string,
+) map[string][]byte {
+	return map[string][]byte{
+		"00-default.yaml": []byte("name: default\nextraction_pipeline:\n  - extract_braces\n"),
+		firstFile:         profileYAML(firstName, firstPrefix),
+		secondFile:        profileYAML(secondName, secondPrefix),
+	}
+}
+
+func profileYAML(name, prefix string) []byte {
+	return []byte(
+		"name: " + name + "\nmatch_prefixes:\n  - " + prefix +
+			"\nextraction_pipeline:\n  - extract_braces\n",
+	)
+}
