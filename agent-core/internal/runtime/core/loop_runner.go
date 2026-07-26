@@ -41,7 +41,11 @@ func coreLoop(sm *StateMachine, p LoopParams, tr tracing.Tracer, ctx context.Con
 	r.recordStart()
 	for !r.done() {
 	}
-	return r.finish(), nil
+	result := r.finish()
+	if r.checkpointSaveErr != nil {
+		return result, result.LastError
+	}
+	return result, nil
 }
 
 func newLoopRunner(sm *StateMachine, p LoopParams, tr tracing.Tracer, ctx context.Context) *loopRunner {

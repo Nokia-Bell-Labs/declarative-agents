@@ -632,7 +632,7 @@ func runOrResume(cfg runtimeConfig, deps resumeDeps) (core.RunResult, error) {
 	if cfg.ResumeCheckpoint == "" {
 		result, err := core.Loop(deps.Params, deps.Ctx)
 		if err != nil {
-			return core.RunResult{}, fmt.Errorf("loop: %w", err)
+			return result, fmt.Errorf("loop: %w", err)
 		}
 		return result, nil
 	}
@@ -660,7 +660,7 @@ func resumeRun(cfg runtimeConfig, deps resumeDeps) (core.RunResult, error) {
 	}
 	result, err := core.Loop(state.Params, deps.Ctx)
 	if err != nil {
-		return core.RunResult{}, fmt.Errorf("resume: %w", err)
+		return result, fmt.Errorf("resume: %w", err)
 	}
 	return result, nil
 }

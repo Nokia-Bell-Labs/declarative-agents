@@ -91,6 +91,26 @@ func TestLoop_ActionlessTerminalTransitionStopsWithoutDispatch(t *testing.T) {
 	require.False(t, tr.hasEvent("dispatch.nil_command"))
 }
 
+func TestLoop_MachineFailureTerminalIsDomainOutcome(t *testing.T) {
+	t.Parallel()
+
+	result, err := Loop(LoopParams{
+		InitialState: "Start",
+		Registry:     NewRegistry(),
+		Table: TransitionTable{
+			{State: "Start", Signal: Seed}: {NextState: "Rejected"},
+		},
+		IsTerminal: func(state State) bool { return state == "Rejected" },
+		Trace:      &loopRecorder{},
+		Budget:     Budget{MaxIterations: 1},
+	}, context.Background())
+
+	require.NoError(t, err)
+	require.Equal(t, StatusFailed, result.Status)
+	require.Equal(t, State("Rejected"), result.FinalState)
+	require.NoError(t, result.LastError)
+}
+
 func TestLoop_UnhandledTransitionPreservesOriginalFailure(t *testing.T) {
 	t.Parallel()
 	tr := &retainedEventRecorder{}

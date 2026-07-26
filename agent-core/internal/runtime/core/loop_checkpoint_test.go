@@ -110,9 +110,11 @@ func TestLoop_TerminalFinalizationFailureIsNotReportedAsSuccess(t *testing.T) {
 
 	rr, err := Loop(params, context.Background())
 
-	require.NoError(t, err)
+	require.ErrorIs(t, err, ErrCheckpointSaveFailed)
+	require.ErrorContains(t, err, "finalization unavailable")
 	require.Equal(t, StatusFailed, rr.Status)
 	require.Equal(t, State("Finished"), rr.FinalState)
+	require.Equal(t, 2, rr.Iterations)
 	require.ErrorContains(t, rr.LastError, "terminal checkpoint not persisted")
 	require.ErrorContains(t, rr.LastError, "finalization unavailable")
 }
@@ -131,7 +133,7 @@ func TestLoop_PeriodicSaveFailureStopsAtUnpersistedStep(t *testing.T) {
 
 	rr, err := Loop(params, context.Background())
 
-	require.NoError(t, err)
+	require.ErrorIs(t, err, ErrCheckpointSaveFailed)
 	require.Equal(t, StatusFailed, rr.Status)
 	require.Equal(t, State("Working"), rr.FinalState)
 	require.Equal(t, 2, rr.Iterations)
@@ -179,8 +181,10 @@ func TestLoop_ConversationSnapshotFailureDoesNotReplaceConsistentCheckpoint(t *t
 
 	rr, err := Loop(params, context.Background())
 
-	require.NoError(t, err)
+	require.ErrorIs(t, err, ErrConversationSnapshotFailed)
+	require.ErrorContains(t, err, "conversation encoder unavailable")
 	require.Equal(t, StatusFailed, rr.Status)
+	require.Equal(t, State("Working"), rr.FinalState)
 	require.Equal(t, 2, rr.Iterations)
 	require.ErrorIs(t, rr.LastError, ErrConversationSnapshotFailed)
 	require.ErrorContains(t, rr.LastError, "conversation encoder unavailable")

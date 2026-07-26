@@ -4,6 +4,7 @@ package main
 
 import (
 	"context"
+	"encoding/json"
 	"errors"
 	"fmt"
 	"os"
@@ -20,13 +21,14 @@ import (
 
 type closingCheckpoint struct {
 	name      string
+	saveErr   error
 	closeErr  error
 	closeHook func()
 	events    *[]string
 	closes    int
 }
 
-func (c *closingCheckpoint) Save(core.Position, core.Execution) error { return nil }
+func (c *closingCheckpoint) Save(core.Position, core.Execution) error { return c.saveErr }
 
 func (c *closingCheckpoint) Load() (core.Position, core.Execution, error) {
 	return core.Position{}, core.Execution{}, core.ErrNoCheckpoint
@@ -173,6 +175,100 @@ func TestRunPreparedClosesCheckpointOnTerminalCancellationAndSuspension(t *testi
 			require.Equal(t, 1, checkpoint.closes)
 		})
 	}
+}
+
+func TestRunPreparedCheckpointFailuresReturnRunError(t *testing.T) {
+	originalExitCode := runExitCode
+	t.Cleanup(func() { runExitCode = originalExitCode })
+
+	tests := []struct {
+		name       string
+		configure  func(*core.LoopParams, *closingCheckpoint)
+		wantTyped  error
+		wantDetail string
+	}{
+		{
+			name: "Save",
+			configure: func(_ *core.LoopParams, checkpoint *closingCheckpoint) {
+				checkpoint.saveErr = errors.New("checkpoint database unavailable")
+			},
+			wantTyped:  core.ErrCheckpointSaveFailed,
+			wantDetail: "checkpoint database unavailable",
+		},
+		{
+			name: "conversation snapshot",
+			configure: func(params *core.LoopParams, _ *closingCheckpoint) {
+				params.Hooks.SnapshotConversation = func() (json.RawMessage, error) {
+					return nil, errors.New("conversation encoder unavailable")
+				}
+			},
+			wantTyped:  core.ErrConversationSnapshotFailed,
+			wantDetail: "conversation encoder unavailable",
+		},
+	}
+	for _, tc := range tests {
+		t.Run(tc.name, func(t *testing.T) {
+			checkpoint := &closingCheckpoint{name: "loop"}
+			params := terminalLoopParams()
+			params.Checkpoint = checkpoint
+			tc.configure(&params, checkpoint)
+			_, cancel := context.WithCancel(context.Background())
+			prepared := preparedRun{
+				Config: runtimeConfig{}, Params: params, State: &agentState{},
+				Ctx: context.Background(), Cancel: cancel, Shutdown: newDeferredShutdown(cancel),
+				checkpoints: checkpointResources{opened: []openedCheckpoint{{
+					Checkpoint: checkpoint, close: checkpoint.Close, label: "loop checkpoint",
+				}}},
+			}
+			runExitCode = ExitSucceeded
+
+			err := runPrepared(prepared)
+
+			require.ErrorIs(t, err, tc.wantTyped)
+			require.ErrorContains(t, err, tc.wantDetail)
+			require.Equal(t, ExitSucceeded, runExitCode, "run errors are handled by main as ExitRunError, not status-mapped")
+			require.Equal(t, 1, checkpoint.closes)
+		})
+	}
+}
+
+func TestRunPreparedMachineFailureUsesMachineExitCode(t *testing.T) {
+	originalExitCode := runExitCode
+	t.Cleanup(func() { runExitCode = originalExitCode })
+	params := terminalLoopParams()
+	params.Table = core.TransitionTable{
+		{State: "Start", Signal: core.Seed}: {NextState: "Rejected"},
+	}
+	params.IsTerminal = func(state core.State) bool { return state == "Rejected" }
+	_, cancel := context.WithCancel(context.Background())
+	runExitCode = ExitSucceeded
+
+	err := runPrepared(preparedRun{
+		Config: runtimeConfig{}, Params: params, State: &agentState{},
+		Ctx: context.Background(), Cancel: cancel, Shutdown: newDeferredShutdown(cancel),
+	})
+
+	require.NoError(t, err)
+	require.Equal(t, ExitMachineFailed, runExitCode)
+}
+
+func TestRunOrResumePreservesCheckpointFailureResult(t *testing.T) {
+	checkpoint := &closingCheckpoint{saveErr: errors.New("checkpoint database unavailable")}
+	params := terminalLoopParams()
+	params.Checkpoint = checkpoint
+
+	result, err := runOrResume(runtimeConfig{}, resumeDeps{
+		Params: params,
+		State:  &agentState{},
+		Ctx:    context.Background(),
+	})
+
+	require.ErrorIs(t, err, core.ErrCheckpointSaveFailed)
+	require.Equal(t, core.StatusFailed, result.Status)
+	require.Equal(t, core.State("Finished"), result.FinalState)
+	require.Zero(t, result.Iterations)
+	require.ErrorIs(t, result.LastError, core.ErrCheckpointSaveFailed)
+	require.ErrorContains(t, result.LastError, "checkpoint database unavailable")
 }
 
 func lifecycleRunResources(t *testing.T, events *[]string) runResources {
