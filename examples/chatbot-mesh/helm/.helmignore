@@ -1,0 +1,2 @@
+# Archive files are never runtime chart content.
+*.tgz

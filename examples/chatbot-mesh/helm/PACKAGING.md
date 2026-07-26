@@ -49,3 +49,10 @@ they contain one sequential `for_each`, one `rag_query`, generic partitions, and
 packaged copy is used verbatim and the chart passes per-pod environment. SPA
 assets under `ux/app/dist` (~216 KiB) fit within the 1 MiB ConfigMap limit
 alongside the rest of the profile.
+
+`mage helm:package` stages only the classified chart source inventory plus the
+runtime assets above. Prior `dist/` archives and generated `profiles/` content
+are excluded even when packaging is repeated in a dirty checkout. Before
+publishing, the target lints and renders the supported values matrix, compares
+the archive against the exact staged-file inventory, rejects links and
+unexpected or missing files, then lints and renders the `.tgz` independently.

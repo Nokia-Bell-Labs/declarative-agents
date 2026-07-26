@@ -74,7 +74,10 @@ helm install chatbot-mesh helm/dist/chatbot-mesh-*.tgz \
 
 `HELM_PACKAGE_DIR=/path mage helm:package` overrides the output directory. The
 package target prunes profile test fixtures and stages only the UX descriptor
-and built SPA, keeping the profiles ConfigMap below Kubernetes' size limit.
+and built SPA, keeping the profiles ConfigMap below Kubernetes' size limit. It
+also rejects unclassified source files, validates the supported values matrix,
+checks the archive's exact inventory, and lints and renders the archive
+independently. Existing `helm/dist` and `helm/profiles` content is never staged.
 
 ## Upgrading the deployment agent
 
