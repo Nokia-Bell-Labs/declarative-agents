@@ -11,7 +11,8 @@ summary: |
   directory tree for the bench UI and CLI reporting tools. Artifacts remain
   inspectable after the run.
 
-  mage integration:uc002 exercises this path with two generator profiles:
+  examples/coding-agent mage integration:criticGate exercises the application
+  gate with accepted and rejected workspaces. The benchmark path supports:
   generator/profile-qwen35b.yaml (qwen3.6:35b-mlx) and
   generator/profile-qwen27b.yaml (qwen3.6:27b-mlx). It reuses the same
   sample workspace as the generator integration target.
@@ -19,7 +20,7 @@ summary: |
 actor: Developer benchmarking model performance
 
 trigger: |
-  A developer, or mage integration:uc002, runs:
+  A developer running the benchmark profile runs:
     agent --profile "$AGENT_PROFILES_ROOT/evaluator/profile.yaml" \
           --request testdata/integration/uc002-evaluator-benchmark/suite.yaml \
           --output eval-results
@@ -93,7 +94,7 @@ success_criteria:
       - srd019-eval-harness AC2
       - srd019-eval-harness AC3
 
-integration_test: mage integration:uc002
+integration_test: examples/coding-agent mage integration:criticGate
 test_data: testdata/integration/uc002-evaluator-benchmark
 test_suite_trace: test-rel01.0
 

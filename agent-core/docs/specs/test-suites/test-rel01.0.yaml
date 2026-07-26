@@ -11,9 +11,8 @@ preconditions:
   - Go toolchain installed and repository packages buildable.
   - bin/agent is buildable through mage build or the integration target helper.
   - Ollama is available for live generator and evaluator integration targets.
-  - qwen3.6:35b-mlx is available for mage integration:uc001.
-  - qwen3.6:35b-mlx and qwen3.6:27b-mlx artifacts are available for mage integration:uc002.
-  - Bench visualization requires an eval-results directory and a free port; mage integration:uc003 records the current skip behavior.
+  - Coding workflow proofs run from examples/coding-agent.
+  - Bench evaluator proofs run from agent-profiles.
 
 test_cases:
   - use_case: rel01.0-uc001-generator-coding
@@ -97,7 +96,7 @@ test_cases:
 
   - use_case: rel01.0-uc001-generator-coding
     name: Qwen profile strips thinking blocks and extracts tool envelope
-    go_test: mage integration:uc001
+    go_test: examples/coding-agent mage integration:executorLive
     inputs:
       profile: ${AGENT_PROFILES_ROOT}/agents/executor/profile.yaml
       sample: testdata/integration/uc001-generator-coding
@@ -155,7 +154,7 @@ test_cases:
 
   - use_case: rel01.0-uc001-generator-coding
     name: Generator solves sample and passes validation
-    go_test: mage integration:uc001
+    go_test: examples/coding-agent mage integration:executorLive
     inputs:
       profile: ${AGENT_PROFILES_ROOT}/agents/executor/profile.yaml
       workspace: testdata/integration/uc001-generator-coding
@@ -271,7 +270,7 @@ test_cases:
 
   - use_case: rel01.0-uc002-evaluator-benchmark
     name: Evaluator integration writes result directory
-    go_test: mage integration:uc002
+    go_test: examples/coding-agent mage integration:criticGate
     inputs:
       profile: ${AGENT_PROFILES_ROOT}/agents/critic/profile.yaml
       suite: testdata/integration/uc002-evaluator-benchmark/suite.yaml
@@ -377,7 +376,7 @@ test_cases:
 
   - use_case: rel01.0-uc003-bench-visualization
     name: Bench integration target records manual UI preconditions
-    go_test: mage integration:uc003
+    go_test: agent-profiles mage integration:benchEvaluator
     inputs:
       eval_results_dir: required
       free_port: required
