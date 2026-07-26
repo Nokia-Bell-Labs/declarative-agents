@@ -312,7 +312,7 @@ patterns:
         cite: redux-2015
         kind: external
         note: UI state as a reducer over (state, action) -> state; the same table-driven transition discipline in front-end engineering.
-      - system: Reference implementation — generator agent
+      - system: Reference implementation — executor agent
         cite: reference-implementation
         kind: internal
         note: A coding agent whose whole control flow lives in machine.yaml; deleting one transition makes the engine reject the machine at load time.
@@ -425,7 +425,7 @@ patterns:
       - system: Reference implementation — one binary, many agents
         cite: reference-implementation
         kind: internal
-        note: A coding agent (executor), an evaluator (critic), a benchmark orchestrator (bench), and a deterministic spec validator (jurist) are four profile directories over the same binary.
+        note: Executor, critic, bench, and jurist are four shipped profile families over the same binary.
         evidence:
           classification: shipped
           checks:
@@ -665,7 +665,7 @@ patterns:
         cite: hardt-oauth-2012
         kind: external
         note: Access tokens carry narrowed scopes rather than full authority — the same attenuation applied to which actions are exposed.
-      - system: Reference implementation — generator and evaluator agents
+      - system: Reference implementation — executor and critic agents
         cite: reference-implementation
         kind: internal
         note: The runtime registry filters phase-scoped tools from the model manifest outside their declared states, and its availability tests cover both manifest generation and dynamic dispatch.
@@ -753,7 +753,7 @@ patterns:
         cite: anthropic-mcp-2024
         kind: external
         note: A uniform boundary between an agent and heterogeneous external capabilities, including models.
-      - system: Reference implementation — generator profile variants
+      - system: Reference implementation — executor profile variants
         cite: reference-implementation
         kind: internal
         note: The default executor and qwen27b variant share one machine, tool selection, and tool roots while binding different LLM declarations, so the harness stays fixed across the model comparison.
@@ -1028,7 +1028,7 @@ patterns:
       liabilities:
         - A parent can only run a child's coarse boundary compensation, not undo the child's individual tools.
         - Composition is strictly hierarchical; there is no peer-to-peer negotiation.
-        - Boundary adapters can compose execution while leaving a trace gap; the current evaluator run_point uses a no-op child tracer.
+        - Boundary adapters can compose execution while leaving a trace gap; the current critic run_point uses a no-op child tracer.
     grammar:
       within: [machine-interpreter]
       requires: [machine-interpreter, tool-contract, transition-spans]
@@ -1052,7 +1052,7 @@ patterns:
         cite: dean-mapreduce-2004
         kind: external
         note: A coordinator delegates isolated sub-computations to workers and merges results — a parent-to-child composition with results returned upward.
-      - system: Reference implementation — bench/evaluator/generator stack
+      - system: Reference implementation — bench/critic/executor stack
         cite: reference-implementation
         kind: internal
         note: Bench delegates to critics via self_invoke; critics run executors via nested run_point; this shipped evidence covers hierarchical dispatch, not nested trace linkage.
@@ -1080,7 +1080,7 @@ patterns:
       - system: Reference implementation — nested run_point trace propagation
         cite: reference-implementation
         kind: internal
-        note: Nested span linkage is design intent; the shipped evaluator supplies a no-op tracer to run_point, so the child emits no linked spans.
+        note: Nested span linkage is design intent; the shipped critic run_point path supplies a no-op tracer, so the child emits no linked spans.
         evidence:
           classification: design_intent
           checks:
@@ -1251,7 +1251,7 @@ patterns:
       with cycles is Recovery, failed with repetition is Stuck, failed without
       repetition is Divergent. Infrastructure crashes and timeouts before any
       dispatch are recorded outside the taxonomy. This four-type outcome taxonomy
-      is the pattern's intent; the shipped reference evaluator
+      is the pattern's intent; the shipped evaluation subsystem
       (agent-core internal/evaluation) instead classifies per-tool metric
       snapshots into a six-class progression — Clean, Converged, Improving, Flat,
       Regressing, NoData — from which aggregate Recovery/Stuck rates are derived
@@ -1293,7 +1293,7 @@ patterns:
       - system: Reference implementation — bench convergence reports
         cite: reference-implementation
         kind: internal
-        note: The reference evaluator classifies each run's per-tool metric snapshots into a six-class progression and derives aggregate Recovery/Stuck rates; per-type colored badges and a thresholded CI regression gate are design intent, not yet shipped.
+        note: The evaluation subsystem classifies each run's per-tool metric snapshots into a six-class progression and derives aggregate Recovery/Stuck rates; per-type colored badges and a thresholded CI regression gate are design intent, not yet shipped.
         evidence:
           classification: shipped
           checks:

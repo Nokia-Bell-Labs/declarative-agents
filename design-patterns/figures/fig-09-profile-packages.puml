@@ -7,21 +7,21 @@ package "core/ (shared)" {
   [git_commit.yaml] as a3
 }
 
-package "generator/" {
+package "executor/" {
   [invoke_llm.yaml] as b1
   [parse_response.yaml] as b2
 }
 
-package "evaluator/" {
+package "critic/" {
   [run_point.yaml] as c1
   [classify.yaml] as c2
 }
 
-node "generator/profile.yaml" as GP
-node "evaluator/profile.yaml" as EP
+node "executor/profile.yaml" as GP
+node "critic/profile.yaml" as EP
 
 GP ..> "core/ (shared)" : import
-GP ..> "generator/" : import
+GP ..> "executor/" : import
 EP ..> "core/ (shared)" : import
-EP ..> "evaluator/" : import
+EP ..> "critic/" : import
 @enduml

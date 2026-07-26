@@ -8,6 +8,8 @@ import (
 	"path/filepath"
 	"strings"
 	"testing"
+
+	"gopkg.in/yaml.v3"
 )
 
 func TestAuditDesignPatternsChecksEvidenceBeforeBuild(t *testing.T) {
@@ -400,6 +402,71 @@ func TestBidirectionalLogChapterKeepsCodingScenariosAsDesignIntent(t *testing.T)
 	})
 	if err != nil {
 		t.Fatal(err)
+	}
+}
+
+func TestAgentAsDataUsesCanonicalFamiliesAndLabelsConceptualRoles(t *testing.T) {
+	chapterData, err := os.ReadFile(filepath.Join("..", "03-agent-as-data.md"))
+	if err != nil {
+		t.Fatal(err)
+	}
+	chapter := string(chapterData)
+	for _, stale := range []string{
+		"(`generator`)", "(`evaluator`)", "generator and evaluator profiles",
+		"Generator profiles", "bench/evaluator",
+	} {
+		if strings.Contains(chapter, stale) {
+			t.Errorf("Agent-as-Data retains current-family term %q", stale)
+		}
+	}
+	for _, required := range []string{
+		"`executor`, `critic`, `bench`, and `jurist`",
+		"executor and critic profiles",
+		"generator* and *evaluator* describe conceptual roles",
+	} {
+		if !strings.Contains(chapter, required) {
+			t.Errorf("Agent-as-Data missing %q", required)
+		}
+	}
+	figure, err := os.ReadFile(filepath.Join("..", "figures", "fig-09-profile-packages.puml"))
+	if err != nil {
+		t.Fatal(err)
+	}
+	for _, stale := range []string{"generator/", "evaluator/"} {
+		if strings.Contains(string(figure), stale) {
+			t.Errorf("profile package figure retains %q", stale)
+		}
+	}
+
+	languageData, err := os.ReadFile(filepath.Join("..", "pattern-language.yaml"))
+	if err != nil {
+		t.Fatal(err)
+	}
+	var language patternLanguageEvidence
+	if err := yaml.Unmarshal(languageData, &language); err != nil {
+		t.Fatal(err)
+	}
+	for _, pattern := range language.Patterns {
+		for _, example := range pattern.Examples {
+			if example.Cite != referenceImplementationCitation || example.Kind != "internal" {
+				continue
+			}
+			currentClaim := strings.ToLower(example.System + " " + example.Note)
+			for _, retired := range []string{"generator", "evaluator"} {
+				if strings.Contains(currentClaim, retired) {
+					t.Errorf("%s internal claim uses retired family %q",
+						pattern.ID, retired)
+				}
+			}
+		}
+	}
+
+	introduction, err := os.ReadFile(filepath.Join("..", "01-introduction.md"))
+	if err != nil {
+		t.Fatal(err)
+	}
+	if !strings.Contains(string(introduction), "example of a code **generator** agent") {
+		t.Fatal("conceptual generator example was removed instead of labelled")
 	}
 }
 
