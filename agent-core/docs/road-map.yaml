@@ -467,25 +467,72 @@ releases:
       - mage audit
 
   - version: "99.0"
-    name: Tool dispatch simplification planning
+    name: Architectural migrations and cleanup
     description: |
       Release 99.0 records architectural cleanup work that does not belong to a
-      shipped feature release. The first item keeps the current core dispatch
-      model while planning smaller startup and availability-resolution changes:
+      shipped feature release. Tool dispatch cleanup keeps the current core
+      dispatch model while planning smaller startup and availability-resolution changes:
       registry errors instead of configuration-originated panics, shared builtin
       registration behavior, and one external-tool availability rule for
       manifest, parse_response, and dynamic $tool dispatch paths.
+
+      The application and catalog migration adopts applications/catalog,
+      applications/coding-agent, and applications/chatbot-mesh as active source
+      roots. Agent Core integration profiles become core-owned. Catalog and
+      application consumers resolve an explicit AGENT_CATALOG_ROOT without
+      changing process CWD. Source and Go module paths move while /profiles and
+      /opt/agent-core/tools runtime mounts remain stable. Canonical
+      applications/catalog/v0.* tags coexist with agent-profiles/v0.*
+      compatibility tags for the remainder of v0.
     status: in_progress
+    planned_work:
+      - id: gh-1040
+        summary: Specify the applications and catalog migration contract.
+        status: done
+      - id: gh-1037
+        summary: Rename examples source tree to applications.
+        status: planned
+      - id: gh-1038
+        summary: Make core service integrations use core-owned profiles.
+        status: planned
+      - id: gh-1041
+        summary: Relocate agent profiles into the applications catalog.
+        status: planned
+      - id: gh-1039
+        summary: Remove catalog dependencies from core tests and audit.
+        status: planned
+      - id: gh-1043
+        summary: Introduce explicit catalog-root discovery and compatibility aliases.
+        status: planned
+      - id: gh-1046
+        summary: Cut root Mage orchestration and release gates to applications.
+        status: planned
+      - id: gh-1044
+        summary: Migrate coding-agent to the applications catalog.
+        status: planned
+      - id: gh-1042
+        summary: Migrate chatbot-mesh to the applications catalog.
+        status: planned
+      - id: gh-1045
+        summary: Update catalog taxonomy and sweep migrated path references.
+        status: planned
     srds:
       - srd037-tool-dispatch-simplification
+      - srd043-application-catalog-layout
     use_cases:
       - id: rel99.0-uc001-tool-dispatch-simplification
         summary: Maintainer simplifies tool dispatch wiring without changing core dispatch
         status: done
+      - id: rel99.0-uc002-application-catalog-migration
+        summary: Maintainers migrate applications and reusable catalog blocks to explicit owner roots
+        status: specified
     test_suites:
       - id: test-rel99.0-tool-dispatch-simplification
         summary: Formal planning tests for tool dispatch simplification scope and follow-up code proof
         status: implemented
+      - id: test-rel99.0-application-catalog-migration
+        summary: Formal issue-by-issue tests for source moves, core isolation, catalog roots, path classes, tags, applications, and final taxonomy
+        status: specified
     follow_up:
       - id: GH-171#173
         summary: Centralize dynamic tool availability checks in code
