@@ -103,15 +103,16 @@ func (r *loopRunner) done() bool {
 		return r.doneIterator()
 	}
 	nextState, cmd, transitionSignal, commandStateLabel, metricLabels := r.nextTransition()
-	if r.stopForTerminal(nextState) {
-		return true
+	if cmd == nil {
+		if r.stopForTerminal(nextState) {
+			return true
+		}
+		r.advance(nextState)
+		return r.stopForNilCommand(cmd)
 	}
 	fromState := r.advance(nextState)
-	if r.stopForNilCommand(cmd) {
-		return true
-	}
 	r.dispatch(cmd, metricLabels, transitionSignal, commandStateLabel, fromState)
-	return r.stopForSuspend()
+	return r.stopAfterDispatch(nextState)
 }
 
 func (r *loopRunner) stopForContext() bool {
@@ -356,6 +357,16 @@ func (r *loopRunner) stopForSuspend() bool {
 	r.run.Status = StatusSuspended
 	r.run.FinalState = r.state
 	return true
+}
+
+func (r *loopRunner) stopAfterDispatch(nextState State) bool {
+	if r.stopForSuspend() {
+		return true
+	}
+	if r.stopForContext() {
+		return true
+	}
+	return r.stopForTerminal(nextState)
 }
 
 func (r *loopRunner) finish() RunResult {

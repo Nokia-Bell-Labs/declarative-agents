@@ -24,6 +24,88 @@ func TestLoop_RunsToCompletion(t *testing.T) {
 	require.Equal(t, 2, rr.Iterations)
 }
 
+func TestLoop_DispatchesNamedActionTargetingTerminalState(t *testing.T) {
+	t.Parallel()
+	checkpoint := &InMemoryCheckpoint{}
+	executions := 0
+	spec := MachineSpec{
+		Name:           "terminal-action",
+		InitialState:   "Start",
+		States:         StateSpecsFromNames("Start", "Done"),
+		TerminalStates: []string{"Done"},
+		Signals:        SignalSpecsFromNames(string(Seed), string(ToolDone)),
+		Transitions: []TransitionSpec{{
+			State: "Start", Signal: string(Seed), Next: "Done", Action: "finish",
+		}},
+	}
+	registry := NewRegistry()
+	registry.Register(ToolSpec{Name: "finish", Visibility: Internal}, terminalActionBuilder{executions: &executions})
+
+	result, err := Loop(LoopParams{
+		MachineSpec: &spec,
+		Registry:    registry,
+		Trace:       &loopRecorder{},
+		Budget:      Budget{MaxIterations: 1},
+		Checkpoint:  checkpoint,
+	}, context.Background())
+
+	require.NoError(t, err)
+	require.Equal(t, StatusSucceeded, result.Status)
+	require.Equal(t, State("Done"), result.FinalState)
+	require.Equal(t, 1, result.Iterations)
+	require.Equal(t, 1, executions)
+	require.Len(t, result.Events, 1)
+	require.Equal(t, "finish", result.Events[0].CommandName)
+	require.Equal(t, State("Start"), result.Events[0].FromState)
+	require.Equal(t, State("Done"), result.Events[0].ToState)
+	_, execution, err := checkpoint.Load()
+	require.NoError(t, err)
+	require.Equal(t, []string{"finish"}, entryCommands(execution))
+}
+
+func TestLoop_ActionlessTerminalTransitionStopsWithoutDispatch(t *testing.T) {
+	t.Parallel()
+	tr := &loopRecorder{}
+	registry := NewRegistry()
+
+	result, err := Loop(LoopParams{
+		InitialState: "Start",
+		Registry:     registry,
+		Table: TransitionTable{
+			{State: "Start", Signal: Seed}: {NextState: "Done"},
+		},
+		IsTerminal: func(state State) bool { return state == "Done" },
+		Trace:      tr,
+		Budget:     Budget{MaxIterations: 1},
+	}, context.Background())
+
+	require.NoError(t, err)
+	require.Equal(t, StatusSucceeded, result.Status)
+	require.Equal(t, State("Done"), result.FinalState)
+	require.Zero(t, result.Iterations)
+	require.Empty(t, result.Events)
+	require.False(t, tr.hasEvent("dispatch.nil_command"))
+}
+
+type terminalActionBuilder struct {
+	executions *int
+}
+
+func (b terminalActionBuilder) Build(Result) Command {
+	return terminalActionCommand{executions: b.executions}
+}
+
+type terminalActionCommand struct {
+	executions *int
+}
+
+func (c terminalActionCommand) Name() string { return "finish" }
+func (c terminalActionCommand) Execute() Result {
+	*c.executions++
+	return Result{Signal: ToolDone, CommandName: c.Name()}
+}
+func (c terminalActionCommand) Undo(Result) Result { return NoopUndo(c.Name()) }
+
 func TestLoopMonitorSamplesIncludeWorkflowMetricLabels(t *testing.T) {
 	t.Parallel()
 	store := monitor.NewStore(monitor.Limits{Samples: 10})
