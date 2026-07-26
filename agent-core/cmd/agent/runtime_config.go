@@ -42,6 +42,21 @@ type runtimeConfig struct {
 	ChildAgentBinary string
 }
 
+type closeableCheckpoint interface {
+	core.Checkpoint
+	Close() error
+}
+
+type openedCheckpoint struct {
+	core.Checkpoint
+	close func() error
+	label string
+}
+
+var openDoltCheckpoint = func(dsn, runID string, terminal func(core.State) bool) (closeableCheckpoint, error) {
+	return core.OpenDoltCheckpoint(dsn, runID, terminal)
+}
+
 func loadRuntimeConfig() (runtimeConfig, error) {
 	if flagProfile == "" {
 		return runtimeConfig{}, fmt.Errorf("--profile is required")
@@ -104,15 +119,19 @@ func loadProfileToolDefs(cfg runtimeConfig) ([]catalog.ToolDef, error) {
 // (srd035-checkpoint-port R5.1, srd036-dolt-state-persistence R1). The "dolt"
 // database/sql driver is registered at the composition root (dolt_driver.go),
 // which connects to a dolt sql-server over the MySQL wire protocol.
-func resolveCheckpoint(cfg runtimeConfig, machine core.MachineSpec) (core.Checkpoint, error) {
+func resolveCheckpoint(cfg runtimeConfig, machine core.MachineSpec) (openedCheckpoint, error) {
 	if cfg.DoltDSN == "" {
-		return core.NoopCheckpoint{}, nil
+		return openedCheckpoint{Checkpoint: core.NoopCheckpoint{}}, nil
 	}
-	cp, err := core.OpenDoltCheckpoint(cfg.DoltDSN, resolveRunID(cfg), terminalPredicate(machine))
+	cp, err := openDoltCheckpoint(cfg.DoltDSN, resolveRunID(cfg), terminalPredicate(machine))
 	if err != nil {
-		return nil, fmt.Errorf("open dolt checkpoint: %w", err)
+		return openedCheckpoint{}, fmt.Errorf("open dolt checkpoint: %w", err)
 	}
-	return cp, nil
+	return openedCheckpoint{
+		Checkpoint: cp,
+		close:      cp.Close,
+		label:      "loop checkpoint",
+	}, nil
 }
 
 // resolveRunID names the Dolt run branch: the explicit --resume-checkpoint id

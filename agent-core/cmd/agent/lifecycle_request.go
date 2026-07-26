@@ -88,21 +88,25 @@ func applyLifecycleRequest(defs []catalog.ToolDef, req lifecycleRequest) {
 // merge, so read/rollback touch the target run branch while the inspecting
 // machine keeps persisting to its own run through loopCheckpoint. Absent a
 // target it returns loopCheckpoint unchanged, preserving prior behavior.
-func resolveLifecycleCheckpoint(cfg runtimeConfig, defs []catalog.ToolDef, loopCheckpoint core.Checkpoint) (core.Checkpoint, error) {
+func resolveLifecycleCheckpoint(cfg runtimeConfig, defs []catalog.ToolDef, loopCheckpoint core.Checkpoint) (openedCheckpoint, error) {
 	if !defsSelectCheckpointOps(defs) {
-		return loopCheckpoint, nil
+		return openedCheckpoint{Checkpoint: loopCheckpoint}, nil
 	}
 	req, err := loadLifecycleRequest(cfg.Request)
 	if err != nil {
-		return nil, err
+		return openedCheckpoint{}, err
 	}
 	applyLifecycleRequest(defs, req)
 	if cfg.DoltDSN == "" || req.Checkpoint == "" {
-		return loopCheckpoint, nil
+		return openedCheckpoint{Checkpoint: loopCheckpoint}, nil
 	}
-	target, err := core.OpenDoltCheckpoint(cfg.DoltDSN, req.Checkpoint, nil)
+	target, err := openDoltCheckpoint(cfg.DoltDSN, req.Checkpoint, nil)
 	if err != nil {
-		return nil, fmt.Errorf("open target checkpoint %q: %w", req.Checkpoint, err)
+		return openedCheckpoint{}, fmt.Errorf("open target checkpoint %q: %w", req.Checkpoint, err)
 	}
-	return target, nil
+	return openedCheckpoint{
+		Checkpoint: target,
+		close:      target.Close,
+		label:      fmt.Sprintf("target checkpoint %q", req.Checkpoint),
+	}, nil
 }

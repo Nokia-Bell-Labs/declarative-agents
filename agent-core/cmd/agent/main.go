@@ -5,6 +5,7 @@ package main
 import (
 	"context"
 	"encoding/json"
+	"errors"
 	"fmt"
 	"os"
 	"strings"
@@ -188,7 +189,13 @@ func run(cmd *cobra.Command, args []string) error {
 	if err != nil {
 		return err
 	}
-	defer prepared.Close()
+	return runPrepared(prepared)
+}
+
+func runPrepared(prepared preparedRun) (err error) {
+	defer func() {
+		err = errors.Join(err, prepared.Close())
+	}()
 	result, err := runOrResume(prepared.Config, resumeDeps{
 		Params: prepared.Params,
 		State:  prepared.State,
@@ -233,7 +240,10 @@ type preparedRun struct {
 	Ctx               context.Context
 	Cancel            context.CancelFunc
 	Shutdown          *deferredShutdown
+	checkpoints       checkpointResources
 	shutdownTelemetry func()
+	closed            bool
+	closeErr          error
 }
 
 type runResources struct {
@@ -246,13 +256,42 @@ type runResources struct {
 	shutdownTelemetry func()
 }
 
-func (r preparedRun) Close() {
+type checkpointResources struct {
+	opened []openedCheckpoint
+}
+
+func (r *checkpointResources) Add(checkpoint openedCheckpoint) {
+	if checkpoint.close != nil {
+		r.opened = append(r.opened, checkpoint)
+	}
+}
+
+func (r *checkpointResources) Close() error {
+	var errs []error
+	for i := len(r.opened) - 1; i >= 0; i-- {
+		checkpoint := r.opened[i]
+		r.opened[i].close = nil
+		if err := checkpoint.close(); err != nil {
+			errs = append(errs, fmt.Errorf("close %s: %w", checkpoint.label, err))
+		}
+	}
+	r.opened = nil
+	return errors.Join(errs...)
+}
+
+func (r *preparedRun) Close() error {
+	if r.closed {
+		return r.closeErr
+	}
+	r.closed = true
 	if r.Cancel != nil {
 		r.Cancel()
 	}
+	r.closeErr = r.checkpoints.Close()
 	if r.shutdownTelemetry != nil {
 		r.shutdownTelemetry()
 	}
+	return r.closeErr
 }
 
 func prepareRun(cmd *cobra.Command) (preparedRun, error) {
@@ -303,16 +342,18 @@ func loadRunResources() (runResources, error) {
 
 func buildPreparedRun(cmd *cobra.Command, resources runResources) (preparedRun, error) {
 	cfg := resources.Config
+	var checkpoints checkpointResources
 	checkpoint, err := resolveCheckpoint(cfg, resources.Machine)
 	if err != nil {
 		resources.shutdownTelemetry()
 		return preparedRun{}, err
 	}
-	lifecycleCheckpoint, err := resolveLifecycleCheckpoint(cfg, resources.Definitions, checkpoint)
+	checkpoints.Add(checkpoint)
+	lifecycleCheckpoint, err := resolveLifecycleCheckpoint(cfg, resources.Definitions, checkpoint.Checkpoint)
 	if err != nil {
-		resources.shutdownTelemetry()
-		return preparedRun{}, err
+		return preparedRun{}, closeBuildFailure(err, nil, &checkpoints, resources.shutdownTelemetry)
 	}
+	checkpoints.Add(lifecycleCheckpoint)
 	loopCtx, loopCancel := context.WithCancel(commandContext(cmd))
 	shutdown := newDeferredShutdown(loopCancel)
 	monitorRuntime := newMonitorRuntime(resources.Machine, resources.Definitions, resources.RestDefinitions, resources.Meter)
@@ -323,8 +364,8 @@ func buildPreparedRun(cmd *cobra.Command, resources runResources) (preparedRun, 
 	st := newAgentState(cfg, agentStateDeps{
 		Registry:            reg,
 		Tracer:              resources.Tracer,
-		Checkpoint:          checkpoint,
-		LifecycleCheckpoint: lifecycleCheckpoint,
+		Checkpoint:          checkpoint.Checkpoint,
+		LifecycleCheckpoint: lifecycleCheckpoint.Checkpoint,
 		Ctx:                 loopCtx,
 		Monitor:             monitorState(monitorRuntime.Store, &resources.Machine, resources.Definitions),
 		RestDefs:            resources.RestDefinitions,
@@ -334,18 +375,29 @@ func buildPreparedRun(cmd *cobra.Command, resources runResources) (preparedRun, 
 
 	registerBuiltinFactories(builtins, st, selectedInits)
 	if err := registerRuntimeTools(reg, builtins, cfg, resources.Machine, resources.Definitions); err != nil {
-		loopCancel()
-		resources.shutdownTelemetry()
-		return preparedRun{}, fmt.Errorf("register tools: %w", err)
+		err = fmt.Errorf("register tools: %w", err)
+		return preparedRun{}, closeBuildFailure(err, loopCancel, &checkpoints, resources.shutdownTelemetry)
 	}
 	params := loopParams(cfg, loopParamDeps{
 		Machine: resources.Machine, State: st, Registry: reg, Tracer: resources.Tracer,
-		Checkpoint: checkpoint, MonitorRecorder: monitorRuntime.Recorder,
+		Checkpoint: checkpoint.Checkpoint, MonitorRecorder: monitorRuntime.Recorder,
 	})
 	return preparedRun{
 		Config: cfg, Params: params, State: st, Ctx: loopCtx,
-		Cancel: loopCancel, Shutdown: shutdown, shutdownTelemetry: resources.shutdownTelemetry,
+		Cancel: loopCancel, Shutdown: shutdown, checkpoints: checkpoints,
+		shutdownTelemetry: resources.shutdownTelemetry,
 	}, nil
+}
+
+func closeBuildFailure(primary error, cancel context.CancelFunc, checkpoints *checkpointResources, shutdownTelemetry func()) error {
+	if cancel != nil {
+		cancel()
+	}
+	closeErr := checkpoints.Close()
+	if shutdownTelemetry != nil {
+		shutdownTelemetry()
+	}
+	return errors.Join(primary, closeErr)
 }
 
 func initRunTelemetry(cfg runtimeConfig) (tracing.Tracer, metric.Meter, func(), error) {

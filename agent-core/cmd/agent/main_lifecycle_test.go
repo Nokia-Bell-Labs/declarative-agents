@@ -78,7 +78,7 @@ func TestResolveCheckpointDefaultsToNoop(t *testing.T) {
 	cp, err := resolveCheckpoint(runtimeConfig{}, core.MachineSpec{})
 
 	require.NoError(t, err)
-	require.IsType(t, core.NoopCheckpoint{}, cp)
+	require.IsType(t, core.NoopCheckpoint{}, cp.Checkpoint)
 }
 
 func TestResolveCheckpointWithDoltDSNOpensDoltBackend(t *testing.T) {
