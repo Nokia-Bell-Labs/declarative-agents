@@ -11,32 +11,32 @@ import (
 
 var subModules = []string{
 	"agent-core",
-	"agent-profiles",
+	"applications/catalog",
 	"design-patterns",
 }
 
-// exampleModules are standalone application modules that participate in the root
+// applicationModules are runnable application modules that participate in the root
 // audit, Go-test, and stats gates but expose no build or default target. Each
 // owns a mage audit target, Go tests, and a stats target under magefiles/.
 // Agent-owning applications report implementations; composition-only applications
 // report application reuse without contributing duplicate agents. They are
 // absent from Build and All because they define no such targets: an application is
 // a deployable artifact governed by its own spec corpus, not a platform module.
-var exampleModules = []string{
+var applicationModules = []string{
 	"applications/chatbot-mesh",
 	"applications/coding-agent",
 }
 
-// auditOnlyExampleModules contains applications that participate in the
+// auditOnlyApplicationModules contains applications that participate in the
 // documentation gate before they
 // grow Go tests, stats, or build targets.
-var auditOnlyExampleModules = []string{}
+var auditOnlyApplicationModules = []string{}
 
 // auditParticipants lists every module the root audit gate dispatches to: the
 // platform submodules plus every application that owns a mage audit target.
 func auditParticipants() []string {
-	participants := append(append([]string{}, subModules...), exampleModules...)
-	return append(participants, auditOnlyExampleModules...)
+	participants := append(append([]string{}, subModules...), applicationModules...)
+	return append(participants, auditOnlyApplicationModules...)
 }
 
 // statsParticipants lists every module the root stats target dispatches to:
@@ -45,7 +45,7 @@ func auditParticipants() []string {
 // application section without double-counting canonical agents (GH-754,
 // GH-947).
 func statsParticipants() []string {
-	return append(append([]string{}, subModules...), exampleModules...)
+	return append(append([]string{}, subModules...), applicationModules...)
 }
 
 type buildRunner func(string) error

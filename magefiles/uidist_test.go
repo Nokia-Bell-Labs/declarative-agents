@@ -68,6 +68,17 @@ func TestDiscoverShippedUIs(t *testing.T) {
 	}
 }
 
+func TestUISearchRootsCoverCatalogAndRunnableApplications(t *testing.T) {
+	want := []string{
+		"applications/catalog",
+		"applications/coding-agent",
+		"applications/chatbot-mesh",
+	}
+	if !reflect.DeepEqual(uiSearchRoots, want) {
+		t.Fatalf("uiSearchRoots = %#v, want %#v", uiSearchRoots, want)
+	}
+}
+
 func TestAuditUIDependenciesChecksBuildAndProductionScopes(t *testing.T) {
 	var calls []string
 	run := func(dir, name string, args ...string) error {

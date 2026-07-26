@@ -33,8 +33,8 @@ func TestSubModuleTargets(t *testing.T) {
 			t.Run("runs modules with Magefiles", func(t *testing.T) {
 				root := t.TempDir()
 				var modules []string
-				for _, name := range []string{"agent-core", "agent-profiles", "design-patterns"} {
-					module := filepath.Join(root, name)
+				for _, name := range []string{"agent-core", "applications/catalog", "design-patterns"} {
+					module := filepath.Join(root, filepath.FromSlash(name))
 					mkdir(t, filepath.Join(module, "magefiles"))
 					modules = append(modules, module)
 				}
@@ -46,7 +46,7 @@ func TestSubModuleTargets(t *testing.T) {
 				if err != nil {
 					t.Fatalf("%s submodules returned error: %v", target.verb, err)
 				}
-				want := []string{"agent-core", "agent-profiles", "design-patterns"}
+				want := []string{"agent-core", "catalog", "design-patterns"}
 				if !reflect.DeepEqual(got, want) {
 					t.Fatalf("%s modules = %#v, want %#v", target.verb, got, want)
 				}

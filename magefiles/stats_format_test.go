@@ -37,7 +37,7 @@ const combinedFixture = `{
       }
     }
   },
-  "agent-profiles": {
+  "applications/catalog": {
     "agents": {
       "total": {
         "agents": 1,
