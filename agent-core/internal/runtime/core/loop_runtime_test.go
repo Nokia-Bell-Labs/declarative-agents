@@ -69,7 +69,7 @@ func TestLoop_DispatchesNamedActionTargetingTerminalState(t *testing.T) {
 
 func TestLoop_ActionlessTerminalTransitionStopsWithoutDispatch(t *testing.T) {
 	t.Parallel()
-	tr := &loopRecorder{}
+	tr := &retainedEventRecorder{}
 	registry := NewRegistry()
 
 	result, err := Loop(LoopParams{
