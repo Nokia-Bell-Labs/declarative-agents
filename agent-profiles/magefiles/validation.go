@@ -226,8 +226,15 @@ func validateProfileRef(profilesRoot, base, coreRoot, ref string) error {
 	if err != nil {
 		return err
 	}
-	if _, err := os.Stat(resolved); err != nil {
+	if err := requireLexicalPathWithin(boundary, resolved); err != nil {
+		return fmt.Errorf("non-portable reference %s: %w", ref, err)
+	}
+	info, err := os.Lstat(resolved)
+	if err != nil {
 		return fmt.Errorf("missing referenced path %s: %w", ref, err)
+	}
+	if info.Mode()&os.ModeSymlink != 0 {
+		return fmt.Errorf("non-portable reference %s: symlinks are not portable", ref)
 	}
 	if err := requirePathWithin(boundary, resolved); err != nil {
 		return fmt.Errorf("non-portable reference %s: %w", ref, err)
@@ -247,9 +254,13 @@ func readYAML(path string, out any) error {
 }
 
 func resolveProfileRef(profilesRoot, base, coreRoot, ref string) (string, string, error) {
-	portable := strings.ReplaceAll(strings.TrimSpace(ref), `\`, "/")
+	trimmed := strings.TrimSpace(ref)
+	if trimmed == "" {
+		return "", "", fmt.Errorf("profile reference must not be empty")
+	}
+	portable := strings.ReplaceAll(trimmed, `\`, "/")
 	clean := path.Clean(portable)
-	if isWindowsAbsoluteRef(clean) || strings.HasPrefix(clean, "//") {
+	if isWindowsDriveRef(clean) || strings.HasPrefix(clean, "//") {
 		return "", "", fmt.Errorf("profile reference must not use an absolute host path: %s", ref)
 	}
 	if clean == containerCoreMount+"/agents" || strings.HasPrefix(clean, containerCoreMount+"/agents/") {
@@ -269,10 +280,21 @@ func resolveProfileRef(profilesRoot, base, coreRoot, ref string) (string, string
 	return filepath.Join(base, filepath.FromSlash(clean)), profilesRoot, nil
 }
 
-func isWindowsAbsoluteRef(ref string) bool {
-	return len(ref) >= 3 &&
+func isWindowsDriveRef(ref string) bool {
+	return len(ref) >= 2 &&
 		((ref[0] >= 'A' && ref[0] <= 'Z') || (ref[0] >= 'a' && ref[0] <= 'z')) &&
-		ref[1] == ':' && ref[2] == '/'
+		ref[1] == ':'
+}
+
+func requireLexicalPathWithin(root, candidate string) error {
+	rel, err := filepath.Rel(filepath.Clean(root), filepath.Clean(candidate))
+	if err != nil {
+		return fmt.Errorf("compare referenced path with allowed root: %w", err)
+	}
+	if rel == ".." || strings.HasPrefix(rel, ".."+string(filepath.Separator)) || filepath.IsAbs(rel) {
+		return fmt.Errorf("resolved path escapes allowed root %s", root)
+	}
+	return nil
 }
 
 func requirePathWithin(root, candidate string) error {

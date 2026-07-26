@@ -47,7 +47,7 @@ func TestAssemblerAndMockAreSupportedTestTimeMembers(t *testing.T) {
 
 func TestMembershipNarrativeSeparatesMembersFromFixtures(t *testing.T) {
 	t.Parallel()
-	for _, rel := range []string{"README.md", "docs/ARCHITECTURE.yaml", "docs/SPECIFICATIONS.yaml"} {
+	for _, rel := range []string{"README.md", "AGENTS.md", "docs/ARCHITECTURE.yaml", "docs/SPECIFICATIONS.yaml"} {
 		data, err := os.ReadFile(ProfilePath(rel))
 		if err != nil {
 			t.Fatalf("read %s: %v", rel, err)

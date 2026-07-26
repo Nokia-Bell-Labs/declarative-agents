@@ -160,8 +160,53 @@ func TestValidatePortableProfileRefsRejectsSymlinkEscape(t *testing.T) {
 	if err == nil {
 		t.Fatal("validatePortableProfileRefs returned nil error for symlink escape")
 	}
-	if !strings.Contains(err.Error(), "escapes allowed root") {
-		t.Fatalf("error = %q, want symlink escape rejection", err)
+	if !strings.Contains(err.Error(), "symlinks are not portable") {
+		t.Fatalf("error = %q, want symlink rejection", err)
+	}
+}
+
+func TestValidatePortableProfileRefsRejectsInTreeSymlink(t *testing.T) {
+	root := t.TempDir()
+	coreRoot := t.TempDir()
+	writeProfileFixture(t, root, "generator")
+	mkdir(t, filepath.Join(coreRoot, "tools", "builtin", "llm"))
+	target := filepath.Join(root, "agents", "shared.yaml")
+	writeFile(t, target, "tools: []\n")
+	link := filepath.Join(root, "agents", "generator", "linked.yaml")
+	if err := os.Symlink(target, link); err != nil {
+		t.Fatalf("symlink %s: %v", link, err)
+	}
+	appendFile(t, filepath.Join(root, "agents", "generator", "profile.yaml"), "tool_declarations:\n  - linked.yaml\n")
+
+	err := validatePortableProfileRefs(root, coreRoot)
+	if err == nil || !strings.Contains(err.Error(), "symlinks are not portable") {
+		t.Fatalf("error = %v, want in-tree symlink rejection", err)
+	}
+}
+
+func TestValidatePortableProfileRefsRejectsEmptyReference(t *testing.T) {
+	root := t.TempDir()
+	coreRoot := t.TempDir()
+	writeProfileFixture(t, root, "generator")
+	mkdir(t, filepath.Join(coreRoot, "tools", "builtin", "llm"))
+	appendFile(t, filepath.Join(root, "agents", "generator", "profile.yaml"), "tool_declarations:\n  - \"\"\n")
+
+	err := validatePortableProfileRefs(root, coreRoot)
+	if err == nil || !strings.Contains(err.Error(), "must not be empty") {
+		t.Fatalf("error = %v, want empty reference rejection", err)
+	}
+}
+
+func TestValidatePortableProfileRefsRejectsWindowsDriveRelativePath(t *testing.T) {
+	root := t.TempDir()
+	coreRoot := t.TempDir()
+	writeProfileFixture(t, root, "generator")
+	mkdir(t, filepath.Join(coreRoot, "tools", "builtin", "llm"))
+	appendFile(t, filepath.Join(root, "agents", "generator", "profile.yaml"), "tool_declarations:\n  - C:tools.yaml\n")
+
+	err := validatePortableProfileRefs(root, coreRoot)
+	if err == nil || !strings.Contains(err.Error(), "absolute host path") {
+		t.Fatalf("error = %v, want Windows drive-relative path rejection", err)
 	}
 }
 
@@ -175,6 +220,19 @@ func TestValidatePortableProfileRefsAcceptsRootRelativeAgentPath(t *testing.T) {
 
 	if err := validatePortableProfileRefs(root, coreRoot); err != nil {
 		t.Fatalf("validatePortableProfileRefs rejected root-relative agent path: %v", err)
+	}
+}
+
+func TestValidatePortableProfileRefsAcceptsSiblingRelativePath(t *testing.T) {
+	root := t.TempDir()
+	coreRoot := t.TempDir()
+	writeProfileFixture(t, root, "generator")
+	mkdir(t, filepath.Join(coreRoot, "tools", "builtin", "llm"))
+	writeFile(t, filepath.Join(root, "agents", "shared.yaml"), "tools: []\n")
+	appendFile(t, filepath.Join(root, "agents", "generator", "profile.yaml"), "tool_declarations:\n  - ../shared.yaml\n")
+
+	if err := validatePortableProfileRefs(root, coreRoot); err != nil {
+		t.Fatalf("validatePortableProfileRefs rejected confined sibling path: %v", err)
 	}
 }
 
