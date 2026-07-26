@@ -5,8 +5,9 @@ status: implemented
 
 overview: |
   Deterministic unit tests pin prerequisite skips, infrastructure probes,
-  semantic classification, bounded diagnostics, profile-free image construction,
-  and kind fixtures. The live target supplies the Kubernetes evidence.
+  semantic classification, bounded diagnostics, production profile-free image
+  construction with the pinned validation toolchain, and kind fixtures. The
+  live target supplies the Kubernetes evidence.
 
 traces:
   - rel06.0-uc001-live-helm-smoke
@@ -23,8 +24,8 @@ test_cases:
     status: implemented
     traces: [srd005-live-helm-smoke AC3]
   - use_case: rel06.0-uc001-live-helm-smoke
-    name: Smoke image and kind fixtures
-    go_test: go test ./magefiles -run '^TestCodingHelm(FixturesMatchServingAndStorageContract|SmokeImageRemainsProfileFree)$'
+    name: Production image and kind fixtures
+    go_test: go test ./magefiles -run '^TestCodingHelm(FixturesMatchServingAndStorageContract|SmokeUsesProductionProfileFreeImageRecipe)$'
     status: implemented
     traces: [srd005-live-helm-smoke R2]
   - use_case: rel06.0-uc001-live-helm-smoke

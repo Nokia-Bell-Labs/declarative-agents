@@ -9,9 +9,10 @@ executive_summary: |
   them.
 
   Packaging snapshots a configured, compatible library checkout and assembles
-  its transitive profile closure. Kubernetes then runs one agent-core
-  container per agent with the packaged profile tree mounted. The shared
-  runtime image contains no profiles.
+  its transitive profile closure. Kubernetes then runs one application-owned
+  coding-runtime container per agent with the packaged profile tree mounted.
+  The shared image contains the agent-core runtime and pinned Go/lint
+  validation toolchain, but no profiles.
 
 problem: |
   The planner, executor, and critic exist as reusable library agents, but no
@@ -55,8 +56,10 @@ success_criteria:
     referenced profiles, declarations, tools, and config into the application
     profile tree.
   profile_free_runtime: |
-    The agent-core runtime image remains profile-free. Each workload mounts the
-    packaged application profile tree and selects its own profile at startup.
+    The application-owned coding runtime image remains profile-free while
+    carrying Go 1.26 and golangci-lint v2.12.2 required by the canonical
+    executor. Each workload mounts the packaged application profile tree and
+    selects its own profile at startup.
   deployable_topology: |
     Kubernetes runs planner, executor, and critic as separate containers with
     explicit workspace, delegation, and result interfaces.

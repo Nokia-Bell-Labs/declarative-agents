@@ -15,7 +15,9 @@ overview:
     remains agent-core-owned. At package time, the configured compatible
     library checkout is snapshotted into a closed application profile tree and
     its revision is recorded. At runtime, Kubernetes starts one profile-free
-    agent-core image per agent and mounts that tree.
+    coding runtime image per agent and mounts that tree. The application-owned
+    image extends agent-core with Go 1.26 and golangci-lint v2.12.2 because the
+    canonical executor's build, lint, and test transitions require them.
   coding_loop_diagram: |
     ```mermaid
     flowchart LR
@@ -36,7 +38,7 @@ overview:
       B -->|mounted profile tree| P[Planner pod]
       B -->|mounted profile tree| E[Executor pod]
       B -->|mounted profile tree| C[Critic pod]
-      I[Profile-free agent-core image] --> P
+      I[Profile-free coding runtime image] --> P
       I --> E
       I --> C
     ```
@@ -152,12 +154,14 @@ design_decisions:
   - id: 3
     title: Keep the runtime image profile-free
     decision: |
-      The existing agent-core image is shared unchanged. Profiles enter a
-      workload only through the packaged tree mounted at runtime; the
-      `containerSmoke` profile-free invariant remains in force.
+      One application-owned image is shared by every role. It uses the
+      agent-core runtime contract and adds the pinned Go 1.26 toolchain and
+      golangci-lint v2.12.2 required by the canonical executor. Profiles enter
+      a workload only through the packaged tree mounted at runtime; the
+      profile-free invariant remains in force.
     benefits:
-      - Runtime releases and application releases remain independent.
-      - One image executes different declarative applications.
+      - Runtime code and application profiles remain independently packaged.
+      - Planner, executor, and critic use one tested execution environment.
       - Application profile provenance is visible in its package.
   - id: 4
     title: Run one container per agent
@@ -227,8 +231,9 @@ design_decisions:
       `mage helmPrepare` regenerates #875 artifacts and stages them as the
       chart's only profile source. Helm reads role manifests to render bounded
       ConfigMaps, projected mounts, profile arguments, and role-scoped rollout
-      checksums. The three agent workloads share one profile-free image and one
-      trusted workspace claim. Fixed Services realize the serving contract;
+      checksums. The three agent workloads share one profile-free coding image
+      containing the required validation toolchain and one trusted workspace
+      claim. Fixed Services realize the serving contract;
       OLLAMA_URL and OTLP flags select optional model and observability tiers.
     benefits:
       - Helm values cannot drift from resolved profile membership.
@@ -253,9 +258,10 @@ design_decisions:
     title: Prove the packaged topology with an owned kind rig
     decision: |
       `integration:helmSmoke` installs only the validated `.tgz` into a pinned
-      kind cluster through a temporary kubeconfig. It builds a local
-      profile-free agent image with the Go toolchain and a deterministic
-      Ollama-compatible boundary, uses a kind-only RWX hostPath fixture, and
+      kind cluster through a temporary kubeconfig. It builds the same
+      application-owned profile-free coding image the chart publishes, with Go
+      1.26 and golangci-lint v2.12.2, plus a deterministic Ollama-compatible
+      boundary, uses a kind-only RWX hostPath fixture, and
       verifies role health, workspace mutation, critic verdict, and a connected
       Jaeger trace. Docker and Kubernetes probes classify infrastructure
       outages separately from semantic failures; diagnostics and cleanup are
@@ -267,9 +273,10 @@ design_decisions:
 
 technology_choices:
   - component: Agent runtime
-    technology: agent-core
-    purpose: Execute profile-declared machines and builtin tools without
-      embedding application profiles in the image.
+    technology: agent-core plus the pinned coding validation toolchain
+    purpose: Execute profile-declared machines and builtin tools, including the
+      executor's Go build, v2 lint, and test commands, without embedding
+      application profiles in the image.
   - component: Reusable agents
     technology: agent-profiles
     purpose: Supply canonical planner, executor, and critic profiles and their
@@ -330,8 +337,9 @@ implementation_status:
         integration contract.
     - implemented: The reference-not-fork and package-time closure decisions,
         including deterministic checkout provenance and all four entry profiles.
-    - specified: The profile-free runtime image and one-container-per-agent
-        deployment decisions.
+    - implemented: The application-owned profile-free coding runtime image with
+        its pinned validation toolchain and the one-container-per-agent
+        deployment decision.
     - implemented: Live executor, real planner delegation, and changed-workspace
         critic gate targets using the real built binary and canonical profiles.
     - implemented: Persistent planner, executor, and critic serving profiles

@@ -19,16 +19,6 @@ import (
 	"github.com/Nokia-Bell-Labs/declarative-agents/magefiles/kindrig"
 )
 
-const codingHelmAgentDockerfile = `FROM golang:1.26-alpine
-COPY agent /usr/local/bin/agent
-COPY golangci-lint /usr/local/bin/golangci-lint
-COPY tools /opt/agent-core/tools
-RUN addgroup -S -g 10001 agent && adduser -S -u 10001 -G agent agent && mkdir -p /work && chown 10001:10001 /work
-ENV AGENT_CORE_HOME=/opt/agent-core HOME=/tmp PATH=/usr/local/go/bin:/usr/local/bin:/usr/bin:/bin
-USER 10001:10001
-ENTRYPOINT ["agent"]
-`
-
 func prepareCodingHelmCluster(
 	environment codingSmokeEnvironment,
 	cluster string,
@@ -51,7 +41,7 @@ func prepareCodingHelmCluster(
 	if err != nil {
 		return fmt.Errorf("prepare kind workspace: %w: %s", err, strings.TrimSpace(string(output)))
 	}
-	if err := buildCodingHelmAgentImage(roots.Core, codingHelmAgentImage); err != nil {
+	if err := buildCodingAgentImage(roots.Application, codingHelmAgentImage); err != nil {
 		return err
 	}
 	if err := buildCodingHelmModelImage(codingHelmModelImage); err != nil {
@@ -123,59 +113,6 @@ func loadCodingDependencyImage(cluster, image string) error {
 		return fmt.Errorf("import %s: %w: %s", image, err, strings.TrimSpace(output.String()))
 	}
 	return nil
-}
-
-func buildCodingHelmAgentImage(coreRoot, image string) error {
-	contextDir, err := os.MkdirTemp("", "coding-agent-kind-image-*")
-	if err != nil {
-		return err
-	}
-	defer os.RemoveAll(contextDir)
-	build := exec.Command("go", "build", "-tags", "production", "-trimpath",
-		"-ldflags=-s -w", "-o", filepath.Join(contextDir, "agent"), "./cmd/agent")
-	build.Dir = coreRoot
-	build.Env = append(os.Environ(), "CGO_ENABLED=0", "GOOS=linux")
-	if output, err := build.CombinedOutput(); err != nil {
-		return fmt.Errorf("build Linux agent: %w: %s", err, strings.TrimSpace(string(output)))
-	}
-	lintContext, lintCancel := context.WithTimeout(context.Background(), codingHelmClusterTimeout)
-	defer lintCancel()
-	lintGoPath, err := os.MkdirTemp("", "coding-agent-lint-gopath-*")
-	if err != nil {
-		return err
-	}
-	defer removeCodingLintGoPath(lintGoPath)
-	lint := exec.CommandContext(lintContext, "go", "install",
-		"github.com/golangci/golangci-lint/cmd/golangci-lint@v1.64.8")
-	lint.Env = append(os.Environ(),
-		"CGO_ENABLED=0", "GOOS=linux", "GOPATH="+lintGoPath, "GOBIN=")
-	lintOutput, lintErr := lint.CombinedOutput()
-	if lintErr != nil {
-		return fmt.Errorf("build Linux golangci-lint: %w: %s",
-			lintErr, strings.TrimSpace(string(lintOutput)))
-	}
-	lintBinary := filepath.Join(
-		lintGoPath, "bin", "linux_"+runtime.GOARCH, "golangci-lint")
-	if err := os.Rename(lintBinary, filepath.Join(contextDir, "golangci-lint")); err != nil {
-		return fmt.Errorf("stage Linux golangci-lint: %w", err)
-	}
-	if err := copyTree(filepath.Join(coreRoot, "tools"), filepath.Join(contextDir, "tools")); err != nil {
-		return err
-	}
-	if err := os.WriteFile(filepath.Join(contextDir, "Dockerfile"), []byte(codingHelmAgentDockerfile), 0o644); err != nil {
-		return err
-	}
-	return runLocalDockerBuild(contextDir, image)
-}
-
-func removeCodingLintGoPath(root string) {
-	_ = filepath.WalkDir(root, func(path string, _ os.DirEntry, err error) error {
-		if err == nil {
-			_ = os.Chmod(path, 0o700)
-		}
-		return nil
-	})
-	_ = os.RemoveAll(root)
 }
 
 func buildCodingHelmModelImage(image string) error {

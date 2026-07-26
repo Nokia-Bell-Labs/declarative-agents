@@ -24,7 +24,7 @@ requirements:
       - id: R2.1
         text: The target shall install only the validated packaged .tgz.
       - id: R2.2
-        text: It shall build and load the local profile-free agent-core binary in an image containing the Go toolchain required by canonical validation.
+        text: It shall build and load the same profile-free coding runtime Dockerfile referenced by production values, containing Go 1.26 and golangci-lint v2.12.2 for canonical build, lint, and test validation.
       - id: R2.3
         text: A deterministic Ollama-compatible in-cluster service shall provide model responses without replacing any agent, REST, workspace, critic, or telemetry behavior.
       - id: R2.4
@@ -50,7 +50,7 @@ requirements:
 
 acceptance_criteria:
   - id: AC1
-    criterion: Healthy prerequisites produce a full packaged-chart planner-to-critic pass and cleanup.
+    criterion: Healthy prerequisites produce a full packaged-chart planner-to-critic pass through build, v2 lint, and test using the production image recipe, followed by cleanup.
     traces: [R1, R2, R3]
   - id: AC2
     criterion: Missing external prerequisites print a specific SKIP without cluster mutation.

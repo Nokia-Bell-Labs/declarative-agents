@@ -1,8 +1,10 @@
 # Coding-agent deployment
 
 This guide covers the packaged Helm chart produced by the coding-agent example.
-The runtime image is profile-free; `mage helm:package` resolves and embeds the
-planner, executor, and critic role closures as chart files.
+The application-owned runtime image is profile-free and includes Go 1.26 plus
+golangci-lint v2.12.2 for the canonical executor's mandatory build, lint, and
+test sequence; `mage helm:package` resolves and embeds the planner, executor,
+and critic role closures as chart files.
 
 ## Prerequisites
 
@@ -31,6 +33,7 @@ host binary, checkout, Docker engine, or pre-pulled image is absent.
 From `examples/coding-agent`:
 
 ```bash
+mage image:build
 mage package
 mage packageValidate
 mage helmPrepare
@@ -47,6 +50,13 @@ helm/dist/coding-agent-0.1.0.tgz
 It contains the strict values schema and every generated role asset. Packaging
 validates profile checksums, ConfigMap partitions, archive inventory, lint, and
 an independent archive render.
+
+`mage image:build` builds
+`ghcr.io/nokia-bell-labs/declarative-agents/coding-agent-runtime:0.1.0` from
+`examples/coding-agent/Dockerfile`; set `CODING_AGENT_IMAGE` to build another
+tag. The live Helm smoke uses this exact recipe. The image contains no profiles,
+but it does contain `agent`, the Go toolchain, the v2.12.2 linter, and core tool
+declarations.
 
 ## Install
 
@@ -86,8 +96,9 @@ planner Deployment. Values cannot choose profiles or profile paths.
 
 Important values:
 
-- `image.repository`, `image.tag`, `image.pullPolicy`: one shared agent-core
-  image for all roles.
+- `image.repository`, `image.tag`, `image.pullPolicy`: one shared profile-free
+  coding runtime image for all roles. An override must retain `agent`, Go, and
+  golangci-lint v2 compatibility.
 - `workspace.existingClaim`, `storageClass`, `accessModes`, `size`: shared
   workspace storage.
 - `roles.<role>.resources`: pod requests and limits. Replicas are intentionally
@@ -168,10 +179,11 @@ Run the disposable packaged-chart proof:
 mage integration:helmSmoke
 ```
 
-The target builds and kind-loads the local runtime and deterministic model,
-installs the `.tgz`, verifies all health endpoints, submits one planner request,
-checks the workspace and critic verdict, queries Jaeger for the connected
-three-service trace, and tears down everything it owns.
+The target builds the production coding-runtime Dockerfile, kind-loads that
+image and the deterministic model, installs the `.tgz`, verifies all health
+endpoints, submits one planner request, checks build/lint/test workspace
+evidence and the critic verdict, queries Jaeger for the connected three-service
+trace, and tears down everything it owns.
 
 ## Telemetry and Jaeger
 
