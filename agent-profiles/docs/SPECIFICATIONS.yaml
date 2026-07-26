@@ -160,14 +160,14 @@ srd_index:
     status: implemented
     path: docs/specs/software-requirements/srd001-agent-functional-blocks.yaml
   - id: srd002-executor
-    title: Generator Functional Block
-    summary: Generator coding-agent boundary, inputs, tool selections, runtime
+    title: Executor Functional Block
+    summary: Executor coding-agent boundary, inputs, tool selections, runtime
       dependencies, outputs, and terminal outcomes.
     status: implemented
     path: docs/specs/software-requirements/srd002-executor.yaml
   - id: srd003-critic
-    title: Evaluator Functional Block
-    summary: Evaluator session and point pipeline boundary, inputs, tool
+    title: Critic Functional Block
+    summary: Critic session and point pipeline boundary, inputs, tool
       selections, runtime dependencies, outputs, and terminal outcomes.
     status: implemented
     path: docs/specs/software-requirements/srd003-critic.yaml
@@ -358,7 +358,8 @@ use_case_index:
     path: docs/specs/use-cases/rel07.0-uc003-planner-generator-profile-boundary.yaml
   - id: rel07.0-uc004-bench-evaluator-profile-boundary
     title: Bench to Evaluator Profile Boundary
-    summary: Bench launches evaluator from a human/operator boundary action.
+    summary: Bench launches the critic role from a human/operator boundary action;
+      the historical use-case id retains the former evaluator name.
     status: implemented
     path: docs/specs/use-cases/rel07.0-uc004-bench-evaluator-profile-boundary.yaml
   - id: rel07.0-uc005-monitor-control-profile-boundary
@@ -516,8 +517,8 @@ test_suite_index:
       so their coverage is shipped-behavioral rather than synthesized; the rest
       sample server boundary is bounded-behavioral (shipped REST config and
       declarations over a synthesized launch/await/stop machine, client head at
-      the agent-core package level). The generator and rest families also run
-      their shipped variants and carry an ungated load-and-wiring companion. Generator (with qwen27b/qwen35b variants), the
+      the agent-core package level). The executor and rest families also run
+      their shipped variants and carry an ungated load-and-wiring companion. Executor (with qwen27b/qwen35b variants), the
       planner behavioral run, and the rest ollama-profile variant are
       Ollama-gated; lifecycle suspend/resume and history/rollback are Dolt-gated;
       rest proves its inbound webhook server boundary with async await_operation
@@ -615,7 +616,7 @@ coverage_gaps: |
   Release 07.1 adds per-family boundary use cases for the jurist, lifecycle, and
   rest families, which release 07.0 covered only through the generic rel06.0
   mounted-profile and profile-validation use cases. Every profile family now has
-  a dedicated boundary use case: evaluator, generator, planner, bench,
+  a dedicated boundary use case: critic, executor, planner, bench,
   monitor/control, and documentation-curator through release 07.0, and jurist,
   lifecycle, and rest through release 07.1. test-rel07.1-profile-boundaries
   validates the three new use cases against their per-family SRD acceptance
@@ -638,13 +639,13 @@ coverage_gaps: |
   machine, because the shipped machine's client head cannot run in a profile
   machine (that head is proven at the agent-core package level).
   Representative-vs-variant is
-  recorded explicitly: the generator ships and runs profile.yaml plus the
+  recorded explicitly: the executor ships and runs profile.yaml plus the
   profile-qwen35b and profile-qwen27b variants, and the rest family runs the
-  sample inbound webhook boundary plus the ollama-profile variant; the generator,
+  sample inbound webhook boundary plus the ollama-profile variant; the executor,
   planner, and rest families each also carry an ungated, model-free
   load-and-wiring companion that asserts shipped-profile load and machine wiring
   where a gate would otherwise skip the run. All ten families are implemented
-  under AGENT_CORE_ROOT; generator and its qwen variants, the planner behavioral
+  under AGENT_CORE_ROOT; executor and its qwen variants, the planner behavioral
   run, and the rest ollama-profile variant are Ollama-gated, and lifecycle
   suspend/resume and history/rollback are Dolt-gated. Planner conformance landed
   once agent-core gained a load_graph pipeline word that seeds the requirement

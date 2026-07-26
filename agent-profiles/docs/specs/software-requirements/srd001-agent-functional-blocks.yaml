@@ -9,8 +9,8 @@ context: |
   Each profile family owns its own SRD for actor boundary, inputs, outputs, tool
   selections, runtime dependencies, and terminal outcomes:
 
-    - srd002-executor            (generator)
-    - srd003-critic            (evaluator)
+    - srd002-executor             (executor)
+    - srd003-critic               (critic)
     - srd004-planner              (planner)
     - srd005-jurist               (jurist)
     - srd006-bench                (bench)
@@ -50,9 +50,9 @@ requirements:
   R2:
     title: Cross-profile dependency direction
     items:
-      - R2.1: Planner must invoke generator through child profile execution; generator must not depend on planner.
-      - R2.2: Evaluator point runs may invoke generator or another configured profile as the benchmark subject; the subject profile must not depend on the evaluator.
-      - R2.3: Bench must launch evaluator from a human operator action; evaluator must not depend on bench.
+      - R2.1: Planner must invoke executor through child profile execution; executor must not depend on planner.
+      - R2.2: Critic point runs may invoke executor or another configured profile as the benchmark subject; the subject profile must not depend on the critic.
+      - R2.3: Bench must launch critic from a human operator action; critic must not depend on bench.
       - R2.4: Monitor must read cached runtime state supplied by agent-core, and control must route REST events to visible lifecycle words such as exit_agent; the documentation-curator must embed control flow and wait for explicit exit events.
       - R2.5: Dependency edges must point from configured profiles toward agent-core runtime ports and never in the reverse direction.
   R3:
