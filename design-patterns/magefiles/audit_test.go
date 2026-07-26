@@ -64,7 +64,8 @@ func TestAuditDesignPatternsReturnsBuildError(t *testing.T) {
 
 func TestReferenceImplementationEvidenceAcceptsShippedChecks(t *testing.T) {
 	root := t.TempDir()
-	writeAuditFixture(t, filepath.Join(root, "agent", "machine.yaml"), "states: [Idle, Done]\n")
+	writeAuditFixture(t, filepath.Join(root, "agent", "machine.yaml"),
+		"name: agent\nstates: [Idle, Done]\ntransitions: []\n")
 	language := writePatternLanguage(t, root, `
 patterns:
   - id: machine-interpreter
@@ -77,7 +78,9 @@ patterns:
           classification: shipped
           checks:
             - path: agent/machine.yaml
-              contains: [Idle]
+              artifact: machine
+              assertion: yaml_fields
+              fields: [states, transitions]
 `)
 
 	if err := auditReferenceImplementationEvidence(language, root); err != nil {
@@ -124,7 +127,8 @@ patterns:
 
 func TestReferenceImplementationEvidenceRejectsUnlabeledFixture(t *testing.T) {
 	root := t.TempDir()
-	writeAuditFixture(t, filepath.Join(root, "fixtures", "profile.yaml"), "name: approval\n")
+	writeAuditFixture(t, filepath.Join(root, "fixtures", "machine.yaml"),
+		"name: approval\nstates: [Waiting, Done]\ntransitions:\n  - {state: Waiting, signal: Approved, next: Done}\n")
 	language := writePatternLanguage(t, root, `
 patterns:
   - id: approval-gate
@@ -136,7 +140,10 @@ patterns:
         evidence:
           classification: conformance_fixture
           checks:
-            - path: fixtures/profile.yaml
+            - path: fixtures/machine.yaml
+              artifact: machine
+              assertion: yaml_transition
+              match: {state: Waiting, signal: Approved, next: Done}
 `)
 
 	err := auditReferenceImplementationEvidence(language, root)
@@ -159,11 +166,79 @@ patterns:
           classification: shipped
           checks:
             - path: ../outside.yaml
+              artifact: machine
+              assertion: yaml_fields
+              fields: [states]
 `)
 
 	err := auditReferenceImplementationEvidence(language, root)
 	if err == nil || !strings.Contains(err.Error(), "escapes repository root") {
 		t.Fatalf("error = %v, want path escape finding", err)
+	}
+}
+
+func TestReferenceEvidenceRejectsExistingFileOfWrongArtifactType(t *testing.T) {
+	root := t.TempDir()
+	writeAuditFixture(t, filepath.Join(root, "profile.yaml"),
+		"name: agent\nmachine: machine.yaml\n")
+	check := evidenceCheck{
+		Path: "profile.yaml", Artifact: "machine",
+		Assertion: "yaml_fields", Fields: []string{"name"},
+	}
+	err := runEvidenceCheck(root, "wrong type", check)
+	if err == nil || !strings.Contains(err.Error(), "requires field \"states\"") {
+		t.Fatalf("error = %v, want machine artifact rejection", err)
+	}
+}
+
+func TestReferenceEvidenceRejectsUnrelatedTokenOutsideGoTestDeclaration(t *testing.T) {
+	root := t.TempDir()
+	writeAuditFixture(t, filepath.Join(root, "claim_test.go"), `package fixture
+// TestClaimedBehavior is mentioned but not implemented.
+func TestSomethingElse() {}
+`)
+	check := evidenceCheck{
+		Path: "claim_test.go", Artifact: "go_test",
+		Assertion: "go_test", Test: "TestClaimedBehavior",
+	}
+	err := runEvidenceCheck(root, "unrelated token", check)
+	if err == nil || !strings.Contains(err.Error(), "is not declared") {
+		t.Fatalf("error = %v, want AST test-declaration rejection", err)
+	}
+}
+
+func TestReferenceEvidenceExecutesFocusedBehaviorTest(t *testing.T) {
+	root := t.TempDir()
+	writeAuditFixture(t, filepath.Join(root, "go.mod"), "module fixture\n\ngo 1.26\n")
+	writeAuditFixture(t, filepath.Join(root, "claim_test.go"), `package fixture
+import "testing"
+func TestClaimedBehavior(t *testing.T) { t.Fatal("behavior regressed") }
+`)
+	check := evidenceCheck{
+		Path: "claim_test.go", Artifact: "go_test",
+		Assertion: "go_test", Test: "TestClaimedBehavior",
+	}
+	err := runEvidenceCheck(root, "failing behavior", check)
+	if err == nil || !strings.Contains(err.Error(), "focused Go test") ||
+		!strings.Contains(err.Error(), "behavior regressed") {
+		t.Fatalf("error = %v, want executed behavior failure", err)
+	}
+}
+
+func TestReferenceEvidenceRejectsBehaviorallyFalseYAMLRelationship(t *testing.T) {
+	root := t.TempDir()
+	writeAuditFixture(t, filepath.Join(root, "a.yaml"),
+		"name: a\nmachine: machine-a.yaml\ntools: [tools.yaml]\ntool_declarations: [llm/a.yaml]\n")
+	writeAuditFixture(t, filepath.Join(root, "b.yaml"),
+		"name: b\nmachine: machine-b.yaml\ntools: [tools.yaml]\ntool_declarations: [llm/b.yaml]\n")
+	check := evidenceCheck{
+		Paths: []string{"a.yaml", "b.yaml"}, Artifact: "profile",
+		Assertion: "yaml_relation", SameFields: []string{"machine", "tools"},
+		DifferentFields: []string{"tool_declarations"},
+	}
+	err := runEvidenceCheck(root, "false relationship", check)
+	if err == nil || !strings.Contains(err.Error(), "machine") {
+		t.Fatalf("error = %v, want false same-field rejection", err)
 	}
 }
 
