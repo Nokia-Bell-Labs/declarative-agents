@@ -501,7 +501,22 @@ func cleanupCodingHelmSmoke(
 	environment codingSmokeEnvironment,
 	cluster kindrig.Cluster,
 	kindRun kindrig.Runner,
+	failed bool,
+	evidenceDir string,
 ) {
+	evidence := kindrig.FailureEvidence{
+		Directory:  evidenceDir,
+		Namespaces: []string{codingHelmNamespace},
+		Run: func(name string, args ...string) ([]byte, error) {
+			ctx, cancel := context.WithTimeout(context.Background(), codingHelmDiagTimeout)
+			defer cancel()
+			return environment.run(ctx, name, args...)
+		},
+	}
+	if failed && cluster.Created {
+		cluster.ReleaseAfter(kindRun, true, evidence)
+		return
+	}
 	ctx, cancel := context.WithTimeout(context.Background(), 30*time.Second)
 	_, _ = environment.run(ctx, "helm", "uninstall", codingHelmRelease,
 		"-n", codingHelmNamespace, "--wait", "--timeout=20s")
@@ -514,5 +529,11 @@ func cleanupCodingHelmSmoke(
 	_, _ = environment.run(ctx, "kubectl", "delete", "pv",
 		"coding-agent-kind-workspace", "--ignore-not-found=true", "--wait=false")
 	cancel()
-	cluster.Release(kindRun)
+	cluster.ReleaseAfter(kindRun, failed, evidence)
+}
+
+func codingHelmEvidenceDir(applicationRoot string) string {
+	run := time.Now().UTC().Format("20060102T150405.000000000Z")
+	return filepath.Join(applicationRoot, "build", "kind-evidence",
+		codingHelmCluster+"-"+run)
 }

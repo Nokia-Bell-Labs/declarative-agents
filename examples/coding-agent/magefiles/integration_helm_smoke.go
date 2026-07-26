@@ -134,7 +134,7 @@ func codingHelmSmokeSkipReason(roots integrationRoots, run codingSmokeRunner) st
 	return ""
 }
 
-func runCodingHelmSmoke(roots integrationRoots) error {
+func runCodingHelmSmoke(roots integrationRoots) (result error) {
 	kindConfig := filepath.Join(roots.Application, "helm", "ci", "kind-config.yaml")
 	kindRun := func(args ...string) ([]byte, error) {
 		ctx, cancel := context.WithTimeout(context.Background(), codingHelmClusterTimeout)
@@ -148,12 +148,18 @@ func runCodingHelmSmoke(roots integrationRoots) error {
 	}
 	kubeconfig, cleanupKubeconfig, err := codingKindKubeconfig()
 	if err != nil {
-		cluster.Release(kindRun)
+		cluster.ReleaseAfter(kindRun, true, kindrig.FailureEvidence{
+			Directory: codingHelmEvidenceDir(roots.Application),
+		})
 		return &codingHelmInfrastructureError{Step: "kind kubeconfig", Cause: err}
 	}
 	defer cleanupKubeconfig()
 	environment := codingSmokeEnvironment{kubeconfig: kubeconfig}
-	defer cleanupCodingHelmSmoke(environment, cluster, kindRun)
+	defer func() {
+		cleanupCodingHelmSmoke(
+			environment, cluster, kindRun, result != nil,
+			codingHelmEvidenceDir(roots.Application))
+	}()
 
 	if err := checkCodingHelmInfrastructure(environment.run); err != nil {
 		return err

@@ -167,9 +167,9 @@ sections:
     content: |
       A failed cluster run must leave enough behind to diagnose without
       re-running. On any integration failure the rig runs
-      `kind export logs` into the evidence directory the existing
-      test-evidence machinery manages, alongside `kubectl describe` and
-      pod logs for the namespaces the scenario touched. Before teardown, both
+      `kind export logs` into the scenario's persistent
+      `build/kind-evidence/` directory, alongside `kubectl describe` and pod
+      logs for the namespaces the scenario touched. Before teardown, both
       failed runs and successful release gates record shared-sink health, the
       run identity, representative trace ids and service names, and the
       availability of expected agent and Dolt metrics. Backend data stays
@@ -195,4 +195,4 @@ references:
   - "kind Local Registry, https://kind.sigs.k8s.io/docs/user/local-registry/"
   - "kind Ingress, https://kind.sigs.k8s.io/docs/user/ingress/"
   - "examples/chatbot-mesh/magefiles/integration_helm.go (existing rig this guideline generalizes)"
-  - "examples/chatbot-mesh/magefiles/test_evidence.go (evidence machinery)"
+  - "magefiles/kindrig/kindrig.go (shared cluster lifecycle and failure-evidence machinery)"

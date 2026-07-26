@@ -9,10 +9,13 @@ package kindrig
 
 import (
 	"bytes"
+	"errors"
 	"fmt"
 	"io"
 	"os"
 	"os/exec"
+	"path/filepath"
+	"regexp"
 	"strings"
 	"time"
 )
@@ -20,6 +23,20 @@ import (
 // Runner runs one kind subcommand and returns its combined output. Injected
 // so cluster ownership is testable against a fake kind without a real cluster.
 type Runner func(args ...string) ([]byte, error)
+
+// CommandRunner runs a host command and returns its combined output. Scenarios
+// inject a runner carrying their kubeconfig; DefaultCommandRun uses the current
+// environment.
+type CommandRunner func(name string, args ...string) ([]byte, error)
+
+// FailureEvidence describes the persistent diagnostics to collect when an
+// owned cluster's scenario fails. Directory is the final artifact directory,
+// and Namespaces limits kubectl collection to scenario-owned namespaces.
+type FailureEvidence struct {
+	Directory  string
+	Namespaces []string
+	Run        CommandRunner
+}
 
 // DefaultRun streams kind's output so a multi-minute create still reports
 // progress live, while also capturing it for the caller.
@@ -30,6 +47,11 @@ func DefaultRun(args ...string) ([]byte, error) {
 	cmd.Stderr = io.MultiWriter(os.Stderr, &buf)
 	err := cmd.Run()
 	return buf.Bytes(), err
+}
+
+// DefaultCommandRun executes a diagnostic command in the current environment.
+func DefaultCommandRun(name string, args ...string) ([]byte, error) {
+	return exec.Command(name, args...).CombinedOutput()
 }
 
 // Cluster records whether this run created the cluster it is using. Only a
@@ -81,6 +103,103 @@ func (c Cluster) Release(run Runner) {
 	if _, err := run("delete", "cluster", "--name", c.Name); err != nil {
 		fmt.Printf("kind: delete cluster %s failed: %v\n", c.Name, err)
 	}
+}
+
+// ReleaseAfter releases an owned cluster, first persisting failure evidence
+// when the scenario failed. Reused clusters are not inspected or deleted.
+// Evidence errors are reported but never replace the scenario's own result.
+func (c Cluster) ReleaseAfter(run Runner, failed bool, evidence FailureEvidence) {
+	if !c.Created {
+		c.Release(run)
+		return
+	}
+	if failed {
+		if err := evidence.capture(run, c.Name); err != nil {
+			fmt.Printf("kind: capture failure evidence for %s failed: %v\n", c.Name, err)
+		}
+	}
+	c.Release(run)
+}
+
+func (e FailureEvidence) capture(kindRun Runner, cluster string) error {
+	if e.Directory == "" {
+		return fmt.Errorf("evidence directory is required")
+	}
+	if err := os.MkdirAll(e.Directory, 0o755); err != nil {
+		return fmt.Errorf("create evidence directory: %w", err)
+	}
+	var captureErrors []error
+	if err := ExportLogs(kindRun, cluster, filepath.Join(e.Directory, "kind")); err != nil {
+		captureErrors = append(captureErrors, err)
+	}
+	if e.Run == nil {
+		if len(e.Namespaces) > 0 {
+			captureErrors = append(captureErrors, fmt.Errorf("kubectl diagnostic runner is required"))
+		}
+		return errors.Join(captureErrors...)
+	}
+	for _, namespace := range e.Namespaces {
+		if err := e.captureNamespace(namespace); err != nil {
+			captureErrors = append(captureErrors, err)
+		}
+	}
+	return errors.Join(captureErrors...)
+}
+
+func (e FailureEvidence) captureNamespace(namespace string) error {
+	base := "namespace-" + evidenceName(namespace)
+	var captureErrors []error
+	if err := e.captureCommand(base+"-describe.txt", "kubectl",
+		"describe", "all", "-n", namespace); err != nil {
+		captureErrors = append(captureErrors, err)
+	}
+	pods, err := e.Run("kubectl", "get", "pods", "-n", namespace, "-o", "name")
+	if writeErr := writeDiagnostic(
+		filepath.Join(e.Directory, base+"-pods.txt"), pods, err); writeErr != nil {
+		captureErrors = append(captureErrors, writeErr)
+	}
+	if err != nil {
+		captureErrors = append(captureErrors, fmt.Errorf("list pods in %s: %w", namespace, err))
+		return errors.Join(captureErrors...)
+	}
+	for _, pod := range strings.Fields(string(pods)) {
+		if err := e.captureCommand(
+			base+"-"+evidenceName(pod)+"-logs.txt", "kubectl",
+			"logs", "-n", namespace, pod, "--all-containers=true",
+			"--prefix=true", "--tail=-1"); err != nil {
+			captureErrors = append(captureErrors, err)
+		}
+	}
+	return errors.Join(captureErrors...)
+}
+
+func (e FailureEvidence) captureCommand(filename, name string, args ...string) error {
+	output, commandErr := e.Run(name, args...)
+	path := filepath.Join(e.Directory, filename)
+	if err := writeDiagnostic(path, output, commandErr); err != nil {
+		return err
+	}
+	if commandErr != nil {
+		return fmt.Errorf("%s %s: %w", name, strings.Join(args, " "), commandErr)
+	}
+	return nil
+}
+
+func writeDiagnostic(path string, output []byte, commandErr error) error {
+	data := append([]byte(nil), output...)
+	if commandErr != nil {
+		data = append(data, []byte(fmt.Sprintf("\n[command failed: %v]\n", commandErr))...)
+	}
+	if err := os.WriteFile(path, data, 0o644); err != nil {
+		return fmt.Errorf("write diagnostic %s: %w", path, err)
+	}
+	return nil
+}
+
+var nonEvidenceName = regexp.MustCompile(`[^A-Za-z0-9._-]+`)
+
+func evidenceName(value string) string {
+	return strings.Trim(nonEvidenceName.ReplaceAllString(value, "-"), "-")
 }
 
 // Exists reports whether the named cluster is in kind's cluster list. An

@@ -223,7 +223,7 @@ tracing:
 	return generatedPath, cleanup, nil
 }
 
-func runHelmSmoke(coreRoot, profilesRoot, chartDir string) error {
+func runHelmSmoke(coreRoot, profilesRoot, chartDir string) (result error) {
 	telemetry := newHelmTelemetryIdentity(profilesRoot)
 	if err := requireSharedObservability(helmReadyTimeout); err != nil {
 		return fmt.Errorf("shared observability stack is required: %w", err)
@@ -260,7 +260,13 @@ func runHelmSmoke(coreRoot, profilesRoot, chartDir string) error {
 	released := false
 	defer func() {
 		if !released {
-			cluster.Release(kindrig.DefaultRun)
+			cluster.ReleaseAfter(kindrig.DefaultRun, result != nil, kindrig.FailureEvidence{
+				Directory: filepath.Join(
+					profilesRoot, "build", "kind-evidence",
+					helmKindCluster+"-"+time.Now().UTC().Format("20060102T150405.000000000Z")),
+				Namespaces: []string{"default"},
+				Run:        kindrig.CommandRunner(runHelmSmokeCommand),
+			})
 		}
 	}()
 
@@ -313,7 +319,7 @@ func runHelmSmoke(coreRoot, profilesRoot, chartDir string) error {
 	}
 	stop()
 	stop = nil
-	cluster.Release(kindrig.DefaultRun)
+	cluster.ReleaseAfter(kindrig.DefaultRun, false, kindrig.FailureEvidence{})
 	released = true
 	if err := assertSharedSmokeSpans(sharedJaegerBase(), telemetry.RunID,
 		[]string{"apiserver", "chatbot", "rag0", "rag0-chroma"}, helmSpanTimeout); err != nil {

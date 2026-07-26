@@ -240,3 +240,80 @@ func TestExportLogs(t *testing.T) {
 		t.Error("a failed export must be reported")
 	}
 }
+
+func TestReleaseAfterFailureCapturesEvidenceBeforeDelete(t *testing.T) {
+	var sequence []string
+	kindRun := func(args ...string) ([]byte, error) {
+		sequence = append(sequence, "kind "+strings.Join(args, " "))
+		return nil, nil
+	}
+	commandRun := func(name string, args ...string) ([]byte, error) {
+		sequence = append(sequence, name+" "+strings.Join(args, " "))
+		if strings.Contains(strings.Join(args, " "), "get pods") {
+			return []byte("pod/planner-0\npod/executor-0\n"), nil
+		}
+		return []byte("diagnostic"), nil
+	}
+	dir := filepath.Join(t.TempDir(), "evidence")
+	Cluster{Name: "da-coding-agent-smoke", Created: true}.ReleaseAfter(
+		kindRun, true, FailureEvidence{
+			Directory: dir, Namespaces: []string{"coding-agent-smoke"}, Run: commandRun,
+		})
+
+	if len(sequence) != 6 {
+		t.Fatalf("sequence = %v, want export, describe, list, two logs, delete", sequence)
+	}
+	if !strings.HasPrefix(sequence[0], "kind export logs ") ||
+		!strings.HasPrefix(sequence[len(sequence)-1], "kind delete cluster ") {
+		t.Fatalf("evidence must precede deletion: %v", sequence)
+	}
+	for _, name := range []string{
+		"namespace-coding-agent-smoke-describe.txt",
+		"namespace-coding-agent-smoke-pods.txt",
+		"namespace-coding-agent-smoke-pod-planner-0-logs.txt",
+		"namespace-coding-agent-smoke-pod-executor-0-logs.txt",
+	} {
+		if _, err := os.Stat(filepath.Join(dir, name)); err != nil {
+			t.Errorf("evidence file %s: %v", name, err)
+		}
+	}
+}
+
+func TestReleaseAfterLeavesReusedClusterUntouched(t *testing.T) {
+	var calls int
+	run := func(_ ...string) ([]byte, error) {
+		calls++
+		return nil, nil
+	}
+	commandRun := func(_ string, _ ...string) ([]byte, error) {
+		calls++
+		return nil, nil
+	}
+	dir := filepath.Join(t.TempDir(), "must-not-exist")
+	Cluster{Name: "developer-cluster"}.ReleaseAfter(run, true, FailureEvidence{
+		Directory: dir, Namespaces: []string{"default"}, Run: commandRun,
+	})
+	if calls != 0 {
+		t.Fatalf("reused cluster received %d commands, want none", calls)
+	}
+	if _, err := os.Stat(dir); !os.IsNotExist(err) {
+		t.Fatalf("reused cluster created evidence directory: %v", err)
+	}
+}
+
+func TestReleaseAfterSuccessDeletesWithoutEvidence(t *testing.T) {
+	var calls [][]string
+	run := func(args ...string) ([]byte, error) {
+		calls = append(calls, args)
+		return nil, nil
+	}
+	dir := filepath.Join(t.TempDir(), "must-not-exist")
+	Cluster{Name: "owned-cluster", Created: true}.ReleaseAfter(
+		run, false, FailureEvidence{Directory: dir})
+	if len(calls) != 1 || calls[0][0] != "delete" {
+		t.Fatalf("successful release calls = %v, want only delete", calls)
+	}
+	if _, err := os.Stat(dir); !os.IsNotExist(err) {
+		t.Fatalf("successful release created evidence directory: %v", err)
+	}
+}
