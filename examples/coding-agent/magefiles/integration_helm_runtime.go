@@ -23,6 +23,7 @@ func prepareCodingHelmCluster(
 	environment codingSmokeEnvironment,
 	cluster string,
 	roots integrationRoots,
+	images codingHelmImages,
 ) error {
 	// Clear only smoke-owned objects when reusing a developer cluster.
 	for _, command := range [][]string{
@@ -41,16 +42,16 @@ func prepareCodingHelmCluster(
 	if err != nil {
 		return fmt.Errorf("prepare kind workspace: %w: %s", err, strings.TrimSpace(string(output)))
 	}
-	if err := buildCodingAgentImage(roots.Application, codingHelmAgentImage); err != nil {
+	if err := buildCodingAgentImage(roots.Application, images.Agent); err != nil {
 		return err
 	}
-	if err := buildCodingHelmModelImage(codingHelmModelImage); err != nil {
+	if err := buildCodingHelmModelImage(images.Model); err != nil {
 		return err
 	}
 	kindRun := func(ctx context.Context, args ...string) ([]byte, error) {
 		return codingSmokeEnvironment{}.run(ctx, "kind", args...)
 	}
-	for _, image := range []string{codingHelmAgentImage, codingHelmModelImage} {
+	for _, image := range []string{images.Agent, images.Model} {
 		ctx, cancel := context.WithTimeout(context.Background(), codingHelmClusterTimeout)
 		err := kindrig.LoadImage(ctx, kindRun, cluster, image)
 		cancel()
@@ -74,7 +75,7 @@ func prepareCodingHelmCluster(
 		filepath.Join(roots.Application, "helm", "ci", "kind-workspace.yaml")); err != nil {
 		return err
 	}
-	modelManifest, cleanup, err := codingModelManifest()
+	modelManifest, cleanup, err := codingModelManifest(images.Model)
 	if err != nil {
 		return err
 	}
@@ -180,13 +181,13 @@ func runLocalDockerBuild(contextDir, image string) error {
 	return nil
 }
 
-func codingModelManifest() (string, func(), error) {
+func codingModelManifest(image string) (string, func(), error) {
 	dir, err := os.MkdirTemp("", "coding-model-manifest-*")
 	if err != nil {
 		return "", nil, err
 	}
 	path := filepath.Join(dir, "model.yaml")
-	manifest := `apiVersion: apps/v1
+	manifest := fmt.Sprintf(`apiVersion: apps/v1
 kind: Deployment
 metadata: {name: coding-model, namespace: coding-agent-smoke}
 spec:
@@ -199,7 +200,7 @@ spec:
       securityContext: {runAsNonRoot: true, seccompProfile: {type: RuntimeDefault}}
       containers:
         - name: model
-          image: declarative-agents/coding-model-smoke:local
+          image: %s
           imagePullPolicy: Never
           securityContext: {allowPrivilegeEscalation: false, readOnlyRootFilesystem: true, capabilities: {drop: [ALL]}}
           ports: [{name: http, containerPort: 11434}]
@@ -211,7 +212,7 @@ metadata: {name: coding-model, namespace: coding-agent-smoke}
 spec:
   selector: {app: coding-model}
   ports: [{name: http, port: 11434, targetPort: http}]
-`
+`, image)
 	if err := os.WriteFile(path, []byte(manifest), 0o644); err != nil {
 		_ = os.RemoveAll(dir)
 		return "", nil, err
@@ -221,20 +222,40 @@ spec:
 
 func installCodingHelmChart(
 	environment codingSmokeEnvironment,
-	archive, applicationRoot string,
+	archive, applicationRoot, image string,
 ) error {
+	return installCodingHelmChartWithRunner(
+		environment.run, archive, applicationRoot, image)
+}
+
+func installCodingHelmChartWithRunner(
+	run codingSmokeRunner,
+	archive, applicationRoot, image string,
+) error {
+	repository, tag := splitCodingImageRef(image)
 	ctx, cancel := context.WithTimeout(context.Background(), codingHelmInstallTimeout)
 	defer cancel()
-	output, err := environment.run(ctx, "helm",
+	output, err := run(ctx, "helm",
 		"install", codingHelmRelease, archive,
 		"--namespace", codingHelmNamespace,
 		"--values", filepath.Join(applicationRoot, "helm", "ci", "kind-values.yaml"),
+		"--set", "image.repository="+repository,
+		"--set", "image.tag="+tag,
+		"--set", "collector.utilityImage="+image,
 		"--wait", "--timeout", codingHelmInstallTimeout.String(),
 	)
 	if err != nil {
 		return fmt.Errorf("helm install: %w: %s", err, strings.TrimSpace(string(output)))
 	}
 	return nil
+}
+
+func splitCodingImageRef(image string) (string, string) {
+	index := strings.LastIndex(image, ":")
+	if index < 0 || strings.Contains(image[index:], "/") {
+		return image, "latest"
+	}
+	return image[:index], image[index+1:]
 }
 
 func verifyCodingHelmRollouts(environment codingSmokeEnvironment) error {
@@ -534,8 +555,8 @@ func cleanupCodingHelmSmoke(
 	cluster.ReleaseAfter(kindRun, failed, evidence)
 }
 
-func codingHelmEvidenceDir(applicationRoot string) string {
+func codingHelmEvidenceDir(applicationRoot, revision string) string {
 	run := time.Now().UTC().Format("20060102T150405.000000000Z")
 	return filepath.Join(applicationRoot, "build", "kind-evidence",
-		codingHelmCluster+"-"+run)
+		codingHelmCluster+"-"+revision+"-"+run)
 }

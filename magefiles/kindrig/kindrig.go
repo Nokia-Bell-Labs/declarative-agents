@@ -208,9 +208,24 @@ func writeDiagnostic(path string, output []byte, commandErr error) error {
 }
 
 var nonEvidenceName = regexp.MustCompile(`[^A-Za-z0-9._-]+`)
+var gitRevision = regexp.MustCompile(`^[0-9a-fA-F]{12,64}$`)
 
 func evidenceName(value string) string {
 	return strings.Trim(nonEvidenceName.ReplaceAllString(value, "-"), "-")
+}
+
+// CommitImage returns a local image reference tagged with the tested checkout's
+// 12-character commit revision. The revision is returned for evidence output.
+func CommitImage(repository, revision string) (image, shortRevision string, err error) {
+	revision = strings.TrimSpace(revision)
+	if strings.TrimSpace(repository) == "" {
+		return "", "", fmt.Errorf("image repository is required")
+	}
+	if !gitRevision.MatchString(revision) {
+		return "", "", fmt.Errorf("git revision %q must be 12-64 hexadecimal characters", revision)
+	}
+	shortRevision = strings.ToLower(revision[:12])
+	return repository + ":" + shortRevision, shortRevision, nil
 }
 
 // Exists reports whether the named cluster is in kind's cluster list. An

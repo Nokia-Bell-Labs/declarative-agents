@@ -18,9 +18,9 @@ import (
 )
 
 const (
-	applierLiveImage   = "declarative-agents/chatbot-mesh-applier:live"
-	applierLiveCluster = "da-chatbot-mesh-applier"
-	applierLiveRelease = "live"
+	applierLiveImageRepository = "declarative-agents/chatbot-mesh-applier"
+	applierLiveCluster         = "da-chatbot-mesh-applier"
+	applierLiveRelease         = "live"
 
 	applierReadyWait = 3 * time.Minute
 
@@ -130,8 +130,12 @@ func applierLiveSkipReason(coreRoot string) string {
 }
 
 func runApplierLive(coreRoot, profilesRoot string) error {
-	fmt.Printf("applierLive: building runtime image %s from %s\n", helmImage, coreRoot)
-	if err := buildSmokeRuntimeImage(coreRoot, helmImage); err != nil {
+	images, err := resolveChatbotIntegrationImages(profilesRoot)
+	if err != nil {
+		return err
+	}
+	fmt.Printf("applierLive: building runtime image %s from %s\n", images.Runtime, coreRoot)
+	if err := buildSmokeRuntimeImage(coreRoot, images.Runtime); err != nil {
 		return err
 	}
 	chartDir := exampleChartDir(profilesRoot)
@@ -141,11 +145,11 @@ func runApplierLive(coreRoot, profilesRoot string) error {
 	}
 	defer cleanupChart()
 
-	fmt.Printf("applierLive: building applier image %s on %s\n", applierLiveImage, helmImage)
-	if err := buildApplierImage(profilesRoot, staged, helmImage, applierLiveImage); err != nil {
+	fmt.Printf("applierLive: building applier image %s on %s\n", images.Applier, images.Runtime)
+	if err := buildApplierImage(profilesRoot, staged, images.Runtime, images.Applier); err != nil {
 		return err
 	}
-	if err := assertApplierImageCarriesItsTools(applierLiveImage); err != nil {
+	if err := assertApplierImageCarriesItsTools(images.Applier); err != nil {
 		return err
 	}
 
@@ -156,14 +160,14 @@ func runApplierLive(coreRoot, profilesRoot string) error {
 	}
 	defer cluster.Release(kindrig.DefaultRun)
 
-	if err := loadKindImage(applierLiveCluster, applierLiveImage); err != nil {
+	if err := loadKindImage(applierLiveCluster, images.Applier); err != nil {
 		return err
 	}
-	if err := loadKindImage(applierLiveCluster, helmImage); err != nil {
+	if err := loadKindImage(applierLiveCluster, images.Runtime); err != nil {
 		return err
 	}
 
-	if err := helmInstallApplierLive(staged); err != nil {
+	if err := helmInstallApplierLive(staged, images.Runtime, images.Applier); err != nil {
 		return err
 	}
 	if err := waitApplierDeploymentReady(); err != nil {
@@ -172,10 +176,10 @@ func runApplierLive(coreRoot, profilesRoot string) error {
 	if err := assertApplierServesItsSurface(profilesRoot); err != nil {
 		return err
 	}
-	fmt.Println("integration:applierLive PASS - the applier runs on kind from an image built on the runtime " +
-		"under test, reads a real Deployment's rollout, applies a values patch that moves the release to a new " +
-		"revision, compensates a post-upgrade verification failure with a real Helm rollback, and rejects a " +
-		"non-conforming patch against the real chart schema without touching it")
+	fmt.Printf("integration:applierLive PASS - revision %s the applier runs on kind from an image built on the runtime "+
+		"under test, reads a real Deployment's rollout, applies a values patch that moves the release to a new "+
+		"revision, compensates a post-upgrade verification failure with a real Helm rollback, and rejects a "+
+		"non-conforming patch against the real chart schema without touching it\n", images.Revision)
 	return nil
 }
 
@@ -199,9 +203,9 @@ func stageApplierLiveChart(chartDir, profilesRoot string) (string, func(), error
 // helmInstallApplierLive installs the mesh with the applier enabled. The two
 // values files layer: the kind footprint every cluster test shares, then the
 // applier the others deliberately disable.
-func helmInstallApplierLive(chartPath string) error {
-	repo, tag := splitImageRef(helmImage)
-	applierRepo, applierTag := splitImageRef(applierLiveImage)
+func helmInstallApplierLive(chartPath, runtimeImage, applierImage string) error {
+	repo, tag := splitImageRef(runtimeImage)
+	applierRepo, applierTag := splitImageRef(applierImage)
 	cmd := exec.Command("helm", "install", applierLiveRelease, chartPath,
 		"--values", filepath.Join(chartPath, "ci", "kind-values.yaml"),
 		"--values", filepath.Join(chartPath, "ci", "kind-applier-values.yaml"),

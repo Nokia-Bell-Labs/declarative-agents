@@ -296,6 +296,44 @@ func TestLoadImageReportsCommandFailure(t *testing.T) {
 	}
 }
 
+func TestCommitImageUsesCheckoutRevision(t *testing.T) {
+	first, revision, err := CommitImage(
+		"declarative-agents/agent-core",
+		"0123456789abcdef0123456789abcdef01234567")
+	if err != nil {
+		t.Fatal(err)
+	}
+	if first != "declarative-agents/agent-core:0123456789ab" ||
+		revision != "0123456789ab" {
+		t.Fatalf("commit image = %q revision %q", first, revision)
+	}
+	second, _, err := CommitImage(
+		"declarative-agents/agent-core",
+		"fedcba9876543210fedcba9876543210fedcba98")
+	if err != nil {
+		t.Fatal(err)
+	}
+	if second == first {
+		t.Fatalf("consecutive commits reused image %q", first)
+	}
+}
+
+func TestCommitImageRejectsMutableOrMissingInputs(t *testing.T) {
+	for _, test := range []struct {
+		repository string
+		revision   string
+	}{
+		{"", "0123456789abcdef0123456789abcdef01234567"},
+		{"declarative-agents/agent-core", ""},
+		{"declarative-agents/agent-core", "smoke"},
+		{"declarative-agents/agent-core", "0123456789a"},
+	} {
+		if _, _, err := CommitImage(test.repository, test.revision); err == nil {
+			t.Errorf("CommitImage(%q, %q) succeeded", test.repository, test.revision)
+		}
+	}
+}
+
 func TestReleaseAfterFailureCapturesEvidenceBeforeDelete(t *testing.T) {
 	var sequence []string
 	kindRun := func(args ...string) ([]byte, error) {

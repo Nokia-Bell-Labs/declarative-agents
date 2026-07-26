@@ -23,9 +23,9 @@ import (
 )
 
 const (
-	helmRelease     = "smoke"
-	helmKindCluster = "da-chatbot-mesh-smoke"
-	helmImage       = "declarative-agents/agent-core:smoke"
+	helmRelease         = "smoke"
+	helmKindCluster     = "da-chatbot-mesh-smoke"
+	helmImageRepository = "declarative-agents/agent-core"
 
 	helmChatURL          = "http://127.0.0.1:18080/api/v1/chat"
 	helmHealthURL        = "http://127.0.0.1:18081/api/lifecycle/health"
@@ -35,6 +35,27 @@ const (
 	helmReadyTimeout     = 90 * time.Second
 	helmSpanTimeout      = 60 * time.Second
 )
+
+type chatbotIntegrationImages struct {
+	Revision string
+	Runtime  string
+	Applier  string
+}
+
+func resolveChatbotIntegrationImages(repoRoot string) (chatbotIntegrationImages, error) {
+	commit := gitCommit(repoRoot)
+	runtimeImage, revision, err := kindrig.CommitImage(helmImageRepository, commit)
+	if err != nil {
+		return chatbotIntegrationImages{}, fmt.Errorf("resolve runtime image revision: %w", err)
+	}
+	applierImage, _, err := kindrig.CommitImage(applierLiveImageRepository, commit)
+	if err != nil {
+		return chatbotIntegrationImages{}, fmt.Errorf("resolve applier image revision: %w", err)
+	}
+	return chatbotIntegrationImages{
+		Revision: revision, Runtime: runtimeImage, Applier: applierImage,
+	}, nil
+}
 
 // exampleChartDir returns the chatbot-mesh Helm chart under the example, which
 // ships with the example rather than as a sibling deploy directory.
@@ -232,12 +253,16 @@ tracing:
 }
 
 func runHelmSmoke(coreRoot, profilesRoot, chartDir string) (result error) {
+	images, err := resolveChatbotIntegrationImages(profilesRoot)
+	if err != nil {
+		return err
+	}
 	telemetry := newHelmTelemetryIdentity(profilesRoot)
 	if err := requireSharedObservability(helmReadyTimeout); err != nil {
 		return fmt.Errorf("shared observability stack is required: %w", err)
 	}
-	fmt.Printf("helmSmoke: building runtime image %s from %s\n", helmImage, coreRoot)
-	if err := buildSmokeRuntimeImage(coreRoot, helmImage); err != nil {
+	fmt.Printf("helmSmoke: building runtime image %s from %s\n", images.Runtime, coreRoot)
+	if err := buildSmokeRuntimeImage(coreRoot, images.Runtime); err != nil {
 		return err
 	}
 	stagedChart, cleanupChart, err := stageSmokeChart(chartDir, profilesRoot)
@@ -271,14 +296,15 @@ func runHelmSmoke(coreRoot, profilesRoot, chartDir string) (result error) {
 			cluster.ReleaseAfter(kindrig.DefaultRun, result != nil, kindrig.FailureEvidence{
 				Directory: filepath.Join(
 					profilesRoot, "build", "kind-evidence",
-					helmKindCluster+"-"+time.Now().UTC().Format("20060102T150405.000000000Z")),
+					helmKindCluster+"-"+images.Revision+"-"+
+						time.Now().UTC().Format("20060102T150405.000000000Z")),
 				Namespaces: []string{"default"},
 				Run:        kindrig.CommandRunner(runHelmSmokeCommand),
 			})
 		}
 	}()
 
-	if err := loadKindImage(helmKindCluster, helmImage); err != nil {
+	if err := loadKindImage(helmKindCluster, images.Runtime); err != nil {
 		return err
 	}
 	for _, image := range dependencyImages {
@@ -286,7 +312,7 @@ func runHelmSmoke(coreRoot, profilesRoot, chartDir string) (result error) {
 			return err
 		}
 	}
-	if err := helmInstallSmoke(stagedChart, helmImage, telemetry); err != nil {
+	if err := helmInstallSmoke(stagedChart, images.Runtime, telemetry); err != nil {
 		return err
 	}
 
@@ -338,7 +364,8 @@ func runHelmSmoke(coreRoot, profilesRoot, chartDir string) (result error) {
 		return err
 	}
 
-	fmt.Printf("integration:helmSmoke PASS - shared backends retained control-plane, agent, Chroma, GenAI, and Dolt evidence for run %s after cluster cleanup\n", telemetry.RunID)
+	fmt.Printf("integration:helmSmoke PASS - revision %s shared backends retained control-plane, agent, Chroma, GenAI, and Dolt evidence for run %s after cluster cleanup\n",
+		images.Revision, telemetry.RunID)
 	return nil
 }
 
@@ -440,13 +467,17 @@ func buildSmokeRuntimeImage(coreRoot, image string) error {
 	if err := os.WriteFile(filepath.Join(ctxDir, "Dockerfile"), []byte(dockerfile), 0o644); err != nil {
 		return fmt.Errorf("write smoke Dockerfile: %w", err)
 	}
-	docker := exec.Command("docker", "build", "-t", image, ".")
+	docker := exec.Command("docker", smokeRuntimeBuildArgs(image)...)
 	docker.Dir = ctxDir
 	docker.Stdout, docker.Stderr = os.Stderr, os.Stderr
 	if err := docker.Run(); err != nil {
 		return fmt.Errorf("docker build %s: %w", image, err)
 	}
 	return nil
+}
+
+func smokeRuntimeBuildArgs(image string) []string {
+	return []string{"build", "-t", image, "."}
 }
 
 // stageSmokeChart copies the chart to a temp directory and stages the agent
@@ -1132,8 +1163,12 @@ func (Integration) HelmSwap() error {
 }
 
 func runHelmSwap(coreRoot, profilesRoot, chartDir string) error {
-	fmt.Printf("helmSwap: building runtime image %s\n", helmImage)
-	if err := buildSmokeRuntimeImage(coreRoot, helmImage); err != nil {
+	images, err := resolveChatbotIntegrationImages(profilesRoot)
+	if err != nil {
+		return err
+	}
+	fmt.Printf("helmSwap: building runtime image %s\n", images.Runtime)
+	if err := buildSmokeRuntimeImage(coreRoot, images.Runtime); err != nil {
 		return err
 	}
 	llmMock, err := startHelmSwapLLMMock()
@@ -1152,7 +1187,7 @@ func runHelmSwap(coreRoot, profilesRoot, chartDir string) error {
 		return err
 	}
 	defer swapCluster.Release(kindrig.DefaultRun)
-	if err := loadKindImage(helmSwapCluster, helmImage); err != nil {
+	if err := loadKindImage(helmSwapCluster, images.Runtime); err != nil {
 		return err
 	}
 
@@ -1170,23 +1205,23 @@ func runHelmSwap(coreRoot, profilesRoot, chartDir string) error {
 		"--set", "ragUnits[2].embeddingModel=qwen3-embedding:8b",
 		"--set", "ragUnits[2].replicas=1",
 	)
-	if err := helmSwapDeploy(stagedChart, "install", initial); err != nil {
+	if err := helmSwapDeploy(stagedChart, images.Runtime, "install", initial); err != nil {
 		return err
 	}
 
 	if err := assertSwapRepoint(); err != nil {
 		return err
 	}
-	if err := assertSwapReplaceMiddleRag(stagedChart, llmMock); err != nil {
+	if err := assertSwapReplaceMiddleRag(stagedChart, images.Runtime, llmMock); err != nil {
 		return err
 	}
-	fmt.Println("integration:helmSwap PASS - repoint left the chatbot pod unchanged; replacing middle unit rag1 with rag4 preserved rag2 identity and an in-flight turn, rolled the chatbot, and served a turn from the replacement pod")
+	fmt.Printf("integration:helmSwap PASS - revision %s repoint left the chatbot pod unchanged; replacing middle unit rag1 with rag4 preserved rag2 identity and an in-flight turn, rolled the chatbot, and served a turn from the replacement pod\n", images.Revision)
 	return nil
 }
 
 // helmSwapDeploy installs or upgrades the release with the given extra --set args.
-func helmSwapDeploy(chartPath, verb string, extra []string) error {
-	repo, tag := splitImageRef(helmImage)
+func helmSwapDeploy(chartPath, image, verb string, extra []string) error {
+	repo, tag := splitImageRef(image)
 	args := []string{verb, helmSwapRelease, chartPath,
 		"--values", filepath.Join(chartPath, "ci", "kind-values.yaml"),
 		"--set", "image.repository=" + repo,
@@ -1231,7 +1266,10 @@ func assertSwapRepoint() error {
 // assertSwapReplaceMiddleRag removes rag1 from the middle of rag0/rag1/rag2 and
 // adds rag4, then proves rag2 kept its identity, the active turn drained, and the
 // chatbot Deployment rolled to the replacement config (srd003 R2/R3.2).
-func assertSwapReplaceMiddleRag(chartPath string, llmMock *helmSwapLLMMock) error {
+func assertSwapReplaceMiddleRag(
+	chartPath, image string,
+	llmMock *helmSwapLLMMock,
+) error {
 	genBefore, err := chatbotDeploymentGeneration()
 	if err != nil {
 		return err
@@ -1266,7 +1304,7 @@ func assertSwapReplaceMiddleRag(chartPath string, llmMock *helmSwapLLMMock) erro
 		"--set", "ragUnits[2].embeddingModel=qwen3-embedding:8b",
 		"--set", "ragUnits[2].replicas=1",
 	)
-	if err := helmSwapDeploy(chartPath, "upgrade", extra); err != nil {
+	if err := helmSwapDeploy(chartPath, image, "upgrade", extra); err != nil {
 		return err
 	}
 	if err := <-turnResult; err != nil {
@@ -1404,8 +1442,12 @@ func (Integration) HelmLLMTier() error {
 }
 
 func runHelmLLMTier(coreRoot, profilesRoot, chartDir string) error {
-	fmt.Printf("helmLLMTier: building runtime image %s\n", helmImage)
-	if err := buildSmokeRuntimeImage(coreRoot, helmImage); err != nil {
+	images, err := resolveChatbotIntegrationImages(profilesRoot)
+	if err != nil {
+		return err
+	}
+	fmt.Printf("helmLLMTier: building runtime image %s\n", images.Runtime)
+	if err := buildSmokeRuntimeImage(coreRoot, images.Runtime); err != nil {
 		return err
 	}
 	stagedChart, cleanupChart, err := stageSmokeChart(chartDir, profilesRoot)
@@ -1419,10 +1461,10 @@ func runHelmLLMTier(coreRoot, profilesRoot, chartDir string) error {
 		return err
 	}
 	defer llmCluster.Release(kindrig.DefaultRun)
-	if err := loadKindImage(helmLLMCluster, helmImage); err != nil {
+	if err := loadKindImage(helmLLMCluster, images.Runtime); err != nil {
 		return err
 	}
-	if err := helmInstallLLM(stagedChart); err != nil {
+	if err := helmInstallLLM(stagedChart, images.Runtime); err != nil {
 		return err
 	}
 
@@ -1461,16 +1503,19 @@ func runHelmLLMTier(coreRoot, profilesRoot, chartDir string) error {
 		return fmt.Errorf("chatbot did not serve a turn against the in-cluster LLM: %w", err)
 	}
 
-	fmt.Println("integration:helmLLMTier PASS - the chart stood up the in-cluster Ollama tier, the preload Job pulled the configured models, /api/tags reported them, and the chatbot served a turn against the in-cluster endpoint")
+	fmt.Printf("integration:helmLLMTier PASS - revision %s the chart stood up the in-cluster Ollama tier, the preload Job pulled the configured models, /api/tags reported them, and the chatbot served a turn against the in-cluster endpoint\n", images.Revision)
 	return nil
 }
 
-func helmInstallLLM(chartPath string) error {
-	return helmInstallLLMWithRunner(chartPath, runHelmLLMCommand)
+func helmInstallLLM(chartPath, image string) error {
+	return helmInstallLLMWithRunner(chartPath, image, runHelmLLMCommand)
 }
 
-func helmInstallLLMWithRunner(chartPath string, run helmLLMCommandRunner) error {
-	repo, tag := splitImageRef(helmImage)
+func helmInstallLLMWithRunner(
+	chartPath, image string,
+	run helmLLMCommandRunner,
+) error {
+	repo, tag := splitImageRef(image)
 	args := []string{"install", helmLLMRelease, chartPath,
 		"--values", filepath.Join(chartPath, "ci", "kind-llm-values.yaml"),
 		"--set", "image.repository=" + repo,
