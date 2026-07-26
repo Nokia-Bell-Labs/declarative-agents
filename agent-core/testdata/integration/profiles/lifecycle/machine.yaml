@@ -1,0 +1,27 @@
+name: core-lifecycle-approval
+purpose: Prove suspend and resume through Agent Core lifecycle ports.
+initial_state: Idle
+budget:
+  max_iterations: 5
+states:
+  - {name: Idle, meaning: Initial state.}
+  - {name: AwaitingApproval, meaning: Suspended for approval.}
+  - {name: ApplyingApproval, meaning: Completing approved work.}
+  - {name: Succeeded, meaning: Terminal success.}
+  - {name: Rejected, meaning: Terminal rejection.}
+  - {name: Failed, meaning: Terminal failure.}
+terminal_states: [Succeeded, Rejected, Failed]
+signals:
+  - {name: Seed, trigger: Loop initialization.}
+  - {name: AwaitApproval, trigger: suspend requested approval.}
+  - {name: Approved, trigger: Operator approved.}
+  - {name: Rejected, trigger: Operator rejected.}
+  - {name: TaskCompleted, trigger: done completed.}
+  - {name: CommandError, trigger: Runtime failure.}
+transitions:
+  - {state: Idle, signal: Seed, next: AwaitingApproval, action: suspend}
+  - {state: AwaitingApproval, signal: AwaitApproval, next: AwaitingApproval}
+  - {state: AwaitingApproval, signal: Approved, next: ApplyingApproval, action: done}
+  - {state: AwaitingApproval, signal: Rejected, next: Rejected}
+  - {state: AwaitingApproval, signal: CommandError, next: Failed}
+  - {state: ApplyingApproval, signal: TaskCompleted, next: Succeeded}

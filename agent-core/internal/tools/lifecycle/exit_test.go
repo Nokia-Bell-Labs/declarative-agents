@@ -17,7 +17,6 @@ import (
 	"github.com/stretchr/testify/require"
 
 	"github.com/Nokia-Bell-Labs/declarative-agents/agent-core/internal/runtime/core"
-	"github.com/Nokia-Bell-Labs/declarative-agents/agent-core/internal/support/profiles"
 	"github.com/Nokia-Bell-Labs/declarative-agents/agent-core/internal/tools/catalog"
 	toolregistry "github.com/Nokia-Bell-Labs/declarative-agents/agent-core/internal/tools/registry"
 	"github.com/Nokia-Bell-Labs/declarative-agents/agent-core/internal/tools/rest"
@@ -287,29 +286,11 @@ func controlProfilePath(t *testing.T) string {
 
 func controlProfileAssetPath(t *testing.T, rel string) string {
 	t.Helper()
-	return filepath.Join(lifecycleProfileRoot(t), "control", filepath.FromSlash(rel))
-}
-
-// lifecycleProfileRoot locates the profile-owned lifecycle conformance
-// fixtures. The fixtures belong to agent-profiles, so a checkout of agent-core
-// alone is a supported state: the run skips rather than failing, which keeps
-// `go test ./...` hermetic here the same way it is in agent-profiles
-// (srd034 R3.3, R3.4; GH-512).
-func lifecycleProfileRoot(t *testing.T) string {
-	t.Helper()
-	res := profiles.ResolveFrom(repoRootFromLifecycleTest(t))
-	switch res.Outcome {
-	case profiles.Invalid:
-		t.Fatalf("%s; unset it to use a discovered checkout", res.Reason())
-	case profiles.Absent:
-		t.Skipf("lifecycle conformance fixtures unavailable: %s", res.Reason())
-	}
-	return res.ConformanceRoot()
-}
-
-func repoRootFromLifecycleTest(t *testing.T) string {
-	t.Helper()
-	return repoRootFromLifecycleRuntime()
+	return filepath.Join(
+		repoRootFromLifecycleRuntime(),
+		"testdata", "integration", "profiles", "control",
+		filepath.FromSlash(rel),
+	)
 }
 
 func repoRootFromLifecycleRuntime() string {

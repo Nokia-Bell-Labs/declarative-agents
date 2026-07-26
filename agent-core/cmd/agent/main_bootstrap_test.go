@@ -195,20 +195,17 @@ func TestMainWiresExitAgentToDeferredShutdown(t *testing.T) {
 	require.NotRegexp(t, `shutdown:\s+func\(\) \{\}`, string(source))
 }
 
-func TestProfileStartupLoadsActiveProfiles(t *testing.T) {
+func TestProfileStartupLoadsCoreRuntimeFixtures(t *testing.T) {
 	restore := snapshotAgentFlags()
 	t.Cleanup(func() { restoreAgentFlags(restore) })
 
 	profileRoot := profileRootFromTest(t)
 	profiles := []string{
-		"executor/profile.yaml",
-		"critic/profile.yaml",
-		"bench/profile.yaml",
-		"jurist/profile.yaml",
-		"../testdata/conformance/lifecycle/history/profile.yaml",
-		"../testdata/conformance/lifecycle/rollback/profile.yaml",
-		"../testdata/conformance/lifecycle/approval/profile.yaml",
-		"knowledge-manager/documentation-curator/profile.yaml",
+		"control/profile.yaml",
+		"lifecycle/profile.yaml",
+		"monitor/profile.yaml",
+		"audit/profile.yaml",
+		"audit/audit-profile.yaml",
 	}
 	for _, rel := range profiles {
 		t.Run(rel, func(t *testing.T) {

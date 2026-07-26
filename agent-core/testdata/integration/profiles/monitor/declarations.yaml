@@ -15,6 +15,17 @@ tools:
     description: Await the monitor control exit event.
     parameters: {type: object, properties: {}}
     emits: [ExitRequested, AwaitTimedOut, ServerStopped, CommandError]
+    side_effects:
+      - kind: state_mutation
+        target: rest_server_queue
+        state: selected_event_consumed
+    reversibility:
+      classification: reversible
+      undo: queue_event_restore
+    undo:
+      strategy: queue_event_restore
+      payload: rest_await_event
+      captures: [source, event]
     config:
       sources:
         - server: monitor

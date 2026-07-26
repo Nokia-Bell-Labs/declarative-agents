@@ -1,0 +1,22 @@
+tools:
+  - name: launch_agent_control
+    type: builtin
+    init: rest_server_launch
+    category: boundary
+    visibility: internal
+    emits: [ServerLaunched, CommandError]
+    config:
+      rest_ref: agent_control
+  - name: await_agent_control
+    type: builtin
+    init: rest_await_event
+    category: boundary
+    visibility: internal
+    emits: [ExitRequested, AwaitTimedOut, ServerStopped, CommandError]
+    config:
+      sources:
+        - server: agent_control
+          routes: [exit]
+          signals: [ExitRequested]
+      timeout: 30s
+      stopped_behavior: emit_server_stopped

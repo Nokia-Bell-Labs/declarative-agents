@@ -31,7 +31,7 @@ func TestControlProfileExitReachesSucceededBeforeDeferredShutdown(t *testing.T) 
 	shutdown := newDeferredShutdown(func() { cancelled = true })
 
 	result := runExitMachine(t, exitMachineCase{
-		machinePath: profilePathFromTest(t, "../testdata/conformance/control/machine.yaml"),
+		machinePath: profilePathFromTest(t, "control/machine.yaml"),
 		launch:      "launch_agent_control",
 		await:       "await_agent_control",
 		terminal:    "Succeeded",
@@ -46,36 +46,11 @@ func TestControlProfileExitReachesSucceededBeforeDeferredShutdown(t *testing.T) 
 	require.True(t, cancelled)
 }
 
-func TestDocumentationCuratorExitReachesDoneBeforeDeferredShutdown(t *testing.T) {
-	t.Parallel()
-	var cancelled bool
-	shutdown := newDeferredShutdown(func() { cancelled = true })
-
-	result := runExitMachine(t, exitMachineCase{
-		machinePath:   profilePathFromTest(t, "knowledge-manager/documentation-curator/machine.yaml"),
-		launch:        "launch_curator_http",
-		secondLaunch:  "launch_curator_control",
-		monitorLaunch: "launch_monitor_rest",
-		monitorStop:   "stop_monitor_rest",
-		docsStop:      "stop_curator_http",
-		await:         "await_curator_control",
-		terminal:      "Done",
-		shutdown:      shutdown,
-	})
-
-	require.Equal(t, core.StatusSucceeded, result.Status)
-	require.Equal(t, core.State("Done"), result.FinalState)
-	requireExitEvent(t, result)
-	require.False(t, cancelled, "shutdown must wait until after Loop returns")
-	shutdown.Apply()
-	require.True(t, cancelled)
-}
-
 func TestApprovalLifecycleProfileSuspendsThroughCheckpointPort(t *testing.T) {
 	restore := snapshotAgentFlags()
 	t.Cleanup(func() { restoreAgentFlags(restore) })
 
-	profilePath := profilePathFromTest(t, "../testdata/conformance/lifecycle/approval/profile.yaml")
+	profilePath := profilePathFromTest(t, "lifecycle/profile.yaml")
 
 	clearAgentFlags()
 	flagProfile = profilePath
@@ -113,7 +88,7 @@ func TestResumeWithoutPersistentBackendReportsNoCheckpoint(t *testing.T) {
 	t.Cleanup(func() { restoreAgentFlags(restore) })
 
 	clearAgentFlags()
-	flagProfile = profilePathFromTest(t, "../testdata/conformance/lifecycle/approval/profile.yaml")
+	flagProfile = profilePathFromTest(t, "lifecycle/profile.yaml")
 	flagResumeCheckpoint = "missing"
 
 	_, err := captureStderr(t, func() error {

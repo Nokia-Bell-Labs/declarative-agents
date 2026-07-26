@@ -5,7 +5,6 @@ package main
 import (
 	"bytes"
 	"github.com/Nokia-Bell-Labs/declarative-agents/agent-core/internal/runtime/core"
-	"github.com/Nokia-Bell-Labs/declarative-agents/agent-core/internal/support/profiles"
 	"github.com/Nokia-Bell-Labs/declarative-agents/agent-core/internal/tools/catalog"
 	"github.com/Nokia-Bell-Labs/declarative-agents/agent-core/pkg/spec"
 	"github.com/stretchr/testify/require"
@@ -158,19 +157,11 @@ func repoRootFromRuntime() string {
 	return filepath.Clean(filepath.Join(filepath.Dir(currentFile), "..", ".."))
 }
 
-// profileRootFromTest locates the shipped agent profiles these end-to-end
-// checks launch. The profiles belong to agent-profiles, so a checkout of
-// agent-core alone skips rather than failing (srd034 R3.3, R3.4; GH-512).
+// profileRootFromTest resolves the core-owned runtime fixtures from the module
+// root. These tests must not discover or require an application catalog.
 func profileRootFromTest(t *testing.T) string {
 	t.Helper()
-	res := profiles.ResolveFrom(repoRootFromTest(t))
-	switch res.Outcome {
-	case profiles.Invalid:
-		t.Fatalf("%s; unset it to use a discovered checkout", res.Reason())
-	case profiles.Absent:
-		t.Skipf("shipped agent profiles unavailable: %s", res.Reason())
-	}
-	return res.AgentsRoot()
+	return filepath.Join(repoRootFromTest(t), "testdata", "integration", "profiles")
 }
 
 func profilePathFromTest(t *testing.T, rel string) string {

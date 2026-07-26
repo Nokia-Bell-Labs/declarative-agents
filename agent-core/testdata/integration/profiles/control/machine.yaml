@@ -1,0 +1,31 @@
+name: core-control
+purpose: Prove generic REST control and deferred shutdown in Agent Core.
+initial_state: Idle
+budget:
+  max_iterations: 5
+states:
+  - {name: Idle, meaning: Initial state.}
+  - {name: Launching, meaning: Starting the control server.}
+  - {name: Awaiting, meaning: Waiting for an exit request.}
+  - {name: Exiting, meaning: Dispatching exit_agent.}
+  - {name: Succeeded, meaning: Terminal success.}
+  - {name: Failed, meaning: Terminal failure.}
+terminal_states: [Succeeded, Failed]
+signals:
+  - {name: Seed, trigger: Loop initialization.}
+  - {name: ServerLaunched, trigger: Control server started.}
+  - {name: ExitRequested, trigger: Operator requested exit.}
+  - {name: AwaitTimedOut, trigger: No event arrived.}
+  - {name: ServerStopped, trigger: Server stopped.}
+  - {name: AgentExited, trigger: exit_agent requested shutdown.}
+  - {name: CommandError, trigger: Runtime failure.}
+transitions:
+  - {state: Idle, signal: Seed, next: Launching, action: launch_agent_control}
+  - {state: Launching, signal: ServerLaunched, next: Awaiting, action: await_agent_control}
+  - {state: Launching, signal: CommandError, next: Failed}
+  - {state: Awaiting, signal: ExitRequested, next: Exiting, action: exit_agent}
+  - {state: Awaiting, signal: AwaitTimedOut, next: Failed}
+  - {state: Awaiting, signal: ServerStopped, next: Failed}
+  - {state: Awaiting, signal: CommandError, next: Failed}
+  - {state: Exiting, signal: AgentExited, next: Succeeded}
+  - {state: Exiting, signal: CommandError, next: Failed}
