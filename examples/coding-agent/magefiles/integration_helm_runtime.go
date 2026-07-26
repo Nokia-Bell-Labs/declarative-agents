@@ -139,6 +139,7 @@ func buildCodingHelmAgentImage(coreRoot, image string) error {
 		return fmt.Errorf("build Linux agent: %w: %s", err, strings.TrimSpace(string(output)))
 	}
 	lintContext, lintCancel := context.WithTimeout(context.Background(), codingHelmClusterTimeout)
+	defer lintCancel()
 	lintGoPath, err := os.MkdirTemp("", "coding-agent-lint-gopath-*")
 	if err != nil {
 		return err
@@ -149,7 +150,6 @@ func buildCodingHelmAgentImage(coreRoot, image string) error {
 	lint.Env = append(os.Environ(),
 		"CGO_ENABLED=0", "GOOS=linux", "GOPATH="+lintGoPath, "GOBIN=")
 	lintOutput, lintErr := lint.CombinedOutput()
-	lintCancel()
 	if lintErr != nil {
 		return fmt.Errorf("build Linux golangci-lint: %w: %s",
 			lintErr, strings.TrimSpace(string(lintOutput)))
