@@ -1,4 +1,4 @@
-module github.com/Nokia-Bell-Labs/declarative-agents/examples/chatbot-mesh
+module github.com/Nokia-Bell-Labs/declarative-agents/applications/chatbot-mesh
 
 go 1.26.3
 

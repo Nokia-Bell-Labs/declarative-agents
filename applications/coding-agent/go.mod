@@ -1,4 +1,4 @@
-module github.com/Nokia-Bell-Labs/declarative-agents/examples/coding-agent
+module github.com/Nokia-Bell-Labs/declarative-agents/applications/coding-agent
 
 go 1.26.3
 

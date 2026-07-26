@@ -15,31 +15,32 @@ var subModules = []string{
 	"design-patterns",
 }
 
-// exampleModules are standalone example modules that participate in the root
+// exampleModules are standalone application modules that participate in the root
 // audit, Go-test, and stats gates but expose no build or default target. Each
 // owns a mage audit target, Go tests, and a stats target under magefiles/.
-// Agent-owning examples report implementations; composition-only examples
+// Agent-owning applications report implementations; composition-only applications
 // report application reuse without contributing duplicate agents. They are
-// absent from Build and All because they define no such targets: an example is
+// absent from Build and All because they define no such targets: an application is
 // a deployable artifact governed by its own spec corpus, not a platform module.
 var exampleModules = []string{
-	"examples/chatbot-mesh",
-	"examples/coding-agent",
+	"applications/chatbot-mesh",
+	"applications/coding-agent",
 }
 
-// auditOnlyExampleModules participate in the documentation gate before they
+// auditOnlyExampleModules contains applications that participate in the
+// documentation gate before they
 // grow Go tests, stats, or build targets.
 var auditOnlyExampleModules = []string{}
 
 // auditParticipants lists every module the root audit gate dispatches to: the
-// platform submodules plus every example that owns a mage audit target.
+// platform submodules plus every application that owns a mage audit target.
 func auditParticipants() []string {
 	participants := append(append([]string{}, subModules...), exampleModules...)
 	return append(participants, auditOnlyExampleModules...)
 }
 
 // statsParticipants lists every module the root stats target dispatches to:
-// the platform submodules plus the example modules. The repo-wide agents total
+// the platform submodules plus the application modules. The repo-wide agents total
 // sums only "agents" sections; composition-only modules may report a separate
 // application section without double-counting canonical agents (GH-754,
 // GH-947).
