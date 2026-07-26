@@ -91,7 +91,9 @@ type fakeDB struct {
 	calls    []string
 	// failOn, when set, makes Exec return an error for any query containing it,
 	// so a test can force a fault between the two per-step table writes.
-	failOn string
+	failOn     string
+	failOnCall int
+	failSeen   int
 	// outputBytes accumulates the size of every output blob written to
 	// tool_outputs, so a benchmark can measure the per-step write-layer cost.
 	outputBytes            int
@@ -121,7 +123,10 @@ func (f *fakeDB) Close() error { return nil }
 func (f *fakeDB) Exec(query string, args ...any) error {
 	f.calls = append(f.calls, query)
 	if f.failOn != "" && strings.Contains(query, f.failOn) {
-		return sql.ErrConnDone
+		f.failSeen++
+		if f.failOnCall == 0 || f.failSeen == f.failOnCall {
+			return sql.ErrConnDone
+		}
 	}
 	switch {
 	case strings.Contains(query, "CREATE TABLE IF NOT EXISTS machines"):
