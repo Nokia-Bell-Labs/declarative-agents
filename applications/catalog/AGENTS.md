@@ -2,28 +2,32 @@
 
 ## Repository Purpose
 
-`agent-profiles` is a versioned library of reusable declarative agents, not a
-general home for every YAML agent. A family belongs under `agents/` only when it
-is independently useful or has multiple consumers. Application-internal
-composition belongs under `examples/<application>/`.
+`applications/catalog` is this repository's versioned catalog of reusable
+declarative tool and agent blocks, not a universal library or a general home for
+every YAML agent. A family belongs under `agents/` only when it is independently
+useful or has multiple consumers in this repository. Application-internal
+composition belongs under `applications/<application>/`.
 
-Maintain one canonical home per agent. Applications reference library programs
+Maintain one canonical home per agent. Applications reference catalog programs
 and may supply wrappers/configuration, but must not fork reusable machines or
-declarations. Library members require a profile family, SRD, conformance
+declarations. Catalog members require a profile family, SRD, conformance
 coverage, portable closed references, and sufficient parameterization for
 consumers to configure them without edits. Runtime implementation remains in
 `agent-core`.
 
-The public surface is versioned by `agent-profiles/v0.*` tags. Treat path,
+The compatibility surface remains versioned by `agent-profiles/v0.*` tags until
+the coordinated tag migration changes it. Treat path,
 machine/tool/signal/terminal contracts, request shapes, configuration names, and
 closure membership as compatibility-sensitive. Record breaking migrations and
 update consumers in the coordinated release.
 
-Assembler and mock are supported test-time library members under `agents/`.
-Preserve their SRD, conformance, portability, release, and v0 compatibility
-contracts; do not repurpose them as application roles or fork them. Rig-subject
-and `testdata/conformance` REST/control/lifecycle fixtures remain internal test
-data in their current paths and are not scheduled for relocation.
+Assembler and mock are supported test-time catalog members under `agents/`; the
+existing conformance vocabulary continues to classify them as supported
+test-time library members. Preserve their SRD, conformance, portability,
+release, and v0 compatibility contracts; do not repurpose them as application
+roles or fork them. Rig-subject and `testdata/conformance`
+REST/control/lifecycle fixtures remain internal test data in their current
+paths and are not scheduled for relocation.
 
 ## Non-Interactive Shell Commands
 

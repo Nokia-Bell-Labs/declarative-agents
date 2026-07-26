@@ -1,13 +1,14 @@
-id: architecture-agent-profiles
-title: Agent Profiles Architecture
+id: architecture-application-catalog
+title: Application Catalog Architecture
 
 overview:
   summary: |
-    agent-profiles is the versioned library of reusable declarative agents. At
-    runtime, agent-core loads external agent programs from it. Applications
-    compose canonical members by reference and package their transitive closure.
-    Profile directories, profile-local config, conformance, demos, integration
-    fixtures, and structured docs live here.
+    applications/catalog is this repository's versioned catalog of reusable
+    declarative tool and agent blocks. At runtime, agent-core loads external
+    agent programs from it. Applications compose canonical catalog members by
+    reference and package their transitive closure. Profile directories,
+    profile-local config, conformance, demos, integration fixtures, catalog UIs,
+    and structured docs live here.
 
     Runtime ownership remains in agent-core. That repository owns the Go
     engine, cmd/agent, builtin tool implementations, shared runtime assets, Mage
@@ -24,7 +25,7 @@ overview:
     ```mermaid
     flowchart LR
       OP[Developer or operator] --> RUNTIME[agent-core runtime]
-      OP --> PROFILES[agent-profiles checkout]
+      OP --> PROFILES[applications/catalog checkout]
       OP --> WORK[workspace]
       PROFILES -->|--profile path| RUNTIME
       WORK -->|--directory| RUNTIME
@@ -33,20 +34,21 @@ overview:
     ```
 
 interfaces:
-  - name: External profile checkout path
+  - name: Catalog checkout path
     summary: |
-      Filesystem location of this repository on the host or inside a container.
+      Filesystem location of this repository-specific catalog on the host or
+      inside a container.
       cmd/agent receives a profile file path through --profile; mounts such
       as /profiles are a packaging convention, not a separate env-based contract
       defined here.
   - name: /profiles mount
     summary: |
-      Container-side path for this repository. Runtime commands pass
+      Container-side path for this catalog. Runtime commands pass
       --profile /profiles/agents/<name>/profile.yaml.
   - name: --profile
     summary: |
       agent-core CLI argument that points at a profile.yaml supplied from this
-      repository, a release bundle, or another external profile path.
+      catalog, a release bundle, or another external profile path.
   - name: --directory
     summary: |
       agent-core CLI argument that points at the workspace the selected agent
@@ -56,8 +58,8 @@ components:
   - name: agents
     path: agents/
     responsibility: |
-      Own reusable profile families that satisfy the membership rule, including
-      profile.yaml files, machines, tool selections,
+      Own repository-specific reusable profile families that satisfy the
+      membership rule, including profile.yaml files, machines, tool selections,
       profile-local declarations, boundary configs, lifecycle profiles, monitor
       profiles, REST profiles, control profiles, and Knowledge Manager assets.
       Profiles may reference core-owned shared tool declarations through
@@ -65,26 +67,24 @@ components:
   - name: demos
     path: demo/
     responsibility: |
-      Own runnable examples that prove external profiles can run from this
-      repository with agent-core.
+      Own runnable demos that prove catalog profiles can run with agent-core.
   - name: integration fixtures
     path: testdata/integration/
     responsibility: |
-      Own profile-related suites and fixture data consumed by agent-core Mage
-      integration targets when those runs point --profile at paths under this
-      checkout.
+      Own catalog conformance and integration suites plus fixture data for
+      profile-owned behavior.
   - name: documentation
     path: docs/
     responsibility: |
-      Own repository vision, architecture, specification indexes, roadmap, and
-      issue format rules for future migration work.
+      Own catalog vision, architecture, specification indexes, roadmap, and
+      issue format rules for future catalog work.
 
 design_decisions:
   - id: 1
     title: Profile assets are external to the runtime image
     decision: |
       agent-core release images do not copy profile directories from this
-      repository. Operators mount, check out, or unpack profile assets and pass
+      catalog. Operators mount, check out, or unpack profile assets and pass
       an explicit profile path at runtime.
     benefits:
       - Runtime images stay focused on core-owned binaries and assets.
@@ -93,18 +93,18 @@ design_decisions:
   - id: 2
     title: Runtime code stays in agent-core
     decision: |
-      No Go runtime packages or builtin tool implementations live in
-      agent-profiles. YAML programs select and configure capabilities that
+      No Go runtime packages or builtin tool implementations live in the
+      application catalog. YAML programs select and configure capabilities that
       agent-core provides.
     benefits:
-      - Profile repositories stay reviewable as configuration and fixtures.
+      - The catalog stays reviewable as configuration and fixtures.
       - Runtime changes stay covered by agent-core build and test gates.
       - Profile validation can focus on paths, declarations, and contracts.
   - id: 3
     title: Fixtures use portable paths
     decision: |
-      Demos and integration fixtures must use portable roots such as repository
-      mount points (/profiles in examples), argv-resolved profile paths, or
+      Demos and integration fixtures must use portable roots such as catalog
+      mount points (/profiles in runtime examples), argv-resolved profile paths, or
       explicit workspace mounts. Developer-specific absolute paths are not valid
       fixture contracts.
     benefits:
@@ -112,30 +112,34 @@ design_decisions:
       - Container examples match the mounted-profile contract.
       - Release bundles can preserve the same directory contract.
   - id: 4
-    title: Library membership and one canonical home
+    title: Catalog membership and one canonical home
     decision: |
-      An agent is a library member only when it is independently useful or has
-      multiple consumers. A member owns a profile family, SRD, deterministic
-      conformance, portable closure, and sufficient parameterization for
-      applications to configure it without edits. Application-only behavior
-      stays under examples/. Applications reference members and assemble
-      closures at package time; they do not fork reusable programs.
+      An agent is a catalog member only when it is independently useful or has
+      multiple consumers in this repository. A member owns a profile family,
+      SRD, deterministic conformance, portable closure, and sufficient
+      parameterization for applications to configure it without edits.
+      Application-only behavior stays with the owning applications/ module.
+      Applications reference members and assemble closures at package time;
+      they do not fork reusable programs.
 
-      The public surface is versioned by exact agent-profiles/v0.* tags.
+      The compatibility surface remains versioned by exact agent-profiles/v0.*
+      tags until the coordinated tag migration changes that prefix.
       Profile paths, machines, selected tool/signal/terminal contracts,
       request/response shapes, configuration names/defaults, and closure
       membership are compatibility-sensitive. Breaking changes require an
       explicit migration note and coordinated consumer update.
 
-      Assembler and mock are supported test-time library members: they are
-      reusable across agent families and applications, live under agents/, and
-      carry the same SRD, conformance, portability, release, and compatibility
-      obligations as other members. Rig-subject and testdata/conformance
-      REST/control/lifecycle fixtures test agent-core and remain internal in
-      their current paths; no relocation is scheduled or tracked for them.
+      Assembler and mock are supported test-time catalog members; the existing
+      conformance vocabulary continues to classify them as supported test-time
+      library members. They are reusable across agent families and applications,
+      live under agents/, and carry the same SRD, conformance, portability,
+      release, and compatibility obligations as other members. Rig-subject and
+      testdata/conformance REST/control/lifecycle fixtures test agent-core and
+      remain internal in their current paths; no relocation is scheduled or
+      tracked for them.
     benefits:
       - Reusable fixes flow upstream to every consumer.
-      - Application composition and library behavior have visible owners.
+      - Application composition and catalog behavior have visible owners.
       - Release compatibility and migration evidence are reviewable.
       - The runtime remains an interpreter rather than a profile registry.
 
@@ -174,7 +178,7 @@ project_structure:
       role: Issue shape for future work.
 
 implementation_status:
-  current_focus: Versioned reusable agent library, validation, release tagging, conformance, and consumer reference contracts.
+  current_focus: Repository-specific reusable application catalog, validation, release tagging, conformance, and consumer reference contracts.
   progress:
     - done: Initial issue queue exists.
     - done: Repository purpose and ownership docs are defined.
@@ -192,12 +196,12 @@ implementation_status:
         implemented profile repository workflow.
     - done: Profile-owned integration tracer bullets cover documentation-curator,
         bench-to-critic, and monitor/control boundaries. Retired
-        critic-to-executor and planner-to-executor library tracers point to
-        application-owned replacements under examples/coding-agent.
-    - done: Library membership, member obligations, one-canonical-home,
+        critic-to-executor and planner-to-executor catalog tracers point to
+        application-owned replacements under applications/coding-agent.
+    - done: Catalog membership, member obligations, one-canonical-home,
         application reference, exact v0 release compatibility, and migration
         contracts are recorded.
-    - done: Assembler and mock are classified as supported test-time library
+    - done: Assembler and mock are classified as supported test-time catalog
         members; rig-subject and runtime conformance fixtures remain internal,
         with no relocation scheduled.
     - in-progress: Release 11 assembler and mock implementation is present with
@@ -206,9 +210,9 @@ implementation_status:
         mock-start-failure cleanup remain unproven.
 
 related_documents:
-  - doc: ../agent-core/docs/specs/config-formats/runtime-contract.yaml
+  - doc: ../../agent-core/docs/specs/config-formats/runtime-contract.yaml
     purpose: Canonical cmd/agent startup, argv flags, and file-only operator path contract.
-  - doc: ../agent-core/docs/specs/software-requirements/srd034-external-agent-profiles.yaml
+  - doc: ../../agent-core/docs/specs/software-requirements/srd034-external-agent-profiles.yaml
     purpose: External profile ownership and mounted-profile requirements owned by agent-core.
   - doc: docs/VISION.yaml
     purpose: Goals, boundaries, and success criteria.
@@ -228,10 +232,10 @@ related_documents:
     purpose: Profile role groups, actor boundaries, and dependency directions.
   - doc: docs/specs/semantic-models/agent-role-taxonomy.yaml
     purpose: Per-profile role taxonomy for migration and validation work.
-  - doc: ../examples/chatbot-mesh/docs/ARCHITECTURE.yaml
-    purpose: The deployable chatbot mesh example (a chatbot fanning one embedding
+  - doc: ../chatbot-mesh/docs/ARCHITECTURE.yaml
+    purpose: The deployable chatbot mesh application (a chatbot fanning one embedding
       out to N Chroma-backed RAG servers, plus a control plane of a coordinator and
       creator that turn a provisioning intent into an ingest and a rollout),
-      relocated to examples/chatbot-mesh/ as a standalone, copyable program with its
+      located at applications/chatbot-mesh/ as a standalone, copyable program with its
       own docs/specs, Helm chart, and ux SPA. Its mesh agents derive from the chatbot
       and knowledge-manager profile families here.

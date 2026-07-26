@@ -1,9 +1,10 @@
-# agent-profiles
+# applications/catalog
 
-This repository is the versioned library of reusable declarative agents for
-`agent-core` applications. Its public surface is the profile programs and
-profile-local assets published by `agent-profiles/v0.*` tags. `agent-core`
-executes those programs; applications under `examples/` compose them by
+This directory is the repository-specific catalog of reusable declarative tool
+and agent blocks for `agent-core` applications. Its compatibility surface is the
+profile programs and profile-local assets published by `agent-profiles/v0.*`
+tags until the coordinated tag migration changes that prefix. `agent-core`
+executes those programs; applications under `applications/` compose them by
 reference.
 
 Under this root, YAML agent programs sit beside profile-local config,
@@ -11,27 +12,27 @@ human-facing assets, demos, and integration fixtures. Runtime code stays
 elsewhere. Go packages, builtin tool implementations, the `agent` binary, and
 release image logic live in `agent-core`.
 
-## Library contract
+## Catalog contract
 
 ### Membership rule
 
 An agent belongs under `agents/<family>/` only when it is independently useful
-outside one application or has more than one real consumer. Application-specific
-orchestration, endpoint choices, topology, and UI stay with the application
-under `examples/<application>/`.
+outside one application in this repository or has more than one real consumer.
+Application-specific orchestration, endpoint choices, topology, and UI stay
+with the application under `applications/<application>/`.
 
-Every agent has one canonical home. Applications reference a library member;
+Every agent has one canonical home. Applications reference a catalog member;
 they do not fork its machine, declarations, or reusable behavior. A generally
-useful improvement found in an application flows upstream to the library, as
+useful improvement found in an application flows upstream to the catalog, as
 the chatbot-mesh corpus-ingest trusted-path sequence does. If behavior is useful
 only to that application, it stays application-owned.
 
 Relocation tombstones may remain under `agents/` to identify the canonical
-application home, but a tombstone is not a shipped library member.
+application home, but a tombstone is not a shipped catalog member.
 
 ### Member obligations
 
-A library member owes consumers:
+A catalog member owes consumers:
 
 - a canonical profile family under `agents/<family>/`, including every machine,
   tool selection, declaration, REST/config asset, and documented variant needed
@@ -47,33 +48,34 @@ A library member owes consumers:
   provenance.
 
 A family that does not yet satisfy those obligations is not promoted as a new
-public library member. Experimental work remains on `exp/*` until distilled.
+public catalog member. Experimental work remains on `exp/*` until distilled.
 
 ### Ownership boundaries
 
-This repository owns reusable YAML programs, profile-local assets, family SRDs,
+This catalog owns reusable YAML programs, profile-local assets, family SRDs,
 conformance, and profile-owned fixtures. `agent-core` owns the interpreter,
 builtin implementations, CLI, runtime contracts, and image. Applications own
 composition manifests, app-specific wrappers/configuration, end-to-end tests,
 packaging, deployment, and operator UX.
 
-`assembler` and `mock` are supported test-time library members. They are
-independently reusable across profile families and applications, ship under
-`agents/`, and carry the same SRD, conformance, portability, release, and v0
-compatibility obligations as every other member.
+`assembler` and `mock` are supported test-time catalog members. The existing
+conformance vocabulary continues to classify them as supported test-time
+library members. They are independently reusable across profile families and
+applications, ship under `agents/`, and carry the same SRD, conformance,
+portability, release, and v0 compatibility obligations as every other member.
 
 The rig-subject and `testdata/conformance/` REST/control/lifecycle fixtures are
 different: they exercise `agent-core` behavior and remain internal scaffolding
-in their current paths. They are not shipped agent-library members. A future
+in their current paths. They are not shipped catalog members. A future
 move would require its own tracker item, destination contract, and acceptance
 criteria.
 
 ### Consumer contract
 
-Applications live under `examples/` and name library profiles by root-relative
-path. They pin a compatible `agent-profiles/v0.*` release and assemble the
-transitive closure at package time. The runtime receives a closed mounted tree;
-it is not a package resolver or registry.
+Applications live beside this catalog under `applications/` and name catalog
+profiles by root-relative path. They pin a compatible `agent-profiles/v0.*`
+release and assemble the transitive closure at package time. The runtime
+receives a closed mounted tree; it is not a package resolver or registry.
 
 Consumers may add an application wrapper that selects canonical machine/tools
 and supplies app-owned REST or model configuration. Such wrappers must not copy
@@ -82,7 +84,8 @@ chatbot-mesh corpus-ingest is the wrapper/parameterization reference.
 
 ### Compatibility and release evidence
 
-`agent-profiles/v0.YYYYMMDD.N` identifies one immutable library bundle. An
+`agent-profiles/v0.YYYYMMDD.N` identifies one immutable catalog bundle under the
+current compatibility tag contract. An
 application's `compatible_release` means that its references and configuration
 were validated against that release family; it is not proof that a dirty or
 different checkout is the tagged release. Packaging records both compatibility
@@ -98,7 +101,7 @@ repository release; silent path or contract breaks are not compatible.
 Support states are intentionally simple: canonical members on `main` and in a
 release tag are the supported v0 surface; work on `exp/*` is unsupported and
 non-consumable; relocation tombstones and internal conformance fixtures are
-informational/internal, not agent-library APIs. Supported test-time members
+informational/internal, not catalog APIs. Supported test-time members
 such as assembler and mock remain part of the versioned public surface. This
 avoids a second hand-maintained status registry that could drift from real
 profile paths, conformance, SRDs, and tags.
@@ -129,8 +132,8 @@ under `agents/`; family conformance and specification indexes provide the
 machine-readable behavioral evidence. This documentation does not introduce a
 second catalog, package resolver, or runtime orchestrator.
 
-Documentation under `docs/` records purpose, structure, indexes, roadmap
-entries, and issue format rules. Core-owned runtime assets stay in
+Documentation under `docs/` records catalog purpose, structure, indexes,
+roadmap entries, and issue format rules. Core-owned runtime assets stay in
 `agent-core`.
 
 ## Experiment Branches
@@ -217,7 +220,7 @@ README and runtime contract before wiring CI.
 
 ## Container Usage
 
-In containers, callers mount this repository, check it out, or unpack a release
+In containers, callers mount this catalog, check it out, or unpack a release
 bundle. The image supplies the `agent` binary plus core-owned runtime assets.
 Profiles and workspace files come from the caller.
 
@@ -230,15 +233,15 @@ docker run --rm \
   --directory /work
 ```
 
-Mount this repository read-only at `/profiles` (or another mount point). Pass
+Mount this catalog read-only at `/profiles` (or another mount point). Pass
 that mount path to **`--profile`**. Mount the workspace and pass it to
 **`--directory`**.
 
 ## Application reference and packaging contract
 
-Applications consume profiles by reference; they do not copy canonical library
+Applications consume profiles by reference; they do not copy canonical catalog
 profiles into their source trees. An application manifest names each entry
-profile with a path relative to this `agent-profiles` root and pins a compatible
+profile with a path relative to this catalog root and pins a compatible
 `agent-profiles/v0.*` release. Packaging, not the runtime, resolves the complete
 closure into a tree mounted at `/profiles`.
 
@@ -262,16 +265,16 @@ source provenance. A clean checkout exactly at the pinned tag may record
 explicit unversioned fixture marker), dirty state when applicable, and the
 compatible release separately. Compatibility is not release provenance.
 
-Library profiles expose configuration through profile-local declarations,
+Catalog profiles expose configuration through profile-local declarations,
 machines, explicit variants, and the existing runtime flags and mounts. An
 application packager may select or co-generate those existing assets, but this
 contract introduces no placeholders or template substitution. Application
-values must not be committed into canonical library profiles.
+values must not be committed into canonical catalog profiles.
 
-`examples/coding-agent/agents/application.yaml` and its `mage package` target
+`applications/coding-agent/agents/application.yaml` and its `mage package` target
 are the reference implementation. Its closure includes planner, executor,
 critic session, and `critic/profile-workspace.yaml`; the application directory
-contains composition/config inventory only, not copied library programs.
+contains composition/config inventory only, not copied catalog programs.
 
 ## Demos and Fixtures
 
@@ -291,7 +294,7 @@ Integration fixtures owned by profiles live in `testdata/integration/`:
 
 - `uc001-generator-coding/` contains the generator coding sample workspace.
 - `uc002-evaluator-benchmark/` contains the evaluator suite and sample
-  workspace. Its profile references resolve from this repository root.
+  workspace. Its profile references resolve from this catalog root.
 - `rel04-monitor/monitor-rest.yaml` records the monitor profile proof metadata.
 
 Core-only runtime fixtures remain in `agent-core` when they exercise reusable
@@ -316,8 +319,9 @@ agent-profiles/v0.YYYYMMDD.N
 ```
 
 The root tag identifies the coordinated repository release. The
-`agent-profiles/v0.YYYYMMDD.N` tag identifies the profile bundle for callers
-that consume this directory independently of the full repository.
+`agent-profiles/v0.YYYYMMDD.N` tag remains the compatibility identifier for
+callers that consume this catalog independently of the full repository. Tag
+prefix migration is owned by the coordinated release work.
 
 After profile changes are ready for mounted-path, checkout, or release-bundle
 consumers, create release tags from the repository root on `main`:
@@ -329,27 +333,29 @@ mage tag
 At tag time, the root target reads existing local root tags for the current date
 and creates the next daily revision, such as `v0.20260617.0` or
 `v0.20260617.1`. It also creates matching module tags including
-`agent-profiles/v0.20260617.N`. Profile bundle tags version this repository's
+`agent-profiles/v0.20260617.N`. Profile bundle tags version this catalog's
 YAML programs, demos, UI assets, and integration fixtures. Runtime image builds
 continue to resolve the root `v0.*` tag family unless the `agent-core` Docker
 release target is explicitly overridden.
 
 ## Validation
 
-Validation uses an external `agent-core` checkout or runtime image. Local
+Validation uses an external `agent-core` checkout or runtime image. Catalog-local
 validation reads every profile-shaped YAML file under `agents/`, including
 `profile.yaml`, `profile-*.yaml`, and `*-profile.yaml` variants. It resolves
-profile-local files from this repository and checks `/opt/agent-core/tools`
+profile-local files from this catalog and checks `/opt/agent-core/tools`
 references against the resolved agent-core tree.
 
 ```bash
 mage validate
 ```
 
-By default, `mage validate` expects an **agent-core** checkout as a sibling
-directory named `agent-core` next to this repository. To point at a different
-checkout, use the optional core-root input defined in `magefiles/validation.go`
-(constant `agentCoreRootEnv`).
+After the source move, run repository-local validation with
+`AGENT_CORE_ROOT="$(git rev-parse --show-toplevel)/agent-core" mage validate`.
+The existing fallback still probes a sibling `agent-core` directory relative to
+this module root and therefore resolves to `applications/agent-core`; changing
+that cross-module discovery behavior belongs to the catalog-root and
+root-orchestration issues.
 
 With an `agent-core` image available, run the mounted-profile container smoke
 check:
@@ -362,6 +368,6 @@ Optional image selection uses the constant `agentCoreImageEnv` in
 `magefiles/validation.go` (defaults to `agent-core:latest`).
 
 Before running the profile, the smoke target fails if the image contains
-`/opt/agent-core/agents`. It then mounts this repository at `/profiles`, mounts
+`/opt/agent-core/agents`. It then mounts this catalog at `/profiles`, mounts
 core-owned tools at `/opt/agent-core/tools`, and runs
 `--profile /profiles/agents/jurist/profile.yaml --directory /work`.

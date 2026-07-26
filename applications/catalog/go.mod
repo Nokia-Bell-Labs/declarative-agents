@@ -1,4 +1,4 @@
-module github.com/Nokia-Bell-Labs/declarative-agents/agent-profiles
+module github.com/Nokia-Bell-Labs/declarative-agents/applications/catalog
 
 go 1.26.3
 
