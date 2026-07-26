@@ -173,13 +173,13 @@ func (Integration) Uc002() error {
 
 	args := uc002AgentArgs(profileRoot, rootDir, filepath.Join(profilesRepoRoot, evaluatorSuite), outputDir)
 
-	if err := runAgentInDir(binary, args, profilesRepoRoot); err != nil {
-		return fmt.Errorf("uc002: evaluator failed: %w", err)
-	}
-
-	passed, total, err := validateEvaluationResults(outputDir)
-	if err != nil {
-		return fmt.Errorf("uc002: invalid evaluator results: %w", err)
+	runErr := runAgentInDir(binary, args, profilesRepoRoot)
+	passed, total, validationErr := validateEvaluationResults(outputDir)
+	if runErr != nil || validationErr != nil {
+		return errors.Join(
+			wrapError("uc002: evaluator failed", runErr),
+			wrapError("uc002: invalid evaluator results", validationErr),
+		)
 	}
 
 	fmt.Printf("uc002: PASS — evaluator completed with %d/%d successful points\n", passed, total)
@@ -202,9 +202,14 @@ func validateEvaluationResults(outputDir string) (passed, total int, err error) 
 			return nil
 		}
 		var meta struct {
-			Sample      string `json:"sample"`
-			Model       string `json:"model"`
-			TestsPassed bool   `json:"tests_passed"`
+			Sample       string `json:"sample"`
+			Model        string `json:"model"`
+			TestsPassed  bool   `json:"tests_passed"`
+			TestOutput   string `json:"test_output"`
+			TimedOut     bool   `json:"timed_out"`
+			ExitCode     int    `json:"exit_code"`
+			FailureStage string `json:"failure_stage"`
+			FailureCause string `json:"failure_cause"`
 		}
 		if decodeErr := json.Unmarshal(data, &meta); decodeErr != nil {
 			validationErrors = append(validationErrors, fmt.Errorf("parse %s: %w", path, decodeErr))
@@ -222,6 +227,25 @@ func validateEvaluationResults(outputDir string) (passed, total int, err error) 
 		}
 		if meta.TestsPassed {
 			passed++
+		} else {
+			stage := meta.FailureStage
+			if stage == "" {
+				stage = "benchmark"
+			}
+			cause := meta.FailureCause
+			if cause == "" {
+				switch {
+				case meta.TimedOut:
+					cause = "harness timed out"
+				case meta.TestOutput != "":
+					cause = strings.TrimSpace(meta.TestOutput)
+				default:
+					cause = fmt.Sprintf("tests failed (exit code %d)", meta.ExitCode)
+				}
+			}
+			validationErrors = append(validationErrors, fmt.Errorf(
+				"point %s failed at %s: %s", filepath.Base(pointDir), stage, cause,
+			))
 		}
 		return nil
 	})
@@ -234,6 +258,13 @@ func validateEvaluationResults(outputDir string) (passed, total int, err error) 
 		validationErrors = append(validationErrors, fmt.Errorf("all %d evaluation points failed", total))
 	}
 	return passed, total, errors.Join(validationErrors...)
+}
+
+func wrapError(prefix string, err error) error {
+	if err == nil {
+		return nil
+	}
+	return fmt.Errorf("%s: %w", prefix, err)
 }
 
 func uc002AgentArgs(profileRoot, coreRoot, requestPath, outputDir string) []string {

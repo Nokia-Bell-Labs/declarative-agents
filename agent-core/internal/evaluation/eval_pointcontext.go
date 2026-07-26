@@ -57,4 +57,6 @@ type PointContext struct {
 	TimedOut        bool
 	ExitCode        int
 	Duration        time.Duration
+	FailureStage    string
+	FailureCause    string
 }

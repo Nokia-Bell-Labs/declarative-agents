@@ -3,6 +3,10 @@
 package evaluation
 
 import (
+	"bytes"
+	"context"
+	"encoding/json"
+	"fmt"
 	"os"
 	"path/filepath"
 	"strings"
@@ -87,4 +91,72 @@ func TestBuildPointRegistryRejectsUndeclaredSelection(t *testing.T) {
 		PointToolDeclarations: []string{declarations},
 	})
 	require.ErrorContains(t, err, `tool "absent" is selected but not declared`)
+}
+
+func TestRunPointPreservesMetadataWhenNestedMachineFailsBeforeMetrics(t *testing.T) {
+	t.Parallel()
+	sessionDir := t.TempDir()
+	machine := filepath.Join(t.TempDir(), "point.yaml")
+	require.NoError(t, os.WriteFile(machine, []byte(`
+name: failed-point
+initial_state: Idle
+states: [Idle, Running, Failed]
+terminal_states: [Failed]
+signals: [Seed, CommandError]
+transitions:
+  - {state: Idle, signal: Seed, next: Running, action: fail_before_metrics}
+  - {state: Running, signal: CommandError, next: Failed}
+`), 0o600))
+
+	reg := core.NewRegistry()
+	reg.Register(core.ToolSpec{Name: "fail_before_metrics"}, evalTestFailureBuilder{})
+	var stderr bytes.Buffer
+	pc := &PointContext{
+		SessionDir: sessionDir,
+		PointID:    "sample--executor--model--rep0",
+		Sample:     Sample{Name: "sample"},
+		Harness:    Harness{Name: "executor"},
+		Model:      "model",
+		Stderr:     &stderr,
+	}
+	es := &EvalSessionState{
+		EvalState:    EvalState{PC: pc, Ctx: context.Background()},
+		PointMachine: machine,
+		Stderr:       &stderr,
+	}
+
+	result := (&runPointCmd{
+		es: es, pointRegistry: reg,
+		config: catalog.RunPointConfig{PointMachine: machine, SuccessState: "Done"},
+	}).Execute()
+
+	require.Equal(t, SigPointDone, result.Signal, result.Output)
+	data, err := os.ReadFile(filepath.Join(sessionDir, pc.PointID, ArtifactMeta))
+	require.NoError(t, err)
+	var meta EvalMeta
+	require.NoError(t, json.Unmarshal(data, &meta))
+	require.Equal(t, "sample", meta.Sample)
+	require.Equal(t, "model", meta.Model)
+	require.Equal(t, "fail_before_metrics", meta.FailureStage)
+	require.Equal(t, "synthetic point failure", meta.FailureCause)
+	require.False(t, meta.TestsPassed)
+	require.Equal(t, 1, es.Result.TotalPoints)
+	require.Equal(t, 1, es.Result.Failed)
+}
+
+type evalTestFailureBuilder struct{}
+
+func (evalTestFailureBuilder) Build(core.Result) core.Command {
+	return evalTestFailureCmd{}
+}
+
+type evalTestFailureCmd struct{}
+
+func (evalTestFailureCmd) Name() string { return "fail_before_metrics" }
+func (evalTestFailureCmd) Execute() core.Result {
+	err := fmt.Errorf("synthetic point failure")
+	return core.Result{CommandName: "fail_before_metrics", Signal: core.CommandError, Err: err, Output: err.Error()}
+}
+func (evalTestFailureCmd) Undo(core.Result) core.Result {
+	return core.NoopUndo("fail_before_metrics")
 }
