@@ -44,13 +44,11 @@ tools:
         condition: A declared root exists but cannot be read.
         state_after_failure: The work list is empty.
     config:
-      # Copy-and-patch of the shipped assembler (gh-229 convention): only the
-      # harness-controlled roots differ. Run from the chatbot-mesh root, one
-      # rig discovers the mesh agents' scenarios and the agent-profiles
-      # reference subject in a single pass -- the cross-root proof.
+      # The application-owned harness configuration drives the catalog
+      # assembler from the chatbot-mesh owner root.
       roots:
         - agents
-        - ../../agent-profiles/testdata/conformance
+        - ${AGENT_CATALOG_ROOT}/testdata/conformance
 
   - name: next_scenario
     type: builtin
@@ -149,7 +147,7 @@ tools:
         condition: A mock fails to spawn or no port can be reserved.
         state_after_failure: Earlier item dispatches remain separately visible and reversible.
     config:
-      profile: ../../agent-profiles/agents/mock/profile.yaml
+      profile: ${AGENT_CATALOG_ROOT}/agents/mock/profile.yaml
       fixture: $from(fixture).path
 
   - name: start_scenario_subject
@@ -682,7 +680,7 @@ tools:
       service: $from(child).service
       grace: 5s
 
-  - name: report_session
+  - name: report_rig_session
     type: builtin
     init: report_scenario_session
     visibility: internal

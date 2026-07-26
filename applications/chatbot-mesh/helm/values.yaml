@@ -174,7 +174,7 @@ validateProfiles: true
 applier:
   enabled: true
   # The applier image bundles the runtime, helm, kubectl, and the chart at /chart
-  # (srd003 R1.3 sanctioned divergence). Built from examples/chatbot-mesh/applier.Dockerfile.
+  # (srd003 R1.3 sanctioned divergence). Built from applications/chatbot-mesh/applier.Dockerfile.
   image: {repository: ghcr.io/nokia-bell-labs/declarative-agents/chatbot-mesh-applier, tag: "0.1.0", pullPolicy: IfNotPresent}
   ports: {apply: 18090, control: 18091, monitor: 18092}
   # allowApply grants the apply-path RBAC (helm upgrade manages the chart objects).

@@ -76,7 +76,11 @@ func packageHelmChart(chartDir, profilesRoot, destination string) error {
 	if _, err := exec.LookPath("helm"); err != nil {
 		return fmt.Errorf("package chatbot-mesh chart: helm not found on PATH")
 	}
-	staged, cleanup, err := stagePackageChart(chartDir, profilesRoot)
+	catalogRoot, err := resolveCatalogRoot("chatbot-mesh helm package", profilesRoot)
+	if err != nil {
+		return err
+	}
+	staged, cleanup, err := stagePackageChart(chartDir, profilesRoot, catalogRoot)
 	if err != nil {
 		return err
 	}
@@ -113,7 +117,7 @@ func packageHelmChart(chartDir, profilesRoot, destination string) error {
 	return nil
 }
 
-func stagePackageChart(chartDir, profilesRoot string) (string, func(), error) {
+func stagePackageChart(chartDir, profilesRoot, catalogRoot string) (string, func(), error) {
 	stage, err := os.MkdirTemp("", "chatbot-mesh-package-*")
 	if err != nil {
 		return "", nil, err
@@ -126,7 +130,7 @@ func stagePackageChart(chartDir, profilesRoot string) (string, func(), error) {
 	}
 	for _, program := range chartProfilePrograms() {
 		if err := stageProfilePath(
-			chartProfileSource(profilesRoot, program),
+			chartProfileSource(profilesRoot, catalogRoot, program),
 			filepath.Join(chart, program.rel),
 		); err != nil {
 			cleanup()

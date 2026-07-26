@@ -36,7 +36,7 @@ collector:
   externalOTLPEndpoint: host.docker.internal:4317
   integrationResource:
     repository: Nokia-Bell-Labs/declarative-agents
-    module: examples/chatbot-mesh
+    module: applications/chatbot-mesh
     target: integration:helm
     commit: unknown
     runID: local-kind

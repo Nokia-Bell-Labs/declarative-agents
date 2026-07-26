@@ -1,10 +1,7 @@
 // Copyright (c) 2026 Nokia. All rights reserved.
 
-// The chatbot-mesh example builds and tests independently of agent-profiles. It
-// self-governs its own specification corpus with the jurist, driven by the
-// agent-core runtime it depends on as a platform. The runtime binary and the
-// jurist profile are external platform tools, located by convention (sibling
-// checkouts) or overridden by environment.
+// The chatbot-mesh application self-governs its specification corpus with the
+// catalog Jurist, driven by the agent-core runtime it depends on as a platform.
 package main
 
 import (
@@ -16,17 +13,18 @@ import (
 	"os/exec"
 	"path/filepath"
 	"strings"
+
+	"github.com/Nokia-Bell-Labs/declarative-agents/applications/catalog/catalogroot"
 )
 
 const (
 	// agentCoreRootEnv points at the agent-core checkout the runtime binary and the
 	// jurist tools are built and resolved from; it defaults to a sibling checkout.
 	agentCoreRootEnv = "AGENT_CORE_ROOT"
-	// juristProfileEnv points at the jurist agent profile (a platform validation
-	// tool); it defaults to the jurist under a sibling agent-profiles checkout.
+	// juristProfileEnv overrides the Jurist profile within the selected catalog.
 	juristProfileEnv = "JURIST_PROFILE"
 
-	juristProfileRel = "agent-profiles/agents/jurist/profile.yaml"
+	juristProfileRel = "agents/jurist/profile.yaml"
 )
 
 // Audit runs the jurist over this example's specification corpus, so the example
@@ -51,7 +49,11 @@ func Audit() error {
 	if err != nil {
 		return err
 	}
-	coreRoot, juristProfile, err := resolveAuditTools(root)
+	catalogRoot, err := resolveCatalogRoot("chatbot-mesh audit", root)
+	if err != nil {
+		return err
+	}
+	coreRoot, juristProfile, err := resolveAuditTools(root, catalogRoot)
 	if err != nil {
 		return err
 	}
@@ -96,16 +98,40 @@ func Audit() error {
 // gate cannot validate the corpus without the runtime that executes the jurist
 // or the validator profile itself, so a missing tool is a clear failure, not a
 // skip. Skip behavior is reserved for explicitly optional integration targets.
-func resolveAuditTools(root string) (coreRoot, juristProfile string, err error) {
+func resolveAuditTools(root, catalogRoot string) (coreRoot, juristProfile string, err error) {
 	coreRoot = envOrDefault(agentCoreRootEnv, siblingPath(root, "agent-core"))
 	if !agentCoreAvailable(coreRoot) {
 		return "", "", fmt.Errorf("audit: agent-core checkout not found at %s (set %s); the self-governance gate requires the agent-core runtime", coreRoot, agentCoreRootEnv)
 	}
-	juristProfile = envOrDefault(juristProfileEnv, siblingPath(root, juristProfileRel))
+	juristProfile = envOrDefault(juristProfileEnv, filepath.Join(catalogRoot, filepath.FromSlash(juristProfileRel)))
 	if _, statErr := os.Stat(juristProfile); statErr != nil {
 		return "", "", fmt.Errorf("audit: jurist validator profile not found at %s (set %s); the self-governance gate requires its validator", juristProfile, juristProfileEnv)
 	}
 	return coreRoot, juristProfile, nil
+}
+
+// resolveCatalogRoot snapshots the canonical and Release 99 compatibility
+// inputs against the application owner's startup directory. It never changes
+// process CWD; child commands continue to run from the chatbot-mesh root.
+func resolveCatalogRoot(owner, startupCWD string) (string, error) {
+	startupCWD, err := filepath.Abs(filepath.Clean(startupCWD))
+	if err != nil {
+		return "", fmt.Errorf("%s: resolve startup working directory: %w", owner, err)
+	}
+	resolution, err := catalogroot.Resolve(
+		owner,
+		startupCWD,
+		os.Getenv(catalogroot.Env),
+		os.Getenv(catalogroot.LegacyEnv),
+		catalogroot.DiscoveryCandidates(startupCWD)...,
+	)
+	if err != nil {
+		return "", err
+	}
+	if diagnostic := resolution.Deprecation(); diagnostic != "" {
+		fmt.Fprintln(os.Stderr, diagnostic)
+	}
+	return resolution.Path, nil
 }
 
 func runJurist(binary, juristProfile, root, coreRoot string) error {
@@ -176,7 +202,7 @@ func agentCoreAvailable(coreRoot string) bool {
 }
 
 // siblingPath resolves rel against the repository root, two levels above the
-// example directory (examples/chatbot-mesh), so sibling checkouts are found.
+// applications/chatbot-mesh owner root.
 func siblingPath(exampleRoot, rel string) string {
 	return filepath.Clean(filepath.Join(exampleRoot, "..", "..", rel))
 }

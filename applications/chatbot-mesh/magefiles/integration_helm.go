@@ -485,6 +485,10 @@ func smokeRuntimeBuildArgs(image string) []string {
 // step), so the ConfigMap carries the agent profiles and the SPA bundle the
 // chatbot serves. It returns the staged chart path and a cleanup function.
 func stageSmokeChart(chartDir, profilesRoot string) (string, func(), error) {
+	catalogRoot, err := resolveCatalogRoot("chatbot-mesh Helm staging", profilesRoot)
+	if err != nil {
+		return "", nil, err
+	}
 	staged, err := os.MkdirTemp("", "chatbot-mesh-chart-*")
 	if err != nil {
 		return "", nil, err
@@ -496,7 +500,7 @@ func stageSmokeChart(chartDir, profilesRoot string) (string, func(), error) {
 		return "", nil, err
 	}
 	for _, p := range chartProfilePrograms() {
-		if err := stageProfilePath(chartProfileSource(profilesRoot, p), filepath.Join(dst, p.rel)); err != nil {
+		if err := stageProfilePath(chartProfileSource(profilesRoot, catalogRoot, p), filepath.Join(dst, p.rel)); err != nil {
 			cleanup()
 			return "", nil, err
 		}
@@ -543,10 +547,10 @@ func chartProfilePrograms() []chartProfileProgram {
 	}
 }
 
-func chartProfileSource(meshRoot string, program chartProfileProgram) string {
+func chartProfileSource(meshRoot, catalogRoot string, program chartProfileProgram) string {
 	root := meshRoot
 	if program.src == canonicalCorpusIngestProgram {
-		root = corpusIngestLibraryRoot(meshRoot)
+		root = catalogRoot
 	}
 	return filepath.Join(root, filepath.FromSlash(program.src))
 }
