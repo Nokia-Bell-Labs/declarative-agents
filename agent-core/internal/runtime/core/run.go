@@ -107,13 +107,16 @@ type LoopParams struct {
 	ModelName       string
 	Directory       string
 	Hooks           LoopHooks
-	AgentName       string
-	AgentVersion    string
-	ProviderName    string
-	MachineFile     string
-	MachineSpec     *MachineSpec
-	InitFunc        func(reg *Registry) error
-	ToolAction      ActionFunc
+	// RunID identifies one logical run across checkpoint, monitor, and trace
+	// records. It remains stable when that run is resumed.
+	RunID        string
+	AgentName    string
+	AgentVersion string
+	ProviderName string
+	MachineFile  string
+	MachineSpec  *MachineSpec
+	InitFunc     func(reg *Registry) error
+	ToolAction   ActionFunc
 	// Checkpoint is the typed persistence port (srd035). The loop saves the
 	// current Position and Execution through it after each dispatch cycle. A nil
 	// value defaults to NoopCheckpoint, preserving disabled-mode behavior.

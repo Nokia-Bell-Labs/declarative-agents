@@ -14,7 +14,7 @@ type TransitionInput struct {
 }
 
 // TransitionValue is the result of a transition table lookup.
-// Action is nil for terminal transitions.
+// Action may be nil for actionless transitions, including terminal transitions.
 type TransitionValue struct {
 	NextState State
 	Action    ActionFunc

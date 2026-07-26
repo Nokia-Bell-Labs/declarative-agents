@@ -19,6 +19,7 @@ func TestFlagConstants(t *testing.T) {
 	assert.Equal(t, "otel-otlp-endpoint", FlagOTelOTLPEndpoint)
 	assert.Equal(t, "otel-metric-otlp-endpoint", FlagOTelMetricOTLPEndpoint)
 	assert.Equal(t, "otel-service-name", FlagOTelServiceName)
+	assert.Equal(t, "core-root", FlagCoreRoot)
 	assert.Equal(t, "model", FlagModel)
 	assert.Equal(t, "directory", FlagDirectory)
 	assert.Equal(t, "max-time", FlagMaxTime)
@@ -37,6 +38,7 @@ func TestPropagateArgs_Build_Full(t *testing.T) {
 		OTLPEndpoint:       "127.0.0.1:4317",
 		MetricOTLPEndpoint: "127.0.0.1:4319",
 		OTelServiceName:    "child-agent",
+		CoreRoot:           "/checkout/agent-core",
 		Model:              "qwen3.6:35b-mlx",
 		Directory:          "/tmp/workspace",
 		Prompt:             "task.yaml",
@@ -57,6 +59,8 @@ func TestPropagateArgs_Build_Full(t *testing.T) {
 	assert.Contains(t, args, "127.0.0.1:4319")
 	assert.Contains(t, args, "--otel-service-name")
 	assert.Contains(t, args, "child-agent")
+	assert.Contains(t, args, "--core-root")
+	assert.Contains(t, args, "/checkout/agent-core")
 	assert.Contains(t, args, "--model")
 	assert.Contains(t, args, "qwen3.6:35b-mlx")
 	assert.Contains(t, args, "--directory")
@@ -85,6 +89,7 @@ func TestPropagateArgs_Build_Minimal(t *testing.T) {
 	assert.NotContains(t, args, "--otel-otlp-endpoint")
 	assert.NotContains(t, args, "--otel-metric-otlp-endpoint")
 	assert.NotContains(t, args, "--otel-service-name")
+	assert.NotContains(t, args, "--core-root")
 	assert.Contains(t, args, "--otel-log-file")
 	assert.Contains(t, args, "--model")
 	assert.Contains(t, args, "--directory")

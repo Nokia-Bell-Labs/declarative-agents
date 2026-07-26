@@ -114,8 +114,25 @@ func runFilesystemMetricLoop(t *testing.T, cmd core.Command, signal core.Signal)
 	t.Helper()
 	// Keep this fixture package-local so filesystem assertions name filesystem commands and signals.
 	store := monitor.NewStore(monitor.Limits{Samples: 10})
-	params := filesystemMetricLoopParams(cmd, signal, monitor.NewRecorder(store, nil))
-	_, err := core.Loop(params, context.Background())
+	rec, err := monitor.NewRecorderWithConfig(store, nil, monitor.RecorderConfig{
+		GlobalAttributes: []monitor.AttributePolicy{
+			{Name: "use_case", AllowedValues: []string{"rel04.0-monitor"}},
+			{Name: "phase", AllowedValues: []string{"dispatch"}},
+			{Name: "agent.name", AllowedValues: []string{"filesystem-agent"}},
+		},
+		Bindings: []monitor.MetricBinding{{
+			ToolName: cmd.Name(),
+			Schema: monitor.MetricSchema{
+				Name: "filesystem.bytes_written", Kind: monitor.InstrumentHistogram, Unit: "By",
+			},
+			Attributes: []monitor.AttributePolicy{{Name: "operation", AllowedValues: []string{cmd.Name()}}},
+		}},
+	})
+	if err != nil {
+		t.Fatalf("configure recorder: %v", err)
+	}
+	params := filesystemMetricLoopParams(cmd, signal, rec)
+	_, err = core.Loop(params, context.Background())
 	if err != nil {
 		t.Fatalf("loop failed: %v", err)
 	}
@@ -137,7 +154,8 @@ func filesystemMetricLoopParams(cmd core.Command, signal core.Signal, rec monito
 	}
 	return core.LoopParams{
 		MachineSpec:     spec,
-		AgentName:       "filesystem-run",
+		RunID:           "filesystem-run",
+		AgentName:       "filesystem-agent",
 		Trace:           tracing.NoopTracer{},
 		Budget:          core.Budget{MaxIterations: 3},
 		MonitorRecorder: rec,

@@ -8,6 +8,7 @@ import (
 	"io/fs"
 	"os"
 	"path/filepath"
+	"sort"
 	"strings"
 
 	"gopkg.in/yaml.v3"
@@ -51,16 +52,20 @@ func (p *PipelineStep) UnmarshalYAML(value *yaml.Node) error {
 		p.Name = value.Value
 		return nil
 	case yaml.MappingNode:
-		if len(value.Content) < 2 {
+		if len(value.Content) != 2 {
 			return fmt.Errorf("pipeline step map must have exactly one key")
 		}
+		if value.Content[0].Kind != yaml.ScalarNode {
+			return fmt.Errorf("pipeline step name must be a string")
+		}
 		p.Name = value.Content[0].Value
-		p.Params = make(map[string]string)
 		inner := value.Content[1]
-		if inner.Kind == yaml.MappingNode {
-			for i := 0; i < len(inner.Content)-1; i += 2 {
-				p.Params[inner.Content[i].Value] = inner.Content[i+1].Value
-			}
+		if inner.Kind != yaml.MappingNode {
+			return fmt.Errorf("pipeline step %q parameters must be a map", p.Name)
+		}
+		p.Params = make(map[string]string)
+		if err := inner.Decode(&p.Params); err != nil {
+			return fmt.Errorf("decode pipeline step %q parameters: %w", p.Name, err)
 		}
 		return nil
 	default:
@@ -72,8 +77,11 @@ func (p *PipelineStep) UnmarshalYAML(value *yaml.Node) error {
 
 // ProfileRegistry holds loaded profiles and resolves them by model name.
 type ProfileRegistry struct {
-	profiles    []ProfileSpec
-	defaultSpec ProfileSpec
+	profiles      []ProfileSpec
+	defaultSpec   ProfileSpec
+	profileFiles  map[string]string
+	defaultFile   string
+	prefixSources []profilePrefix
 }
 
 // addProfileEntry unmarshals a single YAML profile and adds it to the registry.
@@ -85,11 +93,20 @@ func addProfileEntry(reg *ProfileRegistry, filename string, data []byte) error {
 	if spec.ProfileName == "" {
 		return fmt.Errorf("profile %s: missing 'name' field", filename)
 	}
-	if spec.ProfileName == "default" || len(spec.MatchPrefixes) == 0 {
+	if err := validateProfileSpec(filename, spec); err != nil {
+		return err
+	}
+	if err := validateProfileIdentity(reg, filename, spec); err != nil {
+		return err
+	}
+	if isDefaultProfile(spec) {
 		reg.defaultSpec = spec
+		reg.defaultFile = filename
 	} else {
 		reg.profiles = append(reg.profiles, spec)
 	}
+	reg.profileFiles[spec.ProfileName] = filename
+	recordProfilePrefixes(reg, filename, spec)
 	return nil
 }
 
@@ -125,7 +142,13 @@ func LoadProfiles(dir string) (*ProfileRegistry, error) {
 // (typically from go:embed). Each slice is one profile file.
 func LoadProfilesFromBytes(files map[string][]byte) (*ProfileRegistry, error) {
 	reg := &ProfileRegistry{}
-	for name, data := range files {
+	names := make([]string, 0, len(files))
+	for name := range files {
+		names = append(names, name)
+	}
+	sort.Strings(names)
+	for _, name := range names {
+		data := files[name]
 		if err := addProfileEntry(reg, name, data); err != nil {
 			return nil, err
 		}
@@ -294,13 +317,6 @@ func buildPipeline(steps []PipelineStep) []extractionStep {
 			})
 		case "extract_native_token":
 			token := step.Params["token"]
-			if token == "" {
-				token = step.Name
-				for _, v := range step.Params {
-					token = v
-					break
-				}
-			}
 			pipeline = append(pipeline, MakeNativeTokenExtractor(token))
 		case "extract_braces":
 			pipeline = append(pipeline, ExtractBraces)

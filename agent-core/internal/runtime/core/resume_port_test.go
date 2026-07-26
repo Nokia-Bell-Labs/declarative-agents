@@ -98,3 +98,34 @@ func TestResumeReportsMissingCheckpoint(t *testing.T) {
 	_, err := Resume(params, context.Background())
 	require.ErrorIs(t, err, ErrNoCheckpoint)
 }
+
+func TestResumeFreshDoltAdapterFinalizesWithoutMachineStep(t *testing.T) {
+	t.Parallel()
+	terminal := func(s State) bool { return s == "Finished" }
+	db := newFakeDB()
+	saver := NewDoltCheckpoint(db, "run-resume", terminal)
+	execution := sampleExecution()[:1]
+	position := samplePosition()
+	position.CurrentState = "AwaitingApproval"
+	require.NoError(t, saver.Save(position, execution))
+
+	position.CurrentState = "Finished"
+	position.Snapshot.State = "Finished"
+	position.Snapshot.Iteration = 7
+	db.failOn = "DOLT_MERGE"
+	require.ErrorIs(t, saver.Save(position, execution), ErrDolt)
+	commits := len(db.commits)
+	db.failOn = ""
+
+	params := resumeLoopParams()
+	params.Checkpoint = NewDoltCheckpoint(db, "run-resume", terminal)
+	result, err := Resume(params, context.Background())
+
+	require.NoError(t, err)
+	require.Equal(t, StatusSucceeded, result.Status)
+	require.Equal(t, State("Finished"), result.FinalState)
+	require.Equal(t, 7, result.Iterations)
+	require.Len(t, db.commits, commits, "resume performs lifecycle cleanup without a machine save")
+	require.Equal(t, 2, countCalls(db.calls, "DOLT_MERGE"))
+	require.Equal(t, 1, countCalls(db.calls, "DOLT_BRANCH('-d'"))
+}

@@ -394,7 +394,10 @@ func TestRegisterFactoriesExecuteTaskRequiresChildConfig(t *testing.T) {
 func TestRegisterFactoriesExecuteTaskAcceptsProfileConfig(t *testing.T) {
 	t.Parallel()
 	br := toolregistry.NewBuiltinRegistry()
-	RegisterFactories(br, FactoryDeps{Ctx: context.Background(), ChildAgentBinary: "/tmp/controlled-agent"})
+	RegisterFactories(br, FactoryDeps{
+		Ctx: context.Background(), ChildAgentBinary: "/tmp/controlled-agent",
+		CoreRoot: "/checkout/agent-core",
+	})
 
 	factory, ok := br.Resolve("execute_task")
 	require.True(t, ok)
@@ -412,6 +415,7 @@ func TestRegisterFactoriesExecuteTaskAcceptsProfileConfig(t *testing.T) {
 	require.True(t, ok)
 	require.Equal(t, "/tmp/controlled-agent", execBuilder.PS.ExecConfig.Binary)
 	require.Equal(t, "agents/executor/profile.yaml", execBuilder.PS.ExecConfig.Profile)
+	require.Equal(t, "/checkout/agent-core", execBuilder.PS.ExecConfig.CoreRoot)
 }
 
 var _ llm.PromptAssembler = (*PlannerAssembler)(nil)

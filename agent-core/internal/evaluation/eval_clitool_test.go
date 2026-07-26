@@ -24,13 +24,15 @@ func TestRunAgentCmdUsesSharedExecuteConfigArgs(t *testing.T) {
 	pc := &PointContext{
 		PointID: "point-1", PointDir: pointDir, TracePath: tracePath,
 		ResultPath: resultPath, Harness: Harness{Binary: "echo"},
-		ProfilePath: "agents/executor/profile.yaml", Timeout: 5 * time.Second,
+		ProfilePath: "agents/executor/profile.yaml", CoreRoot: "/checkout/agent-core",
+		Timeout: 5 * time.Second,
 	}
 
 	result := (&runAgentCmd{pc: pc, ctx: context.Background()}).Execute()
 
 	require.Equal(t, SigHarnessFinished, result.Signal)
 	require.Contains(t, result.Output, "--profile agents/executor/profile.yaml")
+	require.Contains(t, result.Output, "--core-root /checkout/agent-core")
 	require.Contains(t, result.Output, "--directory "+pointDir)
 	require.Contains(t, result.Output, "--otel-log-file "+tracePath)
 	data, err := os.ReadFile(resultPath)

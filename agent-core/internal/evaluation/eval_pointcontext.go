@@ -36,6 +36,7 @@ type PointContext struct {
 	Harness     Harness
 	Model       string
 	ProfilePath string
+	CoreRoot    string
 	GridPoint   GridPoint
 	Rep         int
 	Timeout     time.Duration

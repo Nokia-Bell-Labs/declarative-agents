@@ -40,6 +40,7 @@ type EvalSessionState struct {
 	// ChildAgentBinary overrides the harness binary the evaluator launches for
 	// each suite profile. Empty means the default "agent" (resolved from PATH).
 	ChildAgentBinary string
+	CoreRoot         string
 
 	Suite        SuiteConfig
 	SessionDir   string
@@ -143,6 +144,7 @@ func (s *EvalSessionState) NextPoint() (*PointContext, bool) {
 		Harness:     Harness{Name: sp.Name, Binary: sp.Binary},
 		Model:       sp.Model,
 		ProfilePath: sp.Path,
+		CoreRoot:    s.CoreRoot,
 		GridPoint:   gp,
 		Rep:         s.rIdx,
 		Timeout:     s.timeout,

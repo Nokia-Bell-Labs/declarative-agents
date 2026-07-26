@@ -4,8 +4,11 @@ package main
 
 import (
 	"context"
+	"crypto/rand"
+	"encoding/hex"
 	"fmt"
-	"time"
+	"sort"
+	"strings"
 
 	"github.com/spf13/cobra"
 	"go.opentelemetry.io/otel/metric"
@@ -25,6 +28,7 @@ type runtimeConfig struct {
 	ToolConfigDirs   []string
 	RestDefinitions  []string
 	RestConfigDirs   []string
+	CoreRoot         string
 	Directory        string
 	Request          string
 	Output           string
@@ -38,6 +42,21 @@ type runtimeConfig struct {
 	ResumeCheckpoint string
 	ResumeSignal     string
 	ChildAgentBinary string
+}
+
+type closeableCheckpoint interface {
+	core.Checkpoint
+	Close() error
+}
+
+type openedCheckpoint struct {
+	core.Checkpoint
+	close func() error
+	label string
+}
+
+var openDoltCheckpoint = func(dsn, runID string, terminal func(core.State) bool) (closeableCheckpoint, error) {
+	return core.OpenDoltCheckpoint(dsn, runID, terminal)
 }
 
 func loadRuntimeConfig() (runtimeConfig, error) {
@@ -59,6 +78,7 @@ func loadRuntimeConfig() (runtimeConfig, error) {
 		ToolConfigDirs:   append([]string(nil), p.ToolConfigDirs...),
 		RestDefinitions:  append([]string(nil), p.RestDefinitions...),
 		RestConfigDirs:   append([]string(nil), p.RestConfigDirs...),
+		CoreRoot:         strings.TrimSpace(flagCoreRoot),
 		Directory:        directory,
 		Request:          flagRequest,
 		Output:           flagOutput,
@@ -101,24 +121,35 @@ func loadProfileToolDefs(cfg runtimeConfig) ([]catalog.ToolDef, error) {
 // (srd035-checkpoint-port R5.1, srd036-dolt-state-persistence R1). The "dolt"
 // database/sql driver is registered at the composition root (dolt_driver.go),
 // which connects to a dolt sql-server over the MySQL wire protocol.
-func resolveCheckpoint(cfg runtimeConfig, machine core.MachineSpec) (core.Checkpoint, error) {
+func resolveCheckpoint(cfg runtimeConfig, machine core.MachineSpec, runID string) (openedCheckpoint, error) {
 	if cfg.DoltDSN == "" {
-		return core.NoopCheckpoint{}, nil
+		return openedCheckpoint{Checkpoint: core.NoopCheckpoint{}}, nil
 	}
-	cp, err := core.OpenDoltCheckpoint(cfg.DoltDSN, resolveRunID(cfg), terminalPredicate(machine))
+	cp, err := openDoltCheckpoint(cfg.DoltDSN, runID, terminalPredicate(machine))
 	if err != nil {
-		return nil, fmt.Errorf("open dolt checkpoint: %w", err)
+		return openedCheckpoint{}, fmt.Errorf("open dolt checkpoint: %w", err)
 	}
-	return cp, nil
+	return openedCheckpoint{
+		Checkpoint: cp,
+		close:      cp.Close,
+		label:      "loop checkpoint",
+	}, nil
 }
 
-// resolveRunID names the Dolt run branch: the explicit --resume-checkpoint id
-// when resuming a known run, otherwise a fresh timestamp-based id.
-func resolveRunID(cfg runtimeConfig) string {
-	if id := cfg.ResumeCheckpoint; id != "" && id != "latest" {
-		return id
+// resolveRunID returns the stable identity shared by checkpoint, monitor, and
+// trace records: the explicit checkpoint id on resume, or a fresh random id.
+func resolveRunID(cfg runtimeConfig) (string, error) {
+	if id := strings.TrimSpace(cfg.ResumeCheckpoint); id != "" {
+		if id == "latest" {
+			return "", fmt.Errorf("--resume-checkpoint %q is unsupported; provide an explicit run id", id)
+		}
+		return id, nil
 	}
-	return fmt.Sprintf("run-%d", time.Now().UTC().UnixNano())
+	var id [16]byte
+	if _, err := rand.Read(id[:]); err != nil {
+		return "", fmt.Errorf("generate run id: %w", err)
+	}
+	return "run-" + hex.EncodeToString(id[:]), nil
 }
 
 // terminalPredicate reports which machine states end a run so the Dolt adapter
@@ -141,19 +172,200 @@ func newMonitorRuntime(
 	defs []catalog.ToolDef,
 	restDefs toolrest.Collection,
 	meter metric.Meter,
-) monitorRuntime {
+	runID string,
+) (monitorRuntime, error) {
 	if !monitorConfigured(machine, defs, restDefs) {
-		return monitorRuntime{}
+		return monitorRuntime{}, nil
 	}
 	store := monitor.NewStore(monitor.Limits{})
-	return monitorRuntime{Store: store, Recorder: monitor.NewRecorder(store, meter)}
+	cfg, err := monitorRecorderConfig(machine, defs, runID)
+	if err != nil {
+		return monitorRuntime{}, err
+	}
+	recorder, err := monitor.NewRecorderWithConfig(store, meter, cfg)
+	if err != nil {
+		return monitorRuntime{}, fmt.Errorf("configure monitor recorder: %w", err)
+	}
+	return monitorRuntime{Store: store, Recorder: recorder}, nil
 }
 
-func monitorState(store *monitor.Store, machine *core.MachineSpec, defs []catalog.ToolDef) toolrest.MonitorState {
+func monitorRecorderConfig(machine core.MachineSpec, defs []catalog.ToolDef, runID string) (monitor.RecorderConfig, error) {
+	workflowValues := machineMetricLabelValues(machine)
+	cfg := monitor.RecorderConfig{
+		GlobalAttributes: []monitor.AttributePolicy{{Name: "agent.name", AllowedValues: []string{"agent"}}},
+		Envelope:         monitorEnvelopePolicy(machine, defs, runID),
+	}
+	for name, values := range workflowValues {
+		cfg.GlobalAttributes = append(cfg.GlobalAttributes, monitor.AttributePolicy{Name: name, AllowedValues: values})
+	}
+	for _, def := range defs {
+		bindings, err := toolMetricBindings(def, machine, workflowValues)
+		if err != nil {
+			return monitor.RecorderConfig{}, err
+		}
+		cfg.Bindings = append(cfg.Bindings, bindings...)
+	}
+	return cfg, nil
+}
+
+func monitorEnvelopePolicy(machine core.MachineSpec, defs []catalog.ToolDef, runID string) monitor.EnvelopePolicy {
+	tools := make(map[string]struct{}, len(defs)+len(machine.Transitions))
+	for _, def := range defs {
+		tools[def.Name] = struct{}{}
+	}
+	signals := make(map[string]struct{}, len(machine.Signals)+len(machine.Transitions))
+	for _, signal := range machine.Signals.Names() {
+		signals[signal] = struct{}{}
+	}
+	for _, transition := range machine.Transitions {
+		if transition.Action != "" && transition.Action != "$tool" {
+			tools[transition.Action] = struct{}{}
+		}
+		if transition.Signal != "" {
+			signals[transition.Signal] = struct{}{}
+		}
+	}
+	for _, signal := range []core.Signal{
+		core.CommandError, core.ToolFailed, core.BudgetExhausted,
+	} {
+		signals[string(signal)] = struct{}{}
+	}
+	return monitor.EnvelopePolicy{
+		RunID:     runID,
+		ToolNames: sortedSetValues(tools),
+		States:    machine.States.Names(),
+		Signals:   sortedSetValues(signals),
+	}
+}
+
+func sortedSetValues(values map[string]struct{}) []string {
+	out := make([]string, 0, len(values))
+	for value := range values {
+		if value != "" {
+			out = append(out, value)
+		}
+	}
+	sort.Strings(out)
+	return out
+}
+
+func toolMetricBindings(
+	def catalog.ToolDef,
+	machine core.MachineSpec,
+	workflowValues map[string][]string,
+) ([]monitor.MetricBinding, error) {
+	if def.Metrics.Disabled {
+		return nil, nil
+	}
+	declared := make(map[string]core.MetricAttribute, len(def.Metrics.Attributes))
+	for _, attr := range def.Metrics.Attributes {
+		declared[attr.Name] = attr
+	}
+	bindings := make([]monitor.MetricBinding, 0, len(def.Metrics.Instruments))
+	for _, instrument := range def.Metrics.Instruments {
+		binding, err := toolMetricBinding(def.Name, instrument, declared, machine, workflowValues)
+		if err != nil {
+			return nil, err
+		}
+		bindings = append(bindings, binding)
+	}
+	return bindings, nil
+}
+
+func toolMetricBinding(
+	toolName string,
+	instrument core.MetricInstrument,
+	declared map[string]core.MetricAttribute,
+	machine core.MachineSpec,
+	workflowValues map[string][]string,
+) (monitor.MetricBinding, error) {
+	binding := monitor.MetricBinding{
+		ToolName: toolName,
+		Schema: monitor.MetricSchema{
+			Name: instrument.Name, Kind: monitor.InstrumentKind(instrument.Kind),
+			Unit: instrument.Unit, Description: instrument.Description,
+		},
+	}
+	for _, name := range instrument.Attributes {
+		attr, ok := declared[name]
+		if !ok {
+			return monitor.MetricBinding{}, fmt.Errorf(
+				"tool %q metric %q attribute %q is not declared", toolName, instrument.Name, name,
+			)
+		}
+		if attr.Redaction == "omit" {
+			continue
+		}
+		values := metricAttributeAllowedValues(toolName, attr, machine, workflowValues)
+		if len(values) == 0 {
+			return monitor.MetricBinding{}, fmt.Errorf(
+				"tool %q metric %q attribute %q has no bounded allowed values",
+				toolName, instrument.Name, name,
+			)
+		}
+		binding.Attributes = append(binding.Attributes, monitor.AttributePolicy{Name: name, AllowedValues: values})
+	}
+	return binding, nil
+}
+
+func machineMetricLabelValues(machine core.MachineSpec) map[string][]string {
+	values := make(map[string]map[string]struct{})
+	add := func(labels core.MetricLabels) {
+		for name, value := range labels {
+			if values[name] == nil {
+				values[name] = make(map[string]struct{})
+			}
+			values[name][value] = struct{}{}
+		}
+	}
+	add(machine.MetricLabels)
+	for _, transition := range machine.Transitions {
+		add(transition.MetricLabels)
+	}
+	out := make(map[string][]string, len(values))
+	for name, set := range values {
+		for value := range set {
+			out[name] = append(out[name], value)
+		}
+	}
+	return out
+}
+
+func metricAttributeAllowedValues(
+	toolName string,
+	attr core.MetricAttribute,
+	machine core.MachineSpec,
+	workflowValues map[string][]string,
+) []string {
+	if len(attr.AllowedValues) > 0 {
+		return append([]string(nil), attr.AllowedValues...)
+	}
+	switch attr.Source {
+	case "tool_name":
+		return []string{toolName}
+	case "state":
+		return machine.States.Names()
+	case "signal":
+		return machine.Signals.Names()
+	case "status":
+		return []string{"success", "failure"}
+	case "workflow_label":
+		return append([]string(nil), workflowValues[attr.Name]...)
+	default:
+		return nil
+	}
+}
+
+func monitorState(
+	store *monitor.Store,
+	recorder monitor.RuntimeRecorder,
+	machine *core.MachineSpec,
+	defs []catalog.ToolDef,
+) toolrest.MonitorState {
 	if store == nil {
 		return toolrest.MonitorState{}
 	}
-	return toolrest.MonitorState{Store: store, Machine: machine, Tools: defs}
+	return toolrest.MonitorState{Store: store, Recorder: recorder, Machine: machine, Tools: defs}
 }
 
 func monitorConfigured(machine core.MachineSpec, defs []catalog.ToolDef, restDefs toolrest.Collection) bool {

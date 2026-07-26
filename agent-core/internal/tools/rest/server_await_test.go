@@ -3,6 +3,7 @@
 package rest
 
 import (
+	"context"
 	"encoding/json"
 	"net/http"
 	"testing"
@@ -73,8 +74,17 @@ func TestRESTAwaitEvent_ServerStopped(t *testing.T) {
 	t.Parallel()
 
 	state, _ := launchRESTServer(t, namedControlServer("stopped"), LimitProfile{})
+	options := AwaitAnyOptions{
+		Sources: []AwaitSource{{Server: "stopped"}},
+		Timeout: time.Second,
+	}
+	sources, err := state.resolveAwaitSources(options)
+	require.NoError(t, err)
 	results := startRESTAwait(t, func() core.Result {
-		return awaitAnyResult(state, AwaitSource{Server: "stopped"})
+		ctx, cancel := context.WithTimeout(context.Background(), options.Timeout)
+		defer cancel()
+		result := waitAnySource(ctx, cancel, sources)
+		return core.Result{Signal: core.Signal(result.signal), Err: result.err}
 	})
 	requireAwaitBlocked(t, results)
 	stopRESTServer(t, state, "stopped")

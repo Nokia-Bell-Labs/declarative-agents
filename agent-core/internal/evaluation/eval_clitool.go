@@ -38,6 +38,7 @@ func (c *runAgentCmd) Execute() core.Result {
 	result := execute.RunAgent(c.ctx, execute.Config{
 		Binary:      pc.Harness.Binary,
 		Profile:     pc.ProfilePath,
+		CoreRoot:    pc.CoreRoot,
 		Directory:   pc.PointDir,
 		OTelLogFile: absTrace,
 		Timeout:     pc.Timeout,

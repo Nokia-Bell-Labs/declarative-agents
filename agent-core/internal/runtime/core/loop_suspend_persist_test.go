@@ -28,7 +28,7 @@ func TestLoop_SuspendFailsWhenCheckpointSaveFails(t *testing.T) {
 
 	rr, err := Loop(params, context.Background())
 
-	require.NoError(t, err)
+	require.ErrorIs(t, err, ErrCheckpointSaveFailed)
 	require.NotEqual(t, StatusSuspended, rr.Status, "must not report a resumable suspend without a persisted checkpoint")
 	require.Equal(t, StatusFailed, rr.Status)
 	require.ErrorContains(t, rr.LastError, "suspend checkpoint not persisted")

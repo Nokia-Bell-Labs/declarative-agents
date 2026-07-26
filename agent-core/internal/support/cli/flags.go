@@ -18,6 +18,7 @@ const (
 	FlagOTelOTLPEndpoint       = "otel-otlp-endpoint"
 	FlagOTelMetricOTLPEndpoint = "otel-metric-otlp-endpoint"
 	FlagOTelServiceName        = "otel-service-name"
+	FlagCoreRoot               = "core-root"
 	FlagModel                  = "model"
 	FlagDirectory              = "directory"
 	FlagMaxTime                = "max-time"
@@ -35,6 +36,7 @@ type PropagateArgs struct {
 	OTLPEndpoint       string            // --otel-otlp-endpoint for child
 	MetricOTLPEndpoint string            // --otel-metric-otlp-endpoint for child
 	OTelServiceName    string            // --otel-service-name for child
+	CoreRoot           string            // --core-root for child
 	Model              string
 	Directory          string
 	Prompt             string
@@ -62,6 +64,7 @@ func (p PropagateArgs) Build() []string {
 	if p.OTelServiceName != "" {
 		args = append(args, "--"+FlagOTelServiceName, p.OTelServiceName)
 	}
+	args = appendOptional(args, FlagCoreRoot, p.CoreRoot)
 	if p.Model != "" {
 		args = append(args, "--"+FlagModel, p.Model)
 	}
@@ -82,6 +85,13 @@ func (p PropagateArgs) Build() []string {
 	}
 
 	return args
+}
+
+func appendOptional(args []string, name, value string) []string {
+	if value == "" {
+		return args
+	}
+	return append(args, "--"+name, value)
 }
 
 // RemainingBudget computes the time left from a total budget and elapsed

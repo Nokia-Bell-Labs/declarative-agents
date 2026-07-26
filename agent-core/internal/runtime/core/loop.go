@@ -92,6 +92,7 @@ func startRunTrace(params LoopParams) (tracing.Tracer, func()) {
 func runSpanAttrs(params LoopParams) []attribute.KeyValue {
 	return append(
 		genai.AgentAttrs(params.AgentName, params.AgentVersion, params.ProviderName, params.ModelName),
+		attribute.String("run.id", params.RunID),
 		attribute.String("directory", params.Directory),
 		attribute.Int("budget.max_iterations", params.Budget.MaxIterations),
 		attribute.Int("budget.max_tokens", params.Budget.MaxTokens),

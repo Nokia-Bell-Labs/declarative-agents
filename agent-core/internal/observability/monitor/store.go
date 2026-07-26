@@ -21,6 +21,25 @@ type Store struct {
 	tools       map[string]ToolAggregate
 	metrics     map[string]MetricAggregate
 	schemas     map[string]MetricSchema
+	schemaSet   *schemaRegistry
+}
+
+func storeSchemaRegistry(s *Store) *schemaRegistry {
+	if s == nil {
+		return nil
+	}
+	s.mu.RLock()
+	defer s.mu.RUnlock()
+	return s.schemaSet
+}
+
+func setStoreSchemaRegistry(s *Store, schemas *schemaRegistry) {
+	if s == nil {
+		return
+	}
+	s.mu.Lock()
+	defer s.mu.Unlock()
+	s.schemaSet = schemas
 }
 
 // NewStore creates an in-memory monitor store with bounded retention.
