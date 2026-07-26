@@ -354,10 +354,13 @@ func buildPreparedRun(cmd *cobra.Command, resources runResources) (preparedRun, 
 }
 
 func initRunTelemetry(cfg runtimeConfig) (tracing.Tracer, metric.Meter, func(), error) {
+	parentCtx, err := telemetry.ParseParentSpan(cfg.OTelParent)
+	if err != nil {
+		return nil, nil, nil, fmt.Errorf("parse --otel-parent-span: %w", err)
+	}
 	if cfg.OTelLog == "" && cfg.OTelOTLP == "" && cfg.OTelMetricOTLP == "" {
 		return tracing.NoopTracer{}, nil, func() {}, nil
 	}
-	parentCtx, _ := telemetry.ParseParentSpan(cfg.OTelParent)
 	exporter := telemetry.ExporterConfig{
 		FilePath:           cfg.OTelLog,
 		OTLPEndpoint:       cfg.OTelOTLP,
