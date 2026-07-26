@@ -336,10 +336,12 @@ func TestLLMPreloadReadinessTransitionDiagnostics(t *testing.T) {
 
 func TestHelmLLMTierInstallExposesTransition(t *testing.T) {
 	var command string
-	err := helmInstallLLMWithRunner("/chart", func(name string, args ...string) ([]byte, error) {
-		command = name + " " + strings.Join(args, " ")
-		return nil, nil
-	})
+	err := helmInstallLLMWithRunner(
+		"/chart", "declarative-agents/agent-core:0123456789ab",
+		func(name string, args ...string) ([]byte, error) {
+			command = name + " " + strings.Join(args, " ")
+			return nil, nil
+		})
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -348,6 +350,9 @@ func TestHelmLLMTierInstallExposesTransition(t *testing.T) {
 	}
 	if !strings.Contains(command, "--set ollama.preload.suspend=true") {
 		t.Fatalf("helm install does not suspend preload for observation: %s", command)
+	}
+	if !strings.Contains(command, "--set image.tag=0123456789ab") {
+		t.Fatalf("helm install omits commit-addressed image: %s", command)
 	}
 }
 

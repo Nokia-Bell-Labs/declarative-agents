@@ -3,6 +3,7 @@
 package core
 
 import (
+	"database/sql"
 	"errors"
 	"fmt"
 	"testing"
@@ -116,4 +117,20 @@ func TestResumeLoadFailurePreservesBackendDetail(t *testing.T) {
 	_, err := LoadResume(params)
 	require.ErrorIs(t, err, ErrCheckpointLoadFailed)
 	require.ErrorContains(t, err, "connection refused")
+}
+
+func TestResumeDoltCheckoutFailureIsLoadFailure(t *testing.T) {
+	t.Parallel()
+	db := newFakeDB()
+	db.branches["permission-denied-run"] = true
+	db.failOn = "DOLT_CHECKOUT"
+	params := resumeLoopParams()
+	params.Checkpoint = NewDoltCheckpoint(db, "permission-denied-run", nil)
+
+	_, err := LoadResume(params)
+	require.ErrorIs(t, err, ErrCheckpointLoadFailed)
+	require.NotErrorIs(t, err, ErrNoCheckpoint)
+	require.NotErrorIs(t, err, ErrCheckpointIncompatible)
+	require.ErrorContains(t, err, `load: checkout branch "permission-denied-run"`)
+	require.ErrorContains(t, err, sql.ErrConnDone.Error())
 }

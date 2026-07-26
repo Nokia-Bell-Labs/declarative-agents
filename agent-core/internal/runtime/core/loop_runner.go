@@ -15,24 +15,24 @@ import (
 )
 
 type loopRunner struct {
-	sm               *StateMachine
-	params           LoopParams
-	trace            tracing.Tracer
-	ctx              context.Context
-	state            State
-	signal           Signal
-	result           Result
-	run              RunResult
-	iteration        int
-	start            time.Time
-	taskCompletedSig Signal
-	checkpoint       Checkpoint
-	execution        Execution
-	iterator         *IteratorSnapshot
-	// checkpointSaveErr holds the error from the most recent dispatch-cycle
-	// Save (nil on success). A periodic-save failure is a traced diagnostic, but
-	// the same failure on the dispatch that suspends the run is terminal: srd025
-	// R5.3 forbids StatusSuspended without a persisted checkpoint.
+	sm                *StateMachine
+	params            LoopParams
+	trace             tracing.Tracer
+	ctx               context.Context
+	state             State
+	signal            Signal
+	result            Result
+	run               RunResult
+	iteration         int
+	start             time.Time
+	taskCompletedSig  Signal
+	checkpoint        Checkpoint
+	checkpointEnabled bool
+	execution         Execution
+	iterator          *IteratorSnapshot
+	// checkpointSaveErr holds a classified failure to construct or save the
+	// current stateful checkpoint. The loop stops at that dispatch boundary so
+	// it never claims that an unpersisted Position/Execution pair is resumable.
 	checkpointSaveErr error
 }
 
@@ -41,26 +41,40 @@ func coreLoop(sm *StateMachine, p LoopParams, tr tracing.Tracer, ctx context.Con
 	r.recordStart()
 	for !r.done() {
 	}
-	return r.finish(), nil
+	result := r.finish()
+	if r.checkpointSaveErr != nil {
+		return result, result.LastError
+	}
+	return result, nil
 }
 
 func newLoopRunner(sm *StateMachine, p LoopParams, tr tracing.Tracer, ctx context.Context) *loopRunner {
 	sig, res := initialSignalResult(p)
 	return &loopRunner{
-		sm:               sm,
-		params:           p,
-		trace:            tr,
-		ctx:              ctx,
-		state:            p.InitialState,
-		signal:           sig,
-		result:           res,
-		run:              p.InitialRun,
-		iteration:        p.InitialRun.Iterations,
-		start:            time.Now(),
-		taskCompletedSig: taskCompletedSignal(p.Hooks),
-		checkpoint:       resolveCheckpoint(p.Checkpoint),
-		execution:        cloneExecution(p.InitialExecution),
-		iterator:         cloneIteratorSnapshot(p.InitialIterator),
+		sm:                sm,
+		params:            p,
+		trace:             tr,
+		ctx:               ctx,
+		state:             p.InitialState,
+		signal:            sig,
+		result:            res,
+		run:               p.InitialRun,
+		iteration:         p.InitialRun.Iterations,
+		start:             time.Now(),
+		taskCompletedSig:  taskCompletedSignal(p.Hooks),
+		checkpoint:        resolveCheckpoint(p.Checkpoint),
+		checkpointEnabled: checkpointPersistenceEnabled(p.Checkpoint),
+		execution:         cloneExecution(p.InitialExecution),
+		iterator:          cloneIteratorSnapshot(p.InitialIterator),
+	}
+}
+
+func checkpointPersistenceEnabled(checkpoint Checkpoint) bool {
+	switch checkpoint.(type) {
+	case nil, NoopCheckpoint, *NoopCheckpoint:
+		return false
+	default:
+		return true
 	}
 }
 
@@ -87,7 +101,7 @@ func taskCompletedSignal(hooks LoopHooks) Signal {
 
 func (r *loopRunner) recordStart() {
 	recordMonitorRun(r.ctx, r.params.MonitorRecorder, monitor.RunSnapshot{
-		RunID:     r.params.AgentName,
+		RunID:     r.params.RunID,
 		Status:    "running",
 		State:     string(r.state),
 		Iteration: r.iteration,
@@ -102,16 +116,20 @@ func (r *loopRunner) done() bool {
 	if r.iterator != nil && r.signal != BudgetExhausted {
 		return r.doneIterator()
 	}
-	nextState, cmd, transitionSignal, commandStateLabel, metricLabels := r.nextTransition()
-	if r.stopForTerminal(nextState) {
-		return true
+	nextState, cmd, transitionSignal, commandStateLabel, metricLabels, err := r.nextTransition()
+	if err != nil {
+		return r.stopForUnhandledTransition(err)
+	}
+	if cmd == nil {
+		if r.stopForTerminal(nextState) {
+			return true
+		}
+		r.advance(nextState)
+		return r.stopForNilCommand(cmd)
 	}
 	fromState := r.advance(nextState)
-	if r.stopForNilCommand(cmd) {
-		return true
-	}
 	r.dispatch(cmd, metricLabels, transitionSignal, commandStateLabel, fromState)
-	return r.stopForSuspend()
+	return r.stopAfterDispatch(nextState)
 }
 
 func (r *loopRunner) stopForContext() bool {
@@ -141,20 +159,19 @@ func (r *loopRunner) applyBudget() {
 	r.signal = BudgetExhausted
 }
 
-func (r *loopRunner) nextTransition() (State, Command, Signal, string, MetricLabels) {
+func (r *loopRunner) nextTransition() (State, Command, Signal, string, MetricLabels, error) {
 	transitionSignal := r.signal
 	commandStateLabel := transitionCommandStateLabel(r.params.MachineSpec, r.state, transitionSignal)
 	labels := transitionMetricLabels(r.params.MachineSpec, r.state, transitionSignal)
 	nextState, cmd, err := r.sm.Step(r.state, transitionSignal, r.result)
 	if err != nil {
-		r.recordUnhandledTransition(err)
-	} else {
-		nextState, cmd, commandStateLabel = r.prepareIterator(
-			transitionSignal, nextState, cmd, commandStateLabel,
-		)
-		r.recordTransition(nextState)
+		return nextState, cmd, transitionSignal, commandStateLabel, labels, err
 	}
-	return nextState, cmd, transitionSignal, commandStateLabel, labels
+	nextState, cmd, commandStateLabel = r.prepareIterator(
+		transitionSignal, nextState, cmd, commandStateLabel,
+	)
+	r.recordTransition(nextState)
+	return nextState, cmd, transitionSignal, commandStateLabel, labels, nil
 }
 
 func transitionCommandStateLabel(spec *MachineSpec, state State, signal Signal) string {
@@ -169,12 +186,16 @@ func transitionCommandStateLabel(spec *MachineSpec, state State, signal Signal) 
 	return ""
 }
 
-func (r *loopRunner) recordUnhandledTransition(err error) {
+func (r *loopRunner) stopForUnhandledTransition(err error) bool {
 	r.trace.Event("state.transition.unhandled",
 		attribute.String("state", string(r.state)),
 		attribute.String("signal", string(r.signal)),
 		attribute.String("error", err.Error()),
 	)
+	r.run.Status = StatusFailed
+	r.run.FinalState = r.state
+	r.run.LastError = err
+	return true
 }
 
 func (r *loopRunner) recordTransition(nextState State) {
@@ -189,7 +210,29 @@ func (r *loopRunner) stopForTerminal(nextState State) bool {
 	if !r.sm.IsTerminal(nextState) {
 		return false
 	}
+	// An actionless terminal transition has no dispatch cycle to persist it.
+	// Move to the actual terminal state without incrementing the dispatch count,
+	// then save the same Execution with its terminal Position. A transition whose
+	// action targeted a terminal state already saved this Position in dispatch,
+	// so state equality prevents a duplicate Save and duplicate step commit.
+	if r.state != nextState {
+		r.state = nextState
+		r.saveTerminalCheckpoint()
+	}
 	status := resolveTerminalStatus(r.params.Hooks, nextState)
+	if r.checkpointSaveErr != nil {
+		status = StatusFailed
+		r.run.LastError = fmt.Errorf(
+			"terminal checkpoint not persisted at iteration %d: %w",
+			r.iteration,
+			r.checkpointSaveErr,
+		)
+		r.trace.Event("run.terminal_persist_failed",
+			attribute.String("state", string(nextState)),
+			attribute.Int("iteration", r.iteration),
+			attribute.String("error", r.checkpointSaveErr.Error()),
+		)
+	}
 	r.trace.Event("run.terminal",
 		attribute.String("final_state", string(nextState)),
 		attribute.String("status", string(status)),
@@ -197,6 +240,31 @@ func (r *loopRunner) stopForTerminal(nextState State) bool {
 	r.run.FinalState = nextState
 	r.run.Status = status
 	return true
+}
+
+// saveTerminalCheckpoint persists an actionless terminal transition without
+// appending an Entry: no command was dispatched, so Execution must remain
+// unchanged. Stateful adapters may record a terminal-finalization commit before
+// applying their terminal branch lifecycle.
+func (r *loopRunner) saveTerminalCheckpoint() {
+	if !r.checkpointEnabled {
+		return
+	}
+	pos := dispatchPosition(r.state, r.signal, r.iteration, &r.run)
+	pos.Snapshot.Iterator = cloneIteratorSnapshot(r.iterator)
+	if err := r.foldConversation(&pos); err != nil {
+		r.recordCheckpointFailure(err)
+		return
+	}
+	if err := r.checkpoint.Save(pos, r.execution); err != nil {
+		r.recordCheckpointFailure(fmt.Errorf(
+			"%w: adapter %T Save at iteration %d: %w",
+			ErrCheckpointSaveFailed,
+			r.checkpoint,
+			r.iteration,
+			err,
+		))
+	}
 }
 
 func (r *loopRunner) advance(nextState State) State {
@@ -240,36 +308,43 @@ func (r *loopRunner) dispatch(
 }
 
 // saveCheckpoint persists the updated Position and appended Execution through the
-// checkpoint port after each dispatch cycle (srd035-checkpoint-port R6.1). A Save
-// failure on a progressing cycle is traced, not fatal, so a backend hiccup does
-// not abort an otherwise-progressing run; the error is retained in
-// checkpointSaveErr so stopForSuspend can treat it as terminal on a suspend
-// cycle (srd025 R5.3).
+// checkpoint port after each dispatch cycle (srd035-checkpoint-port R6.1).
+// Stateful checkpoint construction and Save failures stop the run at this
+// boundary. NoopCheckpoint skips snapshot and Save work entirely.
 func (r *loopRunner) saveCheckpoint(fromState State, transitionSignal Signal, commandStateLabel string) {
 	r.execution = append(
 		r.execution,
 		dispatchEntry(r.iteration, fromState, r.state, transitionSignal, commandStateLabel, r.result),
 	)
+	if !r.checkpointEnabled {
+		return
+	}
 	pos := dispatchPosition(r.state, r.signal, r.iteration, &r.run)
 	pos.Snapshot.Iterator = cloneIteratorSnapshot(r.iterator)
-	r.foldConversation(&pos)
-	r.checkpointSaveErr = r.checkpoint.Save(pos, r.execution)
-	if r.checkpointSaveErr != nil {
-		r.trace.Event("checkpoint.save_failed",
-			attribute.Int("iteration", r.iteration),
-			attribute.String("error", r.checkpointSaveErr.Error()),
-		)
+	if err := r.foldConversation(&pos); err != nil {
+		r.recordCheckpointFailure(err)
+		return
+	}
+	if err := r.checkpoint.Save(pos, r.execution); err != nil {
+		r.recordCheckpointFailure(fmt.Errorf(
+			"%w: adapter %T Save at iteration %d: %w",
+			ErrCheckpointSaveFailed,
+			r.checkpoint,
+			r.iteration,
+			err,
+		))
 	}
 }
 
 // foldConversation folds the domain-owned conversation into the resumable
 // Position so the typed checkpoint port persists it alongside loop state. Core
 // cannot import the llm package, so the conversation arrives through the
-// SnapshotConversation hook; a snapshot failure is traced, not fatal
-// (srd035-checkpoint-port R4, R6.1).
-func (r *loopRunner) foldConversation(pos *Position) {
+// SnapshotConversation hook. Failure leaves the prior Position/Execution unit
+// untouched rather than saving a Position with its required conversation
+// silently omitted (srd035-checkpoint-port R1.2, R4, R6.1).
+func (r *loopRunner) foldConversation(pos *Position) error {
 	if r.params.Hooks.SnapshotConversation == nil {
-		return
+		return nil
 	}
 	conversation, err := r.params.Hooks.SnapshotConversation()
 	if err != nil {
@@ -277,14 +352,23 @@ func (r *loopRunner) foldConversation(pos *Position) {
 			attribute.Int("iteration", r.iteration),
 			attribute.String("error", err.Error()),
 		)
-		return
+		return fmt.Errorf("%w at iteration %d: %w", ErrConversationSnapshotFailed, r.iteration, err)
 	}
 	pos.Snapshot.Conversation = conversation
+	return nil
+}
+
+func (r *loopRunner) recordCheckpointFailure(err error) {
+	r.checkpointSaveErr = err
+	r.trace.Event("checkpoint.save_failed",
+		attribute.Int("iteration", r.iteration),
+		attribute.String("error", err.Error()),
+	)
 }
 
 func (r *loopRunner) dispatchContext(labels MetricLabels) monitor.DispatchContext {
 	return monitor.DispatchContext{
-		RunID:        r.params.AgentName,
+		RunID:        r.params.RunID,
 		AgentName:    r.params.AgentName,
 		State:        string(r.state),
 		Iteration:    r.iteration,
@@ -322,7 +406,7 @@ func (r *loopRunner) recordResultEvent(fromState State) {
 
 func (r *loopRunner) runSnapshot() monitor.RunSnapshot {
 	return monitor.RunSnapshot{
-		RunID:     r.params.AgentName,
+		RunID:     r.params.RunID,
 		Status:    "running",
 		State:     string(r.state),
 		Signal:    string(r.signal),
@@ -358,11 +442,39 @@ func (r *loopRunner) stopForSuspend() bool {
 	return true
 }
 
+func (r *loopRunner) stopAfterDispatch(nextState State) bool {
+	if r.stopForSuspend() {
+		return true
+	}
+	if r.stopForCheckpointFailure() {
+		return true
+	}
+	if r.stopForContext() {
+		return true
+	}
+	return r.stopForTerminal(nextState)
+}
+
+func (r *loopRunner) stopForCheckpointFailure() bool {
+	if r.checkpointSaveErr == nil {
+		return false
+	}
+	r.trace.Event("run.checkpoint_persist_failed",
+		attribute.String("state", string(r.state)),
+		attribute.Int("iteration", r.iteration),
+		attribute.String("error", r.checkpointSaveErr.Error()),
+	)
+	r.run.Status = StatusFailed
+	r.run.FinalState = r.state
+	r.run.LastError = fmt.Errorf("run checkpoint not persisted: %w", r.checkpointSaveErr)
+	return true
+}
+
 func (r *loopRunner) finish() RunResult {
 	r.run.Iterations = r.iteration
 	r.run.Duration = time.Since(r.start)
 	recordMonitorRun(r.ctx, r.params.MonitorRecorder, monitor.RunSnapshot{
-		RunID:     r.params.AgentName,
+		RunID:     r.params.RunID,
 		Status:    string(r.run.Status),
 		State:     string(r.run.FinalState),
 		Signal:    string(r.signal),

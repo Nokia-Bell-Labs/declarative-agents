@@ -134,21 +134,28 @@ func TestCodingHelmFixturesMatchServingAndStorageContract(t *testing.T) {
 	}
 }
 
-func TestCodingHelmSmokeImageRemainsProfileFree(t *testing.T) {
+func TestCodingHelmSmokeUsesProductionProfileFreeImageRecipe(t *testing.T) {
+	data, err := os.ReadFile(filepath.Join("..", "Dockerfile"))
+	if err != nil {
+		t.Fatal(err)
+	}
+	dockerfile := string(data)
 	for _, want := range []string{
-		"FROM golang:1.26-alpine",
-		"COPY agent /usr/local/bin/agent",
-		"COPY golangci-lint /usr/local/bin/golangci-lint",
-		"COPY tools /opt/agent-core/tools",
+		"ARG GOLANGCI_LINT_VERSION=v2.12.2",
+		"FROM ${GO_IMAGE} AS runtime",
+		"github.com/golangci/golangci-lint/v2/cmd/golangci-lint@${GOLANGCI_LINT_VERSION}",
+		"COPY --from=builder /out/agent /usr/local/bin/agent",
+		"COPY --from=builder /out/golangci-lint /usr/local/bin/golangci-lint",
+		"COPY agent-core/tools /opt/agent-core/tools",
 		"USER 10001:10001",
 	} {
-		if !strings.Contains(codingHelmAgentDockerfile, want) {
-			t.Errorf("smoke Dockerfile missing %q", want)
+		if !strings.Contains(dockerfile, want) {
+			t.Errorf("production Dockerfile missing %q", want)
 		}
 	}
-	for _, forbidden := range []string{"COPY profiles", "COPY agents", "/profiles"} {
-		if strings.Contains(codingHelmAgentDockerfile, forbidden) {
-			t.Errorf("smoke Dockerfile bakes profile content via %q", forbidden)
+	for _, forbidden := range []string{"COPY profiles", "COPY agents", "v1.64.8"} {
+		if strings.Contains(dockerfile, forbidden) {
+			t.Errorf("production Dockerfile violates its image contract via %q", forbidden)
 		}
 	}
 }
@@ -156,5 +163,48 @@ func TestCodingHelmSmokeImageRemainsProfileFree(t *testing.T) {
 func TestCodingHelmUsesIsolatedLocalJaegerPort(t *testing.T) {
 	if codingHelmJaegerURL != "http://127.0.0.1:18686" {
 		t.Fatalf("Jaeger URL = %s, want isolated smoke port", codingHelmJaegerURL)
+	}
+}
+
+func TestCodingHelmCommitImagePropagatesToBuildManifestAndDeploy(t *testing.T) {
+	image := "declarative-agents/coding-agent-smoke:0123456789ab"
+	_, _, buildArgs := codingAgentImageBuild("..", image)
+	if !strings.Contains(strings.Join(buildArgs, " "), "-t "+image) {
+		t.Fatalf("docker build args omit commit image: %v", buildArgs)
+	}
+
+	modelImage := "declarative-agents/coding-model-smoke:0123456789ab"
+	manifest, cleanup, err := codingModelManifest(modelImage)
+	if err != nil {
+		t.Fatal(err)
+	}
+	defer cleanup()
+	data, err := os.ReadFile(manifest)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if !strings.Contains(string(data), "image: "+modelImage) {
+		t.Fatalf("model manifest omits commit image:\n%s", data)
+	}
+
+	var helmCommand string
+	run := func(_ context.Context, name string, args ...string) ([]byte, error) {
+		helmCommand = name + " " + strings.Join(args, " ")
+		return nil, nil
+	}
+	if err := installCodingHelmChartWithRunner(run, "/chart.tgz", "/app", image); err != nil {
+		t.Fatal(err)
+	}
+	for _, want := range []string{
+		"image.repository=declarative-agents/coding-agent-smoke",
+		"image.tag=0123456789ab",
+		"collector.utilityImage=" + image,
+	} {
+		if !strings.Contains(helmCommand, want) {
+			t.Errorf("helm command missing %q: %s", want, helmCommand)
+		}
+	}
+	if evidence := codingHelmEvidenceDir("/app", "0123456789ab"); !strings.Contains(evidence, "da-coding-agent-smoke-0123456789ab-") {
+		t.Fatalf("evidence path omits revision: %s", evidence)
 	}
 }

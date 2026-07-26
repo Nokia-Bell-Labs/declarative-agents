@@ -7,6 +7,7 @@ import (
 	"encoding/json"
 	"fmt"
 	"net/http"
+	"sort"
 	"strings"
 	"time"
 
@@ -66,13 +67,15 @@ type ServerDefinition struct {
 	Limits               LimitProfile
 	MachineRequestRunner MachineRequestRunner
 	Monitor              MonitorState
+	RunID                string
 }
 
 // MonitorState provides read-only state for monitor REST endpoints.
 type MonitorState struct {
-	Store   *monitor.Store
-	Machine *core.MachineSpec
-	Tools   []catalog.ToolDef
+	Store    *monitor.Store
+	Recorder monitor.RuntimeRecorder
+	Machine  *core.MachineSpec
+	Tools    []catalog.ToolDef
 }
 
 // MachineRequestRunner runs one request-scoped machine.
@@ -90,6 +93,7 @@ type MachineRequestRun struct {
 	Payload         map[string]interface{}  `json:"payload,omitempty"`
 	Config          MachineRequest          `json:"-"`
 	MonitorRecorder monitor.RuntimeRecorder `json:"-"`
+	RunID           string                  `json:"-"`
 }
 
 // MachineRequestResult records the short-lived machine outcome.
@@ -248,6 +252,7 @@ func (defaultMachineRequestRunner) RunMachineRequest(
 	var last core.Result
 	initialSignal := machineRequestInitialSignal(req.Config)
 	seed := requestSeed(req, initialSignal)
+	requestRecorder := machineRequestMonitorRecorder(req)
 	params := core.LoopParams{
 		MachineSpec:      req.Config.MachineSpec,
 		Registry:         req.Config.Registry,
@@ -265,9 +270,10 @@ func (defaultMachineRequestRunner) RunMachineRequest(
 		// cross-agent propagation. The process provider is set globally by NewRoot;
 		// without it this wraps the no-op global provider and behaves as before.
 		Trace:           requestScopedTrace(ctx),
+		RunID:           req.RunID,
 		AgentName:       machineRequestAgentName(req),
 		Directory:       ".",
-		MonitorRecorder: req.MonitorRecorder,
+		MonitorRecorder: requestRecorder,
 		Hooks: core.LoopHooks{
 			TerminalStatus: machineRequestTerminalStatus(req.Config),
 			OnResult: func(rr core.RunResult, res core.Result) core.RunResult {
@@ -284,6 +290,104 @@ func (defaultMachineRequestRunner) RunMachineRequest(
 		return MachineRequestResult{}, fmt.Errorf("machine_timeout: request machine timed out")
 	}
 	return machineRequestResult(req, rr, last)
+}
+
+func machineRequestMonitorRecorder(req MachineRequestRun) monitor.RuntimeRecorder {
+	scoped, ok := req.MonitorRecorder.(monitor.TrustedEnvelopeRecorder)
+	if !ok || req.Config.MachineSpec == nil {
+		return req.MonitorRecorder
+	}
+	return scoped.WithTrustedEnvelope(machineRequestEnvelopePolicy(req.Config, req.RunID))
+}
+
+func machineRequestEnvelopePolicy(cfg MachineRequest, runID string) monitor.EnvelopePolicy {
+	machine := cfg.MachineSpec
+	tools := make(map[string]struct{}, len(machine.Transitions))
+	states := stringValueSet(machine.States.Names()...)
+	signals := stringValueSet(machine.Signals.Names()...)
+	for _, state := range machine.TerminalStates {
+		states[state] = struct{}{}
+		signals[state] = struct{}{}
+	}
+	collectTransitionEnvelope(machine.Transitions, tools, states, signals)
+	collectRequestSignals(cfg, signals)
+	return monitor.EnvelopePolicy{
+		RunID:     runID,
+		ToolNames: sortedStringSet(tools),
+		States:    sortedStringSet(states),
+		Signals:   sortedStringSet(signals),
+	}
+}
+
+func collectTransitionEnvelope(
+	transitions []core.TransitionSpec,
+	tools, states, signals map[string]struct{},
+) {
+	for _, transition := range transitions {
+		states[transition.State] = struct{}{}
+		states[transition.Next] = struct{}{}
+		signals[transition.Signal] = struct{}{}
+		if transition.Action != "" && transition.Action != "$tool" {
+			tools[transition.Action] = struct{}{}
+		}
+		if transition.ForEach != nil {
+			collectForEachEnvelope(*transition.ForEach, tools, signals)
+		}
+	}
+}
+
+func collectForEachEnvelope(spec core.ForEachSpec, tools, signals map[string]struct{}) {
+	tools["for_each.join"] = struct{}{}
+	for _, signal := range spec.ContinueOn {
+		signals[signal] = struct{}{}
+	}
+	for _, signal := range spec.AbortOn {
+		signals[signal] = struct{}{}
+	}
+	for _, signal := range []string{
+		spec.Join.Signals.AllSuccess,
+		spec.Join.Signals.Partial,
+		spec.Join.Signals.Failed,
+		spec.Join.Signals.Empty,
+	} {
+		signals[signal] = struct{}{}
+	}
+}
+
+func collectRequestSignals(cfg MachineRequest, signals map[string]struct{}) {
+	for signal := range cfg.Response.TerminalSignals {
+		signals[signal] = struct{}{}
+	}
+	for signal := range cfg.Response.TerminalStates {
+		signals[signal] = struct{}{}
+	}
+	signals[string(machineRequestInitialSignal(cfg))] = struct{}{}
+	for _, signal := range []core.Signal{
+		core.CommandError, core.ToolFailed, core.BudgetExhausted,
+	} {
+		signals[string(signal)] = struct{}{}
+	}
+}
+
+func stringValueSet(values ...string) map[string]struct{} {
+	set := make(map[string]struct{}, len(values))
+	for _, value := range values {
+		if value != "" {
+			set[value] = struct{}{}
+		}
+	}
+	return set
+}
+
+func sortedStringSet(set map[string]struct{}) []string {
+	values := make([]string, 0, len(set))
+	for value := range set {
+		if value != "" {
+			values = append(values, value)
+		}
+	}
+	sort.Strings(values)
+	return values
 }
 
 // requestScopedTrace wraps the process tracer provider rooted at the
@@ -447,6 +551,7 @@ func (r *serverRuntime) handleMachineRequest(
 		Payload:         machineRequestPayload(endpoint.MachineRequest.Request, payload),
 		Config:          endpoint.MachineRequest,
 		MonitorRecorder: r.requestMonitor,
+		RunID:           r.def.RunID,
 	})
 	if err != nil {
 		writeMachineRequestError(w, err)

@@ -10,9 +10,17 @@ import (
 	"time"
 )
 
-// ErrNoCheckpoint is the typed not-found result Load returns when nothing has
-// been persisted (srd035-checkpoint-port R1.3).
-var ErrNoCheckpoint = errors.New("no checkpoint persisted")
+var (
+	// ErrNoCheckpoint is the typed not-found result Load returns when nothing
+	// has been persisted (srd035-checkpoint-port R1.3).
+	ErrNoCheckpoint = errors.New("no checkpoint persisted")
+	// ErrCheckpointSaveFailed classifies a configured stateful adapter Save
+	// failure reported in the run outcome.
+	ErrCheckpointSaveFailed = errors.New("checkpoint save failed")
+	// ErrConversationSnapshotFailed classifies failure to construct the folded
+	// conversation required by a stateful checkpoint Position.
+	ErrConversationSnapshotFailed = errors.New("conversation snapshot failed")
+)
 
 // Checkpoint is the typed persistence port (srd035-checkpoint-port). It exposes
 // exactly two methods: Save records the resumable Position and the ordered

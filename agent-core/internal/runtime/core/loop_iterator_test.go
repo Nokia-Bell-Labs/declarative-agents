@@ -31,17 +31,20 @@ func TestLoopForEachDispatchesItemsInOrderAndJoins(t *testing.T) {
 	require.Equal(t, []string{"items", "each_item", "each_item", "items_joined"}, entryLabels(execution))
 }
 
-func TestLoopForEachEmptyCollectionStillJoins(t *testing.T) {
+func TestLoopForEachEmptyCollectionJoinsDirectlyToTerminal(t *testing.T) {
 	t.Parallel()
 	cp := &InMemoryCheckpoint{}
 	params := iteratorLoopParams(t, cp, &orderedItems{})
 	params.Registry = iteratorRegistry(nil, &orderedItems{})
+	params.MachineSpec.Transitions[1].ForEach.Join.Next = "Done"
 
 	result, err := Loop(params, context.Background())
 
 	require.NoError(t, err)
 	require.Equal(t, StatusSucceeded, result.Status)
+	require.Equal(t, State("Done"), result.FinalState)
 	require.Equal(t, 2, result.Iterations, "list and empty join")
+	require.Equal(t, []string{"list", "for_each.join"}, eventCommands(result.Events))
 	_, execution, err := cp.Load()
 	require.NoError(t, err)
 	require.Equal(t, []string{"list", "for_each.join"}, entryCommands(execution))
@@ -230,6 +233,14 @@ func entryCommands(execution Execution) []string {
 	values := make([]string, len(execution))
 	for i := range execution {
 		values[i] = execution[i].CommandName
+	}
+	return values
+}
+
+func eventCommands(events []RunEvent) []string {
+	values := make([]string, len(events))
+	for i := range events {
+		values[i] = events[i].CommandName
 	}
 	return values
 }

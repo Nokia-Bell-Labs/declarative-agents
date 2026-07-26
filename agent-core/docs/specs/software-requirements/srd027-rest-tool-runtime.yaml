@@ -226,8 +226,6 @@ implementation_status:
   partial:
     - R10 lifecycle control routing is currently proven through configured emit_signal control routes and MachineSpec exit_agent transitions. Modeled lifecycle_control endpoint config remains reserved target-format behavior.
     - R10 read policy values outside the implemented first-available behavior are rejected during ToolDef factory validation.
-  planned_follow_up:
-    - agent-core-guhn.4: align formal release 03.0 suite cases with exact named Go tests for closed conformance behavior.
 
 diagrams:
   requirements_trace: |

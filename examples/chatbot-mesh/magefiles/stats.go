@@ -9,19 +9,21 @@ import (
 )
 
 type meshStatsOutput struct {
-	Agents agentsSection `json:"agents"`
+	Agents      agentsSection      `json:"agents"`
+	Composition compositionSection `json:"composition"`
 }
 
-// Stats outputs per-agent state-machine and YAML metrics for the mesh agents
-// as JSON to stdout. Unlike the platform sub-modules, the example reports no
-// module-wide LOC breakdown: its Go and Helm code are deployment scaffolding,
-// and the agents are what the root stats aggregation counts (GH-754).
+// Stats outputs local implementation metrics and composition reuse separately.
+// Unlike the platform sub-modules, the example reports no module-wide LOC
+// breakdown: its Go and Helm code are deployment scaffolding, and only the
+// locally owned agents feed root implementation totals (GH-754, GH-1000).
 func Stats() error {
-	var rec meshStatsOutput
-	var err error
-	rec.Agents, err = scanAgents("agents", meshCountLines)
+	ownership, err := scanAgentOwnership("agents", meshCountLines)
 	if err != nil {
 		return err
+	}
+	rec := meshStatsOutput{
+		Agents: ownership.Agents, Composition: ownership.Composition,
 	}
 
 	enc := json.NewEncoder(os.Stdout)

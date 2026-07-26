@@ -56,7 +56,7 @@ tools:
     description: Stores parsed suite config and defaults in critic session state.
   reversibility:
     classification: reversible
-    undo: session_state_restore
+    undo: evaluator_session_restore
     requires_confirmation: false
   errors:
   - signal: CommandError
@@ -69,8 +69,10 @@ tools:
     after:
     - discover_suite_samples
   undo:
-    strategy: session_state_restore
-    description: Restore the critic session snapshot captured before parsing suite config.
+    strategy: evaluator_session_restore
+    description: Restore the critic session from the persisted pre-command receipt.
+    payload: evaluator_session_snapshot
+    captures: [suite, session_dir, result, point_context, iterator_state]
 - name: run_point
   type: builtin
   init: run_point
@@ -145,14 +147,13 @@ tools:
     description: Runs the configured point machine with its selected tools.
   reversibility:
     classification: compensatable
-    undo: workspace_restore
+    undo: nested_machine_compensation
     requires_confirmation: false
   undo:
-    strategy: workspace_restore
-    description: Restore point artifact workspace and remove or restore the session point-result entry.
-    requires:
-    - point_workspace_checkpoint
-    - critic_session_checkpoint
+    strategy: compensating_action
+    description: Restore critic session state and surface required nested-machine and workspace compensation.
+    payload: boundary_compensation
+    captures: [evaluator_session_snapshot, nested_machine_history, point_workspace]
   errors:
   - signal: CommandError
     condition: required config is missing, no point is ready, or nested machine construction fails

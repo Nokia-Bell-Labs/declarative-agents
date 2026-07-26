@@ -62,6 +62,7 @@ func runMonitorRuntimeLoop(t *testing.T, runtime monitorRuntime) core.RunResult 
 	machine := monitorRuntimeMachine()
 	result, err := core.Loop(core.LoopParams{
 		MachineSpec:     &machine,
+		RunID:           "monitor-runtime-run",
 		AgentName:       "agent",
 		Registry:        reg,
 		Trace:           tracing.NoopTracer{},
@@ -101,7 +102,8 @@ func monitorReleaseProof(t *testing.T) monitorProof {
 
 	reader := sdkmetric.NewManualReader()
 	provider := sdkmetric.NewMeterProvider(sdkmetric.WithReader(reader))
-	mon := newMonitorRuntime(machine, defs, restDefs, provider.Meter("agent"))
+	mon, err := newMonitorRuntime(machine, defs, restDefs, provider.Meter("agent"), "monitor-proof-run")
+	require.NoError(t, err)
 	require.NotNil(t, mon.Store)
 	require.NotNil(t, mon.Recorder)
 
@@ -115,6 +117,7 @@ func monitorReleaseProof(t *testing.T) monitorProof {
 	return monitorProof{
 		params: core.LoopParams{
 			MachineSpec:     &machine,
+			RunID:           "monitor-proof-run",
 			AgentName:       "agent",
 			Registry:        reg,
 			Trace:           tracing.NoopTracer{},
@@ -122,7 +125,7 @@ func monitorReleaseProof(t *testing.T) monitorProof {
 			MonitorRecorder: mon.Recorder,
 		},
 		monitor:        mon,
-		monitorState:   monitorState(mon.Store, &machine, defs),
+		monitorState:   monitorState(mon.Store, mon.Recorder, &machine, defs),
 		restDefs:       restDefs,
 		launchDef:      requireToolDef(t, defs, "launch_monitor_rest"),
 		metricReader:   reader,
@@ -144,7 +147,7 @@ func monitorProofAgentState(
 		ctx:       context.Background(),
 		directory: cfg.Directory,
 		request:   cfg.Request,
-		monitor:   monitorState(mon.Store, machine, defs),
+		monitor:   monitorState(mon.Store, mon.Recorder, machine, defs),
 		restDefs:  restDefs,
 		shutdown:  func() {},
 	}

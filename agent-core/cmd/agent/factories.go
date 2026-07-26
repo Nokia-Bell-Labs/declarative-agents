@@ -10,7 +10,6 @@ import (
 	"github.com/Nokia-Bell-Labs/declarative-agents/agent-core/internal/model/llm"
 	"github.com/Nokia-Bell-Labs/declarative-agents/agent-core/internal/planning/pipeline"
 	"github.com/Nokia-Bell-Labs/declarative-agents/agent-core/internal/runtime/core"
-	"github.com/Nokia-Bell-Labs/declarative-agents/agent-core/internal/support/execute"
 	"github.com/Nokia-Bell-Labs/declarative-agents/agent-core/internal/tools/catalog"
 	"github.com/Nokia-Bell-Labs/declarative-agents/agent-core/internal/tools/compose"
 	"github.com/Nokia-Bell-Labs/declarative-agents/agent-core/internal/tools/control"
@@ -58,7 +57,7 @@ func standardFactoryDeps(st *agentState) toolregistry.StandardFactoryDeps {
 		RegisterREST:           registerRESTFactories(st),
 		RegisterCompose:        registerComposeFactories(),
 		RegisterOTLP:           registerOTLPFactories(),
-		RegisterService:        registerServiceFactories(),
+		RegisterService:        registerServiceFactories(st),
 	}
 }
 
@@ -361,12 +360,13 @@ func valuePredicateFactory() toolregistry.BuiltinFactory {
 // registerServiceFactories registers the rig's service words. One service
 // state and one scenario session are shared across the family, so every child
 // a run starts stays reachable for teardown.
-func registerServiceFactories() toolregistry.FactoryRegistrar {
+func registerServiceFactories(st *agentState) toolregistry.FactoryRegistrar {
 	return func(br *toolregistry.BuiltinRegistry) {
 		state := service.NewState()
 		service.RegisterBuiltins(br, service.FactoryDeps{
-			State:   state,
-			Session: service.NewScenarioSession(state),
+			State:    state,
+			Session:  service.NewScenarioSession(state),
+			CoreRoot: st.coreRoot,
 		})
 	}
 }
@@ -377,7 +377,7 @@ func selfInvokeFactory(st *agentState) toolregistry.BuiltinFactory {
 		if err != nil {
 			return nil, err
 		}
-		config := childExecuteConfig(parsed)
+		config := childExecuteConfig(parsed, st.coreRoot)
 		config.Binary = st.childAgentBinary
 		return &control.SelfInvokeBuilder{
 			Config:      config,
@@ -401,14 +401,6 @@ func decodeChildAgent(def catalog.ToolDef) (catalog.ChildAgentConfig, error) {
 	return parsed, nil
 }
 
-func childExecuteConfig(parsed catalog.ChildAgentConfig) execute.Config {
-	return execute.Config{
-		Profile: parsed.Profile,
-		Request: parsed.Request,
-		Output:  parsed.Output,
-	}
-}
-
 func directoryArgs(directory string) []string {
 	if directory == "" {
 		return nil
@@ -427,6 +419,7 @@ func registerPlanningFactories(st *agentState) toolregistry.FactoryRegistrar {
 		pipeline.RegisterFactories(br, pipeline.FactoryDeps{
 			Directory:        st.directory,
 			ChildAgentBinary: st.childAgentBinary,
+			CoreRoot:         st.coreRoot,
 			Tracer:           st.tracer,
 			Ctx:              st.ctx,
 			ParseRetries:     st.parseRetries,
@@ -444,6 +437,7 @@ func registerEvaluationFactories(st *agentState) toolregistry.FactoryRegistrar {
 			OutputDir:        st.output,
 			Directory:        st.directory,
 			ChildAgentBinary: st.childAgentBinary,
+			CoreRoot:         st.coreRoot,
 		})
 	}
 }
@@ -454,6 +448,7 @@ func registerRESTFactories(st *agentState) toolregistry.FactoryRegistrar {
 			Definitions:        st.restDefs,
 			MachineRunner:      profileMachineRequestRunner(st),
 			Monitor:            st.monitor,
+			RunID:              st.runID,
 			CredentialResolver: toolrest.EmptyCredentialResolver{},
 		})
 	}

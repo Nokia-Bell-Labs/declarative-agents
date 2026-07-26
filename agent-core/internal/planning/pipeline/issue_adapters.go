@@ -17,16 +17,12 @@ const SigIssueFormatted core.Signal = "IssueFormatted"
 const plannerIssueBodyPath = ".git/agent-planner/issue-body.yaml"
 
 type formatIssueCmd struct {
-	ps          *State
-	snapshot    pipelineSnapshot
-	hasSnapshot bool
+	ps *State
 }
 
 func (c *formatIssueCmd) Name() string { return "format_issue" }
 
 func (c *formatIssueCmd) Execute() core.Result {
-	c.snapshot = snapshotPipelineState(c.ps)
-	c.hasSnapshot = true
 	if c.ps.CurrentPlan == nil {
 		return pipelineCommandError(c.Name(), "no current plan to format")
 	}
@@ -56,7 +52,7 @@ func (c *formatIssueCmd) Execute() core.Result {
 }
 
 func (c *formatIssueCmd) Undo(_ core.Result) core.Result {
-	return undoPipelineSnapshot(c.Name(), c.ps, c.snapshot, c.hasSnapshot)
+	return core.NoopUndo(c.Name())
 }
 
 // FormatIssueBuilder constructs the state adapter that prepares parameters for
@@ -74,17 +70,15 @@ type trackerIssueResult struct {
 }
 
 type recordTrackerIssueCmd struct {
-	ps          *State
-	prior       core.Result
-	snapshot    pipelineSnapshot
-	hasSnapshot bool
+	ps    *State
+	prior core.Result
 }
 
 func (c *recordTrackerIssueCmd) Name() string { return "record_tracker_issue" }
 
-func (c *recordTrackerIssueCmd) Execute() core.Result {
-	c.snapshot = snapshotPipelineState(c.ps)
-	c.hasSnapshot = true
+func (c *recordTrackerIssueCmd) Execute() (result core.Result) {
+	snapshot := snapshotPipelineState(c.ps)
+	defer func() { result = withPipelineReceipt(result, snapshot, nil) }()
 	if c.prior.Signal != core.ToolDone {
 		return pipelineCommandError(c.Name(), fmt.Sprintf("tracker command returned %s", c.prior.Signal))
 	}
@@ -106,14 +100,14 @@ func (c *recordTrackerIssueCmd) Execute() core.Result {
 	}
 	output, err := json.Marshal(map[string]string{"issue_id": created.ID})
 	if err != nil {
-		c.snapshot.restore(c.ps)
+		snapshot.restore(c.ps)
 		return pipelineCommandError(c.Name(), fmt.Sprintf("encode issue result: %v", err))
 	}
 	return core.Result{CommandName: c.Name(), Signal: SigMaterialized, Output: string(output)}
 }
 
-func (c *recordTrackerIssueCmd) Undo(_ core.Result) core.Result {
-	return undoPipelineSnapshot(c.Name(), c.ps, c.snapshot, c.hasSnapshot)
+func (c *recordTrackerIssueCmd) Undo(prior core.Result) core.Result {
+	return undoPipelineReceipt(c.Name(), c.ps, nil, prior.Receipt)
 }
 
 // RecordTrackerIssueBuilder constructs the state adapter that records the ID
@@ -124,6 +118,10 @@ type RecordTrackerIssueBuilder struct {
 
 func (b *RecordTrackerIssueBuilder) Build(prior core.Result) core.Command {
 	return &recordTrackerIssueCmd{ps: b.PS, prior: prior}
+}
+
+func (b *RecordTrackerIssueBuilder) BuildReverser() core.Command {
+	return &recordTrackerIssueCmd{ps: b.PS}
 }
 
 func pipelineCommandError(commandName, message string) core.Result {

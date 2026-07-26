@@ -127,9 +127,12 @@ design_decisions:
       membership are compatibility-sensitive. Breaking changes require an
       explicit migration note and coordinated consumer update.
 
-      Mock, assembler, rig-subject, and testdata/conformance runtime scaffolding
-      test agent-core rather than constituting shipped application agents. A
-      follow-up will relocate them to agent-core; this decision moves no files.
+      Assembler and mock are supported test-time library members: they are
+      reusable across agent families and applications, live under agents/, and
+      carry the same SRD, conformance, portability, release, and compatibility
+      obligations as other members. Rig-subject and testdata/conformance
+      REST/control/lifecycle fixtures test agent-core and remain internal in
+      their current paths; no relocation is scheduled or tracked for them.
     benefits:
       - Reusable fixes flow upstream to every consumer.
       - Application composition and library behavior have visible owners.
@@ -188,12 +191,19 @@ implementation_status:
     - done: Formal migration use cases and test suites document the
         implemented profile repository workflow.
     - done: Profile-owned integration tracer bullets cover documentation-curator,
-        evaluator-generator, planner-generator, bench-evaluator, and monitor/control boundaries.
+        bench-to-critic, and monitor/control boundaries. Retired
+        critic-to-executor and planner-to-executor library tracers point to
+        application-owned replacements under examples/coding-agent.
     - done: Library membership, member obligations, one-canonical-home,
         application reference, exact v0 release compatibility, and migration
         contracts are recorded.
-    - planned: Relocate mock, assembler, rig-subject, and runtime conformance
-        scaffolding to agent-core without changing their behavior.
+    - done: Assembler and mock are classified as supported test-time library
+        members; rig-subject and runtime conformance fixtures remain internal,
+        with no relocation scheduled.
+    - in-progress: Release 11 assembler and mock implementation is present with
+        profile, fixture, conformance, and rig evidence; validator semantics,
+        serving-startup rejection, process survival, named failure causes, and
+        mock-start-failure cleanup remain unproven.
 
 related_documents:
   - doc: ../agent-core/docs/specs/config-formats/runtime-contract.yaml

@@ -24,15 +24,11 @@ const (
 type ServerState struct {
 	mu      sync.Mutex
 	servers map[string]*serverRuntime
-	stopped map[string]*serverRuntime
 }
 
 // NewServerState creates shared REST server state.
 func NewServerState() *ServerState {
-	return &ServerState{
-		servers: map[string]*serverRuntime{},
-		stopped: map[string]*serverRuntime{},
-	}
+	return &ServerState{servers: map[string]*serverRuntime{}}
 }
 
 // InboundEvent is one validated HTTP request visible to MachineSpec.
@@ -103,7 +99,6 @@ func (s *ServerState) Launch(def ServerDefinition) (map[string]interface{}, erro
 		return nil, fmt.Errorf("REST server %q is already launched", def.Name)
 	}
 	s.servers[def.Name] = runtime
-	delete(s.stopped, def.Name)
 	s.mu.Unlock()
 	go serveRuntime(runtime)
 	return runtime.launchOutput(), nil
@@ -120,10 +115,7 @@ func (s *ServerState) Stop(name string) (map[string]interface{}, error) {
 	runtime.closeStopped()
 	shutdownErr := runtime.httpServer.Shutdown(ctx)
 	s.mu.Lock()
-	if s.servers[name] == runtime {
-		delete(s.servers, name)
-		s.stopped[name] = runtime
-	}
+	delete(s.servers, name)
 	s.mu.Unlock()
 	output := runtime.stopOutput()
 	if shutdownErr != nil {
@@ -142,6 +134,40 @@ func (s *ServerState) runtime(name string) (*serverRuntime, error) {
 	return runtime, nil
 }
 
+// RestoreEvent returns a receipt-recorded event to the front of its source's
+// pending queue so rollback preserves the order of remaining events.
+func (s *ServerState) RestoreEvent(name string, event InboundEvent) error {
+	runtime, err := s.runtime(name)
+	if err != nil {
+		return err
+	}
+	runtime.mu.Lock()
+	defer runtime.mu.Unlock()
+	runtime.pending = append(runtime.pending, InboundEvent{})
+	copy(runtime.pending[1:], runtime.pending)
+	runtime.pending[0] = event
+	return nil
+}
+
+func (s *ServerState) resolveAwaitSources(options AwaitAnyOptions) ([]resolvedAwaitSource, error) {
+	if len(options.Sources) == 0 {
+		return nil, fmt.Errorf("at least one REST await source is required")
+	}
+	sources := make([]resolvedAwaitSource, 0, len(options.Sources))
+	for _, source := range options.Sources {
+		runtime, err := s.runtime(source.Server)
+		if err != nil {
+			return nil, err
+		}
+		sources = append(sources, resolvedAwaitSource{
+			runtime: runtime,
+			filter:  awaitFilter{server: source.Server, routes: source.Routes, signals: source.Signals},
+			stopped: stoppedBehavior(source.StoppedBehavior, options.StoppedBehavior),
+		})
+	}
+	return sources, nil
+}
+
 func newServerRuntime(def ServerDefinition) (*serverRuntime, error) {
 	if err := validateRouteConflicts(def.Server.Endpoints); err != nil {
 		return nil, err
@@ -157,7 +183,9 @@ func newServerRuntime(def ServerDefinition) (*serverRuntime, error) {
 		return nil, fmt.Errorf("bind REST server %q: %w", def.Name, err)
 	}
 	var requestMon monitor.RuntimeRecorder
-	if def.Monitor.Store != nil {
+	if def.Monitor.Recorder != nil {
+		requestMon = def.Monitor.Recorder
+	} else if def.Monitor.Store != nil {
 		requestMon = monitor.NewRecorder(def.Monitor.Store, nil)
 	}
 	runtime := &serverRuntime{
@@ -347,13 +375,7 @@ func (r *serverRuntime) awaitMatching(
 	stopped StoppedSourceBehavior,
 ) awaitResult {
 	for {
-		if result, ok := r.stoppedAwaitResult(stopped); ok {
-			return result
-		}
 		if event, ok := r.takePending(filter); ok {
-			if result, stopped := r.stoppedAwaitResult(stopped); stopped {
-				return result
-			}
 			return awaitResult{event: event, signal: event.Signal}
 		}
 		result := r.awaitNext(ctx, filter, stopped)
@@ -368,21 +390,8 @@ func (r *serverRuntime) awaitNext(
 	filter awaitFilter,
 	stopped StoppedSourceBehavior,
 ) awaitResult {
-	if result, ok := r.stoppedAwaitResult(stopped); ok {
-		return result
-	}
 	select {
-	case event, ok := <-r.queue:
-		if result, stopped := r.stoppedAwaitResult(stopped); stopped {
-			return result
-		}
-		if !ok {
-			return awaitResult{
-				event:  InboundEvent{Source: r.name},
-				signal: "CommandError",
-				err:    fmt.Errorf("REST server %q event queue closed while server was running", r.name),
-			}
-		}
+	case event := <-r.queue:
 		if filter.matches(event) {
 			return awaitResult{event: event, signal: event.Signal}
 		}
@@ -392,15 +401,6 @@ func (r *serverRuntime) awaitNext(
 		return stoppedResult(r.name, stopped)
 	case <-ctx.Done():
 		return awaitResult{done: true}
-	}
-}
-
-func (r *serverRuntime) stoppedAwaitResult(behavior StoppedSourceBehavior) (awaitResult, bool) {
-	select {
-	case <-r.stopped:
-		return stoppedResult(r.name, behavior), true
-	default:
-		return awaitResult{}, false
 	}
 }
 

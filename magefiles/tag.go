@@ -3,9 +3,11 @@
 package main
 
 import (
+	"errors"
 	"fmt"
 	"os"
 	"os/exec"
+	"path/filepath"
 	"regexp"
 	"strconv"
 	"strings"
@@ -17,18 +19,62 @@ const (
 	baseBranch = "main"
 )
 
-// Tag creates a repository-wide release tag and matching module tags.
-func Tag() error {
-	return createReleaseTag(time.Now(), gitOutput, gitExec)
+type releaseGate struct {
+	name string
+	dir  string
+	args []string
+	env  []string
 }
 
-func createReleaseTag(now time.Time, output gitOutputFunc, run gitExecFunc) error {
+type releaseGateRunner func(string) error
+type releaseCommandRunner func(releaseGate) error
+
+// Tag creates a repository-wide release tag and matching module tags.
+func Tag() error {
+	return createReleaseTag(time.Now(), gitOutput, gitCreateTagSet, runReleaseGates)
+}
+
+func createReleaseTag(
+	now time.Time,
+	output gitOutputFunc,
+	createTags gitTagSetFunc,
+	runGates releaseGateRunner,
+) error {
 	branch, err := output("rev-parse", "--abbrev-ref", "HEAD")
 	if err != nil {
 		return fmt.Errorf("getting current branch: %w", err)
 	}
 	if err := validateReleaseBranch(branch); err != nil {
 		return err
+	}
+	commit, err := output("rev-parse", "HEAD")
+	if err != nil {
+		return fmt.Errorf("resolving release commit: %w", err)
+	}
+	status, err := output("status", "--porcelain")
+	if err != nil {
+		return fmt.Errorf("checking release worktree: %w", err)
+	}
+	if strings.TrimSpace(status) != "" {
+		return errors.New("tag requires a clean worktree")
+	}
+	if err := runGates(commit); err != nil {
+		return fmt.Errorf("release gates for commit %s: %w", commit, err)
+	}
+	afterGates, err := output("rev-parse", "HEAD")
+	if err != nil {
+		return fmt.Errorf("verifying release commit after gates: %w", err)
+	}
+	if strings.TrimSpace(afterGates) != strings.TrimSpace(commit) {
+		return fmt.Errorf("release commit changed while gates ran: started %s, now %s",
+			commit, afterGates)
+	}
+	status, err = output("status", "--porcelain")
+	if err != nil {
+		return fmt.Errorf("verifying release worktree after gates: %w", err)
+	}
+	if strings.TrimSpace(status) != "" {
+		return errors.New("release worktree changed while gates ran")
 	}
 
 	date := now.Format("20060102")
@@ -38,14 +84,56 @@ func createReleaseTag(now time.Time, output gitOutputFunc, run gitExecFunc) erro
 	}
 	tag := fmt.Sprintf("%s%s.%d", tagPrefix, date, nextRevisionFromTags(date, tags))
 
-	for _, releaseTag := range releaseTags(tag, subModules) {
-		fmt.Printf("creating tag %s\n", releaseTag)
-		if err := run("tag", releaseTag); err != nil {
-			return releaseTagError(releaseTag, err)
+	allTags := releaseTags(tag, subModules)
+	fmt.Printf("creating atomic tag set %s\n", strings.Join(allTags, ", "))
+	if err := createTags(allTags, commit); err != nil {
+		return fmt.Errorf("creating atomic release tag set: %w", err)
+	}
+	fmt.Printf("done — created %s\n", strings.Join(allTags, ", "))
+	return nil
+}
+
+func runReleaseGates(commit string) error {
+	root, err := os.Getwd()
+	if err != nil {
+		return fmt.Errorf("resolve repository root: %w", err)
+	}
+	fmt.Printf("release: verifying commit %s\n", commit)
+	return executeReleaseGates(releaseGates(root), runReleaseCommand)
+}
+
+func releaseGates(root string) []releaseGate {
+	coreRoot := filepath.Join(root, "agent-core")
+	return []releaseGate{
+		{name: "root audit", dir: root, args: []string{"mage", "audit"}},
+		{name: "root test", dir: root, args: []string{"mage", "test"}},
+		{name: "agent-core integration", dir: filepath.Join(root, "agent-core"),
+			args: []string{"mage", "integration:all"}},
+		{name: "agent-profiles integration", dir: filepath.Join(root, "agent-profiles"),
+			args: []string{"mage", "integration:all"}},
+		{name: "agent-profiles conformance", dir: filepath.Join(root, "agent-profiles"),
+			args: []string{"mage", "conformance"},
+			env:  []string{"AGENT_CORE_ROOT=" + coreRoot}},
+	}
+}
+
+func executeReleaseGates(gates []releaseGate, run releaseCommandRunner) error {
+	for _, gate := range gates {
+		fmt.Printf("=== release gate: %s ===\n", gate.name)
+		if err := run(gate); err != nil {
+			return fmt.Errorf("%s failed: %w", gate.name, err)
 		}
 	}
-	fmt.Printf("done — created %s\n", strings.Join(releaseTags(tag, subModules), ", "))
 	return nil
+}
+
+func runReleaseCommand(gate releaseGate) error {
+	cmd := exec.Command(gate.args[0], gate.args[1:]...)
+	cmd.Dir = gate.dir
+	cmd.Env = append(os.Environ(), gate.env...)
+	cmd.Stdout = os.Stdout
+	cmd.Stderr = os.Stderr
+	return cmd.Run()
 }
 
 func releaseTags(rootTag string, modules []string) []string {
@@ -54,14 +142,6 @@ func releaseTags(rootTag string, modules []string) []string {
 		tags = append(tags, mod+"/"+rootTag)
 	}
 	return tags
-}
-
-func releaseTagError(tag string, err error) error {
-	module, _, ok := strings.Cut(tag, "/")
-	if ok {
-		return fmt.Errorf("creating tag %s for module %s: %w", tag, module, err)
-	}
-	return fmt.Errorf("creating tag %s: %w", tag, err)
 }
 
 func validateReleaseBranch(branch string) error {
@@ -89,10 +169,17 @@ func nextRevisionFromTags(date, tags string) int {
 }
 
 type gitOutputFunc func(args ...string) (string, error)
-type gitExecFunc func(args ...string) error
+type gitTagSetFunc func([]string, string) error
 
-func gitExec(args ...string) error {
-	cmd := exec.Command("git", args...)
+func gitCreateTagSet(tags []string, commit string) error {
+	var transaction strings.Builder
+	transaction.WriteString("start\n")
+	for _, tag := range tags {
+		fmt.Fprintf(&transaction, "create refs/tags/%s %s\n", tag, commit)
+	}
+	transaction.WriteString("prepare\ncommit\n")
+	cmd := exec.Command("git", "update-ref", "--stdin")
+	cmd.Stdin = strings.NewReader(transaction.String())
 	cmd.Stdout = os.Stdout
 	cmd.Stderr = os.Stderr
 	return cmd.Run()

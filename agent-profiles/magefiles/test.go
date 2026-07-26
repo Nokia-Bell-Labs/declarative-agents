@@ -15,11 +15,14 @@ func Test() error {
 }
 
 // Conformance runs the deterministic per-family profile conformance gate. It
-// includes static, protocol, and profile tests; live model inference remains
-// skipped unless AGENT_PROFILES_LIVE_CONFORMANCE=1 is explicitly set.
+// includes static, protocol, and profile tests and disables live inference even
+// when the caller's shell has retained the live-conformance opt-in.
 func Conformance() error {
 	fmt.Println("running go test ./conformance -count=1")
-	return sh.Run("go", "test", "./conformance", "-count=1")
+	return sh.RunWith(
+		map[string]string{"AGENT_PROFILES_LIVE_CONFORMANCE": "0"},
+		"go", "test", "./conformance", "-count=1",
+	)
 }
 
 // LiveConformance explicitly enables conformance paths that perform inference

@@ -1,10 +1,16 @@
 # Approval Gate
 
-This chapter presents the Approval Gate pattern, which suspends execution at a declared machine state, checkpoints the full execution, and waits for an external authority to approve or reject. The chapter covers the suspend-checkpoint-notify sequence, the resume and rollback paths, and the control-plane API that receives the decision.
+This chapter presents the Approval Gate pattern, which suspends execution at a declared machine state, checkpoints the execution, and waits for an external authority to approve or reject. It separates the complete pattern from the narrower lifecycle conformance fixture in the reference implementation.
 
 ## Intent
 
 Suspend execution at a declared state, checkpoint it, and resume or roll back on an external decision without losing execution context across the suspension.
+
+## Reference implementation status
+
+The shipped conformance fixture proves a Dolt-backed suspend and a second CLI invocation that resumes the stored Position and Execution with either `Approved` or `Rejected`. Approval reaches `Succeeded`; rejection reaches the fixture's `Rejected` terminal state. This is a conformance fixture, not a deployed coding-agent approval gate.
+
+Authority notification, proposal and decision metadata, decider identity, rejection-triggered rollback, multi-authority chains, and a deployed confirmation API remain design intent. The standard checkpoint contains the resumable Position and ordered Execution log; it has no approval-decision record.
 
 
 ## Motivation
@@ -44,7 +50,7 @@ The external decision-maker (human, policy engine, or chain of approvers); how i
 
 #### SuspendTool
 
-Emits `AwaitApproval` with a human-readable action summary.
+Emits `AwaitApproval` with the configured reason. The shipped tool records a trace event and asks the loop to suspend; it does not contact an authority.
 
 #### ResumeEngine
 
@@ -53,21 +59,21 @@ Loads a checkpoint and re-enters the loop, continuing past the gate on `Approved
 
 ## Collaborations
 
-The state machine diagram in Fig. 27 shows the lifecycle: `AwaitApproval` checkpoints and suspends, `Approved` resumes, `Rejected` routes to rollback.
+The state machine diagram in Fig. 27 shows the complete pattern: `AwaitApproval` checkpoints and suspends, `Approved` resumes, and `Rejected` may route to rollback. The conformance fixture instead terminates at `Rejected`.
 
 ![](figures/fig-28-approval-gate-state.png)
 
-| **Figure 27.** State machine diagram. The approval-gate lifecycle: `AwaitApproval` checkpoints and suspends; `Approved` resumes; `Rejected` routes to rollback. {wide} |
+| **Figure 27.** State machine diagram of the complete pattern. The fixture covers suspend and both decision signals, but not rejection rollback. {wide} |
 |:---:|
 
-**Suspension** proceeds in strict order, traced by the sequence diagram in Fig. 28: the engine dispatches the suspend tool like any other; the tool returns `AwaitApproval` with an action summary; the engine checkpoints the run through the Chapter 7 port — saving the Position and Execution, committed by the Dolt backend — notifies the authority with the summary and checkpoint reference, and exits the loop. The process may then terminate; an arbitrary time may pass with full state living in the checkpoint.
+**Suspension** proceeds in strict order, traced by the sequence diagram in Fig. 28: the engine dispatches the suspend tool like any other; the tool returns `AwaitApproval` with its configured reason; the engine checkpoints the run through the Chapter 7 port — saving the Position and Execution, committed by the Dolt backend — and exits the loop. The process may then terminate; an arbitrary time may pass with state living in the checkpoint. Notifying an authority with a proposal and checkpoint reference is part of the complete pattern, but the reference runtime does not implement that notification.
 
 ![](figures/fig-29-suspension-sequence.png)
 
-| **Figure 28.** Sequence diagram. The SuspendTool emits `AwaitApproval`; the engine persists a checkpoint, notifies the authority, and exits the dispatch loop, after which the process may terminate. {wide} |
+| **Figure 28.** Sequence diagram of the complete pattern. The shipped path persists and exits; the authority-notification step remains design intent. {wide} |
 |:---:|
 
-**Resumption** is signal injection into a loaded checkpoint. On `Approved`, the engine restores the Position and conversation from the typed snapshot (Chapter 7), injects `Approved`, and `(Suspended, Approved)` routes to the gated tool; a possibly different process resumes identically because both read the same checkpoint and machine. On `Rejected`, injecting `Rejected` routes to a rollback state — Dolt `Revert` for persisted state plus the lifecycle tool's reverse receipt walk for external effects (Chapter 7) — or to an alternative path such as `(Suspended, Rejected) -> Revising`, where the agent revises and re-enters the gate. Rejection policy is the machine author's choice.
+**Resumption** is signal injection into a loaded checkpoint. The runtime restores Position and conversation, then injects the value supplied by `--resume-signal`. In the fixture, `Approved` routes through `done` to `Succeeded`, while `Rejected` routes directly to the `Rejected` terminal state; no rollback runs. A production machine may instead route rejection to revision or checkpoint rollback, but those paths are design intent until a deployed profile and focused test ship.
 
 
 ## Consequences
@@ -84,7 +90,7 @@ State lives in the checkpoint store, not a process, so the agent survives restar
 
 #### Auditable decisions
 
-Each gate records the proposal, the decision, the time, and the decider, a compliance artifact.
+A complete gate records the proposal, decision, time, and decider as a compliance artifact. The shipped checkpoint does not yet carry these fields.
 
 #### Compositional gates
 
@@ -107,24 +113,43 @@ The world may change between suspend and resume, so the machine author must re-v
 
 ## Implementation
 
-Suspend is an `internal` lifecycle tool (the machine dispatches it at a declared point, so the model cannot skip the gate by declining to call it) and `noop`-reversible, since checkpointing, not the tool, captures state:
+Suspend is an `internal` lifecycle boundary tool, so the model cannot skip the gate by declining to call it. The shipped declaration is compensatable: resume with an explicit decision or roll back to an earlier checkpoint.
 
 ```yaml
-- name: suspend_for_approval
+- name: suspend
+  type: builtin
+  init: suspend
   visibility: internal
-  parameters: { action_summary: {type: string}, affected_paths: {type: array} }
-  emits: [AwaitApproval]
-  reversibility: noop
+  emits: [AwaitApproval, CommandError]
+  config:
+    label: approval
+    reason: awaiting approval
+    require_checkpoint: false
+  reversibility:
+    classification: compensatable
+    undo: resume_with_rejected_or_rollback_checkpoint
 ```
 
-A gate checkpoint is the standard checkpoint (the Position — agent snapshot and folded conversation — and the ordered Execution log, committed by the Dolt backend) plus gate metadata, namely the action summary, gate status, and an authority record (who decided, when, why), which turn it from a resume mechanism into an audit artifact. Resume is a CLI operation that maps flags to the resume engine's inputs:
+The fixture uses the standard checkpoint: Position (machine state, counters, and folded conversation) plus ordered Execution. Gate metadata such as proposal, status, decider, decision time, and rationale is not part of the shipped checkpoint. Adding those fields is design intent.
 
-```
-agent resume --checkpoint <id> --signal Approved
-agent resume --checkpoint <id> --signal Rejected --reason "scope exceeds authorization"
+Resume uses universal runtime flags on the ordinary `agent` command. There is no lifecycle-specific resume subcommand and no `--reason` flag:
+
+```bash
+bin/agent --profile "$AGENT_PROFILES_ROOT/testdata/conformance/lifecycle/approval/profile.yaml" \
+  --dolt-dsn "$DOLT_DSN"
+
+bin/agent --profile "$AGENT_PROFILES_ROOT/testdata/conformance/lifecycle/approval/profile.yaml" \
+  --dolt-dsn "$DOLT_DSN" \
+  --resume-checkpoint "$RUN_ID" \
+  --resume-signal Approved
+
+bin/agent --profile "$AGENT_PROFILES_ROOT/testdata/conformance/lifecycle/approval/profile.yaml" \
+  --dolt-dsn "$DOLT_DSN" \
+  --resume-checkpoint "$RUN_ID" \
+  --resume-signal Rejected
 ```
 
-Automated approval uses the same path. A policy engine monitors pending gates and injects the signal programmatically; manual and automated approval are identical to the engine. Static analysis can warn when an irreversible tool is reachable without passing a gate, but whether to add it remains the author's call.
+The conformance test obtains `RUN_ID` from the persisted Dolt run branch. A future authority service could invoke the same flags or an equivalent control-plane signal path, but pending-gate discovery and programmatic authority notification are not shipped.
 
 
 ## Relationships in the Pattern Language
@@ -134,9 +159,11 @@ Approval Gate sits within Machine Interpreter and requires Machine Interpreter, 
 
 ## Known Uses
 
-**Deployment confirmation.** A coding agent gates between validation and deployment: after tests pass, the machine suspends with a deployment diff (files changed, services affected, rollback path). Approval deploys; rejection rolls back to the pre-deployment checkpoint, leaving production untouched. Data-cleanup agents gate similarly, presenting records and rationale for each deletion, with every decision recorded for compliance.
+**Lifecycle approval conformance fixture.** The fixture under `agent-profiles/testdata/conformance/lifecycle/approval` dispatches `suspend`, persists through Dolt, and resumes through the universal CLI flags. It proves approved and rejected terminal routing, but not notification, decision metadata, rejection rollback, or deployment.
 
-**Multi-step authorization chains.** Budget-exceeding procurement might need team-lead approval at \$1,000, director at \$10,000, and VP at \$50,000, three sequential gates, each a different authority checkpointing independently. If any rejects, the agent rolls back to the last approved checkpoint, preserving work earlier authorities already blessed.
+**Deployment confirmation (design intent).** A coding agent could gate between validation and deployment: approval deploys, while rejection rolls back to the pre-deployment checkpoint. No shipped coding-agent profile implements this flow.
+
+**Multi-step authorization chains (design intent).** Sequential thresholds and independent authority records are part of the generic pattern, but the reference implementation has no deployed chain or authority-record schema.
 
 **Two-phase commit** [@gray-1978]. A coordinator prepares participants and waits for a decision before the irreversible commit, the same suspend-then-decide-then-commit structure the gate imposes before an irreversible tool.
 

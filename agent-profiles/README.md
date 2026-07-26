@@ -57,12 +57,16 @@ builtin implementations, CLI, runtime contracts, and image. Applications own
 composition manifests, app-specific wrappers/configuration, end-to-end tests,
 packaging, deployment, and operator UX.
 
-Runtime-test scaffolding is not part of the shipped agent library even when it
-currently sits in this repository. `mock`, `assembler`, rig-subject fixtures,
-and `testdata/conformance/` REST/control/lifecycle fixtures exercise
-`agent-core` behavior. Their relocation to `agent-core` is an explicit
-follow-up; this contract records the destination but moves no files in this
-issue.
+`assembler` and `mock` are supported test-time library members. They are
+independently reusable across profile families and applications, ship under
+`agents/`, and carry the same SRD, conformance, portability, release, and v0
+compatibility obligations as every other member.
+
+The rig-subject and `testdata/conformance/` REST/control/lifecycle fixtures are
+different: they exercise `agent-core` behavior and remain internal scaffolding
+in their current paths. They are not shipped agent-library members. A future
+move would require its own tracker item, destination contract, and acceptance
+criteria.
 
 ### Consumer contract
 
@@ -93,10 +97,11 @@ repository release; silent path or contract breaks are not compatible.
 
 Support states are intentionally simple: canonical members on `main` and in a
 release tag are the supported v0 surface; work on `exp/*` is unsupported and
-non-consumable; relocation tombstones and runtime-test scaffolding are
-informational/internal, not agent-library APIs. This avoids a second
-hand-maintained status registry that could drift from real profile paths,
-conformance, SRDs, and tags.
+non-consumable; relocation tombstones and internal conformance fixtures are
+informational/internal, not agent-library APIs. Supported test-time members
+such as assembler and mock remain part of the versioned public surface. This
+avoids a second hand-maintained status registry that could drift from real
+profile paths, conformance, SRDs, and tags.
 
 Release evidence is:
 

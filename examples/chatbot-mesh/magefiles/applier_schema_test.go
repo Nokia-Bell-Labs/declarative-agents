@@ -3,6 +3,7 @@
 package main
 
 import (
+	"encoding/json"
 	"os"
 	"os/exec"
 	"path/filepath"
@@ -128,6 +129,95 @@ func TestChartSchemaRejectsReservedRAGClientNames(t *testing.T) {
 			}
 		})
 	}
+}
+
+func TestChartSchemaRejectsUnknownValues(t *testing.T) {
+	if _, err := exec.LookPath("helm"); err != nil {
+		t.Skip("helm not on PATH")
+	}
+	cases := []struct {
+		name, value, path string
+	}{
+		{"top level", "unknownTop=value", "additional properties 'unknownTop' not allowed"},
+		{"chatbot", "chatbot.unknownNested=value", "at '/chatbot'"},
+		{"control plane", "controlPlane.creator.unknownNested=value", "at '/controlPlane/creator'"},
+	}
+	for _, tc := range cases {
+		t.Run(tc.name, func(t *testing.T) {
+			out, err := exec.Command(
+				"helm", "template", "t", findChartDir(t), "--set-string", tc.value,
+			).CombinedOutput()
+			if err == nil {
+				t.Fatalf("unknown value %q rendered clean:\n%s", tc.value, out)
+			}
+			for _, want := range []string{"schema", tc.path, "not allowed"} {
+				if !strings.Contains(string(out), want) {
+					t.Errorf("unknown-value rejection does not mention %q:\n%s", want, out)
+				}
+			}
+		})
+	}
+}
+
+func TestChartSchemaRejectsUnsafeProductionValues(t *testing.T) {
+	if _, err := exec.LookPath("helm"); err != nil {
+		t.Skip("helm not on PATH")
+	}
+	cases := []struct {
+		name, value, path string
+	}{
+		{"image", "image.repository=", "/image/repository"},
+		{"URL", "llm.externalURL=not-a-url", "/llm/externalURL"},
+		{"port", "chatbot.ports.chat=70000", "/chatbot/ports/chat"},
+		{"resource", "chatbot.resources.requests.memory=", "/chatbot/resources/requests/memory"},
+		{"control plane", "controlPlane.creator.ports.instance=0", "/controlPlane/creator/ports/instance"},
+	}
+	for _, tc := range cases {
+		t.Run(tc.name, func(t *testing.T) {
+			out, err := exec.Command(
+				"helm", "template", "t", findChartDir(t), "--set-string", tc.value,
+			).CombinedOutput()
+			if err == nil {
+				t.Fatalf("unsafe value %q rendered clean:\n%s", tc.value, out)
+			}
+			for _, want := range []string{"schema", tc.path} {
+				if !strings.Contains(string(out), want) {
+					t.Errorf("unsafe-value rejection does not mention %q:\n%s", want, out)
+				}
+			}
+		})
+	}
+}
+
+func TestChartSchemaClosesEveryGovernedObject(t *testing.T) {
+	data, err := os.ReadFile(filepath.Join(findChartDir(t), "values.schema.json"))
+	if err != nil {
+		t.Fatal(err)
+	}
+	var schema any
+	if err := json.Unmarshal(data, &schema); err != nil {
+		t.Fatal(err)
+	}
+	var visit func(string, any)
+	visit = func(path string, value any) {
+		switch node := value.(type) {
+		case map[string]any:
+			if node["type"] == "object" && node["properties"] != nil {
+				additional, present := node["additionalProperties"]
+				if !present || additional == true {
+					t.Errorf("schema object %s does not reject unknown keys", path)
+				}
+			}
+			for key, child := range node {
+				visit(path+"/"+key, child)
+			}
+		case []any:
+			for _, child := range node {
+				visit(path, child)
+			}
+		}
+	}
+	visit("#", schema)
 }
 
 func readSchemaText(t *testing.T) (string, error) {

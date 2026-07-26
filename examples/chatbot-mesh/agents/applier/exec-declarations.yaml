@@ -171,8 +171,8 @@ tools:
         description: Runs `helm rollback` as a child process; returns the release to its prior revision.
     reversibility:
       classification: irreversible
-      undo: noop
-      requires_confirmation: false
+      undo: irreversible
+      requires_confirmation: true
     errors:
       - signal: ToolFailed
         condition: the rollback exits non-zero
@@ -181,8 +181,8 @@ tools:
     relationships:
       after: [helm_upgrade, kubectl_rollout_status]
     undo:
-      strategy: noop
-      description: A rollback is itself the compensating action.
+      strategy: irreversible
+      description: A rollback is itself a one-way compensating action; reversing it requires a new explicit rollout.
 
   - name: helm_get_values
     type: exec

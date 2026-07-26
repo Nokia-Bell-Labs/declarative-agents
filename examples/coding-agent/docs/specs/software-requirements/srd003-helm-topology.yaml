@@ -15,11 +15,13 @@ requirements:
       - id: R1.1
         text: The chart shall render one Deployment and ClusterIP Service for planner, executor, and critic.
       - id: R1.2
-        text: Every role shall use the same profile-free agent-core image and select the serving profile named by its #875 role manifest.
+        text: Every role shall use the same application-owned, profile-free coding runtime image and select the serving profile named by its #875 role manifest.
       - id: R1.3
         text: Role ConfigMaps and projected volumes shall derive file and partition membership only from prepared #875 manifests.
       - id: R1.4
         text: A checksum of only the role's reachable profile files shall annotate its pod template.
+      - id: R1.5
+        text: The default coding runtime image shall contain agent-core, Go 1.26, and golangci-lint v2.12.2 so the canonical executor can complete its mandatory build, lint, and test sequence while profiles remain mount-only.
   - id: R2
     title: Serving contract wiring
     items:
@@ -52,7 +54,7 @@ requirements:
 
 acceptance_criteria:
   - id: AC1
-    criterion: Helm renders exactly three role Deployments with real profiles, shared workspace, fixed role Services, and truthful probes.
+    criterion: Helm renders exactly three role Deployments with real profiles, the published coding-toolchain image, shared workspace, fixed role Services, and truthful probes.
     traces: [R1, R2]
   - id: AC2
     criterion: Editing one prepared role profile changes only that role's rollout checksum.

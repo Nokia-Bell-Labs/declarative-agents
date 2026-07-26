@@ -11,11 +11,34 @@ import (
 	"gopkg.in/yaml.v3"
 )
 
-// agentsSection reports per-agent state-machine and YAML metrics for every
-// agent directory under agents/, plus a total across all agents.
+// agentsSection reports state-machine and YAML metrics for locally implemented
+// agents only. Composition wrappers are reported separately.
 type agentsSection struct {
 	Total    agentsTotal           `json:"total"`
 	PerAgent map[string]agentStats `json:"per_agent"`
+}
+
+type compositionSection struct {
+	Total      compositionTotal              `json:"total"`
+	PerWrapper map[string]compositionWrapper `json:"per_wrapper"`
+}
+
+type compositionTotal struct {
+	Wrappers            int            `json:"wrappers"`
+	CanonicalReferences int            `json:"canonical_references"`
+	YAML                agentYAMLStats `json:"yaml"`
+}
+
+type compositionWrapper struct {
+	Ownership        string         `json:"ownership"`
+	CanonicalSource  string         `json:"canonical_source"`
+	CanonicalProgram string         `json:"canonical_program"`
+	YAML             agentYAMLStats `json:"yaml"`
+}
+
+type agentOwnershipStats struct {
+	Agents      agentsSection
+	Composition compositionSection
 }
 
 type agentsTotal struct {
@@ -52,18 +75,33 @@ type agentToolsDoc struct {
 	Tools []yaml.Node `yaml:"tools"`
 }
 
-// scanAgents walks each subdirectory of agentsDir and reports per-agent
-// counts of states, transitions, tools, and YAML files/lines. Subdirectories
-// without YAML files (e.g. README-only placeholders) are skipped. A missing
-// agentsDir yields an empty section.
+type agentProfileDoc struct {
+	Machine string `yaml:"machine"`
+}
+
+// scanAgents retains the implementation-only view used by focused callers.
+// scanAgentOwnership additionally reports composition wrappers and references.
 func scanAgents(agentsDir string, countLines func(string) (int, error)) (agentsSection, error) {
-	section := agentsSection{PerAgent: map[string]agentStats{}}
+	ownership, err := scanAgentOwnership(agentsDir, countLines)
+	return ownership.Agents, err
+}
+
+func scanAgentOwnership(
+	agentsDir string,
+	countLines func(string) (int, error),
+) (agentOwnershipStats, error) {
+	result := agentOwnershipStats{
+		Agents: agentsSection{PerAgent: map[string]agentStats{}},
+		Composition: compositionSection{
+			PerWrapper: map[string]compositionWrapper{},
+		},
+	}
 	entries, err := os.ReadDir(agentsDir)
 	if os.IsNotExist(err) {
-		return section, nil
+		return result, nil
 	}
 	if err != nil {
-		return section, err
+		return result, err
 	}
 
 	for _, entry := range entries {
@@ -72,20 +110,64 @@ func scanAgents(agentsDir string, countLines func(string) (int, error)) (agentsS
 		}
 		stats, err := scanAgentDir(filepath.Join(agentsDir, entry.Name()), countLines)
 		if err != nil {
-			return section, err
+			return result, err
 		}
 		if stats.YAML.Files == 0 {
 			continue
 		}
-		section.PerAgent[entry.Name()] = stats
-		section.Total.Agents++
-		section.Total.States += stats.States
-		section.Total.Transitions += stats.Transitions
-		section.Total.Tools += stats.Tools
-		section.Total.YAML.Files += stats.YAML.Files
-		section.Total.YAML.Lines += stats.YAML.Lines
+		canonical, compositionOnly, err := compositionProgram(
+			agentsDir, filepath.Join(agentsDir, entry.Name()), stats)
+		if err != nil {
+			return result, err
+		}
+		if compositionOnly {
+			result.Composition.PerWrapper[entry.Name()] = compositionWrapper{
+				Ownership: "composition", CanonicalSource: "agent-profiles",
+				CanonicalProgram: canonical, YAML: stats.YAML,
+			}
+			result.Composition.Total.Wrappers++
+			result.Composition.Total.CanonicalReferences++
+			result.Composition.Total.YAML.Files += stats.YAML.Files
+			result.Composition.Total.YAML.Lines += stats.YAML.Lines
+			continue
+		}
+		result.Agents.PerAgent[entry.Name()] = stats
+		result.Agents.Total.Agents++
+		result.Agents.Total.States += stats.States
+		result.Agents.Total.Transitions += stats.Transitions
+		result.Agents.Total.Tools += stats.Tools
+		result.Agents.Total.YAML.Files += stats.YAML.Files
+		result.Agents.Total.YAML.Lines += stats.YAML.Lines
 	}
-	return section, nil
+	return result, nil
+}
+
+func compositionProgram(
+	agentsDir, agentDir string,
+	stats agentStats,
+) (string, bool, error) {
+	if stats.States != 0 || stats.Tools != 0 {
+		return "", false, nil
+	}
+	profilePath := filepath.Join(agentDir, "profile.yaml")
+	var profile agentProfileDoc
+	if err := unmarshalYAMLFile(profilePath, &profile); err != nil {
+		if os.IsNotExist(err) {
+			return "", false, nil
+		}
+		return "", false, err
+	}
+	target := filepath.Clean(filepath.Join(agentDir, filepath.FromSlash(profile.Machine)))
+	local, err := filepath.Rel(agentDir, target)
+	if err != nil || (local != ".." && !strings.HasPrefix(local, ".."+string(filepath.Separator))) {
+		return "", false, err
+	}
+	canonical, err := filepath.Rel(agentsDir, filepath.Dir(target))
+	if err != nil || canonical == ".." ||
+		strings.HasPrefix(canonical, ".."+string(filepath.Separator)) {
+		return "", false, fmt.Errorf("canonical machine %q escapes agents root", profile.Machine)
+	}
+	return "agents/" + filepath.ToSlash(canonical), true, nil
 }
 
 func scanAgentDir(dir string, countLines func(string) (int, error)) (agentStats, error) {

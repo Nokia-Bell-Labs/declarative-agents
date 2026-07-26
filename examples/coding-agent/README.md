@@ -92,11 +92,13 @@ separately; a checkout is never mislabeled as released. Deployment and role
 manifests also record the application checkout revision and dirty state because
 the serving composition is application-owned.
 
-The agent-core runtime image stays profile-free. Kubernetes runs planner,
-executor, and critic as separate containers using the same runtime image. Each
-container mounts its role directory under `/profiles` and selects the serving
-profile named by that role's manifest. Profiles are application package
-content, not runtime image content.
+The application-owned coding runtime image stays profile-free. It uses the
+agent-core runtime plus Go 1.26 and golangci-lint v2.12.2, because the canonical
+executor always runs build, lint, and test. Kubernetes runs planner, executor,
+and critic as separate containers using that same image. Each container mounts
+its role directory under `/profiles` and selects the serving profile named by
+that role's manifest. Profiles are application package content, not image
+content.
 
 ### Parameter inventory
 
@@ -117,6 +119,7 @@ No coding-application value is added to the library.
 Prepare #875 profile artifacts before linting or rendering the source chart:
 
 ```bash
+mage image:build
 mage helmPrepare
 helm lint helm
 helm template coding-agent helm
@@ -124,20 +127,26 @@ helm template coding-agent helm -f helm/ci/small-values.yaml
 mage helm:package
 ```
 
-The chart renders one persistent agent-core container per role, projected
+The chart defaults to
+`ghcr.io/nokia-bell-labs/declarative-agents/coding-agent-runtime:0.1.0` and
+renders one persistent coding-runtime container per role, projected
 read-only role ConfigMaps, one shared workspace claim, fixed internal role
 Services, lifecycle probes, optional Ollama, and collector-to-Jaeger OTLP
 routing. `values.schema.json`, semantic template guards, and fixtures under
 `helm/schema-fixtures/` validate values. `mage helm:package` regenerates and
 checks prepared profiles, renders the supported matrix, writes
 `helm/dist/coding-agent-0.1.0.tgz`, verifies its complete inventory, and renders
-the archive independently. See the [deployment guide](docs/deployment.md), or
-run the bounded packaged-chart proof with `mage integration:helmSmoke`.
+the archive independently. `CODING_AGENT_IMAGE` overrides the tag built by
+`mage image:build`; the live smoke invokes that same Dockerfile rather than a
+smoke-only recipe. See the [deployment guide](docs/deployment.md), or run the
+bounded packaged-chart proof with `mage integration:helmSmoke`.
 
 ## Status
 
-All three coding-loop stages and pinned, transitive profile packaging are
-implemented with the production agent-core binary and canonical profiles. The
+All three coding-loop stages and compatible-checkout, transitive profile
+packaging are implemented with the production agent-core binary and canonical
+profiles. The package records the source revision without claiming release
+provenance unless the checkout exactly matches the declared clean release. The
 critic receives the existing Stage B workspace, writes its own accepted or
 rejected verdict, and the application maps that verdict to Succeeded or Failed.
 Application-owned serving profiles now keep planner, executor, and critic alive
@@ -189,13 +198,32 @@ From this directory:
 
 ```bash
 mage audit
+mage stats
 ```
+
+The shared ENG01 operator verbs are:
+
+```bash
+mage doctor      # read-only tool/version and Docker Desktop resource checks
+mage demo:up     # create/reuse da-coding-agent-demo and print .localhost URLs
+mage demo:down   # delete only da-coding-agent-demo
+```
+
+Requested demos fail with actionable guidance when tools, versions, the Docker
+daemon, or host resources are unavailable; integrations retain their documented
+skip behavior. Failed deployment removes only a cluster created by that
+invocation, while a reused demo cluster is always retained.
 
 The audit parses every YAML document, checks required fields and reciprocal
 traces, assembles the application closure in a temporary tree, builds the real
 agent, boot-validates all four mounted entry profiles (including
 `critic/profile-workspace.yaml`), and validates formal test-evidence claims
 without turning skipped live runs into passed evidence.
+
+The stats target reports the canonical profile references and application-owned
+serving roles under an `application` key. It deliberately emits no `agents`
+section: planner, executor, and critic implementations are counted once under
+`agent-profiles`, while `agents_contributed: 0` makes that ownership explicit.
 
 The integration entry points are `mage integration:executorLive`,
 `mage integration:plannerDelegation`, `mage integration:criticGate`, and the

@@ -14,19 +14,17 @@ import (
 // markTaskDoneCmd owns only the successful task's graph mutation. Retry policy
 // and remaining-work routing are separate machine-selected words.
 type markTaskDoneCmd struct {
-	ps          *State
-	snapshot    pipelineSnapshot
-	hasSnapshot bool
+	ps *State
 }
 
 func (c *markTaskDoneCmd) Name() string { return "mark_task_done" }
-func (c *markTaskDoneCmd) Undo(_ core.Result) core.Result {
-	return undoPipelineSnapshot(c.Name(), c.ps, c.snapshot, c.hasSnapshot)
+func (c *markTaskDoneCmd) Undo(prior core.Result) core.Result {
+	return undoPipelineReceipt(c.Name(), c.ps, nil, prior.Receipt)
 }
 
-func (c *markTaskDoneCmd) Execute() core.Result {
-	c.snapshot = snapshotPipelineState(c.ps)
-	c.hasSnapshot = true
+func (c *markTaskDoneCmd) Execute() (result core.Result) {
+	snapshot := snapshotPipelineState(c.ps)
+	defer func() { result = withPipelineReceipt(result, snapshot, nil) }()
 	if c.ps.CurrentTask == nil || c.ps.Graph == nil {
 		err := fmt.Errorf("mark_task_done: current task and graph are required")
 		return core.Result{CommandName: c.Name(), Signal: core.CommandError, Err: err, Output: err.Error()}
@@ -50,6 +48,10 @@ type MarkTaskDoneBuilder struct {
 }
 
 func (b *MarkTaskDoneBuilder) Build(_ core.Result) core.Command {
+	return &markTaskDoneCmd{ps: b.PS}
+}
+
+func (b *MarkTaskDoneBuilder) BuildReverser() core.Command {
 	return &markTaskDoneCmd{ps: b.PS}
 }
 

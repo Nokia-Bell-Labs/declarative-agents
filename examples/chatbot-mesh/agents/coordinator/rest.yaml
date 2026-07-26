@@ -154,8 +154,9 @@ rest:
               target: creator.instance
               state: rollout_executed
           reversibility:
-            classification: reversible
-            undo: noop
+            classification: irreversible
+            undo: irreversible
+            requires_confirmation: true
         creator_rollout_values:
           # The panel's values-only apply (srd004 R1.6): the same delegation as
           # creator_rollout, reading the desired document straight off the seed
@@ -193,8 +194,9 @@ rest:
               target: creator.instance
               state: rollout_executed
           reversibility:
-            classification: reversible
-            undo: noop
+            classification: irreversible
+            undo: irreversible
+            requires_confirmation: true
         creator_rollout_status:
           # Read the rollout status the creator reads from the deployment API, so
           # the coordinator can aggregate progress for the panel (srd004 R1.3). A

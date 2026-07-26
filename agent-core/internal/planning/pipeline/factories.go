@@ -18,6 +18,7 @@ import (
 type FactoryDeps struct {
 	Directory        string
 	ChildAgentBinary string
+	CoreRoot         string
 	Tracer           tracing.Tracer
 	Ctx              context.Context
 	ParseRetries     *toollm.ParseErrorRetryTracker
@@ -76,8 +77,9 @@ func RegisterFactories(br *toolregistry.BuiltinRegistry, deps FactoryDeps) {
 		}
 		ps := initPS(def)
 		ps.ExecConfig = execute.Config{
-			Binary:  deps.ChildAgentBinary,
-			Profile: childCfg.Profile,
+			Binary:   deps.ChildAgentBinary,
+			Profile:  childCfg.Profile,
+			CoreRoot: deps.CoreRoot,
 		}
 		return &ExecuteTaskBuilder{PS: ps}, nil
 	})

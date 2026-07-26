@@ -3,6 +3,7 @@
 package core
 
 import (
+	"database/sql"
 	"encoding/json"
 	"fmt"
 	"strings"
@@ -207,4 +208,37 @@ func TestDoltCheckpointLoadNotFound(t *testing.T) {
 	cp := NewDoltCheckpoint(newFakeDB(), "missing", nil)
 	_, _, err := cp.Load()
 	require.ErrorIs(t, err, ErrNoCheckpoint)
+}
+
+func TestDoltCheckpointLoadMissingRows(t *testing.T) {
+	t.Parallel()
+	db := newFakeDB()
+	db.branches["empty-run"] = true
+
+	_, _, err := NewDoltCheckpoint(db, "empty-run", nil).Load()
+	require.ErrorIs(t, err, ErrNoCheckpoint)
+}
+
+func TestDoltCheckpointLoadCheckoutFailurePreservesAdapterError(t *testing.T) {
+	t.Parallel()
+	for _, tc := range []struct {
+		name string
+		err  error
+	}{
+		{name: "connection", err: sql.ErrConnDone},
+		{name: "permission", err: fmt.Errorf("permission denied")},
+	} {
+		t.Run(tc.name, func(t *testing.T) {
+			db := newFakeDB()
+			db.branches["unavailable-run"] = true
+			db.failOn = "DOLT_CHECKOUT"
+			db.failErr = tc.err
+
+			_, _, err := NewDoltCheckpoint(db, "unavailable-run", nil).Load()
+			require.ErrorIs(t, err, ErrDolt)
+			require.NotErrorIs(t, err, ErrNoCheckpoint)
+			require.ErrorContains(t, err, `load: checkout branch "unavailable-run"`)
+			require.ErrorContains(t, err, tc.err.Error())
+		})
+	}
 }

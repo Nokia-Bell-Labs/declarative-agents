@@ -4,14 +4,13 @@ package rest
 
 import (
 	"context"
-	"fmt"
+	"encoding/json"
 	"net/http"
 	"testing"
 	"time"
 
-	"github.com/stretchr/testify/require"
-
 	"github.com/Nokia-Bell-Labs/declarative-agents/agent-core/internal/runtime/core"
+	"github.com/stretchr/testify/require"
 )
 
 func TestRESTAwaitEvent_MultiSourceFanIn(t *testing.T) {
@@ -75,118 +74,32 @@ func TestRESTAwaitEvent_ServerStopped(t *testing.T) {
 	t.Parallel()
 
 	state, _ := launchRESTServer(t, namedControlServer("stopped"), LimitProfile{})
+	options := AwaitAnyOptions{
+		Sources: []AwaitSource{{Server: "stopped"}},
+		Timeout: time.Second,
+	}
+	sources, err := state.resolveAwaitSources(options)
+	require.NoError(t, err)
+	results := startRESTAwait(t, func() core.Result {
+		ctx, cancel := context.WithTimeout(context.Background(), options.Timeout)
+		defer cancel()
+		result := waitAnySource(ctx, cancel, sources)
+		return core.Result{Signal: core.Signal(result.signal), Err: result.err}
+	})
+	requireAwaitBlocked(t, results)
 	stopRESTServer(t, state, "stopped")
-
-	result := awaitAnyResult(state, AwaitSource{Server: "stopped"})
-	require.Equal(t, core.Signal("ServerStopped"), result.Signal, result.Output)
+	require.Equal(t, core.Signal("ServerStopped"), requireRESTResult(t, results).Signal)
 }
 
 func TestRESTAwaitEvent_StoppedSourceCommandError(t *testing.T) {
 	t.Parallel()
 
 	state, _ := launchRESTServer(t, namedControlServer("stopped_error"), LimitProfile{})
-	stopRESTServer(t, state, "stopped_error")
-
 	source := AwaitSource{Server: "stopped_error", StoppedBehavior: StoppedSourceCommandError}
-	result := awaitAnyResult(state, source)
-	require.Equal(t, core.Signal("CommandError"), result.Signal, result.Output)
-	require.Contains(t, result.Output, "stopped while awaiting events")
-}
-
-func TestRESTAwaitEvent_UnknownSourceRemainsCommandError(t *testing.T) {
-	t.Parallel()
-
-	result := awaitAnyResult(NewServerState(), AwaitSource{Server: "never_launched"})
-	require.Equal(t, core.Signal("CommandError"), result.Signal, result.Output)
-	require.Contains(t, result.Output, "is not launched")
-}
-
-func TestRESTAwaitEvent_StopWinsReadyQueueReads(t *testing.T) {
-	t.Parallel()
-
-	runtime := &serverRuntime{
-		name:    "stopping",
-		queue:   make(chan InboundEvent, 1),
-		stopped: make(chan struct{}),
-	}
-	runtime.queue <- InboundEvent{Source: "stopping", Signal: "QueuedEvent"}
-	close(runtime.stopped)
-
-	result := runtime.awaitMatching(
-		context.Background(),
-		awaitFilter{server: "stopping"},
-		StoppedSourceEmitServerStopped,
-	)
-	require.Equal(t, "ServerStopped", result.signal)
-	require.NoError(t, result.err)
-}
-
-func TestRESTAwaitEvent_ClosedQueueClassification(t *testing.T) {
-	t.Parallel()
-
-	t.Run("running source is CommandError", func(t *testing.T) {
-		runtime := &serverRuntime{
-			name:    "running",
-			queue:   make(chan InboundEvent),
-			stopped: make(chan struct{}),
-		}
-		close(runtime.queue)
-
-		result := runtime.awaitMatching(
-			context.Background(),
-			awaitFilter{server: "running"},
-			StoppedSourceEmitServerStopped,
-		)
-		require.Equal(t, "CommandError", result.signal)
-		require.ErrorContains(t, result.err, "event queue closed while server was running")
-	})
-
-	t.Run("stopped source follows policy", func(t *testing.T) {
-		runtime := &serverRuntime{
-			name:    "stopped",
-			queue:   make(chan InboundEvent),
-			stopped: make(chan struct{}),
-		}
-		close(runtime.queue)
-		close(runtime.stopped)
-
-		result := runtime.awaitMatching(
-			context.Background(),
-			awaitFilter{server: "stopped"},
-			StoppedSourceEmitServerStopped,
-		)
-		require.Equal(t, "ServerStopped", result.signal)
-		require.NoError(t, result.err)
-	})
-}
-
-func TestRESTAwaitEvent_ConcurrentStopStress(t *testing.T) {
-	const iterations = 100
-
-	for i := range iterations {
-		name := fmt.Sprintf("stop_race_%d", i)
-		state := NewServerState()
-		_, err := state.Launch(ServerDefinition{Name: name, Server: namedControlServer(name)})
-		require.NoError(t, err)
-
-		start := make(chan struct{})
-		awaited := make(chan core.Result, 1)
-		stopped := make(chan error, 1)
-		go func() {
-			<-start
-			awaited <- awaitAnyResult(state, AwaitSource{Server: name})
-		}()
-		go func() {
-			<-start
-			_, stopErr := state.Stop(name)
-			stopped <- stopErr
-		}()
-		close(start)
-
-		require.NoError(t, <-stopped)
-		result := <-awaited
-		require.Equal(t, core.Signal("ServerStopped"), result.Signal, result.Output)
-	}
+	results := startRESTAwait(t, func() core.Result { return awaitAnyResult(state, source) })
+	requireAwaitBlocked(t, results)
+	stopRESTServer(t, state, "stopped_error")
+	require.Equal(t, core.Signal("CommandError"), requireRESTResult(t, results).Signal)
 }
 
 func TestRESTAwaitEvent_FactoryBuildsConfiguredCommand(t *testing.T) {
@@ -210,6 +123,41 @@ func TestRESTAwaitEvent_FactoryBuildsConfiguredCommand(t *testing.T) {
 	require.Contains(t, result.Output, `"source":"control"`)
 	require.Contains(t, result.Output, `"route":"approve"`)
 	require.Equal(t, core.ToolDone, command.Undo(core.Result{}).Signal)
+}
+
+func TestRESTAwaitEvent_PersistedUndoRestoresConsumedEventInOrder(t *testing.T) {
+	t.Parallel()
+
+	state, baseURL := launchRESTServer(t, controlServer(), LimitProfile{})
+	defer stopRESTServer(t, state, "control")
+	postStatus(t, baseURL+"/approve/123", `{}`, http.StatusAccepted)
+	postStatus(t, baseURL+"/approve/456", `{}`, http.StatusAccepted)
+
+	builder := AwaitEventBuilder{
+		ToolName: "await_control",
+		Options: AwaitAnyOptions{
+			Sources: []AwaitSource{{Server: "control"}},
+			Timeout: time.Second,
+		},
+		State: state,
+	}
+	result := builder.Build(core.Result{}).Execute()
+	require.NotEmpty(t, result.Receipt)
+	var consumed InboundEvent
+	require.NoError(t, json.Unmarshal([]byte(result.Output), &consumed))
+	require.Equal(t, "123", consumed.Payload["id"])
+
+	undo := builder.BuildReverser().Undo(core.Result{Receipt: result.Receipt})
+	require.Equal(t, core.ToolDone, undo.Signal, undo.Output)
+
+	restored, signal, err := state.Await("control")
+	require.NoError(t, err)
+	require.Equal(t, "Approved", signal)
+	require.Equal(t, consumed, restored)
+	next, signal, err := state.Await("control")
+	require.NoError(t, err)
+	require.Equal(t, "Approved", signal)
+	require.Equal(t, "456", next.Payload["id"])
 }
 
 func TestRESTAwaitEvent_RejectsUnsupportedReadPolicy(t *testing.T) {

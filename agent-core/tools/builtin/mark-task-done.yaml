@@ -15,8 +15,10 @@ tools:
     classification: reversible
     undo: pipeline_state_restore
   undo:
-    strategy: session_state_restore
-    description: Restore graph node statuses from the pre-completion snapshot.
+    strategy: pipeline_state_restore
+    description: Restore graph status and retry values from the receipt-recorded pre-completion snapshot.
+    payload: pipeline_state_snapshot
+    captures: [current_task, current_plan, issue_id, task_deps, graph_status, graph_retries]
   problem: Successful validation needs one focused graph completion mutation.
   goals:
   - Mutate graph completion state without deciding retry or remaining-work policy.

@@ -5,7 +5,9 @@ package telemetry
 
 import (
 	"context"
+	"errors"
 	"fmt"
+	"io"
 	"log"
 	"os"
 	"path/filepath"
@@ -36,10 +38,26 @@ type ExporterConfig struct {
 }
 
 type providerOptions struct {
-	spans   []sdktrace.TracerProviderOption
-	metrics []sdkmetric.Option
-	file    *os.File
+	resource *resource.Resource
+	spans    []sdktrace.SpanExporter
+	metrics  []sdkmetric.Exporter
+	file     *os.File
 }
+
+type exporterFactories struct {
+	createTemp func(string, string) (*os.File, error)
+	fileTrace  func(io.Writer) (sdktrace.SpanExporter, error)
+	fileMetric func(io.Writer) (sdkmetric.Exporter, error)
+	otlpTrace  func(string) (sdktrace.SpanExporter, error)
+	otlpMetric func(string) (sdkmetric.Exporter, error)
+}
+
+type cleanupAction struct {
+	name string
+	run  func(context.Context) error
+}
+
+type setupCleanup []cleanupAction
 
 // Trace bundles an OpenTelemetry tracer, a context carrying the active span,
 // and a meter. Immutable after construction; Push returns a new Trace.
@@ -205,7 +223,9 @@ func buildShutdown(
 			}
 			if file != nil {
 				tmpName := file.Name()
-				_ = file.Close()
+				if err := file.Close(); err != nil {
+					log.Printf("telemetry: close %s: %v", tmpName, err)
+				}
 				if err := os.Rename(tmpName, finalPath); err != nil {
 					log.Printf("telemetry: rename %s -> %s: %v", tmpName, finalPath, err)
 				}
@@ -223,89 +243,168 @@ func buildProviders(
 	res *resource.Resource,
 	serviceName string,
 ) (*sdktrace.TracerProvider, *sdkmetric.MeterProvider, *os.File, error) {
+	return buildProvidersWithFactories(cfg, res, serviceName, defaultExporterFactories())
+}
+
+func buildProvidersWithFactories(
+	cfg ExporterConfig,
+	res *resource.Resource,
+	serviceName string,
+	factories exporterFactories,
+) (*sdktrace.TracerProvider, *sdkmetric.MeterProvider, *os.File, error) {
 	options := newProviderOptions(res)
-	if err := options.addFileExporters(cfg.FilePath, serviceName); err != nil {
-		return nil, nil, nil, err
+	var cleanup setupCleanup
+	if err := options.addFileExporters(cfg.FilePath, serviceName, factories, &cleanup); err != nil {
+		return nil, nil, nil, cleanup.rollback(err)
 	}
-	if err := options.addOTLPTraceExporter(cfg.OTLPEndpoint); err != nil {
-		return nil, nil, nil, err
+	if err := options.addOTLPTraceExporter(cfg.OTLPEndpoint, factories, &cleanup); err != nil {
+		return nil, nil, nil, cleanup.rollback(err)
 	}
-	if err := options.addOTLPMetricExporter(metricOTLPEndpoint(cfg)); err != nil {
-		return nil, nil, nil, err
+	if err := options.addOTLPMetricExporter(metricOTLPEndpoint(cfg), factories, &cleanup); err != nil {
+		return nil, nil, nil, cleanup.rollback(err)
 	}
-	return sdktrace.NewTracerProvider(options.spans...),
-		sdkmetric.NewMeterProvider(options.metrics...), options.file, nil
+	tp, mp := options.providers()
+	cleanup = nil
+	return tp, mp, options.file, nil
 }
 
 func newProviderOptions(res *resource.Resource) *providerOptions {
-	return &providerOptions{
-		spans:   []sdktrace.TracerProviderOption{sdktrace.WithResource(res)},
-		metrics: []sdkmetric.Option{sdkmetric.WithResource(res)},
-	}
+	return &providerOptions{resource: res}
 }
 
-func (o *providerOptions) addFileExporters(path, serviceName string) error {
+func (o *providerOptions) providers() (*sdktrace.TracerProvider, *sdkmetric.MeterProvider) {
+	traceOptions := []sdktrace.TracerProviderOption{sdktrace.WithResource(o.resource)}
+	for _, exporter := range o.spans {
+		traceOptions = append(traceOptions, sdktrace.WithBatcher(exporter))
+	}
+	metricOptions := []sdkmetric.Option{sdkmetric.WithResource(o.resource)}
+	for _, exporter := range o.metrics {
+		reader := sdkmetric.NewPeriodicReader(exporter)
+		metricOptions = append(metricOptions, sdkmetric.WithReader(reader))
+	}
+	return sdktrace.NewTracerProvider(traceOptions...), sdkmetric.NewMeterProvider(metricOptions...)
+}
+
+func (o *providerOptions) addFileExporters(
+	path, serviceName string,
+	factories exporterFactories,
+	cleanup *setupCleanup,
+) error {
 	if path == "" {
 		return nil
 	}
-	file, traceExp, metricExp, err := fileExporters(path, serviceName)
+	file, traceExp, metricExp, err := fileExporters(path, serviceName, factories, cleanup)
 	if err != nil {
 		return err
 	}
 	o.file = file
-	o.spans = append(o.spans, sdktrace.WithBatcher(traceExp))
-	o.metrics = append(o.metrics, sdkmetric.WithReader(sdkmetric.NewPeriodicReader(metricExp)))
+	o.spans = append(o.spans, traceExp)
+	o.metrics = append(o.metrics, metricExp)
 	return nil
 }
 
-func (o *providerOptions) addOTLPTraceExporter(endpoint string) error {
+func (o *providerOptions) addOTLPTraceExporter(
+	endpoint string,
+	factories exporterFactories,
+	cleanup *setupCleanup,
+) error {
 	if endpoint == "" {
 		return nil
 	}
-	exporter, err := otlpTraceExporter(endpoint)
+	exporter, err := factories.otlpTrace(endpoint)
 	if err != nil {
 		return err
 	}
-	o.spans = append(o.spans, sdktrace.WithBatcher(exporter))
+	cleanup.add("OTLP trace exporter", exporter.Shutdown)
+	o.spans = append(o.spans, exporter)
 	return nil
 }
 
-func (o *providerOptions) addOTLPMetricExporter(endpoint string) error {
+func (o *providerOptions) addOTLPMetricExporter(
+	endpoint string,
+	factories exporterFactories,
+	cleanup *setupCleanup,
+) error {
 	if endpoint == "" {
 		return nil
 	}
-	exporter, err := otlpMetricExporter(endpoint)
+	exporter, err := factories.otlpMetric(endpoint)
 	if err != nil {
 		return err
 	}
-	o.metrics = append(o.metrics, sdkmetric.WithReader(sdkmetric.NewPeriodicReader(exporter)))
+	cleanup.add("OTLP metric exporter", exporter.Shutdown)
+	o.metrics = append(o.metrics, exporter)
 	return nil
 }
 
 // fileExporters writes to a temp file in the same directory; buildShutdown
 // renames it to the final path for atomic delivery (srd007 R6.2).
 // Pre-root boundary: failures here are returned as errors, not traced.
-func fileExporters(path, serviceName string) (
+func fileExporters(
+	path, serviceName string,
+	factories exporterFactories,
+	cleanup *setupCleanup,
+) (
 	*os.File, sdktrace.SpanExporter, sdkmetric.Exporter, error,
 ) {
 	dir := filepath.Dir(path)
-	f, err := os.CreateTemp(dir, fmt.Sprintf(".%s-trace-*.tmp", serviceName))
+	f, err := factories.createTemp(dir, fmt.Sprintf(".%s-trace-*.tmp", serviceName))
 	if err != nil {
 		return nil, nil, nil, fmt.Errorf("create trace temp file in %s: %w", dir, err)
 	}
-	traceExp, err := stdouttrace.New(stdouttrace.WithWriter(f))
+	cleanup.add("temporary trace file", func(context.Context) error {
+		return closeAndRemove(f)
+	})
+	traceExp, err := factories.fileTrace(f)
 	if err != nil {
-		_ = f.Close()
-		_ = os.Remove(f.Name())
 		return nil, nil, nil, fmt.Errorf("trace exporter: %w", err)
 	}
-	metricExp, err := stdoutmetric.New(stdoutmetric.WithWriter(f))
+	cleanup.add("file trace exporter", traceExp.Shutdown)
+	metricExp, err := factories.fileMetric(f)
 	if err != nil {
-		_ = f.Close()
-		_ = os.Remove(f.Name())
 		return nil, nil, nil, fmt.Errorf("metric exporter: %w", err)
 	}
+	cleanup.add("file metric exporter", metricExp.Shutdown)
 	return f, traceExp, metricExp, nil
+}
+
+func defaultExporterFactories() exporterFactories {
+	return exporterFactories{
+		createTemp: os.CreateTemp,
+		fileTrace: func(w io.Writer) (sdktrace.SpanExporter, error) {
+			return stdouttrace.New(stdouttrace.WithWriter(w))
+		},
+		fileMetric: func(w io.Writer) (sdkmetric.Exporter, error) {
+			return stdoutmetric.New(stdoutmetric.WithWriter(w))
+		},
+		otlpTrace:  otlpTraceExporter,
+		otlpMetric: otlpMetricExporter,
+	}
+}
+
+func (c *setupCleanup) add(name string, run func(context.Context) error) {
+	*c = append(*c, cleanupAction{name: name, run: run})
+}
+
+func (c *setupCleanup) rollback(setupErr error) error {
+	errs := []error{setupErr}
+	for i := len(*c) - 1; i >= 0; i-- {
+		action := (*c)[i]
+		if err := action.run(context.Background()); err != nil {
+			errs = append(errs, fmt.Errorf("cleanup %s: %w", action.name, err))
+		}
+	}
+	*c = nil
+	return errors.Join(errs...)
+}
+
+func closeAndRemove(file *os.File) error {
+	closeErr := file.Close()
+	removeErr := os.Remove(file.Name())
+	if os.IsNotExist(removeErr) {
+		removeErr = nil
+	}
+	return errors.Join(closeErr, removeErr)
 }
 
 func metricOTLPEndpoint(cfg ExporterConfig) string {

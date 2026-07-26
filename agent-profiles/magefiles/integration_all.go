@@ -27,7 +27,7 @@ func (i Integration) All() error {
 		needsCore bool
 	}{
 		{"documentationCurator", i.DocumentationCurator, true},
-		{"benchEvaluator", i.BenchEvaluator, false},
+		{"benchEvaluator", i.BenchEvaluator, true},
 		{"monitorControl", i.MonitorControl, false},
 	}
 

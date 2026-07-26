@@ -437,7 +437,7 @@ func reachableStates(spec MachineSpec) map[string]bool {
 // BuildTransitionTable converts a MachineSpec into a core.TransitionTable
 // using the provided registry to resolve action names to builders.
 // The special action "$tool" is resolved using the provided toolAction.
-// Empty actions produce nil ActionFuncs (terminal transitions).
+// Empty actions produce nil ActionFuncs, including actionless terminal transitions.
 func BuildTransitionTable(spec MachineSpec, reg *Registry, toolAction ActionFunc) (TransitionTable, TerminalFunc, error) {
 	terminalSet := make(map[State]bool)
 	for _, ts := range spec.TerminalStates {

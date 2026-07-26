@@ -105,6 +105,12 @@ Each tool needs a full contract, not a docstring. The payoff is that the contrac
 
 ## Implementation
 
+### Validation boundaries
+
+The complete contract is an authoring and audit standard, not an unconditional runtime-startup gate. `ReviewToolAuthoring` and `ValidateToolContracts` report missing problem, goals, requirements, non-goals, schemas, reversibility, undo, relationships, and legacy metadata while a tool is designed. The public specification audit applies the corresponding completeness check to selected declarations and treats incomplete migrated contracts as errors.
+
+Ordinary agent startup enforces the subset needed for safe execution: parse-retry budgets must have retry and exhaustion routes, every declared emitted signal must be routable by the loaded machine, and state-mutating reversible or compensatable tools must declare receipt-consuming undo. Startup does not reject a declaration solely because descriptive contract sections are incomplete. CI and profile audits must run the broader checks before release.
+
 ### Contract sections
 
 Every contract has six mandatory sections. **Problem.** Why the tool exists; the gap it fills; one paragraph. **Goals.** Numbered, measurable success conditions forming the acceptance boundary. **Requirements.** Grouped "must" statements covering input formats, output structure, side effects, undo, and error signals. **Non-goals.** Scope bounds that tell the agent when *not* to use it ("does not transform data"). **Acceptance criteria.** Specific input/output/side-effect scenarios that double as tests and as examples the agent reads. **Reversibility.** One of three tiers (below), with the undo or compensation mechanism. Satisfying only one consumer is insufficient: perfect schema but no problem statement leaves the agent unable to select; detailed goals but no undo spec leaves the rollback engine blind.
@@ -145,7 +151,7 @@ Tool Contract sits within Machine Interpreter and requires Machine Interpreter: 
 
 ## Known Uses
 
-In the working implementation, tool declarations are YAML contracts validated at load time (Chapter 3); a tool whose contract is incomplete fails before the agent runs. Tool set audits apply the four-question test at authoring time and when reviewing an existing tool set, flagging execution-shaped tools for decomposition. Reversibility tiers declared in each contract drive receipt-driven undo (Chapter 7): a reversible tool's Undo decodes its receipt, a compensatable tool issues a corrective call derived from it, irreversible tools are skipped and logged, all from the declaration, with the `checkpoint_rollback` lifecycle tool doing the walk and no special-casing in the engine.
+In the working implementation, runtime startup checks machine/tool signal wiring, parse-retry routes, and receipt compatibility before execution. Full contract completeness is enforced by authoring and specification-audit checks rather than by ordinary startup. Reversibility tiers declared in each contract drive receipt-driven undo (Chapter 7): a reversible tool's Undo decodes its receipt, a compensatable tool issues a corrective call derived from it, irreversible tools are skipped and logged, all from the declaration, with the `checkpoint_rollback` lifecycle tool doing the walk and no special-casing in the engine.
 
 **Design by Contract** [@meyer-dbc-1997]. Preconditions, postconditions, and invariants as first-class specifications are the direct ancestor of a typed tool contract, moving behaviour from prose into a checkable interface.
 

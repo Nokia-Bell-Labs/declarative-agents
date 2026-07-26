@@ -3,6 +3,7 @@
 package conformance
 
 import (
+	"encoding/json"
 	"io"
 	"net/http"
 	"os"
@@ -48,6 +49,7 @@ func TestBenchConformance(t *testing.T) {
 	requireBenchResponse(t, "http://"+addr+"/api/v1/sessions", http.StatusOK, `"data":[]`)
 	requireBenchResponse(t, "http://"+addr+"/api/v1/configs", http.StatusOK, `"category"`)
 	requireBenchResponse(t, "http://"+addr+"/api/v1/configs/bench/machine.yaml", http.StatusOK, `"graph"`)
+	requireBenchProfiles(t, "http://"+addr+"/api/v1/profiles")
 	requireBenchResponse(t, "http://"+addr+"/api/v1/source/agents/bench/machine.yaml", http.StatusOK, `"language":"yaml"`)
 	if status := server.Post("http://"+addr+"/api/v1/actions", `{"type":"launch_eval","config":{"suite":"suites/basic.yaml","output_dir":"eval-results"}}`); status != http.StatusAccepted {
 		t.Fatalf("launch action POST status = %d, want %d", status, http.StatusAccepted)
@@ -70,6 +72,66 @@ func TestBenchConformance(t *testing.T) {
 	// srd006: the host shutdown reaches Done even though request machines also
 	// contribute terminal events to the shared trace.
 	requireBenchTerminalState(t, result, "Done")
+}
+
+func TestBenchProfilesAreCheckoutIndependent(t *testing.T) {
+	RequireCoreRoot(t)
+	addr := FreeAddr(t)
+	profilePath := CopyShippedProfile(t, filepath.Join("agents", "bench", "profile.yaml"), map[string]string{
+		"address: 127.0.0.1:8080": `address: ` + addr,
+	})
+	workspace := t.TempDir()
+	server := Serve(t, ServeConfig{Profile: profilePath, Directory: workspace})
+	server.WaitHealthy("http://"+addr+"/api/v1/health", 15*time.Second)
+
+	requireBenchProfiles(t, "http://"+addr+"/api/v1/profiles")
+
+	if status := server.Post("http://"+addr+"/api/v1/actions", `{"type":"shutdown"}`); status != http.StatusAccepted {
+		t.Fatalf("shutdown action POST status = %d, want %d", status, http.StatusAccepted)
+	}
+	result := server.WaitExit(15 * time.Second)
+	result.RequireExit(t, 0)
+	requireBenchTerminalState(t, result, "Done")
+}
+
+func requireBenchProfiles(t *testing.T, endpoint string) {
+	t.Helper()
+	response, err := http.Get(endpoint)
+	if err != nil {
+		t.Fatalf("GET %s: %v", endpoint, err)
+	}
+	defer response.Body.Close()
+	var payload struct {
+		Data []struct {
+			Name         string `json:"name"`
+			StrictFormat bool   `json:"strictFormat"`
+		} `json:"data"`
+	}
+	if err := json.NewDecoder(response.Body).Decode(&payload); err != nil {
+		t.Fatalf("decode GET %s: %v", endpoint, err)
+	}
+	want := map[string]bool{
+		"deepseek": true, "default": false, "gemma": true,
+		"glm": false, "granite": false, "laguna": false,
+		"mistral": true, "nemotron": false, "qwen": true,
+	}
+	if response.StatusCode != http.StatusOK || len(payload.Data) != len(want) {
+		t.Fatalf("GET %s = %d with %d profiles, want 200 with %d", endpoint, response.StatusCode, len(payload.Data), len(want))
+	}
+	for _, profile := range payload.Data {
+		strict, ok := want[profile.Name]
+		if !ok {
+			t.Errorf("unexpected bench profile %q", profile.Name)
+			continue
+		}
+		if profile.StrictFormat != strict {
+			t.Errorf("profile %q strictFormat = %t, want %t", profile.Name, profile.StrictFormat, strict)
+		}
+		delete(want, profile.Name)
+	}
+	if len(want) != 0 {
+		t.Errorf("missing bench profiles: %v", want)
+	}
 }
 
 func requireBenchChildArgs(t *testing.T, path string) {

@@ -8,10 +8,11 @@ executive_summary: |
   profiles from the agent-profiles library instead of copying or redefining
   them.
 
-  Packaging resolves the application's pinned library references and assembles
-  their transitive profile closure. Kubernetes then runs one agent-core
-  container per agent with the packaged profile tree mounted. The shared
-  runtime image contains no profiles.
+  Packaging snapshots a configured, compatible library checkout and assembles
+  its transitive profile closure. Kubernetes then runs one application-owned
+  coding-runtime container per agent with the packaged profile tree mounted.
+  The shared image contains the agent-core runtime and pinned Go/lint
+  validation toolchain, but no profiles.
 
 problem: |
   The planner, executor, and critic exist as reusable library agents, but no
@@ -36,8 +37,8 @@ what_this_does: |
 why_we_build_this: |
   An application-level composition makes the complete coding loop testable and
   deployable without weakening the library boundary. Readers can distinguish
-  reusable profile behavior from application sequencing, and operators can pin
-  one library version, package a closed profile tree, and deploy the same
+  reusable profile behavior from application sequencing, and operators can
+  select one compatible checkout, package a closed profile tree, and deploy the same
   composition consistently.
 
 success_criteria:
@@ -50,12 +51,15 @@ success_criteria:
     `agent-profiles/`; this application records references and never forks their
     profiles or SRDs.
   closed_package: |
-    Packaging resolves a pinned `agent-profiles/v0.*` version and assembles the
-    transitive closure of referenced profiles, declarations, tools, and config
-    into the application profile tree.
+    Packaging records the configured checkout's revision and compatible
+    `agent-profiles/v0.*` release, then assembles the transitive closure of
+    referenced profiles, declarations, tools, and config into the application
+    profile tree.
   profile_free_runtime: |
-    The agent-core runtime image remains profile-free. Each workload mounts the
-    packaged application profile tree and selects its own profile at startup.
+    The application-owned coding runtime image remains profile-free while
+    carrying Go 1.26 and golangci-lint v2.12.2 required by the canonical
+    executor. Each workload mounts the packaged application profile tree and
+    selects its own profile at startup.
   deployable_topology: |
     Kubernetes runs planner, executor, and critic as separate containers with
     explicit workspace, delegation, and result interfaces.

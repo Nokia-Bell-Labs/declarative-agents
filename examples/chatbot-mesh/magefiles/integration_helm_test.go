@@ -18,7 +18,7 @@ func TestSplitImageRef(t *testing.T) {
 	cases := []struct {
 		image, repo, tag string
 	}{
-		{"declarative-agents/agent-core:smoke", "declarative-agents/agent-core", "smoke"},
+		{"declarative-agents/agent-core:0123456789ab", "declarative-agents/agent-core", "0123456789ab"},
 		{"ghcr.io/nokia-bell-labs/agent-core:0.1.0", "ghcr.io/nokia-bell-labs/agent-core", "0.1.0"},
 		{"agent-core", "agent-core", "latest"},
 		{"localhost:5000/agent-core:dev", "localhost:5000/agent-core", "dev"},
@@ -28,6 +28,24 @@ func TestSplitImageRef(t *testing.T) {
 		if repo != c.repo || tag != c.tag {
 			t.Errorf("splitImageRef(%q) = (%q, %q), want (%q, %q)", c.image, repo, tag, c.repo, c.tag)
 		}
+	}
+}
+
+func TestChatbotIntegrationImagesPropagateCheckoutRevision(t *testing.T) {
+	images, err := resolveChatbotIntegrationImages(filepath.Clean(".."))
+	if err != nil {
+		t.Fatal(err)
+	}
+	if len(images.Revision) != 12 {
+		t.Fatalf("revision = %q, want 12-character commit", images.Revision)
+	}
+	for _, image := range []string{images.Runtime, images.Applier} {
+		if !strings.HasSuffix(image, ":"+images.Revision) {
+			t.Errorf("image %q does not carry revision %s", image, images.Revision)
+		}
+	}
+	if args := strings.Join(smokeRuntimeBuildArgs(images.Runtime), " "); !strings.Contains(args, "-t "+images.Runtime) {
+		t.Fatalf("runtime build args omit commit image: %s", args)
 	}
 }
 
@@ -134,7 +152,8 @@ func TestHelmInstallSmokePassesRunIdentityToGateway(t *testing.T) {
 		RunID:        "run-123",
 		Commit:       "abc123",
 	}
-	if err := helmInstallSmokeWithRunner("/chart", helmImage, telemetry, run); err != nil {
+	image := "declarative-agents/agent-core:0123456789ab"
+	if err := helmInstallSmokeWithRunner("/chart", image, telemetry, run); err != nil {
 		t.Fatal(err)
 	}
 	joined := strings.Join(command, " ")
@@ -143,6 +162,8 @@ func TestHelmInstallSmokePassesRunIdentityToGateway(t *testing.T) {
 		"collector.integrationResource.target=integration:helmSmoke",
 		"collector.integrationResource.commit=abc123",
 		"collector.integrationResource.runID=run-123",
+		"image.repository=declarative-agents/agent-core",
+		"image.tag=0123456789ab",
 	} {
 		if !strings.Contains(joined, want) {
 			t.Errorf("helm command missing %q: %s", want, joined)

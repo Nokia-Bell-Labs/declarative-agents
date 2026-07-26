@@ -159,6 +159,7 @@ related_documents:
   - srd029-rest-server-tools
 
 implementation_status:
-  planned:
-    - "`internal/tools/otlp` receiver state, launch, await, spool, relay, stop, and focused tests."
-    - "`tools/builtin/otlp/all.yaml` declarations and registry composition."
+  implemented:
+    - "`internal/tools/otlp` owns receiver state, launch, await, spool, relay, stop, and focused tests."
+    - "`tools/builtin/otlp/all.yaml` declares the five OTLP words and registry composition."
+    - "`go test ./internal/tools/otlp` proves bounded receive, await, spool compatibility, relay identity, lifecycle cleanup, and static self-loop rejection."

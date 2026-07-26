@@ -33,11 +33,13 @@ tools:
     description: Records the created issue ID for task execution and dependent issues.
   reversibility:
     classification: reversible
-    undo: planner_state_restore
+    undo: pipeline_state_restore
     requires_confirmation: false
   undo:
-    strategy: session_state_restore
-    description: Restore IssueID and TaskDeps from the prior planner snapshot.
+    strategy: pipeline_state_restore
+    description: Restore IssueID and TaskDeps from the receipt-recorded planner snapshot.
+    payload: pipeline_state_snapshot
+    captures: [current_task, current_plan, issue_id, task_deps, graph_status, graph_retries]
   errors:
   - signal: CommandError
     condition: tracker result failed, is malformed JSON, or contains an empty id

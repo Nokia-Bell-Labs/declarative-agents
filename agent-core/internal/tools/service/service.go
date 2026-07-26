@@ -50,6 +50,7 @@ type StartSpec struct {
 	Name      string
 	Binary    string
 	Profile   string
+	CoreRoot  string
 	Directory string
 	Request   string
 	Address   string
@@ -224,6 +225,9 @@ func childCommand(spec StartSpec) *exec.Cmd {
 		binary = "agent"
 	}
 	args := []string{"--profile", spec.Profile}
+	if spec.CoreRoot != "" {
+		args = append(args, "--core-root", spec.CoreRoot)
+	}
 	if spec.Directory != "" {
 		args = append(args, "--directory", spec.Directory)
 	}

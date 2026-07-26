@@ -3,102 +3,184 @@
 package evaluation
 
 import (
+	"encoding/json"
 	"fmt"
+	"os"
+	"path/filepath"
+	"strings"
 	"time"
 
 	"github.com/Nokia-Bell-Labs/declarative-agents/agent-core/internal/runtime/core"
 )
 
 type evalSessionSnapshot struct {
-	suite        SuiteConfig
-	sessionDir   string
-	pointMachine string
-	result       SessionResult
-	pc           *PointContext
-	gridPoints   []GridPoint
-	reps         int
-	timeout      int64
-	ollamaURL    string
-	llmTimeout   int64
-	gIdx         int
-	sIdx         int
-	rIdx         int
-	pIdx         int
-	started      bool
-	exhausted    bool
-	startUnixNS  int64
+	Suite        SuiteConfig   `json:"suite"`
+	SessionDir   string        `json:"session_dir,omitempty"`
+	PointMachine string        `json:"point_machine,omitempty"`
+	Result       SessionResult `json:"result"`
+	PC           *PointContext `json:"point_context,omitempty"`
+	GridPoints   []GridPoint   `json:"grid_points,omitempty"`
+	Reps         int           `json:"reps"`
+	Timeout      int64         `json:"timeout"`
+	OllamaURL    string        `json:"ollama_url,omitempty"`
+	LLMTimeout   int64         `json:"llm_timeout"`
+	GIdx         int           `json:"grid_index"`
+	SIdx         int           `json:"sample_index"`
+	RIdx         int           `json:"rep_index"`
+	PIdx         int           `json:"profile_index"`
+	Started      bool          `json:"started"`
+	Exhausted    bool          `json:"exhausted"`
+	StartUnixNS  int64         `json:"start_unix_ns,omitempty"`
 }
 
 func snapshotEvalSession(es *EvalSessionState) evalSessionSnapshot {
 	snap := evalSessionSnapshot{
-		suite:        cloneSuiteConfig(es.Suite),
-		sessionDir:   es.SessionDir,
-		pointMachine: es.PointMachine,
-		result:       cloneSessionResult(es.Result),
-		pc:           clonePointContext(es.PC),
-		gridPoints:   cloneGridPoints(es.gridPoints),
-		reps:         es.reps,
-		timeout:      int64(es.timeout),
-		ollamaURL:    es.ollamaURL,
-		llmTimeout:   int64(es.llmTimeout),
-		gIdx:         es.gIdx,
-		sIdx:         es.sIdx,
-		rIdx:         es.rIdx,
-		pIdx:         es.pIdx,
-		started:      es.started,
-		exhausted:    es.exhausted,
+		Suite: cloneSuiteConfig(es.Suite), SessionDir: es.SessionDir, PointMachine: es.PointMachine,
+		Result: cloneSessionResult(es.Result), PC: receiptPointContext(es.PC),
+		GridPoints: cloneGridPoints(es.gridPoints), Reps: es.reps, Timeout: int64(es.timeout),
+		OllamaURL: es.ollamaURL, LLMTimeout: int64(es.llmTimeout),
+		GIdx: es.gIdx, SIdx: es.sIdx, RIdx: es.rIdx, PIdx: es.pIdx,
+		Started: es.started, Exhausted: es.exhausted,
 	}
 	if !es.start.IsZero() {
-		snap.startUnixNS = es.start.UnixNano()
+		snap.StartUnixNS = es.start.UnixNano()
 	}
 	return snap
 }
 
 func (s evalSessionSnapshot) restore(es *EvalSessionState) {
-	es.Suite = cloneSuiteConfig(s.suite)
-	es.SessionDir = s.sessionDir
-	es.PointMachine = s.pointMachine
-	es.Result = cloneSessionResult(s.result)
-	es.PC = clonePointContext(s.pc)
-	es.gridPoints = cloneGridPoints(s.gridPoints)
-	es.reps = s.reps
-	es.timeout = time.Duration(s.timeout)
-	es.ollamaURL = s.ollamaURL
-	es.llmTimeout = time.Duration(s.llmTimeout)
-	es.pIdx, es.gIdx, es.sIdx, es.rIdx = s.pIdx, s.gIdx, s.sIdx, s.rIdx
-	es.started = s.started
-	es.exhausted = s.exhausted
-	if s.startUnixNS == 0 {
+	es.Suite = cloneSuiteConfig(s.Suite)
+	es.SessionDir = s.SessionDir
+	es.PointMachine = s.PointMachine
+	es.Result = cloneSessionResult(s.Result)
+	stderr := pointStderr(es.PC)
+	es.PC = clonePointContext(s.PC)
+	if es.PC != nil {
+		es.PC.Stderr = stderr
+	}
+	es.gridPoints = cloneGridPoints(s.GridPoints)
+	es.reps = s.Reps
+	es.timeout = time.Duration(s.Timeout)
+	es.ollamaURL = s.OllamaURL
+	es.llmTimeout = time.Duration(s.LLMTimeout)
+	es.pIdx, es.gIdx, es.sIdx, es.rIdx = s.PIdx, s.GIdx, s.SIdx, s.RIdx
+	es.started = s.Started
+	es.exhausted = s.Exhausted
+	if s.StartUnixNS == 0 {
 		es.start = time.Time{}
 	} else {
-		es.start = time.Unix(0, s.startUnixNS)
+		es.start = time.Unix(0, s.StartUnixNS)
 	}
-}
-
-func undoEvalSessionSnapshot(commandName string, es *EvalSessionState, snap evalSessionSnapshot, ok bool) core.Result {
-	if !ok {
-		err := fmt.Errorf("undo %s: no evaluator session snapshot recorded", commandName)
-		return core.Result{Signal: core.CommandError, CommandName: commandName, Output: err.Error(), Err: err}
-	}
-	snap.restore(es)
-	return core.Result{Signal: core.ToolDone, CommandName: commandName, Output: "undo: restored evaluator session state"}
 }
 
 type pointContextSnapshot struct {
-	point *PointContext
+	Point *PointContext `json:"point"`
 }
 
 func snapshotPointContext(pc *PointContext) pointContextSnapshot {
-	return pointContextSnapshot{point: clonePointContext(pc)}
+	return pointContextSnapshot{Point: receiptPointContext(pc)}
 }
 
-func undoPointContextSnapshot(commandName string, pc *PointContext, snap pointContextSnapshot, ok bool) core.Result {
-	if !ok || snap.point == nil {
-		err := fmt.Errorf("undo %s: no point context snapshot recorded", commandName)
-		return core.Result{Signal: core.CommandError, CommandName: commandName, Output: err.Error(), Err: err}
+type evaluatorReceipt struct {
+	Version          int                   `json:"version"`
+	Session          *evalSessionSnapshot  `json:"session,omitempty"`
+	Point            *pointContextSnapshot `json:"point,omitempty"`
+	RemovePaths      []string              `json:"remove_paths,omitempty"`
+	Boundary         string                `json:"boundary,omitempty"`
+	BoundaryMetadata any                   `json:"boundary_metadata,omitempty"`
+}
+
+type evaluatorReceiptCmd struct {
+	inner            core.Command
+	session          *EvalSessionState
+	point            *PointContext
+	removePaths      func() []string
+	boundary         string
+	boundaryMetadata func() any
+}
+
+func (c *evaluatorReceiptCmd) Name() string { return c.inner.Name() }
+
+func (c *evaluatorReceiptCmd) Execute() core.Result {
+	receipt := evaluatorReceipt{Version: 1, Boundary: c.boundary}
+	if c.session != nil {
+		snapshot := snapshotEvalSession(c.session)
+		receipt.Session = &snapshot
 	}
-	*pc = *clonePointContext(snap.point)
-	return core.Result{Signal: core.ToolDone, CommandName: commandName, Output: "undo: restored point context"}
+	if c.point != nil {
+		snapshot := snapshotPointContext(c.point)
+		receipt.Point = &snapshot
+	}
+	result := c.inner.Execute()
+	if c.removePaths != nil {
+		receipt.RemovePaths = c.removePaths()
+	}
+	if c.boundaryMetadata != nil {
+		receipt.BoundaryMetadata = c.boundaryMetadata()
+	}
+	data, err := json.Marshal(receipt)
+	if err != nil {
+		return evaluatorReceiptError(c.Name(), fmt.Errorf("encode evaluator receipt: %w", err))
+	}
+	result.Receipt = string(data)
+	return result
+}
+
+func (c *evaluatorReceiptCmd) Undo(prior core.Result) core.Result {
+	var receipt evaluatorReceipt
+	if prior.Receipt == "" {
+		return evaluatorReceiptError(c.Name(), fmt.Errorf("evaluator receipt is required"))
+	}
+	if err := json.Unmarshal([]byte(prior.Receipt), &receipt); err != nil {
+		return evaluatorReceiptError(c.Name(), fmt.Errorf("decode evaluator receipt: %w", err))
+	}
+	if receipt.Version != 1 {
+		return evaluatorReceiptError(c.Name(), fmt.Errorf("unsupported evaluator receipt version %d", receipt.Version))
+	}
+	if c.session != nil && receipt.Session != nil {
+		receipt.Session.restore(c.session)
+	}
+	if c.point != nil && receipt.Point != nil && receipt.Point.Point != nil {
+		stderr := c.point.Stderr
+		*c.point = *clonePointContext(receipt.Point.Point)
+		c.point.Stderr = stderr
+	}
+	for _, path := range receipt.RemovePaths {
+		clean := filepath.Clean(strings.TrimSpace(path))
+		if clean == "." || clean == string(filepath.Separator) {
+			if strings.TrimSpace(path) == "" {
+				continue
+			}
+			return evaluatorReceiptError(c.Name(), fmt.Errorf("refuse unsafe owned artifact path %q", path))
+		}
+		if err := os.RemoveAll(path); err != nil {
+			return evaluatorReceiptError(c.Name(), fmt.Errorf("remove owned artifact %q: %w", path, err))
+		}
+	}
+	if receipt.Boundary != "" {
+		return evaluatorReceiptError(c.Name(), fmt.Errorf("boundary compensation required: %s", receipt.Boundary))
+	}
+	return core.Result{Signal: core.ToolDone, CommandName: c.Name(), Output: "undo: restored evaluator state and owned artifacts"}
+}
+
+func evaluatorReceiptError(commandName string, err error) core.Result {
+	wrapped := fmt.Errorf("undo %s: %w", commandName, err)
+	return core.Result{Signal: core.CommandError, CommandName: commandName, Output: wrapped.Error(), Err: wrapped}
+}
+
+func receiptPointContext(pc *PointContext) *PointContext {
+	cloned := clonePointContext(pc)
+	if cloned != nil {
+		cloned.Stderr = nil
+	}
+	return cloned
+}
+
+func pointStderr(pc *PointContext) interface{ Write([]byte) (int, error) } {
+	if pc == nil {
+		return nil
+	}
+	return pc.Stderr
 }
 
 func cloneSuiteConfig(in SuiteConfig) SuiteConfig {

@@ -380,5 +380,3 @@ implementation_status:
   partial:
     - LifecycleControlEndpoint remains a target semantic entity. Current release 03.0 control routes use emit_signal endpoint bindings and MachineSpec transitions; modeled lifecycle_control endpoint config remains reserved.
     - RestEventSource non-default read_policy behavior remains reserved; unsupported values are rejected during ToolDef factory validation.
-  planned_follow_up:
-    - agent-core-guhn.4: align formal release 03.0 suite cases with exact named Go tests for closed conformance behavior.

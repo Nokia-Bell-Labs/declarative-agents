@@ -241,31 +241,32 @@ tools:
 
   - name: list_bench_profiles
     type: exec
-    binary: sh
+    binary: jq
     args:
-      - -c
+      - -cn
       - >-
-        set -eu; root=../agent-core/internal/model/llm/profiles;
-        [ -d "$root" ] || { printf '[]\n'; exit 0; };
-        for f in "$root"/*.yaml; do
-          [ -f "$f" ] || continue;
-          name=$(awk '$1=="name:" {sub(/^name:[[:space:]]*/,""); print; exit}' "$f");
-          strict=$(awk '$1=="strict_format:" {print $2; exit}' "$f");
-          jq -cn --arg name "${name:-$(basename "$f" .yaml)}" --argjson strict "${strict:-false}"
-          '{name:$name,matchPrefixes:[],strictFormat:$strict,pipeline:[]}';
-        done | jq -cs '{data:sort_by(.name)}'
-      - bench-profiles
+        {data:[
+          {name:"deepseek",matchPrefixes:[],strictFormat:true,pipeline:[]},
+          {name:"default",matchPrefixes:[],strictFormat:false,pipeline:[]},
+          {name:"gemma",matchPrefixes:[],strictFormat:true,pipeline:[]},
+          {name:"glm",matchPrefixes:[],strictFormat:false,pipeline:[]},
+          {name:"granite",matchPrefixes:[],strictFormat:false,pipeline:[]},
+          {name:"laguna",matchPrefixes:[],strictFormat:false,pipeline:[]},
+          {name:"mistral",matchPrefixes:[],strictFormat:true,pipeline:[]},
+          {name:"nemotron",matchPrefixes:[],strictFormat:false,pipeline:[]},
+          {name:"qwen",matchPrefixes:[],strictFormat:true,pipeline:[]}
+        ]}
     visibility: internal
     category: response
     emits: [ToolDone, ToolFailed, CommandError]
-    description: Shape model profile summaries from profile-owned configuration files.
-    problem: The optional profile route needs deterministic presentation without runtime handlers.
+    description: Return the bench-owned model profile summary catalog.
+    problem: The optional profile route needs deterministic, checkout-independent presentation without runtime handlers.
     goals: [Return stable name and strict-format summaries.]
-    requirements: {input: [Configured checkout layout.], output: [Sorted profile summaries.], errors: [Tool failures remain visible.]}
+    requirements: {input: [No runtime input or process-CWD dependency.], output: [Sorted non-empty profile summaries.], errors: [Tool failures remain visible.]}
     non_goals: [Does not control model selection.]
     parameters: {type: object, properties: {}, additionalProperties: false}
     output: {description: Model profile summaries, mode: raw, schema: {type: array}}
-    side_effects: [{kind: filesystem_read, target: model_profiles, state: read_only}]
+    side_effects: []
     reversibility: {classification: reversible, undo: noop}
     undo: {strategy: noop, description: Profile reads change nothing.}
     errors: [{signal: ToolFailed, condition: Profile shaping fails, state_after_failure: No state changes.}]

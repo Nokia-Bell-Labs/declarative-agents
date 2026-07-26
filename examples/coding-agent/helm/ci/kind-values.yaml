@@ -1,6 +1,8 @@
 image:
   repository: declarative-agents/coding-agent-smoke
-  tag: local
+  # mage integration:helmSmoke always overrides this fail-closed sentinel with
+  # the tested checkout's 12-character commit revision.
+  tag: must-be-overridden-with-git-revision
   pullPolicy: Never
 
 workspace:
@@ -13,7 +15,7 @@ llm:
   externalURL: http://coding-model:11434
 
 collector:
-  utilityImage: declarative-agents/coding-agent-smoke:local
+  utilityImage: declarative-agents/coding-agent-smoke:must-be-overridden-with-git-revision
   image:
     pullPolicy: Never
   resources:

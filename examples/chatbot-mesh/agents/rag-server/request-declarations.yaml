@@ -37,10 +37,11 @@ tools:
         state: collection_upserted
     reversibility:
       classification: irreversible
-      undo: noop
+      undo: irreversible
+      requires_confirmation: true
     undo:
-      strategy: noop
-      description: Create-or-get is idempotent for a stable collection name.
+      strategy: irreversible
+      description: Create-or-get may create an empty collection; deleting it could destroy a pre-existing collection with the same trusted name.
     config:
       rest_ref: chroma
       operation: rag_resolve_collection

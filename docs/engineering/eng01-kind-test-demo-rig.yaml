@@ -50,6 +50,11 @@ sections:
       pods pending forever, and the preflight turns that into a clear
       message before any cluster is created.
 
+      The shared implementation and minimum-version pins live in
+      `magefiles/kindrig/preflight.go`. Both examples expose `mage doctor`,
+      `mage demo:up`, and `mage demo:down`; doctor and requested-demo preflight
+      execute only version and Docker resource queries.
+
   - title: "Cluster lifecycle"
     content: |
       Each scenario owns one named cluster, `da-<example>-<scenario>`,
@@ -95,6 +100,9 @@ sections:
       ingress controller through `extraPortMappings`, the demo target
       installs ingress-nginx, and every agent in the mesh is reachable
       at a stable `localhost:<port>/<agent>` path the README can print.
+      The implemented demos pin ingress-nginx `controller-v1.13.3` and use
+      `.localhost` hostnames, which resolve to loopback without `/etc/hosts`
+      edits.
 
       Services of type LoadBalancer are not permitted in kind values
       overlays; kind has no load balancer, and the service would pend
@@ -167,9 +175,9 @@ sections:
     content: |
       A failed cluster run must leave enough behind to diagnose without
       re-running. On any integration failure the rig runs
-      `kind export logs` into the evidence directory the existing
-      test-evidence machinery manages, alongside `kubectl describe` and
-      pod logs for the namespaces the scenario touched. Before teardown, both
+      `kind export logs` into the scenario's persistent
+      `build/kind-evidence/` directory, alongside `kubectl describe` and pod
+      logs for the namespaces the scenario touched. Before teardown, both
       failed runs and successful release gates record shared-sink health, the
       run identity, representative trace ids and service names, and the
       availability of expected agent and Dolt metrics. Backend data stays
@@ -195,4 +203,4 @@ references:
   - "kind Local Registry, https://kind.sigs.k8s.io/docs/user/local-registry/"
   - "kind Ingress, https://kind.sigs.k8s.io/docs/user/ingress/"
   - "examples/chatbot-mesh/magefiles/integration_helm.go (existing rig this guideline generalizes)"
-  - "examples/chatbot-mesh/magefiles/test_evidence.go (evidence machinery)"
+  - "magefiles/kindrig/kindrig.go (shared cluster lifecycle and failure-evidence machinery)"

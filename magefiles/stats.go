@@ -12,11 +12,13 @@ import (
 )
 
 // Stats runs mage stats in each sub-module and participating example module,
-// then outputs combined JSON to stdout. Modules that own agents report an
-// "agents" section; the combined output adds an "agents_total" key summing
-// those sections across the repository (GH-754). Values that fit on one line
-// are printed on one line, so a leaf such as {"files": 4, "lines": 145} reads
-// as a single fact (GH-758).
+// then outputs combined JSON to stdout. Modules that own agent implementations
+// report an "agents" section; composition-only applications may instead report
+// an "application" section describing canonical reuse. The combined output
+// adds an "agents_total" key summing only implementation-owning sections, so
+// reused agents are not counted twice (GH-754, GH-947). Values that fit on one
+// line are printed on one line, so a leaf such as {"files": 4, "lines": 145}
+// reads as a single fact (GH-758).
 func Stats() error {
 	raw, err := collectStats()
 	if err != nil {
@@ -91,7 +93,8 @@ func sumAgentsTotals(results map[string]json.RawMessage) (agentsTotalJSON, error
 	for mod, raw := range results {
 		var doc struct {
 			Agents *struct {
-				Total agentsTotalJSON `json:"total"`
+				Total    agentsTotalJSON            `json:"total"`
+				PerAgent map[string]agentsTotalJSON `json:"per_agent"`
 			} `json:"agents"`
 		}
 		if err := json.Unmarshal(raw, &doc); err != nil {
@@ -101,14 +104,30 @@ func sumAgentsTotals(results map[string]json.RawMessage) (agentsTotalJSON, error
 			continue
 		}
 		t := doc.Agents.Total
-		total.Agents += t.Agents
-		total.States += t.States
-		total.Transitions += t.Transitions
-		total.Tools += t.Tools
-		total.YAML.Files += t.YAML.Files
-		total.YAML.Lines += t.YAML.Lines
+		if doc.Agents.PerAgent != nil {
+			var perAgent agentsTotalJSON
+			for _, agent := range doc.Agents.PerAgent {
+				addAgentsTotal(&perAgent, agent)
+				perAgent.Agents++
+			}
+			if perAgent != t {
+				return total, fmt.Errorf(
+					"stats from %s has agents.total %+v, but per_agent sums to %+v",
+					mod, t, perAgent)
+			}
+		}
+		addAgentsTotal(&total, t)
 	}
 	return total, nil
+}
+
+func addAgentsTotal(total *agentsTotalJSON, value agentsTotalJSON) {
+	total.Agents += value.Agents
+	total.States += value.States
+	total.Transitions += value.Transitions
+	total.Tools += value.Tools
+	total.YAML.Files += value.YAML.Files
+	total.YAML.Lines += value.YAML.Lines
 }
 
 func runMageStats(dir string) (json.RawMessage, error) {

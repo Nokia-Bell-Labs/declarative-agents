@@ -21,8 +21,8 @@ overview:
     packages own tracing, telemetry, traceparent, GenAI attributes, and the
     embedded monitor store. Model packages own the LLM boundary, conversations,
     profiles, parsing, and prompt assembly. Focused internal/tools packages own
-    catalog, registry, exec, filesystem, LLM, REST, lifecycle, control,
-    validation, undo, and checkpoint behavior. Monitor readers expose
+    catalog, registry, exec, filesystem, LLM, REST, service-child, OTLP,
+    lifecycle, control, validation, undo, and checkpoint behavior. Monitor readers expose
     cached runtime metrics through OpenTelemetry and REST/OpenAPI read models
     for live agent state. Evaluation and support packages provide session
     runtime, result artifacts, metrics, CLI helpers, and subprocess utilities.
@@ -161,6 +161,8 @@ overview:
             - internal/tools/lifecycle
             - internal/tools/control
             - internal/tools/validation
+            - internal/tools/service
+            - internal/tools/otlp
       - path: internal/tools/registry/
         responsibility: |
           Registry owns BuiltinRegistry, RegisterSingleBuiltin, RegisterUnifiedTools,
@@ -227,11 +229,12 @@ overview:
             - internal/planning
       - path: internal/tools/rest/
         responsibility: |
-          Planned package for declarative REST client and REST server boundary
-          tools. It owns configured REST operation definitions, OpenAPI 3
+          REST owns declarative client and server boundary tools, configured
+          operation definitions, OpenAPI 3
           loading and validation, request rendering, response mapping, runtime
           HTTP client behavior, runtime HTTP server binding, async inbox
-          integration, and shared client/server REST definition types.
+          integration, mock endpoint binding, and shared client/server REST
+          definition types.
         dependencies:
           may_depend_on:
             - internal/runtime/core
@@ -243,6 +246,42 @@ overview:
             - cmd/agent
             - internal/evaluation
             - internal/planning
+      - path: internal/tools/service/
+        responsibility: |
+          Service owns scenario-rig process boundary words: serve-mode child
+          start and stop, deterministic scenario discovery, one-validator child
+          execution, and thin session state used by MachineSpec iteration,
+          joins, verdicts, and teardown.
+        dependencies:
+          may_depend_on:
+            - internal/runtime/core
+            - internal/support/execute for one-validator child execution
+            - internal/tools/catalog
+            - internal/tools/registry for factory registration
+            - Go standard library process and filesystem packages
+          must_not_depend_on:
+            - net/http; MachineSpec composes readiness from REST and delay words
+            - internal/model/llm
+            - internal/evaluation
+            - internal/planning
+      - path: internal/tools/otlp/
+        responsibility: |
+          OTLP owns trace-only gRPC receiver state, bounded batch await,
+          stdouttrace-compatible spool conversion, unchanged upstream relay,
+          lifecycle stop, and static self-loop rejection. MachineSpec owns the
+          launch, await, filter, spool, relay, retry, and stop sentence.
+        dependencies:
+          may_depend_on:
+            - internal/runtime/core
+            - internal/tools/catalog
+            - internal/tools/registry for factory registration
+            - go.opentelemetry.io/proto/otlp for trace payloads
+            - google.golang.org/grpc and google.golang.org/protobuf
+            - Go standard library networking, synchronization, and filesystem packages
+          must_not_depend_on:
+            - internal/observability/telemetry
+            - internal/model/llm
+            - internal/tools/service
       - path: internal/tools/lifecycle/
         responsibility: |
           Lifecycle owns suspend, checkpoint_history, checkpoint_rollback, lifecycle
@@ -323,6 +362,8 @@ overview:
       - internal/evaluation and internal/planning may import target tool packages only for tool builders they own or reuse.
       - internal/model/llm remains the model-boundary client package. internal/tools/llm depends on it; internal/model/llm does not depend on tools.
       - internal/tools/rest owns REST transport behavior. Model-provider HTTP calls may use REST definitions, but model semantics stay in internal/tools/llm.
+      - internal/tools/service owns child-process lifecycle and scenario data, but readiness HTTP requests, retry delays, validator iteration, joins, verdicts, and teardown order stay in MachineSpec and neighboring words.
+      - internal/tools/otlp owns protobuf, gRPC, queue, spool, and relay mechanics, but receive policy and lifecycle order stay in MachineSpec. It does not configure or export the ingress process's own telemetry.
     migration_sequence:
       - step: M1
         work: Extract internal/tools/catalog first so ToolDef, declaration loading, selection, and config decoding have one source of truth.
@@ -355,10 +396,13 @@ overview:
 
     Execution. Loop freezes the registry, starts a root span, and
     enters the iteration loop. Each iteration checks context cancellation and
-    budget before calling StateMachine.Step. Non-terminal states dispatch the
-    returned Command through Dispatch. The loop then accumulates cost, records
-    the event, and calls the OnResult hook. Terminal states resolve RunStatus
-    and exit.
+    budget before calling StateMachine.Step. When Step returns a Command, the
+    loop enters the next state, dispatches the Command, records its event and
+    checkpoint entry, and calls the OnResult hook before resolving a terminal
+    destination. An actionless transition to a terminal state appends no
+    command Entry; it persists the terminal Position with the unchanged
+    Execution before resolving RunStatus. A stateful persistence failure makes
+    the run fail instead of reporting an undurable terminal result.
 
     Completion. Loop sets Duration, logs a summary, and returns
     RunResult to the caller. The domain agent can extend RunResult
@@ -374,12 +418,20 @@ overview:
       D -->|No| E{Budget exceeded}
       E -->|Yes| K[StatusBudgetExceeded]
       E -->|No| F[StateMachine.Step]
-      F --> G{Terminal state}
-      G -->|Yes| L[Resolve RunStatus]
-      G -->|No| H[Dispatch Command]
+      F --> G{Command present}
+      G -->|No| N{Terminal destination}
+      N -->|Yes| Q[Persist terminal Position<br/>with unchanged Execution]
+      Q --> R{Persistence succeeded}
+      R -->|Yes| L[Resolve RunStatus]
+      R -->|No| S[StatusFailed]
+      N -->|No| O[Report nil command]
+      G -->|Yes| H[Dispatch and record Command]
       H --> I[Accumulate cost]
-      I --> D
+      I --> P{Terminal destination}
+      P -->|Yes| L
+      P -->|No| D
       L --> M[Return RunResult]
+      S --> M
     ```
 
   runtime_sequence: |
@@ -570,7 +622,7 @@ overview:
       - docs/specs/test-suites/test-rel02.0-tool-contracts.yaml
 
   rest_tool_runtime_architecture:
-    status: partial
+    status: implemented
     summary: |
       Release 03.0 implements declarative REST client and REST server tools as
       boundary tool families. The runtime package is internal/tools/rest. This
@@ -599,11 +651,11 @@ overview:
       routes, actions, and placement live with the documentation-curator profile
       as human actor configuration.
 
-      Release 03.0 conformance is mostly implemented. Closed REST work now covers
+      Release 03.0 conformance is implemented. Closed REST work covers
       client safety, async request metadata, OpenAPI endpoint preservation, REST
       compensation mementos and rollback execution, machine_request terminal
-      schemas, and explicit document_resources reservation. Active follow-up
-      work is limited to named conformance-test alignment in agent-core-guhn.4.
+      schemas, explicit document_resources reservation, and named executable
+      tests in the formal suite.
     machine_request_ux_diagram: |
       ```mermaid
       flowchart LR
@@ -1313,13 +1365,16 @@ technology_choices:
     purpose: Machine spec parsing and validation
   - component: REST runtime HTTP
     technology: net/http
-    purpose: Planned REST client requests and REST server bindings
+    purpose: REST client requests, server bindings, mock endpoints, and local health probes
   - component: REST OpenAPI
     technology: github.com/getkin/kin-openapi/openapi3
-    purpose: Planned OpenAPI 3 loading, resolution, and validation
+    purpose: OpenAPI 3 loading, resolution, and validation
   - component: REST code generation
     technology: none
-    purpose: No generated Go REST clients or servers in the first implementation
+    purpose: REST clients and servers use runtime definitions rather than generated Go code
+  - component: OTLP trace transport
+    technology: google.golang.org/grpc and go.opentelemetry.io/proto/otlp
+    purpose: TraceService receive and unchanged upstream relay for complete OTLP requests
   - component: Test assertions
     technology: testify (stretchr/testify)
     purpose: Test assertions and helpers
@@ -1366,6 +1421,10 @@ project_structure:
       role: Model-boundary, response parsing, conversation state, and done tool package
     - path: internal/tools/rest/
       role: REST client/server boundary tool package with OpenAPI loading, operation definitions, async inbox integration, and net/http runtime behavior
+    - path: internal/tools/service/
+      role: Scenario-rig service-child lifecycle, deterministic discovery, validator execution, and session words
+    - path: internal/tools/otlp/
+      role: OTLP trace receive, bounded await, stdouttrace-compatible spool, relay, and stop boundary words
     - path: internal/tools/lifecycle/
       role: Checkpoint history, rollback, and lifecycle adapter package
     - path: internal/tools/control/
@@ -1417,6 +1476,8 @@ package_specification_coverage: |
   packages map directly to srd001-srd018, srd022-srd026, or both. That direct
   mapping covers internal/runtime/core, internal/observability, internal/model,
   the internal/tools package family, internal/support/cli, and pkg/spec behavior.
+  Within the tool family, srd039 covers the REST mock binding, srd040 covers
+  internal/tools/service, and srd042 covers internal/tools/otlp.
 
   Configured-agent packages are covered at the release layer. cmd/agent is
   governed by cfg-runtime-contract, release 01.0 use cases, lifecycle use cases,
@@ -1442,7 +1503,7 @@ package_specification_coverage: |
   outside profile configs.
 
 implementation_status:
-  current_focus: Release 03.0 REST conformance and Knowledge Manager documentation UX verification
+  current_focus: Release 09 end-to-end scenario tracing and remaining cross-package proof gaps
   progress:
     - done: Core engine (internal/runtime/core) — types, state machine, dispatch, registry, loop, machine config
     - done: Tracing port (internal/observability/tracing) — 5-method Tracer interface with NoopTracer
@@ -1452,7 +1513,7 @@ implementation_status:
     - done: Ollama client implementation (internal/model/llm/ollama) — Chat, ListModels, model validation, tracing
     - done: Prompt assembly (internal/model/prompt) — Prompt struct, YAML loading, system template
     - done: Standard tool library behavior — file, build, model boundary, lifecycle adapters, config loading
-    - done: Standard tool library package split — internal/tools/catalog, registry, exec, filesystem, llm, rest, lifecycle, control, validation, and undo
+    - done: Standard tool library package split — internal/tools/catalog, registry, exec, filesystem, llm, rest, service, otlp, lifecycle, control, compose, validation, and undo
     - done: CLI flags (internal/support/cli) — standard flag constants, PropagateArgs, RemainingBudget
     - done: Subprocess (internal/support/subprocess) — process execution utilities
     - done: Planner pipeline (internal/planning/pipeline, internal/planning/plan, internal/planning/extract, internal/planning/graph) with tracker invocation selected by external profile declarations
@@ -1469,14 +1530,17 @@ implementation_status:
     - done: LLM profiles — 9 model families with extraction pipelines
     - done: Mage build targets — build, lint, install, clean, tag, stats, docker
     - done: Release container runtime — slim multi-stage image with agent binary, Unix utilities, and shared YAML assets under /opt/agent-core
-    - partial: REST runtime package -- internal/tools/rest implements declarative client, async client, server, fan-in, machine_request, monitor, OpenAPI import behavior, reserved-field validation, compensation mementos, and rollback-time REST compensation execution; active follow-up work is limited to agent-core-guhn.4 named conformance-test alignment
+    - done: REST runtime package -- internal/tools/rest implements declarative client, async client, server, fan-in, machine_request, monitor, OpenAPI import behavior, reserved-field validation, compensation mementos, rollback-time REST compensation execution, and named executable conformance evidence
+    - done: Scenario rig runtime components — internal/tools/rest implements the mock binding and internal/tools/service implements service-child lifecycle, deterministic discovery, validator execution, and session words
+    - partial: Release 09 scenario proof — component tests are executable, while the full TestScenarioRig_EndToEndVerdict tracer remains planned
+    - done: OTLP receiver runtime — internal/tools/otlp implements bounded receive, await, stdouttrace-compatible spool, unchanged relay, stop, and static self-loop rejection
     - done: REST sample profile — agent-profiles owns REST profile assets while agent-core keeps core REST runtime conformance fixtures under testdata/integration/rel03-rest-tools
     - done: Machine request REST path — documentation_curator routes execute the external documentation-curator request machine for document, search, validation, suggestion, and decision requests, with actions selected from trusted profile declarations
     - done: Declarative document resources — documentation_corpus uses reusable filesystem resource words for docs/ list and read behavior
     - done: Knowledge Manager machine_request proof — agent-profiles conformance and integration verify generic REST lifecycle, trace evidence, raw YAML, rendered HTML, search, jurist validation, persistent review creation, and guarded approval
     - done: cobbler-scaffold dependency removed
     - done: Go test suite across all packages
-    - done: SPECIFICATIONS.yaml and SRDs (srd001-srd026)
+    - done: Specification index — 42 SRDs, 28 use cases, and 14 formal test suites are indexed with current release status
     - done: Embedded monitor runtime — in-memory store, recorder ports, ToolDef and MachineSpec metric validation, config-driven tool-owned metric emission, workflow label propagation, OpenTelemetry metric export, REST/OpenAPI cached-state readers, cmd/agent live-store wiring, and mage integration:uc004 release proof
 
 related_documents:

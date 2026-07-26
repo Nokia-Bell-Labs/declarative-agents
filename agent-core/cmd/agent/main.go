@@ -5,6 +5,7 @@ package main
 import (
 	"context"
 	"encoding/json"
+	"errors"
 	"fmt"
 	"os"
 	"strings"
@@ -120,6 +121,7 @@ type agentState struct {
 	conversation  *llm.Conversation
 	registry      *core.Registry
 	tracer        tracing.Tracer
+	coreRoot      string
 	model         string
 	providerName  string
 	manifestState core.State
@@ -136,6 +138,7 @@ type agentState struct {
 	request              string
 	output               string
 	childAgentBinary     string
+	runID                string
 	checkpoint           core.Checkpoint
 	// lifecycleCheckpoint is the backend the checkpoint_history/checkpoint_rollback
 	// tools read and revert through. For the history and rollback families it is
@@ -178,13 +181,7 @@ func (s *deferredShutdown) Apply() {
 
 func run(cmd *cobra.Command, args []string) error {
 	if f := cmd.Flags().Lookup("core-root"); f != nil && f.Changed && strings.TrimSpace(flagCoreRoot) != "" {
-		spec.SetAgentCoreInstallRoot(flagCoreRoot)
-		// Export the mapping so child agents inherit it: a rig spawning this
-		// binary's children (mocks, subjects, validators) must resolve
-		// /opt/agent-core references the same way the parent does.
-		_ = os.Setenv("AGENT_CORE_ROOT", strings.TrimSpace(flagCoreRoot))
-	} else if env := strings.TrimSpace(os.Getenv("AGENT_CORE_ROOT")); env != "" {
-		spec.SetAgentCoreInstallRoot(env)
+		spec.SetAgentCoreInstallRoot(strings.TrimSpace(flagCoreRoot))
 	}
 	if flagValidateConfig {
 		return validateConfig()
@@ -193,7 +190,13 @@ func run(cmd *cobra.Command, args []string) error {
 	if err != nil {
 		return err
 	}
-	defer prepared.Close()
+	return runPrepared(prepared)
+}
+
+func runPrepared(prepared preparedRun) (err error) {
+	defer func() {
+		err = errors.Join(err, prepared.Close())
+	}()
 	result, err := runOrResume(prepared.Config, resumeDeps{
 		Params: prepared.Params,
 		State:  prepared.State,
@@ -238,7 +241,10 @@ type preparedRun struct {
 	Ctx               context.Context
 	Cancel            context.CancelFunc
 	Shutdown          *deferredShutdown
+	checkpoints       checkpointResources
 	shutdownTelemetry func()
+	closed            bool
+	closeErr          error
 }
 
 type runResources struct {
@@ -251,13 +257,42 @@ type runResources struct {
 	shutdownTelemetry func()
 }
 
-func (r preparedRun) Close() {
+type checkpointResources struct {
+	opened []openedCheckpoint
+}
+
+func (r *checkpointResources) Add(checkpoint openedCheckpoint) {
+	if checkpoint.close != nil {
+		r.opened = append(r.opened, checkpoint)
+	}
+}
+
+func (r *checkpointResources) Close() error {
+	var errs []error
+	for i := len(r.opened) - 1; i >= 0; i-- {
+		checkpoint := r.opened[i]
+		r.opened[i].close = nil
+		if err := checkpoint.close(); err != nil {
+			errs = append(errs, fmt.Errorf("close %s: %w", checkpoint.label, err))
+		}
+	}
+	r.opened = nil
+	return errors.Join(errs...)
+}
+
+func (r *preparedRun) Close() error {
+	if r.closed {
+		return r.closeErr
+	}
+	r.closed = true
 	if r.Cancel != nil {
 		r.Cancel()
 	}
+	r.closeErr = r.checkpoints.Close()
 	if r.shutdownTelemetry != nil {
 		r.shutdownTelemetry()
 	}
+	return r.closeErr
 }
 
 func prepareRun(cmd *cobra.Command) (preparedRun, error) {
@@ -287,15 +322,7 @@ func loadRunResources() (runResources, error) {
 		shutdownTelemetry()
 		return runResources{}, fmt.Errorf("load machine spec for budget: %w", err)
 	}
-	if err := catalog.ValidateParseRetryWiring(machineSpec, defs); err != nil {
-		shutdownTelemetry()
-		return runResources{}, err
-	}
-	if err := catalog.ValidateToolEmits(machineSpec, defs); err != nil {
-		shutdownTelemetry()
-		return runResources{}, err
-	}
-	if err := catalog.ValidateReceiptContracts(defs); err != nil {
+	if err := validateRuntimeToolWiring(machineSpec, defs); err != nil {
 		shutdownTelemetry()
 		return runResources{}, err
 	}
@@ -306,21 +333,48 @@ func loadRunResources() (runResources, error) {
 	}, nil
 }
 
+// validateRuntimeToolWiring is the ordinary startup boundary. It rejects
+// machine/tool signal mismatches, incomplete parse-retry routes, and reversible
+// effects without receipt-consuming undo. Full six-section contract
+// completeness remains an authoring and specification-audit concern.
+func validateRuntimeToolWiring(machine core.MachineSpec, defs []catalog.ToolDef) error {
+	if err := catalog.ValidateParseRetryWiring(machine, defs); err != nil {
+		return err
+	}
+	if err := catalog.ValidateToolEmits(machine, defs); err != nil {
+		return err
+	}
+	return catalog.ValidateReceiptContracts(defs)
+}
+
 func buildPreparedRun(cmd *cobra.Command, resources runResources) (preparedRun, error) {
 	cfg := resources.Config
-	checkpoint, err := resolveCheckpoint(cfg, resources.Machine)
+	var checkpoints checkpointResources
+	runID, err := resolveRunID(cfg)
 	if err != nil {
 		resources.shutdownTelemetry()
 		return preparedRun{}, err
 	}
-	lifecycleCheckpoint, err := resolveLifecycleCheckpoint(cfg, resources.Definitions, checkpoint)
+	checkpoint, err := resolveCheckpoint(cfg, resources.Machine, runID)
 	if err != nil {
 		resources.shutdownTelemetry()
 		return preparedRun{}, err
 	}
+	checkpoints.Add(checkpoint)
+	lifecycleCheckpoint, err := resolveLifecycleCheckpoint(cfg, resources.Definitions, checkpoint.Checkpoint)
+	if err != nil {
+		return preparedRun{}, closeBuildFailure(err, nil, &checkpoints, resources.shutdownTelemetry)
+	}
+	checkpoints.Add(lifecycleCheckpoint)
 	loopCtx, loopCancel := context.WithCancel(commandContext(cmd))
 	shutdown := newDeferredShutdown(loopCancel)
-	monitorRuntime := newMonitorRuntime(resources.Machine, resources.Definitions, resources.RestDefinitions, resources.Meter)
+	monitorRuntime, err := newMonitorRuntime(
+		resources.Machine, resources.Definitions, resources.RestDefinitions, resources.Meter,
+		runID,
+	)
+	if err != nil {
+		return preparedRun{}, closeBuildFailure(err, loopCancel, &checkpoints, resources.shutdownTelemetry)
+	}
 	selectedInits := selectedBuiltinInits(resources.Definitions)
 	reg := core.NewRegistry()
 	builtins := toolregistry.NewBuiltinRegistry()
@@ -328,36 +382,53 @@ func buildPreparedRun(cmd *cobra.Command, resources runResources) (preparedRun, 
 	st := newAgentState(cfg, agentStateDeps{
 		Registry:            reg,
 		Tracer:              resources.Tracer,
-		Checkpoint:          checkpoint,
-		LifecycleCheckpoint: lifecycleCheckpoint,
+		RunID:               runID,
+		Checkpoint:          checkpoint.Checkpoint,
+		LifecycleCheckpoint: lifecycleCheckpoint.Checkpoint,
 		Ctx:                 loopCtx,
-		Monitor:             monitorState(monitorRuntime.Store, &resources.Machine, resources.Definitions),
-		RestDefs:            resources.RestDefinitions,
-		shutdown:            shutdown.Request,
-		ParseRetries:        retries,
+		Monitor: monitorState(
+			monitorRuntime.Store, monitorRuntime.Recorder, &resources.Machine, resources.Definitions,
+		),
+		RestDefs:     resources.RestDefinitions,
+		shutdown:     shutdown.Request,
+		ParseRetries: retries,
 	})
 
 	registerBuiltinFactories(builtins, st, selectedInits)
 	if err := registerRuntimeTools(reg, builtins, cfg, resources.Machine, resources.Definitions); err != nil {
-		loopCancel()
-		resources.shutdownTelemetry()
-		return preparedRun{}, fmt.Errorf("register tools: %w", err)
+		err = fmt.Errorf("register tools: %w", err)
+		return preparedRun{}, closeBuildFailure(err, loopCancel, &checkpoints, resources.shutdownTelemetry)
 	}
 	params := loopParams(cfg, loopParamDeps{
 		Machine: resources.Machine, State: st, Registry: reg, Tracer: resources.Tracer,
-		Checkpoint: checkpoint, MonitorRecorder: monitorRuntime.Recorder,
+		RunID: runID, Checkpoint: checkpoint.Checkpoint, MonitorRecorder: monitorRuntime.Recorder,
 	})
 	return preparedRun{
 		Config: cfg, Params: params, State: st, Ctx: loopCtx,
-		Cancel: loopCancel, Shutdown: shutdown, shutdownTelemetry: resources.shutdownTelemetry,
+		Cancel: loopCancel, Shutdown: shutdown, checkpoints: checkpoints,
+		shutdownTelemetry: resources.shutdownTelemetry,
 	}, nil
 }
 
+func closeBuildFailure(primary error, cancel context.CancelFunc, checkpoints *checkpointResources, shutdownTelemetry func()) error {
+	if cancel != nil {
+		cancel()
+	}
+	closeErr := checkpoints.Close()
+	if shutdownTelemetry != nil {
+		shutdownTelemetry()
+	}
+	return errors.Join(primary, closeErr)
+}
+
 func initRunTelemetry(cfg runtimeConfig) (tracing.Tracer, metric.Meter, func(), error) {
+	parentCtx, err := telemetry.ParseParentSpan(cfg.OTelParent)
+	if err != nil {
+		return nil, nil, nil, fmt.Errorf("parse --otel-parent-span: %w", err)
+	}
 	if cfg.OTelLog == "" && cfg.OTelOTLP == "" && cfg.OTelMetricOTLP == "" {
 		return tracing.NoopTracer{}, nil, func() {}, nil
 	}
-	parentCtx, _ := telemetry.ParseParentSpan(cfg.OTelParent)
 	exporter := telemetry.ExporterConfig{
 		FilePath:           cfg.OTelLog,
 		OTLPEndpoint:       cfg.OTelOTLP,
@@ -404,6 +475,7 @@ func parseErrorLimit(machine core.MachineSpec) int {
 type agentStateDeps struct {
 	Registry            *core.Registry
 	Tracer              tracing.Tracer
+	RunID               string
 	Checkpoint          core.Checkpoint
 	LifecycleCheckpoint core.Checkpoint
 	Ctx                 context.Context
@@ -428,6 +500,7 @@ func newAgentState(cfg runtimeConfig, deps agentStateDeps) *agentState {
 		conversation:        llm.NewConversation(nil, "", llm.ChatOptions{}),
 		registry:            deps.Registry,
 		tracer:              deps.Tracer,
+		coreRoot:            cfg.CoreRoot,
 		parseRetries:        deps.ParseRetries,
 		verbose:             cfg.VerboseTrace,
 		ctx:                 deps.Ctx,
@@ -435,6 +508,7 @@ func newAgentState(cfg runtimeConfig, deps agentStateDeps) *agentState {
 		request:             cfg.Request,
 		output:              cfg.Output,
 		childAgentBinary:    cfg.ChildAgentBinary,
+		runID:               deps.RunID,
 		checkpoint:          checkpointOrNoop(deps.Checkpoint),
 		lifecycleCheckpoint: deps.LifecycleCheckpoint,
 		monitor:             deps.Monitor,
@@ -456,6 +530,7 @@ type loopParamDeps struct {
 	State           *agentState
 	Registry        *core.Registry
 	Tracer          tracing.Tracer
+	RunID           string
 	Checkpoint      core.Checkpoint
 	MonitorRecorder monitor.RuntimeRecorder
 }
@@ -469,6 +544,7 @@ func loopParams(cfg runtimeConfig, deps loopParamDeps) core.LoopParams {
 	return core.LoopParams{
 		MachineFile:     cfg.Machine,
 		MachineSpec:     &deps.Machine,
+		RunID:           deps.RunID,
 		AgentName:       "agent",
 		ModelName:       deps.State.model,
 		ProviderName:    deps.State.providerName,
@@ -564,7 +640,7 @@ func runOrResume(cfg runtimeConfig, deps resumeDeps) (core.RunResult, error) {
 	if cfg.ResumeCheckpoint == "" {
 		result, err := core.Loop(deps.Params, deps.Ctx)
 		if err != nil {
-			return core.RunResult{}, fmt.Errorf("loop: %w", err)
+			return result, fmt.Errorf("loop: %w", err)
 		}
 		return result, nil
 	}
@@ -582,6 +658,9 @@ func resumeRun(cfg runtimeConfig, deps resumeDeps) (core.RunResult, error) {
 	if err != nil {
 		return core.RunResult{}, fmt.Errorf("resume: %w", err)
 	}
+	if state.Finalized {
+		return state.Params.InitialRun, nil
+	}
 	if conversation := state.Position.Snapshot.Conversation; len(conversation) > 0 {
 		if err := deps.State.restoreConversation(conversation); err != nil {
 			return core.RunResult{}, fmt.Errorf("resume: restore conversation: %w", err)
@@ -589,7 +668,7 @@ func resumeRun(cfg runtimeConfig, deps resumeDeps) (core.RunResult, error) {
 	}
 	result, err := core.Loop(state.Params, deps.Ctx)
 	if err != nil {
-		return core.RunResult{}, fmt.Errorf("resume: %w", err)
+		return result, fmt.Errorf("resume: %w", err)
 	}
 	return result, nil
 }

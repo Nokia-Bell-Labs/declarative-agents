@@ -18,8 +18,10 @@ tools:
     classification: reversible
     undo: pipeline_state_restore
   undo:
-    strategy: session_state_restore
-    description: Restore the pipeline state snapshot captured before parsing.
+    strategy: pipeline_state_restore
+    description: Restore the receipt-recorded pipeline and parse-retry state captured before parsing.
+    payload: pipeline_state_snapshot
+    captures: [current_task, current_plan, issue_id, task_deps, graph_status, graph_retries, parse_retry_count]
   problem: The machine needs a declared word for parsing an implementation plan without embedding that workflow step in Go control flow.
   goals:
   - Perform the parse_plan action as one machine-selected word.

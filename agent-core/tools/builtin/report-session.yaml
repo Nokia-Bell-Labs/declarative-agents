@@ -20,8 +20,10 @@ tools:
     classification: reversible
     undo: evaluator_session_restore
   undo:
-    strategy: session_state_restore
-    description: Restore evaluator session state to the snapshot before finalizing session duration.
+    strategy: evaluator_session_restore
+    description: Restore evaluator session state from the persisted pre-command receipt.
+    payload: evaluator_session_snapshot
+    captures: [suite, session_dir, result, point_context, iterator_state]
   problem: The machine needs a declared word for reporting evaluator session results without embedding that workflow step in Go control flow.
   goals:
   - Perform the report_session action as one machine-selected word.

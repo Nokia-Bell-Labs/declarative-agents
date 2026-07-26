@@ -19,8 +19,10 @@ tools:
     classification: reversible
     undo: pipeline_state_restore
   undo:
-    strategy: session_state_restore
-    description: Restore the pipeline state snapshot captured before extraction.
+    strategy: pipeline_state_restore
+    description: Restore the receipt-recorded pipeline state captured before extraction.
+    payload: pipeline_state_snapshot
+    captures: [current_task, current_plan, issue_id, task_deps, graph_status, graph_retries]
   problem: The machine needs a declared word for extracting all planning tasks without embedding that workflow step in Go control flow.
   goals:
   - Perform the extract_all action as one machine-selected word.

@@ -19,8 +19,8 @@ const (
 	codingHelmRelease        = "smoke"
 	codingHelmNamespace      = "coding-agent-smoke"
 	codingHelmCluster        = "da-coding-agent-smoke"
-	codingHelmAgentImage     = "declarative-agents/coding-agent-smoke:local"
-	codingHelmModelImage     = "declarative-agents/coding-model-smoke:local"
+	codingHelmAgentImageRepo = "declarative-agents/coding-agent-smoke"
+	codingHelmModelImageRepo = "declarative-agents/coding-model-smoke"
 	codingHelmGoBaseImage    = "golang:1.26-alpine"
 	codingHelmCollectorImage = "otel/opentelemetry-collector-contrib:0.127.0"
 	codingHelmJaegerImage    = "jaegertracing/all-in-one:1.62.0"
@@ -36,6 +36,29 @@ const (
 	codingHelmProbeTimeout   = 5 * time.Second
 	codingHelmDiagTimeout    = 15 * time.Second
 )
+
+type codingHelmImages struct {
+	Revision string
+	Agent    string
+	Model    string
+}
+
+func resolveCodingHelmImages(applicationRoot string) (codingHelmImages, error) {
+	repositoryRoot := filepath.Clean(filepath.Join(applicationRoot, "..", ".."))
+	commit, err := gitOutput(repositoryRoot, "rev-parse", "HEAD")
+	if err != nil {
+		return codingHelmImages{}, fmt.Errorf("resolve integration revision: %w", err)
+	}
+	agentImage, revision, err := kindrig.CommitImage(codingHelmAgentImageRepo, commit)
+	if err != nil {
+		return codingHelmImages{}, err
+	}
+	modelImage, _, err := kindrig.CommitImage(codingHelmModelImageRepo, commit)
+	if err != nil {
+		return codingHelmImages{}, err
+	}
+	return codingHelmImages{Revision: revision, Agent: agentImage, Model: modelImage}, nil
+}
 
 type codingSmokeRunner func(context.Context, string, ...string) ([]byte, error)
 
@@ -134,7 +157,11 @@ func codingHelmSmokeSkipReason(roots integrationRoots, run codingSmokeRunner) st
 	return ""
 }
 
-func runCodingHelmSmoke(roots integrationRoots) error {
+func runCodingHelmSmoke(roots integrationRoots) (result error) {
+	images, err := resolveCodingHelmImages(roots.Application)
+	if err != nil {
+		return err
+	}
 	kindConfig := filepath.Join(roots.Application, "helm", "ci", "kind-config.yaml")
 	kindRun := func(args ...string) ([]byte, error) {
 		ctx, cancel := context.WithTimeout(context.Background(), codingHelmClusterTimeout)
@@ -146,19 +173,25 @@ func runCodingHelmSmoke(roots integrationRoots) error {
 	if err != nil {
 		return &codingHelmInfrastructureError{Step: "kind cluster acquisition", Cause: err}
 	}
-	kubeconfig, cleanupKubeconfig, err := codingKindKubeconfig()
+	kubeconfig, cleanupKubeconfig, err := codingKindKubeconfig(codingHelmCluster)
 	if err != nil {
-		cluster.Release(kindRun)
+		cluster.ReleaseAfter(kindRun, true, kindrig.FailureEvidence{
+			Directory: codingHelmEvidenceDir(roots.Application, images.Revision),
+		})
 		return &codingHelmInfrastructureError{Step: "kind kubeconfig", Cause: err}
 	}
 	defer cleanupKubeconfig()
 	environment := codingSmokeEnvironment{kubeconfig: kubeconfig}
-	defer cleanupCodingHelmSmoke(environment, cluster, kindRun)
+	defer func() {
+		cleanupCodingHelmSmoke(
+			environment, cluster, kindRun, result != nil,
+			codingHelmEvidenceDir(roots.Application, images.Revision))
+	}()
 
 	if err := checkCodingHelmInfrastructure(environment.run); err != nil {
 		return err
 	}
-	if err := prepareCodingHelmCluster(environment, cluster.Name, roots); err != nil {
+	if err := prepareCodingHelmCluster(environment, cluster.Name, roots, images); err != nil {
 		return classifyCodingHelmFailure(environment.run, "cluster preparation", err)
 	}
 	archiveDir, err := os.MkdirTemp("", "coding-agent-smoke-chart-*")
@@ -177,7 +210,8 @@ func runCodingHelmSmoke(roots integrationRoots) error {
 	if err != nil {
 		return &codingHelmSemanticError{Step: "chart package", Cause: err}
 	}
-	if err := installCodingHelmChart(environment, archive, roots.Application); err != nil {
+	if err := installCodingHelmChart(
+		environment, archive, roots.Application, images.Agent); err != nil {
 		return classifyCodingHelmFailure(environment.run, "Helm install", err)
 	}
 	if err := verifyCodingHelmRollouts(environment); err != nil {
@@ -203,15 +237,16 @@ func runCodingHelmSmoke(roots integrationRoots) error {
 	if err := verifyCodingTrace(); err != nil {
 		return classifyCodingHelmFailure(environment.run, "connected trace", err)
 	}
-	fmt.Printf("integration:helmSmoke PASS - packaged chart ran planner -> executor -> critic with shared workspace and trace %s\n", codingHelmTraceID)
+	fmt.Printf("integration:helmSmoke PASS - revision %s packaged chart ran planner -> executor -> critic with shared workspace and trace %s\n",
+		images.Revision, codingHelmTraceID)
 	return nil
 }
 
-func codingKindKubeconfig() (string, func(), error) {
+func codingKindKubeconfig(cluster string) (string, func(), error) {
 	ctx, cancel := context.WithTimeout(context.Background(), codingHelmProbeTimeout)
 	defer cancel()
 	output, err := codingSmokeEnvironment{}.run(
-		ctx, "kind", "get", "kubeconfig", "--name", codingHelmCluster)
+		ctx, "kind", "get", "kubeconfig", "--name", cluster)
 	if err != nil {
 		return "", nil, fmt.Errorf("kind get kubeconfig: %w: %s", err, strings.TrimSpace(string(output)))
 	}

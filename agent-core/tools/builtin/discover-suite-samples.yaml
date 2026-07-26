@@ -15,10 +15,12 @@ tools:
     description: Sets EvalSessionState.Suite.Samples from the resolved samples directory.
   reversibility:
     classification: reversible
-    undo: session_state_restore
+    undo: evaluator_session_restore
   undo:
-    strategy: session_state_restore
-    description: Restore evaluator session state to the snapshot before discovering samples.
+    strategy: evaluator_session_restore
+    description: Restore evaluator session state from the persisted pre-command receipt.
+    payload: evaluator_session_snapshot
+    captures: [suite, session_dir, result, point_context, iterator_state]
   problem: The machine needs a declared word for discovering evaluator suite samples without embedding that workflow step in Go control flow.
   goals:
   - Perform the discover_suite_samples action as one machine-selected word.

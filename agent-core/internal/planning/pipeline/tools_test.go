@@ -106,7 +106,7 @@ func TestExtractTaskBuilder_UndoRestoresPipelineState(t *testing.T) {
 	require.Equal(t, SigTaskExtracted, result.Signal)
 	require.NotNil(t, ps.CurrentTask)
 
-	undo := cmd.Undo(core.Result{})
+	undo := cmd.Undo(result)
 	require.Equal(t, core.ToolDone, undo.Signal)
 	require.Nil(t, ps.CurrentTask)
 }
@@ -149,7 +149,7 @@ func TestExtractAllBuilder_UndoRestoresPipelineState(t *testing.T) {
 	require.Equal(t, SigTaskExtracted, result.Signal)
 	require.NotNil(t, ps.CurrentTask)
 
-	undo := cmd.Undo(core.Result{})
+	undo := cmd.Undo(result)
 	require.Equal(t, core.ToolDone, undo.Signal)
 	require.Nil(t, ps.CurrentTask)
 	require.Nil(t, ps.CurrentPlan)
@@ -219,7 +219,7 @@ func TestParsePlanBuilder_UndoRestoresPreviousPlan(t *testing.T) {
 	require.Equal(t, SigPlanReady, result.Signal)
 	require.Equal(t, "Implement config parser", ps.CurrentPlan.Title)
 
-	undo := cmd.Undo(core.Result{})
+	undo := cmd.Undo(result)
 	require.Equal(t, core.ToolDone, undo.Signal)
 	require.Equal(t, "previous", ps.CurrentPlan.Title)
 }
@@ -303,7 +303,7 @@ func TestMarkTaskDoneBuilder_UndoRestoresGraphStatus(t *testing.T) {
 		require.Equal(t, graph.Done, n.Status)
 	}
 
-	undo := cmd.Undo(core.Result{})
+	undo := cmd.Undo(result)
 	require.Equal(t, core.ToolDone, undo.Signal)
 	for _, id := range task.NodeIDs {
 		n, _ := ps.Graph.Node(id)
@@ -394,7 +394,10 @@ func TestRegisterFactoriesExecuteTaskRequiresChildConfig(t *testing.T) {
 func TestRegisterFactoriesExecuteTaskAcceptsProfileConfig(t *testing.T) {
 	t.Parallel()
 	br := toolregistry.NewBuiltinRegistry()
-	RegisterFactories(br, FactoryDeps{Ctx: context.Background(), ChildAgentBinary: "/tmp/controlled-agent"})
+	RegisterFactories(br, FactoryDeps{
+		Ctx: context.Background(), ChildAgentBinary: "/tmp/controlled-agent",
+		CoreRoot: "/checkout/agent-core",
+	})
 
 	factory, ok := br.Resolve("execute_task")
 	require.True(t, ok)
@@ -412,6 +415,7 @@ func TestRegisterFactoriesExecuteTaskAcceptsProfileConfig(t *testing.T) {
 	require.True(t, ok)
 	require.Equal(t, "/tmp/controlled-agent", execBuilder.PS.ExecConfig.Binary)
 	require.Equal(t, "agents/executor/profile.yaml", execBuilder.PS.ExecConfig.Profile)
+	require.Equal(t, "/checkout/agent-core", execBuilder.PS.ExecConfig.CoreRoot)
 }
 
 var _ llm.PromptAssembler = (*PlannerAssembler)(nil)

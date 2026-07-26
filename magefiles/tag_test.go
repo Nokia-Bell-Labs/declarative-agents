@@ -14,6 +14,8 @@ import (
 
 func TestCreateReleaseTagCreatesNextDailyTag(t *testing.T) {
 	var calls [][]string
+	var created []string
+	var taggedCommit string
 	err := createReleaseTag(
 		time.Date(2026, 6, 17, 12, 0, 0, 0, time.UTC),
 		func(args ...string) (string, error) {
@@ -21,6 +23,10 @@ func TestCreateReleaseTagCreatesNextDailyTag(t *testing.T) {
 			switch strings.Join(args, " ") {
 			case "rev-parse --abbrev-ref HEAD":
 				return "main", nil
+			case "rev-parse HEAD":
+				return "abc123", nil
+			case "status --porcelain":
+				return "", nil
 			case "tag -l v0.20260617.*":
 				return strings.Join([]string{
 					"v0.20260617.0",
@@ -33,24 +39,31 @@ func TestCreateReleaseTagCreatesNextDailyTag(t *testing.T) {
 				return "", nil
 			}
 		},
-		func(args ...string) error {
-			calls = append(calls, append([]string(nil), args...))
+		func(tags []string, commit string) error {
+			created = append([]string(nil), tags...)
+			taggedCommit = commit
 			return nil
 		},
+		passReleaseGates,
 	)
 	if err != nil {
 		t.Fatalf("createReleaseTag returned error: %v", err)
 	}
 	want := [][]string{
 		{"rev-parse", "--abbrev-ref", "HEAD"},
+		{"rev-parse", "HEAD"},
+		{"status", "--porcelain"},
+		{"rev-parse", "HEAD"},
+		{"status", "--porcelain"},
 		{"tag", "-l", "v0.20260617.*"},
-		{"tag", "v0.20260617.3"},
-		{"tag", "agent-core/v0.20260617.3"},
-		{"tag", "agent-profiles/v0.20260617.3"},
-		{"tag", "design-patterns/v0.20260617.3"},
 	}
 	if !reflect.DeepEqual(calls, want) {
 		t.Fatalf("git calls = %#v, want %#v", calls, want)
+	}
+	wantTags := releaseTags("v0.20260617.3", subModules)
+	if !reflect.DeepEqual(created, wantTags) || taggedCommit != "abc123" {
+		t.Fatalf("atomic tags = %v at %s, want %v at abc123",
+			created, taggedCommit, wantTags)
 	}
 }
 
@@ -71,7 +84,9 @@ func TestCreateReleaseTagInGitRepository(t *testing.T) {
 
 	date := "20260617"
 	runGit(t, "tag", tagPrefix+date+".0")
-	err = createReleaseTag(time.Date(2026, 6, 17, 12, 0, 0, 0, time.UTC), gitOutput, gitExec)
+	err = createReleaseTag(
+		time.Date(2026, 6, 17, 12, 0, 0, 0, time.UTC),
+		gitOutput, gitCreateTagSet, passReleaseGates)
 	if err != nil {
 		t.Fatalf("createReleaseTag returned error: %v", err)
 	}
@@ -92,10 +107,11 @@ func TestCreateReleaseTagRejectsNonMainBranch(t *testing.T) {
 		func(args ...string) (string, error) {
 			return "feature/profile-tags", nil
 		},
-		func(args ...string) error {
-			t.Fatalf("git exec called on non-main branch: %q", strings.Join(args, " "))
+		func(tags []string, _ string) error {
+			t.Fatalf("tag creation called on non-main branch: %v", tags)
 			return nil
 		},
+		passReleaseGates,
 	)
 	if err == nil {
 		t.Fatal("createReleaseTag returned nil error for non-main branch")
@@ -109,47 +125,224 @@ func TestCreateReleaseTagWrapsTagListingError(t *testing.T) {
 	want := errors.New("git tag failed")
 	err := createReleaseTag(time.Date(2026, 6, 17, 0, 0, 0, 0, time.UTC),
 		func(args ...string) (string, error) {
-			if strings.Join(args, " ") == "rev-parse --abbrev-ref HEAD" {
+			switch strings.Join(args, " ") {
+			case "rev-parse --abbrev-ref HEAD":
 				return "main", nil
+			case "rev-parse HEAD":
+				return "abc123", nil
+			case "status --porcelain":
+				return "", nil
 			}
 			return "", want
 		},
-		func(args ...string) error {
-			t.Fatalf("git exec called after listing failure: %q", strings.Join(args, " "))
+		func(tags []string, _ string) error {
+			t.Fatalf("tag creation called after listing failure: %v", tags)
 			return nil
 		},
+		passReleaseGates,
 	)
 	if !errors.Is(err, want) {
 		t.Fatalf("error = %v, want to wrap %v", err, want)
 	}
 }
 
-func TestCreateReleaseTagWrapsModuleTagFailure(t *testing.T) {
-	want := errors.New("tag exists")
-	err := createReleaseTag(time.Date(2026, 6, 17, 0, 0, 0, 0, time.UTC),
-		func(args ...string) (string, error) {
-			switch strings.Join(args, " ") {
-			case "rev-parse --abbrev-ref HEAD":
-				return "main", nil
-			case "tag -l v0.20260617.*":
-				return "", nil
-			default:
-				t.Fatalf("unexpected git output args: %q", strings.Join(args, " "))
-				return "", nil
+func TestCreateReleaseTagWrapsAtomicTagFailure(t *testing.T) {
+	want := errors.New("tag transaction failed")
+	err := createReleaseTag(
+		time.Date(2026, 6, 17, 0, 0, 0, 0, time.UTC),
+		successfulReleaseOutput,
+		func(tags []string, commit string) error {
+			if !reflect.DeepEqual(tags, releaseTags("v0.20260617.0", subModules)) ||
+				commit != "abc123" {
+				t.Fatalf("atomic request = %v at %s", tags, commit)
 			}
+			return want
 		},
-		func(args ...string) error {
-			if strings.Join(args, " ") == "tag agent-core/v0.20260617.0" {
-				return want
-			}
-			return nil
-		},
+		passReleaseGates,
 	)
 	if !errors.Is(err, want) {
 		t.Fatalf("error = %v, want to wrap %v", err, want)
 	}
-	if got := err.Error(); !strings.Contains(got, "agent-core/v0.20260617.0") || !strings.Contains(got, "module agent-core") {
-		t.Fatalf("error = %q, want module tag context", got)
+	if !strings.Contains(err.Error(), "atomic release tag set") {
+		t.Fatalf("error = %q, want atomic tag context", err)
+	}
+}
+
+func TestCreateReleaseTagGateFailureCreatesNoTags(t *testing.T) {
+	gateErr := errors.New("integration failed")
+	var tagCalls int
+	err := createReleaseTag(
+		time.Date(2026, 6, 17, 0, 0, 0, 0, time.UTC),
+		successfulReleaseOutput,
+		func(_ []string, _ string) error {
+			tagCalls++
+			return nil
+		},
+		func(commit string) error {
+			if commit != "abc123" {
+				t.Fatalf("gates received commit %q", commit)
+			}
+			return gateErr
+		},
+	)
+	if !errors.Is(err, gateErr) {
+		t.Fatalf("error = %v, want gate failure", err)
+	}
+	if tagCalls != 0 {
+		t.Fatalf("gate failure executed %d tag transactions", tagCalls)
+	}
+}
+
+func TestGitCreateTagSetIsAtomicOnConflict(t *testing.T) {
+	root := initGitRepo(t)
+	previous, err := os.Getwd()
+	if err != nil {
+		t.Fatal(err)
+	}
+	if err := os.Chdir(root); err != nil {
+		t.Fatal(err)
+	}
+	t.Cleanup(func() { _ = os.Chdir(previous) })
+
+	commit := strings.TrimSpace(runGitOutput(t, "rev-parse", "HEAD"))
+	tags := releaseTags("v0.20260617.0", subModules)
+	runGit(t, "tag", tags[2])
+	if err := gitCreateTagSet(tags, commit); err == nil {
+		t.Fatal("atomic tag creation succeeded despite conflicting module tag")
+	}
+	for _, tag := range []string{tags[0], tags[1], tags[3]} {
+		if got := strings.TrimSpace(runGitOutput(t, "tag", "-l", tag)); got != "" {
+			t.Errorf("atomic failure left partial tag %s", got)
+		}
+	}
+	if got := strings.TrimSpace(runGitOutput(t, "tag", "-l", tags[2])); got != tags[2] {
+		t.Errorf("pre-existing conflict tag = %q, want %q", got, tags[2])
+	}
+}
+
+func TestCreateReleaseTagRejectsCommitChangedByGates(t *testing.T) {
+	headCalls := 0
+	output := func(args ...string) (string, error) {
+		if strings.Join(args, " ") == "rev-parse HEAD" {
+			headCalls++
+			if headCalls == 2 {
+				return "def456", nil
+			}
+		}
+		return successfulReleaseOutput(args...)
+	}
+	var execCalls int
+	err := createReleaseTag(
+		time.Date(2026, 6, 17, 0, 0, 0, 0, time.UTC),
+		output,
+		func(_ []string, _ string) error {
+			execCalls++
+			return nil
+		},
+		passReleaseGates,
+	)
+	if err == nil || !strings.Contains(err.Error(), "release commit changed") {
+		t.Fatalf("error = %v, want changed-commit rejection", err)
+	}
+	if execCalls != 0 {
+		t.Fatalf("changed commit executed %d tag commands", execCalls)
+	}
+}
+
+func TestCreateReleaseTagRequiresCleanWorktree(t *testing.T) {
+	output := func(args ...string) (string, error) {
+		if strings.Join(args, " ") == "status --porcelain" {
+			return " M README.md", nil
+		}
+		return successfulReleaseOutput(args...)
+	}
+	var gates, execCalls int
+	err := createReleaseTag(
+		time.Date(2026, 6, 17, 0, 0, 0, 0, time.UTC),
+		output,
+		func(_ []string, _ string) error {
+			execCalls++
+			return nil
+		},
+		func(string) error {
+			gates++
+			return nil
+		},
+	)
+	if err == nil || !strings.Contains(err.Error(), "clean worktree") {
+		t.Fatalf("error = %v, want clean-worktree rejection", err)
+	}
+	if gates != 0 || execCalls != 0 {
+		t.Fatalf("dirty worktree ran gates=%d tag commands=%d", gates, execCalls)
+	}
+}
+
+func TestCreateReleaseTagRejectsWorktreeChangedByGates(t *testing.T) {
+	statusCalls := 0
+	output := func(args ...string) (string, error) {
+		if strings.Join(args, " ") == "status --porcelain" {
+			statusCalls++
+			if statusCalls == 2 {
+				return " M generated.txt", nil
+			}
+		}
+		return successfulReleaseOutput(args...)
+	}
+	var execCalls int
+	err := createReleaseTag(
+		time.Date(2026, 6, 17, 0, 0, 0, 0, time.UTC),
+		output,
+		func(_ []string, _ string) error {
+			execCalls++
+			return nil
+		},
+		passReleaseGates,
+	)
+	if err == nil || !strings.Contains(err.Error(), "worktree changed while gates ran") {
+		t.Fatalf("error = %v, want gate-mutation rejection", err)
+	}
+	if execCalls != 0 {
+		t.Fatalf("changed worktree executed %d tag commands", execCalls)
+	}
+}
+
+func TestReleaseGatesMatchDocumentedContract(t *testing.T) {
+	root := "/release"
+	got := releaseGates(root)
+	want := []releaseGate{
+		{name: "root audit", dir: root, args: []string{"mage", "audit"}},
+		{name: "root test", dir: root, args: []string{"mage", "test"}},
+		{name: "agent-core integration", dir: "/release/agent-core",
+			args: []string{"mage", "integration:all"}},
+		{name: "agent-profiles integration", dir: "/release/agent-profiles",
+			args: []string{"mage", "integration:all"}},
+		{name: "agent-profiles conformance", dir: "/release/agent-profiles",
+			args: []string{"mage", "conformance"},
+			env:  []string{"AGENT_CORE_ROOT=/release/agent-core"}},
+	}
+	if !reflect.DeepEqual(got, want) {
+		t.Fatalf("release gates = %#v, want %#v", got, want)
+	}
+}
+
+func TestExecuteReleaseGatesStopsAtFailure(t *testing.T) {
+	gateErr := errors.New("tests failed")
+	gates := []releaseGate{
+		{name: "audit"}, {name: "test"}, {name: "integration"},
+	}
+	var ran []string
+	err := executeReleaseGates(gates, func(gate releaseGate) error {
+		ran = append(ran, gate.name)
+		if gate.name == "test" {
+			return gateErr
+		}
+		return nil
+	})
+	if !errors.Is(err, gateErr) {
+		t.Fatalf("error = %v, want %v", err, gateErr)
+	}
+	if !reflect.DeepEqual(ran, []string{"audit", "test"}) {
+		t.Fatalf("ran gates = %v, want stop after test", ran)
 	}
 }
 
@@ -188,6 +381,21 @@ func TestValidateReleaseBranch(t *testing.T) {
 	err := validateReleaseBranch("develop")
 	if err == nil {
 		t.Fatal("validateReleaseBranch returned nil error for develop")
+	}
+}
+
+func passReleaseGates(string) error { return nil }
+
+func successfulReleaseOutput(args ...string) (string, error) {
+	switch strings.Join(args, " ") {
+	case "rev-parse --abbrev-ref HEAD":
+		return "main", nil
+	case "rev-parse HEAD":
+		return "abc123", nil
+	case "status --porcelain", "tag -l v0.20260617.*":
+		return "", nil
+	default:
+		return "", errors.New("unexpected git output command")
 	}
 }
 

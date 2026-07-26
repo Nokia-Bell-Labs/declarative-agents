@@ -14,11 +14,12 @@ tools:
     description: Runs a nested point machine that may mutate point state and workspace artifacts.
   reversibility:
     classification: compensatable
-    undo: nested_machine_rollback
+    undo: nested_machine_compensation
   undo:
-    strategy: child_command_undo
-    description: Use nested point machine history and workspace refs to roll back point effects.
+    strategy: compensating_action
+    description: Restore evaluator session state and surface required nested-machine and workspace compensation.
     payload: boundary_compensation
     captures:
-    - eval_session_snapshot
+    - evaluator_session_snapshot
     - nested_machine_history
+    - point_workspace

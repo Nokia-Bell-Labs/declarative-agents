@@ -3,8 +3,10 @@
 package main
 
 import (
+	"encoding/json"
 	"os"
 	"path/filepath"
+	"strings"
 	"testing"
 )
 
@@ -96,6 +98,49 @@ func TestResolveAuditToolsRequiresRuntimeAndValidator(t *testing.T) {
 			t.Fatalf("resolved (%s, %s), want (%s, %s)", coreRoot, juristProfile, core, profile)
 		}
 	})
+}
+
+func TestChatbotReadmeResolvesCanonicalPuppeteerOwner(t *testing.T) {
+	readme, err := os.ReadFile(filepath.Join("..", "README.md"))
+	if err != nil {
+		t.Fatal(err)
+	}
+	const relativePackage = "../../agent-profiles/agents/knowledge-manager/documentation-curator/ui/docs/"
+	text := string(readme)
+	for _, required := range []string{
+		relativePackage,
+		"`npm ci`",
+		"`npm run test:e2e:machine-request`",
+		"`PUPPETEER_EXECUTABLE_PATH`",
+	} {
+		if !strings.Contains(text, required) {
+			t.Errorf("chatbot README missing Puppeteer instruction %q", required)
+		}
+	}
+	if strings.Contains(text, "puppeteer-core` install lives in agent-core") {
+		t.Fatal("chatbot README retains stale agent-core Puppeteer ownership")
+	}
+
+	packagePath := filepath.Clean(filepath.Join("..", filepath.FromSlash(relativePackage)))
+	data, err := os.ReadFile(filepath.Join(packagePath, "package.json"))
+	if err != nil {
+		t.Fatalf("canonical Puppeteer package does not resolve: %v", err)
+	}
+	var pkg struct {
+		Scripts         map[string]string `json:"scripts"`
+		Dependencies    map[string]string `json:"dependencies"`
+		DevDependencies map[string]string `json:"devDependencies"`
+	}
+	if err := json.Unmarshal(data, &pkg); err != nil {
+		t.Fatal(err)
+	}
+	if pkg.Dependencies["puppeteer-core"] == "" &&
+		pkg.DevDependencies["puppeteer-core"] == "" {
+		t.Fatal("canonical package no longer owns puppeteer-core")
+	}
+	if pkg.Scripts["test:e2e:machine-request"] == "" {
+		t.Fatal("documented Puppeteer E2E script no longer exists")
+	}
 }
 
 // fakeCore returns a temp directory that agentCoreAvailable accepts as an

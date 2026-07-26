@@ -151,7 +151,7 @@ func (r *loopRunner) dispatchIteratorJoin() bool {
 		attribute.String("signal", string(result.Signal)),
 	)
 	r.dispatch(iteratorResultCommand{result: result}, nil, result.Signal, frame.Spec.Join.Label, fromState)
-	return r.stopForSuspend()
+	return r.stopAfterDispatch(r.state)
 }
 
 func iteratorJoinResult(frame *IteratorSnapshot) Result {

@@ -2,17 +2,21 @@
 !theme plain
 
 participant "Engine" as E
+participant "Catalog" as C
 participant "PromptAssembler" as PA
 participant "Machine" as G
-participant "Registry" as L
+participant "Registry" as R
 participant "Model" as M
 
+E -> C : ApplyDynamicToolPhases(machine, ToolDefs)
+C -> G : inspect $tool targets + follow-up signals
+C --> R : register ToolSpecs with derived phases
 E -> PA : assemble_prompt(state, history)
-PA -> G : visible_tools(state)
-G --> PA : [write, read, shell, web_search]
-PA -> L : resolve_tools([write, read, shell, web_search])
-L --> PA : [ToolSpec, ToolSpec, ToolSpec, ToolSpec]
+PA -> R : Manifest(state)
+R -> R : ResolveExternalTool(name, state)
+R --> PA : available external ToolSpecs
 PA -> PA : build filtered manifest
 PA -> M : prompt + filtered tool manifest
 M --> E : response (tool call or completion)
+E -> R : ResolveExternalTool(parsed_name, state)
 @enduml

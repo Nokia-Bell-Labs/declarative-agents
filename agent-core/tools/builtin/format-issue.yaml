@@ -19,7 +19,7 @@ tools:
     - must emit IssueFormatted with title, body, body-file path, workspace directory, and dependency IDs
     - must sort and comma-join dependency IDs deterministically
     undo:
-    - must restore the prior planner state snapshot
+    - no state restoration is required because formatting is read-only
     errors:
     - must emit CommandError when current plan state is unavailable or serialization fails
   non_goals:
@@ -31,11 +31,11 @@ tools:
     description: Reads the current plan, workspace directory, and dependency IDs without mutating them.
   reversibility:
     classification: reversible
-    undo: planner_state_restore
+    undo: noop
     requires_confirmation: false
   undo:
-    strategy: session_state_restore
-    description: Restore the planner state captured before formatting.
+    strategy: noop
+    description: Formatting reads planner state without mutating it.
   errors:
   - signal: CommandError
     condition: current plan state is unavailable or cannot be serialized

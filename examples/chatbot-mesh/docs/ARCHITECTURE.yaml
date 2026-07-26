@@ -75,12 +75,13 @@ components:
       request, query the configured Chroma collection, and return chunks with
       embedding-model metadata. The Chroma REST config is owned inline here.
   - name: corpus-ingest agent
-    path: agents/corpus-ingest/ wrapper; ../../agent-profiles/agents/knowledge-manager/corpus-ingest/ program
+    path: agents/corpus-ingest/ wrapper; $AGENT_PROFILES_ROOT/agents/knowledge-manager/corpus-ingest/ canonical build input
     responsibility: |
       Seed a Chroma collection from a document directory: the canonical library
       machine lists trusted paths, the model selects among them, and the machine
       embeds each document and threads its vector into Chroma. The mesh owns only
-      the wrapper and corpus-rest endpoint/model/collection parameterization.
+      the wrapper and corpus-rest endpoint/model/collection parameterization;
+      packaging embeds the resolved canonical closure for runtime use.
   - name: coordinator agent
     path: agents/coordinator/
     responsibility: |
@@ -105,6 +106,15 @@ components:
       rollout, and rolls back on failure -- binding the helm and kubectl CLIs in its
       container as exec words. Authenticated apart from chat by a NetworkPolicy. It
       replaces the standard-library Go provisioner.
+  - name: collector agent
+    path: agents/collector/
+    responsibility: |
+      Provide the staged declarative OTLP trace path (srd007). The persistent
+      machine receives bounded trace batches, spools them before optional relay,
+      preserves integration identity, and exports its own telemetry only to file.
+      The contrib collector remains for metrics and Dolt scraping. Profile, intake,
+      relay, self-loop, and Helm evidence are implemented; complete listener and
+      monitor lifecycle proof remains planned.
   - name: user interface
     path: ux/
     responsibility: |
@@ -215,7 +225,9 @@ project_structure:
 
 implementation_status:
   current_focus: The example is a self-governing, standalone program; the data plane
-    and the control plane are both extracted and implemented here.
+    is implemented here, while the control plane has implemented components but
+    remains partial pending one live ingest-to-grounded-turn lifecycle proof.
+    Release rel07.0 is also partial pending collector listener lifecycle proof.
   progress:
     - done: The data-plane mesh (RAG server, chat turn, routing, fan-out,
         observability, Helm deployment, in-cluster model tier) is implemented, with
@@ -225,10 +237,20 @@ implementation_status:
     - done: The control-plane coordinator (srd004) and creator (srd005), realized
         as mage integration:controlPlane (rel05.0, deterministic, driving a fake
         deployment API).
-    - planned: The applier deployment surface (srd006) that replaces the Go
-        provisioner. Its behavioral tracer mage integration:applier is not yet
-        implemented, so integration:controlPlane is not applier evidence
-        (test-rel06.0-applier is planned).
+    - done: The creator corpus-ingest child endpoint and count-delta checks
+        (srd005 R3.1), covered independently from integration:controlPlane.
+    - planned: One live integration that joins an ingest-carrying provisioning
+        intent, rollout, and a grounded turn from the newly added source.
+    - done: The rel07.0 collector profile, bounded intake and spool rig, unchanged
+        relay identity, self-loop exclusion, staged Helm trace switch, and retained
+        contrib metrics evidence.
+    - planned: Collector lifecycle proof that exits a blocked await, releases and
+        rebinds receiver, control, and monitor listeners, and records final monitor
+        state.
+    - done: The applier deployment surface (srd006) that replaces the Go
+        provisioner. mage integration:applier drives every declared apply and
+        rollout terminal against recording helm and kubectl, while mage
+        integration:applierLive proves real on-cluster apply and rollback.
 
 related_documents:
   - doc: docs/VISION.yaml

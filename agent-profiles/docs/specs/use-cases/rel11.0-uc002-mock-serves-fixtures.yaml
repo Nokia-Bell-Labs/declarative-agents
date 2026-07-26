@@ -90,5 +90,12 @@ out_of_scope:
   - Proxying to, recording from, or replaying a real upstream service.
   - Refreshing fixtures from observed real-service responses, which real-stack verification owns.
 
+evidence_gaps:
+  - Current conformance reads request-log entries directly; it does not execute
+    a validator that passes for a correct call and fails for a wrong or missing
+    call.
+  - Malformed fixtures are rejected through --validate-config, but no current
+    test starts serve mode and asserts startup rejection before any request.
+
 test_suite_trace: test-rel11.0-assembler-rig
-status: specified
+status: in-progress
