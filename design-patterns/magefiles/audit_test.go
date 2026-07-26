@@ -248,6 +248,32 @@ func TestRepositoryReferenceImplementationEvidence(t *testing.T) {
 	}
 }
 
+func TestApprovalGateChapterUsesCurrentCLIAndLabelsScope(t *testing.T) {
+	data, err := os.ReadFile(filepath.Join("..", "10-approval-gate.md"))
+	if err != nil {
+		t.Fatal(err)
+	}
+	chapter := string(data)
+	for _, required := range []string{
+		"bin/agent --profile",
+		"--resume-checkpoint \"$RUN_ID\"",
+		"--resume-signal Approved",
+		"--resume-signal Rejected",
+		"conformance fixture",
+		"design intent",
+		"no rollback runs",
+	} {
+		if !strings.Contains(chapter, required) {
+			t.Errorf("Approval Gate chapter missing %q", required)
+		}
+	}
+	for _, stale := range []string{"agent resume", "--checkpoint <id>", "--reason "} {
+		if strings.Contains(chapter, stale) {
+			t.Errorf("Approval Gate chapter retains unsupported CLI %q", stale)
+		}
+	}
+}
+
 func writePatternLanguage(t *testing.T, root, content string) string {
 	t.Helper()
 	path := filepath.Join(root, "pattern-language.yaml")

@@ -1104,9 +1104,11 @@ patterns:
     implementation: >
       Place the gate before the irreversible tool, not inside it. The suspend
       tool is an internal lifecycle tool so the model cannot skip it by refusing
-      to call it. Gate checkpoints add action summary, checkpoint reference,
-      gate status, and authority decision record to the normal checkpoint.
-      Resume injects Approved or Rejected into the restored checkpoint; recheck
+      to call it. A complete gate adds action summary, status, and authority
+      decision metadata to the normal checkpoint and notifies the authority.
+      The reference conformance fixture persists only standard Position and
+      Execution, then resumes through --resume-checkpoint and --resume-signal;
+      notification and decision metadata remain design intent. Recheck
       preconditions because the external world may have changed during the wait.
     consequences:
       benefits:
@@ -1138,10 +1140,10 @@ patterns:
         cite: aws-step-functions-callback-2024
         kind: external
         note: A workflow task can suspend on an external callback token before resuming, matching the declared wait-resume structure of approval gates.
-      - system: Design intent — deployment confirmation
+      - system: Reference implementation — approval lifecycle conformance fixture
         cite: reference-implementation
         kind: internal
-        note: The approval gate is shipped only as a conformance fixture (agent-profiles/testdata/conformance/lifecycle/approval). A deployed coding agent that gates between validation and deployment — approval deploys, rejection rolls back to the pre-deployment checkpoint, each decision recorded for compliance — is design intent, not a shipped profile.
+        note: The conformance fixture suspends through Dolt and resumes a stored checkpoint with Approved or Rejected using universal CLI flags; it has no authority notification, decision metadata, rejection rollback, or deployed gate.
         evidence:
           classification: conformance_fixture
           checks:
@@ -1154,11 +1156,29 @@ patterns:
             - path: agent-profiles/testdata/conformance/lifecycle/approval/machine.yaml
               artifact: machine
               assertion: yaml_transition
+              match: {state: Idle, signal: Seed, next: AwaitingApproval, action: suspend}
+            - path: agent-profiles/testdata/conformance/lifecycle/approval/machine.yaml
+              artifact: machine
+              assertion: yaml_transition
               match: {state: AwaitingApproval, signal: Approved, next: ApplyingApproval, action: done}
             - path: agent-profiles/testdata/conformance/lifecycle/approval/machine.yaml
               artifact: machine
               assertion: yaml_transition
               match: {state: AwaitingApproval, signal: Rejected, next: Rejected}
+            - path: agent-profiles/conformance/lifecycle_test.go
+              artifact: go_test
+              assertion: go_test
+              test: TestLifecycleApprovalSuspendResume
+            - path: agent-core/cmd/agent/main_bootstrap_test.go
+              artifact: go_test
+              assertion: go_test
+              test: TestRootCommandHasNoLifecycleOnlyFlags
+      - system: Design intent — deployed approval authority
+        cite: reference-implementation
+        kind: internal
+        note: Authority notification, proposal and decision metadata, rejection-triggered rollback, multi-authority chains, and a deployed coding-agent confirmation gate are design intent, not shipped behavior.
+        evidence:
+          classification: design_intent
     provenance: [reference-implementation, external-corroboration]
 
   # ---------------------------------------------------------------------------
