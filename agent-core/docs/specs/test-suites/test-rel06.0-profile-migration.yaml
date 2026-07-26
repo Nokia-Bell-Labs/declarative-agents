@@ -64,14 +64,15 @@ test_cases:
   - use_case: rel06.0-uc001-mounted-profile-container-runtime
     name: Runtime resolves profiles from external roots
     go_test: TestResolveProfilePathMapsInstalledCoreHome
-    integration_target: mage integration:uc001, mage integration:uc002
+    integration_target: examples/coding-agent mage integration:executorLive
     status: implemented
     description: |
-      Configure AGENT_PROFILES_ROOT outside the agent-core checkout. Integration
-      targets then start cmd/agent with --profile paths from that external root.
+      Configure AGENT_PROFILES_ROOT outside the agent-core checkout. The coding
+      application packages the external profile closure and starts cmd/agent
+      with a profile from that closure.
       In pkg/spec, the path test verifies that /opt/agent-core/tools references
       map to the installed core asset root when AGENT_CORE_HOME is set. Those
-      same integration targets exercise normal machine assets and fixture roots.
+      The application integration exercises normal machine assets and fixture roots.
       Concrete profile UX tracer bullets, including Knowledge Manager assets,
       belong to agent-profiles suites.
     inputs:
