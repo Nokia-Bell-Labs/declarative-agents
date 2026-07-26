@@ -92,9 +92,10 @@ tools:
         state: rollout_executed
     reversibility:
       classification: irreversible
-      undo: noop
+      undo: irreversible
+      requires_confirmation: true
     undo:
-      strategy: noop
+      strategy: irreversible
       description: A completed rollout is superseded by a subsequent decided rollout, not undone in place.
     errors:
       - signal: CommandError
@@ -144,9 +145,10 @@ tools:
         state: rollout_executed
     reversibility:
       classification: irreversible
-      undo: noop
+      undo: irreversible
+      requires_confirmation: true
     undo:
-      strategy: noop
+      strategy: irreversible
       description: A completed rollout is superseded by a subsequent decided rollout, not undone in place.
     errors:
       - signal: CommandError

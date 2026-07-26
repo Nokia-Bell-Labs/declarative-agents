@@ -184,7 +184,7 @@ releases:
         status: implemented
     test_suites:
       - id: test-rel06.0-applier
-        summary: Tracer for the validate -> apply -> verify -> rollback flow against the applier agent, asserting schema rejection, values-file apply, rollout verification, and the authority boundary. Realized as mage integration:applier, which drives the shipped profile against recording fake helm and kubectl; the chart schema is proven against real helm and the enabled chart against its render. The live on-cluster tier is mage integration:applierLive (GH-735). The state-read chain (GH-750/752/753) is covered by unit tests pinning every hop's field mapping and failure-status behavior, plus a manual live verification against real creator/coordinator binaries; mage integration:controlPlane's automated live assertion of the same round trip is blocked by a pre-existing, unrelated bug (GH-755).
+        summary: Tracer for the validate -> apply -> verify -> rollback flow against the applier agent, asserting schema rejection, values-file apply, rollout verification, and the authority boundary. Realized as mage integration:applier, which drives the shipped profile against recording fake helm and kubectl; the chart schema is proven against real helm and the enabled chart against its render. The live on-cluster tier is mage integration:applierLive (GH-735). The state-read chain (GH-750/752/753) is covered by unit tests pinning every hop's field mapping and failure-status behavior, and mage integration:controlPlane automates the creator/coordinator state round trip after the GH-755 selector fix.
         status: implemented
 
   - version: "07.0"

@@ -2,16 +2,101 @@
   "$schema": "https://json-schema.org/draft-07/schema#",
   "title": "chatbot-mesh values",
   "$comment": "Encodes the deployment-values constraints the applier agent (srd006) relies on helm to enforce, replacing the standard-library provisioner's MeshView.Validate. A helm dry-run against this schema is the applier's validate step.",
-  "type": "object",
-  "required": ["image", "ragUnits"],
-  "properties": {
+  "definitions": {
+    "nonEmptyString": {"type": "string", "minLength": 1},
+    "port": {"type": "integer", "minimum": 1, "maximum": 65535},
+    "replicas": {"type": "integer", "minimum": 0},
+    "quantity": {"type": ["string", "number"], "minLength": 1},
     "image": {
       "type": "object",
-      "required": ["repository", "tag"],
+      "additionalProperties": false,
+      "required": ["repository", "tag", "pullPolicy"],
       "properties": {
-        "repository": {"type": "string"},
-        "tag": {"type": "string"},
+        "repository": {"$ref": "#/definitions/nonEmptyString"},
+        "tag": {"$ref": "#/definitions/nonEmptyString"},
         "pullPolicy": {"type": "string", "enum": ["Always", "IfNotPresent", "Never"]}
+      }
+    },
+    "resources": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["requests", "limits"],
+      "properties": {
+        "requests": {
+          "type": "object",
+          "additionalProperties": false,
+          "required": ["cpu", "memory"],
+          "properties": {
+            "cpu": {"$ref": "#/definitions/quantity"},
+            "memory": {"$ref": "#/definitions/quantity"}
+          }
+        },
+        "limits": {
+          "type": "object",
+          "additionalProperties": false,
+          "required": ["cpu", "memory"],
+          "properties": {
+            "cpu": {"$ref": "#/definitions/quantity"},
+            "memory": {"$ref": "#/definitions/quantity"}
+          }
+        }
+      }
+    },
+    "agentPorts": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["control", "monitor"],
+      "properties": {
+        "chat": {"$ref": "#/definitions/port"},
+        "query": {"$ref": "#/definitions/port"},
+        "apply": {"$ref": "#/definitions/port"},
+        "intent": {"$ref": "#/definitions/port"},
+        "instance": {"$ref": "#/definitions/port"},
+        "control": {"$ref": "#/definitions/port"},
+        "monitor": {"$ref": "#/definitions/port"}
+      }
+    },
+    "stringMap": {
+      "type": "object",
+      "additionalProperties": {"type": "string"}
+    },
+    "networkPolicyToggle": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["enabled"],
+      "properties": {"enabled": {"type": "boolean"}}
+    }
+  },
+  "type": "object",
+  "additionalProperties": false,
+  "required": ["image", "profiles", "chatbot", "ragUnits", "ragServer", "chroma", "llm", "ollama", "dolt", "collector", "jaeger", "ingress", "validateProfiles", "applier", "controlPlane"],
+  "properties": {
+    "image": {
+      "$ref": "#/definitions/image"
+    },
+    "profiles": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["mountPath", "workMountPath"],
+      "properties": {
+        "mountPath": {"type": "string", "pattern": "^/.*$"},
+        "workMountPath": {"type": "string", "pattern": "^/.*$"}
+      }
+    },
+    "chatbot": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["replicas", "embeddingModel", "resources", "ports"],
+      "properties": {
+        "replicas": {"$ref": "#/definitions/replicas"},
+        "embeddingModel": {"$ref": "#/definitions/nonEmptyString"},
+        "resources": {"$ref": "#/definitions/resources"},
+        "ports": {
+          "allOf": [
+            {"$ref": "#/definitions/agentPorts"},
+            {"required": ["chat"]}
+          ]
+        }
       }
     },
     "ragUnits": {
@@ -19,6 +104,7 @@
       "minItems": 1,
       "items": {
         "type": "object",
+        "additionalProperties": false,
         "required": ["name", "description", "collection", "embeddingModel"],
         "properties": {
           "name": {
@@ -33,64 +119,156 @@
         }
       }
     },
+    "ragServer": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["ports", "resources"],
+      "properties": {
+        "ports": {
+          "allOf": [
+            {"$ref": "#/definitions/agentPorts"},
+            {"required": ["query"]}
+          ]
+        },
+        "resources": {"$ref": "#/definitions/resources"}
+      }
+    },
+    "chroma": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["image", "port", "storage", "resources"],
+      "properties": {
+        "image": {"$ref": "#/definitions/image"},
+        "port": {"$ref": "#/definitions/port"},
+        "storage": {"$ref": "#/definitions/nonEmptyString"},
+        "resources": {"$ref": "#/definitions/resources"}
+      }
+    },
     "llm": {
       "type": "object",
+      "additionalProperties": false,
+      "required": ["externalURL", "port"],
       "properties": {
-        "externalURL": {"type": "string"},
-        "port": {"type": "integer"}
+        "externalURL": {"type": "string", "format": "uri"},
+        "port": {"$ref": "#/definitions/port"}
       }
     },
     "ollama": {
       "type": "object",
+      "additionalProperties": false,
+      "required": ["enabled", "image", "models", "preload", "persistence", "resources", "gpu", "nodeSelector", "tolerations", "topology"],
       "properties": {
         "enabled": {"type": "boolean"},
-        "image": {"type": "object", "properties": {"repository": {"type": "string"}, "tag": {"type": "string"}}},
+        "image": {"$ref": "#/definitions/image"},
         "models": {
           "type": "object",
+          "additionalProperties": false,
           "required": ["embedding", "chat", "tier"],
           "properties": {
             "embedding": {"type": "string", "minLength": 1},
-            "chat": {"type": "array", "minItems": 1, "items": {"type": "string"}},
+            "chat": {"type": "array", "minItems": 1, "uniqueItems": true, "items": {"$ref": "#/definitions/nonEmptyString"}},
             "tier": {"type": "string", "minLength": 1}
           }
         },
-        "preload": {"type": "object", "properties": {"suspend": {"type": "boolean"}}},
-        "persistence": {"type": "object", "properties": {"size": {"type": "string"}, "storageClass": {"type": "string"}}},
-        "gpu": {"type": "object", "properties": {"count": {"type": "integer"}}},
-        "nodeSelector": {"type": "object"},
-        "tolerations": {"type": "array"},
+        "preload": {
+          "type": "object",
+          "additionalProperties": false,
+          "required": ["suspend"],
+          "properties": {"suspend": {"type": "boolean"}}
+        },
+        "persistence": {
+          "type": "object",
+          "additionalProperties": false,
+          "required": ["size", "storageClass"],
+          "properties": {
+            "size": {"$ref": "#/definitions/nonEmptyString"},
+            "storageClass": {"type": "string"}
+          }
+        },
+        "resources": {"$ref": "#/definitions/resources"},
+        "gpu": {
+          "type": "object",
+          "additionalProperties": false,
+          "required": ["count"],
+          "properties": {"count": {"type": "integer", "minimum": 0}}
+        },
+        "nodeSelector": {"$ref": "#/definitions/stringMap"},
+        "tolerations": {
+          "type": "array",
+          "items": {
+            "type": "object",
+            "additionalProperties": false,
+            "properties": {
+              "key": {"type": "string"},
+              "operator": {"type": "string", "enum": ["Exists", "Equal"]},
+              "value": {"type": "string"},
+              "effect": {"type": "string", "enum": ["NoSchedule", "PreferNoSchedule", "NoExecute"]},
+              "tolerationSeconds": {"type": "integer", "minimum": 0}
+            }
+          }
+        },
         "topology": {"type": "string", "enum": ["single", "per-model"]}
       }
     },
     "applier": {
       "type": "object",
+      "additionalProperties": false,
+      "required": ["enabled", "image", "ports", "allowApply", "networkPolicy", "resources", "params"],
       "properties": {
+        "enabled": {"type": "boolean"},
+        "image": {"$ref": "#/definitions/image"},
+        "ports": {
+          "allOf": [
+            {"$ref": "#/definitions/agentPorts"},
+            {"required": ["apply"]}
+          ]
+        },
+        "allowApply": {"type": "boolean"},
+        "networkPolicy": {"$ref": "#/definitions/networkPolicyToggle"},
+        "resources": {"$ref": "#/definitions/resources"},
         "params": {
           "type": "object",
+          "additionalProperties": false,
+          "required": ["nResults", "chunkCap", "tierDefault", "chatModel"],
           "properties": {
             "nResults": {"type": "integer", "minimum": 1},
             "chunkCap": {"type": "integer", "minimum": 0},
-            "tierDefault": {"type": "string"},
-            "chatModel": {"type": "string"}
+            "tierDefault": {"$ref": "#/definitions/nonEmptyString"},
+            "chatModel": {"$ref": "#/definitions/nonEmptyString"}
           }
         }
       }
     },
     "dolt": {
       "type": "object",
+      "additionalProperties": false,
+      "required": ["enabled", "image", "port", "metricsPort", "storage", "rootHost", "user", "database"],
       "properties": {
         "enabled": {"type": "boolean"},
-        "metricsPort": {"type": "integer", "minimum": 1024, "maximum": 49151}
+        "image": {"$ref": "#/definitions/image"},
+        "port": {"$ref": "#/definitions/port"},
+        "metricsPort": {"$ref": "#/definitions/port"},
+        "storage": {"$ref": "#/definitions/nonEmptyString"},
+        "rootHost": {"$ref": "#/definitions/nonEmptyString"},
+        "user": {"$ref": "#/definitions/nonEmptyString"},
+        "database": {"type": "string", "pattern": "^[A-Za-z_][A-Za-z0-9_]*$"}
       }
     },
     "collector": {
       "type": "object",
+      "additionalProperties": false,
+      "required": ["enabled", "implementation", "image", "otlpGRPCPort", "otlpHTTPPort", "externalOTLPEndpoint", "integrationResource"],
       "properties": {
         "enabled": {"type": "boolean"},
         "implementation": {"type": "string", "enum": ["agent", "contrib"]},
+        "image": {"$ref": "#/definitions/image"},
+        "otlpGRPCPort": {"$ref": "#/definitions/port"},
+        "otlpHTTPPort": {"$ref": "#/definitions/port"},
         "externalOTLPEndpoint": {"type": "string"},
         "integrationResource": {
           "type": "object",
+          "additionalProperties": false,
+          "required": ["repository", "module", "target", "commit", "runID"],
           "properties": {
             "repository": {"type": "string"},
             "module": {"type": "string"},
@@ -101,12 +279,105 @@
         }
       }
     },
-    "jaeger": {"type": "object", "properties": {"enabled": {"type": "boolean"}}},
-    "ingress": {
+    "jaeger": {
       "type": "object",
+      "additionalProperties": false,
+      "required": ["enabled", "image", "otlpGRPCPort", "queryPort"],
       "properties": {
         "enabled": {"type": "boolean"},
-        "host": {"type": "string"}
+        "image": {"$ref": "#/definitions/image"},
+        "otlpGRPCPort": {"$ref": "#/definitions/port"},
+        "queryPort": {"$ref": "#/definitions/port"}
+      }
+    },
+    "ingress": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["enabled", "className", "host", "annotations"],
+      "properties": {
+        "enabled": {"type": "boolean"},
+        "className": {"type": "string"},
+        "host": {
+          "type": "string",
+          "pattern": "^[A-Za-z0-9](?:[-A-Za-z0-9.]*[A-Za-z0-9])?$"
+        },
+        "annotations": {"$ref": "#/definitions/stringMap"}
+      }
+    },
+    "validateProfiles": {"type": "boolean"},
+    "controlPlane": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["enabled", "coordinator", "creator"],
+      "properties": {
+        "enabled": {"type": "boolean"},
+        "coordinator": {
+          "type": "object",
+          "additionalProperties": false,
+          "required": ["replicas", "ports", "networkPolicy", "resources"],
+          "properties": {
+            "replicas": {"$ref": "#/definitions/replicas"},
+            "ports": {
+              "allOf": [
+                {"$ref": "#/definitions/agentPorts"},
+                {"required": ["intent"]}
+              ]
+            },
+            "networkPolicy": {
+              "type": "object",
+              "additionalProperties": false,
+              "required": ["enabled", "ingressController"],
+              "properties": {
+                "enabled": {"type": "boolean"},
+                "ingressController": {
+                  "type": "object",
+                  "additionalProperties": false,
+                  "required": ["namespaceSelector", "podSelector"],
+                  "properties": {
+                    "namespaceSelector": {
+                      "type": "object",
+                      "additionalProperties": false,
+                      "required": ["matchLabels"],
+                      "properties": {"matchLabels": {"$ref": "#/definitions/stringMap"}}
+                    },
+                    "podSelector": {
+                      "type": "object",
+                      "additionalProperties": false,
+                      "required": ["matchLabels"],
+                      "properties": {"matchLabels": {"$ref": "#/definitions/stringMap"}}
+                    }
+                  }
+                }
+              }
+            },
+            "resources": {"$ref": "#/definitions/resources"}
+          }
+        },
+        "creator": {
+          "type": "object",
+          "additionalProperties": false,
+          "required": ["replicas", "ports", "networkPolicy", "resources", "deploymentApiTokenSecret"],
+          "properties": {
+            "replicas": {"$ref": "#/definitions/replicas"},
+            "ports": {
+              "allOf": [
+                {"$ref": "#/definitions/agentPorts"},
+                {"required": ["instance"]}
+              ]
+            },
+            "networkPolicy": {"$ref": "#/definitions/networkPolicyToggle"},
+            "resources": {"$ref": "#/definitions/resources"},
+            "deploymentApiTokenSecret": {
+              "type": "object",
+              "additionalProperties": false,
+              "required": ["name", "key"],
+              "properties": {
+                "name": {"type": "string"},
+                "key": {"$ref": "#/definitions/nonEmptyString"}
+              }
+            }
+          }
+        }
       }
     }
   },

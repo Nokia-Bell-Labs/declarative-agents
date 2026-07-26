@@ -97,9 +97,10 @@ tools:
     state: consumes one FIFO batch
   reversibility:
     classification: irreversible
-    undo: none
+    undo: irreversible
+    requires_confirmation: true
   undo:
-    strategy: none
+    strategy: irreversible
     description: A consumed concurrent queue item cannot be restored in original order.
   errors:
   - signal: CommandError
@@ -152,9 +153,10 @@ tools:
     state: appends durable audit evidence and may rotate bounded generations
   reversibility:
     classification: irreversible
-    undo: none
+    undo: irreversible
+    requires_confirmation: true
   undo:
-    strategy: none
+    strategy: irreversible
     description: Appended audit evidence is retained.
   errors:
   - signal: CommandError
@@ -207,9 +209,10 @@ tools:
     state: upstream may retain accepted spans
   reversibility:
     classification: irreversible
-    undo: none
+    undo: irreversible
+    requires_confirmation: true
   undo:
-    strategy: none
+    strategy: irreversible
     description: OTLP has no operation that retracts accepted spans.
   errors:
   - signal: CommandError
@@ -266,9 +269,10 @@ tools:
     state: releases the listener and marks receiver stopped
   reversibility:
     classification: irreversible
-    undo: none
+    undo: irreversible
+    requires_confirmation: true
   undo:
-    strategy: none
+    strategy: irreversible
     description: A stopped listener is relaunched by a later explicit launch word.
   errors:
   - signal: CommandError

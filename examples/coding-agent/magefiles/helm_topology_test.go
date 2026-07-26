@@ -60,8 +60,8 @@ func TestHelmCoreTopologyRendersRoleContract(t *testing.T) {
 		t.Errorf("default Deployments = %d, want three roles plus collector and Jaeger", got)
 	}
 	if got := strings.Count(render,
-		`image: "ghcr.io/nokia-bell-labs/declarative-agents/agent-core:0.1.0"`); got != 3 {
-		t.Errorf("shared agent-core image count = %d, want 3", got)
+		`image: "ghcr.io/nokia-bell-labs/declarative-agents/coding-agent-runtime:0.1.0"`); got != 3 {
+		t.Errorf("shared coding runtime image count = %d, want 3", got)
 	}
 	if got := strings.Count(render, "checksum/profiles:"); got != 3 {
 		t.Errorf("profile rollout checksum count = %d, want 3", got)

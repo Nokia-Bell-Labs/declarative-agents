@@ -113,8 +113,8 @@ tools:
         description: Runs the agent binary against the corpus-ingest profile; the child writes embeddings into the configured Chroma collection.
     reversibility:
       classification: irreversible
-      undo: noop
-      requires_confirmation: false
+      undo: irreversible
+      requires_confirmation: true
     errors:
       - signal: ToolFailed
         condition: the child reaches a failure terminal, exhausts its budget, or the binary cannot run
@@ -124,8 +124,8 @@ tools:
       after: [count_before_ingest]
       before: [count_after_ingest]
     undo:
-      strategy: noop
-      description: Documents a child run added are superseded by a later ingest, not removed in place.
+      strategy: irreversible
+      description: The child may have added external collection records that this parent command cannot identify or remove safely.
 
   - name: resolve_ingest_collection
     type: builtin
