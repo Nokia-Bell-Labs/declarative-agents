@@ -19,9 +19,11 @@ machine/tool/signal/terminal contracts, request shapes, configuration names, and
 closure membership as compatibility-sensitive. Record breaking migrations and
 update consumers in the coordinated release.
 
-Mock/assembler/rig and `testdata/conformance` runtime scaffolding are internal
-to their current paths and are not scheduled for relocation; do not promote
-them as application library members or broaden their contract.
+Assembler and mock are supported test-time library members under `agents/`.
+Preserve their SRD, conformance, portability, release, and v0 compatibility
+contracts; do not repurpose them as application roles or fork them. Rig-subject
+and `testdata/conformance` REST/control/lifecycle fixtures remain internal test
+data in their current paths and are not scheduled for relocation.
 
 ## Non-Interactive Shell Commands
 
