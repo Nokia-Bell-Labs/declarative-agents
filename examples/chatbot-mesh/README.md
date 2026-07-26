@@ -105,4 +105,9 @@ Run `mage -l` to list the named `integration:*` targets; each skips cleanly when
 
 The agents run on the agent-core image with a mounted profile, for example `agent --profile agents/chatbot/profile.yaml`. The Helm chart deploys the mesh on a kind cluster; see `helm/` for values and CI configuration.
 
-Driving the SPA in a browser needs the browser toolchain described under [Browser End-to-End Tests](../../agent-core/README.md#browser-end-to-end-tests). The `ux/app` package ships no browser driver of its own: the repository's `puppeteer-core` install lives in agent-core, and it launches only when `PUPPETEER_EXECUTABLE_PATH` or `CHROME_BIN` names a system browser.
+Driving the SPA in a browser uses the canonical documentation-curator
+[`ui/docs` package](../../agent-profiles/agents/knowledge-manager/documentation-curator/ui/docs/):
+run `npm ci` there, set `PUPPETEER_EXECUTABLE_PATH` or `CHROME_BIN` to a system
+browser, and invoke its supported `npm run test:e2e:machine-request` script.
+The [browser E2E runbook](../../agent-core/README.md#browser-end-to-end-tests)
+explains why the shared package owns `puppeteer-core` and downloads no browser.
