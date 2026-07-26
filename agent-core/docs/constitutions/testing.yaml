@@ -113,9 +113,10 @@ mage_targets:
   lint: mage lint
   audit: mage audit
   integration:
-  - mage integration:uc001
-  - mage integration:uc002
-  - mage integration:uc003
+  - mage integration:monitor
+  - mage integration:ollamaRest
+  - mage integration:ollamaMonitor
+  - mage integration:dolt
   - mage integration:all
 quality_gates:
   code:

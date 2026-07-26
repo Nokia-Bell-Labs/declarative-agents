@@ -671,12 +671,12 @@ go_test_coverage:
     formal YAML test suites. Release 00.0 YAML coverage (92 cases) covers
     srd001-srd018 where Go tests already prove behavior. For release 01.0,
     the YAML suite (37 cases) indexes generator and evaluator integration
-    targets. It also covers bench integration targets plus Go tests for
+    evidence now lives with examples/coding-agent and agent-profiles. The suite
+    also covers bench integration targets plus Go tests for
     profile and machine behavior. Tool behavior and child-agent behavior are
     covered there too. Builtin, exec, Ollama, and LLM extraction contracts have
     focused cases. Bench API and result behavior now have direct cases. The
-    mage integration:uc003 target records a skipped/manual-precondition result,
-    not automated UI proof. Release 02.0 YAML coverage (30 cases) covers
+    benchEvaluator target provides the automated bench proof. Release 02.0 YAML coverage (30 cases) covers
     rollback lifecycle, lifecycle tool adapter, and tool contract requirements.
     The 03.0 YAML coverage (42 cases) names implemented Go tests for REST
     config loading, client execution, async send/await, server signal handling,
@@ -688,8 +688,8 @@ go_test_coverage:
     machine_request documentation UX. Package tests cover
     srd009-srd018 and domain packages. Release 04.0 has package tests for the
     monitor store, metric export, REST API SRDs, and the cmd/agent release
-    proof. mage integration:uc004 runs the release proof. Release 05.0 starts
-    with mage integration:uc008 for monitored Qwen token progress. Run `go test
+    proof. mage integration:monitor runs the release proof. Release 05.0 starts
+    with mage integration:ollamaMonitor for monitored Qwen token progress. Run `go test
     ./... -v | grep -c '=== RUN'` for the current test function count.
 
 srd_to_use_case_mapping:
@@ -791,9 +791,9 @@ coverage_gaps: |
   test-rel06.0-profile-migration. pkg/spec tests cover installed
   /opt/agent-core/tools mapping through AGENT_CORE_HOME. magefiles Docker tests
   cover profile exclusion, the required --profile entrypoint, mounted profile
-  command output, and the Dockerfile integration target. mage integration:uc001,
-  uc002, uc006, and uc007 consume profiles, demos, fixtures, and Knowledge
-  Manager UX assets through AGENT_PROFILES_ROOT. The matching agent-profiles
+  command output, and the Dockerfile integration target. Application-level
+  executor and critic proofs live under examples/coding-agent; profile demos,
+  fixtures, and Knowledge Manager UX assets remain profile-owned. The matching agent-profiles
   containerSmoke target runs the installed image with the profile repository
   mounted at /profiles.
   Current examples no longer imply that agent-core ships standard agent

@@ -851,7 +851,7 @@ overview:
       proof:
         - cmd/agent/main_test.go: TestMonitorReleaseProfileProof
         - internal/tools/rest/monitor_test.go: TestMonitorREST_FactoryUsesLiveMonitorState
-        - magefiles/integration_monitor.go: mage integration:uc004
+        - magefiles/integration_monitor.go: mage integration:monitor
       planned_proof:
         - cmd/agent/main_test.go: TestMonitorCLIProfileServesUntilControlExit
 
@@ -1541,7 +1541,7 @@ implementation_status:
     - done: cobbler-scaffold dependency removed
     - done: Go test suite across all packages
     - done: Specification index — 42 SRDs, 28 use cases, and 14 formal test suites are indexed with current release status
-    - done: Embedded monitor runtime — in-memory store, recorder ports, ToolDef and MachineSpec metric validation, config-driven tool-owned metric emission, workflow label propagation, OpenTelemetry metric export, REST/OpenAPI cached-state readers, cmd/agent live-store wiring, and mage integration:uc004 release proof
+    - done: Embedded monitor runtime — in-memory store, recorder ports, ToolDef and MachineSpec metric validation, config-driven tool-owned metric emission, workflow label propagation, OpenTelemetry metric export, REST/OpenAPI cached-state readers, cmd/agent live-store wiring, and mage integration:monitor release proof
 
 related_documents:
   - doc: docs/VISION.yaml

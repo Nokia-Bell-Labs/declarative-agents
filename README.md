@@ -59,6 +59,10 @@ Root releases require every release gate to exit successfully before tagging:
 `AGENT_CORE_ROOT` set to the release checkout. A documented skip reported by a
 gate is accepted only when that gate exits successfully. A failed gate cannot
 be waived; fix the failure and run the gates again before creating a tag.
+The agent-core integration suite is limited to runtime service boundaries:
+embedded monitor wiring, Ollama REST and metrics, and Dolt persistence.
+Application workflows such as planner-executor-critic run from
+`examples/coding-agent`.
 
 `mage tag` requires a clean `main` worktree, records the exact HEAD commit, runs
 all gates above itself, and verifies HEAD is unchanged before creating tags. It
