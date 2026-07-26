@@ -4,6 +4,7 @@ package main
 
 import (
 	"bytes"
+	"context"
 	"encoding/json"
 	"fmt"
 	"net/http"
@@ -26,12 +27,13 @@ const (
 	helmKindCluster = "da-chatbot-mesh-smoke"
 	helmImage       = "declarative-agents/agent-core:smoke"
 
-	helmChatURL        = "http://127.0.0.1:18080/api/v1/chat"
-	helmHealthURL      = "http://127.0.0.1:18081/api/lifecycle/health"
-	helmInstallTimeout = 5 * time.Minute
-	helmClusterWait    = 120 * time.Second
-	helmReadyTimeout   = 90 * time.Second
-	helmSpanTimeout    = 60 * time.Second
+	helmChatURL          = "http://127.0.0.1:18080/api/v1/chat"
+	helmHealthURL        = "http://127.0.0.1:18081/api/lifecycle/health"
+	helmInstallTimeout   = 5 * time.Minute
+	helmImageLoadTimeout = 3 * time.Minute
+	helmClusterWait      = 120 * time.Second
+	helmReadyTimeout     = 90 * time.Second
+	helmSpanTimeout      = 60 * time.Second
 )
 
 // exampleChartDir returns the chatbot-mesh Helm chart under the example, which
@@ -46,6 +48,12 @@ func exampleChartDir(profilesRoot string) string {
 // not in the staged copy, so staging cannot drift it.
 func helmKindConfig(chartDir string) string {
 	return filepath.Join(chartDir, "ci", "kind-config.yaml")
+}
+
+func loadKindImage(cluster, image string) error {
+	ctx, cancel := context.WithTimeout(context.Background(), helmImageLoadTimeout)
+	defer cancel()
+	return kindrig.LoadImage(ctx, kindrig.DefaultRunContext, cluster, image)
 }
 
 // HelmSmoke deploys the chatbot-mesh chart on a disposable kind cluster with the
@@ -270,7 +278,7 @@ func runHelmSmoke(coreRoot, profilesRoot, chartDir string) (result error) {
 		}
 	}()
 
-	if err := kindrig.LoadImage(helmKindCluster, helmImage); err != nil {
+	if err := loadKindImage(helmKindCluster, helmImage); err != nil {
 		return err
 	}
 	for _, image := range dependencyImages {
@@ -1134,7 +1142,7 @@ func runHelmSwap(coreRoot, profilesRoot, chartDir string) error {
 		return err
 	}
 	defer swapCluster.Release(kindrig.DefaultRun)
-	if err := kindrig.LoadImage(helmSwapCluster, helmImage); err != nil {
+	if err := loadKindImage(helmSwapCluster, helmImage); err != nil {
 		return err
 	}
 
@@ -1401,7 +1409,7 @@ func runHelmLLMTier(coreRoot, profilesRoot, chartDir string) error {
 		return err
 	}
 	defer llmCluster.Release(kindrig.DefaultRun)
-	if err := kindrig.LoadImage(helmLLMCluster, helmImage); err != nil {
+	if err := loadKindImage(helmLLMCluster, helmImage); err != nil {
 		return err
 	}
 	if err := helmInstallLLM(stagedChart); err != nil {

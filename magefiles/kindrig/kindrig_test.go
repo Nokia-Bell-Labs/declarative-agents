@@ -3,6 +3,8 @@
 package kindrig
 
 import (
+	"context"
+	"errors"
 	"fmt"
 	"os"
 	"path/filepath"
@@ -238,6 +240,59 @@ func TestExportLogs(t *testing.T) {
 	failing := &fakeKind{exportErr: fmt.Errorf("exit status 1")}
 	if err := ExportLogs(failing.run, "da-chatbot-mesh-smoke", "/tmp/evidence"); err == nil {
 		t.Error("a failed export must be reported")
+	}
+}
+
+func TestLoadImageUsesInjectedRunner(t *testing.T) {
+	var call []string
+	run := func(_ context.Context, args ...string) ([]byte, error) {
+		call = append([]string(nil), args...)
+		return []byte("loaded"), nil
+	}
+	if err := LoadImage(
+		context.Background(), run, "da-chatbot-mesh-smoke", "agent-core:dev"); err != nil {
+		t.Fatalf("load image: %v", err)
+	}
+	want := []string{
+		"load", "docker-image", "agent-core:dev", "--name", "da-chatbot-mesh-smoke",
+	}
+	if strings.Join(call, " ") != strings.Join(want, " ") {
+		t.Fatalf("load call = %v, want %v", call, want)
+	}
+}
+
+func TestLoadImageReportsContextTimeout(t *testing.T) {
+	ctx, cancel := context.WithTimeout(context.Background(), 20*time.Millisecond)
+	defer cancel()
+	run := func(ctx context.Context, _ ...string) ([]byte, error) {
+		<-ctx.Done()
+		return []byte("still importing"), errors.New("runner stopped")
+	}
+	err := LoadImage(ctx, run, "da-chatbot-mesh-smoke", "agent-core:dev")
+	if !errors.Is(err, context.DeadlineExceeded) {
+		t.Fatalf("load timeout = %v, want context deadline exceeded", err)
+	}
+	if !strings.Contains(err.Error(), "still importing") {
+		t.Fatalf("load timeout omitted command output: %v", err)
+	}
+}
+
+func TestLoadImageReportsCommandFailure(t *testing.T) {
+	commandErr := errors.New("exit status 1")
+	run := func(_ context.Context, _ ...string) ([]byte, error) {
+		return []byte("image not present locally"), commandErr
+	}
+	err := LoadImage(
+		context.Background(), run, "da-coding-agent-smoke", "coding-agent:dev")
+	if !errors.Is(err, commandErr) {
+		t.Fatalf("load failure = %v, want wrapped command error", err)
+	}
+	for _, detail := range []string{
+		"coding-agent:dev", "da-coding-agent-smoke", "image not present locally",
+	} {
+		if !strings.Contains(err.Error(), detail) {
+			t.Errorf("load failure omitted %q: %v", detail, err)
+		}
 	}
 }
 

@@ -47,13 +47,15 @@ func prepareCodingHelmCluster(
 	if err := buildCodingHelmModelImage(codingHelmModelImage); err != nil {
 		return err
 	}
+	kindRun := func(ctx context.Context, args ...string) ([]byte, error) {
+		return codingSmokeEnvironment{}.run(ctx, "kind", args...)
+	}
 	for _, image := range []string{codingHelmAgentImage, codingHelmModelImage} {
 		ctx, cancel := context.WithTimeout(context.Background(), codingHelmClusterTimeout)
-		output, err := codingSmokeEnvironment{}.run(
-			ctx, "kind", "load", "docker-image", image, "--name", cluster)
+		err := kindrig.LoadImage(ctx, kindRun, cluster, image)
 		cancel()
 		if err != nil {
-			return fmt.Errorf("load image %s: %w: %s", image, err, strings.TrimSpace(string(output)))
+			return err
 		}
 	}
 	for _, image := range []string{codingHelmCollectorImage, codingHelmJaegerImage} {

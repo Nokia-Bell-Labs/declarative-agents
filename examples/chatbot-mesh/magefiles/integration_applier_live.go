@@ -156,10 +156,10 @@ func runApplierLive(coreRoot, profilesRoot string) error {
 	}
 	defer cluster.Release(kindrig.DefaultRun)
 
-	if err := kindrig.LoadImage(applierLiveCluster, applierLiveImage); err != nil {
+	if err := loadKindImage(applierLiveCluster, applierLiveImage); err != nil {
 		return err
 	}
-	if err := kindrig.LoadImage(applierLiveCluster, helmImage); err != nil {
+	if err := loadKindImage(applierLiveCluster, helmImage); err != nil {
 		return err
 	}
 

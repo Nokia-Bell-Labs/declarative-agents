@@ -9,6 +9,7 @@ package kindrig
 
 import (
 	"bytes"
+	"context"
 	"errors"
 	"fmt"
 	"io"
@@ -23,6 +24,11 @@ import (
 // Runner runs one kind subcommand and returns its combined output. Injected
 // so cluster ownership is testable against a fake kind without a real cluster.
 type Runner func(args ...string) ([]byte, error)
+
+// ContextRunner runs one kind subcommand with cancellation and deadline
+// propagation. Image delivery uses it because loading can block on the local
+// container engine and must remain bounded by the scenario.
+type ContextRunner func(context.Context, ...string) ([]byte, error)
 
 // CommandRunner runs a host command and returns its combined output. Scenarios
 // inject a runner carrying their kubeconfig; DefaultCommandRun uses the current
@@ -41,7 +47,12 @@ type FailureEvidence struct {
 // DefaultRun streams kind's output so a multi-minute create still reports
 // progress live, while also capturing it for the caller.
 func DefaultRun(args ...string) ([]byte, error) {
-	cmd := exec.Command("kind", args...)
+	return DefaultRunContext(context.Background(), args...)
+}
+
+// DefaultRunContext streams and captures a context-bound kind subcommand.
+func DefaultRunContext(ctx context.Context, args ...string) ([]byte, error) {
+	cmd := exec.CommandContext(ctx, "kind", args...)
 	var buf bytes.Buffer
 	cmd.Stdout = io.MultiWriter(os.Stderr, &buf)
 	cmd.Stderr = io.MultiWriter(os.Stderr, &buf)
@@ -218,14 +229,21 @@ func Exists(run Runner, name string) bool {
 	return false
 }
 
-// LoadImage loads a locally built image into the named cluster's nodes.
-func LoadImage(cluster, image string) error {
-	cmd := exec.Command("kind", "load", "docker-image", image, "--name", cluster)
-	cmd.Stdout, cmd.Stderr = os.Stderr, os.Stderr
-	if err := cmd.Run(); err != nil {
-		return fmt.Errorf("kind load docker-image %s: %w", image, err)
+// LoadImage loads a locally built image into the named cluster's nodes through
+// an injectable, context-aware kind runner.
+func LoadImage(ctx context.Context, run ContextRunner, cluster, image string) error {
+	output, err := run(ctx, "load", "docker-image", image, "--name", cluster)
+	if err == nil {
+		return nil
 	}
-	return nil
+	if contextErr := ctx.Err(); contextErr != nil {
+		err = contextErr
+	}
+	if detail := strings.TrimSpace(string(output)); detail != "" {
+		return fmt.Errorf("kind load docker-image %s into %s: %w: %s",
+			image, cluster, err, detail)
+	}
+	return fmt.Errorf("kind load docker-image %s into %s: %w", image, cluster, err)
 }
 
 // ExportLogs exports the cluster's node and pod logs into destDir so a failed
