@@ -217,12 +217,13 @@ func TestRestShippedProfileWiring(t *testing.T) {
 // Traces srd007-rest: OpenAPI imports back a live REST client word the model
 // selects, and the REST result feeds the model boundary.
 func TestRestOllamaConformance(t *testing.T) {
+	liveTimeout := RequireLiveModel(t, restOllamaModel)
 	RequireCoreRoot(t)
-	RequireOllama(t, restOllamaModel)
 
 	result := Run(t, RunConfig{
 		Profile:   filepath.Join("testdata", "conformance", "rest", "ollama-profile.yaml"),
 		Directory: t.TempDir(),
+		Timeout:   liveTimeout,
 	})
 
 	// A single root, with a real model boundary (invoke_llm -> chat span) ...

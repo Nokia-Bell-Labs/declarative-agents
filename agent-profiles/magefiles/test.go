@@ -14,11 +14,25 @@ func Test() error {
 	return sh.Run("go", "test", "./...")
 }
 
-// Conformance runs the per-family profile conformance tests. They build the
-// agent binary from AGENT_CORE_ROOT and assert on OpenTelemetry trace output;
-// without AGENT_CORE_ROOT set they skip. Test already covers ./..., so this
-// target exists so CI and road-map proof lines can invoke the suite explicitly.
+// Conformance runs the deterministic per-family profile conformance gate. It
+// includes static, protocol, and profile tests and disables live inference even
+// when the caller's shell has retained the live-conformance opt-in.
 func Conformance() error {
 	fmt.Println("running go test ./conformance -count=1")
-	return sh.Run("go", "test", "./conformance", "-count=1")
+	return sh.RunWith(
+		map[string]string{"AGENT_PROFILES_LIVE_CONFORMANCE": "0"},
+		"go", "test", "./conformance", "-count=1",
+	)
+}
+
+// LiveConformance explicitly enables conformance paths that perform inference
+// against the exact Ollama models declared by each test. Dependency checks still
+// skip unavailable models; AGENT_PROFILES_LIVE_TIMEOUT can override their
+// default per-run timeout using Go duration syntax.
+func LiveConformance() error {
+	fmt.Println("running live model conformance (unavailable declared models will skip)")
+	return sh.RunWith(
+		map[string]string{"AGENT_PROFILES_LIVE_CONFORMANCE": "1"},
+		"go", "test", "./conformance", "-count=1",
+	)
 }

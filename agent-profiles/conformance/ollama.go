@@ -4,34 +4,84 @@ package conformance
 
 import (
 	"encoding/json"
+	"fmt"
 	"net/http"
+	"os"
+	"strings"
 	"testing"
 	"time"
 )
 
-// The generator and planner default machines dispatch invoke_llm, which pings
-// Ollama at tool registration and calls the model during the run. Those
-// families are therefore gated on a reachable Ollama serving the configured
-// model, the same way the whole suite is gated on the sibling agent-core checkout being present: with no
-// model the profile cannot even start.
+const (
+	// LiveConformanceEnv is the explicit opt-in for tests that perform live model
+	// inference. Model installation alone must never enable those tests.
+	LiveConformanceEnv = "AGENT_PROFILES_LIVE_CONFORMANCE"
+	// LiveConformanceTimeoutEnv optionally overrides the per-run live inference
+	// timeout using Go duration syntax.
+	LiveConformanceTimeoutEnv = "AGENT_PROFILES_LIVE_TIMEOUT"
+
+	defaultLiveConformanceTimeout = 5 * time.Minute
+)
 
 // ollamaBaseURL is the default local Ollama endpoint the generator/planner LLM
 // declarations point at (agents/*/llm/default.yaml provider_url).
 const ollamaBaseURL = "http://localhost:11434"
 
-// RequireOllama skips the test unless a local Ollama server is reachable and
-// serving the named model. It keeps model-dependent conformance runs opt-in on
-// machines without a model, matching agent-core's Ollama integration gating.
-func RequireOllama(t *testing.T, model string) {
+// RequireLiveModel first enforces the explicit live-conformance opt-in, then
+// checks that the exact model required by the test is available. It returns the
+// configured timeout for the live request or agent run.
+func RequireLiveModel(t *testing.T, model string) time.Duration {
 	t.Helper()
-	client := &http.Client{Timeout: 3 * time.Second}
-	resp, err := client.Get(ollamaBaseURL + "/api/tags")
+	timeout, skip, err := liveModelGate(
+		os.Getenv(LiveConformanceEnv),
+		os.Getenv(LiveConformanceTimeoutEnv),
+		model,
+		func(model string) error {
+			return probeOllama(&http.Client{Timeout: 3 * time.Second}, ollamaBaseURL, model)
+		},
+	)
 	if err != nil {
-		t.Skipf("Ollama not reachable at %s; skipping model-gated conformance: %v", ollamaBaseURL, err)
+		t.Fatal(err)
+	}
+	if skip != "" {
+		t.Skip(skip)
+	}
+	return timeout
+}
+
+func liveModelGate(optIn, timeoutValue, model string, probe func(string) error) (time.Duration, string, error) {
+	if strings.TrimSpace(optIn) != "1" {
+		return 0, fmt.Sprintf(
+			"live model conformance disabled; run `mage liveConformance` or set %s=1",
+			LiveConformanceEnv,
+		), nil
+	}
+
+	timeout := defaultLiveConformanceTimeout
+	if value := strings.TrimSpace(timeoutValue); value != "" {
+		parsed, err := time.ParseDuration(value)
+		if err != nil || parsed <= 0 {
+			return 0, "", fmt.Errorf("%s=%q must be a positive Go duration (for example 5m)", LiveConformanceTimeoutEnv, timeoutValue)
+		}
+		timeout = parsed
+	}
+	if err := probe(model); err != nil {
+		return 0, fmt.Sprintf(
+			"live model conformance enabled but dependency unavailable: %v; install/start the exact dependency and rerun `mage liveConformance`",
+			err,
+		), nil
+	}
+	return timeout, "", nil
+}
+
+func probeOllama(client *http.Client, baseURL, model string) error {
+	resp, err := client.Get(baseURL + "/api/tags")
+	if err != nil {
+		return fmt.Errorf("Ollama not reachable at %s: %w", baseURL, err)
 	}
 	defer resp.Body.Close()
 	if resp.StatusCode != http.StatusOK {
-		t.Skipf("Ollama tags endpoint returned %d; skipping model-gated conformance", resp.StatusCode)
+		return fmt.Errorf("Ollama tags endpoint returned %d", resp.StatusCode)
 	}
 	var payload struct {
 		Models []struct {
@@ -39,12 +89,12 @@ func RequireOllama(t *testing.T, model string) {
 		} `json:"models"`
 	}
 	if err := json.NewDecoder(resp.Body).Decode(&payload); err != nil {
-		t.Skipf("decode Ollama tags: %v; skipping model-gated conformance", err)
+		return fmt.Errorf("decode Ollama tags: %w", err)
 	}
 	for _, m := range payload.Models {
 		if m.Name == model {
-			return
+			return nil
 		}
 	}
-	t.Skipf("Ollama model %q not pulled; skipping model-gated conformance", model)
+	return fmt.Errorf("Ollama model %q not pulled", model)
 }

@@ -11,11 +11,14 @@ overview: |
   its per-family SRD acceptance criteria (srd002 through srd011) and to its
   sm-agent-role-taxonomy role.
 
-  The integration target is `mage conformance`, which runs `go test
-  ./conformance`. The tests build the agent binary from AGENT_CORE_ROOT (or a
-  sibling ../agent-core checkout) and parse the stdouttrace JSON the run emits;
-  with AGENT_CORE_ROOT unset the whole suite skips rather than fails, so the
-  proof line is honest about its precondition.
+  The deterministic integration target is `mage conformance`, which runs `go
+  test ./conformance` without live model inference. The dedicated `mage
+  liveConformance` target sets AGENT_PROFILES_LIVE_CONFORMANCE=1 and enables the
+  six inventoried live paths: three executor variants, planner, the REST Ollama
+  variant, and chatbot source routing. The tests build the agent binary from
+  AGENT_CORE_ROOT (or a sibling ../agent-core checkout) and parse the stdouttrace
+  JSON the run emits; with AGENT_CORE_ROOT unset the affected suite cases skip
+  rather than fail, so the proof line is honest about its precondition.
 
   Evidence is recorded honestly per family. A case is implemented when its test
   runs the flow and asserts the trace hermetically under AGENT_CORE_ROOT.
@@ -59,15 +62,17 @@ overview: |
   the async await_operation polling that head relies on is proven at the
   agent-core package level instead (rest.TestRESTClient_AwaitOperationPolling).
 
-  Gates: generator and its qwen variants, the planner behavioral run, and the
-  rest ollama-profile variant are Ollama-gated (invoke_llm pings Ollama at tool
-  registration, so with no reachable model the profile cannot start); lifecycle
-  suspend/resume and history/rollback are Dolt-gated (checkpoints persist only
-  when --dolt-dsn names a running dolt sql-server). Their load-and-wiring
-  companions and the ungated families run without any gate. All ten families have
-  implemented conformance: shipped-behavioral for nine, and bounded-behavioral for
-  the rest sample server boundary (with the client head proven at the agent-core
-  package level).
+  Gates: generator and its qwen variants, the planner behavioral run, the rest
+  ollama-profile variant, and chatbot source routing first require the explicit
+  AGENT_PROFILES_LIVE_CONFORMANCE=1 opt-in and then require their exact declared
+  Ollama model. Installation alone never enables inference. Live agent runs use a
+  five-minute timeout, configurable with AGENT_PROFILES_LIVE_TIMEOUT as a positive
+  Go duration. Lifecycle suspend/resume and history/rollback remain Dolt-gated
+  (checkpoints persist only when --dolt-dsn names a running dolt sql-server).
+  Load-and-wiring companions and the ungated families remain in the deterministic
+  default. All ten families have implemented conformance: shipped-behavioral for
+  nine, and bounded-behavioral for the rest sample server boundary (with the
+  client head proven at the agent-core package level).
 
 traces:
   - srd002-executor
@@ -80,15 +85,17 @@ traces:
   - srd009-lifecycle
   - srd010-control
   - srd011-knowledge-manager
+  - srd014-chatbot-agent
   - sm-agent-role-taxonomy
 
 integration_target: mage conformance
+live_integration_target: mage liveConformance
 
 preconditions:
   - agent-core is available as AGENT_CORE_ROOT or as a sibling ../agent-core checkout; with neither set the suite skips.
   - agent-profiles owns all profile paths, machines, tool selections, REST definitions, and OpenAPI assets named by each test case.
   - The harness builds the agent binary from AGENT_CORE_ROOT and asserts on the stdouttrace OpenTelemetry output it captures per run.
-  - The generator case additionally requires a local Ollama serving the configured model; it skips otherwise.
+  - Live-model cases require AGENT_PROFILES_LIVE_CONFORMANCE=1 and a local Ollama serving each exact configured model; use mage liveConformance, and optionally AGENT_PROFILES_LIVE_TIMEOUT=10m, to run them.
   - The lifecycle case additionally requires a local dolt binary; it starts a throwaway dolt sql-server and skips where dolt is not installed.
 
 test_cases:
@@ -579,3 +586,26 @@ test_cases:
     traces:
       - srd007-rest AC1
       - sm-agent-role-taxonomy rest
+
+  - family: chatbot
+    name: Chatbot source-router live-model contract
+    status: implemented
+    gate: explicit-live-ollama
+    test: conformance/chatbot_source_router_test.go TestChatbotSourceRouterConformance
+    coverage: live-behavioral
+    coverage_note: |
+      Runs only with AGENT_PROFILES_LIVE_CONFORMANCE=1 and requires the exact
+      qwen2.5:3b model. Installed-model presence alone does not enable it.
+    description: |
+      Sends the profile-owned select_sources prompt and names-and-descriptions-only
+      catalog to the declared live model, then validates the names-only structured
+      response and expected scoped selection. `mage liveConformance` is the
+      discoverable opt-in; AGENT_PROFILES_LIVE_TIMEOUT configures its HTTP client
+      deadline.
+    expected:
+      response_fields: [names]
+      selected_names: [rag0]
+    traces:
+      - srd014-chatbot-agent R2.4
+      - srd014-chatbot-agent R2.5
+      - rel09.1-uc001-routed-fanout F1

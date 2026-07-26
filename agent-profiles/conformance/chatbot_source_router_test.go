@@ -20,7 +20,7 @@ const chatbotSourceRouterModel = "qwen2.5:3b"
 // intentionally separate from tier selection: this case asks for one scoped
 // corpus and validates the names-only structured contract.
 func TestChatbotSourceRouterConformance(t *testing.T) {
-	RequireOllama(t, chatbotSourceRouterModel)
+	liveTimeout := RequireLiveModel(t, chatbotSourceRouterModel)
 	root := filepath.Join("..", "..", "examples", "chatbot-mesh", "agents", "chatbot")
 	data, err := os.ReadFile(filepath.Join(root, "request-declarations.yaml"))
 	if err != nil {
@@ -59,7 +59,8 @@ func TestChatbotSourceRouterConformance(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	resp, err := http.Post(ollamaBaseURL+"/api/chat", "application/json", bytes.NewReader(body))
+	client := &http.Client{Timeout: liveTimeout}
+	resp, err := client.Post(ollamaBaseURL+"/api/chat", "application/json", bytes.NewReader(body))
 	if err != nil {
 		t.Fatal(err)
 	}

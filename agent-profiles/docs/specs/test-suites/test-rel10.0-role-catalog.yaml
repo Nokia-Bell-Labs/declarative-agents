@@ -75,14 +75,16 @@ test_cases:
   - use_case: rel10.0-uc003-conformance-fixture-relocation
     name: Conformance fixtures relocate and validate from testdata/conformance
     integration_target: mage conformance
-    go_test: go test ./conformance
+    go_test: go test ./conformance -run 'Test(RestConformance|RestShippedProfileWiring|ControlConformance|LifecycleApprovalSuspendResume|LifecycleHistoryRollback)'
     status: implemented
     description: |
       After the move, testdata/conformance holds the rest, control, and lifecycle
-      fixtures and agents/ lists only role families. The case validates mage
-      conformance and Integration.MonitorControl from the new paths, that mage
-      validate discovery reaches the relocated fixtures, and an agents/ directory
-      listing plus a zero-hit grep.
+      fixtures and agents/ lists only role families. The formal Go evidence runs
+      the deterministic rest, control, and lifecycle fixture cases from their new
+      paths; the separately documented REST Ollama variant remains behind the
+      explicit live-conformance opt-in. The case also validates mage conformance
+      and Integration.MonitorControl, that mage validate discovery reaches the
+      relocated fixtures, and an agents/ directory listing plus a zero-hit grep.
     inputs:
       moved_fixtures: [agents/rest->testdata/conformance/rest, agents/control->testdata/conformance/control, agents/lifecycle->testdata/conformance/lifecycle]
     expected:
