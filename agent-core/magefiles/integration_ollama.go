@@ -19,24 +19,24 @@ const (
 	ollamaListModelsTool = "ollama_list_models"
 )
 
-// Uc005 runs rel03.0-uc005: Qwen lists Ollama models through an OpenAPI REST tool.
-func (Integration) Uc005() error {
-	beginUC("uc005")
+// OllamaRest proves an OpenAPI REST tool against a live Ollama service.
+func (Integration) OllamaRest() error {
+	beginUC("ollamaRest")
 	model, err := configuredOllamaModel()
 	if err != nil {
-		return fmt.Errorf("uc005: resolve configured model: %w", err)
+		return fmt.Errorf("ollamaRest: resolve configured model: %w", err)
 	}
 	names, err := requireOllamaModels(model)
 	if err != nil {
-		return skipUC("uc005", err.Error())
+		return skipUC("ollamaRest", err.Error())
 	}
-	binary, err := buildFreshAgentFor("uc005")
+	binary, err := buildFreshAgentFor("ollamaRest")
 	if err != nil {
 		return err
 	}
 	run, cleanup, err := prepareOllamaIntegrationRun(model)
 	if err != nil {
-		return fmt.Errorf("uc005: prepare profile: %w", err)
+		return fmt.Errorf("ollamaRest: prepare profile: %w", err)
 	}
 	defer cleanup()
 	if err := runAgentCapture(binary, run.args()); err != nil {
@@ -45,7 +45,7 @@ func (Integration) Uc005() error {
 	if err := assertOllamaTrace(run.tracePath, names); err != nil {
 		return err
 	}
-	fmt.Printf("uc005: PASS — %s used %s and answered with live Ollama models\n", model, ollamaListModelsTool)
+	fmt.Printf("ollamaRest: PASS — %s used %s and answered with live Ollama models\n", model, ollamaListModelsTool)
 	return nil
 }
 
@@ -160,7 +160,7 @@ func prepareOllamaIntegrationRun(model string) (ollamaIntegrationRun, func(), er
 	if err != nil {
 		return ollamaIntegrationRun{}, nil, err
 	}
-	tmpDir, err := os.MkdirTemp("", "uc005-ollama-*")
+	tmpDir, err := os.MkdirTemp("", "ollama-rest-*")
 	if err != nil {
 		return ollamaIntegrationRun{}, nil, err
 	}
@@ -237,17 +237,17 @@ func classifyOllamaRunFailure(tracePath string, runErr error) error {
 func assertOllamaTrace(tracePath string, modelNames []string) error {
 	data, err := os.ReadFile(tracePath)
 	if err != nil {
-		return fmt.Errorf("uc005: read trace: %w", err)
+		return fmt.Errorf("ollamaRest: read trace: %w", err)
 	}
 	if !bytes.Contains(data, []byte(ollamaListModelsTool)) || !bytes.Contains(data, []byte("RESTResponded")) {
-		return fmt.Errorf("uc005: trace does not show %s usage", ollamaListModelsTool)
+		return fmt.Errorf("ollamaRest: trace does not show %s usage", ollamaListModelsTool)
 	}
 	summary, err := traceDoneSummary(data)
 	if err != nil {
 		return err
 	}
 	if !containsAnyModel(summary, modelNames) {
-		return fmt.Errorf("uc005: final answer does not include any /api/tags model name")
+		return fmt.Errorf("ollamaRest: final answer does not include any /api/tags model name")
 	}
 	if err := requireSummarySubset(summary, modelNames); err != nil {
 		return err
@@ -283,7 +283,7 @@ func traceDoneSummary(trace []byte) (string, error) {
 			}
 		}
 	}
-	return "", fmt.Errorf("uc005: trace does not show final done answer")
+	return "", fmt.Errorf("ollamaRest: trace does not show final done answer")
 }
 
 func containsAnyModel(summary string, modelNames []string) bool {
@@ -298,7 +298,7 @@ func containsAnyModel(summary string, modelNames []string) bool {
 func requireSummarySubset(summary string, modelNames []string) error {
 	listed := listedSummaryModels(summary)
 	if len(listed) == 0 {
-		return fmt.Errorf("uc005: trace does not show final done answer")
+		return fmt.Errorf("ollamaRest: trace does not show final done answer")
 	}
 	allowed := map[string]bool{}
 	for _, name := range modelNames {
@@ -306,7 +306,7 @@ func requireSummarySubset(summary string, modelNames []string) error {
 	}
 	for _, name := range listed {
 		if !allowed[name] {
-			return fmt.Errorf("uc005: final answer named absent model %q", name)
+			return fmt.Errorf("ollamaRest: final answer named absent model %q", name)
 		}
 	}
 	return nil
