@@ -98,9 +98,8 @@ releases:
       - mage containerSmoke
       - mage tag
       - go test ./magefiles
-      - AGENT_PROFILES_ROOT=/path/to/agent-profiles mage integration:uc001 (run from an agent-core checkout)
-      - AGENT_PROFILES_ROOT=/path/to/agent-profiles mage integration:uc002 (run from an agent-core checkout)
-      - AGENT_PROFILES_ROOT=/path/to/agent-profiles mage integration:uc004 (run from an agent-core checkout)
+      - AGENT_PROFILES_ROOT=/path/to/agent-profiles mage integration:codingLoop (run from examples/coding-agent)
+      - AGENT_PROFILES_ROOT=/path/to/agent-profiles mage integration:monitor (run from an agent-core checkout)
     success_markers:
       - Migrated profile.yaml files load through agent-core from this
         repository.
