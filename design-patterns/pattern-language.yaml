@@ -479,6 +479,9 @@ patterns:
       tools restore from their receipt, compensatable tools declare corrective
       action and semantic differences, and irreversible tools are skipped and
       logged. Omitting reversibility is a contract error, not irreversibility.
+      Enforce completeness during authoring and specification audit. At ordinary
+      runtime startup, validate only wiring needed for execution: parse retries,
+      emitted-signal routes, and receipt-consuming undo.
     consequences:
       benefits:
         - A uniform, independently testable and reversible tool inventory.
@@ -526,14 +529,29 @@ patterns:
       - system: Reference implementation — YAML tool declarations
         cite: reference-implementation
         kind: internal
-        note: Tools are validated at load time; an incomplete contract fails before the agent runs, and reversibility tiers drive receipt-driven undo through the checkpoint_rollback lifecycle tool with no special-casing in the engine.
+        note: Shipped runtime startup validates parse-retry wiring, emitted-signal routes, and receipt contracts before execution; full six-section completeness belongs to authoring and specification audit.
         evidence:
           classification: shipped
           checks:
-            - path: agent-core/tools/builtin/checkpoint-rollback.yaml
-              contains: [checkpoint_rollback, reversibility]
-            - path: agent-core/internal/tools/lifecycle/receipt_rollback.go
-              contains: [Undo]
+            - path: agent-core/cmd/agent/main.go
+              contains: [validateRuntimeToolWiring, ValidateParseRetryWiring, ValidateToolEmits, ValidateReceiptContracts]
+            - path: agent-core/cmd/agent/main_tool_validation_test.go
+              contains: [TestRuntimeStartupValidatesWiringNotFullContractCompleteness]
+      - system: Reference implementation — contract authoring and specification audit
+        cite: reference-implementation
+        kind: internal
+        note: Shipped validators report full completeness during authoring, and the public specification audit enforces it for selected tools; ordinary startup does not invoke that check.
+        evidence:
+          classification: shipped
+          checks:
+            - path: agent-core/internal/tools/catalog/contracts.go
+              contains: [ValidateToolContracts, ReviewToolAuthoring]
+            - path: agent-core/pkg/spec/validate_tools.go
+              contains: [checkSelectedToolContractCompleteness, tool-contract-incomplete]
+            - path: agent-core/internal/tools/catalog/contracts_test.go
+              contains: [TestValidateToolContractsReportsMissingFields]
+            - path: agent-core/pkg/spec/validate_tools_test.go
+              contains: [TestValidate_SelectedToolContractCompletenessErrorsForActiveMigratedTool]
     provenance: [reference-implementation, external-corroboration]
 
   # ---------------------------------------------------------------------------

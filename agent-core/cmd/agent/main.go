@@ -322,15 +322,7 @@ func loadRunResources() (runResources, error) {
 		shutdownTelemetry()
 		return runResources{}, fmt.Errorf("load machine spec for budget: %w", err)
 	}
-	if err := catalog.ValidateParseRetryWiring(machineSpec, defs); err != nil {
-		shutdownTelemetry()
-		return runResources{}, err
-	}
-	if err := catalog.ValidateToolEmits(machineSpec, defs); err != nil {
-		shutdownTelemetry()
-		return runResources{}, err
-	}
-	if err := catalog.ValidateReceiptContracts(defs); err != nil {
+	if err := validateRuntimeToolWiring(machineSpec, defs); err != nil {
 		shutdownTelemetry()
 		return runResources{}, err
 	}
@@ -339,6 +331,20 @@ func loadRunResources() (runResources, error) {
 		RestDefinitions: restDefs, Machine: machineSpec,
 		shutdownTelemetry: shutdownTelemetry,
 	}, nil
+}
+
+// validateRuntimeToolWiring is the ordinary startup boundary. It rejects
+// machine/tool signal mismatches, incomplete parse-retry routes, and reversible
+// effects without receipt-consuming undo. Full six-section contract
+// completeness remains an authoring and specification-audit concern.
+func validateRuntimeToolWiring(machine core.MachineSpec, defs []catalog.ToolDef) error {
+	if err := catalog.ValidateParseRetryWiring(machine, defs); err != nil {
+		return err
+	}
+	if err := catalog.ValidateToolEmits(machine, defs); err != nil {
+		return err
+	}
+	return catalog.ValidateReceiptContracts(defs)
 }
 
 func buildPreparedRun(cmd *cobra.Command, resources runResources) (preparedRun, error) {
