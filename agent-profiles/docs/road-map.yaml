@@ -327,11 +327,12 @@ releases:
         status: implemented
       - id: rel08.0-uc002-corpus-query
         summary: Reader profile embeds a question, threads the vector into Chroma query, and answers grounded in retrieved chunks.
-        status: specified
+        status: implemented
     proof:
       - mage validate
       - cd examples/chatbot-mesh && mage integration:chroma  # mesh wrapper, canonical library ingest program
       - go test ./conformance -run TestCorpusIngestListsTrustedCorpusBeforeModelControl
+      - go test ./conformance -run TestCorpusReader
     success_markers:
       - The ingest and reader profiles are pure agent-profiles configuration over existing agent-core words.
       - Every Chroma add and query carries an agent-supplied embedding vector threaded from the Ollama embed word, never a model-authored or server-side vector.

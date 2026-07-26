@@ -51,8 +51,9 @@ overview: |
   srd012 owns the family requirements. The mesh's integration:chroma and
   integration:ragServer targets consume the canonical corpus-ingest program by
   reference and prove ingest/count and served retrieval behavior with
-  application-owned REST parameterization. The reader's standalone
-  grounded-answer path remains specified separately.
+  application-owned REST parameterization. A deterministic profile-owned
+  conformance tracer executes the shipped reader through embed, query, grounded
+  answer, and failure paths against controlled protocol fixtures.
 
   A reader can now start at the SRD, follow the semantic model role entries,
   reach the two mounted-profile use cases, and land on named commands such as
@@ -105,7 +106,8 @@ roadmap_summary:
       API. The ingest machine lists trusted corpus paths before the model selects
       among them, then sequences deterministic embed and add steps. The mesh
       integration:chroma target consumes that canonical program by reference and
-      proves ingest count; the standalone reader answer tracer remains pending.
+      proves ingest count; deterministic conformance executes the shipped reader
+      through provider embedding, Chroma query, grounded answer, and failure.
 
   - version: "11.0"
     name: Assembler test rig
@@ -396,7 +398,7 @@ use_case_index:
     title: Corpus Query from Chroma
     summary: Reader profile embeds a question at Ollama, threads the vector into
       Chroma query, and answers grounded in the retrieved chunks.
-    status: specified
+    status: implemented
     path: docs/specs/use-cases/rel08.0-uc002-corpus-query.yaml
   - id: rel09.0-uc001-rag-server-query
     title: Persistent RAG Server Answers a Vector-In Query
@@ -525,6 +527,13 @@ test_suite_index:
       polling proven at the agent-core package level.
     status: implemented
     path: docs/specs/test-suites/test-rel07.1-profile-conformance.yaml
+  - id: test-rel08.0-corpus-agents
+    title: Test Suite for Release 08.0 Chroma Corpus Agents
+    summary: Deterministic profile-owned evidence for corpus-ingest trust
+      ordering and the shipped corpus-reader embed, query, grounded-answer, and
+      readiness-failure paths.
+    status: implemented
+    path: docs/specs/test-suites/test-rel08.0-corpus-agents.yaml
   - id: test-rel09.0-chatbot-mesh
     title: Test Suite for Release 09.0 RAG Server and Single-RAG Chatbot Turn
     summary: Profile-owned tracers for the RAG server vector-in query (srd013) and
@@ -676,6 +685,8 @@ coverage_gaps: |
   model file selection; #251 introduced that loop and #849 made it canonical.
   The mesh extraction owns the live Chroma harness and application REST values,
   while its wrapper selects the library ingest program. That target now proves
-  the canonical ingest/count path. The reader grounded-answer path is not
-  exercised there and remains separately specified. Live runs require a
-  reachable Chroma server and Ollama with the configured models.
+  the canonical ingest/count path. The profile-owned reader conformance case
+  executes the shipped wrapper against deterministic Chroma and Ollama protocol
+  fixtures, asserts that the provider vector reaches the query, verifies the
+  retrieved chunk identity reaches invoke_llm, and observes Succeeded; a
+  companion readiness-failure case observes Failed before embedding.

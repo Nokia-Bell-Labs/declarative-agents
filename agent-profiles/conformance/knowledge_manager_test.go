@@ -3,10 +3,14 @@
 package conformance
 
 import (
+	"io"
 	"net/http"
+	"net/http/httptest"
+	"net/url"
 	"os"
 	"path/filepath"
 	"strings"
+	"sync/atomic"
 	"testing"
 	"time"
 
@@ -76,6 +80,137 @@ func TestKnowledgeManagerConformance(t *testing.T) {
 
 	// srd011 R3.2: the machine reaches the Done terminal state.
 	result.RequireTerminalState(t, "Done")
+}
+
+// TestCorpusReaderConformance executes the shipped reader wrapper against
+// deterministic Chroma and Ollama protocol fixtures. Only transport addresses
+// are patched; the shipped machine, declarations, REST operations, prompt, and
+// tool selection remain in control of sequencing and data threading.
+func TestCorpusReaderConformance(t *testing.T) {
+	var embedded, queried, grounded atomic.Bool
+	fixture := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		w.Header().Set("Content-Type", "application/json")
+		switch {
+		case r.Method == http.MethodGet && r.URL.Path == "/api/tags":
+			_, _ = w.Write([]byte(`{"models":[{"name":"ornith:9b"}]}`))
+		case r.Method == http.MethodGet && r.URL.Path == "/api/version":
+			_, _ = w.Write([]byte(`{"version":"conformance"}`))
+		case r.Method == http.MethodGet && r.URL.Path == "/api/v2/heartbeat":
+			_, _ = w.Write([]byte(`{"nanosecond heartbeat":1}`))
+		case r.Method == http.MethodPost && r.URL.Path == "/api/embeddings":
+			body := readKnowledgeBody(t, r)
+			if !strings.Contains(body, "What does this corpus describe?") {
+				t.Errorf("embedding request does not contain shipped question: %s", body)
+			}
+			embedded.Store(true)
+			_, _ = w.Write([]byte(`{"embedding":[0.25,0.75]}`))
+		case r.Method == http.MethodPost && strings.HasSuffix(r.URL.Path, "/collections"):
+			_, _ = w.Write([]byte(`{"id":"collection-1","name":"corpus"}`))
+		case r.Method == http.MethodPost && strings.HasSuffix(r.URL.Path, "/collections/collection-1/query"):
+			body := readKnowledgeBody(t, r)
+			if !strings.Contains(body, "0.25") || !strings.Contains(body, "0.75") {
+				t.Errorf("query request does not contain provider embedding: %s", body)
+			}
+			queried.Store(true)
+			_, _ = w.Write([]byte(`{"ids":[["chunk-alpha"]],"documents":[["The corpus describes declarative agents."]]}`))
+		case r.Method == http.MethodPost && r.URL.Path == "/api/chat":
+			body := readKnowledgeBody(t, r)
+			if !strings.Contains(body, "chunk-alpha") || !strings.Contains(body, "declarative agents") {
+				t.Errorf("chat request is not grounded in retrieved chunk: %s", body)
+			}
+			grounded.Store(true)
+			_, _ = w.Write([]byte(`{"message":{"role":"assistant","content":"The corpus describes declarative agents [chunk-alpha]."},"eval_count":8,"prompt_eval_count":16}`))
+		default:
+			http.NotFound(w, r)
+		}
+	}))
+	defer fixture.Close()
+
+	profile := copyCorpusReaderProfile(t, fixture.URL)
+	result := Run(t, RunConfig{Profile: profile, Directory: t.TempDir()})
+
+	result.RequireExit(t, 0)
+	result.RootRequired(t)
+	result.RequireNoErrorSpans(t)
+	result.RequireToolSpans(t,
+		"chroma_ready",
+		"ollama_ready",
+		"embed_query",
+		"resolve_collection",
+		"chroma_query",
+	)
+	if got := len(result.Spans.Named("chat ornith:9b")); got == 0 {
+		t.Fatalf("missing invoke_llm chat span; span names: %v", result.Spans.Names())
+	}
+	result.RequireTerminalState(t, "Succeeded")
+	if !embedded.Load() || !queried.Load() || !grounded.Load() {
+		t.Fatalf("reader boundary observations: embedded=%t queried=%t grounded=%t",
+			embedded.Load(), queried.Load(), grounded.Load())
+	}
+}
+
+func TestCorpusReaderRESTFailureConformance(t *testing.T) {
+	fixture := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		w.Header().Set("Content-Type", "application/json")
+		if r.URL.Path == "/api/tags" {
+			_, _ = w.Write([]byte(`{"models":[{"name":"ornith:9b"}]}`))
+			return
+		}
+		if r.URL.Path == "/api/v2/heartbeat" {
+			http.Error(w, `{"error":"unavailable"}`, http.StatusServiceUnavailable)
+			return
+		}
+		http.NotFound(w, r)
+	}))
+	defer fixture.Close()
+
+	result := Run(t, RunConfig{
+		Profile:   copyCorpusReaderProfile(t, fixture.URL),
+		Directory: t.TempDir(),
+	})
+
+	result.RequireExit(t, 2)
+	result.RootRequired(t)
+	result.RequireToolSpans(t, "chroma_ready")
+	result.RequireTerminalState(t, "Failed")
+	if got := len(result.Spans.Named("execute_tool embed_query")); got != 0 {
+		t.Fatalf("embed_query ran after failed Chroma readiness: %d spans", got)
+	}
+}
+
+func copyCorpusReaderProfile(t *testing.T, fixtureURL string) string {
+	t.Helper()
+	profile := CopyShippedProfile(t,
+		filepath.Join("agents", "knowledge-manager", "corpus-reader", "profile.yaml"),
+		map[string]string{
+			"../corpus-rest.yaml":    "corpus-rest.yaml",
+			"http://localhost:11434": fixtureURL,
+			"http://127.0.0.1:11434": fixtureURL,
+		})
+	restData, err := os.ReadFile(ProfilePath(filepath.Join("agents", "knowledge-manager", "corpus-rest.yaml")))
+	if err != nil {
+		t.Fatalf("read shipped corpus REST definition: %v", err)
+	}
+	parsed, err := url.Parse(fixtureURL)
+	if err != nil {
+		t.Fatalf("parse fixture URL: %v", err)
+	}
+	rest := strings.ReplaceAll(string(restData), "http://127.0.0.1:11434", fixtureURL)
+	rest = strings.ReplaceAll(rest, "http://127.0.0.1:8000", fixtureURL)
+	rest = strings.ReplaceAll(rest, "ports: [8000, 11434]", "ports: ["+parsed.Port()+"]")
+	if err := os.WriteFile(filepath.Join(filepath.Dir(profile), "corpus-rest.yaml"), []byte(rest), 0o644); err != nil {
+		t.Fatalf("write patched corpus REST definition: %v", err)
+	}
+	return profile
+}
+
+func readKnowledgeBody(t *testing.T, r *http.Request) string {
+	t.Helper()
+	body, err := io.ReadAll(r.Body)
+	if err != nil {
+		t.Errorf("read %s request body: %v", r.URL.Path, err)
+	}
+	return string(body)
 }
 
 func TestCorpusIngestListsTrustedCorpusBeforeModelControl(t *testing.T) {
