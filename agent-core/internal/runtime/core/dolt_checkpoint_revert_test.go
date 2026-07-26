@@ -92,6 +92,10 @@ func TestDoltCheckpointTerminalFinalizationDoesNotDuplicateLastStep(t *testing.T
 	require.NoError(t, cp.Save(terminalPos, execution))
 
 	require.Equal(t, "Done", db.store.machines["run-1"].currentState)
+	require.Empty(t, db.store.transitions)
+	require.Empty(t, db.store.steps)
+	require.Empty(t, db.store.results)
+	require.Empty(t, db.store.receipts)
 	require.Equal(t, 1, countCalls(db.calls, "REPLACE INTO execution_steps"))
 	require.Equal(t, 1, countCalls(db.calls, "REPLACE INTO tool_outputs"))
 	require.Equal(t, 1, countCalls(db.calls, "REPLACE INTO receipts"))
@@ -172,10 +176,10 @@ func TestDoltCheckpointRevertReapsBothPlanes(t *testing.T) {
 	require.Equal(t, exec[1].Receipt, gotExec[1].Receipt)
 }
 
-// TestDoltCheckpointTerminalReapsBothPlanesWithBranch proves invariant (2): the
-// terminal-state merge-and-delete reaps the run branch, and with it both planes'
-// per-run rows (srd036-dolt-state-persistence R4.3).
-func TestDoltCheckpointTerminalReapsBothPlanesWithBranch(t *testing.T) {
+// TestDoltCheckpointTerminalReapsRunHistoryBeforeMerge proves invariant (2):
+// terminal finalization keeps only the machine lifecycle marker and reaps all
+// four run-owned history tables before merging the branch to main.
+func TestDoltCheckpointTerminalReapsRunHistoryBeforeMerge(t *testing.T) {
 	t.Parallel()
 	terminal := func(s State) bool { return s == "Done" }
 	db := newFakeDB()
@@ -193,9 +197,23 @@ func TestDoltCheckpointTerminalReapsBothPlanesWithBranch(t *testing.T) {
 	terminalPos.CurrentState = "Done"
 	require.NoError(t, cp.Save(terminalPos, exec))
 
+	commitCall := lastCallIndex(db.calls, "DOLT_COMMIT")
+	mergeCall := lastCallIndex(db.calls, "DOLT_MERGE")
+	for _, table := range []string{"receipts", "tool_outputs", "execution_steps", "transitions"} {
+		reapCall := lastCallIndex(db.calls, "DELETE FROM "+table+" WHERE run_id = ?")
+		require.NotEqual(t, -1, reapCall, "%s is reaped", table)
+		require.Less(t, reapCall, commitCall, "%s is reaped in the terminal commit", table)
+		require.Less(t, reapCall, mergeCall, "%s is reaped before merge", table)
+	}
 	require.Equal(t, 1, countCalls(db.calls, "DOLT_MERGE"), "terminal save merges to main")
 	require.Equal(t, 1, countCalls(db.calls, "DOLT_BRANCH('-d'"), "run branch deleted after merge")
-	require.False(t, db.branches["run-1"], "run branch and both of its planes are reaped")
+	require.Equal(t, "main", db.current)
+	require.False(t, db.branches["run-1"], "run branch is deleted")
+	require.Equal(t, "Done", db.store.machines["run-1"].currentState, "terminal lifecycle marker reaches main")
+	require.Empty(t, db.store.transitions, "main has no run transitions")
+	require.Empty(t, db.store.steps, "main has no run execution steps")
+	require.Empty(t, db.store.results, "main has no forward-plane tool outputs")
+	require.Empty(t, db.store.receipts, "main has no reverse-plane receipts")
 }
 
 // TestDoltCheckpointReceiptWalkReversesSurvivingStep proves the reverse-plane

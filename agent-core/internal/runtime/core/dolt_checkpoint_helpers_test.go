@@ -203,16 +203,16 @@ func (f *fakeDB) Exec(query string, args ...any) error {
 		}
 		return sql.ErrNoRows
 	case strings.Contains(query, "DELETE FROM receipts"):
-		deleteRowsAtOrAfter(f.store.receipts, args[0].(string), args[1].(int))
+		deleteRunRows(f.store.receipts, args)
 		return nil
 	case strings.Contains(query, "DELETE FROM tool_outputs"):
-		deleteRowsAtOrAfter(f.store.results, args[0].(string), args[1].(int))
+		deleteRunRows(f.store.results, args)
 		return nil
 	case strings.Contains(query, "DELETE FROM execution_steps"):
-		deleteRowsAtOrAfter(f.store.steps, args[0].(string), args[1].(int))
+		deleteRunRows(f.store.steps, args)
 		return nil
 	case strings.Contains(query, "DELETE FROM transitions"):
-		deleteRowsAtOrAfter(f.store.transitions, args[0].(string), args[1].(int))
+		deleteRunRows(f.store.transitions, args)
 		return nil
 	case strings.Contains(query, "REPLACE INTO machines"):
 		f.store.machines[args[0].(string)] = machineRow{
@@ -260,6 +260,20 @@ func (f *fakeDB) Exec(query string, args ...any) error {
 		return nil
 	}
 	return nil
+}
+
+func deleteRunRows[T any](rows map[string]T, args []any) {
+	runID := args[0].(string)
+	if len(args) == 1 {
+		prefix := runID + "|"
+		for key := range rows {
+			if strings.HasPrefix(key, prefix) {
+				delete(rows, key)
+			}
+		}
+		return
+	}
+	deleteRowsAtOrAfter(rows, runID, args[1].(int))
 }
 
 func deleteRowsAtOrAfter[T any](rows map[string]T, runID string, step int) {
@@ -457,6 +471,15 @@ func countCalls(calls []string, substr string) int {
 		}
 	}
 	return n
+}
+
+func lastCallIndex(calls []string, substr string) int {
+	for i := len(calls) - 1; i >= 0; i-- {
+		if strings.Contains(calls[i], substr) {
+			return i
+		}
+	}
+	return -1
 }
 
 func requireNoUnquotedSignalColumn(t *testing.T, query string) {

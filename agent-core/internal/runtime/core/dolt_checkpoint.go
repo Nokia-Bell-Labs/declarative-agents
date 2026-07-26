@@ -176,6 +176,16 @@ func (d *DoltCheckpoint) Save(position Position, execution Execution) error {
 			}
 		}
 	}
+	// Keep the terminal machine row as the durable lifecycle marker, but reap
+	// every run-owned history plane before committing and merging the branch.
+	// This prevents transient execution data from becoming part of main while
+	// making the terminal position and the reap one atomic Dolt commit.
+	if isTerminal {
+		if err := reapRunHistory(tx, d.runID); err != nil {
+			_ = tx.Rollback()
+			return err
+		}
+	}
 	message := commitMessage(step, sig)
 	if finalizationOnly {
 		message = terminalCommitMessage(position.CurrentState)
@@ -208,6 +218,16 @@ func reconcileExecution(tx Transaction, runID string, length int) error {
 		query := fmt.Sprintf(`DELETE FROM %s WHERE run_id = ? AND step_index >= ?`, table)
 		if err := tx.Exec(query, runID, max(0, length-1)); err != nil {
 			return fmt.Errorf("%w: save: reconcile %s: %v", ErrDolt, table, err)
+		}
+	}
+	return nil
+}
+
+func reapRunHistory(tx Transaction, runID string) error {
+	for _, table := range []string{"receipts", "tool_outputs", "execution_steps", "transitions"} {
+		query := fmt.Sprintf(`DELETE FROM %s WHERE run_id = ?`, table)
+		if err := tx.Exec(query, runID); err != nil {
+			return fmt.Errorf("%w: save: reap terminal %s: %v", ErrDolt, table, err)
 		}
 	}
 	return nil
