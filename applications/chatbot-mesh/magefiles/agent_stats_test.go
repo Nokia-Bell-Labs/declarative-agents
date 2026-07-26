@@ -141,7 +141,7 @@ tools:
 		t.Fatalf("composition = %+v, missing corpus-ingest", stats.Composition)
 	}
 	if wrapper.Ownership != "composition" ||
-		wrapper.CanonicalSource != "agent-profiles" ||
+		wrapper.CanonicalSource != "applications/catalog" ||
 		wrapper.CanonicalProgram != "agents/knowledge-manager/corpus-ingest" {
 		t.Fatalf("wrapper = %+v", wrapper)
 	}

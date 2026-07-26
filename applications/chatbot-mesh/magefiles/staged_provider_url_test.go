@@ -49,12 +49,16 @@ func stagedDeclarationFiles(t *testing.T) []string {
 		t.Fatalf("getwd: %v", err)
 	}
 	profilesRoot := filepath.Dir(root)
+	catalogRoot, err := resolveCatalogRoot("staged declarations test", profilesRoot)
+	if err != nil {
+		t.Fatal(err)
+	}
 	var files []string
 	for _, program := range chartProfilePrograms() {
 		if !strings.HasPrefix(program.rel, "profiles/agents/") {
 			continue
 		}
-		src := chartProfileSource(profilesRoot, program)
+		src := chartProfileSource(profilesRoot, catalogRoot, program)
 		err := filepath.Walk(src, func(path string, info os.FileInfo, err error) error {
 			if err != nil || info.IsDir() || filepath.Ext(path) != ".yaml" {
 				return err

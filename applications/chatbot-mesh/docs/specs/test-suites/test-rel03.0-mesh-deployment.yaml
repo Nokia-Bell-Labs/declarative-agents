@@ -15,7 +15,7 @@ traces:
 preconditions:
   - agent-core is available as AGENT_CORE_ROOT or a sibling ../agent-core checkout.
   - A kind cluster and docker/helm/kubectl are available for the on-cluster tracers, and the rel06.0 runtime image is loadable.
-  - The example owns the deployment chart (examples/chatbot-mesh/helm) and the chatbot/RAG profiles named by the tracers.
+  - The application owns the deployment chart (applications/chatbot-mesh/helm) and the chatbot/RAG profiles named by the tracers.
 
 test_cases:
   - use_case: rel03.0-uc001-mesh-deployment
@@ -35,8 +35,8 @@ test_cases:
       in all paths; the target skips cleanly when the toolchain or models are
       absent.
     inputs:
-      chart: examples/chatbot-mesh/helm/
-      values: examples/chatbot-mesh/helm/ci/kind-values.yaml
+      chart: applications/chatbot-mesh/helm/
+      values: applications/chatbot-mesh/helm/ci/kind-values.yaml
       values_rag_list: [rag0]
     expected:
       chart_deploys_full_mesh: true
@@ -61,7 +61,7 @@ test_cases:
       and allowlisted/upstream hosts, retains one selected-target REST operation,
       binds servers to 0.0.0.0, and passes the profile validation gate.
     inputs:
-      chart: examples/chatbot-mesh/helm/
+      chart: applications/chatbot-mesh/helm/
       values_rag_list: [alpha, bravo, charlie]
     expected:
       topology_data_cogenerated: true
@@ -93,7 +93,7 @@ test_cases:
       Ollama models; it skips cleanly when the toolchain is absent and deletes a
       cluster it created in all paths.
     inputs:
-      chart: examples/chatbot-mesh/helm/
+      chart: applications/chatbot-mesh/helm/
       values_rag_list: [rag0, rag1, rag2]
       swap_repoint: rag0 Service selector change
       swap_replace_middle: remove rag1 and add rag4

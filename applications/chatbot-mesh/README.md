@@ -10,9 +10,11 @@ Every agent is a YAML profile the agent-core runtime loads. There is no bespoke 
 
 The example is a copyable *application*, not a standalone runtime or profile
 library. It runs on the published agent-core image and keeps reusable corpus
-ingest behavior canonically owned by `agent-profiles`. A copied directory needs
-that profile checkout only while packaging or running local ingest integrations;
-set `AGENT_PROFILES_ROOT` to it. The resulting Helm archive contains the
+ingest behavior canonically owned by `applications/catalog`. A copied directory
+needs that catalog checkout only while packaging or running local ingest
+integrations; set `AGENT_CATALOG_ROOT` to it. Release 99 tooling accepts
+`AGENT_PROFILES_ROOT` only as a deprecated alias when the canonical variable is
+unset. The resulting Helm archive contains the
 canonical closure and has no runtime dependency on the profile checkout.
 
 For a reader's walkthrough of how the parts fit together — a single chat turn, live reconfiguration, and deployment, with diagrams — see [docs/how-it-works.md](docs/how-it-works.md).
@@ -43,8 +45,8 @@ Four decisions frame the extraction. They are recorded here so a reader understa
 
 1. Copyable composition on shared platform assets. The example runs on the
    agent-core image. Its corpus-ingest wrapper references the canonical
-   agent-profiles knowledge-manager program through the documented
-   `AGENT_PROFILES_ROOT` build dependency; all other application agents remain
+   applications/catalog knowledge-manager program through the documented
+   `AGENT_CATALOG_ROOT` build dependency; all other application agents remain
    local. Packaging embeds that canonical closure into the chart.
 
 2. The mesh owns Chroma retrieval configuration, not reusable ingest behavior.
@@ -59,7 +61,7 @@ Four decisions frame the extraction. They are recorded here so a reader understa
 ## Layout
 
 ```
-examples/chatbot-mesh/
+applications/chatbot-mesh/
   docs/          VISION, ARCHITECTURE, road-map, and the example's own specs
   agents/        chatbot, rag-server, corpus-ingest, coordinator, creator, applier, collector
   ux/            the single-page application and UX config
@@ -93,20 +95,26 @@ Docker Desktop resources fail with remediation instead of producing an
 integration-style skip. A cluster created by a failed demo deployment is
 removed; a pre-existing demo cluster is reused and never removed implicitly.
 
-`mage helm:package` and local integrations that exercise corpus ingest resolve
-the canonical program from `AGENT_PROFILES_ROOT`, defaulting to the monorepo's
-`agent-profiles/` directory. Copying this example therefore requires an
-agent-profiles checkout for build/test, but the packaged chart is self-contained
-at runtime and does not silently fork the canonical program.
+`mage helm:package` and local integrations that exercise catalog programs
+resolve `AGENT_CATALOG_ROOT` once from this application root, defaulting through
+repository discovery to `applications/catalog`. Copying this application
+therefore requires an explicit catalog checkout for build/test, but the packaged
+chart is self-contained at runtime and does not silently fork canonical programs.
 
 Run `mage -l` to list the named `integration:*` targets; each skips cleanly when its toolchain is absent. There is no `integration:collector` lifecycle target yet.
 
-`mage audit` is the self-governance gate. It runs the jurist validator over the example's own corpus, so it needs the agent-core runtime (`AGENT_CORE_ROOT`, default sibling `../agent-core`) and the jurist validator profile (`JURIST_PROFILE`, default sibling `agent-profiles/agents/jurist/profile.yaml`) — the two dev-time platform tools this gate depends on. Unlike the optional `integration:*` targets, it fails clearly rather than skipping when either tool is missing, so a copied-out example reports an honest failure instead of a false green.
+`mage audit` is the self-governance gate. It runs the catalog Jurist validator
+over the application's own corpus, so it needs the agent-core runtime
+(`AGENT_CORE_ROOT`, default repository `agent-core`) and the catalog root
+(`AGENT_CATALOG_ROOT`, default repository `applications/catalog`).
+`JURIST_PROFILE` may override the profile within that catalog. Unlike optional
+`integration:*` targets, audit fails clearly when a required platform tool is
+missing.
 
 The agents run on the agent-core image with a mounted profile, for example `agent --profile agents/chatbot/profile.yaml`. The Helm chart deploys the mesh on a kind cluster; see `helm/` for values and CI configuration.
 
 Driving the SPA in a browser uses the canonical documentation-curator
-[`ui/docs` package](../../agent-profiles/agents/knowledge-manager/documentation-curator/ui/docs/):
+[`ui/docs` package](../catalog/agents/knowledge-manager/documentation-curator/ui/docs/):
 run `npm ci` there, set `PUPPETEER_EXECUTABLE_PATH` or `CHROME_BIN` to a system
 browser, and invoke its supported `npm run test:e2e:machine-request` script.
 The [browser E2E runbook](../../agent-core/README.md#browser-end-to-end-tests)

@@ -16,7 +16,7 @@ func TestHelmReadmeInstallsOnlyPackagedArtifacts(t *testing.T) {
 		t.Fatal(err)
 	}
 	readme := string(data)
-	sourceInstall := regexp.MustCompile(`(?m)^\s*helm install\b[^\n]*\b(?:examples/chatbot-mesh/)?helm(?:\s|$)`)
+	sourceInstall := regexp.MustCompile(`(?m)^\s*helm install\b[^\n]*\b(?:applications/chatbot-mesh/)?helm(?:\s|$)`)
 	if command := sourceInstall.FindString(readme); command != "" {
 		t.Fatalf("README installs the unstaged source chart: %s", command)
 	}

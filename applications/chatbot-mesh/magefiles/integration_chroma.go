@@ -196,8 +196,12 @@ func chromaChatModelFromConfig(profilesRoot, profile string) (string, error) {
 	}
 	path := filepath.Join(profilesRoot, "agents", profile, "declarations.yaml")
 	if profile == "corpus-ingest" {
+		catalogRoot, err := corpusIngestLibraryRoot(profilesRoot)
+		if err != nil {
+			return "", err
+		}
 		path = filepath.Join(
-			corpusIngestLibraryRoot(profilesRoot),
+			catalogRoot,
 			"agents", "knowledge-manager", "corpus-ingest", "declarations.yaml")
 	}
 	if err := readIntegrationYAML(path, "chroma declarations", &cfg); err != nil {
@@ -390,12 +394,12 @@ func runChromaIngest(binary, profilesRoot, coreRoot string) error {
 	return nil
 }
 
-func corpusIngestLibraryRoot(meshRoot string) string {
+func corpusIngestLibraryRoot(meshRoot string) (string, error) {
 	if info, err := os.Stat(filepath.Join(
 		meshRoot, filepath.FromSlash(corpusIngestLibraryProfile))); err == nil && !info.IsDir() {
-		return meshRoot
+		return meshRoot, nil
 	}
-	return envOrDefault("AGENT_PROFILES_ROOT", siblingPath(meshRoot, "agent-profiles"))
+	return resolveCatalogRoot("chatbot-mesh corpus ingest", meshRoot)
 }
 
 func stageCorpusIngestRuntime(meshRoot string) (string, func(), error) {
@@ -410,7 +414,11 @@ func stageCorpusIngestRuntime(meshRoot string) (string, func(), error) {
 		cleanup()
 		return "", nil, err
 	}
-	libraryRoot := corpusIngestLibraryRoot(meshRoot)
+	libraryRoot, err := corpusIngestLibraryRoot(meshRoot)
+	if err != nil {
+		cleanup()
+		return "", nil, err
+	}
 	if err := copyDirContents(
 		filepath.Join(libraryRoot, "agents", "knowledge-manager", "corpus-ingest"),
 		filepath.Join(stage, "agents", "knowledge-manager", "corpus-ingest")); err != nil {

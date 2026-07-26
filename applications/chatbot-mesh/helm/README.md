@@ -48,7 +48,7 @@ The models are named once in `ollama.models` (the embedding model, the chat mode
 To point at an operator-supplied Ollama instead, disable the tier and override the endpoint — the render is identical to the pre-tier external behavior and the co-generated client entries are unchanged (R2):
 
 ```bash
-cd examples/chatbot-mesh
+cd applications/chatbot-mesh
 mage helm:package
 helm install mesh helm/dist/chatbot-mesh-*.tgz \
   --set ollama.enabled=false \
@@ -66,7 +66,7 @@ the source `helm/` directory is not an install artifact by itself. Package it
 first so every required profile and SPA asset is staged into the chart:
 
 ```bash
-cd examples/chatbot-mesh
+cd applications/chatbot-mesh
 mage helm:package
 helm install chatbot-mesh helm/dist/chatbot-mesh-*.tgz \
   -f helm/ci/kind-llm-values.yaml
@@ -94,9 +94,9 @@ Profiles ride in a ConfigMap projected to nested paths through `items[].path`, b
 ## Render and lint
 
 ```bash
-helm lint examples/chatbot-mesh/helm
-helm template mesh examples/chatbot-mesh/helm
-helm template mesh examples/chatbot-mesh/helm -f examples/chatbot-mesh/helm/ci/kind-values.yaml
+helm lint applications/chatbot-mesh/helm
+helm template mesh applications/chatbot-mesh/helm
+helm template mesh applications/chatbot-mesh/helm -f applications/chatbot-mesh/helm/ci/kind-values.yaml
 ```
 
 Agents export traces to the collector through the `--otel-otlp-endpoint` flag wired from the collector Service; set `collector.enabled=false` to disable.

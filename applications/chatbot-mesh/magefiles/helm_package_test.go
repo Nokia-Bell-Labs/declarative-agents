@@ -72,11 +72,11 @@ func TestHelmPackageRunsFromCopiedStandaloneLayout(t *testing.T) {
 	}
 	writePackageTestFile(t, filepath.Join(standalone, "ux", "ux.yaml"),
 		string(mustReadPackageTestFile(t, filepath.Join("..", "ux", "ux.yaml"))))
-	canonicalRoot, err := filepath.Abs(filepath.Join("..", "..", "..", "agent-profiles"))
+	canonicalRoot, err := filepath.Abs(filepath.Join("..", "..", "catalog"))
 	if err != nil {
 		t.Fatal(err)
 	}
-	t.Setenv("AGENT_PROFILES_ROOT", canonicalRoot)
+	t.Setenv("AGENT_CATALOG_ROOT", canonicalRoot)
 
 	destination := filepath.Join(standalone, "helm", "dist")
 	if err := packageHelmChart(

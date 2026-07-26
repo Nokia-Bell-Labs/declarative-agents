@@ -74,23 +74,24 @@ func TestResolveAuditToolsRequiresRuntimeAndValidator(t *testing.T) {
 	t.Run("missing agent-core runtime fails", func(t *testing.T) {
 		t.Setenv(agentCoreRootEnv, filepath.Join(t.TempDir(), "absent-core"))
 		t.Setenv(juristProfileEnv, writeFile(t, "profile.yaml", "name: fake-jurist\n"))
-		if _, _, err := resolveAuditTools(t.TempDir()); err == nil {
+		if _, _, err := resolveAuditTools(t.TempDir(), t.TempDir()); err == nil {
 			t.Fatal("expected an error when agent-core is absent, got nil")
 		}
 	})
 	t.Run("missing jurist validator fails", func(t *testing.T) {
 		t.Setenv(agentCoreRootEnv, fakeCore(t))
 		t.Setenv(juristProfileEnv, filepath.Join(t.TempDir(), "absent-profile.yaml"))
-		if _, _, err := resolveAuditTools(t.TempDir()); err == nil {
+		if _, _, err := resolveAuditTools(t.TempDir(), t.TempDir()); err == nil {
 			t.Fatal("expected an error when the jurist validator is absent, got nil")
 		}
 	})
 	t.Run("both present resolves", func(t *testing.T) {
 		core := fakeCore(t)
 		profile := writeFile(t, "profile.yaml", "name: fake-jurist\n")
+		catalog := t.TempDir()
 		t.Setenv(agentCoreRootEnv, core)
 		t.Setenv(juristProfileEnv, profile)
-		coreRoot, juristProfile, err := resolveAuditTools(t.TempDir())
+		coreRoot, juristProfile, err := resolveAuditTools(t.TempDir(), catalog)
 		if err != nil {
 			t.Fatalf("unexpected error: %v", err)
 		}
@@ -100,12 +101,67 @@ func TestResolveAuditToolsRequiresRuntimeAndValidator(t *testing.T) {
 	})
 }
 
+func TestResolveCatalogRootEnvironmentPrecedence(t *testing.T) {
+	catalog, err := filepath.Abs(filepath.Join("..", "..", "catalog"))
+	if err != nil {
+		t.Fatal(err)
+	}
+	other := filepath.Join(t.TempDir(), "catalog")
+	if err := os.MkdirAll(filepath.Join(other, "agents"), 0o755); err != nil {
+		t.Fatal(err)
+	}
+	writeAgentFixture(t, filepath.Join(other, "go.mod"),
+		"module github.com/Nokia-Bell-Labs/declarative-agents/applications/catalog\n")
+
+	tests := []struct {
+		name      string
+		canonical string
+		legacy    string
+		want      string
+		wantError []string
+	}{
+		{name: "canonical", canonical: catalog, want: catalog},
+		{name: "relative canonical", canonical: "../catalog", want: catalog},
+		{name: "legacy compatibility", legacy: catalog, want: catalog},
+		{name: "equal dual inputs", canonical: catalog, legacy: filepath.Join(catalog, "."), want: catalog},
+		{name: "conflicting inputs", canonical: catalog, legacy: other,
+			wantError: []string{"AGENT_CATALOG_ROOT", "AGENT_PROFILES_ROOT", "different paths"}},
+	}
+	for _, test := range tests {
+		t.Run(test.name, func(t *testing.T) {
+			t.Setenv("AGENT_CATALOG_ROOT", test.canonical)
+			t.Setenv("AGENT_PROFILES_ROOT", test.legacy)
+			before, err := os.Getwd()
+			if err != nil {
+				t.Fatal(err)
+			}
+			got, err := resolveCatalogRoot("chatbot test", filepath.Join(before, ".."))
+			if len(test.wantError) > 0 {
+				if err == nil {
+					t.Fatal("expected catalog-root conflict")
+				}
+				for _, text := range test.wantError {
+					if !strings.Contains(err.Error(), text) {
+						t.Errorf("error %q missing %q", err, text)
+					}
+				}
+			} else if err != nil || got != test.want {
+				t.Fatalf("resolveCatalogRoot = %q, %v; want %q", got, err, test.want)
+			}
+			after, getwdErr := os.Getwd()
+			if getwdErr != nil || after != before {
+				t.Fatalf("process CWD changed from %q to %q (%v)", before, after, getwdErr)
+			}
+		})
+	}
+}
+
 func TestChatbotReadmeResolvesCanonicalPuppeteerOwner(t *testing.T) {
 	readme, err := os.ReadFile(filepath.Join("..", "README.md"))
 	if err != nil {
 		t.Fatal(err)
 	}
-	const relativePackage = "../../agent-profiles/agents/knowledge-manager/documentation-curator/ui/docs/"
+	const relativePackage = "../catalog/agents/knowledge-manager/documentation-curator/ui/docs/"
 	text := string(readme)
 	for _, required := range []string{
 		relativePackage,

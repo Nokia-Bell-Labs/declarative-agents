@@ -1,7 +1,7 @@
 name: assembler
-machine: machine.yaml
+machine: ../../agents/assembler/machine.yaml
 tools:
-  - tools.yaml
+  - ../../agents/assembler/tools.yaml
 tool_declarations:
   - declarations.yaml
 rest_definitions:

@@ -104,7 +104,11 @@ func (Integration) EmbeddingExclusion() error {
 		fmt.Printf("SKIP integration:embeddingExclusion: agent-core checkout not found at %s\n", coreRoot)
 		return nil
 	}
-	mockProfile := filepath.Join(siblingPath(exampleRoot, "agent-profiles"), "agents", "mock", "profile.yaml")
+	catalogRoot, err := resolveCatalogRoot("chatbot-mesh embedding exclusion", exampleRoot)
+	if err != nil {
+		return err
+	}
+	mockProfile := filepath.Join(catalogRoot, "agents", "mock", "profile.yaml")
 	if _, statErr := os.Stat(mockProfile); statErr != nil {
 		fmt.Printf("SKIP integration:embeddingExclusion: mock profile not found at %s\n", mockProfile)
 		return nil

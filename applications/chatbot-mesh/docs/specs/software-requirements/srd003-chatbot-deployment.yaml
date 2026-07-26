@@ -15,7 +15,7 @@ context: |
   keeps one runtime image across every agent role and lets a values change
   re-render profiles without rebuilding images.
 
-  Chart location: the top-level examples/chatbot-mesh/helm/ directory. The chart,
+  Chart location: the top-level applications/chatbot-mesh/helm/ directory. The chart,
   values schema, and rollout scripting are deployment-plane artifacts; nothing
   here feeds hosts or URLs into a running agent.
 

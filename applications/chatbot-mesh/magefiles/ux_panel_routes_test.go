@@ -39,7 +39,7 @@ func meshUXRoot(t *testing.T) string {
 	if err != nil {
 		t.Fatalf("getwd: %v", err)
 	}
-	// The magefiles package runs from examples/chatbot-mesh/magefiles.
+	// The magefiles package runs from applications/chatbot-mesh/magefiles.
 	return filepath.Join(filepath.Dir(root), "ux")
 }
 

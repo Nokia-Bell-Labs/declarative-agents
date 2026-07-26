@@ -75,7 +75,7 @@ components:
       request, query the configured Chroma collection, and return chunks with
       embedding-model metadata. The Chroma REST config is owned inline here.
   - name: corpus-ingest agent
-    path: agents/corpus-ingest/ wrapper; $AGENT_PROFILES_ROOT/agents/knowledge-manager/corpus-ingest/ canonical build input
+    path: agents/corpus-ingest/ wrapper; $AGENT_CATALOG_ROOT/agents/knowledge-manager/corpus-ingest/ canonical build input
     responsibility: |
       Seed a Chroma collection from a document directory: the canonical library
       machine lists trusted paths, the model selects among them, and the machine
@@ -141,7 +141,7 @@ design_decisions:
     decision: |
       The example runs on the published agent-core image. Agents are YAML
       profiles the runtime loads. Corpus ingest references the canonical
-      agent-profiles library program; other agents remain application-local.
+      applications/catalog program; other agents remain application-local.
       Platform requirements are cited externally.
     benefits:
       - Reusable corpus-ingest fixes have one canonical home.

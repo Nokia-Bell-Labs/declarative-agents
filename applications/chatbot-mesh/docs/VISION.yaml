@@ -11,7 +11,7 @@ executive_summary: |
 
   The example is a copyable application, not a standalone runtime or profile
   library. It runs on the published agent-core image and resolves the reusable
-  corpus-ingest program from a canonical agent-profiles checkout at build/test
+  corpus-ingest program from a canonical applications/catalog checkout at build/test
   time. Packaging embeds that closure, so the resulting chart has no runtime
   dependency on the checkout.
 
@@ -38,7 +38,7 @@ what_this_does: |
   This directory collects the mesh as a self-governing project. The `agents/`
   tree holds the chatbot, the RAG server, and the corpus-ingest application
   wrapper. The canonical ingest machine, tools, and declarations remain owned by
-  agent-profiles and are resolved during packaging. The `ux/` tree holds the
+  applications/catalog and are resolved during packaging. The `ux/` tree holds the
   single-page application and its UX config. The `helm/` tree holds the
   deployment chart. The `docs/` tree holds this vision, the architecture, the
   road map, and the example's own software requirements, use cases, and test
@@ -57,13 +57,13 @@ why_we_build_this: |
   A declared dependency boundary lets the example travel without forking shared
   behavior. Chroma retrieval config, the corpus-ingest wrapper, and the
   deployment chart live with the mesh. Packaging resolves the reusable ingest
-  program from the canonical agent-profiles checkout and embeds that closure in
+  program from the canonical applications/catalog checkout and embeds that closure in
   the chart; the checkout is a build/test dependency, not a runtime dependency.
 
 success_criteria:
   copyable_application: |
     The example runs on the published agent-core image. A copied directory uses
-    the documented AGENT_PROFILES_ROOT build/test dependency for the canonical
+    the documented AGENT_CATALOG_ROOT build/test dependency for the canonical
     corpus-ingest program, and the packaged chart carries the resolved closure
     without requiring that checkout at runtime.
   self_contained_data_plane: |

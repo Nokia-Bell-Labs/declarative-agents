@@ -147,7 +147,7 @@ func TestDetachedAgentDualExportsAndStampsResourceIdentity(t *testing.T) {
 	attrs := string(attrsData)
 	for _, want := range []string{
 		"test.repository=Nokia-Bell-Labs%2Fdeclarative-agents",
-		"test.module=examples%2Fchatbot-mesh",
+		"test.module=applications%2Fchatbot-mesh",
 		"test.target=integration%3Achatbot",
 		"vcs.ref.head.revision=abc123",
 		"test.run.id=run-123",

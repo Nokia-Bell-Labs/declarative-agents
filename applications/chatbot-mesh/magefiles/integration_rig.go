@@ -25,7 +25,7 @@ const rigProfile = "testdata/rig/profile.yaml"
 
 // rigVerdictPattern matches the assembler's per-scenario verdict signals in
 // trace output order. Discovery sorts scenarios by subject directory then
-// name, so the agent-profiles reference subject's three scenarios come first
+// name, so the catalog reference subject's three scenarios come first
 // (its root path sorts before "agents"), then this example's rag-server query.
 var rigExpectedVerdicts = []string{
 	"ScenarioFailed", // rig-subject/broken: the deliberately wrong expectation must fail
@@ -37,7 +37,7 @@ var rigExpectedVerdicts = []string{
 }
 
 // Rig runs the assembler test rig over this example's agents and the
-// agent-profiles reference subject in one pass — the cross-root proof: one
+// catalog reference subject in one pass — the cross-root proof: one
 // rig, two repository areas, discovered by convention. The rag-server is
 // exercised end to end against a mock Chroma pinned to the port the
 // server's network limits allow; no live Chroma, Ollama, Docker, or
@@ -54,6 +54,10 @@ func (Integration) Rig() error {
 	if !agentCoreAvailable(coreRoot) {
 		fmt.Printf("SKIP integration:rig: agent-core checkout not found at %s\n", coreRoot)
 		return nil
+	}
+	catalogRoot, err := resolveCatalogRoot("chatbot-mesh integration rig", exampleRoot)
+	if err != nil {
+		return err
 	}
 	if err := requireSharedObservability(helmReadyTimeout); err != nil {
 		return fmt.Errorf("shared observability stack is required: %w", err)
@@ -81,10 +85,15 @@ func (Integration) Rig() error {
 	if err := runCollectorIntakeScenario(staged, coreRoot, exampleRoot, binDir); err != nil {
 		return fmt.Errorf("collector intake-filter scenario: %w", err)
 	}
+	stagedRigRoot, cleanupRig, err := stageRigRuntime(exampleRoot, catalogRoot)
+	if err != nil {
+		return err
+	}
+	defer cleanupRig()
 
 	trace := filepath.Join(binDir, "rig.otel.json")
 	args := []string{
-		"--profile", rigProfile,
+		"--profile", filepath.Join(stagedRigRoot, filepath.FromSlash(rigProfile)),
 		"--core-root", coreRoot,
 		"--otel-log-file", trace,
 	}
@@ -101,12 +110,13 @@ func (Integration) Rig() error {
 	cmd.Dir = exampleRoot
 	cmd.Env = append(os.Environ(),
 		"PATH="+binDir+string(os.PathListSeparator)+os.Getenv("PATH"),
+		"AGENT_CATALOG_ROOT="+catalogRoot,
 		resourceEnv,
 	)
 	var out bytes.Buffer
 	cmd.Stdout = &out
 	cmd.Stderr = &out
-	fmt.Println("running the assembler rig over agents/ and the agent-profiles reference subject...")
+	fmt.Println("running the catalog assembler rig over application agents and the catalog reference subject...")
 	start := time.Now()
 	// The rig's aggregate is failed by design: the reference subject ships a
 	// scenario that must fail, so the run reaches a failure terminal and exits
@@ -134,6 +144,29 @@ func (Integration) Rig() error {
 	fmt.Printf("integration:rig passed in %s: %d scenarios across two roots, verdicts %v; shared Jaeger retained run %s after process exit\n",
 		time.Since(start).Round(time.Millisecond), len(verdicts), verdicts, runID)
 	return nil
+}
+
+func stageRigRuntime(applicationRoot, catalogRoot string) (string, func(), error) {
+	stage, err := os.MkdirTemp("", "chatbot-mesh-rig-*")
+	if err != nil {
+		return "", nil, err
+	}
+	cleanup := func() { _ = os.RemoveAll(stage) }
+	if err := copyDirContents(
+		filepath.Join(applicationRoot, "testdata", "rig"),
+		filepath.Join(stage, "testdata", "rig"),
+	); err != nil {
+		cleanup()
+		return "", nil, err
+	}
+	if err := copyDirContents(
+		filepath.Join(catalogRoot, "agents", "assembler"),
+		filepath.Join(stage, "agents", "assembler"),
+	); err != nil {
+		cleanup()
+		return "", nil, fmt.Errorf("stage catalog assembler: %w", err)
+	}
+	return stage, cleanup, nil
 }
 
 type collectorIntakeScenario struct {

@@ -30,7 +30,7 @@ test_cases:
       CPU-only small models; the smoke/production sizing divergence is a recorded
       limitation.
     inputs:
-      chart: examples/chatbot-mesh/helm/
+      chart: applications/chatbot-mesh/helm/
       values: defaults (ollama.enabled=true)
       models: small CPU-only embedding, chat, and tier-selector models
     expected:
@@ -56,7 +56,7 @@ test_cases:
       evidence recorded here did not pass (GH-701); a set also catches the gate
       landing on a workload that should not carry it, which no count can.
     inputs:
-      chart: examples/chatbot-mesh/helm/
+      chart: applications/chatbot-mesh/helm/
       tiers: [in_cluster, external]
     expected:
       every_declared_agent_workload_waits_for_models: true

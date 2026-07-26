@@ -9,25 +9,26 @@ A packaging step copies the agent programs and the ux artifacts the chart
 deploys into that directory before `helm package`/`helm install`:
 
 ```
-examples/chatbot-mesh/agents/chatbot/      -> profiles/agents/chatbot/
-examples/chatbot-mesh/agents/rag-server/   -> profiles/agents/rag-server/
-examples/chatbot-mesh/agents/coordinator/  -> profiles/agents/coordinator/   (control plane)
-examples/chatbot-mesh/agents/creator/      -> profiles/agents/creator/       (control plane)
-examples/chatbot-mesh/agents/applier/     -> profiles/agents/applier/       (deployment plane, srd006)
-examples/chatbot-mesh/agents/collector/    -> profiles/agents/collector/      (trace ingress, srd007)
-examples/chatbot-mesh/agents/corpus-ingest/ -> profiles/agents/corpus-ingest/  (application wrapper + REST values)
-$AGENT_PROFILES_ROOT/agents/knowledge-manager/corpus-ingest/ -> profiles/agents/knowledge-manager/corpus-ingest/ (canonical program)
-examples/chatbot-mesh/ux/ux.yaml            -> profiles/ux/ux.yaml            (UI descriptor; co-generated key)
-examples/chatbot-mesh/ux/app/dist/          -> profiles/ux/app/dist/          (built SPA the chatbot serves at /ui)
+applications/chatbot-mesh/agents/chatbot/      -> profiles/agents/chatbot/
+applications/chatbot-mesh/agents/rag-server/   -> profiles/agents/rag-server/
+applications/chatbot-mesh/agents/coordinator/  -> profiles/agents/coordinator/   (control plane)
+applications/chatbot-mesh/agents/creator/      -> profiles/agents/creator/       (control plane)
+applications/chatbot-mesh/agents/applier/      -> profiles/agents/applier/       (deployment plane, srd006)
+applications/chatbot-mesh/agents/collector/    -> profiles/agents/collector/     (trace ingress, srd007)
+applications/chatbot-mesh/agents/corpus-ingest/ -> profiles/agents/corpus-ingest/ (application wrapper + REST values)
+$AGENT_CATALOG_ROOT/agents/knowledge-manager/corpus-ingest/ -> profiles/agents/knowledge-manager/corpus-ingest/ (canonical program)
+applications/chatbot-mesh/ux/ux.yaml            -> profiles/ux/ux.yaml
+applications/chatbot-mesh/ux/app/dist/          -> profiles/ux/app/dist/
 ```
 
 Corpus ingest is the reference-mechanism exception to the otherwise
 example-local source list: the mesh owns only a wrapper profile and its
 `corpus-rest.yaml` parameterization. Machine, tools, and declarations come from
-the canonical `agent-profiles` library directory and are staged at the same
-runtime path the wrapper references. `AGENT_PROFILES_ROOT` selects that checkout
-when the example has been copied away from the monorepo; in-tree builds default
-to the repository's `agent-profiles/` directory. The checkout is required to
+the canonical `applications/catalog` directory and are staged at the same
+runtime path the wrapper references. `AGENT_CATALOG_ROOT` selects that checkout;
+Release 99 tooling accepts `AGENT_PROFILES_ROOT` as a deprecated alias only when
+the canonical input is unset. In-tree builds discover the repository's
+`applications/catalog` directory. The checkout is required to
 build and test corpus ingest, while the resulting chart archive contains the
 resolved files and needs no profile checkout at runtime.
 

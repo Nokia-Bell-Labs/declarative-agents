@@ -221,7 +221,7 @@ func gitCommit(dir string) string {
 func integrationResourceAttributes(target, runID, commit string) string {
 	attrs := [][2]string{
 		{"test.repository", "Nokia-Bell-Labs/declarative-agents"},
-		{"test.module", "examples/chatbot-mesh"},
+		{"test.module", "applications/chatbot-mesh"},
 		{"test.target", target},
 		{"vcs.ref.head.revision", commit},
 		{"test.run.id", runID},

@@ -17,7 +17,7 @@ traces:
 preconditions:
   - agent-core is available as AGENT_CORE_ROOT or a sibling ../agent-core checkout.
   - A Chroma server and an Ollama (or external LLM) are reachable with the configured embedding and answer models.
-  - This example owns RAG/chatbot assets and corpus-ingest REST parameterization; agent-profiles owns the canonical corpus-ingest program selected by the wrapper.
+  - This application owns RAG/chatbot assets and corpus-ingest REST parameterization; applications/catalog owns the canonical corpus-ingest program selected by the wrapper.
 
 test_cases:
   - use_case: rel00.0-uc001-rag-server-query
