@@ -849,10 +849,30 @@ patterns:
         cite: fowler-event-sourcing-2005
         kind: external
         note: State as a replayable/reversible log of events; the execution record is the same kind of traversable log.
+      - system: Reference implementation — checkpoint and receipt rollback mechanics
+        cite: reference-implementation
+        kind: internal
+        note: The shipped runtime versions dispatch state in Dolt, reverts persisted history to a selected step, and walks tool-owned receipts in reverse; this evidence covers mechanics, not automatic profile wiring.
+        evidence:
+          classification: shipped
+          checks:
+            - path: agent-core/tools/builtin/checkpoint-rollback.yaml
+              artifact: tool_declaration
+              assertion: yaml_sequence_match
+              field: tools
+              match: {name: checkpoint_rollback, init: checkpoint_rollback}
+            - path: agent-core/internal/runtime/core/dolt_checkpoint_revert_test.go
+              artifact: go_test
+              assertion: go_test
+              test: TestDoltCheckpointRevertResetsToStepCommit
+            - path: agent-core/internal/tools/lifecycle/receipt_rollback_test.go
+              artifact: go_test
+              assertion: go_test
+              test: TestRollbackViaReceiptsCleanWhenAllReverse
       - system: Design intent — coding-agent rollback
         cite: reference-implementation
         kind: internal
-        note: Design intent, not a shipped profile. The checkpoint_rollback lifecycle tool reverts the Dolt history to the last good step and replays the intervening receipts to restore the files; a coding-agent profile that triggers this automatically on validation failure so the model retries with clean context is intended, but no shipped agent profile wires checkpoint_rollback into such a flow.
+        note: Automatic coding retry, gated deployment recovery, and generated compensation for mixed API plans are design intent, not shipped profile behavior; no production profile routes validation failure into checkpoint_rollback.
         evidence:
           classification: design_intent
     provenance: [reference-implementation, external-corroboration]

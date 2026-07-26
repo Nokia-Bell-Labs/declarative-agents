@@ -339,6 +339,70 @@ func TestOperatorPortChapterUsesShippedRoutesAndDiscovery(t *testing.T) {
 	}
 }
 
+func TestBidirectionalLogChapterKeepsCodingScenariosAsDesignIntent(t *testing.T) {
+	chapterData, err := os.ReadFile(filepath.Join("..", "07-bidirectional-log.md"))
+	if err != nil {
+		t.Fatal(err)
+	}
+	chapter := string(chapterData)
+	intentIndex := strings.Index(chapter, "## Design intent scenarios")
+	knownIndex := strings.Index(chapter, "## Known Uses")
+	if intentIndex < 0 || knownIndex < 0 || intentIndex >= knownIndex {
+		t.Fatal("Bidirectional Log chapter must place design intent before Known Uses")
+	}
+	knownUses := chapter[knownIndex:]
+	for _, forbidden := range []string{
+		"**Coding agents.**", "**Gated deployment.**", "**Multi-step API plans.**",
+	} {
+		if strings.Contains(knownUses, forbidden) {
+			t.Errorf("Known Uses retains unshipped scenario %s", forbidden)
+		}
+	}
+	for _, required := range []string{
+		"No production coding-agent profile routes validation failure",
+		"**Reference rollback mechanics.**",
+		"**Database transactions and rollback**",
+		"**Memento pattern**",
+		"**Event Sourcing**",
+	} {
+		if !strings.Contains(chapter, required) {
+			t.Errorf("Bidirectional Log chapter missing %q", required)
+		}
+	}
+
+	language, err := os.ReadFile(filepath.Join("..", "pattern-language.yaml"))
+	if err != nil {
+		t.Fatal(err)
+	}
+	for _, required := range []string{
+		"Reference implementation — checkpoint and receipt rollback mechanics",
+		"Design intent — coding-agent rollback",
+		"no production profile routes validation failure into checkpoint_rollback",
+	} {
+		if !strings.Contains(string(language), required) {
+			t.Errorf("pattern language missing %q", required)
+		}
+	}
+
+	codingAgents := filepath.Join("..", "..", "examples", "coding-agent", "agents")
+	err = filepath.WalkDir(codingAgents, func(path string, entry os.DirEntry, walkErr error) error {
+		if walkErr != nil || entry.IsDir() || filepath.Ext(path) != ".yaml" {
+			return walkErr
+		}
+		data, err := os.ReadFile(path)
+		if err != nil {
+			return err
+		}
+		if strings.Contains(string(data), "checkpoint_rollback") {
+			t.Errorf("production coding-agent profile wires checkpoint_rollback in %s", path)
+		}
+		return nil
+	})
+	if err != nil {
+		t.Fatal(err)
+	}
+}
+
 func writePatternLanguage(t *testing.T, root, content string) string {
 	t.Helper()
 	path := filepath.Join(root, "pattern-language.yaml")
