@@ -65,7 +65,7 @@ func TestCheckEvidenceResolvesAndReports(t *testing.T) {
 		{"recursive package only", "go test ./...", ""},
 
 		// Skipped forms produce no problem.
-		{"mage target skipped", "mage integration:uc001", ""},
+		{"mage target skipped", "mage integration:ollamaRest", ""},
 		{"mage audit skipped", "mage audit", ""},
 		{"cross-module pipeline skipped", "cd magefiles && go test ./... -run 'TestX'", ""},
 		{"descriptive skipped", "Manual verification against the demo", ""},
