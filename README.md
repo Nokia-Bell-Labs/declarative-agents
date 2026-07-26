@@ -8,7 +8,8 @@ Profile-driven runtime and design patterns for declarative, tool-augmented agent
 |-----------|-------------|
 | [`agent-core/`](agent-core/) | Runtime engine — state machines, tool dispatch, LLM integration, profile loading, and a standard tool library. Go. |
 | [`agent-profiles/`](agent-profiles/) | External agent programs and profile YAML assets consumed by agent-core. |
-| [`examples/chatbot-mesh/`](examples/chatbot-mesh/) | Standalone, copyable example: the browser-facing chatbot mesh — a chatbot agent that fans one query embedding out to N Chroma-backed RAG servers and routes to a chat LLM, plus a control plane (a coordinator and creator that turn a provisioning intent into an ingest and a rollout through a deployment API). Ships its own docs/specs, agents, ux SPA, and Helm chart, runs on the agent-core image, and self-governs its corpus with `mage audit`. |
+| [`examples/chatbot-mesh/`](examples/chatbot-mesh/) | Copyable browser-facing chatbot application with routed multi-RAG data plane, provisioning control plane, UX, Helm chart, self-governing specs, and an explicit canonical corpus-ingest build dependency. |
+| [`examples/coding-agent/`](examples/coding-agent/) | Deployable planner → executor → critic application composed from canonical agent-profiles, with deterministic profile packaging, a profile-free runtime image, Helm chart, and local/kind integration gates. |
 | [`design-patterns/`](design-patterns/) | White paper source: *Design Patterns for Declarative Agents* — eleven patterns for building reliable agents (markdown, PlantUML, IEEE build). |
 | [`docs/engineering/`](docs/engineering/) | Engineering guidelines that span modules and examples, starting with the standard kind rig for integration tests and demos. |
 | [`magefiles/`](magefiles/) | Repository-wide build targets: release tagging, stats aggregation, sub-module dispatch. |
@@ -85,7 +86,9 @@ mage clean    # remove generated artifacts
 
 ```bash
 cd examples/chatbot-mesh
-mage audit    # run the jurist over this example's spec corpus (self-governing)
+mage audit                  # validate the example's spec corpus
+mage helm:package           # build the installable chart
+mage integration:helmSmoke  # prove the packaged mesh on kind
 ```
 
 The example is copyable with two documented platform dependencies: agent-core
@@ -94,6 +97,23 @@ local-integration time. Set `AGENT_PROFILES_ROOT` when the profile library is
 not in the monorepo checkout. Its Helm chart is under
 [`examples/chatbot-mesh/helm/`](examples/chatbot-mesh/helm/) and its own docs
 live under [`examples/chatbot-mesh/docs/`](examples/chatbot-mesh/docs/).
+
+### examples/coding-agent
+
+```bash
+cd examples/coding-agent
+mage audit                  # validate docs, closure, boot, and test evidence
+mage package                # assemble canonical application profile closures
+mage image:build            # build the profile-free coding runtime
+mage helm:package           # build the installable chart
+mage integration:helmSmoke  # prove planner → executor → critic on kind
+```
+
+Canonical entry points are
+[`agents/application.yaml`](examples/coding-agent/agents/application.yaml),
+[`Dockerfile`](examples/coding-agent/Dockerfile), and
+[`helm/`](examples/coding-agent/helm/); architecture and operations live under
+[`docs/`](examples/coding-agent/docs/).
 
 ## License
 
