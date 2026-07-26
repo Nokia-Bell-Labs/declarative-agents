@@ -55,10 +55,13 @@ Root releases require every release gate to exit successfully before tagging:
 gate is accepted only when that gate exits successfully. A failed gate cannot
 be waived; fix the failure and run the gates again before creating a tag.
 
-`mage tag` runs from `main` only after the gates pass and creates the repository
-tag `v0.YYYYMMDD.N` plus module-scoped tags for release-relevant directories:
-`agent-core/v0.YYYYMMDD.N`, `agent-profiles/v0.YYYYMMDD.N`, and
-`design-patterns/v0.YYYYMMDD.N`.
+`mage tag` requires a clean `main` worktree, records the exact HEAD commit, runs
+all gates above itself, and verifies HEAD is unchanged before creating tags. It
+creates repository tag `v0.YYYYMMDD.N` plus module-scoped tags for
+release-relevant directories: `agent-core/v0.YYYYMMDD.N`,
+`agent-profiles/v0.YYYYMMDD.N`, and `design-patterns/v0.YYYYMMDD.N`. Git creates
+the complete repository/module ref set in one reference transaction, so a
+conflict or write failure creates none of the release tags.
 
 ### agent-core
 
