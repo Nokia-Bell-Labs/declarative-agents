@@ -601,8 +601,8 @@ patterns:
     also_known_as: [Scoped Toolset, Per-Phase Tools, Least-Authority Manifest]
     confidence: 2
     intent: >
-      Expose to the model only the tools valid in the current state, so a tool
-      that should not run in a phase is not merely discouraged but invisible.
+      Derive the tools valid in the current phase from machine routes and tool
+      outcomes, so unroutable tools are invisible to the model.
     context: >
       In an Agent-as-Data every tool is declared, and the machine knows
       which phase it is in. If the whole tool set is offered at every step, the
@@ -620,28 +620,28 @@ patterns:
     forces:
       - The model should never be able to select an out-of-phase tool.
       - The per-call manifest should stay small to sharpen model choices.
-      - Scoping must derive from the machine, not from prompt exhortation.
+      - Scoping must derive from machine grammar and ToolDef outcomes, not prompt exhortation.
       - Some actions must be made structurally impossible, not just unlikely.
     solution: >
-      Filter the tool manifest by state: in each phase, present only the tools
-      whose declarations are valid there. A tool scoped out of a phase cannot be
-      chosen because the model never sees it, so premature or out-of-order
-      actions become structurally impossible rather than prompt-dependent.
+      Derive model-visible tools from each $tool transition's target state and
+      the emitted signals that state can route. Include only external tools;
+      optional tool-level phases may narrow but never widen the derived set.
+      Use the same availability rule for manifest generation, parsing, and
+      dispatch.
     implementation: >
-      Give each state a visible external-tool list and each tool a visibility
-      marker such as external or internal. Machine-dispatched tools such as
-      parse_response are internal and never appear in the model manifest. Load
-      time checks ensure every listed name resolves, no internal tool is listed,
-      and every external tool appears somewhere or is reported as an orphan.
-      At runtime, reject model calls that were not in the manifest shown for the
-      current state.
+      For each MachineSpec transition with action $tool, treat its target as a
+      candidate phase. A ToolDef is available there only when it is external,
+      its optional phases admit the target, and every emitted signal is handled
+      from that target (or the target is terminal). Store the result as derived
+      ToolSpec phases. Registry Manifest and ResolveExternalTool must share this
+      rule so out-of-state calls fail before execution.
     consequences:
       benefits:
         - Out-of-phase actions are impossible, not merely improbable.
         - Smaller per-call manifests improve selection accuracy.
       liabilities:
-        - Requires the machine's phases to be well factored.
-        - A tool needed in many phases must be declared for each.
+        - Requires the machine's phases and emitted-signal routes to be well factored.
+        - Missing follow-up transitions can hide a tool until diagnostics expose the unroutable signal.
     grammar:
       within: [agent-as-data]
       requires: [machine-interpreter, agent-as-data, tool-contract]
@@ -649,9 +649,9 @@ patterns:
       enables: [approval-gate]
       overlaps: []
     syntax: >
-      Within an Agent-as-Data, scope each Tool Contract to the states where
-      it is valid; scoping a deploy tool to a post-validation state is what makes
-      an Approval Gate's guarantee structural.
+      Within an Agent-as-Data, derive each Tool Contract's phases from $tool
+      grammar and emitted-signal routes, then apply any narrower tool-level
+      phase restriction.
     examples:
       - system: Principle of Least Privilege
         cite: saltzer-schroeder-1975
@@ -665,21 +665,33 @@ patterns:
         cite: hardt-oauth-2012
         kind: external
         note: Access tokens carry narrowed scopes rather than full authority — the same attenuation applied to which actions are exposed.
-      - system: Reference implementation — executor and critic agents
+      - system: Reference implementation — derived dynamic availability
         cite: reference-implementation
         kind: internal
-        note: The runtime registry filters phase-scoped tools from the model manifest outside their declared states, and its availability tests cover both manifest generation and dynamic dispatch.
+        note: The catalog derives ToolSpec phases from $tool targets and routable emits, intersects explicit tool-level phases, and uses one registry rule for manifests and dispatch.
         evidence:
           classification: shipped
           checks:
-            - path: agent-core/internal/runtime/core/registry.go
-              artifact: go_source
-              assertion: go_symbol
-              symbol: Manifest
+            - path: agent-core/internal/tools/catalog/emits_test.go
+              artifact: go_test
+              assertion: go_test
+              test: TestDeriveDynamicToolPhasesScopesExternalToolsByRoutableSignals
+            - path: agent-core/internal/tools/catalog/emits_test.go
+              artifact: go_test
+              assertion: go_test
+              test: TestDeriveDynamicToolPhasesRespectsExplicitPhaseNarrowing
+            - path: agent-core/internal/tools/catalog/emits_test.go
+              artifact: go_test
+              assertion: go_test
+              test: TestApplyDynamicToolPhasesFiltersRegistryManifest
             - path: agent-core/internal/runtime/core/registry_test.go
               artifact: go_test
               assertion: go_test
               test: TestManifestAndAvailableExternalToolNamesUseAvailabilityRule
+            - path: agent-core/internal/tools/catalog/phase_scoped_documentation_test.go
+              artifact: go_test
+              assertion: go_test
+              test: TestPhaseScopedChapterExamplesLoadAndDeriveAvailability
     provenance: [reference-implementation, external-corroboration]
 
   # ---------------------------------------------------------------------------

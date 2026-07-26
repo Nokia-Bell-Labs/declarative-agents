@@ -519,6 +519,66 @@ func TestInferenceBoundaryUsesLoadableProfilesAndSeparatesProviderChanges(t *tes
 	}
 }
 
+func TestPhaseScopedToolsetUsesDerivedAvailabilityModel(t *testing.T) {
+	chapterData, err := os.ReadFile(filepath.Join("..", "05-phase-scoped-toolset.md"))
+	if err != nil {
+		t.Fatal(err)
+	}
+	chapter := string(chapterData)
+	for _, required := range []string{
+		"`$tool` transitions",
+		"emitted signals",
+		"tool-level phase",
+		"`ApplyDynamicToolPhases`",
+		"`ResolveExternalTool`/`AvailableIn`",
+		"phase-scoped-machine-example",
+		"phase-scoped-tools-example",
+	} {
+		if !strings.Contains(chapter, required) {
+			t.Errorf("Phase-Scoped Toolset missing %q", required)
+		}
+	}
+	for _, stale := range []string{
+		"per-state tool list",
+		"each state carries an optional `tools` field",
+		"Every state carries a tool list",
+		"absent field means \"all external tools\"",
+	} {
+		if strings.Contains(chapter, stale) {
+			t.Errorf("Phase-Scoped Toolset retains stale model %q", stale)
+		}
+	}
+	for _, figureName := range []string{
+		"fig-16-scoped-toolset-class.puml",
+		"fig-17-scoped-toolset-sequence.puml",
+	} {
+		figure, err := os.ReadFile(filepath.Join("..", "figures", figureName))
+		if err != nil {
+			t.Fatal(err)
+		}
+		for _, stale := range []string{"per-state tool lists", "visible_tools(state)"} {
+			if strings.Contains(string(figure), stale) {
+				t.Errorf("%s retains stale model %q", figureName, stale)
+			}
+		}
+	}
+
+	format, err := os.ReadFile(filepath.Join("..", "..", "agent-core", "docs",
+		"specs", "config-formats", "machine-format.yaml"))
+	if err != nil {
+		t.Fatal(err)
+	}
+	for _, required := range []string{
+		"MachineSpec transitions are the source of truth",
+		"Explicit ToolSpec phases may further narrow availability",
+		"they are not a second workflow definition",
+	} {
+		if !strings.Contains(string(format), required) {
+			t.Errorf("canonical machine format missing %q", required)
+		}
+	}
+}
+
 func writePatternLanguage(t *testing.T, root, content string) string {
 	t.Helper()
 	path := filepath.Join(root, "pattern-language.yaml")

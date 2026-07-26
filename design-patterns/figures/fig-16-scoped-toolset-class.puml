@@ -4,13 +4,24 @@
 class State
 
 class Machine {
-  per-state tool lists
-  +visible_tools(state)
+  $tool transitions
+  routable signals
+}
+
+class ToolDef {
+  visibility
+  emits
+  optional phases
+}
+
+class Catalog {
+  +derive_dynamic_phases(machine, tools)
 }
 
 class Registry {
-  full tool inventory
-  +resolve(names)
+  derived ToolSpecs
+  +Manifest(state)
+  +ResolveExternalTool(name, state)
 }
 
 class PromptAssembler {
@@ -21,8 +32,10 @@ class ToolManifest {
   filtered subset sent to model
 }
 
+Catalog --> Machine : reads grammar
+Catalog --> ToolDef : reads outcomes
+Catalog --> Registry : registers derived phases
 PromptAssembler --> State : reads current
-PromptAssembler --> Machine : queries visible_tools
-PromptAssembler --> Registry : resolves names
+PromptAssembler --> Registry : Manifest(state)
 PromptAssembler --> ToolManifest : builds
 @enduml

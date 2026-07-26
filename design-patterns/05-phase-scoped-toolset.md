@@ -1,22 +1,22 @@
 # Phase-Scoped Toolset
 
-This chapter presents the Phase-Scoped Toolset pattern, which declares which tools the model may call in each machine state. By restricting the tool manifest per phase, the pattern shrinks the model's decision space, prevents cross-phase misuse, and makes it statically verifiable that a tool unreachable in a state cannot be called there.
+This chapter presents the Phase-Scoped Toolset pattern, which derives model-visible tools from the machine's `$tool` transitions, each tool's emitted signals, visibility, and optional tool-level phase restrictions. The derived manifest shrinks the model's decision space and prevents calls the current grammar cannot route.
 
 ## Intent
 
-Declare which tools the model may call in each state so the manifest narrows per phase and cross-phase misuse is statically verifiable.
+Derive which tools the model may call in each phase from routable machine transitions, then allow tool declarations to narrow that availability.
 
 
 ## Motivation
 
 An agent accumulates tools, including file manipulation, shell, web search, test running, build, lint, and reporting. Sent to the model in every invocation, the full manifest grows large, and two problems follow. **Wasted decision bandwidth:** every tool is a choice the model must evaluate and reject, and misuse rates rise with manifest size, since models call tools that are plausible in isolation but wrong for the current phase, forcing recovery cycles. **Phase-inappropriate use:** nothing structurally stops the model from invoking a destructive tool (a deletion, a deployment) in a phase where it is premature; prompt instructions discourage this but can be ignored.
 
-Filtering the manifest by hand before each call couples the logic to the engine. The declarative alternative: the machine declares which tools are visible in each state, and the prompt assembler reads that declaration without knowing which tools exist.
+Filtering the manifest by hand before each call couples policy to the engine. The declarative alternative uses the transition graph as the authority: a `$tool` transition identifies a model-facing phase, and declared tool outcomes determine whether that phase can route each tool.
 
 
 ## Applicability
 
-The Phase-Scoped Toolset fits agents with more tools than are relevant in any single phase. It becomes worthwhile when different phases need different subsets — composition tools during generation, validation tools during checking, none during deterministic dispatch — and when global visibility causes recovery loops, wasted tokens, or safety violations. When the tool set is small and every tool is relevant in every phase, the per-state configuration surface is overhead without benefit.
+The Phase-Scoped Toolset fits agents with more tools than are relevant in any single phase. It becomes worthwhile when different phases need different subsets — composition tools during generation, validation tools during checking, none during deterministic dispatch — and when global visibility causes recovery loops, wasted tokens, or safety violations. When every external tool is relevant throughout the model-facing grammar, derived scoping and optional phase metadata add no benefit.
 
 
 ## Structure
@@ -25,42 +25,42 @@ The manifest is filtered before each LLM invocation by five participants, whose 
 
 ![](figures/fig-16-scoped-toolset-class.png)
 
-| **Figure 15.** Class diagram. The PromptAssembler reads the Machine's per-state tool list for the current State, resolves it against the full Registry, and emits a filtered ToolManifest. |
+| **Figure 15.** Class diagram. Machine transitions and ToolDef outcomes derive phase availability; the Registry emits the filtered ToolManifest for the current state. |
 |:---:|
 
 ### Participants
 
 #### Machine
 
-Declares, per non-terminal state, the list of tool names visible to the model, a list of strings, not logic.
+Owns workflow order. A transition with `action: $tool` identifies the target phase where a parsed model-selected tool may execute.
 
 #### Registry
 
-Holds every registered tool (name, parameters, signals, description), the universe from which subsets are drawn.
+Holds every registered tool and its derived phases. `Manifest(state)` and dynamic dispatch use the same availability rule.
 
 #### State
 
-Indexes into the machine's per-state list.
+Names the current grammar phase used to filter the registry.
 
 #### PromptAssembler
 
-Resolves that list against the registry and builds the manifest, knowing nothing about which tools exist or why they are grouped.
+Requests the registry manifest for the current phase and serializes it for the model.
 
 #### ToolManifest
 
-Is the output sent to the model, bounded by the per-state list, not the full registry.
+Is the output sent to the model, containing only external tools available in the current grammar phase.
 
 
 ## Collaborations
 
-Before every LLM call the assembler runs a lookup-filter-build cycle, traced by the sequence diagram in Fig. 16: **query** the machine for the current state's visible tools, **resolve** each name against the registry (unresolved names are load-time errors), **build** a manifest of only those tools, and **send** it with the prompt. Tools absent from the manifest are invisible. The model cannot call what it does not know exists.
+Before every LLM call, the catalog derives availability from the machine and ToolDefs. For each `$tool` transition it takes the transition's target state, considers external tools whose optional `phases` allow that state, and keeps only tools whose every declared emitted signal has a transition from that state (or whose target is terminal). The registry then builds the current-state manifest. Tools absent from the manifest are invisible.
 
 ![](figures/fig-17-scoped-toolset-sequence.png)
 
-| **Figure 16.** Sequence diagram. The lookup-filter-build cycle before each LLM call: the assembler queries the machine, resolves against the registry, builds the manifest, and sends it to the model. {wide} |
+| **Figure 16.** Sequence diagram. Availability is derived from machine routes and tool outcomes, then the registry builds the current-state manifest. {wide} |
 |:---:|
 
-When the model returns a tool call, two guards apply before dispatch: **manifest validation** (was the tool in the manifest the model was shown? rejecting hallucinated names) and the Machine Interpreter's existing **static check** (is it a registered tool whose signals are handled in this state?). Machine-dispatched tools (fixed actions like `parse_response`) never appear in the manifest; a `visibility` field marks each tool `external` (manifest-eligible) or `internal`.
+When the model returns a tool call, parsing and dispatch call the same registry availability rule used for the manifest. Unknown tools, internal tools, and registered tools outside the current phase are rejected before execution. Machine-dispatched fixed actions such as `parse_response` remain internal and never enter the model manifest.
 
 
 ## Consequences
@@ -77,17 +77,17 @@ A tool the model cannot see, it cannot call. A tool absent from the manifest is 
 
 #### Declarative control
 
-Visibility is a YAML edit, never a code change; prompt-assembly logic never changes.
+Visibility and optional narrowing are ToolDef YAML edits; workflow availability remains derived from machine transitions.
 
 #### Separation of concerns
 
-Machine authors decide which tools belong in which phase, tool authors decide what each does, and the assembler connects them blind to both.
+Machine authors define routable phases and outcomes; tool authors define visibility, emitted signals, and optional narrower phases; the registry computes their intersection.
 
 ### Liabilities
 
 #### Configuration surface
 
-Every state carries a tool list; a tool added to the registry but no state's list is invisible (caught by orphan-detection, but only as a warning).
+Availability depends on transition and emitted-signal completeness. A missing follow-up transition can remove a tool from the manifest, so diagnostics must name the unroutable signal.
 
 #### Over-restriction
 
@@ -95,27 +95,64 @@ Too narrow a list blocks solutions needing an unexpected tool. Excluding `web_se
 
 #### Cache fragmentation
 
-State-specific manifests share fewer prompt-cache prefixes than one stable manifest, which can matter for latency-sensitive deployments.
+Changing the available tool set by state reduces shared prompt-cache prefixes, which can matter for latency-sensitive deployments.
 
 
 ## Implementation
 
-Tool visibility is declared alongside the transition table; each state carries an optional `tools` field, and each tool declaration a `visibility`:
+Machine states carry no tool lists. This complete machine example gives
+`Composing` a dynamic `$tool` route whose target can handle both outcomes emitted
+by `write`:
 
 ```yaml
-states:
-  Composing:  { tools: [write, read, shell, web_search, patch] }
-  Parsing:    { tools: [] }
-  Validating: { tools: [build, test, lint] }
-  Succeeded:  { terminal: true }
-# tool declarations
-- { name: write,          visibility: external, emits: [ToolDone, ToolFailed] }
-- { name: parse_response, visibility: internal, emits: [ToolCall, Completion] }
+# phase-scoped-machine-example
+name: phase-scoped-example
+initial_state: Idle
+states: [Idle, Composing, Parsing, Done, Failed]
+terminal_states: [Done, Failed]
+signals: [Seed, LLMResponded, ToolDone, ToolFailed, TaskCompleted, ParseFailed, CommandError]
+transitions:
+  - {state: Idle, signal: Seed, next: Composing, action: invoke_llm}
+  - {state: Composing, signal: LLMResponded, next: Parsing, action: parse_response}
+  - {state: Parsing, signal: ToolDone, next: Composing, action: $tool}
+  - {state: Parsing, signal: TaskCompleted, next: Done}
+  - {state: Parsing, signal: ParseFailed, next: Composing, action: invoke_llm}
+  - {state: Composing, signal: ToolDone, next: Composing, action: invoke_llm}
+  - {state: Composing, signal: ToolFailed, next: Failed}
+  - {state: Composing, signal: CommandError, next: Failed}
+  - {state: Parsing, signal: CommandError, next: Failed}
 ```
 
-An empty `tools: []` means "no tools in this state"; an absent field means "all external tools" (the backward-compatible default). The two filters stack: a tool must be `external` *and* listed in the current state to reach the model. Three checks run at load time: every listed name **resolves** to a registered tool; every listed tool is **external** (listing an internal tool is an error); and every external tool appears in **some** state's list (orphan detection, a warning).
+Tool declarations supply vocabulary metadata and may narrow derived availability
+with `phases`. In this loadable declaration, `write` derives `Composing`;
+`web_search` is unavailable because its explicit `Reviewing` phase does not
+admit `Composing`; `parse_response` is internal:
 
-Different profiles compose different per-state lists over the same registry. A generator shows `write/read/shell` in Composing, an evaluator shows `dump_config/run_agent`, so the same engine and registry serve different agents with only YAML changing.
+```yaml
+# phase-scoped-tools-example
+tools:
+  - name: write
+    type: builtin
+    init: file_write
+    visibility: external
+    emits: [ToolDone, ToolFailed]
+  - name: web_search
+    type: builtin
+    init: web_search
+    visibility: external
+    phases: [Reviewing]
+    emits: [ToolDone, ToolFailed]
+  - name: parse_response
+    type: builtin
+    init: parse_response
+    visibility: internal
+    emits: [ToolDone, TaskCompleted, ParseFailed]
+```
+
+`ApplyDynamicToolPhases` derives phase metadata from the machine grammar and
+intersects it with explicit ToolDef phases. `Registry.Manifest`, parse-time
+validation, and dynamic dispatch all call the same
+`ResolveExternalTool`/`AvailableIn` rule.
 
 
 ## Relationships in the Pattern Language
@@ -125,8 +162,8 @@ Phase-Scoped Toolset sits within Agent-as-Data and requires Machine Interpreter,
 
 ## Known Uses
 
-**Generator agent.** Composing shows editing tools (`write`, `read`, `shell`, `patch`), Validating shows `build`, `test`, `lint`. Before scoping, the model occasionally called `build` mid-edit, triggering failures and recovery cycles; scoping made `build` invisible during Composing, so the model could no longer call it before the code was ready, and shrank the per-call tool manifest.
+**Executor agent.** The shipped executor machine routes `$tool` results back into `Composing`. External tool outcomes that the `Composing` state handles remain model-visible there; internal parsing, validation, and lifecycle actions stay outside the manifest.
 
-**Evaluator agent.** A configure→run→check→report pipeline shows different tools per stage (`dump_config` and `set_variant`, then `run_agent`, then `run_oracle_check` and `classify_convergence`). Scoping stopped the model re-running the subject during the checking stage by making `run_agent` invisible past Running. Lifecycle agents benefit most: a `deploy` tool scoped to a post-validation state makes premature deployment structurally impossible (Chapter 10).
+**Explicit narrowing.** Tool-level `phases` can reduce a tool's derived set for compatibility or policy, but cannot make it available where the transition graph cannot route its emitted signals. Deployment scoping remains design intent until a shipped profile and test exercise it (Chapter 10).
 
-**Least privilege and capabilities.** The pattern is the **Principle of Least Privilege** [@saltzer-schroeder-1975] applied per machine state: a component holds only the authority its current task requires. It is realized in the manner of **capability-based security** [@dennis-vanhorn-1966], where authority is conferred by holding an unforgeable capability — a state's tool manifest is precisely the set of capabilities held in that phase. **OAuth 2.0 scopes** [@hardt-oauth-2012] apply the same attenuation to access tokens, narrowing authority rather than granting it wholesale, exactly as per-state scoping narrows which actions are exposed.
+**Least privilege and capabilities.** The pattern is the **Principle of Least Privilege** [@saltzer-schroeder-1975] applied per machine state: a component holds only the authority its current task requires. It is realized in the manner of **capability-based security** [@dennis-vanhorn-1966], where authority is conferred by holding an unforgeable capability — a state's tool manifest is the set of capabilities held in that phase. **OAuth 2.0 scopes** [@hardt-oauth-2012] apply the same attenuation to access tokens, narrowing authority rather than granting it wholesale, exactly as state-derived scoping narrows which actions are exposed.
