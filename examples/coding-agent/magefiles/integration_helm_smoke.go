@@ -173,7 +173,7 @@ func runCodingHelmSmoke(roots integrationRoots) (result error) {
 	if err != nil {
 		return &codingHelmInfrastructureError{Step: "kind cluster acquisition", Cause: err}
 	}
-	kubeconfig, cleanupKubeconfig, err := codingKindKubeconfig()
+	kubeconfig, cleanupKubeconfig, err := codingKindKubeconfig(codingHelmCluster)
 	if err != nil {
 		cluster.ReleaseAfter(kindRun, true, kindrig.FailureEvidence{
 			Directory: codingHelmEvidenceDir(roots.Application, images.Revision),
@@ -242,11 +242,11 @@ func runCodingHelmSmoke(roots integrationRoots) (result error) {
 	return nil
 }
 
-func codingKindKubeconfig() (string, func(), error) {
+func codingKindKubeconfig(cluster string) (string, func(), error) {
 	ctx, cancel := context.WithTimeout(context.Background(), codingHelmProbeTimeout)
 	defer cancel()
 	output, err := codingSmokeEnvironment{}.run(
-		ctx, "kind", "get", "kubeconfig", "--name", codingHelmCluster)
+		ctx, "kind", "get", "kubeconfig", "--name", cluster)
 	if err != nil {
 		return "", nil, fmt.Errorf("kind get kubeconfig: %w: %s", err, strings.TrimSpace(string(output)))
 	}

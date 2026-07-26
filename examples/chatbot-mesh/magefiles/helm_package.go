@@ -25,6 +25,7 @@ var chatbotChartSourceFiles = []string{
 	"README.md",
 	"ci/kind-applier-values.yaml",
 	"ci/kind-config.yaml",
+	"ci/kind-demo-config.yaml",
 	"ci/kind-llm-values.yaml",
 	"ci/kind-values.yaml",
 	"schema-fixtures/README.md",

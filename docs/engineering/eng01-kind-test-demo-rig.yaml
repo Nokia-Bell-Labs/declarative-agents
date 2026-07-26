@@ -50,6 +50,11 @@ sections:
       pods pending forever, and the preflight turns that into a clear
       message before any cluster is created.
 
+      The shared implementation and minimum-version pins live in
+      `magefiles/kindrig/preflight.go`. Both examples expose `mage doctor`,
+      `mage demo:up`, and `mage demo:down`; doctor and requested-demo preflight
+      execute only version and Docker resource queries.
+
   - title: "Cluster lifecycle"
     content: |
       Each scenario owns one named cluster, `da-<example>-<scenario>`,
@@ -95,6 +100,9 @@ sections:
       ingress controller through `extraPortMappings`, the demo target
       installs ingress-nginx, and every agent in the mesh is reachable
       at a stable `localhost:<port>/<agent>` path the README can print.
+      The implemented demos pin ingress-nginx `controller-v1.13.3` and use
+      `.localhost` hostnames, which resolve to loopback without `/etc/hosts`
+      edits.
 
       Services of type LoadBalancer are not permitted in kind values
       overlays; kind has no load balancer, and the service would pend

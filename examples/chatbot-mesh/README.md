@@ -80,6 +80,19 @@ mage integration:controlPlane  # exercise the coordinator and creator control pl
 mage integration:rig           # run hermetic agent scenarios, including collector intake
 ```
 
+The shared ENG01 operator verbs are:
+
+```bash
+mage doctor      # read-only tool/version and Docker Desktop resource checks
+mage demo:up     # create/reuse da-chatbot-mesh-demo and print .localhost URLs
+mage demo:down   # delete only da-chatbot-mesh-demo
+```
+
+`demo:up` is an explicit request, so missing or outdated tools and insufficient
+Docker Desktop resources fail with remediation instead of producing an
+integration-style skip. A cluster created by a failed demo deployment is
+removed; a pre-existing demo cluster is reused and never removed implicitly.
+
 `mage helm:package` and local integrations that exercise corpus ingest resolve
 the canonical program from `AGENT_PROFILES_ROOT`, defaulting to the monorepo's
 `agent-profiles/` directory. Copying this example therefore requires an
