@@ -48,7 +48,11 @@ The models are named once in `ollama.models` (the embedding model, the chat mode
 To point at an operator-supplied Ollama instead, disable the tier and override the endpoint — the render is identical to the pre-tier external behavior and the co-generated client entries are unchanged (R2):
 
 ```bash
-helm install mesh examples/chatbot-mesh/helm --set ollama.enabled=false --set llm.externalURL=http://my-ollama:11434
+cd examples/chatbot-mesh
+mage helm:package
+helm install mesh helm/dist/chatbot-mesh-*.tgz \
+  --set ollama.enabled=false \
+  --set llm.externalURL=http://my-ollama:11434
 ```
 
 GPU scheduling is values-driven: set `ollama.gpu.count` and provide `ollama.nodeSelector`/`ollama.tolerations` for a GPU node pool. The `ci/kind-llm-values.yaml` smoke path runs CPU-only small models; this diverges from GPU production sizing by design (R6.4, recorded limitation). Topology defaults to a single Ollama instance serving all models (`ollama.topology: single`); `per-model` maps to the embedding-vs-chat two-service split (R6.5).
