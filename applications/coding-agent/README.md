@@ -1,7 +1,7 @@
 # coding-agent
 
 A deployable planner, executor, and critic coding loop built from canonical
-`agent-profiles` library agents.
+`applications/catalog` agents.
 
 ## What this is
 
@@ -12,7 +12,7 @@ and gates the final outcome.
 
 Composition, integration fixtures, packaging, and deployment belong to this
 application. The three agent families keep their canonical profiles and
-requirements in `agent-profiles/`:
+requirements in `applications/catalog`:
 
 - `srd002-executor`
 - `srd003-critic`
@@ -49,7 +49,7 @@ script, or another fake agent binary.
 
 `agents/application.yaml` names the planner, executor, critic session, and
 critic changed-workspace entry profiles by paths relative to the
-`agent-profiles` root. `agents/serving/` contains only application composition:
+catalog root. `agents/serving/` contains only application composition:
 persistent host lifecycle, declared remote boundaries, and terminal response
 mapping. It references canonical library assets and does not copy their
 machines, declarations, or reusable role behavior.
@@ -63,11 +63,13 @@ mage packageValidate
 
 The default output is `build/profiles`; set
 `CODING_AGENT_PROFILES_OUTPUT` to select another output directory and
-`AGENT_PROFILES_ROOT` to package a different checkout. The resolver follows
+`AGENT_CATALOG_ROOT` to package a different checkout. Release 99.0 also accepts
+deprecated `AGENT_PROFILES_ROOT` only when the canonical variable is unset; if
+both are set, they must resolve to the same absolute path. The resolver follows
 profile-local `machine`, tool-selection, declaration, config-directory, REST,
 child-profile, and nested critic references. Relative references resolve from
 the YAML file that declares them; `agents/...` references resolve from the
-`agent-profiles` root. The copied destination preserves those runtime paths.
+catalog root. The copied destination preserves those runtime paths.
 Only `/opt/agent-core/...` absolute references are external. Traversal, other
 absolute paths, globs in runtime references, symlinks, dangling references, and
 two sources targeting one destination fail packaging.
@@ -162,7 +164,7 @@ changed-workspace mode is a separate canonical profile variant.
 ## Layout
 
 ```text
-examples/coding-agent/
+applications/coding-agent/
   agents/
     application.yaml
     serving/
@@ -220,10 +222,10 @@ agent, boot-validates all four mounted entry profiles (including
 `critic/profile-workspace.yaml`), and validates formal test-evidence claims
 without turning skipped live runs into passed evidence.
 
-The stats target reports the canonical profile references and application-owned
+The stats target reports the canonical catalog references and application-owned
 serving roles under an `application` key. It deliberately emits no `agents`
 section: planner, executor, and critic implementations are counted once under
-`agent-profiles`, while `agents_contributed: 0` makes that ownership explicit.
+`applications/catalog`, while `agents_contributed: 0` makes that ownership explicit.
 
 The integration entry points are `mage integration:executorLive`,
 `mage integration:plannerDelegation`, `mage integration:criticGate`, and the

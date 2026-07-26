@@ -222,7 +222,7 @@ func canonicalDeploymentInputs(t *testing.T) (integrationRoots, applicationProfi
 	roots := integrationRoots{
 		Application: app,
 		Core:        filepath.Clean(filepath.Join(app, "..", "..", "agent-core")),
-		Profiles:    filepath.Clean(filepath.Join(app, "..", "..", "agent-profiles")),
+		Profiles:    filepath.Clean(filepath.Join(app, "..", "catalog")),
 	}
 	manifest, err := readApplicationProfileManifest(filepath.Join(app, filepath.FromSlash(profileManifestPath)))
 	if err != nil {

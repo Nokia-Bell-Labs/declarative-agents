@@ -17,7 +17,7 @@ trigger: |
   an isolated workspace, model configuration, and critic evaluation inputs.
 
 preconditions:
-  - The application package records the configured agent-profiles checkout revision and compatible release and contains the resolved planner, executor, and critic profile closure.
+  - The application package records the configured applications/catalog checkout revision and compatible release and contains the resolved planner, executor, and critic profile closure.
   - The workspace contains the baseline source and its validation command.
   - The planner and executor model endpoints are reachable.
   - The canonical changed-workspace critic profile and its declared oracle are available.

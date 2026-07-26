@@ -3,7 +3,7 @@ title: Coding Agent Architecture
 
 overview:
   summary: |
-    The coding agent composes three canonical agent-profiles library agents.
+    The coding agent composes three canonical applications/catalog agents.
     The planner reads a requirement graph and SRD context, materializes a task,
     and delegates it to the executor. The executor changes an isolated
     workspace and returns validation evidence. The critic evaluates that
@@ -72,23 +72,23 @@ interfaces:
 
 components:
   - name: planner
-    source: agent-profiles/agents/planner/
-    library_requirement: agent-profiles/docs/specs/software-requirements/srd004-planner.yaml
+    source: applications/catalog/agents/planner/
+    library_requirement: applications/catalog/docs/specs/software-requirements/srd004-planner.yaml
     responsibility: |
       Traverse the requirement graph, assemble and parse a plan, materialize the
       coding task, delegate to the executor, and record execution and validation
       outcomes. The application references this profile; it does not fork it.
   - name: executor
-    source: agent-profiles/agents/executor/
-    library_requirement: agent-profiles/docs/specs/software-requirements/srd002-executor.yaml
+    source: applications/catalog/agents/executor/
+    library_requirement: applications/catalog/docs/specs/software-requirements/srd002-executor.yaml
     responsibility: |
       Receive the task and mounted workspace, invoke the model boundary,
       dispatch filesystem and validation tools, and terminate only after
       machine-declared validation. The application references this profile; it
       does not fork it.
   - name: critic
-    source: agent-profiles/agents/critic/
-    library_requirement: agent-profiles/docs/specs/software-requirements/srd003-critic.yaml
+    source: applications/catalog/agents/critic/
+    library_requirement: applications/catalog/docs/specs/software-requirements/srd003-critic.yaml
     responsibility: |
       Evaluate the existing changed workspace, branch on the declared oracle
       result, and emit the explicit accepted or rejected verdict that gates the
@@ -129,7 +129,7 @@ design_decisions:
     title: Reference canonical library agents
     decision: |
       The application records references to planner, executor, and critic in
-      `agent-profiles/`. It does not copy profiles, declarations, or SRDs.
+      `applications/catalog`. It does not copy profiles, declarations, or SRDs.
     benefits:
       - Each agent has one canonical maintenance and conformance boundary.
       - Library changes reach applications only when a new checkout closure is packaged.
@@ -138,8 +138,9 @@ design_decisions:
   - id: 2
     title: Assemble profile closure at package time
     decision: |
-      `agents/application.yaml` declares a compatible `agent-profiles/v0.*`
-      release and names four direct references: planner, executor, critic
+      `agents/application.yaml` declares a compatible
+      `applications/catalog/v0.*` release and names four direct references:
+      planner, executor, critic
       session, and critic changed-workspace. `mage package` snapshots the
       configured checkout, resolves profile-local references from their
       declaring YAML and `agents/...` references from the library root, then
@@ -278,7 +279,7 @@ technology_choices:
       executor's Go build, v2 lint, and test commands, without embedding
       application profiles in the image.
   - component: Reusable agents
-    technology: agent-profiles
+    technology: applications/catalog
     purpose: Supply canonical planner, executor, and critic profiles and their
       library SRDs.
   - component: Application specification
@@ -316,13 +317,13 @@ project_structure:
     - path: magefiles/
       role: Application packaging, audit, and staged integration targets.
   library:
-    - path: agent-profiles/agents/planner/
+    - path: applications/catalog/agents/planner/
       role: Canonical planner profile.
-    - path: agent-profiles/agents/executor/
+    - path: applications/catalog/agents/executor/
       role: Canonical coding executor profile.
-    - path: agent-profiles/agents/critic/
+    - path: applications/catalog/agents/critic/
       role: Canonical critic profile.
-    - path: agent-profiles/docs/specs/software-requirements/
+    - path: applications/catalog/docs/specs/software-requirements/
       role: Canonical srd002, srd003, and srd004 family requirements.
 
 implementation_status:
@@ -365,9 +366,9 @@ related_documents:
     purpose: End-to-end planner, executor, and critic flow.
   - doc: docs/specs/test-suites/test-rel01.0-coding-loop.yaml
     purpose: Inputs and expected outputs for the three integration stages.
-  - doc: agent-profiles/docs/specs/software-requirements/srd002-executor.yaml
+  - doc: applications/catalog/docs/specs/software-requirements/srd002-executor.yaml
     purpose: Canonical executor family contract.
-  - doc: agent-profiles/docs/specs/software-requirements/srd003-critic.yaml
+  - doc: applications/catalog/docs/specs/software-requirements/srd003-critic.yaml
     purpose: Canonical critic family contract.
-  - doc: agent-profiles/docs/specs/software-requirements/srd004-planner.yaml
+  - doc: applications/catalog/docs/specs/software-requirements/srd004-planner.yaml
     purpose: Canonical planner family contract.

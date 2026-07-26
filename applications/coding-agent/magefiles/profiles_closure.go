@@ -79,13 +79,19 @@ func Package() error {
 	if err != nil {
 		return err
 	}
+	appRoot, err = filepath.Abs(filepath.Clean(appRoot))
+	if err != nil {
+		return fmt.Errorf("coding-agent package: resolve application root: %w", err)
+	}
 	manifestPath := filepath.Join(appRoot, filepath.FromSlash(profileManifestPath))
 	manifest, err := readApplicationProfileManifest(manifestPath)
 	if err != nil {
 		return err
 	}
-	repositoryRoot := filepath.Clean(filepath.Join(appRoot, "..", ".."))
-	profilesRoot := envOrDefault(agentProfilesRootEnv, filepath.Join(repositoryRoot, "agent-profiles"))
+	profilesRoot, err := resolveCatalogRoot("coding-agent package", appRoot)
+	if err != nil {
+		return err
+	}
 	output := envOrDefault(profileOutputEnv, filepath.Join(appRoot, filepath.FromSlash(defaultProfileOutput)))
 	source, err := inspectPackageSource(profilesRoot, manifest.AgentProfiles.CompatibleRelease)
 	if err != nil {
@@ -115,7 +121,10 @@ func readApplicationProfileManifest(filename string) (applicationProfileManifest
 		return manifest, errors.New("application profile manifest has no application")
 	}
 	if !isCompatibleProfileRelease(manifest.AgentProfiles.CompatibleRelease) {
-		return manifest, fmt.Errorf("compatible_release %q must match agent-profiles/v0.*", manifest.AgentProfiles.CompatibleRelease)
+		return manifest, fmt.Errorf(
+			"compatible_release %q must match applications/catalog/v0.* or agent-profiles/v0.*",
+			manifest.AgentProfiles.CompatibleRelease,
+		)
 	}
 	if manifest.Runtime.MountPath != "/profiles" {
 		return manifest, fmt.Errorf("runtime mount_path %q must preserve the mounted-profile contract at /profiles", manifest.Runtime.MountPath)
@@ -198,10 +207,13 @@ func validateServingReferences(references []profileReference) error {
 }
 
 func isCompatibleProfileRelease(version string) bool {
-	const prefix = "agent-profiles/v0."
-	suffix := strings.TrimPrefix(version, prefix)
-	return strings.HasPrefix(version, prefix) && suffix != "" &&
-		!strings.ContainsAny(suffix, `/\`)
+	for _, prefix := range []string{"applications/catalog/v0.", "agent-profiles/v0."} {
+		suffix := strings.TrimPrefix(version, prefix)
+		if strings.HasPrefix(version, prefix) && suffix != "" && !strings.ContainsAny(suffix, `/\`) {
+			return true
+		}
+	}
+	return false
 }
 
 func assembleProfileClosure(manifest applicationProfileManifest, sourceRoot, output string, source packageSource) ([]string, error) {
@@ -449,7 +461,7 @@ func cleanRelativeProfilePath(value string) (string, error) {
 	}
 	clean := path.Clean(filepath.ToSlash(value))
 	if clean == "." || clean == ".." || strings.HasPrefix(clean, "../") {
-		return "", fmt.Errorf("profile path escapes agent-profiles: %s", value)
+		return "", fmt.Errorf("profile path escapes catalog root: %s", value)
 	}
 	return clean, nil
 }
@@ -462,7 +474,7 @@ func secureSourcePath(root, rel string) (string, error) {
 	filename := filepath.Join(root, filepath.FromSlash(clean))
 	relative, err := filepath.Rel(root, filename)
 	if err != nil || relative == ".." || strings.HasPrefix(relative, ".."+string(filepath.Separator)) {
-		return "", fmt.Errorf("profile path escapes agent-profiles: %s", rel)
+		return "", fmt.Errorf("profile path escapes catalog root: %s", rel)
 	}
 	return filename, nil
 }
@@ -547,7 +559,7 @@ func inspectPackageSource(root, compatibleRelease string) (packageSource, error)
 	source.Revision = revision
 	status, statusErr := gitOutput(root, "status", "--porcelain", "--", ".")
 	source.Dirty = statusErr == nil && status != ""
-	exact, tagErr := gitOutput(root, "describe", "--exact-match", "--match", compatibleRelease, "HEAD")
+	exact, tagErr := gitOutput(root, "describe", "--tags", "--exact-match", "--match", compatibleRelease, "HEAD")
 	if tagErr == nil && exact == compatibleRelease && !source.Dirty {
 		source.Kind = "release"
 		source.Release = compatibleRelease

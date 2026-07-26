@@ -15,12 +15,13 @@ import (
 	"path/filepath"
 	"strings"
 	"time"
+
+	"github.com/Nokia-Bell-Labs/declarative-agents/applications/catalog/catalogroot"
 )
 
 const (
-	agentCoreRootEnv     = "AGENT_CORE_ROOT"
-	agentProfilesRootEnv = "AGENT_PROFILES_ROOT"
-	ollamaProbeURLEnv    = "CODING_AGENT_OLLAMA_URL"
+	agentCoreRootEnv  = "AGENT_CORE_ROOT"
+	ollamaProbeURLEnv = "CODING_AGENT_OLLAMA_URL"
 
 	canonicalOllamaURL = "http://localhost:11434"
 	canonicalModel     = "qwen3.6:35b-mlx"
@@ -47,12 +48,51 @@ func resolveIntegrationRoots() (integrationRoots, error) {
 	if err != nil {
 		return integrationRoots{}, err
 	}
+	app, err = filepath.Abs(filepath.Clean(app))
+	if err != nil {
+		return integrationRoots{}, fmt.Errorf("coding-agent integration: resolve application root: %w", err)
+	}
+	catalog, err := resolveCatalogRoot("coding-agent integration", app)
+	if err != nil {
+		return integrationRoots{}, err
+	}
 	repository := filepath.Clean(filepath.Join(app, "..", ".."))
+	core, err := absoluteOwnerPath(os.Getenv(agentCoreRootEnv), app, filepath.Join(repository, "agent-core"))
+	if err != nil {
+		return integrationRoots{}, fmt.Errorf("coding-agent integration: resolve %s: %w", agentCoreRootEnv, err)
+	}
 	return integrationRoots{
 		Application: app,
-		Core:        envOrDefault(agentCoreRootEnv, filepath.Join(repository, "agent-core")),
-		Profiles:    envOrDefault(agentProfilesRootEnv, filepath.Join(repository, "agent-profiles")),
+		Core:        core,
+		Profiles:    catalog,
 	}, nil
+}
+
+func resolveCatalogRoot(owner, startupCWD string) (string, error) {
+	resolution, err := catalogroot.Resolve(
+		owner,
+		startupCWD,
+		os.Getenv(catalogroot.Env),
+		os.Getenv(catalogroot.LegacyEnv),
+		catalogroot.DiscoveryCandidates(startupCWD)...,
+	)
+	if err != nil {
+		return "", err
+	}
+	if diagnostic := resolution.Deprecation(); diagnostic != "" {
+		fmt.Fprintln(os.Stderr, diagnostic)
+	}
+	return resolution.Path, nil
+}
+
+func absoluteOwnerPath(value, startupCWD, fallback string) (string, error) {
+	value = strings.TrimSpace(value)
+	if value == "" {
+		value = fallback
+	} else if !filepath.IsAbs(value) {
+		value = filepath.Join(startupCWD, value)
+	}
+	return filepath.Abs(filepath.Clean(value))
 }
 
 // packageIntegrationRoots snapshots the canonical profile closure into a

@@ -14,7 +14,7 @@ trigger: Run mage integration:helmSmoke.
 
 preconditions:
   - Docker, kind, Helm, kubectl, and the required local images are available.
-  - The agent-core and agent-profiles checkouts are present.
+  - The agent-core and applications/catalog checkouts are present.
 
 flow:
   - id: F1

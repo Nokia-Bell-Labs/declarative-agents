@@ -71,7 +71,7 @@ func TestProfileClosureRejectsTraversal(t *testing.T) {
 	writeTestFile(t, filepath.Join(root, "agents/planner/profile.yaml"), "name: planner\nmachine: ../../../outside.yaml\n")
 	manifest := testProfileManifest("agents/planner/profile.yaml", "agents/planner/profile.yaml")
 	_, err := assembleProfileClosure(manifest, root, filepath.Join(t.TempDir(), "profiles"), testPackageSource())
-	if err == nil || !strings.Contains(err.Error(), "escapes agent-profiles") {
+	if err == nil || !strings.Contains(err.Error(), "escapes catalog root") {
 		t.Fatalf("assemble error = %v, want traversal rejection", err)
 	}
 }
@@ -81,7 +81,7 @@ func TestApplicationManifestRejectsTraversalAndAbsolutePaths(t *testing.T) {
 		name   string
 		source string
 	}{
-		{name: "traversal", source: "../agent-profiles/agents/planner/profile.yaml"},
+		{name: "traversal", source: "../catalog/agents/planner/profile.yaml"},
 		{name: "absolute", source: "/profiles/agents/planner/profile.yaml"},
 	} {
 		t.Run(tc.name, func(t *testing.T) {
@@ -89,7 +89,7 @@ func TestApplicationManifestRejectsTraversalAndAbsolutePaths(t *testing.T) {
 			writeTestFile(t, filename, `schema_version: 1
 application: test
 agent_profiles:
-  compatible_release: agent-profiles/v0.20260724.0
+  compatible_release: applications/catalog/v0.20260724.0
   references:
     - role: planner
       source: `+tc.source+`
@@ -107,6 +107,27 @@ deployment:
 				t.Fatalf("manifest source %q was accepted", tc.source)
 			}
 		})
+	}
+}
+
+func TestApplicationManifestAcceptsCanonicalAndLegacyV0CompatibilityTags(t *testing.T) {
+	for _, release := range []string{
+		"applications/catalog/v0.20260724.0",
+		"agent-profiles/v0.20260724.0",
+	} {
+		if !isCompatibleProfileRelease(release) {
+			t.Errorf("compatible release %q was rejected", release)
+		}
+	}
+	for _, release := range []string{
+		"v0.20260724.0",
+		"applications/catalog/v1.0.0",
+		"applications/catalog/v0.",
+		"applications/catalog/v0.20260724.0/extra",
+	} {
+		if isCompatibleProfileRelease(release) {
+			t.Errorf("incompatible release %q was accepted", release)
+		}
 	}
 }
 
@@ -162,13 +183,53 @@ func TestCheckoutFallbackDoesNotClaimReleaseTag(t *testing.T) {
 	}
 }
 
+func TestPackageSourceRecordsExactCanonicalOrLegacyRelease(t *testing.T) {
+	for _, release := range []string{
+		"applications/catalog/v0.20260724.0",
+		"agent-profiles/v0.20260724.0",
+	} {
+		t.Run(strings.ReplaceAll(release, "/", "-"), func(t *testing.T) {
+			root := t.TempDir()
+			writeTestFile(t, filepath.Join(root, "agents", "profile.yaml"), "name: fixture\n")
+			for _, args := range [][]string{
+				{"init"},
+				{"add", "."},
+				{"-c", "user.name=Coding Agent Test", "-c", "user.email=test@example.invalid", "commit", "-m", "fixture"},
+				{"tag", release},
+			} {
+				if _, err := gitOutput(root, args...); err != nil {
+					t.Fatalf("git %v: %v", args, err)
+				}
+			}
+
+			source, err := inspectPackageSource(root, release)
+			if err != nil {
+				t.Fatal(err)
+			}
+			if source.Kind != "release" || source.Release != release ||
+				source.CompatibleRelease != release || source.Dirty {
+				t.Fatalf("source = %#v, want exact clean release %q", source, release)
+			}
+
+			writeTestFile(t, filepath.Join(root, "agents", "dirty.yaml"), "name: dirty\n")
+			source, err = inspectPackageSource(root, release)
+			if err != nil {
+				t.Fatal(err)
+			}
+			if source.Kind != "checkout" || source.Release != "" || !source.Dirty {
+				t.Fatalf("dirty source = %#v, want checkout provenance", source)
+			}
+		})
+	}
+}
+
 func TestCodingApplicationManifestStagesEveryMountedProfile(t *testing.T) {
 	appRoot := filepath.Clean("..")
 	manifest, err := readApplicationProfileManifest(filepath.Join(appRoot, filepath.FromSlash(profileManifestPath)))
 	if err != nil {
 		t.Fatal(err)
 	}
-	profilesRoot := filepath.Clean(filepath.Join(appRoot, "..", "..", "agent-profiles"))
+	profilesRoot := filepath.Clean(filepath.Join(appRoot, "..", "catalog"))
 	output := filepath.Join(t.TempDir(), "profiles")
 	files, err := assembleProfileClosure(manifest, profilesRoot, output, testPackageSource())
 	if err != nil {
@@ -274,7 +335,7 @@ func TestPackagedManifestRecordsCheckoutAndCompatibleRelease(t *testing.T) {
 	if packaged.Source.Kind != "checkout" || packaged.Source.Release != "" {
 		t.Fatalf("packaged source = %#v, falsely claims release", packaged.Source)
 	}
-	if packaged.Source.CompatibleRelease != "agent-profiles/v0.20260724.0" {
+	if packaged.Source.CompatibleRelease != "applications/catalog/v0.20260724.0" {
 		t.Fatalf("compatible release = %q", packaged.Source.CompatibleRelease)
 	}
 }
@@ -283,7 +344,7 @@ func testProfileManifest(source, runtimePath string) applicationProfileManifest 
 	var manifest applicationProfileManifest
 	manifest.SchemaVersion = 1
 	manifest.Application = "test"
-	manifest.AgentProfiles.CompatibleRelease = "agent-profiles/v0.20260724.0"
+	manifest.AgentProfiles.CompatibleRelease = "applications/catalog/v0.20260724.0"
 	manifest.AgentProfiles.References = []profileReference{{
 		Role: "planner", Source: source, RuntimePath: runtimePath,
 	}}
@@ -294,7 +355,7 @@ func testProfileManifest(source, runtimePath string) applicationProfileManifest 
 func testPackageSource() packageSource {
 	return packageSource{
 		Kind:              "checkout",
-		CompatibleRelease: "agent-profiles/v0.20260724.0",
+		CompatibleRelease: "applications/catalog/v0.20260724.0",
 		Revision:          "test-revision",
 	}
 }

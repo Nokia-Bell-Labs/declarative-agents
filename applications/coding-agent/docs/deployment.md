@@ -30,7 +30,7 @@ host binary, checkout, Docker engine, or pre-pulled image is absent.
 
 ## Package
 
-From `examples/coding-agent`:
+From `applications/coding-agent`:
 
 ```bash
 mage image:build
@@ -53,7 +53,7 @@ an independent archive render.
 
 `mage image:build` builds
 `ghcr.io/nokia-bell-labs/declarative-agents/coding-agent-runtime:0.1.0` from
-`examples/coding-agent/Dockerfile`; set `CODING_AGENT_IMAGE` to build another
+`applications/coding-agent/Dockerfile`; set `CODING_AGENT_IMAGE` to build another
 tag. The live Helm smoke uses this exact recipe. The image contains no profiles,
 but it does contain `agent`, the Go toolchain, the v2.12.2 linter, and core tool
 declarations.

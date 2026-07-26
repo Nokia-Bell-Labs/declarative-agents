@@ -16,7 +16,7 @@ traces:
 preconditions:
   - agent-core is available through AGENT_CORE_ROOT or the repository's agent-core directory and can build the real agent binary.
   - Ollama is reachable with the configured planning and execution models; each live stage skips cleanly when it is unavailable.
-  - The application package snapshots planner, executor, and critic from one compatible agent-profiles checkout and records its revision.
+  - The application package snapshots planner, executor, and critic from one compatible applications/catalog checkout and records its revision.
   - A fresh copy of the greet fixture workspace is used for each stage.
   - The fixture carries its SRD, requirement graph, fallback candidate variants, and expected critic/application terminal outcomes.
 
@@ -34,7 +34,7 @@ test_cases:
       This stage does not invoke the planner or critic.
     inputs:
       agent_binary: production agent-core binary built from AGENT_CORE_ROOT
-      executor_profile: agent-profiles/agents/executor/profile.yaml resolved through the application package
+      executor_profile: applications/catalog/agents/executor/profile.yaml resolved through the application package
       task_prompt: Implement the greeting behavior specified by srd001-greet.yaml.
       workspace: fresh testdata/integration/coding-loop/workspace copy
       model_config: Ollama execution model selected by the fixture
@@ -66,8 +66,8 @@ test_cases:
       permitted.
     inputs:
       agent_binary: production agent-core binary used for both parent and child profile execution
-      planner_profile: agent-profiles/agents/planner/profile.yaml resolved through the application package
-      executor_profile: agent-profiles/agents/executor/profile.yaml resolved through the same package
+      planner_profile: applications/catalog/agents/planner/profile.yaml resolved through the application package
+      executor_profile: applications/catalog/agents/executor/profile.yaml resolved through the same package
       requirement_graph: testdata/integration/coding-loop requirement graph with one ready greet requirement
       srd_context: testdata/integration/coding-loop/srd001-greet.yaml
       workspace: fresh testdata/integration/coding-loop/workspace copy
@@ -105,7 +105,7 @@ test_cases:
       candidate fixture and reports that fallback.
     inputs:
       agent_binary: production agent-core binary used for critic point execution
-      critic_profile: agent-profiles/agents/critic/profile-workspace.yaml resolved through the application package
+      critic_profile: applications/catalog/agents/critic/profile-workspace.yaml resolved through the application package
       accepted_candidate: changed workspace produced by Stage B
       rejected_candidate: fixture variant whose greeting violates srd001-greet.yaml
       fallback_candidate: deterministic conforming fixture used only when Stage B model prerequisites skip

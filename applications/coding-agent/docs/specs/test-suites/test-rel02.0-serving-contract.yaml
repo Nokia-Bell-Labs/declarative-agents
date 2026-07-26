@@ -13,7 +13,7 @@ traces:
   - rel02.0-uc001-remote-coding-request
 
 preconditions:
-  - agent-core and agent-profiles checkouts are available.
+  - agent-core and applications/catalog checkouts are available.
   - The real agent binary can be built.
   - The remote stage starts a deterministic Ollama-compatible boundary; no external model is required.
 

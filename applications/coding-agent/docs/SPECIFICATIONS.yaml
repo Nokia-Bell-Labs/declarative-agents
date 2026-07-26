@@ -6,10 +6,10 @@ overview: |
   01.0 defines the local three-stage loop. Release 02.0 adds the
   application-owned persistent serving contract while continuing to reference
   the canonical executor (srd002), critic (srd003), and planner (srd004)
-  requirements in `agent-profiles/`.
+  requirements in `applications/catalog`.
 
   Library references are not forks. Packaging snapshots the configured checkout
-  compatible with the declared `agent-profiles/v0.*` release, records its
+  compatible with the declared `applications/catalog/v0.*` release, records its
   revision, and assembles the transitive profile closure before deployment. The
   shared agent-core runtime image remains profile-free.
 
@@ -87,19 +87,19 @@ srd_index:
 
 library_srd_references:
   - id: srd002-executor
-    owner: agent-profiles
+    owner: applications/catalog
     title: Executor Functional Block
-    path: ../../agent-profiles/docs/specs/software-requirements/srd002-executor.yaml
+    path: ../../catalog/docs/specs/software-requirements/srd002-executor.yaml
     usage: The live executor stage and planner delegation use its coding-agent inputs, outputs, validation, and terminal outcomes.
   - id: srd003-critic
-    owner: agent-profiles
+    owner: applications/catalog
     title: Critic Functional Block
-    path: ../../agent-profiles/docs/specs/software-requirements/srd003-critic.yaml
+    path: ../../catalog/docs/specs/software-requirements/srd003-critic.yaml
     usage: The critic-gate stage uses its suite, point, oracle, report, and terminal-outcome contract.
   - id: srd004-planner
-    owner: agent-profiles
+    owner: applications/catalog
     title: Planner Functional Block
-    path: ../../agent-profiles/docs/specs/software-requirements/srd004-planner.yaml
+    path: ../../catalog/docs/specs/software-requirements/srd004-planner.yaml
     usage: The planner-delegation stage uses its requirement traversal, task materialization, child-profile execution, and validation contract.
 
 config_format_index: []

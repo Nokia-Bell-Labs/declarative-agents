@@ -84,7 +84,7 @@ func TestPackagedIntegrationRootsDoNotObserveCheckoutMutations(t *testing.T) {
 	writeTestFile(t, filepath.Join(appRoot, "agents", "application.yaml"), `schema_version: 1
 application: test
 agent_profiles:
-  compatible_release: agent-profiles/v0.test
+  compatible_release: applications/catalog/v0.test
   references:
     - {role: executor, source: agents/executor/profile.yaml, runtime_path: agents/executor/profile.yaml}
     - {role: planner, source: agents/planner/profile.yaml, runtime_path: agents/planner/profile.yaml}

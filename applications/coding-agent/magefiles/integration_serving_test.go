@@ -17,7 +17,7 @@ func TestStageServingProfileTreeCombinesClosureAndApplicationProfiles(t *testing
 	roots := integrationRoots{
 		Application: app,
 		Core:        filepath.Clean(filepath.Join(app, "..", "..", "agent-core")),
-		Profiles:    filepath.Clean(filepath.Join(app, "..", "..", "agent-profiles")),
+		Profiles:    filepath.Clean(filepath.Join(app, "..", "catalog")),
 	}
 	root, cleanup, err := stageServingProfileTree(roots)
 	if err != nil {
@@ -104,7 +104,7 @@ func TestPlannerServingFlowUsesDeclaredRemoteBoundaries(t *testing.T) {
 }
 
 func TestCanonicalModelDeclarationsRemainPortable(t *testing.T) {
-	root := filepath.Clean(filepath.Join("..", "..", "..", "agent-profiles", "agents"))
+	root := filepath.Clean(filepath.Join("..", "..", "catalog", "agents"))
 	for _, role := range []string{"planner", "executor"} {
 		declaration := readServingFile(t, root, role, "llm", "default.yaml")
 		if !strings.Contains(declaration, "${OLLAMA_URL:-http://localhost:11434}") {

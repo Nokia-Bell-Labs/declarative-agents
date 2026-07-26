@@ -9,11 +9,11 @@ summary: |
   deterministic ConfigMap partition metadata for the later Helm chart.
 
 actor: A release builder producing coding-agent deployment artifacts.
-trigger: Run mage package from examples/coding-agent.
+trigger: Run mage package from applications/coding-agent.
 
 preconditions:
   - agents/application.yaml names the three serving entry profiles.
-  - The compatible agent-profiles checkout is available.
+  - The compatible applications/catalog checkout is available.
   - Application and canonical source trees contain no symlinks.
 
 flow:
