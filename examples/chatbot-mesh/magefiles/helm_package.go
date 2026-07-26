@@ -125,7 +125,7 @@ func stagePackageChart(chartDir, profilesRoot string) (string, func(), error) {
 	}
 	for _, program := range chartProfilePrograms() {
 		if err := stageProfilePath(
-			filepath.Join(profilesRoot, program.src),
+			chartProfileSource(profilesRoot, program),
 			filepath.Join(chart, program.rel),
 		); err != nil {
 			cleanup()

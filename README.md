@@ -85,9 +85,12 @@ cd examples/chatbot-mesh
 mage audit    # run the jurist over this example's spec corpus (self-governing)
 ```
 
-The example is self-contained — copy the directory to run the mesh independently.
-Its Helm chart is under [`examples/chatbot-mesh/helm/`](examples/chatbot-mesh/helm/)
-and its own docs live under [`examples/chatbot-mesh/docs/`](examples/chatbot-mesh/docs/).
+The example is copyable with two documented platform dependencies: agent-core
+at runtime and the canonical agent-profiles corpus-ingest program at build and
+local-integration time. Set `AGENT_PROFILES_ROOT` when the profile library is
+not in the monorepo checkout. Its Helm chart is under
+[`examples/chatbot-mesh/helm/`](examples/chatbot-mesh/helm/) and its own docs
+live under [`examples/chatbot-mesh/docs/`](examples/chatbot-mesh/docs/).
 
 ## License
 

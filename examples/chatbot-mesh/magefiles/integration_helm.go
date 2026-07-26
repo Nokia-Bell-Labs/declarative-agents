@@ -465,7 +465,7 @@ func stageSmokeChart(chartDir, profilesRoot string) (string, func(), error) {
 		return "", nil, err
 	}
 	for _, p := range chartProfilePrograms() {
-		if err := stageProfilePath(filepath.Join(profilesRoot, p.src), filepath.Join(dst, p.rel)); err != nil {
+		if err := stageProfilePath(chartProfileSource(profilesRoot, p), filepath.Join(dst, p.rel)); err != nil {
 			cleanup()
 			return "", nil, err
 		}
@@ -477,6 +477,8 @@ func stageSmokeChart(chartDir, profilesRoot string) (string, func(), error) {
 // chart's profiles subtree before helm package/install. src names either a
 // directory or a single file.
 type chartProfileProgram struct{ src, rel string }
+
+const canonicalCorpusIngestProgram = "agents/knowledge-manager/corpus-ingest"
 
 // chartProfilePrograms is the single authoritative list of agent programs and
 // ux artifacts staged into the chart's profiles ConfigMap. It MUST cover every
@@ -504,10 +506,18 @@ func chartProfilePrograms() []chartProfileProgram {
 		{"agents/applier", "profiles/agents/applier"},
 		{"agents/collector", "profiles/agents/collector"},
 		{"agents/corpus-ingest", "profiles/agents/corpus-ingest"},
-		{"../../agent-profiles/agents/knowledge-manager/corpus-ingest", "profiles/agents/knowledge-manager/corpus-ingest"},
+		{canonicalCorpusIngestProgram, "profiles/agents/knowledge-manager/corpus-ingest"},
 		{"ux/ux.yaml", "profiles/ux/ux.yaml"},
 		{"ux/app/dist", "profiles/ux/app/dist"},
 	}
+}
+
+func chartProfileSource(meshRoot string, program chartProfileProgram) string {
+	root := meshRoot
+	if program.src == canonicalCorpusIngestProgram {
+		root = corpusIngestLibraryRoot(meshRoot)
+	}
+	return filepath.Join(root, filepath.FromSlash(program.src))
 }
 
 // stageProfilePath copies one staging entry, whether it names a directory or a

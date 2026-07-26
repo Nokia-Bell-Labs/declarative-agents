@@ -51,10 +51,10 @@ func stagedDeclarationFiles(t *testing.T) []string {
 	profilesRoot := filepath.Dir(root)
 	var files []string
 	for _, program := range chartProfilePrograms() {
-		if !strings.HasPrefix(program.src, "agents/") {
+		if !strings.HasPrefix(program.rel, "profiles/agents/") {
 			continue
 		}
-		src := filepath.Join(profilesRoot, program.src)
+		src := chartProfileSource(profilesRoot, program)
 		err := filepath.Walk(src, func(path string, info os.FileInfo, err error) error {
 			if err != nil || info.IsDir() || filepath.Ext(path) != ".yaml" {
 				return err
