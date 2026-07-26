@@ -9,9 +9,10 @@ overview: |
   With the first migration complete, the SRD layer defines migrated profile
   families as functional blocks instead of runtime packages. srd001 now holds
   the cross-cutting profile ownership boundary and dependency-direction
-  invariants, while srd002 through srd011 own one profile family each. The
-  semantic models record role boundaries, dependency directions, and validation
-  views.
+  invariants, while its family_srds inventory names every current shipped
+  family contract and separates fixture-only REST/control/lifecycle contracts.
+  The semantic models record role boundaries, dependency directions, and
+  validation views for every shipped profile.
 
   Architecture decision 4 defines this repository as a versioned reusable-agent
   library. Membership requires independent usefulness or multiple consumers,
@@ -158,8 +159,8 @@ srd_index:
   - id: srd001-agent-functional-blocks
     title: Agent Functional Blocks
     summary: Cross-cutting profile ownership boundary and cross-profile
-      dependency-direction invariants shared by every profile family. Per-family
-      requirements live in srd002 through srd011.
+      dependency-direction invariants shared by every profile family, with
+      machine-readable shipped-family and fixture-contract inventories.
     status: implemented
     path: docs/specs/software-requirements/srd001-agent-functional-blocks.yaml
   - id: srd002-executor
@@ -508,9 +509,10 @@ test_suite_index:
     path: docs/specs/test-suites/test-rel07.1-profile-boundaries.yaml
   - id: test-rel07.1-profile-conformance
     title: Test Suite for Release 07.1 Profile Conformance
-    summary: Executable per-family OpenTelemetry conformance for all ten profile
-      families, traced to srd002-srd011 and sm-agent-role-taxonomy; integration
-      target mage conformance. Nine families run the shipped profile.yaml wrapper
+    summary: Executable per-family OpenTelemetry conformance for the ten
+      Release 07 contracts, traced to srd002-srd011 and
+      sm-agent-role-taxonomy; integration target mage conformance. Nine families
+      run the shipped profile.yaml wrapper
       or a named shipped variant (copy-and-patch only harness-controlled fields),
       so their coverage is shipped-behavioral rather than synthesized; the rest
       sample server boundary is bounded-behavioral (shipped REST config and
@@ -620,7 +622,7 @@ coverage_gaps: |
 
   Release 07.1 adds per-family boundary use cases for the jurist, lifecycle, and
   rest families, which release 07.0 covered only through the generic rel06.0
-  mounted-profile and profile-validation use cases. Every profile family now has
+  mounted-profile and profile-validation use cases. Every Release 07 family has
   a dedicated boundary use case: critic, executor, planner, bench,
   monitor/control, and documentation-curator through release 07.0, and jurist,
   lifecycle, and rest through release 07.1. test-rel07.1-profile-boundaries
@@ -633,7 +635,7 @@ coverage_gaps: |
   Release 07.1 also adds test-rel07.1-profile-conformance, an executable
   per-family conformance suite run by mage conformance. It drives each of the ten
   families through the agent-core CLI and asserts on the captured OpenTelemetry
-  trace (span vocabulary and terminal state), tracing every family to its
+  trace (span vocabulary and terminal state), tracing every Release 07 family to its
   srd002-srd011 acceptance criteria and sm-agent-role-taxonomy role. Coverage is
   shipped-behavioral, not synthesized, for nine families: each runs the shipped
   profile.yaml wrapper (or a named shipped variant), copying it only to patch
@@ -649,7 +651,7 @@ coverage_gaps: |
   sample inbound webhook boundary plus the ollama-profile variant; the executor,
   planner, and rest families each also carry an ungated, model-free
   load-and-wiring companion that asserts shipped-profile load and machine wiring
-  where a gate would otherwise skip the run. All ten families are implemented
+  where a gate would otherwise skip the run. All ten Release 07 cases are implemented
   under AGENT_CORE_ROOT; executor and its qwen variants, the planner behavioral
   run, and the rest ollama-profile variant are Ollama-gated, and lifecycle
   suspend/resume and history/rollback are Dolt-gated. Planner conformance landed
