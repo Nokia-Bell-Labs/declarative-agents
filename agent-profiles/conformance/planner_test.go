@@ -164,14 +164,15 @@ func TestPlannerRetryPolicyWiring(t *testing.T) {
 // Traces srd004-planner: AC1 (load_graph as the graph-boundary action) and AC2
 // (the requirement graph is built into pipeline state).
 func TestPlannerConformance(t *testing.T) {
+	liveTimeout := RequireLiveModel(t, plannerModel)
 	coreRoot := RequireCoreRoot(t)
-	RequireOllama(t, plannerModel)
 
 	corpus := filepath.Join(coreRoot, "pkg", "spec", "testdata", "valid")
 
 	result := Run(t, RunConfig{
 		Profile:   filepath.Join("agents", "planner", "profile.yaml"),
 		Directory: corpus,
+		Timeout:   liveTimeout,
 	})
 
 	// srd004 AC1: the shipped wrapper runs under a single root and selects
