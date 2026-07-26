@@ -1,0 +1,66 @@
+name: core-spec-audit
+purpose: Validate Agent Core specifications without a catalog checkout.
+initial_state: Idle
+states:
+  - {name: Idle, meaning: Initial state.}
+  - {name: Loading, meaning: Loading the specification corpus.}
+  - {name: Validating, meaning: Validating references and structure.}
+  - {name: Searching, meaning: Running declared grep checks.}
+  - {name: Reducing, meaning: Reducing grep evidence.}
+  - {name: Reporting, meaning: Formatting findings.}
+  - {name: Passed, meaning: Terminal success.}
+  - {name: Failed, meaning: Terminal failure.}
+terminal_states: [Passed, Failed]
+signals:
+  - {name: Seed, trigger: Loop initialization.}
+  - {name: ToolDone, trigger: Tool succeeded.}
+  - {name: ToolFailed, trigger: Tool found failures.}
+  - {name: CommandError, trigger: Infrastructure failed.}
+  - {name: ValidationPassed, trigger: Validation passed.}
+  - {name: ValidationFailed, trigger: Validation found errors.}
+  - {name: GrepSearched, trigger: Grep checks completed.}
+transitions:
+  - {state: Idle, signal: Seed, next: Loading, action: load_corpus, label: loaded_corpus}
+  - {state: Loading, signal: ToolDone, next: Validating, action: validate_specs}
+  - {state: Loading, signal: CommandError, next: Failed}
+  - state: Validating
+    signal: ValidationPassed
+    next: Searching
+    action: jurist_rg
+    label: grep_result
+    for_each:
+      items: $from(loaded_corpus).grep_checks
+      as: grep_check
+      mode: sequential
+      failure: collect_all
+      continue_on: [ToolDone, ToolFailed]
+      abort_on: [CommandError]
+      join:
+        next: Searching
+        label: grep_results
+        signals: {all_success: GrepSearched, partial: CommandError, failed: CommandError, empty: GrepSearched}
+  - state: Validating
+    signal: ValidationFailed
+    next: Searching
+    action: jurist_rg
+    label: grep_result
+    for_each:
+      items: $from(loaded_corpus).grep_checks
+      as: grep_check
+      mode: sequential
+      failure: collect_all
+      continue_on: [ToolDone, ToolFailed]
+      abort_on: [CommandError]
+      join:
+        next: Searching
+        label: grep_results
+        signals: {all_success: GrepSearched, partial: CommandError, failed: CommandError, empty: GrepSearched}
+  - {state: Validating, signal: CommandError, next: Failed}
+  - {state: Searching, signal: GrepSearched, next: Reducing, action: reduce_grep_checks}
+  - {state: Searching, signal: CommandError, next: Failed}
+  - {state: Reducing, signal: ValidationPassed, next: Reporting, action: format_report}
+  - {state: Reducing, signal: ValidationFailed, next: Reporting, action: format_report}
+  - {state: Reducing, signal: CommandError, next: Failed}
+  - {state: Reporting, signal: ToolDone, next: Passed}
+  - {state: Reporting, signal: ToolFailed, next: Failed}
+  - {state: Reporting, signal: CommandError, next: Failed}

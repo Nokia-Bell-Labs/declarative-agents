@@ -16,52 +16,6 @@ preconditions:
 
 test_cases:
   - use_case: rel01.0-uc001-generator-coding
-    name: Executor profile loads machine and validation sequence
-    go_test: TestExecutorConfig_MachineLoads
-    status: implemented
-    inputs:
-      profile: ${AGENT_PROFILES_ROOT}/agents/executor/profile.yaml
-      machine: agents/executor/machine.yaml
-      validation_actions: [build, lint, test]
-    expected:
-      machine_loaded: true
-      terminal_states: [Succeeded, Failed, BudgetExceeded]
-      validation_sequence: build_then_lint_then_test
-    planned:
-      # TestExecutorShippedProfileWiring asserts machine_loaded and the terminal
-      # states, but no current test asserts validation_sequence
-      # (build_then_lint_then_test). That assertion is planned, not proven.
-      - validation_sequence build_then_lint_then_test
-    traces:
-      - srd006-yaml-machine-config AC3
-      - srd013-standard-tool-library AC2
-
-  - use_case: rel01.0-uc001-generator-coding
-    name: Executor selected tools load from YAML declarations
-    go_test: TestExecutorConfig_ToolsLoad
-    status: implemented
-    inputs:
-      tools: agents/executor/tools.yaml
-      declarations:
-        - tools/builtin
-        - tools/exec
-    expected:
-      selected_tools_include:
-        - read
-        - write
-        - edit
-        - build
-        - lint
-        - test
-        - invoke_llm
-        - parse_response
-        - done
-    traces:
-      - srd013-standard-tool-library AC1
-      - srd022-builtin-tools AC1
-      - srd023-cli-exec-tools AC4
-
-  - use_case: rel01.0-uc001-generator-coding
     name: list_files executes bounded find within the workspace
     go_test: TestListFilesDeclarationUsesBoundedFindExec, TestListFilesExecPreservesTreeContract, TestListFilesExecHonorsDepthAndSubpath, TestListFilesExecRejectsMissingAndEscapingPaths, TestListFilesExecCapsOutput
     status: implemented
@@ -78,21 +32,6 @@ test_cases:
       - srd013-standard-tool-library AC1
       - srd023-cli-exec-tools AC2
       - srd023-cli-exec-tools AC3
-
-  - use_case: rel01.0-uc001-generator-coding
-    name: Executor transition table validates selected tool emits
-    go_test: TestExecutorConfig_TransitionTable
-    status: implemented
-    inputs:
-      machine: agents/executor/machine.yaml
-      selected_tools: agents/executor/tools.yaml
-    expected:
-      transition_table_builds: true
-      selected_tool_emits_handled: true
-      succeeded_is_terminal: true
-    traces:
-      - srd006-yaml-machine-config AC3
-      - srd022-builtin-tools AC4
 
   - use_case: rel01.0-uc001-generator-coding
     name: Qwen profile strips thinking blocks and extracts tool envelope
@@ -166,75 +105,6 @@ test_cases:
     traces:
       - srd005-agentic-loop AC5
       - srd013-standard-tool-library AC2
-
-  - use_case: rel01.0-uc002-evaluator-benchmark
-    name: Critic session machine loads from profile config
-    go_test: TestCriticConfig_SessionMachineLoads
-    status: implemented
-    inputs:
-      profile: ${AGENT_PROFILES_ROOT}/agents/critic/profile.yaml
-      machine: agents/critic/machine.yaml
-    expected:
-      machine_loaded: true
-      terminal_states: [Done, Failed]
-      transitions_present: true
-    traces:
-      - srd006-yaml-machine-config AC3
-      - srd019-eval-harness AC0
-
-  - use_case: rel01.0-uc002-evaluator-benchmark
-    name: Critic session tools load from selected declarations
-    go_test: TestCriticConfig_ToolsLoad
-    status: implemented
-    inputs:
-      tools: agents/critic/tools.yaml
-      declarations:
-        - agents/critic/builtin.yaml
-        - tools/builtin
-    expected:
-      selected_tools_include:
-        - parse_suite_config
-        - discover_suite_samples
-        - expand_eval_grid
-        - init_eval_session
-        - report_suite_summary
-        - next_point
-        - run_point
-        - report_session
-    traces:
-      - srd019-eval-harness AC0
-      - srd022-builtin-tools AC1
-      - srd022-builtin-tools AC5
-
-  - use_case: rel01.0-uc002-evaluator-benchmark
-    name: Critic session transition table validates emitted signals
-    go_test: TestCriticConfig_TransitionTable
-    status: implemented
-    inputs:
-      machine: agents/critic/machine.yaml
-      selected_tools: agents/critic/tools.yaml
-    expected:
-      transition_table_builds: true
-      emitted_signals_have_transitions: true
-      done_and_failed_terminal: true
-    traces:
-      - srd006-yaml-machine-config AC3
-      - srd022-builtin-tools AC4
-
-  - use_case: rel01.0-uc002-evaluator-benchmark
-    name: Critic point machine prepares isolated workspace
-    go_test: TestCriticConfig_PointTransitionTable
-    status: implemented
-    inputs:
-      point_machine: agents/critic/point.yaml
-      point_tools: agents/critic/tools-point.yaml
-    expected:
-      workspace_tools_selected: true
-      run_agent_selected: true
-      point_terminal_states: [Done, Failed]
-    traces:
-      - srd019-eval-harness AC2
-      - srd021-agent-cli-exec-tool AC3
 
   - use_case: rel01.0-uc002-evaluator-benchmark
     name: Evaluator setup tools expand suite grid and initialize session
@@ -314,53 +184,6 @@ test_cases:
       - srd019-eval-harness AC3
 
   - use_case: rel01.0-uc003-bench-visualization
-    name: Bench profile loads state machine
-    go_test: TestBenchConfig_MachineLoads
-    status: implemented
-    inputs:
-      profile: ${AGENT_PROFILES_ROOT}/agents/bench/profile.yaml
-      machine: agents/bench/machine.yaml
-    expected:
-      machine_loaded: true
-      terminal_states: [Done, Failed]
-      serve_and_launch_states_present: true
-    traces:
-      - srd006-yaml-machine-config AC3
-      - srd020-bench-web-ui AC1
-
-  - use_case: rel01.0-uc003-bench-visualization
-    name: Bench tools load generic lifecycle and child boundaries
-    go_test: TestBenchConfig_ToolsLoad
-    status: implemented
-    inputs:
-      tools: agents/bench/tools.yaml
-      declarations: agents/bench/builtin.yaml
-    expected:
-      rest_lifecycle_selected: true
-      value_predicate_selected: true
-      self_invoke_selected: true
-    traces:
-      - srd020-bench-web-ui AC1
-      - srd022-builtin-tools AC1
-      - srd024-blocking-input-tools AC6
-
-  - use_case: rel01.0-uc003-bench-visualization
-    name: Bench transition table validates UI action flow
-    go_test: TestBenchConfig_TransitionTable
-    status: implemented
-    inputs:
-      machine: agents/bench/machine.yaml
-      selected_tools: agents/bench/tools.yaml
-    expected:
-      serving_action: await_bench_action
-      launching_action: launch_evaluator
-      emitted_signals_have_transitions: true
-    traces:
-      - srd005-agentic-loop AC5
-      - srd020-bench-web-ui AC4
-      - srd022-builtin-tools AC4
-
-  - use_case: rel01.0-uc003-bench-visualization
     name: Evaluation artifact queries preserve bench data
     go_test: TestEvaluationArtifactQueriesPreserveBenchData
     inputs:
@@ -425,17 +248,6 @@ test_cases:
       experiment_returned: true
     traces:
       - srd020-bench-web-ui AC2
-
-  - use_case: rel01.0-uc003-bench-visualization
-    name: Bench documentation API routes are not mounted
-    go_test: TestBenchProfileRoutesExcludeDocumentation
-    inputs:
-      route_prefix: /api/v1/docs
-    expected:
-      list_route_status: 404
-      detail_route_status: 404
-    traces:
-      - srd020-bench-web-ui AC4
 
   - use_case: rel01.0-uc002-evaluator-benchmark
     name: Agent child process args stay profile-first

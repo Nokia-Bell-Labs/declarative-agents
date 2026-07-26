@@ -1,0 +1,52 @@
+name: core-test-evidence-audit
+purpose: Audit Agent Core formal test claims through declared subprocesses.
+initial_state: Idle
+states:
+  - {name: Idle, meaning: Initial state.}
+  - {name: LoadingClaims, meaning: Loading formal claims.}
+  - {name: InventoryModule, meaning: Reading the module path.}
+  - {name: InventoryPackages, meaning: Reading packages.}
+  - {name: NormalizingPackages, meaning: Sorting packages.}
+  - {name: InventoryTests, meaning: Listing tests.}
+  - {name: ResolvingClaims, meaning: Resolving claims.}
+  - {name: RunningTests, meaning: Running tests.}
+  - {name: ReducingTests, meaning: Reducing results.}
+  - {name: Reporting, meaning: Formatting findings.}
+  - {name: Passed, meaning: Terminal success.}
+  - {name: Failed, meaning: Terminal failure.}
+terminal_states: [Passed, Failed]
+signals:
+  - {name: Seed, trigger: Loop initialization.}
+  - {name: ToolDone, trigger: Tool succeeded.}
+  - {name: ToolFailed, trigger: Tool failed.}
+  - {name: CommandError, trigger: Infrastructure failed.}
+  - {name: ValidationPassed, trigger: Validation passed.}
+  - {name: ValidationFailed, trigger: Validation failed.}
+transitions:
+  - {state: Idle, signal: Seed, next: LoadingClaims, action: load_test_claims}
+  - {state: LoadingClaims, signal: ToolDone, next: InventoryModule, action: go_module, label: go_module}
+  - {state: LoadingClaims, signal: CommandError, next: Failed}
+  - {state: InventoryModule, signal: ToolDone, next: InventoryPackages, action: go_packages_raw, label: go_packages_raw}
+  - {state: InventoryModule, signal: ToolFailed, next: Failed}
+  - {state: InventoryModule, signal: CommandError, next: Failed}
+  - {state: InventoryPackages, signal: ToolDone, next: NormalizingPackages, action: go_packages, label: go_packages}
+  - {state: InventoryPackages, signal: ToolFailed, next: Failed}
+  - {state: InventoryPackages, signal: CommandError, next: Failed}
+  - {state: NormalizingPackages, signal: ToolDone, next: InventoryTests, action: go_test_inventory, label: go_test_inventory}
+  - {state: NormalizingPackages, signal: ToolFailed, next: Failed}
+  - {state: NormalizingPackages, signal: CommandError, next: Failed}
+  - {state: InventoryTests, signal: ToolDone, next: ResolvingClaims, action: resolve_test_evidence}
+  - {state: InventoryTests, signal: ToolFailed, next: Failed}
+  - {state: InventoryTests, signal: CommandError, next: Failed}
+  - {state: ResolvingClaims, signal: ValidationPassed, next: RunningTests, action: go_test_run, label: go_test_run}
+  - {state: ResolvingClaims, signal: ValidationFailed, next: Reporting, action: format_report}
+  - {state: ResolvingClaims, signal: CommandError, next: Failed}
+  - {state: RunningTests, signal: ToolDone, next: ReducingTests, action: reduce_test_evidence_run}
+  - {state: RunningTests, signal: ToolFailed, next: ReducingTests, action: reduce_test_evidence_run}
+  - {state: RunningTests, signal: CommandError, next: Failed}
+  - {state: ReducingTests, signal: ValidationPassed, next: Reporting, action: format_report}
+  - {state: ReducingTests, signal: ValidationFailed, next: Reporting, action: format_report}
+  - {state: ReducingTests, signal: CommandError, next: Failed}
+  - {state: Reporting, signal: ToolDone, next: Passed}
+  - {state: Reporting, signal: ToolFailed, next: Failed}
+  - {state: Reporting, signal: CommandError, next: Failed}

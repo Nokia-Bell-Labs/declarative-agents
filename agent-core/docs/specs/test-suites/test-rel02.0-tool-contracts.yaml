@@ -279,12 +279,11 @@ test_cases:
 
   - use_case: rel02.0-uc004-sentence-tool-migration
     name: Deprecated compatibility aggregate is retired
-    go_test: TestShippedProfilesDoNotSelectRetiredValidateAggregator, TestBuiltinFactoryCatalogCoversSelectedActiveInits
+    go_test: TestBuiltinFactoryCatalogCoversSelectedActiveInits
     status: done
     description: |
       Remove the legacy aggregate implementation, declaration, and factory
-      registration. Shipped profiles and compatibility fixtures use explicit
-      validation states and ordinary validation words.
+      registration from Agent Core.
     inputs:
       retired_aggregate: validate
       replacement_sequence: [build, lint, test]
@@ -292,7 +291,6 @@ test_cases:
       implementation_removed: true
       declaration_removed: true
       factory_registration_removed: true
-      shipped_profile_selection_excludes_aggregate: true
       validation_uses_normal_machine_dispatch: true
     traces:
       - srd013-standard-tool-library AC8

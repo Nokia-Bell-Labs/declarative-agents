@@ -1,0 +1,8 @@
+name: core-test-evidence-audit
+machine: audit-machine.yaml
+tools:
+  - audit-tools.yaml
+tool_config_dirs:
+  - /opt/agent-core/tools/builtin/spec-validation
+tool_declarations:
+  - go-test.yaml

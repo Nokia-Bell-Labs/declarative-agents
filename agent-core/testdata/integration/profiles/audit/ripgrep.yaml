@@ -1,0 +1,40 @@
+tools:
+  - name: jurist_rg
+    type: exec
+    binary: rg
+    args: [--json, --line-number, --no-ignore, --hidden, --text, --threads, "1", --sort, path]
+    visibility: internal
+    emits: [ToolDone, ToolFailed, CommandError]
+    parameters:
+      type: object
+      properties:
+        include_glob:
+          type: string
+          flag: --glob
+          position: 1
+          source: $from(grep_check).include_glob
+        exclude_glob:
+          type: string
+          flag: --glob
+          position: 2
+          source: $from(grep_check).exclude_glob
+        query:
+          type: string
+          positional: true
+          position: 3
+          source: $from(grep_check).query
+        path:
+          type: string
+          positional: true
+          position: 4
+          source: $from(grep_check).path
+      required: [query, path]
+    output:
+      mode: structured
+      schema:
+        type: object
+        properties:
+          output: {type: string}
+          exit_code: {type: integer}
+        required: [output, exit_code]
+    output_cap: 1048576
