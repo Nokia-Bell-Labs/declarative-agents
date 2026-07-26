@@ -17,9 +17,10 @@ overview: |
   library. Membership requires independent usefulness or multiple consumers,
   one canonical home, a family SRD, conformance, portable closure, and
   application-safe parameterization. Applications own composition and package
-  referenced closures against exact agent-profiles/v0.* releases. Runtime-test
-  scaffolding remains internal in its current paths and is not promoted as a
-  shipped application-agent contract; no relocation is scheduled or tracked.
+  referenced closures against exact agent-profiles/v0.* releases. Assembler and
+  mock are supported test-time library members under the same release contract.
+  Rig-subject and REST/control/lifecycle conformance fixtures remain internal in
+  their current paths; no relocation is scheduled or tracked for those fixtures.
 
   Release 11.0 adds two test-time families over the agent-core release 09.0
   words: srd018-assembler is the reusable test rig that composes a scenario
@@ -276,6 +277,7 @@ srd_index:
       Scenarios are profile-owned data in tests/<scenario>/ beside the agent, so one
       subject carries several tests and adding one never edits the rig.
     status: in-progress
+    support: supported-test-time
     path: docs/specs/software-requirements/srd018-assembler.yaml
   - id: srd019-mock
     title: Mock Functional Block
@@ -286,6 +288,7 @@ srd_index:
       image, exposes a health route, and records a per-instance request log validators
       read to verify a subject's outbound calls.
     status: in-progress
+    support: supported-test-time
     path: docs/specs/software-requirements/srd019-mock.yaml
 
 config_format_index: []

@@ -564,6 +564,11 @@ releases:
       scripted responses a scenario fixture declares and recording a request
       log validators assert against.
 
+      Both profiles are supported test-time library members. Their paths and
+      behavior are part of the agent-profiles/v0.* public surface even while the
+      release remains in-progress on the evidence gaps below. Rig-subject and
+      other conformance fixtures remain internal test data, not members.
+
       Tests are profile-owned data. A scenario is a tests/<scenario>/
       directory beside the agent it tests, holding validator machines and
       fixtures, so one subject carries several tests and adding one never
