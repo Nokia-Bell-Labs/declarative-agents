@@ -201,6 +201,19 @@ mage audit
 mage stats
 ```
 
+The shared ENG01 operator verbs are:
+
+```bash
+mage doctor      # read-only tool/version and Docker Desktop resource checks
+mage demo:up     # create/reuse da-coding-agent-demo and print .localhost URLs
+mage demo:down   # delete only da-coding-agent-demo
+```
+
+Requested demos fail with actionable guidance when tools, versions, the Docker
+daemon, or host resources are unavailable; integrations retain their documented
+skip behavior. Failed deployment removes only a cluster created by that
+invocation, while a reused demo cluster is always retained.
+
 The audit parses every YAML document, checks required fields and reciprocal
 traces, assembles the application closure in a temporary tree, builds the real
 agent, boot-validates all four mounted entry profiles (including

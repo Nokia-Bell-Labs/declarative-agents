@@ -75,12 +75,13 @@ components:
       request, query the configured Chroma collection, and return chunks with
       embedding-model metadata. The Chroma REST config is owned inline here.
   - name: corpus-ingest agent
-    path: agents/corpus-ingest/ wrapper; ../../agent-profiles/agents/knowledge-manager/corpus-ingest/ program
+    path: agents/corpus-ingest/ wrapper; $AGENT_PROFILES_ROOT/agents/knowledge-manager/corpus-ingest/ canonical build input
     responsibility: |
       Seed a Chroma collection from a document directory: the canonical library
       machine lists trusted paths, the model selects among them, and the machine
       embeds each document and threads its vector into Chroma. The mesh owns only
-      the wrapper and corpus-rest endpoint/model/collection parameterization.
+      the wrapper and corpus-rest endpoint/model/collection parameterization;
+      packaging embeds the resolved canonical closure for runtime use.
   - name: coordinator agent
     path: agents/coordinator/
     responsibility: |

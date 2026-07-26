@@ -114,9 +114,19 @@ bin/agent --profile "$AGENT_PROFILES_ROOT/testdata/conformance/lifecycle/rollbac
   --request requests/rollback.yaml
 ```
 
+Resume a suspended approval fixture through the same root command:
+
+```bash
+bin/agent --profile "$AGENT_PROFILES_ROOT/testdata/conformance/lifecycle/approval/profile.yaml" \
+  --dolt-dsn "$DOLT_DSN" \
+  --resume-checkpoint "$RUN_ID" \
+  --resume-signal Approved
+```
+
 Lifecycle request files carry values such as `checkpoint: latest` or
-`to_iteration: 3`. No lifecycle-only subcommands or checkpoint flags are
-exposed by the binary.
+`to_iteration: 3`. No lifecycle-only subcommands are exposed by the binary;
+resume uses the universal flags above, while history and rollback use request
+files.
 
 Without `--dolt-dsn`, lifecycle persistence uses `NoopCheckpoint` and records no
 durable history. Set `--dolt-dsn` to a MySQL-wire DSN for a running `dolt

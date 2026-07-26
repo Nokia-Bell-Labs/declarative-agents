@@ -25,6 +25,7 @@ var chatbotChartSourceFiles = []string{
 	"README.md",
 	"ci/kind-applier-values.yaml",
 	"ci/kind-config.yaml",
+	"ci/kind-demo-config.yaml",
 	"ci/kind-llm-values.yaml",
 	"ci/kind-values.yaml",
 	"schema-fixtures/README.md",
@@ -125,7 +126,7 @@ func stagePackageChart(chartDir, profilesRoot string) (string, func(), error) {
 	}
 	for _, program := range chartProfilePrograms() {
 		if err := stageProfilePath(
-			filepath.Join(profilesRoot, program.src),
+			chartProfileSource(profilesRoot, program),
 			filepath.Join(chart, program.rel),
 		); err != nil {
 			cleanup()

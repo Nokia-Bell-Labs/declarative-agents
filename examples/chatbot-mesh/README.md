@@ -8,7 +8,12 @@ The chatbot mesh is a copyable example program. A browser-facing chatbot agent r
 
 Every agent is a YAML profile the agent-core runtime loads. There is no bespoke orchestration code: the topology, the routing, the fan-out, and the deployment are configuration. The example demonstrates that a multi-agent system is a program you write in profiles and run on a shared runtime.
 
-The example is a standalone *program*, not a standalone *runtime*. It runs on the published agent-core image the way a jar runs on a JVM. Copy the `examples/chatbot-mesh/` directory and it runs against agent-core with no dependency on any other profile in this repository.
+The example is a copyable *application*, not a standalone runtime or profile
+library. It runs on the published agent-core image and keeps reusable corpus
+ingest behavior canonically owned by `agent-profiles`. A copied directory needs
+that profile checkout only while packaging or running local ingest integrations;
+set `AGENT_PROFILES_ROOT` to it. The resulting Helm archive contains the
+canonical closure and has no runtime dependency on the profile checkout.
 
 For a reader's walkthrough of how the parts fit together — a single chat turn, live reconfiguration, and deployment, with diagrams — see [docs/how-it-works.md](docs/how-it-works.md).
 
@@ -36,10 +41,11 @@ The example spans both planes. The data plane is the chatbot, the RAG servers, a
 
 Four decisions frame the extraction. They are recorded here so a reader understands the shape of the example.
 
-1. Standalone composition on a shared runtime. The example runs on the
+1. Copyable composition on shared platform assets. The example runs on the
    agent-core image. Its corpus-ingest wrapper references the canonical
-   agent-profiles knowledge-manager program; all other application agents remain
-   local. Platform requirements are cited rather than restated.
+   agent-profiles knowledge-manager program through the documented
+   `AGENT_PROFILES_ROOT` build dependency; all other application agents remain
+   local. Packaging embeds that canonical closure into the chart.
 
 2. The mesh owns Chroma retrieval configuration, not reusable ingest behavior.
    The RAG server keeps its Chroma REST config inline, and
@@ -74,10 +80,34 @@ mage integration:controlPlane  # exercise the coordinator and creator control pl
 mage integration:rig           # run hermetic agent scenarios, including collector intake
 ```
 
+The shared ENG01 operator verbs are:
+
+```bash
+mage doctor      # read-only tool/version and Docker Desktop resource checks
+mage demo:up     # create/reuse da-chatbot-mesh-demo and print .localhost URLs
+mage demo:down   # delete only da-chatbot-mesh-demo
+```
+
+`demo:up` is an explicit request, so missing or outdated tools and insufficient
+Docker Desktop resources fail with remediation instead of producing an
+integration-style skip. A cluster created by a failed demo deployment is
+removed; a pre-existing demo cluster is reused and never removed implicitly.
+
+`mage helm:package` and local integrations that exercise corpus ingest resolve
+the canonical program from `AGENT_PROFILES_ROOT`, defaulting to the monorepo's
+`agent-profiles/` directory. Copying this example therefore requires an
+agent-profiles checkout for build/test, but the packaged chart is self-contained
+at runtime and does not silently fork the canonical program.
+
 Run `mage -l` to list the named `integration:*` targets; each skips cleanly when its toolchain is absent. There is no `integration:collector` lifecycle target yet.
 
 `mage audit` is the self-governance gate. It runs the jurist validator over the example's own corpus, so it needs the agent-core runtime (`AGENT_CORE_ROOT`, default sibling `../agent-core`) and the jurist validator profile (`JURIST_PROFILE`, default sibling `agent-profiles/agents/jurist/profile.yaml`) — the two dev-time platform tools this gate depends on. Unlike the optional `integration:*` targets, it fails clearly rather than skipping when either tool is missing, so a copied-out example reports an honest failure instead of a false green.
 
 The agents run on the agent-core image with a mounted profile, for example `agent --profile agents/chatbot/profile.yaml`. The Helm chart deploys the mesh on a kind cluster; see `helm/` for values and CI configuration.
 
-Driving the SPA in a browser needs the browser toolchain described under [Browser End-to-End Tests](../../agent-core/README.md#browser-end-to-end-tests). The `ux/app` package ships no browser driver of its own: the repository's `puppeteer-core` install lives in agent-core, and it launches only when `PUPPETEER_EXECUTABLE_PATH` or `CHROME_BIN` names a system browser.
+Driving the SPA in a browser uses the canonical documentation-curator
+[`ui/docs` package](../../agent-profiles/agents/knowledge-manager/documentation-curator/ui/docs/):
+run `npm ci` there, set `PUPPETEER_EXECUTABLE_PATH` or `CHROME_BIN` to a system
+browser, and invoke its supported `npm run test:e2e:machine-request` script.
+The [browser E2E runbook](../../agent-core/README.md#browser-end-to-end-tests)
+explains why the shared package owns `puppeteer-core` and downloads no browser.

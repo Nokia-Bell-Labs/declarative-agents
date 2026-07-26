@@ -9,10 +9,14 @@ package kindrig
 
 import (
 	"bytes"
+	"context"
+	"errors"
 	"fmt"
 	"io"
 	"os"
 	"os/exec"
+	"path/filepath"
+	"regexp"
 	"strings"
 	"time"
 )
@@ -21,15 +25,44 @@ import (
 // so cluster ownership is testable against a fake kind without a real cluster.
 type Runner func(args ...string) ([]byte, error)
 
+// ContextRunner runs one kind subcommand with cancellation and deadline
+// propagation. Image delivery uses it because loading can block on the local
+// container engine and must remain bounded by the scenario.
+type ContextRunner func(context.Context, ...string) ([]byte, error)
+
+// CommandRunner runs a host command and returns its combined output. Scenarios
+// inject a runner carrying their kubeconfig; DefaultCommandRun uses the current
+// environment.
+type CommandRunner func(name string, args ...string) ([]byte, error)
+
+// FailureEvidence describes the persistent diagnostics to collect when an
+// owned cluster's scenario fails. Directory is the final artifact directory,
+// and Namespaces limits kubectl collection to scenario-owned namespaces.
+type FailureEvidence struct {
+	Directory  string
+	Namespaces []string
+	Run        CommandRunner
+}
+
 // DefaultRun streams kind's output so a multi-minute create still reports
 // progress live, while also capturing it for the caller.
 func DefaultRun(args ...string) ([]byte, error) {
-	cmd := exec.Command("kind", args...)
+	return DefaultRunContext(context.Background(), args...)
+}
+
+// DefaultRunContext streams and captures a context-bound kind subcommand.
+func DefaultRunContext(ctx context.Context, args ...string) ([]byte, error) {
+	cmd := exec.CommandContext(ctx, "kind", args...)
 	var buf bytes.Buffer
 	cmd.Stdout = io.MultiWriter(os.Stderr, &buf)
 	cmd.Stderr = io.MultiWriter(os.Stderr, &buf)
 	err := cmd.Run()
 	return buf.Bytes(), err
+}
+
+// DefaultCommandRun executes a diagnostic command in the current environment.
+func DefaultCommandRun(name string, args ...string) ([]byte, error) {
+	return exec.Command(name, args...).CombinedOutput()
 }
 
 // Cluster records whether this run created the cluster it is using. Only a
@@ -83,6 +116,118 @@ func (c Cluster) Release(run Runner) {
 	}
 }
 
+// ReleaseAfter releases an owned cluster, first persisting failure evidence
+// when the scenario failed. Reused clusters are not inspected or deleted.
+// Evidence errors are reported but never replace the scenario's own result.
+func (c Cluster) ReleaseAfter(run Runner, failed bool, evidence FailureEvidence) {
+	if !c.Created {
+		c.Release(run)
+		return
+	}
+	if failed {
+		if err := evidence.capture(run, c.Name); err != nil {
+			fmt.Printf("kind: capture failure evidence for %s failed: %v\n", c.Name, err)
+		}
+	}
+	c.Release(run)
+}
+
+func (e FailureEvidence) capture(kindRun Runner, cluster string) error {
+	if e.Directory == "" {
+		return fmt.Errorf("evidence directory is required")
+	}
+	if err := os.MkdirAll(e.Directory, 0o755); err != nil {
+		return fmt.Errorf("create evidence directory: %w", err)
+	}
+	var captureErrors []error
+	if err := ExportLogs(kindRun, cluster, filepath.Join(e.Directory, "kind")); err != nil {
+		captureErrors = append(captureErrors, err)
+	}
+	if e.Run == nil {
+		if len(e.Namespaces) > 0 {
+			captureErrors = append(captureErrors, fmt.Errorf("kubectl diagnostic runner is required"))
+		}
+		return errors.Join(captureErrors...)
+	}
+	for _, namespace := range e.Namespaces {
+		if err := e.captureNamespace(namespace); err != nil {
+			captureErrors = append(captureErrors, err)
+		}
+	}
+	return errors.Join(captureErrors...)
+}
+
+func (e FailureEvidence) captureNamespace(namespace string) error {
+	base := "namespace-" + evidenceName(namespace)
+	var captureErrors []error
+	if err := e.captureCommand(base+"-describe.txt", "kubectl",
+		"describe", "all", "-n", namespace); err != nil {
+		captureErrors = append(captureErrors, err)
+	}
+	pods, err := e.Run("kubectl", "get", "pods", "-n", namespace, "-o", "name")
+	if writeErr := writeDiagnostic(
+		filepath.Join(e.Directory, base+"-pods.txt"), pods, err); writeErr != nil {
+		captureErrors = append(captureErrors, writeErr)
+	}
+	if err != nil {
+		captureErrors = append(captureErrors, fmt.Errorf("list pods in %s: %w", namespace, err))
+		return errors.Join(captureErrors...)
+	}
+	for _, pod := range strings.Fields(string(pods)) {
+		if err := e.captureCommand(
+			base+"-"+evidenceName(pod)+"-logs.txt", "kubectl",
+			"logs", "-n", namespace, pod, "--all-containers=true",
+			"--prefix=true", "--tail=-1"); err != nil {
+			captureErrors = append(captureErrors, err)
+		}
+	}
+	return errors.Join(captureErrors...)
+}
+
+func (e FailureEvidence) captureCommand(filename, name string, args ...string) error {
+	output, commandErr := e.Run(name, args...)
+	path := filepath.Join(e.Directory, filename)
+	if err := writeDiagnostic(path, output, commandErr); err != nil {
+		return err
+	}
+	if commandErr != nil {
+		return fmt.Errorf("%s %s: %w", name, strings.Join(args, " "), commandErr)
+	}
+	return nil
+}
+
+func writeDiagnostic(path string, output []byte, commandErr error) error {
+	data := append([]byte(nil), output...)
+	if commandErr != nil {
+		data = append(data, []byte(fmt.Sprintf("\n[command failed: %v]\n", commandErr))...)
+	}
+	if err := os.WriteFile(path, data, 0o644); err != nil {
+		return fmt.Errorf("write diagnostic %s: %w", path, err)
+	}
+	return nil
+}
+
+var nonEvidenceName = regexp.MustCompile(`[^A-Za-z0-9._-]+`)
+var gitRevision = regexp.MustCompile(`^[0-9a-fA-F]{12,64}$`)
+
+func evidenceName(value string) string {
+	return strings.Trim(nonEvidenceName.ReplaceAllString(value, "-"), "-")
+}
+
+// CommitImage returns a local image reference tagged with the tested checkout's
+// 12-character commit revision. The revision is returned for evidence output.
+func CommitImage(repository, revision string) (image, shortRevision string, err error) {
+	revision = strings.TrimSpace(revision)
+	if strings.TrimSpace(repository) == "" {
+		return "", "", fmt.Errorf("image repository is required")
+	}
+	if !gitRevision.MatchString(revision) {
+		return "", "", fmt.Errorf("git revision %q must be 12-64 hexadecimal characters", revision)
+	}
+	shortRevision = strings.ToLower(revision[:12])
+	return repository + ":" + shortRevision, shortRevision, nil
+}
+
 // Exists reports whether the named cluster is in kind's cluster list. An
 // unreadable list reports absent: Ensure then attempts a create, whose own
 // error surfaces, rather than silently reusing an unknown cluster.
@@ -99,14 +244,21 @@ func Exists(run Runner, name string) bool {
 	return false
 }
 
-// LoadImage loads a locally built image into the named cluster's nodes.
-func LoadImage(cluster, image string) error {
-	cmd := exec.Command("kind", "load", "docker-image", image, "--name", cluster)
-	cmd.Stdout, cmd.Stderr = os.Stderr, os.Stderr
-	if err := cmd.Run(); err != nil {
-		return fmt.Errorf("kind load docker-image %s: %w", image, err)
+// LoadImage loads a locally built image into the named cluster's nodes through
+// an injectable, context-aware kind runner.
+func LoadImage(ctx context.Context, run ContextRunner, cluster, image string) error {
+	output, err := run(ctx, "load", "docker-image", image, "--name", cluster)
+	if err == nil {
+		return nil
 	}
-	return nil
+	if contextErr := ctx.Err(); contextErr != nil {
+		err = contextErr
+	}
+	if detail := strings.TrimSpace(string(output)); detail != "" {
+		return fmt.Errorf("kind load docker-image %s into %s: %w: %s",
+			image, cluster, err, detail)
+	}
+	return fmt.Errorf("kind load docker-image %s into %s: %w", image, cluster, err)
 }
 
 // ExportLogs exports the cluster's node and pod logs into destDir so a failed

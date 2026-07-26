@@ -16,7 +16,7 @@ examples/chatbot-mesh/agents/creator/      -> profiles/agents/creator/       (co
 examples/chatbot-mesh/agents/applier/     -> profiles/agents/applier/       (deployment plane, srd006)
 examples/chatbot-mesh/agents/collector/    -> profiles/agents/collector/      (trace ingress, srd007)
 examples/chatbot-mesh/agents/corpus-ingest/ -> profiles/agents/corpus-ingest/  (application wrapper + REST values)
-agent-profiles/agents/knowledge-manager/corpus-ingest/ -> profiles/agents/knowledge-manager/corpus-ingest/ (canonical program)
+$AGENT_PROFILES_ROOT/agents/knowledge-manager/corpus-ingest/ -> profiles/agents/knowledge-manager/corpus-ingest/ (canonical program)
 examples/chatbot-mesh/ux/ux.yaml            -> profiles/ux/ux.yaml            (UI descriptor; co-generated key)
 examples/chatbot-mesh/ux/app/dist/          -> profiles/ux/app/dist/          (built SPA the chatbot serves at /ui)
 ```
@@ -25,7 +25,11 @@ Corpus ingest is the reference-mechanism exception to the otherwise
 example-local source list: the mesh owns only a wrapper profile and its
 `corpus-rest.yaml` parameterization. Machine, tools, and declarations come from
 the canonical `agent-profiles` library directory and are staged at the same
-runtime path the wrapper references.
+runtime path the wrapper references. `AGENT_PROFILES_ROOT` selects that checkout
+when the example has been copied away from the monorepo; in-tree builds default
+to the repository's `agent-profiles/` directory. The checkout is required to
+build and test corpus ingest, while the resulting chart archive contains the
+resolved files and needs no profile checkout at runtime.
 
 The ux contributes those two entries, not its whole tree. Every file staged
 under `profiles/` becomes a ConfigMap key and a projected mount item in *every*

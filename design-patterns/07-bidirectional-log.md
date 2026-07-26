@@ -6,6 +6,12 @@ This chapter presents the Bidirectional Log pattern, which treats the recorded e
 
 Record execution as an ordered log persisted one commit per step, so recovery from a mistaken step is mechanical rather than probabilistic: rewind the persisted state with a git-style revert, then reverse the external effects by replaying each step's receipt through its tool's Undo.
 
+## Reference implementation status
+
+The runtime ships the typed checkpoint port, Dolt commit-per-step history and `Revert`, receipt persistence, reverse receipt walking, and the internal `checkpoint_rollback` lifecycle tool. Focused tests cover DB rewind and clean or partially failed receipt reversal.
+
+No production coding-agent profile routes validation failure into `checkpoint_rollback`, and the deployment confirmation flow exists only as the Approval Gate conformance/design material in Chapter 10. Automatic coding retry, gated deployment recovery, and generated compensation for mixed API plans are design intent.
+
 ## Motivation
 
 An execution is not an append-only log. Logs record the past; an execution is a record the engine traverses both ways. Forward traversal is normal execution: dispatch a tool, record $(state, signal, tool, result)$ together with the tool's opaque receipt, commit the step, and advance. Backward traversal is undo: revert the persisted state to a target step, then hand each reverted entry's restored result back to its tool's `Undo` in reverse order. Both directions read the same record. Because every entry carries the tool's receipt — everything needed to reverse that one step — no separate undo log exists.
@@ -121,15 +127,19 @@ Tier classification turns into active planning strategies: **speculative executi
 
 ## Relationships in the Pattern Language
 
-Bidirectional Log sits within Machine Interpreter and requires Machine Interpreter and Tool Contract: rollback needs a closed execution record plus tool-level receipt-driven undo and reversibility declarations. It enables Approval Gate, which checkpoints before an external decision, and Operator Port, which can expose rollback and lifecycle operations safely through the running machine. The complete grammar is maintained in `pattern-language.yaml`.
+Bidirectional Log sits within Machine Interpreter and requires Machine Interpreter and Tool Contract: rollback needs a closed execution record plus tool-level receipt-driven undo and reversibility declarations. It enables Approval Gate, which checkpoints before an external decision, and a complete Operator Port may expose rollback and lifecycle operations through the running machine. The complete grammar is maintained in `pattern-language.yaml`.
+
+## Design intent scenarios
+
+**Automatic coding recovery.** A future coding profile could route validation failure into `checkpoint_rollback`, restore files through receipts, and retry with clean context. No production profile wires this transition.
+
+**Gated deployment recovery.** A future deployed Approval Gate could set a rollback floor before an irreversible deploy and restore reversible pre-deploy effects after a failed verification. The shipped approval material is a conformance fixture and does not deploy or roll back rejection.
+
+**Generated API compensation.** A future planner could derive compensation order for mixed resource creation and irreversible notifications from the execution. No shipped profile demonstrates this orchestration.
 
 ## Known Uses
 
-**Coding agents.** Generators write files speculatively; when validation fails, `checkpoint_rollback` reverts the Dolt history to the last good step and replays the intervening receipts to restore the files, and the model retries with clean context instead of debugging its own contaminated history.
-
-**Gated deployment.** An approval gate before an irreversible `deploy` tool sets the rollback floor; if post-deploy checks fail for reasons outside the deploy itself, execution returns to the pre-deploy step — the database reverted and reversible effects undone through their receipts — while the deploy is logged as non-reversible (Chapter 10).
-
-**Multi-step API plans.** Sequences mixing compensatable resource creation and irreversible notifications let the lifecycle tool derive the compensation order from the execution: created resources are deleted through their receipts in reverse order, and irreversible steps are logged, without a hand-written compensation sequence.
+**Reference rollback mechanics.** The Dolt checkpoint adapter versions each dispatch, reverts persisted Position and Execution to a selected step, and keeps receipts separate from redacted tool output. The lifecycle receipt walker invokes tool-owned `Undo` in reverse order, continues past classified failures, and reports skipped effects.
 
 **Database transactions and rollback** [@gray-1978]. The canonical model of a durable, reversible sequence of operations with a commit boundary, where rollback restores the prior consistent state, is more than an analogue here: the Dolt backend literally commits each step and reverts to a prior consistent state.
 

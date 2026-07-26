@@ -64,9 +64,7 @@ func TestChartStagesCanonicalCorpusIngestReference(t *testing.T) {
 	found := false
 	for _, program := range chartProfilePrograms() {
 		if program.rel == "profiles/agents/knowledge-manager/corpus-ingest" {
-			found = strings.Contains(
-				filepath.ToSlash(program.src),
-				"agent-profiles/agents/knowledge-manager/corpus-ingest")
+			found = program.src == canonicalCorpusIngestProgram
 		}
 	}
 	if !found {

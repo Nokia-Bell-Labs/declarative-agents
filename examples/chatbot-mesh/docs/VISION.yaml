@@ -1,5 +1,5 @@
 id: chatbot-mesh-example
-title: "Chatbot Mesh: A Standalone Declarative Agent Example"
+title: "Chatbot Mesh: A Copyable Declarative Agent Application"
 
 executive_summary: |
   The chatbot mesh is a copyable example program. It shows what a mesh of
@@ -9,12 +9,11 @@ executive_summary: |
   per-agent and cross-agent observability, and deploys as one Helm chart with an
   in-cluster model tier.
 
-  The example is a standalone program, not a standalone runtime. It runs on the
-  published agent-core image: the agents are YAML profiles the runtime loads, and
-  the example cites agent-core platform requirements as external references
-  rather than restating them. Copy the `examples/chatbot-mesh/` directory and it
-  runs against the agent-core runtime with no dependency on the other profiles in
-  this repository.
+  The example is a copyable application, not a standalone runtime or profile
+  library. It runs on the published agent-core image and resolves the reusable
+  corpus-ingest program from a canonical agent-profiles checkout at build/test
+  time. Packaging embeds that closure, so the resulting chart has no runtime
+  dependency on the checkout.
 
   The example spans the data plane -- the chatbot, the RAG servers, a corpus-ingest
   agent that seeds the vector store, observability, and Helm deployment -- and the
@@ -32,15 +31,18 @@ problem: |
   We want a reader to open one directory and see a complete declarative agent
   program: the agents, their user interface, their deployment, and their own
   specifications. We want that directory to be copyable, so it can seed a new
-  project without carrying the rest of the catalog.
+  project while declaring, rather than silently duplicating, its canonical
+  profile dependency.
 
 what_this_does: |
   This directory collects the mesh as a self-governing project. The `agents/`
-  tree holds the chatbot, the RAG server, and the corpus-ingest seed agent, each
-  self-contained. The `ux/` tree holds the single-page application and its UX
-  config. The `helm/` tree holds the deployment chart. The `docs/` tree holds this
-  vision, the architecture, the road map, and the example's own software
-  requirements, use cases, and test suites.
+  tree holds the chatbot, the RAG server, and the corpus-ingest application
+  wrapper. The canonical ingest machine, tools, and declarations remain owned by
+  agent-profiles and are resolved during packaging. The `ux/` tree holds the
+  single-page application and its UX config. The `helm/` tree holds the
+  deployment chart. The `docs/` tree holds this vision, the architecture, the
+  road map, and the example's own software requirements, use cases, and test
+  suites.
 
   The example carries its own build entry. A magefile validates the example's
   specification corpus and runs the mesh integration targets, so the example
@@ -52,20 +54,23 @@ why_we_build_this: |
   configuration rather than bespoke code, and that the same profiles run locally
   and in a cluster.
 
-  Self-containment lets the example travel. Chroma retrieval config, the seed
-  agent, and the deployment chart live with the mesh, so copying the folder
-  copies a working program. Shared retrieval config that belongs to other
-  examples stays with those examples.
+  A declared dependency boundary lets the example travel without forking shared
+  behavior. Chroma retrieval config, the corpus-ingest wrapper, and the
+  deployment chart live with the mesh. Packaging resolves the reusable ingest
+  program from the canonical agent-profiles checkout and embeds that closure in
+  the chart; the checkout is a build/test dependency, not a runtime dependency.
 
 success_criteria:
-  standalone_program: |
-    The example runs on the published agent-core image and references no profile
-    outside `examples/chatbot-mesh/`. Its only external dependencies are the
-    agent-core runtime and its documented platform requirements.
+  copyable_application: |
+    The example runs on the published agent-core image. A copied directory uses
+    the documented AGENT_PROFILES_ROOT build/test dependency for the canonical
+    corpus-ingest program, and the packaged chart carries the resolved closure
+    without requiring that checkout at runtime.
   self_contained_data_plane: |
     The chatbot, the RAG server, and the corpus-ingest seed agent run end to end
-    from this directory. Chroma retrieval config is owned by the mesh, not shared
-    from another family.
+    from this directory after resolving the documented canonical build
+    dependency. Chroma retrieval config is owned by the mesh, not shared from
+    another family.
   self_governing_docs: |
     The example owns its VISION, ARCHITECTURE, road map, software requirements,
     use cases, and test suites. Its magefile audit validates that corpus.

@@ -70,7 +70,9 @@ A single benchmark point flows through all three tiers: bench launches an evalua
 
 ### Trace propagation
 
-Composition requires traces to cross boundaries (Chapter 8). Subprocess children receive a W3C `traceparent` and root their `agent.run` under the parent's boundary span, writing their own trace file with a shared trace ID. Nested machines share the tracer instance, so their spans attach directly to the parent span. With `$tool` dispatch no propagation is needed; it stays in the current machine and span context.
+The pattern requires trace context to cross each child-execution boundary (Chapter 8). The shipped subprocess path meets that requirement: it serializes the active span as W3C `traceparent`, and the child roots its `agent.run` under the parent's boundary span while writing a separate trace file with the shared trace ID. `$tool` dispatch stays in the current machine and span context, so it needs no propagation.
+
+Nested evaluator machines are a reference-implementation limitation, not evidence for the generic claim. The shipped `run_point` path supplies `tracing.NoopTracer{}` to the child loop. Bench-to-critic and critic-to-executor dispatch therefore execute and return structured results, but the nested point emits no spans to attach to its parent. Passing the active tracer and parent context through `run_point`, then testing the resulting parent/child span IDs, remains design intent.
 
 
 ## Consequences
@@ -87,7 +89,7 @@ A child inherits a subset of its parent's authority. Bench's full budget narrows
 
 #### Trace coherence and deterministic termination
 
-Hierarchical traces form trees that standard tools visualize; parents enforce termination on children through budgets and timeouts, surfacing `BudgetExceeded` at the boundary.
+When every boundary adapter propagates context, hierarchical traces form trees that standard tools visualize. Parents independently enforce termination through budgets and timeouts, surfacing `BudgetExceeded` at the boundary.
 
 ### Liabilities
 
@@ -99,6 +101,10 @@ A parent cannot call `Undo` on a child's individual tools; it can only run the c
 
 All composition flows parent-to-child; there is no peer-to-peer negotiation. Workflows that seem to need it are restructured as a parent querying both children and merging results, preserving authority, trace, and termination guarantees that unrooted peers would lack.
 
+#### Adapter-specific trace gaps
+
+Structural composition does not prove trace composition. Every boundary adapter needs its own propagation test; a no-op child tracer preserves dispatch semantics while silently breaking the span tree. The reference `run_point` adapter currently has this limitation.
+
 
 ## Implementation
 
@@ -109,7 +115,7 @@ All composition flows parent-to-child; there is no peer-to-peer negotiation. Wor
 | Mechanism | Isolation | Overhead | Child execution |
 |---|---|---|---|
 | Subprocess | Process boundary | High | Separate trace file |
-| Nested machine | Shared memory | Near zero | Embedded in parent entry |
+| Nested machine | Shared memory | Near zero | Independent nested run; evaluator currently records no child spans |
 | `$tool` dispatch | Same machine | None | None |
 
 ### Profile-driven declaration
@@ -123,7 +129,7 @@ A boundary tool's receipt encodes a coarse compensation for the whole child exec
 
 ## Relationships in the Pattern Language
 
-Boundary Tool sits within Machine Interpreter and requires Machine Interpreter, Tool Contract, and Transition Spans: delegation is one declared tool call, its outcome is one signal, and trace context links the child execution to the parent. It overlaps Inference Boundary because both encapsulate boundary crossings, but Boundary Tool is the broader composition mechanism for child actors and sub-machines. The complete grammar is maintained in `pattern-language.yaml`.
+Boundary Tool sits within Machine Interpreter and requires Machine Interpreter, Tool Contract, and Transition Spans: delegation is one declared tool call, its outcome is one signal, and a complete boundary adapter links the child trace to the parent. It overlaps Inference Boundary because both govern boundary crossings, but Boundary Tool is the broader composition mechanism for child actors and sub-machines. The complete grammar is maintained in `pattern-language.yaml`.
 
 
 ## Known Uses

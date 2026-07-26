@@ -58,6 +58,43 @@ func TestHelmPackageIsRepeatableAndExcludesGeneratedInputs(t *testing.T) {
 	}
 }
 
+func TestHelmPackageRunsFromCopiedStandaloneLayout(t *testing.T) {
+	if _, err := exec.LookPath("helm"); err != nil {
+		t.Skip("helm not on PATH")
+	}
+	standalone := filepath.Join(t.TempDir(), "chatbot-mesh")
+	for _, dir := range []string{"helm", "agents", "ux/app/dist"} {
+		if err := copyDirContents(
+			filepath.Join("..", filepath.FromSlash(dir)),
+			filepath.Join(standalone, filepath.FromSlash(dir))); err != nil {
+			t.Fatalf("copy standalone %s: %v", dir, err)
+		}
+	}
+	writePackageTestFile(t, filepath.Join(standalone, "ux", "ux.yaml"),
+		string(mustReadPackageTestFile(t, filepath.Join("..", "ux", "ux.yaml"))))
+	canonicalRoot, err := filepath.Abs(filepath.Join("..", "..", "..", "agent-profiles"))
+	if err != nil {
+		t.Fatal(err)
+	}
+	t.Setenv("AGENT_PROFILES_ROOT", canonicalRoot)
+
+	destination := filepath.Join(standalone, "helm", "dist")
+	if err := packageHelmChart(
+		filepath.Join(standalone, "helm"), standalone, destination); err != nil {
+		t.Fatalf("package copied standalone layout: %v", err)
+	}
+	files := chatbotArchiveFileNames(
+		t, filepath.Join(destination, "chatbot-mesh-0.1.0.tgz"))
+	for _, required := range []string{
+		"chatbot-mesh/profiles/agents/corpus-ingest/profile.yaml",
+		"chatbot-mesh/profiles/agents/knowledge-manager/corpus-ingest/machine.yaml",
+	} {
+		if !containsArchiveFile(files, required) {
+			t.Errorf("standalone archive missing %s", required)
+		}
+	}
+}
+
 func TestChatbotChartSourceInventoryRejectsDrift(t *testing.T) {
 	cases := []struct {
 		name   string
@@ -148,6 +185,15 @@ func writePackageTestFile(t *testing.T, path, content string) {
 	if err := os.WriteFile(path, []byte(content), 0o644); err != nil {
 		t.Fatal(err)
 	}
+}
+
+func mustReadPackageTestFile(t *testing.T, path string) []byte {
+	t.Helper()
+	data, err := os.ReadFile(path)
+	if err != nil {
+		t.Fatal(err)
+	}
+	return data
 }
 
 func TestHelmPackageContainsRequiredProfileEntrypoints(t *testing.T) {

@@ -3,7 +3,10 @@
 package main
 
 import (
+	"os"
+	"path/filepath"
 	"reflect"
+	"strings"
 	"testing"
 )
 
@@ -38,6 +41,29 @@ func TestCodingAgentParticipatesInAudit(t *testing.T) {
 	}
 	if !contains(exampleModules, "examples/coding-agent") {
 		t.Fatal("coding-agent owns tests and stats and must participate as an example module")
+	}
+}
+
+func TestRepositoryIndexLinksEveryOrchestratedModule(t *testing.T) {
+	readme, err := os.ReadFile(filepath.Join("..", "README.md"))
+	if err != nil {
+		t.Fatal(err)
+	}
+	index := string(readme)
+	modules := append(append([]string{}, subModules...), exampleModules...)
+	for _, module := range modules {
+		link := "[`" + module + "/`](" + module + "/)"
+		if !strings.Contains(index, link) {
+			t.Errorf("root module index missing %s", link)
+		}
+		info, err := os.Stat(filepath.Join("..", filepath.FromSlash(module)))
+		if err != nil {
+			t.Errorf("indexed module %s does not resolve to a directory: %v", module, err)
+			continue
+		}
+		if !info.IsDir() {
+			t.Errorf("indexed module %s is not a directory", module)
+		}
 	}
 }
 

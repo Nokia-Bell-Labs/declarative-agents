@@ -58,7 +58,7 @@ The registry indexes tool declarations by name; factories instantiate live tools
 
 Adapters provide concrete implementations behind ports (LLM, telemetry, filesystem, HTTP). They isolate external systems so the declarative agent definition remains data-first and swappable.
 
-A coding agent (`generator`), an evaluator (`evaluator`), a benchmark orchestrator (`bench`), and a deterministic spec validator (`jurist`) are four profile directories pointing at the same binary.
+The shipped `executor`, `critic`, `bench`, and `jurist` profile families all point at the same binary. Elsewhere in the monograph, *generator* and *evaluator* describe conceptual roles; they are not current catalog family names.
 
 
 ## Collaborations
@@ -142,7 +142,7 @@ HTTP APIs use a `rest` type: a `rest.yaml` holds base URL, auth, and headers; pe
 
 ### Profile composition
 
-A profile references tool-declaration roots; multiple profiles share a root to inherit a common tool set, and a profile-specific root overrides shared declarations (later root wins). The package diagram in Fig. 8 shows the generator and evaluator profiles importing a shared `core/` library plus their own overrides.
+A profile references tool-declaration roots; multiple profiles share a root to inherit a common tool set, and a profile-specific root overrides shared declarations (later root wins). The package diagram in Fig. 8 shows the executor and critic profiles importing a shared `core/` library plus their own overrides.
 
 ![](figures/fig-09-profile-packages.png)
 
@@ -159,9 +159,9 @@ Agent-as-Data sits within Machine Interpreter and requires both Machine Interpre
 
 ## Known Uses
 
-**One binary, many agents.** A coding agent (`generator`), an evaluator (`evaluator`), a benchmark orchestrator (`bench`), and a deterministic spec validator (`jurist`) are four profile directories over the same binary; new agents and tools are written in YAML, and compiled-code changes are infrequent and confined to adapters and factories.
+**One binary, many agents.** The `executor`, `critic`, `bench`, and `jurist` families are profile directories over the same binary; new agents and tools are written in YAML, and compiled-code changes are infrequent and confined to adapters and factories.
 
-**Model-comparison grids.** Generator profiles share a machine and tools but bind different `llm` configs; the bench/evaluator stack (Chapter 9) runs the grid and attributes outcome differences to the model because the evaluator can confirm two runs used the same machine byte-for-byte.
+**Model-comparison grids.** Executor profiles share a machine and tools but bind different `llm` configs; the bench/critic stack (Chapter 9) runs the grid and attributes outcome differences to the model because the critic can confirm two runs used the same machine byte-for-byte.
 
 **CI validation gates.** Schema, machine, and contract validation run on every change, so an agent with an unreachable state, an unhandled signal, or an incomplete tool contract fails the build before it ships.
 
