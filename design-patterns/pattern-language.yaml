@@ -915,15 +915,16 @@ patterns:
       carries a child profile reference, not a code dependency; it collapses the
       child's whole execution into one signal the parent routes on. Hierarchy
       comes from stacking boundaries, not from nesting machines; authority
-      attenuates at each boundary; traces propagate so children root under the
-      parent.
+      attenuates at each boundary. A complete boundary adapter propagates trace
+      context so the child roots under the parent.
     implementation: >
       A delegation tool is a Tool Contract whose Execute launches a child
       profile and returns one parent-level signal such as ChildSucceeded or
       ChildFailed. Pass only attenuated authority, budget, context, and trace
-      context into the child. The parent may compensate the child boundary as a
-      whole, but it must not reach inside the child's execution log to undo
-      individual tools.
+      context into the child, and test propagation for each adapter rather than
+      inferring it from successful dispatch. The parent may compensate the child
+      boundary as a whole, but it must not reach inside the child's execution
+      log to undo individual tools.
     consequences:
       benefits:
         - Isolation with flat machines; complexity stays local.
@@ -931,6 +932,7 @@ patterns:
       liabilities:
         - A parent can only run a child's coarse boundary compensation, not undo the child's individual tools.
         - Composition is strictly hierarchical; there is no peer-to-peer negotiation.
+        - Boundary adapters can compose execution while leaving a trace gap; the current evaluator run_point uses a no-op child tracer.
     grammar:
       within: [machine-interpreter]
       requires: [machine-interpreter, tool-contract, transition-spans]
@@ -939,8 +941,8 @@ patterns:
       overlaps: [inference-boundary]
     syntax: >
       Over a Machine Interpreter, wrap a child Agent-as-Data as one boundary
-      Tool Contract; Transition Spans propagate the parent trace into the
-      child, and the Bidirectional Log compensates the child as a whole.
+      Tool Contract; require each adapter to propagate Transition Spans into the
+      child, and use the Bidirectional Log to compensate the child as a whole.
     examples:
       - system: Supervisor trees (Erlang/OTP)
         cite: armstrong-2003
@@ -957,7 +959,7 @@ patterns:
       - system: Reference implementation — bench/evaluator/generator stack
         cite: reference-implementation
         kind: internal
-        note: Bench delegates to critics via self_invoke; critics run executors via nested run_point; a benchmark point traverses all three with complexity isolated at each level.
+        note: Bench delegates to critics via self_invoke; critics run executors via nested run_point; this shipped evidence covers hierarchical dispatch, not nested trace linkage.
         evidence:
           classification: shipped
           checks:
@@ -965,6 +967,15 @@ patterns:
               contains: [self_invoke]
             - path: agent-profiles/agents/critic/machine.yaml
               contains: [run_point]
+      - system: Reference implementation — nested run_point trace propagation
+        cite: reference-implementation
+        kind: internal
+        note: Nested span linkage is design intent; the shipped evaluator supplies a no-op tracer to run_point, so the child emits no linked spans.
+        evidence:
+          classification: design_intent
+          checks:
+            - path: agent-core/internal/evaluation/eval_run_point.go
+              contains: [tracing.NoopTracer]
     provenance: [reference-implementation, external-corroboration]
 
   # ---------------------------------------------------------------------------
