@@ -94,6 +94,7 @@ type fakeDB struct {
 	failOn     string
 	failOnCall int
 	failSeen   int
+	failErr    error
 	// outputBytes accumulates the size of every output blob written to
 	// tool_outputs, so a benchmark can measure the per-step write-layer cost.
 	outputBytes            int
@@ -125,6 +126,9 @@ func (f *fakeDB) Exec(query string, args ...any) error {
 	if f.failOn != "" && strings.Contains(query, f.failOn) {
 		f.failSeen++
 		if f.failOnCall == 0 || f.failSeen == f.failOnCall {
+			if f.failErr != nil {
+				return f.failErr
+			}
 			return sql.ErrConnDone
 		}
 	}
@@ -274,6 +278,12 @@ func deleteRowsAtOrAfter[T any](rows map[string]T, runID string, step int) {
 func (f *fakeDB) QueryRow(query string, args ...any) Scanner {
 	f.calls = append(f.calls, query)
 	switch {
+	case strings.Contains(query, "FROM dolt_branches"):
+		count := 0
+		if f.branches[args[0].(string)] {
+			count = 1
+		}
+		return &fakeScanner{kind: "count", count: count}
 	case strings.Contains(query, "information_schema.columns"):
 		count := 0
 		if strings.Contains(query, "table_name = 'machines'") && f.machinesHasIterator {

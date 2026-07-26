@@ -218,8 +218,15 @@ func reconcileExecution(tx Transaction, runID string, length int) error {
 // ErrNoCheckpoint when the branch or its rows do not exist
 // (srd036-dolt-state-persistence R5).
 func (d *DoltCheckpoint) Load() (Position, Execution, error) {
-	if err := d.db.Exec(`CALL DOLT_CHECKOUT(?)`, d.runID); err != nil {
+	exists, err := doltBranchExists(d.db, d.runID)
+	if err != nil {
+		return Position{}, nil, fmt.Errorf("%w: load: inspect branch %q: %v", ErrDolt, d.runID, err)
+	}
+	if !exists {
 		return Position{}, nil, ErrNoCheckpoint
+	}
+	if err := d.db.Exec(`CALL DOLT_CHECKOUT(?)`, d.runID); err != nil {
+		return Position{}, nil, fmt.Errorf("%w: load: checkout branch %q: %v", ErrDolt, d.runID, err)
 	}
 	pos, err := loadMachine(d.db, d.runID)
 	if err != nil {
@@ -238,6 +245,15 @@ func (d *DoltCheckpoint) Load() (Position, Execution, error) {
 	d.persistedExecution = cloneExecution(exec)
 	d.hasPersistedExecution = true
 	return pos, exec, nil
+}
+
+func doltBranchExists(db Database, branch string) (bool, error) {
+	var count int
+	err := db.QueryRow(`SELECT COUNT(*) FROM dolt_branches WHERE name = ?`, branch).Scan(&count)
+	if err != nil {
+		return false, err
+	}
+	return count > 0, nil
 }
 
 // Merge merges the run branch to main and deletes it, run on a terminal state
