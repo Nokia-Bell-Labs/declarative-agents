@@ -20,6 +20,7 @@ type Conversation struct {
 	systemPrompt string
 	opts         ChatOptions
 
+	turnMu   sync.Mutex
 	mu       sync.RWMutex
 	messages []Message
 }
@@ -40,10 +41,17 @@ func NewConversation(client Client, systemPrompt string, opts ChatOptions) *Conv
 //
 // If the Chat call fails, the user message is still appended but no
 // assistant message is added, preserving the ability to retry.
+//
+// Concurrent Send calls and history mutations are serialized around the
+// Client.Chat call as complete user/assistant turns. The request uses the
+// system prompt and history captured at the start of its turn. The history
+// mutex is not held while the client performs external work.
 func (c *Conversation) Send(ctx context.Context, userMessage string) (ChatResponse, error) {
+	c.turnMu.Lock()
+	defer c.turnMu.Unlock()
+
 	c.mu.Lock()
 	c.messages = append(c.messages, Message{Role: User, Content: userMessage})
-
 	chatMessages := c.assembleMessagesLocked()
 	c.mu.Unlock()
 
@@ -66,13 +74,17 @@ func (c *Conversation) Send(ctx context.Context, userMessage string) (ChatRespon
 // Use Send for the managed pattern (auto-calls Chat). Use Append when
 // assembling messages from multiple sources before a single Chat call.
 func (c *Conversation) Append(msg Message) {
+	c.turnMu.Lock()
+	defer c.turnMu.Unlock()
+
 	c.mu.Lock()
 	defer c.mu.Unlock()
 	c.messages = append(c.messages, msg)
 }
 
-// History returns a copy of the conversation messages (excluding the
-// system prompt). Messages are in insertion order, oldest first.
+// History returns a point-in-time copy of the conversation messages
+// (excluding the system prompt). Messages are in insertion order, oldest
+// first. During an active Send, the copy may include its pending user message.
 func (c *Conversation) History() []Message {
 	c.mu.RLock()
 	defer c.mu.RUnlock()
@@ -81,15 +93,21 @@ func (c *Conversation) History() []Message {
 	return out
 }
 
-// Snapshot returns a copy of the current conversation history.
-// It is equivalent to History and named for rollback callers.
+// Snapshot returns a copy of the current completed conversation history.
+// Unlike History, it waits for an active Send to finish so rollback callers
+// cannot capture a managed turn between its user and assistant messages.
 func (c *Conversation) Snapshot() []Message {
+	c.turnMu.Lock()
+	defer c.turnMu.Unlock()
 	return c.History()
 }
 
 // Restore replaces the conversation history with the provided messages.
 // The system prompt, client, and options are preserved.
 func (c *Conversation) Restore(messages []Message) {
+	c.turnMu.Lock()
+	defer c.turnMu.Unlock()
+
 	c.mu.Lock()
 	defer c.mu.Unlock()
 	c.messages = append(c.messages[:0], messages...)
@@ -98,6 +116,9 @@ func (c *Conversation) Restore(messages []Message) {
 // TruncateTo removes all messages after length. It is used by command undo
 // paths that record the conversation length before appending messages.
 func (c *Conversation) TruncateTo(length int) error {
+	c.turnMu.Lock()
+	defer c.turnMu.Unlock()
+
 	c.mu.Lock()
 	defer c.mu.Unlock()
 	if length < 0 || length > len(c.messages) {
@@ -116,7 +137,8 @@ func (c *Conversation) Messages() []Message {
 // AssembleMessages returns the full message list for a Chat call:
 // system prompt (if non-empty) followed by all conversation messages.
 // Useful in manual mode where the caller needs the complete input for
-// an external Chat call.
+// an external Chat call. Like History, it is a point-in-time read and may
+// include the pending user message from an active Send.
 func (c *Conversation) AssembleMessages() []Message {
 	c.mu.RLock()
 	defer c.mu.RUnlock()
@@ -131,9 +153,13 @@ func (c *Conversation) Len() int {
 	return len(c.messages)
 }
 
-// Reset clears the conversation history, allowing a fresh start within
-// the same session. The system prompt and client binding are preserved.
+// Reset clears the conversation history after any active Send finishes,
+// allowing a fresh start within the same session. The system prompt and
+// client binding are preserved.
 func (c *Conversation) Reset() {
+	c.turnMu.Lock()
+	defer c.turnMu.Unlock()
+
 	c.mu.Lock()
 	defer c.mu.Unlock()
 	c.messages = c.messages[:0]
@@ -141,6 +167,8 @@ func (c *Conversation) Reset() {
 
 // SystemPrompt returns the system prompt for this conversation.
 func (c *Conversation) SystemPrompt() string {
+	c.mu.RLock()
+	defer c.mu.RUnlock()
 	return c.systemPrompt
 }
 
