@@ -72,6 +72,112 @@ func TestValidatePortableProfileRefsRejectsCopiedCoreAgentRefs(t *testing.T) {
 	}
 }
 
+func TestValidatePortableProfileRefsRejectsAbsoluteHostPath(t *testing.T) {
+	root := t.TempDir()
+	coreRoot := t.TempDir()
+	writeProfileFixture(t, root, "generator")
+	mkdir(t, filepath.Join(coreRoot, "tools", "builtin", "llm"))
+	hostFile := filepath.Join(t.TempDir(), "host-only.yaml")
+	writeFile(t, hostFile, "tools: []\n")
+	profilePath := filepath.Join(root, "agents", "generator", "profile.yaml")
+	appendFile(t, profilePath, "tool_declarations:\n  - "+hostFile+"\n")
+
+	err := validatePortableProfileRefs(root, coreRoot)
+	if err == nil {
+		t.Fatal("validatePortableProfileRefs returned nil error for absolute host path")
+	}
+	if !strings.Contains(err.Error(), "must not use an absolute host path") || !strings.Contains(err.Error(), profilePath) {
+		t.Fatalf("error = %q, want profile-specific absolute path rejection", err)
+	}
+}
+
+func TestValidatePortableProfileRefsRejectsWindowsAbsolutePath(t *testing.T) {
+	root := t.TempDir()
+	coreRoot := t.TempDir()
+	writeProfileFixture(t, root, "generator")
+	mkdir(t, filepath.Join(coreRoot, "tools", "builtin", "llm"))
+	appendFile(t, filepath.Join(root, "agents", "generator", "profile.yaml"), "tool_declarations:\n  - C:\\\\Users\\\\developer\\\\tools.yaml\n")
+
+	err := validatePortableProfileRefs(root, coreRoot)
+	if err == nil {
+		t.Fatal("validatePortableProfileRefs returned nil error for Windows absolute host path")
+	}
+	if !strings.Contains(err.Error(), "must not use an absolute host path") {
+		t.Fatalf("error = %q, want Windows absolute path rejection", err)
+	}
+}
+
+func TestValidatePortableProfileRefsRejectsTraversalOutsideBundle(t *testing.T) {
+	parent := t.TempDir()
+	root := filepath.Join(parent, "profiles")
+	coreRoot := t.TempDir()
+	writeProfileFixture(t, root, "generator")
+	mkdir(t, filepath.Join(coreRoot, "tools", "builtin", "llm"))
+	writeFile(t, filepath.Join(parent, "outside.yaml"), "tools: []\n")
+	appendFile(t, filepath.Join(root, "agents", "generator", "profile.yaml"), "tool_declarations:\n  - ../../../outside.yaml\n")
+
+	err := validatePortableProfileRefs(root, coreRoot)
+	if err == nil {
+		t.Fatal("validatePortableProfileRefs returned nil error for bundle traversal")
+	}
+	if !strings.Contains(err.Error(), "escapes allowed root") {
+		t.Fatalf("error = %q, want bundle escape rejection", err)
+	}
+}
+
+func TestValidatePortableProfileRefsRejectsWindowsTraversalOutsideBundle(t *testing.T) {
+	parent := t.TempDir()
+	root := filepath.Join(parent, "profiles")
+	coreRoot := t.TempDir()
+	writeProfileFixture(t, root, "generator")
+	mkdir(t, filepath.Join(coreRoot, "tools", "builtin", "llm"))
+	writeFile(t, filepath.Join(parent, "outside.yaml"), "tools: []\n")
+	appendFile(t, filepath.Join(root, "agents", "generator", "profile.yaml"), "tool_declarations:\n  - ..\\\\..\\\\..\\\\outside.yaml\n")
+
+	err := validatePortableProfileRefs(root, coreRoot)
+	if err == nil {
+		t.Fatal("validatePortableProfileRefs returned nil error for Windows-form bundle traversal")
+	}
+	if !strings.Contains(err.Error(), "escapes allowed root") {
+		t.Fatalf("error = %q, want Windows-form bundle escape rejection", err)
+	}
+}
+
+func TestValidatePortableProfileRefsRejectsSymlinkEscape(t *testing.T) {
+	root := t.TempDir()
+	coreRoot := t.TempDir()
+	writeProfileFixture(t, root, "generator")
+	mkdir(t, filepath.Join(coreRoot, "tools", "builtin", "llm"))
+	outside := filepath.Join(t.TempDir(), "outside.yaml")
+	writeFile(t, outside, "tools: []\n")
+	link := filepath.Join(root, "agents", "generator", "linked.yaml")
+	if err := os.Symlink(outside, link); err != nil {
+		t.Fatalf("symlink %s: %v", link, err)
+	}
+	appendFile(t, filepath.Join(root, "agents", "generator", "profile.yaml"), "tool_declarations:\n  - linked.yaml\n")
+
+	err := validatePortableProfileRefs(root, coreRoot)
+	if err == nil {
+		t.Fatal("validatePortableProfileRefs returned nil error for symlink escape")
+	}
+	if !strings.Contains(err.Error(), "escapes allowed root") {
+		t.Fatalf("error = %q, want symlink escape rejection", err)
+	}
+}
+
+func TestValidatePortableProfileRefsAcceptsRootRelativeAgentPath(t *testing.T) {
+	root := t.TempDir()
+	coreRoot := t.TempDir()
+	writeProfileFixture(t, root, "generator")
+	mkdir(t, filepath.Join(coreRoot, "tools", "builtin", "llm"))
+	writeFile(t, filepath.Join(root, "agents", "shared.yaml"), "tools: []\n")
+	appendFile(t, filepath.Join(root, "agents", "generator", "profile.yaml"), "tool_declarations:\n  - agents/shared.yaml\n")
+
+	if err := validatePortableProfileRefs(root, coreRoot); err != nil {
+		t.Fatalf("validatePortableProfileRefs rejected root-relative agent path: %v", err)
+	}
+}
+
 func TestValidatePortableProfileRefsReportsMissingReference(t *testing.T) {
 	root := t.TempDir()
 	coreRoot := t.TempDir()

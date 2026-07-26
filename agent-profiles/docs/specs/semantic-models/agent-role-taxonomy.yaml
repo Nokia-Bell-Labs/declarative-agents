@@ -13,9 +13,9 @@ overview: |
 
   The taxonomy is intentionally profile-oriented. It names executor as a
   coding agent, critic as a session and point runner, bench as a human UI
-  launcher, and Knowledge Manager as a documentation curator. Those labels
-  describe configured behavior. They are not package names, binary names, or
-  new runtime modules.
+  launcher, Knowledge Manager as curator and corpus roles, and assembler/mock
+  as supported test-time roles. Those labels describe configured behavior.
+  They are not package names, binary names, or new runtime modules.
 
 roles:
   - id: executor
@@ -220,6 +220,101 @@ roles:
       - Confirm exit releases the documentation listener.
       - Trace profile UX with rel07.0-uc001-documentation-curator-profile-ux.
 
+  - id: corpus-ingest
+    title: Trusted corpus ingestion
+    profile_path: agents/knowledge-manager/corpus-ingest/profile.yaml
+    actor_boundary: trusted corpus, embedding provider, and Chroma
+    inputs:
+      - trusted corpus root
+      - configured embedding model
+      - Chroma collection
+    selected_tool_families:
+      - filesystem resource discovery and read
+      - REST client
+      - llm
+    runtime_dependencies:
+      - agent-core filesystem, REST, and model boundaries
+      - profile-owned corpus REST operations
+    outputs:
+      - embedded documents and identities
+      - Chroma collection count
+    outcomes: [Succeeded, Failed]
+    checks:
+      - Confirm trusted path listing precedes model file selection.
+      - Confirm provider vectors, documents, and ids reach Chroma add.
+      - Trace ingest behavior with rel08.0-uc001-corpus-ingest.
+
+  - id: corpus-reader
+    title: Grounded corpus retrieval
+    profile_path: agents/knowledge-manager/corpus-reader/profile.yaml
+    actor_boundary: questioner, embedding provider, Chroma, and answer model
+    inputs:
+      - configured question
+      - configured embedding and answer models
+      - Chroma collection
+    selected_tool_families:
+      - REST client
+      - llm
+    runtime_dependencies:
+      - agent-core REST and model boundaries
+      - profile-owned corpus REST operations and grounding prompt
+    outputs:
+      - retrieved chunk identities
+      - grounded answer
+    outcomes: [Succeeded, Failed]
+    checks:
+      - Confirm the provider vector reaches Chroma query.
+      - Confirm retrieved identities and chunks reach the answer model.
+      - Trace reader behavior with rel08.0-uc002-corpus-query.
+
+  - id: assembler
+    title: Test rig and scenario composer
+    profile_path: agents/assembler/profile.yaml
+    actor_boundary: child agent processes plus profile-owned scenario data
+    inputs:
+      - discovery roots
+      - discovered scenario directories (validator profiles and mock fixtures)
+    selected_tool_families:
+      - service-child (start, await healthy, stop)
+      - validator execution
+      - scenario discovery
+    runtime_dependencies:
+      - agent-core service-child, validator-execution, and discovery words (srd040)
+      - agent-core mock endpoint binding by way of the mocks it starts (srd039)
+    outputs:
+      - per-scenario verdicts naming a failing validator and its cause
+      - aggregate verdict
+    outcomes:
+      - Passed
+      - Failed
+    checks:
+      - Confirm the rig composes scenarios from profile-owned data, with no rig edit needed to add a test.
+      - Confirm each scenario gets a fresh subject and leaves no surviving child process.
+      - Confirm discovery covers the examples tree without special-casing.
+
+  - id: mock
+    title: Mock for a REST dependency
+    profile_path: agents/mock/profile.yaml
+    actor_boundary: inbound HTTP from a subject agent under test
+    inputs:
+      - fixture file path (selected by environment)
+      - listen address
+    selected_tool_families:
+      - REST server
+      - lifecycle control
+    runtime_dependencies:
+      - agent-core mock endpoint binding and REST server runtime (srd039)
+    outputs:
+      - canned and scripted responses
+      - per-instance request log
+    outcomes:
+      - Done
+      - Failed
+    checks:
+      - Confirm one profile serves any dependency, with response content living in scenario fixtures.
+      - Confirm the request log is readable, per-instance, and shows unmatched calls.
+      - Confirm a malformed fixture blocks serving instead of failing mid-scenario.
+
 relocated_application_roles:
   - id: coordinator
     status: relocated
@@ -236,8 +331,8 @@ relocated_application_roles:
 # conformance tests and the monitor/control mage integration target; they prove
 # REST boundary words, control signals, and checkpoint/suspend/resume vocabulary
 # at runtime. They live under testdata/conformance/, outside the agents/ role
-# catalog. The mesh (srd014) gives each agent embedded monitor/control servers via
-# its own rest.yaml rather than deploying these standalone profiles.
+# catalog. Application profiles may embed the same runtime vocabulary without
+# promoting these standalone fixtures to library roles.
 conformance_fixtures:
   - id: rest
     title: REST boundary sample
@@ -320,54 +415,6 @@ conformance_fixtures:
     checks:
       - Confirm lifecycle behavior is expressed as machine actions.
       - Confirm approval uses resume signals instead of hidden CLI branches.
-
-  - id: assembler
-    title: Test rig and scenario composer
-    profile_path: agents/assembler/profile.yaml
-    actor_boundary: child agent processes plus profile-owned scenario data
-    inputs:
-      - discovery roots
-      - discovered scenario directories (validator profiles and mock fixtures)
-    selected_tool_families:
-      - service-child (start, await healthy, stop)
-      - validator execution
-      - scenario discovery
-    runtime_dependencies:
-      - agent-core service-child, validator-execution, and discovery words (srd040)
-      - agent-core mock endpoint binding by way of the mocks it starts (srd039)
-    outputs:
-      - per-scenario verdicts naming a failing validator and its cause
-      - aggregate verdict
-    outcomes:
-      - Passed
-      - Failed
-    checks:
-      - Confirm the rig composes scenarios from profile-owned data, with no rig edit needed to add a test.
-      - Confirm each scenario gets a fresh subject and leaves no surviving child process.
-      - Confirm discovery covers the examples tree without special-casing.
-
-  - id: mock
-    title: Mock for a REST dependency
-    profile_path: agents/mock/profile.yaml
-    actor_boundary: inbound HTTP from a subject agent under test
-    inputs:
-      - fixture file path (selected by environment)
-      - listen address
-    selected_tool_families:
-      - REST server
-      - lifecycle control
-    runtime_dependencies:
-      - agent-core mock endpoint binding and REST server runtime (srd039)
-    outputs:
-      - canned and scripted responses
-      - per-instance request log
-    outcomes:
-      - Done
-      - Failed
-    checks:
-      - Confirm one profile serves any dependency, with response content living in scenario fixtures.
-      - Confirm the request log is readable, per-instance, and shows unmatched calls.
-      - Confirm a malformed fixture blocks serving instead of failing mid-scenario.
 
 taxonomy_rules:
   - Each role is a configured program, not a Go package.

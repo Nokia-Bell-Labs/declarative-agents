@@ -1,79 +1,8 @@
 id: rel09.1-uc001-routed-fanout
-title: Chatbot Turn Selects Sources and a Model Tier Before Trusted RAG Fan-Out
-
-summary: |
-  A browser posts a chat turn to the chatbot agent (srd014). Beyond the core loop
-  (rel09.0-uc002), the turn adds separate LLM classifiers for declared RAG sources
-  and one chat-LLM word through the $tool indirection. Structured parsing and
-  subset selection resolve model names to trusted topology entries before exactly
-  one sequential for_each queries that selected array with the one query embedding. The ordered join
-  feeds generic query-signal and embedding-model partitions; render_each formats
-  only compatible chunks under topology-name headers. QueryRejected, CommandError,
-  declared-but-not-selected, QueryRejected, CommandError, and reported-model
-  mismatch outcomes remain distinct in response metadata.
-
-actor: A browser user sending a chat message across two corpora.
-
-trigger: |
-  The browser posts a chat turn to the chatbot agent's chat endpoint with two RAG
-  servers over disjoint corpora declared.
-
-preconditions:
-  - Two RAG server agents (rel09.0-uc001) are reachable as declared rest.yaml clients over disjoint corpora.
-  - A small classifier model and two chat-LLM models are reachable as declared clients.
-  - Each topology item has a required description and trusted target/config fields.
-  - The chatbot profile validates and owns the turn machine, separate source and tier prompts, and fan-out declarations.
-
-flow:
-  - id: F1
-    text: select_sources makes a classifier call over the original question and names-and-descriptions-only catalog; capture_source_selection JSON-escapes the adjacent raw reply into a fixed response field, parse_structured validates `{names:[string]}`, and select_subset resolves declared names to trusted topology entries. Classifier/capture error, malformed, empty, and only-undeclared outcomes select all declared entries; mixed picks discard undeclared names.
-  - id: F2
-    text: The separate tier selector preserves its existing classifier, $tool vocabulary, and default-word fallback contract.
-  - id: F3
-    text: embed_query embeds the query once; exactly one sequential MachineSpec for_each fans the vector over only the trusted selected array and emits one structured join.
-  - id: F4
-    text: partition_query_results separates QueryResponded entries from QueryRejected vector rejections and CommandError degradation entries; collect_all continues through every selected source.
-  - id: F5
-    text: partition_embedding_models excludes answered sources whose reported model differs from the query model, then render_grounding formats only the matched entries under topology-name headers.
-  - id: F6
-    text: The $tool-dispatched invoke_llm word answers over the composed prompt, citing chunks from both corpora when both RAGs contribute.
-
-touchpoints:
-  - id: T1
-    target: srd014-chatbot-agent AC2
-    reason: Separate source and tier classifiers retain atomic prompts, trusted subset selection, and normative fallbacks.
-  - id: T2
-    target: srd014-chatbot-agent AC3
-    reason: One sequential iterator plus generic partitions degrades query failures and excludes embedding-model mismatches without indexed words or states.
-  - id: T3
-    target: test-rel09.1-routing-fanout routed_fanout
-    reason: The suite records tier selection, the two-RAG fan-out over disjoint corpora, and the degraded and excluded paths.
-
-success_criteria:
-  - id: S1
-    criterion: The source classifier selects a scoped declared subset, spanning questions may select all, and every classifier/malformed/empty/only-undeclared fallback queries all declared sources.
-    traces:
-      - srd014-chatbot-agent R2.4
-      - srd014-chatbot-agent R2.6
-  - id: S2
-    criterion: One query embedding fans out sequentially over trusted selected entries through one for_each; undeclared names never reach query target and not-selected names are distinct metadata.
-    traces:
-      - srd014-chatbot-agent R3.1
-      - srd014-chatbot-agent R3.4
-      - srd014-chatbot-agent R6.2
-  - id: S3
-    criterion: A per-RAG failure is retained in the join's query_failed metadata set and the turn returns a mapped 200 composed from remaining compatible chunks.
-    traces:
-      - srd014-chatbot-agent R3.2
-  - id: S4
-    criterion: A 200 response whose reported embedding model differs is excluded from render_each grounding and reported separately from a 400 QueryRejected vector rejection.
-    traces:
-      - srd014-chatbot-agent R3.3
-
-out_of_scope:
-  - Parallel fan-out; v1 fan-out is sequential.
-  - The single-RAG core loop, which is rel09.0-uc002.
-  - Panel content and SPA implementation, owned by their own issues.
-
-test_suite_trace: test-rel09.1-routing-fanout
-status: implemented
+title: Chatbot Turn Selects a Model Tier and Fans Out Over Two RAGs (Relocated)
+status: relocated
+canonical_path: examples/chatbot-mesh/docs/specs/use-cases/rel01.0-uc001-routed-fanout.yaml
+note: |
+  Pointer-only tombstone. The canonical use case and its traces live with the
+  chatbot-mesh example. This retained identifier exists only to redirect
+  historical references.

@@ -1,0 +1,58 @@
+id: test-rel08.0-corpus-agents
+title: Test Suite for Release 08.0 Chroma Corpus Agents
+release: "08.0"
+status: implemented
+
+overview: |
+  This suite proves the canonical corpus-ingest trust ordering and executes the
+  shipped corpus-reader wrapper through its complete retrieval and answer path.
+  The reader cases use deterministic in-process Chroma and Ollama protocol
+  fixtures. They patch only transport addresses; the shipped profile, machine,
+  declarations, REST operations, prompt, and tool selection remain in control.
+
+traces:
+  - rel08.0-uc001-corpus-ingest
+  - rel08.0-uc002-corpus-query
+
+preconditions:
+  - A compatible agent-core checkout is available through AGENT_CORE_ROOT or as
+      the sibling agent-core directory.
+  - No live Chroma or Ollama service is required for the deterministic reader
+      conformance cases.
+
+test_cases:
+  - use_case: rel08.0-uc001-corpus-ingest
+    name: Trusted corpus discovery precedes model control
+    go_test: go test ./conformance -run TestCorpusIngestListsTrustedCorpusBeforeModelControl
+    status: implemented
+    expected:
+      listing_corpus_precedes_model_control: true
+      model_cannot_author_discovery_paths: true
+    traces:
+      - srd012-chroma-corpus-agents R1.2
+      - srd012-chroma-corpus-agents R4.4
+
+  - use_case: rel08.0-uc002-corpus-query
+    name: Shipped reader embeds, retrieves, and answers from known chunks
+    go_test: go test ./conformance -run TestCorpusReaderConformance
+    status: implemented
+    expected:
+      shipped_wrapper_executes: true
+      provider_vector_reaches_chroma_query: true
+      retrieved_identity_reaches_model: true
+      grounded_answer_reaches_succeeded: true
+    traces:
+      - rel08.0-uc002-corpus-query S1
+      - rel08.0-uc002-corpus-query S2
+      - rel08.0-uc002-corpus-query S3
+
+  - use_case: rel08.0-uc002-corpus-query
+    name: Reader REST failure reaches Failed before embedding
+    go_test: go test ./conformance -run TestCorpusReaderRESTFailureConformance
+    status: implemented
+    expected:
+      readiness_failure_reaches_failed: true
+      embedding_does_not_run: true
+    traces:
+      - srd012-chroma-corpus-agents R2.1
+      - srd012-chroma-corpus-agents R6.2

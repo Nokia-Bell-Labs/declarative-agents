@@ -9,17 +9,19 @@ overview: |
   With the first migration complete, the SRD layer defines migrated profile
   families as functional blocks instead of runtime packages. srd001 now holds
   the cross-cutting profile ownership boundary and dependency-direction
-  invariants, while srd002 through srd011 own one profile family each. The
-  semantic models record role boundaries, dependency directions, and validation
-  views.
+  invariants, while its family_srds inventory names every current shipped
+  family contract and separates fixture-only REST/control/lifecycle contracts.
+  The semantic models record role boundaries, dependency directions, and
+  validation views for every shipped profile.
 
   Architecture decision 4 defines this repository as a versioned reusable-agent
   library. Membership requires independent usefulness or multiple consumers,
   one canonical home, a family SRD, conformance, portable closure, and
   application-safe parameterization. Applications own composition and package
-  referenced closures against exact agent-profiles/v0.* releases. Runtime-test
-  scaffolding remains internal in its current paths and is not promoted as a
-  shipped application-agent contract; no relocation is scheduled or tracked.
+  referenced closures against exact agent-profiles/v0.* releases. Assembler and
+  mock are supported test-time library members under the same release contract.
+  Rig-subject and REST/control/lifecycle conformance fixtures remain internal in
+  their current paths; no relocation is scheduled or tracked for those fixtures.
 
   Release 11.0 adds two test-time families over the agent-core release 09.0
   words: srd018-assembler is the reusable test rig that composes a scenario
@@ -51,8 +53,9 @@ overview: |
   srd012 owns the family requirements. The mesh's integration:chroma and
   integration:ragServer targets consume the canonical corpus-ingest program by
   reference and prove ingest/count and served retrieval behavior with
-  application-owned REST parameterization. The reader's standalone
-  grounded-answer path remains specified separately.
+  application-owned REST parameterization. A deterministic profile-owned
+  conformance tracer executes the shipped reader through embed, query, grounded
+  answer, and failure paths against controlled protocol fixtures.
 
   A reader can now start at the SRD, follow the semantic model role entries,
   reach the two mounted-profile use cases, and land on named commands such as
@@ -105,7 +108,8 @@ roadmap_summary:
       API. The ingest machine lists trusted corpus paths before the model selects
       among them, then sequences deterministic embed and add steps. The mesh
       integration:chroma target consumes that canonical program by reference and
-      proves ingest count; the standalone reader answer tracer remains pending.
+      proves ingest count; deterministic conformance executes the shipped reader
+      through provider embedding, Chroma query, grounded answer, and failure.
 
   - version: "11.0"
     name: Assembler test rig
@@ -155,19 +159,19 @@ srd_index:
   - id: srd001-agent-functional-blocks
     title: Agent Functional Blocks
     summary: Cross-cutting profile ownership boundary and cross-profile
-      dependency-direction invariants shared by every profile family. Per-family
-      requirements live in srd002 through srd011.
+      dependency-direction invariants shared by every profile family, with
+      machine-readable shipped-family and fixture-contract inventories.
     status: implemented
     path: docs/specs/software-requirements/srd001-agent-functional-blocks.yaml
   - id: srd002-executor
-    title: Generator Functional Block
-    summary: Generator coding-agent boundary, inputs, tool selections, runtime
+    title: Executor Functional Block
+    summary: Executor coding-agent boundary, inputs, tool selections, runtime
       dependencies, outputs, and terminal outcomes.
     status: implemented
     path: docs/specs/software-requirements/srd002-executor.yaml
   - id: srd003-critic
-    title: Evaluator Functional Block
-    summary: Evaluator session and point pipeline boundary, inputs, tool
+    title: Critic Functional Block
+    summary: Critic session and point pipeline boundary, inputs, tool
       selections, runtime dependencies, outputs, and terminal outcomes.
     status: implemented
     path: docs/specs/software-requirements/srd003-critic.yaml
@@ -228,26 +232,19 @@ srd_index:
     status: implemented
     path: docs/specs/software-requirements/srd012-chroma-corpus-agents.yaml
   - id: srd013-rag-server-agent
-    title: RAG Server Agent Functional Block
-    summary: Persistent RAG service that hosts the srd012 reader retrieval chain
-      behind a machine_request query endpoint (srd030) with monitor (srd033) and
-      control servers; a vector-in query_embeddings contract returning chunks
-      with the collection's embedding-model metadata; one agent per served
-      corpus; the srd012 ingest path unchanged; and an optional text-in fallback
-      disabled in the mesh.
-    status: implemented
+    title: RAG Server Agent Functional Block (Relocated)
+    summary: Pointer-only historical identifier; canonical RAG server
+      requirements and evidence live with examples/chatbot-mesh.
+    status: relocated
     path: docs/specs/software-requirements/srd013-rag-server-agent.yaml
+    canonical_path: examples/chatbot-mesh/docs/specs/software-requirements/srd001-rag-server-agent.yaml
   - id: srd014-chatbot-agent
-    title: Chatbot Agent Functional Block
-    summary: Browser-facing agent whose each chat turn is a request-scoped machine
-      (select tier, embed, RAG fan-out, compose, answer) with non-adjacent data flowing
-      by command-state $from() (srd038); an LLM $tool tier selector with a normative
-      misparse fallback; sequential multi-RAG fan-out with per-RAG degradation and
-      embedding-space mismatch exclusion; stateless-v1 sessions; a three-panel
-      ux.yaml over a static_assets SPA; and a preserved transport-authority
-      boundary.
-    status: planned
+    title: Chatbot Agent Functional Block (Relocated)
+    summary: Pointer-only historical identifier; canonical chatbot requirements
+      and evidence live with examples/chatbot-mesh.
+    status: relocated
     path: docs/specs/software-requirements/srd014-chatbot-agent.yaml
+    canonical_path: examples/chatbot-mesh/docs/specs/software-requirements/srd002-chatbot-agent.yaml
   - id: srd015-chatbot-deployment
     title: Chatbot Mesh Deployment Model (Relocated)
     summary: Pointer-only historical identifier; canonical deployment
@@ -281,6 +278,7 @@ srd_index:
       Scenarios are profile-owned data in tests/<scenario>/ beside the agent, so one
       subject carries several tests and adding one never edits the rig.
     status: in-progress
+    support: supported-test-time
     path: docs/specs/software-requirements/srd018-assembler.yaml
   - id: srd019-mock
     title: Mock Functional Block
@@ -291,6 +289,7 @@ srd_index:
       image, exposes a health route, and records a per-instance request log validators
       read to verify a subject's outbound calls.
     status: in-progress
+    support: supported-test-time
     path: docs/specs/software-requirements/srd019-mock.yaml
 
 config_format_index: []
@@ -358,7 +357,8 @@ use_case_index:
     path: docs/specs/use-cases/rel07.0-uc003-planner-generator-profile-boundary.yaml
   - id: rel07.0-uc004-bench-evaluator-profile-boundary
     title: Bench to Evaluator Profile Boundary
-    summary: Bench launches evaluator from a human/operator boundary action.
+    summary: Bench launches the critic role from a human/operator boundary action;
+      the historical use-case id retains the former evaluator name.
     status: implemented
     path: docs/specs/use-cases/rel07.0-uc004-bench-evaluator-profile-boundary.yaml
   - id: rel07.0-uc005-monitor-control-profile-boundary
@@ -395,36 +395,36 @@ use_case_index:
     title: Corpus Query from Chroma
     summary: Reader profile embeds a question at Ollama, threads the vector into
       Chroma query, and answers grounded in the retrieved chunks.
-    status: specified
+    status: implemented
     path: docs/specs/use-cases/rel08.0-uc002-corpus-query.yaml
   - id: rel09.0-uc001-rag-server-query
-    title: Persistent RAG Server Answers a Vector-In Query
-    summary: RAG server accepts query_embeddings + n_results over a machine_request
-      endpoint and returns chunks with ids, distances, and embedding-model
-      metadata, with no query embedding or LLM answering in the server.
-    status: implemented
+    title: Persistent RAG Server Answers a Vector-In Query (Relocated)
+    summary: Pointer-only historical identifier; the canonical use case and
+      traces live with examples/chatbot-mesh release 00.0.
+    status: relocated
     path: docs/specs/use-cases/rel09.0-uc001-rag-server-query.yaml
+    canonical_path: examples/chatbot-mesh/docs/specs/use-cases/rel00.0-uc001-rag-server-query.yaml
   - id: rel09.0-uc002-chatbot-turn
-    title: Chatbot Turn Embeds, Retrieves From One RAG, and Answers
-    summary: Single-RAG request-scoped turn embeds once, retrieves, composes via
-      command-state $from(), answers, and degrades to a mapped 200 when the RAG
-      fails (the core loop; tier selection and fan-out are 09.1).
-    status: implemented
+    title: Chatbot Turn Embeds, Retrieves From One RAG, and Answers (Relocated)
+    summary: Pointer-only historical identifier; the canonical use case and
+      traces live with examples/chatbot-mesh release 00.0.
+    status: relocated
     path: docs/specs/use-cases/rel09.0-uc002-chatbot-turn.yaml
+    canonical_path: examples/chatbot-mesh/docs/specs/use-cases/rel00.0-uc002-chatbot-turn.yaml
   - id: rel09.1-uc001-routed-fanout
-    title: Chatbot Turn Selects a Model Tier and Fans Out Over Two RAGs
-    summary: The turn selects a chat-LLM word via a $tool classifier and fans the one embedding out
-      to two RAGs, citing both disjoint corpora, degrading on a per-RAG failure, and
-      excluding an embedding-space mismatch through visible machine transitions.
-    status: implemented
+    title: Chatbot Turn Selects a Model Tier and Fans Out Over Two RAGs (Relocated)
+    summary: Pointer-only historical identifier; the canonical use case and
+      traces live with examples/chatbot-mesh release 01.0.
+    status: relocated
     path: docs/specs/use-cases/rel09.1-uc001-routed-fanout.yaml
+    canonical_path: examples/chatbot-mesh/docs/specs/use-cases/rel01.0-uc001-routed-fanout.yaml
   - id: rel09.2-uc001-observability
-    title: Observability Panel Shows Per-Agent State and a Cross-Agent Trace Waterfall
-    summary: The observability panel shows each agent's run state and event stream
-      through the monitor_proxy and renders a selected turn's connected cross-agent
-      trace as a span waterfall from the trace backend.
-    status: implemented
+    title: Observability Panel Shows Per-Agent State and a Cross-Agent Trace Waterfall (Relocated)
+    summary: Pointer-only historical identifier; the canonical use case and
+      traces live with examples/chatbot-mesh release 02.0.
+    status: relocated
     path: docs/specs/use-cases/rel09.2-uc001-observability.yaml
+    canonical_path: examples/chatbot-mesh/docs/specs/use-cases/rel02.0-uc001-observability.yaml
   - id: rel09.3-uc001-mesh-deployment
     title: Mesh Deployment and Tiered Swap (Relocated)
     summary: Pointer-only historical identifier; the canonical use case and
@@ -509,42 +509,50 @@ test_suite_index:
     path: docs/specs/test-suites/test-rel07.1-profile-boundaries.yaml
   - id: test-rel07.1-profile-conformance
     title: Test Suite for Release 07.1 Profile Conformance
-    summary: Executable per-family OpenTelemetry conformance for all ten profile
-      families, traced to srd002-srd011 and sm-agent-role-taxonomy; integration
-      target mage conformance. Nine families run the shipped profile.yaml wrapper
+    summary: Executable per-family OpenTelemetry conformance for the ten
+      Release 07 contracts, traced to srd002-srd011 and
+      sm-agent-role-taxonomy; integration target mage conformance. Nine families
+      run the shipped profile.yaml wrapper
       or a named shipped variant (copy-and-patch only harness-controlled fields),
       so their coverage is shipped-behavioral rather than synthesized; the rest
       sample server boundary is bounded-behavioral (shipped REST config and
       declarations over a synthesized launch/await/stop machine, client head at
-      the agent-core package level). The generator and rest families also run
-      their shipped variants and carry an ungated load-and-wiring companion. Generator (with qwen27b/qwen35b variants), the
+      the agent-core package level). The executor and rest families also run
+      their shipped variants and carry an ungated load-and-wiring companion. Executor (with qwen27b/qwen35b variants), the
       planner behavioral run, and the rest ollama-profile variant are
       Ollama-gated; lifecycle suspend/resume and history/rollback are Dolt-gated;
       rest proves its inbound webhook server boundary with async await_operation
       polling proven at the agent-core package level.
     status: implemented
     path: docs/specs/test-suites/test-rel07.1-profile-conformance.yaml
+  - id: test-rel08.0-corpus-agents
+    title: Test Suite for Release 08.0 Chroma Corpus Agents
+    summary: Deterministic profile-owned evidence for corpus-ingest trust
+      ordering and the shipped corpus-reader embed, query, grounded-answer, and
+      readiness-failure paths.
+    status: implemented
+    path: docs/specs/test-suites/test-rel08.0-corpus-agents.yaml
   - id: test-rel09.0-chatbot-mesh
-    title: Test Suite for Release 09.0 RAG Server and Single-RAG Chatbot Turn
-    summary: Profile-owned tracers for the RAG server vector-in query (srd013) and
-      the single-RAG chatbot turn with a degraded RAG (srd014). Implemented via
-      Integration.RagServer and Integration.Chatbot.
-    status: implemented
+    title: Test Suite for Release 09.0 RAG Server and Single-RAG Chatbot Turn (Relocated)
+    summary: Pointer-only historical identifier; the canonical suite and proof
+      commands live with examples/chatbot-mesh release 00.0.
+    status: relocated
     path: docs/specs/test-suites/test-rel09.0-chatbot-mesh.yaml
+    canonical_path: examples/chatbot-mesh/docs/specs/test-suites/test-rel00.0-chatbot-mesh.yaml
   - id: test-rel09.1-routing-fanout
-    title: Test Suite for Release 09.1 Tier Selection and Multi-RAG Fan-Out
-    summary: Tracers for the $tool tier-selector dispatch and the two-RAG fan-out over
-      disjoint corpora with the degraded and embedding-mismatch paths, via
-      Integration.Chatbot.
-    status: implemented
+    title: Test Suite for Release 09.1 Tier Selection and Multi-RAG Fan-Out (Relocated)
+    summary: Pointer-only historical identifier; the canonical suite and proof
+      commands live with examples/chatbot-mesh release 01.0.
+    status: relocated
     path: docs/specs/test-suites/test-rel09.1-routing-fanout.yaml
+    canonical_path: examples/chatbot-mesh/docs/specs/test-suites/test-rel01.0-routing-fanout.yaml
   - id: test-rel09.2-observability
-    title: Test Suite for Release 09.2 Observability
-    summary: Tracer for the connected cross-agent trace (Integration.Chatbot asserts
-      a shared trace id and a parented rag-server span); the monitor panels and the
-      waterfall UI are browser-verified.
-    status: implemented
+    title: Test Suite for Release 09.2 Observability (Relocated)
+    summary: Pointer-only historical identifier; the canonical suite and proof
+      commands live with examples/chatbot-mesh release 02.0.
+    status: relocated
     path: docs/specs/test-suites/test-rel09.2-observability.yaml
+    canonical_path: examples/chatbot-mesh/docs/specs/test-suites/test-rel02.0-observability.yaml
   - id: test-rel09.3-mesh-deployment
     title: Test Suite for Release 09.3 Mesh Deployment and Tiered Swap (Relocated)
     summary: Pointer-only historical identifier; the canonical suite and proof
@@ -614,8 +622,8 @@ coverage_gaps: |
 
   Release 07.1 adds per-family boundary use cases for the jurist, lifecycle, and
   rest families, which release 07.0 covered only through the generic rel06.0
-  mounted-profile and profile-validation use cases. Every profile family now has
-  a dedicated boundary use case: evaluator, generator, planner, bench,
+  mounted-profile and profile-validation use cases. Every Release 07 family has
+  a dedicated boundary use case: critic, executor, planner, bench,
   monitor/control, and documentation-curator through release 07.0, and jurist,
   lifecycle, and rest through release 07.1. test-rel07.1-profile-boundaries
   validates the three new use cases against their per-family SRD acceptance
@@ -627,7 +635,7 @@ coverage_gaps: |
   Release 07.1 also adds test-rel07.1-profile-conformance, an executable
   per-family conformance suite run by mage conformance. It drives each of the ten
   families through the agent-core CLI and asserts on the captured OpenTelemetry
-  trace (span vocabulary and terminal state), tracing every family to its
+  trace (span vocabulary and terminal state), tracing every Release 07 family to its
   srd002-srd011 acceptance criteria and sm-agent-role-taxonomy role. Coverage is
   shipped-behavioral, not synthesized, for nine families: each runs the shipped
   profile.yaml wrapper (or a named shipped variant), copying it only to patch
@@ -638,13 +646,13 @@ coverage_gaps: |
   machine, because the shipped machine's client head cannot run in a profile
   machine (that head is proven at the agent-core package level).
   Representative-vs-variant is
-  recorded explicitly: the generator ships and runs profile.yaml plus the
+  recorded explicitly: the executor ships and runs profile.yaml plus the
   profile-qwen35b and profile-qwen27b variants, and the rest family runs the
-  sample inbound webhook boundary plus the ollama-profile variant; the generator,
+  sample inbound webhook boundary plus the ollama-profile variant; the executor,
   planner, and rest families each also carry an ungated, model-free
   load-and-wiring companion that asserts shipped-profile load and machine wiring
-  where a gate would otherwise skip the run. All ten families are implemented
-  under AGENT_CORE_ROOT; generator and its qwen variants, the planner behavioral
+  where a gate would otherwise skip the run. All ten Release 07 cases are implemented
+  under AGENT_CORE_ROOT; executor and its qwen variants, the planner behavioral
   run, and the rest ollama-profile variant are Ollama-gated, and lifecycle
   suspend/resume and history/rollback are Dolt-gated. Planner conformance landed
   once agent-core gained a load_graph pipeline word that seeds the requirement
@@ -675,6 +683,8 @@ coverage_gaps: |
   model file selection; #251 introduced that loop and #849 made it canonical.
   The mesh extraction owns the live Chroma harness and application REST values,
   while its wrapper selects the library ingest program. That target now proves
-  the canonical ingest/count path. The reader grounded-answer path is not
-  exercised there and remains separately specified. Live runs require a
-  reachable Chroma server and Ollama with the configured models.
+  the canonical ingest/count path. The profile-owned reader conformance case
+  executes the shipped wrapper against deterministic Chroma and Ollama protocol
+  fixtures, asserts that the provider vector reaches the query, verifies the
+  retrieved chunk identity reaches invoke_llm, and observes Succeeded; a
+  companion readiness-failure case observes Failed before embedding.

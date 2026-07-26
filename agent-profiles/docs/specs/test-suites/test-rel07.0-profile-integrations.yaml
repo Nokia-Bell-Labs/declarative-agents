@@ -127,32 +127,31 @@ test_cases:
       - sm-multi-agent-profile-system dependency_directions planner->generator
 
   - use_case: rel07.0-uc004-bench-evaluator-profile-boundary
-    name: Bench launches evaluator from a human action
+    name: Bench launches critic from a human action
     follow_up_issue: "#110"
     integration_target: mage integration:benchEvaluator
-    go_test: go test ./magefiles -run TestAssertBenchEvaluatorEvidenceRequiresLaunchOutput
+    go_test: go test ./conformance -run TestBenchConformance
     status: implemented
     description: |
-      Run a local bench harness that sends a fixture operator action and
-      verifies evaluator launch evidence. This target proves the human boundary
-      and evaluator launch request, not a full evaluator benchmark.
+      Run the shipped bench wrapper through agent-core, send a fixture operator
+      action to its real REST/machine boundary, and observe the running profile
+      dispatch the configured critic child. The controlled child records only
+      the arguments the profile supplied; it does not fabricate bench evidence.
     inputs:
       bench_profile: agents/bench/profile.yaml
-      evaluator_profile: agents/critic/profile.yaml
-      launch_request: testdata/integration/rel07-bench-evaluator/request.yaml
-      suite: testdata/integration/rel07-bench-evaluator/suite.yaml
-      expected_launch: testdata/integration/rel07-bench-evaluator/expected/launch.yaml
+      critic_profile: agents/critic/profile.yaml
+      launch_action: '{"type":"launch_eval","config":{"suite":"suites/basic.yaml","output_dir":"eval-results"}}'
     expected:
       human_action_received: true
-      evaluator_profile_resolved: true
-      launch_status_recorded: true
-      evaluator_output_evidence_recorded: true
+      critic_profile_dispatched: true
+      real_rest_machine_path_executed: true
+      shipped_profile_trace_observed: true
       target_owner: agent-profiles
     traces:
       - rel07.0-uc004-bench-evaluator-profile-boundary S1
       - rel07.0-uc004-bench-evaluator-profile-boundary S2
       - rel07.0-uc004-bench-evaluator-profile-boundary S3
-      - sm-multi-agent-profile-system dependency_directions bench->evaluator
+      - sm-multi-agent-profile-system dependency_directions bench->critic
 
   - use_case: rel07.0-uc005-monitor-control-profile-boundary
     name: Monitor and control profile boundary

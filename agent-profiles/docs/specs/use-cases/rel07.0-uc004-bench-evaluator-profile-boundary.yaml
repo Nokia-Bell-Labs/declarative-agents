@@ -1,18 +1,18 @@
 id: rel07.0-uc004-bench-evaluator-profile-boundary
-title: Bench to Evaluator Profile Boundary
+title: Bench to Critic Profile Boundary
 
 summary: |
   The bench profile proof covers the human-operated evaluation boundary: a
-  local operator action reaches the bench surface, bench launches evaluator
-  through configured vocabulary, and the result records launch status plus the
-  evaluator request/output evidence. This is a launch tracer, not a full
-  evaluator benchmark.
+  local operator action reaches the shipped bench REST/machine surface, bench
+  launches critic through configured vocabulary, and the result records launch
+  status plus the critic child arguments. This is a launch tracer, not a full
+  critic benchmark.
 
-  The proof stays in agent-profiles because the bench profile, evaluator profile
-  reference, launch fixture, and expected artifacts are profile-owned behavior.
+  The proof stays in agent-profiles because the bench profile, critic profile
+  reference, launch action, and expected dispatch are profile-owned behavior.
   agent-core owns generic REST, evaluation artifact queries, and child-agent
   execution; it does not own bench routes, assets, workflow, or the concrete
-  evaluator profile.
+  critic profile.
 
 actor: Human operator using the bench profile through a local harness.
 
@@ -23,31 +23,31 @@ trigger: |
 
 preconditions:
   - agents/bench/profile.yaml and agents/critic/profile.yaml validate.
-  - testdata/integration/rel07-bench-evaluator contains a minimal bench launch request and evaluator suite.
-  - The harness uses loopback HTTP or a command-level equivalent with fixture-local output.
+  - A compatible agent-core checkout is available.
+  - The harness reserves a loopback address and supplies a controlled child binary that records arguments.
 
 flow:
   - id: F1
-    text: The target launches the bench boundary with local fixture configuration.
+    text: The target launches agents/bench/profile.yaml through the built agent-core runtime with only its listen address patched.
   - id: F2
-    text: A fixture operator action requests an evaluator run.
+    text: A fixture operator action POSTs a critic run request through the bench REST route.
   - id: F3
-    text: Bench resolves the evaluator profile and suite through profile-owned paths.
+    text: The running bench machine validates the action and dispatches the critic profile and suite through self_invoke.
   - id: F4
-    text: Bench records evaluator launch status and request metadata.
+    text: The controlled child records the profile, request, and output arguments supplied by bench.
   - id: F5
-    text: The tracer records enough evaluator output evidence to prove the boundary was crossed.
+    text: OpenTelemetry spans prove the shipped REST lifecycle, request validation, and self_invoke path executed before the host returns to serving and shuts down cleanly.
 
 touchpoints:
   - id: T1
     target: sm-agent-role-taxonomy bench
-    reason: Bench owns the human UI/action boundary and evaluator launch request.
+    reason: Bench owns the human UI/action boundary and critic launch request.
   - id: T2
-    target: sm-agent-role-taxonomy evaluator
-    reason: Evaluator owns the launched session.
+    target: sm-agent-role-taxonomy critic
+    reason: Critic owns the launched session.
   - id: T3
-    target: sm-multi-agent-profile-system bench->evaluator
-    reason: Bench launches evaluator from the human-operated surface.
+    target: sm-multi-agent-profile-system bench->critic
+    reason: Bench launches critic from the human-operated surface.
   - id: T4
     target: test-rel07.0-profile-integrations bench_evaluator_boundary
     reason: The suite records target, fixture request, and launch evidence.
@@ -58,18 +58,18 @@ success_criteria:
     traces:
       - sm-agent-role-taxonomy bench checks
   - id: S2
-    criterion: Bench resolves evaluator through profile-owned configuration.
+    criterion: Bench resolves critic through profile-owned configuration.
     traces:
-      - sm-multi-agent-profile-system dependency_directions bench->evaluator
+      - sm-multi-agent-profile-system dependency_directions bench->critic
   - id: S3
-    criterion: The tracer records launch status and evaluator request/output evidence.
+    criterion: The trace records the real REST/machine path and the controlled child records critic dispatch arguments.
     traces:
       - sm-agent-role-taxonomy bench outputs
 
 out_of_scope:
   - Browser visual regression testing for the bench UI.
-  - Running a long evaluator suite.
-  - Replacing evaluator's own point/session tests.
+  - Running a long critic suite.
+  - Replacing critic's own point/session tests.
 
 test_suite_trace: test-rel07.0-profile-integrations
 status: implemented

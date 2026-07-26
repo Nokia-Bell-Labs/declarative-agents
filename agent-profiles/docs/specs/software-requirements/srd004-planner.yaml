@@ -4,13 +4,13 @@ title: Planner Functional Block
 context: |
   The planner profile is a requirement planner and issue materializer. It
   traverses a requirement graph, assembles prompts, parses plans, materializes
-  issues, executes the generator, and runs build-vet-test validation. This SRD
+  issues, executes the executor, and runs build-vet-test validation. This SRD
   owns the planner family requirements that srd001-agent-functional-blocks
   previously held as block R4.
 
   The block names the contract the planner presents to the rest of the profile
-  system. It invokes the generator as a child profile; it does not implement
-  generator behavior itself.
+  system. It invokes the executor as a child profile; it does not implement
+  executor behavior itself.
 
 problem: |
   The planner family needs its own requirements document so that changes to
@@ -27,8 +27,8 @@ requirements:
   R1:
     title: Behavior model
     items:
-      - R1.1: The planner profile must model requirement graph traversal, prompt assembly, plan parsing, issue materialization, generator execution, and build-vet-test validation.
-      - R1.2: Planner relationships must show that it invokes the generator as a child profile and does not implement generator behavior itself.
+      - R1.1: The planner profile must model requirement graph traversal, prompt assembly, plan parsing, issue materialization, executor execution, and build-vet-test validation.
+      - R1.2: Planner relationships must show that it invokes the executor as a child profile and does not implement executor behavior itself.
       - R1.3: Issue materialization must be a visible format, write, tracker exec, and result-recording sentence; the profile declaration selects the tracker binary, arguments, parameter sources, and output contract.
       - R1.4: Validation retry increment, retry-limit comparison, exhaustion, task completion, and remaining-work routing must be visible machine states and transitions composed from focused words.
   R2:
@@ -45,12 +45,12 @@ requirements:
 
 non_goals:
   - Define Go package APIs for the agent-core planning tools or model boundary.
-  - Reimplement generator behavior inside the planner profile.
+  - Reimplement executor behavior inside the planner profile.
   - Own cross-profile dependency-direction invariants; those stay in srd001.
 
 acceptance_criteria:
   - id: AC1
-    criterion: The planner profile is described as a configured planner that invokes generator as a child profile rather than a Go package.
+    criterion: The planner profile is described as a configured planner that invokes executor as a child profile rather than a Go package.
     traces: [R1.1, R1.2, R1.3]
   - id: AC2
     criterion: Planner inputs, selected tool families, and runtime dependencies are named and separated from agent-core runtime capability.
@@ -74,7 +74,7 @@ diagrams:
       Goals --> R1["R1: Behavior model"]
       Goals --> R2["R2: Inputs, tools, and runtime dependencies"]
       Goals --> R3["R3: Outputs and outcomes"]
-      R1 --> AC1["AC1: Configured planner invoking generator"]
+      R1 --> AC1["AC1: Configured planner invoking executor"]
       R2 --> AC2["AC2: Inputs, tools, dependencies named"]
       R3 --> AC3["AC3: Outputs and outcomes checkable"]
       R1 --> AC4["AC4: Visible retry and completion policy"]
