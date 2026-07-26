@@ -356,11 +356,16 @@ func metricAttributeAllowedValues(
 	}
 }
 
-func monitorState(store *monitor.Store, machine *core.MachineSpec, defs []catalog.ToolDef) toolrest.MonitorState {
+func monitorState(
+	store *monitor.Store,
+	recorder monitor.RuntimeRecorder,
+	machine *core.MachineSpec,
+	defs []catalog.ToolDef,
+) toolrest.MonitorState {
 	if store == nil {
 		return toolrest.MonitorState{}
 	}
-	return toolrest.MonitorState{Store: store, Machine: machine, Tools: defs}
+	return toolrest.MonitorState{Store: store, Recorder: recorder, Machine: machine, Tools: defs}
 }
 
 func monitorConfigured(machine core.MachineSpec, defs []catalog.ToolDef, restDefs toolrest.Collection) bool {

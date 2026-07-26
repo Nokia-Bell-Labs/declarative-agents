@@ -205,6 +205,58 @@ func TestMonitorRecorderRejectsUntrustedEnvelopeBeforeStoreAndOTel(t *testing.T)
 	require.False(t, hasExportedMetric(exported, valid.Name))
 }
 
+func TestMonitorRecorderTrustedEnvelopeScopeIsBoundedAndDoesNotMutateParent(t *testing.T) {
+	t.Parallel()
+	store := NewStore(Limits{})
+	reader := sdkmetric.NewManualReader()
+	provider := sdkmetric.NewMeterProvider(sdkmetric.WithReader(reader))
+	t.Cleanup(func() { require.NoError(t, provider.Shutdown(context.Background())) })
+	parent, err := NewRecorderWithConfig(store, provider.Meter("monitor-test"), RecorderConfig{
+		Envelope: EnvelopePolicy{
+			RunID: "parent-run", ToolNames: []string{"parent-tool"},
+			States: []string{"ParentState"}, Signals: []string{"ParentSignal"},
+		},
+	})
+	require.NoError(t, err)
+	scoped := parent.WithTrustedEnvelope(EnvelopePolicy{
+		RunID: "different-child-run", ToolNames: []string{"request-tool"},
+		States: []string{"RequestState"}, Signals: []string{"RequestSignal"},
+	})
+	requestSample := MetricSample{
+		Name: "dispatch_count", Kind: InstrumentCounter, Unit: "{dispatch}", Value: 1,
+		ToolName: "request-tool", RunID: "parent-run", State: "RequestState",
+		Signal: "RequestSignal", Status: "success",
+	}
+
+	require.NoError(t, scoped.RecordMetric(context.Background(), requestSample))
+	for name, spoof := range map[string]func(*MetricSample){
+		"run":    func(sample *MetricSample) { sample.RunID = "different-child-run" },
+		"tool":   func(sample *MetricSample) { sample.ToolName = "spoofed-tool" },
+		"state":  func(sample *MetricSample) { sample.State = "SpoofedState" },
+		"signal": func(sample *MetricSample) { sample.Signal = "SpoofedSignal" },
+	} {
+		sample := requestSample
+		spoof(&sample)
+		require.Error(t, scoped.RecordMetric(context.Background(), sample), name)
+	}
+	require.Error(t, parent.RecordMetric(context.Background(), requestSample),
+		"deriving a scope must not extend the parent allowlists")
+	parentSample := requestSample
+	parentSample.ToolName = "parent-tool"
+	parentSample.State = "ParentState"
+	parentSample.Signal = "ParentSignal"
+	require.NoError(t, parent.RecordMetric(context.Background(), parentSample))
+
+	snapshot := store.Snapshot()
+	require.Len(t, snapshot.RecentSamples, 2)
+	require.Equal(t, "request-tool", snapshot.RecentSamples[0].ToolName)
+	require.Equal(t, "parent-tool", snapshot.RecentSamples[1].ToolName)
+	var exported metricdata.ResourceMetrics
+	require.NoError(t, reader.Collect(context.Background(), &exported))
+	sum := requireExportedMetric(t, exported, requestSample.Name).Data.(metricdata.Sum[float64])
+	require.Len(t, sum.DataPoints, 2)
+}
+
 func TestMonitorRecorderRejectsConflictingSchemasAtSetup(t *testing.T) {
 	t.Parallel()
 	_, err := NewRecorderWithConfig(NewStore(Limits{}), nil, RecorderConfig{

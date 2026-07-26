@@ -380,10 +380,12 @@ func buildPreparedRun(cmd *cobra.Command, resources runResources) (preparedRun, 
 		Checkpoint:          checkpoint.Checkpoint,
 		LifecycleCheckpoint: lifecycleCheckpoint.Checkpoint,
 		Ctx:                 loopCtx,
-		Monitor:             monitorState(monitorRuntime.Store, &resources.Machine, resources.Definitions),
-		RestDefs:            resources.RestDefinitions,
-		shutdown:            shutdown.Request,
-		ParseRetries:        retries,
+		Monitor: monitorState(
+			monitorRuntime.Store, monitorRuntime.Recorder, &resources.Machine, resources.Definitions,
+		),
+		RestDefs:     resources.RestDefinitions,
+		shutdown:     shutdown.Request,
+		ParseRetries: retries,
 	})
 
 	registerBuiltinFactories(builtins, st, selectedInits)

@@ -26,6 +26,13 @@ type RuntimeRecorder interface {
 	RecordRun(ctx context.Context, run RunSnapshot) error
 }
 
+// TrustedEnvelopeRecorder derives a recorder with additional setup-trusted
+// envelope values while preserving the parent recorder's run identity.
+type TrustedEnvelopeRecorder interface {
+	RuntimeRecorder
+	WithTrustedEnvelope(EnvelopePolicy) RuntimeRecorder
+}
+
 // DiagnosticRecorder accepts monitor diagnostics from declaration-driven emitters.
 type DiagnosticRecorder interface {
 	RecordDiagnostic(ctx context.Context, diagnostic Diagnostic) error
@@ -111,6 +118,33 @@ func newRecorder(store *Store, meter metric.Meter, schemas *schemaRegistry) *Rec
 	}
 	recorder.emit = recorder.emitMetric
 	return recorder
+}
+
+// WithTrustedEnvelope returns a request-scoped recorder that shares storage,
+// metric schemas, and OTel instruments with its parent while extending copied
+// envelope allowlists. A configured parent run ID remains authoritative, so a
+// mismatched child run ID is still rejected.
+func (r *Recorder) WithTrustedEnvelope(policy EnvelopePolicy) RuntimeRecorder {
+	if r == nil || r.schemas == nil {
+		return r
+	}
+	runID := r.schemas.runID
+	if runID == "" {
+		runID = policy.RunID
+	}
+	scoped := &Recorder{
+		store: r.store,
+		meter: r.meter,
+		schemas: &schemaRegistry{
+			metrics:   r.schemas.metrics,
+			runID:     runID,
+			toolNames: unionStringSet(r.schemas.toolNames, policy.ToolNames),
+			states:    unionStringSet(r.schemas.states, policy.States),
+			signals:   unionStringSet(r.schemas.signals, policy.Signals),
+		},
+		emit: r.emit,
+	}
+	return scoped
 }
 
 // RecordMetric validates, stores, and exports one normalized metric sample.
@@ -354,6 +388,17 @@ func buildSchemaRegistry(cfg RecorderConfig) (*schemaRegistry, error) {
 
 func stringSet(values []string) map[string]struct{} {
 	set := make(map[string]struct{}, len(values))
+	for _, value := range values {
+		if value != "" {
+			set[value] = struct{}{}
+		}
+	}
+	return set
+}
+
+func unionStringSet(parent map[string]struct{}, values []string) map[string]struct{} {
+	set := make(map[string]struct{}, len(parent)+len(values))
+	maps.Copy(set, parent)
 	for _, value := range values {
 		if value != "" {
 			set[value] = struct{}{}

@@ -183,7 +183,9 @@ func newServerRuntime(def ServerDefinition) (*serverRuntime, error) {
 		return nil, fmt.Errorf("bind REST server %q: %w", def.Name, err)
 	}
 	var requestMon monitor.RuntimeRecorder
-	if def.Monitor.Store != nil {
+	if def.Monitor.Recorder != nil {
+		requestMon = def.Monitor.Recorder
+	} else if def.Monitor.Store != nil {
 		requestMon = monitor.NewRecorder(def.Monitor.Store, nil)
 	}
 	runtime := &serverRuntime{

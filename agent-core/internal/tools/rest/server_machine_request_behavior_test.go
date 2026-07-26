@@ -8,6 +8,8 @@ import (
 	"github.com/Nokia-Bell-Labs/declarative-agents/agent-core/internal/observability/monitor"
 	"github.com/Nokia-Bell-Labs/declarative-agents/agent-core/internal/runtime/core"
 	"github.com/stretchr/testify/require"
+	sdkmetric "go.opentelemetry.io/otel/sdk/metric"
+	"go.opentelemetry.io/otel/sdk/metric/metricdata"
 	"net/http"
 	"path/filepath"
 	"strings"
@@ -118,6 +120,52 @@ func TestRESTServerMachineRequestRecordsMonitorEvents(t *testing.T) {
 		}
 	}
 	require.True(t, sawRespond, "expected request-machine dispatch in monitor events: %#v", snap.RecentEvents)
+}
+
+func TestRESTServerMachineRequestRecordsScopedMetricsInStoreAndOTel(t *testing.T) {
+	t.Parallel()
+	store := monitor.NewStore(monitor.Limits{Events: 32, Samples: 16})
+	reader := sdkmetric.NewManualReader()
+	provider := sdkmetric.NewMeterProvider(sdkmetric.WithReader(reader))
+	t.Cleanup(func() { require.NoError(t, provider.Shutdown(context.Background())) })
+	parent, err := monitor.NewRecorderWithConfig(store, provider.Meter("rest-machine-request"), monitor.RecorderConfig{
+		Envelope: monitor.EnvelopePolicy{
+			RunID: "parent-run", ToolNames: []string{"parent-tool"},
+			States: []string{"ParentState"}, Signals: []string{"ParentSignal"},
+		},
+	})
+	require.NoError(t, err)
+	state := NewServerState()
+	def := ServerDefinition{
+		Name: "machine", Server: machineRequestServer(machineRequestConfig("DocumentationReady", 0, false)),
+		Monitor: MonitorState{Store: store, Recorder: parent},
+		RunID:   "parent-run",
+	}
+	_, baseURL := launchRESTServerDefinition(t, state, def)
+	defer stopRESTServer(t, state, "machine")
+
+	_ = postJSON(t, baseURL+"/docs", `{"name":"metrics"}`, http.StatusOK)
+
+	snapshot := store.Snapshot()
+	require.Equal(t, 1, snapshot.Metrics["dispatch_count"].Count)
+	require.Equal(t, "respond", snapshot.RecentSamples[0].ToolName)
+	require.Equal(t, "parent-run", snapshot.RecentSamples[0].RunID)
+	require.Equal(t, "Responding", snapshot.RecentSamples[0].State)
+	require.Equal(t, "DocumentationReady", snapshot.RecentSamples[0].Signal)
+	var exported metricdata.ResourceMetrics
+	require.NoError(t, reader.Collect(context.Background(), &exported))
+	require.True(t, restMetricExported(exported, "dispatch_count"))
+}
+
+func restMetricExported(data metricdata.ResourceMetrics, name string) bool {
+	for _, scope := range data.ScopeMetrics {
+		for _, metric := range scope.Metrics {
+			if metric.Name == name {
+				return true
+			}
+		}
+	}
+	return false
 }
 
 func TestRESTServerMachineRequestTraceEnvelope(t *testing.T) {
