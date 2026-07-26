@@ -12,7 +12,6 @@ entry marked "No code consumer" is metadata and is not an executable test input.
 | Fixture | Consuming target (repo / file) | Test suite | Use case |
 | --- | --- | --- | --- |
 | `jurist-charter-demo/` | agent-profiles / `magefiles/validation.go` (`mage validate`, validation-time) | `test-rel06.0-agent-profiles` | `rel06.0-uc002-profile-validation` |
-| `rel07-bench-evaluator/` | agent-profiles / `magefiles/integration_bench.go` (`mage integration:benchEvaluator`) | `test-rel07.0-profile-integrations` | `rel07.0-uc004-bench-evaluator-profile-boundary` |
 | `rel07-evaluator-generator/` | Retired fixture retained for conformance compatibility; the former Mage tracer used a fake child. Replacement: `examples/coding-agent` / `mage integration:criticGate`. | `test-rel07.0-profile-integrations` | `rel07.0-uc002-evaluator-generator-profile-boundary` |
 | `rel07-monitor-control/` | agent-profiles / `magefiles/integration_monitor_control.go` (`mage integration:monitorControl`) | `test-rel07.0-profile-integrations` | `rel07.0-uc005-monitor-control-profile-boundary` |
 | `rel07-planner-generator/` | Retired fixture retained as historical data; the former Mage tracer synthesized planner behavior and used a fake child. Replacement: `examples/coding-agent` / `mage integration:plannerDelegation`. | `test-rel07.0-profile-integrations` | `rel07.0-uc003-planner-generator-profile-boundary` |
@@ -20,9 +19,10 @@ entry marked "No code consumer" is metadata and is not an executable test input.
 | `uc002-evaluator-benchmark/` | agent-core / `magefiles/integration.go:199` (`mage integration:uc002`, run with `AGENT_PROFILES_ROOT` pointing here) | agent-core `test-rel01.0` | agent-core `rel01.0-uc002` |
 | `rel04-monitor/` | No code consumer. Proof-metadata record cited by docs (see below). | `test-rel06.0-agent-profiles` | agent-core `rel04.0-monitor` |
 
-Note: `mage integration:documentationCurator` (`rel07.0-uc001`) is fixture-free — it
-drives the `agents/knowledge-manager/documentation-curator` profile assets directly
-rather than a `testdata/integration/` fixture, so it has no row above.
+Note: `mage integration:documentationCurator` (`rel07.0-uc001`) and
+`mage integration:benchEvaluator` (`rel07.0-uc004`) are fixture-free. They drive
+the shipped profile assets through behavioral conformance rather than consuming
+inputs under `testdata/integration/`, so they have no rows above.
 
 ## The `rel04-monitor` record
 
