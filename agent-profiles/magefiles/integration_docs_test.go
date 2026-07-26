@@ -19,12 +19,12 @@ func TestPrepareDocumentationCuratorIntegrationWritesEphemeralProfile(t *testing
 	writeFile(t, filepath.Join(coreRoot, "tools", "builtin", "spec-validation", "all.yaml"), "tools: []\n")
 	writeFile(t, filepath.Join(coreRoot, "docs", "SPECIFICATIONS.yaml"), "id: specs\n")
 	writeFile(t, filepath.Join(coreRoot, "configs", "sample.yaml"), "id: sample\n")
+	writeFile(t, filepath.Join(coreRoot, "unrelated-dirty-file"), "preserve me\n")
 
 	cfg, cleanup, err := prepareDocumentationCuratorIntegration(profilesRoot, coreRoot)
 	if err != nil {
 		t.Fatalf("prepareDocumentationCuratorIntegration: %v", err)
 	}
-	defer cleanup()
 
 	tmpDir := filepath.Dir(cfg.profilePath)
 	profile := readTestFile(t, cfg.profilePath)
@@ -56,6 +56,44 @@ func TestPrepareDocumentationCuratorIntegrationWritesEphemeralProfile(t *testing
 	}
 	if _, err := os.Stat(filepath.Join(tmpDir, "ui", "ux.yaml")); err != nil {
 		t.Fatalf("expected copied UX config: %v", err)
+	}
+	if _, err := os.Stat(filepath.Join(cfg.workspace, "docs", "SPECIFICATIONS.yaml")); err != nil {
+		t.Fatalf("expected isolated documentation corpus: %v", err)
+	}
+	if cfg.workspace == coreRoot {
+		t.Fatal("documentation-curator workspace must not be the agent-core checkout")
+	}
+
+	writeFile(t, filepath.Join(cfg.workspace, ".documentation-curator", "patches", "test.json"), "{}")
+	if _, err := os.Stat(filepath.Join(coreRoot, ".documentation-curator")); !os.IsNotExist(err) {
+		t.Fatalf("agent-core checkout contains leaked curator state: %v", err)
+	}
+	cleanup()
+	if _, err := os.Stat(tmpDir); !os.IsNotExist(err) {
+		t.Fatalf("temporary curator state survived cleanup: %v", err)
+	}
+	if got := readTestFile(t, filepath.Join(coreRoot, "unrelated-dirty-file")); got != "preserve me\n" {
+		t.Fatalf("cleanup changed unrelated checkout state: %q", got)
+	}
+}
+
+func TestPrepareDocumentationCuratorIntegrationCleansUpAfterFailure(t *testing.T) {
+	tmpRoot := t.TempDir()
+	t.Setenv("TMPDIR", tmpRoot)
+	profilesRoot := t.TempDir()
+	coreRoot := t.TempDir()
+	writeDocumentationCuratorFixture(t, profilesRoot)
+
+	_, _, err := prepareDocumentationCuratorIntegration(profilesRoot, coreRoot)
+	if err == nil {
+		t.Fatal("expected missing docs directory to fail preparation")
+	}
+	entries, readErr := os.ReadDir(tmpRoot)
+	if readErr != nil {
+		t.Fatalf("read temporary root: %v", readErr)
+	}
+	if len(entries) != 0 {
+		t.Fatalf("failed preparation leaked temporary state: %v", entries)
 	}
 }
 

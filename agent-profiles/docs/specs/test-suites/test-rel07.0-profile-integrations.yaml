@@ -35,7 +35,7 @@ test_cases:
     name: Documentation curator profile UX and lifecycle tracer
     follow_up_issue: "#107"
     integration_target: mage integration:documentationCurator
-    go_test: go test ./magefiles -run 'TestPrepareDocumentationCuratorIntegrationWritesEphemeralProfile|TestDocumentationActionEndpointsUseMachineRequestBinding|TestDocumentationPatchDecisionClientsMapMissingPatches'
+    go_test: go test ./magefiles -run 'TestPrepareDocumentationCuratorIntegration(WritesEphemeralProfile|CleansUpAfterFailure)|TestDocumentationActionEndpointsUseMachineRequestBinding|TestDocumentationPatchDecisionClientsMapMissingPatches'
     status: implemented
     description: |
       Run the concrete Knowledge Manager/documentation-curator proof from
@@ -57,6 +57,8 @@ test_cases:
       lifecycle_signal: ExitRequested
       terminal_state: Done
       listener_released: true
+      runtime_state_root: temporary integration workspace
+      release_checkout_clean: true
       target_owner: agent-profiles
     traces:
       - rel07.0-uc001-documentation-curator-profile-ux S1

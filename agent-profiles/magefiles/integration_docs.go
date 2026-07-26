@@ -24,6 +24,7 @@ type Integration mg.Namespace
 
 type documentationCuratorConfig struct {
 	profilePath string
+	workspace   string
 	docsAddr    string
 	controlAddr string
 	monitorAddr string
@@ -45,7 +46,7 @@ func (Integration) DocumentationCurator() error {
 	if err != nil {
 		return err
 	}
-	cmd, output, cancel := launchDocumentationCurator(binary, profilesRoot, coreRoot, cfg.profilePath)
+	cmd, output, cancel := launchDocumentationCurator(binary, profilesRoot, coreRoot, cfg)
 	defer cancel()
 	defer stopIntegrationProcess(cmd, cancel)
 	if err := waitDocumentationAPI(cfg.docsAddr); err != nil {
@@ -81,6 +82,10 @@ func prepareDocumentationCuratorIntegration(profilesRoot, coreRoot string) (docu
 		cleanup()
 		return documentationCuratorConfig{}, nil, err
 	}
+	if err := copyDocumentationCuratorWorkspace(profilesRoot, coreRoot, cfg.workspace); err != nil {
+		cleanup()
+		return documentationCuratorConfig{}, nil, err
+	}
 	if err := writeDocumentationCuratorProfileFiles(profilesRoot, coreRoot, tmpDir, cfg); err != nil {
 		cleanup()
 		return documentationCuratorConfig{}, nil, err
@@ -103,10 +108,33 @@ func ephemeralDocumentationCuratorConfig(tmpDir string) (documentationCuratorCon
 	}
 	return documentationCuratorConfig{
 		profilePath: filepath.Join(tmpDir, "profile.yaml"),
+		workspace:   filepath.Join(tmpDir, "workspace"),
 		docsAddr:    docsAddr,
 		controlAddr: controlAddr,
 		monitorAddr: monitorAddr,
 	}, nil
+}
+
+func copyDocumentationCuratorWorkspace(profilesRoot, coreRoot, workspace string) error {
+	if err := os.CopyFS(filepath.Join(workspace, "docs"), os.DirFS(filepath.Join(coreRoot, "docs"))); err != nil {
+		return fmt.Errorf("copy documentation-curator docs: %w", err)
+	}
+	entries, err := os.ReadDir(coreRoot)
+	if err != nil {
+		return fmt.Errorf("read agent-core workspace: %w", err)
+	}
+	for _, entry := range entries {
+		if entry.Name() == "docs" || entry.Name() == ".git" || entry.Name() == ".documentation-curator" {
+			continue
+		}
+		if err := os.Symlink(filepath.Join(coreRoot, entry.Name()), filepath.Join(workspace, entry.Name())); err != nil {
+			return fmt.Errorf("link documentation-curator workspace %s: %w", entry.Name(), err)
+		}
+	}
+	if err := os.Symlink(profilesRoot, filepath.Join(filepath.Dir(workspace), "agent-profiles")); err != nil {
+		return fmt.Errorf("link agent-profiles workspace: %w", err)
+	}
+	return nil
 }
 
 func writeDocumentationCuratorProfileFiles(profilesRoot, coreRoot, tmpDir string, cfg documentationCuratorConfig) error {
@@ -205,9 +233,9 @@ func copyDocumentationCuratorUXConfig(profilesRoot, _ string, tmpDir string, _ d
 	return os.WriteFile(filepath.Join(uiDir, "ux.yaml"), []byte(content), 0o644)
 }
 
-func launchDocumentationCurator(binary, profilesRoot, coreRoot, profilePath string) (*exec.Cmd, *bytes.Buffer, context.CancelFunc) {
+func launchDocumentationCurator(binary, profilesRoot, coreRoot string, cfg documentationCuratorConfig) (*exec.Cmd, *bytes.Buffer, context.CancelFunc) {
 	ctx, cancel := context.WithCancel(context.Background())
-	args := []string{"--profile", profilePath, "--directory", coreRoot, "--core-root", coreRoot}
+	args := []string{"--profile", cfg.profilePath, "--directory", cfg.workspace, "--core-root", coreRoot}
 	cmd := exec.CommandContext(ctx, binary, args...)
 	cmd.Dir = profilesRoot
 	var output bytes.Buffer
