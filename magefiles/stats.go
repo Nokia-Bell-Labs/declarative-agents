@@ -11,7 +11,7 @@ import (
 	"path/filepath"
 )
 
-// Stats runs mage stats in each sub-module and participating example module,
+// Stats runs mage stats in each sub-module and participating application module,
 // then outputs combined JSON to stdout. Modules that own agent implementations
 // report an "agents" section; composition-only applications may instead report
 // an "application" section describing canonical reuse. The combined output
@@ -47,7 +47,9 @@ func collectStats() ([]byte, error) {
 		if err != nil {
 			return nil, fmt.Errorf("stats in %s: %w", mod, err)
 		}
-		results[mod] = raw
+		// Source-relative slash paths are the stable public keys, independent of
+		// the host path separator used to dispatch the child Mage process.
+		results[filepath.ToSlash(filepath.Clean(mod))] = raw
 	}
 
 	total, err := sumAgentsTotals(results)

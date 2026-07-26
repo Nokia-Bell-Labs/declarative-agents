@@ -14,10 +14,14 @@ import (
 	"strings"
 )
 
-// uiSearchRoots are the trees holding shipped profile UIs whose built dist is
-// checked in and served directly by a profile. agent-core rebuilds its own
-// embedded UIs before compilation, so it is not scanned here (GH-518).
-var uiSearchRoots = []string{"agent-profiles/agents", "examples"}
+// uiSearchRoots are the catalog and runnable application trees holding shipped
+// UIs whose built dist is checked in. agent-core rebuilds its own embedded UIs
+// before compilation, so it is not scanned here (GH-518, GH-1046).
+var uiSearchRoots = []string{
+	"applications/catalog",
+	"applications/coding-agent",
+	"applications/chatbot-mesh",
+}
 
 const uiAuditLevel = "high"
 

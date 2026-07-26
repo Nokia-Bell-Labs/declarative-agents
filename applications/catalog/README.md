@@ -2,10 +2,11 @@
 
 This directory is the repository-specific catalog of reusable declarative tool
 and agent blocks for `agent-core` applications. Its compatibility surface is the
-profile programs and profile-local assets published by `agent-profiles/v0.*`
-tags until the coordinated tag migration changes that prefix. `agent-core`
-executes those programs; applications under `applications/` compose them by
-reference.
+profile programs and profile-local assets published canonically by
+`applications/catalog/v0.*` tags. For the remainder of v0, each coordinated
+release also publishes the executable compatibility tag `agent-profiles/v0.*`
+at the same commit. `agent-core` executes those programs; applications under
+`applications/` compose them by reference.
 
 Under this root, YAML agent programs sit beside profile-local config,
 human-facing assets, demos, and integration fixtures. Runtime code stays
@@ -73,9 +74,11 @@ criteria.
 ### Consumer contract
 
 Applications live beside this catalog under `applications/` and name catalog
-profiles by root-relative path. They pin a compatible `agent-profiles/v0.*`
-release and assemble the transitive closure at package time. The runtime
-receives a closed mounted tree; it is not a package resolver or registry.
+profiles by root-relative path. They pin a compatible
+`applications/catalog/v0.*` release and assemble the transitive closure at
+package time. Release 99 tooling also accepts exact `agent-profiles/v0.*`
+compatibility pins. The runtime receives a closed mounted tree; it is not a
+package resolver or registry.
 
 Consumers may add an application wrapper that selects canonical machine/tools
 and supplies app-owned REST or model configuration. Such wrappers must not copy
@@ -84,8 +87,9 @@ chatbot-mesh corpus-ingest is the wrapper/parameterization reference.
 
 ### Compatibility and release evidence
 
-`agent-profiles/v0.YYYYMMDD.N` identifies one immutable catalog bundle under the
-current compatibility tag contract. An
+`applications/catalog/v0.YYYYMMDD.N` identifies one immutable catalog bundle.
+The matching `agent-profiles/v0.YYYYMMDD.N` name remains executable for
+existing v0 consumers and resolves to the same commit. An
 application's `compatible_release` means that its references and configuration
 were validated against that release family; it is not proof that a dirty or
 different checkout is the tagged release. Packaging records both compatibility
@@ -251,8 +255,9 @@ that mount path to **`--profile`**. Mount the workspace and pass it to
 Applications consume profiles by reference; they do not copy canonical catalog
 profiles into their source trees. An application manifest names each entry
 profile with a path relative to this catalog root and pins a compatible
-`agent-profiles/v0.*` release. Packaging, not the runtime, resolves the complete
-closure into a tree mounted at `/profiles`.
+`applications/catalog/v0.*` release (or an exact legacy `agent-profiles/v0.*`
+pin during the v0 transition). Packaging, not the runtime, resolves the
+complete closure into a tree mounted at `/profiles`.
 
 Reference resolution follows the runtime's existing path surfaces:
 
@@ -320,17 +325,22 @@ and Mage integration targets for the Release 07 tracer bullets.
 ## Release Tags
 
 Profile bundle releases use the repository release revision and a module-scoped
-profile tag:
+canonical catalog tag. During v0 the root tag transaction also creates the
+legacy compatibility identifier:
 
 ```text
 v0.YYYYMMDD.N
+applications/catalog/v0.YYYYMMDD.N
 agent-profiles/v0.YYYYMMDD.N
 ```
 
 The root tag identifies the coordinated repository release. The
-`agent-profiles/v0.YYYYMMDD.N` tag remains the compatibility identifier for
-callers that consume this catalog independently of the full repository. Tag
-prefix migration is owned by the coordinated release work.
+`applications/catalog/v0.YYYYMMDD.N` tag is the Go module-valid canonical
+catalog release. `agent-profiles/v0.YYYYMMDD.N` remains an immutable,
+executable compatibility identifier for existing v0 consumers. Both catalog
+names are created atomically at the same commit; existing legacy tags are never
+moved or recreated. New manifests and documentation use the canonical name.
+The compatibility family stops receiving new tags at v1.
 
 After profile changes are ready for mounted-path, checkout, or release-bundle
 consumers, create release tags from the repository root on `main`:
@@ -342,10 +352,11 @@ mage tag
 At tag time, the root target reads existing local root tags for the current date
 and creates the next daily revision, such as `v0.20260617.0` or
 `v0.20260617.1`. It also creates matching module tags including
-`agent-profiles/v0.20260617.N`. Profile bundle tags version this catalog's
-YAML programs, demos, UI assets, and integration fixtures. Runtime image builds
-continue to resolve the root `v0.*` tag family unless the `agent-core` Docker
-release target is explicitly overridden.
+`applications/catalog/v0.20260617.N`, plus the matching
+`agent-profiles/v0.20260617.N` compatibility tag for v0. Profile bundle tags
+version this catalog's YAML programs, demos, UI assets, and integration
+fixtures. Runtime image builds continue to resolve the root `v0.*` tag family
+unless the `agent-core` Docker release target is explicitly overridden.
 
 ## Validation
 
