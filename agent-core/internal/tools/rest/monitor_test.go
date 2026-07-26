@@ -136,7 +136,8 @@ func TestMonitorREST_FactoryUsesLiveMonitorState(t *testing.T) {
 
 	_ = rec.RecordMetric(context.Background(), monitor.MetricSample{
 		Name: "filesystem.bytes_read", Kind: monitor.InstrumentHistogram, Unit: "By",
-		Value: 42, ToolName: "file_read", Status: "success",
+		Value: 42, ToolName: "file_read", RunID: "agent", State: "Serving",
+		Signal: string(core.ToolDone), Status: "success",
 		Attributes: map[string]string{"profile": "monitor"},
 	})
 
@@ -158,6 +159,10 @@ func liveMonitorState(t *testing.T) (MonitorState, *monitor.Recorder) {
 	store := monitor.NewStore(monitor.Limits{Events: 5, Samples: 5})
 	rec, err := monitor.NewRecorderWithConfig(store, nil, monitor.RecorderConfig{
 		GlobalAttributes: []monitor.AttributePolicy{{Name: "profile", AllowedValues: []string{"monitor"}}},
+		Envelope: monitor.EnvelopePolicy{
+			RunID: "agent", ToolNames: []string{"file_read"},
+			States: []string{"Serving"}, Signals: []string{string(core.ToolDone)},
+		},
 		Bindings: []monitor.MetricBinding{{
 			ToolName: "file_read",
 			Schema: monitor.MetricSchema{
@@ -188,7 +193,8 @@ func seededMonitorState() MonitorState {
 	})
 	_ = rec.RecordMetric(context.Background(), monitor.MetricSample{
 		Name: "dispatch_count", Kind: monitor.InstrumentCounter, Unit: "{dispatch}",
-		Value: 1, ToolName: "file_read", Status: "success",
+		Value: 1, ToolName: "file_read", RunID: "agent", State: "Serving",
+		Signal: string(core.ToolDone), Status: "success",
 		Attributes: map[string]string{"profile": "monitor", "credential": "synthetic-token", "request_id": "unsafe"},
 		Timestamp:  time.Now(),
 	})
