@@ -62,6 +62,7 @@ func runMonitorRuntimeLoop(t *testing.T, runtime monitorRuntime) core.RunResult 
 	machine := monitorRuntimeMachine()
 	result, err := core.Loop(core.LoopParams{
 		MachineSpec:     &machine,
+		RunID:           "monitor-runtime-run",
 		AgentName:       "agent",
 		Registry:        reg,
 		Trace:           tracing.NoopTracer{},
@@ -115,6 +116,7 @@ func monitorReleaseProof(t *testing.T) monitorProof {
 	return monitorProof{
 		params: core.LoopParams{
 			MachineSpec:     &machine,
+			RunID:           "monitor-proof-run",
 			AgentName:       "agent",
 			Registry:        reg,
 			Trace:           tracing.NoopTracer{},

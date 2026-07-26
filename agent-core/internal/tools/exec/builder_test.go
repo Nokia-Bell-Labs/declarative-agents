@@ -415,7 +415,8 @@ func execMetricLoopParams(cmd core.Command, signal core.Signal, rec monitor.Runt
 	}
 	return core.LoopParams{
 		MachineSpec:     spec,
-		AgentName:       "exec-run",
+		RunID:           "exec-run",
+		AgentName:       "exec-agent",
 		Trace:           tracing.NoopTracer{},
 		Budget:          core.Budget{MaxIterations: 3},
 		MonitorRecorder: rec,

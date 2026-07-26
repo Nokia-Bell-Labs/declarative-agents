@@ -141,7 +141,8 @@ func workflowMetricLoopParams(rec monitor.RuntimeRecorder) LoopParams {
 	}
 	return LoopParams{
 		MachineSpec:     spec,
-		AgentName:       "workflow-run",
+		RunID:           "workflow-run",
+		AgentName:       "workflow-agent",
 		Trace:           &loopRecorder{},
 		Budget:          Budget{MaxIterations: 10},
 		MonitorRecorder: rec,

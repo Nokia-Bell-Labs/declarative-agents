@@ -137,7 +137,8 @@ func filesystemMetricLoopParams(cmd core.Command, signal core.Signal, rec monito
 	}
 	return core.LoopParams{
 		MachineSpec:     spec,
-		AgentName:       "filesystem-run",
+		RunID:           "filesystem-run",
+		AgentName:       "filesystem-agent",
 		Trace:           tracing.NoopTracer{},
 		Budget:          core.Budget{MaxIterations: 3},
 		MonitorRecorder: rec,

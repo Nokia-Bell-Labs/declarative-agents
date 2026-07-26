@@ -138,6 +138,7 @@ type agentState struct {
 	request              string
 	output               string
 	childAgentBinary     string
+	runID                string
 	checkpoint           core.Checkpoint
 	// lifecycleCheckpoint is the backend the checkpoint_history/checkpoint_rollback
 	// tools read and revert through. For the history and rollback families it is
@@ -343,7 +344,12 @@ func loadRunResources() (runResources, error) {
 func buildPreparedRun(cmd *cobra.Command, resources runResources) (preparedRun, error) {
 	cfg := resources.Config
 	var checkpoints checkpointResources
-	checkpoint, err := resolveCheckpoint(cfg, resources.Machine)
+	runID, err := resolveRunID(cfg)
+	if err != nil {
+		resources.shutdownTelemetry()
+		return preparedRun{}, err
+	}
+	checkpoint, err := resolveCheckpoint(cfg, resources.Machine, runID)
 	if err != nil {
 		resources.shutdownTelemetry()
 		return preparedRun{}, err
@@ -364,6 +370,7 @@ func buildPreparedRun(cmd *cobra.Command, resources runResources) (preparedRun, 
 	st := newAgentState(cfg, agentStateDeps{
 		Registry:            reg,
 		Tracer:              resources.Tracer,
+		RunID:               runID,
 		Checkpoint:          checkpoint.Checkpoint,
 		LifecycleCheckpoint: lifecycleCheckpoint.Checkpoint,
 		Ctx:                 loopCtx,
@@ -380,7 +387,7 @@ func buildPreparedRun(cmd *cobra.Command, resources runResources) (preparedRun, 
 	}
 	params := loopParams(cfg, loopParamDeps{
 		Machine: resources.Machine, State: st, Registry: reg, Tracer: resources.Tracer,
-		Checkpoint: checkpoint.Checkpoint, MonitorRecorder: monitorRuntime.Recorder,
+		RunID: runID, Checkpoint: checkpoint.Checkpoint, MonitorRecorder: monitorRuntime.Recorder,
 	})
 	return preparedRun{
 		Config: cfg, Params: params, State: st, Ctx: loopCtx,
@@ -454,6 +461,7 @@ func parseErrorLimit(machine core.MachineSpec) int {
 type agentStateDeps struct {
 	Registry            *core.Registry
 	Tracer              tracing.Tracer
+	RunID               string
 	Checkpoint          core.Checkpoint
 	LifecycleCheckpoint core.Checkpoint
 	Ctx                 context.Context
@@ -486,6 +494,7 @@ func newAgentState(cfg runtimeConfig, deps agentStateDeps) *agentState {
 		request:             cfg.Request,
 		output:              cfg.Output,
 		childAgentBinary:    cfg.ChildAgentBinary,
+		runID:               deps.RunID,
 		checkpoint:          checkpointOrNoop(deps.Checkpoint),
 		lifecycleCheckpoint: deps.LifecycleCheckpoint,
 		monitor:             deps.Monitor,
@@ -507,6 +516,7 @@ type loopParamDeps struct {
 	State           *agentState
 	Registry        *core.Registry
 	Tracer          tracing.Tracer
+	RunID           string
 	Checkpoint      core.Checkpoint
 	MonitorRecorder monitor.RuntimeRecorder
 }
@@ -520,6 +530,7 @@ func loopParams(cfg runtimeConfig, deps loopParamDeps) core.LoopParams {
 	return core.LoopParams{
 		MachineFile:     cfg.Machine,
 		MachineSpec:     &deps.Machine,
+		RunID:           deps.RunID,
 		AgentName:       "agent",
 		ModelName:       deps.State.model,
 		ProviderName:    deps.State.providerName,

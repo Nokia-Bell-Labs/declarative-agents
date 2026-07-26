@@ -97,7 +97,7 @@ func taskCompletedSignal(hooks LoopHooks) Signal {
 
 func (r *loopRunner) recordStart() {
 	recordMonitorRun(r.ctx, r.params.MonitorRecorder, monitor.RunSnapshot{
-		RunID:     r.params.AgentName,
+		RunID:     r.params.RunID,
 		Status:    "running",
 		State:     string(r.state),
 		Iteration: r.iteration,
@@ -364,7 +364,7 @@ func (r *loopRunner) recordCheckpointFailure(err error) {
 
 func (r *loopRunner) dispatchContext(labels MetricLabels) monitor.DispatchContext {
 	return monitor.DispatchContext{
-		RunID:        r.params.AgentName,
+		RunID:        r.params.RunID,
 		AgentName:    r.params.AgentName,
 		State:        string(r.state),
 		Iteration:    r.iteration,
@@ -402,7 +402,7 @@ func (r *loopRunner) recordResultEvent(fromState State) {
 
 func (r *loopRunner) runSnapshot() monitor.RunSnapshot {
 	return monitor.RunSnapshot{
-		RunID:     r.params.AgentName,
+		RunID:     r.params.RunID,
 		Status:    "running",
 		State:     string(r.state),
 		Signal:    string(r.signal),
@@ -470,7 +470,7 @@ func (r *loopRunner) finish() RunResult {
 	r.run.Iterations = r.iteration
 	r.run.Duration = time.Since(r.start)
 	recordMonitorRun(r.ctx, r.params.MonitorRecorder, monitor.RunSnapshot{
-		RunID:     r.params.AgentName,
+		RunID:     r.params.RunID,
 		Status:    string(r.run.Status),
 		State:     string(r.run.FinalState),
 		Signal:    string(r.signal),

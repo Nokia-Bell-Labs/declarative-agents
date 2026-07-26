@@ -75,7 +75,7 @@ func TestApprovalLifecycleProfileSuspendsThroughCheckpointPort(t *testing.T) {
 func TestResolveCheckpointDefaultsToNoop(t *testing.T) {
 	t.Parallel()
 
-	cp, err := resolveCheckpoint(runtimeConfig{}, core.MachineSpec{})
+	cp, err := resolveCheckpoint(runtimeConfig{}, core.MachineSpec{}, "run-test")
 
 	require.NoError(t, err)
 	require.IsType(t, core.NoopCheckpoint{}, cp.Checkpoint)
@@ -86,7 +86,7 @@ func TestResolveCheckpointWithDoltDSNOpensDoltBackend(t *testing.T) {
 
 	// A --dolt-dsn value routes to the Dolt adapter over the registered "dolt"
 	// (MySQL-wire) driver; an unparseable DSN surfaces as a typed ErrDolt.
-	_, err := resolveCheckpoint(runtimeConfig{DoltDSN: "not-a-valid-dsn"}, core.MachineSpec{})
+	_, err := resolveCheckpoint(runtimeConfig{DoltDSN: "not-a-valid-dsn"}, core.MachineSpec{}, "run-test")
 
 	require.ErrorIs(t, err, core.ErrDolt)
 }

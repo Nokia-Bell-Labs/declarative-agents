@@ -189,7 +189,8 @@ func restMetricLoopParams(cmd core.Command, signal core.Signal, rec monitor.Runt
 	}
 	return core.LoopParams{
 		MachineSpec:     spec,
-		AgentName:       "rest-run",
+		RunID:           "rest-run",
+		AgentName:       "rest-agent",
 		Trace:           tracing.NoopTracer{},
 		Budget:          core.Budget{MaxIterations: 3},
 		MonitorRecorder: rec,

@@ -164,9 +164,11 @@ func TestLoopMonitorSamplesIncludeWorkflowMetricLabels(t *testing.T) {
 	require.NoError(t, err)
 	require.Equal(t, StatusSucceeded, rr.Status)
 	snapshot := store.Snapshot()
+	require.Equal(t, "workflow-run", snapshot.Run.RunID)
 	requireSampleLabels(t, snapshot.RecentSamples, "dispatch_duration", map[string]string{
-		"use_case": "rel04.0-monitor",
-		"phase":    "dispatch",
+		"use_case":   "rel04.0-monitor",
+		"phase":      "dispatch",
+		"agent.name": "workflow-agent",
 	})
 	requireSampleEnvelope(t, snapshot.RecentSamples, "dispatch_duration", monitor.MetricSample{
 		ToolName: "emit_metric",
@@ -186,6 +188,16 @@ func TestLoopMonitorSamplesIncludeWorkflowMetricLabels(t *testing.T) {
 		Signal:   string(ToolDone),
 		Status:   "success",
 	})
+
+	spanIdentity := map[string]string{}
+	for _, attr := range runSpanAttrs(params) {
+		switch string(attr.Key) {
+		case "run.id", "gen_ai.agent.name":
+			spanIdentity[string(attr.Key)] = attr.Value.AsString()
+		}
+	}
+	require.Equal(t, "workflow-run", spanIdentity["run.id"])
+	require.Equal(t, "workflow-agent", spanIdentity["gen_ai.agent.name"])
 }
 
 func TestLoop_SuspendWithoutPersistenceIsExplicitNoop(t *testing.T) {

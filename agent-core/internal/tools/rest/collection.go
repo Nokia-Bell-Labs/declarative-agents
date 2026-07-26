@@ -66,6 +66,7 @@ type ServerDefinition struct {
 	Limits               LimitProfile
 	MachineRequestRunner MachineRequestRunner
 	Monitor              MonitorState
+	RunID                string
 }
 
 // MonitorState provides read-only state for monitor REST endpoints.
@@ -90,6 +91,7 @@ type MachineRequestRun struct {
 	Payload         map[string]interface{}  `json:"payload,omitempty"`
 	Config          MachineRequest          `json:"-"`
 	MonitorRecorder monitor.RuntimeRecorder `json:"-"`
+	RunID           string                  `json:"-"`
 }
 
 // MachineRequestResult records the short-lived machine outcome.
@@ -265,6 +267,7 @@ func (defaultMachineRequestRunner) RunMachineRequest(
 		// cross-agent propagation. The process provider is set globally by NewRoot;
 		// without it this wraps the no-op global provider and behaves as before.
 		Trace:           requestScopedTrace(ctx),
+		RunID:           req.RunID,
 		AgentName:       machineRequestAgentName(req),
 		Directory:       ".",
 		MonitorRecorder: req.MonitorRecorder,
@@ -447,6 +450,7 @@ func (r *serverRuntime) handleMachineRequest(
 		Payload:         machineRequestPayload(endpoint.MachineRequest.Request, payload),
 		Config:          endpoint.MachineRequest,
 		MonitorRecorder: r.requestMonitor,
+		RunID:           r.def.RunID,
 	})
 	if err != nil {
 		writeMachineRequestError(w, err)

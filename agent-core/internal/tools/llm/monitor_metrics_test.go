@@ -158,7 +158,8 @@ func llmMetricLoopParams(cmd core.Command, signal core.Signal, rec monitor.Runti
 	}
 	return core.LoopParams{
 		MachineSpec:     spec,
-		AgentName:       "llm-run",
+		RunID:           "llm-run",
+		AgentName:       "llm-agent",
 		Trace:           tracing.NoopTracer{},
 		Budget:          core.Budget{MaxIterations: 3},
 		MonitorRecorder: rec,

@@ -4,9 +4,10 @@ package main
 
 import (
 	"context"
+	"crypto/rand"
+	"encoding/hex"
 	"fmt"
 	"strings"
-	"time"
 
 	"github.com/spf13/cobra"
 	"go.opentelemetry.io/otel/metric"
@@ -119,11 +120,11 @@ func loadProfileToolDefs(cfg runtimeConfig) ([]catalog.ToolDef, error) {
 // (srd035-checkpoint-port R5.1, srd036-dolt-state-persistence R1). The "dolt"
 // database/sql driver is registered at the composition root (dolt_driver.go),
 // which connects to a dolt sql-server over the MySQL wire protocol.
-func resolveCheckpoint(cfg runtimeConfig, machine core.MachineSpec) (openedCheckpoint, error) {
+func resolveCheckpoint(cfg runtimeConfig, machine core.MachineSpec, runID string) (openedCheckpoint, error) {
 	if cfg.DoltDSN == "" {
 		return openedCheckpoint{Checkpoint: core.NoopCheckpoint{}}, nil
 	}
-	cp, err := openDoltCheckpoint(cfg.DoltDSN, resolveRunID(cfg), terminalPredicate(machine))
+	cp, err := openDoltCheckpoint(cfg.DoltDSN, runID, terminalPredicate(machine))
 	if err != nil {
 		return openedCheckpoint{}, fmt.Errorf("open dolt checkpoint: %w", err)
 	}
@@ -134,13 +135,17 @@ func resolveCheckpoint(cfg runtimeConfig, machine core.MachineSpec) (openedCheck
 	}, nil
 }
 
-// resolveRunID names the Dolt run branch: the explicit --resume-checkpoint id
-// when resuming a known run, otherwise a fresh timestamp-based id.
-func resolveRunID(cfg runtimeConfig) string {
+// resolveRunID returns the stable identity shared by checkpoint, monitor, and
+// trace records: the explicit checkpoint id on resume, or a fresh random id.
+func resolveRunID(cfg runtimeConfig) (string, error) {
 	if id := cfg.ResumeCheckpoint; id != "" && id != "latest" {
-		return id
+		return id, nil
 	}
-	return fmt.Sprintf("run-%d", time.Now().UTC().UnixNano())
+	var id [16]byte
+	if _, err := rand.Read(id[:]); err != nil {
+		return "", fmt.Errorf("generate run id: %w", err)
+	}
+	return "run-" + hex.EncodeToString(id[:]), nil
 }
 
 // terminalPredicate reports which machine states end a run so the Dolt adapter
