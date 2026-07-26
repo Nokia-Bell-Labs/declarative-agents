@@ -30,7 +30,7 @@ test_cases:
       workflow labels, OpenTelemetry export, REST OpenAPI output, launch-output
       bound address discovery, and cached event-stream frames.
     inputs:
-      profile: ${AGENT_PROFILES_ROOT}/agents/monitor/profile.yaml
+      profile: ${AGENT_CATALOG_ROOT}/agents/monitor/profile.yaml
     expected:
       cmd_agent_monitor_recorder_wired: true
       live_store_used_by_rest: true
@@ -62,7 +62,7 @@ test_cases:
     integration_target: mage integration:monitor
     status: implemented
     description: |
-      Start cmd/agent with ${AGENT_PROFILES_ROOT}/monitor/profile.yaml or an
+      Start cmd/agent with ${AGENT_CATALOG_ROOT}/monitor/profile.yaml or an
       equivalent profile-owned monitor path, then wait until the monitor REST listener
       accepts requests. Discover the base URL from REST server launch output
       when the configured address uses 127.0.0.1:0. Request /monitor/state
@@ -74,7 +74,7 @@ test_cases:
       launch, blocking await, control exit, listener stop, and successful
       terminal routing.
     inputs:
-      profile: ${AGENT_PROFILES_ROOT}/monitor/profile.yaml
+      profile: ${AGENT_CATALOG_ROOT}/monitor/profile.yaml
       query_routes:
         - /monitor/state
         - /monitor/metrics

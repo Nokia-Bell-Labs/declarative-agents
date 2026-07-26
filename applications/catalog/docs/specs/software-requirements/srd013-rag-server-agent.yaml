@@ -1,0 +1,9 @@
+id: srd013-rag-server-agent
+title: RAG Server Agent Functional Block (Relocated)
+status: relocated
+canonical_path: applications/chatbot-mesh/docs/specs/software-requirements/srd001-rag-server-agent.yaml
+note: |
+  Pointer-only tombstone. The RAG server is chatbot-mesh application
+  composition, so its requirements and evidence live with the canonical
+  example. Reusable corpus behavior remains under srd012 in applications/catalog.
+  This retained identifier exists only to redirect historical references.

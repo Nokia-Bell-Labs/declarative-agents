@@ -1,0 +1,640 @@
+id: agent-profiles-roadmap
+title: Agent Profiles Release Road Map
+
+numbering_policy: |
+  Release numbers share the number space defined by agent-core. A release exists
+  in this road map only when this repository has deliverables for the matching
+  agent-core release, so the sequence skips numbers with no profile-owned work
+  (hence the jump from 00.1 to 06.0). Where a release carries
+  related_agent_core_release, that field names the agent-core release it tracks,
+  and any proof command that runs from an agent-core checkout says so explicitly.
+
+releases:
+  - version: "00.1"
+    name: Repository bootstrap
+    description: |
+      Define the repository purpose and ownership boundary before assets move.
+      The first release also adds a documentation index and migration roadmap.
+
+      Issue format rules matter because the next issues touch profile assets,
+      demos, and fixtures. With those rules in place, future issues can
+      move assets without re-opening the runtime ownership decision.
+    status: done
+    deliverables:
+      - README.md documents local usage, container usage, and ownership.
+      - docs/VISION.yaml defines goals and boundaries.
+      - docs/ARCHITECTURE.yaml defines repository structure and mount
+        interfaces.
+      - docs/SPECIFICATIONS.yaml indexes the initial docs.
+      - docs/constitutions/issue-format.yaml defines future issue fields.
+      - docs/specs/software-requirements/srd001-agent-functional-blocks.yaml
+        defines migrated profile families as functional blocks.
+      - docs/specs/semantic-models/multi-agent-profile-system.yaml defines
+        profile role groups and dependency directions.
+      - docs/specs/semantic-models/agent-role-taxonomy.yaml classifies each
+        profile family by boundary, inputs, outputs, tools, and checks.
+      - magefiles/release.go adds profile bundle release tagging.
+      - magefiles/validation.go validates migrated profiles and mounted
+        container usage against an external agent-core runtime.
+
+  - version: "06.0"
+    name: External agent profiles and mounted runtime assets
+    description: |
+      Profile-owned programs have moved from agent-core into this repository.
+      Demos and integration fixtures moved with the profiles they exercise.
+
+      Runtime code, builtin tool implementations, release image build logic,
+      and core-owned assets stay in agent-core. At execution time, commands
+      load profiles through AGENT_CATALOG_ROOT, /profiles, or another explicit
+      external path.
+
+      Release 06.0 is complete for this repository when the profile assets can
+      be validated, tagged, mounted into a runtime container, and consumed by
+      agent-core integration targets. The remaining ownership boundary belongs
+      to agent-core release work, not to this profile bundle.
+      Done here means the profile bundle has its own evidence.
+
+      Operators still need a compatible agent-core runtime image or checkout,
+      but this repository now supplies the profile programs, fixtures, UI
+      assets, validation target, smoke target, release tag target, and formal
+      traceability records that the runtime consumes.
+    status: done
+    related_agent_core_release: "06.0"
+    planned_work:
+      - id: agent-profiles-dte
+        summary: Specify agent functional blocks and multi-agent semantics.
+        status: done
+      - id: agent-profiles-sqe
+        summary: Migrate agent profiles and UX assets from agent-core.
+        status: done
+      - id: agent-profiles-6ar
+        summary: Move demos and agent integration fixtures into applications/catalog.
+        status: done
+      - id: agent-profiles-73s
+        summary: Add Mage release tag target for profile bundles.
+        status: done
+      - id: agent-profiles-8t8
+        summary: Add profile validation and container usage checks.
+        status: done
+      - id: agent-profiles-dqm
+        summary: Validate all profile variants in applications/catalog.
+        status: done
+      - id: agent-profiles-0g7
+        summary: Add formal profile migration use cases and test suites.
+        status: done
+    use_cases:
+      - id: rel06.0-uc001-mounted-profile-execution
+        summary: Runtime executes profile-owned programs mounted from applications/catalog.
+        status: implemented
+      - id: rel06.0-uc002-profile-validation
+        summary: Profile validation and release bundle tagging prove repository readiness.
+        status: implemented
+    test_suites:
+      - id: test-rel06.0-agent-profiles
+        summary: Formal proof suite for profile validation, mounted container execution, tagging, and agent-core integrations.
+        status: implemented
+    proof:
+      - mage validate
+      - mage containerSmoke
+      - mage tag
+      - go test ./magefiles
+      - AGENT_CATALOG_ROOT=/path/to/applications/catalog mage integration:codingLoop (run from applications/coding-agent)
+      - AGENT_CATALOG_ROOT=/path/to/applications/catalog mage integration:monitor (run from an agent-core checkout)
+    success_markers:
+      - Migrated profile.yaml files load through agent-core from this
+        repository.
+      - Knowledge Manager UX config remains profile-local beside its profile.
+      - Demos and fixtures use repository-relative paths, AGENT_CATALOG_ROOT,
+        /profiles, or explicit workspace mounts.
+      - agent-core runtime images do not copy migrated profile directories.
+
+  - version: "07.0"
+    name: Profile-owned integration tracer bullets
+    description: |
+      Profile-owned integration tests should prove concrete profile behavior
+      where the profile assets live. Release 07.0 defines tracer bullets for
+      Knowledge Manager/documentation-curator UX, evaluator to generator,
+      planner to generator, bench to evaluator, and monitor/control boundaries.
+
+      The release includes executable profile-owned tracer bullets for
+      Knowledge Manager/documentation-curator UX, bench to critic, and
+      monitor/control boundaries. The former evaluator-to-generator and
+      planner-to-generator library tracers are retired because they used shell
+      children that fabricated the claimed behavior. Their real
+      critic-to-executor and planner-to-executor replacements belong to
+      applications/coding-agent and are not counted as implemented library proof.
+    status: done
+    related_agent_core_release: "07.0"
+    planned_work:
+      - id: gh-106
+        summary: Define profile integration tracer-bullet use cases and suite.
+        status: done
+      - id: gh-107
+        summary: Move documentation-curator integration proof to applications/catalog.
+        status: done
+      - id: gh-108
+        summary: Add evaluator-to-generator profile tracer bullet.
+        status: done
+      - id: gh-109
+        summary: Add planner-to-generator profile tracer bullet.
+        status: done
+      - id: gh-110
+        summary: Add bench-to-evaluator profile tracer bullet.
+        status: done
+      - id: gh-111
+        summary: Add or explicitly scope monitor-control tracer evidence.
+        status: done
+    use_cases:
+      - id: rel07.0-uc001-documentation-curator-profile-ux
+        summary: Knowledge Manager profile UX, document machine_request, trace, and lifecycle proof.
+        status: implemented
+      - id: rel07.0-uc002-evaluator-generator-profile-boundary
+        summary: Retired library tracer; application critic boundary is the replacement.
+        status: planned
+      - id: rel07.0-uc003-planner-generator-profile-boundary
+        summary: Retired library tracer; application planner delegation is the replacement.
+        status: planned
+      - id: rel07.0-uc004-bench-evaluator-profile-boundary
+        summary: Bench launches evaluator from a human/operator action.
+        status: implemented
+      - id: rel07.0-uc005-monitor-control-profile-boundary
+        summary: Monitor/control tracer decision and lifecycle boundary proof.
+        status: implemented
+    test_suites:
+      - id: test-rel07.0-profile-integrations
+        summary: Implemented profile-owned tracer bullet evidence.
+        status: implemented
+    proof:
+      - mage integration:all
+      - mage integration:documentationCurator
+      - mage integration:benchEvaluator
+      - mage integration:monitorControl
+    success_markers:
+      - Each implemented tracer target lives in applications/catalog.
+      - Fixtures resolve through AGENT_CATALOG_ROOT or repository-relative paths.
+      - Cross-profile boundaries record concrete output, trace, or terminal state evidence.
+      - agent-core remains unaware of concrete profile names in its own integration targets.
+
+  - version: "07.1"
+    name: Per-family SRDs and profile coverage
+    description: |
+      Release 07.1 gives each profile family its own requirements contract and
+      validates the completed 07.0 tracer bullets without renumbering existing
+      use cases. The requirements layer moves from one shared SRD holding ten
+      blocks to one SRD per family, with srd001 keeping only the cross-cutting
+      ownership boundary and dependency-direction invariants.
+
+      The release also adds per-family boundary use cases and a test suite for
+      the jurist, lifecycle, and rest families, which were previously validated
+      only by the generic rel06.0 mounted-profile and profile-validation use
+      cases. Each new use case names the actor boundary, inputs, outputs, and
+      terminal outcomes for its family and traces to the family SRD.
+    status: in-progress
+    planned_work:
+      - id: gh-193
+        summary: Split srd001-agent-functional-blocks into per-family SRDs (srd002-executor through srd011-knowledge-manager) and retarget existing traces.
+        status: done
+      - id: gh-194
+        summary: Add per-family boundary use cases and a test suite for the jurist, lifecycle, and rest profiles.
+        status: done
+      - id: gh-195
+        summary: Add an executable per-family OpenTelemetry conformance suite (mage conformance) covering all ten profile families against srd002-srd011.
+        status: done
+      - id: gh-229
+        summary: Exercise the shipped profile.yaml wrappers and their variants behaviorally in conformance instead of synthesized reconstructions — copy-and-patch only harness-controlled fields (addresses, ports, corpus dirs, iteration budget) — and record per-family and per-variant coverage (shipped-behavioral vs load-and-wiring) with reasons.
+        status: done
+    deliverables:
+      - docs/specs/software-requirements/srd002-executor.yaml through
+        srd011-knowledge-manager.yaml define per-family functional blocks.
+      - docs/specs/software-requirements/srd001-agent-functional-blocks.yaml
+        keeps the profile ownership boundary and cross-profile
+        dependency-direction invariants.
+      - docs/specs/use-cases/rel07.1-uc001-jurist-profile-boundary.yaml,
+        rel07.1-uc002-lifecycle-profile-boundary.yaml, and
+        rel07.1-uc003-rest-profile-boundary.yaml add per-family boundary use
+        cases for the previously uncovered families.
+      - docs/specs/test-suites/test-rel07.1-profile-boundaries.yaml validates the
+        three boundary use cases against the family SRD acceptance criteria.
+      -       docs/specs/test-suites/test-rel07.1-profile-conformance.yaml records the
+        executable per-family conformance suite that runs each family through the
+        agent-core CLI and asserts on captured OpenTelemetry traces. Every case
+        runs the shipped profile.yaml wrapper (or a named shipped variant),
+        copying it only to patch harness-controlled fields; the generator and
+        rest families additionally run their shipped variants and carry an
+        ungated load-and-wiring companion. Coverage is annotated per family and
+        per variant (shipped-behavioral vs load-and-wiring).
+    use_cases:
+      - id: rel07.1-uc001-jurist-profile-boundary
+        summary: Jurist deterministic, LLM-free charter validation boundary.
+        status: specified
+      - id: rel07.1-uc002-lifecycle-profile-boundary
+        summary: Lifecycle history, rollback, and approval machine-action boundary.
+        status: specified
+      - id: rel07.1-uc003-rest-profile-boundary
+        summary: REST client and server boundary words and the ollama-* variant.
+        status: specified
+    test_suites:
+      - id: test-rel07.1-profile-boundaries
+        summary: Boundary use-case validation for the jurist, lifecycle, and rest families.
+        status: specified
+      - id: test-rel07.1-profile-conformance
+        summary: Executable per-family OpenTelemetry conformance for all ten families. Nine are implemented shipped-behavioral (runs the shipped profile.yaml/variant, copy-and-patch only harness-controlled fields); the rest sample server boundary is bounded-behavioral (shipped REST config and declarations over a synthesized launch/await/stop machine). Generator (with qwen27b/qwen35b variants), the planner behavioral run, and the rest ollama-profile variant are Ollama-gated; lifecycle suspend/resume and history/rollback are Dolt-gated; rest proves its inbound webhook server boundary over the shipped REST config (client head proven at the agent-core package level). Generator, planner, and rest carry ungated load-and-wiring companions.
+        status: implemented
+    proof:
+      - mage validate
+      - AGENT_CORE_ROOT=/path/to/agent-core mage conformance
+    deferred:
+      - Profile-owned Mage integration targets that execute the jurist,
+        lifecycle, and rest boundary fixtures, mirroring
+        magefiles/integration_*.go for the covered families, and that trace to
+        rel07.1-uc001/uc002/uc003 S1-S3. These are distinct from the delivered
+        mage conformance suite, which asserts SRD acceptance criteria per family
+        (srd005-jurist, srd009-lifecycle, srd007-rest) plus the role taxonomy, so
+        the conformance cases are executable evidence at the SRD layer but do not
+        by themselves satisfy the boundary use cases. The gap is concrete
+        for rest, whose client read/create/await head is not run in a profile
+        machine (conformance proves only the inbound webhook server boundary; the
+        client async await_operation polling is proven at the agent-core package
+        level), and the lifecycle conformance evidence is Dolt-gated. Until the
+        boundary integration targets that trace uc001/uc002/uc003 S1-S3 land, the
+        three use cases and their test-rel07.1-profile-boundaries cases stay
+        status specified rather than implemented; promoting them on conformance
+        evidence alone would overstate rest and hide the Dolt gate.
+      - Running the full rest client create/await head inside a profile machine
+        (rel07.1-uc003), which needs inter-tool input shaping so REST client
+        steps satisfy the declared-only runtime input contract. The rest
+        conformance case proves the inbound webhook server boundary to Succeeded;
+        the client async await_operation polling (#205) is delivered in agent-core
+        and proven at the package level. Planner conformance (#211) is delivered —
+        agent-core gained a load_graph pipeline word that seeds the requirement
+        graph before extraction. Lifecycle history/rollback conformance (#209) is
+        delivered — agent-core routes the --request checkpoint id and to_iteration
+        into a target-pinned checkpoint backend and the tool configs.
+
+  - version: "08.0"
+    name: Chroma corpus agents
+    description: |
+      Two profile-owned agents use a local Chroma vector database as a retrieval
+      boundary: an ingest profile that loads a repository corpus into a Chroma
+      collection, and a reader profile that answers a question grounded in the
+      retrieved chunks. Both are pure applications/catalog configuration over existing
+      agent-core words -- REST client words, list_resource, read_resource, and
+      invoke_llm. The ingest machine lists trusted corpus paths before model
+      control; the model selects listed files, and the machine sequences the
+      deterministic embed and add steps after each read (#251, #849).
+
+      Chroma does not embed text server-side over its raw HTTP API (spike #239),
+      so the agents compute embeddings at a local Ollama provider (an
+      /api/embeddings REST word) and thread the resulting vector into the Chroma
+      add and query bodies. Provider embedding, not server-side embedding, is the
+      design. The
+      threading uses the agent-core previous-Result parameter capability
+      delivered by #245 (srd028-rest-client-tools R12): body_source
+      previous_result selects the vector through input_mapping, carry_forward
+      echoes the source text and id, and a single-token array element reshapes
+      the flat vector into the nested array Chroma expects. No embedding vector is
+      authored by a model.
+    status: done
+    planned_work:
+      - id: gh-230
+        summary: Chroma corpus agents epic -- srd012, release 08.0 docs, profiles, and integration test.
+        status: done
+      - id: gh-240
+        summary: Add srd012-chroma-corpus-agents SRD.
+        status: done
+      - id: gh-241
+        summary: Add release 08.0 roadmap, use cases, test suite, and SPECIFICATIONS entries.
+        status: done
+      - id: gh-242
+        summary: Add the profile-owned Chroma and Ollama REST assets and the ingest profile.
+        status: done
+      - id: gh-243
+        summary: Add the Chroma reader profile.
+        status: done
+      - id: gh-244
+        summary: Add the mage integration:chroma target and tracer test.
+        status: done
+      - id: gh-250
+        summary: Fix the runtime and reader defects found by running the agents end-to-end.
+        status: done
+      - id: gh-251
+        summary: Redesign the ingest as a model-driven loop that actually loads the corpus.
+        status: done
+    use_cases:
+      - id: rel08.0-uc001-corpus-ingest
+        summary: Ingest profile lists and reads a corpus under model control, embeds at Ollama, and threads vectors into Chroma add.
+        status: implemented
+      - id: rel08.0-uc002-corpus-query
+        summary: Reader profile embeds a question, threads the vector into Chroma query, and answers grounded in retrieved chunks.
+        status: implemented
+    proof:
+      - mage validate
+      - cd applications/chatbot-mesh && mage integration:chroma  # mesh wrapper, canonical library ingest program
+      - go test ./conformance -run TestCorpusIngestListsTrustedCorpusBeforeModelControl
+      - go test ./conformance -run TestCorpusReader
+    success_markers:
+      - The ingest and reader profiles are pure applications/catalog configuration over existing agent-core words.
+      - Every Chroma add and query carries an agent-supplied embedding vector threaded from the Ollama embed word, never a model-authored or server-side vector.
+      - The reader answer is grounded in chunks retrieved through embed_query -> chroma_query -> invoke_llm.
+      - The Chroma and Ollama servers are external preconditions surfaced through chroma_ready and ollama_ready, not started by the agent.
+
+  # Renumber decision (GH-332): the original single "09.0 Chatbot mesh" release
+  # carried three use cases across five epics (#292-#296), and the observability
+  # epic (#295) had no use case. Release 09 is broken into one release per epic so
+  # implementation traces one-to-one, and the too-broad rel09.0-uc002-chatbot-turn
+  # is split -- its single-RAG reduction stays in 09.0 (the core-loop epic #293),
+  # and its tier-selection/fan-out/degradation criteria move to 09.1 (the
+  # tier-selection epic
+  # #294). The rel09.0 use cases were status planned when this decision was made;
+  # the use-case and test-suite files are renamed to their staged ids by the
+  # follow-on spec issue GH-333, which also authors the observability (09.2),
+  # control-plane (09.4), and alignment (10.0) tracers. Each release below maps
+  # epics to use cases to a test suite one-to-one-to-one.
+
+  - version: "09.0"
+    name: RAG server and single-RAG chatbot turn
+    relocated_to: >-
+      Relocated to applications/chatbot-mesh (rel00.0). The mesh data-plane specs
+      (SRDs, use cases, test suites) now live with the standalone example; this
+      entry remains for history. The control plane (09.4) is relocated too (rel05.0, GH-430).
+    description: |
+      Release 09.0 is the core loop of the chatbot mesh: a persistent RAG server
+      agent (srd013, vector-in) that answers a query_embeddings request with
+      chunks and embedding-model metadata, and a browser-facing chatbot agent
+      (srd014) whose request-scoped turn embeds the message once, queries a single
+      RAG, composes a grounded prompt through command-state $from(), and answers,
+      degrading to a mapped 200 when the RAG fails. Epics #292 (RAG server) and
+      #293 (chatbot core loop).
+    status: implemented
+    srds:
+      - srd013-rag-server-agent
+      - srd014-chatbot-agent
+    use_cases:
+      - id: rel09.0-uc001-rag-server-query
+        summary: Persistent RAG server answers a vector-in query_embeddings request and returns chunks with embedding-model metadata.
+        status: implemented
+      - id: rel09.0-uc002-chatbot-turn
+        summary: Single-RAG chat turn embeds once, queries one RAG, composes via $from(), answers, and degrades to a 200 when the RAG fails.
+        status: implemented
+    test_suites:
+      - id: test-rel09.0-chatbot-mesh
+        summary: Profile-owned tracers for the RAG server query and the single-RAG chatbot turn with a degraded RAG.
+        status: implemented
+
+  - version: "09.1"
+    name: Tier selection and multi-RAG fan-out
+    relocated_to: >-
+      Relocated to applications/chatbot-mesh (rel01.0). The mesh data-plane specs
+      (SRDs, use cases, test suites) now live with the standalone example; this
+      entry remains for history. The control plane (09.4) is relocated too (rel05.0, GH-430).
+    description: |
+      Release 09.1 extends the chatbot turn (srd014 R2, R3) with the LLM $tool
+      tier selector that classifies a question to one chat-LLM word, and the sequential
+      multi-RAG fan-out that embeds once and queries N RAGs, each degraded
+      (CommandError) or embedding-mismatch-excluded (QueryRejected) source routing
+      on as a visible machine transition, compose assembling the surviving
+      per-source chunks. Epic #294.
+    status: implemented
+    srds:
+      - srd014-chatbot-agent
+    use_cases:
+      - id: rel09.1-uc001-routed-fanout
+        summary: A tier-selected chat turn dispatches one chat-LLM word via $tool and fans the one embedding out to two RAGs, citing both corpora and degrading when one fails.
+        status: implemented
+    test_suites:
+      - id: test-rel09.1-routing-fanout
+        summary: Tracers for the $tool tier-selector dispatch, the two-RAG fan-out over disjoint corpora, and the degraded and embedding-mismatch paths.
+        status: implemented
+
+  - version: "09.2"
+    name: Observability
+    relocated_to: >-
+      Relocated to applications/chatbot-mesh (rel02.0). The mesh data-plane specs
+      (SRDs, use cases, test suites) now live with the standalone example; this
+      entry remains for history. The control plane (09.4) is relocated too (rel05.0, GH-430).
+    description: |
+      Release 09.2 is the observability surface (srd014 R5.1, R5.3): a per-agent
+      monitor panel fed by each agent's monitor read_state and SSE stream through
+      the chatbot's same-origin monitor_proxy, and a cross-agent trace waterfall
+      that renders a turn's connected trace from the Jaeger query API, real
+      because the request-scoped machine exports its spans and propagates
+      traceparent to the RAG servers. Epic #295.
+    status: implemented
+    srds:
+      - srd014-chatbot-agent
+    use_cases:
+      - id: rel09.2-uc001-observability
+        summary: The observability panel shows each agent's run state and event stream and renders a selected turn's connected cross-agent trace as a span waterfall.
+        status: implemented
+    test_suites:
+      - id: test-rel09.2-observability
+        summary: Tracers for the per-agent monitor panels over monitor_proxy and the cross-agent trace waterfall from the trace backend.
+        status: implemented
+
+  - version: "09.3"
+    name: Mesh deployment and tiered swap
+    relocated_to: >-
+      Relocated to applications/chatbot-mesh (rel03.0). The mesh data-plane specs
+      (SRDs, use cases, test suites) now live with the standalone example; this
+      entry remains for history. The control plane (09.4) is relocated too (rel05.0, GH-430).
+    description: |
+      Release 09.3 deploys the mesh as one Helm chart (srd015) with values-driven
+      RAG pairs, co-generated chatbot client config and N-RAG fan-out from one
+      source, a tiered hot swap (repoint is a Service change; add-RAG re-renders
+      and rolls the chatbot with a Dolt checkpoint resume), OTLP observability,
+      and a provisioning deployment API. Epic #296.
+    status: implemented
+    srds:
+      - srd015-chatbot-deployment
+    use_cases:
+      - id: rel09.3-uc001-mesh-deployment
+        summary: One Helm chart deploys the mesh on a kind cluster with values-to-config co-generation, a Service repoint, and an add-RAG rollout with checkpoint resume, provisioned through a separately-authenticated deployment API.
+        status: implemented
+    test_suites:
+      - id: test-rel09.3-mesh-deployment
+        summary: Tracers for the kind deploy smoke, the co-generation drift lock, the repoint and add-RAG swaps, and the provisioning deployment API.
+        status: implemented
+
+  - version: "09.4"
+    name: Control plane
+    relocated_to: >-
+      Relocated to applications/chatbot-mesh (rel05.0) as srd004-coordinator and
+      srd005-creator, with the rel05.0 control-plane use case and test suite; this
+      entry remains for history and the example is the canonical copy (GH-430).
+    description: |
+      Release 09.4 adds the mesh control plane: a Coordinator agent (srd016) that
+      sequences directory ingestion and reconfiguration and to which the UX agent
+      delegates provisioning intents, and a Creator agent (srd017) for agent
+      lifecycle management (template selection, instance creation, checkpoint-resume
+      restarts, health monitoring) acting on the coordinator's requests. The
+      provisioning and deployment swap surfaces of #296 land behind these roles.
+      Authored by GH-329.
+    status: planned
+    srds:
+      - srd016-coordinator
+      - srd017-creator
+    use_cases:
+      - id: rel09.4-uc001-control-plane-provisioning
+        summary: The coordinator sequences a reconfiguration the UX agent delegates, and the creator materializes and health-monitors the agent instances, resuming from checkpoints on restart.
+        status: specified
+    test_suites:
+      - id: test-rel09.4-control-plane
+        summary: Tracers for the coordinator's reconfiguration sequencing and the creator's instance lifecycle and checkpoint-resume restart.
+        status: specified
+
+  # rel09.5 validates the completed rel09.0-09.3 mesh with an in-cluster LLM tier
+  # (a minor release, no renumbering of the deployment releases). The epic proposed
+  # rel09.1 for this, but GH-332 assigned rel09.1 to tier selection/fan-out; 09.5 is the
+  # next free number in the chatbot-mesh 09.x line.
+  - version: "09.5"
+    name: In-cluster LLM tier
+    relocated_to: >-
+      Relocated to applications/chatbot-mesh (rel04.0). The mesh data-plane specs
+      (SRDs, use cases, test suites) now live with the standalone example; this
+      entry remains for history. The control plane (09.4) is relocated too (rel05.0, GH-430).
+    description: |
+      Release 09.5 promotes Ollama from an external values-driven endpoint to a
+      first-class, chart-owned LLM tier (srd015 R6): an optional Ollama subchart,
+      enabled by default, with PVC-backed model storage, a model-preload Job, agent
+      readiness gated on model presence, and GPU scheduling values. A fresh-cluster
+      install is self-contained; setting ollama.enabled=false with an endpoint
+      override reproduces the external-endpoint behavior, and the co-generation
+      contract (R2) is unchanged either way. This is a minor release validating the
+      completed rel09.0-09.3 mesh. Epic #335.
+    status: implemented
+    srds:
+      - srd015-chatbot-deployment
+    use_cases:
+      - id: rel09.5-uc001-in-cluster-llm-tier
+        summary: A fresh-cluster install with defaults answers a chat turn with zero external LLM dependency; the disabled-tier override reproduces the external endpoint, and agents are not ready until the models are pulled.
+        status: implemented
+    test_suites:
+      - id: test-rel09.5-llm-tier
+        summary: Tracers for the default-install turn, the disabled-tier endpoint override, the preload-gate ordering, and the CPU-only kind smoke.
+        status: implemented
+
+  - version: "10.0"
+    name: Reference-architecture role alignment
+    description: |
+      Release 10.0 aligns the agents/ role catalog with the autogenic-systems
+      reference architecture (roles per ITU-T Y.3502 / TM Forum IG1251): the
+      evaluator family is renamed to critic and the generator family to executor
+      (the reference role names they implement), the chroma family moves under
+      knowledge-manager as corpus-ingest and corpus-reader (a role, not a vendor
+      database), and the rest, control, and lifecycle profile directories -- which
+      are conformance grammar fixtures rather than roles -- move to
+      testdata/conformance beside testdata/integration. After this release agents/
+      reads as a role catalog. Epic #323 (issues #325-#328, #330).
+    status: implemented
+    proof_commands:
+      - "mage validate  # profile wiring holds over the renamed tree"
+      - "mage conformance  # conformance fixtures pass under testdata/conformance"
+      - "go test ./...  # agent-core critic-session/critic-point builtin tool dirs"
+      - "grep -r 'agents/critic\\|agents/executor\\|agents/chroma\\|testdata/conformance/rest/\\|testdata/conformance/control/\\|testdata/conformance/lifecycle/' -- returns no stale path outside retained historical release records"
+    srds:
+      - srd013-rag-server-agent
+      - srd014-chatbot-agent
+    use_cases:
+      - id: rel10.0-uc001-role-catalog-renames
+        summary: The evaluator family is renamed to critic and generator to executor (reference role names).
+        status: implemented
+      - id: rel10.0-uc002-knowledge-family-rescope
+        summary: The vendor-named chroma family moves under knowledge-manager as corpus-ingest and corpus-reader.
+        status: implemented
+      - id: rel10.0-uc003-conformance-fixture-relocation
+        summary: The rest, control, and lifecycle conformance fixtures move to testdata/conformance so agents/ lists only role families.
+        status: implemented
+    test_suites:
+      - id: test-rel10.0-role-catalog
+        summary: Cases validating the critic/executor renames, the chroma rescope, and the conformance-fixture relocation with mage validate, mage conformance, go test, and zero-hit greps.
+        status: implemented
+
+  - version: "11.0"
+    name: Assembler test rig
+    description: |
+      Release 11.0 adds the repository's reusable test rig as two new role
+      families. The assembler (srd018) is the rig itself: a deterministic
+      machine that discovers scenarios under configurable roots, and for each
+      one starts the mocks its subject depends on, starts the
+      subject with its REST dependencies redirected at those mocks, runs the
+      scenario's validator machines, reduces their terminal states to a
+      verdict, and tears every child down. The mock (srd019) is one generic
+      profile that stands in for any REST dependency, serving the canned,
+      scripted responses a scenario fixture declares and recording a request
+      log validators assert against.
+
+      Both profiles are supported test-time library members. Their paths and
+      behavior are part of the canonical applications/catalog/v0.* public
+      surface even while the release remains in-progress on the evidence gaps
+      below. Matching agent-profiles/v0.* names are v0 compatibility aliases,
+      and immutable historical legacy tags remain valid. Rig-subject and other
+      conformance fixtures remain internal test data, not members.
+
+      Tests are profile-owned data. A scenario is a tests/<scenario>/
+      directory beside the agent it tests, holding validator machines and
+      fixtures, so one subject carries several tests and adding one never
+      edits the rig. Discovery roots cover both the agent families here and
+      the agents under applications/, so one rig serves the whole repository. No
+      scenario needs a live service and none needs a container image per
+      test: every child is the same agent binary over a mounted profile.
+
+      The runtime words the rig calls are agent-core release 09.0 (srd039
+      mock endpoint binding, srd040 service-child tools). This release records
+      the profile-owned documentation; the mock lands in GH-668, the assembler
+      in GH-669, and the reference subject with its scenarios and the mage
+      target in GH-670. Epic #662.
+
+      The implementation issues are complete and the shipped profiles, fixtures,
+      conformance tests, and mage rig target exist. Release status remains
+      in-progress because current evidence does not execute validator assertions
+      over right and wrong request logs, exercise malformed-fixture serving
+      startup, inspect child-process survival, or induce mock-start-failure
+      teardown.
+    status: in-progress
+    related_agent_core_release: "09.0"
+    planned_work:
+      - id: gh-665
+        summary: Specify the assembler and mock profile families (this release's documentation).
+        status: done
+      - id: gh-668
+        summary: Add the mock profile and fixture conformance.
+        status: done
+      - id: gh-669
+        summary: Add the assembler profile (the rig machine).
+        status: done
+      - id: gh-670
+        summary: Add the reference subject, self-proving scenarios, and the mage rig target.
+        status: done
+      - id: gh-678
+        summary: Add the scenario-session layer in agent-core (split from gh-669).
+        status: done
+    srds:
+      - srd018-assembler
+      - srd019-mock
+    use_cases:
+      - id: rel11.0-uc001-assembler-scenario-run
+        summary: The assembler runs an agent's scenarios with no live services,
+          reports ordered pass/fail verdicts, exposes machine-visible child-stop
+          dispatches, and repeats without observed port or state leakage.
+        status: in-progress
+      - id: rel11.0-uc002-mock-serves-fixtures
+        summary: One mock profile stands in for any REST dependency, scripts
+          response sequences, and exposes a per-instance request log whose
+          contents are inspected by conformance tests.
+        status: in-progress
+    test_suites:
+      - id: test-rel11.0-assembler-rig
+        summary: Cases for fixture serving and sequencing, two mocks from one
+          profile, direct request-log inspection, malformed-fixture
+          --validate-config rejection, scenario verdicts, visible stop
+          dispatches, repeatable runs, cross-root discovery, and shipped-profile
+          validation.
+        status: in-progress
+    proof:
+      - mage validate
+      - AGENT_CORE_ROOT=/path/to/agent-core mage rig
+    success_markers:
+      - Adding a test means adding files under a tests/ directory, never editing the assembler.
+      - One mock profile serves every dependency; response content lives in scenario fixtures.
+      - Scenarios run with no live Chroma, Ollama, Docker, or Kubernetes.
+      - The rig can fail: a wrong expectation reaches Failed and names the failing validator.

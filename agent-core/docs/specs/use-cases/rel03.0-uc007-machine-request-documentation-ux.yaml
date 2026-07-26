@@ -37,7 +37,7 @@ touchpoints:
   - T4: "srd031-declarative-document-resources R3, R5 -- path safety and raw or parsed YAML response modes"
   - T5: "srd031-declarative-document-resources R6 -- Knowledge Manager UI assets and action placement are human actor configuration"
   - T6: "rel03.0-uc006-documentation-curator -- direct-host smoke behavior retained beside the machine_request successor proof"
-  - T7: "agent-profiles profile integration suite -- concrete browser orchestration for the profile-owned tracer bullet"
+  - T7: "applications/catalog profile integration suite -- concrete browser orchestration for the profile-owned tracer bullet"
 
 success_criteria:
   - id: S1
@@ -81,11 +81,11 @@ out_of_scope:
 
 successor_to: rel03.0-uc006-documentation-curator
 status: done
-proof_owner: agent-profiles
+proof_owner: applications/catalog
 machine_config: agents/knowledge-manager/documentation-curator/machine.yaml
 rest_definitions: agents/knowledge-manager/documentation-curator/rest.yaml
 document_resource: documentation_corpus
 browser_harness: Puppeteer
-integration_target: agent-profiles documentation-curator browser target
+integration_target: applications/catalog documentation-curator browser target
 entry_point: profile-owned browser integration entry point
 test_suite_trace: test-rel03.0-rest-tools

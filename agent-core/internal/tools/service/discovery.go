@@ -31,7 +31,7 @@ const (
 // agent directories; each agent may carry a tests/ directory whose
 // subdirectories are scenarios. Roots come from configuration or run input,
 // never hardcoded paths (srd040 R5.4), so the same rig serves the agent
-// families and the agents under examples/.
+// families and the agents under applications/.
 //
 // A root that does not exist is skipped rather than failing, so a caller can
 // declare optional roots. The result is sorted for determinism (R5.3).

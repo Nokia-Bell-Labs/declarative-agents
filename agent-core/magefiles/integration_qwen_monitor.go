@@ -48,7 +48,12 @@ func (Integration) OllamaMonitor() error {
 	ctx, cancel := context.WithCancel(context.Background())
 	defer cancel()
 	cmd, output, resultCh := startMonitoredQwen(ctx, binary, rootDir, run.profilePath)
-	defer stopProcess(cmd, cancel)
+	defer func() {
+		cancel()
+		if cmd.Process != nil {
+			_ = cmd.Process.Kill()
+		}
+	}()
 	if err := waitMonitorHTTP(run.baseURL + "/monitor/state"); err != nil {
 		return fmt.Errorf("ollamaMonitor: monitor did not become ready: %w\n%s", err, output.String())
 	}
@@ -76,17 +81,12 @@ func prepareMonitoredQwenRun(rootDir, model string) (monitoredQwenRun, func(), e
 		return monitoredQwenRun{}, nil, err
 	}
 	cleanup := func() { os.RemoveAll(tmpDir) }
-	profileRoot, err := resolveAgentProfilesRoot(rootDir)
-	if err != nil {
-		cleanup()
-		return monitoredQwenRun{}, nil, err
-	}
 	addr, err := freeLoopbackAddress()
 	if err != nil {
 		cleanup()
 		return monitoredQwenRun{}, nil, err
 	}
-	if err := writeMonitoredQwenFiles(rootDir, profileRoot, tmpDir, model, addr); err != nil {
+	if err := writeMonitoredQwenFiles(rootDir, tmpDir, model, addr); err != nil {
 		cleanup()
 		return monitoredQwenRun{}, nil, err
 	}
@@ -96,13 +96,13 @@ func prepareMonitoredQwenRun(rootDir, model string) (monitoredQwenRun, func(), e
 	}, cleanup, nil
 }
 
-func writeMonitoredQwenFiles(rootDir, profileRoot, tmpDir, model, addr string) error {
+func writeMonitoredQwenFiles(rootDir, tmpDir, model, addr string) error {
 	files := []monitoredQwenFixture{
 		{name: "machine.yaml", fixture: "machine.yaml"},
 		{name: "tools.yaml", fixture: "tools.yaml"},
 		{name: "llm.yaml", fixture: "llm.yaml.tmpl", values: map[string]string{"MODEL": fmt.Sprintf("%q", model)}},
 		{name: "monitor-rest.yaml", fixture: "monitor-rest.yaml.tmpl", values: map[string]string{"ADDRESS": addr}},
-		{name: "profile.yaml", fixture: "profile.yaml.tmpl", values: monitoredQwenProfileValues(rootDir, profileRoot, tmpDir)},
+		{name: "profile.yaml", fixture: "profile.yaml.tmpl", values: monitoredQwenProfileValues(rootDir, tmpDir)},
 	}
 	for _, file := range files {
 		content, err := renderMonitoredQwenFixture(rootDir, file.fixture, file.values)
@@ -122,21 +122,33 @@ type monitoredQwenFixture struct {
 	values  map[string]string
 }
 
-func monitoredQwenProfileValues(rootDir, profileRoot, tmpDir string) map[string]string {
+func monitoredQwenProfileValues(rootDir, tmpDir string) map[string]string {
 	return map[string]string{
 		"MACHINE_PATH":              filepath.Join(tmpDir, "machine.yaml"),
 		"TOOLS_PATH":                filepath.Join(tmpDir, "tools.yaml"),
 		"LLM_DECLARATIONS_PATH":     abs(rootDir, "tools/builtin/llm/all.yaml"),
 		"LLM_OVERRIDE_PATH":         filepath.Join(tmpDir, "llm.yaml"),
-		"OLLAMA_DECLARATIONS_PATH":  conformanceAsset(profileRoot, "rest/ollama-declarations.yaml"),
-		"MONITOR_DECLARATIONS_PATH": profileAbs(profileRoot, "monitor/declarations.yaml"),
-		"OLLAMA_REST_PATH":          conformanceAsset(profileRoot, "rest/ollama-rest.yaml"),
+		"OLLAMA_DECLARATIONS_PATH":  coreIntegrationProfilePath(rootDir, "ollama-rest/declarations.yaml"),
+		"MONITOR_DECLARATIONS_PATH": coreIntegrationProfilePath(rootDir, "monitor/declarations.yaml"),
+		"OLLAMA_REST_PATH":          coreIntegrationProfilePath(rootDir, "ollama-rest/rest.yaml"),
 		"MONITOR_REST_PATH":         filepath.Join(tmpDir, "monitor-rest.yaml"),
 	}
 }
 
 func renderMonitoredQwenFixture(rootDir, name string, values map[string]string) (string, error) {
-	return renderIntegrationFixture(rootDir, filepath.Join("uc008", name), values)
+	path := coreIntegrationProfilePath(rootDir, filepath.Join("ollama-monitor", name))
+	data, err := os.ReadFile(path)
+	if err != nil {
+		return "", fmt.Errorf("read Ollama monitor fixture %s: %w", path, err)
+	}
+	content := string(data)
+	for key, value := range values {
+		content = strings.ReplaceAll(content, "{{"+key+"}}", value)
+	}
+	if strings.Contains(content, "{{") {
+		return "", fmt.Errorf("Ollama monitor fixture %s has unresolved template values", path)
+	}
+	return content, nil
 }
 
 func startMonitoredQwen(
@@ -253,7 +265,7 @@ func waitMonitoredQwenExit(resultCh <-chan error, output *bytes.Buffer) error {
 			return fmt.Errorf("ollamaMonitor: monitored Ollama run did not report succeeded\n%s", output.String())
 		}
 		return nil
-	case <-time.After(10 * time.Second):
+	case <-time.After(tokenMetricPollWait):
 		return fmt.Errorf("ollamaMonitor: monitored Ollama run did not exit after monitor control request\n%s", output.String())
 	}
 }

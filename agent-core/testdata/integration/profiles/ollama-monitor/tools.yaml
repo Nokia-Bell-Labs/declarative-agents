@@ -1,0 +1,9 @@
+tools:
+  - launch_monitor_rest
+  - invoke_llm
+  - parse_response
+  - report_parse_error
+  - done
+  - ollama_list_models
+  - await_monitor_control
+  - stop_monitor_rest

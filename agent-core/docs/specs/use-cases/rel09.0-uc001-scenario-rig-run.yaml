@@ -72,7 +72,7 @@ failure_scenarios:
     expected: Rejected; children are process-group managed and reaped with the parent (srd040 R1.4).
 
 out_of_scope:
-  - The assembler and mock profiles themselves, and the scenario authoring conventions; those are agent-profiles releases over these words.
+  - The assembler and mock profiles themselves, and the scenario authoring conventions; those are applications/catalog releases over these words.
   - Span-based state assertion; the request log and subject responses are the witnesses here.
   - Kubernetes, containers, or a hierarchical control plane; children are local processes.
   - Refreshing fixtures from real-service responses; real-stack verification is a separate concern.

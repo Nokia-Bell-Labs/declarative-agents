@@ -1259,7 +1259,7 @@ the proposed `UIServerState` abstraction:
 
 1. Generic REST server lifecycle and event words own listener and queue behavior.
 2. `signal_field` and `signal_mapping` declare action-to-signal routing.
-3. Static assets and API routes live under `agent-profiles/agents/bench`.
+3. Static assets and API routes live under `applications/catalog/agents/bench`.
 4. `machine_request` runs profile-owned request machines.
 5. `self_invoke` launches the critic using command-state request/output selectors.
 

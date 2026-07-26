@@ -82,33 +82,7 @@ func yamlFilesInDir(dir string) []string {
 }
 
 func resolveProfileAssetsRoot(rootDir string) string {
-	for _, candidate := range profileRootCandidates(rootDir) {
-		if root := normalizeProfileRoot(candidate); root != "" {
-			return root
-		}
-	}
 	return filepath.Join(rootDir, AgentsDir)
-}
-
-func profileRootCandidates(rootDir string) []string {
-	return []string{
-		filepath.Join(filepath.Dir(rootDir), "agent-profiles"),
-		filepath.Join(rootDir, "agent-profiles"),
-	}
-}
-
-func normalizeProfileRoot(candidate string) string {
-	for _, root := range []string{candidate, filepath.Join(candidate, AgentsDir)} {
-		if profileExists(root, "executor") || profileExists(root, "jurist") {
-			return root
-		}
-	}
-	return ""
-}
-
-func profileExists(root, rel string) bool {
-	info, err := os.Stat(filepath.Join(root, filepath.FromSlash(rel), "profile.yaml"))
-	return err == nil && !info.IsDir()
 }
 
 func declarationFilesFromProfile(path string) []string {

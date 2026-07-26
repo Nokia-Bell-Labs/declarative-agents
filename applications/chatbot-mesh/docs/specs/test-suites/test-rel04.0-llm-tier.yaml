@@ -1,0 +1,101 @@
+id: test-rel04.0-llm-tier
+title: Test Suite for Release 04.0 In-Cluster LLM Tier
+release: "04.0"
+
+overview: |
+  This suite validates the in-cluster LLM tier (srd003 R6): a default helm install
+  answers a turn with no external LLM dependency, the disabled-tier override
+  reproduces the external endpoint, agent readiness is gated on model preload, and
+  the kind smoke path runs CPU-only. The in-cluster LLM tier, its render tracers,
+  and the CPU-only kind validation (integration:helmLLMTier) are implemented; the
+  provisioning-panel model controls belong to the control-plane surface (coordinator, creator, applier) and are out of scope for this suite.
+
+traces:
+  - rel04.0-uc001-in-cluster-llm-tier
+
+preconditions:
+  - A CPU-only kind cluster and docker/helm/kubectl are available for the smoke path; the small models are pullable.
+  - The chart ships the Ollama subchart enabled by default with the model names declared once in values.
+
+test_cases:
+  - use_case: rel04.0-uc001-in-cluster-llm-tier
+    name: Default install answers a turn with no external LLM dependency
+    integration_target: mage integration:helmLLMTier
+    status: implemented
+    description: |
+      helm install with defaults on a kind cluster deploys the Ollama subchart with
+      PVC model storage and a model-preload Job; the test waits for the LLM tier and
+      the agents ready (readiness gated on the models present), then serves one chat
+      turn and asserts a answer from the retrieved chunks with no external LLM endpoint configured.
+      CPU-only small models; the smoke/production sizing divergence is a recorded
+      limitation.
+    inputs:
+      chart: applications/chatbot-mesh/helm/
+      values: defaults (ollama.enabled=true)
+      models: small CPU-only embedding, chat, and tier-selector models
+    expected:
+      ollama_subchart_deployed_with_pvc: true
+      preload_job_pulls_all_declared_models: true
+      turn_answered_no_external_llm: true
+    traces:
+      - rel04.0-uc001-in-cluster-llm-tier S1
+      - srd003-chatbot-deployment AC6
+
+  - use_case: rel04.0-uc001-in-cluster-llm-tier
+    name: Rendered workloads carry the preload gate
+    go_test: go test ./magefiles -run 'TestOllama(TierRendersWithDefaults|DisabledReproducesExternalEndpoint)'
+    status: implemented
+    description: |
+      Wiring evidence. The in-cluster render gives every agent workload -- the
+      chatbot and one rag-server per declared ragUnit -- a positive
+      model-presence init gate, while the external-tier render retains those
+      workloads and omits the chart-owned Ollama resources and gate.
+
+      Asserted as a set read from the declared ragUnits, not as a workload count.
+      The count form named a two-workload topology the chart never had, so the
+      evidence recorded here did not pass (GH-701); a set also catches the gate
+      landing on a workload that should not carry it, which no count can.
+    inputs:
+      chart: applications/chatbot-mesh/helm/
+      tiers: [in_cluster, external]
+    expected:
+      every_declared_agent_workload_waits_for_models: true
+      no_other_workload_carries_the_gate: true
+      external_tier_omits_only_tier_owned_resources: true
+    traces:
+      - rel04.0-uc001-in-cluster-llm-tier S2
+      - rel04.0-uc001-in-cluster-llm-tier S3
+
+  - use_case: rel04.0-uc001-in-cluster-llm-tier
+    name: Preload controls the observed agent readiness transition
+    integration_target: mage integration:helmLLMTier
+    go_test: go test ./magefiles -run 'Test(LLMPreloadReadinessTransition|HelmLLMTierInstallExposesTransition)'
+    status: implemented
+    description: |
+      Install without Helm --wait and hold the preload Job suspended while
+      observing chatbot and RAG workloads unready. Resume preload, assert every
+      configured model appears, then observe each workload become ready.
+    expected:
+      agents_not_ready_before_preload: true
+      agents_ready_after_preload: true
+    traces:
+      - rel04.0-uc001-in-cluster-llm-tier S2
+      - rel04.0-uc001-in-cluster-llm-tier S3
+
+  - use_case: rel04.0-uc001-in-cluster-llm-tier
+    name: Disabled-tier endpoint override reproduces external behavior
+    integration_target: go test ./magefiles -run TestOllamaDisabledReproducesExternalEndpoint
+    status: implemented
+    description: |
+      With ollama.enabled=false and an endpoint override, no Ollama workload or
+      preload Job renders, and the embedding and chat client values point at the
+      operator-supplied service. A helm template diff asserts the co-generated
+      chatbot client entries are identical to the in-cluster path (R2 unchanged).
+    inputs:
+      values: ollama.enabled=false, llm.externalURL override
+    expected:
+      no_ollama_workload_rendered: true
+      client_entries_identical_to_incluster: true
+    traces:
+      - rel04.0-uc001-in-cluster-llm-tier S4
+      - srd003-chatbot-deployment AC2

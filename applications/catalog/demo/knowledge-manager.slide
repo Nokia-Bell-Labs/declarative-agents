@@ -1,0 +1,35 @@
+Knowledge Manager Demo
+Agent Profiles
+14 Jun 2026
+
+* Start the Knowledge Manager
+
+Click Run to start the Knowledge Manager documentation server.
+
+Open the running servers after they start:
+
+- Documentation: [[http://localhost:18081][http://localhost:18081]]
+- Control (lifecycle exit): [[http://127.0.0.1:18082][http://127.0.0.1:18082]]
+- Monitor: [[http://localhost:18084/ui/][http://localhost:18084/ui/]]
+
+Run the shipped profile directly from the agent-profiles root:
+
+	agent --profile agents/knowledge-manager/documentation-curator/profile.yaml --directory . --core-root ../../agent-core
+
+Or build agent-core and run the same profile through Mage:
+
+	mage demo:knowledgeManager
+
+* Call the lifecycle exit API
+
+After the Knowledge Manager is running, post the exit request to its control
+server (default `http://127.0.0.1:18082/api/lifecycle/exit`, HTTP 202 Accepted).
+The request is itself a declarative agent, not a bespoke HTTP client: a one-state
+machine binds the rest tool, posts the fixed request, and reaches a terminal
+`succeeded` state. Run it through the same interpreter that runs the curator:
+
+	agent --profile demo/call-lifecycle-exit/profile.yaml --directory .
+
+The REST authority lives in the profile, not in runtime input:
+
+.code call-lifecycle-exit/rest.yaml /post_exit:/,/signal: ExitAccepted/

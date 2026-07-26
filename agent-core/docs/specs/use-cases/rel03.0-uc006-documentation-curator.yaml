@@ -29,7 +29,7 @@ touchpoints:
   - T2: "srd027-rest-tool-runtime R5 and R10 -- rest_server_launch starts configured listeners and rest_await_event waits for lifecycle control"
   - T3: "srd027-rest-tool-runtime R2, R3 -- documentation REST tooling is defined by ToolDef and REST YAML"
   - T4: "srd028-rest-client-tools R1, R2, R6 -- doc_* words call configured REST operations and emit REST result signals"
-  - T5: "knowledge-manager/documentation-curator/profile.yaml -- profile-owned documentation application under AGENT_PROFILES_ROOT"
+  - T5: "knowledge-manager/documentation-curator/profile.yaml -- profile-owned documentation application under AGENT_CATALOG_ROOT"
   - T6: "knowledge-manager/documentation-curator/ui/docs -- profile-owned React source and built assets"
   - T7: "srd029-rest-server-tools R7 and R11 -- lifecycle control endpoints enqueue events for MachineSpec routing and shutdown releases the owned documentation listener"
 
@@ -61,10 +61,10 @@ success_criteria:
 
 out_of_scope:
   - Editing documentation content without explicit patch approval.
-  - Routing documentation UX through bench/profile.yaml under AGENT_PROFILES_ROOT.
+  - Routing documentation UX through bench/profile.yaml under AGENT_CATALOG_ROOT.
   - Replacing the declarative REST runtime with generated clients.
 
-proof_owner: agent-profiles
+proof_owner: applications/catalog
 machine_config: agents/knowledge-manager/documentation-curator/machine.yaml
 rest_definitions: agents/knowledge-manager/documentation-curator/rest.yaml
 test_suite_trace: test-rel03.0-rest-tools

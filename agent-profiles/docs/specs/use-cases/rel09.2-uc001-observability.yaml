@@ -1,8 +1,0 @@
-id: rel09.2-uc001-observability
-title: Observability Panel and Cross-Agent Trace Waterfall (Relocated)
-status: relocated
-canonical_path: examples/chatbot-mesh/docs/specs/use-cases/rel02.0-uc001-observability.yaml
-note: |
-  Pointer-only tombstone. The canonical use case and its traces live with the
-  chatbot-mesh example. This retained identifier exists only to redirect
-  historical references.

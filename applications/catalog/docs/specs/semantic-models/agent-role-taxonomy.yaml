@@ -1,0 +1,441 @@
+id: sm-agent-role-taxonomy
+title: Agent Role Taxonomy
+purpose: |
+  Classify migrated agent profiles by role, actor boundary, inputs, outputs,
+  selected tool families, runtime dependencies, and checkable outcomes.
+
+overview: |
+  Role entries give migration issues a compact checklist for each profile
+  family. The fields identify what enters the profile, what leaves it, and what
+  agent-core capability the profile expects at runtime. They also name a small
+  set of checks that can later become validation commands, integration targets,
+  or documentation review steps.
+
+  The taxonomy is intentionally profile-oriented. It names executor as a
+  coding agent, critic as a session and point runner, bench as a human UI
+  launcher, Knowledge Manager as curator and corpus roles, and assembler/mock
+  as supported test-time roles. Those labels describe configured behavior.
+  They are not package names, binary names, or new runtime modules.
+
+  Tool fields follow the catalog taxonomy. A role's tools.yaml is a name-only
+  selection list. ToolDef files under the role's agents/<family>/ closure are
+  reusable catalog declaration blocks or profile-local overrides. Shared core
+  declarations remain under agent-core/tools, and their Go implementations
+  remain under agent-core/internal/tools. Application-only declarations,
+  topology, wrappers, deployment, and UX are excluded from catalog membership.
+
+roles:
+  - id: executor
+    title: Coding agent
+    profile_path: agents/executor/profile.yaml
+    actor_boundary: model plus workspace tools
+    inputs:
+      - task prompt
+      - mounted workspace
+      - selected model config
+    selected_tool_families:
+      - filesystem
+      - llm
+      - go exec validation
+    runtime_dependencies:
+      - agent-core loop runtime
+      - agent-core builtin filesystem and LLM tools
+      - agent-core exec tool declarations for Go validation
+    outputs:
+      - workspace changes
+      - validation results
+      - terminal status
+      - task summary
+    outcomes:
+      - Succeeded
+      - Failed
+      - BudgetExceeded
+    checks:
+      - Load profile from AGENT_CATALOG_ROOT.
+      - Run mounted profile command with --profile and --directory.
+      - Confirm build, lint, and test validation are machine-declared.
+
+  - id: critic
+    title: Evaluation session and point runner
+    profile_path: agents/critic/profile.yaml
+    actor_boundary: suite fixtures plus child agent process
+    inputs:
+      - suite YAML
+      - samples
+      - model or profile grid
+      - oracle command
+    selected_tool_families:
+      - critic session
+      - critic point
+      - child profile execution
+    runtime_dependencies:
+      - agent-core nested loop execution
+      - profile-owned suites and samples
+    outputs:
+      - point directories
+      - oracle results
+      - trace token counts
+      - metrics
+      - session report
+    outcomes:
+      - Done
+      - Failed
+    checks:
+      - Resolve suite fixtures through AGENT_CATALOG_ROOT.
+      - Confirm point machine runs in isolated workspaces.
+      - Confirm failed child runs still produce point summaries and metrics.
+      - Trace critic to executor with rel07.0-uc002-evaluator-generator-profile-boundary.
+
+  - id: planner
+    title: Requirement planner and issue materializer
+    profile_path: agents/planner/profile.yaml
+    actor_boundary: requirement graph, model, issue queue, and child executor
+    inputs:
+      - requirement graph
+      - SRD context
+      - planning model config
+    selected_tool_families:
+      - planner tools
+      - llm
+      - Go validation
+      - child profile execution
+    runtime_dependencies:
+      - agent-core planning tool implementations
+      - agent-core model boundary
+      - profile-selected issue tracker CLI declaration
+    outputs:
+      - implementation plan
+      - created issue
+      - graph status changes
+      - validation results
+    outcomes:
+      - Completed
+      - Stalled
+      - Paused
+      - Failed
+    checks:
+      - Confirm planner invokes executor as a child profile.
+      - Confirm issues are materialized through format, write, profile-selected tracker exec, and result-recording words.
+      - Confirm graph terminal states are explicit.
+      - Trace planner to executor with rel07.0-uc003-planner-generator-profile-boundary.
+
+  - id: jurist
+    title: Specification validator
+    profile_path: agents/jurist/profile.yaml
+    actor_boundary: local target directory and charter suites
+    inputs:
+      - target directory
+      - charter suite path or paths
+      - docs corpus for the built-in spec_corpus suite
+    selected_tool_families:
+      - specification validation
+      - ripgrep search and finding reduction
+    runtime_dependencies:
+      - agent-core spec validation tools
+      - rg, shared with the filesystem find capability
+    outputs:
+      - validation report with suite and check provenance
+      - pass or fail status
+    outcomes:
+      - Passed
+      - Failed
+    checks:
+      - Confirm no LLM boundary is selected.
+      - Confirm report formatting runs for pass and fail outcomes.
+      - Confirm charter suites run deterministically over the target directory.
+      - Confirm findings identify suite, check, file, and line when available.
+
+  - id: bench
+    title: Human-operated evaluation launcher
+    profile_path: agents/bench/profile.yaml
+    actor_boundary: human HTTP operator and critic process
+    inputs:
+      - human UI action
+      - experiment configuration
+    selected_tool_families:
+      - bench UI
+      - critic launch
+    runtime_dependencies:
+      - agent-core bench tools
+      - critic profile
+    outputs:
+      - served UI
+      - critic run request
+      - launch status
+    outcomes:
+      - Done
+      - Failed
+    checks:
+      - Confirm rest_await_event is the blocking human boundary.
+      - Confirm self_invoke delegates session execution to critic.
+      - Trace bench to critic with rel07.0-uc004-bench-evaluator-profile-boundary.
+
+  - id: monitor
+    title: Embedded monitor REST reader
+    profile_path: agents/monitor/profile.yaml
+    actor_boundary: supervisor and runtime monitor store
+    inputs:
+      - cached monitor state
+      - control exit request
+    selected_tool_families:
+      - monitor REST
+      - lifecycle control
+    runtime_dependencies:
+      - agent-core monitor store
+      - agent-core REST runtime
+    outputs:
+      - monitor REST responses
+      - listener lifecycle status
+    outcomes:
+      - Done
+      - Failed
+    checks:
+      - Confirm REST reads use cached monitor state.
+      - Confirm exit is routed through configured control.
+      - Trace monitor/control status with rel07.0-uc005-monitor-control-profile-boundary.
+
+  - id: documentation-curator
+    title: Knowledge Manager documentation curator
+    profile_path: agents/knowledge-manager/documentation-curator/profile.yaml
+    actor_boundary: human browser, documentation corpus, and local REST API
+    inputs:
+      - browser request
+      - documentation corpus path
+      - control request
+    selected_tool_families:
+      - documentation serving
+      - document resources
+      - documentation validation
+      - patch review
+      - lifecycle control
+    runtime_dependencies:
+      - agent-core documentation host
+      - agent-core REST runtime
+      - profile-owned UI config and REST definitions
+    outputs:
+      - served documentation UI
+      - document responses
+      - validation or suggestion results
+      - patch review outcome
+      - controlled listener shutdown
+    outcomes:
+      - Done
+      - Failed
+    checks:
+      - Confirm UI placement stays profile-local.
+      - Confirm document resource behavior is configured by profile-owned YAML.
+      - Confirm exit releases the documentation listener.
+      - Trace profile UX with rel07.0-uc001-documentation-curator-profile-ux.
+
+  - id: corpus-ingest
+    title: Trusted corpus ingestion
+    profile_path: agents/knowledge-manager/corpus-ingest/profile.yaml
+    actor_boundary: trusted corpus, embedding provider, and Chroma
+    inputs:
+      - trusted corpus root
+      - configured embedding model
+      - Chroma collection
+    selected_tool_families:
+      - filesystem resource discovery and read
+      - REST client
+      - llm
+    runtime_dependencies:
+      - agent-core filesystem, REST, and model boundaries
+      - profile-owned corpus REST operations
+    outputs:
+      - embedded documents and identities
+      - Chroma collection count
+    outcomes: [Succeeded, Failed]
+    checks:
+      - Confirm trusted path listing precedes model file selection.
+      - Confirm provider vectors, documents, and ids reach Chroma add.
+      - Trace ingest behavior with rel08.0-uc001-corpus-ingest.
+
+  - id: corpus-reader
+    title: Grounded corpus retrieval
+    profile_path: agents/knowledge-manager/corpus-reader/profile.yaml
+    actor_boundary: questioner, embedding provider, Chroma, and answer model
+    inputs:
+      - configured question
+      - configured embedding and answer models
+      - Chroma collection
+    selected_tool_families:
+      - REST client
+      - llm
+    runtime_dependencies:
+      - agent-core REST and model boundaries
+      - profile-owned corpus REST operations and grounding prompt
+    outputs:
+      - retrieved chunk identities
+      - grounded answer
+    outcomes: [Succeeded, Failed]
+    checks:
+      - Confirm the provider vector reaches Chroma query.
+      - Confirm retrieved identities and chunks reach the answer model.
+      - Trace reader behavior with rel08.0-uc002-corpus-query.
+
+  - id: assembler
+    title: Test rig and scenario composer
+    profile_path: agents/assembler/profile.yaml
+    actor_boundary: child agent processes plus profile-owned scenario data
+    inputs:
+      - discovery roots
+      - discovered scenario directories (validator profiles and mock fixtures)
+    selected_tool_families:
+      - service-child (start, await healthy, stop)
+      - validator execution
+      - scenario discovery
+    runtime_dependencies:
+      - agent-core service-child, validator-execution, and discovery words (srd040)
+      - agent-core mock endpoint binding by way of the mocks it starts (srd039)
+    outputs:
+      - per-scenario verdicts naming a failing validator and its cause
+      - aggregate verdict
+    outcomes:
+      - Passed
+      - Failed
+    checks:
+      - Confirm the rig composes scenarios from profile-owned data, with no rig edit needed to add a test.
+      - Confirm each scenario gets a fresh subject and leaves no surviving child process.
+      - Confirm discovery covers the applications tree without special-casing.
+
+  - id: mock
+    title: Mock for a REST dependency
+    profile_path: agents/mock/profile.yaml
+    actor_boundary: inbound HTTP from a subject agent under test
+    inputs:
+      - fixture file path (selected by environment)
+      - listen address
+    selected_tool_families:
+      - REST server
+      - lifecycle control
+    runtime_dependencies:
+      - agent-core mock endpoint binding and REST server runtime (srd039)
+    outputs:
+      - canned and scripted responses
+      - per-instance request log
+    outcomes:
+      - Done
+      - Failed
+    checks:
+      - Confirm one profile serves any dependency, with response content living in scenario fixtures.
+      - Confirm the request log is readable, per-instance, and shows unmatched calls.
+      - Confirm a malformed fixture blocks serving instead of failing mid-scenario.
+
+relocated_application_roles:
+  - id: coordinator
+    status: relocated
+    canonical_profile_path: applications/chatbot-mesh/agents/coordinator/profile.yaml
+  - id: creator
+    status: relocated
+    canonical_profile_path: applications/chatbot-mesh/agents/creator/profile.yaml
+  # Pointer-only records: these application-specific roles are not reusable
+  # applications/catalog library members. Their requirements, checks, and status live
+  # in the canonical chatbot-mesh example.
+
+
+# Conformance grammar fixtures, not roles (GH-328). Their only executors are the
+# conformance tests and the monitor/control mage integration target; they prove
+# REST boundary words, control signals, and checkpoint/suspend/resume vocabulary
+# at runtime. They live under testdata/conformance/, outside the agents/ role
+# catalog. Application profiles may embed the same runtime vocabulary without
+# promoting these standalone fixtures to library roles.
+conformance_fixtures:
+  - id: rest
+    title: REST boundary sample
+    profile_path: testdata/conformance/rest/profile.yaml
+    actor_boundary: configured HTTP clients and servers
+    inputs:
+      - REST definitions
+      - OpenAPI import data
+      - inbound webhook event
+    selected_tool_families:
+      - REST client
+      - REST async client
+      - REST server
+    runtime_dependencies:
+      - agent-core REST runtime
+      - profile-owned rest.yaml
+    outputs:
+      - response signals
+      - async completion
+      - webhook event signal
+      - listener lifecycle status
+    outcomes:
+      - Succeeded
+      - Failed
+    checks:
+      - Confirm REST authority lives in rest.yaml.
+      - Confirm server launch, await, and stop are explicit machine states.
+
+  - id: control
+    title: REST lifecycle control profile
+    profile_path: testdata/conformance/control/profile.yaml
+    actor_boundary: lifecycle supervisor
+    inputs:
+      - REST control request
+    selected_tool_families:
+      - control REST
+      - exit_agent
+    runtime_dependencies:
+      - agent-core REST runtime
+      - agent-core lifecycle vocabulary
+    outputs:
+      - selected control signal
+      - AgentExited signal
+      - terminal status
+    outcomes:
+      - Succeeded
+      - Failed
+    checks:
+      - Confirm HTTP handlers enqueue signals only.
+      - Confirm MachineSpec routes ExitRequested to exit_agent.
+      - Trace monitor/control status with rel07.0-uc005-monitor-control-profile-boundary.
+
+  - id: lifecycle
+    title: Checkpoint, rollback, and approval profiles
+    profile_path: testdata/conformance/lifecycle/*/profile.yaml
+    actor_boundary: operator, checkpoint store, and workspace
+    inputs:
+      - checkpoint ID
+      - target iteration
+      - approval signal
+    selected_tool_families:
+      - checkpoint_history
+      - checkpoint_rollback
+      - suspend
+      - done
+    runtime_dependencies:
+      - agent-core lifecycle ports
+      - checkpoint store
+      - receipt-backed rollback (opaque persisted receipts, receipt-walk Undo)
+    outputs:
+      - history report
+      - rewritten checkpoint
+      - suspended checkpoint
+      - approved or rejected terminal state
+    outcomes:
+      - Done
+      - Succeeded
+      - Rejected
+      - Failed
+    checks:
+      - Confirm lifecycle behavior is expressed as machine actions.
+      - Confirm approval uses resume signals instead of hidden CLI branches.
+
+taxonomy_rules:
+  - Each role is a configured program, not a Go package.
+  - tools.yaml files select vocabulary by name; they do not declare tools.
+  - Reusable repository-specific ToolDef files are catalog tool blocks under one canonical agents/<family>/ closure.
+  - Profile-local overrides configure one profile or variant without replacing core declarations for other consumers.
+  - Generic implementations remain under agent-core/internal/tools and core shared declarations remain under agent-core/tools.
+  - Application-local topology, wrappers, deployment, packaging, UX, and single-application declarations are not catalog roles or tool blocks.
+  - Conformance grammar fixtures (rest, control, lifecycle) are not roles; they live under testdata/conformance/ and prove runtime vocabulary, keeping agents/ a role catalog (GH-328).
+  - The assembler and mock are test-time roles: the assembler composes and verdicts scenarios, and the mock stands in for a dependency. The environment the assembler composes is a sandbox in the reference architecture's sense, and the per-scenario validators are its Sandbox Validators (Critic); the activity is safe-testing and the verdict reduction is output-evaluation. The reference has no term for a scripted test double, so the stand-in family takes the name of the runtime binding it configures, mock, rather than borrowing digital twin, which the reference reserves for a replica derived from a real referent (GH-704, superseding GH-665).
+  - Actor boundaries name who or what crosses the profile boundary.
+  - Runtime dependencies name agent-core capabilities without copying them into
+    applications/catalog.
+  - Checks name validation, mounted execution, integration proof, or
+    documentation review paths.
+  - Rel07 integration checks point at implemented cases in
+    test-rel07.0-profile-integrations.

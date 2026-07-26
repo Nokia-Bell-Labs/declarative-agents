@@ -39,9 +39,9 @@ Documentation drift:
   captures the primary usage model: a universal `agent` runtime plus YAML agent
   profiles.
 - The README package table is useful but does not orient readers around the
-  external active agents (`$AGENT_PROFILES_ROOT/agents/executor`,
-  `$AGENT_PROFILES_ROOT/agents/critic`, `$AGENT_PROFILES_ROOT/agents/planner`,
-  `$AGENT_PROFILES_ROOT/agents/bench`, `$AGENT_PROFILES_ROOT/agents/jurist`) or
+  external active agents (`$AGENT_CATALOG_ROOT/agents/executor`,
+  `$AGENT_CATALOG_ROOT/agents/critic`, `$AGENT_CATALOG_ROOT/agents/planner`,
+  `$AGENT_CATALOG_ROOT/agents/bench`, `$AGENT_CATALOG_ROOT/agents/jurist`) or
   profile-first startup.
 
 Recommended edits:
@@ -94,11 +94,11 @@ Status:
 ## Bench Launch Documentation
 
 Source evidence:
-- `agent-profiles/agents/bench/builtin.yaml` aliases generic REST lifecycle,
+- `applications/catalog/agents/bench/builtin.yaml` aliases generic REST lifecycle,
   `value_predicate`, and `self_invoke` words.
-- `agent-profiles/agents/bench/rest.yaml` owns routes, static assets, queue
+- `applications/catalog/agents/bench/rest.yaml` owns routes, static assets, queue
   configuration, and action-to-signal mapping.
-- `agent-profiles/agents/bench/machine.yaml` validates launch input and invokes
+- `applications/catalog/agents/bench/machine.yaml` validates launch input and invokes
   the critic profile through `self_invoke`.
 
 Resolved drift:

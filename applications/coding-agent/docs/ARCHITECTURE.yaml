@@ -1,0 +1,374 @@
+id: architecture-coding-agent-example
+title: Coding Agent Architecture
+
+overview:
+  summary: |
+    The coding agent composes three canonical applications/catalog agents.
+    The planner reads a requirement graph and SRD context, materializes a task,
+    and delegates it to the executor. The executor changes an isolated
+    workspace and returns validation evidence. The critic evaluates that
+    existing candidate with its declared oracle; its explicit verdict gates the
+    application outcome.
+
+    The application owns composition, packaging, deployment, and end-to-end
+    tests. Agent behavior remains profile-owned, and execution capability
+    remains agent-core-owned. At package time, the configured compatible
+    library checkout is snapshotted into a closed application profile tree and
+    its revision is recorded. At runtime, Kubernetes starts one profile-free
+    coding runtime image per agent and mounts that tree. The application-owned
+    image extends agent-core with Go 1.26 and golangci-lint v2.12.2 because the
+    canonical executor's build, lint, and test transitions require them.
+  coding_loop_diagram: |
+    ```mermaid
+    flowchart LR
+      O[Operator or automation] -->|SRD, graph, workspace| P[Planner]
+      P -->|materialized task| E[Executor]
+      E -->|changed workspace and validation| P
+      P -->|change, suite, samples, oracle| C[Critic]
+      C -->|Done or Failed verdict| G{Application gate}
+      G -->|accepted| S[Succeeded]
+      G -->|rejected| F[Failed]
+    ```
+  packaging_diagram: |
+    ```mermaid
+    flowchart LR
+      M[Application references] -->|compatible checkout| R[Reference resolver]
+      L[Canonical library profiles] --> R
+      R -->|transitive closure| B[Application profile bundle]
+      B -->|mounted profile tree| P[Planner pod]
+      B -->|mounted profile tree| E[Executor pod]
+      B -->|mounted profile tree| C[Critic pod]
+      I[Profile-free coding runtime image] --> P
+      I --> E
+      I --> C
+    ```
+
+interfaces:
+  - name: coding request
+    summary: |
+      The application input names an SRD, requirement graph, mounted workspace,
+      planning model config, execution model config, and the canonical critic
+      changed-workspace mode with its declared oracle.
+  - name: planner-to-executor delegation
+    summary: |
+      The planner passes a materialized task, workspace location, and model
+      selection to the canonical executor profile through child-profile
+      execution. No fake agent binary satisfies the application contract.
+  - name: executor result
+    summary: |
+      The executor returns a changed workspace, terminal status, tool and
+      validation results, and a traceable task summary to the planner.
+  - name: critic gate
+    summary: |
+      The canonical changed-workspace critic receives the existing candidate
+      through its runtime directory binding, runs its declared oracle in place,
+      and writes critic-verdict.json. The application maps accepted to Succeeded
+      and rejected to Failed.
+  - name: packaged profile mount
+    summary: |
+      Each container starts the agent-core runtime with a profile selected from
+      the package-time closure mounted under `/profiles`. The image itself
+      contains no planner, executor, critic, or application profile.
+
+components:
+  - name: planner
+    source: applications/catalog/agents/planner/
+    library_requirement: applications/catalog/docs/specs/software-requirements/srd004-planner.yaml
+    responsibility: |
+      Traverse the requirement graph, assemble and parse a plan, materialize the
+      coding task, delegate to the executor, and record execution and validation
+      outcomes. The application references this profile; it does not fork it.
+  - name: executor
+    source: applications/catalog/agents/executor/
+    library_requirement: applications/catalog/docs/specs/software-requirements/srd002-executor.yaml
+    responsibility: |
+      Receive the task and mounted workspace, invoke the model boundary,
+      dispatch filesystem and validation tools, and terminate only after
+      machine-declared validation. The application references this profile; it
+      does not fork it.
+  - name: critic
+    source: applications/catalog/agents/critic/
+    library_requirement: applications/catalog/docs/specs/software-requirements/srd003-critic.yaml
+    responsibility: |
+      Evaluate the existing changed workspace, branch on the declared oracle
+      result, and emit the explicit accepted or rejected verdict that gates the
+      coding result. The benchmark/session mode remains available separately.
+      The application references these profiles; it does not fork them.
+  - name: application package
+    path: agents/application.yaml, magefiles/profiles_closure.go, and magefiles/profiles_deployment.go
+    status: implemented
+    responsibility: |
+      Select a checkout compatible with the declared library release, identify
+      its provenance, resolve direct references, collect the transitive
+      profile/config/declaration/tool closure, and emit a deterministic
+      self-contained application profile tree without modifying the runtime
+      image.
+  - name: Kubernetes deployment
+    path: helm/
+    status: core_topology_implemented
+    responsibility: |
+      Run planner, executor, and critic as separate workloads, mount the
+      packaged profiles and workspace at declared paths, and expose only the
+      delegation and result interfaces required by the coding loop.
+  - name: Persistent serving composition
+    path: agents/serving/
+    status: implemented
+    responsibility: |
+      Host truthful role request and lifecycle endpoints. The planner request
+      reuses canonical planner model and parsing words, invokes the executor and
+      critic through declared REST clients, and keeps filesystem authority in
+      the shared runtime directory rather than in request input.
+  - name: documentation
+    path: docs/
+    responsibility: |
+      Own the application vision, architecture, road map, coding-loop use case,
+      and staged integration test contract.
+
+design_decisions:
+  - id: 1
+    title: Reference canonical library agents
+    decision: |
+      The application records references to planner, executor, and critic in
+      `applications/catalog`. It does not copy profiles, declarations, or SRDs.
+    benefits:
+      - Each agent has one canonical maintenance and conformance boundary.
+      - Library changes reach applications only when a new checkout closure is packaged.
+      - Application documents describe composition instead of restating family
+        requirements.
+  - id: 2
+    title: Assemble profile closure at package time
+    decision: |
+      `agents/application.yaml` declares a compatible
+      `applications/catalog/v0.*` release and names four direct references:
+      planner, executor, critic
+      session, and critic changed-workspace. `mage package` snapshots the
+      configured checkout, resolves profile-local references from their
+      declaring YAML and `agents/...` references from the library root, then
+      preserves those paths in the per-application profile tree.
+      `/opt/agent-core/...` remains external. Unsafe, dangling, globbed, or
+      conflicting references fail. A non-release checkout records its revision
+      and compatible release separately instead of claiming release provenance.
+    benefits:
+      - Deployment has no runtime dependency on the source repository layout.
+      - Missing transitive assets fail packaging instead of a live workload.
+      - The package records the exact source revision used by every entry profile.
+  - id: 3
+    title: Keep the runtime image profile-free
+    decision: |
+      One application-owned image is shared by every role. It uses the
+      agent-core runtime contract and adds the pinned Go 1.26 toolchain and
+      golangci-lint v2.12.2 required by the canonical executor. Profiles enter
+      a workload only through the packaged tree mounted at runtime; the
+      profile-free invariant remains in force.
+    benefits:
+      - Runtime code and application profiles remain independently packaged.
+      - Planner, executor, and critic use one tested execution environment.
+      - Application profile provenance is visible in its package.
+  - id: 4
+    title: Run one container per agent
+    decision: |
+      Kubernetes runs planner, executor, and critic separately. Each selects one
+      profile from the same packaged closure and receives only its required
+      mounts and authority.
+    benefits:
+      - Workspace and subprocess authority can be scoped per role.
+      - Agent lifecycle and evidence remain attributable.
+      - The deployment mirrors the composition boundary.
+  - id: 5
+    title: Prove the loop in ordered stages
+    decision: |
+      The integration suite first proves a live executor, then real planner
+      delegation to that executor, then the critic gate. Each stage names its
+      inputs and expected outputs and uses no fake agent binary.
+    benefits:
+      - A failure identifies the first broken application boundary.
+      - The suite proves real composition rather than paired stubs.
+      - Documentation gates implementation in specification-driven order.
+  - id: 6
+    title: Use existing configuration surfaces
+    decision: |
+      The application introduces no template language. The current composition
+      needs no value override: planner and executor use canonical profile-local
+      LLM declarations and machine budgets, planner uses its existing child
+      profile config, and both critic modes are deterministic with no model,
+      REST target, or child profile. Future deployment-specific values may be
+      co-generated into profile-local declarations or explicit variants, but
+      the closure resolver copies referenced files without substitution.
+    benefits:
+      - Library profiles carry no coding-application values.
+      - Package contents have the same semantics as mounted profile contents.
+      - Later Helm and bundle consumers can reuse one closure contract.
+  - id: 7
+    title: Separate persistent hosts from finite role runs
+    decision: |
+      Application-owned host profiles launch the role and lifecycle listeners
+      and await declared control events. machine_request starts finite canonical
+      executor and critic runs; the planner request profile owns only the remote
+      executor-then-critic sequence and reuses canonical planner LLM and parser
+      assets. All processes receive the same trusted runtime directory. The
+      caller supplies an opaque workspace identity for correlation, never a
+      filesystem root or transport authority.
+    benefits:
+      - Health describes a live agent-owned listener instead of a sidecar or sleep.
+      - Canonical batch profiles remain valid for local callers.
+      - Built-in REST trace propagation connects every remote role boundary.
+  - id: 8
+    title: Package one exact closure per serving role
+    decision: |
+      Deployment packaging stages application and canonical sources into one
+      temporary namespace, then invokes the #847 profileClosure resolver once
+      per serving entry profile. Each role root preserves /profiles paths and
+      receives only reachable assets. Sorted files are assigned sequentially to
+      900 KiB ConfigMap payload partitions; an individual oversized entry fails.
+      Deployment and role manifests record provenance, profile paths, partition
+      membership, and the profile-free image invariant.
+    benefits:
+      - Separate containers receive no unrelated role program.
+      - Resolver safety behavior has one implementation.
+      - Later Helm templates consume deterministic staging metadata.
+  - id: 9
+    title: Render Helm from prepared role manifests
+    decision: |
+      `mage helmPrepare` regenerates #875 artifacts and stages them as the
+      chart's only profile source. Helm reads role manifests to render bounded
+      ConfigMaps, projected mounts, profile arguments, and role-scoped rollout
+      checksums. The three agent workloads share one profile-free coding image
+      containing the required validation toolchain and one trusted workspace
+      claim. Fixed Services realize the serving contract;
+      OLLAMA_URL and OTLP flags select optional model and observability tiers.
+    benefits:
+      - Helm values cannot drift from resolved profile membership.
+      - A role profile edit rolls only that role.
+      - Runtime health and remote boundaries match tested application profiles.
+  - id: 10
+    title: Validate values, package integrity, and archive inventory
+    decision: |
+      A strict draft-07 schema owns value shape and safe primitives; template
+      guards retain cross-field invariants under schema bypass. Role manifests
+      carry ordered-content checksums, and one strict validator compares
+      deployment metadata, role metadata, actual files, ConfigMap coverage,
+      encoded sizes, keys, and checksums before preparation and packaging.
+      `mage helm:package` validates the render matrix and requires every package
+      and chart file in the resulting archive before independently linting and
+      rendering it.
+    benefits:
+      - Invalid topology fails before Kubernetes output.
+      - Stale or tampered profile artifacts cannot enter a chart archive.
+      - Release artifacts do not depend on source-tree files after packaging.
+  - id: 11
+    title: Prove the packaged topology with an owned kind rig
+    decision: |
+      `integration:helmSmoke` installs only the validated `.tgz` into a pinned
+      kind cluster through a temporary kubeconfig. It builds the same
+      application-owned profile-free coding image the chart publishes, with Go
+      1.26 and golangci-lint v2.12.2, plus a deterministic Ollama-compatible
+      boundary, uses a kind-only RWX hostPath fixture, and
+      verifies role health, workspace mutation, critic verdict, and a connected
+      Jaeger trace. Docker and Kubernetes probes classify infrastructure
+      outages separately from semantic failures; diagnostics and cleanup are
+      bounded.
+    benefits:
+      - Static chart evidence is connected to real Kubernetes behavior.
+      - Model nondeterminism does not weaken role or trace assertions.
+      - Reused clusters are not deleted and failures retain targeted evidence.
+
+technology_choices:
+  - component: Agent runtime
+    technology: agent-core plus the pinned coding validation toolchain
+    purpose: Execute profile-declared machines and builtin tools, including the
+      executor's Go build, v2 lint, and test commands, without embedding
+      application profiles in the image.
+  - component: Reusable agents
+    technology: applications/catalog
+    purpose: Supply canonical planner, executor, and critic profiles and their
+      library SRDs.
+  - component: Application specification
+    technology: YAML
+    purpose: Keep the vision, architecture, road map, use case, and test suite
+      machine-readable and auditable.
+  - component: Packaging
+    technology: Compatible checkout snapshot and transitive closure
+    purpose: Produce a self-contained profile tree before deployment.
+  - component: Deployment
+    technology: Helm and Kubernetes
+    purpose: Run one container per agent with explicit mounts and boundaries.
+  - component: Integration orchestration
+    technology: Mage
+    purpose: Expose profile packaging, documentation audit, and staged
+      coding-loop integration targets.
+
+project_structure:
+  application:
+    - path: agents/application.yaml
+      role: App-specific composition references, compatible release declaration,
+        checkout provenance, runtime mount, and configuration-surface inventory.
+    - path: docs/
+      role: Application-level design and specification corpus.
+    - path: testdata/integration/
+      role: Planned coding-loop fixtures owned by this application.
+    - path: magefiles/profiles_closure.go
+      role: Deterministic transitive library-profile closure assembly.
+    - path: magefiles/profiles_deployment.go
+      role: Role-specific closure publication and bounded ConfigMap partition metadata.
+    - path: agents/serving/
+      role: Persistent planner, executor, and critic host profiles and remote request composition.
+    - path: helm/
+      role: Planned one-container-per-agent deployment chart.
+    - path: magefiles/
+      role: Application packaging, audit, and staged integration targets.
+  library:
+    - path: applications/catalog/agents/planner/
+      role: Canonical planner profile.
+    - path: applications/catalog/agents/executor/
+      role: Canonical coding executor profile.
+    - path: applications/catalog/agents/critic/
+      role: Canonical critic profile.
+    - path: applications/catalog/docs/specs/software-requirements/
+      role: Canonical srd002, srd003, and srd004 family requirements.
+
+implementation_status:
+  current_focus: |
+    The application documentation, portable integration fixtures, live executor,
+    real planner delegation, canonical critic verdict gate, application
+    reference manifest, role-specific profile closure packaging, persistent
+    serving contract, core Helm topology, strict values, packaged-chart
+    validation, and bounded kind deployment proof are implemented.
+  progress:
+    - implemented: The planner -> executor -> critic coding loop and three-stage
+        integration contract.
+    - implemented: The reference-not-fork and package-time closure decisions,
+        including deterministic checkout provenance and all four entry profiles.
+    - implemented: The application-owned profile-free coding runtime image with
+        its pinned validation toolchain and the one-container-per-agent
+        deployment decision.
+    - implemented: Live executor, real planner delegation, and changed-workspace
+        critic gate targets using the real built binary and canonical profiles.
+    - implemented: Persistent planner, executor, and critic serving profiles
+        with lifecycle health, shared-workspace handoff, remote sequencing, and
+        connected W3C traces.
+    - implemented: Deterministic planner, executor, and critic deployment
+        closures with provenance, exact reachable assets, and ConfigMap
+        partition metadata.
+    - implemented: Core Helm resources for role workloads and Services, shared
+        workspace, truthful probes, model selection, and OTLP-to-Jaeger routing.
+    - implemented: Strict schema and semantic guards, profile package integrity,
+        render matrix, and self-contained Helm archive validation.
+    - implemented: Packaged-chart kind smoke with deterministic model boundary,
+        RWX fixture, real role health, workspace/verdict proof, connected trace,
+        infrastructure classification, diagnostics, and cleanup.
+
+related_documents:
+  - doc: docs/VISION.yaml
+    purpose: Application goals, scope, and success criteria.
+  - doc: docs/road-map.yaml
+    purpose: Release status and sequencing.
+  - doc: docs/specs/use-cases/rel01.0-uc001-coding-loop.yaml
+    purpose: End-to-end planner, executor, and critic flow.
+  - doc: docs/specs/test-suites/test-rel01.0-coding-loop.yaml
+    purpose: Inputs and expected outputs for the three integration stages.
+  - doc: applications/catalog/docs/specs/software-requirements/srd002-executor.yaml
+    purpose: Canonical executor family contract.
+  - doc: applications/catalog/docs/specs/software-requirements/srd003-critic.yaml
+    purpose: Canonical critic family contract.
+  - doc: applications/catalog/docs/specs/software-requirements/srd004-planner.yaml
+    purpose: Canonical planner family contract.

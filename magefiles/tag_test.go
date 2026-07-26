@@ -27,10 +27,11 @@ func TestCreateReleaseTagCreatesNextDailyTag(t *testing.T) {
 				return "abc123", nil
 			case "status --porcelain":
 				return "", nil
-			case "tag -l v0.20260617.*":
+			case "tag -l *v0.20260617.*":
 				return strings.Join([]string{
 					"v0.20260617.0",
-					"v0.20260617.2",
+					"applications/catalog/v0.20260617.2",
+					"agent-profiles/v0.20260617.1",
 					"v0.20260616.9",
 					"not-a-release",
 				}, "\n"), nil
@@ -55,12 +56,12 @@ func TestCreateReleaseTagCreatesNextDailyTag(t *testing.T) {
 		{"status", "--porcelain"},
 		{"rev-parse", "HEAD"},
 		{"status", "--porcelain"},
-		{"tag", "-l", "v0.20260617.*"},
+		{"tag", "-l", "*v0.20260617.*"},
 	}
 	if !reflect.DeepEqual(calls, want) {
 		t.Fatalf("git calls = %#v, want %#v", calls, want)
 	}
-	wantTags := releaseTags("v0.20260617.3", subModules)
+	wantTags := releaseTags("v0.20260617.3", releaseModules())
 	if !reflect.DeepEqual(created, wantTags) || taggedCommit != "abc123" {
 		t.Fatalf("atomic tags = %v at %s, want %v at abc123",
 			created, taggedCommit, wantTags)
@@ -94,11 +95,15 @@ func TestCreateReleaseTagInGitRepository(t *testing.T) {
 	if !strings.Contains(out, tagPrefix+date+".1") {
 		t.Fatalf("local tags = %q, want next daily revision", out)
 	}
-	for _, mod := range subModules {
+	for _, mod := range releaseModules() {
 		moduleTag := mod + "/" + tagPrefix + date + ".1"
 		if !strings.Contains(runGitOutput(t, "tag", "-l", moduleTag), moduleTag) {
 			t.Fatalf("local tags missing module tag %q", moduleTag)
 		}
+	}
+	legacyTag := legacyCatalogTagPrefix + tagPrefix + date + ".1"
+	if got := strings.TrimSpace(runGitOutput(t, "tag", "-l", legacyTag)); got != legacyTag {
+		t.Fatalf("local tags missing compatibility tag %q", legacyTag)
 	}
 }
 
@@ -152,7 +157,7 @@ func TestCreateReleaseTagWrapsAtomicTagFailure(t *testing.T) {
 		time.Date(2026, 6, 17, 0, 0, 0, 0, time.UTC),
 		successfulReleaseOutput,
 		func(tags []string, commit string) error {
-			if !reflect.DeepEqual(tags, releaseTags("v0.20260617.0", subModules)) ||
+			if !reflect.DeepEqual(tags, releaseTags("v0.20260617.0", releaseModules())) ||
 				commit != "abc123" {
 				t.Fatalf("atomic request = %v at %s", tags, commit)
 			}
@@ -205,12 +210,15 @@ func TestGitCreateTagSetIsAtomicOnConflict(t *testing.T) {
 	t.Cleanup(func() { _ = os.Chdir(previous) })
 
 	commit := strings.TrimSpace(runGitOutput(t, "rev-parse", "HEAD"))
-	tags := releaseTags("v0.20260617.0", subModules)
+	tags := releaseTags("v0.20260617.0", releaseModules())
 	runGit(t, "tag", tags[2])
 	if err := gitCreateTagSet(tags, commit); err == nil {
 		t.Fatal("atomic tag creation succeeded despite conflicting module tag")
 	}
-	for _, tag := range []string{tags[0], tags[1], tags[3]} {
+	for index, tag := range tags {
+		if index == 2 {
+			continue
+		}
 		if got := strings.TrimSpace(runGitOutput(t, "tag", "-l", tag)); got != "" {
 			t.Errorf("atomic failure left partial tag %s", got)
 		}
@@ -314,9 +322,9 @@ func TestReleaseGatesMatchDocumentedContract(t *testing.T) {
 		{name: "root test", dir: root, args: []string{"mage", "test"}},
 		{name: "agent-core integration", dir: "/release/agent-core",
 			args: []string{"mage", "integration:all"}},
-		{name: "agent-profiles integration", dir: "/release/agent-profiles",
+		{name: "catalog integration", dir: "/release/applications/catalog",
 			args: []string{"mage", "integration:all"}},
-		{name: "agent-profiles conformance", dir: "/release/agent-profiles",
+		{name: "catalog conformance", dir: "/release/applications/catalog",
 			args: []string{"mage", "conformance"},
 			env:  []string{"AGENT_CORE_ROOT=/release/agent-core"}},
 	}
@@ -347,17 +355,34 @@ func TestExecuteReleaseGatesStopsAtFailure(t *testing.T) {
 }
 
 func TestReleaseTags(t *testing.T) {
-	got := releaseTags("v0.20260617.0", []string{"agent-core", "agent-profiles"})
-	want := []string{"v0.20260617.0", "agent-core/v0.20260617.0", "agent-profiles/v0.20260617.0"}
+	got := releaseTags("v0.20260617.0", []string{
+		"agent-core", catalogModule, "applications/coding-agent",
+	})
+	want := []string{
+		"v0.20260617.0",
+		"agent-core/v0.20260617.0",
+		"applications/catalog/v0.20260617.0",
+		"agent-profiles/v0.20260617.0",
+		"applications/coding-agent/v0.20260617.0",
+	}
 	if !reflect.DeepEqual(got, want) {
 		t.Fatalf("releaseTags = %#v, want %#v", got, want)
+	}
+}
+
+func TestReleaseTagsStopsLegacyCompatibilityAtV1(t *testing.T) {
+	got := releaseTags("v1.0.0", []string{catalogModule})
+	want := []string{"v1.0.0", "applications/catalog/v1.0.0"}
+	if !reflect.DeepEqual(got, want) {
+		t.Fatalf("releaseTags v1 = %#v, want %#v", got, want)
 	}
 }
 
 func TestNextRevisionFromTags(t *testing.T) {
 	got := nextRevisionFromTags("20260617", strings.Join([]string{
 		"v0.20260617.4",
-		"v0.20260617.12",
+		"applications/catalog/v0.20260617.12",
+		"agent-profiles/v0.20260617.9",
 		"v0.20260617.bad",
 		"v0.20260616.99",
 		"v1.20260617.20",
@@ -392,7 +417,7 @@ func successfulReleaseOutput(args ...string) (string, error) {
 		return "main", nil
 	case "rev-parse HEAD":
 		return "abc123", nil
-	case "status --porcelain", "tag -l v0.20260617.*":
+	case "status --porcelain", "tag -l *v0.20260617.*":
 		return "", nil
 	default:
 		return "", errors.New("unexpected git output command")

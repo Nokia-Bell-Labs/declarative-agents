@@ -8,7 +8,7 @@ Attach a control-plane server to the running engine so observers can query execu
 
 ## Reference implementation status
 
-The shipped `agent-profiles/agents/monitor` profile owns read routes for machine, state, tools, metrics, recent events, event SSE, and OpenAPI. Its only control route is `POST /monitor/control/exit`, which emits `ExitRequested`. The listener binds `127.0.0.1:0`; supervisors discover the selected address from the REST launch output.
+The shipped `applications/catalog/agents/monitor` profile owns read routes for machine, state, tools, metrics, recent events, event SSE, and OpenAPI. Its only control route is `POST /monitor/control/exit`, which emits `ExitRequested`. The listener binds `127.0.0.1:0`; supervisors discover the selected address from the REST launch output.
 
 The REST runtime has conformance-tested `lifecycle_control` and `inject_signal` bindings, but no production profile selects them. Arbitrary signal injection, pause/resume/rollback control, PID-file discovery, coding-agent rollback, multi-agent polling, and checkpoint restoration by a lifecycle agent remain design intent.
 

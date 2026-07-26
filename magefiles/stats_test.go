@@ -13,10 +13,10 @@ func TestSumAgentsTotals(t *testing.T) {
 	t.Parallel()
 	results := map[string]json.RawMessage{
 		"agent-core": json.RawMessage(`{"go": {"src_lines": 10}}`),
-		"agent-profiles": json.RawMessage(`{"agents": {"total": {
+		"applications/catalog": json.RawMessage(`{"agents": {"total": {
 			"agents": 9, "states": 115, "transitions": 206, "tools": 94,
 			"yaml": {"files": 82, "lines": 8531}}}}`),
-		"examples/chatbot-mesh": json.RawMessage(`{"agents": {"total": {
+		"applications/chatbot-mesh": json.RawMessage(`{"agents": {"total": {
 			"agents": 6, "states": 123, "transitions": 192, "tools": 51,
 			"yaml": {"files": 69, "lines": 6911}}},
 			"composition": {"total": {
@@ -24,7 +24,7 @@ func TestSumAgentsTotals(t *testing.T) {
 				"yaml": {"files": 2, "lines": 271}},
 				"per_wrapper": {"corpus-ingest": {
 					"ownership": "composition",
-					"canonical_source": "agent-profiles",
+					"canonical_source": "applications/catalog",
 					"canonical_program": "agents/knowledge-manager/corpus-ingest",
 					"yaml": {"files": 2, "lines": 271}}}}}`),
 	}
@@ -87,7 +87,7 @@ func TestSumAgentsTotalsValidatesPerAgentConsistency(t *testing.T) {
 func TestSumAgentsTotalsBadJSON(t *testing.T) {
 	t.Parallel()
 	results := map[string]json.RawMessage{
-		"agent-profiles": json.RawMessage(`{"agents":`),
+		"applications/catalog": json.RawMessage(`{"agents":`),
 	}
 	if _, err := sumAgentsTotals(results); err == nil {
 		t.Fatal("sumAgentsTotals = nil error, want parse failure")

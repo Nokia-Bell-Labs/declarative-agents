@@ -1,9 +1,0 @@
-id: srd015-chatbot-deployment
-title: Chatbot Mesh Deployment Model (Relocated)
-status: relocated
-canonical_path: examples/chatbot-mesh/docs/specs/software-requirements/srd003-chatbot-deployment.yaml
-note: |
-  Pointer-only tombstone. The chatbot mesh is application composition, so its
-  deployment requirements, implementation status, Helm chart, and supporting
-  evidence are owned by the canonical example under examples/chatbot-mesh/.
-  This retained identifier exists only to redirect historical references.

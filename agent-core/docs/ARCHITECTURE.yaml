@@ -33,21 +33,29 @@ overview:
     parses and validates the specification corpus without importing internal
     tool packages.
 
-    External agent profile YAML, core-owned tools, and docs/specs YAML make up
-    the configuration layer. Profiles choose machines, tool selections,
-    declarations, and boundary-tool configs from an agent-profiles checkout or
-    bundle. Specification YAML explains the requirements, semantic models, use
-    cases, and formal tests. Configuration is the agent program; changing agent
-    behavior should not require new Go code.
+    External catalog YAML, core-owned declarations, and docs/specs YAML make up
+    the configuration layer. Profiles choose machines, name-only tool selection
+    lists, reusable catalog declarations, profile-local overrides, and
+    boundary-tool configs from an applications/catalog checkout or bundle.
+    Stable core declarations remain under agent-core/tools and installed
+    /opt/agent-core/tools paths. Specification YAML explains the requirements,
+    semantic models, use cases, and formal tests. Configuration is the agent
+    program; changing agent behavior should not require new Go code.
+
+    Dependency direction is one-way: applications compose
+    applications/catalog blocks; catalog blocks select agent-core declarations
+    and implementations. Agent Core never imports or discovers catalog or
+    application products for its tests, audit, or integrations.
 
   layer_diagram: |
     ```mermaid
     flowchart TB
       subgraph Config["Configuration and Specifications"]
-        MACH[agent-profiles/agents/*/machine.yaml]
-        SEL[agent-profiles/agents/*/tools.yaml]
-        DEF[tools/*.yaml]
-        BCFG[agent-profiles/agents/*/llm/*.yaml boundary tool configs]
+        MACH[applications/catalog/agents/*/machine.yaml]
+        SEL[applications/catalog/agents/*/tools.yaml]
+        CDEF[applications/catalog/agents/*/*.yaml catalog declarations]
+        DEF[agent-core/tools/*.yaml core declarations]
+        BCFG[applications/catalog/agents/*/llm/*.yaml boundary tool configs]
         SPECS[docs/specs/*.yaml]
       end
 
@@ -721,13 +729,13 @@ overview:
       - REST definitions live with agent/profile/tool configuration.
       - Runtime credentials are referenced by configuration and resolved by the agent runtime.
       - Document resource roots, include patterns, extension allowlists, and response modes live with trusted profile or REST configuration.
-      - Knowledge Manager UI assets and UI-specific action placement live with the documentation-curator profile in agent-profiles.
+      - Knowledge Manager UI assets and UI-specific action placement live with the documentation-curator profile in applications/catalog.
       - Generated Go REST clients and servers are out of scope for the first implementation.
     source_files:
       current:
         - internal/tools/rest/
         - tools/builtin/rest/all.yaml
-        - external agent-profiles/testdata/conformance/rest/
+        - external applications/catalog/testdata/conformance/rest/
         - testdata/integration/rel03-rest-tools/
         - docs/specs/software-requirements/srd027-rest-tool-runtime.yaml
         - docs/specs/software-requirements/srd028-rest-client-tools.yaml
@@ -784,7 +792,7 @@ overview:
       output must include both read endpoints and profile-owned lifecycle
       control endpoints such as POST /monitor/control/exit.
 
-      The external agent-profiles monitor REST config uses 127.0.0.1:18083 by
+      The external applications/catalog monitor REST config uses 127.0.0.1:18083 by
       default. Tests and CLI proofs should avoid sharing that fixed port by
       binding an isolated localhost address from generated profile config or an
       explicit runtime override.
@@ -824,7 +832,7 @@ overview:
       serving_lifecycle: |
         Monitor REST listeners are background servers. Profile grammar keeps
         cmd/agent alive by awaiting a control event after launch. This follows
-        the agent-profiles documentation-curator machine: launch, await, exit,
+        the applications/catalog documentation-curator machine: launch, await, exit,
         stop, and reach a success terminal.
       isolated_binding: |
         Operator profiles may name a fixed local port. Automated tests and CLI
@@ -842,8 +850,8 @@ overview:
         - internal/tools/rest/monitor_views.go
         - internal/tools/rest/monitor_openapi.go
         - internal/tools/exec/metrics.go
-        - external agent-profiles/agents/monitor/
-        - external agent-profiles/testdata/integration/rel04-monitor/
+        - external applications/catalog/agents/monitor/
+        - external applications/catalog/testdata/integration/rel04-monitor/
         - docs/specs/software-requirements/srd032-tool-metrics-monitor-store.yaml
         - docs/specs/software-requirements/srd033-monitor-rest-api.yaml
         - docs/specs/semantic-models/tool-metrics-monitoring.yaml
@@ -993,7 +1001,7 @@ overview:
     profile_first_lifecycle_diagram: |
       ```mermaid
       flowchart LR
-        P[agent-profiles/testdata/conformance/lifecycle/*/profile.yaml] --> M[Lifecycle MachineSpec]
+        P[applications/catalog/testdata/conformance/lifecycle/*/profile.yaml] --> M[Lifecycle MachineSpec]
         P --> S[tools.yaml selection]
         P --> D[ToolDef declarations]
         S --> D
@@ -1387,7 +1395,7 @@ project_structure:
   bench:
     - path: internal/evaluation/
       role: Evaluator session/point runtime, result artifacts, metrics, convergence, trace analysis, and HTTP-independent artifact query words
-    - path: ../agent-profiles/agents/bench/
+    - path: ../applications/catalog/agents/bench/
       role: External profile-owned REST routes, host/request machines, declarations, and React frontend
 
   engine:
@@ -1455,7 +1463,7 @@ project_structure:
       role: Public specification corpus parsing, graph construction, cross-artifact validation, and mirrored tool declaration completeness checks
 
   configuration:
-    - path: external agent-profiles/agents/
+    - path: external applications/catalog/agents/
       role: Standard agent programs, including generator, evaluator, planner, jurist, bench, REST, monitor, control, lifecycle, and Knowledge Manager profile assets
     - path: tools/
       role: Shared tool declarations — builtin.yaml and exec.yaml
@@ -1467,7 +1475,7 @@ project_structure:
       role: Mage build targets (build, lint, install, clean, tag, stats)
     - path: docs/
       role: Documentation, specifications, and roadmap
-    - path: external agent-profiles/agents/knowledge-manager/documentation-curator/
+    - path: external applications/catalog/agents/knowledge-manager/documentation-curator/
       role: Profile-owned curator MachineSpecs, REST routes, ToolDefs, UX configuration, and React UI
 
 package_specification_coverage: |
@@ -1523,10 +1531,10 @@ implementation_status:
     - done: Bench profile — profile-owned REST routes, host/request machines, static React assets, evaluation queries, and self-invoke launch boundary
     - done: Evaluation runtime (internal/evaluation) — profile suites, point execution, result artifacts, metrics, convergence, and trace analysis
     - done: YAML tool definitions — shared builtin and exec declaration directories, compatibility aggregate files, plus agent-local overrides
-    - done: External agent profiles and configurations — generator, evaluator, planner, jurist, bench, REST, monitor, control, lifecycle, and Knowledge Manager profiles are supplied from agent-profiles through explicit --profile paths to a checkout or bundle mounted or copied beside the workspace
+    - done: External agent profiles and configurations — generator, evaluator, planner, jurist, bench, REST, monitor, control, lifecycle, and Knowledge Manager profiles are supplied from applications/catalog through explicit --profile paths to a checkout or bundle mounted or copied beside the workspace
     - done: Grammar Machine alignment — selected-tool contract enforcement, rollback strategy vocabulary, profile-first child boundaries, and centralized builtin factory catalog
     - done: Rollback lifecycle core operations — Checkpoint port, NoopCheckpoint, InMemoryCheckpoint, DoltCheckpoint, history, resume, Revert, and receipt rollback traversal
-    - done: Lifecycle adapters and external profiles — checkpoint_history and checkpoint_rollback selected by agent-profiles lifecycle profiles
+    - done: Lifecycle adapters and external profiles — checkpoint_history and checkpoint_rollback selected by applications/catalog lifecycle profiles
     - done: LLM profiles — 9 model families with extraction pipelines
     - done: Mage build targets — build, lint, install, clean, tag, stats, docker
     - done: Release container runtime — slim multi-stage image with agent binary, Unix utilities, and shared YAML assets under /opt/agent-core
@@ -1534,10 +1542,10 @@ implementation_status:
     - done: Scenario rig runtime components — internal/tools/rest implements the mock binding and internal/tools/service implements service-child lifecycle, deterministic discovery, validator execution, and session words
     - partial: Release 09 scenario proof — component tests are executable, while the full TestScenarioRig_EndToEndVerdict tracer remains planned
     - done: OTLP receiver runtime — internal/tools/otlp implements bounded receive, await, stdouttrace-compatible spool, unchanged relay, stop, and static self-loop rejection
-    - done: REST sample profile — agent-profiles owns REST profile assets while agent-core keeps core REST runtime conformance fixtures under testdata/integration/rel03-rest-tools
+    - done: REST sample profile — applications/catalog owns REST profile assets while agent-core keeps core REST runtime conformance fixtures under testdata/integration/rel03-rest-tools
     - done: Machine request REST path — documentation_curator routes execute the external documentation-curator request machine for document, search, validation, suggestion, and decision requests, with actions selected from trusted profile declarations
     - done: Declarative document resources — documentation_corpus uses reusable filesystem resource words for docs/ list and read behavior
-    - done: Knowledge Manager machine_request proof — agent-profiles conformance and integration verify generic REST lifecycle, trace evidence, raw YAML, rendered HTML, search, jurist validation, persistent review creation, and guarded approval
+    - done: Knowledge Manager machine_request proof — applications/catalog conformance and integration verify generic REST lifecycle, trace evidence, raw YAML, rendered HTML, search, jurist validation, persistent review creation, and guarded approval
     - done: cobbler-scaffold dependency removed
     - done: Go test suite across all packages
     - done: Specification index — 42 SRDs, 28 use cases, and 14 formal test suites are indexed with current release status

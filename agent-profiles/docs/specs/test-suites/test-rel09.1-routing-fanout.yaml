@@ -1,9 +1,0 @@
-id: test-rel09.1-routing-fanout
-title: Test Suite for Release 09.1 Tier Selection and Fan-Out (Relocated)
-release: "09.1"
-status: relocated
-canonical_path: examples/chatbot-mesh/docs/specs/test-suites/test-rel01.0-routing-fanout.yaml
-note: |
-  Pointer-only tombstone. The canonical suite and its proof commands live with
-  the chatbot-mesh example. This retained identifier exists only to redirect
-  historical references.

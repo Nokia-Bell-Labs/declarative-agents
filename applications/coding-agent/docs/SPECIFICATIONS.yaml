@@ -1,0 +1,192 @@
+id: coding-agent-example-specifications
+title: Coding Agent Example Specification Index
+
+overview: |
+  This index governs the coding application's composition documents. Release
+  01.0 defines the local three-stage loop. Release 02.0 adds the
+  application-owned persistent serving contract while continuing to reference
+  the canonical executor (srd002), critic (srd003), and planner (srd004)
+  requirements in `applications/catalog`.
+
+  Library references are not forks. Packaging snapshots the configured checkout
+  compatible with the declared `applications/catalog/v0.*` release, records its
+  revision, and assembles the transitive profile closure before deployment. The
+  shared agent-core runtime image remains profile-free.
+
+roadmap_summary:
+  - version: "01.0"
+    name: Planner, executor, and critic coding loop
+    use_cases_done: 1
+    use_cases_total: 1
+    status: implemented
+  - version: "02.0"
+    name: Persistent remote coding request
+    use_cases_done: 1
+    use_cases_total: 1
+    status: implemented
+  - version: "03.0"
+    name: Role-specific deployment profile package
+    use_cases_done: 1
+    use_cases_total: 1
+    status: implemented
+  - version: "04.0"
+    name: Core Helm topology
+    use_cases_done: 1
+    use_cases_total: 1
+    status: implemented
+  - version: "05.0"
+    name: Helm values and package validation
+    use_cases_done: 1
+    use_cases_total: 1
+    status: implemented
+  - version: "06.0"
+    name: Packaged-chart live Helm smoke
+    use_cases_done: 1
+    use_cases_total: 1
+    status: implemented
+
+foundation_document_index:
+  - id: coding-agent-example
+    title: Coding Agent Application Vision
+    summary: Goals, boundaries, and success criteria for the deployable coding composition.
+    path: docs/VISION.yaml
+  - id: architecture-coding-agent-example
+    title: Coding Agent Architecture
+    summary: Coding-loop components, package boundary, deployment intent, and design decisions.
+    path: docs/ARCHITECTURE.yaml
+  - id: coding-agent-example-roadmap
+    title: Coding Agent Example Road Map
+    summary: Specification-first release plan for the coding loop.
+    path: docs/road-map.yaml
+  - id: coding-agent-deployment-guide
+    title: Coding-Agent Deployment and Operations
+    summary: Packaged chart prerequisites, configuration, verification, troubleshooting, security, rollback, and teardown.
+    path: docs/deployment.md
+
+srd_index:
+  - id: srd001-serving-contract
+    title: Persistent Coding-Agent Serving Contract
+    status: implemented
+    path: docs/specs/software-requirements/srd001-serving-contract.yaml
+  - id: srd002-deployment-profile-package
+    title: Role-Specific Deployment Profile Package
+    status: implemented
+    path: docs/specs/software-requirements/srd002-deployment-profile-package.yaml
+  - id: srd003-helm-topology
+    title: Core Coding-Agent Helm Topology
+    status: implemented
+    path: docs/specs/software-requirements/srd003-helm-topology.yaml
+  - id: srd004-helm-package-validation
+    title: Helm Values and Package Validation
+    status: implemented
+    path: docs/specs/software-requirements/srd004-helm-package-validation.yaml
+  - id: srd005-live-helm-smoke
+    title: Packaged-Chart Live Helm Smoke
+    status: implemented
+    path: docs/specs/software-requirements/srd005-live-helm-smoke.yaml
+
+library_srd_references:
+  - id: srd002-executor
+    owner: applications/catalog
+    title: Executor Functional Block
+    path: ../../catalog/docs/specs/software-requirements/srd002-executor.yaml
+    usage: The live executor stage and planner delegation use its coding-agent inputs, outputs, validation, and terminal outcomes.
+  - id: srd003-critic
+    owner: applications/catalog
+    title: Critic Functional Block
+    path: ../../catalog/docs/specs/software-requirements/srd003-critic.yaml
+    usage: The critic-gate stage uses its suite, point, oracle, report, and terminal-outcome contract.
+  - id: srd004-planner
+    owner: applications/catalog
+    title: Planner Functional Block
+    path: ../../catalog/docs/specs/software-requirements/srd004-planner.yaml
+    usage: The planner-delegation stage uses its requirement traversal, task materialization, child-profile execution, and validation contract.
+
+config_format_index: []
+
+semantic_model_index: []
+
+use_case_index:
+  - id: rel01.0-uc001-coding-loop
+    title: Planner Materializes, Executor Changes, and Critic Gates
+    release: "01.0"
+    status: implemented
+    test_suite: test-rel01.0-coding-loop
+    path: docs/specs/use-cases/rel01.0-uc001-coding-loop.yaml
+  - id: rel02.0-uc001-remote-coding-request
+    title: Persistent Planner Delegates to Executor and Critic
+    release: "02.0"
+    status: implemented
+    test_suite: test-rel02.0-serving-contract
+    path: docs/specs/use-cases/rel02.0-uc001-remote-coding-request.yaml
+  - id: rel03.0-uc001-package-serving-profiles
+    title: Package Serving Profiles for Separate Containers
+    release: "03.0"
+    status: implemented
+    test_suite: test-rel03.0-deployment-profile-package
+    path: docs/specs/use-cases/rel03.0-uc001-package-serving-profiles.yaml
+  - id: rel04.0-uc001-render-helm-topology
+    title: Render the Persistent Coding-Agent Topology
+    release: "04.0"
+    status: implemented
+    test_suite: test-rel04.0-helm-topology
+    path: docs/specs/use-cases/rel04.0-uc001-render-helm-topology.yaml
+  - id: rel05.0-uc001-package-validated-chart
+    title: Produce a Validated Self-Contained Chart
+    release: "05.0"
+    status: implemented
+    test_suite: test-rel05.0-helm-package-validation
+    path: docs/specs/use-cases/rel05.0-uc001-package-validated-chart.yaml
+  - id: rel06.0-uc001-live-helm-smoke
+    title: Prove the Packaged Coding Topology on Kind
+    release: "06.0"
+    status: implemented
+    test_suite: test-rel06.0-live-helm-smoke
+    path: docs/specs/use-cases/rel06.0-uc001-live-helm-smoke.yaml
+
+test_suite_index:
+  - id: test-rel01.0-coding-loop
+    title: Test Suite for Release 01.0 Coding Loop
+    release: "01.0"
+    test_case_count: 3
+    traces: [rel01.0-uc001-coding-loop]
+    path: docs/specs/test-suites/test-rel01.0-coding-loop.yaml
+  - id: test-rel02.0-serving-contract
+    title: Persistent Coding-Agent Serving Contract Suite
+    release: "02.0"
+    test_case_count: 2
+    traces: [rel02.0-uc001-remote-coding-request]
+    path: docs/specs/test-suites/test-rel02.0-serving-contract.yaml
+  - id: test-rel03.0-deployment-profile-package
+    title: Role-Specific Deployment Profile Package Suite
+    release: "03.0"
+    test_case_count: 4
+    traces: [rel03.0-uc001-package-serving-profiles]
+    path: docs/specs/test-suites/test-rel03.0-deployment-profile-package.yaml
+  - id: test-rel04.0-helm-topology
+    title: Core Coding-Agent Helm Topology Suite
+    release: "04.0"
+    test_case_count: 4
+    traces: [rel04.0-uc001-render-helm-topology]
+    path: docs/specs/test-suites/test-rel04.0-helm-topology.yaml
+  - id: test-rel05.0-helm-package-validation
+    title: Helm Values and Package Validation Suite
+    release: "05.0"
+    test_case_count: 4
+    traces: [rel05.0-uc001-package-validated-chart]
+    path: docs/specs/test-suites/test-rel05.0-helm-package-validation.yaml
+  - id: test-rel06.0-live-helm-smoke
+    title: Packaged-Chart Live Helm Smoke Suite
+    release: "06.0"
+    test_case_count: 4
+    traces: [rel06.0-uc001-live-helm-smoke]
+    path: docs/specs/test-suites/test-rel06.0-live-helm-smoke.yaml
+
+coverage_gaps:
+  - id: kubernetes-deployment
+    status: partially_implemented
+    description: |
+      The one-container-per-agent Helm topology is implemented. Strict values
+      schema, packaged-chart validation, and bounded single-node kind evidence
+      are implemented. Multi-node and production operational evidence remain
+      outside this application.

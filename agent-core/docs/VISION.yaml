@@ -240,6 +240,13 @@ success_criteria:
     shared across agents through internal/model/llm, internal/model/prompt,
     internal/tools, and internal/observability/tracing. Domain agents compose
     these packages without reimplementing them.
+  source_ownership: |
+    Generic Go tool implementations remain under internal/tools. Stable shared
+    declarations remain under tools/ and install at /opt/agent-core/tools.
+    Repository-specific reusable declaration blocks live in
+    applications/catalog; application-local composition lives with each
+    application. Agent Core tests, audit, and integrations use only core-owned
+    fixtures and never discover those product trees.
   budget_enforcement: |
     Generic loop execution enforces iteration, token, and wall-clock-time
     limits. Domain-specific limits such as max build failures plug in through
@@ -261,6 +268,8 @@ success_criteria:
 
 not:
   - We do not define deployment, packaging, or container images.
+  - We do not own catalog membership, catalog conformance, or application
+    composition and end-to-end behavior.
   - Domain-specific behavior is defined in YAML configurations, not in
     Go code within the library packages.
   - We do not treat tool declarations as mere wrapper metadata; they are

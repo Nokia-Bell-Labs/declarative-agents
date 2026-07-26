@@ -319,7 +319,7 @@ patterns:
         evidence:
           classification: shipped
           checks:
-            - path: agent-profiles/agents/executor/machine.yaml
+            - path: applications/catalog/agents/executor/machine.yaml
               artifact: machine
               assertion: yaml_fields
               fields: [initial_state, states, signals, transitions, terminal_states]
@@ -429,29 +429,29 @@ patterns:
         evidence:
           classification: shipped
           checks:
-            - path: agent-profiles/agents/executor/profile.yaml
+            - path: applications/catalog/agents/executor/profile.yaml
               artifact: profile
               assertion: yaml_reference
               field: machine
-              target: agent-profiles/agents/executor/machine.yaml
+              target: applications/catalog/agents/executor/machine.yaml
               target_artifact: machine
-            - path: agent-profiles/agents/critic/profile.yaml
+            - path: applications/catalog/agents/critic/profile.yaml
               artifact: profile
               assertion: yaml_reference
               field: machine
-              target: agent-profiles/agents/critic/machine.yaml
+              target: applications/catalog/agents/critic/machine.yaml
               target_artifact: machine
-            - path: agent-profiles/agents/bench/profile.yaml
+            - path: applications/catalog/agents/bench/profile.yaml
               artifact: profile
               assertion: yaml_reference
               field: machine
-              target: agent-profiles/agents/bench/machine.yaml
+              target: applications/catalog/agents/bench/machine.yaml
               target_artifact: machine
-            - path: agent-profiles/agents/jurist/profile.yaml
+            - path: applications/catalog/agents/jurist/profile.yaml
               artifact: profile
               assertion: yaml_reference
               field: machine
-              target: agent-profiles/agents/jurist/machine.yaml
+              target: applications/catalog/agents/jurist/machine.yaml
               target_artifact: machine
     provenance: [reference-implementation, external-corroboration]
 
@@ -773,14 +773,14 @@ patterns:
           classification: shipped
           checks:
             - paths:
-                - agent-profiles/agents/executor/profile.yaml
-                - agent-profiles/agents/executor/profile-qwen35b.yaml
-                - agent-profiles/agents/executor/profile-qwen27b.yaml
+                - applications/catalog/agents/executor/profile.yaml
+                - applications/catalog/agents/executor/profile-qwen35b.yaml
+                - applications/catalog/agents/executor/profile-qwen27b.yaml
               artifact: profile
               assertion: yaml_relation
               same_fields: [machine, tools, tool_config_dirs]
               different_fields: [tool_declarations]
-            - path: agent-profiles/conformance/executor_test.go
+            - path: applications/catalog/conformance/executor_test.go
               artifact: go_test
               assertion: go_test
               test: TestExecutorShippedProfileWiring
@@ -1093,20 +1093,20 @@ patterns:
         evidence:
           classification: shipped
           checks:
-            - path: agent-profiles/agents/bench/machine.yaml
+            - path: applications/catalog/agents/bench/machine.yaml
               artifact: machine
               assertion: yaml_transition
               match: {state: Validating, signal: SuiteSelected, next: Launching, action: launch_evaluator}
-            - path: agent-profiles/agents/bench/builtin.yaml
+            - path: applications/catalog/agents/bench/builtin.yaml
               artifact: tool_declaration
               assertion: yaml_sequence_match
               field: tools
               match: {name: launch_evaluator, init: self_invoke}
-            - path: agent-profiles/agents/critic/machine.yaml
+            - path: applications/catalog/agents/critic/machine.yaml
               artifact: machine
               assertion: yaml_transition
               match: {state: AdvancingPoint, signal: PointReady, next: RunningPoint, action: run_point}
-            - path: agent-profiles/agents/critic/builtin.yaml
+            - path: applications/catalog/agents/critic/builtin.yaml
               artifact: tool_declaration
               assertion: yaml_sequence_match
               field: tools
@@ -1207,25 +1207,25 @@ patterns:
         evidence:
           classification: conformance_fixture
           checks:
-            - path: agent-profiles/testdata/conformance/lifecycle/approval/profile.yaml
+            - path: applications/catalog/testdata/conformance/lifecycle/approval/profile.yaml
               artifact: profile
               assertion: yaml_reference
               field: machine
-              target: agent-profiles/testdata/conformance/lifecycle/approval/machine.yaml
+              target: applications/catalog/testdata/conformance/lifecycle/approval/machine.yaml
               target_artifact: machine
-            - path: agent-profiles/testdata/conformance/lifecycle/approval/machine.yaml
+            - path: applications/catalog/testdata/conformance/lifecycle/approval/machine.yaml
               artifact: machine
               assertion: yaml_transition
               match: {state: Idle, signal: Seed, next: AwaitingApproval, action: suspend}
-            - path: agent-profiles/testdata/conformance/lifecycle/approval/machine.yaml
+            - path: applications/catalog/testdata/conformance/lifecycle/approval/machine.yaml
               artifact: machine
               assertion: yaml_transition
               match: {state: AwaitingApproval, signal: Approved, next: ApplyingApproval, action: done}
-            - path: agent-profiles/testdata/conformance/lifecycle/approval/machine.yaml
+            - path: applications/catalog/testdata/conformance/lifecycle/approval/machine.yaml
               artifact: machine
               assertion: yaml_transition
               match: {state: AwaitingApproval, signal: Rejected, next: Rejected}
-            - path: agent-profiles/conformance/lifecycle_test.go
+            - path: applications/catalog/conformance/lifecycle_test.go
               artifact: go_test
               assertion: go_test
               test: TestLifecycleApprovalSuspendResume
@@ -1434,53 +1434,53 @@ patterns:
         evidence:
           classification: shipped
           checks:
-            - path: agent-profiles/agents/monitor/profile.yaml
+            - path: applications/catalog/agents/monitor/profile.yaml
               artifact: profile
               assertion: yaml_reference
               field: rest_definitions
-              target: agent-profiles/agents/monitor/rest.yaml
+              target: applications/catalog/agents/monitor/rest.yaml
               target_artifact: rest_definition
-            - path: agent-profiles/agents/monitor/rest.yaml
+            - path: applications/catalog/agents/monitor/rest.yaml
               artifact: rest_definition
               assertion: yaml_value
               field: rest.servers.monitor.address
               equals: "127.0.0.1:0"
-            - path: agent-profiles/agents/monitor/rest.yaml
+            - path: applications/catalog/agents/monitor/rest.yaml
               artifact: rest_definition
               assertion: yaml_value
               field: rest.servers.monitor.endpoints.machine_spec.path
               equals: /monitor/machine
-            - path: agent-profiles/agents/monitor/rest.yaml
+            - path: applications/catalog/agents/monitor/rest.yaml
               artifact: rest_definition
               assertion: yaml_value
               field: rest.servers.monitor.endpoints.current_state.path
               equals: /monitor/state
-            - path: agent-profiles/agents/monitor/rest.yaml
+            - path: applications/catalog/agents/monitor/rest.yaml
               artifact: rest_definition
               assertion: yaml_value
               field: rest.servers.monitor.endpoints.tools.path
               equals: /monitor/tools
-            - path: agent-profiles/agents/monitor/rest.yaml
+            - path: applications/catalog/agents/monitor/rest.yaml
               artifact: rest_definition
               assertion: yaml_value
               field: rest.servers.monitor.endpoints.metrics.path
               equals: /monitor/metrics
-            - path: agent-profiles/agents/monitor/rest.yaml
+            - path: applications/catalog/agents/monitor/rest.yaml
               artifact: rest_definition
               assertion: yaml_value
               field: rest.servers.monitor.endpoints.recent_events.path
               equals: /monitor/events
-            - path: agent-profiles/agents/monitor/rest.yaml
+            - path: applications/catalog/agents/monitor/rest.yaml
               artifact: rest_definition
               assertion: yaml_value
               field: rest.servers.monitor.endpoints.event_stream.path
               equals: /monitor/events/stream
-            - path: agent-profiles/agents/monitor/rest.yaml
+            - path: applications/catalog/agents/monitor/rest.yaml
               artifact: rest_definition
               assertion: yaml_value
               field: rest.servers.monitor.endpoints.openapi.path
               equals: /monitor/openapi
-            - path: agent-profiles/agents/monitor/rest.yaml
+            - path: applications/catalog/agents/monitor/rest.yaml
               artifact: rest_definition
               assertion: yaml_value
               field: rest.servers.monitor.endpoints.control_exit.path

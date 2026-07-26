@@ -1,8 +1,0 @@
-id: srd017-creator
-title: Creator Agent Functional Block (Relocated)
-status: relocated
-canonical_path: examples/chatbot-mesh/docs/specs/software-requirements/srd005-creator.yaml
-note: |
-  Pointer-only tombstone. The creator is application-specific composition, so
-  its requirements and implementation evidence live with chatbot-mesh. This
-  retained identifier exists only to redirect historical references.

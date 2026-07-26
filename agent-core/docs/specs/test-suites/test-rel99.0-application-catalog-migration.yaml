@@ -1,0 +1,422 @@
+id: test-rel99.0-application-catalog-migration
+title: Test Suite for Release 99.0 Application and Catalog Migration
+release: "99.0"
+
+traces:
+  - rel99.0-uc002-application-catalog-migration
+
+preconditions:
+  - srd043-application-catalog-layout is indexed before migration code lands.
+  - The repository root contains agent-core plus the source trees being moved.
+  - Each command runs from the owner root named in the test case.
+  - Live integrations retain their existing prerequisite checks and skip semantics.
+  - Generated node_modules, build output, Helm archives, and unrelated untracked files are excluded from migration diffs.
+
+test_cases:
+  - use_case: rel99.0-uc002-application-catalog-migration
+    name: Migration contract is indexed and complete
+    issue: GH-1040
+    go_test: mage audit
+    status: specified
+    description: |
+      Parse and audit the SRD, use case, and suite. Confirm the roadmap and
+      specification index include all three artifacts and all fourteen GH-1036 child
+      issues map to requirements and named cases.
+    inputs:
+      owner_root: repository_root
+      artifacts:
+        - agent-core/docs/specs/software-requirements/srd043-application-catalog-layout.yaml
+        - agent-core/docs/specs/use-cases/rel99.0-uc002-application-catalog-migration.yaml
+        - agent-core/docs/specs/test-suites/test-rel99.0-application-catalog-migration.yaml
+    expected:
+      yaml_parses: true
+      artifacts_indexed: true
+      child_issue_count: 14
+      ownership_decisions_complete: true
+      compatibility_decisions_complete: true
+    evidence:
+      - mage audit output with no new specification errors
+      - Issue mapping in srd043 implementation_plan and this suite
+    traces:
+      - srd043-application-catalog-layout AC1
+      - srd043-application-catalog-layout AC4
+      - srd043-application-catalog-layout AC5
+      - srd043-application-catalog-layout AC6
+      - srd043-application-catalog-layout AC8
+
+  - use_case: rel99.0-uc002-application-catalog-migration
+    name: Runnable application source trees move mechanically
+    issue: GH-1037
+    go_test: mage audit
+    integration_target: root Mage module-list regression; go test ./... in applications/coding-agent and applications/chatbot-mesh
+    status: implemented
+    description: |
+      Move both runnable application directories, update root participation and
+      module declarations, and preserve their relative root Mage replacement.
+    inputs:
+      owner_root: repository_root
+      historical_old_paths: [examples/coding-agent, examples/chatbot-mesh]
+      new_paths: [applications/coding-agent, applications/chatbot-mesh]
+    expected:
+      old_active_source_paths_absent: true
+      applications_discovered: true
+      module_paths_updated: true
+      relative_mage_replacements_valid: true
+    evidence:
+      - Root module-list regression output
+      - Unit-test output from both application module roots
+    traces:
+      - srd043-application-catalog-layout AC1
+      - srd043-application-catalog-layout AC2
+      - srd043-application-catalog-layout AC5
+      - srd043-application-catalog-layout AC7
+
+  - use_case: rel99.0-uc002-application-catalog-migration
+    name: Core integrations use only core-owned profiles
+    issue: GH-1038
+    go_test: mage audit
+    integration_target: cd magefiles && go test ./...; mage integration:monitor; mage integration:ollamaRest; mage integration:ollamaMonitor; mage integration:dolt
+    status: implemented
+    description: |
+      Run service integrations from agent-core using minimal profiles under
+      agent-core/testdata/integration. The targets keep live-service preflight
+      behavior but never resolve a catalog root.
+    inputs:
+      owner_root: agent-core
+      profile_source: agent-core/testdata/integration
+      forbidden_inputs: [AGENT_CATALOG_ROOT, AGENT_PROFILES_ROOT, applications/catalog]
+    expected:
+      core_profiles_loaded: true
+      catalog_discovery_called: false
+      live_skip_semantics_preserved: true
+      process_cwd_changed: false
+    evidence:
+      - Focused Mage package test output
+      - integration:all pass and skip summary from agent-core
+    traces:
+      - srd043-application-catalog-layout AC2
+      - srd043-application-catalog-layout AC3
+      - srd043-application-catalog-layout AC7
+
+  - use_case: rel99.0-uc002-application-catalog-migration
+    name: Core tests and audit require no catalog
+    issue: GH-1039
+    go_test: go test ./...
+    integration_target: mage audit
+    status: implemented
+    description: |
+      Run Agent Core's full Go and audit gates in a checkout with no
+      applications/catalog. Control, lifecycle, bootstrap, monitor, and Jurist
+      runtime coverage uses only core-owned fixtures; catalog membership checks
+      execute in catalog conformance instead.
+    inputs:
+      owner_root: agent-core
+      catalog_present: false
+      environment_unset: [AGENT_CATALOG_ROOT, AGENT_PROFILES_ROOT]
+    expected:
+      go_tests_pass: true
+      audit_passes: true
+      missing_catalog_skips: 0
+      catalog_membership_assertions_in_core: false
+    evidence:
+      - agent-core go test ./... output
+      - agent-core mage audit output
+      - Catalog conformance test names replacing moved assertions
+    traces:
+      - srd043-application-catalog-layout AC1
+      - srd043-application-catalog-layout AC3
+      - srd043-application-catalog-layout AC7
+
+  - use_case: rel99.0-uc002-application-catalog-migration
+    name: Catalog module relocates without semantic reorganization
+    issue: GH-1041
+    go_test: go test ./...
+    integration_target: mage validate; mage conformance; mage integration:all
+    status: implemented
+    description: |
+      Move the complete agent-profiles module to applications/catalog, update
+      its module identity and purpose language, and preserve internal files and
+      executable behavior until the later taxonomy issue.
+    inputs:
+      owner_root: applications/catalog
+      old_path: agent-profiles
+      new_path: applications/catalog
+    expected:
+      complete_tree_moved: true
+      old_active_source_path_absent: true
+      internal_reorganization_performed: false
+      catalog_gates_pass: true
+      generated_dependency_trees_moved: false
+    evidence:
+      - Git rename inventory
+      - Catalog Go, validation, conformance, and integration output
+    traces:
+      - srd043-application-catalog-layout AC1
+      - srd043-application-catalog-layout AC5
+      - srd043-application-catalog-layout AC7
+
+  - use_case: rel99.0-uc002-application-catalog-migration
+    name: Catalog root and legacy alias resolve deterministically
+    issue: GH-1043
+    go_test: mage audit
+    integration_target: focused internal/support/profiles and magefiles catalog-root tests
+    status: implemented
+    description: |
+      Exercise canonical input, the legacy-only alias, equal dual inputs,
+      conflicting dual inputs, applications/catalog repository discovery,
+      installed-runtime behavior, relative-path normalization, and missing-root
+      diagnostics without changing process CWD.
+    inputs:
+      owner_root: agent-core
+      cases:
+        - AGENT_CATALOG_ROOT_only
+        - AGENT_PROFILES_ROOT_only
+        - both_same_root
+        - both_conflicting_roots
+        - repository_discovery
+        - installed_runtime
+        - missing_catalog
+    expected:
+      canonical_env_authoritative: true
+      legacy_only_supported_in_rel99: true
+      same_dual_input_accepted: true
+      conflicting_input_rejected: true
+      absolute_root_resolved_once: true
+      process_cwd_changed: false
+      diagnostic_names_canonical_env: true
+    evidence:
+      - Resolver unit-test matrix
+      - Diagnostic assertions naming both conflicting variables
+    traces:
+      - srd043-application-catalog-layout AC2
+      - srd043-application-catalog-layout AC4
+
+  - use_case: rel99.0-uc002-application-catalog-migration
+    name: Root gates tags UIs and stats use applications
+    issue: GH-1046
+    go_test: mage audit
+    integration_target: root magefiles tests; mage audit; mage test; mage stats
+    status: implemented
+    description: |
+      Run root orchestration against agent-core and applications. Verify release
+      gate order, fail-fast behavior, UI scanning, stable stats keys, and
+      canonical plus compatibility catalog v0 tags.
+    inputs:
+      owner_root: repository_root
+      canonical_tag: applications/catalog/v0.YYYYMMDD.N
+      compatibility_tag: agent-profiles/v0.YYYYMMDD.N
+    expected:
+      root_paths_use_applications: true
+      child_processes_use_owner_roots: true
+      catalog_gates_ordered: true
+      application_uis_scanned: true
+      catalog_and_application_stats_distinct: true
+      v0_catalog_tags_share_commit: true
+      release_fail_fast_preserved: true
+    evidence:
+      - Root Mage package tests
+      - Root audit, test, and stats output
+      - Atomic tag-set unit-test output
+    traces:
+      - srd043-application-catalog-layout AC2
+      - srd043-application-catalog-layout AC5
+      - srd043-application-catalog-layout AC6
+      - srd043-application-catalog-layout AC7
+
+  - use_case: rel99.0-uc002-application-catalog-migration
+    name: Coding agent packages catalog closures with provenance
+    issue: GH-1044
+    go_test: mage audit
+    integration_target: coding-agent magefiles tests; mage package; mage packageValidate; mage integration:codingLoop; mage integration:servingHealth
+    status: implemented
+    description: |
+      Resolve planner, executor, and critic blocks through AGENT_CATALOG_ROOT
+      from the coding-agent root. Preserve role shards and /profiles mount
+      destinations, accept exact canonical or legacy v0 compatibility tags, and
+      distinguish compatible release from actual source provenance.
+    inputs:
+      owner_root: applications/coding-agent
+      catalog_root: applications/catalog
+      runtime_mount: /profiles
+      tag_prefixes: [applications/catalog/v0.*, agent-profiles/v0.*]
+    expected:
+      catalog_closure_exact: true
+      role_shards_preserved: true
+      runtime_mount_preserved: true
+      checkout_not_mislabeled_release: true
+      process_cwd_changed: false
+    evidence:
+      - Coding-agent package and packageValidate output
+      - Closure manifest and provenance assertions
+      - Serving and coding-loop integration output
+    traces:
+      - srd043-application-catalog-layout AC1
+      - srd043-application-catalog-layout AC2
+      - srd043-application-catalog-layout AC5
+      - srd043-application-catalog-layout AC6
+      - srd043-application-catalog-layout AC7
+
+  - use_case: rel99.0-uc002-application-catalog-migration
+    name: Chatbot mesh resolves catalog blocks from its owner root
+    issue: GH-1042
+    go_test: mage audit
+    integration_target: chatbot-mesh magefiles tests; mage audit; mage helm:package; mage integration:rig; mage integration:helmSmoke
+    status: implemented
+    description: |
+      Resolve Jurist, corpus-ingest, assembler, and mock catalog blocks through
+      AGENT_CATALOG_ROOT while preserving chatbot-mesh-owned profiles, topology,
+      chart paths, packaged /profiles closure, and integration semantics.
+    inputs:
+      owner_root: applications/chatbot-mesh
+      catalog_root: applications/catalog
+      runtime_mount: /profiles
+    expected:
+      reusable_blocks_from_catalog: true
+      application_agents_remain_local: true
+      helm_package_self_contained: true
+      stats_ownership_distinct: true
+      process_cwd_changed: false
+    evidence:
+      - Chatbot-mesh Mage package tests
+      - Audit and Helm package output
+      - Rig and Helm smoke evidence
+    traces:
+      - srd043-application-catalog-layout AC1
+      - srd043-application-catalog-layout AC2
+      - srd043-application-catalog-layout AC5
+      - srd043-application-catalog-layout AC7
+
+  - use_case: rel99.0-uc002-application-catalog-migration
+    name: Obsolete core catalog discovery is absent
+    issue: GH-1047
+    go_test: go test ./...
+    integration_target: mage audit; mage integration:all
+    status: implemented
+    description: |
+      Verify Agent Core tests, audit, and integrations use only core-owned
+      fixtures and contain no catalog-root discovery or product-membership
+      assertions.
+    inputs:
+      owner_root: agent-core
+      environment_unset: [AGENT_CATALOG_ROOT, AGENT_PROFILES_ROOT]
+    expected:
+      catalog_discovery_called: false
+      external_product_assertions: false
+      core_profile_validation_preserved: true
+    evidence:
+      - Agent Core Go, audit, and integration output
+      - Focused root and profile-asset regression tests
+    traces:
+      - srd043-application-catalog-layout AC1
+      - srd043-application-catalog-layout AC2
+      - srd043-application-catalog-layout AC3
+
+  - use_case: rel99.0-uc002-application-catalog-migration
+    name: Root module registry uses applications
+    issue: GH-1048
+    go_test: cd magefiles && go test ./...
+    integration_target: mage audit; mage test
+    status: implemented
+    description: |
+      Verify root orchestration dispatches the catalog and both runnable
+      applications from their owner roots and uses application vocabulary.
+    inputs:
+      owner_root: repository_root
+      modules: [agent-core, applications/catalog, applications/coding-agent, applications/chatbot-mesh]
+    expected:
+      current_module_paths_only: true
+      application_vocabulary_only: true
+      owner_root_dispatch: true
+    evidence:
+      - Root Mage package tests
+      - Root audit and test output
+    traces:
+      - srd043-application-catalog-layout AC1
+      - srd043-application-catalog-layout AC2
+      - srd043-application-catalog-layout AC7
+
+  - use_case: rel99.0-uc002-application-catalog-migration
+    name: Chatbot integrations use the canonical catalog root
+    issue: GH-1049
+    go_test: go test ./...
+    integration_target: mage audit; mage integration:chroma; mage integration:rig; mage integration:embeddingExclusion
+    status: implemented
+    description: |
+      Verify chatbot integrations resolve reusable blocks through
+      AGENT_CATALOG_ROOT without changing process CWD or source labels.
+    inputs:
+      owner_root: applications/chatbot-mesh
+      catalog_root: applications/catalog
+    expected:
+      canonical_root_propagated: true
+      legacy_alias_precedence_tested: true
+      process_cwd_changed: false
+      stale_source_labels: 0
+    evidence:
+      - Chatbot Mage package and focused integration output
+    traces:
+      - srd043-application-catalog-layout AC1
+      - srd043-application-catalog-layout AC2
+      - srd043-application-catalog-layout AC4
+      - srd043-application-catalog-layout AC5
+
+  - use_case: rel99.0-uc002-application-catalog-migration
+    name: Chatbot checkpoint database initializes idempotently
+    issue: GH-1050
+    go_test: go test ./...
+    integration_target: mage helm:package; mage integration:helmSmoke
+    status: implemented
+    description: |
+      Verify the chatbot Helm deployment creates or selects its configured Dolt
+      checkpoint database before agents save checkpoints and repeated
+      initialization succeeds.
+    inputs:
+      owner_root: applications/chatbot-mesh
+    expected:
+      checkpoint_database_ready: true
+      initialization_idempotent: true
+      runtime_mounts_unchanged: true
+    evidence:
+      - Helm render and package tests
+      - Chatbot Helm smoke output
+    traces:
+      - srd043-application-catalog-layout AC2
+      - srd043-application-catalog-layout AC5
+      - srd043-application-catalog-layout AC7
+
+  - use_case: rel99.0-uc002-application-catalog-migration
+    name: Taxonomy and active path references match the new ownership
+    issue: GH-1045
+    go_test: mage audit
+    integration_target: mage audit in repository root, agent-core, applications/catalog, applications/coding-agent, and applications/chatbot-mesh
+    status: implemented
+    description: |
+      Document core implementations and declarations, catalog tool blocks,
+      catalog agent blocks, tool selections, profile-local overrides, and
+      application-local composition. Sweep active path claims and command
+      examples after all moves complete.
+    inputs:
+      owner_roots:
+        - repository_root
+        - agent-core
+        - applications/catalog
+        - applications/coding-agent
+        - applications/chatbot-mesh
+      forbidden_active_source_paths: [examples/, top-level_agent-profiles/]
+    expected:
+      tool_first_taxonomy_documented: true
+      ownership_direction_documented: true
+      migration_guide_complete: true
+      stale_active_source_claims: 0
+      commands_use_owner_root_or_explicit_root: true
+    evidence:
+      - Repository-wide path-reference search
+      - Audit output from all five owner roots
+      - applications/catalog/tools/README.md taxonomy
+    traces:
+      - srd043-application-catalog-layout AC1
+      - srd043-application-catalog-layout AC2
+      - srd043-application-catalog-layout AC4
+      - srd043-application-catalog-layout AC6
+      - srd043-application-catalog-layout AC7
+      - srd043-application-catalog-layout AC8

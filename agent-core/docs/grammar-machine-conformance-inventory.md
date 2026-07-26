@@ -11,13 +11,13 @@ succeeds with selected-tool contract checks wired into `pkg/spec.Validate`.
 Warning-era undo strategy drift has been resolved by aligning
 `pkg/spec/checkToolUndoConsistency` with the rollback vocabulary.
 
-The conformance pass inspected `AGENT_PROFILES_ROOT/generator/profile.yaml`,
-`AGENT_PROFILES_ROOT/generator/profile-qwen35b.yaml`,
-`AGENT_PROFILES_ROOT/generator/profile-qwen27b.yaml`,
-`AGENT_PROFILES_ROOT/planner/profile.yaml`,
-`AGENT_PROFILES_ROOT/evaluator/profile.yaml`,
-`AGENT_PROFILES_ROOT/bench/profile.yaml`, and
-`AGENT_PROFILES_ROOT/jurist/profile.yaml`.
+The conformance pass inspected `AGENT_CATALOG_ROOT/generator/profile.yaml`,
+`AGENT_CATALOG_ROOT/generator/profile-qwen35b.yaml`,
+`AGENT_CATALOG_ROOT/generator/profile-qwen27b.yaml`,
+`AGENT_CATALOG_ROOT/planner/profile.yaml`,
+`AGENT_CATALOG_ROOT/evaluator/profile.yaml`,
+`AGENT_CATALOG_ROOT/bench/profile.yaml`, and
+`AGENT_CATALOG_ROOT/jurist/profile.yaml`.
 
 ## Pattern Requirements Used As Audit Criteria
 

@@ -1,0 +1,8 @@
+name: assembler
+machine: ../../agents/assembler/machine.yaml
+tools:
+  - ../../agents/assembler/tools.yaml
+tool_declarations:
+  - declarations.yaml
+rest_definitions:
+  - rest.yaml

@@ -1,0 +1,209 @@
+id: chatbot-mesh-example-roadmap
+title: Chatbot Mesh Example Road Map
+
+overview: |
+  These releases restage the data-plane chatbot mesh as the application's own plan.
+  They derive from the shared catalog's rel09.0-09.3 and rel09.5; the behavior is
+  implemented and is being relocated into this directory. Requirement and use-case
+  ids are renumbered to the application's own scheme (srd001-003, rel00.0+). The
+  control plane (coordinator srd004, creator srd005, and the provisioning surface)
+  is release rel05.0. Release rel06.0 replaces the standard-library Go provisioning
+  surface with the applier (srd006), a declarative agent that binds the helm and
+  kubectl CLIs in its container.
+
+releases:
+  - version: "00.0"
+    name: RAG server and single-RAG chatbot turn
+    description: |
+      The core loop: a persistent RAG server agent (srd001, vector-in) that answers
+      a query_embeddings request with chunks and embedding-model metadata, and a
+      browser-facing chatbot agent (srd002) whose request-scoped turn embeds the
+      message once, queries a single RAG, composes the answer prompt from the
+      retrieved chunks through command-state $from(), and answers, degrading to a
+      mapped 200 when the RAG
+      fails.
+    status: implemented
+    srds:
+      - srd001-rag-server-agent
+      - srd002-chatbot-agent
+    use_cases:
+      - id: rel00.0-uc001-rag-server-query
+        summary: Persistent RAG server answers a vector-in query_embeddings request and returns chunks with embedding-model metadata.
+        status: implemented
+      - id: rel00.0-uc002-chatbot-turn
+        summary: Single-RAG chat turn embeds once, queries one RAG, composes via $from(), answers, and degrades to a 200 when the RAG fails.
+        status: implemented
+    test_suites:
+      - id: test-rel00.0-chatbot-mesh
+        summary: Tracers for the RAG server query and the single-RAG chatbot turn with a degraded RAG.
+        status: implemented
+
+  - version: "01.0"
+    name: Tier selection and multi-RAG fan-out
+    description: |
+      The chatbot turn (srd002 R2, R3) gains the LLM $tool tier selector that classifies a
+      question to one chat-LLM word, and the sequential multi-RAG fan-out that
+      embeds once and queries N RAGs, each degraded (CommandError) or
+      embedding-mismatch-excluded (QueryRejected) source routing on as a visible
+      machine transition, compose assembling the surviving per-source chunks.
+    status: implemented
+    srds:
+      - srd002-chatbot-agent
+    use_cases:
+      - id: rel01.0-uc001-routed-fanout
+        summary: A tier-selected chat turn dispatches one chat-LLM word via $tool and fans the one embedding out to two RAGs, citing both corpora and degrading when one fails.
+        status: implemented
+    test_suites:
+      - id: test-rel01.0-routing-fanout
+        summary: Tracers for the $tool tier-selector dispatch, the two-RAG fan-out over disjoint corpora, and the degraded and embedding-mismatch paths.
+        status: implemented
+
+  - version: "02.0"
+    name: Observability
+    description: |
+      The observability surface (srd002 R5.1, R5.3): a per-agent monitor panel fed
+      by each agent's monitor read_state and SSE stream through the chatbot's
+      same-origin monitor_proxy, and a cross-agent trace waterfall that renders a
+      turn's connected trace from the Jaeger query API, real because the
+      request-scoped machine exports its spans and propagates traceparent to the
+      RAG servers (agent-core srd016).
+    status: implemented
+    srds:
+      - srd002-chatbot-agent
+    use_cases:
+      - id: rel02.0-uc001-observability
+        summary: The observability panel shows each agent's run state and event stream and renders a selected turn's connected cross-agent trace as a span waterfall.
+        status: implemented
+    test_suites:
+      - id: test-rel02.0-observability
+        summary: Tracers for the per-agent monitor panels over monitor_proxy and the cross-agent trace waterfall from the trace backend.
+        status: implemented
+
+  - version: "03.0"
+    name: Mesh deployment and tiered swap
+    description: |
+      The mesh deploys as one Helm chart (srd003) with values-driven RAG pairs,
+      co-generated chatbot client config and N-RAG fan-out from one source, a
+      tiered hot swap (repoint is a Service change; add-RAG re-renders and rolls
+      the chatbot after draining active turns), and OTLP observability. The
+      provisioning deployment API (srd003 R4) is the control-plane release
+      (rel05.0); this release covers the topology and the swap paths.
+    status: implemented
+    srds:
+      - srd003-chatbot-deployment
+    use_cases:
+      - id: rel03.0-uc001-mesh-deployment
+        summary: One Helm chart deploys the mesh on a kind cluster with values-to-config co-generation, a Service repoint, and an add-RAG rollout that drains active turns.
+        status: implemented
+    test_suites:
+      - id: test-rel03.0-mesh-deployment
+        summary: Tracers for the kind deploy smoke, the co-generation drift lock, and the repoint and add-RAG swaps.
+        status: implemented
+
+  - version: "04.0"
+    name: In-cluster LLM tier
+    description: |
+      The chart promotes Ollama from an external values-driven endpoint to a
+      first-class, chart-owned LLM tier (srd003 R6): an optional Ollama subchart,
+      enabled by default, with PVC-backed model storage, a model-preload Job, agent
+      readiness gated on model presence, and GPU scheduling values. A fresh-cluster
+      install is self-contained; setting ollama.enabled=false with an endpoint
+      override reproduces the external-endpoint behavior, and the co-generation
+      contract (R2) is unchanged either way.
+    status: implemented
+    srds:
+      - srd003-chatbot-deployment
+    use_cases:
+      - id: rel04.0-uc001-in-cluster-llm-tier
+        summary: A fresh-cluster install with defaults answers a chat turn with zero external LLM dependency; the disabled-tier override reproduces the external endpoint, and agents are not ready until the models are pulled.
+        status: implemented
+    test_suites:
+      - id: test-rel04.0-llm-tier
+        summary: Tracers for the default-install turn, the disabled-tier endpoint override, the preload-gate ordering, and the CPU-only kind smoke.
+        status: implemented
+
+  - version: "05.0"
+    name: Control plane
+    description: |
+      The mesh gains a control plane on top of the data-plane topology: a
+      coordinator agent (srd004) that binds a user's provisioning intent, sequences
+      the ingestion and reconfiguration workflows, and decides the values changes,
+      and a creator agent (srd005) that realizes each instance operation and alone
+      holds the deployment-API authority. A provisioning intent flows chatbot ->
+      coordinator -> creator: the chatbot delegates through a declared client, the
+      coordinator sequences corpus-ingest runs and the rollout, the creator executes
+      the request-draining rollout through the deployment API (srd003 R4) and
+      reports health, and the new source serves a grounded turn.
+    status: partial
+    srds:
+      - srd004-coordinator
+      - srd005-creator
+    use_cases:
+      - id: rel05.0-uc001-control-plane-provisioning
+        summary: >-
+          A provisioning intent flows panel -> coordinator -> creator and
+          reconfigures the mesh; only the creator holds the deployment-API
+          authority. The values-only apply -- the panel's operator intent -- is
+          realized end to end and proven by mage integration:controlPlane. The
+          corpus-ingest child run and count-delta checks are implemented and
+          covered independently, but no live integration drives one ingest-carrying
+          intent through ingest, rollout, and a grounded turn from the newly added
+          source. The complete use case therefore remains partial.
+        status: partial
+    test_suites:
+      - id: test-rel05.0-control-plane
+        summary: >-
+          Tracer for the apply -> reconfigure -> verify flow across the
+          coordinator and creator, asserting the decided values document crosses
+          each hop and the authority boundary holds. Realized as mage
+          integration:controlPlane (deterministic, no cluster), which also reads
+          the panel's mesh view back through both hops (srd006 R1.5). It does not
+          invoke the implemented ingest leg or join it to a live rollout and
+          grounded turn; integration:chatbot and the deploy swap prove those
+          behaviors separately.
+        status: implemented
+
+  - version: "06.0"
+    name: Declarative applier agent
+    description: |
+      The deployment API (srd003 R4) moves from the standard-library Go provisioner
+      to the applier (srd006), a declarative agent whose container carries the helm
+      and kubectl CLIs bound as exec tools. A decided values patch from the creator
+      is validated against the chart's values.schema.json by a helm dry-run, applied
+      as a values-file rollout (helm upgrade --reuse-values --atomic) rather than
+      per-field --set construction, verified via kubectl rollout status, and rolled
+      back on failure. The authority boundary is unchanged -- the apply path is
+      reached only by the creator and authority stays set by declared, validated
+      config -- and no agent-core change is required.
+    status: implemented
+    srds:
+      - srd006-applier
+    use_cases:
+      - id: rel06.0-uc001-declarative-applier
+        summary: The applier agent validates a values patch against the chart schema, applies it as a values-file rollout, verifies the rollout, and rolls back on failure, replacing the Go provisioner with zero agent-core changes. The live on-cluster rollout shipped with GH-735, proving a patch applied through the applier changes a real release. The provisioning panel's initial mesh-view load (GET /provisioning/api/state, srd006 R1.5) shipped with GH-750/752/753 -- the applier reads the deployed release's computed values, and the creator and coordinator carry the flat response through to the panel, which reassembles it client-side.
+        status: implemented
+    test_suites:
+      - id: test-rel06.0-applier
+        summary: Tracer for the validate -> apply -> verify -> rollback flow against the applier agent, asserting schema rejection, values-file apply, rollout verification, and the authority boundary. Realized as mage integration:applier, which drives the shipped profile against recording fake helm and kubectl; the chart schema is proven against real helm and the enabled chart against its render. The live on-cluster tier is mage integration:applierLive (GH-735). The state-read chain (GH-750/752/753) is covered by unit tests pinning every hop's field mapping and failure-status behavior, and mage integration:controlPlane automates the creator/coordinator state round trip after the GH-755 selector fix.
+        status: implemented
+
+  - version: "07.0"
+    name: Declarative collector agent
+    description: |
+      A persistent collector profile replaces contrib on the OTLP trace path.
+      Its machine visibly composes bounded receive, await, policy, deterministic
+      stdouttrace spool, optional unchanged relay to Jaeger, retry, monitor,
+      control, and stop. Its own telemetry is file-only, with a direct self-loop
+      proof. Migration is staged: contrib retains agent metrics export and Dolt
+      Prometheus scraping until a later metrics-ingress replacement is specified.
+    status: partial
+    srds:
+      - srd007-collector-agent
+    use_cases:
+      - id: rel07.0-uc001-collector-ingress
+        summary: A chatbot trace batch enters the collector agent, remains attributable in spool and Jaeger, while contrib retains metrics evidence.
+        status: partial
+    test_suites:
+      - id: test-rel07.0-collector
+        summary: Profile, intake, self-loop, staged Helm, identity, and retained-evidence proofs for collector ingress; listener rebind and final monitor-state lifecycle proof remain planned.
+        status: partial

@@ -1,0 +1,249 @@
+# Chatbot mesh values. The ragUnits list is the single source of truth for the RAG
+# topology: each entry renders a rag-server Deployment/Service and a Chroma
+# StatefulSet/Service, the chatbot's declared runtime topology, REST network
+# allowlist, and monitor upstream. The chatbot program itself is source-count independent.
+
+# The rel06.0 mounted-profile runtime image, one image across every agent role.
+image:
+  repository: ghcr.io/nokia-bell-labs/declarative-agents/agent-core
+  tag: "0.1.0"
+  pullPolicy: IfNotPresent
+
+# Profiles are supplied to each agent from a ConfigMap mounted at /profiles; the
+# agent runs agent-entrypoint --profile /profiles/agents/<name>/profile.yaml.
+profiles:
+  mountPath: /profiles
+  workMountPath: /work
+
+chatbot:
+  replicas: 1
+  # The model the chatbot embeds a query with; it must share the embedding space
+  # of the RAG corpora (srd014 R3.3). Co-generated into the chatbot rest.yaml
+  # embedding client.
+  embeddingModel: qwen3-embedding:8b
+  resources:
+    requests: {cpu: 100m, memory: 256Mi}
+    limits: {cpu: "1", memory: 1Gi}
+  ports:
+    chat: 18080
+    control: 18081
+    monitor: 18082
+
+# Each RAG unit is one rag-server agent paired with its own Chroma database.
+# name is a DNS label; description is the required human-readable classifier
+# catalog entry; collection is the Chroma collection it serves; embeddingModel is
+# the embedding-space identity the chatbot uses for mismatch handling (srd013
+# R2.3, srd014 R3.3).
+ragUnits:
+  - name: rag0
+    description: Primary declarative-agent and assembler rig behavior.
+    collection: corpus
+    embeddingModel: qwen3-embedding:8b
+    replicas: 1
+  - name: rag1
+    description: Secondary mock-dependency and Solar Ridge integration fixtures.
+    collection: corpus2
+    embeddingModel: qwen3-embedding:8b
+    replicas: 1
+
+ragServer:
+  ports:
+    query: 18085
+    control: 18086
+    monitor: 18087
+  resources:
+    requests: {cpu: 100m, memory: 256Mi}
+    limits: {cpu: "1", memory: 1Gi}
+
+chroma:
+  image: {repository: chromadb/chroma, tag: "1.5.3", pullPolicy: IfNotPresent}
+  port: 8000
+  storage: 1Gi
+  resources:
+    requests: {cpu: 100m, memory: 256Mi}
+    limits: {cpu: "1", memory: 1Gi}
+
+# The chat and embedding LLM endpoint for the external path. When the in-cluster
+# LLM tier is disabled (ollama.enabled=false), embedding/chat client entries point
+# at externalURL; port is the Ollama API port either way.
+llm:
+  externalURL: http://ollama.default.svc.cluster.local:11434
+  port: 11434
+
+# The in-cluster LLM tier (srd015 R6, GH-337): a chart-owned Ollama workload with
+# PVC model storage, a model-preload Job, agent readiness gating on model presence,
+# and GPU scheduling values. Enabled by default so a fresh-cluster install is
+# self-contained. Set enabled=false with an llm.externalURL override to point at an
+# operator-supplied Ollama (the render is byte-identical to the pre-tier chart).
+#
+# Realized as chart-owned templates rather than a nested Helm subchart so the Ollama
+# Service keeps the <release>-<chart>-ollama name the co-generated llmURL depends on
+# (a nested subchart names its Service by the subchart's own fullname).
+ollama:
+  enabled: true
+  image: {repository: ollama/ollama, tag: latest, pullPolicy: IfNotPresent}
+  # The models, named once here, feed both the preload Job and the agents' rendered
+  # config: the embedding model, the chat models (fast + deep), and the tier-selector model.
+  models:
+    embedding: qwen3-embedding:8b
+    chat: ["qwen2.5:3b", "ornith:9b"]
+    tier: qwen2.5:3b
+  preload:
+    # Test-only transition observation may install this Job suspended, assert
+    # agents are unready, then resume it. Production defaults to immediate pull.
+    suspend: false
+  persistence:
+    size: 10Gi
+    storageClass: ""
+  resources:
+    requests: {cpu: 500m, memory: 2Gi}
+    limits: {cpu: "4", memory: 8Gi}
+  # GPU scheduling; CPU-only is permitted (the kind smoke path). Set gpu.count > 0
+  # and provide nodeSelector/tolerations for a GPU node pool in production.
+  gpu:
+    count: 0
+  nodeSelector: {}
+  tolerations: []
+  # Topology: a single Ollama instance serving all models (default), or one instance
+  # per logical service (embedding vs chat) when set to per-model. Single is the
+  # default -- one process holds all models in one PVC, simplest and sufficient for
+  # the mesh; per-model maps to the two-logical-services split for isolation or
+  # independent GPU sizing (srd015 R6.5).
+  topology: single
+
+# Dolt checkpoint backend (agent-core srd035/srd036).
+dolt:
+  enabled: true
+  image: {repository: dolthub/dolt-sql-server, tag: latest, pullPolicy: IfNotPresent}
+  port: 3306
+  metricsPort: 11228
+  storage: 1Gi
+  rootHost: "%"
+  # The MySQL-wire user and database the chatbot's checkpoint DSN targets. The
+  # dolt-sql-server root user has no password; the database is created on the Dolt
+  # volume (see NOTES). Used by chatbot-mesh.doltDSN.
+  user: root
+  database: agent_checkpoints
+
+# OTel collector receives OTLP from every agent (R5.1) and exports to the trace
+# backend that the observability panel queries (R5.2).
+collector:
+  enabled: true
+  # agent moves trace ingress into the declarative collector profile. The
+  # contrib option preserves the previous combined trace/metric gateway.
+  implementation: agent
+  # 0.127.0 ships a statically linked arm64 binary. The 0.116.0 arm64 image is
+  # dynamically linked against /lib/ld-linux-aarch64.so.1, which a distroless
+  # image does not carry, so the collector exited 255 with
+  # "exec /otelcol-contrib: no such file or directory" on every Apple Silicon
+  # host and no agent span ever reached the trace backend (GH-736).
+  image: {repository: otel/opentelemetry-collector-contrib, tag: "0.127.0", pullPolicy: IfNotPresent}
+  otlpGRPCPort: 4317
+  otlpHTTPPort: 4318
+  # Integration overlays may forward through this chart-local gateway to the
+  # persistent host ingress. Empty keeps production self-contained.
+  externalOTLPEndpoint: ""
+  integrationResource:
+    repository: ""
+    module: ""
+    target: ""
+    commit: ""
+    runID: ""
+
+jaeger:
+  enabled: true
+  image: {repository: jaegertracing/all-in-one, tag: "1.62.0", pullPolicy: IfNotPresent}
+  otlpGRPCPort: 4317
+  queryPort: 16686
+
+ingress:
+  enabled: true
+  className: ""
+  host: chatbot.local
+  annotations: {}
+
+# Validate the rendered chatbot rest.yaml before serving (R2.2). The co-generation
+# that renders it from ragUnits lands in GH-314; the init check wires here.
+validateProfiles: true
+
+# The applier (srd006): the declarative deployment API (srd003 R4) -- the agent-core
+# runtime with a mounted profile whose request-machine binds the helm and kubectl CLIs
+# as exec words. It views the mesh and applies values edits that trigger a rollout,
+# never submitting an endpoint to a running agent. Reached same-origin via the chatbot
+# ingress at /provisioning.
+applier:
+  enabled: true
+  # The applier image bundles the runtime, helm, kubectl, and the chart at /chart
+  # (srd003 R1.3 sanctioned divergence). Built from applications/chatbot-mesh/applier.Dockerfile.
+  image: {repository: ghcr.io/nokia-bell-labs/declarative-agents/chatbot-mesh-applier, tag: "0.1.0", pullPolicy: IfNotPresent}
+  ports: {apply: 18090, control: 18091, monitor: 18092}
+  # allowApply grants the apply-path RBAC (helm upgrade manages the chart objects).
+  allowApply: true
+  # Authenticate the apply surface apart from the chat path at the network layer:
+  # only the creator may reach the apply port (srd006 R4.1).
+  networkPolicy:
+    enabled: true
+  resources:
+    requests: {cpu: 50m, memory: 64Mi}
+    limits: {cpu: 500m, memory: 256Mi}
+  # The interesting parameters the panel edits (srd003). They seed the read-state mesh
+  # view; nResults is the per-RAG retrieval bound (srd001 R2.1).
+  params:
+    nResults: 5
+    chunkCap: 0
+    tierDefault: invoke_llm_fast
+    chatModel: "qwen2.5:3b"
+
+# The control plane (srd004 coordinator, srd005 creator): two persistent agents on
+# the runtime image that turn a provisioning intent into an ingest and a rollout
+# through the deployment API. Disabled by default; the data plane serves without it.
+# The chatbot gains its declared coordinator client only when this is enabled.
+#
+# The ingress /provisioning route is gated on this too, because the coordinator is
+# the panel's intake (srd004 R1.5). With the control plane off, no provisioning
+# route renders at all -- previously the route rendered against the applier, whose
+# NetworkPolicy admits only the creator, so it was present but dead (GH-502).
+controlPlane:
+  enabled: false
+  coordinator:
+    replicas: 1
+    ports: {intent: 18100, control: 18101, monitor: 18102}
+    # The intent port is the panel's only provisioning intake, so it is the one
+    # control-plane surface the ingress controller may reach. Admitting it here is
+    # what lets the browser route work while the applier's apply surface stays
+    # creator-only (srd006 R4.1, srd003 R4.5).
+    #
+    # Name your own ingress controller with these selectors; the defaults match a
+    # conventional ingress-nginx install. Both apply together, so the source must
+    # be an ingress-controller pod in the ingress-controller namespace.
+    networkPolicy:
+      enabled: true
+      ingressController:
+        namespaceSelector:
+          matchLabels:
+            kubernetes.io/metadata.name: ingress-nginx
+        podSelector:
+          matchLabels:
+            app.kubernetes.io/name: ingress-nginx
+    resources:
+      requests: {cpu: 50m, memory: 64Mi}
+      limits: {cpu: 500m, memory: 256Mi}
+  creator:
+    replicas: 1
+    ports: {instance: 18110, control: 18111, monitor: 18112}
+    # The instance endpoint is reached only by the coordinator (srd005 R1.1, R5.4).
+    # Without this the port is open to every pod in the cluster, and since the
+    # creator is the only pod the applier admits to its apply surface, that is the
+    # widest remaining path to apply (GH-685).
+    networkPolicy:
+      enabled: true
+    resources:
+      requests: {cpu: 50m, memory: 64Mi}
+      limits: {cpu: 500m, memory: 256Mi}
+    # Optional deployment-API bearer token, mounted from a Secret separate from the
+    # chat path (the #392 file-mount pattern). The applier's apply surface is
+    # network-authenticated (NetworkPolicy), so this is unused unless an operator
+    # fronts the applier with an auth proxy; set name to point at your own Secret.
+    deploymentApiTokenSecret:
+      name: ""
+      key: applyToken

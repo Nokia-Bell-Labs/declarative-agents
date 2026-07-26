@@ -29,7 +29,7 @@ func TestConfiguredOllamaModelFollowsShippedProfile(t *testing.T) {
 		t.Run(tt.name, func(t *testing.T) {
 			t.Parallel()
 			root := t.TempDir()
-			path := filepath.Join(root, "testdata", "conformance", filepath.FromSlash(ollamaLLMRel))
+			path := coreIntegrationProfilePath(root, ollamaLLMRel)
 			if err := os.MkdirAll(filepath.Dir(path), 0o700); err != nil {
 				t.Fatalf("create fixture directory: %v", err)
 			}

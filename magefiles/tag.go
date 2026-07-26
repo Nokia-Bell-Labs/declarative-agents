@@ -15,8 +15,10 @@ import (
 )
 
 const (
-	tagPrefix  = "v0."
-	baseBranch = "main"
+	tagPrefix              = "v0."
+	baseBranch             = "main"
+	catalogModule          = "applications/catalog"
+	legacyCatalogTagPrefix = "agent-profiles/"
 )
 
 type releaseGate struct {
@@ -78,13 +80,13 @@ func createReleaseTag(
 	}
 
 	date := now.Format("20060102")
-	tags, err := output("tag", "-l", tagPrefix+date+".*")
+	tags, err := output("tag", "-l", "*"+tagPrefix+date+".*")
 	if err != nil {
 		return fmt.Errorf("listing local release tags: %w", err)
 	}
 	tag := fmt.Sprintf("%s%s.%d", tagPrefix, date, nextRevisionFromTags(date, tags))
 
-	allTags := releaseTags(tag, subModules)
+	allTags := releaseTags(tag, releaseModules())
 	fmt.Printf("creating atomic tag set %s\n", strings.Join(allTags, ", "))
 	if err := createTags(allTags, commit); err != nil {
 		return fmt.Errorf("creating atomic release tag set: %w", err)
@@ -104,14 +106,15 @@ func runReleaseGates(commit string) error {
 
 func releaseGates(root string) []releaseGate {
 	coreRoot := filepath.Join(root, "agent-core")
+	catalogRoot := filepath.Join(root, catalogModule)
 	return []releaseGate{
 		{name: "root audit", dir: root, args: []string{"mage", "audit"}},
 		{name: "root test", dir: root, args: []string{"mage", "test"}},
 		{name: "agent-core integration", dir: filepath.Join(root, "agent-core"),
 			args: []string{"mage", "integration:all"}},
-		{name: "agent-profiles integration", dir: filepath.Join(root, "agent-profiles"),
+		{name: "catalog integration", dir: catalogRoot,
 			args: []string{"mage", "integration:all"}},
-		{name: "agent-profiles conformance", dir: filepath.Join(root, "agent-profiles"),
+		{name: "catalog conformance", dir: catalogRoot,
 			args: []string{"mage", "conformance"},
 			env:  []string{"AGENT_CORE_ROOT=" + coreRoot}},
 	}
@@ -140,8 +143,17 @@ func releaseTags(rootTag string, modules []string) []string {
 	tags := []string{rootTag}
 	for _, mod := range modules {
 		tags = append(tags, mod+"/"+rootTag)
+		if mod == catalogModule && strings.HasPrefix(rootTag, tagPrefix) {
+			// Release 99 keeps the historical v0 module identifier executable.
+			// Both names are created atomically at the same immutable commit.
+			tags = append(tags, legacyCatalogTagPrefix+rootTag)
+		}
 	}
 	return tags
+}
+
+func releaseModules() []string {
+	return append(append([]string{}, subModules...), applicationModules...)
 }
 
 func validateReleaseBranch(branch string) error {
@@ -153,7 +165,8 @@ func validateReleaseBranch(branch string) error {
 }
 
 func nextRevisionFromTags(date, tags string) int {
-	revRe := regexp.MustCompile(`^` + regexp.QuoteMeta(tagPrefix) + regexp.QuoteMeta(date) + `\.(\d+)$`)
+	revRe := regexp.MustCompile(`^(?:[^/]+/)*` + regexp.QuoteMeta(tagPrefix) +
+		regexp.QuoteMeta(date) + `\.(\d+)$`)
 	maxRev := -1
 	for _, line := range strings.Split(tags, "\n") {
 		m := revRe.FindStringSubmatch(strings.TrimSpace(line))

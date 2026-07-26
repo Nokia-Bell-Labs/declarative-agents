@@ -144,7 +144,7 @@ Expected contents:
 - root `go.mod` and `go.sum`
 - runtime Dockerfile and Mage build targets
 
-### Split Candidate: `agent-profiles`
+### Split Candidate: `applications/catalog`
 
 Move agent behavior and runtime declarations into a profiles/assets repository.
 
@@ -224,7 +224,7 @@ This is the simplest operational model for users who run containers.
 
 ### Option B: Binary Plus Asset Bundle
 
-`agent-core` releases the binary. `agent-profiles` and `agent-specs` release
+`agent-core` releases the binary. `applications/catalog` and `agent-specs` release
 versioned asset bundles. Users install the binary and choose an asset bundle.
 
 This is better when profiles need to move faster than the runtime.
@@ -269,7 +269,7 @@ Start with Phase 1 and Phase 2. They address the current repository size and mak
 future extraction safer. If the repository still feels too large or ownership is
 clearly diverging after that, split in this order:
 
-1. `agent-profiles`
+1. `applications/catalog`
 2. `agent-evaluation`
 3. `agent-ui`
 4. `agent-specs`

@@ -14,9 +14,10 @@ import (
 )
 
 const (
-	ollamaLLMRel         = "rest/ollama-llm.yaml"
-	ollamaPrompt         = "List the local Ollama models available on this machine."
-	ollamaListModelsTool = "ollama_list_models"
+	integrationProfilesRel = "testdata/integration/profiles"
+	ollamaLLMRel           = "ollama-rest/llm.yaml"
+	ollamaPrompt           = "List the local Ollama models available on this machine."
+	ollamaListModelsTool   = "ollama_list_models"
 )
 
 // OllamaRest proves an OpenAPI REST tool against a live Ollama service.
@@ -67,15 +68,11 @@ func configuredOllamaModel() (string, error) {
 	if err != nil {
 		return "", err
 	}
-	profileRoot, err := resolveAgentProfilesRoot(rootDir)
-	if err != nil {
-		return "", err
-	}
-	return configuredOllamaModelFromRoot(profileRoot)
+	return configuredOllamaModelFromRoot(rootDir)
 }
 
-func configuredOllamaModelFromRoot(profileRoot string) (string, error) {
-	data, err := os.ReadFile(conformanceAsset(profileRoot, ollamaLLMRel))
+func configuredOllamaModelFromRoot(rootDir string) (string, error) {
+	data, err := os.ReadFile(coreIntegrationProfilePath(rootDir, ollamaLLMRel))
 	if err != nil {
 		return "", err
 	}
@@ -156,10 +153,6 @@ func prepareOllamaIntegrationRun(model string) (ollamaIntegrationRun, func(), er
 	if err != nil {
 		return ollamaIntegrationRun{}, nil, err
 	}
-	profileRoot, err := resolveAgentProfilesRoot(rootDir)
-	if err != nil {
-		return ollamaIntegrationRun{}, nil, err
-	}
 	tmpDir, err := os.MkdirTemp("", "ollama-rest-*")
 	if err != nil {
 		return ollamaIntegrationRun{}, nil, err
@@ -169,13 +162,13 @@ func prepareOllamaIntegrationRun(model string) (ollamaIntegrationRun, func(), er
 		profilePath: filepath.Join(tmpDir, "profile.yaml"),
 		tracePath:   filepath.Join(tmpDir, "trace.json"),
 	}
-	err = writeOllamaTempProfile(rootDir, profileRoot, tmpDir, model, run.profilePath)
+	err = writeOllamaTempProfile(rootDir, tmpDir, model, run.profilePath)
 	return run, cleanup, err
 }
 
-func writeOllamaTempProfile(rootDir, profileRoot, tmpDir, model, profilePath string) error {
+func writeOllamaTempProfile(rootDir, tmpDir, model, profilePath string) error {
 	llmPath := filepath.Join(tmpDir, "ollama-llm.yaml")
-	if err := writeOllamaLLMOverride(profileRoot, llmPath, model); err != nil {
+	if err := writeOllamaLLMOverride(rootDir, llmPath, model); err != nil {
 		return err
 	}
 	profile := fmt.Sprintf(`name: ollama-rest
@@ -188,14 +181,14 @@ tool_declarations:
   - %s
 rest_definitions:
   - %s
-`, conformanceAsset(profileRoot, "rest/ollama-machine.yaml"), conformanceAsset(profileRoot, "rest/ollama-tools.yaml"),
+`, coreIntegrationProfilePath(rootDir, "ollama-rest/machine.yaml"), coreIntegrationProfilePath(rootDir, "ollama-rest/tools.yaml"),
 		abs(rootDir, "tools/builtin/llm/all.yaml"), llmPath,
-		conformanceAsset(profileRoot, "rest/ollama-declarations.yaml"), conformanceAsset(profileRoot, "rest/ollama-rest.yaml"))
+		coreIntegrationProfilePath(rootDir, "ollama-rest/declarations.yaml"), coreIntegrationProfilePath(rootDir, "ollama-rest/rest.yaml"))
 	return os.WriteFile(profilePath, []byte(profile), 0o644)
 }
 
-func writeOllamaLLMOverride(profileRoot, outPath, model string) error {
-	data, err := os.ReadFile(conformanceAsset(profileRoot, ollamaLLMRel))
+func writeOllamaLLMOverride(rootDir, outPath, model string) error {
+	data, err := os.ReadFile(coreIntegrationProfilePath(rootDir, ollamaLLMRel))
 	if err != nil {
 		return err
 	}
@@ -208,8 +201,8 @@ func abs(rootDir, rel string) string {
 	return filepath.Join(rootDir, rel)
 }
 
-func profileAbs(profileRoot, rel string) string {
-	return agentProfileAsset(profileRoot, rel)
+func coreIntegrationProfilePath(rootDir, rel string) string {
+	return filepath.Join(rootDir, integrationProfilesRel, filepath.FromSlash(rel))
 }
 
 func runAgentCapture(binary string, args []string) error {

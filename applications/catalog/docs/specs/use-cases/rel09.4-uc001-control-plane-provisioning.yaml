@@ -1,0 +1,8 @@
+id: rel09.4-uc001-control-plane-provisioning
+title: Control-Plane Provisioning (Relocated)
+status: relocated
+canonical_path: applications/chatbot-mesh/docs/specs/use-cases/rel05.0-uc001-control-plane-provisioning.yaml
+note: |
+  Pointer-only tombstone. The canonical control-plane use case and its traces
+  live with the chatbot-mesh example. This retained identifier exists only to
+  redirect historical references.

@@ -1,0 +1,8 @@
+id: rel09.1-uc001-routed-fanout
+title: Chatbot Turn Selects a Model Tier and Fans Out Over Two RAGs (Relocated)
+status: relocated
+canonical_path: applications/chatbot-mesh/docs/specs/use-cases/rel01.0-uc001-routed-fanout.yaml
+note: |
+  Pointer-only tombstone. The canonical use case and its traces live with the
+  chatbot-mesh example. This retained identifier exists only to redirect
+  historical references.

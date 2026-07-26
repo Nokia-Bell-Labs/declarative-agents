@@ -22,17 +22,17 @@ trigger: |
   (suspend) tool.
 
 reference_profile:
-  path: lifecycle/approval/profile.yaml under AGENT_PROFILES_ROOT
+  path: lifecycle/approval/profile.yaml under AGENT_CATALOG_ROOT
   first_run: |
-    agent --profile "$AGENT_PROFILES_ROOT/lifecycle/approval/profile.yaml" \
+    agent --profile "$AGENT_CATALOG_ROOT/lifecycle/approval/profile.yaml" \
           --dolt-dsn <mysql-wire-dsn>
   resume_approved: |
-    agent --profile "$AGENT_PROFILES_ROOT/lifecycle/approval/profile.yaml" \
+    agent --profile "$AGENT_CATALOG_ROOT/lifecycle/approval/profile.yaml" \
           --dolt-dsn <mysql-wire-dsn> \
           --resume-checkpoint <run-id> \
           --resume-signal Approved
   resume_rejected: |
-    agent --profile "$AGENT_PROFILES_ROOT/lifecycle/approval/profile.yaml" \
+    agent --profile "$AGENT_CATALOG_ROOT/lifecycle/approval/profile.yaml" \
           --dolt-dsn <mysql-wire-dsn> \
           --resume-checkpoint <run-id> \
           --resume-signal Rejected

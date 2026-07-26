@@ -1,0 +1,14 @@
+tools:
+  - name: ollama_list_models
+    type: builtin
+    init: rest_client_invoke
+    category: boundary
+    description: List local Ollama models through the configured REST client.
+    parameters:
+      type: object
+      properties: {}
+      additional_properties: false
+    emits: [RESTResponded, RESTDomainFailed, CommandError]
+    config:
+      rest_ref: ollama
+      operation: listOllamaModels

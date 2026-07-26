@@ -1,0 +1,29 @@
+openapi: 3.0.3
+info:
+  title: Ollama Local API
+  version: v1
+paths:
+  /api/tags:
+    get:
+      operationId: listOllamaModels
+      responses:
+        "200":
+          description: Locally available models.
+          content:
+            application/json:
+              schema:
+                type: object
+                required: [models]
+                properties:
+                  models:
+                    type: array
+                    items:
+                      type: object
+                      required: [name]
+                      properties:
+                        name: {type: string}
+                        model: {type: string}
+                        modified_at: {type: string}
+                        size: {type: integer, format: int64}
+                        digest: {type: string}
+                        details: {type: object}

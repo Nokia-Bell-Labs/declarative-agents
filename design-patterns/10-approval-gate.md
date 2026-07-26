@@ -135,15 +135,15 @@ The fixture uses the standard checkpoint: Position (machine state, counters, and
 Resume uses universal runtime flags on the ordinary `agent` command. There is no lifecycle-specific resume subcommand and no `--reason` flag:
 
 ```bash
-bin/agent --profile "$AGENT_PROFILES_ROOT/testdata/conformance/lifecycle/approval/profile.yaml" \
+bin/agent --profile "$AGENT_CATALOG_ROOT/testdata/conformance/lifecycle/approval/profile.yaml" \
   --dolt-dsn "$DOLT_DSN"
 
-bin/agent --profile "$AGENT_PROFILES_ROOT/testdata/conformance/lifecycle/approval/profile.yaml" \
+bin/agent --profile "$AGENT_CATALOG_ROOT/testdata/conformance/lifecycle/approval/profile.yaml" \
   --dolt-dsn "$DOLT_DSN" \
   --resume-checkpoint "$RUN_ID" \
   --resume-signal Approved
 
-bin/agent --profile "$AGENT_PROFILES_ROOT/testdata/conformance/lifecycle/approval/profile.yaml" \
+bin/agent --profile "$AGENT_CATALOG_ROOT/testdata/conformance/lifecycle/approval/profile.yaml" \
   --dolt-dsn "$DOLT_DSN" \
   --resume-checkpoint "$RUN_ID" \
   --resume-signal Rejected
@@ -159,7 +159,7 @@ Approval Gate sits within Machine Interpreter and requires Machine Interpreter, 
 
 ## Known Uses
 
-**Lifecycle approval conformance fixture.** The fixture under `agent-profiles/testdata/conformance/lifecycle/approval` dispatches `suspend`, persists through Dolt, and resumes through the universal CLI flags. It proves approved and rejected terminal routing, but not notification, decision metadata, rejection rollback, or deployment.
+**Lifecycle approval conformance fixture.** The fixture under `applications/catalog/testdata/conformance/lifecycle/approval` dispatches `suspend`, persists through Dolt, and resumes through the universal CLI flags. It proves approved and rejected terminal routing, but not notification, decision metadata, rejection rollback, or deployment.
 
 **Deployment confirmation (design intent).** A coding agent could gate between validation and deployment: approval deploys, while rejection rolls back to the pre-deployment checkpoint. No shipped coding-agent profile implements this flow.
 

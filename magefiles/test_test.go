@@ -14,14 +14,14 @@ import (
 func TestUnitSubModulesRunsGoModulesInOrder(t *testing.T) {
 	root := t.TempDir()
 	writeGoMod(t, filepath.Join(root, "agent-core"))
-	writeGoMod(t, filepath.Join(root, "agent-profiles"))
+	writeGoMod(t, filepath.Join(root, "applications", "catalog"))
 	mkdir(t, filepath.Join(root, "design-patterns"))
 
 	var got []string
 	err := testUnitSubModules(
 		[]string{
 			filepath.Join(root, "agent-core"),
-			filepath.Join(root, "agent-profiles"),
+			filepath.Join(root, "applications", "catalog"),
 			filepath.Join(root, "design-patterns"),
 		},
 		os.Stat,
@@ -34,7 +34,7 @@ func TestUnitSubModulesRunsGoModulesInOrder(t *testing.T) {
 	if err != nil {
 		t.Fatalf("testUnitSubModules returned error: %v", err)
 	}
-	want := []string{"agent-core", "agent-profiles"}
+	want := []string{"agent-core", "catalog"}
 	if !reflect.DeepEqual(got, want) {
 		t.Fatalf("unit-tested modules = %#v, want %#v", got, want)
 	}
@@ -43,16 +43,16 @@ func TestUnitSubModulesRunsGoModulesInOrder(t *testing.T) {
 func TestSubModulesRunsModulesWithGoTests(t *testing.T) {
 	root := t.TempDir()
 	writeGoMod(t, filepath.Join(root, "agent-core"))
-	writeGoMod(t, filepath.Join(root, "agent-profiles"))
+	writeGoMod(t, filepath.Join(root, "applications", "catalog"))
 	writeFile(t, filepath.Join(root, "agent-core", "magefiles", "build_test.go"), "package main\n")
-	writeFile(t, filepath.Join(root, "agent-profiles", "magefiles", "validation_test.go"), "package main\n")
+	writeFile(t, filepath.Join(root, "applications", "catalog", "magefiles", "validation_test.go"), "package main\n")
 	mkdir(t, filepath.Join(root, "design-patterns"))
 
 	var got []string
 	err := testSubModules(
 		[]string{
 			filepath.Join(root, "agent-core"),
-			filepath.Join(root, "agent-profiles"),
+			filepath.Join(root, "applications", "catalog"),
 			filepath.Join(root, "design-patterns"),
 		},
 		moduleHasGoTests,
@@ -65,7 +65,7 @@ func TestSubModulesRunsModulesWithGoTests(t *testing.T) {
 	if err != nil {
 		t.Fatalf("testSubModules returned error: %v", err)
 	}
-	want := []string{"agent-core", "agent-profiles"}
+	want := []string{"agent-core", "catalog"}
 	if !reflect.DeepEqual(got, want) {
 		t.Fatalf("tested modules = %#v, want %#v", got, want)
 	}

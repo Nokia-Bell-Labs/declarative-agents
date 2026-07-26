@@ -1,0 +1,84 @@
+id: agent-profiles
+title: Agent Profiles Repository Vision
+
+executive_summary: |
+  applications/catalog is this repository's versioned catalog of reusable
+  declarative tool and agent blocks for agent-core applications. It is not a
+  universal agent library. Canonical YAML programs, tool declarations,
+  profile-local config, conformance, demos, and integration fixtures describe
+  reusable behavior.
+
+  agent-core owns the runtime. It provides the agent binary, Go packages,
+  builtin tool implementations, shared runtime assets, and release container
+  machinery. Runtime containers consume this repository by mount, checkout, or
+  release bundle instead of copying profile directories into the image.
+
+problem: |
+  Agent behavior is easier to review when profile assets live outside the
+  runtime repository. Profile changes should not require a new agent-core image
+  when the runtime contract is unchanged.
+
+  Bundling every profile into the runtime image blurs ownership. From a user
+  view, the image can appear responsible for each agent family rather than the
+  reusable runtime. Those behaviors are profile programs, so the Go runtime
+  should load them from an explicit external path.
+
+what_this_does: |
+  This catalog collects reusable repository-specific blocks under stable,
+  tagged paths. The `agents/` tree stores profile.yaml files, MachineSpec YAML,
+  tools.yaml selections, catalog tool declarations, profile-local overrides,
+  boundary config, and UI assets for members that are independently useful or
+  have multiple consumers. `tools/README.md` defines the taxonomy and
+  membership contract.
+
+  `demo/` and `testdata/integration/` store catalog-owned demos, suites, and
+  fixtures. Catalog and application commands resolve this source tree through
+  AGENT_CATALOG_ROOT; Agent Core integrations use core-owned fixtures instead.
+
+why_we_build_this: |
+  Separate ownership lets agent-core stay a reusable runtime. Profile authors
+  can change configured behavior, sample suites, and human actor assets without
+  editing runtime packages or rebuilding release images.
+
+  Mounted profiles also make container use explicit. Operators provide a
+  profile path and workspace path. The runtime image provides only the binary
+  and core-owned assets.
+
+success_criteria:
+  library_membership: |
+    Reusable tool and agent blocks have one canonical home, an owning family
+    SRD, conformance, portable references, and application-safe
+    parameterization; application-only composition stays under
+    applications/<application>/.
+  profile_ownership: |
+    Profile-owned files live in this repository. Runtime packages, builtin tool
+    implementations, and container build logic stay in agent-core.
+  mounted_runtime_contract: |
+    Local source commands use AGENT_CATALOG_ROOT. Containers run a packaged
+    closure mounted at /profiles with an explicit --profile argument.
+  integration_fixture_contract: |
+    Catalog and application integration targets consume catalog-owned demos and
+    fixtures without developer-specific absolute paths; Agent Core targets use
+    agent-core/testdata/integration.
+  traceable_docs: |
+    VISION, ARCHITECTURE, SPECIFICATIONS, road-map, and issue-format docs give
+    future issues enough structure to name scope, files, requirements,
+    and acceptance criteria.
+
+not:
+  - This repository does not own agent-core Go packages.
+  - This repository does not own the cmd/agent binary.
+  - This repository does not own builtin tool implementations.
+  - This repository does not own core shared declarations under agent-core/tools.
+  - This repository is not a universal registry for every agent or YAML file.
+  - This repository does not own application-local topology, wrappers,
+    deployment, packaging, or operator UX.
+  - This repository does not own release container build logic.
+  - This repository does not copy developer-specific absolute paths into
+    profiles, demos, or fixtures.
+
+canonical_documents:
+  - docs/ARCHITECTURE.yaml
+  - docs/SPECIFICATIONS.yaml
+  - docs/road-map.yaml
+  - docs/constitutions/issue-format.yaml

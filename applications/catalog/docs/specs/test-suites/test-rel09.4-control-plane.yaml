@@ -1,0 +1,9 @@
+id: test-rel09.4-control-plane
+title: Test Suite for Release 09.4 Control Plane (Relocated)
+release: "09.4"
+status: relocated
+canonical_path: applications/chatbot-mesh/docs/specs/test-suites/test-rel05.0-control-plane.yaml
+note: |
+  Pointer-only tombstone. The canonical suite and its proof commands live with
+  the chatbot-mesh example. This retained identifier exists only to redirect
+  historical references.

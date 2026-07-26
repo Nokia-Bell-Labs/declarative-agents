@@ -1,0 +1,9 @@
+id: test-rel09.0-chatbot-mesh
+title: Test Suite for Release 09.0 RAG Server and Chatbot Turn (Relocated)
+release: "09.0"
+status: relocated
+canonical_path: applications/chatbot-mesh/docs/specs/test-suites/test-rel00.0-chatbot-mesh.yaml
+note: |
+  Pointer-only tombstone. The canonical suite and its proof commands live with
+  the chatbot-mesh example. This retained identifier exists only to redirect
+  historical references.

@@ -62,8 +62,8 @@ func TestContainerBuildSummaryForDocker(t *testing.T) {
 		"  docker progress: plain",
 		"  container output: streamed directly",
 		"command: DOCKER_BUILDKIT=1 docker build --progress=plain --secret id=git_credentials,src=/home/user/.netrc --build-arg AGENT_CORE_REF=v0.20260612.1 -t agent-core:latest .",
-		"mounted profile example: docker run --rm -v /path/to/agent-profiles:/profiles/agents:ro -v '$PWD:/work' -w /work agent-core:latest --profile /profiles/agents/agents/executor/profile.yaml --directory /work",
-		"integration container example: docker run --rm -v /path/to/agent-profiles:/profiles/agents:ro -w /src agent-core-integration:latest mage integration:monitor",
+		"mounted profile example: docker run --rm -v /path/to/applications/catalog:/profiles:ro -v '$PWD:/work' -w /work agent-core:latest --profile /profiles/agents/executor/profile.yaml --directory /work",
+		"integration container example: docker run --rm -w /src agent-core-integration:latest mage integration:monitor",
 	} {
 		if !strings.Contains(got, want) {
 			t.Fatalf("containerBuildSummary missing %q in:\n%s", want, got)

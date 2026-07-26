@@ -19,13 +19,13 @@ type unitTestRunner func(string) error
 type moduleTestDetector func(string) (bool, error)
 
 // Test runs unit tests for every participating module: platform sub-modules
-// through their mage test target, then example modules through go test (they
+// through their mage test target, then application modules through go test (they
 // own Go tests but expose no mage test target).
 func Test() error {
 	if err := testSubModules(subModules, moduleHasGoTests, runMageTest); err != nil {
 		return err
 	}
-	if err := testSubModules(exampleModules, moduleHasGoTests, runGoUnitTests); err != nil {
+	if err := testSubModules(applicationModules, moduleHasGoTests, runGoUnitTests); err != nil {
 		return err
 	}
 	// The root magefiles module carries shared packages (kindrig); it is in

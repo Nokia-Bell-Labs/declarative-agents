@@ -894,7 +894,7 @@ test_cases:
     integration_target: mage audit
     status: implemented
     inputs:
-      profile: agent-profiles/agents/jurist/profile.yaml
+      profile: testdata/integration/profiles/audit/profile.yaml
       suite: tools/builtin/spec-validation/spec-corpus-charter.yaml
     expected:
       default_suite_loaded_from_yaml: true
@@ -904,26 +904,6 @@ test_cases:
     traces:
       - srd014-spec-graph AC6
       - gh-123 AC2
-
-  - use_case: rel00.0-uc002-spec-corpus-validation
-    name: External YAML jurist charter smoke reports generic findings
-    go_test: cd magefiles && go test ./... -run 'Test(WriteJuristCharterSmokeProfile|AssertJuristCharterSmoke)'
-    integration_target: mage juristCharterSmoke
-    status: implemented
-    inputs:
-      profile_root: ../agent-profiles
-      suite: agent-profiles/agents/jurist/suites/demo-charter.yaml
-      fixture: agent-profiles/testdata/integration/jurist-charter-demo
-    expected:
-      yaml_suite_selected_without_go_changes: true
-      grep_check_finding: jurist-demo-charter/no-internal-vocabulary
-      ref_check_finding: jurist-demo-charter/citations-resolve
-      consistency_check_finding: jurist-demo-charter/artifacts-exist
-      terminal_state: failed
-    traces:
-      - srd014-spec-graph AC5
-      - gh-123 AC1
-      - gh-123 AC3
 
   - use_case: rel00.0-uc001-domain-agent-integration
     name: GenAI attribute constants and output types are exported
@@ -1019,7 +999,7 @@ test_cases:
 
   - use_case: rel00.0-uc001-domain-agent-integration
     name: Integration telemetry dual export and retained backend evidence
-    integration_target: cd ../examples/chatbot-mesh && mage integration:rig
+    integration_target: cd ../applications/chatbot-mesh && mage integration:rig
     status: implemented
     inputs:
       exporters: [file, otlp]

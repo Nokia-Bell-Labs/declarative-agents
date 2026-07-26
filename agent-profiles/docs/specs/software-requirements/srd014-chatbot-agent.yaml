@@ -1,8 +1,0 @@
-id: srd014-chatbot-agent
-title: Chatbot Agent Functional Block (Relocated)
-status: relocated
-canonical_path: examples/chatbot-mesh/docs/specs/software-requirements/srd002-chatbot-agent.yaml
-note: |
-  Pointer-only tombstone. The chatbot is chatbot-mesh application composition,
-  so its requirements and evidence live with the canonical example. This
-  retained identifier exists only to redirect historical references.

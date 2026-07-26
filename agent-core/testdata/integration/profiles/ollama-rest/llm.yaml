@@ -1,0 +1,34 @@
+tools:
+  - name: invoke_llm
+    type: builtin
+    init: invoke_llm
+    visibility: internal
+    description: Invoke the configured Ollama model for the live REST proof.
+    emits: [LLMResponded, CommandError]
+    config:
+      model: "qwen3.6:35b-mlx"
+      provider: ollama
+      provider_url: "http://localhost:11434"
+      manifest_state: Composing
+      response_profile: qwen
+      max_time: 120
+      llm_timeout: 120
+      system_prompt: |
+        You list local Ollama models by using the provided REST tool.
+
+        Rules:
+        - First call ollama_list_models. Do not answer from memory.
+        - After the REST result returns, call done with a concise answer.
+        - The final answer must include at least one exact model name from the REST body models array.
+        - Do not mention model names that are not present in the REST result.
+        - Use only these tools: ollama_list_models, done.
+
+        Tool call format:
+        [tool_call]
+        {"tool":"ollama_list_models","parameters":{}}
+        [/tool_call]
+
+        Final answer format:
+        [tool_call]
+        {"tool":"done","parameters":{"summary":"Local Ollama models include: <names from REST result>."}}
+        [/tool_call]

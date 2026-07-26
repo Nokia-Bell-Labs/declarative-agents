@@ -1,0 +1,275 @@
+id: architecture-application-catalog
+title: Application Catalog Architecture
+
+overview:
+  summary: |
+    applications/catalog is this repository's versioned catalog of reusable
+    declarative tool and agent blocks. It is not a universal agent library. At
+    runtime, agent-core loads external agent programs from it. Applications
+    compose canonical catalog members by reference and package their transitive
+    closure. Profile directories, catalog tool declarations, profile-local
+    overrides, conformance, demos, integration fixtures, catalog UIs, and
+    structured docs live here.
+
+    Runtime ownership remains in agent-core. That repository owns the Go
+    engine, cmd/agent, builtin tool implementations, shared runtime assets, Mage
+    targets, and release image. Operators supply this checkout through explicit
+    --profile paths (often after bind-mounting it at a stable container path such
+    as /profiles).
+
+    Bootstrap authority for argv, mounts, and file-only configuration lives in
+    agent-core docs and constitutions. Track the umbrella work there as
+    epic agent-core-tj96; the runtime contract text is anchored in
+    docs/specs/config-formats/runtime-contract.yaml (see agent-core-tj96.1).
+
+  runtime_mount_diagram: |
+    ```mermaid
+    flowchart LR
+      OP[Developer or operator] --> RUNTIME[agent-core runtime]
+      OP --> PROFILES[applications/catalog checkout]
+      OP --> WORK[workspace]
+      PROFILES -->|--profile path| RUNTIME
+      WORK -->|--directory| RUNTIME
+      RUNTIME --> CORE[agent binary and core assets]
+      RUNTIME --> PROGRAM[profile-owned agent program]
+    ```
+
+interfaces:
+  - name: Catalog checkout path
+    summary: |
+      Filesystem location of this repository-specific catalog on the host or
+      inside a container.
+      cmd/agent receives a profile file path through --profile; mounts such
+      as /profiles are a packaging convention, not a separate env-based contract
+      defined here.
+  - name: /profiles mount
+    summary: |
+      Container-side path for this catalog. Runtime commands pass
+      --profile /profiles/agents/<name>/profile.yaml.
+  - name: --profile
+    summary: |
+      agent-core CLI argument that points at a profile.yaml supplied from this
+      catalog, a release bundle, or another external profile path.
+  - name: --directory
+    summary: |
+      agent-core CLI argument that points at the workspace the selected agent
+      can read, edit, test, or inspect according to its selected tools.
+
+components:
+  - name: agents
+    path: agents/
+    responsibility: |
+      Own repository-specific reusable profile families that satisfy the
+      membership rule, including profile.yaml files, machines, tool selections,
+      profile-local declarations, boundary configs, lifecycle profiles, monitor
+      profiles, REST profiles, control profiles, and Knowledge Manager assets.
+      Profiles may reference core-owned shared tool declarations through
+      /opt/agent-core/tools.
+  - name: tool taxonomy
+    path: tools/README.md
+    responsibility: |
+      Define catalog tool-block membership and distinguish tools.yaml selection
+      lists, profile-local overrides, reusable catalog ToolDef declarations,
+      core declarations, core implementations, and application-local
+      exclusions. Catalog declarations stay with their owning agents/<family>/
+      closure; this path is the taxonomy, not a second declaration registry.
+  - name: demos
+    path: demo/
+    responsibility: |
+      Own runnable demos that prove catalog profiles can run with agent-core.
+  - name: integration fixtures
+    path: testdata/integration/
+    responsibility: |
+      Own catalog conformance and integration suites plus fixture data for
+      profile-owned behavior.
+  - name: documentation
+    path: docs/
+    responsibility: |
+      Own catalog vision, architecture, specification indexes, roadmap, and
+      issue format rules for future catalog work.
+
+design_decisions:
+  - id: 1
+    title: Profile assets are external to the runtime image
+    decision: |
+      agent-core release images do not copy profile directories from this
+      catalog. Operators mount, check out, or unpack profile assets and pass
+      an explicit profile path at runtime.
+    benefits:
+      - Runtime images stay focused on core-owned binaries and assets.
+      - Profile changes can ship without rebuilding the runtime image.
+      - Ownership of agent behavior remains visible in repository layout.
+  - id: 2
+    title: Runtime code stays in agent-core
+    decision: |
+      No Go runtime packages or builtin tool implementations live in the
+      application catalog. YAML programs select and configure capabilities that
+      agent-core provides.
+    benefits:
+      - The catalog stays reviewable as configuration and fixtures.
+      - Runtime changes stay covered by agent-core build and test gates.
+      - Profile validation can focus on paths, declarations, and contracts.
+  - id: 3
+    title: Fixtures use portable paths
+    decision: |
+      Demos and integration fixtures must use portable roots such as catalog
+      mount points (/profiles in runtime examples), argv-resolved profile paths, or
+      explicit workspace mounts. Developer-specific absolute paths are not valid
+      fixture contracts.
+    benefits:
+      - Integration targets work across machines and containers.
+      - Container examples match the mounted-profile contract.
+      - Release bundles can preserve the same directory contract.
+  - id: 4
+    title: Catalog membership and one canonical home
+    decision: |
+      An agent is a catalog member only when it is independently useful or has
+      multiple consumers in this repository. A member owns a profile family,
+      SRD, deterministic conformance, portable closure, and sufficient
+      parameterization for applications to configure it without edits.
+      Application-only behavior stays with the owning applications/ module.
+      Applications reference members and assemble closures at package time;
+      they do not fork reusable programs.
+
+      The canonical compatibility surface is versioned by exact
+      applications/catalog/v0.* tags. Matching agent-profiles/v0.* names are
+      v0 compatibility aliases, and immutable historical legacy tags remain
+      valid.
+      Profile paths, machines, selected tool/signal/terminal contracts,
+      request/response shapes, configuration names/defaults, and closure
+      membership are compatibility-sensitive. Breaking changes require an
+      explicit migration note and coordinated consumer update.
+
+      Assembler and mock are supported test-time catalog members; the existing
+      conformance vocabulary continues to classify them as supported test-time
+      library members. They are reusable across agent families and applications,
+      live under agents/, and carry the same SRD, conformance, portability,
+      release, and compatibility obligations as other members. Rig-subject and
+      testdata/conformance REST/control/lifecycle fixtures test agent-core and
+      remain internal in their current paths; no relocation is scheduled or
+      tracked for them.
+    benefits:
+      - Reusable fixes flow upstream to every consumer.
+      - Application composition and catalog behavior have visible owners.
+      - Release compatibility and migration evidence are reviewable.
+      - The runtime remains an interpreter rather than a profile registry.
+  - id: 5
+    title: Tool declarations are first-class without moving core ownership
+    decision: |
+      Reusable repository-specific ToolDef declarations are catalog tool blocks
+      under their owning agents/<family>/ closure. tools.yaml files only select
+      names, and profile-local declarations may override configuration for one
+      profile or variant. Generic Go implementations remain under
+      agent-core/internal/tools, while stable shared declarations remain under
+      agent-core/tools and the /opt/agent-core/tools runtime mount.
+
+      Applications may select and configure catalog blocks, but application-only
+      declarations, topology, endpoint choices, wrappers, deployment, and UX
+      remain in the owning application. MachineSpec owns sequencing; ToolDef
+      defines one vocabulary word.
+    benefits:
+      - Tool reuse and ownership are reviewable from repository paths.
+      - Catalog declarations can evolve without duplicating core implementations.
+      - Selection, override, declaration, and application composition are not conflated.
+
+technology_choices:
+  - component: Profile format
+    technology: YAML
+    purpose: agent-core loads profile, machine, tool selection, and boundary
+      config files from YAML.
+  - component: Issue tracking
+    technology: issue tracker
+    purpose: Issues track migration, documentation, validation, and
+      fixture work.
+  - component: Runtime
+    technology: agent-core
+    purpose: agent-core supplies the executable runtime and reusable tool
+      implementations.
+
+project_structure:
+  configuration:
+    - path: agents/
+      role: Reusable catalog agent blocks, catalog tool declarations, selection lists, overrides, and profile-local assets.
+    - path: tools/README.md
+      role: Catalog tool-block taxonomy and membership contract.
+    - path: demo/
+      role: External-profile demos.
+    - path: testdata/integration/
+      role: Profile-owned fixtures consumed by agent-core integration targets.
+  documentation:
+    - path: docs/VISION.yaml
+      role: Goals, boundaries, and success criteria.
+    - path: docs/ARCHITECTURE.yaml
+      role: Repository ownership, interfaces, components, and decisions.
+    - path: docs/SPECIFICATIONS.yaml
+      role: Specification index and coverage notes.
+    - path: docs/road-map.yaml
+      role: Migration release plan.
+    - path: docs/constitutions/issue-format.yaml
+      role: Issue shape for future work.
+
+implementation_status:
+  current_focus: Repository-specific reusable application catalog, validation, release tagging, conformance, and consumer reference contracts.
+  progress:
+    - done: Initial issue queue exists.
+    - done: Repository purpose and ownership docs are defined.
+    - done: Agent functional block requirements and semantic models are defined.
+    - done: Agent profiles and Knowledge Manager UX assets migrated from
+        agent-core into agents/.
+    - done: Demos and integration fixtures migrated into demo/ and
+        testdata/integration/.
+    - done: Profile bundle release tagging is implemented through mage tag.
+    - done: Profile validation and container usage checks verify the mounted
+        profile contract.
+    - done: Variant profile discovery covers profile.yaml, profile-*.yaml, and
+        *-profile.yaml files.
+    - done: Formal migration use cases and test suites document the
+        implemented profile repository workflow.
+    - done: Profile-owned integration tracer bullets cover documentation-curator,
+        bench-to-critic, and monitor/control boundaries. Retired
+        critic-to-executor and planner-to-executor catalog tracers point to
+        application-owned replacements under applications/coding-agent.
+    - done: Catalog membership, member obligations, one-canonical-home,
+        application reference, exact v0 release compatibility, and migration
+        contracts are recorded.
+    - done: Tool-first taxonomy separates catalog declaration blocks, selection
+        lists, profile-local overrides, core declarations and implementations,
+        and application-local exclusions.
+    - done: Assembler and mock are classified as supported test-time catalog
+        members; rig-subject and runtime conformance fixtures remain internal,
+        with no relocation scheduled.
+    - in-progress: Release 11 assembler and mock implementation is present with
+        profile, fixture, conformance, and rig evidence; validator semantics,
+        serving-startup rejection, process survival, named failure causes, and
+        mock-start-failure cleanup remain unproven.
+
+related_documents:
+  - doc: ../../agent-core/docs/specs/config-formats/runtime-contract.yaml
+    purpose: Canonical cmd/agent startup, argv flags, and file-only operator path contract.
+  - doc: ../../agent-core/docs/specs/software-requirements/srd034-external-agent-profiles.yaml
+    purpose: External profile ownership and mounted-profile requirements owned by agent-core.
+  - doc: docs/VISION.yaml
+    purpose: Goals, boundaries, and success criteria.
+  - doc: docs/SPECIFICATIONS.yaml
+    purpose: Specification index for future requirements and semantic models.
+  - doc: docs/road-map.yaml
+    purpose: Release plan for profile extraction and mounted runtime usage.
+  - doc: docs/constitutions/issue-format.yaml
+    purpose: Required shape for future issues.
+  - doc: docs/specs/software-requirements/srd001-agent-functional-blocks.yaml
+    purpose: Cross-cutting profile ownership boundary and dependency-direction
+      invariants shared by every profile family.
+  - doc: docs/specs/software-requirements/
+    purpose: Per-family functional block requirements in srd002-executor
+      through srd011-knowledge-manager.
+  - doc: docs/specs/semantic-models/multi-agent-profile-system.yaml
+    purpose: Profile role groups, actor boundaries, and dependency directions.
+  - doc: docs/specs/semantic-models/agent-role-taxonomy.yaml
+    purpose: Per-profile role taxonomy for migration and validation work.
+  - doc: ../chatbot-mesh/docs/ARCHITECTURE.yaml
+    purpose: The deployable chatbot mesh application (a chatbot fanning one embedding
+      out to N Chroma-backed RAG servers, plus a control plane of a coordinator and
+      creator that turn a provisioning intent into an ingest and a rollout),
+      located at applications/chatbot-mesh/ as a standalone, copyable program with its
+      own docs/specs, Helm chart, and ux SPA. Its mesh agents derive from the chatbot
+      and knowledge-manager profile families here.

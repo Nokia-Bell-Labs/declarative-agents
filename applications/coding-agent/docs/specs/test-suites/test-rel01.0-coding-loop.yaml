@@ -1,0 +1,125 @@
+id: test-rel01.0-coding-loop
+title: Test Suite for Release 01.0 Coding Loop
+release: "01.0"
+
+overview: |
+  This suite defines three ordered integration stages for the coding
+  application. Stage A proves the real executor can complete a bounded coding
+  task. Stage B proves the real planner materializes that task and delegates to
+  the real built agent binary. Stage C proves the critic reviews the resulting
+  change and gates the terminal application state. All stages use canonical
+  library profiles; none substitutes a shell-script child or fake agent binary.
+
+traces:
+  - rel01.0-uc001-coding-loop
+
+preconditions:
+  - agent-core is available through AGENT_CORE_ROOT or the repository's agent-core directory and can build the real agent binary.
+  - Ollama is reachable with the configured planning and execution models; each live stage skips cleanly when it is unavailable.
+  - The application package snapshots planner, executor, and critic from one compatible applications/catalog checkout and records its revision.
+  - A fresh copy of the greet fixture workspace is used for each stage.
+  - The fixture carries its SRD, requirement graph, fallback candidate variants, and expected critic/application terminal outcomes.
+
+test_cases:
+  - use_case: rel01.0-uc001-coding-loop
+    name: Stage A - live executor run
+    stage: A
+    integration_target: mage integration:executorLive
+    status: implemented
+    description: |
+      Build the production agent-core binary, start the canonical executor
+      profile against Ollama, and give it the greet task in a fresh isolated
+      workspace. The executor must edit the actual workspace, run its declared
+      Go validation, and report a successful terminal outcome with evidence.
+      This stage does not invoke the planner or critic.
+    inputs:
+      agent_binary: production agent-core binary built from AGENT_CORE_ROOT
+      executor_profile: applications/catalog/agents/executor/profile.yaml resolved through the application package
+      task_prompt: Implement the greeting behavior specified by srd001-greet.yaml.
+      workspace: fresh testdata/integration/coding-loop/workspace copy
+      model_config: Ollama execution model selected by the fixture
+      validation_command: go test ./...
+    expected_outputs:
+      workspace_change: The greet implementation differs from the baseline and satisfies the SRD.
+      validation_result: go test ./... exits successfully in the changed workspace.
+      executor_status: Succeeded
+      tool_results: Filesystem edits and Go validation results are present.
+      task_summary: Names the implemented greeting behavior and successful validation.
+      fake_agent_invocations: 0
+    traces:
+      - rel01.0-uc001-coding-loop S1
+      - srd002-executor AC1
+      - srd002-executor AC2
+      - srd002-executor AC3
+
+  - use_case: rel01.0-uc001-coding-loop
+    name: Stage B - real planner delegation
+    stage: B
+    integration_target: mage integration:plannerDelegation
+    status: implemented
+    description: |
+      Start the canonical planner profile with the fixture requirement graph and
+      SRD context. The planner must materialize the greet task and delegate it to
+      the canonical executor using the real built agent binary. The delegated
+      executor changes the workspace and returns successful validation; no
+      `writeGeneratorChildAgent`, shell-script child, or other fake binary is
+      permitted.
+    inputs:
+      agent_binary: production agent-core binary used for both parent and child profile execution
+      planner_profile: applications/catalog/agents/planner/profile.yaml resolved through the application package
+      executor_profile: applications/catalog/agents/executor/profile.yaml resolved through the same package
+      requirement_graph: testdata/integration/coding-loop requirement graph with one ready greet requirement
+      srd_context: testdata/integration/coding-loop/srd001-greet.yaml
+      workspace: fresh testdata/integration/coding-loop/workspace copy
+      planning_model_config: Ollama planning model selected by the fixture
+      execution_model_config: Ollama execution model selected by the fixture
+    expected_outputs:
+      materialized_task: One issue or task names the greet requirement, workspace, and go test ./... validation.
+      delegation: The planner invokes the canonical executor profile through the real agent binary.
+      workspace_change: The delegated executor produces the greet implementation.
+      validation_result: go test ./... exits successfully in the changed workspace.
+      planner_outcome: Records created task, graph status change, executor outcome, and Completed terminal state.
+      fake_agent_invocations: 0
+    traces:
+      - rel01.0-uc001-coding-loop S1
+      - rel01.0-uc001-coding-loop S2
+      - srd004-planner AC1
+      - srd004-planner AC2
+      - srd004-planner AC3
+      - srd002-executor AC3
+
+  - use_case: rel01.0-uc001-coding-loop
+    name: Stage C - critic gate
+    stage: C
+    integration_target: mage integration:criticGate
+    go_test: go test ./magefiles -run '^Test(ApplicationOutcomeMapsOnlyCanonicalVerdicts|CriticCandidateFixturesHaveOppositeOracleResults)$'
+    status: implemented
+    description: |
+      Pass the changed workspace produced by Stage B directly to the canonical
+      changed-workspace critic profile. The critic runs its declared oracle
+      without copying a baseline or launching a coding child, writes an explicit
+      machine-readable accepted verdict, and the application maps it to
+      Succeeded. A deliberately non-conforming candidate drives the critic's
+      rejected branch and maps to Failed. If Stage B cleanly skips for unavailable
+      model prerequisites, the same accepting proof uses the portable conforming
+      candidate fixture and reports that fallback.
+    inputs:
+      agent_binary: production agent-core binary used for critic point execution
+      critic_profile: applications/catalog/agents/critic/profile-workspace.yaml resolved through the application package
+      accepted_candidate: changed workspace produced by Stage B
+      rejected_candidate: fixture variant whose greeting violates srd001-greet.yaml
+      fallback_candidate: deterministic conforming fixture used only when Stage B model prerequisites skip
+      oracle_command: canonical profile declaration runs go test ./...
+    expected_outputs:
+      oracle_results: The conforming candidate passes and the non-conforming candidate fails.
+      accepted_verdict: critic-verdict.json records verdict accepted, accepted true, and oracle status passed.
+      rejected_verdict: critic-verdict.json records verdict rejected, accepted false, and oracle status failed.
+      accepted_session: The conforming candidate reaches Succeeded and maps to application Succeeded.
+      rejected_session: The non-conforming candidate reaches Rejected and maps to application Failed.
+      fake_agent_invocations: 0
+    traces:
+      - rel01.0-uc001-coding-loop S3
+      - rel01.0-uc001-coding-loop S4
+      - srd003-critic AC1
+      - srd003-critic AC2
+      - srd003-critic AC3
