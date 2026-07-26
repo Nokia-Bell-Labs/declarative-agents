@@ -36,7 +36,7 @@ spec:
       # shutdown allows 135 seconds to drain. Kubernetes must not SIGKILL the
       # old pod before that contract can finish (GH-812).
       terminationGracePeriodSeconds: 150
-      {{- if or .Values.validateProfiles .Values.ollama.enabled }}
+      {{- if or .Values.validateProfiles .Values.ollama.enabled .Values.dolt.enabled }}
       initContainers:
         {{- if .Values.validateProfiles }}
         # Fail the rollout before the chatbot serves if the co-generated rest.yaml
@@ -53,6 +53,23 @@ spec:
             - {name: profiles, mountPath: {{ .Values.profiles.mountPath }}, readOnly: true}
         {{- end }}
         {{- include "chatbot-mesh.llmReadyInit" . | nindent 8 }}
+        {{- if .Values.dolt.enabled }}
+        # CREATE DATABASE is Dolt's repository-creation operation. Running it
+        # over the SQL service makes initialization independent of the server's
+        # persistent volume layout; IF NOT EXISTS makes pod restarts and Helm
+        # upgrades safe.
+        - name: initialize-dolt-database
+          image: "{{ .Values.dolt.image.repository }}:{{ .Values.dolt.image.tag }}"
+          imagePullPolicy: {{ .Values.dolt.image.pullPolicy }}
+          command: ["dolt"]
+          args:
+            - {{ printf "--host=%s-dolt" $fullname | quote }}
+            - {{ printf "--port=%v" .Values.dolt.port | quote }}
+            - --no-tls
+            - sql
+            - -q
+            - {{ printf "CREATE DATABASE IF NOT EXISTS `%s`" .Values.dolt.database | quote }}
+        {{- end }}
       {{- end }}
       containers:
         - name: chatbot

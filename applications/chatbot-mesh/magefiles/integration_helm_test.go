@@ -105,6 +105,56 @@ func TestCollectorKindOverlayExportsBothSignalsWithRunIdentity(t *testing.T) {
 	}
 }
 
+func TestDoltDatabaseInitializationRenderContract(t *testing.T) {
+	if _, err := exec.LookPath("helm"); err != nil {
+		t.Skip("helm not on PATH")
+	}
+	chart := findChartDir(t)
+	render := func(args ...string) string {
+		t.Helper()
+		command := append([]string{"template", "t", chart}, args...)
+		out, err := exec.Command("helm", command...).CombinedOutput()
+		if err != nil {
+			t.Fatalf("helm template %v: %v\n%s", args, err, out)
+		}
+		return string(out)
+	}
+
+	defaultRender := render()
+	for _, want := range []string{
+		"name: initialize-dolt-database",
+		`command: ["dolt"]`,
+		`"--host=t-chatbot-mesh-dolt"`,
+		`"CREATE DATABASE IF NOT EXISTS ` + "`agent_checkpoints`" + `"`,
+		`"root@tcp(t-chatbot-mesh-dolt:3306)/agent_checkpoints"`,
+	} {
+		if !strings.Contains(defaultRender, want) {
+			t.Errorf("default render missing Dolt initialization contract %q", want)
+		}
+	}
+
+	customRender := render("--set", "dolt.database=mesh_history")
+	for _, want := range []string{
+		`"CREATE DATABASE IF NOT EXISTS ` + "`mesh_history`" + `"`,
+		`"root@tcp(t-chatbot-mesh-dolt:3306)/mesh_history"`,
+	} {
+		if !strings.Contains(customRender, want) {
+			t.Errorf("custom database render missing %q", want)
+		}
+	}
+
+	externalRender := render("--set", "dolt.enabled=false")
+	for _, forbidden := range []string{
+		"initialize-dolt-database",
+		"CREATE DATABASE IF NOT EXISTS",
+		"--dolt-dsn",
+	} {
+		if strings.Contains(externalRender, forbidden) {
+			t.Errorf("external/disabled Dolt render contains chart-owned %q", forbidden)
+		}
+	}
+}
+
 func TestStageTelemetryKindConfigEnablesControlPlaneTracing(t *testing.T) {
 	base := filepath.Join(t.TempDir(), "kind.yaml")
 	if err := os.WriteFile(base, []byte(`kind: Cluster
