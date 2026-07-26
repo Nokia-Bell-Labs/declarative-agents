@@ -137,7 +137,7 @@ func (c command) startOneMock(scenario Scenario, manifest ScenarioManifest, fixt
 
 	out, err := c.session.Services.Start(StartSpec{
 		Name: name, Binary: c.cfg.Binary, Profile: c.cfg.Profile,
-		Directory: c.cfg.Directory, Address: address, Env: env,
+		CoreRoot: c.coreRoot, Directory: c.cfg.Directory, Address: address, Env: env,
 	})
 	if err != nil {
 		return runningMock{}, err
@@ -175,7 +175,7 @@ func (c command) startSubject() core.Result {
 
 	out, err := c.session.Services.Start(StartSpec{
 		Name: name, Binary: c.cfg.Binary, Profile: profile, Address: address,
-		Directory: c.cfg.Directory, Request: manifest.SubjectRequest, Env: env,
+		CoreRoot: c.coreRoot, Directory: c.cfg.Directory, Request: manifest.SubjectRequest, Env: env,
 	})
 	if err != nil {
 		return commandError(c.toolName, err)
@@ -252,7 +252,7 @@ func (c command) runScenarioValidator(ctx context.Context) core.Result {
 	}
 	env := append([]string{"SUBJECT_URL=" + subjectURL}, c.session.SubjectEnv()...)
 	outcome := runOneValidator(ctx, c.cfg.Binary, ValidatorSpec{
-		Name: name, Profile: profile, Directory: c.cfg.Directory,
+		Name: name, Profile: profile, CoreRoot: c.coreRoot, Directory: c.cfg.Directory,
 		Env: append(env, c.cfg.Env...),
 	}, parseDuration(c.cfg.Timeout, defaultRunTimeout))
 	signal := SignalValidatorCompleted

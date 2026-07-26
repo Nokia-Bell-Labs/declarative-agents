@@ -120,6 +120,7 @@ type agentState struct {
 	conversation  *llm.Conversation
 	registry      *core.Registry
 	tracer        tracing.Tracer
+	coreRoot      string
 	model         string
 	providerName  string
 	manifestState core.State
@@ -178,13 +179,7 @@ func (s *deferredShutdown) Apply() {
 
 func run(cmd *cobra.Command, args []string) error {
 	if f := cmd.Flags().Lookup("core-root"); f != nil && f.Changed && strings.TrimSpace(flagCoreRoot) != "" {
-		spec.SetAgentCoreInstallRoot(flagCoreRoot)
-		// Export the mapping so child agents inherit it: a rig spawning this
-		// binary's children (mocks, subjects, validators) must resolve
-		// /opt/agent-core references the same way the parent does.
-		_ = os.Setenv("AGENT_CORE_ROOT", strings.TrimSpace(flagCoreRoot))
-	} else if env := strings.TrimSpace(os.Getenv("AGENT_CORE_ROOT")); env != "" {
-		spec.SetAgentCoreInstallRoot(env)
+		spec.SetAgentCoreInstallRoot(strings.TrimSpace(flagCoreRoot))
 	}
 	if flagValidateConfig {
 		return validateConfig()
@@ -431,6 +426,7 @@ func newAgentState(cfg runtimeConfig, deps agentStateDeps) *agentState {
 		conversation:        llm.NewConversation(nil, "", llm.ChatOptions{}),
 		registry:            deps.Registry,
 		tracer:              deps.Tracer,
+		coreRoot:            cfg.CoreRoot,
 		parseRetries:        deps.ParseRetries,
 		verbose:             cfg.VerboseTrace,
 		ctx:                 deps.Ctx,

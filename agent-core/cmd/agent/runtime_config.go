@@ -5,6 +5,7 @@ package main
 import (
 	"context"
 	"fmt"
+	"strings"
 	"time"
 
 	"github.com/spf13/cobra"
@@ -25,6 +26,7 @@ type runtimeConfig struct {
 	ToolConfigDirs   []string
 	RestDefinitions  []string
 	RestConfigDirs   []string
+	CoreRoot         string
 	Directory        string
 	Request          string
 	Output           string
@@ -59,6 +61,7 @@ func loadRuntimeConfig() (runtimeConfig, error) {
 		ToolConfigDirs:   append([]string(nil), p.ToolConfigDirs...),
 		RestDefinitions:  append([]string(nil), p.RestDefinitions...),
 		RestConfigDirs:   append([]string(nil), p.RestConfigDirs...),
+		CoreRoot:         strings.TrimSpace(flagCoreRoot),
 		Directory:        directory,
 		Request:          flagRequest,
 		Output:           flagOutput,
