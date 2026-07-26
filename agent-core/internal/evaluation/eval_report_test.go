@@ -56,6 +56,33 @@ func TestComputeModelStatsAggregatesRuns(t *testing.T) {
 	assert.Equal(t, 3*time.Second, stats[0].MeanDuration)
 }
 
+func TestTransitionSpansDocumentedEvaluationMetrics(t *testing.T) {
+	groups := map[GroupKey][]EvalRunResult{
+		{Sample: "sample", Model: "model"}: {
+			{TestsPassed: true, Iterations: 2, TokensIn: 10, TokensOut: 4,
+				Duration: time.Second, Progression: &RunProgression{Overall: Clean}},
+			{TestsPassed: true, Iterations: 4, TokensIn: 20, TokensOut: 8,
+				Duration: 3 * time.Second, Progression: &RunProgression{Overall: Converged}},
+			{TestsPassed: false, Iterations: 6, TokensIn: 30, TokensOut: 12,
+				Duration: 5 * time.Second, Progression: &RunProgression{Overall: Flat}},
+		},
+	}
+
+	stats := ComputeModelStats(groups)
+	require.Len(t, stats, 1)
+	got := stats[0]
+	assert.Equal(t, 3, got.Runs)
+	assert.Equal(t, 2, got.Successes)
+	assert.InDelta(t, 2.0/3.0, got.SuccessRate, 0.0001)
+	assert.InDelta(t, 1.0/3.0, got.CleanRate, 0.0001)
+	assert.Equal(t, 0.5, got.RecoveryRate)
+	assert.Equal(t, 0.5, got.StuckRate)
+	assert.Equal(t, 4.0, got.MeanIter)
+	assert.Equal(t, 20.0, got.MeanTokensIn)
+	assert.Equal(t, 8.0, got.MeanTokensOut)
+	assert.Equal(t, 3*time.Second, got.MeanDuration)
+}
+
 func TestComputeDetailedAggregatesSampleModelRows(t *testing.T) {
 	groups := map[GroupKey][]EvalRunResult{
 		{Sample: "sample-a", Model: "model-a"}: {

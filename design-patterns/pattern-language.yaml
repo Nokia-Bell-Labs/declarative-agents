@@ -884,8 +884,8 @@ patterns:
     also_known_as: [Trace Instrumentation, Span Mapping, Observable Execution]
     confidence: 2
     intent: >
-      Map each engine transition onto an OpenTelemetry span so the execution is
-      observable with standard tooling without coupling the engine to any
+      Project run and dispatch boundaries onto OpenTelemetry spans so execution
+      is observable with standard tooling without coupling the engine to any
       telemetry backend.
     context: >
       A Machine Interpreter already produces a semantic record — the execution —
@@ -896,35 +896,37 @@ patterns:
       standard tooling, and correlate multi-agent runs, without importing a
       telemetry SDK into the engine?
     applicability: >
-      Use this when executions must be debugged, audited, costed, or compared
+      Use this when executions must be debugged, audited, or compared
       across models and when child agents must correlate into one distributed
       trace. For tiny local runs, a file adapter or no-op tracer may be enough,
       but the port should remain so instrumentation choices do not change engine
       behaviour.
     forces:
       - The engine must not depend on any telemetry backend.
-      - Per-step timing and cost must be available for evaluation.
+      - Tool timing, token usage, and run duration must be available for evaluation.
       - Multi-agent executions must correlate into one distributed trace.
       - Instrumentation variance must not confound model comparison.
     solution: >
       Define a Tracer port the engine depends on and implement it with adapters
-      (OTel, file, no-op). Map the machine onto the span model: the run is the
-      root span, each iteration a child span, each tool an execute_tool span,
-      each signal a span attribute. Propagate W3C Trace Context across agent
+      (OTel, file, no-op). Map the machine onto the shipped span model: one
+      invoke_agent run root with direct execute_tool or chat children. Record
+      iteration and transition outcomes as run attributes, and command outcomes
+      as child attributes. Propagate W3C Trace Context across supported agent
       boundaries so child executions root under the parent's trace.
     implementation: >
       The engine should depend only on a tracer port: start/end span, record
       event, set attribute, and propagate context. Emit stable semantic fields
       such as run id, state, signal, tool, iteration, model, token counts,
-      latency, cost, and rollback markers. Use W3C traceparent propagation for
-      child agents. Keep an NDJSON adapter for offline evaluation and a no-op
-      adapter for tests or low-overhead deployments.
+      duration, and error status. Use GenAI operation names invoke_agent,
+      execute_tool, and chat; do not infer monetary cost from token usage.
+      Keep an NDJSON adapter for offline evaluation and a no-op adapter for
+      tests or low-overhead deployments.
     consequences:
       benefits:
         - Backend independence and standard, searchable, visualizable traces.
-        - Metrics the flat execution cannot give: wall-clock, latency, cost, recovery cost.
+        - Tool duration, run duration, token usage, and structured tool outcomes.
       liabilities:
-        - Per-iteration spans multiply span volume for long runs.
+        - Per-dispatch spans multiply span volume for long runs.
         - Metrics are derived post-ingestion, not emitted in real time by default.
     grammar:
       within: [machine-interpreter]
@@ -933,9 +935,9 @@ patterns:
       enables: [convergence-taxonomy, boundary-tool]
       overlaps: [operator-port]
     syntax: >
-      Over a Machine Interpreter, map each transition to a span through a Tracer
-      port; the resulting trace is what the Convergence Taxonomy reads and what
-      Boundary Tool propagates across boundaries.
+      Over a Machine Interpreter, create one run span and direct dispatch
+      children through a Tracer port; annotate transition outcomes on the run
+      and let Convergence Taxonomy read the resulting artifacts.
     examples:
       - system: OpenTelemetry
         cite: otel-spec-2024
@@ -956,18 +958,22 @@ patterns:
       - system: Reference implementation — grid evaluation
         cite: reference-implementation
         kind: internal
-        note: The evaluator consumes NDJSON span files, not running agents; per-run cost is read from span attributes, and convergence is classified from the tool-metric snapshots recorded during the run rather than from span or state patterns.
+        note: The shipped loop emits one invoke_agent run span with direct execute_tool/chat children; evaluation reports iterations, token counts, duration, success/progression rates, and tool metric snapshots, but no monetary cost.
         evidence:
           classification: shipped
           checks:
+            - path: agent-core/internal/runtime/core/loop_trace_shape_test.go
+              artifact: go_test
+              assertion: go_test
+              test: TestLoopTraceShapeIsRunWithDirectToolChildren
             - path: agent-core/internal/evaluation/eval_metrics_test.go
               artifact: go_test
               assertion: go_test
               test: TestExtractToolSnapshots_WithMetrics
-            - path: agent-core/internal/evaluation/eval_convergence_test.go
+            - path: agent-core/internal/evaluation/eval_report_test.go
               artifact: go_test
               assertion: go_test
-              test: TestClassify_NoData
+              test: TestTransitionSpansDocumentedEvaluationMetrics
     provenance: [reference-implementation, external-corroboration]
 
   # ---------------------------------------------------------------------------
