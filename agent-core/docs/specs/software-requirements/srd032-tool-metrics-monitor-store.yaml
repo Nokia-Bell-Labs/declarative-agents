@@ -91,7 +91,7 @@ implementation_status:
     declared ToolDef metrics config. MachineSpec and transition metric_labels
     apply to standard and specialized samples. cmd/agent allocates the live
     monitor store during profile startup. TestMonitorReleaseProfileProof and
-    mage integration:uc004 prove the configured Release 04.0 path.
+    mage integration:monitor prove the configured Release 04.0 path.
   remaining: |
     No remaining Release 04.0 implementation gap is tracked here. Residual
     monitor limits are product boundaries: the store is in-process, bounded,

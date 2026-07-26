@@ -881,7 +881,7 @@ test_cases:
 
   - use_case: rel03.0-uc005-ollama-openapi-model-listing
     name: Qwen agent lists Ollama models through OpenAPI REST tool
-    go_test: mage integration:uc005
+    go_test: mage integration:ollamaRest
     status: done
     description: |
       Run the Ollama REST profile with a Qwen 3 family model and the

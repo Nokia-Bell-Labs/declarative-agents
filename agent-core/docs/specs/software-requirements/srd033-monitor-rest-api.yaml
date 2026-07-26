@@ -127,7 +127,7 @@ implementation_status:
     the same run, not a seeded fixture. The real CLI proof generates an
     isolated loopback listener while preserving the checked-in operator profile
     path and discovering the bound address from profile-owned launch output.
-    TestMonitorReleaseProfileProof and mage integration:uc004 prove the path
+    TestMonitorReleaseProfileProof and mage integration:monitor prove the path
     through cmd/agent with the live store.
   remaining: |
     /monitor/openapi currently documents monitor routes and redacts unsafe
