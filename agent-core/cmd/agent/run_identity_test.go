@@ -25,6 +25,13 @@ func TestResolveRunIDFreshRunsDifferAndResumeRetainsID(t *testing.T) {
 	require.Equal(t, first, resumed)
 }
 
+func TestResolveRunIDRejectsUnsupportedLatestAlias(t *testing.T) {
+	_, err := resolveRunID(runtimeConfig{ResumeCheckpoint: "latest"})
+
+	require.ErrorContains(t, err, "--resume-checkpoint")
+	require.ErrorContains(t, err, "provide an explicit run id")
+}
+
 func TestRunIDIsSharedByCheckpointAndLoopWithoutChangingAgentName(t *testing.T) {
 	originalOpen := openDoltCheckpoint
 	t.Cleanup(func() { openDoltCheckpoint = originalOpen })

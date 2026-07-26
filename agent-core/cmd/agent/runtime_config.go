@@ -138,7 +138,10 @@ func resolveCheckpoint(cfg runtimeConfig, machine core.MachineSpec, runID string
 // resolveRunID returns the stable identity shared by checkpoint, monitor, and
 // trace records: the explicit checkpoint id on resume, or a fresh random id.
 func resolveRunID(cfg runtimeConfig) (string, error) {
-	if id := cfg.ResumeCheckpoint; id != "" && id != "latest" {
+	if id := strings.TrimSpace(cfg.ResumeCheckpoint); id != "" {
+		if id == "latest" {
+			return "", fmt.Errorf("--resume-checkpoint %q is unsupported; provide an explicit run id", id)
+		}
 		return id, nil
 	}
 	var id [16]byte
