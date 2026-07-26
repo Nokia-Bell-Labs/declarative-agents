@@ -23,6 +23,7 @@ type EvalFactoryDeps struct {
 	OutputDir        string
 	OllamaURL        string
 	ChildAgentBinary string
+	CoreRoot         string
 	Directory        string
 }
 
@@ -103,6 +104,7 @@ func (s *evalFactoryState) init() *EvalSessionState {
 		OutputDir:        s.deps.OutputDir,
 		OllamaURL:        s.deps.OllamaURL,
 		ChildAgentBinary: s.deps.ChildAgentBinary,
+		CoreRoot:         s.deps.CoreRoot,
 	}
 	return s.session
 }

@@ -54,17 +54,32 @@ role_groups:
     summary: |
       Validation work reads documentation and specification corpora through a
       deterministic tool pipeline. No model boundary participates in this role.
+  - id: knowledge_work
+    profiles:
+      - documentation-curator
+      - corpus-ingest
+      - corpus-reader
+    summary: |
+      Knowledge work curates documentation and maintains a reusable retrieval
+      corpus. Corpus profiles compute provider embeddings and sequence explicit
+      Chroma boundaries; documentation-curator serves human-facing workflows.
+  - id: test_infrastructure
+    profiles:
+      - assembler
+      - mock
+    summary: |
+      Supported test-time members compose profile-owned scenarios and replace
+      external REST dependencies with deterministic fixtures.
   - id: boundary_runtime_work
     profiles:
       - rest
       - monitor
       - control
       - lifecycle
-      - documentation-curator
     summary: |
-      Boundary runtime work exposes REST, monitor, control, lifecycle, and
-      human-facing documentation surfaces. Each boundary appears as explicit
-      MachineSpec steps rather than hidden runtime branching.
+      Boundary runtime work exercises REST, monitor, control, and lifecycle
+      vocabulary. Each boundary appears as explicit MachineSpec steps rather
+      than hidden runtime branching.
 
 dependency_directions:
   - from: planner
@@ -101,6 +116,29 @@ dependency_directions:
     meaning: The Knowledge Manager documentation profile launches control routes
       and waits for explicit exit events.
     evidence: rel07.0-uc001-documentation-curator-profile-ux
+  - from: corpus-ingest
+    to: provider embedding and Chroma
+    kind: configured_corpus_write
+    meaning: Corpus ingest discovers trusted files, computes provider vectors,
+      and writes documents and ids through profile-owned REST operations.
+    evidence: rel08.0-uc001-corpus-ingest
+  - from: corpus-reader
+    to: provider embedding, Chroma, and model
+    kind: grounded_retrieval
+    meaning: Corpus reader threads a provider vector into Chroma query and gives
+      the retrieved identities and chunks to the answer model.
+    evidence: rel08.0-uc002-corpus-query
+  - from: assembler
+    to: mock, subject, and validator profiles
+    kind: scenario_composition
+    meaning: Assembler discovers scenario data, starts deterministic mocks and
+      a fresh subject, runs validators, reduces a verdict, and stops all children.
+    evidence: rel11.0-uc001-assembler-scenario-run
+  - from: mock
+    to: subject REST dependency
+    kind: deterministic_test_boundary
+    meaning: Mock serves scenario-owned responses and records subject requests.
+    evidence: rel11.0-uc002-mock-serves-fixtures
   - from: lifecycle profiles
     to: agent-core lifecycle ports
     kind: checkpoint_operation
@@ -173,6 +211,35 @@ actor_boundaries:
       - local REST API
     boundary: Browser requests read or manage documentation through configured
       document resource and control routes.
+  - profile: corpus-ingest
+    actors:
+      - trusted corpus
+      - embedding provider
+      - Chroma
+    boundary: The profile lists trusted paths before model selection, computes
+      embeddings at the provider, and writes identified documents to Chroma.
+  - profile: corpus-reader
+    actors:
+      - questioner
+      - embedding provider
+      - Chroma
+      - answer model
+    boundary: The profile computes a query embedding, retrieves identified
+      chunks, and constrains the model answer to those chunks.
+  - profile: assembler
+    actors:
+      - scenario author
+      - child subject
+      - validator profiles
+      - mock profiles
+    boundary: Scenario data controls a fresh test topology whose terminal
+      results are reduced to one verdict.
+  - profile: mock
+    actors:
+      - subject agent under test
+      - scenario fixture
+    boundary: Fixture routes provide deterministic REST responses and a
+      per-instance request log.
 
 profile_asset_rules:
   - Profiles may depend on agent-core builtin declarations through documented
@@ -192,6 +259,10 @@ validation_views:
   - Integration tests check profile relationships such as bench to critic,
     critic to executor, planner to executor, and Knowledge Manager control
     exit.
+  - Corpus conformance checks provider-vector threading, retrieved identities,
+    grounded answers, and readiness failures.
+  - Rig conformance checks assembler-to-mock/subject/validator composition and
+    deterministic verdict reduction.
   - Release 07.0 records implemented documentation-curator, bench-to-critic,
     and monitor/control relationship checks in
     test-rel07.0-profile-integrations; its critic-to-executor and

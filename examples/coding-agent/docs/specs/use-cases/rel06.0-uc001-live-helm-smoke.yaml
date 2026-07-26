@@ -4,9 +4,10 @@ status: implemented
 
 summary: |
   A developer runs one bounded target. It verifies host prerequisites, acquires
-  a disposable kind cluster, builds and loads local runtime and deterministic
-  model images, installs the packaged chart, drives one coding request through
-  all roles, verifies the shared result and trace, and cleans up.
+  a disposable kind cluster, builds the published profile-free coding-runtime
+  recipe and a deterministic model image, installs the packaged chart, drives
+  one coding request through all roles and the required build, v2 lint, and test
+  sequence, verifies the shared result and trace, and cleans up.
 
 actor: A developer or CI worker validating the deployable coding application.
 trigger: Run mage integration:helmSmoke.
@@ -21,13 +22,13 @@ flow:
   - id: F2
     text: Acquire a pinned kind cluster and verify Docker and Kubernetes readiness.
   - id: F3
-    text: Build and load profile-free runtime and deterministic model images, create the RWX fixture, and package the chart.
+    text: Build and load the production profile-free coding image with Go 1.26 and golangci-lint v2.12.2 plus the deterministic model image, create the RWX fixture, and package the chart.
   - id: F4
     text: Install the .tgz and wait for model, collector, Jaeger, planner, executor, and critic readiness.
   - id: F5
     text: Seed the shared workspace and verify every role lifecycle endpoint.
   - id: F6
-    text: Submit one traced planner request and verify executor mutation, Go tests, critic acceptance, and the connected Jaeger trace.
+    text: Submit one traced planner request and verify executor mutation, build, v2 lint, Go tests, critic acceptance, and the connected Jaeger trace.
   - id: F7
     text: On failure classify infrastructure versus semantics, emit bounded diagnostics, and clean up; on success clean up.
 

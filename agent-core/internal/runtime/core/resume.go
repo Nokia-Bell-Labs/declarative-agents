@@ -30,6 +30,10 @@ type ResumeState struct {
 	Params    LoopParams
 	Position  Position
 	Execution Execution
+	// Finalized reports that Load found a terminal lifecycle marker and the
+	// backend completed any pending finalization. Callers must return InitialRun
+	// as the already-completed outcome instead of re-entering the machine.
+	Finalized bool
 }
 
 // LoadResume loads the persisted Position and Execution through params.Checkpoint
@@ -39,7 +43,8 @@ type ResumeState struct {
 // when set, otherwise Approved, so a run suspended at an approval gate advances.
 func LoadResume(params LoopParams) (ResumeState, error) {
 	pos, exec, err := resolveCheckpoint(params.Checkpoint).Load()
-	if err != nil {
+	finalized := errors.Is(err, ErrCheckpointFinalized)
+	if err != nil && !finalized {
 		if errors.Is(err, ErrNoCheckpoint) {
 			// Nothing persisted: keep the ErrNoCheckpoint classification so
 			// callers can tell "no checkpoint" from a backend load failure.
@@ -63,9 +68,15 @@ func LoadResume(params LoopParams) (ResumeState, error) {
 		TokensOut:  pos.Snapshot.TokensOut,
 		TotalCost:  pos.Snapshot.TotalCost,
 	}
+	if finalized {
+		params.InitialRun.Status = resolveTerminalStatus(params.Hooks, pos.CurrentState)
+		params.InitialRun.FinalState = pos.CurrentState
+	}
 	params.InitialExecution = exec
 	params.InitialIterator = cloneIteratorSnapshot(pos.Snapshot.Iterator)
-	return ResumeState{Params: params, Position: pos, Execution: exec}, nil
+	return ResumeState{
+		Params: params, Position: pos, Execution: exec, Finalized: finalized,
+	}, nil
 }
 
 // validateResumeCompatibility rejects a checkpoint the current machine cannot
@@ -122,6 +133,9 @@ func Resume(params LoopParams, ctx context.Context) (RunResult, error) {
 	state, err := LoadResume(params)
 	if err != nil {
 		return RunResult{}, err
+	}
+	if state.Finalized {
+		return state.Params.InitialRun, nil
 	}
 	return Loop(state.Params, ctx)
 }

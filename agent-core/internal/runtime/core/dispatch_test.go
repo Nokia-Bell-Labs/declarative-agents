@@ -310,6 +310,8 @@ func (c *dispatchMetricCmd) Name() string { return c.name }
 func (c *dispatchMetricCmd) Execute() Result {
 	_ = c.rec.RecordMetric(context.Background(), monitor.MetricSample{
 		Name: "tool.bytes", Kind: monitor.InstrumentHistogram, Unit: "By", Value: 7,
+		ToolName: "spoofed-tool", RunID: "spoofed-run", State: "SpoofedState",
+		Signal: "SpoofedSignal", Status: "spoofed-status",
 	})
 	return Result{Signal: ToolDone}
 }

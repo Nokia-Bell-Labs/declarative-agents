@@ -12,6 +12,7 @@ import (
 
 	"github.com/stretchr/testify/require"
 
+	"github.com/Nokia-Bell-Labs/declarative-agents/agent-core/internal/observability/monitor"
 	"github.com/Nokia-Bell-Labs/declarative-agents/agent-core/internal/runtime/core"
 	"github.com/Nokia-Bell-Labs/declarative-agents/agent-core/internal/tools/catalog"
 	exectool "github.com/Nokia-Bell-Labs/declarative-agents/agent-core/internal/tools/exec"
@@ -152,16 +153,20 @@ func TestMachineRequestSeedCommandStateAddress(t *testing.T) {
 		},
 	}
 
+	store := monitor.NewStore(monitor.Limits{})
 	result, err := (defaultMachineRequestRunner{}).RunMachineRequest(
 		context.Background(),
 		MachineRequestRun{
-			Payload: map[string]interface{}{"directory": "/tmp/corpus"},
-			Config:  cfg,
+			Payload:         map[string]interface{}{"directory": "/tmp/corpus"},
+			Config:          cfg,
+			RunID:           "parent-run",
+			MonitorRecorder: monitor.NewRecorder(store, nil),
 		},
 	)
 
 	require.NoError(t, err)
 	require.Equal(t, "/tmp/corpus", result.Output["output"])
+	require.Equal(t, "parent-run", store.Snapshot().Run.RunID)
 
 	seed := requestSeed(MachineRequestRun{
 		Payload: map[string]interface{}{"directory": "/tmp/corpus"},

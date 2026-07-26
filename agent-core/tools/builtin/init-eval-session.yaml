@@ -18,12 +18,12 @@ tools:
     description: Sets session directory, reps, timeout, Ollama URL, and iteration start time.
   reversibility:
     classification: reversible
-    undo: workspace_restore_and_session_state_restore
+    undo: owned_artifact_removal_and_evaluator_session_restore
   undo:
-    strategy: session_state_restore
-    description: Restore evaluator session state and workspace artifacts from the prior checkpoint.
-    requires:
-    - Workspace
+    strategy: owned_artifact_removal_and_evaluator_session_restore
+    description: Remove the receipt-recorded session directory and restore evaluator session state.
+    payload: evaluator_session_snapshot
+    captures: [suite, session_dir, result, point_context, iterator_state, owned_artifact_paths]
   problem: The machine needs a declared word for initializing evaluator session state without embedding that workflow step in Go control flow.
   goals:
   - Perform the init_eval_session action as one machine-selected word.

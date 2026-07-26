@@ -40,14 +40,24 @@ func TestMonitorStore_BoundedSnapshot(t *testing.T) {
 func TestToolMetricsRecorder_OwnershipBoundaries(t *testing.T) {
 	t.Parallel()
 	store := NewStore(Limits{})
-	rec := NewRecorder(store, nil)
+	rec, err := NewRecorderWithConfig(store, nil, RecorderConfig{
+		GlobalAttributes: []AttributePolicy{{Name: "workflow", AllowedValues: []string{"edit"}}},
+		Bindings: []MetricBinding{{
+			ToolName: "edit",
+			Schema: MetricSchema{
+				Name: "files_written", Kind: InstrumentCounter, Unit: "{file}",
+			},
+		}},
+	})
+	require.NoError(t, err)
 
-	err := rec.RecordMetric(context.Background(), MetricSample{
+	err = rec.RecordMetric(context.Background(), MetricSample{
 		Name:       "dispatch_duration",
 		Kind:       InstrumentHistogram,
 		Unit:       "ms",
 		Value:      25,
 		ToolName:   "edit",
+		RunID:      "run-1",
 		State:      "Working",
 		Signal:     "ToolDone",
 		Status:     "success",
@@ -60,6 +70,9 @@ func TestToolMetricsRecorder_OwnershipBoundaries(t *testing.T) {
 		Unit:     "{file}",
 		Value:    2,
 		ToolName: "edit",
+		RunID:    "run-1",
+		State:    "Working",
+		Signal:   "ToolDone",
 		Status:   "success",
 	}))
 

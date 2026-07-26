@@ -6,6 +6,7 @@ import (
 	"fmt"
 	"os"
 	"os/exec"
+	"path"
 	"path/filepath"
 	"strings"
 
@@ -72,7 +73,7 @@ func validatePortableProfileRefs(root, coreRoot string) error {
 		return err
 	}
 	for _, profile := range profiles {
-		if err := validatePortableProfileRef(profile, coreRoot); err != nil {
+		if err := validatePortableProfileRef(profile, root, coreRoot); err != nil {
 			return err
 		}
 	}
@@ -188,15 +189,15 @@ func isProfileFile(name string) bool {
 	return strings.HasSuffix(name, "-profile.yaml")
 }
 
-func validatePortableProfileRef(path, coreRoot string) error {
-	profile, err := readProfileRefs(path)
+func validatePortableProfileRef(profilePath, profilesRoot, coreRoot string) error {
+	profile, err := readProfileRefs(profilePath)
 	if err != nil {
 		return err
 	}
-	base := filepath.Dir(path)
+	base := filepath.Dir(profilePath)
 	for _, ref := range profileRefs(profile) {
-		if err := validateProfileRef(base, coreRoot, ref); err != nil {
-			return fmt.Errorf("%s: %w", path, err)
+		if err := validateProfileRef(profilesRoot, base, coreRoot, ref); err != nil {
+			return fmt.Errorf("%s: %w", profilePath, err)
 		}
 	}
 	return nil
@@ -220,13 +221,23 @@ func profileRefs(profile profileConfig) []string {
 	return refs
 }
 
-func validateProfileRef(base, coreRoot, ref string) error {
-	path, err := resolveProfileRef(base, coreRoot, ref)
+func validateProfileRef(profilesRoot, base, coreRoot, ref string) error {
+	resolved, boundary, err := resolveProfileRef(profilesRoot, base, coreRoot, ref)
 	if err != nil {
 		return err
 	}
-	if _, err := os.Stat(path); err != nil {
+	if err := requireLexicalPathWithin(boundary, resolved); err != nil {
+		return fmt.Errorf("non-portable reference %s: %w", ref, err)
+	}
+	info, err := os.Lstat(resolved)
+	if err != nil {
 		return fmt.Errorf("missing referenced path %s: %w", ref, err)
+	}
+	if info.Mode()&os.ModeSymlink != 0 {
+		return fmt.Errorf("non-portable reference %s: symlinks are not portable", ref)
+	}
+	if err := requirePathWithin(boundary, resolved); err != nil {
+		return fmt.Errorf("non-portable reference %s: %w", ref, err)
 	}
 	return nil
 }
@@ -242,19 +253,67 @@ func readYAML(path string, out any) error {
 	return nil
 }
 
-func resolveProfileRef(base, coreRoot, ref string) (string, error) {
-	clean := filepath.Clean(ref)
-	if strings.HasPrefix(filepath.ToSlash(clean), containerCoreMount+"/agents/") {
-		return "", fmt.Errorf("profile reference must not require copied core agent assets: %s", ref)
+func resolveProfileRef(profilesRoot, base, coreRoot, ref string) (string, string, error) {
+	trimmed := strings.TrimSpace(ref)
+	if trimmed == "" {
+		return "", "", fmt.Errorf("profile reference must not be empty")
 	}
-	if strings.HasPrefix(filepath.ToSlash(clean), containerCoreMount+"/") {
-		rel := strings.TrimPrefix(filepath.ToSlash(clean), containerCoreMount+"/")
-		return filepath.Join(coreRoot, filepath.FromSlash(rel)), nil
+	portable := strings.ReplaceAll(trimmed, `\`, "/")
+	clean := path.Clean(portable)
+	if isWindowsDriveRef(clean) || strings.HasPrefix(clean, "//") {
+		return "", "", fmt.Errorf("profile reference must not use an absolute host path: %s", ref)
 	}
-	if filepath.IsAbs(clean) {
-		return clean, nil
+	if clean == containerCoreMount+"/agents" || strings.HasPrefix(clean, containerCoreMount+"/agents/") {
+		return "", "", fmt.Errorf("profile reference must not require copied core agent assets: %s", ref)
 	}
-	return filepath.Join(base, clean), nil
+	coreTools := containerCoreMount + "/tools"
+	if clean == coreTools || strings.HasPrefix(clean, coreTools+"/") {
+		rel := strings.TrimPrefix(clean, containerCoreMount+"/")
+		return filepath.Join(coreRoot, filepath.FromSlash(rel)), coreRoot, nil
+	}
+	if strings.HasPrefix(clean, containerCoreMount+"/") || path.IsAbs(clean) {
+		return "", "", fmt.Errorf("profile reference must not use an absolute host path: %s", ref)
+	}
+	if clean == "agents" || strings.HasPrefix(clean, "agents/") {
+		return filepath.Join(profilesRoot, filepath.FromSlash(clean)), profilesRoot, nil
+	}
+	return filepath.Join(base, filepath.FromSlash(clean)), profilesRoot, nil
+}
+
+func isWindowsDriveRef(ref string) bool {
+	return len(ref) >= 2 &&
+		((ref[0] >= 'A' && ref[0] <= 'Z') || (ref[0] >= 'a' && ref[0] <= 'z')) &&
+		ref[1] == ':'
+}
+
+func requireLexicalPathWithin(root, candidate string) error {
+	rel, err := filepath.Rel(filepath.Clean(root), filepath.Clean(candidate))
+	if err != nil {
+		return fmt.Errorf("compare referenced path with allowed root: %w", err)
+	}
+	if rel == ".." || strings.HasPrefix(rel, ".."+string(filepath.Separator)) || filepath.IsAbs(rel) {
+		return fmt.Errorf("resolved path escapes allowed root %s", root)
+	}
+	return nil
+}
+
+func requirePathWithin(root, candidate string) error {
+	rootReal, err := filepath.EvalSymlinks(root)
+	if err != nil {
+		return fmt.Errorf("resolve allowed root %s: %w", root, err)
+	}
+	candidateReal, err := filepath.EvalSymlinks(candidate)
+	if err != nil {
+		return fmt.Errorf("resolve referenced path %s: %w", candidate, err)
+	}
+	rel, err := filepath.Rel(rootReal, candidateReal)
+	if err != nil {
+		return fmt.Errorf("compare referenced path with allowed root: %w", err)
+	}
+	if rel == ".." || strings.HasPrefix(rel, ".."+string(filepath.Separator)) || filepath.IsAbs(rel) {
+		return fmt.Errorf("resolved path escapes allowed root %s", root)
+	}
+	return nil
 }
 
 func requireDocker(lookPath lookPathFunc) error {

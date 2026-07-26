@@ -4,12 +4,10 @@ package core
 
 import (
 	"database/sql"
+	"fmt"
 	"sort"
 	"strconv"
 	"strings"
-	"testing"
-
-	"github.com/stretchr/testify/require"
 )
 
 type machineRow struct {
@@ -86,15 +84,21 @@ type fakeCommit struct {
 type fakeDB struct {
 	store    *fakeStore
 	branches map[string]bool
+	merged   map[string]bool
 	current  string
 	commits  []fakeCommit
 	calls    []string
 	// failOn, when set, makes Exec return an error for any query containing it,
 	// so a test can force a fault between the two per-step table writes.
-	failOn string
+	failOn     string
+	failOnCall int
+	failSeen   int
+	failErr    error
 	// outputBytes accumulates the size of every output blob written to
 	// tool_outputs, so a benchmark can measure the per-step write-layer cost.
 	outputBytes            int
+	machinesExists         bool
+	mainMachinesExists     bool
 	executionStepsExists   bool
 	executionStepsHasLabel bool
 	machinesHasIterator    bool
@@ -107,6 +111,7 @@ func newFakeDB() *fakeDB {
 	return &fakeDB{
 		store:            newFakeStore(),
 		branches:         map[string]bool{"main": true},
+		merged:           map[string]bool{},
 		current:          "main",
 		redactionColumns: map[string]bool{},
 	}
@@ -121,10 +126,20 @@ func (f *fakeDB) Close() error { return nil }
 func (f *fakeDB) Exec(query string, args ...any) error {
 	f.calls = append(f.calls, query)
 	if f.failOn != "" && strings.Contains(query, f.failOn) {
-		return sql.ErrConnDone
+		f.failSeen++
+		if f.failOnCall == 0 || f.failSeen == f.failOnCall {
+			if f.failErr != nil {
+				return f.failErr
+			}
+			return sql.ErrConnDone
+		}
 	}
 	switch {
 	case strings.Contains(query, "CREATE TABLE IF NOT EXISTS machines"):
+		f.machinesExists = true
+		if f.current == "main" {
+			f.mainMachinesExists = true
+		}
 		f.machinesHasIterator = strings.Contains(query, "iterator LONGTEXT")
 		return nil
 	case strings.Contains(query, "CREATE TABLE IF NOT EXISTS execution_steps"):
@@ -180,6 +195,8 @@ func (f *fakeDB) Exec(query string, args ...any) error {
 		})
 		return nil
 	case strings.Contains(query, "DOLT_MERGE"):
+		f.merged[args[0].(string)] = true
+		f.mainMachinesExists = f.machinesExists
 		return nil
 	case strings.Contains(query, "DOLT_BRANCH('-d'"):
 		delete(f.branches, args[0].(string))
@@ -194,16 +211,16 @@ func (f *fakeDB) Exec(query string, args ...any) error {
 		}
 		return sql.ErrNoRows
 	case strings.Contains(query, "DELETE FROM receipts"):
-		deleteRowsAtOrAfter(f.store.receipts, args[0].(string), args[1].(int))
+		deleteRunRows(f.store.receipts, args)
 		return nil
 	case strings.Contains(query, "DELETE FROM tool_outputs"):
-		deleteRowsAtOrAfter(f.store.results, args[0].(string), args[1].(int))
+		deleteRunRows(f.store.results, args)
 		return nil
 	case strings.Contains(query, "DELETE FROM execution_steps"):
-		deleteRowsAtOrAfter(f.store.steps, args[0].(string), args[1].(int))
+		deleteRunRows(f.store.steps, args)
 		return nil
 	case strings.Contains(query, "DELETE FROM transitions"):
-		deleteRowsAtOrAfter(f.store.transitions, args[0].(string), args[1].(int))
+		deleteRunRows(f.store.transitions, args)
 		return nil
 	case strings.Contains(query, "REPLACE INTO machines"):
 		f.store.machines[args[0].(string)] = machineRow{
@@ -253,6 +270,20 @@ func (f *fakeDB) Exec(query string, args ...any) error {
 	return nil
 }
 
+func deleteRunRows[T any](rows map[string]T, args []any) {
+	runID := args[0].(string)
+	if len(args) == 1 {
+		prefix := runID + "|"
+		for key := range rows {
+			if strings.HasPrefix(key, prefix) {
+				delete(rows, key)
+			}
+		}
+		return
+	}
+	deleteRowsAtOrAfter(rows, runID, args[1].(int))
+}
+
 func deleteRowsAtOrAfter[T any](rows map[string]T, runID string, step int) {
 	prefix := runID + "|"
 	for key := range rows {
@@ -269,6 +300,22 @@ func deleteRowsAtOrAfter[T any](rows map[string]T, runID string, step int) {
 func (f *fakeDB) QueryRow(query string, args ...any) Scanner {
 	f.calls = append(f.calls, query)
 	switch {
+	case strings.Contains(query, "FROM dolt_branches"):
+		count := 0
+		if f.branches[args[0].(string)] {
+			count = 1
+		}
+		return &fakeScanner{kind: "count", count: count}
+	case strings.Contains(query, "information_schema.tables"):
+		count := 0
+		machinesExist := f.machinesExists
+		if f.current == "main" {
+			machinesExist = f.mainMachinesExists
+		}
+		if machinesExist && strings.Contains(query, "table_name = 'machines'") {
+			count = 1
+		}
+		return &fakeScanner{kind: "count", count: count}
 	case strings.Contains(query, "information_schema.columns"):
 		count := 0
 		if strings.Contains(query, "table_name = 'machines'") && f.machinesHasIterator {
@@ -285,7 +332,14 @@ func (f *fakeDB) QueryRow(query string, args ...any) Scanner {
 		}
 		return &fakeScanner{kind: "count", count: count}
 	case strings.Contains(query, "FROM machines"):
-		m, ok := f.store.machines[args[0].(string)]
+		if f.current == "main" && !f.mainMachinesExists {
+			return &fakeScanner{scanErr: fmt.Errorf("table machines not found")}
+		}
+		runID := args[0].(string)
+		m, ok := f.store.machines[runID]
+		if f.current == "main" && f.branches[runID] && !f.merged[runID] {
+			ok = false
+		}
 		return &fakeScanner{kind: "machine", machine: m, missing: !ok}
 	case strings.Contains(query, "FROM dolt_log"):
 		prefix := strings.TrimSuffix(args[0].(string), "%")
@@ -321,140 +375,4 @@ func (f *fakeDB) Query(query string, args ...any) (Rows, error) {
 	}
 	sort.Slice(joined, func(i, j int) bool { return joined[i].stepIndex < joined[j].stepIndex })
 	return &fakeRows{rows: joined, idx: -1}, nil
-}
-
-type fakeTx struct{ db *fakeDB }
-
-func (t *fakeTx) Exec(q string, a ...any) error { return t.db.Exec(q, a...) }
-
-func (t *fakeTx) QueryRow(q string, a ...any) Scanner { return t.db.QueryRow(q, a...) }
-
-func (t *fakeTx) Query(q string, a ...any) (Rows, error) { return t.db.Query(q, a...) }
-
-func (t *fakeTx) Commit() error { return nil }
-
-func (t *fakeTx) Rollback() error { return nil }
-
-type fakeScanner struct {
-	kind    string
-	machine machineRow
-	hash    string
-	count   int
-	missing bool
-}
-
-func (s *fakeScanner) Scan(dest ...any) error {
-	if s.missing {
-		return sql.ErrNoRows
-	}
-	switch s.kind {
-	case "count":
-		*dest[0].(*int) = s.count
-	case "machine":
-		*dest[0].(*string) = s.machine.currentState
-		*dest[1].(*string) = s.machine.lastSignal
-		*dest[2].(*int) = s.machine.iteration
-		*dest[3].(*int) = s.machine.tokensIn
-		*dest[4].(*int) = s.machine.tokensOut
-		*dest[5].(*float64) = s.machine.totalCost
-		*dest[6].(*sql.NullString) = nsFromPtr(s.machine.conversation)
-		*dest[7].(*sql.NullString) = nsFromPtr(s.machine.iterator)
-	case "log":
-		*dest[0].(*string) = s.hash
-	}
-	return nil
-}
-
-type joinRow struct {
-	stepIndex, iteration                  int
-	ts, commandName                       string
-	fromState, toState, signal, resSignal string
-	label, output, errStr, receipt        *string
-	redactionVersion                      *int64
-	redactedPaths, redactionStatus        *string
-	costDuration                          int64
-	costTokensIn, costTokensOut           int
-	costDollars                           float64
-}
-
-type fakeRows struct {
-	rows []joinRow
-	idx  int
-}
-
-func (r *fakeRows) Next() bool { r.idx++; return r.idx < len(r.rows) }
-
-func (r *fakeRows) Err() error { return nil }
-
-func (r *fakeRows) Close() error { return nil }
-
-func (r *fakeRows) Scan(dest ...any) error {
-	row := r.rows[r.idx]
-	*dest[0].(*int) = row.stepIndex
-	*dest[1].(*int) = row.iteration
-	*dest[2].(*string) = row.ts
-	*dest[3].(*string) = row.commandName
-	*dest[4].(*sql.NullString) = nsFromPtr(row.label)
-	*dest[5].(*string) = row.fromState
-	*dest[6].(*string) = row.toState
-	*dest[7].(*string) = row.signal
-	*dest[8].(*string) = row.resSignal
-	*dest[9].(*sql.NullString) = nsFromPtr(row.output)
-	*dest[10].(*sql.NullString) = nsFromPtr(row.errStr)
-	*dest[11].(*sql.NullInt64) = niFromPtr(row.redactionVersion)
-	*dest[12].(*sql.NullString) = nsFromPtr(row.redactedPaths)
-	*dest[13].(*sql.NullString) = nsFromPtr(row.redactionStatus)
-	*dest[14].(*int64) = row.costDuration
-	*dest[15].(*int) = row.costTokensIn
-	*dest[16].(*int) = row.costTokensOut
-	*dest[17].(*float64) = row.costDollars
-	*dest[18].(*sql.NullString) = nsFromPtr(row.receipt)
-	return nil
-}
-
-func strPtr(v any) *string {
-	if v == nil {
-		return nil
-	}
-	s := v.(string)
-	return &s
-}
-
-func nsFromPtr(p *string) sql.NullString {
-	if p == nil {
-		return sql.NullString{}
-	}
-	return sql.NullString{String: *p, Valid: true}
-}
-
-func niFromPtr(p *int64) sql.NullInt64 {
-	if p == nil {
-		return sql.NullInt64{}
-	}
-	return sql.NullInt64{Int64: *p, Valid: true}
-}
-
-func countCalls(calls []string, substr string) int {
-	n := 0
-	for _, c := range calls {
-		if strings.Contains(c, substr) {
-			n++
-		}
-	}
-	return n
-}
-
-func requireNoUnquotedSignalColumn(t *testing.T, query string) {
-	t.Helper()
-	normalized := " " + strings.Join(strings.Fields(query), " ") + " "
-	for _, token := range []string{
-		" signal VARCHAR",
-		" from_state, signal,",
-		" step_index, signal,",
-		" t.signal",
-		" o.signal",
-		" r.signal",
-	} {
-		require.NotContains(t, normalized, token)
-	}
 }

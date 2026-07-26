@@ -127,10 +127,12 @@ design_decisions:
       membership are compatibility-sensitive. Breaking changes require an
       explicit migration note and coordinated consumer update.
 
-      Mock, assembler, rig-subject, and testdata/conformance runtime scaffolding
-      test agent-core rather than constituting shipped application agents. They
-      remain internal in their current paths; no relocation is scheduled or
-      tracked by this decision.
+      Assembler and mock are supported test-time library members: they are
+      reusable across agent families and applications, live under agents/, and
+      carry the same SRD, conformance, portability, release, and compatibility
+      obligations as other members. Rig-subject and testdata/conformance
+      REST/control/lifecycle fixtures test agent-core and remain internal in
+      their current paths; no relocation is scheduled or tracked for them.
     benefits:
       - Reusable fixes flow upstream to every consumer.
       - Application composition and library behavior have visible owners.
@@ -195,9 +197,9 @@ implementation_status:
     - done: Library membership, member obligations, one-canonical-home,
         application reference, exact v0 release compatibility, and migration
         contracts are recorded.
-    - done: Mock, assembler, rig-subject, and runtime conformance scaffolding
-        are classified as internal rather than shipped library members; no
-        relocation is scheduled.
+    - done: Assembler and mock are classified as supported test-time library
+        members; rig-subject and runtime conformance fixtures remain internal,
+        with no relocation scheduled.
     - in-progress: Release 11 assembler and mock implementation is present with
         profile, fixture, conformance, and rig evidence; validator semantics,
         serving-startup rejection, process survival, named failure causes, and

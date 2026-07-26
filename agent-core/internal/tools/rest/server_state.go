@@ -134,6 +134,21 @@ func (s *ServerState) runtime(name string) (*serverRuntime, error) {
 	return runtime, nil
 }
 
+// RestoreEvent returns a receipt-recorded event to the front of its source's
+// pending queue so rollback preserves the order of remaining events.
+func (s *ServerState) RestoreEvent(name string, event InboundEvent) error {
+	runtime, err := s.runtime(name)
+	if err != nil {
+		return err
+	}
+	runtime.mu.Lock()
+	defer runtime.mu.Unlock()
+	runtime.pending = append(runtime.pending, InboundEvent{})
+	copy(runtime.pending[1:], runtime.pending)
+	runtime.pending[0] = event
+	return nil
+}
+
 func (s *ServerState) resolveAwaitSources(options AwaitAnyOptions) ([]resolvedAwaitSource, error) {
 	if len(options.Sources) == 0 {
 		return nil, fmt.Errorf("at least one REST await source is required")
@@ -168,7 +183,9 @@ func newServerRuntime(def ServerDefinition) (*serverRuntime, error) {
 		return nil, fmt.Errorf("bind REST server %q: %w", def.Name, err)
 	}
 	var requestMon monitor.RuntimeRecorder
-	if def.Monitor.Store != nil {
+	if def.Monitor.Recorder != nil {
+		requestMon = def.Monitor.Recorder
+	} else if def.Monitor.Store != nil {
 		requestMon = monitor.NewRecorder(def.Monitor.Store, nil)
 	}
 	runtime := &serverRuntime{

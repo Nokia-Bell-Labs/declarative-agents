@@ -21,20 +21,34 @@ type RunPointBuilder struct {
 }
 
 func (b *RunPointBuilder) Build(_ core.Result) core.Command {
-	return &runPointCmd{es: b.ES, pointRegistry: b.PointRegistry, config: b.Config}
+	cmd := &runPointCmd{es: b.ES, pointRegistry: b.PointRegistry, config: b.Config}
+	return &evaluatorReceiptCmd{
+		inner:   cmd,
+		session: b.ES, boundary: "nested point machine history and point workspace require rollback",
+		boundaryMetadata: func() any { return cmd.runResult },
+	}
+}
+
+func (b *RunPointBuilder) BuildReverser() core.Command {
+	return &evaluatorReceiptCmd{
+		inner:   &runPointCmd{es: b.ES, pointRegistry: b.PointRegistry, config: b.Config},
+		session: b.ES, boundary: "nested point machine history and point workspace require rollback",
+	}
 }
 
 type runPointCmd struct {
 	es            *EvalSessionState
 	pointRegistry *core.Registry
 	config        catalog.RunPointConfig
-	snapshot      evalSessionSnapshot
-	hasSnapshot   bool
+	runResult     core.RunResult
 }
 
 func (c *runPointCmd) Name() string { return "run_point" }
-func (c *runPointCmd) Undo(_ core.Result) core.Result {
-	return undoEvalSessionSnapshot(c.Name(), c.es, c.snapshot, c.hasSnapshot)
+func (c *runPointCmd) Undo(prior core.Result) core.Result {
+	return (&evaluatorReceiptCmd{
+		inner: c, session: c.es,
+		boundary: "nested point machine history and point workspace require rollback",
+	}).Undo(prior)
 }
 
 func (c *runPointCmd) Execute() core.Result {
@@ -47,9 +61,6 @@ func (c *runPointCmd) Execute() core.Result {
 			CommandName: "run_point",
 		}
 	}
-	c.snapshot = snapshotEvalSession(c.es)
-	c.hasSnapshot = true
-
 	agentName := c.config.AgentName
 	if agentName == "" {
 		agentName = "critic-point"
@@ -81,7 +92,8 @@ func (c *runPointCmd) Execute() core.Result {
 		},
 	}
 
-	_, loopErr := core.Loop(params, c.es.Ctx)
+	runResult, loopErr := core.Loop(params, c.es.Ctx)
+	c.runResult = runResult
 	if loopErr != nil {
 		_, _ = fmt.Fprintf(c.es.Stderr, "    ERROR: %v\n", loopErr)
 	}

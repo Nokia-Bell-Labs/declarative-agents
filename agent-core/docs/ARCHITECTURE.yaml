@@ -396,10 +396,13 @@ overview:
 
     Execution. Loop freezes the registry, starts a root span, and
     enters the iteration loop. Each iteration checks context cancellation and
-    budget before calling StateMachine.Step. Non-terminal states dispatch the
-    returned Command through Dispatch. The loop then accumulates cost, records
-    the event, and calls the OnResult hook. Terminal states resolve RunStatus
-    and exit.
+    budget before calling StateMachine.Step. When Step returns a Command, the
+    loop enters the next state, dispatches the Command, records its event and
+    checkpoint entry, and calls the OnResult hook before resolving a terminal
+    destination. An actionless transition to a terminal state appends no
+    command Entry; it persists the terminal Position with the unchanged
+    Execution before resolving RunStatus. A stateful persistence failure makes
+    the run fail instead of reporting an undurable terminal result.
 
     Completion. Loop sets Duration, logs a summary, and returns
     RunResult to the caller. The domain agent can extend RunResult
@@ -415,12 +418,20 @@ overview:
       D -->|No| E{Budget exceeded}
       E -->|Yes| K[StatusBudgetExceeded]
       E -->|No| F[StateMachine.Step]
-      F --> G{Terminal state}
-      G -->|Yes| L[Resolve RunStatus]
-      G -->|No| H[Dispatch Command]
+      F --> G{Command present}
+      G -->|No| N{Terminal destination}
+      N -->|Yes| Q[Persist terminal Position<br/>with unchanged Execution]
+      Q --> R{Persistence succeeded}
+      R -->|Yes| L[Resolve RunStatus]
+      R -->|No| S[StatusFailed]
+      N -->|No| O[Report nil command]
+      G -->|Yes| H[Dispatch and record Command]
       H --> I[Accumulate cost]
-      I --> D
+      I --> P{Terminal destination}
+      P -->|Yes| L
+      P -->|No| D
       L --> M[Return RunResult]
+      S --> M
     ```
 
   runtime_sequence: |

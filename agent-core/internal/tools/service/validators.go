@@ -14,6 +14,7 @@ import (
 type ValidatorSpec struct {
 	Name      string   `yaml:"name"`
 	Profile   string   `yaml:"profile"`
+	CoreRoot  string   `yaml:"-"`
 	Directory string   `yaml:"directory,omitempty"`
 	Request   string   `yaml:"request,omitempty"`
 	Env       []string `yaml:"env,omitempty"`
@@ -46,6 +47,7 @@ func runOneValidator(ctx context.Context, binary string, spec ValidatorSpec, tim
 	cfg := execute.Config{
 		Binary:    binary,
 		Profile:   spec.Profile,
+		CoreRoot:  spec.CoreRoot,
 		Directory: spec.Directory,
 		Request:   spec.Request,
 		Timeout:   timeout,

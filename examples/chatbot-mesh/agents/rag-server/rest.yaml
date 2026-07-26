@@ -74,8 +74,9 @@ rest:
               target: chroma.heartbeat
               state: read_only
           reversibility:
-            classification: reversible
-            undo: noop
+            classification: irreversible
+            undo: irreversible
+            requires_confirmation: true
         rag_resolve_collection:
           method: POST
           path: /api/v2/tenants/default_tenant/databases/default_database/collections

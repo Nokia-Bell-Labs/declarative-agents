@@ -19,18 +19,20 @@ type ParseSuiteConfigBuilder struct {
 }
 
 func (b *ParseSuiteConfigBuilder) Build(_ core.Result) core.Command {
-	return &parseSuiteConfigCmd{es: b.ES}
+	return &evaluatorReceiptCmd{inner: &parseSuiteConfigCmd{es: b.ES}, session: b.ES}
+}
+
+func (b *ParseSuiteConfigBuilder) BuildReverser() core.Command {
+	return &evaluatorReceiptCmd{inner: &parseSuiteConfigCmd{es: b.ES}, session: b.ES}
 }
 
 type parseSuiteConfigCmd struct {
-	es          *EvalSessionState
-	snapshot    evalSessionSnapshot
-	hasSnapshot bool
+	es *EvalSessionState
 }
 
 func (c *parseSuiteConfigCmd) Name() string { return "parse_suite_config" }
-func (c *parseSuiteConfigCmd) Undo(_ core.Result) core.Result {
-	return undoEvalSessionSnapshot(c.Name(), c.es, c.snapshot, c.hasSnapshot)
+func (c *parseSuiteConfigCmd) Undo(prior core.Result) core.Result {
+	return (&evaluatorReceiptCmd{inner: c, session: c.es}).Undo(prior)
 }
 
 func (c *parseSuiteConfigCmd) Execute() core.Result {
@@ -69,8 +71,6 @@ func (c *parseSuiteConfigCmd) Execute() core.Result {
 		}
 	}
 
-	c.snapshot = snapshotEvalSession(c.es)
-	c.hasSnapshot = true
 	c.es.Suite = suite
 	return core.Result{
 		Signal:      SigSuiteConfigParsed,
@@ -85,18 +85,20 @@ type DiscoverSuiteSamplesBuilder struct {
 }
 
 func (b *DiscoverSuiteSamplesBuilder) Build(_ core.Result) core.Command {
-	return &discoverSuiteSamplesCmd{es: b.ES}
+	return &evaluatorReceiptCmd{inner: &discoverSuiteSamplesCmd{es: b.ES}, session: b.ES}
+}
+
+func (b *DiscoverSuiteSamplesBuilder) BuildReverser() core.Command {
+	return &evaluatorReceiptCmd{inner: &discoverSuiteSamplesCmd{es: b.ES}, session: b.ES}
 }
 
 type discoverSuiteSamplesCmd struct {
-	es          *EvalSessionState
-	snapshot    evalSessionSnapshot
-	hasSnapshot bool
+	es *EvalSessionState
 }
 
 func (c *discoverSuiteSamplesCmd) Name() string { return "discover_suite_samples" }
-func (c *discoverSuiteSamplesCmd) Undo(_ core.Result) core.Result {
-	return undoEvalSessionSnapshot(c.Name(), c.es, c.snapshot, c.hasSnapshot)
+func (c *discoverSuiteSamplesCmd) Undo(prior core.Result) core.Result {
+	return (&evaluatorReceiptCmd{inner: c, session: c.es}).Undo(prior)
 }
 
 func (c *discoverSuiteSamplesCmd) Execute() core.Result {
@@ -109,8 +111,6 @@ func (c *discoverSuiteSamplesCmd) Execute() core.Result {
 			CommandName: c.Name(),
 		}
 	}
-	c.snapshot = snapshotEvalSession(c.es)
-	c.hasSnapshot = true
 	c.es.Suite.Samples = samples
 	return core.Result{
 		Signal:      SigSuiteSamplesDiscovered,
@@ -125,23 +125,23 @@ type ExpandEvalGridBuilder struct {
 }
 
 func (b *ExpandEvalGridBuilder) Build(_ core.Result) core.Command {
-	return &expandEvalGridCmd{es: b.ES}
+	return &evaluatorReceiptCmd{inner: &expandEvalGridCmd{es: b.ES}, session: b.ES}
+}
+
+func (b *ExpandEvalGridBuilder) BuildReverser() core.Command {
+	return &evaluatorReceiptCmd{inner: &expandEvalGridCmd{es: b.ES}, session: b.ES}
 }
 
 type expandEvalGridCmd struct {
-	es          *EvalSessionState
-	snapshot    evalSessionSnapshot
-	hasSnapshot bool
+	es *EvalSessionState
 }
 
 func (c *expandEvalGridCmd) Name() string { return "expand_eval_grid" }
-func (c *expandEvalGridCmd) Undo(_ core.Result) core.Result {
-	return undoEvalSessionSnapshot(c.Name(), c.es, c.snapshot, c.hasSnapshot)
+func (c *expandEvalGridCmd) Undo(prior core.Result) core.Result {
+	return (&evaluatorReceiptCmd{inner: c, session: c.es}).Undo(prior)
 }
 
 func (c *expandEvalGridCmd) Execute() core.Result {
-	c.snapshot = snapshotEvalSession(c.es)
-	c.hasSnapshot = true
 	c.es.ExpandGrid()
 	return core.Result{
 		Signal:      SigEvalGridExpanded,
@@ -156,18 +156,23 @@ type InitEvalSessionBuilder struct {
 }
 
 func (b *InitEvalSessionBuilder) Build(_ core.Result) core.Command {
-	return &initEvalSessionCmd{es: b.ES}
+	return &evaluatorReceiptCmd{
+		inner: &initEvalSessionCmd{es: b.ES}, session: b.ES,
+		removePaths: func() []string { return []string{b.ES.SessionDir} },
+	}
+}
+
+func (b *InitEvalSessionBuilder) BuildReverser() core.Command {
+	return &evaluatorReceiptCmd{inner: &initEvalSessionCmd{es: b.ES}, session: b.ES}
 }
 
 type initEvalSessionCmd struct {
-	es          *EvalSessionState
-	snapshot    evalSessionSnapshot
-	hasSnapshot bool
+	es *EvalSessionState
 }
 
 func (c *initEvalSessionCmd) Name() string { return "init_eval_session" }
-func (c *initEvalSessionCmd) Undo(_ core.Result) core.Result {
-	return undoEvalSessionSnapshot(c.Name(), c.es, c.snapshot, c.hasSnapshot)
+func (c *initEvalSessionCmd) Undo(prior core.Result) core.Result {
+	return (&evaluatorReceiptCmd{inner: c, session: c.es}).Undo(prior)
 }
 
 func (c *initEvalSessionCmd) Execute() core.Result {
@@ -186,8 +191,6 @@ func (c *initEvalSessionCmd) Execute() core.Result {
 		ollamaURL = c.es.Suite.OllamaURL
 	}
 
-	c.snapshot = snapshotEvalSession(c.es)
-	c.hasSnapshot = true
 	if err := c.es.InitSession(c.es.OutputDir, reps, timeout, ollamaURL, 0); err != nil {
 		return core.Result{
 			Signal:      core.CommandError,

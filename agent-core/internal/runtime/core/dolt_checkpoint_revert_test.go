@@ -78,6 +78,153 @@ func TestDoltCheckpointMergeOnTerminalState(t *testing.T) {
 	require.False(t, db.branches["run-1"], "run branch removed")
 }
 
+func TestDoltCheckpointFirstTerminalMergeWithoutMainSchema(t *testing.T) {
+	t.Parallel()
+	terminal := func(s State) bool { return s == "Done" }
+	db := newFakeDB()
+	require.False(t, db.mainMachinesExists, "fresh main has no checkpoint schema")
+
+	position := samplePosition()
+	position.CurrentState = "Done"
+	position.Snapshot.State = "Done"
+	err := NewDoltCheckpoint(db, "run-1", terminal).Save(position, sampleExecution()[:1])
+
+	require.NoError(t, err)
+	require.Equal(t, 1, countCalls(db.calls, "DOLT_MERGE"))
+	require.Equal(t, 1, countCalls(db.calls, "DOLT_BRANCH('-d'"))
+	require.True(t, db.mainMachinesExists, "first merge brings the schema to main")
+}
+
+func TestDoltCheckpointTerminalFinalizationDoesNotDuplicateLastStep(t *testing.T) {
+	t.Parallel()
+	terminal := func(s State) bool { return s == "Done" }
+	db := newFakeDB()
+	cp := NewDoltCheckpoint(db, "run-1", terminal)
+	execution := sampleExecution()[:1]
+
+	require.NoError(t, cp.Save(samplePosition(), execution))
+	terminalPos := samplePosition()
+	terminalPos.CurrentState = "Done"
+	terminalPos.Snapshot.State = "Done"
+	require.NoError(t, cp.Save(terminalPos, execution))
+
+	require.Equal(t, "Done", db.store.machines["run-1"].currentState)
+	require.Empty(t, db.store.transitions)
+	require.Empty(t, db.store.steps)
+	require.Empty(t, db.store.results)
+	require.Empty(t, db.store.receipts)
+	require.Equal(t, 1, countCalls(db.calls, "REPLACE INTO execution_steps"))
+	require.Equal(t, 1, countCalls(db.calls, "REPLACE INTO tool_outputs"))
+	require.Equal(t, 1, countCalls(db.calls, "REPLACE INTO receipts"))
+	require.Equal(t, 2, len(db.commits), "one step commit plus one terminal-position commit")
+	require.Equal(t, "finalize terminal state Done", db.commits[1].message)
+	require.Equal(t, 1, countCalls(db.calls, "DOLT_MERGE"))
+	require.Equal(t, 1, countCalls(db.calls, "DOLT_BRANCH('-d'"))
+}
+
+func TestDoltCheckpointRepeatedFinalizationReturnsClassifiedError(t *testing.T) {
+	t.Parallel()
+	terminal := func(s State) bool { return s == "Done" }
+	db := newFakeDB()
+	cp := NewDoltCheckpoint(db, "run-1", terminal)
+	execution := sampleExecution()[:1]
+
+	require.NoError(t, cp.Save(samplePosition(), execution))
+	terminalPos := samplePosition()
+	terminalPos.CurrentState = "Done"
+	require.NoError(t, cp.Save(terminalPos, execution))
+	commits := len(db.commits)
+
+	err := cp.Save(terminalPos, execution)
+
+	require.ErrorIs(t, err, ErrCheckpointFinalized)
+	require.Len(t, db.commits, commits)
+	require.Equal(t, 1, countCalls(db.calls, "DOLT_MERGE"))
+	require.Equal(t, 1, countCalls(db.calls, "DOLT_BRANCH('-d'"))
+	require.Equal(t, 1, countCalls(db.calls, "DOLT_CHECKOUT('-b'"), "finalized branch is not recreated")
+}
+
+func TestDoltCheckpointFreshAdapterFinalizesAfterMergeFault(t *testing.T) {
+	t.Parallel()
+	terminal := func(s State) bool { return s == "Done" }
+	db := newFakeDB()
+	saver := NewDoltCheckpoint(db, "run-1", terminal)
+	execution := sampleExecution()[:1]
+	require.NoError(t, saver.Save(samplePosition(), execution))
+
+	terminalPos := samplePosition()
+	terminalPos.CurrentState = "Done"
+	terminalPos.Snapshot.State = "Done"
+	db.failOn = "DOLT_MERGE"
+	require.ErrorIs(t, saver.Save(terminalPos, execution), ErrDolt)
+	commits := len(db.commits)
+	db.failOn = ""
+
+	loadedPos, loadedExecution, err := NewDoltCheckpoint(db, "run-1", terminal).Load()
+
+	require.ErrorIs(t, err, ErrCheckpointFinalized)
+	require.Equal(t, State("Done"), loadedPos.CurrentState)
+	require.Empty(t, loadedExecution, "terminal history remains reaped")
+	require.Len(t, db.commits, commits, "restart does not write a duplicate terminal commit")
+	require.Equal(t, 2, countCalls(db.calls, "DOLT_MERGE"), "only the failed merge is retried")
+	require.Equal(t, 1, countCalls(db.calls, "DOLT_BRANCH('-d'"))
+	require.False(t, db.branches["run-1"])
+}
+
+func TestDoltCheckpointFreshAdapterFinishesDeleteWithoutMergingTwice(t *testing.T) {
+	t.Parallel()
+	terminal := func(s State) bool { return s == "Done" }
+	db := newFakeDB()
+	saver := NewDoltCheckpoint(db, "run-1", terminal)
+	execution := sampleExecution()[:1]
+	require.NoError(t, saver.Save(samplePosition(), execution))
+
+	terminalPos := samplePosition()
+	terminalPos.CurrentState = "Done"
+	terminalPos.Snapshot.State = "Done"
+	db.failOn = "DOLT_BRANCH('-d'"
+	require.ErrorIs(t, saver.Save(terminalPos, execution), ErrDolt)
+	require.True(t, db.branches["run-1"], "failed delete leaves the terminal branch")
+	require.True(t, db.merged["run-1"], "merge completed before the delete fault")
+	db.failOn = ""
+
+	loadedPos, loadedExecution, err := NewDoltCheckpoint(db, "run-1", terminal).Load()
+
+	require.ErrorIs(t, err, ErrCheckpointFinalized)
+	require.Equal(t, State("Done"), loadedPos.CurrentState)
+	require.Empty(t, loadedExecution)
+	require.Equal(t, 1, countCalls(db.calls, "DOLT_MERGE"), "durable main marker prevents a second merge")
+	require.Equal(t, 2, countCalls(db.calls, "DOLT_BRANCH('-d'"), "only the failed delete is retried")
+	require.False(t, db.branches["run-1"])
+}
+
+func TestDoltCheckpointFreshAdapterRecognizesFinalizedRunOnMain(t *testing.T) {
+	t.Parallel()
+	terminal := func(s State) bool { return s == "Done" }
+	db := newFakeDB()
+	saver := NewDoltCheckpoint(db, "run-1", terminal)
+	execution := sampleExecution()[:1]
+	require.NoError(t, saver.Save(samplePosition(), execution))
+
+	terminalPos := samplePosition()
+	terminalPos.CurrentState = "Done"
+	terminalPos.Snapshot.State = "Done"
+	require.NoError(t, saver.Save(terminalPos, execution))
+	merges := countCalls(db.calls, "DOLT_MERGE")
+	deletes := countCalls(db.calls, "DOLT_BRANCH('-d'")
+
+	loader := NewDoltCheckpoint(db, "run-1", terminal)
+	loadedPos, loadedExecution, err := loader.Load()
+
+	require.ErrorIs(t, err, ErrCheckpointFinalized)
+	require.Equal(t, State("Done"), loadedPos.CurrentState)
+	require.Empty(t, loadedExecution)
+	require.Equal(t, merges, countCalls(db.calls, "DOLT_MERGE"))
+	require.Equal(t, deletes, countCalls(db.calls, "DOLT_BRANCH('-d'"))
+	require.ErrorIs(t, loader.Save(terminalPos, execution), ErrCheckpointFinalized)
+	require.False(t, db.branches["run-1"], "classified repeat does not recreate the branch")
+}
+
 func TestDoltCheckpointRevertResetsToStepCommit(t *testing.T) {
 	t.Parallel()
 	db := newFakeDB()
@@ -127,10 +274,10 @@ func TestDoltCheckpointRevertReapsBothPlanes(t *testing.T) {
 	require.Equal(t, exec[1].Receipt, gotExec[1].Receipt)
 }
 
-// TestDoltCheckpointTerminalReapsBothPlanesWithBranch proves invariant (2): the
-// terminal-state merge-and-delete reaps the run branch, and with it both planes'
-// per-run rows (srd036-dolt-state-persistence R4.3).
-func TestDoltCheckpointTerminalReapsBothPlanesWithBranch(t *testing.T) {
+// TestDoltCheckpointTerminalReapsRunHistoryBeforeMerge proves invariant (2):
+// terminal finalization keeps only the machine lifecycle marker and reaps all
+// four run-owned history tables before merging the branch to main.
+func TestDoltCheckpointTerminalReapsRunHistoryBeforeMerge(t *testing.T) {
 	t.Parallel()
 	terminal := func(s State) bool { return s == "Done" }
 	db := newFakeDB()
@@ -148,9 +295,23 @@ func TestDoltCheckpointTerminalReapsBothPlanesWithBranch(t *testing.T) {
 	terminalPos.CurrentState = "Done"
 	require.NoError(t, cp.Save(terminalPos, exec))
 
+	commitCall := lastCallIndex(db.calls, "DOLT_COMMIT")
+	mergeCall := lastCallIndex(db.calls, "DOLT_MERGE")
+	for _, table := range []string{"receipts", "tool_outputs", "execution_steps", "transitions"} {
+		reapCall := lastCallIndex(db.calls, "DELETE FROM "+table+" WHERE run_id = ?")
+		require.NotEqual(t, -1, reapCall, "%s is reaped", table)
+		require.Less(t, reapCall, commitCall, "%s is reaped in the terminal commit", table)
+		require.Less(t, reapCall, mergeCall, "%s is reaped before merge", table)
+	}
 	require.Equal(t, 1, countCalls(db.calls, "DOLT_MERGE"), "terminal save merges to main")
 	require.Equal(t, 1, countCalls(db.calls, "DOLT_BRANCH('-d'"), "run branch deleted after merge")
-	require.False(t, db.branches["run-1"], "run branch and both of its planes are reaped")
+	require.Equal(t, "main", db.current)
+	require.False(t, db.branches["run-1"], "run branch is deleted")
+	require.Equal(t, "Done", db.store.machines["run-1"].currentState, "terminal lifecycle marker reaches main")
+	require.Empty(t, db.store.transitions, "main has no run transitions")
+	require.Empty(t, db.store.steps, "main has no run execution steps")
+	require.Empty(t, db.store.results, "main has no forward-plane tool outputs")
+	require.Empty(t, db.store.receipts, "main has no reverse-plane receipts")
 }
 
 // TestDoltCheckpointReceiptWalkReversesSurvivingStep proves the reverse-plane

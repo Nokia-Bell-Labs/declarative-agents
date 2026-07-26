@@ -96,6 +96,19 @@ func processAlive(pid int) bool {
 	return syscall.Kill(pid, 0) == nil
 }
 
+func TestChildCommandPropagatesCoreRootInArgv(t *testing.T) {
+	cmd := childCommand(StartSpec{
+		Binary: "agent", Profile: "agents/mock/profile.yaml",
+		CoreRoot: "/checkout/agent-core",
+	})
+
+	require.Equal(t, []string{
+		"agent",
+		"--profile", "agents/mock/profile.yaml",
+		"--core-root", "/checkout/agent-core",
+	}, cmd.Args)
+}
+
 // TestServiceChild_StartStopNoOrphans covers srd040 AC1: a serve-mode child
 // starts with injected environment, stops, and leaves no process behind. A
 // repeated cycle passes, so ports and state do not leak.

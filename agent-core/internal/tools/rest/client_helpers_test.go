@@ -168,8 +168,31 @@ func runRESTMetricLoop(t *testing.T, cmd core.Command, signal core.Signal) []mon
 	t.Helper()
 	// Keep this fixture package-local so REST assertions name REST commands and signals.
 	store := monitor.NewStore(monitor.Limits{Samples: 10})
-	params := restMetricLoopParams(cmd, signal, monitor.NewRecorder(store, nil))
-	_, err := core.Loop(params, context.Background())
+	attrs := []monitor.AttributePolicy{{Name: "operation", AllowedValues: []string{"get"}}}
+	rec, err := monitor.NewRecorderWithConfig(store, nil, monitor.RecorderConfig{
+		GlobalAttributes: []monitor.AttributePolicy{
+			{Name: "use_case", AllowedValues: []string{"rel04.0-monitor"}},
+			{Name: "phase", AllowedValues: []string{"dispatch"}},
+			{Name: "agent.name", AllowedValues: []string{"rest-agent"}},
+		},
+		Bindings: []monitor.MetricBinding{
+			{ToolName: cmd.Name(), Schema: monitor.MetricSchema{
+				Name: "rest.http_status_code", Kind: monitor.InstrumentGauge, Unit: "1",
+			}, Attributes: attrs},
+			{ToolName: cmd.Name(), Schema: monitor.MetricSchema{
+				Name: "rest.retry_count", Kind: monitor.InstrumentCounter, Unit: "{retry}",
+			}, Attributes: attrs},
+			{ToolName: cmd.Name(), Schema: monitor.MetricSchema{
+				Name: "rest.request_bytes", Kind: monitor.InstrumentHistogram, Unit: "By",
+			}, Attributes: attrs},
+			{ToolName: cmd.Name(), Schema: monitor.MetricSchema{
+				Name: "rest.response_bytes", Kind: monitor.InstrumentHistogram, Unit: "By",
+			}, Attributes: attrs},
+		},
+	})
+	require.NoError(t, err)
+	params := restMetricLoopParams(cmd, signal, rec)
+	_, err = core.Loop(params, context.Background())
 	require.NoError(t, err)
 	return store.Snapshot().RecentSamples
 }
@@ -189,7 +212,8 @@ func restMetricLoopParams(cmd core.Command, signal core.Signal, rec monitor.Runt
 	}
 	return core.LoopParams{
 		MachineSpec:     spec,
-		AgentName:       "rest-run",
+		RunID:           "rest-run",
+		AgentName:       "rest-agent",
 		Trace:           tracing.NoopTracer{},
 		Budget:          core.Budget{MaxIterations: 3},
 		MonitorRecorder: rec,

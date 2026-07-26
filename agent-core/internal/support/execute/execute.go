@@ -33,6 +33,7 @@ const (
 type Config struct {
 	Binary      string        // Agent binary path. Default: "agent" (resolved from PATH).
 	Profile     string        // --profile flag for the child agent.
+	CoreRoot    string        // --core-root development install mapping for the child agent.
 	Directory   string        // --directory flag for the child workspace.
 	Request     string        // --request flag for runtime input.
 	Output      string        // --output flag for runtime artifacts.
@@ -62,6 +63,7 @@ func (c *Config) BuildArgs() []string {
 	if c.Profile != "" {
 		args = append(args, "--profile", c.Profile)
 	}
+	args = appendFlag(args, "--core-root", c.CoreRoot)
 	args = appendFlag(args, "--directory", c.Directory)
 	args = appendFlag(args, "--request", c.Request)
 	args = appendFlag(args, "--output", c.Output)

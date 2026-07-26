@@ -99,8 +99,9 @@ type ToolConfig struct {
 
 // FactoryDeps holds service factory dependencies.
 type FactoryDeps struct {
-	State   *State
-	Session *ScenarioSessionState
+	State    *State
+	Session  *ScenarioSessionState
+	CoreRoot string
 }
 
 // RegisterBuiltins registers every service builtin factory. The session and
@@ -129,7 +130,7 @@ func factoryFor(init string, deps FactoryDeps) toolregistry.BuiltinFactory {
 		}
 		return Builder{
 			ToolName: def.Name, Init: init, Config: cfg,
-			State: deps.State, Session: deps.Session,
+			State: deps.State, Session: deps.Session, CoreRoot: deps.CoreRoot,
 		}, nil
 	}
 }
@@ -182,6 +183,7 @@ type Builder struct {
 	Config   ToolConfig
 	State    *State
 	Session  *ScenarioSessionState
+	CoreRoot string
 }
 
 // Build creates one service command.
@@ -190,7 +192,10 @@ func (b Builder) Build(_ core.Result) core.Command {
 	if session == nil {
 		session = NewScenarioSession(b.State)
 	}
-	return &command{toolName: b.ToolName, init: b.Init, cfg: b.Config, state: b.State, session: session}
+	return &command{
+		toolName: b.ToolName, init: b.Init, cfg: b.Config,
+		state: b.State, session: session, coreRoot: b.CoreRoot,
+	}
 }
 
 // BuildReverser reconstructs a receipt-only command for child rollback.
@@ -204,6 +209,7 @@ type command struct {
 	cfg          ToolConfig
 	state        *State
 	session      *ScenarioSessionState
+	coreRoot     string
 	commandState core.CommandStateView
 }
 
@@ -282,6 +288,7 @@ func (c command) start() core.Result {
 		Name:      c.cfg.Service,
 		Binary:    c.cfg.Binary,
 		Profile:   c.cfg.Profile,
+		CoreRoot:  c.coreRoot,
 		Directory: c.cfg.Directory,
 		Request:   c.cfg.Request,
 		Address:   c.cfg.Address,

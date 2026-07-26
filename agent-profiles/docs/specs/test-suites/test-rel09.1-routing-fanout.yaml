@@ -1,87 +1,9 @@
 id: test-rel09.1-routing-fanout
-title: Test Suite for Release 09.1 Source Routing, Tier Selection, and Multi-RAG Fan-Out
+title: Test Suite for Release 09.1 Tier Selection and Fan-Out (Relocated)
 release: "09.1"
-
-overview: |
-  This suite validates source routing, tier selection, and fan-out (srd014 R2,
-  R3, R6): separate source and tier classifiers, trusted subset selection, and the
-  single sequential for_each over selected topology entries that cites the needed
-  disjoint corpora, collects per-source QueryRejected and CommandError outcomes,
-  partitions reported embedding-model mismatches, and renders compatible chunks.
-
-  This retained suite is a historical relocation pointer. The canonical suite,
-  profiles, tests, and integration target live under examples/chatbot-mesh as
-  release 01.0.
-
-traces:
-  - rel09.1-uc001-routed-fanout
-
-preconditions:
-  - agent-core is available as AGENT_CORE_ROOT or a sibling ../agent-core checkout.
-  - A Chroma server and an Ollama are reachable with the configured embedding, tier-selector, and two chat-LLM models.
-  - examples/chatbot-mesh owns the chatbot profile, separate source-router and tier-selector prompts, and fan-out declarations.
-
-test_cases:
-  - use_case: rel09.1-uc001-routed-fanout
-    name: Source-routed and tier-selected fan-out over disjoint corpora
-    integration_target: cd ../examples/chatbot-mesh && mage integration:chatbot
-    go_test: cd ../examples/chatbot-mesh && go test ./magefiles -run '^TestChatbotFanOutCoGeneratedForNRags$'
-    status: implemented
-    description: |
-      Integration.Chatbot starts one Chroma container with two disjoint collections
-      (the ingest fixture for rag0 and a seeded disjoint Solar Ridge corpus for
-      rag1), launches two rag-server agents and the tier-selector-enabled chatbot, and
-      drives the chat endpoint. A factual turn and an analytical turn exercise the
-      $tool tier selector; the chatbot span log is asserted to show both the fast and the
-      deep chat model answered (the tier selector dispatched each word). A spanning turn
-      draws the disjoint rag1 corpus into the answer (one sequential for_each;
-      render_each formats compatible sources, and partition is a generic filter,
-      not a merge word). Stopping rag1 degrades the next turn to a 200 with its
-      CommandError join entry retained in query_failed metadata. Verified against
-      the source-count-independent Helm topology render and end to end against
-      live Docker and
-      Ollama; skips cleanly without them, naming a missing model.
-    inputs:
-      chatbot_profile: ../examples/chatbot-mesh/agents/chatbot/profile.yaml
-      rag_clients: [rag0, rag1]
-      turns: factual, analytical, cross-corpus, then a degraded follow-up
-      fault: rag1 stopped before the degraded turn
-    expected:
-      tier_selector_dispatches_both_chat_models: true
-      scoped_question_queries_only_selected_source: true
-      spanning_question_may_query_all_sources: true
-      fanout_draws_both_corpora: true
-      degraded_turn_omits_stopped_corpus: true
-      excluded_source_routes_on_queryrejected: true
-      machine_for_each_count: 1
-      adding_third_source_changes_word_or_state_count: false
-      adding_third_source_is_selectable_from_rendered_catalog: true
-    traces:
-      - rel09.1-uc001-routed-fanout S1
-      - rel09.1-uc001-routed-fanout S2
-      - rel09.1-uc001-routed-fanout S3
-      - rel09.1-uc001-routed-fanout S4
-      - srd014-chatbot-agent AC2
-      - srd014-chatbot-agent AC3
-
-  - use_case: rel09.1-uc001-routed-fanout
-    name: Source-selection trust boundary and full-set fallback matrix
-    go_test: go test ./magefiles -run '^TestChatbot(SourceSelectionUsesTrustedTopologyAndFallback|SourceRouterPromptMatchesDeclaration)$'
-    status: implemented
-    description: |
-      The canonical example suite exercises scoped, spanning, mixed undeclared,
-      malformed, empty, only-undeclared, and classifier-error responses. This
-      retained proof locks the generic adjacent-result capture, trusted topology selectors, fallback edges,
-      names-and-descriptions-only catalog, not-selected metadata, and exact prompt
-      parity without adding production Go.
-    expected:
-      undeclared_names_reach_query_target: false
-      all_fallback_cases_query_full_declared_set: true
-      not_selected_distinct_from_queried_outcomes: true
-      prompt_matches_declaration: true
-    traces:
-      - rel09.1-uc001-routed-fanout S1
-      - rel09.1-uc001-routed-fanout S2
-      - srd014-chatbot-agent AC2
-      - srd014-chatbot-agent AC3
-      - srd014-chatbot-agent AC6
+status: relocated
+canonical_path: examples/chatbot-mesh/docs/specs/test-suites/test-rel01.0-routing-fanout.yaml
+note: |
+  Pointer-only tombstone. The canonical suite and its proof commands live with
+  the chatbot-mesh example. This retained identifier exists only to redirect
+  historical references.

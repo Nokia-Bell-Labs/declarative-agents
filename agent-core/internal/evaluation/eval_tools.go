@@ -20,19 +20,15 @@ const (
 // createPointDirCmd creates the per-point directory and records paths that
 // later point tools consume.
 type createPointDirCmd struct {
-	pc          *PointContext
-	snapshot    pointContextSnapshot
-	hasSnapshot bool
+	pc *PointContext
 }
 
 func (c *createPointDirCmd) Name() string { return "create_point_dir" }
-func (c *createPointDirCmd) Undo(_ core.Result) core.Result {
-	return undoPointContextSnapshot(c.Name(), c.pc, c.snapshot, c.hasSnapshot)
+func (c *createPointDirCmd) Undo(prior core.Result) core.Result {
+	return (&evaluatorReceiptCmd{inner: c, point: c.pc}).Undo(prior)
 }
 
 func (c *createPointDirCmd) Execute() core.Result {
-	c.snapshot = snapshotPointContext(c.pc)
-	c.hasSnapshot = true
 	pointDir := filepath.Join(c.pc.SessionDir, c.pc.PointID)
 	if err := os.MkdirAll(pointDir, 0o755); err != nil {
 		return pointToolError(c.Name(), fmt.Errorf("mkdir point dir: %w", err))
@@ -54,8 +50,10 @@ type copySampleDocsCmd struct {
 	pc *PointContext
 }
 
-func (c *copySampleDocsCmd) Name() string                   { return "copy_sample_docs" }
-func (c *copySampleDocsCmd) Undo(_ core.Result) core.Result { return core.NoopUndo(c.Name()) }
+func (c *copySampleDocsCmd) Name() string { return "copy_sample_docs" }
+func (c *copySampleDocsCmd) Undo(prior core.Result) core.Result {
+	return (&evaluatorReceiptCmd{inner: c, point: c.pc}).Undo(prior)
+}
 
 func (c *copySampleDocsCmd) Execute() core.Result {
 	if err := requirePointDir(c.pc); err != nil {
@@ -104,21 +102,17 @@ func copyDir(src, dst string) error {
 
 // recordOracleResultCmd maps the configured oracle exec result into point state.
 type recordOracleResultCmd struct {
-	pc          *PointContext
-	prior       core.Result
-	snapshot    pointContextSnapshot
-	hasSnapshot bool
+	pc    *PointContext
+	prior core.Result
 }
 
 func (c *recordOracleResultCmd) Name() string { return "record_oracle_result" }
-func (c *recordOracleResultCmd) Undo(_ core.Result) core.Result {
-	return undoPointContextSnapshot(c.Name(), c.pc, c.snapshot, c.hasSnapshot)
+func (c *recordOracleResultCmd) Undo(prior core.Result) core.Result {
+	return (&evaluatorReceiptCmd{inner: c, point: c.pc}).Undo(prior)
 }
 
 func (c *recordOracleResultCmd) Execute() core.Result {
 	pc := c.pc
-	c.snapshot = snapshotPointContext(pc)
-	c.hasSnapshot = true
 	pc.TestsPassed = c.prior.Signal == core.ToolDone
 	pc.TestOutput = c.prior.Output
 
@@ -135,20 +129,16 @@ func (c *recordOracleResultCmd) Execute() core.Result {
 
 // collectTraceTokensCmd extracts token usage from the point trace file.
 type collectTraceTokensCmd struct {
-	pc          *PointContext
-	snapshot    pointContextSnapshot
-	hasSnapshot bool
+	pc *PointContext
 }
 
 func (c *collectTraceTokensCmd) Name() string { return "collect_trace_tokens" }
-func (c *collectTraceTokensCmd) Undo(_ core.Result) core.Result {
-	return undoPointContextSnapshot(c.Name(), c.pc, c.snapshot, c.hasSnapshot)
+func (c *collectTraceTokensCmd) Undo(prior core.Result) core.Result {
+	return (&evaluatorReceiptCmd{inner: c, point: c.pc}).Undo(prior)
 }
 
 func (c *collectTraceTokensCmd) Execute() core.Result {
 	pc := c.pc
-	c.snapshot = snapshotPointContext(pc)
-	c.hasSnapshot = true
 	if _, err := os.Stat(pc.TracePath); err != nil {
 		if os.IsNotExist(err) {
 			pc.Tokens = 0
@@ -183,20 +173,16 @@ func (c *collectTraceTokensCmd) Execute() core.Result {
 
 // checkAgentVersionCmd compares configured and traced agent versions.
 type checkAgentVersionCmd struct {
-	pc          *PointContext
-	snapshot    pointContextSnapshot
-	hasSnapshot bool
+	pc *PointContext
 }
 
 func (c *checkAgentVersionCmd) Name() string { return "check_agent_version" }
-func (c *checkAgentVersionCmd) Undo(_ core.Result) core.Result {
-	return undoPointContextSnapshot(c.Name(), c.pc, c.snapshot, c.hasSnapshot)
+func (c *checkAgentVersionCmd) Undo(prior core.Result) core.Result {
+	return (&evaluatorReceiptCmd{inner: c, point: c.pc}).Undo(prior)
 }
 
 func (c *checkAgentVersionCmd) Execute() core.Result {
 	pc := c.pc
-	c.snapshot = snapshotPointContext(pc)
-	c.hasSnapshot = true
 	if pc.Harness.Version == "" {
 		return core.Result{
 			CommandName: c.Name(),
@@ -271,8 +257,10 @@ type collectMetricsCmd struct {
 	pc *PointContext
 }
 
-func (c *collectMetricsCmd) Name() string                   { return "collect_metrics" }
-func (c *collectMetricsCmd) Undo(_ core.Result) core.Result { return core.NoopUndo(c.Name()) }
+func (c *collectMetricsCmd) Name() string { return "collect_metrics" }
+func (c *collectMetricsCmd) Undo(prior core.Result) core.Result {
+	return (&evaluatorReceiptCmd{inner: c, point: c.pc}).Undo(prior)
+}
 
 func (c *collectMetricsCmd) Execute() core.Result {
 	pc := c.pc

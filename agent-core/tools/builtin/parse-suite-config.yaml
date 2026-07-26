@@ -15,7 +15,9 @@ tools:
     description: Sets EvalSessionState.Suite with suite metadata and resolved samples directory.
   reversibility:
     classification: reversible
-    undo: session_state_restore
+    undo: evaluator_session_restore
   undo:
-    strategy: session_state_restore
-    description: Restore evaluator session state to the snapshot before parsing suite config.
+    strategy: evaluator_session_restore
+    description: Restore evaluator session state from the persisted pre-command receipt.
+    payload: evaluator_session_snapshot
+    captures: [suite, session_dir, result, point_context, iterator_state]
