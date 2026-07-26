@@ -30,6 +30,10 @@ mage tag        # create root and module release tags
 
 Each sub-module also has its own mage targets. Run `mage -l` inside any directory with a `magefiles/` folder to list available targets.
 
+`mage test` rebuilds every tracked shipped UI from a clean lockfile install. It
+audits the full build dependency graph and the production-only graph separately;
+either scope fails the release gate at any known high or critical vulnerability.
+
 ### Persistent integration observability
 
 Start the shared OTLP ingress and retained Jaeger and Prometheus backends before

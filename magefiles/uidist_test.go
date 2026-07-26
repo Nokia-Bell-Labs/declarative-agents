@@ -3,8 +3,10 @@
 package main
 
 import (
+	"errors"
 	"os"
 	"path/filepath"
+	"reflect"
 	"strings"
 	"testing"
 )
@@ -63,5 +65,52 @@ func TestDiscoverShippedUIs(t *testing.T) {
 	}
 	if len(uis) != 1 || uis[0] != app {
 		t.Fatalf("discoverShippedUIs = %v, want [%s]", uis, app)
+	}
+}
+
+func TestAuditUIDependenciesChecksBuildAndProductionScopes(t *testing.T) {
+	var calls []string
+	run := func(dir, name string, args ...string) error {
+		calls = append(calls, dir+" "+name+" "+strings.Join(args, " "))
+		return nil
+	}
+	if err := auditUIDependencies("/ui", run); err != nil {
+		t.Fatal(err)
+	}
+	want := []string{
+		"/ui npm audit --audit-level=high",
+		"/ui npm audit --omit=dev --audit-level=high",
+	}
+	if !reflect.DeepEqual(calls, want) {
+		t.Fatalf("audit calls = %v, want %v", calls, want)
+	}
+}
+
+func TestRebuildAndDiffUIStopsOnHighBuildAudit(t *testing.T) {
+	app := t.TempDir()
+	writeUIFile(t, filepath.Join(app, "package.json"), `{"scripts":{"build":"vite build"}}`)
+	writeUIFile(t, filepath.Join(app, "package-lock.json"), "{}")
+	writeUIFile(t, filepath.Join(app, "dist", "index.html"), "<html>")
+	auditErr := errors.New("high vulnerability")
+	buildCalled := false
+	run := func(_ string, _ string, args ...string) error {
+		command := strings.Join(args, " ")
+		switch command {
+		case "ci":
+			return nil
+		case "audit --audit-level=high":
+			return auditErr
+		case "run build":
+			buildCalled = true
+		}
+		return nil
+	}
+	err := rebuildAndDiffUIWithRunner(app, run)
+	if !errors.Is(err, auditErr) ||
+		!strings.Contains(err.Error(), "zero high/critical") {
+		t.Fatalf("error = %v, want audit policy failure", err)
+	}
+	if buildCalled {
+		t.Fatal("UI build ran after vulnerable build dependency audit")
 	}
 }

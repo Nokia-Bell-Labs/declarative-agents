@@ -19,10 +19,15 @@ import (
 // embedded UIs before compilation, so it is not scanned here (GH-518).
 var uiSearchRoots = []string{"agent-profiles/agents", "examples"}
 
+const uiAuditLevel = "high"
+
+type uiRunner func(string, string, ...string) error
+
 // UIDist rebuilds every shipped profile UI from source with a clean,
-// lockfile-pinned install (npm ci) and fails when the tracked dist differs from
-// the build output, so a served bundle cannot silently diverge from its source
-// (GH-518). It skips cleanly when npm is unavailable.
+// lockfile-pinned install (npm ci), gates both full build-chain and
+// production-only dependencies at high severity, and fails when the tracked
+// dist differs from the build output (GH-518, GH-1003). It skips cleanly when
+// npm is unavailable.
 func UIDist() error {
 	if _, err := exec.LookPath("npm"); err != nil {
 		fmt.Println("SKIP uiDist: npm not found; the UI reproducibility gate needs node/npm")
@@ -99,6 +104,10 @@ func isDir(p string) bool {
 // rebuildAndDiffUI copies the app's source into a temp dir, runs a clean
 // install and build, and byte-compares the produced dist with the tracked one.
 func rebuildAndDiffUI(appDir string) error {
+	return rebuildAndDiffUIWithRunner(appDir, runIn)
+}
+
+func rebuildAndDiffUIWithRunner(appDir string, run uiRunner) error {
 	tmp, err := os.MkdirTemp("", "uidist-")
 	if err != nil {
 		return err
@@ -108,14 +117,37 @@ func rebuildAndDiffUI(appDir string) error {
 	if err := copyDirExcluding(appDir, build, map[string]bool{"node_modules": true, "dist": true}); err != nil {
 		return err
 	}
-	if err := runIn(build, "npm", "ci"); err != nil {
+	if err := run(build, "npm", "ci"); err != nil {
 		return fmt.Errorf("%s: npm ci failed: %w", appDir, err)
 	}
-	if err := runIn(build, "npm", "run", "build"); err != nil {
+	if err := auditUIDependencies(build, run); err != nil {
+		return fmt.Errorf("%s: %w", appDir, err)
+	}
+	if err := run(build, "npm", "run", "build"); err != nil {
 		return fmt.Errorf("%s: npm run build failed: %w", appDir, err)
 	}
 	if diff := diffTrees(filepath.Join(appDir, "dist"), filepath.Join(build, "dist")); diff != "" {
 		return fmt.Errorf("%s: tracked dist differs from a clean source build; rebuild and commit dist:\n%s", appDir, diff)
+	}
+	return nil
+}
+
+func auditUIDependencies(dir string, run uiRunner) error {
+	scopes := []struct {
+		name string
+		args []string
+	}{
+		{name: "full build dependency", args: []string{
+			"audit", "--audit-level=" + uiAuditLevel}},
+		{name: "production-only dependency", args: []string{
+			"audit", "--omit=dev", "--audit-level=" + uiAuditLevel}},
+	}
+	for _, scope := range scopes {
+		if err := run(dir, "npm", scope.args...); err != nil {
+			return fmt.Errorf(
+				"%s audit failed (policy: zero high/critical vulnerabilities): %w",
+				scope.name, err)
+		}
 	}
 	return nil
 }
