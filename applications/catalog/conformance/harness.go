@@ -130,7 +130,7 @@ type coreRootOutcome int
 const (
 	// coreRootFound: a usable checkout was located.
 	coreRootFound coreRootOutcome = iota
-	// coreRootAbsent: nothing was configured and no sibling exists, so the run
+	// coreRootAbsent: nothing was configured and no repository checkout exists, so the run
 	// skips and plain `go test ./...` stays hermetic for docs-only checkouts.
 	coreRootAbsent
 	// coreRootInvalid: AGENT_CORE_ROOT was set but does not hold a checkout. An
@@ -158,32 +158,32 @@ func isCoreCheckout(dir string) bool {
 }
 
 // resolveCoreRoot applies the documented prerequisite policy: an explicitly
-// configured AGENT_CORE_ROOT wins and must be usable, otherwise the sibling
+// configured AGENT_CORE_ROOT wins and must be usable, otherwise the repository
 // checkout is used, otherwise the prerequisite is absent. It is pure so the
 // policy is table-tested without touching the process environment.
-func resolveCoreRoot(env, sibling string) coreRootResolution {
+func resolveCoreRoot(env, repositoryCheckout string) coreRootResolution {
 	if strings.TrimSpace(env) != "" {
 		if isCoreCheckout(env) {
 			return coreRootResolution{Path: env, Source: AgentCoreRootEnv, Outcome: coreRootFound}
 		}
 		return coreRootResolution{Path: env, Source: AgentCoreRootEnv, Outcome: coreRootInvalid}
 	}
-	if isCoreCheckout(sibling) {
-		return coreRootResolution{Path: sibling, Source: "sibling checkout", Outcome: coreRootFound}
+	if isCoreCheckout(repositoryCheckout) {
+		return coreRootResolution{Path: repositoryCheckout, Source: "repository checkout", Outcome: coreRootFound}
 	}
-	return coreRootResolution{Path: sibling, Source: "sibling checkout", Outcome: coreRootAbsent}
+	return coreRootResolution{Path: repositoryCheckout, Source: "repository checkout", Outcome: coreRootAbsent}
 }
 
 // RequireCoreRoot returns the agent-core checkout the conformance package builds
 // the agent binary from, honoring AGENT_CORE_ROOT and falling back to the
-// sibling checkout. A set-but-unusable AGENT_CORE_ROOT fails the test; an
+// monorepo checkout. A set-but-unusable AGENT_CORE_ROOT fails the test; an
 // entirely absent prerequisite skips it.
 func RequireCoreRoot(t *testing.T) string {
 	t.Helper()
-	res := resolveCoreRoot(os.Getenv(AgentCoreRootEnv), filepath.Join(filepath.Dir(ProfilesRoot()), "agent-core"))
+	res := resolveCoreRoot(os.Getenv(AgentCoreRootEnv), agentCoreRepositoryPath(ProfilesRoot()))
 	switch res.Outcome {
 	case coreRootInvalid:
-		t.Fatalf("%s=%s does not hold an agent-core checkout (no go.mod); unset it to use the sibling checkout",
+		t.Fatalf("%s=%s does not hold an agent-core checkout (no go.mod); unset it to use the repository checkout",
 			AgentCoreRootEnv, res.Path)
 	case coreRootAbsent:
 		t.Skipf("agent-core checkout not found at %s and %s is unset; skipping conformance run",
@@ -196,14 +196,19 @@ func RequireCoreRoot(t *testing.T) string {
 	return abs
 }
 
-// ProfilesRoot returns the agent-profiles repository root (the parent of this
+// agentCoreRepositoryPath resolves agent-core from applications/catalog.
+func agentCoreRepositoryPath(catalogRoot string) string {
+	return filepath.Clean(filepath.Join(catalogRoot, "..", "..", "agent-core"))
+}
+
+// ProfilesRoot returns the catalog repository root (the parent of this
 // package directory), independent of the test's working directory.
 func ProfilesRoot() string {
 	_, thisFile, _, _ := runtime.Caller(0)
 	return filepath.Dir(filepath.Dir(thisFile))
 }
 
-// ProfilePath joins rel onto the agent-profiles root.
+// ProfilePath joins rel onto the catalog root.
 func ProfilePath(rel string) string {
 	return filepath.Join(ProfilesRoot(), rel)
 }

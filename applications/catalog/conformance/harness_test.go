@@ -19,73 +19,73 @@ func coreCheckout(t *testing.T) string {
 }
 
 // TestResolveCoreRootPolicy covers the documented prerequisite: AGENT_CORE_ROOT
-// or a sibling checkout. An explicitly configured root wins and must be usable;
+// or the monorepo checkout. An explicitly configured root wins and must be usable;
 // an absent prerequisite skips rather than fails, so a docs-only checkout keeps
 // `go test ./...` hermetic (GH-584).
 func TestResolveCoreRootPolicy(t *testing.T) {
 	valid := coreCheckout(t)
-	sibling := coreCheckout(t)
+	repositoryCheckout := coreCheckout(t)
 	empty := t.TempDir() // exists but holds no go.mod
 
 	tests := []struct {
 		name        string
 		env         string
-		sibling     string
+		repository  string
 		wantOutcome coreRootOutcome
 		wantPath    string
 		wantSource  string
 	}{
 		{
-			name:        "environment path is honored over the sibling",
+			name:        "environment path is honored over repository discovery",
 			env:         valid,
-			sibling:     sibling,
+			repository:  repositoryCheckout,
 			wantOutcome: coreRootFound,
 			wantPath:    valid,
 			wantSource:  AgentCoreRootEnv,
 		},
 		{
-			name:        "sibling fallback when the environment is unset",
+			name:        "repository fallback when the environment is unset",
 			env:         "",
-			sibling:     sibling,
+			repository:  repositoryCheckout,
 			wantOutcome: coreRootFound,
-			wantPath:    sibling,
-			wantSource:  "sibling checkout",
+			wantPath:    repositoryCheckout,
+			wantSource:  "repository checkout",
 		},
 		{
 			name:        "blank environment is treated as unset",
 			env:         "   ",
-			sibling:     sibling,
+			repository:  repositoryCheckout,
 			wantOutcome: coreRootFound,
-			wantPath:    sibling,
-			wantSource:  "sibling checkout",
+			wantPath:    repositoryCheckout,
+			wantSource:  "repository checkout",
 		},
 		{
 			name:        "invalid environment path fails rather than silently skipping",
 			env:         empty,
-			sibling:     sibling,
+			repository:  repositoryCheckout,
 			wantOutcome: coreRootInvalid,
 			wantPath:    empty,
 			wantSource:  AgentCoreRootEnv,
 		},
 		{
-			name:        "nonexistent environment path fails even when a sibling exists",
+			name:        "nonexistent environment path fails even when repository checkout exists",
 			env:         filepath.Join(empty, "does-not-exist"),
-			sibling:     sibling,
+			repository:  repositoryCheckout,
 			wantOutcome: coreRootInvalid,
 			wantSource:  AgentCoreRootEnv,
 		},
 		{
 			name:        "absent prerequisite skips",
 			env:         "",
-			sibling:     filepath.Join(empty, "agent-core"),
+			repository:  filepath.Join(empty, "agent-core"),
 			wantOutcome: coreRootAbsent,
-			wantSource:  "sibling checkout",
+			wantSource:  "repository checkout",
 		},
 	}
 
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
-			got := resolveCoreRoot(tt.env, tt.sibling)
+			got := resolveCoreRoot(tt.env, tt.repository)
 			if got.Outcome != tt.wantOutcome {
 				t.Fatalf("outcome = %v, want %v", got.Outcome, tt.wantOutcome)
 			}
@@ -96,6 +96,14 @@ func TestResolveCoreRootPolicy(t *testing.T) {
 				t.Errorf("source = %q, want %q", got.Source, tt.wantSource)
 			}
 		})
+	}
+}
+
+func TestAgentCoreRepositoryPathFromApplicationsCatalog(t *testing.T) {
+	repository := t.TempDir()
+	catalogRoot := filepath.Join(repository, "applications", "catalog")
+	if got := agentCoreRepositoryPath(catalogRoot); got != filepath.Join(repository, "agent-core") {
+		t.Fatalf("agentCoreRepositoryPath = %q, want %q", got, filepath.Join(repository, "agent-core"))
 	}
 }
 

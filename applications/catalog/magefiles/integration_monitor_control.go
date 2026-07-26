@@ -47,7 +47,7 @@ type monitorControlREST struct {
 
 // MonitorControl proves monitor state routes and REST lifecycle signal routing.
 func (Integration) MonitorControl() error {
-	profilesRoot, err := os.Getwd()
+	profilesRoot, err := catalogOwnerRoot("catalog integration:monitorControl")
 	if err != nil {
 		return err
 	}

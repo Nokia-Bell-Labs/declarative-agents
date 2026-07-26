@@ -13,7 +13,7 @@ const (
 	defaultContainerImage   = "agent-core:latest"
 	defaultIntegrationImage = "agent-core-integration:latest"
 	defaultContainerNetRC   = ".netrc"
-	defaultProfilesMount    = "/profiles/agents"
+	defaultProfilesMount    = "/profiles"
 	defaultWorkMount        = "/work"
 
 	envContainerImage = "AGENT_CORE_IMAGE"
@@ -121,7 +121,7 @@ func displayBuildCommand(opts dockerBuildOptions, args []string) string {
 func displayRuntimeCommand(opts dockerBuildOptions) string {
 	return shellCommand([]string{
 		dockerEngine, "run", "--rm",
-		"-v", "/path/to/agent-profiles:" + defaultProfilesMount + ":ro",
+		"-v", "/path/to/applications/catalog:" + defaultProfilesMount + ":ro",
 		"-v", "$PWD:" + defaultWorkMount,
 		"-w", defaultWorkMount,
 		opts.Image,
@@ -144,10 +144,9 @@ func displayIntegrationBuildCommand(opts dockerBuildOptions) string {
 	return displayBuildCommand(opts, args)
 }
 
-func displayIntegrationCommand(opts dockerBuildOptions) string {
+func displayIntegrationCommand(_ dockerBuildOptions) string {
 	return shellCommand([]string{
 		dockerEngine, "run", "--rm",
-		"-v", "/path/to/agent-profiles:" + defaultProfilesMount + ":ro",
 		"-w", "/src",
 		defaultIntegrationImage,
 		"mage", "integration:monitor",

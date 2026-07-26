@@ -45,11 +45,14 @@ func discoverAuditProfiles(root string) ([]string, error) {
 // BootSmoke loads every audited profile through the agent runtime's own startup
 // path and fails on the first profile that cannot boot.
 func BootSmoke() error {
-	root, err := os.Getwd()
+	root, err := catalogOwnerRoot("catalog bootSmoke")
 	if err != nil {
 		return err
 	}
-	coreRoot := envOrDefault(agentCoreRootEnv, filepath.Join(filepath.Dir(root), "agent-core"))
+	coreRoot, err := resolveAgentCoreRoot(root)
+	if err != nil {
+		return err
+	}
 	return bootSmoke(root, coreRoot)
 }
 

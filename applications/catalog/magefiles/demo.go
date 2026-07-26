@@ -3,7 +3,6 @@
 package main
 
 import (
-	"fmt"
 	"os"
 	"os/exec"
 	"path/filepath"
@@ -18,11 +17,14 @@ type Demo mg.Namespace
 
 // KnowledgeManager builds agent-core and runs the shipped documentation-curator profile.
 func (Demo) KnowledgeManager() error {
-	profilesRoot, err := os.Getwd()
+	profilesRoot, err := catalogOwnerRoot("catalog demo:knowledgeManager")
 	if err != nil {
-		return fmt.Errorf("resolve agent-profiles root: %w", err)
+		return err
 	}
-	coreRoot := envOrDefault(agentCoreRootEnv, filepath.Join(filepath.Dir(profilesRoot), "agent-core"))
+	coreRoot, err := resolveAgentCoreRoot(profilesRoot)
+	if err != nil {
+		return err
+	}
 	binary, err := buildIntegrationAgent(coreRoot)
 	if err != nil {
 		return err

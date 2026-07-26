@@ -40,11 +40,14 @@ type commandRunner func(name string, args ...string) error
 // Validate checks bundle-owned path policy, then delegates all runtime
 // configuration semantics to agent-core's canonical --validate-config path.
 func Validate() error {
-	root, err := os.Getwd()
+	root, err := catalogOwnerRoot("catalog validate")
 	if err != nil {
 		return err
 	}
-	coreRoot := envOrDefault(agentCoreRootEnv, filepath.Join(filepath.Dir(root), "agent-core"))
+	coreRoot, err := resolveAgentCoreRoot(root)
+	if err != nil {
+		return err
+	}
 	if err := validatePortableProfileRefs(root, coreRoot); err != nil {
 		return err
 	}
@@ -56,11 +59,14 @@ func Validate() error {
 
 // ContainerSmoke runs one profile from /profiles with an agent-core image.
 func ContainerSmoke() error {
-	root, err := os.Getwd()
+	root, err := catalogOwnerRoot("catalog containerSmoke")
 	if err != nil {
 		return err
 	}
-	coreRoot := envOrDefault(agentCoreRootEnv, filepath.Join(filepath.Dir(root), "agent-core"))
+	coreRoot, err := resolveAgentCoreRoot(root)
+	if err != nil {
+		return err
+	}
 	if err := requireDocker(exec.LookPath); err != nil {
 		return err
 	}

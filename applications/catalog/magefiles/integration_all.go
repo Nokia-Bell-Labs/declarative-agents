@@ -14,11 +14,14 @@ import (
 // (not failed) when no agent-core checkout is reachable, so the aggregate stays
 // usable in a profiles-only checkout.
 func (i Integration) All() error {
-	profilesRoot, err := os.Getwd()
+	profilesRoot, err := catalogOwnerRoot("catalog integration:all")
 	if err != nil {
 		return err
 	}
-	coreRoot := envOrDefault(agentCoreRootEnv, filepath.Join(filepath.Dir(profilesRoot), "agent-core"))
+	coreRoot, err := resolveAgentCoreRoot(profilesRoot)
+	if err != nil {
+		return err
+	}
 	coreAvailable := agentCoreCheckoutAvailable(coreRoot)
 
 	targets := []struct {

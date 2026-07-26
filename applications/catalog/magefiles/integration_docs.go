@@ -32,11 +32,14 @@ type documentationCuratorConfig struct {
 
 // DocumentationCurator proves the Knowledge Manager profile UX and lifecycle tracer.
 func (Integration) DocumentationCurator() error {
-	profilesRoot, err := os.Getwd()
+	profilesRoot, err := catalogOwnerRoot("catalog integration:documentationCurator")
 	if err != nil {
 		return err
 	}
-	coreRoot := envOrDefault(agentCoreRootEnv, filepath.Join(filepath.Dir(profilesRoot), "agent-core"))
+	coreRoot, err := resolveAgentCoreRoot(profilesRoot)
+	if err != nil {
+		return err
+	}
 	cfg, cleanup, err := prepareDocumentationCuratorIntegration(profilesRoot, coreRoot)
 	if err != nil {
 		return err

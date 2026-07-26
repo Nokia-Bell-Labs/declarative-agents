@@ -13,7 +13,7 @@ import (
 // action through the bench REST route, and observes the profile dispatching the
 // configured critic child.
 func (Integration) BenchEvaluator() error {
-	profilesRoot, err := os.Getwd()
+	profilesRoot, err := catalogOwnerRoot("catalog integration:benchEvaluator")
 	if err != nil {
 		return err
 	}

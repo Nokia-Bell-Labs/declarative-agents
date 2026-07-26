@@ -214,6 +214,15 @@ workspace.
 agent --profile "$(pwd)/agents/executor/profile.yaml" --directory /path/to/workspace
 ```
 
+Application tooling that consumes this source tree uses
+`AGENT_CATALOG_ROOT`. Relative values are resolved once against the command's
+startup directory. During Release 99.0 only, `AGENT_PROFILES_ROOT` is accepted
+as a deprecated alias when `AGENT_CATALOG_ROOT` is unset. If both are set, they
+must clean to the same absolute path; otherwise the command fails before doing
+work. The alias is removed after Release 99.0. These variables select a source
+checkout and do not change the packaged `/profiles` mount, compatibility tag,
+or recorded source provenance.
+
 From the **agent-core** checkout, integration Mage targets consume this tree
 through the external profile path rules documented there. Read the agent-core
 README and runtime contract before wiring CI.
@@ -352,10 +361,9 @@ mage validate
 
 After the source move, run repository-local validation with
 `AGENT_CORE_ROOT="$(git rev-parse --show-toplevel)/agent-core" mage validate`.
-The existing fallback still probes a sibling `agent-core` directory relative to
-this module root and therefore resolves to `applications/agent-core`; changing
-that cross-module discovery behavior belongs to the catalog-root and
-root-orchestration issues.
+When `AGENT_CORE_ROOT` is unset, catalog Mage targets resolve the monorepo
+checkout at `../../agent-core` from this owner root. Relative
+`AGENT_CORE_ROOT` values are also interpreted from this owner root.
 
 With an `agent-core` image available, run the mounted-profile container smoke
 check:
