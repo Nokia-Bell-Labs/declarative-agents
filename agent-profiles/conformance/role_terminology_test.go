@@ -15,6 +15,7 @@ func TestCurrentRoleContractsUseCanonicalNames(t *testing.T) {
 	for _, rel := range []string{
 		"docs/specs/software-requirements/srd001-agent-functional-blocks.yaml",
 		"docs/specs/software-requirements/srd004-planner.yaml",
+		"docs/specs/software-requirements/srd006-bench.yaml",
 	} {
 		data, err := os.ReadFile(ProfilePath(rel))
 		if err != nil {
