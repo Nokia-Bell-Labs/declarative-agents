@@ -399,8 +399,10 @@ overview:
     budget before calling StateMachine.Step. When Step returns a Command, the
     loop enters the next state, dispatches the Command, records its event and
     checkpoint entry, and calls the OnResult hook before resolving a terminal
-    destination. An actionless transition to a terminal state resolves
-    RunStatus immediately without dispatch.
+    destination. An actionless transition to a terminal state appends no
+    command Entry; it persists the terminal Position with the unchanged
+    Execution before resolving RunStatus. A stateful persistence failure makes
+    the run fail instead of reporting an undurable terminal result.
 
     Completion. Loop sets Duration, logs a summary, and returns
     RunResult to the caller. The domain agent can extend RunResult
@@ -418,7 +420,10 @@ overview:
       E -->|No| F[StateMachine.Step]
       F --> G{Command present}
       G -->|No| N{Terminal destination}
-      N -->|Yes| L[Resolve RunStatus]
+      N -->|Yes| Q[Persist terminal Position<br/>with unchanged Execution]
+      Q --> R{Persistence succeeded}
+      R -->|Yes| L[Resolve RunStatus]
+      R -->|No| S[StatusFailed]
       N -->|No| O[Report nil command]
       G -->|Yes| H[Dispatch and record Command]
       H --> I[Accumulate cost]
@@ -426,6 +431,7 @@ overview:
       P -->|Yes| L
       P -->|No| D
       L --> M[Return RunResult]
+      S --> M
     ```
 
   runtime_sequence: |
