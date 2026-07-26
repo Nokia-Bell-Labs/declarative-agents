@@ -1,10 +1,16 @@
 # Operator Port
 
-This chapter presents the Operator Port pattern, which attaches a control-plane server to a running engine. Observers can query current state and dispatch history; controllers can inject signals into the next dispatch cycle. The machine's declared state space defines what queries and injections are valid; the engine and tools are unmodified.
+This chapter presents the Operator Port pattern, which attaches an observation and control surface to a running engine. It separates the shipped monitor profile, runtime-only lifecycle-control conformance, and the broader signal-injection and rollback design intent.
 
 ## Intent
 
 Attach a control-plane server to the running engine so observers can query execution state and controllers can inject signals, all within the machine's declared state space.
+
+## Reference implementation status
+
+The shipped `agent-profiles/agents/monitor` profile owns read routes for machine, state, tools, metrics, recent events, event SSE, and OpenAPI. Its only control route is `POST /monitor/control/exit`, which emits `ExitRequested`. The listener binds `127.0.0.1:0`; supervisors discover the selected address from the REST launch output.
+
+The REST runtime has conformance-tested `lifecycle_control` and `inject_signal` bindings, but no production profile selects them. Arbitrary signal injection, pause/resume/rollback control, PID-file discovery, coding-agent rollback, multi-agent polling, and checkpoint restoration by a lifecycle agent remain design intent.
 
 
 ## Motivation
@@ -40,15 +46,15 @@ A bounded in-memory ring of the most recent N events, serving REST reads, SSE st
 
 #### RestServer
 
-Exposes the store and queue over HTTP.
+Exposes profile-declared routes over HTTP. Route paths and bindings belong to the profile, not to a fixed server API.
 
 #### EventQueue
 
-A bounded channel from the control endpoints to the dispatch loop; the engine dequeues at its next cycle, and a full queue returns backpressure.
+A bounded channel from signal-producing endpoints to the dispatch loop. The shipped monitor profile uses it only for `ExitRequested`; broader lifecycle control is covered by runtime conformance tests.
 
 #### LifecycleTool
 
-A *separate* agent (its own machine and profile) that operates on persisted checkpoints rather than the live process, so it survives restarts and manages terminated agents.
+A proposed separate agent that would operate on persisted checkpoints after the live process exits. No production lifecycle-tool profile ships.
 
 #### LoopHooks
 
@@ -57,18 +63,31 @@ In-process policy callbacks (before/after dispatch, on state change, on budget t
 
 ## Collaborations
 
-After each dispatch, once the transition is committed so recording can neither block nor alter it, the engine hands the recorder a RunEvent (state, signal, tool, result, iteration, timestamp, remaining budget), which the store appends and pushes to connected SSE clients.
+After each dispatch, once the transition is committed, the engine hands the recorder a RunEvent (state, signal, tool, result, iteration, timestamp, remaining budget). The store retains a bounded recent window and feeds snapshot and SSE bindings.
 
-The **read plane** is two HTTP endpoints: `/read_state` returns a non-blocking snapshot (current state, last signal, iteration, budget, recent events), and `/stream_events` pushes each RunEvent over SSE (clients that fall behind get a gap indicator, not backlog). OTel metrics export the same data as gauges and counters for standard dashboards.
+The shipped monitor profile declares these routes:
 
-The **control plane** injects signals, traced by the sequence diagram in Fig. 32. `/emit_signal` enqueues a signal the engine dequeues and routes like any other, looking it up in the machine and dispatching the resulting tool, rejecting it with a machine-violation error if the current state has no such transition. `/lifecycle_control` accepts pause/resume/exit/rollback, which translate to internal signals (pause reuses the Approval Gate, Chapter 10; rollback the checkpoint mechanism, Chapter 7). Injection is safe because the machine validates it: an external controller cannot reach an undeclared state or fire an undefined transition. The machine is the authority; the probe is a messenger.
+| Method and path | Binding and view |
+|---|---|
+| `GET /monitor/machine` | `read_state`: machine specification |
+| `GET /monitor/state` | `read_state`: current state |
+| `GET /monitor/tools` | `read_state`: tool inventory |
+| `GET /monitor/metrics` | `read_state`: metric snapshot |
+| `GET /monitor/events` | `read_state`: recent events |
+| `GET /monitor/events/stream` | `stream_events`: event SSE |
+| `GET /monitor/openapi` | `static_metadata`: generated route description |
+| `POST /monitor/control/exit` | `emit_signal`: `ExitRequested` |
+
+The REST runtime also implements generic `emit_signal` and `lifecycle_control` bindings. Tests prove queueing, policy validation, and lifecycle action mapping, but these binding names are not endpoint paths and no production profile selects arbitrary injection, pause, resume, or rollback.
+
+Signal injection in Fig. 32 is the complete pattern and current conformance behavior, not the shipped monitor profile's HTTP surface. A profile that selects the binding must declare the path, allowed signal, and machine transition.
 
 ![](figures/fig-33-signal-injection.png)
 
-| **Figure 32.** Sequence diagram. Control-plane signal injection: `/emit_signal` validates the signal against the machine, enqueues it, and the engine dequeues and routes it at its next cycle. {wide} |
+| **Figure 32.** Sequence diagram of the generic injection binding. The shipped monitor profile selects only the exit signal route. {wide} |
 |:---:|
 
-When the live process is gone, a LifecycleTool (an ordinary agent whose machine browses checkpoint history, selects a restore point, and triggers restoration) operates on persisted state instead. This is the Machine Interpreter applied to its own operations: recursion, not special-casing.
+A lifecycle agent that browses checkpoint history and restores terminated runs remains design intent; no such production profile is part of the shipped monitor surface.
 
 
 ## Consequences
@@ -81,11 +100,11 @@ Operators see current state, history, and resource use via non-blocking reads.
 
 #### Control through declared transitions
 
-Injected signals obey the same machine rules as internal ones; there is no backdoor, and the machine is the authorization policy.
+For profiles that select a control binding, injected signals obey the same machine rules as internal ones; there is no backdoor, and the machine is the authorization policy.
 
 #### Machine-validated safety
 
-A signal invalid in the current state is rejected, so an operator cannot corrupt the machine (injecting `RollbackRequested` outside `Suspended` errors rather than breaking it).
+The runtime rejects a signal invalid in the current state. `RollbackRequested` is illustrative design intent; no shipped profile declares that signal.
 
 #### Independent of business logic
 
@@ -108,15 +127,28 @@ Per-dispatch recording adds bounded but non-zero latency, measurable for agents 
 
 ## Implementation
 
-The probe is opt-in: one flag gates the recorder, store, and REST server, so short-lived agents pay nothing:
+The monitor is profile-owned and opt-in: selecting its machine, tools, and REST definition activates the recorder and listener. The checked-in server requests an ephemeral loopback port:
 
 ```yaml
-monitor: { enabled: true, ring_capacity: 500, rest_port: 8080, otel_export: true }
+servers:
+  monitor:
+    address: 127.0.0.1:0
+    endpoints:
+      current_state:
+        method: GET
+        path: /monitor/state
+        binding: read_state
+        monitor_view: current_state
+      control_exit:
+        method: POST
+        path: /monitor/control/exit
+        binding: emit_signal
+        signal: ExitRequested
 ```
 
-The HTTP interface is four endpoints: `/read_state` (GET snapshot), `/stream_events` (GET SSE), `/emit_signal` (POST, 400 if the machine rejects), and `/lifecycle_control` (POST administrative command). Agents publish their REST address to a well-known file derived from PID and profile, so orchestrators and lifecycle tools locate them without port scanning.
+`launch_rest_server` returns structured output containing the bound `address`. Supervisors, including the CLI proof, construct the base URL from that output rather than using a PID/profile discovery file or a fixed port.
 
-Checkpointing rides on the dispatch loop: after each step the engine saves the Position and the appended Execution entry through the typed checkpoint port — committed per step by the Dolt backend — as a side effect that produces no signal and does not affect the transition, which keeps checkpoint logic out of the machine. Runs that need no persistence bind `NoopCheckpoint` and pay nothing. Note the probe is not the bench UI (profile REST plus `rest_await_event`): the probe observes live, in-memory, in-progress executions; the bench reads completed trace files and classifies them (Chapter 11). Same data formats, different temporal scope.
+Monitor reads use the live in-memory store and do not provide durable history. Checkpointing is a separate runtime concern through the typed checkpoint port. The monitor is also distinct from the bench UI: monitor routes observe a live run, while bench evaluates completed trace artifacts (Chapter 11).
 
 
 ## Relationships in the Pattern Language
@@ -126,9 +158,11 @@ Operator Port sits within Machine Interpreter and requires Machine Interpreter, 
 
 ## Known Uses
 
-**Long-running coding agents.** A coding agent on a large task exposes its probe on localhost; the operator watches transitions stream past (Composing, Validating, Composing-retry, …), spots three Stuck-pattern cycles, and injects `RollbackRequested` to restore the last checkpoint and let it try a different approach.
+**Shipped monitor profile.** `agents/monitor` serves profile-owned state, metrics, event, SSE, OpenAPI, and exit routes. Its CLI proof discovers the ephemeral loopback address from launch output, reads live state and metrics, posts `/monitor/control/exit`, and observes a successful terminal state.
 
-**Multi-agent orchestration.** A bench spawning 50 generators across a cluster polls each one's `/read_state` into a live dashboard (30 Composing, 12 Validating, 5 Succeeded, 3 Failed) and sends `lifecycle_control?action=exit` to gracefully stop any that overrun, rather than killing the process. When an agent crashes mid-run, a lifecycle agent loads its checkpoint history and restores the last stable point (say iteration 180), so a fresh process resumes without re-executing the first 180 iterations.
+**Long-running coding-agent intervention (design intent).** Watching coding transitions, detecting cycles, and injecting `RollbackRequested` is not implemented by a shipped profile.
+
+**Multi-agent supervision (design intent).** Polling many child monitors, issuing generic lifecycle-control actions, and restoring a crashed child through a lifecycle agent are not shipped orchestration behavior.
 
 **Control planes over running processes.** The pattern recurs wherever a live process exposes declared inspection and control endpoints. **Kubernetes liveness and readiness probes** [@k8s-probes] let a control plane query and act on a running workload through declared endpoints without killing it; **Temporal signals and queries** [@temporal-2024] expose query handlers for inspection and signal handlers for external steering while preserving workflow state and history; and **Erlang/OTP system messages** [@erlang-sys-2024] give processes standardized debug, trace, suspend, resume, and status operations without changing process logic.
 

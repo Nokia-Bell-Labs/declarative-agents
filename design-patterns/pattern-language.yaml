@@ -1325,7 +1325,10 @@ patterns:
       for the next dispatch cycle and return a machine-violation error if the
       current state has no matching transition. Bind endpoints locally or add
       authentication; the pattern supplies attachment points, not a security
-      model.
+      model. The shipped monitor profile owns /monitor read, SSE, OpenAPI, and
+      exit routes and discovers its ephemeral address from launch output.
+      Generic injection and lifecycle-control bindings have conformance tests
+      but no production profile; rollback intervention remains design intent.
     consequences:
       benefits:
         - Live inspection without stopping, and control through declared transitions only.
@@ -1340,10 +1343,9 @@ patterns:
       enables: []
       overlaps: [transition-spans]
     syntax: >
-      Over a Machine Interpreter, attach an Operator Port whose pause reuses the
-      Approval Gate and whose rollback reuses the Bidirectional Log; unlike Transition
-      Spans it observes live, in-progress executions rather than
-      completed trace files.
+      Over a Machine Interpreter, attach an Operator Port whose read plane
+      observes live execution; a complete control plane may reuse Approval Gate
+      for pause and Bidirectional Log for rollback.
     examples:
       - system: Kubernetes liveness and readiness probes
         cite: k8s-probes
@@ -1365,6 +1367,83 @@ patterns:
         cite: otel-spec-2024
         kind: external
         note: The same instrumentation feed exported as live gauges and counters for real-time dashboards of an in-progress run.
+      - system: Reference implementation — profile-owned monitor routes
+        cite: reference-implementation
+        kind: internal
+        note: The shipped monitor profile owns its read, SSE, OpenAPI, and ExitRequested routes; the CLI proof discovers the ephemeral loopback address from REST launch output.
+        evidence:
+          classification: shipped
+          checks:
+            - path: agent-profiles/agents/monitor/profile.yaml
+              artifact: profile
+              assertion: yaml_reference
+              field: rest_definitions
+              target: agent-profiles/agents/monitor/rest.yaml
+              target_artifact: rest_definition
+            - path: agent-profiles/agents/monitor/rest.yaml
+              artifact: rest_definition
+              assertion: yaml_value
+              field: rest.servers.monitor.address
+              equals: "127.0.0.1:0"
+            - path: agent-profiles/agents/monitor/rest.yaml
+              artifact: rest_definition
+              assertion: yaml_value
+              field: rest.servers.monitor.endpoints.machine_spec.path
+              equals: /monitor/machine
+            - path: agent-profiles/agents/monitor/rest.yaml
+              artifact: rest_definition
+              assertion: yaml_value
+              field: rest.servers.monitor.endpoints.current_state.path
+              equals: /monitor/state
+            - path: agent-profiles/agents/monitor/rest.yaml
+              artifact: rest_definition
+              assertion: yaml_value
+              field: rest.servers.monitor.endpoints.tools.path
+              equals: /monitor/tools
+            - path: agent-profiles/agents/monitor/rest.yaml
+              artifact: rest_definition
+              assertion: yaml_value
+              field: rest.servers.monitor.endpoints.metrics.path
+              equals: /monitor/metrics
+            - path: agent-profiles/agents/monitor/rest.yaml
+              artifact: rest_definition
+              assertion: yaml_value
+              field: rest.servers.monitor.endpoints.recent_events.path
+              equals: /monitor/events
+            - path: agent-profiles/agents/monitor/rest.yaml
+              artifact: rest_definition
+              assertion: yaml_value
+              field: rest.servers.monitor.endpoints.event_stream.path
+              equals: /monitor/events/stream
+            - path: agent-profiles/agents/monitor/rest.yaml
+              artifact: rest_definition
+              assertion: yaml_value
+              field: rest.servers.monitor.endpoints.openapi.path
+              equals: /monitor/openapi
+            - path: agent-profiles/agents/monitor/rest.yaml
+              artifact: rest_definition
+              assertion: yaml_value
+              field: rest.servers.monitor.endpoints.control_exit.path
+              equals: /monitor/control/exit
+            - path: agent-core/cmd/agent/main_monitor_test.go
+              artifact: go_test
+              assertion: go_test
+              test: TestMonitorReleaseProfileProof
+            - path: agent-core/cmd/agent/main_monitor_test.go
+              artifact: go_test
+              assertion: go_test
+              test: TestMonitorCLIProfileServesUntilControlExit
+      - system: Reference implementation — lifecycle-control binding conformance fixture
+        cite: reference-implementation
+        kind: internal
+        note: The runtime conformance fixture proves lifecycle-control queueing and validation, but no production profile selects generic injection, pause, resume, or rollback bindings.
+        evidence:
+          classification: conformance_fixture
+          checks:
+            - path: agent-core/internal/tools/rest/server_lifecycle_test.go
+              artifact: go_test
+              assertion: go_test
+              test: TestRESTServer_ControlQueueAndReadPolicyConformance
       - system: Design intent — long-running coding agents
         cite: reference-implementation
         kind: internal

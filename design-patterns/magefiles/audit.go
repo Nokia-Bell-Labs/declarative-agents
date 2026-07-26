@@ -49,6 +49,7 @@ type evidenceCheck struct {
 	Type            string            `yaml:"type"`
 	Fields          []string          `yaml:"fields"`
 	Field           string            `yaml:"field"`
+	Equals          string            `yaml:"equals"`
 	Target          string            `yaml:"target"`
 	TargetArtifact  string            `yaml:"target_artifact"`
 	SameFields      []string          `yaml:"same_fields"`
@@ -151,7 +152,7 @@ func runEvidenceCheck(repositoryRoot, label string, check evidenceCheck) error {
 		return fmt.Errorf("%s: resolve repository root: %w", label, err)
 	}
 	switch check.Assertion {
-	case "go_test", "go_symbol", "go_composite_literal", "yaml_fields", "yaml_reference", "yaml_transition", "yaml_sequence_match":
+	case "go_test", "go_symbol", "go_composite_literal", "yaml_fields", "yaml_value", "yaml_reference", "yaml_transition", "yaml_sequence_match":
 		path, err := resolveEvidencePath(root, check.Path)
 		if err != nil {
 			return fmt.Errorf("%s: %w", label, err)
@@ -168,6 +169,8 @@ func runEvidenceCheck(repositoryRoot, label string, check evidenceCheck) error {
 			return validateGoCompositeLiteral(path, check.Function, check.Type)
 		case "yaml_fields":
 			return validateYAMLFields(path, check.Fields)
+		case "yaml_value":
+			return validateYAMLValue(path, check.Field, check.Equals)
 		case "yaml_reference":
 			return validateYAMLReference(root, path, check)
 		case "yaml_transition":
@@ -222,7 +225,7 @@ func validateArtifact(path, artifact string) error {
 		}
 		_, err = parser.ParseFile(token.NewFileSet(), path, nil, 0)
 		return err
-	case "machine", "profile", "tool_declaration", "tool_selection":
+	case "machine", "profile", "rest_definition", "tool_declaration", "tool_selection":
 		doc, err := readYAMLMap(path)
 		if err != nil {
 			return err
@@ -256,6 +259,15 @@ func validateYAMLArtifact(doc map[string]any, artifact string) error {
 	if artifact == "profile" {
 		if _, ok := doc["machine"].(string); !ok {
 			return errors.New("profile machine must be a string reference")
+		}
+	}
+	if artifact == "rest_definition" {
+		rest, ok := doc["rest"].(map[string]any)
+		if !ok {
+			return errors.New("rest_definition requires a rest mapping")
+		}
+		if _, ok := rest["servers"].(map[string]any); !ok {
+			return errors.New("rest_definition requires rest.servers")
 		}
 	}
 	if artifact == "tool_declaration" || artifact == "tool_selection" {
@@ -443,6 +455,22 @@ func validateYAMLFields(path string, fields []string) error {
 		if _, ok := yamlField(doc, field); !ok {
 			return fmt.Errorf("YAML field %q is absent", field)
 		}
+	}
+	return nil
+}
+
+func validateYAMLValue(path, field, expected string) error {
+	doc, err := readYAMLMap(path)
+	if err != nil {
+		return err
+	}
+	value, ok := yamlField(doc, field)
+	if !ok {
+		return fmt.Errorf("YAML field %q is absent", field)
+	}
+	if fmt.Sprint(value) != expected {
+		return fmt.Errorf("YAML field %q = %q, want %q",
+			field, fmt.Sprint(value), expected)
 	}
 	return nil
 }

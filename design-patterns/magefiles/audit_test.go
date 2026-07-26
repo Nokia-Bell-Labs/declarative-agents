@@ -242,6 +242,30 @@ func TestReferenceEvidenceRejectsBehaviorallyFalseYAMLRelationship(t *testing.T)
 	}
 }
 
+func TestReferenceEvidenceValidatesRESTArtifactValues(t *testing.T) {
+	root := t.TempDir()
+	writeAuditFixture(t, filepath.Join(root, "rest.yaml"), `rest:
+  servers:
+    monitor:
+      address: 127.0.0.1:0
+      endpoints:
+        state: {path: /monitor/state}
+`)
+	check := evidenceCheck{
+		Path: "rest.yaml", Artifact: "rest_definition",
+		Assertion: "yaml_value",
+		Field:     "rest.servers.monitor.endpoints.state.path",
+		Equals:    "/monitor/state",
+	}
+	if err := runEvidenceCheck(root, "REST route", check); err != nil {
+		t.Fatal(err)
+	}
+	check.Equals = "/read_state"
+	if err := runEvidenceCheck(root, "REST route", check); err == nil {
+		t.Fatal("false REST route value accepted")
+	}
+}
+
 func TestRepositoryReferenceImplementationEvidence(t *testing.T) {
 	if err := auditReferenceImplementationEvidence("../pattern-language.yaml", "../.."); err != nil {
 		t.Fatalf("repository evidence audit: %v", err)
@@ -271,6 +295,47 @@ func TestApprovalGateChapterUsesCurrentCLIAndLabelsScope(t *testing.T) {
 		if strings.Contains(chapter, stale) {
 			t.Errorf("Approval Gate chapter retains unsupported CLI %q", stale)
 		}
+	}
+}
+
+func TestOperatorPortChapterUsesShippedRoutesAndDiscovery(t *testing.T) {
+	chapterData, err := os.ReadFile(filepath.Join("..", "12-operator-port.md"))
+	if err != nil {
+		t.Fatal(err)
+	}
+	chapter := string(chapterData)
+	for _, required := range []string{
+		"/monitor/machine",
+		"/monitor/state",
+		"/monitor/tools",
+		"/monitor/metrics",
+		"/monitor/events",
+		"/monitor/events/stream",
+		"/monitor/openapi",
+		"/monitor/control/exit",
+		"REST launch output",
+		"conformance",
+		"design intent",
+		"PID/profile discovery file",
+	} {
+		if !strings.Contains(chapter, required) {
+			t.Errorf("Operator Port chapter missing %q", required)
+		}
+	}
+	for _, stale := range []string{
+		"`/read_state`", "`/stream_events`", "`/emit_signal`", "`/lifecycle_control`",
+	} {
+		if strings.Contains(chapter, stale) {
+			t.Errorf("Operator Port chapter retains invented endpoint %s", stale)
+		}
+	}
+	srd, err := os.ReadFile(filepath.Join("..", "..", "agent-core", "docs", "specs",
+		"software-requirements", "srd033-monitor-rest-api.yaml"))
+	if err != nil {
+		t.Fatal(err)
+	}
+	if !strings.Contains(string(srd), "discover the bound address from the REST server launch output") {
+		t.Fatal("monitor SRD no longer defines launch-output address discovery")
 	}
 }
 
