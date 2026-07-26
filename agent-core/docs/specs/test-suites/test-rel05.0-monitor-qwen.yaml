@@ -14,7 +14,7 @@ preconditions:
 test_cases:
   - use_case: rel05.0-uc001-qwen-monitor-token-progress
     name: Qwen monitor token metrics increase during live run
-    go_test: mage integration:uc008
+    go_test: mage integration:ollamaMonitor
     status: implemented
     description: |
       Generate a temporary Qwen/Ollama REST profile that starts the embedded

@@ -15,8 +15,8 @@ entry marked "No code consumer" is metadata and is not an executable test input.
 | `rel07-evaluator-generator/` | Retired fixture retained for conformance compatibility; the former Mage tracer used a fake child. Replacement: `examples/coding-agent` / `mage integration:criticGate`. | `test-rel07.0-profile-integrations` | `rel07.0-uc002-evaluator-generator-profile-boundary` |
 | `rel07-monitor-control/` | agent-profiles / `magefiles/integration_monitor_control.go` (`mage integration:monitorControl`) | `test-rel07.0-profile-integrations` | `rel07.0-uc005-monitor-control-profile-boundary` |
 | `rel07-planner-generator/` | Retired fixture retained as historical data; the former Mage tracer synthesized planner behavior and used a fake child. Replacement: `examples/coding-agent` / `mage integration:plannerDelegation`. | `test-rel07.0-profile-integrations` | `rel07.0-uc003-planner-generator-profile-boundary` |
-| `uc001-generator-coding/` | agent-core / `magefiles/integration.go:198` (`mage integration:uc001`, run with `AGENT_PROFILES_ROOT` pointing here) | agent-core `test-rel01.0` | agent-core `rel01.0-uc001` |
-| `uc002-evaluator-benchmark/` | agent-core / `magefiles/integration.go:199` (`mage integration:uc002`, run with `AGENT_PROFILES_ROOT` pointing here) | agent-core `test-rel01.0` | agent-core `rel01.0-uc002` |
+| `uc001-generator-coding/` | Retired core fixture. Replacement: `examples/coding-agent` / `mage integration:executorLive`. | agent-core `test-rel01.0` | agent-core `rel01.0-uc001` |
+| `uc002-evaluator-benchmark/` | Retired core fixture retained as benchmark sample data. Application gate replacement: `examples/coding-agent` / `mage integration:criticGate`. | agent-core `test-rel01.0` | agent-core `rel01.0-uc002` |
 | `rel04-monitor/` | No code consumer. Proof-metadata record cited by docs (see below). | `test-rel06.0-agent-profiles` | agent-core `rel04.0-monitor` |
 
 Note: `mage integration:documentationCurator` (`rel07.0-uc001`) and
@@ -29,7 +29,7 @@ inputs under `testdata/integration/`, so they have no rows above.
 `rel04-monitor/monitor-rest.yaml` is not read by any Go code in either repository;
 it is a proof-metadata record that documents where the monitor profile proof
 actually lives (agent-core Go tests such as `TestMonitorReleaseProfileProof` and
-`mage integration:uc004`). It is retained rather than deleted because it has real
+`mage integration:monitor`). It is retained rather than deleted because it has real
 documentation consumers:
 
 - `agent-profiles/README.md` ("records the monitor profile proof metadata").

@@ -182,7 +182,7 @@ releases:
       The monitor is not a Kubernetes sidecar, daemon, or required external
       process. External collectors and supervisors may read or receive exported
       data, but the runtime owns the cache and recorder ports. The release proof
-      is mage integration:uc004.
+      is mage integration:monitor.
     status: done
     srds:
       - srd032-tool-metrics-monitor-store
@@ -226,7 +226,7 @@ releases:
         status: implemented
     test_suites:
       - id: test-rel05.0-monitor-qwen
-        summary: Formal test for monitored Qwen token metric progress through mage integration:uc008
+        summary: Formal test for monitored Qwen token metric progress through mage integration:ollamaMonitor
         status: implemented
 
   - version: "06.0"
@@ -259,8 +259,8 @@ releases:
       - go test ./magefiles -run TestDockerfileRuntimeExcludesAgentProfiles
       - go test ./magefiles -run TestContainerBuildSummaryForDocker
       - mage docker
-      - mage integration:uc001
-      - mage integration:uc002
+      - examples/coding-agent mage integration:executorLive
+      - examples/coding-agent mage integration:criticGate
       - agent-profiles mage containerSmoke
     follow_up:
       - id: agent-core-xcbg

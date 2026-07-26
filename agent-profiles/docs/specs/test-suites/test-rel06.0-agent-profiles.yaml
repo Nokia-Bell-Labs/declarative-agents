@@ -138,15 +138,14 @@ test_cases:
       - srd001-agent-functional-blocks R1.3
 
   - use_case: rel06.0-uc001-mounted-profile-execution
-    name: Agent Core generator and evaluator integrations consume profile fixtures
-    go_test: agent-core integration targets
-    integration_target: AGENT_PROFILES_ROOT=/path/to/agent-profiles mage integration:uc001; AGENT_PROFILES_ROOT=/path/to/agent-profiles mage integration:uc002
+    name: Coding application consumes canonical profile closures
+    go_test: examples/coding-agent package and integration targets
+    integration_target: AGENT_PROFILES_ROOT=/path/to/agent-profiles mage integration:codingLoop
     status: implemented
     description: |
-      Run agent-core integration targets from the agent-core repository while
-      AGENT_PROFILES_ROOT points at agent-profiles. uc001 consumes the generator
-      coding fixture. uc002 consumes the evaluator suite, generator profile
-      variants, samples, and oracle workspace from this repository.
+      Run the coding-agent application integration while AGENT_PROFILES_ROOT
+      points at agent-profiles. The application packages and runs the canonical
+      planner, executor, and critic profile closures.
     inputs:
       profile_root: AGENT_PROFILES_ROOT
       generator_fixture: testdata/integration/uc001-generator-coding
@@ -168,11 +167,11 @@ test_cases:
   - use_case: rel06.0-uc001-mounted-profile-execution
     name: Agent Core monitor integration consumes profile assets
     go_test: agent-core integration targets
-    integration_target: AGENT_PROFILES_ROOT=/path/to/agent-profiles mage integration:uc004
+    integration_target: AGENT_PROFILES_ROOT=/path/to/agent-profiles mage integration:monitor
     status: implemented
     description: |
       Run agent-core integration targets from the agent-core repository with
-      AGENT_PROFILES_ROOT pointing at agent-profiles. uc004 consumes the shipped
+      AGENT_PROFILES_ROOT pointing at agent-profiles. monitor consumes the shipped
       monitor profile. The rel04-monitor YAML record is documentation-only
       metadata, not an executable input. Concrete Knowledge Manager/
       documentation-curator proof moves to the profile-owned Rel07 suite.

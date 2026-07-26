@@ -285,7 +285,7 @@ docker run --rm \
   -w /src \
   -e AGENT_PROFILES_ROOT=/profiles/agents \
   agent-core-integration:latest \
-  mage integration:uc001
+  mage integration:monitor
 ```
 
 Recent verification: `mage docker` built `agent-core:latest` from a remote

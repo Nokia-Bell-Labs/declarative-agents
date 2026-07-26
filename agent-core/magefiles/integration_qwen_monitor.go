@@ -21,17 +21,17 @@ const (
 	tokenMetricPollWait = 180 * time.Second
 )
 
-// Uc008 runs rel05.0-uc001: Qwen exposes live token metrics through the embedded monitor.
-func (Integration) Uc008() error {
-	beginUC("uc008")
+// OllamaMonitor proves live LLM token metrics through the embedded monitor.
+func (Integration) OllamaMonitor() error {
+	beginUC("ollamaMonitor")
 	model, err := configuredOllamaModel()
 	if err != nil {
-		return fmt.Errorf("uc008: resolve configured model: %w", err)
+		return fmt.Errorf("ollamaMonitor: resolve configured model: %w", err)
 	}
 	if _, err := requireOllamaModels(model); err != nil {
-		return skipUC("uc008", err.Error())
+		return skipUC("ollamaMonitor", err.Error())
 	}
-	binary, err := buildFreshAgentFor("uc008")
+	binary, err := buildFreshAgentFor("ollamaMonitor")
 	if err != nil {
 		return err
 	}
@@ -41,7 +41,7 @@ func (Integration) Uc008() error {
 	}
 	run, cleanup, err := prepareMonitoredQwenRun(rootDir, model)
 	if err != nil {
-		return fmt.Errorf("uc008: prepare monitored profile: %w", err)
+		return fmt.Errorf("ollamaMonitor: prepare monitored profile: %w", err)
 	}
 	defer cleanup()
 
@@ -50,7 +50,7 @@ func (Integration) Uc008() error {
 	cmd, output, resultCh := startMonitoredQwen(ctx, binary, rootDir, run.profilePath)
 	defer stopProcess(cmd, cancel)
 	if err := waitMonitorHTTP(run.baseURL + "/monitor/state"); err != nil {
-		return fmt.Errorf("uc008: monitor did not become ready: %w\n%s", err, output.String())
+		return fmt.Errorf("ollamaMonitor: monitor did not become ready: %w\n%s", err, output.String())
 	}
 	if err := waitForTokenMetricIncrease(run.baseURL+"/monitor/metrics", resultCh, output); err != nil {
 		return err
@@ -61,7 +61,7 @@ func (Integration) Uc008() error {
 	if err := waitMonitoredQwenExit(resultCh, output); err != nil {
 		return err
 	}
-	fmt.Printf("uc008: PASS - %s monitor token metrics increased while Qwen ran\n", model)
+	fmt.Printf("ollamaMonitor: PASS - %s monitor token metrics increased while Ollama ran\n", model)
 	return nil
 }
 
@@ -71,7 +71,7 @@ type monitoredQwenRun struct {
 }
 
 func prepareMonitoredQwenRun(rootDir, model string) (monitoredQwenRun, func(), error) {
-	tmpDir, err := os.MkdirTemp("", "uc008-qwen-monitor-*")
+	tmpDir, err := os.MkdirTemp("", "ollama-monitor-*")
 	if err != nil {
 		return monitoredQwenRun{}, nil, err
 	}
@@ -173,7 +173,7 @@ func waitForTokenMetricIncrease(url string, resultCh <-chan error, output *bytes
 	for time.Now().Before(deadline) {
 		select {
 		case err := <-resultCh:
-			return fmt.Errorf("uc008: agent exited before token metrics increased: %w\n%s", err, output.String())
+			return fmt.Errorf("ollamaMonitor: agent exited before token metrics increased: %w\n%s", err, output.String())
 		default:
 		}
 		total, ok, err := readTokenMetricTotal(client, url)
@@ -184,7 +184,7 @@ func waitForTokenMetricIncrease(url string, resultCh <-chan error, output *bytes
 		}
 		time.Sleep(500 * time.Millisecond)
 	}
-	return fmt.Errorf("uc008: token metrics did not increase within %s\n%s", tokenMetricPollWait, output.String())
+	return fmt.Errorf("ollamaMonitor: token metrics did not increase within %s\n%s", tokenMetricPollWait, output.String())
 }
 
 func readTokenMetricTotal(client http.Client, url string) (float64, bool, error) {
@@ -237,8 +237,8 @@ func numeric(value interface{}) (float64, bool) {
 }
 
 func postMonitorExit(url string) error {
-	if err := postJSONStatus(url, `{"reason":"uc008 complete"}`, http.StatusAccepted); err != nil {
-		return fmt.Errorf("uc008: post monitor exit: %w", err)
+	if err := postJSONStatus(url, `{"reason":"ollamaMonitor complete"}`, http.StatusAccepted); err != nil {
+		return fmt.Errorf("ollamaMonitor: post monitor exit: %w", err)
 	}
 	return nil
 }
@@ -247,13 +247,13 @@ func waitMonitoredQwenExit(resultCh <-chan error, output *bytes.Buffer) error {
 	select {
 	case err := <-resultCh:
 		if err != nil {
-			return fmt.Errorf("uc008: monitored Qwen run failed: %w\n%s", err, output.String())
+			return fmt.Errorf("ollamaMonitor: monitored Ollama run failed: %w\n%s", err, output.String())
 		}
 		if !strings.Contains(output.String(), "terminal state: succeeded") {
-			return fmt.Errorf("uc008: monitored Qwen run did not report succeeded\n%s", output.String())
+			return fmt.Errorf("ollamaMonitor: monitored Ollama run did not report succeeded\n%s", output.String())
 		}
 		return nil
 	case <-time.After(10 * time.Second):
-		return fmt.Errorf("uc008: monitored Qwen run did not exit after monitor control request\n%s", output.String())
+		return fmt.Errorf("ollamaMonitor: monitored Ollama run did not exit after monitor control request\n%s", output.String())
 	}
 }

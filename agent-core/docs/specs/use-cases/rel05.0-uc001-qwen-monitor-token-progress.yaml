@@ -29,7 +29,7 @@ flow:
   - F9: The integration target posts /monitor/control/exit so the profile stops the monitor listener and exits succeeded.
 
 touchpoints:
-  - T1: "mage integration:uc008 -- live monitored Qwen token progress proof"
+  - T1: "mage integration:ollamaMonitor -- live monitored Ollama token progress proof"
   - T2: "rel03.0-uc005-ollama-openapi-model-listing -- source Qwen REST tool flow"
   - T3: "rel04.0-uc002-monitor-rest-api -- embedded monitor REST snapshot behavior"
   - T4: "srd032-tool-metrics-monitor-store R2, AC2 -- tool-owned specialized metrics"

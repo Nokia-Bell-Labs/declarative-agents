@@ -161,9 +161,10 @@ directory or a planned update to `embeddedUIDirs`.
 Executable coverage proves the bench machine loads, the bench tools
 select `serve_ui` and `launch_eval`, the UI action transitions validate, session
 APIs return evaluation artifacts, and the action endpoint applies single-action
-backpressure. The formal `test-rel01.0` suite records `mage integration:uc003`
-as skipped because browser-level bench UI proof still needs manual
-preconditions.
+backpressure. The former skipped core `integration:uc003` target was removed;
+profile-owned bench conformance runs through
+`agent-profiles mage integration:benchEvaluator`. Browser-level bench UI proof
+still needs manual preconditions.
 
 Migration work has specific gaps. No focused Go test covers
 `GET /api/v1/docs`, docs path traversal rejection, or source path traversal

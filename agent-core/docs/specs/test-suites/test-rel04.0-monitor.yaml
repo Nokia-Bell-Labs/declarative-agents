@@ -21,7 +21,7 @@ test_cases:
   - use_case: rel04.0-uc001-configurable-tool-metrics
     name: End-to-end monitor release proof
     go_test: TestMonitorReleaseProfileProof
-    integration_target: mage integration:uc004
+    integration_target: mage integration:monitor
     status: implemented
     description: |
       Load the external monitor profile through cmd/agent startup helpers. Run
@@ -59,7 +59,7 @@ test_cases:
   - use_case: rel04.0-uc002-monitor-rest-api
     name: Real CLI monitor process stays queryable until exit
     go_test: TestMonitorCLIProfileServesUntilControlExit
-    integration_target: mage integration:uc004
+    integration_target: mage integration:monitor
     status: implemented
     description: |
       Start cmd/agent with ${AGENT_PROFILES_ROOT}/monitor/profile.yaml or an

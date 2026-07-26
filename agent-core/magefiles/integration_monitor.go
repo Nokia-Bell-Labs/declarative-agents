@@ -8,9 +8,9 @@ import (
 	"os/exec"
 )
 
-// Uc004 runs rel04.0: embedded monitor profile proof through cmd/agent wiring.
-func (Integration) Uc004() error {
-	beginUC("uc004")
+// Monitor proves embedded monitor service wiring through cmd/agent.
+func (Integration) Monitor() error {
+	beginUC("monitor")
 	cmd := exec.Command(
 		"go", "test", "./cmd/agent", "./internal/tools/rest",
 		"-run", "TestMonitorReleaseProfileProof|TestMonitorCLIProfileServesUntilControlExit|TestMonitorProfileUsesEphemeralLoopbackDefault|TestMonitorREST_FactoryUsesLiveMonitorState",
@@ -19,8 +19,8 @@ func (Integration) Uc004() error {
 	cmd.Stdout = os.Stdout
 	cmd.Stderr = os.Stderr
 	if err := cmd.Run(); err != nil {
-		return fmt.Errorf("uc004: monitor release proof failed: %w", err)
+		return fmt.Errorf("monitor: embedded service proof failed: %w", err)
 	}
-	fmt.Println("uc004: PASS - monitor profile records and serves live embedded state")
+	fmt.Println("monitor: PASS - embedded service records and serves live state")
 	return nil
 }

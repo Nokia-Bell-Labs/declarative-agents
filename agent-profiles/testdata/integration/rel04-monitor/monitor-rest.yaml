@@ -1,5 +1,5 @@
 profile: agents/monitor/profile.yaml
-integration_target: mage integration:uc004
+integration_target: mage integration:monitor
 go_tests:
   - TestMonitorReleaseProfileProof
   - TestMonitorCLIProfileServesUntilControlExit
