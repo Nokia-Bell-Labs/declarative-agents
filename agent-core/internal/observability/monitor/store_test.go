@@ -57,6 +57,7 @@ func TestToolMetricsRecorder_OwnershipBoundaries(t *testing.T) {
 		Unit:       "ms",
 		Value:      25,
 		ToolName:   "edit",
+		RunID:      "run-1",
 		State:      "Working",
 		Signal:     "ToolDone",
 		Status:     "success",
@@ -69,6 +70,9 @@ func TestToolMetricsRecorder_OwnershipBoundaries(t *testing.T) {
 		Unit:     "{file}",
 		Value:    2,
 		ToolName: "edit",
+		RunID:    "run-1",
+		State:    "Working",
+		Signal:   "ToolDone",
 		Status:   "success",
 	}))
 

@@ -50,10 +50,20 @@ type MetricBinding struct {
 	Attributes []AttributePolicy
 }
 
+// EnvelopePolicy bounds runtime-owned metric envelope labels. RunID is one
+// trusted per-run identity, not a low-cardinality enumeration.
+type EnvelopePolicy struct {
+	RunID     string
+	ToolNames []string
+	States    []string
+	Signals   []string
+}
+
 // RecorderConfig contains the trusted schemas selected during runtime setup.
 type RecorderConfig struct {
 	Bindings         []MetricBinding
 	GlobalAttributes []AttributePolicy
+	Envelope         EnvelopePolicy
 }
 
 // MetricSample is a normalized monitor metric sample.

@@ -19,7 +19,7 @@ func TestMonitorRuntimeOptInProfileSetsLoopRecorder(t *testing.T) {
 	t.Parallel()
 	machine := monitorRuntimeMachine()
 
-	optIn, err := newMonitorRuntime(machine, nil, toolrest.Collection{}, nil)
+	optIn, err := newMonitorRuntime(machine, nil, toolrest.Collection{}, nil, "monitor-runtime-run")
 	require.NoError(t, err)
 	require.NotNil(t, optIn.Store)
 	require.NotNil(t, optIn.Recorder)
@@ -27,7 +27,7 @@ func TestMonitorRuntimeOptInProfileSetsLoopRecorder(t *testing.T) {
 	params := core.LoopParams{MonitorRecorder: optIn.Recorder}
 	require.NotNil(t, params.MonitorRecorder)
 
-	disabled, err := newMonitorRuntime(core.MachineSpec{}, nil, toolrest.Collection{}, nil)
+	disabled, err := newMonitorRuntime(core.MachineSpec{}, nil, toolrest.Collection{}, nil, "")
 	require.NoError(t, err)
 	require.Nil(t, disabled.Store)
 	require.Nil(t, disabled.Recorder)
@@ -35,7 +35,7 @@ func TestMonitorRuntimeOptInProfileSetsLoopRecorder(t *testing.T) {
 
 func TestMonitorRuntimeRecordsDispatchMetricsInStore(t *testing.T) {
 	t.Parallel()
-	runtime, err := newMonitorRuntime(monitorRuntimeMachine(), nil, toolrest.Collection{}, nil)
+	runtime, err := newMonitorRuntime(monitorRuntimeMachine(), nil, toolrest.Collection{}, nil, "monitor-runtime-run")
 	require.NoError(t, err)
 
 	result := runMonitorRuntimeLoop(t, runtime)
@@ -50,7 +50,7 @@ func TestMonitorRuntimeUsesTelemetryMeter(t *testing.T) {
 	t.Parallel()
 	reader := sdkmetric.NewManualReader()
 	provider := sdkmetric.NewMeterProvider(sdkmetric.WithReader(reader))
-	runtime, err := newMonitorRuntime(monitorRuntimeMachine(), nil, toolrest.Collection{}, provider.Meter("agent"))
+	runtime, err := newMonitorRuntime(monitorRuntimeMachine(), nil, toolrest.Collection{}, provider.Meter("agent"), "monitor-runtime-run")
 	require.NoError(t, err)
 
 	_ = runMonitorRuntimeLoop(t, runtime)
@@ -74,7 +74,7 @@ func TestMonitorRuntimeRejectsUnboundedToolAttributeSetup(t *testing.T) {
 		},
 	}}
 
-	_, err := newMonitorRuntime(monitorRuntimeMachine(), defs, toolrest.Collection{}, nil)
+	_, err := newMonitorRuntime(monitorRuntimeMachine(), defs, toolrest.Collection{}, nil, "monitor-runtime-run")
 
 	require.ErrorContains(t, err, `attribute "model" has no bounded allowed values`)
 }
@@ -93,12 +93,13 @@ func TestMonitorRuntimeBindsDeclaredToolAndWorkflowAttributes(t *testing.T) {
 			}},
 		},
 	}}
-	runtime, err := newMonitorRuntime(machine, defs, toolrest.Collection{}, nil)
+	runtime, err := newMonitorRuntime(machine, defs, toolrest.Collection{}, nil, "monitor-runtime-run")
 	require.NoError(t, err)
 
 	require.NoError(t, runtime.Recorder.RecordMetric(context.Background(), monitor.MetricSample{
 		Name: "filesystem.bytes_read", Kind: monitor.InstrumentHistogram, Unit: "By",
-		ToolName: "read", Value: 4,
+		ToolName: "read", RunID: "monitor-runtime-run", State: "Working",
+		Signal: "ToolDone", Status: "success", Value: 4,
 		Attributes: map[string]string{
 			"operation": "read", "profile": "monitor", "secret": "do-not-store",
 		},

@@ -364,6 +364,7 @@ func buildPreparedRun(cmd *cobra.Command, resources runResources) (preparedRun, 
 	shutdown := newDeferredShutdown(loopCancel)
 	monitorRuntime, err := newMonitorRuntime(
 		resources.Machine, resources.Definitions, resources.RestDefinitions, resources.Meter,
+		runID,
 	)
 	if err != nil {
 		return preparedRun{}, closeBuildFailure(err, loopCancel, &checkpoints, resources.shutdownTelemetry)

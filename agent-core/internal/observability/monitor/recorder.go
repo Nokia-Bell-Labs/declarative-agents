@@ -60,7 +60,11 @@ type Recorder struct {
 }
 
 type schemaRegistry struct {
-	metrics map[string]boundMetric
+	metrics   map[string]boundMetric
+	runID     string
+	toolNames map[string]struct{}
+	states    map[string]struct{}
+	signals   map[string]struct{}
 }
 
 type boundMetric struct {
@@ -161,6 +165,12 @@ func (r *Recorder) RecordDiagnostic(_ context.Context, diagnostic Diagnostic) er
 }
 
 func (r *Recorder) validateSample(sample MetricSample) (MetricSample, []error, error) {
+	if sample.Name == "" {
+		return MetricSample{}, nil, fmt.Errorf("monitor metric name required")
+	}
+	if err := r.validateEnvelope(sample); err != nil {
+		return MetricSample{}, nil, err
+	}
 	metric, policy, err := r.sampleSchema(sample)
 	if err != nil {
 		return MetricSample{}, nil, err
@@ -170,6 +180,43 @@ func (r *Recorder) validateSample(sample MetricSample) (MetricSample, []error, e
 	attributes, diagnostics := filterMetricAttributes(sample, policy)
 	normalized.Attributes = attributes
 	return normalized, diagnostics, nil
+}
+
+func (r *Recorder) validateEnvelope(sample MetricSample) error {
+	if sample.ToolName == "" {
+		return fmt.Errorf("monitor metric %q tool name required", sample.Name)
+	}
+	if len(r.schemas.toolNames) > 0 {
+		if _, ok := r.schemas.toolNames[sample.ToolName]; !ok {
+			return fmt.Errorf("monitor metric %q tool name is not configured", sample.Name)
+		}
+	}
+	if sample.RunID == "" {
+		return fmt.Errorf("monitor metric %q run ID required", sample.Name)
+	}
+	if r.schemas.runID != "" && sample.RunID != r.schemas.runID {
+		return fmt.Errorf("monitor metric %q run ID does not match the configured run", sample.Name)
+	}
+	if sample.State == "" {
+		return fmt.Errorf("monitor metric %q state required", sample.Name)
+	}
+	if len(r.schemas.states) > 0 {
+		if _, ok := r.schemas.states[sample.State]; !ok {
+			return fmt.Errorf("monitor metric %q state is not configured", sample.Name)
+		}
+	}
+	if sample.Signal == "" {
+		return fmt.Errorf("monitor metric %q signal required", sample.Name)
+	}
+	if len(r.schemas.signals) > 0 {
+		if _, ok := r.schemas.signals[sample.Signal]; !ok {
+			return fmt.Errorf("monitor metric %q signal is not configured", sample.Name)
+		}
+	}
+	if sample.Status != "success" && sample.Status != "failure" {
+		return fmt.Errorf("monitor metric %q status is invalid", sample.Name)
+	}
+	return nil
 }
 
 func (r *Recorder) sampleSchema(
@@ -241,8 +288,18 @@ func (r *Recorder) recordDiagnostic(sample MetricSample, err error) {
 		Stage:    "record_metric",
 		Message:  err.Error(),
 		Metric:   sample.Name,
-		ToolName: sample.ToolName,
+		ToolName: r.diagnosticToolName(sample.ToolName),
 	})
+}
+
+func (r *Recorder) diagnosticToolName(toolName string) string {
+	if toolName == "" || len(r.schemas.toolNames) == 0 {
+		return toolName
+	}
+	if _, ok := r.schemas.toolNames[toolName]; ok {
+		return toolName
+	}
+	return ""
 }
 
 func attributeNames(attrs map[string]string) []string {
@@ -255,7 +312,13 @@ func attributeNames(attrs map[string]string) []string {
 }
 
 func buildSchemaRegistry(cfg RecorderConfig) (*schemaRegistry, error) {
-	registry := &schemaRegistry{metrics: make(map[string]boundMetric)}
+	registry := &schemaRegistry{
+		metrics:   make(map[string]boundMetric),
+		runID:     cfg.Envelope.RunID,
+		toolNames: stringSet(cfg.Envelope.ToolNames),
+		states:    stringSet(cfg.Envelope.States),
+		signals:   stringSet(cfg.Envelope.Signals),
+	}
 	bindings := append(standardMetricBindings(), cfg.Bindings...)
 	for _, binding := range bindings {
 		policies, err := mergeAttributePolicies(binding.Attributes, cfg.GlobalAttributes)
@@ -282,8 +345,21 @@ func buildSchemaRegistry(cfg RecorderConfig) (*schemaRegistry, error) {
 		existing.runtime = existing.runtime || binding.ToolName == ""
 		existing.tools[binding.ToolName] = policies
 		registry.metrics[schema.Name] = existing
+		if binding.ToolName != "" {
+			registry.toolNames[binding.ToolName] = struct{}{}
+		}
 	}
 	return registry, nil
+}
+
+func stringSet(values []string) map[string]struct{} {
+	set := make(map[string]struct{}, len(values))
+	for _, value := range values {
+		if value != "" {
+			set[value] = struct{}{}
+		}
+	}
+	return set
 }
 
 func standardMetricBindings() []MetricBinding {

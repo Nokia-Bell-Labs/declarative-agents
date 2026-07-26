@@ -34,6 +34,10 @@ func TestMonitorOTelExport_NormalizedSamples(t *testing.T) {
 			{Name: "workflow", AllowedValues: []string{"build"}},
 			{Name: "profile", AllowedValues: []string{"monitor"}},
 		},
+		Envelope: EnvelopePolicy{
+			RunID: "run-1", ToolNames: []string{"build"},
+			States: []string{"Working"}, Signals: []string{"ToolDone"},
+		},
 	})
 	require.NoError(t, err)
 
@@ -84,6 +88,10 @@ func TestMonitorOTelExport_FailureRecordsDiagnosticAndPreservesSample(t *testing
 	store := NewStore(Limits{})
 	rec, err := NewRecorderWithConfig(store, nil, RecorderConfig{
 		GlobalAttributes: []AttributePolicy{{Name: "workflow", AllowedValues: []string{"build"}}},
+		Envelope: EnvelopePolicy{
+			RunID: "run-1", ToolNames: []string{"build"},
+			States: []string{"Working"}, Signals: []string{"ToolDone"},
+		},
 	})
 	require.NoError(t, err)
 	exportErr := errors.New("collector unavailable")
@@ -117,12 +125,17 @@ func TestMonitorRecorderOmitsUndeclaredAndUnboundedAttributesBeforeStoreAndOTel(
 	t.Cleanup(func() { require.NoError(t, provider.Shutdown(context.Background())) })
 	rec, err := NewRecorderWithConfig(store, provider.Meter("monitor-test"), RecorderConfig{
 		GlobalAttributes: []AttributePolicy{{Name: "workflow", AllowedValues: []string{"build"}}},
+		Envelope: EnvelopePolicy{
+			RunID: "run-1", ToolNames: []string{"build"},
+			States: []string{"Working"}, Signals: []string{"ToolDone"},
+		},
 	})
 	require.NoError(t, err)
 
 	require.NoError(t, rec.RecordMetric(context.Background(), MetricSample{
 		Name: "dispatch_count", Kind: InstrumentCounter, Unit: "{dispatch}", Value: 1,
-		ToolName: "build", Signal: "ToolDone", Status: "success",
+		ToolName: "build", RunID: "run-1", State: "Working",
+		Signal: "ToolDone", Status: "success",
 		Attributes: map[string]string{
 			"workflow": "build", "secret": "token-value", "request_id": "request-123",
 		},
@@ -145,6 +158,53 @@ func TestMonitorRecorderOmitsUndeclaredAndUnboundedAttributesBeforeStoreAndOTel(
 	require.False(t, hasRequestID)
 }
 
+func TestMonitorRecorderRejectsUntrustedEnvelopeBeforeStoreAndOTel(t *testing.T) {
+	t.Parallel()
+	store := NewStore(Limits{})
+	reader := sdkmetric.NewManualReader()
+	provider := sdkmetric.NewMeterProvider(sdkmetric.WithReader(reader))
+	t.Cleanup(func() { require.NoError(t, provider.Shutdown(context.Background())) })
+	rec, err := NewRecorderWithConfig(store, provider.Meter("monitor-test"), RecorderConfig{
+		Envelope: EnvelopePolicy{
+			RunID: "run-trusted", ToolNames: []string{"build"},
+			States: []string{"Working"}, Signals: []string{"ToolDone"},
+		},
+	})
+	require.NoError(t, err)
+	valid := MetricSample{
+		Name: "dispatch_count", Kind: InstrumentCounter, Unit: "{dispatch}", Value: 1,
+		ToolName: "build", RunID: "run-trusted", State: "Working",
+		Signal: "ToolDone", Status: "success",
+	}
+	tests := map[string]func(*MetricSample){
+		"tool":      func(sample *MetricSample) { sample.ToolName = "spoofed-tool" },
+		"run":       func(sample *MetricSample) { sample.RunID = "spoofed-run" },
+		"empty run": func(sample *MetricSample) { sample.RunID = "" },
+		"state":     func(sample *MetricSample) { sample.State = "SpoofedState" },
+		"signal":    func(sample *MetricSample) { sample.Signal = "SpoofedSignal" },
+		"status":    func(sample *MetricSample) { sample.Status = "spoofed-status" },
+	}
+	for name, spoof := range tests {
+		sample := valid
+		spoof(&sample)
+		require.Error(t, rec.RecordMetric(context.Background(), sample), name)
+	}
+
+	snapshot := store.Snapshot()
+	require.Empty(t, snapshot.RecentSamples)
+	for _, diagnostic := range snapshot.Diagnostics {
+		require.NotEqual(t, "spoofed-tool", diagnostic.ToolName)
+		for _, spoofed := range []string{
+			"spoofed-tool", "spoofed-run", "SpoofedState", "SpoofedSignal", "spoofed-status",
+		} {
+			require.NotContains(t, diagnostic.Message, spoofed)
+		}
+	}
+	var exported metricdata.ResourceMetrics
+	require.NoError(t, reader.Collect(context.Background(), &exported))
+	require.False(t, hasExportedMetric(exported, valid.Name))
+}
+
 func TestMonitorRecorderRejectsConflictingSchemasAtSetup(t *testing.T) {
 	t.Parallel()
 	_, err := NewRecorderWithConfig(NewStore(Limits{}), nil, RecorderConfig{
@@ -154,6 +214,17 @@ func TestMonitorRecorderRejectsConflictingSchemasAtSetup(t *testing.T) {
 		},
 	})
 	require.ErrorContains(t, err, `metric schema "tool.bytes" conflicts`)
+}
+
+func hasExportedMetric(data metricdata.ResourceMetrics, name string) bool {
+	for _, scope := range data.ScopeMetrics {
+		for _, metric := range scope.Metrics {
+			if metric.Name == name {
+				return true
+			}
+		}
+	}
+	return false
 }
 
 func requireExportedMetric(t *testing.T, data metricdata.ResourceMetrics, name string) metricdata.Metrics {

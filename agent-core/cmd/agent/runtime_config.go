@@ -7,6 +7,7 @@ import (
 	"crypto/rand"
 	"encoding/hex"
 	"fmt"
+	"sort"
 	"strings"
 
 	"github.com/spf13/cobra"
@@ -171,12 +172,13 @@ func newMonitorRuntime(
 	defs []catalog.ToolDef,
 	restDefs toolrest.Collection,
 	meter metric.Meter,
+	runID string,
 ) (monitorRuntime, error) {
 	if !monitorConfigured(machine, defs, restDefs) {
 		return monitorRuntime{}, nil
 	}
 	store := monitor.NewStore(monitor.Limits{})
-	cfg, err := monitorRecorderConfig(machine, defs)
+	cfg, err := monitorRecorderConfig(machine, defs, runID)
 	if err != nil {
 		return monitorRuntime{}, err
 	}
@@ -187,10 +189,11 @@ func newMonitorRuntime(
 	return monitorRuntime{Store: store, Recorder: recorder}, nil
 }
 
-func monitorRecorderConfig(machine core.MachineSpec, defs []catalog.ToolDef) (monitor.RecorderConfig, error) {
+func monitorRecorderConfig(machine core.MachineSpec, defs []catalog.ToolDef, runID string) (monitor.RecorderConfig, error) {
 	workflowValues := machineMetricLabelValues(machine)
 	cfg := monitor.RecorderConfig{
 		GlobalAttributes: []monitor.AttributePolicy{{Name: "agent.name", AllowedValues: []string{"agent"}}},
+		Envelope:         monitorEnvelopePolicy(machine, defs, runID),
 	}
 	for name, values := range workflowValues {
 		cfg.GlobalAttributes = append(cfg.GlobalAttributes, monitor.AttributePolicy{Name: name, AllowedValues: values})
@@ -203,6 +206,47 @@ func monitorRecorderConfig(machine core.MachineSpec, defs []catalog.ToolDef) (mo
 		cfg.Bindings = append(cfg.Bindings, bindings...)
 	}
 	return cfg, nil
+}
+
+func monitorEnvelopePolicy(machine core.MachineSpec, defs []catalog.ToolDef, runID string) monitor.EnvelopePolicy {
+	tools := make(map[string]struct{}, len(defs)+len(machine.Transitions))
+	for _, def := range defs {
+		tools[def.Name] = struct{}{}
+	}
+	signals := make(map[string]struct{}, len(machine.Signals)+len(machine.Transitions))
+	for _, signal := range machine.Signals.Names() {
+		signals[signal] = struct{}{}
+	}
+	for _, transition := range machine.Transitions {
+		if transition.Action != "" && transition.Action != "$tool" {
+			tools[transition.Action] = struct{}{}
+		}
+		if transition.Signal != "" {
+			signals[transition.Signal] = struct{}{}
+		}
+	}
+	for _, signal := range []core.Signal{
+		core.CommandError, core.ToolFailed, core.BudgetExhausted,
+	} {
+		signals[string(signal)] = struct{}{}
+	}
+	return monitor.EnvelopePolicy{
+		RunID:     runID,
+		ToolNames: sortedSetValues(tools),
+		States:    machine.States.Names(),
+		Signals:   sortedSetValues(signals),
+	}
+}
+
+func sortedSetValues(values map[string]struct{}) []string {
+	out := make([]string, 0, len(values))
+	for value := range values {
+		if value != "" {
+			out = append(out, value)
+		}
+	}
+	sort.Strings(out)
+	return out
 }
 
 func toolMetricBindings(

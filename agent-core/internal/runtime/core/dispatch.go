@@ -276,21 +276,11 @@ func (r *dispatchMetricRecorder) Flush(ctx context.Context, res Result) {
 }
 
 func (r *dispatchMetricRecorder) envelope(sample monitor.MetricSample, res Result) monitor.MetricSample {
-	if sample.ToolName == "" {
-		sample.ToolName = r.toolName
-	}
-	if sample.RunID == "" {
-		sample.RunID = r.dc.RunID
-	}
-	if sample.State == "" {
-		sample.State = r.dc.State
-	}
-	if sample.Signal == "" {
-		sample.Signal = string(res.Signal)
-	}
-	if sample.Status == "" {
-		sample.Status = dispatchStatus(res)
-	}
+	sample.ToolName = r.toolName
+	sample.RunID = r.dc.RunID
+	sample.State = r.dc.State
+	sample.Signal = string(res.Signal)
+	sample.Status = dispatchStatus(res)
 	sample.Attributes = mergeMetricAttributes(sample.Attributes, r.dc.MetricLabels)
 	return sample
 }
