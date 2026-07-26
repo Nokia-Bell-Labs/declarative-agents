@@ -102,7 +102,10 @@ func (r *loopRunner) done() bool {
 	if r.iterator != nil && r.signal != BudgetExhausted {
 		return r.doneIterator()
 	}
-	nextState, cmd, transitionSignal, commandStateLabel, metricLabels := r.nextTransition()
+	nextState, cmd, transitionSignal, commandStateLabel, metricLabels, err := r.nextTransition()
+	if err != nil {
+		return r.stopForUnhandledTransition(err)
+	}
 	if cmd == nil {
 		if r.stopForTerminal(nextState) {
 			return true
@@ -142,20 +145,19 @@ func (r *loopRunner) applyBudget() {
 	r.signal = BudgetExhausted
 }
 
-func (r *loopRunner) nextTransition() (State, Command, Signal, string, MetricLabels) {
+func (r *loopRunner) nextTransition() (State, Command, Signal, string, MetricLabels, error) {
 	transitionSignal := r.signal
 	commandStateLabel := transitionCommandStateLabel(r.params.MachineSpec, r.state, transitionSignal)
 	labels := transitionMetricLabels(r.params.MachineSpec, r.state, transitionSignal)
 	nextState, cmd, err := r.sm.Step(r.state, transitionSignal, r.result)
 	if err != nil {
-		r.recordUnhandledTransition(err)
-	} else {
-		nextState, cmd, commandStateLabel = r.prepareIterator(
-			transitionSignal, nextState, cmd, commandStateLabel,
-		)
-		r.recordTransition(nextState)
+		return nextState, cmd, transitionSignal, commandStateLabel, labels, err
 	}
-	return nextState, cmd, transitionSignal, commandStateLabel, labels
+	nextState, cmd, commandStateLabel = r.prepareIterator(
+		transitionSignal, nextState, cmd, commandStateLabel,
+	)
+	r.recordTransition(nextState)
+	return nextState, cmd, transitionSignal, commandStateLabel, labels, nil
 }
 
 func transitionCommandStateLabel(spec *MachineSpec, state State, signal Signal) string {
@@ -170,12 +172,16 @@ func transitionCommandStateLabel(spec *MachineSpec, state State, signal Signal) 
 	return ""
 }
 
-func (r *loopRunner) recordUnhandledTransition(err error) {
+func (r *loopRunner) stopForUnhandledTransition(err error) bool {
 	r.trace.Event("state.transition.unhandled",
 		attribute.String("state", string(r.state)),
 		attribute.String("signal", string(r.signal)),
 		attribute.String("error", err.Error()),
 	)
+	r.run.Status = StatusFailed
+	r.run.FinalState = r.state
+	r.run.LastError = err
+	return true
 }
 
 func (r *loopRunner) recordTransition(nextState State) {

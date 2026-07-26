@@ -6,10 +6,14 @@ import (
 	"context"
 	"encoding/json"
 	"fmt"
-	"github.com/Nokia-Bell-Labs/declarative-agents/agent-core/internal/observability/monitor"
-	"github.com/stretchr/testify/require"
 	"testing"
 	"time"
+
+	"go.opentelemetry.io/otel/attribute"
+
+	"github.com/Nokia-Bell-Labs/declarative-agents/agent-core/internal/observability/monitor"
+	"github.com/Nokia-Bell-Labs/declarative-agents/agent-core/internal/observability/tracing"
+	"github.com/stretchr/testify/require"
 )
 
 func TestLoop_RunsToCompletion(t *testing.T) {
@@ -85,6 +89,50 @@ func TestLoop_ActionlessTerminalTransitionStopsWithoutDispatch(t *testing.T) {
 	require.Zero(t, result.Iterations)
 	require.Empty(t, result.Events)
 	require.False(t, tr.hasEvent("dispatch.nil_command"))
+}
+
+func TestLoop_UnhandledTransitionPreservesOriginalFailure(t *testing.T) {
+	t.Parallel()
+	tr := &retainedEventRecorder{}
+	store := monitor.NewStore(monitor.Limits{Events: 10})
+
+	result, err := Loop(LoopParams{
+		InitialState:    "Working",
+		AgentName:       "unhandled-transition",
+		Registry:        NewRegistry(),
+		Table:           TransitionTable{},
+		IsTerminal:      func(State) bool { return false },
+		Trace:           tr,
+		Budget:          Budget{MaxIterations: 1},
+		MonitorRecorder: monitor.NewRecorder(store, nil),
+	}, context.Background())
+
+	require.NoError(t, err)
+	require.Equal(t, StatusFailed, result.Status)
+	require.Equal(t, State("Working"), result.FinalState)
+	require.Zero(t, result.Iterations)
+	require.EqualError(t, result.LastError, "unhandled state-signal pair: state=Working signal=Seed")
+	require.Empty(t, result.Events)
+	require.True(t, tr.hasEvent("state.transition.unhandled"))
+	require.False(t, tr.hasEvent("dispatch.nil_command"))
+
+	snapshot := store.Snapshot()
+	require.Equal(t, "failed", snapshot.Run.Status)
+	require.Equal(t, "Working", snapshot.Run.State)
+	require.Equal(t, string(Seed), snapshot.Run.Signal)
+	require.Zero(t, snapshot.Run.Iteration)
+	require.Empty(t, snapshot.RecentEvents)
+}
+
+type retainedEventRecorder struct {
+	loopRecorder
+}
+
+func (r *retainedEventRecorder) Push(name string, _ ...attribute.KeyValue) (tracing.Tracer, func()) {
+	r.mu.Lock()
+	r.spans = append(r.spans, name)
+	r.mu.Unlock()
+	return r, func() {}
 }
 
 type terminalActionBuilder struct {
