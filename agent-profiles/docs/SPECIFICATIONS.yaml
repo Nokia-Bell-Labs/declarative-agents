@@ -230,26 +230,19 @@ srd_index:
     status: implemented
     path: docs/specs/software-requirements/srd012-chroma-corpus-agents.yaml
   - id: srd013-rag-server-agent
-    title: RAG Server Agent Functional Block
-    summary: Persistent RAG service that hosts the srd012 reader retrieval chain
-      behind a machine_request query endpoint (srd030) with monitor (srd033) and
-      control servers; a vector-in query_embeddings contract returning chunks
-      with the collection's embedding-model metadata; one agent per served
-      corpus; the srd012 ingest path unchanged; and an optional text-in fallback
-      disabled in the mesh.
-    status: implemented
+    title: RAG Server Agent Functional Block (Relocated)
+    summary: Pointer-only historical identifier; canonical RAG server
+      requirements and evidence live with examples/chatbot-mesh.
+    status: relocated
     path: docs/specs/software-requirements/srd013-rag-server-agent.yaml
+    canonical_path: examples/chatbot-mesh/docs/specs/software-requirements/srd001-rag-server-agent.yaml
   - id: srd014-chatbot-agent
-    title: Chatbot Agent Functional Block
-    summary: Browser-facing agent whose each chat turn is a request-scoped machine
-      (select tier, embed, RAG fan-out, compose, answer) with non-adjacent data flowing
-      by command-state $from() (srd038); an LLM $tool tier selector with a normative
-      misparse fallback; sequential multi-RAG fan-out with per-RAG degradation and
-      embedding-space mismatch exclusion; stateless-v1 sessions; a three-panel
-      ux.yaml over a static_assets SPA; and a preserved transport-authority
-      boundary.
-    status: planned
+    title: Chatbot Agent Functional Block (Relocated)
+    summary: Pointer-only historical identifier; canonical chatbot requirements
+      and evidence live with examples/chatbot-mesh.
+    status: relocated
     path: docs/specs/software-requirements/srd014-chatbot-agent.yaml
+    canonical_path: examples/chatbot-mesh/docs/specs/software-requirements/srd002-chatbot-agent.yaml
   - id: srd015-chatbot-deployment
     title: Chatbot Mesh Deployment Model (Relocated)
     summary: Pointer-only historical identifier; canonical deployment
@@ -401,33 +394,33 @@ use_case_index:
     status: implemented
     path: docs/specs/use-cases/rel08.0-uc002-corpus-query.yaml
   - id: rel09.0-uc001-rag-server-query
-    title: Persistent RAG Server Answers a Vector-In Query
-    summary: RAG server accepts query_embeddings + n_results over a machine_request
-      endpoint and returns chunks with ids, distances, and embedding-model
-      metadata, with no query embedding or LLM answering in the server.
-    status: implemented
+    title: Persistent RAG Server Answers a Vector-In Query (Relocated)
+    summary: Pointer-only historical identifier; the canonical use case and
+      traces live with examples/chatbot-mesh release 00.0.
+    status: relocated
     path: docs/specs/use-cases/rel09.0-uc001-rag-server-query.yaml
+    canonical_path: examples/chatbot-mesh/docs/specs/use-cases/rel00.0-uc001-rag-server-query.yaml
   - id: rel09.0-uc002-chatbot-turn
-    title: Chatbot Turn Embeds, Retrieves From One RAG, and Answers
-    summary: Single-RAG request-scoped turn embeds once, retrieves, composes via
-      command-state $from(), answers, and degrades to a mapped 200 when the RAG
-      fails (the core loop; tier selection and fan-out are 09.1).
-    status: implemented
+    title: Chatbot Turn Embeds, Retrieves From One RAG, and Answers (Relocated)
+    summary: Pointer-only historical identifier; the canonical use case and
+      traces live with examples/chatbot-mesh release 00.0.
+    status: relocated
     path: docs/specs/use-cases/rel09.0-uc002-chatbot-turn.yaml
+    canonical_path: examples/chatbot-mesh/docs/specs/use-cases/rel00.0-uc002-chatbot-turn.yaml
   - id: rel09.1-uc001-routed-fanout
-    title: Chatbot Turn Selects a Model Tier and Fans Out Over Two RAGs
-    summary: The turn selects a chat-LLM word via a $tool classifier and fans the one embedding out
-      to two RAGs, citing both disjoint corpora, degrading on a per-RAG failure, and
-      excluding an embedding-space mismatch through visible machine transitions.
-    status: implemented
+    title: Chatbot Turn Selects a Model Tier and Fans Out Over Two RAGs (Relocated)
+    summary: Pointer-only historical identifier; the canonical use case and
+      traces live with examples/chatbot-mesh release 01.0.
+    status: relocated
     path: docs/specs/use-cases/rel09.1-uc001-routed-fanout.yaml
+    canonical_path: examples/chatbot-mesh/docs/specs/use-cases/rel01.0-uc001-routed-fanout.yaml
   - id: rel09.2-uc001-observability
-    title: Observability Panel Shows Per-Agent State and a Cross-Agent Trace Waterfall
-    summary: The observability panel shows each agent's run state and event stream
-      through the monitor_proxy and renders a selected turn's connected cross-agent
-      trace as a span waterfall from the trace backend.
-    status: implemented
+    title: Observability Panel Shows Per-Agent State and a Cross-Agent Trace Waterfall (Relocated)
+    summary: Pointer-only historical identifier; the canonical use case and
+      traces live with examples/chatbot-mesh release 02.0.
+    status: relocated
     path: docs/specs/use-cases/rel09.2-uc001-observability.yaml
+    canonical_path: examples/chatbot-mesh/docs/specs/use-cases/rel02.0-uc001-observability.yaml
   - id: rel09.3-uc001-mesh-deployment
     title: Mesh Deployment and Tiered Swap (Relocated)
     summary: Pointer-only historical identifier; the canonical use case and
@@ -535,26 +528,26 @@ test_suite_index:
     status: implemented
     path: docs/specs/test-suites/test-rel08.0-corpus-agents.yaml
   - id: test-rel09.0-chatbot-mesh
-    title: Test Suite for Release 09.0 RAG Server and Single-RAG Chatbot Turn
-    summary: Profile-owned tracers for the RAG server vector-in query (srd013) and
-      the single-RAG chatbot turn with a degraded RAG (srd014). Implemented via
-      Integration.RagServer and Integration.Chatbot.
-    status: implemented
+    title: Test Suite for Release 09.0 RAG Server and Single-RAG Chatbot Turn (Relocated)
+    summary: Pointer-only historical identifier; the canonical suite and proof
+      commands live with examples/chatbot-mesh release 00.0.
+    status: relocated
     path: docs/specs/test-suites/test-rel09.0-chatbot-mesh.yaml
+    canonical_path: examples/chatbot-mesh/docs/specs/test-suites/test-rel00.0-chatbot-mesh.yaml
   - id: test-rel09.1-routing-fanout
-    title: Test Suite for Release 09.1 Tier Selection and Multi-RAG Fan-Out
-    summary: Tracers for the $tool tier-selector dispatch and the two-RAG fan-out over
-      disjoint corpora with the degraded and embedding-mismatch paths, via
-      Integration.Chatbot.
-    status: implemented
+    title: Test Suite for Release 09.1 Tier Selection and Multi-RAG Fan-Out (Relocated)
+    summary: Pointer-only historical identifier; the canonical suite and proof
+      commands live with examples/chatbot-mesh release 01.0.
+    status: relocated
     path: docs/specs/test-suites/test-rel09.1-routing-fanout.yaml
+    canonical_path: examples/chatbot-mesh/docs/specs/test-suites/test-rel01.0-routing-fanout.yaml
   - id: test-rel09.2-observability
-    title: Test Suite for Release 09.2 Observability
-    summary: Tracer for the connected cross-agent trace (Integration.Chatbot asserts
-      a shared trace id and a parented rag-server span); the monitor panels and the
-      waterfall UI are browser-verified.
-    status: implemented
+    title: Test Suite for Release 09.2 Observability (Relocated)
+    summary: Pointer-only historical identifier; the canonical suite and proof
+      commands live with examples/chatbot-mesh release 02.0.
+    status: relocated
     path: docs/specs/test-suites/test-rel09.2-observability.yaml
+    canonical_path: examples/chatbot-mesh/docs/specs/test-suites/test-rel02.0-observability.yaml
   - id: test-rel09.3-mesh-deployment
     title: Test Suite for Release 09.3 Mesh Deployment and Tiered Swap (Relocated)
     summary: Pointer-only historical identifier; the canonical suite and proof
