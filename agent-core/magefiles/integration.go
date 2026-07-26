@@ -3,35 +3,28 @@
 package main
 
 import (
-	"encoding/json"
-	"errors"
 	"fmt"
 	"net/http"
-	"os"
-	"os/exec"
-	"path/filepath"
 	"strings"
 	"sync"
-	"time"
 
 	"github.com/magefile/mage/mg"
 )
 
-// Integration contains use-case integration tests invoked as mage integration:ucXXX.
+// Integration contains focused runtime integrations that cross a live service
+// boundary. Application workflows belong to the applications under examples/.
 type Integration mg.Namespace
 
-// All runs every integration test and prints a summary.
+// All runs every base-service integration test and prints a summary.
 func (i Integration) All() error {
 	tests := []struct {
 		name string
 		fn   func() error
 	}{
-		{"uc001", i.Uc001},
-		{"uc002", i.Uc002},
-		{"uc003", i.Uc003},
-		{"uc004", i.Uc004},
-		{"uc005", i.Uc005},
-		{"uc008", i.Uc008},
+		{"monitor", i.Monitor},
+		{"ollamaRest", i.OllamaRest},
+		{"ollamaMonitor", i.OllamaMonitor},
+		{"dolt", i.Dolt},
 	}
 
 	var passed, failed, skipped int
@@ -67,303 +60,29 @@ func (i Integration) All() error {
 	return nil
 }
 
-var skippedUCs = struct {
+var skippedIntegrations = struct {
 	sync.Mutex
 	items map[string]bool
 }{items: make(map[string]bool)}
 
-// Uc001 runs rel01.0-uc001: Generator agent solves a Go coding task with Qwen 3.6.
-func (Integration) Uc001() error {
-	beginUC("uc001")
-	if err := requireOllama(); err != nil {
-		return skipUC("uc001", err.Error())
-	}
-	if err := requireModel(qwen35b); err != nil {
-		return skipUC("uc001", err.Error())
-	}
-
-	binary, err := buildIfNeeded()
-	if err != nil {
-		return err
-	}
-
-	rootDir, err := os.Getwd()
-	if err != nil {
-		return err
-	}
-	profileRoot, err := resolveAgentProfilesRoot(rootDir)
-	if err != nil {
-		return err
-	}
-	profilesRepoRoot, err := resolveAgentProfilesRepoRoot(rootDir)
-	if err != nil {
-		return err
-	}
-
-	workDir, cleanup, err := tempWorkspace(filepath.Join(profilesRepoRoot, generatorSample))
-	if err != nil {
-		return fmt.Errorf("uc001: prepare workspace: %w", err)
-	}
-	defer cleanup()
-
-	fmt.Printf("uc001: workspace at %s\n", workDir)
-
-	args := uc001AgentArgs(profileRoot, rootDir, workDir)
-
-	if err := runAgent(binary, args); err != nil {
-		return fmt.Errorf("uc001: agent failed: %w", err)
-	}
-
-	fmt.Println("uc001: PASS — generator reached Succeeded with Qwen 3.6")
-	return nil
-}
-
-func uc001AgentArgs(profileRoot, coreRoot, workDir string) []string {
-	return []string{
-		"--profile", agentProfilePath(profileRoot, "executor"),
-		"--directory", workDir,
-		"--core-root", coreRoot,
-	}
-}
-
-// Uc002 runs rel01.0-uc002: Evaluator benchmarks generator across models.
-func (Integration) Uc002() error {
-	beginUC("uc002")
-	if err := requireOllama(); err != nil {
-		return skipUC("uc002", err.Error())
-	}
-	if err := requireModel(qwen35b); err != nil {
-		return skipUC("uc002", err.Error())
-	}
-	if err := requireModel(qwen27b); err != nil {
-		return skipUC("uc002", err.Error())
-	}
-
-	binary, err := buildIfNeeded()
-	if err != nil {
-		return err
-	}
-
-	rootDir, err := os.Getwd()
-	if err != nil {
-		return err
-	}
-	profileRoot, err := resolveAgentProfilesRoot(rootDir)
-	if err != nil {
-		return err
-	}
-	profilesRepoRoot, err := resolveAgentProfilesRepoRoot(rootDir)
-	if err != nil {
-		return err
-	}
-
-	outputDir, err := os.MkdirTemp("", "eval-results-*")
-	if err != nil {
-		return fmt.Errorf("uc002: create output dir: %w", err)
-	}
-	defer os.RemoveAll(outputDir)
-
-	fmt.Printf("uc002: output at %s\n", outputDir)
-
-	binAbs, err := filepath.Abs(binDir)
-	if err != nil {
-		return err
-	}
-	os.Setenv("PATH", binAbs+":"+os.Getenv("PATH"))
-
-	args := uc002AgentArgs(profileRoot, rootDir, filepath.Join(profilesRepoRoot, evaluatorSuite), outputDir)
-
-	runErr := runAgentInDir(binary, args, profilesRepoRoot)
-	passed, total, validationErr := validateEvaluationResults(outputDir)
-	if runErr != nil || validationErr != nil {
-		return errors.Join(
-			wrapError("uc002: evaluator failed", runErr),
-			wrapError("uc002: invalid evaluator results", validationErr),
-		)
-	}
-
-	fmt.Printf("uc002: PASS — evaluator completed with %d/%d successful points\n", passed, total)
-	return nil
-}
-
-func validateEvaluationResults(outputDir string) (passed, total int, err error) {
-	var validationErrors []error
-	walkErr := filepath.Walk(outputDir, func(path string, info os.FileInfo, walkErr error) error {
-		if walkErr != nil {
-			validationErrors = append(validationErrors, walkErr)
-			return nil
-		}
-		if info.IsDir() || info.Name() != "meta.json" {
-			return nil
-		}
-		data, readErr := os.ReadFile(path)
-		if readErr != nil {
-			validationErrors = append(validationErrors, fmt.Errorf("read %s: %w", path, readErr))
-			return nil
-		}
-		var meta struct {
-			Sample       string `json:"sample"`
-			Model        string `json:"model"`
-			TestsPassed  bool   `json:"tests_passed"`
-			TestOutput   string `json:"test_output"`
-			TimedOut     bool   `json:"timed_out"`
-			ExitCode     int    `json:"exit_code"`
-			FailureStage string `json:"failure_stage"`
-			FailureCause string `json:"failure_cause"`
-		}
-		if decodeErr := json.Unmarshal(data, &meta); decodeErr != nil {
-			validationErrors = append(validationErrors, fmt.Errorf("parse %s: %w", path, decodeErr))
-			return nil
-		}
-		total++
-		if meta.Sample == "" || meta.Model == "" {
-			validationErrors = append(validationErrors, fmt.Errorf("%s requires sample and model", path))
-		}
-		pointDir := filepath.Dir(path)
-		for _, artifact := range []string{"experiment.yaml", "trace.ndjson"} {
-			if _, statErr := os.Stat(filepath.Join(pointDir, artifact)); statErr != nil {
-				validationErrors = append(validationErrors, fmt.Errorf("%s missing %s: %w", path, artifact, statErr))
-			}
-		}
-		if meta.TestsPassed {
-			passed++
-		} else {
-			stage := meta.FailureStage
-			if stage == "" {
-				stage = "benchmark"
-			}
-			cause := meta.FailureCause
-			if cause == "" {
-				switch {
-				case meta.TimedOut:
-					cause = "harness timed out"
-				case meta.TestOutput != "":
-					cause = strings.TrimSpace(meta.TestOutput)
-				default:
-					cause = fmt.Sprintf("tests failed (exit code %d)", meta.ExitCode)
-				}
-			}
-			validationErrors = append(validationErrors, fmt.Errorf(
-				"point %s failed at %s: %s", filepath.Base(pointDir), stage, cause,
-			))
-		}
-		return nil
-	})
-	if walkErr != nil {
-		validationErrors = append(validationErrors, walkErr)
-	}
-	if total == 0 {
-		validationErrors = append(validationErrors, fmt.Errorf("no valid point metadata under %s", outputDir))
-	} else if passed == 0 {
-		validationErrors = append(validationErrors, fmt.Errorf("all %d evaluation points failed", total))
-	}
-	return passed, total, errors.Join(validationErrors...)
-}
-
-func wrapError(prefix string, err error) error {
-	if err == nil {
-		return nil
-	}
-	return fmt.Errorf("%s: %w", prefix, err)
-}
-
-func uc002AgentArgs(profileRoot, coreRoot, requestPath, outputDir string) []string {
-	return []string{
-		"--profile", agentProfilePath(profileRoot, "critic"),
-		"--request", requestPath,
-		"--output", outputDir,
-		"--core-root", coreRoot,
-	}
-}
-
-// Uc003 runs rel01.0-uc003: Bench serves web UI for evaluation result exploration.
-func (Integration) Uc003() error {
-	beginUC("uc003")
-	return skipUC("uc003", "bench visualization — requires eval-results directory and a free port")
-}
-
-const (
-	qwen35b         = "qwen3.6:35b-mlx"
-	qwen27b         = "qwen3.6:27b-mlx"
-	generatorSample = "testdata/integration/uc001-generator-coding"
-	evaluatorSuite  = "testdata/integration/uc002-evaluator-benchmark/suite.yaml"
-)
-
-func tempWorkspace(sampleDir string) (string, func(), error) {
-	tmpDir, err := os.MkdirTemp("", "integration-*")
-	if err != nil {
-		return "", nil, err
-	}
-	cleanup := func() { os.RemoveAll(tmpDir) }
-
-	cmd := exec.Command("cp", "-a", sampleDir+"/.", tmpDir)
-	if err := cmd.Run(); err != nil {
-		cleanup()
-		return "", nil, fmt.Errorf("copy sample %s: %w", sampleDir, err)
-	}
-
-	gitInit := exec.Command("git", "init")
-	gitInit.Dir = tmpDir
-	if err := gitInit.Run(); err != nil {
-		cleanup()
-		return "", nil, fmt.Errorf("git init: %w", err)
-	}
-
-	gitAdd := exec.Command("git", "add", "-A")
-	gitAdd.Dir = tmpDir
-	if err := gitAdd.Run(); err != nil {
-		cleanup()
-		return "", nil, fmt.Errorf("git add: %w", err)
-	}
-
-	gitCommit := exec.Command("git", "commit", "-m", "initial")
-	gitCommit.Dir = tmpDir
-	gitCommit.Env = append(os.Environ(),
-		"GIT_AUTHOR_NAME=test", "GIT_AUTHOR_EMAIL=test@test",
-		"GIT_COMMITTER_NAME=test", "GIT_COMMITTER_EMAIL=test@test",
-	)
-	if err := gitCommit.Run(); err != nil {
-		cleanup()
-		return "", nil, fmt.Errorf("git commit: %w", err)
-	}
-
-	return tmpDir, cleanup, nil
-}
-
 func skipUC(id, reason string) error {
-	skippedUCs.Lock()
-	skippedUCs.items[id] = true
-	skippedUCs.Unlock()
+	skippedIntegrations.Lock()
+	skippedIntegrations.items[id] = true
+	skippedIntegrations.Unlock()
 	fmt.Printf("SKIP %s: %s\n", id, reason)
 	return nil
 }
 
 func beginUC(id string) {
-	skippedUCs.Lock()
-	delete(skippedUCs.items, id)
-	skippedUCs.Unlock()
+	skippedIntegrations.Lock()
+	delete(skippedIntegrations.items, id)
+	skippedIntegrations.Unlock()
 }
 
 func wasSkipped(id string) bool {
-	skippedUCs.Lock()
-	defer skippedUCs.Unlock()
-	return skippedUCs.items[id]
-}
-
-func buildIfNeeded() (string, error) {
-	binary := filepath.Join(binDir, "agent")
-	info, err := os.Stat(binary)
-	if err != nil || time.Since(info.ModTime()) > 24*time.Hour {
-		fmt.Println("building agent binary...")
-		if err := Build(); err != nil {
-			return "", fmt.Errorf("build agent: %w", err)
-		}
-	}
-	abs, err := filepath.Abs(binary)
-	if err != nil {
-		return "", err
-	}
-	return abs, nil
+	skippedIntegrations.Lock()
+	defer skippedIntegrations.Unlock()
+	return skippedIntegrations.items[id]
 }
 
 func requireOllama() error {
@@ -376,47 +95,4 @@ func requireOllama() error {
 		return fmt.Errorf("ollama returned status %d", resp.StatusCode)
 	}
 	return nil
-}
-
-func requireModel(model string) error {
-	resp, err := integrationHTTPClient.Get("http://localhost:11434/api/tags")
-	if err != nil {
-		return fmt.Errorf("ollama not reachable: %w", err)
-	}
-	defer resp.Body.Close()
-
-	var result struct {
-		Models []struct {
-			Name string `json:"name"`
-		} `json:"models"`
-	}
-	if err := json.NewDecoder(resp.Body).Decode(&result); err != nil {
-		return fmt.Errorf("decode ollama models: %w", err)
-	}
-
-	var names []string
-	for _, m := range result.Models {
-		if m.Name == model {
-			return nil
-		}
-		names = append(names, m.Name)
-	}
-	return fmt.Errorf("model %q not found in ollama; available: %s", model, strings.Join(names, ", "))
-}
-
-func runAgent(binary string, args []string) error {
-	cmd := exec.Command(binary, args...)
-	cmd.Stdout = os.Stdout
-	cmd.Stderr = os.Stderr
-	fmt.Printf("running: %s %s\n", binary, strings.Join(args, " "))
-	return cmd.Run()
-}
-
-func runAgentInDir(binary string, args []string, dir string) error {
-	cmd := exec.Command(binary, args...)
-	cmd.Dir = dir
-	cmd.Stdout = os.Stdout
-	cmd.Stderr = os.Stderr
-	fmt.Printf("running in %s: %s %s\n", dir, binary, strings.Join(args, " "))
-	return cmd.Run()
 }
