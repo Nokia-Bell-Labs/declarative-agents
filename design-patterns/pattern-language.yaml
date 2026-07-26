@@ -689,27 +689,27 @@ patterns:
     also_known_as: [Model Adapter, Provider Port]
     confidence: 2
     intent: >
-      Place all model inference behind one tool and a pluggable provider
-      adapter, so swapping providers is a configuration change that touches
+      Place all model inference behind one tool and provider-adapter interface,
+      so model changes stay in configuration and new provider code touches
       neither the machine nor any other tool.
     context: >
       In an Agent-as-Data inference is one tool among many. If prompt
       formats and API calls instead spread across many call sites, the line
       between deterministic harness and stochastic inference blurs, provider
-      switches touch every tool, and cost data fragments across sites.
+      switches touch every tool, and usage data fragments across sites.
     problem: >
-      How do you support many providers and model families, and account for
-      their cost, without changing the machine or the other tools?
+      How do you support provider adapters and model families, and account for
+      their usage, without changing the machine or the other tools?
     applicability: >
       Use this when agents must compare or switch providers, run the same
-      harness across model families, or aggregate token, latency, and cost data
+      harness across model families, or aggregate token and latency data
       in one place. If a system is permanently bound to one model API and never
       compares models, the adapter may be needless indirection.
     forces:
       - Exactly one place should cross the inference boundary.
       - Switching provider should not touch the machine or other tools.
       - Evaluation should attribute outcome differences to the model alone.
-      - Token, latency, and cost data should aggregate at one point.
+      - Token usage and latency data should aggregate at one point.
     solution: >
       Funnel every model interaction through one inference tool backed by a
       provider adapter interface. The tool assembles a provider-agnostic prompt,
@@ -720,13 +720,13 @@ patterns:
       Keep prompt assembly provider-agnostic: current state, conversation
       history, and scoped manifest go in; provider payloads come only from the
       adapter. Normalize responses into the same tool-call/completion/error
-      shape for the machine, and record token, latency, model, and cost data at
+      shape for the machine, and record token, latency, and model data at
       this boundary. Parsers must tolerate malformed or embedded tool calls,
       especially for open-weight models and changing API formats.
     consequences:
       benefits:
-        - Model-agnostic evaluation and one-line provider portability.
-        - A single instrumentation point for tokens, latency, and cost.
+        - Model-agnostic evaluation and provider changes isolated to adapters.
+        - A single instrumentation point for tokens and latency.
       liabilities:
         - Translation adds overhead and risks provider-specific features going unused.
         - The parser must handle malformed or embedded tool-call output gracefully.
@@ -756,17 +756,39 @@ patterns:
       - system: Reference implementation — executor profile variants
         cite: reference-implementation
         kind: internal
-        note: The default executor and qwen27b variant share one machine, tool selection, and tool roots while binding different LLM declarations, so the harness stays fixed across the model comparison.
+        note: The default, qwen35b, and qwen27b executor profiles are loadable entry points over one machine/tool harness; qwen27b binds a different Ollama model declaration.
         evidence:
           classification: shipped
           checks:
             - paths:
                 - agent-profiles/agents/executor/profile.yaml
+                - agent-profiles/agents/executor/profile-qwen35b.yaml
                 - agent-profiles/agents/executor/profile-qwen27b.yaml
               artifact: profile
               assertion: yaml_relation
               same_fields: [machine, tools, tool_config_dirs]
               different_fields: [tool_declarations]
+            - path: agent-profiles/conformance/executor_test.go
+              artifact: go_test
+              assertion: go_test
+              test: TestExecutorShippedProfileWiring
+      - system: Reference implementation — Ollama provider adapter
+        cite: reference-implementation
+        kind: internal
+        note: Ollama is the only shipped model provider adapter; it emits the normalized chat result and GenAI tracing required by invoke_llm.
+        evidence:
+          classification: shipped
+          checks:
+            - path: agent-core/internal/model/llm/ollama/adapter_tracing_test.go
+              artifact: go_test
+              assertion: go_test
+              test: TestChat_EmitsSemconvInferenceSpan
+      - system: Design intent — additional provider adapters
+        cite: reference-implementation
+        kind: internal
+        note: Provider portability beyond Ollama is design intent; adding OpenAI, Anthropic, or failover behavior requires new adapter code and focused cross-provider tests.
+        evidence:
+          classification: design_intent
     provenance: [reference-implementation, external-corroboration]
 
   # ---------------------------------------------------------------------------

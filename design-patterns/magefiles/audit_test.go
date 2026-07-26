@@ -268,6 +268,27 @@ func TestReferenceEvidenceValidatesRESTArtifactValues(t *testing.T) {
 	}
 }
 
+func TestProfileRelationshipEvidenceRejectsMachineAndDeclarationArtifacts(t *testing.T) {
+	root := t.TempDir()
+	writeAuditFixture(t, filepath.Join(root, "profile.yaml"),
+		"name: executor\nmachine: machine.yaml\ntools: [tools.yaml]\n")
+	writeAuditFixture(t, filepath.Join(root, "machine.yaml"),
+		"name: executor\nstates: [Idle]\ntransitions: []\n")
+	writeAuditFixture(t, filepath.Join(root, "declaration.yaml"),
+		"tools:\n  - {name: invoke_llm, type: builtin}\n")
+
+	for _, wrongPath := range []string{"machine.yaml", "declaration.yaml"} {
+		check := evidenceCheck{
+			Paths: []string{"profile.yaml", wrongPath}, Artifact: "profile",
+			Assertion: "yaml_relation", SameFields: []string{"machine"},
+		}
+		err := runEvidenceCheck(root, "profile grid", check)
+		if err == nil || !strings.Contains(err.Error(), "artifact type profile") {
+			t.Errorf("%s error = %v, want non-profile rejection", wrongPath, err)
+		}
+	}
+}
+
 func TestRepositoryReferenceImplementationEvidence(t *testing.T) {
 	if err := auditReferenceImplementationEvidence("../pattern-language.yaml", "../.."); err != nil {
 		t.Fatalf("repository evidence audit: %v", err)
@@ -467,6 +488,34 @@ func TestAgentAsDataUsesCanonicalFamiliesAndLabelsConceptualRoles(t *testing.T) 
 	}
 	if !strings.Contains(string(introduction), "example of a code **generator** agent") {
 		t.Fatal("conceptual generator example was removed instead of labelled")
+	}
+}
+
+func TestInferenceBoundaryUsesLoadableProfilesAndSeparatesProviderChanges(t *testing.T) {
+	data, err := os.ReadFile(filepath.Join("..", "06-inference-boundary.md"))
+	if err != nil {
+		t.Fatal(err)
+	}
+	chapter := string(data)
+	for _, required := range []string{
+		"`profile.yaml`, `profile-qwen35b.yaml`, and `profile-qwen27b.yaml`",
+		"`qwen3.6:35b-mlx`",
+		"`qwen3.6:27b-mlx`",
+		"Ollama is the only shipped provider adapter",
+		"requires a new adapter",
+	} {
+		if !strings.Contains(chapter, required) {
+			t.Errorf("Inference Boundary missing %q", required)
+		}
+	}
+	for _, stale := range []string{
+		"`deepseek.yaml`", "`devstral.yaml`",
+		"switching providers is a configuration change",
+		"one-line provider portability",
+	} {
+		if strings.Contains(chapter, stale) {
+			t.Errorf("Inference Boundary retains false claim %q", stale)
+		}
 	}
 }
 
