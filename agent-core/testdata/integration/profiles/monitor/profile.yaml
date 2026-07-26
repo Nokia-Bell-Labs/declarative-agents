@@ -1,0 +1,8 @@
+name: monitor
+machine: machine.yaml
+tools:
+  - tools.yaml
+tool_declarations:
+  - declarations.yaml
+rest_definitions:
+  - rest.yaml

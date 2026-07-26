@@ -1,0 +1,30 @@
+name: monitor-rest-profile
+purpose: Serve embedded monitor state until a control exit request arrives.
+initial_state: Idle
+budget:
+  max_iterations: 6
+states:
+  - name: Idle
+  - name: Launching
+  - name: AwaitingControl
+  - name: Stopping
+  - name: Done
+  - name: Failed
+terminal_states: [Done, Failed]
+signals:
+  - name: Seed
+  - name: ServerLaunched
+  - name: ExitRequested
+  - name: AwaitTimedOut
+  - name: ServerStopped
+  - name: CommandError
+transitions:
+  - {state: Idle, signal: Seed, next: Launching, action: launch_monitor_rest}
+  - {state: Launching, signal: ServerLaunched, next: AwaitingControl, action: await_monitor_control}
+  - {state: Launching, signal: CommandError, next: Failed}
+  - {state: AwaitingControl, signal: ExitRequested, next: Stopping, action: stop_monitor_rest}
+  - {state: AwaitingControl, signal: AwaitTimedOut, next: Failed}
+  - {state: AwaitingControl, signal: ServerStopped, next: Failed}
+  - {state: AwaitingControl, signal: CommandError, next: Failed}
+  - {state: Stopping, signal: ServerStopped, next: Done}
+  - {state: Stopping, signal: CommandError, next: Failed}

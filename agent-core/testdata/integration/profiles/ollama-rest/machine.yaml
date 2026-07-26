@@ -1,0 +1,36 @@
+name: ollama-rest-model-listing
+purpose: List live local Ollama models through the configured REST tool.
+initial_state: Idle
+budget:
+  max_iterations: 8
+  max_consecutive_parse_errors: 2
+states:
+  - name: Idle
+  - name: Composing
+  - name: Parsing
+  - name: Succeeded
+  - name: Failed
+  - name: BudgetExceeded
+terminal_states: [Succeeded, Failed, BudgetExceeded]
+signals:
+  - name: Seed
+  - name: LLMResponded
+  - name: ToolDone
+  - name: ParseFailed
+  - name: TaskCompleted
+  - name: RESTResponded
+  - name: RESTDomainFailed
+  - name: CommandError
+  - name: BudgetExhausted
+transitions:
+  - {state: Idle, signal: Seed, next: Composing, action: invoke_llm}
+  - {state: Composing, signal: LLMResponded, next: Parsing, action: parse_response}
+  - {state: Parsing, signal: ToolDone, next: Composing, action: $tool}
+  - {state: Parsing, signal: TaskCompleted, next: Succeeded}
+  - {state: Parsing, signal: ParseFailed, next: Composing, action: report_parse_error}
+  - {state: Composing, signal: ToolDone, next: Composing, action: invoke_llm}
+  - {state: Composing, signal: RESTResponded, next: Composing, action: invoke_llm}
+  - {state: Composing, signal: RESTDomainFailed, next: Composing, action: invoke_llm}
+  - {state: Composing, signal: CommandError, next: Failed}
+  - {state: Parsing, signal: CommandError, next: Failed}
+  - {state: Composing, signal: BudgetExhausted, next: BudgetExceeded}

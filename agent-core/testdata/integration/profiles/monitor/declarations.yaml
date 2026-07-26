@@ -1,0 +1,33 @@
+tools:
+  - name: launch_monitor_rest
+    type: builtin
+    init: rest_server_launch
+    visibility: internal
+    description: Launch the embedded monitor REST server.
+    parameters: {type: object, properties: {}}
+    emits: [ServerLaunched, CommandError]
+    config:
+      rest_ref: monitor
+  - name: await_monitor_control
+    type: builtin
+    init: rest_await_event
+    visibility: internal
+    description: Await the monitor control exit event.
+    parameters: {type: object, properties: {}}
+    emits: [ExitRequested, AwaitTimedOut, ServerStopped, CommandError]
+    config:
+      sources:
+        - server: monitor
+          routes: [control_exit]
+          signals: [ExitRequested]
+      timeout: 30s
+      stopped_behavior: emit_server_stopped
+  - name: stop_monitor_rest
+    type: builtin
+    init: rest_server_stop
+    visibility: internal
+    description: Stop the embedded monitor REST server.
+    parameters: {type: object, properties: {}}
+    emits: [ServerStopped, CommandError]
+    config:
+      rest_ref: monitor
