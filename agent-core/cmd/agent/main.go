@@ -649,6 +649,9 @@ func resumeRun(cfg runtimeConfig, deps resumeDeps) (core.RunResult, error) {
 	if err != nil {
 		return core.RunResult{}, fmt.Errorf("resume: %w", err)
 	}
+	if state.Finalized {
+		return state.Params.InitialRun, nil
+	}
 	if conversation := state.Position.Snapshot.Conversation; len(conversation) > 0 {
 		if err := deps.State.restoreConversation(conversation); err != nil {
 			return core.RunResult{}, fmt.Errorf("resume: restore conversation: %w", err)

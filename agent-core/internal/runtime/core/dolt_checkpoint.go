@@ -16,9 +16,9 @@ import (
 // (srd036-dolt-state-persistence R1.4).
 var ErrDolt = errors.New("dolt checkpoint")
 
-// ErrCheckpointFinalized classifies attempts to save a run after its terminal
-// branch has already been merged and deleted. Repeated finalization must not
-// recreate the branch or merge it a second time.
+// ErrCheckpointFinalized classifies an already-completed Load outcome and
+// attempts to save or merge a run after its terminal branch has been deleted.
+// Repeated finalization must not recreate the branch or merge it a second time.
 var ErrCheckpointFinalized = fmt.Errorf("%w: run already finalized", ErrDolt)
 
 // ErrRevertUnresolved reports that a Revert target (run_id, step_index) does not
@@ -234,8 +234,10 @@ func reapRunHistory(tx Transaction, runID string) error {
 }
 
 // Load reconstructs the Position and Execution from the latest commit on the run
-// branch, restoring the folded conversation and every opaque receipt. It reports
-// ErrNoCheckpoint when the branch or its rows do not exist
+// branch, restoring the folded conversation and every opaque receipt. A terminal
+// marker completes pending merge/delete work and returns ErrCheckpointFinalized;
+// an already-deleted terminal branch resolves from its marker on main. Load
+// reports ErrNoCheckpoint when neither resumable nor finalized state exists
 // (srd036-dolt-state-persistence R5).
 func (d *DoltCheckpoint) Load() (Position, Execution, error) {
 	exists, err := doltBranchExists(d.db, d.runID)
@@ -243,7 +245,7 @@ func (d *DoltCheckpoint) Load() (Position, Execution, error) {
 		return Position{}, nil, fmt.Errorf("%w: load: inspect branch %q: %v", ErrDolt, d.runID, err)
 	}
 	if !exists {
-		return Position{}, nil, ErrNoCheckpoint
+		return d.loadFinalized()
 	}
 	if err := d.db.Exec(`CALL DOLT_CHECKOUT(?)`, d.runID); err != nil {
 		return Position{}, nil, fmt.Errorf("%w: load: checkout branch %q: %v", ErrDolt, d.runID, err)
@@ -264,7 +266,57 @@ func (d *DoltCheckpoint) Load() (Position, Execution, error) {
 	}
 	d.persistedExecution = cloneExecution(exec)
 	d.hasPersistedExecution = true
+	if d.terminal != nil && d.terminal(pos.CurrentState) {
+		// The terminal commit is the durable marker for an interrupted
+		// merge/delete lifecycle. A fresh adapter reconstructs finalizing from
+		// that marker and finishes cleanup before resume can enter the machine.
+		d.finalizing = true
+		if err := d.Merge(); err != nil {
+			return Position{}, nil, err
+		}
+		return pos, exec, fmt.Errorf("%w: load run %q", ErrCheckpointFinalized, d.runID)
+	}
 	return pos, exec, nil
+}
+
+// loadFinalized distinguishes a never-persisted run from one whose branch was
+// already merged and deleted. The terminal machine row retained on main is the
+// durable lifecycle marker; history remains reaped and no branch is recreated.
+func (d *DoltCheckpoint) loadFinalized() (Position, Execution, error) {
+	if err := d.db.Exec(`CALL DOLT_CHECKOUT('main')`); err != nil {
+		return Position{}, nil, fmt.Errorf("%w: load: checkout main: %v", ErrDolt, err)
+	}
+	machinesExist, err := doltMachinesTableExists(d.db)
+	if err != nil {
+		return Position{}, nil, fmt.Errorf("%w: load: inspect machines table: %v", ErrDolt, err)
+	}
+	if !machinesExist {
+		return Position{}, nil, ErrNoCheckpoint
+	}
+	pos, err := loadMachine(d.db, d.runID)
+	if errors.Is(err, sql.ErrNoRows) {
+		return Position{}, nil, ErrNoCheckpoint
+	}
+	if err != nil {
+		return Position{}, nil, fmt.Errorf("%w: load: machine on main: %v", ErrDolt, err)
+	}
+	if d.terminal == nil || !d.terminal(pos.CurrentState) {
+		return Position{}, nil, ErrNoCheckpoint
+	}
+	d.finalized = true
+	return pos, nil, fmt.Errorf("%w: load run %q", ErrCheckpointFinalized, d.runID)
+}
+
+func doltMachinesTableExists(db Database) (bool, error) {
+	var count int
+	err := db.QueryRow(`SELECT COUNT(*)
+		FROM information_schema.tables
+		WHERE table_schema = DATABASE()
+			AND table_name = 'machines'`).Scan(&count)
+	if err != nil {
+		return false, err
+	}
+	return count > 0, nil
 }
 
 func doltBranchExists(db Database, branch string) (bool, error) {
@@ -287,18 +339,48 @@ func (d *DoltCheckpoint) Merge() error {
 		return fmt.Errorf("%w: merge: checkout main: %v", ErrDolt, err)
 	}
 	if !d.merged {
-		if err := d.db.Exec(`CALL DOLT_MERGE(?)`, d.runID); err != nil {
-			return fmt.Errorf("%w: merge: merge %q: %v", ErrDolt, d.runID, err)
+		merged, err := d.mainHasTerminalMarker()
+		if err != nil {
+			return err
+		}
+		if !merged {
+			if err := d.db.Exec(`CALL DOLT_MERGE(?)`, d.runID); err != nil {
+				return fmt.Errorf("%w: merge: merge %q: %v", ErrDolt, d.runID, err)
+			}
 		}
 		d.merged = true
 	}
-	if err := d.db.Exec(`CALL DOLT_BRANCH('-d', ?)`, d.runID); err != nil {
-		return fmt.Errorf("%w: merge: delete branch %q: %v", ErrDolt, d.runID, err)
+	exists, err := doltBranchExists(d.db, d.runID)
+	if err != nil {
+		return fmt.Errorf("%w: merge: inspect branch %q: %v", ErrDolt, d.runID, err)
+	}
+	if exists {
+		if err := d.db.Exec(`CALL DOLT_BRANCH('-d', ?)`, d.runID); err != nil {
+			return fmt.Errorf("%w: merge: delete branch %q: %v", ErrDolt, d.runID, err)
+		}
 	}
 	d.inited = false
 	d.finalizing = false
 	d.finalized = true
 	return nil
+}
+
+func (d *DoltCheckpoint) mainHasTerminalMarker() (bool, error) {
+	exists, err := doltMachinesTableExists(d.db)
+	if err != nil {
+		return false, fmt.Errorf("%w: merge: inspect machines table on main: %v", ErrDolt, err)
+	}
+	if !exists {
+		return false, nil
+	}
+	pos, err := loadMachine(d.db, d.runID)
+	if errors.Is(err, sql.ErrNoRows) {
+		return false, nil
+	}
+	if err != nil {
+		return false, fmt.Errorf("%w: merge: inspect terminal marker on main: %v", ErrDolt, err)
+	}
+	return d.terminal != nil && d.terminal(pos.CurrentState), nil
 }
 
 // Revert resets the run branch to the commit recorded at step_index for git-style

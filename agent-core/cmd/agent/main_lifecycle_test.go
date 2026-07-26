@@ -3,10 +3,27 @@
 package main
 
 import (
+	"context"
+	"fmt"
+	"testing"
+
 	"github.com/Nokia-Bell-Labs/declarative-agents/agent-core/internal/runtime/core"
 	"github.com/stretchr/testify/require"
-	"testing"
 )
+
+type finalizedLoadCheckpoint struct{}
+
+func (finalizedLoadCheckpoint) Save(core.Position, core.Execution) error { return nil }
+
+func (finalizedLoadCheckpoint) Load() (core.Position, core.Execution, error) {
+	position := core.Position{
+		CurrentState: "Done",
+		Snapshot: core.AgentSnapshot{
+			State: "Done", Iteration: 4, TokensIn: 10, TokensOut: 5, TotalCost: 0.25,
+		},
+	}
+	return position, nil, fmt.Errorf("%w: test run", core.ErrCheckpointFinalized)
+}
 
 func TestControlProfileExitReachesSucceededBeforeDeferredShutdown(t *testing.T) {
 	t.Parallel()
@@ -103,4 +120,28 @@ func TestResumeWithoutPersistentBackendReportsNoCheckpoint(t *testing.T) {
 		return run(rootCmd, nil)
 	})
 	require.ErrorIs(t, err, core.ErrNoCheckpoint)
+}
+
+func TestResumeRunReturnsFinalizedOutcomeWithoutDomainRestoreOrLoop(t *testing.T) {
+	t.Parallel()
+	params := core.LoopParams{
+		Checkpoint: finalizedLoadCheckpoint{},
+		IsTerminal: func(state core.State) bool { return state == "Done" },
+		Hooks: core.LoopHooks{
+			TerminalStatus: func(core.State) core.RunStatus { return core.StatusSucceeded },
+		},
+	}
+
+	result, err := resumeRun(
+		runtimeConfig{ResumeCheckpoint: "run-1"},
+		resumeDeps{Params: params, Ctx: context.Background()},
+	)
+
+	require.NoError(t, err)
+	require.Equal(t, core.StatusSucceeded, result.Status)
+	require.Equal(t, core.State("Done"), result.FinalState)
+	require.Equal(t, 4, result.Iterations)
+	require.Equal(t, 10, result.TokensIn)
+	require.Equal(t, 5, result.TokensOut)
+	require.Equal(t, 0.25, result.TotalCost)
 }

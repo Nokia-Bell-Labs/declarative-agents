@@ -4,6 +4,7 @@ package core
 
 import (
 	"database/sql"
+	"fmt"
 	"sort"
 	"strconv"
 	"strings"
@@ -86,6 +87,7 @@ type fakeCommit struct {
 type fakeDB struct {
 	store    *fakeStore
 	branches map[string]bool
+	merged   map[string]bool
 	current  string
 	commits  []fakeCommit
 	calls    []string
@@ -98,6 +100,8 @@ type fakeDB struct {
 	// outputBytes accumulates the size of every output blob written to
 	// tool_outputs, so a benchmark can measure the per-step write-layer cost.
 	outputBytes            int
+	machinesExists         bool
+	mainMachinesExists     bool
 	executionStepsExists   bool
 	executionStepsHasLabel bool
 	machinesHasIterator    bool
@@ -110,6 +114,7 @@ func newFakeDB() *fakeDB {
 	return &fakeDB{
 		store:            newFakeStore(),
 		branches:         map[string]bool{"main": true},
+		merged:           map[string]bool{},
 		current:          "main",
 		redactionColumns: map[string]bool{},
 	}
@@ -134,6 +139,10 @@ func (f *fakeDB) Exec(query string, args ...any) error {
 	}
 	switch {
 	case strings.Contains(query, "CREATE TABLE IF NOT EXISTS machines"):
+		f.machinesExists = true
+		if f.current == "main" {
+			f.mainMachinesExists = true
+		}
 		f.machinesHasIterator = strings.Contains(query, "iterator LONGTEXT")
 		return nil
 	case strings.Contains(query, "CREATE TABLE IF NOT EXISTS execution_steps"):
@@ -189,6 +198,8 @@ func (f *fakeDB) Exec(query string, args ...any) error {
 		})
 		return nil
 	case strings.Contains(query, "DOLT_MERGE"):
+		f.merged[args[0].(string)] = true
+		f.mainMachinesExists = f.machinesExists
 		return nil
 	case strings.Contains(query, "DOLT_BRANCH('-d'"):
 		delete(f.branches, args[0].(string))
@@ -298,6 +309,16 @@ func (f *fakeDB) QueryRow(query string, args ...any) Scanner {
 			count = 1
 		}
 		return &fakeScanner{kind: "count", count: count}
+	case strings.Contains(query, "information_schema.tables"):
+		count := 0
+		machinesExist := f.machinesExists
+		if f.current == "main" {
+			machinesExist = f.mainMachinesExists
+		}
+		if machinesExist && strings.Contains(query, "table_name = 'machines'") {
+			count = 1
+		}
+		return &fakeScanner{kind: "count", count: count}
 	case strings.Contains(query, "information_schema.columns"):
 		count := 0
 		if strings.Contains(query, "table_name = 'machines'") && f.machinesHasIterator {
@@ -314,7 +335,14 @@ func (f *fakeDB) QueryRow(query string, args ...any) Scanner {
 		}
 		return &fakeScanner{kind: "count", count: count}
 	case strings.Contains(query, "FROM machines"):
-		m, ok := f.store.machines[args[0].(string)]
+		if f.current == "main" && !f.mainMachinesExists {
+			return &fakeScanner{scanErr: fmt.Errorf("table machines not found")}
+		}
+		runID := args[0].(string)
+		m, ok := f.store.machines[runID]
+		if f.current == "main" && f.branches[runID] && !f.merged[runID] {
+			ok = false
+		}
 		return &fakeScanner{kind: "machine", machine: m, missing: !ok}
 	case strings.Contains(query, "FROM dolt_log"):
 		prefix := strings.TrimSuffix(args[0].(string), "%")
@@ -370,9 +398,13 @@ type fakeScanner struct {
 	hash    string
 	count   int
 	missing bool
+	scanErr error
 }
 
 func (s *fakeScanner) Scan(dest ...any) error {
+	if s.scanErr != nil {
+		return s.scanErr
+	}
 	if s.missing {
 		return sql.ErrNoRows
 	}
