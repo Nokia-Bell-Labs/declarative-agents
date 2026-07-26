@@ -13,7 +13,7 @@ actor: Developer analyzing benchmark results
 
 trigger: |
   The developer runs:
-    agent --profile "$AGENT_PROFILES_ROOT/agents/bench/profile.yaml"
+    agent --profile "$AGENT_CATALOG_ROOT/agents/bench/profile.yaml"
 
   The profile owns data roots, routes, static assets, listener configuration,
   request MachineSpec, and generic tool aliases.
@@ -36,7 +36,7 @@ touchpoints:
   - T3: "srd020-bench-web-ui R1, R2, R3, R4, R5, R6, R7, R8 -- generic HTTP server, bench REST APIs, SPA routing, profile assets, and documentation boundary"
   - T4: "bench/machine.yaml -- generic REST lifecycle and self_invoke sequencing"
   - T5: "srd019-eval-harness R0, R1, R2, R3 -- self_invoke reuses the profile-driven evaluator pipeline"
-  - T6: "bench/profile.yaml -- profile-relative bench runtime entry point under AGENT_PROFILES_ROOT"
+  - T6: "bench/profile.yaml -- profile-relative bench runtime entry point under AGENT_CATALOG_ROOT"
   - T7: "srd021-agent-cli-exec-tool R1, R2, R3, R4 -- child agent profile invocation, trace propagation, process result mapping"
 
 success_criteria:

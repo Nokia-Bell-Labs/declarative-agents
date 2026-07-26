@@ -43,7 +43,7 @@ requirements:
 
 non_goals:
   - Define Go package APIs for the agent-core lifecycle ports or checkpoint store.
-  - Reimplement checkpoint or rollback storage in agent-profiles.
+  - Reimplement checkpoint or rollback storage in applications/catalog.
   - Own cross-profile dependency-direction invariants; those stay in srd001.
 
 acceptance_criteria:

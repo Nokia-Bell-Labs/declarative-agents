@@ -14,7 +14,7 @@ type meshStatsOutput struct {
 }
 
 // Stats outputs local implementation metrics and composition reuse separately.
-// Unlike the platform sub-modules, the example reports no module-wide LOC
+// Unlike the platform sub-modules, the application reports no module-wide LOC
 // breakdown: its Go and Helm code are deployment scaffolding, and only the
 // locally owned agents feed root implementation totals (GH-754, GH-1000).
 func Stats() error {

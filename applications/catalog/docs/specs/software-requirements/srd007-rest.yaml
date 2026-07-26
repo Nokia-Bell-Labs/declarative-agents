@@ -42,7 +42,7 @@ requirements:
 
 non_goals:
   - Define Go package APIs for the agent-core HTTP runtime.
-  - Reimplement HTTP client or server transport in agent-profiles.
+  - Reimplement HTTP client or server transport in applications/catalog.
   - Own cross-profile dependency-direction invariants; those stay in srd001.
 
 acceptance_criteria:

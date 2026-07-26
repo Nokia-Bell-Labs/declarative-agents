@@ -8,7 +8,7 @@ overview: |
   and test suites. Release 03.0 includes named executable REST conformance
   evidence and rollback-time compensation execution.
   Twenty-nine use cases exercise the SRDs across thirteen releases. Fifteen
-  formal YAML test suites cover 302 acceptance test cases across releases 00.0
+  formal YAML test suites cover 306 acceptance test cases across releases 00.0
   through 11.0 and release 99.0; additional
   coverage comes from Go test functions across all packages (run
   `go test ./... -v` for current counts).
@@ -109,9 +109,9 @@ roadmap_summary:
     status: implemented
   - version: "99.0"
     name: Architectural migrations and cleanup
-    use_cases_done: 1
+    use_cases_done: 2
     use_cases_total: 2
-    status: in_progress
+    status: done
 
 foundation_document_index:
   - id: agent-core
@@ -308,7 +308,7 @@ srd_index:
   - id: srd043-application-catalog-layout
     title: Application and Catalog Source Layout
     summary: Requirements for applications/{catalog,coding-agent,chatbot-mesh}, core-owned integration profiles, owner-root execution, AGENT_CATALOG_ROOT and its temporary alias, path-class distinctions, v0 tag compatibility, and migration sequencing.
-    status: specified
+    status: implemented
     path: docs/specs/software-requirements/srd043-application-catalog-layout.yaml
 
 config_format_index:
@@ -551,7 +551,7 @@ use_case_index:
   - id: rel99.0-uc002-application-catalog-migration
     title: Maintainers migrate applications and reusable catalog blocks to explicit owner roots
     release: "99.0"
-    status: specified
+    status: done
     test_suite: test-rel99.0-application-catalog-migration
     path: docs/specs/use-cases/rel99.0-uc002-application-catalog-migration.yaml
 
@@ -681,8 +681,8 @@ test_suite_index:
     release: "99.0"
     traces:
       - rel99.0-uc002-application-catalog-migration
-    formal_test_cases: 10
-    status: specified
+    formal_test_cases: 14
+    status: implemented
     path: docs/specs/test-suites/test-rel99.0-application-catalog-migration.yaml
 
 go_test_coverage:
@@ -691,7 +691,7 @@ go_test_coverage:
     formal YAML test suites. Release 00.0 YAML coverage (92 cases) covers
     srd001-srd018 where Go tests already prove behavior. For release 01.0,
     the YAML suite (37 cases) indexes generator and evaluator integration
-    evidence now lives with examples/coding-agent and agent-profiles. The suite
+    evidence now lives with applications/coding-agent and applications/catalog. The suite
     also covers bench integration targets plus Go tests for
     profile and machine behavior. Tool behavior and child-agent behavior are
     covered there too. Builtin, exec, Ollama, and LLM extraction contracts have
@@ -749,9 +749,9 @@ srd_to_use_case_mapping:
 coverage_gaps: |
   Release 99.0 srd043, rel99.0-uc002, and
   test-rel99.0-application-catalog-migration define the application/catalog
-  migration before implementation. The ten formal cases map one-to-one to
-  GH-1036 child issues. Their planned status records missing implementation
-  evidence rather than an unspecified ownership or compatibility decision.
+  migration. Fourteen implemented formal cases map one-to-one to GH-1036 child
+  issues; the source, compatibility, taxonomy, and owner-root gate criteria are
+  complete.
 
   Original core SRDs srd001-srd008 have use case touchpoints and
   formal YAML test suite coverage in release 00.0. Release 00.0 now also has
@@ -773,7 +773,7 @@ coverage_gaps: |
 
   For 03.0, srd027-srd031 have formal YAML coverage in
   test-rel03.0-rest-tools. rel03.0-uc007 covers the Knowledge Manager
-  machine-request demo as a profile-owned browser tracer in agent-profiles.
+  machine-request demo as a profile-owned browser tracer in applications/catalog.
   Generic core tests fetch machine_request document responses through the
   generic REST server routes
   documentation_curator.documents and
@@ -818,13 +818,13 @@ coverage_gaps: |
   /opt/agent-core/tools mapping through AGENT_CORE_HOME. magefiles Docker tests
   cover profile exclusion, the required --profile entrypoint, mounted profile
   command output, and the Dockerfile integration target. Application-level
-  executor and critic proofs live under examples/coding-agent; profile demos,
-  fixtures, and Knowledge Manager UX assets remain profile-owned. The matching agent-profiles
+  executor and critic proofs live under applications/coding-agent; profile demos,
+  fixtures, and Knowledge Manager UX assets remain profile-owned. The matching applications/catalog
   containerSmoke target runs the installed image with the profile repository
   mounted at /profiles.
   Current examples no longer imply that agent-core ships standard agent
   profiles under its source tree or under /opt/agent-core. Profile examples use
-  AGENT_PROFILES_ROOT, /profiles/agents, or profile-root-relative paths.
+  AGENT_CATALOG_ROOT, /profiles/agents, or profile-root-relative paths.
 
   Current `go list ./...` output defines package coverage. Direct SRD
   coverage is clear for runtime core through srd001-srd006 and srd025.

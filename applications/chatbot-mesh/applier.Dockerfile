@@ -1,7 +1,7 @@
 # Applier image (srd006, srd003 R1.3 sanctioned divergence): the agent-core runtime
 # plus the helm and kubectl CLIs and the chart at /chart, so the applier's exec words
 # can run `helm upgrade chatbot-mesh /chart` and `kubectl rollout status` in-cluster.
-# Build context is examples/chatbot-mesh:
+# Build context is applications/chatbot-mesh:
 #   docker build -f applier.Dockerfile -t <registry>/chatbot-mesh-applier:0.1.0 .
 ARG RUNTIME_IMAGE=ghcr.io/nokia-bell-labs/declarative-agents/agent-core:0.1.0
 ARG HELM_VERSION=v3.16.3

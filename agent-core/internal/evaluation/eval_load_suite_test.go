@@ -20,7 +20,7 @@ import (
 //
 // The assertion that the shipped critic profile actually sequences these words
 // belongs to the repository that owns the profile, and lives in
-// agent-profiles/magefiles/critic_wiring_test.go (srd034 R2.1, R2.2; GH-512).
+// applications/catalog/magefiles/critic_wiring_test.go (srd034 R2.1, R2.2; GH-512).
 
 // sessionWords are the evaluator session words that replaced the single
 // load_suite word. agent-core owns their declarations (srd034 R1.2).

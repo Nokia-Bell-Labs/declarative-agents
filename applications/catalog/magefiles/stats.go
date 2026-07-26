@@ -34,7 +34,7 @@ type fileStats struct {
 	Lines int `json:"lines"`
 }
 
-// Stats outputs lines-of-code breakdowns for agent-profiles as JSON to stdout.
+// Stats outputs lines-of-code breakdowns for the catalog as JSON to stdout.
 func Stats() error {
 	var rec profileStatsOutput
 	skipDirs := map[string]bool{

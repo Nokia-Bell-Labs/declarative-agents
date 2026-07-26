@@ -62,7 +62,7 @@ func integrationInferenceTimeout() time.Duration {
 	return parsed
 }
 
-// Integration groups the example's end-to-end tracer targets. Each starts real
+// Integration groups the application's end-to-end tracer targets. Each starts real
 // services (a Chroma container, the mesh agents, an external Ollama) and skips
 // cleanly (does not fail) when the toolchain or a configured model is
 // unavailable, so the group stays runnable in a checkout without them.

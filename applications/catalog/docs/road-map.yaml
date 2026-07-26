@@ -45,7 +45,7 @@ releases:
 
       Runtime code, builtin tool implementations, release image build logic,
       and core-owned assets stay in agent-core. At execution time, commands
-      load profiles through AGENT_PROFILES_ROOT, /profiles, or another explicit
+      load profiles through AGENT_CATALOG_ROOT, /profiles, or another explicit
       external path.
 
       Release 06.0 is complete for this repository when the profile assets can
@@ -68,7 +68,7 @@ releases:
         summary: Migrate agent profiles and UX assets from agent-core.
         status: done
       - id: agent-profiles-6ar
-        summary: Move demos and agent integration fixtures into agent-profiles.
+        summary: Move demos and agent integration fixtures into applications/catalog.
         status: done
       - id: agent-profiles-73s
         summary: Add Mage release tag target for profile bundles.
@@ -77,14 +77,14 @@ releases:
         summary: Add profile validation and container usage checks.
         status: done
       - id: agent-profiles-dqm
-        summary: Validate all profile variants in agent-profiles.
+        summary: Validate all profile variants in applications/catalog.
         status: done
       - id: agent-profiles-0g7
         summary: Add formal profile migration use cases and test suites.
         status: done
     use_cases:
       - id: rel06.0-uc001-mounted-profile-execution
-        summary: Runtime executes profile-owned programs mounted from agent-profiles.
+        summary: Runtime executes profile-owned programs mounted from applications/catalog.
         status: implemented
       - id: rel06.0-uc002-profile-validation
         summary: Profile validation and release bundle tagging prove repository readiness.
@@ -98,13 +98,13 @@ releases:
       - mage containerSmoke
       - mage tag
       - go test ./magefiles
-      - AGENT_PROFILES_ROOT=/path/to/agent-profiles mage integration:codingLoop (run from examples/coding-agent)
-      - AGENT_PROFILES_ROOT=/path/to/agent-profiles mage integration:monitor (run from an agent-core checkout)
+      - AGENT_CATALOG_ROOT=/path/to/applications/catalog mage integration:codingLoop (run from applications/coding-agent)
+      - AGENT_CATALOG_ROOT=/path/to/applications/catalog mage integration:monitor (run from an agent-core checkout)
     success_markers:
       - Migrated profile.yaml files load through agent-core from this
         repository.
       - Knowledge Manager UX config remains profile-local beside its profile.
-      - Demos and fixtures use repository-relative paths, AGENT_PROFILES_ROOT,
+      - Demos and fixtures use repository-relative paths, AGENT_CATALOG_ROOT,
         /profiles, or explicit workspace mounts.
       - agent-core runtime images do not copy migrated profile directories.
 
@@ -122,7 +122,7 @@ releases:
       planner-to-generator library tracers are retired because they used shell
       children that fabricated the claimed behavior. Their real
       critic-to-executor and planner-to-executor replacements belong to
-      examples/coding-agent and are not counted as implemented library proof.
+      applications/coding-agent and are not counted as implemented library proof.
     status: done
     related_agent_core_release: "07.0"
     planned_work:
@@ -130,7 +130,7 @@ releases:
         summary: Define profile integration tracer-bullet use cases and suite.
         status: done
       - id: gh-107
-        summary: Move documentation-curator integration proof to agent-profiles.
+        summary: Move documentation-curator integration proof to applications/catalog.
         status: done
       - id: gh-108
         summary: Add evaluator-to-generator profile tracer bullet.
@@ -170,8 +170,8 @@ releases:
       - mage integration:benchEvaluator
       - mage integration:monitorControl
     success_markers:
-      - Each implemented tracer target lives in agent-profiles.
-      - Fixtures resolve through AGENT_PROFILES_ROOT or repository-relative paths.
+      - Each implemented tracer target lives in applications/catalog.
+      - Fixtures resolve through AGENT_CATALOG_ROOT or repository-relative paths.
       - Cross-profile boundaries record concrete output, trace, or terminal state evidence.
       - agent-core remains unaware of concrete profile names in its own integration targets.
 
@@ -277,7 +277,7 @@ releases:
       Two profile-owned agents use a local Chroma vector database as a retrieval
       boundary: an ingest profile that loads a repository corpus into a Chroma
       collection, and a reader profile that answers a question grounded in the
-      retrieved chunks. Both are pure agent-profiles configuration over existing
+      retrieved chunks. Both are pure applications/catalog configuration over existing
       agent-core words -- REST client words, list_resource, read_resource, and
       invoke_llm. The ingest machine lists trusted corpus paths before model
       control; the model selects listed files, and the machine sequences the
@@ -329,11 +329,11 @@ releases:
         status: implemented
     proof:
       - mage validate
-      - cd examples/chatbot-mesh && mage integration:chroma  # mesh wrapper, canonical library ingest program
+      - cd applications/chatbot-mesh && mage integration:chroma  # mesh wrapper, canonical library ingest program
       - go test ./conformance -run TestCorpusIngestListsTrustedCorpusBeforeModelControl
       - go test ./conformance -run TestCorpusReader
     success_markers:
-      - The ingest and reader profiles are pure agent-profiles configuration over existing agent-core words.
+      - The ingest and reader profiles are pure applications/catalog configuration over existing agent-core words.
       - Every Chroma add and query carries an agent-supplied embedding vector threaded from the Ollama embed word, never a model-authored or server-side vector.
       - The reader answer is grounded in chunks retrieved through embed_query -> chroma_query -> invoke_llm.
       - The Chroma and Ollama servers are external preconditions surfaced through chroma_ready and ollama_ready, not started by the agent.
@@ -354,7 +354,7 @@ releases:
   - version: "09.0"
     name: RAG server and single-RAG chatbot turn
     relocated_to: >-
-      Relocated to examples/chatbot-mesh (rel00.0). The mesh data-plane specs
+      Relocated to applications/chatbot-mesh (rel00.0). The mesh data-plane specs
       (SRDs, use cases, test suites) now live with the standalone example; this
       entry remains for history. The control plane (09.4) is relocated too (rel05.0, GH-430).
     description: |
@@ -384,7 +384,7 @@ releases:
   - version: "09.1"
     name: Tier selection and multi-RAG fan-out
     relocated_to: >-
-      Relocated to examples/chatbot-mesh (rel01.0). The mesh data-plane specs
+      Relocated to applications/chatbot-mesh (rel01.0). The mesh data-plane specs
       (SRDs, use cases, test suites) now live with the standalone example; this
       entry remains for history. The control plane (09.4) is relocated too (rel05.0, GH-430).
     description: |
@@ -409,7 +409,7 @@ releases:
   - version: "09.2"
     name: Observability
     relocated_to: >-
-      Relocated to examples/chatbot-mesh (rel02.0). The mesh data-plane specs
+      Relocated to applications/chatbot-mesh (rel02.0). The mesh data-plane specs
       (SRDs, use cases, test suites) now live with the standalone example; this
       entry remains for history. The control plane (09.4) is relocated too (rel05.0, GH-430).
     description: |
@@ -434,7 +434,7 @@ releases:
   - version: "09.3"
     name: Mesh deployment and tiered swap
     relocated_to: >-
-      Relocated to examples/chatbot-mesh (rel03.0). The mesh data-plane specs
+      Relocated to applications/chatbot-mesh (rel03.0). The mesh data-plane specs
       (SRDs, use cases, test suites) now live with the standalone example; this
       entry remains for history. The control plane (09.4) is relocated too (rel05.0, GH-430).
     description: |
@@ -458,7 +458,7 @@ releases:
   - version: "09.4"
     name: Control plane
     relocated_to: >-
-      Relocated to examples/chatbot-mesh (rel05.0) as srd004-coordinator and
+      Relocated to applications/chatbot-mesh (rel05.0) as srd004-coordinator and
       srd005-creator, with the rel05.0 control-plane use case and test suite; this
       entry remains for history and the example is the canonical copy (GH-430).
     description: |
@@ -489,7 +489,7 @@ releases:
   - version: "09.5"
     name: In-cluster LLM tier
     relocated_to: >-
-      Relocated to examples/chatbot-mesh (rel04.0). The mesh data-plane specs
+      Relocated to applications/chatbot-mesh (rel04.0). The mesh data-plane specs
       (SRDs, use cases, test suites) now live with the standalone example; this
       entry remains for history. The control plane (09.4) is relocated too (rel05.0, GH-430).
     description: |
@@ -564,15 +564,17 @@ releases:
       log validators assert against.
 
       Both profiles are supported test-time library members. Their paths and
-      behavior are part of the agent-profiles/v0.* public surface even while the
-      release remains in-progress on the evidence gaps below. Rig-subject and
-      other conformance fixtures remain internal test data, not members.
+      behavior are part of the canonical applications/catalog/v0.* public
+      surface even while the release remains in-progress on the evidence gaps
+      below. Matching agent-profiles/v0.* names are v0 compatibility aliases,
+      and immutable historical legacy tags remain valid. Rig-subject and other
+      conformance fixtures remain internal test data, not members.
 
       Tests are profile-owned data. A scenario is a tests/<scenario>/
       directory beside the agent it tests, holding validator machines and
       fixtures, so one subject carries several tests and adding one never
       edits the rig. Discovery roots cover both the agent families here and
-      the agents under examples/, so one rig serves the whole repository. No
+      the agents under applications/, so one rig serves the whole repository. No
       scenario needs a live service and none needs a container image per
       test: every child is the same agent binary over a mounted profile.
 

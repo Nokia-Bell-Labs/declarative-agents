@@ -124,7 +124,7 @@ test_cases:
 
   - use_case: rel11.0-uc001-assembler-scenario-run
     name: Fixture array drives machine-visible sequential mock starts
-    go_test: cd ../agent-core && go test ./internal/runtime/core ./internal/tools/service -run '^(TestLoopForEach.*|TestScenarioSteps_ThreadsMockURLIntoSubject)$'
+    go_test: cd ../../agent-core && go test ./internal/runtime/core ./internal/tools/service -run '^(TestLoopForEach.*|TestScenarioSteps_ThreadsMockURLIntoSubject)$'
     status: implemented
     description: |
       A labeled next_scenario output supplies fixture objects to MachineSpec.
@@ -166,7 +166,7 @@ test_cases:
 
   - use_case: rel11.0-uc001-assembler-scenario-run
     name: Validator and teardown collections are machine-visible
-    go_test: cd ../agent-core && go test ./internal/tools/service -run '^(TestRunOneValidator_TerminalStateAndTimeout|TestRunScenarioValidator_EmitsItemReceipt|TestRecordScenarioValidators_PreservesJoinOrder|TestScenarioSteps_TeardownRunsOnFailurePath)$'
+    go_test: cd ../../agent-core && go test ./internal/tools/service -run '^(TestRunOneValidator_TerminalStateAndTimeout|TestRunScenarioValidator_EmitsItemReceipt|TestRecordScenarioValidators_PreservesJoinOrder|TestScenarioSteps_TeardownRunsOnFailurePath)$'
     integration_target: mage rig
     status: implemented
     description: |
@@ -191,7 +191,7 @@ test_cases:
 
   - use_case: rel11.0-uc001-assembler-scenario-run
     name: Subject readiness is a machine-visible REST retry loop
-    go_test: cd ../agent-core && go test ./internal/tools/lifecycle ./internal/tools/rest ./internal/tools/service -run '^(TestDelay_ElapsedAndDeadlineSignals|TestDelay_CancellationAndValidation|TestRESTClient_CommandStateSelectsTrustedBaseURL|TestSubjectHealthTarget_PreservesRelativeAndAlternateListenerPaths)$'
+    go_test: cd ../../agent-core && go test ./internal/tools/lifecycle ./internal/tools/rest ./internal/tools/service -run '^(TestDelay_ElapsedAndDeadlineSignals|TestDelay_CancellationAndValidation|TestRESTClient_CommandStateSelectsTrustedBaseURL|TestSubjectHealthTarget_PreservesRelativeAndAlternateListenerPaths)$'
     integration_target: mage rig
     status: implemented
     description: |
@@ -264,8 +264,8 @@ test_cases:
       - srd018-assembler R1.9
 
   - use_case: rel11.0-uc001-assembler-scenario-run
-    name: Discovery covers the examples tree with no special-casing
-    integration_target: mage integration:rig (run from examples/chatbot-mesh)
+    name: Discovery covers the applications tree with no special-casing
+    integration_target: mage integration:rig (run from applications/chatbot-mesh)
     status: implemented
     description: |
       With roots configured to cover both the agent families and the examples

@@ -3,11 +3,11 @@ title: Test Suite for Release 06.0 Agent Profiles
 release: "06.0"
 
 overview: |
-  This suite records executable proof for the agent-profiles side of the
+  This suite records executable proof for the applications/catalog side of the
   Release 06.0 migration. The proofs stay split by ownership boundary.
-  agent-profiles validates profile references, mounted container usage, and
+  applications/catalog validates profile references, mounted container usage, and
   release bundle tagging. agent-core integration targets consume these profiles,
-  demos, fixtures, and UI assets through AGENT_PROFILES_ROOT.
+  demos, fixtures, and UI assets through AGENT_CATALOG_ROOT.
 
   Implemented cases name commands, Go tests, or Mage targets. No case depends
   on copied profile directories inside an agent-core runtime image.
@@ -22,9 +22,9 @@ traces:
   - rel06.0-uc002-profile-validation
 
 preconditions:
-  - agent-core is available as AGENT_CORE_ROOT or as a sibling ../agent-core checkout.
+  - agent-core is available as AGENT_CORE_ROOT or as a sibling ../../agent-core checkout.
   - An agent-core runtime image is available before running mage containerSmoke.
-  - agent-core integration targets are run from the agent-core repository with AGENT_PROFILES_ROOT pointing at this repository.
+  - agent-core integration targets are run from the agent-core repository with AGENT_CATALOG_ROOT pointing at this repository.
   - mage tag is run from main and creates only a local tag unless the maintainer pushes it later.
 
 test_cases:
@@ -139,15 +139,15 @@ test_cases:
 
   - use_case: rel06.0-uc001-mounted-profile-execution
     name: Coding application consumes canonical profile closures
-    go_test: examples/coding-agent package and integration targets
-    integration_target: AGENT_PROFILES_ROOT=/path/to/agent-profiles mage integration:codingLoop
+    go_test: applications/coding-agent package and integration targets
+    integration_target: AGENT_CATALOG_ROOT=/path/to/applications/catalog mage integration:codingLoop
     status: implemented
     description: |
-      Run the coding-agent application integration while AGENT_PROFILES_ROOT
-      points at agent-profiles. The application packages and runs the canonical
+      Run the coding-agent application integration while AGENT_CATALOG_ROOT
+      points at applications/catalog. The application packages and runs the canonical
       planner, executor, and critic profile closures.
     inputs:
-      profile_root: AGENT_PROFILES_ROOT
+      profile_root: AGENT_CATALOG_ROOT
       generator_fixture: testdata/integration/uc001-generator-coding
       evaluator_suite: testdata/integration/uc002-evaluator-benchmark/suite.yaml
     expected:
@@ -167,11 +167,11 @@ test_cases:
   - use_case: rel06.0-uc001-mounted-profile-execution
     name: Agent Core monitor integration consumes profile assets
     go_test: agent-core integration targets
-    integration_target: AGENT_PROFILES_ROOT=/path/to/agent-profiles mage integration:monitor
+    integration_target: AGENT_CATALOG_ROOT=/path/to/applications/catalog mage integration:monitor
     status: implemented
     description: |
       Run agent-core integration targets from the agent-core repository with
-      AGENT_PROFILES_ROOT pointing at agent-profiles. monitor consumes the shipped
+      AGENT_CATALOG_ROOT pointing at applications/catalog. monitor consumes the shipped
       monitor profile. The rel04-monitor YAML record is documentation-only
       metadata, not an executable input. Concrete Knowledge Manager/
       documentation-curator proof moves to the profile-owned Rel07 suite.

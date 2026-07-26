@@ -1,7 +1,7 @@
 id: rel09.3-uc001-mesh-deployment
 title: Mesh Deployment and Tiered Swap (Relocated)
 status: relocated
-canonical_path: examples/chatbot-mesh/docs/specs/use-cases/rel03.0-uc001-mesh-deployment.yaml
+canonical_path: applications/chatbot-mesh/docs/specs/use-cases/rel03.0-uc001-mesh-deployment.yaml
 note: |
   Pointer-only tombstone. The chatbot mesh is application composition, so the
   canonical use case and its traces live with the example. This retained

@@ -12,7 +12,7 @@ import (
 )
 
 // Integration contains focused runtime integrations that cross a live service
-// boundary. Application workflows belong to the applications under examples/.
+// boundary. Application workflows belong to the applications under applications/.
 type Integration mg.Namespace
 
 // All runs every base-service integration test and prints a summary.

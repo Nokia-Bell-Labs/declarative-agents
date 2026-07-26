@@ -9,12 +9,12 @@ request to its control server.
 
 ## Steps
 
-The first slide launches the profile directly from the `agent-profiles` root:
+The first slide launches the profile directly from the `applications/catalog` root:
 
     agent \
       --profile agents/knowledge-manager/documentation-curator/profile.yaml \
       --directory . \
-      --core-root ../agent-core
+      --core-root ../../agent-core
 
 `--directory` supplies the profile repository as the documentation workspace.
 `--core-root` maps the profile's installed `/opt/agent-core` declaration path to
@@ -26,7 +26,7 @@ For a source checkout, Mage can build the binary from the sibling
     mage demo:knowledgeManager
 
 Set `AGENT_CORE_ROOT` when the core checkout is not the sibling
-`../agent-core`. The second slide runs the lifecycle-exit agent through the
+`../../agent-core`. The second slide runs the lifecycle-exit agent through the
 same interpreter to post the exit request and stop the curator.
 
 ## The lifecycle-exit agent

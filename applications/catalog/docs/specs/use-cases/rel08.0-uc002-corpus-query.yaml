@@ -6,7 +6,7 @@ summary: |
   embeds the question at a local Ollama provider, queries Chroma with the
   agent-supplied query vector for the nearest chunks, and invokes the model over
   the retrieved chunks to produce a grounded answer. The proof belongs in
-  agent-profiles because the Chroma and Ollama REST definitions, the collection
+  applications/catalog because the Chroma and Ollama REST definitions, the collection
   identity, and the reader prompt are profile-owned assets. The deterministic
   profile-owned conformance tracer executes the shipped wrapper against
   controlled Chroma and Ollama protocol fixtures, proving the grounded-answer

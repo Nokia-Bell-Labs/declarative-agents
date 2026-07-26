@@ -67,7 +67,7 @@ func TestJuristSucceeded(t *testing.T) {
 }
 
 // TestResolveAuditToolsRequiresRuntimeAndValidator pins the self-governance gate:
-// a copied-out example that cannot reach the agent-core runtime or the jurist
+// a copied-out application that cannot reach the agent-core runtime or the jurist
 // validator profile must fail, not skip to a false green. Only when both tools
 // are present does resolution succeed.
 func TestResolveAuditToolsRequiresRuntimeAndValidator(t *testing.T) {

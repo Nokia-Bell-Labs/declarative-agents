@@ -138,7 +138,7 @@ func runApplierLive(coreRoot, profilesRoot string) error {
 	if err := buildSmokeRuntimeImage(coreRoot, images.Runtime); err != nil {
 		return err
 	}
-	chartDir := exampleChartDir(profilesRoot)
+	chartDir := applicationChartDir(profilesRoot)
 	staged, cleanupChart, err := stageApplierLiveChart(chartDir, profilesRoot)
 	if err != nil {
 		return err
@@ -154,7 +154,7 @@ func runApplierLive(coreRoot, profilesRoot string) error {
 	}
 
 	cluster, err := kindrig.EnsureCluster(kindrig.DefaultRun, applierLiveCluster,
-		helmKindConfig(exampleChartDir(profilesRoot)), helmClusterWait)
+		helmKindConfig(applicationChartDir(profilesRoot)), helmClusterWait)
 	if err != nil {
 		return err
 	}

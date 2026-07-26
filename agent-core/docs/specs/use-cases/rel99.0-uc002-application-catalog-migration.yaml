@@ -12,20 +12,21 @@ summary: |
 actor: Maintainers of Agent Core, the application catalog, root release orchestration, and runnable applications
 
 trigger: |
-  GH-1036 begins after this contract is indexed. The active examples/ and
-  top-level agent-profiles/ layout obscures ownership and allows core tests or
-  application commands to depend on caller CWD and sibling discovery.
+  Historical pre-migration state: the examples/ and top-level agent-profiles/
+  layout obscured ownership and allowed core tests or application commands to
+  depend on caller CWD and sibling discovery. GH-1036 begins after this contract
+  is indexed.
 
 flow:
   - F1: The documentation issue GH-1040 fixes the source layout, ownership, owner-root, environment, tag, module, package, and mount contracts in srd043.
   - F2: GH-1037 mechanically moves coding-agent and chatbot-mesh from examples/ to applications/ and updates their Go module identities and root participation.
   - F3: GH-1038 copies the minimal runtime programs required by core integrations into agent-core/testdata/integration and removes catalog discovery from those targets.
   - F4: GH-1041 mechanically moves the complete agent-profiles module to applications/catalog without reorganizing its internal taxonomy.
-  - F5: GH-1039 replaces remaining catalog-backed core tests with core-owned fixtures and moves catalog membership assertions to catalog conformance.
+  - F5: GH-1047 retires obsolete core catalog discovery before GH-1039 replaces remaining catalog-backed core tests with core-owned fixtures and moves catalog membership assertions to catalog conformance.
   - F6: GH-1043 introduces AGENT_CATALOG_ROOT, applies deterministic AGENT_PROFILES_ROOT compatibility behavior, and resolves one absolute catalog root without changing CWD.
-  - F7: GH-1046 cuts root release, UI, stats, and tag behavior to applications/, including canonical and legacy v0 catalog tags.
+  - F7: GH-1048 aligns the root module registry before GH-1046 cuts release, UI, stats, and tag behavior to applications/, including canonical and legacy v0 catalog tags.
   - F8: GH-1044 migrates coding-agent catalog references and packages role-sharded closures while preserving /profiles paths and exact provenance.
-  - F9: GH-1042 migrates chatbot-mesh catalog references while retaining its application-owned topology, package paths, and mount paths.
+  - F9: GH-1042 migrates chatbot-mesh catalog references; GH-1049 propagates the resolver through its integrations; GH-1050 initializes its checkpoint database idempotently.
   - F10: GH-1045 documents the tool-first catalog taxonomy and removes stale active examples/ and top-level agent-profiles/ source-path claims.
   - F11: Maintainers run root, core, catalog, and application gates from each owner root and verify the formal issue-to-evidence mapping.
 
@@ -66,7 +67,7 @@ success_criteria:
     traces:
       - srd043-application-catalog-layout AC6
   - id: S7
-    criterion: All ten GH-1036 child issues have one formal test case and execute in the approved order.
+    criterion: All fourteen GH-1036 child issues have one formal test case and execute in the approved order.
     traces:
       - srd043-application-catalog-layout AC7
       - srd043-application-catalog-layout AC8
@@ -98,6 +99,6 @@ out_of_scope:
   - Turning application-local agents into catalog members without satisfying the catalog membership contract.
   - Removing or retargeting immutable historical tags.
 
-implementation_status: specified
+implementation_status: done
 srd: srd043-application-catalog-layout
 test_suite: test-rel99.0-application-catalog-migration

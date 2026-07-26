@@ -57,9 +57,9 @@ func resolveChatbotIntegrationImages(repoRoot string) (chatbotIntegrationImages,
 	}, nil
 }
 
-// exampleChartDir returns the chatbot-mesh Helm chart under the example, which
-// ships with the example rather than as a sibling deploy directory.
-func exampleChartDir(profilesRoot string) string {
+// applicationChartDir returns the chatbot-mesh Helm chart under the application, which
+// ships with the application rather than as a sibling deploy directory.
+func applicationChartDir(profilesRoot string) string {
 	return filepath.Join(profilesRoot, "helm")
 }
 
@@ -94,7 +94,7 @@ func (Integration) HelmSmoke() error {
 		return err
 	}
 	coreRoot := envOrDefault(agentCoreRootEnv, siblingPath(profilesRoot, "agent-core"))
-	chartDir := exampleChartDir(profilesRoot)
+	chartDir := applicationChartDir(profilesRoot)
 	if err := requireProfilePaths(profilesRoot,
 		"agents/chatbot/profile.yaml", "agents/chatbot/rest.yaml",
 		"agents/rag-server/profile.yaml",
@@ -1149,7 +1149,7 @@ func (Integration) HelmSwap() error {
 		return err
 	}
 	coreRoot := envOrDefault(agentCoreRootEnv, siblingPath(profilesRoot, "agent-core"))
-	chartDir := exampleChartDir(profilesRoot)
+	chartDir := applicationChartDir(profilesRoot)
 	if _, err := os.Stat(filepath.Join(chartDir, "Chart.yaml")); err != nil {
 		return fmt.Errorf("chatbot-mesh chart not found at %s: %w", chartDir, err)
 	}
@@ -1428,7 +1428,7 @@ func (Integration) HelmLLMTier() error {
 		return err
 	}
 	coreRoot := envOrDefault(agentCoreRootEnv, siblingPath(profilesRoot, "agent-core"))
-	chartDir := exampleChartDir(profilesRoot)
+	chartDir := applicationChartDir(profilesRoot)
 	if _, err := os.Stat(filepath.Join(chartDir, "Chart.yaml")); err != nil {
 		return fmt.Errorf("chatbot-mesh chart not found at %s: %w", chartDir, err)
 	}

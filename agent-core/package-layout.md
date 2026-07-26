@@ -95,7 +95,7 @@ Generated from `go list ./...` after the internal package migration:
    focused `internal/tools/*` packages, and evaluator session/point/result code
    lives under `internal/evaluation`.
 7. Keep reusable evaluation analysis under `internal/evaluation`; move bench
-   routes, UI assets, and workflow policy to `agent-profiles/agents/bench`.
+   routes, UI assets, and workflow policy to `applications/catalog/agents/bench`.
    Done: the universal runtime links no bench application package.
 8. Keep shared specification parsing and validation in `pkg/spec`; move only
    jurist-specific orchestration under `internal/audit`.

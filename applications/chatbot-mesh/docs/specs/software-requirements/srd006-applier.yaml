@@ -166,7 +166,7 @@ depends_on:
 
 platform_dependencies:
   # agent-core runtime contracts this agent builds on. External references, owned
-  # by agent-core, not part of this example's corpus.
+  # by agent-core, not part of this application's corpus.
   - srd_id: srd029-rest-server-tools
     provider: agent-core
     symbols_used: [R1]

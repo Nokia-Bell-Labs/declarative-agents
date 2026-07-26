@@ -15,8 +15,16 @@ coverage, portable closed references, and sufficient parameterization for
 consumers to configure them without edits. Runtime implementation remains in
 `agent-core`.
 
-The compatibility surface remains versioned by `agent-profiles/v0.*` tags until
-the coordinated tag migration changes it. Treat path,
+Treat `tools.yaml` as a name-only selection list, not a declaration block.
+Reusable repository-specific ToolDef declarations are first-class catalog tool
+blocks under their owning `agents/<family>/` closure. Profile-local overrides
+remain in that closure. Generic Go implementations stay under
+`agent-core/internal/tools`, and core shared declarations stay under
+`agent-core/tools`. The complete contract is in `tools/README.md`.
+
+The canonical compatibility surface is versioned by
+`applications/catalog/v0.*`; matching `agent-profiles/v0.*` tags remain legacy
+v0 compatibility identifiers. Treat path,
 machine/tool/signal/terminal contracts, request shapes, configuration names, and
 closure membership as compatibility-sensitive. Record breaking migrations and
 update consumers in the coordinated release.

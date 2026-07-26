@@ -119,7 +119,7 @@ depends_on:
 
 platform_dependencies:
   # agent-core runtime contracts this agent builds on. External references, owned
-  # by agent-core, not part of this example's corpus.
+  # by agent-core, not part of this application's corpus.
   - srd_id: srd030-machine-request-rest-binding
     provider: agent-core
     symbols_used: [R1]
@@ -140,7 +140,7 @@ implementation_status:
     - >-
       LLM $tool tier selector (R2, GH-904): select_tier reads the original question,
       parse_tier validates one chat-LLM word, and a misparse or out-of-set selection
-      falls back to the default word. GH-904 cleanly renamed the example-app
+      falls back to the default word. GH-904 cleanly renamed the application-app
       environment from CHATBOT_ROUTER_MODEL to CHATBOT_TIER_MODEL with no
       compatibility fallback.
     - >-

@@ -42,7 +42,7 @@ requirements:
 
 non_goals:
   - Define Go package APIs for the agent-core REST runtime or lifecycle vocabulary.
-  - Reimplement lifecycle word execution in agent-profiles.
+  - Reimplement lifecycle word execution in applications/catalog.
   - Own cross-profile dependency-direction invariants; those stay in srd001.
 
 acceptance_criteria:

@@ -14,7 +14,7 @@ Open the running servers after they start:
 
 Run the shipped profile directly from the agent-profiles root:
 
-	agent --profile agents/knowledge-manager/documentation-curator/profile.yaml --directory . --core-root ../agent-core
+	agent --profile agents/knowledge-manager/documentation-curator/profile.yaml --directory . --core-root ../../agent-core
 
 Or build agent-core and run the same profile through Mage:
 

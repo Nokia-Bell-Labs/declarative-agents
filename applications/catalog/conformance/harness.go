@@ -226,7 +226,7 @@ var (
 func agentBinary(t *testing.T, coreRoot string) string {
 	t.Helper()
 	binaryOnce.Do(func() {
-		out := filepath.Join(os.TempDir(), "agent-profiles-conformance-agent")
+		out := filepath.Join(os.TempDir(), "application-catalog-conformance-agent")
 		cmd := exec.Command("go", "build", "-tags", "production", "-o", out, "./cmd/agent")
 		cmd.Dir = coreRoot
 		var buf bytes.Buffer

@@ -2,18 +2,18 @@ id: eng01-kind-test-demo-rig
 title: "Standard kind Rig for Agent Integration Tests and Demos"
 
 introduction: |
-  Every example in this repository needs the same two capabilities: an
+  Every application in this repository needs the same two capabilities: an
   integration test that proves the mesh works on a real Kubernetes
   cluster, and a demo a person can drive from a browser or terminal.
-  The chatbot-mesh example grew a working rig for both in its magefiles:
+  The chatbot-mesh application grew a working rig for both in its magefiles:
   dependency gating, image bake, kind image load, a chart values overlay
   for cluster runs, pre-existing-cluster detection, and teardown in all
   paths. Nothing in that rig is specific to chatbot-mesh, and each new
-  example would otherwise re-invent it with small divergences.
+  application would otherwise re-invent it with small divergences.
 
   This guideline standardizes the rig. It fixes the toolchain, the
   cluster lifecycle, image delivery, network access, the mage verbs
-  every example exposes, and failure evidence capture. We assume docker
+  every application exposes, and failure evidence capture. We assume docker
   as the container engine and kind (Kubernetes in Docker) as the cluster
   runtime; helm delivers the charts. Podman support is deferred but the
   design keeps the engine behind an interface so it can be added without
@@ -31,7 +31,7 @@ sections:
       |------|------|--------------------------|
       | docker | Builds images, hosts the kind nodes | Integration targets skip; demo targets fail with install instructions |
       | kind | Creates and deletes the cluster, loads images | Same as docker |
-      | helm | Installs and upgrades the example charts | Same as docker |
+      | helm | Installs and upgrades the application charts | Same as docker |
       | kubectl | Waits, port-forwards, collects evidence | Same as docker |
 
       Integration targets keep the existing chatbot-mesh convention:
@@ -51,13 +51,13 @@ sections:
       message before any cluster is created.
 
       The shared implementation and minimum-version pins live in
-      `magefiles/kindrig/preflight.go`. Both examples expose `mage doctor`,
+      `magefiles/kindrig/preflight.go`. Both applications expose `mage doctor`,
       `mage demo:up`, and `mage demo:down`; doctor and requested-demo preflight
       execute only version and Docker resource queries.
 
   - title: "Cluster lifecycle"
     content: |
-      Each scenario owns one named cluster, `da-<example>-<scenario>`,
+      Each scenario owns one named cluster, `da-<application>-<scenario>`,
       created from a checked-in kind configuration file next to the
       scenario. The configuration pins the node image by version and
       digest (`kindest/node:vX.Y.Z@sha256:...`) and declares any
@@ -111,10 +111,10 @@ sections:
 
   - title: "Standard mage verbs"
     content: |
-      Every example exposes the same verbs with the same contracts, so a
-      person who has run one example can run them all.
+      Every application exposes the same verbs with the same contracts, so a
+      person who has run one application can run them all.
 
-      Table 2: Rig verbs each example exposes
+      Table 2: Rig verbs each application exposes
 
       | Verb | Contract |
       |------|----------|
@@ -127,7 +127,7 @@ sections:
       detection, image load, teardown, log export) moves from the
       chatbot-mesh magefiles into a shared package under the repository
       root magefiles, and chatbot-mesh becomes the first consumer of the
-      shared package rather than the owner of the pattern. Each example
+      shared package rather than the owner of the pattern. Each application
       then ships only its scenario: a kind configuration, a chart with a
       `ci/kind-values.yaml` overlay, and the assertions that make its
       integration verbs meaningful.
@@ -202,5 +202,5 @@ references:
   - "kind Quick Start, https://kind.sigs.k8s.io/docs/user/quick-start/"
   - "kind Local Registry, https://kind.sigs.k8s.io/docs/user/local-registry/"
   - "kind Ingress, https://kind.sigs.k8s.io/docs/user/ingress/"
-  - "examples/chatbot-mesh/magefiles/integration_helm.go (existing rig this guideline generalizes)"
+  - "applications/chatbot-mesh/magefiles/integration_helm.go (existing rig this guideline generalizes)"
   - "magefiles/kindrig/kindrig.go (shared cluster lifecycle and failure-evidence machinery)"

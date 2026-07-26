@@ -27,7 +27,7 @@ const (
 	juristProfileRel = "agents/jurist/profile.yaml"
 )
 
-// Audit runs the jurist over this example's specification corpus, so the example
+// Audit runs the jurist over this application's specification corpus, so the application
 // self-governs: load_corpus reads docs/SPECIFICATIONS.yaml, docs/specs, and
 // agents; validate_specs runs the corpus consistency checks; a single error
 // finding (a broken index path, touchpoint, or citation) fails the target. The
@@ -37,7 +37,7 @@ const (
 // run because the report -- not the exit status -- names which checks failed.
 // Audit is the self-governance gate: it fails clearly when the agent-core
 // runtime or the jurist validator profile is not reachable, rather than
-// skipping, so a copied-out example without the platform tools reports an
+// skipping, so a copied-out application without the platform tools reports an
 // honest failure instead of a false green.
 //
 // The gate has four steps, each answering a question the one before it cannot:
@@ -156,7 +156,7 @@ func runJurist(binary, juristProfile, root, coreRoot string) error {
 	case err != nil:
 		return fmt.Errorf("audit: %w; see the report above", err)
 	case !ok:
-		return fmt.Errorf("audit: the jurist found errors in the example corpus at %s", filepath.Join(root, "docs", "specs"))
+		return fmt.Errorf("audit: the jurist found errors in the application corpus at %s", filepath.Join(root, "docs", "specs"))
 	default:
 		fmt.Printf("audit: jurist profile %s completed with no errors\n", filepath.Base(juristProfile))
 		return nil
@@ -182,7 +182,7 @@ func juristSucceeded(report string) (bool, error) {
 // buildAgent builds the production agent binary from the agent-core checkout, the
 // same binary the runtime image ships and the integration tests drive.
 func buildAgent(coreRoot string) (string, error) {
-	binary := filepath.Join(os.TempDir(), "chatbot-mesh-example-agent")
+	binary := filepath.Join(os.TempDir(), "chatbot-mesh-application-agent")
 	cmd := exec.Command("go", "build", "-tags", "production", "-o", binary, "./cmd/agent")
 	cmd.Dir = coreRoot
 	cmd.Stdout = os.Stdout
@@ -203,8 +203,8 @@ func agentCoreAvailable(coreRoot string) bool {
 
 // siblingPath resolves rel against the repository root, two levels above the
 // applications/chatbot-mesh owner root.
-func siblingPath(exampleRoot, rel string) string {
-	return filepath.Clean(filepath.Join(exampleRoot, "..", "..", rel))
+func siblingPath(applicationRoot, rel string) string {
+	return filepath.Clean(filepath.Join(applicationRoot, "..", "..", rel))
 }
 
 func envOrDefault(name, fallback string) string {

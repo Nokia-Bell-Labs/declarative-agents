@@ -19,7 +19,7 @@ trigger: |
 
 preconditions:
   - agent-core provides the mock endpoint binding, fixture format, and request log (srd039).
-  - The mock profile is shipped in agent-profiles and selects its fixture by environment.
+  - The mock profile is shipped in applications/catalog and selects its fixture by environment.
 
 flow:
   - id: F1

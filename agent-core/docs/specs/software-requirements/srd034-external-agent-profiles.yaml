@@ -13,14 +13,14 @@ problem: |
   /opt/agent-core looks like it owns those programs, even when a caller intends
   to mount a profile from another repository.
 
-  The migration moves agent programs to agent-profiles. Before code and Docker
+  The migration moves agent programs to applications/catalog. Before code and Docker
   changes follow, Agent Core needs a narrow contract. It must say which assets
   stay in the runtime image. It must also say which assets arrive from an
   external path at execution time.
 
 goals:
   - G1: Define agent-core as the owner of the runtime binary and core-owned runtime assets.
-  - G2: Define agent-profiles as the owner of agent YAML programs and profile-local assets.
+  - G2: Define applications/catalog as the owner of agent YAML programs and profile-local assets.
   - G3: Specify mounted-profile execution for containers and local tests.
   - G4: Preserve profile-relative path resolution for tools, REST definitions, UX config, and request machines.
 
@@ -45,8 +45,8 @@ requirements:
   R2:
     title: Agent profile repository ownership
     items:
-      - R2.1: agent-profiles SHALL own agent YAML programs, including profile.yaml, machine.yaml, tools.yaml, tool declarations, REST definitions, request machines, model-boundary configs, and profile-local UX config.
-      - R2.2: agent-profiles SHALL own demo files and agent integration fixtures whose purpose is to exercise a configured agent program rather than a core runtime package.
+      - R2.1: applications/catalog SHALL own agent YAML programs, including profile.yaml, machine.yaml, tools.yaml, tool declarations, REST definitions, request machines, model-boundary configs, and profile-local UX config.
+      - R2.2: applications/catalog SHALL own demo files and agent integration fixtures whose purpose is to exercise a configured agent program rather than a core runtime package.
       - R2.3: Profile-local UX config such as agents/knowledge-manager/documentation-curator/ui/ux.yaml SHALL move with the owning profile.
       - R2.4: Profile repositories MAY reference core-owned tool declaration roots from an installed Agent Core runtime when those declarations are stable runtime vocabulary.
 
@@ -55,7 +55,7 @@ requirements:
     items:
       - R3.1: cmd/agent SHALL accept an explicit --profile path that points to a profile supplied outside the Agent Core source tree.
       - R3.2: Relative paths inside profile.yaml SHALL resolve from the directory that contains that profile.yaml.
-      - R3.3: Tests and Mage targets that need standard profiles SHALL resolve an external agent-profiles checkout or bundle path, then pass explicit file paths (for example --profile) rather than assuming agents/ exists in agent-core or relying on process environment variables as the semantic profile-root channel.
+      - R3.3: Tests and Mage targets that need standard profiles SHALL resolve an external applications/catalog checkout or bundle path, then pass explicit file paths (for example --profile) rather than assuming agents/ exists in agent-core or relying on process environment variables as the semantic profile-root channel.
       - R3.4: Profile root discovery SHALL fail with a clear diagnostic when a required external profile path is missing.
 
   R4:
@@ -72,18 +72,18 @@ implementation_status:
     Agent Core no longer stores standard agent profile directories, demos, or
     profile-owned integration fixtures. Docker packaging, Mage integration
     targets, tests, and README examples consume those assets from an external
-    agent-profiles checkout or bundle using explicit paths passed to --profile,
+    applications/catalog checkout or bundle using explicit paths passed to --profile,
     bind mounts, and documented mage inputs.
   planned: |
     Future runtime work should keep this boundary: profile-owned agent programs
-    move in agent-profiles, while agent-core keeps the binary, Go runtime,
+    move in applications/catalog, while agent-core keeps the binary, Go runtime,
     shared tool implementations, core-owned tool declarations, and runtime
     packaging.
 
 non_goals:
   - Rewriting runtime package boundaries while profile ownership moves.
   - Introducing a compatibility layer for profile paths that have not shipped.
-  - Requiring a specific distribution mechanism for agent-profiles.
+  - Requiring a specific distribution mechanism for applications/catalog.
   - Moving core-owned shared tool declarations out of agent-core.
   - Rewriting git history as part of the profile ownership contract.
 

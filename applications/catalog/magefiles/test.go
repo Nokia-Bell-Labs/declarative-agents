@@ -8,7 +8,7 @@ import (
 	"github.com/magefile/mage/sh"
 )
 
-// Test runs Go unit tests for agent-profiles.
+// Test runs Go unit tests for the catalog.
 func Test() error {
 	fmt.Println("running go test ./...")
 	return sh.Run("go", "test", "./...")

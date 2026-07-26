@@ -9,11 +9,11 @@ import (
 )
 
 func TestCollectorIntakeFilterScenario(t *testing.T) {
-	exampleRoot, err := filepath.Abs("..")
+	applicationRoot, err := filepath.Abs("..")
 	if err != nil {
 		t.Fatal(err)
 	}
-	coreRoot := envOrDefault("AGENT_CORE_ROOT", siblingPath(exampleRoot, "agent-core"))
+	coreRoot := envOrDefault("AGENT_CORE_ROOT", siblingPath(applicationRoot, "agent-core"))
 	if !agentCoreAvailable(coreRoot) {
 		t.Skipf("agent-core checkout not found at %s", coreRoot)
 	}
@@ -22,7 +22,7 @@ func TestCollectorIntakeFilterScenario(t *testing.T) {
 		t.Fatal(err)
 	}
 	workDir := t.TempDir()
-	if err := runCollectorIntakeScenario(binary, coreRoot, exampleRoot, workDir); err != nil {
+	if err := runCollectorIntakeScenario(binary, coreRoot, applicationRoot, workDir); err != nil {
 		t.Fatal(err)
 	}
 	if _, err := os.Stat(filepath.Join(workDir, "collector.ndjson")); err != nil {

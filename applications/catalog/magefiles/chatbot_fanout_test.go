@@ -45,7 +45,7 @@ func readRequiredChatbotAsset(t *testing.T, path string) []byte {
 }
 
 func chatbotAssetPath(name string) string {
-	return filepath.Join("..", "..", "examples", "chatbot-mesh", "agents", "chatbot", name)
+	return filepath.Join("..", "..", "chatbot-mesh", "agents", "chatbot", name)
 }
 
 func loadChatbotMachine(t *testing.T) chatbotMachine {

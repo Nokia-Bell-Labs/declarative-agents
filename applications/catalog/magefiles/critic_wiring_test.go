@@ -7,12 +7,12 @@ import (
 	"testing"
 )
 
-// Shipped-critic conformance for the sentence-tool migration. agent-profiles
+// Shipped-critic conformance for the sentence-tool migration. catalog
 // owns the critic profile, so the assertion that its machines actually sequence
 // the replacement words belongs here rather than in an agent-core package test
 // reaching across the module boundary (srd034 R2.1, R2.2; GH-512).
 //
-// These read only agent-profiles assets. The generic checks -- every selected
+// These read only catalog assets. The generic checks -- every selected
 // word is declared, and every emit has a transition -- run over all profiles in
 // `mage validate`; what is proven here is the critic-specific sequence.
 

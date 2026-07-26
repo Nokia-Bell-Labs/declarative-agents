@@ -129,7 +129,7 @@ func (Integration) PolicyProof() error {
 		fmt.Printf("SKIP policyProof: %s\n", reason)
 		return nil
 	}
-	return runPolicyProof(exampleChartDir(profilesRoot))
+	return runPolicyProof(applicationChartDir(profilesRoot))
 }
 
 // policyProofSkipReason reports missing tooling. Absent tooling is a skip; an

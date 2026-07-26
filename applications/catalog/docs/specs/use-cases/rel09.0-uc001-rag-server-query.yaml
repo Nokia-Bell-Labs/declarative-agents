@@ -1,7 +1,7 @@
 id: rel09.0-uc001-rag-server-query
 title: Persistent RAG Server Answers a Vector-In Query (Relocated)
 status: relocated
-canonical_path: examples/chatbot-mesh/docs/specs/use-cases/rel00.0-uc001-rag-server-query.yaml
+canonical_path: applications/chatbot-mesh/docs/specs/use-cases/rel00.0-uc001-rag-server-query.yaml
 note: |
   Pointer-only tombstone. The canonical use case and its traces live with the
   chatbot-mesh example. This retained identifier exists only to redirect

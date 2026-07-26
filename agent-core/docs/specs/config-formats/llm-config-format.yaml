@@ -192,8 +192,8 @@ profile_terms: |
   Agent profiles differ from response parser profiles.
 
   Agent profiles are profile-owned assets. In normal deployments they live under
-  an external agent-profiles checkout or bundle, for example
-  $AGENT_PROFILES_ROOT/agents/*/profile.yaml. They select the machine,
+  an external applications/catalog checkout or bundle, for example
+  $AGENT_CATALOG_ROOT/agents/*/profile.yaml. They select the machine,
   tools.yaml files, declaration directories, and agent-local declaration files
   that define one configured agent program.
 
@@ -203,7 +203,7 @@ profile_terms: |
   profile to turn raw model text into a candidate tool call for parse_response.
 
 config_files:
-  - directory: $AGENT_PROFILES_ROOT/agents/executor/llm/
+  - directory: $AGENT_CATALOG_ROOT/agents/executor/llm/
     variant_count: 9
     description: |
       Model variants for the generator agent: default, deepseek,
@@ -211,7 +211,7 @@ config_files:
       nemotron. Each configures a different local model via Ollama
       with generator-specific system prompts.
 
-  - directory: $AGENT_PROFILES_ROOT/agents/critic/llm/
+  - directory: $AGENT_CATALOG_ROOT/agents/critic/llm/
     variant_count: 10
     description: |
       Model variants for the evaluator's benchmark grid:
@@ -220,7 +220,7 @@ config_files:
       are harness profiles used by child generator processes, not
       by the evaluator state machine itself.
 
-  - directory: $AGENT_PROFILES_ROOT/agents/planner/llm/
+  - directory: $AGENT_CATALOG_ROOT/agents/planner/llm/
     variant_count: 1
     description: |
       Single variant (default.yaml) for the planner agent. Includes

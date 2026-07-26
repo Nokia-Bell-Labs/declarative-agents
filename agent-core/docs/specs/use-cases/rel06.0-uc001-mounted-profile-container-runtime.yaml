@@ -12,7 +12,7 @@ summary: |
 actor: Release maintainer proving mounted-profile container execution
 
 trigger: |
-  Agent profile assets have moved to agent-profiles. Container users still need
+  Agent profile assets have moved to applications/catalog. Container users still need
   a simple command that runs configured agents. That command depends on an
   explicit profile mount, not on profile directories copied into the Agent Core
   image.
@@ -27,7 +27,7 @@ runtime_notes: |
 
   Failure matters too. Before core.Loop runs, the runtime image entrypoint
   rejects profile-less startup. In Mage and package tests, missing external
-  roots fail with diagnostics that name AGENT_PROFILES_ROOT.
+  roots fail with diagnostics that name AGENT_CATALOG_ROOT.
 
   On purpose, the container remains boring. It owns the executable runtime,
   while the mounted profile owns the program under test.
@@ -43,19 +43,19 @@ proof:
     runtime command emitted by mage docker.
   - TestDockerfileDefinesIntegrationTarget verifies the Dockerfile integration
     target used for Mage integration runs inside the image.
-  - examples/coding-agent mage integration:executorLive packages and consumes
-    the canonical executor profile through AGENT_PROFILES_ROOT.
+  - applications/coding-agent mage integration:executorLive packages and consumes
+    the canonical executor profile through AGENT_CATALOG_ROOT.
   - Profile-owned documentation-curator and browser UX tracer bullets belong to
-    agent-profiles, where the concrete profile and profile-local UX config live.
-  - agent-profiles mage containerSmoke runs the installed runtime image with the
+    applications/catalog, where the concrete profile and profile-local UX config live.
+  - applications/catalog mage containerSmoke runs the installed runtime image with the
     profile repository mounted at /profiles.
 
 flow:
   - F1: The maintainer builds the Agent Core runtime image from agent-core.
   - F2: The build keeps the agent binary and core-owned shared tool declarations under /opt/agent-core.
   - F3: The image build does not copy agent profile directories from agent-core.
-  - F4: The maintainer checks out or unpacks agent-profiles outside the runtime image.
-  - F5: The container command mounts agent-profiles at /profiles and the target workspace at /work.
+  - F4: The maintainer checks out or unpacks applications/catalog outside the runtime image.
+  - F5: The container command mounts applications/catalog at /profiles and the target workspace at /work.
   - F6: The container command starts agent with --profile /profiles/agents/<agent>/profile.yaml and --directory /work.
   - F7: profile.yaml resolves its machine, tools, tool declarations, REST definitions, request machines, and UX config relative to the mounted profile directory.
   - F8: The runtime loads core-owned shared declarations from /opt/agent-core when the mounted profile references them.
@@ -76,7 +76,7 @@ success_criteria:
       - srd034-external-agent-profiles AC1
       - srd034-external-agent-profiles AC3
   - id: S2
-    criterion: A container command can mount agent-profiles and run agent with --profile /profiles/agents/... plus --directory /work.
+    criterion: A container command can mount applications/catalog and run agent with --profile /profiles/agents/... plus --directory /work.
     traces:
       - srd034-external-agent-profiles AC2
       - srd034-external-agent-profiles AC4
@@ -90,9 +90,9 @@ success_criteria:
       - srd034-external-agent-profiles AC2
 
 out_of_scope:
-  - Building or publishing agent-profiles release artifacts.
+  - Building or publishing applications/catalog release artifacts.
   - Choosing between bind mounts, submodules, release tarballs, or derived images as the only profile distribution model.
-  - Reintroducing in-repo profile assets after equivalent files exist in agent-profiles.
+  - Reintroducing in-repo profile assets after equivalent files exist in applications/catalog.
   - Rewriting Agent Core runtime packages during the profile migration.
 
 srd: srd034-external-agent-profiles

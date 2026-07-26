@@ -62,7 +62,7 @@ func (Integration) MonitorControl() error {
 	if err != nil {
 		return err
 	}
-	runDir, err := os.MkdirTemp("", "agent-profiles-monitor-control-*")
+	runDir, err := os.MkdirTemp("", "catalog-monitor-control-*")
 	if err != nil {
 		return fmt.Errorf("create monitor-control run dir: %w", err)
 	}
@@ -112,7 +112,7 @@ func collectMonitorControlEvidence(profilesRoot string) (monitorControlEvidence,
 		ControlLifecycleSignal:  "AgentExited",
 		MonitorStopTransition:   hasTransition(monitorMachine, "AwaitingControl", "ExitRequested", "Stopping", "stop_monitor_rest") && hasTransition(monitorMachine, "Stopping", "ServerStopped", "Done", ""),
 		HTTPHandlersEnqueueOnly: monitorControl.Binding == "emit_signal" && controlExit.Binding == "emit_signal" && hasTransition(controlMachine, "AwaitingControl", "ExitRequested", "Exiting", "exit_agent") && hasTransition(controlMachine, "Exiting", "AgentExited", "Succeeded", ""),
-		TargetOwner:             "agent-profiles",
+		TargetOwner:             "applications/catalog",
 	}
 	return evidence, nil
 }

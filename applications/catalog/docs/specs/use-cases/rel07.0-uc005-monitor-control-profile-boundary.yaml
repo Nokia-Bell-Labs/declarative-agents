@@ -27,7 +27,7 @@ preconditions:
 
 flow:
   - id: F1
-    text: The target loads monitor/control profile assets from agent-profiles.
+    text: The target loads monitor/control profile assets from applications/catalog.
   - id: F2
     text: The monitor REST config declares current state, metrics, tools, machine, and recent-event read routes.
   - id: F3

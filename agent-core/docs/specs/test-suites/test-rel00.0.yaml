@@ -999,7 +999,7 @@ test_cases:
 
   - use_case: rel00.0-uc001-domain-agent-integration
     name: Integration telemetry dual export and retained backend evidence
-    integration_target: cd ../examples/chatbot-mesh && mage integration:rig
+    integration_target: cd ../applications/chatbot-mesh && mage integration:rig
     status: implemented
     inputs:
       exporters: [file, otlp]

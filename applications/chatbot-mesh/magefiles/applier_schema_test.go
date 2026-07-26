@@ -28,7 +28,7 @@ import (
 // what these run. The command form the applier itself issues is proven on a
 // live cluster by GH-735.
 
-// applierValuesFixture returns a values fixture path from the example's testdata.
+// applierValuesFixture returns a values fixture path from the application's testdata.
 func applierValuesFixture(t *testing.T, name string) string {
 	t.Helper()
 	// findChartDir walks up to the mesh root's helm directory; testdata sits

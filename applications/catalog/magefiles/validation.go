@@ -88,7 +88,7 @@ func validatePortableProfileRefs(root, coreRoot string) error {
 }
 
 func validateJuristCharterDemo(profilesRoot, coreRoot string) error {
-	tmpDir, err := os.MkdirTemp("", "agent-profiles-jurist-charter-*")
+	tmpDir, err := os.MkdirTemp("", "catalog-jurist-charter-*")
 	if err != nil {
 		return err
 	}

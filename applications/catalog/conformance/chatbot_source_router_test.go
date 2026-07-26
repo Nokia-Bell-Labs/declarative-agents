@@ -21,7 +21,7 @@ const chatbotSourceRouterModel = "qwen2.5:3b"
 // corpus and validates the names-only structured contract.
 func TestChatbotSourceRouterConformance(t *testing.T) {
 	liveTimeout := RequireLiveModel(t, chatbotSourceRouterModel)
-	root := filepath.Join("..", "..", "examples", "chatbot-mesh", "agents", "chatbot")
+	root := filepath.Join("..", "..", "chatbot-mesh", "agents", "chatbot")
 	data, err := os.ReadFile(filepath.Join(root, "request-declarations.yaml"))
 	if err != nil {
 		t.Fatal(err)

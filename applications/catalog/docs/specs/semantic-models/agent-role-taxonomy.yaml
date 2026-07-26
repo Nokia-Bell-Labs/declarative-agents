@@ -17,6 +17,13 @@ overview: |
   as supported test-time roles. Those labels describe configured behavior.
   They are not package names, binary names, or new runtime modules.
 
+  Tool fields follow the catalog taxonomy. A role's tools.yaml is a name-only
+  selection list. ToolDef files under the role's agents/<family>/ closure are
+  reusable catalog declaration blocks or profile-local overrides. Shared core
+  declarations remain under agent-core/tools, and their Go implementations
+  remain under agent-core/internal/tools. Application-only declarations,
+  topology, wrappers, deployment, and UX are excluded from catalog membership.
+
 roles:
   - id: executor
     title: Coding agent
@@ -44,7 +51,7 @@ roles:
       - Failed
       - BudgetExceeded
     checks:
-      - Load profile from AGENT_PROFILES_ROOT.
+      - Load profile from AGENT_CATALOG_ROOT.
       - Run mounted profile command with --profile and --directory.
       - Confirm build, lint, and test validation are machine-declared.
 
@@ -74,7 +81,7 @@ roles:
       - Done
       - Failed
     checks:
-      - Resolve suite fixtures through AGENT_PROFILES_ROOT.
+      - Resolve suite fixtures through AGENT_CATALOG_ROOT.
       - Confirm point machine runs in isolated workspaces.
       - Confirm failed child runs still produce point summaries and metrics.
       - Trace critic to executor with rel07.0-uc002-evaluator-generator-profile-boundary.
@@ -290,7 +297,7 @@ roles:
     checks:
       - Confirm the rig composes scenarios from profile-owned data, with no rig edit needed to add a test.
       - Confirm each scenario gets a fresh subject and leaves no surviving child process.
-      - Confirm discovery covers the examples tree without special-casing.
+      - Confirm discovery covers the applications tree without special-casing.
 
   - id: mock
     title: Mock for a REST dependency
@@ -318,12 +325,12 @@ roles:
 relocated_application_roles:
   - id: coordinator
     status: relocated
-    canonical_profile_path: examples/chatbot-mesh/agents/coordinator/profile.yaml
+    canonical_profile_path: applications/chatbot-mesh/agents/coordinator/profile.yaml
   - id: creator
     status: relocated
-    canonical_profile_path: examples/chatbot-mesh/agents/creator/profile.yaml
+    canonical_profile_path: applications/chatbot-mesh/agents/creator/profile.yaml
   # Pointer-only records: these application-specific roles are not reusable
-  # agent-profiles library members. Their requirements, checks, and status live
+  # applications/catalog library members. Their requirements, checks, and status live
   # in the canonical chatbot-mesh example.
 
 
@@ -418,11 +425,16 @@ conformance_fixtures:
 
 taxonomy_rules:
   - Each role is a configured program, not a Go package.
+  - tools.yaml files select vocabulary by name; they do not declare tools.
+  - Reusable repository-specific ToolDef files are catalog tool blocks under one canonical agents/<family>/ closure.
+  - Profile-local overrides configure one profile or variant without replacing core declarations for other consumers.
+  - Generic implementations remain under agent-core/internal/tools and core shared declarations remain under agent-core/tools.
+  - Application-local topology, wrappers, deployment, packaging, UX, and single-application declarations are not catalog roles or tool blocks.
   - Conformance grammar fixtures (rest, control, lifecycle) are not roles; they live under testdata/conformance/ and prove runtime vocabulary, keeping agents/ a role catalog (GH-328).
   - The assembler and mock are test-time roles: the assembler composes and verdicts scenarios, and the mock stands in for a dependency. The environment the assembler composes is a sandbox in the reference architecture's sense, and the per-scenario validators are its Sandbox Validators (Critic); the activity is safe-testing and the verdict reduction is output-evaluation. The reference has no term for a scripted test double, so the stand-in family takes the name of the runtime binding it configures, mock, rather than borrowing digital twin, which the reference reserves for a replica derived from a real referent (GH-704, superseding GH-665).
   - Actor boundaries name who or what crosses the profile boundary.
   - Runtime dependencies name agent-core capabilities without copying them into
-    agent-profiles.
+    applications/catalog.
   - Checks name validation, mounted execution, integration proof, or
     documentation review paths.
   - Rel07 integration checks point at implemented cases in

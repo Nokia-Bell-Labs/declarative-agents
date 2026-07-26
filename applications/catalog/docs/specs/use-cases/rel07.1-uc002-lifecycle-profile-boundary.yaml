@@ -8,7 +8,7 @@ summary: |
   programs under testdata/conformance/lifecycle and observes explicit terminal
   states from their tool signals.
 
-  The proof belongs in agent-profiles because the machine wiring under
+  The proof belongs in applications/catalog because the machine wiring under
   testdata/conformance/lifecycle and the tool selections in testdata/conformance/lifecycle/tools.yaml and
   testdata/conformance/lifecycle/approval/tools.yaml are profile-owned. agent-core supplies the
   lifecycle ports, the checkpoint store, and receipt-backed rollback (opaque
@@ -19,11 +19,11 @@ summary: |
 actor: Profile maintainer verifying lifecycle history, rollback, and approval behavior.
 
 trigger: |
-  A maintainer runs each lifecycle program from agent-profiles:
+  A maintainer runs each lifecycle program from applications/catalog:
 
-    agent --profile "$AGENT_PROFILES_ROOT/testdata/conformance/lifecycle/history/profile.yaml"
-    agent --profile "$AGENT_PROFILES_ROOT/testdata/conformance/lifecycle/rollback/profile.yaml"
-    agent --profile "$AGENT_PROFILES_ROOT/testdata/conformance/lifecycle/approval/profile.yaml"
+    agent --profile "$AGENT_CATALOG_ROOT/testdata/conformance/lifecycle/history/profile.yaml"
+    agent --profile "$AGENT_CATALOG_ROOT/testdata/conformance/lifecycle/rollback/profile.yaml"
+    agent --profile "$AGENT_CATALOG_ROOT/testdata/conformance/lifecycle/approval/profile.yaml"
 
 preconditions:
   - testdata/conformance/lifecycle/history.yaml and testdata/conformance/lifecycle/rollback.yaml select checkpoint_history and checkpoint_rollback from testdata/conformance/lifecycle/tools.yaml.
@@ -78,7 +78,7 @@ success_criteria:
       - srd009-lifecycle R3.2
 
 out_of_scope:
-  - Reimplementing checkpoint or rollback storage in agent-profiles.
+  - Reimplementing checkpoint or rollback storage in applications/catalog.
   - Defining Go package APIs for the agent-core lifecycle ports or checkpoint store.
   - Changing suspend, resume, or rollback semantics during this documentation update.
 

@@ -11,8 +11,8 @@ preconditions:
   - Go toolchain installed and repository packages buildable.
   - bin/agent is buildable through mage build or the integration target helper.
   - Ollama is available for live generator and evaluator integration targets.
-  - Coding workflow proofs run from examples/coding-agent.
-  - Bench evaluator proofs run from agent-profiles.
+  - Coding workflow proofs run from applications/coding-agent.
+  - Bench evaluator proofs run from applications/catalog.
 
 test_cases:
   - use_case: rel01.0-uc001-generator-coding
@@ -35,9 +35,9 @@ test_cases:
 
   - use_case: rel01.0-uc001-generator-coding
     name: Qwen profile strips thinking blocks and extracts tool envelope
-    go_test: examples/coding-agent mage integration:executorLive
+    go_test: applications/coding-agent mage integration:executorLive
     inputs:
-      profile: ${AGENT_PROFILES_ROOT}/agents/executor/profile.yaml
+      profile: ${AGENT_CATALOG_ROOT}/agents/executor/profile.yaml
       sample: testdata/integration/uc001-generator-coding
       model: qwen3.6:35b-mlx
     expected:
@@ -93,9 +93,9 @@ test_cases:
 
   - use_case: rel01.0-uc001-generator-coding
     name: Generator solves sample and passes validation
-    go_test: examples/coding-agent mage integration:executorLive
+    go_test: applications/coding-agent mage integration:executorLive
     inputs:
-      profile: ${AGENT_PROFILES_ROOT}/agents/executor/profile.yaml
+      profile: ${AGENT_CATALOG_ROOT}/agents/executor/profile.yaml
       workspace: testdata/integration/uc001-generator-coding
       validation: build_lint_test
     expected:
@@ -140,9 +140,9 @@ test_cases:
 
   - use_case: rel01.0-uc002-evaluator-benchmark
     name: Evaluator integration writes result directory
-    go_test: examples/coding-agent mage integration:criticGate
+    go_test: applications/coding-agent mage integration:criticGate
     inputs:
-      profile: ${AGENT_PROFILES_ROOT}/agents/critic/profile.yaml
+      profile: ${AGENT_CATALOG_ROOT}/agents/critic/profile.yaml
       suite: testdata/integration/uc002-evaluator-benchmark/suite.yaml
       output: eval-results
     expected:
@@ -199,7 +199,7 @@ test_cases:
 
   - use_case: rel01.0-uc003-bench-visualization
     name: Bench integration target records manual UI preconditions
-    go_test: agent-profiles mage integration:benchEvaluator
+    go_test: applications/catalog mage integration:benchEvaluator
     inputs:
       eval_results_dir: required
       free_port: required
@@ -253,7 +253,7 @@ test_cases:
     name: Agent child process args stay profile-first
     go_test: TestBuildArgs_ProfileOnly
     inputs:
-      profile: ${AGENT_PROFILES_ROOT}/agents/executor/profile.yaml
+      profile: ${AGENT_CATALOG_ROOT}/agents/executor/profile.yaml
     expected:
       profile_flag_present: true
       machine_and_model_flags_absent: true

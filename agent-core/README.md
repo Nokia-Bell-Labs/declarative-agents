@@ -36,7 +36,7 @@ Evaluation, planning, and observability code lives in `internal/evaluation`,
 `internal/planning`, and `internal/observability`. Those packages support
 evaluator runs and read-only artifact queries, planner workflows, tracing ports,
 OpenTelemetry adapters, GenAI spans, and replay. The bench application and UI
-live in the external `agent-profiles/agents/bench` profile.
+live in the external `applications/catalog/agents/bench` profile.
 
 Support code lives in `internal/support`. Specification graph loading and
 cross-artifact validation live in `pkg/spec`.
@@ -49,16 +49,16 @@ domains include `internal/observability` for tracing and telemetry, and
 ## Agent Profiles
 
 Profiles are normal runtime entry points, but standard agent programs now live
-outside this repository. Set `AGENT_PROFILES_ROOT` to an `agent-profiles`
+outside this repository. Set `AGENT_CATALOG_ROOT` to an `applications/catalog`
 checkout or bundle, then pass explicit paths such as
-`$AGENT_PROFILES_ROOT/agents/executor/profile.yaml`,
-`$AGENT_PROFILES_ROOT/agents/critic/profile.yaml`, or
-`$AGENT_PROFILES_ROOT/agents/jurist/profile.yaml`.
+`$AGENT_CATALOG_ROOT/agents/executor/profile.yaml`,
+`$AGENT_CATALOG_ROOT/agents/critic/profile.yaml`, or
+`$AGENT_CATALOG_ROOT/agents/jurist/profile.yaml`.
 
 Lifecycle operators use the same external profile path shape.
-`$AGENT_PROFILES_ROOT/testdata/conformance/lifecycle/history/profile.yaml` inspects
+`$AGENT_CATALOG_ROOT/testdata/conformance/lifecycle/history/profile.yaml` inspects
 checkpoint history through `checkpoint_history`.
-`$AGENT_PROFILES_ROOT/testdata/conformance/lifecycle/rollback/profile.yaml` rolls back a
+`$AGENT_CATALOG_ROOT/testdata/conformance/lifecycle/rollback/profile.yaml` rolls back a
 checkpoint through `checkpoint_rollback`. The removed `agent history` and
 `agent rollback` aliases are not part of the runtime surface.
 
@@ -77,7 +77,7 @@ flags do not identify the agent program.
 Agent Core owns the generic REST server, `machine_request`, document resource,
 static asset, and lifecycle-control runtime behavior. Concrete profile UX
 tracer bullets, including the Knowledge Manager documentation-curator profile
-and browser workflow, belong to `agent-profiles` with the profile assets they
+and browser workflow, belong to `applications/catalog` with the profile assets they
 exercise.
 
 Core package tests prove reusable runtime contracts without depending on a
@@ -87,7 +87,7 @@ shipped profile path. They read synthetic fixtures under the package's own
 suites run this binary with `--profile` and an external profile checkout when
 they need end-to-end evidence for a specific agent program, and the assertion
 that a particular shipped profile is wired a particular way lives in
-`agent-profiles` with the assets it reads.
+`applications/catalog` with the assets it reads.
 
 ## Lifecycle Operations
 
@@ -99,11 +99,11 @@ and Dolt-backed persistence behavior.
 For history and rollback, use the universal runtime flags:
 
 ```bash
-bin/agent --profile "$AGENT_PROFILES_ROOT/testdata/conformance/lifecycle/history/profile.yaml" \
+bin/agent --profile "$AGENT_CATALOG_ROOT/testdata/conformance/lifecycle/history/profile.yaml" \
   --directory "$WORKSPACE" \
   --request requests/history.yaml
 
-bin/agent --profile "$AGENT_PROFILES_ROOT/testdata/conformance/lifecycle/rollback/profile.yaml" \
+bin/agent --profile "$AGENT_CATALOG_ROOT/testdata/conformance/lifecycle/rollback/profile.yaml" \
   --directory "$WORKSPACE" \
   --request requests/rollback.yaml
 ```
@@ -111,7 +111,7 @@ bin/agent --profile "$AGENT_PROFILES_ROOT/testdata/conformance/lifecycle/rollbac
 Resume a suspended approval fixture through the same root command:
 
 ```bash
-bin/agent --profile "$AGENT_PROFILES_ROOT/testdata/conformance/lifecycle/approval/profile.yaml" \
+bin/agent --profile "$AGENT_CATALOG_ROOT/testdata/conformance/lifecycle/approval/profile.yaml" \
   --dolt-dsn "$DOLT_DSN" \
   --resume-checkpoint "$RUN_ID" \
   --resume-signal Approved
@@ -150,8 +150,8 @@ gated tests in `cmd/agent/dolt_integration_test.go` run instead of skipping.
 
 ```bash
 mage build
-AGENT_PROFILES_ROOT=../agent-profiles \
-  bin/agent --profile "$AGENT_PROFILES_ROOT/agents/executor/profile.yaml" --directory "$PWD"
+AGENT_CATALOG_ROOT=../applications/catalog \
+  bin/agent --profile "$AGENT_CATALOG_ROOT/agents/executor/profile.yaml" --directory "$PWD"
 ```
 
 ## Docker Runtime
@@ -167,7 +167,7 @@ Runtime images intentionally exclude the Go toolchain, source checkout,
 test dependencies, `golangci-lint`, and agent profile trees. Exec tools such as
 `build`, `vet`, `lint`, and `test` require those binaries to come from a mounted
 workspace, a derived image, or another container/host provisioning step. Agent
-profiles come from a mounted `agent-profiles` checkout or unpacked profile
+profiles come from a mounted `applications/catalog` checkout or unpacked profile
 bundle.
 
 Build through the Mage target:
@@ -233,7 +233,7 @@ Run the runtime image with profiles and workspaces mounted separately:
 
 ```bash
 docker run --rm \
-  -v "$AGENT_PROFILES_ROOT:/profiles/agents:ro" \
+  -v "$AGENT_CATALOG_ROOT:/profiles/agents:ro" \
   -v "$PWD:/work" \
   -w /work \
   agent-core:latest \
@@ -246,7 +246,7 @@ workspace mount:
 
 ```bash
 docker run --rm \
-  -v "$AGENT_PROFILES_ROOT:/profiles/agents:ro" \
+  -v "$AGENT_CATALOG_ROOT:/profiles/agents:ro" \
   -v "$PWD:/work" \
   -w /work \
   agent-core:latest \
@@ -275,9 +275,9 @@ docker build \
   -t agent-core-integration:latest .
 
 docker run --rm \
-  -v "$AGENT_PROFILES_ROOT:/profiles/agents:ro" \
+  -v "$AGENT_CATALOG_ROOT:/profiles/agents:ro" \
   -w /src \
-  -e AGENT_PROFILES_ROOT=/profiles/agents \
+  -e AGENT_CATALOG_ROOT=/profiles/agents \
   agent-core-integration:latest \
   mage integration:monitor
 ```
@@ -291,7 +291,7 @@ release, `docker run --rm agent-core:latest --help` started the packaged
 
 The external documentation-curator profile carries the repository's browser
 test suite under
-`../agent-profiles/agents/knowledge-manager/documentation-curator/ui/docs`.
+`../applications/catalog/agents/knowledge-manager/documentation-curator/ui/docs`.
 We depend on `puppeteer-core`
 rather than `puppeteer`, so npm downloads no browser. The host supplies one,
 and the test reads its path from `PUPPETEER_EXECUTABLE_PATH`, falling back to
@@ -308,7 +308,7 @@ Table 1: Browser test prerequisites
 Run the suite from inside the package directory:
 
 ```bash
-cd ../agent-profiles/agents/knowledge-manager/documentation-curator/ui/docs
+cd ../applications/catalog/agents/knowledge-manager/documentation-curator/ui/docs
 npm ci
 export PUPPETEER_EXECUTABLE_PATH="/Applications/Google Chrome.app/Contents/MacOS/Google Chrome"
 npm run test:e2e:machine-request

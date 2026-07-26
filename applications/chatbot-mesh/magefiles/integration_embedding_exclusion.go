@@ -52,10 +52,10 @@ func exclusionURL(shipped string) string { return "http://" + exclusionAddr(ship
 // generateShiftedChatbotProfile copies the chatbot profile with every shipped
 // port shifted, so the client base_urls and the network limits that pin them
 // move together. Relative references inside the copied files resolve against
-// the profile's own directory; the launch still runs from the example root, so
+// the profile's own directory; the launch still runs from the application root, so
 // repository-relative paths such as the UX bundle keep resolving.
-func generateShiftedChatbotProfile(exampleRoot, work string) (string, error) {
-	srcDir := filepath.Join(exampleRoot, "agents", "chatbot")
+func generateShiftedChatbotProfile(applicationRoot, work string) (string, error) {
+	srcDir := filepath.Join(applicationRoot, "agents", "chatbot")
 	dstDir := filepath.Join(work, "chatbot-shifted")
 	if err := os.MkdirAll(dstDir, 0o755); err != nil {
 		return "", err
@@ -95,16 +95,16 @@ func generateShiftedChatbotProfile(exampleRoot, work string) (string, error) {
 // present is what distinguishes a real exclusion from a turn that simply lost
 // both sources.
 func (Integration) EmbeddingExclusion() error {
-	exampleRoot, err := os.Getwd()
+	applicationRoot, err := os.Getwd()
 	if err != nil {
 		return err
 	}
-	coreRoot := envOrDefault("AGENT_CORE_ROOT", siblingPath(exampleRoot, "agent-core"))
+	coreRoot := envOrDefault("AGENT_CORE_ROOT", siblingPath(applicationRoot, "agent-core"))
 	if !agentCoreAvailable(coreRoot) {
 		fmt.Printf("SKIP integration:embeddingExclusion: agent-core checkout not found at %s\n", coreRoot)
 		return nil
 	}
-	catalogRoot, err := resolveCatalogRoot("chatbot-mesh embedding exclusion", exampleRoot)
+	catalogRoot, err := resolveCatalogRoot("chatbot-mesh embedding exclusion", applicationRoot)
 	if err != nil {
 		return err
 	}
@@ -129,8 +129,8 @@ func (Integration) EmbeddingExclusion() error {
 	// mocks cannot simply be moved aside. A port-shifted profile copy keeps that
 	// boundary intact while freeing the proof from whatever already holds the
 	// shipped ports -- a developer's real Ollama on 11434, most often. Same
-	// device as the rag1 variant this example already generates.
-	chatbotProfile, err := generateShiftedChatbotProfile(exampleRoot, work)
+	// device as the rag1 variant this application already generates.
+	chatbotProfile, err := generateShiftedChatbotProfile(applicationRoot, work)
 	if err != nil {
 		return err
 	}
@@ -142,7 +142,7 @@ func (Integration) EmbeddingExclusion() error {
 	}
 
 	stopChatbot, err := startDetachedAgentWithEnv(agentLaunch{
-		Binary: binary, ProfilesRoot: exampleRoot, CoreRoot: coreRoot,
+		Binary: binary, ProfilesRoot: applicationRoot, CoreRoot: coreRoot,
 		Profile:      chatbotProfile,
 		TracePath:    filepath.Join(work, "chatbot.otel.json"),
 		Workdir:      work,

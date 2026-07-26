@@ -119,7 +119,7 @@ releases:
       connect that request grammar to filesystem documentation corpora through
       reusable resource words. Generic Go tests cover the reusable REST
       machine_request path. The concrete Knowledge Manager browser proof is a
-      profile-owned tracer bullet in agent-profiles.
+      profile-owned tracer bullet in applications/catalog.
 
       Closed REST conformance work now covers client safety, async request
       metadata, OpenAPI endpoint preservation, REST compensation mementos and
@@ -235,7 +235,7 @@ releases:
       Profile migration separates runtime ownership from agent program
       ownership. Agent Core keeps the cmd/agent binary, runtime packages,
       Docker/Mage release machinery, and core-owned shared tool declarations.
-      agent-profiles owns profile.yaml, machine.yaml, tools.yaml, profile-local
+      applications/catalog owns profile.yaml, machine.yaml, tools.yaml, profile-local
       declarations, REST definitions, UX config, demos, and agent integration
       fixtures.
 
@@ -259,9 +259,9 @@ releases:
       - go test ./magefiles -run TestDockerfileRuntimeExcludesAgentProfiles
       - go test ./magefiles -run TestContainerBuildSummaryForDocker
       - mage docker
-      - examples/coding-agent mage integration:executorLive
-      - examples/coding-agent mage integration:criticGate
-      - agent-profiles mage containerSmoke
+      - applications/coding-agent mage integration:executorLive
+      - applications/coding-agent mage integration:criticGate
+      - applications/catalog mage containerSmoke
     follow_up:
       - id: agent-core-xcbg
         summary: Normalize stale in-repo agent path references after profile migration
@@ -345,7 +345,7 @@ releases:
       under configured roots.
 
       The rig itself — the assembler and mock profiles, scenario authoring
-      conventions, and the reference subject — is agent-profiles release 11.0
+      conventions, and the reference subject — is applications/catalog release 11.0
       work over these words (Epic #662). This release implements the
       documentation and runtime contracts through the mock binding from
       GH-666 and the service-child tools from GH-667. The full end-to-end
@@ -484,38 +484,50 @@ releases:
       /opt/agent-core/tools runtime mounts remain stable. Canonical
       applications/catalog/v0.* tags coexist with agent-profiles/v0.*
       compatibility tags for the remainder of v0.
-    status: in_progress
+    status: done
     planned_work:
       - id: gh-1040
         summary: Specify the applications and catalog migration contract.
         status: done
       - id: gh-1037
         summary: Rename examples source tree to applications.
-        status: planned
+        status: done
       - id: gh-1038
         summary: Make core service integrations use core-owned profiles.
-        status: planned
+        status: done
       - id: gh-1041
         summary: Relocate agent profiles into the applications catalog.
-        status: planned
+        status: done
+      - id: gh-1047
+        summary: Retire obsolete core catalog discovery plumbing.
+        status: done
       - id: gh-1039
         summary: Remove catalog dependencies from core tests and audit.
-        status: planned
+        status: done
       - id: gh-1043
         summary: Introduce explicit catalog-root discovery and compatibility aliases.
-        status: planned
+        status: done
+      - id: gh-1048
+        summary: Align the root module registry with the applications layout.
+        status: done
       - id: gh-1046
         summary: Cut root Mage orchestration and release gates to applications.
-        status: planned
+        status: done
       - id: gh-1044
         summary: Migrate coding-agent to the applications catalog.
-        status: planned
+        status: done
       - id: gh-1042
         summary: Migrate chatbot-mesh to the applications catalog.
-        status: planned
+        status: done
+      - id: gh-1049
+        summary: Propagate chatbot catalog roots through integrations.
+        status: done
+      - id: gh-1050
+        summary: Initialize the chatbot Helm checkpoint database.
+        status: done
       - id: gh-1045
         summary: Update catalog taxonomy and sweep migrated path references.
-        status: planned
+        status: done
     srds:
       - srd037-tool-dispatch-simplification
       - srd043-application-catalog-layout
@@ -525,14 +537,14 @@ releases:
         status: done
       - id: rel99.0-uc002-application-catalog-migration
         summary: Maintainers migrate applications and reusable catalog blocks to explicit owner roots
-        status: specified
+        status: done
     test_suites:
       - id: test-rel99.0-tool-dispatch-simplification
         summary: Formal planning tests for tool dispatch simplification scope and follow-up code proof
         status: implemented
       - id: test-rel99.0-application-catalog-migration
         summary: Formal issue-by-issue tests for source moves, core isolation, catalog roots, path classes, tags, applications, and final taxonomy
-        status: specified
+        status: implemented
     follow_up:
       - id: GH-171#173
         summary: Centralize dynamic tool availability checks in code

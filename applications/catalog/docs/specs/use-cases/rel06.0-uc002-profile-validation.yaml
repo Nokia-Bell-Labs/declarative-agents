@@ -29,7 +29,7 @@ trigger: |
     mage tag
 
 preconditions:
-  - agent-core is available as AGENT_CORE_ROOT or a sibling ../agent-core checkout.
+  - agent-core is available as AGENT_CORE_ROOT or a sibling ../../agent-core checkout.
   - Profile assets live under agents/.
   - The repository is on main before mage tag creates a release tag.
 

@@ -48,7 +48,7 @@ requirements:
 
 non_goals:
   - Define Go package APIs for the agent-core nested loop runtime.
-  - Reimplement the point loop or oracle execution in agent-profiles.
+  - Reimplement the point loop or oracle execution in applications/catalog.
   - Own cross-profile dependency-direction invariants; those stay in srd001.
   - Select an application-specific Succeeded or Failed outcome; consuming applications map the canonical critic verdict.
 

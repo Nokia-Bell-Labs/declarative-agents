@@ -8,7 +8,7 @@ summary: |
   a webhook server, waits for an inbound event, and stops the server. The run
   reaches a Succeeded or Failed terminal state.
 
-  The proof belongs in agent-profiles because the REST authority in
+  The proof belongs in applications/catalog because the REST authority in
   testdata/conformance/rest/rest.yaml, the OpenAPI import assets under testdata/conformance/rest/openapi,
   and the word selection in testdata/conformance/rest/machine.yaml and testdata/conformance/rest/tools.yaml
   are profile-owned. The ollama-* profile variant shows the same boundary words
@@ -19,13 +19,13 @@ summary: |
 actor: Profile maintainer verifying REST client and server boundary behavior.
 
 trigger: |
-  A maintainer runs the REST sample profile from agent-profiles:
+  A maintainer runs the REST sample profile from applications/catalog:
 
-    agent --profile "$AGENT_PROFILES_ROOT/testdata/conformance/rest/profile.yaml"
+    agent --profile "$AGENT_CATALOG_ROOT/testdata/conformance/rest/profile.yaml"
 
   The ollama variant uses the same contract:
 
-    agent --profile "$AGENT_PROFILES_ROOT/testdata/conformance/rest/ollama-profile.yaml"
+    agent --profile "$AGENT_CATALOG_ROOT/testdata/conformance/rest/ollama-profile.yaml"
 
 preconditions:
   - testdata/conformance/rest/profile.yaml selects testdata/conformance/rest/machine.yaml, testdata/conformance/rest/tools.yaml, testdata/conformance/rest/declarations.yaml, and testdata/conformance/rest/rest.yaml.
@@ -79,7 +79,7 @@ success_criteria:
       - srd007-rest R3.2
 
 out_of_scope:
-  - Reimplementing HTTP client or server transport in agent-profiles.
+  - Reimplementing HTTP client or server transport in applications/catalog.
   - Defining Go package APIs for the agent-core HTTP runtime.
   - Generating Go code from the OpenAPI import assets.
 

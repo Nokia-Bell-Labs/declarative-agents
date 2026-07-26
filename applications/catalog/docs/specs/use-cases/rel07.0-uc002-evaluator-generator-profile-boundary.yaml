@@ -7,7 +7,7 @@ summary: |
   The replacement belongs to the coding application and runs the canonical
   critic and executor with the real built agent binary.
 
-  The proof belongs in agent-profiles because suite YAML, subject profile
+  The proof belongs in applications/catalog because suite YAML, subject profile
   selection, samples, oracle expectations, and expected artifacts are
   profile-owned fixtures. agent-core supplies nested loop execution and the
   binary, but it should not encode generator as a concrete evaluator subject.
@@ -17,7 +17,7 @@ actor: Profile maintainer verifying evaluator profile behavior.
 trigger: |
   A maintainer runs the application-owned critic boundary target:
 
-    cd examples/coding-agent && mage integration:criticGate
+    cd applications/coding-agent && mage integration:criticGate
 
 preconditions:
   - agents/critic/profile.yaml and agents/executor/profile.yaml validate.
@@ -26,7 +26,7 @@ preconditions:
 
 flow:
   - id: F1
-    text: The target resolves agent-core and agent-profiles roots without developer-specific absolute paths.
+    text: The target resolves agent-core and applications/catalog roots without developer-specific absolute paths.
   - id: F2
     text: The evaluator profile loads a small suite whose subject profile is generator.
   - id: F3
@@ -52,7 +52,7 @@ touchpoints:
 
 success_criteria:
   - id: S1
-    criterion: The evaluator suite resolves through AGENT_PROFILES_ROOT or the repository checkout.
+    criterion: The evaluator suite resolves through AGENT_CATALOG_ROOT or the repository checkout.
     traces:
       - sm-agent-role-taxonomy evaluator checks
   - id: S2

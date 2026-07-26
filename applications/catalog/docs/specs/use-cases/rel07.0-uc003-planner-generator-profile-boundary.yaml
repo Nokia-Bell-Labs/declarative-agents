@@ -17,7 +17,7 @@ actor: Profile maintainer verifying planner orchestration.
 trigger: |
   A maintainer runs the application-owned planner integration target:
 
-    cd examples/coding-agent && mage integration:plannerDelegation
+    cd applications/coding-agent && mage integration:plannerDelegation
 
 preconditions:
   - agents/planner/profile.yaml and agents/executor/profile.yaml validate.

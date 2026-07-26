@@ -1,7 +1,7 @@
 id: rel09.0-uc002-chatbot-turn
 title: Chatbot Turn Embeds, Retrieves From One RAG, and Answers (Relocated)
 status: relocated
-canonical_path: examples/chatbot-mesh/docs/specs/use-cases/rel00.0-uc002-chatbot-turn.yaml
+canonical_path: applications/chatbot-mesh/docs/specs/use-cases/rel00.0-uc002-chatbot-turn.yaml
 note: |
   Pointer-only tombstone. The canonical use case and its traces live with the
   chatbot-mesh example. This retained identifier exists only to redirect

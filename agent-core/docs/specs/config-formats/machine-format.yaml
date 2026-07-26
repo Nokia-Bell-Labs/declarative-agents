@@ -476,7 +476,7 @@ diagnostics: |
   code, message, and the affected state/signal/transition index.
 
 examples:
-  - file: ../agent-profiles/agents/executor/machine.yaml
+  - file: ../applications/catalog/agents/executor/machine.yaml
     description: |
       7 states, 11 signals, rich state/signal metadata. LLM-driven
       loop with $tool dispatch. The generator iterates between
@@ -484,15 +484,15 @@ examples:
       LLM-chosen tools. Includes purpose, invariants, lifecycle,
       configuration cross-references, and a Mermaid pipeline diagram.
 
-  - file: ../agent-profiles/agents/critic/machine.yaml
+  - file: ../applications/catalog/agents/critic/machine.yaml
     description: |
       11 states, session-level orchestration with nested core.Loop.
       Drives grid iteration over (harness, model, sample, rep) points.
       Each point runs the per-point pipeline via a nested core.Loop
-      using ../agent-profiles/agents/critic/point.yaml. Rich state/signal metadata
+      using ../applications/catalog/agents/critic/point.yaml. Rich state/signal metadata
       throughout.
 
-  - file: ../agent-profiles/agents/critic/point.yaml
+  - file: ../applications/catalog/agents/critic/point.yaml
     description: |
       15 states, 17 signals, linear pipeline with no LLM interaction.
       Walks through workspace preparation, config snapshot, agent
@@ -500,20 +500,20 @@ examples:
       fixed sequence with error handling. All states carry meaning
       metadata and all signals carry trigger metadata.
 
-  - file: ../agent-profiles/agents/planner/machine.yaml
+  - file: ../applications/catalog/agents/planner/machine.yaml
     description: |
       16 states, complex branching with retry logic. Orchestrates
       multi-step planning with LLM reasoning, sub-task decomposition,
       issue creation, and error recovery paths. Rich metadata
       including a Mermaid pipeline diagram.
 
-  - file: ../agent-profiles/agents/bench/machine.yaml
+  - file: ../applications/catalog/agents/bench/machine.yaml
     description: |
       Human-in-the-loop host machine. It launches the generic REST server,
       awaits declared operator events, validates launch input, invokes the
       critic through self_invoke, and drains the server on shutdown.
 
-  - file: ../agent-profiles/agents/jurist/machine.yaml
+  - file: ../applications/catalog/agents/jurist/machine.yaml
     description: |
       6 states, linear 3-tool pipeline. The jurist
       loads the specification corpus, runs consistency checks across

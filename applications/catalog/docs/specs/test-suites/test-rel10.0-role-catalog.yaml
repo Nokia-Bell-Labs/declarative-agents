@@ -16,14 +16,14 @@ traces:
   - rel10.0-uc003-conformance-fixture-relocation
 
 preconditions:
-  - agent-core is available as AGENT_CORE_ROOT or a sibling ../agent-core checkout for mage validate and the builtin tool-dir tests.
+  - agent-core is available as AGENT_CORE_ROOT or a sibling ../../agent-core checkout for mage validate and the builtin tool-dir tests.
   - Docker and Ollama are available for the Integration.Chroma and Integration.MonitorControl cases; they skip cleanly otherwise.
 
 test_cases:
   - use_case: rel10.0-uc001-role-catalog-renames
     name: Critic and executor renames validate over the tree
     integration_target: mage validate
-    go_test: cd ../agent-core && go test ./...
+    go_test: cd ../../agent-core && go test ./...
     status: implemented
     description: |
       After the rename, agents/critic and agents/executor exist and no evaluator or

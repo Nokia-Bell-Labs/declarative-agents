@@ -1,7 +1,7 @@
 id: issue-format
 title: Issue Format Constitution
 purpose: |
-  We use this constitution when writing issues for agent-profiles.
+  We use this constitution when writing issues for applications/catalog.
   A valid issue names the asset boundary, required files, requirements, and
   acceptance criteria. That shape lets agents complete one issue without
   changing unrelated runtime code.
@@ -17,14 +17,14 @@ articles:
     title: List required reading
     rule: |
       Include required_reading paths. Prefer paths in this repository. Use
-      ../agent-core paths only when the issue depends on source material or
+      ../../agent-core paths only when the issue depends on source material or
       runtime contracts that still live there.
   - id: I3
     title: List files in scope
     rule: |
       List files or directories that may be changed. Runtime code, builtin tool
       implementations, and container build files belong in agent-core issues,
-      not agent-profiles issues.
+      not applications/catalog issues.
   - id: I4
     title: Use numbered requirements
     rule: |
@@ -77,7 +77,7 @@ issue_templates:
     deliverable_type: migration
     required_reading:
       - docs/ARCHITECTURE.yaml
-      - ../agent-core/path/to/source
+      - ../../agent-core/path/to/source
     files:
       - path: agents/name/
         action: create
@@ -86,7 +86,7 @@ issue_templates:
         text: Move profile-owned files into the target path.
     acceptance_criteria:
       - id: AC1
-        text: The migrated profile loads from AGENT_PROFILES_ROOT without
+        text: The migrated profile loads from AGENT_CATALOG_ROOT without
           developer-specific absolute paths.
 
 validation_notes:

@@ -15,6 +15,24 @@ release image logic live in `agent-core`.
 
 ## Catalog contract
 
+### Tool blocks
+
+Tool declarations are first-class catalog assets when they define reusable,
+repository-specific vocabulary for a catalog family. They stay with their
+canonical `agents/<family>/` closure. [`tools/README.md`](tools/README.md)
+defines the membership contract and distinguishes:
+
+- `tools.yaml` name-only selection lists;
+- profile-local declaration overrides and boundary configuration;
+- reusable catalog `ToolDef` declaration blocks;
+- core shared declarations under `agent-core/tools`, installed at
+  `/opt/agent-core/tools`;
+- Go implementations under `agent-core/internal/tools`; and
+- application-local declarations and composition excluded from the catalog.
+
+`MachineSpec` owns sequencing, and one `ToolDef` owns one vocabulary word,
+including its inputs, outputs, signals, side effects, errors, and undo behavior.
+
 ### Membership rule
 
 An agent belongs under `agents/<family>/` only when it is independently useful
@@ -137,8 +155,8 @@ machine-readable behavioral evidence. This documentation does not introduce a
 second catalog, package resolver, or runtime orchestrator.
 
 Documentation under `docs/` records catalog purpose, structure, indexes,
-roadmap entries, and issue format rules. Core-owned runtime assets stay in
-`agent-core`.
+roadmap entries, and issue format rules. `tools/README.md` records the
+tool-block taxonomy. Core-owned runtime assets stay in `agent-core`.
 
 ## Experiment Branches
 

@@ -12,4 +12,4 @@ monitor_exit_signal: ExitRequested
 control_lifecycle_signal: AgentExited
 monitor_stop_transition_declared: true
 http_handlers_enqueue_only: true
-target_owner: agent-profiles
+target_owner: applications/catalog

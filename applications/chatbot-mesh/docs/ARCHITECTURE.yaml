@@ -14,7 +14,7 @@ overview:
     Runtime ownership stays with agent-core. That project provides the agent
     binary, the state-machine engine, the REST client and server tools, the
     machine_request binding, the monitor, the checkpoint store, and the container
-    image. The example provides the YAML programs, the user interface, the Helm
+    image. The application provides the YAML programs, the user interface, the Helm
     chart, and the documents. Operators run each agent as the agent-core image with
     a mounted profile: `agent --profile /profiles/agents/<name>/profile.yaml`.
 
@@ -41,7 +41,7 @@ overview:
 interfaces:
   - name: --profile
     summary: |
-      agent-core CLI argument pointing at a profile.yaml under this example.
+      agent-core CLI argument pointing at a profile.yaml under this application.
       Each mesh agent runs as the agent-core image with a mounted profile path.
   - name: chatbot chat REST endpoint
     summary: |
@@ -132,20 +132,20 @@ components:
   - name: documentation
     path: docs/
     responsibility: |
-      Own the example's vision, architecture, road map, and specification corpus
+      Own the application's vision, architecture, road map, and specification corpus
       (software requirements, use cases, test suites).
 
 design_decisions:
   - id: 1
     title: Application composition on a shared runtime
     decision: |
-      The example runs on the published agent-core image. Agents are YAML
+      The application runs on the published agent-core image. Agents are YAML
       profiles the runtime loads. Corpus ingest references the canonical
       applications/catalog program; other agents remain application-local.
       Platform requirements are cited externally.
     benefits:
       - Reusable corpus-ingest fixes have one canonical home.
-      - The example demonstrates that agent behavior is configuration on a
+      - The application demonstrates that agent behavior is configuration on a
         reusable runtime.
       - Runtime changes stay covered by agent-core's own gates.
   - id: 2
@@ -213,7 +213,7 @@ project_structure:
     - path: docs/ARCHITECTURE.yaml
       role: Components, interfaces, and decisions.
     - path: docs/road-map.yaml
-      role: The example's own release plan.
+      role: The application's own release plan.
     - path: docs/specs/software-requirements/
       role: srd001 rag-server, srd002 chatbot, srd003 deployment.
     - path: docs/specs/use-cases/
@@ -224,7 +224,7 @@ project_structure:
       role: The decisions record and the standalone-program framing.
 
 implementation_status:
-  current_focus: The example is a self-governing, standalone program; the data plane
+  current_focus: The application is a self-governing, standalone program; the data plane
     is implemented here, while the control plane has implemented components but
     remains partial pending one live ingest-to-grounded-turn lifecycle proof.
     Release rel07.0 is also partial pending collector listener lifecycle proof.
@@ -232,7 +232,7 @@ implementation_status:
     - done: The data-plane mesh (RAG server, chat turn, routing, fan-out,
         observability, Helm deployment, in-cluster model tier) is implemented, with
         the agents, UX, chart, and specs in this directory.
-    - done: The example's own magefile audit and integration entries (chroma,
+    - done: The application's own magefile audit and integration entries (chroma,
         rag-server, chatbot, helm smoke/swap/llm-tier, control plane).
     - done: The control-plane coordinator (srd004) and creator (srd005), realized
         as mage integration:controlPlane (rel05.0, deterministic, driving a fake
@@ -256,7 +256,7 @@ related_documents:
   - doc: docs/VISION.yaml
     purpose: Goals, boundaries, and success criteria.
   - doc: docs/road-map.yaml
-    purpose: The example's release plan.
+    purpose: The application's release plan.
   - doc: docs/specs/software-requirements/srd001-rag-server-agent.yaml
     purpose: The RAG server agent requirements (relocated, renumbered).
   - doc: docs/specs/software-requirements/srd002-chatbot-agent.yaml

@@ -1,7 +1,7 @@
 id: srd016-coordinator
 title: Coordinator Agent Functional Block (Relocated)
 status: relocated
-canonical_path: examples/chatbot-mesh/docs/specs/software-requirements/srd004-coordinator.yaml
+canonical_path: applications/chatbot-mesh/docs/specs/software-requirements/srd004-coordinator.yaml
 note: |
   Pointer-only tombstone. The coordinator is application-specific composition,
   so its requirements and implementation evidence live with chatbot-mesh. This

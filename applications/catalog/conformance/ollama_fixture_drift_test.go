@@ -33,7 +33,7 @@ func TestOllamaRESTFixtureMirrorMatchesCanonicalProfile(t *testing.T) {
 			mirror := readFixtureFile(t, filepath.Join(mirrorRoot, rel))
 			if !bytes.Equal(canonical, mirror) {
 				t.Fatalf(
-					"agent-core Ollama fixture mirror %s drifted from agent-profiles canonical copy (canonical sha256=%x, mirror sha256=%x)",
+					"agent-core Ollama fixture mirror %s drifted from applications/catalog canonical copy (canonical sha256=%x, mirror sha256=%x)",
 					rel, sha256.Sum256(canonical), sha256.Sum256(mirror),
 				)
 			}

@@ -18,8 +18,10 @@ overview: |
   library. Membership requires independent usefulness or multiple consumers,
   one canonical home, a family SRD, conformance, portable closure, and
   application-safe parameterization. Applications own composition and package
-  referenced closures against exact agent-profiles/v0.* releases. Assembler and
-  mock are supported test-time library members under the same release contract.
+  referenced closures against exact canonical applications/catalog/v0.*
+  releases. Matching agent-profiles/v0.* names are v0 compatibility aliases,
+  and immutable historical legacy tags remain valid. Assembler and mock are
+  supported test-time library members under the same release contract.
   Rig-subject and REST/control/lifecycle conformance fixtures remain internal in
   their current paths; no relocation is scheduled or tracked for those fixtures.
 
@@ -42,7 +44,7 @@ overview: |
   boundaries. The former evaluator-to-generator and planner-to-generator
   library tracers are retired because their shell children fabricated the
   claimed behavior. Their real critic/executor and planner/executor replacement
-  evidence is application-owned under examples/coding-agent and remains
+  evidence is application-owned under applications/coding-agent and remains
   separate from this release's implemented library targets.
 
   Release 08.0 adds the Chroma corpus agents: an ingest profile and a reader
@@ -60,7 +62,7 @@ overview: |
   A reader can now start at the SRD, follow the semantic model role entries,
   reach the two mounted-profile use cases, and land on named commands such as
   mage validate, mage containerSmoke, mage tag, and the agent-core integration
-  targets that set AGENT_PROFILES_ROOT.
+  targets that set AGENT_CATALOG_ROOT.
 
 roadmap_summary:
   - version: "00.1"
@@ -75,7 +77,7 @@ roadmap_summary:
     status: done
     scope: |
       Profile-owned agent assets, demos, and integration fixtures now live in
-      this repository. agent-core consumes them from AGENT_PROFILES_ROOT,
+      this repository. agent-core consumes them from AGENT_CATALOG_ROOT,
       /profiles, or release bundles. Formal use cases and test suites now name
       executable proof for the completed migration path.
   - version: "07.0"
@@ -85,7 +87,7 @@ roadmap_summary:
       Implemented profile-owned tracer bullets for documentation-curator,
       bench-to-critic, and monitor/control boundaries. The retired
       critic-to-executor and planner-to-executor library tracers point to
-      application-owned replacements under examples/coding-agent and are not
+      application-owned replacements under applications/coding-agent and are not
       counted as implemented Release 07 proof.
   - version: "07.1"
     name: Per-family SRDs and profile coverage
@@ -102,7 +104,7 @@ roadmap_summary:
     scope: |
       Two profile-owned agents use a local Chroma vector database as a retrieval
       boundary: an ingest profile and a reader profile, built as pure
-      agent-profiles configuration over existing agent-core words. Embeddings are
+      applications/catalog configuration over existing agent-core words. Embeddings are
       computed at a local Ollama provider and threaded into Chroma add and query
       (srd028 R12), because Chroma does not embed server-side over its raw HTTP
       API. The ingest machine lists trusted corpus paths before the model selects
@@ -117,7 +119,7 @@ roadmap_summary:
     scope: |
       Two test-time role families over the agent-core release 09.0 words. The
       assembler (srd018) discovers scenarios under configurable roots covering
-      the agent families and the examples tree, and for each starts the
+      the agent families and the applications tree, and for each starts the
       scenario's mocks, starts the subject with its REST dependencies
       redirected through base_url environment expansion, runs the scenario's
       validators against a fresh subject instance, reduces their terminal
@@ -234,38 +236,38 @@ srd_index:
   - id: srd013-rag-server-agent
     title: RAG Server Agent Functional Block (Relocated)
     summary: Pointer-only historical identifier; canonical RAG server
-      requirements and evidence live with examples/chatbot-mesh.
+      requirements and evidence live with applications/chatbot-mesh.
     status: relocated
     path: docs/specs/software-requirements/srd013-rag-server-agent.yaml
-    canonical_path: examples/chatbot-mesh/docs/specs/software-requirements/srd001-rag-server-agent.yaml
+    canonical_path: applications/chatbot-mesh/docs/specs/software-requirements/srd001-rag-server-agent.yaml
   - id: srd014-chatbot-agent
     title: Chatbot Agent Functional Block (Relocated)
     summary: Pointer-only historical identifier; canonical chatbot requirements
-      and evidence live with examples/chatbot-mesh.
+      and evidence live with applications/chatbot-mesh.
     status: relocated
     path: docs/specs/software-requirements/srd014-chatbot-agent.yaml
-    canonical_path: examples/chatbot-mesh/docs/specs/software-requirements/srd002-chatbot-agent.yaml
+    canonical_path: applications/chatbot-mesh/docs/specs/software-requirements/srd002-chatbot-agent.yaml
   - id: srd015-chatbot-deployment
     title: Chatbot Mesh Deployment Model (Relocated)
     summary: Pointer-only historical identifier; canonical deployment
-      requirements and evidence live with examples/chatbot-mesh.
+      requirements and evidence live with applications/chatbot-mesh.
     status: relocated
     path: docs/specs/software-requirements/srd015-chatbot-deployment.yaml
-    canonical_path: examples/chatbot-mesh/docs/specs/software-requirements/srd003-chatbot-deployment.yaml
+    canonical_path: applications/chatbot-mesh/docs/specs/software-requirements/srd003-chatbot-deployment.yaml
   - id: srd016-coordinator
     title: Coordinator Agent Functional Block (Relocated)
     summary: Pointer-only historical identifier; canonical coordinator
-      requirements and evidence live with examples/chatbot-mesh.
+      requirements and evidence live with applications/chatbot-mesh.
     status: relocated
     path: docs/specs/software-requirements/srd016-coordinator.yaml
-    canonical_path: examples/chatbot-mesh/docs/specs/software-requirements/srd004-coordinator.yaml
+    canonical_path: applications/chatbot-mesh/docs/specs/software-requirements/srd004-coordinator.yaml
   - id: srd017-creator
     title: Creator Agent Functional Block (Relocated)
     summary: Pointer-only historical identifier; canonical creator requirements
-      and evidence live with examples/chatbot-mesh.
+      and evidence live with applications/chatbot-mesh.
     status: relocated
     path: docs/specs/software-requirements/srd017-creator.yaml
-    canonical_path: examples/chatbot-mesh/docs/specs/software-requirements/srd005-creator.yaml
+    canonical_path: applications/chatbot-mesh/docs/specs/software-requirements/srd005-creator.yaml
   - id: srd018-assembler
     title: Assembler Functional Block
     summary: The repository's test rig, named for the reference-architecture Assembler
@@ -317,7 +319,7 @@ semantic_model_index:
 #
 # Relocated (GH-418): the mesh data-plane specs — srd013/014/015 and the rel09.0,
 # 09.1, 09.2, 09.3, and 09.5 use cases and test suites — now live with the
-# standalone example at examples/chatbot-mesh/docs/specs, renumbered to srd001-003
+# standalone example at applications/chatbot-mesh/docs/specs, renumbered to srd001-003
 # and rel00.0-04.0. The entries below remain for history; the example is the
 # canonical copy.
 #
@@ -328,7 +330,7 @@ use_case_index:
   - id: rel06.0-uc001-mounted-profile-execution
     title: Mounted Profile Execution
     summary: Mounted execution path for running agent-core with profiles,
-      demos, fixtures, and workspaces supplied from agent-profiles.
+      demos, fixtures, and workspaces supplied from applications/catalog.
     status: implemented
     path: docs/specs/use-cases/rel06.0-uc001-mounted-profile-execution.yaml
   - id: rel06.0-uc002-profile-validation
@@ -345,13 +347,13 @@ use_case_index:
     path: docs/specs/use-cases/rel07.0-uc001-documentation-curator-profile-ux.yaml
   - id: rel07.0-uc002-evaluator-generator-profile-boundary
     title: Evaluator to Generator Profile Boundary
-    summary: Retired library tracer; examples/coding-agent owns the real
+    summary: Retired library tracer; applications/coding-agent owns the real
       critic-to-executor replacement target.
     status: planned
     path: docs/specs/use-cases/rel07.0-uc002-evaluator-generator-profile-boundary.yaml
   - id: rel07.0-uc003-planner-generator-profile-boundary
     title: Planner to Generator Profile Boundary
-    summary: Retired library tracer; examples/coding-agent owns the real
+    summary: Retired library tracer; applications/coding-agent owns the real
       planner-to-executor replacement target.
     status: planned
     path: docs/specs/use-cases/rel07.0-uc003-planner-generator-profile-boundary.yaml
@@ -400,52 +402,52 @@ use_case_index:
   - id: rel09.0-uc001-rag-server-query
     title: Persistent RAG Server Answers a Vector-In Query (Relocated)
     summary: Pointer-only historical identifier; the canonical use case and
-      traces live with examples/chatbot-mesh release 00.0.
+      traces live with applications/chatbot-mesh release 00.0.
     status: relocated
     path: docs/specs/use-cases/rel09.0-uc001-rag-server-query.yaml
-    canonical_path: examples/chatbot-mesh/docs/specs/use-cases/rel00.0-uc001-rag-server-query.yaml
+    canonical_path: applications/chatbot-mesh/docs/specs/use-cases/rel00.0-uc001-rag-server-query.yaml
   - id: rel09.0-uc002-chatbot-turn
     title: Chatbot Turn Embeds, Retrieves From One RAG, and Answers (Relocated)
     summary: Pointer-only historical identifier; the canonical use case and
-      traces live with examples/chatbot-mesh release 00.0.
+      traces live with applications/chatbot-mesh release 00.0.
     status: relocated
     path: docs/specs/use-cases/rel09.0-uc002-chatbot-turn.yaml
-    canonical_path: examples/chatbot-mesh/docs/specs/use-cases/rel00.0-uc002-chatbot-turn.yaml
+    canonical_path: applications/chatbot-mesh/docs/specs/use-cases/rel00.0-uc002-chatbot-turn.yaml
   - id: rel09.1-uc001-routed-fanout
     title: Chatbot Turn Selects a Model Tier and Fans Out Over Two RAGs (Relocated)
     summary: Pointer-only historical identifier; the canonical use case and
-      traces live with examples/chatbot-mesh release 01.0.
+      traces live with applications/chatbot-mesh release 01.0.
     status: relocated
     path: docs/specs/use-cases/rel09.1-uc001-routed-fanout.yaml
-    canonical_path: examples/chatbot-mesh/docs/specs/use-cases/rel01.0-uc001-routed-fanout.yaml
+    canonical_path: applications/chatbot-mesh/docs/specs/use-cases/rel01.0-uc001-routed-fanout.yaml
   - id: rel09.2-uc001-observability
     title: Observability Panel Shows Per-Agent State and a Cross-Agent Trace Waterfall (Relocated)
     summary: Pointer-only historical identifier; the canonical use case and
-      traces live with examples/chatbot-mesh release 02.0.
+      traces live with applications/chatbot-mesh release 02.0.
     status: relocated
     path: docs/specs/use-cases/rel09.2-uc001-observability.yaml
-    canonical_path: examples/chatbot-mesh/docs/specs/use-cases/rel02.0-uc001-observability.yaml
+    canonical_path: applications/chatbot-mesh/docs/specs/use-cases/rel02.0-uc001-observability.yaml
   - id: rel09.3-uc001-mesh-deployment
     title: Mesh Deployment and Tiered Swap (Relocated)
     summary: Pointer-only historical identifier; the canonical use case and
-      traces live with examples/chatbot-mesh release 03.0.
+      traces live with applications/chatbot-mesh release 03.0.
     status: relocated
     path: docs/specs/use-cases/rel09.3-uc001-mesh-deployment.yaml
-    canonical_path: examples/chatbot-mesh/docs/specs/use-cases/rel03.0-uc001-mesh-deployment.yaml
+    canonical_path: applications/chatbot-mesh/docs/specs/use-cases/rel03.0-uc001-mesh-deployment.yaml
   - id: rel09.4-uc001-control-plane-provisioning
     title: Control-Plane Provisioning (Relocated)
     summary: Pointer-only historical identifier; the canonical use case and
-      traces live with examples/chatbot-mesh release 05.0.
+      traces live with applications/chatbot-mesh release 05.0.
     status: relocated
     path: docs/specs/use-cases/rel09.4-uc001-control-plane-provisioning.yaml
-    canonical_path: examples/chatbot-mesh/docs/specs/use-cases/rel05.0-uc001-control-plane-provisioning.yaml
+    canonical_path: applications/chatbot-mesh/docs/specs/use-cases/rel05.0-uc001-control-plane-provisioning.yaml
   - id: rel09.5-uc001-in-cluster-llm-tier
     title: In-Cluster LLM Tier (Relocated)
     summary: Pointer-only historical identifier; the canonical use case and
-      traces live with examples/chatbot-mesh release 04.0.
+      traces live with applications/chatbot-mesh release 04.0.
     status: relocated
     path: docs/specs/use-cases/rel09.5-uc001-in-cluster-llm-tier.yaml
-    canonical_path: examples/chatbot-mesh/docs/specs/use-cases/rel04.0-uc001-in-cluster-llm-tier.yaml
+    canonical_path: applications/chatbot-mesh/docs/specs/use-cases/rel04.0-uc001-in-cluster-llm-tier.yaml
   - id: rel10.0-uc001-role-catalog-renames
     title: Evaluator and Generator Families Renamed to Critic and Executor
     summary: The evaluator family is renamed to critic and generator to executor
@@ -490,7 +492,7 @@ test_suite_index:
     title: Test Suite for Release 06.0 Agent Profiles
     summary: Executable proof index for mage validate, mage containerSmoke,
       mage tag, and agent-core integration targets that consume
-      AGENT_PROFILES_ROOT.
+      AGENT_CATALOG_ROOT.
     status: implemented
     path: docs/specs/test-suites/test-rel06.0-agent-profiles.yaml
   - id: test-rel07.0-profile-integrations
@@ -535,45 +537,45 @@ test_suite_index:
   - id: test-rel09.0-chatbot-mesh
     title: Test Suite for Release 09.0 RAG Server and Single-RAG Chatbot Turn (Relocated)
     summary: Pointer-only historical identifier; the canonical suite and proof
-      commands live with examples/chatbot-mesh release 00.0.
+      commands live with applications/chatbot-mesh release 00.0.
     status: relocated
     path: docs/specs/test-suites/test-rel09.0-chatbot-mesh.yaml
-    canonical_path: examples/chatbot-mesh/docs/specs/test-suites/test-rel00.0-chatbot-mesh.yaml
+    canonical_path: applications/chatbot-mesh/docs/specs/test-suites/test-rel00.0-chatbot-mesh.yaml
   - id: test-rel09.1-routing-fanout
     title: Test Suite for Release 09.1 Tier Selection and Multi-RAG Fan-Out (Relocated)
     summary: Pointer-only historical identifier; the canonical suite and proof
-      commands live with examples/chatbot-mesh release 01.0.
+      commands live with applications/chatbot-mesh release 01.0.
     status: relocated
     path: docs/specs/test-suites/test-rel09.1-routing-fanout.yaml
-    canonical_path: examples/chatbot-mesh/docs/specs/test-suites/test-rel01.0-routing-fanout.yaml
+    canonical_path: applications/chatbot-mesh/docs/specs/test-suites/test-rel01.0-routing-fanout.yaml
   - id: test-rel09.2-observability
     title: Test Suite for Release 09.2 Observability (Relocated)
     summary: Pointer-only historical identifier; the canonical suite and proof
-      commands live with examples/chatbot-mesh release 02.0.
+      commands live with applications/chatbot-mesh release 02.0.
     status: relocated
     path: docs/specs/test-suites/test-rel09.2-observability.yaml
-    canonical_path: examples/chatbot-mesh/docs/specs/test-suites/test-rel02.0-observability.yaml
+    canonical_path: applications/chatbot-mesh/docs/specs/test-suites/test-rel02.0-observability.yaml
   - id: test-rel09.3-mesh-deployment
     title: Test Suite for Release 09.3 Mesh Deployment and Tiered Swap (Relocated)
     summary: Pointer-only historical identifier; the canonical suite and proof
-      commands live with examples/chatbot-mesh release 03.0.
+      commands live with applications/chatbot-mesh release 03.0.
     status: relocated
     path: docs/specs/test-suites/test-rel09.3-mesh-deployment.yaml
-    canonical_path: examples/chatbot-mesh/docs/specs/test-suites/test-rel03.0-mesh-deployment.yaml
+    canonical_path: applications/chatbot-mesh/docs/specs/test-suites/test-rel03.0-mesh-deployment.yaml
   - id: test-rel09.4-control-plane
     title: Test Suite for Release 09.4 Control Plane (Relocated)
     summary: Pointer-only historical identifier; the canonical suite and proof
-      commands live with examples/chatbot-mesh release 05.0.
+      commands live with applications/chatbot-mesh release 05.0.
     status: relocated
     path: docs/specs/test-suites/test-rel09.4-control-plane.yaml
-    canonical_path: examples/chatbot-mesh/docs/specs/test-suites/test-rel05.0-control-plane.yaml
+    canonical_path: applications/chatbot-mesh/docs/specs/test-suites/test-rel05.0-control-plane.yaml
   - id: test-rel09.5-llm-tier
     title: Test Suite for Release 09.5 In-Cluster LLM Tier (Relocated)
     summary: Pointer-only historical identifier; the canonical suite and proof
-      commands live with examples/chatbot-mesh release 04.0.
+      commands live with applications/chatbot-mesh release 04.0.
     status: relocated
     path: docs/specs/test-suites/test-rel09.5-llm-tier.yaml
-    canonical_path: examples/chatbot-mesh/docs/specs/test-suites/test-rel04.0-llm-tier.yaml
+    canonical_path: applications/chatbot-mesh/docs/specs/test-suites/test-rel04.0-llm-tier.yaml
   - id: test-rel10.0-role-catalog
     title: Test Suite for Release 10.0 Reference-Architecture Role Alignment
     summary: Implemented cases validate the critic/executor renames, the Chroma
@@ -602,7 +604,7 @@ coverage_gaps: |
   Release 06.0 traceability now covers mounted profile execution and profile
   validation. It also covers mounted container smoke, profile bundle tagging,
   and agent-core integration targets that consume this repository through
-  AGENT_PROFILES_ROOT.
+  AGENT_CATALOG_ROOT.
   No missing proof remains for this release.
 
   Future gaps should track new profile families, demos, fixtures, or validation
@@ -613,7 +615,7 @@ coverage_gaps: |
   bench-to-critic launch tracer, and monitor/control boundary tracer. The
   evaluator-to-generator and planner-to-generator library tracers are retired:
   their shell children fabricated the claimed workspace and trace evidence.
-  examples/coding-agent owns the real critic-to-executor and
+  applications/coding-agent owns the real critic-to-executor and
   planner-to-executor replacements, which run the canonical profiles through
   the built agent binary and remain outside this release's implemented library
   proof. The monitor/control target records profile-owned configuration

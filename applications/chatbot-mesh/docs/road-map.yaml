@@ -2,10 +2,10 @@ id: chatbot-mesh-example-roadmap
 title: Chatbot Mesh Example Road Map
 
 overview: |
-  These releases restage the data-plane chatbot mesh as the example's own plan.
+  These releases restage the data-plane chatbot mesh as the application's own plan.
   They derive from the shared catalog's rel09.0-09.3 and rel09.5; the behavior is
   implemented and is being relocated into this directory. Requirement and use-case
-  ids are renumbered to the example's own scheme (srd001-003, rel00.0+). The
+  ids are renumbered to the application's own scheme (srd001-003, rel00.0+). The
   control plane (coordinator srd004, creator srd005, and the provisioning surface)
   is release rel05.0. Release rel06.0 replaces the standard-library Go provisioning
   surface with the applier (srd006), a declarative agent that binds the helm and

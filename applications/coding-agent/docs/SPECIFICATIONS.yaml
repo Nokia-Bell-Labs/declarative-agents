@@ -189,4 +189,4 @@ coverage_gaps:
       The one-container-per-agent Helm topology is implemented. Strict values
       schema, packaged-chart validation, and bounded single-node kind evidence
       are implemented. Multi-node and production operational evidence remain
-      outside this example.
+      outside this application.

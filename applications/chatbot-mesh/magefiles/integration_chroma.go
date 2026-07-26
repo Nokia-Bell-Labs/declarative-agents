@@ -64,7 +64,7 @@ func (Integration) Chroma() error {
 	return runChromaIntegration(profilesRoot, coreRoot)
 }
 
-// Seed loads the example corpus into a running Chroma through the mesh wrapper
+// Seed loads the application corpus into a running Chroma through the mesh wrapper
 // around the canonical corpus-ingest profile, so a developer can populate the collection the rag-server
 // and chatbot serve. It embeds through Ollama and writes to Chroma at the declared
 // local ports. Skips cleanly when agent-core, Ollama with the configured models,

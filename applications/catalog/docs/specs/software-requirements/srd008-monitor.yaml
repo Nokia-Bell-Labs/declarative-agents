@@ -42,7 +42,7 @@ requirements:
 
 non_goals:
   - Define Go package APIs for the agent-core monitor store or REST runtime.
-  - Reimplement monitor state collection in agent-profiles.
+  - Reimplement monitor state collection in applications/catalog.
   - Own cross-profile dependency-direction invariants; those stay in srd001.
 
 acceptance_criteria:

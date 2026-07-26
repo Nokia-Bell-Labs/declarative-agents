@@ -8,7 +8,7 @@ summary: |
   finding reduction, and report steps. The run produces a provenance-rich
   validation report and a Passed or Failed terminal state.
 
-  The proof belongs in agent-profiles because the charter suites, the word
+  The proof belongs in applications/catalog because the charter suites, the word
   selection in agents/jurist/machine.yaml, and the tool selection in
   agents/jurist/tools.yaml are profile-owned. agent-core supplies the
   specification validation tools, but it should not encode the charter suites or
@@ -20,7 +20,7 @@ trigger: |
   A maintainer runs the jurist profile against a target directory and a charter
   suite:
 
-    agent --profile "$AGENT_PROFILES_ROOT/agents/jurist/profile.yaml" \
+    agent --profile "$AGENT_CATALOG_ROOT/agents/jurist/profile.yaml" \
           --directory <target-directory>
 
 preconditions:
@@ -31,7 +31,7 @@ preconditions:
 
 flow:
   - id: F1
-    text: The maintainer resolves the jurist profile from AGENT_PROFILES_ROOT or the repository checkout without developer-specific absolute paths.
+    text: The maintainer resolves the jurist profile from AGENT_CATALOG_ROOT or the repository checkout without developer-specific absolute paths.
   - id: F2
     text: The machine loads the specification corpus from the target directory in the Loading state via load_corpus.
   - id: F3

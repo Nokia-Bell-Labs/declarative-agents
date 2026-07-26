@@ -407,7 +407,7 @@ func TestBidirectionalLogChapterKeepsCodingScenariosAsDesignIntent(t *testing.T)
 		}
 	}
 
-	codingAgents := filepath.Join("..", "..", "examples", "coding-agent", "agents")
+	codingAgents := filepath.Join("..", "..", "applications", "coding-agent", "agents")
 	err = filepath.WalkDir(codingAgents, func(path string, entry os.DirEntry, walkErr error) error {
 		if walkErr != nil || entry.IsDir() || filepath.Ext(path) != ".yaml" {
 			return walkErr

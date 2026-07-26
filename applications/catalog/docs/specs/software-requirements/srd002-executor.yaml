@@ -43,7 +43,7 @@ requirements:
 
 non_goals:
   - Define Go package APIs for the agent-core loop runtime.
-  - Reimplement builtin filesystem, LLM, or exec tool behavior in agent-profiles.
+  - Reimplement builtin filesystem, LLM, or exec tool behavior in applications/catalog.
   - Own cross-profile dependency-direction invariants; those stay in srd001.
 
 acceptance_criteria:

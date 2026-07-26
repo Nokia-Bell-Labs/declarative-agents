@@ -26,7 +26,7 @@ const rigProfile = "testdata/rig/profile.yaml"
 // rigVerdictPattern matches the assembler's per-scenario verdict signals in
 // trace output order. Discovery sorts scenarios by subject directory then
 // name, so the catalog reference subject's three scenarios come first
-// (its root path sorts before "agents"), then this example's rag-server query.
+// (its root path sorts before "agents"), then this application's rag-server query.
 var rigExpectedVerdicts = []string{
 	"ScenarioFailed", // rig-subject/broken: the deliberately wrong expectation must fail
 	"ScenarioPassed", // rig-subject/dep-failure: the subject degraded correctly
@@ -36,7 +36,7 @@ var rigExpectedVerdicts = []string{
 	"ScenarioPassed", // rag-server/query: the mesh agent against a mock Chroma
 }
 
-// Rig runs the assembler test rig over this example's agents and the
+// Rig runs the assembler test rig over this application's agents and the
 // catalog reference subject in one pass — the cross-root proof: one
 // rig, two repository areas, discovered by convention. The rag-server is
 // exercised end to end against a mock Chroma pinned to the port the
@@ -46,16 +46,16 @@ var rigExpectedVerdicts = []string{
 // target asserts the exact verdict pattern instead. Skips (does not fail)
 // when the agent-core checkout is unavailable.
 func (Integration) Rig() error {
-	exampleRoot, err := os.Getwd()
+	applicationRoot, err := os.Getwd()
 	if err != nil {
 		return err
 	}
-	coreRoot := envOrDefault("AGENT_CORE_ROOT", siblingPath(exampleRoot, "agent-core"))
+	coreRoot := envOrDefault("AGENT_CORE_ROOT", siblingPath(applicationRoot, "agent-core"))
 	if !agentCoreAvailable(coreRoot) {
 		fmt.Printf("SKIP integration:rig: agent-core checkout not found at %s\n", coreRoot)
 		return nil
 	}
-	catalogRoot, err := resolveCatalogRoot("chatbot-mesh integration rig", exampleRoot)
+	catalogRoot, err := resolveCatalogRoot("chatbot-mesh integration rig", applicationRoot)
 	if err != nil {
 		return err
 	}
@@ -82,10 +82,10 @@ func (Integration) Rig() error {
 	if err := os.WriteFile(staged, data, 0o755); err != nil {
 		return err
 	}
-	if err := runCollectorIntakeScenario(staged, coreRoot, exampleRoot, binDir); err != nil {
+	if err := runCollectorIntakeScenario(staged, coreRoot, applicationRoot, binDir); err != nil {
 		return fmt.Errorf("collector intake-filter scenario: %w", err)
 	}
-	stagedRigRoot, cleanupRig, err := stageRigRuntime(exampleRoot, catalogRoot)
+	stagedRigRoot, cleanupRig, err := stageRigRuntime(applicationRoot, catalogRoot)
 	if err != nil {
 		return err
 	}
@@ -102,12 +102,12 @@ func (Integration) Rig() error {
 		"127.0.0.1:"+envOrDefault("DA_OTEL_GRPC_PORT", "4317"),
 	)
 	runID := firstNonEmpty(os.Getenv(integrationRunIDEnv), generatedRunID("integration:rig"))
-	commit := firstNonEmpty(os.Getenv(integrationCommitEnv), gitCommit(exampleRoot))
+	commit := firstNonEmpty(os.Getenv(integrationCommitEnv), gitCommit(applicationRoot))
 	telemetryArgs := integrationTelemetryArgs(endpoint, "assembler-rig")
 	resourceEnv := "OTEL_RESOURCE_ATTRIBUTES=" +
 		integrationResourceAttributes("integration:rig", runID, commit)
 	cmd := exec.Command(binary, append(args, telemetryArgs...)...)
-	cmd.Dir = exampleRoot
+	cmd.Dir = applicationRoot
 	cmd.Env = append(os.Environ(),
 		"PATH="+binDir+string(os.PathListSeparator)+os.Getenv("PATH"),
 		"AGENT_CATALOG_ROOT="+catalogRoot,
@@ -178,8 +178,8 @@ type collectorIntakeScenario struct {
 // runCollectorIntakeScenario drives the shipped collector profile over a real
 // OTLP/gRPC boundary with a canned protobuf-JSON batch. The spool assertion is
 // the deterministic rig verdict for the receive -> positive-span filter -> spool leg.
-func runCollectorIntakeScenario(binary, coreRoot, exampleRoot, workDir string) error {
-	scenarioDir := filepath.Join(exampleRoot, "agents/collector/tests/intake-filter")
+func runCollectorIntakeScenario(binary, coreRoot, applicationRoot, workDir string) error {
+	scenarioDir := filepath.Join(applicationRoot, "agents/collector/tests/intake-filter")
 	var scenario collectorIntakeScenario
 	if err := readIntegrationYAML(filepath.Join(scenarioDir, "scenario.yaml"), "collector scenario", &scenario); err != nil {
 		return err
@@ -218,7 +218,7 @@ func runCollectorIntakeScenario(binary, coreRoot, exampleRoot, workDir string) e
 		"--core-root", coreRoot,
 		"--directory", workDir,
 	)
-	cmd.Dir = exampleRoot
+	cmd.Dir = applicationRoot
 	cmd.Env = append(os.Environ(),
 		"COLLECTOR_BIND_HOST=127.0.0.1",
 		"COLLECTOR_RECEIVER_ADDRESS="+receiver,

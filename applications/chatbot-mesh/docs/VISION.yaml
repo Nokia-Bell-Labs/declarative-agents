@@ -2,20 +2,20 @@ id: chatbot-mesh-example
 title: "Chatbot Mesh: A Copyable Declarative Agent Application"
 
 executive_summary: |
-  The chatbot mesh is a copyable example program. It shows what a mesh of
+  The chatbot mesh is a copyable application program. It shows what a mesh of
   declarative agents can do: a browser-facing chatbot that routes a question to
   a chat model, fans one embedding out to several retrieval-augmented generation
   (RAG) servers, composes an answer from the surviving sources' chunks, exposes
   per-agent and cross-agent observability, and deploys as one Helm chart with an
   in-cluster model tier.
 
-  The example is a copyable application, not a standalone runtime or profile
+  The application is a copyable application, not a standalone runtime or profile
   library. It runs on the published agent-core image and resolves the reusable
   corpus-ingest program from a canonical applications/catalog checkout at build/test
   time. Packaging embeds that closure, so the resulting chart has no runtime
   dependency on the checkout.
 
-  The example spans the data plane -- the chatbot, the RAG servers, a corpus-ingest
+  The application spans the data plane -- the chatbot, the RAG servers, a corpus-ingest
   agent that seeds the vector store, observability, and Helm deployment -- and the
   control plane: a coordinator that sequences a provisioning intent, a creator that
   manages agent lifecycle, and the provisioning surface (the deployment API and its
@@ -41,20 +41,20 @@ what_this_does: |
   applications/catalog and are resolved during packaging. The `ux/` tree holds the
   single-page application and its UX config. The `helm/` tree holds the
   deployment chart. The `docs/` tree holds this vision, the architecture, the
-  road map, and the example's own software requirements, use cases, and test
+  road map, and the application's own software requirements, use cases, and test
   suites.
 
-  The example carries its own build entry. A magefile validates the example's
-  specification corpus and runs the mesh integration targets, so the example
+  The application carries its own build entry. A magefile validates the application's
+  specification corpus and runs the mesh integration targets, so the application
   governs and tests itself without the surrounding repository.
 
 why_we_build_this: |
-  A standalone example makes the framework's value legible. A reader sees that
+  A standalone application makes the framework's value legible. A reader sees that
   agent behavior is YAML a shared runtime loads, that a multi-agent topology is
   configuration rather than bespoke code, and that the same profiles run locally
   and in a cluster.
 
-  A declared dependency boundary lets the example travel without forking shared
+  A declared dependency boundary lets the application travel without forking shared
   behavior. Chroma retrieval config, the corpus-ingest wrapper, and the
   deployment chart live with the mesh. Packaging resolves the reusable ingest
   program from the canonical applications/catalog checkout and embeds that closure in
@@ -62,7 +62,7 @@ why_we_build_this: |
 
 success_criteria:
   copyable_application: |
-    The example runs on the published agent-core image. A copied directory uses
+    The application runs on the published agent-core image. A copied directory uses
     the documented AGENT_CATALOG_ROOT build/test dependency for the canonical
     corpus-ingest program, and the packaged chart carries the resolved closure
     without requiring that checkout at runtime.
@@ -72,7 +72,7 @@ success_criteria:
     dependency. Chroma retrieval config is owned by the mesh, not shared from
     another family.
   self_governing_docs: |
-    The example owns its VISION, ARCHITECTURE, road map, software requirements,
+    The application owns its VISION, ARCHITECTURE, road map, software requirements,
     use cases, and test suites. Its magefile audit validates that corpus.
   clear_layout: |
     Helm and UX each live in their own top-level directory, so a reader locates
@@ -83,7 +83,7 @@ success_criteria:
 
 not:
   - We do not own the agent-core runtime, its Go packages, or its builtin tools;
-    the example is a program that runs on that runtime.
+    the application is a program that runs on that runtime.
   - We do not restate agent-core platform requirements (REST client tools,
     machine_request binding, monitor, mounted profiles, checkpoint, command-state,
     traceparent); we cite them as external references.
@@ -103,7 +103,7 @@ canonical_documents:
 
 platform_references:
   note: |
-    These agent-core requirements are the runtime contracts the example builds
+    These agent-core requirements are the runtime contracts the application builds
     on. They are external references, owned by agent-core, not restated here.
   requirements:
     - agent-core srd028 (REST client tools)

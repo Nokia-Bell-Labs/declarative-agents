@@ -17,23 +17,23 @@ coverage_notes: |
   Release 06.0 has moved past draft status.
 
   Agent profile assets, demos, and profile-owned integration fixtures now live
-  in agent-profiles. Agent Core keeps cmd/agent, Go runtime packages, shared
+  in applications/catalog. Agent Core keeps cmd/agent, Go runtime packages, shared
   tool declarations, Docker packaging, Mage targets, and the release image
   contract.
 
   Executable proof is split by boundary. Package tests verify installed
-  core-owned path mapping and Dockerfile contents. Through AGENT_PROFILES_ROOT,
+  core-owned path mapping and Dockerfile contents. Through AGENT_CATALOG_ROOT,
   Mage integration targets run external profiles. For runtime images, mage
   docker builds a target that copies /opt/agent-core/tools, refuses
   profile-less startup, and documents the mounted /profiles command.
-  agent-profiles owns the matching mounted-image smoke target for its profile
+  applications/catalog owns the matching mounted-image smoke target for its profile
   bundle.
 
 traces:
   - rel06.0-uc001-mounted-profile-container-runtime
 
 preconditions:
-  - agent-profiles exists as a checkout, release asset, or mounted fixture with standard agent profiles.
+  - applications/catalog exists as a checkout, release asset, or mounted fixture with standard agent profiles.
   - The Agent Core runtime image can be built from Dockerfile.
   - Core-owned shared tool declaration roots are available from the installed Agent Core runtime path.
   - Tests can mount an isolated workspace at /work.
@@ -64,22 +64,22 @@ test_cases:
   - use_case: rel06.0-uc001-mounted-profile-container-runtime
     name: Runtime resolves profiles from external roots
     go_test: TestResolveProfilePathMapsInstalledCoreHome
-    integration_target: examples/coding-agent mage integration:executorLive
+    integration_target: applications/coding-agent mage integration:executorLive
     status: implemented
     description: |
-      Configure AGENT_PROFILES_ROOT outside the agent-core checkout. The coding
+      Configure AGENT_CATALOG_ROOT outside the agent-core checkout. The coding
       application packages the external profile closure and starts cmd/agent
       with a profile from that closure.
       In pkg/spec, the path test verifies that /opt/agent-core/tools references
       map to the installed core asset root when AGENT_CORE_HOME is set. Those
       The application integration exercises normal machine assets and fixture roots.
       Concrete profile UX tracer bullets, including Knowledge Manager assets,
-      belong to agent-profiles suites.
+      belong to applications/catalog suites.
     inputs:
       profile_root: external_agent_profiles_root
       profiles:
-        - ${AGENT_PROFILES_ROOT}/generator/profile.yaml
-        - ${AGENT_PROFILES_ROOT}/evaluator/profile.yaml
+        - ${AGENT_CATALOG_ROOT}/generator/profile.yaml
+        - ${AGENT_CATALOG_ROOT}/evaluator/profile.yaml
       workspace: isolated_temp_workspace
     expected:
       external_profile_loaded: true
@@ -127,14 +127,14 @@ test_cases:
   - use_case: rel06.0-uc001-mounted-profile-container-runtime
     name: Container runs with mounted profile and workspace
     go_test: cd magefiles && go test ./... -run 'TestContainerBuildSummaryForDocker'
-    integration_target: mage docker; Dockerfile target integration; agent-profiles mage containerSmoke
+    integration_target: mage docker; Dockerfile target integration; applications/catalog mage containerSmoke
     status: implemented
     description: |
       Build output documents the mounted profile command. The runtime command
-      mounts AGENT_PROFILES_ROOT at /profiles/agents, mounts the workspace at
+      mounts AGENT_CATALOG_ROOT at /profiles/agents, mounts the workspace at
       /work, and invokes agent with --profile pointing at the mounted generator
       profile. Inside the integration Docker target, Mage runs with
-      AGENT_PROFILES_ROOT mounted. In agent-profiles, the matching container
+      AGENT_CATALOG_ROOT mounted. In applications/catalog, the matching container
       smoke command runs an installed image against /profiles.
     inputs:
       profile_mount: /profiles

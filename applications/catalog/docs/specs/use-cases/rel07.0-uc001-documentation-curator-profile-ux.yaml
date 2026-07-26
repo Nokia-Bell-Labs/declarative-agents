@@ -4,11 +4,11 @@ title: Documentation Curator Profile UX Tracer
 summary: |
   The documentation-curator profile owns the Knowledge Manager browser and
   document-resource proof. The profile-owned integration target loads the
-  concrete profile from agent-profiles, starts its documentation host and control
+  concrete profile from applications/catalog, starts its documentation host and control
   routes through agent-core, exercises document and curator-action machine_request
   endpoints, and shuts the profile down through declared lifecycle vocabulary.
 
-  This tracer belongs in agent-profiles because the profile, UX config, request
+  This tracer belongs in applications/catalog because the profile, UX config, request
   machine, REST definitions, and UI assets live beside the profile. agent-core
   proves generic REST and machine_request behavior; this use case proves the
   concrete profile wiring across that runtime boundary.
@@ -21,7 +21,7 @@ trigger: |
     AGENT_CORE_ROOT=/path/to/agent-core mage integration:documentationCurator
 
 preconditions:
-  - agent-core is available as AGENT_CORE_ROOT or a sibling ../agent-core checkout.
+  - agent-core is available as AGENT_CORE_ROOT or a sibling ../../agent-core checkout.
   - agents/knowledge-manager/documentation-curator/profile.yaml resolves profile-local assets.
   - The test can bind local loopback ports for documentation, machine_request, and control routes.
 
@@ -54,7 +54,7 @@ touchpoints:
 
 success_criteria:
   - id: S1
-    criterion: The integration loads the documentation-curator profile from agent-profiles.
+    criterion: The integration loads the documentation-curator profile from applications/catalog.
     traces:
       - sm-agent-role-taxonomy documentation-curator
       - sm-multi-agent-profile-system profile_asset_rules

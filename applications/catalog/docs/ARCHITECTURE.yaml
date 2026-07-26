@@ -4,11 +4,12 @@ title: Application Catalog Architecture
 overview:
   summary: |
     applications/catalog is this repository's versioned catalog of reusable
-    declarative tool and agent blocks. At runtime, agent-core loads external
-    agent programs from it. Applications compose canonical catalog members by
-    reference and package their transitive closure. Profile directories,
-    profile-local config, conformance, demos, integration fixtures, catalog UIs,
-    and structured docs live here.
+    declarative tool and agent blocks. It is not a universal agent library. At
+    runtime, agent-core loads external agent programs from it. Applications
+    compose canonical catalog members by reference and package their transitive
+    closure. Profile directories, catalog tool declarations, profile-local
+    overrides, conformance, demos, integration fixtures, catalog UIs, and
+    structured docs live here.
 
     Runtime ownership remains in agent-core. That repository owns the Go
     engine, cmd/agent, builtin tool implementations, shared runtime assets, Mage
@@ -64,6 +65,14 @@ components:
       profiles, REST profiles, control profiles, and Knowledge Manager assets.
       Profiles may reference core-owned shared tool declarations through
       /opt/agent-core/tools.
+  - name: tool taxonomy
+    path: tools/README.md
+    responsibility: |
+      Define catalog tool-block membership and distinguish tools.yaml selection
+      lists, profile-local overrides, reusable catalog ToolDef declarations,
+      core declarations, core implementations, and application-local
+      exclusions. Catalog declarations stay with their owning agents/<family>/
+      closure; this path is the taxonomy, not a second declaration registry.
   - name: demos
     path: demo/
     responsibility: |
@@ -122,8 +131,10 @@ design_decisions:
       Applications reference members and assemble closures at package time;
       they do not fork reusable programs.
 
-      The compatibility surface remains versioned by exact agent-profiles/v0.*
-      tags until the coordinated tag migration changes that prefix.
+      The canonical compatibility surface is versioned by exact
+      applications/catalog/v0.* tags. Matching agent-profiles/v0.* names are
+      v0 compatibility aliases, and immutable historical legacy tags remain
+      valid.
       Profile paths, machines, selected tool/signal/terminal contracts,
       request/response shapes, configuration names/defaults, and closure
       membership are compatibility-sensitive. Breaking changes require an
@@ -142,6 +153,24 @@ design_decisions:
       - Application composition and catalog behavior have visible owners.
       - Release compatibility and migration evidence are reviewable.
       - The runtime remains an interpreter rather than a profile registry.
+  - id: 5
+    title: Tool declarations are first-class without moving core ownership
+    decision: |
+      Reusable repository-specific ToolDef declarations are catalog tool blocks
+      under their owning agents/<family>/ closure. tools.yaml files only select
+      names, and profile-local declarations may override configuration for one
+      profile or variant. Generic Go implementations remain under
+      agent-core/internal/tools, while stable shared declarations remain under
+      agent-core/tools and the /opt/agent-core/tools runtime mount.
+
+      Applications may select and configure catalog blocks, but application-only
+      declarations, topology, endpoint choices, wrappers, deployment, and UX
+      remain in the owning application. MachineSpec owns sequencing; ToolDef
+      defines one vocabulary word.
+    benefits:
+      - Tool reuse and ownership are reviewable from repository paths.
+      - Catalog declarations can evolve without duplicating core implementations.
+      - Selection, override, declaration, and application composition are not conflated.
 
 technology_choices:
   - component: Profile format
@@ -160,7 +189,9 @@ technology_choices:
 project_structure:
   configuration:
     - path: agents/
-      role: External agent profile programs and profile-local assets.
+      role: Reusable catalog agent blocks, catalog tool declarations, selection lists, overrides, and profile-local assets.
+    - path: tools/README.md
+      role: Catalog tool-block taxonomy and membership contract.
     - path: demo/
       role: External-profile demos.
     - path: testdata/integration/
@@ -201,6 +232,9 @@ implementation_status:
     - done: Catalog membership, member obligations, one-canonical-home,
         application reference, exact v0 release compatibility, and migration
         contracts are recorded.
+    - done: Tool-first taxonomy separates catalog declaration blocks, selection
+        lists, profile-local overrides, core declarations and implementations,
+        and application-local exclusions.
     - done: Assembler and mock are classified as supported test-time catalog
         members; rig-subject and runtime conformance fixtures remain internal,
         with no relocation scheduled.

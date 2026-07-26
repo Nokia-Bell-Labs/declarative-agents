@@ -18,16 +18,16 @@ overview: |
   web UI. Boundary-oriented profiles face outward toward REST callers,
   supervisors, checkpoint stores, document corpora, and browser users.
 
-  These links do not turn agent-profiles into a runtime implementation
+  These links do not turn applications/catalog into a runtime implementation
   repository. They name configuration, actor contracts, and dependency
   direction. MachineSpec interpretation, tool dispatch, nested loop execution,
   and reusable runtime ports remain in agent-core.
 
 system_boundary:
-  profile_repository: agent-profiles
+  profile_repository: applications/catalog
   runtime_repository: agent-core
   rule: |
-    agent-profiles owns configured agent programs and profile-local assets.
+    applications/catalog owns configured agent programs and profile-local assets.
     agent-core owns runtime execution, builtin implementations, shared runtime
     assets, and container build mechanics.
 

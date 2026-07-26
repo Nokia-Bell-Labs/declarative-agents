@@ -65,7 +65,7 @@ success_criteria:
     explicit workspace, delegation, and result interfaces.
 
 not:
-  - We do not copy planner, executor, critic, or their SRDs into this example.
+  - We do not copy planner, executor, critic, or their SRDs into this application.
   - We do not add application behavior to the agent-core runtime image.
   - We do not let request input choose profiles, filesystem roots, endpoints,
     or credentials.

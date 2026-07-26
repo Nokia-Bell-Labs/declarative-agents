@@ -18,7 +18,7 @@ trigger: |
   that carries one or more scenario directories.
 
 preconditions:
-  - The assembler and mock profiles are shipped in agent-profiles.
+  - The assembler and mock profiles are shipped in applications/catalog.
   - agent-core provides the service-child, validator-execution, and discovery words (srd040) and the mock endpoint binding (srd039).
   - The subject agent's REST dependency base_url is environment-expandable.
 
@@ -82,7 +82,7 @@ success_criteria:
     traces:
       - srd018-assembler AC1
   - id: S6
-    criterion: The same assembler discovers and runs scenarios under the examples tree with no special-casing.
+    criterion: The same assembler discovers and runs scenarios under the applications tree with no special-casing.
     traces:
       - srd018-assembler AC3
 
@@ -101,7 +101,7 @@ out_of_scope:
   - The agent-core words themselves and the mock fixture schema; those are srd040 and srd039.
   - Kubernetes, containers, or a hierarchical control plane; children are local processes at this release.
   - Span-based state assertion; responses and the mock request log are the witnesses.
-  - Authoring scenarios for the existing mesh agents, which is examples-owned work.
+  - Authoring scenarios for the existing mesh agents, which is application-owned work.
   - Bounded parallel validator iteration; sequential dispatch is intentional until MachineSpec supports a bounded parallel mode.
 
 evidence_gaps:

@@ -56,11 +56,11 @@ func TestIntegrationProfilePathsResolve(t *testing.T) {
 	}
 	sort.Strings(missing)
 	if len(missing) > 0 {
-		t.Fatalf("integration magefiles reference agent profiles that do not exist: %v", missing)
+		t.Fatalf("integration magefiles reference catalog profiles that do not exist: %v", missing)
 	}
 }
 
-// repoRootFromTest walks up from the working directory to the agent-profiles
+// repoRootFromTest walks up from the working directory to the catalog
 // root (the directory that contains agents/).
 func repoRootFromTest(t *testing.T) string {
 	t.Helper()
@@ -74,7 +74,7 @@ func repoRootFromTest(t *testing.T) string {
 		}
 		parent := filepath.Dir(dir)
 		if parent == dir {
-			t.Skip("agent-profiles root not found walking up from the test directory")
+			t.Skip("catalog root not found walking up from the test directory")
 		}
 		dir = parent
 	}

@@ -24,9 +24,9 @@ operator_paths: |
   for profile root or core install layout for cmd/agent.
 
 invocation: |
-  Normal invocation. Replace /work/agent-profiles with your agent-profiles
+  Normal invocation. Replace /work/applications/catalog with your applications/catalog
   checkout or bundle root.
-    agent --profile /work/agent-profiles/agents/<agent>/profile.yaml \
+    agent --profile /work/applications/catalog/agents/<agent>/profile.yaml \
           [--request <file>] [--output <dir>] \
           [--directory <path>] [--dolt-dsn <dsn>] \
           [--resume-checkpoint <id>] [--resume-signal <signal>] \
@@ -34,11 +34,11 @@ invocation: |
           [--otel-service-name <name>]
 
   Lifecycle profile invocations.
-    agent --profile /work/agent-profiles/testdata/conformance/lifecycle/history/profile.yaml \
+    agent --profile /work/applications/catalog/testdata/conformance/lifecycle/history/profile.yaml \
           --directory <workspace> \
           --request requests/history.yaml
 
-    agent --profile /work/agent-profiles/testdata/conformance/lifecycle/rollback/profile.yaml \
+    agent --profile /work/applications/catalog/testdata/conformance/lifecycle/rollback/profile.yaml \
           --directory <workspace> \
           --request requests/rollback.yaml
 
@@ -361,7 +361,7 @@ config_file_layout: |
     exec/                   # Individual shared exec tool declarations
     builtin.yaml            # Legacy aggregate builtin declarations
     exec.yaml               # Legacy aggregate exec declarations
-  <agent-profiles-checkout>/agents/
+  <applications/catalog-checkout>/agents/
     generator/
       profile.yaml          # Preferred generator runtime entry point
       machine.yaml          # Generator state machine and semantics

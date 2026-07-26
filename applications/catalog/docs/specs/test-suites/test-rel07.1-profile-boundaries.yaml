@@ -26,9 +26,9 @@ traces:
   - rel07.1-uc003-rest-profile-boundary
 
 preconditions:
-  - agent-core is available as AGENT_CORE_ROOT or as a sibling ../agent-core checkout.
-  - agent-profiles owns all profile paths, machines, tool selections, suites, REST definitions, and OpenAPI assets named by each test case.
-  - Profiles load through AGENT_PROFILES_ROOT or repository-relative paths.
+  - agent-core is available as AGENT_CORE_ROOT or as a sibling ../../agent-core checkout.
+  - applications/catalog owns all profile paths, machines, tool selections, suites, REST definitions, and OpenAPI assets named by each test case.
+  - Profiles load through AGENT_CATALOG_ROOT or repository-relative paths.
   - agent-core remains responsible for the specification validation tools, lifecycle ports and checkpoint store, and the reusable HTTP runtime.
 
 test_cases:

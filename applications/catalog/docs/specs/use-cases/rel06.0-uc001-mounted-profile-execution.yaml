@@ -3,13 +3,13 @@ title: Mounted Profile Execution
 
 summary: |
   Agent Core runs profile-owned programs from this repository without copying
-  those programs into the runtime image. Operators provide agent-profiles as a
+  those programs into the runtime image. Operators provide applications/catalog as a
   checkout, release bundle, or /profiles container mount. The runtime image
   provides the agent binary and core-owned assets.
 
   This use case covers the execution path after profile migration. The selected
   profile, workspace, demos, and integration fixtures stay under
-  agent-profiles. Agent Core loads the profile through --profile and uses
+  applications/catalog. Agent Core loads the profile through --profile and uses
   --directory for the target workspace.
 
   The important failure mode is quiet fallback to bundled agent directories.
@@ -21,9 +21,9 @@ actor: Operator running an agent-core runtime with external profiles.
 
 trigger: |
   An operator runs an installed agent-core image or local agent binary with a
-  profile path supplied from agent-profiles:
+  profile path supplied from applications/catalog:
 
-    agent --profile "$AGENT_PROFILES_ROOT/agents/executor/profile.yaml" \
+    agent --profile "$AGENT_CATALOG_ROOT/agents/executor/profile.yaml" \
           --directory <workspace>
 
   Container callers use the same contract with /profiles:
@@ -31,13 +31,13 @@ trigger: |
     agent --profile /profiles/agents/jurist/profile.yaml --directory /work
 
 preconditions:
-  - agent-profiles is available as AGENT_PROFILES_ROOT, /profiles, or a release bundle.
+  - applications/catalog is available as AGENT_CATALOG_ROOT, /profiles, or a release bundle.
   - agent-core supplies the agent binary and core-owned shared tool roots.
   - The selected profile's workspace is mounted or available through --directory.
 
 flow:
   - id: F1
-    text: The operator selects a profile path from agent-profiles.
+    text: The operator selects a profile path from applications/catalog.
   - id: F2
     text: The runtime starts with --profile pointing at that external profile.
   - id: F3
@@ -45,7 +45,7 @@ flow:
   - id: F4
     text: Shared tool declarations resolve through documented core-owned roots such as /opt/agent-core/tools.
   - id: F5
-    text: Profile-owned demos and fixtures are read from agent-profiles when integration targets set AGENT_PROFILES_ROOT.
+    text: Profile-owned demos and fixtures are read from applications/catalog when integration targets set AGENT_CATALOG_ROOT.
   - id: F6
     text: A mounted container run uses /profiles for agent programs and /work for the workspace.
   - id: F7
@@ -54,23 +54,23 @@ flow:
 touchpoints:
   - id: T1
     target: srd001-agent-functional-blocks R1
-    reason: Profile-owned files stay in agent-profiles while runtime assets stay in agent-core.
+    reason: Profile-owned files stay in applications/catalog while runtime assets stay in agent-core.
   - id: T2
     target: per-family SRDs srd002-executor through srd011-knowledge-manager
     reason: Mounted execution must preserve each functional block's actor boundary.
   - id: T3
     target: sm-multi-agent-profile-system system_boundary
-    reason: agent-profiles owns configured programs and agent-core owns execution.
+    reason: applications/catalog owns configured programs and agent-core owns execution.
   - id: T4
     target: sm-agent-role-taxonomy checks
-    reason: Role checks name AGENT_PROFILES_ROOT and mounted profile execution.
+    reason: Role checks name AGENT_CATALOG_ROOT and mounted profile execution.
   - id: T5
     target: mage containerSmoke
     reason: Container proof mounts this repository at /profiles and runs the jurist profile.
 
 success_criteria:
   - id: S1
-    criterion: Runtime commands point --profile at AGENT_PROFILES_ROOT or /profiles.
+    criterion: Runtime commands point --profile at AGENT_CATALOG_ROOT or /profiles.
     traces:
       - srd001-agent-functional-blocks R1.1
       - sm-multi-agent-profile-system profile_asset_rules
@@ -89,7 +89,7 @@ success_criteria:
     traces:
       - sm-multi-agent-profile-system validation_views
   - id: S5
-    criterion: agent-core integration targets can consume demos and fixtures through AGENT_PROFILES_ROOT.
+    criterion: agent-core integration targets can consume demos and fixtures through AGENT_CATALOG_ROOT.
     traces:
       - srd003-critic R2.3
       - srd008-monitor R2.1

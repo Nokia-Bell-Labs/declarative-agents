@@ -441,10 +441,10 @@ child_agent_config:
   examples:
     execute_task: |
       config:
-        profile: ${AGENT_PROFILES_ROOT}/generator/profile.yaml
+        profile: ${AGENT_CATALOG_ROOT}/generator/profile.yaml
     self_invoke: |
       config:
-        profile: ${AGENT_PROFILES_ROOT}/generator/profile.yaml
+        profile: ${AGENT_CATALOG_ROOT}/generator/profile.yaml
         request_from: $from(request).path
         output_from: $from(request).output_dir
 
@@ -614,7 +614,7 @@ boundary_compensation_example: |
     {
       "boundary_compensation": {
         "strategy": "child_eval_artifact_compensation",
-        "child_profile": "${AGENT_PROFILES_ROOT}/evaluator/profile.yaml",
+        "child_profile": "${AGENT_CATALOG_ROOT}/evaluator/profile.yaml",
         "workspace_paths": ["/tmp/eval-output-123"],
         "artifact_paths": ["/path/to/suite.yaml"]
       }

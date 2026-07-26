@@ -7,11 +7,11 @@ Profile-driven runtime and design patterns for declarative, tool-augmented agent
 | Directory | Description |
 |-----------|-------------|
 | [`agent-core/`](agent-core/) | Runtime engine — state machines, tool dispatch, LLM integration, profile loading, and a standard tool library. Go. |
-| [`agent-profiles/`](agent-profiles/) | External agent programs and profile YAML assets consumed by agent-core. |
-| [`examples/chatbot-mesh/`](examples/chatbot-mesh/) | Copyable browser-facing chatbot application with routed multi-RAG data plane, provisioning control plane, UX, Helm chart, self-governing specs, and an explicit canonical corpus-ingest build dependency. |
-| [`examples/coding-agent/`](examples/coding-agent/) | Deployable planner → executor → critic application composed from canonical agent-profiles, with deterministic profile packaging, a profile-free runtime image, Helm chart, and local/kind integration gates. |
+| [`applications/catalog/`](applications/catalog/) | Repository-specific reusable declarative tool and agent blocks, catalog conformance, and catalog integration evidence. |
+| [`applications/chatbot-mesh/`](applications/chatbot-mesh/) | Copyable browser-facing chatbot application with routed multi-RAG data plane, provisioning control plane, UX, Helm chart, self-governing specs, and an explicit canonical corpus-ingest build dependency. |
+| [`applications/coding-agent/`](applications/coding-agent/) | Deployable planner → executor → critic application composed from canonical catalog blocks, with deterministic profile packaging, a profile-free runtime image, Helm chart, and local/kind integration gates. |
 | [`design-patterns/`](design-patterns/) | White paper source: *Design Patterns for Declarative Agents* — eleven patterns for building reliable agents (markdown, PlantUML, IEEE build). |
-| [`docs/engineering/`](docs/engineering/) | Engineering guidelines that span modules and examples, starting with the standard kind rig for integration tests and demos. |
+| [`docs/engineering/`](docs/engineering/) | Engineering guidelines that span modules and applications, starting with the standard kind rig for integration tests and demos. |
 | [`magefiles/`](magefiles/) | Repository-wide build targets: release tagging, stats aggregation, sub-module dispatch. |
 
 ## Build
@@ -54,20 +54,22 @@ with `DA_OTEL_GRPC_PORT`, `DA_OTEL_HTTP_PORT`, `DA_OTEL_HEALTH_PORT`,
 reuse a healthy stack but do not stop or reset it.
 
 Root releases require every release gate to exit successfully before tagging:
-`mage audit`, `mage test`, both `agent-core` and `agent-profiles`
-`mage integration:all`, and `agent-profiles` `mage conformance` with
-`AGENT_CORE_ROOT` set to the release checkout. A documented skip reported by a
-gate is accepted only when that gate exits successfully. A failed gate cannot
-be waived; fix the failure and run the gates again before creating a tag.
+`mage audit`, `mage test`, `agent-core` and `applications/catalog`
+`mage integration:all`, catalog `mage conformance` with `AGENT_CORE_ROOT` set to
+the release checkout, and application-owned gates from each application root.
+A documented skip reported by a gate is accepted only when that gate exits
+successfully. A failed gate cannot be waived; fix the failure and run the gates
+again before creating a tag.
 The agent-core integration suite is limited to runtime service boundaries:
 embedded monitor wiring, Ollama REST and metrics, and Dolt persistence.
 Application workflows such as planner-executor-critic run from
-`examples/coding-agent`.
+`applications/coding-agent`.
 
 `mage tag` requires a clean `main` worktree, records the exact HEAD commit, runs
 all gates above itself, and verifies HEAD is unchanged before creating tags. It
 creates repository tag `v0.YYYYMMDD.N` plus module-scoped tags for
 release-relevant directories: `agent-core/v0.YYYYMMDD.N`,
+`applications/catalog/v0.YYYYMMDD.N`, its matching legacy compatibility tag
 `agent-profiles/v0.YYYYMMDD.N`, and `design-patterns/v0.YYYYMMDD.N`. Git creates
 the complete repository/module ref set in one reference transaction, so a
 conflict or write failure creates none of the release tags.
@@ -90,26 +92,26 @@ mage pdf      # compile IEEE two-column PDF
 mage clean    # remove generated artifacts
 ```
 
-### examples/chatbot-mesh
+### applications/chatbot-mesh
 
 ```bash
-cd examples/chatbot-mesh
-mage audit                  # validate the example's spec corpus
+cd applications/chatbot-mesh
+mage audit                  # validate the application's spec corpus
 mage helm:package           # build the installable chart
 mage integration:helmSmoke  # prove the packaged mesh on kind
 ```
 
-The example is copyable with two documented platform dependencies: agent-core
-at runtime and the canonical agent-profiles corpus-ingest program at build and
-local-integration time. Set `AGENT_PROFILES_ROOT` when the profile library is
-not in the monorepo checkout. Its Helm chart is under
-[`examples/chatbot-mesh/helm/`](examples/chatbot-mesh/helm/) and its own docs
-live under [`examples/chatbot-mesh/docs/`](examples/chatbot-mesh/docs/).
+The application is copyable with two documented platform dependencies:
+agent-core at runtime and the canonical catalog corpus-ingest block at build and
+local-integration time. Set `AGENT_CATALOG_ROOT` when the catalog is not in the
+monorepo checkout. Its Helm chart is under
+[`applications/chatbot-mesh/helm/`](applications/chatbot-mesh/helm/) and its own docs
+live under [`applications/chatbot-mesh/docs/`](applications/chatbot-mesh/docs/).
 
-### examples/coding-agent
+### applications/coding-agent
 
 ```bash
-cd examples/coding-agent
+cd applications/coding-agent
 mage audit                  # validate docs, closure, boot, and test evidence
 mage package                # assemble canonical application profile closures
 mage image:build            # build the profile-free coding runtime
@@ -118,10 +120,10 @@ mage integration:helmSmoke  # prove planner → executor → critic on kind
 ```
 
 Canonical entry points are
-[`agents/application.yaml`](examples/coding-agent/agents/application.yaml),
-[`Dockerfile`](examples/coding-agent/Dockerfile), and
-[`helm/`](examples/coding-agent/helm/); architecture and operations live under
-[`docs/`](examples/coding-agent/docs/).
+[`agents/application.yaml`](applications/coding-agent/agents/application.yaml),
+[`Dockerfile`](applications/coding-agent/Dockerfile), and
+[`helm/`](applications/coding-agent/helm/); architecture and operations live under
+[`docs/`](applications/coding-agent/docs/).
 
 ## License
 

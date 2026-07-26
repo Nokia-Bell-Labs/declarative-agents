@@ -75,7 +75,7 @@ func (Integration) DocumentationCurator() error {
 }
 
 func prepareDocumentationCuratorIntegration(profilesRoot, coreRoot string) (documentationCuratorConfig, func(), error) {
-	tmpDir, err := os.MkdirTemp("", "agent-profiles-docs-curator-*")
+	tmpDir, err := os.MkdirTemp("", "catalog-docs-curator-*")
 	if err != nil {
 		return documentationCuratorConfig{}, nil, err
 	}
@@ -134,8 +134,8 @@ func copyDocumentationCuratorWorkspace(profilesRoot, coreRoot, workspace string)
 			return fmt.Errorf("link documentation-curator workspace %s: %w", entry.Name(), err)
 		}
 	}
-	if err := os.Symlink(profilesRoot, filepath.Join(filepath.Dir(workspace), "agent-profiles")); err != nil {
-		return fmt.Errorf("link agent-profiles workspace: %w", err)
+	if err := os.Symlink(profilesRoot, filepath.Join(filepath.Dir(workspace), "catalog")); err != nil {
+		return fmt.Errorf("link catalog workspace: %w", err)
 	}
 	return nil
 }

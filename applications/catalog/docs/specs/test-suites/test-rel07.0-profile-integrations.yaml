@@ -12,7 +12,7 @@ overview: |
   library evidence.
 
   The suite deliberately separates implemented, planned, and blocked evidence.
-  A tracer is implemented only when agent-profiles owns the target, fixtures,
+  A tracer is implemented only when applications/catalog owns the target, fixtures,
   and expected output evidence. Planned entries name target contracts and
   follow-up issues. Blocked entries must name the missing profile asset or
   fixture rather than accepting a fake pass.
@@ -25,9 +25,9 @@ traces:
   - rel07.0-uc005-monitor-control-profile-boundary
 
 preconditions:
-  - agent-core is available as AGENT_CORE_ROOT or as a sibling ../agent-core checkout.
-  - agent-profiles owns all profile paths, fixtures, suites, and expected outputs named by the tracer.
-  - Integration targets load concrete profiles through AGENT_PROFILES_ROOT or repository-relative paths.
+  - agent-core is available as AGENT_CORE_ROOT or as a sibling ../../agent-core checkout.
+  - applications/catalog owns all profile paths, fixtures, suites, and expected outputs named by the tracer.
+  - Integration targets load concrete profiles through AGENT_CATALOG_ROOT or repository-relative paths.
   - agent-core remains responsible only for runtime execution and builtin capabilities.
 
 test_cases:
@@ -39,7 +39,7 @@ test_cases:
     status: implemented
     description: |
       Run the concrete Knowledge Manager/documentation-curator proof from
-      agent-profiles. The target runs the shipped profile through an ephemeral
+      applications/catalog. The target runs the shipped profile through an ephemeral
       profile overlay, proves machine_request document and curator-action routes,
       serves profile-owned UI assets, records trace metadata, and shuts down
       through lifecycle control.
@@ -59,7 +59,7 @@ test_cases:
       listener_released: true
       runtime_state_root: temporary integration workspace
       release_checkout_clean: true
-      target_owner: agent-profiles
+      target_owner: applications/catalog
     traces:
       - rel07.0-uc001-documentation-curator-profile-ux S1
       - rel07.0-uc001-documentation-curator-profile-ux S2
@@ -71,7 +71,7 @@ test_cases:
   - use_case: rel07.0-uc002-evaluator-generator-profile-boundary
     name: Evaluator-to-generator boundary retired from library integration
     follow_up_issue: "#108"
-    replacement_target: examples/coding-agent mage integration:criticGate
+    replacement_target: applications/coding-agent mage integration:criticGate
     status: planned
     description: |
       The former target used writeGeneratorChildAgent, a shell binary that
@@ -91,7 +91,7 @@ test_cases:
       point_status_recorded: true
       session_summary_recorded: true
       oracle_accounting_recorded: true
-      target_owner: examples/coding-agent
+      target_owner: applications/coding-agent
     traces:
       - rel07.0-uc002-evaluator-generator-profile-boundary S1
       - rel07.0-uc002-evaluator-generator-profile-boundary S2
@@ -101,7 +101,7 @@ test_cases:
   - use_case: rel07.0-uc003-planner-generator-profile-boundary
     name: Planner-to-generator boundary retired from library integration
     follow_up_issue: "#109"
-    replacement_target: examples/coding-agent mage integration:plannerDelegation
+    replacement_target: applications/coding-agent mage integration:plannerDelegation
     status: planned
     coverage: application-live
     description: |
@@ -121,7 +121,7 @@ test_cases:
       child_profile: generator
       graph_terminal_state_recorded: true
       child_run_outcome_recorded: true
-      target_owner: examples/coding-agent
+      target_owner: applications/coding-agent
     traces:
       - rel07.0-uc003-planner-generator-profile-boundary S1
       - rel07.0-uc003-planner-generator-profile-boundary S2
@@ -148,7 +148,7 @@ test_cases:
       critic_profile_dispatched: true
       real_rest_machine_path_executed: true
       shipped_profile_trace_observed: true
-      target_owner: agent-profiles
+      target_owner: applications/catalog
     traces:
       - rel07.0-uc004-bench-evaluator-profile-boundary S1
       - rel07.0-uc004-bench-evaluator-profile-boundary S2
@@ -177,7 +177,7 @@ test_cases:
       lifecycle_signal_routed: true
       monitor_stop_transition_declared: true
       http_handlers_enqueue_only: true
-      target_owner: agent-profiles
+      target_owner: applications/catalog
     traces:
       - rel07.0-uc005-monitor-control-profile-boundary S1
       - rel07.0-uc005-monitor-control-profile-boundary S2

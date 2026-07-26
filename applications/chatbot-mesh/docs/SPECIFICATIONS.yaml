@@ -9,7 +9,7 @@ overview: |
   (srd006), plus the collector agent (srd007). Nine use cases exercise them
   across eight releases (rel00.0 through rel07.0), each with a formal test suite.
 
-  The example runs on the agent-core runtime and cites agent-core platform SRDs
+  The application runs on the agent-core runtime and cites agent-core platform SRDs
   (srd021, srd028, srd029, srd030, srd033, srd034, srd035, srd036, and srd016
   traceparent) as external references rather than indexing them here. The control
   plane (coordinator, creator, and the provisioning surface) is release rel05.0; the

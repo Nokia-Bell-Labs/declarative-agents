@@ -13,7 +13,7 @@ import (
 )
 
 func TestCodingAgentImageBuildUsesPublishedRecipe(t *testing.T) {
-	applicationRoot := filepath.Join(string(filepath.Separator), "repo", "examples", "coding-agent")
+	applicationRoot := filepath.Join(string(filepath.Separator), "repo", "applications", "coding-agent")
 	contextDir, dockerfile, args := codingAgentImageBuild(applicationRoot, "example/runtime:test")
 	if contextDir != filepath.Join(string(filepath.Separator), "repo") {
 		t.Errorf("build context = %q, want repository root", contextDir)

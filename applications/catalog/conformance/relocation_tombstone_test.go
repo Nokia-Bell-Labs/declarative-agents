@@ -36,7 +36,7 @@ func TestRelocatedMeshRecordsArePointerOnlyTombstones(t *testing.T) {
 		canonical, ok := record["canonical_path"].(string)
 		if !ok || canonical == "" {
 			t.Errorf("%s has no canonical_path", rel)
-		} else if _, err := os.Stat(filepath.Join(ProfilesRoot(), "..", filepath.FromSlash(canonical))); err != nil {
+		} else if _, err := os.Stat(filepath.Join(ProfilesRoot(), "..", "..", filepath.FromSlash(canonical))); err != nil {
 			t.Errorf("%s canonical_path %s: %v", rel, canonical, err)
 		}
 		for key := range record {

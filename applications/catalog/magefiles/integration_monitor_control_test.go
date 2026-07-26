@@ -45,7 +45,7 @@ func TestAssertMonitorControlEvidenceRejectsMissingLifecycleRouting(t *testing.T
 		ControlLifecycleSignal:  "AgentExited",
 		MonitorStopTransition:   true,
 		HTTPHandlersEnqueueOnly: false,
-		TargetOwner:             "agent-profiles",
+		TargetOwner:             "applications/catalog",
 	}
 	if err := writeMonitorControlEvidence(runDir, evidence); err != nil {
 		t.Fatalf("writeMonitorControlEvidence: %v", err)
@@ -66,7 +66,7 @@ func TestReadMonitorControlEvidenceParsesExpectedFixture(t *testing.T) {
 	if err != nil {
 		t.Fatalf("readMonitorControlEvidence: %v", err)
 	}
-	if evidence.TargetOwner != "agent-profiles" {
+	if evidence.TargetOwner != "applications/catalog" {
 		t.Fatalf("target owner = %q", evidence.TargetOwner)
 	}
 	if len(evidence.MonitorStateRoutes) != 5 {

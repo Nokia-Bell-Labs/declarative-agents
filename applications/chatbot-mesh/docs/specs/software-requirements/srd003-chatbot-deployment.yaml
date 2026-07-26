@@ -139,7 +139,7 @@ depends_on:
 
 platform_dependencies:
   # agent-core runtime contracts this chart deploys against. External references,
-  # owned by agent-core, not part of this example's corpus.
+  # owned by agent-core, not part of this application's corpus.
   - srd_id: srd034-external-agent-profiles
     provider: agent-core
     symbols_used: [R1]

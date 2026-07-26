@@ -9,7 +9,7 @@ import (
 )
 
 func TestKnowledgeManagerCommandRunsShippedProfile(t *testing.T) {
-	profilesRoot := filepath.Join(string(filepath.Separator), "src", "agent-profiles")
+	profilesRoot := filepath.Join(string(filepath.Separator), "src", "applications", "catalog")
 	coreRoot := filepath.Join(string(filepath.Separator), "src", "agent-core")
 
 	cmd := knowledgeManagerCommand("/tmp/agent", profilesRoot, coreRoot)

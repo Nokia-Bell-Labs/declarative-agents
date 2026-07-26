@@ -16,7 +16,7 @@ import (
 //
 // helm/ci/kind-values.yaml disables the applier -- its image bundles helm,
 // kubectl, and the chart, and the smoke tests kind-load only the runtime image --
-// so every cluster-level test in the example stands up a mesh without it. The
+// so every cluster-level test in the application stands up a mesh without it. The
 // packaging path that carries the applier into a cluster is therefore proven
 // only here, at the render.
 //

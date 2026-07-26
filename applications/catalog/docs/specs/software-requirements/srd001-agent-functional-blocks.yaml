@@ -20,7 +20,7 @@ conformance_fixture_srds:
 
 context: |
   This SRD holds the cross-cutting requirements that every migrated profile
-  family shares: the profile ownership boundary between agent-profiles and
+  family shares: the profile ownership boundary between applications/catalog and
   agent-core, and the dependency-direction invariants that connect the families.
 
   Each profile family owns its own SRD for actor boundary, inputs, outputs, tool
@@ -57,7 +57,7 @@ problem: |
   directions that must survive as the families evolve.
 
 goals:
-  - G1: Fix the profile ownership boundary between agent-profiles and agent-core.
+  - G1: Fix the profile ownership boundary between applications/catalog and agent-core.
   - G2: Record the cross-profile dependency directions as invariants the families must preserve.
   - G3: Route each profile family to its own dedicated SRD.
 
@@ -65,7 +65,7 @@ requirements:
   R1:
     title: Profile ownership boundary
     items:
-      - R1.1: Each migrated profile must keep profile.yaml, machine.yaml, tools.yaml, profile-local declarations, REST definitions, and UI assets under agent-profiles when those files define agent behavior.
+      - R1.1: Each migrated profile must keep profile.yaml, machine.yaml, tools.yaml, profile-local declarations, REST definitions, and UI assets under applications/catalog when those files define agent behavior.
       - R1.2: Migrated profiles must reference agent-core runtime assets through documented core-owned roots, mounted paths, or release bundle paths.
       - R1.3: Migrated profiles must not copy agent-core Go runtime packages, builtin tool implementations, or container build logic.
   R2:
@@ -85,14 +85,14 @@ requirements:
 
 non_goals:
   - Define Go package APIs for agent-core.
-  - Reimplement builtin tool behavior in agent-profiles.
+  - Reimplement builtin tool behavior in applications/catalog.
   - Define release container build mechanics.
   - Treat migrated profiles as separate binaries.
   - Restate per-family functional block requirements; those live in the SRDs listed by family_srds.
 
 acceptance_criteria:
   - id: AC1
-    criterion: The SRD defines the profile ownership boundary that keeps configured behavior in agent-profiles and runtime capability in agent-core.
+    criterion: The SRD defines the profile ownership boundary that keeps configured behavior in applications/catalog and runtime capability in agent-core.
     traces: [R1.1, R1.2, R1.3]
   - id: AC2
     criterion: The SRD records the cross-profile dependency directions as invariants that the per-family SRDs must preserve.

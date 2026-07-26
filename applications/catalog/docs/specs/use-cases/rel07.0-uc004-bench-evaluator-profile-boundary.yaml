@@ -8,7 +8,7 @@ summary: |
   status plus the critic child arguments. This is a launch tracer, not a full
   critic benchmark.
 
-  The proof stays in agent-profiles because the bench profile, critic profile
+  The proof stays in applications/catalog because the bench profile, critic profile
   reference, launch action, and expected dispatch are profile-owned behavior.
   agent-core owns generic REST, evaluation artifact queries, and child-agent
   execution; it does not own bench routes, assets, workflow, or the concrete

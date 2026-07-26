@@ -44,7 +44,7 @@ requirements:
 
 non_goals:
   - Define Go package APIs for the agent-core documentation host or REST runtime.
-  - Reimplement document hosting or patch application in agent-profiles.
+  - Reimplement document hosting or patch application in applications/catalog.
   - Own cross-profile dependency-direction invariants; those stay in srd001.
 
 acceptance_criteria:

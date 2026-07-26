@@ -32,7 +32,7 @@ func requireProfilePaths(root string, rels ...string) error {
 }
 
 func buildIntegrationAgent(coreRoot string) (string, error) {
-	binary := filepath.Join(os.TempDir(), "agent-profiles-integration-agent")
+	binary := filepath.Join(os.TempDir(), "application-catalog-integration-agent")
 	cmd := exec.Command("go", "build", "-tags", "production", "-o", binary, "./cmd/agent")
 	cmd.Dir = coreRoot
 	cmd.Stdout = os.Stdout

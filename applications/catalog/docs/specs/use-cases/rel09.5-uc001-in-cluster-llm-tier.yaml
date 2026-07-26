@@ -1,8 +1,8 @@
 id: rel09.5-uc001-in-cluster-llm-tier
 title: In-Cluster LLM Tier (Relocated)
 status: relocated
-canonical_path: examples/chatbot-mesh/docs/specs/use-cases/rel04.0-uc001-in-cluster-llm-tier.yaml
+canonical_path: applications/chatbot-mesh/docs/specs/use-cases/rel04.0-uc001-in-cluster-llm-tier.yaml
 note: |
   Pointer-only tombstone. The chatbot mesh owns its LLM tier use case and
-  executable evidence under examples/chatbot-mesh/. This retained identifier
+  executable evidence under applications/chatbot-mesh/. This retained identifier
   exists only to redirect historical references.
