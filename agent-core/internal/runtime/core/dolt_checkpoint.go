@@ -7,6 +7,7 @@ import (
 	"encoding/json"
 	"errors"
 	"fmt"
+	"reflect"
 	"time"
 )
 
@@ -14,6 +15,11 @@ import (
 // save, load, and revert failures wrap it so callers can classify by backend
 // (srd036-dolt-state-persistence R1.4).
 var ErrDolt = errors.New("dolt checkpoint")
+
+// ErrCheckpointFinalized classifies attempts to save a run after its terminal
+// branch has already been merged and deleted. Repeated finalization must not
+// recreate the branch or merge it a second time.
+var ErrCheckpointFinalized = fmt.Errorf("%w: run already finalized", ErrDolt)
 
 // ErrRevertUnresolved reports that a Revert target (run_id, step_index) does not
 // resolve to a recorded commit (srd036-dolt-state-persistence R6.5).
@@ -62,6 +68,14 @@ type DoltCheckpoint struct {
 	runID    string
 	terminal func(State) bool
 	inited   bool
+	// persistedExecution distinguishes a no-command terminal Position save
+	// from a dispatch save. The former updates only the machine position and
+	// must not rewrite the last Entry as a duplicate command step.
+	persistedExecution    Execution
+	hasPersistedExecution bool
+	finalizing            bool
+	merged                bool
+	finalized             bool
 }
 
 var (
@@ -75,7 +89,11 @@ const doltSignalColumn = "`signal`"
 // terminal predicate, when non-nil, decides which Position current states merge
 // the run branch to main; a nil predicate never auto-merges.
 func NewDoltCheckpoint(db Database, runID string, terminal func(State) bool) *DoltCheckpoint {
-	return &DoltCheckpoint{db: db, runID: runID, terminal: terminal}
+	return &DoltCheckpoint{
+		db:       db,
+		runID:    runID,
+		terminal: terminal,
+	}
 }
 
 // OpenDoltCheckpoint opens the Dolt database from a DSN and returns an adapter.
@@ -103,9 +121,26 @@ func (d *DoltCheckpoint) Close() error { return d.db.Close() }
 // then merges to main when the Position current state is terminal
 // (srd036-dolt-state-persistence R4).
 func (d *DoltCheckpoint) Save(position Position, execution Execution) error {
+	isTerminal := d.terminal != nil && d.terminal(position.CurrentState)
+	if d.finalized {
+		return fmt.Errorf("%w: save run %q", ErrCheckpointFinalized, d.runID)
+	}
+	// A previous terminal Save committed successfully but did not finish branch
+	// cleanup. Retry only the unfinished lifecycle operation; writing another
+	// checkpoint would create a duplicate commit.
+	if d.finalizing {
+		if !isTerminal {
+			return fmt.Errorf("%w: save non-terminal position for run %q", ErrCheckpointFinalized, d.runID)
+		}
+		return d.Merge()
+	}
+
+	finalizationOnly := isTerminal &&
+		d.hasPersistedExecution &&
+		reflect.DeepEqual(execution, d.persistedExecution)
 	step := len(execution) - 1
 	var current Entry
-	if step >= 0 {
+	if step >= 0 && !finalizationOnly {
 		current = execution[step]
 		sanitized, err := sanitizeResultDigestForSave(current.Result)
 		if err != nil {
@@ -117,7 +152,7 @@ func (d *DoltCheckpoint) Save(position Position, execution Execution) error {
 		return err
 	}
 	sig := Signal("")
-	if step >= 0 {
+	if step >= 0 && !finalizationOnly {
 		sig = current.Signal
 	}
 
@@ -129,25 +164,34 @@ func (d *DoltCheckpoint) Save(position Position, execution Execution) error {
 		_ = tx.Rollback()
 		return err
 	}
-	if err := reconcileExecution(tx, d.runID, len(execution)); err != nil {
-		_ = tx.Rollback()
-		return err
-	}
-	if step >= 0 {
-		if err := writeStep(tx, d.runID, step, current); err != nil {
+	if !finalizationOnly {
+		if err := reconcileExecution(tx, d.runID, len(execution)); err != nil {
 			_ = tx.Rollback()
 			return err
 		}
+		if step >= 0 {
+			if err := writeStep(tx, d.runID, step, current); err != nil {
+				_ = tx.Rollback()
+				return err
+			}
+		}
 	}
-	if err := tx.Exec(`CALL DOLT_COMMIT('-A', '--allow-empty', '-m', ?)`, commitMessage(step, sig)); err != nil {
+	message := commitMessage(step, sig)
+	if finalizationOnly {
+		message = terminalCommitMessage(position.CurrentState)
+	}
+	if err := tx.Exec(`CALL DOLT_COMMIT('-A', '--allow-empty', '-m', ?)`, message); err != nil {
 		_ = tx.Rollback()
 		return fmt.Errorf("%w: save: commit step %d: %v", ErrDolt, step, err)
 	}
 	if err := tx.Commit(); err != nil {
 		return fmt.Errorf("%w: save: tx commit: %v", ErrDolt, err)
 	}
+	d.persistedExecution = cloneExecution(execution)
+	d.hasPersistedExecution = true
 
-	if d.terminal != nil && d.terminal(position.CurrentState) {
+	if isTerminal {
+		d.finalizing = true
 		if err := d.Merge(); err != nil {
 			return err
 		}
@@ -191,6 +235,8 @@ func (d *DoltCheckpoint) Load() (Position, Execution, error) {
 	if err != nil {
 		return Position{}, nil, fmt.Errorf("%w: load: execution: %v", ErrDolt, err)
 	}
+	d.persistedExecution = cloneExecution(exec)
+	d.hasPersistedExecution = true
 	return pos, exec, nil
 }
 
@@ -198,16 +244,24 @@ func (d *DoltCheckpoint) Load() (Position, Execution, error) {
 // (srd036-dolt-state-persistence R4.3). It is idempotent-safe to call once per
 // terminal run.
 func (d *DoltCheckpoint) Merge() error {
+	if d.finalized {
+		return fmt.Errorf("%w: merge run %q", ErrCheckpointFinalized, d.runID)
+	}
 	if err := d.db.Exec(`CALL DOLT_CHECKOUT('main')`); err != nil {
 		return fmt.Errorf("%w: merge: checkout main: %v", ErrDolt, err)
 	}
-	if err := d.db.Exec(`CALL DOLT_MERGE(?)`, d.runID); err != nil {
-		return fmt.Errorf("%w: merge: merge %q: %v", ErrDolt, d.runID, err)
+	if !d.merged {
+		if err := d.db.Exec(`CALL DOLT_MERGE(?)`, d.runID); err != nil {
+			return fmt.Errorf("%w: merge: merge %q: %v", ErrDolt, d.runID, err)
+		}
+		d.merged = true
 	}
 	if err := d.db.Exec(`CALL DOLT_BRANCH('-d', ?)`, d.runID); err != nil {
 		return fmt.Errorf("%w: merge: delete branch %q: %v", ErrDolt, d.runID, err)
 	}
 	d.inited = false
+	d.finalizing = false
+	d.finalized = true
 	return nil
 }
 
@@ -637,6 +691,10 @@ func commitMessage(step int, sig Signal) string {
 		return "step init signal Seed"
 	}
 	return fmt.Sprintf("step %d signal %s", step, sig)
+}
+
+func terminalCommitMessage(state State) string {
+	return fmt.Sprintf("finalize terminal state %s", state)
 }
 
 // nullString maps an empty string to SQL NULL so absent values (for example a

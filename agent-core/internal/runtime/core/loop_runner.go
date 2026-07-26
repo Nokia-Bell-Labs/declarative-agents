@@ -196,7 +196,29 @@ func (r *loopRunner) stopForTerminal(nextState State) bool {
 	if !r.sm.IsTerminal(nextState) {
 		return false
 	}
+	// An actionless terminal transition has no dispatch cycle to persist it.
+	// Move to the actual terminal state without incrementing the dispatch count,
+	// then save the same Execution with its terminal Position. A transition whose
+	// action targeted a terminal state already saved this Position in dispatch,
+	// so state equality prevents a duplicate Save and duplicate step commit.
+	if r.state != nextState {
+		r.state = nextState
+		r.saveTerminalCheckpoint()
+	}
 	status := resolveTerminalStatus(r.params.Hooks, nextState)
+	if r.checkpointSaveErr != nil {
+		status = StatusFailed
+		r.run.LastError = fmt.Errorf(
+			"terminal checkpoint not persisted at iteration %d: %w",
+			r.iteration,
+			r.checkpointSaveErr,
+		)
+		r.trace.Event("run.terminal_persist_failed",
+			attribute.String("state", string(nextState)),
+			attribute.Int("iteration", r.iteration),
+			attribute.String("error", r.checkpointSaveErr.Error()),
+		)
+	}
 	r.trace.Event("run.terminal",
 		attribute.String("final_state", string(nextState)),
 		attribute.String("status", string(status)),
@@ -204,6 +226,23 @@ func (r *loopRunner) stopForTerminal(nextState State) bool {
 	r.run.FinalState = nextState
 	r.run.Status = status
 	return true
+}
+
+// saveTerminalCheckpoint persists an actionless terminal transition without
+// appending an Entry: no command was dispatched, so Execution must remain
+// unchanged. Stateful adapters may record a terminal-finalization commit before
+// applying their terminal branch lifecycle.
+func (r *loopRunner) saveTerminalCheckpoint() {
+	pos := dispatchPosition(r.state, r.signal, r.iteration, &r.run)
+	pos.Snapshot.Iterator = cloneIteratorSnapshot(r.iterator)
+	r.foldConversation(&pos)
+	r.checkpointSaveErr = r.checkpoint.Save(pos, r.execution)
+	if r.checkpointSaveErr != nil {
+		r.trace.Event("checkpoint.save_failed",
+			attribute.Int("iteration", r.iteration),
+			attribute.String("error", r.checkpointSaveErr.Error()),
+		)
+	}
 }
 
 func (r *loopRunner) advance(nextState State) State {

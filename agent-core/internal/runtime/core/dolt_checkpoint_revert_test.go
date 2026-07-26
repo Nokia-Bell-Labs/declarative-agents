@@ -78,6 +78,51 @@ func TestDoltCheckpointMergeOnTerminalState(t *testing.T) {
 	require.False(t, db.branches["run-1"], "run branch removed")
 }
 
+func TestDoltCheckpointTerminalFinalizationDoesNotDuplicateLastStep(t *testing.T) {
+	t.Parallel()
+	terminal := func(s State) bool { return s == "Done" }
+	db := newFakeDB()
+	cp := NewDoltCheckpoint(db, "run-1", terminal)
+	execution := sampleExecution()[:1]
+
+	require.NoError(t, cp.Save(samplePosition(), execution))
+	terminalPos := samplePosition()
+	terminalPos.CurrentState = "Done"
+	terminalPos.Snapshot.State = "Done"
+	require.NoError(t, cp.Save(terminalPos, execution))
+
+	require.Equal(t, "Done", db.store.machines["run-1"].currentState)
+	require.Equal(t, 1, countCalls(db.calls, "REPLACE INTO execution_steps"))
+	require.Equal(t, 1, countCalls(db.calls, "REPLACE INTO tool_outputs"))
+	require.Equal(t, 1, countCalls(db.calls, "REPLACE INTO receipts"))
+	require.Equal(t, 2, len(db.commits), "one step commit plus one terminal-position commit")
+	require.Equal(t, "finalize terminal state Done", db.commits[1].message)
+	require.Equal(t, 1, countCalls(db.calls, "DOLT_MERGE"))
+	require.Equal(t, 1, countCalls(db.calls, "DOLT_BRANCH('-d'"))
+}
+
+func TestDoltCheckpointRepeatedFinalizationReturnsClassifiedError(t *testing.T) {
+	t.Parallel()
+	terminal := func(s State) bool { return s == "Done" }
+	db := newFakeDB()
+	cp := NewDoltCheckpoint(db, "run-1", terminal)
+	execution := sampleExecution()[:1]
+
+	require.NoError(t, cp.Save(samplePosition(), execution))
+	terminalPos := samplePosition()
+	terminalPos.CurrentState = "Done"
+	require.NoError(t, cp.Save(terminalPos, execution))
+	commits := len(db.commits)
+
+	err := cp.Save(terminalPos, execution)
+
+	require.ErrorIs(t, err, ErrCheckpointFinalized)
+	require.Len(t, db.commits, commits)
+	require.Equal(t, 1, countCalls(db.calls, "DOLT_MERGE"))
+	require.Equal(t, 1, countCalls(db.calls, "DOLT_BRANCH('-d'"))
+	require.Equal(t, 1, countCalls(db.calls, "DOLT_CHECKOUT('-b'"), "finalized branch is not recreated")
+}
+
 func TestDoltCheckpointRevertResetsToStepCommit(t *testing.T) {
 	t.Parallel()
 	db := newFakeDB()
