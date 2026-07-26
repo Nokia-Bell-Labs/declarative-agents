@@ -191,6 +191,7 @@ From this directory:
 
 ```bash
 mage audit
+mage stats
 ```
 
 The audit parses every YAML document, checks required fields and reciprocal
@@ -198,6 +199,11 @@ traces, assembles the application closure in a temporary tree, builds the real
 agent, boot-validates all four mounted entry profiles (including
 `critic/profile-workspace.yaml`), and validates formal test-evidence claims
 without turning skipped live runs into passed evidence.
+
+The stats target reports the canonical profile references and application-owned
+serving roles under an `application` key. It deliberately emits no `agents`
+section: planner, executor, and critic implementations are counted once under
+`agent-profiles`, while `agents_contributed: 0` makes that ownership explicit.
 
 The integration entry points are `mage integration:executorLive`,
 `mage integration:plannerDelegation`, `mage integration:criticGate`, and the
