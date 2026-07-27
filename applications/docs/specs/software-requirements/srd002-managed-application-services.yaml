@@ -1,0 +1,276 @@
+id: srd002-managed-application-services
+title: Capability-Dependent Application Services
+
+problem: |
+  Long-running services, distributable packages, Helm charts, and kind demos
+  need additional contracts, but those contracts are not valid baseline
+  obligations for every runnable application. Each requirement needs an
+  explicit capability and observable evidence.
+
+goals:
+  - >-
+    G1: Define lifecycle, health, control, telemetry, configuration, and shutdown
+    requirements for application-owned managed services.
+  - "G2: Define package and Helm surfaces only for applications that ship them."
+  - "G3: Bind kind demos to ENG01 by reference without widening its scope."
+  - "G4: Give the Knowledge Manager demo a contract it can cite selectively."
+
+capability_classes:
+  managed_service:
+    definition: |
+      The application owns one or more long-running processes or listeners whose
+      lifecycle an operator or another application component manages.
+  packaged:
+    definition: |
+      The application produces a deterministic distributable artifact, such as
+      a profile bundle, archive, image, or chart package.
+  helm_managed:
+    definition: |
+      The application ships a Helm chart as an installation and lifecycle
+      surface. This capability implies packaged.
+  kind_demo:
+    definition: |
+      The application ships a kind-based integration proof or operator demo.
+      This capability normally accompanies helm_managed and is governed by
+      ENG01.
+
+requirements:
+  R1:
+    title: Managed-service lifecycle
+    applicability: managed_service
+    items:
+      - id: R1.1
+        text: |
+          Each managed service shall have an application-owned start path and a
+          finite stop path. Startup shall fail when required configuration or
+          authority cannot be validated.
+        evidence: |
+          A profile, command, or workload manifest names the start path; a test
+          exercises successful startup, invalid-start rejection, and stop.
+      - id: R1.2
+        text: |
+          Readiness shall report that the service can perform its declared
+          application role. Process existence, an idle sidecar, or a sleep loop
+          shall not satisfy readiness.
+        evidence: |
+          The readiness probe reaches the application-owned listener or role
+          dependency, and a test distinguishes live-but-not-ready from ready.
+      - id: R1.3
+        text: |
+          Liveness shall report that the service process and owned control loop
+          can continue. Health endpoints shall not conceal a failed role.
+        evidence: |
+          A bounded health test observes success and a representative failed
+          dependency or failed control loop.
+      - id: R1.4
+        text: |
+          Graceful shutdown shall stop intake, allow bounded in-flight work to
+          finish or report cancellation, release owned listeners and resources,
+          and terminate within a declared deadline.
+        evidence: |
+          A lifecycle test holds work in flight, requests stop, observes the
+          declared outcome, and proves listener/resource release.
+
+  R2:
+    title: Control and operator verbs
+    applicability: managed_service
+    items:
+      - id: R2.1
+        text: |
+          Control operations shall use declared, validated authority. Request
+          input shall not introduce filesystem roots, endpoints, credentials,
+          profiles, or deployment authority.
+        evidence: |
+          Config or profile declarations own authority and negative tests reject
+          authority-bearing request fields.
+      - id: R2.2
+        text: |
+          Operator verbs shall have stable names, inputs, side effects, success
+          evidence, failure evidence, and idempotency or compensation behavior.
+        evidence: |
+          Application docs and mage -l name each verb; tests assert side effects
+          and repeat or rollback behavior.
+      - id: R2.3
+        text: |
+          A managed service shall expose only operator verbs its architecture
+          implements. package, image, Helm, doctor, demo, and kind integration
+          verbs shall not be inferred from managed_service alone.
+        evidence: |
+          Capability declaration, application architecture, and mage -l list
+          the same surfaces.
+
+  R3:
+    title: Telemetry and configuration
+    applicability: managed_service
+    items:
+      - id: R3.1
+        text: |
+          Service telemetry shall identify application, role, instance, target
+          or scenario, source revision, and run when those dimensions exist.
+          Remote boundaries shall preserve the runtime's trace context contract.
+        evidence: |
+          Integration tests inspect emitted resource attributes and connected
+          traces or explicitly document a signal limitation.
+      - id: R3.2
+        text: |
+          Health and lifecycle failures shall emit bounded diagnostic evidence
+          that identifies the failed role and operation without exposing secret
+          configuration.
+        evidence: |
+          Failure tests assert role-specific diagnostics and secret redaction.
+      - id: R3.3
+        text: |
+          Configuration shall have one declared authority for each value.
+          Startup shall validate required shape and cross-field invariants before
+          accepting work.
+        evidence: |
+          Schema, profile validation, or startup tests reject missing, malformed,
+          conflicting, and authority-bearing runtime input.
+
+  R4:
+    title: Deterministic package
+    applicability: packaged
+    items:
+      - id: R4.1
+        text: |
+          Package output shall be deterministic for identical inputs and shall
+          record source revision, compatibility claims, and included inventory.
+        evidence: |
+          Repeated-package tests compare output or manifests and inspect
+          provenance and sorted inventory.
+      - id: R4.2
+        text: |
+          Packaging shall reject unsafe, missing, conflicting, or out-of-bound
+          inputs before publication and shall not leave a partial artifact as
+          the current output.
+        evidence: |
+          Negative tests cover the application's reference and size boundaries;
+          publication is atomic or staged then renamed.
+      - id: R4.3
+        text: |
+          The application shall expose a package or equivalent artifact target
+          and an executable validation target for the produced artifact.
+        evidence: |
+          mage -l lists the targets and the local audit or release gate invokes
+          artifact validation.
+
+  R5:
+    title: Helm-managed application
+    applicability: helm_managed
+    items:
+      - id: R5.1
+        text: |
+          The chart shall own a values schema or equivalent structural
+          validation and shall render deterministically from declared package
+          inputs.
+        evidence: |
+          Helm lint/template tests cover defaults, supported variants, and
+          invalid values.
+      - id: R5.2
+        text: |
+          Workload readiness, liveness, configuration mounts, authority, and
+          shutdown behavior shall implement R1 through R3 for each managed role.
+        evidence: |
+          Render tests inspect probes, arguments, mounts, security boundaries,
+          and termination settings; integration tests exercise role health.
+      - id: R5.3
+        text: |
+          The application shall expose Helm render or package validation and
+          shall test the packaged chart independently of source-only files.
+        evidence: |
+          A Mage Helm target lints and renders the archive in an isolated
+          directory and rejects missing inventory or stale generated assets.
+
+  R6:
+    title: kind integration and demo
+    applicability: kind_demo
+    items:
+      - id: R6.1
+        text: |
+          The application shall conform to ENG01 for kind toolchain preflight,
+          cluster lifecycle, image delivery, network access, standard verbs,
+          persistent integration observability, and failure evidence.
+        evidence: |
+          Application-local targets and tests cite ENG01 and exercise its
+          required behavior. This SRD does not reproduce the ENG01 checklist.
+      - id: R6.2
+        text: |
+          Integration targets shall skip with a named missing prerequisite when
+          ENG01 permits a skip. Requested demo targets shall fail with actionable
+          installation guidance when prerequisites are missing.
+        evidence: |
+          Unit tests drive missing-tool cases for integration and demo preflight.
+      - id: R6.3
+        text: |
+          A kind proof shall install the artifact produced by the packaged or
+          Helm-managed surface rather than an unvalidated source-tree surrogate.
+        evidence: |
+          The integration target resolves the package path and tests assert that
+          the installed chart or bundle is the validated artifact.
+      - id: R6.4
+        text: |
+          Applications without kind_demo shall have no ENG01 conformance
+          obligation and shall not be required to expose doctor, demo:up,
+          demo:down, or integration:* kind verbs.
+        evidence: |
+          Capability classification omits kind_demo and baseline conformance
+          accepts the absent verbs.
+
+non_goals:
+  - Require managed services, packaging, Helm, Kubernetes, or kind for every
+    runnable application.
+  - Restate agent-core lifecycle, telemetry, or runtime configuration SRDs.
+  - Copy the ENG01 rig contract into this SRD.
+  - Define application-specific endpoints, deployment topology, or business
+    outcomes.
+
+acceptance_criteria:
+  - id: AC1
+    criterion: |
+      A managed service has executable start, truthful readiness and liveness,
+      and bounded graceful shutdown with resource release.
+    traces: [R1.1, R1.2, R1.3, R1.4]
+    applicability: managed_service
+  - id: AC2
+    criterion: |
+      Managed control and operator verbs use declared authority, document their
+      effects, and expose no optional capability surface by implication.
+    traces: [R2.1, R2.2, R2.3]
+    applicability: managed_service
+  - id: AC3
+    criterion: |
+      Managed telemetry carries available identity, failures produce bounded
+      diagnostics, and one validated configuration authority exists per value.
+    traces: [R3.1, R3.2, R3.3]
+    applicability: managed_service
+  - id: AC4
+    criterion: |
+      A packaged application produces a deterministic, provenance-bearing,
+      validated artifact and rejects unsafe or partial publication.
+    traces: [R4.1, R4.2, R4.3]
+    applicability: packaged
+  - id: AC5
+    criterion: |
+      A Helm-managed application validates deterministic chart output, realizes
+      managed-role lifecycle and authority, and validates the packaged archive
+      independently.
+    traces: [R5.1, R5.2, R5.3]
+    applicability: helm_managed
+  - id: AC6
+    criterion: |
+      A kind-demo application cites and executes ENG01, distinguishes integration
+      skips from requested-demo failures, and installs validated artifacts;
+      applications without kind_demo have no such obligation.
+    traces: [R6.1, R6.2, R6.3, R6.4]
+    applicability: kind_demo, with R6.4 proving the exclusion
+
+external_contracts:
+  - id: eng01-kind-test-demo-rig
+    path: ../../../../docs/engineering/eng01-kind-test-demo-rig.yaml
+    usage: Governs only the kind_demo capability.
+
+use_case_traces:
+  - rel00.0-uc001-application-contract-conformance
+
+test_suite_traces:
+  - test-rel00.0-application-contract-conformance

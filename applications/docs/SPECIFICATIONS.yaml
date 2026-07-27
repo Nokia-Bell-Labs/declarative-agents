@@ -1,0 +1,105 @@
+id: applications-shared-contract-specifications
+title: Shared Applications Specification Index
+
+overview: |
+  This corpus defines the contract for runnable modules under applications/.
+  srd001 is the baseline for every runnable application. srd002 is conditional:
+  its requirement groups apply only to managed-service, packaged, Helm-managed,
+  or kind-demo capabilities. applications/catalog is indexed as a related
+  foundation but is not a runnable application.
+
+  The release 00.0 use case and suite trace both SRDs reciprocally. Structural
+  checks parse documents, verify module classification and root orchestration,
+  enforce ownership-aware stats, and invoke application-owned capability
+  evidence. ENG01 remains the sole kind-rig contract.
+
+roadmap_summary:
+  - version: "00.0"
+    name: Shared runnable-application contract
+    use_cases_done: 1
+    use_cases_total: 1
+    status: implemented
+    evidence: Root Go tests and application Mage gates are executable.
+
+foundation_document_index:
+  - id: applications-shared-contract
+    title: Shared Contract for Runnable Applications
+    summary: Goals, boundaries, and capability-aware success criteria.
+    path: docs/VISION.yaml
+  - id: architecture-applications-shared-contract
+    title: Shared Applications Architecture
+    summary: Ownership layers, module classes, capability layers, and Mage interfaces.
+    path: docs/ARCHITECTURE.yaml
+  - id: applications-shared-contract-roadmap
+    title: Shared Applications Contract Road Map
+    summary: Release status tied to executable structural evidence.
+    path: docs/road-map.yaml
+  - id: applications-readme
+    title: Applications
+    summary: Human entry point, terminology, and current classifications.
+    path: README.md
+  - id: eng01-kind-test-demo-rig
+    title: Standard kind Rig for Agent Integration Tests and Demos
+    summary: External engineering contract used only by kind-demo applications.
+    path: ../docs/engineering/eng01-kind-test-demo-rig.yaml
+  - id: architecture-application-catalog
+    title: Application Catalog Architecture
+    summary: Canonical reusable catalog ownership and consumer boundary.
+    path: catalog/docs/ARCHITECTURE.yaml
+
+srd_index:
+  - id: srd001-application-module-contract
+    title: Runnable Application Module Contract
+    status: implemented
+    applicability: Every runnable application; excludes applications/catalog.
+    path: docs/specs/software-requirements/srd001-application-module-contract.yaml
+    use_cases: [rel00.0-uc001-application-contract-conformance]
+    test_suites: [test-rel00.0-application-contract-conformance]
+  - id: srd002-managed-application-services
+    title: Capability-Dependent Application Services
+    status: implemented
+    applicability: Requirement groups apply only to declared managed_service, packaged, helm_managed, or kind_demo capabilities.
+    path: docs/specs/software-requirements/srd002-managed-application-services.yaml
+    use_cases: [rel00.0-uc001-application-contract-conformance]
+    test_suites: [test-rel00.0-application-contract-conformance]
+
+config_format_index: []
+
+semantic_model_index: []
+
+use_case_index:
+  - id: rel00.0-uc001-application-contract-conformance
+    title: Verify a Runnable Application Against the Shared Contract
+    release: "00.0"
+    status: implemented
+    srds:
+      - srd001-application-module-contract
+      - srd002-managed-application-services
+    test_suite: test-rel00.0-application-contract-conformance
+    path: docs/specs/use-cases/rel00.0-uc001-application-contract-conformance.yaml
+
+test_suite_index:
+  - id: test-rel00.0-application-contract-conformance
+    title: Shared Application Contract Conformance Suite
+    release: "00.0"
+    status: implemented
+    test_case_count: 8
+    traces: [rel00.0-uc001-application-contract-conformance]
+    srds:
+      - srd001-application-module-contract
+      - srd002-managed-application-services
+    path: docs/specs/test-suites/test-rel00.0-application-contract-conformance.yaml
+
+coverage_gaps:
+  - id: future-application-registration
+    status: by_design
+    description: |
+      The shared suite cannot name future application paths. A future runnable
+      module must add itself to root orchestration and add path-specific evidence
+      while retaining the generic shared requirement IDs.
+  - id: optional-capability-behavior
+    status: delegated
+    description: |
+      This suite verifies that capability evidence exists and is executable.
+      Application-local SRDs and suites own business behavior, topology, and
+      runtime outcomes.

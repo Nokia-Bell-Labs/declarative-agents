@@ -1,0 +1,250 @@
+id: test-rel00.0-application-contract-conformance
+title: Shared Application Contract Conformance Suite
+release: "00.0"
+status: implemented
+
+overview: |
+  This suite validates structural conformance. It parses the shared and local
+  YAML corpora, checks reciprocal traces, executes root module-classification
+  and accounting tests, and relies on each application's own audit and test
+  suites for business and capability behavior. An undeclared capability is not
+  applicable; its absent targets are not treated as passing evidence.
+
+traces:
+  - rel00.0-uc001-application-contract-conformance
+
+preconditions:
+  - Run commands from the repository root.
+  - Go, Mage, and Python 3 with PyYAML are available.
+  - agent-core and applications/catalog are present in the monorepo checkout for
+    application-local audit dependencies.
+
+test_cases:
+  - id: TC1
+    use_case: rel00.0-uc001-application-contract-conformance
+    name: Shared corpus parses and traces reciprocally
+    status: implemented
+    evidence_type: executable_structural
+    command: |
+      python3 - <<'PY'
+      from pathlib import Path
+      import yaml
+
+      root = Path("applications/docs")
+      docs = {p: yaml.safe_load(p.read_text()) for p in root.rglob("*.yaml")}
+      required = {
+          root / "VISION.yaml": {
+              "id", "title", "executive_summary", "problem", "what_this_does",
+              "why_we_build_this", "success_criteria", "not",
+          },
+          root / "ARCHITECTURE.yaml": {
+              "id", "title", "overview", "interfaces", "components",
+              "design_decisions", "technology_choices", "project_structure",
+              "implementation_status", "related_documents",
+          },
+          root / "road-map.yaml": {"id", "title", "releases"},
+          root / "SPECIFICATIONS.yaml": {
+              "id", "title", "overview", "roadmap_summary",
+              "foundation_document_index", "srd_index", "config_format_index",
+              "semantic_model_index", "use_case_index", "test_suite_index",
+              "coverage_gaps",
+          },
+      }
+      for path, fields in required.items():
+          assert path in docs, path
+          assert not fields - set(docs[path]), (path, fields - set(docs[path]))
+      index = docs[root / "SPECIFICATIONS.yaml"]
+      for section in ("foundation_document_index", "srd_index",
+                      "use_case_index", "test_suite_index"):
+          for entry in index[section]:
+              path = Path("applications") / entry["path"]
+              assert path.is_file(), path
+      uc_path = root / "specs/use-cases/rel00.0-uc001-application-contract-conformance.yaml"
+      ts_path = root / "specs/test-suites/test-rel00.0-application-contract-conformance.yaml"
+      uc, suite = docs[uc_path], docs[ts_path]
+      assert uc["test_suite"] == suite["id"]
+      assert uc["id"] in suite["traces"]
+      assert "test-rel00.0-application-contract-conformance" in {
+          trace["target"] for trace in uc["touchpoints"]
+      }
+      for srd_name in (
+          "srd001-application-module-contract.yaml",
+          "srd002-managed-application-services.yaml",
+      ):
+          srd = docs[root / "specs/software-requirements" / srd_name]
+          assert uc["id"] in srd["use_case_traces"]
+          assert suite["id"] in srd["test_suite_traces"]
+      print(f"validated {len(docs)} shared application YAML documents")
+      PY
+    expected:
+      yaml_parses: true
+      format_fields_present: true
+      indexed_paths_resolve: true
+      reciprocal_traces_resolve: true
+    traces:
+      - rel00.0-uc001-application-contract-conformance S3
+      - srd001-application-module-contract AC3
+
+  - id: TC2
+    use_case: rel00.0-uc001-application-contract-conformance
+    name: Root module classification and dispatch are pinned
+    status: implemented
+    evidence_type: go_test
+    command: |
+      cd magefiles
+      go test . -run 'Test(ApplicationModulesParticipateInAudit|ChatbotMeshIsAnApplicationModule|CodingAgentParticipatesInAudit|EveryOrchestratedModuleDirectoryExists|OrchestrationUsesStableApplicationPaths|ApplicationModulesExcludedFromSubModules|StatsParticipantsIncludeApplicationModules|TestSubModulesDispatchesApplicationModules)$'
+    evidence:
+      - magefiles/build.go
+      - magefiles/example_modules_test.go
+      - magefiles/test.go
+      - magefiles/tag.go
+    expected:
+      catalog_is_not_runnable_application: true
+      runnable_paths_exist: true
+      root_audit_dispatches_applications: true
+      root_test_dispatches_applications_with_tests: true
+      root_stats_dispatches_applications: true
+      applications_excluded_from_platform_build_default: true
+    traces:
+      - rel00.0-uc001-application-contract-conformance S1
+      - rel00.0-uc001-application-contract-conformance S4
+      - srd001-application-module-contract AC1
+      - srd001-application-module-contract AC4
+      - srd001-application-module-contract AC6
+
+  - id: TC3
+    use_case: rel00.0-uc001-application-contract-conformance
+    name: Canonical agents are counted once
+    status: implemented
+    evidence_type: go_test
+    command: |
+      (cd magefiles && go test . -run 'TestSumAgentsTotals')
+      (cd applications/coding-agent && go test ./magefiles -run 'TestCollectCodingApplicationStats')
+      (cd applications/chatbot-mesh && go test ./magefiles -run 'Test(ScanAgentOwnershipSeparatesCompositionWrapper|RepositoryMeshOwnershipClassifiesCorpusIngestAsComposition)')
+    evidence:
+      - magefiles/stats.go
+      - magefiles/stats_test.go
+      - applications/coding-agent/magefiles/stats.go
+      - applications/coding-agent/magefiles/stats_test.go
+      - applications/chatbot-mesh/magefiles/stats.go
+      - applications/chatbot-mesh/magefiles/agent_stats.go
+      - applications/chatbot-mesh/magefiles/agent_stats_test.go
+    expected:
+      composition_only_has_no_agents_section: true
+      local_agents_counted_by_owner: true
+      composition_references_reported_separately: true
+      root_total_sums_agents_sections_only: true
+    traces:
+      - rel00.0-uc001-application-contract-conformance S2
+      - srd001-application-module-contract AC2
+      - srd001-application-module-contract AC5
+
+  - id: TC4
+    use_case: rel00.0-uc001-application-contract-conformance
+    name: Current runnable applications pass their owned audit gates
+    status: implemented
+    evidence_type: mage_gate
+    command: mage audit
+    evidence:
+      - applications/chatbot-mesh/magefiles/magefile.go
+      - applications/coding-agent/magefiles/magefile.go
+      - applications/chatbot-mesh/docs/SPECIFICATIONS.yaml
+      - applications/coding-agent/docs/SPECIFICATIONS.yaml
+    expected:
+      root_audit_green: true
+      chatbot_mesh_audit_executed: true
+      coding_agent_audit_executed: true
+      local_evidence_owned_by_application: true
+    traces:
+      - rel00.0-uc001-application-contract-conformance S3
+      - rel00.0-uc001-application-contract-conformance S4
+      - srd001-application-module-contract AC3
+      - srd001-application-module-contract AC4
+
+  - id: TC5
+    use_case: rel00.0-uc001-application-contract-conformance
+    name: Managed-service evidence is application-owned
+    status: implemented
+    evidence_type: application_test_suites
+    command: |
+      (cd applications/coding-agent && go test ./magefiles -run 'TestServingProfilesUseRealLifecycleAndCanonicalRoleProfiles|TestPlannerServingFlowUsesDeclaredRemoteBoundaries')
+      (cd applications/chatbot-mesh && go test ./magefiles -run 'TestChatbotRolloutDrainsActiveRequests|TestDetachedAgentDualExportsAndStampsResourceIdentity')
+    evidence:
+      - applications/coding-agent/docs/specs/test-suites/test-rel02.0-serving-contract.yaml
+      - applications/chatbot-mesh/docs/specs/test-suites/test-rel03.0-mesh-deployment.yaml
+      - applications/chatbot-mesh/docs/specs/test-suites/test-rel02.0-observability.yaml
+    expected:
+      lifecycle_evidence_exists: true
+      health_is_role_owned: true
+      authority_is_declared: true
+      telemetry_identity_is_tested: true
+      graceful_shutdown_is_tested: true
+    traces:
+      - rel00.0-uc001-application-contract-conformance S5
+      - srd002-managed-application-services AC1
+      - srd002-managed-application-services AC2
+      - srd002-managed-application-services AC3
+
+  - id: TC6
+    use_case: rel00.0-uc001-application-contract-conformance
+    name: Package and Helm claims have executable evidence
+    status: implemented
+    evidence_type: application_test_suites
+    command: |
+      (cd applications/coding-agent && go test ./magefiles -run 'Test(ProfilePackageIsDeterministic|DeploymentPackageIsDeterministic|HelmPrepareStagesPackageAsOnlyProfileSource|HelmPackage)')
+      (cd applications/chatbot-mesh && go test ./magefiles -run 'Test(StagedProfilesCoverEnabledDeployments|HelmPackage)')
+    evidence:
+      - applications/coding-agent/docs/specs/test-suites/test-rel03.0-deployment-profile-package.yaml
+      - applications/coding-agent/docs/specs/test-suites/test-rel04.0-helm-topology.yaml
+      - applications/coding-agent/docs/specs/test-suites/test-rel05.0-helm-package-validation.yaml
+      - applications/chatbot-mesh/docs/specs/test-suites/test-rel03.0-mesh-deployment.yaml
+    expected:
+      deterministic_package_evidence_exists: true
+      unsafe_input_rejection_exists: true
+      helm_schema_and_render_evidence_exists: true
+      packaged_archive_validation_exists: true
+    traces:
+      - rel00.0-uc001-application-contract-conformance S6
+      - srd002-managed-application-services AC4
+      - srd002-managed-application-services AC5
+
+  - id: TC7
+    use_case: rel00.0-uc001-application-contract-conformance
+    name: kind-demo claims defer to ENG01 evidence
+    status: implemented
+    evidence_type: referenced_engineering_contract
+    command: |
+      (cd applications/coding-agent && go test ./magefiles -run 'TestCodingHelm(SmokeSkipsMissingExternalPrerequisite|InfrastructureProbeClassification|DiagnosticsUseOneBoundedContext)')
+      (cd applications/chatbot-mesh && go test ./magefiles -run 'TestHelmSmokeSkipReasonMissingBinary|TestCollectSharedTelemetryEvidenceIdentifiesSlowComponent')
+    evidence:
+      - docs/engineering/eng01-kind-test-demo-rig.yaml
+      - applications/coding-agent/docs/specs/test-suites/test-rel06.0-live-helm-smoke.yaml
+      - applications/chatbot-mesh/docs/specs/test-suites/test-rel03.0-mesh-deployment.yaml
+    expected:
+      eng01_is_referenced_not_copied: true
+      missing_prerequisite_classification_is_tested: true
+      bounded_failure_evidence_is_tested: true
+      undeclared_kind_demo_is_not_applicable: true
+    traces:
+      - rel00.0-uc001-application-contract-conformance S7
+      - srd002-managed-application-services AC6
+
+  - id: TC8
+    use_case: rel00.0-uc001-application-contract-conformance
+    name: Root statistics complete after conformance
+    status: implemented
+    evidence_type: mage_gate
+    command: mage stats
+    evidence:
+      - magefiles/stats.go
+      - applications/chatbot-mesh/magefiles/stats.go
+      - applications/coding-agent/magefiles/stats.go
+    expected:
+      json_output: true
+      application_modules_present: true
+      repository_agent_total_present: true
+    traces:
+      - rel00.0-uc001-application-contract-conformance S2
+      - rel00.0-uc001-application-contract-conformance S4
+      - srd001-application-module-contract AC4
+      - srd001-application-module-contract AC5

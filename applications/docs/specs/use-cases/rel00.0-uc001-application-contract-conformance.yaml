@@ -1,0 +1,174 @@
+id: rel00.0-uc001-application-contract-conformance
+title: Verify a Runnable Application Against the Shared Contract
+
+summary: |
+  A maintainer classifies a module as a runnable application, records only the
+  optional capabilities it implements, and runs structural conformance. The
+  checks preserve the catalog boundary, validate local documentation and
+  reciprocal traces, verify root Mage participation, and connect each optional
+  claim to executable application evidence.
+
+actor: A maintainer adding or reviewing a runnable application module.
+
+trigger: |
+  A module is added under applications/, changes its capability set, or enters a
+  root release.
+
+preconditions:
+  - The candidate has one applications/<application>/ root.
+  - applications/catalog is available as the canonical reusable catalog.
+  - Root Mage orchestration and Go tests are available.
+  - The candidate declares runnable_module and any implemented optional
+    capabilities in its architecture.
+
+flow:
+  - id: F1
+    text: |
+      The maintainer identifies an executable application-owned composition and
+      classifies ownership as agent-owning or composition-only. The reusable
+      catalog remains outside the candidate set.
+  - id: F2
+    text: |
+      Structural checks validate canonical catalog references, app-owned
+      composition paths, and ownership-aware stats with no duplicate canonical
+      agents.
+  - id: F3
+    text: |
+      YAML checks parse the application vision, architecture, roadmap,
+      specification index, SRDs, use cases, and test suites; indexed paths and
+      reciprocal use-case/test-suite traces resolve.
+  - id: F4
+    text: |
+      Root tests verify stable application paths and audit, test, stats, and
+      release participation. The application-local audit verifies its corpus
+      and executable evidence.
+  - id: F5
+    text: |
+      If managed_service is declared, the maintainer runs lifecycle, truthful
+      health, authority, telemetry, configuration, and graceful-shutdown checks.
+  - id: F6
+    text: |
+      If packaged or helm_managed is declared, the maintainer runs deterministic
+      package, safety, provenance, schema, render, archive, and role-lifecycle
+      checks. Undeclared capabilities are skipped as not applicable, not passed.
+  - id: F7
+    text: |
+      If kind_demo is declared, the maintainer runs the application's ENG01
+      evidence, including preflight classification, validated-artifact install,
+      cluster cleanup, observability, and failure capture. No ENG01 check is
+      required without kind_demo.
+  - id: F8
+    text: |
+      Root mage audit and mage stats complete. The maintainer records which
+      evidence was executed and which capability groups were not applicable.
+
+touchpoints:
+  - id: T1
+    target: srd001-application-module-contract AC1
+    reason: Classifies the runnable module and preserves the catalog boundary.
+  - id: T2
+    target: srd001-application-module-contract AC2
+    reason: Verifies canonical references, composition ownership, and package provenance when applicable.
+  - id: T3
+    target: srd001-application-module-contract AC3
+    reason: Parses local documents and verifies reciprocal traceability.
+  - id: T4
+    target: srd001-application-module-contract AC4
+    reason: Verifies root audit, test, stats, and release participation.
+  - id: T5
+    target: srd001-application-module-contract AC5
+    reason: Verifies zero duplicate agent accounting.
+  - id: T6
+    target: srd001-application-module-contract AC6
+    reason: Distinguishes baseline audit from conditional Mage surfaces.
+  - id: T7
+    target: srd002-managed-application-services AC1
+    reason: Applies lifecycle and health checks only to managed services.
+  - id: T8
+    target: srd002-managed-application-services AC2
+    reason: Applies authority and operator-verb checks only to managed services.
+  - id: T9
+    target: srd002-managed-application-services AC3
+    reason: Applies telemetry and configuration checks only to managed services.
+  - id: T10
+    target: srd002-managed-application-services AC4
+    reason: Applies deterministic package checks only to packaged applications.
+  - id: T11
+    target: srd002-managed-application-services AC5
+    reason: Applies chart checks only to Helm-managed applications.
+  - id: T12
+    target: srd002-managed-application-services AC6
+    reason: Applies ENG01 only to kind-demo applications and proves the exclusion for others.
+  - id: T13
+    target: test-rel00.0-application-contract-conformance
+    reason: The suite executes baseline and capability-dependent structural evidence.
+
+success_criteria:
+  - id: S1
+    criterion: |
+      The candidate is a runnable application with explicit ownership, while
+      applications/catalog remains a reusable non-runnable module.
+    traces:
+      - srd001-application-module-contract R1
+      - srd001-application-module-contract AC1
+  - id: S2
+    criterion: |
+      Canonical references and local ownership are structurally visible, and
+      root stats count each canonical agent exactly once.
+    traces:
+      - srd001-application-module-contract R2
+      - srd001-application-module-contract R5
+      - srd001-application-module-contract AC2
+      - srd001-application-module-contract AC5
+  - id: S3
+    criterion: |
+      Required YAML parses, index paths resolve, reciprocal traces hold, and
+      local documents cite shared requirements rather than copying them.
+    traces:
+      - srd001-application-module-contract R3
+      - srd001-application-module-contract AC3
+  - id: S4
+    criterion: |
+      Root Mage dispatch and the local Mage surface match the application's
+      actual tests, metrics, release state, and optional capabilities.
+    traces:
+      - srd001-application-module-contract R4
+      - srd001-application-module-contract R6
+      - srd001-application-module-contract AC4
+      - srd001-application-module-contract AC6
+  - id: S5
+    criterion: |
+      Each managed-service claim has executable lifecycle, health, authority,
+      telemetry, configuration, diagnostic, and shutdown evidence.
+    traces:
+      - srd002-managed-application-services R1
+      - srd002-managed-application-services R2
+      - srd002-managed-application-services R3
+      - srd002-managed-application-services AC1
+      - srd002-managed-application-services AC2
+      - srd002-managed-application-services AC3
+  - id: S6
+    criterion: |
+      Each package or Helm claim has deterministic artifact, safety, provenance,
+      schema, render, archive, and role-lifecycle evidence.
+    traces:
+      - srd002-managed-application-services R4
+      - srd002-managed-application-services R5
+      - srd002-managed-application-services AC4
+      - srd002-managed-application-services AC5
+  - id: S7
+    criterion: |
+      A kind-demo claim executes ENG01 evidence; a candidate without kind_demo
+      records that group as not applicable.
+    traces:
+      - srd002-managed-application-services R6
+      - srd002-managed-application-services AC6
+
+out_of_scope:
+  - Validate application-specific business outcomes.
+  - Promote a catalog member or change catalog conformance.
+  - Require optional capabilities that the candidate does not declare.
+  - Reproduce ENG01 checks in this use case.
+
+test_suite: test-rel00.0-application-contract-conformance
+status: implemented
