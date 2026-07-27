@@ -271,11 +271,11 @@ word_vocabulary:
     - name: invoke_voice_editor
       owner: workflow-orchestrator
       implementation: {type: builtin, factory: execute_task, reuse: Profile-only child-agent invocation for voice-editor.}
-      inputs: [selected structure bytes and artifact ID, saga/stage/attempt identity, target voice and bounded policy, invocation id and idempotency key]
-      outputs: [candidate bytes, parent identity, content hash, anchor and copy-risk provenance, producer identity]
+      inputs: [selected accepted structure bytes, artifact ID, content hash and acceptance identity, saga/stage/attempt identity, target voice, ordered passage map and initial rhetorical-role/register query descriptors, protected-content inventory, adjacent-context windows, bounded retrieval and rewrite policy, zeroed retrieval refinement count, initial rewrite attempt count, invocation id and idempotency key]
+      outputs: [candidate or unchanged parent bytes, parent identity, content hash, outcome, anchor provenance, copy-risk findings, constraint report, stage metadata, producer identity]
       emits: [VoiceEditReturned, VoiceEditRejected, ExecutionFailed, CommandError]
       infrastructure_errors: [profile missing, process start failure, timeout, malformed transport response]
-      domain_errors: [child reports invalid input, unsupported target, or copy-risk rejection]
+      domain_errors: [child reports invalid input, unsupported target, insufficient anchors, exhausted preservation or copy-risk retry, or another failed outcome]
       side_effects: [child_agent_execution]
       reversibility: {classification: irreversible, undo: record_observation}
       compensation: Preserve the selected structure parent and retry under recorded policy.
@@ -556,11 +556,37 @@ word_vocabulary:
       compensation: No external state exists to compensate.
       authority: Formats data already present in validated command state; it cannot edit content, mutate a filesystem, issue a verdict, or create retrieval, model, GitHub, Pangram, or workproduct authority.
 
+    - name: validate_voice_request
+      owner: voice-editor
+      implementation: {type: builtin, factory: parse_structured, reuse: Validate the voice-editor request envelope, accepted structure parent, and bounded policy.}
+      inputs: [structured request containing supplied accepted structure bytes and artifact ID, parent content hash, saga/stage/attempt identity, target voice, ordered passage and query descriptors, protected-content inventory, adjacent-context windows, bounded retrieval and rewrite policy, zeroed retrieval refinement count, initial rewrite attempt count, and invocation identity]
+      outputs: [schema-valid normalized JSON preserving the supplied structure parent and identity, target voice, ordered descriptors, protected inventory, context, bounded policy, and counters]
+      emits: [VoiceRequestValid, VoiceRequestRejected, CommandError]
+      infrastructure_errors: [missing schema, selector failure, validator failure]
+      domain_errors: [missing or empty parent, parent is not an accepted structure artifact, wrong stage, malformed identity, unsupported target voice, invalid passage map or protected inventory, path or authority-bearing field present]
+      side_effects: [none]
+      reversibility: {classification: reversible, undo: noop}
+      compensation: No state exists to compensate.
+      authority: Parses and schema-validates supplied values only; it does not derive, transform, repair, or aggregate request fields and cannot read a path, revise structure, widen policy, or add content.
+
+    - name: formulate_voice_query
+      owner: voice-editor
+      implementation: {type: builtin, factory: compose, reuse: Deterministic configured rhetorical-role and register passage-query template.}
+      inputs: [validated target voice, ordered passage rhetorical role and register descriptors, and bounded passage text features from $from(validated_voice_request); optional prior query and parsed anchor metadata from the newest voice_query_set and $from(voice_anchor_report); refinement count zero or one]
+      outputs: [rendered bounded ordered passage query set, rhetorical-role and register filters per passage, supplied query-set identity, and supplied initial or next refinement count]
+      emits: [VoiceQueryFormulated]
+      infrastructure_errors: [none emitted by compose; trusted template and selector defects are recorded on the Result while the configured signal remains VoiceQueryFormulated]
+      domain_errors: [none; validate_voice_request rejects missing role, register, target, policy, and refinement fields before composition]
+      side_effects: [none]
+      reversibility: {classification: reversible, undo: noop}
+      compensation: Deterministic composition only.
+      authority: Renders one configured template over schema-validated request data and, on refinement, helper-computed and parsed next-query descriptors, identity, and count. It does not iterate, increment, hash, or derive those values and cannot author an endpoint, model, collection, path, tool, or free-form editing instruction. Future declaration validation must prove every selector resolves because compose has no error branch.
+
     - name: embed_voice_query
       owner: voice-editor
       implementation: {type: builtin, factory: rest_client_invoke, reuse: Configured Ollama embedding operation.}
-      inputs: [bounded rhetorical-role query from request and deterministic prompt composition]
-      outputs: [embedding vector, embedding model identity, carried query identity]
+      inputs: [bounded ordered passage query set and query-set identity from formulate_voice_query]
+      outputs: [ordered embedding vectors, embedding model identity, carried query-set identity]
       emits: [VoiceQueryEmbedded, VoiceQueryRejected, CommandError]
       infrastructure_errors: [REST config, network, timeout, authentication, schema, or mapping failure]
       domain_errors: [provider rejects bounded input]
@@ -572,28 +598,289 @@ word_vocabulary:
     - name: query_voice_rag
       owner: voice-editor
       implementation: {type: builtin, factory: rest_client_invoke, reuse: Vector-in query operation bound to voice-rag.}
-      inputs: [vector from embed_voice_query, configured result limit, trace and content-hash identity]
-      outputs: [ranked passages, distances, metadata, embedding model identity]
+      inputs: [ordered vectors from embed_voice_query, configured per-passage result limit, trace and content-hash identity]
+      outputs: [ranked passages and distances grouped by passage query, rhetorical-role and register metadata, source metadata, embedding model identity]
       emits: [VoiceEvidenceReady, VoiceEvidenceInsufficient, QueryRejected, CommandError]
       infrastructure_errors: [REST config, network, timeout, response schema, or mapping failure]
       domain_errors: [embedding mismatch, query rejected, insufficient evidence]
       side_effects: [external_api]
       reversibility: {classification: reversible, undo: noop}
       compensation: Read-only.
-      authority: Calls only configured voice-rag; vector is selected from embed_voice_query.
+      authority: Calls only configured voice-rag; ordered vectors are selected from embed_voice_query.
+
+    - name: inspect_voice_anchors
+      owner: voice-editor
+      implementation: {type: exec, factory: exec, reuse: Fixed inspect-anchors operation of the planned non-shell voice-editor helper.}
+      inputs: [bounded JSON on stdin containing grouped ranked passages, distances, rhetorical-role and register metadata, source metadata, embedding model identity, query-set identity, refinement count, retained initial anchors, and configured sufficiency policy]
+      outputs: [bounded JSON report on stdout containing all_passages_sufficient, accepted anchor map, role and register coverage, deficient passage descriptors, refinement count, helper-computed next refinement count and refined query descriptors when eligible, and bounded insufficiency reason]
+      emits: [ToolDone, ToolFailed, CommandError]
+      infrastructure_errors: [CommandError only when trusted declaration or stdin selector prevents command construction; ToolFailed when the fixed helper cannot start or execution times out]
+      domain_errors: [ToolFailed when the helper returns non-zero because bounded input is malformed or deterministic report computation cannot complete]
+      side_effects: [child_process]
+      reversibility: {classification: reversible, undo: noop}
+      compensation: Read-only deterministic observation; discard stdout unless ToolDone.
+      authority: Executes one fixed helper binary and inspect-anchors operation with bounded JSON stdin and no shell, path, environment, endpoint, model, corpus, credential, or runtime executable selection.
+
+    - name: parse_voice_anchor_report
+      owner: voice-editor
+      implementation: {type: builtin, factory: parse_structured, reuse: Parse inspect_voice_anchors stdout against the configured anchor-report JSON Schema.}
+      inputs: [exact ToolDone stdout from inspect_voice_anchors]
+      outputs: [schema-valid normalized anchor report with boolean all_passages_sufficient, accepted anchor map, deficient passage descriptors, provenance, current and next counters, refined query descriptors when eligible, and bounded reason]
+      emits: [VoiceAnchorReportParsed, VoiceAnchorReportInvalid, CommandError]
+      infrastructure_errors: [source selector does not resolve]
+      domain_errors: [stdout is malformed JSON, exceeds schema bounds, or omits or mistypes a required report field]
+      side_effects: [none]
+      reversibility: {classification: reversible, undo: noop}
+      compensation: Reject an invalid report and retain prior accepted anchors and parent bytes.
+      authority: Parses and validates helper stdout only; it cannot compute findings, repair a report, route more than parsed or invalid, or create authority-bearing values.
+
+    - name: voice_anchors_complete
+      owner: voice-editor
+      implementation: {type: builtin, factory: value_predicate, reuse: Compare the parsed all_passages_sufficient boolean with configured true.}
+      inputs: [all_passages_sufficient from parse_voice_anchor_report, configured literal true]
+      outputs: [raw operands, equality operator, boolean operand type, held result]
+      emits: [VoiceAnchorsSufficient, VoiceAnchorsDeficient, CommandError]
+      infrastructure_errors: [operand selector does not resolve or boolean coercion fails]
+      domain_errors: [none; false is VoiceAnchorsDeficient]
+      side_effects: [none]
+      reversibility: {classification: reversible, undo: noop}
+      compensation: Scalar comparison only.
+      authority: Performs exactly one configured boolean comparison and cannot transform or aggregate the anchor report.
+
+    - name: voice_anchor_refinement_available
+      owner: voice-editor
+      implementation: {type: builtin, factory: value_predicate, reuse: Compare parsed refinement count with the configured hard limit.}
+      inputs: [refinement_count selected from $from(voice_anchor_report), configured literal query refinement limit one]
+      outputs: [raw operands, less-than operator, integer operand type, held result]
+      emits: [VoiceAnchorsRefinementAllowed, VoiceAnchorsInsufficient, CommandError]
+      infrastructure_errors: [operand selector does not resolve or integer coercion fails]
+      domain_errors: [none; exhausted count is VoiceAnchorsInsufficient]
+      side_effects: [none]
+      reversibility: {classification: reversible, undo: noop}
+      compensation: Scalar comparison only.
+      authority: Performs exactly one configured integer comparison and cannot alter counters, anchors, policy, or query data.
+
+    - name: compose_voice_initial_rewrite_context
+      owner: voice-editor
+      implementation: {type: builtin, factory: compose, reuse: Fixed initial voice-rewrite context template and configured signal.}
+      inputs: [parent, target, passage map, adjacent context, accepted anchor map, bounded policy, and initial rewrite count one selected from $from(validated_voice_request) and $from(voice_anchor_report)]
+      outputs: [bounded initial rewrite context with fixed source labels and count one]
+      emits: [VoiceInitialRewriteContextReady]
+      infrastructure_errors: [none emitted by compose; trusted template and selector defects are recorded on the Result while the configured signal remains VoiceInitialRewriteContextReady]
+      domain_errors: [none]
+      side_effects: [none]
+      reversibility: {classification: reversible, undo: noop}
+      compensation: Deterministic composition only.
+      authority: Renders schema-validated state with one fixed template; it cannot compute a counter, edit content, choose anchors, or create authority-bearing values.
+
+    - name: compose_voice_constraint_retry_context
+      owner: voice-editor
+      implementation: {type: builtin, factory: compose, reuse: Fixed constraint-retry voice context template and configured signal.}
+      inputs: [stable parent, target, passage map, adjacent context, accepted anchor map and policy from labeled validated state; next rewrite count and bounded retry note from $from(voice_constraint_report)]
+      outputs: [bounded constraint-retry context with fixed source labels and parsed next count]
+      emits: [VoiceConstraintRetryContextReady]
+      infrastructure_errors: [none emitted by compose; trusted template and selector defects are recorded on the Result while the configured signal remains VoiceConstraintRetryContextReady]
+      domain_errors: [none]
+      side_effects: [none]
+      reversibility: {classification: reversible, undo: noop}
+      compensation: Deterministic composition only.
+      authority: Renders schema-validated state with one fixed template; it cannot compute a counter, alter a retry note, edit content, choose anchors, or create authority-bearing values.
+
+    - name: compose_voice_copy_retry_context
+      owner: voice-editor
+      implementation: {type: builtin, factory: compose, reuse: Fixed copy-risk-retry voice context template and configured signal.}
+      inputs: [stable parent, target, passage map, adjacent context, accepted anchor map and policy from labeled validated state; next rewrite count and bounded anti-copy note from $from(voice_copy_risk_report)]
+      outputs: [bounded copy-risk-retry context with fixed source labels and parsed next count]
+      emits: [VoiceCopyRetryContextReady]
+      infrastructure_errors: [none emitted by compose; trusted template and selector defects are recorded on the Result while the configured signal remains VoiceCopyRetryContextReady]
+      domain_errors: [none]
+      side_effects: [none]
+      reversibility: {classification: reversible, undo: noop}
+      compensation: Deterministic composition only.
+      authority: Renders schema-validated state with one fixed template; it cannot compute a counter, alter a retry note, edit content, choose anchors, or create authority-bearing values.
 
     - name: generate_voice_edit
       owner: voice-editor
       implementation: {type: builtin, factory: invoke_llm, reuse: Profile-owned Ollama LLM declaration.}
-      inputs: [supplied parent bytes and ID, target voice and bounded policy, mapped voice passages and provenance]
-      outputs: [candidate bytes, parent ID, anchor references, copy-risk evidence, declared provenance]
-      emits: [VoiceEditGenerated, VoiceEditDeclined, CopyRiskBlocked, CommandError]
+      inputs: [exact bounded context from the immediately preceding initial, constraint-retry, or copy-risk-retry compose word]
+      outputs: [candidate bytes assembled from independently rewritten passages, parent ID, ordered passage rewrite ledger, per-passage anchor references, and declared provenance]
+      emits: [VoiceEditGenerated, VoiceEditNoOp, VoiceEditDeclined, CommandError]
       infrastructure_errors: [provider config, model discovery, timeout, or chat failure]
-      domain_errors: [schema or grounding invalid, unsupported target, configured copy-risk limit exceeded]
+      domain_errors: [schema or grounding invalid, unsupported target, no voice-only improvement supported]
       side_effects: [external_api, state_mutation]
       reversibility: {classification: reversible, undo: conversation_truncate}
-      compensation: Truncate conversation state; retain copy-risk outcome as request evidence.
-      authority: May author document content, declared enums, and evidence IDs only; cannot author authority-bearing values or acceptance.
+      compensation: Truncate conversation state; remote inference remains an observation.
+      authority: May rewrite diction and sentence realization within each supplied passage for voice matching and return declared evidence IDs; cannot author or increment the machine-owned attempt count, reorder, split, merge, add, or remove passages, tighten beyond voice need, author authority-bearing values, or issue acceptance.
+
+    - name: inspect_voice_constraints
+      owner: voice-editor
+      implementation: {type: exec, factory: exec, reuse: Fixed inspect-constraints operation of the planned non-shell voice-editor helper.}
+      inputs: [bounded JSON on stdin containing validated structure parent and identity, candidate bytes and parent identity, ordered passage map, passage rewrite ledger, protected-content inventory, adjacent-context windows, bounded voice-only policy, rewrite attempt count and limit]
+      outputs: [bounded JSON report on stdout containing candidate_is_no_op, all_constraints_hold, structure, meaning, claim-strength, citation, number, terminology, coherence, unsupported-addition and voice-scope findings, current and next rewrite counts, and bounded retry note]
+      emits: [ToolDone, ToolFailed, CommandError]
+      infrastructure_errors: [CommandError only when trusted declaration or stdin selector prevents command construction; ToolFailed when the fixed helper cannot start or execution times out]
+      domain_errors: [ToolFailed when the helper returns non-zero because bounded input is malformed or deterministic report computation cannot complete]
+      side_effects: [child_process]
+      reversibility: {classification: reversible, undo: noop}
+      compensation: Read-only deterministic observation; reject the candidate unless a parsed report later passes every branch.
+      authority: Executes one fixed helper binary and inspect-constraints operation with bounded JSON stdin and no shell, path, environment, endpoint, model, corpus, credential, or runtime executable selection.
+
+    - name: parse_voice_constraint_report
+      owner: voice-editor
+      implementation: {type: builtin, factory: parse_structured, reuse: Parse inspect_voice_constraints stdout against the configured constraint-report JSON Schema.}
+      inputs: [exact ToolDone stdout from inspect_voice_constraints]
+      outputs: [schema-valid normalized constraint report with candidate_is_no_op, all_constraints_hold, categorized findings, current and next rewrite counts, and bounded retry note]
+      emits: [VoiceConstraintReportParsed, VoiceConstraintReportInvalid, CommandError]
+      infrastructure_errors: [source selector does not resolve]
+      domain_errors: [stdout is malformed JSON, exceeds schema bounds, or omits or mistypes a required report field]
+      side_effects: [none]
+      reversibility: {classification: reversible, undo: noop}
+      compensation: Reject an invalid report and retain the accepted structure parent unchanged.
+      authority: Parses and validates helper stdout only; it cannot compute findings, repair a report, route more than parsed or invalid, or create authority-bearing values.
+
+    - name: voice_candidate_is_no_op
+      owner: voice-editor
+      implementation: {type: builtin, factory: value_predicate, reuse: Compare the parsed candidate_is_no_op boolean with configured true.}
+      inputs: [candidate_is_no_op from parse_voice_constraint_report, configured literal true]
+      outputs: [raw operands, equality operator, boolean operand type, held result]
+      emits: [VoiceConstraintsNoOp, VoiceCandidateChanged, CommandError]
+      infrastructure_errors: [operand selector does not resolve or boolean coercion fails]
+      domain_errors: [none; false is VoiceCandidateChanged]
+      side_effects: [none]
+      reversibility: {classification: reversible, undo: noop}
+      compensation: Scalar comparison only.
+      authority: Performs exactly one configured boolean comparison and cannot compare content or transform the constraint report.
+
+    - name: voice_constraints_hold
+      owner: voice-editor
+      implementation: {type: builtin, factory: value_predicate, reuse: Compare the parsed all_constraints_hold boolean with configured true.}
+      inputs: [all_constraints_hold selected from $from(voice_constraint_report), configured literal true]
+      outputs: [raw operands, equality operator, boolean operand type, held result]
+      emits: [VoiceConstraintsValid, VoiceConstraintsViolated, CommandError]
+      infrastructure_errors: [operand selector does not resolve or boolean coercion fails]
+      domain_errors: [none; false is VoiceConstraintsViolated]
+      side_effects: [none]
+      reversibility: {classification: reversible, undo: noop}
+      compensation: Scalar comparison only.
+      authority: Performs exactly one configured boolean comparison and cannot aggregate findings, repair content, or accept a candidate.
+
+    - name: voice_constraint_retry_available
+      owner: voice-editor
+      implementation: {type: builtin, factory: value_predicate, reuse: Compare parsed rewrite attempt count with the configured hard limit.}
+      inputs: [rewrite_attempt_count selected from $from(voice_constraint_report), configured literal rewrite attempt limit three]
+      outputs: [raw operands, less-than operator, integer operand type, held result]
+      emits: [VoiceConstraintsRetryAllowed, VoiceConstraintsFailed, CommandError]
+      infrastructure_errors: [operand selector does not resolve or integer coercion fails]
+      domain_errors: [none; exhausted count is VoiceConstraintsFailed]
+      side_effects: [none]
+      reversibility: {classification: reversible, undo: noop}
+      compensation: Scalar comparison only.
+      authority: Performs exactly one configured integer comparison and cannot alter counters, findings, retry notes, anchors, or parent bytes.
+
+    - name: inspect_voice_copy_risk
+      owner: voice-editor
+      implementation: {type: exec, factory: exec, reuse: Fixed inspect-copy-risk operation of the planned non-shell voice-editor helper.}
+      inputs: [bounded JSON on stdin containing validated candidate bytes, accepted per-passage anchors and provenance, configured normalized phrase and shingle limits, rewrite attempt count and limit]
+      outputs: [bounded JSON report on stdout containing copy_risk_clear, suspicious shared spans, normalized lengths, shingle overlap, anchor references, risk levels, current and next rewrite counts, and bounded anti-copy retry note]
+      emits: [ToolDone, ToolFailed, CommandError]
+      infrastructure_errors: [CommandError only when trusted declaration or stdin selector prevents command construction; ToolFailed when the fixed helper cannot start or execution times out]
+      domain_errors: [ToolFailed when the helper returns non-zero because bounded input is malformed or deterministic report computation cannot complete]
+      side_effects: [child_process]
+      reversibility: {classification: reversible, undo: noop}
+      compensation: Read-only deterministic observation; reject the candidate unless a parsed report later passes every branch.
+      authority: Executes one fixed helper binary and inspect-copy-risk operation with bounded JSON stdin and no shell, path, environment, endpoint, model, corpus, credential, or runtime executable selection.
+
+    - name: parse_voice_copy_risk_report
+      owner: voice-editor
+      implementation: {type: builtin, factory: parse_structured, reuse: Parse inspect_voice_copy_risk stdout against the configured copy-risk-report JSON Schema.}
+      inputs: [exact ToolDone stdout from inspect_voice_copy_risk]
+      outputs: [schema-valid normalized copy-risk report with copy_risk_clear, bounded shared spans and anchor references, current and next rewrite counts, and bounded anti-copy note]
+      emits: [VoiceCopyRiskReportParsed, VoiceCopyRiskReportInvalid, CommandError]
+      infrastructure_errors: [source selector does not resolve]
+      domain_errors: [stdout is malformed JSON, exceeds schema bounds, or omits or mistypes a required report field]
+      side_effects: [none]
+      reversibility: {classification: reversible, undo: noop}
+      compensation: Reject an invalid report and retain the accepted structure parent unchanged.
+      authority: Parses and validates helper stdout only; it cannot compute findings, repair a report, route more than parsed or invalid, or create authority-bearing values.
+
+    - name: voice_copy_risk_clear
+      owner: voice-editor
+      implementation: {type: builtin, factory: value_predicate, reuse: Compare the parsed copy_risk_clear boolean with configured true.}
+      inputs: [copy_risk_clear from parse_voice_copy_risk_report, configured literal true]
+      outputs: [raw operands, equality operator, boolean operand type, held result]
+      emits: [VoiceCopyRiskClear, VoiceCopyRiskDetected, CommandError]
+      infrastructure_errors: [operand selector does not resolve or boolean coercion fails]
+      domain_errors: [none; false is VoiceCopyRiskDetected]
+      side_effects: [none]
+      reversibility: {classification: reversible, undo: noop}
+      compensation: Scalar comparison only.
+      authority: Performs exactly one configured boolean comparison and cannot compute overlap, transform findings, or alter thresholds.
+
+    - name: voice_copy_retry_available
+      owner: voice-editor
+      implementation: {type: builtin, factory: value_predicate, reuse: Compare parsed rewrite attempt count with the configured hard limit.}
+      inputs: [rewrite_attempt_count selected from $from(voice_copy_risk_report), configured literal rewrite attempt limit three]
+      outputs: [raw operands, less-than operator, integer operand type, held result]
+      emits: [VoiceCopyRiskRetryAllowed, VoiceCopyRiskBlocked, CommandError]
+      infrastructure_errors: [operand selector does not resolve or integer coercion fails]
+      domain_errors: [none; exhausted count is VoiceCopyRiskBlocked]
+      side_effects: [none]
+      reversibility: {classification: reversible, undo: noop}
+      compensation: Scalar comparison only.
+      authority: Performs exactly one configured integer comparison and cannot alter counters, findings, retry notes, anchors, thresholds, or parent bytes.
+
+    - name: compose_voice_success_response
+      owner: voice-editor
+      implementation: {type: builtin, factory: compose, reuse: Fixed succeeded response template and configured success signal.}
+      inputs: [validated candidate content, parent identity, attempted and selected anchor provenance, clear copy-risk report, valid constraint report, stage and invocation identity]
+      outputs: [succeeded response with candidate content, parent identity, anchor provenance, copy-risk findings, constraint report, and stage metadata]
+      emits: [VoiceResponseSucceeded]
+      infrastructure_errors: [none emitted by compose; trusted template and selector defects are recorded on the Result while the configured signal remains VoiceResponseSucceeded]
+      domain_errors: [none]
+      side_effects: [none]
+      reversibility: {classification: reversible, undo: noop}
+      compensation: No external state exists to compensate.
+      authority: Formats schema-validated state with one fixed template and outcome; it cannot edit content or create any authority-bearing value.
+
+    - name: compose_voice_no_op_response
+      owner: voice-editor
+      implementation: {type: builtin, factory: compose, reuse: Fixed no-op response template and configured success signal.}
+      inputs: [unchanged accepted structure parent, parent identity, attempted and selected anchor provenance, explicit not-run copy-risk status or available report, no-op constraint report, stage and invocation identity]
+      outputs: [no_op response with unchanged parent content, parent identity, anchor provenance, copy-risk status, constraint report, and stage metadata]
+      emits: [VoiceResponseNoOp]
+      infrastructure_errors: [none emitted by compose; trusted template and selector defects are recorded on the Result while the configured signal remains VoiceResponseNoOp]
+      domain_errors: [none]
+      side_effects: [none]
+      reversibility: {classification: reversible, undo: noop}
+      compensation: No external state exists to compensate.
+      authority: Formats schema-validated state with one fixed template and outcome; it cannot edit content or create any authority-bearing value.
+
+    - name: compose_voice_insufficient_response
+      owner: voice-editor
+      implementation: {type: builtin, factory: compose, reuse: Fixed insufficient-anchors response template and configured success signal.}
+      inputs: [unchanged accepted structure parent, parent identity, attempted and retained anchor provenance, parsed anchor report, explicit not-run copy-risk and constraint statuses, stage and invocation identity]
+      outputs: [insufficient_anchors response with unchanged parent content, parent identity, anchor provenance, statuses, and stage metadata]
+      emits: [VoiceResponseInsufficientAnchors]
+      infrastructure_errors: [none emitted by compose; trusted template and selector defects are recorded on the Result while the configured signal remains VoiceResponseInsufficientAnchors]
+      domain_errors: [none]
+      side_effects: [none]
+      reversibility: {classification: reversible, undo: noop}
+      compensation: No external state exists to compensate.
+      authority: Formats schema-validated state with one fixed template and outcome; it cannot edit content or create any authority-bearing value.
+
+    - name: compose_voice_failed_response
+      owner: voice-editor
+      implementation: {type: builtin, factory: compose, reuse: Fixed failed response template and configured success signal.}
+      inputs: [unchanged accepted structure parent when request validation succeeded or explicit null otherwise, parent identity when valid, bounded available provenance and reports, explicit not-run statuses, stage and invocation identity, bounded failure category]
+      outputs: [failed response with unchanged parent or null, parent identity when valid, available anchor provenance, copy-risk and constraint statuses or reports, stage metadata, and bounded failure category]
+      emits: [VoiceResponseFailed]
+      infrastructure_errors: [none emitted by compose; trusted template and selector defects are recorded on the Result while the configured signal remains VoiceResponseFailed]
+      domain_errors: [none]
+      side_effects: [none]
+      reversibility: {classification: reversible, undo: noop}
+      compensation: No external state exists to compensate.
+      authority: Formats schema-validated state with one fixed template and outcome; it cannot edit content or create any authority-bearing value.
+
 
     - name: embed_tightening_query
       owner: style-editor
@@ -922,8 +1209,13 @@ requirements:
           query word, and one generation word. structure-editor SHALL also own
           the deterministic validation, query-formulation, grounding-routing,
           constraint-validation, and response-composition words required by its
-          flat MachineSpec. voice-critic SHALL own its separate embedding,
-          voice-rag query, and evaluation words.
+          flat MachineSpec. voice-editor SHALL also own the deterministic
+          request-validation, rhetorical-role/register query-formulation,
+          constrained helper observation, structured-report parsing,
+          single-comparison routing, and fixed-outcome response-composition
+          words required by its flat MachineSpec.
+          voice-critic SHALL own its separate embedding, voice-rag query, and
+          evaluation words.
         evidence: Planned profile manifests collectively match word_vocabulary.editor_and_critic_retrieval, and each profile selects only words it owns.
       - id: R4.2
         text: |
@@ -956,6 +1248,25 @@ requirements:
           terminal outcome signal. These deterministic signals SHALL supply
           every branch needed by srd005 without a MachineSpec payload guard.
         evidence: Planned signal and transition closure expands the srd005 machine and matches every branch to these declared emissions.
+      - id: R4.6
+        text: |
+          inspect_voice_anchors, inspect_voice_constraints, and
+          inspect_voice_copy_risk SHALL be constrained non-shell exec words over
+          bounded JSON stdin and SHALL emit only ToolDone, ToolFailed, or
+          CommandError. Their three parse_structured successors SHALL emit one
+          configured parsed or invalid outcome plus CommandError. Every
+          value_predicate successor SHALL perform exactly one scalar comparison
+          and emit exactly two configured outcomes plus CommandError. Separate
+          initial, constraint-retry, and copy-risk-retry compose words SHALL
+          each render one branch-specific model context and emit one configured
+          context signal so generate_voice_edit always consumes the immediately
+          previous Result. Separate
+          compose_voice_success_response, compose_voice_no_op_response,
+          compose_voice_insufficient_response, and compose_voice_failed_response
+          words SHALL each emit only its one configured response signal. These
+          words and signals SHALL supply every branch needed by srd006 without a
+          payload guard, dynamic dispatch, new Go builtin, or shell.
+        evidence: Planned factory-semantic, signal, and transition closure expands the srd006 machine and matches every action to the exact emissions of exec, parse_structured, value_predicate, invoke_llm, REST, or compose.
 
   R5:
     title: Pangram privacy and consent
@@ -1063,9 +1374,11 @@ acceptance_criteria:
       Editor and critic embedding, RAG, and LLM words are corpus-scoped,
       read-only where required, vector provenance is machine-threaded, and
       model output cannot author authority-bearing values. Structure-editor
-      deterministic words provide bounded refinement and validation routing
-      without payload guards.
-    traces: [R4.1, R4.2, R4.3, R4.4, R4.5]
+      and voice-editor deterministic words provide bounded retrieval refinement,
+      candidate retry, validation, copy-risk, and response routing without
+      payload guards. Voice report helpers, parsers, scalar predicates, and
+      fixed response composers match their actual factory signal semantics.
+    traces: [R4.1, R4.2, R4.3, R4.4, R4.5, R4.6]
   - id: AC5
     criterion: |
       Only the critic owns separate before/after Pangram scans; exact-hash
@@ -1130,6 +1443,12 @@ related_documents:
     usage: Owns configured HTTP authority, mapping, limits, redaction, and compensation.
   - path: ../../../../../agent-core/tools/exec.yaml
     usage: Demonstrates constrained exec and git declaration reuse without a shell.
+  - path: ../../../../../agent-core/tools/builtin/value-predicate.yaml
+    usage: Owns one-scalar-comparison semantics and exactly two configured outcomes plus CommandError.
+  - path: ../../../../../agent-core/tools/builtin/parse-structured.yaml
+    usage: Owns configured JSON Schema parsing with parsed, invalid, and CommandError outcomes.
+  - path: ../../../../../agent-core/internal/tools/compose/compose.go
+    usage: Owns fixed-template rendering and one configured compose signal.
   - path: ../../../../catalog/agents/knowledge-manager/corpus-reader/declarations.yaml
     usage: Demonstrates embedding-vector provenance, RAG threading, and configured LLM reuse.
   - path: ../../../../chatbot-mesh/agents/rag-server/request-declarations.yaml
@@ -1142,6 +1461,7 @@ implementation_status:
   machines: not_implemented
   tool_declarations: not_implemented
   workproduct_helper: not_implemented
+  voice_editor_helper: not_implemented
   rest_definitions: not_implemented
   services: not_implemented
   tests: not_implemented
