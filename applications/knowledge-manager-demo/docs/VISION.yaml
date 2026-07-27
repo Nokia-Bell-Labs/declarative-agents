@@ -13,6 +13,12 @@ executive_summary: |
   remains the only canonical owner of the documentation-curator profile and
   user interface. agent-core owns the runtime and builtin capabilities.
 
+  This application extends the shared runnable-application contract in
+  applications/docs. It declares runnable_module and managed_service for
+  Release 00.0. The managed-service scope covers the canonical
+  documentation-curator launched by the application and the application-owned
+  Go present server. packaged, helm_managed, and kind_demo do not apply.
+
 problem: |
   The Knowledge Manager presentation currently sits beside reusable catalog
   profiles. That placement makes application-only launch and presentation
@@ -35,6 +41,11 @@ what_this_does: |
   with portable monorepo defaults. The application reports only composition
   facts, including agents_contributed: 0, so repository statistics count the
   canonical profile once under applications/catalog.
+
+  The application cites shared srd001 for module ownership, documentation,
+  Mage participation, and composition-only accounting. It cites shared srd002
+  R1 through R3 for both managed servers. It does not copy those requirements
+  into a local SRD.
 
 why_we_build_this: |
   A standalone application gives presentation, launch, and shutdown behavior a
@@ -67,6 +78,10 @@ success_criteria:
     mage stats emits valid JSON with ownership: composition,
     agents_contributed: 0, and one canonical reference. It emits no agents
     section.
+  shared_contract_conformance: |
+    Application documents trace to applicable srd001 requirements, srd002 R1
+    through R3, and catalog srd011. Release 00.0 remains specified until the
+    application-local Mage targets and their tests exist and pass.
 
 not:
   - We do not own or copy the canonical documentation-curator profile.
@@ -76,6 +91,9 @@ not:
   - We do not replace the declarative lifecycle-exit client with a bespoke HTTP
     program.
   - We do not count the reused documentation-curator as an application agent.
+  - We do not claim packaged, helm_managed, or kind_demo capability.
+  - We do not claim Release 00.0 managed-service evidence before its
+    application-local commands and tests exist.
 
 canonical_documents:
   - docs/ARCHITECTURE.yaml
@@ -85,6 +103,13 @@ canonical_documents:
   - docs/specs/test-suites/test-rel00.0-guided-knowledge-manager-demo.yaml
 
 external_references:
+  - owner: applications
+    document: docs/specs/software-requirements/srd001-application-module-contract.yaml
+    purpose: Shared runnable-module, canonical-reference, documentation, Mage, and accounting requirements.
+  - owner: applications
+    document: docs/specs/software-requirements/srd002-managed-application-services.yaml
+    requirements: [R1, R2, R3]
+    purpose: Shared lifecycle, operator-verb, telemetry, and configuration requirements for both managed servers.
   - owner: applications/catalog
     document: docs/specs/software-requirements/srd011-knowledge-manager.yaml
     purpose: Canonical documentation-curator family requirements.

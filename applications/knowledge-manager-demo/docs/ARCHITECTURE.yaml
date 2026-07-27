@@ -14,6 +14,8 @@ overview:
     canonical profile and its user interface. AGENT_CORE_ROOT locates the
     development runtime checkout. An installed agent runtime does not require
     --core-root. Neither the catalog nor agent-core imports this application.
+    This module extends applications/docs srd001 and the applicable managed
+    service groups in srd002 by reference.
   demo_flow_diagram: |
     ```mermaid
     flowchart LR
@@ -29,7 +31,72 @@ overview:
       CONTROL --> DONE[Curator Done and listeners released]
     ```
 
+capability_classification:
+  ownership: composition-only
+  declared:
+    - capability: runnable_module
+      applies: true
+      shared_requirements:
+        - srd001-application-module-contract R1
+        - srd001-application-module-contract R2
+        - srd001-application-module-contract R3
+        - srd001-application-module-contract R4
+        - srd001-application-module-contract R5
+        - srd001-application-module-contract R6
+      status: specified
+    - capability: managed_service
+      applies: true
+      scope:
+        - canonical documentation-curator server launched by this application
+        - application-owned Go present server
+      shared_requirements:
+        - srd002-managed-application-services R1
+        - srd002-managed-application-services R2
+        - srd002-managed-application-services R3
+      status: specified
+    - capability: packaged
+      applies: false
+      reason: Release 00.0 produces no distributable application artifact.
+    - capability: helm_managed
+      applies: false
+      reason: Release 00.0 ships no Helm chart.
+    - capability: kind_demo
+      applies: false
+      reason: Release 00.0 runs local processes and has no kind rig.
+  managed_services:
+    - name: documentation-curator
+      ownership: applications/catalog canonical profile; application-owned launch and exit composition
+      shared_requirement_groups: [R1, R2, R3]
+      planned_local_evidence:
+        - mage run command and root-resolution tests
+        - declarative lifecycle-exit contract test
+        - bounded live startup and listener-release observation
+      canonical_evidence:
+        - srd011-knowledge-manager AC1
+        - srd011-knowledge-manager AC2
+        - srd011-knowledge-manager AC3
+        - rel07.0-uc001-documentation-curator-profile-ux S1
+        - rel07.0-uc001-documentation-curator-profile-ux S3
+        - rel07.0-uc001-documentation-curator-profile-ux S4
+    - name: Go present
+      ownership: application-managed development tool process
+      shared_requirement_groups: [R1, R2, R3]
+      planned_local_evidence:
+        - pinned tool and exact command test
+        - bounded HTTP readiness observation
+        - interrupt-driven process and listener-release test
+      limitation: |
+        Release 00.0 specifies no dedicated present health or telemetry API.
+        Tests must use bounded process and HTTP observations and record this
+        signal limitation; process existence alone is not readiness evidence.
+
 interfaces:
+  - name: shared application contract
+    summary: |
+      applications/docs/specs/software-requirements/srd001-application-module-contract.yaml
+      governs the runnable composition. srd002-managed-application-services R1
+      through R3 govern both long-running local servers. Local documents name
+      application behavior and evidence without restating shared obligations.
   - name: AGENT_CATALOG_ROOT
     summary: |
       Explicit source-checkout root for applications/catalog. mage run resolves
@@ -150,6 +217,19 @@ design_decisions:
       - Root aggregation does not double-count the curator.
       - The application's contribution remains measurable.
       - Ownership is machine-readable.
+  - id: 6
+    title: Extend capability contracts by reference
+    decision: |
+      The application declares runnable_module and managed_service. Both the
+      documentation-curator and Go present processes are managed services for
+      this composition, so srd002 R1 through R3 apply to each. The application
+      declares no package, Helm, or kind capability. Local documents record
+      service-specific evidence and gaps instead of copying shared requirement
+      text.
+    benefits:
+      - Shared lifecycle and operator obligations have one canonical source.
+      - Applicability is explicit for each long-running process.
+      - Release status cannot imply unimplemented package or cluster surfaces.
 
 technology_choices:
   - component: Presentation server
@@ -196,18 +276,24 @@ project_structure:
 
 implementation_status:
   current_focus: |
-    Release 00.0 is specified. Presentation assets, lifecycle-exit composition,
-    pinned tooling, Mage commands, and executable tests are planned in sibling
-    issues under GH-1055.
+    Release 00.0 is specified. Shared-contract applicability is documented.
+    Presentation assets, lifecycle-exit composition, pinned tooling, Mage
+    commands, and executable tests are planned in sibling issues under GH-1055.
   progress:
     - specified: Application ownership and dependency direction.
     - specified: Guided presentation, launch, browser, and exit use case.
     - specified: Reciprocal test suite for run, presentation, audit, and stats.
+    - specified: runnable_module and managed_service applicability, including
+        srd002 R1 through R3 for the curator and Go present servers.
     - planned: Relocated deck, README, and lifecycle-exit profile.
     - planned: Version-pinned present dependency and tested Mage entry points.
     - planned: Root audit, test, stats, and release participation.
 
 related_documents:
+  - doc: ../docs/specs/software-requirements/srd001-application-module-contract.yaml
+    purpose: Shared runnable application module contract.
+  - doc: ../docs/specs/software-requirements/srd002-managed-application-services.yaml
+    purpose: Shared R1 through R3 contract for the curator and present managed services.
   - doc: docs/VISION.yaml
     purpose: Application goals and exclusions.
   - doc: docs/road-map.yaml

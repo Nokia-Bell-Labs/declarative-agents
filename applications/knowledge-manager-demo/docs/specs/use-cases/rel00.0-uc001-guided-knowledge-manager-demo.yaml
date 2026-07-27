@@ -57,6 +57,12 @@ touchpoints:
   - id: T5
     target: test-rel00.0-guided-knowledge-manager-demo
     reason: The reciprocal suite checks presentation, launch, lifecycle exit, audit, and stats contracts.
+  - id: T6
+    target: srd001-application-module-contract AC1, AC2, AC3, AC4, AC5, AC6
+    reason: The guided flow is the local composition and evidence surface for the shared runnable-module contract.
+  - id: T7
+    target: srd002-managed-application-services AC1, AC2, AC3
+    reason: The documentation-curator and Go present servers are the two managed services in this local presentation.
 
 success_criteria:
   - id: S1
@@ -88,6 +94,16 @@ success_criteria:
     traces:
       - architecture-knowledge-manager-demo design_decisions 5
       - test-rel00.0-guided-knowledge-manager-demo application_contract
+      - srd001-application-module-contract AC3
+      - srd001-application-module-contract AC5
+  - id: S6
+    criterion: The curator and Go present servers have bounded startup, role-readiness, failure, and shutdown evidence appropriate to their local roles.
+    traces:
+      - architecture-knowledge-manager-demo capability_classification managed_services
+      - srd002-managed-application-services AC1
+      - srd002-managed-application-services AC2
+      - srd002-managed-application-services AC3
+      - test-rel00.0-guided-knowledge-manager-demo managed_service_contract
 
 out_of_scope:
   - Changing the canonical documentation-curator profile, UI, or catalog tests.

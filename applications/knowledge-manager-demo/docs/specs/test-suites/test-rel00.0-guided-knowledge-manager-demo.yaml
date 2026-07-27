@@ -8,6 +8,9 @@ overview: |
   directories, root resolution, lifecycle configuration, documentation
   reciprocity, and composition-only statistics without starting servers.
   Dependency-gated Mage commands provide live launch and presentation evidence.
+  A managed-service case applies shared srd002 R1 through R3 separately to the
+  curator and Go present servers. All cases remain planned until the
+  application-local Mage module and tests exist.
 
 traces:
   - rel00.0-uc001-guided-knowledge-manager-demo
@@ -42,6 +45,9 @@ test_cases:
       working_directory_is_application_root: true
     traces:
       - rel00.0-uc001-guided-knowledge-manager-demo S1
+      - srd002-managed-application-services AC1
+      - srd002-managed-application-services AC2
+      - srd002-managed-application-services AC3
 
   - use_case: rel00.0-uc001-guided-knowledge-manager-demo
     id: canonical_curator_command
@@ -73,6 +79,10 @@ test_cases:
       - rel00.0-uc001-guided-knowledge-manager-demo S3
       - srd011-knowledge-manager AC1
       - srd011-knowledge-manager AC2
+      - srd001-application-module-contract AC2
+      - srd002-managed-application-services AC1
+      - srd002-managed-application-services AC2
+      - srd002-managed-application-services AC3
 
   - use_case: rel00.0-uc001-guided-knowledge-manager-demo
     id: lifecycle_exit_contract
@@ -103,6 +113,42 @@ test_cases:
       - rel07.0-uc001-documentation-curator-profile-ux S4
 
   - use_case: rel00.0-uc001-guided-knowledge-manager-demo
+    id: managed_service_contract
+    name: Curator and presentation managed-service evidence
+    go_test: go test ./magefiles -run '^TestManagedServices'
+    live_evidence: bounded launch, readiness, failure, interrupt, and listener-release checks
+    status: planned
+    description: |
+      The deterministic test classifies both long-running servers under shared
+      srd002 R1 through R3 and verifies that each has an owned command,
+      configuration authority, bounded observations, and documented operator
+      behavior. Live evidence probes the curator's declared role endpoints and
+      the present HTTP endpoint, then stops each process and proves listener
+      release. The present server has no dedicated health or telemetry API, so
+      evidence records that limitation and does not treat process existence as
+      readiness.
+    inputs:
+      services:
+        - documentation-curator
+        - Go present
+      shared_contract: srd002-managed-application-services
+      applicable_requirement_groups: [R1, R2, R3]
+    expected:
+      curator_role_readiness_observed: true
+      curator_declared_exit_observed: true
+      present_http_readiness_observed: true
+      present_interrupt_release_observed: true
+      process_existence_used_as_readiness: false
+      packaged_capability_inferred: false
+      helm_capability_inferred: false
+      kind_capability_inferred: false
+    traces:
+      - rel00.0-uc001-guided-knowledge-manager-demo S6
+      - srd002-managed-application-services AC1
+      - srd002-managed-application-services AC2
+      - srd002-managed-application-services AC3
+
+  - use_case: rel00.0-uc001-guided-knowledge-manager-demo
     id: application_contract
     name: Documentation audit and composition-only stats
     go_test: go test ./magefiles
@@ -129,3 +175,7 @@ test_cases:
       agents_section_present: false
     traces:
       - rel00.0-uc001-guided-knowledge-manager-demo S5
+      - srd001-application-module-contract AC3
+      - srd001-application-module-contract AC4
+      - srd001-application-module-contract AC5
+      - srd001-application-module-contract AC6

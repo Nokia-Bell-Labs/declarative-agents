@@ -5,7 +5,9 @@ overview: |
   Release 00.0 establishes the standalone guided demo. The release relocates
   presentation-only assets, references the canonical catalog curator, pins the
   Go present tool, and adds deterministic Mage evidence. The documentation
-  contract lands before implementation.
+  contract lands before implementation. The release extends shared srd001 and
+  srd002 R1 through R3 by reference; it does not define package, Helm, or kind
+  scope.
 
 releases:
   - version: "00.0"
@@ -17,6 +19,25 @@ releases:
       application-owned declarative lifecycle-exit profile. The application
       reports composition only and contributes no canonical agents.
     status: specified
+    capabilities:
+      - id: runnable_module
+        status: specified
+      - id: managed_service
+        status: specified
+        services: [documentation-curator, Go present]
+      - id: packaged
+        status: not_applicable
+      - id: helm_managed
+        status: not_applicable
+      - id: kind_demo
+        status: not_applicable
+    shared_requirements:
+      - owner: applications
+        id: srd001-application-module-contract
+        requirements: [R1, R2, R3, R4, R5, R6]
+      - owner: applications
+        id: srd002-managed-application-services
+        requirements: [R1, R2, R3]
     external_requirements:
       - owner: applications/catalog
         id: srd011-knowledge-manager
@@ -43,5 +64,8 @@ releases:
         proves: Valid composition-only JSON reports agents_contributed as zero and omits an agents section.
     completion_gate: |
       Release 00.0 becomes implemented only when the relocated assets and Mage
-      module exist and every planned evidence command passes or reports its
-      documented external dependency gate.
+      module exist, both managed servers have evidence for applicable srd002 R1
+      through R3 obligations, and every planned evidence command passes or
+      reports its documented external dependency gate. Root mage audit does not
+      dispatch this application at specification time, so it is not current
+      Release 00.0 evidence.

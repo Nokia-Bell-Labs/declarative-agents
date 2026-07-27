@@ -14,6 +14,11 @@ overview: |
   command construction, portable root resolution, launch and exit behavior,
   documentation traceability, and composition-only statistics.
 
+  The application extends shared srd001 and srd002 by reference. runnable_module
+  and managed_service apply; srd002 R1 through R3 apply to both the canonical
+  documentation-curator server launched by the application and the Go present
+  server. packaged, helm_managed, and kind_demo do not apply to Release 00.0.
+
 roadmap_summary:
   - version: "00.0"
     name: Guided Knowledge Manager presentation
@@ -38,6 +43,26 @@ foundation_document_index:
 srd_index: []
 
 external_requirement_references:
+  - id: srd001-application-module-contract
+    owner: applications
+    path: ../docs/specs/software-requirements/srd001-application-module-contract.yaml
+    requirements: [R1, R2, R3, R4, R5, R6]
+    usage: |
+      Governs runnable-module identity, canonical references, local
+      documentation, Mage participation, and composition-only accounting.
+      This application supplies local paths and evidence without copying those
+      requirements.
+  - id: srd002-managed-application-services
+    owner: applications
+    path: ../docs/specs/software-requirements/srd002-managed-application-services.yaml
+    requirements: [R1, R2, R3]
+    applies_to:
+      - documentation-curator server launched by this application
+      - Go present server
+    usage: |
+      Governs lifecycle, control and operator verbs, telemetry, and
+      configuration for both Release 00.0 managed services. Package, Helm, and
+      kind requirement groups do not apply.
   - id: srd011-knowledge-manager
     owner: applications/catalog
     path: ../catalog/docs/specs/software-requirements/srd011-knowledge-manager.yaml
@@ -68,7 +93,7 @@ test_suite_index:
     title: Test Suite for Release 00.0 Guided Knowledge Manager Demo
     release: "00.0"
     status: specified
-    test_case_count: 4
+    test_case_count: 5
     traces:
       - rel00.0-uc001-guided-knowledge-manager-demo
     path: docs/specs/test-suites/test-rel00.0-guided-knowledge-manager-demo.yaml
@@ -80,6 +105,14 @@ coverage_gaps:
       The specification corpus exists. Sibling issues under GH-1055 relocate
       application assets, implement the pinned presentation and run targets,
       add deterministic tests, and register root orchestration.
+  - id: shared-contract-executable-evidence
+    status: planned
+    description: |
+      The documents classify shared requirement applicability, but the
+      application-local Mage module and tests do not exist yet. Root mage audit
+      does not dispatch this application. Direct structural validation is the
+      only current document evidence and does not satisfy managed-service or
+      root-orchestration acceptance criteria.
   - id: live-browser-observation
     status: dependency_gated
     description: |
