@@ -144,7 +144,7 @@ test_cases:
         - expand_eval_grid
         - init_eval_session
         - report_suite_summary
-        - next_point
+        - materialize_eval_points
         - run_point
         - report_session
       error_status_spans: 0
@@ -167,8 +167,8 @@ test_cases:
       repository owning the profile (GH-512).
     description: |
       Asserts, without a model, that the shipped critic selection asks for the
-      five words that replaced load_suite and no longer asks for load_suite, that
-      machine.yaml sequences those words through to the nested point advance, and
+      six setup words and no longer asks for load_suite or next_point, that
+      machine.yaml sequences those words into declared nested-point iteration, and
       that point.yaml routes harness, oracle, and version-mismatch failures
       onward to a summary rather than stranding the point.
     expected:
@@ -179,7 +179,7 @@ test_cases:
         - expand_eval_grid
         - init_eval_session
         - report_suite_summary
-        - next_point
+        - materialize_eval_points
       point_failure_signals_routed:
         - HarnessFailed
         - HarnessTimedOut

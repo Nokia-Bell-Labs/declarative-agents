@@ -5,7 +5,7 @@ includes:
   - ../expand-eval-grid.yaml
   - ../init-eval-session.yaml
   - ../report-suite-summary.yaml
-  - ../next-point.yaml
+  - ../materialize-eval-points.yaml
   - ../run-point.yaml
   - ../report-session.yaml
 

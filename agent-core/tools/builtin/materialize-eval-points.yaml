@@ -1,0 +1,46 @@
+tools:
+- name: materialize_eval_points
+  type: builtin
+  init: materialize_eval_points
+  visibility: internal
+  emits:
+  - EvalPointsMaterialized
+  - CommandError
+  description: Materialize deterministic profile, grid, sample, and repetition combinations for declared iteration.
+  category: word
+  problem: MachineSpec for_each needs one command-state collection containing every resolved evaluation point.
+  goals:
+  - Preserve profile, grid, sample, and repetition ordering.
+  - Return serializable inputs for independent run_point dispatches.
+  - Keep iteration and join policy in the session machine.
+  requirements:
+    input:
+    - must read initialized suite dimensions and runtime defaults
+    output:
+    - must emit EvalPointsMaterialized with a points array
+    side_effects:
+    - must not mutate evaluator session state
+  non_goals:
+  - Does not advance an iterator cursor.
+  - Does not execute evaluation points.
+  side_effects:
+  - kind: state_read
+    target: eval_session_state
+    description: Reads resolved suite dimensions without mutating them.
+  reversibility:
+    classification: reversible
+    undo: noop
+  undo:
+    strategy: noop
+    description: Read-only materialization has no effects to reverse.
+  output:
+    description: Ordered evaluation point inputs.
+    schema:
+      type: object
+      properties:
+        points:
+          type: array
+          items:
+            type: object
+      required:
+      - points

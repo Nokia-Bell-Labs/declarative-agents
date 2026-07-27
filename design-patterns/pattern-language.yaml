@@ -1105,7 +1105,7 @@ patterns:
             - path: applications/catalog/agents/critic/machine.yaml
               artifact: machine
               assertion: yaml_transition
-              match: {state: AdvancingPoint, signal: PointReady, next: RunningPoint, action: run_point}
+              match: {state: MaterializingPoints, signal: EvalPointsMaterialized, next: RunningPoints, action: run_point}
             - path: applications/catalog/agents/critic/builtin.yaml
               artifact: tool_declaration
               assertion: yaml_sequence_match

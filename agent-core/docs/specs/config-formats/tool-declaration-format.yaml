@@ -111,7 +111,7 @@ schema:
     description: |
       Declarative signal contract for the tool. Lists the Result.Signal
       values the tool may return, such as ToolDone, ToolFailed, CommandError,
-      or domain-specific signals like PointReady and AllPointsDone. Startup
+      or domain-specific signals like EvalPointsMaterialized and PointsCompleted. Startup
       validation checks action tools with emits metadata against the loaded
       machine: emitted signals must be declared by the machine, and each
       emitted signal must have a transition from the action's target state
@@ -708,7 +708,7 @@ target_grouped_layout:
       owns: [extract_task, select_all_ready, seed_passthrough_plan, mark_nodes_planning, project_planner_context, capture_planner_failure, parse_plan, format_issue, write, record_tracker_issue, mark_nodes_executing, format_task_file, mark_task_done, mark_task_failed, remaining_work]
       kind: shared planner-family declarations
     - path: tools/builtin/critic-session/
-      owns: [parse_suite_config, discover_suite_samples, expand_eval_grid, init_eval_session, report_suite_summary, next_point, run_point, report_session]
+      owns: [parse_suite_config, discover_suite_samples, expand_eval_grid, init_eval_session, report_suite_summary, materialize_eval_points, run_point, report_session]
       kind: shared critic-session declarations
     - path: tools/builtin/critic-point/
       owns: [create_point_dir, sample_docs, record_agent_commit, dump_config, run_agent, record_oracle_result, collect_trace_tokens, check_agent_version, summarize_point_results, record_point_failure, collect_metrics]

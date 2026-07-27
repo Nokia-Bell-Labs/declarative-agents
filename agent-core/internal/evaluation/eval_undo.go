@@ -24,12 +24,6 @@ type evalSessionSnapshot struct {
 	Timeout      int64         `json:"timeout"`
 	OllamaURL    string        `json:"ollama_url,omitempty"`
 	LLMTimeout   int64         `json:"llm_timeout"`
-	GIdx         int           `json:"grid_index"`
-	SIdx         int           `json:"sample_index"`
-	RIdx         int           `json:"rep_index"`
-	PIdx         int           `json:"profile_index"`
-	Started      bool          `json:"started"`
-	Exhausted    bool          `json:"exhausted"`
 	StartUnixNS  int64         `json:"start_unix_ns,omitempty"`
 }
 
@@ -39,8 +33,6 @@ func snapshotEvalSession(es *EvalSessionState) evalSessionSnapshot {
 		Result: cloneSessionResult(es.Result), PC: receiptPointContext(es.PC),
 		GridPoints: cloneGridPoints(es.gridPoints), Reps: es.reps, Timeout: int64(es.timeout),
 		OllamaURL: es.ollamaURL, LLMTimeout: int64(es.llmTimeout),
-		GIdx: es.gIdx, SIdx: es.sIdx, RIdx: es.rIdx, PIdx: es.pIdx,
-		Started: es.started, Exhausted: es.exhausted,
 	}
 	if !es.start.IsZero() {
 		snap.StartUnixNS = es.start.UnixNano()
@@ -63,9 +55,6 @@ func (s evalSessionSnapshot) restore(es *EvalSessionState) {
 	es.timeout = time.Duration(s.Timeout)
 	es.ollamaURL = s.OllamaURL
 	es.llmTimeout = time.Duration(s.LLMTimeout)
-	es.pIdx, es.gIdx, es.sIdx, es.rIdx = s.PIdx, s.GIdx, s.SIdx, s.RIdx
-	es.started = s.Started
-	es.exhausted = s.Exhausted
 	if s.StartUnixNS == 0 {
 		es.start = time.Time{}
 	} else {
@@ -100,6 +89,12 @@ type evaluatorReceiptCmd struct {
 }
 
 func (c *evaluatorReceiptCmd) Name() string { return c.inner.Name() }
+
+func (c *evaluatorReceiptCmd) SetCommandState(view core.CommandStateView) {
+	if aware, ok := c.inner.(core.CommandStateAware); ok {
+		aware.SetCommandState(view)
+	}
+}
 
 func (c *evaluatorReceiptCmd) Execute() core.Result {
 	receipt := evaluatorReceipt{Version: 1, Boundary: c.boundary}

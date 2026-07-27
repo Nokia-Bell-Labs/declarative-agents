@@ -171,6 +171,32 @@ func TestRunPointReturnsNestedLoopErrorsWithoutWritingMetadata(t *testing.T) {
 	require.NoFileExists(t, filepath.Join(pointDir, ArtifactMeta))
 }
 
+func TestRunPointBindsForEachPointFromCommandState(t *testing.T) {
+	input := evalPointInput{
+		PointID: "sample--profile--model--rep0",
+		Sample:  Sample{Name: "sample"}, Harness: Harness{Name: "profile", Binary: "agent"},
+		Model: "model", ProfilePath: "profile.yaml", GridPoint: GridPoint{"effort": "high"},
+	}
+	data, err := json.Marshal(input)
+	require.NoError(t, err)
+	es := &EvalSessionState{SessionDir: "session", CoreRoot: "core", Stderr: &bytes.Buffer{}}
+	cmd := &runPointCmd{es: es}
+	cmd.SetCommandState(evalTestCommandState{"point": string(data)})
+
+	require.NoError(t, cmd.bindPointContext())
+	require.Equal(t, input.PointID, es.PC.PointID)
+	require.Equal(t, input.ProfilePath, es.PC.ProfilePath)
+	require.Equal(t, input.GridPoint, es.PC.GridPoint)
+	require.Equal(t, es.SessionDir, es.PC.SessionDir)
+}
+
+type evalTestCommandState map[string]string
+
+func (s evalTestCommandState) Lookup(label string) (string, bool) {
+	value, ok := s[label]
+	return value, ok
+}
+
 type evalTestFailureBuilder struct{}
 
 func (evalTestFailureBuilder) Build(core.Result) core.Command {

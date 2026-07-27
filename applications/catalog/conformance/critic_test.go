@@ -89,7 +89,7 @@ func TestCriticConformance(t *testing.T) {
 		"expand_eval_grid",
 		"init_eval_session",
 		"report_suite_summary",
-		"next_point",
+		"materialize_eval_points",
 		"run_point",
 		"report_session",
 	)

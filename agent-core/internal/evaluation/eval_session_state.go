@@ -19,9 +19,9 @@ const (
 	SigEvalGridExpanded       core.Signal = "EvalGridExpanded"
 	SigEvalSessionInitialized core.Signal = "EvalSessionInitialized"
 	SigSuiteLoaded            core.Signal = "SuiteLoaded"
-	SigPointReady             core.Signal = "PointReady"
+	SigEvalPointsMaterialized core.Signal = "EvalPointsMaterialized"
 	SigPointDone              core.Signal = "PointDone"
-	SigAllPointsDone          core.Signal = "AllPointsDone"
+	SigPointsCompleted        core.Signal = "PointsCompleted"
 	SigSessionReported        core.Signal = "SessionReported"
 )
 
@@ -54,10 +54,6 @@ type EvalSessionState struct {
 	timeout    time.Duration
 	ollamaURL  string
 	llmTimeout time.Duration
-
-	pIdx, gIdx, sIdx, rIdx int
-	started                bool
-	exhausted              bool
 
 	start time.Time
 }
@@ -99,61 +95,6 @@ func (s *EvalSessionState) ExpandGrid() {
 	if len(s.gridPoints) == 0 {
 		s.gridPoints = []GridPoint{{}}
 	}
-}
-
-// NextPoint advances the iterator to the next grid point. Returns the
-// PointContext and true if a point is available, or nil and false if
-// the grid is exhausted.
-func (s *EvalSessionState) NextPoint() (*PointContext, bool) {
-	if s.exhausted {
-		return nil, false
-	}
-	if !s.started {
-		s.started = true
-		s.pIdx, s.gIdx, s.sIdx, s.rIdx = 0, 0, 0, 0
-	} else {
-		s.rIdx++
-		if s.rIdx >= s.reps {
-			s.rIdx = 0
-			s.sIdx++
-		}
-		if s.sIdx >= len(s.Suite.Samples) {
-			s.sIdx = 0
-			s.gIdx++
-		}
-		if s.gIdx >= len(s.gridPoints) {
-			s.gIdx = 0
-			s.pIdx++
-		}
-		if s.pIdx >= len(s.Suite.Profiles) {
-			s.exhausted = true
-			return nil, false
-		}
-	}
-
-	sp := s.Suite.Profiles[s.pIdx]
-	gp := s.gridPoints[s.gIdx]
-	sample := s.Suite.Samples[s.sIdx]
-
-	pointID := EvalPointID(sample.Name, sp.Name, sp.Model, gp, s.rIdx)
-
-	pc := &PointContext{
-		SessionDir:  s.SessionDir,
-		PointID:     pointID,
-		Sample:      sample,
-		Harness:     Harness{Name: sp.Name, Binary: sp.Binary},
-		Model:       sp.Model,
-		ProfilePath: sp.Path,
-		CoreRoot:    s.CoreRoot,
-		GridPoint:   gp,
-		Rep:         s.rIdx,
-		Timeout:     s.timeout,
-		LLMTimeout:  s.llmTimeout,
-		OllamaURL:   s.ollamaURL,
-		Stderr:      s.Stderr,
-	}
-
-	return pc, true
 }
 
 // RecordPoint records a completed point's results into the session accumulator.

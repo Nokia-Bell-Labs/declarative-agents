@@ -34,15 +34,15 @@ preconditions:
 flow:
   - F1: The session machine runs parse_suite_config, discover_suite_samples, expand_eval_grid, init_eval_session, and report_suite_summary to prepare suite input and create the session output directory (srd019).
   - F2: parse_suite_config reads the suite's profiles list, resolves each profile relative to the suite file, and rejects obsolete suite fields that bypass profile-selected runtime configuration (srd019).
-  - F3: The session machine enters AdvancingPoint; next_point returns the first (profile, gridpoint, sample, rep) combination. For the integration suite this means generator-qwen35b, then generator-qwen27b, over the discovered samples (srd019).
-  - F4: The session machine enters RunningPoint; run_point launches a nested core.Loop with the point machine (evaluator/point.yaml relative to the profile root) (srd005, evaluator/machine.yaml, evaluator/point.yaml).
+  - F3: materialize_eval_points emits every (profile, gridpoint, sample, rep) combination in deterministic order. For the integration suite this means generator-qwen35b, then generator-qwen27b, over the discovered samples (srd019).
+  - F4: The session machine dispatches run_point sequentially with for_each; each item launches a nested core.Loop with the point machine (evaluator/point.yaml relative to the profile root) (srd005, evaluator/machine.yaml, evaluator/point.yaml).
   - F5: The point machine runs create_point_dir, shared copy_dir, sample_docs with a conditional shared copy_dir, shared git_init and stage_all, and the profile-configured commit_workspace_baseline exec alias to prepare an isolated workspace (srd019).
   - F6: dump_config serializes the resolved profile path, model, harness label, sample, timeout, and repetition into experiment.yaml for reproducibility (srd019).
   - F7: run_agent spawns the generator binary as a subprocess with OTel traceparent propagation and passes --profile for profile-based points (srd016, srd018, srd019).
   - F8: The profile-configured run_oracle_check exec word, record_oracle_result adapter, collect_trace_tokens, check_agent_version, and summarize_point_results classify the point outcome and collect trace-derived result state (srd019).
   - F9: collect_metrics writes meta.json with point metadata, duration, and outcome classification; early point failures first pass through record_point_failure so the same writer persists terminal failure stage and cause (srd019).
-  - F10: The nested loop completes; control returns to the session machine which loops back to next_point.
-  - F11: When the grid is exhausted, next_point emits AllPointsDone; report_session prints the summary.
+  - F10: Each nested loop completes as a separately traced and receipted for_each item.
+  - F11: When the iterator joins with PointsCompleted, report_session prints the summary.
   - F12: Results are written to eval-results/<suite>/<timestamp>/<point-id>/ with meta.json, trace.ndjson, and experiment.yaml (srd019).
 
 touchpoints:

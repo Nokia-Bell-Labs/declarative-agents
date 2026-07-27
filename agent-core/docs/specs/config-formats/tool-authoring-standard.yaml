@@ -33,7 +33,7 @@ tool_categories:
       transitions.
     examples:
       - parse_response
-      - next_point
+      - record_point_failure
       - parse_suite_config
 
   boundary:

@@ -3,6 +3,7 @@
 package evaluation
 
 import (
+	"encoding/json"
 	"fmt"
 	"time"
 
@@ -41,9 +42,13 @@ type runPointCmd struct {
 	pointRegistry *core.Registry
 	config        catalog.RunPointConfig
 	runResult     core.RunResult
+	commandState  core.CommandStateView
 }
 
 func (c *runPointCmd) Name() string { return "run_point" }
+func (c *runPointCmd) SetCommandState(view core.CommandStateView) {
+	c.commandState = view
+}
 func (c *runPointCmd) Undo(prior core.Result) core.Result {
 	return (&evaluatorReceiptCmd{
 		inner: c, session: c.es,
@@ -52,6 +57,13 @@ func (c *runPointCmd) Undo(prior core.Result) core.Result {
 }
 
 func (c *runPointCmd) Execute() core.Result {
+	if c.commandState != nil {
+		if err := c.bindPointContext(); err != nil {
+			return core.Result{
+				Signal: core.CommandError, Err: err, Output: err.Error(), CommandName: c.Name(),
+			}
+		}
+	}
 	pc := c.es.PC
 	if pc == nil {
 		return core.Result{
@@ -120,6 +132,34 @@ func (c *runPointCmd) Execute() core.Result {
 		Output:      fmt.Sprintf("%s: %s", pc.PointID, status),
 		CommandName: "run_point",
 	}
+}
+
+func (c *runPointCmd) bindPointContext() error {
+	data, ok := c.commandState.Lookup("point")
+	if !ok {
+		return fmt.Errorf("run_point: bind iterator point: command-state label %q not found", "point")
+	}
+	var input evalPointInput
+	if err := json.Unmarshal([]byte(data), &input); err != nil {
+		return fmt.Errorf("run_point: decode iterator point: %w", err)
+	}
+	c.es.PC = &PointContext{
+		SessionDir:  c.es.SessionDir,
+		PointID:     input.PointID,
+		Sample:      input.Sample,
+		Harness:     input.Harness,
+		Model:       input.Model,
+		ProfilePath: input.ProfilePath,
+		CoreRoot:    c.es.CoreRoot,
+		GridPoint:   input.GridPoint,
+		Rep:         input.Rep,
+		Timeout:     c.es.timeout,
+		LLMTimeout:  c.es.llmTimeout,
+		OllamaURL:   c.es.ollamaURL,
+		Stderr:      c.es.Stderr,
+	}
+	_, _ = fmt.Fprintf(c.es.Stderr, "  → %s\n", input.PointID)
+	return nil
 }
 
 // RunPointFactory creates a registry.BuiltinFactory for run_point.

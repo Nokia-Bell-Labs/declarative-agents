@@ -40,7 +40,7 @@ requirements:
   R2:
     title: Evaluation session execution
     items:
-      - R2.1: The session state machine (agents/critic/machine.yaml) initializes the suite via parse_suite_config, discover_suite_samples, expand_eval_grid, init_eval_session, and report_suite_summary, then iterates suites in (profile, gridPoint, sample, repetition) order via next_point, run_point, and report_session, running each point through a nested core.Loop.
+      - R2.1: The session state machine (agents/critic/machine.yaml) initializes the suite, materializes points in (profile, gridPoint, sample, repetition) order, and declares sequential fail-fast for_each dispatch through run_point before report_session.
       - R2.2: PointContext holds per-point mutable state (directories, trace path, tokens, results, timing).
       - R2.3: EvalState is the shared state container whose PC field is updated before each point's loop run.
       - R2.4: SessionResult and PointResult capture aggregate and per-point outcomes.

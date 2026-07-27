@@ -129,7 +129,6 @@ func TestEvaluatorMutationBuildersImplementReverser(t *testing.T) {
 		&DiscoverSuiteSamplesBuilder{},
 		&ExpandEvalGridBuilder{},
 		&InitEvalSessionBuilder{},
-		&NextPointBuilder{},
 		&ReportSessionBuilder{},
 		&RunPointBuilder{},
 		&CreatePointDirBuilder{},

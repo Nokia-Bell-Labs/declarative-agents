@@ -115,7 +115,7 @@ func TestBuiltinFactoryCatalogCoversSelectedActiveInits(t *testing.T) {
 		"format_issue", "record_tracker_issue", "mark_nodes_executing", "format_task_file", "mark_task_done", "mark_task_failed",
 		"remaining_work",
 		"parse_suite_config", "discover_suite_samples", "expand_eval_grid",
-		"init_eval_session", "report_suite_summary", "next_point", "run_point",
+		"init_eval_session", "report_suite_summary", "materialize_eval_points", "run_point",
 		"report_session", "run_agent", "record_oracle_result", "collect_trace_tokens",
 		"check_agent_version", "summarize_point_results", "collect_metrics",
 		"record_agent_commit", "dump_config", "list_evaluation_sessions",

@@ -162,9 +162,9 @@ receipt_undo:
     - command: init_eval_session
       strategy: owned_artifact_removal_and_evaluator_session_restore
       receipt: reversible_eval_session_snapshot_and_owned_artifact_paths
-    - command: next_point
-      strategy: evaluator_session_restore
-      receipt: reversible_eval_session_snapshot
+    - command: materialize_eval_points
+      strategy: noop
+      receipt: none_read_only_projection
     - command: run_point
       strategy: compensating_action
       receipt: compensatable_eval_session_snapshot_and_boundary_compensation

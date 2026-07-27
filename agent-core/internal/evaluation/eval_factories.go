@@ -49,8 +49,8 @@ type evalPointFactorySpec struct {
 
 // RegisterEvalFactories registers all evaluator builtin tool factories
 // (session-level: parse_suite_config, discover_suite_samples,
-// expand_eval_grid, init_eval_session, report_suite_summary, next_point,
-// run_point, report_session;
+// expand_eval_grid, init_eval_session, report_suite_summary,
+// materialize_eval_points, run_point, report_session;
 // per-point: create_point_dir, sample_docs, record_agent_commit,
 // dump_config, run_agent, record_oracle_result, collect_trace_tokens,
 // check_agent_version, summarize_point_results, record_point_failure,
@@ -154,12 +154,12 @@ func evalSessionFactorySpecs() []evalSessionFactorySpec {
 		{name: "expand_eval_grid", build: func(es *EvalSessionState) core.Builder { return &ExpandEvalGridBuilder{ES: es} }},
 		{name: "init_eval_session", build: func(es *EvalSessionState) core.Builder { return &InitEvalSessionBuilder{ES: es} }},
 		{name: "report_suite_summary", build: func(es *EvalSessionState) core.Builder { return &ReportSuiteSummaryBuilder{ES: es} }},
+		{name: "materialize_eval_points", build: func(es *EvalSessionState) core.Builder { return &MaterializeEvalPointsBuilder{ES: es} }},
 	}
 }
 
 func evalConfiguredFactorySpecs() []evalConfiguredFactorySpec {
 	return []evalConfiguredFactorySpec{
-		{name: "next_point", factory: NextPointFactory},
 		{name: "run_point", factory: RunPointFactory},
 		{name: "report_session", factory: ReportSessionFactory},
 	}

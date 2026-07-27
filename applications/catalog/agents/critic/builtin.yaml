@@ -98,7 +98,7 @@ tools:
   requirements:
     input:
     - must require point_machine, point_tools, and point_tool_declarations in config
-    - must consume the current point context selected by next_point
+    - must bind the current point input supplied by the session for_each iterator
     output:
     - must emit PointDone after the nested point machine reaches its configured success state
     - must return nested machine status, point identity, and result metadata
@@ -156,14 +156,13 @@ tools:
     captures: [evaluator_session_snapshot, nested_machine_history, point_workspace]
   errors:
   - signal: CommandError
-    condition: required config is missing, no point is ready, or nested machine construction fails
+    condition: required config is missing, iterator point binding fails, or nested machine construction fails
     message_shape: 'run_point: <error>'
     state_after_failure: session state unchanged unless nested execution already recorded a result
   relationships:
     before:
-    - next_point
+    - materialize_eval_points
     after:
-    - next_point
     - report_session
     overlaps:
     - tool: invoke_executor

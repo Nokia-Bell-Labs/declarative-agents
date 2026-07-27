@@ -23,6 +23,7 @@ var criticSessionWords = []string{
 	"expand_eval_grid",
 	"init_eval_session",
 	"report_suite_summary",
+	"materialize_eval_points",
 }
 
 type criticMachineConfig struct {
@@ -30,10 +31,20 @@ type criticMachineConfig struct {
 }
 
 type criticTransition struct {
-	State  string `yaml:"state"`
-	Signal string `yaml:"signal"`
-	Next   string `yaml:"next"`
-	Action string `yaml:"action"`
+	State   string `yaml:"state"`
+	Signal  string `yaml:"signal"`
+	Next    string `yaml:"next"`
+	Action  string `yaml:"action"`
+	ForEach *struct {
+		Items      string   `yaml:"items"`
+		As         string   `yaml:"as"`
+		Mode       string   `yaml:"mode"`
+		Failure    string   `yaml:"failure"`
+		ContinueOn []string `yaml:"continue_on"`
+		Join       struct {
+			Next string `yaml:"next"`
+		} `yaml:"join"`
+	} `yaml:"for_each"`
 }
 
 type criticToolSelectionFile struct {
@@ -62,6 +73,7 @@ type criticToolDeclaration struct {
 func TestCriticSelectsSentenceWords(t *testing.T) {
 	selection := criticToolSelection(t, "tools.yaml")
 	requireNotSelected(t, selection, "load_suite")
+	requireNotSelected(t, selection, "next_point")
 	for _, word := range criticSessionWords {
 		requireSelected(t, selection, word)
 	}
@@ -77,7 +89,17 @@ func TestCriticSessionSequence(t *testing.T) {
 	assertTransition(t, machine, "DiscoveringSuiteSamples", "SuiteSamplesDiscovered", "ExpandingEvalGrid", "expand_eval_grid")
 	assertTransition(t, machine, "ExpandingEvalGrid", "EvalGridExpanded", "InitializingEvalSession", "init_eval_session")
 	assertTransition(t, machine, "InitializingEvalSession", "EvalSessionInitialized", "ReportingSuiteSummary", "report_suite_summary")
-	assertTransition(t, machine, "ReportingSuiteSummary", "SuiteLoaded", "AdvancingPoint", "next_point")
+	assertTransition(t, machine, "ReportingSuiteSummary", "SuiteLoaded", "MaterializingPoints", "materialize_eval_points")
+	assertTransition(t, machine, "RunningPoints", "PointsCompleted", "Reporting", "report_session")
+	iteration := findTransition(machine, "MaterializingPoints", "EvalPointsMaterialized")
+	if iteration == nil || iteration.ForEach == nil {
+		t.Fatal("critic point dispatch does not declare for_each")
+	}
+	if iteration.Action != "run_point" || iteration.ForEach.Items != "$from(eval_points).points" ||
+		iteration.ForEach.As != "point" || iteration.ForEach.Mode != "sequential" ||
+		iteration.ForEach.Failure != "fail_fast" || iteration.ForEach.Join.Next != "RunningPoints" {
+		t.Fatalf("unexpected critic point iterator: %#v", iteration)
+	}
 }
 
 // TestCriticPointFailureSignals pins the point machine's failure routing. A
@@ -219,4 +241,14 @@ func assertTransition(t *testing.T, machine criticMachineConfig, state, signal, 
 		}
 	}
 	t.Fatalf("missing transition %s + %s", state, signal)
+}
+
+func findTransition(machine criticMachineConfig, state, signal string) *criticTransition {
+	for i := range machine.Transitions {
+		tr := &machine.Transitions[i]
+		if tr.State == state && tr.Signal == signal {
+			return tr
+		}
+	}
+	return nil
 }

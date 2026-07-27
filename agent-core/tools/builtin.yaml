@@ -747,24 +747,23 @@ tools:
       strategy: noop
       description: "Summary reporting writes only diagnostic output and has no state to restore."
 
-  - name: next_point
+  - name: materialize_eval_points
     type: builtin
-    init: next_point
+    init: materialize_eval_points
     visibility: internal
-    emits: [PointReady, AllPointsDone, CommandError]
-    description: "Advance to the next evaluation point in the grid. Returns PointReady or AllPointsDone."
-    category: stateful_internal
+    emits: [EvalPointsMaterialized, CommandError]
+    description: "Materialize deterministic profile, grid, sample, and repetition combinations for declared iteration."
+    category: word
     side_effects:
-      - kind: state_mutation
+      - kind: state_read
         target: eval_session_state
-        state: current_point_advanced
-        description: "Advances the evaluator session cursor to the next grid point."
+        description: "Reads resolved suite dimensions and runtime defaults without mutating session state."
     reversibility:
       classification: reversible
-      undo: "session_state_restore"
+      undo: "noop"
     undo:
-      strategy: session_state_restore
-      description: "Restore the evaluator session cursor from a prior snapshot."
+      strategy: noop
+      description: "Read-only point materialization has no effects to reverse."
 
   - name: run_point
     type: builtin

@@ -83,7 +83,7 @@ tool_categories:
     undo_model: noop for read-only words; workspace_restore or command-specific undo for mutating words.
   stateful_internal:
     definition: Internal machine action that mutates agent or command/domain state rather than user-visible workspace state.
-    examples: [invoke_llm, report_parse_error, reset_history, nudge_reread, next_point, checkpoint_history]
+    examples: [invoke_llm, report_parse_error, reset_history, nudge_reread, record_point_failure, checkpoint_history]
     composition: named internal MachineSpec action; usually hidden from LLM tool lists.
     undo_model: command/domain restore, such as conversation_truncate or evaluator_session_restore.
   boundary:

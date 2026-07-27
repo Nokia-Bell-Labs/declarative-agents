@@ -20,7 +20,6 @@ func:internal/evaluation/eval_results.go:loadDir
 func:internal/evaluation/eval_run_point.go:Execute
 func:internal/evaluation/eval_session.go:DiscoverSamples
 func:internal/evaluation/eval_session.go:ParseSuiteConfig
-func:internal/evaluation/eval_session_state.go:NextPoint
 func:internal/evaluation/eval_tools.go:Execute
 func:internal/model/llm/ollama/adapter.go:Chat
 func:internal/model/llm/ollama/adapter.go:ListModels

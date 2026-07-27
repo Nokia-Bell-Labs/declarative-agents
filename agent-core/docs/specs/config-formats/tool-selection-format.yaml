@@ -52,7 +52,7 @@ selection_files:
     description: |
       Selects session-level tools for <profile-root>/evaluator/machine.yaml:
       parse_suite_config, discover_suite_samples, expand_eval_grid,
-      init_eval_session, report_suite_summary, next_point, run_point,
+      init_eval_session, report_suite_summary, materialize_eval_points, run_point,
       and report_session.
 
   - file: <profile-root>/evaluator/tools-point.yaml

@@ -523,7 +523,7 @@ overview:
       stateful_internal: |
         Stateful internal words mutate agent or command/domain state rather
         than visible workspace state. Examples include report_parse_error,
-        reset_history, nudge_reread, parse_suite_config, next_point,
+        reset_history, nudge_reread, parse_suite_config, record_point_failure,
         record_oracle_result, and record_agent_commit. These
         are usually machine actions, not LLM-visible manifest entries.
       boundary: |

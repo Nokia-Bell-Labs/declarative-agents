@@ -675,7 +675,7 @@ tools:
     role: word
     selected_by: [evaluator_session]
     inputs_from: [init_eval_session]
-    feeds_into: [next_point]
+    feeds_into: [materialize_eval_points]
     side_effects: stderr_write
     output_contract: declared_by_signal
     undo: noop
@@ -686,24 +686,23 @@ tools:
       - needs output.schema for total point count
     migration_priority: low
 
-  - name: next_point
-    role: stateful_internal
+  - name: materialize_eval_points
+    role: word
     selected_by: [evaluator_session]
     inputs_from: [report_suite_summary]
-    feeds_into: [run_point, report_session]
-    side_effects: eval_session_iterator_mutation
-    output_contract: missing
-    undo: restore_iterator_and_point_context
+    feeds_into: [run_point]
+    side_effects: none
+    output_contract: ordered evaluation point array
+    undo: noop
     overlaps: []
-    issues:
-      - needs output.schema for selected point context
-    migration_priority: medium
+    issues: []
+    migration_priority: low
 
   - name: run_point
     role: boundary
     selected_by: [evaluator_session]
-    inputs_from: [next_point]
-    feeds_into: [next_point]
+    inputs_from: [materialize_eval_points]
+    feeds_into: [run_point, report_session]
     side_effects: nested_machine_execution, point_result_recording, filesystem_mutation
     output_contract: missing
     undo: boundary_compensation (child_command_undo, captures eval_session_snapshot + nested_machine_history)
@@ -717,7 +716,7 @@ tools:
   - name: report_session
     role: word
     selected_by: [evaluator_session]
-    inputs_from: [next_point]
+    inputs_from: [run_point]
     feeds_into: [terminal]
     side_effects: stderr_output
     output_contract: missing
@@ -733,7 +732,7 @@ tools:
   - name: create_point_dir
     role: word
     selected_by: [evaluator_point]
-    inputs_from: [next_point]
+    inputs_from: [run_point]
     feeds_into: [copy_dir]
     side_effects: filesystem_write, point_context_mutation
     output_contract: copy_dir source and destination parameters
