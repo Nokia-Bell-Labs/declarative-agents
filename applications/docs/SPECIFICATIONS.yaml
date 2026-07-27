@@ -30,6 +30,12 @@ roadmap_summary:
     use_cases_total: 1
     status: implemented
     evidence: Catalog migration, role governance, consumer closure, Helm package, tag-semantic, and scoped zero-hit tests are executable.
+  - version: "13.0"
+    name: Multi-agent application vision
+    use_cases_done: 0
+    use_cases_total: 0
+    status: implemented
+    evidence: The shared vision, root guide, architecture index, and roadmap parse and pass the repository audit.
 
 foundation_document_index:
   - id: application-composition-pattern-language
@@ -40,8 +46,11 @@ foundation_document_index:
       language and the role-realization semantic model.
     path: docs/pattern-language.yaml
   - id: applications-shared-contract
-    title: Shared Contract for Runnable Applications
-    summary: Goals, boundaries, and capability-aware success criteria.
+    title: Vision for Declarative Multi-Agent Applications
+    summary: |
+      Multi-agent rationale, intent and assurance flows, role realization,
+      human governance, construction sequence, runnable-module contract, and
+      capability-aware success criteria.
     path: docs/VISION.yaml
   - id: architecture-applications-shared-contract
     title: Shared Applications Architecture

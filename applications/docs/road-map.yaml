@@ -136,3 +136,37 @@ releases:
         proves: The chart records the catalog pin and its generated archive contains canonical renamed paths without stale coordinator artifacts.
       - path: magefiles/tag_test.go
         proves: The root release creates the exact canonical catalog and legacy compatibility pair atomically without feature-branch publication.
+  - version: "13.0"
+    name: Multi-agent application vision
+    description: |
+      Explain when multiple agents are warranted and how a scenario becomes a
+      governed declarative-agent application. Join intent-to-actuation and
+      observation-to-feedback flows, role realizations, human governance,
+      canonical reuse, package closure, and executable evidence to the retained
+      shared capability contract.
+    status: implemented
+    dependencies:
+      - id: gh-1076-semantic-model
+        status: implemented
+        reason: Defines canonical roles as semantic interfaces and records actor/profile realizations.
+      - id: application-composition-pattern-language
+        status: implemented
+        reason: Supplies the construction patterns referenced by the root guide.
+    implementation_evidence:
+      - path: applications/docs/VISION.yaml
+        proves: |
+          The canonical vision records the multi-agent thesis, both operating
+          flows, human boundary, six-step construction sequence, retained
+          capability contract, and pinned conceptual-source provenance.
+      - path: applications/README.md
+        proves: |
+          A root reader can determine why and when to use several actors and
+          follow the ordered scenario-to-evidence construction guide.
+      - path: applications/docs/ARCHITECTURE.yaml
+        proves: The project index assigns the revised VISION and README responsibilities and records implementation status.
+      - path: applications/docs/SPECIFICATIONS.yaml
+        proves: The foundation index names and summarizes the broadened canonical vision.
+      - path: applications/docs/specs/semantic-models/agent-role-realizations.yaml
+        proves: Canonical roles, actor/profile realizations, inheritance, and ownership boundaries remain machine-readable.
+      - path: applications/docs/pattern-language.yaml
+        proves: Canonical reuse, composition, package closure, profile-free runtime, wrappers, and workload boundaries have construction patterns.
