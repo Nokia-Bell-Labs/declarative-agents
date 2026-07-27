@@ -270,9 +270,10 @@ builtin_fields:
 document_resource_config:
   purpose: |
     Defines trusted read-only filesystem resources for list_resource and
-    read_resource builtin words. Runtime input selects a named resource and
-    relative path or prefix inside that resource. It cannot replace roots,
-    include patterns, extension allowlists, parser modes, or size limits.
+    read_resource builtin words. list_resource shapes newline-delimited paths
+    produced by a preceding declared filesystem CLI word; read_resource accepts
+    a relative path inside a configured resource. Runtime input cannot replace
+    roots, include patterns, extension allowlists, parser modes, or size limits.
   fields:
     - field: resources
       type: object

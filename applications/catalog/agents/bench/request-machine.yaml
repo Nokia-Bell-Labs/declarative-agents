@@ -5,6 +5,7 @@ budget: {max_iterations: 8}
 states:
   - {name: AwaitingRequest, meaning: Seeded by one trusted machine_request route.}
   - {name: Querying, meaning: Reading evaluation artifacts.}
+  - {name: DiscoveringConfigPaths, meaning: Traversing the fixed agents root through declared find.}
   - {name: ListingConfigs, meaning: Listing allowlisted profile configuration.}
   - {name: WrappingConfigs, meaning: Wrapping config entries as bounded jq input.}
   - {name: ShapingConfigs, meaning: Grouping configuration entries for the UI.}
@@ -55,7 +56,8 @@ transitions:
   - {state: Querying, signal: EvaluationDenied, next: Denied}
   - {state: Querying, signal: CommandError, next: Failed}
 
-  - {state: AwaitingRequest, signal: ConfigsRequested, next: ListingConfigs, action: list_bench_configs}
+  - {state: AwaitingRequest, signal: ConfigsRequested, next: DiscoveringConfigPaths, action: list_bench_config_paths, label: config_paths}
+  - {state: DiscoveringConfigPaths, signal: ToolDone, next: ListingConfigs, action: list_bench_configs}
   - {state: ListingConfigs, signal: DocumentListReady, next: WrappingConfigs, action: wrap_bench_input, label: config_entries}
   - {state: WrappingConfigs, signal: InputReady, next: ShapingConfigs, action: shape_bench_configs}
   - {state: ShapingConfigs, signal: ToolDone, next: Ready}
@@ -78,6 +80,8 @@ transitions:
   - {state: ListingProfiles, signal: ToolDone, next: Ready}
 
   - {state: ListingConfigs, signal: DocumentResourceDenied, next: Denied}
+  - {state: DiscoveringConfigPaths, signal: ToolFailed, next: Failed}
+  - {state: DiscoveringConfigPaths, signal: CommandError, next: Failed}
   - {state: ReadingConfig, signal: DocumentMissing, next: Missing}
   - {state: ReadingSource, signal: DocumentMissing, next: Missing}
   - {state: ReadingExperiment, signal: DocumentMissing, next: Missing}

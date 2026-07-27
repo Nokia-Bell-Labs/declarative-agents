@@ -61,6 +61,7 @@ requirements:
       - R4.4: Get output SHALL include path, raw content when enabled, parsed content when enabled, content type, extension, and size.
       - R4.5: Operation errors SHALL distinguish path_required, invalid_path, extension_denied, not_found, read_failed, parse_failed, and size_limit_exceeded.
       - R4.6: Presentation-specific category rules SHALL be ordered trusted resource configuration; generic filesystem code SHALL use only deterministic root or first-directory fallback categories.
+      - R4.7: Recursive list traversal SHALL execute as a declared external filesystem CLI word; a separate resource word SHALL validate and shape discovered paths without recursively walking directories in Go.
 
   R5:
     title: Response modes
@@ -113,7 +114,7 @@ acceptance_criteria:
 
   - id: AC7
     criterion: Resource operation requirements define list and get behavior, optional higher-level operations, output fields, and operation error classes.
-    traces: [R4.1, R4.2, R4.3, R4.4, R4.5, R4.6]
+    traces: [R4.1, R4.2, R4.3, R4.4, R4.5, R4.6, R4.7]
 
 depends_on:
   - srd_id: srd027-rest-tool-runtime
@@ -131,7 +132,7 @@ related_documents:
 implementation_status:
   implemented:
     - agents/knowledge-manager/documentation-curator/request-machine.yaml selects reusable filesystem list_resource and read_resource words for the documentation corpus.
-    - internal/tools/filesystem provides reusable list_resource and read_resource words used by the request machine.
+    - Profile-declared find words expose recursive traversal; internal/tools/filesystem list_resource validates and shapes their paths while read_resource performs bounded reads.
     - agents/knowledge-manager/documentation-curator owns the Knowledge Manager UI assets, request machine, REST route configuration, and action placement.
     - Generic Go tests verify document resource config and machine_request trace metadata; applications/catalog owns the concrete browser proof for index, document detail, raw YAML, rendered HTML, and nested document path evidence.
   reserved:

@@ -68,7 +68,7 @@ type resourceDetail struct {
 type listResourceCmd struct {
 	root      string
 	resource  string
-	prefix    string
+	paths     string
 	resources ResourceConfig
 }
 
@@ -80,7 +80,7 @@ func (l *listResourceCmd) Execute() core.Result {
 	if !ok {
 		return commandError(l.Name(), fmt.Errorf("resource %q is not configured", l.resource))
 	}
-	entries, err := listResourceEntries(base, def, l.prefix)
+	entries, err := listResourceEntries(base, def, l.paths)
 	if err != nil {
 		return resourceError(l.Name(), err)
 	}
@@ -140,7 +140,7 @@ func (b *ListResourceBuilder) Build(res core.Result) core.Command {
 	return &listResourceCmd{
 		root:      b.Root,
 		resource:  configuredResource(b.Resources, res.Output),
-		prefix:    extractStringParam(res.Output, "prefix"),
+		paths:     res.Output,
 		resources: b.Resources,
 	}
 }
@@ -171,25 +171,40 @@ func configuredResource(config ResourceConfig, output string) string {
 	return extractStringParam(output, "resource")
 }
 
-func listResourceEntries(base string, def ResourceDefinition, prefix string) ([]resourceEntry, error) {
+func listResourceEntries(base string, def ResourceDefinition, paths string) ([]resourceEntry, error) {
 	var entries []resourceEntry
-	err := filepath.WalkDir(base, func(abs string, entry os.DirEntry, err error) error {
-		if err != nil || entry.IsDir() {
-			return err
+	for _, candidate := range strings.Split(strings.TrimSpace(paths), "\n") {
+		if strings.TrimSpace(candidate) == "" {
+			continue
 		}
-		return appendResourceEntry(&entries, base, abs, def, prefix)
-	})
-	return entries, err
+		rel, err := normalizeResourcePath(candidate)
+		if err != nil {
+			return nil, err
+		}
+		if !resourcePathAllowed(rel, def, "") {
+			continue
+		}
+		if _, err := ValidatePath(base, rel); err != nil {
+			return nil, err
+		}
+		if err := appendResourceEntry(&entries, base, filepath.Join(base, filepath.FromSlash(rel)), def); err != nil {
+			return nil, err
+		}
+	}
+	return entries, nil
 }
 
-func appendResourceEntry(entries *[]resourceEntry, base, abs string, def ResourceDefinition, prefix string) error {
+func appendResourceEntry(entries *[]resourceEntry, base, abs string, def ResourceDefinition) error {
 	rel, err := resourceRel(base, abs)
-	if err != nil || !resourcePathAllowed(rel, def, prefix) {
+	if err != nil {
 		return err
 	}
 	info, err := os.Stat(abs)
 	if err != nil {
 		return err
+	}
+	if info.IsDir() {
+		return nil
 	}
 	*entries = append(*entries, resourceEntry{
 		Path:      rel,

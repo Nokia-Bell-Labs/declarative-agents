@@ -8,6 +8,7 @@ budget:
   max_iterations: 16
 states:
   - {name: AwaitingRequest, meaning: Seeded by a trusted machine_request route.}
+  - {name: DiscoveringDocumentPaths, meaning: Traverse the fixed docs root through declared find.}
   - {name: ListingDocuments, meaning: List the configured docs resource.}
   - {name: ShapingIndex, meaning: Shape list output for HTTP.}
   - {name: ReadingDocument, meaning: Read one configured document.}
@@ -105,7 +106,8 @@ signals:
   - ToolFailed
   - CommandError
 transitions:
-  - {state: AwaitingRequest, signal: Seed, next: ListingDocuments, action: doc_list_resource, label: documents_list}
+  - {state: AwaitingRequest, signal: Seed, next: DiscoveringDocumentPaths, action: doc_list_paths, label: document_paths}
+  - {state: DiscoveringDocumentPaths, signal: ToolDone, next: ListingDocuments, action: doc_list_resource, label: documents_list}
   - {state: ListingDocuments, signal: DocumentListReady, next: ShapingIndex, action: doc_index_input, label: index_input}
   - {state: ShapingIndex, signal: IndexInputReady, next: DocumentIndexReady, action: doc_index_jq, label: index_response}
 
@@ -162,6 +164,8 @@ transitions:
   - {state: CheckingPendingReview, signal: CommandError, next: Failed}
 
   - {state: ListingDocuments, signal: DocumentResourceDenied, next: RequestDenied}
+  - {state: DiscoveringDocumentPaths, signal: ToolFailed, next: Failed}
+  - {state: DiscoveringDocumentPaths, signal: CommandError, next: Failed}
   - {state: ReadingDocument, signal: DocumentMissing, next: DocumentNotFound}
   - {state: ReadingConfig, signal: DocumentMissing, next: DocumentNotFound}
   - {state: ReadingSource, signal: DocumentMissing, next: DocumentNotFound}

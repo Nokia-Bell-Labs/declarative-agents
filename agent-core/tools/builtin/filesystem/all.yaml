@@ -11,32 +11,27 @@ tools:
     type: builtin
     category: boundary
     init: list_resource
-    description: List documents from a configured filesystem resource.
-    problem: Machine and REST words need document corpus listing without letting runtime input choose filesystem authority.
+    description: Shape externally discovered paths from a configured filesystem resource.
+    problem: Machine and REST words need resource metadata without hiding recursive traversal inside Go.
     goals:
-      - List files under a trusted resource root.
+      - Validate candidate paths under a trusted resource root.
       - Return path, name, category, extension, size, and configured metadata.
       - Keep include, extension, and presentation category rules in trusted tool config.
     requirements:
       input:
-        - Runtime input may choose only the configured resource name and optional prefix.
+        - A preceding declared filesystem CLI word supplies one resource-relative candidate path per line.
       output:
         - Output includes resource-relative document entries with path, name, category, extension, and size.
       errors:
-        - Unknown resources, root failures, traversal denial, and scan failures emit declared signals.
+        - Unknown resources, root failures, traversal denial, and metadata failures emit declared signals.
     non_goals:
       - Does not read document body content.
+      - Does not recursively traverse directories.
       - Does not let runtime input choose roots, include patterns, extension allowlists, category rules, or parser modes.
     parameters:
       type: object
-      properties:
-        resource:
-          type: string
-          description: Configured resource name.
-        prefix:
-          type: string
-          description: Optional resource-relative prefix filter.
-      required: [resource]
+      properties: {}
+      additionalProperties: false
     emits: [DocumentListReady, DocumentResourceDenied, CommandError]
     output:
       description: Structured document list entries from the configured resource.

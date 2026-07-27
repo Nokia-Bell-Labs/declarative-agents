@@ -213,6 +213,14 @@ func readKnowledgeBody(t *testing.T, r *http.Request) string {
 	return string(body)
 }
 
+type knowledgeToolDeclaration struct {
+	Name       string         `yaml:"name"`
+	Type       string         `yaml:"type"`
+	Binary     string         `yaml:"binary"`
+	Visibility string         `yaml:"visibility"`
+	Config     map[string]any `yaml:"config"`
+}
+
 func TestCorpusIngestListsTrustedCorpusBeforeModelControl(t *testing.T) {
 	var machine struct {
 		States []struct {
@@ -228,11 +236,14 @@ func TestCorpusIngestListsTrustedCorpusBeforeModelControl(t *testing.T) {
 	readKnowledgeYAML(t,
 		filepath.Join("..", "agents", "knowledge-manager", "corpus-ingest", "machine.yaml"),
 		&machine)
-	if !containsKnowledgeState(machine.States, "ListingCorpus") {
-		t.Fatal("canonical corpus-ingest machine has no ListingCorpus state")
+	if !containsKnowledgeState(machine.States, "DiscoveringCorpus") ||
+		!containsKnowledgeState(machine.States, "ListingCorpus") {
+		t.Fatal("canonical corpus-ingest machine does not expose discovery and shaping states")
 	}
 	requireKnowledgeTransition(t, machine.Transitions,
-		"CheckingOllama", "OllamaReady", "ListingCorpus", "list_resource")
+		"CheckingOllama", "OllamaReady", "DiscoveringCorpus", "list_resource_paths")
+	requireKnowledgeTransition(t, machine.Transitions,
+		"DiscoveringCorpus", "ToolDone", "ListingCorpus", "list_resource")
 	requireKnowledgeTransition(t, machine.Transitions,
 		"ListingCorpus", "DocumentListReady", "Composing", "invoke_llm")
 	for _, transition := range machine.Transitions {
@@ -242,17 +253,18 @@ func TestCorpusIngestListsTrustedCorpusBeforeModelControl(t *testing.T) {
 	}
 
 	var declarations struct {
-		Tools []struct {
-			Name       string         `yaml:"name"`
-			Visibility string         `yaml:"visibility"`
-			Config     map[string]any `yaml:"config"`
-		} `yaml:"tools"`
+		Tools []knowledgeToolDeclaration `yaml:"tools"`
 	}
 	path := filepath.Join("..", "agents", "knowledge-manager", "corpus-ingest", "declarations.yaml")
 	readKnowledgeYAML(t, path, &declarations)
 	list := knowledgeTool(t, declarations.Tools, "list_resource")
 	if list.Visibility != "internal" || list.Config["resource"] != "corpus" {
 		t.Fatalf("list_resource authority = visibility %q config %#v", list.Visibility, list.Config)
+	}
+	paths := knowledgeTool(t, declarations.Tools, "list_resource_paths")
+	if paths.Type != "exec" || paths.Binary != "bash" || paths.Visibility != "internal" {
+		t.Fatalf("list_resource_paths boundary = type %q binary %q visibility %q",
+			paths.Type, paths.Binary, paths.Visibility)
 	}
 	invoke := knowledgeTool(t, declarations.Tools, "invoke_llm")
 	model, _ := invoke.Config["model"].(string)
@@ -301,15 +313,11 @@ func requireKnowledgeTransition(t *testing.T, transitions []struct {
 	t.Fatalf("missing transition %s/%s -> %s action %s", state, signal, next, action)
 }
 
-func knowledgeTool(t *testing.T, tools []struct {
-	Name       string         `yaml:"name"`
-	Visibility string         `yaml:"visibility"`
-	Config     map[string]any `yaml:"config"`
-}, name string) struct {
-	Name       string         `yaml:"name"`
-	Visibility string         `yaml:"visibility"`
-	Config     map[string]any `yaml:"config"`
-} {
+func knowledgeTool(
+	t *testing.T,
+	tools []knowledgeToolDeclaration,
+	name string,
+) knowledgeToolDeclaration {
 	t.Helper()
 	for _, tool := range tools {
 		if tool.Name == name {
@@ -317,9 +325,5 @@ func knowledgeTool(t *testing.T, tools []struct {
 		}
 	}
 	t.Fatalf("missing tool %s", name)
-	return struct {
-		Name       string         `yaml:"name"`
-		Visibility string         `yaml:"visibility"`
-		Config     map[string]any `yaml:"config"`
-	}{}
+	return knowledgeToolDeclaration{}
 }

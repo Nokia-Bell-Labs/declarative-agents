@@ -31,8 +31,10 @@ states:
     meaning: The Chroma v2 heartbeat is being checked.
   - name: CheckingOllama
     meaning: The Ollama version endpoint is being checked.
+  - name: DiscoveringCorpus
+    meaning: Declared find traversal is producing trusted candidate paths.
   - name: ListingCorpus
-    meaning: The machine is listing trusted paths before model control starts.
+    meaning: The machine is shaping allowlisted paths before model control starts.
   - name: Composing
     meaning: The model is choosing a listed file or signalling done; and the machine routes a completed tool by its result signal.
   - name: Parsing
@@ -68,6 +70,8 @@ signals:
     trigger: The model returned a response.
   - name: ToolDone
     trigger: The parser found a model-selected tool call.
+  - name: ToolFailed
+    trigger: A declared external corpus traversal failed.
   - name: TaskCompleted
     trigger: The model called done to end ingestion.
   - name: ParseFailed
@@ -108,9 +112,19 @@ transitions:
     next: Failed
   - state: CheckingOllama
     signal: OllamaReady
+    next: DiscoveringCorpus
+    action: list_resource_paths
+  - state: CheckingOllama
+    signal: CommandError
+    next: Failed
+  - state: DiscoveringCorpus
+    signal: ToolDone
     next: ListingCorpus
     action: list_resource
-  - state: CheckingOllama
+  - state: DiscoveringCorpus
+    signal: ToolFailed
+    next: Failed
+  - state: DiscoveringCorpus
     signal: CommandError
     next: Failed
   - state: ListingCorpus

@@ -89,7 +89,7 @@ relationships:
 
 operations:
   list:
-    input: Optional category, prefix, or include filter allowed by the resource.
+    input: Newline-delimited resource-relative paths from a preceding declared filesystem CLI dispatch.
     output: path, name, category, extension, size, and configured metadata.
     signals: [DocumentListReady, DocumentResourceDenied, CommandError]
   get:
@@ -141,6 +141,7 @@ diagrams:
 invariants:
   - Document resources are configured filesystem resources, not direct Go route policy.
   - Corpus roots, include patterns, extension allowlists, parser modes, presentation category rules, and UI assets come from trusted config.
+  - Recursive discovery is a declared external filesystem CLI dispatch; generic Go validates and shapes candidates but does not walk the tree.
   - Runtime request data can select only declared resource fields inside the configured root.
   - Path traversal and root escape attempts fail before file reads.
   - YAML and Markdown response modes are explicit per operation.
