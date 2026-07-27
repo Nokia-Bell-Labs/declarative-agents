@@ -10,9 +10,11 @@ overview: |
 
   The dependency direction is application -> applications/catalog ->
   agent-core. The Go present tool, catalog checkout, and agent-core checkout are
-  explicit development or runtime inputs. Planned Mage evidence validates
-  command construction, portable root resolution, launch and exit behavior,
-  documentation traceability, and composition-only statistics.
+  explicit development or runtime inputs. Checked-in Mage tests validate
+  command construction, portable root resolution, lifecycle configuration,
+  documentation traceability, and composition-only statistics. Live launch,
+  browser, readiness, shutdown, and listener-release observations remain
+  dependency-gated.
 
   The application extends shared srd001 and srd002 by reference. runnable_module
   and managed_service apply; srd002 R1 through R3 apply to both the canonical
@@ -22,9 +24,9 @@ overview: |
 roadmap_summary:
   - version: "00.0"
     name: Guided Knowledge Manager presentation
-    use_cases_done: 0
+    use_cases_done: 1
     use_cases_total: 1
-    status: specified
+    status: implemented
 
 foundation_document_index:
   - id: knowledge-manager-demo
@@ -37,7 +39,7 @@ foundation_document_index:
     path: docs/ARCHITECTURE.yaml
   - id: knowledge-manager-demo-roadmap
     title: Knowledge Manager Demo Application Road Map
-    summary: Release 00.0 contract and planned Mage evidence.
+    summary: Release 00.0 contract, implemented deterministic evidence, and dependency-gated live observations.
     path: docs/road-map.yaml
 
 srd_index: []
@@ -84,7 +86,7 @@ use_case_index:
   - id: rel00.0-uc001-guided-knowledge-manager-demo
     title: Operator Runs the Guided Knowledge Manager Demo
     release: "00.0"
-    status: specified
+    status: implemented
     test_suite: test-rel00.0-guided-knowledge-manager-demo
     path: docs/specs/use-cases/rel00.0-uc001-guided-knowledge-manager-demo.yaml
 
@@ -92,30 +94,18 @@ test_suite_index:
   - id: test-rel00.0-guided-knowledge-manager-demo
     title: Test Suite for Release 00.0 Guided Knowledge Manager Demo
     release: "00.0"
-    status: specified
+    status: implemented
     test_case_count: 5
     traces:
       - rel00.0-uc001-guided-knowledge-manager-demo
     path: docs/specs/test-suites/test-rel00.0-guided-knowledge-manager-demo.yaml
 
 coverage_gaps:
-  - id: release-00.0-implementation
-    status: planned
-    description: |
-      The specification corpus exists. Sibling issues under GH-1055 relocate
-      application assets, implement the pinned presentation and run targets,
-      add deterministic tests, and register root orchestration.
-  - id: shared-contract-executable-evidence
-    status: planned
-    description: |
-      The documents classify shared requirement applicability, but the
-      application-local Mage module and tests do not exist yet. Root mage audit
-      does not dispatch this application. Direct structural validation is the
-      only current document evidence and does not satisfy managed-service or
-      root-orchestration acceptance criteria.
   - id: live-browser-observation
     status: dependency_gated
     description: |
-      Deterministic tests validate commands and configuration without servers.
-      Live launch and exit evidence requires available ports and an agent-core
-      runtime; visual browser inspection remains an operator step.
+      Deterministic tests validate commands, configuration, reciprocal traces,
+      root dispatch, and accounting without starting servers. Live launch,
+      browser rendering, role readiness, exit, and listener-release evidence
+      requires available ports, a buildable agent-core checkout, and operator
+      execution. Command construction is not live-service proof.

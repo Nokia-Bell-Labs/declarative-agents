@@ -23,6 +23,22 @@ preconditions:
   - The canonical documentation-curator profile exists at AGENT_CATALOG_ROOT/agents/knowledge-manager/documentation-curator/profile.yaml.
   - Local presentation, documentation, control, and monitor ports are available.
 
+evidence:
+  deterministic_status: implemented
+  deterministic_command: go test ./magefiles
+  proves: |
+    The checked-in tests prove exact command construction, portable root
+    resolution, lifecycle-exit configuration, reciprocal traces, and
+    composition-only accounting.
+  live_observation_status: dependency_gated
+  live_steps: [F1, F2, F3, F5, F6, F7, F8]
+  limitation: |
+    Serving the deck, starting the curator, rendering the catalog-owned browser
+    interface, posting to a running control endpoint, observing Done, and
+    observing listener release require available ports, a buildable agent-core
+    checkout, and operator execution. Deterministic command construction does
+    not prove those live observations.
+
 flow:
   - id: F1
     text: The operator runs mage presentation from the application root; Mage invokes the pinned Go present tool for knowledge-manager.slide with the application root as its working directory.
@@ -66,25 +82,25 @@ touchpoints:
 
 success_criteria:
   - id: S1
-    criterion: mage presentation invokes the version-pinned Go present tool for knowledge-manager.slide from the application root.
+    criterion: The tested mage presentation command invokes the version-pinned Go present tool for knowledge-manager.slide from the application root; serving the deck is dependency-gated.
     traces:
       - architecture-knowledge-manager-demo design_decisions 3
       - test-rel00.0-guided-knowledge-manager-demo presentation_command
   - id: S2
-    criterion: mage run launches the canonical catalog documentation-curator through agent-core with explicit profile, directory, and development core-root arguments.
+    criterion: The tested mage run command targets the canonical catalog documentation-curator through agent-core with explicit profile, directory, and development core-root arguments; live launch is dependency-gated.
     traces:
       - architecture-knowledge-manager-demo design_decisions 1
       - architecture-knowledge-manager-demo design_decisions 4
       - srd011-knowledge-manager AC1
       - test-rel00.0-guided-knowledge-manager-demo canonical_curator_command
   - id: S3
-    criterion: The browser receives the catalog-owned Knowledge Manager interface; the application contains no profile or UI copy.
+    criterion: The application contains no profile or UI copy; observing the catalog-owned Knowledge Manager interface in a browser is dependency-gated.
     traces:
       - srd011-knowledge-manager AC1
       - rel07.0-uc001-documentation-curator-profile-ux S3
       - test-rel00.0-guided-knowledge-manager-demo canonical_curator_command
   - id: S4
-    criterion: The application-owned declarative lifecycle-exit profile posts the fixed request, accepts HTTP 202, and the curator releases its listeners.
+    criterion: The application-owned declarative lifecycle-exit profile defines the fixed request and accepted HTTP status; observing the live post, curator Done state, and listener release is dependency-gated.
     traces:
       - architecture-knowledge-manager-demo design_decisions 2
       - rel07.0-uc001-documentation-curator-profile-ux S4
@@ -97,7 +113,7 @@ success_criteria:
       - srd001-application-module-contract AC3
       - srd001-application-module-contract AC5
   - id: S6
-    criterion: The curator and Go present servers have bounded startup, role-readiness, failure, and shutdown evidence appropriate to their local roles.
+    criterion: The curator and Go present servers define bounded startup, role-readiness, failure, and shutdown evidence appropriate to their local roles; executing those observations is dependency-gated.
     traces:
       - architecture-knowledge-manager-demo capability_classification managed_services
       - srd002-managed-application-services AC1
@@ -113,4 +129,4 @@ out_of_scope:
   - Defining production deployment or authentication for the local demo.
 
 test_suite: test-rel00.0-guided-knowledge-manager-demo
-status: specified
+status: implemented

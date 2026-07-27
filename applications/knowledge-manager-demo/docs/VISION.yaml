@@ -20,14 +20,13 @@ executive_summary: |
   Go present server. packaged, helm_managed, and kind_demo do not apply.
 
 problem: |
-  The Knowledge Manager presentation currently sits beside reusable catalog
-  profiles. That placement makes application-only launch and presentation
-  behavior appear to be part of the canonical profile contract. It also leaves
-  the slide server dependent on operator-installed tooling.
+  Presentation-only launch and lifecycle behavior needs an application owner
+  distinct from the reusable catalog profile. Otherwise the demo appears to be
+  part of the canonical profile contract and can depend on operator-installed
+  presentation tooling.
 
-  We need one application directory that records the demo lifecycle and its
-  dependencies without copying the documentation-curator profile or its user
-  interface.
+  The standalone application records the demo lifecycle and dependencies
+  without copying the documentation-curator profile or its user interface.
 
 what_this_does: |
   The application serves knowledge-manager.slide with a version-pinned Go
@@ -40,7 +39,8 @@ what_this_does: |
   Source-checkout operation resolves AGENT_CATALOG_ROOT and AGENT_CORE_ROOT,
   with portable monorepo defaults. The application reports only composition
   facts, including agents_contributed: 0, so repository statistics count the
-  canonical profile once under applications/catalog.
+  canonical profile once under applications/catalog. Root mage audit, mage
+  test, and mage stats dispatch this application as an application module.
 
   The application cites shared srd001 for module ownership, documentation,
   Mage participation, and composition-only accounting. It cites shared srd002
@@ -80,8 +80,10 @@ success_criteria:
     section.
   shared_contract_conformance: |
     Application documents trace to applicable srd001 requirements, srd002 R1
-    through R3, and catalog srd011. Release 00.0 remains specified until the
-    application-local Mage targets and their tests exist and pass.
+    through R3, and catalog srd011. Application-local deterministic tests and
+    root orchestration prove the checked-in command, contract, audit, and stats
+    surfaces. Live server, browser, readiness, shutdown, and listener-release
+    observations remain dependency-gated.
 
 not:
   - We do not own or copy the canonical documentation-curator profile.
@@ -92,8 +94,8 @@ not:
     program.
   - We do not count the reused documentation-curator as an application agent.
   - We do not claim packaged, helm_managed, or kind_demo capability.
-  - We do not claim Release 00.0 managed-service evidence before its
-    application-local commands and tests exist.
+  - We do not treat deterministic command construction as proof that a live
+    server, browser endpoint, shutdown, or listener release was observed.
 
 canonical_documents:
   - docs/ARCHITECTURE.yaml

@@ -43,7 +43,7 @@ capability_classification:
         - srd001-application-module-contract R4
         - srd001-application-module-contract R5
         - srd001-application-module-contract R6
-      status: specified
+      status: implemented
     - capability: managed_service
       applies: true
       scope:
@@ -53,7 +53,8 @@ capability_classification:
         - srd002-managed-application-services R1
         - srd002-managed-application-services R2
         - srd002-managed-application-services R3
-      status: specified
+      status: implemented
+      live_observation_status: dependency_gated
     - capability: packaged
       applies: false
       reason: Release 00.0 produces no distributable application artifact.
@@ -68,9 +69,11 @@ capability_classification:
       ownership: applications/catalog canonical profile; application-owned launch and exit composition
       shared_requirement_groups: [R1, R2, R3]
       planned_local_evidence:
-        - mage run command and root-resolution tests
-        - declarative lifecycle-exit contract test
-        - bounded live startup and listener-release observation
+        - go test ./magefiles -run '^Test(Run|ResolveRoots)' proves command construction and root resolution
+        - go test ./magefiles -run '^TestLifecycleExit' proves the declarative exit contract
+        - dependency_gated live startup, role-readiness, shutdown, and listener-release observation
+      deterministic_evidence_status: implemented
+      live_observation_status: dependency_gated
       canonical_evidence:
         - srd011-knowledge-manager AC1
         - srd011-knowledge-manager AC2
@@ -82,9 +85,11 @@ capability_classification:
       ownership: application-managed development tool process
       shared_requirement_groups: [R1, R2, R3]
       planned_local_evidence:
-        - pinned tool and exact command test
-        - bounded HTTP readiness observation
-        - interrupt-driven process and listener-release test
+        - go test ./magefiles -run '^TestPresentation' proves the pinned exact command and working directory
+        - dependency_gated bounded HTTP role-readiness observation
+        - dependency_gated interrupt-driven process and listener-release observation
+      deterministic_evidence_status: implemented
+      live_observation_status: dependency_gated
       limitation: |
         Release 00.0 specifies no dedicated present health or telemetry API.
         Tests must use bounded process and HTTP observations and record this
@@ -276,18 +281,22 @@ project_structure:
 
 implementation_status:
   current_focus: |
-    Release 00.0 is specified. Shared-contract applicability is documented.
-    Presentation assets, lifecycle-exit composition, pinned tooling, Mage
-    commands, and executable tests are planned in sibling issues under GH-1055.
+    Release 00.0 is implemented for checked-in assets, lifecycle-exit
+    composition, pinned tooling, Mage commands, deterministic tests, and root
+    audit, test, stats, and release participation. Live server and browser
+    observations remain dependency-gated and are not inferred from command
+    construction tests.
   progress:
-    - specified: Application ownership and dependency direction.
-    - specified: Guided presentation, launch, browser, and exit use case.
-    - specified: Reciprocal test suite for run, presentation, audit, and stats.
-    - specified: runnable_module and managed_service applicability, including
+    - implemented: Application ownership and dependency direction.
+    - implemented: Guided presentation, launch, browser, and exit use case.
+    - implemented: Reciprocal deterministic test suite for run, presentation, audit, and stats.
+    - implemented: runnable_module and managed_service applicability, including
         srd002 R1 through R3 for the curator and Go present servers.
-    - planned: Relocated deck, README, and lifecycle-exit profile.
-    - planned: Version-pinned present dependency and tested Mage entry points.
-    - planned: Root audit, test, stats, and release participation.
+    - implemented: Relocated deck, README, and lifecycle-exit profile.
+    - implemented: Version-pinned present dependency and tested Mage entry points.
+    - implemented: Root audit, test, stats, and release participation.
+    - dependency_gated: Live server startup, browser inspection, role readiness,
+        shutdown, and listener-release observations.
 
 related_documents:
   - doc: ../docs/specs/software-requirements/srd001-application-module-contract.yaml
@@ -301,7 +310,7 @@ related_documents:
   - doc: docs/specs/use-cases/rel00.0-uc001-guided-knowledge-manager-demo.yaml
     purpose: End-to-end operator flow.
   - doc: docs/specs/test-suites/test-rel00.0-guided-knowledge-manager-demo.yaml
-    purpose: Planned executable evidence.
+    purpose: Implemented deterministic evidence and dependency-gated live observations.
   - doc: ../catalog/docs/specs/software-requirements/srd011-knowledge-manager.yaml
     purpose: Canonical Knowledge Manager profile requirements.
   - doc: ../catalog/docs/specs/use-cases/rel07.0-uc001-documentation-curator-profile-ux.yaml
