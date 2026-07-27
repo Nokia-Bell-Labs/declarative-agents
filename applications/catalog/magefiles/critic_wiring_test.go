@@ -93,6 +93,9 @@ func TestCriticPointFailureSignals(t *testing.T) {
 	assertTransition(t, machine, "CollectingTraceTokens", "TraceTokensCollected", "CheckingAgentVersion", "check_agent_version")
 	assertTransition(t, machine, "CheckingAgentVersion", "AgentVersionMismatch", "SummarizingPointResults", "summarize_point_results")
 	assertTransition(t, machine, "SummarizingPointResults", "ResultsCollected", "CollectingMetrics", "collect_metrics")
+	assertTransition(t, machine, "RunningAgent", "CommandError", "RecordingFailure", "record_point_failure")
+	assertTransition(t, machine, "RecordingFailure", "PointFailureRecorded", "CollectingFailureMetrics", "collect_metrics")
+	assertTransition(t, machine, "CollectingFailureMetrics", "MetricsCollected", "Failed", "")
 }
 
 func TestCriticPointSelectsSharedWorkspaceExecWords(t *testing.T) {

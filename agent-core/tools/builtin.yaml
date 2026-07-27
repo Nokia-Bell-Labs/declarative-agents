@@ -956,6 +956,26 @@ tools:
       strategy: noop
       description: "Summarization is read-only and has no effects to reverse."
 
+  - name: record_point_failure
+    type: builtin
+    init: record_point_failure
+    visibility: internal
+    emits: [PointFailureRecorded, CommandError]
+    description: "Project a failed point command result into failure stage and cause fields."
+    category: stateful_internal
+    side_effects:
+      - kind: state_mutation
+        target: point_context
+        state: point_failure_recorded
+        description: "Sets PointContext.FailureStage and PointContext.FailureCause."
+    reversibility:
+      classification: reversible
+      undo: "point_context_restore"
+    undo:
+      strategy: point_context_restore
+      description: "Restore PointContext from the persisted pre-command receipt."
+      requires: [Receipt]
+
   - name: collect_metrics
     type: builtin
     init: collect_metrics

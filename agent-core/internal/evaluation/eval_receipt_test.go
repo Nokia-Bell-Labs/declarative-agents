@@ -139,6 +139,7 @@ func TestEvaluatorMutationBuildersImplementReverser(t *testing.T) {
 		&RecordOracleResultBuilder{},
 		&CollectTraceTokensBuilder{},
 		&CheckAgentVersionBuilder{},
+		&RecordPointFailureBuilder{},
 		&CollectMetricsBuilder{},
 	}
 	for _, builder := range builders {

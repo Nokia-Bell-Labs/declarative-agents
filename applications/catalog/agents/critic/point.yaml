@@ -34,6 +34,7 @@ invariants:
 - Oracle failures are domain results and still proceed through trace, version, summary, and metrics collection
 - The workspace is a fresh temporary directory for each evaluation point
 - Metrics are collected even when the agent fails or times out
+- Infrastructure failures route through record_point_failure and collect_metrics before Failed
 - The session machine iterates sequentially through all profile-resolved grid points
 - Session and point machines have separate tool selections
 - run_point builds the nested point registry from agents/critic/tools-point.yaml
@@ -56,6 +57,7 @@ lifecycle: |-
   16. CheckingAgentVersion → SummarizingPointResults: summarize_point_results (checked or mismatch)
   17. SummarizingPointResults → CollectingMetrics: collect_metrics
   18. CollectingMetrics → Done
+  Failure branch: any pre-metrics infrastructure failure → RecordingFailure → CollectingFailureMetrics → Failed
 pipeline_diagram: |-
   ```mermaid
   flowchart LR
@@ -76,6 +78,9 @@ pipeline_diagram: |-
     M --> N[check_agent_version]
     N --> O[summarize_point_results]
     O --> P[collect_metrics]
+    B -. infrastructure failure .-> Q[record_point_failure]
+    Q --> R[collect_metrics]
+    R --> S[Failed]
   ```
 initial_state: Idle
 budget:
@@ -117,6 +122,10 @@ states:
   meaning: Emitting aggregate result status from populated point context fields.
 - name: CollectingMetrics
   meaning: Writing evaluation metadata (exit code, duration, test results, tokens, convergence data) to meta.json.
+- name: RecordingFailure
+  meaning: Projecting the failed command result into point failure metadata.
+- name: CollectingFailureMetrics
+  meaning: Writing failure metadata through the shared collect_metrics word.
 - name: Done
   meaning: Terminal. Evaluation point completed successfully.
 - name: Failed
@@ -163,6 +172,8 @@ signals:
   trigger: Point result summary completed.
 - name: MetricsCollected
   trigger: Metrics extraction completed.
+- name: PointFailureRecorded
+  trigger: Failure stage and cause were projected into point context.
 transitions:
 - state: Idle
   signal: Seed
@@ -263,69 +274,103 @@ transitions:
 - state: CollectingMetrics
   signal: MetricsCollected
   next: Done
+- state: RecordingFailure
+  signal: PointFailureRecorded
+  next: CollectingFailureMetrics
+  action: collect_metrics
+- state: CollectingFailureMetrics
+  signal: MetricsCollected
+  next: Failed
 - state: CreatingPointDir
   signal: CommandError
-  next: Failed
+  next: RecordingFailure
+  action: record_point_failure
 - state: CopyingSampleWorkspace
   signal: ToolFailed
-  next: Failed
+  next: RecordingFailure
+  action: record_point_failure
 - state: CopyingSampleWorkspace
   signal: CommandError
-  next: Failed
+  next: RecordingFailure
+  action: record_point_failure
 - state: CheckingSampleDocs
   signal: CommandError
-  next: Failed
+  next: RecordingFailure
+  action: record_point_failure
 - state: CopyingSampleDocs
   signal: ToolFailed
-  next: Failed
+  next: RecordingFailure
+  action: record_point_failure
 - state: CopyingSampleDocs
   signal: CommandError
-  next: Failed
+  next: RecordingFailure
+  action: record_point_failure
 - state: InitializingWorkspaceRepo
   signal: ToolFailed
-  next: Failed
+  next: RecordingFailure
+  action: record_point_failure
 - state: InitializingWorkspaceRepo
   signal: CommandError
-  next: Failed
+  next: RecordingFailure
+  action: record_point_failure
 - state: StagingWorkspaceBaseline
   signal: ToolFailed
-  next: Failed
+  next: RecordingFailure
+  action: record_point_failure
 - state: StagingWorkspaceBaseline
   signal: CommandError
-  next: Failed
+  next: RecordingFailure
+  action: record_point_failure
 - state: CommittingWorkspaceBaseline
   signal: ToolFailed
-  next: Failed
+  next: RecordingFailure
+  action: record_point_failure
 - state: CommittingWorkspaceBaseline
   signal: CommandError
-  next: Failed
+  next: RecordingFailure
+  action: record_point_failure
 - state: SnapshotConfig
   signal: CommandError
-  next: Failed
+  next: RecordingFailure
+  action: record_point_failure
 - state: ResolvingAgentCommit
   signal: CommandError
-  next: Failed
+  next: RecordingFailure
+  action: record_point_failure
 - state: RecordingAgentCommit
   signal: CommandError
-  next: Failed
+  next: RecordingFailure
+  action: record_point_failure
 - state: RunningAgent
   signal: CommandError
-  next: Failed
+  next: RecordingFailure
+  action: record_point_failure
 - state: RunningOracleCheck
   signal: CommandError
-  next: Failed
+  next: RecordingFailure
+  action: record_point_failure
 - state: RecordingOracleResult
   signal: CommandError
-  next: Failed
+  next: RecordingFailure
+  action: record_point_failure
 - state: CollectingTraceTokens
   signal: CommandError
-  next: Failed
+  next: RecordingFailure
+  action: record_point_failure
 - state: CheckingAgentVersion
   signal: CommandError
-  next: Failed
+  next: RecordingFailure
+  action: record_point_failure
 - state: SummarizingPointResults
   signal: CommandError
-  next: Failed
+  next: RecordingFailure
+  action: record_point_failure
 - state: CollectingMetrics
+  signal: CommandError
+  next: Failed
+- state: RecordingFailure
+  signal: CommandError
+  next: Failed
+- state: CollectingFailureMetrics
   signal: CommandError
   next: Failed

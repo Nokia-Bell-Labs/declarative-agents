@@ -93,19 +93,21 @@ func TestBuildPointRegistryRejectsUndeclaredSelection(t *testing.T) {
 	require.ErrorContains(t, err, `tool "absent" is selected but not declared`)
 }
 
-func TestRunPointPreservesMetadataWhenNestedMachineFailsBeforeMetrics(t *testing.T) {
+func TestPointMachineRoutesFailureThroughMetricsBeforeRunPointReturns(t *testing.T) {
 	t.Parallel()
 	sessionDir := t.TempDir()
 	machine := filepath.Join(t.TempDir(), "point.yaml")
 	require.NoError(t, os.WriteFile(machine, []byte(`
 name: failed-point
 initial_state: Idle
-states: [Idle, Running, Failed]
+states: [Idle, Running, RecordingFailure, CollectingMetrics, Failed]
 terminal_states: [Failed]
-signals: [Seed, CommandError]
+signals: [Seed, CommandError, PointFailureRecorded, MetricsCollected]
 transitions:
   - {state: Idle, signal: Seed, next: Running, action: fail_before_metrics}
-  - {state: Running, signal: CommandError, next: Failed}
+  - {state: Running, signal: CommandError, next: RecordingFailure, action: record_point_failure}
+  - {state: RecordingFailure, signal: PointFailureRecorded, next: CollectingMetrics, action: collect_metrics}
+  - {state: CollectingMetrics, signal: MetricsCollected, next: Failed}
 `), 0o600))
 
 	reg := core.NewRegistry()
@@ -119,11 +121,15 @@ transitions:
 		Model:      "model",
 		Stderr:     &stderr,
 	}
+	pc.PointDir = filepath.Join(sessionDir, pc.PointID)
+	require.NoError(t, os.MkdirAll(pc.PointDir, 0o755))
 	es := &EvalSessionState{
 		EvalState:    EvalState{PC: pc, Ctx: context.Background()},
 		PointMachine: machine,
 		Stderr:       &stderr,
 	}
+	reg.Register(core.ToolSpec{Name: "record_point_failure"}, &RecordPointFailureBuilder{ES: &es.EvalState})
+	reg.Register(core.ToolSpec{Name: "collect_metrics"}, &CollectMetricsBuilder{ES: &es.EvalState})
 
 	result := (&runPointCmd{
 		es: es, pointRegistry: reg,
@@ -131,7 +137,7 @@ transitions:
 	}).Execute()
 
 	require.Equal(t, SigPointDone, result.Signal, result.Output)
-	data, err := os.ReadFile(filepath.Join(sessionDir, pc.PointID, ArtifactMeta))
+	data, err := os.ReadFile(filepath.Join(pc.PointDir, ArtifactMeta))
 	require.NoError(t, err)
 	var meta EvalMeta
 	require.NoError(t, json.Unmarshal(data, &meta))
@@ -142,6 +148,27 @@ transitions:
 	require.False(t, meta.TestsPassed)
 	require.Equal(t, 1, es.Result.TotalPoints)
 	require.Equal(t, 1, es.Result.Failed)
+}
+
+func TestRunPointReturnsNestedLoopErrorsWithoutWritingMetadata(t *testing.T) {
+	t.Parallel()
+	pointDir := t.TempDir()
+	pc := &PointContext{PointDir: pointDir, PointID: "point"}
+	missingMachine := filepath.Join(pointDir, "missing.yaml")
+	es := &EvalSessionState{
+		EvalState:    EvalState{PC: pc, Ctx: context.Background()},
+		PointMachine: missingMachine,
+		Stderr:       &bytes.Buffer{},
+	}
+
+	result := (&runPointCmd{
+		es: es, pointRegistry: core.NewRegistry(),
+		config: catalog.RunPointConfig{PointMachine: missingMachine},
+	}).Execute()
+
+	require.Equal(t, core.CommandError, result.Signal)
+	require.ErrorContains(t, result.Err, "nested point loop")
+	require.NoFileExists(t, filepath.Join(pointDir, ArtifactMeta))
 }
 
 type evalTestFailureBuilder struct{}

@@ -879,10 +879,22 @@ tools:
       - output.schema still needs full structured point summary
     migration_priority: medium
 
+  - name: record_point_failure
+    role: stateful_internal
+    selected_by: [evaluator_point]
+    inputs_from: [failed_point_command]
+    feeds_into: [collect_metrics]
+    side_effects: point_context_mutation
+    output_contract: failure stage and cause summary
+    undo: restore_point_context
+    overlaps: []
+    issues: []
+    migration_priority: low
+
   - name: collect_metrics
     role: word
     selected_by: [evaluator_point]
-    inputs_from: [summarize_point_results]
+    inputs_from: [summarize_point_results, record_point_failure]
     feeds_into: [terminal]
     side_effects: filesystem_write
     output_contract: missing

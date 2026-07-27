@@ -63,7 +63,7 @@ requirements:
       - R3.6: check_agent_version compares configured harness version with traced agent version and emits a warning signal on mismatch.
       - R3.7: summarize_point_results emits ResultsCollected after oracle, trace, and version fields are populated.
       - R3.8: collect_metrics writes meta.json with exit code, duration, test results, token counts, and convergence data.
-      - R3.9: If the nested point machine terminates before collect_metrics, run_point SHALL write meta.json with the point identity, terminal failure stage, and machine-readable failure cause; inability to preserve that artifact SHALL emit CommandError.
+      - R3.9: Every point CommandError or infrastructure ToolFailed edge before metrics SHALL route through record_point_failure and collect_metrics before Failed; run_point SHALL perform no direct artifact write and SHALL emit CommandError for nested-loop engine failures.
 
   R4:
     title: Result analysis

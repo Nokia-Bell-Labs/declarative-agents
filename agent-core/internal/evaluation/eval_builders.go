@@ -149,6 +149,23 @@ func (b *SummarizePointResultsBuilder) Build(_ core.Result) core.Command {
 	return &summarizePointResultsCmd{pc: b.ES.PC}
 }
 
+// RecordPointFailureBuilder projects a failed result into point state.
+type RecordPointFailureBuilder struct {
+	ES *EvalState
+}
+
+func (b *RecordPointFailureBuilder) Build(res core.Result) core.Command {
+	return buildPointCommand(b.ES, "record_point_failure", func(pc *PointContext) core.Command {
+		return &evaluatorReceiptCmd{inner: &recordPointFailureCmd{pc: pc, prior: res}, point: pc}
+	})
+}
+
+func (b *RecordPointFailureBuilder) BuildReverser() core.Command {
+	return buildPointCommand(b.ES, "record_point_failure", func(pc *PointContext) core.Command {
+		return &evaluatorReceiptCmd{inner: &recordPointFailureCmd{pc: pc}, point: pc}
+	})
+}
+
 // CollectMetricsBuilder creates collectMetricsCmd instances.
 type CollectMetricsBuilder struct {
 	ES *EvalState

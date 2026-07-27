@@ -711,7 +711,7 @@ target_grouped_layout:
       owns: [parse_suite_config, discover_suite_samples, expand_eval_grid, init_eval_session, report_suite_summary, next_point, run_point, report_session]
       kind: shared critic-session declarations
     - path: tools/builtin/critic-point/
-      owns: [create_point_dir, sample_docs, record_agent_commit, dump_config, run_agent, record_oracle_result, collect_trace_tokens, check_agent_version, summarize_point_results, collect_metrics]
+      owns: [create_point_dir, sample_docs, record_agent_commit, dump_config, run_agent, record_oracle_result, collect_trace_tokens, check_agent_version, summarize_point_results, record_point_failure, collect_metrics]
       kind: shared critic-point declarations
       note: Workspace copying, git setup, and rev_parse reuse tools/exec declarations; the external critic profile owns its deterministic commit_workspace_baseline and run_oracle_check exec aliases.
     - path: tools/builtin/spec-validation/

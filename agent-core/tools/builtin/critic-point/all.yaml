@@ -9,6 +9,7 @@ includes:
   - ../collect-trace-tokens.yaml
   - ../check-agent-version.yaml
   - ../summarize-point-results.yaml
+  - ../record-point-failure.yaml
   - ../collect-metrics.yaml
 
 tools: []

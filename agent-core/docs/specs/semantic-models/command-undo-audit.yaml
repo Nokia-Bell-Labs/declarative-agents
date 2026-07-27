@@ -183,6 +183,9 @@ receipt_undo:
     - command: collect_metrics
       strategy: owned_artifact_removal_and_point_context_restore
       receipt: reversible_point_context_snapshot_and_owned_artifact_paths
+    - command: record_point_failure
+      strategy: point_context_restore
+      receipt: reversible_point_context_snapshot
     - command: record_oracle_result
       strategy: point_context_restore
       receipt: reversible_point_context_snapshot

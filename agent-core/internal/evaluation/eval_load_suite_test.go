@@ -39,6 +39,7 @@ var pointWords = []string{
 	"collect_trace_tokens",
 	"check_agent_version",
 	"summarize_point_results",
+	"record_point_failure",
 	"collect_metrics",
 	"record_agent_commit",
 }

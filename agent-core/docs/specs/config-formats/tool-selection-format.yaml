@@ -56,7 +56,7 @@ selection_files:
       and report_session.
 
   - file: <profile-root>/evaluator/tools-point.yaml
-    tool_count: 13
+    tool_count: 17
     description: |
       Selects per-point tools for <profile-root>/evaluator/point.yaml:
       create_point_dir, copy_dir, sample_docs,
@@ -64,7 +64,7 @@ selection_files:
       commit_workspace_baseline, rev_parse, record_agent_commit,
       dump_config, run_agent, run_oracle_check, record_oracle_result,
       collect_trace_tokens, check_agent_version,
-      summarize_point_results, and collect_metrics. Loaded by run_point
+      summarize_point_results, record_point_failure, and collect_metrics. Loaded by run_point
       to build the nested point registry.
 
   - file: <profile-root>/planner/tools.yaml

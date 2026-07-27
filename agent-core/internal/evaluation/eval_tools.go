@@ -16,6 +16,7 @@ const (
 	SigPointDirCreated core.Signal = "PointDirCreated"
 	SigDocsPresent     core.Signal = "SampleDocsPresent"
 	SigDocsAbsent      core.Signal = "SampleDocsAbsent"
+	SigFailureRecorded core.Signal = "PointFailureRecorded"
 )
 
 // createPointDirCmd creates the per-point directory and records paths that
@@ -249,6 +250,34 @@ func (c *summarizePointResultsCmd) Execute() core.Result {
 		Output:      output,
 		Cost:        core.Cost{TokensIn: pc.Tokens},
 	}
+}
+
+// recordPointFailureCmd projects the failed command result into point metadata.
+// The following collect_metrics word remains the sole meta.json writer.
+type recordPointFailureCmd struct {
+	pc    *PointContext
+	prior core.Result
+}
+
+func (c *recordPointFailureCmd) Name() string { return "record_point_failure" }
+func (c *recordPointFailureCmd) Undo(prior core.Result) core.Result {
+	return (&evaluatorReceiptCmd{inner: c, point: c.pc}).Undo(prior)
+}
+
+func (c *recordPointFailureCmd) Execute() core.Result {
+	c.pc.FailureStage = c.prior.CommandName
+	if c.pc.FailureStage == "" {
+		c.pc.FailureStage = "unknown"
+	}
+	if c.prior.Err != nil {
+		c.pc.FailureCause = c.prior.Err.Error()
+	} else {
+		c.pc.FailureCause = c.prior.Output
+	}
+	if c.pc.FailureCause == "" {
+		c.pc.FailureCause = string(c.prior.Signal)
+	}
+	return pointToolDone(c.Name(), SigFailureRecorded, c.pc.FailureStage+": "+c.pc.FailureCause)
 }
 
 // collectMetricsCmd writes the meta.json file for the evaluation point.
