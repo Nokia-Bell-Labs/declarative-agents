@@ -9,7 +9,6 @@ import (
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 
-	"github.com/Nokia-Bell-Labs/declarative-agents/agent-core/internal/model/llm"
 	"github.com/Nokia-Bell-Labs/declarative-agents/agent-core/internal/observability/tracing"
 	"github.com/Nokia-Bell-Labs/declarative-agents/agent-core/internal/planning/extract"
 	"github.com/Nokia-Bell-Labs/declarative-agents/agent-core/internal/planning/graph"
@@ -122,33 +121,6 @@ func TestExtractTaskBuilder_NoMoreTasks(t *testing.T) {
 	assert.Equal(t, SigNoTask, result.Signal)
 	remaining := (&RemainingWorkBuilder{PS: ps}).Build(core.Result{}).Execute()
 	assert.Equal(t, SigAllDone, remaining.Signal)
-}
-
-func TestAssemblePromptBuilder_ProducesPrompt(t *testing.T) {
-	t.Parallel()
-	ps := minimalState(t)
-
-	task := ps.Extractor.ExtractNext(ps.Graph, ps.MaxWeight)
-	require.NotNil(t, task)
-	ps.CurrentTask = task
-
-	builder := &AssemblePromptBuilder{PS: ps}
-	cmd := builder.Build(core.Result{})
-	result := cmd.Execute()
-
-	assert.Equal(t, core.ToolDone, result.Signal)
-	assert.Contains(t, result.Output, "Implementation Planning")
-}
-
-func TestAssemblePromptBuilder_NoTask(t *testing.T) {
-	t.Parallel()
-	ps := minimalState(t)
-
-	builder := &AssemblePromptBuilder{PS: ps}
-	cmd := builder.Build(core.Result{})
-	result := cmd.Execute()
-
-	assert.Equal(t, core.CommandError, result.Signal)
 }
 
 func TestParsePlanBuilder_ValidYAML(t *testing.T) {
@@ -293,22 +265,6 @@ func TestRemainingWorkBuilder_ReportsBlockedGraphWithoutMutation(t *testing.T) {
 	require.Equal(t, graph.Executing, node.Status)
 }
 
-func TestPlannerAssembler_PrependsSystem(t *testing.T) {
-	t.Parallel()
-
-	conv := llm.NewConversation(nil, "", llm.ChatOptions{})
-	conv.Append(llm.Message{Role: llm.User, Content: "plan this"})
-
-	asm := &PlannerAssembler{}
-	msgs := asm.AssembleMessages(conv, nil, "")
-
-	require.Len(t, msgs, 2)
-	assert.Equal(t, llm.System, msgs[0].Role)
-	assert.Contains(t, msgs[0].Content, "implementation planner")
-	assert.Equal(t, llm.User, msgs[1].Role)
-	assert.Equal(t, "plan this", msgs[1].Content)
-}
-
 func TestMarshalPipelineTask(t *testing.T) {
 	t.Parallel()
 	task := &extract.Task{
@@ -335,11 +291,6 @@ func TestMinimalState_GraphHasNodes(t *testing.T) {
 	ready := ps.Graph.Ready()
 	assert.Greater(t, len(ready), 0, "minimal corpus should have ready nodes")
 }
-
-var _ llm.PromptAssembler = (*PlannerAssembler)(nil)
-
-// Ensure unused plan import is consumed (types used in assertions above).
-var _ plan.ImplementationPlan
 
 // TestPlannerNodeLifecycleAdvancesAndDoesNotRepeat proves the GH-507 fix: a ready
 // node is selected once, advances Pending -> Planning -> Executing -> Done across

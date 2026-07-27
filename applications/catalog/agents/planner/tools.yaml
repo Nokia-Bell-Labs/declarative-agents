@@ -19,7 +19,10 @@ tools:
   - select_all_ready     # action: passthrough
   - seed_passthrough_plan # action: passthrough
   - mark_nodes_planning  # action: passthrough
-  - assemble_prompt      # action: full, plan-only
+  - project_planner_context # action: full, plan-only
+  - capture_planner_failure # action: full
+  - reset_failure_context # action: full, plan-only
+  - compose_planner_prompt # compose alias: full, plan-only
   - parse_plan           # action: full, plan-only
   - format_issue         # action: full, plan-only
   - write                # action: full, plan-only

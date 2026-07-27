@@ -20,22 +20,22 @@ import (
 
 // Pipeline signals aligned with agents/planner/machine.yaml.
 const (
-	SigTaskExtracted     core.Signal = "TaskExtracted"
-	SigNoTask            core.Signal = "NoTask"
-	SigReadySelected     core.Signal = "ReadySelected"
-	SigPlanSeeded        core.Signal = "PassThroughPlanSeeded"
-	SigNodesPlanning     core.Signal = "NodesMarkedPlanning"
-	SigNodesExecuting    core.Signal = "NodesMarkedExecuting"
-	SigTaskFileFormatted core.Signal = "TaskFileFormatted"
-	SigAllDone           core.Signal = "AllDone"
-	SigBlocked           core.Signal = "Blocked"
-	SigPlanReady         core.Signal = "PlanReady"
-	SigMaterialized      core.Signal = "Materialized"
-	SigExecutionDone     core.Signal = "ExecutionDone"
-	SigExecutionFailed   core.Signal = "ExecutionFailed"
-	SigTaskCompleted     core.Signal = "TaskCompleted"
-	SigTaskFailed        core.Signal = "TaskFailed"
-	SigWorkRemaining     core.Signal = "WorkRemaining"
+	SigTaskExtracted           core.Signal = "TaskExtracted"
+	SigNoTask                  core.Signal = "NoTask"
+	SigReadySelected           core.Signal = "ReadySelected"
+	SigPlanSeeded              core.Signal = "PassThroughPlanSeeded"
+	SigNodesPlanning           core.Signal = "NodesMarkedPlanning"
+	SigNodesExecuting          core.Signal = "NodesMarkedExecuting"
+	SigTaskFileFormatted       core.Signal = "TaskFileFormatted"
+	SigPlannerContextProjected core.Signal = "PlannerContextProjected"
+	SigFailureCaptured         core.Signal = "FailureCaptured"
+	SigAllDone                 core.Signal = "AllDone"
+	SigBlocked                 core.Signal = "Blocked"
+	SigPlanReady               core.Signal = "PlanReady"
+	SigMaterialized            core.Signal = "Materialized"
+	SigTaskCompleted           core.Signal = "TaskCompleted"
+	SigTaskFailed              core.Signal = "TaskFailed"
+	SigWorkRemaining           core.Signal = "WorkRemaining"
 )
 
 // State holds the shared mutable state for a pipeline run.

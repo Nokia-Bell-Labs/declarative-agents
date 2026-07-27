@@ -5,6 +5,7 @@ package main
 import (
 	"os"
 	"path/filepath"
+	"strings"
 	"testing"
 
 	"gopkg.in/yaml.v3"
@@ -42,9 +43,11 @@ type plannerDeclarations struct {
 }
 
 type plannerDeclaration struct {
-	Name       string `yaml:"name"`
-	Type       string `yaml:"type"`
-	Binary     string `yaml:"binary"`
+	Name       string         `yaml:"name"`
+	Type       string         `yaml:"type"`
+	Binary     string         `yaml:"binary"`
+	Init       string         `yaml:"init"`
+	Config     map[string]any `yaml:"config"`
 	Parameters struct {
 		Properties map[string]plannerParameter `yaml:"properties"`
 	} `yaml:"parameters"`
@@ -83,6 +86,46 @@ func TestPlannerVariantsRouteParseRetriesExplicitly(t *testing.T) {
 			requirePlannerTransition(t, machine, "ReportingParseError", "ToolDone", "PlanInvoking", "invoke_llm", "")
 			requirePlannerTransition(t, machine, "ReportingParseError", "BudgetExhausted", "Failed", "", "")
 		})
+	}
+}
+
+func TestPlannerVariantsComposeProfileOwnedPrompts(t *testing.T) {
+	for _, file := range []string{"machine.yaml", "machine-plan-only.yaml"} {
+		t.Run(file, func(t *testing.T) {
+			var machine plannerMachine
+			readPlannerYAML(t, file, &machine)
+			requirePlannerTransition(t, machine, "Extracting", "TaskExtracted", "InitializingFailureContext", "reset_failure_context", "failure_context")
+			requirePlannerTransition(t, machine, "Resetting", "ToolDone", "ProjectingPromptContext", "project_planner_context", "planner_context")
+			requirePlannerTransition(t, machine, "ProjectingPromptContext", "PlannerContextProjected", "PromptAssembly", "compose_planner_prompt", "")
+			requirePlannerTransition(t, machine, "PromptAssembly", "PromptReady", "PlanInvoking", "invoke_llm", "")
+		})
+	}
+
+	var full plannerMachine
+	readPlannerYAML(t, "machine.yaml", &full)
+	requirePlannerTransition(t, full, "Testing", "ToolFailed", "CapturingFailure", "capture_planner_failure", "failure_context")
+	requirePlannerTransition(t, full, "CapturingFailure", "FailureCaptured", "IncrementingRetry", "increment_retry", "retry_count")
+	requirePlannerTransition(t, full, "CheckingRetryLimit", "RetryAvailable", "Resetting", "reset_history", "")
+
+	var declarations plannerDeclarations
+	readPlannerYAML(t, "builtin.yaml", &declarations)
+	var compose plannerDeclaration
+	for _, declaration := range declarations.Tools {
+		if declaration.Name == "compose_planner_prompt" {
+			compose = declaration
+			break
+		}
+	}
+	if compose.Init != "compose" {
+		t.Fatalf("compose_planner_prompt init = %q, want compose", compose.Init)
+	}
+	template, _ := compose.Config["template"].(string)
+	if !strings.Contains(template, "## Retry Context") || !strings.Contains(template, "## Output Format") {
+		t.Fatalf("profile prompt template omits retry or output sections: %q", template)
+	}
+	inputs, _ := compose.Config["inputs"].(map[string]any)
+	if inputs["retry_context"] != "$from(failure_context).output" {
+		t.Fatalf("retry context selector = %#v", inputs["retry_context"])
 	}
 }
 

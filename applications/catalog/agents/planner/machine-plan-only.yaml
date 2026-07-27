@@ -26,7 +26,7 @@ invariants:
 lifecycle: |-
   1. Idle → Extracting: extract_task from requirement graph; NoTask routes through remaining_work
   2. Extracting → Resetting: task extracted, clear LLM history
-  3. Resetting → PromptAssembly: assemble_prompt with SRD context
+  3. Resetting → ProjectingPromptContext → PromptAssembly: project structured context and compose the profile-owned prompt
   4. PromptAssembly → PlanInvoking: invoke_llm for plan generation
   5. PlanInvoking → PlanParsing: parse_plan from LLM response; invalid plans
      are reported and reinvoked until the explicit parse budget is exhausted
@@ -68,8 +68,12 @@ states:
     May terminate if all tasks are done, blocked, or batch limit reached.
 - name: Resetting
   meaning: Clearing conversation history before a new task's LLM call.
+- name: InitializingFailureContext
+  meaning: Seeding empty labelled failure context for a newly extracted task.
 - name: PromptAssembly
-  meaning: Building the task context and SRD references into a prompt.
+  meaning: Rendering profile-owned prompt sections from labelled planner context.
+- name: ProjectingPromptContext
+  meaning: Publishing prompt-neutral task and SRD fields for profile composition.
 - name: PlanInvoking
   meaning: Calling the LLM to generate an implementation plan.
 - name: PlanParsing
@@ -103,6 +107,12 @@ signals:
   trigger: The requirement graph was loaded and seeded into pipeline state.
 - name: TaskExtracted
   trigger: A task was extracted from the requirement graph.
+- name: FailureContextInitialized
+  trigger: Empty failure context was recorded for a newly extracted task.
+- name: PlannerContextProjected
+  trigger: Prompt-neutral task and SRD fields were published.
+- name: PromptReady
+  trigger: The profile-owned planner prompt was rendered.
 - name: NoTask
   trigger: Extraction found no ready task; remaining_work must classify the graph.
 - name: AllDone
@@ -141,8 +151,16 @@ transitions:
   next: Failed
 - state: Extracting
   signal: TaskExtracted
+  next: InitializingFailureContext
+  action: reset_failure_context
+  label: failure_context
+- state: InitializingFailureContext
+  signal: FailureContextInitialized
   next: Resetting
   action: reset_history
+- state: InitializingFailureContext
+  signal: CommandError
+  next: Failed
 - state: Extracting
   signal: NoTask
   next: QueryingRemainingWork
@@ -152,13 +170,21 @@ transitions:
   next: Failed
 - state: Resetting
   signal: ToolDone
-  next: PromptAssembly
-  action: assemble_prompt
+  next: ProjectingPromptContext
+  action: project_planner_context
+  label: planner_context
 - state: Resetting
   signal: CommandError
   next: Failed
+- state: ProjectingPromptContext
+  signal: PlannerContextProjected
+  next: PromptAssembly
+  action: compose_planner_prompt
+- state: ProjectingPromptContext
+  signal: CommandError
+  next: Failed
 - state: PromptAssembly
-  signal: ToolDone
+  signal: PromptReady
   next: PlanInvoking
   action: invoke_llm
 - state: PromptAssembly

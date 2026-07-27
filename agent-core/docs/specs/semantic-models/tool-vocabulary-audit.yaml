@@ -366,7 +366,7 @@ tools:
     role: stateful_internal
     selected_by: [planner]
     inputs_from: [spec_graph]
-    feeds_into: [assemble_prompt]
+    feeds_into: [project_planner_context]
     side_effects: pipeline_state_mutation
     output_contract: missing
     undo: graph_snapshot_restore
@@ -415,18 +415,43 @@ tools:
     issues: []
     migration_priority: complete
 
-  - name: assemble_prompt
+  - name: project_planner_context
     role: word
     selected_by: [planner]
     inputs_from: [extract_task, spec_corpus]
-    feeds_into: [invoke_llm]
+    feeds_into: [compose_planner_prompt]
     side_effects: none
-    output_contract: missing
+    output_contract: declared structured context
     undo: noop
     overlaps: []
-    issues:
-      - output should be typed prompt/messages rather than prose-only
-    migration_priority: low
+    issues: []
+    migration_priority: complete
+
+  - name: capture_planner_failure
+    role: word
+    selected_by: [planner]
+    inputs_from: [vet, build, test]
+    feeds_into: [increment_retry, compose_planner_prompt]
+    side_effects: none
+    output_contract: labelled failure context
+    undo: noop
+    overlaps: []
+    issues: []
+    migration_priority: complete
+
+  - name: compose_planner_prompt
+    role: word
+    selected_by: [planner]
+    inputs_from: [project_planner_context, failure_context]
+    feeds_into: [invoke_llm]
+    side_effects: none
+    output_contract: profile-owned prompt text
+    undo: noop
+    overlaps:
+      - tool: compose
+        difference: compose_planner_prompt is the planner profile's configured compose alias
+    issues: []
+    migration_priority: complete
 
   - name: parse_plan
     role: word

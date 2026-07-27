@@ -182,6 +182,85 @@ tools:
       inputs: {}
       template: '{"output":"0"}'
 
+  - name: reset_failure_context
+    type: builtin
+    init: compose
+    description: "Seed empty retry context for a newly extracted planner task."
+    visibility: internal
+    emits: [FailureContextInitialized, CommandError]
+    category: word
+    parameters: {type: object, properties: {}, additionalProperties: false}
+    output: {description: "Empty failure context.", schema: {type: object}}
+    side_effects: [{kind: none, description: "Publishes command-state output only."}]
+    reversibility: {classification: reversible, undo: noop}
+    undo: {strategy: noop, description: "History truncation removes the label."}
+    problem: "Initial prompt construction needs the same stable failure-context selector as retries."
+    goals: ["Publish one empty failure_context label per extracted task."]
+    requirements: {input: ["No input required."], output: ["FailureContextInitialized wraps an empty output."], errors: ["Rendering failures emit CommandError."]}
+    non_goals: ["Does not capture validator failures or format prompts."]
+    errors: [{signal: CommandError, condition: "Composition cannot render.", state_after_failure: "No domain state changes."}]
+    relationships: {before: [extract_task], after: [project_planner_context]}
+    config:
+      signal: FailureContextInitialized
+      inputs: {}
+      template: '{"output":""}'
+
+  - name: compose_planner_prompt
+    type: builtin
+    init: compose
+    description: "Render the planner user prompt from labelled structured context."
+    visibility: internal
+    emits: [PromptReady, CommandError]
+    category: word
+    parameters: {type: object, properties: {}, additionalProperties: false}
+    output: {description: "Profile-owned planner user prompt.", schema: {type: string}}
+    side_effects: [{kind: none, description: "Renders text without domain mutation."}]
+    reversibility: {classification: reversible, undo: noop}
+    undo: {strategy: noop, description: "Prompt rendering changes no domain state."}
+    problem: "Planner sections and output instructions belong to the profile rather than embedded Go templates."
+    goals: ["Render initial and retry prompts from the same declared template.", "Include the newest labelled validation failure."]
+    requirements: {input: ["Planner context and failure context labels must resolve."], output: ["PromptReady carries the full user prompt."], errors: ["Missing selectors emit CommandError."]}
+    non_goals: ["Does not call the model or parse its response."]
+    errors: [{signal: CommandError, condition: "A labelled context selector is missing.", state_after_failure: "No domain state changes."}]
+    relationships: {before: [project_planner_context, capture_planner_failure], after: [invoke_llm]}
+    config:
+      signal: PromptReady
+      inputs:
+        task_id: $from(planner_context).task_id
+        srd_id: $from(planner_context).srd_id
+        problem: $from(planner_context).problem
+        goals: $from(planner_context).goals
+        acceptance_criteria: $from(planner_context).acceptance_criteria
+        items: $from(planner_context).items
+        retry_context: $from(failure_context).output
+      template: |-
+        # Implementation Planning
+
+        ## Problem Statement
+        {{ problem }}
+
+        ## Goals
+        {{ goals }}
+
+        ## Acceptance Criteria
+        {{ acceptance_criteria }}
+
+        ## Requirement Items to Implement
+        Task: {{ task_id }} (from {{ srd_id }})
+        {{ items }}
+
+        ## Retry Context
+        {{ retry_context }}
+
+        ## Output Format
+        Return ONLY a YAML implementation plan with:
+        - title: concise task title
+        - summary: one-line summary (optional)
+        - files: list of {path, action (create|modify|delete), note}
+        - requirements: list of {id, text}
+        - design_decisions: list of {id, text} (optional)
+        - acceptance_criteria: list of {id, text}
+
   - name: increment_retry
     type: exec
     binary: jq

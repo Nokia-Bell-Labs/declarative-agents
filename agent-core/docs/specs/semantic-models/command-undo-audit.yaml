@@ -60,7 +60,8 @@ expected_noop_long_term:
   - find
   - list_files
   - done
-  - assemble_prompt
+  - project_planner_context
+  - capture_planner_failure
   - nudge_reread
   - format_report
   - summarize_point_results

@@ -31,6 +31,7 @@ requirements:
       - R1.2: Planner relationships must show that it invokes the executor as a child profile and does not implement executor behavior itself.
       - R1.3: Issue materialization must be a visible format, write, tracker exec, and result-recording sentence; the profile declaration selects the tracker binary, arguments, parameter sources, and output contract.
       - R1.4: Validation retry increment, retry-limit comparison, explicit exhausted-task failure, task completion, and remaining-work routing must be visible machine states and transitions composed from focused words; labelled command state is the sole retry counter.
+      - R1.5: Planner persona, user-prompt sections, and output instructions must be profile-owned; prompt-neutral task and SRD projection plus labelled prior validation failure must feed the same declared prompt composition on initial and retry attempts.
   R2:
     title: Inputs, tools, and runtime dependencies
     items:
@@ -51,7 +52,7 @@ non_goals:
 acceptance_criteria:
   - id: AC1
     criterion: The planner profile is described as a configured planner that invokes executor as a child profile rather than a Go package.
-    traces: [R1.1, R1.2, R1.3]
+    traces: [R1.1, R1.2, R1.3, R1.5]
   - id: AC2
     criterion: Planner inputs, selected tool families, and runtime dependencies are named and separated from agent-core runtime capability.
     traces: [R2.1, R2.2, R2.3]

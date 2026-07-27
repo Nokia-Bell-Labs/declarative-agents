@@ -30,7 +30,7 @@ type passThroughPlanConfig struct {
 
 // RegisterFactories registers all pipeline builtin tool factories
 // (extract_task, select_all_ready, seed_passthrough_plan, mark_nodes_planning,
-// assemble_prompt, parse_plan, issue state
+// project_planner_context, capture_planner_failure, parse_plan, issue state
 // adapters, task formatting, graph lifecycle, mark_task_done, and
 // remaining_work) into the provided
 // BuiltinRegistry.
@@ -74,8 +74,11 @@ func RegisterFactories(br *toolregistry.BuiltinRegistry, deps FactoryDeps) {
 	br.Register("mark_nodes_planning", func(def catalog.ToolDef, vars map[string]string) (core.Builder, error) {
 		return &MarkNodesPlanningBuilder{PS: initPS(def)}, nil
 	})
-	br.Register("assemble_prompt", func(def catalog.ToolDef, vars map[string]string) (core.Builder, error) {
-		return &AssemblePromptBuilder{PS: initPS(def)}, nil
+	br.Register("project_planner_context", func(def catalog.ToolDef, vars map[string]string) (core.Builder, error) {
+		return &ProjectPlannerContextBuilder{PS: initPS(def)}, nil
+	})
+	br.Register("capture_planner_failure", func(def catalog.ToolDef, vars map[string]string) (core.Builder, error) {
+		return &CapturePlannerFailureBuilder{}, nil
 	})
 	br.Register("parse_plan", func(def catalog.ToolDef, vars map[string]string) (core.Builder, error) {
 		return &ParsePlanBuilder{PS: initPS(def), Retry: deps.ParseRetries}, nil

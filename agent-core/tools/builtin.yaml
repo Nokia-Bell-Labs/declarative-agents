@@ -473,22 +473,33 @@ tools:
     reversibility: {classification: reversible, undo: "pipeline_state_restore"}
     undo: {strategy: session_state_restore, description: "Restore the prior graph lifecycle."}
 
-  - name: assemble_prompt
+  - name: project_planner_context
     type: builtin
-    init: assemble_prompt
-    description: "Assemble the LLM prompt from task context and SRD requirements."
+    init: project_planner_context
+    description: "Project prompt-neutral task and SRD context."
     visibility: internal
-    emits: [ToolDone, CommandError]
+    emits: [PlannerContextProjected, CommandError]
     category: word
     side_effects:
       - kind: none
-        description: "Formats prompt text from current pipeline context without mutating state."
+        description: "Projects structured context without mutating state."
     reversibility:
       classification: reversible
       undo: "noop"
     undo:
       strategy: noop
-      description: "Prompt assembly has no effects to reverse."
+      description: "Context projection has no effects to reverse."
+
+  - name: capture_planner_failure
+    type: builtin
+    init: capture_planner_failure
+    description: "Publish preceding validation output for retry prompt composition."
+    visibility: internal
+    emits: [FailureCaptured, CommandError]
+    category: word
+    side_effects: [{kind: none, description: "Wraps prior output."}]
+    reversibility: {classification: reversible, undo: noop}
+    undo: {strategy: noop, description: "History truncation removes captured context."}
 
   - name: parse_plan
     type: builtin

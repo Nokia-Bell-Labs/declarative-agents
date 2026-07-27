@@ -78,7 +78,7 @@ tools:
         message_shape: "invoke_llm: <provider/model>: <error>"
         state_after_failure: "conversation history unchanged unless the provider response was already appended"
     relationships:
-      before: [assemble_prompt, reset_history]
+      before: [compose_planner_prompt, reset_history]
       after: [parse_plan]
       overlaps:
         - tool: rest_await_event

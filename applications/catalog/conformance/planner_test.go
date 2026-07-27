@@ -124,14 +124,20 @@ func TestPlannerRetryPolicyWiring(t *testing.T) {
 			unmarshalShipped(t, filepath.Join("agents", "planner", machinePath), &machine)
 
 			if machinePath == "machine.yaml" {
-				requireLabeledTransition(t, machine.Transitions, "Extracting", "TaskExtracted", "InitializingRetry", "reset_retry_count", "retry_count")
+				requireLabeledTransition(t, machine.Transitions, "Extracting", "TaskExtracted", "InitializingFailureContext", "reset_failure_context", "failure_context")
+				requireLabeledTransition(t, machine.Transitions, "InitializingFailureContext", "FailureContextInitialized", "InitializingRetry", "reset_retry_count", "retry_count")
 			} else {
 				requireTransition(t, machine.Transitions, "Loading", "GraphLoaded", "SelectingReady", "select_all_ready")
 				requireTransition(t, machine.Transitions, "SelectingReady", "ReadySelected", "SeedingPassThroughPlan", "seed_passthrough_plan")
 				requireTransition(t, machine.Transitions, "SeedingPassThroughPlan", "PassThroughPlanSeeded", "MarkingPlanning", "mark_nodes_planning")
 				requireLabeledTransition(t, machine.Transitions, "MarkingPlanning", "NodesMarkedPlanning", "InitializingRetry", "reset_retry_count", "retry_count")
 			}
-			requireLabeledTransition(t, machine.Transitions, "Testing", "ToolFailed", "IncrementingRetry", "increment_retry", "retry_count")
+			if machinePath == "machine.yaml" {
+				requireLabeledTransition(t, machine.Transitions, "Testing", "ToolFailed", "CapturingFailure", "capture_planner_failure", "failure_context")
+				requireLabeledTransition(t, machine.Transitions, "CapturingFailure", "FailureCaptured", "IncrementingRetry", "increment_retry", "retry_count")
+			} else {
+				requireLabeledTransition(t, machine.Transitions, "Testing", "ToolFailed", "IncrementingRetry", "increment_retry", "retry_count")
+			}
 			requireTransition(t, machine.Transitions, "IncrementingRetry", "ToolDone", "CheckingRetryLimit", "check_retry_limit")
 			requireTransition(t, machine.Transitions, "CheckingRetryLimit", "RetriesExhausted", "MarkingTaskFailed", "mark_task_failed")
 			requireTransition(t, machine.Transitions, "MarkingTaskFailed", "TaskFailed", "Exhausted", "remaining_work")
@@ -161,7 +167,7 @@ func TestPlannerRetryPolicyWiring(t *testing.T) {
 // It is Ollama-gated: the shipped planner machine declares invoke_llm, which
 // pings Ollama at tool registration, so with no reachable model the profile
 // cannot start (see ollama.go). The full pipeline tail beyond the graph boundary
-// (assemble_prompt -> invoke_llm -> parse_plan -> profile-selected tracker
+// (project_planner_context -> compose_planner_prompt -> invoke_llm -> parse_plan -> profile-selected tracker
 // sentence -> write -> self_invoke via an executor child -> vet/build/test) needs a
 // tracker project, a child agent, and the Go toolchain, which the conformance harness
 // deliberately does not provide; the shipped planner is therefore behaviorally

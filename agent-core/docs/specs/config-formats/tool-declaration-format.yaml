@@ -705,7 +705,7 @@ target_grouped_layout:
       owns: [self_invoke]
       kind: shared
     - path: tools/builtin/planner/
-      owns: [extract_task, select_all_ready, seed_passthrough_plan, mark_nodes_planning, assemble_prompt, parse_plan, format_issue, write, record_tracker_issue, mark_nodes_executing, format_task_file, mark_task_done, mark_task_failed, remaining_work]
+      owns: [extract_task, select_all_ready, seed_passthrough_plan, mark_nodes_planning, project_planner_context, capture_planner_failure, parse_plan, format_issue, write, record_tracker_issue, mark_nodes_executing, format_task_file, mark_task_done, mark_task_failed, remaining_work]
       kind: shared planner-family declarations
     - path: tools/builtin/critic-session/
       owns: [parse_suite_config, discover_suite_samples, expand_eval_grid, init_eval_session, report_suite_summary, next_point, run_point, report_session]

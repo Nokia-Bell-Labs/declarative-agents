@@ -111,7 +111,7 @@ func TestBuiltinFactoryCatalogCoversSelectedActiveInits(t *testing.T) {
 		"invoke_llm", "parse_response", "report_parse_error", "reset_history",
 		"nudge_reread", "done", "suspend", "checkpoint_history",
 		"checkpoint_rollback", "self_invoke",
-		"extract_task", "select_all_ready", "seed_passthrough_plan", "mark_nodes_planning", "assemble_prompt", "parse_plan",
+		"extract_task", "select_all_ready", "seed_passthrough_plan", "mark_nodes_planning", "project_planner_context", "capture_planner_failure", "parse_plan", "compose",
 		"format_issue", "record_tracker_issue", "mark_nodes_executing", "format_task_file", "mark_task_done", "mark_task_failed",
 		"remaining_work",
 		"parse_suite_config", "discover_suite_samples", "expand_eval_grid",

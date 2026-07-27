@@ -1,27 +1,26 @@
 tools:
-- name: assemble_prompt
+- name: project_planner_context
   type: builtin
-  init: assemble_prompt
-  description: Assemble the LLM prompt from task context and SRD requirements.
+  init: project_planner_context
+  description: Project task and SRD data without owning planner prompt wording.
   visibility: internal
   emits:
-  - ToolDone
+  - PlannerContextProjected
   - CommandError
   category: word
   side_effects:
   - kind: none
-    description: Formats prompt text from current pipeline context without mutating state.
+    description: Projects structured planner context without mutating state.
   reversibility:
     classification: reversible
     undo: noop
   undo:
     strategy: noop
     description: Prompt assembly has no effects to reverse.
-  problem: The machine needs a declared word for assembling a planner prompt without embedding that workflow step in Go control flow.
+  problem: Profile prompt composition needs structured task and SRD values without compiled prompt policy.
   goals:
-  - Perform the assemble_prompt action as one machine-selected word.
-  - Return an explicit signal that lets the MachineSpec choose the next state.
-  - Keep sequencing outside the tool implementation and in machine.yaml.
+  - Publish task identity, requirement items, problem, goals, and acceptance criteria.
+  - Leave persona, sections, and output instructions to profile-owned compose configuration.
   requirements:
     input:
     - must consume parameters from tool input, prior Result, or configured command/domain state
@@ -35,7 +34,7 @@ tools:
   errors:
   - signal: CommandError
     condition: required input, configuration, or runtime state is invalid
-    message_shape: 'assemble_prompt: <error>'
+    message_shape: 'project_planner_context: <error>'
     state_after_failure: no additional workflow step is executed by this tool
   relationships:
     before:
@@ -43,13 +42,38 @@ tools:
     after:
     - machine-selected successor
   output:
-    description: assemble_prompt command result summary.
+    description: Structured planner context fields.
     schema:
       type: object
       properties:
-        message:
-          type: string
-        signal:
-          type: string
+        task_id: {type: string}
+        srd_id: {type: string}
+        problem: {type: string}
+        goals: {type: string}
+        acceptance_criteria: {type: string}
+        items: {type: string}
       required:
-      - message
+      - task_id
+      - srd_id
+      - problem
+      - goals
+      - acceptance_criteria
+      - items
+
+- name: capture_planner_failure
+  type: builtin
+  init: capture_planner_failure
+  description: Publish the preceding validation failure under a stable command-state label.
+  visibility: internal
+  emits: [FailureCaptured, CommandError]
+  category: word
+  side_effects: [{kind: none, description: Wraps prior output without domain mutation.}]
+  reversibility: {classification: reversible, undo: noop}
+  undo: {strategy: noop, description: History truncation removes captured context.}
+  problem: Retry prompt composition needs the prior validation failure rather than a compiled nil context.
+  goals: [Publish prior failure output as a command-state-addressable object.]
+  requirements: {input: [Consumes the preceding validator Result.], output: [FailureCaptured contains an output field.], errors: [Encoding failures emit CommandError.]}
+  non_goals: [Does not format the prompt or choose retry policy.]
+  errors: [{signal: CommandError, condition: Failure context cannot encode, state_after_failure: No domain state changes.}]
+  relationships: {before: [vet, build, test], after: [increment_retry, compose_planner_prompt]}
+  output: {description: Labelled prior failure context, schema: {type: object}}

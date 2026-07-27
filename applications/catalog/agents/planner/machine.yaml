@@ -25,7 +25,7 @@ invariants:
 lifecycle: |-
   1. Idle → Extracting: extract_task from requirement graph; NoTask routes through remaining_work
   2. Extracting → InitializingRetry → Resetting: seed visible retry count, clear LLM history
-  3. Resetting → PromptAssembly: assemble_prompt with SRD context
+  3. Resetting → ProjectingPromptContext → PromptAssembly: project structured context and compose the profile-owned prompt
   4. PromptAssembly → PlanInvoking: invoke_llm for plan generation
   5. PlanInvoking → PlanParsing: parse_plan from LLM response; invalid plans
      are reported and reinvoked until the explicit parse budget is exhausted
@@ -79,10 +79,14 @@ states:
     A neutral NoTask result routes through the remaining_work graph query.
 - name: InitializingRetry
   meaning: Seeding retry count zero in labelled command state for the extracted task.
+- name: InitializingFailureContext
+  meaning: Seeding an empty labelled failure context for the newly extracted task.
 - name: Resetting
   meaning: Clearing conversation history before a new task's LLM call.
 - name: PromptAssembly
-  meaning: Building the task context and SRD references into a prompt.
+  meaning: Rendering profile-owned prompt sections from labelled planner and failure context.
+- name: ProjectingPromptContext
+  meaning: Publishing prompt-neutral task and SRD fields for profile composition.
 - name: PlanInvoking
   meaning: Calling the LLM to generate an implementation plan.
 - name: PlanParsing
@@ -113,6 +117,8 @@ states:
   meaning: Running go test on the workspace.
 - name: IncrementingRetry
   meaning: Incrementing the latest labelled retry count with jq.
+- name: CapturingFailure
+  meaning: Publishing the preceding validation failure for the next retry prompt.
 - name: CheckingRetryLimit
   meaning: Comparing the visible retry count with the declared limit.
 - name: Exhausted
@@ -144,6 +150,14 @@ signals:
   trigger: Extraction found no ready task; remaining_work must classify the graph.
 - name: RetryCountInitialized
   trigger: Retry count zero was recorded in labelled command state.
+- name: FailureContextInitialized
+  trigger: Empty failure context was recorded for a newly extracted task.
+- name: PlannerContextProjected
+  trigger: Prompt-neutral task and SRD fields were published.
+- name: PromptReady
+  trigger: The profile-owned planner prompt was rendered.
+- name: FailureCaptured
+  trigger: A validation failure was recorded for retry prompt composition.
 - name: AllDone
   trigger: All tasks in the graph are done.
 - name: Blocked
@@ -194,9 +208,17 @@ transitions:
   next: Failed
 - state: Extracting
   signal: TaskExtracted
+  next: InitializingFailureContext
+  action: reset_failure_context
+  label: failure_context
+- state: InitializingFailureContext
+  signal: FailureContextInitialized
   next: InitializingRetry
   action: reset_retry_count
   label: retry_count
+- state: InitializingFailureContext
+  signal: CommandError
+  next: Failed
 - state: InitializingRetry
   signal: RetryCountInitialized
   next: Resetting
@@ -213,13 +235,21 @@ transitions:
   next: Failed
 - state: Resetting
   signal: ToolDone
-  next: PromptAssembly
-  action: assemble_prompt
+  next: ProjectingPromptContext
+  action: project_planner_context
+  label: planner_context
 - state: Resetting
   signal: CommandError
   next: Failed
+- state: ProjectingPromptContext
+  signal: PlannerContextProjected
+  next: PromptAssembly
+  action: compose_planner_prompt
+- state: ProjectingPromptContext
+  signal: CommandError
+  next: Failed
 - state: PromptAssembly
-  signal: ToolDone
+  signal: PromptReady
   next: PlanInvoking
   action: invoke_llm
 - state: PromptAssembly
@@ -330,9 +360,9 @@ transitions:
   action: build
 - state: Vetting
   signal: ToolFailed
-  next: IncrementingRetry
-  action: increment_retry
-  label: retry_count
+  next: CapturingFailure
+  action: capture_planner_failure
+  label: failure_context
 - state: Vetting
   signal: CommandError
   next: Failed
@@ -342,9 +372,9 @@ transitions:
   action: test
 - state: Building
   signal: ToolFailed
-  next: IncrementingRetry
-  action: increment_retry
-  label: retry_count
+  next: CapturingFailure
+  action: capture_planner_failure
+  label: failure_context
 - state: Building
   signal: CommandError
   next: Failed
@@ -354,10 +384,18 @@ transitions:
   action: mark_task_done
 - state: Testing
   signal: ToolFailed
+  next: CapturingFailure
+  action: capture_planner_failure
+  label: failure_context
+- state: Testing
+  signal: CommandError
+  next: Failed
+- state: CapturingFailure
+  signal: FailureCaptured
   next: IncrementingRetry
   action: increment_retry
   label: retry_count
-- state: Testing
+- state: CapturingFailure
   signal: CommandError
   next: Failed
 - state: IncrementingRetry
