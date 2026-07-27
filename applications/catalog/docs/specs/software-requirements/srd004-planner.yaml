@@ -40,8 +40,8 @@ requirements:
   R3:
     title: Outputs and outcomes
     items:
-      - R3.1: Planner outputs must include created issues, graph status changes, execution outcomes, and terminal states for completed, stalled, paused, or failed planning work.
-      - R3.2: Planner terminal outcomes must be Completed, Stalled, Paused, or Failed.
+      - R3.1: Planner outputs must include created issues, graph status changes, execution outcomes, and terminal states for completed, stalled, or failed planning work.
+      - R3.2: Planner terminal outcomes must be Completed, Stalled, or Failed; profiles must not declare pause outcomes without a reachable machine-selected budget check.
 
 non_goals:
   - Define Go package APIs for the agent-core planning tools or model boundary.

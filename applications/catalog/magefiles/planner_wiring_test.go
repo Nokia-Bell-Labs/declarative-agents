@@ -11,7 +11,18 @@ import (
 )
 
 type plannerMachine struct {
+	States      []plannerState      `yaml:"states"`
+	Signals     []plannerSignal     `yaml:"signals"`
+	Terminals   []string            `yaml:"terminal_states"`
 	Transitions []plannerTransition `yaml:"transitions"`
+}
+
+type plannerState struct {
+	Name string `yaml:"name"`
+}
+
+type plannerSignal struct {
+	Name string `yaml:"name"`
 }
 
 type plannerTransition struct {
@@ -86,6 +97,30 @@ func TestPlannerVariantsClassifyEmptyExtractionThroughRemainingWork(t *testing.T
 			for _, transition := range machine.Transitions {
 				if transition.State == "Extracting" && (transition.Signal == "AllDone" || transition.Signal == "Blocked") {
 					t.Errorf("extraction still classifies graph state directly: %+v", transition)
+				}
+			}
+		})
+	}
+}
+
+func TestPlannerVariantsDoNotDeclareUnreachableBatchPause(t *testing.T) {
+	for _, file := range []string{"machine.yaml", "machine-plan-only.yaml"} {
+		t.Run(file, func(t *testing.T) {
+			var machine plannerMachine
+			readPlannerYAML(t, file, &machine)
+			for _, state := range machine.States {
+				if state.Name == "Paused" {
+					t.Error("planner still declares unreachable Paused state")
+				}
+			}
+			for _, signal := range machine.Signals {
+				if signal.Name == "BatchLimitReached" {
+					t.Error("planner still declares unreachable BatchLimitReached signal")
+				}
+			}
+			for _, terminal := range machine.Terminals {
+				if terminal == "Paused" {
+					t.Error("planner still declares unreachable Paused terminal")
 				}
 			}
 		})

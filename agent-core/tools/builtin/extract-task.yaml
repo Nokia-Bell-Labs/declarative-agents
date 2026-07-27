@@ -7,7 +7,6 @@ tools:
   emits:
   - TaskExtracted
   - NoTask
-  - BatchLimitReached
   - CommandError
   category: stateful_internal
   side_effects:

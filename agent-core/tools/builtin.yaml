@@ -407,7 +407,7 @@ tools:
     init: extract_task
     description: "Extract the next unblocked task from the dependency graph."
     visibility: internal
-    emits: [TaskExtracted, NoTask, BatchLimitReached, CommandError]
+    emits: [TaskExtracted, NoTask, CommandError]
     category: stateful_internal
     side_effects:
       - kind: state_mutation

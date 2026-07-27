@@ -4,7 +4,7 @@ purpose: |-
   into tasks, generates implementation plans via LLM, materializes
   them as issues, executes them by invoking the generator profile, and
   validates the results. It loops over the requirement graph until
-  all tasks are done, all are blocked, or a batch limit is reached.
+  all tasks are done or all remaining work is blocked.
 configuration:
   machine: agents/planner/machine.yaml
   tools: agents/planner/tools.yaml
@@ -63,7 +63,6 @@ pipeline_diagram: |-
     P -->|RetriesExhausted| X[Exhausted]
     X --> Q
     B -->|NoTask| Q
-    B -->|BatchLimit| M[Paused]
   ```
 initial_state: Idle
 budget:
@@ -119,14 +118,11 @@ states:
   meaning: Terminal. All tasks in the graph are done.
 - name: Stalled
   meaning: Terminal. Remaining tasks are blocked by failed dependencies.
-- name: Paused
-  meaning: Terminal. Batch limit reached — resume later.
 - name: Failed
   meaning: Terminal. An unrecoverable error occurred.
 terminal_states:
 - Completed
 - Stalled
-- Paused
 - Failed
 signals:
 - name: Seed
@@ -143,8 +139,6 @@ signals:
   trigger: All tasks in the graph are done.
 - name: Blocked
   trigger: Remaining tasks are blocked by failed dependencies.
-- name: BatchLimitReached
-  trigger: Batch limit reached — resume later.
 - name: ToolDone
   trigger: A tool executed successfully.
 - name: ToolFailed
@@ -203,9 +197,6 @@ transitions:
   signal: NoTask
   next: QueryingRemainingWork
   action: remaining_work
-- state: Extracting
-  signal: BatchLimitReached
-  next: Paused
 - state: Extracting
   signal: CommandError
   next: Failed
