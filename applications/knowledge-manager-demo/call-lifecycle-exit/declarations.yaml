@@ -36,11 +36,12 @@ tools:
         target: curator.lifecycle_exit
         state: exit_requested
     reversibility:
-      classification: reversible
+      classification: irreversible
       undo: noop
+      requires_confirmation: true
     undo:
-      strategy: noop
-      description: The demo posts a single exit request; the caller holds no state to roll back.
+      strategy: irreversible
+      description: An accepted lifecycle-exit request cannot be withdrawn; restarting the curator is a separate action.
     errors:
       - signal: CommandError
         condition: The curator client definition is missing, or the exit call fails on network, timeout, or mapping.
