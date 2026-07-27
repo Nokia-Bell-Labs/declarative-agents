@@ -14,7 +14,7 @@ overview: |
   readers, but each entry is interpreted as a profile realization or
   classification under sm-agent-role-realizations.
 
-  Executor, critic, planner, jurist, and Knowledge Manager profiles realize
+  Executor, critic, planner, specification-critic, and Knowledge Manager profiles realize
   canonical responsibilities. Bench is a human interface; scenario-critic is a test
   harness with Critic bindings; mock is a test double; runtime-state-reader is
   an infrastructure adapter adjacent to, but not implementing, canonical
@@ -139,9 +139,16 @@ roles:
       - Confirm graph terminal states are explicit.
       - Trace planner to executor with rel07.0-uc003-planner-generator-profile-boundary.
 
-  - id: jurist
+  - id: specification-critic
     title: Specification validator
-    profile_path: agents/jurist/profile.yaml
+    profile_path: agents/specification-critic/profile.yaml
+    canonical_binding:
+      role: critic
+      sub_roles: [output-evaluator]
+    excluded_binding:
+      role: guardian
+      sub_role: policy-enforcer
+      reason: The profile evaluates and reports specification findings but has no policy enforcement authority.
     actor_boundary: local target directory and charter suites
     inputs:
       - target directory
@@ -456,6 +463,7 @@ taxonomy_rules:
   - Application-local topology, wrappers, deployment, packaging, UX, and single-application declarations are not catalog roles or tool blocks.
   - Conformance grammar fixtures (rest, control, lifecycle) are not roles; they live under testdata/conformance/ and prove runtime vocabulary, keeping agents/ a role catalog (GH-328).
   - The scenario-critic is a test harness with Critic / Sandbox Validator and Output Evaluator bindings; it is not a canonical Assembler realization. Mock is a non-role test double. The environment the harness composes is a sandbox in the reference architecture's sense, and the per-scenario validators are Critic realizations. The reference has no term for a scripted test double, so mock retains the runtime binding name rather than borrowing digital twin, which the reference reserves for a replica derived from a real referent (GH-704, superseding GH-665).
+  - The Jurist charter format and jurist_rg tool word are stable capability vocabulary, not profile identities; their names remain unchanged by the specification-critic migration.
   - Actor boundaries name who or what crosses the profile boundary.
   - Runtime dependencies name agent-core capabilities without copying them into
     applications/catalog.

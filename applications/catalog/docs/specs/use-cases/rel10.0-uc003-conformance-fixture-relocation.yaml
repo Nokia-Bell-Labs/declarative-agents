@@ -28,7 +28,7 @@ flow:
   - id: F2
     text: The conformance tests and Integration.MonitorControl are updated to the new paths, and the mage validate discovery is extended so profile-wiring validation reaches the relocated fixtures.
   - id: F3
-    text: agents/ lists only role-shaped families (critic, executor, planner, jurist, monitor, knowledge-manager, bench, and per srd016/srd017 coordinator and creator); the roadmap statuses are updated.
+    text: agents/ lists only role-shaped families (critic, executor, planner, specification-critic, runtime-state-reader, knowledge-manager, bench, scenario-critic, and mock); the roadmap statuses are updated.
 
 touchpoints:
   - id: T1

@@ -1,4 +1,4 @@
-name: jurist
+name: specification-critic
 machine: machine.yaml
 tools:
   - tools.yaml

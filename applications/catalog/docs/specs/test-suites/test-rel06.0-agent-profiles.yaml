@@ -69,13 +69,15 @@ test_cases:
     description: |
       Verify the mounted-profile container command. The smoke target first
       checks that /opt/agent-core/agents is absent, then mounts this repository
-      at /profiles, mounts core-owned tools at /opt/agent-core/tools, and runs
-      the jurist profile with --directory /work.
+      at /profiles, mounts core-owned tools at /opt/agent-core/tools, mounts the
+      clean specification-critic fixture at /work, and runs the profile with
+      --directory /work.
     inputs:
       image: ${AGENT_CORE_IMAGE}
       profile_mount: /profiles
+      workspace_source: testdata/integration/specification-critic-charter-demo
       workspace_mount: /work
-      profile: /profiles/agents/jurist/profile.yaml
+      profile: /profiles/agents/specification-critic/profile.yaml
     expected:
       runtime_image_agent_dir_absent: true
       profiles_mounted_read_only: true
@@ -89,31 +91,31 @@ test_cases:
       - sm-multi-agent-profile-system validation_views
 
   - use_case: rel06.0-uc002-profile-validation
-    name: Jurist profile demo charter validates YAML-only findings
-    go_test: go test ./magefiles -run 'Test(WriteJuristCharterDemoProfileFiles|AssertJuristCharterDemoFindings)'
+    name: Specification-critic profile demo charter validates YAML-only findings
+    go_test: go test ./magefiles -run 'Test(WriteSpecificationCriticCharterDemoProfileFiles|AssertSpecificationCriticCharterDemoFindings)'
     integration_target: mage validate
     status: implemented
     description: |
-      Validate that the jurist profile can run a profile-owned charter suite
+      Validate that the specification-critic profile can run a profile-owned charter suite
       against a fixture without adding states or LLM behavior. The demo suite
       is YAML-only and intentionally emits one or more findings from grep_check,
       ref_check, and consistency_check.
     inputs:
-      suite: agents/jurist/suites/demo-charter.yaml
-      fixture: testdata/integration/jurist-charter-demo
+      suite: agents/specification-critic/suites/demo-charter.yaml
+      fixture: testdata/integration/specification-critic-charter-demo
       core_root: AGENT_CORE_ROOT
     expected:
       profile_loads_default_core_suite_config: true
       demo_suite_selected_by_temp_profile_override: true
-      grep_check_finding: jurist-demo-charter/no-internal-vocabulary
-      ref_check_finding: jurist-demo-charter/citations-resolve
-      consistency_check_finding: jurist-demo-charter/artifacts-exist
+      grep_check_finding: specification-critic-demo-charter/no-internal-vocabulary
+      ref_check_finding: specification-critic-demo-charter/citations-resolve
+      consistency_check_finding: specification-critic-demo-charter/artifacts-exist
     traces:
       - rel06.0-uc002-profile-validation S1
-      - srd005-jurist R2.1
-      - srd005-jurist R3.1
-      - srd005-jurist R1.2
-      - srd005-jurist R3.2
+      - srd005-specification-critic R2.1
+      - srd005-specification-critic R3.1
+      - srd005-specification-critic R1.2
+      - srd005-specification-critic R3.2
       - gh-123 AC1
       - gh-123 AC3
 

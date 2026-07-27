@@ -30,7 +30,7 @@ trigger: |
 
   Container callers use the same contract with /profiles:
 
-    agent --profile /profiles/agents/jurist/profile.yaml --directory /work
+    agent --profile /profiles/agents/specification-critic/profile.yaml --directory /work
 
 preconditions:
   - applications/catalog is available as AGENT_CATALOG_ROOT, /profiles, or a release bundle.
@@ -68,7 +68,7 @@ touchpoints:
     reason: Role checks name AGENT_CATALOG_ROOT and mounted profile execution.
   - id: T5
     target: mage containerSmoke
-    reason: Container proof mounts this repository at /profiles and runs the jurist profile.
+    reason: Container proof mounts this repository at /profiles and runs the specification-critic profile.
 
 success_criteria:
   - id: S1

@@ -21,7 +21,7 @@ func TestValidateTestEvidencePassesOnCleanModule(t *testing.T) {
 	if err := validateTestEvidence(run, "/tmp/agent", "/module", "/core"); err != nil {
 		t.Fatalf("clean evidence should pass, got %v", err)
 	}
-	want := "/tmp/agent --profile /module/agents/jurist/audit-profile.yaml --directory /module --core-root /core"
+	want := "/tmp/agent --profile /module/agents/specification-critic/audit-profile.yaml --directory /module --core-root /core"
 	if strings.Join(got, " ") != want {
 		t.Errorf("invocation = %q, want %q", strings.Join(got, " "), want)
 	}
@@ -58,10 +58,10 @@ func TestValidateTestEvidenceFallsBackToExitError(t *testing.T) {
 	}
 }
 
-func TestJuristAuditProfileDeclaresEvidencePipeline(t *testing.T) {
+func TestSpecificationCriticAuditProfileDeclaresEvidencePipeline(t *testing.T) {
 	read := func(name string) string {
 		t.Helper()
-		data, err := os.ReadFile(filepath.Join("..", "agents", "jurist", name))
+		data, err := os.ReadFile(filepath.Join("..", "agents", "specification-critic", name))
 		if err != nil {
 			t.Fatal(err)
 		}

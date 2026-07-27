@@ -103,7 +103,7 @@ chart is self-contained at runtime and does not silently fork canonical programs
 
 Run `mage -l` to list the named `integration:*` targets; each skips cleanly when its toolchain is absent. There is no `integration:collector` lifecycle target yet.
 
-`mage audit` is the self-governance gate. It runs the catalog Jurist validator
+`mage audit` is the self-governance gate. It runs the catalog specification-critic validator
 over the application's own corpus, so it needs the agent-core runtime
 (`AGENT_CORE_ROOT`, default repository `agent-core`) and the catalog root
 (`AGENT_CATALOG_ROOT`, default repository `applications/catalog`).

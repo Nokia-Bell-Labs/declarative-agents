@@ -53,7 +53,7 @@ outside this repository. Set `AGENT_CATALOG_ROOT` to an `applications/catalog`
 checkout or bundle, then pass explicit paths such as
 `$AGENT_CATALOG_ROOT/agents/executor/profile.yaml`,
 `$AGENT_CATALOG_ROOT/agents/critic/profile.yaml`, or
-`$AGENT_CATALOG_ROOT/agents/jurist/profile.yaml`.
+`$AGENT_CATALOG_ROOT/agents/specification-critic/profile.yaml`.
 
 Lifecycle operators use the same external profile path shape.
 `$AGENT_CATALOG_ROOT/testdata/conformance/lifecycle/history/profile.yaml` inspects

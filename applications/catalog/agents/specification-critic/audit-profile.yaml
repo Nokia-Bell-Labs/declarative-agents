@@ -1,4 +1,4 @@
-name: jurist-audit
+name: specification-critic-audit
 machine: audit-machine.yaml
 tools:
   - audit-tools.yaml

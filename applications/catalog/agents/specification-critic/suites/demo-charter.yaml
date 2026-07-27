@@ -1,5 +1,5 @@
-id: jurist-demo-charter
-title: Jurist Generic Charter Demo
+id: specification-critic-demo-charter
+title: Specification Critic Generic Charter Demo
 target:
   include:
     - docs/**/*.md

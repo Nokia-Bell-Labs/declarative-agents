@@ -447,11 +447,11 @@ patterns:
               field: machine
               target: applications/catalog/agents/bench/machine.yaml
               target_artifact: machine
-            - path: applications/catalog/agents/jurist/profile.yaml
+            - path: applications/catalog/agents/specification-critic/profile.yaml
               artifact: profile
               assertion: yaml_reference
               field: machine
-              target: applications/catalog/agents/jurist/machine.yaml
+              target: applications/catalog/agents/specification-critic/machine.yaml
               target_artifact: machine
     provenance: [reference-implementation, external-corroboration]
 

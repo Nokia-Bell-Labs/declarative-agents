@@ -14,27 +14,27 @@ import (
 	"testing"
 )
 
-// juristProfile is the wrapper an operator ships — agents/jurist/profile.yaml —
+// specificationCriticProfile is the wrapper an operator ships — agents/specification-critic/profile.yaml —
 // run directly, not a synthesized reconstruction. The shipped profile's
 // /opt/agent-core tool_config_dirs and its load_corpus tool declaration (bound to
 // the builtin spec-corpus charter) are resolved onto the checkout by --core-root
 // (spec.SetAgentCoreInstallRoot). load_corpus reads the specification docs from
 // the run directory, so --directory points at a fixture whose docs/ tree the
 // profile validates.
-var juristProfile = filepath.Join("agents", "jurist", "profile.yaml")
+var specificationCriticProfile = filepath.Join("agents", "specification-critic", "profile.yaml")
 
-// juristCleanFixture validates clean: its findings are all warnings, so the
+// specificationCriticCleanFixture validates clean: its findings are all warnings, so the
 // builtin spec-corpus charter reaches the Passed terminal.
-var juristCleanFixture = ProfilePath(filepath.Join("testdata", "integration", "jurist-charter-demo"))
+var specificationCriticCleanFixture = ProfilePath(filepath.Join("testdata", "integration", "specification-critic-charter-demo"))
 
-// juristFailingFixture is the clean fixture plus one requirement item left
+// specificationCriticFailingFixture is the clean fixture plus one requirement item left
 // uncovered by any acceptance criterion, which raises an error-level
 // uncovered-req-item finding and drives the run to the Failed terminal.
-var juristFailingFixture = ProfilePath(filepath.Join("testdata", "integration", "jurist-charter-demo-failing"))
+var specificationCriticFailingFixture = ProfilePath(filepath.Join("testdata", "integration", "specification-critic-charter-demo-failing"))
 
-// TestJuristConformance runs the shipped jurist profile through the agent CLI
-// and asserts the srd005-jurist deterministic contract from the trace and the
-// formatted report. Jurist is the pilot family that proves the harness end to
+// TestSpecificationCriticConformance runs the shipped specification-critic profile through the agent CLI
+// and asserts the srd005-specification-critic deterministic contract from the trace and the
+// formatted report. Specification-critic is the pilot family that proves the harness end to
 // end because it needs no model, no child agent, and no server: the pipeline is
 // deterministic, LLM-free, network-free, and read-only.
 //
@@ -50,23 +50,23 @@ var juristFailingFixture = ProfilePath(filepath.Join("testdata", "integration", 
 //
 // Both outcomes are asserted by separate fixtures rather than one run accepting
 // either terminal. Mirrors the profile wiring of magefiles/validation.go
-// validateJuristCharterDemo.
-func TestJuristConformance(t *testing.T) {
+// validateSpecificationCriticCharterDemo.
+func TestSpecificationCriticConformance(t *testing.T) {
 	RequireCoreRoot(t)
 
 	t.Run("CleanCorpusPasses", func(t *testing.T) {
-		result := runJurist(t, juristCleanFixture)
+		result := runSpecificationCritic(t, specificationCriticCleanFixture)
 
-		// srd005-jurist R1: the deterministic pipeline runs to a clean CLI exit
+		// srd005-specification-critic R1: the deterministic pipeline runs to a clean CLI exit
 		// with a single root span and no error-status spans.
 		result.RequireExit(t, 0)
 		result.RootRequired(t)
 		result.RequireNoErrorSpans(t)
 
-		// srd005-jurist R2: the jurist tool pipeline is visible as tool spans.
+		// srd005-specification-critic R2: the specification-critic tool pipeline is visible as tool spans.
 		result.RequireToolSpans(t, "load_corpus", "validate_specs", "reduce_grep_checks", "format_report")
 
-		// srd005-jurist R3.1/R3.3: a corpus that carries no error-level violation
+		// srd005-specification-critic R3.1/R3.3: a corpus that carries no error-level violation
 		// reaches the Passed terminal with a formatted report.
 		result.RequireTerminalState(t, "Passed")
 		if got := errorFindings(parseFindings(t, result.Output)); len(got) != 0 {
@@ -75,7 +75,7 @@ func TestJuristConformance(t *testing.T) {
 	})
 
 	t.Run("FailingCorpusFails", func(t *testing.T) {
-		result := runJurist(t, juristFailingFixture)
+		result := runSpecificationCritic(t, specificationCriticFailingFixture)
 
 		// A failed validation is a domain outcome, not an infrastructure error:
 		// the machine reached its Failed terminal, so the CLI exits 2 (a clean
@@ -87,11 +87,11 @@ func TestJuristConformance(t *testing.T) {
 		result.RequireNoErrorSpans(t)
 		result.RequireToolSpans(t, "load_corpus", "validate_specs", "reduce_grep_checks", "format_report")
 
-		// srd005-jurist R3.3: a corpus with an error-level violation reaches the
+		// srd005-specification-critic R3.3: a corpus with an error-level violation reaches the
 		// Failed terminal.
 		result.RequireTerminalState(t, "Failed")
 
-		// srd005-jurist R3.2: findings identify the suite, check, severity, message,
+		// srd005-specification-critic R3.2: findings identify the suite, check, severity, message,
 		// and any available file/line provenance, so consumers can act on failures
 		// without reading Go code.
 		findings := parseFindings(t, result.Output)
@@ -111,8 +111,8 @@ func TestJuristConformance(t *testing.T) {
 		// R1.2: repeat the identical input (same target dir + suite files) and
 		// assert identical findings and terminal across runs. The failing fixture
 		// carries both an error and warnings, so it exercises the full report.
-		first := runJurist(t, juristFailingFixture)
-		second := runJurist(t, juristFailingFixture)
+		first := runSpecificationCritic(t, specificationCriticFailingFixture)
+		second := runSpecificationCritic(t, specificationCriticFailingFixture)
 
 		firstState, _ := first.TerminalOutcome(t)
 		secondState, _ := second.TerminalOutcome(t)
@@ -137,22 +137,22 @@ func TestJuristConformance(t *testing.T) {
 		// modified. The run is network-free by the same token: it reaches an
 		// identical terminal offline with no fixture mutation, so no external
 		// state is consulted or written.
-		before := snapshotTree(t, juristCleanFixture)
-		runJurist(t, juristCleanFixture)
-		after := snapshotTree(t, juristCleanFixture)
+		before := snapshotTree(t, specificationCriticCleanFixture)
+		runSpecificationCritic(t, specificationCriticCleanFixture)
+		after := snapshotTree(t, specificationCriticCleanFixture)
 
 		requireSameTree(t, before, after)
 	})
 }
 
-// runJurist invokes the shipped jurist profile over dir and returns the trace
+// runSpecificationCritic invokes the shipped specification-critic profile over dir and returns the trace
 // plus CLI exit state. It skips when the sibling agent-core checkout is absent.
-func runJurist(t *testing.T, dir string) RunResult {
+func runSpecificationCritic(t *testing.T, dir string) RunResult {
 	t.Helper()
-	return Run(t, RunConfig{Profile: juristProfile, Directory: dir})
+	return Run(t, RunConfig{Profile: specificationCriticProfile, Directory: dir})
 }
 
-// finding is one parsed line of the jurist report: the provenance a consumer
+// finding is one parsed line of the specification-critic report: the provenance a consumer
 // reads to act on a violation without reading Go code.
 type finding struct {
 	Level   string // "error" or "warning"

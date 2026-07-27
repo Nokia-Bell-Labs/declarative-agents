@@ -1,4 +1,4 @@
-name: jurist-test-evidence-audit
+name: specification-critic-test-evidence-audit
 purpose: |-
   Load formal test claims, inventory and run Go tests through declared
   subprocesses, reduce the results deterministically, and report findings.

@@ -8,9 +8,9 @@ import (
 )
 
 // runTestEvidenceAudit delegates inventory, claim resolution, execution,
-// reduction, and reporting to the declarative jurist audit profile.
+// reduction, and reporting to the declarative specification-critic audit profile.
 func runTestEvidenceAudit(binary, root, coreRoot, profilesRoot string) error {
-	profile := filepath.Join(profilesRoot, "agents", "jurist", "audit-profile.yaml")
+	profile := filepath.Join(profilesRoot, "agents", "specification-critic", "audit-profile.yaml")
 	if err := runAgentPreflight(binary,
 		"--profile", profile,
 		"--directory", root,

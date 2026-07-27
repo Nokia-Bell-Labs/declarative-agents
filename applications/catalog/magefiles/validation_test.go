@@ -293,21 +293,21 @@ func TestRunContainerSmokeCommands(t *testing.T) {
 	}
 	want := [][]string{
 		{"docker", "run", "--rm", "--entrypoint", "sh", "agent-core:test", "-c", "test ! -e /opt/agent-core/agents && command -v rg >/dev/null"},
-		{"docker", "run", "--rm", "-v", "/profiles-src:/profiles:ro", "-v", "/core-src/tools:/opt/agent-core/tools:ro", "-v", "/profiles-src:/work:ro", "-w", "/work", "agent-core:test", "--profile", "/profiles/agents/jurist/profile.yaml", "--directory", "/work"},
+		{"docker", "run", "--rm", "-v", "/profiles-src:/profiles:ro", "-v", "/core-src/tools:/opt/agent-core/tools:ro", "-v", "/profiles-src/testdata/integration/specification-critic-charter-demo:/work:ro", "-w", "/work", "agent-core:test", "--profile", "/profiles/agents/specification-critic/profile.yaml", "--directory", "/work"},
 	}
 	if !reflect.DeepEqual(calls, want) {
 		t.Fatalf("container calls = %#v, want %#v", calls, want)
 	}
 }
 
-func TestWriteJuristCharterDemoProfileFiles(t *testing.T) {
+func TestWriteSpecificationCriticCharterDemoProfileFiles(t *testing.T) {
 	root := t.TempDir()
 	coreRoot := t.TempDir()
 	tmpDir := t.TempDir()
 
-	profilePath, err := writeJuristCharterDemoProfileFiles(root, coreRoot, tmpDir)
+	profilePath, err := writeSpecificationCriticCharterDemoProfileFiles(root, coreRoot, tmpDir)
 	if err != nil {
-		t.Fatalf("writeJuristCharterDemoProfileFiles returned error: %v", err)
+		t.Fatalf("writeSpecificationCriticCharterDemoProfileFiles returned error: %v", err)
 	}
 
 	profileData, err := os.ReadFile(profilePath)
@@ -320,42 +320,42 @@ func TestWriteJuristCharterDemoProfileFiles(t *testing.T) {
 	}
 	profile := string(profileData)
 	toolDecl := string(toolDeclData)
-	if !strings.Contains(profile, filepath.Join(root, juristProfileDir, "machine.yaml")) {
-		t.Fatalf("profile = %q, want jurist machine path", profile)
+	if !strings.Contains(profile, filepath.Join(root, specificationCriticProfileDir, "machine.yaml")) {
+		t.Fatalf("profile = %q, want specification-critic machine path", profile)
 	}
 	if !strings.Contains(profile, filepath.Join(coreRoot, "tools", "builtin", "spec-validation")) {
 		t.Fatalf("profile = %q, want core spec-validation dir", profile)
 	}
-	if !strings.Contains(profile, filepath.Join(root, juristProfileDir, "ripgrep.yaml")) {
-		t.Fatalf("profile = %q, want jurist ripgrep declaration", profile)
+	if !strings.Contains(profile, filepath.Join(root, specificationCriticProfileDir, "ripgrep.yaml")) {
+		t.Fatalf("profile = %q, want specification-critic ripgrep declaration", profile)
 	}
 	if !strings.Contains(toolDecl, filepath.Join(coreRoot, "tools", "builtin", "load-corpus.yaml")) {
 		t.Fatalf("tool declaration = %q, want core load_corpus include", toolDecl)
 	}
-	if !strings.Contains(toolDecl, filepath.Join(root, juristProfileDir, "suites", "demo-charter.yaml")) {
+	if !strings.Contains(toolDecl, filepath.Join(root, specificationCriticProfileDir, "suites", "demo-charter.yaml")) {
 		t.Fatalf("tool declaration = %q, want demo charter suite path", toolDecl)
 	}
 }
 
-func TestAssertJuristCharterDemoFindings(t *testing.T) {
+func TestAssertSpecificationCriticCharterDemoFindings(t *testing.T) {
 	output := `
-[error] jurist-demo-charter/no-internal-vocabulary (grep_check):
+[error] specification-critic-demo-charter/no-internal-vocabulary (grep_check):
   - docs/manuscript.md:3: Demo prose must not include internal vocabulary.
-[error] jurist-demo-charter/citations-resolve (ref_check):
+[error] specification-critic-demo-charter/citations-resolve (ref_check):
   - docs/manuscript.md:5: Demo citation reference must resolve.
-[error] jurist-demo-charter/artifacts-exist (consistency_check):
+[error] specification-critic-demo-charter/artifacts-exist (consistency_check):
   - manifest.yaml:3: Demo manifest artifact path must exist.
 terminal state: failed
 `
-	if err := assertJuristCharterDemoFindings(output); err != nil {
-		t.Fatalf("assertJuristCharterDemoFindings returned error: %v", err)
+	if err := assertSpecificationCriticCharterDemoFindings(output); err != nil {
+		t.Fatalf("assertSpecificationCriticCharterDemoFindings returned error: %v", err)
 	}
 }
 
-func TestAssertJuristCharterDemoFindingsReportsMissingKind(t *testing.T) {
-	err := assertJuristCharterDemoFindings("terminal state: failed")
+func TestAssertSpecificationCriticCharterDemoFindingsReportsMissingKind(t *testing.T) {
+	err := assertSpecificationCriticCharterDemoFindings("terminal state: failed")
 	if err == nil {
-		t.Fatal("assertJuristCharterDemoFindings returned nil error for missing findings")
+		t.Fatal("assertSpecificationCriticCharterDemoFindings returned nil error for missing findings")
 	}
 	if !strings.Contains(err.Error(), "grep_check") {
 		t.Fatalf("error = %q, want missing grep_check", err)

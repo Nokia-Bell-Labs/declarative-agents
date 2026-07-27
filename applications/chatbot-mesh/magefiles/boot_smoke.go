@@ -46,7 +46,7 @@ func meshProfiles(root string) ([]string, error) {
 // ValidateToolEmits and ValidateReceiptContracts over the selected ToolDefs
 // (GH-494), then exits without binding a listener or running the machine.
 //
-// The jurist audit validates the specification corpus, not whether an agent can
+// The specification-critic audit validates the specification corpus, not whether an agent can
 // start, so a mis-declared lifecycle word or an unknown REST field passed the
 // gate and only surfaced when the mesh was deployed. This closes that gap
 // (GH-614).

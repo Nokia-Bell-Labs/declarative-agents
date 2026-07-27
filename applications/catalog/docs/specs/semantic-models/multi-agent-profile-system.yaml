@@ -50,7 +50,7 @@ role_groups:
       Configured child profile execution stays inside the critic point flow.
   - id: validation_work
     profiles:
-      - jurist
+      - specification-critic
     summary: |
       Validation work reads documentation and specification corpora through a
       deterministic tool pipeline. No model boundary participates in this role.
@@ -173,10 +173,10 @@ actor_boundaries:
       - child executor process
     boundary: Planner turns requirements into issues and invokes executor for
       execution.
-  - profile: jurist
+  - profile: specification-critic
     actors:
       - specification corpus
-    boundary: Jurist reads local docs and emits validation reports.
+    boundary: Specification-critic reads local docs and emits validation reports.
   - profile: bench
     actors:
       - human operator

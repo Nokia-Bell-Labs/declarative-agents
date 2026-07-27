@@ -16,7 +16,7 @@ overview: |
   applier (srd006) that replaces the Go provisioning surface with a declarative
   agent is release rel06.0.
 
-  The corpus is validated by the jurist (mage audit): it loads and validates with no
+  The corpus is validated by the specification critic (mage audit): it loads and validates with no
   errors. Advisory findings remain visible, including tool-undo-mismatch warnings;
   the gate does not report a warning-free corpus. The traceability chain is complete:
   every use case touchpoint builds an SRD edge (the object-format {id, target, reason} touchpoints

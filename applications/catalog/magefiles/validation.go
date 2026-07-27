@@ -14,15 +14,15 @@ import (
 )
 
 const (
-	agentCoreRootEnv       = "AGENT_CORE_ROOT"
-	agentCoreImageEnv      = "AGENT_CORE_IMAGE"
-	dockerEngine           = "docker"
-	defaultAgentCoreImage  = "agent-core:latest"
-	containerProfilesMount = "/profiles"
-	containerWorkMount     = "/work"
-	containerCoreMount     = "/opt/agent-core"
-	juristProfileDir       = "agents/jurist"
-	juristCharterDemoDir   = "testdata/integration/jurist-charter-demo"
+	agentCoreRootEnv                  = "AGENT_CORE_ROOT"
+	agentCoreImageEnv                 = "AGENT_CORE_IMAGE"
+	dockerEngine                      = "docker"
+	defaultAgentCoreImage             = "agent-core:latest"
+	containerProfilesMount            = "/profiles"
+	containerWorkMount                = "/work"
+	containerCoreMount                = "/opt/agent-core"
+	specificationCriticProfileDir     = "agents/specification-critic"
+	specificationCriticCharterDemoDir = "testdata/integration/specification-critic-charter-demo"
 )
 
 type profileConfig struct {
@@ -54,7 +54,7 @@ func Validate() error {
 	if err := bootSmoke(root, coreRoot); err != nil {
 		return err
 	}
-	return validateJuristCharterDemo(root, coreRoot)
+	return validateSpecificationCriticCharterDemo(root, coreRoot)
 }
 
 // ContainerSmoke runs one profile from /profiles with an agent-core image.
@@ -87,13 +87,13 @@ func validatePortableProfileRefs(root, coreRoot string) error {
 	return nil
 }
 
-func validateJuristCharterDemo(profilesRoot, coreRoot string) error {
-	tmpDir, err := os.MkdirTemp("", "catalog-jurist-charter-*")
+func validateSpecificationCriticCharterDemo(profilesRoot, coreRoot string) error {
+	tmpDir, err := os.MkdirTemp("", "catalog-specification-critic-charter-*")
 	if err != nil {
 		return err
 	}
 	defer func() { _ = os.RemoveAll(tmpDir) }()
-	profilePath, err := writeJuristCharterDemoProfileFiles(profilesRoot, coreRoot, tmpDir)
+	profilePath, err := writeSpecificationCriticCharterDemoProfileFiles(profilesRoot, coreRoot, tmpDir)
 	if err != nil {
 		return err
 	}
@@ -101,25 +101,25 @@ func validateJuristCharterDemo(profilesRoot, coreRoot string) error {
 	if err != nil {
 		return err
 	}
-	fixtureDir := filepath.Join(profilesRoot, juristCharterDemoDir)
+	fixtureDir := filepath.Join(profilesRoot, specificationCriticCharterDemoDir)
 	cmd := exec.Command(binary, "--profile", profilePath, "--directory", fixtureDir, "--core-root", coreRoot)
 	cmd.Dir = profilesRoot
 	output, runErr := commandWithOutput(cmd)
-	if err := assertJuristCharterDemoFindings(output.String()); err != nil {
+	if err := assertSpecificationCriticCharterDemoFindings(output.String()); err != nil {
 		if runErr != nil {
 			return fmt.Errorf("%w: %v\n%s", err, runErr, output.String())
 		}
 		return fmt.Errorf("%w\n%s", err, output.String())
 	}
-	fmt.Println("validated jurist charter demo findings")
+	fmt.Println("validated specification-critic charter demo findings")
 	return nil
 }
 
-func writeJuristCharterDemoProfileFiles(profilesRoot, coreRoot, tmpDir string) (string, error) {
+func writeSpecificationCriticCharterDemoProfileFiles(profilesRoot, coreRoot, tmpDir string) (string, error) {
 	profilePath := filepath.Join(tmpDir, "profile.yaml")
 	toolDeclPath := filepath.Join(tmpDir, "load-corpus-demo.yaml")
-	suitePath := filepath.Join(profilesRoot, juristProfileDir, "suites", "demo-charter.yaml")
-	profile := fmt.Sprintf(`name: jurist-demo
+	suitePath := filepath.Join(profilesRoot, specificationCriticProfileDir, "suites", "demo-charter.yaml")
+	profile := fmt.Sprintf(`name: specification-critic-demo
 machine: %q
 tools:
   - %q
@@ -128,13 +128,13 @@ tool_config_dirs:
 tool_declarations:
   - %q
   - %q
-`, filepath.Join(profilesRoot, juristProfileDir, "machine.yaml"),
-		filepath.Join(profilesRoot, juristProfileDir, "tools.yaml"),
+`, filepath.Join(profilesRoot, specificationCriticProfileDir, "machine.yaml"),
+		filepath.Join(profilesRoot, specificationCriticProfileDir, "tools.yaml"),
 		filepath.Join(coreRoot, "tools", "builtin", "spec-validation"),
 		toolDeclPath,
-		filepath.Join(profilesRoot, juristProfileDir, "ripgrep.yaml"))
+		filepath.Join(profilesRoot, specificationCriticProfileDir, "ripgrep.yaml"))
 	if err := os.WriteFile(profilePath, []byte(profile), 0o644); err != nil {
-		return "", fmt.Errorf("write jurist demo profile: %w", err)
+		return "", fmt.Errorf("write specification-critic demo profile: %w", err)
 	}
 	toolDecl := fmt.Sprintf(`includes:
   - %q
@@ -151,21 +151,21 @@ tools:
       - CommandError
 `, filepath.Join(coreRoot, "tools", "builtin", "load-corpus.yaml"), suitePath)
 	if err := os.WriteFile(toolDeclPath, []byte(toolDecl), 0o644); err != nil {
-		return "", fmt.Errorf("write jurist demo tool declaration: %w", err)
+		return "", fmt.Errorf("write specification-critic demo tool declaration: %w", err)
 	}
 	return profilePath, nil
 }
 
-func assertJuristCharterDemoFindings(output string) error {
+func assertSpecificationCriticCharterDemoFindings(output string) error {
 	required := []string{
-		"jurist-demo-charter/no-internal-vocabulary (grep_check)",
-		"jurist-demo-charter/citations-resolve (ref_check)",
-		"jurist-demo-charter/artifacts-exist (consistency_check)",
+		"specification-critic-demo-charter/no-internal-vocabulary (grep_check)",
+		"specification-critic-demo-charter/citations-resolve (ref_check)",
+		"specification-critic-demo-charter/artifacts-exist (consistency_check)",
 		"terminal state: failed",
 	}
 	for _, want := range required {
 		if !strings.Contains(output, want) {
-			return fmt.Errorf("jurist charter demo output missing %q", want)
+			return fmt.Errorf("specification-critic charter demo output missing %q", want)
 		}
 	}
 	return nil
@@ -331,20 +331,21 @@ func requireDocker(lookPath lookPathFunc) error {
 
 func runContainerSmoke(run commandRunner, root, coreRoot, image string) error {
 	if err := run(dockerEngine, "run", "--rm", "--entrypoint", "sh", image, "-c", "test ! -e /opt/agent-core/agents && command -v rg >/dev/null"); err != nil {
-		return fmt.Errorf("check image layout and shared find/jurist rg dependency: %w", err)
+		return fmt.Errorf("check image layout and shared find/jurist_rg dependency: %w", err)
 	}
+	workRoot := filepath.Join(root, specificationCriticCharterDemoDir)
 	args := []string{
 		"run", "--rm",
 		"-v", root + ":" + containerProfilesMount + ":ro",
 		"-v", filepath.Join(coreRoot, "tools") + ":" + filepath.Join(containerCoreMount, "tools") + ":ro",
-		"-v", root + ":" + containerWorkMount + ":ro",
+		"-v", workRoot + ":" + containerWorkMount + ":ro",
 		"-w", containerWorkMount,
 		image,
-		"--profile", containerProfilesMount + "/agents/jurist/profile.yaml",
+		"--profile", containerProfilesMount + "/agents/specification-critic/profile.yaml",
 		"--directory", containerWorkMount,
 	}
 	if err := run(dockerEngine, args...); err != nil {
-		return fmt.Errorf("run mounted jurist profile: %w", err)
+		return fmt.Errorf("run mounted specification-critic profile: %w", err)
 	}
 	return nil
 }

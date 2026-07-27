@@ -78,7 +78,7 @@ traces:
   - srd002-executor
   - srd003-critic
   - srd004-planner
-  - srd005-jurist
+  - srd005-specification-critic
   - srd006-bench
   - srd007-rest
   - srd008-runtime-state-reader
@@ -99,36 +99,33 @@ preconditions:
   - The lifecycle case additionally requires a local dolt binary; it starts a throwaway dolt sql-server and skips where dolt is not installed.
 
 test_cases:
-  - family: jurist
-    name: Jurist charter validation single-run conformance
+  - family: specification-critic
+    name: Specification-critic charter validation conformance
     status: implemented
-    test: conformance/jurist_test.go
+    test: conformance/specification_critic_test.go
     coverage: shipped-behavioral
     coverage_note: |
-      Single-run behavioral coverage: runs the shipped agents/jurist/profile.yaml
-      directly against the demo-charter fixture once (no field patched). This does
-      not exercise the jurist deterministic contract — it does not repeat identical
-      input to compare results, snapshot the workspace to prove read-only
-      execution, run both a clean and an intentionally failing corpus, or assert
-      finding provenance (charter/rule source). Those srd005 criteria are tracked
-      as follow-up #597.
+      Behavioral coverage runs the shipped agents/specification-critic/profile.yaml
+      directly with no field patching. It exercises the deterministic contract
+      by repeating identical input, snapshots the workspace to prove read-only
+      execution, runs clean and intentionally failing corpora, and asserts
+      finding provenance.
     description: |
-      Runs the jurist profile against a specification corpus and the demo charter
-      suite once, then asserts the linear load, validate, and report pipeline in
+      Runs the specification-critic profile against specification corpora and the
+      built-in charter, then asserts the linear load, validate, and report pipeline in
       the trace with no LLM tool family, a single root span, and no error-status
-      spans. The single run reaches a valid jurist terminal and the assertion
-      accepts either Passed or Failed; it does not run separate clean and failing
-      corpora to demonstrate both outcomes.
+      spans. Separate clean and failing fixtures demonstrate both terminal
+      outcomes, deterministic findings, and read-only execution.
     expected:
       asserted_tool_spans: [load_corpus, validate_specs, format_report]
       llm_tool_family_selected: false
       error_status_spans: 0
       terminal_states: [Passed, Failed]
     traces:
-      - srd005-jurist AC1
-      - srd005-jurist AC2
-      - srd005-jurist AC3
-      - sm-agent-role-taxonomy jurist
+      - srd005-specification-critic AC1
+      - srd005-specification-critic AC2
+      - srd005-specification-critic AC3
+      - sm-agent-role-taxonomy specification-critic
 
   - family: critic
     name: Critic session pipeline conformance

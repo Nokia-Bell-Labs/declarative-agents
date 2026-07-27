@@ -1,12 +1,12 @@
-name: jurist
+name: specification-critic
 purpose: |-
   The validator is a deterministic agent that loads a specification
   corpus, builds a labeled property graph of inter-document
   references, runs consistency checks, and produces a validation
   report. It does NOT use an LLM — it is a tool pipeline.
 configuration:
-  machine: agents/jurist/machine.yaml
-  tools: agents/jurist/tools.yaml
+  machine: agents/specification-critic/machine.yaml
+  tools: agents/specification-critic/tools.yaml
 invariants:
 - The validator never calls an LLM
 - Both pass and fail outcomes produce a formatted report

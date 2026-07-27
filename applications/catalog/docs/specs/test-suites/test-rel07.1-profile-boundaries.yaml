@@ -3,7 +3,7 @@ title: Test Suite for Release 07.1 Profile Boundaries
 release: "07.1"
 
 overview: |
-  This suite validates the per-family boundary use cases for the jurist,
+  This suite validates the per-family boundary use cases for the specification-critic,
   lifecycle, and rest profiles. Release 07.0 gave dedicated boundary treatment to
   evaluator, generator, planner, bench, monitor/control, and the
   documentation-curator profiles. Release 07.1 closes the coverage gap for the
@@ -21,7 +21,7 @@ overview: |
   deferred follow-up tracked in the road-map rel07.1 entry.
 
 traces:
-  - rel07.1-uc001-jurist-profile-boundary
+  - rel07.1-uc001-specification-critic-profile-boundary
   - rel07.1-uc002-lifecycle-profile-boundary
   - rel07.1-uc003-rest-profile-boundary
 
@@ -32,19 +32,19 @@ preconditions:
   - agent-core remains responsible for the specification validation tools, lifecycle ports and checkpoint store, and the reusable HTTP runtime.
 
 test_cases:
-  - use_case: rel07.1-uc001-jurist-profile-boundary
-    name: Jurist deterministic charter validation boundary
+  - use_case: rel07.1-uc001-specification-critic-profile-boundary
+    name: Specification-critic deterministic charter validation boundary
     status: specified
     description: |
-      Run the jurist profile against a target directory and the demo charter
+      Run the specification-critic profile against a target directory and the demo charter
       suite. Confirm the machine exposes load, validation, rg search, finding
       reduction, and report steps with no LLM tool family and produces a
       provenance-rich report for both pass and fail outcomes.
     inputs:
-      profile: agents/jurist/profile.yaml
-      machine: agents/jurist/machine.yaml
-      tools: agents/jurist/tools.yaml
-      charter_suite: agents/jurist/suites/demo-charter.yaml
+      profile: agents/specification-critic/profile.yaml
+      machine: agents/specification-critic/machine.yaml
+      tools: agents/specification-critic/tools.yaml
+      charter_suite: agents/specification-critic/suites/demo-charter.yaml
       target_directory: a specification corpus directory
     expected:
       selected_tools: [load_corpus, validate_specs, jurist_rg, reduce_grep_checks, format_report]
@@ -56,26 +56,26 @@ test_cases:
       finding_provenance_fields: [suite, check, severity, message, file, line]
       terminal_states: [Passed, Failed]
     traces:
-      - rel07.1-uc001-jurist-profile-boundary S1
-      - rel07.1-uc001-jurist-profile-boundary S2
-      - rel07.1-uc001-jurist-profile-boundary S3
-      - srd005-jurist AC1
-      - srd005-jurist AC3
-      - sm-agent-role-taxonomy jurist
+      - rel07.1-uc001-specification-critic-profile-boundary S1
+      - rel07.1-uc001-specification-critic-profile-boundary S2
+      - rel07.1-uc001-specification-critic-profile-boundary S3
+      - srd005-specification-critic AC1
+      - srd005-specification-critic AC3
+      - sm-agent-role-taxonomy specification-critic
 
-  - use_case: rel07.1-uc001-jurist-profile-boundary
-    name: Jurist declarative test-evidence audit boundary
+  - use_case: rel07.1-uc001-specification-critic-profile-boundary
+    name: Specification-critic declarative test-evidence audit boundary
     status: implemented
     description: |
       Confirm the explicit audit profile selects declared Go inventory and run
-      exec words, visible claim and result reducers, and the shared jurist report.
+      exec words, visible claim and result reducers, and the shared specification-critic report.
       The runtime receives an ordinary profile invocation rather than a special
       test-evidence CLI mode.
     inputs:
-      profile: agents/jurist/audit-profile.yaml
-      machine: agents/jurist/audit-machine.yaml
-      tools: agents/jurist/audit-tools.yaml
-      declarations: agents/jurist/go-test.yaml
+      profile: agents/specification-critic/audit-profile.yaml
+      machine: agents/specification-critic/audit-machine.yaml
+      tools: agents/specification-critic/audit-tools.yaml
+      declarations: agents/specification-critic/go-test.yaml
     expected:
       claims_step: load_test_claims
       inventory_steps: [go_module, go_packages_raw, go_packages, go_test_inventory]
@@ -85,11 +85,11 @@ test_cases:
       reduction_step: reduce_test_evidence_run
       report_step: format_report
       special_cli_mode: false
-    go_test: TestJuristAuditProfileDeclaresEvidencePipeline
+    go_test: TestSpecificationCriticAuditProfileDeclaresEvidencePipeline
     traces:
-      - rel07.1-uc001-jurist-profile-boundary S4
-      - srd005-jurist R2.5
-      - srd005-jurist AC2
+      - rel07.1-uc001-specification-critic-profile-boundary S4
+      - srd005-specification-critic R2.5
+      - srd005-specification-critic AC2
 
   - use_case: rel07.1-uc002-lifecycle-profile-boundary
     name: Lifecycle history, rollback, and approval boundary

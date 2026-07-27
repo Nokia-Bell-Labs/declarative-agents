@@ -143,8 +143,8 @@ func configsYAMLCategory(path string) string {
 		return "configs_other"
 	}
 	switch parts[1] {
-	case "executor", "planner", "critic", "bench", "jurist":
-		return parts[1]
+	case "executor", "planner", "critic", "bench", "specification-critic":
+		return strings.ReplaceAll(parts[1], "-", "_")
 	default:
 		return "configs_other"
 	}

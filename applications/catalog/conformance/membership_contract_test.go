@@ -121,6 +121,13 @@ func TestCatalogMembershipUsesSharedRealizationAndAliasAuthority(t *testing.T) {
 		got.NamingStatus != "" {
 		t.Errorf("runtime-state-reader shared binding = %#v, want named infrastructure adapter", got)
 	}
+	if got := byActor["specification-critic"]; got.Classification != "role_realization" ||
+		got.Profile != "applications/catalog/agents/specification-critic/profile.yaml" ||
+		got.PrimaryRole != "critic" ||
+		strings.Join(got.SubRoles, ",") != "output-evaluator" ||
+		got.NamingStatus != "" {
+		t.Errorf("specification-critic shared binding = %#v, want Critic / Output Evaluator without migration status", got)
+	}
 	aliases := map[string]string{}
 	for _, alias := range authority.Aliases {
 		if !strings.HasPrefix(alias.Status, "migration_") {
@@ -143,6 +150,7 @@ func TestCatalogMembershipUsesSharedRealizationAndAliasAuthority(t *testing.T) {
 	compatibilityTargets := map[string]string{
 		"assembler": "applications/catalog/agents/scenario-critic/profile.yaml",
 		"monitor":   "applications/catalog/agents/runtime-state-reader/profile.yaml",
+		"jurist":    "applications/catalog/agents/specification-critic/profile.yaml",
 	}
 	for _, alias := range authority.Aliases {
 		canonicalPath, ok := compatibilityTargets[alias.Alias]
@@ -261,6 +269,59 @@ func TestNoActiveMonitorProfilePathConsumers(t *testing.T) {
 		})
 		if err != nil {
 			t.Fatal(err)
+		}
+	}
+}
+
+func TestNoActiveJuristProfilePathConsumers(t *testing.T) {
+	t.Parallel()
+	retiredPath := "agents/" + "jurist"
+	roots := []string{
+		ProfilesRoot(),
+		filepath.Clean(filepath.Join(ProfilesRoot(), "..", "docs")),
+		filepath.Clean(filepath.Join(ProfilesRoot(), "..", "chatbot-mesh")),
+		filepath.Clean(filepath.Join(ProfilesRoot(), "..", "..", "agent-core")),
+		filepath.Clean(filepath.Join(ProfilesRoot(), "..", "..", "design-patterns")),
+	}
+	allowed := map[string]int{
+		filepath.Clean(ProfilePath("conformance/membership_contract_test.go")):                                                  1,
+		filepath.Clean(filepath.Join(ProfilesRoot(), "..", "docs", "specs", "semantic-models", "agent-role-realizations.yaml")): 1,
+	}
+	seen := map[string]int{}
+	for _, root := range roots {
+		err := filepath.WalkDir(root, func(path string, entry os.DirEntry, err error) error {
+			if err != nil {
+				return err
+			}
+			if entry.IsDir() {
+				return nil
+			}
+			switch filepath.Ext(path) {
+			case ".go", ".md", ".yaml", ".yml":
+			default:
+				return nil
+			}
+			data, err := os.ReadFile(path)
+			if err != nil {
+				return err
+			}
+			if count := strings.Count(string(data), retiredPath); count != 0 {
+				seen[filepath.Clean(path)] = count
+			}
+			return nil
+		})
+		if err != nil {
+			t.Fatal(err)
+		}
+	}
+	for path, count := range seen {
+		if allowed[path] != count {
+			t.Errorf("stale active consumer path %s appears %d times in %s", retiredPath, count, path)
+		}
+	}
+	for path, count := range allowed {
+		if seen[path] != count {
+			t.Errorf("historical compatibility allowlist drift for %s: got %d occurrences, want %d", path, seen[path], count)
 		}
 	}
 }

@@ -190,7 +190,7 @@ releases:
       ownership boundary and dependency-direction invariants.
 
       The release also adds per-family boundary use cases and a test suite for
-      the jurist, lifecycle, and rest families, which were previously validated
+      the specification-critic, lifecycle, and rest families, which were previously validated
       only by the generic rel06.0 mounted-profile and profile-validation use
       cases. Each new use case names the actor boundary, inputs, outputs, and
       terminal outcomes for its family and traces to the family SRD.
@@ -200,7 +200,7 @@ releases:
         summary: Split srd001-agent-functional-blocks into per-family SRDs (srd002-executor through srd011-knowledge-manager) and retarget existing traces.
         status: done
       - id: gh-194
-        summary: Add per-family boundary use cases and a test suite for the jurist, lifecycle, and rest profiles.
+        summary: Add per-family boundary use cases and a test suite for the specification-critic, lifecycle, and rest profiles.
         status: done
       - id: gh-195
         summary: Add an executable per-family OpenTelemetry conformance suite (mage conformance) covering all ten profile families against srd002-srd011.
@@ -214,7 +214,7 @@ releases:
       - docs/specs/software-requirements/srd001-agent-functional-blocks.yaml
         keeps the profile ownership boundary and cross-profile
         dependency-direction invariants.
-      - docs/specs/use-cases/rel07.1-uc001-jurist-profile-boundary.yaml,
+      - docs/specs/use-cases/rel07.1-uc001-specification-critic-profile-boundary.yaml,
         rel07.1-uc002-lifecycle-profile-boundary.yaml, and
         rel07.1-uc003-rest-profile-boundary.yaml add per-family boundary use
         cases for the previously uncovered families.
@@ -229,8 +229,9 @@ releases:
         ungated load-and-wiring companion. Coverage is annotated per family and
         per variant (shipped-behavioral vs load-and-wiring).
     use_cases:
-      - id: rel07.1-uc001-jurist-profile-boundary
-        summary: Jurist deterministic, LLM-free charter validation boundary.
+      - id: rel07.1-uc001-specification-critic-profile-boundary
+        historical_aliases: [rel07.1-uc001-jurist-profile-boundary]
+        summary: Specification-critic deterministic, LLM-free charter validation boundary.
         status: specified
       - id: rel07.1-uc002-lifecycle-profile-boundary
         summary: Lifecycle history, rollback, and approval machine-action boundary.
@@ -240,7 +241,7 @@ releases:
         status: specified
     test_suites:
       - id: test-rel07.1-profile-boundaries
-        summary: Boundary use-case validation for the jurist, lifecycle, and rest families.
+        summary: Boundary use-case validation for the specification-critic, lifecycle, and rest families.
         status: specified
       - id: test-rel07.1-profile-conformance
         summary: Executable per-family OpenTelemetry conformance for all ten families. Nine are implemented shipped-behavioral (runs the shipped profile.yaml/variant, copy-and-patch only harness-controlled fields); the rest sample server boundary is bounded-behavioral (shipped REST config and declarations over a synthesized launch/await/stop machine). Generator (with qwen27b/qwen35b variants), the planner behavioral run, and the rest ollama-profile variant are Ollama-gated; lifecycle suspend/resume and history/rollback are Dolt-gated; rest proves its inbound webhook server boundary over the shipped REST config (client head proven at the agent-core package level). Generator, planner, and rest carry ungated load-and-wiring companions.
@@ -249,12 +250,12 @@ releases:
       - mage validate
       - AGENT_CORE_ROOT=/path/to/agent-core mage conformance
     deferred:
-      - Profile-owned Mage integration targets that execute the jurist,
+      - Profile-owned Mage integration targets that execute the specification-critic,
         lifecycle, and rest boundary fixtures, mirroring
         magefiles/integration_*.go for the covered families, and that trace to
         rel07.1-uc001/uc002/uc003 S1-S3. These are distinct from the delivered
         mage conformance suite, which asserts SRD acceptance criteria per family
-        (srd005-jurist, srd009-lifecycle, srd007-rest) plus the role taxonomy, so
+        (srd005-specification-critic, srd009-lifecycle, srd007-rest) plus the role taxonomy, so
         the conformance cases are executable evidence at the SRD layer but do not
         by themselves satisfy the boundary use cases. The gap is concrete
         for rest, whose client read/create/await head is not run in a profile

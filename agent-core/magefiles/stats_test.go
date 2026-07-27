@@ -44,7 +44,7 @@ func TestConfigsYAMLCategory(t *testing.T) {
 		{name: "planner", path: "agents/planner/machine.yaml", want: "planner"},
 		{name: "critic", path: "agents/critic/machine.yaml", want: "critic"},
 		{name: "bench", path: "agents/bench/machine.yaml", want: "bench"},
-		{name: "jurist", path: "agents/jurist/machine.yaml", want: "jurist"},
+		{name: "specification critic", path: "agents/specification-critic/machine.yaml", want: "specification_critic"},
 		{name: "other config", path: "configs/experimental/machine.yaml", want: "configs_other"},
 	}
 	for _, tt := range tests {

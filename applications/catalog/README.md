@@ -421,4 +421,4 @@ Optional image selection uses the constant `agentCoreImageEnv` in
 Before running the profile, the smoke target fails if the image contains
 `/opt/agent-core/agents`. It then mounts this catalog at `/profiles`, mounts
 core-owned tools at `/opt/agent-core/tools`, and runs
-`--profile /profiles/agents/jurist/profile.yaml --directory /work`.
+`--profile /profiles/agents/specification-critic/profile.yaml --directory /work`.

@@ -80,7 +80,7 @@ func Audit() error {
 			return err
 		}
 		if auditRunFailed(output.String()) {
-			return fmt.Errorf("audit failed: jurist profile %s reported failed terminal status", profileName)
+			return fmt.Errorf("audit failed: specification-critic profile %s reported failed terminal status", profileName)
 		}
 	}
 	return nil

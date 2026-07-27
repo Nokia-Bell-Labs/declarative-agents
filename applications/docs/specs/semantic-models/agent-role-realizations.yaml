@@ -209,18 +209,21 @@ bindings:
       sub_roles: [intent-decomposer, resource-planner]
       domain: coding
       execution_scope: requirement-graph
-    - actor: jurist
-      profile: applications/catalog/agents/jurist/profile.yaml
+    - actor: specification-critic
+      profile: applications/catalog/agents/specification-critic/profile.yaml
       classification: role_realization
       primary_role: critic
       sub_roles: [output-evaluator]
       domain: specification
       execution_scope: corpus
-      naming_status: migration_planned
-    - actor: jurist-audit
-      profile: applications/catalog/agents/jurist/audit-profile.yaml
+      responsibility_justification: |
+        The profile evaluates specification corpus output and reports findings.
+        It does not enforce policy or control access, so it has no Guardian /
+        Policy Enforcer binding.
+    - actor: specification-critic-audit
+      profile: applications/catalog/agents/specification-critic/audit-profile.yaml
       classification: configuration_variant
-      inherits: jurist
+      inherits: specification-critic
       execution_scope: repository-audit
     - actor: documentation-curator
       profile: applications/catalog/agents/knowledge-manager/documentation-curator/profile.yaml
@@ -428,9 +431,13 @@ migration_aliases:
     removal: applications/catalog/v1
   - alias: jurist
     path: applications/catalog/agents/jurist/profile.yaml
-    status: migration_planned
+    status: migration_compatibility
     target_name: specification-critic
     binding: {role: critic, sub_roles: [output-evaluator]}
+    canonical_path: applications/catalog/agents/specification-critic/profile.yaml
+    supported_through: applications/catalog/v0.*
+    removal: applications/catalog/v1
+    reason: Historical profile identity; the implementation evaluates output and has no Guardian enforcement authority.
 
 non_goals:
   - Change the agent-core profile schema or add role fields to profile.yaml.

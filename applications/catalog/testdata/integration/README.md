@@ -11,7 +11,7 @@ entry marked "No code consumer" is metadata and is not an executable test input.
 
 | Fixture | Consuming target (repo / file) | Test suite | Use case |
 | --- | --- | --- | --- |
-| `jurist-charter-demo/` | applications/catalog / `magefiles/validation.go` (`mage validate`, validation-time) | `test-rel06.0-agent-profiles` | `rel06.0-uc002-profile-validation` |
+| `specification-critic-charter-demo/` | applications/catalog / `magefiles/validation.go` (`mage validate`, validation-time) | `test-rel06.0-agent-profiles` | `rel06.0-uc002-profile-validation` |
 | `rel07-evaluator-generator/` | Retired fixture retained for conformance compatibility; the former Mage tracer used a fake child. Replacement: `applications/coding-agent` / `mage integration:criticGate`. | `test-rel07.0-profile-integrations` | `rel07.0-uc002-evaluator-generator-profile-boundary` |
 | `rel07-monitor-control/` | applications/catalog / `magefiles/integration_monitor_control.go` (`mage integration:monitorControl`) | `test-rel07.0-profile-integrations` | `rel07.0-uc005-monitor-control-profile-boundary` |
 | `rel07-planner-generator/` | Retired fixture retained as historical data; the former Mage tracer synthesized planner behavior and used a fake child. Replacement: `applications/coding-agent` / `mage integration:plannerDelegation`. | `test-rel07.0-profile-integrations` | `rel07.0-uc003-planner-generator-profile-boundary` |

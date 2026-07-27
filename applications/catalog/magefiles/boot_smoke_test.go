@@ -20,7 +20,7 @@ func TestBootSmokeProfilesPassesWhenEveryProfilePreflights(t *testing.T) {
 		return []byte("config valid"), nil
 	}
 
-	profiles := []string{"agents/runtime-state-reader/profile.yaml", "agents/jurist/profile.yaml"}
+	profiles := []string{"agents/runtime-state-reader/profile.yaml", "agents/specification-critic/profile.yaml"}
 	if err := bootSmokeProfiles(run, "/tmp/agent", "/core", profiles); err != nil {
 		t.Fatalf("boot smoke should pass, got %v", err)
 	}

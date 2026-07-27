@@ -5,7 +5,7 @@ family_srds:
   - srd002-executor
   - srd003-critic
   - srd004-planner
-  - srd005-jurist
+  - srd005-specification-critic
   - srd006-bench
   - srd008-runtime-state-reader
   - srd011-knowledge-manager
@@ -29,7 +29,7 @@ context: |
     - srd002-executor             (executor)
     - srd003-critic               (critic)
     - srd004-planner              (planner)
-    - srd005-jurist               (jurist)
+    - srd005-specification-critic (specification-critic)
     - srd006-bench                (bench)
     - srd008-runtime-state-reader (runtime-state-reader infrastructure adapter)
     - srd011-knowledge-manager    (knowledge-manager)
