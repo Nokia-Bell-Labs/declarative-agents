@@ -301,6 +301,14 @@ srd_index:
 config_format_index: []
 
 semantic_model_index:
+  - id: sm-agent-role-realizations
+    title: Agent Role Realizations and Bindings
+    summary: |
+      Shared authority for canonical role IDs, concrete actor/profile bindings,
+      naming grammar, classifications, inheritance, and migration aliases.
+    status: specified
+    path: ../docs/specs/semantic-models/agent-role-realizations.yaml
+    reciprocal_index: ../docs/SPECIFICATIONS.yaml#semantic_model_index
   - id: sm-multi-agent-profile-system
     title: Multi-Agent Profile System
     summary: Role groups, actor boundaries, dependency directions, and

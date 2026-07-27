@@ -73,3 +73,37 @@ releases:
     non_runnable_modules:
       - path: applications/catalog
         classification: reusable catalog
+  - version: "TBD"
+    name: Agent role-realization alignment
+    description: |
+      Align catalog and application actor names with the pinned Agent View role
+      authority while preserving canonical implementation ownership. The shared
+      semantic model lands first; executable binding governance and profile
+      migrations follow without rewriting historical releases.
+    status: planned
+    dependencies:
+      - id: catalog-release-07.1
+        status: in-progress
+        reason: Preserve and update incomplete per-family boundary evidence during migration.
+      - id: catalog-release-11.0
+        status: in-progress
+        reason: Preserve assembler-rig evidence while resolving its canonical-name collision.
+      - id: gh-1076-semantic-model
+        status: specified
+        reason: Defines pinned role authority, classifications, inheritance, and aliases.
+      - id: gh-1074-binding-validation
+        status: planned
+        reason: Makes the semantic model an executable repository-wide audit.
+    use_cases:
+      - id: relTBD-uc001-agent-role-realization-alignment
+        summary: |
+          Classify each shipped profile, validate many-to-many role bindings and
+          wrapper inheritance, and migrate incompatible canonical-name collisions
+          through versioned aliases.
+        status: planned
+        semantic_models: [sm-agent-role-realizations]
+    implementation_sequence:
+      - Pin the shared semantic model and reciprocal indexes.
+      - Add executable profile discovery, binding, parent, inheritance, and collision validation.
+      - Migrate Critic realizations and catalog canonical-name collisions.
+      - Coordinate release aliases, consumers, packaging closures, and migration evidence.

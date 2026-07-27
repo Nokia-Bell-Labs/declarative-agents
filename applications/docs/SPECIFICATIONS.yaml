@@ -73,7 +73,18 @@ srd_index:
 
 config_format_index: []
 
-semantic_model_index: []
+semantic_model_index:
+  - id: sm-agent-role-realizations
+    title: Agent Role Realizations and Bindings
+    summary: |
+      Pinned canonical role and sub-role authority, realization naming grammar,
+      actor-role bindings, wrapper inheritance, classifications, and migration
+      aliases shared by the catalog and runnable applications.
+    status: specified
+    path: docs/specs/semantic-models/agent-role-realizations.yaml
+    reciprocal_indexes:
+      - catalog/docs/SPECIFICATIONS.yaml#semantic_model_index
+      - catalog/docs/specs/semantic-models/agent-role-taxonomy.yaml#shared_authority
 
 use_case_index:
   - id: rel00.0-uc001-application-contract-conformance

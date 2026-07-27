@@ -1,0 +1,429 @@
+id: sm-agent-role-realizations
+title: Agent Role Realizations and Bindings
+status: specified
+
+purpose: |
+  Separate reference-architecture roles from repository actors and profiles.
+  A canonical role is an interface or trait: it defines a reusable semantic
+  responsibility and may be assumed by many actors. A realization is a
+  configured actor or profile that binds one or more roles for a domain,
+  execution scope, deployment form, and configuration. Repeated bindings never
+  create another canonical role definition.
+
+ontology:
+  canonical_role: |
+    A stable reference-architecture interface or trait. It is not a globally
+    unique deployed agent, process, profile, directory, or binary.
+  canonical_sub_role: |
+    A semantic specialization whose parent is exactly one canonical role in the
+    pinned source. Sub-role bindings refine, but do not replace, a role binding.
+  actor: |
+    A purposeful runtime identity. An actor may bind many roles, and one role may
+    be bound by many actors.
+  profile: |
+    A loadable concrete role realization or a descriptive multi-role actor.
+    Profile names identify configured programs, not additions to the canonical
+    role catalog.
+  realization: |
+    The binding of an actor/profile to roles in a stated domain and execution
+    scope. Deployment and configuration variants are facets of that realization.
+  wrapper: |
+    A profile that selects a canonical machine or closure while adding
+    application-owned endpoints, configuration, serving, or packaging.
+  fixture: |
+    Test-only data or a bounded profile used to exercise another subject.
+    A fixture is classified but excluded from canonical role coverage.
+  adapter: |
+    Infrastructure-facing configuration that translates a runtime or protocol
+    boundary. An adapter is not a role merely because its name resembles one.
+  alias: |
+    A historical or compatibility identity that resolves to a realization. An
+    alias cannot legitimize an incompatible use of a bare canonical role name.
+
+naming_grammar:
+  form: <context-or-purpose>-<primary-role>[-<deployment-or-configuration-form>]
+  identifier_style: lower-kebab-case
+  rules:
+    - Context or purpose precedes the primary canonical role.
+    - Deployment, request, session, server, workspace, and model qualifiers follow the primary role.
+    - A generic reusable realization may use the bare canonical role name.
+    - A semantic specialization uses a canonical sub-role binding; it is not inferred from a deployment or model suffix.
+    - A descriptive multi-role actor keeps its actor name and declares role bindings separately.
+    - Scenario scope belongs in a scenario path or configuration unless it changes the reusable actor responsibility.
+  examples:
+    generic: critic
+    contextual: coding-critic
+    deployment: coding-critic-server
+    configuration: executor-qwen27b
+    scope: critic-workspace
+    multi_role_actor: chatbot
+
+canonical_source:
+  authority: agentic-framework L4 reference architecture Agent View
+  repository: https://gitlabe1.ext.net.nokia.com/architecture/self-evolving-networks.git
+  revision: 779a654fcfd3e5418991cb154a6cb3cc894be6ae
+  retrieved: "2026-07-27"
+  paths:
+    role_catalog: agentic-framework/reference-architecture/data/agent-view-roles.yaml
+    narrative:
+      - agentic-framework/reference-architecture/agent-view/01-introduction.md
+      - agentic-framework/reference-architecture/agent-view/02-agent-roles.md
+      - agentic-framework/reference-architecture/agent-view/03-role-catalog.md
+      - agentic-framework/reference-architecture/agent-view/04-activity-catalog.md
+  ci_policy: |
+    The role and sub-role IDs below are the pinned in-repository snapshot used by
+    validation. CI must not read a developer-local checkout or absolute path.
+  source_notes:
+    - The machine-readable catalog defines 14 roles and 40 sub-roles.
+    - The source contains prose count and alias drift; IDs and parent links in the pinned role catalog take precedence.
+    - Malformed indentation folds service-composer's simulate-impact item into its parsed parent scalar; the surrounding role entry and narrative establish assembler as the intended parent.
+    - Malformed indentation omits the critic activities key; the role ID and Critic sub-role parents remain authoritative.
+    - Factory Manager is prose drift for canonical Creator; AgentFactory and AgentManager are deployment realizations, not role IDs.
+
+canonical_roles:
+  - {id: planner, name: Planner}
+  - {id: assembler, name: Assembler}
+  - {id: connector, name: Connector}
+  - {id: executor, name: Executor}
+  - {id: knowledge-manager, name: Knowledge Manager}
+  - {id: coordinator, name: Coordinator}
+  - {id: monitor, name: Monitor}
+  - {id: analyst, name: Analyst}
+  - {id: guardian, name: Guardian}
+  - {id: creator, name: Creator}
+  - {id: critic, name: Critic}
+  - {id: collaborator, name: Collaborator}
+  - {id: agent-owner, name: Agent Owner}
+  - {id: intent-owner, name: Intent Owner}
+
+canonical_sub_roles:
+  - {id: intent-handler, parent: planner}
+  - {id: intent-decomposer, parent: planner}
+  - {id: resource-planner, parent: planner}
+  - {id: service-composer, parent: assembler}
+  - {id: resource-integrator, parent: assembler}
+  - {id: domain-binder, parent: connector}
+  - {id: relationship-manager, parent: connector}
+  - {id: protocol-adapter, parent: connector}
+  - {id: workflow-orchestrator, parent: executor}
+  - {id: change-manager, parent: executor}
+  - {id: actuation-agent, parent: executor}
+  - {id: ontology-manager, parent: knowledge-manager}
+  - {id: policy-architect, parent: knowledge-manager}
+  - {id: recommendation-generator, parent: knowledge-manager}
+  - {id: workflow-synchronizer, parent: coordinator}
+  - {id: conflict-resolver, parent: coordinator}
+  - {id: consensus-facilitator, parent: coordinator}
+  - {id: telemetry-collector, parent: monitor}
+  - {id: anomaly-detector, parent: monitor}
+  - {id: assurance-reporter, parent: monitor}
+  - {id: predictive-modeler, parent: analyst}
+  - {id: root-cause-analyst, parent: analyst}
+  - {id: policy-enforcer, parent: guardian}
+  - {id: threat-analyst, parent: guardian}
+  - {id: incident-responder, parent: guardian}
+  - {id: template-selector, parent: creator}
+  - {id: instance-manager, parent: creator}
+  - {id: resource-allocator, parent: creator}
+  - {id: output-evaluator, parent: critic}
+  - {id: feedback-generator, parent: critic}
+  - {id: sandbox-validator, parent: critic}
+  - {id: knowledge-discovery-facilitator, parent: collaborator}
+  - {id: negotiator, parent: collaborator}
+  - {id: collective-intelligence-enabler, parent: collaborator}
+  - {id: decentralized-operations-coordination, parent: collaborator}
+  - {id: data-and-telemetry-steward, parent: collaborator}
+  - {id: agent-lifecycle-manager, parent: agent-owner}
+  - {id: agent-registrar, parent: agent-owner}
+  - {id: agent-custodian, parent: agent-owner}
+  - {id: agent-retirer, parent: agent-owner}
+
+classifications:
+  role_realization:
+    counts_toward_role_coverage: true
+    description: A production or reusable actor with justified canonical bindings.
+  descriptive_multi_role_actor:
+    counts_toward_role_coverage: true
+    description: An actor whose stable identity is clearer than any one primary role.
+  wrapper:
+    counts_toward_role_coverage: false
+    description: An application or serving wrapper that inherits a canonical realization.
+  configuration_variant:
+    counts_toward_role_coverage: false
+    description: A model or configuration choice over one realization.
+  human_interface:
+    counts_toward_role_coverage: false
+    description: A human boundary that launches or observes role realizations.
+  test_harness:
+    counts_toward_role_coverage: false
+    description: A scenario composer or test runner.
+  mock:
+    counts_toward_role_coverage: false
+    description: A scripted test double; the source architecture has no equivalent role.
+  fixture:
+    counts_toward_role_coverage: false
+    description: Test-only profile or data.
+  infrastructure_adapter:
+    counts_toward_role_coverage: false
+    description: Runtime, protocol, serving, or lifecycle boundary adapter.
+
+bindings:
+  catalog:
+    - actor: critic
+      profile: applications/catalog/agents/critic/profile.yaml
+      classification: role_realization
+      primary_role: critic
+      sub_roles: [output-evaluator, feedback-generator]
+      domain: evaluation
+      execution_scope: session
+      components:
+        - {name: critic-session, scope: session, inherits: critic}
+        - {name: critic-point, scope: point, inherits: critic}
+    - actor: critic-workspace
+      profile: applications/catalog/agents/critic/profile-workspace.yaml
+      classification: configuration_variant
+      inherits: critic
+      domain: evaluation
+      execution_scope: workspace
+    - actor: executor
+      profile: applications/catalog/agents/executor/profile.yaml
+      classification: role_realization
+      primary_role: executor
+      sub_roles: [change-manager, actuation-agent]
+      domain: coding
+      execution_scope: workspace
+    - actor: executor-qwen35b
+      profile: applications/catalog/agents/executor/profile-qwen35b.yaml
+      classification: configuration_variant
+      inherits: executor
+      configuration: {model: qwen35b}
+    - actor: executor-qwen27b
+      profile: applications/catalog/agents/executor/profile-qwen27b.yaml
+      classification: configuration_variant
+      inherits: executor
+      configuration: {model: qwen27b}
+    - actor: planner
+      profile: applications/catalog/agents/planner/profile.yaml
+      classification: role_realization
+      primary_role: planner
+      sub_roles: [intent-decomposer, resource-planner]
+      domain: coding
+      execution_scope: requirement-graph
+    - actor: jurist
+      profile: applications/catalog/agents/jurist/profile.yaml
+      classification: role_realization
+      primary_role: critic
+      sub_roles: [output-evaluator]
+      domain: specification
+      execution_scope: corpus
+      naming_status: migration_planned
+    - actor: jurist-audit
+      profile: applications/catalog/agents/jurist/audit-profile.yaml
+      classification: configuration_variant
+      inherits: jurist
+      execution_scope: repository-audit
+    - actor: documentation-curator
+      profile: applications/catalog/agents/knowledge-manager/documentation-curator/profile.yaml
+      classification: role_realization
+      primary_role: knowledge-manager
+      sub_roles: [ontology-manager, recommendation-generator]
+      domain: documentation
+      execution_scope: server
+    - actor: corpus-ingest
+      profile: applications/catalog/agents/knowledge-manager/corpus-ingest/profile.yaml
+      classification: role_realization
+      primary_role: knowledge-manager
+      sub_roles: [ontology-manager]
+      domain: retrieval-corpus
+      execution_scope: batch
+    - actor: corpus-reader
+      profile: applications/catalog/agents/knowledge-manager/corpus-reader/profile.yaml
+      classification: role_realization
+      primary_role: knowledge-manager
+      sub_roles: [recommendation-generator]
+      domain: retrieval-corpus
+      execution_scope: request
+    - actor: assembler
+      profile: applications/catalog/agents/assembler/profile.yaml
+      classification: test_harness
+      primary_role: critic
+      sub_roles: [sandbox-validator, output-evaluator]
+      domain: conformance
+      execution_scope: scenario
+      naming_status: migration_required_collision
+    - actor: bench
+      profile: applications/catalog/agents/bench/profile.yaml
+      classification: human_interface
+      domain: evaluation
+      execution_scope: server
+      launches: critic
+    - actor: mock
+      profile: applications/catalog/agents/mock/profile.yaml
+      classification: mock
+      domain: conformance
+      execution_scope: scenario
+    - actor: monitor
+      profile: applications/catalog/agents/monitor/profile.yaml
+      classification: infrastructure_adapter
+      domain: runtime-state
+      execution_scope: server
+      naming_status: migration_required_collision
+      adjacent_role: monitor
+
+  coding_agent:
+    - actor: coding-planner-server
+      profile: applications/coding-agent/agents/serving/planner/profile.yaml
+      classification: wrapper
+      inherits: planner
+      deployment_form: server
+    - actor: coding-planner-request
+      profile: applications/coding-agent/agents/serving/planner/request-profile.yaml
+      classification: wrapper
+      inherits: coding-planner-server
+      execution_scope: request
+    - actor: coding-executor-server
+      profile: applications/coding-agent/agents/serving/executor/profile.yaml
+      classification: wrapper
+      inherits: executor
+      deployment_form: server
+    - actor: coding-critic-server
+      profile: applications/coding-agent/agents/serving/critic/profile.yaml
+      classification: wrapper
+      inherits: critic-workspace
+      deployment_form: server
+
+  chatbot_mesh:
+    - actor: chatbot
+      profile: applications/chatbot-mesh/agents/chatbot/profile.yaml
+      classification: descriptive_multi_role_actor
+      roles:
+        - {role: planner, sub_roles: [intent-handler]}
+        - {role: executor, sub_roles: [workflow-orchestrator]}
+        - {role: knowledge-manager, sub_roles: [recommendation-generator]}
+      domain: conversational-rag
+      execution_scope: request
+    - actor: rag-server
+      profile: applications/chatbot-mesh/agents/rag-server/profile.yaml
+      classification: descriptive_multi_role_actor
+      roles:
+        - {role: knowledge-manager, sub_roles: [recommendation-generator]}
+      domain: retrieval
+      execution_scope: server
+    - actor: corpus-ingest
+      profile: applications/chatbot-mesh/agents/corpus-ingest/profile.yaml
+      classification: wrapper
+      inherits: corpus-ingest
+      inheritance_target: applications/catalog/agents/knowledge-manager/corpus-ingest/profile.yaml
+      domain: chatbot-mesh
+    - actor: coordinator
+      profile: applications/chatbot-mesh/agents/coordinator/profile.yaml
+      classification: role_realization
+      primary_role: executor
+      sub_roles: [workflow-orchestrator]
+      domain: provisioning
+      naming_status: boundary_review_required
+    - actor: creator
+      profile: applications/chatbot-mesh/agents/creator/profile.yaml
+      classification: role_realization
+      roles:
+        - {role: creator, sub_roles: [instance-manager]}
+        - {role: agent-owner, sub_roles: [agent-lifecycle-manager]}
+      domain: agent-lifecycle
+      naming_status: boundary_review_required
+    - actor: applier
+      profile: applications/chatbot-mesh/agents/applier/profile.yaml
+      classification: role_realization
+      primary_role: executor
+      sub_roles: [actuation-agent, change-manager]
+      domain: deployment
+    - actor: collector
+      profile: applications/chatbot-mesh/agents/collector/profile.yaml
+      classification: role_realization
+      primary_role: monitor
+      sub_roles: [telemetry-collector]
+      domain: observability
+
+non_role_inventory:
+  catalog_fixtures:
+    inheritance_rule: All listed profiles are fixtures and do not create role bindings.
+    profiles:
+      - applications/catalog/testdata/conformance/control/profile.yaml
+      - applications/catalog/testdata/conformance/lifecycle/approval/profile.yaml
+      - applications/catalog/testdata/conformance/lifecycle/history/profile.yaml
+      - applications/catalog/testdata/conformance/lifecycle/rollback/profile.yaml
+      - applications/catalog/testdata/conformance/rest/profile.yaml
+      - applications/catalog/testdata/conformance/rest/ollama-profile.yaml
+      - applications/catalog/testdata/conformance/rig-subject/profile.yaml
+      - applications/catalog/testdata/conformance/rig-subject/tests/broken/profile.yaml
+      - applications/catalog/testdata/conformance/rig-subject/tests/dep-failure/profile.yaml
+      - applications/catalog/testdata/conformance/rig-subject/tests/happy-path/profile.yaml
+  mesh_fixtures:
+    inheritance_rule: Validators bind Critic for their test scope; the rig wrapper itself is a fixture.
+    profiles:
+      - path: applications/chatbot-mesh/agents/chatbot/tests/single-turn/profile.yaml
+        actor: chatbot-turn-validator
+        role: critic
+        sub_roles: [output-evaluator, sandbox-validator]
+      - path: applications/chatbot-mesh/agents/chatbot/tests/degraded-rag/profile.yaml
+        actor: chatbot-turn-validator
+        role: critic
+        sub_roles: [output-evaluator, sandbox-validator]
+      - path: applications/chatbot-mesh/agents/rag-server/tests/query/profile.yaml
+        actor: rag-query-validator
+        role: critic
+        sub_roles: [output-evaluator, sandbox-validator]
+      - path: applications/chatbot-mesh/testdata/rig/profile.yaml
+        classification: fixture
+        inherits: assembler
+  application_fixtures:
+    profiles:
+      - path: applications/knowledge-manager-demo/call-lifecycle-exit/profile.yaml
+        classification: infrastructure_adapter
+        purpose: bounded lifecycle-exit demo helper
+
+inheritance_and_override_rules:
+  - An inheriting wrapper or variant receives all role and sub-role bindings from its target.
+  - A variant may override domain, execution_scope, deployment_form, or configuration without redefining a role.
+  - An override of role or sub-role bindings must replace the inherited list explicitly and provide a responsibility justification.
+  - An inheritance chain must terminate at a non-inheriting realization and must not contain a cycle.
+  - A wrapper around a catalog profile keeps the catalog profile as canonical implementation owner.
+  - Same-named actors in different applications are distinct bindings; inheritance_target disambiguates cross-module reuse.
+
+validation_rules:
+  - canonical_roles contains exactly 14 unique lower-kebab IDs.
+  - canonical_sub_roles contains exactly 40 unique IDs and every parent names a canonical role.
+  - Every role and sub-role binding must resolve against the pinned snapshot.
+  - Every shipped catalog profile and application-local production profile must be listed directly or inherit through a documented rule.
+  - Repeated role bindings and many-to-many actor-role bindings are valid.
+  - Bare canonical names are valid only for generic reusable realizations with compatible responsibility.
+  - Fixtures, mocks, human interfaces, wrappers, and infrastructure adapters are excluded from canonical role-coverage counts.
+  - A migration-required alias cannot be normalized as a valid canonical realization.
+  - Profile paths are repository-relative and must not depend on a developer-local absolute path.
+
+migration_aliases:
+  - alias: assembler
+    path: applications/catalog/agents/assembler/profile.yaml
+    status: migration_required
+    collision_with: assembler
+    target_name: scenario-critic
+    binding: {role: critic, sub_roles: [sandbox-validator, output-evaluator]}
+    reason: The test rig performs safe testing and verdict reduction, not production service composition and resource integration.
+  - alias: monitor
+    path: applications/catalog/agents/monitor/profile.yaml
+    status: migration_required
+    collision_with: monitor
+    target_name: runtime-state-reader
+    classification: infrastructure_adapter
+    reason: The profile reads cached runtime state; it does not collect telemetry, detect anomalies, or report assurance.
+  - alias: jurist
+    path: applications/catalog/agents/jurist/profile.yaml
+    status: migration_planned
+    target_name: specification-critic
+    binding: {role: critic, sub_roles: [output-evaluator]}
+
+non_goals:
+  - Change the agent-core profile schema or add role fields to profile.yaml.
+  - Rename profiles, paths, tools, runtime monitor APIs, or historical release IDs in this issue.
+  - Claim every canonical role has an implementation.
+  - Invent empty profiles to increase role coverage.
+  - Treat model, request, session, server, or workspace qualifiers as semantic sub-roles.
