@@ -133,8 +133,9 @@ schema:
         - Done
 
       Rich object form: a list of objects with name and optional
-      meaning metadata. The meaning field documents the state's
-      semantic purpose.
+      meaning and run_status metadata. The meaning field documents the state's
+      semantic purpose. Terminal states may declare run_status as succeeded,
+      failed, budget_exceeded, cancelled, or suspended.
         states:
         - name: Idle
           meaning: Initial state before any work begins.
@@ -142,6 +143,7 @@ schema:
           meaning: The main working state where tools execute.
         - name: Done
           meaning: Terminal. All work completed.
+          run_status: succeeded
 
       Both forms may be mixed in the same list. The parser
       (StateSpecs.UnmarshalYAML) detects scalars vs mappings
@@ -149,6 +151,8 @@ schema:
 
       Every state referenced in transitions, initial_state, and
       terminal_states must appear here.
+      run_status is valid only on terminal states. Omitted run_status uses the
+      legacy terminal-name default for backward compatibility.
 
   - field: terminal_states
     type: "[]string"

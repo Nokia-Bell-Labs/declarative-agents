@@ -408,9 +408,8 @@ func machineRequestAgentName(req MachineRequestRun) string {
 	return "machine_request"
 }
 
-// machineRequestTerminalStatus classifies a terminal state as run success or
-// failure from the HTTP status the endpoint maps it to, so the run status a
-// caller sees agrees with the response code it gets.
+// machineRequestTerminalStatus uses declared machine outcome policy first.
+// HTTP response mappings remain a compatibility fallback for older machines.
 //
 // The terminal-state map answers this directly. The terminal-signal map is
 // consulted next only for the machines that name a state after the signal
@@ -418,20 +417,16 @@ func machineRequestAgentName(req MachineRequestRun) string {
 // and stays so those configurations keep their classification (GH-615).
 func machineRequestTerminalStatus(cfg MachineRequest) func(core.State) core.RunStatus {
 	return func(state core.State) core.RunStatus {
+		if status, ok := core.DeclaredTerminalStatus(cfg.MachineSpec, state); ok {
+			return status
+		}
 		if mapping, ok := cfg.Response.TerminalStates[string(state)]; ok {
 			return runStatusForHTTP(mapping.Status)
 		}
 		if mapping, ok := cfg.Response.TerminalSignals[string(state)]; ok {
 			return runStatusForHTTP(mapping.Status)
 		}
-		switch state {
-		case core.State("Succeeded"), core.State("Done"), core.State("Passed"):
-			return core.StatusSucceeded
-		case core.State("BudgetExceeded"):
-			return core.StatusBudgetExceeded
-		default:
-			return core.StatusFailed
-		}
+		return core.TerminalStatusForState(cfg.MachineSpec, state)
 	}
 }
 

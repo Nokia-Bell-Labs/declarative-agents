@@ -404,6 +404,34 @@ func TestLoop_DefaultTerminalStatus(t *testing.T) {
 	require.Equal(t, StatusFailed, defaultTerminalStatus(State("Anything")))
 }
 
+func TestLoopUsesDeclaredStatusForArbitrarilyNamedTerminal(t *testing.T) {
+	t.Parallel()
+	spec, err := ParseMachineSpec([]byte(`
+name: declared-outcome
+initial_state: Idle
+states:
+  - Idle
+  - name: Finished
+    run_status: succeeded
+terminal_states: [Finished]
+signals: [Seed]
+transitions:
+  - {state: Idle, signal: Seed, next: Finished}
+`))
+	require.NoError(t, err)
+
+	result, err := Loop(LoopParams{
+		MachineSpec: &spec,
+		Registry:    NewRegistry(),
+		Trace:       &loopRecorder{},
+		Budget:      Budget{MaxIterations: 2},
+	}, context.Background())
+
+	require.NoError(t, err)
+	require.Equal(t, State("Finished"), result.FinalState)
+	require.Equal(t, StatusSucceeded, result.Status)
+}
+
 func TestCoreBudgetExceeded(t *testing.T) {
 	t.Parallel()
 

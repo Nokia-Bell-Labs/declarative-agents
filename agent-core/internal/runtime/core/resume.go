@@ -69,7 +69,7 @@ func LoadResume(params LoopParams) (ResumeState, error) {
 		TotalCost:  pos.Snapshot.TotalCost,
 	}
 	if finalized {
-		params.InitialRun.Status = resolveTerminalStatus(params.Hooks, pos.CurrentState)
+		params.InitialRun.Status = resolveTerminalStatus(params.Hooks, params.MachineSpec, pos.CurrentState)
 		params.InitialRun.FinalState = pos.CurrentState
 	}
 	params.InitialExecution = exec

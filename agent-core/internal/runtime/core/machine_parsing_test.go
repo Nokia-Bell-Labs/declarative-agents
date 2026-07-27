@@ -3,11 +3,13 @@
 package core
 
 import (
+	"fmt"
+	"strings"
+	"testing"
+
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 	"gopkg.in/yaml.v3"
-	"strings"
-	"testing"
 )
 
 func TestParseMachineSpec_Valid(t *testing.T) {
@@ -123,6 +125,7 @@ states:
   - Working
   - name: Done
     meaning: Terminal success state.
+    run_status: succeeded
 terminal_states: [Done]
 signals:
   - name: Seed
@@ -163,6 +166,7 @@ transitions:
 	if spec.States[0].Meaning == "" || spec.States[2].Meaning == "" {
 		t.Fatalf("state metadata not preserved: %#v", spec.States)
 	}
+	require.Equal(t, StatusSucceeded, spec.States[2].RunStatus)
 	if got := spec.Signals.Names(); strings.Join(got, ",") != "Seed,ToolDone" {
 		t.Fatalf("signal names = %#v", got)
 	}
@@ -191,6 +195,28 @@ transitions:
 	if reparsed.Purpose != spec.Purpose || reparsed.Lifecycle != spec.Lifecycle || len(reparsed.Invariants) != len(spec.Invariants) {
 		t.Fatalf("metadata did not round-trip: %#v", reparsed)
 	}
+}
+
+func TestParseMachineSpecValidatesDeclaredRunStatus(t *testing.T) {
+	t.Parallel()
+	base := `
+name: outcome
+initial_state: Idle
+states:
+  - name: Idle
+    %s
+  - name: Finished
+    %s
+terminal_states: [Finished]
+signals: [Seed]
+transitions:
+  - {state: Idle, signal: Seed, next: Finished}
+`
+	_, err := ParseMachineSpec([]byte(fmt.Sprintf(base, "", "run_status: unknown")))
+	require.ErrorContains(t, err, `states[1].run_status: invalid value "unknown"`)
+
+	_, err = ParseMachineSpec([]byte(fmt.Sprintf(base, "run_status: succeeded", "run_status: succeeded")))
+	require.ErrorContains(t, err, `states[0].run_status: state "Idle" is not terminal`)
 }
 
 func TestParseMachineSpec_MetricLabels(t *testing.T) {

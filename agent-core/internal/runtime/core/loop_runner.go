@@ -219,7 +219,7 @@ func (r *loopRunner) stopForTerminal(nextState State) bool {
 		r.state = nextState
 		r.saveTerminalCheckpoint()
 	}
-	status := resolveTerminalStatus(r.params.Hooks, nextState)
+	status := resolveTerminalStatus(r.params.Hooks, r.params.MachineSpec, nextState)
 	if r.checkpointSaveErr != nil {
 		status = StatusFailed
 		r.run.LastError = fmt.Errorf(

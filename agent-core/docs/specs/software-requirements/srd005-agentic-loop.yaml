@@ -27,7 +27,7 @@ requirements:
   R2:
     title: RunStatus and RunResult
     items:
-      - R2.1: "RunStatus is a string type with four constants: StatusSucceeded, StatusFailed, StatusBudgetExceeded, StatusCancelled."
+      - R2.1: "RunStatus is a string type with five constants: StatusSucceeded, StatusFailed, StatusBudgetExceeded, StatusCancelled, StatusSuspended."
       - R2.2: "RunResult has ten fields: Status, Iterations, TokensIn, TokensOut, Duration, TotalCost, FinalState, LastError, Summary, Events."
       - R2.3: RunResult has custom MarshalJSON that serializes Duration as a string and LastError as a nullable string pointer.
       - R2.4: "RunEvent records one command dispatch with fields: Iteration, Timestamp, CommandName, Signal, Cost, FromState, ToState."
@@ -37,7 +37,7 @@ requirements:
     items:
       - R3.1: ValidateParams checks that required builders exist in the registry. Non-nil error aborts the run.
       - R3.2: BudgetExceeded checks domain-specific budget dimensions. Returns true to trigger BudgetExhausted signal.
-      - R3.3: TerminalStatus maps a terminal State to a RunStatus. Nil uses default mapping.
+      - R3.3: TerminalStatus maps a terminal State to a RunStatus. When nil, the loop uses the state's declared MachineSpec run_status and then the legacy name default when omitted.
       - R3.4: OnResult is called after each dispatch. The returned RunResult replaces the accumulator.
       - R3.5: TaskCompletedSignal specifies the signal that captures the task summary. Defaults to "TaskCompleted".
       - R3.6: All hooks are optional. Nil means default behavior.
@@ -60,7 +60,7 @@ requirements:
       - R5.5: Each iteration checks context cancellation, budget, steps the state machine, and dispatches the command.
       - R5.6: Context cancellation produces StatusCancelled.
       - R5.7: BudgetExhausted signal is injected when core or hook budget checks trigger.
-      - R5.8: Terminal states are resolved to RunStatus via TerminalStatus hook or defaults.
+      - R5.8: Terminal states are resolved to RunStatus via TerminalStatus hook, declared state run_status, or the backward-compatible name default.
       - R5.9: Cost is accumulated across iterations (TokensIn, TokensOut, TotalCost).
       - R5.10: Events are appended with per-iteration metadata.
       - R5.11: "Loop emits OTel spans using GenAI semconv naming: an invoke_agent {AgentName} root span for the run, and events for transitions, budget, and termination."
@@ -93,7 +93,7 @@ acceptance_criteria:
     traces: [R1.1, R1.2, R1.3]
 
   - id: AC2
-    criterion: RunStatus has four constants. RunResult carries status, iterations, tokens, duration, cost, events, and summary. Custom JSON marshaling.
+    criterion: RunStatus has five constants. RunResult carries status, iterations, tokens, duration, cost, events, and summary. Custom JSON marshaling.
     traces: [R2.1, R2.2, R2.3, R2.4]
 
   - id: AC3
@@ -147,7 +147,7 @@ diagrams:
       Goals --> R7["R7: Checkpoint port integration"]
       AC1["AC1: Budget has MaxIterations, MaxTokens, and MaxDuration. Zer..."]
       R1 --> AC1
-      AC2["AC2: RunStatus has four constants. RunResult carries status, i..."]
+      AC2["AC2: RunStatus has five constants. RunResult carries status, i..."]
       R2 --> AC2
       AC3["AC3: LoopHooks has ValidateParams, BudgetExceeded, TerminalSta..."]
       R3 --> AC3
