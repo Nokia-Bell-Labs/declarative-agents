@@ -42,7 +42,9 @@ func TestHelmPackageIsRepeatableAndExcludesGeneratedInputs(t *testing.T) {
 	for _, name := range second {
 		if strings.Contains(name, "chatbot-mesh/dist/") ||
 			strings.HasSuffix(name, "/profiles/stale.yaml") ||
-			strings.HasSuffix(name, "/prior.tgz") {
+			strings.HasSuffix(name, "/prior.tgz") ||
+			strings.Contains(name, "/profiles/agents/coordinator/") ||
+			strings.HasSuffix(name, "/templates/coordinator.yaml") {
 			t.Errorf("archive contains excluded generated input %s", name)
 		}
 	}
@@ -55,6 +57,19 @@ func TestHelmPackageIsRepeatableAndExcludesGeneratedInputs(t *testing.T) {
 		if !containsArchiveFile(second, required) {
 			t.Errorf("archive is missing required runtime asset %s", required)
 		}
+	}
+}
+
+func TestHelmPackageRecordsCatalogCompatibilityPin(t *testing.T) {
+	chart := mustReadPackageTestFile(t, filepath.Join("..", "helm", "Chart.yaml"))
+	const annotation = "declarative-agents.nokia.com/catalog-compatible-release: applications/catalog/v0.20260727.0"
+	if !strings.Contains(string(chart), annotation) {
+		t.Fatalf("Chart.yaml missing exact catalog compatibility annotation %q", annotation)
+	}
+	packaging := mustReadPackageTestFile(t, filepath.Join("..", "helm", "PACKAGING.md"))
+	if !strings.Contains(string(packaging), "applications/catalog/v0.20260727.0") ||
+		!strings.Contains(string(packaging), "does not create release tags") {
+		t.Fatal("PACKAGING.md does not distinguish the exact compatibility pin from post-merge tag publication")
 	}
 }
 

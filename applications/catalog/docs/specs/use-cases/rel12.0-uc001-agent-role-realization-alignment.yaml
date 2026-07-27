@@ -1,0 +1,66 @@
+id: rel12.0-uc001-agent-role-realization-alignment
+title: Migrate Concrete Agent Names as One Versioned Compatibility Release
+release: "12.0"
+status: implemented
+
+summary: |
+  A maintainer completes the repository-wide role-realization naming migration
+  after the semantic authority, binding validator, and individual renames land.
+  Reusable catalog paths retain non-forking v0 wrappers; application-local
+  identities migrate atomically. Consumers pin the exact planned catalog
+  release, packages record compatibility separately from source provenance, and
+  release tests prove the canonical and legacy tag pair without publishing tags
+  from a feature branch.
+
+actor: A maintainer preparing the naming-alignment release.
+
+preconditions:
+  - Issues 1068 through 1070 and 1072 through 1077 are complete.
+  - The shared role-realization semantic model and executable validator are present.
+  - Catalog releases 07.1 and 11.0 retain their independent in-progress evidence gaps.
+
+flow:
+  - id: F1
+    text: The maintainer verifies every old-to-new profile or identity in the migration table.
+  - id: F2
+    text: Catalog aliases select canonical files through one-file wrappers supported through v0 and removed at v1.
+  - id: F3
+    text: Coding-agent and chatbot-mesh package metadata pin applications/catalog/v0.20260727.0 and retain checkout-versus-release provenance.
+  - id: F4
+    text: Catalog, coding-agent, and chatbot-mesh package closures are regenerated and validated from their source inventories.
+  - id: F5
+    text: Root release tests derive one atomic v0.20260727.0, applications/catalog/v0.20260727.0, and agent-profiles/v0.20260727.0 tag set.
+  - id: F6
+    text: After merge, a maintainer runs mage tag from a clean main checkout; this use case does not publish immutable tags.
+
+success_criteria:
+  - id: S1
+    criterion: Every renamed profile or runtime identity has an old-to-new migration entry and explicit compatibility policy.
+  - id: S2
+    criterion: Catalog compatibility wrappers contain only profile.yaml and reference canonical implementation files without copies.
+  - id: S3
+    criterion: Coding-agent closure and chatbot-mesh staged Helm inventory contain the canonical paths and exact compatibility pin.
+  - id: S4
+    criterion: Scoped checks find no stale active path or runtime identity outside wrappers, migration history, and explicit historical aliases.
+  - id: S5
+    criterion: Root and catalog tests prove exact atomic tag semantics while historical tags remain untouched.
+  - id: S6
+    criterion: Root audit, test, and stats plus catalog validation/conformance/integration and application package/Helm checks pass.
+
+touchpoints:
+  - id: T1
+    target: migration-v0.20260727.0-agent-role-realization-alignment
+    reason: Authoritative old-to-new table, compatibility duration, consumer pins, and publication boundary.
+  - id: T2
+    target: sm-agent-role-realizations
+    reason: Binding, classification, inheritance, and alias authority.
+  - id: T3
+    target: test-rel12.0-agent-role-realization-alignment
+    reason: Executable release, closure, render, drift, and zero-hit evidence.
+
+test_suite_trace: test-rel12.0-agent-role-realization-alignment
+
+out_of_scope:
+  - Closing the independent Release 07.1 or 11.0 behavioral evidence gaps.
+  - Publishing immutable release tags before this branch is merged to main.
+  - Renaming stable capability words, historical IDs, or runtime monitor infrastructure.

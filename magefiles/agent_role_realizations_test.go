@@ -7,6 +7,7 @@ import (
 	"os"
 	"path"
 	"path/filepath"
+	"reflect"
 	"regexp"
 	"sort"
 	"strings"
@@ -87,6 +88,33 @@ func TestAgentRoleRealizationsRepositoryConformance(t *testing.T) {
 	}
 	if failures := validateRealizationModel(root, model, profiles); len(failures) != 0 {
 		t.Fatalf("agent-role realization model violations:\n%s", strings.Join(failures, "\n"))
+	}
+}
+
+func TestAgentRoleProfileDiscoveryExcludesGeneratedPackageTrees(t *testing.T) {
+	root := t.TempDir()
+	for _, rel := range []string{
+		"applications/example/agents/profile.yaml",
+		"applications/example/build/profiles/agents/generated/profile.yaml",
+		"applications/example/helm/profiles/agents/generated/profile.yaml",
+		"applications/example/helm/dist/unpacked/profile.yaml",
+		"applications/example/node_modules/fixture/profile.yaml",
+	} {
+		filename := filepath.Join(root, filepath.FromSlash(rel))
+		if err := os.MkdirAll(filepath.Dir(filename), 0o755); err != nil {
+			t.Fatal(err)
+		}
+		if err := os.WriteFile(filename, []byte("name: fixture\n"), 0o644); err != nil {
+			t.Fatal(err)
+		}
+	}
+	profiles, err := discoverRepositoryProfiles(root)
+	if err != nil {
+		t.Fatal(err)
+	}
+	want := []string{"applications/example/agents/profile.yaml"}
+	if !reflect.DeepEqual(profiles, want) {
+		t.Fatalf("discovered profiles = %v, want source-only inventory %v", profiles, want)
 	}
 }
 
@@ -259,18 +287,39 @@ func discoverRepositoryProfiles(root string) ([]string, error) {
 		if err != nil {
 			return err
 		}
-		if entry.IsDir() || !isSemanticProfileFile(entry.Name()) {
-			return nil
-		}
 		rel, err := filepath.Rel(root, file)
 		if err != nil {
 			return err
 		}
-		profiles = append(profiles, filepath.ToSlash(rel))
+		rel = filepath.ToSlash(rel)
+		if entry.IsDir() {
+			if isGeneratedProfileTree(rel) {
+				return filepath.SkipDir
+			}
+			return nil
+		}
+		if !isSemanticProfileFile(entry.Name()) {
+			return nil
+		}
+		profiles = append(profiles, rel)
 		return nil
 	})
 	sort.Strings(profiles)
 	return profiles, err
+}
+
+func isGeneratedProfileTree(rel string) bool {
+	parts := strings.Split(filepath.ToSlash(rel), "/")
+	for index, part := range parts {
+		if part == "build" || part == "node_modules" {
+			return true
+		}
+		if part == "helm" && index+1 < len(parts) &&
+			(parts[index+1] == "dist" || parts[index+1] == "profiles") {
+			return true
+		}
+	}
+	return false
 }
 
 func isSemanticProfileFile(name string) bool {

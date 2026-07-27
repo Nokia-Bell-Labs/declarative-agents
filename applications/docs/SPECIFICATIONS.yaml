@@ -24,6 +24,12 @@ roadmap_summary:
     use_cases_total: 1
     status: implemented
     evidence: Root Go tests and application Mage gates are executable.
+  - version: "12.0"
+    name: Agent role-realization alignment
+    use_cases_done: 1
+    use_cases_total: 1
+    status: implemented
+    evidence: Catalog migration, role governance, consumer closure, Helm package, tag-semantic, and scoped zero-hit tests are executable.
 
 foundation_document_index:
   - id: application-composition-pattern-language
@@ -87,7 +93,7 @@ semantic_model_index:
       Pinned canonical role and sub-role authority, realization naming grammar,
       actor-role bindings, wrapper inheritance, classifications, and migration
       aliases shared by the catalog and runnable applications.
-    status: specified
+    status: implemented
     path: docs/specs/semantic-models/agent-role-realizations.yaml
     reciprocal_indexes:
       - catalog/docs/SPECIFICATIONS.yaml#semantic_model_index

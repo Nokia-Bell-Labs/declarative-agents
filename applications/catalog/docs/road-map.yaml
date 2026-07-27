@@ -659,3 +659,64 @@ releases:
       - One mock profile serves every dependency; response content lives in scenario fixtures.
       - Scenarios run with no live Chroma, Ollama, Docker, or Kubernetes.
       - The rig can fail: a wrong expectation reaches Failed and names the failing validator.
+
+  - version: "12.0"
+    name: Agent role-realization naming alignment
+    description: |
+      Release 12.0 completes the naming migration without rewriting the
+      incomplete Release 07.1 or 11.0 histories. Canonical roles remain shared
+      interfaces; catalog profiles and application actors use concrete
+      realization names, explicit bindings, and one canonical implementation
+      home.
+
+      Reusable old catalog paths are one-file, non-forking wrappers through
+      applications/catalog/v0.* and are removed at v1. Application-local test
+      identities and the chatbot-mesh coordinator workload migrated atomically
+      and retain historical entries without runtime aliases. The exact planned
+      release is applications/catalog/v0.20260727.0 with matching
+      agent-profiles/v0.20260727.0 compatibility tag.
+
+      Executable evidence is implemented and this release is release-ready.
+      Immutable tags are intentionally not published from this feature branch;
+      after merge, mage tag must run from a clean main checkout and create the
+      root, canonical catalog, and legacy alias tags atomically.
+    status: release-ready
+    dependencies:
+      - id: catalog-release-07.1
+        status: in-progress
+        effect: Historical boundary evidence remains independently incomplete; no status is promoted here.
+      - id: catalog-release-11.0
+        status: in-progress
+        effect: Historical rig evidence remains independently incomplete; renamed IDs and aliases preserve traceability.
+    planned_work:
+      - {id: gh-1076, summary: Define role-realization semantic authority, status: done}
+      - {id: gh-1069, summary: Publish the application composition pattern language, status: done}
+      - {id: gh-1074, summary: Enforce binding and classification governance, status: done}
+      - {id: gh-1072, summary: Rename assembler to scenario-critic, status: done}
+      - {id: gh-1075, summary: Rename monitor to runtime-state-reader, status: done}
+      - {id: gh-1068, summary: Rename jurist to specification-critic, status: done}
+      - {id: gh-1070, summary: Rename mesh validators as Critic realizations, status: done}
+      - {id: gh-1073, summary: Classify chatbot-mesh actors, status: done}
+      - {id: gh-1077, summary: Rename mesh coordinator realization, status: done}
+      - {id: gh-1071, summary: Coordinate aliases, pins, package closures, and release evidence, status: done}
+    migration_note: docs/migrations/v0.20260727.0-agent-role-realization-alignment.yaml
+    use_cases:
+      - id: rel12.0-uc001-agent-role-realization-alignment
+        summary: Coordinate all realization renames as one versioned compatibility migration.
+        status: implemented
+    test_suites:
+      - id: test-rel12.0-agent-role-realization-alignment
+        summary: Release metadata, aliases, closures, package renders, tag semantics, and zero-hit evidence.
+        status: implemented
+    proof:
+      - mage validate
+      - mage conformance
+      - mage integration:all
+      - cd ../.. && mage audit
+      - cd ../.. && mage test
+      - cd ../.. && mage stats
+      - cd ../coding-agent && mage audit
+      - cd ../chatbot-mesh && mage helm:package
+    post_merge:
+      - Run mage tag from a clean main checkout after all release gates pass.
+      - Push v0.20260727.0, applications/catalog/v0.20260727.0, and agent-profiles/v0.20260727.0 together.

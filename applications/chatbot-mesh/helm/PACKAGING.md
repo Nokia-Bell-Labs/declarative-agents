@@ -32,6 +32,14 @@ the canonical input is unset. In-tree builds discover the repository's
 build and test corpus ingest, while the resulting chart archive contains the
 resolved files and needs no profile checkout at runtime.
 
+`Chart.yaml` records
+`declarative-agents.nokia.com/catalog-compatible-release:
+applications/catalog/v0.20260727.0` for that canonical build input. As with the
+coding-agent package manifest, this is a compatibility pin, not a claim that an
+arbitrary source checkout is the immutable release. The exact canonical and
+legacy catalog tags are published atomically from `main` after merge; packaging
+on this branch stages the reviewed checkout and does not create release tags.
+
 The ux contributes those two entries, not its whole tree. Every file staged
 under `profiles/` becomes a ConfigMap key and a projected mount item in *every*
 agent pod, so the staged set is exactly what the chart consumes: `ux.yaml`, and

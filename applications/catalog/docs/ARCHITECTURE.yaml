@@ -242,6 +242,10 @@ implementation_status:
     - done: Tool-first taxonomy separates catalog declaration blocks, selection
         lists, profile-local overrides, core declarations and implementations,
         and application-local exclusions.
+    - done: Release 12 role-realization alignment provides non-forking v0
+        compatibility wrappers for renamed catalog paths, exact consumer pins,
+        package-closure and generated-Helm evidence, and atomic canonical/legacy
+        release-tag tests; immutable tag publication remains a post-merge action.
     - done: scenario-critic and mock are classified as supported test-time catalog
         members; rig-subject and runtime conformance fixtures remain internal,
         with no relocation scheduled.

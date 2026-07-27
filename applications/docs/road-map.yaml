@@ -73,14 +73,14 @@ releases:
     non_runnable_modules:
       - path: applications/catalog
         classification: reusable catalog
-  - version: "TBD"
+  - version: "12.0"
     name: Agent role-realization alignment
     description: |
       Align catalog and application actor names with the pinned Agent View role
       authority while preserving canonical implementation ownership. The shared
       semantic model lands first; executable binding governance and profile
       migrations follow without rewriting historical releases.
-    status: planned
+    status: implemented
     dependencies:
       - id: catalog-release-07.1
         status: in-progress
@@ -89,7 +89,7 @@ releases:
         status: in-progress
         reason: Preserve assembler-rig evidence while resolving its canonical-name collision.
       - id: gh-1076-semantic-model
-        status: specified
+        status: implemented
         reason: Defines pinned role authority, classifications, inheritance, and aliases.
       - id: gh-1074-binding-validation
         status: implemented
@@ -98,18 +98,22 @@ releases:
           inventory, classifications, role/sub-role bindings, inheritance,
           aliases, repeated bindings, and canonical-name collisions.
     use_cases:
-      - id: relTBD-uc001-agent-role-realization-alignment
+      - id: rel12.0-uc001-agent-role-realization-alignment
         summary: |
           Classify each shipped profile, validate many-to-many role bindings and
           wrapper inheritance, and migrate incompatible canonical-name collisions
           through versioned aliases.
-        status: planned
+        status: implemented
         semantic_models: [sm-agent-role-realizations]
     implementation_sequence:
       - Pin the shared semantic model and reciprocal indexes.
       - Add executable profile discovery, binding, parent, inheritance, and collision validation.
       - Migrate Critic realizations and catalog canonical-name collisions.
       - Coordinate release aliases, consumers, packaging closures, and migration evidence.
+    release:
+      canonical_catalog: applications/catalog/v0.20260727.0
+      legacy_alias: agent-profiles/v0.20260727.0
+      publication: post-merge from clean main through mage tag
     implementation_evidence:
       - path: magefiles/agent_role_realizations_test.go
         proves: |
@@ -122,3 +126,13 @@ releases:
         proves: Catalog test-time members and incompatible historical aliases retain their documented realization semantics.
       - path: magefiles/audit.go
         proves: Root mage audit executes the actor-role realization validator before module audits.
+      - path: applications/catalog/docs/migrations/v0.20260727.0-agent-role-realization-alignment.yaml
+        proves: Every rename has an old-to-new path or identity entry, compatibility mechanism and duration, consumer pin, and post-merge publication boundary.
+      - path: applications/catalog/conformance/release_alignment_test.go
+        proves: Exact release metadata, consumer pins, migration coverage, and scoped zero-hit policy are executable.
+      - path: applications/coding-agent/magefiles/profiles_closure_test.go
+        proves: The coding application pins the alignment release and packages every canonical transitive profile asset.
+      - path: applications/chatbot-mesh/magefiles/helm_package_test.go
+        proves: The chart records the catalog pin and its generated archive contains canonical renamed paths without stale coordinator artifacts.
+      - path: magefiles/tag_test.go
+        proves: The root release creates the exact canonical catalog and legacy compatibility pair atomically without feature-branch publication.

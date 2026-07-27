@@ -39,6 +39,14 @@ overview: |
   agents/scenario-critic/profile.yaml. Historical Release 11 SRD, use-case, and
   test-suite IDs are retained only in explicit historical_aliases fields.
 
+  Release 12.0 completes the role-realization naming migration. The assembler,
+  monitor, and jurist paths are non-forking v0 wrappers over scenario-critic,
+  runtime-state-reader, and specification-critic. Application-local validator
+  and chatbot-mesh workload identities migrated atomically. The migration note
+  pins applications/catalog/v0.20260727.0 and its matching
+  agent-profiles/v0.20260727.0 alias, while deferring immutable tag publication
+  until the reviewed commit reaches main.
+
   Release 06.0 now has formal use cases and a test suite for the checked-in
   profile repository workflow. Those entries connect profile validation,
   mounted container smoke execution, profile bundle tagging, and agent-core
@@ -146,6 +154,14 @@ roadmap_summary:
       request logs directly, validate malformed fixtures only with
       --validate-config, and infer cleanup from stop spans plus repeatability
       without checking process survival or mock-start-failure teardown.
+  - version: "12.0"
+    name: Agent role-realization naming alignment
+    status: release-ready
+    scope: |
+      Implemented migration aliases, exact consumer pins, package closures,
+      generated Helm inventory checks, release-tag semantics, and scoped
+      zero-hit evidence. Publication of the immutable root, canonical catalog,
+      and legacy compatibility tags is a post-merge action from clean main.
 
 foundation_document_index:
   - id: agent-profiles
@@ -166,6 +182,10 @@ foundation_document_index:
     title: Issue Format Constitution
     summary: Required issue fields and scope rules for future work.
     path: docs/constitutions/issue-format.yaml
+  - id: migration-v0.20260727.0-agent-role-realization-alignment
+    title: Agent Role-Realization Naming Migration
+    summary: Old-to-new names and paths, compatibility durations and mechanisms, exact release pins, consumer provenance, and post-merge tag policy.
+    path: docs/migrations/v0.20260727.0-agent-role-realization-alignment.yaml
 
 srd_index:
   - id: srd001-agent-functional-blocks
@@ -315,7 +335,7 @@ semantic_model_index:
     summary: |
       Shared authority for canonical role IDs, concrete actor/profile bindings,
       naming grammar, classifications, inheritance, and migration aliases.
-    status: specified
+    status: implemented
     path: ../docs/specs/semantic-models/agent-role-realizations.yaml
     reciprocal_index: ../docs/SPECIFICATIONS.yaml#semantic_model_index
   - id: sm-multi-agent-profile-system
@@ -510,6 +530,11 @@ use_case_index:
       --validate-config, while serving-startup rejection remains unproven.
     status: in-progress
     path: docs/specs/use-cases/rel11.0-uc002-mock-serves-fixtures.yaml
+  - id: rel12.0-uc001-agent-role-realization-alignment
+    title: Migrate Concrete Agent Names as One Versioned Compatibility Release
+    summary: Coordinate migration aliases, exact catalog pins, package closures, tag semantics, generated artifacts, and scoped zero-hit evidence.
+    status: implemented
+    path: docs/specs/use-cases/rel12.0-uc001-agent-role-realization-alignment.yaml
 
 test_suite_index:
   - id: test-rel06.0-agent-profiles
@@ -619,6 +644,11 @@ test_suite_index:
       evidence gaps.
     status: in-progress
     path: docs/specs/test-suites/test-rel11.0-scenario-critic-rig.yaml
+  - id: test-rel12.0-agent-role-realization-alignment
+    title: Test Suite for Release 12.0 Agent Role-Realization Alignment
+    summary: Executable aliases, exact release metadata, package closures, Helm render/drift, tag semantics, and zero-hit evidence.
+    status: implemented
+    path: docs/specs/test-suites/test-rel12.0-agent-role-realization-alignment.yaml
 
 coverage_gaps: |
   The SRD and semantic models describe ownership, role boundaries, and

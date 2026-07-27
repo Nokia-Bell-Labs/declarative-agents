@@ -85,11 +85,15 @@ library members. They are independently reusable across profile families and
 applications, ship under `agents/`, and carry the same SRD, conformance,
 portability, release, and v0 compatibility obligations as every other member.
 
-The canonical rig path is `agents/scenario-critic/profile.yaml`. The former
-`agents/assembler/profile.yaml` path is a compatibility wrapper that selects the
-canonical machine, declarations, and REST assets without copying them. It is
-supported through the remainder of `applications/catalog/v0.*` and removed at
-`applications/catalog/v1`; new consumers must use the canonical path.
+The canonical renamed paths are `agents/scenario-critic/profile.yaml`,
+`agents/runtime-state-reader/profile.yaml`, and
+`agents/specification-critic/profile.yaml`. Their former `agents/assembler`,
+`agents/monitor`, and `agents/jurist` paths are one-file compatibility wrappers
+that select canonical machines, declarations, and REST assets without copying
+them. They are supported through `applications/catalog/v0.*` and removed at
+`applications/catalog/v1`; new consumers must use canonical paths. The complete
+application-local identity migration and exact release pair are recorded in
+`docs/migrations/v0.20260727.0-agent-role-realization-alignment.yaml`.
 
 The rig-subject and `testdata/conformance/` REST/control/lifecycle fixtures are
 different: they exercise `agent-core` behavior and remain internal scaffolding

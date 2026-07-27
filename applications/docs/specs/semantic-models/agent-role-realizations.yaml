@@ -1,6 +1,6 @@
 id: sm-agent-role-realizations
 title: Agent Role Realizations and Bindings
-status: specified
+status: implemented
 
 purpose: |
   Separate reference-architecture roles from repository actors and profiles.
@@ -225,6 +225,12 @@ bindings:
       classification: configuration_variant
       inherits: specification-critic
       execution_scope: repository-audit
+    - actor: jurist
+      profile: applications/catalog/agents/jurist/profile.yaml
+      classification: wrapper
+      inherits: specification-critic
+      domain: specification
+      execution_scope: corpus
     - actor: documentation-curator
       profile: applications/catalog/agents/knowledge-manager/documentation-curator/profile.yaml
       classification: role_realization
@@ -277,6 +283,13 @@ bindings:
       domain: runtime-state
       execution_scope: server
       adjacent_role: monitor
+    - actor: monitor
+      profile: applications/catalog/agents/monitor/profile.yaml
+      classification: wrapper
+      inherits: runtime-state-reader
+      domain: runtime-state
+      execution_scope: server
+      naming_status: migration_required_collision
 
   coding_agent:
     - actor: coding-planner-server

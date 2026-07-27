@@ -71,8 +71,8 @@ func TestShippedProfilesMatchFoundationModels(t *testing.T) {
 			t.Errorf("shipped profile %s is missing from shared classification authority", profile)
 		}
 	}
-	for profile, actor := range authorityActors {
-		if actor == "assembler" && classified[profile] == "wrapper" {
+	for profile := range authorityActors {
+		if classified[profile] == "wrapper" {
 			delete(shipped, profile)
 		}
 	}

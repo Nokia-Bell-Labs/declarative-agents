@@ -1,0 +1,14 @@
+# Compatibility alias for the pre-#1068 profile path.
+#
+# New consumers must use agents/specification-critic/profile.yaml. This wrapper
+# is supported through applications/catalog/v0.* and removed at v1. It selects
+# the canonical implementation directly; no machine or declaration is forked.
+name: jurist
+machine: ../specification-critic/machine.yaml
+tools:
+  - ../specification-critic/tools.yaml
+tool_config_dirs:
+  - /opt/agent-core/tools/builtin/spec-validation
+tool_declarations:
+  - /opt/agent-core/tools/builtin/load-corpus.yaml
+  - ../specification-critic/ripgrep.yaml
