@@ -92,8 +92,11 @@ releases:
         status: specified
         reason: Defines pinned role authority, classifications, inheritance, and aliases.
       - id: gh-1074-binding-validation
-        status: planned
-        reason: Makes the semantic model an executable repository-wide audit.
+        status: implemented
+        reason: |
+          Deterministic root-audit and catalog-conformance tests validate profile
+          inventory, classifications, role/sub-role bindings, inheritance,
+          aliases, repeated bindings, and canonical-name collisions.
     use_cases:
       - id: relTBD-uc001-agent-role-realization-alignment
         summary: |
@@ -107,3 +110,15 @@ releases:
       - Add executable profile discovery, binding, parent, inheritance, and collision validation.
       - Migrate Critic realizations and catalog canonical-name collisions.
       - Coordinate release aliases, consumers, packaging closures, and migration evidence.
+    implementation_evidence:
+      - path: magefiles/agent_role_realizations_test.go
+        proves: |
+          All repository application profiles are discovered deterministically
+          and checked against the shared role, classification, binding,
+          inheritance, exclusion, path, and alias authority.
+      - path: applications/catalog/conformance/family_inventory_test.go
+        proves: Catalog family inventory consumes shared actor classifications instead of treating every family as a canonical role.
+      - path: applications/catalog/conformance/membership_contract_test.go
+        proves: Catalog test-time members and incompatible historical aliases retain their documented realization semantics.
+      - path: magefiles/audit.go
+        proves: Root mage audit executes the actor-role realization validator before module audits.

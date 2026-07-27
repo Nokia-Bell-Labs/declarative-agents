@@ -4,8 +4,11 @@ package conformance
 
 import (
 	"os"
+	"path/filepath"
 	"strings"
 	"testing"
+
+	"gopkg.in/yaml.v3"
 )
 
 func TestAssemblerAndMockAreSupportedTestTimeMembers(t *testing.T) {
@@ -60,6 +63,69 @@ func TestMembershipNarrativeSeparatesMembersFromFixtures(t *testing.T) {
 		if !strings.Contains(text, "rig-subject") ||
 			!strings.Contains(text, "internal") {
 			t.Errorf("%s does not preserve the internal rig-subject fixture boundary", rel)
+		}
+	}
+}
+
+func TestCatalogMembershipUsesSharedRealizationAndAliasAuthority(t *testing.T) {
+	t.Parallel()
+	type binding struct {
+		Actor          string `yaml:"actor"`
+		Profile        string `yaml:"profile"`
+		Classification string `yaml:"classification"`
+		PrimaryRole    string `yaml:"primary_role"`
+		NamingStatus   string `yaml:"naming_status"`
+	}
+	var authority struct {
+		Bindings map[string][]binding `yaml:"bindings"`
+		Aliases  []struct {
+			Alias         string `yaml:"alias"`
+			Path          string `yaml:"path"`
+			Status        string `yaml:"status"`
+			CollisionWith string `yaml:"collision_with"`
+			TargetName    string `yaml:"target_name"`
+		} `yaml:"migration_aliases"`
+	}
+	modelPath := filepath.Join(ProfilesRoot(), "..", "docs", "specs", "semantic-models", "agent-role-realizations.yaml")
+	data, err := os.ReadFile(modelPath)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if err := yaml.Unmarshal(data, &authority); err != nil {
+		t.Fatalf("parse %s: %v", modelPath, err)
+	}
+	byActor := map[string]binding{}
+	for _, item := range authority.Bindings["catalog"] {
+		byActor[item.Actor] = item
+	}
+	if got := byActor["assembler"]; got.Classification != "test_harness" ||
+		got.PrimaryRole != "critic" || got.NamingStatus != "migration_required_collision" {
+		t.Errorf("assembler shared binding = %#v, want test-harness Critic collision", got)
+	}
+	if got := byActor["mock"]; got.Classification != "mock" || got.PrimaryRole != "" {
+		t.Errorf("mock shared binding = %#v, want unbound mock classification", got)
+	}
+	if got := byActor["monitor"]; got.Classification != "infrastructure_adapter" ||
+		got.NamingStatus != "migration_required_collision" {
+		t.Errorf("monitor shared binding = %#v, want infrastructure-adapter collision", got)
+	}
+	aliases := map[string]string{}
+	for _, alias := range authority.Aliases {
+		if alias.Status != "migration_required" && alias.Status != "migration_planned" {
+			t.Errorf("alias %s has non-migration status %q", alias.Alias, alias.Status)
+		}
+		if alias.CollisionWith != "" && alias.CollisionWith == alias.TargetName {
+			t.Errorf("alias %s normalizes its collision as target %q", alias.Alias, alias.TargetName)
+		}
+		aliases[alias.Path] = alias.TargetName
+	}
+	for path, target := range map[string]string{
+		"applications/catalog/agents/assembler/profile.yaml": "scenario-critic",
+		"applications/catalog/agents/monitor/profile.yaml":   "runtime-state-reader",
+		"applications/catalog/agents/jurist/profile.yaml":    "specification-critic",
+	} {
+		if aliases[path] != target {
+			t.Errorf("migration alias %s = %q, want %q", path, aliases[path], target)
 		}
 	}
 }

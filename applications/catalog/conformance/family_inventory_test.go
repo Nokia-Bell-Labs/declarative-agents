@@ -4,8 +4,12 @@ package conformance
 
 import (
 	"io/fs"
+	"os"
 	"path/filepath"
+	"strings"
 	"testing"
+
+	"gopkg.in/yaml.v3"
 )
 
 func TestShippedProfilesMatchFoundationModels(t *testing.T) {
@@ -29,6 +33,45 @@ func TestShippedProfilesMatchFoundationModels(t *testing.T) {
 		t.Fatal(err)
 	}
 
+	var authority struct {
+		Classifications map[string]struct {
+			CountsTowardRoleCoverage bool `yaml:"counts_toward_role_coverage"`
+		} `yaml:"classifications"`
+		Bindings map[string][]struct {
+			Actor          string `yaml:"actor"`
+			Profile        string `yaml:"profile"`
+			Classification string `yaml:"classification"`
+		} `yaml:"bindings"`
+	}
+	authorityPath := filepath.Join(ProfilesRoot(), "..", "docs", "specs", "semantic-models", "agent-role-realizations.yaml")
+	data, err := os.ReadFile(authorityPath)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if err := yaml.Unmarshal(data, &authority); err != nil {
+		t.Fatalf("parse %s: %v", authorityPath, err)
+	}
+	classified := map[string]string{}
+	authorityActors := map[string]string{}
+	for _, binding := range authority.Bindings["catalog"] {
+		const prefix = "applications/catalog/"
+		if !strings.HasPrefix(binding.Profile, prefix) {
+			t.Errorf("catalog binding %s has non-catalog profile %s", binding.Actor, binding.Profile)
+			continue
+		}
+		rel := strings.TrimPrefix(binding.Profile, prefix)
+		if _, ok := authority.Classifications[binding.Classification]; !ok {
+			t.Errorf("catalog binding %s has unknown classification %q", binding.Actor, binding.Classification)
+		}
+		classified[rel] = binding.Classification
+		authorityActors[rel] = binding.Actor
+	}
+	for profile := range shipped {
+		if classified[profile] == "" {
+			t.Errorf("shipped profile %s is missing from shared classification authority", profile)
+		}
+	}
+
 	var taxonomy struct {
 		Roles []struct {
 			ID          string `yaml:"id"`
@@ -44,11 +87,15 @@ func TestShippedProfilesMatchFoundationModels(t *testing.T) {
 		if !shipped[role.ProfilePath] {
 			t.Errorf("taxonomy role %s points to non-shipped profile %s", role.ID, role.ProfilePath)
 		}
+		if actor := authorityActors[role.ProfilePath]; actor != role.ID {
+			t.Errorf("taxonomy profile %s identifies %q, shared binding authority identifies actor %q",
+				role.ProfilePath, role.ID, actor)
+		}
 		delete(shipped, role.ProfilePath)
 		roleIDs[role.ID] = true
 	}
 	if len(shipped) != 0 {
-		t.Errorf("shipped profiles missing taxonomy roles: %v", shipped)
+		t.Errorf("shipped profiles missing taxonomy realization entries: %v", shipped)
 	}
 	for _, fixture := range taxonomy.Fixtures {
 		if filepath.ToSlash(fixture.ProfilePath) == "agents" ||
