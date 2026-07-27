@@ -1,0 +1,252 @@
+id: srd001-application-module-contract
+title: Runnable Application Module Contract
+
+problem: |
+  A runnable module needs a common ownership, documentation, orchestration, and
+  accounting contract. Without one, an application can copy catalog behavior,
+  disappear from root gates, or claim conformance from prose rather than
+  executable evidence.
+
+goals:
+  - "G1: Define the baseline contract for every runnable application module."
+  - "G2: Preserve canonical catalog ownership and application-owned composition."
+  - >-
+    G3: Make documentation, root Mage participation, release participation, and
+    agent accounting structurally observable.
+  - "G4: Let application-local documents extend the shared contract by reference."
+
+applicability:
+  capability: runnable_module
+  applies_to: Every runnable application under applications/.
+  excludes:
+    - applications/catalog, because it is a reusable catalog module.
+    - Directories that contain only shared documentation or fixtures and expose
+      no runnable application composition.
+
+requirements:
+  R1:
+    title: Module identity and ownership
+    applicability: runnable_module
+    items:
+      - id: R1.1
+        text: |
+          A runnable application shall own an executable composition under one
+          applications/<application>/ root.
+        evidence: |
+          The application root contains the composition entry point named by
+          its README or architecture and an application-local execution or
+          validation target.
+      - id: R1.2
+        text: |
+          The application shall classify itself as agent-owning or
+          composition-only. An agent-owning application owns only behavior that
+          is specific to that application. A composition-only application
+          contributes no canonical agent implementation.
+        evidence: |
+          Application architecture names ownership. Its stats output includes
+          local agents only when it owns them and reports canonical references
+          separately.
+      - id: R1.3
+        text: |
+          applications/catalog shall remain a reusable catalog module and shall
+          not appear in the runnable application module list.
+        evidence: |
+          magefiles/build.go lists applications/catalog in subModules and omits
+          it from applicationModules and auditOnlyApplicationModules.
+
+  R2:
+    title: Canonical references and composition
+    applicability: runnable_module when reusable catalog behavior is consumed
+    items:
+      - id: R2.1
+        text: |
+          An application shall reference a catalog member from its canonical
+          applications/catalog path. It shall not copy the member's machine,
+          declarations, reusable behavior, or family SRD.
+        evidence: |
+          Composition manifests and architecture name canonical source paths;
+          structural closure or ownership tests reject copied canonical assets.
+      - id: R2.2
+        text: |
+          The application shall own topology, sequencing between members,
+          application-only wrappers, endpoint choices, configuration,
+          packaging, deployment, operator UX, and end-to-end tests that are
+          specific to the composition.
+        evidence: |
+          Application architecture maps each app-owned artifact to a path
+          beneath the application root.
+      - id: R2.3
+        text: |
+          Packaging that resolves catalog references shall record compatible
+          release and actual source provenance separately and shall assemble a
+          closed runtime tree before execution.
+        evidence: |
+          A packaging manifest and deterministic package tests show compatible
+          release, source revision, dirty state when applicable, and closure.
+        applies_when: The application declares the packaged capability.
+
+  R3:
+    title: Application documentation
+    applicability: runnable_module
+    items:
+      - id: R3.1
+        text: |
+          The application shall own docs/VISION.yaml, docs/ARCHITECTURE.yaml,
+          docs/road-map.yaml, and docs/SPECIFICATIONS.yaml.
+        evidence: |
+          All four paths exist, parse as YAML, and contain the required fields
+          from agent-core/docs/constitutions/design.yaml.
+      - id: R3.2
+        text: |
+          The application shall own SRDs, use cases, and test suites for its
+          application-specific behavior. SPECIFICATIONS shall index each file
+          and preserve reciprocal use-case and test-suite traces.
+        evidence: |
+          Indexed paths resolve; each use case names or is named by its suite;
+          each suite traces its use case; tests trace SRD acceptance criteria.
+      - id: R3.3
+        text: |
+          Application-local architecture and SRDs shall cite this SRD and
+          applicable requirement groups from srd002. They shall define only
+          application behavior, stricter constraints, or local evidence and
+          shall not copy shared obligations.
+        evidence: |
+          Related-document or dependency entries name shared IDs, while local
+          requirements name app-owned behavior and paths.
+
+  R4:
+    title: Root Mage participation
+    applicability: runnable_module
+    items:
+      - id: R4.1
+        text: |
+          Every runnable application shall expose a local mage audit target and
+          participate in root mage audit through applicationModules or
+          auditOnlyApplicationModules.
+        evidence: |
+          The module has magefiles/magefile.go or magefile.go with Audit, is
+          present in the applicable root list, and root mage audit dispatches it.
+      - id: R4.2
+        text: |
+          An application with Go tests shall participate in root mage test.
+          An application with no Go tests shall not claim Go-test evidence.
+        evidence: |
+          Root test dispatch includes applicationModules with discoverable Go
+          tests, and the application's test suite names existing tests.
+      - id: R4.3
+        text: |
+          A runnable application that reports repository metrics shall expose
+          mage stats and participate in root mage stats.
+        evidence: |
+          statsParticipants contains the application and its local stats output
+          parses as the root aggregator's JSON shape.
+      - id: R4.4
+        text: |
+          A release-relevant runnable application shall participate in the root
+          release gate and module tag set. A documentation-only transitional
+          application may remain audit-only until executable surfaces exist.
+        evidence: |
+          magefiles/tag.go derives release tags from releaseModules and release
+          gates execute root audit and test; the module's declared release state
+          matches its orchestration list.
+
+  R5:
+    title: Zero duplicate agent accounting
+    applicability: runnable_module
+    items:
+      - id: R5.1
+        text: |
+          Root agent totals shall count each canonical agent implementation
+          exactly once.
+        evidence: |
+          Root stats aggregates only agents sections and validates module totals.
+      - id: R5.2
+        text: |
+          A composition-only application shall report canonical references and
+          serving composition outside an agents section.
+        evidence: |
+          Application stats JSON has application or composition data and no
+          agents key; unit tests pin the output.
+      - id: R5.3
+        text: |
+          An agent-owning application shall count only locally owned agents and
+          shall report catalog wrappers or references separately.
+        evidence: |
+          Ownership scans distinguish local implementations from composition;
+          root totals ignore the composition section.
+
+  R6:
+    title: Baseline Mage surface
+    applicability: runnable_module
+    items:
+      - id: R6.1
+        text: |
+          The baseline application Mage surface shall include audit. test and
+          stats shall exist when the module has corresponding executable tests
+          and metrics participation.
+        evidence: |
+          mage -l in the application root lists the claimed targets, and root
+          orchestration invokes them through the matching participant lists.
+      - id: R6.2
+        text: |
+          Build, package, image, Helm, integration, doctor, and demo targets
+          shall not be baseline requirements. They apply only through the
+          capabilities in srd002 or stricter application-local requirements.
+        evidence: |
+          The application capability declaration and mage -l agree; conformance
+          does not fail for an undeclared optional surface.
+
+non_goals:
+  - Define managed-service lifecycle, packaging, Helm, or kind-demo behavior;
+    srd002 owns those capability-dependent requirements.
+  - Define catalog member behavior or agent-core runtime behavior.
+  - Require an application to contribute a new agent implementation.
+  - Require Build or the root default target to dispatch runnable applications.
+
+acceptance_criteria:
+  - id: AC1
+    criterion: |
+      Every runnable application has an app-owned executable composition and
+      explicit agent-owning or composition-only classification; the catalog
+      remains outside the runnable list.
+    traces: [R1.1, R1.2, R1.3]
+    applicability: runnable_module
+  - id: AC2
+    criterion: |
+      Catalog consumers use canonical references while the application owns
+      composition and, when packaged, records a deterministic closed package
+      with truthful compatibility and source provenance.
+    traces: [R2.1, R2.2, R2.3]
+    applicability: runnable_module; R2.3 only when packaged
+  - id: AC3
+    criterion: |
+      Required local documents parse, index reciprocal traces, and extend the
+      shared contract by reference.
+    traces: [R3.1, R3.2, R3.3]
+    applicability: runnable_module
+  - id: AC4
+    criterion: |
+      Root audit always dispatches the application, root test and stats dispatch
+      it when applicable, and release-relevant modules enter root release gates
+      and tags.
+    traces: [R4.1, R4.2, R4.3, R4.4]
+    applicability: runnable_module with each conditional surface as stated
+  - id: AC5
+    criterion: |
+      Stats count canonical implementations once and report application
+      composition separately from locally owned agents.
+    traces: [R5.1, R5.2, R5.3]
+    applicability: runnable_module
+  - id: AC6
+    criterion: |
+      audit is the only universal local Mage target; test, stats, build,
+      package, image, Helm, integration, doctor, and demo targets are required
+      only by actual module content or declared capabilities.
+    traces: [R6.1, R6.2]
+    applicability: runnable_module
+
+use_case_traces:
+  - rel00.0-uc001-application-contract-conformance
+
+test_suite_traces:
+  - test-rel00.0-application-contract-conformance

@@ -49,5 +49,6 @@ rest:
               target: curator.lifecycle_exit
               state: exit_requested
           reversibility:
-            classification: reversible
-            description: The demo posts a single lifecycle-exit request; the caller holds no state to roll back.
+            classification: irreversible
+            undo: noop
+            requires_confirmation: true

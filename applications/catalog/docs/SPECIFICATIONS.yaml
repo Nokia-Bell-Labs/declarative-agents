@@ -36,8 +36,10 @@ overview: |
   Release 06.0 now has formal use cases and a test suite for the checked-in
   profile repository workflow. Those entries connect profile validation,
   mounted container smoke execution, profile bundle tagging, and agent-core
-  integration consumption back to the SRD and semantic models.
-  The traceability gap is closed.
+  integration consumption back to the SRD and semantic models. The release
+  records the historical migration into this catalog; presentation-specific
+  behavior now lives in applications/knowledge-manager-demo. The traceability
+  gap is closed.
 
   Release 07.0 implements profile-owned integration tracer bullets for the
   documentation-curator UX, bench-to-critic launch, and monitor/control
@@ -76,10 +78,12 @@ roadmap_summary:
     name: External agent profiles and mounted runtime assets
     status: done
     scope: |
-      Profile-owned agent assets, demos, and integration fixtures now live in
-      this repository. agent-core consumes them from AGENT_CATALOG_ROOT,
-      /profiles, or release bundles. Formal use cases and test suites now name
-      executable proof for the completed migration path.
+      Release 06.0 moved profile-owned agent assets, demos, and integration
+      fixtures into this repository. The catalog still owns the canonical
+      profiles, profile-local UI, and integration fixtures consumed from
+      AGENT_CATALOG_ROOT, /profiles, or release bundles. Presentation-specific
+      assets now live in applications/knowledge-manager-demo. Formal use cases
+      and test suites name executable proof for the completed migration path.
   - version: "07.0"
     name: Profile-owned integration tracer bullets
     status: done
@@ -329,8 +333,9 @@ semantic_model_index:
 use_case_index:
   - id: rel06.0-uc001-mounted-profile-execution
     title: Mounted Profile Execution
-    summary: Mounted execution path for running agent-core with profiles,
-      demos, fixtures, and workspaces supplied from applications/catalog.
+    summary: Mounted execution path for running agent-core with canonical
+      profiles, profile-local assets, fixtures, and workspaces supplied from
+      applications/catalog; applications own presentation composition.
     status: implemented
     path: docs/specs/use-cases/rel06.0-uc001-mounted-profile-execution.yaml
   - id: rel06.0-uc002-profile-validation
@@ -598,8 +603,9 @@ test_suite_index:
 coverage_gaps: |
   The SRD and semantic models describe ownership, role boundaries, and
   functional-block requirements for migrated profile families. Profile assets,
-  demos, integration fixtures, release tagging, profile validation, and
-  mounted-container smoke checks are implemented.
+  profile-local UI, integration fixtures, release tagging, profile validation,
+  and mounted-container smoke checks are implemented. Application presentation
+  behavior is owned and evidenced by applications/knowledge-manager-demo.
 
   Release 06.0 traceability now covers mounted profile execution and profile
   validation. It also covers mounted container smoke, profile bundle tagging,
@@ -607,9 +613,10 @@ coverage_gaps: |
   AGENT_CATALOG_ROOT.
   No missing proof remains for this release.
 
-  Future gaps should track new profile families, demos, fixtures, or validation
-  commands as they are added. Existing release coverage no longer depends on a
-  deferred follow-up issue.
+  Future catalog gaps should track new profile families, profile-owned fixtures,
+  or validation commands as they are added. Application demo gaps belong to the
+  owning application. Existing release coverage no longer depends on a deferred
+  follow-up issue.
 
   Release 07.0 implements the documentation-curator profile UX tracer,
   bench-to-critic launch tracer, and monitor/control boundary tracer. The

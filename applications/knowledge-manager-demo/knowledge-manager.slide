@@ -1,0 +1,47 @@
+Knowledge Manager Demo
+Standalone Application
+14 Jun 2026
+
+* Start the Knowledge Manager
+
+Click Run to start the Knowledge Manager documentation server.
+
+Run every command from the `applications/knowledge-manager-demo` root. The
+catalog owns the canonical profile and UI; agent-core owns the development
+runtime:
+
+	export AGENT_CATALOG_ROOT="${AGENT_CATALOG_ROOT:-$(cd ../catalog && pwd)}"
+	export AGENT_CORE_ROOT="${AGENT_CORE_ROOT:-$(cd ../../agent-core && pwd)}"
+
+Open the running servers after they start:
+
+- Documentation: [[http://localhost:18081][http://localhost:18081]]
+- Control (lifecycle exit): [[http://127.0.0.1:18082][http://127.0.0.1:18082]]
+- Monitor: [[http://localhost:18084/ui/][http://localhost:18084/ui/]]
+
+Run the canonical catalog profile through an agent built from the selected
+agent-core checkout:
+
+	agent --profile "$AGENT_CATALOG_ROOT/agents/knowledge-manager/documentation-curator/profile.yaml" --directory "$AGENT_CATALOG_ROOT" --core-root "$AGENT_CORE_ROOT"
+
+An installed runtime already owns `/opt/agent-core`; omit `--core-root`:
+
+	agent --profile "$AGENT_CATALOG_ROOT/agents/knowledge-manager/documentation-curator/profile.yaml" --directory "$AGENT_CATALOG_ROOT"
+
+* Call the lifecycle exit API
+
+After the Knowledge Manager is running, post the exit request to its control
+server (default `http://127.0.0.1:18082/api/lifecycle/exit`, HTTP 202 Accepted).
+The request is itself a declarative agent, not a bespoke HTTP client: a four-state
+machine moves from `Idle` to `Posting`, binds the REST operation, and then reaches
+terminal `Done` or `Failed`. Run it through the same source-checkout interpreter:
+
+	agent --profile "$(pwd)/call-lifecycle-exit/profile.yaml" --directory "$(pwd)" --core-root "$AGENT_CORE_ROOT"
+
+With an installed runtime, omit `--core-root`:
+
+	agent --profile "$(pwd)/call-lifecycle-exit/profile.yaml" --directory "$(pwd)"
+
+The REST authority lives in the profile, not in runtime input:
+
+.code call-lifecycle-exit/rest.yaml /post_exit:/,/signal: ExitAccepted/

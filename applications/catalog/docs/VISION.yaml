@@ -5,8 +5,9 @@ executive_summary: |
   applications/catalog is this repository's versioned catalog of reusable
   declarative tool and agent blocks for agent-core applications. It is not a
   universal agent library. Canonical YAML programs, tool declarations,
-  profile-local config, conformance, demos, and integration fixtures describe
-  reusable behavior.
+  profile-local config, conformance, profile-local user interfaces, and
+  integration fixtures describe reusable behavior. Runnable presentations and
+  application composition live in their owning applications.
 
   agent-core owns the runtime. It provides the agent binary, Go packages,
   builtin tool implementations, shared runtime assets, and release container
@@ -31,9 +32,11 @@ what_this_does: |
   have multiple consumers. `tools/README.md` defines the taxonomy and
   membership contract.
 
-  `demo/` and `testdata/integration/` store catalog-owned demos, suites, and
-  fixtures. Catalog and application commands resolve this source tree through
-  AGENT_CATALOG_ROOT; Agent Core integrations use core-owned fixtures instead.
+  `testdata/integration/` stores catalog-owned suites and fixtures. Catalog and
+  application commands resolve this source tree through AGENT_CATALOG_ROOT;
+  application-specific presentations stay under
+  `applications/<application>/`, and Agent Core integrations use core-owned
+  fixtures instead.
 
 why_we_build_this: |
   Separate ownership lets agent-core stay a reusable runtime. Profile authors
@@ -57,9 +60,10 @@ success_criteria:
     Local source commands use AGENT_CATALOG_ROOT. Containers run a packaged
     closure mounted at /profiles with an explicit --profile argument.
   integration_fixture_contract: |
-    Catalog and application integration targets consume catalog-owned demos and
-    fixtures without developer-specific absolute paths; Agent Core targets use
-    agent-core/testdata/integration.
+    Catalog and application integration targets consume canonical profiles and
+    catalog-owned fixtures without developer-specific absolute paths.
+    Application demos own their presentation composition, while Agent Core
+    targets use agent-core/testdata/integration.
   traceable_docs: |
     VISION, ARCHITECTURE, SPECIFICATIONS, road-map, and issue-format docs give
     future issues enough structure to name scope, files, requirements,
@@ -75,7 +79,7 @@ not:
     deployment, packaging, or operator UX.
   - This repository does not own release container build logic.
   - This repository does not copy developer-specific absolute paths into
-    profiles, demos, or fixtures.
+    profiles or fixtures.
 
 canonical_documents:
   - docs/ARCHITECTURE.yaml

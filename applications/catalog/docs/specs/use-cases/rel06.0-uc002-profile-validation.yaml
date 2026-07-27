@@ -9,8 +9,9 @@ summary: |
   execution.
 
   Release bundle readiness also needs a local tag target. The profile bundle
-  tag records a reviewed set of YAML programs, demos, UI assets, and fixtures
-  without claiming ownership of agent-core runtime image tags.
+  tag records a reviewed set of YAML programs, profile-local UI assets,
+  documentation, and fixtures without claiming ownership of application
+  presentations or agent-core runtime image tags.
 
   Validation is intentionally boring. It should fail on missing files, stale
   core-agent references, or unsupported profile names. It should not execute

@@ -1,0 +1,320 @@
+id: architecture-knowledge-manager-demo
+title: Knowledge Manager Demo Application Architecture
+
+overview:
+  summary: |
+    The Knowledge Manager demo is a presentation composition around one
+    canonical catalog profile. The application serves a slide deck, starts the
+    documentation-curator through agent-core, directs the operator to the
+    catalog-owned browser interface, and invokes an application-owned
+    declarative profile to request lifecycle exit.
+
+    The dependency direction is applications/knowledge-manager-demo ->
+    applications/catalog -> agent-core. AGENT_CATALOG_ROOT locates the
+    canonical profile and its user interface. AGENT_CORE_ROOT locates the
+    development runtime checkout. An installed agent runtime does not require
+    --core-root. Neither the catalog nor agent-core imports this application.
+    This module extends applications/docs srd001 and the applicable managed
+    service groups in srd002 by reference.
+  demo_flow_diagram: |
+    ```mermaid
+    flowchart LR
+      OP[Operator] --> PRESENT[Go present slide server]
+      PRESENT --> DECK[knowledge-manager.slide]
+      OP --> RUN[mage run]
+      RUN --> CURATOR[Catalog documentation-curator]
+      CURATOR --> CORE[agent-core runtime]
+      OP --> BROWSER[Catalog-owned Knowledge Manager UI]
+      BROWSER --> CURATOR
+      OP --> EXIT[Application lifecycle-exit profile]
+      EXIT --> CONTROL[Curator control route]
+      CONTROL --> DONE[Curator Done and listeners released]
+    ```
+
+capability_classification:
+  ownership: composition-only
+  declared:
+    - capability: runnable_module
+      applies: true
+      shared_requirements:
+        - srd001-application-module-contract R1
+        - srd001-application-module-contract R2
+        - srd001-application-module-contract R3
+        - srd001-application-module-contract R4
+        - srd001-application-module-contract R5
+        - srd001-application-module-contract R6
+      status: implemented
+    - capability: managed_service
+      applies: true
+      scope:
+        - canonical documentation-curator server launched by this application
+        - application-owned Go present server
+      shared_requirements:
+        - srd002-managed-application-services R1
+        - srd002-managed-application-services R2
+        - srd002-managed-application-services R3
+      status: partial
+      live_observation_status: dependency_gated
+    - capability: packaged
+      applies: false
+      reason: Release 00.0 produces no distributable application artifact.
+    - capability: helm_managed
+      applies: false
+      reason: Release 00.0 ships no Helm chart.
+    - capability: kind_demo
+      applies: false
+      reason: Release 00.0 runs local processes and has no kind rig.
+  managed_services:
+    - name: documentation-curator
+      ownership: applications/catalog canonical profile; application-owned launch and exit composition
+      shared_requirement_groups: [R1, R2, R3]
+      planned_local_evidence:
+        - go test ./magefiles -run '^Test(Run|ResolveRoots)' proves command construction and root resolution
+        - go test ./magefiles -run '^TestLifecycleExit' proves the declarative exit contract
+        - dependency_gated live startup, role-readiness, shutdown, and listener-release observation
+      deterministic_evidence_status: implemented
+      live_observation_status: dependency_gated
+      canonical_evidence:
+        - srd011-knowledge-manager AC1
+        - srd011-knowledge-manager AC2
+        - srd011-knowledge-manager AC3
+        - rel07.0-uc001-documentation-curator-profile-ux S1
+        - rel07.0-uc001-documentation-curator-profile-ux S3
+        - rel07.0-uc001-documentation-curator-profile-ux S4
+    - name: Go present
+      ownership: application-managed development tool process
+      shared_requirement_groups: [R1, R2, R3]
+      planned_local_evidence:
+        - go test ./magefiles -run '^TestPresentation' proves the pinned exact command and working directory
+        - dependency_gated bounded HTTP role-readiness observation
+        - dependency_gated interrupt-driven process and listener-release observation
+      deterministic_evidence_status: implemented
+      live_observation_status: dependency_gated
+      limitation: |
+        Release 00.0 specifies no dedicated present health or telemetry API.
+        Tests must use bounded process and HTTP observations and record this
+        signal limitation; process existence alone is not readiness evidence.
+
+interfaces:
+  - name: shared application contract
+    summary: |
+      applications/docs/specs/software-requirements/srd001-application-module-contract.yaml
+      governs the runnable composition. srd002-managed-application-services R1
+      through R3 govern both long-running local servers. Local documents name
+      application behavior and evidence without restating shared obligations.
+  - name: AGENT_CATALOG_ROOT
+    summary: |
+      Explicit source-checkout root for applications/catalog. mage run resolves
+      the canonical documentation-curator profile beneath this root. The
+      monorepo default is ../catalog from the application directory.
+  - name: AGENT_CORE_ROOT
+    summary: |
+      Explicit development checkout for agent-core. Source runs use its agent
+      binary and pass --core-root so installed declaration paths resolve. The
+      monorepo default is ../../agent-core from the application directory.
+  - name: mage run
+    summary: |
+      Build or locate agent-core and launch the canonical documentation-curator
+      with explicit --profile, --directory, and development --core-root
+      arguments. The working directory is AGENT_CATALOG_ROOT so the curator
+      documents the catalog checkout used by the demo.
+  - name: mage presentation
+    summary: |
+      Serve knowledge-manager.slide from the application root with the
+      version-pinned Go present tool recorded by this application's Go module.
+  - name: lifecycle-exit profile
+    summary: |
+      call-lifecycle-exit/profile.yaml selects an application-owned declarative
+      machine. Its fixed REST declaration posts the demo exit reason to the
+      curator control route and accepts HTTP 202.
+  - name: browser endpoints
+    summary: |
+      The catalog profile serves its documentation interface on localhost:18081,
+      lifecycle control on 127.0.0.1:18082, and monitor interface on
+      localhost:18084 by default.
+
+components:
+  - name: presentation deck
+    path: knowledge-manager.slide
+    ownership: application
+    responsibility: |
+      Guide presentation startup, canonical curator launch, browser access, and
+      lifecycle exit. Code inclusions resolve from the application root.
+  - name: lifecycle-exit composition
+    path: call-lifecycle-exit/
+    ownership: application
+    responsibility: |
+      Declare the fixed control-client authority, request body, one boundary
+      word, and terminal success or failure for demo shutdown.
+  - name: Mage tooling
+    path: magefiles/
+    ownership: application
+    responsibility: |
+      Resolve portable roots, construct run and presentation commands, audit
+      documentation and traceability, and emit composition-only statistics.
+  - name: documentation-curator
+    path: $AGENT_CATALOG_ROOT/agents/knowledge-manager/documentation-curator/
+    ownership: applications/catalog
+    responsibility: |
+      Provide the only canonical Knowledge Manager profile, UI assets, UX
+      configuration, request machine, REST definitions, and profile-local
+      resources. The application references this path and does not copy it.
+  - name: agent runtime
+    path: $AGENT_CORE_ROOT
+    ownership: agent-core
+    responsibility: |
+      Provide cmd/agent, the state-machine interpreter, documentation host,
+      REST runtime, builtin tools, and shared declarations.
+  - name: application documentation
+    path: docs/
+    ownership: application
+    responsibility: |
+      Define the presentation composition, Release 00.0 use case, executable
+      evidence contract, dependencies, and known coverage gaps.
+
+design_decisions:
+  - id: 1
+    title: Reference one canonical curator
+    decision: |
+      The application resolves
+      agents/knowledge-manager/documentation-curator/profile.yaml beneath
+      AGENT_CATALOG_ROOT. It does not copy or modify the profile or UI.
+    benefits:
+      - Catalog fixes have one canonical home.
+      - Application changes remain presentation and composition changes.
+      - Repository statistics count the curator once.
+  - id: 2
+    title: Keep lifecycle exit declarative
+    decision: |
+      The application owns a small profile whose machine binds one REST word to
+      the fixed lifecycle-exit route. No bespoke Go HTTP client is introduced.
+    benefits:
+      - The shutdown step demonstrates the same declarative runtime model.
+      - Transport authority remains in reviewed configuration.
+      - The request and accepted response are testable without a live server.
+  - id: 3
+    title: Pin the standard presentation tool
+    decision: |
+      The application records the Go present command as a Go tool dependency
+      and invokes it through Mage. Operators do not depend on an undocumented
+      globally installed present binary.
+    benefits:
+      - Presentation startup is reproducible.
+      - The application uses the standard slide format and server.
+      - Command construction can be tested without binding a port.
+  - id: 4
+    title: Separate development roots
+    decision: |
+      AGENT_CATALOG_ROOT selects the canonical profile checkout.
+      AGENT_CORE_ROOT selects the runtime development checkout. Monorepo
+      defaults are portable relative paths, and explicit values support
+      independent checkouts.
+    benefits:
+      - Catalog and runtime revisions remain visible.
+      - Installed-runtime and source-checkout operation are distinct.
+      - No developer-specific path becomes part of the contract.
+  - id: 5
+    title: Report composition without agent ownership
+    decision: |
+      mage stats emits application ownership, one canonical reference,
+      agents_contributed: 0, and the canonical profile path without an agents
+      section. It does not emit documentation counts.
+    benefits:
+      - Root aggregation does not double-count the curator.
+      - The application's contribution remains measurable.
+      - Ownership is machine-readable.
+  - id: 6
+    title: Extend capability contracts by reference
+    decision: |
+      The application declares runnable_module and managed_service. Both the
+      documentation-curator and Go present processes are managed services for
+      this composition, so srd002 R1 through R3 apply to each. The application
+      declares no package, Helm, or kind capability. Local documents record
+      service-specific evidence and gaps instead of copying shared requirement
+      text.
+    benefits:
+      - Shared lifecycle and operator obligations have one canonical source.
+      - Applicability is explicit for each long-running process.
+      - Release status cannot imply unimplemented package or cluster surfaces.
+
+technology_choices:
+  - component: Presentation server
+    technology: Version-pinned Go present tool
+    purpose: Serve the .slide deck with a reproducible standard command.
+  - component: Application orchestration
+    technology: Mage
+    purpose: Expose run, presentation, audit, and stats entry points.
+  - component: Agent program
+    technology: YAML profiles interpreted by agent-core
+    purpose: Run the catalog curator and application lifecycle-exit machine.
+  - component: Reusable profile
+    technology: applications/catalog
+    purpose: Supply the canonical documentation-curator profile and UI.
+  - component: Runtime
+    technology: agent-core
+    purpose: Supply the interpreter, documentation host, REST runtime, and tools.
+
+project_structure:
+  application:
+    - path: README.md
+      role: Operator prerequisites, ports, commands, and lifecycle.
+    - path: knowledge-manager.slide
+      role: Guided presentation.
+    - path: call-lifecycle-exit/
+      role: Application-owned declarative shutdown client.
+    - path: magefiles/
+      role: Run, presentation, audit, stats, and deterministic tests.
+    - path: go.mod
+      role: Standalone module and pinned Go presentation tool dependency.
+  documentation:
+    - path: docs/VISION.yaml
+      role: Goals, boundaries, and ownership.
+    - path: docs/ARCHITECTURE.yaml
+      role: Components, interfaces, dependency direction, and decisions.
+    - path: docs/road-map.yaml
+      role: Release 00.0 contract and Mage evidence.
+    - path: docs/SPECIFICATIONS.yaml
+      role: Reciprocal use-case and test-suite index.
+    - path: docs/specs/use-cases/
+      role: Guided operator flow.
+    - path: docs/specs/test-suites/
+      role: Executable evidence contract.
+
+implementation_status:
+  current_focus: |
+    Release 00.0 is partial. Checked-in assets, lifecycle-exit configuration,
+    pinned tooling, Mage commands, deterministic tests, and root audit, test,
+    stats, and release participation are implemented. Live managed-service and
+    browser observations remain dependency-gated and are not inferred from
+    command construction tests.
+  progress:
+    - implemented: Application ownership and dependency direction.
+    - implemented: Reciprocal deterministic test suite for run, presentation, audit, and stats.
+    - implemented: runnable_module applicability and managed_service classification.
+    - implemented: Relocated deck, README, and lifecycle-exit profile.
+    - implemented: Version-pinned present dependency and tested Mage entry points.
+    - implemented: Root audit, test, stats, and release participation.
+    - partial: Guided presentation, launch, browser, and exit use case.
+    - partial: srd002 R1 through R3 conformance for the curator and Go present
+        servers; AC1 through AC3 are not yet satisfied.
+    - dependency_gated: Live server startup, browser inspection, role readiness,
+        liveness, representative failure, diagnostics, telemetry, shutdown,
+        in-flight handling, and listener-release observations.
+
+related_documents:
+  - doc: ../docs/specs/software-requirements/srd001-application-module-contract.yaml
+    purpose: Shared runnable application module contract.
+  - doc: ../docs/specs/software-requirements/srd002-managed-application-services.yaml
+    purpose: Shared R1 through R3 contract for the curator and present managed services.
+  - doc: docs/VISION.yaml
+    purpose: Application goals and exclusions.
+  - doc: docs/road-map.yaml
+    purpose: Release 00.0 status and evidence.
+  - doc: docs/specs/use-cases/rel00.0-uc001-guided-knowledge-manager-demo.yaml
+    purpose: End-to-end operator flow.
+  - doc: docs/specs/test-suites/test-rel00.0-guided-knowledge-manager-demo.yaml
+    purpose: Implemented deterministic evidence and dependency-gated live observations.
+  - doc: ../catalog/docs/specs/software-requirements/srd011-knowledge-manager.yaml
+    purpose: Canonical Knowledge Manager profile requirements.
+  - doc: ../catalog/docs/specs/use-cases/rel07.0-uc001-documentation-curator-profile-ux.yaml
+    purpose: Catalog-owned curator profile and UI proof.

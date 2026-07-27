@@ -43,6 +43,16 @@ func TestCodingAgentParticipatesInAudit(t *testing.T) {
 	}
 }
 
+func TestKnowledgeManagerDemoIsCompositionApplicationModule(t *testing.T) {
+	const module = "applications/knowledge-manager-demo"
+	if !contains(applicationModules, module) {
+		t.Fatalf("applicationModules = %#v, want it to include %s", applicationModules, module)
+	}
+	if contains(subModules, module) {
+		t.Fatalf("subModules = %#v, composition-only demo must remain outside Build and All", subModules)
+	}
+}
+
 func TestEveryOrchestratedModuleDirectoryExists(t *testing.T) {
 	modules := append(append([]string{}, subModules...), applicationModules...)
 	for _, module := range modules {
@@ -69,6 +79,7 @@ func TestOrchestrationUsesStableApplicationPaths(t *testing.T) {
 	wantApplications := []string{
 		"applications/chatbot-mesh",
 		"applications/coding-agent",
+		"applications/knowledge-manager-demo",
 	}
 	if !reflect.DeepEqual(applicationModules, wantApplications) {
 		t.Fatalf("applicationModules = %#v, want %#v", applicationModules, wantApplications)

@@ -9,9 +9,11 @@ at the same commit. `agent-core` executes those programs; applications under
 `applications/` compose them by reference.
 
 Under this root, YAML agent programs sit beside profile-local config,
-human-facing assets, demos, and integration fixtures. Runtime code stays
-elsewhere. Go packages, builtin tool implementations, the `agent` binary, and
-release image logic live in `agent-core`.
+human-facing profile assets, and integration fixtures. Application
+presentations and composition live in their owning `applications/<application>/`
+modules. Runtime code stays elsewhere. Go packages, builtin tool
+implementations, the `agent` binary, and release image logic live in
+`agent-core`.
 
 ## Catalog contract
 
@@ -177,10 +179,12 @@ makes stale experiments easy to list:
 git branch -r --list 'origin/exp/*'
 ```
 
-Experiment branches never merge into `main`. When an experiment produces a
-profile or demo worth keeping, we distill it onto a fresh `gh-*` branch through
-the normal issue and pull request flow, targeting `agents/<family>/` or
-`demo/`. The experiment branch itself is discarded.
+Experiment branches never merge into `main`. When an experiment produces work
+worth keeping, we distill it onto a fresh `gh-*` branch through the normal issue
+and pull request flow. Reusable profile behavior targets `agents/<family>/`;
+application-specific presentation and composition target the owning
+`applications/<application>/` module. The experiment branch itself is
+discarded.
 
 We never open a pull request from an `exp/*` branch. GitHub retains pull
 request head commits permanently through `refs/pull/*`, which defeats later
@@ -194,8 +198,8 @@ for experiment
 tasks would outlive the experiment as permanent tracker entries. Because
 `exp/*` branches never merge, `.beads/` never reaches `main`. When an
 experiment task turns into durable work, we promote it to a GitHub issue
-through the normal issue flow; distilled `gh-*` branches carry the profile
-and demo files, never the beads data.
+through the normal issue flow; distilled `gh-*` branches carry the durable
+profile or application files, never the beads data.
 
 Pushed experiment branches are visible to everyone with access to this
 repository and reach every clone that fetches them. Deleting an experiment
@@ -308,10 +312,12 @@ are the reference implementation. Its closure includes planner, executor,
 critic session, and `critic/profile-workspace.yaml`; the application directory
 contains composition/config inventory only, not copied catalog programs.
 
-## Demos and Fixtures
+## Applications and Fixtures
 
-Profile-owned demos live in `demo/`. The Knowledge Manager example uses the same
-explicit argv pattern:
+Runnable demos live in their owning application modules. The Knowledge Manager
+presentation is now at `applications/knowledge-manager-demo`; it composes the
+catalog-owned documentation-curator profile without copying it. Its source
+checkout launch uses the same explicit argv pattern:
 
 ```bash
 docker run --rm \
@@ -336,9 +342,10 @@ OpenAPI documents, stay with `agent-core` until a profile issue explicitly
 moves them.
 
 Formal use cases and test suites for profile repository migration and
-profile-owned integration tracer bullets are implemented. Checked in assets now
-include profile programs, demos, fixtures, release tagging, validation commands,
-and Mage integration targets for the Release 07 tracer bullets.
+profile-owned integration tracer bullets are implemented. Checked-in catalog
+assets include profile programs, profile-local UI assets, fixtures, release
+tagging, validation commands, and Mage integration targets for the Release 07
+tracer bullets. Application presentation evidence remains with each application.
 
 ## Release Tags
 
@@ -372,9 +379,10 @@ and creates the next daily revision, such as `v0.20260617.0` or
 `v0.20260617.1`. It also creates matching module tags including
 `applications/catalog/v0.20260617.N`, plus the matching
 `agent-profiles/v0.20260617.N` compatibility tag for v0. Profile bundle tags
-version this catalog's YAML programs, demos, UI assets, and integration
-fixtures. Runtime image builds continue to resolve the root `v0.*` tag family
-unless the `agent-core` Docker release target is explicitly overridden.
+version this catalog's YAML programs, profile-local UI assets, documentation,
+and integration fixtures. They do not include application-owned presentations.
+Runtime image builds continue to resolve the root `v0.*` tag family unless the
+`agent-core` Docker release target is explicitly overridden.
 
 ## Validation
 

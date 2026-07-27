@@ -1,0 +1,74 @@
+id: applications-shared-contract
+title: Shared Contract for Runnable Applications
+
+executive_summary: |
+  We define the repository-level contract shared by runnable modules under
+  applications/. The contract separates baseline module governance from
+  optional service, packaging, Helm, and kind-demo capabilities.
+
+  applications/catalog is the reusable source of canonical declarative blocks.
+  It is not a runnable application. Applications own composition and reference
+  catalog members without copying canonical behavior or counting the same agent
+  twice.
+
+problem: |
+  Existing applications repeat ownership, lifecycle, orchestration, and
+  observability rules in local documents. Root Mage orchestration and ENG01
+  implement parts of a shared contract, but no application-level corpus joins
+  those rules or states when optional capabilities apply. A new application can
+  therefore over-claim conformance, duplicate catalog behavior, or inherit Helm
+  and kind obligations that its design does not need.
+
+what_this_does: |
+  We define four application capability classes and two SRDs. The baseline SRD
+  governs every runnable application: canonical references, application-owned
+  composition, local documents, root audit/test/stats/release participation,
+  and ownership-aware agent accounting. The managed-services SRD applies each
+  lifecycle, health, control, telemetry, configuration, packaging, Helm, and
+  kind-demo requirement only when the corresponding capability exists.
+
+  One conformance use case and one test suite connect the requirements to
+  structural repository evidence. Application-local documents extend this
+  contract with business behavior and cite shared requirement IDs.
+
+why_we_build_this: |
+  A precise shared contract lets reviewers distinguish application obligations
+  from optional deployment choices. It keeps catalog behavior canonical, makes
+  root orchestration complete, and gives new applications a stable design base
+  without forcing them to copy the current applications' topology.
+
+success_criteria:
+  baseline_is_uniform: |
+    Every runnable application has application-owned composition, the required
+    documentation corpus, root Mage participation, and ownership-aware stats.
+  applicability_is_explicit: |
+    Every requirement names its capability class and observable evidence.
+    Packaging, Helm, and kind-demo obligations do not apply when the application
+    does not claim those capabilities.
+  catalog_boundary_is_preserved: |
+    applications/catalog remains a reusable catalog module. Applications
+    reference canonical blocks and do not duplicate their behavior or agent
+    accounting.
+  local_extensions_are_traceable: |
+    Application-local architecture and SRDs cite this contract, then define
+    application-specific behavior and evidence without copying shared text.
+  structural_evidence_is_executable: |
+    Root Go tests, root Mage gates, YAML parsing, and application-local targets
+    provide commands that verify every implemented conformance claim.
+
+not:
+  - We do not classify applications/catalog as a runnable application.
+  - We do not define application business behavior or catalog member behavior.
+  - We do not require every runnable application to package artifacts, ship a
+    Helm chart, run on Kubernetes, or provide a kind demo.
+  - We do not restate ENG01; kind-demo applications cite and implement it.
+  - We do not replace agent-core runtime contracts.
+  - We do not make prose or directory presence sufficient evidence of runtime
+    behavior.
+
+canonical_documents:
+  - docs/ARCHITECTURE.yaml
+  - docs/road-map.yaml
+  - docs/SPECIFICATIONS.yaml
+  - docs/specs/software-requirements/srd001-application-module-contract.yaml
+  - docs/specs/software-requirements/srd002-managed-application-services.yaml

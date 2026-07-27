@@ -4,9 +4,10 @@ purpose: |-
   The lifecycle-exit demo agent. It posts one lifecycle-exit request to a running
   agent's control server through a declared REST client, then terminates. The
   behavior used to be a standalone Go binary (call_lifecycle_exit/main.go);
-  expressing it as a one-state machine that binds the rest tool makes the demo an
-  instance of the system's own thesis -- runtime behavior lives in YAML and is run
-  by the interpreter, not in an ad-hoc HTTP client.
+  expressing it as a four-state Idle -> Posting -> Done/Failed machine that binds
+  the rest tool makes the demo an instance of the system's own thesis -- runtime
+  behavior lives in YAML and is run by the interpreter, not in an ad-hoc HTTP
+  client.
 invariants:
   - REST authority lives in rest.yaml; the control-server URL is a declared client base, not runtime input.
   - The exit request body is fixed in the REST operation, not supplied at run time.

@@ -1,0 +1,260 @@
+id: architecture-applications-shared-contract
+title: Shared Applications Architecture
+
+overview:
+  summary: |
+    applications/ contains runnable modules and one reusable catalog module.
+    Runnable modules own executable composition, application-specific
+    configuration, end-to-end evidence, and operator-facing artifacts. The
+    catalog owns canonical reusable declarative blocks and their conformance.
+    agent-core owns runtime execution.
+
+    Baseline governance applies to each runnable module. Managed-service,
+    packaging, Helm, and kind-demo layers apply only when an application
+    declares the matching capability and provides structural evidence.
+  capability_diagram: |
+    ```mermaid
+    flowchart TB
+      C[applications/catalog<br/>reusable catalog, not runnable]
+      R[Runnable application<br/>baseline module contract]
+      S[Managed-service capability]
+      P[Packaged capability]
+      H[Helm-managed capability]
+      K[kind-demo capability]
+      C -->|canonical references| R
+      R -. when declared .-> S
+      R -. when declared .-> P
+      P -. when Helm is used .-> H
+      H -. when kind demo exists .-> K
+      K -->|governed by reference| E[ENG01]
+    ```
+  governance_flow: |
+    ```mermaid
+    flowchart LR
+      L[Application-local docs and targets] --> A[Application audit/test/stats]
+      A --> R[Root mage audit/test/stats]
+      R --> G[Root release gates]
+      D[Shared SRDs] --> L
+      X[Application SRDs] --> L
+    ```
+
+interfaces:
+  - name: root Mage orchestration
+    summary: |
+      magefiles/build.go classifies platform submodules, runnable application
+      modules, and audit-only application modules. Root audit, test, stats, and
+      release code dispatch through those classifications.
+  - name: canonical catalog reference
+    summary: |
+      A runnable application names canonical paths under applications/catalog,
+      pins or records compatibility when packaging requires it, and preserves
+      one canonical implementation owner.
+  - name: application-local Mage surface
+    summary: |
+      Every runnable module exposes audit. A module with Go tests exposes those
+      tests to root mage test. A module that participates in repository metrics
+      exposes stats. Optional package, Helm, integration, doctor, and demo verbs
+      exist only for the capabilities that need them.
+  - name: shared application specifications
+    summary: |
+      applications/docs defines baseline and capability-dependent obligations.
+      Application-local architecture and SRDs cite requirement IDs here and add
+      only business behavior, topology, or stricter local policy.
+  - name: ENG01 kind rig
+    summary: |
+      docs/engineering/eng01-kind-test-demo-rig.yaml governs an application that
+      claims kind_demo. This architecture does not copy its toolchain, cluster,
+      image, network, observability, evidence, or verb requirements.
+
+components:
+  - name: shared application contract
+    path: applications/docs/
+    responsibility: |
+      Define capability vocabulary, baseline module requirements, optional
+      managed-service requirements, traceability, and conformance evidence.
+  - name: reusable application catalog
+    path: applications/catalog/
+    responsibility: |
+      Own canonical reusable declarative tool and agent blocks, family SRDs,
+      conformance, and release provenance. It is a reusable catalog module and
+      never enters the runnable application list.
+  - name: runnable application module
+    path: applications/<application>/
+    responsibility: |
+      Own executable composition, app-specific configuration, local docs,
+      end-to-end evidence, and every artifact implied by declared capabilities.
+  - name: root orchestrator
+    path: magefiles/
+    responsibility: |
+      Enumerate participating modules and dispatch root audit, test, stats, and
+      release gates. Aggregate only canonical agent implementations into the
+      repository agent total.
+  - name: application-local architecture
+    path: applications/<application>/docs/ARCHITECTURE.yaml
+    responsibility: |
+      Declare capability classes, composition, interfaces, and evidence paths.
+      Cite shared SRDs and define application-specific design without copying
+      this contract.
+  - name: application-local requirements
+    path: applications/<application>/docs/specs/software-requirements/
+    responsibility: |
+      Define app-specific behavior and acceptance evidence. Shared lifecycle or
+      module obligations remain references to srd001 and applicable srd002
+      requirement groups.
+
+design_decisions:
+  - id: 1
+    title: Baseline and capabilities are separate
+    decision: |
+      runnable_module is the only universal application capability. The
+      managed_service, packaged, helm_managed, and kind_demo capabilities add
+      requirements only when declared. A requirement and its acceptance
+      criterion always state applicability.
+    benefits:
+      - A local or finite composition is not forced to ship a service or chart.
+      - Reviewers can test only the surfaces an application claims.
+      - New deployment technologies can add capabilities without weakening the
+        baseline.
+  - id: 2
+    title: Catalog and applications have different module roles
+    decision: |
+      applications/catalog is a reusable catalog module. Runnable applications
+      consume canonical members by reference and own composition. Composition-
+      only applications report reuse without an agents section, while
+      applications that own local agents report only those implementations.
+    benefits:
+      - Canonical behavior has one maintenance owner.
+      - Root stats do not count a referenced agent twice.
+      - Repository layout communicates ownership.
+  - id: 3
+    title: Root orchestration is executable membership evidence
+    decision: |
+      A runnable application appears in applicationModules when it supplies
+      audit, tests, and stats, or in auditOnlyApplicationModules while only its
+      documentation gate exists. Root tests pin paths, gate participation, and
+      test/stats dispatch. Release-relevant runnable modules enter release tags
+      through releaseModules.
+    benefits:
+      - A new application cannot rely on an unverified README claim.
+      - Root gates cover the same stable module paths.
+      - Transitional documentation work has an explicit audit-only state.
+  - id: 4
+    title: Local documents extend instead of copy
+    decision: |
+      Application architecture declares its capabilities and cites srd001 plus
+      applicable srd002 groups. Local SRDs define business behavior, stricter
+      constraints, and app-owned evidence. They do not reproduce shared
+      lifecycle, Mage, catalog, or ENG01 text.
+    benefits:
+      - Shared corrections have one source.
+      - Local requirements remain readable and specific.
+      - Applicability remains visible at each trace edge.
+  - id: 5
+    title: ENG01 remains capability-gated
+    decision: |
+      kind_demo applications implement and cite ENG01. Applications without a
+      kind/Helm demo have no ENG01 obligation. This contract names the reference
+      and evidence boundary but does not duplicate the rig.
+    benefits:
+      - The kind contract cannot drift between documents.
+      - Non-Kubernetes applications retain a small baseline.
+      - kind demos use one operator vocabulary.
+
+technology_choices:
+  - component: Structured documentation
+    technology: YAML
+    purpose: Keep shared and local contracts parseable and auditable.
+  - component: Orchestration
+    technology: Mage
+    purpose: Expose stable root and application-local verification commands.
+  - component: Reusable agent programs
+    technology: applications/catalog
+    purpose: Provide canonical declarative blocks consumed by reference.
+  - component: Runtime
+    technology: agent-core
+    purpose: Execute application profiles and provide runtime-level contracts.
+  - component: Optional cluster packaging
+    technology: Helm and kind
+    purpose: Implement helm_managed and kind_demo capabilities when declared.
+
+project_structure:
+  shared:
+    - path: applications/README.md
+      role: Human entry point and current module classification.
+    - path: applications/docs/VISION.yaml
+      role: Shared goals, boundaries, and success criteria.
+    - path: applications/docs/ARCHITECTURE.yaml
+      role: Ownership layers, capability model, interfaces, and decisions.
+    - path: applications/docs/SPECIFICATIONS.yaml
+      role: Shared specification and traceability index.
+    - path: applications/docs/road-map.yaml
+      role: Shared contract implementation status.
+    - path: applications/docs/specs/
+      role: Shared SRDs, conformance use case, and structural test suite.
+  modules:
+    - path: applications/catalog/
+      role: Reusable catalog module; excluded from runnable application classes.
+    - path: applications/chatbot-mesh/
+      role: Runnable application with local agents and all optional capability classes.
+    - path: applications/coding-agent/
+      role: Composition-only runnable application with all optional capability classes.
+    - path: applications/knowledge-manager-demo/
+      role: |
+        Composition-only runnable application with implemented runnable-module
+        evidence, partial managed-service evidence, and no package, Helm, or
+        kind-demo capability.
+  orchestration:
+    - path: magefiles/build.go
+      role: Module classification and audit/stats participant lists.
+    - path: magefiles/test.go
+      role: Root test dispatch.
+    - path: magefiles/stats.go
+      role: Root metrics aggregation and canonical agent totals.
+    - path: magefiles/tag.go
+      role: Root release gates and release-relevant module tags.
+
+implementation_status:
+  current_focus: |
+    The shared contract documents existing root orchestration and the current
+    chatbot-mesh, coding-agent, and knowledge-manager-demo structures.
+    Structural commands verify the shared YAML, module paths, root
+    participation, and ownership-aware stats.
+  progress:
+    - implemented: Shared vision, architecture, roadmap, specification index,
+        two SRDs, one conformance use case, and one test suite.
+    - implemented: Root tests pin runnable application membership, path
+        stability, audit/test/stats dispatch, and application exclusion from
+        platform Build and All.
+    - implemented: Root stats sums only module agents sections; coding-agent
+        reports composition without an agents section.
+    - implemented: chatbot-mesh and coding-agent own local audit, tests, stats,
+        packaging, Helm, and kind integration evidence.
+    - implemented: knowledge-manager-demo owns a runnable composition, local
+        audit and Go tests, and composition-only stats; magefiles/build.go
+        registers it for root audit, test, stats, and release participation.
+    - implemented: Root stats retains 15 canonical agents because
+        knowledge-manager-demo reports one catalog reference, zero contributed
+        agents, and no agents section.
+    - partial: knowledge-manager-demo managed-service conformance; deterministic
+        command and configuration evidence is implemented, while live srd002
+        AC1 through AC3 observations remain dependency-gated.
+    - implemented: applications/catalog remains a submodule and canonical
+        catalog, not a runnable application.
+
+related_documents:
+  - doc: docs/VISION.yaml
+    purpose: Shared application goals and exclusions.
+  - doc: docs/SPECIFICATIONS.yaml
+    purpose: Shared SRD, use-case, and test-suite index.
+  - doc: ../../docs/engineering/eng01-kind-test-demo-rig.yaml
+    purpose: Referenced kind-demo engineering contract.
+  - doc: ../catalog/docs/ARCHITECTURE.yaml
+    purpose: Canonical catalog ownership and consumer contract.
+  - doc: ../chatbot-mesh/docs/ARCHITECTURE.yaml
+    purpose: Local-agent runnable application reference.
+  - doc: ../coding-agent/docs/ARCHITECTURE.yaml
+    purpose: Composition-only runnable application reference.
+  - doc: ../knowledge-manager-demo/docs/ARCHITECTURE.yaml
+    purpose: Composition-only demo classification and partial managed-service evidence boundary.
+  - doc: ../../magefiles/build.go
+    purpose: Executable module classification.

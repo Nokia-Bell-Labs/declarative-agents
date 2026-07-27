@@ -1,0 +1,93 @@
+id: knowledge-manager-demo-roadmap
+title: Knowledge Manager Demo Application Road Map
+
+overview: |
+  Release 00.0 establishes the standalone guided demo. The release relocates
+  presentation-only assets, references the canonical catalog curator, pins the
+  Go present tool, and provides deterministic Mage evidence. The release
+  extends shared srd001 and srd002 R1 through R3 by reference; it does not
+  define package, Helm, or kind scope.
+
+releases:
+  - version: "00.0"
+    name: Guided Knowledge Manager presentation
+    description: |
+      An operator serves the slide deck, launches the canonical
+      documentation-curator from an explicit catalog root, opens its
+      catalog-owned browser interface, and requests clean shutdown through the
+      application-owned declarative lifecycle-exit profile. The application
+      reports composition only and contributes no canonical agents.
+    status: partial
+    capabilities:
+      - id: runnable_module
+        status: implemented
+      - id: managed_service
+        status: partial
+        services: [documentation-curator, Go present]
+        live_observation_status: dependency_gated
+      - id: packaged
+        status: not_applicable
+      - id: helm_managed
+        status: not_applicable
+      - id: kind_demo
+        status: not_applicable
+    shared_requirements:
+      - owner: applications
+        id: srd001-application-module-contract
+        requirements: [R1, R2, R3, R4, R5, R6]
+      - owner: applications
+        id: srd002-managed-application-services
+        requirements: [R1, R2, R3]
+    external_requirements:
+      - owner: applications/catalog
+        id: srd011-knowledge-manager
+      - owner: applications/catalog
+        id: rel07.0-uc001-documentation-curator-profile-ux
+    use_cases:
+      - id: rel00.0-uc001-guided-knowledge-manager-demo
+        summary: An operator serves the deck, starts the canonical curator, opens its UI, and exits it declaratively.
+        status: partial
+        live_observation_status: dependency_gated
+    test_suites:
+      - id: test-rel00.0-guided-knowledge-manager-demo
+        summary: Deterministic command and contract tests plus dependency-gated launch and exit evidence.
+        status: partial
+        live_observation_status: dependency_gated
+    evidence:
+      - command: go test ./magefiles
+        proves: Exact run and presentation commands, working directories, root resolution, trace reciprocity, and failure messages.
+      - command: mage run
+        status: dependency_gated
+        proves_when_run: The canonical catalog profile starts through agent-core with explicit profile, directory, and development core-root arguments.
+      - command: mage presentation
+        status: dependency_gated
+        proves_when_run: The pinned Go present tool serves knowledge-manager.slide from the application root.
+      - command: mage audit
+        proves: Required documents, reciprocal traces, portable paths, canonical references, and stale-path exclusions satisfy the application contract.
+      - command: mage stats
+        proves: Valid composition-only JSON reports agents_contributed as zero and omits an agents section.
+      - command: mage audit
+        working_directory: repository root
+        evidence_path: magefiles/build.go auditParticipants and magefiles/example_modules_test.go TestApplicationModulesParticipateInAudit
+        proves: Root audit dispatches applications/knowledge-manager-demo.
+      - command: mage test
+        working_directory: repository root
+        evidence_path: magefiles/example_modules_test.go TestTestSubModulesDispatchesApplicationModules
+        proves: Root tests dispatch the demo's Go tests.
+      - command: mage stats
+        working_directory: repository root
+        evidence_path: magefiles/build.go statsParticipants and magefiles/stats_test.go TestSumAgentsTotals
+        proves: Root stats accepts the composition-only application section without double-counting the curator.
+      - command: go test ./magefiles -run '^Test(ApplicationModulesParticipateInAudit|KnowledgeManager|Orchestration|ReleaseTags|StatsParticipants|SumAgentsTotals|TestSubModulesDispatchesApplicationModules)'
+        working_directory: repository root
+        evidence_path: magefiles/example_modules_test.go, magefiles/stats_test.go, and magefiles/tag_test.go
+        proves: Stable root audit, test, stats, and release participation.
+    evidence_boundary: |
+      Checked-in deterministic tests prove command construction, configuration,
+      traceability, accounting, and root dispatch. They do not prove live
+      startup, browser rendering, role readiness, liveness, representative
+      failure, diagnostics, telemetry, shutdown, in-flight handling, or listener
+      release. Those observations remain dependency_gated on available ports, a
+      buildable agent-core checkout, and operator execution. Until they run,
+      srd002 AC1 through AC3 and the aggregate managed-service, use-case, suite,
+      and release statuses remain partial.
