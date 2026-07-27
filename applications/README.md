@@ -42,6 +42,13 @@ kind demo mandatory for every application.
 - `coding-agent/`: composition-only runnable application; managed service,
   packaged, Helm-managed, and kind-demo capabilities. Canonical planner,
   executor, and critic implementations remain in `catalog/`.
+- `knowledge-manager-demo/`: composition-only runnable application; the
+  `runnable_module` capability is implemented and its local `audit`, Go tests,
+  and composition-only `stats` participate in root orchestration. Its
+  `managed_service` capability is partial because live lifecycle, health,
+  telemetry, and shutdown observations are dependency-gated. `packaged`,
+  `helm_managed`, and `kind_demo` are not applicable. The canonical
+  documentation-curator remains in `catalog/`.
 - `catalog/`: reusable catalog module, not a runnable application.
 
 Root Mage orchestration is the source of truth for participating modules.

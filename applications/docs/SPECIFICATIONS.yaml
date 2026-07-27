@@ -11,7 +11,11 @@ overview: |
   The release 00.0 use case and suite trace both SRDs reciprocally. Structural
   checks parse documents, verify module classification and root orchestration,
   enforce ownership-aware stats, and invoke application-owned capability
-  evidence. ENG01 remains the sole kind-rig contract.
+  evidence. The current runnable set is chatbot-mesh, coding-agent, and
+  knowledge-manager-demo. The demo's runnable-module evidence is implemented;
+  its managed-service status is partial because live srd002 AC1 through AC3
+  observations remain dependency-gated. ENG01 remains the sole kind-rig
+  contract.
 
 roadmap_summary:
   - version: "00.0"
@@ -46,6 +50,10 @@ foundation_document_index:
     title: Application Catalog Architecture
     summary: Canonical reusable catalog ownership and consumer boundary.
     path: catalog/docs/ARCHITECTURE.yaml
+  - id: architecture-knowledge-manager-demo
+    title: Knowledge Manager Demo Application Architecture
+    summary: Composition-only ownership, capability status, and local evidence boundary.
+    path: knowledge-manager-demo/docs/ARCHITECTURE.yaml
 
 srd_index:
   - id: srd001-application-module-contract
@@ -91,6 +99,14 @@ test_suite_index:
     path: docs/specs/test-suites/test-rel00.0-application-contract-conformance.yaml
 
 coverage_gaps:
+  - id: knowledge-manager-live-managed-service-evidence
+    status: dependency_gated
+    description: |
+      The demo has implemented deterministic command, configuration, audit,
+      test, stats, and root-dispatch evidence. Live lifecycle, readiness,
+      liveness, failure, diagnostics, telemetry, shutdown, in-flight, and
+      listener-release observations remain required before it satisfies srd002
+      AC1 through AC3.
   - id: future-application-registration
     status: by_design
     description: |

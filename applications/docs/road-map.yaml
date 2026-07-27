@@ -23,6 +23,19 @@ releases:
         proves: The chatbot-mesh application owns an executable audit gate.
       - path: applications/coding-agent/magefiles/magefile.go
         proves: The coding-agent application owns an executable audit gate.
+      - path: applications/knowledge-manager-demo/magefiles/magefile.go
+        proves: The demo owns executable audit and composition-only stats targets.
+      - path: applications/knowledge-manager-demo/magefiles/magefile_test.go
+        proves: |
+          The demo's runnable composition, canonical reference, reciprocal
+          traces, and zero-agent accounting have deterministic tests; its live
+          managed-service observations remain dependency-gated.
+      - path: magefiles/build.go
+        proves: Root audit, test, stats, and release lists register all three runnable applications.
+      - path: magefiles/stats_test.go
+        proves: |
+          Root accounting accepts the demo's application section without an
+          agents section and retains 15 canonical agents.
       - path: docs/engineering/eng01-kind-test-demo-rig.yaml
         proves: kind-demo obligations have one referenced engineering contract.
     srds:
@@ -42,3 +55,21 @@ releases:
       packaged: Only applications that produce distributable artifacts.
       helm_managed: Only applications that ship a Helm chart.
       kind_demo: Only applications that ship a kind integration or demo; ENG01 applies.
+    current_applications:
+      - path: applications/chatbot-mesh
+        ownership: agent-owning
+        runnable_module: implemented
+      - path: applications/coding-agent
+        ownership: composition-only
+        runnable_module: implemented
+      - path: applications/knowledge-manager-demo
+        ownership: composition-only
+        runnable_module: implemented
+        managed_service: partial
+        live_managed_service_evidence: dependency_gated
+        packaged: not_applicable
+        helm_managed: not_applicable
+        kind_demo: not_applicable
+    non_runnable_modules:
+      - path: applications/catalog
+        classification: reusable catalog

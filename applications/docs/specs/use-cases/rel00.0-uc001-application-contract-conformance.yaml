@@ -21,6 +21,21 @@ preconditions:
   - The candidate declares runnable_module and any implemented optional
     capabilities in its architecture.
 
+current_candidates:
+  - path: applications/chatbot-mesh
+    ownership: agent-owning
+  - path: applications/coding-agent
+    ownership: composition-only
+  - path: applications/knowledge-manager-demo
+    ownership: composition-only
+    runnable_module_status: implemented
+    managed_service_status: partial
+    live_managed_service_evidence: dependency_gated
+    not_applicable: [packaged, helm_managed, kind_demo]
+  - path: applications/catalog
+    classification: reusable catalog
+    runnable: false
+
 flow:
   - id: F1
     text: |
@@ -31,7 +46,9 @@ flow:
     text: |
       Structural checks validate canonical catalog references, app-owned
       composition paths, and ownership-aware stats with no duplicate canonical
-      agents.
+      agents. For knowledge-manager-demo, local stats report one canonical
+      reference, zero contributed agents, and no agents section, so the root
+      total remains 15 canonical agents.
   - id: F3
     text: |
       YAML checks parse the application vision, architecture, roadmap,
@@ -41,11 +58,16 @@ flow:
     text: |
       Root tests verify stable application paths and audit, test, stats, and
       release participation. The application-local audit verifies its corpus
-      and executable evidence.
+      and executable evidence. Root orchestration registers
+      applications/knowledge-manager-demo alongside chatbot-mesh and
+      coding-agent while applications/catalog remains a reusable submodule.
   - id: F5
     text: |
       If managed_service is declared, the maintainer runs lifecycle, truthful
       health, authority, telemetry, configuration, and graceful-shutdown checks.
+      A deterministic command or configuration check may be implemented while
+      the aggregate capability remains partial; dependency-gated live evidence
+      does not satisfy srd002 AC1 through AC3.
   - id: F6
     text: |
       If packaged or helm_managed is declared, the maintainer runs deterministic
@@ -169,6 +191,8 @@ out_of_scope:
   - Promote a catalog member or change catalog conformance.
   - Require optional capabilities that the candidate does not declare.
   - Reproduce ENG01 checks in this use case.
+  - Treat dependency-gated Knowledge Manager live observations as completed
+    managed-service conformance.
 
 test_suite: test-rel00.0-application-contract-conformance
 status: implemented

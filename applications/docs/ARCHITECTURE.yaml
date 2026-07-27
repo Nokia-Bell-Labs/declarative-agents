@@ -198,6 +198,11 @@ project_structure:
       role: Runnable application with local agents and all optional capability classes.
     - path: applications/coding-agent/
       role: Composition-only runnable application with all optional capability classes.
+    - path: applications/knowledge-manager-demo/
+      role: |
+        Composition-only runnable application with implemented runnable-module
+        evidence, partial managed-service evidence, and no package, Helm, or
+        kind-demo capability.
   orchestration:
     - path: magefiles/build.go
       role: Module classification and audit/stats participant lists.
@@ -211,8 +216,9 @@ project_structure:
 implementation_status:
   current_focus: |
     The shared contract documents existing root orchestration and the current
-    chatbot-mesh and coding-agent structures. Structural commands verify the
-    shared YAML, module paths, root participation, and ownership-aware stats.
+    chatbot-mesh, coding-agent, and knowledge-manager-demo structures.
+    Structural commands verify the shared YAML, module paths, root
+    participation, and ownership-aware stats.
   progress:
     - implemented: Shared vision, architecture, roadmap, specification index,
         two SRDs, one conformance use case, and one test suite.
@@ -223,6 +229,15 @@ implementation_status:
         reports composition without an agents section.
     - implemented: chatbot-mesh and coding-agent own local audit, tests, stats,
         packaging, Helm, and kind integration evidence.
+    - implemented: knowledge-manager-demo owns a runnable composition, local
+        audit and Go tests, and composition-only stats; magefiles/build.go
+        registers it for root audit, test, stats, and release participation.
+    - implemented: Root stats retains 15 canonical agents because
+        knowledge-manager-demo reports one catalog reference, zero contributed
+        agents, and no agents section.
+    - partial: knowledge-manager-demo managed-service conformance; deterministic
+        command and configuration evidence is implemented, while live srd002
+        AC1 through AC3 observations remain dependency-gated.
     - implemented: applications/catalog remains a submodule and canonical
         catalog, not a runnable application.
 
@@ -239,5 +254,7 @@ related_documents:
     purpose: Local-agent runnable application reference.
   - doc: ../coding-agent/docs/ARCHITECTURE.yaml
     purpose: Composition-only runnable application reference.
+  - doc: ../knowledge-manager-demo/docs/ARCHITECTURE.yaml
+    purpose: Composition-only demo classification and partial managed-service evidence boundary.
   - doc: ../../magefiles/build.go
     purpose: Executable module classification.
