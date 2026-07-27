@@ -63,6 +63,25 @@ overview:
     one recorded key through create-or-reuse commit, push, and pull-request
     states. A partial publication resumes forward and never creates a
     replacement commit or destructively compensates a remote effect.
+
+    srd004 specifies this as one flat planned machine. Every remote invocation
+    has a durable intent, every accepted or rejected result has an immutable
+    attempt or stage-run record plus an appended and projected manifest
+    revision, and every publication identity is persisted before the next
+    remote mutation. Structure rejection replays structure, voice, style, and
+    critique from the original; voice rejection preserves structure and replays
+    voice onward; style rejection preserves structure and voice and replays
+    style and critique. Semantic findings follow the structure, voice, or style
+    responsible stage selected by the critic; there is no semantic editor.
+
+    The only path into finalization is a durable critic pass or
+    policy-permitted warn. Recovery may resume there only after verifying the
+    same accepted critic artifact and lineage. The orchestrator selects only
+    srd003 orchestrator words and has no editing, retrieval, model, verdict, or
+    Pangram word. srd004 records one planned declaration-alignment dependency:
+    the current CriticRejected signal carries responsible_stage in output, but
+    MachineSpec has no payload guards, so future ToolDefs must emit bounded
+    structure, voice, or style routing signals before a runtime machine exists.
   persistence_flow: |
     Voice Forge has two durable state planes with different authority. The
     application-owned persistent --output workspace stores document bytes,
@@ -408,22 +427,25 @@ project_structure:
     - {path: docs/specs/software-requirements/srd001-voice-forge-services.yaml, status: specified, role: Planned service topology, role bindings, lifecycle, failure, scaling, and authority contract.}
     - {path: docs/specs/software-requirements/srd002-writing-saga-workproducts.yaml, status: specified, role: Planned immutable workproduct, manifest, retry, recovery, idempotency, and publication contract.}
     - {path: docs/specs/software-requirements/srd003-writing-agent-tools.yaml, status: specified, role: Closed ToolDef vocabulary, factory reuse, signals, errors, effects, compensation, and exclusive authority.}
-    - {path: docs/specs/software-requirements/, status: planned, role: Remaining SRDs srd004 through srd008.}
+    - {path: docs/specs/software-requirements/srd004-workflow-orchestrator.yaml, status: specified, role: Flat orchestration states, signals, transitions, persistence, responsible-stage replay, recovery, publication, and terminal outcomes.}
+    - {path: docs/specs/software-requirements/, status: planned, role: Remaining SRDs srd005 through srd008.}
     - {path: docs/specs/use-cases/rel00.0-uc001-edit-document.yaml, status: planned, role: End-to-end release scenario.}
     - {path: docs/specs/test-suites/test-rel00.0-voice-forge.yaml, status: planned, role: Release tracer and evidence plan.}
 
 implementation_status:
   current_focus: |
-    SRDs srd001 through srd003 specify service boundaries, the writing saga and
-    workproducts, and the closed tool vocabulary. SRDs srd004 through srd008,
-    the release use case, test suite, profiles, machines, tools, services,
+    SRDs srd001 through srd004 specify service boundaries, the writing saga and
+    workproducts, the closed tool vocabulary, and the workflow-orchestrator
+    machine. SRDs srd005 through srd008, the release use case, test suite,
+    profiles, machines, tools, services,
     integration evidence, and root registrations remain planned.
   overall: documentation_only_planned
   progress:
     - specified: srd001 service topology, role bindings, lifecycle, scaling, failure, interfaces, and authority.
     - specified: srd002 workspace schema, artifact lineage, manifest state, stage contracts, retries, recovery, and publication.
     - specified: srd003 tool words, factory reuse, ownership, signals, errors, effects, compensation, and authority closure.
-    - planned: srd004 through srd008 and executable reciprocal release traces.
+    - specified: srd004 flat orchestration states, action mappings, persistence order, responsible-stage replay, recovery, publication, budgets, and terminal outcomes.
+    - planned: srd005 through srd008 and executable reciprocal release traces.
     - planned: Five application-local state machines and the corpus-ingest wrapper.
     - planned: RAG, Chroma, Ollama, GitHub CLI, and Pangram integrations.
     - planned: Persistent saga workspace, retries, recovery, and publication.
@@ -440,6 +462,8 @@ related_documents:
     purpose: Specified immutable artifact, manifest, retry, compensation, recovery, idempotency, and publication contract.
   - doc: docs/specs/software-requirements/srd003-writing-agent-tools.yaml
     purpose: Specified closed tool vocabulary, existing-factory reuse, and exclusive authority allocation.
+  - doc: docs/specs/software-requirements/srd004-workflow-orchestrator.yaml
+    purpose: Specified flat orchestration, retry, recovery, finalization, publication, and terminal-state contract.
   - doc: docs/SPECIFICATIONS.yaml
     purpose: Planned SRD, use-case, and test-suite indexes.
   - doc: docs/road-map.yaml

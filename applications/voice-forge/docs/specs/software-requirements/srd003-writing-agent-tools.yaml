@@ -190,14 +190,53 @@ word_vocabulary:
         factory: exec
         reuse: Constrained workproduct helper atomic manifest projection operation.
       inputs: [highest valid contiguous manifest-history revision, expected sha256]
-      outputs: [manifest projection revision and verified sha256]
-      emits: [ManifestProjected, ManifestProjectionRepaired, ManifestConflict, ToolFailed, CommandError]
+      outputs: [manifest projection revision and verified sha256, deterministic route selected from bounded manifest fields]
+      emits:
+        - ManifestProjected
+        - ManifestProjectionRepaired
+        - ManifestConflict
+        - RequestNew
+        - RequestResume
+        - StructureAccepted
+        - VoiceAccepted
+        - StyleAccepted
+        - CritiqueAccepted
+        - CriticWarnAccepted
+        - CriticWarnRejectedStructure
+        - CriticWarnRejectedVoice
+        - CriticWarnRejectedStyle
+        - CriticRejectedStructure
+        - CriticRejectedVoice
+        - CriticRejectedStyle
+        - RetryCurrentAction
+        - RetryStructure
+        - RetryVoice
+        - RetryStyle
+        - ExhaustedKeepOriginal
+        - ExhaustedFail
+        - ResumeCapture
+        - ResumeStructure
+        - ResumeVoice
+        - ResumeStyle
+        - ResumeCritique
+        - ResumeFinalization
+        - ResumeCommit
+        - ResumePush
+        - ResumePullRequest
+        - ResumeVerification
+        - TerminalPublished
+        - TerminalKeptOriginal
+        - TerminalFailed
+        - TerminalPublicationBlocked
+        - TerminalOperatorAborted
+        - ToolFailed
+        - CommandError
       infrastructure_errors: [helper unavailable, temporary write, rename, or fsync failure]
       domain_errors: [history gap, invalid revision, projection conflict]
       side_effects: [filesystem_write]
       reversibility: {classification: compensatable, undo: reproject_from_history}
       compensation: Rebuild manifest.yaml from the highest valid contiguous immutable revision.
-      authority: Writes only manifest.yaml from immutable history; cannot accept model-authored bytes or paths.
+      authority: Writes only manifest.yaml from immutable history and emits a deterministic route from validated phase, status, verdict, responsible-stage, policy, and bounded-counter fields; cannot inspect prose or accept model-authored bytes or paths.
 
     - name: materialize_final_chain
       owner: workflow-orchestrator
@@ -776,6 +815,14 @@ requirements:
           hashes, schema, and provenance before write_attempt and manifest
           selection.
         evidence: Planned malformed, missing-output, wrong-parent, wrong-hash, and equivocation tests preserve the prior parent.
+      - id: R2.5
+        text: |
+          project_manifest SHALL emit the bounded routing signals declared by
+          its word contract from validated manifest phase, status, verdict,
+          responsible-stage, policy, and counter fields. It SHALL NOT inspect
+          prose, invoke a model, alter a verdict, or select a stage absent from
+          the manifest.
+        evidence: Planned declaration and transition-closure tests match every srd004 route to a project_manifest emission and reject undeclared or prose-derived routes.
 
   R3:
     title: Constrained GitHub publication
@@ -923,8 +970,9 @@ acceptance_criteria:
     criterion: |
       Only the orchestrator owns contained workproduct words and four
       path-free child invocations; immutable writes and child responses obey
-      srd002 acceptance and recovery rules.
-    traces: [R2.1, R2.2, R2.3, R2.4]
+      srd002 acceptance and recovery rules, and manifest projection supplies
+      deterministic bounded routing signals for the flat orchestrator.
+    traces: [R2.1, R2.2, R2.3, R2.4, R2.5]
   - id: AC3
     criterion: |
       Source capture and create-or-reuse publication use distinct constrained
