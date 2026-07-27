@@ -24,7 +24,7 @@ invariants:
 - Graph nodes are marked done/failed to track progress
 - The planner terminates when no more tasks are extractable
 lifecycle: |-
-  1. Idle → Extracting: extract_task from requirement graph
+  1. Idle → Extracting: extract_task from requirement graph; NoTask routes through remaining_work
   2. Extracting → Resetting: task extracted, clear LLM history
   3. Resetting → PromptAssembly: assemble_prompt with SRD context
   4. PromptAssembly → PlanInvoking: invoke_llm for plan generation
@@ -49,8 +49,10 @@ pipeline_diagram: |-
     RPE -->|BudgetExhausted| FAIL[Failed]
     F --> G[Format / Write / Tracker Exec / Record]
     G --> B
-    B -->|AllDone| K[Completed]
-    B -->|AllBlocked| L[Stalled]
+    B -->|NoTask| Q[QueryingRemainingWork]
+    Q -->|AllDone| K[Completed]
+    Q -->|Blocked| L[Stalled]
+    Q -->|WorkRemaining| B
     B -->|BatchLimit| M[Paused]
   ```
 initial_state: Idle
@@ -83,6 +85,8 @@ states:
   meaning: Creating an issue through the tracker exec word selected by the profile.
 - name: IssueRecording
   meaning: Recording the configured tracker's issue ID in planner state.
+- name: QueryingRemainingWork
+  meaning: Reading graph state so the machine can route ready, done, or blocked work.
 - name: Completed
   meaning: Terminal. All tasks in the graph are done.
 - name: Stalled
@@ -103,6 +107,8 @@ signals:
   trigger: The requirement graph was loaded and seeded into pipeline state.
 - name: TaskExtracted
   trigger: A task was extracted from the requirement graph.
+- name: NoTask
+  trigger: Extraction found no ready task; remaining_work must classify the graph.
 - name: AllDone
   trigger: All tasks in the graph are done.
 - name: Blocked
@@ -123,6 +129,8 @@ signals:
   trigger: The configured consecutive parse-error retry limit was reached.
 - name: Materialized
   trigger: An issue was created from the plan.
+- name: WorkRemaining
+  trigger: At least one graph task is ready for extraction.
 - name: CommandError
   trigger: Infrastructure-level error.
 transitions:
@@ -142,11 +150,9 @@ transitions:
   next: Resetting
   action: reset_history
 - state: Extracting
-  signal: AllDone
-  next: Completed
-- state: Extracting
-  signal: Blocked
-  next: Stalled
+  signal: NoTask
+  next: QueryingRemainingWork
+  action: remaining_work
 - state: Extracting
   signal: BatchLimitReached
   next: Paused
@@ -228,5 +234,18 @@ transitions:
   next: Extracting
   action: extract_task
 - state: IssueRecording
+  signal: CommandError
+  next: Failed
+- state: QueryingRemainingWork
+  signal: WorkRemaining
+  next: Extracting
+  action: extract_task
+- state: QueryingRemainingWork
+  signal: AllDone
+  next: Completed
+- state: QueryingRemainingWork
+  signal: Blocked
+  next: Stalled
+- state: QueryingRemainingWork
   signal: CommandError
   next: Failed

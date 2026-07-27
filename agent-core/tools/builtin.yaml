@@ -407,7 +407,7 @@ tools:
     init: extract_task
     description: "Extract the next unblocked task from the dependency graph."
     visibility: internal
-    emits: [TaskExtracted, AllDone, Blocked, BatchLimitReached, CommandError]
+    emits: [TaskExtracted, NoTask, BatchLimitReached, CommandError]
     category: stateful_internal
     side_effects:
       - kind: state_mutation
@@ -426,7 +426,7 @@ tools:
     init: extract_all
     description: "Extract all requirements as a single task group (passthrough mode)."
     visibility: internal
-    emits: [TaskExtracted, AllDone, Blocked, CommandError]
+    emits: [TaskExtracted, NoTask, CommandError]
     category: stateful_internal
     side_effects:
       - kind: state_mutation

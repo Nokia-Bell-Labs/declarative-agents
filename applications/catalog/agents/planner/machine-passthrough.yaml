@@ -93,6 +93,8 @@ signals:
   trigger: The requirement graph was loaded and seeded into pipeline state.
 - name: TaskExtracted
   trigger: A task was extracted from the requirement graph.
+- name: NoTask
+  trigger: Extraction found no ready task; remaining_work must classify the graph.
 - name: RetryCountInitialized
   trigger: Retry count zero was recorded in labelled command state.
 - name: AllDone
@@ -142,11 +144,9 @@ transitions:
   signal: CommandError
   next: Failed
 - state: Extracting
-  signal: AllDone
-  next: Completed
-- state: Extracting
-  signal: Blocked
-  next: Stalled
+  signal: NoTask
+  next: QueryingRemainingWork
+  action: remaining_work
 - state: Extracting
   signal: CommandError
   next: Failed

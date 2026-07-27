@@ -23,7 +23,7 @@ invariants:
 - Graph nodes are marked done/failed to track progress
 - The planner terminates when no more tasks are extractable
 lifecycle: |-
-  1. Idle → Extracting: extract_task from requirement graph
+  1. Idle → Extracting: extract_task from requirement graph; NoTask routes through remaining_work
   2. Extracting → InitializingRetry → Resetting: seed visible retry count, clear LLM history
   3. Resetting → PromptAssembly: assemble_prompt with SRD context
   4. PromptAssembly → PlanInvoking: invoke_llm for plan generation
@@ -62,8 +62,7 @@ pipeline_diagram: |-
     P -->|RetryAvailable| C
     P -->|RetriesExhausted| X[Exhausted]
     X --> Q
-    B -->|AllDone| K[Completed]
-    B -->|AllBlocked| L[Stalled]
+    B -->|NoTask| Q
     B -->|BatchLimit| M[Paused]
   ```
 initial_state: Idle
@@ -77,7 +76,7 @@ states:
 - name: Extracting
   meaning: |
     Selecting the next ready task from the requirement graph.
-    May terminate if all tasks are done, blocked, or batch limit reached.
+    A neutral NoTask result routes through the remaining_work graph query.
 - name: InitializingRetry
   meaning: Seeding retry count zero in labelled command state for the extracted task.
 - name: Resetting
@@ -136,6 +135,8 @@ signals:
   trigger: The requirement graph was loaded and seeded into pipeline state.
 - name: TaskExtracted
   trigger: A task was extracted from the requirement graph.
+- name: NoTask
+  trigger: Extraction found no ready task; remaining_work must classify the graph.
 - name: RetryCountInitialized
   trigger: Retry count zero was recorded in labelled command state.
 - name: AllDone
@@ -199,11 +200,9 @@ transitions:
   signal: CommandError
   next: Failed
 - state: Extracting
-  signal: AllDone
-  next: Completed
-- state: Extracting
-  signal: Blocked
-  next: Stalled
+  signal: NoTask
+  next: QueryingRemainingWork
+  action: remaining_work
 - state: Extracting
   signal: BatchLimitReached
   next: Paused

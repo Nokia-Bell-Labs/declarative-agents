@@ -22,6 +22,7 @@ import (
 // Pipeline signals aligned with agents/planner/machine.yaml.
 const (
 	SigTaskExtracted   core.Signal = "TaskExtracted"
+	SigNoTask          core.Signal = "NoTask"
 	SigAllDone         core.Signal = "AllDone"
 	SigBlocked         core.Signal = "Blocked"
 	SigPlanReady       core.Signal = "PlanReady"

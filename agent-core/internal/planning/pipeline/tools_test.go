@@ -121,7 +121,9 @@ func TestExtractTaskBuilder_NoMoreTasks(t *testing.T) {
 	cmd := builder.Build(core.Result{})
 	result := cmd.Execute()
 
-	assert.Equal(t, SigAllDone, result.Signal)
+	assert.Equal(t, SigNoTask, result.Signal)
+	remaining := (&RemainingWorkBuilder{PS: ps}).Build(core.Result{}).Execute()
+	assert.Equal(t, SigAllDone, remaining.Signal)
 }
 
 func TestExtractAllBuilder_ExtractsAllReady(t *testing.T) {
@@ -164,7 +166,9 @@ func TestExtractAllBuilder_NoReady(t *testing.T) {
 	cmd := builder.Build(core.Result{})
 	result := cmd.Execute()
 
-	assert.Equal(t, SigAllDone, result.Signal)
+	assert.Equal(t, SigNoTask, result.Signal)
+	remaining := (&RemainingWorkBuilder{PS: ps}).Build(core.Result{}).Execute()
+	assert.Equal(t, SigAllDone, remaining.Signal)
 }
 
 func TestAssemblePromptBuilder_ProducesPrompt(t *testing.T) {

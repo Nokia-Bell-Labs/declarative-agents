@@ -27,8 +27,7 @@ func (c *extractTaskCmd) Execute() (result core.Result) {
 	defer func() { result = withPipelineReceipt(result, snapshot, nil) }()
 	task := c.ps.Extractor.ExtractNext(c.ps.Graph, c.ps.MaxWeight)
 	if task == nil {
-		sig, msg := c.ps.classifyEmpty()
-		return core.Result{CommandName: c.Name(), Signal: sig, Output: msg}
+		return core.Result{CommandName: c.Name(), Signal: SigNoTask, Output: "no task ready for extraction"}
 	}
 	c.ps.CurrentTask = task
 	if err := c.ps.advanceTaskNodesTo(graph.Planning); err != nil {
@@ -74,8 +73,7 @@ func (c *extractAllCmd) Execute() (result core.Result) {
 	defer func() { result = withPipelineReceipt(result, snapshot, nil) }()
 	ready := c.ps.Graph.Ready()
 	if len(ready) == 0 {
-		sig, msg := c.ps.classifyEmpty()
-		return core.Result{CommandName: c.Name(), Signal: sig, Output: msg}
+		return core.Result{CommandName: c.Name(), Signal: SigNoTask, Output: "no task ready for extraction"}
 	}
 	c.ps.CurrentTask = allReadyTask(ready)
 	if err := c.ps.advanceTaskNodesTo(graph.Planning); err != nil {

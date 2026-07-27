@@ -6,8 +6,7 @@ tools:
   visibility: internal
   emits:
   - TaskExtracted
-  - AllDone
-  - Blocked
+  - NoTask
   - CommandError
   category: stateful_internal
   side_effects:
