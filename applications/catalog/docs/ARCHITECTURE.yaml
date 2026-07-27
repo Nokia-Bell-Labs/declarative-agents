@@ -8,8 +8,9 @@ overview:
     runtime, agent-core loads external agent programs from it. Applications
     compose canonical catalog members by reference and package their transitive
     closure. Profile directories, catalog tool declarations, profile-local
-    overrides, conformance, demos, integration fixtures, catalog UIs, and
-    structured docs live here.
+    overrides, conformance, integration fixtures, profile-local UIs, and
+    structured docs live here. Application presentations and composition live
+    in their owning modules under applications/.
 
     Runtime ownership remains in agent-core. That repository owns the Go
     engine, cmd/agent, builtin tool implementations, shared runtime assets, Mage
@@ -73,10 +74,13 @@ components:
       core declarations, core implementations, and application-local
       exclusions. Catalog declarations stay with their owning agents/<family>/
       closure; this path is the taxonomy, not a second declaration registry.
-  - name: demos
-    path: demo/
+  - name: application presentations
+    path: ../knowledge-manager-demo/
     responsibility: |
-      Own runnable demos that prove catalog profiles can run with agent-core.
+      Runnable applications own presentation assets, launch composition, and
+      application-specific end-to-end evidence while referencing canonical
+      catalog profiles. The Knowledge Manager presentation lives at
+      ../knowledge-manager-demo/.
   - name: integration fixtures
     path: testdata/integration/
     responsibility: |
@@ -112,10 +116,10 @@ design_decisions:
   - id: 3
     title: Fixtures use portable paths
     decision: |
-      Demos and integration fixtures must use portable roots such as catalog
-      mount points (/profiles in runtime examples), argv-resolved profile paths, or
-      explicit workspace mounts. Developer-specific absolute paths are not valid
-      fixture contracts.
+      Catalog integration fixtures and application-owned demos must use portable
+      roots such as catalog mount points (/profiles in runtime examples),
+      argv-resolved profile paths, or explicit workspace mounts.
+      Developer-specific absolute paths are not valid fixture contracts.
     benefits:
       - Integration targets work across machines and containers.
       - Container examples match the mounted-profile contract.
@@ -192,8 +196,8 @@ project_structure:
       role: Reusable catalog agent blocks, catalog tool declarations, selection lists, overrides, and profile-local assets.
     - path: tools/README.md
       role: Catalog tool-block taxonomy and membership contract.
-    - path: demo/
-      role: External-profile demos.
+    - path: ../knowledge-manager-demo/
+      role: Application-owned Knowledge Manager presentation and composition that references the canonical curator.
     - path: testdata/integration/
       role: Profile-owned fixtures consumed by agent-core integration targets.
   documentation:
@@ -216,8 +220,11 @@ implementation_status:
     - done: Agent functional block requirements and semantic models are defined.
     - done: Agent profiles and Knowledge Manager UX assets migrated from
         agent-core into agents/.
-    - done: Demos and integration fixtures migrated into demo/ and
-        testdata/integration/.
+    - done: Release 06 historically migrated demos and integration fixtures into
+        demo/ and testdata/integration/.
+    - done: Presentation-specific Knowledge Manager assets were subsequently
+        relocated to applications/knowledge-manager-demo; catalog-owned
+        documentation-curator profile UX and integration evidence remain here.
     - done: Profile bundle release tagging is implemented through mage tag.
     - done: Profile validation and container usage checks verify the mounted
         profile contract.

@@ -8,9 +8,11 @@ summary: |
   provides the agent binary and core-owned assets.
 
   This use case covers the execution path after profile migration. The selected
-  profile, workspace, demos, and integration fixtures stay under
+  profile, profile-local assets, and catalog integration fixtures stay under
   applications/catalog. Agent Core loads the profile through --profile and uses
-  --directory for the target workspace.
+  --directory for the target workspace. Application presentations compose that
+  profile from their own roots; the Knowledge Manager presentation now lives in
+  applications/knowledge-manager-demo.
 
   The important failure mode is quiet fallback to bundled agent directories.
   A correct run cannot require /opt/agent-core/agents. If the profile root is
@@ -45,7 +47,7 @@ flow:
   - id: F4
     text: Shared tool declarations resolve through documented core-owned roots such as /opt/agent-core/tools.
   - id: F5
-    text: Profile-owned demos and fixtures are read from applications/catalog when integration targets set AGENT_CATALOG_ROOT.
+    text: Catalog-owned profiles and integration fixtures are read from applications/catalog when integration targets set AGENT_CATALOG_ROOT; application presentations remain under their owning application roots.
   - id: F6
     text: A mounted container run uses /profiles for agent programs and /work for the workspace.
   - id: F7
@@ -89,7 +91,7 @@ success_criteria:
     traces:
       - sm-multi-agent-profile-system validation_views
   - id: S5
-    criterion: agent-core integration targets can consume demos and fixtures through AGENT_CATALOG_ROOT.
+    criterion: Integration targets can consume canonical profiles and catalog-owned fixtures through AGENT_CATALOG_ROOT without making application presentations catalog-owned.
     traces:
       - srd003-critic R2.3
       - srd008-monitor R2.1
