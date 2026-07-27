@@ -11,6 +11,26 @@ overview: |
   surface with the applier (srd006), a declarative agent that binds the helm and
   kubectl CLIs in its container.
 
+role_alignment:
+  status: specified
+  implemented_decisions:
+    - Retain `chatbot` as a descriptive multi-role actor with Planner, Executor, and Knowledge Manager bindings.
+    - Retain `rag-server` as a descriptive Knowledge Manager / Recommendation Generator realization.
+    - Retain the mesh `corpus-ingest` wrapper with its inherited catalog Knowledge Manager / Ontology Manager binding.
+    - Bind `creator` to Creator / Instance Manager and Agent Owner / Agent Lifecycle Manager and retain the compatible name.
+    - Bind `applier` to Executor / Actuation Agent and Change Manager; Applier is not a canonical role.
+    - Bind `collector` to Monitor / Telemetry Collector and distinguish its profile-backed workload from contrib metrics infrastructure.
+    - Treat all Helm names as deployment identities inheriting profile bindings, not as semantic role names.
+  planned_migrations:
+    - issue: GH-1077
+      current_actor: coordinator
+      implemented_responsibility: Sequence optional ingest and rollout requests through the creator.
+      canonical_role_sub_role: Executor / Workflow Orchestrator; not Coordinator.
+      retained_or_proposed_name: provisioning-workflow-orchestrator
+      authority_boundary: No implemented synchronization, conflict-resolution, negotiation, consensus, deployment, or child-process authority.
+      evidence: [agents/coordinator/request-machine.yaml, helm/templates/coordinator.yaml, srd004]
+      migration_impact: Profile, Helm, SRD, integration, packaging, release, and compatibility paths move together.
+
 releases:
   - version: "00.0"
     name: RAG server and single-RAG chatbot turn
@@ -126,14 +146,19 @@ releases:
     name: Control plane
     description: |
       The mesh gains a control plane on top of the data-plane topology: a
-      coordinator agent (srd004) that binds a user's provisioning intent, sequences
+      `coordinator` actor (srd004) that currently assumes Executor / Workflow
+      Orchestrator, binds a user's provisioning intent, sequences
       the ingestion and reconfiguration workflows, and decides the values changes,
-      and a creator agent (srd005) that realizes each instance operation and alone
+      and a `creator` actor (srd005) that assumes Creator / Instance Manager and
+      Agent Owner / Agent Lifecycle Manager, realizes each instance operation, and alone
       holds the deployment-API authority. A provisioning intent flows chatbot ->
       coordinator -> creator: the chatbot delegates through a declared client, the
       coordinator sequences corpus-ingest runs and the rollout, the creator executes
       the request-draining rollout through the deployment API (srd003 R4) and
       reports health, and the new source serves a grounded turn.
+      The shipped coordinator request machine has no synchronization,
+      conflict-resolution, negotiation, or consensus state, so it does not assume
+      canonical Coordinator; GH-1077 owns its coordinated mechanical rename.
     status: partial
     srds:
       - srd004-coordinator

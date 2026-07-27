@@ -1,8 +1,17 @@
 id: srd007-collector-agent
 title: Collector Agent Functional Block
 
+role_realization_decision:
+  current_actor: collector
+  implemented_responsibility: Receive bounded OTLP trace batches, apply declared policy, spool evidence, optionally relay unchanged traces, and expose lifecycle state.
+  canonical_role_sub_role: Monitor / Telemetry Collector.
+  retained_or_proposed_name: Retain `collector` as a compatible descriptive actor.
+  authority_boundary: Owns trace intake only; contrib retains metrics and Dolt scraping during staged migration, and file-only self-telemetry prevents a loop.
+  evidence: [agents/collector/machine.yaml, agents/collector/declarations.yaml, helm/templates/collector.yaml]
+  migration_impact: None; Helm distinguishes the profile-backed collector from contrib collector and collector-metrics infrastructure.
+
 context: |
-  The collector is a persistent declarative agent that implements the mesh's
+  The `collector` actor assumes Monitor / Telemetry Collector and implements the mesh's
   OTLP trace-ingress contract with agent-core srd042 words. It replaces the
   contrib collector on the trace path while MachineSpec owns receive, inspect,
   spool, relay, retry, control, and monitor behavior.

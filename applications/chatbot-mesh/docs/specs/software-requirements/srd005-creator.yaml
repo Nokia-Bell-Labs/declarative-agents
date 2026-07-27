@@ -1,17 +1,26 @@
 id: srd005-creator
 title: Creator Agent Functional Block
 
+role_realization_decision:
+  current_actor: creator
+  implemented_responsibility: Launch a corpus-ingest child, drive decided rollout operations, read resulting health and state, and own the deployment-API client boundary.
+  canonical_role_sub_role: Creator / Instance Manager and Agent Owner / Agent Lifecycle Manager.
+  retained_or_proposed_name: Retain `creator`; instance realization is an implemented primary responsibility and Agent Owner is an additional trait.
+  authority_boundary: Acts on a decided operation and alone reaches the deployment API; it does not decide desired values or orchestrate the end-to-end intent.
+  evidence: [agents/creator/request-machine.yaml, agents/creator/request-declarations.yaml, helm/templates/creator.yaml]
+  migration_impact: None; actor and workload names remain compatible with canonical Creator.
+
 context: |
-  The creator is the mesh's agent lifecycle management (LCM) agent: it makes
+  The `creator` actor assumes both Creator / Instance Manager and Agent Owner /
+  Agent Lifecycle Manager: it makes
   running instances match what the coordinator (srd004) decided. Acting on the
   coordinator's requests, it selects the profile and rendered config for an
   instance (template selection), spawns corpus-ingest child runs (instance
   creation), restarts reconfigured agents via request-draining rollouts
   (srd003 R3.2), verifies post-rollout health
   (health monitoring), and handles resource allocation. It plays the
-  reference-architecture Creator role (template-selection, instance-creation,
-  health-monitoring, termination, resource-allocation), the acting half of the
-  Agent Lifecycle Management component.
+  reference-architecture responsibilities for template selection, instance
+  creation, health monitoring, termination, and resource allocation.
 
   The creator acts; the coordinator decides. The creator makes no workflow or
   values decision -- it receives a decided instance operation and realizes it. It

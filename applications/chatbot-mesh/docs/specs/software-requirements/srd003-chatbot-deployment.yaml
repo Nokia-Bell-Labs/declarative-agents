@@ -1,6 +1,15 @@
 id: srd003-chatbot-deployment
 title: Chatbot Mesh Deployment Model
 
+role_realization_decision:
+  current_actor: Helm chart and rendered workloads
+  implemented_responsibility: Render profile-backed actors, values-named RAG instances, wrapper closure, and infrastructure adapters into one deployment topology.
+  canonical_role_sub_role: Workload names inherit mounted profile bindings; Helm names are not canonical roles or sub-roles.
+  retained_or_proposed_name: Retain workload names except the coordinator migration planned in GH-1077.
+  authority_boundary: Values and templates select deployment identity and configuration but do not define semantic role identity.
+  evidence: [helm/templates/chatbot.yaml, helm/templates/rag-units.yaml, helm/templates/coordinator.yaml, helm/templates/creator.yaml, helm/templates/applier.yaml, helm/templates/collector.yaml]
+  migration_impact: GH-1077 renames the coordinator workload and all selectors, policies, telemetry identities, integrations, and packaging references together.
+
 context: |
   The chatbot mesh runs as a set of container agents on Kubernetes: one chatbot
   agent (srd002) fronting N RAG server agents (srd001), each RAG paired with its
@@ -12,7 +21,7 @@ context: |
   Images follow the rel06.0 mounted-profile contract: the runtime image is
   binary-only (agent-core srd034), and each agent's profile is supplied from
   ConfigMaps mounted at the profile path rather than baked into the image. This
-  keeps one runtime image across every agent role and lets a values change
+  keeps one runtime image across every profile-backed workload and lets a values change
   re-render profiles without rebuilding images.
 
   Chart location: the top-level applications/chatbot-mesh/helm/ directory. The chart,

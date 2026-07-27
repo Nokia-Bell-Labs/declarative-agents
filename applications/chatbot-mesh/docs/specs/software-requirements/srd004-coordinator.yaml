@@ -1,17 +1,26 @@
 id: srd004-coordinator
 title: Coordinator Agent Functional Block
 
+role_realization_decision:
+  current_actor: coordinator
+  implemented_responsibility: Sequence an optional corpus-ingest request followed by a values rollout request through the creator and aggregate the terminal result.
+  canonical_role_sub_role: Executor / Workflow Orchestrator; explicitly not Coordinator.
+  retained_or_proposed_name: Rename to `provisioning-workflow-orchestrator` in GH-1077.
+  authority_boundary: Holds no deployment API, child-process, synchronization, conflict-resolution, negotiation, or consensus authority.
+  evidence: [agents/coordinator/request-machine.yaml, agents/coordinator/rest.yaml, helm/templates/coordinator.yaml]
+  migration_impact: GH-1077 covers profile and directory names, Helm objects and policies, SRD004 and references, integrations, packaging closure, release artifacts, and compatibility.
+
 context: |
   The mesh control plane is two agents. The coordinator is the workflow
   orchestrator: the UX agent (chatbot, srd002) accomplishes a user's provisioning
   intent by delegating it to the coordinator, which sequences the ingestion and
   reconfiguration workflows, realizes the caller's desired mesh state (the full
   values-plane document, decided by the operator through the provisioning panel),
-  resolves conflicts, and aggregates status for the provisioning panel. It plays the reference-architecture Coordinator role
-  (workflow-synchronization, conflict-resolution, consensus and status); the
-  Agent Lifecycle Management component names the Orchestration and Coordination
-  Engine as its primary interaction, which is the coordinator-to-creator boundary
-  here.
+  and aggregates status for the provisioning panel. The implemented actor assumes
+  Executor / Workflow Orchestrator. It does not currently synchronize concurrent
+  workflows, resolve conflicts, negotiate, or facilitate consensus, so its bare
+  `coordinator` name does not establish the reference-architecture Coordinator
+  role. GH-1077 owns the mechanical actor and workload rename.
 
   The coordinator orchestrates; the creator (srd005) acts. Every instance operation --
   creating a child ingest run, restarting a reconfigured agent, terminating an
@@ -61,7 +70,7 @@ requirements:
     items:
       - R3.1: The coordinator SHALL accept the full desired mesh state -- the complete values-plane document (the whole ragUnits list, parameters, and LLM config) -- from the intent and realize it, forwarding it unchanged as the values document the creator applies (srd006 R1.4). The desired-state decision is the operator's, made through the provisioning panel (srd002), because a values-plane list is replaced wholesale on apply and a partial patch would drop unlisted units; the coordinator remains the sole orchestrator of the workflow (R3.2, R3.3).
       - R3.2: The coordinator SHALL request rollout or restart of the affected agents from the creator (srd005) and SHALL confirm the health the creator reports before completing the intent.
-      - R3.3: The coordinator SHALL resolve conflicts between concurrent intents so two intents do not apply contradictory values, serializing or rejecting as needed.
+      - R3.3: The coordinator SHALL eventually resolve conflicts between concurrent intents so two intents do not apply contradictory values, serializing or rejecting as needed. Until that behavior is implemented and evidenced, it SHALL NOT claim Coordinator / Conflict Resolver or Workflow Synchronizer.
   R4:
     title: Delegation boundary
     items:
@@ -129,6 +138,12 @@ implementation_status:
       endpoint and checks the returned count. These paths have independent
       evidence; no live integration yet joins ingest, rollout, and a grounded turn
       from the newly added source.
+  planned:
+    - >-
+      R3.3 concurrent-intent serialization or rejection. The shipped request
+      machine contains only ingest and rollout sequencing and no lock, conflict,
+      negotiation, synchronization, or consensus state; planned behavior does not
+      confer a canonical Coordinator binding.
 
 diagrams:
   requirements_trace: |

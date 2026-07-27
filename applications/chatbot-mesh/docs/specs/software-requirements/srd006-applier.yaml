@@ -1,11 +1,20 @@
 id: srd006-applier
 title: Applier Agent Functional Block
 
+role_realization_decision:
+  current_actor: applier
+  implemented_responsibility: Validate a decided values document, execute Helm and kubectl actuation, verify rollout state, and roll back failure.
+  canonical_role_sub_role: Executor / Actuation Agent and Change Manager.
+  retained_or_proposed_name: Retain `applier` as a descriptive actor and Helm workload name; Applier is not a canonical role.
+  authority_boundary: The creator is the only apply caller; the applier authors no desired state and receives no runtime transport authority.
+  evidence: [agents/applier/apply-machine.yaml, agents/applier/exec-declarations.yaml, helm/templates/applier.yaml]
+  migration_impact: Documentation alignment only; no mechanical rename.
+
 context: |
   The applier is the mesh's deployment-plane actuator: the declarative agent that
   realizes the deployment API (srd003 R4) the creator (srd005) drives and the panel
-  reads. It plays the reference-architecture Applier role (command-execution,
-  rollback, validate-service): it validates a decided values patch against the
+  reads. The actor assumes Executor / Actuation Agent and Change Manager; there is
+  no canonical Applier role. It validates a decided values patch against the
   chart's schema, applies it as a rollout, verifies the rollout, and rolls back on
   failure. It supersedes the standard-library Go provisioner with a state machine
   whose container carries the helm and kubectl CLIs, bound as exec tools, plus the

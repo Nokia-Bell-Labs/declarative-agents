@@ -1,8 +1,20 @@
 id: srd002-chatbot-agent
 title: Chatbot Agent Functional Block
 
+role_realization_decision:
+  current_actor: chatbot
+  implemented_responsibility: Select sources and model tier, embed once, retrieve, compose a grounded prompt, answer, and host the browser request boundary.
+  canonical_role_sub_role: Planner / Intent Handler; Executor / Workflow Orchestrator; Knowledge Manager / Recommendation Generator.
+  retained_or_proposed_name: Retain `chatbot` as a descriptive multi-role actor.
+  authority_boundary: Selects declared words and trusted topology entries only; it has no lifecycle or deployment authority.
+  evidence: [agents/chatbot/profile.yaml, agents/chatbot/request-machine.yaml, srd002 R1-R6]
+  migration_impact: None; the actor and Helm workload keep their descriptive identity while bindings remain separate.
+
 context: |
-  The chatbot agent is the browser-facing agent of the mesh. It follows the
+  The `chatbot` actor assumes several roles rather than defining a Chatbot role:
+  Planner / Intent Handler, Executor / Workflow Orchestrator, and Knowledge
+  Manager / Recommendation Generator. It is the browser-facing actor of the mesh
+  and follows the
   the standard agent layout: a rest.yaml with static_assets,
   machine_request, monitor, and control servers; a ui/ directory holding a built
   single-page app; and a ux.yaml actor configuration that places the panels.
