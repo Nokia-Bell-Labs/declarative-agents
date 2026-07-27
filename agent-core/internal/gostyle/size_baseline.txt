@@ -24,7 +24,6 @@ func:internal/evaluation/eval_tools.go:Execute
 func:internal/model/llm/ollama/adapter.go:Chat
 func:internal/model/llm/ollama/adapter.go:ListModels
 func:internal/model/prompt/load.go:LoadPrompt
-func:internal/observability/telemetry/replay.go:ReplayFileContext
 func:internal/planning/extract/output.go:BuildOutputTasks
 func:internal/planning/graph/graph.go:addReleaseEdges
 func:internal/planning/pipeline/factories.go:RegisterFactories

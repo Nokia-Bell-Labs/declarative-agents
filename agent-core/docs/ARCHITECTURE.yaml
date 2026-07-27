@@ -1242,14 +1242,13 @@ components:
     responsibility: |
       OpenTelemetry implementation satisfying the Tracer port
       interface. Sets up trace and metric providers, manages root span
-      lifecycle, handles file and OTLP export, and provides offline
-      trace replay.
+      lifecycle, and handles live file and OTLP export.
     capabilities:
       - Create providers with file and/or OTLP exporters (NewRoot)
       - Manage root span lifecycle with idempotent shutdown
       - Atomic file delivery via temp-file-then-rename
       - Satisfy tracing.Tracer via TraceAdapter
-      - Replay recorded OTLP JSON trace files to a remote collector
+      - Delegate offline OTLP protobuf-JSON loading and relay to declared OTLP tools
 
 design_decisions:
   - id: 1

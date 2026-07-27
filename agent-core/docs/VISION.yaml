@@ -143,7 +143,8 @@ what_this_does: |
 
   Telemetry code implements OpenTelemetry provider setup, exporter config, root
   span lifecycle, TraceAdapter, GenAI semantic convention helpers, W3C
-  traceparent parsing, and offline trace replay.
+  traceparent parsing, and live export. Declared OTLP tools own offline
+  protobuf-JSON batch loading and replay.
 
   Monitor support records structured samples emitted by tools into an
   in-memory runtime store. Cached samples feed OpenTelemetry metrics and REST

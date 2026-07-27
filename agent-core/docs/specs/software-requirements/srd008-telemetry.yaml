@@ -65,9 +65,10 @@ requirements:
   R7:
     title: Offline replay
     items:
-      - R7.1: ReplayFile reads an OTLP JSON trace file and sends spans to a remote endpoint.
-      - R7.2: Accepts an optional tracing.Tracer to record replay lifecycle events.
+      - R7.1: A declared load_otlp_batch word reads one trusted OTLP protobuf-JSON file and emits the decoded batch or a distinct read/decode error.
+      - R7.2: A MachineSpec sequences load_otlp_batch before the shared relay_spans boundary; file I/O and network export are separate visible states.
       - R7.3: Replay is idempotent; replaying the same file produces duplicate spans on the collector.
+      - R7.4: The imperative ReplayFile helper is not part of the telemetry implementation.
 
   R8:
     title: Monitor metric export
@@ -131,8 +132,8 @@ acceptance_criteria:
     traces: [R6.1, R6.2, R6.3]
 
   - id: AC9
-    criterion: ReplayFile reads an OTLP JSON file, sends spans to the endpoint, and optionally logs lifecycle events.
-    traces: [R7.1, R7.2, R7.3]
+    criterion: The offline replay MachineSpec loads a trusted OTLP protobuf-JSON batch and relays it unchanged through declared load and relay words, with distinct file, decode, cancellation, and upstream-rejection failures.
+    traces: [R7.1, R7.2, R7.3, R7.4]
 
   - id: AC10
     criterion: Integration runs dual-export file and OTLP evidence with bounded run identity and stable service names through an implementation-independent ingress that retains Jaeger traces and Prometheus-compatible metrics after scenario teardown, avoids a telemetry self-loop, and states the OTel Logs and Ollama limitations.
@@ -172,7 +173,7 @@ diagrams:
       R8 --> AC7
       AC8["AC8: TraceAdapter satisfies tracing.Tracer at compile time. Pu..."]
       R6 --> AC8
-      AC9["AC9: ReplayFile reads an OTLP JSON file, sends spans to the en..."]
+      AC9["AC9: Declared OTLP words load and relay an offline protobuf-JSON batch"]
       R7 --> AC9
       AC10["AC10: Integration runs retain attributable trace and metric evidence..."]
       R9 --> AC10

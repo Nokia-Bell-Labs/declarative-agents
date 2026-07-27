@@ -14,10 +14,9 @@ import (
 	"github.com/Nokia-Bell-Labs/declarative-agents/agent-core/internal/observability/tracing"
 )
 
-// These tests back the srd008-telemetry formal evidence in
-// docs/specs/test-suites/test-rel00.0.yaml for three behaviors that previously
-// cited tests with no implementation: OTLP exporter configuration, the
-// TraceAdapter interface wrapper, and ReplayFile's read path.
+// These tests back the srd008-telemetry formal evidence for OTLP exporter
+// configuration and the TraceAdapter interface wrapper. Offline batch loading
+// and relay evidence belongs to internal/tools/otlp.
 
 // TestNewRoot_OTLPExporter asserts an OTLP endpoint is accepted: NewRoot's OTLP
 // exporter construction succeeds and the exporters shut down cleanly. It
@@ -58,13 +57,4 @@ func TestTraceAdapter_SatisfiesInterface(t *testing.T) {
 	child.Event("event", attribute.String("e", "1"))
 	child.SetAttributes(attribute.String("a", "b"))
 	require.NotNil(t, child.Context())
-}
-
-// TestReplayFile_InvalidPath asserts ReplayFile surfaces a read error for a
-// missing file before any network connection is attempted.
-func TestReplayFile_InvalidPath(t *testing.T) {
-	t.Parallel()
-	err := ReplayFile(filepath.Join(t.TempDir(), "does-not-exist.json"), "localhost:4317")
-	require.Error(t, err)
-	require.Contains(t, err.Error(), "read")
 }

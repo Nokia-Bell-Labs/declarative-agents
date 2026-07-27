@@ -72,6 +72,28 @@ func TestRelayReportsPartialRejection(t *testing.T) {
 	require.ErrorContains(t, result.Err, "invalid span")
 }
 
+func TestRelayHonorsCallerCancellation(t *testing.T) {
+	t.Parallel()
+	_, endpoint := startRelayService(t)
+	previous, err := awaitOutput(Batch{
+		ID: "relay-cancel", Request: spoolRequest(), Received: time.Now().UTC(),
+	})
+	require.NoError(t, err)
+	command := RelayBuilder{
+		ToolName: "relay_spans",
+		Config: RelayConfig{
+			Endpoint: endpoint, BatchSource: "$.batch", Timeout: time.Second,
+		},
+	}.Build(core.Result{Output: previous}).(*relayCommand)
+	ctx, cancel := context.WithCancel(context.Background())
+	cancel()
+
+	result := command.ExecuteContext(ctx)
+
+	require.Equal(t, core.CommandError, result.Signal)
+	require.ErrorIs(t, result.Err, context.Canceled)
+}
+
 func TestReceiverRejectsSelfLoopConfiguration(t *testing.T) {
 	equivalent := [][2]string{
 		{"0.0.0.0:4317", "127.0.0.1:4317"},

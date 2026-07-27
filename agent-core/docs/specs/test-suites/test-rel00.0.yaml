@@ -626,14 +626,13 @@ test_cases:
       - srd008-telemetry AC8
 
   - use_case: rel00.0-uc001-domain-agent-integration
-    name: ReplayFile reads OTLP JSON and sends spans
-    go_test: TestReplayFile_InvalidPath
-    status: planned
-    follow_up_issue: "#550"
+    name: Declared replay loads OTLP JSON and relays an unchanged batch
+    go_test: TestOTLPReplayMachineLoadsThenRelaysUnchangedBatch
     inputs:
-      path: "/nonexistent/trace.json"
+      machine: testdata/integration/profiles/otlp-replay/machine.yaml
     expected:
-      error: "not nil"
+      status: succeeded
+      batch_identity: unchanged
     traces:
       - srd008-telemetry AC9
 
