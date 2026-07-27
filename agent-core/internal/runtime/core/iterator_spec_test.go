@@ -42,8 +42,16 @@ func TestMachineSpecForEachValidation(t *testing.T) {
 			wantErr: "is not a valid command-state label",
 		},
 		{
-			name: "parallel deferred", old: "mode: sequential", repl: "mode: parallel",
-			wantErr: "bounded parallel iteration is deferred",
+			name: "parallel bound", old: "mode: sequential", repl: "mode: parallel",
+			wantErr: "max_concurrency: must be positive for parallel mode",
+		},
+		{
+			name: "sequential bound", old: "mode: sequential", repl: "mode: sequential\n      max_concurrency: 2",
+			wantErr: "max_concurrency: valid only for parallel mode",
+		},
+		{
+			name: "invalid mode", old: "mode: sequential", repl: "mode: unbounded",
+			wantErr: `mode: "unbounded" must be sequential or parallel`,
 		},
 		{
 			name: "dynamic action", old: "action: item", repl: "action: $tool",

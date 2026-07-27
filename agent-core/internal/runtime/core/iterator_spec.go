@@ -6,21 +6,22 @@ import "fmt"
 
 const (
 	ForEachSequential = "sequential"
+	ForEachParallel   = "parallel"
 	ForEachFailFast   = "fail_fast"
 	ForEachCollectAll = "collect_all"
 )
 
 // ForEachSpec expands one named transition action over an array selected from
-// trusted command state. The MVP is deliberately sequential; it is iteration,
-// not a general-purpose scripting surface.
+// trusted command state.
 type ForEachSpec struct {
-	Items      string   `yaml:"items" json:"items"`
-	As         string   `yaml:"as" json:"as"`
-	Mode       string   `yaml:"mode,omitempty" json:"mode,omitempty"`
-	Failure    string   `yaml:"failure,omitempty" json:"failure,omitempty"`
-	ContinueOn []string `yaml:"continue_on" json:"continue_on"`
-	AbortOn    []string `yaml:"abort_on,omitempty" json:"abort_on,omitempty"`
-	Join       JoinSpec `yaml:"join" json:"join"`
+	Items          string   `yaml:"items" json:"items"`
+	As             string   `yaml:"as" json:"as"`
+	Mode           string   `yaml:"mode,omitempty" json:"mode,omitempty"`
+	MaxConcurrency int      `yaml:"max_concurrency,omitempty" json:"max_concurrency,omitempty"`
+	Failure        string   `yaml:"failure,omitempty" json:"failure,omitempty"`
+	ContinueOn     []string `yaml:"continue_on" json:"continue_on"`
+	AbortOn        []string `yaml:"abort_on,omitempty" json:"abort_on,omitempty"`
+	Join           JoinSpec `yaml:"join" json:"join"`
 }
 
 // JoinSpec defines the state and signal emitted after ordered item dispatches.
@@ -74,8 +75,14 @@ func validateForEachSource(prefix string, tr TransitionSpec) []string {
 
 func validateForEachPolicy(prefix string, spec ForEachSpec) []string {
 	var errs []string
-	if spec.Mode != "" && spec.Mode != ForEachSequential {
-		errs = append(errs, fmt.Sprintf("%s.mode: %q is unsupported; bounded parallel iteration is deferred", prefix, spec.Mode))
+	if spec.Mode != "" && spec.Mode != ForEachSequential && spec.Mode != ForEachParallel {
+		errs = append(errs, fmt.Sprintf("%s.mode: %q must be sequential or parallel", prefix, spec.Mode))
+	}
+	if spec.Mode == ForEachParallel && spec.MaxConcurrency <= 0 {
+		errs = append(errs, prefix+".max_concurrency: must be positive for parallel mode")
+	}
+	if spec.Mode != ForEachParallel && spec.MaxConcurrency != 0 {
+		errs = append(errs, prefix+".max_concurrency: valid only for parallel mode")
 	}
 	if spec.Failure != "" && spec.Failure != ForEachFailFast && spec.Failure != ForEachCollectAll {
 		errs = append(errs, fmt.Sprintf("%s.failure: %q must be fail_fast or collect_all", prefix, spec.Failure))
@@ -151,6 +158,13 @@ func effectiveFailure(spec ForEachSpec) string {
 		return ForEachFailFast
 	}
 	return spec.Failure
+}
+
+func effectiveForEachMode(spec ForEachSpec) string {
+	if spec.Mode == "" {
+		return ForEachSequential
+	}
+	return spec.Mode
 }
 
 func markForEachSignals(used map[string]bool, spec *ForEachSpec) {

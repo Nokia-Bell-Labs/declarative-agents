@@ -120,6 +120,10 @@ func (r *loopRunner) done() bool {
 	if err != nil {
 		return r.stopForUnhandledTransition(err)
 	}
+	if r.iterator != nil && effectiveForEachMode(r.iterator.Spec) == ForEachParallel {
+		r.state = nextState
+		return r.dispatchParallelIterator()
+	}
 	if cmd == nil {
 		if r.stopForTerminal(nextState) {
 			return true

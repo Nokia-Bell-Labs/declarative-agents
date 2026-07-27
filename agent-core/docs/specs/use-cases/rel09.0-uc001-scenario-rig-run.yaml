@@ -23,7 +23,7 @@ flow:
   - F2: The rig runs start_service for the mock profile with the scenario's fixture file; the mock serves the mock binding routes and its request log (srd039 R2, srd040 R1).
   - F3: The rig runs start_service for the subject with a dependency URL environment addition pointing at the mock's base URL, resolved through the subject's ${VAR:-default} base_url expansion (srd040 R1, srd028 R2).
   - F4: The rig probes each labeled child URL once per REST dispatch and routes retry delays and timeout visibly in MachineSpec (srd040 R2).
-  - F5: MachineSpec iterates one child execution per validator sequentially; each item drives the subject over HTTP and asserts on responses and on the mock's request log (srd040 R4, srd039 R3).
+  - F5: MachineSpec iterates one child execution per validator with declared bounded parallelism; each item drives the subject over HTTP and asserts on responses and on the mock's request log (srd040 R4, srd039 R3).
   - F6: The rig joins per-validator terminal states in input order, records them, and derives the scenario verdict, passing only when every validator reached its Passed terminal.
   - F7: The rig lists the subject and mocks, then iterates stop_service once per child; no child process survives (srd040 R1.4, R3).
   - F8: A scenario whose mock fixture scripts a failure response exercises the subject's failure path, and the validator asserts the subject's clean failure terminal, so the scenario still passes.
@@ -76,7 +76,6 @@ out_of_scope:
   - Span-based state assertion; the request log and subject responses are the witnesses here.
   - Kubernetes, containers, or a hierarchical control plane; children are local processes.
   - Refreshing fixtures from real-service responses; real-stack verification is a separate concern.
-  - Bounded parallel validator iteration; sequential for_each is intentional until that MachineSpec capability exists.
 
 test_suite_trace: test-rel09.0-scenario-rig
 status: specified
