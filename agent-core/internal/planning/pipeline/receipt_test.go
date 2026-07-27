@@ -68,7 +68,9 @@ func TestPipelineMutationBuildersImplementReverser(t *testing.T) {
 	retry := &toollm.ParseErrorRetryTracker{}
 	builders := []core.Builder{
 		&ExtractTaskBuilder{PS: ps},
-		&ExtractAllBuilder{PS: ps},
+		&SelectAllReadyBuilder{PS: ps},
+		&SeedPassThroughPlanBuilder{PS: ps, Title: "Title", Summary: "Summary"},
+		&MarkNodesPlanningBuilder{PS: ps},
 		&ParsePlanBuilder{PS: ps, Retry: retry},
 		&LoadGraphBuilder{PS: ps},
 		&RecordTrackerIssueBuilder{PS: ps},

@@ -24,7 +24,7 @@ tools:
   problem: The pipeline machine needs a declared word that seeds the requirement graph before extraction, rather than assuming the graph already exists and dereferencing nil state.
   goals:
   - Load the specification corpus from the run directory and build the requirement graph as one machine-selected word.
-  - Seed the graph and a fresh extractor into pipeline state so extract_task and extract_all have a graph to traverse.
+  - Seed the graph and a fresh extractor into pipeline state so extract_task and select_all_ready have a graph to traverse.
   - Return an explicit signal that lets the MachineSpec choose the next state.
   requirements:
     input:
@@ -35,7 +35,7 @@ tools:
     - must emit CommandError when the corpus cannot be loaded or the graph cannot be built
   non_goals:
   - Does not choose the next workflow step; machine.yaml owns sequencing.
-  - Does not extract tasks; extract_task and extract_all do that.
+  - Does not select tasks; extract_task and select_all_ready do that.
   errors:
   - signal: CommandError
     condition: the corpus directory is missing or invalid, or the graph cannot be built
@@ -44,7 +44,7 @@ tools:
   relationships:
     before:
     - extract_task
-    - extract_all
+    - select_all_ready
     after:
     - machine-selected predecessor
   output:

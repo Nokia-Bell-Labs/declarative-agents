@@ -3,6 +3,51 @@
 # Loaded through agents/planner/profile.yaml tool_declarations.
 
 tools:
+  - name: seed_passthrough_plan
+    type: builtin
+    init: seed_passthrough_plan
+    description: "Seed the pass-through implementation plan from planner-profile policy."
+    visibility: internal
+    emits: [PassThroughPlanSeeded, CommandError]
+    category: stateful_internal
+    problem: "The planner pass-through variant owns its implementation-plan wording."
+    goals:
+      - "Keep pass-through plan title and summary in the planner profile."
+      - "Seed plan state separately from task selection and graph lifecycle."
+    requirements:
+      input: ["must run after select_all_ready"]
+      output: ["must emit PassThroughPlanSeeded after setting current plan"]
+      errors: ["must emit CommandError when the selected task or configured text is missing"]
+    non_goals:
+      - "Does not select or mutate graph nodes."
+    output:
+      description: "Profile-configured pass-through plan seeding summary."
+      schema:
+        type: object
+        properties:
+          message: {type: string}
+        required: [message]
+    side_effects:
+      - kind: state_mutation
+        target: planner_pipeline_state
+        state: current_plan_seeded
+        description: "Sets only the current implementation plan."
+    reversibility: {classification: reversible, undo: pipeline_state_restore}
+    undo:
+      strategy: pipeline_state_restore
+      description: "Restore the receipt-recorded planner state."
+    errors:
+      - signal: CommandError
+        condition: "current task or configured plan text is missing"
+        message_shape: "seed_passthrough_plan: <error>"
+        state_after_failure: "no graph lifecycle change occurs"
+    relationships:
+      before: [select_all_ready]
+      after: [mark_nodes_planning]
+    config:
+      title: "Execute all ready requirements"
+      summary: "Pass-through execution for the selected ready graph nodes."
+
   - name: execute_task
     type: builtin
     init: execute_task
@@ -86,7 +131,7 @@ tools:
         message_shape: "execute_task failed: <status/output>"
         state_after_failure: "workspace may contain child edits and must be restored from checkpoint if rollback is requested"
     relationships:
-      before: [record_tracker_issue, extract_task, extract_all]
+      before: [record_tracker_issue, extract_task, mark_nodes_planning]
       after: [build, vet, test, increment_retry, mark_task_done]
       overlaps:
         - tool: self_invoke
@@ -136,7 +181,7 @@ tools:
         message_shape: "reset_retry_count: <error>"
         state_after_failure: "no retry-count entry is published"
     relationships:
-      before: [extract_task, extract_all]
+      before: [extract_task, mark_nodes_planning]
       after: [reset_history, execute_task, increment_retry]
     config:
       signal: RetryCountInitialized

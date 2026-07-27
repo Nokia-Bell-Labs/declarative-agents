@@ -126,51 +126,6 @@ func TestExtractTaskBuilder_NoMoreTasks(t *testing.T) {
 	assert.Equal(t, SigAllDone, remaining.Signal)
 }
 
-func TestExtractAllBuilder_ExtractsAllReady(t *testing.T) {
-	t.Parallel()
-	ps := minimalState(t)
-	builder := &ExtractAllBuilder{PS: ps}
-
-	cmd := builder.Build(core.Result{})
-	result := cmd.Execute()
-
-	assert.Equal(t, SigTaskExtracted, result.Signal)
-	assert.NotNil(t, ps.CurrentTask)
-	require.NotNil(t, ps.CurrentPlan)
-	assert.Equal(t, "Execute all ready requirements", ps.CurrentPlan.Title)
-	assert.Contains(t, result.Output, "extracted all")
-}
-
-func TestExtractAllBuilder_UndoRestoresPipelineState(t *testing.T) {
-	t.Parallel()
-	ps := minimalState(t)
-
-	builder := &ExtractAllBuilder{PS: ps}
-	cmd := builder.Build(core.Result{})
-	result := cmd.Execute()
-	require.Equal(t, SigTaskExtracted, result.Signal)
-	require.NotNil(t, ps.CurrentTask)
-
-	undo := cmd.Undo(result)
-	require.Equal(t, core.ToolDone, undo.Signal)
-	require.Nil(t, ps.CurrentTask)
-	require.Nil(t, ps.CurrentPlan)
-}
-
-func TestExtractAllBuilder_NoReady(t *testing.T) {
-	t.Parallel()
-	ps := minimalState(t)
-	markAllDone(t, ps.Graph)
-
-	builder := &ExtractAllBuilder{PS: ps}
-	cmd := builder.Build(core.Result{})
-	result := cmd.Execute()
-
-	assert.Equal(t, SigNoTask, result.Signal)
-	remaining := (&RemainingWorkBuilder{PS: ps}).Build(core.Result{}).Execute()
-	assert.Equal(t, SigAllDone, remaining.Signal)
-}
-
 func TestAssemblePromptBuilder_ProducesPrompt(t *testing.T) {
 	t.Parallel()
 	ps := minimalState(t)

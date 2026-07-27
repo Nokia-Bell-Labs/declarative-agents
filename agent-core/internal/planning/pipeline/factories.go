@@ -24,8 +24,14 @@ type FactoryDeps struct {
 	ParseRetries     *toollm.ParseErrorRetryTracker
 }
 
+type passThroughPlanConfig struct {
+	Title   string `json:"title"`
+	Summary string `json:"summary"`
+}
+
 // RegisterFactories registers all pipeline builtin tool factories
-// (extract_task, extract_all, assemble_prompt, parse_plan, issue state
+// (extract_task, select_all_ready, seed_passthrough_plan, mark_nodes_planning,
+// assemble_prompt, parse_plan, issue state
 // adapters, execute_task, mark_task_done, remaining_work) into the provided
 // BuiltinRegistry.
 // Pipeline state is lazily initialized on first factory call.
@@ -52,8 +58,21 @@ func RegisterFactories(br *toolregistry.BuiltinRegistry, deps FactoryDeps) {
 	br.Register("extract_task", func(def catalog.ToolDef, vars map[string]string) (core.Builder, error) {
 		return &ExtractTaskBuilder{PS: initPS(def)}, nil
 	})
-	br.Register("extract_all", func(def catalog.ToolDef, vars map[string]string) (core.Builder, error) {
-		return &ExtractAllBuilder{PS: initPS(def)}, nil
+	br.Register("select_all_ready", func(def catalog.ToolDef, vars map[string]string) (core.Builder, error) {
+		return &SelectAllReadyBuilder{PS: initPS(def)}, nil
+	})
+	br.Register("seed_passthrough_plan", func(def catalog.ToolDef, vars map[string]string) (core.Builder, error) {
+		var cfg passThroughPlanConfig
+		if err := catalog.DecodeToolConfig(def, &cfg); err != nil {
+			return nil, err
+		}
+		if cfg.Title == "" || cfg.Summary == "" {
+			return nil, fmt.Errorf("pipeline seed_passthrough_plan: title and summary are required")
+		}
+		return &SeedPassThroughPlanBuilder{PS: initPS(def), Title: cfg.Title, Summary: cfg.Summary}, nil
+	})
+	br.Register("mark_nodes_planning", func(def catalog.ToolDef, vars map[string]string) (core.Builder, error) {
+		return &MarkNodesPlanningBuilder{PS: initPS(def)}, nil
 	})
 	br.Register("assemble_prompt", func(def catalog.ToolDef, vars map[string]string) (core.Builder, error) {
 		return &AssemblePromptBuilder{PS: initPS(def)}, nil

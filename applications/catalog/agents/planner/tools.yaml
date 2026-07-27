@@ -16,7 +16,9 @@ tools:
 
   # Planning phase (plan-only + full)
   - extract_task         # action: full, plan-only
-  - extract_all          # action: passthrough
+  - select_all_ready     # action: passthrough
+  - seed_passthrough_plan # action: passthrough
+  - mark_nodes_planning  # action: passthrough
   - assemble_prompt      # action: full, plan-only
   - parse_plan           # action: full, plan-only
   - format_issue         # action: full, plan-only

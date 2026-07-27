@@ -23,6 +23,9 @@ import (
 const (
 	SigTaskExtracted   core.Signal = "TaskExtracted"
 	SigNoTask          core.Signal = "NoTask"
+	SigReadySelected   core.Signal = "ReadySelected"
+	SigPlanSeeded      core.Signal = "PassThroughPlanSeeded"
+	SigNodesPlanning   core.Signal = "NodesMarkedPlanning"
 	SigAllDone         core.Signal = "AllDone"
 	SigBlocked         core.Signal = "Blocked"
 	SigPlanReady       core.Signal = "PlanReady"

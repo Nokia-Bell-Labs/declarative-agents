@@ -371,31 +371,54 @@ tools:
     output_contract: missing
     undo: graph_snapshot_restore
     overlaps:
-      - tool: extract_all
-        difference: extract_task selects one next unblocked task; extract_all batches all ready nodes
+      - tool: select_all_ready
+        difference: extract_task selects one weighted task; select_all_ready selects every ready node without plan or graph mutation
     issues:
       - needs command-state undo contract
     migration_priority: medium
 
-  - name: extract_all
+  - name: select_all_ready
     role: stateful_internal
     selected_by: [planner]
     inputs_from: [spec_graph]
-    feeds_into: [assemble_prompt]
+    feeds_into: [seed_passthrough_plan]
     side_effects: pipeline_state_mutation
-    output_contract: missing
-    undo: graph_snapshot_restore
+    output_contract: declared
+    undo: pipeline_state_restore
     overlaps:
       - tool: extract_task
-        difference: extract_all creates a single batch task; extract_task selects one weighted task
-    issues:
-      - needs command-state undo contract
-    migration_priority: medium
+        difference: select_all_ready selects every ready node; extract_task selects one weighted task
+    issues: []
+    migration_priority: complete
+
+  - name: seed_passthrough_plan
+    role: stateful_internal
+    selected_by: [planner]
+    inputs_from: [select_all_ready, profile_config]
+    feeds_into: [mark_nodes_planning]
+    side_effects: pipeline_state_mutation
+    output_contract: declared
+    undo: pipeline_state_restore
+    overlaps: []
+    issues: []
+    migration_priority: complete
+
+  - name: mark_nodes_planning
+    role: stateful_internal
+    selected_by: [planner]
+    inputs_from: [seed_passthrough_plan]
+    feeds_into: [execute_task]
+    side_effects: requirement_graph_mutation
+    output_contract: declared
+    undo: pipeline_state_restore
+    overlaps: []
+    issues: []
+    migration_priority: complete
 
   - name: assemble_prompt
     role: word
     selected_by: [planner]
-    inputs_from: [extract_task, extract_all, spec_corpus]
+    inputs_from: [extract_task, spec_corpus]
     feeds_into: [invoke_llm]
     side_effects: none
     output_contract: missing

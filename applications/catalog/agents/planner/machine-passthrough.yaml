@@ -23,20 +23,23 @@ invariants:
 - The planner terminates as completed, stalled, or failed
 lifecycle: |-
   1. Idle → Loading: load_graph reads the requirement corpus
-  2. Loading → Extracting: extract_all creates one executable aggregate task
-  3. Extracting → InitializingRetry → Executing: seed visible retry count, then invoke the executor
-  4. Executing → Vetting → Building → Testing: validation pipeline
-  5. Validation failure → IncrementingRetry → CheckingRetryLimit
-  6. RetryAvailable → Executing; RetriesExhausted → Exhausted → Stalled
-  7. Testing success → MarkingTaskDone → QueryingRemainingWork → Completed
+  2. Loading → SelectingReady: select_all_ready creates one aggregate task without changing graph lifecycle
+  3. SelectingReady → SeedingPassThroughPlan → MarkingPlanning: profile text seeds the plan, then graph nodes advance
+  4. MarkingPlanning → InitializingRetry → Executing: seed visible retry count, then invoke the executor
+  5. Executing → Vetting → Building → Testing: validation pipeline
+  6. Validation failure → IncrementingRetry → CheckingRetryLimit
+  7. RetryAvailable → Executing; RetriesExhausted → Exhausted → Stalled
+  8. Testing success → MarkingTaskDone → QueryingRemainingWork → Completed
 
   The variant executes one aggregate task; retries return directly to Executing.
 pipeline_diagram: |-
   ```mermaid
   flowchart TD
     A[Idle] -->|Seed| L[Loading]
-    L -->|GraphLoaded| B[Extracting]
-    B -->|TaskExtracted| Z[InitializingRetry]
+    L -->|GraphLoaded| B[SelectingReady]
+    B -->|ReadySelected| P[SeedingPassThroughPlan]
+    P -->|PassThroughPlanSeeded| M[MarkingPlanning]
+    M -->|NodesMarkedPlanning| Z[InitializingRetry]
     Z --> H[Executing]
     H --> I[Vet / Build / Test]
     I -->|Success| J[MarkingTaskDone]
@@ -54,8 +57,12 @@ states:
   meaning: Initial state before planning begins.
 - name: Loading
   meaning: Loading the specification corpus and building the requirement graph.
-- name: Extracting
-  meaning: Creating one aggregate executable task from all ready requirements.
+- name: SelectingReady
+  meaning: Selecting all ready requirements into one aggregate task without changing graph lifecycle.
+- name: SeedingPassThroughPlan
+  meaning: Seeding profile-owned title and summary into the current implementation plan.
+- name: MarkingPlanning
+  meaning: Advancing selected aggregate-task nodes to Planning as a separate graph mutation.
 - name: InitializingRetry
   meaning: Seeding retry count zero in labelled command state for the aggregate task.
 - name: Executing
@@ -91,8 +98,12 @@ signals:
   trigger: Loop initialization.
 - name: GraphLoaded
   trigger: The requirement graph was loaded and seeded into pipeline state.
-- name: TaskExtracted
-  trigger: A task was extracted from the requirement graph.
+- name: ReadySelected
+  trigger: All ready nodes were selected into one aggregate task.
+- name: PassThroughPlanSeeded
+  trigger: Profile-configured pass-through plan text was seeded.
+- name: NodesMarkedPlanning
+  trigger: Selected aggregate-task nodes advanced to Planning.
 - name: NoTask
   trigger: Extraction found no ready task; remaining_work must classify the graph.
 - name: RetryCountInitialized
@@ -126,13 +137,21 @@ transitions:
   action: load_graph
 - state: Loading
   signal: GraphLoaded
-  next: Extracting
-  action: extract_all
+  next: SelectingReady
+  action: select_all_ready
 - state: Loading
   signal: CommandError
   next: Failed
-- state: Extracting
-  signal: TaskExtracted
+- state: SelectingReady
+  signal: ReadySelected
+  next: SeedingPassThroughPlan
+  action: seed_passthrough_plan
+- state: SeedingPassThroughPlan
+  signal: PassThroughPlanSeeded
+  next: MarkingPlanning
+  action: mark_nodes_planning
+- state: MarkingPlanning
+  signal: NodesMarkedPlanning
   next: InitializingRetry
   action: reset_retry_count
   label: retry_count
@@ -143,11 +162,17 @@ transitions:
 - state: InitializingRetry
   signal: CommandError
   next: Failed
-- state: Extracting
+- state: SelectingReady
   signal: NoTask
   next: QueryingRemainingWork
   action: remaining_work
-- state: Extracting
+- state: SelectingReady
+  signal: CommandError
+  next: Failed
+- state: SeedingPassThroughPlan
+  signal: CommandError
+  next: Failed
+- state: MarkingPlanning
   signal: CommandError
   next: Failed
 - state: Executing

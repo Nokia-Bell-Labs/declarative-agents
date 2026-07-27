@@ -87,19 +87,40 @@ func TestPlannerVariantsRouteParseRetriesExplicitly(t *testing.T) {
 }
 
 func TestPlannerVariantsClassifyEmptyExtractionThroughRemainingWork(t *testing.T) {
-	for _, file := range []string{"machine.yaml", "machine-plan-only.yaml", "machine-passthrough.yaml"} {
-		t.Run(file, func(t *testing.T) {
+	for _, test := range []struct {
+		file  string
+		state string
+	}{
+		{file: "machine.yaml", state: "Extracting"},
+		{file: "machine-plan-only.yaml", state: "Extracting"},
+		{file: "machine-passthrough.yaml", state: "SelectingReady"},
+	} {
+		t.Run(test.file, func(t *testing.T) {
 			var machine plannerMachine
-			readPlannerYAML(t, file, &machine)
-			requirePlannerTransition(t, machine, "Extracting", "NoTask", "QueryingRemainingWork", "remaining_work", "")
+			readPlannerYAML(t, test.file, &machine)
+			requirePlannerTransition(t, machine, test.state, "NoTask", "QueryingRemainingWork", "remaining_work", "")
 			requirePlannerTransition(t, machine, "QueryingRemainingWork", "AllDone", "Completed", "", "")
 			requirePlannerTransition(t, machine, "QueryingRemainingWork", "Blocked", "Stalled", "", "")
 			for _, transition := range machine.Transitions {
-				if transition.State == "Extracting" && (transition.Signal == "AllDone" || transition.Signal == "Blocked") {
+				if transition.State == test.state && (transition.Signal == "AllDone" || transition.Signal == "Blocked") {
 					t.Errorf("extraction still classifies graph state directly: %+v", transition)
 				}
 			}
 		})
+	}
+}
+
+func TestPlannerPassThroughSplitsAggregateSelectionPlanAndGraphMutation(t *testing.T) {
+	var machine plannerMachine
+	readPlannerYAML(t, "machine-passthrough.yaml", &machine)
+	requirePlannerTransition(t, machine, "Loading", "GraphLoaded", "SelectingReady", "select_all_ready", "")
+	requirePlannerTransition(t, machine, "SelectingReady", "ReadySelected", "SeedingPassThroughPlan", "seed_passthrough_plan", "")
+	requirePlannerTransition(t, machine, "SeedingPassThroughPlan", "PassThroughPlanSeeded", "MarkingPlanning", "mark_nodes_planning", "")
+	requirePlannerTransition(t, machine, "MarkingPlanning", "NodesMarkedPlanning", "InitializingRetry", "reset_retry_count", "retry_count")
+	for _, transition := range machine.Transitions {
+		if transition.Action == "extract_all" {
+			t.Errorf("pass-through machine still selects compound extract_all: %+v", transition)
+		}
 	}
 }
 

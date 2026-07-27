@@ -123,7 +123,14 @@ func TestPlannerRetryPolicyWiring(t *testing.T) {
 			}
 			unmarshalShipped(t, filepath.Join("agents", "planner", machinePath), &machine)
 
-			requireLabeledTransition(t, machine.Transitions, "Extracting", "TaskExtracted", "InitializingRetry", "reset_retry_count", "retry_count")
+			if machinePath == "machine.yaml" {
+				requireLabeledTransition(t, machine.Transitions, "Extracting", "TaskExtracted", "InitializingRetry", "reset_retry_count", "retry_count")
+			} else {
+				requireTransition(t, machine.Transitions, "Loading", "GraphLoaded", "SelectingReady", "select_all_ready")
+				requireTransition(t, machine.Transitions, "SelectingReady", "ReadySelected", "SeedingPassThroughPlan", "seed_passthrough_plan")
+				requireTransition(t, machine.Transitions, "SeedingPassThroughPlan", "PassThroughPlanSeeded", "MarkingPlanning", "mark_nodes_planning")
+				requireLabeledTransition(t, machine.Transitions, "MarkingPlanning", "NodesMarkedPlanning", "InitializingRetry", "reset_retry_count", "retry_count")
+			}
 			requireLabeledTransition(t, machine.Transitions, "Testing", "ToolFailed", "IncrementingRetry", "increment_retry", "retry_count")
 			requireTransition(t, machine.Transitions, "IncrementingRetry", "ToolDone", "CheckingRetryLimit", "check_retry_limit")
 			requireTransition(t, machine.Transitions, "CheckingRetryLimit", "RetriesExhausted", "Exhausted", "remaining_work")
@@ -228,7 +235,7 @@ func TestPlannerShippedProfileTerminalExecution(t *testing.T) {
 
 	result.RequireExit(t, 0)
 	result.RootRequired(t)
-	result.RequireToolSpans(t, "load_graph", "extract_all", "reset_retry_count", "execute_task", "vet", "build", "test", "mark_task_done", "remaining_work")
+	result.RequireToolSpans(t, "load_graph", "select_all_ready", "seed_passthrough_plan", "mark_nodes_planning", "reset_retry_count", "execute_task", "vet", "build", "test", "mark_task_done", "remaining_work")
 	result.RequireTerminalState(t, "Completed")
 	args := readFile(t, childArgs)
 	if !strings.Contains(args, "--profile agents/executor/profile.yaml") {

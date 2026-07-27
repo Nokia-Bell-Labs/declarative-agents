@@ -421,24 +421,57 @@ tools:
       strategy: session_state_restore
       description: "Restore the pipeline state snapshot captured before extraction."
 
-  - name: extract_all
+  - name: select_all_ready
     type: builtin
-    init: extract_all
-    description: "Extract all requirements as a single task group (passthrough mode)."
+    init: select_all_ready
+    description: "Select all ready requirements as one pass-through task."
     visibility: internal
-    emits: [TaskExtracted, NoTask, CommandError]
+    emits: [ReadySelected, NoTask, CommandError]
     category: stateful_internal
     side_effects:
       - kind: state_mutation
         target: pipeline_state
-        state: passthrough_task_group_selected
-        description: "Updates the current task to represent the full requirement group."
+        state: passthrough_task_selected
+        description: "Updates only the current task to represent all ready requirements."
     reversibility:
       classification: reversible
       undo: "pipeline_state_restore"
     undo:
       strategy: session_state_restore
-      description: "Restore the pipeline state snapshot captured before extraction."
+      description: "Restore the pipeline state snapshot captured before selection."
+
+  - name: seed_passthrough_plan
+    type: builtin
+    init: seed_passthrough_plan
+    description: "Seed profile-configured pass-through plan text."
+    visibility: internal
+    emits: [PassThroughPlanSeeded, CommandError]
+    category: stateful_internal
+    config:
+      title: "Execute all ready requirements"
+      summary: "Pass-through execution for the selected ready graph nodes."
+    side_effects:
+      - kind: state_mutation
+        target: pipeline_state
+        state: current_plan_seeded
+        description: "Sets only the current implementation plan."
+    reversibility: {classification: reversible, undo: "pipeline_state_restore"}
+    undo: {strategy: session_state_restore, description: "Restore the prior pipeline state."}
+
+  - name: mark_nodes_planning
+    type: builtin
+    init: mark_nodes_planning
+    description: "Advance only selected task nodes to Planning."
+    visibility: internal
+    emits: [NodesMarkedPlanning, CommandError]
+    category: stateful_internal
+    side_effects:
+      - kind: state_mutation
+        target: requirement_graph
+        state: selected_nodes_planning
+        description: "Advances selected current-task nodes to Planning."
+    reversibility: {classification: reversible, undo: "pipeline_state_restore"}
+    undo: {strategy: session_state_restore, description: "Restore the prior graph lifecycle."}
 
   - name: assemble_prompt
     type: builtin

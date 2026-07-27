@@ -20,7 +20,7 @@ const SigGraphLoaded core.Signal = "GraphLoaded"
 // load_graph is the pipeline's entry action: it loads the specification corpus
 // from the run directory, builds the requirement dependency graph, and seeds it
 // (with a fresh extractor) into pipeline state. Before this word existed the
-// planner machine jumped straight to extract_task/extract_all against a nil
+// planner machine jumped straight to extract_task/select_all_ready against a nil
 // Graph and panicked; load_graph is the missing declared word that populates
 // State.Graph so extraction has something to traverse.
 

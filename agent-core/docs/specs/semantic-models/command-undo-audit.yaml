@@ -101,7 +101,13 @@ receipt_undo:
     - command: extract_task
       strategy: pipeline_state_restore
       receipt: reversible_pipeline_snapshot
-    - command: extract_all
+    - command: select_all_ready
+      strategy: pipeline_state_restore
+      receipt: reversible_pipeline_snapshot
+    - command: seed_passthrough_plan
+      strategy: pipeline_state_restore
+      receipt: reversible_pipeline_snapshot
+    - command: mark_nodes_planning
       strategy: pipeline_state_restore
       receipt: reversible_pipeline_snapshot
     - command: parse_plan
