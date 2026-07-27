@@ -28,6 +28,16 @@ tools:
           extensions: [yaml, yml, md]
           modes: [raw_yaml, parsed_yaml, raw_markdown]
           max_bytes: 1048576
+          category_rules:
+            - {pattern: road-map.yaml, category: release}
+            - {pattern: "*.yaml", category: overview}
+            - {pattern: "*.yml", category: overview}
+            - {pattern: "*.md", category: overview}
+            - {pattern: "specs/software-requirements/**", category: srd}
+            - {pattern: "specs/semantic-models/**", category: semantic-model}
+            - {pattern: "specs/config-formats/**", category: config-format}
+            - {pattern: "specs/use-cases/**", category: use-case}
+            - {pattern: "specs/test-suites/**", category: test-suite}
 
   - name: doc_read_resource
     type: builtin

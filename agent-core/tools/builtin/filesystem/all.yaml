@@ -16,7 +16,7 @@ tools:
     goals:
       - List files under a trusted resource root.
       - Return path, name, category, extension, size, and configured metadata.
-      - Keep include rules and extension policy in trusted tool config.
+      - Keep include, extension, and presentation category rules in trusted tool config.
     requirements:
       input:
         - Runtime input may choose only the configured resource name and optional prefix.
@@ -26,7 +26,7 @@ tools:
         - Unknown resources, root failures, traversal denial, and scan failures emit declared signals.
     non_goals:
       - Does not read document body content.
-      - Does not let runtime input choose roots, include patterns, extension allowlists, or parser modes.
+      - Does not let runtime input choose roots, include patterns, extension allowlists, category rules, or parser modes.
     parameters:
       type: object
       properties:

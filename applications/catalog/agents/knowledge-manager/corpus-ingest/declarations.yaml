@@ -459,6 +459,8 @@ tools:
           extensions: [".md"]
           modes: [raw]
           max_bytes: 1048576
+          category_rules:
+            - {pattern: "*.md", category: overview}
 
   - name: read_resource
     type: builtin

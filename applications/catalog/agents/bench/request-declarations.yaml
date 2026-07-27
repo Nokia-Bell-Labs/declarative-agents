@@ -79,6 +79,9 @@ tools:
           extensions: [yaml, yml]
           modes: [raw_yaml, parsed_yaml]
           max_bytes: 1048576
+          category_rules:
+            - {pattern: "*.yaml", category: overview}
+            - {pattern: "*.yml", category: overview}
 
   - name: read_bench_config
     <<: *resource_base

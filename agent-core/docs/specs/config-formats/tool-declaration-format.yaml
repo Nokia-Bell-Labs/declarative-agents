@@ -300,6 +300,14 @@ document_resource_config:
       type: int
       required: false
       description: Maximum readable file size before size_limit_exceeded.
+    - field: category_rules
+      type: "[]object"
+      required: false
+      description: |
+        Ordered profile-owned path rules with pattern and category fields.
+        The first matching slash-style include pattern supplies presentation
+        metadata. Unmatched root files use root; nested files use their first
+        directory segment.
   examples:
     docs_resource: |
       config:
@@ -310,6 +318,9 @@ document_resource_config:
             extensions: [yaml, yml, md]
             modes: [raw_yaml, parsed_yaml, raw_markdown]
             max_bytes: 65536
+            category_rules:
+              - {pattern: road-map.yaml, category: release}
+              - {pattern: "specs/software-requirements/**", category: srd}
 
 metric_declaration_fields:
   status: planned

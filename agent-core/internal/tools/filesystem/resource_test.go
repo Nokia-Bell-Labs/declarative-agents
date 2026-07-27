@@ -41,6 +41,26 @@ func TestListResourceListsConfiguredDocuments(t *testing.T) {
 	}, entries)
 }
 
+func TestListResourceUsesGenericCategoriesWithoutProfileRules(t *testing.T) {
+	t.Parallel()
+	root := t.TempDir()
+	writeResourceFixture(t, root, "docs/README.yaml", "title: Root\n")
+	writeResourceFixture(t, root, "docs/domain/nested.yaml", "title: Nested\n")
+	config := resourceTestConfig()
+	def := config.Resources["docs"]
+	def.CategoryRules = nil
+	config.Resources["docs"] = def
+
+	res := (&ListResourceBuilder{Root: root, Resources: config}).
+		Build(toolReq(`{"resource":"docs"}`)).Execute()
+
+	require.Equal(t, SignalDocumentListReady, res.Signal)
+	var entries []resourceEntry
+	require.NoError(t, json.Unmarshal([]byte(res.Output), &entries))
+	require.Equal(t, "root", entries[0].Category)
+	require.Equal(t, "domain", entries[1].Category)
+}
+
 func TestReadResourceReturnsRawAndParsedYAML(t *testing.T) {
 	t.Parallel()
 	root := t.TempDir()
@@ -129,6 +149,15 @@ func resourceTestConfig() ResourceConfig {
 			Extensions: []string{"yaml", "yml"},
 			Modes:      []string{"raw_yaml", "parsed_yaml"},
 			MaxBytes:   4096,
+			CategoryRules: []ResourceCategoryRule{
+				{Pattern: "road-map.yaml", Category: "release"},
+				{Pattern: "*.yaml", Category: "overview"},
+				{Pattern: "specs/software-requirements/**", Category: "srd"},
+				{Pattern: "specs/semantic-models/**", Category: "semantic-model"},
+				{Pattern: "specs/config-formats/**", Category: "config-format"},
+				{Pattern: "specs/use-cases/**", Category: "use-case"},
+				{Pattern: "specs/test-suites/**", Category: "test-suite"},
+			},
 		},
 	}}
 }

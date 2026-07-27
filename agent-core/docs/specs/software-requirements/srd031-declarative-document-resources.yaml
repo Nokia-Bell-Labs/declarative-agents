@@ -60,6 +60,7 @@ requirements:
       - R4.3: List output SHALL include path, name, category, extension, and optional metadata fields configured for the resource.
       - R4.4: Get output SHALL include path, raw content when enabled, parsed content when enabled, content type, extension, and size.
       - R4.5: Operation errors SHALL distinguish path_required, invalid_path, extension_denied, not_found, read_failed, parse_failed, and size_limit_exceeded.
+      - R4.6: Presentation-specific category rules SHALL be ordered trusted resource configuration; generic filesystem code SHALL use only deterministic root or first-directory fallback categories.
 
   R5:
     title: Response modes
@@ -112,7 +113,7 @@ acceptance_criteria:
 
   - id: AC7
     criterion: Resource operation requirements define list and get behavior, optional higher-level operations, output fields, and operation error classes.
-    traces: [R4.1, R4.2, R4.3, R4.4, R4.5]
+    traces: [R4.1, R4.2, R4.3, R4.4, R4.5, R4.6]
 
 depends_on:
   - srd_id: srd027-rest-tool-runtime
