@@ -15,7 +15,7 @@ overview: |
   classification under sm-agent-role-realizations.
 
   Executor, critic, planner, jurist, and Knowledge Manager profiles realize
-  canonical responsibilities. Bench is a human interface; assembler is a test
+  canonical responsibilities. Bench is a human interface; scenario-critic is a test
   harness with Critic bindings; mock is a test double; monitor is a runtime-state
   adapter. Those classifications describe configured behavior, not package
   names, binary names, or additions to the reference role catalog.
@@ -293,9 +293,9 @@ roles:
       - Confirm retrieved identities and chunks reach the answer model.
       - Trace reader behavior with rel08.0-uc002-corpus-query.
 
-  - id: assembler
+  - id: scenario-critic
     title: Test rig and scenario composer
-    profile_path: agents/assembler/profile.yaml
+    profile_path: agents/scenario-critic/profile.yaml
     actor_boundary: child agent processes plus profile-owned scenario data
     inputs:
       - discovery roots
@@ -451,7 +451,7 @@ taxonomy_rules:
   - Generic implementations remain under agent-core/internal/tools and core shared declarations remain under agent-core/tools.
   - Application-local topology, wrappers, deployment, packaging, UX, and single-application declarations are not catalog roles or tool blocks.
   - Conformance grammar fixtures (rest, control, lifecycle) are not roles; they live under testdata/conformance/ and prove runtime vocabulary, keeping agents/ a role catalog (GH-328).
-  - The assembler is a test harness with Critic / Sandbox Validator and Output Evaluator bindings; it is not a canonical Assembler realization. Mock is a non-role test double. The environment the harness composes is a sandbox in the reference architecture's sense, and the per-scenario validators are Critic realizations. The reference has no term for a scripted test double, so mock retains the runtime binding name rather than borrowing digital twin, which the reference reserves for a replica derived from a real referent (GH-704, superseding GH-665).
+  - The scenario-critic is a test harness with Critic / Sandbox Validator and Output Evaluator bindings; it is not a canonical Assembler realization. Mock is a non-role test double. The environment the harness composes is a sandbox in the reference architecture's sense, and the per-scenario validators are Critic realizations. The reference has no term for a scripted test double, so mock retains the runtime binding name rather than borrowing digital twin, which the reference reserves for a replica derived from a real referent (GH-704, superseding GH-665).
   - Actor boundaries name who or what crosses the profile boundary.
   - Runtime dependencies name agent-core capabilities without copying them into
     applications/catalog.

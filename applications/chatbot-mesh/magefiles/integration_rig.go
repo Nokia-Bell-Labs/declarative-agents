@@ -23,7 +23,7 @@ import (
 
 const rigProfile = "testdata/rig/profile.yaml"
 
-// rigVerdictPattern matches the assembler's per-scenario verdict signals in
+// rigVerdictPattern matches the scenario critic's per-scenario verdict signals in
 // trace output order. Discovery sorts scenarios by subject directory then
 // name, so the catalog reference subject's three scenarios come first
 // (its root path sorts before "agents"), then this application's rag-server query.
@@ -36,7 +36,7 @@ var rigExpectedVerdicts = []string{
 	"ScenarioPassed", // rag-server/query: the mesh agent against a mock Chroma
 }
 
-// Rig runs the assembler test rig over this application's agents and the
+// Rig runs the scenario critic test rig over this application's agents and the
 // catalog reference subject in one pass — the cross-root proof: one
 // rig, two repository areas, discovered by convention. The rag-server is
 // exercised end to end against a mock Chroma pinned to the port the
@@ -67,7 +67,7 @@ func (Integration) Rig() error {
 		return err
 	}
 
-	// The assembler's children resolve "agent" from PATH; stage the built
+	// The scenario critic's children resolve "agent" from PATH; stage the built
 	// binary under that name.
 	binDir, err := os.MkdirTemp("", "rig-bin")
 	if err != nil {
@@ -103,7 +103,7 @@ func (Integration) Rig() error {
 	)
 	runID := firstNonEmpty(os.Getenv(integrationRunIDEnv), generatedRunID("integration:rig"))
 	commit := firstNonEmpty(os.Getenv(integrationCommitEnv), gitCommit(applicationRoot))
-	telemetryArgs := integrationTelemetryArgs(endpoint, "assembler-rig")
+	telemetryArgs := integrationTelemetryArgs(endpoint, "scenario-critic-rig")
 	resourceEnv := "OTEL_RESOURCE_ATTRIBUTES=" +
 		integrationResourceAttributes("integration:rig", runID, commit)
 	cmd := exec.Command(binary, append(args, telemetryArgs...)...)
@@ -116,7 +116,7 @@ func (Integration) Rig() error {
 	var out bytes.Buffer
 	cmd.Stdout = &out
 	cmd.Stderr = &out
-	fmt.Println("running the catalog assembler rig over application agents and the catalog reference subject...")
+	fmt.Println("running the catalog scenario critic rig over application agents and the catalog reference subject...")
 	start := time.Now()
 	// The rig's aggregate is failed by design: the reference subject ships a
 	// scenario that must fail, so the run reaches a failure terminal and exits
@@ -138,7 +138,7 @@ func (Integration) Rig() error {
 		}
 	}
 	if err := assertSharedSmokeSpans(
-		sharedJaegerBase(), runID, []string{"assembler-rig"}, helmSpanTimeout); err != nil {
+		sharedJaegerBase(), runID, []string{"scenario-critic-rig"}, helmSpanTimeout); err != nil {
 		return fmt.Errorf("retained host rig evidence: %w", err)
 	}
 	fmt.Printf("integration:rig passed in %s: %d scenarios across two roots, verdicts %v; shared Jaeger retained run %s after process exit\n",
@@ -160,11 +160,11 @@ func stageRigRuntime(applicationRoot, catalogRoot string) (string, func(), error
 		return "", nil, err
 	}
 	if err := copyDirContents(
-		filepath.Join(catalogRoot, "agents", "assembler"),
-		filepath.Join(stage, "agents", "assembler"),
+		filepath.Join(catalogRoot, "agents", "scenario-critic"),
+		filepath.Join(stage, "agents", "scenario-critic"),
 	); err != nil {
 		cleanup()
-		return "", nil, fmt.Errorf("stage catalog assembler: %w", err)
+		return "", nil, fmt.Errorf("stage catalog scenario critic: %w", err)
 	}
 	return stage, cleanup, nil
 }

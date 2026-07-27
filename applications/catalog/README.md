@@ -79,11 +79,17 @@ builtin implementations, CLI, runtime contracts, and image. Applications own
 composition manifests, app-specific wrappers/configuration, end-to-end tests,
 packaging, deployment, and operator UX.
 
-`assembler` and `mock` are supported test-time catalog members. The existing
+`scenario-critic` and `mock` are supported test-time catalog members. The existing
 conformance vocabulary continues to classify them as supported test-time
 library members. They are independently reusable across profile families and
 applications, ship under `agents/`, and carry the same SRD, conformance,
 portability, release, and v0 compatibility obligations as every other member.
+
+The canonical rig path is `agents/scenario-critic/profile.yaml`. The former
+`agents/assembler/profile.yaml` path is a compatibility wrapper that selects the
+canonical machine, declarations, and REST assets without copying them. It is
+supported through the remainder of `applications/catalog/v0.*` and removed at
+`applications/catalog/v1`; new consumers must use the canonical path.
 
 The rig-subject and `testdata/conformance/` REST/control/lifecycle fixtures are
 different: they exercise `agent-core` behavior and remain internal scaffolding
@@ -126,7 +132,7 @@ Support states are intentionally simple: canonical members on `main` and in a
 release tag are the supported v0 surface; work on `exp/*` is unsupported and
 non-consumable; relocation tombstones and internal conformance fixtures are
 informational/internal, not catalog APIs. Supported test-time members
-such as assembler and mock remain part of the versioned public surface. This
+such as scenario-critic and mock remain part of the versioned public surface. This
 avoids a second hand-maintained status registry that could drift from real
 profile paths, conformance, SRDs, and tags.
 

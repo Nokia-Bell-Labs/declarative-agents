@@ -30,7 +30,7 @@ func TestCollectorIntakeFilterScenario(t *testing.T) {
 	}
 }
 
-func TestStageRigRuntimeUsesCatalogAssembler(t *testing.T) {
+func TestStageRigRuntimeUsesCatalogScenarioCritic(t *testing.T) {
 	applicationRoot, err := filepath.Abs("..")
 	if err != nil {
 		t.Fatal(err)
@@ -45,8 +45,8 @@ func TestStageRigRuntimeUsesCatalogAssembler(t *testing.T) {
 	}
 	defer cleanup()
 	for _, path := range []string{
-		"agents/assembler/machine.yaml",
-		"agents/assembler/tools.yaml",
+		"agents/scenario-critic/machine.yaml",
+		"agents/scenario-critic/tools.yaml",
 		"testdata/rig/declarations.yaml",
 	} {
 		if _, err := os.Stat(filepath.Join(stage, filepath.FromSlash(path))); err != nil {
@@ -57,7 +57,7 @@ func TestStageRigRuntimeUsesCatalogAssembler(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	if string(profile) != "name: assembler\nmachine: ../../agents/assembler/machine.yaml\ntools:\n  - ../../agents/assembler/tools.yaml\ntool_declarations:\n  - declarations.yaml\nrest_definitions:\n  - rest.yaml\n" {
-		t.Fatalf("staged rig profile does not select catalog assembler:\n%s", profile)
+	if string(profile) != "name: scenario-critic\nmachine: ../../agents/scenario-critic/machine.yaml\ntools:\n  - ../../agents/scenario-critic/tools.yaml\ntool_declarations:\n  - declarations.yaml\nrest_definitions:\n  - rest.yaml\n" {
+		t.Fatalf("staged rig profile does not select catalog scenario critic:\n%s", profile)
 	}
 }

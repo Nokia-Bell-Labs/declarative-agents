@@ -20,18 +20,24 @@ overview: |
   application-safe parameterization. Applications own composition and package
   referenced closures against exact canonical applications/catalog/v0.*
   releases. Matching agent-profiles/v0.* names are v0 compatibility aliases,
-  and immutable historical legacy tags remain valid. Assembler and mock are
+  and immutable historical legacy tags remain valid. scenario-critic and mock are
   supported test-time library members under the same release contract.
   Rig-subject and REST/control/lifecycle conformance fixtures remain internal in
   their current paths; no relocation is scheduled or tracked for those fixtures.
 
   Release 11.0 adds two test-time families over the agent-core release 09.0
-  words: srd018-assembler is the reusable test rig that composes a scenario
+  words: srd018-scenario-critic is the reusable test rig that composes a scenario
   from profile-owned data and reduces validator terminals to a verdict, and
   srd019-mock is the one generic mock that stands in for any REST
   dependency. Scenarios live beside the agent they test, so one subject carries
   several tests and one rig serves both the agent families and the examples
   tree.
+
+  The pre-#1072 agents/assembler/profile.yaml path remains a non-forking
+  compatibility wrapper through applications/catalog/v0.* and is removed at
+  applications/catalog/v1. New consumers use
+  agents/scenario-critic/profile.yaml. Historical Release 11 SRD, use-case, and
+  test-suite IDs are retained only in explicit historical_aliases fields.
 
   Release 06.0 now has formal use cases and a test suite for the checked-in
   profile repository workflow. Those entries connect profile validation,
@@ -118,11 +124,11 @@ roadmap_summary:
       through provider embedding, Chroma query, grounded answer, and failure.
 
   - version: "11.0"
-    name: Assembler test rig
+    name: Scenario Critic test rig
     status: in-progress
     scope: |
       Two test-time role families over the agent-core release 09.0 words. The
-      assembler (srd018) discovers scenarios under configurable roots covering
+      scenario-critic (srd018) discovers scenarios under configurable roots covering
       the agent families and the applications tree, and for each starts the
       scenario's mocks, starts the subject with its REST dependencies
       redirected through base_url environment expansion, runs the scenario's
@@ -272,10 +278,11 @@ srd_index:
     status: relocated
     path: docs/specs/software-requirements/srd017-creator.yaml
     canonical_path: applications/chatbot-mesh/docs/specs/software-requirements/srd005-creator.yaml
-  - id: srd018-assembler
-    title: Assembler Functional Block
-    summary: The repository's test rig, named for the reference-architecture Assembler
-      role (service composition, resource integration, testing). It discovers
+  - id: srd018-scenario-critic
+    title: Scenario Critic Functional Block
+    historical_aliases: [srd018-assembler]
+    summary: The repository's Critic-bound test rig. It composes scenarios as an
+      actor function without claiming the canonical Assembler responsibility. It discovers
       scenarios under configurable roots covering the agent families and the examples
       tree, and for each starts the scenario's mocks, starts the subject with its REST
       dependencies redirected through base_url environment expansion, runs the
@@ -285,7 +292,7 @@ srd_index:
       subject carries several tests and adding one never edits the rig.
     status: in-progress
     support: supported-test-time
-    path: docs/specs/software-requirements/srd018-assembler.yaml
+    path: docs/specs/software-requirements/srd018-scenario-critic.yaml
   - id: srd019-mock
     title: Mock Functional Block
     summary: One generic mock profile standing in for any REST dependency a
@@ -482,15 +489,16 @@ use_case_index:
       conformance and Integration.MonitorControl pass from the new paths.
     status: implemented
     path: docs/specs/use-cases/rel10.0-uc003-conformance-fixture-relocation.yaml
-  - id: rel11.0-uc001-assembler-scenario-run
-    title: The Assembler Runs an Agent's Scenarios to a Verdict Without Live Services
-    summary: The assembler discovers scenarios beside an agent, starts mocks and
+  - id: rel11.0-uc001-scenario-critic-scenario-run
+    title: The Scenario Critic Runs an Agent's Scenarios to a Verdict Without Live Services
+    historical_aliases: [rel11.0-uc001-assembler-scenario-run]
+    summary: The scenario critic discovers scenarios beside an agent, starts mocks and
       a redirected subject, dispatches validators, reports ordered pass/fail
       verdicts, exposes child-stop spans, and repeats without observed port or
       state leakage. Named validator causes and process non-survival are not yet
       asserted.
     status: in-progress
-    path: docs/specs/use-cases/rel11.0-uc001-assembler-scenario-run.yaml
+    path: docs/specs/use-cases/rel11.0-uc001-scenario-critic-scenario-run.yaml
   - id: rel11.0-uc002-mock-serves-fixtures
     title: One Mock Profile Stands In for Any REST Dependency and Records What It Received
     summary: One shipped mock serves fixture routes, scripts response sequences,
@@ -596,8 +604,9 @@ test_suite_index:
       with mage validate, mage conformance, go test, and zero-hit greps.
     status: implemented
     path: docs/specs/test-suites/test-rel10.0-role-catalog.yaml
-  - id: test-rel11.0-assembler-rig
-    title: Test Suite for Release 11.0 Assembler Test Rig
+  - id: test-rel11.0-scenario-critic-rig
+    title: Test Suite for Release 11.0 Scenario Critic Test Rig
+    historical_aliases: [test-rel11.0-assembler-rig]
     summary: Implemented cases cover fixture serving and sequencing, two mocks
       from one profile, direct request-log inspection, malformed-fixture
       --validate-config rejection, ordered scenario verdicts, visible child-stop
@@ -606,7 +615,7 @@ test_suite_index:
       process survival, named causes, and mock-start-failure cleanup remain
       evidence gaps.
     status: in-progress
-    path: docs/specs/test-suites/test-rel11.0-assembler-rig.yaml
+    path: docs/specs/test-suites/test-rel11.0-scenario-critic-rig.yaml
 
 coverage_gaps: |
   The SRD and semantic models describe ownership, role boundaries, and

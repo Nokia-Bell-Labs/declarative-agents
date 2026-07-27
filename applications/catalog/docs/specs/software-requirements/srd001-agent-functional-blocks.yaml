@@ -10,7 +10,7 @@ family_srds:
   - srd008-monitor
   - srd011-knowledge-manager
   - srd012-chroma-corpus-agents
-  - srd018-assembler
+  - srd018-scenario-critic
   - srd019-mock
 
 conformance_fixture_srds:
@@ -34,7 +34,7 @@ context: |
     - srd008-monitor              (monitor)
     - srd011-knowledge-manager    (knowledge-manager)
     - srd012-chroma-corpus-agents (corpus-ingest and corpus-reader)
-    - srd018-assembler            (assembler)
+    - srd018-scenario-critic            (scenario critic)
     - srd019-mock                 (mock)
 
   The REST, lifecycle, and control contracts (srd007, srd009, and srd010) cover

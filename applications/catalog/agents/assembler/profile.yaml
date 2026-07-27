@@ -1,8 +1,14 @@
+# Compatibility alias for the pre-#1072 profile path.
+#
+# New consumers must use agents/scenario-critic/profile.yaml. This wrapper is
+# supported through the remainder of the applications/catalog/v0.* release
+# family and is removed at v1. It selects the canonical scenario-critic
+# implementation directly; no machine, declarations, or REST assets are forked.
 name: assembler
-machine: machine.yaml
+machine: ../scenario-critic/machine.yaml
 tools:
-  - tools.yaml
+  - ../scenario-critic/tools.yaml
 tool_declarations:
-  - declarations.yaml
+  - ../scenario-critic/declarations.yaml
 rest_definitions:
-  - rest.yaml
+  - ../scenario-critic/rest.yaml

@@ -71,6 +71,11 @@ func TestShippedProfilesMatchFoundationModels(t *testing.T) {
 			t.Errorf("shipped profile %s is missing from shared classification authority", profile)
 		}
 	}
+	for profile, actor := range authorityActors {
+		if actor == "assembler" && classified[profile] == "wrapper" {
+			delete(shipped, profile)
+		}
+	}
 
 	var taxonomy struct {
 		Roles []struct {
@@ -165,7 +170,7 @@ func TestFamilySRDInventoryMatchesSpecificationIndex(t *testing.T) {
 		"srd002-executor": true, "srd003-critic": true, "srd004-planner": true,
 		"srd005-jurist": true, "srd006-bench": true, "srd008-monitor": true,
 		"srd011-knowledge-manager": true, "srd012-chroma-corpus-agents": true,
-		"srd018-assembler": true, "srd019-mock": true,
+		"srd018-scenario-critic": true, "srd019-mock": true,
 	}
 	for _, id := range foundation.Families {
 		delete(wantFamilies, id)

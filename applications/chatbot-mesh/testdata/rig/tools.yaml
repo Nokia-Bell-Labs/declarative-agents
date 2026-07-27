@@ -1,4 +1,4 @@
-# Tool selection for the assembler rig machine (machine.yaml).
+# Tool selection for the scenario critic rig machine (machine.yaml).
 #
 # The three fail_scenario_* words share one init with collect_scenario_verdict:
 # each declares the reason its failure edge records, so a scenario that fails

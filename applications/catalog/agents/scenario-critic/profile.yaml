@@ -1,7 +1,7 @@
 name: scenario-critic
-machine: ../../agents/scenario-critic/machine.yaml
+machine: machine.yaml
 tools:
-  - ../../agents/scenario-critic/tools.yaml
+  - tools.yaml
 tool_declarations:
   - declarations.yaml
 rest_definitions:

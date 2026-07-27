@@ -43,11 +43,11 @@ tools:
       template: |
         {
           "names": ["rag0", "rag1"],
-          "catalog": "- rag0: Primary declarative-agent and assembler rig behavior.\n- rag1: Secondary mock-dependency and Solar Ridge integration fixtures.",
+          "catalog": "- rag0: Primary declarative-agent and scenario critic rig behavior.\n- rag1: Secondary mock-dependency and Solar Ridge integration fixtures.",
           "items": [
             {
               "name": "rag0",
-              "description": "Primary declarative-agent and assembler rig behavior.",
+              "description": "Primary declarative-agent and scenario critic rig behavior.",
               "collection": "corpus",
               "embedding_model": "qwen3-embedding:8b",
               "base_url": "http://127.0.0.1:18085"

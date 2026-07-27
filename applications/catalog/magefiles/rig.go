@@ -8,7 +8,7 @@ import (
 	"github.com/magefile/mage/sh"
 )
 
-// Rig runs the assembler test rig's self-proof: the assembler discovers the
+// Rig runs the scenario critic test rig's self-proof: the scenario critic discovers the
 // reference subject's scenarios, composes each one from real subprocesses —
 // mock, subject, validators — and the run must land with happy-path and
 // dep-failure passed and the deliberately broken expectation failed, twice in

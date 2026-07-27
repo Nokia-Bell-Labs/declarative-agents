@@ -11,7 +11,7 @@ import (
 	"gopkg.in/yaml.v3"
 )
 
-func TestAssemblerAndMockAreSupportedTestTimeMembers(t *testing.T) {
+func TestScenarioCriticAndMockAreSupportedTestTimeMembers(t *testing.T) {
 	t.Parallel()
 	type entry struct {
 		ID      string `yaml:"id"`
@@ -24,8 +24,8 @@ func TestAssemblerAndMockAreSupportedTestTimeMembers(t *testing.T) {
 	readRoleYAML(t, "docs/SPECIFICATIONS.yaml", &index)
 
 	wanted := map[string]string{
-		"srd018-assembler": "agents/assembler/profile.yaml",
-		"srd019-mock":      "agents/mock/profile.yaml",
+		"srd018-scenario-critic": "agents/scenario-critic/profile.yaml",
+		"srd019-mock":            "agents/mock/profile.yaml",
 	}
 	for _, srd := range index.SRDs {
 		profile, ok := wanted[srd.ID]
@@ -56,9 +56,9 @@ func TestMembershipNarrativeSeparatesMembersFromFixtures(t *testing.T) {
 			t.Fatalf("read %s: %v", rel, err)
 		}
 		text := strings.Join(strings.Fields(strings.ToLower(string(data))), " ")
-		if !strings.Contains(text, "assembler and mock") ||
+		if !strings.Contains(text, "scenario-critic and mock") ||
 			!strings.Contains(text, "supported test-time library member") {
-			t.Errorf("%s does not classify assembler and mock as supported test-time members", rel)
+			t.Errorf("%s does not classify scenario-critic and mock as supported test-time members", rel)
 		}
 		if !strings.Contains(text, "rig-subject") ||
 			!strings.Contains(text, "internal") {
@@ -70,20 +70,25 @@ func TestMembershipNarrativeSeparatesMembersFromFixtures(t *testing.T) {
 func TestCatalogMembershipUsesSharedRealizationAndAliasAuthority(t *testing.T) {
 	t.Parallel()
 	type binding struct {
-		Actor          string `yaml:"actor"`
-		Profile        string `yaml:"profile"`
-		Classification string `yaml:"classification"`
-		PrimaryRole    string `yaml:"primary_role"`
-		NamingStatus   string `yaml:"naming_status"`
+		Actor          string   `yaml:"actor"`
+		Profile        string   `yaml:"profile"`
+		Classification string   `yaml:"classification"`
+		PrimaryRole    string   `yaml:"primary_role"`
+		SubRoles       []string `yaml:"sub_roles"`
+		Inherits       string   `yaml:"inherits"`
+		NamingStatus   string   `yaml:"naming_status"`
 	}
 	var authority struct {
 		Bindings map[string][]binding `yaml:"bindings"`
 		Aliases  []struct {
-			Alias         string `yaml:"alias"`
-			Path          string `yaml:"path"`
-			Status        string `yaml:"status"`
-			CollisionWith string `yaml:"collision_with"`
-			TargetName    string `yaml:"target_name"`
+			Alias            string `yaml:"alias"`
+			Path             string `yaml:"path"`
+			Status           string `yaml:"status"`
+			CollisionWith    string `yaml:"collision_with"`
+			TargetName       string `yaml:"target_name"`
+			CanonicalPath    string `yaml:"canonical_path"`
+			SupportedThrough string `yaml:"supported_through"`
+			Removal          string `yaml:"removal"`
 		} `yaml:"migration_aliases"`
 	}
 	modelPath := filepath.Join(ProfilesRoot(), "..", "docs", "specs", "semantic-models", "agent-role-realizations.yaml")
@@ -98,9 +103,15 @@ func TestCatalogMembershipUsesSharedRealizationAndAliasAuthority(t *testing.T) {
 	for _, item := range authority.Bindings["catalog"] {
 		byActor[item.Actor] = item
 	}
-	if got := byActor["assembler"]; got.Classification != "test_harness" ||
-		got.PrimaryRole != "critic" || got.NamingStatus != "migration_required_collision" {
-		t.Errorf("assembler shared binding = %#v, want test-harness Critic collision", got)
+	if got := byActor["scenario-critic"]; got.Classification != "test_harness" ||
+		got.PrimaryRole != "critic" ||
+		strings.Join(got.SubRoles, ",") != "sandbox-validator,output-evaluator" ||
+		got.NamingStatus != "" {
+		t.Errorf("scenario-critic shared binding = %#v, want test-harness Critic / Sandbox Validator / Output Evaluator", got)
+	}
+	if got := byActor["assembler"]; got.Classification != "wrapper" ||
+		got.Inherits != "scenario-critic" || got.NamingStatus != "migration_required_collision" {
+		t.Errorf("assembler compatibility binding = %#v, want wrapper inheriting scenario-critic", got)
 	}
 	if got := byActor["mock"]; got.Classification != "mock" || got.PrimaryRole != "" {
 		t.Errorf("mock shared binding = %#v, want unbound mock classification", got)
@@ -111,7 +122,7 @@ func TestCatalogMembershipUsesSharedRealizationAndAliasAuthority(t *testing.T) {
 	}
 	aliases := map[string]string{}
 	for _, alias := range authority.Aliases {
-		if alias.Status != "migration_required" && alias.Status != "migration_planned" {
+		if !strings.HasPrefix(alias.Status, "migration_") {
 			t.Errorf("alias %s has non-migration status %q", alias.Alias, alias.Status)
 		}
 		if alias.CollisionWith != "" && alias.CollisionWith == alias.TargetName {
@@ -126,6 +137,88 @@ func TestCatalogMembershipUsesSharedRealizationAndAliasAuthority(t *testing.T) {
 	} {
 		if aliases[path] != target {
 			t.Errorf("migration alias %s = %q, want %q", path, aliases[path], target)
+		}
+	}
+	for _, alias := range authority.Aliases {
+		if alias.Alias != "assembler" {
+			continue
+		}
+		if alias.CanonicalPath != "applications/catalog/agents/scenario-critic/profile.yaml" ||
+			alias.SupportedThrough != "applications/catalog/v0.*" ||
+			alias.Removal != "applications/catalog/v1" {
+			t.Errorf("assembler compatibility duration/target = %#v", alias)
+		}
+	}
+
+	var wrapper struct {
+		Name             string   `yaml:"name"`
+		Machine          string   `yaml:"machine"`
+		Tools            []string `yaml:"tools"`
+		ToolDeclarations []string `yaml:"tool_declarations"`
+		RESTDefinitions  []string `yaml:"rest_definitions"`
+	}
+	readRoleYAML(t, "agents/assembler/profile.yaml", &wrapper)
+	if wrapper.Name != "assembler" ||
+		wrapper.Machine != "../scenario-critic/machine.yaml" ||
+		strings.Join(wrapper.Tools, ",") != "../scenario-critic/tools.yaml" ||
+		strings.Join(wrapper.ToolDeclarations, ",") != "../scenario-critic/declarations.yaml" ||
+		strings.Join(wrapper.RESTDefinitions, ",") != "../scenario-critic/rest.yaml" {
+		t.Errorf("assembler compatibility profile forks or misses canonical scenario-critic closure: %#v", wrapper)
+	}
+	entries, err := os.ReadDir(ProfilePath("agents/assembler"))
+	if err != nil {
+		t.Fatal(err)
+	}
+	if len(entries) != 1 || entries[0].Name() != "profile.yaml" {
+		t.Errorf("assembler compatibility directory must contain only profile.yaml, got %v", entries)
+	}
+}
+
+func TestNoActiveAssemblerPathConsumers(t *testing.T) {
+	t.Parallel()
+	const retiredPath = "agents/" + "assembler"
+	roots := []string{ProfilesRoot(), ProfilePath("../chatbot-mesh")}
+	allowed := map[string]int{
+		filepath.Clean(ProfilePath("conformance/membership_contract_test.go")): 3,
+		filepath.Clean(ProfilePath("README.md")):                               1,
+		filepath.Clean(ProfilePath("docs/SPECIFICATIONS.yaml")):                1,
+		filepath.Clean(ProfilePath("docs/road-map.yaml")):                      1,
+	}
+	seen := map[string]int{}
+	for _, root := range roots {
+		err := filepath.WalkDir(root, func(path string, entry os.DirEntry, err error) error {
+			if err != nil {
+				return err
+			}
+			if entry.IsDir() {
+				return nil
+			}
+			switch filepath.Ext(path) {
+			case ".go", ".md", ".yaml", ".yml":
+			default:
+				return nil
+			}
+			data, err := os.ReadFile(path)
+			if err != nil {
+				return err
+			}
+			if count := strings.Count(string(data), retiredPath); count != 0 {
+				seen[filepath.Clean(path)] = count
+			}
+			return nil
+		})
+		if err != nil {
+			t.Fatal(err)
+		}
+	}
+	for path, count := range seen {
+		if allowed[path] != count {
+			t.Errorf("stale active consumer path %s appears %d times in %s", retiredPath, count, path)
+		}
+	}
+	for path, count := range allowed {
+		if seen[path] != count {
+			t.Errorf("historical compatibility allowlist drift for %s: got %d occurrences, want %d", path, seen[path], count)
 		}
 	}
 }

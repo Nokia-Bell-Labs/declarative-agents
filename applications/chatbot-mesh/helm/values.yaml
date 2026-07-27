@@ -36,7 +36,7 @@ chatbot:
 # R2.3, srd014 R3.3).
 ragUnits:
   - name: rag0
-    description: Primary declarative-agent and assembler rig behavior.
+    description: Primary declarative-agent and scenario critic rig behavior.
     collection: corpus
     embeddingModel: qwen3-embedding:8b
     replicas: 1

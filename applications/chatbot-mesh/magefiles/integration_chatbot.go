@@ -303,7 +303,7 @@ func assertChatbotTierSelectedTurn(message string) error {
 }
 
 func assertChatbotScopedSourceSelection() error {
-	resp, status, err := postChatTurn("Using only the rag0 declarative-agent corpus, how does the assembler rig validate plans?", "[]")
+	resp, status, err := postChatTurn("Using only the rag0 declarative-agent corpus, how does the scenario critic rig validate plans?", "[]")
 	if err != nil {
 		return err
 	}

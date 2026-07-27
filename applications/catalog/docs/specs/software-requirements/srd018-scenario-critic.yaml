@@ -1,36 +1,30 @@
-id: srd018-assembler
-title: Assembler Functional Block
+id: srd018-scenario-critic
+title: Scenario Critic Functional Block
+historical_aliases: [srd018-assembler]
 
 context: |
-  The assembler profile is the repository's test rig. It composes other
+  The scenario-critic profile is the repository's test rig. It composes other
   machines: for each scenario it starts the mocks a subject
   depends on, starts the subject agent under test, runs the scenario's
   validator machines against it, and reduces their terminal states to a
   verdict.
 
-  The name follows the reference-architecture role catalog, whose Assembler
-  role covers service composition, validation, resource integration, testing,
-  and simulation. Its Service Composer sub-role composes the scenario and its
-  Resource Integrator sub-role owns the Testing activity. The assembler joins
-  the role-named families the rel10.0 alignment established.
+  Scenario-critic names the actor's purpose and primary canonical role. Its
+  scenario composition is an implementation function, not evidence that this
+  actor realizes the canonical Assembler role. The reference Assembler composes
+  services and integrates resources for production readiness. This rig instead
+  performs the Critic's safe-testing activity and binds Critic with Sandbox
+  Validator and Output Evaluator. The environment it composes is a sandbox in
+  the catalog's sense, its per-scenario validators exercise expectations in
+  that sandbox, and its verdict reduction assesses outputs and decisions
+  against expected outcomes.
 
-  Assembler names the composition mechanics rather than the purpose. The
-  activity the rig performs is the catalog's safe-testing, "Safely tests and
-  validates new behaviors, policies, or models using sandboxes or digital
-  twins before they are deployed in the live environment", which the catalog
-  places under the Critic role's Sandbox Validator sub-role, not under the
-  Assembler; the Assembler's own testing activity is production readiness
-  testing of integrated resources "before they are made live". The environment
-  this machine composes is therefore a sandbox in the catalog's sense, its
-  per-scenario validators are Sandbox Validators, and the verdict reduction
-  corresponds to the Critic's output-evaluation, "Assesses the quality and
-  correctness of agent outputs and decisions against expected outcomes". The
-  stand-in components inside the sandbox are mocks (srd019-mock); the catalog
-  has no term for a scripted test double, and its digital twin, a replica
-  derived from a real referent, is a different concept.
+  The stand-in components inside the sandbox are mocks (srd019-mock); the
+  catalog has no term for a scripted test double, and its digital twin, a
+  replica derived from a real referent, is a different concept.
 
   Scenario data is profile-owned and lives beside the agent it tests. The
-  words the assembler machine calls are agent-core runtime capability
+  words the scenario critic machine calls are agent-core runtime capability
   (srd040-service-child-tools), and the mock responses its mocks serve come
   from the agent-core mock binding (srd039-mock-endpoint-binding).
 
@@ -45,23 +39,23 @@ problem: |
   never editing the rig, and never building a container image per test.
 
 goals:
-  - G1: Model the assembler profile as a deterministic scenario composition and verdict pipeline.
+  - G1: Model the scenario critic profile as a deterministic scenario composition and verdict pipeline.
   - G2: Define the profile-owned scenario layout so one subject can carry several tests.
   - G3: Define discovery over configurable roots so agents under agents/ and under applications/ are tested by one rig.
-  - G4: Record the assembler actor boundary, inputs, tool selections, runtime dependencies, outputs, and terminal outcomes.
+  - G4: Record the scenario critic actor boundary, inputs, tool selections, runtime dependencies, outputs, and terminal outcomes.
   - G5: Keep scenario data profile-owned while agent-core supplies child-process, validator, and discovery execution.
 
 requirements:
   R1:
     title: Behavior model
     items:
-      - R1.1: The assembler profile must model a deterministic pipeline that discovers scenarios, composes each one, collects a verdict, and reports an aggregate outcome.
-      - R1.2: For each scenario the assembler must expose fixture and validator arrays as command state; dispatch one mock start and one validator child execution per item through MachineSpec sequential for_each; join each ordered outcome list; start and label the subject; loop through one REST health probe and one delay dispatch per retry; list scenario children; and dispatch stop_service once per child through a final iterator.
-      - R1.3: The assembler must give each scenario a fresh subject instance, so scenarios stay independent of one another.
+      - R1.1: The scenario critic profile must model a deterministic pipeline that discovers scenarios, composes each one, collects a verdict, and reports an aggregate outcome.
+      - R1.2: For each scenario the scenario critic must expose fixture and validator arrays as command state; dispatch one mock start and one validator child execution per item through MachineSpec sequential for_each; join each ordered outcome list; start and label the subject; loop through one REST health probe and one delay dispatch per retry; list scenario children; and dispatch stop_service once per child through a final iterator.
+      - R1.3: The scenario critic must give each scenario a fresh subject instance, so scenarios stay independent of one another.
       - R1.4: Validators declared within one scenario must run against that scenario's single subject instance.
-      - R1.5: The assembler must tear down every child it started, including on a failure path, so no child process outlives a scenario.
-      - R1.6: The assembler must not invoke a model; its transitions are driven by tool results.
-      - R1.7: Each mock start must have its own trace, checkpoint Entry, opaque receipt, and rollback boundary; the assembler must not hide fixture iteration inside a collection Go tool.
+      - R1.5: The scenario critic must tear down every child it started, including on a failure path, so no child process outlives a scenario.
+      - R1.6: The scenario critic must not invoke a model; its transitions are driven by tool results.
+      - R1.7: Each mock start must have its own trace, checkpoint Entry, opaque receipt, and rollback boundary; the scenario critic must not hide fixture iteration inside a collection Go tool.
       - R1.8: Health retries must be visible as ProbingHealth and WaitingToRetry states; one probe dispatch performs at most one request, and timeout or budget exhaustion routes through teardown.
       - R1.9: Each validator execution and child stop must have its own trace, checkpoint Entry, receipt, and rollback boundary; no service word may hide validator or teardown collection traversal.
 
@@ -71,12 +65,12 @@ requirements:
       - R2.1: A scenario must live in a tests/<scenario-name>/ directory beside the agent it tests.
       - R2.2: A scenario directory must hold one or more validator machine programs with their profiles, and the mock fixture files its subject's dependencies require.
       - R2.3: A subject agent must be able to carry several scenario directories, each self-contained.
-      - R2.4: Scenario data must be profile-owned and must not require changes to the assembler profile when a scenario is added.
+      - R2.4: Scenario data must be profile-owned and must not require changes to the scenario critic profile when a scenario is added.
 
   R3:
     title: Discovery
     items:
-      - R3.1: The assembler must enumerate scenarios by convention under roots supplied by configuration or run input.
+      - R3.1: The scenario critic must enumerate scenarios by convention under roots supplied by configuration or run input.
       - R3.2: Default roots must cover the repository's agent families and the agents under the applications tree.
       - R3.3: Discovery must not require a per-repository-area rig, special-casing, or hardcoded absolute paths.
 
@@ -90,17 +84,17 @@ requirements:
   R5:
     title: Inputs, tools, and runtime dependencies
     items:
-      - R5.1: Assembler inputs must include the discovery roots and the discovered scenario data.
-      - R5.2: The assembler profile must select atomic mock and subject starts, one-validator child execution, the generic stop_service word, one REST health probe, one generic delay, and thin scenario discover, next, list, record, verdict, and report words.
-      - R5.3: Assembler dependencies must name agent-core for child-process execution, validator execution, and discovery, and srd019-mock for the mock family it starts.
-      - R5.4: The assembler must run the subject and the mocks as the same agent binary over mounted profiles, so no per-test container image is required.
+      - R5.1: Scenario Critic inputs must include the discovery roots and the discovered scenario data.
+      - R5.2: The scenario critic profile must select atomic mock and subject starts, one-validator child execution, the generic stop_service word, one REST health probe, one generic delay, and thin scenario discover, next, list, record, verdict, and report words.
+      - R5.3: Scenario Critic dependencies must name agent-core for child-process execution, validator execution, and discovery, and srd019-mock for the mock family it starts.
+      - R5.4: The scenario critic must run the subject and the mocks as the same agent binary over mounted profiles, so no per-test container image is required.
 
   R6:
     title: Outputs and outcomes
     items:
       - R6.1: A scenario must pass only when every validator in it reaches its passing terminal state.
-      - R6.2: Assembler outputs must record the per-scenario verdict and, for a failure, which validator failed and why, so a failing run names its cause.
-      - R6.3: Assembler terminal outcomes must be Passed or Failed, with the aggregate reflecting every scenario.
+      - R6.2: Scenario Critic outputs must record the per-scenario verdict and, for a failure, which validator failed and why, so a failing run names its cause.
+      - R6.3: Scenario Critic terminal outcomes must be Passed or Failed, with the aggregate reflecting every scenario.
       - R6.4: The scenario, fixture, validator, and teardown loops must be bounded by a declared iteration budget.
 
 non_goals:
@@ -113,10 +107,10 @@ non_goals:
 
 acceptance_criteria:
   - id: AC1
-    criterion: The assembler profile is a configured, deterministic scenario composition pipeline; each fixture start, validator execution, and child stop is a machine-visible sequential iterator dispatch with its own trace, checkpoint Entry, receipt, and rollback boundary.
+    criterion: The scenario critic profile is a configured, deterministic scenario composition pipeline; each fixture start, validator execution, and child stop is a machine-visible sequential iterator dispatch with its own trace, checkpoint Entry, receipt, and rollback boundary.
     traces: [R1.1, R1.2, R1.3, R1.4, R1.5, R1.6, R1.7, R1.8, R1.9]
   - id: AC2
-    criterion: The scenario layout lets one subject carry several self-contained tests as profile-owned data, with no assembler change required to add one.
+    criterion: The scenario layout lets one subject carry several self-contained tests as profile-owned data, with no scenario critic change required to add one.
     traces: [R2.1, R2.2, R2.3, R2.4]
   - id: AC3
     criterion: Discovery enumerates scenarios under configurable roots covering both the agent families and the applications tree, with no special-casing or absolute paths.
@@ -125,7 +119,7 @@ acceptance_criteria:
     criterion: A subject reaches its scenario's mocks through declared environment additions over the existing base_url expansion, with its declared behavior unchanged.
     traces: [R4.1, R4.2, R4.3]
   - id: AC5
-    criterion: Assembler inputs, selected tool families, and runtime dependencies are named and separated from agent-core runtime capability, and every child runs the same binary over a mounted profile.
+    criterion: Scenario Critic inputs, selected tool families, and runtime dependencies are named and separated from agent-core runtime capability, and every child runs the same binary over a mounted profile.
     traces: [R5.1, R5.2, R5.3, R5.4]
   - id: AC6
     criterion: A scenario passes only when all its validators pass, a failing run names the failing validator, the terminal outcome is Passed or Failed, and the loop is budget-bounded.
@@ -143,7 +137,7 @@ diagrams:
   requirements_trace: |
     ```mermaid
     flowchart LR
-      Problem["Problem: one rig per test, no reuse, poor REST coverage"] --> Goals["Goals: Assembler Functional Block"]
+      Problem["Problem: one rig per test, no reuse, poor REST coverage"] --> Goals["Goals: Scenario Critic Functional Block"]
       Goals --> R1["R1: Behavior model"]
       Goals --> R2["R2: Scenario layout"]
       Goals --> R3["R3: Discovery"]

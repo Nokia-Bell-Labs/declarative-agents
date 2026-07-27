@@ -243,11 +243,17 @@ bindings:
       sub_roles: [recommendation-generator]
       domain: retrieval-corpus
       execution_scope: request
-    - actor: assembler
-      profile: applications/catalog/agents/assembler/profile.yaml
+    - actor: scenario-critic
+      profile: applications/catalog/agents/scenario-critic/profile.yaml
       classification: test_harness
       primary_role: critic
       sub_roles: [sandbox-validator, output-evaluator]
+      domain: conformance
+      execution_scope: scenario
+    - actor: assembler
+      profile: applications/catalog/agents/assembler/profile.yaml
+      classification: wrapper
+      inherits: scenario-critic
       domain: conformance
       execution_scope: scenario
       naming_status: migration_required_collision
@@ -374,7 +380,7 @@ non_role_inventory:
         sub_roles: [output-evaluator, sandbox-validator]
       - path: applications/chatbot-mesh/testdata/rig/profile.yaml
         classification: fixture
-        inherits: assembler
+        inherits: scenario-critic
   application_fixtures:
     profiles:
       - path: applications/knowledge-manager-demo/call-lifecycle-exit/profile.yaml
@@ -403,11 +409,14 @@ validation_rules:
 migration_aliases:
   - alias: assembler
     path: applications/catalog/agents/assembler/profile.yaml
-    status: migration_required
+    status: migration_compatibility
     collision_with: assembler
     target_name: scenario-critic
     binding: {role: critic, sub_roles: [sandbox-validator, output-evaluator]}
     reason: The test rig performs safe testing and verdict reduction, not production service composition and resource integration.
+    canonical_path: applications/catalog/agents/scenario-critic/profile.yaml
+    supported_through: applications/catalog/v0.*
+    removal: applications/catalog/v1
   - alias: monitor
     path: applications/catalog/agents/monitor/profile.yaml
     status: migration_required

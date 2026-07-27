@@ -12,7 +12,7 @@ import (
 )
 
 // rigBinDir stages the built agent binary as "agent" in a temp dir, so the
-// assembler's children — mocks, subjects, validators — resolve it from PATH.
+// scenario critic's children — mocks, subjects, validators — resolve it from PATH.
 func rigBinDir(t *testing.T) string {
 	t.Helper()
 	coreRoot := RequireCoreRoot(t)
@@ -66,14 +66,14 @@ func rigSpanCount(result RunResult, name string) int {
 	return count
 }
 
-// TestRigSelfProof runs the assembler over the shipped tree and asserts the
+// TestRigSelfProof runs the scenario critic over the shipped tree and asserts the
 // reference subject's three scenarios land exactly as designed: happy-path
 // and dep-failure pass, and the deliberately broken expectation fails — so the
 // rig is proven able to fail, not only to pass. The aggregate is therefore
 // failed, which is this test's expected outcome, and the run is repeated to
 // prove ports and state do not leak between runs.
 //
-// Traces rel11.0-uc001-assembler-scenario-run S1-S5 and srd018 AC1, AC2, AC6.
+// Traces rel11.0-uc001-scenario-critic-scenario-run S1-S5 and srd018 AC1, AC2, AC6.
 func TestRigSelfProof(t *testing.T) {
 	binDir := rigBinDir(t)
 	pathEnv := "PATH=" + binDir + string(os.PathListSeparator) + os.Getenv("PATH")
@@ -81,7 +81,7 @@ func TestRigSelfProof(t *testing.T) {
 	for run := 1; run <= 2; run++ {
 		t.Run(map[int]string{1: "first", 2: "second"}[run], func(t *testing.T) {
 			result := Run(t, RunConfig{
-				Profile: filepath.Join("agents", "assembler", "profile.yaml"),
+				Profile: filepath.Join("agents", "scenario-critic", "profile.yaml"),
 				Env:     []string{pathEnv},
 				Timeout: 3 * time.Minute,
 			})

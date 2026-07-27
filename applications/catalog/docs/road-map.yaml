@@ -555,10 +555,10 @@ releases:
         status: implemented
 
   - version: "11.0"
-    name: Assembler test rig
+    name: Scenario Critic test rig
     description: |
-      Release 11.0 adds the repository's reusable test rig as two new role
-      families. The assembler (srd018) is the rig itself: a deterministic
+      Release 11.0 adds the repository's reusable test rig as two supported
+      test-time families. The scenario-critic (srd018) is the rig itself: a deterministic
       machine that discovers scenarios under configurable roots, and for each
       one starts the mocks its subject depends on, starts the
       subject with its REST dependencies redirected at those mocks, runs the
@@ -575,6 +575,13 @@ releases:
       and immutable historical legacy tags remain valid. Rig-subject and other
       conformance fixtures remain internal test data, not members.
 
+      GH-1072 renames the concrete rig from assembler to scenario-critic because
+      the actor binds Critic with Sandbox Validator and Output Evaluator; its
+      scenario composition is an actor function, not the canonical Assembler
+      responsibility. New consumers use agents/scenario-critic/profile.yaml.
+      The old agents/assembler/profile.yaml path is a non-forking wrapper through
+      applications/catalog/v0.* and is removed at applications/catalog/v1.
+
       Tests are profile-owned data. A scenario is a tests/<scenario>/
       directory beside the agent it tests, holding validator machines and
       fixtures, so one subject carries several tests and adding one never
@@ -585,7 +592,7 @@ releases:
 
       The runtime words the rig calls are agent-core release 09.0 (srd039
       mock endpoint binding, srd040 service-child tools). This release records
-      the profile-owned documentation; the mock lands in GH-668, the assembler
+      the profile-owned documentation; the mock lands in GH-668, the scenario critic
       in GH-669, and the reference subject with its scenarios and the mage
       target in GH-670. Epic #662.
 
@@ -599,13 +606,13 @@ releases:
     related_agent_core_release: "09.0"
     planned_work:
       - id: gh-665
-        summary: Specify the assembler and mock profile families (this release's documentation).
+        summary: Specify the scenario critic and mock profile families (this release's documentation).
         status: done
       - id: gh-668
         summary: Add the mock profile and fixture conformance.
         status: done
       - id: gh-669
-        summary: Add the assembler profile (the rig machine).
+        summary: Add the scenario critic profile (the rig machine).
         status: done
       - id: gh-670
         summary: Add the reference subject, self-proving scenarios, and the mage rig target.
@@ -613,12 +620,19 @@ releases:
       - id: gh-678
         summary: Add the scenario-session layer in agent-core (split from gh-669).
         status: done
+      - id: gh-1072
+        summary: Rename the concrete test rig to scenario-critic and retain a time-bounded compatibility wrapper.
+        status: done
+    historical_aliases:
+      srds: [srd018-assembler]
+      use_cases: [rel11.0-uc001-assembler-scenario-run]
+      test_suites: [test-rel11.0-assembler-rig]
     srds:
-      - srd018-assembler
+      - srd018-scenario-critic
       - srd019-mock
     use_cases:
-      - id: rel11.0-uc001-assembler-scenario-run
-        summary: The assembler runs an agent's scenarios with no live services,
+      - id: rel11.0-uc001-scenario-critic-scenario-run
+        summary: The scenario critic runs an agent's scenarios with no live services,
           reports ordered pass/fail verdicts, exposes machine-visible child-stop
           dispatches, and repeats without observed port or state leakage.
         status: in-progress
@@ -628,7 +642,7 @@ releases:
           contents are inspected by conformance tests.
         status: in-progress
     test_suites:
-      - id: test-rel11.0-assembler-rig
+      - id: test-rel11.0-scenario-critic-rig
         summary: Cases for fixture serving and sequencing, two mocks from one
           profile, direct request-log inspection, malformed-fixture
           --validate-config rejection, scenario verdicts, visible stop
@@ -639,7 +653,7 @@ releases:
       - mage validate
       - AGENT_CORE_ROOT=/path/to/agent-core mage rig
     success_markers:
-      - Adding a test means adding files under a tests/ directory, never editing the assembler.
+      - Adding a test means adding files under a tests/ directory, never editing the scenario critic.
       - One mock profile serves every dependency; response content lives in scenario fixtures.
       - Scenarios run with no live Chroma, Ollama, Docker, or Kubernetes.
       - The rig can fail: a wrong expectation reaches Failed and names the failing validator.

@@ -1,14 +1,15 @@
-id: test-rel11.0-assembler-rig
-title: Test Suite for Release 11.0 Assembler Test Rig
+id: test-rel11.0-scenario-critic-rig
+title: Test Suite for Release 11.0 Scenario Critic Test Rig
+historical_aliases: [test-rel11.0-assembler-rig]
 
 release: "11.0"
 status: in-progress
 
 overview: |
-  This suite validates the assembler test rig: one shipped rig profile that
+  This suite validates the scenario critic test rig: one shipped rig profile that
   composes a scenario from profile-owned data, and one shipped mock profile
   that stands in for any REST dependency. GH-668 delivered the mock, GH-669
-  the assembler profile, and GH-670 the reference subject, its scenarios,
+  the scenario critic profile, and GH-670 the reference subject, its scenarios,
   TestRigSelfProof, and mage rig. GH-671 added the chatbot-mesh rag-server
   scenario and cross-root proof. Every cited command now exists.
 
@@ -20,7 +21,7 @@ overview: |
   specified, not claimed by the implemented cases below.
 
 traces:
-  - rel11.0-uc001-assembler-scenario-run
+  - rel11.0-uc001-scenario-critic-scenario-run
   - rel11.0-uc002-mock-serves-fixtures
 
 preconditions:
@@ -102,12 +103,12 @@ test_cases:
     traces:
       - srd019-mock R2.4
 
-  - use_case: rel11.0-uc001-assembler-scenario-run
-    name: Assembler runs one scenario end to end to a verdict
+  - use_case: rel11.0-uc001-scenario-critic-scenario-run
+    name: Scenario Critic runs one scenario end to end to a verdict
     integration_target: mage rig
     status: implemented
     description: |
-      The assembler discovers a scenario, starts its mocks, starts the subject
+      The scenario critic discovers a scenario, starts its mocks, starts the subject
       with its dependency base_url pointed at a mock through declared
       environment additions, awaits health, runs the validators, collects the
       verdict, and tears down. No live external service participates.
@@ -118,11 +119,11 @@ test_cases:
       no_live_services_used: true
       subject_behavior_unpatched: true
     traces:
-      - rel11.0-uc001-assembler-scenario-run S1
-      - srd018-assembler AC1
-      - srd018-assembler AC4
+      - rel11.0-uc001-scenario-critic-scenario-run S1
+      - srd018-scenario-critic AC1
+      - srd018-scenario-critic AC4
 
-  - use_case: rel11.0-uc001-assembler-scenario-run
+  - use_case: rel11.0-uc001-scenario-critic-scenario-run
     name: Fixture array drives machine-visible sequential mock starts
     go_test: cd ../../agent-core && go test ./internal/runtime/core ./internal/tools/service -run '^(TestLoopForEach.*|TestScenarioSteps_ThreadsMockURLIntoSubject)$'
     status: implemented
@@ -142,29 +143,29 @@ test_cases:
       join_is_labeled: true
       resume_skips_completed_items: true
     traces:
-      - rel11.0-uc001-assembler-scenario-run S1
-      - srd018-assembler AC1
+      - rel11.0-uc001-scenario-critic-scenario-run S1
+      - srd018-scenario-critic AC1
 
-  - use_case: rel11.0-uc001-assembler-scenario-run
+  - use_case: rel11.0-uc001-scenario-critic-scenario-run
     name: One subject carries several scenarios added as data only
     integration_target: mage rig
     status: implemented
     description: |
       The reference subject carries a happy-path scenario and a
       dependency-failure scenario. Adding the second required only files under
-      tests/, with no change to the assembler profile, and each scenario runs
+      tests/, with no change to the scenario critic profile, and each scenario runs
       against a fresh subject instance.
     inputs:
       scenarios: [happy-path, dep-failure]
     expected:
-      assembler_profile_unchanged: true
+      scenario_critic_profile_unchanged: true
       fresh_subject_per_scenario: true
       both_scenarios_pass: true
     traces:
-      - rel11.0-uc001-assembler-scenario-run S2
-      - srd018-assembler AC2
+      - rel11.0-uc001-scenario-critic-scenario-run S2
+      - srd018-scenario-critic AC2
 
-  - use_case: rel11.0-uc001-assembler-scenario-run
+  - use_case: rel11.0-uc001-scenario-critic-scenario-run
     name: Validator and teardown collections are machine-visible
     go_test: cd ../../agent-core && go test ./internal/tools/service -run '^(TestRunOneValidator_TerminalStateAndTimeout|TestRunScenarioValidator_EmitsItemReceipt|TestRecordScenarioValidators_PreservesJoinOrder|TestScenarioSteps_TeardownRunsOnFailurePath)$'
     integration_target: mage rig
@@ -185,11 +186,11 @@ test_cases:
       joins_are_labeled_and_ordered: true
       no_hidden_collection_loop: true
     traces:
-      - rel11.0-uc001-assembler-scenario-run S1
-      - rel11.0-uc001-assembler-scenario-run S5
-      - srd018-assembler AC1
+      - rel11.0-uc001-scenario-critic-scenario-run S1
+      - rel11.0-uc001-scenario-critic-scenario-run S5
+      - srd018-scenario-critic AC1
 
-  - use_case: rel11.0-uc001-assembler-scenario-run
+  - use_case: rel11.0-uc001-scenario-critic-scenario-run
     name: Subject readiness is a machine-visible REST retry loop
     go_test: cd ../../agent-core && go test ./internal/tools/lifecycle ./internal/tools/rest ./internal/tools/service -run '^(TestDelay_ElapsedAndDeadlineSignals|TestDelay_CancellationAndValidation|TestRESTClient_CommandStateSelectsTrustedBaseURL|TestSubjectHealthTarget_PreservesRelativeAndAlternateListenerPaths)$'
     integration_target: mage rig
@@ -212,11 +213,11 @@ test_cases:
       cancellation_bounded: true
       teardown_on_exhaustion: true
     traces:
-      - rel11.0-uc001-assembler-scenario-run S1
-      - srd018-assembler R1.8
+      - rel11.0-uc001-scenario-critic-scenario-run S1
+      - srd018-scenario-critic R1.8
       - srd040-service-child-tools AC2
 
-  - use_case: rel11.0-uc001-assembler-scenario-run
+  - use_case: rel11.0-uc001-scenario-critic-scenario-run
     name: Scripted dependency-failure scenario reaches a passing verdict
     integration_target: mage rig
     status: implemented
@@ -229,9 +230,9 @@ test_cases:
     expected:
       scenario_verdict: Passed
     traces:
-      - srd018-assembler R6.3
+      - srd018-scenario-critic R6.3
 
-  - use_case: rel11.0-uc001-assembler-scenario-run
+  - use_case: rel11.0-uc001-scenario-critic-scenario-run
     name: A wrong expectation makes the scenario and aggregate fail
     integration_target: mage rig
     status: implemented
@@ -242,12 +243,12 @@ test_cases:
     inputs:
       scenario: broken, with an expectation the subject does not satisfy
     expected:
-      assembler_terminal: Failed
+      scenario_critic_terminal: Failed
       broken_scenario_verdict: Failed
     traces:
-      - srd018-assembler R6.3
+      - srd018-scenario-critic R6.3
 
-  - use_case: rel11.0-uc001-assembler-scenario-run
+  - use_case: rel11.0-uc001-scenario-critic-scenario-run
     name: Stop dispatches are visible and consecutive runs are repeatable
     go_test: go test ./conformance -run TestRigSelfProof
     status: implemented
@@ -261,9 +262,9 @@ test_cases:
       child_stop_dispatches_visible: true
       second_run_passes: true
     traces:
-      - srd018-assembler R1.9
+      - srd018-scenario-critic R1.9
 
-  - use_case: rel11.0-uc001-assembler-scenario-run
+  - use_case: rel11.0-uc001-scenario-critic-scenario-run
     name: Discovery covers the applications tree with no special-casing
     integration_target: mage integration:rig (run from applications/chatbot-mesh)
     status: implemented
@@ -278,23 +279,23 @@ test_cases:
       deterministic_sorted: true
       no_absolute_paths: true
     traces:
-      - rel11.0-uc001-assembler-scenario-run S6
-      - srd018-assembler AC3
+      - rel11.0-uc001-scenario-critic-scenario-run S6
+      - srd018-scenario-critic AC3
 
-  - use_case: rel11.0-uc001-assembler-scenario-run
-    name: Assembler and mock profiles validate and boot as shipped profiles
+  - use_case: rel11.0-uc001-scenario-critic-scenario-run
+    name: Scenario Critic and mock profiles validate and boot as shipped profiles
     integration_target: mage validate
     status: implemented
     description: |
-      The assembler and mock profiles load and validate against agent-core and
+      The scenario critic and mock profiles load and validate against agent-core and
       pass the shipped-profile boot smoke alongside the existing families, so
       the role catalog grows without breaking profile wiring.
     inputs:
-      profiles: [agents/assembler, agents/mock]
+      profiles: [agents/scenario-critic, agents/mock]
     expected:
       mage_validate_passes: true
       boot_smoke_covers_new_profiles: true
     traces:
-      - srd018-assembler AC5
+      - srd018-scenario-critic AC5
       - srd019-mock AC4
       - srd019-mock AC5

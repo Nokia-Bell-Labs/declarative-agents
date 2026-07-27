@@ -144,7 +144,7 @@ design_decisions:
       membership are compatibility-sensitive. Breaking changes require an
       explicit migration note and coordinated consumer update.
 
-      Assembler and mock are supported test-time catalog members; the existing
+      scenario-critic and mock are supported test-time catalog members; the existing
       conformance vocabulary continues to classify them as supported test-time
       library members. They are reusable across agent families and applications,
       live under agents/, and carry the same SRD, conformance, portability,
@@ -242,10 +242,10 @@ implementation_status:
     - done: Tool-first taxonomy separates catalog declaration blocks, selection
         lists, profile-local overrides, core declarations and implementations,
         and application-local exclusions.
-    - done: Assembler and mock are classified as supported test-time catalog
+    - done: scenario-critic and mock are classified as supported test-time catalog
         members; rig-subject and runtime conformance fixtures remain internal,
         with no relocation scheduled.
-    - in-progress: Release 11 assembler and mock implementation is present with
+    - in-progress: Release 11 scenario critic and mock implementation is present with
         profile, fixture, conformance, and rig evidence; validator semantics,
         serving-startup rejection, process survival, named failure causes, and
         mock-start-failure cleanup remain unproven.

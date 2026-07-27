@@ -65,7 +65,7 @@ role_groups:
       Chroma boundaries; documentation-curator serves human-facing workflows.
   - id: test_infrastructure
     profiles:
-      - assembler
+      - scenario-critic
       - mock
     summary: |
       Supported test-time members compose profile-owned scenarios and replace
@@ -128,12 +128,12 @@ dependency_directions:
     meaning: Corpus reader threads a provider vector into Chroma query and gives
       the retrieved identities and chunks to the answer model.
     evidence: rel08.0-uc002-corpus-query
-  - from: assembler
+  - from: scenario-critic
     to: mock, subject, and validator profiles
     kind: scenario_composition
-    meaning: Assembler discovers scenario data, starts deterministic mocks and
+    meaning: Scenario-critic discovers scenario data, starts deterministic mocks and
       a fresh subject, runs validators, reduces a verdict, and stops all children.
-    evidence: rel11.0-uc001-assembler-scenario-run
+    evidence: rel11.0-uc001-scenario-critic-scenario-run
   - from: mock
     to: subject REST dependency
     kind: deterministic_test_boundary
@@ -226,7 +226,7 @@ actor_boundaries:
       - answer model
     boundary: The profile computes a query embedding, retrieves identified
       chunks, and constrains the model answer to those chunks.
-  - profile: assembler
+  - profile: scenario-critic
     actors:
       - scenario author
       - child subject
@@ -261,7 +261,7 @@ validation_views:
     exit.
   - Corpus conformance checks provider-vector threading, retrieved identities,
     grounded answers, and readiness failures.
-  - Rig conformance checks assembler-to-mock/subject/validator composition and
+  - Rig conformance checks scenario-critic-to-mock/subject/validator composition and
     deterministic verdict reduction.
   - Release 07.0 records implemented documentation-curator, bench-to-critic,
     and monitor/control relationship checks in

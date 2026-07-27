@@ -14,7 +14,7 @@ summary: |
 actor: A scenario author controlling a subject agent's REST dependencies.
 
 trigger: |
-  A scenario declares a dependency fixture, and the assembler starts a mock
+  A scenario declares a dependency fixture, and the scenario critic starts a mock
   against it before starting the subject.
 
 preconditions:
@@ -97,5 +97,5 @@ evidence_gaps:
   - Malformed fixtures are rejected through --validate-config, but no current
     test starts serve mode and asserts startup rejection before any request.
 
-test_suite_trace: test-rel11.0-assembler-rig
+test_suite_trace: test-rel11.0-scenario-critic-rig
 status: in-progress
