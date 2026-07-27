@@ -127,7 +127,7 @@ components:
   - name: structure-editor agent service
     path: agents/structure-editor/
     status: planned
-    role_realization: Content-oriented specialist realization; binding will be pinned by srd001.
+    role_realization: Executor / Change Manager for the document-structure domain.
     lifecycle: Request/on-demand application-local machine.
     scaling_boundary: Stateless requests may scale independently after serial saga ordering is preserved.
     failure_boundary: A failed response leaves the original or last accepted parent unchanged.
@@ -136,7 +136,7 @@ components:
   - name: voice-editor agent service
     path: agents/voice-editor/
     status: planned
-    role_realization: Content-oriented specialist realization; binding will be pinned by srd001.
+    role_realization: Executor / Change Manager for the document-voice domain.
     lifecycle: Request/on-demand application-local machine.
     scaling_boundary: Stateless requests and retrieval load may scale independently.
     failure_boundary: Retrieval or model failure returns no accepted artifact.
@@ -145,7 +145,7 @@ components:
   - name: style-editor agent service
     path: agents/style-editor/
     status: planned
-    role_realization: Content-oriented specialist realization; binding will be pinned by srd001.
+    role_realization: Executor / Change Manager for the document-tightening domain.
     lifecycle: Request/on-demand application-local machine.
     scaling_boundary: Stateless requests and retrieval load may scale independently.
     failure_boundary: Retrieval or model failure returns no accepted artifact.
@@ -173,7 +173,7 @@ components:
     authority: Read trusted corpus paths and write only declared Chroma collections.
     prohibited_authority: Saga coordination, workproduct access, editing, criticism, Pangram, and GitHub publication.
   - name: RAG server instances
-    path: planned structure, voice, and style supporting services
+    path: planned structure, voice, and tightening supporting services
     status: planned
     role_realization: Knowledge Manager / Recommendation Generator
     lifecycle: Long-running read-only supporting agent services, each bound to one declared corpus.
@@ -299,18 +299,21 @@ project_structure:
     - {path: agents/voice-critic/, status: planned, role: Independent assurance profile.}
     - {path: agents/corpus-ingest/, status: planned, role: Thin canonical ingest wrapper.}
   planned_specifications:
-    - {path: docs/specs/software-requirements/, status: planned, role: SRDs srd001 through srd008.}
+    - {path: docs/specs/software-requirements/srd001-voice-forge-services.yaml, status: specified, role: Planned service topology, role bindings, lifecycle, failure, scaling, and authority contract.}
+    - {path: docs/specs/software-requirements/, status: planned, role: Remaining SRDs srd002 through srd008.}
     - {path: docs/specs/use-cases/rel00.0-uc001-edit-document.yaml, status: planned, role: End-to-end release scenario.}
     - {path: docs/specs/test-suites/test-rel00.0-voice-forge.yaml, status: planned, role: Release tracer and evidence plan.}
 
 implementation_status:
   current_focus: |
-    Issue GH-1111 establishes only the five foundation documents. The eight
-    SRDs, release use case, test suite, profiles, machines, tools, services,
-    integration evidence, and root registrations do not exist in this issue.
+    Issue GH-1110 specifies the service topology and role boundaries in srd001.
+    SRDs srd002 through srd008, the release use case, test suite, profiles,
+    machines, tools, services, integration evidence, and root registrations do
+    not exist in this issue.
   overall: documentation_only_planned
   progress:
-    - planned: srd001 through srd008 and their reciprocal release traces.
+    - specified: srd001 service topology, role bindings, lifecycle, scaling, failure, interfaces, and authority.
+    - planned: srd002 through srd008 and executable reciprocal release traces.
     - planned: Five application-local state machines and the corpus-ingest wrapper.
     - planned: RAG, Chroma, Ollama, GitHub CLI, and Pangram integrations.
     - planned: Persistent saga workspace, retries, recovery, and publication.
@@ -321,6 +324,8 @@ implementation_status:
 related_documents:
   - doc: docs/VISION.yaml
     purpose: Application goals, boundaries, success criteria, and canonical document list.
+  - doc: docs/specs/software-requirements/srd001-voice-forge-services.yaml
+    purpose: Specified service topology, role realizations, lifecycle, scaling, failure, interfaces, and exclusive authorities.
   - doc: docs/SPECIFICATIONS.yaml
     purpose: Planned SRD, use-case, and test-suite indexes.
   - doc: docs/road-map.yaml

@@ -17,7 +17,7 @@ releases:
       registry changes, or publication evidence.
     status: planned
     capability_status:
-      documentation: foundation_only
+      documentation: specification_in_progress
       runnable_module: not_implemented
       managed_service: planned
       packaged: not_planned_for_release
@@ -25,7 +25,7 @@ releases:
       kind_demo: not_planned_for_release
     srds:
       - id: srd001-voice-forge-services
-        status: planned
+        status: specified
         summary: Define all agent, supporting, and external service boundaries and authority.
       - id: srd002-writing-saga-workproducts
         status: planned
@@ -105,8 +105,8 @@ releases:
         status: planned_dependency
     evidence_status:
       foundation_yaml: documented
-      srd_requirements: not_created
-      reciprocal_traceability: not_created
+      srd_requirements: srd001_specified_srd002_through_srd008_not_created
+      reciprocal_traceability: srd001_indexed_use_case_and_test_suite_planned
       profiles_and_machines: not_implemented
       tools_and_services: not_implemented
       structural_tests: not_implemented

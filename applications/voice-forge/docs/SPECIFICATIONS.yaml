@@ -7,11 +7,11 @@ overview: |
   style edit, independent critique, bounded retry, finalization, one commit,
   push, and pull request.
 
-  Eight planned SRDs divide service topology, saga persistence, tool
-  vocabulary, and five application-local state machines. One planned use case
-  and one planned test suite will trace all eight SRDs reciprocally. Their files
-  are indexed before creation to establish stable IDs and paths. No profile,
-  service, tool, test, or executable evidence is implemented.
+  One specified SRD defines service topology and authority. Seven planned SRDs
+  divide saga persistence, tool vocabulary, and five application-local state
+  machines. One planned use case and one planned test suite will trace all eight
+  SRDs reciprocally. No profile, service, tool, test, or executable evidence is
+  implemented.
 
   Shared application and agent-core requirements remain external references.
   Local SRDs will cite them and define only Voice Forge behavior and stricter
@@ -23,7 +23,7 @@ roadmap_summary:
     use_cases_done: 0
     use_cases_total: 1
     status: planned
-    evidence: No executable evidence exists; foundation documentation only.
+    evidence: srd001 is specified; no executable evidence exists.
 
 foundation_document_index:
   - id: voice-forge-readme
@@ -50,7 +50,7 @@ foundation_document_index:
 srd_index:
   - id: srd001-voice-forge-services
     title: Voice Forge Services and Role Boundaries
-    status: planned
+    status: specified
     summary: Service shape, role realizations, lifecycle, interfaces, and exclusive authorities.
     path: docs/specs/software-requirements/srd001-voice-forge-services.yaml
     use_cases: [rel00.0-uc001-edit-document]
@@ -148,9 +148,9 @@ coverage_gaps:
   - id: planned-srd-corpus
     status: planned
     description: |
-      SRDs srd001 through srd008 are indexed but are not created by GH-1111.
-      Their requirement and acceptance-criterion traces will be added by their
-      owning documentation issues.
+      SRD srd001 is specified with requirement and acceptance-criterion traces.
+      SRDs srd002 through srd008 are indexed but do not yet exist; their traces
+      will be added by their owning documentation issues.
   - id: planned-release-trace
     status: planned
     description: |
@@ -170,9 +170,3 @@ coverage_gaps:
       executable evidence. Future tests must use bounded fixtures and explicit
       live-test policy without converting dependency availability into a
       documentation claim.
-  - id: role-binding-finalization
-    status: planned
-    description: |
-      srd001 will pin every actor binding against the shared
-      agent-role-realizations authority. Descriptive editor names do not define
-      new canonical roles.
