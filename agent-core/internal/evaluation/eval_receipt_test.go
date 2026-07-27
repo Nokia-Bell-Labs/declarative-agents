@@ -133,7 +133,6 @@ func TestEvaluatorMutationBuildersImplementReverser(t *testing.T) {
 		&ReportSessionBuilder{},
 		&RunPointBuilder{},
 		&CreatePointDirBuilder{},
-		&CopySampleDocsBuilder{},
 		&DumpConfigBuilder{},
 		&RunAgentBuilder{},
 		&RecordAgentCommitBuilder{},

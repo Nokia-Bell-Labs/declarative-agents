@@ -37,28 +37,14 @@ func (b *CreatePointDirBuilder) BuildReverser() core.Command {
 	})
 }
 
-// CopySampleDocsBuilder creates copySampleDocsCmd instances.
-type CopySampleDocsBuilder struct {
+// SampleDocsBuilder exposes optional-docs presence and copy parameters.
+type SampleDocsBuilder struct {
 	ES *EvalState
 }
 
-func (b *CopySampleDocsBuilder) Build(_ core.Result) core.Command {
-	return buildPointCommand(b.ES, "copy_sample_docs", func(pc *PointContext) core.Command {
-		return &evaluatorReceiptCmd{
-			inner: &copySampleDocsCmd{pc: pc}, point: pc,
-			removePaths: func() []string {
-				if pc.Sample.DocDir == "" {
-					return nil
-				}
-				return []string{pc.PointDir + "/doc"}
-			},
-		}
-	})
-}
-
-func (b *CopySampleDocsBuilder) BuildReverser() core.Command {
-	return buildPointCommand(b.ES, "copy_sample_docs", func(pc *PointContext) core.Command {
-		return &evaluatorReceiptCmd{inner: &copySampleDocsCmd{pc: pc}, point: pc}
+func (b *SampleDocsBuilder) Build(_ core.Result) core.Command {
+	return buildPointCommand(b.ES, "sample_docs", func(pc *PointContext) core.Command {
+		return &sampleDocsCmd{pc: pc}
 	})
 }
 

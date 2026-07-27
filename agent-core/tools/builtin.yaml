@@ -832,25 +832,23 @@ tools:
       description: "Restore point context and artifact workspace state from persisted receipts."
       requires: [Receipt]
 
-  - name: copy_sample_docs
+  - name: sample_docs
     type: builtin
-    init: copy_sample_docs
+    init: sample_docs
     visibility: internal
-    emits: [SampleDocsCopied, CommandError]
-    description: "Copy optional sample docs into the current point directory, or no-op when the sample has no docs."
+    emits: [SampleDocsPresent, SampleDocsAbsent, CommandError]
+    description: "Report optional sample docs and expose shared copy_dir parameters when present."
     category: word
     side_effects:
-      - kind: filesystem_write
-        target: point_docs
-        paths: [doc]
-        description: "Copies sample docs into PointContext.PointDir/doc when docs exist."
+      - kind: filesystem_read
+        target: point_context
+        description: "Reads the configured sample documentation path."
     reversibility:
       classification: reversible
-      undo: "workspace_restore"
+      undo: "noop"
     undo:
-      strategy: workspace_restore
-      description: "Restore copied point documentation from the persisted receipt."
-      requires: [Receipt]
+      strategy: noop
+      description: "Read-only presence projection has no effects to reverse."
 
   - name: run_agent
     type: builtin

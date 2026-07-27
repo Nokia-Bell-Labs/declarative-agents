@@ -108,8 +108,10 @@ func TestCriticPointSelectsSharedWorkspaceExecWords(t *testing.T) {
 func TestCriticPointWorkspaceSequenceUsesSharedExecSignals(t *testing.T) {
 	machine := criticMachine(t, "point.yaml")
 	assertTransition(t, machine, "CreatingPointDir", "PointDirCreated", "CopyingSampleWorkspace", "copy_dir")
-	assertTransition(t, machine, "CopyingSampleWorkspace", "ToolDone", "CopyingSampleDocs", "copy_sample_docs")
-	assertTransition(t, machine, "CopyingSampleDocs", "SampleDocsCopied", "InitializingWorkspaceRepo", "git_init")
+	assertTransition(t, machine, "CopyingSampleWorkspace", "ToolDone", "CheckingSampleDocs", "sample_docs")
+	assertTransition(t, machine, "CheckingSampleDocs", "SampleDocsPresent", "CopyingSampleDocs", "copy_dir")
+	assertTransition(t, machine, "CheckingSampleDocs", "SampleDocsAbsent", "InitializingWorkspaceRepo", "git_init")
+	assertTransition(t, machine, "CopyingSampleDocs", "ToolDone", "InitializingWorkspaceRepo", "git_init")
 	assertTransition(t, machine, "InitializingWorkspaceRepo", "ToolDone", "StagingWorkspaceBaseline", "stage_all")
 	assertTransition(t, machine, "StagingWorkspaceBaseline", "ToolDone", "CommittingWorkspaceBaseline", "commit_workspace_baseline")
 	assertTransition(t, machine, "CommittingWorkspaceBaseline", "ToolDone", "ResolvingAgentCommit", "rev_parse")

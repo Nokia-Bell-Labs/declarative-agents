@@ -4,7 +4,7 @@
 tools:
   - create_point_dir
   - copy_dir
-  - copy_sample_docs
+  - sample_docs
   - git_init
   - stage_all
   - commit_workspace_baseline

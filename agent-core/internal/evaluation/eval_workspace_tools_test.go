@@ -28,7 +28,9 @@ func TestPointWorkspaceToolsPrepareWorkspaceSequence(t *testing.T) {
 	requireSignal(t, executePointWord(t, pc, "copy_dir", createResult), core.ToolDone)
 	require.FileExists(t, filepath.Join(pc.PointDir, "main.go"))
 
-	requireSignal(t, (&copySampleDocsCmd{pc: pc}).Execute(), SigSampleDocsCopied)
+	docsResult := (&sampleDocsCmd{pc: pc}).Execute()
+	requireSignal(t, docsResult, SigDocsPresent)
+	requireSignal(t, executePointWord(t, pc, "copy_dir", docsResult), core.ToolDone)
 	require.FileExists(t, filepath.Join(pc.PointDir, ArtifactDocDir, "README.md"))
 
 	requireSignal(t, executePointWord(t, pc, "git_init", core.Result{}), core.ToolDone)
@@ -45,15 +47,15 @@ func TestPointWorkspaceToolsPrepareWorkspaceSequence(t *testing.T) {
 	require.Empty(t, strings.TrimSpace(string(status)))
 }
 
-func TestCopySampleDocsNoopsWhenSampleHasNoDocs(t *testing.T) {
+func TestSampleDocsReportsAbsentWithoutFilesystemMutation(t *testing.T) {
 	pc := pointWorkspaceFixture(t)
 	pc.Sample.DocDir = ""
 	requireSignal(t, (&createPointDirCmd{pc: pc}).Execute(), SigPointDirCreated)
 
-	res := (&copySampleDocsCmd{pc: pc}).Execute()
+	res := (&sampleDocsCmd{pc: pc}).Execute()
 
-	requireSignal(t, res, SigSampleDocsCopied)
-	require.Contains(t, res.Output, "no docs")
+	requireSignal(t, res, SigDocsAbsent)
+	require.JSONEq(t, `{"present":false}`, res.Output)
 	require.NoDirExists(t, filepath.Join(pc.PointDir, ArtifactDocDir))
 }
 

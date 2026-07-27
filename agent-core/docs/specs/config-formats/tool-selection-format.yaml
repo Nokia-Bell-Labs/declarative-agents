@@ -59,7 +59,7 @@ selection_files:
     tool_count: 13
     description: |
       Selects per-point tools for <profile-root>/evaluator/point.yaml:
-      create_point_dir, copy_dir, copy_sample_docs,
+      create_point_dir, copy_dir, sample_docs,
       git_init, stage_all,
       commit_workspace_baseline, rev_parse, record_agent_commit,
       dump_config, run_agent, run_oracle_check, record_oracle_result,
