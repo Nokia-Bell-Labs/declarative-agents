@@ -7,7 +7,7 @@ family_srds:
   - srd004-planner
   - srd005-jurist
   - srd006-bench
-  - srd008-monitor
+  - srd008-runtime-state-reader
   - srd011-knowledge-manager
   - srd012-chroma-corpus-agents
   - srd018-scenario-critic
@@ -31,7 +31,7 @@ context: |
     - srd004-planner              (planner)
     - srd005-jurist               (jurist)
     - srd006-bench                (bench)
-    - srd008-monitor              (monitor)
+    - srd008-runtime-state-reader (runtime-state-reader infrastructure adapter)
     - srd011-knowledge-manager    (knowledge-manager)
     - srd012-chroma-corpus-agents (corpus-ingest and corpus-reader)
     - srd018-scenario-critic            (scenario critic)

@@ -94,7 +94,7 @@ success_criteria:
     traces:
       - srd033-monitor-rest-api AC5
   - id: S6
-    criterion: The real cmd/agent monitor profile stays running while the REST API is queried, discovers the bound listener address from profile-owned launch output, uses isolated listener binding for automated proof, and exits successfully after a configured control request.
+    criterion: The real cmd/agent runtime-state-reader profile stays running while the monitor REST API is queried, discovers the bound listener address from profile-owned launch output, uses isolated listener binding for automated proof, and exits successfully after a configured control request.
     traces:
       - srd033-monitor-rest-api AC6
 

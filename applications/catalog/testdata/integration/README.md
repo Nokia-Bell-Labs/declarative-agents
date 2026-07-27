@@ -27,12 +27,12 @@ inputs under `testdata/integration/`, so they have no rows above.
 ## The `rel04-monitor` record
 
 `rel04-monitor/monitor-rest.yaml` is not read by any Go code in either repository;
-it is a proof-metadata record that documents where the monitor profile proof
+it is a proof-metadata record that documents where the runtime-state-reader proof
 actually lives (agent-core Go tests such as `TestMonitorReleaseProfileProof` and
 `mage integration:monitor`). It is retained rather than deleted because it has real
 documentation consumers:
 
-- `applications/catalog/README.md` ("records the monitor profile proof metadata").
+- `applications/catalog/README.md` ("records runtime-state-reader proof metadata").
 - `applications/catalog/docs/specs/test-suites/test-rel06.0-agent-profiles.yaml`
   (`monitor_fixture`).
 - `agent-core/docs/ARCHITECTURE.yaml` and

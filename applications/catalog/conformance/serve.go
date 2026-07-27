@@ -232,7 +232,7 @@ func rewriteFile(t *testing.T, path string, replacements map[string]string) stri
 // CopyShippedProfile copies the whole directory tree of a shipped profile into
 // a temp dir so a family test can run the wrapper an operator actually ships
 // rather than a synthesized reconstruction. relProfile is the profile path
-// relative to the agent-profiles root (e.g. "agents/monitor/profile.yaml").
+// relative to the agent-profiles root (e.g. "agents/runtime-state-reader/profile.yaml").
 //
 // The entire profile directory is copied recursively, so the profile's relative
 // references (machine.yaml, tools.yaml, rest.yaml, and any subdir such as

@@ -268,12 +268,11 @@ bindings:
       classification: mock
       domain: conformance
       execution_scope: scenario
-    - actor: monitor
-      profile: applications/catalog/agents/monitor/profile.yaml
+    - actor: runtime-state-reader
+      profile: applications/catalog/agents/runtime-state-reader/profile.yaml
       classification: infrastructure_adapter
       domain: runtime-state
       execution_scope: server
-      naming_status: migration_required_collision
       adjacent_role: monitor
 
   coding_agent:
@@ -419,11 +418,14 @@ migration_aliases:
     removal: applications/catalog/v1
   - alias: monitor
     path: applications/catalog/agents/monitor/profile.yaml
-    status: migration_required
+    status: migration_compatibility
     collision_with: monitor
     target_name: runtime-state-reader
     classification: infrastructure_adapter
     reason: The profile reads cached runtime state; it does not collect telemetry, detect anomalies, or report assurance.
+    canonical_path: applications/catalog/agents/runtime-state-reader/profile.yaml
+    supported_through: applications/catalog/v0.*
+    removal: applications/catalog/v1
   - alias: jurist
     path: applications/catalog/agents/jurist/profile.yaml
     status: migration_planned
@@ -432,7 +434,7 @@ migration_aliases:
 
 non_goals:
   - Change the agent-core profile schema or add role fields to profile.yaml.
-  - Rename profiles, paths, tools, runtime monitor APIs, or historical release IDs in this issue.
+  - Rename tools, runtime monitor APIs, or historical release IDs in this issue.
   - Claim every canonical role has an implementation.
   - Invent empty profiles to increase role coverage.
   - Treat model, request, session, server, or workspace qualifiers as semantic sub-roles.

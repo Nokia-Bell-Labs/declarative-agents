@@ -1434,53 +1434,53 @@ patterns:
         evidence:
           classification: shipped
           checks:
-            - path: applications/catalog/agents/monitor/profile.yaml
+            - path: applications/catalog/agents/runtime-state-reader/profile.yaml
               artifact: profile
               assertion: yaml_reference
               field: rest_definitions
-              target: applications/catalog/agents/monitor/rest.yaml
+              target: applications/catalog/agents/runtime-state-reader/rest.yaml
               target_artifact: rest_definition
-            - path: applications/catalog/agents/monitor/rest.yaml
+            - path: applications/catalog/agents/runtime-state-reader/rest.yaml
               artifact: rest_definition
               assertion: yaml_value
               field: rest.servers.monitor.address
               equals: "127.0.0.1:0"
-            - path: applications/catalog/agents/monitor/rest.yaml
+            - path: applications/catalog/agents/runtime-state-reader/rest.yaml
               artifact: rest_definition
               assertion: yaml_value
               field: rest.servers.monitor.endpoints.machine_spec.path
               equals: /monitor/machine
-            - path: applications/catalog/agents/monitor/rest.yaml
+            - path: applications/catalog/agents/runtime-state-reader/rest.yaml
               artifact: rest_definition
               assertion: yaml_value
               field: rest.servers.monitor.endpoints.current_state.path
               equals: /monitor/state
-            - path: applications/catalog/agents/monitor/rest.yaml
+            - path: applications/catalog/agents/runtime-state-reader/rest.yaml
               artifact: rest_definition
               assertion: yaml_value
               field: rest.servers.monitor.endpoints.tools.path
               equals: /monitor/tools
-            - path: applications/catalog/agents/monitor/rest.yaml
+            - path: applications/catalog/agents/runtime-state-reader/rest.yaml
               artifact: rest_definition
               assertion: yaml_value
               field: rest.servers.monitor.endpoints.metrics.path
               equals: /monitor/metrics
-            - path: applications/catalog/agents/monitor/rest.yaml
+            - path: applications/catalog/agents/runtime-state-reader/rest.yaml
               artifact: rest_definition
               assertion: yaml_value
               field: rest.servers.monitor.endpoints.recent_events.path
               equals: /monitor/events
-            - path: applications/catalog/agents/monitor/rest.yaml
+            - path: applications/catalog/agents/runtime-state-reader/rest.yaml
               artifact: rest_definition
               assertion: yaml_value
               field: rest.servers.monitor.endpoints.event_stream.path
               equals: /monitor/events/stream
-            - path: applications/catalog/agents/monitor/rest.yaml
+            - path: applications/catalog/agents/runtime-state-reader/rest.yaml
               artifact: rest_definition
               assertion: yaml_value
               field: rest.servers.monitor.endpoints.openapi.path
               equals: /monitor/openapi
-            - path: applications/catalog/agents/monitor/rest.yaml
+            - path: applications/catalog/agents/runtime-state-reader/rest.yaml
               artifact: rest_definition
               assertion: yaml_value
               field: rest.servers.monitor.endpoints.control_exit.path

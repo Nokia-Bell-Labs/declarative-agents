@@ -339,7 +339,7 @@ Integration fixtures owned by profiles live in `testdata/integration/`:
 - `uc001-generator-coding/` contains the generator coding sample workspace.
 - `uc002-evaluator-benchmark/` contains the evaluator suite and sample
   workspace. Its profile references resolve from this catalog root.
-- `rel04-monitor/monitor-rest.yaml` records the monitor profile proof metadata.
+- `rel04-monitor/monitor-rest.yaml` records runtime-state-reader proof metadata.
 
 Core-only runtime fixtures remain in `agent-core` when they exercise reusable
 tool implementation behavior rather than a profile-owned sample or suite. REST

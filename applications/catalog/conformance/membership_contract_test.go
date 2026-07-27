@@ -116,9 +116,10 @@ func TestCatalogMembershipUsesSharedRealizationAndAliasAuthority(t *testing.T) {
 	if got := byActor["mock"]; got.Classification != "mock" || got.PrimaryRole != "" {
 		t.Errorf("mock shared binding = %#v, want unbound mock classification", got)
 	}
-	if got := byActor["monitor"]; got.Classification != "infrastructure_adapter" ||
-		got.NamingStatus != "migration_required_collision" {
-		t.Errorf("monitor shared binding = %#v, want infrastructure-adapter collision", got)
+	if got := byActor["runtime-state-reader"]; got.Classification != "infrastructure_adapter" ||
+		got.Profile != "applications/catalog/agents/runtime-state-reader/profile.yaml" ||
+		got.NamingStatus != "" {
+		t.Errorf("runtime-state-reader shared binding = %#v, want named infrastructure adapter", got)
 	}
 	aliases := map[string]string{}
 	for _, alias := range authority.Aliases {
@@ -131,22 +132,28 @@ func TestCatalogMembershipUsesSharedRealizationAndAliasAuthority(t *testing.T) {
 		aliases[alias.Path] = alias.TargetName
 	}
 	for path, target := range map[string]string{
-		"applications/catalog/agents/assembler/profile.yaml": "scenario-critic",
-		"applications/catalog/agents/monitor/profile.yaml":   "runtime-state-reader",
-		"applications/catalog/agents/jurist/profile.yaml":    "specification-critic",
+		"applications/catalog/agents/assembler/profile.yaml":    "scenario-critic",
+		"applications/catalog/agents/" + "monitor/profile.yaml": "runtime-state-reader",
+		"applications/catalog/agents/jurist/profile.yaml":       "specification-critic",
 	} {
 		if aliases[path] != target {
 			t.Errorf("migration alias %s = %q, want %q", path, aliases[path], target)
 		}
 	}
+	compatibilityTargets := map[string]string{
+		"assembler": "applications/catalog/agents/scenario-critic/profile.yaml",
+		"monitor":   "applications/catalog/agents/runtime-state-reader/profile.yaml",
+	}
 	for _, alias := range authority.Aliases {
-		if alias.Alias != "assembler" {
+		canonicalPath, ok := compatibilityTargets[alias.Alias]
+		if !ok {
 			continue
 		}
-		if alias.CanonicalPath != "applications/catalog/agents/scenario-critic/profile.yaml" ||
+		if alias.Status != "migration_compatibility" ||
+			alias.CanonicalPath != canonicalPath ||
 			alias.SupportedThrough != "applications/catalog/v0.*" ||
 			alias.Removal != "applications/catalog/v1" {
-			t.Errorf("assembler compatibility duration/target = %#v", alias)
+			t.Errorf("%s compatibility duration/target = %#v", alias.Alias, alias)
 		}
 	}
 
@@ -219,6 +226,41 @@ func TestNoActiveAssemblerPathConsumers(t *testing.T) {
 	for path, count := range allowed {
 		if seen[path] != count {
 			t.Errorf("historical compatibility allowlist drift for %s: got %d occurrences, want %d", path, seen[path], count)
+		}
+	}
+}
+
+func TestNoActiveMonitorProfilePathConsumers(t *testing.T) {
+	t.Parallel()
+	retiredPath := "agents/" + "monitor"
+	roots := []string{
+		ProfilesRoot(),
+		filepath.Clean(filepath.Join(ProfilesRoot(), "..", "..", "agent-core")),
+	}
+	for _, root := range roots {
+		err := filepath.WalkDir(root, func(path string, entry os.DirEntry, err error) error {
+			if err != nil {
+				return err
+			}
+			if entry.IsDir() {
+				return nil
+			}
+			switch filepath.Ext(path) {
+			case ".go", ".md", ".yaml", ".yml":
+			default:
+				return nil
+			}
+			data, err := os.ReadFile(path)
+			if err != nil {
+				return err
+			}
+			if strings.Contains(string(data), retiredPath) {
+				t.Errorf("stale active external profile path %s in %s", retiredPath, path)
+			}
+			return nil
+		})
+		if err != nil {
+			t.Fatal(err)
 		}
 	}
 }

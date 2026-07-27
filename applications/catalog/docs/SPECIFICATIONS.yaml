@@ -211,12 +211,13 @@ srd_index:
       profile-owned authority, outcomes, and terminal outcomes.
     status: implemented
     path: docs/specs/software-requirements/srd007-rest.yaml
-  - id: srd008-monitor
-    title: Monitor Functional Block
-    summary: Monitor read-only REST reader boundary, inputs, tool selections,
-      runtime dependencies, outputs, and terminal outcomes.
+  - id: srd008-runtime-state-reader
+    title: Runtime State Reader Functional Block
+    summary: Runtime-state-reader infrastructure-adapter boundary, cached
+      monitor inputs, tool selections, runtime dependencies, outputs, and
+      terminal outcomes.
     status: implemented
-    path: docs/specs/software-requirements/srd008-monitor.yaml
+    path: docs/specs/software-requirements/srd008-runtime-state-reader.yaml
   - id: srd009-lifecycle
     title: Lifecycle Functional Blocks
     summary: Lifecycle history, rollback, and approval machine-action

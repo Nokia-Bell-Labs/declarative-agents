@@ -63,11 +63,14 @@ type nonRoleInventoryGroup struct {
 }
 
 type migrationAlias struct {
-	Alias         string `yaml:"alias"`
-	Path          string `yaml:"path"`
-	Status        string `yaml:"status"`
-	CollisionWith string `yaml:"collision_with"`
-	TargetName    string `yaml:"target_name"`
+	Alias            string `yaml:"alias"`
+	Path             string `yaml:"path"`
+	Status           string `yaml:"status"`
+	CollisionWith    string `yaml:"collision_with"`
+	TargetName       string `yaml:"target_name"`
+	CanonicalPath    string `yaml:"canonical_path"`
+	SupportedThrough string `yaml:"supported_through"`
+	Removal          string `yaml:"removal"`
 }
 
 type indexedBinding struct {
@@ -132,6 +135,9 @@ func TestAgentRoleRealizationFailureFixtures(t *testing.T) {
 		}},
 		{"missing collision alias", "requires a matching migration alias", func(m *realizationModel) {
 			m.MigrationAliases = m.MigrationAliases[1:]
+		}},
+		{"missing compatibility duration", "compatibility alias must define canonical_path, supported_through, and removal", func(m *realizationModel) {
+			m.MigrationAliases[1].Removal = ""
 		}},
 	}
 	for _, fixture := range fixtures {
@@ -437,26 +443,47 @@ func validateAliases(model realizationModel, roles map[string]bool, listed map[s
 	fail func(string, string, string)) {
 	aliases := map[string]bool{}
 	collisions := map[string]string{}
+	actorsByProfile := map[string]string{}
+	for _, bindings := range model.Bindings {
+		for _, binding := range bindings {
+			actorsByProfile[binding.Profile] = binding.Actor
+		}
+	}
 	for _, alias := range model.MigrationAliases {
 		location := fmt.Sprintf("migration alias %q (%s)", alias.Alias, alias.Path)
 		if aliases[alias.Alias] {
 			fail("alias", location, "duplicate alias")
 		}
 		aliases[alias.Alias] = true
-		if _, ok := listed[alias.Path]; !ok {
-			fail("alias", location, "alias path does not resolve to a classified profile")
+		targetPath := alias.Path
+		if alias.CanonicalPath != "" {
+			targetPath = alias.CanonicalPath
+		}
+		if _, ok := listed[targetPath]; !ok {
+			fail("alias", location, "alias target does not resolve to a classified profile")
+		}
+		if alias.CanonicalPath != "" && actorsByProfile[alias.CanonicalPath] != alias.TargetName {
+			fail("alias-target", location, "target_name must match the canonical profile actor")
 		}
 		if alias.CollisionWith != "" && !roles[alias.CollisionWith] {
 			fail("alias", location, "collision_with is not a canonical role")
 		}
 		if alias.CollisionWith != "" {
 			collisions[alias.Path] = alias.CollisionWith
+			if alias.CanonicalPath != "" {
+				collisions[alias.CanonicalPath] = alias.CollisionWith
+			}
 		}
 		if roles[alias.TargetName] {
 			fail("alias", location, "target_name must not reuse a canonical role ID")
 		}
 		if !strings.HasPrefix(alias.Status, "migration_") {
 			fail("alias", location, "status must be an explicit migration state")
+		}
+		if alias.Status == "migration_compatibility" &&
+			(alias.CanonicalPath == "" || alias.SupportedThrough == "" || alias.Removal == "") {
+			fail("alias-duration", location,
+				"compatibility alias must define canonical_path, supported_through, and removal")
 		}
 	}
 	for _, bindings := range model.Bindings {

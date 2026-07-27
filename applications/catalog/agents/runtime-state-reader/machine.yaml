@@ -1,12 +1,12 @@
-name: monitor-rest-profile
+name: runtime-state-reader
 purpose: |-
-  Launches the read-only embedded monitor REST profile and keeps it serving
+  Launches the runtime-state reader over embedded monitor REST and keeps it serving
   until a configured control exit request stops the owned listener.
 configuration:
-  machine: agents/monitor/machine.yaml
-  tools: agents/monitor/tools.yaml
+  machine: agents/runtime-state-reader/machine.yaml
+  tools: agents/runtime-state-reader/tools.yaml
 metric_labels:
-  profile: monitor
+  profile: runtime-state-reader
 initial_state: Idle
 budget:
   max_iterations: 6

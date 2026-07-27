@@ -81,7 +81,7 @@ traces:
   - srd005-jurist
   - srd006-bench
   - srd007-rest
-  - srd008-monitor
+  - srd008-runtime-state-reader
   - srd009-lifecycle
   - srd010-control
   - srd011-knowledge-manager
@@ -214,26 +214,26 @@ test_cases:
       - srd010-control AC3
       - sm-agent-role-taxonomy control
 
-  - family: monitor
-    name: Monitor read-only REST reader conformance
+  - family: runtime-state-reader
+    name: Runtime state reader conformance
     status: implemented
-    test: conformance/monitor_test.go
+    test: conformance/runtime_state_reader_test.go
     coverage: shipped-behavioral
-    coverage_note: Copies the shipped agents/monitor/profile.yaml and patches only the harness-controlled loopback listen address.
+    coverage_note: Copies the shipped agents/runtime-state-reader/profile.yaml and patches only the harness-controlled loopback listen address.
     description: |
-      Launches the monitor profile with the async serve harness, waits for its
-      state endpoint, posts a control exit request, and waits for the agent to
-      exit. Asserts the launch, await, and stop vocabulary in the trace and a
-      Done terminal state with no error-status spans.
+      Launches the runtime-state-reader profile with the async serve harness,
+      waits for its monitor state endpoint, posts a control exit request, and
+      waits for the agent to exit. Asserts the launch, await, and stop vocabulary
+      in the trace and a Done terminal state with no error-status spans.
     expected:
       asserted_tool_spans: [launch_monitor_rest, await_monitor_control, stop_monitor_rest]
       error_status_spans: 0
       terminal_states: [Done]
     traces:
-      - srd008-monitor AC1
-      - srd008-monitor AC2
-      - srd008-monitor AC3
-      - sm-agent-role-taxonomy monitor
+      - srd008-runtime-state-reader AC1
+      - srd008-runtime-state-reader AC2
+      - srd008-runtime-state-reader AC3
+      - sm-agent-role-taxonomy runtime-state-reader
 
   - family: knowledge-manager
     name: Documentation-curator UX and REST workflow conformance

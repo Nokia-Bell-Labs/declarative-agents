@@ -1,4 +1,4 @@
-monitor_profile: agents/monitor/profile.yaml
+runtime_state_reader_profile: agents/runtime-state-reader/profile.yaml
 control_profile: testdata/conformance/control/profile.yaml
 monitor_state_routes:
   - /monitor/machine

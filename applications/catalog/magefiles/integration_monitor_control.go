@@ -11,16 +11,16 @@ import (
 const monitorControlFixture = "testdata/integration/rel07-monitor-control"
 
 type monitorControlEvidence struct {
-	MonitorProfile          string   `yaml:"monitor_profile"`
-	ControlProfile          string   `yaml:"control_profile"`
-	MonitorStateRoutes      []string `yaml:"monitor_state_routes"`
-	ControlExitRoute        string   `yaml:"control_exit_route"`
-	MonitorControlRoute     string   `yaml:"monitor_control_route"`
-	MonitorExitSignal       string   `yaml:"monitor_exit_signal"`
-	ControlLifecycleSignal  string   `yaml:"control_lifecycle_signal"`
-	MonitorStopTransition   bool     `yaml:"monitor_stop_transition_declared"`
-	HTTPHandlersEnqueueOnly bool     `yaml:"http_handlers_enqueue_only"`
-	TargetOwner             string   `yaml:"target_owner"`
+	RuntimeStateReaderProfile string   `yaml:"runtime_state_reader_profile"`
+	ControlProfile            string   `yaml:"control_profile"`
+	MonitorStateRoutes        []string `yaml:"monitor_state_routes"`
+	ControlExitRoute          string   `yaml:"control_exit_route"`
+	MonitorControlRoute       string   `yaml:"monitor_control_route"`
+	MonitorExitSignal         string   `yaml:"monitor_exit_signal"`
+	ControlLifecycleSignal    string   `yaml:"control_lifecycle_signal"`
+	MonitorStopTransition     bool     `yaml:"monitor_stop_transition_declared"`
+	HTTPHandlersEnqueueOnly   bool     `yaml:"http_handlers_enqueue_only"`
+	TargetOwner               string   `yaml:"target_owner"`
 }
 
 type monitorControlMachine struct {
@@ -51,7 +51,7 @@ func (Integration) MonitorControl() error {
 	if err != nil {
 		return err
 	}
-	if err := requireProfilePaths(profilesRoot, "agents/monitor/profile.yaml", "testdata/conformance/control/profile.yaml"); err != nil {
+	if err := requireProfilePaths(profilesRoot, "agents/runtime-state-reader/profile.yaml", "testdata/conformance/control/profile.yaml"); err != nil {
 		return err
 	}
 	evidence, err := collectMonitorControlEvidence(profilesRoot)
@@ -78,7 +78,7 @@ func (Integration) MonitorControl() error {
 }
 
 func collectMonitorControlEvidence(profilesRoot string) (monitorControlEvidence, error) {
-	monitorREST, err := readMonitorControlREST(filepath.Join(profilesRoot, "agents", "monitor", "rest.yaml"))
+	monitorREST, err := readMonitorControlREST(filepath.Join(profilesRoot, "agents", "runtime-state-reader", "rest.yaml"))
 	if err != nil {
 		return monitorControlEvidence{}, err
 	}
@@ -86,7 +86,7 @@ func collectMonitorControlEvidence(profilesRoot string) (monitorControlEvidence,
 	if err != nil {
 		return monitorControlEvidence{}, err
 	}
-	monitorMachine, err := readMonitorControlMachine(filepath.Join(profilesRoot, "agents", "monitor", "machine.yaml"))
+	monitorMachine, err := readMonitorControlMachine(filepath.Join(profilesRoot, "agents", "runtime-state-reader", "machine.yaml"))
 	if err != nil {
 		return monitorControlEvidence{}, err
 	}
@@ -103,16 +103,16 @@ func collectMonitorControlEvidence(profilesRoot string) (monitorControlEvidence,
 		return monitorControlEvidence{}, err
 	}
 	evidence := monitorControlEvidence{
-		MonitorProfile:          "agents/monitor/profile.yaml",
-		ControlProfile:          "testdata/conformance/control/profile.yaml",
-		MonitorStateRoutes:      monitorStateRoutes(monitorREST),
-		ControlExitRoute:        controlExit.Path,
-		MonitorControlRoute:     monitorControl.Path,
-		MonitorExitSignal:       monitorControl.Signal,
-		ControlLifecycleSignal:  "AgentExited",
-		MonitorStopTransition:   hasTransition(monitorMachine, "AwaitingControl", "ExitRequested", "Stopping", "stop_monitor_rest") && hasTransition(monitorMachine, "Stopping", "ServerStopped", "Done", ""),
-		HTTPHandlersEnqueueOnly: monitorControl.Binding == "emit_signal" && controlExit.Binding == "emit_signal" && hasTransition(controlMachine, "AwaitingControl", "ExitRequested", "Exiting", "exit_agent") && hasTransition(controlMachine, "Exiting", "AgentExited", "Succeeded", ""),
-		TargetOwner:             "applications/catalog",
+		RuntimeStateReaderProfile: "agents/runtime-state-reader/profile.yaml",
+		ControlProfile:            "testdata/conformance/control/profile.yaml",
+		MonitorStateRoutes:        monitorStateRoutes(monitorREST),
+		ControlExitRoute:          controlExit.Path,
+		MonitorControlRoute:       monitorControl.Path,
+		MonitorExitSignal:         monitorControl.Signal,
+		ControlLifecycleSignal:    "AgentExited",
+		MonitorStopTransition:     hasTransition(monitorMachine, "AwaitingControl", "ExitRequested", "Stopping", "stop_monitor_rest") && hasTransition(monitorMachine, "Stopping", "ServerStopped", "Done", ""),
+		HTTPHandlersEnqueueOnly:   monitorControl.Binding == "emit_signal" && controlExit.Binding == "emit_signal" && hasTransition(controlMachine, "AwaitingControl", "ExitRequested", "Exiting", "exit_agent") && hasTransition(controlMachine, "Exiting", "AgentExited", "Succeeded", ""),
+		TargetOwner:               "applications/catalog",
 	}
 	return evidence, nil
 }

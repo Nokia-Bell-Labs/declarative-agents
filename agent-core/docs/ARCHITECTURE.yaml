@@ -850,7 +850,7 @@ overview:
         - internal/tools/rest/monitor_views.go
         - internal/tools/rest/monitor_openapi.go
         - internal/tools/exec/metrics.go
-        - external applications/catalog/agents/monitor/
+        - external applications/catalog/agents/runtime-state-reader/ profile adapter
         - external applications/catalog/testdata/integration/rel04-monitor/
         - docs/specs/software-requirements/srd032-tool-metrics-monitor-store.yaml
         - docs/specs/software-requirements/srd033-monitor-rest-api.yaml

@@ -168,27 +168,28 @@ test_cases:
       - sm-agent-role-taxonomy evaluator
 
   - use_case: rel06.0-uc001-mounted-profile-execution
-    name: Agent Core monitor integration consumes profile assets
+    name: Agent Core monitor integration consumes runtime-state-reader assets
     go_test: agent-core integration targets
     integration_target: AGENT_CATALOG_ROOT=/path/to/applications/catalog mage integration:monitor
     status: implemented
     description: |
       Run agent-core integration targets from the agent-core repository with
-      AGENT_CATALOG_ROOT pointing at applications/catalog. monitor consumes the shipped
-      monitor profile. The rel04-monitor YAML record is documentation-only
+      AGENT_CATALOG_ROOT pointing at applications/catalog. monitor consumes the
+      shipped runtime-state-reader profile. The rel04-monitor YAML record is
+      documentation-only
       metadata, not an executable input. Concrete Knowledge Manager/
       documentation-curator profile and UI proof lives in the catalog-owned
       Rel07 suite; presentation composition lives in
       applications/knowledge-manager-demo.
     inputs:
-      monitor_profile: agents/monitor/profile.yaml
+      runtime_state_reader_profile: agents/runtime-state-reader/profile.yaml
       knowledge_manager_profile_proof: test-rel07.0-profile-integrations
     expected:
-      monitor_profile_external: true
+      runtime_state_reader_profile_external: true
       knowledge_manager_profile_evidence: rel07_catalog_owned
     traces:
       - rel06.0-uc001-mounted-profile-execution S2
       - rel06.0-uc001-mounted-profile-execution S5
-      - srd008-monitor R1.1
-      - srd008-monitor R2.1
-      - sm-agent-role-taxonomy monitor
+      - srd008-runtime-state-reader R1.1
+      - srd008-runtime-state-reader R2.1
+      - sm-agent-role-taxonomy runtime-state-reader

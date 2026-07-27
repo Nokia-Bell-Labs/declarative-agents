@@ -20,14 +20,14 @@ func TestBootSmokeProfilesPassesWhenEveryProfilePreflights(t *testing.T) {
 		return []byte("config valid"), nil
 	}
 
-	profiles := []string{"agents/monitor/profile.yaml", "agents/jurist/profile.yaml"}
+	profiles := []string{"agents/runtime-state-reader/profile.yaml", "agents/jurist/profile.yaml"}
 	if err := bootSmokeProfiles(run, "/tmp/agent", "/core", profiles); err != nil {
 		t.Fatalf("boot smoke should pass, got %v", err)
 	}
 	if len(calls) != len(profiles) {
 		t.Fatalf("expected %d preflights, got %d", len(profiles), len(calls))
 	}
-	want := []string{"/tmp/agent", "--validate-config", "--profile", "agents/monitor/profile.yaml", "--core-root", "/core"}
+	want := []string{"/tmp/agent", "--validate-config", "--profile", "agents/runtime-state-reader/profile.yaml", "--core-root", "/core"}
 	if strings.Join(calls[0], " ") != strings.Join(want, " ") {
 		t.Errorf("preflight args = %v, want %v", calls[0], want)
 	}
@@ -50,7 +50,7 @@ func TestBootSmokeProfilesReportsEveryFailure(t *testing.T) {
 
 	profiles := []string{
 		"agents/knowledge-manager/corpus-ingest/profile.yaml",
-		"agents/monitor/profile.yaml",
+		"agents/runtime-state-reader/profile.yaml",
 		"testdata/conformance/rest/profile.yaml",
 	}
 	err := bootSmokeProfiles(run, "/tmp/agent", "/core", profiles)
@@ -70,7 +70,7 @@ func TestBootSmokeProfilesReportsEveryFailure(t *testing.T) {
 		}
 	}
 	// The healthy profile between the two failures must not appear as a failure.
-	if strings.Contains(msg, "agents/monitor/profile.yaml") {
+	if strings.Contains(msg, "agents/runtime-state-reader/profile.yaml") {
 		t.Errorf("healthy profile reported as failing: %q", msg)
 	}
 }
@@ -81,7 +81,7 @@ func TestBootSmokeProfilesFallsBackToExitError(t *testing.T) {
 	run := func(_ string, _ ...string) ([]byte, error) {
 		return nil, fmt.Errorf("fork/exec: permission denied")
 	}
-	err := bootSmokeProfiles(run, "/tmp/agent", "/core", []string{"agents/monitor/profile.yaml"})
+	err := bootSmokeProfiles(run, "/tmp/agent", "/core", []string{"agents/runtime-state-reader/profile.yaml"})
 	if err == nil || !strings.Contains(err.Error(), "permission denied") {
 		t.Fatalf("expected the exec error to surface, got %v", err)
 	}
@@ -92,7 +92,7 @@ func TestBootSmokeProfilesFallsBackToExitError(t *testing.T) {
 // conformance fixtures.
 func TestDiscoverAuditProfilesCoversAgentsAndConformanceFixtures(t *testing.T) {
 	root := t.TempDir()
-	mkProfile(t, filepath.Join(root, "agents", "monitor", "profile.yaml"))
+	mkProfile(t, filepath.Join(root, "agents", "runtime-state-reader", "profile.yaml"))
 	mkProfile(t, filepath.Join(root, "testdata", "conformance", "rest", "profile.yaml"))
 
 	profiles, err := discoverAuditProfiles(root)

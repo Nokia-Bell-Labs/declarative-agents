@@ -73,7 +73,7 @@ role_groups:
   - id: boundary_runtime_work
     profiles:
       - rest
-      - monitor
+      - runtime-state-reader
       - control
       - lifecycle
     summary: |
@@ -99,10 +99,10 @@ dependency_directions:
     kind: human_launched_evaluation
     meaning: Bench serves the human UI and launches critic runs.
     evidence: rel07.0-uc004-bench-evaluator-profile-boundary
-  - from: monitor
+  - from: runtime-state-reader
     to: agent-core monitor store
     kind: runtime_state_read
-    meaning: Monitor exposes cached runtime state supplied by agent-core.
+    meaning: Runtime-state-reader exposes cached monitor state supplied by agent-core.
     evidence: rel07.0-uc005-monitor-control-profile-boundary
   - from: control
     to: lifecycle vocabulary
@@ -187,12 +187,12 @@ actor_boundaries:
       - configured upstream HTTP service
       - inbound webhook sender
     boundary: REST definitions constrain client calls and server events.
-  - profile: monitor
+  - profile: runtime-state-reader
     actors:
       - supervisor
       - runtime monitor store
-    boundary: Supervisor reads cached monitor state and may request controlled
-      exit.
+    boundary: The infrastructure adapter lets a supervisor read cached monitor
+      state and request controlled exit; it does not implement canonical Monitor.
   - profile: control
     actors:
       - lifecycle supervisor

@@ -168,7 +168,7 @@ func TestFamilySRDInventoryMatchesSpecificationIndex(t *testing.T) {
 	}
 	wantFamilies := map[string]bool{
 		"srd002-executor": true, "srd003-critic": true, "srd004-planner": true,
-		"srd005-jurist": true, "srd006-bench": true, "srd008-monitor": true,
+		"srd005-jurist": true, "srd006-bench": true, "srd008-runtime-state-reader": true,
 		"srd011-knowledge-manager": true, "srd012-chroma-corpus-agents": true,
 		"srd018-scenario-critic": true, "srd019-mock": true,
 	}

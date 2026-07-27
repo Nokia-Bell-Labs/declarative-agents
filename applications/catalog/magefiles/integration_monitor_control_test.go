@@ -36,16 +36,16 @@ func TestCollectMonitorControlEvidenceRecordsRoutesAndLifecycleBoundary(t *testi
 func TestAssertMonitorControlEvidenceRejectsMissingLifecycleRouting(t *testing.T) {
 	runDir := t.TempDir()
 	evidence := monitorControlEvidence{
-		MonitorProfile:          "agents/monitor/profile.yaml",
-		ControlProfile:          "testdata/conformance/control/profile.yaml",
-		MonitorStateRoutes:      []string{"/monitor/state"},
-		ControlExitRoute:        "/api/lifecycle/exit",
-		MonitorControlRoute:     "/monitor/control/exit",
-		MonitorExitSignal:       "ExitRequested",
-		ControlLifecycleSignal:  "AgentExited",
-		MonitorStopTransition:   true,
-		HTTPHandlersEnqueueOnly: false,
-		TargetOwner:             "applications/catalog",
+		RuntimeStateReaderProfile: "agents/runtime-state-reader/profile.yaml",
+		ControlProfile:            "testdata/conformance/control/profile.yaml",
+		MonitorStateRoutes:        []string{"/monitor/state"},
+		ControlExitRoute:          "/api/lifecycle/exit",
+		MonitorControlRoute:       "/monitor/control/exit",
+		MonitorExitSignal:         "ExitRequested",
+		ControlLifecycleSignal:    "AgentExited",
+		MonitorStopTransition:     true,
+		HTTPHandlersEnqueueOnly:   false,
+		TargetOwner:               "applications/catalog",
 	}
 	if err := writeMonitorControlEvidence(runDir, evidence); err != nil {
 		t.Fatalf("writeMonitorControlEvidence: %v", err)
@@ -76,9 +76,9 @@ func TestReadMonitorControlEvidenceParsesExpectedFixture(t *testing.T) {
 
 func writeMonitorControlFixture(t *testing.T, root, controlAction string) {
 	t.Helper()
-	writeFile(t, filepath.Join(root, "agents", "monitor", "profile.yaml"), "name: monitor\n")
+	writeFile(t, filepath.Join(root, "agents", "runtime-state-reader", "profile.yaml"), "name: runtime-state-reader\n")
 	writeFile(t, filepath.Join(root, "testdata", "conformance", "control", "profile.yaml"), "name: control\n")
-	writeFile(t, filepath.Join(root, "agents", "monitor", "rest.yaml"), `rest:
+	writeFile(t, filepath.Join(root, "agents", "runtime-state-reader", "rest.yaml"), `rest:
   servers:
     monitor:
       endpoints:
@@ -103,7 +103,7 @@ func writeMonitorControlFixture(t *testing.T, root, controlAction string) {
           binding: emit_signal
           signal: ExitRequested
 `)
-	writeFile(t, filepath.Join(root, "agents", "monitor", "machine.yaml"), `transitions:
+	writeFile(t, filepath.Join(root, "agents", "runtime-state-reader", "machine.yaml"), `transitions:
   - state: AwaitingControl
     signal: ExitRequested
     next: Stopping
