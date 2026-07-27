@@ -25,6 +25,7 @@ var subModules = []string{
 var applicationModules = []string{
 	"applications/chatbot-mesh",
 	"applications/coding-agent",
+	"applications/knowledge-manager-demo",
 }
 
 // auditOnlyApplicationModules contains applications that participate in the
