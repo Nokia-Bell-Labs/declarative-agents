@@ -217,14 +217,19 @@ technology_choices:
 project_structure:
   shared:
     - path: applications/README.md
-      role: Human entry point and current module classification.
+      role: |
+        Human entry point for the shared vision, multi-agent construction
+        sequence, capability vocabulary, and current module classification.
     - path: applications/docs/pattern-language.yaml
       role: |
         Application composition patterns for catalog consumption, package-time
         closure, deployment topology, and module governance. It extends the
         single-agent language instead of restating agent internals.
     - path: applications/docs/VISION.yaml
-      role: Shared goals, boundaries, and success criteria.
+      role: |
+        Canonical multi-agent application rationale, intent and feedback flows,
+        human governance boundary, construction sequence, source provenance,
+        shared capability contract, and success criteria.
     - path: applications/docs/ARCHITECTURE.yaml
       role: Ownership layers, capability model, interfaces, and decisions.
     - path: applications/docs/SPECIFICATIONS.yaml
@@ -257,11 +262,22 @@ project_structure:
 
 implementation_status:
   current_focus: |
-    The shared contract documents existing root orchestration and the current
+    The shared vision now connects scenario-led multi-agent design to the
+    existing runnable-module contract. It defines when actor separation is
+    justified, how roles become realizations and application-owned
+    relationships, how intent and assurance flows close, and how canonical
+    profiles become package closures with executable evidence.
+
+    The contract also documents existing root orchestration and the current
     chatbot-mesh, coding-agent, and knowledge-manager-demo structures.
-    Structural commands verify the shared YAML, module paths, root
-    participation, and ownership-aware stats.
+    Structural commands verify shared YAML, module paths, root participation,
+    and ownership-aware stats.
   progress:
+    - implemented: Multi-agent rationale, bidirectional operating flows, human
+        governance boundary, six-step construction sequence, and pinned
+        conceptual-source provenance in the canonical shared vision.
+    - implemented: applications/README.md links the canonical vision and gives
+        the concise scenario-to-evidence construction guide.
     - implemented: Shared vision, architecture, roadmap, specification index,
         two SRDs, one conformance use case, and one test suite.
     - implemented: Root tests pin runnable application membership, path
@@ -291,7 +307,10 @@ related_documents:
       machines, tools, execution, and controls remain in
       ../../design-patterns/pattern-language.yaml.
   - doc: docs/VISION.yaml
-    purpose: Shared application goals and exclusions.
+    purpose: |
+      Canonical rationale and construction guide for declarative multi-agent
+      applications, including operating flows, human governance, role
+      realizations, package closure, capability-aware goals, and exclusions.
   - doc: docs/SPECIFICATIONS.yaml
     purpose: Shared SRD, use-case, and test-suite index.
   - doc: ../../docs/engineering/eng01-kind-test-demo-rig.yaml
