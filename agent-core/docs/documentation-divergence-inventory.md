@@ -41,7 +41,7 @@ Documentation drift:
 - The README package table is useful but does not orient readers around the
   external active agents (`$AGENT_CATALOG_ROOT/agents/executor`,
   `$AGENT_CATALOG_ROOT/agents/critic`, `$AGENT_CATALOG_ROOT/agents/planner`,
-  `$AGENT_CATALOG_ROOT/agents/bench`, `$AGENT_CATALOG_ROOT/agents/jurist`) or
+  `$AGENT_CATALOG_ROOT/agents/bench`, `$AGENT_CATALOG_ROOT/agents/specification-critic`) or
   profile-first startup.
 
 Recommended edits:

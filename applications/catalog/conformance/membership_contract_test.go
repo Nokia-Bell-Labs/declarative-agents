@@ -4,11 +4,14 @@ package conformance
 
 import (
 	"os"
+	"path/filepath"
 	"strings"
 	"testing"
+
+	"gopkg.in/yaml.v3"
 )
 
-func TestAssemblerAndMockAreSupportedTestTimeMembers(t *testing.T) {
+func TestScenarioCriticAndMockAreSupportedTestTimeMembers(t *testing.T) {
 	t.Parallel()
 	type entry struct {
 		ID      string `yaml:"id"`
@@ -21,8 +24,8 @@ func TestAssemblerAndMockAreSupportedTestTimeMembers(t *testing.T) {
 	readRoleYAML(t, "docs/SPECIFICATIONS.yaml", &index)
 
 	wanted := map[string]string{
-		"srd018-assembler": "agents/assembler/profile.yaml",
-		"srd019-mock":      "agents/mock/profile.yaml",
+		"srd018-scenario-critic": "agents/scenario-critic/profile.yaml",
+		"srd019-mock":            "agents/mock/profile.yaml",
 	}
 	for _, srd := range index.SRDs {
 		profile, ok := wanted[srd.ID]
@@ -53,13 +56,334 @@ func TestMembershipNarrativeSeparatesMembersFromFixtures(t *testing.T) {
 			t.Fatalf("read %s: %v", rel, err)
 		}
 		text := strings.Join(strings.Fields(strings.ToLower(string(data))), " ")
-		if !strings.Contains(text, "assembler and mock") ||
+		if !strings.Contains(text, "scenario-critic and mock") ||
 			!strings.Contains(text, "supported test-time library member") {
-			t.Errorf("%s does not classify assembler and mock as supported test-time members", rel)
+			t.Errorf("%s does not classify scenario-critic and mock as supported test-time members", rel)
 		}
 		if !strings.Contains(text, "rig-subject") ||
 			!strings.Contains(text, "internal") {
 			t.Errorf("%s does not preserve the internal rig-subject fixture boundary", rel)
+		}
+	}
+}
+
+func TestCatalogMembershipUsesSharedRealizationAndAliasAuthority(t *testing.T) {
+	t.Parallel()
+	type binding struct {
+		Actor          string   `yaml:"actor"`
+		Profile        string   `yaml:"profile"`
+		Classification string   `yaml:"classification"`
+		PrimaryRole    string   `yaml:"primary_role"`
+		SubRoles       []string `yaml:"sub_roles"`
+		Inherits       string   `yaml:"inherits"`
+		NamingStatus   string   `yaml:"naming_status"`
+	}
+	var authority struct {
+		Bindings map[string][]binding `yaml:"bindings"`
+		Aliases  []struct {
+			Alias            string `yaml:"alias"`
+			Path             string `yaml:"path"`
+			Status           string `yaml:"status"`
+			CollisionWith    string `yaml:"collision_with"`
+			TargetName       string `yaml:"target_name"`
+			CanonicalPath    string `yaml:"canonical_path"`
+			SupportedThrough string `yaml:"supported_through"`
+			Removal          string `yaml:"removal"`
+		} `yaml:"migration_aliases"`
+	}
+	modelPath := filepath.Join(ProfilesRoot(), "..", "docs", "specs", "semantic-models", "agent-role-realizations.yaml")
+	data, err := os.ReadFile(modelPath)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if err := yaml.Unmarshal(data, &authority); err != nil {
+		t.Fatalf("parse %s: %v", modelPath, err)
+	}
+	byActor := map[string]binding{}
+	for _, item := range authority.Bindings["catalog"] {
+		byActor[item.Actor] = item
+	}
+	if got := byActor["scenario-critic"]; got.Classification != "test_harness" ||
+		got.PrimaryRole != "critic" ||
+		strings.Join(got.SubRoles, ",") != "sandbox-validator,output-evaluator" ||
+		got.NamingStatus != "" {
+		t.Errorf("scenario-critic shared binding = %#v, want test-harness Critic / Sandbox Validator / Output Evaluator", got)
+	}
+	if got := byActor["assembler"]; got.Classification != "wrapper" ||
+		got.Inherits != "scenario-critic" || got.NamingStatus != "migration_required_collision" {
+		t.Errorf("assembler compatibility binding = %#v, want wrapper inheriting scenario-critic", got)
+	}
+	if got := byActor["mock"]; got.Classification != "mock" || got.PrimaryRole != "" {
+		t.Errorf("mock shared binding = %#v, want unbound mock classification", got)
+	}
+	if got := byActor["runtime-state-reader"]; got.Classification != "infrastructure_adapter" ||
+		got.Profile != "applications/catalog/agents/runtime-state-reader/profile.yaml" ||
+		got.NamingStatus != "" {
+		t.Errorf("runtime-state-reader shared binding = %#v, want named infrastructure adapter", got)
+	}
+	if got := byActor["specification-critic"]; got.Classification != "role_realization" ||
+		got.Profile != "applications/catalog/agents/specification-critic/profile.yaml" ||
+		got.PrimaryRole != "critic" ||
+		strings.Join(got.SubRoles, ",") != "output-evaluator" ||
+		got.NamingStatus != "" {
+		t.Errorf("specification-critic shared binding = %#v, want Critic / Output Evaluator without migration status", got)
+	}
+	for alias, target := range map[string]string{
+		"monitor": "runtime-state-reader",
+		"jurist":  "specification-critic",
+	} {
+		got := byActor[alias]
+		wantStatus := ""
+		if alias == "monitor" {
+			wantStatus = "migration_required_collision"
+		}
+		if got.Classification != "wrapper" || got.Inherits != target ||
+			got.NamingStatus != wantStatus {
+			t.Errorf("%s compatibility binding = %#v, want wrapper inheriting %s", alias, got, target)
+		}
+	}
+	aliases := map[string]string{}
+	for _, alias := range authority.Aliases {
+		if !strings.HasPrefix(alias.Status, "migration_") {
+			t.Errorf("alias %s has non-migration status %q", alias.Alias, alias.Status)
+		}
+		if alias.CollisionWith != "" && alias.CollisionWith == alias.TargetName {
+			t.Errorf("alias %s normalizes its collision as target %q", alias.Alias, alias.TargetName)
+		}
+		aliases[alias.Path] = alias.TargetName
+	}
+	for path, target := range map[string]string{
+		"applications/catalog/agents/assembler/profile.yaml":    "scenario-critic",
+		"applications/catalog/agents/" + "monitor/profile.yaml": "runtime-state-reader",
+		"applications/catalog/agents/jurist/profile.yaml":       "specification-critic",
+	} {
+		if aliases[path] != target {
+			t.Errorf("migration alias %s = %q, want %q", path, aliases[path], target)
+		}
+	}
+	compatibilityTargets := map[string]string{
+		"assembler": "applications/catalog/agents/scenario-critic/profile.yaml",
+		"monitor":   "applications/catalog/agents/runtime-state-reader/profile.yaml",
+		"jurist":    "applications/catalog/agents/specification-critic/profile.yaml",
+	}
+	for _, alias := range authority.Aliases {
+		canonicalPath, ok := compatibilityTargets[alias.Alias]
+		if !ok {
+			continue
+		}
+		if alias.Status != "migration_compatibility" ||
+			alias.CanonicalPath != canonicalPath ||
+			alias.SupportedThrough != "applications/catalog/v0.*" ||
+			alias.Removal != "applications/catalog/v1" {
+			t.Errorf("%s compatibility duration/target = %#v", alias.Alias, alias)
+		}
+	}
+
+	type wrapperProfile struct {
+		Name             string   `yaml:"name"`
+		Machine          string   `yaml:"machine"`
+		Tools            []string `yaml:"tools"`
+		ToolConfigDirs   []string `yaml:"tool_config_dirs"`
+		ToolDeclarations []string `yaml:"tool_declarations"`
+		RESTDefinitions  []string `yaml:"rest_definitions"`
+	}
+	wrappers := map[string]wrapperProfile{
+		"assembler": {
+			Name: "assembler", Machine: "../scenario-critic/machine.yaml",
+			Tools:            []string{"../scenario-critic/tools.yaml"},
+			ToolDeclarations: []string{"../scenario-critic/declarations.yaml"},
+			RESTDefinitions:  []string{"../scenario-critic/rest.yaml"},
+		},
+		"monitor": {
+			Name: "monitor", Machine: "../runtime-state-reader/machine.yaml",
+			Tools:            []string{"../runtime-state-reader/tools.yaml"},
+			ToolDeclarations: []string{"../runtime-state-reader/declarations.yaml"},
+			RESTDefinitions:  []string{"../runtime-state-reader/rest.yaml"},
+		},
+		"jurist": {
+			Name: "jurist", Machine: "../specification-critic/machine.yaml",
+			Tools:          []string{"../specification-critic/tools.yaml"},
+			ToolConfigDirs: []string{"/opt/agent-core/tools/builtin/spec-validation"},
+			ToolDeclarations: []string{
+				"/opt/agent-core/tools/builtin/load-corpus.yaml",
+				"../specification-critic/ripgrep.yaml",
+			},
+		},
+	}
+	for alias, want := range wrappers {
+		var got wrapperProfile
+		readRoleYAML(t, "agents/"+alias+"/profile.yaml", &got)
+		if got.Name != want.Name || got.Machine != want.Machine ||
+			strings.Join(got.Tools, ",") != strings.Join(want.Tools, ",") ||
+			strings.Join(got.ToolConfigDirs, ",") != strings.Join(want.ToolConfigDirs, ",") ||
+			strings.Join(got.ToolDeclarations, ",") != strings.Join(want.ToolDeclarations, ",") ||
+			strings.Join(got.RESTDefinitions, ",") != strings.Join(want.RESTDefinitions, ",") {
+			t.Errorf("%s compatibility profile forks or misses canonical closure: got %#v, want %#v", alias, got, want)
+		}
+		entries, err := os.ReadDir(ProfilePath("agents/" + alias))
+		if err != nil {
+			t.Fatal(err)
+		}
+		if len(entries) != 1 || entries[0].Name() != "profile.yaml" {
+			t.Errorf("%s compatibility directory must contain only profile.yaml, got %v", alias, entries)
+		}
+	}
+}
+
+func TestNoActiveAssemblerPathConsumers(t *testing.T) {
+	t.Parallel()
+	const retiredPath = "agents/" + "assembler"
+	roots := []string{ProfilesRoot(), ProfilePath("../chatbot-mesh")}
+	allowed := map[string]int{
+		filepath.Clean(ProfilePath("conformance/membership_contract_test.go")):                             1,
+		filepath.Clean(ProfilePath("conformance/release_alignment_test.go")):                               1,
+		filepath.Clean(ProfilePath("docs/migrations/v0.20260727.0-agent-role-realization-alignment.yaml")): 1,
+		filepath.Clean(ProfilePath("README.md")):                                                           1,
+		filepath.Clean(ProfilePath("docs/SPECIFICATIONS.yaml")):                                            1,
+		filepath.Clean(ProfilePath("docs/road-map.yaml")):                                                  1,
+	}
+	seen := map[string]int{}
+	for _, root := range roots {
+		err := filepath.WalkDir(root, func(path string, entry os.DirEntry, err error) error {
+			if err != nil {
+				return err
+			}
+			if entry.IsDir() {
+				return nil
+			}
+			switch filepath.Ext(path) {
+			case ".go", ".md", ".yaml", ".yml":
+			default:
+				return nil
+			}
+			data, err := os.ReadFile(path)
+			if err != nil {
+				return err
+			}
+			if count := strings.Count(string(data), retiredPath); count != 0 {
+				seen[filepath.Clean(path)] = count
+			}
+			return nil
+		})
+		if err != nil {
+			t.Fatal(err)
+		}
+	}
+	for path, count := range seen {
+		if allowed[path] != count {
+			t.Errorf("stale active consumer path %s appears %d times in %s", retiredPath, count, path)
+		}
+	}
+	for path, count := range allowed {
+		if seen[path] != count {
+			t.Errorf("historical compatibility allowlist drift for %s: got %d occurrences, want %d", path, seen[path], count)
+		}
+	}
+}
+
+func TestNoActiveMonitorProfilePathConsumers(t *testing.T) {
+	t.Parallel()
+	retiredPath := "agents/" + "monitor"
+	roots := []string{
+		ProfilesRoot(),
+		filepath.Clean(filepath.Join(ProfilesRoot(), "..", "..", "agent-core")),
+	}
+	allowed := map[string]int{
+		filepath.Clean(ProfilePath("conformance/release_alignment_test.go")):                               1,
+		filepath.Clean(ProfilePath("docs/migrations/v0.20260727.0-agent-role-realization-alignment.yaml")): 1,
+		filepath.Clean(ProfilePath("README.md")):                                                           1,
+	}
+	seen := map[string]int{}
+	for _, root := range roots {
+		err := filepath.WalkDir(root, func(path string, entry os.DirEntry, err error) error {
+			if err != nil {
+				return err
+			}
+			if entry.IsDir() {
+				return nil
+			}
+			switch filepath.Ext(path) {
+			case ".go", ".md", ".yaml", ".yml":
+			default:
+				return nil
+			}
+			data, err := os.ReadFile(path)
+			if err != nil {
+				return err
+			}
+			if count := strings.Count(string(data), retiredPath); count != 0 {
+				seen[filepath.Clean(path)] = count
+			}
+			return nil
+		})
+		if err != nil {
+			t.Fatal(err)
+		}
+	}
+	for path, count := range seen {
+		if allowed[path] != count {
+			t.Errorf("stale active external profile path %s appears %d times in %s", retiredPath, count, path)
+		}
+	}
+	for path, count := range allowed {
+		if seen[path] != count {
+			t.Errorf("historical compatibility allowlist drift for %s: got %d occurrences, want %d", path, seen[path], count)
+		}
+	}
+}
+
+func TestNoActiveJuristProfilePathConsumers(t *testing.T) {
+	t.Parallel()
+	retiredPath := "agents/" + "jurist"
+	roots := []string{
+		ProfilesRoot(),
+		filepath.Clean(filepath.Join(ProfilesRoot(), "..", "docs")),
+		filepath.Clean(filepath.Join(ProfilesRoot(), "..", "chatbot-mesh")),
+		filepath.Clean(filepath.Join(ProfilesRoot(), "..", "..", "agent-core")),
+		filepath.Clean(filepath.Join(ProfilesRoot(), "..", "..", "design-patterns")),
+	}
+	allowed := map[string]int{
+		filepath.Clean(ProfilePath("conformance/membership_contract_test.go")):                                                  1,
+		filepath.Clean(ProfilePath("conformance/release_alignment_test.go")):                                                    1,
+		filepath.Clean(ProfilePath("docs/migrations/v0.20260727.0-agent-role-realization-alignment.yaml")):                      1,
+		filepath.Clean(ProfilePath("README.md")):                                                                                1,
+		filepath.Clean(filepath.Join(ProfilesRoot(), "..", "docs", "specs", "semantic-models", "agent-role-realizations.yaml")): 2,
+	}
+	seen := map[string]int{}
+	for _, root := range roots {
+		err := filepath.WalkDir(root, func(path string, entry os.DirEntry, err error) error {
+			if err != nil {
+				return err
+			}
+			if entry.IsDir() {
+				return nil
+			}
+			switch filepath.Ext(path) {
+			case ".go", ".md", ".yaml", ".yml":
+			default:
+				return nil
+			}
+			data, err := os.ReadFile(path)
+			if err != nil {
+				return err
+			}
+			if count := strings.Count(string(data), retiredPath); count != 0 {
+				seen[filepath.Clean(path)] = count
+			}
+			return nil
+		})
+		if err != nil {
+			t.Fatal(err)
+		}
+	}
+	for path, count := range seen {
+		if allowed[path] != count {
+			t.Errorf("stale active consumer path %s appears %d times in %s", retiredPath, count, path)
+		}
+	}
+	for path, count := range allowed {
+		if seen[path] != count {
+			t.Errorf("historical compatibility allowlist drift for %s: got %d occurrences, want %d", path, seen[path], count)
 		}
 	}
 }

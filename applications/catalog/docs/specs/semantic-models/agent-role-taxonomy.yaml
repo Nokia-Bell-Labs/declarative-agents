@@ -1,21 +1,25 @@
 id: sm-agent-role-taxonomy
 title: Agent Role Taxonomy
 purpose: |
-  Classify migrated agent profiles by role, actor boundary, inputs, outputs,
-  selected tool families, runtime dependencies, and checkable outcomes.
+  Describe catalog profile realizations and non-role classifications by actor
+  boundary, inputs, outputs, selected tool families, runtime dependencies, and
+  checkable outcomes. Canonical role identity and actor-role bindings are owned
+  by the shared realization model.
 
 overview: |
-  Role entries give migration issues a compact checklist for each profile
-  family. The fields identify what enters the profile, what leaves it, and what
-  agent-core capability the profile expects at runtime. They also name a small
-  set of checks that can later become validation commands, integration targets,
-  or documentation review steps.
+  Entries give migration issues a compact checklist for each profile family.
+  They describe configured realizations, wrappers, human boundaries, test
+  harnesses, mocks, and fixtures; they do not define canonical roles. The
+  historical `roles` key remains for compatibility with existing conformance
+  readers, but each entry is interpreted as a profile realization or
+  classification under sm-agent-role-realizations.
 
-  The taxonomy is intentionally profile-oriented. It names executor as a
-  coding agent, critic as a session and point runner, bench as a human UI
-  launcher, Knowledge Manager as curator and corpus roles, and assembler/mock
-  as supported test-time roles. Those labels describe configured behavior.
-  They are not package names, binary names, or new runtime modules.
+  Executor, critic, planner, specification-critic, and Knowledge Manager profiles realize
+  canonical responsibilities. Bench is a human interface; scenario-critic is a test
+  harness with Critic bindings; mock is a test double; runtime-state-reader is
+  an infrastructure adapter adjacent to, but not implementing, canonical
+  Monitor. Those classifications describe configured behavior, not package
+  names, binary names, or additions to the reference role catalog.
 
   Tool fields follow the catalog taxonomy. A role's tools.yaml is a name-only
   selection list. ToolDef files under the role's agents/<family>/ closure are
@@ -23,6 +27,22 @@ overview: |
   declarations remain under agent-core/tools, and their Go implementations
   remain under agent-core/internal/tools. Application-only declarations,
   topology, wrappers, deployment, and UX are excluded from catalog membership.
+
+shared_authority:
+  id: sm-agent-role-realizations
+  path: ../../../../docs/specs/semantic-models/agent-role-realizations.yaml
+  owns:
+    - pinned canonical role and sub-role IDs
+    - actor-to-role and actor-to-sub-role bindings
+    - naming grammar
+    - realization classifications
+    - wrapper and variant inheritance
+    - migration aliases
+  reciprocal_index: ../../SPECIFICATIONS.yaml#semantic_model_index
+  compatibility_note: |
+    The `roles` sequence below is retained until executable governance migrates
+    existing readers. Its IDs identify catalog profile entries, not a second
+    canonical role authority.
 
 roles:
   - id: executor
@@ -119,9 +139,16 @@ roles:
       - Confirm graph terminal states are explicit.
       - Trace planner to executor with rel07.0-uc003-planner-generator-profile-boundary.
 
-  - id: jurist
+  - id: specification-critic
     title: Specification validator
-    profile_path: agents/jurist/profile.yaml
+    profile_path: agents/specification-critic/profile.yaml
+    canonical_binding:
+      role: critic
+      sub_roles: [output-evaluator]
+    excluded_binding:
+      role: guardian
+      sub_role: policy-enforcer
+      reason: The profile evaluates and reports specification findings but has no policy enforcement authority.
     actor_boundary: local target directory and charter suites
     inputs:
       - target directory
@@ -170,10 +197,12 @@ roles:
       - Confirm self_invoke delegates session execution to critic.
       - Trace bench to critic with rel07.0-uc004-bench-evaluator-profile-boundary.
 
-  - id: monitor
-    title: Embedded monitor REST reader
-    profile_path: agents/monitor/profile.yaml
+  - id: runtime-state-reader
+    title: Runtime state reader
+    profile_path: agents/runtime-state-reader/profile.yaml
     actor_boundary: supervisor and runtime monitor store
+    classification: infrastructure_adapter
+    adjacent_role: monitor
     inputs:
       - cached monitor state
       - control exit request
@@ -192,7 +221,8 @@ roles:
     checks:
       - Confirm REST reads use cached monitor state.
       - Confirm exit is routed through configured control.
-      - Trace monitor/control status with rel07.0-uc005-monitor-control-profile-boundary.
+      - Confirm the adapter does not claim telemetry collection, anomaly detection, or assurance reporting.
+      - Trace runtime-state-reader/control status with rel07.0-uc005-monitor-control-profile-boundary.
 
   - id: documentation-curator
     title: Knowledge Manager documentation curator
@@ -274,9 +304,9 @@ roles:
       - Confirm retrieved identities and chunks reach the answer model.
       - Trace reader behavior with rel08.0-uc002-corpus-query.
 
-  - id: assembler
+  - id: scenario-critic
     title: Test rig and scenario composer
-    profile_path: agents/assembler/profile.yaml
+    profile_path: agents/scenario-critic/profile.yaml
     actor_boundary: child agent processes plus profile-owned scenario data
     inputs:
       - discovery roots
@@ -323,9 +353,9 @@ roles:
       - Confirm a malformed fixture blocks serving instead of failing mid-scenario.
 
 relocated_application_roles:
-  - id: coordinator
+  - id: provisioning-workflow-orchestrator
     status: relocated
-    canonical_profile_path: applications/chatbot-mesh/agents/coordinator/profile.yaml
+    canonical_profile_path: applications/chatbot-mesh/agents/provisioning-workflow-orchestrator/profile.yaml
   - id: creator
     status: relocated
     canonical_profile_path: applications/chatbot-mesh/agents/creator/profile.yaml
@@ -424,14 +454,16 @@ conformance_fixtures:
       - Confirm approval uses resume signals instead of hidden CLI branches.
 
 taxonomy_rules:
-  - Each role is a configured program, not a Go package.
+  - Each entry under the compatibility `roles` key is a configured realization or classification, not a canonical role definition or Go package.
+  - Canonical role and sub-role identity, repeated bindings, and aliases resolve through sm-agent-role-realizations.
   - tools.yaml files select vocabulary by name; they do not declare tools.
   - Reusable repository-specific ToolDef files are catalog tool blocks under one canonical agents/<family>/ closure.
   - Profile-local overrides configure one profile or variant without replacing core declarations for other consumers.
   - Generic implementations remain under agent-core/internal/tools and core shared declarations remain under agent-core/tools.
   - Application-local topology, wrappers, deployment, packaging, UX, and single-application declarations are not catalog roles or tool blocks.
   - Conformance grammar fixtures (rest, control, lifecycle) are not roles; they live under testdata/conformance/ and prove runtime vocabulary, keeping agents/ a role catalog (GH-328).
-  - The assembler and mock are test-time roles: the assembler composes and verdicts scenarios, and the mock stands in for a dependency. The environment the assembler composes is a sandbox in the reference architecture's sense, and the per-scenario validators are its Sandbox Validators (Critic); the activity is safe-testing and the verdict reduction is output-evaluation. The reference has no term for a scripted test double, so the stand-in family takes the name of the runtime binding it configures, mock, rather than borrowing digital twin, which the reference reserves for a replica derived from a real referent (GH-704, superseding GH-665).
+  - The scenario-critic is a test harness with Critic / Sandbox Validator and Output Evaluator bindings; it is not a canonical Assembler realization. Mock is a non-role test double. The environment the harness composes is a sandbox in the reference architecture's sense, and the per-scenario validators are Critic realizations. The reference has no term for a scripted test double, so mock retains the runtime binding name rather than borrowing digital twin, which the reference reserves for a replica derived from a real referent (GH-704, superseding GH-665).
+  - The Jurist charter format and jurist_rg tool word are stable capability vocabulary, not profile identities; their names remain unchanged by the specification-critic migration.
   - Actor boundaries name who or what crosses the profile boundary.
   - Runtime dependencies name agent-core capabilities without copying them into
     applications/catalog.

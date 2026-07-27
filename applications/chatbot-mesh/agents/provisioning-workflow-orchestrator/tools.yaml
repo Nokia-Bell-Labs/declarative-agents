@@ -1,0 +1,8 @@
+tools:
+  - launch_provisioning_workflow_orchestrator_requests
+  - launch_provisioning_workflow_orchestrator_control
+  - launch_monitor_rest
+  - await_provisioning_workflow_orchestrator_control
+  - stop_monitor_rest
+  - stop_provisioning_workflow_orchestrator_requests
+  - exit_agent

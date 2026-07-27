@@ -3,14 +3,14 @@ title: Test Suite for Release 05.0 Control Plane
 release: "05.0"
 
 overview: |
-  This suite covers the mesh control plane (srd004 coordinator, srd005 creator):
-  a provisioning intent flows from the UX agent through the coordinator to the
+  This suite covers the mesh control plane (srd004 provisioning-workflow-orchestrator, srd005 creator):
+  a provisioning intent flows from the UX agent through the provisioning-workflow-orchestrator to the
   creator's instance operations and back as aggregated status, with the
   deployment-API authority held by the creator alone.
 
   The integration:controlPlane tracer is a fake-backed transport-and-authority
-  proof. It runs the real coordinator and creator agents against a fake deployment
-  API and proves the intent flow (chatbot -> coordinator -> creator -> deployment
+  proof. It runs the real provisioning-workflow-orchestrator and creator agents against a fake deployment
+  API and proves the intent flow (chatbot -> provisioning-workflow-orchestrator -> creator -> deployment
   API), the request/response sequencing, and the authority boundary (no endpoint or
   credential crosses, only the creator calls the deployment API). It does not prove
   the behavioral lifecycle: a real corpus-ingest with count verification, a real
@@ -25,22 +25,22 @@ traces:
 
 preconditions:
   - agent-core is available for the request runtime and REST client transport.
-  - The chatbot, coordinator, and creator profiles are deployed with declared clients between them; the creator alone holds the deployment-API credentials.
+  - The chatbot, provisioning-workflow-orchestrator, and creator profiles are deployed with declared clients between them; the creator alone holds the deployment-API credentials.
   - A deployment API and the chart's values-to-config co-generation are reachable.
 
 test_cases:
   - use_case: rel05.0-uc001-control-plane-provisioning
-    name: Provisioning intent tracer across chatbot, coordinator, and creator
+    name: Provisioning intent tracer across chatbot, provisioning-workflow-orchestrator, and creator
     integration_target: mage integration:controlPlane
     status: implemented
     description: |
-      Drives a provisioning intent through the real coordinator and creator agents
+      Drives a provisioning intent through the real provisioning-workflow-orchestrator and creator agents
       against a fake deployment API: the chatbot delegates an add-a-source intent to
-      the coordinator through its declared client; the coordinator sequences an
+      the provisioning-workflow-orchestrator through its declared client; the provisioning-workflow-orchestrator sequences an
       ingest request then a rollout request to the creator, forwarding the desired
       values; the creator drives the deployment API's apply and reads the rollout;
-      the coordinator aggregates status. Asserts the authority boundary: the chatbot
-      and coordinator submit no endpoint or credential, and only the creator calls
+      the provisioning-workflow-orchestrator aggregates status. Asserts the authority boundary: the chatbot
+      and provisioning-workflow-orchestrator submit no endpoint or credential, and only the creator calls
       the deployment API. The deployment API is a fake, so this proves transport
       sequencing and authority, not the behavioral lifecycle -- a real corpus-ingest
       with count verification, a real request-draining rollout, or a grounded turn
@@ -48,11 +48,11 @@ test_cases:
     inputs:
       intent: add a directory as a knowledge source
       directories: [one seeded directory]
-      agents: [chatbot, coordinator, creator]
+      agents: [chatbot, provisioning-workflow-orchestrator, creator]
     expected:
       chatbot_delegates_intent_no_credential: true
-      coordinator_sequences_ingest_then_rollout: true
-      coordinator_forwards_values_and_requests_rollout: true
+      provisioning_workflow_orchestrator_sequences_ingest_then_rollout: true
+      provisioning_workflow_orchestrator_forwards_values_and_requests_rollout: true
       creator_drives_apply_and_reads_rollout_via_deployment_api: true
       only_creator_calls_deployment_api: true
       # Not proven by this fake-backed tracer (see overview): real corpus-ingest
@@ -64,11 +64,11 @@ test_cases:
       - rel05.0-uc001-control-plane-provisioning S3
       - rel05.0-uc001-control-plane-provisioning S4
       - rel05.0-uc001-control-plane-provisioning S5
-      - srd004-coordinator AC1
-      - srd004-coordinator AC2
-      - srd004-coordinator AC3
-      - srd004-coordinator AC4
-      - srd004-coordinator AC5
+      - srd004-provisioning-workflow-orchestrator AC1
+      - srd004-provisioning-workflow-orchestrator AC2
+      - srd004-provisioning-workflow-orchestrator AC3
+      - srd004-provisioning-workflow-orchestrator AC4
+      - srd004-provisioning-workflow-orchestrator AC5
       - srd005-creator AC1
       - srd005-creator AC2
       - srd005-creator AC3

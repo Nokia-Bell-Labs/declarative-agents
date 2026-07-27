@@ -12,3 +12,5 @@ maintainers:
   - name: Nokia Bell Labs
 sources:
   - https://github.com/Nokia-Bell-Labs/declarative-agents
+annotations:
+  declarative-agents.nokia.com/catalog-compatible-release: applications/catalog/v0.20260727.0

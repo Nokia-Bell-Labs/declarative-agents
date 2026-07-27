@@ -1,8 +1,14 @@
+# Compatibility alias for the pre-#1075 profile path.
+#
+# New consumers must use agents/runtime-state-reader/profile.yaml. This wrapper
+# is supported through applications/catalog/v0.* and removed at v1. It selects
+# the canonical implementation directly; no machine, declarations, or REST
+# assets are forked.
 name: monitor
-machine: machine.yaml
+machine: ../runtime-state-reader/machine.yaml
 tools:
-  - tools.yaml
+  - ../runtime-state-reader/tools.yaml
 tool_declarations:
-  - declarations.yaml
+  - ../runtime-state-reader/declarations.yaml
 rest_definitions:
-  - rest.yaml
+  - ../runtime-state-reader/rest.yaml

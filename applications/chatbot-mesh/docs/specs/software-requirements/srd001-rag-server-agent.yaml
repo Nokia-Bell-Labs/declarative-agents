@@ -1,8 +1,18 @@
 id: srd001-rag-server-agent
 title: RAG Server Agent Functional Block
 
+role_realization_decision:
+  current_actor: rag-server
+  implemented_responsibility: Serve one configured corpus through a persistent vector-in retrieval boundary and return ranked chunks with embedding metadata.
+  canonical_role_sub_role: Knowledge Manager / Recommendation Generator.
+  retained_or_proposed_name: Retain `rag-server` as a descriptive serving actor.
+  authority_boundary: Reads one declared Chroma collection; it does not ingest, answer, manage another agent, or choose transport authority.
+  evidence: [agents/rag-server/profile.yaml, agents/rag-server/request-machine.yaml, srd001 R1-R4]
+  migration_impact: None; each values-named Helm RAG unit is a deployment instance that inherits this binding.
+
 context: |
-  The RAG server agent re-hosts the Chroma reader as a persistent
+  The `rag-server` actor assumes Knowledge Manager / Recommendation Generator
+  and re-hosts the Chroma reader as a persistent
   retrieval service. The reader's deterministic chain -- chroma_ready,
   ollama_ready, embed_query, create-or-get collection, chroma_query, answer -- is
   a one-shot machine run today. The RAG server keeps the same retrieval chain but
@@ -120,7 +130,10 @@ implementation_status:
       machine_request query endpoint over the Chroma reader chain, monitor and
       control servers, query_embeddings in, chunks with embedding-model metadata
       out, and wrong-dimension vectors mapped to a 400. Verified end to end
-      against a live Chroma.
+      against a live Chroma and hermetically against a mock Chroma by the
+      application-local rag-query-critic Critic / Output Evaluator realization.
+      The query scenario remains configuration under agents/rag-server/tests/query,
+      not part of the actor's role identity.
   planned:
     - >-
       The optional text-in fallback (R5). Request-supplied n_results is now

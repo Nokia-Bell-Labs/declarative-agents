@@ -190,7 +190,7 @@ releases:
       ownership boundary and dependency-direction invariants.
 
       The release also adds per-family boundary use cases and a test suite for
-      the jurist, lifecycle, and rest families, which were previously validated
+      the specification-critic, lifecycle, and rest families, which were previously validated
       only by the generic rel06.0 mounted-profile and profile-validation use
       cases. Each new use case names the actor boundary, inputs, outputs, and
       terminal outcomes for its family and traces to the family SRD.
@@ -200,7 +200,7 @@ releases:
         summary: Split srd001-agent-functional-blocks into per-family SRDs (srd002-executor through srd011-knowledge-manager) and retarget existing traces.
         status: done
       - id: gh-194
-        summary: Add per-family boundary use cases and a test suite for the jurist, lifecycle, and rest profiles.
+        summary: Add per-family boundary use cases and a test suite for the specification-critic, lifecycle, and rest profiles.
         status: done
       - id: gh-195
         summary: Add an executable per-family OpenTelemetry conformance suite (mage conformance) covering all ten profile families against srd002-srd011.
@@ -214,7 +214,7 @@ releases:
       - docs/specs/software-requirements/srd001-agent-functional-blocks.yaml
         keeps the profile ownership boundary and cross-profile
         dependency-direction invariants.
-      - docs/specs/use-cases/rel07.1-uc001-jurist-profile-boundary.yaml,
+      - docs/specs/use-cases/rel07.1-uc001-specification-critic-profile-boundary.yaml,
         rel07.1-uc002-lifecycle-profile-boundary.yaml, and
         rel07.1-uc003-rest-profile-boundary.yaml add per-family boundary use
         cases for the previously uncovered families.
@@ -229,8 +229,9 @@ releases:
         ungated load-and-wiring companion. Coverage is annotated per family and
         per variant (shipped-behavioral vs load-and-wiring).
     use_cases:
-      - id: rel07.1-uc001-jurist-profile-boundary
-        summary: Jurist deterministic, LLM-free charter validation boundary.
+      - id: rel07.1-uc001-specification-critic-profile-boundary
+        historical_aliases: [rel07.1-uc001-jurist-profile-boundary]
+        summary: Specification-critic deterministic, LLM-free charter validation boundary.
         status: specified
       - id: rel07.1-uc002-lifecycle-profile-boundary
         summary: Lifecycle history, rollback, and approval machine-action boundary.
@@ -240,7 +241,7 @@ releases:
         status: specified
     test_suites:
       - id: test-rel07.1-profile-boundaries
-        summary: Boundary use-case validation for the jurist, lifecycle, and rest families.
+        summary: Boundary use-case validation for the specification-critic, lifecycle, and rest families.
         status: specified
       - id: test-rel07.1-profile-conformance
         summary: Executable per-family OpenTelemetry conformance for all ten families. Nine are implemented shipped-behavioral (runs the shipped profile.yaml/variant, copy-and-patch only harness-controlled fields); the rest sample server boundary is bounded-behavioral (shipped REST config and declarations over a synthesized launch/await/stop machine). Generator (with qwen27b/qwen35b variants), the planner behavioral run, and the rest ollama-profile variant are Ollama-gated; lifecycle suspend/resume and history/rollback are Dolt-gated; rest proves its inbound webhook server boundary over the shipped REST config (client head proven at the agent-core package level). Generator, planner, and rest carry ungated load-and-wiring companions.
@@ -249,12 +250,12 @@ releases:
       - mage validate
       - AGENT_CORE_ROOT=/path/to/agent-core mage conformance
     deferred:
-      - Profile-owned Mage integration targets that execute the jurist,
+      - Profile-owned Mage integration targets that execute the specification-critic,
         lifecycle, and rest boundary fixtures, mirroring
         magefiles/integration_*.go for the covered families, and that trace to
         rel07.1-uc001/uc002/uc003 S1-S3. These are distinct from the delivered
         mage conformance suite, which asserts SRD acceptance criteria per family
-        (srd005-jurist, srd009-lifecycle, srd007-rest) plus the role taxonomy, so
+        (srd005-specification-critic, srd009-lifecycle, srd007-rest) plus the role taxonomy, so
         the conformance cases are executable evidence at the SRD layer but do not
         by themselves satisfy the boundary use cases. The gap is concrete
         for rest, whose client read/create/await head is not run in a profile
@@ -463,9 +464,10 @@ releases:
   - version: "09.4"
     name: Control plane
     relocated_to: >-
-      Relocated to applications/chatbot-mesh (rel05.0) as srd004-coordinator and
-      srd005-creator, with the rel05.0 control-plane use case and test suite; this
-      entry remains for history and the example is the canonical copy (GH-430).
+      Relocated to applications/chatbot-mesh (rel05.0) as
+      srd004-provisioning-workflow-orchestrator and srd005-creator, with the
+      rel05.0 control-plane use case and test suite; this entry remains for
+      history and the example is the canonical copy (GH-430, GH-1077).
     description: |
       Release 09.4 adds the mesh control plane: a Coordinator agent (srd016) that
       sequences directory ingestion and reconfiguration and to which the UX agent
@@ -555,10 +557,10 @@ releases:
         status: implemented
 
   - version: "11.0"
-    name: Assembler test rig
+    name: Scenario Critic test rig
     description: |
-      Release 11.0 adds the repository's reusable test rig as two new role
-      families. The assembler (srd018) is the rig itself: a deterministic
+      Release 11.0 adds the repository's reusable test rig as two supported
+      test-time families. The scenario-critic (srd018) is the rig itself: a deterministic
       machine that discovers scenarios under configurable roots, and for each
       one starts the mocks its subject depends on, starts the
       subject with its REST dependencies redirected at those mocks, runs the
@@ -575,6 +577,13 @@ releases:
       and immutable historical legacy tags remain valid. Rig-subject and other
       conformance fixtures remain internal test data, not members.
 
+      GH-1072 renames the concrete rig from assembler to scenario-critic because
+      the actor binds Critic with Sandbox Validator and Output Evaluator; its
+      scenario composition is an actor function, not the canonical Assembler
+      responsibility. New consumers use agents/scenario-critic/profile.yaml.
+      The old agents/assembler/profile.yaml path is a non-forking wrapper through
+      applications/catalog/v0.* and is removed at applications/catalog/v1.
+
       Tests are profile-owned data. A scenario is a tests/<scenario>/
       directory beside the agent it tests, holding validator machines and
       fixtures, so one subject carries several tests and adding one never
@@ -585,7 +594,7 @@ releases:
 
       The runtime words the rig calls are agent-core release 09.0 (srd039
       mock endpoint binding, srd040 service-child tools). This release records
-      the profile-owned documentation; the mock lands in GH-668, the assembler
+      the profile-owned documentation; the mock lands in GH-668, the scenario critic
       in GH-669, and the reference subject with its scenarios and the mage
       target in GH-670. Epic #662.
 
@@ -599,13 +608,13 @@ releases:
     related_agent_core_release: "09.0"
     planned_work:
       - id: gh-665
-        summary: Specify the assembler and mock profile families (this release's documentation).
+        summary: Specify the scenario critic and mock profile families (this release's documentation).
         status: done
       - id: gh-668
         summary: Add the mock profile and fixture conformance.
         status: done
       - id: gh-669
-        summary: Add the assembler profile (the rig machine).
+        summary: Add the scenario critic profile (the rig machine).
         status: done
       - id: gh-670
         summary: Add the reference subject, self-proving scenarios, and the mage rig target.
@@ -613,12 +622,19 @@ releases:
       - id: gh-678
         summary: Add the scenario-session layer in agent-core (split from gh-669).
         status: done
+      - id: gh-1072
+        summary: Rename the concrete test rig to scenario-critic and retain a time-bounded compatibility wrapper.
+        status: done
+    historical_aliases:
+      srds: [srd018-assembler]
+      use_cases: [rel11.0-uc001-assembler-scenario-run]
+      test_suites: [test-rel11.0-assembler-rig]
     srds:
-      - srd018-assembler
+      - srd018-scenario-critic
       - srd019-mock
     use_cases:
-      - id: rel11.0-uc001-assembler-scenario-run
-        summary: The assembler runs an agent's scenarios with no live services,
+      - id: rel11.0-uc001-scenario-critic-scenario-run
+        summary: The scenario critic runs an agent's scenarios with no live services,
           reports ordered pass/fail verdicts, exposes machine-visible child-stop
           dispatches, and repeats without observed port or state leakage.
         status: in-progress
@@ -628,7 +644,7 @@ releases:
           contents are inspected by conformance tests.
         status: in-progress
     test_suites:
-      - id: test-rel11.0-assembler-rig
+      - id: test-rel11.0-scenario-critic-rig
         summary: Cases for fixture serving and sequencing, two mocks from one
           profile, direct request-log inspection, malformed-fixture
           --validate-config rejection, scenario verdicts, visible stop
@@ -639,7 +655,68 @@ releases:
       - mage validate
       - AGENT_CORE_ROOT=/path/to/agent-core mage rig
     success_markers:
-      - Adding a test means adding files under a tests/ directory, never editing the assembler.
+      - Adding a test means adding files under a tests/ directory, never editing the scenario critic.
       - One mock profile serves every dependency; response content lives in scenario fixtures.
       - Scenarios run with no live Chroma, Ollama, Docker, or Kubernetes.
       - The rig can fail: a wrong expectation reaches Failed and names the failing validator.
+
+  - version: "12.0"
+    name: Agent role-realization naming alignment
+    description: |
+      Release 12.0 completes the naming migration without rewriting the
+      incomplete Release 07.1 or 11.0 histories. Canonical roles remain shared
+      interfaces; catalog profiles and application actors use concrete
+      realization names, explicit bindings, and one canonical implementation
+      home.
+
+      Reusable old catalog paths are one-file, non-forking wrappers through
+      applications/catalog/v0.* and are removed at v1. Application-local test
+      identities and the chatbot-mesh coordinator workload migrated atomically
+      and retain historical entries without runtime aliases. The exact planned
+      release is applications/catalog/v0.20260727.0 with matching
+      agent-profiles/v0.20260727.0 compatibility tag.
+
+      Executable evidence is implemented and this release is release-ready.
+      Immutable tags are intentionally not published from this feature branch;
+      after merge, mage tag must run from a clean main checkout and create the
+      root, canonical catalog, and legacy alias tags atomically.
+    status: release-ready
+    dependencies:
+      - id: catalog-release-07.1
+        status: in-progress
+        effect: Historical boundary evidence remains independently incomplete; no status is promoted here.
+      - id: catalog-release-11.0
+        status: in-progress
+        effect: Historical rig evidence remains independently incomplete; renamed IDs and aliases preserve traceability.
+    planned_work:
+      - {id: gh-1076, summary: Define role-realization semantic authority, status: done}
+      - {id: gh-1069, summary: Publish the application composition pattern language, status: done}
+      - {id: gh-1074, summary: Enforce binding and classification governance, status: done}
+      - {id: gh-1072, summary: Rename assembler to scenario-critic, status: done}
+      - {id: gh-1075, summary: Rename monitor to runtime-state-reader, status: done}
+      - {id: gh-1068, summary: Rename jurist to specification-critic, status: done}
+      - {id: gh-1070, summary: Rename mesh validators as Critic realizations, status: done}
+      - {id: gh-1073, summary: Classify chatbot-mesh actors, status: done}
+      - {id: gh-1077, summary: Rename mesh coordinator realization, status: done}
+      - {id: gh-1071, summary: Coordinate aliases, pins, package closures, and release evidence, status: done}
+    migration_note: docs/migrations/v0.20260727.0-agent-role-realization-alignment.yaml
+    use_cases:
+      - id: rel12.0-uc001-agent-role-realization-alignment
+        summary: Coordinate all realization renames as one versioned compatibility migration.
+        status: implemented
+    test_suites:
+      - id: test-rel12.0-agent-role-realization-alignment
+        summary: Release metadata, aliases, closures, package renders, tag semantics, and zero-hit evidence.
+        status: implemented
+    proof:
+      - mage validate
+      - mage conformance
+      - mage integration:all
+      - cd ../.. && mage audit
+      - cd ../.. && mage test
+      - cd ../.. && mage stats
+      - cd ../coding-agent && mage audit
+      - cd ../chatbot-mesh && mage helm:package
+    post_merge:
+      - Run mage tag from a clean main checkout after all release gates pass.
+      - Push v0.20260727.0, applications/catalog/v0.20260727.0, and agent-profiles/v0.20260727.0 together.

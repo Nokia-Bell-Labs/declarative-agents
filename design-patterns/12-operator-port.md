@@ -8,7 +8,7 @@ Attach a control-plane server to the running engine so observers can query execu
 
 ## Reference implementation status
 
-The shipped `applications/catalog/agents/monitor` profile owns read routes for machine, state, tools, metrics, recent events, event SSE, and OpenAPI. Its only control route is `POST /monitor/control/exit`, which emits `ExitRequested`. The listener binds `127.0.0.1:0`; supervisors discover the selected address from the REST launch output.
+The shipped `applications/catalog/agents/runtime-state-reader` infrastructure adapter owns read routes for machine, state, tools, metrics, recent events, event SSE, and OpenAPI. Its only control route is `POST /monitor/control/exit`, which emits `ExitRequested`. The listener binds `127.0.0.1:0`; supervisors discover the selected address from the REST launch output.
 
 The REST runtime has conformance-tested `lifecycle_control` and `inject_signal` bindings, but no production profile selects them. Arbitrary signal injection, pause/resume/rollback control, PID-file discovery, coding-agent rollback, multi-agent polling, and checkpoint restoration by a lifecycle agent remain design intent.
 
@@ -158,7 +158,7 @@ Operator Port sits within Machine Interpreter and requires Machine Interpreter, 
 
 ## Known Uses
 
-**Shipped monitor profile.** `agents/monitor` serves profile-owned state, metrics, event, SSE, OpenAPI, and exit routes. Its CLI proof discovers the ephemeral loopback address from launch output, reads live state and metrics, posts `/monitor/control/exit`, and observes a successful terminal state.
+**Shipped runtime-state-reader profile.** `agents/runtime-state-reader` serves profile-owned monitor state, metrics, event, SSE, OpenAPI, and exit routes. Its CLI proof discovers the ephemeral loopback address from launch output, reads live state and metrics, posts `/monitor/control/exit`, and observes a successful terminal state.
 
 **Long-running coding-agent intervention (design intent).** Watching coding transitions, detecting cycles, and injecting `RollbackRequested` is not implemented by a shipped profile.
 

@@ -343,7 +343,7 @@ func assertApplierImageChartCarriesProfiles(image string) error {
 		return fmt.Errorf("render /chart with the image's own helm: %w\n%s", err, out)
 	}
 	render := string(out)
-	for _, agent := range []string{"chatbot", "rag-server", "coordinator", "creator", "applier"} {
+	for _, agent := range []string{"chatbot", "rag-server", "provisioning-workflow-orchestrator", "creator", "applier"} {
 		key := "agents__" + agent + "__profile.yaml"
 		if !strings.Contains(render, key) {
 			return fmt.Errorf("the chart at /chart renders no %s; an apply would replace the live profiles "+

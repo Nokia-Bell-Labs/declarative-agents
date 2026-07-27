@@ -372,6 +372,18 @@ func TestReleaseTags(t *testing.T) {
 	}
 }
 
+func TestAlignmentReleaseCreatesExactCatalogCompatibilityPair(t *testing.T) {
+	got := releaseTags("v0.20260727.0", []string{catalogModule})
+	want := []string{
+		"v0.20260727.0",
+		"applications/catalog/v0.20260727.0",
+		"agent-profiles/v0.20260727.0",
+	}
+	if !reflect.DeepEqual(got, want) {
+		t.Fatalf("alignment release tags = %#v, want exact atomic canonical/legacy pair %#v", got, want)
+	}
+}
+
 func TestReleaseTagsStopsLegacyCompatibilityAtV1(t *testing.T) {
 	got := releaseTags("v1.0.0", []string{catalogModule})
 	want := []string{"v1.0.0", "applications/catalog/v1.0.0"}

@@ -1,6 +1,15 @@
 id: srd003-chatbot-deployment
 title: Chatbot Mesh Deployment Model
 
+role_realization_decision:
+  current_actor: Helm chart and rendered workloads
+  implemented_responsibility: Render profile-backed actors, values-named RAG instances, wrapper closure, and infrastructure adapters into one deployment topology.
+  canonical_role_sub_role: Workload names inherit mounted profile bindings; Helm names are not canonical roles or sub-roles.
+  retained_or_proposed_name: Retain workload names; GH-1077 renamed the provisioning workflow realization to provisioning-workflow-orchestrator.
+  authority_boundary: Values and templates select deployment identity and configuration but do not define semantic role identity.
+  evidence: [helm/templates/chatbot.yaml, helm/templates/rag-units.yaml, helm/templates/provisioning-workflow-orchestrator.yaml, helm/templates/creator.yaml, helm/templates/applier.yaml, helm/templates/collector.yaml]
+  migration_impact: GH-1077 renamed the provisioning-workflow-orchestrator workload and all selectors, policies, telemetry identities, integrations, and packaging references together.
+
 context: |
   The chatbot mesh runs as a set of container agents on Kubernetes: one chatbot
   agent (srd002) fronting N RAG server agents (srd001), each RAG paired with its
@@ -12,7 +21,7 @@ context: |
   Images follow the rel06.0 mounted-profile contract: the runtime image is
   binary-only (agent-core srd034), and each agent's profile is supplied from
   ConfigMaps mounted at the profile path rather than baked into the image. This
-  keeps one runtime image across every agent role and lets a values change
+  keeps one runtime image across every profile-backed workload and lets a values change
   re-render profiles without rebuilding images.
 
   Chart location: the top-level applications/chatbot-mesh/helm/ directory. The chart,
@@ -65,11 +74,11 @@ requirements:
   R4:
     title: Provisioning authority boundary
     items:
-      - R4.1: The UX provisioning panel SHALL drive values edits and rollouts by submitting the desired values-plane document to the coordinator's intent endpoint (srd004 R1.1), which is the panel's only provisioning intake. The control plane realizes it -- the coordinator sequences, the creator executes (srd005 R3.2) -- and the applier agent (srd006) realizes the deployment API the creator drives (release rel06.0).
+      - R4.1: The UX provisioning panel SHALL drive values edits and rollouts by submitting the desired values-plane document to the provisioning-workflow-orchestrator's intent endpoint (srd004 R1.1), which is the panel's only provisioning intake. The control plane realizes it -- the provisioning-workflow-orchestrator sequences, the creator executes (srd005 R3.2) -- and the applier agent (srd006) realizes the deployment API the creator drives (release rel06.0).
       - R4.2: The provisioning surface SHALL NOT submit hosts, URLs, methods, or credentials to any running agent endpoint; it changes deployment values and triggers rollouts only.
-      - R4.3: R4.2 is the deployment-plane counterpart of agent-core srd028 V30 (runtime input cannot acquire transport authority), so authority is set by declared and validated config, whether at render time or dispatch time, never by a running control surface. The coordinator (srd004) and creator (srd005) are the mesh control plane that sequences and executes intents behind this surface.
-      - R4.4: The panel SHALL NOT reach the deployment API directly. Exactly one path reaches the apply surface -- panel to coordinator to creator to applier -- so the creator remains its only caller (srd006 R4.1) whether the change originated with the coordinator or with the operator.
-      - R4.5: The provisioning surface SHALL be authenticated separately from the chat path. That separation is deployment-realized by a distinct ingress route reaching only the coordinator's intent port, and by NetworkPolicy admitting the apply surface only from the creator. The declarative REST servers carry no inbound authentication, so a requirement resting on application auth alone would be enforced nowhere.
+      - R4.3: R4.2 is the deployment-plane counterpart of agent-core srd028 V30 (runtime input cannot acquire transport authority), so authority is set by declared and validated config, whether at render time or dispatch time, never by a running control surface. The provisioning-workflow-orchestrator (srd004) and creator (srd005) are the mesh control plane that sequences and executes intents behind this surface.
+      - R4.4: The panel SHALL NOT reach the deployment API directly. Exactly one path reaches the apply surface -- panel to provisioning-workflow-orchestrator to creator to applier -- so the creator remains its only caller (srd006 R4.1) whether the change originated with the provisioning-workflow-orchestrator or with the operator.
+      - R4.5: The provisioning surface SHALL be authenticated separately from the chat path. That separation is deployment-realized by a distinct ingress route reaching only the provisioning-workflow-orchestrator's intent port, and by NetworkPolicy admitting the apply surface only from the creator. The declarative REST servers carry no inbound authentication, so a requirement resting on application auth alone would be enforced nowhere.
   R5:
     title: Observability wiring
     items:
@@ -120,7 +129,7 @@ acceptance_criteria:
     traces: [R4.1, R4.2, R4.3]
 
   - id: AC7
-    criterion: The panel reaches the deployment API through the control plane only -- coordinator, then creator -- so exactly one path reaches the apply surface, and the separation from the chat path is named as deployment-realized rather than application-enforced.
+    criterion: The panel reaches the deployment API through the control plane only -- provisioning-workflow-orchestrator, then creator -- so exactly one path reaches the apply surface, and the separation from the chat path is named as deployment-realized rather than application-enforced.
     traces: [R4.1, R4.4, R4.5]
     tests:
       - "test-rel06.0-applier: The panel route reaches only the authorized surface"

@@ -1,19 +1,28 @@
 id: srd005-creator
 title: Creator Agent Functional Block
 
+role_realization_decision:
+  current_actor: creator
+  implemented_responsibility: Launch a corpus-ingest child, drive decided rollout operations, read resulting health and state, and own the deployment-API client boundary.
+  canonical_role_sub_role: Creator / Instance Manager and Agent Owner / Agent Lifecycle Manager.
+  retained_or_proposed_name: Retain `creator`; instance realization is an implemented primary responsibility and Agent Owner is an additional trait.
+  authority_boundary: Acts on a decided operation and alone reaches the deployment API; it does not decide desired values or orchestrate the end-to-end intent.
+  evidence: [agents/creator/request-machine.yaml, agents/creator/request-declarations.yaml, helm/templates/creator.yaml]
+  migration_impact: None; actor and workload names remain compatible with canonical Creator.
+
 context: |
-  The creator is the mesh's agent lifecycle management (LCM) agent: it makes
-  running instances match what the coordinator (srd004) decided. Acting on the
-  coordinator's requests, it selects the profile and rendered config for an
+  The `creator` actor assumes both Creator / Instance Manager and Agent Owner /
+  Agent Lifecycle Manager: it makes
+  running instances match what the provisioning-workflow-orchestrator (srd004) decided. Acting on the
+  provisioning-workflow-orchestrator's requests, it selects the profile and rendered config for an
   instance (template selection), spawns corpus-ingest child runs (instance
   creation), restarts reconfigured agents via request-draining rollouts
   (srd003 R3.2), verifies post-rollout health
   (health monitoring), and handles resource allocation. It plays the
-  reference-architecture Creator role (template-selection, instance-creation,
-  health-monitoring, termination, resource-allocation), the acting half of the
-  Agent Lifecycle Management component.
+  reference-architecture responsibilities for template selection, instance
+  creation, health monitoring, termination, and resource allocation.
 
-  The creator acts; the coordinator decides. The creator makes no workflow or
+  The creator acts; the provisioning-workflow-orchestrator decides. The creator makes no workflow or
   values decision -- it receives a decided instance operation and realizes it. It
   alone holds deployment-API credentials, authenticated apart from the chat path,
   and it never passes an endpoint or credential into a running agent. The reusable
@@ -28,25 +37,25 @@ problem: |
   runs, executing a request-draining rollout through the deployment API, and
   verifying health afterward. The mesh needs an agent that performs those
   mechanics behind one boundary, holds the deployment-API authority alone, and
-  reports health back to the coordinator, without deciding what to change. The
+  reports health back to the provisioning-workflow-orchestrator, without deciding what to change. The
   requirements must name the instance-request boundary, template selection, the
   instance operations, health monitoring, and the authority boundary, separately
   from the agent-core runtime.
 
 goals:
-  - G1: Model the creator as a persistent LCM agent that binds a decided instance operation from the coordinator to a request-scoped run.
+  - G1: Model the creator as a persistent LCM agent that binds a decided instance operation from the provisioning-workflow-orchestrator to a request-scoped run.
   - G2: Resolve a requested role to its profile path and rendered ConfigMap under the rel06.0 mounted-profile contract (agent-core srd034), so an instance runs one image with a supplied profile.
   - G3: Perform instance operations -- create child ingest runs, execute request-draining rollouts of reconfigured agents through the deployment API, and terminate instances.
-  - G4: Verify post-operation health via monitor reads and report it to the coordinator.
+  - G4: Verify post-operation health via monitor reads and report it to the provisioning-workflow-orchestrator.
   - G5: Hold the deployment-API authority alone, authenticated apart from chat, and never hand an endpoint or credential to a running agent.
 
 requirements:
   R1:
     title: Instance-request boundary
     items:
-      - R1.1: The creator SHALL expose a machine_request instance endpoint (agent-core srd030) that binds one decided instance operation from the coordinator (srd004) to one request-scoped run and maps terminal signals to HTTP status.
+      - R1.1: The creator SHALL expose a machine_request instance endpoint (agent-core srd030) that binds one decided instance operation from the provisioning-workflow-orchestrator (srd004) to one request-scoped run and maps terminal signals to HTTP status.
       - R1.2: The creator SHALL run a monitor server (agent-core srd033) and a control server (health + lifecycle exit), with loopback-configurable bind addresses.
-      - R1.3: The instance endpoint SHALL accept a declared operation (create, restart, terminate, ingest) with its role and parameters, and SHALL NOT accept an already-resolved endpoint or credential for a running agent from the coordinator.
+      - R1.3: The instance endpoint SHALL accept a declared operation (create, restart, terminate, ingest) with its role and parameters, and SHALL NOT accept an already-resolved endpoint or credential for a running agent from the provisioning-workflow-orchestrator.
   R2:
     title: Template selection
     items:
@@ -62,23 +71,23 @@ requirements:
     title: Health monitoring
     items:
       - R4.1: After a create, restart, or terminate, the creator SHALL verify the instance's health via monitor reads (agent-core srd033) before reporting the operation complete.
-      - R4.2: The creator SHALL report per-operation health and outcome to the coordinator, which aggregates it for the provisioning panel (srd004 R1.3).
+      - R4.2: The creator SHALL report per-operation health and outcome to the provisioning-workflow-orchestrator, which aggregates it for the provisioning panel (srd004 R1.3).
   R5:
     title: Authority boundary
     items:
-      - R5.1: The creator alone SHALL hold the deployment-API credentials; the coordinator (srd004) and the chatbot (srd002) SHALL NOT.
+      - R5.1: The creator alone SHALL hold the deployment-API credentials; the provisioning-workflow-orchestrator (srd004) and the chatbot (srd002) SHALL NOT.
       - R5.2: The creator SHALL authenticate its instance endpoint and its deployment-API client apart from the chat path (srd003 R4 lineage).
       - R5.3: The creator SHALL NOT pass an endpoint, URL, method, or credential into a running agent; authority is set by declared, validated config, never by a running control surface (agent-core srd028 V30).
-      - R5.4: The creator SHALL expose no browser-facing surface. Its instance endpoint is reached only by the coordinator (R1.1) and the operator reaches the mesh through the coordinator's intent endpoint (srd004 R1.5), so the creator remains the sole caller of the apply surface (srd006 R4.1) for coordinator-originated and operator-originated changes alike.
+      - R5.4: The creator SHALL expose no browser-facing surface. Its instance endpoint is reached only by the provisioning-workflow-orchestrator (R1.1) and the operator reaches the mesh through the provisioning-workflow-orchestrator's intent endpoint (srd004 R1.5), so the creator remains the sole caller of the apply surface (srd006 R4.1) for provisioning-workflow-orchestrator-originated and operator-originated changes alike.
   R6:
     title: Non-goals
     items:
-      - R6.1: The creator SHALL NOT decide what to change. The desired-state decision is the operator's, made through the provisioning panel, and the coordinator orchestrates realizing it (srd004 R3.1). The creator forwards a decided values document from either origin and authors neither.
+      - R6.1: The creator SHALL NOT decide what to change. The desired-state decision is the operator's, made through the provisioning panel, and the provisioning-workflow-orchestrator orchestrates realizing it (srd004 R3.1). The creator forwards a decided values document from either origin and authors neither.
       - R6.2: The creator SHALL NOT hold values co-generation authority; the deployment values are co-generated by the chart (srd003 R2) and applied through the deployment API.
 
 acceptance_criteria:
   - id: AC1
-    criterion: The creator is described as a persistent LCM agent with a machine_request instance endpoint from the coordinator, monitor and control servers, and loopback-configurable bind addresses, accepting no resolved endpoint or credential.
+    criterion: The creator is described as a persistent LCM agent with a machine_request instance endpoint from the provisioning-workflow-orchestrator, monitor and control servers, and loopback-configurable bind addresses, accepting no resolved endpoint or credential.
     traces: [R1.1, R1.2, R1.3]
   - id: AC2
     criterion: Template selection resolves a role to a profile path and rendered ConfigMap under the mounted-profile contract without authoring the config.
@@ -87,19 +96,19 @@ acceptance_criteria:
     criterion: The instance operations -- child ingest runs measured by their document-count delta, request-draining rollout restarts through the deployment API, and termination with resource allocation -- are specified; a successful ingest returns the judged post-run count, and a zero-delta run is rejected even when the collection was already populated or the same directory was ingested before.
     traces: [R3.1, R3.2, R3.3]
   - id: AC4
-    criterion: Post-operation health verification via monitor reads is reported to the coordinator for the provisioning panel.
+    criterion: Post-operation health verification via monitor reads is reported to the provisioning-workflow-orchestrator for the provisioning panel.
     traces: [R4.1, R4.2]
   - id: AC5
     criterion: The creator alone holds the deployment-API credentials, authenticates apart from chat, and never hands an endpoint or credential to a running agent; deciding what to change and values co-generation authority are non-goals.
     traces: [R5.1, R5.2, R5.3, R6.1, R6.2]
   - id: AC6
-    criterion: The creator exposes no browser-facing surface and stays the sole caller of the apply surface, forwarding a decided values document whether the coordinator or the operator originated it.
+    criterion: The creator exposes no browser-facing surface and stays the sole caller of the apply surface, forwarding a decided values document whether the provisioning-workflow-orchestrator or the operator originated it.
     traces: [R5.4, R6.1]
     tests:
       - "test-rel06.0-applier: The panel route reaches only the authorized surface"
 
 depends_on:
-  - srd_id: srd004-coordinator
+  - srd_id: srd004-provisioning-workflow-orchestrator
     symbols_used: [R1, R3, R4]
   - srd_id: srd003-chatbot-deployment
     symbols_used: [R2, R3, R4]
@@ -129,7 +138,7 @@ implementation_status:
       read the provisioning panel loads through (read_state, srd006 R1.5), and the
       authority boundary (R5) -- the creator is the mesh's only declared
       deployment-API client. mage integration:controlPlane drives the panel's
-      values apply through coordinator -> creator -> deployment API against the
+      values apply through provisioning-workflow-orchestrator -> creator -> deployment API against the
       real agents and a recording fake, asserting the decided document crosses
       each hop and that no endpoint or credential does.
     - >-
@@ -152,17 +161,17 @@ implementation_status:
       than the collection: the creator resolves the collection and reads its count
       before the child, reads it again afterward, and uses command state to compare
       the post-run count with the pre-run baseline. A zero delta answers 422 and
-      reaches the coordinator's Rejected leg even when the collection was already
+      reaches the provisioning-workflow-orchestrator's Rejected leg even when the collection was already
       populated. An unchanged re-ingest is deliberately a shortfall: the operation
       promises a run contribution, not merely an already-satisfied storage state.
       The corpus-ingest contract remains unchanged for its other callers. A count
       that will not resolve reaches IngestFailed rather than IngestRejected,
       because a broken read is not an empty corpus. GH-790 carried the judged
       post-run count from the terminal predicate's raw left operand into the
-      creator success response and through the coordinator client mapping.
+      creator success response and through the provisioning-workflow-orchestrator client mapping.
   planned:
     - >-
-      Ingesting into a caller-named collection. The coordinator sends a collection
+      Ingesting into a caller-named collection. The provisioning-workflow-orchestrator sends a collection
       with its intent, but it does not reach the child: agent-core exec tools pass
       no environment (srd021) and the corpus-ingest profile hardcodes its
       collection name, so the child always writes that profile's own collection,
@@ -181,10 +190,10 @@ diagrams:
       Goals --> R4["R4: Health monitoring"]
       Goals --> R5["R5: Authority boundary"]
       Goals --> R6["R6: Non-goals"]
-      R1 --> AC1["AC1: instance endpoint from the coordinator"]
+      R1 --> AC1["AC1: instance endpoint from the provisioning-workflow-orchestrator"]
       R2 --> AC2["AC2: role to profile + rendered config, mounted-profile contract"]
       R3 --> AC3["AC3: child ingest runs, resume rollout, terminate"]
-      R4 --> AC4["AC4: post-op health reported to the coordinator"]
+      R4 --> AC4["AC4: post-op health reported to the provisioning-workflow-orchestrator"]
       R5 --> AC5["AC5: sole deployment-API authority, no endpoint into an agent"]
       R6 --> AC5
     ```

@@ -32,7 +32,7 @@ flowchart TB
   end
 
   subgraph CP["Control plane — reconfigures the mesh"]
-    CO["Coordinator<br/>decides what changes"]
+    CO["Provisioning Workflow Orchestrator<br/>decides what changes"]
     CR["Creator<br/>acts: lifecycle + rollout"]
     EX["Applier<br/>declarative deployment API (srd006)"]
   end
@@ -51,11 +51,11 @@ flowchart TB
   CR -.->|health| CO
 ```
 
-The governing rule in the control plane is that the coordinator decides and the
-creator acts. The coordinator is the sole author of the values change; the
+The governing rule in the control plane is that the provisioning-workflow-orchestrator decides and the
+creator acts. The provisioning-workflow-orchestrator is the sole author of the values change; the
 creator is the only agent that holds deployment-API credentials and the only one
 that realizes the change. Every instance operation travels as a declared-client
-request from coordinator to creator, never as a direct deployment-API call.
+request from provisioning-workflow-orchestrator to creator, never as a direct deployment-API call.
 
 ## The components
 
@@ -69,7 +69,7 @@ Table 1: Mesh components
 | Chatbot agent (`agents/chatbot/`) | data | Run the turn: embed once, select a model tier, fan out, compose, answer; host the SPA |
 | RAG server agent (`agents/rag-server/`) | data | Vector-in retrieval against one Chroma collection; one agent per corpus |
 | Corpus-ingest wrapper (`agents/corpus-ingest/`) + canonical library agent | data | Seed Chroma after machine-owned trusted-path discovery; the mesh supplies REST/model/collection values |
-| Coordinator (`agents/coordinator/`) | control | Decide the values change; sequence ingest and reconfiguration |
+| Provisioning Workflow Orchestrator (`agents/provisioning-workflow-orchestrator/`) | control | Decide the values change; sequence ingest and reconfiguration |
 | Creator (`agents/creator/`) | control | Act: agent lifecycle and request-draining rollout; holds deployment-API authority |
 | Applier (`agents/applier/`) | control | Declarative deployment API (srd006) the creator drives; validate-apply-verify-rollback binding helm/kubectl exec words |
 | User interface (`ux/`) | both | The SPA with chat, observability, and provisioning panels |
@@ -79,7 +79,7 @@ The normative detail lives in the SRDs: the RAG server in
 [srd001](specs/software-requirements/srd001-rag-server-agent.yaml), the chatbot in
 [srd002](specs/software-requirements/srd002-chatbot-agent.yaml), the deployment in
 [srd003](specs/software-requirements/srd003-chatbot-deployment.yaml), the
-coordinator in [srd004](specs/software-requirements/srd004-coordinator.yaml), the
+provisioning-workflow-orchestrator in [srd004](specs/software-requirements/srd004-provisioning-workflow-orchestrator.yaml), the
 creator in [srd005](specs/software-requirements/srd005-creator.yaml), and the
 applier in [srd006](specs/software-requirements/srd006-applier.yaml).
 
@@ -144,7 +144,7 @@ intent → ingest → reconfigure → rolling restart → serve.
 sequenceDiagram
   participant U as Provisioning panel
   participant CB as Chatbot (UX)
-  participant CO as Coordinator (decides)
+  participant CO as Provisioning Workflow Orchestrator (decides)
   participant CR as Creator (acts)
   participant API as Deployment API
 

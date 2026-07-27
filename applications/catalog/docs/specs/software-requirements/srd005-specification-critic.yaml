@@ -1,0 +1,79 @@
+id: srd005-specification-critic
+title: Specification Critic Functional Block
+historical_aliases: [srd005-jurist]
+
+context: |
+  The specification-critic profile is a specification validator. It runs deterministic charter
+  suites over a target directory with no LLM boundary and reports provenance-rich
+  findings. This SRD owns the specification-critic family requirements that
+  srd001-agent-functional-blocks previously held as block R5.
+
+  The block names the contract the specification critic presents to the rest of the profile
+  system. Spec validation tools stay in agent-core; charter suites stay
+  profile-owned.
+
+problem: |
+  The specification-critic family needs its own requirements document so that changes to
+  charter validation behavior do not churn a shared cross-family file. The
+  requirements must name profile-owned charter suites separately from the
+  agent-core spec validation tools.
+
+goals:
+  - G1: Model the specification-critic profile as a deterministic, LLM-free specification validator functional block.
+  - G2: Record the specification-critic actor boundary, inputs, tool selection, runtime dependencies, outputs, and terminal outcomes.
+  - G3: Keep charter suites profile-owned while agent-core supplies spec validation tools.
+
+requirements:
+  R1:
+    title: Behavior model
+    items:
+      - R1.1: The specification-critic profile must model deterministic specification corpus validation with no LLM boundary.
+      - R1.2: Jurist charter checks must remain LLM-free, network-free, read-only, and deterministic across repeated runs over the same target directory and suite files.
+  R2:
+    title: Inputs, tools, and responsibilities
+    items:
+      - R2.1: Specification-critic inputs must include a filesystem target directory and one or more deterministic charter suite paths.
+      - R2.2: The specification-critic profile must select the specification validation tool family backed by agent-core spec validation tools.
+      - R2.3: Specification-critic responsibilities must cover corpus loading, graph validation, consistency checks, external rg search, finding reduction, and report formatting.
+      - R2.4: grep_check search and reduction must be visible machine steps; the search word must declare rg as its executable dependency and consume charter pattern, root, include, and exclude inputs.
+      - R2.5: The specification-critic audit variant must load formal test claims, declare Go module, package, test-list, and test-run exec words, normalize package inventory through bounded command-state stdin, resolve claims visibly against inventory, reduce run events visibly, and share the specification-critic report path; pkg/spec must remain a pure reducer with no Go subprocess execution.
+  R3:
+    title: Outputs and outcomes
+    items:
+      - R3.1: Specification-critic outputs must include a formatted validation report and a passed or failed status.
+      - R3.2: Specification-critic findings must identify the suite, check, severity, message, and any available file and line provenance so consumers can act on failures without reading Go code.
+      - R3.3: Specification-critic terminal outcomes must be Passed or Failed.
+
+non_goals:
+  - Define Go package APIs for the agent-core spec validation tools.
+  - Introduce an LLM boundary or network access into charter validation.
+  - Own cross-profile dependency-direction invariants; those stay in srd001.
+  - Rename the stable Jurist charter format or jurist_rg tool word; these name capability vocabulary, not profile identity.
+
+acceptance_criteria:
+  - id: AC1
+    criterion: The specification-critic profile is described as a deterministic, LLM-free validator rather than a Go package.
+    traces: [R1.1, R1.2]
+  - id: AC2
+    criterion: Specification-critic inputs, selected tool family, visible rg and test-evidence execution/reduction steps, and responsibilities are named and separated from agent-core runtime capability.
+    traces: [R2.1, R2.2, R2.3, R2.4, R2.5]
+  - id: AC3
+    criterion: Specification-critic outputs, provenance-rich findings, and terminal outcomes are checkable by profile validation.
+    traces: [R3.1, R3.2, R3.3]
+
+depends_on:
+  - srd_id: srd001-agent-functional-blocks
+    symbols_used: [R1]
+
+diagrams:
+  requirements_trace: |
+    ```mermaid
+    flowchart LR
+      Problem["Problem: Specification-critic family needs its own requirements..."] --> Goals["Goals: Specification Critic Functional Block"]
+      Goals --> R1["R1: Behavior model"]
+      Goals --> R2["R2: Inputs, tools, and responsibilities"]
+      Goals --> R3["R3: Outputs and outcomes"]
+      R1 --> AC1["AC1: Deterministic LLM-free validator"]
+      R2 --> AC2["AC2: Inputs, tools, responsibilities named"]
+      R3 --> AC3["AC3: Outputs and findings checkable"]
+    ```

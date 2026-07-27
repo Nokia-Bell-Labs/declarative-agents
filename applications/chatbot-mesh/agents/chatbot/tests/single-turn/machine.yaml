@@ -1,7 +1,7 @@
-name: chatbot-turn-validator
+name: chatbot-turn-critic
 purpose: |-
-  Drives one tier-selected chatbot turn against mock dependencies and passes when the
-  turn returns an answer: embed at the mock provider, source selection keeps rag0
+  Critiques one tier-selected chatbot turn against isolated mock dependencies and
+  passes when the turn returns an answer: embed at the mock provider, source selection keeps rag0
   while discarding an undeclared URL-shaped name, the tier selector's tool call,
   and the selected chat word all completed. The undeclared name has no topology
   entry and therefore cannot reach a REST target.

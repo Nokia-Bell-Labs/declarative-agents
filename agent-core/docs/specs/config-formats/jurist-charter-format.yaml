@@ -3,14 +3,14 @@ title: Jurist Charter Format
 
 purpose: |
   Defines the YAML format for jurist check suites, also called charters.
-  A charter is deterministic validation data for the jurist profile. It names
+  A charter is deterministic validation data for the specification-critic profile. It names
   checks, check kinds, input globs, reference sources, severity, and report
   provenance without adding Go workflow states or LLM behavior.
 
 ownership: |
   Agent profiles own the choice of charter files. Agent Core owns the builtin
   check kinds and the interpreter that runs them. A caller supplies the target
-  directory through --directory. The selected jurist profile supplies default
+  directory through --directory. The selected specification-critic profile supplies default
   suite paths or accepts suite paths as runtime request data when a profile
   chooses that contract.
 
@@ -36,7 +36,7 @@ suite_selection: |
   charters; all three names are aliases for a list of charter file paths.
   Runtime variables accept comma-separated suite_paths and charter_suites.
 
-  The default jurist profile uses the core load_corpus ToolDef config to load
+  The default specification-critic profile uses the core load_corpus ToolDef config to load
   /opt/agent-core/tools/builtin/spec-validation/spec-corpus-charter.yaml. A
   profile or caller may replace that list with another charter list while
   keeping the same linear jurist machine.
@@ -311,5 +311,5 @@ example: |
 
 references:
   - docs/specs/software-requirements/srd014-spec-graph.yaml
-  - applications/catalog/agents/jurist/profile.yaml
-  - applications/catalog/docs/specs/software-requirements/srd005-jurist.yaml
+  - applications/catalog/agents/specification-critic/profile.yaml
+  - applications/catalog/docs/specs/software-requirements/srd005-specification-critic.yaml

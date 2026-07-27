@@ -1,17 +1,17 @@
 id: rel05.0-uc001-control-plane-provisioning
-title: A Provisioning Intent Flows Chatbot to Coordinator to Creator and Serves
+title: A Provisioning Intent Flows Chatbot to Provisioning Workflow Orchestrator to Creator and Serves
 
 summary: |
   A user asks the UX agent (chatbot, srd002) to add a directory as a knowledge
-  source. The chatbot delegates the provisioning intent to the coordinator
+  source. The chatbot delegates the provisioning intent to the provisioning-workflow-orchestrator
   (srd004) through a declared client rather than editing any config itself. The
-  coordinator sequences the workflow: it requests a corpus-ingest run per directory
+  provisioning-workflow-orchestrator sequences the workflow: it requests a corpus-ingest run per directory
   from the creator (srd005), verifies the collection counts, decides the values
   changes that add the new RAG source, and requests a rollout of the affected
   agents. The creator (srd005) realizes each operation -- selecting the profile and
   rendered config, spawning the ingest child run, executing the request-draining
   rollout through the deployment API (srd003 R3.2), and verifying post-rollout
-  health -- and reports health back to the coordinator, which aggregates status for
+  health -- and reports health back to the provisioning-workflow-orchestrator, which aggregates status for
   the provisioning panel. The new source then serves a grounded turn. All
   deployment-API authority sits with the creator; no running agent receives an
   endpoint or credential (srd003 R4, agent-core srd028 V30).
@@ -20,35 +20,35 @@ actor: A user adding a knowledge source through the UX agent.
 
 trigger: |
   The user tells the chatbot to add a directory as a knowledge source; the chatbot
-  delegates the intent to the coordinator.
+  delegates the intent to the provisioning-workflow-orchestrator.
 
 preconditions:
-  - The chatbot, coordinator, and creator profiles are deployed with declared clients between them.
-  - The coordinator and creator authenticate apart from the chat path; the creator alone holds the deployment-API credentials.
+  - The chatbot, provisioning-workflow-orchestrator, and creator profiles are deployed with declared clients between them.
+  - The provisioning-workflow-orchestrator and creator authenticate apart from the chat path; the creator alone holds the deployment-API credentials.
   - The deployment API (srd003 R4) and the chart's values-to-config co-generation are available.
 
 flow:
   - id: F1
-    text: The chatbot delegates the user's provisioning intent to the coordinator through a declared client; it submits no host, URL, or credential.
+    text: The chatbot delegates the user's provisioning intent to the provisioning-workflow-orchestrator through a declared client; it submits no host, URL, or credential.
   - id: F2
-    text: The coordinator requests a corpus-ingest run per directory from the creator and verifies each ingested collection's count before proceeding.
+    text: The provisioning-workflow-orchestrator requests a corpus-ingest run per directory from the creator and verifies each ingested collection's count before proceeding.
   - id: F3
-    text: The coordinator decides the values changes that add the new RAG source and requests a rollout of the affected agents from the creator.
+    text: The provisioning-workflow-orchestrator decides the values changes that add the new RAG source and requests a rollout of the affected agents from the creator.
   - id: F4
     text: The creator selects each instance's profile and rendered config, spawns the ingest child run, executes the request-draining rollout through the deployment API, and verifies post-rollout health.
   - id: F5
-    text: The creator reports health to the coordinator, which aggregates status for the provisioning panel; a subsequent chat turn is grounded in the newly added source.
+    text: The creator reports health to the provisioning-workflow-orchestrator, which aggregates status for the provisioning panel; a subsequent chat turn is grounded in the newly added source.
 
 touchpoints:
   - id: T1
-    target: srd004-coordinator AC1
-    reason: The coordinator binds the UX agent's intent to a workflow run and aggregates status.
+    target: srd004-provisioning-workflow-orchestrator AC1
+    reason: The provisioning-workflow-orchestrator binds the UX agent's intent to a workflow run and aggregates status.
   - id: T2
-    target: srd004-coordinator AC2
-    reason: The coordinator sequences the ingest per directory through the creator and verifies counts.
+    target: srd004-provisioning-workflow-orchestrator AC2
+    reason: The provisioning-workflow-orchestrator sequences the ingest per directory through the creator and verifies counts.
   - id: T3
-    target: srd004-coordinator AC3
-    reason: The coordinator is the sole author of the values decision and requests the rollout.
+    target: srd004-provisioning-workflow-orchestrator AC3
+    reason: The provisioning-workflow-orchestrator is the sole author of the values decision and requests the rollout.
   - id: T4
     target: srd005-creator AC3
     reason: The creator spawns the ingest run and executes the request-draining rollout through the deployment API.
@@ -61,24 +61,24 @@ touchpoints:
 
 success_criteria:
   - id: S1
-    criterion: The chatbot delegates the intent to the coordinator through a declared client and submits no endpoint or credential to any agent.
+    criterion: The chatbot delegates the intent to the provisioning-workflow-orchestrator through a declared client and submits no endpoint or credential to any agent.
     traces:
-      - srd004-coordinator R1.1
-      - srd004-coordinator R1.2
-      - srd004-coordinator AC1
+      - srd004-provisioning-workflow-orchestrator R1.1
+      - srd004-provisioning-workflow-orchestrator R1.2
+      - srd004-provisioning-workflow-orchestrator AC1
   - id: S2
-    criterion: The coordinator sequences a corpus-ingest run per directory through the creator and verifies collection counts before reconfiguring.
+    criterion: The provisioning-workflow-orchestrator sequences a corpus-ingest run per directory through the creator and verifies collection counts before reconfiguring.
     traces:
-      - srd004-coordinator R2.1
-      - srd004-coordinator R2.2
-      - srd004-coordinator AC2
+      - srd004-provisioning-workflow-orchestrator R2.1
+      - srd004-provisioning-workflow-orchestrator R2.2
+      - srd004-provisioning-workflow-orchestrator AC2
   - id: S3
-    criterion: The coordinator decides the values changes and requests a rollout; the creator executes the request-draining rollout through the deployment API and verifies health.
+    criterion: The provisioning-workflow-orchestrator decides the values changes and requests a rollout; the creator executes the request-draining rollout through the deployment API and verifies health.
     traces:
-      - srd004-coordinator R3.1
+      - srd004-provisioning-workflow-orchestrator R3.1
       - srd005-creator R3.2
       - srd003-chatbot-deployment R3.2
-      - srd004-coordinator AC3
+      - srd004-provisioning-workflow-orchestrator AC3
       - srd005-creator AC3
       - srd003-chatbot-deployment AC3
   - id: S4
@@ -90,12 +90,12 @@ success_criteria:
       - srd005-creator AC5
       - srd003-chatbot-deployment AC4
   - id: S5
-    criterion: After the rollout the newly added source serves a grounded chat turn, and the coordinator's aggregated status renders in the provisioning panel.
+    criterion: After the rollout the newly added source serves a grounded chat turn, and the provisioning-workflow-orchestrator's aggregated status renders in the provisioning panel.
     traces:
       - srd003-chatbot-deployment R2.1
-      - srd004-coordinator R1.3
+      - srd004-provisioning-workflow-orchestrator R1.3
       - srd003-chatbot-deployment AC2
-      - srd004-coordinator AC1
+      - srd004-provisioning-workflow-orchestrator AC1
 
 out_of_scope:
   - The chat turn path itself (route, embed, fan-out, compose), which is srd002 and releases rel00.0/rel01.0.

@@ -18,6 +18,13 @@ The shared contract is in [`docs/`](docs/). Application-local architecture and
 SRDs extend that contract with business behavior, topology, and evidence. They
 cite the shared requirements instead of copying them.
 
+The application-composition pattern language is
+[`docs/pattern-language.yaml`](docs/pattern-language.yaml). It covers catalog
+consumption, application-owned composition, package-time closure, deployment
+topology, and module governance. It extends the
+[single-agent pattern language](../design-patterns/pattern-language.yaml)
+without repeating agent internals.
+
 ## Capability classes
 
 Every runnable application has the baseline `runnable_module` capability.

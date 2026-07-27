@@ -7,13 +7,15 @@ import (
 	"encoding/json"
 	"fmt"
 	"net/url"
+	"os"
 	"path/filepath"
 	"strings"
 
 	"github.com/Nokia-Bell-Labs/declarative-agents/agent-core/internal/runtime/core"
+	"gopkg.in/yaml.v3"
 )
 
-// These are the assembler's per-scenario steps. Each reads the current
+// These are the scenario critic's per-scenario steps. Each reads the current
 // scenario from the session rather than static config, which is what lets the
 // pipeline stay visible as machine transitions while still working on data
 // discovered at runtime.
@@ -369,9 +371,19 @@ func fixtureBase(fixturePath string) string {
 	return strings.TrimSuffix(filepath.Base(fixturePath), filepath.Ext(fixturePath))
 }
 
-// validatorName labels a validator by its scenario-relative directory, so a
-// verdict names which validator failed rather than a bare path.
+// validatorName labels a validator by its declared profile identity, so runtime
+// verdicts name the concrete Critic realization while the directory keeps the
+// scenario scope. Invalid fixture profiles retain the path-based fallback.
 func validatorName(profilePath string) string {
+	data, err := os.ReadFile(profilePath)
+	if err == nil {
+		var profile struct {
+			Name string `yaml:"name"`
+		}
+		if yaml.Unmarshal(data, &profile) == nil && profile.Name != "" {
+			return profile.Name
+		}
+	}
 	dir := filepath.Dir(profilePath)
 	return filepath.Base(dir)
 }

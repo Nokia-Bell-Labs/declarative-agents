@@ -21,7 +21,7 @@ type applierScenario struct {
 	absentCalls []string
 }
 
-// applyPatch is a values-plane document of the shape the coordinator decides and
+// applyPatch is a values-plane document of the shape the provisioning-workflow-orchestrator decides and
 // the creator forwards (srd006 R1.4). It carries no host, URL, method, or
 // credential -- the applier accepts none (R2.3).
 const applyPatch = `{"schema_version":"1","content":"ragUnits:\n  - name: rag0\n    collection: corpus\n"}`

@@ -60,6 +60,12 @@ interfaces:
       applications/docs defines baseline and capability-dependent obligations.
       Application-local architecture and SRDs cite requirement IDs here and add
       only business behavior, topology, or stricter local policy.
+  - name: role realization binding
+    summary: |
+      The shared agent-role-realizations semantic model treats canonical roles
+      as interfaces or traits and profiles as concrete realizations. Actors may
+      bind many roles, roles may be repeated across actors, and wrappers or
+      configuration variants inherit bindings without redefining roles.
   - name: ENG01 kind rig
     summary: |
       docs/engineering/eng01-kind-test-demo-rig.yaml governs an application that
@@ -101,6 +107,12 @@ components:
       Define app-specific behavior and acceptance evidence. Shared lifecycle or
       module obligations remain references to srd001 and applicable srd002
       requirement groups.
+  - name: role realization authority
+    path: applications/docs/specs/semantic-models/agent-role-realizations.yaml
+    responsibility: |
+      Pin canonical role and sub-role IDs, classify every shipped profile, bind
+      actors to roles, define wrapper inheritance and naming grammar, and record
+      incompatible canonical-name collisions for migration.
 
 design_decisions:
   - id: 1
@@ -159,6 +171,31 @@ design_decisions:
       - The kind contract cannot drift between documents.
       - Non-Kubernetes applications retain a small baseline.
       - kind demos use one operator vocabulary.
+  - id: 6
+    title: Roles and realizations are separate
+    decision: |
+      A canonical role is a semantic interface or trait, not a unique deployed
+      agent. A profile is a concrete realization or a descriptive multi-role
+      actor. An actor may bind several roles and a role may be realized by many
+      actors. Request, session, server, workspace, model, and packaging forms
+      refine a realization; they do not create roles or sub-roles.
+
+      Wrappers inherit the canonical realization they select while retaining
+      application ownership of endpoints, deployment, and configuration.
+      Fixtures, mocks, human interfaces, and infrastructure adapters are
+      classified explicitly and excluded from role-coverage counts.
+    boundaries:
+      role: Stable reference responsibility with canonical role and sub-role IDs.
+      realization: Configured program binding roles in a domain and execution scope.
+      actor: Runtime identity that may bind one or many roles.
+      wrapper: Application or serving profile inheriting a canonical realization.
+      fixture: Test-only profile or data excluded from production role coverage.
+      adapter: Infrastructure or protocol boundary excluded from role coverage unless separately justified.
+    benefits:
+      - Repeated Critic implementations do not redefine Critic.
+      - Application actor names remain descriptive when several roles are bound.
+      - Deployment and model variants stay distinguishable from semantic specialization.
+      - Canonical-name collisions become explicit migrations instead of taxonomy changes.
 
 technology_choices:
   - component: Structured documentation
@@ -181,6 +218,11 @@ project_structure:
   shared:
     - path: applications/README.md
       role: Human entry point and current module classification.
+    - path: applications/docs/pattern-language.yaml
+      role: |
+        Application composition patterns for catalog consumption, package-time
+        closure, deployment topology, and module governance. It extends the
+        single-agent language instead of restating agent internals.
     - path: applications/docs/VISION.yaml
       role: Shared goals, boundaries, and success criteria.
     - path: applications/docs/ARCHITECTURE.yaml
@@ -242,6 +284,12 @@ implementation_status:
         catalog, not a runnable application.
 
 related_documents:
+  - doc: docs/pattern-language.yaml
+    purpose: |
+      Sibling Alexandrian language for application composition, package-time
+      closure, deployment topology, and module governance. Single-agent
+      machines, tools, execution, and controls remain in
+      ../../design-patterns/pattern-language.yaml.
   - doc: docs/VISION.yaml
     purpose: Shared application goals and exclusions.
   - doc: docs/SPECIFICATIONS.yaml
@@ -250,6 +298,8 @@ related_documents:
     purpose: Referenced kind-demo engineering contract.
   - doc: ../catalog/docs/ARCHITECTURE.yaml
     purpose: Canonical catalog ownership and consumer contract.
+  - doc: docs/specs/semantic-models/agent-role-realizations.yaml
+    purpose: Canonical role provenance, realization naming, bindings, classifications, and aliases.
   - doc: ../chatbot-mesh/docs/ARCHITECTURE.yaml
     purpose: Local-agent runnable application reference.
   - doc: ../coding-agent/docs/ARCHITECTURE.yaml

@@ -73,8 +73,8 @@ type policyProbe struct {
 func policyProbes() []policyProbe {
 	return []policyProbe{
 		{
-			Name:   "ingress controller reaches the coordinator intent port",
-			FromNS: policyIngressNS, FromPod: "controller", ToPod: "coordinator", Port: 18100, Want: reached,
+			Name:   "ingress controller reaches the provisioning-workflow-orchestrator intent port",
+			FromNS: policyIngressNS, FromPod: "controller", ToPod: "provisioning-workflow-orchestrator", Port: 18100, Want: reached,
 			Why: "the intake is the panel's only provisioning entry (srd004 R1.5)",
 		},
 		{
@@ -85,11 +85,11 @@ func policyProbes() []policyProbe {
 		{
 			Name:   "ingress controller cannot reach the creator instance port",
 			FromNS: policyIngressNS, FromPod: "controller", ToPod: "creator", Port: 18110, Want: blocked,
-			Why: "the creator is coordinator-facing only, and it is the one pod the applier admits (srd005 R5.4, GH-685)",
+			Why: "the creator is provisioning-workflow-orchestrator-facing only, and it is the one pod the applier admits (srd005 R5.4, GH-685)",
 		},
 		{
-			Name:   "coordinator reaches the creator instance port",
-			FromNS: policyMeshNS, FromPod: "coordinator", ToPod: "creator", Port: 18110, Want: reached,
+			Name:   "provisioning-workflow-orchestrator reaches the creator instance port",
+			FromNS: policyMeshNS, FromPod: "provisioning-workflow-orchestrator", ToPod: "creator", Port: 18110, Want: reached,
 			Why: "the control plane chain must still work (srd005 R1.1)",
 		},
 		{
@@ -112,7 +112,7 @@ type standInPod struct {
 
 func policyStandIns() []standInPod {
 	return []standInPod{
-		{Component: "coordinator", PortName: "intent", Port: 18100},
+		{Component: "provisioning-workflow-orchestrator", PortName: "intent", Port: 18100},
 		{Component: "creator", PortName: "instance", Port: 18110},
 		{Component: "applier", PortName: "apply", Port: 18090},
 	}
@@ -396,7 +396,7 @@ func standInPodsYAML() string {
 	}
 	// The ingress controller lives in a namespace named ingress-nginx, which
 	// Kubernetes auto-labels with kubernetes.io/metadata.name -- the label the
-	// coordinator policy's namespaceSelector matches.
+	// provisioning-workflow-orchestrator policy's namespaceSelector matches.
 	docs = append(docs, sleeperPod(policyIngressNS, "controller",
 		map[string]string{"app.kubernetes.io/name": "ingress-nginx"}))
 	return strings.Join(docs, "---\n")

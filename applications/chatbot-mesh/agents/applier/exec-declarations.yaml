@@ -50,7 +50,7 @@ tools:
         - must emit ToolFailed when the render is rejected
     non_goals:
       - Does not apply the patch; it only renders and validates.
-      - Does not decide the values; the coordinator does.
+      - Does not decide the values; the provisioning-workflow-orchestrator does.
     emits: [ToolDone, ToolFailed]
     output:
       description: helm upgrade --dry-run process result.

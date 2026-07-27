@@ -101,7 +101,7 @@ spec:
     - {name: monitor, port: {{ .Values.controlPlane.creator.ports.monitor }}, targetPort: monitor}
 {{- if .Values.controlPlane.creator.networkPolicy.enabled }}
 ---
-# The instance endpoint is reached only by the coordinator (srd005 R1.1, R5.4).
+# The instance endpoint is reached only by the provisioning-workflow-orchestrator (srd005 R1.1, R5.4).
 # Until GH-685 this port carried no policy at all, so anything in the cluster could
 # ask the creator to act -- and the creator is the only pod the applier admits to
 # its apply surface (srd006 R4.1), which made an unconstrained instance port the
@@ -125,7 +125,7 @@ spec:
         - podSelector:
             matchLabels:
               {{- include "chatbot-mesh.selectorLabels" . | nindent 14 }}
-              app.kubernetes.io/component: coordinator
+              app.kubernetes.io/component: provisioning-workflow-orchestrator
       ports:
         - {protocol: TCP, port: instance}
 {{- end }}

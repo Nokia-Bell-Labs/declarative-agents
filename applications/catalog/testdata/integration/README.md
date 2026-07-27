@@ -11,7 +11,7 @@ entry marked "No code consumer" is metadata and is not an executable test input.
 
 | Fixture | Consuming target (repo / file) | Test suite | Use case |
 | --- | --- | --- | --- |
-| `jurist-charter-demo/` | applications/catalog / `magefiles/validation.go` (`mage validate`, validation-time) | `test-rel06.0-agent-profiles` | `rel06.0-uc002-profile-validation` |
+| `specification-critic-charter-demo/` | applications/catalog / `magefiles/validation.go` (`mage validate`, validation-time) | `test-rel06.0-agent-profiles` | `rel06.0-uc002-profile-validation` |
 | `rel07-evaluator-generator/` | Retired fixture retained for conformance compatibility; the former Mage tracer used a fake child. Replacement: `applications/coding-agent` / `mage integration:criticGate`. | `test-rel07.0-profile-integrations` | `rel07.0-uc002-evaluator-generator-profile-boundary` |
 | `rel07-monitor-control/` | applications/catalog / `magefiles/integration_monitor_control.go` (`mage integration:monitorControl`) | `test-rel07.0-profile-integrations` | `rel07.0-uc005-monitor-control-profile-boundary` |
 | `rel07-planner-generator/` | Retired fixture retained as historical data; the former Mage tracer synthesized planner behavior and used a fake child. Replacement: `applications/coding-agent` / `mage integration:plannerDelegation`. | `test-rel07.0-profile-integrations` | `rel07.0-uc003-planner-generator-profile-boundary` |
@@ -27,12 +27,12 @@ inputs under `testdata/integration/`, so they have no rows above.
 ## The `rel04-monitor` record
 
 `rel04-monitor/monitor-rest.yaml` is not read by any Go code in either repository;
-it is a proof-metadata record that documents where the monitor profile proof
+it is a proof-metadata record that documents where the runtime-state-reader proof
 actually lives (agent-core Go tests such as `TestMonitorReleaseProfileProof` and
 `mage integration:monitor`). It is retained rather than deleted because it has real
 documentation consumers:
 
-- `applications/catalog/README.md` ("records the monitor profile proof metadata").
+- `applications/catalog/README.md` ("records runtime-state-reader proof metadata").
 - `applications/catalog/docs/specs/test-suites/test-rel06.0-agent-profiles.yaml`
   (`monitor_fixture`).
 - `agent-core/docs/ARCHITECTURE.yaml` and

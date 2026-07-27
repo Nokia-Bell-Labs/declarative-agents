@@ -399,7 +399,7 @@ routes:
         body:
           message:
             role: assistant
-            content: "The corpus describes the assembler rig and its mocks."
+            content: "The corpus describes the scenario critic rig and its mocks."
           eval_count: 11
           prompt_eval_count: 42
 `

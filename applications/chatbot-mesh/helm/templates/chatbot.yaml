@@ -205,22 +205,22 @@ spec:
           # origin (srd003 R4.1). Matched before / so the chatbot never sees a
           # provisioning request.
           #
-          # The backend is the coordinator, not the applier. Routing browser
+          # The backend is the provisioning-workflow-orchestrator, not the applier. Routing browser
           # traffic at the applier's apply Service was GH-502: the applier
           # NetworkPolicy admits only creator-labelled pods, so an ingress
           # controller could never reach it and the shipped route was dead wherever
-          # policy is enforced. The intent now enters at the coordinator, which
+          # policy is enforced. The intent now enters at the provisioning-workflow-orchestrator, which
           # orchestrates the creator, which alone calls the apply surface
           # (srd003 R4.4, srd004 R1.5, srd006 R4.1).
           #
-          # Gated on controlPlane rather than applier: without the coordinator
+          # Gated on controlPlane rather than applier: without the provisioning-workflow-orchestrator
           # there is no legitimate provisioning intake, and rendering a route to a
           # surface the policy blocks is what made the defect invisible.
           - path: /provisioning
             pathType: Prefix
             backend:
               service:
-                name: {{ $fullname }}-coordinator
+                name: {{ $fullname }}-provisioning-workflow-orchestrator
                 port: {name: intent}
           {{- end }}
           - path: /

@@ -8,17 +8,17 @@ import (
 	"strings"
 )
 
-// validateTestEvidence runs the declarative jurist audit profile, which owns
+// validateTestEvidence runs the declarative specification-critic audit profile, which owns
 // inventory, claim resolution, test execution, reduction, and reporting.
 func validateTestEvidence(run profileSmokeRunner, binary, root, coreRoot string) error {
-	profile := filepath.Join(root, "agents", "jurist", "audit-profile.yaml")
+	profile := filepath.Join(root, "agents", "specification-critic", "audit-profile.yaml")
 	out, err := run(binary,
 		"--profile", profile,
 		"--directory", root,
 		"--core-root", coreRoot,
 	)
 	if err == nil {
-		fmt.Printf("validated formal go_test evidence under %s through jurist audit profile\n", root)
+		fmt.Printf("validated formal go_test evidence under %s through specification-critic audit profile\n", root)
 		return nil
 	}
 	detail := strings.TrimSpace(string(out))

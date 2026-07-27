@@ -46,7 +46,7 @@ flow:
   - id: F5
     text: References to /opt/agent-core/agents are rejected because migrated profiles must not depend on copied core agent assets.
   - id: F6
-    text: mage containerSmoke verifies the installed image lacks /opt/agent-core/agents before running a mounted jurist profile.
+    text: mage containerSmoke verifies the installed image lacks /opt/agent-core/agents before running a mounted specification-critic profile.
   - id: F7
     text: mage tag creates the next v0.YYYYMMDD.N tag from local tags when the repository is on main.
 

@@ -17,7 +17,7 @@ context: |
   becomes a digital twin of the physical fiber") or the live network as a
   whole ("sandboxes or digital twins"), and a scripted responder mirrors
   nothing. The reference term that does apply at the environment level is the
-  sandbox, which srd018-assembler uses for the composed scenario the rig
+  sandbox, which srd018-scenario-critic uses for the composed scenario the rig
   builds; a mock is one component inside it.
 
   The mock is configuration over the agent-core mock endpoint binding

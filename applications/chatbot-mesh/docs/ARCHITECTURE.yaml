@@ -19,9 +19,11 @@ overview:
     a mounted profile: `agent --profile /profiles/agents/<name>/profile.yaml`.
 
     This architecture covers the data plane and the control plane. The control plane
-    -- a coordinator that sequences reconfiguration, a creator that manages agent
-    lifecycle, and the provisioning surface -- is release rel05.0. Release rel06.0
-    realizes the provisioning surface as the applier declarative agent (srd006).
+    -- the `provisioning-workflow-orchestrator` actor assuming Executor / Workflow Orchestrator, the
+    `creator` actor assuming Creator / Instance Manager and Agent Owner / Agent
+    Lifecycle Manager, and the provisioning surface -- is release rel05.0. Release
+    rel06.0 realizes the provisioning surface through the `applier` actor, which
+    assumes Executor / Actuation Agent (srd006).
 
   turn_flow_diagram: |
     ```mermaid
@@ -59,6 +61,63 @@ interfaces:
       W3C traceparent (agent-core srd016) and export to an OTel collector and
       Jaeger for the cross-agent waterfall.
 
+role_realization_alignment:
+  authority: applications/docs/specs/semantic-models/agent-role-realizations.yaml
+  language_rule: |
+    Actors and profiles assume or realize canonical roles; they are not role
+    definitions. Helm names identify workloads and deployment instances and
+    inherit the mounted profile's bindings.
+  decisions:
+    - current_actor: chatbot
+      implemented_responsibility: Route, retrieve, compose, answer, and host the browser request boundary.
+      canonical_role_sub_role: Planner / Intent Handler; Executor / Workflow Orchestrator; Knowledge Manager / Recommendation Generator.
+      retained_or_proposed_name: Retain descriptive multi-role actor `chatbot`.
+      authority_boundary: Selects declared words and trusted topology only; no lifecycle or deployment authority.
+      evidence: [agents/chatbot/request-machine.yaml, docs/specs/software-requirements/srd002-chatbot-agent.yaml]
+      migration_impact: None.
+    - current_actor: rag-server
+      implemented_responsibility: Serve ranked chunks from one configured corpus through a vector-in query boundary.
+      canonical_role_sub_role: Knowledge Manager / Recommendation Generator.
+      retained_or_proposed_name: Retain descriptive serving actor `rag-server`.
+      authority_boundary: Read-only retrieval; no ingest, answer, lifecycle, or transport-authority decision.
+      evidence: [agents/rag-server/request-machine.yaml, docs/specs/software-requirements/srd001-rag-server-agent.yaml]
+      migration_impact: None; values-named RAG units are deployment instances.
+    - current_actor: corpus-ingest
+      implemented_responsibility: Parameterize and package the catalog corpus-ingest closure for the mesh.
+      canonical_role_sub_role: Inherited Knowledge Manager / Ontology Manager.
+      retained_or_proposed_name: Retain descriptive wrapper `corpus-ingest`.
+      authority_boundary: Mesh owns parameters and packaging; catalog owns the canonical implementation.
+      evidence: [agents/corpus-ingest/profile.yaml, agents/creator/request-declarations.yaml]
+      migration_impact: None; it runs as a creator-launched child and has no Helm workload.
+    - current_actor: provisioning-workflow-orchestrator
+      implemented_responsibility: Sequence optional ingestion and rollout requests and aggregate their terminal result.
+      canonical_role_sub_role: Executor / Workflow Orchestrator; not Coordinator.
+      retained_or_proposed_name: Use `provisioning-workflow-orchestrator`; implemented in GH-1077.
+      authority_boundary: No deployment, child-process, synchronization, conflict-resolution, negotiation, or consensus authority.
+      evidence: [agents/provisioning-workflow-orchestrator/request-machine.yaml, helm/templates/provisioning-workflow-orchestrator.yaml]
+      migration_impact: GH-1077 migrated profile, Helm, SRD, integration, packaging, release, and compatibility paths together.
+    - current_actor: creator
+      implemented_responsibility: Launch an ingest child, drive decided rollout operations, and verify health and state.
+      canonical_role_sub_role: Creator / Instance Manager and Agent Owner / Agent Lifecycle Manager.
+      retained_or_proposed_name: Retain `creator`; instance realization is an implemented primary responsibility.
+      authority_boundary: Sole deployment-API client; acts on decided values and does not orchestrate the end-to-end intent.
+      evidence: [agents/creator/request-machine.yaml, helm/templates/creator.yaml]
+      migration_impact: None.
+    - current_actor: applier
+      implemented_responsibility: Validate, actuate, verify, and roll back a decided deployment values document.
+      canonical_role_sub_role: Executor / Actuation Agent and Change Manager.
+      retained_or_proposed_name: Retain descriptive actor/workload `applier`; Applier is not a canonical role.
+      authority_boundary: Creator-only caller; authors no desired state and receives no runtime transport authority.
+      evidence: [agents/applier/apply-machine.yaml, helm/templates/applier.yaml]
+      migration_impact: Documentation alignment only.
+    - current_actor: collector
+      implemented_responsibility: Receive, inspect, spool, and optionally relay bounded OTLP trace batches.
+      canonical_role_sub_role: Monitor / Telemetry Collector.
+      retained_or_proposed_name: Retain compatible descriptive actor `collector`.
+      authority_boundary: Trace intake only; contrib retains metrics and Dolt scraping during migration.
+      evidence: [agents/collector/machine.yaml, helm/templates/collector.yaml]
+      migration_impact: None; distinguish profile-backed, contrib, and metrics workloads.
+
 components:
   - name: chatbot agent
     path: agents/chatbot/
@@ -74,6 +133,18 @@ components:
       Serve a persistent vector-in retrieval service. Accept a query_embeddings
       request, query the configured Chroma collection, and return chunks with
       embedding-model metadata. The Chroma REST config is owned inline here.
+  - name: scenario Critic realizations
+    path: agents/chatbot/tests/ and agents/rag-server/tests/
+    responsibility: |
+      Evaluate scenario outputs through the application-local
+      `chatbot-turn-critic` and `rag-query-critic` profiles. The single-turn and
+      degraded-RAG directories configure different scopes of the same chatbot
+      actor; they do not define separate roles. Both actors bind Critic / Output
+      Evaluator. Only the isolated single-turn topology also binds Sandbox
+      Validator because it proves an undeclared URL-shaped source cannot escape
+      the controlled mock boundary. The catalog `scenario-critic` discovers,
+      composes, and reduces these critics without becoming their implementation
+      owner.
   - name: corpus-ingest agent
     path: agents/corpus-ingest/ wrapper; $AGENT_CATALOG_ROOT/agents/knowledge-manager/corpus-ingest/ canonical build input
     responsibility: |
@@ -82,34 +153,36 @@ components:
       embeds each document and threads its vector into Chroma. The mesh owns only
       the wrapper and corpus-rest endpoint/model/collection parameterization;
       packaging embeds the resolved canonical closure for runtime use.
-  - name: coordinator agent
-    path: agents/coordinator/
+  - name: provisioning-workflow-orchestrator actor
+    path: agents/provisioning-workflow-orchestrator/
     responsibility: |
-      The control plane's workflow orchestrator (srd004). Bind a provisioning intent
+      Assumes Executor / Workflow Orchestrator for the control plane (srd004). Bind a provisioning intent
       the chatbot delegates to a request-scoped run, sequence the ingestion and
       reconfiguration through declared requests to the creator, decide the values
       patch, and aggregate status. Hold no deployment-API authority.
-  - name: creator agent
+  - name: creator actor
     path: agents/creator/
     responsibility: |
-      The control plane's agent lifecycle manager (srd005). Realize a decided
+      Assumes Creator / Instance Manager and Agent Owner / Agent Lifecycle Manager
+      for the control plane (srd005). Realize a decided
       instance operation by driving the deployment API, verify the instance's health
       through a rollout read, and report back. The only agent that declares a
       deployment-API client; it alone holds that authority.
-  - name: applier
+  - name: applier actor
     path: agents/applier/
     responsibility: |
-      The deployment-plane actuation agent (srd006): the declarative agent that
+      Assumes Executor / Actuation Agent for the deployment plane (srd006): the declarative agent that
       realizes the deployment API (srd003 R4) the creator drives and the panel reads.
       Its request-machine writes the decided values patch, validates it against the
       chart schema with a helm dry-run, applies it as an atomic rollout, verifies the
       rollout, and rolls back on failure -- binding the helm and kubectl CLIs in its
       container as exec words. Authenticated apart from chat by a NetworkPolicy. It
       replaces the standard-library Go provisioner.
-  - name: collector agent
+  - name: collector actor
     path: agents/collector/
     responsibility: |
-      Provide the staged declarative OTLP trace path (srd007). The persistent
+      Assumes Monitor / Telemetry Collector for the staged declarative OTLP trace
+      path (srd007). The persistent
       machine receives bounded trace batches, spools them before optional relay,
       preserves integration identity, and exports its own telemetry only to file.
       The contrib collector remains for metrics and Dolt scraping. Profile, intake,
@@ -120,7 +193,7 @@ components:
     responsibility: |
       The single-page application (chat, observability, trace, and provisioning
       panels) and its UX config. Rendered into the deployed agents from the Helm
-      chart. The provisioning panel delegates an intent to the coordinator.
+      chart. The provisioning panel delegates an intent to the provisioning-workflow-orchestrator.
   - name: Helm chart
     path: helm/
     responsibility: |
@@ -234,7 +307,11 @@ implementation_status:
         the agents, UX, chart, and specs in this directory.
     - done: The application's own magefile audit and integration entries (chroma,
         rag-server, chatbot, helm smoke/swap/llm-tier, control plane).
-    - done: The control-plane coordinator (srd004) and creator (srd005), realized
+    - done: The scenario-critic rig discovers application-local
+        chatbot-turn-critic and rag-query-critic realizations, retains scenario
+        scope in their paths/configuration, and records those identities in
+        runtime verdicts.
+    - done: The control-plane provisioning-workflow-orchestrator (srd004) and creator (srd005), realized
         as mage integration:controlPlane (rel05.0, deterministic, driving a fake
         deployment API).
     - done: The creator corpus-ingest child endpoint and count-delta checks
@@ -264,8 +341,8 @@ related_documents:
   - doc: docs/specs/software-requirements/srd003-chatbot-deployment.yaml
     purpose: The deployment requirements (relocated, renumbered), including the
       provisioning authority boundary (R4).
-  - doc: docs/specs/software-requirements/srd004-coordinator.yaml
-    purpose: The coordinator agent requirements (control plane).
+  - doc: docs/specs/software-requirements/srd004-provisioning-workflow-orchestrator.yaml
+    purpose: The provisioning-workflow-orchestrator agent requirements (control plane).
   - doc: docs/specs/software-requirements/srd005-creator.yaml
     purpose: The creator agent requirements (control plane).
   - doc: docs/specs/software-requirements/srd006-applier.yaml

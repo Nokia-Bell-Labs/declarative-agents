@@ -229,6 +229,10 @@ func TestCodingApplicationManifestStagesEveryMountedProfile(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
+	if manifest.AgentProfiles.CompatibleRelease != "applications/catalog/v0.20260727.0" {
+		t.Fatalf("coding-agent compatible_release = %q, want naming-migration release",
+			manifest.AgentProfiles.CompatibleRelease)
+	}
 	profilesRoot := filepath.Clean(filepath.Join(appRoot, "..", "catalog"))
 	output := filepath.Join(t.TempDir(), "profiles")
 	files, err := assembleProfileClosure(manifest, profilesRoot, output, testPackageSource())

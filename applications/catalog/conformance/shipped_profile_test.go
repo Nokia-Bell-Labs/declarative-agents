@@ -55,7 +55,7 @@ func TestCopyShippedProfile(t *testing.T) {
 // TestCopyShippedProfileNoPatches copies a shipped profile with no patches and
 // asserts every file is byte-identical to the shipped source.
 func TestCopyShippedProfileNoPatches(t *testing.T) {
-	const rel = "agents/monitor/profile.yaml"
+	const rel = "agents/runtime-state-reader/profile.yaml"
 	srcDir := filepath.Dir(ProfilePath(rel))
 
 	copied := CopyShippedProfile(t, rel, nil)

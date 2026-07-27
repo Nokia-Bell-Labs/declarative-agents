@@ -1,6 +1,6 @@
-name: chatbot-turn-validator
+name: chatbot-turn-critic
 purpose: |-
-  Drives one chatbot turn whose source classifier returns malformed JSON while
+  Critiques one chatbot turn whose source classifier returns malformed JSON while
   the first RAG mock fails every query. Passing means malformed selection fell
   back to both declared sources and the chatbot degraded as srd002 requires: the
   failed source is excluded and the turn still answers from the remaining one.

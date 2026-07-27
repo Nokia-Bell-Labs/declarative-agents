@@ -1,0 +1,120 @@
+{{- if .Values.controlPlane.enabled }}
+{{- $fullname := include "chatbot-mesh.fullname" . -}}
+# --- Provisioning Workflow Orchestrator: the control plane's provisioning-intent orchestrator (srd004) ---
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: {{ $fullname }}-provisioning-workflow-orchestrator
+  labels:
+    {{- include "chatbot-mesh.labels" . | nindent 4 }}
+    app.kubernetes.io/component: provisioning-workflow-orchestrator
+spec:
+  replicas: {{ .Values.controlPlane.provisioningWorkflowOrchestrator.replicas }}
+  selector:
+    matchLabels:
+      {{- include "chatbot-mesh.selectorLabels" . | nindent 6 }}
+      app.kubernetes.io/component: provisioning-workflow-orchestrator
+  template:
+    metadata:
+      labels:
+        {{- include "chatbot-mesh.selectorLabels" . | nindent 8 }}
+        app.kubernetes.io/component: provisioning-workflow-orchestrator
+    spec:
+      containers:
+        - name: provisioning-workflow-orchestrator
+          image: {{ include "chatbot-mesh.image" . | quote }}
+          imagePullPolicy: {{ .Values.image.pullPolicy }}
+          args:
+            - "--profile"
+            - "{{ .Values.profiles.mountPath }}/agents/provisioning-workflow-orchestrator/profile.yaml"
+            - "--directory"
+            - "{{ .Values.profiles.workMountPath }}"
+            {{- with include "chatbot-mesh.otlpEndpoint" . }}
+            - "--otel-otlp-endpoint"
+            - {{ . | quote }}
+            - "--otel-service-name"
+            - "provisioning-workflow-orchestrator"
+            {{- end }}
+            {{- with include "chatbot-mesh.otlpMetricEndpoint" . }}
+            - "--otel-metric-otlp-endpoint"
+            - {{ . | quote }}
+            {{- end }}
+          # The provisioning-workflow-orchestrator delegates every instance op to the creator through its
+          # declared client; the creator Service DNS is the only endpoint it needs,
+          # and it binds 0.0.0.0 so its Services route to the pod. It holds no
+          # deployment-API credential.
+          env:
+            {{- with include "chatbot-mesh.integrationResourceAttributes" . }}
+            - {name: OTEL_RESOURCE_ATTRIBUTES, value: {{ . | quote }}}
+            {{- end }}
+            - {name: PROVISIONING_WORKFLOW_ORCHESTRATOR_BIND_HOST, value: "0.0.0.0"}
+            - {name: CREATOR_URL, value: "http://{{ $fullname }}-creator:{{ .Values.controlPlane.creator.ports.instance }}"}
+            - {name: CREATOR_HOST, value: "{{ $fullname }}-creator"}
+          ports:
+            - {name: intent, containerPort: {{ .Values.controlPlane.provisioningWorkflowOrchestrator.ports.intent }}}
+            - {name: control, containerPort: {{ .Values.controlPlane.provisioningWorkflowOrchestrator.ports.control }}}
+            - {name: monitor, containerPort: {{ .Values.controlPlane.provisioningWorkflowOrchestrator.ports.monitor }}}
+          readinessProbe:
+            httpGet: {path: /api/lifecycle/health, port: control}
+            initialDelaySeconds: 5
+            periodSeconds: 10
+          resources:
+            {{- toYaml .Values.controlPlane.provisioningWorkflowOrchestrator.resources | nindent 12 }}
+          volumeMounts:
+            - {name: profiles, mountPath: {{ .Values.profiles.mountPath }}, readOnly: true}
+            - {name: work, mountPath: {{ .Values.profiles.workMountPath }}}
+      volumes:
+        {{- include "chatbot-mesh.profilesVolume" . | nindent 8 }}
+        - name: work
+          emptyDir: {}
+---
+apiVersion: v1
+kind: Service
+metadata:
+  name: {{ $fullname }}-provisioning-workflow-orchestrator
+  labels:
+    {{- include "chatbot-mesh.labels" . | nindent 4 }}
+    app.kubernetes.io/component: provisioning-workflow-orchestrator
+spec:
+  selector:
+    {{- include "chatbot-mesh.selectorLabels" . | nindent 4 }}
+    app.kubernetes.io/component: provisioning-workflow-orchestrator
+  ports:
+    - {name: intent, port: {{ .Values.controlPlane.provisioningWorkflowOrchestrator.ports.intent }}, targetPort: intent}
+    - {name: control, port: {{ .Values.controlPlane.provisioningWorkflowOrchestrator.ports.control }}, targetPort: control}
+    - {name: monitor, port: {{ .Values.controlPlane.provisioningWorkflowOrchestrator.ports.monitor }}, targetPort: monitor}
+{{- if .Values.controlPlane.provisioningWorkflowOrchestrator.networkPolicy.enabled }}
+---
+# The panel's intake is the one browser-reachable control-plane surface (srd004
+# R1.5), so the ingress controller is admitted here and nowhere else. Only the
+# intent port opens; the monitor and control ports carry no browser traffic and
+# stay unreachable from outside the mesh.
+#
+# The selectors are values so an operator can name their own ingress controller;
+# the defaults match a conventional ingress-nginx install. An explicit selector
+# rather than an open port is the point. The applier's policy is precise about
+# who may reach its apply surface, and this one is precise about who may reach the
+# intake (srd003 R4.5; GH-502).
+apiVersion: networking.k8s.io/v1
+kind: NetworkPolicy
+metadata:
+  name: {{ $fullname }}-provisioning-workflow-orchestrator
+  labels:
+    {{- include "chatbot-mesh.labels" . | nindent 4 }}
+    app.kubernetes.io/component: provisioning-workflow-orchestrator
+spec:
+  podSelector:
+    matchLabels:
+      {{- include "chatbot-mesh.selectorLabels" . | nindent 6 }}
+      app.kubernetes.io/component: provisioning-workflow-orchestrator
+  policyTypes: [Ingress]
+  ingress:
+    - from:
+        - namespaceSelector:
+            {{- toYaml .Values.controlPlane.provisioningWorkflowOrchestrator.networkPolicy.ingressController.namespaceSelector | nindent 12 }}
+          podSelector:
+            {{- toYaml .Values.controlPlane.provisioningWorkflowOrchestrator.networkPolicy.ingressController.podSelector | nindent 12 }}
+      ports:
+        - {protocol: TCP, port: intent}
+{{- end }}
+{{- end }}

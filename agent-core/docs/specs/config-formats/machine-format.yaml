@@ -513,7 +513,7 @@ examples:
       awaits declared operator events, validates launch input, invokes the
       critic through self_invoke, and drains the server on shutdown.
 
-  - file: ../applications/catalog/agents/jurist/machine.yaml
+  - file: ../applications/catalog/agents/specification-critic/machine.yaml
     description: |
       6 states, linear 3-tool pipeline. The jurist
       loads the specification corpus, runs consistency checks across

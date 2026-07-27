@@ -1,7 +1,7 @@
-name: assembler
-machine: ../../agents/assembler/machine.yaml
+name: scenario-critic
+machine: ../../agents/scenario-critic/machine.yaml
 tools:
-  - ../../agents/assembler/tools.yaml
+  - ../../agents/scenario-critic/tools.yaml
 tool_declarations:
   - declarations.yaml
 rest_definitions:

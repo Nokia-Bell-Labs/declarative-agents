@@ -1,4 +1,4 @@
-name: rag-query-validator
+name: rag-query-critic
 machine: machine.yaml
 tools:
   - tools.yaml

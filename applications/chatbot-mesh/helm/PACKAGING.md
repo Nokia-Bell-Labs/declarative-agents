@@ -11,7 +11,7 @@ deploys into that directory before `helm package`/`helm install`:
 ```
 applications/chatbot-mesh/agents/chatbot/      -> profiles/agents/chatbot/
 applications/chatbot-mesh/agents/rag-server/   -> profiles/agents/rag-server/
-applications/chatbot-mesh/agents/coordinator/  -> profiles/agents/coordinator/   (control plane)
+applications/chatbot-mesh/agents/provisioning-workflow-orchestrator/  -> profiles/agents/provisioning-workflow-orchestrator/   (control plane)
 applications/chatbot-mesh/agents/creator/      -> profiles/agents/creator/       (control plane)
 applications/chatbot-mesh/agents/applier/      -> profiles/agents/applier/       (deployment plane, srd006)
 applications/chatbot-mesh/agents/collector/    -> profiles/agents/collector/     (trace ingress, srd007)
@@ -31,6 +31,14 @@ the canonical input is unset. In-tree builds discover the repository's
 `applications/catalog` directory. The checkout is required to
 build and test corpus ingest, while the resulting chart archive contains the
 resolved files and needs no profile checkout at runtime.
+
+`Chart.yaml` records
+`declarative-agents.nokia.com/catalog-compatible-release:
+applications/catalog/v0.20260727.0` for that canonical build input. As with the
+coding-agent package manifest, this is a compatibility pin, not a claim that an
+arbitrary source checkout is the immutable release. The exact canonical and
+legacy catalog tags are published atomically from `main` after merge; packaging
+on this branch stages the reviewed checkout and does not create release tags.
 
 The ux contributes those two entries, not its whole tree. Every file staged
 under `profiles/` becomes a ConfigMap key and a projected mount item in *every*

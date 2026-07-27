@@ -1,0 +1,81 @@
+id: test-rel12.0-agent-role-realization-alignment
+title: Test Suite for Release 12.0 Agent Role-Realization Alignment
+release: "12.0"
+status: implemented
+
+overview: |
+  Deterministic release-integration evidence for the completed naming
+  migration. The suite validates aliases and durations, exact release metadata,
+  package closures, Helm staging and generated renders, consumer provenance,
+  and scoped zero-hit policies. Tag publication remains a post-merge operation.
+
+traces:
+  - rel12.0-uc001-agent-role-realization-alignment
+
+test_cases:
+  - name: Migration table and non-forking aliases
+    status: implemented
+    go_test: go test ./conformance -run 'Test(CatalogMembershipUsesSharedRealizationAndAliasAuthority|AlignmentMigrationReleaseAndConsumerPins)'
+    expected:
+      every_rename_mapped: true
+      v0_duration_and_v1_removal_recorded: true
+      wrappers_reference_canonical_assets: true
+    traces:
+      - rel12.0-uc001-agent-role-realization-alignment S1
+      - rel12.0-uc001-agent-role-realization-alignment S2
+
+  - name: Exact catalog tag pair and immutability
+    status: implemented
+    go_test: cd ../../magefiles && go test . -run 'Test(AlignmentReleaseCreatesExactCatalogCompatibilityPair|GitCreateTagSetIsAtomicOnConflict|CreateReleaseTagRejectsNonMainBranch)'
+    expected:
+      root_canonical_and_legacy_tags_share_exact_suffix: true
+      tag_set_is_atomic: true
+      feature_branch_publication_rejected: true
+    traces:
+      - rel12.0-uc001-agent-role-realization-alignment S5
+
+  - name: Coding-agent closure and provenance
+    status: implemented
+    go_test: cd ../coding-agent && go test ./magefiles
+    integration_target: cd ../coding-agent && mage audit
+    expected:
+      exact_compatible_release: applications/catalog/v0.20260727.0
+      closure_contains_every_canonical_reference: true
+      checkout_does_not_claim_release_provenance: true
+    traces:
+      - rel12.0-uc001-agent-role-realization-alignment S3
+
+  - name: Chatbot-mesh generated Helm package
+    status: implemented
+    go_test: cd ../chatbot-mesh && go test ./magefiles
+    integration_target: cd ../chatbot-mesh && mage helm:package
+    expected:
+      exact_catalog_annotation: applications/catalog/v0.20260727.0
+      canonical_profile_paths_staged: true
+      old_coordinator_paths_absent: true
+      generated_source_inventory_has_no_drift: true
+      staged_and_archived_charts_lint_and_render: true
+    traces:
+      - rel12.0-uc001-agent-role-realization-alignment S3
+
+  - name: Scoped stale-identity policy
+    status: implemented
+    go_test: go test ./conformance -run 'Test(NoActiveAssemblerPathConsumers|NoActiveMonitorProfilePathConsumers|NoActiveJuristProfilePathConsumers|AlignmentHasNoStaleActiveRuntimeIdentities)'
+    expected:
+      stale_active_paths: 0
+      stale_active_runtime_identities: 0
+      compatibility_and_history_allowlists_exact: true
+    traces:
+      - rel12.0-uc001-agent-role-realization-alignment S4
+
+  - name: Full coordinated gates
+    status: implemented
+    commands:
+      - mage validate
+      - mage conformance
+      - mage integration:all
+      - cd ../.. && mage audit
+      - cd ../.. && mage test
+      - cd ../.. && mage stats
+    traces:
+      - rel12.0-uc001-agent-role-realization-alignment S6

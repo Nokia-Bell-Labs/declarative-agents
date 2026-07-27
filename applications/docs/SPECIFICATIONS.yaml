@@ -24,8 +24,21 @@ roadmap_summary:
     use_cases_total: 1
     status: implemented
     evidence: Root Go tests and application Mage gates are executable.
+  - version: "12.0"
+    name: Agent role-realization alignment
+    use_cases_done: 1
+    use_cases_total: 1
+    status: implemented
+    evidence: Catalog migration, role governance, consumer closure, Helm package, tag-semantic, and scoped zero-hit tests are executable.
 
 foundation_document_index:
+  - id: application-composition-pattern-language
+    title: A Pattern Language for Declarative Agent Applications
+    summary: |
+      Recurring application-composition, package-time closure, deployment
+      topology, and module-governance patterns linked to the single-agent
+      language and the role-realization semantic model.
+    path: docs/pattern-language.yaml
   - id: applications-shared-contract
     title: Shared Contract for Runnable Applications
     summary: Goals, boundaries, and capability-aware success criteria.
@@ -73,7 +86,18 @@ srd_index:
 
 config_format_index: []
 
-semantic_model_index: []
+semantic_model_index:
+  - id: sm-agent-role-realizations
+    title: Agent Role Realizations and Bindings
+    summary: |
+      Pinned canonical role and sub-role authority, realization naming grammar,
+      actor-role bindings, wrapper inheritance, classifications, and migration
+      aliases shared by the catalog and runnable applications.
+    status: implemented
+    path: docs/specs/semantic-models/agent-role-realizations.yaml
+    reciprocal_indexes:
+      - catalog/docs/SPECIFICATIONS.yaml#semantic_model_index
+      - catalog/docs/specs/semantic-models/agent-role-taxonomy.yaml#shared_authority
 
 use_case_index:
   - id: rel00.0-uc001-application-contract-conformance

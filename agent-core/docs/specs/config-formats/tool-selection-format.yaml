@@ -120,7 +120,7 @@ grouped_declaration_loading:
     machine.
 
     Bench profiles load builtin/bench declarations and keep evaluator child
-    profile config in <profile-root>/bench/builtin.yaml. Jurist profiles load only
+    profile config in <profile-root>/bench/builtin.yaml. Specification-critic profiles load only
     builtin/spec-validation. Lifecycle history and rollback profiles load
     builtin/lifecycle; approval profiles add suspend and done through their own
     tools.yaml.

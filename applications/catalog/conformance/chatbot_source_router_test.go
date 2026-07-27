@@ -52,7 +52,7 @@ func TestChatbotSourceRouterConformance(t *testing.T) {
 		"stream": false,
 		"messages": []map[string]string{
 			{"role": "system", "content": system},
-			{"role": "user", "content": "Question:\nHow does the assembler rig validate plans?\n\nDeclared source catalog:\n- rag0: Primary declarative-agent and assembler rig behavior.\n- rag1: Secondary mock-dependency and Solar Ridge integration fixtures."},
+			{"role": "user", "content": "Question:\nHow does the scenario critic rig validate plans?\n\nDeclared source catalog:\n- rag0: Primary declarative-agent and scenario critic rig behavior.\n- rag1: Secondary mock-dependency and Solar Ridge integration fixtures."},
 		},
 	}
 	body, err := json.Marshal(request)

@@ -29,7 +29,7 @@ machine/tool/signal/terminal contracts, request shapes, configuration names, and
 closure membership as compatibility-sensitive. Record breaking migrations and
 update consumers in the coordinated release.
 
-Assembler and mock are supported test-time catalog members under `agents/`; the
+scenario-critic and mock are supported test-time catalog members under `agents/`; the
 existing conformance vocabulary continues to classify them as supported
 test-time library members. Preserve their SRD, conformance, portability,
 release, and v0 compatibility contracts; do not repurpose them as application

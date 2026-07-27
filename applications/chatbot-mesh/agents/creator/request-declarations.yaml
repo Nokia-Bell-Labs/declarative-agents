@@ -6,7 +6,7 @@ tools:
     description: Realize the decided operation by forwarding the values document to the deployment API's apply path.
     problem: A decided instance operation must be realized against real instances, and the creator alone holds the deployment-API authority that does so.
     goals:
-      - Forward the coordinator's decided values-plane document as the versioned apply request content (srd006 R1.4).
+      - Forward the provisioning-workflow-orchestrator's decided values-plane document as the versioned apply request content (srd006 R1.4).
       - Drive the deployment API to apply it, authoring no values decision.
       - Advance to the health verification when the deployment API accepts the apply.
     requirements:
@@ -17,7 +17,7 @@ tools:
       errors:
         - Network, timeout, schema, and mapping failures emit CommandError.
     non_goals:
-      - Does not decide what to change; the values decision is the coordinator's.
+      - Does not decide what to change; the values decision is the provisioning-workflow-orchestrator's.
       - Does not accept a runtime method, URL, host, or credential for the deployment API.
     parameters:
       type: object
@@ -87,7 +87,7 @@ tools:
       errors:
         - must emit ToolFailed when the child reaches a failure terminal or cannot run
     non_goals:
-      - Does not decide what to ingest; the coordinator names the directory.
+      - Does not decide what to ingest; the provisioning-workflow-orchestrator names the directory.
       - Does not verify the outcome; the collection count read does, because a child can exit zero having written nothing.
       - Does not choose the collection; the child profile owns it (agent-core srd021 R2.2).
     parameters:
@@ -341,7 +341,7 @@ tools:
     init: rest_client_invoke
     category: boundary
     description: Read the deployed mesh view from the applier's state endpoint, so the provisioning panel's initial load is served by the creator.
-    problem: The panel loads its mesh view from the coordinator rather than from the deployment API, which no browser may reach, and the creator is the only agent that declares a deployment-API client.
+    problem: The panel loads its mesh view from the provisioning-workflow-orchestrator rather than from the deployment API, which no browser may reach, and the creator is the only agent that declares a deployment-API client.
     goals:
       - Read the applier-reported RAG topology, LLM configuration, and parameters.
       - Serve the mesh view the provisioning panel renders on its initial load (srd006 R1.5).
@@ -406,7 +406,7 @@ tools:
     problem: A created or restarted instance must be confirmed healthy before the operation is reported complete.
     goals:
       - Read the rollout status from the deployment API.
-      - Report the instance health and revision for the coordinator's aggregated status.
+      - Report the instance health and revision for the provisioning-workflow-orchestrator's aggregated status.
     requirements:
       input:
         - The rollout read takes no request-scoped input beyond the applied operation.

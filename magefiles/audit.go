@@ -12,9 +12,24 @@ import (
 type statFunc func(string) (os.FileInfo, error)
 type auditRunner func(string) error
 
-// Audit runs mage audit in each sub-module and participating example module.
+// Audit first validates the repository-wide actor-role realization inventory,
+// then runs mage audit in each sub-module and participating example module.
 func Audit() error {
+	if err := runAgentRoleRealizationAudit(); err != nil {
+		return err
+	}
 	return auditSubModules(auditParticipants(), os.Stat, runMageAudit)
+}
+
+func runAgentRoleRealizationAudit() error {
+	cmd := exec.Command("go", "test", ".", "-run", "^TestAgentRoleRealization")
+	cmd.Dir = "magefiles"
+	cmd.Stdout = os.Stdout
+	cmd.Stderr = os.Stderr
+	if err := cmd.Run(); err != nil {
+		return fmt.Errorf("agent role-realization audit: %w", err)
+	}
+	return nil
 }
 
 func auditSubModules(modules []string, stat statFunc, run auditRunner) error {

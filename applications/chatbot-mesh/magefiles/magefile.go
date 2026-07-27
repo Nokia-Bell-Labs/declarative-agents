@@ -1,7 +1,7 @@
 // Copyright (c) 2026 Nokia. All rights reserved.
 
 // The chatbot-mesh application self-governs its specification corpus with the
-// catalog Jurist, driven by the agent-core runtime it depends on as a platform.
+// catalog specification critic, driven by the agent-core runtime it depends on as a platform.
 package main
 
 import (
@@ -19,29 +19,29 @@ import (
 
 const (
 	// agentCoreRootEnv points at the agent-core checkout the runtime binary and the
-	// jurist tools are built and resolved from; it defaults to a sibling checkout.
+	// specification-critic tools are built and resolved from; it defaults to a sibling checkout.
 	agentCoreRootEnv = "AGENT_CORE_ROOT"
-	// juristProfileEnv overrides the Jurist profile within the selected catalog.
-	juristProfileEnv = "JURIST_PROFILE"
+	// specificationCriticProfileEnv overrides the profile within the selected catalog.
+	specificationCriticProfileEnv = "SPECIFICATION_CRITIC_PROFILE"
 
-	juristProfileRel = "agents/jurist/profile.yaml"
+	specificationCriticProfileRel = "agents/specification-critic/profile.yaml"
 )
 
-// Audit runs the jurist over this application's specification corpus, so the application
+// Audit runs the specification critic over this application's specification corpus, so the application
 // self-governs: load_corpus reads docs/SPECIFICATIONS.yaml, docs/specs, and
 // agents; validate_specs runs the corpus consistency checks; a single error
 // finding (a broken index path, touchpoint, or citation) fails the target. The
-// outcome is read from the jurist's report rather than its exit code: a failing
-// corpus makes the jurist reach a failed terminal, which exits 2 (agent-core
+// outcome is read from the specification critic's report rather than its exit code: a failing
+// corpus makes the specification critic reach a failed terminal, which exits 2 (agent-core
 // srd018 R6.1/R6.2, GH-683), and agentRunCompleted accepts that as a completed
 // run because the report -- not the exit status -- names which checks failed.
 // Audit is the self-governance gate: it fails clearly when the agent-core
-// runtime or the jurist validator profile is not reachable, rather than
+// runtime or the specification-critic validator profile is not reachable, rather than
 // skipping, so a copied-out application without the platform tools reports an
 // honest failure instead of a false green.
 //
 // The gate has four steps, each answering a question the one before it cannot:
-// the jurist validates the corpus, the boot smoke proves every profile starts,
+// the specification critic validates the corpus, the boot smoke proves every profile starts,
 // the evidence resolver proves each named test exists, and the evidence run
 // proves the tests a suite claims as implemented actually pass.
 func Audit() error {
@@ -53,7 +53,7 @@ func Audit() error {
 	if err != nil {
 		return err
 	}
-	coreRoot, juristProfile, err := resolveAuditTools(root, catalogRoot)
+	coreRoot, specificationCriticProfile, err := resolveAuditTools(root, catalogRoot)
 	if err != nil {
 		return err
 	}
@@ -62,10 +62,10 @@ func Audit() error {
 		return err
 	}
 	defer func() { _ = os.Remove(binary) }()
-	if err := runJurist(binary, juristProfile, root, coreRoot); err != nil {
+	if err := runSpecificationCritic(binary, specificationCriticProfile, root, coreRoot); err != nil {
 		return err
 	}
-	// The jurist validates the specification corpus, not whether an agent can
+	// The specification critic validates the specification corpus, not whether an agent can
 	// start, so preflight every mesh profile through the runtime's own load path.
 	profiles, err := meshProfiles(root)
 	if err != nil {
@@ -86,28 +86,28 @@ func Audit() error {
 	if err := bootSmokeProfiles(defaultSmokeRun, binary, coreRoot, profiles); err != nil {
 		return err
 	}
-	evidenceProfile := filepath.Join(filepath.Dir(juristProfile), "audit-profile.yaml")
+	evidenceProfile := filepath.Join(filepath.Dir(specificationCriticProfile), "audit-profile.yaml")
 	if _, err := os.Stat(evidenceProfile); err != nil {
-		return fmt.Errorf("audit: jurist test-evidence profile not found at %s: %w", evidenceProfile, err)
+		return fmt.Errorf("audit: specification-critic test-evidence profile not found at %s: %w", evidenceProfile, err)
 	}
-	return runJurist(binary, evidenceProfile, root, coreRoot)
+	return runSpecificationCritic(binary, evidenceProfile, root, coreRoot)
 }
 
-// resolveAuditTools locates the agent-core runtime checkout and the jurist
+// resolveAuditTools locates the agent-core runtime checkout and the specification-critic
 // validator profile the self-governance audit requires. Both are mandatory: the
-// gate cannot validate the corpus without the runtime that executes the jurist
+// gate cannot validate the corpus without the runtime that executes the specification critic
 // or the validator profile itself, so a missing tool is a clear failure, not a
 // skip. Skip behavior is reserved for explicitly optional integration targets.
-func resolveAuditTools(root, catalogRoot string) (coreRoot, juristProfile string, err error) {
+func resolveAuditTools(root, catalogRoot string) (coreRoot, specificationCriticProfile string, err error) {
 	coreRoot = envOrDefault(agentCoreRootEnv, siblingPath(root, "agent-core"))
 	if !agentCoreAvailable(coreRoot) {
 		return "", "", fmt.Errorf("audit: agent-core checkout not found at %s (set %s); the self-governance gate requires the agent-core runtime", coreRoot, agentCoreRootEnv)
 	}
-	juristProfile = envOrDefault(juristProfileEnv, filepath.Join(catalogRoot, filepath.FromSlash(juristProfileRel)))
-	if _, statErr := os.Stat(juristProfile); statErr != nil {
-		return "", "", fmt.Errorf("audit: jurist validator profile not found at %s (set %s); the self-governance gate requires its validator", juristProfile, juristProfileEnv)
+	specificationCriticProfile = envOrDefault(specificationCriticProfileEnv, filepath.Join(catalogRoot, filepath.FromSlash(specificationCriticProfileRel)))
+	if _, statErr := os.Stat(specificationCriticProfile); statErr != nil {
+		return "", "", fmt.Errorf("audit: specification-critic validator profile not found at %s (set %s); the self-governance gate requires its validator", specificationCriticProfile, specificationCriticProfileEnv)
 	}
-	return coreRoot, juristProfile, nil
+	return coreRoot, specificationCriticProfile, nil
 }
 
 // resolveCatalogRoot snapshots the canonical and Release 99 compatibility
@@ -134,9 +134,9 @@ func resolveCatalogRoot(owner, startupCWD string) (string, error) {
 	return resolution.Path, nil
 }
 
-func runJurist(binary, juristProfile, root, coreRoot string) error {
+func runSpecificationCritic(binary, specificationCriticProfile, root, coreRoot string) error {
 	cmd := exec.Command(binary,
-		"--profile", juristProfile,
+		"--profile", specificationCriticProfile,
 		"--directory", root,
 		"--core-root", coreRoot,
 	)
@@ -144,38 +144,38 @@ func runJurist(binary, juristProfile, root, coreRoot string) error {
 	var out bytes.Buffer
 	cmd.Stdout = io.MultiWriter(os.Stdout, &out)
 	cmd.Stderr = io.MultiWriter(os.Stderr, &out)
-	// A corpus with findings drives the jurist to a failure terminal, which
+	// A corpus with findings drives the specification critic to a failure terminal, which
 	// exits non-zero; that is a completed run reporting failure, not a broken
 	// invocation (srd018-cli-flag-contract R6). Only a run the binary could
 	// not complete is an error here; the outcome itself comes from the report.
 	if runErr := cmd.Run(); !agentRunCompleted(runErr) {
-		return fmt.Errorf("jurist run failed: %w", runErr)
+		return fmt.Errorf("specification-critic run failed: %w", runErr)
 	}
-	ok, err := juristSucceeded(out.String())
+	ok, err := specificationCriticSucceeded(out.String())
 	switch {
 	case err != nil:
 		return fmt.Errorf("audit: %w; see the report above", err)
 	case !ok:
-		return fmt.Errorf("audit: the jurist found errors in the application corpus at %s", filepath.Join(root, "docs", "specs"))
+		return fmt.Errorf("audit: the specification critic found errors in the application corpus at %s", filepath.Join(root, "docs", "specs"))
 	default:
-		fmt.Printf("audit: jurist profile %s completed with no errors\n", filepath.Base(juristProfile))
+		fmt.Printf("audit: specification-critic profile %s completed with no errors\n", filepath.Base(specificationCriticProfile))
 		return nil
 	}
 }
 
-// juristSucceeded reads a clean/failing outcome from a jurist report. The
+// specificationCriticSucceeded reads a clean/failing outcome from a specification-critic report. The
 // outcome is taken from the terminal state line rather than the exit code:
 // the exit code now distinguishes a failed terminal from a failed invocation
 // (srd018 R6), but the report is what names which checks failed. A report with
 // neither terminal marker is an indeterminate run and returns an error.
-func juristSucceeded(report string) (bool, error) {
+func specificationCriticSucceeded(report string) (bool, error) {
 	switch {
 	case strings.Contains(report, "terminal state: failed") || strings.Contains(report, "status=failed"):
 		return false, nil
 	case strings.Contains(report, "terminal state: succeeded"):
 		return true, nil
 	default:
-		return false, fmt.Errorf("the jurist did not reach a terminal state")
+		return false, fmt.Errorf("the specification critic did not reach a terminal state")
 	}
 }
 

@@ -21,7 +21,7 @@ func creatorIngestEndpoint(t *testing.T) rolloutEndpoint {
 	readIntakeYAML(t, filepath.Join(agentDir(t, "creator"), "rest.yaml"), &rest)
 	endpoint, ok := rest.Rest.Servers["creator_instance"].Endpoints["ingest"]
 	if !ok {
-		t.Fatal("creator declares no ingest endpoint; the coordinator has nothing to delegate a corpus-ingest run to")
+		t.Fatal("creator declares no ingest endpoint; the provisioning-workflow-orchestrator has nothing to delegate a corpus-ingest run to")
 	}
 	return endpoint
 }
@@ -39,7 +39,7 @@ func TestCreatorIngestIsItsOwnEndpoint(t *testing.T) {
 		t.Errorf("ingest initial_signal = %q, want SeedIngest", ingest.MachineRequest.InitialSignal)
 	}
 	if strings.HasPrefix(ingest.Path, "/provisioning") {
-		t.Errorf("ingest path %q is on the browser prefix; the creator is coordinator-facing only (srd005 R5.4)", ingest.Path)
+		t.Errorf("ingest path %q is on the browser prefix; the creator is provisioning-workflow-orchestrator-facing only (srd005 R5.4)", ingest.Path)
 	}
 
 	var rest rolloutRest
@@ -127,7 +127,7 @@ func TestCreatorIngestMapsItsTerminals(t *testing.T) {
 		t.Fatal("ingest does not map IngestFailed; a failed child would fall through")
 	}
 	if failed.Status < 400 {
-		t.Errorf("IngestFailed status = %d, which the coordinator reads as success", failed.Status)
+		t.Errorf("IngestFailed status = %d, which the provisioning-workflow-orchestrator reads as success", failed.Status)
 	}
 
 	// Every terminal the machine declares must be mapped, and nothing else.
@@ -203,7 +203,7 @@ func TestCreatorIngestJudgesTheCountBeforeReporting(t *testing.T) {
 		{"JudgingIngest", "DocumentsWritten", "", "Ingested"},
 		{"JudgingIngest", "NoDocumentsWritten", "", "IngestRejected"},
 		// A count that will not resolve is a fault, not an empty corpus. Routing
-		// it to IngestRejected would tell the coordinator a directory held no
+		// it to IngestRejected would tell the provisioning-workflow-orchestrator a directory held no
 		// documents when nobody looked (agent-core srd041 R4.2).
 		{"JudgingIngest", "CommandError", "", "IngestFailed"},
 	}
@@ -309,14 +309,14 @@ func TestCreatorIngestPopulatedCollectionUsesRunDelta(t *testing.T) {
 }
 
 // TestCreatorIngestShortfallIsAClientError proves a run that wrote nothing is a
-// 422 and a broken run a 500, which is the distinction the coordinator's declared
+// 422 and a broken run a 500, which is the distinction the provisioning-workflow-orchestrator's declared
 // failure mapping needs.
 func TestCreatorIngestShortfallIsAClientError(t *testing.T) {
 	states := creatorIngestEndpoint(t).MachineRequest.Response.TerminalStates
 
 	rejected, ok := states["IngestRejected"]
 	if !ok {
-		t.Fatal("ingest does not map IngestRejected; the coordinator's Rejected leg stays unreachable")
+		t.Fatal("ingest does not map IngestRejected; the provisioning-workflow-orchestrator's Rejected leg stays unreachable")
 	}
 	if rejected.Status != 422 {
 		t.Errorf("IngestRejected status = %d, want 422; a shortfall is the caller's source falling short, not our failure", rejected.Status)
@@ -326,12 +326,12 @@ func TestCreatorIngestShortfallIsAClientError(t *testing.T) {
 	}
 }
 
-// TestCoordinatorIngestReachesEndpointAndMapsCount proves the delegation targets
+// TestProvisioningWorkflowOrchestratorIngestReachesEndpointAndMapsCount proves the delegation targets
 // the endpoint that runs a child and carries its judged post-run count forward.
 // It posted at /api/v1/instance until GH-763, where every operation took the
 // values-apply leg whatever it named, so this hop ran no ingest at all.
-func TestCoordinatorIngestReachesEndpointAndMapsCount(t *testing.T) {
-	op := clientOperationNamed(t, "coordinator", "creator", "creator_ingest")
+func TestProvisioningWorkflowOrchestratorIngestReachesEndpointAndMapsCount(t *testing.T) {
+	op := clientOperationNamed(t, "provisioning-workflow-orchestrator", "creator", "creator_ingest")
 	if op.Path != "/api/v1/ingest" {
 		t.Errorf("creator_ingest path = %q, want /api/v1/ingest", op.Path)
 	}
@@ -356,7 +356,7 @@ func TestCoordinatorIngestReachesEndpointAndMapsCount(t *testing.T) {
 			} `yaml:"clients"`
 		} `yaml:"rest"`
 	}
-	readIntakeYAML(t, filepath.Join(agentDir(t, "coordinator"), "rest.yaml"), &rest)
+	readIntakeYAML(t, filepath.Join(agentDir(t, "provisioning-workflow-orchestrator"), "rest.yaml"), &rest)
 	for _, f := range rest.Rest.Clients["creator"].Operations["creator_ingest"].Failures {
 		for _, s := range f.Status {
 			if s == 422 && f.Signal == "Rejected" {

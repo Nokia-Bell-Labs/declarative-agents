@@ -17,7 +17,7 @@ tools:
       errors:
         - A filesystem failure emits ToolFailed.
     non_goals:
-      - Does not decide the values; the coordinator does.
+      - Does not decide the values; the provisioning-workflow-orchestrator does.
       - Does not apply or render the patch; the helm words do.
     parameters:
       type: object

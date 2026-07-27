@@ -266,3 +266,31 @@ test_cases:
       - rel00.0-uc001-application-contract-conformance S4
       - srd001-application-module-contract AC4
       - srd001-application-module-contract AC5
+
+  - id: TC9
+    use_case: rel00.0-uc001-application-contract-conformance
+    name: Actor classifications and reference-role bindings conform
+    status: implemented
+    evidence_type: go_test
+    command: |
+      (cd magefiles && go test . -run '^TestAgentRoleRealization')
+      (cd applications/catalog && go test ./conformance -run 'Test(ShippedProfilesMatchFoundationModels|CatalogMembershipUsesSharedRealizationAndAliasAuthority)$')
+    evidence:
+      - magefiles/agent_role_realizations_test.go
+      - magefiles/audit.go
+      - applications/docs/specs/semantic-models/agent-role-realizations.yaml
+      - applications/catalog/conformance/family_inventory_test.go
+      - applications/catalog/conformance/membership_contract_test.go
+    expected:
+      deterministic_profile_discovery: true
+      canonical_role_and_sub_role_authority_validated: true
+      every_production_profile_classified: true
+      repeated_role_bindings_allowed: true
+      multi_role_actor_bindings_allowed: true
+      inheritance_and_alias_rules_validated: true
+      canonical_name_collisions_rejected: true
+      root_mage_audit_invokes_validation: true
+    traces:
+      - rel00.0-uc001-application-contract-conformance S3
+      - rel00.0-uc001-application-contract-conformance S4
+      - sm-agent-role-realizations

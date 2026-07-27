@@ -1,3 +1,5 @@
+# The chatbot-turn-critic keeps single-turn scope in this scenario path and
+# configuration rather than in its reusable Critic identity.
 # The chatbot ships fixed listeners: chat on 18080, lifecycle control and
 # health on 18081. Its client limits and its chat words' provider_url allow
 # only the real dependency ports, so every mock is pinned to stand exactly

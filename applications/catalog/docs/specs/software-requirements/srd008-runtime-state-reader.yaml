@@ -1,0 +1,79 @@
+id: srd008-runtime-state-reader
+title: Runtime State Reader Functional Block
+historical_aliases: [srd008-monitor]
+
+context: |
+  The runtime-state-reader profile is an infrastructure adapter over embedded
+  monitor REST. It serves cached runtime state read-only and exits through
+  explicit control. This SRD owns the profile-family requirements that
+  srd001-agent-functional-blocks previously held as block R8.
+
+  The adapter is adjacent to, but does not implement, the canonical Monitor
+  role: it does not collect telemetry, detect anomalies, or produce assurance
+  reports. The monitor store and REST runtime stay in agent-core; selected routes
+  and lifecycle control stay profile-owned.
+
+problem: |
+  The runtime-state-reader family needs its own requirements document so changes
+  to monitor serving behavior do not churn a shared cross-family file. The
+  requirements must distinguish this profile-owned infrastructure adapter from
+  both the canonical Monitor role and the agent-core monitor store and REST
+  runtime.
+
+goals:
+  - G1: Model runtime-state-reader as a read-only monitor REST infrastructure adapter.
+  - G2: Record the runtime-state-reader actor boundary, inputs, tool selections, runtime dependencies, outputs, and terminal outcomes.
+  - G3: Keep monitor routes profile-owned while agent-core supplies the monitor store and REST runtime.
+
+requirements:
+  R1:
+    title: Behavior model
+    items:
+      - R1.1: The runtime-state-reader profile must model read-only monitor REST serving and explicit control-based shutdown.
+      - R1.2: Runtime-state-reader responsibilities must stay limited to profile-selected REST routes and lifecycle control behavior.
+      - R1.3: Runtime-state-reader must be classified as an infrastructure adapter adjacent to canonical Monitor, not as a Monitor realization.
+  R2:
+    title: Inputs, tools, and runtime dependencies
+    items:
+      - R2.1: Runtime-state-reader inputs must include live runtime monitor state supplied by agent-core.
+      - R2.2: The runtime-state-reader profile must select the monitor REST and lifecycle control tool families.
+      - R2.3: Runtime-state-reader runtime dependencies are the agent-core monitor store and the agent-core REST runtime.
+  R3:
+    title: Outputs and outcomes
+    items:
+      - R3.1: Runtime-state-reader outputs must include monitor REST responses and listener lifecycle signals.
+      - R3.2: Runtime-state-reader terminal outcomes must be Done or Failed.
+
+non_goals:
+  - Define Go package APIs for the agent-core monitor store or REST runtime.
+  - Reimplement monitor state collection in applications/catalog.
+  - Claim telemetry collection, anomaly detection, or assurance reporting.
+  - Own cross-profile dependency-direction invariants; those stay in srd001.
+
+acceptance_criteria:
+  - id: AC1
+    criterion: Runtime-state-reader is described as a read-only infrastructure adapter with control-based shutdown rather than a canonical Monitor realization or Go package.
+    traces: [R1.1, R1.2, R1.3]
+  - id: AC2
+    criterion: Runtime-state-reader inputs, selected tool families, and runtime dependencies are named and separated from agent-core runtime capability.
+    traces: [R2.1, R2.2, R2.3]
+  - id: AC3
+    criterion: Runtime-state-reader outputs and terminal outcomes are checkable by mounted execution or integration targets.
+    traces: [R3.1, R3.2]
+
+depends_on:
+  - srd_id: srd001-agent-functional-blocks
+    symbols_used: [R1]
+
+diagrams:
+  requirements_trace: |
+    ```mermaid
+    flowchart LR
+      Problem["Problem: Runtime-state reader needs a distinct adapter contract..."] --> Goals["Goals: Runtime State Reader Functional Block"]
+      Goals --> R1["R1: Behavior model"]
+      Goals --> R2["R2: Inputs, tools, and runtime dependencies"]
+      Goals --> R3["R3: Outputs and outcomes"]
+      R1 --> AC1["AC1: Infrastructure adapter with control shutdown"]
+      R2 --> AC2["AC2: Inputs, tools, dependencies named"]
+      R3 --> AC3["AC3: Outputs and outcomes checkable"]
+    ```

@@ -1,19 +1,19 @@
 name: creator-instance-request
 purpose: |-
   One request-scoped run of a decided instance operation. The machine_request
-  instance endpoint seeds this machine with the operation body from the coordinator
+  instance endpoint seeds this machine with the operation body from the provisioning-workflow-orchestrator
   (the operation -- create, restart, terminate, or ingest -- its role, and for a
   rollout the decided values-plane document as content). The creator realizes the
   operation by forwarding the content to the deployment API (apply_instance), then
   verifies the instance's health through the deployment API's rollout read
   (verify_health) before the terminal HealthReported signal maps the reported health
-  to the HTTP response. The creator acts on the coordinator's decision; it alone
+  to the HTTP response. The creator acts on the provisioning-workflow-orchestrator's decision; it alone
   bears the deployment-API credential, it authors no values decision, and it passes
   no endpoint or credential into a running agent.
 
   The rollout read enters on SeedHealth and runs the verify leg alone. It applies
   nothing, so it reuses verify_health rather than declaring a second way to read the
-  same thing, and the coordinator polls it while a reconfiguration proceeds
+  same thing, and the provisioning-workflow-orchestrator polls it while a reconfiguration proceeds
   (srd004 R1.3; GH-684).
 
   The state read enters on SeedState and runs the read_state leg alone (GH-753):
@@ -40,7 +40,7 @@ purpose: |-
 
   A count that will not resolve reaches IngestFailed rather than IngestRejected.
   A broken read is not an empty corpus, and reporting one as the other would
-  tell the coordinator a directory held no documents when nobody looked.
+  tell the provisioning-workflow-orchestrator a directory held no documents when nobody looked.
 initial_state: AwaitingRequest
 budget:
   max_iterations: 8

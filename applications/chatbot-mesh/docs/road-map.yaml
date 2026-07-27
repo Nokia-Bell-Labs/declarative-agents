@@ -6,10 +6,30 @@ overview: |
   They derive from the shared catalog's rel09.0-09.3 and rel09.5; the behavior is
   implemented and is being relocated into this directory. Requirement and use-case
   ids are renumbered to the application's own scheme (srd001-003, rel00.0+). The
-  control plane (coordinator srd004, creator srd005, and the provisioning surface)
+  control plane (provisioning-workflow-orchestrator srd004, creator srd005, and the provisioning surface)
   is release rel05.0. Release rel06.0 replaces the standard-library Go provisioning
   surface with the applier (srd006), a declarative agent that binds the helm and
   kubectl CLIs in its container.
+
+role_alignment:
+  status: specified
+  implemented_decisions:
+    - Retain `chatbot` as a descriptive multi-role actor with Planner, Executor, and Knowledge Manager bindings.
+    - Retain `rag-server` as a descriptive Knowledge Manager / Recommendation Generator realization.
+    - Retain the mesh `corpus-ingest` wrapper with its inherited catalog Knowledge Manager / Ontology Manager binding.
+    - Bind `creator` to Creator / Instance Manager and Agent Owner / Agent Lifecycle Manager and retain the compatible name.
+    - Bind `applier` to Executor / Actuation Agent and Change Manager; Applier is not a canonical role.
+    - Bind `collector` to Monitor / Telemetry Collector and distinguish its profile-backed workload from contrib metrics infrastructure.
+    - Treat all Helm names as deployment identities inheriting profile bindings, not as semantic role names.
+  implemented_migrations:
+    - issue: GH-1077
+      current_actor: provisioning-workflow-orchestrator
+      implemented_responsibility: Sequence optional ingest and rollout requests through the creator.
+      canonical_role_sub_role: Executor / Workflow Orchestrator; not Coordinator.
+      retained_or_proposed_name: provisioning-workflow-orchestrator
+      authority_boundary: No implemented synchronization, conflict-resolution, negotiation, consensus, deployment, or child-process authority.
+      evidence: [agents/provisioning-workflow-orchestrator/request-machine.yaml, helm/templates/provisioning-workflow-orchestrator.yaml, srd004]
+      migration_impact: Profile, Helm, SRD, integration, packaging, release, and compatibility paths move together.
 
 releases:
   - version: "00.0"
@@ -126,22 +146,27 @@ releases:
     name: Control plane
     description: |
       The mesh gains a control plane on top of the data-plane topology: a
-      coordinator agent (srd004) that binds a user's provisioning intent, sequences
+      `provisioning-workflow-orchestrator` actor (srd004) that currently assumes Executor / Workflow
+      Orchestrator, binds a user's provisioning intent, sequences
       the ingestion and reconfiguration workflows, and decides the values changes,
-      and a creator agent (srd005) that realizes each instance operation and alone
+      and a `creator` actor (srd005) that assumes Creator / Instance Manager and
+      Agent Owner / Agent Lifecycle Manager, realizes each instance operation, and alone
       holds the deployment-API authority. A provisioning intent flows chatbot ->
-      coordinator -> creator: the chatbot delegates through a declared client, the
-      coordinator sequences corpus-ingest runs and the rollout, the creator executes
+      provisioning-workflow-orchestrator -> creator: the chatbot delegates through a declared client, the
+      provisioning-workflow-orchestrator sequences corpus-ingest runs and the rollout, the creator executes
       the request-draining rollout through the deployment API (srd003 R4) and
       reports health, and the new source serves a grounded turn.
+      The shipped provisioning-workflow-orchestrator request machine has no synchronization,
+      conflict-resolution, negotiation, or consensus state, so it does not assume
+      canonical Coordinator; GH-1077 completed its coordinated mechanical rename.
     status: partial
     srds:
-      - srd004-coordinator
+      - srd004-provisioning-workflow-orchestrator
       - srd005-creator
     use_cases:
       - id: rel05.0-uc001-control-plane-provisioning
         summary: >-
-          A provisioning intent flows panel -> coordinator -> creator and
+          A provisioning intent flows panel -> provisioning-workflow-orchestrator -> creator and
           reconfigures the mesh; only the creator holds the deployment-API
           authority. The values-only apply -- the panel's operator intent -- is
           realized end to end and proven by mage integration:controlPlane. The
@@ -154,7 +179,7 @@ releases:
       - id: test-rel05.0-control-plane
         summary: >-
           Tracer for the apply -> reconfigure -> verify flow across the
-          coordinator and creator, asserting the decided values document crosses
+          provisioning-workflow-orchestrator and creator, asserting the decided values document crosses
           each hop and the authority boundary holds. Realized as mage
           integration:controlPlane (deterministic, no cluster), which also reads
           the panel's mesh view back through both hops (srd006 R1.5). It does not
@@ -180,11 +205,11 @@ releases:
       - srd006-applier
     use_cases:
       - id: rel06.0-uc001-declarative-applier
-        summary: The applier agent validates a values patch against the chart schema, applies it as a values-file rollout, verifies the rollout, and rolls back on failure, replacing the Go provisioner with zero agent-core changes. The live on-cluster rollout shipped with GH-735, proving a patch applied through the applier changes a real release. The provisioning panel's initial mesh-view load (GET /provisioning/api/state, srd006 R1.5) shipped with GH-750/752/753 -- the applier reads the deployed release's computed values, and the creator and coordinator carry the flat response through to the panel, which reassembles it client-side.
+        summary: The applier agent validates a values patch against the chart schema, applies it as a values-file rollout, verifies the rollout, and rolls back on failure, replacing the Go provisioner with zero agent-core changes. The live on-cluster rollout shipped with GH-735, proving a patch applied through the applier changes a real release. The provisioning panel's initial mesh-view load (GET /provisioning/api/state, srd006 R1.5) shipped with GH-750/752/753 -- the applier reads the deployed release's computed values, and the creator and provisioning-workflow-orchestrator carry the flat response through to the panel, which reassembles it client-side.
         status: implemented
     test_suites:
       - id: test-rel06.0-applier
-        summary: Tracer for the validate -> apply -> verify -> rollback flow against the applier agent, asserting schema rejection, values-file apply, rollout verification, and the authority boundary. Realized as mage integration:applier, which drives the shipped profile against recording fake helm and kubectl; the chart schema is proven against real helm and the enabled chart against its render. The live on-cluster tier is mage integration:applierLive (GH-735). The state-read chain (GH-750/752/753) is covered by unit tests pinning every hop's field mapping and failure-status behavior, and mage integration:controlPlane automates the creator/coordinator state round trip after the GH-755 selector fix.
+        summary: Tracer for the validate -> apply -> verify -> rollback flow against the applier agent, asserting schema rejection, values-file apply, rollout verification, and the authority boundary. Realized as mage integration:applier, which drives the shipped profile against recording fake helm and kubectl; the chart schema is proven against real helm and the enabled chart against its render. The live on-cluster tier is mage integration:applierLive (GH-735). The state-read chain (GH-750/752/753) is covered by unit tests pinning every hop's field mapping and failure-status behavior, and mage integration:controlPlane automates the creator/provisioning-workflow-orchestrator state round trip after the GH-755 selector fix.
         status: implemented
 
   - version: "07.0"

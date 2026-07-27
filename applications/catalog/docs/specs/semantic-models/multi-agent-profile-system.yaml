@@ -50,7 +50,7 @@ role_groups:
       Configured child profile execution stays inside the critic point flow.
   - id: validation_work
     profiles:
-      - jurist
+      - specification-critic
     summary: |
       Validation work reads documentation and specification corpora through a
       deterministic tool pipeline. No model boundary participates in this role.
@@ -65,7 +65,7 @@ role_groups:
       Chroma boundaries; documentation-curator serves human-facing workflows.
   - id: test_infrastructure
     profiles:
-      - assembler
+      - scenario-critic
       - mock
     summary: |
       Supported test-time members compose profile-owned scenarios and replace
@@ -73,7 +73,7 @@ role_groups:
   - id: boundary_runtime_work
     profiles:
       - rest
-      - monitor
+      - runtime-state-reader
       - control
       - lifecycle
     summary: |
@@ -99,10 +99,10 @@ dependency_directions:
     kind: human_launched_evaluation
     meaning: Bench serves the human UI and launches critic runs.
     evidence: rel07.0-uc004-bench-evaluator-profile-boundary
-  - from: monitor
+  - from: runtime-state-reader
     to: agent-core monitor store
     kind: runtime_state_read
-    meaning: Monitor exposes cached runtime state supplied by agent-core.
+    meaning: Runtime-state-reader exposes cached monitor state supplied by agent-core.
     evidence: rel07.0-uc005-monitor-control-profile-boundary
   - from: control
     to: lifecycle vocabulary
@@ -128,12 +128,12 @@ dependency_directions:
     meaning: Corpus reader threads a provider vector into Chroma query and gives
       the retrieved identities and chunks to the answer model.
     evidence: rel08.0-uc002-corpus-query
-  - from: assembler
+  - from: scenario-critic
     to: mock, subject, and validator profiles
     kind: scenario_composition
-    meaning: Assembler discovers scenario data, starts deterministic mocks and
+    meaning: Scenario-critic discovers scenario data, starts deterministic mocks and
       a fresh subject, runs validators, reduces a verdict, and stops all children.
-    evidence: rel11.0-uc001-assembler-scenario-run
+    evidence: rel11.0-uc001-scenario-critic-scenario-run
   - from: mock
     to: subject REST dependency
     kind: deterministic_test_boundary
@@ -173,10 +173,10 @@ actor_boundaries:
       - child executor process
     boundary: Planner turns requirements into issues and invokes executor for
       execution.
-  - profile: jurist
+  - profile: specification-critic
     actors:
       - specification corpus
-    boundary: Jurist reads local docs and emits validation reports.
+    boundary: Specification-critic reads local docs and emits validation reports.
   - profile: bench
     actors:
       - human operator
@@ -187,12 +187,12 @@ actor_boundaries:
       - configured upstream HTTP service
       - inbound webhook sender
     boundary: REST definitions constrain client calls and server events.
-  - profile: monitor
+  - profile: runtime-state-reader
     actors:
       - supervisor
       - runtime monitor store
-    boundary: Supervisor reads cached monitor state and may request controlled
-      exit.
+    boundary: The infrastructure adapter lets a supervisor read cached monitor
+      state and request controlled exit; it does not implement canonical Monitor.
   - profile: control
     actors:
       - lifecycle supervisor
@@ -226,7 +226,7 @@ actor_boundaries:
       - answer model
     boundary: The profile computes a query embedding, retrieves identified
       chunks, and constrains the model answer to those chunks.
-  - profile: assembler
+  - profile: scenario-critic
     actors:
       - scenario author
       - child subject
@@ -261,7 +261,7 @@ validation_views:
     exit.
   - Corpus conformance checks provider-vector threading, retrieved identities,
     grounded answers, and readiness failures.
-  - Rig conformance checks assembler-to-mock/subject/validator composition and
+  - Rig conformance checks scenario-critic-to-mock/subject/validator composition and
     deterministic verdict reduction.
   - Release 07.0 records implemented documentation-curator, bench-to-critic,
     and monitor/control relationship checks in

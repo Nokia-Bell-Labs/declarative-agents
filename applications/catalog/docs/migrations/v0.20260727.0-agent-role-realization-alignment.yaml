@@ -1,0 +1,86 @@
+id: migration-v0.20260727.0-agent-role-realization-alignment
+title: Agent Role-Realization Naming Migration
+release: applications/catalog/v0.20260727.0
+legacy_release_alias: agent-profiles/v0.20260727.0
+root_release: v0.20260727.0
+status: release-ready
+
+publication:
+  timing: post-merge
+  command: mage tag
+  policy: |
+    Publish only from a clean main checkout after the root release gates pass.
+    The root, canonical catalog, and legacy compatibility tags are one atomic,
+    immutable tag set at the same commit. This migration record and its tests do
+    not create tags. If publication occurs on another UTC date or after another
+    release on 2026-07-27, update this record and consumer pins in a reviewed
+    commit before running mage tag.
+
+compatibility_policy:
+  catalog_v0: |
+    Renamed reusable catalog paths retain one-file profile wrappers through
+    applications/catalog/v0.*. Each wrapper references the canonical machine,
+    tools, declarations, and REST assets; it does not fork implementation files.
+  catalog_v1: Compatibility wrappers are removed at applications/catalog/v1.
+  application_local: |
+    Application-local test identities and chatbot-mesh workload identities were
+    migrated atomically with every repository consumer. They have historical
+    aliases in this record but no runtime wrapper because they are not reusable
+    catalog paths.
+
+migrations:
+  - old_name: assembler
+    new_name: scenario-critic
+    old_path: applications/catalog/agents/assembler/profile.yaml
+    new_path: applications/catalog/agents/scenario-critic/profile.yaml
+    compatibility: non-forking profile wrapper through applications/catalog/v0.*; remove at applications/catalog/v1
+    canonical_binding: {role: critic, sub_roles: [sandbox-validator, output-evaluator]}
+  - old_name: monitor
+    new_name: runtime-state-reader
+    old_path: applications/catalog/agents/monitor/profile.yaml
+    new_path: applications/catalog/agents/runtime-state-reader/profile.yaml
+    compatibility: non-forking profile wrapper through applications/catalog/v0.*; remove at applications/catalog/v1
+    classification: infrastructure_adapter
+  - old_name: jurist
+    new_name: specification-critic
+    old_path: applications/catalog/agents/jurist/profile.yaml
+    new_path: applications/catalog/agents/specification-critic/profile.yaml
+    compatibility: non-forking profile wrapper through applications/catalog/v0.*; remove at applications/catalog/v1
+    canonical_binding: {role: critic, sub_roles: [output-evaluator]}
+  - old_name: chatbot-turn-validator
+    new_name: chatbot-turn-critic
+    old_paths:
+      - applications/chatbot-mesh/agents/chatbot/tests/single-turn/profile.yaml
+      - applications/chatbot-mesh/agents/chatbot/tests/degraded-rag/profile.yaml
+    compatibility: historical identity only; profiles and rig consumers migrated atomically
+    canonical_binding: {role: critic, sub_roles: [output-evaluator]}
+  - old_name: rag-query-validator
+    new_name: rag-query-critic
+    old_paths:
+      - applications/chatbot-mesh/agents/rag-server/tests/query/profile.yaml
+    compatibility: historical identity only; profile and rig consumers migrated atomically
+    canonical_binding: {role: critic, sub_roles: [output-evaluator]}
+  - old_name: coordinator
+    new_name: provisioning-workflow-orchestrator
+    old_path: applications/chatbot-mesh/agents/coordinator/profile.yaml
+    new_path: applications/chatbot-mesh/agents/provisioning-workflow-orchestrator/profile.yaml
+    compatibility: historical identity only; profile, Helm workload, values, policies, integration fixtures, and package inventory migrated atomically
+    canonical_binding: {role: executor, sub_roles: [workflow-orchestrator]}
+
+consumers:
+  - application: coding-agent
+    manifest: applications/coding-agent/agents/application.yaml
+    compatible_release: applications/catalog/v0.20260727.0
+    package_provenance: Records the compatibility pin separately from the actual checkout or exact clean release source.
+  - application: chatbot-mesh
+    chart: applications/chatbot-mesh/helm/Chart.yaml
+    compatible_release: applications/catalog/v0.20260727.0
+    package_provenance: Chart annotation records the canonical corpus-ingest build-input release; staged files remain the exact generated package inventory.
+
+evidence:
+  - root mage audit, mage test, and mage stats
+  - catalog mage validate, mage conformance, and mage integration:all
+  - coding-agent audit, tests, package closure, Helm lint, and Helm package validation
+  - chatbot-mesh audit, tests, Helm package/archive lint, supported render matrix, and staged-inventory drift checks
+  - root and catalog release-tag tests proving the exact canonical/legacy pair and immutable atomic conflict behavior
+  - scoped stale-path and stale-runtime-identity tests with only this migration record, historical IDs, and executable wrapper definitions allowlisted

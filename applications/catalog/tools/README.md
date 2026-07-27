@@ -18,7 +18,7 @@ The repository uses five distinct artifact classes:
    words.
 3. **Catalog tool blocks** are reusable repository-specific `ToolDef`
    declarations owned by a catalog family under `agents/<family>/`. Examples
-   include `agents/critic/builtin.yaml`, `agents/monitor/declarations.yaml`, and
+   include `agents/critic/builtin.yaml`, `agents/runtime-state-reader/declarations.yaml`, and
    `agents/executor/llm/default.yaml`. A block defines vocabulary, boundary
    configuration, signals, side effects, errors, and undo behavior; it does not
    own the Go implementation selected by `init`.

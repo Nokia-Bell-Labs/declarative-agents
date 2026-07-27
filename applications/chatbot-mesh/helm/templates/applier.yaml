@@ -199,7 +199,7 @@ spec:
 {{- if .Values.applier.networkPolicy.enabled }}
 ---
 # Authenticated apart from the chat path (srd003 R4.1 / srd006 R4.1) at the network
-# layer: only the creator (and coordinator) may reach the apply surface. agent-core
+# layer: only the creator (and provisioning-workflow-orchestrator) may reach the apply surface. agent-core
 # REST servers carry no inbound auth, so the boundary is enforced here rather than in
 # the profile.
 apiVersion: networking.k8s.io/v1

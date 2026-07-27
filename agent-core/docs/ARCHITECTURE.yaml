@@ -4,7 +4,7 @@ title: Agent Core Architecture
 overview:
   summary: |
     Agent Core is a Go framework for declarative tool-language agents. The
-    cmd/agent binary runs generator, evaluator, planner, jurist, and bench
+    cmd/agent binary runs generator, evaluator, planner, specification-critic, and bench
     profiles from YAML configuration. Machine specs define state flow. Tool
     selections define the vocabulary. Boundary-tool configs define model,
     process, lifecycle, and REST behavior. Bench also serves an embedded web UI
@@ -850,7 +850,7 @@ overview:
         - internal/tools/rest/monitor_views.go
         - internal/tools/rest/monitor_openapi.go
         - internal/tools/exec/metrics.go
-        - external applications/catalog/agents/monitor/
+        - external applications/catalog/agents/runtime-state-reader/ profile adapter
         - external applications/catalog/testdata/integration/rel04-monitor/
         - docs/specs/software-requirements/srd032-tool-metrics-monitor-store.yaml
         - docs/specs/software-requirements/srd033-monitor-rest-api.yaml
@@ -875,7 +875,7 @@ overview:
       Runtime images place shared core assets under `/opt/agent-core`, including
       core-owned tool declaration roots such as `tools/`. They do not own agent
       profile directories. Callers provide generator, evaluator, planner, bench,
-      jurist, Knowledge Manager, or other agent profiles by bind mount, release
+      specification-critic, Knowledge Manager, or other agent profiles by bind mount, release
       asset unpack, derived image layer, or another explicit external path.
       Container commands pass `--profile` with the provided profile path and
       `--directory` with the mounted workspace path.
@@ -1390,7 +1390,7 @@ technology_choices:
 project_structure:
   binaries:
     - path: cmd/agent/
-      role: Unified agent binary — generator, evaluator, planner, jurist, bench modes via YAML config
+      role: Unified agent binary — generator, evaluator, planner, specification-critic, bench modes via YAML config
 
   bench:
     - path: internal/evaluation/
@@ -1464,7 +1464,7 @@ project_structure:
 
   configuration:
     - path: external applications/catalog/agents/
-      role: Standard agent programs, including generator, evaluator, planner, jurist, bench, REST, monitor, control, lifecycle, and Knowledge Manager profile assets
+      role: Standard agent programs, including generator, evaluator, planner, specification-critic, bench, REST, monitor, control, lifecycle, and Knowledge Manager profile assets
     - path: tools/
       role: Shared tool declarations — builtin.yaml and exec.yaml
     - path: internal/model/llm/profiles/
@@ -1527,11 +1527,11 @@ implementation_status:
     - done: Planner pipeline (internal/planning/pipeline, internal/planning/plan, internal/planning/extract, internal/planning/graph) with tracker invocation selected by external profile declarations
     - done: Agent execution (internal/support/execute) — subprocess execution with process groups
     - done: Specification tooling (pkg/spec) — corpus parsing, graph, validation
-    - done: Unified agent binary (cmd/agent) — generator, evaluator, planner, jurist, bench
+    - done: Unified agent binary (cmd/agent) — generator, evaluator, planner, specification-critic, bench
     - done: Bench profile — profile-owned REST routes, host/request machines, static React assets, evaluation queries, and self-invoke launch boundary
     - done: Evaluation runtime (internal/evaluation) — profile suites, point execution, result artifacts, metrics, convergence, and trace analysis
     - done: YAML tool definitions — shared builtin and exec declaration directories, compatibility aggregate files, plus agent-local overrides
-    - done: External agent profiles and configurations — generator, evaluator, planner, jurist, bench, REST, monitor, control, lifecycle, and Knowledge Manager profiles are supplied from applications/catalog through explicit --profile paths to a checkout or bundle mounted or copied beside the workspace
+    - done: External agent profiles and configurations — generator, evaluator, planner, specification-critic, bench, REST, monitor, control, lifecycle, and Knowledge Manager profiles are supplied from applications/catalog through explicit --profile paths to a checkout or bundle mounted or copied beside the workspace
     - done: Grammar Machine alignment — selected-tool contract enforcement, rollback strategy vocabulary, profile-first child boundaries, and centralized builtin factory catalog
     - done: Rollback lifecycle core operations — Checkpoint port, NoopCheckpoint, InMemoryCheckpoint, DoltCheckpoint, history, resume, Revert, and receipt rollback traversal
     - done: Lifecycle adapters and external profiles — checkpoint_history and checkpoint_rollback selected by applications/catalog lifecycle profiles
@@ -1545,7 +1545,7 @@ implementation_status:
     - done: REST sample profile — applications/catalog owns REST profile assets while agent-core keeps core REST runtime conformance fixtures under testdata/integration/rel03-rest-tools
     - done: Machine request REST path — documentation_curator routes execute the external documentation-curator request machine for document, search, validation, suggestion, and decision requests, with actions selected from trusted profile declarations
     - done: Declarative document resources — documentation_corpus uses reusable filesystem resource words for docs/ list and read behavior
-    - done: Knowledge Manager machine_request proof — applications/catalog conformance and integration verify generic REST lifecycle, trace evidence, raw YAML, rendered HTML, search, jurist validation, persistent review creation, and guarded approval
+    - done: Knowledge Manager machine_request proof — applications/catalog conformance and integration verify generic REST lifecycle, trace evidence, raw YAML, rendered HTML, search, specification validation, persistent review creation, and guarded approval
     - done: cobbler-scaffold dependency removed
     - done: Go test suite across all packages
     - done: Specification index — 42 SRDs, 28 use cases, and 14 formal test suites are indexed with current release status

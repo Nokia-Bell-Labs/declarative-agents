@@ -10,14 +10,14 @@ import (
 	"testing"
 )
 
-// TestJuristSucceeded pins the report classification to the jurist's observed
+// TestSpecificationCriticSucceeded pins the report classification to the specification critic's observed
 // output contract: a clean run ends "terminal state: succeeded"; a failing run
 // ends "terminal state: failed" (with "status=failed" in the run-complete log).
 // The classification reads the report rather than the exit code because the
 // report names which checks failed, where the exit code only says that some did
 // (agent-core srd018 R6, GH-683). A report with neither marker is an
 // indeterminate run and must be an error, not a silent pass.
-func TestJuristSucceeded(t *testing.T) {
+func TestSpecificationCriticSucceeded(t *testing.T) {
 	cases := []struct {
 		name    string
 		report  string
@@ -55,7 +55,7 @@ func TestJuristSucceeded(t *testing.T) {
 	}
 	for _, tc := range cases {
 		t.Run(tc.name, func(t *testing.T) {
-			ok, err := juristSucceeded(tc.report)
+			ok, err := specificationCriticSucceeded(tc.report)
 			if ok != tc.wantOK {
 				t.Errorf("ok = %v, want %v", ok, tc.wantOK)
 			}
@@ -67,36 +67,36 @@ func TestJuristSucceeded(t *testing.T) {
 }
 
 // TestResolveAuditToolsRequiresRuntimeAndValidator pins the self-governance gate:
-// a copied-out application that cannot reach the agent-core runtime or the jurist
+// a copied-out application that cannot reach the agent-core runtime or the specification-critic
 // validator profile must fail, not skip to a false green. Only when both tools
 // are present does resolution succeed.
 func TestResolveAuditToolsRequiresRuntimeAndValidator(t *testing.T) {
 	t.Run("missing agent-core runtime fails", func(t *testing.T) {
 		t.Setenv(agentCoreRootEnv, filepath.Join(t.TempDir(), "absent-core"))
-		t.Setenv(juristProfileEnv, writeFile(t, "profile.yaml", "name: fake-jurist\n"))
+		t.Setenv(specificationCriticProfileEnv, writeFile(t, "profile.yaml", "name: fake-specification-critic\n"))
 		if _, _, err := resolveAuditTools(t.TempDir(), t.TempDir()); err == nil {
 			t.Fatal("expected an error when agent-core is absent, got nil")
 		}
 	})
-	t.Run("missing jurist validator fails", func(t *testing.T) {
+	t.Run("missing specification-critic validator fails", func(t *testing.T) {
 		t.Setenv(agentCoreRootEnv, fakeCore(t))
-		t.Setenv(juristProfileEnv, filepath.Join(t.TempDir(), "absent-profile.yaml"))
+		t.Setenv(specificationCriticProfileEnv, filepath.Join(t.TempDir(), "absent-profile.yaml"))
 		if _, _, err := resolveAuditTools(t.TempDir(), t.TempDir()); err == nil {
-			t.Fatal("expected an error when the jurist validator is absent, got nil")
+			t.Fatal("expected an error when the specification-critic validator is absent, got nil")
 		}
 	})
 	t.Run("both present resolves", func(t *testing.T) {
 		core := fakeCore(t)
-		profile := writeFile(t, "profile.yaml", "name: fake-jurist\n")
+		profile := writeFile(t, "profile.yaml", "name: fake-specification-critic\n")
 		catalog := t.TempDir()
 		t.Setenv(agentCoreRootEnv, core)
-		t.Setenv(juristProfileEnv, profile)
-		coreRoot, juristProfile, err := resolveAuditTools(t.TempDir(), catalog)
+		t.Setenv(specificationCriticProfileEnv, profile)
+		coreRoot, specificationCriticProfile, err := resolveAuditTools(t.TempDir(), catalog)
 		if err != nil {
 			t.Fatalf("unexpected error: %v", err)
 		}
-		if coreRoot != core || juristProfile != profile {
-			t.Fatalf("resolved (%s, %s), want (%s, %s)", coreRoot, juristProfile, core, profile)
+		if coreRoot != core || specificationCriticProfile != profile {
+			t.Fatalf("resolved (%s, %s), want (%s, %s)", coreRoot, specificationCriticProfile, core, profile)
 		}
 	})
 }

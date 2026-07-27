@@ -193,12 +193,14 @@ func TestBuildArgs_ProfileOnly(t *testing.T) {
 
 func TestBuildArgs_ChildRuntimeData(t *testing.T) {
 	cfg := Config{
-		Profile:     "agents/executor/profile.yaml",
-		CoreRoot:    "/checkout/agent-core",
-		Directory:   "/workspace",
-		Request:     "suite.yaml",
-		Output:      "eval-results",
-		OTelLogFile: "child.otel.json",
+		Profile:         "agents/executor/profile.yaml",
+		CoreRoot:        "/checkout/agent-core",
+		Directory:       "/workspace",
+		Request:         "suite.yaml",
+		Output:          "eval-results",
+		OTelLogFile:     "child.otel.json",
+		OTelServiceName: "scenario-critic",
+		OTLPEndpoint:    "127.0.0.1:4317",
 	}
 
 	args := cfg.BuildArgs()
@@ -210,6 +212,8 @@ func TestBuildArgs_ChildRuntimeData(t *testing.T) {
 		"--request", "suite.yaml",
 		"--output", "eval-results",
 		"--otel-log-file", "child.otel.json",
+		"--otel-service-name", "scenario-critic",
+		"--otel-otlp-endpoint", "127.0.0.1:4317",
 	}, args)
 }
 

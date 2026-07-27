@@ -45,7 +45,7 @@ tools:
         state_after_failure: The work list is empty.
     config:
       # The application-owned harness configuration drives the catalog
-      # assembler from the chatbot-mesh owner root.
+      # scenario critic from the chatbot-mesh owner root.
       roots:
         - agents
         - ${AGENT_CATALOG_ROOT}/testdata/conformance

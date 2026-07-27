@@ -79,11 +79,21 @@ builtin implementations, CLI, runtime contracts, and image. Applications own
 composition manifests, app-specific wrappers/configuration, end-to-end tests,
 packaging, deployment, and operator UX.
 
-`assembler` and `mock` are supported test-time catalog members. The existing
+`scenario-critic` and `mock` are supported test-time catalog members. The existing
 conformance vocabulary continues to classify them as supported test-time
 library members. They are independently reusable across profile families and
 applications, ship under `agents/`, and carry the same SRD, conformance,
 portability, release, and v0 compatibility obligations as every other member.
+
+The canonical renamed paths are `agents/scenario-critic/profile.yaml`,
+`agents/runtime-state-reader/profile.yaml`, and
+`agents/specification-critic/profile.yaml`. Their former `agents/assembler`,
+`agents/monitor`, and `agents/jurist` paths are one-file compatibility wrappers
+that select canonical machines, declarations, and REST assets without copying
+them. They are supported through `applications/catalog/v0.*` and removed at
+`applications/catalog/v1`; new consumers must use canonical paths. The complete
+application-local identity migration and exact release pair are recorded in
+`docs/migrations/v0.20260727.0-agent-role-realization-alignment.yaml`.
 
 The rig-subject and `testdata/conformance/` REST/control/lifecycle fixtures are
 different: they exercise `agent-core` behavior and remain internal scaffolding
@@ -126,7 +136,7 @@ Support states are intentionally simple: canonical members on `main` and in a
 release tag are the supported v0 surface; work on `exp/*` is unsupported and
 non-consumable; relocation tombstones and internal conformance fixtures are
 informational/internal, not catalog APIs. Supported test-time members
-such as assembler and mock remain part of the versioned public surface. This
+such as scenario-critic and mock remain part of the versioned public surface. This
 avoids a second hand-maintained status registry that could drift from real
 profile paths, conformance, SRDs, and tags.
 
@@ -333,7 +343,7 @@ Integration fixtures owned by profiles live in `testdata/integration/`:
 - `uc001-generator-coding/` contains the generator coding sample workspace.
 - `uc002-evaluator-benchmark/` contains the evaluator suite and sample
   workspace. Its profile references resolve from this catalog root.
-- `rel04-monitor/monitor-rest.yaml` records the monitor profile proof metadata.
+- `rel04-monitor/monitor-rest.yaml` records runtime-state-reader proof metadata.
 
 Core-only runtime fixtures remain in `agent-core` when they exercise reusable
 tool implementation behavior rather than a profile-owned sample or suite. REST
@@ -415,4 +425,4 @@ Optional image selection uses the constant `agentCoreImageEnv` in
 Before running the profile, the smoke target fails if the image contains
 `/opt/agent-core/agents`. It then mounts this catalog at `/profiles`, mounts
 core-owned tools at `/opt/agent-core/tools`, and runs
-`--profile /profiles/agents/jurist/profile.yaml --directory /work`.
+`--profile /profiles/agents/specification-critic/profile.yaml --directory /work`.
