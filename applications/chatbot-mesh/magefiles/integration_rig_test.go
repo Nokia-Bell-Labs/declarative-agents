@@ -5,6 +5,7 @@ package main
 import (
 	"os"
 	"path/filepath"
+	"strings"
 	"testing"
 )
 
@@ -59,5 +60,28 @@ func TestStageRigRuntimeUsesCatalogScenarioCritic(t *testing.T) {
 	}
 	if string(profile) != "name: scenario-critic\nmachine: ../../agents/scenario-critic/machine.yaml\ntools:\n  - ../../agents/scenario-critic/tools.yaml\ntool_declarations:\n  - declarations.yaml\nrest_definitions:\n  - rest.yaml\n" {
 		t.Fatalf("staged rig profile does not select catalog scenario critic:\n%s", profile)
+	}
+}
+
+func TestMeshScenarioCriticIdentities(t *testing.T) {
+	tests := []struct {
+		scenario, identity string
+	}{
+		{"agents/chatbot/tests/single-turn", "chatbot-turn-critic"},
+		{"agents/chatbot/tests/degraded-rag", "chatbot-turn-critic"},
+		{"agents/rag-server/tests/query", "rag-query-critic"},
+	}
+	for _, test := range tests {
+		t.Run(test.scenario, func(t *testing.T) {
+			for _, file := range []string{"profile.yaml", "machine.yaml"} {
+				data, err := os.ReadFile(filepath.Join("..", filepath.FromSlash(test.scenario), file))
+				if err != nil {
+					t.Fatal(err)
+				}
+				if !strings.HasPrefix(string(data), "name: "+test.identity+"\n") {
+					t.Fatalf("%s/%s does not declare %q:\n%s", test.scenario, file, test.identity, data)
+				}
+			}
+		})
 	}
 }

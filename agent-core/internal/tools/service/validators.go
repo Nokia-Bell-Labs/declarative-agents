@@ -4,11 +4,14 @@ package service
 
 import (
 	"context"
+	"os"
 	"strings"
 	"time"
 
 	"github.com/Nokia-Bell-Labs/declarative-agents/agent-core/internal/support/execute"
 )
+
+const scenarioCriticOTLPEndpointEnv = "SCENARIO_CRITIC_OTEL_ENDPOINT"
 
 // ValidatorSpec is one validator machine to run to completion.
 type ValidatorSpec struct {
@@ -45,13 +48,15 @@ func runOneValidator(ctx context.Context, binary string, spec ValidatorSpec, tim
 	outcome := ValidatorOutcome{Name: name, Profile: spec.Profile}
 
 	cfg := execute.Config{
-		Binary:    binary,
-		Profile:   spec.Profile,
-		CoreRoot:  spec.CoreRoot,
-		Directory: spec.Directory,
-		Request:   spec.Request,
-		Timeout:   timeout,
-		Env:       spec.Env,
+		Binary:          binary,
+		Profile:         spec.Profile,
+		CoreRoot:        spec.CoreRoot,
+		Directory:       spec.Directory,
+		Request:         spec.Request,
+		OTelServiceName: name,
+		OTLPEndpoint:    os.Getenv(scenarioCriticOTLPEndpointEnv),
+		Timeout:         timeout,
+		Env:             spec.Env,
 	}
 	result := execute.RunAgent(ctx, cfg)
 

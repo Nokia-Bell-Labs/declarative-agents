@@ -172,6 +172,65 @@ func TestAgentRoleRealizationManyToManyFixtures(t *testing.T) {
 	}
 }
 
+func TestAgentRoleRealizationMeshCritics(t *testing.T) {
+	root := repositoryRoot(t)
+	model := readRealizationModel(t)
+	inventory := model.NonRoleInventory["mesh_fixtures"]
+	byPath := map[string]nonRoleProfileEntry{}
+	for _, node := range inventory.Profiles {
+		entry, err := nonRoleProfile(node)
+		if err != nil {
+			t.Fatal(err)
+		}
+		byPath[entry.Path] = entry
+	}
+
+	tests := []struct {
+		path, actor, scope string
+		subRoles           []string
+	}{
+		{
+			"applications/chatbot-mesh/agents/chatbot/tests/single-turn/profile.yaml",
+			"chatbot-turn-critic", "single-turn-scenario",
+			[]string{"output-evaluator", "sandbox-validator"},
+		},
+		{
+			"applications/chatbot-mesh/agents/chatbot/tests/degraded-rag/profile.yaml",
+			"chatbot-turn-critic", "degraded-rag-scenario",
+			[]string{"output-evaluator"},
+		},
+		{
+			"applications/chatbot-mesh/agents/rag-server/tests/query/profile.yaml",
+			"rag-query-critic", "query-scenario",
+			[]string{"output-evaluator"},
+		},
+	}
+	for _, test := range tests {
+		t.Run(test.scope, func(t *testing.T) {
+			entry := byPath[test.path]
+			if entry.Actor != test.actor || entry.Role != "critic" ||
+				strings.Join(entry.SubRoles, ",") != strings.Join(test.subRoles, ",") ||
+				entry.Domain == "" || entry.ExecutionScope != test.scope {
+				t.Fatalf("mesh Critic binding = %#v, want actor %q, Critic / %v with domain and scope %q",
+					entry, test.actor, test.subRoles, test.scope)
+			}
+			data, err := os.ReadFile(filepath.Join(root, filepath.FromSlash(test.path)))
+			if err != nil {
+				t.Fatal(err)
+			}
+			var profile struct {
+				Name string `yaml:"name"`
+			}
+			if err := yaml.Unmarshal(data, &profile); err != nil {
+				t.Fatal(err)
+			}
+			if profile.Name != entry.Actor {
+				t.Fatalf("%s name = %q, want shared binding actor %q", test.path, profile.Name, entry.Actor)
+			}
+		})
+	}
+}
+
 func repositoryRoot(t *testing.T) string {
 	t.Helper()
 	root, err := filepath.Abs("..")
@@ -514,10 +573,14 @@ func validateProfilePath(root, profile, location string, listed map[string]strin
 }
 
 type nonRoleProfileEntry struct {
-	Path           string   `yaml:"path"`
-	Classification string   `yaml:"classification"`
-	Role           string   `yaml:"role"`
-	SubRoles       []string `yaml:"sub_roles"`
+	Path                    string   `yaml:"path"`
+	Actor                   string   `yaml:"actor"`
+	Classification          string   `yaml:"classification"`
+	Role                    string   `yaml:"role"`
+	SubRoles                []string `yaml:"sub_roles"`
+	Domain                  string   `yaml:"domain"`
+	ExecutionScope          string   `yaml:"execution_scope"`
+	ResponsibilityJustified string   `yaml:"responsibility_justification"`
 }
 
 func nonRoleProfile(node yaml.Node) (nonRoleProfileEntry, error) {

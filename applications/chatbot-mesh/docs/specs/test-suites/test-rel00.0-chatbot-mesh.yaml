@@ -8,7 +8,10 @@ overview: |
   a single-RAG chatbot turn that embeds once, retrieves, composes via $from(),
   answers, and degrades to a mapped 200 when the RAG fails (srd002). The routing
   and multi-RAG fan-out are release 01.0; observability is 02.0; deployment is
-  03.0.
+  03.0. The hermetic scenario-critic rig complements the live targets: it
+  discovers the application-local rag-query-critic and chatbot-turn-critic,
+  records those concrete Critic identities in verdict traces, and keeps query,
+  single-turn, and degraded-RAG scope in scenario paths and configuration.
 
 traces:
   - rel00.0-uc001-rag-server-query
@@ -40,6 +43,11 @@ test_cases:
       chroma_rest: agents/rag-server/rest.yaml
       query_embeddings: Ollama-embedded query vector
       n_results: 3
+    scenario_critic_evidence:
+      integration_target: mage integration:rig
+      scenario: agents/rag-server/tests/query
+      actor: rag-query-critic
+      binding: Critic / Output Evaluator
     expected:
       query_endpoint_accepts_vector: true
       chunks_with_ids_and_distances: true
@@ -78,6 +86,15 @@ test_cases:
       chatbot_profile: agents/chatbot/profile.yaml
       turns: a turn answered from retrieved chunks, then a degraded follow-up with history
       fault: the RAG stopped before the degraded turn
+    scenario_critic_evidence:
+      integration_target: mage integration:rig
+      actor: chatbot-turn-critic
+      scenarios:
+        - path: agents/chatbot/tests/single-turn
+          binding: Critic / Output Evaluator / Sandbox Validator
+          isolation: undeclared URL-shaped sources cannot escape the controlled mock topology
+        - path: agents/chatbot/tests/degraded-rag
+          binding: Critic / Output Evaluator
     expected:
       embeds_query_once: true
       compose_reads_via_from: true

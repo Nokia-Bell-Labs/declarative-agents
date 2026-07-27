@@ -2,9 +2,11 @@ name: scenario-critic-rig
 purpose: |-
   Discovers scenarios beside the agents they test and composes each one: the
   scenario's mocks, the subject agent under test with its dependencies
-  redirected at those mocks, and the scenario's validators. Reduces the
-  validators' terminal states to a per-scenario verdict, tears every child
-  down, and reports the aggregate.
+  redirected at those mocks, and the scenario's validator entries. Those entries
+  run concrete Critic realizations such as chatbot-turn-critic and
+  rag-query-critic, whose declared identities are retained in verdicts. Reduces
+  their terminal states to a per-scenario verdict, tears every child down, and
+  reports the aggregate.
 
   Each scenario gets a fresh subject, and teardown runs on the success path and
   on every failure edge, so no child outlives the scenario that started it.

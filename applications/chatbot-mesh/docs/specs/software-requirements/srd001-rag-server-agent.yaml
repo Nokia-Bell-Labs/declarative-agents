@@ -120,7 +120,10 @@ implementation_status:
       machine_request query endpoint over the Chroma reader chain, monitor and
       control servers, query_embeddings in, chunks with embedding-model metadata
       out, and wrong-dimension vectors mapped to a 400. Verified end to end
-      against a live Chroma.
+      against a live Chroma and hermetically against a mock Chroma by the
+      application-local rag-query-critic Critic / Output Evaluator realization.
+      The query scenario remains configuration under agents/rag-server/tests/query,
+      not part of the actor's role identity.
   planned:
     - >-
       The optional text-in fallback (R5). Request-supplied n_results is now

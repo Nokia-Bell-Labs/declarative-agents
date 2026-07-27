@@ -36,6 +36,8 @@ var rigExpectedVerdicts = []string{
 	"ScenarioPassed", // rag-server/query: the mesh agent against a mock Chroma
 }
 
+var rigExpectedCriticIdentities = []string{"chatbot-turn-critic", "rag-query-critic"}
+
 // Rig runs the scenario critic test rig over this application's agents and the
 // catalog reference subject in one pass — the cross-root proof: one
 // rig, two repository areas, discovered by convention. The rag-server is
@@ -111,6 +113,7 @@ func (Integration) Rig() error {
 	cmd.Env = append(os.Environ(),
 		"PATH="+binDir+string(os.PathListSeparator)+os.Getenv("PATH"),
 		"AGENT_CATALOG_ROOT="+catalogRoot,
+		"SCENARIO_CRITIC_OTEL_ENDPOINT="+endpoint,
 		resourceEnv,
 	)
 	var out bytes.Buffer
@@ -133,12 +136,14 @@ func (Integration) Rig() error {
 	}
 	for i, want := range rigExpectedVerdicts {
 		if verdicts[i] != want {
-			return fmt.Errorf("rig verdict[%d] = %s, want %s (order: rig-subject broken, dep-failure, happy-path; rag-server query)\nall: %v",
+			return fmt.Errorf("rig verdict[%d] = %s, want %s (order: rig-subject broken, dep-failure, happy-path; chatbot degraded-rag, single-turn; rag-server query)\nall: %v",
 				i, verdicts[i], want, verdicts)
 		}
 	}
 	if err := assertSharedSmokeSpans(
-		sharedJaegerBase(), runID, []string{"scenario-critic-rig"}, helmSpanTimeout); err != nil {
+		sharedJaegerBase(), runID,
+		append([]string{"scenario-critic-rig"}, rigExpectedCriticIdentities...),
+		helmSpanTimeout); err != nil {
 		return fmt.Errorf("retained host rig evidence: %w", err)
 	}
 	fmt.Printf("integration:rig passed in %s: %d scenarios across two roots, verdicts %v; shared Jaeger retained run %s after process exit\n",

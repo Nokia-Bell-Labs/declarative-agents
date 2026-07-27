@@ -167,6 +167,14 @@ implementation_status:
       static_assets-served SPA; the observability panels (per-agent monitor and
       the cross-agent trace waterfall) render from monitor SSE and the trace
       backend.
+    - >-
+      The application-local chatbot-turn-critic realizes Critic / Output
+      Evaluator for both the single-turn and degraded-RAG scenarios. Scenario
+      scope stays in each tests/ directory and its configuration rather than
+      creating a degraded-turn actor. The isolated single-turn case additionally
+      binds Sandbox Validator because it proves that an undeclared URL-shaped
+      source cannot cross the controlled mock topology; the degraded-RAG case
+      evaluates turn output without claiming that isolation responsibility.
   planned:
     - >-
       Concurrent multi-RAG fan-out (async await-any), and structured response

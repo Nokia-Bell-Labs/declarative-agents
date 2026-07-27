@@ -4,6 +4,7 @@ package service
 
 import (
 	"os"
+	"path/filepath"
 	"testing"
 	"time"
 
@@ -52,6 +53,8 @@ func TestRunScenarioValidator_EmitsItemReceipt(t *testing.T) {
 	_, _, err = session.Next()
 	require.NoError(t, err)
 	session.RecordSubject("subject", "http://127.0.0.1:1")
+	profile := filepath.Join(root, "alpha", testsDirName, "only", profileFileName)
+	require.NoError(t, os.WriteFile(profile, []byte("name: chatbot-turn-critic\n"), 0o644))
 
 	cmd := Builder{
 		ToolName: "run_validator", Init: InitRunScenarioValidator,
@@ -64,12 +67,24 @@ func TestRunScenarioValidator_EmitsItemReceipt(t *testing.T) {
 	aware, ok := cmd.(core.CommandStateAware)
 	require.True(t, ok)
 	aware.SetCommandState(labeledStateView{
-		label: "validator", output: `{"profile":"p"}`,
+		label: "validator", output: jsonOutput(map[string]string{"profile": profile}),
 	})
 	result := cmd.Execute()
 	require.Equal(t, SignalValidatorCompleted, result.Signal)
-	require.Contains(t, result.Receipt, `"validator"`)
+	require.Contains(t, result.Receipt, `"validator":"chatbot-turn-critic"`)
+	require.Contains(t, result.Output, `"name":"chatbot-turn-critic"`)
 	require.Contains(t, result.Output, `"passed":true`)
+}
+
+func TestValidatorNameUsesDeclaredCriticIdentity(t *testing.T) {
+	t.Parallel()
+	dir := filepath.Join(t.TempDir(), "tests", "degraded-rag")
+	require.NoError(t, os.MkdirAll(dir, 0o755))
+	profile := filepath.Join(dir, "profile.yaml")
+	require.NoError(t, os.WriteFile(profile, []byte("name: chatbot-turn-critic\n"), 0o644))
+
+	require.Equal(t, "chatbot-turn-critic", validatorName(profile))
+	require.Equal(t, "degraded-rag", validatorName(filepath.Join(dir, "missing-profile.yaml")))
 }
 
 // TestRunScenarioValidator_JudgesOnExitCode locks in the contract that makes

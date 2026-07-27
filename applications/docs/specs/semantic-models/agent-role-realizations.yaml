@@ -366,20 +366,27 @@ non_role_inventory:
       - applications/catalog/testdata/conformance/rig-subject/tests/dep-failure/profile.yaml
       - applications/catalog/testdata/conformance/rig-subject/tests/happy-path/profile.yaml
   mesh_fixtures:
-    inheritance_rule: Validators bind Critic for their test scope; the rig wrapper itself is a fixture.
+    inheritance_rule: Scenario critics bind Critic for their configured scope; the rig wrapper itself is a fixture.
     profiles:
       - path: applications/chatbot-mesh/agents/chatbot/tests/single-turn/profile.yaml
-        actor: chatbot-turn-validator
+        actor: chatbot-turn-critic
         role: critic
         sub_roles: [output-evaluator, sandbox-validator]
+        domain: chatbot-turn
+        execution_scope: single-turn-scenario
+        responsibility_justification: The critic verifies that an undeclared URL-shaped source cannot escape the isolated mock topology.
       - path: applications/chatbot-mesh/agents/chatbot/tests/degraded-rag/profile.yaml
-        actor: chatbot-turn-validator
+        actor: chatbot-turn-critic
         role: critic
-        sub_roles: [output-evaluator, sandbox-validator]
+        sub_roles: [output-evaluator]
+        domain: chatbot-turn
+        execution_scope: degraded-rag-scenario
       - path: applications/chatbot-mesh/agents/rag-server/tests/query/profile.yaml
-        actor: rag-query-validator
+        actor: rag-query-critic
         role: critic
-        sub_roles: [output-evaluator, sandbox-validator]
+        sub_roles: [output-evaluator]
+        domain: rag-query
+        execution_scope: query-scenario
       - path: applications/chatbot-mesh/testdata/rig/profile.yaml
         classification: fixture
         inherits: scenario-critic

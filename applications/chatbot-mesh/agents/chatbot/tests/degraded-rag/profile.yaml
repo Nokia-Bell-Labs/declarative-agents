@@ -1,4 +1,4 @@
-name: chatbot-turn-validator
+name: chatbot-turn-critic
 machine: machine.yaml
 tools:
   - tools.yaml

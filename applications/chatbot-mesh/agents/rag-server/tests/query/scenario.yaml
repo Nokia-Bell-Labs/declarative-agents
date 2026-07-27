@@ -1,6 +1,8 @@
+# The rag-query-critic keeps query scope in this scenario path and configuration
+# rather than in the canonical Critic role identity.
 # The rag-server ships fixed listeners: query on 18085, lifecycle control and
 # health on 18086. The rig therefore pins the address instead of allocating
-# one, probes health on the control listener, and validators drive the query
+# one, probes health on the control listener, and the critic drives the query
 # listener through SUBJECT_URL.
 subject_address: 127.0.0.1:18085
 subject_health_path: http://127.0.0.1:18086/api/lifecycle/health

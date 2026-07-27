@@ -31,16 +31,18 @@ const (
 
 // Config holds execution engine settings.
 type Config struct {
-	Binary      string        // Agent binary path. Default: "agent" (resolved from PATH).
-	Profile     string        // --profile flag for the child agent.
-	CoreRoot    string        // --core-root development install mapping for the child agent.
-	Directory   string        // --directory flag for the child workspace.
-	Request     string        // --request flag for runtime input.
-	Output      string        // --output flag for runtime artifacts.
-	OTelLogFile string        // --otel-log-file flag for child trace capture.
-	Timeout     time.Duration // Per-invocation timeout. Default: 10 minutes.
-	OTelDir     string        // Directory for temporary OTel log files.
-	Env         []string      // Additional KEY=VALUE vars for the child, appended to the parent environment.
+	Binary          string        // Agent binary path. Default: "agent" (resolved from PATH).
+	Profile         string        // --profile flag for the child agent.
+	CoreRoot        string        // --core-root development install mapping for the child agent.
+	Directory       string        // --directory flag for the child workspace.
+	Request         string        // --request flag for runtime input.
+	Output          string        // --output flag for runtime artifacts.
+	OTelLogFile     string        // --otel-log-file flag for child trace capture.
+	OTelServiceName string        // --otel-service-name identity for child spans.
+	OTLPEndpoint    string        // --otel-otlp-endpoint destination for child spans.
+	Timeout         time.Duration // Per-invocation timeout. Default: 10 minutes.
+	OTelDir         string        // Directory for temporary OTel log files.
+	Env             []string      // Additional KEY=VALUE vars for the child, appended to the parent environment.
 }
 
 func (c *Config) binary() string {
@@ -68,6 +70,8 @@ func (c *Config) BuildArgs() []string {
 	args = appendFlag(args, "--request", c.Request)
 	args = appendFlag(args, "--output", c.Output)
 	args = appendFlag(args, "--otel-log-file", c.OTelLogFile)
+	args = appendFlag(args, "--otel-service-name", c.OTelServiceName)
+	args = appendFlag(args, "--otel-otlp-endpoint", c.OTLPEndpoint)
 	return args
 }
 
