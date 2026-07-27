@@ -53,7 +53,7 @@ capability_classification:
         - srd002-managed-application-services R1
         - srd002-managed-application-services R2
         - srd002-managed-application-services R3
-      status: implemented
+      status: partial
       live_observation_status: dependency_gated
     - capability: packaged
       applies: false
@@ -217,7 +217,8 @@ design_decisions:
     title: Report composition without agent ownership
     decision: |
       mage stats emits application ownership, one canonical reference,
-      agents_contributed: 0, and documentation counts without an agents section.
+      agents_contributed: 0, and the canonical profile path without an agents
+      section. It does not emit documentation counts.
     benefits:
       - Root aggregation does not double-count the curator.
       - The application's contribution remains measurable.
@@ -281,22 +282,24 @@ project_structure:
 
 implementation_status:
   current_focus: |
-    Release 00.0 is implemented for checked-in assets, lifecycle-exit
-    composition, pinned tooling, Mage commands, deterministic tests, and root
-    audit, test, stats, and release participation. Live server and browser
-    observations remain dependency-gated and are not inferred from command
-    construction tests.
+    Release 00.0 is partial. Checked-in assets, lifecycle-exit configuration,
+    pinned tooling, Mage commands, deterministic tests, and root audit, test,
+    stats, and release participation are implemented. Live managed-service and
+    browser observations remain dependency-gated and are not inferred from
+    command construction tests.
   progress:
     - implemented: Application ownership and dependency direction.
-    - implemented: Guided presentation, launch, browser, and exit use case.
     - implemented: Reciprocal deterministic test suite for run, presentation, audit, and stats.
-    - implemented: runnable_module and managed_service applicability, including
-        srd002 R1 through R3 for the curator and Go present servers.
+    - implemented: runnable_module applicability and managed_service classification.
     - implemented: Relocated deck, README, and lifecycle-exit profile.
     - implemented: Version-pinned present dependency and tested Mage entry points.
     - implemented: Root audit, test, stats, and release participation.
+    - partial: Guided presentation, launch, browser, and exit use case.
+    - partial: srd002 R1 through R3 conformance for the curator and Go present
+        servers; AC1 through AC3 are not yet satisfied.
     - dependency_gated: Live server startup, browser inspection, role readiness,
-        shutdown, and listener-release observations.
+        liveness, representative failure, diagnostics, telemetry, shutdown,
+        in-flight handling, and listener-release observations.
 
 related_documents:
   - doc: ../docs/specs/software-requirements/srd001-application-module-contract.yaml

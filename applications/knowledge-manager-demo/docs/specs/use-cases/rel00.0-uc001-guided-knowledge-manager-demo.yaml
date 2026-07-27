@@ -7,7 +7,7 @@ summary: |
   canonical catalog documentation-curator through agent-core, opens its
   catalog-owned browser interface, follows the deck, and invokes the
   application-owned declarative lifecycle-exit profile. The curator reaches
-  Done and releases its listeners.
+  Done and releases its listeners when the dependency-gated live flow succeeds.
 
 actor: A developer or presenter demonstrating the canonical Knowledge Manager profile.
 
@@ -35,9 +35,11 @@ evidence:
   limitation: |
     Serving the deck, starting the curator, rendering the catalog-owned browser
     interface, posting to a running control endpoint, observing Done, and
-    observing listener release require available ports, a buildable agent-core
-    checkout, and operator execution. Deterministic command construction does
-    not prove those live observations.
+    observing readiness, liveness, representative failure, diagnostics,
+    telemetry, shutdown, in-flight handling, and listener release require
+    available ports, a buildable agent-core checkout, and operator execution.
+    Deterministic command construction does not prove those live observations
+    or srd002 AC1 through AC3.
 
 flow:
   - id: F1
@@ -53,7 +55,7 @@ flow:
   - id: F6
     text: The operator invokes call-lifecycle-exit/profile.yaml through the same agent-core interpreter from the application root.
   - id: F7
-    text: The lifecycle-exit machine posts its fixed reason to 127.0.0.1:18082/api/lifecycle/exit, accepts HTTP 202, and reaches its succeeded terminal.
+    text: The lifecycle-exit machine posts its fixed reason to 127.0.0.1:18082/api/lifecycle/exit, accepts HTTP 202, and reaches its Done terminal.
   - id: F8
     text: The canonical curator reaches Done and releases its documentation, control, and monitor listeners.
 
@@ -113,7 +115,7 @@ success_criteria:
       - srd001-application-module-contract AC3
       - srd001-application-module-contract AC5
   - id: S6
-    criterion: The curator and Go present servers define bounded startup, role-readiness, failure, and shutdown evidence appropriate to their local roles; executing those observations is dependency-gated.
+    criterion: The curator and Go present servers require bounded startup, role-readiness, liveness, failure, diagnostics, telemetry, configuration, and shutdown evidence appropriate to their local roles; those dependency-gated observations must run before srd002 AC1 through AC3 are satisfied.
     traces:
       - architecture-knowledge-manager-demo capability_classification managed_services
       - srd002-managed-application-services AC1
@@ -129,4 +131,4 @@ out_of_scope:
   - Defining production deployment or authentication for the local demo.
 
 test_suite: test-rel00.0-guided-knowledge-manager-demo
-status: implemented
+status: partial

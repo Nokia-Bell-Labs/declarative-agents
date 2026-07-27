@@ -81,9 +81,11 @@ success_criteria:
   shared_contract_conformance: |
     Application documents trace to applicable srd001 requirements, srd002 R1
     through R3, and catalog srd011. Application-local deterministic tests and
-    root orchestration prove the checked-in command, contract, audit, and stats
-    surfaces. Live server, browser, readiness, shutdown, and listener-release
-    observations remain dependency-gated.
+    root orchestration prove the checked-in command, configuration, audit,
+    stats, and dispatch surfaces. The managed-service capability remains
+    partial: dependency-gated live startup, readiness, liveness, failure,
+    shutdown, diagnostic, telemetry, and listener-release observations are
+    still required before the application can claim srd002 AC1 through AC3.
 
 not:
   - We do not own or copy the canonical documentation-curator profile.

@@ -17,12 +17,12 @@ releases:
       catalog-owned browser interface, and requests clean shutdown through the
       application-owned declarative lifecycle-exit profile. The application
       reports composition only and contributes no canonical agents.
-    status: implemented
+    status: partial
     capabilities:
       - id: runnable_module
         status: implemented
       - id: managed_service
-        status: implemented
+        status: partial
         services: [documentation-curator, Go present]
         live_observation_status: dependency_gated
       - id: packaged
@@ -46,12 +46,12 @@ releases:
     use_cases:
       - id: rel00.0-uc001-guided-knowledge-manager-demo
         summary: An operator serves the deck, starts the canonical curator, opens its UI, and exits it declaratively.
-        status: implemented
+        status: partial
         live_observation_status: dependency_gated
     test_suites:
       - id: test-rel00.0-guided-knowledge-manager-demo
         summary: Deterministic command and contract tests plus dependency-gated launch and exit evidence.
-        status: implemented
+        status: partial
         live_observation_status: dependency_gated
     evidence:
       - command: go test ./magefiles
@@ -85,6 +85,9 @@ releases:
     evidence_boundary: |
       Checked-in deterministic tests prove command construction, configuration,
       traceability, accounting, and root dispatch. They do not prove live
-      startup, browser rendering, role readiness, shutdown, or listener release.
-      Those observations remain dependency_gated on available ports, a
-      buildable agent-core checkout, and operator execution.
+      startup, browser rendering, role readiness, liveness, representative
+      failure, diagnostics, telemetry, shutdown, in-flight handling, or listener
+      release. Those observations remain dependency_gated on available ports, a
+      buildable agent-core checkout, and operator execution. Until they run,
+      srd002 AC1 through AC3 and the aggregate managed-service, use-case, suite,
+      and release statuses remain partial.

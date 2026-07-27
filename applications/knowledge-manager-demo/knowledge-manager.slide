@@ -32,9 +32,9 @@ An installed runtime already owns `/opt/agent-core`; omit `--core-root`:
 
 After the Knowledge Manager is running, post the exit request to its control
 server (default `http://127.0.0.1:18082/api/lifecycle/exit`, HTTP 202 Accepted).
-The request is itself a declarative agent, not a bespoke HTTP client: a one-state
-machine binds the rest tool, posts the fixed request, and reaches a terminal
-`Done` state. Run it through the same source-checkout interpreter:
+The request is itself a declarative agent, not a bespoke HTTP client: a four-state
+machine moves from `Idle` to `Posting`, binds the REST operation, and then reaches
+terminal `Done` or `Failed`. Run it through the same source-checkout interpreter:
 
 	agent --profile "$(pwd)/call-lifecycle-exit/profile.yaml" --directory "$(pwd)" --core-root "$AGENT_CORE_ROOT"
 

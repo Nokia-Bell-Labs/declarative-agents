@@ -9,11 +9,12 @@ overview: |
   reciprocity, and composition-only statistics without starting servers.
   Dependency-gated Mage commands provide live launch and presentation evidence.
   A managed-service case applies shared srd002 R1 through R3 separately to the
-  curator and Go present servers. The suite and its deterministic cases are
-  implemented. Live service and browser observations remain dependency-gated
-  and are not inferred from command-construction tests.
+  curator and Go present servers. The deterministic command, configuration,
+  audit, and stats cases are implemented. The aggregate suite is partial
+  because live service and browser observations remain dependency-gated and
+  are not inferred from command-construction tests.
 
-status: implemented
+status: partial
 live_observation_status: dependency_gated
 
 traces:
@@ -50,9 +51,6 @@ test_cases:
       working_directory_is_application_root: true
     traces:
       - rel00.0-uc001-guided-knowledge-manager-demo S1
-      - srd002-managed-application-services AC1
-      - srd002-managed-application-services AC2
-      - srd002-managed-application-services AC3
 
   - use_case: rel00.0-uc001-guided-knowledge-manager-demo
     id: canonical_curator_command
@@ -86,9 +84,6 @@ test_cases:
       - srd011-knowledge-manager AC1
       - srd011-knowledge-manager AC2
       - srd001-application-module-contract AC2
-      - srd002-managed-application-services AC1
-      - srd002-managed-application-services AC2
-      - srd002-managed-application-services AC3
 
   - use_case: rel00.0-uc001-guided-knowledge-manager-demo
     id: lifecycle_exit_contract
@@ -98,12 +93,12 @@ test_cases:
     status: implemented
     live_status: dependency_gated
     description: |
-      The deterministic test loads the application profile, machine, tools,
-      declarations, and REST definition. It proves one declared REST boundary
-      word posts the fixed demo reason to /api/lifecycle/exit, treats HTTP 200
-      and 202 as accepted, and reaches a succeeded terminal. Dependency-gated
-      live evidence observes the canonical curator reaching Done and releasing
-      listeners.
+      The deterministic test parses the application profile and machine,
+      verifies the profile names the tool, declaration, and REST files, and
+      inspects the REST definition. It proves the declared REST operation posts
+      the fixed demo reason to /api/lifecycle/exit, treats HTTP 200 and 202 as
+      accepted, and transitions to Done. Dependency-gated live evidence
+      observes the canonical curator reaching Done and releasing listeners.
     inputs:
       profile: call-lifecycle-exit/profile.yaml
       endpoint: http://127.0.0.1:18082/api/lifecycle/exit
@@ -125,17 +120,20 @@ test_cases:
     name: Curator and presentation managed-service evidence
     go_test: go test ./magefiles -run '^TestManagedServices'
     live_evidence: bounded launch, readiness, failure, interrupt, and listener-release checks
-    status: implemented
+    status: dependency_gated
     live_status: dependency_gated
     description: |
       The deterministic test classifies both long-running servers under shared
-      srd002 R1 through R3 and verifies that each has an owned command,
-      configuration authority, bounded observations, and documented operator
-      behavior. Live evidence probes the curator's declared role endpoints and
-      the present HTTP endpoint, then stops each process and observes listener
-      release. Those live checks remain dependency-gated. The present server
-      has no dedicated health or telemetry API, so evidence records that
-      limitation and does not treat process existence as readiness.
+      srd002 R1 through R3 and verifies that each records an owned deterministic
+      command/configuration check plus planned live observations. It does not
+      execute startup, health, failure, telemetry, configuration-rejection,
+      shutdown, or resource-release behavior. Dependency-gated evidence must
+      probe each declared role, exercise representative failures, inspect
+      bounded diagnostics and available telemetry, then stop each process and
+      observe in-flight outcomes and listener release. The present server has
+      no dedicated health or telemetry API, so evidence must record that signal
+      limitation and cannot treat process existence as readiness. This case
+      does not satisfy srd002 AC1 through AC3 until those observations run.
     inputs:
       services:
         - documentation-curator
@@ -167,13 +165,16 @@ test_cases:
     stats_target: mage stats
     status: implemented
     description: |
-      The application audit parses every YAML document, checks required fields,
-      verifies reciprocal use-case and suite traces, rejects stale catalog-demo
-      paths and developer-specific roots, and confirms the sole profile
-      reference is canonical. Stats emits valid JSON for composition ownership
-      without an agents section.
+      The application audit parses the six documentation YAML files, checks
+      their required fields and reciprocal use-case/suite traces, scans
+      documentation and lifecycle files for stale or developer-specific paths,
+      and confirms profile references use the canonical path. Lifecycle YAML
+      has separate profile/machine/REST coverage in lifecycle_exit_contract;
+      audit does not claim to parse every lifecycle YAML file. Stats emits only
+      the application composition fields and no agents section.
     inputs:
-      documents: docs/**/*.yaml
+      documentation_yaml: docs/VISION.yaml, docs/ARCHITECTURE.yaml, docs/road-map.yaml, docs/SPECIFICATIONS.yaml, the indexed use case, and the indexed test suite
+      lifecycle_yaml: call-lifecycle-exit/profile.yaml, call-lifecycle-exit/machine.yaml, and call-lifecycle-exit/rest.yaml are inspected by lifecycle_exit_contract
       canonical_profile_owner: applications/catalog
       expected_canonical_references: 1
     expected:
