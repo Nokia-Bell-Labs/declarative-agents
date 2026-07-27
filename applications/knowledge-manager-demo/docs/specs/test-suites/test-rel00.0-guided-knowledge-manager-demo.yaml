@@ -1,0 +1,131 @@
+id: test-rel00.0-guided-knowledge-manager-demo
+title: Test Suite for Release 00.0 Guided Knowledge Manager Demo
+release: "00.0"
+
+overview: |
+  This suite defines executable evidence for the standalone presentation
+  composition. Deterministic Go tests inspect exact commands, working
+  directories, root resolution, lifecycle configuration, documentation
+  reciprocity, and composition-only statistics without starting servers.
+  Dependency-gated Mage commands provide live launch and presentation evidence.
+
+traces:
+  - rel00.0-uc001-guided-knowledge-manager-demo
+
+preconditions:
+  - The six Release 00.0 application documents parse as YAML.
+  - The application Go module records a version-pinned Go present tool dependency.
+  - AGENT_CATALOG_ROOT and AGENT_CORE_ROOT may be explicit independent checkouts or their portable monorepo defaults.
+  - Live evidence has available local ports and a buildable agent-core checkout.
+  - applications/catalog remains the canonical owner of the documentation-curator profile and UI.
+
+test_cases:
+  - use_case: rel00.0-uc001-guided-knowledge-manager-demo
+    id: presentation_command
+    name: Pinned presentation command
+    go_test: go test ./magefiles -run '^TestPresentation'
+    live_target: mage presentation
+    status: planned
+    description: |
+      The deterministic test constructs the presentation command without
+      starting a server. It proves that Mage invokes the Go-module-pinned
+      present tool for knowledge-manager.slide and uses the application root as
+      the working directory. The live target serves the deck when its port is
+      available.
+    inputs:
+      application_root: applications/knowledge-manager-demo
+      slide: knowledge-manager.slide
+      tool: Go present dependency declared by go.mod
+    expected:
+      globally_installed_present_required: false
+      slide_path_is_application_local: true
+      working_directory_is_application_root: true
+    traces:
+      - rel00.0-uc001-guided-knowledge-manager-demo S1
+
+  - use_case: rel00.0-uc001-guided-knowledge-manager-demo
+    id: canonical_curator_command
+    name: Canonical curator launch command
+    go_test: go test ./magefiles -run '^Test(Run|ResolveRoots)'
+    live_target: mage run
+    status: planned
+    description: |
+      The deterministic tests prove explicit environment roots, monorepo
+      defaults, exact command arguments, catalog-root working directory, and
+      actionable missing-root failures. The command points to the canonical
+      catalog profile and passes --profile, --directory, and development
+      --core-root to agent-core. The live target starts the curator when the
+      runtime checkout and ports are available.
+    inputs:
+      catalog_root_env: AGENT_CATALOG_ROOT
+      core_root_env: AGENT_CORE_ROOT
+      canonical_profile: agents/knowledge-manager/documentation-curator/profile.yaml
+      documentation_workspace: AGENT_CATALOG_ROOT
+    expected:
+      profile_owner: applications/catalog
+      profile_copy_in_application: false
+      ui_copy_in_application: false
+      explicit_profile_argument: true
+      explicit_directory_argument: true
+      development_core_root_argument: true
+    traces:
+      - rel00.0-uc001-guided-knowledge-manager-demo S2
+      - rel00.0-uc001-guided-knowledge-manager-demo S3
+      - srd011-knowledge-manager AC1
+      - srd011-knowledge-manager AC2
+
+  - use_case: rel00.0-uc001-guided-knowledge-manager-demo
+    id: lifecycle_exit_contract
+    name: Declarative lifecycle-exit contract
+    go_test: go test ./magefiles -run '^TestLifecycleExit'
+    live_evidence: mage run followed by the documented lifecycle-exit command
+    status: planned
+    description: |
+      The deterministic test loads the application profile, machine, tools,
+      declarations, and REST definition. It proves one declared REST boundary
+      word posts the fixed demo reason to /api/lifecycle/exit, treats HTTP 202
+      as accepted, and reaches a succeeded terminal. Live evidence confirms the
+      canonical curator reaches Done and releases listeners.
+    inputs:
+      profile: call-lifecycle-exit/profile.yaml
+      endpoint: http://127.0.0.1:18082/api/lifecycle/exit
+      request_reason: demo presentation
+    expected:
+      implementation: declarative_agent
+      bespoke_go_http_client: false
+      accepted_status: 202
+      exit_profile_terminal: succeeded
+      curator_terminal: Done
+      listeners_released: true
+    traces:
+      - rel00.0-uc001-guided-knowledge-manager-demo S4
+      - srd011-knowledge-manager AC3
+      - rel07.0-uc001-documentation-curator-profile-ux S4
+
+  - use_case: rel00.0-uc001-guided-knowledge-manager-demo
+    id: application_contract
+    name: Documentation audit and composition-only stats
+    go_test: go test ./magefiles
+    audit_target: mage audit
+    stats_target: mage stats
+    status: planned
+    description: |
+      The application audit parses every YAML document, checks required fields,
+      verifies reciprocal use-case and suite traces, rejects stale catalog-demo
+      paths and developer-specific roots, and confirms the sole profile
+      reference is canonical. Stats emits valid JSON for composition ownership
+      without an agents section.
+    inputs:
+      documents: docs/**/*.yaml
+      canonical_profile_owner: applications/catalog
+      expected_canonical_references: 1
+    expected:
+      yaml_parse_errors: 0
+      reciprocal_use_case_traces: true
+      portable_paths: true
+      ownership: composition
+      agents_contributed: 0
+      canonical_references: 1
+      agents_section_present: false
+    traces:
+      - rel00.0-uc001-guided-knowledge-manager-demo S5

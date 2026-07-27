@@ -1,0 +1,93 @@
+id: knowledge-manager-demo
+title: Knowledge Manager Demo Application Vision
+
+executive_summary: |
+  applications/knowledge-manager-demo is a standalone presentation application.
+  It guides an operator through launching the canonical documentation-curator
+  profile, opening its browser interface, and stopping it with a declarative
+  lifecycle-exit client.
+
+  The dependency direction is application -> applications/catalog ->
+  agent-core. The application owns the slide deck, operator entry points,
+  lifecycle-exit composition, and composition-only reporting. The catalog
+  remains the only canonical owner of the documentation-curator profile and
+  user interface. agent-core owns the runtime and builtin capabilities.
+
+problem: |
+  The Knowledge Manager presentation currently sits beside reusable catalog
+  profiles. That placement makes application-only launch and presentation
+  behavior appear to be part of the canonical profile contract. It also leaves
+  the slide server dependent on operator-installed tooling.
+
+  We need one application directory that records the demo lifecycle and its
+  dependencies without copying the documentation-curator profile or its user
+  interface.
+
+what_this_does: |
+  The application serves knowledge-manager.slide with a version-pinned Go
+  present tool. A Mage entry point launches the canonical
+  applications/catalog/agents/knowledge-manager/documentation-curator/profile.yaml
+  through agent-core. The operator opens the catalog-owned interface and then
+  runs the application-owned call-lifecycle-exit profile to request a clean
+  shutdown.
+
+  Source-checkout operation resolves AGENT_CATALOG_ROOT and AGENT_CORE_ROOT,
+  with portable monorepo defaults. The application reports only composition
+  facts, including agents_contributed: 0, so repository statistics count the
+  canonical profile once under applications/catalog.
+
+why_we_build_this: |
+  A standalone application gives presentation, launch, and shutdown behavior a
+  clear owner. Reproducible Mage commands let a reader run the same guided flow
+  without moving reusable assets or installing an unpinned slide server.
+
+  Explicit roots preserve the ownership chain. The application consumes the
+  catalog profile, and the catalog profile consumes agent-core declarations and
+  runtime capability. No dependency points back from either provider to this
+  application.
+
+success_criteria:
+  guided_demo: |
+    Release 00.0 traces presentation startup, canonical profile launch, browser
+    access, and declarative lifecycle exit through one use case and one
+    reciprocal executable test suite.
+  canonical_profile_reuse: |
+    Every launch resolves the documentation-curator from AGENT_CATALOG_ROOT.
+    This application contains no copy of that profile, its machine, or its user
+    interface.
+  reproducible_operator_tools: |
+    The Go present command is a pinned tool dependency. Mage exposes run,
+    presentation, audit, and stats entry points with tested command
+    construction.
+  portable_development: |
+    Source checkouts accept explicit AGENT_CORE_ROOT and AGENT_CATALOG_ROOT
+    values and provide monorepo-relative defaults without developer-specific
+    absolute paths.
+  composition_only_accounting: |
+    mage stats emits valid JSON with ownership: composition,
+    agents_contributed: 0, and one canonical reference. It emits no agents
+    section.
+
+not:
+  - We do not own or copy the canonical documentation-curator profile.
+  - We do not own or copy the Knowledge Manager user interface.
+  - We do not implement the documentation host, REST runtime, or builtin tools.
+  - We do not add presentation behavior to applications/catalog.
+  - We do not replace the declarative lifecycle-exit client with a bespoke HTTP
+    program.
+  - We do not count the reused documentation-curator as an application agent.
+
+canonical_documents:
+  - docs/ARCHITECTURE.yaml
+  - docs/road-map.yaml
+  - docs/SPECIFICATIONS.yaml
+  - docs/specs/use-cases/rel00.0-uc001-guided-knowledge-manager-demo.yaml
+  - docs/specs/test-suites/test-rel00.0-guided-knowledge-manager-demo.yaml
+
+external_references:
+  - owner: applications/catalog
+    document: docs/specs/software-requirements/srd011-knowledge-manager.yaml
+    purpose: Canonical documentation-curator family requirements.
+  - owner: applications/catalog
+    document: docs/specs/use-cases/rel07.0-uc001-documentation-curator-profile-ux.yaml
+    purpose: Canonical profile and user-interface integration proof.

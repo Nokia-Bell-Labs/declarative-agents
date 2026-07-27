@@ -1,0 +1,88 @@
+id: knowledge-manager-demo-specifications
+title: Knowledge Manager Demo Application Specification Index
+
+overview: |
+  This index governs the standalone Knowledge Manager demo composition.
+  Release 00.0 has one application use case and one reciprocal test suite. The
+  application references the canonical documentation-curator requirements and
+  profile UX evidence in applications/catalog; it does not fork or re-index
+  them as application-owned requirements.
+
+  The dependency direction is application -> applications/catalog ->
+  agent-core. The Go present tool, catalog checkout, and agent-core checkout are
+  explicit development or runtime inputs. Planned Mage evidence validates
+  command construction, portable root resolution, launch and exit behavior,
+  documentation traceability, and composition-only statistics.
+
+roadmap_summary:
+  - version: "00.0"
+    name: Guided Knowledge Manager presentation
+    use_cases_done: 0
+    use_cases_total: 1
+    status: specified
+
+foundation_document_index:
+  - id: knowledge-manager-demo
+    title: Knowledge Manager Demo Application Vision
+    summary: Application purpose, ownership boundary, dependencies, and success criteria.
+    path: docs/VISION.yaml
+  - id: architecture-knowledge-manager-demo
+    title: Knowledge Manager Demo Application Architecture
+    summary: Presentation flow, components, interfaces, dependency direction, and decisions.
+    path: docs/ARCHITECTURE.yaml
+  - id: knowledge-manager-demo-roadmap
+    title: Knowledge Manager Demo Application Road Map
+    summary: Release 00.0 contract and planned Mage evidence.
+    path: docs/road-map.yaml
+
+srd_index: []
+
+external_requirement_references:
+  - id: srd011-knowledge-manager
+    owner: applications/catalog
+    path: ../catalog/docs/specs/software-requirements/srd011-knowledge-manager.yaml
+    usage: |
+      Defines the canonical documentation-curator profile, catalog-owned UI and
+      resources, agent-core runtime dependencies, and lifecycle outcomes.
+  - id: rel07.0-uc001-documentation-curator-profile-ux
+    owner: applications/catalog
+    path: ../catalog/docs/specs/use-cases/rel07.0-uc001-documentation-curator-profile-ux.yaml
+    usage: |
+      Proves the catalog profile's browser, action-route, and lifecycle behavior.
+      Release 00.0 composes that behavior into a guided presentation.
+
+config_format_index: []
+
+semantic_model_index: []
+
+use_case_index:
+  - id: rel00.0-uc001-guided-knowledge-manager-demo
+    title: Operator Runs the Guided Knowledge Manager Demo
+    release: "00.0"
+    status: specified
+    test_suite: test-rel00.0-guided-knowledge-manager-demo
+    path: docs/specs/use-cases/rel00.0-uc001-guided-knowledge-manager-demo.yaml
+
+test_suite_index:
+  - id: test-rel00.0-guided-knowledge-manager-demo
+    title: Test Suite for Release 00.0 Guided Knowledge Manager Demo
+    release: "00.0"
+    status: specified
+    test_case_count: 4
+    traces:
+      - rel00.0-uc001-guided-knowledge-manager-demo
+    path: docs/specs/test-suites/test-rel00.0-guided-knowledge-manager-demo.yaml
+
+coverage_gaps:
+  - id: release-00.0-implementation
+    status: planned
+    description: |
+      The specification corpus exists. Sibling issues under GH-1055 relocate
+      application assets, implement the pinned presentation and run targets,
+      add deterministic tests, and register root orchestration.
+  - id: live-browser-observation
+    status: dependency_gated
+    description: |
+      Deterministic tests validate commands and configuration without servers.
+      Live launch and exit evidence requires available ports and an agent-core
+      runtime; visual browser inspection remains an operator step.

@@ -1,0 +1,100 @@
+id: rel00.0-uc001-guided-knowledge-manager-demo
+title: Operator Runs the Guided Knowledge Manager Demo
+
+summary: |
+  An operator serves knowledge-manager.slide with the application's pinned Go
+  present tool. From the standalone application root, the operator launches the
+  canonical catalog documentation-curator through agent-core, opens its
+  catalog-owned browser interface, follows the deck, and invokes the
+  application-owned declarative lifecycle-exit profile. The curator reaches
+  Done and releases its listeners.
+
+actor: A developer or presenter demonstrating the canonical Knowledge Manager profile.
+
+trigger: |
+  The actor checks out applications/knowledge-manager-demo,
+  applications/catalog, and agent-core, then starts the guided Release 00.0
+  presentation.
+
+preconditions:
+  - The application Go module has downloaded its version-pinned Go present tool dependency.
+  - AGENT_CATALOG_ROOT names a catalog checkout or resolves to the monorepo ../catalog default.
+  - AGENT_CORE_ROOT names an agent-core checkout or resolves to the monorepo ../../agent-core default.
+  - The canonical documentation-curator profile exists at AGENT_CATALOG_ROOT/agents/knowledge-manager/documentation-curator/profile.yaml.
+  - Local presentation, documentation, control, and monitor ports are available.
+
+flow:
+  - id: F1
+    text: The operator runs mage presentation from the application root; Mage invokes the pinned Go present tool for knowledge-manager.slide with the application root as its working directory.
+  - id: F2
+    text: The operator opens the presentation and follows its Knowledge Manager launch step.
+  - id: F3
+    text: The operator runs mage run; Mage resolves AGENT_CATALOG_ROOT and AGENT_CORE_ROOT and builds or locates the agent-core binary.
+  - id: F4
+    text: The run target launches AGENT_CATALOG_ROOT/agents/knowledge-manager/documentation-curator/profile.yaml with explicit --profile, --directory, and development --core-root arguments, using the catalog root as the documentation workspace.
+  - id: F5
+    text: The operator opens the documentation interface on localhost:18081 and may inspect the monitor interface on localhost:18084.
+  - id: F6
+    text: The operator invokes call-lifecycle-exit/profile.yaml through the same agent-core interpreter from the application root.
+  - id: F7
+    text: The lifecycle-exit machine posts its fixed reason to 127.0.0.1:18082/api/lifecycle/exit, accepts HTTP 202, and reaches its succeeded terminal.
+  - id: F8
+    text: The canonical curator reaches Done and releases its documentation, control, and monitor listeners.
+
+touchpoints:
+  - id: T1
+    target: architecture-knowledge-manager-demo interfaces
+    reason: Mage presentation and run expose the operator entry points and explicit checkout roots.
+  - id: T2
+    target: architecture-knowledge-manager-demo components documentation-curator
+    reason: The application launches the only canonical profile and UI from applications/catalog.
+  - id: T3
+    target: srd011-knowledge-manager AC1, AC2, AC3
+    reason: The catalog requirement defines the configured UX, runtime dependencies, and lifecycle outcomes this application presents.
+  - id: T4
+    target: rel07.0-uc001-documentation-curator-profile-ux S1, S3, S4
+    reason: Catalog integration evidence owns profile loading, UI serving, and controlled listener shutdown.
+  - id: T5
+    target: test-rel00.0-guided-knowledge-manager-demo
+    reason: The reciprocal suite checks presentation, launch, lifecycle exit, audit, and stats contracts.
+
+success_criteria:
+  - id: S1
+    criterion: mage presentation invokes the version-pinned Go present tool for knowledge-manager.slide from the application root.
+    traces:
+      - architecture-knowledge-manager-demo design_decisions 3
+      - test-rel00.0-guided-knowledge-manager-demo presentation_command
+  - id: S2
+    criterion: mage run launches the canonical catalog documentation-curator through agent-core with explicit profile, directory, and development core-root arguments.
+    traces:
+      - architecture-knowledge-manager-demo design_decisions 1
+      - architecture-knowledge-manager-demo design_decisions 4
+      - srd011-knowledge-manager AC1
+      - test-rel00.0-guided-knowledge-manager-demo canonical_curator_command
+  - id: S3
+    criterion: The browser receives the catalog-owned Knowledge Manager interface; the application contains no profile or UI copy.
+    traces:
+      - srd011-knowledge-manager AC1
+      - rel07.0-uc001-documentation-curator-profile-ux S3
+      - test-rel00.0-guided-knowledge-manager-demo canonical_curator_command
+  - id: S4
+    criterion: The application-owned declarative lifecycle-exit profile posts the fixed request, accepts HTTP 202, and the curator releases its listeners.
+    traces:
+      - architecture-knowledge-manager-demo design_decisions 2
+      - rel07.0-uc001-documentation-curator-profile-ux S4
+      - test-rel00.0-guided-knowledge-manager-demo lifecycle_exit_contract
+  - id: S5
+    criterion: Application audit and stats preserve reciprocal traces, portable roots, agents_contributed as zero, and no agents section.
+    traces:
+      - architecture-knowledge-manager-demo design_decisions 5
+      - test-rel00.0-guided-knowledge-manager-demo application_contract
+
+out_of_scope:
+  - Changing the canonical documentation-curator profile, UI, or catalog tests.
+  - Re-testing generic agent-core REST route matching or documentation hosting.
+  - Packaging a copy of the catalog profile in the application source tree.
+  - Automating browser interaction or visual slide review.
+  - Defining production deployment or authentication for the local demo.
+
+test_suite: test-rel00.0-guided-knowledge-manager-demo
+status: specified
