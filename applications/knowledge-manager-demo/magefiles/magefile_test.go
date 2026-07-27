@@ -138,10 +138,10 @@ func TestRunCommandConstruction(t *testing.T) {
 	}
 }
 
-func TestPresentationCommandUsesPinnedGoTool(t *testing.T) {
+func TestPresentationCommandDisablesPlayground(t *testing.T) {
 	root := filepath.Join(string(filepath.Separator), "work", "applications", "knowledge-manager-demo")
 	cmd := presentationCommand(root)
-	want := []string{"go", "tool", "present", "knowledge-manager.slide"}
+	want := []string{"go", "tool", "present", "-play=false", "knowledge-manager.slide"}
 	if !reflect.DeepEqual(cmd.Args, want) {
 		t.Fatalf("presentation args = %#v, want %#v", cmd.Args, want)
 	}

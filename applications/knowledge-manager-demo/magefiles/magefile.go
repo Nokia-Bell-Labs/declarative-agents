@@ -271,7 +271,7 @@ func runCommandPlan(resolved roots, binary string) commandPlan {
 }
 
 func presentationCommand(application string) *exec.Cmd {
-	cmd := exec.Command("go", "tool", "present", "knowledge-manager.slide")
+	cmd := exec.Command("go", "tool", "present", "-play=false", "knowledge-manager.slide")
 	cmd.Dir = application
 	return cmd
 }
