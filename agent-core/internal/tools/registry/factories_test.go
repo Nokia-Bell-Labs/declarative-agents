@@ -16,7 +16,7 @@ func TestStandardFactoryCatalogSelectsEntriesByInit(t *testing.T) {
 		byName[entry.Name] = entry
 	}
 
-	require.True(t, byName["planning"].SelectedBy(map[string]bool{"execute_task": true}))
+	require.True(t, byName["planning"].SelectedBy(map[string]bool{"mark_nodes_executing": true}))
 	require.True(t, byName["evaluation"].SelectedBy(map[string]bool{"run_point": true}))
 	require.True(t, byName["evaluation"].SelectedBy(map[string]bool{"list_evaluation_sessions": true}))
 	require.True(t, byName["spec_validation"].SelectedBy(map[string]bool{"validate_specs": true}))
@@ -34,7 +34,7 @@ func TestRegisterStandardBuiltinFactoriesGatesBySelectedInit(t *testing.T) {
 		RegisterEvaluation: func(*BuiltinRegistry) { evaluationCalled = true },
 	}
 
-	RegisterStandardBuiltinFactories(br, map[string]bool{"execute_task": true}, deps)
+	RegisterStandardBuiltinFactories(br, map[string]bool{"mark_nodes_executing": true}, deps)
 
 	require.True(t, planningCalled)
 	require.False(t, evaluationCalled)

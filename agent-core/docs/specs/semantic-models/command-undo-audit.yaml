@@ -46,8 +46,6 @@ compensation_boundaries:
   commands:
     - command: create_tracker_issue
       receipt_payload: configured_tracker_issue_id
-    - command: execute_task
-      receipt_payload: child_task_and_workspace_paths
     - command: self_invoke
       receipt_payload: child_run_id_machine_tools_and_trace_artifact
     - command: run_agent
@@ -209,10 +207,6 @@ receipt_undo:
       strategy: close_or_delete_created_issue
       receipt: compensatable_boundary_compensation
       captures: [issue_id]
-    - command: execute_task
-      strategy: child_agent_workspace_restore
-      receipt: compensatable_boundary_compensation
-      captures: [child_run_id, workspace_paths]
     - command: self_invoke
       strategy: child_agent_workspace_restore
       receipt: compensatable_boundary_compensation

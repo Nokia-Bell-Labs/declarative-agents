@@ -509,29 +509,28 @@ tools:
       strategy: session_state_restore
       description: "Restore the pipeline state snapshot captured before parsing."
 
-  - name: execute_task
+  - name: mark_nodes_executing
     type: builtin
-    init: execute_task
-    description: "Execute the current task via the code generator agent."
+    init: mark_nodes_executing
+    description: "Advance selected task nodes to Executing."
     visibility: internal
-    emits: [ExecutionDone, ExecutionFailed, CommandError]
-    category: boundary
+    emits: [NodesMarkedExecuting, CommandError]
+    category: stateful_internal
     side_effects:
-      - kind: child_agent_execution
-        target: generator_agent
-        description: "Runs a child agent configured by machine/tool selection paths."
-      - kind: filesystem_write
-        target: child_workspace
-        description: "Child agent may mutate its configured workspace."
-    reversibility:
-      classification: compensatable
-      undo: "child_command_undo_or_workspace_restore"
-    undo:
-      strategy: compensating_action
-      description: "Rely on child agent history, command undo, and workspace restore for side effects."
-      payload: boundary_compensation
-      captures: [child_run_id, child_workspace_ref]
-      requires: [Receipt]
+      - {kind: state_mutation, target: requirement_graph, state: selected_nodes_executing}
+    reversibility: {classification: reversible, undo: "pipeline_state_restore"}
+    undo: {strategy: session_state_restore, description: "Restore prior graph lifecycle."}
+
+  - name: format_task_file
+    type: builtin
+    init: format_task_file
+    description: "Project the current plan into write parameters for doc/task.yaml."
+    visibility: internal
+    emits: [TaskFileFormatted, CommandError]
+    category: word
+    side_effects: [{kind: none, description: "Serializes without writing."}]
+    reversibility: {classification: reversible, undo: noop}
+    undo: {strategy: noop, description: "Projection changes no state."}
 
   - name: mark_task_done
     type: builtin

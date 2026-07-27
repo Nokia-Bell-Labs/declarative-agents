@@ -286,7 +286,7 @@ files. One binary serves N agents. One word implementation serves M tools.
 The combinatorial space lives in configuration, not code.
 
 In Agent Core, child-agent boundaries are profile-first: boundary words such
-as `execute_task` and `self_invoke` configure child programs
+as `self_invoke` and profile aliases such as `invoke_executor` configure child programs
 with `profile` and invoke the child with `--profile`. Legacy
 machine/tools/tool-declaration triples may remain as compatibility fallback,
 but they are no longer the canonical boundary actor configuration.

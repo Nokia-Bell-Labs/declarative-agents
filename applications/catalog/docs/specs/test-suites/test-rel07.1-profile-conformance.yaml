@@ -469,12 +469,12 @@ test_cases:
     test: conformance/planner_test.go TestPlannerShippedProfileTerminalExecution
     coverage: shipped-behavioral
     coverage_note: |
-      Runs the shipped pass-through machine and real execute_task factory with a
+      Runs the shipped pass-through machine and real write plus self_invoke factories with a
       controlled child executable; no planner builder or machine action is
       replaced.
     description: |
       Loads a real specification corpus, extracts all ready graph nodes, selects
-      execute_task, invokes the configured child executable, runs vet/build/test,
+      mark_nodes_executing, format_task_file, write, and invoke_executor; invokes the configured child executable, runs vet/build/test,
       marks the task done, queries remaining work, and reaches Completed.
     traces:
       - srd004-planner AC1
@@ -491,7 +491,7 @@ test_cases:
       Runs the shipped pass-through machine with a permanently failing test so
       the first declared comparison retries and the second exhausts the limit.
     description: |
-      Proves two execute_task attempts, two command-state retry increments, the
+      Proves two self_invoke attempts, two command-state retry increments, the
       value-predicate limit comparison, no graph completion mutation, and the
       final Stalled route through remaining_work.
     traces:

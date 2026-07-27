@@ -3,7 +3,7 @@ title: Agent CLI as an Exec Tool
 
 problem: |
   The agent binary can run any configured program by receiving a profile.
-  Child-agent workflows such as execute_task and self_invoke
+  Child-agent workflows use self_invoke and profile aliases such as invoke_executor;
   still need one shared subprocess contract. Treating `agent` as a configured
   exec tool keeps child programs declarative. A parent state machine invokes a
   boundary tool whose config names the child profile.
@@ -12,7 +12,7 @@ goals:
   - G1: Declare the agent binary as an exec tool with a complete parameter schema for child program invocation.
   - G2: Keep child program selection in profile YAML.
   - G3: Preserve telemetry propagation, working directory isolation, and artifact configuration across parent-child agent runs.
-  - G4: Provide the requirements basis for replacing bespoke subprocess builders with execute_task and self_invoke.
+  - G4: Provide the requirements basis for replacing bespoke subprocess builders with self_invoke aliases.
 
 requirements:
   R0:
@@ -61,7 +61,7 @@ requirements:
     title: Migration from bespoke subprocess paths
     items:
       - R5.1: Profile-specific child launches SHOULD be expressible as configured self_invoke words.
-      - R5.2: execute_task SHOULD use the same configured agent exec tool contract.
+      - R5.2: Planner executor launch SHOULD be a configured self_invoke alias.
       - R5.3: self_invoke SHOULD use the same configured agent exec tool contract.
       - R5.4: Duplicate child-agent argument-building logic SHOULD be removed once the exec declaration covers profile plus runtime data and telemetry flags.
       - R5.5: self_invoke SHALL support profile-owned request and output selectors without application-specific child launchers.
@@ -85,7 +85,7 @@ acceptance_criteria:
     traces: [R3.1, R3.2, R3.3, R3.4]
 
   - id: AC4
-    criterion: Child process outcomes are mapped to parent machine signals without duplicating argument-building logic across execute_task and self_invoke.
+    criterion: Child process outcomes are mapped to parent machine signals without duplicating argument-building logic across self_invoke aliases.
     traces: [R4.1, R4.2, R4.3, R4.4, R5.1, R5.2, R5.3, R5.4, R5.5]
 
 implementation_follow_up:

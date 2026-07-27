@@ -15,9 +15,7 @@ import (
 	"github.com/Nokia-Bell-Labs/declarative-agents/agent-core/internal/planning/graph"
 	"github.com/Nokia-Bell-Labs/declarative-agents/agent-core/internal/planning/plan"
 	"github.com/Nokia-Bell-Labs/declarative-agents/agent-core/internal/runtime/core"
-	"github.com/Nokia-Bell-Labs/declarative-agents/agent-core/internal/tools/catalog"
 	toollm "github.com/Nokia-Bell-Labs/declarative-agents/agent-core/internal/tools/llm"
-	toolregistry "github.com/Nokia-Bell-Labs/declarative-agents/agent-core/internal/tools/registry"
 	"github.com/Nokia-Bell-Labs/declarative-agents/agent-core/pkg/spec"
 )
 
@@ -336,45 +334,6 @@ func TestMinimalState_GraphHasNodes(t *testing.T) {
 
 	ready := ps.Graph.Ready()
 	assert.Greater(t, len(ready), 0, "minimal corpus should have ready nodes")
-}
-
-func TestRegisterFactoriesExecuteTaskRequiresChildConfig(t *testing.T) {
-	t.Parallel()
-	br := toolregistry.NewBuiltinRegistry()
-	RegisterFactories(br, FactoryDeps{Ctx: context.Background()})
-
-	factory, ok := br.Resolve("execute_task")
-	require.True(t, ok)
-
-	_, err := factory(catalog.ToolDef{Name: "execute_task", Init: "execute_task"}, nil)
-	require.ErrorContains(t, err, "requires profile")
-}
-
-func TestRegisterFactoriesExecuteTaskAcceptsProfileConfig(t *testing.T) {
-	t.Parallel()
-	br := toolregistry.NewBuiltinRegistry()
-	RegisterFactories(br, FactoryDeps{
-		Ctx: context.Background(), ChildAgentBinary: "/tmp/controlled-agent",
-		CoreRoot: "/checkout/agent-core",
-	})
-
-	factory, ok := br.Resolve("execute_task")
-	require.True(t, ok)
-
-	builder, err := factory(catalog.ToolDef{
-		Name: "execute_task",
-		Init: "execute_task",
-		Config: map[string]interface{}{
-			"profile": "agents/executor/profile.yaml",
-		},
-	}, nil)
-	require.NoError(t, err)
-
-	execBuilder, ok := builder.(*ExecuteTaskBuilder)
-	require.True(t, ok)
-	require.Equal(t, "/tmp/controlled-agent", execBuilder.PS.ExecConfig.Binary)
-	require.Equal(t, "agents/executor/profile.yaml", execBuilder.PS.ExecConfig.Profile)
-	require.Equal(t, "/checkout/agent-core", execBuilder.PS.ExecConfig.CoreRoot)
 }
 
 var _ llm.PromptAssembler = (*PlannerAssembler)(nil)

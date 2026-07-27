@@ -48,29 +48,29 @@ tools:
       title: "Execute all ready requirements"
       summary: "Pass-through execution for the selected ready graph nodes."
 
-  - name: execute_task
+  - name: invoke_executor
     type: builtin
-    init: execute_task
-    description: "Execute the current task via the code executor agent."
+    init: self_invoke
+    description: "Invoke the configured executor through the shared child-agent boundary."
     visibility: internal
-    emits: [ExecutionDone, ExecutionFailed, CommandError]
+    emits: [ToolDone, ToolFailed, CommandError]
     category: boundary
     problem: |
-      The planner needs a boundary word that hands the current planned task
+      The planner needs a boundary word that hands the materialized task file
       to the executor program. This is not an ordinary deterministic word
       because it starts another agent process whose state machine and tools
       can mutate the workspace.
     goals:
-      - "Run the configured executor machine for exactly the current planner task."
+      - "Run the configured executor profile in the planner workspace."
       - "Propagate profile and trace configuration into the child agent invocation."
       - "Return enough execution status for the planner to decide retry, advance, or fail."
     requirements:
       input:
         - "must require profile in config"
-        - "must consume the current planner task and workspace directory from pipeline state"
+        - "must consume the workspace directory from runtime arguments"
       output:
-        - "must emit ExecutionDone when the child agent exits successfully"
-        - "must emit ExecutionFailed when the child agent exits without satisfying the task"
+        - "must emit ToolDone when the child agent exits successfully"
+        - "must emit ToolFailed when the child agent exits without satisfying the task"
       side_effects:
         - "must spawn one child agent process"
         - "must allow the child agent to mutate the target workspace according to its own selected tools"
@@ -109,10 +109,6 @@ tools:
       - kind: filesystem_write
         target: workspace
         description: "The child agent may write files through its own selected tools."
-      - kind: state_mutation
-        target: planner_pipeline_state
-        state: execution_result_recorded
-        description: "Records child execution outcome for retry/advance decisions."
     reversibility:
       classification: compensatable
       undo: workspace_restore
@@ -124,20 +120,18 @@ tools:
     errors:
       - signal: CommandError
         condition: "config is missing, task state is invalid, or child process cannot be started"
-        message_shape: "execute_task: <error>"
+        message_shape: "invoke_executor: <error>"
         state_after_failure: "workspace unchanged unless the child process already started"
-      - signal: ExecutionFailed
+      - signal: ToolFailed
         condition: "child agent exits with failure status"
-        message_shape: "execute_task failed: <status/output>"
+        message_shape: "invoke_executor failed: <status/output>"
         state_after_failure: "workspace may contain child edits and must be restored from checkpoint if rollback is requested"
     relationships:
       before: [record_tracker_issue, extract_task, mark_nodes_planning]
       after: [build, vet, test, increment_retry, mark_task_done]
       overlaps:
-        - tool: self_invoke
-          difference: "self_invoke starts a configured child profile; execute_task starts an executor for a planner task."
         - tool: run_point
-          difference: "run_point invokes an in-process nested machine; execute_task spawns a child agent process."
+          difference: "run_point invokes an in-process nested machine; invoke_executor uses the shared self_invoke child process."
     config:
       profile: agents/executor/profile.yaml
 
@@ -182,7 +176,7 @@ tools:
         state_after_failure: "no retry-count entry is published"
     relationships:
       before: [extract_task, mark_nodes_planning]
-      after: [reset_history, execute_task, increment_retry]
+      after: [reset_history, invoke_executor, increment_retry]
     config:
       signal: RetryCountInitialized
       inputs: {}
@@ -286,7 +280,7 @@ tools:
         state_after_failure: "no comparison outcome is reported and no state is changed"
     relationships:
       before: [increment_retry]
-      after: [reset_history, execute_task, remaining_work]
+      after: [reset_history, invoke_executor, remaining_work]
     config:
       left: $from(retry_count).output
       op: lt

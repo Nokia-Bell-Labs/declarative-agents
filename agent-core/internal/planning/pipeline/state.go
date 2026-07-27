@@ -15,25 +15,26 @@ import (
 	"github.com/Nokia-Bell-Labs/declarative-agents/agent-core/internal/planning/graph"
 	"github.com/Nokia-Bell-Labs/declarative-agents/agent-core/internal/planning/plan"
 	"github.com/Nokia-Bell-Labs/declarative-agents/agent-core/internal/runtime/core"
-	"github.com/Nokia-Bell-Labs/declarative-agents/agent-core/internal/support/execute"
 	"github.com/Nokia-Bell-Labs/declarative-agents/agent-core/pkg/spec"
 )
 
 // Pipeline signals aligned with agents/planner/machine.yaml.
 const (
-	SigTaskExtracted   core.Signal = "TaskExtracted"
-	SigNoTask          core.Signal = "NoTask"
-	SigReadySelected   core.Signal = "ReadySelected"
-	SigPlanSeeded      core.Signal = "PassThroughPlanSeeded"
-	SigNodesPlanning   core.Signal = "NodesMarkedPlanning"
-	SigAllDone         core.Signal = "AllDone"
-	SigBlocked         core.Signal = "Blocked"
-	SigPlanReady       core.Signal = "PlanReady"
-	SigMaterialized    core.Signal = "Materialized"
-	SigExecutionDone   core.Signal = "ExecutionDone"
-	SigExecutionFailed core.Signal = "ExecutionFailed"
-	SigTaskCompleted   core.Signal = "TaskCompleted"
-	SigWorkRemaining   core.Signal = "WorkRemaining"
+	SigTaskExtracted     core.Signal = "TaskExtracted"
+	SigNoTask            core.Signal = "NoTask"
+	SigReadySelected     core.Signal = "ReadySelected"
+	SigPlanSeeded        core.Signal = "PassThroughPlanSeeded"
+	SigNodesPlanning     core.Signal = "NodesMarkedPlanning"
+	SigNodesExecuting    core.Signal = "NodesMarkedExecuting"
+	SigTaskFileFormatted core.Signal = "TaskFileFormatted"
+	SigAllDone           core.Signal = "AllDone"
+	SigBlocked           core.Signal = "Blocked"
+	SigPlanReady         core.Signal = "PlanReady"
+	SigMaterialized      core.Signal = "Materialized"
+	SigExecutionDone     core.Signal = "ExecutionDone"
+	SigExecutionFailed   core.Signal = "ExecutionFailed"
+	SigTaskCompleted     core.Signal = "TaskCompleted"
+	SigWorkRemaining     core.Signal = "WorkRemaining"
 )
 
 // State holds the shared mutable state for a pipeline run.
@@ -50,8 +51,7 @@ type State struct {
 	MaxWeight   int
 	Tracer      tracing.Tracer
 
-	ExecConfig execute.Config
-	Ctx        context.Context
+	Ctx context.Context
 }
 
 type pipelineSnapshot struct {

@@ -308,7 +308,7 @@ type Command interface {
 | `build` / `test` / `vet` / `lint` | Nothing persistent | No-op |
 | `done` | Nothing | No-op |
 | `extract_task` | Pipeline graph state | Restores graph snapshot |
-| `execute_task` | Spawns sub-agent | Roll back sub-agent workspace |
+| `invoke_executor` (`self_invoke`) | Spawns sub-agent | Roll back sub-agent workspace |
 | `increment_retry` | Command-state output only | History truncation removes the increment |
 | `mark_task_done` | Pipeline graph state | Restores graph snapshot |
 | `remaining_work` / `check_retry_limit` | Nothing | No-op |
@@ -485,7 +485,7 @@ transitions:
   - state: AwaitingApproval
     signal: Approved
     next: Executing
-    action: execute_task
+    action: invoke_executor
 
   - state: AwaitingApproval
     signal: Rejected

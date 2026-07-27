@@ -143,7 +143,7 @@ func TestPlannerRetryPolicyWiring(t *testing.T) {
 				requireTransition(t, machine.Transitions, "CheckingRetryLimit", "RetryAvailable", "Resetting", "reset_history")
 				requireTransition(t, machine.Transitions, "QueryingRemainingWork", "WorkRemaining", "Extracting", "extract_task")
 			} else {
-				requireTransition(t, machine.Transitions, "CheckingRetryLimit", "RetryAvailable", "Executing", "execute_task")
+				requireTransition(t, machine.Transitions, "CheckingRetryLimit", "RetryAvailable", "InvokingExecutor", "invoke_executor")
 				requireTransition(t, machine.Transitions, "QueryingRemainingWork", "WorkRemaining", "Completed", "")
 			}
 		})
@@ -161,7 +161,7 @@ func TestPlannerRetryPolicyWiring(t *testing.T) {
 // pings Ollama at tool registration, so with no reachable model the profile
 // cannot start (see ollama.go). The full pipeline tail beyond the graph boundary
 // (assemble_prompt -> invoke_llm -> parse_plan -> profile-selected tracker
-// sentence -> execute_task via a generator child -> vet/build/test) needs a
+// sentence -> write -> self_invoke via an executor child -> vet/build/test) needs a
 // tracker project, a child agent, and the Go toolchain, which the conformance harness
 // deliberately does not provide; the shipped planner is therefore behaviorally
 // exercised to its requirement-graph boundary here and no further, so no clean
@@ -194,7 +194,7 @@ func TestPlannerConformance(t *testing.T) {
 }
 
 // TestPlannerShippedProfileTerminalExecution runs the shipped pass-through
-// planner variant through its real execute_task factory and command. A controlled
+// planner variant through its real write and self_invoke commands. A controlled
 // child executable isolates the process boundary while the shipped profile,
 // declarations, graph loader, extractor, validators, and transition table remain
 // in control of command selection and terminal state mapping.
@@ -235,11 +235,11 @@ func TestPlannerShippedProfileTerminalExecution(t *testing.T) {
 
 	result.RequireExit(t, 0)
 	result.RootRequired(t)
-	result.RequireToolSpans(t, "load_graph", "select_all_ready", "seed_passthrough_plan", "mark_nodes_planning", "reset_retry_count", "execute_task", "vet", "build", "test", "mark_task_done", "remaining_work")
+	result.RequireToolSpans(t, "load_graph", "select_all_ready", "seed_passthrough_plan", "mark_nodes_planning", "reset_retry_count", "mark_nodes_executing", "format_task_file", "write", "self_invoke", "vet", "build", "test", "mark_task_done", "remaining_work")
 	result.RequireTerminalState(t, "Completed")
 	args := readFile(t, childArgs)
 	if !strings.Contains(args, "--profile agents/executor/profile.yaml") {
-		t.Fatalf("execute_task child args do not select shipped executor profile:\n%s", args)
+		t.Fatalf("self_invoke child args do not select shipped executor profile:\n%s", args)
 	}
 }
 
@@ -282,8 +282,8 @@ func TestPlannerShippedProfileRetryExhaustion(t *testing.T) {
 	result.RequireExit(t, 2)
 	result.RequireTerminalState(t, "Stalled")
 	result.RequireToolSpans(t, "increment_retry", "check_retry_limit", "remaining_work")
-	if got := len(result.Spans.Named("execute_tool execute_task")); got != 2 {
-		t.Fatalf("execute_task span count = %d, want 2 (initial attempt plus first retry)", got)
+	if got := len(result.Spans.Named("execute_tool self_invoke")); got != 2 {
+		t.Fatalf("self_invoke span count = %d, want 2 (initial attempt plus first retry)", got)
 	}
 	if got := len(result.Spans.Named("execute_tool increment_retry")); got != 2 {
 		t.Fatalf("increment_retry span count = %d, want 2", got)

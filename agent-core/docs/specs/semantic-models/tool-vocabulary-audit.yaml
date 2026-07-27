@@ -290,8 +290,8 @@ tools:
     output_contract: missing
     undo: boundary_compensation (child_agent_workspace_restore, captures child_machine + child_tools + child_run_id + trace_path)
     overlaps:
-      - tool: execute_task
-        difference: self_invoke re-invokes the agent binary directly; execute_task runs a configured child agent for planner
+      - tool: invoke_executor
+        difference: invoke_executor is a planner profile alias of self_invoke
     issues:
       - output.schema for child agent result
     migration_priority: low
@@ -407,7 +407,7 @@ tools:
     role: stateful_internal
     selected_by: [planner]
     inputs_from: [seed_passthrough_plan]
-    feeds_into: [execute_task]
+    feeds_into: [mark_nodes_executing]
     side_effects: requirement_graph_mutation
     output_contract: declared
     undo: pipeline_state_restore
@@ -473,7 +473,7 @@ tools:
     role: stateful_internal
     selected_by: [planner]
     inputs_from: [create_tracker_issue]
-    feeds_into: [execute_task, extract_task]
+    feeds_into: [mark_nodes_executing, extract_task]
     side_effects: pipeline_state_mutation
     output_contract: structured issue_id
     undo: restore_previous_pipeline_snapshot
@@ -481,20 +481,43 @@ tools:
     issues: []
     migration_priority: low
 
-  - name: execute_task
+  - name: mark_nodes_executing
+    role: stateful_internal
+    selected_by: [planner]
+    inputs_from: [record_tracker_issue, mark_nodes_planning]
+    feeds_into: [format_task_file]
+    side_effects: requirement_graph_mutation
+    output_contract: declared
+    undo: pipeline_state_restore
+    overlaps: []
+    issues: []
+    migration_priority: complete
+
+  - name: format_task_file
+    role: word
+    selected_by: [planner]
+    inputs_from: [current_plan]
+    feeds_into: [write]
+    side_effects: none
+    output_contract: declared write parameters
+    undo: noop
+    overlaps: []
+    issues: []
+    migration_priority: complete
+
+  - name: invoke_executor
     role: boundary
     selected_by: [planner]
-    inputs_from: [record_tracker_issue, extract_task]
+    inputs_from: [write]
     feeds_into: [vet, build, test]
     side_effects: child_agent_process, workspace_mutation
-    output_contract: missing
-    undo: boundary_compensation (compensating_action, captures child_run_id + child_workspace_ref)
+    output_contract: shared self_invoke result
+    undo: boundary_compensation
     overlaps:
       - tool: self_invoke
-        difference: execute_task runs the planner's executor contract; self_invoke runs an arbitrary configured child profile
-    issues:
-      - output.schema for execution result and workspace diff
-    migration_priority: medium
+        difference: invoke_executor is the planner profile alias configured for the executor profile
+    issues: []
+    migration_priority: complete
 
   - name: reset_retry_count
     role: word
@@ -524,7 +547,7 @@ tools:
     role: word
     selected_by: [planner]
     inputs_from: [increment_retry]
-    feeds_into: [execute_task, remaining_work]
+    feeds_into: [invoke_executor, remaining_work]
     side_effects: none
     output_contract: declared predicate signals
     undo: noop
@@ -648,8 +671,8 @@ tools:
     output_contract: missing
     undo: boundary_compensation (child_command_undo, captures eval_session_snapshot + nested_machine_history)
     overlaps:
-      - tool: execute_task
-        difference: run_point invokes an in-process nested machine; execute_task spawns a child agent process
+      - tool: invoke_executor
+        difference: run_point invokes an in-process nested machine; invoke_executor uses self_invoke
     issues:
       - output.schema for point result summary
     migration_priority: medium
@@ -747,8 +770,8 @@ tools:
     output_contract: missing
     undo: boundary_compensation (compensating_action, captures point_context_snapshot + point_workspace + trace_path + result_path)
     overlaps:
-      - tool: execute_task
-        difference: run_agent runs suite harness binary; execute_task runs configured child agent for planner
+      - tool: invoke_executor
+        difference: run_agent runs a suite harness binary; invoke_executor uses self_invoke for the planner executor
     issues:
       - output.schema for agent exit code and trace path
     migration_priority: medium
@@ -1072,7 +1095,7 @@ boundary_tools_with_compensation:
     - checkpoint_rollback
     - self_invoke
     - create_tracker_issue
-    - execute_task
+    - invoke_executor
     - run_point
     - run_agent
     - commit

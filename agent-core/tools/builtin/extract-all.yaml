@@ -143,7 +143,7 @@ tools:
     state_after_failure: receipt-backed graph state can be restored
   relationships:
     before: [seed_passthrough_plan]
-    after: [reset_retry_count, execute_task]
+    after: [reset_retry_count, mark_nodes_executing]
   output:
     description: Graph lifecycle mutation summary.
     schema:

@@ -268,8 +268,8 @@ declaration_placement:
     - tool: invoke_llm
       placement: agents/<agent>/llm/*.yaml
       reason: Model, provider, prompt, and manifest state are profile-bound config.
-    - tool: execute_task
-      placement: tools/builtin/planner/ plus agents/planner/builtin.yaml
+    - tool: invoke_executor
+      placement: agents/planner/builtin.yaml as a self_invoke alias
       reason: Shared child-agent boundary word with planner-local child profile config.
     - tool: build
       placement: tools/exec/go/

@@ -8,7 +8,6 @@ import (
 
 	"github.com/Nokia-Bell-Labs/declarative-agents/agent-core/internal/observability/tracing"
 	"github.com/Nokia-Bell-Labs/declarative-agents/agent-core/internal/runtime/core"
-	"github.com/Nokia-Bell-Labs/declarative-agents/agent-core/internal/support/execute"
 	"github.com/Nokia-Bell-Labs/declarative-agents/agent-core/internal/tools/catalog"
 	toollm "github.com/Nokia-Bell-Labs/declarative-agents/agent-core/internal/tools/llm"
 	toolregistry "github.com/Nokia-Bell-Labs/declarative-agents/agent-core/internal/tools/registry"
@@ -32,7 +31,8 @@ type passThroughPlanConfig struct {
 // RegisterFactories registers all pipeline builtin tool factories
 // (extract_task, select_all_ready, seed_passthrough_plan, mark_nodes_planning,
 // assemble_prompt, parse_plan, issue state
-// adapters, execute_task, mark_task_done, remaining_work) into the provided
+// adapters, task formatting, graph lifecycle, mark_task_done, and
+// remaining_work) into the provided
 // BuiltinRegistry.
 // Pipeline state is lazily initialized on first factory call.
 func RegisterFactories(br *toolregistry.BuiltinRegistry, deps FactoryDeps) {
@@ -86,21 +86,11 @@ func RegisterFactories(br *toolregistry.BuiltinRegistry, deps FactoryDeps) {
 	br.Register("record_tracker_issue", func(def catalog.ToolDef, vars map[string]string) (core.Builder, error) {
 		return &RecordTrackerIssueBuilder{PS: initPS(def)}, nil
 	})
-	br.Register("execute_task", func(def catalog.ToolDef, vars map[string]string) (core.Builder, error) {
-		var childCfg catalog.ChildAgentConfig
-		if err := catalog.DecodeToolConfig(def, &childCfg); err != nil {
-			return nil, err
-		}
-		if err := catalog.ValidateChildAgentConfig(def.Name, childCfg); err != nil {
-			return nil, fmt.Errorf("pipeline execute_task: %w", err)
-		}
-		ps := initPS(def)
-		ps.ExecConfig = execute.Config{
-			Binary:   deps.ChildAgentBinary,
-			Profile:  childCfg.Profile,
-			CoreRoot: deps.CoreRoot,
-		}
-		return &ExecuteTaskBuilder{PS: ps}, nil
+	br.Register("mark_nodes_executing", func(def catalog.ToolDef, vars map[string]string) (core.Builder, error) {
+		return &MarkNodesExecutingBuilder{PS: initPS(def)}, nil
+	})
+	br.Register("format_task_file", func(def catalog.ToolDef, vars map[string]string) (core.Builder, error) {
+		return &FormatTaskFileBuilder{PS: initPS(def)}, nil
 	})
 	br.Register("mark_task_done", func(def catalog.ToolDef, vars map[string]string) (core.Builder, error) {
 		return &MarkTaskDoneBuilder{PS: initPS(def)}, nil

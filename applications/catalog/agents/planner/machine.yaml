@@ -31,8 +31,9 @@ lifecycle: |-
      are reported and reinvoked until the explicit parse budget is exhausted
   6. PlanParsing → IssueFormatting → IssueBodyWriting: format_issue then write
   7. IssueBodyWriting → IssueCreating → IssueRecording: selected tracker exec then record_tracker_issue
-  8. IssueRecording → Executing: execute_task (run generator profile)
-  9. Executing → Vetting → Building → Testing: validation pipeline
+  8. IssueRecording → MarkingExecuting → FormattingTask → MaterializingTask: graph advance and task-file write
+  9. MaterializingTask → InvokingExecutor: shared self_invoke boundary
+  10. InvokingExecutor → Vetting → Building → Testing: validation pipeline
   10. Validation failure → IncrementingRetry → CheckingRetryLimit
   11. RetryAvailable → Resetting; RetriesExhausted → Exhausted → remaining-work routing
   12. Testing success → MarkingTaskDone → QueryingRemainingWork
@@ -96,8 +97,14 @@ states:
   meaning: Creating an issue through the tracker exec word selected by the profile.
 - name: IssueRecording
   meaning: Recording the configured tracker's issue ID in planner state.
-- name: Executing
-  meaning: Running the generator profile to implement the task.
+- name: MarkingExecuting
+  meaning: Advancing current task nodes to Executing as a focused graph mutation.
+- name: FormattingTask
+  meaning: Serializing the current plan into declared write parameters.
+- name: MaterializingTask
+  meaning: Writing doc/task.yaml through the shared write word.
+- name: InvokingExecutor
+  meaning: Running the executor through the shared self_invoke boundary.
 - name: Vetting
   meaning: Running go vet on the workspace.
 - name: Building
@@ -155,10 +162,10 @@ signals:
   trigger: The configured consecutive parse-error retry limit was reached.
 - name: Materialized
   trigger: An issue was created from the plan.
-- name: ExecutionDone
-  trigger: The generator agent completed successfully.
-- name: ExecutionFailed
-  trigger: The generator agent failed.
+- name: NodesMarkedExecuting
+  trigger: Current task nodes advanced to Executing.
+- name: TaskFileFormatted
+  trigger: The current plan was projected into task-file write parameters.
 - name: RetryAvailable
   trigger: Retries remain for the current task.
 - name: RetriesExhausted
@@ -272,20 +279,45 @@ transitions:
   next: Failed
 - state: IssueRecording
   signal: Materialized
-  next: Executing
-  action: execute_task
+  next: MarkingExecuting
+  action: mark_nodes_executing
 - state: IssueRecording
   signal: CommandError
   next: Failed
-- state: Executing
-  signal: ExecutionDone
+- state: MarkingExecuting
+  signal: NodesMarkedExecuting
+  next: FormattingTask
+  action: format_task_file
+  label: task_file
+- state: MarkingExecuting
+  signal: CommandError
+  next: Failed
+- state: FormattingTask
+  signal: TaskFileFormatted
+  next: MaterializingTask
+  action: write
+- state: FormattingTask
+  signal: CommandError
+  next: Failed
+- state: MaterializingTask
+  signal: ToolDone
+  next: InvokingExecutor
+  action: invoke_executor
+- state: MaterializingTask
+  signal: ToolFailed
+  next: Failed
+- state: MaterializingTask
+  signal: CommandError
+  next: Failed
+- state: InvokingExecutor
+  signal: ToolDone
   next: Vetting
   action: vet
-- state: Executing
-  signal: ExecutionFailed
+- state: InvokingExecutor
+  signal: ToolFailed
   next: Vetting
   action: vet
-- state: Executing
+- state: InvokingExecutor
   signal: CommandError
   next: Failed
 - state: Vetting

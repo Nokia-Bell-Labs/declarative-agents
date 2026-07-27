@@ -153,7 +153,7 @@ func TestPlannerVariantsSequenceTrackerSentence(t *testing.T) {
 		file      string
 		afterNext string
 	}{
-		{file: "machine.yaml", afterNext: "Executing"},
+		{file: "machine.yaml", afterNext: "MarkingExecuting"},
 		{file: "machine-plan-only.yaml", afterNext: "Extracting"},
 	} {
 		t.Run(test.file, func(t *testing.T) {
@@ -166,6 +166,24 @@ func TestPlannerVariantsSequenceTrackerSentence(t *testing.T) {
 			requirePlannerTransition(t, machine, "IssueRecording", "Materialized", test.afterNext, "", "")
 			requirePlannerTransition(t, machine, "IssueBodyWriting", "ToolFailed", "Failed", "", "")
 			requirePlannerTransition(t, machine, "IssueCreating", "ToolFailed", "Failed", "", "")
+		})
+	}
+}
+
+func TestPlannerExecutionSeparatesGraphWriteAndChildBoundary(t *testing.T) {
+	for _, file := range []string{"machine.yaml", "machine-passthrough.yaml"} {
+		t.Run(file, func(t *testing.T) {
+			var machine plannerMachine
+			readPlannerYAML(t, file, &machine)
+			requirePlannerTransition(t, machine, "MarkingExecuting", "NodesMarkedExecuting", "FormattingTask", "format_task_file", "task_file")
+			requirePlannerTransition(t, machine, "FormattingTask", "TaskFileFormatted", "MaterializingTask", "write", "")
+			requirePlannerTransition(t, machine, "MaterializingTask", "ToolDone", "InvokingExecutor", "invoke_executor", "")
+			requirePlannerTransition(t, machine, "InvokingExecutor", "ToolDone", "Vetting", "vet", "")
+			for _, transition := range machine.Transitions {
+				if transition.Action == "execute_task" {
+					t.Errorf("planner still selects compound execute_task: %+v", transition)
+				}
+			}
 		})
 	}
 }

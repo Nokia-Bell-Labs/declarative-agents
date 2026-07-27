@@ -27,7 +27,9 @@ tools:
   - record_tracker_issue # action: full, plan-only
 
   # Execution phase (full + passthrough)
-  - execute_task         # action: full, passthrough
+  - mark_nodes_executing # action: full, passthrough
+  - format_task_file     # action: full, passthrough
+  - invoke_executor      # self_invoke alias: full, passthrough
   - reset_retry_count    # action: full, passthrough
   - increment_retry      # action: full, passthrough
   - check_retry_limit    # action: full, passthrough

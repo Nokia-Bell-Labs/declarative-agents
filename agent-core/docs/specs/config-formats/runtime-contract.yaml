@@ -217,8 +217,7 @@ tool_parametrization: |
   Examples use one config owner per tool.
   invoke_llm reads model and provider_url from its own config. It also reads
   prompt fields, timeout fields, manifest_state, and response_profile.
-  execute_task reads "profile" and invokes the child generator
-  with --profile. self_invoke reads "profile" and invokes a configured child
+  self_invoke aliases such as invoke_executor read "profile" and invoke a configured child
   agent with --profile; optional request_from and output_from selectors bind
   runtime data from command state. parse_suite_config and evaluator session setup tools
   read "output_dir", "reps", and "timeout" from config. run_point reads
@@ -260,7 +259,7 @@ llm_parser_ownership: |
 
 nested_machines: |
   Some tools spawn nested core.Loop instances (run_point) or child
-  agent processes (execute_task, self_invoke). For nested loops,
+  agent processes (self_invoke and profile aliases). For nested loops,
   the machine path is read from the tool's config block, not hardcoded.
 
   Nested core.Loop (same process):
@@ -269,7 +268,7 @@ nested_machines: |
     → core.Loop(LoopParams{MachineFile: ..., Registry: pointRegistry})
 
   Child process:
-    execute_task reads config.profile
+    invoke_executor (init: self_invoke) reads config.profile
     → subprocess.Run with the same flag
 
     self_invoke reads config.profile
@@ -283,7 +282,7 @@ nested_machines: |
 
 child_agent_boundaries: |
   Child agent boundary tools are profile-only in the normal runtime contract.
-  execute_task and self_invoke decode child-agent config from
+  self_invoke and its profile aliases decode child-agent config from
   their ToolDef config block. Config must include profile. Child processes
   receive that value as --profile with --directory, --request, --output, and
   telemetry flags.
@@ -294,8 +293,8 @@ child_agent_boundaries: |
   program-shaping paths as process flags.
 
   internal/support/execute.Config and internal/tools/catalog.ChildAgentConfig
-  are profile-only for child agent process boundaries. execute_task and
-  self_invoke require profile at registration time.
+  are profile-only for child agent process boundaries. self_invoke aliases
+  require profile at registration time.
 
 lifecycle: |
   Lifecycle features are runtime ports around the same machine contract, not a

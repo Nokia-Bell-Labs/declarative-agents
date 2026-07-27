@@ -65,8 +65,14 @@ states:
   meaning: Advancing selected aggregate-task nodes to Planning as a separate graph mutation.
 - name: InitializingRetry
   meaning: Seeding retry count zero in labelled command state for the aggregate task.
-- name: Executing
-  meaning: Running the generator agent to implement the task.
+- name: MarkingExecuting
+  meaning: Advancing selected nodes to Executing as a focused graph mutation.
+- name: FormattingTask
+  meaning: Serializing the current plan into task-file write parameters.
+- name: MaterializingTask
+  meaning: Writing doc/task.yaml through the shared write word.
+- name: InvokingExecutor
+  meaning: Running the executor through the shared self_invoke boundary.
 - name: Vetting
   meaning: Running go vet on the workspace.
 - name: Building
@@ -116,10 +122,10 @@ signals:
   trigger: A tool executed successfully.
 - name: ToolFailed
   trigger: A tool executed but reported failure.
-- name: ExecutionDone
-  trigger: The generator agent completed successfully.
-- name: ExecutionFailed
-  trigger: The generator agent failed.
+- name: NodesMarkedExecuting
+  trigger: Current task nodes advanced to Executing.
+- name: TaskFileFormatted
+  trigger: The current plan was projected into task-file write parameters.
 - name: RetryAvailable
   trigger: Retries remain for the current task.
 - name: RetriesExhausted
@@ -157,8 +163,8 @@ transitions:
   label: retry_count
 - state: InitializingRetry
   signal: RetryCountInitialized
-  next: Executing
-  action: execute_task
+  next: MarkingExecuting
+  action: mark_nodes_executing
 - state: InitializingRetry
   signal: CommandError
   next: Failed
@@ -175,15 +181,40 @@ transitions:
 - state: MarkingPlanning
   signal: CommandError
   next: Failed
-- state: Executing
-  signal: ExecutionDone
+- state: MarkingExecuting
+  signal: NodesMarkedExecuting
+  next: FormattingTask
+  action: format_task_file
+  label: task_file
+- state: MarkingExecuting
+  signal: CommandError
+  next: Failed
+- state: FormattingTask
+  signal: TaskFileFormatted
+  next: MaterializingTask
+  action: write
+- state: FormattingTask
+  signal: CommandError
+  next: Failed
+- state: MaterializingTask
+  signal: ToolDone
+  next: InvokingExecutor
+  action: invoke_executor
+- state: MaterializingTask
+  signal: ToolFailed
+  next: Failed
+- state: MaterializingTask
+  signal: CommandError
+  next: Failed
+- state: InvokingExecutor
+  signal: ToolDone
   next: Vetting
   action: vet
-- state: Executing
-  signal: ExecutionFailed
+- state: InvokingExecutor
+  signal: ToolFailed
   next: Vetting
   action: vet
-- state: Executing
+- state: InvokingExecutor
   signal: CommandError
   next: Failed
 - state: Vetting
@@ -234,8 +265,8 @@ transitions:
   next: Failed
 - state: CheckingRetryLimit
   signal: RetryAvailable
-  next: Executing
-  action: execute_task
+  next: InvokingExecutor
+  action: invoke_executor
 - state: CheckingRetryLimit
   signal: RetriesExhausted
   next: Exhausted
