@@ -1,0 +1,130 @@
+id: voice-forge
+title: Voice Forge Vision
+
+executive_summary: |
+  Voice Forge is a planned declarative-agent application that turns one
+  GitHub-hosted original into an accepted publication candidate through a
+  serial original -> structure -> voice -> style -> critique -> publication
+  saga. Independent agents own editing and assurance responsibilities. The
+  workflow orchestrator alone owns local workproducts and GitHub mutation; the
+  voice critic alone may invoke Pangram after explicit human consent.
+
+  Release 00.0 is documentation-only. Profiles, machines, tools, services,
+  tests, and publication behavior remain planned. The application cites the
+  shared applications and agent-core contracts instead of restating them.
+
+problem: |
+  A sequence of writing assistants can improve prose while silently changing
+  claims, weakening qualifications, copying source language, losing provenance,
+  or publishing an unreviewed result. A monolithic actor also combines editing,
+  external-upload, filesystem, and publication authority, making failures hard
+  to attribute and retries unsafe.
+
+  We need a reviewable workflow that preserves the original, records immutable
+  lineage for each accepted stage, retrieves only relevant writing evidence,
+  separates criticism from editing, and delays every GitHub mutation until an
+  independent critic accepts the candidate.
+
+what_this_does: |
+  A human selects a GitHub source, revision, target voice, and upload policy.
+  The planned workflow orchestrator captures the original and coordinates
+  structure, voice, and style editors in order. Editors receive content and
+  return content plus provenance; they do not share or mutate the orchestrator
+  workspace. Planned structure, voice, and style RAG server instances read
+  separate Chroma corpora populated by a wrapper around canonical
+  corpus-ingest. Ollama supplies model inference.
+
+  The voice critic compares the immutable original with the style candidate,
+  independently checks semantic preservation, structure, voice, tightening,
+  unsupported additions, and copy risk, and returns a categorized verdict.
+  Pangram scans are consent-gated advisory evidence, not the verdict. A
+  rejection routes a bounded retry to the responsible stage. Acceptance allows
+  the orchestrator to finalize the lineage and perform one idempotent commit,
+  push, and pull-request operation.
+
+why_we_build_this: |
+  Separate actors create useful authority and failure boundaries. Editors can
+  revise text but cannot publish it. The critic can assure output and, with
+  consent, upload to Pangram, but cannot edit or mutate workproducts. The
+  orchestrator can persist and publish but cannot edit, retrieve, or invoke
+  Pangram. Corpus ingestion can update declared indexes but cannot access a
+  writing saga.
+
+  This allocation makes each decision attributable, permits retries from the
+  last accepted parent, and leaves the complete uncommitted workproduct chain
+  available after a failed stage or process restart.
+
+success_criteria:
+  traceable_scenario: |
+    The planned release traces one request from immutable source capture through
+    structure, voice, style, independent critique, bounded retry, finalization,
+    one commit, push, and pull request.
+  preserved_lineage: |
+    The planned manifest records source identity, parent artifact, stage,
+    attempt, model and tool provenance, status, and content hash. The original
+    is never overwritten and failed attempts do not replace accepted parents.
+  bounded_authority: |
+    Only the orchestrator may mutate workproducts or GitHub. Only the critic may
+    invoke Pangram, and only after affirmative consent. Editors and retrieval
+    services remain read-only outside their returned content.
+  independent_acceptance: |
+    Publication requires a critic verdict based on semantic, structural, voice,
+    style, unsupported-addition, and copy-risk evidence. Pangram alone cannot
+    determine the verdict.
+  recoverable_execution: |
+    A planned persistent output workspace supports restart recovery,
+    idempotent remote calls, bounded retries, and non-destructive compensation.
+  contract_reuse: |
+    Application documents cite shared application, role-realization, profile,
+    machine, tool, lifecycle, command-state, checkpoint, and REST contracts
+    without reproducing platform requirements.
+  honest_status: |
+    Documentation labels every profile, machine, tool, service, test, and
+    release outcome planned until executable evidence exists.
+
+not:
+  - We do not claim a runnable application, deployed service, profile, machine,
+    tool, test, package, or root-module registration in release 00.0.
+  - We do not let editors publish, mutate saga files, invoke Pangram, or issue
+    acceptance verdicts.
+  - We do not let the critic edit content, mutate workproducts, or access
+    GitHub publication tools.
+  - We do not let the orchestrator perform editing, retrieval, criticism, or
+    Pangram scans.
+  - We do not treat Chroma as an authoritative content store; its collections
+    are rebuildable from declared source corpora.
+  - We do not treat Pangram as a required service or sole acceptance authority.
+  - We do not publish intermediate attempts or commit before critic acceptance.
+  - We do not process documents or sections in parallel in release 00.0.
+  - We do not copy requirements owned by applications/docs or agent-core.
+
+canonical_documents:
+  - README.md
+  - docs/VISION.yaml
+  - docs/ARCHITECTURE.yaml
+  - docs/SPECIFICATIONS.yaml
+  - docs/road-map.yaml
+  - docs/specs/software-requirements/srd001-voice-forge-services.yaml
+  - docs/specs/software-requirements/srd002-writing-saga-workproducts.yaml
+  - docs/specs/software-requirements/srd003-writing-agent-tools.yaml
+  - docs/specs/software-requirements/srd004-workflow-orchestrator.yaml
+  - docs/specs/software-requirements/srd005-structure-editor.yaml
+  - docs/specs/software-requirements/srd006-voice-editor.yaml
+  - docs/specs/software-requirements/srd007-style-editor.yaml
+  - docs/specs/software-requirements/srd008-voice-critic.yaml
+  - docs/specs/use-cases/rel00.0-uc001-edit-document.yaml
+  - docs/specs/test-suites/test-rel00.0-voice-forge.yaml
+
+shared_contract_references:
+  application_module: ../../docs/specs/software-requirements/srd001-application-module-contract.yaml
+  managed_services: ../../docs/specs/software-requirements/srd002-managed-application-services.yaml
+  role_realizations: ../../docs/specs/semantic-models/agent-role-realizations.yaml
+  agent_profile: ../../../agent-core/docs/specs/software-requirements/srd034-external-agent-profiles.yaml
+  machine_format: ../../../agent-core/docs/specs/config-formats/machine-format.yaml
+  tool_language: ../../../agent-core/docs/specs/semantic-models/tool-language.yaml
+  exec_tools: ../../../agent-core/docs/specs/software-requirements/srd023-cli-exec-tools.yaml
+  rest_tools: ../../../agent-core/docs/specs/software-requirements/srd028-rest-client-tools.yaml
+  lifecycle: ../../../agent-core/docs/specs/software-requirements/srd026-lifecycle-tools.yaml
+  checkpoint: ../../../agent-core/docs/specs/software-requirements/srd035-checkpoint-port.yaml
+  state_persistence: ../../../agent-core/docs/specs/software-requirements/srd036-dolt-state-persistence.yaml
+  command_state: ../../../agent-core/docs/specs/software-requirements/srd038-command-state-store.yaml

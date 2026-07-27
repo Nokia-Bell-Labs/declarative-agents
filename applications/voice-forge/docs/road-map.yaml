@@ -1,0 +1,123 @@
+id: voice-forge-roadmap
+title: Voice Forge Road Map
+
+releases:
+  - version: "00.0"
+    name: Corpus-conditioned document editing saga
+    description: |
+      Specify one serial original -> structure -> voice -> style -> critique ->
+      publication scenario. A human selects a GitHub source and policy. The
+      workflow orchestrator captures an immutable original, persists each
+      accepted specialist result and its lineage, routes bounded retries from
+      critic findings, and publishes the complete accepted saga in one commit,
+      push, and pull request.
+
+      This release is documentation-only and planned. It does not include
+      profiles, machines, tools, services, deployment, executable tests, root
+      registry changes, or publication evidence.
+    status: planned
+    capability_status:
+      documentation: foundation_only
+      runnable_module: not_implemented
+      managed_service: planned
+      packaged: not_planned_for_release
+      helm_managed: not_planned_for_release
+      kind_demo: not_planned_for_release
+    srds:
+      - id: srd001-voice-forge-services
+        status: planned
+        summary: Define all agent, supporting, and external service boundaries and authority.
+      - id: srd002-writing-saga-workproducts
+        status: planned
+        summary: Define immutable lineage, manifest persistence, retries, compensation, recovery, and publication.
+      - id: srd003-writing-agent-tools
+        status: planned
+        summary: Define the complete ToolDef vocabulary and exclusive boundary-tool ownership.
+      - id: srd004-workflow-orchestrator
+        status: planned
+        summary: Define the orchestration, retry, recovery, finalization, and publication machine.
+      - id: srd005-structure-editor
+        status: planned
+        summary: Define the structure diagnosis and rewrite machine.
+      - id: srd006-voice-editor
+        status: planned
+        summary: Define rhetorical-role retrieval, voice rewrite, provenance, and copy-risk behavior.
+      - id: srd007-style-editor
+        status: planned
+        summary: Define tightening-intent retrieval and targeted style editing.
+      - id: srd008-voice-critic
+        status: planned
+        summary: Define independent assurance, Pangram consent, verdict categories, and retry routing.
+    use_cases:
+      - id: rel00.0-uc001-edit-document
+        summary: |
+          Capture a GitHub original, perform structure, voice, and style stages,
+          obtain an independent verdict, retry bounded responsible stages, and
+          publish one accepted workproduct chain.
+        status: planned
+    test_suites:
+      - id: test-rel00.0-voice-forge
+        summary: |
+          Plan structural, authority, happy-path, specialist-rejection,
+          infrastructure-error, retry-exhaustion, restart-recovery, Pangram-
+          consent-denial, and idempotent-publication evidence.
+        status: planned
+    planned_workproducts:
+      - {path: workproducts/<saga-id>/manifest.yaml, owner: workflow-orchestrator, status: planned}
+      - {path: workproducts/<saga-id>/00-original.md, owner: workflow-orchestrator, status: planned}
+      - {path: workproducts/<saga-id>/10-structure.md, owner: workflow-orchestrator, status: planned}
+      - {path: workproducts/<saga-id>/20-voice.md, owner: workflow-orchestrator, status: planned}
+      - {path: workproducts/<saga-id>/30-style.md, owner: workflow-orchestrator, status: planned}
+      - {path: workproducts/<saga-id>/40-critique.yaml, owner: workflow-orchestrator, status: planned}
+      - {path: workproducts/<saga-id>/final.md, owner: workflow-orchestrator, status: planned}
+    dependencies:
+      - id: applications-shared-module-contract
+        reference: ../../docs/specs/software-requirements/srd001-application-module-contract.yaml
+        status: available
+        use: Cite baseline application governance without copying it.
+      - id: applications-managed-services-contract
+        reference: ../../docs/specs/software-requirements/srd002-managed-application-services.yaml
+        status: available
+        use: Cite applicable lifecycle and service obligations without copying them.
+      - id: agent-role-realizations
+        reference: ../../docs/specs/semantic-models/agent-role-realizations.yaml
+        status: available
+        use: Pin planned actor bindings and preserve canonical role ownership.
+      - id: canonical-corpus-ingest
+        reference: ../../catalog/
+        status: available_for_future_reference
+        use: Reuse the canonical program through a planned local wrapper.
+      - id: agent-core-profile-machine-tool-contracts
+        reference: ../../../agent-core/docs/specs/
+        status: available
+        use: Cite profile, machine, ToolDef, REST, lifecycle, checkpoint, and command-state authorities.
+      - id: chroma
+        boundary: rebuildable retrieval index
+        status: planned_dependency
+      - id: ollama
+        boundary: allowlisted embedding and generation model service
+        status: planned_dependency
+      - id: github
+        boundary: source and final publication platform
+        status: planned_dependency
+      - id: pangram
+        boundary: optional consent-gated advisory upload
+        status: planned_dependency
+    evidence_status:
+      foundation_yaml: documented
+      srd_requirements: not_created
+      reciprocal_traceability: not_created
+      profiles_and_machines: not_implemented
+      tools_and_services: not_implemented
+      structural_tests: not_implemented
+      boundary_tests: not_implemented
+      failure_and_recovery_tests: not_implemented
+      end_to_end_test: not_implemented
+      publication_test: not_implemented
+      root_registration: intentionally_unchanged
+      executable_evidence: none
+    completion_gate: |
+      Release 00.0 remains planned until all eight SRDs, the use case, and the
+      test suite exist with reciprocal traces and executable evidence proves the
+      declared boundaries and terminal outcome. Foundation YAML parsing alone
+      does not satisfy the release.

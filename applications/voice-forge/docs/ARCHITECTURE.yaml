@@ -1,0 +1,347 @@
+id: architecture-voice-forge
+title: Voice Forge Architecture
+
+overview:
+  summary: |
+    Voice Forge is a planned serial composition of six agent services on
+    agent-core. The application-local programs are the workflow-orchestrator,
+    structure-editor, voice-editor, style-editor, and voice-critic. A thin
+    corpus-ingest wrapper references the canonical catalog program. Three
+    planned RAG server instances provide read-only access to the structure,
+    voice, and tightening corpora.
+
+    The workflow orchestrator owns the saga workspace and the only GitHub
+    mutation credentials. Editors return content and provenance without
+    filesystem access. The critic independently evaluates the original and
+    candidate and alone owns the consent-gated Pangram tool. Workproducts remain
+    local and uncommitted until critic acceptance.
+  status: documentation_only_planned
+  scenario_flow: |
+    ```mermaid
+    flowchart LR
+      H[Human intent and consent] --> O[Workflow orchestrator]
+      GH[(GitHub source)] --> O
+      O -->|00-original.md content| SE[Structure editor]
+      SE -->|10-structure.md content| O
+      O --> VE[Voice editor]
+      VE -->|20-voice.md content| O
+      O --> STE[Style editor]
+      STE -->|30-style.md content| O
+      O --> VC[Voice critic]
+      VC -->|pass, warn, or reject| O
+      VC -. consent-gated .-> P[Pangram]
+      SE --> SR[Structure RAG]
+      VE --> VR[Voice RAG]
+      STE --> TR[Tightening RAG]
+      VC --> VR
+      SR --> C[(Chroma)]
+      VR --> C
+      TR --> C
+      CI[Corpus-ingest wrapper] --> C
+      SE --> M[Ollama]
+      VE --> M
+      STE --> M
+      VC --> M
+      O -->|after acceptance only| PUB[Git commit, push, and PR]
+      PUB --> GH
+    ```
+  saga_flow: |
+    The orchestrator captures the source and writes an immutable original. It
+    accepts one child result at a time, persists the artifact and manifest, and
+    invokes the next stage from that accepted parent. A reject verdict names
+    the responsible stage. The orchestrator retries that stage within its
+    budget and then replays downstream stages. Exhaustion keeps the last
+    accepted parent and ends in keep-original or failure policy. A restart
+    resumes from the persistent manifest. Publication is a final, idempotent
+    forward action after acceptance.
+
+interfaces:
+  - name: human request and policy boundary
+    status: planned
+    summary: |
+      A human supplies the allowlisted repository, source path and revision,
+      target voice, retry policy, publication destination, and explicit Pangram
+      upload consent. Humans retain intent, policy, privacy, exception, and
+      accountability authority.
+  - name: child-agent request boundaries
+    status: planned
+    summary: |
+      The orchestrator invokes each editor and critic through declared
+      agent-core service/child tools. Requests carry content, saga identity,
+      stage, attempt, and bounded policy. Responses carry content or verdict
+      plus provenance. They do not grant a shared filesystem.
+  - name: workproduct boundary tools
+    status: planned
+    summary: |
+      Orchestrator-only words capture source, read accepted parents, write a new
+      immutable artifact, update manifest state, and finalize output. Their
+      ToolDefs will define inputs, outputs, signals, effects, errors, and
+      non-destructive compensation under srd003.
+  - name: retrieval REST boundary
+    status: planned
+    summary: |
+      Editors and the critic issue read-only queries to corpus-scoped RAG
+      server instances over declared endpoints and collection identities.
+      REST behavior relies on agent-core srd027 through srd030; local documents
+      specify only the application query and provenance policy.
+  - name: model boundary
+    status: planned
+    summary: |
+      Editor and critic model words call allowlisted Ollama endpoints. Models
+      receive bounded content and evidence; they do not author URLs, paths,
+      refs, vectors, credentials, or tool authority.
+  - name: GitHub source and publication boundary
+    status: planned
+    summary: |
+      Constrained git and gh exec words are available only to the orchestrator.
+      They fetch an allowlisted source, create a branch, commit the complete
+      accepted saga once, push, and create or reuse a pull request. Arbitrary
+      shell commands are outside the interface.
+  - name: Pangram privacy boundary
+    status: planned
+    summary: |
+      Pangram is an external, non-compensatable upload available only to the
+      voice critic. Separate original and candidate scans require affirmative
+      consent, bounded credentials and timeouts, and recorded request status.
+      Results are advisory evidence.
+  - name: canonical corpus-ingest boundary
+    status: planned
+    summary: |
+      The local wrapper selects the canonical applications/catalog
+      corpus-ingest program and supplies application-owned corpus, endpoint,
+      model, and collection parameters. The catalog retains implementation
+      ownership.
+
+components:
+  - name: workflow-orchestrator agent service
+    path: agents/workflow-orchestrator/
+    status: planned
+    role_realization: Executor / Workflow Orchestrator
+    lifecycle: Long-running request service with persistent per-saga state.
+    scaling_boundary: A saga has one writer; distinct saga IDs may be scheduled independently.
+    failure_boundary: Child, local persistence, and publication failures terminate or retry without changing accepted parents.
+    authority: |
+      Own the saga directory, manifest, workproduct writes, stage sequencing,
+      retry budgets, finalization, and constrained git/gh mutation.
+    prohibited_authority: Editing, retrieval, critic verdicts, corpus writes, and Pangram invocation.
+  - name: structure-editor agent service
+    path: agents/structure-editor/
+    status: planned
+    role_realization: Content-oriented specialist realization; binding will be pinned by srd001.
+    lifecycle: Request/on-demand application-local machine.
+    scaling_boundary: Stateless requests may scale independently after serial saga ordering is preserved.
+    failure_boundary: A failed response leaves the original or last accepted parent unchanged.
+    authority: Read section and outline evidence through structure RAG, restructure supplied content with bounded model calls, and return provenance.
+    prohibited_authority: Chroma writes, workproduct mutation, critic verdicts, Pangram, and GitHub mutation.
+  - name: voice-editor agent service
+    path: agents/voice-editor/
+    status: planned
+    role_realization: Content-oriented specialist realization; binding will be pinned by srd001.
+    lifecycle: Request/on-demand application-local machine.
+    scaling_boundary: Stateless requests and retrieval load may scale independently.
+    failure_boundary: Retrieval or model failure returns no accepted artifact.
+    authority: Read voice passages through RAG, rewrite supplied content, and return anchor and copy-risk provenance.
+    prohibited_authority: Chroma writes, workproduct mutation, style tightening beyond voice need, verdicts, Pangram, and GitHub.
+  - name: style-editor agent service
+    path: agents/style-editor/
+    status: planned
+    role_realization: Content-oriented specialist realization; binding will be pinned by srd001.
+    lifecycle: Request/on-demand application-local machine.
+    scaling_boundary: Stateless requests and retrieval load may scale independently.
+    failure_boundary: Retrieval or model failure returns no accepted artifact.
+    authority: Read tightening pairs through RAG, edit stated targets, and return pair provenance.
+    prohibited_authority: Chroma writes, workproduct mutation, critic verdicts, Pangram, and GitHub.
+  - name: voice-critic agent service
+    path: agents/voice-critic/
+    status: planned
+    role_realization: Critic / Output Evaluator
+    lifecycle: Request/on-demand application-local machine, isolated from editor reasoning.
+    scaling_boundary: Evaluations may scale independently while one verdict is bound to one saga attempt.
+    failure_boundary: Evaluation or Pangram failure cannot publish or silently become acceptance.
+    authority: |
+      Read supplied original and candidate, query voice evidence, invoke
+      consent-gated Pangram scans, and return pass, warn, or reject with a
+      responsible-stage classification.
+    prohibited_authority: Content edits, saga/workproduct mutation, corpus writes, and GitHub mutation.
+  - name: corpus-ingest agent service
+    path: agents/corpus-ingest/
+    status: planned
+    role_realization: Inherited Knowledge Manager / Ontology Manager from the canonical catalog profile.
+    lifecycle: On-demand administrative run, separate from editing sagas.
+    scaling_boundary: Collection-scoped runs serialize writes to one declared collection.
+    failure_boundary: Ingest failure affects a rebuildable index, not source corpora or saga workproducts.
+    authority: Read trusted corpus paths and write only declared Chroma collections.
+    prohibited_authority: Saga coordination, workproduct access, editing, criticism, Pangram, and GitHub publication.
+  - name: RAG server instances
+    path: planned structure, voice, and style supporting services
+    status: planned
+    role_realization: Knowledge Manager / Recommendation Generator
+    lifecycle: Long-running read-only supporting agent services, each bound to one declared corpus.
+    scaling_boundary: Query serving may scale separately from ingestion and editors.
+    failure_boundary: Unavailability fails or degrades a bounded stage according to its SRD; it cannot alter accepted artifacts.
+    authority: Query each instance's declared Chroma corpus and return sections, passages, pairs, and source metadata.
+    prohibited_authority: Cross-corpus routing, collection writes, editing, saga state, Pangram, and publication.
+  - name: Chroma
+    path: external supporting datastore
+    status: planned
+    lifecycle: Long-running external dependency.
+    authority: Store rebuildable embeddings and retrieval metadata for declared collections.
+    prohibited_authority: Source-of-truth content, saga persistence, verdicts, and publication.
+  - name: Ollama
+    path: external model service
+    status: planned
+    lifecycle: Long-running external dependency.
+    authority: Run allowlisted embedding and generation models for bounded requests.
+    prohibited_authority: Tool selection, path/ref/credential creation, workproduct mutation, and publication.
+  - name: GitHub
+    path: external source and publication platform
+    status: planned
+    lifecycle: External dependency reached through constrained git and gh words.
+    authority: Host source revisions, accepted commits, branches, and pull requests.
+    prohibited_authority: Intermediate saga storage and critic acceptance.
+  - name: Pangram
+    path: external advisory analysis service
+    status: planned
+    lifecycle: Optional external dependency reached only by the critic.
+    authority: Analyze consented original and candidate uploads and return advisory results.
+    prohibited_authority: Acceptance, content edits, saga mutation, and GitHub mutation.
+
+design_decisions:
+  - id: 1
+    title: Serial specialists have separate authority
+    decision: |
+      Structure, voice, style, and critique remain separate request services.
+      Their distinct evidence, retry, privacy, and acceptance boundaries justify
+      the additional actors. Release 00.0 processes one document serially.
+    benefits:
+      - Rejections identify a responsible stage.
+      - Editors cannot approve their own work.
+      - Pangram and publication credentials remain narrowly allocated.
+  - id: 2
+    title: The orchestrator owns immutable saga state
+    decision: |
+      Child services exchange content, not filesystem paths. The orchestrator
+      is the single writer for workproducts/<saga-id>/ and persists the manifest
+      after every accepted stage. Compensation appends state and never performs
+      a destructive reset.
+    benefits:
+      - Restarts can resume from durable accepted state.
+      - Failed attempts cannot overwrite the original or accepted parent.
+      - Publication idempotency has one owner.
+  - id: 3
+    title: Retrieval indexes are rebuildable
+    decision: |
+      Trusted corpora remain authoritative. Canonical corpus-ingest populates
+      application-declared Chroma collections, and one corpus-scoped RAG
+      instance reads each structure, voice, or tightening collection.
+    benefits:
+      - Ingest and query authority remain separate.
+      - Index loss does not destroy source material.
+      - Existing catalog behavior is reused by reference.
+  - id: 4
+    title: Acceptance precedes publication
+    decision: |
+      All stage artifacts stay local and uncommitted until the independent
+      critic returns an accepted verdict under human policy. The orchestrator
+      then publishes the complete workproduct chain in one commit.
+    benefits:
+      - Remote history contains only a complete accepted saga.
+      - Intermediate attempts remain auditable without remote publication.
+      - Partial publication has an explicit escalation boundary.
+  - id: 5
+    title: Shared contracts remain external authorities
+    decision: |
+      Local SRDs define business behavior and stricter authority. They cite
+      shared application and agent-core requirement IDs for module governance,
+      services, profiles, machines, tools, lifecycle, persistence, and REST.
+    benefits:
+      - Platform requirements retain one owner.
+      - The local corpus stays focused on Voice Forge behavior.
+
+technology_choices:
+  - component: Structured documentation
+    technology: YAML under docs/
+    purpose: Keep the planned corpus parseable and traceable under design D1-D5.
+  - component: Agent programs
+    technology: Planned YAML profiles and machines on agent-core
+    purpose: Express the five application-local workflows without new binaries.
+  - component: Retrieval
+    technology: Planned corpus-scoped RAG server instances over Chroma
+    purpose: Serve read-only structure, voice, and tightening evidence from separate rebuildable indexes.
+  - component: Corpus loading
+    technology: Planned wrapper around applications/catalog corpus-ingest
+    purpose: Reuse canonical ingestion while retaining local parameters.
+  - component: Models
+    technology: Planned Ollama endpoints
+    purpose: Supply allowlisted embedding and generation models.
+  - component: Source and publication
+    technology: Planned constrained git and GitHub CLI ToolDefs
+    purpose: Capture an immutable source and publish once after acceptance.
+  - component: Advisory voice analysis
+    technology: Planned consent-gated Pangram calls
+    purpose: Add external before/after evidence without transferring verdict authority.
+  - component: Saga persistence
+    technology: Planned persistent local --output workspace
+    purpose: Preserve uncommitted lineage and permit restart recovery.
+
+project_structure:
+  foundation:
+    - {path: README.md, status: planned_documentation, role: Human entry point and status notice.}
+    - {path: docs/VISION.yaml, status: planned_documentation, role: Problem, goals, boundaries, and exclusions.}
+    - {path: docs/ARCHITECTURE.yaml, status: planned_documentation, role: Topology, flows, authority, and planned structure.}
+    - {path: docs/SPECIFICATIONS.yaml, status: planned_documentation, role: Planned corpus and traceability index.}
+    - {path: docs/road-map.yaml, status: planned_documentation, role: Release 00.0 plan and evidence status.}
+  planned_configuration:
+    - {path: agents/workflow-orchestrator/, status: planned, role: Saga coordination and publication profile.}
+    - {path: agents/structure-editor/, status: planned, role: Structure editing profile.}
+    - {path: agents/voice-editor/, status: planned, role: Voice editing profile.}
+    - {path: agents/style-editor/, status: planned, role: Style tightening profile.}
+    - {path: agents/voice-critic/, status: planned, role: Independent assurance profile.}
+    - {path: agents/corpus-ingest/, status: planned, role: Thin canonical ingest wrapper.}
+  planned_specifications:
+    - {path: docs/specs/software-requirements/, status: planned, role: SRDs srd001 through srd008.}
+    - {path: docs/specs/use-cases/rel00.0-uc001-edit-document.yaml, status: planned, role: End-to-end release scenario.}
+    - {path: docs/specs/test-suites/test-rel00.0-voice-forge.yaml, status: planned, role: Release tracer and evidence plan.}
+
+implementation_status:
+  current_focus: |
+    Issue GH-1111 establishes only the five foundation documents. The eight
+    SRDs, release use case, test suite, profiles, machines, tools, services,
+    integration evidence, and root registrations do not exist in this issue.
+  overall: documentation_only_planned
+  progress:
+    - planned: srd001 through srd008 and their reciprocal release traces.
+    - planned: Five application-local state machines and the corpus-ingest wrapper.
+    - planned: RAG, Chroma, Ollama, GitHub CLI, and Pangram integrations.
+    - planned: Persistent saga workspace, retries, recovery, and publication.
+    - planned: Structural, boundary, failure, recovery, and end-to-end tests.
+  executable_evidence: none
+  registry_status: not_registered
+
+related_documents:
+  - doc: docs/VISION.yaml
+    purpose: Application goals, boundaries, success criteria, and canonical document list.
+  - doc: docs/SPECIFICATIONS.yaml
+    purpose: Planned SRD, use-case, and test-suite indexes.
+  - doc: docs/road-map.yaml
+    purpose: Documentation-only release 00.0 scope and evidence status.
+  - doc: ../../docs/VISION.yaml
+    purpose: Shared scenario-led application and human-governance contract.
+  - doc: ../../docs/ARCHITECTURE.yaml
+    purpose: Shared application ownership and capability architecture.
+  - doc: ../../docs/specs/software-requirements/srd001-application-module-contract.yaml
+    purpose: Shared runnable-module contract; cited, not reproduced.
+  - doc: ../../docs/specs/software-requirements/srd002-managed-application-services.yaml
+    purpose: Shared managed-service contract; applicability remains planned.
+  - doc: ../../docs/specs/semantic-models/agent-role-realizations.yaml
+    purpose: Canonical role and realization authority.
+  - doc: ../../../agent-core/docs/specs/config-formats/machine-format.yaml
+    purpose: Planned state-machine format authority.
+  - doc: ../../../agent-core/docs/specs/semantic-models/tool-language.yaml
+    purpose: Planned ToolDef vocabulary and boundary semantics.
+  - doc: ../../../agent-core/docs/specs/software-requirements/srd038-command-state-store.yaml
+    purpose: Planned command-state behavior authority.
+  - doc: ../../../agent-core/docs/specs/software-requirements/srd035-checkpoint-port.yaml
+    purpose: Planned checkpoint persistence authority.
+  - doc: ../../chatbot-mesh/docs/specs/software-requirements/srd001-rag-server-agent.yaml
+    purpose: Existing RAG service behavior reference; Voice Forge will cite rather than copy it.

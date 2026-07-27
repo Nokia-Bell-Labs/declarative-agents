@@ -1,0 +1,178 @@
+id: voice-forge-specifications
+title: Voice Forge Specification Index
+
+overview: |
+  This documentation-only index plans release 00.0 for one serial Voice Forge
+  saga: GitHub source capture, immutable original, structure edit, voice edit,
+  style edit, independent critique, bounded retry, finalization, one commit,
+  push, and pull request.
+
+  Eight planned SRDs divide service topology, saga persistence, tool
+  vocabulary, and five application-local state machines. One planned use case
+  and one planned test suite will trace all eight SRDs reciprocally. Their files
+  are indexed before creation to establish stable IDs and paths. No profile,
+  service, tool, test, or executable evidence is implemented.
+
+  Shared application and agent-core requirements remain external references.
+  Local SRDs will cite them and define only Voice Forge behavior and stricter
+  authority boundaries.
+
+roadmap_summary:
+  - version: "00.0"
+    name: Corpus-conditioned document editing saga
+    use_cases_done: 0
+    use_cases_total: 1
+    status: planned
+    evidence: No executable evidence exists; foundation documentation only.
+
+foundation_document_index:
+  - id: voice-forge-readme
+    title: Voice Forge
+    summary: Human entry point, workflow, dependencies, and documentation-only status.
+    status: documentation_only
+    path: README.md
+  - id: voice-forge
+    title: Voice Forge Vision
+    summary: Problem, goals, scenario, authority boundaries, success criteria, and exclusions.
+    status: documentation_only
+    path: docs/VISION.yaml
+  - id: architecture-voice-forge
+    title: Voice Forge Architecture
+    summary: Planned services, interfaces, flows, authority, technology, and source layout.
+    status: documentation_only
+    path: docs/ARCHITECTURE.yaml
+  - id: voice-forge-roadmap
+    title: Voice Forge Road Map
+    summary: Release 00.0 scope, dependencies, planned artifacts, and evidence status.
+    status: documentation_only
+    path: docs/road-map.yaml
+
+srd_index:
+  - id: srd001-voice-forge-services
+    title: Voice Forge Services and Role Boundaries
+    status: planned
+    summary: Service shape, role realizations, lifecycle, interfaces, and exclusive authorities.
+    path: docs/specs/software-requirements/srd001-voice-forge-services.yaml
+    use_cases: [rel00.0-uc001-edit-document]
+    test_suites: [test-rel00.0-voice-forge]
+  - id: srd002-writing-saga-workproducts
+    title: Writing Saga and Workproduct Lifecycle
+    status: planned
+    summary: Immutable artifacts, manifest state, lineage, retry, compensation, recovery, and publication.
+    path: docs/specs/software-requirements/srd002-writing-saga-workproducts.yaml
+    use_cases: [rel00.0-uc001-edit-document]
+    test_suites: [test-rel00.0-voice-forge]
+  - id: srd003-writing-agent-tools
+    title: Writing Agent Tool Contracts
+    status: planned
+    summary: Tool words, ownership, inputs, outputs, signals, effects, errors, and compensation.
+    path: docs/specs/software-requirements/srd003-writing-agent-tools.yaml
+    use_cases: [rel00.0-uc001-edit-document]
+    test_suites: [test-rel00.0-voice-forge]
+  - id: srd004-workflow-orchestrator
+    title: Workflow Orchestrator State Machine
+    status: planned
+    summary: Saga states, transitions, retries, persistence, finalization, and publication.
+    path: docs/specs/software-requirements/srd004-workflow-orchestrator.yaml
+    use_cases: [rel00.0-uc001-edit-document]
+    test_suites: [test-rel00.0-voice-forge]
+  - id: srd005-structure-editor
+    title: Structure Editor State Machine
+    status: planned
+    summary: Structural diagnosis, bounded rewrite, semantic constraints, and response provenance.
+    path: docs/specs/software-requirements/srd005-structure-editor.yaml
+    use_cases: [rel00.0-uc001-edit-document]
+    test_suites: [test-rel00.0-voice-forge]
+  - id: srd006-voice-editor
+    title: Voice Editor State Machine
+    status: planned
+    summary: Rhetorical-role passage retrieval, voice rewrite, anchor provenance, and copy-risk checks.
+    path: docs/specs/software-requirements/srd006-voice-editor.yaml
+    use_cases: [rel00.0-uc001-edit-document]
+    test_suites: [test-rel00.0-voice-forge]
+  - id: srd007-style-editor
+    title: Style Editor State Machine
+    status: planned
+    summary: Tightening-intent detection, transformation-pair retrieval, targeted edits, and provenance.
+    path: docs/specs/software-requirements/srd007-style-editor.yaml
+    use_cases: [rel00.0-uc001-edit-document]
+    test_suites: [test-rel00.0-voice-forge]
+  - id: srd008-voice-critic
+    title: Voice Critic State Machine and Pangram Boundary
+    status: planned
+    summary: Independent assurance, consent-gated advisory scans, categorized verdicts, and retry routing.
+    path: docs/specs/software-requirements/srd008-voice-critic.yaml
+    use_cases: [rel00.0-uc001-edit-document]
+    test_suites: [test-rel00.0-voice-forge]
+
+config_format_index: []
+
+semantic_model_index: []
+
+use_case_index:
+  - id: rel00.0-uc001-edit-document
+    title: Edit and Publish a Corpus-Conditioned Document
+    release: "00.0"
+    status: planned
+    srds:
+      - srd001-voice-forge-services
+      - srd002-writing-saga-workproducts
+      - srd003-writing-agent-tools
+      - srd004-workflow-orchestrator
+      - srd005-structure-editor
+      - srd006-voice-editor
+      - srd007-style-editor
+      - srd008-voice-critic
+    test_suite: test-rel00.0-voice-forge
+    path: docs/specs/use-cases/rel00.0-uc001-edit-document.yaml
+
+test_suite_index:
+  - id: test-rel00.0-voice-forge
+    title: Voice Forge Release 00.0 Test Suite
+    release: "00.0"
+    status: planned
+    test_case_count: planned
+    traces: [rel00.0-uc001-edit-document]
+    srds:
+      - srd001-voice-forge-services
+      - srd002-writing-saga-workproducts
+      - srd003-writing-agent-tools
+      - srd004-workflow-orchestrator
+      - srd005-structure-editor
+      - srd006-voice-editor
+      - srd007-style-editor
+      - srd008-voice-critic
+    path: docs/specs/test-suites/test-rel00.0-voice-forge.yaml
+
+coverage_gaps:
+  - id: planned-srd-corpus
+    status: planned
+    description: |
+      SRDs srd001 through srd008 are indexed but are not created by GH-1111.
+      Their requirement and acceptance-criterion traces will be added by their
+      owning documentation issues.
+  - id: planned-release-trace
+    status: planned
+    description: |
+      rel00.0-uc001-edit-document and test-rel00.0-voice-forge are indexed but
+      do not yet exist. GH-1117 will define reciprocal touchpoint, success-
+      criterion, acceptance-criterion, and test-case coverage.
+  - id: executable-application
+    status: planned
+    description: |
+      Profiles, machines, ToolDefs, services, persistent storage, external
+      integrations, Mage targets, and root registration are outside this
+      documentation epic. No runtime conformance claim is made.
+  - id: external-dependency-evidence
+    status: planned
+    description: |
+      Chroma, Ollama, GitHub, and optional Pangram behavior has no local
+      executable evidence. Future tests must use bounded fixtures and explicit
+      live-test policy without converting dependency availability into a
+      documentation claim.
+  - id: role-binding-finalization
+    status: planned
+    description: |
+      srd001 will pin every actor binding against the shared
+      agent-role-realizations authority. Descriptive editor names do not define
+      new canonical roles.
