@@ -19,7 +19,7 @@ overview:
     a mounted profile: `agent --profile /profiles/agents/<name>/profile.yaml`.
 
     This architecture covers the data plane and the control plane. The control plane
-    -- the `coordinator` actor assuming Executor / Workflow Orchestrator, the
+    -- the `provisioning-workflow-orchestrator` actor assuming Executor / Workflow Orchestrator, the
     `creator` actor assuming Creator / Instance Manager and Agent Owner / Agent
     Lifecycle Manager, and the provisioning surface -- is release rel05.0. Release
     rel06.0 realizes the provisioning surface through the `applier` actor, which
@@ -89,13 +89,13 @@ role_realization_alignment:
       authority_boundary: Mesh owns parameters and packaging; catalog owns the canonical implementation.
       evidence: [agents/corpus-ingest/profile.yaml, agents/creator/request-declarations.yaml]
       migration_impact: None; it runs as a creator-launched child and has no Helm workload.
-    - current_actor: coordinator
+    - current_actor: provisioning-workflow-orchestrator
       implemented_responsibility: Sequence optional ingestion and rollout requests and aggregate their terminal result.
       canonical_role_sub_role: Executor / Workflow Orchestrator; not Coordinator.
-      retained_or_proposed_name: Rename to `provisioning-workflow-orchestrator` in GH-1077.
+      retained_or_proposed_name: Use `provisioning-workflow-orchestrator`; implemented in GH-1077.
       authority_boundary: No deployment, child-process, synchronization, conflict-resolution, negotiation, or consensus authority.
-      evidence: [agents/coordinator/request-machine.yaml, helm/templates/coordinator.yaml]
-      migration_impact: GH-1077 covers profile, Helm, SRD, integration, packaging, release, and compatibility paths.
+      evidence: [agents/provisioning-workflow-orchestrator/request-machine.yaml, helm/templates/provisioning-workflow-orchestrator.yaml]
+      migration_impact: GH-1077 migrated profile, Helm, SRD, integration, packaging, release, and compatibility paths together.
     - current_actor: creator
       implemented_responsibility: Launch an ingest child, drive decided rollout operations, and verify health and state.
       canonical_role_sub_role: Creator / Instance Manager and Agent Owner / Agent Lifecycle Manager.
@@ -153,8 +153,8 @@ components:
       embeds each document and threads its vector into Chroma. The mesh owns only
       the wrapper and corpus-rest endpoint/model/collection parameterization;
       packaging embeds the resolved canonical closure for runtime use.
-  - name: coordinator actor
-    path: agents/coordinator/
+  - name: provisioning-workflow-orchestrator actor
+    path: agents/provisioning-workflow-orchestrator/
     responsibility: |
       Assumes Executor / Workflow Orchestrator for the control plane (srd004). Bind a provisioning intent
       the chatbot delegates to a request-scoped run, sequence the ingestion and
@@ -193,7 +193,7 @@ components:
     responsibility: |
       The single-page application (chat, observability, trace, and provisioning
       panels) and its UX config. Rendered into the deployed agents from the Helm
-      chart. The provisioning panel delegates an intent to the coordinator.
+      chart. The provisioning panel delegates an intent to the provisioning-workflow-orchestrator.
   - name: Helm chart
     path: helm/
     responsibility: |
@@ -311,7 +311,7 @@ implementation_status:
         chatbot-turn-critic and rag-query-critic realizations, retains scenario
         scope in their paths/configuration, and records those identities in
         runtime verdicts.
-    - done: The control-plane coordinator (srd004) and creator (srd005), realized
+    - done: The control-plane provisioning-workflow-orchestrator (srd004) and creator (srd005), realized
         as mage integration:controlPlane (rel05.0, deterministic, driving a fake
         deployment API).
     - done: The creator corpus-ingest child endpoint and count-delta checks
@@ -341,8 +341,8 @@ related_documents:
   - doc: docs/specs/software-requirements/srd003-chatbot-deployment.yaml
     purpose: The deployment requirements (relocated, renumbered), including the
       provisioning authority boundary (R4).
-  - doc: docs/specs/software-requirements/srd004-coordinator.yaml
-    purpose: The coordinator agent requirements (control plane).
+  - doc: docs/specs/software-requirements/srd004-provisioning-workflow-orchestrator.yaml
+    purpose: The provisioning-workflow-orchestrator agent requirements (control plane).
   - doc: docs/specs/software-requirements/srd005-creator.yaml
     purpose: The creator agent requirements (control plane).
   - doc: docs/specs/software-requirements/srd006-applier.yaml

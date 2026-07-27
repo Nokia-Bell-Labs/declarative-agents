@@ -15,29 +15,29 @@ import (
 )
 
 const (
-	cpCoordinatorControl = "http://127.0.0.1:18101/api/lifecycle/health"
-	cpCoordinatorExit    = "http://127.0.0.1:18101/api/lifecycle/exit"
-	cpCoordinatorApply   = "http://127.0.0.1:18100/provisioning/api/apply"
-	cpCoordinatorState   = "http://127.0.0.1:18100/provisioning/api/state"
-	cpCreatorControl     = "http://127.0.0.1:18111/api/lifecycle/health"
-	cpCreatorExit        = "http://127.0.0.1:18111/api/lifecycle/exit"
-	cpDeploymentAPIAddr  = "127.0.0.1:18090"
+	cpProvisioningWorkflowOrchestratorControl = "http://127.0.0.1:18101/api/lifecycle/health"
+	cpProvisioningWorkflowOrchestratorExit    = "http://127.0.0.1:18101/api/lifecycle/exit"
+	cpProvisioningWorkflowOrchestratorApply   = "http://127.0.0.1:18100/provisioning/api/apply"
+	cpProvisioningWorkflowOrchestratorState   = "http://127.0.0.1:18100/provisioning/api/state"
+	cpCreatorControl                          = "http://127.0.0.1:18111/api/lifecycle/health"
+	cpCreatorExit                             = "http://127.0.0.1:18111/api/lifecycle/exit"
+	cpDeploymentAPIAddr                       = "127.0.0.1:18090"
 )
 
 // ControlPlane proves the realized mesh control-plane flow end to end without a
-// cluster: an operator's values-apply intent flows panel -> coordinator -> creator
-// -> deployment API. The coordinator and creator run as the real declarative
+// cluster: an operator's values-apply intent flows panel -> provisioning-workflow-orchestrator -> creator
+// -> deployment API. The provisioning-workflow-orchestrator and creator run as the real declarative
 // agents; a fake deployment API stands in for the applier (srd006) and records
 // what the creator sends. The test drives the panel's apply the way the SPA does --
-// a POST to the coordinator's /provisioning/api/apply -- then asserts the
-// coordinator delegated the rollout to the creator, the creator drove the
+// a POST to the provisioning-workflow-orchestrator's /provisioning/api/apply -- then asserts the
+// provisioning-workflow-orchestrator delegated the rollout to the creator, the creator drove the
 // deployment API and verified health, the request reconfigured, the panel's mesh
 // view reads back through both hops, and the authority boundary held: no
 // running-agent endpoint or credential is submitted through the flow
 // (srd004/srd005). It skips only if Go cannot build the agent; the live
 // grounded-turn tier rides on Integration.Chatbot and the deploy swap.
 //
-// What this does NOT drive is the coordinator's other intake,
+// What this does NOT drive is the provisioning-workflow-orchestrator's other intake,
 // POST /api/v1/provision, whose Seed leg ingests a directory before reconfiguring.
 // The creator now realizes srd005 R3.1 through its dedicated /api/v1/ingest
 // endpoint and SeedIngest leg, including pre/post collection-count checks. This
@@ -51,7 +51,7 @@ func (Integration) ControlPlane() error {
 	}
 	coreRoot := envOrDefault(agentCoreRootEnv, siblingPath(profilesRoot, "agent-core"))
 	if err := requireProfilePaths(profilesRoot,
-		"agents/coordinator/profile.yaml", "agents/creator/profile.yaml",
+		"agents/provisioning-workflow-orchestrator/profile.yaml", "agents/creator/profile.yaml",
 		"agents/chatbot/rest.yaml",
 	); err != nil {
 		return err
@@ -79,7 +79,7 @@ func runControlPlaneIntegration(profilesRoot, coreRoot string) error {
 	}
 	defer stopAPI()
 
-	// Start the creator first (the coordinator delegates to it). Its default
+	// Start the creator first (the provisioning-workflow-orchestrator delegates to it). Its default
 	// CREATOR_URL/DEPLOYMENT_API_URL reach this test's ports, so no env is needed.
 	creatorTrace, creatorCleanup, err := chromaTraceFile("controlplane-creator")
 	if err != nil {
@@ -100,12 +100,12 @@ func runControlPlaneIntegration(profilesRoot, coreRoot string) error {
 		return fmt.Errorf("creator control health never came up: %w", err)
 	}
 
-	coordTrace, coordCleanup, err := chromaTraceFile("controlplane-coordinator")
+	coordTrace, coordCleanup, err := chromaTraceFile("controlplane-provisioning-workflow-orchestrator")
 	if err != nil {
 		return err
 	}
 	defer coordCleanup()
-	stopCoord, err := startDetachedAgent(binary, profilesRoot, coreRoot, "agents/coordinator/profile.yaml", coordTrace)
+	stopCoord, err := startDetachedAgent(binary, profilesRoot, coreRoot, "agents/provisioning-workflow-orchestrator/profile.yaml", coordTrace)
 	if err != nil {
 		return err
 	}
@@ -115,20 +115,20 @@ func runControlPlaneIntegration(profilesRoot, coreRoot string) error {
 			_ = stopCoord(true)
 		}
 	}()
-	if err := waitHTTPStatus(cpCoordinatorControl, http.StatusOK, 30*time.Second); err != nil {
-		return fmt.Errorf("coordinator control health never came up: %w", err)
+	if err := waitHTTPStatus(cpProvisioningWorkflowOrchestratorControl, http.StatusOK, 30*time.Second); err != nil {
+		return fmt.Errorf("provisioning-workflow-orchestrator control health never came up: %w", err)
 	}
 
 	// Drive the intent the chatbot's provisioning panel does: the operator's
-	// values-apply, a POST to the coordinator's browser-facing apply endpoint
+	// values-apply, a POST to the provisioning-workflow-orchestrator's browser-facing apply endpoint
 	// carrying the full desired mesh state as a values-plane document
 	// (srd004 R3.1) and no host, URL, or credential (srd002 R5.1). The endpoint
 	// seeds SeedValues, so the run takes the reconfigure leg -- the path the mesh
 	// actually realizes (see the note on ControlPlane about the ingest leg).
 	intent := `{"values":"{\"ragUnits\":[{\"name\":\"rag0\",\"collection\":\"corpus\"},{\"name\":\"rag2\",\"collection\":\"corpus2\"}]}"}`
-	// The coordinator answers the intent by driving a model-backed machine, so
+	// The provisioning-workflow-orchestrator answers the intent by driving a model-backed machine, so
 	// this is inference work behind an HTTP call, not a probe (GH-709 R2).
-	data, status, err := requestInference(http.MethodPost, cpCoordinatorApply, intent, "coordinator apply intent")
+	data, status, err := requestInference(http.MethodPost, cpProvisioningWorkflowOrchestratorApply, intent, "provisioning-workflow-orchestrator apply intent")
 	if err != nil {
 		return fmt.Errorf("apply intent request failed: %w", err)
 	}
@@ -158,7 +158,7 @@ func runControlPlaneIntegration(profilesRoot, coreRoot string) error {
 	// which is exactly the failure mode that let the ingest leg look green while
 	// forwarding nothing (GH-755).
 	if content := rec.appliedContent(); !strings.Contains(content, "rag2") {
-		return fmt.Errorf("the apply carried content %q, which does not contain the decided topology; the values document did not survive the coordinator -> creator hop", content)
+		return fmt.Errorf("the apply carried content %q, which does not contain the decided topology; the values document did not survive the provisioning-workflow-orchestrator -> creator hop", content)
 	}
 	if got := rec.rolloutCount(); got < 1 {
 		return fmt.Errorf("the creator did not read the deployment-API rollout (rollout count %d)", got)
@@ -173,11 +173,11 @@ func runControlPlaneIntegration(profilesRoot, coreRoot string) error {
 	}
 
 	// The provisioning panel's initial mesh-view load (srd006 R1.5, GH-753): a
-	// GET through the coordinator, which asks the creator, which reads the
+	// GET through the provisioning-workflow-orchestrator, which asks the creator, which reads the
 	// deployment API's state surface. Live evidence that the flat
-	// applier -> creator -> coordinator field mapping actually works end to
+	// applier -> creator -> provisioning-workflow-orchestrator field mapping actually works end to
 	// end, not just that the YAML declares it.
-	stateData, stateStatus, err := requestInference(http.MethodGet, cpCoordinatorState, "", "coordinator state read")
+	stateData, stateStatus, err := requestInference(http.MethodGet, cpProvisioningWorkflowOrchestratorState, "", "provisioning-workflow-orchestrator state read")
 	if err != nil {
 		return fmt.Errorf("state read request failed: %w", err)
 	}
@@ -209,11 +209,11 @@ func runControlPlaneIntegration(profilesRoot, coreRoot string) error {
 	}
 
 	// Exit both agents gracefully so their span logs flush.
-	if _, s, err := requestHTTP(http.MethodPost, cpCoordinatorExit, `{"reason":"controlplane done"}`); err != nil || s/100 != 2 {
-		return fmt.Errorf("coordinator exit failed: status %d: %v", s, err)
+	if _, s, err := requestHTTP(http.MethodPost, cpProvisioningWorkflowOrchestratorExit, `{"reason":"controlplane done"}`); err != nil || s/100 != 2 {
+		return fmt.Errorf("provisioning-workflow-orchestrator exit failed: status %d: %v", s, err)
 	}
 	if err := stopCoord(false); err != nil {
-		return fmt.Errorf("coordinator did not exit gracefully: %w", err)
+		return fmt.Errorf("provisioning-workflow-orchestrator did not exit gracefully: %w", err)
 	}
 	coordStopped = true
 	if _, s, err := requestHTTP(http.MethodPost, cpCreatorExit, `{"reason":"controlplane done"}`); err != nil || s/100 != 2 {
@@ -224,7 +224,7 @@ func runControlPlaneIntegration(profilesRoot, coreRoot string) error {
 	}
 	creatorStopped = true
 
-	fmt.Println("integration:controlPlane PASS - the panel's values apply flowed coordinator->creator->deployment API carrying the decided document, the creator applied and health-checked the reconfiguration, the panel's mesh view read back through both hops, and no endpoint or credential crossed the authority boundary")
+	fmt.Println("integration:controlPlane PASS - the panel's values apply flowed provisioning-workflow-orchestrator->creator->deployment API carrying the decided document, the creator applied and health-checked the reconfiguration, the panel's mesh view read back through both hops, and no endpoint or credential crossed the authority boundary")
 	return nil
 }
 

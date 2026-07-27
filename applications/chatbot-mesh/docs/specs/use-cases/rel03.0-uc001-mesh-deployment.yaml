@@ -72,7 +72,7 @@ success_criteria:
 
 out_of_scope:
   - In-process client-registry mutation of a running agent.
-  - The provisioning surface (the deployment API and its panel), owned by the control-plane surface (coordinator, creator, applier) and out of scope for this data-plane use case.
+  - The provisioning surface (the deployment API and its panel), owned by the control-plane surface (provisioning-workflow-orchestrator, creator, applier) and out of scope for this data-plane use case.
   - Production cluster hardening beyond the kind smoke deployment.
 
 test_suite_trace: test-rel03.0-mesh-deployment

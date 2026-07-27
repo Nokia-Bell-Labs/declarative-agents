@@ -17,7 +17,7 @@ executive_summary: |
 
   The application spans the data plane -- the chatbot, the RAG servers, a corpus-ingest
   agent that seeds the vector store, observability, and Helm deployment -- and the
-  control plane: a coordinator that sequences a provisioning intent, a creator that
+  control plane: a provisioning-workflow-orchestrator that sequences a provisioning intent, a creator that
   manages agent lifecycle, and the provisioning surface (the deployment API and its
   panel). The control plane is release rel05.0.
 

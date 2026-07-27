@@ -1,15 +1,15 @@
-name: coordinator-provisioning-request
+name: provisioning-workflow-orchestrator-provisioning-request
 purpose: |-
   One request-scoped run of a provisioning intent. The machine_request intent
   endpoint seeds this machine with the intent body: the full desired mesh state as
   a values-plane document (values), and the RAG name, target collection, embedding
-  model, and directory to add as a knowledge source. The coordinator delegates a
+  model, and directory to add as a knowledge source. The provisioning-workflow-orchestrator delegates a
   corpus-ingest run for the directory to the creator (request_ingest); when the
-  creator reports the ingest met the requested source, the coordinator forwards the
+  creator reports the ingest met the requested source, the provisioning-workflow-orchestrator forwards the
   desired values document to the creator (request_rollout), threading it from the
   carried intent. The terminal Reconfigured signal maps the aggregated status to the
   HTTP response. Every instance operation is a request to the creator; the
-  coordinator orchestrates but holds no deployment-API authority.
+  provisioning-workflow-orchestrator orchestrates but holds no deployment-API authority.
 
   An operator apply from the provisioning panel changes values without adding a
   source, so it has no directory to ingest and enters on SeedValues, skipping the
@@ -27,7 +27,7 @@ budget:
 states:
   - {name: AwaitingRequest, meaning: Seeded by the trusted intent endpoint with the provisioning intent body.}
   - {name: Ingesting, meaning: The creator is running the corpus-ingest for the requested directory and verifying the collection count.}
-  - {name: Reconfiguring, meaning: The coordinator forwarded the desired values document and the creator is executing the request-draining rollout.}
+  - {name: Reconfiguring, meaning: The provisioning-workflow-orchestrator forwarded the desired values document and the creator is executing the request-draining rollout.}
   - {name: Reconfigured, meaning: Terminal. The rollout completed and the aggregated status is ready for the HTTP response.}
   - {name: Rejected, meaning: Terminal. The creator reported the ingest did not meet the requested source.}
   - {name: Failed, meaning: Terminal. A creator boundary word failed.}

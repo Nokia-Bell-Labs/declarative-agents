@@ -122,18 +122,18 @@ func provisioningBackend(docs []renderedDoc) (service, port string, found bool) 
 	return "", "", false
 }
 
-// TestProvisioningIngressRoutesToTheCoordinator pins the route half. The panel's
-// intake is the coordinator (srd004 R1.5); pointing this prefix at the applier's
+// TestProvisioningIngressRoutesToTheProvisioningWorkflowOrchestrator pins the route half. The panel's
+// intake is the provisioning-workflow-orchestrator (srd004 R1.5); pointing this prefix at the applier's
 // apply Service is the GH-502 defect.
-func TestProvisioningIngressRoutesToTheCoordinator(t *testing.T) {
+func TestProvisioningIngressRoutesToTheProvisioningWorkflowOrchestrator(t *testing.T) {
 	docs := renderMesh(t, "controlPlane.enabled=true")
 
 	service, port, found := provisioningBackend(docs)
 	if !found {
 		t.Fatal("no /provisioning ingress rule rendered with the control plane enabled")
 	}
-	if !strings.HasSuffix(service, "-coordinator") {
-		t.Errorf("/provisioning routes to %q; the panel's intake is the coordinator, and routing it at the applier is what GH-502 fixed", service)
+	if !strings.HasSuffix(service, "-provisioning-workflow-orchestrator") {
+		t.Errorf("/provisioning routes to %q; the panel's intake is the provisioning-workflow-orchestrator, and routing it at the applier is what GH-502 fixed", service)
 	}
 	if strings.Contains(service, "applier") {
 		t.Errorf("/provisioning routes to the applier Service %q, whose NetworkPolicy admits only creator-labelled pods", service)
@@ -178,50 +178,50 @@ func TestApplierApplyStaysCreatorOnly(t *testing.T) {
 	}
 }
 
-// TestCoordinatorAdmitsOnlyTheIngressControllerOnIntent proves the new opening is
+// TestProvisioningWorkflowOrchestratorAdmitsOnlyTheIngressControllerOnIntent proves the new opening is
 // narrow. The intake is browser-reachable by design; the monitor and control
 // ports are not, and an open port would be as wrong here as a widened applier
 // policy.
-func TestCoordinatorAdmitsOnlyTheIngressControllerOnIntent(t *testing.T) {
+func TestProvisioningWorkflowOrchestratorAdmitsOnlyTheIngressControllerOnIntent(t *testing.T) {
 	docs := renderMesh(t, "controlPlane.enabled=true")
 
-	policy := findByKindComponent(docs, "NetworkPolicy", "coordinator")
+	policy := findByKindComponent(docs, "NetworkPolicy", "provisioning-workflow-orchestrator")
 	if policy == nil {
-		t.Fatal("no coordinator NetworkPolicy rendered; the intake would be open to the whole cluster")
+		t.Fatal("no provisioning-workflow-orchestrator NetworkPolicy rendered; the intake would be open to the whole cluster")
 	}
 	if len(policy.Spec.Ingress) != 1 {
-		t.Fatalf("coordinator policy has %d ingress rules, want exactly 1", len(policy.Spec.Ingress))
+		t.Fatalf("provisioning-workflow-orchestrator policy has %d ingress rules, want exactly 1", len(policy.Spec.Ingress))
 	}
 
 	rule := policy.Spec.Ingress[0]
 	if len(rule.From) != 1 {
-		t.Fatalf("coordinator policy admits %d sources, want exactly the ingress controller", len(rule.From))
+		t.Fatalf("provisioning-workflow-orchestrator policy admits %d sources, want exactly the ingress controller", len(rule.From))
 	}
 	from := rule.From[0]
 	if from.NamespaceSelector == nil || len(from.NamespaceSelector.MatchLabels) == 0 {
-		t.Error("coordinator policy admits any namespace; the ingress controller's namespace must be named")
+		t.Error("provisioning-workflow-orchestrator policy admits any namespace; the ingress controller's namespace must be named")
 	}
 	if from.PodSelector == nil || len(from.PodSelector.MatchLabels) == 0 {
-		t.Error("coordinator policy admits any pod in the namespace; the ingress controller must be named")
+		t.Error("provisioning-workflow-orchestrator policy admits any pod in the namespace; the ingress controller must be named")
 	}
 
 	if len(rule.Ports) != 1 {
-		t.Fatalf("coordinator policy opens %d ports, want intent only", len(rule.Ports))
+		t.Fatalf("provisioning-workflow-orchestrator policy opens %d ports, want intent only", len(rule.Ports))
 	}
 	if rule.Ports[0].Port != "intent" {
-		t.Errorf("coordinator policy opens port %v, want intent", rule.Ports[0].Port)
+		t.Errorf("provisioning-workflow-orchestrator policy opens port %v, want intent", rule.Ports[0].Port)
 	}
 	for _, port := range []string{"control", "monitor"} {
 		for _, p := range rule.Ports {
 			if p.Port == port {
-				t.Errorf("coordinator policy opens %q to the ingress controller; only the intake is browser-reachable", port)
+				t.Errorf("provisioning-workflow-orchestrator policy opens %q to the ingress controller; only the intake is browser-reachable", port)
 			}
 		}
 	}
 }
 
 // TestNoProvisioningRouteWithoutTheControlPlane covers the disabled case. Without
-// the coordinator there is no legitimate intake, and rendering a route to a
+// the provisioning-workflow-orchestrator there is no legitimate intake, and rendering a route to a
 // surface nothing may reach is exactly what made GH-502 invisible: the manifest
 // looked complete while the path was dead.
 func TestNoProvisioningRouteWithoutTheControlPlane(t *testing.T) {
@@ -230,8 +230,8 @@ func TestNoProvisioningRouteWithoutTheControlPlane(t *testing.T) {
 	if service, _, found := provisioningBackend(docs); found {
 		t.Errorf("/provisioning renders to %q with the control plane disabled; no intake exists to serve it", service)
 	}
-	if policy := findByKindComponent(docs, "NetworkPolicy", "coordinator"); policy != nil {
-		t.Error("a coordinator NetworkPolicy rendered with the control plane disabled")
+	if policy := findByKindComponent(docs, "NetworkPolicy", "provisioning-workflow-orchestrator"); policy != nil {
+		t.Error("a provisioning-workflow-orchestrator NetworkPolicy rendered with the control plane disabled")
 	}
 	// The applier may still be enabled on its own; its policy must be unaffected.
 	if policy := findByKindComponent(docs, "NetworkPolicy", "applier"); policy == nil {
@@ -239,12 +239,12 @@ func TestNoProvisioningRouteWithoutTheControlPlane(t *testing.T) {
 	}
 }
 
-// TestCreatorInstanceIsCoordinatorOnly pins the policy GH-685 added. The creator
+// TestCreatorInstanceIsProvisioningWorkflowOrchestratorOnly pins the policy GH-685 added. The creator
 // is the only pod the applier admits to its apply surface, so an unconstrained
 // instance port was the widest remaining path to apply: reach the creator and it
 // reaches the applier for you. The GH-682 kind proof measured that reachability
 // before this policy existed.
-func TestCreatorInstanceIsCoordinatorOnly(t *testing.T) {
+func TestCreatorInstanceIsProvisioningWorkflowOrchestratorOnly(t *testing.T) {
 	docs := renderMesh(t, "controlPlane.enabled=true")
 
 	policy := findByKindComponent(docs, "NetworkPolicy", "creator")
@@ -257,14 +257,14 @@ func TestCreatorInstanceIsCoordinatorOnly(t *testing.T) {
 	rule := policy.Spec.Ingress[0]
 	for _, from := range rule.From {
 		if from.NamespaceSelector != nil {
-			t.Errorf("creator policy admits a namespaceSelector %v; the instance port is coordinator-only", from.NamespaceSelector.MatchLabels)
+			t.Errorf("creator policy admits a namespaceSelector %v; the instance port is provisioning-workflow-orchestrator-only", from.NamespaceSelector.MatchLabels)
 		}
 		if from.PodSelector == nil {
 			t.Error("creator policy has a from entry with no podSelector")
 			continue
 		}
-		if got := from.PodSelector.MatchLabels["app.kubernetes.io/component"]; got != "coordinator" {
-			t.Errorf("creator policy admits component %q, want coordinator only", got)
+		if got := from.PodSelector.MatchLabels["app.kubernetes.io/component"]; got != "provisioning-workflow-orchestrator" {
+			t.Errorf("creator policy admits component %q, want provisioning-workflow-orchestrator only", got)
 		}
 	}
 	if len(rule.Ports) != 1 || rule.Ports[0].Port != "instance" {

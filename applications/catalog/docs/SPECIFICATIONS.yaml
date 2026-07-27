@@ -272,7 +272,7 @@ srd_index:
       requirements and evidence live with applications/chatbot-mesh.
     status: relocated
     path: docs/specs/software-requirements/srd016-coordinator.yaml
-    canonical_path: applications/chatbot-mesh/docs/specs/software-requirements/srd004-coordinator.yaml
+    canonical_path: applications/chatbot-mesh/docs/specs/software-requirements/srd004-provisioning-workflow-orchestrator.yaml
   - id: srd017-creator
     title: Creator Agent Functional Block (Relocated)
     summary: Pointer-only historical identifier; canonical creator requirements

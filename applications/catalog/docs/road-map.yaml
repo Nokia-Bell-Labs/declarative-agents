@@ -464,9 +464,10 @@ releases:
   - version: "09.4"
     name: Control plane
     relocated_to: >-
-      Relocated to applications/chatbot-mesh (rel05.0) as srd004-coordinator and
-      srd005-creator, with the rel05.0 control-plane use case and test suite; this
-      entry remains for history and the example is the canonical copy (GH-430).
+      Relocated to applications/chatbot-mesh (rel05.0) as
+      srd004-provisioning-workflow-orchestrator and srd005-creator, with the
+      rel05.0 control-plane use case and test suite; this entry remains for
+      history and the example is the canonical copy (GH-430, GH-1077).
     description: |
       Release 09.4 adds the mesh control plane: a Coordinator agent (srd016) that
       sequences directory ingestion and reconfiguration and to which the UX agent

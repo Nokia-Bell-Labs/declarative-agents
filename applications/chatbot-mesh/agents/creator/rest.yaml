@@ -73,7 +73,7 @@ rest:
     deployment_api:
       # The creator alone holds the deployment-API authority (srd005 R5.1): it is the
       # only agent in the mesh that declares a deployment-API client (the chatbot and
-      # coordinator declare none). The bearer credential is deployment-realized -- the
+      # provisioning-workflow-orchestrator declare none). The bearer credential is deployment-realized -- the
       # creator's pod mounts the deployment-API Secret and the provisioner enforces the
       # token -- rather than resolved in the declarative runtime, which carries no
       # credential resolver. No runtime input supplies the endpoint or the credential.
@@ -83,7 +83,7 @@ rest:
       operations:
         apply_instance:
           # Realize the decided operation by driving the deployment API's apply path
-          # (srd005 R3). The creator forwards the coordinator's decided values-plane
+          # (srd005 R3). The creator forwards the provisioning-workflow-orchestrator's decided values-plane
           # document as the versioned apply request content (srd006 R1.4); it authors
           # no values decision (srd005 R2.2). No endpoint or credential for a running
           # agent is sent; the applier validates the content against the chart schema.
@@ -244,8 +244,8 @@ rest:
   servers:
     creator_instance:
       # The instance endpoint is served on its own service and port, reached only by
-      # the coordinator (srd005 R1). It accepts a declared operation and SHALL NOT
-      # accept an already-resolved endpoint or credential from the coordinator; no
+      # the provisioning-workflow-orchestrator (srd005 R1). It accepts a declared operation and SHALL NOT
+      # accept an already-resolved endpoint or credential from the provisioning-workflow-orchestrator; no
       # runtime input supplies transport authority.
       address: ${CREATOR_BIND_HOST:-127.0.0.1}:18110
       limits_ref: local_creator_instance
@@ -255,7 +255,7 @@ rest:
           path: /api/v1/instance
           binding: machine_request
           request:
-            # The coordinator's rollout operation carries the decided values-plane
+            # The provisioning-workflow-orchestrator's rollout operation carries the decided values-plane
             # document as content (srd006 R1.4); the creator forwards it to the
             # applier apply.
             #
@@ -309,9 +309,9 @@ rest:
                     message: $.message
                     operation: $.operation
         rollout:
-          # The rollout status the coordinator polls while a reconfiguration runs,
+          # The rollout status the provisioning-workflow-orchestrator polls while a reconfiguration runs,
           # so it can aggregate progress for the provisioning panel (srd004 R1.3).
-          # Reached by the coordinator, not a browser: the creator exposes no
+          # Reached by the provisioning-workflow-orchestrator, not a browser: the creator exposes no
           # browser-facing surface (srd005 R5.4). GH-684.
           method: GET
           path: /api/v1/rollout
@@ -347,7 +347,7 @@ rest:
                     stage: $.failure_stage
                     message: $.message
         ingest:
-          # The corpus-ingest child run the coordinator delegates (srd004 R2.1,
+          # The corpus-ingest child run the provisioning-workflow-orchestrator delegates (srd004 R2.1,
           # srd005 R3.1). Its own endpoint rather than an operation on /instance,
           # because initial_signal is per-endpoint: the machine cannot branch on a
           # body field, which is why an ingest posted at /instance could only ever
@@ -371,7 +371,7 @@ rest:
               body:
                 # The directory becomes the child's workspace; the corpus-ingest
                 # profile roots its document resource there. collection is accepted
-                # so the coordinator's declared intent stays whole, but it does not
+                # so the provisioning-workflow-orchestrator's declared intent stays whole, but it does not
                 # reach the child: agent-core exec tools pass no environment, and
                 # the child profile hardcodes its collection name. Ingesting into a
                 # caller-named collection needs that profile parameterized first.
@@ -382,7 +382,7 @@ rest:
               # from an unreadable collection (agent-core srd030 R4.6, GH-615).
               #
               # IngestRejected is a 422 and IngestFailed a 500, which is the
-              # distinction the coordinator's declared failure mapping needs: a run
+              # distinction the provisioning-workflow-orchestrator's declared failure mapping needs: a run
               # that wrote nothing is the caller's source falling short, while a
               # child that could not run, or a collection that could not be read,
               # is ours. A count that will not resolve reaches IngestFailed, not
@@ -414,8 +414,8 @@ rest:
                     status: ingest_failed
                     error: ingest_failed
         state:
-          # The deployed mesh view the coordinator carries to the provisioning
-          # panel's initial load (srd006 R1.5). Reached by the coordinator, not a
+          # The deployed mesh view the provisioning-workflow-orchestrator carries to the provisioning
+          # panel's initial load (srd006 R1.5). Reached by the provisioning-workflow-orchestrator, not a
           # browser: the creator exposes no browser-facing surface (srd005 R5.4).
           method: GET
           path: /api/v1/state

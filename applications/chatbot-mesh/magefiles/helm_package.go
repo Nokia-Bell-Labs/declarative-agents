@@ -44,7 +44,7 @@ var chatbotChartSourceFiles = []string{
 	"templates/applier.yaml",
 	"templates/chatbot.yaml",
 	"templates/collector.yaml",
-	"templates/coordinator.yaml",
+	"templates/provisioning-workflow-orchestrator.yaml",
 	"templates/creator.yaml",
 	"templates/dolt.yaml",
 	"templates/jaeger.yaml",

@@ -220,7 +220,7 @@ func TestHelmPackageContainsRequiredProfileEntrypoints(t *testing.T) {
 	for _, key := range []string{
 		"agents__chatbot__profile.yaml",
 		"agents__rag-server__profile.yaml",
-		"agents__coordinator__profile.yaml",
+		"agents__provisioning-workflow-orchestrator__profile.yaml",
 		"agents__creator__profile.yaml",
 		"agents__applier__profile.yaml",
 		"agents__corpus-ingest__profile.yaml",

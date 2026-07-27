@@ -4,7 +4,7 @@ tools:
     init: rest_client_invoke
     category: boundary
     description: Delegate a corpus-ingest run for the requested directory to the creator.
-    problem: A provisioning intent must ingest the directory before the mesh can serve it, and the coordinator delegates every instance operation rather than running it.
+    problem: A provisioning intent must ingest the directory before the mesh can serve it, and the provisioning-workflow-orchestrator delegates every instance operation rather than running it.
     goals:
       - Request one corpus-ingest instance from the creator for the intent's directory and collection.
       - Carry the intent's RAG name, collection, and embedding model forward for the reconfiguration decision.
@@ -41,7 +41,7 @@ tools:
       undo: creator_terminate
     undo:
       strategy: compensating_action
-      description: A created ingest instance is terminated through the creator on a later failure; the coordinator issues the compensating request.
+      description: A created ingest instance is terminated through the creator on a later failure; the provisioning-workflow-orchestrator issues the compensating request.
     errors:
       - signal: Rejected
         condition: The creator reports the ingested collection count does not meet the requested source.
@@ -60,7 +60,7 @@ tools:
     init: rest_client_invoke
     category: boundary
     description: Forward the desired values document and delegate the request-draining rollout to the creator.
-    problem: The mesh values-plane list is replaced wholesale on apply, so the coordinator forwards the caller's full desired mesh state rather than a delta, realizing it by delegating the rollout to the creator rather than editing config itself.
+    problem: The mesh values-plane list is replaced wholesale on apply, so the provisioning-workflow-orchestrator forwards the caller's full desired mesh state rather than a delta, realizing it by delegating the rollout to the creator rather than editing config itself.
     goals:
       - Thread the caller's full desired values document from the carried intent.
       - Request the reconfiguration rollout from the creator and forward the desired values as the content the creator applies.
@@ -166,8 +166,8 @@ tools:
     type: builtin
     init: rest_client_invoke
     category: boundary
-    description: Read the rollout status from the creator so the panel's poll is served by the coordinator.
-    problem: The panel polls rollout progress while a reconfiguration runs, and it reads that progress from the coordinator rather than from the deployment API, which no browser may reach.
+    description: Read the rollout status from the creator so the panel's poll is served by the provisioning-workflow-orchestrator.
+    problem: The panel polls rollout progress while a reconfiguration runs, and it reads that progress from the provisioning-workflow-orchestrator rather than from the deployment API, which no browser may reach.
     goals:
       - Read the creator-reported rollout phase and the Deployment's ready and desired replicas and revision.
       - Serve the aggregated status the provisioning panel renders (srd004 R1.3).
@@ -219,8 +219,8 @@ tools:
     type: builtin
     init: rest_client_invoke
     category: boundary
-    description: Read the deployed mesh view from the creator so the provisioning panel's initial load is served by the coordinator.
-    problem: The panel loads its mesh view from the coordinator, which no browser may reach past (srd003 R4.4); the coordinator asks the creator, which is the only agent that declares a deployment-API client.
+    description: Read the deployed mesh view from the creator so the provisioning panel's initial load is served by the provisioning-workflow-orchestrator.
+    problem: The panel loads its mesh view from the provisioning-workflow-orchestrator, which no browser may reach past (srd003 R4.4); the provisioning-workflow-orchestrator asks the creator, which is the only agent that declares a deployment-API client.
     goals:
       - Read the creator-reported RAG topology, LLM configuration, and parameters.
       - Serve the mesh view the provisioning panel renders on its initial load (srd006 R1.5).

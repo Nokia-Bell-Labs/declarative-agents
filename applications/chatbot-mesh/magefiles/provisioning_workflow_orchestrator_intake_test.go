@@ -12,10 +12,10 @@ import (
 	"gopkg.in/yaml.v3"
 )
 
-// These cover the coordinator as the panel's provisioning intake (GH-502,
+// These cover the provisioning-workflow-orchestrator as the panel's provisioning intake (GH-502,
 // GH-680). The panel used to POST its apply at the applier, which the applier
 // NetworkPolicy blocks because only creator-labelled pods may reach the apply
-// surface. The intent now enters at the coordinator, which orchestrates the
+// surface. The intent now enters at the provisioning-workflow-orchestrator, which orchestrates the
 // creator, which alone calls the applier (srd003 R4.1/R4.4, srd004 R1.5/R1.6,
 // srd006 R4.1).
 
@@ -111,24 +111,24 @@ func readIntakeYAML(t *testing.T, path string, out any) {
 	}
 }
 
-func coordinatorIntentEndpoints(t *testing.T) map[string]intakeEndpoint {
+func provisioningWorkflowOrchestratorIntentEndpoints(t *testing.T) map[string]intakeEndpoint {
 	t.Helper()
 	var rest intakeRest
-	readIntakeYAML(t, filepath.Join(agentDir(t, "coordinator"), "rest.yaml"), &rest)
-	server, ok := rest.Rest.Servers["coordinator_intent"]
+	readIntakeYAML(t, filepath.Join(agentDir(t, "provisioning-workflow-orchestrator"), "rest.yaml"), &rest)
+	server, ok := rest.Rest.Servers["provisioning_workflow_orchestrator_intent"]
 	if !ok {
-		t.Fatal("coordinator_intent server not declared")
+		t.Fatal("provisioning_workflow_orchestrator_intent server not declared")
 	}
 	return server.Endpoints
 }
 
-// TestCoordinatorServesThePanelApplyPath proves the panel's apply is served by
-// the coordinator at the path the SPA already calls, so only the ingress backend
+// TestProvisioningWorkflowOrchestratorServesThePanelApplyPath proves the panel's apply is served by
+// the provisioning-workflow-orchestrator at the path the SPA already calls, so only the ingress backend
 // moves and the SPA's request paths stay put.
-func TestCoordinatorServesThePanelApplyPath(t *testing.T) {
-	apply, ok := coordinatorIntentEndpoints(t)["apply"]
+func TestProvisioningWorkflowOrchestratorServesThePanelApplyPath(t *testing.T) {
+	apply, ok := provisioningWorkflowOrchestratorIntentEndpoints(t)["apply"]
 	if !ok {
-		t.Fatal("coordinator intent server declares no apply endpoint")
+		t.Fatal("provisioning-workflow-orchestrator intent server declares no apply endpoint")
 	}
 	if apply.Method != "POST" {
 		t.Errorf("apply method = %q, want POST", apply.Method)
@@ -146,7 +146,7 @@ func TestCoordinatorServesThePanelApplyPath(t *testing.T) {
 // collection and directory here would make a reconfiguration impossible to state
 // (srd004 R1.6).
 func TestApplyAcceptsValuesOnlyIntent(t *testing.T) {
-	apply := coordinatorIntentEndpoints(t)["apply"]
+	apply := provisioningWorkflowOrchestratorIntentEndpoints(t)["apply"]
 	required := apply.Request.BodySchema.Required
 	if len(required) != 1 || required[0] != "values" {
 		t.Errorf("apply required fields = %v, want [values] only", required)
@@ -162,9 +162,9 @@ func TestApplyAcceptsValuesOnlyIntent(t *testing.T) {
 // request that names a source must still carry its collection and directory, so
 // relaxing apply did not relax the other endpoint by accident.
 func TestProvisionStillRequiresItsSource(t *testing.T) {
-	provision, ok := coordinatorIntentEndpoints(t)["provision"]
+	provision, ok := provisioningWorkflowOrchestratorIntentEndpoints(t)["provision"]
 	if !ok {
-		t.Fatal("coordinator intent server declares no provision endpoint")
+		t.Fatal("provisioning-workflow-orchestrator intent server declares no provision endpoint")
 	}
 	want := map[string]bool{"values": true, "collection": true, "directory": true}
 	got := map[string]bool{}
@@ -182,14 +182,14 @@ func TestProvisionStillRequiresItsSource(t *testing.T) {
 // picks the seed and the machine carries the fork, so which leg a run took is
 // readable from the machine rather than hidden inside a word.
 func TestApplySeedsTheValuesOnlyLeg(t *testing.T) {
-	apply := coordinatorIntentEndpoints(t)["apply"]
+	apply := provisioningWorkflowOrchestratorIntentEndpoints(t)["apply"]
 	const seed = "SeedValues"
 	if apply.MachineRequest.InitialSignal != seed {
 		t.Fatalf("apply initial_signal = %q, want %q", apply.MachineRequest.InitialSignal, seed)
 	}
 
 	var machine intakeMachine
-	readIntakeYAML(t, filepath.Join(agentDir(t, "coordinator"), "request-machine.yaml"), &machine)
+	readIntakeYAML(t, filepath.Join(agentDir(t, "provisioning-workflow-orchestrator"), "request-machine.yaml"), &machine)
 
 	declared := false
 	for _, s := range machine.Signals {
@@ -247,7 +247,7 @@ func TestEachRolloutLegReadsItsOwnProvenance(t *testing.T) {
 		{"creator_rollout", "$.carried.values", "the ingest leg's document arrives via creator_ingest's carry_forward"},
 	} {
 		t.Run(tc.operation, func(t *testing.T) {
-			op := clientOperationNamed(t, "coordinator", "creator", tc.operation)
+			op := clientOperationNamed(t, "provisioning-workflow-orchestrator", "creator", tc.operation)
 			if got := op.Response.Output; len(got) == 0 {
 				t.Errorf("%s maps no response output", tc.operation)
 			}
@@ -262,7 +262,7 @@ func TestEachRolloutLegReadsItsOwnProvenance(t *testing.T) {
 					} `yaml:"clients"`
 				} `yaml:"rest"`
 			}
-			readIntakeYAML(t, filepath.Join(agentDir(t, "coordinator"), "rest.yaml"), &rest)
+			readIntakeYAML(t, filepath.Join(agentDir(t, "provisioning-workflow-orchestrator"), "rest.yaml"), &rest)
 			got := rest.Rest.Clients["creator"].Operations[tc.operation].Params.InputMapping["values"]
 			if got != tc.selector {
 				t.Errorf("%s maps values = %q, want %q: %s", tc.operation, got, tc.selector, tc.why)
@@ -299,7 +299,7 @@ func TestCreatorInstanceRequiresContent(t *testing.T) {
 // vocabulary, so signal keying could not separate a rejection from a failure
 // (agent-core srd030 R4.6, GH-615).
 func TestApplyMapsOutcomesByTerminalState(t *testing.T) {
-	apply := coordinatorIntentEndpoints(t)["apply"]
+	apply := provisioningWorkflowOrchestratorIntentEndpoints(t)["apply"]
 	states := apply.MachineRequest.Response.TerminalStates
 	if len(states) == 0 {
 		t.Fatal("apply maps no terminal states; a rejection and a failure would collapse to one status")
@@ -318,7 +318,7 @@ func TestApplyMapsOutcomesByTerminalState(t *testing.T) {
 	}
 
 	var machine intakeMachine
-	readIntakeYAML(t, filepath.Join(agentDir(t, "coordinator"), "request-machine.yaml"), &machine)
+	readIntakeYAML(t, filepath.Join(agentDir(t, "provisioning-workflow-orchestrator"), "request-machine.yaml"), &machine)
 	terminal := map[string]bool{}
 	for _, s := range machine.TerminalStates {
 		terminal[s] = true
@@ -330,17 +330,17 @@ func TestApplyMapsOutcomesByTerminalState(t *testing.T) {
 	}
 }
 
-// The panel polls rollout progress from the coordinator, not from the deployment
+// The panel polls rollout progress from the provisioning-workflow-orchestrator, not from the deployment
 // API, which no browser may reach (srd003 R4.4, srd004 R1.3). The chain is
-// coordinator -> creator -> applier; these pin both hops the mesh owns (GH-684).
+// provisioning-workflow-orchestrator -> creator -> applier; these pin both hops the mesh owns (GH-684).
 
-// TestCoordinatorServesThePanelRolloutPoll proves the poll has somewhere to land.
-// After GH-681 the /provisioning prefix routes to the coordinator, so a missing
+// TestProvisioningWorkflowOrchestratorServesThePanelRolloutPoll proves the poll has somewhere to land.
+// After GH-681 the /provisioning prefix routes to the provisioning-workflow-orchestrator, so a missing
 // endpoint here would 404 the panel's poll rather than 403 it.
-func TestCoordinatorServesThePanelRolloutPoll(t *testing.T) {
-	rollout, ok := coordinatorIntentEndpoints(t)["rollout"]
+func TestProvisioningWorkflowOrchestratorServesThePanelRolloutPoll(t *testing.T) {
+	rollout, ok := provisioningWorkflowOrchestratorIntentEndpoints(t)["rollout"]
 	if !ok {
-		t.Fatal("coordinator intent server declares no rollout endpoint; the panel's poll would 404")
+		t.Fatal("provisioning-workflow-orchestrator intent server declares no rollout endpoint; the panel's poll would 404")
 	}
 	if rollout.Method != "GET" {
 		t.Errorf("rollout method = %q, want GET", rollout.Method)
@@ -354,7 +354,7 @@ func TestCoordinatorServesThePanelRolloutPoll(t *testing.T) {
 // already in flight. Sharing the provisioning machine would put a read on the
 // same legs as an apply.
 func TestRolloutPollUsesItsOwnMachine(t *testing.T) {
-	endpoints := coordinatorIntentEndpoints(t)
+	endpoints := provisioningWorkflowOrchestratorIntentEndpoints(t)
 	rollout := endpoints["rollout"]
 	apply := endpoints["apply"]
 
@@ -366,7 +366,7 @@ func TestRolloutPollUsesItsOwnMachine(t *testing.T) {
 	}
 
 	var machine intakeMachine
-	readIntakeYAML(t, filepath.Join(agentDir(t, "coordinator"), rollout.MachineRequest.Machine), &machine)
+	readIntakeYAML(t, filepath.Join(agentDir(t, "provisioning-workflow-orchestrator"), rollout.MachineRequest.Machine), &machine)
 	for _, tr := range machine.Transitions {
 		if tr.Action == "request_ingest" || tr.Action == "request_rollout" {
 			t.Errorf("the poll machine drives %q; a read applies nothing", tr.Action)
@@ -378,7 +378,7 @@ func TestRolloutPollUsesItsOwnMachine(t *testing.T) {
 // a poller. If a broken read returned 200 with an unknown phase, the panel would
 // show "progressing" forever and the operator would never learn the read failed.
 func TestRolloutReadFailureIsNotASuccessfulUnknown(t *testing.T) {
-	rollout := coordinatorIntentEndpoints(t)["rollout"]
+	rollout := provisioningWorkflowOrchestratorIntentEndpoints(t)["rollout"]
 	states := rollout.MachineRequest.Response.TerminalStates
 	if len(states) == 0 {
 		t.Fatal("rollout maps no terminal states; a read failure and a successful read would share one status")
@@ -401,11 +401,11 @@ func TestRolloutReadFailureIsNotASuccessfulUnknown(t *testing.T) {
 	}
 }
 
-// TestCreatorRolloutReadIsCoordinatorFacing proves the read exists on the creator
+// TestCreatorRolloutReadIsProvisioningWorkflowOrchestratorFacing proves the read exists on the creator
 // and stays off the browser path. The creator exposes no browser-facing surface
 // (srd005 R5.4) -- it is the only pod the applier admits to the apply surface, so
 // widening its reachability would widen the path to apply.
-func TestCreatorRolloutReadIsCoordinatorFacing(t *testing.T) {
+func TestCreatorRolloutReadIsProvisioningWorkflowOrchestratorFacing(t *testing.T) {
 	var rest intakeRest
 	readIntakeYAML(t, filepath.Join(agentDir(t, "creator"), "rest.yaml"), &rest)
 
@@ -415,7 +415,7 @@ func TestCreatorRolloutReadIsCoordinatorFacing(t *testing.T) {
 	}
 	rollout, ok := server.Endpoints["rollout"]
 	if !ok {
-		t.Fatal("creator declares no rollout read; the coordinator has nothing to poll")
+		t.Fatal("creator declares no rollout read; the provisioning-workflow-orchestrator has nothing to poll")
 	}
 	if rollout.Method != "GET" {
 		t.Errorf("creator rollout method = %q, want GET", rollout.Method)
@@ -425,9 +425,9 @@ func TestCreatorRolloutReadIsCoordinatorFacing(t *testing.T) {
 	}
 
 	// The read must not be served on a browser-reachable path prefix. Only the
-	// coordinator's intent server carries /provisioning.
+	// provisioning-workflow-orchestrator's intent server carries /provisioning.
 	if strings.HasPrefix(rollout.Path, "/provisioning") {
-		t.Errorf("creator rollout path %q is on the browser prefix; the creator is coordinator-facing only", rollout.Path)
+		t.Errorf("creator rollout path %q is on the browser prefix; the creator is provisioning-workflow-orchestrator-facing only", rollout.Path)
 	}
 
 	states := rollout.MachineRequest.Response.TerminalStates
@@ -564,17 +564,17 @@ func TestRolloutCountsSurviveTheCreatorHop(t *testing.T) {
 	}
 }
 
-// TestRolloutCountsSurviveTheCoordinatorHop proves the same for the hop the
+// TestRolloutCountsSurviveTheProvisioningWorkflowOrchestratorHop proves the same for the hop the
 // panel actually polls.
-func TestRolloutCountsSurviveTheCoordinatorHop(t *testing.T) {
-	op := clientOperationNamed(t, "coordinator", "creator", "creator_rollout_status")
+func TestRolloutCountsSurviveTheProvisioningWorkflowOrchestratorHop(t *testing.T) {
+	op := clientOperationNamed(t, "provisioning-workflow-orchestrator", "creator", "creator_rollout_status")
 	for _, field := range rolloutCountFields {
 		if got := op.Response.Output[field]; got != "$."+field {
 			t.Errorf("creator_rollout_status maps %s = %q, want $.%s", field, got, field)
 		}
 	}
 
-	properties := wordOutputProperties(t, "coordinator", "request-declarations.yaml", "read_creator_rollout")
+	properties := wordOutputProperties(t, "provisioning-workflow-orchestrator", "request-declarations.yaml", "read_creator_rollout")
 	for _, field := range rolloutCountFields {
 		if properties[field]["type"] != "integer" {
 			t.Errorf("read_creator_rollout output schema declares %s as %q, want integer", field, properties[field]["type"])
@@ -582,26 +582,26 @@ func TestRolloutCountsSurviveTheCoordinatorHop(t *testing.T) {
 	}
 
 	var rest rolloutRest
-	readIntakeYAML(t, filepath.Join(agentDir(t, "coordinator"), "rest.yaml"), &rest)
-	read, ok := rest.Rest.Servers["coordinator_intent"].Endpoints["rollout"].
+	readIntakeYAML(t, filepath.Join(agentDir(t, "provisioning-workflow-orchestrator"), "rest.yaml"), &rest)
+	read, ok := rest.Rest.Servers["provisioning_workflow_orchestrator_intent"].Endpoints["rollout"].
 		MachineRequest.Response.TerminalStates["StatusRead"]
 	if !ok {
-		t.Fatal("coordinator rollout does not map StatusRead")
+		t.Fatal("provisioning-workflow-orchestrator rollout does not map StatusRead")
 	}
 	for _, field := range rolloutCountFields {
 		if got := read.Body[field]; got != "$.mapped."+field {
-			t.Errorf("coordinator rollout body %s = %q, want $.mapped.%s", field, got, field)
+			t.Errorf("provisioning-workflow-orchestrator rollout body %s = %q, want $.mapped.%s", field, got, field)
 		}
 	}
 }
 
 // TestPanelRolloutInterfaceMatchesWhatIsServed proves the panel's RolloutStatus
-// declares exactly the fields the coordinator's poll serves. A type promising a
+// declares exactly the fields the provisioning-workflow-orchestrator's poll serves. A type promising a
 // field no hop carries reads as a measurement in the UI and renders undefined;
 // the fix is to serve it or to stop declaring it, not to fabricate a zero.
 func TestPanelRolloutInterfaceMatchesWhatIsServed(t *testing.T) {
 	// agentDir walks up to the mesh root, so the panel sits two levels above it.
-	meshRoot := filepath.Dir(filepath.Dir(agentDir(t, "coordinator")))
+	meshRoot := filepath.Dir(filepath.Dir(agentDir(t, "provisioning-workflow-orchestrator")))
 	source, err := os.ReadFile(filepath.Join(meshRoot, "ux", "app", "src", "provisioningApi.ts"))
 	if err != nil {
 		t.Fatalf("read provisioningApi.ts: %v", err)
@@ -616,8 +616,8 @@ func TestPanelRolloutInterfaceMatchesWhatIsServed(t *testing.T) {
 	}
 
 	var rest rolloutRest
-	readIntakeYAML(t, filepath.Join(agentDir(t, "coordinator"), "rest.yaml"), &rest)
-	served := rest.Rest.Servers["coordinator_intent"].Endpoints["rollout"].
+	readIntakeYAML(t, filepath.Join(agentDir(t, "provisioning-workflow-orchestrator"), "rest.yaml"), &rest)
+	served := rest.Rest.Servers["provisioning_workflow_orchestrator_intent"].Endpoints["rollout"].
 		MachineRequest.Response.TerminalStates["StatusRead"].Body
 
 	for field, optional := range declared {

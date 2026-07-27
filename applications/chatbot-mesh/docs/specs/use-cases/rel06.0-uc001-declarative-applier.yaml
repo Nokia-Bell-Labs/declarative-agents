@@ -27,7 +27,7 @@ summary: |
 actor: The creator agent, realizing a decided instance operation behind the deployment API.
 
 trigger: |
-  The coordinator decides a values change (add a RAG source, reconfigure a
+  The provisioning-workflow-orchestrator decides a values change (add a RAG source, reconfigure a
   parameter) and the creator submits it to the applier's apply endpoint.
 
 preconditions:
@@ -46,7 +46,7 @@ flow:
   - id: F4
     text: The applier verifies the affected Deployment's rollout via kubectl rollout status and reports the phase with the Deployment's ready and desired replicas and revision, rolling the release back on an apply or verify failure.
   - id: F5
-    text: The applier reports health to the creator, which reports it to the coordinator; a subsequent chat turn is grounded in the applied change.
+    text: The applier reports health to the creator, which reports it to the provisioning-workflow-orchestrator; a subsequent chat turn is grounded in the applied change.
 
 touchpoints:
   - id: T1
@@ -70,7 +70,7 @@ touchpoints:
 
 success_criteria:
   - id: S1
-    criterion: The applier exposes the state, apply, and rollout surface on the provisioner's Service name and port, so the creator's declared client is unchanged. The panel does not call this surface; it submits its intent to the coordinator, which drives the creator (srd003 R4.1, srd004 R1.5).
+    criterion: The applier exposes the state, apply, and rollout surface on the provisioner's Service name and port, so the creator's declared client is unchanged. The panel does not call this surface; it submits its intent to the provisioning-workflow-orchestrator, which drives the creator (srd003 R4.1, srd004 R1.5).
     traces:
       - srd006-applier R1.1
       - srd006-applier R1.3
@@ -102,11 +102,11 @@ success_criteria:
       - srd003-chatbot-deployment AC4
 
   - id: S6
-    criterion: The rendered chart routes browser provisioning traffic to the coordinator, not the apply surface, and the applier apply port stays reachable only from creator-labelled pods, so route and NetworkPolicy agree on one authority path.
+    criterion: The rendered chart routes browser provisioning traffic to the provisioning-workflow-orchestrator, not the apply surface, and the applier apply port stays reachable only from creator-labelled pods, so route and NetworkPolicy agree on one authority path.
     traces:
       - srd006-applier R4.4
       - srd003-chatbot-deployment R4.4
-      - srd004-coordinator R1.5
+      - srd004-provisioning-workflow-orchestrator R1.5
       - srd006-applier AC6
       - srd003-chatbot-deployment AC7
 
@@ -117,7 +117,7 @@ success_criteria:
       - srd006-applier AC3
 
 out_of_scope:
-  - The decision of what to change, which is the coordinator's (srd004 R3.1).
+  - The decision of what to change, which is the provisioning-workflow-orchestrator's (srd004 R3.1).
   - Template selection and agent lifecycle, which are the creator's (srd005).
   - The chat turn path itself (route, embed, fan-out, compose), which is srd002.
 

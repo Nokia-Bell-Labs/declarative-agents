@@ -153,10 +153,10 @@ rest:
             undo: noop
 {{- if .Values.controlPlane.enabled }}
     # The declared client the provisioning panel uses to delegate a provisioning
-    # intent to the coordinator (srd002 R5.1, srd004 R1). Fixed authority: the
+    # intent to the provisioning-workflow-orchestrator (srd002 R5.1, srd004 R1). Fixed authority: the
     # chatbot edits no deployment config itself and feeds no runtime endpoint here.
-    coordinator:
-      base_url: http://{{ $fullname }}-coordinator:{{ .Values.controlPlane.coordinator.ports.intent }}
+    provisioning-workflow-orchestrator:
+      base_url: http://{{ $fullname }}-provisioning-workflow-orchestrator:{{ .Values.controlPlane.provisioningWorkflowOrchestrator.ports.intent }}
       auth_ref: none
       limits_ref: local_provider
       operations:
@@ -186,7 +186,7 @@ rest:
           success: {status: [200], signal: ProvisionDelegated}
           side_effects:
             - kind: external_api
-              target: coordinator.provision
+              target: provisioning-workflow-orchestrator.provision
               state: intent_delegated
           reversibility:
             classification: reversible

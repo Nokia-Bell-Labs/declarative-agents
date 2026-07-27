@@ -1,13 +1,13 @@
 import { useCallback, useEffect, useRef, useState } from "react";
 
 // The provisioning surface the panel drives (srd003 R4). It is same-origin at
-// /provisioning, routed by the chatbot ingress to the coordinator's intent
+// /provisioning, routed by the chatbot ingress to the provisioning-workflow-orchestrator's intent
 // server, so the panel's POST apply avoids the GET-only monitor_proxy and no call
 // crosses origin. The base is values-driven via ux.yaml and defaults to the
 // same-origin path.
 //
 // The panel does not reach the deployment API. Its apply is an operator
-// desired-state decision (srd004 R3.1) submitted to the coordinator, which
+// desired-state decision (srd004 R3.1) submitted to the provisioning-workflow-orchestrator, which
 // orchestrates the creator, which alone calls the applier's apply surface
 // (srd003 R4.4, srd006 R4.1). Pointing the panel at the applier directly is what
 // GH-502 fixed: the applier NetworkPolicy admits only creator-labelled pods, so
@@ -49,7 +49,7 @@ export interface MeshView {
   params: ParamsView;
 }
 
-// RolloutStatus is what the coordinator's rollout poll serves, field for field:
+// RolloutStatus is what the provisioning-workflow-orchestrator's rollout poll serves, field for field:
 // the phase the applier reads from kubectl and the counts it reads off the
 // Deployment, carried through the creator (GH-686). There is no "unknown" phase
 // and no message -- a read the mesh cannot serve answers 502 at every hop rather
@@ -63,7 +63,7 @@ export interface RolloutStatus {
 
 // MeshStateResponse is the flat wire shape GET /provisioning/api/state serves
 // (srd006 deployment_api_contract). machine_request response bodies map one
-// selector per named field, so the applier -> creator -> coordinator chain
+// selector per named field, so the applier -> creator -> provisioning-workflow-orchestrator chain
 // cannot assemble a nested llm/params object from several source paths in one
 // step (GH-753); fetchMeshState reassembles the MeshView the rest of the panel
 // renders from these flat fields -- the one reshape in this feature that

@@ -5,14 +5,14 @@ overview: |
   Specification index for the standalone chatbot mesh example. Seven SRDs define the
   program: three data-plane -- the RAG server agent (srd001), the chatbot agent
   (srd002), and the Helm deployment model (srd003) -- two control-plane -- the
-  coordinator (srd004) and the creator (srd005) -- and the deployment-plane applier
+  provisioning-workflow-orchestrator (srd004) and the creator (srd005) -- and the deployment-plane applier
   (srd006), plus the collector agent (srd007). Nine use cases exercise them
   across eight releases (rel00.0 through rel07.0), each with a formal test suite.
 
   The application runs on the agent-core runtime and cites agent-core platform SRDs
   (srd021, srd028, srd029, srd030, srd033, srd034, srd035, srd036, and srd016
   traceparent) as external references rather than indexing them here. The control
-  plane (coordinator, creator, and the provisioning surface) is release rel05.0; the
+  plane (provisioning-workflow-orchestrator, creator, and the provisioning surface) is release rel05.0; the
   applier (srd006) that replaces the Go provisioning surface with a declarative
   agent is release rel06.0.
 
@@ -33,14 +33,14 @@ role_alignment_index:
     - {current_actor: chatbot, canonical_role_sub_role: "Planner / Intent Handler; Executor / Workflow Orchestrator; Knowledge Manager / Recommendation Generator", retained_or_proposed_name: chatbot, evidence: srd002, migration_impact: none}
     - {current_actor: rag-server, canonical_role_sub_role: "Knowledge Manager / Recommendation Generator", retained_or_proposed_name: rag-server, evidence: srd001, migration_impact: none}
     - {current_actor: corpus-ingest, canonical_role_sub_role: "inherited Knowledge Manager / Ontology Manager", retained_or_proposed_name: corpus-ingest, evidence: "srd001 ingest boundary and wrapper profile", migration_impact: none}
-    - {current_actor: coordinator, canonical_role_sub_role: "Executor / Workflow Orchestrator; not Coordinator", retained_or_proposed_name: provisioning-workflow-orchestrator, evidence: srd004, migration_impact: GH-1077}
+    - {current_actor: provisioning-workflow-orchestrator, canonical_role_sub_role: "Executor / Workflow Orchestrator; not Coordinator", retained_or_proposed_name: provisioning-workflow-orchestrator, evidence: srd004, migration_impact: GH-1077}
     - {current_actor: creator, canonical_role_sub_role: "Creator / Instance Manager; Agent Owner / Agent Lifecycle Manager", retained_or_proposed_name: creator, evidence: srd005, migration_impact: none}
     - {current_actor: applier, canonical_role_sub_role: "Executor / Actuation Agent and Change Manager", retained_or_proposed_name: applier, evidence: srd006, migration_impact: documentation-only}
     - {current_actor: collector, canonical_role_sub_role: "Monitor / Telemetry Collector", retained_or_proposed_name: collector, evidence: srd007, migration_impact: none}
   deployment_evidence:
     - helm/templates/chatbot.yaml
     - helm/templates/rag-units.yaml
-    - helm/templates/coordinator.yaml
+    - helm/templates/provisioning-workflow-orchestrator.yaml
     - helm/templates/creator.yaml
     - helm/templates/applier.yaml
     - helm/templates/collector.yaml
@@ -100,10 +100,10 @@ srd_index:
     title: Chatbot Mesh Deployment Model
     summary: One Helm chart with values-driven RAG pairs, co-generated client config, tiered hot swap, and an in-cluster LLM tier.
     path: docs/specs/software-requirements/srd003-chatbot-deployment.yaml
-  - id: srd004-coordinator
-    title: Coordinator Agent Functional Block
-    summary: The current coordinator actor assumes Executor / Workflow Orchestrator, binds a provisioning intent, and sequences ingestion and reconfiguration through the creator; GH-1077 owns its semantic rename.
-    path: docs/specs/software-requirements/srd004-coordinator.yaml
+  - id: srd004-provisioning-workflow-orchestrator
+    title: Provisioning Workflow Orchestrator Agent Functional Block
+    summary: The current provisioning-workflow-orchestrator actor assumes Executor / Workflow Orchestrator, binds a provisioning intent, and sequences ingestion and reconfiguration through the creator; GH-1077 completed its semantic rename.
+    path: docs/specs/software-requirements/srd004-provisioning-workflow-orchestrator.yaml
   - id: srd005-creator
     title: Creator Agent Functional Block
     summary: Actor assuming Creator / Instance Manager and Agent Owner / Agent Lifecycle Manager that realizes decided operations and alone holds deployment-API authority.
@@ -155,7 +155,7 @@ use_case_index:
     test_suite: test-rel04.0-llm-tier
     path: docs/specs/use-cases/rel04.0-uc001-in-cluster-llm-tier.yaml
   - id: rel05.0-uc001-control-plane-provisioning
-    title: A Provisioning Intent Flows Chatbot to Coordinator to Creator and Serves
+    title: A Provisioning Intent Flows Chatbot to Provisioning Workflow Orchestrator to Creator and Serves
     release: "05.0"
     status: partial
     test_suite: test-rel05.0-control-plane

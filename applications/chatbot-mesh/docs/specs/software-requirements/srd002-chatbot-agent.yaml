@@ -84,7 +84,7 @@ requirements:
   R5:
     title: UX surface
     items:
-      - R5.1: The agent SHALL declare three panels -- chat, observability, and provisioning -- in ux.yaml. The provisioning panel delegates a user's provisioning intent to the coordinator (srd004) through a declared client rather than editing config itself.
+      - R5.1: The agent SHALL declare three panels -- chat, observability, and provisioning -- in ux.yaml. The provisioning panel delegates a user's provisioning intent to the provisioning-workflow-orchestrator (srd004) through a declared client rather than editing config itself.
       - R5.2: static_assets SHALL serve the built SPA that renders the panels; the SPA build and panel content requirements SHALL be owned by their own issues, not this SRD.
   R6:
     title: Transport-authority boundary
@@ -123,10 +123,10 @@ depends_on:
   - srd_id: srd001-rag-server-agent
     symbols_used: [R2]
   # The provisioning panel (R5.1) delegates a user's provisioning intent to the
-  # coordinator through a declared client rather than editing config itself; the
-  # coordinator (srd004) and creator (srd005) are the mesh control plane behind the
+  # provisioning-workflow-orchestrator through a declared client rather than editing config itself; the
+  # provisioning-workflow-orchestrator (srd004) and creator (srd005) are the mesh control plane behind the
   # provisioning surface (srd003 R4). The chat turn path (R1-R3) is unchanged.
-  - srd_id: srd004-coordinator
+  - srd_id: srd004-provisioning-workflow-orchestrator
     symbols_used: [R1]
 
 platform_dependencies:

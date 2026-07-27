@@ -536,7 +536,7 @@ func chartProfilePrograms() []chartProfileProgram {
 	return []chartProfileProgram{
 		{"agents/chatbot", "profiles/agents/chatbot"},
 		{"agents/rag-server", "profiles/agents/rag-server"},
-		{"agents/coordinator", "profiles/agents/coordinator"},
+		{"agents/provisioning-workflow-orchestrator", "profiles/agents/provisioning-workflow-orchestrator"},
 		{"agents/creator", "profiles/agents/creator"},
 		{"agents/applier", "profiles/agents/applier"},
 		{"agents/collector", "profiles/agents/collector"},

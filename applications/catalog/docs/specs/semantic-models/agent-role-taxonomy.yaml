@@ -353,9 +353,9 @@ roles:
       - Confirm a malformed fixture blocks serving instead of failing mid-scenario.
 
 relocated_application_roles:
-  - id: coordinator
+  - id: provisioning-workflow-orchestrator
     status: relocated
-    canonical_profile_path: applications/chatbot-mesh/agents/coordinator/profile.yaml
+    canonical_profile_path: applications/chatbot-mesh/agents/provisioning-workflow-orchestrator/profile.yaml
   - id: creator
     status: relocated
     canonical_profile_path: applications/chatbot-mesh/agents/creator/profile.yaml

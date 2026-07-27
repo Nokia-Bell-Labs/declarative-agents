@@ -37,7 +37,7 @@ flowchart LR
 
 ## Scope and status
 
-The example spans both planes. The data plane is the chatbot, the RAG servers, a corpus-ingest agent that seeds the vector store, observability, and Helm deployment. The control plane is a coordinator agent, a creator agent, and an applier that applies rollout changes to the running mesh. A seventh profile provides the staged declarative collector trace path while contrib retains metrics. The profiles run on agent-core. Release 05 remains partial pending one live ingest-to-grounded-turn proof, and Release 07 remains partial pending collector listener-rebind and final monitor-state lifecycle proof.
+The example spans both planes. The data plane is the chatbot, the RAG servers, a corpus-ingest agent that seeds the vector store, observability, and Helm deployment. The control plane is a provisioning-workflow-orchestrator agent, a creator agent, and an applier that applies rollout changes to the running mesh. A seventh profile provides the staged declarative collector trace path while contrib retains metrics. The profiles run on agent-core. Release 05 remains partial pending one live ingest-to-grounded-turn proof, and Release 07 remains partial pending collector listener-rebind and final monitor-state lifecycle proof.
 
 ## Decisions
 
@@ -63,7 +63,7 @@ Four decisions frame the extraction. They are recorded here so a reader understa
 ```
 applications/chatbot-mesh/
   docs/          VISION, ARCHITECTURE, road-map, and the example's own specs
-  agents/        chatbot, rag-server, corpus-ingest, coordinator, creator, applier, collector
+  agents/        chatbot, rag-server, corpus-ingest, provisioning-workflow-orchestrator, creator, applier, collector
   ux/            the single-page application and UX config
   helm/          the deployment chart
   README.md      this file
@@ -78,7 +78,7 @@ The example carries its own magefile. From this directory:
 mage audit                     # validate the example's specification corpus
 mage helm:package              # stage profiles and build the installable chart
 mage integration:chatbot       # run a routed fan-out chatbot turn
-mage integration:controlPlane  # exercise the coordinator and creator control plane
+mage integration:controlPlane  # exercise the provisioning-workflow-orchestrator and creator control plane
 mage integration:rig           # run hermetic agent scenarios, including collector intake
 ```
 

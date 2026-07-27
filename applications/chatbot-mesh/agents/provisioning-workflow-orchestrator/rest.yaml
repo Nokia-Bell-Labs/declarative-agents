@@ -17,7 +17,7 @@ rest:
         # CREATOR_HOST to the creator Service DNS name, defaulting to loopback locally.
         hosts: [${CREATOR_HOST:-127.0.0.1}]
         ports: [18110]
-    local_coordinator_intent:
+    local_provisioning_workflow_orchestrator_intent:
       timeout: 130s
       read_timeout: 130s
       max_request_bytes: 1048576
@@ -29,7 +29,7 @@ rest:
         hosts: [127.0.0.1, localhost]
         ports: [18100]
         allow_public_listener: true
-    local_coordinator_control:
+    local_provisioning_workflow_orchestrator_control:
       timeout: 30s
       read_timeout: 5s
       max_request_bytes: 16384
@@ -41,7 +41,7 @@ rest:
         hosts: [127.0.0.1, localhost]
         ports: [18101]
         allow_public_listener: true
-    local_coordinator_monitor:
+    local_provisioning_workflow_orchestrator_monitor:
       timeout: 5s
       read_timeout: 5s
       max_request_bytes: 4096
@@ -64,7 +64,7 @@ rest:
           # Delegate a corpus-ingest run for the requested directory to the creator
           # (srd004 R2.1). The creator runs the child, reads the collection back, and
           # returns the count; a run that wrote nothing is a 422 the creator returns,
-          # mapped to Rejected so the coordinator does not reconfigure over an empty
+          # mapped to Rejected so the provisioning-workflow-orchestrator does not reconfigure over an empty
           # source.
           #
           # /api/v1/ingest, not /api/v1/instance: the instance endpoint applies a
@@ -101,7 +101,7 @@ rest:
             # collection: the corpus-ingest profile owns its collection name and
             # agent-core exec tools pass no environment, so the child always
             # writes that profile's collection whatever the intent named. The
-            # coordinator already carries the requested one in its own params
+            # provisioning-workflow-orchestrator already carries the requested one in its own params
             # (carry_forward below).
             #
             # The creator returns the post-run count selected from the terminal
@@ -118,7 +118,7 @@ rest:
             classification: reversible
             undo: noop
         creator_rollout:
-          # Delegate the decided rollout to the creator (srd004 R3.2): the coordinator
+          # Delegate the decided rollout to the creator (srd004 R3.2): the provisioning-workflow-orchestrator
           # forwards the caller's full desired mesh state as the values-plane document
           # (srd004 R3.1; srd006 R1.4 content), threaded here from the carried intent.
           # A values-plane list is replaced wholesale on apply, so the intent carries
@@ -199,7 +199,7 @@ rest:
             requires_confirmation: true
         creator_rollout_status:
           # Read the rollout status the creator reads from the deployment API, so
-          # the coordinator can aggregate progress for the panel (srd004 R1.3). A
+          # the provisioning-workflow-orchestrator can aggregate progress for the panel (srd004 R1.3). A
           # read: it drives no instance operation and decides nothing. GH-684.
           method: GET
           path: /api/v1/rollout
@@ -221,7 +221,7 @@ rest:
             undo: noop
         creator_state:
           # Read the deployed mesh view the creator reads from the deployment API,
-          # so the coordinator can serve the panel's initial load (srd006 R1.5). A
+          # so the provisioning-workflow-orchestrator can serve the panel's initial load (srd006 R1.5). A
           # read: it drives no instance operation and decides nothing. Flat
           # fields, matching the applier's state_response contract -- they
           # travel through unchanged rather than being regrouped here (GH-753).
@@ -252,14 +252,14 @@ rest:
             undo: noop
 
   servers:
-    coordinator_intent:
+    provisioning_workflow_orchestrator_intent:
       # The intent endpoint is served on its own service and port, reached apart from
       # the chat path (srd004 R4.2); the mesh's authentication boundary is
       # deployment-realized (a separate ingress route, and the creator alone holds the
       # deployment-API credential, srd005 R5.1). No runtime input supplies transport
       # authority; the endpoint accepts a declared intent only (srd004 R1.2).
-      address: ${COORDINATOR_BIND_HOST:-127.0.0.1}:18100
-      limits_ref: local_coordinator_intent
+      address: ${PROVISIONING_WORKFLOW_ORCHESTRATOR_BIND_HOST:-127.0.0.1}:18100
+      limits_ref: local_provisioning_workflow_orchestrator_intent
       endpoints:
         provision:
           method: POST
@@ -268,7 +268,7 @@ rest:
           request:
             # The intent carries the full desired mesh state as values: the operator's
             # panel serializes the complete desired values-plane document (the whole
-            # ragUnits list, params, and LLM config) that the coordinator forwards to
+            # ragUnits list, params, and LLM config) that the provisioning-workflow-orchestrator forwards to
             # the creator and applier (srd004 R3.1). rag_name, directory, and
             # collection name the new source to ingest before the rollout.
             body_schema:
@@ -317,7 +317,7 @@ rest:
           # The provisioning panel's apply. It is the operator's desired-state
           # decision (srd004 R3.1) and enters the mesh here, the panel's only
           # provisioning intake (srd004 R1.5, srd003 R4.1). The panel does not reach
-          # the deployment API; the coordinator orchestrates and the creator alone
+          # the deployment API; the provisioning-workflow-orchestrator orchestrates and the creator alone
           # calls the apply surface (srd003 R4.4, srd006 R4.1). GH-502.
           method: POST
           path: /provisioning/api/apply
@@ -456,11 +456,11 @@ rest:
                     stage: $.failure_stage
                     message: $.message
 
-    coordinator_control:
-      address: ${COORDINATOR_BIND_HOST:-127.0.0.1}:18101
-      limits_ref: local_coordinator_control
+    provisioning_workflow_orchestrator_control:
+      address: ${PROVISIONING_WORKFLOW_ORCHESTRATOR_BIND_HOST:-127.0.0.1}:18101
+      limits_ref: local_provisioning_workflow_orchestrator_control
       queue:
-        name: coordinator_control
+        name: provisioning_workflow_orchestrator_control
         capacity: 8
         timeout: 30s
       shutdown:
@@ -487,10 +487,10 @@ rest:
           binding: health
 
     monitor:
-      address: ${COORDINATOR_BIND_HOST:-127.0.0.1}:18102
-      limits_ref: local_coordinator_monitor
+      address: ${PROVISIONING_WORKFLOW_ORCHESTRATOR_BIND_HOST:-127.0.0.1}:18102
+      limits_ref: local_provisioning_workflow_orchestrator_monitor
       queue:
-        name: coordinator_monitor
+        name: provisioning_workflow_orchestrator_monitor
         capacity: 8
         overflow: reject
         timeout: 100ms

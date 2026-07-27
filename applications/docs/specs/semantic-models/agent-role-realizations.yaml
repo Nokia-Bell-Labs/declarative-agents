@@ -360,24 +360,24 @@ bindings:
           - applications/catalog/agents/knowledge-manager/corpus-ingest/profile.yaml
           - applications/chatbot-mesh/agents/creator/request-declarations.yaml
         migration_impact: None; the wrapper has no independent Helm workload and runs as a creator-launched child profile.
-    - actor: coordinator
-      profile: applications/chatbot-mesh/agents/coordinator/profile.yaml
+    - actor: provisioning-workflow-orchestrator
+      profile: applications/chatbot-mesh/agents/provisioning-workflow-orchestrator/profile.yaml
       classification: role_realization
       primary_role: executor
       sub_roles: [workflow-orchestrator]
       domain: provisioning
-      naming_status: boundary_review_required
+      naming_status: aligned_concrete_name
       decision:
-        current_actor: coordinator
+        current_actor: provisioning-workflow-orchestrator
         implemented_responsibility: Sequence optional corpus ingestion followed by a values rollout through declared creator requests and aggregate the terminal result.
         canonical_role_sub_role: Executor / Workflow Orchestrator; explicitly not Coordinator.
-        retained_or_proposed_name: Rename to provisioning-workflow-orchestrator in GH-1077.
+        retained_or_proposed_name: Use provisioning-workflow-orchestrator; implemented in GH-1077.
         authority_boundary: Holds no deployment API, child-process, conflict-resolution, negotiation, or consensus authority; the operator supplies desired values and the creator performs instance operations.
         evidence:
-          - applications/chatbot-mesh/agents/coordinator/request-machine.yaml
-          - applications/chatbot-mesh/agents/coordinator/rest.yaml
-          - applications/chatbot-mesh/helm/templates/coordinator.yaml
-        migration_impact: "GH-1077 coordinates the profile directory/name, Helm workloads and policies, SRD004 and references, integrations, packaging closure, release artifacts, and compatibility decision."
+          - applications/chatbot-mesh/agents/provisioning-workflow-orchestrator/request-machine.yaml
+          - applications/chatbot-mesh/agents/provisioning-workflow-orchestrator/rest.yaml
+          - applications/chatbot-mesh/helm/templates/provisioning-workflow-orchestrator.yaml
+        migration_impact: "GH-1077 migrated the profile directory/name, Helm workloads and policies, SRD004 and references, integrations, packaging closure, release artifacts, and compatibility metadata together."
     - actor: creator
       profile: applications/chatbot-mesh/agents/creator/profile.yaml
       classification: role_realization
@@ -449,10 +449,10 @@ deployment_realizations:
         actor: rag-server
         realizes: knowledge-manager/recommendation-generator
         note: The values-owned unit name identifies a corpus instance, not a role.
-      - workload: <release>-coordinator
-        actor: coordinator
+      - workload: <release>-provisioning-workflow-orchestrator
+        actor: provisioning-workflow-orchestrator
         realizes: executor/workflow-orchestrator
-        migration: GH-1077
+        migration: implemented-by-GH-1077
       - workload: <release>-creator
         actor: creator
         realizes: creator/instance-manager and agent-owner/agent-lifecycle-manager
@@ -570,6 +570,14 @@ migration_aliases:
     supported_through: applications/catalog/v0.*
     removal: applications/catalog/v1
     reason: Historical profile identity; the implementation evaluates output and has no Guardian enforcement authority.
+  - alias: coordinator
+    path: applications/chatbot-mesh/agents/coordinator/profile.yaml
+    status: migration_removed
+    collision_with: coordinator
+    target_name: provisioning-workflow-orchestrator
+    binding: {role: executor, sub_roles: [workflow-orchestrator]}
+    canonical_path: applications/chatbot-mesh/agents/provisioning-workflow-orchestrator/profile.yaml
+    reason: Historical chatbot-mesh actor identity removed by GH-1077; no runtime profile, workload, Service, values-key, or ConfigMap alias is shipped.
 
 non_goals:
   - Change the agent-core profile schema or add role fields to profile.yaml.

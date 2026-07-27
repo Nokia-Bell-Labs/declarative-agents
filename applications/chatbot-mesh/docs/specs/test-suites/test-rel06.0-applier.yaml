@@ -230,8 +230,8 @@ test_cases:
 
   - use_case: rel06.0-uc001-declarative-applier
     name: A broken rollout read is distinguishable from a progressing one, and the counts reach the panel
-    integration_target: mage test (magefiles/applier_rollout_test.go, magefiles/coordinator_intake_test.go, GH-686)
-    go_test: TestApplierRolloutMachineSeparatesBrokenRead, TestApplierRolloutEndpointMapsThreeOutcomes, TestApplierRolloutTerminalMappingsAgree, TestApplierRolloutCountsWordContract, TestApplierRolloutCountsRenderJSON, TestRolloutCountsSurviveTheCreatorHop, TestRolloutCountsSurviveTheCoordinatorHop, TestPanelRolloutInterfaceMatchesWhatIsServed
+    integration_target: mage test (magefiles/applier_rollout_test.go, magefiles/provisioning_workflow_orchestrator_intake_test.go, GH-686)
+    go_test: TestApplierRolloutMachineSeparatesBrokenRead, TestApplierRolloutEndpointMapsThreeOutcomes, TestApplierRolloutTerminalMappingsAgree, TestApplierRolloutCountsWordContract, TestApplierRolloutCountsRenderJSON, TestRolloutCountsSurviveTheCreatorHop, TestRolloutCountsSurviveTheProvisioning Workflow OrchestratorHop, TestPanelRolloutInterfaceMatchesWhatIsServed
     status: done
     description: |
       Asserts over the declared profiles that the rollout read reaches three
@@ -247,28 +247,28 @@ test_cases:
       declared TypeScript interface against what the poll actually serves, in
       both directions.
     inputs:
-      declared_config: the applier, creator, and coordinator profiles and the panel's provisioningApi.ts
+      declared_config: the applier, creator, and provisioning-workflow-orchestrator profiles and the panel's provisioningApi.ts
       deployment_shapes: rolled out, no replica ready yet, freshly created with no revision annotation
     expected:
       unreadable_deployment_returns_gateway_error_not_a_phase: true
       complete_and_progressing_remain_distinguishable: true
       both_phases_carry_ready_desired_revision: true
-      counts_survive_the_creator_and_coordinator_hops: true
+      counts_survive_the_creator_and_provisioning_workflow_orchestrator_hops: true
       panel_interface_declares_exactly_what_is_served: true
     traces:
       - rel06.0-uc001-declarative-applier S7
       - srd006-applier AC3
 
   - use_case: rel06.0-uc001-declarative-applier
-    name: The rendered chart routes provisioning to the coordinator
+    name: The rendered chart routes provisioning to the provisioning-workflow-orchestrator
     integration_target: mage test (magefiles/provisioning_route_render_test.go, GH-681)
-    go_test: TestProvisioningIngressRoutesToTheCoordinator, TestApplierApplyStaysCreatorOnly, TestCoordinatorAdmitsOnlyTheIngressControllerOnIntent, TestNoProvisioningRouteWithoutTheControlPlane
+    go_test: TestProvisioningIngressRoutesToTheProvisioning Workflow Orchestrator, TestApplierApplyStaysCreatorOnly, TestProvisioning Workflow OrchestratorAdmitsOnlyTheIngressControllerOnIntent, TestNoProvisioningRouteWithoutTheControlPlane
     status: done
     description: |
       Asserts over the rendered chart, not the template text, that browser
       provisioning traffic and the apply surface agree on one authority path: the
-      ingress /provisioning backend is the coordinator Service, the applier policy
-      still admits only creator-labelled pods on the apply port, and the coordinator
+      ingress /provisioning backend is the provisioning-workflow-orchestrator Service, the applier policy
+      still admits only creator-labelled pods on the apply port, and the provisioning-workflow-orchestrator
       policy admits the ingress controller on the intent port alone.
 
       This is the check that would have caught GH-502. Each template was individually
@@ -277,15 +277,15 @@ test_cases:
     inputs:
       rendered_chart: default values with applier.enabled and networkPolicy.enabled
     expected:
-      provisioning_ingress_backend: coordinator Service
+      provisioning_ingress_backend: provisioning-workflow-orchestrator Service
       applier_apply_ingress_from: creator-labelled pods only
-      coordinator_policy_admits_ingress_controller_on_intent_port: true
-      coordinator_monitor_and_control_not_ingress_reachable: true
+      provisioning_workflow_orchestrator_policy_admits_ingress_controller_on_intent_port: true
+      provisioning_workflow_orchestrator_monitor_and_control_not_ingress_reachable: true
     traces:
       - rel06.0-uc001-declarative-applier S6
       - srd006-applier AC6
       - srd003-chatbot-deployment AC7
-      - srd004-coordinator AC6
+      - srd004-provisioning-workflow-orchestrator AC6
 
   - use_case: rel06.0-uc001-declarative-applier
     name: The panel route reaches only the authorized surface
@@ -293,7 +293,7 @@ test_cases:
     status: done
     description: |
       Proves against a live cluster with NetworkPolicy enforcement active that the
-      browser provisioning route reaches the coordinator and that the applier apply
+      browser provisioning route reaches the provisioning-workflow-orchestrator and that the applier apply
       port refuses traffic from any pod not labelled creator.
 
       Enforcement is asserted before anything else. A CNI that ignores NetworkPolicy
@@ -302,18 +302,18 @@ test_cases:
       skips.
     inputs:
       cluster: kind with a NetworkPolicy-enforcing CNI
-      positive: request through the ingress to the coordinator intent surface
+      positive: request through the ingress to the provisioning-workflow-orchestrator intent surface
       negative: request to the applier apply port from a non-creator pod
     expected:
       network_policy_enforcement_asserted_active: true
-      browser_route_reaches_coordinator: true
+      browser_route_reaches_provisioning-workflow-orchestrator: true
       applier_apply_refuses_non_creator: true
       creator_instance_port_not_ingress_reachable: true
-      coordinator_reaches_creator_instance: true
+      provisioning_workflow_orchestrator_reaches_creator_instance: true
       creator_reaches_applier_apply: true
     traces:
       - rel06.0-uc001-declarative-applier S6
       - srd006-applier AC6
       - srd003-chatbot-deployment AC7
-      - srd004-coordinator AC6
+      - srd004-provisioning-workflow-orchestrator AC6
       - srd005-creator AC6

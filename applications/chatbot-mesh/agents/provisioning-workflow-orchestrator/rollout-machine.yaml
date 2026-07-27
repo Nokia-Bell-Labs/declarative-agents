@@ -1,9 +1,9 @@
-name: coordinator-rollout-request
+name: provisioning-workflow-orchestrator-rollout-request
 purpose: |-
   One request-scoped read of the rollout status, serving the panel's poll. The
   panel polls while a reconfiguration proceeds and reads progress from the
-  coordinator, not from the deployment API, which no browser may reach
-  (srd003 R4.4, srd004 R1.3). The coordinator asks the creator
+  provisioning-workflow-orchestrator, not from the deployment API, which no browser may reach
+  (srd003 R4.4, srd004 R1.3). The provisioning-workflow-orchestrator asks the creator
   (read_creator_rollout), which reads the applier's rollout endpoint.
 
   This machine is separate from the provisioning request machine because a poll

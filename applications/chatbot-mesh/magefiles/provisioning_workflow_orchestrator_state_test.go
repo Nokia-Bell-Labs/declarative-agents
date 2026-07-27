@@ -11,9 +11,9 @@ import (
 )
 
 // These cover the provisioning panel's initial mesh-view load (srd006 R1.5,
-// GH-753): the panel reads it from the coordinator, not from the deployment
+// GH-753): the panel reads it from the provisioning-workflow-orchestrator, not from the deployment
 // API, which no browser may reach (srd003 R4.4). The chain is
-// coordinator -> creator -> applier, mirroring the rollout read (GH-686); these
+// provisioning-workflow-orchestrator -> creator -> applier, mirroring the rollout read (GH-686); these
 // pin every hop the mesh owns.
 
 // stateFields are the flat fields the applier's state_response contract
@@ -26,13 +26,13 @@ var stateFields = []string{
 	"paramsNResults", "paramsChunkCap", "paramsTierDefault",
 }
 
-// TestCoordinatorServesThePanelStateRead proves the panel's initial load has
+// TestProvisioningWorkflowOrchestratorServesThePanelStateRead proves the panel's initial load has
 // somewhere to land: a missing endpoint here would 404 rather than serve the
 // mesh view.
-func TestCoordinatorServesThePanelStateRead(t *testing.T) {
-	state, ok := coordinatorIntentEndpoints(t)["state"]
+func TestProvisioningWorkflowOrchestratorServesThePanelStateRead(t *testing.T) {
+	state, ok := provisioningWorkflowOrchestratorIntentEndpoints(t)["state"]
 	if !ok {
-		t.Fatal("coordinator intent server declares no state endpoint; the panel's initial load would 404")
+		t.Fatal("provisioning-workflow-orchestrator intent server declares no state endpoint; the panel's initial load would 404")
 	}
 	if state.Method != "GET" {
 		t.Errorf("state method = %q, want GET", state.Method)
@@ -48,7 +48,7 @@ func TestCoordinatorServesThePanelStateRead(t *testing.T) {
 // TestStateReadUsesItsOwnMachine proves a read cannot disturb a reconfiguration
 // already in flight, and cannot enter the apply or rollout legs.
 func TestStateReadUsesItsOwnMachine(t *testing.T) {
-	endpoints := coordinatorIntentEndpoints(t)
+	endpoints := provisioningWorkflowOrchestratorIntentEndpoints(t)
 	state := endpoints["state"]
 	apply := endpoints["apply"]
 	rollout := endpoints["rollout"]
@@ -64,7 +64,7 @@ func TestStateReadUsesItsOwnMachine(t *testing.T) {
 	}
 
 	var machine intakeMachine
-	readIntakeYAML(t, filepath.Join(agentDir(t, "coordinator"), state.MachineRequest.Machine), &machine)
+	readIntakeYAML(t, filepath.Join(agentDir(t, "provisioning-workflow-orchestrator"), state.MachineRequest.Machine), &machine)
 	for _, tr := range machine.Transitions {
 		if tr.Action == "request_ingest" || tr.Action == "request_rollout" {
 			t.Errorf("the state machine drives %q; a read applies nothing", tr.Action)
@@ -77,7 +77,7 @@ func TestStateReadUsesItsOwnMachine(t *testing.T) {
 // default mesh view would render as a legitimate but topology-less mesh, which
 // is worse than an error the panel can show.
 func TestStateReadFailureIsNotASuccessfulEmptyView(t *testing.T) {
-	state := coordinatorIntentEndpoints(t)["state"]
+	state := provisioningWorkflowOrchestratorIntentEndpoints(t)["state"]
 	states := state.MachineRequest.Response.TerminalStates
 	if len(states) == 0 {
 		t.Fatal("state maps no terminal states; a read failure and a successful read would share one status")
@@ -100,10 +100,10 @@ func TestStateReadFailureIsNotASuccessfulEmptyView(t *testing.T) {
 	}
 }
 
-// TestCreatorStateReadIsCoordinatorFacing proves the read exists on the creator
+// TestCreatorStateReadIsProvisioningWorkflowOrchestratorFacing proves the read exists on the creator
 // and stays off the browser path, mirroring the rollout read's boundary
 // (srd005 R5.4).
-func TestCreatorStateReadIsCoordinatorFacing(t *testing.T) {
+func TestCreatorStateReadIsProvisioningWorkflowOrchestratorFacing(t *testing.T) {
 	var rest intakeRest
 	readIntakeYAML(t, filepath.Join(agentDir(t, "creator"), "rest.yaml"), &rest)
 
@@ -113,7 +113,7 @@ func TestCreatorStateReadIsCoordinatorFacing(t *testing.T) {
 	}
 	state, ok := server.Endpoints["state"]
 	if !ok {
-		t.Fatal("creator declares no state read; the coordinator has nothing to serve the panel's initial load from")
+		t.Fatal("creator declares no state read; the provisioning-workflow-orchestrator has nothing to serve the panel's initial load from")
 	}
 	if state.Method != "GET" {
 		t.Errorf("creator state method = %q, want GET", state.Method)
@@ -123,7 +123,7 @@ func TestCreatorStateReadIsCoordinatorFacing(t *testing.T) {
 	}
 
 	if strings.HasPrefix(state.Path, "/provisioning") {
-		t.Errorf("creator state path %q is on the browser prefix; the creator is coordinator-facing only", state.Path)
+		t.Errorf("creator state path %q is on the browser prefix; the creator is provisioning-workflow-orchestrator-facing only", state.Path)
 	}
 
 	states := state.MachineRequest.Response.TerminalStates
@@ -185,17 +185,17 @@ func TestStateFieldsSurviveTheCreatorHop(t *testing.T) {
 	}
 }
 
-// TestStateFieldsSurviveTheCoordinatorHop proves the same for the hop the panel
+// TestStateFieldsSurviveTheProvisioningWorkflowOrchestratorHop proves the same for the hop the panel
 // actually reads.
-func TestStateFieldsSurviveTheCoordinatorHop(t *testing.T) {
-	op := clientOperationNamed(t, "coordinator", "creator", "creator_state")
+func TestStateFieldsSurviveTheProvisioningWorkflowOrchestratorHop(t *testing.T) {
+	op := clientOperationNamed(t, "provisioning-workflow-orchestrator", "creator", "creator_state")
 	for _, field := range stateFields {
 		if got := op.Response.Output[field]; got != "$."+field {
 			t.Errorf("creator_state maps %s = %q, want $.%s", field, got, field)
 		}
 	}
 
-	properties := wordOutputProperties(t, "coordinator", "request-declarations.yaml", "read_creator_state")
+	properties := wordOutputProperties(t, "provisioning-workflow-orchestrator", "request-declarations.yaml", "read_creator_state")
 	for _, field := range stateFields {
 		if _, ok := properties[field]; !ok {
 			t.Errorf("read_creator_state output schema does not declare %s", field)
@@ -203,26 +203,26 @@ func TestStateFieldsSurviveTheCoordinatorHop(t *testing.T) {
 	}
 
 	var rest rolloutRest
-	readIntakeYAML(t, filepath.Join(agentDir(t, "coordinator"), "rest.yaml"), &rest)
-	read, ok := rest.Rest.Servers["coordinator_intent"].Endpoints["state"].
+	readIntakeYAML(t, filepath.Join(agentDir(t, "provisioning-workflow-orchestrator"), "rest.yaml"), &rest)
+	read, ok := rest.Rest.Servers["provisioning_workflow_orchestrator_intent"].Endpoints["state"].
 		MachineRequest.Response.TerminalStates["StateRead"]
 	if !ok {
-		t.Fatal("coordinator state does not map StateRead")
+		t.Fatal("provisioning-workflow-orchestrator state does not map StateRead")
 	}
 	for _, field := range stateFields {
 		if got := read.Body[field]; got != "$.mapped."+field {
-			t.Errorf("coordinator state body %s = %q, want $.mapped.%s", field, got, field)
+			t.Errorf("provisioning-workflow-orchestrator state body %s = %q, want $.mapped.%s", field, got, field)
 		}
 	}
 }
 
 // TestPanelWireStateInterfaceMatchesWhatIsServed proves provisioningApi.ts's
 // MeshStateResponse -- the flat wire type fetchMeshState reshapes into the
-// nested MeshView -- declares exactly the fields the coordinator's state read
+// nested MeshView -- declares exactly the fields the provisioning-workflow-orchestrator's state read
 // serves. A type promising a field no hop carries reads as a measurement in the
 // UI; the fix is to serve it or narrow the interface, not fabricate a zero.
 func TestPanelWireStateInterfaceMatchesWhatIsServed(t *testing.T) {
-	meshRoot := filepath.Dir(filepath.Dir(agentDir(t, "coordinator")))
+	meshRoot := filepath.Dir(filepath.Dir(agentDir(t, "provisioning-workflow-orchestrator")))
 	source, err := os.ReadFile(filepath.Join(meshRoot, "ux", "app", "src", "provisioningApi.ts"))
 	if err != nil {
 		t.Fatalf("read provisioningApi.ts: %v", err)
@@ -237,8 +237,8 @@ func TestPanelWireStateInterfaceMatchesWhatIsServed(t *testing.T) {
 	}
 
 	var rest rolloutRest
-	readIntakeYAML(t, filepath.Join(agentDir(t, "coordinator"), "rest.yaml"), &rest)
-	served := rest.Rest.Servers["coordinator_intent"].Endpoints["state"].
+	readIntakeYAML(t, filepath.Join(agentDir(t, "provisioning-workflow-orchestrator"), "rest.yaml"), &rest)
+	served := rest.Rest.Servers["provisioning_workflow_orchestrator_intent"].Endpoints["state"].
 		MachineRequest.Response.TerminalStates["StateRead"].Body
 
 	for field, optional := range declared {

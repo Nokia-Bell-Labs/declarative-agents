@@ -1,4 +1,4 @@
-name: coordinator
+name: provisioning-workflow-orchestrator
 machine: machine.yaml
 tools:
   - tools.yaml

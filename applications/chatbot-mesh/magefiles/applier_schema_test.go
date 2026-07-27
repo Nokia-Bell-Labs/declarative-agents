@@ -49,7 +49,7 @@ func renderWithValues(t *testing.T, values string) (string, bool) {
 }
 
 // TestChartSchemaAcceptsAConformingPatch proves the schema does not reject the
-// values shape the coordinator actually decides. A schema that rejected
+// values shape the provisioning-workflow-orchestrator actually decides. A schema that rejected
 // everything would pass the rejection test below while breaking every apply.
 func TestChartSchemaAcceptsAConformingPatch(t *testing.T) {
 	out, ok := renderWithValues(t, applierValuesFixture(t, "conforming.yaml"))
@@ -102,7 +102,7 @@ func TestChartSchemaConstrainsTheRAGUnitName(t *testing.T) {
 		t.Error("values.schema.json no longer requires at least one RAG unit; " +
 			"a patch emptying the mesh would validate")
 	}
-	for _, reserved := range []string{"embedding", "coordinator"} {
+	for _, reserved := range []string{"embedding", "provisioning-workflow-orchestrator"} {
 		if !strings.Contains(schema, `"`+reserved+`"`) {
 			t.Errorf("values.schema.json no longer reserves client name %q; a RAG could overwrite a generated REST client", reserved)
 		}
@@ -113,7 +113,7 @@ func TestChartSchemaRejectsReservedRAGClientNames(t *testing.T) {
 	if _, err := exec.LookPath("helm"); err != nil {
 		t.Skip("helm not on PATH")
 	}
-	for _, reserved := range []string{"embedding", "coordinator"} {
+	for _, reserved := range []string{"embedding", "provisioning-workflow-orchestrator"} {
 		t.Run(reserved, func(t *testing.T) {
 			out, err := exec.Command("helm", "template", "t", findChartDir(t),
 				"--set", "ragUnits[0].name="+reserved,

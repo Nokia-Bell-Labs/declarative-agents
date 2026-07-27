@@ -130,13 +130,13 @@ rest:
           reversibility:
             classification: reversible
             undo: noop
-    coordinator:
+    provisioning-workflow-orchestrator:
       # The declared client the provisioning panel uses to delegate a user's
-      # provisioning intent to the coordinator (srd002 R5.1, srd004 R1). Fixed
+      # provisioning intent to the provisioning-workflow-orchestrator (srd002 R5.1, srd004 R1). Fixed
       # authority: the chatbot never edits deployment config itself and never feeds a
       # runtime host, URL, or credential into this client. The base URL is a
       # values-driven Service DNS name, defaulting to loopback for a local run.
-      base_url: ${COORDINATOR_URL:-http://127.0.0.1:18100}
+      base_url: ${PROVISIONING_WORKFLOW_ORCHESTRATOR_URL:-http://127.0.0.1:18100}
       auth_ref: none
       limits_ref: local_provider
       operations:
@@ -166,7 +166,7 @@ rest:
           success: {status: [200], signal: ProvisionDelegated}
           side_effects:
             - kind: external_api
-              target: coordinator.provision
+              target: provisioning-workflow-orchestrator.provision
               state: intent_delegated
           reversibility:
             classification: reversible

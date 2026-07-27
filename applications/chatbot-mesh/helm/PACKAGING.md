@@ -11,7 +11,7 @@ deploys into that directory before `helm package`/`helm install`:
 ```
 applications/chatbot-mesh/agents/chatbot/      -> profiles/agents/chatbot/
 applications/chatbot-mesh/agents/rag-server/   -> profiles/agents/rag-server/
-applications/chatbot-mesh/agents/coordinator/  -> profiles/agents/coordinator/   (control plane)
+applications/chatbot-mesh/agents/provisioning-workflow-orchestrator/  -> profiles/agents/provisioning-workflow-orchestrator/   (control plane)
 applications/chatbot-mesh/agents/creator/      -> profiles/agents/creator/       (control plane)
 applications/chatbot-mesh/agents/applier/      -> profiles/agents/applier/       (deployment plane, srd006)
 applications/chatbot-mesh/agents/collector/    -> profiles/agents/collector/     (trace ingress, srd007)

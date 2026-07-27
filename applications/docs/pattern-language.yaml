@@ -725,10 +725,10 @@ patterns:
         cite: fowler-cqrs-2011
         kind: external
         note: Separating models by responsibility supports the decision/effect boundary, though it does not establish this agent-specific topology.
-      - system: chatbot-mesh coordinator, creator, and applier
+      - system: chatbot-mesh provisioning-workflow-orchestrator, creator, and applier
         cite: reference-implementation
         kind: internal
-        note: The coordinator sequences intent, the creator manages lifecycle, and the applier alone holds Helm and kubectl actuation; no second application currently repeats the full form.
+        note: The provisioning-workflow-orchestrator sequences intent, the creator manages lifecycle, and the applier alone holds Helm and kubectl actuation; no second application currently repeats the full form.
 
 grammar_check:
   note: >

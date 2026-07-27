@@ -1,8 +1,8 @@
-name: coordinator-state-request
+name: provisioning-workflow-orchestrator-state-request
 purpose: |-
   One request-scoped read of the deployed mesh view, serving the panel's initial
-  load (srd006 R1.5). The panel loads its mesh view from the coordinator, not from
-  the deployment API, which no browser may reach (srd003 R4.4). The coordinator
+  load (srd006 R1.5). The panel loads its mesh view from the provisioning-workflow-orchestrator, not from
+  the deployment API, which no browser may reach (srd003 R4.4). The provisioning-workflow-orchestrator
   asks the creator (read_creator_state), which reads the applier's state
   endpoint.
 
