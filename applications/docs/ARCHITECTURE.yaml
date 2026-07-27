@@ -218,6 +218,11 @@ project_structure:
   shared:
     - path: applications/README.md
       role: Human entry point and current module classification.
+    - path: applications/docs/pattern-language.yaml
+      role: |
+        Application composition patterns for catalog consumption, package-time
+        closure, deployment topology, and module governance. It extends the
+        single-agent language instead of restating agent internals.
     - path: applications/docs/VISION.yaml
       role: Shared goals, boundaries, and success criteria.
     - path: applications/docs/ARCHITECTURE.yaml
@@ -279,6 +284,12 @@ implementation_status:
         catalog, not a runnable application.
 
 related_documents:
+  - doc: docs/pattern-language.yaml
+    purpose: |
+      Sibling Alexandrian language for application composition, package-time
+      closure, deployment topology, and module governance. Single-agent
+      machines, tools, execution, and controls remain in
+      ../../design-patterns/pattern-language.yaml.
   - doc: docs/VISION.yaml
     purpose: Shared application goals and exclusions.
   - doc: docs/SPECIFICATIONS.yaml

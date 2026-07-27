@@ -1,0 +1,792 @@
+# =============================================================================
+# pattern-language.yaml
+# A Pattern Language for Declarative Agent Applications
+# =============================================================================
+#
+# WHAT THIS FILE IS
+# -----------------
+# This language describes how runnable applications consume and compose
+# declarative agents. It follows Christopher Alexander's "A Pattern Language"
+# (1977): each pattern names a recurring field of forces and the configuration
+# that resolves them. The patterns form a connected grammar rather than an
+# unordered catalogue.
+#
+# SCOPE BOUNDARY
+# --------------
+# This language covers application-owned composition, package-time closure,
+# deployment topology, and module governance. The sibling language at
+# design-patterns/pattern-language.yaml covers the internals of one declarative
+# agent: its machine, tools, model boundary, execution record, and controls.
+# References with the `da:` prefix link to that language. They never restate it.
+#
+# PROVENANCE
+# ----------
+# The candidates were mined from applications/catalog, chatbot-mesh,
+# coding-agent, and knowledge-manager-demo. Internal recurrence identifies the
+# tensions; external examples establish whether the resolutions recur beyond
+# this repository. Confidence is based on those external examples, never on the
+# number of repository occurrences.
+#
+# ROLE-REALIZATION NAMING AND DIRECTORY CONVENTIONS
+# -------------------------------------------------
+# applications/docs/specs/semantic-models/agent-role-realizations.yaml is the
+# authority for actor-role bindings and names. Use lower-kebab-case
+# `<context-or-purpose>-<primary-role>[-<deployment-or-configuration-form>]`.
+# A bare canonical role name is reserved for a generic reusable realization.
+# Request, session, server, workspace, model, and packaging suffixes describe a
+# realization; they do not create roles or sub-roles. A multi-role actor keeps a
+# descriptive actor name and declares its role bindings separately.
+#
+# Canonical reusable realizations live under applications/catalog/agents/.
+# Application wrappers and compositions live under
+# applications/<application>/agents/. Deployment, UX, tests, and documents stay
+# with their owning application. A directory name records ownership and
+# realization context; canonical role identity comes only from the semantic
+# model. Naming is a convention here, not a numbered pattern, because the mined
+# evidence does not reveal a separate recurring force-resolution beyond
+# discoverability, ownership, and validation.
+#
+# THE ARGUMENT, TOP TO BOTTOM
+# ---------------------------
+# Start with a Capability Ladder so every application carries only obligations
+# justified by what it actually ships. Keep reusable behavior in One Canonical
+# Home, then declare application-owned assembly in a Composition Manifest.
+# Resolve every reference into Package-Time Closure and keep those profiles out
+# of the runtime image with a Profile-Free Runtime. Adapt canonical behavior
+# through a Parameterization Wrapper rather than a fork. Deploy substantial
+# roles as Role-Sharded Workloads so authority and lifecycle remain attributable.
+# Where one application must turn intent into privileged change, an
+# Orchestrate-Act Split may refine that topology, but the present evidence keeps
+# the pattern tentative.
+#
+# HOW TO READ EACH ENTRY
+# ----------------------
+#   id            stable machine-readable identifier
+#   number        position in the language (larger/earlier -> smaller/later)
+#   name          human-readable pattern name
+#   also_known_as prior names for the same structure
+#   confidence    2 deep invariant | 1 well-supported, form newer | 0 tentative
+#   intent        one-sentence statement of what the pattern does
+#   context       the situation (and larger patterns) that must exist first
+#   problem       the headline tension, stated as a question of forces
+#   applicability when to use it, and when its cost is not justified
+#   forces        the competing pressures (the CONSTRAINT side)
+#   solution      the imperative resolution (the RECIPE side)
+#   implementation construction rules that make the pattern executable
+#   consequences  benefits and liabilities — both required
+#   grammar       within / requires / contains / enables / overlaps
+#   syntax        a one-line "sentence" showing the pattern in combination
+#   examples      independent occurrences, each cited to the bibliography;
+#                 kind: external | internal | sibling
+#
+# =============================================================================
+
+title: A Pattern Language for Declarative Agent Applications
+version: 1
+based_on: >
+  Christopher Alexander, Sara Ishikawa, Murray Silverstein, "A Pattern
+  Language: Towns, Buildings, Construction" (Oxford University Press, 1977).
+extends: >
+  "A Pattern Language for Declarative Agents", version 1
+  (../../design-patterns/pattern-language.yaml), referenced with the "da:"
+  prefix.
+
+declarative_agent_application:
+  summary: >
+    A declarative agent application is a runnable, governed composition of one
+    or more agent realizations, application-owned configuration and interfaces,
+    and any package or deployment artifacts needed to operate them. It consumes
+    canonical agent programs by reference and owns the topology that turns
+    those programs into an end-to-end capability.
+  parts:
+    catalog: Canonical reusable agent programs and their conformance evidence.
+    composition: Application-owned references, sequencing, wrappers, and interfaces.
+    package: A resolved closure with provenance when a distributable artifact is required.
+    deployment: Role-scoped workloads, mounts, endpoints, authority, and lifecycle.
+    governance: Capability-dependent requirements, local evidence, and root orchestration.
+  canonical_example: >
+    The coding-agent application references planner, executor, and critic in the
+    catalog, resolves one closed profile tree at package time, mounts the
+    appropriate closure into separate role workloads, and keeps its shared
+    runtime image free of profiles.
+
+role_realization_conventions:
+  authority: applications/docs/specs/semantic-models/agent-role-realizations.yaml
+  naming_form: <context-or-purpose>-<primary-role>[-<deployment-or-configuration-form>]
+  identifier_style: lower-kebab-case
+  directory_rules:
+    - Canonical reusable realizations live under applications/catalog/agents/.
+    - Application wrappers and compositions live under applications/<application>/agents/.
+    - Deployment, UX, test, and documentation artifacts remain with the application that owns them.
+    - Directory and profile names describe ownership and realization context; they do not define canonical roles.
+
+conventions:
+  confidence_scale:
+    "2": Deep invariant; the same force is resolved the same way across many independent systems and prior literature.
+    "1": Well supported by prior art, but the specific form presented here is more recent.
+    "0": Tentative; corroboration is thin and the structure is largely from the single reference implementation.
+  relationship_types:
+    within: Larger patterns whose context this pattern helps complete.
+    requires: Patterns that must already be in place for this one to hold.
+    contains: Smaller patterns that complete or refine this one.
+    enables: Patterns that this one makes possible.
+    overlaps: Patterns that address a neighbouring force by a different means.
+
+# =============================================================================
+# THE PATTERNS
+# =============================================================================
+
+patterns:
+
+  # ---------------------------------------------------------------------------
+  - id: capability-ladder
+    number: 1
+    name: Capability Ladder
+    also_known_as: [Progressive Contract, Capability-Gated Governance]
+    confidence: 1
+    intent: >
+      Assign obligations by declared capability so every runnable application
+      has a common baseline without inheriting packaging or deployment duties it
+      does not need.
+    context: >
+      A repository contains runnable applications ranging from a local
+      presentation to packaged, cluster-managed multi-agent systems. They need
+      one governance vocabulary, but their operating surfaces differ.
+    problem: >
+      How do you enforce a useful application-wide contract when imposing the
+      richest application's requirements on every module would create empty
+      artifacts and false conformance claims?
+    applicability: >
+      Use this when applications share a baseline but expose optional service,
+      package, chart, or integration surfaces. A single homogeneous product
+      with one fixed delivery form can use one undifferentiated contract.
+    forces:
+      - Every runnable module needs ownership, documentation, audit, and evidence.
+      - Optional operational surfaces create real obligations only when present.
+      - Conformance claims must be testable rather than inferred from directories.
+      - New delivery mechanisms must be addable without weakening the baseline.
+    solution: >
+      Define one mandatory runnable-module capability, then add ordered,
+      independently declared capabilities for managed service, package, Helm,
+      and kind-demo behavior. Bind each requirement and acceptance check to the
+      capability that makes it applicable. Require structural evidence for every
+      declaration and permit explicit non-applicability for higher rungs.
+    implementation: >
+      Keep the capability vocabulary in shared application documents. Each
+      application records its declared capabilities, status, evidence, and
+      exclusions. Root orchestration verifies baseline participation; local
+      tests verify optional surfaces. A higher rung may depend on a lower rung,
+      but no empty chart, package, or service stub may satisfy a declaration.
+    consequences:
+      benefits:
+        - Small applications retain a meaningful baseline without ceremonial deployment files.
+        - Reviewers can identify exactly which checks apply to a module.
+        - New capability classes can extend the contract without changing existing declarations.
+      liabilities:
+        - Applicability logic adds another dimension to audits and traceability.
+        - Teams may under-declare capabilities unless evidence checks inspect actual surfaces.
+    grammar:
+      within: []
+      requires: []
+      contains: [one-canonical-home, composition-manifest, package-time-closure, profile-free-runtime, parameterization-wrapper, role-sharded-workload, orchestrate-act-split]
+      enables: [one-canonical-home, composition-manifest]
+      overlaps: []
+    syntax: >
+      Establish the Capability Ladder first; use its declared rungs to decide
+      which composition, packaging, and deployment patterns an application must
+      complete.
+    examples:
+      - system: Kubernetes Operator Capability Levels
+        cite: operator-framework-capabilities
+        kind: external
+        note: Operators are classified by progressively richer lifecycle capabilities instead of requiring every operator to implement the highest level.
+      - system: Progressive enhancement
+        cite: champeon-progressive-enhancement-2003
+        kind: external
+        note: A dependable baseline is preserved while optional layers add obligations only when supported.
+      - system: Shared applications contract
+        cite: reference-implementation
+        kind: internal
+        note: runnable_module is universal; managed_service, packaged, helm_managed, and kind_demo are evidence-gated.
+
+  # ---------------------------------------------------------------------------
+  - id: one-canonical-home
+    number: 2
+    name: One Canonical Home
+    also_known_as: [Single Source of Truth, Reference Not Fork]
+    confidence: 2
+    intent: >
+      Give reusable agent behavior one owning catalog location and make
+      applications consume it by reference instead of copying it.
+    context: >
+      Several applications need the same Agent-as-Data realization while also
+      owning different interfaces, topology, and configuration. A reusable
+      catalog and application directories already have distinct ownership.
+    problem: >
+      How do you let applications reuse and adapt an agent without allowing
+      fixes, compatibility, conformance, and repository counts to diverge among
+      copied profile trees?
+    applicability: >
+      Use this when a profile is independently useful or has multiple consumers.
+      Keep application-only behavior local when promotion would create an
+      unstable abstraction with no second use.
+    forces:
+      - Reusable behavior needs one maintenance and conformance owner.
+      - Applications must control their composition and deployment independently.
+      - Consumer upgrades must be explicit and compatible.
+      - Reused agents must not be counted as new implementations.
+    solution: >
+      Place each reusable profile family, its requirements, and conformance
+      evidence in one canonical catalog directory. Have applications record
+      versioned references to those paths. Keep application-only sequencing,
+      endpoints, wrappers, and UX outside the catalog. Report reuse separately
+      from application-owned agent implementations.
+    implementation: >
+      Admit a catalog member only when it is independently useful or has
+      multiple consumers. Version compatibility-sensitive paths and contracts.
+      Reject copied canonical machines or declarations in application audits.
+      Track source path and release or revision in each application manifest,
+      and count only the canonical owner in repository statistics.
+    consequences:
+      benefits:
+        - Fixes and conformance changes have one upstream location.
+        - Ownership is visible in paths and statistics.
+        - Applications can upgrade a known catalog revision on their own schedule.
+      liabilities:
+        - Consumers need reference resolution and compatibility policy.
+        - A catalog change may require coordinated migration across several applications.
+    grammar:
+      within: [capability-ladder]
+      requires: [da:agent-as-data]
+      contains: [composition-manifest, parameterization-wrapper]
+      enables: [composition-manifest, package-time-closure, parameterization-wrapper]
+      overlaps: []
+    syntax: >
+      Under the Capability Ladder, keep every reusable Agent-as-Data in One
+      Canonical Home, then let Composition Manifests reference it.
+    examples:
+      - system: Bazel external repositories
+        cite: bazel-external-dependencies
+        kind: external
+        note: Consumers pin and reference one dependency source rather than copying its implementation into each target.
+      - system: Git submodules
+        cite: git-submodules
+        kind: external
+        note: A repository records an exact external revision while preserving the external project as canonical owner.
+      - system: Don't Repeat Yourself
+        cite: hunt-thomas-pragmatic-1999
+        kind: external
+        note: Each piece of knowledge has one authoritative representation, matching the ownership force here.
+      - system: Catalog and three runnable applications
+        cite: reference-implementation
+        kind: internal
+        note: coding-agent and knowledge-manager-demo reference canonical profiles; chatbot-mesh wraps canonical corpus-ingest while owning local mesh agents.
+
+  # ---------------------------------------------------------------------------
+  - id: composition-manifest
+    number: 3
+    name: Composition Manifest
+    also_known_as: [Application Bill of Materials, Assembly Manifest]
+    confidence: 1
+    intent: >
+      Record direct agent references, compatibility, runtime mounts, and
+      application-owned bindings in one parseable composition root.
+    context: >
+      One Canonical Home prevents copying, but references spread among prose,
+      scripts, charts, and profiles leave no complete account of what the
+      application assembles or which configuration it owns.
+    problem: >
+      How do you make an application composition reviewable and resolvable when
+      its agents remain owned elsewhere and deployment-specific bindings stay
+      local?
+    applicability: >
+      Use this for any application that assembles catalog profiles, local
+      wrappers, or several serving roles. A one-profile local demo may use a
+      small manifest, but still benefits when it participates in governance.
+    forces:
+      - Direct dependencies and compatible versions must be explicit.
+      - Application-owned bindings must not mutate canonical source files.
+      - Packaging needs a deterministic set of closure roots.
+      - Reviewers need one place to distinguish composition from implementation.
+    solution: >
+      Create one application-owned manifest that names every direct canonical
+      and local profile root, its source path, runtime path, compatible catalog
+      release, runtime mount, and configurable surfaces. Treat this manifest as
+      the root of packaging and deployment, while profiles remain the authority
+      for their own transitive references.
+    implementation: >
+      Use a schema-versioned YAML document. Reject duplicate runtime paths,
+      missing sources, unsafe traversal, unresolved compatibility, and request
+      input that selects trusted roots or credentials. Keep deployment entries
+      separate from reusable catalog references. Validate the manifest in the
+      application audit and pass it unchanged to the closure resolver.
+    consequences:
+      benefits:
+        - Composition is reviewable without reading build scripts or chart templates.
+        - Package roots and provenance have one machine-readable source.
+        - Local configuration ownership is explicit.
+      liabilities:
+        - The manifest can drift unless packaging and deployment consume it directly.
+        - It adds a maintained index alongside the referenced profile files.
+    grammar:
+      within: [capability-ladder, one-canonical-home]
+      requires: [one-canonical-home, da:agent-as-data]
+      contains: [parameterization-wrapper]
+      enables: [package-time-closure, role-sharded-workload]
+      overlaps: []
+    syntax: >
+      Reference each One Canonical Home from a Composition Manifest; use those
+      roots for Package-Time Closure and deployment.
+    examples:
+      - system: OCI Image Index
+        cite: oci-image-spec
+        kind: external
+        note: A manifest identifies versioned component descriptors and content digests while blobs remain independently owned.
+      - system: CycloneDX software bill of materials
+        cite: cyclonedx-spec
+        kind: external
+        note: A machine-readable root records components, dependencies, and provenance for later verification.
+      - system: coding-agent application.yaml
+        cite: reference-implementation
+        kind: internal
+        note: The manifest records catalog release compatibility, direct role references, runtime paths, mount policy, serving profiles, and configuration surfaces.
+      - system: Knowledge Manager composition reporting
+        cite: reference-implementation
+        kind: internal
+        note: The demo records one canonical reference and zero contributed agents even though it has no packaged closure.
+
+  # ---------------------------------------------------------------------------
+  - id: package-time-closure
+    number: 4
+    name: Package-Time Closure
+    also_known_as: [Transitive Profile Closure, Hermetic Bundle]
+    confidence: 2
+    intent: >
+      Resolve and verify every reachable profile asset before release so the
+      deployed application has no source-catalog dependency.
+    context: >
+      A Composition Manifest names direct profiles, but each profile may
+      reference machines, declarations, tools, REST definitions, child profiles,
+      and configuration files across several roots.
+    problem: >
+      How do you preserve canonical reuse during development while ensuring a
+      released application cannot fail because a transitive profile asset is
+      missing or changed after deployment?
+    applicability: >
+      Use this whenever an application ships a package, chart, or disconnected
+      deployment. A source-only local application can resolve references at
+      startup, provided its checkout and revision remain explicit.
+    forces:
+      - Canonical source must remain external during authoring.
+      - Runtime startup must not depend on a mutable catalog checkout.
+      - Every transitive reference and its provenance must be known before release.
+      - Unsafe, conflicting, or oversized assets must fail before deployment.
+    solution: >
+      Starting from the Composition Manifest, traverse profile references at
+      package time, snapshot the compatible catalog revision, and copy the exact
+      transitive closure into an application-owned runtime namespace. Preserve
+      stable runtime paths, record content and source provenance, and reject any
+      unresolved, escaping, conflicting, or unbounded member.
+    implementation: >
+      Resolve relative references from the file that declares them and catalog
+      references from the pinned catalog root. Exclude documented runtime-owned
+      roots such as /opt/agent-core. Sort output deterministically, hash content,
+      and emit an inventory that deployment consumes. Re-run profile validation
+      against the assembled tree and verify that the release archive contains
+      every inventory member and no undeclared profile source.
+    consequences:
+      benefits:
+        - Missing dependencies fail packaging rather than a live workload.
+        - Release artifacts are deterministic and independently deployable.
+        - Every entry profile can be traced to an exact source revision.
+      liabilities:
+        - Packaging duplicates bytes from the canonical source into release artifacts.
+        - Closure traversal must track every reference-bearing schema field as formats evolve.
+    grammar:
+      within: [capability-ladder]
+      requires: [one-canonical-home, composition-manifest]
+      contains: [profile-free-runtime]
+      enables: [profile-free-runtime, role-sharded-workload]
+      overlaps: []
+    syntax: >
+      Traverse the Composition Manifest into a Package-Time Closure, validate
+      the assembled tree, and mount it into a Profile-Free Runtime.
+    examples:
+      - system: Nix closures
+        cite: dolstra-nix-2006
+        kind: external
+        note: Deployment copies the complete transitive runtime dependency graph addressed by immutable paths.
+      - system: Bazel runfiles
+        cite: bazel-runfiles
+        kind: external
+        note: A target's declared runtime data is assembled into a deterministic tree before execution.
+      - system: OCI content-addressed images
+        cite: oci-image-spec
+        kind: external
+        note: Manifests close over immutable blobs and verify them by digest before distribution.
+      - system: coding-agent profile closure
+        cite: reference-implementation
+        kind: internal
+        note: Packaging resolves one exact closure per serving role, records provenance and checksums, and rejects dangling or conflicting references.
+      - system: chatbot-mesh corpus-ingest package
+        cite: reference-implementation
+        kind: internal
+        note: The application resolves the canonical corpus-ingest closure at build time and embeds it in the chart.
+
+  # ---------------------------------------------------------------------------
+  - id: profile-free-runtime
+    number: 5
+    name: Profile-Free Runtime
+    also_known_as: [Behavior-Free Image, Runtime-Profile Separation]
+    confidence: 1
+    intent: >
+      Keep reusable runtime images free of application profiles and inject a
+      verified closure through an explicit mount and startup path.
+    context: >
+      Package-Time Closure produces the application's behavior as data.
+      Embedding that data in a shared runtime image would tie behavior releases
+      to binary rebuilds and blur ownership between runtime and application.
+    problem: >
+      How do you give workloads complete agent behavior while preserving
+      independent runtime and profile release cycles?
+    applicability: >
+      Use this when several applications or roles share one agent runtime. A
+      purpose-built appliance with inseparable code and behavior may choose a
+      single image, but then it gives up independent profile governance.
+    forces:
+      - Runtime code and application behavior need separate owners and release cadence.
+      - Startup must select an explicit, validated profile.
+      - Every workload must receive the package it was tested against.
+      - Operators need visible mounts and arguments rather than hidden image contents.
+    solution: >
+      Build runtime images with the interpreter and required execution
+      toolchain, but no application or catalog profiles. Supply the verified
+      Package-Time Closure as a mounted tree and pass one explicit profile path
+      at process startup. Record and test the profile-free image invariant in
+      package and deployment metadata.
+    implementation: >
+      Scan image and archive inventories for forbidden profile roots. Mount the
+      closure at a stable path such as /profiles, use an argv profile selector,
+      and keep workspace mounts separate. Include only runtime toolchains needed
+      by the selected agents. Test rendered workloads for image identity, mount
+      source, profile argument, and closure checksum.
+    consequences:
+      benefits:
+        - Runtime patches do not silently change application behavior.
+        - One tested image can execute several role-specific closures.
+        - Profile provenance remains visible outside the image.
+      liabilities:
+        - Deployment must coordinate image and mounted closure compatibility.
+        - Mount and startup misconfiguration becomes a new failure mode.
+    grammar:
+      within: [capability-ladder, package-time-closure]
+      requires: [package-time-closure, da:agent-as-data]
+      contains: []
+      enables: [role-sharded-workload]
+      overlaps: [parameterization-wrapper]
+    syntax: >
+      Mount each verified Package-Time Closure into a Profile-Free Runtime and
+      select its entry profile explicitly.
+    examples:
+      - system: Twelve-Factor build, release, run
+        cite: twelve-factor-build-release-run
+        kind: external
+        note: Immutable builds combine with configuration at release and run stages rather than hiding mutable behavior in code.
+      - system: Kubernetes ConfigMap projection
+        cite: kubernetes-configmaps
+        kind: external
+        note: Configuration data is mounted into a reusable container image and selected by the workload.
+      - system: coding-agent runtime image
+        cite: reference-implementation
+        kind: internal
+        note: Planner, executor, and critic share one runtime image containing the required toolchain but no profiles.
+      - system: agent-core mounted profile contract
+        cite: reference-implementation
+        kind: internal
+        note: Runtime containers consume externally supplied profiles through an explicit --profile path.
+
+  # ---------------------------------------------------------------------------
+  - id: parameterization-wrapper
+    number: 6
+    name: Parameterization Wrapper
+    also_known_as: [Application Overlay, Configuration Wrapper]
+    confidence: 1
+    intent: >
+      Adapt a canonical realization with application-owned endpoints,
+      configuration, or serving form while inheriting its role bindings and
+      behavior.
+    context: >
+      One Canonical Home forbids application forks, yet applications need local
+      collections, endpoints, model choices, request servers, and packaging
+      paths that do not belong in a reusable catalog profile.
+    problem: >
+      How do you vary deployment and configuration without copying canonical
+      machines or inventing new semantic roles for each variant?
+    applicability: >
+      Use this when the canonical realization already has the required behavior
+      and only bindings or presentation differ. If the application changes the
+      reusable responsibility or machine semantics, create a justified local
+      realization or promote a new canonical member.
+    forces:
+      - Canonical behavior must remain owned and tested upstream.
+      - Application-specific authority and endpoints must remain local.
+      - Variants need stable, descriptive identities.
+      - Role and sub-role bindings must not multiply with deployment forms.
+    solution: >
+      Create a thin application profile that selects the canonical machine or
+      closure and supplies only application-owned configuration, endpoints,
+      serving lifecycle, or packaging paths. Inherit the canonical
+      role-realization binding. Name the wrapper by context, primary role, and
+      optional deployment or configuration suffix under the semantic model's
+      grammar.
+    implementation: >
+      Keep wrappers under applications/<application>/agents/. Record the
+      canonical inheritance target and reject cycles. Permit overrides of
+      domain, execution scope, deployment form, and configuration; require an
+      explicit responsibility justification before replacing role bindings.
+      Package the wrapper and canonical assets in one closure without modifying
+      the source checkout.
+    consequences:
+      benefits:
+        - Applications vary configuration without forking reusable behavior.
+        - Actor names communicate context while canonical role coverage remains stable.
+        - Endpoint and deployment authority stays with the consuming application.
+      liabilities:
+        - Deep wrapper chains can obscure the effective configuration.
+        - An overly broad wrapper can become an ungoverned fork in disguise.
+    grammar:
+      within: [one-canonical-home, composition-manifest]
+      requires: [one-canonical-home, composition-manifest, da:agent-as-data]
+      contains: []
+      enables: [package-time-closure, role-sharded-workload]
+      overlaps: [profile-free-runtime]
+    syntax: >
+      Add a Parameterization Wrapper around the One Canonical Home, record it in
+      the Composition Manifest, and resolve both into one closure.
+    examples:
+      - system: Kustomize bases and overlays
+        cite: kubernetes-kustomize
+        kind: external
+        note: An application-specific overlay changes selected configuration while retaining a canonical base.
+      - system: Decorator pattern
+        cite: gamma-design-patterns-1994
+        kind: external
+        note: A wrapper adds responsibility around an existing component without copying or replacing its core implementation.
+      - system: chatbot-mesh corpus-ingest wrapper
+        cite: reference-implementation
+        kind: internal
+        note: The mesh selects the canonical ingest machine and adds local REST, model, and collection configuration.
+      - system: coding-agent serving profiles
+        cite: reference-implementation
+        kind: internal
+        note: Server and request profiles inherit canonical planner, executor, and critic realizations while adding application-owned serving behavior.
+
+  # ---------------------------------------------------------------------------
+  - id: role-sharded-workload
+    number: 7
+    name: Role-Sharded Workload
+    also_known_as: [One Role per Workload, Deployment Role Shard]
+    confidence: 2
+    intent: >
+      Run substantial agent roles in separate workloads so lifecycle,
+      authority, resources, and evidence remain attributable.
+    context: >
+      A composition contains several persistent or independently scalable
+      realizations. Package-Time Closure and Profile-Free Runtime allow each
+      workload to receive only its reachable program and select one entry
+      profile.
+    problem: >
+      How do you deploy a multi-agent composition without turning all roles into
+      one process with shared authority, coupled failure, and ambiguous health?
+    applicability: >
+      Use this for independently addressable, scalable, privileged, or
+      long-running roles. Keep tightly coupled finite child runs inside a parent
+      boundary when separate process lifecycle would add no isolation or
+      operational value.
+    forces:
+      - Authority and workspace access should narrow to each role.
+      - Health, traces, failures, and resource use must be attributable.
+      - Roles may scale or roll out independently.
+      - Excessive service boundaries increase latency and operational cost.
+    solution: >
+      Assign each substantial serving role its own workload, entry profile,
+      reachable closure, mounts, service identity, probes, resources, and
+      authority. Connect roles through declared agent boundaries and propagate
+      trace context. Co-locate only when the loss of isolation is explicitly
+      cheaper than another managed workload.
+    implementation: >
+      Generate role manifests from the Composition Manifest and closure
+      inventory. Mount only reachable files and required workspaces. Give each
+      workload truthful role-owned readiness and lifecycle endpoints, not an
+      unrelated sidecar probe. Scope credentials and network access by role,
+      include closure checksums in rollout identity, and test the real
+      inter-role path.
+    consequences:
+      benefits:
+        - Least authority, independent rollout, and role-attributable evidence.
+        - Failure and resource boundaries mirror the application composition.
+        - Workloads can scale according to role-specific demand.
+      liabilities:
+        - More workloads increase deployment, networking, and observability overhead.
+        - Remote boundaries add latency and partial-failure modes.
+    grammar:
+      within: [capability-ladder]
+      requires: [composition-manifest, package-time-closure, profile-free-runtime, da:boundary-tool]
+      contains: [orchestrate-act-split]
+      enables: [orchestrate-act-split]
+      overlaps: []
+    syntax: >
+      Give each deployed role its own closure-backed, Profile-Free Runtime and
+      connect Role-Sharded Workloads through declared Boundary Tools.
+    examples:
+      - system: Microservices
+        cite: newman-microservices-2021
+        kind: external
+        note: Independently deployable services isolate ownership, lifecycle, scaling, and failure around a bounded responsibility.
+      - system: Principle of least privilege
+        cite: saltzer-schroeder-1975
+        kind: external
+        note: Separate workloads can hold only the mounts, credentials, and network authority required by their role.
+      - system: Kubernetes workload controllers
+        cite: kubernetes-workloads
+        kind: external
+        note: Deployments give independently managed processes explicit rollout, replica, probe, and resource boundaries.
+      - system: coding-agent planner, executor, and critic
+        cite: reference-implementation
+        kind: internal
+        note: Kubernetes runs the three serving roles separately with role closures, services, health, workspace authority, and connected traces.
+      - system: chatbot mesh
+        cite: reference-implementation
+        kind: internal
+        note: Chatbot, RAG, ingest, control-plane, actuation, and telemetry realizations run as separately governed workloads.
+
+  # ---------------------------------------------------------------------------
+  - id: orchestrate-act-split
+    number: 8
+    name: Orchestrate-Act Split
+    also_known_as: [Control-Actuation Separation, Decide Then Apply]
+    confidence: 0
+    intent: >
+      Separate intent sequencing from privileged actuation so the orchestrator
+      cannot directly change deployment state.
+    context: >
+      A Role-Sharded Workload topology includes a control plane that translates
+      user intent into several dependent changes, some requiring deployment
+      authority and rollback.
+    problem: >
+      How do you let an agent plan and coordinate a change without granting that
+      same actor the credentials and mechanics to apply it?
+    applicability: >
+      Use this when orchestration and actuation have materially different
+      authority, audit, validation, or rollback requirements. Do not split a
+      simple local action only to imitate a control plane. The current
+      application-specific form is tentative because only chatbot-mesh ships it.
+    forces:
+      - Intent sequencing needs broad system context but not deployment credentials.
+      - Actuation needs narrow privileged authority and deterministic validation.
+      - Decisions and applied effects need separate audit evidence.
+      - Extra boundaries add failure states and coordination cost.
+    solution: >
+      Put intent decomposition and sequencing in an orchestrator workload.
+      Send a bounded, decided change request to a separate actuator that alone
+      holds deployment authority, validates the request, applies it atomically,
+      verifies rollout, and rolls back on failure. Return status through the
+      declared boundary rather than sharing credentials or mutable control state.
+    implementation: >
+      Define separate profiles, services, credentials, and network policy.
+      Keep deployment clients out of the orchestrator's tool inventory. Give the
+      actuator a closed request schema, idempotency or transaction boundary,
+      preflight validation, rollout observation, and compensation path. Link
+      traces across both workloads and retain the decision and effect records.
+    consequences:
+      benefits:
+        - Compromise of the planner does not directly confer deployment authority.
+        - Decision and actuation failures are independently diagnosable.
+        - Rollback and rollout validation stay close to the privileged tools.
+      liabilities:
+        - The extra remote boundary introduces latency and partial failure.
+        - Request schema evolution must be coordinated across both workloads.
+        - Evidence in this repository is presently limited to one application topology.
+    grammar:
+      within: [role-sharded-workload]
+      requires: [role-sharded-workload, da:phase-scoped-toolset, da:boundary-tool]
+      contains: []
+      enables: []
+      overlaps: [da:approval-gate]
+    syntax: >
+      Within Role-Sharded Workloads, let the orchestrator decide and let a
+      separately authorized actuator validate, apply, verify, and compensate.
+    examples:
+      - system: Kubernetes controller and API server
+        cite: burns-borg-omega-kubernetes-2016
+        kind: external
+        note: Controllers decide desired reconciliation while the API server mediates authorized state changes, a related but not identical split.
+      - system: Command-query responsibility segregation
+        cite: fowler-cqrs-2011
+        kind: external
+        note: Separating models by responsibility supports the decision/effect boundary, though it does not establish this agent-specific topology.
+      - system: chatbot-mesh coordinator, creator, and applier
+        cite: reference-implementation
+        kind: internal
+        note: The coordinator sequences intent, the creator manages lifecycle, and the applier alone holds Helm and kubectl actuation; no second application currently repeats the full form.
+
+grammar_check:
+  note: >
+    Capability Ladder is the root. Every local pattern is connected through
+    containment, prerequisites, or refinements, and all `da:` references resolve
+    to the declared sibling language.
+
+# =============================================================================
+# BIBLIOGRAPHY
+# =============================================================================
+
+bibliography:
+  reference-implementation:
+    text: "Nokia Bell Labs. (2026). Declarative Agents repository: applications/catalog, applications/chatbot-mesh, applications/coding-agent, applications/knowledge-manager-demo, and shared application documents. Internal evidence, not an independent source."
+  operator-framework-capabilities:
+    text: "Operator Framework Authors. (2024). Operator Capability Levels. Operator SDK Documentation."
+    url: https://sdk.operatorframework.io/docs/overview/operator-capabilities/
+  champeon-progressive-enhancement-2003:
+    text: "Champeon, S., & Finck, N. (2003). Inclusive Web Design for the Future with Progressive Enhancement. South by Southwest Interactive."
+  bazel-external-dependencies:
+    text: "Bazel Authors. (2025). External Dependencies Overview. Bazel Documentation."
+    url: https://bazel.build/external/overview
+  git-submodules:
+    text: "Chacon, S., & Straub, B. (2014). Pro Git (2nd ed.), Git Tools: Submodules. Apress."
+    url: https://git-scm.com/book/en/v2/Git-Tools-Submodules
+  hunt-thomas-pragmatic-1999:
+    text: "Hunt, A., & Thomas, D. (1999). The Pragmatic Programmer: From Journeyman to Master. Addison-Wesley. (Don't Repeat Yourself.)"
+  oci-image-spec:
+    text: "Open Container Initiative. (2024). OCI Image Format Specification, Version 1.1."
+    url: https://github.com/opencontainers/image-spec
+  cyclonedx-spec:
+    text: "OWASP Foundation. (2024). CycloneDX Bill of Materials Standard, Version 1.6."
+    url: https://cyclonedx.org/specification/overview/
+  dolstra-nix-2006:
+    text: "Dolstra, E. (2006). The Purely Functional Software Deployment Model. PhD thesis, Utrecht University."
+  bazel-runfiles:
+    text: "Bazel Authors. (2025). Runfiles and Runtime Dependencies. Bazel Documentation."
+    url: https://bazel.build/extending/rules#runfiles
+  twelve-factor-build-release-run:
+    text: "Wiggins, A. (2017). The Twelve-Factor App: Strictly Separate Build and Run Stages."
+    url: https://12factor.net/build-release-run
+  kubernetes-configmaps:
+    text: "Kubernetes Authors. (2025). ConfigMaps. Kubernetes Documentation."
+    url: https://kubernetes.io/docs/concepts/configuration/configmap/
+  kubernetes-kustomize:
+    text: "Kubernetes Authors. (2025). Declarative Management of Kubernetes Objects Using Kustomize. Kubernetes Documentation."
+    url: https://kubernetes.io/docs/tasks/manage-kubernetes-objects/kustomization/
+  gamma-design-patterns-1994:
+    text: "Gamma, E., Helm, R., Johnson, R., & Vlissides, J. (1994). Design Patterns: Elements of Reusable Object-Oriented Software. Addison-Wesley. (Decorator.)"
+  newman-microservices-2021:
+    text: "Newman, S. (2021). Building Microservices (2nd ed.). O'Reilly Media."
+  saltzer-schroeder-1975:
+    text: "Saltzer, J. H., & Schroeder, M. D. (1975). The Protection of Information in Computer Systems. Proceedings of the IEEE, 63(9), 1278-1308."
+  kubernetes-workloads:
+    text: "Kubernetes Authors. (2025). Workloads. Kubernetes Documentation."
+    url: https://kubernetes.io/docs/concepts/workloads/
+  burns-borg-omega-kubernetes-2016:
+    text: "Burns, B., Grant, B., Oppenheimer, D., Brewer, E., & Wilkes, J. (2016). Borg, Omega, and Kubernetes. Communications of the ACM, 59(5), 50-57."
+  fowler-cqrs-2011:
+    text: "Fowler, M. (2011). CQRS. martinfowler.com."
+    url: https://martinfowler.com/bliki/CQRS.html

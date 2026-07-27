@@ -26,6 +26,13 @@ roadmap_summary:
     evidence: Root Go tests and application Mage gates are executable.
 
 foundation_document_index:
+  - id: application-composition-pattern-language
+    title: A Pattern Language for Declarative Agent Applications
+    summary: |
+      Recurring application-composition, package-time closure, deployment
+      topology, and module-governance patterns linked to the single-agent
+      language and the role-realization semantic model.
+    path: docs/pattern-language.yaml
   - id: applications-shared-contract
     title: Shared Contract for Runnable Applications
     summary: Goals, boundaries, and capability-aware success criteria.
