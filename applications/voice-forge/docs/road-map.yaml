@@ -37,8 +37,8 @@ releases:
         status: specified
         summary: Define exact flat orchestration, srd003 action mappings, persistence sequencing, responsible-stage replay, recovery, budgets, publication escalation, and terminal outcomes.
       - id: srd005-structure-editor
-        status: planned
-        summary: Define the structure diagnosis and rewrite machine.
+        status: specified
+        summary: Define flat request validation, section-and-outline retrieval, one refinement, structure-only editing, semantic constraints, outcomes, and provenance.
       - id: srd006-voice-editor
         status: planned
         summary: Define rhetorical-role retrieval, voice rewrite, provenance, and copy-risk behavior.
@@ -107,8 +107,8 @@ releases:
         status: planned_dependency
     evidence_status:
       foundation_yaml: documented
-      srd_requirements: srd001_through_srd004_specified_srd005_through_srd008_not_created
-      reciprocal_traceability: srd001_through_srd004_indexed_use_case_and_test_suite_planned
+      srd_requirements: srd001_through_srd005_specified_srd006_through_srd008_not_created
+      reciprocal_traceability: srd001_through_srd005_indexed_use_case_and_test_suite_planned
       profiles_and_machines: not_implemented
       tools_and_services: not_implemented
       structural_tests: not_implemented

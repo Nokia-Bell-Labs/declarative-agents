@@ -452,10 +452,36 @@ word_vocabulary:
       authority: Reads only the recorded PR in the configured repository.
 
   editor_and_critic_retrieval:
+    - name: validate_structure_request
+      owner: structure-editor
+      implementation: {type: builtin, factory: parse_structured, reuse: Validate the structure-editor request envelope and bounded policy.}
+      inputs: [supplied parent bytes and artifact ID, saga/stage/attempt identity, bounded structure policy, required-content inventory, invocation identity]
+      outputs: [validated parent bytes and identity, normalized structure intent, protected-content inventory, refinement count zero]
+      emits: [StructureRequestValid, StructureRequestRejected, CommandError]
+      infrastructure_errors: [missing schema, selector failure, validator failure]
+      domain_errors: [missing or empty parent, wrong stage, malformed identity, unsupported intent, invalid required-content inventory, path or authority-bearing field present]
+      side_effects: [none]
+      reversibility: {classification: reversible, undo: noop}
+      compensation: No state exists to compensate.
+      authority: Validates supplied bytes, identities, and bounded enums only; cannot read a path, widen policy, or add content.
+
+    - name: formulate_structure_query
+      owner: structure-editor
+      implementation: {type: builtin, factory: compose, reuse: Deterministic configured section-and-outline query template.}
+      inputs: [validated structure intent, parent section and outline descriptors, optional prior query and evidence summary, refinement count zero or one]
+      outputs: [bounded structure question text, query identity, refinement count retained for the initial query or incremented from zero to one for the sole refinement]
+      emits: [StructureQueryFormulated, StructureQueryFormulationRejected, CommandError]
+      infrastructure_errors: [template configuration, selector, composition, or output-size failure]
+      domain_errors: [unsupported section or outline intent, refinement count greater than one, bounded query cannot be formed]
+      side_effects: [none]
+      reversibility: {classification: reversible, undo: noop}
+      compensation: Deterministic composition only.
+      authority: Uses one configured template over validated request and prior retrieval metadata; it cannot author an endpoint, model, collection, path, tool, or free-form editing instruction.
+
     - name: embed_structure_query
       owner: structure-editor
       implementation: {type: builtin, factory: rest_client_invoke, reuse: Configured Ollama embedding operation.}
-      inputs: [bounded structure question text from request and deterministic prompt composition]
+      inputs: [bounded structure question text and query identity from formulate_structure_query]
       outputs: [embedding vector, embedding model identity, carried query identity]
       emits: [StructureQueryEmbedded, StructureQueryRejected, CommandError]
       infrastructure_errors: [REST config, network, timeout, authentication, schema, or mapping failure]
@@ -478,18 +504,57 @@ word_vocabulary:
       compensation: Read-only.
       authority: Calls only configured structure-rag; vector is selected from the embedding word, never model-authored.
 
+    - name: assess_structure_grounding
+      owner: structure-editor
+      implementation: {type: builtin, factory: value_predicate, reuse: Deterministic configured sufficiency and one-refinement routing predicates.}
+      inputs: [ranked structure chunks, distances, metadata, embedding model identity, query identity, refinement count]
+      outputs: [grounding assessment, accepted evidence references, refinement count, bounded insufficiency reason]
+      emits: [StructureGroundingSufficient, StructureGroundingRefinementAllowed, StructureGroundingInsufficient, CommandError]
+      infrastructure_errors: [predicate configuration, selector, type, or metadata-shape failure]
+      domain_errors: [evidence below configured sufficiency policy after one refinement]
+      side_effects: [none]
+      reversibility: {classification: reversible, undo: noop}
+      compensation: Deterministic observation only.
+      authority: Routes only from configured thresholds, embedding-model equality, evidence metadata, and refinement count; it cannot inspect prose to invent evidence or authorize an edit.
+
     - name: generate_structure_edit
       owner: structure-editor
       implementation: {type: builtin, factory: invoke_llm, reuse: Profile-owned Ollama LLM declaration.}
       inputs: [supplied parent bytes and ID, bounded policy, mapped structure evidence and provenance]
-      outputs: [candidate document bytes, parent ID, bounded evidence references, declared provenance]
-      emits: [StructureEditGenerated, StructureEditDeclined, CommandError]
+      outputs: [candidate document bytes, parent ID, source-span and structure-operation ledger, bounded evidence references, declared provenance]
+      emits: [StructureEditGenerated, StructureEditNoOp, StructureEditDeclined, CommandError]
       infrastructure_errors: [provider config, model discovery, timeout, or chat failure]
-      domain_errors: [model output fails content/schema/grounding constraints]
+      domain_errors: [no supported structural improvement, model output fails content, schema, or grounding constraints]
       side_effects: [external_api, state_mutation]
       reversibility: {classification: reversible, undo: conversation_truncate}
       compensation: Truncate conversation state; remote inference remains an irreversible observation.
-      authority: May author document content and evidence IDs only; cannot author paths, URLs, refs, vectors, credentials, tools, or acceptance.
+      authority: May reorder, combine, or separate supplied source spans and author bounded structural connector text plus evidence IDs; cannot alter protected claims, citations, numbers, qualifications, or required content and cannot author paths, URLs, refs, vectors, credentials, tools, or acceptance.
+
+    - name: validate_structure_constraints
+      owner: structure-editor
+      implementation: {type: builtin, factory: value_predicate, reuse: Deterministic candidate, source-span ledger, and protected-content predicates.}
+      inputs: [validated parent bytes and ID, candidate bytes and parent ID, source-span and structure-operation ledger, protected-content inventory, bounded diction policy]
+      outputs: [validated candidate or original bytes, parent identity, constraint report, no-op status]
+      emits: [StructureEditValid, StructureEditNoOp, StructureSemanticConstraintsFailed, CommandError]
+      infrastructure_errors: [predicate configuration, selector, type, or bounded-comparison failure]
+      domain_errors: [parent mismatch, source span missing or duplicated, claim changed, citation changed, number changed, qualification changed, required content missing, diction change outside configured structural connectors]
+      side_effects: [none]
+      reversibility: {classification: reversible, undo: noop}
+      compensation: Reject the candidate and retain the supplied parent bytes unchanged.
+      authority: Compares supplied bytes and declared ledgers only; it cannot edit content, accept its own work, invoke a model, or create authority-bearing values.
+
+    - name: compose_structure_response
+      owner: structure-editor
+      implementation: {type: builtin, factory: compose, reuse: Deterministic configured response-envelope composition.}
+      inputs: [validated candidate or original content when available, outcome enum, parent identity, retrieval attempts and provenance, stage and invocation identity, bounded failure metadata]
+      outputs: [content or explicit null, parent identity, outcome, retrieval provenance, stage metadata]
+      emits: [StructureResponseSucceeded, StructureResponseNoOp, StructureResponseInsufficientGrounding, StructureResponseFailed, CommandError]
+      infrastructure_errors: [template configuration, selector, composition, schema, or output-size failure]
+      domain_errors: [none]
+      side_effects: [none]
+      reversibility: {classification: reversible, undo: noop}
+      compensation: No external state exists to compensate.
+      authority: Formats data already present in validated command state; it cannot edit content, mutate a filesystem, issue a verdict, or create retrieval, model, GitHub, Pangram, or workproduct authority.
 
     - name: embed_voice_query
       owner: voice-editor
@@ -854,9 +919,12 @@ requirements:
       - id: R4.1
         text: |
           Each editor SHALL own one embedding word, one corpus-specific RAG
-          query word, and one generation word. voice-critic SHALL own its
-          separate embedding, voice-rag query, and evaluation words.
-        evidence: Planned profile manifests match word_vocabulary.editor_and_critic_retrieval exactly.
+          query word, and one generation word. structure-editor SHALL also own
+          the deterministic validation, query-formulation, grounding-routing,
+          constraint-validation, and response-composition words required by its
+          flat MachineSpec. voice-critic SHALL own its separate embedding,
+          voice-rag query, and evaluation words.
+        evidence: Planned profile manifests collectively match word_vocabulary.editor_and_critic_retrieval, and each profile selects only words it owns.
       - id: R4.2
         text: |
           Embedding words SHALL obtain vectors from configured provider
@@ -877,6 +945,17 @@ requirements:
           SHALL NOT supply URLs, paths, refs, vectors, credentials, model names,
           collection identities, tool names, or publication authority.
         evidence: Planned schemas, prompts, parse tests, and adversarial model fixtures reject authority-bearing fields.
+      - id: R4.5
+        text: |
+          assess_structure_grounding SHALL emit
+          StructureGroundingSufficient, StructureGroundingRefinementAllowed, or
+          StructureGroundingInsufficient from configured evidence predicates and
+          a refinement count of zero or one. validate_structure_constraints
+          SHALL emit a distinct valid, no-op, or semantic-constraint-failed
+          outcome. compose_structure_response SHALL emit the matching bounded
+          terminal outcome signal. These deterministic signals SHALL supply
+          every branch needed by srd005 without a MachineSpec payload guard.
+        evidence: Planned signal and transition closure expands the srd005 machine and matches every branch to these declared emissions.
 
   R5:
     title: Pangram privacy and consent
@@ -983,8 +1062,10 @@ acceptance_criteria:
     criterion: |
       Editor and critic embedding, RAG, and LLM words are corpus-scoped,
       read-only where required, vector provenance is machine-threaded, and
-      model output cannot author authority-bearing values.
-    traces: [R4.1, R4.2, R4.3, R4.4]
+      model output cannot author authority-bearing values. Structure-editor
+      deterministic words provide bounded refinement and validation routing
+      without payload guards.
+    traces: [R4.1, R4.2, R4.3, R4.4, R4.5]
   - id: AC5
     criterion: |
       Only the critic owns separate before/after Pangram scans; exact-hash
