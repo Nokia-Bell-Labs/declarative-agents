@@ -20,7 +20,6 @@ func TestPipelineReceiptRestoresFreshCommandAfterCheckpointRoundTrip(t *testing.
 	ps := minimalState(t)
 	node := ps.Graph.Nodes()[0]
 	node.Status = graph.Executing
-	node.Retries = 2
 	ps.CurrentTask = &extract.Task{ID: "prior-task", SRDID: "srd001", NodeIDs: []string{node.ID}}
 	ps.CurrentPlan = &plan.ImplementationPlan{Title: "prior-plan"}
 	ps.IssueID = "issue-prior"
@@ -47,7 +46,6 @@ func TestPipelineReceiptRestoresFreshCommandAfterCheckpointRoundTrip(t *testing.
 	ps.IssueID = "issue-replacement"
 	ps.TaskDeps = map[string]string{"replacement-task": "issue-replacement"}
 	node.Status = graph.Done
-	node.Retries = 9
 	retry.Restore(3)
 
 	undoResult := builder.BuildReverser().Undo(core.Result{Receipt: execution[0].Receipt})
@@ -58,7 +56,6 @@ func TestPipelineReceiptRestoresFreshCommandAfterCheckpointRoundTrip(t *testing.
 	require.Equal(t, "issue-prior", ps.IssueID)
 	require.Equal(t, map[string]string{"prior-task": "issue-prior"}, ps.TaskDeps)
 	require.Equal(t, graph.Executing, node.Status)
-	require.Equal(t, 2, node.Retries)
 	require.Equal(t, 1, retry.Snapshot())
 }
 
@@ -71,6 +68,7 @@ func TestPipelineMutationBuildersImplementReverser(t *testing.T) {
 		&SelectAllReadyBuilder{PS: ps},
 		&SeedPassThroughPlanBuilder{PS: ps, Title: "Title", Summary: "Summary"},
 		&MarkNodesPlanningBuilder{PS: ps},
+		&MarkTaskFailedBuilder{PS: ps},
 		&ParsePlanBuilder{PS: ps, Retry: retry},
 		&LoadGraphBuilder{PS: ps},
 		&RecordTrackerIssueBuilder{PS: ps},

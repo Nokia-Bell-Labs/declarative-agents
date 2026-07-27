@@ -42,7 +42,6 @@ func TestBuildGraph_NodeMetadata(t *testing.T) {
 	assert.Equal(t, "R1", n.Group)
 	assert.Equal(t, 2, n.Weight)
 	assert.Equal(t, Pending, n.Status)
-	assert.Equal(t, 0, n.Retries)
 }
 
 func TestBuildGraph_IntraGroupEdges(t *testing.T) {
@@ -210,11 +209,6 @@ func TestNode_StateTransitions_FailAndRetry(t *testing.T) {
 	require.NoError(t, n.MarkExecuting())
 	require.NoError(t, n.MarkFailed())
 	assert.Equal(t, Failed, n.Status)
-	assert.Equal(t, 1, n.Retries)
-
-	require.NoError(t, n.Reset())
-	assert.Equal(t, Pending, n.Status)
-	assert.Equal(t, 1, n.Retries) // retries preserved
 }
 
 func TestNode_StateTransitions_Invalid(t *testing.T) {

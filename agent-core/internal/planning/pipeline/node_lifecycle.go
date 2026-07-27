@@ -56,6 +56,10 @@ func advanceNode(n *graph.Node, target graph.Status) error {
 		if n.Status == graph.Executing {
 			return n.MarkDone()
 		}
+	case graph.Failed:
+		if n.Status == graph.Executing {
+			return n.MarkFailed()
+		}
 	}
 	return fmt.Errorf("cannot advance node %s from %s to %s", n.ID, n.Status, target)
 }

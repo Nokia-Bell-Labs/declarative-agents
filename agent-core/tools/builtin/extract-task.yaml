@@ -21,7 +21,7 @@ tools:
     strategy: pipeline_state_restore
     description: Restore the receipt-recorded pipeline state captured before extraction.
     payload: pipeline_state_snapshot
-    captures: [current_task, current_plan, issue_id, task_deps, graph_status, graph_retries]
+    captures: [current_task, current_plan, issue_id, task_deps, graph_status]
   problem: The machine needs a declared word for extracting the next ready planning task without embedding that workflow step in Go control flow.
   goals:
   - Perform the extract_task action as one machine-selected word.

@@ -576,6 +576,25 @@ tools:
       before: [test]
       after: [remaining_work]
 
+  - name: mark_task_failed
+    type: builtin
+    init: mark_task_failed
+    description: "Mark the current planner task's graph nodes failed after retry exhaustion."
+    visibility: internal
+    emits: [TaskFailed, CommandError]
+    category: stateful_internal
+    side_effects:
+      - {kind: state_mutation, target: requirement_graph, state: current_task_failed}
+    reversibility: {classification: reversible, undo: "pipeline_state_restore"}
+    undo: {strategy: session_state_restore, description: "Restore graph status before failure marking."}
+    problem: "Retry exhaustion needs an explicit graph failure before remaining-work routing."
+    goals: ["Advance exhausted task nodes to Failed without owning retry policy."]
+    requirements: {input: ["Current task and graph are required."], output: ["TaskFailed follows mutation."], errors: ["Invalid transitions emit CommandError."]}
+    non_goals: ["Does not count retries or classify remaining work."]
+    errors: [{signal: CommandError, condition: "Task or graph state is invalid.", state_after_failure: "Receipt-backed state is recoverable."}]
+    relationships: {before: [check_retry_limit], after: [remaining_work]}
+    output: {description: "Explicit graph failure summary.", schema: {type: string}}
+
   - name: remaining_work
     type: builtin
     init: remaining_work
@@ -615,7 +634,7 @@ tools:
         message_shape: "remaining_work: graph is required"
         state_after_failure: "Graph and planner state remain unchanged."
     relationships:
-      before: [mark_task_done, check_retry_limit]
+      before: [mark_task_done, mark_task_failed]
       after: [extract_task]
 
   # --- evaluator session tools ---

@@ -117,6 +117,9 @@ receipt_undo:
     - command: mark_task_done
       strategy: pipeline_state_restore
       receipt: reversible_pipeline_snapshot
+    - command: mark_task_failed
+      strategy: pipeline_state_restore
+      receipt: reversible_pipeline_snapshot
   workspace_state:
     - command: write
       strategy: file_snapshot_restore

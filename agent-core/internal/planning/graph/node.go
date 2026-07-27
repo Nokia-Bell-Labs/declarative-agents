@@ -27,8 +27,7 @@ type Node struct {
 	Weight  int    `yaml:"weight"`
 	Release string `yaml:"release"`
 
-	Status  Status `yaml:"status"`
-	Retries int    `yaml:"retries"`
+	Status Status `yaml:"status"`
 }
 
 // validTransitions defines the allowed state machine transitions.
@@ -36,7 +35,6 @@ var validTransitions = map[Status][]Status{
 	Pending:   {Planning},
 	Planning:  {Executing},
 	Executing: {Done, Failed},
-	Failed:    {Pending},
 }
 
 // MarkPlanning transitions the node to Planning. Only valid from Pending.
@@ -54,19 +52,10 @@ func (n *Node) MarkDone() error {
 	return n.transition(Done)
 }
 
-// MarkFailed transitions the node to Failed and increments the retry
-// count. Only valid from Executing.
+// MarkFailed transitions the node to Failed. Retry policy belongs to
+// machine-visible command state, not graph nodes.
 func (n *Node) MarkFailed() error {
-	if err := n.transition(Failed); err != nil {
-		return err
-	}
-	n.Retries++
-	return nil
-}
-
-// Reset transitions the node back to Pending for retry. Only valid from Failed.
-func (n *Node) Reset() error {
-	return n.transition(Pending)
+	return n.transition(Failed)
 }
 
 func (n *Node) transition(target Status) error {

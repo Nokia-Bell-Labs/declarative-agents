@@ -34,6 +34,7 @@ const (
 	SigExecutionDone     core.Signal = "ExecutionDone"
 	SigExecutionFailed   core.Signal = "ExecutionFailed"
 	SigTaskCompleted     core.Signal = "TaskCompleted"
+	SigTaskFailed        core.Signal = "TaskFailed"
 	SigWorkRemaining     core.Signal = "WorkRemaining"
 )
 
@@ -66,8 +67,7 @@ type pipelineSnapshot struct {
 }
 
 type nodeSnapshot struct {
-	Status  graph.Status `json:"status"`
-	Retries int          `json:"retries"`
+	Status graph.Status `json:"status"`
 }
 
 type pipelineReceipt struct {
@@ -89,7 +89,7 @@ func snapshotPipelineState(ps *State) pipelineSnapshot {
 	if ps.Graph != nil {
 		snap.NodeStates = make(map[string]nodeSnapshot)
 		for _, n := range ps.Graph.Nodes() {
-			snap.NodeStates[n.ID] = nodeSnapshot{Status: n.Status, Retries: n.Retries}
+			snap.NodeStates[n.ID] = nodeSnapshot{Status: n.Status}
 		}
 	}
 	return snap
@@ -113,7 +113,6 @@ func (s pipelineSnapshot) restore(ps *State) {
 		for id, ns := range s.NodeStates {
 			if n, ok := ps.Graph.Node(id); ok {
 				n.Status = ns.Status
-				n.Retries = ns.Retries
 			}
 		}
 	}
@@ -190,8 +189,8 @@ func pipelineReceiptError(commandName string, err error) core.Result {
 // classifyEmpty determines whether the graph is fully done or blocked.
 func (s *State) classifyEmpty() (core.Signal, string) {
 	for _, n := range s.Graph.Nodes() {
-		if n.Status == graph.Pending || n.Status == graph.Planning || n.Status == graph.Executing {
-			return SigBlocked, fmt.Sprintf("blocked: %d nodes have unmet dependencies", s.countPending())
+		if n.Status == graph.Pending || n.Status == graph.Planning || n.Status == graph.Executing || n.Status == graph.Failed {
+			return SigBlocked, fmt.Sprintf("blocked: %d nodes unresolved", s.countPending())
 		}
 	}
 	return SigAllDone, "all tasks completed"
@@ -200,7 +199,7 @@ func (s *State) classifyEmpty() (core.Signal, string) {
 func (s *State) countPending() int {
 	count := 0
 	for _, n := range s.Graph.Nodes() {
-		if n.Status != graph.Done && n.Status != graph.Failed {
+		if n.Status != graph.Done {
 			count++
 		}
 	}

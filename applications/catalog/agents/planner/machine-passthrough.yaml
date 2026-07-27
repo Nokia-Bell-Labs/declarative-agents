@@ -85,6 +85,8 @@ states:
   meaning: Comparing the visible retry count with the declared limit.
 - name: Exhausted
   meaning: Retry limit reached; query graph state before stalling.
+- name: MarkingTaskFailed
+  meaning: Advancing exhausted aggregate-task nodes to Failed before querying remaining work.
 - name: MarkingTaskDone
   meaning: Mutating only the aggregate task's graph nodes to Done.
 - name: QueryingRemainingWork
@@ -132,6 +134,8 @@ signals:
   trigger: All retries consumed for the current task.
 - name: TaskCompleted
   trigger: The current task's graph nodes were marked Done.
+- name: TaskFailed
+  trigger: The exhausted current task's graph nodes were marked Failed.
 - name: WorkRemaining
   trigger: At least one graph task remains ready after the aggregate task.
 - name: CommandError
@@ -269,9 +273,16 @@ transitions:
   action: invoke_executor
 - state: CheckingRetryLimit
   signal: RetriesExhausted
+  next: MarkingTaskFailed
+  action: mark_task_failed
+- state: CheckingRetryLimit
+  signal: CommandError
+  next: Failed
+- state: MarkingTaskFailed
+  signal: TaskFailed
   next: Exhausted
   action: remaining_work
-- state: CheckingRetryLimit
+- state: MarkingTaskFailed
   signal: CommandError
   next: Failed
 - state: Exhausted

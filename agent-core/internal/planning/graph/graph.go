@@ -191,7 +191,6 @@ func (g *Graph) addSRDNodes(srd spec.SRD, release string) error {
 				Weight:  item.Weight,
 				Release: release,
 				Status:  Pending,
-				Retries: 0,
 			}
 			g.nodes[nodeID] = n
 			if err := g.dag.AddVertex(n); err != nil {

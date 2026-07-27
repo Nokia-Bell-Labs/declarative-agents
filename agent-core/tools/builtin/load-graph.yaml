@@ -20,7 +20,7 @@ tools:
     strategy: pipeline_state_restore
     description: Restore graph presence and receipt-recorded pipeline values captured before loading.
     payload: pipeline_state_snapshot
-    captures: [current_task, current_plan, issue_id, task_deps, graph_presence, graph_status, graph_retries]
+    captures: [current_task, current_plan, issue_id, task_deps, graph_presence, graph_status]
   problem: The pipeline machine needs a declared word that seeds the requirement graph before extraction, rather than assuming the graph already exists and dereferencing nil state.
   goals:
   - Load the specification corpus from the run directory and build the requirement graph as one machine-selected word.

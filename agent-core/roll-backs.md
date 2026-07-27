@@ -311,6 +311,7 @@ type Command interface {
 | `invoke_executor` (`self_invoke`) | Spawns sub-agent | Roll back sub-agent workspace |
 | `increment_retry` | Command-state output only | History truncation removes the increment |
 | `mark_task_done` | Pipeline graph state | Restores graph snapshot |
+| `mark_task_failed` | Pipeline graph state | Restores graph snapshot |
 | `remaining_work` / `check_retry_limit` | Nothing | No-op |
 
 ---

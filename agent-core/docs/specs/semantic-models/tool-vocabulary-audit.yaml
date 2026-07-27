@@ -567,10 +567,22 @@ tools:
     issues: []
     migration_priority: low
 
+  - name: mark_task_failed
+    role: stateful_internal
+    selected_by: [planner]
+    inputs_from: [check_retry_limit]
+    feeds_into: [remaining_work]
+    side_effects: pipeline_graph_failure
+    output_contract: declared TaskFailed signal
+    undo: restore_pipeline_graph_snapshot
+    overlaps: []
+    issues: []
+    migration_priority: complete
+
   - name: remaining_work
     role: word
     selected_by: [planner]
-    inputs_from: [mark_task_done, check_retry_limit]
+    inputs_from: [mark_task_done, mark_task_failed]
     feeds_into: [extract_task, Completed, Stalled]
     side_effects: none
     output_contract: declared WorkRemaining, AllDone, or Blocked signal

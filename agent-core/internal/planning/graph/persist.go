@@ -110,12 +110,6 @@ func validateGraphState(state GraphState) error {
 		if !validStatuses[node.Status] {
 			return fmt.Errorf("nodes[%d] %q status %q is invalid", i, node.ID, node.Status)
 		}
-		if node.Retries < 0 {
-			return fmt.Errorf("nodes[%d] %q retries must be nonnegative", i, node.ID)
-		}
-		if node.Status == Failed && node.Retries == 0 {
-			return fmt.Errorf("nodes[%d] %q failed status requires at least one retry", i, node.ID)
-		}
 	}
 	for i, edge := range state.Edges {
 		if edge.Source == "" {

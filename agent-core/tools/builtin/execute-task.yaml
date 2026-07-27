@@ -20,7 +20,7 @@ tools:
     strategy: pipeline_state_restore
     description: Restore the receipt-recorded graph lifecycle.
     payload: pipeline_state_snapshot
-    captures: [current_task, graph_status, graph_retries]
+    captures: [current_task, graph_status]
   problem: Child invocation must not hide graph lifecycle mutation.
   goals: [Advance selected nodes in one machine-selected graph word.]
   requirements: {input: [A current task and graph are required.], output: [NodesMarkedExecuting is emitted after mutation.], errors: [Invalid graph transitions emit CommandError.]}

@@ -88,7 +88,7 @@ func TestPlannerRetryPolicyWiring(t *testing.T) {
 	unmarshalShipped(t, filepath.Join("agents", "planner", "tools.yaml"), &selected)
 	for _, tool := range []string{
 		"reset_retry_count", "increment_retry", "check_retry_limit",
-		"mark_task_done", "remaining_work",
+		"mark_task_done", "mark_task_failed", "remaining_work",
 	} {
 		if !contains(selected.Tools, tool) {
 			t.Errorf("planner tools omit %q", tool)
@@ -133,7 +133,8 @@ func TestPlannerRetryPolicyWiring(t *testing.T) {
 			}
 			requireLabeledTransition(t, machine.Transitions, "Testing", "ToolFailed", "IncrementingRetry", "increment_retry", "retry_count")
 			requireTransition(t, machine.Transitions, "IncrementingRetry", "ToolDone", "CheckingRetryLimit", "check_retry_limit")
-			requireTransition(t, machine.Transitions, "CheckingRetryLimit", "RetriesExhausted", "Exhausted", "remaining_work")
+			requireTransition(t, machine.Transitions, "CheckingRetryLimit", "RetriesExhausted", "MarkingTaskFailed", "mark_task_failed")
+			requireTransition(t, machine.Transitions, "MarkingTaskFailed", "TaskFailed", "Exhausted", "remaining_work")
 			requireTransition(t, machine.Transitions, "Testing", "ToolDone", "MarkingTaskDone", "mark_task_done")
 			requireTransition(t, machine.Transitions, "MarkingTaskDone", "TaskCompleted", "QueryingRemainingWork", "remaining_work")
 			requireTransition(t, machine.Transitions, "Exhausted", "Blocked", "Stalled", "")
@@ -282,6 +283,7 @@ func TestPlannerShippedProfileRetryExhaustion(t *testing.T) {
 	result.RequireExit(t, 2)
 	result.RequireTerminalState(t, "Stalled")
 	result.RequireToolSpans(t, "increment_retry", "check_retry_limit", "remaining_work")
+	result.RequireToolSpans(t, "mark_task_failed")
 	if got := len(result.Spans.Named("execute_tool self_invoke")); got != 2 {
 		t.Fatalf("self_invoke span count = %d, want 2 (initial attempt plus first retry)", got)
 	}

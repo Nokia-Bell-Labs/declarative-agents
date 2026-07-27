@@ -21,7 +21,7 @@ tools:
     strategy: pipeline_state_restore
     description: Restore the receipt-recorded pipeline state captured before extraction.
     payload: pipeline_state_snapshot
-    captures: [current_task, current_plan, issue_id, task_deps, graph_status, graph_retries]
+    captures: [current_task, current_plan, issue_id, task_deps, graph_status]
   problem: The pass-through machine needs an atomic word that selects ready requirements without also creating plan policy or changing graph lifecycle.
   goals:
   - Select all ready requirements as one machine-selected task.
@@ -80,7 +80,7 @@ tools:
     strategy: pipeline_state_restore
     description: Restore the receipt-recorded pipeline state captured before plan seeding.
     payload: pipeline_state_snapshot
-    captures: [current_task, current_plan, issue_id, task_deps, graph_status, graph_retries]
+    captures: [current_task, current_plan, issue_id, task_deps, graph_status]
   problem: Pass-through plan policy must come from profile configuration rather than Go literals.
   goals:
   - Seed one implementation plan from declared title and summary values.
@@ -125,7 +125,7 @@ tools:
     strategy: pipeline_state_restore
     description: Restore the receipt-recorded graph lifecycle before the mutation.
     payload: pipeline_state_snapshot
-    captures: [current_task, current_plan, issue_id, task_deps, graph_status, graph_retries]
+    captures: [current_task, current_plan, issue_id, task_deps, graph_status]
   problem: Graph lifecycle mutation must remain separate from pass-through selection and plan policy.
   goals:
   - Advance selected nodes through one explicit machine-selected mutation.

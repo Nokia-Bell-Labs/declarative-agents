@@ -95,6 +95,9 @@ func RegisterFactories(br *toolregistry.BuiltinRegistry, deps FactoryDeps) {
 	br.Register("mark_task_done", func(def catalog.ToolDef, vars map[string]string) (core.Builder, error) {
 		return &MarkTaskDoneBuilder{PS: initPS(def)}, nil
 	})
+	br.Register("mark_task_failed", func(def catalog.ToolDef, vars map[string]string) (core.Builder, error) {
+		return &MarkTaskFailedBuilder{PS: initPS(def)}, nil
+	})
 	br.Register("remaining_work", func(def catalog.ToolDef, vars map[string]string) (core.Builder, error) {
 		return &RemainingWorkBuilder{PS: initPS(def)}, nil
 	})

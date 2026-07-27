@@ -35,5 +35,5 @@ tools:
     message_shape: 'remaining_work: graph is required'
     state_after_failure: Graph and planner state remain unchanged.
   relationships:
-    before: [mark_task_done, check_retry_limit]
+    before: [mark_task_done, mark_task_failed]
     after: [extract_task]
