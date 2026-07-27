@@ -28,8 +28,8 @@ releases:
         status: specified
         summary: Define all agent, supporting, and external service boundaries and authority.
       - id: srd002-writing-saga-workproducts
-        status: planned
-        summary: Define immutable lineage, manifest persistence, retries, compensation, recovery, and publication.
+        status: specified
+        summary: Define exact immutable lineage, manifest state, stage contracts, idempotency, retries, non-destructive compensation, recovery, and one final publication.
       - id: srd003-writing-agent-tools
         status: planned
         summary: Define the complete ToolDef vocabulary and exclusive boundary-tool ownership.
@@ -64,7 +64,9 @@ releases:
         status: planned
     planned_workproducts:
       - {path: workproducts/<saga-id>/manifest.yaml, owner: workflow-orchestrator, status: planned}
+      - {path: workproducts/<saga-id>/manifest-history/<revision>.yaml, owner: workflow-orchestrator, status: planned}
       - {path: workproducts/<saga-id>/00-original.md, owner: workflow-orchestrator, status: planned}
+      - {path: workproducts/<saga-id>/attempts/<stage>/<attempt>-<sha256>.<md-or-yaml>, owner: workflow-orchestrator, status: planned}
       - {path: workproducts/<saga-id>/10-structure.md, owner: workflow-orchestrator, status: planned}
       - {path: workproducts/<saga-id>/20-voice.md, owner: workflow-orchestrator, status: planned}
       - {path: workproducts/<saga-id>/30-style.md, owner: workflow-orchestrator, status: planned}
@@ -105,8 +107,8 @@ releases:
         status: planned_dependency
     evidence_status:
       foundation_yaml: documented
-      srd_requirements: srd001_specified_srd002_through_srd008_not_created
-      reciprocal_traceability: srd001_indexed_use_case_and_test_suite_planned
+      srd_requirements: srd001_and_srd002_specified_srd003_through_srd008_not_created
+      reciprocal_traceability: srd001_and_srd002_indexed_use_case_and_test_suite_planned
       profiles_and_machines: not_implemented
       tools_and_services: not_implemented
       structural_tests: not_implemented

@@ -22,13 +22,13 @@ overview:
       H[Human intent and consent] --> O[Workflow orchestrator]
       GH[(GitHub source)] --> O
       O -->|00-original.md content| SE[Structure editor]
-      SE -->|10-structure.md content| O
+      SE -->|structure candidate bytes| O
       O --> VE[Voice editor]
-      VE -->|20-voice.md content| O
+      VE -->|voice candidate bytes| O
       O --> STE[Style editor]
-      STE -->|30-style.md content| O
+      STE -->|style candidate bytes| O
       O --> VC[Voice critic]
-      VC -->|pass, warn, or reject| O
+      VC -->|critique candidate and verdict| O
       VC -. consent-gated .-> P[Pangram]
       SE --> SR[Structure RAG]
       VE --> VR[Voice RAG]
@@ -42,18 +42,42 @@ overview:
       VE --> M
       STE --> M
       VC --> M
-      O -->|after acceptance only| PUB[Git commit, push, and PR]
+      O --> W[(Persistent output workspace<br/>immutable attempts and manifest history)]
+      O --> CP[(Agent-core checkpoint<br/>position and execution metadata)]
+      O -->|after acceptance: fixed chain| W
+      O -->|one forward publication| PUB[Git commit, push, and PR]
       PUB --> GH
     ```
   saga_flow: |
-    The orchestrator captures the source and writes an immutable original. It
-    accepts one child result at a time, persists the artifact and manifest, and
-    invokes the next stage from that accepted parent. A reject verdict names
-    the responsible stage. The orchestrator retries that stage within its
-    budget and then replays downstream stages. Exhaustion keeps the last
-    accepted parent and ends in keep-original or failure policy. A restart
-    resumes from the persistent manifest. Publication is a final, idempotent
-    forward action after acceptance.
+    The orchestrator captures the source and writes 00-original.md once. Each
+    child receives exact parent bytes and returns bytes or a verdict plus
+    provenance. The orchestrator writes every response to an immutable,
+    content-addressed attempt path and persists append-only manifest history
+    before invoking the next stage. A reject verdict names structure, voice, or
+    style. Retry starts from that stage's last accepted parent, supersedes
+    selections without deleting bytes, and replays every downstream stage.
+
+    After pass or policy-permitted warn, finalization creates
+    10-structure.md, 20-voice.md, 30-style.md, 40-critique.yaml, and final.md
+    exactly once from the selected immutable lineage. Publication then advances
+    one recorded key through create-or-reuse commit, push, and pull-request
+    states. A partial publication resumes forward and never creates a
+    replacement commit or destructively compensates a remote effect.
+  persistence_flow: |
+    Voice Forge has two durable state planes with different authority. The
+    application-owned persistent --output workspace stores document bytes,
+    immutable attempt artifacts, finalized files, manifest history, and the
+    current manifest projection. Agent-core checkpoint storage holds machine
+    Position, Execution metadata, conversation, artifact references and hashes,
+    and opaque tool receipts. It does not own document bytes.
+
+    On restart the orchestrator validates and repairs the manifest projection
+    from immutable history, verifies referenced file hashes, and then compares
+    the checkpoint. If the manifest is newer, its durable accepted transition
+    wins. If the checkpoint is newer, unmanifested work is unaccepted and the
+    orchestrator resumes from the last manifest-selected parent with the
+    recorded idempotency key. Dolt Revert changes DB-persisted runtime state
+    only; it never deletes or restores saga files.
 
 interfaces:
   - name: human request and policy boundary
@@ -221,9 +245,12 @@ design_decisions:
     title: The orchestrator owns immutable saga state
     decision: |
       Child services exchange content, not filesystem paths. The orchestrator
-      is the single writer for workproducts/<saga-id>/ and persists the manifest
-      after every accepted stage. Compensation appends state and never performs
-      a destructive reset.
+      is the single writer for workproducts/<saga-id>/. It stores each child
+      output at an immutable content-addressed attempt path and persists an
+      append-only manifest revision after every result and state transition.
+      Fixed stage filenames are materialized exactly once only after critic
+      acceptance. Compensation supersedes selections and never deletes or
+      rewrites prior bytes.
     benefits:
       - Restarts can resume from durable accepted state.
       - Failed attempts cannot overwrite the original or accepted parent.
@@ -257,6 +284,18 @@ design_decisions:
     benefits:
       - Platform requirements retain one owner.
       - The local corpus stays focused on Voice Forge behavior.
+  - id: 6
+    title: Runtime checkpoints and artifact bytes are separate state planes
+    decision: |
+      Agent-core checkpoint Position and Execution persist orchestration state,
+      execution metadata, references, and opaque receipts. The persistent
+      --output workspace persists document and manifest bytes. Recovery
+      reconciles their ordering window against append-only manifest history;
+      checkpoint or Dolt rollback never acts as filesystem compensation.
+    benefits:
+      - Document recovery does not depend on checkpoint branch retention.
+      - A crash between manifest and checkpoint writes has a deterministic rule.
+      - Application lineage does not leak into command-state output or receipts.
 
 technology_choices:
   - component: Structured documentation
@@ -281,8 +320,8 @@ technology_choices:
     technology: Planned consent-gated Pangram calls
     purpose: Add external before/after evidence without transferring verdict authority.
   - component: Saga persistence
-    technology: Planned persistent local --output workspace
-    purpose: Preserve uncommitted lineage and permit restart recovery.
+    technology: Planned persistent local --output workspace plus referenced agent-core checkpoint state
+    purpose: Preserve application bytes in append-only manifest lineage while checkpointing only runtime position and execution metadata.
 
 project_structure:
   foundation:
@@ -300,20 +339,22 @@ project_structure:
     - {path: agents/corpus-ingest/, status: planned, role: Thin canonical ingest wrapper.}
   planned_specifications:
     - {path: docs/specs/software-requirements/srd001-voice-forge-services.yaml, status: specified, role: Planned service topology, role bindings, lifecycle, failure, scaling, and authority contract.}
-    - {path: docs/specs/software-requirements/, status: planned, role: Remaining SRDs srd002 through srd008.}
+    - {path: docs/specs/software-requirements/srd002-writing-saga-workproducts.yaml, status: specified, role: Planned immutable workproduct, manifest, retry, recovery, idempotency, and publication contract.}
+    - {path: docs/specs/software-requirements/, status: planned, role: Remaining SRDs srd003 through srd008.}
     - {path: docs/specs/use-cases/rel00.0-uc001-edit-document.yaml, status: planned, role: End-to-end release scenario.}
     - {path: docs/specs/test-suites/test-rel00.0-voice-forge.yaml, status: planned, role: Release tracer and evidence plan.}
 
 implementation_status:
   current_focus: |
-    Issue GH-1110 specifies the service topology and role boundaries in srd001.
-    SRDs srd002 through srd008, the release use case, test suite, profiles,
-    machines, tools, services, integration evidence, and root registrations do
-    not exist in this issue.
+    Issues GH-1110 and GH-1112 specify service boundaries in srd001 and the
+    writing saga and workproduct lifecycle in srd002. SRDs srd003 through
+    srd008, the release use case, test suite, profiles, machines, tools,
+    services, integration evidence, and root registrations remain planned.
   overall: documentation_only_planned
   progress:
     - specified: srd001 service topology, role bindings, lifecycle, scaling, failure, interfaces, and authority.
-    - planned: srd002 through srd008 and executable reciprocal release traces.
+    - specified: srd002 workspace schema, artifact lineage, manifest state, stage contracts, retries, recovery, and publication.
+    - planned: srd003 through srd008 and executable reciprocal release traces.
     - planned: Five application-local state machines and the corpus-ingest wrapper.
     - planned: RAG, Chroma, Ollama, GitHub CLI, and Pangram integrations.
     - planned: Persistent saga workspace, retries, recovery, and publication.
@@ -326,6 +367,8 @@ related_documents:
     purpose: Application goals, boundaries, success criteria, and canonical document list.
   - doc: docs/specs/software-requirements/srd001-voice-forge-services.yaml
     purpose: Specified service topology, role realizations, lifecycle, scaling, failure, interfaces, and exclusive authorities.
+  - doc: docs/specs/software-requirements/srd002-writing-saga-workproducts.yaml
+    purpose: Specified immutable artifact, manifest, retry, compensation, recovery, idempotency, and publication contract.
   - doc: docs/SPECIFICATIONS.yaml
     purpose: Planned SRD, use-case, and test-suite indexes.
   - doc: docs/road-map.yaml

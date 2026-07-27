@@ -12,15 +12,17 @@ The planned workflow is:
    external-upload consent.
 2. The workflow orchestrator captures an immutable original and starts a local
    saga under `workproducts/<saga-id>/`.
-3. The structure editor produces `10-structure.md`.
-4. The voice editor uses read-only retrieval to produce `20-voice.md`.
-5. The style editor uses retrieved tightening examples to produce
-   `30-style.md`.
+3. The structure editor returns a structure candidate that the orchestrator
+   stores as an immutable attempt.
+4. The voice editor uses read-only retrieval and returns a voice candidate.
+5. The style editor uses retrieved tightening examples and returns a style
+   candidate.
 6. The voice critic independently compares the original and candidate. It may
    call Pangram only when the human has consented to both uploads.
-7. On acceptance, the orchestrator writes `final.md`, commits the complete
-   workproduct set once, pushes, and opens or reuses a pull request. Before
-   acceptance, every workproduct remains local and uncommitted.
+7. On acceptance, the orchestrator materializes `10-structure.md`,
+   `20-voice.md`, `30-style.md`, `40-critique.yaml`, and `final.md`, commits the
+   complete workproduct set once, pushes, and opens or reuses a pull request.
+   Before acceptance, every workproduct remains local and uncommitted.
 
 The application plans six agent services: `workflow-orchestrator`,
 `structure-editor`, `voice-editor`, `style-editor`, `voice-critic`, and a
