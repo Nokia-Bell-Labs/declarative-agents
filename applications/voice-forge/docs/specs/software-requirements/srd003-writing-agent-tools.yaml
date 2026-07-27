@@ -1,0 +1,1019 @@
+id: srd003-writing-agent-tools
+title: Writing Agent Tool Contracts
+status: specified
+
+problem: |
+  Voice Forge needs one named ToolDef word for every machine action that crosses
+  a workproduct, child-agent, retrieval, model, GitHub, lifecycle, corpus, or
+  Pangram boundary. Without a closed vocabulary, a model could invent a path,
+  URL, ref, vector, credential, or shell command; an editor could acquire
+  publication authority; or an infrastructure failure could be mistaken for a
+  critic verdict.
+
+  This SRD fixes the planned words and their ownership while reusing agent-core
+  builtin, REST, exec, child-agent, and lifecycle factories. It defines no new
+  Go tool factory and makes no runtime-conformance claim.
+
+goals:
+  - "G1: Name every boundary action required by the planned writing saga and corpus wrapper."
+  - "G2: Keep workproduct and GitHub authority exclusive to workflow-orchestrator."
+  - "G3: Keep retrieval and model authority corpus-scoped and keep model output data-only."
+  - "G4: Keep Pangram authority exclusive to voice-critic and gated by affirmative consent."
+  - "G5: Specify signals, errors, effects, and compensation without confusing domain outcomes with infrastructure failures."
+  - "G6: Reuse existing factories and prohibit arbitrary shell or a new Go builtin."
+
+applicability:
+  release: "00.0"
+  implementation_status: documentation_only_runtime_planned
+
+factory_reuse:
+  builtin:
+    authorities:
+      - agent-core internal tools registry
+      - agent-core/tools/builtin/filesystem/all.yaml
+    factories: [list_resource, read_resource, compose, parse_structured, value_predicate]
+  rest:
+    authorities:
+      - agent-core/docs/specs/config-formats/rest-tool-format.yaml
+      - applications/chatbot-mesh/agents/rag-server/request-declarations.yaml
+    factories: [rest_client_invoke]
+  llm:
+    authority: agent-core per-profile invoke_llm declarations
+    factories: [invoke_llm]
+  child_agent:
+    authorities:
+      - agent-core/tools/builtin/execute-task.yaml
+      - agent-core/docs/specs/config-formats/tool-declaration-format.yaml
+    factories: [execute_task]
+    rule: New declarations use profile-only child_agent_config.
+  lifecycle:
+    authority: agent-core/tools/builtin/lifecycle/
+    factories: [suspend, checkpoint_history, checkpoint_rollback, exit_agent]
+  exec:
+    authorities:
+      - agent-core/tools/exec.yaml
+      - agent-core internal exec builder
+    rule: |
+      Each exec word fixes one binary and operation in trusted declarations.
+      It invokes no shell interpreter. Runtime values come only from validated
+      request or command-state selectors and cannot replace the binary, base
+      arguments, working root, endpoint, credential, or operation.
+
+authority_invariants:
+  - Only workflow-orchestrator selects workproduct and git/gh words.
+  - Only voice-critic selects Pangram words.
+  - Editors and voice-critic receive document bytes and artifact identities, never saga paths.
+  - Structure, voice, and style retrieval words bind only structure-rag, voice-rag, and tightening-rag respectively; voice-critic may bind voice-rag read-only.
+  - Corpus wrapper words execute outside writing sagas and cannot select workproduct, GitHub, or Pangram words.
+  - All URL, host, route, model, collection, filesystem root, destination repository, base, branch, and credential authority originates in validated profile or human-policy configuration.
+  - Human request fields may express source and publication intent only after allowlist and containment validation; no LLM response supplies an authority-bearing value.
+  - Embedding vectors originate only in configured embedding responses and thread through command state into vector-in RAG requests.
+  - LLM outputs contain document content, bounded findings, provenance references, or declared enum choices only.
+  - No profile exposes a generic shell, command string, arbitrary executable, arbitrary REST URL, generic filesystem write, or generic git/gh word.
+
+signal_policy:
+  infrastructure:
+    signal: CommandError
+    meaning: Configuration, selector, process-start, filesystem, network, timeout, authentication, response-schema, or provider failure.
+  exec_domain:
+    signal: ToolFailed
+    meaning: A constrained executable ran and returned a non-zero domain result.
+  domain: |
+    Named non-error signals report valid business outcomes such as a missing
+    source, publication conflict, rejected retrieval request, child rejection,
+    critic verdict, or withheld consent. A domain outcome never uses
+    CommandError and an infrastructure failure never becomes pass, warn,
+    reject, published, or consent granted.
+
+word_vocabulary:
+  orchestrator_workproducts:
+    - name: validate_saga_request
+      owner: workflow-orchestrator
+      implementation:
+        type: builtin
+        factory: parse_structured
+        reuse: Validate the configured request schema and bounded enums.
+      inputs: [human request, configured repository and publication allowlists, saga identity policy]
+      outputs: [validated source intent, validated publication intent, retry policy, Pangram consent state, policy digest]
+      emits: [SagaRequestValid, SagaRequestRejected, CommandError]
+      infrastructure_errors: [missing schema, selector failure, validator failure]
+      domain_errors: [repository not allowlisted, path escapes repository, invalid revision syntax, destination or branch policy denied, invalid retry or consent value]
+      side_effects: [none]
+      reversibility: {classification: reversible, undo: noop}
+      compensation: No state exists to compensate.
+      authority: May validate human intent against trusted policy; cannot invent or widen policy.
+
+    - name: read_workproduct
+      owner: workflow-orchestrator
+      implementation:
+        type: exec
+        factory: exec
+        reuse: Constrained workproduct helper read operation under the configured saga root.
+      inputs: [machine-selected artifact_id, manifest-recorded relative path, expected sha256, configured saga root]
+      outputs: [exact bytes, byte length, verified sha256, artifact_id]
+      emits: [WorkproductRead, WorkproductMissing, WorkproductIntegrityFailed, CommandError]
+      infrastructure_errors: [helper unavailable, filesystem read failure]
+      domain_errors: [artifact absent, path containment denied, digest mismatch, manifest identity mismatch]
+      side_effects: [filesystem_read]
+      reversibility: {classification: reversible, undo: noop}
+      compensation: Read-only.
+      authority: Resolves only manifest-recorded paths beneath the configured saga root; neither model nor child supplies a path.
+
+    - name: hash_workproduct
+      owner: workflow-orchestrator
+      implementation:
+        type: exec
+        factory: exec
+        reuse: Fixed digest operation with bounded bytes on stdin and no shell.
+      inputs: [document or critique bytes from validated command state]
+      outputs: [lowercase sha256, byte length]
+      emits: [WorkproductHashed, ToolFailed, CommandError]
+      infrastructure_errors: [digest binary unavailable, stdin selector or size failure]
+      domain_errors: [digest output malformed]
+      side_effects: [child_process]
+      reversibility: {classification: reversible, undo: noop}
+      compensation: Deterministic observation only.
+      authority: Reads bytes; cannot read a path or accept an algorithm from model output.
+
+    - name: write_original
+      owner: workflow-orchestrator
+      implementation:
+        type: exec
+        factory: exec
+        reuse: Constrained workproduct helper create-original operation.
+      inputs: [validated source bytes, source identity, expected sha256, configured saga root]
+      outputs: [original artifact record, verified sha256, byte length]
+      emits: [OriginalWritten, OriginalReused, OriginalConflict, ToolFailed, CommandError]
+      infrastructure_errors: [helper unavailable, write or fsync failure]
+      domain_errors: [existing bytes differ, path containment denied, source identity conflict, digest mismatch]
+      side_effects: [filesystem_write]
+      reversibility: {classification: irreversible, undo: preserve_original}
+      compensation: Never delete or overwrite 00-original.md; record failure and retain evidence.
+      authority: Creates only the fixed original path derived from configured saga root and saga_id.
+
+    - name: write_attempt
+      owner: workflow-orchestrator
+      implementation:
+        type: exec
+        factory: exec
+        reuse: Constrained workproduct helper content-addressed attempt operation.
+      inputs: [validated stage, monotonic attempt, bytes, sha256, parent artifact IDs, producer and invocation provenance]
+      outputs: [immutable artifact record, verified relative path, byte length]
+      emits: [AttemptWritten, AttemptReused, AttemptConflict, ToolFailed, CommandError]
+      infrastructure_errors: [helper unavailable, write or fsync failure]
+      domain_errors: [invalid stage, reused attempt number, parent mismatch, digest mismatch, conflicting existing bytes]
+      side_effects: [filesystem_write]
+      reversibility: {classification: irreversible, undo: append_supersession}
+      compensation: Preserve attempt bytes and append a superseded or rejected manifest status.
+      authority: Derives the attempt path from trusted stage, attempt, and computed hash; no model or child supplies a path.
+
+    - name: append_manifest_revision
+      owner: workflow-orchestrator
+      implementation:
+        type: exec
+        factory: exec
+        reuse: Constrained workproduct helper append-manifest-history operation.
+      inputs: [prior manifest revision, validated transition, artifact and stage-run records, expected next revision]
+      outputs: [immutable manifest-history revision bytes and sha256]
+      emits: [ManifestRevisionAppended, ManifestRevisionReused, ManifestConflict, ToolFailed, CommandError]
+      infrastructure_errors: [helper unavailable, serialization, write, or fsync failure]
+      domain_errors: [noncontiguous revision, invalid transition, hash or lineage conflict]
+      side_effects: [filesystem_write]
+      reversibility: {classification: irreversible, undo: append_corrective_revision}
+      compensation: Append a later corrective state; never rewrite manifest history.
+      authority: Writes only the next derived history path under the saga root.
+
+    - name: project_manifest
+      owner: workflow-orchestrator
+      implementation:
+        type: exec
+        factory: exec
+        reuse: Constrained workproduct helper atomic manifest projection operation.
+      inputs: [highest valid contiguous manifest-history revision, expected sha256]
+      outputs: [manifest projection revision and verified sha256]
+      emits: [ManifestProjected, ManifestProjectionRepaired, ManifestConflict, ToolFailed, CommandError]
+      infrastructure_errors: [helper unavailable, temporary write, rename, or fsync failure]
+      domain_errors: [history gap, invalid revision, projection conflict]
+      side_effects: [filesystem_write]
+      reversibility: {classification: compensatable, undo: reproject_from_history}
+      compensation: Rebuild manifest.yaml from the highest valid contiguous immutable revision.
+      authority: Writes only manifest.yaml from immutable history; cannot accept model-authored bytes or paths.
+
+    - name: materialize_final_chain
+      owner: workflow-orchestrator
+      implementation:
+        type: exec
+        factory: exec
+        reuse: Constrained workproduct helper finalization operation.
+      inputs: [critic-accepted lineage, verified selected attempt bytes and hashes, configured saga root]
+      outputs: [fixed finalized artifact records, expected tree digest]
+      emits: [FinalChainMaterialized, FinalChainReused, FinalizationConflict, ToolFailed, CommandError]
+      infrastructure_errors: [helper unavailable, read, copy, write, or fsync failure]
+      domain_errors: [critic not accepted, lineage incomplete, source hash mismatch, fixed path contains different bytes]
+      side_effects: [filesystem_write, filesystem_read]
+      reversibility: {classification: irreversible, undo: preserve_and_block}
+      compensation: Reuse matching files; preserve and block on a mismatching fixed file.
+      authority: Creates only the five fixed srd002 finalization paths from selected immutable artifacts.
+
+  orchestrator_children:
+    - name: invoke_structure_editor
+      owner: workflow-orchestrator
+      implementation: {type: builtin, factory: execute_task, reuse: Profile-only child-agent invocation for structure-editor.}
+      inputs: [original bytes and artifact ID, saga/stage/attempt identity, bounded structure policy, invocation id and idempotency key]
+      outputs: [candidate bytes, parent identity, content hash, structural evidence provenance, producer identity]
+      emits: [StructureEditReturned, StructureEditRejected, ExecutionFailed, CommandError]
+      infrastructure_errors: [profile missing, process start failure, timeout, malformed transport response]
+      domain_errors: [child reports invalid input or cannot produce a bounded edit]
+      side_effects: [child_agent_execution]
+      reversibility: {classification: irreversible, undo: record_observation}
+      compensation: Preserve the prior parent; retry with the recorded idempotency policy. No child filesystem exists to restore.
+      authority: Starts only the configured structure-editor profile; request contains bytes, never workspace paths.
+
+    - name: invoke_voice_editor
+      owner: workflow-orchestrator
+      implementation: {type: builtin, factory: execute_task, reuse: Profile-only child-agent invocation for voice-editor.}
+      inputs: [selected structure bytes and artifact ID, saga/stage/attempt identity, target voice and bounded policy, invocation id and idempotency key]
+      outputs: [candidate bytes, parent identity, content hash, anchor and copy-risk provenance, producer identity]
+      emits: [VoiceEditReturned, VoiceEditRejected, ExecutionFailed, CommandError]
+      infrastructure_errors: [profile missing, process start failure, timeout, malformed transport response]
+      domain_errors: [child reports invalid input, unsupported target, or copy-risk rejection]
+      side_effects: [child_agent_execution]
+      reversibility: {classification: irreversible, undo: record_observation}
+      compensation: Preserve the selected structure parent and retry under recorded policy.
+      authority: Starts only the configured voice-editor profile; request contains bytes, never workspace paths.
+
+    - name: invoke_style_editor
+      owner: workflow-orchestrator
+      implementation: {type: builtin, factory: execute_task, reuse: Profile-only child-agent invocation for style-editor.}
+      inputs: [selected voice bytes and artifact ID, saga/stage/attempt identity, bounded tightening policy, invocation id and idempotency key]
+      outputs: [candidate bytes, parent identity, content hash, transformation-pair provenance, producer identity]
+      emits: [StyleEditReturned, StyleEditRejected, ExecutionFailed, CommandError]
+      infrastructure_errors: [profile missing, process start failure, timeout, malformed transport response]
+      domain_errors: [child reports invalid input or cannot produce a bounded edit]
+      side_effects: [child_agent_execution]
+      reversibility: {classification: irreversible, undo: record_observation}
+      compensation: Preserve the selected voice parent and retry under recorded policy.
+      authority: Starts only the configured style-editor profile; request contains bytes, never workspace paths.
+
+    - name: invoke_voice_critic
+      owner: workflow-orchestrator
+      implementation: {type: builtin, factory: execute_task, reuse: Profile-only child-agent invocation for voice-critic.}
+      inputs: [original and selected style bytes and artifact IDs, both hashes, acceptance policy, explicit Pangram consent state, invocation identity]
+      outputs: [schema-bound critique, evaluated hashes, categorized findings, Pangram statuses, verdict, responsible stage and bounded feedback]
+      emits: [CriticPassed, CriticWarned, CriticRejected, ExecutionFailed, CommandError]
+      infrastructure_errors: [profile missing, process start failure, timeout, malformed transport response]
+      domain_errors: [valid pass, warn, or reject verdict; invalid critic request]
+      side_effects: [child_agent_execution]
+      reversibility: {classification: irreversible, undo: record_observation}
+      compensation: Preserve candidate and prior verdict evidence; retry does not erase external observations.
+      authority: Starts only voice-critic; the child alone may select Pangram words and cannot mutate workproducts.
+
+  orchestrator_github:
+    - name: git_resolve_source_revision
+      owner: workflow-orchestrator
+      implementation: {type: exec, factory: exec, reuse: Fixed git ls-remote operation with configured remote.}
+      inputs: [validated human revision, configured allowlisted repository]
+      outputs: [resolved full commit ID]
+      emits: [SourceRevisionResolved, SourceRevisionMissing, ToolFailed, CommandError]
+      infrastructure_errors: [git unavailable, network, authentication, or timeout failure]
+      domain_errors: [revision absent, ambiguous, moving result changed during capture]
+      side_effects: [child_process, external_api]
+      reversibility: {classification: reversible, undo: noop}
+      compensation: Read-only.
+      authority: Repository comes from trusted configuration and revision from validated human intent, never model output.
+
+    - name: git_fetch_source
+      owner: workflow-orchestrator
+      implementation: {type: exec, factory: exec, reuse: Fixed git fetch of one resolved full commit into an isolated configured repository.}
+      inputs: [configured repository, resolved full commit ID]
+      outputs: [local object identity and fetch status]
+      emits: [SourceFetched, SourceFetchConflict, ToolFailed, CommandError]
+      infrastructure_errors: [git unavailable, network, authentication, disk, or timeout failure]
+      domain_errors: [fetched identity differs, object unavailable]
+      side_effects: [child_process, external_api, filesystem_write]
+      reversibility: {classification: compensatable, undo: discard_isolated_fetch_cache}
+      compensation: Drop only the isolated rebuildable fetch cache; never alter saga workproducts.
+      authority: Fetches one configured remote and resolved commit; no arbitrary refspec, URL, or directory input.
+
+    - name: git_read_source_blob
+      owner: workflow-orchestrator
+      implementation: {type: exec, factory: exec, reuse: Fixed git show operation in the isolated fetched repository.}
+      inputs: [resolved full commit ID, validated repository-relative human source path]
+      outputs: [exact blob bytes, object identity]
+      emits: [SourceBlobRead, SourceBlobMissing, ToolFailed, CommandError]
+      infrastructure_errors: [git unavailable, repository corruption, read failure]
+      domain_errors: [path absent, non-blob object, path containment denied]
+      side_effects: [child_process, filesystem_read]
+      reversibility: {classification: reversible, undo: noop}
+      compensation: Read-only.
+      authority: Reads one validated path at one resolved commit; model output supplies neither.
+
+    - name: git_check_publication
+      owner: workflow-orchestrator
+      implementation: {type: exec, factory: exec, reuse: Fixed local and remote git identity checks.}
+      inputs: [publication key, expected tree sha, configured destination, base, and branch, recorded commit sha]
+      outputs: [absent, matching, or conflicting identities]
+      emits: [PublicationAbsent, PublicationMatching, PublicationConflict, ToolFailed, CommandError]
+      infrastructure_errors: [git unavailable, network, authentication, or parse failure]
+      domain_errors: [tree, commit, branch, or destination conflicts with manifest]
+      side_effects: [child_process, filesystem_read, external_api]
+      reversibility: {classification: reversible, undo: noop}
+      compensation: Read-only check precedes every publication mutation.
+      authority: Inspects only manifest/configured publication identities.
+
+    - name: git_create_publication_branch
+      owner: workflow-orchestrator
+      implementation: {type: exec, factory: exec, reuse: Fixed git switch/create operation.}
+      inputs: [configured base commit, configured publication branch, publication key]
+      outputs: [local branch identity and head]
+      emits: [PublicationBranchCreated, PublicationBranchReused, PublicationConflict, ToolFailed, CommandError]
+      infrastructure_errors: [git unavailable, local repository failure]
+      domain_errors: [existing branch points to conflicting history, base mismatch]
+      side_effects: [child_process, filesystem_write]
+      reversibility: {classification: compensatable, undo: discard_unpublished_matching_branch}
+      compensation: Remove only an unpushed branch created for this publication key; preserve conflicts for operators.
+      authority: Branch and base come from validated configuration/human policy, never model output.
+
+    - name: git_stage_final_chain
+      owner: workflow-orchestrator
+      implementation: {type: exec, factory: exec, reuse: Fixed git add with an exact configured saga-root pathspec.}
+      inputs: [configured saga root, finalized manifest, expected file inventory and hashes]
+      outputs: [staged path inventory and index tree sha]
+      emits: [FinalChainStaged, PublicationConflict, ToolFailed, CommandError]
+      infrastructure_errors: [git unavailable, index lock or filesystem failure]
+      domain_errors: [unexpected path, missing finalized file, staged tree mismatch]
+      side_effects: [child_process, filesystem_write]
+      reversibility: {classification: compensatable, undo: restore_index_checkpoint}
+      compensation: Restore the local index checkpoint; immutable saga files remain.
+      authority: Stages only the configured complete saga root; no model-authored pathspec.
+
+    - name: git_commit_final_chain
+      owner: workflow-orchestrator
+      implementation: {type: exec, factory: exec, reuse: Fixed git commit operation through the existing exec runtime.}
+      inputs: [configured commit message template, publication key, expected index tree sha]
+      outputs: [commit sha, tree sha, parent sha]
+      emits: [PublicationCommitted, PublicationCommitReused, PublicationConflict, ToolFailed, CommandError]
+      infrastructure_errors: [git unavailable, signing or repository failure]
+      domain_errors: [nothing staged before recorded commit, tree mismatch, conflicting commit for key]
+      side_effects: [child_process, filesystem_write]
+      reversibility: {classification: compensatable, undo: preserve_or_drop_unpushed_commit}
+      compensation: Before push, restore the recorded local ref only when identity matches; after push, never rewrite history.
+      authority: Creates exactly one commit from the verified staged tree; message is a configured template, not model text.
+
+    - name: git_push_publication
+      owner: workflow-orchestrator
+      implementation: {type: exec, factory: exec, reuse: Fixed git push of recorded commit to configured branch with force disabled.}
+      inputs: [configured destination, configured branch, recorded commit sha, expected remote prior state]
+      outputs: [pushed ref and remote head]
+      emits: [PublicationPushed, PublicationPushReused, PublicationConflict, ToolFailed, CommandError]
+      infrastructure_errors: [git unavailable, network, authentication, timeout, uncertain completion]
+      domain_errors: [non-fast-forward or remote head conflict]
+      side_effects: [child_process, external_api]
+      reversibility: {classification: irreversible, undo: forward_only_operator_resolution}
+      compensation: Recheck remote identity and continue forward; never force-push or delete a remote ref automatically.
+      authority: Pushes one recorded commit to one configured destination and branch; accepts no URL, refspec, force, or credential parameter.
+
+    - name: gh_find_pull_request
+      owner: workflow-orchestrator
+      implementation: {type: exec, factory: exec, reuse: Fixed gh pr list/view operation with JSON fields and configured repository.}
+      inputs: [configured repository, base, head branch, publication key]
+      outputs: [zero, one matching, or conflicting pull-request identities]
+      emits: [PullRequestAbsent, PullRequestMatching, PublicationConflict, ToolFailed, CommandError]
+      infrastructure_errors: [gh unavailable, network, authentication, timeout, malformed JSON]
+      domain_errors: [multiple or mismatched pull requests]
+      side_effects: [child_process, external_api]
+      reversibility: {classification: reversible, undo: noop}
+      compensation: Read-only idempotency check.
+      authority: Queries only the configured repository/base/head tuple; credentials remain process configuration.
+
+    - name: gh_create_pull_request
+      owner: workflow-orchestrator
+      implementation: {type: exec, factory: exec, reuse: Fixed gh pr create operation with configured templates.}
+      inputs: [configured repository, base, head branch, title/body templates, publication key, verified pushed commit]
+      outputs: [pull-request number, URL, base, head and state]
+      emits: [PullRequestCreated, PullRequestReused, PublicationConflict, ToolFailed, CommandError]
+      infrastructure_errors: [gh unavailable, network, authentication, timeout, uncertain completion]
+      domain_errors: [existing conflicting pull request, pushed head mismatch]
+      side_effects: [child_process, external_api]
+      reversibility: {classification: irreversible, undo: forward_only_operator_resolution}
+      compensation: On uncertainty call gh_find_pull_request; never close or replace a pull request automatically.
+      authority: Creates one PR for the configured repository/base/head; model output supplies no repository, refs, URL, credentials, title, or body.
+
+    - name: gh_verify_pull_request
+      owner: workflow-orchestrator
+      implementation: {type: exec, factory: exec, reuse: Fixed gh pr view operation with bounded JSON output.}
+      inputs: [recorded pull-request number, configured repository/base/head, recorded commit sha]
+      outputs: [verified pull-request identity and publication completion evidence]
+      emits: [PublicationVerified, PublicationConflict, ToolFailed, CommandError]
+      infrastructure_errors: [gh unavailable, network, authentication, timeout, malformed JSON]
+      domain_errors: [PR missing, closed unexpectedly, base/head/commit mismatch]
+      side_effects: [child_process, external_api]
+      reversibility: {classification: reversible, undo: noop}
+      compensation: Read-only; conflicting remote state blocks automatic progress.
+      authority: Reads only the recorded PR in the configured repository.
+
+  editor_and_critic_retrieval:
+    - name: embed_structure_query
+      owner: structure-editor
+      implementation: {type: builtin, factory: rest_client_invoke, reuse: Configured Ollama embedding operation.}
+      inputs: [bounded structure question text from request and deterministic prompt composition]
+      outputs: [embedding vector, embedding model identity, carried query identity]
+      emits: [StructureQueryEmbedded, StructureQueryRejected, CommandError]
+      infrastructure_errors: [REST config, network, timeout, authentication, schema, or mapping failure]
+      domain_errors: [provider rejects bounded input]
+      side_effects: [external_api]
+      reversibility: {classification: irreversible, undo: record_observation}
+      compensation: No remote inference can be undone; discard output on failure.
+      authority: Endpoint and model are profile-configured; vector comes only from the mapped provider response.
+
+    - name: query_structure_rag
+      owner: structure-editor
+      implementation: {type: builtin, factory: rest_client_invoke, reuse: Vector-in query operation bound to structure-rag.}
+      inputs: [vector from embed_structure_query, configured result limit, trace and content-hash identity]
+      outputs: [ranked chunks, distances, metadata, embedding model identity]
+      emits: [StructureEvidenceReady, StructureEvidenceInsufficient, QueryRejected, CommandError]
+      infrastructure_errors: [REST config, network, timeout, response schema, or mapping failure]
+      domain_errors: [embedding mismatch, query rejected, no evidence above configured sufficiency policy]
+      side_effects: [external_api]
+      reversibility: {classification: reversible, undo: noop}
+      compensation: Read-only.
+      authority: Calls only configured structure-rag; vector is selected from the embedding word, never model-authored.
+
+    - name: generate_structure_edit
+      owner: structure-editor
+      implementation: {type: builtin, factory: invoke_llm, reuse: Profile-owned Ollama LLM declaration.}
+      inputs: [supplied parent bytes and ID, bounded policy, mapped structure evidence and provenance]
+      outputs: [candidate document bytes, parent ID, bounded evidence references, declared provenance]
+      emits: [StructureEditGenerated, StructureEditDeclined, CommandError]
+      infrastructure_errors: [provider config, model discovery, timeout, or chat failure]
+      domain_errors: [model output fails content/schema/grounding constraints]
+      side_effects: [external_api, state_mutation]
+      reversibility: {classification: reversible, undo: conversation_truncate}
+      compensation: Truncate conversation state; remote inference remains an irreversible observation.
+      authority: May author document content and evidence IDs only; cannot author paths, URLs, refs, vectors, credentials, tools, or acceptance.
+
+    - name: embed_voice_query
+      owner: voice-editor
+      implementation: {type: builtin, factory: rest_client_invoke, reuse: Configured Ollama embedding operation.}
+      inputs: [bounded rhetorical-role query from request and deterministic prompt composition]
+      outputs: [embedding vector, embedding model identity, carried query identity]
+      emits: [VoiceQueryEmbedded, VoiceQueryRejected, CommandError]
+      infrastructure_errors: [REST config, network, timeout, authentication, schema, or mapping failure]
+      domain_errors: [provider rejects bounded input]
+      side_effects: [external_api]
+      reversibility: {classification: irreversible, undo: record_observation}
+      compensation: No remote inference can be undone; discard output on failure.
+      authority: Endpoint and model are profile-configured; vector comes only from provider output.
+
+    - name: query_voice_rag
+      owner: voice-editor
+      implementation: {type: builtin, factory: rest_client_invoke, reuse: Vector-in query operation bound to voice-rag.}
+      inputs: [vector from embed_voice_query, configured result limit, trace and content-hash identity]
+      outputs: [ranked passages, distances, metadata, embedding model identity]
+      emits: [VoiceEvidenceReady, VoiceEvidenceInsufficient, QueryRejected, CommandError]
+      infrastructure_errors: [REST config, network, timeout, response schema, or mapping failure]
+      domain_errors: [embedding mismatch, query rejected, insufficient evidence]
+      side_effects: [external_api]
+      reversibility: {classification: reversible, undo: noop}
+      compensation: Read-only.
+      authority: Calls only configured voice-rag; vector is selected from embed_voice_query.
+
+    - name: generate_voice_edit
+      owner: voice-editor
+      implementation: {type: builtin, factory: invoke_llm, reuse: Profile-owned Ollama LLM declaration.}
+      inputs: [supplied parent bytes and ID, target voice and bounded policy, mapped voice passages and provenance]
+      outputs: [candidate bytes, parent ID, anchor references, copy-risk evidence, declared provenance]
+      emits: [VoiceEditGenerated, VoiceEditDeclined, CopyRiskBlocked, CommandError]
+      infrastructure_errors: [provider config, model discovery, timeout, or chat failure]
+      domain_errors: [schema or grounding invalid, unsupported target, configured copy-risk limit exceeded]
+      side_effects: [external_api, state_mutation]
+      reversibility: {classification: reversible, undo: conversation_truncate}
+      compensation: Truncate conversation state; retain copy-risk outcome as request evidence.
+      authority: May author document content, declared enums, and evidence IDs only; cannot author authority-bearing values or acceptance.
+
+    - name: embed_tightening_query
+      owner: style-editor
+      implementation: {type: builtin, factory: rest_client_invoke, reuse: Configured Ollama embedding operation.}
+      inputs: [bounded tightening-intent query from request and deterministic prompt composition]
+      outputs: [embedding vector, embedding model identity, carried query identity]
+      emits: [TighteningQueryEmbedded, TighteningQueryRejected, CommandError]
+      infrastructure_errors: [REST config, network, timeout, authentication, schema, or mapping failure]
+      domain_errors: [provider rejects bounded input]
+      side_effects: [external_api]
+      reversibility: {classification: irreversible, undo: record_observation}
+      compensation: No remote inference can be undone; discard output on failure.
+      authority: Endpoint and model are profile-configured; vector comes only from provider output.
+
+    - name: query_tightening_rag
+      owner: style-editor
+      implementation: {type: builtin, factory: rest_client_invoke, reuse: Vector-in query operation bound to tightening-rag.}
+      inputs: [vector from embed_tightening_query, configured result limit, trace and content-hash identity]
+      outputs: [ranked transformation pairs, distances, metadata, embedding model identity]
+      emits: [TighteningEvidenceReady, TighteningEvidenceInsufficient, QueryRejected, CommandError]
+      infrastructure_errors: [REST config, network, timeout, response schema, or mapping failure]
+      domain_errors: [embedding mismatch, query rejected, insufficient evidence]
+      side_effects: [external_api]
+      reversibility: {classification: reversible, undo: noop}
+      compensation: Read-only.
+      authority: Calls only configured tightening-rag; vector is selected from embed_tightening_query.
+
+    - name: generate_style_edit
+      owner: style-editor
+      implementation: {type: builtin, factory: invoke_llm, reuse: Profile-owned Ollama LLM declaration.}
+      inputs: [supplied parent bytes and ID, bounded tightening policy, mapped transformation pairs and provenance]
+      outputs: [candidate bytes, parent ID, pair references, declared provenance]
+      emits: [StyleEditGenerated, StyleEditDeclined, CommandError]
+      infrastructure_errors: [provider config, model discovery, timeout, or chat failure]
+      domain_errors: [schema, grounding, or bounded-edit constraints fail]
+      side_effects: [external_api, state_mutation]
+      reversibility: {classification: reversible, undo: conversation_truncate}
+      compensation: Truncate conversation state; remote inference remains an observation.
+      authority: May author document content and evidence IDs only; cannot author authority-bearing values or acceptance.
+
+    - name: embed_critic_voice_query
+      owner: voice-critic
+      implementation: {type: builtin, factory: rest_client_invoke, reuse: Configured Ollama embedding operation.}
+      inputs: [deterministically composed comparison query from supplied original and candidate hashes and bounded excerpts]
+      outputs: [embedding vector, embedding model identity, carried query identity]
+      emits: [CriticQueryEmbedded, CriticQueryRejected, CommandError]
+      infrastructure_errors: [REST config, network, timeout, authentication, schema, or mapping failure]
+      domain_errors: [provider rejects bounded input]
+      side_effects: [external_api]
+      reversibility: {classification: irreversible, undo: record_observation}
+      compensation: No remote inference can be undone; discard output on failure.
+      authority: Endpoint/model are configured; vector comes only from provider output.
+
+    - name: query_critic_voice_rag
+      owner: voice-critic
+      implementation: {type: builtin, factory: rest_client_invoke, reuse: Read-only vector-in query bound to voice-rag.}
+      inputs: [vector from embed_critic_voice_query, configured result limit, both evaluated hashes]
+      outputs: [ranked passages, distances, metadata, embedding model identity]
+      emits: [CriticVoiceEvidenceReady, CriticVoiceEvidenceInsufficient, QueryRejected, CommandError]
+      infrastructure_errors: [REST config, network, timeout, response schema, or mapping failure]
+      domain_errors: [embedding mismatch, query rejected, insufficient evidence]
+      side_effects: [external_api]
+      reversibility: {classification: reversible, undo: noop}
+      compensation: Read-only.
+      authority: Calls only configured voice-rag and cannot write any corpus.
+
+    - name: evaluate_voice_candidate
+      owner: voice-critic
+      implementation: {type: builtin, factory: invoke_llm, reuse: Profile-owned Ollama LLM declaration.}
+      inputs: [supplied immutable original and candidate bytes and hashes, bounded policy, voice evidence, optional mapped Pangram evidence]
+      outputs: [schema-bound semantic, structure, voice, style, unsupported-addition, and copy-risk findings; pass/warn/reject; responsible stage and feedback]
+      emits: [CriticPassed, CriticWarned, CriticRejected, CriticOutputInvalid, CommandError]
+      infrastructure_errors: [provider config, model discovery, timeout, or chat failure]
+      domain_errors: [valid pass, warn, or reject; schema-invalid or hash-mismatched evaluation]
+      side_effects: [external_api, state_mutation]
+      reversibility: {classification: reversible, undo: conversation_truncate}
+      compensation: Truncate conversation state; no verdict is emitted for invalid or infrastructure-failed evaluation.
+      authority: May author findings, declared verdict enums, responsible-stage enum, and bounded feedback; cannot edit content or author authority values. Pangram alone cannot determine verdict.
+
+  critic_pangram:
+    - name: check_pangram_consent
+      owner: voice-critic
+      implementation: {type: builtin, factory: value_predicate, reuse: Compare recorded consent and bound hashes without network access.}
+      inputs: [recorded consent state, original hash, candidate hash, consent-bound original and candidate hashes]
+      outputs: [affirmative, denied, absent, expired, or hash-mismatched consent result]
+      emits: [PangramConsentGranted, PangramConsentDenied, PangramConsentMissing, CommandError]
+      infrastructure_errors: [selector or predicate configuration failure]
+      domain_errors: [consent denied, absent, expired, or bound to different hashes]
+      side_effects: [none]
+      reversibility: {classification: reversible, undo: noop}
+      compensation: No state exists to compensate; a non-granted result selects no scan word.
+      authority: Validates consent only and grants no endpoint, credential, path, or content-selection authority.
+
+    - name: await_pangram_consent
+      owner: voice-critic
+      implementation: {type: builtin, factory: suspend, reuse: Agent-core human-boundary lifecycle gate.}
+      inputs: [recorded consent state, both content hashes, disclosure text and privacy policy identity]
+      outputs: [checkpointed suspension identity for a missing-consent decision]
+      emits: [AwaitApproval, CommandError]
+      infrastructure_errors: [checkpoint or resume-decision failure]
+      domain_errors: [none; check_pangram_consent owns the resumed consent outcome]
+      side_effects: [human_boundary, state_mutation]
+      reversibility: {classification: compensatable, undo: resume_with_denial}
+      compensation: Resume to check_pangram_consent or terminate without Pangram; consent is never inferred.
+      authority: Suspends only for missing consent and grants no endpoint, credential, path, or upload authority.
+
+    - name: pangram_scan_before
+      owner: voice-critic
+      implementation: {type: builtin, factory: rest_client_invoke, reuse: Configured authenticated Pangram before-scan operation.}
+      inputs: [exact supplied original bytes and hash, affirmative consent bound to both hashes, configured timeout and request limit]
+      outputs: [mapped advisory score/findings, original hash, request status, provider request identity with secrets redacted]
+      emits: [PangramBeforeReady, PangramBeforeDeclined, PangramBeforeRejected, CommandError]
+      infrastructure_errors: [REST config, credential resolution, network, authentication, timeout, response schema, or mapping failure]
+      domain_errors: [consent not affirmative, content too large, provider rejects scan]
+      side_effects: [external_api]
+      reversibility: {classification: irreversible, undo: none_for_upload}
+      compensation: Upload cannot be recalled; retain only bounded redacted evidence and continue or fail under recorded policy.
+      authority: Uploads only supplied original bytes after consent; URL, route, credential, timeout, and privacy limits are configured and invisible to model output.
+
+    - name: pangram_scan_after
+      owner: voice-critic
+      implementation: {type: builtin, factory: rest_client_invoke, reuse: Configured authenticated Pangram after-scan operation.}
+      inputs: [exact supplied candidate bytes and hash, affirmative consent bound to both hashes, configured timeout and request limit]
+      outputs: [mapped advisory score/findings, candidate hash, request status, provider request identity with secrets redacted]
+      emits: [PangramAfterReady, PangramAfterDeclined, PangramAfterRejected, CommandError]
+      infrastructure_errors: [REST config, credential resolution, network, authentication, timeout, response schema, or mapping failure]
+      domain_errors: [consent not affirmative, content too large, provider rejects scan]
+      side_effects: [external_api]
+      reversibility: {classification: irreversible, undo: none_for_upload}
+      compensation: Upload cannot be recalled; retain only bounded redacted evidence and continue or fail under recorded policy.
+      authority: Uploads only supplied candidate bytes after consent; no model-authored transport or credential value is accepted.
+
+  corpus_wrapper:
+    - name: list_declared_corpus
+      owner: corpus-ingest
+      implementation: {type: builtin, factory: list_resource, reuse: Configured filesystem document-resource declaration.}
+      inputs: [configured corpus resource name and optional configured prefix]
+      outputs: [contained resource-relative entries and metadata]
+      emits: [CorpusListed, CorpusResourceDenied, CommandError]
+      infrastructure_errors: [root unavailable, scan failure]
+      domain_errors: [unknown resource, traversal or extension denied]
+      side_effects: [filesystem_read]
+      reversibility: {classification: reversible, undo: noop}
+      compensation: Read-only.
+      authority: Root, include rules, extensions, symlink policy, and byte limits are profile configuration; runtime cannot replace them.
+
+    - name: read_declared_corpus_document
+      owner: corpus-ingest
+      implementation: {type: builtin, factory: read_resource, reuse: Configured filesystem document-resource declaration.}
+      inputs: [configured resource identity and resource-relative path from list_declared_corpus]
+      outputs: [document bytes, content metadata, size, resource-relative path]
+      emits: [CorpusDocumentRead, CorpusDocumentMissing, CorpusResourceDenied, CorpusDocumentInvalid, CommandError]
+      infrastructure_errors: [filesystem or parser failure]
+      domain_errors: [missing document, path/extension/size denied, invalid configured format]
+      side_effects: [filesystem_read]
+      reversibility: {classification: reversible, undo: noop}
+      compensation: Read-only.
+      authority: Reads only listed contained resources; no writing-saga path is configured.
+
+    - name: invoke_canonical_corpus_ingest
+      owner: corpus-ingest
+      implementation: {type: builtin, factory: execute_task, reuse: Profile-only child invocation of the canonical catalog corpus-ingest profile.}
+      inputs: [configured corpus resource, embedding endpoint/model, Chroma endpoint and one declared collection identity, administrative run identity]
+      outputs: [ingest status, bounded counts, model and collection provenance]
+      emits: [CorpusIngested, CorpusIngestEmpty, ExecutionFailed, CommandError]
+      infrastructure_errors: [profile missing, process start, embedding, Chroma, timeout, or transport failure]
+      domain_errors: [no eligible documents, invalid configured corpus record]
+      side_effects: [child_agent_execution, external_api]
+      reversibility: {classification: compensatable, undo: rebuild_declared_collection}
+      compensation: Rebuild the one declared collection from the trusted corpus; never modify source files or saga workproducts.
+      authority: Invokes only the canonical profile with configured resources and one collection; cannot access GitHub, Pangram, or writing sagas.
+
+  lifecycle:
+    - name: suspend_saga_for_operator
+      owner: workflow-orchestrator
+      implementation: {type: builtin, factory: suspend, reuse: Agent-core lifecycle approval gate.}
+      inputs: [bounded reason enum, saga ID, manifest revision, conflict identities]
+      outputs: [checkpointed suspension identity and later operator decision]
+      emits: [AwaitApproval, OperatorResolved, OperatorAborted, CommandError]
+      infrastructure_errors: [required checkpoint save or resume failure]
+      domain_errors: [operator aborts or supplies a decision inconsistent with current revision]
+      side_effects: [human_boundary, state_mutation]
+      reversibility: {classification: compensatable, undo: resume_or_abort}
+      compensation: Resume from persisted state or terminate without rewriting workproducts.
+      authority: Pauses only the current saga; operator input is validated and cannot inject tools or authority.
+
+    - name: inspect_saga_checkpoint
+      owner: workflow-orchestrator
+      implementation: {type: builtin, factory: checkpoint_history, reuse: Agent-core checkpoint history reader.}
+      inputs: [current run ID or configured latest selector]
+      outputs: [runtime execution history digest and artifact references]
+      emits: [CheckpointHistoryRead, CommandError]
+      infrastructure_errors: [checkpoint backend unavailable or run unresolved]
+      domain_errors: [none]
+      side_effects: [state_read]
+      reversibility: {classification: reversible, undo: noop}
+      compensation: Read-only.
+      authority: Reads runtime metadata and references only; does not read or embed artifact bodies.
+
+    - name: rollback_saga_checkpoint
+      owner: workflow-orchestrator
+      implementation: {type: builtin, factory: checkpoint_rollback, reuse: Agent-core DB-only rollback and receipt replay.}
+      inputs: [operator-approved run ID and target step]
+      outputs: [target step, reverted entry count, skipped irreversible effects]
+      emits: [CheckpointRolledBack, CommandError]
+      infrastructure_errors: [target resolution, Dolt Revert, or receipt replay failure]
+      domain_errors: [target invalid or conflicts with authoritative manifest revision]
+      side_effects: [state_mutation, child_tool_execution]
+      reversibility: {classification: compensatable, undo: operator_selects_new_state}
+      compensation: Reconcile against append-only manifest; never claim to delete or restore saga files, GitHub effects, model calls, retrieval, or Pangram uploads.
+      authority: Changes agent-core runtime state only after operator approval.
+
+    - name: exit_voice_forge_run
+      owner: workflow-orchestrator
+      implementation: {type: builtin, factory: exit_agent, reuse: Agent-core finite lifecycle exit.}
+      inputs: [terminal status, manifest revision, redacted reason]
+      outputs: [drain and exit status]
+      emits: [AgentExited, CommandError]
+      infrastructure_errors: [server drain or checkpoint failure]
+      domain_errors: [terminal status not allowed by manifest state]
+      side_effects: [state_mutation]
+      reversibility: {classification: irreversible, undo: restart_and_reconcile}
+      compensation: Restart loads and reconciles the durable saga; exit does not mutate artifacts.
+      authority: Terminates only the current run after a valid terminal manifest state.
+
+requirements:
+  R1:
+    title: Closed vocabulary and factory reuse
+    items:
+      - id: R1.1
+        text: |
+          Every planned machine action that crosses a workproduct, child-agent,
+          retrieval, model, GitHub, Pangram, corpus, or lifecycle boundary SHALL
+          select exactly one named word from word_vocabulary.
+        evidence: Planned machine-action closure tests reject an unnamed action or a selected word absent from the owning profile.
+      - id: R1.2
+        text: |
+          Every word SHALL declare owner, factory reuse, inputs, outputs,
+          emitted signals, infrastructure errors, domain errors, side effects,
+          reversibility, compensation, and authority.
+        evidence: Structural validation checks every word_vocabulary entry for all contract fields.
+      - id: R1.3
+        text: |
+          Voice Forge SHALL reuse the existing builtin, REST, invoke_llm,
+          execute_task, lifecycle, and exec factories. It SHALL NOT require a
+          new Go builtin, REST adapter, child-agent factory, or lifecycle
+          factory.
+        evidence: Planned declarations resolve only factory_reuse.factories and generic exec declarations.
+      - id: R1.4
+        text: |
+          No Voice Forge profile SHALL expose arbitrary shell, generic
+          executable selection, generic REST URL selection, generic filesystem
+          mutation, or unconstrained git or gh authority.
+        evidence: Planned profile-closure tests reject shell interpreters, command-string parameters, runtime binaries, runtime URLs, and generic write/git/gh words.
+
+  R2:
+    title: Orchestrator workproduct and child words
+    items:
+      - id: R2.1
+        text: |
+          Only workflow-orchestrator SHALL select validate_saga_request,
+          read_workproduct, hash_workproduct, write_original, write_attempt,
+          append_manifest_revision, project_manifest, and
+          materialize_final_chain.
+        evidence: Planned authority tests deny these words to every child and corpus profile.
+      - id: R2.2
+        text: |
+          Workproduct mutation words SHALL derive contained paths from the
+          configured saga root, saga identity, stage, attempt, and computed
+          digest and SHALL implement the atomic write, fsync, immutability, and
+          recovery contract in srd002.
+        evidence: Planned path, fault-injection, torn-write, hash, and immutable-conflict tests cover every mutation word.
+      - id: R2.3
+        text: |
+          The orchestrator SHALL invoke structure-editor, voice-editor,
+          style-editor, and voice-critic only through their four named
+          profile-only child words. Requests SHALL carry bytes and identities
+          and SHALL NOT carry workspace paths.
+        evidence: Planned request schemas and profile tests reject path fields and any child filesystem ToolDef.
+      - id: R2.4
+        text: |
+          A child success signal SHALL NOT accept an artifact. The orchestrator
+          SHALL validate returned bytes or critique data, parent identities,
+          hashes, schema, and provenance before write_attempt and manifest
+          selection.
+        evidence: Planned malformed, missing-output, wrong-parent, wrong-hash, and equivocation tests preserve the prior parent.
+
+  R3:
+    title: Constrained GitHub publication
+    items:
+      - id: R3.1
+        text: |
+          Only workflow-orchestrator SHALL select the source and publication
+          git/gh words. Source resolution, fetch, and blob read SHALL use one
+          allowlisted configured repository and validated human revision/path.
+        evidence: Planned authority and negative-input tests deny GitHub words elsewhere and reject runtime URL, refspec, directory, and credential overrides.
+      - id: R3.2
+        text: |
+          Branch, stage, commit, push, and pull-request creation SHALL each have
+          a distinct word and SHALL be preceded or followed as applicable by
+          git_check_publication, gh_find_pull_request, gh_verify_pull_request,
+          or equivalent named identity checks in this vocabulary.
+        evidence: Planned crash and uncertain-completion tests converge on one branch, commit, pushed ref, and pull request.
+      - id: R3.3
+        text: |
+          Publication words SHALL consume only configured or manifest-recorded
+          destination, base, branch, tree, commit, and pull-request identities.
+          Force push, remote ref deletion, automatic PR closure, and destructive
+          remote compensation SHALL be absent.
+        evidence: Planned declaration inspection and remote-conflict tests block instead of rewriting remote state.
+
+  R4:
+    title: Corpus-scoped retrieval and model words
+    items:
+      - id: R4.1
+        text: |
+          Each editor SHALL own one embedding word, one corpus-specific RAG
+          query word, and one generation word. voice-critic SHALL own its
+          separate embedding, voice-rag query, and evaluation words.
+        evidence: Planned profile manifests match word_vocabulary.editor_and_critic_retrieval exactly.
+      - id: R4.2
+        text: |
+          Embedding words SHALL obtain vectors from configured provider
+          responses. RAG words SHALL consume those vectors through validated
+          previous-result or command-state selectors. No human or model output
+          SHALL author a vector.
+        evidence: Planned wiring and adversarial-output tests prove vector provenance and reject literal or model-returned vectors.
+      - id: R4.3
+        text: |
+          structure-editor, voice-editor, style-editor, and voice-critic SHALL
+          query only structure-rag, voice-rag, tightening-rag, and voice-rag
+          respectively, and all editing-run RAG operations SHALL be read-only.
+        evidence: Planned REST config and profile-closure tests enforce endpoint and operation bindings and expose no collection mutation.
+      - id: R4.4
+        text: |
+          invoke_llm words SHALL return only content, declared enum values,
+          bounded findings, feedback, and evidence references. Model output
+          SHALL NOT supply URLs, paths, refs, vectors, credentials, model names,
+          collection identities, tool names, or publication authority.
+        evidence: Planned schemas, prompts, parse tests, and adversarial model fixtures reject authority-bearing fields.
+
+  R5:
+    title: Pangram privacy and consent
+    items:
+      - id: R5.1
+        text: |
+          Only voice-critic SHALL select check_pangram_consent,
+          await_pangram_consent, pangram_scan_before, and pangram_scan_after.
+          Each scan SHALL require affirmative consent bound to the exact
+          original and candidate hashes.
+        evidence: Planned owner and consent tests cover granted, denied, absent, expired, and hash-mismatched consent.
+      - id: R5.2
+        text: |
+          Pangram URL, route, credentials, timeout, size limits, redirect
+          policy, and network allowlist SHALL be trusted configuration. Scan
+          requests and diagnostics SHALL redact credentials and SHALL NOT persist
+          unbounded response or request bodies.
+        evidence: Planned REST validation, timeout, size, redirect, redaction, and credential-leak tests enforce the boundary.
+      - id: R5.3
+        text: |
+          Before and after scans SHALL be separate irreversible upload words.
+          Their non-compensatable privacy effect and request status SHALL be
+          recorded, and neither result nor failure SHALL alone determine the
+          critic verdict.
+        evidence: Planned retry and verdict tests preserve upload evidence, avoid false undo, and require independent finding categories.
+
+  R6:
+    title: Corpus wrapper and lifecycle
+    items:
+      - id: R6.1
+        text: |
+          corpus-ingest SHALL use list_declared_corpus and
+          read_declared_corpus_document for configured source access and
+          invoke_canonical_corpus_ingest for profile-only canonical behavior
+          reuse outside writing sagas.
+        evidence: Planned wrapper profile names only these words and resolves the canonical catalog profile without a fork.
+      - id: R6.2
+        text: |
+          Corpus roots, include rules, extensions, models, endpoints, and
+          collections SHALL be configuration-owned. The wrapper SHALL NOT
+          select workproduct, GitHub, editing, criticism, or Pangram words.
+        evidence: Planned resource and profile-closure tests deny traversal, cross-collection writes, and cross-domain tools.
+      - id: R6.3
+        text: |
+          Lifecycle words SHALL reuse suspend, checkpoint_history,
+          checkpoint_rollback, and exit_agent. Checkpoint rollback SHALL remain
+          DB-only plus receipt replay and SHALL reconcile against the
+          append-only manifest without claiming filesystem or remote reversal.
+        evidence: Planned suspend, restart, rollback, and manifest-reconciliation tests preserve all saga bytes and report irreversible effects.
+
+  R7:
+    title: Signals, errors, and planned status
+    items:
+      - id: R7.1
+        text: |
+          Every word SHALL distinguish CommandError infrastructure failure from
+          named domain outcomes. Infrastructure failure SHALL NOT become editor
+          success, critic pass/warn/reject, consent, finalization, or publication.
+        evidence: Planned failure injection checks each declared infrastructure_errors and domain_errors path.
+      - id: R7.2
+        text: |
+          Remote model, embedding, retrieval, Pangram, push, and PR effects
+          SHALL be recorded as observations or forward-only effects and SHALL
+          NOT claim false undo. Local immutable workproduct compensation SHALL
+          append status or repair projections rather than delete evidence.
+        evidence: Planned receipt and compensation tests match every word's reversibility and compensation fields.
+      - id: R7.3
+        text: |
+          This SRD SHALL remain specified while profiles, machines, ToolDefs,
+          helper executable, REST definitions, services, tests, and executable
+          evidence remain planned.
+        evidence: Architecture, specification index, roadmap, and implementation_status agree.
+
+non_goals:
+  - Implement ToolDefs, profiles, machines, REST definitions, helper executables, services, or tests.
+  - Add a Go builtin, application-local REST adapter, shell interpreter, or generic command tool.
+  - Define transition order, retry routing, or full state tables owned by srd004 through srd008.
+  - Change the canonical corpus-ingest or RAG server implementation.
+  - Give editors or the critic a saga filesystem, GitHub, or collection-write capability.
+  - Make Pangram mandatory or authoritative for acceptance.
+  - Claim remote inference, uploads, pushes, or pull requests can be erased by rollback.
+
+acceptance_criteria:
+  - id: AC1
+    criterion: |
+      The closed vocabulary names every planned boundary action, every word has
+      the complete contract fields, existing factories are reused, and no new
+      Go builtin or arbitrary shell authority is required.
+    traces: [R1.1, R1.2, R1.3, R1.4]
+  - id: AC2
+    criterion: |
+      Only the orchestrator owns contained workproduct words and four
+      path-free child invocations; immutable writes and child responses obey
+      srd002 acceptance and recovery rules.
+    traces: [R2.1, R2.2, R2.3, R2.4]
+  - id: AC3
+    criterion: |
+      Source capture and create-or-reuse publication use distinct constrained
+      git/gh words, configuration-owned authority, identity checks, and
+      forward-only remote conflict handling.
+    traces: [R3.1, R3.2, R3.3]
+  - id: AC4
+    criterion: |
+      Editor and critic embedding, RAG, and LLM words are corpus-scoped,
+      read-only where required, vector provenance is machine-threaded, and
+      model output cannot author authority-bearing values.
+    traces: [R4.1, R4.2, R4.3, R4.4]
+  - id: AC5
+    criterion: |
+      Only the critic owns separate before/after Pangram scans; exact-hash
+      consent, configured privacy controls, redaction, irreversible upload
+      semantics, and advisory-only results are explicit.
+    traces: [R5.1, R5.2, R5.3]
+  - id: AC6
+    criterion: |
+      The corpus wrapper reuses configured resource words and canonical child
+      behavior, lifecycle words retain their existing boundaries, and neither
+      wrapper nor rollback escapes its authority.
+    traces: [R6.1, R6.2, R6.3]
+  - id: AC7
+    criterion: |
+      Infrastructure errors and domain outcomes remain distinct, all effects
+      have honest compensation, and documentation reports runtime as planned.
+    traces: [R7.1, R7.2, R7.3]
+
+shared_requirement_traces:
+  - contract: srd001-voice-forge-services
+    path: srd001-voice-forge-services.yaml
+    requirements: [R1.4, R2.1, R2.3, R3.1, R4.3, R5.1, R6.2]
+  - contract: srd002-writing-saga-workproducts
+    path: srd002-writing-saga-workproducts.yaml
+    requirements: [R2.2, R2.4, R3.2, R3.3, R5.3, R6.3, R7.2]
+  - contract: srd026-lifecycle-tools
+    path: ../../../../../agent-core/docs/specs/software-requirements/srd026-lifecycle-tools.yaml
+    requirements: [R6.3, R7.2]
+  - contract: srd028-rest-client-tools
+    path: ../../../../../agent-core/docs/specs/software-requirements/srd028-rest-client-tools.yaml
+    requirements: [R4.2, R4.3, R5.2]
+  - contract: cfg-tool-declaration-format
+    path: ../../../../../agent-core/docs/specs/config-formats/tool-declaration-format.yaml
+    requirements: [R1.1, R1.2, R1.3, R1.4]
+  - contract: cfg-rest-tool-format
+    path: ../../../../../agent-core/docs/specs/config-formats/rest-tool-format.yaml
+    requirements: [R4.2, R4.3, R5.2]
+
+use_case_traces:
+  - id: rel00.0-uc001-edit-document
+    status: planned
+    path: ../use-cases/rel00.0-uc001-edit-document.yaml
+
+test_suite_traces:
+  - id: test-rel00.0-voice-forge
+    status: planned
+    path: ../test-suites/test-rel00.0-voice-forge.yaml
+    acceptance_criteria: [AC1, AC2, AC3, AC4, AC5, AC6, AC7]
+
+related_documents:
+  - path: ../../ARCHITECTURE.yaml
+    usage: Defines planned tool-boundary interfaces and authority allocation.
+  - path: srd001-voice-forge-services.yaml
+    usage: Owns actor, service, retrieval, and external-boundary authority.
+  - path: srd002-writing-saga-workproducts.yaml
+    usage: Owns exact artifacts, manifest, retry, recovery, and publication semantics.
+  - path: ../../../../../agent-core/docs/constitutions/design.yaml
+    usage: Requires numbered SRDs and one complete vocabulary word per tool action.
+  - path: ../../../../../agent-core/docs/specs/config-formats/tool-declaration-format.yaml
+    usage: Owns ToolDef fields, factory config, signals, effects, errors, and undo.
+  - path: ../../../../../agent-core/docs/specs/config-formats/rest-tool-format.yaml
+    usage: Owns configured HTTP authority, mapping, limits, redaction, and compensation.
+  - path: ../../../../../agent-core/tools/exec.yaml
+    usage: Demonstrates constrained exec and git declaration reuse without a shell.
+  - path: ../../../../catalog/agents/knowledge-manager/corpus-reader/declarations.yaml
+    usage: Demonstrates embedding-vector provenance, RAG threading, and configured LLM reuse.
+  - path: ../../../../chatbot-mesh/agents/rag-server/request-declarations.yaml
+    usage: Owns the existing vector-in, ranked-chunk RAG vocabulary shape.
+
+implementation_status:
+  specification: specified
+  runtime: planned
+  profiles: not_implemented
+  machines: not_implemented
+  tool_declarations: not_implemented
+  workproduct_helper: not_implemented
+  rest_definitions: not_implemented
+  services: not_implemented
+  tests: not_implemented
+  executable_evidence: none

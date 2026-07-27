@@ -97,17 +97,19 @@ interfaces:
   - name: workproduct boundary tools
     status: planned
     summary: |
-      Orchestrator-only words capture source, read accepted parents, write a new
-      immutable artifact, update manifest state, and finalize output. Their
-      ToolDefs will define inputs, outputs, signals, effects, errors, and
-      non-destructive compensation under srd003.
+      Orchestrator-only words validate requests, read and hash workproducts,
+      write the immutable original and attempts, append and project the
+      manifest, and materialize the final chain. Constrained exec declarations
+      use a profile-owned non-shell helper to satisfy srd002 atomic write and
+      fsync behavior without a new Go builtin. Paths derive from trusted saga
+      state; model and child output never supplies them.
   - name: retrieval REST boundary
     status: planned
     summary: |
-      Editors and the critic issue read-only queries to corpus-scoped RAG
-      server instances over declared endpoints and collection identities.
-      REST behavior relies on agent-core srd027 through srd030; local documents
-      specify only the application query and provenance policy.
+      Each editor owns one configured embedding word and one read-only query
+      word for its corpus-scoped RAG instance. The critic owns a separate
+      embedding word and read-only voice-rag query. Embedding responses, not
+      model text, supply vectors through validated command-state selectors.
   - name: model boundary
     status: planned
     summary: |
@@ -118,9 +120,11 @@ interfaces:
     status: planned
     summary: |
       Constrained git and gh exec words are available only to the orchestrator.
-      They fetch an allowlisted source, create a branch, commit the complete
-      accepted saga once, push, and create or reuse a pull request. Arbitrary
-      shell commands are outside the interface.
+      Distinct source resolve, fetch, blob read, publication check, branch,
+      stage, commit, push, pull-request find/create, and verification words
+      consume only validated human intent, configuration, and manifest state.
+      Force push, arbitrary shell, runtime binaries, URLs, refs, credentials,
+      and command strings are outside the interface.
   - name: Pangram privacy boundary
     status: planned
     summary: |
@@ -131,10 +135,73 @@ interfaces:
   - name: canonical corpus-ingest boundary
     status: planned
     summary: |
-      The local wrapper selects the canonical applications/catalog
-      corpus-ingest program and supplies application-owned corpus, endpoint,
-      model, and collection parameters. The catalog retains implementation
-      ownership.
+      The local wrapper lists and reads only configured filesystem resources,
+      then invokes the canonical applications/catalog corpus-ingest profile
+      through the existing profile-only child factory. Corpus roots, endpoint,
+      model, and collection remain trusted configuration. The catalog retains
+      behavior ownership.
+
+tool_authority_allocation:
+  status: specified_contract_runtime_planned
+  authority: docs/specs/software-requirements/srd003-writing-agent-tools.yaml
+  allocations:
+    - owner: workflow-orchestrator
+      exclusive_words:
+        - validate_saga_request
+        - read_workproduct
+        - hash_workproduct
+        - write_original
+        - write_attempt
+        - append_manifest_revision
+        - project_manifest
+        - materialize_final_chain
+        - invoke_structure_editor
+        - invoke_voice_editor
+        - invoke_style_editor
+        - invoke_voice_critic
+        - git_resolve_source_revision
+        - git_fetch_source
+        - git_read_source_blob
+        - git_check_publication
+        - git_create_publication_branch
+        - git_stage_final_chain
+        - git_commit_final_chain
+        - git_push_publication
+        - gh_find_pull_request
+        - gh_create_pull_request
+        - gh_verify_pull_request
+        - suspend_saga_for_operator
+        - inspect_saga_checkpoint
+        - rollback_saga_checkpoint
+        - exit_voice_forge_run
+      denied: [editor RAG, editor LLM, critic verdict, Pangram, corpus writes]
+    - owner: structure-editor
+      exclusive_words: [embed_structure_query, query_structure_rag, generate_structure_edit]
+      denied: [saga filesystem, other corpora, verdict, Pangram, GitHub]
+    - owner: voice-editor
+      exclusive_words: [embed_voice_query, query_voice_rag, generate_voice_edit]
+      denied: [saga filesystem, other corpora, verdict, Pangram, GitHub]
+    - owner: style-editor
+      exclusive_words: [embed_tightening_query, query_tightening_rag, generate_style_edit]
+      denied: [saga filesystem, other corpora, verdict, Pangram, GitHub]
+    - owner: voice-critic
+      exclusive_words:
+        - embed_critic_voice_query
+        - query_critic_voice_rag
+        - evaluate_voice_candidate
+        - check_pangram_consent
+        - await_pangram_consent
+        - pangram_scan_before
+        - pangram_scan_after
+      denied: [content edit, saga filesystem, corpus writes, GitHub]
+    - owner: corpus-ingest
+      exclusive_words: [list_declared_corpus, read_declared_corpus_document, invoke_canonical_corpus_ingest]
+      denied: [writing saga, editing, verdict, Pangram, GitHub]
+  closure_rules:
+    - Profiles select only their allocated words and shared deterministic parse/compose words.
+    - No profile exposes generic shell, executable, REST URL, filesystem mutation, git, or gh words.
+    - Child requests carry bytes and identities, not workspace paths.
+    - LLM schemas exclude URLs, paths, refs, vectors, credentials, model and collection identities, and tool names.
 
 components:
   - name: workflow-orchestrator agent service
@@ -340,21 +407,23 @@ project_structure:
   planned_specifications:
     - {path: docs/specs/software-requirements/srd001-voice-forge-services.yaml, status: specified, role: Planned service topology, role bindings, lifecycle, failure, scaling, and authority contract.}
     - {path: docs/specs/software-requirements/srd002-writing-saga-workproducts.yaml, status: specified, role: Planned immutable workproduct, manifest, retry, recovery, idempotency, and publication contract.}
-    - {path: docs/specs/software-requirements/, status: planned, role: Remaining SRDs srd003 through srd008.}
+    - {path: docs/specs/software-requirements/srd003-writing-agent-tools.yaml, status: specified, role: Closed ToolDef vocabulary, factory reuse, signals, errors, effects, compensation, and exclusive authority.}
+    - {path: docs/specs/software-requirements/, status: planned, role: Remaining SRDs srd004 through srd008.}
     - {path: docs/specs/use-cases/rel00.0-uc001-edit-document.yaml, status: planned, role: End-to-end release scenario.}
     - {path: docs/specs/test-suites/test-rel00.0-voice-forge.yaml, status: planned, role: Release tracer and evidence plan.}
 
 implementation_status:
   current_focus: |
-    Issues GH-1110 and GH-1112 specify service boundaries in srd001 and the
-    writing saga and workproduct lifecycle in srd002. SRDs srd003 through
-    srd008, the release use case, test suite, profiles, machines, tools,
-    services, integration evidence, and root registrations remain planned.
+    SRDs srd001 through srd003 specify service boundaries, the writing saga and
+    workproducts, and the closed tool vocabulary. SRDs srd004 through srd008,
+    the release use case, test suite, profiles, machines, tools, services,
+    integration evidence, and root registrations remain planned.
   overall: documentation_only_planned
   progress:
     - specified: srd001 service topology, role bindings, lifecycle, scaling, failure, interfaces, and authority.
     - specified: srd002 workspace schema, artifact lineage, manifest state, stage contracts, retries, recovery, and publication.
-    - planned: srd003 through srd008 and executable reciprocal release traces.
+    - specified: srd003 tool words, factory reuse, ownership, signals, errors, effects, compensation, and authority closure.
+    - planned: srd004 through srd008 and executable reciprocal release traces.
     - planned: Five application-local state machines and the corpus-ingest wrapper.
     - planned: RAG, Chroma, Ollama, GitHub CLI, and Pangram integrations.
     - planned: Persistent saga workspace, retries, recovery, and publication.
@@ -369,6 +438,8 @@ related_documents:
     purpose: Specified service topology, role realizations, lifecycle, scaling, failure, interfaces, and exclusive authorities.
   - doc: docs/specs/software-requirements/srd002-writing-saga-workproducts.yaml
     purpose: Specified immutable artifact, manifest, retry, compensation, recovery, idempotency, and publication contract.
+  - doc: docs/specs/software-requirements/srd003-writing-agent-tools.yaml
+    purpose: Specified closed tool vocabulary, existing-factory reuse, and exclusive authority allocation.
   - doc: docs/SPECIFICATIONS.yaml
     purpose: Planned SRD, use-case, and test-suite indexes.
   - doc: docs/road-map.yaml

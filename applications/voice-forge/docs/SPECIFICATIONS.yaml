@@ -7,11 +7,11 @@ overview: |
   style edit, independent critique, bounded retry, finalization, one commit,
   push, and pull request.
 
-  Two specified SRDs define service authority and the saga workproduct
-  lifecycle. Six planned SRDs divide tool vocabulary and five application-local
-  state machines. One planned use case and one planned test suite will trace all
-  eight SRDs reciprocally. No profile, service, tool, test, or executable
-  evidence is implemented.
+  Three specified SRDs define service authority, the saga workproduct
+  lifecycle, and the closed tool vocabulary. Five planned SRDs define the
+  application-local state machines. One planned use case and one planned test
+  suite will trace all eight SRDs reciprocally. No profile, service, tool, test,
+  or executable evidence is implemented.
 
   Shared application and agent-core requirements remain external references.
   Local SRDs will cite them and define only Voice Forge behavior and stricter
@@ -23,7 +23,7 @@ roadmap_summary:
     use_cases_done: 0
     use_cases_total: 1
     status: planned
-    evidence: srd001 and srd002 are specified; no executable evidence exists.
+    evidence: srd001 through srd003 are specified; no executable evidence exists.
 
 foundation_document_index:
   - id: voice-forge-readme
@@ -64,8 +64,8 @@ srd_index:
     test_suites: [test-rel00.0-voice-forge]
   - id: srd003-writing-agent-tools
     title: Writing Agent Tool Contracts
-    status: planned
-    summary: Tool words, ownership, inputs, outputs, signals, effects, errors, and compensation.
+    status: specified
+    summary: Closed tool vocabulary, existing-factory reuse, exclusive ownership, inputs, outputs, signals, errors, effects, compensation, and authority.
     path: docs/specs/software-requirements/srd003-writing-agent-tools.yaml
     use_cases: [rel00.0-uc001-edit-document]
     test_suites: [test-rel00.0-voice-forge]
@@ -148,8 +148,8 @@ coverage_gaps:
   - id: planned-srd-corpus
     status: planned
     description: |
-      SRDs srd001 and srd002 are specified with requirement and
-      acceptance-criterion traces. SRDs srd003 through srd008 are indexed but
+      SRDs srd001 through srd003 are specified with requirement and
+      acceptance-criterion traces. SRDs srd004 through srd008 are indexed but
       do not yet exist; their traces will be added by their owning
       documentation issues.
   - id: planned-release-trace
