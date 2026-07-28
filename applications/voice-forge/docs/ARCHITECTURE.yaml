@@ -118,11 +118,25 @@ overview:
     source repository, path, commit, chunk ID, record type, distance, embedding
     model, query identity, and retrieval-attempt provenance.
 
-    Grounding assessment uses configured predicates and embedding-model
-    equality. The first insufficient result may form one refined query; the
-    second insufficient result returns unchanged parent content. Retrieval is
-    read-only. Neither query text nor model output can select a corpus, endpoint,
-    collection, model, path, ref, credential, or tool.
+    Complex grounding and preservation observations run through two fixed
+    operations of one planned non-shell structure-editor helper. A fixed compose
+    word renders a JSON envelope whose stdin field contains the bounded helper
+    document from labeled validated state. Each exec selects that string through
+    fixed $from(structure_grounding_input).stdin or
+    $from(structure_constraint_input).stdin, applies a fixed byte limit, and uses
+    output mode structured. After ToolDone, parse_structured selects the nested
+    output string from the corresponding structured exec result. Flat chains of
+    value_predicate words then compare one parsed scalar at a time; each emits
+    exactly two configured outcomes or CommandError on a selector or coercion
+    fault. One fixed compose word renders the edit context. Four separate compose
+    words render succeeded, no-op, insufficient, and failed envelopes. Every
+    compose word emits only its configured signal.
+
+    The first deficient grounding report may carry one helper-computed, parsed
+    refined query descriptor; the second deficient report returns unchanged
+    parent content. Retrieval is read-only. Neither query text nor model output
+    can select a corpus, endpoint, collection, model, path, ref, credential, or
+    tool.
   voice_editor_flow: |
     ```mermaid
     flowchart LR
@@ -302,10 +316,22 @@ tool_authority_allocation:
         - formulate_structure_query
         - embed_structure_query
         - query_structure_rag
-        - assess_structure_grounding
+        - compose_structure_grounding_input
+        - inspect_structure_grounding
+        - parse_structure_grounding_report
+        - structure_grounding_sufficient
+        - structure_grounding_refinement_available
+        - compose_structure_edit_context
         - generate_structure_edit
-        - validate_structure_constraints
-        - compose_structure_response
+        - compose_structure_constraint_input
+        - inspect_structure_constraints
+        - parse_structure_constraint_report
+        - structure_candidate_is_no_op
+        - structure_constraints_hold
+        - compose_structure_success_response
+        - compose_structure_no_op_response
+        - compose_structure_insufficient_response
+        - compose_structure_failed_response
       denied: [saga filesystem, other corpora, voice or style editing, critic or acceptance verdict, Pangram, GitHub]
     - owner: voice-editor
       exclusive_words:
@@ -376,7 +402,7 @@ components:
     lifecycle: Request/on-demand application-local machine.
     scaling_boundary: Stateless requests may scale independently after serial saga ordering is preserved.
     failure_boundary: A failed response leaves the original or last accepted parent unchanged.
-    authority: Read section and outline evidence through structure RAG, restructure supplied content with bounded model calls, and return provenance.
+    authority: Read section and outline evidence through structure RAG, invoke two fixed operations of a planned non-shell helper over bounded JSON, restructure supplied content with bounded model calls, and return provenance and preservation evidence.
     prohibited_authority: Voice or style editing, Chroma writes, workproduct mutation, critic or acceptance verdicts, Pangram, and GitHub mutation.
   - name: voice-editor agent service
     path: agents/voice-editor/
@@ -553,7 +579,7 @@ project_structure:
     - {path: docs/road-map.yaml, status: planned_documentation, role: Release 00.0 plan and evidence status.}
   planned_configuration:
     - {path: agents/workflow-orchestrator/, status: planned, role: Saga coordination and publication profile.}
-    - {path: agents/structure-editor/, status: planned, role: Structure editing profile.}
+    - {path: agents/structure-editor/, status: planned, role: Structure editing profile, flat machine, declarations, and constrained non-shell report helper.}
     - {path: agents/voice-editor/, status: planned, role: Voice editing profile, flat machine, declarations, and constrained non-shell report helper.}
     - {path: agents/style-editor/, status: planned, role: Style tightening profile.}
     - {path: agents/voice-critic/, status: planned, role: Independent assurance profile.}
@@ -585,7 +611,7 @@ implementation_status:
     - specified: srd005 flat structure request, retrieval, grounding, one refinement, structure-only edit, semantic constraints, response, and terminal outcomes.
     - specified: srd006 flat accepted-structure request, rhetorical-role and register passage retrieval, one refinement, bounded voice-only rewrite, preservation constraints, copy risk, response, and terminal outcomes.
     - planned: srd007 through srd008 and executable reciprocal release traces.
-    - planned: Five application-local state machines, the constrained voice-editor report helper, and the corpus-ingest wrapper.
+    - planned: Five application-local state machines, constrained structure-editor and voice-editor report helpers, and the corpus-ingest wrapper.
     - planned: RAG, Chroma, Ollama, GitHub CLI, and Pangram integrations.
     - planned: Persistent saga workspace, retries, recovery, and publication.
     - planned: Structural, boundary, failure, recovery, and end-to-end tests.

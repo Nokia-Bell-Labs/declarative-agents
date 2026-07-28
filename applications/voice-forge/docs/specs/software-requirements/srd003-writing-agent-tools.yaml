@@ -468,15 +468,15 @@ word_vocabulary:
     - name: formulate_structure_query
       owner: structure-editor
       implementation: {type: builtin, factory: compose, reuse: Deterministic configured section-and-outline query template.}
-      inputs: [validated structure intent, parent section and outline descriptors, optional prior query and evidence summary, refinement count zero or one]
-      outputs: [bounded structure question text, query identity, refinement count retained for the initial query or incremented from zero to one for the sole refinement]
-      emits: [StructureQueryFormulated, StructureQueryFormulationRejected, CommandError]
-      infrastructure_errors: [template configuration, selector, composition, or output-size failure]
-      domain_errors: [unsupported section or outline intent, refinement count greater than one, bounded query cannot be formed]
+      inputs: [validated structure intent and initial query descriptor from $from(validated_structure_request), or parsed helper-computed refined descriptor and next count from the newest $from(structure_grounding_report)]
+      outputs: [bounded structure question text, supplied query identity, and supplied refinement count zero or one]
+      emits: [StructureQueryFormulated]
+      infrastructure_errors: [none emitted by compose; trusted selector defects are recorded on the Result while the configured signal remains StructureQueryFormulated]
+      domain_errors: [none; validate_structure_request and parse_structure_grounding_report reject missing, malformed, or out-of-bound query fields before composition]
       side_effects: [none]
       reversibility: {classification: reversible, undo: noop}
       compensation: Deterministic composition only.
-      authority: Uses one configured template over validated request and prior retrieval metadata; it cannot author an endpoint, model, collection, path, tool, or free-form editing instruction.
+      authority: Renders one configured template over schema-validated state. It does not derive or increment a count, formulate a refined descriptor, or author an endpoint, model, collection, path, tool, or free-form editing instruction. Future declaration validation must prove every selector resolves because compose has no error branch.
 
     - name: embed_structure_query
       owner: structure-editor
@@ -504,23 +504,88 @@ word_vocabulary:
       compensation: Read-only.
       authority: Calls only configured structure-rag; vector is selected from the embedding word, never model-authored.
 
-    - name: assess_structure_grounding
+    - name: compose_structure_grounding_input
       owner: structure-editor
-      implementation: {type: builtin, factory: value_predicate, reuse: Deterministic configured sufficiency and one-refinement routing predicates.}
-      inputs: [ranked structure chunks, distances, metadata, embedding model identity, query identity, refinement count]
-      outputs: [grounding assessment, accepted evidence references, refinement count, bounded insufficiency reason]
-      emits: [StructureGroundingSufficient, StructureGroundingRefinementAllowed, StructureGroundingInsufficient, CommandError]
-      infrastructure_errors: [predicate configuration, selector, type, or metadata-shape failure]
-      domain_errors: [evidence below configured sufficiency policy after one refinement]
+      implementation: {type: builtin, factory: compose, reuse: Fixed grounding-helper JSON input template and configured signal.}
+      inputs: [ranked retrieval output from the newest $from(structure_retrieval), validated policy and parent identity from $from(validated_structure_request), and current query identity and count from the newest $from(structure_query)]
+      outputs: [JSON envelope whose stdin field is one bounded JSON string containing only grounding-helper input fields]
+      emits: [StructureGroundingInputReady]
+      infrastructure_errors: [none emitted by compose; trusted selector defects are recorded on the Result while the configured signal remains StructureGroundingInputReady]
+      domain_errors: [none]
       side_effects: [none]
       reversibility: {classification: reversible, undo: noop}
-      compensation: Deterministic observation only.
-      authority: Routes only from configured thresholds, embedding-model equality, evidence metadata, and refinement count; it cannot inspect prose to invent evidence or authorize an edit.
+      compensation: Deterministic composition only.
+      authority: Renders schema-validated state with one fixed JSON template and exposes the rendered helper document only as the selectable stdin string.
+
+    - name: inspect_structure_grounding
+      owner: structure-editor
+      implementation: {type: exec, factory: exec, reuse: Fixed inspect-grounding operation of the planned non-shell structure-editor helper.}
+      inputs: [bounded JSON string selected by fixed stdin_source $from(structure_grounding_input).stdin and rejected before launch above fixed stdin_max_bytes]
+      outputs: [output mode structured JSON object with output containing bounded report stdout and exit_code containing the process status; report stdout contains grounding_status, accepted evidence references, per-check findings, current count, helper-computed next count and refined query descriptor when eligible, and bounded insufficiency reason]
+      emits: [ToolDone, ToolFailed, CommandError]
+      infrastructure_errors: [CommandError when fixed stdin_source does not resolve to one non-empty string within stdin_max_bytes, process start fails, execution is canceled or times out, or structured output encoding fails; ToolFailed when the launched helper exits non-zero]
+      domain_errors: [none; insufficient evidence is a zero-exit report with grounding_status deficient]
+      side_effects: [child_process]
+      reversibility: {classification: reversible, undo: noop}
+      compensation: Read-only deterministic observation; discard stdout unless ToolDone.
+      authority: Executes one fixed helper binary and inspect-grounding argument with bounded JSON stdin, structured output mode, and no shell, path, environment, endpoint, model, corpus, credential, or runtime executable selection.
+
+    - name: parse_structure_grounding_report
+      owner: structure-editor
+      implementation: {type: builtin, factory: parse_structured, reuse: Parse inspect_structure_grounding stdout against the configured grounding-report JSON Schema.}
+      inputs: [exact ToolDone stdout string selected by source $from(structure_grounding_report_raw).output from the structured exec JSON object]
+      outputs: [schema-valid normalized report with grounding_status, accepted evidence and provenance, categorized findings, current and next counts, refined query descriptor when eligible, and bounded reason]
+      emits: [StructureGroundingReportParsed, StructureGroundingReportInvalid, CommandError]
+      infrastructure_errors: [source selector does not resolve or normalized output encoding fails]
+      domain_errors: [stdout is malformed JSON, exceeds schema bounds, or omits or mistypes a required report field]
+      side_effects: [none]
+      reversibility: {classification: reversible, undo: noop}
+      compensation: Reject an invalid report and retain the parent unchanged.
+      authority: Parses and validates helper stdout only; it cannot compute findings, repair a report, route more than parsed or invalid, or create authority-bearing values.
+
+    - name: structure_grounding_sufficient
+      owner: structure-editor
+      implementation: {type: builtin, factory: value_predicate, reuse: Compare the parsed grounding_status scalar with configured literal sufficient.}
+      inputs: [left $.grounding_status from the immediately preceding parse_structure_grounding_report Result, operator eq, right literal sufficient, operand type string]
+      outputs: [raw operands, equality operator, string operand type, held result]
+      emits: [StructureGroundingSufficient, StructureGroundingDeficient, CommandError]
+      infrastructure_errors: [left operand selector does not resolve]
+      domain_errors: [none; a non-matching scalar is StructureGroundingDeficient]
+      side_effects: [none]
+      reversibility: {classification: reversible, undo: noop}
+      compensation: Scalar comparison only.
+      authority: Performs exactly one configured scalar comparison.
+
+    - name: structure_grounding_refinement_available
+      owner: structure-editor
+      implementation: {type: builtin, factory: value_predicate, reuse: Compare parsed refinement_count with configured hard limit one.}
+      inputs: [left $from(structure_grounding_report).refinement_count, operator lt, right literal one, operand type number]
+      outputs: [raw operands, less-than operator, number operand type, held result]
+      emits: [StructureGroundingRefinementAllowed, StructureGroundingInsufficient, CommandError]
+      infrastructure_errors: [operand selector does not resolve or number coercion fails]
+      domain_errors: [none; an exhausted count is StructureGroundingInsufficient]
+      side_effects: [none]
+      reversibility: {classification: reversible, undo: noop}
+      compensation: Scalar comparison only.
+      authority: Performs exactly one configured scalar comparison.
+
+    - name: compose_structure_edit_context
+      owner: structure-editor
+      implementation: {type: builtin, factory: compose, reuse: Fixed structure-edit model context and configured signal.}
+      inputs: [parent, structure intent, required-content inventory, bounded policy, accepted evidence, provenance, query identity, and refinement count selected from $from(validated_structure_request) and $from(structure_grounding_report)]
+      outputs: [bounded structure-edit context with fixed source labels]
+      emits: [StructureEditContextReady]
+      infrastructure_errors: [none emitted by compose; trusted selector defects are recorded on the Result while the configured signal remains StructureEditContextReady]
+      domain_errors: [none]
+      side_effects: [none]
+      reversibility: {classification: reversible, undo: noop}
+      compensation: Deterministic composition only.
+      authority: Renders schema-validated state with one fixed template; it cannot edit content, choose evidence, change policy, or create authority-bearing values.
 
     - name: generate_structure_edit
       owner: structure-editor
       implementation: {type: builtin, factory: invoke_llm, reuse: Profile-owned Ollama LLM declaration.}
-      inputs: [supplied parent bytes and ID, bounded policy, mapped structure evidence and provenance]
+      inputs: [exact bounded model context from the immediately preceding compose_structure_edit_context Result]
       outputs: [candidate document bytes, parent ID, source-span and structure-operation ledger, bounded evidence references, declared provenance]
       emits: [StructureEditGenerated, StructureEditNoOp, StructureEditDeclined, CommandError]
       infrastructure_errors: [provider config, model discovery, timeout, or chat failure]
@@ -530,31 +595,122 @@ word_vocabulary:
       compensation: Truncate conversation state; remote inference remains an irreversible observation.
       authority: May reorder, combine, or separate supplied source spans and author bounded structural connector text plus evidence IDs; cannot alter protected claims, citations, numbers, qualifications, or required content and cannot author paths, URLs, refs, vectors, credentials, tools, or acceptance.
 
-    - name: validate_structure_constraints
+    - name: compose_structure_constraint_input
       owner: structure-editor
-      implementation: {type: builtin, factory: value_predicate, reuse: Deterministic candidate, source-span ledger, and protected-content predicates.}
-      inputs: [validated parent bytes and ID, candidate bytes and parent ID, source-span and structure-operation ledger, protected-content inventory, bounded diction policy]
-      outputs: [validated candidate or original bytes, parent identity, constraint report, no-op status]
-      emits: [StructureEditValid, StructureEditNoOp, StructureSemanticConstraintsFailed, CommandError]
-      infrastructure_errors: [predicate configuration, selector, type, or bounded-comparison failure]
-      domain_errors: [parent mismatch, source span missing or duplicated, claim changed, citation changed, number changed, qualification changed, required content missing, diction change outside configured structural connectors]
+      implementation: {type: builtin, factory: compose, reuse: Fixed preservation-helper JSON input template and configured signal.}
+      inputs: [validated parent and protected inventory from $from(validated_structure_request), candidate and ledger from $from(structure_candidate), and bounded connector policy and accepted evidence from fixed labels]
+      outputs: [JSON envelope whose stdin field is one bounded JSON string containing only preservation-helper input fields]
+      emits: [StructureConstraintInputReady]
+      infrastructure_errors: [none emitted by compose; trusted selector defects are recorded on the Result while the configured signal remains StructureConstraintInputReady]
+      domain_errors: [none]
       side_effects: [none]
       reversibility: {classification: reversible, undo: noop}
-      compensation: Reject the candidate and retain the supplied parent bytes unchanged.
-      authority: Compares supplied bytes and declared ledgers only; it cannot edit content, accept its own work, invoke a model, or create authority-bearing values.
+      compensation: Deterministic composition only.
+      authority: Renders schema-validated state with one fixed JSON template and exposes the rendered helper document only as the selectable stdin string.
 
-    - name: compose_structure_response
+    - name: inspect_structure_constraints
       owner: structure-editor
-      implementation: {type: builtin, factory: compose, reuse: Deterministic configured response-envelope composition.}
-      inputs: [validated candidate or original content when available, outcome enum, parent identity, retrieval attempts and provenance, stage and invocation identity, bounded failure metadata]
-      outputs: [content or explicit null, parent identity, outcome, retrieval provenance, stage metadata]
-      emits: [StructureResponseSucceeded, StructureResponseNoOp, StructureResponseInsufficientGrounding, StructureResponseFailed, CommandError]
-      infrastructure_errors: [template configuration, selector, composition, schema, or output-size failure]
+      implementation: {type: exec, factory: exec, reuse: Fixed inspect-constraints operation of the planned non-shell structure-editor helper.}
+      inputs: [bounded JSON string selected by fixed stdin_source $from(structure_constraint_input).stdin and rejected before launch above fixed stdin_max_bytes]
+      outputs: [output mode structured JSON object with output containing bounded report stdout and exit_code containing the process status; report stdout contains candidate_status, preservation_status, parent-identity, span coverage and multiplicity, claim, citation-association, number, qualification, required-content, connector, and retrieved-prose findings]
+      emits: [ToolDone, ToolFailed, CommandError]
+      infrastructure_errors: [CommandError when fixed stdin_source does not resolve to one non-empty string within stdin_max_bytes, process start fails, execution is canceled or times out, or structured output encoding fails; ToolFailed when the launched helper exits non-zero]
+      domain_errors: [none; a changed invariant is a zero-exit report with preservation_status invalid]
+      side_effects: [child_process]
+      reversibility: {classification: reversible, undo: noop}
+      compensation: Read-only deterministic observation; reject the candidate unless a parsed report later passes every branch.
+      authority: Executes one fixed helper binary and inspect-constraints argument with bounded JSON stdin, structured output mode, and no shell, path, environment, endpoint, model, corpus, credential, or runtime executable selection.
+
+    - name: parse_structure_constraint_report
+      owner: structure-editor
+      implementation: {type: builtin, factory: parse_structured, reuse: Parse inspect_structure_constraints stdout against the configured constraint-report JSON Schema.}
+      inputs: [exact ToolDone stdout string selected by source $from(structure_constraint_report_raw).output from the structured exec JSON object]
+      outputs: [schema-valid normalized report with candidate_status, preservation_status, and every bounded preservation finding]
+      emits: [StructureConstraintReportParsed, StructureConstraintReportInvalid, CommandError]
+      infrastructure_errors: [source selector does not resolve or normalized output encoding fails]
+      domain_errors: [stdout is malformed JSON, exceeds schema bounds, or omits or mistypes a required report field]
+      side_effects: [none]
+      reversibility: {classification: reversible, undo: noop}
+      compensation: Reject an invalid report and retain the supplied parent bytes unchanged.
+      authority: Parses and validates helper stdout only; it cannot compute findings, repair a report, route more than parsed or invalid, or create authority-bearing values.
+
+    - name: structure_candidate_is_no_op
+      owner: structure-editor
+      implementation: {type: builtin, factory: value_predicate, reuse: Compare parsed candidate_status with configured literal no_op.}
+      inputs: [left $.candidate_status from the immediately preceding parse_structure_constraint_report Result, operator eq, right literal no_op, operand type string]
+      outputs: [raw operands, equality operator, string operand type, held result]
+      emits: [StructureEditNoOp, StructureCandidateChanged, CommandError]
+      infrastructure_errors: [left operand selector does not resolve]
+      domain_errors: [none; a non-matching scalar is StructureCandidateChanged]
+      side_effects: [none]
+      reversibility: {classification: reversible, undo: noop}
+      compensation: Scalar comparison only.
+      authority: Performs exactly one configured scalar comparison.
+
+    - name: structure_constraints_hold
+      owner: structure-editor
+      implementation: {type: builtin, factory: value_predicate, reuse: Compare parsed preservation_status with configured literal valid.}
+      inputs: [left $from(structure_constraint_report).preservation_status, operator eq, right literal valid, operand type string]
+      outputs: [raw operands, equality operator, string operand type, held result]
+      emits: [StructureEditValid, StructureSemanticConstraintsFailed, CommandError]
+      infrastructure_errors: [left operand selector does not resolve]
+      domain_errors: [none; a non-matching scalar is StructureSemanticConstraintsFailed]
+      side_effects: [none]
+      reversibility: {classification: reversible, undo: noop}
+      compensation: Scalar comparison only.
+      authority: Performs exactly one configured scalar comparison.
+
+    - name: compose_structure_success_response
+      owner: structure-editor
+      implementation: {type: builtin, factory: compose, reuse: Fixed succeeded response template and configured signal.}
+      inputs: [validated candidate, parent identity, retrieval attempts and accepted provenance, parsed constraint report, stage and invocation identity]
+      outputs: [succeeded response with candidate content, parent identity, retrieval provenance, constraint report, and stage metadata]
+      emits: [StructureResponseSucceeded]
+      infrastructure_errors: [none emitted by compose; trusted selector defects are recorded on the Result while the configured signal remains StructureResponseSucceeded]
       domain_errors: [none]
       side_effects: [none]
       reversibility: {classification: reversible, undo: noop}
       compensation: No external state exists to compensate.
-      authority: Formats data already present in validated command state; it cannot edit content, mutate a filesystem, issue a verdict, or create retrieval, model, GitHub, Pangram, or workproduct authority.
+      authority: Formats schema-validated state with one fixed template and outcome; it cannot edit content or create an authority-bearing value.
+
+    - name: compose_structure_no_op_response
+      owner: structure-editor
+      implementation: {type: builtin, factory: compose, reuse: Fixed no-op response template and configured signal.}
+      inputs: [unchanged parent, parent identity, attempted and accepted provenance, available reports, stage and invocation identity]
+      outputs: [no_op response with unchanged parent content, provenance, reports, and stage metadata]
+      emits: [StructureResponseNoOp]
+      infrastructure_errors: [none emitted by compose; trusted selector defects are recorded on the Result while the configured signal remains StructureResponseNoOp]
+      domain_errors: [none]
+      side_effects: [none]
+      reversibility: {classification: reversible, undo: noop}
+      compensation: No external state exists to compensate.
+      authority: Formats schema-validated state with one fixed template and outcome; it cannot edit content or create an authority-bearing value.
+
+    - name: compose_structure_insufficient_response
+      owner: structure-editor
+      implementation: {type: builtin, factory: compose, reuse: Fixed insufficient-grounding response template and configured signal.}
+      inputs: [unchanged parent, parent identity, attempted and retained provenance, parsed grounding report, stage and invocation identity]
+      outputs: [insufficient_grounding response with unchanged parent content, provenance, report, and stage metadata]
+      emits: [StructureResponseInsufficientGrounding]
+      infrastructure_errors: [none emitted by compose; trusted selector defects are recorded on the Result while the configured signal remains StructureResponseInsufficientGrounding]
+      domain_errors: [none]
+      side_effects: [none]
+      reversibility: {classification: reversible, undo: noop}
+      compensation: No external state exists to compensate.
+      authority: Formats schema-validated state with one fixed template and outcome; it cannot edit content or create an authority-bearing value.
+
+    - name: compose_structure_failed_response
+      owner: structure-editor
+      implementation: {type: builtin, factory: compose, reuse: Fixed failed response template and configured signal.}
+      inputs: [unchanged parent when request validation succeeded or explicit null otherwise, parent identity when valid, available provenance and reports, stage and invocation identity, bounded failure category]
+      outputs: [failed response with unchanged parent or null, available provenance and reports, stage metadata, and bounded failure category]
+      emits: [StructureResponseFailed]
+      infrastructure_errors: [none emitted by compose; trusted selector defects are recorded on the Result while the configured signal remains StructureResponseFailed]
+      domain_errors: [none]
+      side_effects: [none]
+      reversibility: {classification: reversible, undo: noop}
+      compensation: No external state exists to compensate.
+      authority: Formats schema-validated state with one fixed template and outcome; it cannot edit content or create an authority-bearing value.
 
     - name: validate_voice_request
       owner: voice-editor
@@ -611,11 +767,11 @@ word_vocabulary:
     - name: inspect_voice_anchors
       owner: voice-editor
       implementation: {type: exec, factory: exec, reuse: Fixed inspect-anchors operation of the planned non-shell voice-editor helper.}
-      inputs: [bounded JSON on stdin containing grouped ranked passages, distances, rhetorical-role and register metadata, source metadata, embedding model identity, query-set identity, refinement count, retained initial anchors, and configured sufficiency policy]
-      outputs: [bounded JSON report on stdout containing all_passages_sufficient, accepted anchor map, role and register coverage, deficient passage descriptors, refinement count, helper-computed next refinement count and refined query descriptors when eligible, and bounded insufficiency reason]
+      inputs: [bounded JSON string selected by fixed stdin_source from labeled validated retrieval state and rejected before launch above fixed stdin_max_bytes; the document contains grouped ranked passages, distances, rhetorical-role and register metadata, source metadata, embedding model identity, query-set identity, refinement count, retained initial anchors, and configured sufficiency policy]
+      outputs: [output mode structured JSON object with output containing bounded report stdout and exit_code containing the process status; report stdout contains all_passages_sufficient, accepted anchor map, role and register coverage, deficient passage descriptors, refinement count, helper-computed next refinement count and refined query descriptors when eligible, and bounded insufficiency reason]
       emits: [ToolDone, ToolFailed, CommandError]
-      infrastructure_errors: [CommandError only when trusted declaration or stdin selector prevents command construction; ToolFailed when the fixed helper cannot start or execution times out]
-      domain_errors: [ToolFailed when the helper returns non-zero because bounded input is malformed or deterministic report computation cannot complete]
+      infrastructure_errors: [CommandError when fixed stdin_source does not resolve to one non-empty string within stdin_max_bytes, process start fails, execution is canceled or times out, or structured output encoding fails; ToolFailed when the launched helper exits non-zero]
+      domain_errors: [none; insufficient anchors are a zero-exit report with all_passages_sufficient false]
       side_effects: [child_process]
       reversibility: {classification: reversible, undo: noop}
       compensation: Read-only deterministic observation; discard stdout unless ToolDone.
@@ -624,10 +780,10 @@ word_vocabulary:
     - name: parse_voice_anchor_report
       owner: voice-editor
       implementation: {type: builtin, factory: parse_structured, reuse: Parse inspect_voice_anchors stdout against the configured anchor-report JSON Schema.}
-      inputs: [exact ToolDone stdout from inspect_voice_anchors]
+      inputs: [exact ToolDone stdout string selected by configured source $from(voice_anchor_report_raw).output from the structured exec JSON object]
       outputs: [schema-valid normalized anchor report with boolean all_passages_sufficient, accepted anchor map, deficient passage descriptors, provenance, current and next counters, refined query descriptors when eligible, and bounded reason]
       emits: [VoiceAnchorReportParsed, VoiceAnchorReportInvalid, CommandError]
-      infrastructure_errors: [source selector does not resolve]
+      infrastructure_errors: [source selector does not resolve or normalized output encoding fails]
       domain_errors: [stdout is malformed JSON, exceeds schema bounds, or omits or mistypes a required report field]
       side_effects: [none]
       reversibility: {classification: reversible, undo: noop}
@@ -636,29 +792,29 @@ word_vocabulary:
 
     - name: voice_anchors_complete
       owner: voice-editor
-      implementation: {type: builtin, factory: value_predicate, reuse: Compare the parsed all_passages_sufficient boolean with configured true.}
-      inputs: [all_passages_sufficient from parse_voice_anchor_report, configured literal true]
-      outputs: [raw operands, equality operator, boolean operand type, held result]
+      implementation: {type: builtin, factory: value_predicate, reuse: Compare the parsed all_passages_sufficient scalar with configured literal true.}
+      inputs: [left $.all_passages_sufficient from the immediately preceding parse_voice_anchor_report Result, operator eq, right literal true, operand type string]
+      outputs: [raw operands, equality operator, string operand type, held result]
       emits: [VoiceAnchorsSufficient, VoiceAnchorsDeficient, CommandError]
-      infrastructure_errors: [operand selector does not resolve or boolean coercion fails]
+      infrastructure_errors: [operand selector does not resolve]
       domain_errors: [none; false is VoiceAnchorsDeficient]
       side_effects: [none]
       reversibility: {classification: reversible, undo: noop}
       compensation: Scalar comparison only.
-      authority: Performs exactly one configured boolean comparison and cannot transform or aggregate the anchor report.
+      authority: Performs exactly one configured scalar comparison.
 
     - name: voice_anchor_refinement_available
       owner: voice-editor
       implementation: {type: builtin, factory: value_predicate, reuse: Compare parsed refinement count with the configured hard limit.}
-      inputs: [refinement_count selected from $from(voice_anchor_report), configured literal query refinement limit one]
-      outputs: [raw operands, less-than operator, integer operand type, held result]
+      inputs: [left $from(voice_anchor_report).refinement_count, operator lt, right literal one, operand type number]
+      outputs: [raw operands, less-than operator, number operand type, held result]
       emits: [VoiceAnchorsRefinementAllowed, VoiceAnchorsInsufficient, CommandError]
-      infrastructure_errors: [operand selector does not resolve or integer coercion fails]
+      infrastructure_errors: [operand selector does not resolve or number coercion fails]
       domain_errors: [none; exhausted count is VoiceAnchorsInsufficient]
       side_effects: [none]
       reversibility: {classification: reversible, undo: noop}
       compensation: Scalar comparison only.
-      authority: Performs exactly one configured integer comparison and cannot alter counters, anchors, policy, or query data.
+      authority: Performs exactly one configured scalar comparison.
 
     - name: compose_voice_initial_rewrite_context
       owner: voice-editor
@@ -715,11 +871,11 @@ word_vocabulary:
     - name: inspect_voice_constraints
       owner: voice-editor
       implementation: {type: exec, factory: exec, reuse: Fixed inspect-constraints operation of the planned non-shell voice-editor helper.}
-      inputs: [bounded JSON on stdin containing validated structure parent and identity, candidate bytes and parent identity, ordered passage map, passage rewrite ledger, protected-content inventory, adjacent-context windows, bounded voice-only policy, rewrite attempt count and limit]
-      outputs: [bounded JSON report on stdout containing candidate_is_no_op, all_constraints_hold, structure, meaning, claim-strength, citation, number, terminology, coherence, unsupported-addition and voice-scope findings, current and next rewrite counts, and bounded retry note]
+      inputs: [bounded JSON string selected by fixed stdin_source from labeled validated parent and candidate state and rejected before launch above fixed stdin_max_bytes; the document contains validated structure parent and identity, candidate bytes and parent identity, ordered passage map, passage rewrite ledger, protected-content inventory, adjacent-context windows, bounded voice-only policy, rewrite attempt count and limit]
+      outputs: [output mode structured JSON object with output containing bounded report stdout and exit_code containing the process status; report stdout contains candidate_is_no_op, all_constraints_hold, structure, meaning, claim-strength, citation, number, terminology, coherence, unsupported-addition and voice-scope findings, current and next rewrite counts, and bounded retry note]
       emits: [ToolDone, ToolFailed, CommandError]
-      infrastructure_errors: [CommandError only when trusted declaration or stdin selector prevents command construction; ToolFailed when the fixed helper cannot start or execution times out]
-      domain_errors: [ToolFailed when the helper returns non-zero because bounded input is malformed or deterministic report computation cannot complete]
+      infrastructure_errors: [CommandError when fixed stdin_source does not resolve to one non-empty string within stdin_max_bytes, process start fails, execution is canceled or times out, or structured output encoding fails; ToolFailed when the launched helper exits non-zero]
+      domain_errors: [none; a violated invariant is a zero-exit report with all_constraints_hold false]
       side_effects: [child_process]
       reversibility: {classification: reversible, undo: noop}
       compensation: Read-only deterministic observation; reject the candidate unless a parsed report later passes every branch.
@@ -728,10 +884,10 @@ word_vocabulary:
     - name: parse_voice_constraint_report
       owner: voice-editor
       implementation: {type: builtin, factory: parse_structured, reuse: Parse inspect_voice_constraints stdout against the configured constraint-report JSON Schema.}
-      inputs: [exact ToolDone stdout from inspect_voice_constraints]
+      inputs: [exact ToolDone stdout string selected by configured source $from(voice_constraint_report_raw).output from the structured exec JSON object]
       outputs: [schema-valid normalized constraint report with candidate_is_no_op, all_constraints_hold, categorized findings, current and next rewrite counts, and bounded retry note]
       emits: [VoiceConstraintReportParsed, VoiceConstraintReportInvalid, CommandError]
-      infrastructure_errors: [source selector does not resolve]
+      infrastructure_errors: [source selector does not resolve or normalized output encoding fails]
       domain_errors: [stdout is malformed JSON, exceeds schema bounds, or omits or mistypes a required report field]
       side_effects: [none]
       reversibility: {classification: reversible, undo: noop}
@@ -740,51 +896,51 @@ word_vocabulary:
 
     - name: voice_candidate_is_no_op
       owner: voice-editor
-      implementation: {type: builtin, factory: value_predicate, reuse: Compare the parsed candidate_is_no_op boolean with configured true.}
-      inputs: [candidate_is_no_op from parse_voice_constraint_report, configured literal true]
-      outputs: [raw operands, equality operator, boolean operand type, held result]
+      implementation: {type: builtin, factory: value_predicate, reuse: Compare the parsed candidate_is_no_op scalar with configured literal true.}
+      inputs: [left $.candidate_is_no_op from the immediately preceding parse_voice_constraint_report Result, operator eq, right literal true, operand type string]
+      outputs: [raw operands, equality operator, string operand type, held result]
       emits: [VoiceConstraintsNoOp, VoiceCandidateChanged, CommandError]
-      infrastructure_errors: [operand selector does not resolve or boolean coercion fails]
+      infrastructure_errors: [operand selector does not resolve]
       domain_errors: [none; false is VoiceCandidateChanged]
       side_effects: [none]
       reversibility: {classification: reversible, undo: noop}
       compensation: Scalar comparison only.
-      authority: Performs exactly one configured boolean comparison and cannot compare content or transform the constraint report.
+      authority: Performs exactly one configured scalar comparison.
 
     - name: voice_constraints_hold
       owner: voice-editor
-      implementation: {type: builtin, factory: value_predicate, reuse: Compare the parsed all_constraints_hold boolean with configured true.}
-      inputs: [all_constraints_hold selected from $from(voice_constraint_report), configured literal true]
-      outputs: [raw operands, equality operator, boolean operand type, held result]
+      implementation: {type: builtin, factory: value_predicate, reuse: Compare the parsed all_constraints_hold scalar with configured literal true.}
+      inputs: [left $from(voice_constraint_report).all_constraints_hold, operator eq, right literal true, operand type string]
+      outputs: [raw operands, equality operator, string operand type, held result]
       emits: [VoiceConstraintsValid, VoiceConstraintsViolated, CommandError]
-      infrastructure_errors: [operand selector does not resolve or boolean coercion fails]
+      infrastructure_errors: [operand selector does not resolve]
       domain_errors: [none; false is VoiceConstraintsViolated]
       side_effects: [none]
       reversibility: {classification: reversible, undo: noop}
       compensation: Scalar comparison only.
-      authority: Performs exactly one configured boolean comparison and cannot aggregate findings, repair content, or accept a candidate.
+      authority: Performs exactly one configured scalar comparison.
 
     - name: voice_constraint_retry_available
       owner: voice-editor
       implementation: {type: builtin, factory: value_predicate, reuse: Compare parsed rewrite attempt count with the configured hard limit.}
-      inputs: [rewrite_attempt_count selected from $from(voice_constraint_report), configured literal rewrite attempt limit three]
-      outputs: [raw operands, less-than operator, integer operand type, held result]
+      inputs: [left $from(voice_constraint_report).rewrite_attempt_count, operator lt, right literal three, operand type number]
+      outputs: [raw operands, less-than operator, number operand type, held result]
       emits: [VoiceConstraintsRetryAllowed, VoiceConstraintsFailed, CommandError]
-      infrastructure_errors: [operand selector does not resolve or integer coercion fails]
+      infrastructure_errors: [operand selector does not resolve or number coercion fails]
       domain_errors: [none; exhausted count is VoiceConstraintsFailed]
       side_effects: [none]
       reversibility: {classification: reversible, undo: noop}
       compensation: Scalar comparison only.
-      authority: Performs exactly one configured integer comparison and cannot alter counters, findings, retry notes, anchors, or parent bytes.
+      authority: Performs exactly one configured scalar comparison.
 
     - name: inspect_voice_copy_risk
       owner: voice-editor
       implementation: {type: exec, factory: exec, reuse: Fixed inspect-copy-risk operation of the planned non-shell voice-editor helper.}
-      inputs: [bounded JSON on stdin containing validated candidate bytes, accepted per-passage anchors and provenance, configured normalized phrase and shingle limits, rewrite attempt count and limit]
-      outputs: [bounded JSON report on stdout containing copy_risk_clear, suspicious shared spans, normalized lengths, shingle overlap, anchor references, risk levels, current and next rewrite counts, and bounded anti-copy retry note]
+      inputs: [bounded JSON string selected by fixed stdin_source from labeled validated candidate and anchor state and rejected before launch above fixed stdin_max_bytes; the document contains validated candidate bytes, accepted per-passage anchors and provenance, configured normalized phrase and shingle limits, rewrite attempt count and limit]
+      outputs: [output mode structured JSON object with output containing bounded report stdout and exit_code containing the process status; report stdout contains copy_risk_clear, suspicious shared spans, normalized lengths, shingle overlap, anchor references, risk levels, current and next rewrite counts, and bounded anti-copy retry note]
       emits: [ToolDone, ToolFailed, CommandError]
-      infrastructure_errors: [CommandError only when trusted declaration or stdin selector prevents command construction; ToolFailed when the fixed helper cannot start or execution times out]
-      domain_errors: [ToolFailed when the helper returns non-zero because bounded input is malformed or deterministic report computation cannot complete]
+      infrastructure_errors: [CommandError when fixed stdin_source does not resolve to one non-empty string within stdin_max_bytes, process start fails, execution is canceled or times out, or structured output encoding fails; ToolFailed when the launched helper exits non-zero]
+      domain_errors: [none; detected copy risk is a zero-exit report with copy_risk_clear false]
       side_effects: [child_process]
       reversibility: {classification: reversible, undo: noop}
       compensation: Read-only deterministic observation; reject the candidate unless a parsed report later passes every branch.
@@ -793,10 +949,10 @@ word_vocabulary:
     - name: parse_voice_copy_risk_report
       owner: voice-editor
       implementation: {type: builtin, factory: parse_structured, reuse: Parse inspect_voice_copy_risk stdout against the configured copy-risk-report JSON Schema.}
-      inputs: [exact ToolDone stdout from inspect_voice_copy_risk]
+      inputs: [exact ToolDone stdout string selected by configured source $from(voice_copy_risk_report_raw).output from the structured exec JSON object]
       outputs: [schema-valid normalized copy-risk report with copy_risk_clear, bounded shared spans and anchor references, current and next rewrite counts, and bounded anti-copy note]
       emits: [VoiceCopyRiskReportParsed, VoiceCopyRiskReportInvalid, CommandError]
-      infrastructure_errors: [source selector does not resolve]
+      infrastructure_errors: [source selector does not resolve or normalized output encoding fails]
       domain_errors: [stdout is malformed JSON, exceeds schema bounds, or omits or mistypes a required report field]
       side_effects: [none]
       reversibility: {classification: reversible, undo: noop}
@@ -805,29 +961,29 @@ word_vocabulary:
 
     - name: voice_copy_risk_clear
       owner: voice-editor
-      implementation: {type: builtin, factory: value_predicate, reuse: Compare the parsed copy_risk_clear boolean with configured true.}
-      inputs: [copy_risk_clear from parse_voice_copy_risk_report, configured literal true]
-      outputs: [raw operands, equality operator, boolean operand type, held result]
+      implementation: {type: builtin, factory: value_predicate, reuse: Compare the parsed copy_risk_clear scalar with configured literal true.}
+      inputs: [left $.copy_risk_clear from the immediately preceding parse_voice_copy_risk_report Result, operator eq, right literal true, operand type string]
+      outputs: [raw operands, equality operator, string operand type, held result]
       emits: [VoiceCopyRiskClear, VoiceCopyRiskDetected, CommandError]
-      infrastructure_errors: [operand selector does not resolve or boolean coercion fails]
+      infrastructure_errors: [operand selector does not resolve]
       domain_errors: [none; false is VoiceCopyRiskDetected]
       side_effects: [none]
       reversibility: {classification: reversible, undo: noop}
       compensation: Scalar comparison only.
-      authority: Performs exactly one configured boolean comparison and cannot compute overlap, transform findings, or alter thresholds.
+      authority: Performs exactly one configured scalar comparison.
 
     - name: voice_copy_retry_available
       owner: voice-editor
       implementation: {type: builtin, factory: value_predicate, reuse: Compare parsed rewrite attempt count with the configured hard limit.}
-      inputs: [rewrite_attempt_count selected from $from(voice_copy_risk_report), configured literal rewrite attempt limit three]
-      outputs: [raw operands, less-than operator, integer operand type, held result]
+      inputs: [left $from(voice_copy_risk_report).rewrite_attempt_count, operator lt, right literal three, operand type number]
+      outputs: [raw operands, less-than operator, number operand type, held result]
       emits: [VoiceCopyRiskRetryAllowed, VoiceCopyRiskBlocked, CommandError]
-      infrastructure_errors: [operand selector does not resolve or integer coercion fails]
+      infrastructure_errors: [operand selector does not resolve or number coercion fails]
       domain_errors: [none; exhausted count is VoiceCopyRiskBlocked]
       side_effects: [none]
       reversibility: {classification: reversible, undo: noop}
       compensation: Scalar comparison only.
-      authority: Performs exactly one configured integer comparison and cannot alter counters, findings, retry notes, anchors, thresholds, or parent bytes.
+      authority: Performs exactly one configured scalar comparison.
 
     - name: compose_voice_success_response
       owner: voice-editor
@@ -963,16 +1119,16 @@ word_vocabulary:
   critic_pangram:
     - name: check_pangram_consent
       owner: voice-critic
-      implementation: {type: builtin, factory: value_predicate, reuse: Compare recorded consent and bound hashes without network access.}
-      inputs: [recorded consent state, original hash, candidate hash, consent-bound original and candidate hashes]
-      outputs: [affirmative, denied, absent, expired, or hash-mismatched consent result]
-      emits: [PangramConsentGranted, PangramConsentDenied, PangramConsentMissing, CommandError]
-      infrastructure_errors: [selector or predicate configuration failure]
-      domain_errors: [consent denied, absent, expired, or bound to different hashes]
+      implementation: {type: builtin, factory: value_predicate, reuse: Compare one previously validated consent_gate_status scalar with configured literal granted.}
+      inputs: [consent_gate_status selected from validated consent state, configured literal granted]
+      outputs: [raw operands, equality operator, string operand type, held result]
+      emits: [PangramConsentGranted, PangramConsentNotGranted, CommandError]
+      infrastructure_errors: [operand selector does not resolve]
+      domain_errors: [none; denied, absent, expired, or hash-mismatched status is PangramConsentNotGranted]
       side_effects: [none]
       reversibility: {classification: reversible, undo: noop}
       compensation: No state exists to compensate; a non-granted result selects no scan word.
-      authority: Validates consent only and grants no endpoint, credential, path, or content-selection authority.
+      authority: Performs exactly one configured scalar comparison; the preceding consent-state validator owns status derivation and hash binding.
 
     - name: await_pangram_consent
       owner: voice-critic
@@ -1207,9 +1363,11 @@ requirements:
         text: |
           Each editor SHALL own one embedding word, one corpus-specific RAG
           query word, and one generation word. structure-editor SHALL also own
-          the deterministic validation, query-formulation, grounding-routing,
-          constraint-validation, and response-composition words required by its
-          flat MachineSpec. voice-editor SHALL also own the deterministic
+          the deterministic validation and query-formulation words, constrained
+          grounding and preservation helper words, structured-report parsers,
+          single-comparison routing words, a fixed edit-context composer, and
+          fixed-outcome response composers required by its flat MachineSpec.
+          voice-editor SHALL also own the deterministic
           request-validation, rhetorical-role/register query-formulation,
           constrained helper observation, structured-report parsing,
           single-comparison routing, and fixed-outcome response-composition
@@ -1239,15 +1397,29 @@ requirements:
         evidence: Planned schemas, prompts, parse tests, and adversarial model fixtures reject authority-bearing fields.
       - id: R4.5
         text: |
-          assess_structure_grounding SHALL emit
-          StructureGroundingSufficient, StructureGroundingRefinementAllowed, or
-          StructureGroundingInsufficient from configured evidence predicates and
-          a refinement count of zero or one. validate_structure_constraints
-          SHALL emit a distinct valid, no-op, or semantic-constraint-failed
-          outcome. compose_structure_response SHALL emit the matching bounded
-          terminal outcome signal. These deterministic signals SHALL supply
-          every branch needed by srd005 without a MachineSpec payload guard.
-        evidence: Planned signal and transition closure expands the srd005 machine and matches every branch to these declared emissions.
+          compose_structure_grounding_input and
+          compose_structure_constraint_input SHALL each render one fixed bounded
+          JSON envelope whose stdin field contains the helper document and emit
+          one configured signal.
+          inspect_structure_grounding and inspect_structure_constraints SHALL
+          be constrained non-shell exec words with fixed binary and operation,
+          fixed stdin_source selecting the compose envelope's stdin string,
+          fixed stdin_max_bytes, structured output mode, and only ToolDone,
+          ToolFailed, or CommandError emissions. Their
+          parse_structured successors SHALL emit one configured parsed or
+          invalid outcome plus CommandError. Every value_predicate successor
+          SHALL compare exactly one parsed scalar with one configured scalar and
+          emit exactly two configured outcomes plus CommandError.
+          compose_structure_edit_context SHALL render one fixed model context
+          from labeled validated state and emit only StructureEditContextReady.
+          Separate compose_structure_success_response,
+          compose_structure_no_op_response,
+          compose_structure_insufficient_response, and
+          compose_structure_failed_response words SHALL each render one fixed
+          outcome and emit only its one configured response signal. These words
+          and signals SHALL supply every srd005 branch without a payload guard,
+          dynamic dispatch, new Go builtin, or shell.
+        evidence: Planned factory-semantic, action, word, signal, label, transition, and terminal closure expands the srd005 machine and matches every action to the exact emissions of exec, parse_structured, value_predicate, invoke_llm, REST, or compose.
       - id: R4.6
         text: |
           inspect_voice_anchors, inspect_voice_constraints, and
@@ -1376,8 +1548,9 @@ acceptance_criteria:
       model output cannot author authority-bearing values. Structure-editor
       and voice-editor deterministic words provide bounded retrieval refinement,
       candidate retry, validation, copy-risk, and response routing without
-      payload guards. Voice report helpers, parsers, scalar predicates, and
-      fixed response composers match their actual factory signal semantics.
+      payload guards. Structure and voice report helpers, parsers, scalar
+      predicates, context composers, and fixed response composers match their
+      actual factory signal semantics.
     traces: [R4.1, R4.2, R4.3, R4.4, R4.5, R4.6]
   - id: AC5
     criterion: |
@@ -1461,6 +1634,7 @@ implementation_status:
   machines: not_implemented
   tool_declarations: not_implemented
   workproduct_helper: not_implemented
+  structure_editor_helper: not_implemented
   voice_editor_helper: not_implemented
   rest_definitions: not_implemented
   services: not_implemented

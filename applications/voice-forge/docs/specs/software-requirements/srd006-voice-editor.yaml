@@ -133,10 +133,22 @@ flat_machine_contract:
       - formulate_structure_query
       - embed_structure_query
       - query_structure_rag
-      - assess_structure_grounding
+      - compose_structure_grounding_input
+      - inspect_structure_grounding
+      - parse_structure_grounding_report
+      - structure_grounding_sufficient
+      - structure_grounding_refinement_available
+      - compose_structure_edit_context
       - generate_structure_edit
-      - validate_structure_constraints
-      - compose_structure_response
+      - compose_structure_constraint_input
+      - inspect_structure_constraints
+      - parse_structure_constraint_report
+      - structure_candidate_is_no_op
+      - structure_constraints_hold
+      - compose_structure_success_response
+      - compose_structure_no_op_response
+      - compose_structure_insufficient_response
+      - compose_structure_failed_response
       - embed_tightening_query
       - query_tightening_rag
       - generate_style_edit
@@ -188,7 +200,7 @@ flat_machine_contract:
     - {name: querying_voice_rag, meaning: Query only voice-rag with provider-produced vectors.}
     - {name: inspecting_anchor_evidence, meaning: Run the fixed non-shell helper over bounded retrieval JSON to compute one anchor report.}
     - {name: parsing_anchor_report, meaning: Parse and schema-validate helper stdout without repairing it.}
-    - {name: checking_anchor_completeness, meaning: Compare one parsed all-passages-sufficient boolean.}
+    - {name: checking_anchor_completeness, meaning: Compare one parsed all-passages-sufficient scalar with one configured scalar.}
     - {name: checking_anchor_refinement_budget, meaning: Compare one parsed refinement count with the hard limit.}
     - {name: composing_initial_rewrite_context, meaning: Render the fixed initial model context from validated request and anchor labels.}
     - {name: composing_constraint_retry_context, meaning: Render the fixed constraint-retry context with parsed next count and note.}
@@ -196,12 +208,12 @@ flat_machine_contract:
     - {name: rewriting_voice, meaning: Generate one schema-bound set of independent passage rewrites from accepted anchors.}
     - {name: inspecting_constraints, meaning: Run the fixed non-shell helper over bounded parent and candidate JSON to compute one preservation report.}
     - {name: parsing_constraint_report, meaning: Parse and schema-validate constraint helper stdout without repairing it.}
-    - {name: checking_candidate_no_op, meaning: Compare one parsed candidate-is-no-op boolean.}
-    - {name: checking_constraint_result, meaning: Compare one parsed all-constraints-hold boolean.}
+    - {name: checking_candidate_no_op, meaning: Compare one parsed candidate-is-no-op scalar with one configured scalar.}
+    - {name: checking_constraint_result, meaning: Compare one parsed all-constraints-hold scalar with one configured scalar.}
     - {name: checking_constraint_retry_budget, meaning: Compare one parsed rewrite count with the hard limit.}
     - {name: inspecting_copy_risk, meaning: Run the fixed non-shell helper over bounded candidate and anchor JSON to compute one copy-risk report.}
     - {name: parsing_copy_report, meaning: Parse and schema-validate copy-risk helper stdout without repairing it.}
-    - {name: checking_copy_clear, meaning: Compare one parsed copy-risk-clear boolean.}
+    - {name: checking_copy_clear, meaning: Compare one parsed copy-risk-clear scalar with one configured scalar.}
     - {name: checking_copy_retry_budget, meaning: Compare one parsed rewrite count with the hard limit.}
     - {name: composing_success_response, meaning: Render the fixed succeeded response and its one configured signal.}
     - {name: composing_no_op_response, meaning: Render the fixed no-op response and its one configured signal.}
@@ -315,8 +327,7 @@ flat_machine_contract:
       - {from: checking_anchor_refinement_budget, on: VoiceAnchorsRefinementAllowed, to: formulating_query, action: formulate_query, label: voice_query_set}
       - {from: checking_anchor_refinement_budget, on: VoiceAnchorsInsufficient, to: composing_insufficient_response, action: compose_insufficient_response, label: voice_response}
     rewrite_validation_copy_and_response:
-      - {from: rewriting_voice, on: VoiceEditGenerated, to: inspecting_constraints, action: inspect_constraints, label: voice_constraint_report_raw}
-      - {from: rewriting_voice, on: VoiceEditNoOp, to: composing_no_op_response, action: compose_no_op_response, label: voice_response}
+      - {from: rewriting_voice, on: VoiceEditGenerated/VoiceEditNoOp, to: inspecting_constraints, action: inspect_constraints, label: voice_constraint_report_raw}
       - {from: rewriting_voice, on: VoiceEditDeclined, to: composing_failed_response, action: compose_failed_response, label: voice_response}
       - {from: inspecting_constraints, on: ToolDone, to: parsing_constraint_report, action: parse_constraint_report, label: voice_constraint_report}
       - {from: parsing_constraint_report, on: VoiceConstraintReportParsed, to: checking_candidate_no_op, action: check_candidate_no_op, label: voice_no_op_check}
@@ -350,19 +361,56 @@ flat_machine_contract:
         - {from: inspecting_copy_risk, on: ToolFailed, to: composing_failed_response, action: compose_failed_response, label: voice_response}
         - {from: parsing_copy_report, on: VoiceCopyRiskReportInvalid, to: composing_failed_response, action: compose_failed_response, label: voice_response}
       rule: Every listed row is an explicit failed-response transition.
+      infrastructure_to_failed_response:
+        - {from: validating_request, on: CommandError/BudgetExhausted, to: composing_failed_response, action: compose_failed_response, label: voice_response}
+        - {from: embedding_query, on: CommandError/BudgetExhausted, to: composing_failed_response, action: compose_failed_response, label: voice_response}
+        - {from: querying_voice_rag, on: CommandError/BudgetExhausted, to: composing_failed_response, action: compose_failed_response, label: voice_response}
+        - {from: inspecting_anchor_evidence, on: CommandError/BudgetExhausted, to: composing_failed_response, action: compose_failed_response, label: voice_response}
+        - {from: parsing_anchor_report, on: CommandError/BudgetExhausted, to: composing_failed_response, action: compose_failed_response, label: voice_response}
+        - {from: checking_anchor_completeness, on: CommandError/BudgetExhausted, to: composing_failed_response, action: compose_failed_response, label: voice_response}
+        - {from: checking_anchor_refinement_budget, on: CommandError/BudgetExhausted, to: composing_failed_response, action: compose_failed_response, label: voice_response}
+        - {from: rewriting_voice, on: CommandError/BudgetExhausted, to: composing_failed_response, action: compose_failed_response, label: voice_response}
+        - {from: inspecting_constraints, on: CommandError/BudgetExhausted, to: composing_failed_response, action: compose_failed_response, label: voice_response}
+        - {from: parsing_constraint_report, on: CommandError/BudgetExhausted, to: composing_failed_response, action: compose_failed_response, label: voice_response}
+        - {from: checking_candidate_no_op, on: CommandError/BudgetExhausted, to: composing_failed_response, action: compose_failed_response, label: voice_response}
+        - {from: checking_constraint_result, on: CommandError/BudgetExhausted, to: composing_failed_response, action: compose_failed_response, label: voice_response}
+        - {from: checking_constraint_retry_budget, on: CommandError/BudgetExhausted, to: composing_failed_response, action: compose_failed_response, label: voice_response}
+        - {from: inspecting_copy_risk, on: CommandError/BudgetExhausted, to: composing_failed_response, action: compose_failed_response, label: voice_response}
+        - {from: parsing_copy_report, on: CommandError/BudgetExhausted, to: composing_failed_response, action: compose_failed_response, label: voice_response}
+        - {from: checking_copy_clear, on: CommandError/BudgetExhausted, to: composing_failed_response, action: compose_failed_response, label: voice_response}
+        - {from: checking_copy_retry_budget, on: CommandError/BudgetExhausted, to: composing_failed_response, action: compose_failed_response, label: voice_response}
+      budget_to_failed_terminal:
+        - {from: formulating_query, on: BudgetExhausted, to: failed, action: none}
+        - {from: composing_initial_rewrite_context, on: BudgetExhausted, to: failed, action: none}
+        - {from: composing_constraint_retry_context, on: BudgetExhausted, to: failed, action: none}
+        - {from: composing_copy_retry_context, on: BudgetExhausted, to: failed, action: none}
+        - {from: composing_success_response, on: BudgetExhausted, to: failed, action: none}
+        - {from: composing_no_op_response, on: BudgetExhausted, to: failed, action: none}
+        - {from: composing_insufficient_response, on: BudgetExhausted, to: failed, action: none}
+        - {from: composing_failed_response, on: BudgetExhausted, to: failed, action: none}
       infrastructure_rule: |
-        CommandError or BudgetExhausted from validating_request,
-        formulating_query, embedding_query, querying_voice_rag,
-        inspecting_anchor_evidence, parsing_anchor_report,
-        checking_anchor_completeness, checking_anchor_refinement_budget,
-        rewriting_voice, inspecting_constraints, parsing_constraint_report,
-        checking_candidate_no_op, checking_constraint_result,
-        checking_constraint_retry_budget, inspecting_copy_risk,
-        parsing_copy_report, checking_copy_clear, or
-        checking_copy_retry_budget routes to composing_failed_response with
-        compose_failed_response. BudgetExhausted in any response-composition
-        state routes directly to failed with no action. Compose words emit no
-        CommandError and always emit their one configured response signal.
+        Every infrastructure row is explicit. Compose words emit no CommandError
+        and always emit their configured signal; only an independently applied
+        BudgetExhausted signal can leave a compose state without that signal.
+
+helper_io_contract:
+  output_mode: structured
+  parser_sources:
+    anchors: $from(voice_anchor_report_raw).output
+    constraints: $from(voice_constraint_report_raw).output
+    copy_risk: $from(voice_copy_risk_report_raw).output
+  factory_semantics: |
+    Each fixed stdin_source must resolve through command state to one non-empty
+    string within fixed stdin_max_bytes before launch. An unresolved, non-string,
+    empty, or oversized source emits CommandError without launching the helper.
+    Process start, cancellation, timeout, or structured-output encoding failure
+    also emits CommandError. The fixed declarations have no runtime parameters
+    or preconditions. A launched process emits ToolDone on zero exit and
+    ToolFailed on non-zero exit. Structured mode places stdout in output and
+    process status in exit_code.
+    Each parse_structured word selects the corresponding nested output string,
+    emits its configured parsed or invalid signal, and emits CommandError only
+    when the source selector does not resolve or normalized output encoding fails.
 
 passage_query_contract:
   unit: configured voice-eligible paragraph or passage
@@ -473,7 +521,8 @@ preservation_contract:
     Before the third model attempt the final predicate may emit
     VoiceConstraintsRetryAllowed. At the limit it emits
     VoiceConstraintsFailed. No helper, parser, or predicate repairs a candidate.
-    Candidate bytes are discarded unless the full predicate chain passes.
+    Both VoiceEditGenerated and VoiceEditNoOp pass through the helper, parser,
+    and predicate chain. Candidate bytes are discarded unless that chain passes.
 
 copy_risk_contract:
   comparison_scope: Each rewritten passage against only the accepted anchors supplied for that passage, plus a configured cross-anchor duplicate check.
@@ -564,7 +613,7 @@ structural_proofs:
       return only same-slot passage rewrites. inspect_voice_constraints computes
       organization and preservation findings with a fixed helper;
       parse_voice_constraint_report validates the report; and
-      voice_constraints_hold compares only its all_constraints_hold boolean.
+      voice_constraints_hold compares only its all_constraints_hold scalar.
       succeeded is reachable only after VoiceConstraintsValid. No action can
       invoke a structure word. All insufficient, declined, helper-failed,
       report-invalid, constraint-failed, copy-blocked, infrastructure, and
@@ -575,7 +624,7 @@ structural_proofs:
     predecessor_chain:
       - inspect_voice_anchors receives only grouped query_voice_rag results through bounded JSON stdin.
       - parse_voice_anchor_report admits only ToolDone stdout that satisfies the configured report schema.
-      - voice_anchors_complete compares only the parsed all_passages_sufficient boolean.
+      - voice_anchors_complete compares only the parsed all_passages_sufficient scalar.
       - querying_voice_rag is reached only after embed_voice_query.
       - embedding_query is reached only after formulate_voice_query.
       - formulating_query is first reached only after validate_voice_request.
