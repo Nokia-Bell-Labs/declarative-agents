@@ -45,7 +45,15 @@ factory_reuse:
       - agent-core/tools/builtin/execute-task.yaml
       - agent-core/docs/specs/config-formats/tool-declaration-format.yaml
     factories: [execute_task]
-    rule: New declarations use profile-only child_agent_config.
+    rule: |
+      New declarations use profile-only child_agent_config. execute_task is the
+      planner pipeline factory: registration requires config.profile; dispatch
+      requires a current task and current plan; success returns child stdout as
+      ExecutionDone, non-success returns truncated exit/stdout/stderr as
+      ExecutionFailed, and missing planner state or invocation errors return
+      CommandError. Planned orchestrator wiring must prepare one bounded current
+      task/plan envelope for each child call; execute_task itself does not parse
+      or refine the child business outcome.
   lifecycle:
     authority: agent-core/tools/builtin/lifecycle/
     factories: [suspend, checkpoint_history, checkpoint_rollback, exit_agent]
@@ -57,7 +65,68 @@ factory_reuse:
       Each exec word fixes one binary and operation in trusted declarations.
       It invokes no shell interpreter. Runtime values come only from validated
       request or command-state selectors and cannot replace the binary, base
-      arguments, working root, endpoint, credential, or operation.
+      arguments, working root, endpoint, credential, or operation. The generic
+      exec factory emits only ToolDone, ToolFailed, or CommandError. A launched
+      zero-exit JSON-emitting helper operation returns bounded stdout through
+      structured output;
+      a following parse_structured word validates the nested output string, and
+      value_predicate words refine valid business outcomes one scalar at a time.
+      Every orchestrator exec declaration fixes output mode structured,
+      output_cap 256 lines, a helper operation whose own stdout is at most
+      262144 bytes, and a JSON Schema that bounds every parsed string, array,
+      and object. Truncation cannot become a valid business result.
+      No orchestrator parser consumes raw git, gh, digest-tool, or shell output.
+      Hash, source, publication, pull-request, and workproduct operations are
+      fixed operations of one planned constrained non-shell orchestrator helper
+      executable (or a separately fixed workproduct helper with the same JSON
+      contract). The helper safely invokes only its compiled/configured git or
+      gh subcommand for the selected fixed operation and emits the bounded
+      domain JSON itself. Each ToolDef fixes the helper binary and operation in
+      declaration args. Runtime data cannot select or replace the binary,
+      operation, git/gh subcommand, URL, refspec shape, credential source,
+      working root, or output schema. This remains exec reuse and adds no Go
+      builtin.
+    planned_orchestrator_helper:
+      status: not_implemented
+      kind: constrained_non_shell_executable
+      fixed_operations:
+        - read-workproduct
+        - hash-workproduct
+        - write-original
+        - write-attempt
+        - append-manifest-revision
+        - project-manifest
+        - materialize-final-chain
+        - resolve-source-revision
+        - fetch-source
+        - read-source-blob
+        - check-publication
+        - create-publication-branch
+        - stage-final-chain
+        - commit-final-chain
+        - push-publication
+        - find-pull-request
+        - create-pull-request
+        - verify-pull-request
+      invocation_contract: |
+        Each exec ToolDef fixes one operation token in declaration-owned base
+        args. The helper has no generic command, shell, eval, arbitrary argv,
+        arbitrary URL, arbitrary ref, or credential parameter. It receives only
+        schema-validated operation data through bounded stdin or fixed
+        declaration parameters. Repository, destination, base, branch, and
+        credential authority remain configuration-owned; source revision and
+        path are validated request data and cannot alter command shape.
+      subprocess_contract: |
+        Operations that need git or gh construct an operation-specific argv
+        internally from fixed subcommands and flags. They do not invoke a shell.
+        gh JSON fields are fixed; git text is parsed inside the helper. The
+        helper validates identities and emits one bounded JSON object on stdout.
+        A valid business status exits zero. Helper/process failure exits nonzero.
+      parser_contract: |
+        Exec structured mode wraps helper stdout as
+        {"output":"<helper-json>","exit_code":0}. parse_structured selects only
+        $from(<raw-label>).output. Therefore every parsed JSON string originates
+        in the helper, not in exec output shaping or raw git/gh/digest stdout.
 
 authority_invariants:
   - Only workflow-orchestrator selects workproduct and git/gh words.
@@ -77,7 +146,7 @@ signal_policy:
     meaning: Configuration, selector, process-start, filesystem, network, timeout, authentication, response-schema, or provider failure.
   exec_domain:
     signal: ToolFailed
-    meaning: A constrained executable ran and returned a non-zero domain result.
+    meaning: A constrained executable launched and returned non-zero. The machine treats this as an infrastructure or uncertain-operation failure, never as a business branch.
   domain: |
     Named non-error signals report valid business outcomes such as a missing
     source, publication conflict, rejected retrieval request, child rejection,
@@ -108,10 +177,10 @@ word_vocabulary:
       implementation:
         type: exec
         factory: exec
-        reuse: Constrained workproduct helper read operation under the configured saga root.
+        reuse: Fixed read-workproduct operation of the planned constrained non-shell orchestrator/workproduct helper, which emits bounded JSON.
       inputs: [machine-selected artifact_id, manifest-recorded relative path, expected sha256, configured saga root]
-      outputs: [exact bytes, byte length, verified sha256, artifact_id]
-      emits: [WorkproductRead, WorkproductMissing, WorkproductIntegrityFailed, CommandError]
+      outputs: [bounded structured exec object whose output string is a JSON result with status, exact bytes, byte length, verified sha256, and artifact_id]
+      emits: [ToolDone, ToolFailed, CommandError]
       infrastructure_errors: [helper unavailable, filesystem read failure]
       domain_errors: [artifact absent, path containment denied, digest mismatch, manifest identity mismatch]
       side_effects: [filesystem_read]
@@ -124,12 +193,12 @@ word_vocabulary:
       implementation:
         type: exec
         factory: exec
-        reuse: Fixed digest operation with bounded bytes on stdin and no shell.
+        reuse: Fixed hash-workproduct operation of the planned constrained non-shell orchestrator helper, which emits bounded JSON.
       inputs: [document or critique bytes from validated command state]
-      outputs: [lowercase sha256, byte length]
-      emits: [WorkproductHashed, ToolFailed, CommandError]
-      infrastructure_errors: [digest binary unavailable, stdin selector or size failure]
-      domain_errors: [digest output malformed]
+      outputs: [bounded structured exec object whose output string is a JSON result with status, lowercase sha256, and byte length]
+      emits: [ToolDone, ToolFailed, CommandError]
+      infrastructure_errors: [helper unavailable, fixed digest implementation failure, stdin selector or size failure]
+      domain_errors: [helper JSON reports an invalid or conflicting digest result]
       side_effects: [child_process]
       reversibility: {classification: reversible, undo: noop}
       compensation: Deterministic observation only.
@@ -140,10 +209,10 @@ word_vocabulary:
       implementation:
         type: exec
         factory: exec
-        reuse: Constrained workproduct helper create-original operation.
+        reuse: Fixed write-original operation of the planned constrained non-shell orchestrator/workproduct helper, which emits bounded JSON.
       inputs: [validated source bytes, source identity, expected sha256, configured saga root]
-      outputs: [original artifact record, verified sha256, byte length]
-      emits: [OriginalWritten, OriginalReused, OriginalConflict, ToolFailed, CommandError]
+      outputs: [bounded structured exec object whose output string is a JSON result with status, original artifact record, verified sha256, and byte length]
+      emits: [ToolDone, ToolFailed, CommandError]
       infrastructure_errors: [helper unavailable, write or fsync failure]
       domain_errors: [existing bytes differ, path containment denied, source identity conflict, digest mismatch]
       side_effects: [filesystem_write]
@@ -156,10 +225,10 @@ word_vocabulary:
       implementation:
         type: exec
         factory: exec
-        reuse: Constrained workproduct helper content-addressed attempt operation.
+        reuse: Fixed write-attempt operation of the planned constrained non-shell orchestrator/workproduct helper, which emits bounded JSON.
       inputs: [validated stage, monotonic attempt, bytes, sha256, parent artifact IDs, producer and invocation provenance]
-      outputs: [immutable artifact record, verified relative path, byte length]
-      emits: [AttemptWritten, AttemptReused, AttemptConflict, ToolFailed, CommandError]
+      outputs: [bounded structured exec object whose output string is a JSON result with status, immutable artifact record, verified relative path, and byte length]
+      emits: [ToolDone, ToolFailed, CommandError]
       infrastructure_errors: [helper unavailable, write or fsync failure]
       domain_errors: [invalid stage, reused attempt number, parent mismatch, digest mismatch, conflicting existing bytes]
       side_effects: [filesystem_write]
@@ -172,10 +241,10 @@ word_vocabulary:
       implementation:
         type: exec
         factory: exec
-        reuse: Constrained workproduct helper append-manifest-history operation.
+        reuse: Fixed append-manifest-revision operation of the planned constrained non-shell orchestrator/workproduct helper, which emits bounded JSON.
       inputs: [prior manifest revision, validated transition, artifact and stage-run records, expected next revision]
-      outputs: [immutable manifest-history revision bytes and sha256]
-      emits: [ManifestRevisionAppended, ManifestRevisionReused, ManifestConflict, ToolFailed, CommandError]
+      outputs: [bounded structured exec object whose output string is a JSON result with status, immutable manifest-history revision identity, revision, and sha256]
+      emits: [ToolDone, ToolFailed, CommandError]
       infrastructure_errors: [helper unavailable, serialization, write, or fsync failure]
       domain_errors: [noncontiguous revision, invalid transition, hash or lineage conflict]
       side_effects: [filesystem_write]
@@ -188,65 +257,26 @@ word_vocabulary:
       implementation:
         type: exec
         factory: exec
-        reuse: Constrained workproduct helper atomic manifest projection operation.
+        reuse: Fixed project-manifest operation of the planned constrained non-shell orchestrator/workproduct helper, which emits bounded JSON.
       inputs: [highest valid contiguous manifest-history revision, expected sha256]
-      outputs: [manifest projection revision and verified sha256, deterministic route selected from bounded manifest fields]
-      emits:
-        - ManifestProjected
-        - ManifestProjectionRepaired
-        - ManifestConflict
-        - RequestNew
-        - RequestResume
-        - StructureAccepted
-        - VoiceAccepted
-        - StyleAccepted
-        - CritiqueAccepted
-        - CriticWarnAccepted
-        - CriticWarnRejectedStructure
-        - CriticWarnRejectedVoice
-        - CriticWarnRejectedStyle
-        - CriticRejectedStructure
-        - CriticRejectedVoice
-        - CriticRejectedStyle
-        - RetryCurrentAction
-        - RetryStructure
-        - RetryVoice
-        - RetryStyle
-        - ExhaustedKeepOriginal
-        - ExhaustedFail
-        - ResumeCapture
-        - ResumeStructure
-        - ResumeVoice
-        - ResumeStyle
-        - ResumeCritique
-        - ResumeFinalization
-        - ResumeCommit
-        - ResumePush
-        - ResumePullRequest
-        - ResumeVerification
-        - TerminalPublished
-        - TerminalKeptOriginal
-        - TerminalFailed
-        - TerminalPublicationBlocked
-        - TerminalOperatorAborted
-        - ToolFailed
-        - CommandError
+      outputs: [bounded structured exec object whose output string is a JSON result with projection_status, revision, sha256, request_mode, stage_result, verdict, warn_allowed, responsible_stage, retry_disposition, resume_step, and terminal_status]
+      emits: [ToolDone, ToolFailed, CommandError]
       infrastructure_errors: [helper unavailable, temporary write, rename, or fsync failure]
       domain_errors: [history gap, invalid revision, projection conflict]
       side_effects: [filesystem_write]
       reversibility: {classification: compensatable, undo: reproject_from_history}
       compensation: Rebuild manifest.yaml from the highest valid contiguous immutable revision.
-      authority: Writes only manifest.yaml from immutable history and emits a deterministic route from validated phase, status, verdict, responsible-stage, policy, and bounded-counter fields; cannot inspect prose or accept model-authored bytes or paths.
+      authority: Writes only manifest.yaml from immutable history and reports bounded validated manifest scalars; it cannot emit a route, inspect prose, or accept model-authored bytes or paths.
 
     - name: materialize_final_chain
       owner: workflow-orchestrator
       implementation:
         type: exec
         factory: exec
-        reuse: Constrained workproduct helper finalization operation.
+        reuse: Fixed materialize-final-chain operation of the planned constrained non-shell orchestrator/workproduct helper, which emits bounded JSON.
       inputs: [critic-accepted lineage, verified selected attempt bytes and hashes, configured saga root]
-      outputs: [fixed finalized artifact records, expected tree digest]
-      emits: [FinalChainMaterialized, FinalChainReused, FinalizationConflict, ToolFailed, CommandError]
+      outputs: [bounded structured exec object whose output string is a JSON result with status, fixed finalized artifact records, and expected tree digest]
+      emits: [ToolDone, ToolFailed, CommandError]
       infrastructure_errors: [helper unavailable, read, copy, write, or fsync failure]
       domain_errors: [critic not accepted, lineage incomplete, source hash mismatch, fixed path contains different bytes]
       side_effects: [filesystem_write, filesystem_read]
@@ -260,7 +290,7 @@ word_vocabulary:
       implementation: {type: builtin, factory: execute_task, reuse: Profile-only child-agent invocation for structure-editor.}
       inputs: [original bytes and artifact ID, saga/stage/attempt identity, bounded structure policy, invocation id and idempotency key]
       outputs: [candidate bytes, parent identity, content hash, structural evidence provenance, producer identity]
-      emits: [StructureEditReturned, StructureEditRejected, ExecutionFailed, CommandError]
+      emits: [ExecutionDone, ExecutionFailed, CommandError]
       infrastructure_errors: [profile missing, process start failure, timeout, malformed transport response]
       domain_errors: [child reports invalid input or cannot produce a bounded edit]
       side_effects: [child_agent_execution]
@@ -273,7 +303,7 @@ word_vocabulary:
       implementation: {type: builtin, factory: execute_task, reuse: Profile-only child-agent invocation for voice-editor.}
       inputs: [selected accepted structure bytes, artifact ID, content hash and acceptance identity, saga/stage/attempt identity, target voice, ordered passage map and initial rhetorical-role/register query descriptors, protected-content inventory, adjacent-context windows, bounded retrieval and rewrite policy, zeroed retrieval refinement count, initial rewrite attempt count, invocation id and idempotency key]
       outputs: [candidate or unchanged parent bytes, parent identity, content hash, outcome, anchor provenance, copy-risk findings, constraint report, stage metadata, producer identity]
-      emits: [VoiceEditReturned, VoiceEditRejected, ExecutionFailed, CommandError]
+      emits: [ExecutionDone, ExecutionFailed, CommandError]
       infrastructure_errors: [profile missing, process start failure, timeout, malformed transport response]
       domain_errors: [child reports invalid input, unsupported target, insufficient anchors, exhausted preservation or copy-risk retry, or another failed outcome]
       side_effects: [child_agent_execution]
@@ -286,7 +316,7 @@ word_vocabulary:
       implementation: {type: builtin, factory: execute_task, reuse: Profile-only child-agent invocation for style-editor.}
       inputs: [selected voice bytes and artifact ID, saga/stage/attempt identity, bounded tightening policy, invocation id and idempotency key]
       outputs: [candidate bytes, parent identity, content hash, transformation-pair provenance, producer identity]
-      emits: [StyleEditReturned, StyleEditRejected, ExecutionFailed, CommandError]
+      emits: [ExecutionDone, ExecutionFailed, CommandError]
       infrastructure_errors: [profile missing, process start failure, timeout, malformed transport response]
       domain_errors: [child reports invalid input or cannot produce a bounded edit]
       side_effects: [child_agent_execution]
@@ -299,7 +329,7 @@ word_vocabulary:
       implementation: {type: builtin, factory: execute_task, reuse: Profile-only child-agent invocation for voice-critic.}
       inputs: [original and selected style bytes and artifact IDs, both hashes, acceptance policy, explicit Pangram consent state, invocation identity]
       outputs: [schema-bound critique, evaluated hashes, categorized findings, Pangram statuses, verdict, responsible stage and bounded feedback]
-      emits: [CriticPassed, CriticWarned, CriticRejected, ExecutionFailed, CommandError]
+      emits: [ExecutionDone, ExecutionFailed, CommandError]
       infrastructure_errors: [profile missing, process start failure, timeout, malformed transport response]
       domain_errors: [valid pass, warn, or reject verdict; invalid critic request]
       side_effects: [child_agent_execution]
@@ -310,11 +340,11 @@ word_vocabulary:
   orchestrator_github:
     - name: git_resolve_source_revision
       owner: workflow-orchestrator
-      implementation: {type: exec, factory: exec, reuse: Fixed git ls-remote operation with configured remote.}
+      implementation: {type: exec, factory: exec, reuse: "Fixed resolve-source-revision operation of the planned constrained non-shell orchestrator helper; it invokes fixed git ls-remote semantics and emits bounded JSON."}
       inputs: [validated human revision, configured allowlisted repository]
-      outputs: [resolved full commit ID]
-      emits: [SourceRevisionResolved, SourceRevisionMissing, ToolFailed, CommandError]
-      infrastructure_errors: [git unavailable, network, authentication, or timeout failure]
+      outputs: [bounded structured exec object whose output string is a JSON result with status and resolved full commit ID]
+      emits: [ToolDone, ToolFailed, CommandError]
+      infrastructure_errors: [helper or git unavailable, network, authentication, or timeout failure]
       domain_errors: [revision absent, ambiguous, moving result changed during capture]
       side_effects: [child_process, external_api]
       reversibility: {classification: reversible, undo: noop}
@@ -323,11 +353,11 @@ word_vocabulary:
 
     - name: git_fetch_source
       owner: workflow-orchestrator
-      implementation: {type: exec, factory: exec, reuse: Fixed git fetch of one resolved full commit into an isolated configured repository.}
+      implementation: {type: exec, factory: exec, reuse: "Fixed fetch-source operation of the planned constrained non-shell orchestrator helper; it invokes one fixed git fetch shape and emits bounded JSON."}
       inputs: [configured repository, resolved full commit ID]
-      outputs: [local object identity and fetch status]
-      emits: [SourceFetched, SourceFetchConflict, ToolFailed, CommandError]
-      infrastructure_errors: [git unavailable, network, authentication, disk, or timeout failure]
+      outputs: [bounded structured exec object whose output string is a JSON result with status and local object identity]
+      emits: [ToolDone, ToolFailed, CommandError]
+      infrastructure_errors: [helper or git unavailable, network, authentication, disk, or timeout failure]
       domain_errors: [fetched identity differs, object unavailable]
       side_effects: [child_process, external_api, filesystem_write]
       reversibility: {classification: compensatable, undo: discard_isolated_fetch_cache}
@@ -336,11 +366,11 @@ word_vocabulary:
 
     - name: git_read_source_blob
       owner: workflow-orchestrator
-      implementation: {type: exec, factory: exec, reuse: Fixed git show operation in the isolated fetched repository.}
+      implementation: {type: exec, factory: exec, reuse: "Fixed read-source-blob operation of the planned constrained non-shell orchestrator helper; it invokes fixed git object-read semantics and emits bounded JSON."}
       inputs: [resolved full commit ID, validated repository-relative human source path]
-      outputs: [exact blob bytes, object identity]
-      emits: [SourceBlobRead, SourceBlobMissing, ToolFailed, CommandError]
-      infrastructure_errors: [git unavailable, repository corruption, read failure]
+      outputs: [bounded structured exec object whose output string is a JSON result with status, exact blob bytes, and object identity]
+      emits: [ToolDone, ToolFailed, CommandError]
+      infrastructure_errors: [helper or git unavailable, repository corruption, read failure]
       domain_errors: [path absent, non-blob object, path containment denied]
       side_effects: [child_process, filesystem_read]
       reversibility: {classification: reversible, undo: noop}
@@ -349,11 +379,11 @@ word_vocabulary:
 
     - name: git_check_publication
       owner: workflow-orchestrator
-      implementation: {type: exec, factory: exec, reuse: Fixed local and remote git identity checks.}
+      implementation: {type: exec, factory: exec, reuse: "Fixed check-publication operation of the planned constrained non-shell orchestrator helper; it invokes fixed local and remote git/gh identity reads and emits bounded JSON."}
       inputs: [publication key, expected tree sha, configured destination, base, and branch, recorded commit sha]
-      outputs: [absent, matching, or conflicting identities]
-      emits: [PublicationAbsent, PublicationMatching, PublicationConflict, ToolFailed, CommandError]
-      infrastructure_errors: [git unavailable, network, authentication, or parse failure]
+      outputs: [bounded structured exec object whose output string is a JSON result with status absent, matching, or conflict and bounded identities]
+      emits: [ToolDone, ToolFailed, CommandError]
+      infrastructure_errors: [helper, git, or gh unavailable, network, authentication, or internal parse failure]
       domain_errors: [tree, commit, branch, or destination conflicts with manifest]
       side_effects: [child_process, filesystem_read, external_api]
       reversibility: {classification: reversible, undo: noop}
@@ -362,11 +392,11 @@ word_vocabulary:
 
     - name: git_create_publication_branch
       owner: workflow-orchestrator
-      implementation: {type: exec, factory: exec, reuse: Fixed git switch/create operation.}
+      implementation: {type: exec, factory: exec, reuse: "Fixed create-publication-branch operation of the planned constrained non-shell orchestrator helper; it invokes one fixed git branch operation and emits bounded JSON."}
       inputs: [configured base commit, configured publication branch, publication key]
-      outputs: [local branch identity and head]
-      emits: [PublicationBranchCreated, PublicationBranchReused, PublicationConflict, ToolFailed, CommandError]
-      infrastructure_errors: [git unavailable, local repository failure]
+      outputs: [bounded structured exec object whose output string is a JSON result with status created, reused, or conflict and local branch identity and head]
+      emits: [ToolDone, ToolFailed, CommandError]
+      infrastructure_errors: [helper or git unavailable, local repository failure]
       domain_errors: [existing branch points to conflicting history, base mismatch]
       side_effects: [child_process, filesystem_write]
       reversibility: {classification: compensatable, undo: discard_unpublished_matching_branch}
@@ -375,11 +405,11 @@ word_vocabulary:
 
     - name: git_stage_final_chain
       owner: workflow-orchestrator
-      implementation: {type: exec, factory: exec, reuse: Fixed git add with an exact configured saga-root pathspec.}
+      implementation: {type: exec, factory: exec, reuse: "Fixed stage-final-chain operation of the planned constrained non-shell orchestrator helper; it invokes one fixed git add pathspec shape, verifies the index, and emits bounded JSON."}
       inputs: [configured saga root, finalized manifest, expected file inventory and hashes]
-      outputs: [staged path inventory and index tree sha]
-      emits: [FinalChainStaged, PublicationConflict, ToolFailed, CommandError]
-      infrastructure_errors: [git unavailable, index lock or filesystem failure]
+      outputs: [bounded structured exec object whose output string is a JSON result with status staged or conflict, staged path inventory, and index tree sha]
+      emits: [ToolDone, ToolFailed, CommandError]
+      infrastructure_errors: [helper or git unavailable, index lock or filesystem failure]
       domain_errors: [unexpected path, missing finalized file, staged tree mismatch]
       side_effects: [child_process, filesystem_write]
       reversibility: {classification: compensatable, undo: restore_index_checkpoint}
@@ -388,11 +418,11 @@ word_vocabulary:
 
     - name: git_commit_final_chain
       owner: workflow-orchestrator
-      implementation: {type: exec, factory: exec, reuse: Fixed git commit operation through the existing exec runtime.}
+      implementation: {type: exec, factory: exec, reuse: "Fixed commit-final-chain operation of the planned constrained non-shell orchestrator helper; it invokes one fixed git commit shape, verifies identities, and emits bounded JSON."}
       inputs: [configured commit message template, publication key, expected index tree sha]
-      outputs: [commit sha, tree sha, parent sha]
-      emits: [PublicationCommitted, PublicationCommitReused, PublicationConflict, ToolFailed, CommandError]
-      infrastructure_errors: [git unavailable, signing or repository failure]
+      outputs: [bounded structured exec object whose output string is a JSON result with status committed, reused, or conflict and commit, tree, and parent shas]
+      emits: [ToolDone, ToolFailed, CommandError]
+      infrastructure_errors: [helper or git unavailable, signing or repository failure]
       domain_errors: [nothing staged before recorded commit, tree mismatch, conflicting commit for key]
       side_effects: [child_process, filesystem_write]
       reversibility: {classification: compensatable, undo: preserve_or_drop_unpushed_commit}
@@ -401,11 +431,11 @@ word_vocabulary:
 
     - name: git_push_publication
       owner: workflow-orchestrator
-      implementation: {type: exec, factory: exec, reuse: Fixed git push of recorded commit to configured branch with force disabled.}
+      implementation: {type: exec, factory: exec, reuse: "Fixed push-publication operation of the planned constrained non-shell orchestrator helper; it invokes one fixed non-force git push shape, rechecks remote identity, and emits bounded JSON."}
       inputs: [configured destination, configured branch, recorded commit sha, expected remote prior state]
-      outputs: [pushed ref and remote head]
-      emits: [PublicationPushed, PublicationPushReused, PublicationConflict, ToolFailed, CommandError]
-      infrastructure_errors: [git unavailable, network, authentication, timeout, uncertain completion]
+      outputs: [bounded structured exec object whose output string is a JSON result with status pushed, reused, or conflict and pushed ref and remote head]
+      emits: [ToolDone, ToolFailed, CommandError]
+      infrastructure_errors: [helper or git unavailable, network, authentication, timeout, uncertain completion]
       domain_errors: [non-fast-forward or remote head conflict]
       side_effects: [child_process, external_api]
       reversibility: {classification: irreversible, undo: forward_only_operator_resolution}
@@ -414,11 +444,11 @@ word_vocabulary:
 
     - name: gh_find_pull_request
       owner: workflow-orchestrator
-      implementation: {type: exec, factory: exec, reuse: Fixed gh pr list/view operation with JSON fields and configured repository.}
+      implementation: {type: exec, factory: exec, reuse: "Fixed find-pull-request operation of the planned constrained non-shell orchestrator helper; it invokes fixed gh JSON fields and emits normalized bounded JSON."}
       inputs: [configured repository, base, head branch, publication key]
-      outputs: [zero, one matching, or conflicting pull-request identities]
-      emits: [PullRequestAbsent, PullRequestMatching, PublicationConflict, ToolFailed, CommandError]
-      infrastructure_errors: [gh unavailable, network, authentication, timeout, malformed JSON]
+      outputs: [bounded structured exec object whose output string is a JSON result with status absent, matching, or conflict and bounded pull-request identities]
+      emits: [ToolDone, ToolFailed, CommandError]
+      infrastructure_errors: [helper or gh unavailable, network, authentication, timeout, malformed gh JSON]
       domain_errors: [multiple or mismatched pull requests]
       side_effects: [child_process, external_api]
       reversibility: {classification: reversible, undo: noop}
@@ -427,11 +457,11 @@ word_vocabulary:
 
     - name: gh_create_pull_request
       owner: workflow-orchestrator
-      implementation: {type: exec, factory: exec, reuse: Fixed gh pr create operation with configured templates.}
+      implementation: {type: exec, factory: exec, reuse: "Fixed create-pull-request operation of the planned constrained non-shell orchestrator helper; it invokes one fixed gh create-or-reuse flow and emits normalized bounded JSON."}
       inputs: [configured repository, base, head branch, title/body templates, publication key, verified pushed commit]
-      outputs: [pull-request number, URL, base, head and state]
-      emits: [PullRequestCreated, PullRequestReused, PublicationConflict, ToolFailed, CommandError]
-      infrastructure_errors: [gh unavailable, network, authentication, timeout, uncertain completion]
+      outputs: [bounded structured exec object whose output string is a JSON result with status created, reused, or conflict and pull-request number, URL, base, head, and state]
+      emits: [ToolDone, ToolFailed, CommandError]
+      infrastructure_errors: [helper or gh unavailable, network, authentication, timeout, uncertain completion]
       domain_errors: [existing conflicting pull request, pushed head mismatch]
       side_effects: [child_process, external_api]
       reversibility: {classification: irreversible, undo: forward_only_operator_resolution}
@@ -440,16 +470,230 @@ word_vocabulary:
 
     - name: gh_verify_pull_request
       owner: workflow-orchestrator
-      implementation: {type: exec, factory: exec, reuse: Fixed gh pr view operation with bounded JSON output.}
+      implementation: {type: exec, factory: exec, reuse: "Fixed verify-pull-request operation of the planned constrained non-shell orchestrator helper; it invokes fixed gh JSON fields, verifies publication identity, and emits normalized bounded JSON."}
       inputs: [recorded pull-request number, configured repository/base/head, recorded commit sha]
-      outputs: [verified pull-request identity and publication completion evidence]
-      emits: [PublicationVerified, PublicationConflict, ToolFailed, CommandError]
-      infrastructure_errors: [gh unavailable, network, authentication, timeout, malformed JSON]
+      outputs: [bounded structured exec object whose output string is a JSON result with status verified or conflict and publication completion evidence]
+      emits: [ToolDone, ToolFailed, CommandError]
+      infrastructure_errors: [helper or gh unavailable, network, authentication, timeout, malformed gh JSON]
       domain_errors: [PR missing, closed unexpectedly, base/head/commit mismatch]
       side_effects: [child_process, external_api]
       reversibility: {classification: reversible, undo: noop}
       compensation: Read-only; conflicting remote state blocks automatic progress.
       authority: Reads only the recorded PR in the configured repository.
+
+  orchestrator_structured_routing_contract: |
+    Every parser selects the nested output string of one labeled structured
+    exec result, or the stdout returned by one labeled execute_task result.
+    Its schema closes every status enum and bounds all strings, arrays, and
+    object sizes. Every predicate compares exactly one parsed scalar with one
+    configured scalar, emits exactly two configured outcomes, and emits
+    CommandError on selector or coercion failure. The entries below abbreviate
+    those schemas and configs but are distinct planned ToolDefs.
+    Every producing step has an explicit stable transition label. Its Result
+    carries recognized version-1 applied redaction metadata before command
+    state exposes it. Selectors are receipt-blind, resolve the newest prior
+    matching label, and fail with CommandError on an unavailable label, unsafe
+    output, malformed JSON object, or missing path. Child response stdout is
+    capped at 262144 bytes by the child response contract before the fixed
+    compose capture.
+  orchestrator_result_schema_contracts:
+    common:
+      additional_properties: false
+      max_properties: 32
+      max_stdout_bytes: 262144
+      max_document_bytes: 196608
+      max_identity_length: 512
+      max_path_length: 1024
+      max_url_length: 2048
+      max_array_items: 256
+      sha256_pattern: "^[0-9a-f]{64}$"
+      full_commit_pattern: "^[0-9a-f]{40,64}$"
+      rule: |
+        Each actual parse_structured ToolDef expresses these bounds as JSON
+        Schema maxLength, maxItems, maxProperties, pattern, required, enum, and
+        additionalProperties false constraints. These prose keys summarize the
+        closed schemas; they are not runtime parser extensions.
+    status_enums:
+      read_workproduct: [read, missing, integrity_failed]
+      hash_workproduct: [hashed]
+      write_original: [written, reused, conflict]
+      write_attempt: [written, reused, conflict]
+      append_manifest_revision: [appended, reused, conflict]
+      project_manifest_projection_status: [projected, repaired, conflict]
+      materialize_final_chain: [materialized, reused, conflict]
+      source_resolution: [resolved, missing]
+      source_fetch: [fetched, conflict]
+      source_blob: [read, missing]
+      publication_check: [absent, matching, conflict]
+      publication_branch: [created, reused, conflict]
+      publication_stage: [staged, conflict]
+      publication_commit: [committed, reused, conflict]
+      publication_push: [pushed, reused, conflict]
+      pull_request_find: [absent, matching, conflict]
+      pull_request_create: [created, reused, conflict]
+      publication_verification: [verified, conflict]
+      child_outcome: [returned, rejected]
+      critic_verdict: [pass, warn, reject]
+    manifest_route_enums:
+      request_mode: [new, resume]
+      stage_result: [accepted, rejected, failed, uncertain]
+      verdict: [pass, warn, reject, null]
+      warn_allowed: [true, false, null]
+      responsible_stage: [structure, voice, style, null]
+      retry_disposition: [retry, keep_original, fail, null]
+      resume_step: [capture, structure, voice, style, critique, finalization, commit, push, pull_request, verification, terminal, null]
+      terminal_status: [published, kept_original, failed, publication_blocked, operator_aborted, null]
+  orchestrator_structured_routing:
+    - {name: compose_structure_child_parse_input, owner: workflow-orchestrator, implementation: {type: builtin, factory: compose, reuse: JSON-encode the immediately previous execute_task stdout under one stdout field.}, inputs: [immediately previous ExecutionDone output], outputs: [fixed JSON object containing one safely encoded stdout string], emits: [StructureChildParseInputReady], infrastructure_errors: [none; immediately previous output is always addressable], domain_errors: [none], side_effects: [none], reversibility: {classification: reversible, undo: noop}, compensation: No state exists to compensate., authority: Renders one fixed template and cannot choose a route.}
+    - {name: compose_voice_child_parse_input, owner: workflow-orchestrator, implementation: {type: builtin, factory: compose, reuse: JSON-encode the immediately previous execute_task stdout under one stdout field.}, inputs: [immediately previous ExecutionDone output], outputs: [fixed JSON object containing one safely encoded stdout string], emits: [VoiceChildParseInputReady], infrastructure_errors: [none; immediately previous output is always addressable], domain_errors: [none], side_effects: [none], reversibility: {classification: reversible, undo: noop}, compensation: No state exists to compensate., authority: Renders one fixed template and cannot choose a route.}
+    - {name: compose_style_child_parse_input, owner: workflow-orchestrator, implementation: {type: builtin, factory: compose, reuse: JSON-encode the immediately previous execute_task stdout under one stdout field.}, inputs: [immediately previous ExecutionDone output], outputs: [fixed JSON object containing one safely encoded stdout string], emits: [StyleChildParseInputReady], infrastructure_errors: [none; immediately previous output is always addressable], domain_errors: [none], side_effects: [none], reversibility: {classification: reversible, undo: noop}, compensation: No state exists to compensate., authority: Renders one fixed template and cannot choose a route.}
+    - {name: compose_critic_child_parse_input, owner: workflow-orchestrator, implementation: {type: builtin, factory: compose, reuse: JSON-encode the immediately previous execute_task stdout under one stdout field.}, inputs: [immediately previous ExecutionDone output], outputs: [fixed JSON object containing one safely encoded stdout string], emits: [CriticChildParseInputReady], infrastructure_errors: [none; immediately previous output is always addressable], domain_errors: [none], side_effects: [none], reversibility: {classification: reversible, undo: noop}, compensation: No state exists to compensate., authority: Renders one fixed template and cannot choose a route.}
+    - {name: parse_read_workproduct_result, owner: workflow-orchestrator, implementation: {type: builtin, factory: parse_structured, reuse: Parse bounded read-helper stdout.}, inputs: [$from(workproduct_read_raw).output], outputs: [validated status and bounded artifact data], emits: [WorkproductReadResultParsed, WorkproductReadResultInvalid, CommandError], infrastructure_errors: [selector or schema configuration failure], domain_errors: [malformed or schema-invalid helper stdout], side_effects: [none], reversibility: {classification: reversible, undo: noop}, compensation: No state exists to compensate., authority: Parses only the fixed read result schema.}
+    - {name: workproduct_read_succeeded, owner: workflow-orchestrator, implementation: {type: builtin, factory: value_predicate, reuse: Compare status with read.}, inputs: [$from(workproduct_read_result).status, configured literal read], outputs: [one comparison record], emits: [WorkproductRead, WorkproductNotRead, CommandError], infrastructure_errors: [selector or coercion failure], domain_errors: [comparison false], side_effects: [none], reversibility: {classification: reversible, undo: noop}, compensation: No state exists to compensate., authority: Compares one validated scalar.}
+    - {name: workproduct_read_missing, owner: workflow-orchestrator, implementation: {type: builtin, factory: value_predicate, reuse: Compare status with missing.}, inputs: [$from(workproduct_read_result).status, configured literal missing], outputs: [one comparison record], emits: [WorkproductMissing, WorkproductIntegrityFailed, CommandError], infrastructure_errors: [selector or coercion failure], domain_errors: [comparison false means schema-closed integrity_failed], side_effects: [none], reversibility: {classification: reversible, undo: noop}, compensation: No state exists to compensate., authority: Compares one validated scalar.}
+    - {name: parse_hash_workproduct_result, owner: workflow-orchestrator, implementation: {type: builtin, factory: parse_structured, reuse: Parse bounded digest stdout with status fixed to hashed.}, inputs: [$from(workproduct_hash_raw).output], outputs: [validated sha256 and byte length], emits: [WorkproductHashed, WorkproductHashInvalid, CommandError], infrastructure_errors: [selector or schema configuration failure], domain_errors: [malformed digest stdout], side_effects: [none], reversibility: {classification: reversible, undo: noop}, compensation: No state exists to compensate., authority: Parses only the fixed digest result schema.}
+    - {name: parse_write_original_result, owner: workflow-orchestrator, implementation: {type: builtin, factory: parse_structured, reuse: Parse bounded original-write stdout.}, inputs: [$from(original_write_raw).output], outputs: [validated status and artifact identity], emits: [OriginalWriteResultParsed, OriginalWriteResultInvalid, CommandError], infrastructure_errors: [selector or schema configuration failure], domain_errors: [malformed helper stdout], side_effects: [none], reversibility: {classification: reversible, undo: noop}, compensation: No state exists to compensate., authority: Parses only written, reused, or conflict.}
+    - {name: original_was_written, owner: workflow-orchestrator, implementation: {type: builtin, factory: value_predicate, reuse: Compare status with written.}, inputs: [$from(original_write_result).status, configured literal written], outputs: [one comparison record], emits: [OriginalWritten, OriginalNotWritten, CommandError], infrastructure_errors: [selector or coercion failure], domain_errors: [comparison false], side_effects: [none], reversibility: {classification: reversible, undo: noop}, compensation: No state exists to compensate., authority: Compares one validated scalar.}
+    - {name: original_was_reused, owner: workflow-orchestrator, implementation: {type: builtin, factory: value_predicate, reuse: Compare status with reused.}, inputs: [$from(original_write_result).status, configured literal reused], outputs: [one comparison record], emits: [OriginalReused, OriginalConflict, CommandError], infrastructure_errors: [selector or coercion failure], domain_errors: [comparison false means schema-closed conflict], side_effects: [none], reversibility: {classification: reversible, undo: noop}, compensation: No state exists to compensate., authority: Compares one validated scalar.}
+    - {name: parse_write_attempt_result, owner: workflow-orchestrator, implementation: {type: builtin, factory: parse_structured, reuse: Parse bounded attempt-write stdout.}, inputs: [$from(attempt_write_raw).output], outputs: [validated status and artifact identity], emits: [AttemptWriteResultParsed, AttemptWriteResultInvalid, CommandError], infrastructure_errors: [selector or schema configuration failure], domain_errors: [malformed helper stdout], side_effects: [none], reversibility: {classification: reversible, undo: noop}, compensation: No state exists to compensate., authority: Parses only written, reused, or conflict.}
+    - {name: attempt_was_written, owner: workflow-orchestrator, implementation: {type: builtin, factory: value_predicate, reuse: Compare status with written.}, inputs: [$from(attempt_write_result).status, configured literal written], outputs: [one comparison record], emits: [AttemptWritten, AttemptNotWritten, CommandError], infrastructure_errors: [selector or coercion failure], domain_errors: [comparison false], side_effects: [none], reversibility: {classification: reversible, undo: noop}, compensation: No state exists to compensate., authority: Compares one validated scalar.}
+    - {name: attempt_was_reused, owner: workflow-orchestrator, implementation: {type: builtin, factory: value_predicate, reuse: Compare status with reused.}, inputs: [$from(attempt_write_result).status, configured literal reused], outputs: [one comparison record], emits: [AttemptReused, AttemptConflict, CommandError], infrastructure_errors: [selector or coercion failure], domain_errors: [comparison false means schema-closed conflict], side_effects: [none], reversibility: {classification: reversible, undo: noop}, compensation: No state exists to compensate., authority: Compares one validated scalar.}
+    - {name: parse_append_manifest_result, owner: workflow-orchestrator, implementation: {type: builtin, factory: parse_structured, reuse: Parse bounded append stdout.}, inputs: [$from(manifest_append_raw).output], outputs: [validated status revision and sha256], emits: [ManifestAppendResultParsed, ManifestAppendResultInvalid, CommandError], infrastructure_errors: [selector or schema configuration failure], domain_errors: [malformed helper stdout], side_effects: [none], reversibility: {classification: reversible, undo: noop}, compensation: No state exists to compensate., authority: Parses only appended, reused, or conflict.}
+    - {name: manifest_was_appended, owner: workflow-orchestrator, implementation: {type: builtin, factory: value_predicate, reuse: Compare status with appended.}, inputs: [$from(manifest_append_result).status, configured literal appended], outputs: [one comparison record], emits: [ManifestRevisionAppended, ManifestNotAppended, CommandError], infrastructure_errors: [selector or coercion failure], domain_errors: [comparison false], side_effects: [none], reversibility: {classification: reversible, undo: noop}, compensation: No state exists to compensate., authority: Compares one validated scalar.}
+    - {name: manifest_was_reused, owner: workflow-orchestrator, implementation: {type: builtin, factory: value_predicate, reuse: Compare status with reused.}, inputs: [$from(manifest_append_result).status, configured literal reused], outputs: [one comparison record], emits: [ManifestRevisionReused, ManifestConflict, CommandError], infrastructure_errors: [selector or coercion failure], domain_errors: [comparison false means schema-closed conflict], side_effects: [none], reversibility: {classification: reversible, undo: noop}, compensation: No state exists to compensate., authority: Compares one validated scalar.}
+    - {name: parse_manifest_projection, owner: workflow-orchestrator, implementation: {type: builtin, factory: parse_structured, reuse: Parse bounded projection stdout.}, inputs: [$from(manifest_projection_raw).output], outputs: [validated projection status and bounded routing scalars], emits: [ManifestProjectionParsed, ManifestProjectionInvalid, CommandError], infrastructure_errors: [selector or schema configuration failure], domain_errors: [malformed or schema-invalid projection stdout], side_effects: [none], reversibility: {classification: reversible, undo: noop}, compensation: No state exists to compensate., authority: Parses manifest scalars but emits no business route.}
+    - {name: manifest_projection_succeeded, owner: workflow-orchestrator, implementation: {type: builtin, factory: value_predicate, reuse: Compare projection_status with projected.}, inputs: [$from(manifest_projection).projection_status, configured literal projected], outputs: [one comparison record], emits: [ManifestProjected, ManifestNotProjected, CommandError], infrastructure_errors: [selector or coercion failure], domain_errors: [comparison false], side_effects: [none], reversibility: {classification: reversible, undo: noop}, compensation: No state exists to compensate., authority: Compares one validated scalar.}
+    - {name: manifest_projection_repaired, owner: workflow-orchestrator, implementation: {type: builtin, factory: value_predicate, reuse: Compare projection_status with repaired.}, inputs: [$from(manifest_projection).projection_status, configured literal repaired], outputs: [one comparison record], emits: [ManifestProjectionRepaired, ManifestConflict, CommandError], infrastructure_errors: [selector or coercion failure], domain_errors: [comparison false means schema-closed conflict], side_effects: [none], reversibility: {classification: reversible, undo: noop}, compensation: No state exists to compensate., authority: Compares one validated scalar.}
+    - {name: parse_finalization_result, owner: workflow-orchestrator, implementation: {type: builtin, factory: parse_structured, reuse: Parse bounded finalization stdout.}, inputs: [$from(finalization_raw).output], outputs: [validated status fixed artifact identities and tree digest], emits: [FinalizationResultParsed, FinalizationResultInvalid, CommandError], infrastructure_errors: [selector or schema configuration failure], domain_errors: [malformed helper stdout], side_effects: [none], reversibility: {classification: reversible, undo: noop}, compensation: No state exists to compensate., authority: Parses only materialized, reused, or conflict.}
+    - {name: final_chain_materialized, owner: workflow-orchestrator, implementation: {type: builtin, factory: value_predicate, reuse: Compare status with materialized.}, inputs: [$from(finalization_result).status, configured literal materialized], outputs: [one comparison record], emits: [FinalChainMaterialized, FinalChainNotMaterialized, CommandError], infrastructure_errors: [selector or coercion failure], domain_errors: [comparison false], side_effects: [none], reversibility: {classification: reversible, undo: noop}, compensation: No state exists to compensate., authority: Compares one validated scalar.}
+    - {name: final_chain_reused, owner: workflow-orchestrator, implementation: {type: builtin, factory: value_predicate, reuse: Compare status with reused.}, inputs: [$from(finalization_result).status, configured literal reused], outputs: [one comparison record], emits: [FinalChainReused, FinalizationConflict, CommandError], infrastructure_errors: [selector or coercion failure], domain_errors: [comparison false means schema-closed conflict], side_effects: [none], reversibility: {classification: reversible, undo: noop}, compensation: No state exists to compensate., authority: Compares one validated scalar.}
+    - {name: parse_structure_editor_response, owner: workflow-orchestrator, implementation: {type: builtin, factory: parse_structured, reuse: Parse bounded structure child stdout after fixed compose capture.}, inputs: [$from(structure_child_parse_input).stdout], outputs: [validated outcome candidate provenance and parent identity], emits: [StructureResponseParsed, StructureResponseInvalid, CommandError], infrastructure_errors: [selector or schema configuration failure], domain_errors: [malformed child response], side_effects: [none], reversibility: {classification: reversible, undo: noop}, compensation: Preserve the prior parent., authority: Parses only the configured structure response schema.}
+    - {name: structure_response_returned, owner: workflow-orchestrator, implementation: {type: builtin, factory: value_predicate, reuse: Compare outcome with returned.}, inputs: [$from(structure_child_response).outcome, configured literal returned], outputs: [one comparison record], emits: [StructureEditReturned, StructureEditRejected, CommandError], infrastructure_errors: [selector or coercion failure], domain_errors: [comparison false means schema-closed rejected], side_effects: [none], reversibility: {classification: reversible, undo: noop}, compensation: Preserve the prior parent., authority: Compares one validated scalar.}
+    - {name: parse_voice_editor_response, owner: workflow-orchestrator, implementation: {type: builtin, factory: parse_structured, reuse: Parse bounded voice child stdout after fixed compose capture.}, inputs: [$from(voice_child_parse_input).stdout], outputs: [validated outcome candidate provenance and parent identity], emits: [VoiceResponseParsed, VoiceResponseInvalid, CommandError], infrastructure_errors: [selector or schema configuration failure], domain_errors: [malformed child response], side_effects: [none], reversibility: {classification: reversible, undo: noop}, compensation: Preserve the prior parent., authority: Parses only the configured voice response schema.}
+    - {name: voice_response_returned, owner: workflow-orchestrator, implementation: {type: builtin, factory: value_predicate, reuse: Compare outcome with returned.}, inputs: [$from(voice_child_response).outcome, configured literal returned], outputs: [one comparison record], emits: [VoiceEditReturned, VoiceEditRejected, CommandError], infrastructure_errors: [selector or coercion failure], domain_errors: [comparison false means schema-closed rejected], side_effects: [none], reversibility: {classification: reversible, undo: noop}, compensation: Preserve the prior parent., authority: Compares one validated scalar.}
+    - {name: parse_style_editor_response, owner: workflow-orchestrator, implementation: {type: builtin, factory: parse_structured, reuse: Parse bounded style child stdout after fixed compose capture.}, inputs: [$from(style_child_parse_input).stdout], outputs: [validated outcome candidate provenance and parent identity], emits: [StyleResponseParsed, StyleResponseInvalid, CommandError], infrastructure_errors: [selector or schema configuration failure], domain_errors: [malformed child response], side_effects: [none], reversibility: {classification: reversible, undo: noop}, compensation: Preserve the prior parent., authority: Parses only the configured style response schema.}
+    - {name: style_response_returned, owner: workflow-orchestrator, implementation: {type: builtin, factory: value_predicate, reuse: Compare outcome with returned.}, inputs: [$from(style_child_response).outcome, configured literal returned], outputs: [one comparison record], emits: [StyleEditReturned, StyleEditRejected, CommandError], infrastructure_errors: [selector or coercion failure], domain_errors: [comparison false means schema-closed rejected], side_effects: [none], reversibility: {classification: reversible, undo: noop}, compensation: Preserve the prior parent., authority: Compares one validated scalar.}
+    - {name: parse_critic_response, owner: workflow-orchestrator, implementation: {type: builtin, factory: parse_structured, reuse: Parse bounded critic stdout after fixed compose capture.}, inputs: [$from(critic_child_parse_input).stdout], outputs: [validated critique verdict responsible stage findings hashes and bounded feedback], emits: [CriticResponseParsed, CriticResponseInvalid, CommandError], infrastructure_errors: [selector or schema configuration failure], domain_errors: [malformed child response], side_effects: [none], reversibility: {classification: reversible, undo: noop}, compensation: Preserve the selected candidate., authority: Parses only the configured critic response schema.}
+    - {name: critic_verdict_is_pass, owner: workflow-orchestrator, implementation: {type: builtin, factory: value_predicate, reuse: Compare verdict with pass.}, inputs: [$from(critic_response).verdict, configured literal pass], outputs: [one comparison record], emits: [CriticPassed, CriticNotPassed, CommandError], infrastructure_errors: [selector or coercion failure], domain_errors: [comparison false], side_effects: [none], reversibility: {classification: reversible, undo: noop}, compensation: No state exists to compensate., authority: Compares one validated scalar.}
+    - {name: critic_verdict_is_warn, owner: workflow-orchestrator, implementation: {type: builtin, factory: value_predicate, reuse: Compare verdict with warn.}, inputs: [$from(critic_response).verdict, configured literal warn], outputs: [one comparison record], emits: [CriticWarned, CriticRejected, CommandError], infrastructure_errors: [selector or coercion failure], domain_errors: [comparison false means schema-closed reject], side_effects: [none], reversibility: {classification: reversible, undo: noop}, compensation: No state exists to compensate., authority: Compares one validated scalar.}
+
+    - name: parse_cli_result
+      kind: declaration_family
+      owner: workflow-orchestrator
+      implementation: {type: builtin, factory: parse_structured, reuse: Operation-specific declarations parse normalized JSON emitted by fixed orchestrator-helper operations.}
+      inputs: [one fixed $from(label).output selector for bounded helper JSON stdout wrapped by exec structured mode]
+      outputs: [validated operation-specific status and bounded identities]
+      emits: [CliResultParsed, CliResultInvalid, CommandError]
+      infrastructure_errors: [selector or schema configuration failure]
+      domain_errors: [malformed or schema-invalid helper JSON stdout]
+      side_effects: [none]
+      reversibility: {classification: reversible, undo: noop}
+      compensation: Parsing changes no external state.
+      authority: |
+        This is a specification family, not one polymorphic runtime word. Planned
+        ToolDefs are parse_source_resolution, parse_source_fetch,
+        parse_source_blob, parse_publication_check, parse_publication_branch,
+        parse_publication_stage, parse_publication_commit,
+        parse_publication_push, parse_pull_request_find,
+        parse_pull_request_create, and parse_publication_verification. Each has
+        one fixed source label, one closed schema, one parsed signal, one invalid
+        signal, and CommandError.
+        Despite the historical family name, these parsers never consume raw CLI
+        text. Each source is the JSON string emitted by the corresponding fixed
+        orchestrator-helper operation.
+      planned_instances:
+        - {name: parse_source_resolution, source: $from(source_resolution_raw).output, parsed: SourceResolutionParsed, invalid: SourceResolutionInvalid}
+        - {name: parse_source_fetch, source: $from(source_fetch_raw).output, parsed: SourceFetchParsed, invalid: SourceFetchInvalid}
+        - {name: parse_source_blob, source: $from(source_blob_raw).output, parsed: SourceBlobParsed, invalid: SourceBlobInvalid}
+        - {name: parse_publication_check, source: $from(publication_check_raw).output, parsed: PublicationCheckParsed, invalid: PublicationCheckInvalid}
+        - {name: parse_publication_branch, source: $from(publication_branch_raw).output, parsed: PublicationBranchParsed, invalid: PublicationBranchInvalid}
+        - {name: parse_publication_stage, source: $from(publication_stage_raw).output, parsed: PublicationStageParsed, invalid: PublicationStageInvalid}
+        - {name: parse_publication_commit, source: $from(publication_commit_raw).output, parsed: PublicationCommitParsed, invalid: PublicationCommitInvalid}
+        - {name: parse_publication_push, source: $from(publication_push_raw).output, parsed: PublicationPushParsed, invalid: PublicationPushInvalid}
+        - {name: parse_pull_request_find, source: $from(pull_request_find_raw).output, parsed: PullRequestFindParsed, invalid: PullRequestFindInvalid}
+        - {name: parse_pull_request_create, source: $from(pull_request_create_raw).output, parsed: PullRequestCreateParsed, invalid: PullRequestCreateInvalid}
+        - {name: parse_publication_verification, source: $from(publication_verification_raw).output, parsed: PublicationVerificationParsed, invalid: PublicationVerificationInvalid}
+    - name: cli_status_predicate
+      kind: declaration_family
+      owner: workflow-orchestrator
+      implementation: {type: builtin, factory: value_predicate, reuse: Operation-specific declarations compare one status scalar parsed from normalized helper JSON.}
+      inputs: [one fixed parsed status selector, one configured status literal]
+      outputs: [one comparison record]
+      emits: [ConfiguredSatisfied, ConfiguredUnsatisfied, CommandError]
+      infrastructure_errors: [selector or coercion failure]
+      domain_errors: [comparison false]
+      side_effects: [none]
+      reversibility: {classification: reversible, undo: noop}
+      compensation: Comparing changes no external state.
+      authority: |
+        This is a specification family, not one dynamic runtime word. Each
+        planned predicate has fixed operands and exactly two named outcomes.
+        Chains realize resolved/missing; fetched/conflict; read/missing;
+        absent/matching/conflict; created/reused/conflict; staged/conflict;
+        committed/reused/conflict; pushed/reused/conflict; pull-request
+        absent/matching/conflict; pull-request created/reused/conflict; and
+        verified/conflict.
+      planned_instances:
+        - {name: source_resolution_succeeded, left: $from(source_resolution).status, op: eq, right: resolved, operand_type: string, satisfied: SourceRevisionResolved, unsatisfied: SourceRevisionMissing}
+        - {name: source_fetch_succeeded, left: $from(source_fetch).status, op: eq, right: fetched, operand_type: string, satisfied: SourceFetched, unsatisfied: SourceFetchConflict}
+        - {name: source_blob_succeeded, left: $from(source_blob).status, op: eq, right: read, operand_type: string, satisfied: SourceBlobRead, unsatisfied: SourceBlobMissing}
+        - {name: publication_is_absent, left: $from(publication_check).status, op: eq, right: absent, operand_type: string, satisfied: PublicationAbsent, unsatisfied: PublicationNotAbsent}
+        - {name: publication_is_matching, left: $from(publication_check).status, op: eq, right: matching, operand_type: string, satisfied: PublicationMatching, unsatisfied: PublicationConflict}
+        - {name: publication_branch_created, left: $from(publication_branch).status, op: eq, right: created, operand_type: string, satisfied: PublicationBranchCreated, unsatisfied: PublicationBranchNotCreated}
+        - {name: publication_branch_reused, left: $from(publication_branch).status, op: eq, right: reused, operand_type: string, satisfied: PublicationBranchReused, unsatisfied: PublicationConflict}
+        - {name: publication_stage_succeeded, left: $from(publication_stage).status, op: eq, right: staged, operand_type: string, satisfied: FinalChainStaged, unsatisfied: PublicationConflict}
+        - {name: publication_commit_created, left: $from(publication_commit).status, op: eq, right: committed, operand_type: string, satisfied: PublicationCommitted, unsatisfied: PublicationCommitNotCreated}
+        - {name: publication_commit_reused, left: $from(publication_commit).status, op: eq, right: reused, operand_type: string, satisfied: PublicationCommitReused, unsatisfied: PublicationConflict}
+        - {name: publication_push_created, left: $from(publication_push).status, op: eq, right: pushed, operand_type: string, satisfied: PublicationPushed, unsatisfied: PublicationPushNotCreated}
+        - {name: publication_push_reused, left: $from(publication_push).status, op: eq, right: reused, operand_type: string, satisfied: PublicationPushReused, unsatisfied: PublicationConflict}
+        - {name: pull_request_is_absent, left: $from(pull_request_find).status, op: eq, right: absent, operand_type: string, satisfied: PullRequestAbsent, unsatisfied: PullRequestNotAbsent}
+        - {name: pull_request_is_matching, left: $from(pull_request_find).status, op: eq, right: matching, operand_type: string, satisfied: PullRequestMatching, unsatisfied: PublicationConflict}
+        - {name: pull_request_was_created, left: $from(pull_request_create).status, op: eq, right: created, operand_type: string, satisfied: PullRequestCreated, unsatisfied: PullRequestNotCreated}
+        - {name: pull_request_was_reused, left: $from(pull_request_create).status, op: eq, right: reused, operand_type: string, satisfied: PullRequestReused, unsatisfied: PublicationConflict}
+        - {name: publication_verification_succeeded, left: $from(publication_verification).status, op: eq, right: verified, operand_type: string, satisfied: PublicationVerified, unsatisfied: PublicationConflict}
+    - name: manifest_scalar_predicate
+      kind: declaration_family
+      owner: workflow-orchestrator
+      implementation: {type: builtin, factory: value_predicate, reuse: Context-specific declarations compare one parsed manifest scalar.}
+      inputs: [one fixed $from(manifest_projection).field selector, one configured enum literal]
+      outputs: [one comparison record]
+      emits: [ConfiguredSatisfied, ConfiguredUnsatisfied, CommandError]
+      infrastructure_errors: [selector or coercion failure]
+      domain_errors: [comparison false]
+      side_effects: [none]
+      reversibility: {classification: reversible, undo: noop}
+      compensation: Comparing changes no external state.
+      authority: |
+        This is a specification family, not one dynamic runtime word. Distinct
+        fixed ToolDefs check request_mode, stage_result, verdict, warn_allowed,
+        responsible_stage, retry_disposition, resume_step, and terminal_status.
+        Each comparison emits two bounded route signals; unsatisfied outcomes
+        continue a visible predicate chain and never silently choose a default
+        outside the schema-closed final alternative.
+      planned_instances:
+        - {name: manifest_request_is_new, left: $from(manifest_projection).request_mode, op: eq, right: new, operand_type: string, satisfied: RequestNew, unsatisfied: RequestResume}
+        - {name: manifest_stage_result_is_accepted, left: $from(manifest_projection).stage_result, op: eq, right: accepted, operand_type: string, satisfied: StageAccepted, unsatisfied: StageNotAccepted}
+        - {name: manifest_verdict_is_pass, left: $from(manifest_projection).verdict, op: eq, right: pass, operand_type: string, satisfied: CritiqueAccepted, unsatisfied: VerdictNotPass}
+        - {name: manifest_verdict_is_warn, left: $from(manifest_projection).verdict, op: eq, right: warn, operand_type: string, satisfied: VerdictWarn, unsatisfied: VerdictReject}
+        - {name: manifest_warn_is_allowed, left: $from(manifest_projection).warn_allowed, op: eq, right: "true", operand_type: string, satisfied: CriticWarnAccepted, unsatisfied: CriticWarnRejected}
+        - {name: manifest_responsible_stage_is_structure, left: $from(manifest_projection).responsible_stage, op: eq, right: structure, operand_type: string, satisfied: CriticRejectedStructure, unsatisfied: ResponsibleStageNotStructure}
+        - {name: manifest_responsible_stage_is_voice, left: $from(manifest_projection).responsible_stage, op: eq, right: voice, operand_type: string, satisfied: CriticRejectedVoice, unsatisfied: CriticRejectedStyle}
+        - {name: manifest_retry_is_available, left: $from(manifest_projection).retry_disposition, op: eq, right: retry, operand_type: string, satisfied: RetryAvailable, unsatisfied: RetryExhausted}
+        - {name: manifest_exhaustion_keeps_original, left: $from(manifest_projection).retry_disposition, op: eq, right: keep_original, operand_type: string, satisfied: ExhaustedKeepOriginal, unsatisfied: ExhaustedFail}
+        - {name: manifest_resume_is_capture, left: $from(manifest_projection).resume_step, op: eq, right: capture, operand_type: string, satisfied: ResumeCapture, unsatisfied: ResumeNotCapture}
+        - {name: manifest_resume_is_structure, left: $from(manifest_projection).resume_step, op: eq, right: structure, operand_type: string, satisfied: ResumeStructure, unsatisfied: ResumeNotStructure}
+        - {name: manifest_resume_is_voice, left: $from(manifest_projection).resume_step, op: eq, right: voice, operand_type: string, satisfied: ResumeVoice, unsatisfied: ResumeNotVoice}
+        - {name: manifest_resume_is_style, left: $from(manifest_projection).resume_step, op: eq, right: style, operand_type: string, satisfied: ResumeStyle, unsatisfied: ResumeNotStyle}
+        - {name: manifest_resume_is_critique, left: $from(manifest_projection).resume_step, op: eq, right: critique, operand_type: string, satisfied: ResumeCritique, unsatisfied: ResumeNotCritique}
+        - {name: manifest_resume_is_finalization, left: $from(manifest_projection).resume_step, op: eq, right: finalization, operand_type: string, satisfied: ResumeFinalization, unsatisfied: ResumeNotFinalization}
+        - {name: manifest_resume_is_commit, left: $from(manifest_projection).resume_step, op: eq, right: commit, operand_type: string, satisfied: ResumeCommit, unsatisfied: ResumeNotCommit}
+        - {name: manifest_resume_is_push, left: $from(manifest_projection).resume_step, op: eq, right: push, operand_type: string, satisfied: ResumePush, unsatisfied: ResumeNotPush}
+        - {name: manifest_resume_is_pull_request, left: $from(manifest_projection).resume_step, op: eq, right: pull_request, operand_type: string, satisfied: ResumePullRequest, unsatisfied: ResumeNotPullRequest}
+        - {name: manifest_resume_is_verification, left: $from(manifest_projection).resume_step, op: eq, right: verification, operand_type: string, satisfied: ResumeVerification, unsatisfied: ResumeTerminal}
+        - {name: manifest_terminal_is_published, left: $from(manifest_projection).terminal_status, op: eq, right: published, operand_type: string, satisfied: TerminalPublished, unsatisfied: TerminalNotPublished}
+        - {name: manifest_terminal_is_kept_original, left: $from(manifest_projection).terminal_status, op: eq, right: kept_original, operand_type: string, satisfied: TerminalKeptOriginal, unsatisfied: TerminalNotKeptOriginal}
+        - {name: manifest_terminal_is_failed, left: $from(manifest_projection).terminal_status, op: eq, right: failed, operand_type: string, satisfied: TerminalFailed, unsatisfied: TerminalNotFailed}
+        - {name: manifest_terminal_is_publication_blocked, left: $from(manifest_projection).terminal_status, op: eq, right: publication_blocked, operand_type: string, satisfied: TerminalPublicationBlocked, unsatisfied: TerminalOperatorAborted}
 
   editor_and_critic_retrieval:
     - name: validate_structure_request
@@ -1201,7 +1445,7 @@ word_vocabulary:
       implementation: {type: builtin, factory: execute_task, reuse: Profile-only child invocation of the canonical catalog corpus-ingest profile.}
       inputs: [configured corpus resource, embedding endpoint/model, Chroma endpoint and one declared collection identity, administrative run identity]
       outputs: [ingest status, bounded counts, model and collection provenance]
-      emits: [CorpusIngested, CorpusIngestEmpty, ExecutionFailed, CommandError]
+      emits: [ExecutionDone, ExecutionFailed, CommandError]
       infrastructure_errors: [profile missing, process start, embedding, Chroma, timeout, or transport failure]
       domain_errors: [no eligible documents, invalid configured corpus record]
       side_effects: [child_agent_execution, external_api]
@@ -1214,8 +1458,8 @@ word_vocabulary:
       owner: workflow-orchestrator
       implementation: {type: builtin, factory: suspend, reuse: Agent-core lifecycle approval gate.}
       inputs: [bounded reason enum, saga ID, manifest revision, conflict identities]
-      outputs: [checkpointed suspension identity and later operator decision]
-      emits: [AwaitApproval, OperatorResolved, OperatorAborted, CommandError]
+      outputs: [configured bounded suspension reason]
+      emits: [AwaitApproval, CommandError]
       infrastructure_errors: [required checkpoint save or resume failure]
       domain_errors: [operator aborts or supplies a decision inconsistent with current revision]
       side_effects: [human_boundary, state_mutation]
@@ -1228,7 +1472,7 @@ word_vocabulary:
       implementation: {type: builtin, factory: checkpoint_history, reuse: Agent-core checkpoint history reader.}
       inputs: [current run ID or configured latest selector]
       outputs: [runtime execution history digest and artifact references]
-      emits: [CheckpointHistoryRead, CommandError]
+      emits: [ToolDone, CommandError]
       infrastructure_errors: [checkpoint backend unavailable or run unresolved]
       domain_errors: [none]
       side_effects: [state_read]
@@ -1241,7 +1485,7 @@ word_vocabulary:
       implementation: {type: builtin, factory: checkpoint_rollback, reuse: Agent-core DB-only rollback and receipt replay.}
       inputs: [operator-approved run ID and target step]
       outputs: [target step, reverted entry count, skipped irreversible effects]
-      emits: [CheckpointRolledBack, CommandError]
+      emits: [ToolDone, CommandError]
       infrastructure_errors: [target resolution, Dolt Revert, or receipt replay failure]
       domain_errors: [target invalid or conflicts with authoritative manifest revision]
       side_effects: [state_mutation, child_tool_execution]
@@ -1283,14 +1527,17 @@ requirements:
           Voice Forge SHALL reuse the existing builtin, REST, invoke_llm,
           execute_task, lifecycle, and exec factories. It SHALL NOT require a
           new Go builtin, REST adapter, child-agent factory, or lifecycle
-          factory.
-        evidence: Planned declarations resolve only factory_reuse.factories and generic exec declarations.
+          factory. Orchestrator exec words SHALL fix operations of a planned
+          constrained non-shell helper executable; the helper is an application
+          executable, not an agent-core factory.
+        evidence: Planned declarations resolve only factory_reuse.factories and generic exec declarations whose binaries and operation args are fixed to the planned helper.
       - id: R1.4
         text: |
           No Voice Forge profile SHALL expose arbitrary shell, generic
           executable selection, generic REST URL selection, generic filesystem
-          mutation, or unconstrained git or gh authority.
-        evidence: Planned profile-closure tests reject shell interpreters, command-string parameters, runtime binaries, runtime URLs, and generic write/git/gh words.
+          mutation, unconstrained git or gh authority, or runtime helper
+          operation selection.
+        evidence: Planned profile-closure tests reject shell interpreters, command-string parameters, runtime binaries, helper operation parameters, runtime URLs/refspecs/credentials, and generic write/git/gh words.
 
   R2:
     title: Orchestrator workproduct and child words
@@ -1307,14 +1554,20 @@ requirements:
           Workproduct mutation words SHALL derive contained paths from the
           configured saga root, saga identity, stage, attempt, and computed
           digest and SHALL implement the atomic write, fsync, immutability, and
-          recovery contract in srd002.
+          recovery contract in srd002. Workproduct read, hash, mutation,
+          manifest, and finalization exec words SHALL invoke explicitly
+          JSON-emitting fixed helper operations; exec structured mode SHALL only
+          wrap that JSON string and exit code.
         evidence: Planned path, fault-injection, torn-write, hash, and immutable-conflict tests cover every mutation word.
       - id: R2.3
         text: |
           The orchestrator SHALL invoke structure-editor, voice-editor,
           style-editor, and voice-critic only through their four named
           profile-only child words. Requests SHALL carry bytes and identities
-          and SHALL NOT carry workspace paths.
+          and SHALL NOT carry workspace paths. Each child word SHALL retain only
+          execute_task's ExecutionDone, ExecutionFailed, and CommandError
+          signals. ExecutionDone output SHALL pass through the child-specific
+          parse_structured word and explicit verdict or outcome predicates.
         evidence: Planned request schemas and profile tests reject path fields and any child filesystem ToolDef.
       - id: R2.4
         text: |
@@ -1325,12 +1578,14 @@ requirements:
         evidence: Planned malformed, missing-output, wrong-parent, wrong-hash, and equivocation tests preserve the prior parent.
       - id: R2.5
         text: |
-          project_manifest SHALL emit the bounded routing signals declared by
-          its word contract from validated manifest phase, status, verdict,
-          responsible-stage, policy, and counter fields. It SHALL NOT inspect
-          prose, invoke a model, alter a verdict, or select a stage absent from
-          the manifest.
-        evidence: Planned declaration and transition-closure tests match every srd004 route to a project_manifest emission and reject undeclared or prose-derived routes.
+          project_manifest SHALL emit only ToolDone, ToolFailed, or CommandError
+          and bounded structured stdout containing validated manifest scalars.
+          parse_manifest_projection SHALL validate that result. Distinct fixed
+          value_predicate words SHALL compare one scalar at a time to produce
+          every srd004 request, stage, critic, retry, recovery, publication, and
+          terminal route. No word SHALL inspect prose, invoke a model, alter a
+          verdict, or select a stage absent from the manifest.
+        evidence: Planned declaration and transition-closure tests reject custom project_manifest signals, omitted parses, multi-comparison predicates, undeclared routes, and prose-derived routes.
 
   R3:
     title: Constrained GitHub publication
@@ -1346,14 +1601,22 @@ requirements:
           Branch, stage, commit, push, and pull-request creation SHALL each have
           a distinct word and SHALL be preceded or followed as applicable by
           git_check_publication, gh_find_pull_request, gh_verify_pull_request,
-          or equivalent named identity checks in this vocabulary.
-        evidence: Planned crash and uncertain-completion tests converge on one branch, commit, pushed ref, and pull request.
+          or equivalent named identity checks in this vocabulary. Every git and
+          gh exec SHALL emit only ToolDone, ToolFailed, or CommandError; a
+          distinct operation-specific parse_structured word and visible
+          one-scalar predicate chain SHALL route valid multi-way stdout. Every
+          such exec SHALL run a fixed JSON-emitting helper operation that safely
+          invokes one fixed git/gh argv shape; no parser SHALL consume raw
+          git/gh output.
+        evidence: Planned helper argv, JSON stdout, exec-wrapper, parser-source, crash, and uncertain-completion tests converge on one branch, commit, pushed ref, and pull request.
       - id: R3.3
         text: |
           Publication words SHALL consume only configured or manifest-recorded
           destination, base, branch, tree, commit, and pull-request identities.
           Force push, remote ref deletion, automatic PR closure, and destructive
-          remote compensation SHALL be absent.
+          remote compensation SHALL be absent. Runtime values SHALL NOT select
+          the helper binary or operation, a git/gh subcommand, URL, refspec
+          shape, or credential source.
         evidence: Planned declaration inspection and remote-conflict tests block instead of rewriting remote state.
 
   R4:
@@ -1487,6 +1750,11 @@ requirements:
           checkpoint_rollback, and exit_agent. Checkpoint rollback SHALL remain
           DB-only plus receipt replay and SHALL reconcile against the
           append-only manifest without claiming filesystem or remote reversal.
+          suspend_saga_for_operator SHALL emit only AwaitApproval or
+          CommandError; inspect_saga_checkpoint and rollback_saga_checkpoint
+          SHALL emit only ToolDone or CommandError; exit_voice_forge_run SHALL
+          emit only AgentExited or CommandError. Operator resolution and abort
+          are validated resume/event signals, not suspend emissions.
         evidence: Planned suspend, restart, rollback, and manifest-reconciliation tests preserve all saga bytes and report irreversible effects.
 
   R7:
@@ -1498,6 +1766,15 @@ requirements:
           named domain outcomes. Infrastructure failure SHALL NOT become editor
           success, critic pass/warn/reject, consent, finalization, or publication.
         evidence: Planned failure injection checks each declared infrastructure_errors and domain_errors path.
+      - id: R7.4
+        text: |
+          Every orchestrator parser and predicate $from selector SHALL address
+          an explicit stable MachineSpec transition label. Producer output SHALL
+          cross command state's recognized applied redaction boundary and SHALL
+          remain receipt-blind. Unresolved, unavailable, non-object, missing-path,
+          or wrong-type selection SHALL emit CommandError and SHALL NOT take a
+          domain-negative branch.
+        evidence: Planned label, redaction, selector, restart-rehydration, and malformed-output traces exercise every orchestrator command-state edge.
       - id: R7.2
         text: |
           Remote model, embedding, retrieval, Pangram, push, and PR effects
@@ -1508,8 +1785,8 @@ requirements:
       - id: R7.3
         text: |
           This SRD SHALL remain specified while profiles, machines, ToolDefs,
-          helper executable, REST definitions, services, tests, and executable
-          evidence remain planned.
+          orchestrator/workproduct helper executable, REST definitions,
+          services, tests, and executable evidence remain planned.
         evidence: Architecture, specification index, roadmap, and implementation_status agree.
 
 non_goals:
@@ -1526,20 +1803,24 @@ acceptance_criteria:
     criterion: |
       The closed vocabulary names every planned boundary action, every word has
       the complete contract fields, existing factories are reused, and no new
-      Go builtin or arbitrary shell authority is required.
+      Go builtin or arbitrary shell authority is required; every orchestrator
+      helper operation and its JSON stdout contract remain explicitly planned.
     traces: [R1.1, R1.2, R1.3, R1.4]
   - id: AC2
     criterion: |
       Only the orchestrator owns contained workproduct words and four
-      path-free child invocations; immutable writes and child responses obey
-      srd002 acceptance and recovery rules, and manifest projection supplies
-      deterministic bounded routing signals for the flat orchestrator.
+      path-free child invocations; immutable writes and parsed child responses
+      obey srd002 acceptance and recovery rules, and parsed manifest projection
+      scalars feed explicit deterministic predicate chains for the flat
+      orchestrator.
     traces: [R2.1, R2.2, R2.3, R2.4, R2.5]
   - id: AC3
     criterion: |
       Source capture and create-or-reuse publication use distinct constrained
-      git/gh words, configuration-owned authority, identity checks, and
-      forward-only remote conflict handling.
+      git/gh words backed by fixed JSON-emitting non-shell helper operations,
+      fixed exec signals, explicit result parsing and scalar routing,
+      configuration-owned authority, identity checks, and forward-only remote
+      conflict handling.
     traces: [R3.1, R3.2, R3.3]
   - id: AC4
     criterion: |
@@ -1566,9 +1847,10 @@ acceptance_criteria:
     traces: [R6.1, R6.2, R6.3]
   - id: AC7
     criterion: |
-      Infrastructure errors and domain outcomes remain distinct, all effects
+      Infrastructure errors and domain outcomes remain distinct, command-state
+      routing is labeled, redacted, receipt-blind, and fail-closed, all effects
       have honest compensation, and documentation reports runtime as planned.
-    traces: [R7.1, R7.2, R7.3]
+    traces: [R7.1, R7.2, R7.3, R7.4]
 
 shared_requirement_traces:
   - contract: srd001-voice-forge-services
@@ -1615,7 +1897,7 @@ related_documents:
   - path: ../../../../../agent-core/docs/specs/config-formats/rest-tool-format.yaml
     usage: Owns configured HTTP authority, mapping, limits, redaction, and compensation.
   - path: ../../../../../agent-core/tools/exec.yaml
-    usage: Demonstrates constrained exec and git declaration reuse without a shell.
+    usage: Owns the generic exec wrapper whose structured mode wraps, but does not transform, JSON stdout produced by the planned helper.
   - path: ../../../../../agent-core/tools/builtin/value-predicate.yaml
     usage: Owns one-scalar-comparison semantics and exactly two configured outcomes plus CommandError.
   - path: ../../../../../agent-core/tools/builtin/parse-structured.yaml
@@ -1633,7 +1915,8 @@ implementation_status:
   profiles: not_implemented
   machines: not_implemented
   tool_declarations: not_implemented
-  workproduct_helper: not_implemented
+  orchestrator_json_helper: not_implemented
+  separate_workproduct_helper_if_used: not_implemented
   structure_editor_helper: not_implemented
   voice_editor_helper: not_implemented
   rest_definitions: not_implemented

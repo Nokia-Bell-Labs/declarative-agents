@@ -78,10 +78,34 @@ overview:
     policy-permitted warn. Recovery may resume there only after verifying the
     same accepted critic artifact and lineage. The orchestrator selects only
     srd003 orchestrator words and has no editing, retrieval, model, verdict, or
-    Pangram word. srd004 records one planned declaration-alignment dependency:
-    the current CriticRejected signal carries responsible_stage in output, but
-    MachineSpec has no payload guards, so future ToolDefs must emit bounded
-    structure, voice, or style routing signals before a runtime machine exists.
+    Pangram word.
+
+    Every orchestrator workproduct, hash, source, publication, and pull-request
+    exec fixes one operation of a planned constrained non-shell orchestrator
+    helper executable and emits only ToolDone, ToolFailed, or CommandError. The
+    helper safely invokes operation-specific fixed git/gh argv where needed and
+    emits one bounded JSON object on zero exit. Exec structured mode only wraps
+    that raw helper JSON string with exit_code; it does not transform git, gh,
+    or digest output into domain fields. A distinct parse_structured word
+    selects the wrapper's nested output string and schema-validates the
+    helper-produced JSON, then fixed value_predicate chains compare one scalar
+    at a time and emit exactly two configured outcomes per comparison. Child
+    invocations similarly retain
+    execute_task's ExecutionDone, ExecutionFailed, and CommandError signals;
+    a fixed compose word JSON-encodes each immediately previous child stdout
+    under one field so parse_structured can select it by stable label, then the
+    bounded response is parsed and routed. project_manifest only repairs or
+    writes manifest.yaml and reports bounded manifest scalars.
+    It does not emit saga routes. Explicit predicates over its parsed output
+    route request mode, stage result, critic verdict and responsible stage,
+    retries, recovery, publication progress, and terminal status.
+
+    Every $from selector addresses an authored transition label through the
+    receipt-blind command-state view. Producer output must carry recognized
+    applied redaction metadata. Missing, unavailable, malformed, or wrong-type
+    selector input emits CommandError; it never becomes a negative business
+    comparison. The newest matching label wins before and after checkpoint
+    rehydration.
   structure_editor_flow: |
     ```mermaid
     flowchart LR
@@ -235,9 +259,13 @@ interfaces:
       Orchestrator-only words validate requests, read and hash workproducts,
       write the immutable original and attempts, append and project the
       manifest, and materialize the final chain. Constrained exec declarations
-      use a profile-owned non-shell helper to satisfy srd002 atomic write and
-      fsync behavior without a new Go builtin. Paths derive from trusted saga
-      state; model and child output never supplies them.
+      use fixed operations of a profile-owned non-shell orchestrator helper (or
+      a separately fixed workproduct helper) to satisfy srd002 atomic write and
+      fsync behavior without a new Go builtin. The helper itself emits bounded
+      JSON stdout; exec structured mode merely wraps it. Every result then uses
+      an explicit schema parser and one-scalar predicates where more than one
+      business outcome exists. Paths derive from trusted saga state; model and
+      child output never supplies them.
   - name: retrieval REST boundary
     status: planned
     summary: |
@@ -254,12 +282,20 @@ interfaces:
   - name: GitHub source and publication boundary
     status: planned
     summary: |
-      Constrained git and gh exec words are available only to the orchestrator.
+      Constrained source and publication exec words are available only to the
+      orchestrator. Each fixes one operation of the planned non-shell
+      orchestrator helper. The helper constructs only that operation's fixed
+      git/gh subcommand and flags, parses raw CLI output internally, validates
+      identities, and emits bounded JSON.
       Distinct source resolve, fetch, blob read, publication check, branch,
       stage, commit, push, pull-request find/create, and verification words
       consume only validated human intent, configuration, and manifest state.
-      Force push, arbitrary shell, runtime binaries, URLs, refs, credentials,
-      and command strings are outside the interface.
+      Exec emits only generic outcomes; operation-specific parsers and
+      scalar predicates distinguish absent, matching, created, reused,
+      verified, and conflicting identities. No parser consumes raw git/gh
+      output. Force push, arbitrary shell, runtime binaries or helper
+      operations, URLs, refspec shapes, credentials, and command strings are
+      outside the interface.
   - name: Pangram privacy boundary
     status: planned
     summary: |
@@ -309,6 +345,8 @@ tool_authority_allocation:
         - inspect_saga_checkpoint
         - rollback_saga_checkpoint
         - exit_voice_forge_run
+        - orchestrator parse_structured result words
+        - orchestrator one-scalar value_predicate route words
       denied: [editor RAG, editor LLM, critic verdict, Pangram, corpus writes]
     - owner: structure-editor
       exclusive_words:
@@ -395,6 +433,15 @@ components:
       Own the saga directory, manifest, workproduct writes, stage sequencing,
       retry budgets, finalization, and constrained git/gh mutation.
     prohibited_authority: Editing, retrieval, critic verdicts, corpus writes, and Pangram invocation.
+  - name: workflow-orchestrator constrained helper
+    path: agents/workflow-orchestrator/ planned executable
+    status: planned
+    role_realization: Fixed non-shell JSON-emitting boundary adapter.
+    lifecycle: Spawned only through operation-specific exec ToolDefs.
+    scaling_boundary: One invocation performs one fixed workproduct, hash, source, publication, or pull-request operation.
+    failure_boundary: Nonzero exit becomes ToolFailed or CommandError; malformed or truncated zero-exit JSON fails the following parser closed.
+    authority: May execute only declaration-selected fixed operations and their compiled/configured git/gh argv shapes.
+    prohibited_authority: Shell evaluation, arbitrary command or argv, runtime binary/subcommand/URL/refspec/credential selection, editing, retrieval, model invocation, verdicts, and Pangram.
   - name: structure-editor agent service
     path: agents/structure-editor/
     status: planned
@@ -467,7 +514,7 @@ components:
   - name: GitHub
     path: external source and publication platform
     status: planned
-    lifecycle: External dependency reached through constrained git and gh words.
+    lifecycle: External dependency reached through fixed orchestrator-helper operations behind constrained exec words.
     authority: Host source revisions, accepted commits, branches, and pull requests.
     prohibited_authority: Intermediate saga storage and critic acceptance.
   - name: Pangram
@@ -561,8 +608,8 @@ technology_choices:
     technology: Planned Ollama endpoints
     purpose: Supply allowlisted embedding and generation models.
   - component: Source and publication
-    technology: Planned constrained git and GitHub CLI ToolDefs
-    purpose: Capture an immutable source and publish once after acceptance.
+    technology: Planned constrained non-shell orchestrator helper behind fixed exec ToolDefs, internally using fixed git and GitHub CLI argv
+    purpose: Emit bounded JSON while capturing an immutable source and publishing once after acceptance.
   - component: Advisory voice analysis
     technology: Planned consent-gated Pangram calls
     purpose: Add external before/after evidence without transferring verdict authority.
@@ -578,7 +625,7 @@ project_structure:
     - {path: docs/SPECIFICATIONS.yaml, status: planned_documentation, role: Planned corpus and traceability index.}
     - {path: docs/road-map.yaml, status: planned_documentation, role: Release 00.0 plan and evidence status.}
   planned_configuration:
-    - {path: agents/workflow-orchestrator/, status: planned, role: Saga coordination and publication profile.}
+    - {path: agents/workflow-orchestrator/, status: planned, role: Saga coordination, fixed exec declarations, and constrained JSON-emitting helper executable.}
     - {path: agents/structure-editor/, status: planned, role: Structure editing profile, flat machine, declarations, and constrained non-shell report helper.}
     - {path: agents/voice-editor/, status: planned, role: Voice editing profile, flat machine, declarations, and constrained non-shell report helper.}
     - {path: agents/style-editor/, status: planned, role: Style tightening profile.}
@@ -600,7 +647,7 @@ implementation_status:
     SRDs srd001 through srd006 specify service boundaries, the writing saga and
     workproducts, the closed tool vocabulary, the workflow-orchestrator machine,
     and the structure-editor and voice-editor machines. SRDs srd007 through srd008, the release use case, test suite,
-    profiles, machines, tools, services,
+    profiles, machines, tools, constrained orchestrator helper, services,
     integration evidence, and root registrations remain planned.
   overall: documentation_only_planned
   progress:
@@ -611,7 +658,7 @@ implementation_status:
     - specified: srd005 flat structure request, retrieval, grounding, one refinement, structure-only edit, semantic constraints, response, and terminal outcomes.
     - specified: srd006 flat accepted-structure request, rhetorical-role and register passage retrieval, one refinement, bounded voice-only rewrite, preservation constraints, copy risk, response, and terminal outcomes.
     - planned: srd007 through srd008 and executable reciprocal release traces.
-    - planned: Five application-local state machines, constrained structure-editor and voice-editor report helpers, and the corpus-ingest wrapper.
+    - planned: Five application-local state machines, the constrained JSON-emitting orchestrator helper, constrained structure-editor and voice-editor report helpers, and the corpus-ingest wrapper.
     - planned: RAG, Chroma, Ollama, GitHub CLI, and Pangram integrations.
     - planned: Persistent saga workspace, retries, recovery, and publication.
     - planned: Structural, boundary, failure, recovery, and end-to-end tests.

@@ -10,17 +10,24 @@ problem: |
   editing, retrieval, criticism, Pangram, retry selection, or remote mutation
   in imperative service code.
 
-  The existing critic word returns CriticRejected with responsible_stage in its
-  output. Agent-core MachineSpec has no guards or payload-based branching.
-  Therefore a runnable machine cannot select structure, voice, or style from
-  that one signal. srd003 therefore assigns deterministic bounded route signals
-  to project_manifest after the critique is durable. It does not invent a
-  semantic editor: a semantic finding is routed to the structure, voice, or
-  style stage named by the critic.
+  Agent-core MachineSpec has no guards or payload-based branching. Generic exec
+  also has a fixed ToolDone, ToolFailed, and CommandError contract, and
+  execute_task has a fixed ExecutionDone, ExecutionFailed, and CommandError
+  contract. Exec structured mode only wraps raw stdout and exit code; it does
+  not transform git, gh, or digest output into domain JSON. Therefore no helper
+  operation or child invocation can directly emit the saga's multi-way business
+  outcomes, and no parser can assume raw CLI text contains domain fields. This
+  specification requires every orchestrator exec to run a fixed operation of a
+  planned constrained non-shell JSON-emitting helper, then makes every boundary
+  result a bounded structured document,
+  parses it explicitly, and routes it through visible chains of
+  value_predicate words that compare one scalar and emit two outcomes each.
+  Semantic findings still route to the structure, voice, or style stage named
+  by the critic; there is no semantic editor.
 
 goals:
   - "G1: Specify the exact flat orchestration states, signals, transitions, terminal outcomes, and budgets."
-  - "G2: Map every orchestrator action to the closed srd003 vocabulary and exclude editing, retrieval, criticism, and Pangram words."
+  - "G2: Map every orchestrator exec, parse, predicate, child, and lifecycle action to the closed srd003 vocabulary."
   - "G3: Persist intent before remote work and persist immutable artifacts plus manifest history before advancing."
   - "G4: Route domain rejection and infrastructure failure distinctly with bounded responsible-stage replay."
   - "G5: Make finalization and publication structurally unreachable before critic acceptance."
@@ -33,6 +40,7 @@ applicability:
   machine_form: planned_flat_machine_spec
   runtime_machine_path: agents/workflow-orchestrator/machine.yaml
   runtime_machine_status: not_implemented
+  orchestrator_json_helper_status: not_implemented
 
 flat_machine_contract:
   initial_state: awaiting_request
@@ -45,7 +53,7 @@ flat_machine_contract:
 
   budgets:
     machine:
-      max_iterations: 512
+      max_iterations: 8192
       max_tokens: 1000000
       max_duration: 30m0s
       max_consecutive_parse_errors: omitted
@@ -68,6 +76,7 @@ flat_machine_contract:
       - CommandError, ToolFailed, ExecutionFailed, and uncertain completion consume the current action's infrastructure budget, not a critic-rejection budget.
       - Publication retries reuse one publication_key, commit, branch, and pull request identity.
       - BudgetExhausted never advances to critic acceptance, finalization, or publication.
+      - The 8192 hard cap includes every expanded exec, compose, parse, predicate, persistence, retry, recovery, and lifecycle transition; it remains finite after factory-semantic expansion.
 
   authority:
     selected_srd003_words:
@@ -97,6 +106,41 @@ flat_machine_contract:
       - suspend_saga_for_operator
       - inspect_saga_checkpoint
       - exit_voice_forge_run
+      - parse_read_workproduct_result
+      - workproduct_read_succeeded
+      - workproduct_read_missing
+      - parse_hash_workproduct_result
+      - parse_write_original_result
+      - original_was_written
+      - original_was_reused
+      - parse_write_attempt_result
+      - attempt_was_written
+      - attempt_was_reused
+      - parse_append_manifest_result
+      - manifest_was_appended
+      - manifest_was_reused
+      - parse_manifest_projection
+      - manifest_projection_succeeded
+      - manifest_projection_repaired
+      - parse_finalization_result
+      - final_chain_materialized
+      - final_chain_reused
+      - parse_structure_editor_response
+      - compose_structure_child_parse_input
+      - structure_response_returned
+      - parse_voice_editor_response
+      - compose_voice_child_parse_input
+      - voice_response_returned
+      - parse_style_editor_response
+      - compose_style_child_parse_input
+      - style_response_returned
+      - parse_critic_response
+      - compose_critic_child_parse_input
+      - critic_verdict_is_pass
+      - critic_verdict_is_warn
+      - parse_cli_result planned_instances
+      - cli_status_predicate planned_instances
+      - manifest_scalar_predicate planned_instances
     prohibited_word_groups:
       - editor_and_critic_retrieval
       - critic_pangram
@@ -138,6 +182,89 @@ flat_machine_contract:
     suspend_operator: {word: suspend_saga_for_operator, authority: srd003 word_vocabulary.lifecycle}
     inspect_checkpoint: {word: inspect_saga_checkpoint, authority: srd003 word_vocabulary.lifecycle}
     exit_run: {word: exit_voice_forge_run, authority: srd003 word_vocabulary.lifecycle}
+    parse_read_artifact: {word: parse_read_workproduct_result, authority: srd003 word_vocabulary.orchestrator_structured_routing}
+    check_read_artifact: {word: workproduct_read_succeeded, authority: srd003 word_vocabulary.orchestrator_structured_routing}
+    check_missing_artifact: {word: workproduct_read_missing, authority: srd003 word_vocabulary.orchestrator_structured_routing}
+    parse_hash: {word: parse_hash_workproduct_result, authority: srd003 word_vocabulary.orchestrator_structured_routing}
+    parse_original_write: {word: parse_write_original_result, authority: srd003 word_vocabulary.orchestrator_structured_routing}
+    check_original_written: {word: original_was_written, authority: srd003 word_vocabulary.orchestrator_structured_routing}
+    check_original_reused: {word: original_was_reused, authority: srd003 word_vocabulary.orchestrator_structured_routing}
+    parse_attempt_write: {word: parse_write_attempt_result, authority: srd003 word_vocabulary.orchestrator_structured_routing}
+    check_attempt_written: {word: attempt_was_written, authority: srd003 word_vocabulary.orchestrator_structured_routing}
+    check_attempt_reused: {word: attempt_was_reused, authority: srd003 word_vocabulary.orchestrator_structured_routing}
+    parse_manifest_append: {word: parse_append_manifest_result, authority: srd003 word_vocabulary.orchestrator_structured_routing}
+    check_manifest_appended: {word: manifest_was_appended, authority: srd003 word_vocabulary.orchestrator_structured_routing}
+    check_manifest_reused: {word: manifest_was_reused, authority: srd003 word_vocabulary.orchestrator_structured_routing}
+    parse_manifest: {word: parse_manifest_projection, authority: srd003 word_vocabulary.orchestrator_structured_routing}
+    check_manifest_projected: {word: manifest_projection_succeeded, authority: srd003 word_vocabulary.orchestrator_structured_routing}
+    check_manifest_repaired: {word: manifest_projection_repaired, authority: srd003 word_vocabulary.orchestrator_structured_routing}
+    parse_finalization: {word: parse_finalization_result, authority: srd003 word_vocabulary.orchestrator_structured_routing}
+    check_final_materialized: {word: final_chain_materialized, authority: srd003 word_vocabulary.orchestrator_structured_routing}
+    check_final_reused: {word: final_chain_reused, authority: srd003 word_vocabulary.orchestrator_structured_routing}
+    parse_structure_response: {word: parse_structure_editor_response, authority: srd003 word_vocabulary.orchestrator_structured_routing}
+    compose_structure_parse_input: {word: compose_structure_child_parse_input, authority: srd003 word_vocabulary.orchestrator_structured_routing}
+    check_structure_response: {word: structure_response_returned, authority: srd003 word_vocabulary.orchestrator_structured_routing}
+    parse_voice_response: {word: parse_voice_editor_response, authority: srd003 word_vocabulary.orchestrator_structured_routing}
+    compose_voice_parse_input: {word: compose_voice_child_parse_input, authority: srd003 word_vocabulary.orchestrator_structured_routing}
+    check_voice_response: {word: voice_response_returned, authority: srd003 word_vocabulary.orchestrator_structured_routing}
+    parse_style_response: {word: parse_style_editor_response, authority: srd003 word_vocabulary.orchestrator_structured_routing}
+    compose_style_parse_input: {word: compose_style_child_parse_input, authority: srd003 word_vocabulary.orchestrator_structured_routing}
+    check_style_response: {word: style_response_returned, authority: srd003 word_vocabulary.orchestrator_structured_routing}
+    parse_critic_response: {word: parse_critic_response, authority: srd003 word_vocabulary.orchestrator_structured_routing}
+    compose_critic_parse_input: {word: compose_critic_child_parse_input, authority: srd003 word_vocabulary.orchestrator_structured_routing}
+    check_critic_pass: {word: critic_verdict_is_pass, authority: srd003 word_vocabulary.orchestrator_structured_routing}
+    check_critic_warn: {word: critic_verdict_is_warn, authority: srd003 word_vocabulary.orchestrator_structured_routing}
+    parse_source_resolution: {word: parse_source_resolution, authority: srd003 word_vocabulary.orchestrator_structured_routing.parse_cli_result}
+    parse_source_fetch: {word: parse_source_fetch, authority: srd003 word_vocabulary.orchestrator_structured_routing.parse_cli_result}
+    parse_source_blob: {word: parse_source_blob, authority: srd003 word_vocabulary.orchestrator_structured_routing.parse_cli_result}
+    parse_publication_check: {word: parse_publication_check, authority: srd003 word_vocabulary.orchestrator_structured_routing.parse_cli_result}
+    parse_publication_branch: {word: parse_publication_branch, authority: srd003 word_vocabulary.orchestrator_structured_routing.parse_cli_result}
+    parse_publication_stage: {word: parse_publication_stage, authority: srd003 word_vocabulary.orchestrator_structured_routing.parse_cli_result}
+    parse_publication_commit: {word: parse_publication_commit, authority: srd003 word_vocabulary.orchestrator_structured_routing.parse_cli_result}
+    parse_publication_push: {word: parse_publication_push, authority: srd003 word_vocabulary.orchestrator_structured_routing.parse_cli_result}
+    parse_pr_find: {word: parse_pull_request_find, authority: srd003 word_vocabulary.orchestrator_structured_routing.parse_cli_result}
+    parse_pr_create: {word: parse_pull_request_create, authority: srd003 word_vocabulary.orchestrator_structured_routing.parse_cli_result}
+    parse_publication_verification: {word: parse_publication_verification, authority: srd003 word_vocabulary.orchestrator_structured_routing.parse_cli_result}
+    check_source_resolution: {word: source_resolution_succeeded, authority: srd003 word_vocabulary.orchestrator_structured_routing.cli_status_predicate}
+    check_source_fetch: {word: source_fetch_succeeded, authority: srd003 word_vocabulary.orchestrator_structured_routing.cli_status_predicate}
+    check_source_blob: {word: source_blob_succeeded, authority: srd003 word_vocabulary.orchestrator_structured_routing.cli_status_predicate}
+    check_publication_absent: {word: publication_is_absent, authority: srd003 word_vocabulary.orchestrator_structured_routing.cli_status_predicate}
+    check_publication_matching: {word: publication_is_matching, authority: srd003 word_vocabulary.orchestrator_structured_routing.cli_status_predicate}
+    check_branch_created: {word: publication_branch_created, authority: srd003 word_vocabulary.orchestrator_structured_routing.cli_status_predicate}
+    check_branch_reused: {word: publication_branch_reused, authority: srd003 word_vocabulary.orchestrator_structured_routing.cli_status_predicate}
+    check_stage_succeeded: {word: publication_stage_succeeded, authority: srd003 word_vocabulary.orchestrator_structured_routing.cli_status_predicate}
+    check_commit_created: {word: publication_commit_created, authority: srd003 word_vocabulary.orchestrator_structured_routing.cli_status_predicate}
+    check_commit_reused: {word: publication_commit_reused, authority: srd003 word_vocabulary.orchestrator_structured_routing.cli_status_predicate}
+    check_push_created: {word: publication_push_created, authority: srd003 word_vocabulary.orchestrator_structured_routing.cli_status_predicate}
+    check_push_reused: {word: publication_push_reused, authority: srd003 word_vocabulary.orchestrator_structured_routing.cli_status_predicate}
+    check_pr_absent: {word: pull_request_is_absent, authority: srd003 word_vocabulary.orchestrator_structured_routing.cli_status_predicate}
+    check_pr_matching: {word: pull_request_is_matching, authority: srd003 word_vocabulary.orchestrator_structured_routing.cli_status_predicate}
+    check_pr_created: {word: pull_request_was_created, authority: srd003 word_vocabulary.orchestrator_structured_routing.cli_status_predicate}
+    check_pr_reused: {word: pull_request_was_reused, authority: srd003 word_vocabulary.orchestrator_structured_routing.cli_status_predicate}
+    check_publication_verified: {word: publication_verification_succeeded, authority: srd003 word_vocabulary.orchestrator_structured_routing.cli_status_predicate}
+    check_request_new: {word: manifest_request_is_new, authority: srd003 word_vocabulary.orchestrator_structured_routing.manifest_scalar_predicate}
+    check_stage_accepted: {word: manifest_stage_result_is_accepted, authority: srd003 word_vocabulary.orchestrator_structured_routing.manifest_scalar_predicate}
+    check_manifest_pass: {word: manifest_verdict_is_pass, authority: srd003 word_vocabulary.orchestrator_structured_routing.manifest_scalar_predicate}
+    check_manifest_warn: {word: manifest_verdict_is_warn, authority: srd003 word_vocabulary.orchestrator_structured_routing.manifest_scalar_predicate}
+    check_warn_allowed: {word: manifest_warn_is_allowed, authority: srd003 word_vocabulary.orchestrator_structured_routing.manifest_scalar_predicate}
+    check_responsible_structure: {word: manifest_responsible_stage_is_structure, authority: srd003 word_vocabulary.orchestrator_structured_routing.manifest_scalar_predicate}
+    check_responsible_voice: {word: manifest_responsible_stage_is_voice, authority: srd003 word_vocabulary.orchestrator_structured_routing.manifest_scalar_predicate}
+    check_retry_available: {word: manifest_retry_is_available, authority: srd003 word_vocabulary.orchestrator_structured_routing.manifest_scalar_predicate}
+    check_keep_original: {word: manifest_exhaustion_keeps_original, authority: srd003 word_vocabulary.orchestrator_structured_routing.manifest_scalar_predicate}
+    check_resume_capture: {word: manifest_resume_is_capture, authority: srd003 word_vocabulary.orchestrator_structured_routing.manifest_scalar_predicate}
+    check_resume_structure: {word: manifest_resume_is_structure, authority: srd003 word_vocabulary.orchestrator_structured_routing.manifest_scalar_predicate}
+    check_resume_voice: {word: manifest_resume_is_voice, authority: srd003 word_vocabulary.orchestrator_structured_routing.manifest_scalar_predicate}
+    check_resume_style: {word: manifest_resume_is_style, authority: srd003 word_vocabulary.orchestrator_structured_routing.manifest_scalar_predicate}
+    check_resume_critique: {word: manifest_resume_is_critique, authority: srd003 word_vocabulary.orchestrator_structured_routing.manifest_scalar_predicate}
+    check_resume_finalization: {word: manifest_resume_is_finalization, authority: srd003 word_vocabulary.orchestrator_structured_routing.manifest_scalar_predicate}
+    check_resume_commit: {word: manifest_resume_is_commit, authority: srd003 word_vocabulary.orchestrator_structured_routing.manifest_scalar_predicate}
+    check_resume_push: {word: manifest_resume_is_push, authority: srd003 word_vocabulary.orchestrator_structured_routing.manifest_scalar_predicate}
+    check_resume_pr: {word: manifest_resume_is_pull_request, authority: srd003 word_vocabulary.orchestrator_structured_routing.manifest_scalar_predicate}
+    check_resume_verification: {word: manifest_resume_is_verification, authority: srd003 word_vocabulary.orchestrator_structured_routing.manifest_scalar_predicate}
+    check_terminal_published: {word: manifest_terminal_is_published, authority: srd003 word_vocabulary.orchestrator_structured_routing.manifest_scalar_predicate}
+    check_terminal_kept: {word: manifest_terminal_is_kept_original, authority: srd003 word_vocabulary.orchestrator_structured_routing.manifest_scalar_predicate}
+    check_terminal_failed: {word: manifest_terminal_is_failed, authority: srd003 word_vocabulary.orchestrator_structured_routing.manifest_scalar_predicate}
+    check_terminal_blocked: {word: manifest_terminal_is_publication_blocked, authority: srd003 word_vocabulary.orchestrator_structured_routing.manifest_scalar_predicate}
 
   states:
     - {name: awaiting_request, meaning: Initial state; accepts only a trusted request seed or recovery seed.}
@@ -259,7 +386,8 @@ flat_machine_contract:
       - OperatorResolved
       - OperatorAborted
     success:
-      - CheckpointHistoryRead
+      - ToolDone
+      - ExecutionDone
       - SourceRevisionResolved
       - SourceFetched
       - SourceBlobRead
@@ -289,37 +417,113 @@ flat_machine_contract:
       - PullRequestReused
       - PublicationVerified
       - AwaitApproval
-      - CheckpointRolledBack
       - AgentExited
     infrastructure:
       - CommandError
       - ToolFailed
       - ExecutionFailed
       - BudgetExhausted
+    parse_and_predicate_intermediate:
+      - StructureChildParseInputReady
+      - VoiceChildParseInputReady
+      - StyleChildParseInputReady
+      - CriticChildParseInputReady
+      - WorkproductReadResultParsed
+      - WorkproductReadResultInvalid
+      - WorkproductNotRead
+      - WorkproductHashInvalid
+      - OriginalWriteResultParsed
+      - OriginalWriteResultInvalid
+      - OriginalNotWritten
+      - AttemptWriteResultParsed
+      - AttemptWriteResultInvalid
+      - AttemptNotWritten
+      - ManifestAppendResultParsed
+      - ManifestAppendResultInvalid
+      - ManifestNotAppended
+      - ManifestProjectionParsed
+      - ManifestProjectionInvalid
+      - ManifestNotProjected
+      - FinalizationResultParsed
+      - FinalizationResultInvalid
+      - FinalChainNotMaterialized
+      - StructureResponseParsed
+      - StructureResponseInvalid
+      - VoiceResponseParsed
+      - VoiceResponseInvalid
+      - StyleResponseParsed
+      - StyleResponseInvalid
+      - CriticResponseParsed
+      - CriticResponseInvalid
+      - CriticNotPassed
+      - SourceResolutionParsed
+      - SourceResolutionInvalid
+      - SourceFetchParsed
+      - SourceFetchInvalid
+      - SourceBlobParsed
+      - SourceBlobInvalid
+      - PublicationCheckParsed
+      - PublicationCheckInvalid
+      - PublicationBranchParsed
+      - PublicationBranchInvalid
+      - PublicationStageParsed
+      - PublicationStageInvalid
+      - PublicationCommitParsed
+      - PublicationCommitInvalid
+      - PublicationPushParsed
+      - PublicationPushInvalid
+      - PullRequestFindParsed
+      - PullRequestFindInvalid
+      - PullRequestCreateParsed
+      - PullRequestCreateInvalid
+      - PublicationVerificationParsed
+      - PublicationVerificationInvalid
+      - PublicationNotAbsent
+      - PublicationBranchNotCreated
+      - PublicationCommitNotCreated
+      - PublicationPushNotCreated
+      - PullRequestNotAbsent
+      - PullRequestNotCreated
+      - StageNotAccepted
+      - VerdictNotPass
+      - VerdictWarn
+      - VerdictReject
+      - CriticWarnRejected
+      - ResponsibleStageNotStructure
+      - ResumeNotCapture
+      - ResumeNotStructure
+      - ResumeNotVoice
+      - ResumeNotStyle
+      - ResumeNotCritique
+      - ResumeNotFinalization
+      - ResumeNotCommit
+      - ResumeNotPush
+      - ResumeNotPullRequest
+      - ResumeTerminal
+      - TerminalNotPublished
+      - TerminalNotKeptOriginal
+      - TerminalNotFailed
     deterministic_refinements:
       status: specified_in_srd003_runtime_planned
       rationale: |
-        MachineSpec cannot branch on Result output. srd003 project_manifest
-        emits the following bounded signals from the validated durable manifest
-        without adding an action or giving an LLM routing authority.
+        MachineSpec cannot branch on Result output. The project_manifest exec
+        emits only ToolDone, ToolFailed, or CommandError. After ToolDone,
+        parse_manifest_projection validates its bounded stdout, and fixed
+        manifest_scalar_predicate instances emit the following bounded signals
+        through visible one-comparison/two-outcome chains.
       signals:
         - RequestNew
         - RequestResume
-        - StructureAccepted
-        - VoiceAccepted
-        - StyleAccepted
+        - StageAccepted
         - CritiqueAccepted
         - CriticWarnAccepted
-        - CriticWarnRejectedStructure
-        - CriticWarnRejectedVoice
-        - CriticWarnRejectedStyle
+        - CriticWarnRejected
         - CriticRejectedStructure
         - CriticRejectedVoice
         - CriticRejectedStyle
         - RetryCurrentAction
-        - RetryStructure
-        - RetryVoice
-        - RetryStyle
+        - RetryAvailable
+        - RetryExhausted
         - ExhaustedKeepOriginal
         - ExhaustedFail
         - ResumeCapture
@@ -341,16 +545,285 @@ flat_machine_contract:
         - Refinement reads only validated request policy, durable manifest state, bounded counters, and the critic's responsible_stage enum.
         - Semantic is a finding category, never a responsible stage. Semantic rejection must carry responsible_stage structure, voice, or style.
         - No refinement may inspect prose to choose a stage, alter a verdict, edit bytes, query retrieval, invoke a model, or invoke Pangram.
-        - srd003 lists these emissions; future profile ToolDefs must match them before a MachineSpec can validate.
+        - srd003 lists the fixed predicate instances; project_manifest itself emits none of these routes.
+
+  factory_semantic_expansion:
+    status: required_flat_expansion_runtime_planned
+    rule: |
+      The transition rows below name saga-level receiving states. A future
+      MachineSpec SHALL expand every boundary action into the exact flat states,
+      labels, actions, and signals in this section. No row may skip its parser or
+      predicate chain. The deterministic names make expansion finite and make
+      state, action, label, signal, and transition closure mechanical.
+    structured_exec_chain:
+      producer_contract: |
+        Every listed exec action fixes one operation of the planned constrained
+        non-shell orchestrator helper executable (or a separately fixed
+        workproduct helper with the same contract). The helper emits one bounded
+        JSON object on stdout. For source, publication, and pull-request
+        operations it internally constructs and invokes only fixed git/gh argv,
+        parses raw CLI output, and normalizes the result. Exec structured mode
+        then wraps that helper JSON string under output with exit_code; it does
+        not create, infer, or rename domain fields. The following parser selects
+        only the nested output string. No runtime value selects a helper binary,
+        operation, git/gh subcommand, URL, refspec shape, or credential source.
+      states_per_context:
+        - "Each context lists its existing saga receiving raw_states."
+        - "For each raw state: parsing_<raw_state>."
+        - "For each predicate n: routing_<raw_state>_<n>."
+      transitions:
+        - "enter one listed raw_state by executing its exec action with the context's raw_label"
+        - "raw_state + ToolDone -> parsing_<raw_state>, execute its parse_structured action with the context's parsed_label"
+        - "parsing_<raw_state> + configured parsed signal -> routing_<raw_state>_1, execute the first value_predicate"
+        - "each unsatisfied signal -> routing_<raw_state>_<n+1>, execute the next value_predicate"
+        - "each satisfied signal and the schema-closed final unsatisfied signal -> the named saga route"
+      failure_signals:
+        - ToolFailed and CommandError from the raw exec state are infrastructure failures.
+        - The parser's invalid signal is a fail-closed invalid-output result.
+        - CommandError from every parser or predicate is an infrastructure failure.
+      contexts:
+        source_resolution:
+          raw_states: [resolving_source]
+          labels: {raw_label: source_resolution_raw, parsed_label: source_resolution}
+          exec: resolve_source
+          parse: parse_source_resolution
+          predicates: [check_source_resolution]
+          routes: [SourceRevisionResolved, SourceRevisionMissing]
+        source_fetch:
+          raw_states: [fetching_source]
+          labels: {raw_label: source_fetch_raw, parsed_label: source_fetch}
+          exec: fetch_source
+          parse: parse_source_fetch
+          predicates: [check_source_fetch]
+          routes: [SourceFetched, SourceFetchConflict]
+        source_blob:
+          raw_states: [reading_source_blob]
+          labels: {raw_label: source_blob_raw, parsed_label: source_blob}
+          exec: read_source
+          parse: parse_source_blob
+          predicates: [check_source_blob]
+          routes: [SourceBlobRead, SourceBlobMissing]
+        workproduct_read:
+          raw_states: [reading_structure_parent, reading_voice_parent, reading_style_parent, reading_critique_original, reading_critique_candidate]
+          labels: {raw_label: workproduct_read_raw, parsed_label: workproduct_read_result}
+          exec: read_artifact
+          parse: parse_read_artifact
+          predicates: [check_read_artifact, check_missing_artifact]
+          routes: [WorkproductRead, WorkproductMissing, WorkproductIntegrityFailed]
+        workproduct_hash:
+          raw_states: [hashing_original, hashing_structure_candidate, hashing_voice_candidate, hashing_style_candidate, hashing_critique]
+          labels: {raw_label: workproduct_hash_raw, parsed_label: workproduct_hash_result}
+          exec: hash_artifact
+          parse: parse_hash
+          predicates: []
+          routes: [WorkproductHashed]
+        original_write:
+          raw_states: [writing_original]
+          labels: {raw_label: original_write_raw, parsed_label: original_write_result}
+          exec: persist_original
+          parse: parse_original_write
+          predicates: [check_original_written, check_original_reused]
+          routes: [OriginalWritten, OriginalReused, OriginalConflict]
+        attempt_write:
+          raw_states: [writing_structure_attempt, writing_voice_attempt, writing_style_attempt, writing_critique_attempt]
+          labels: {raw_label: attempt_write_raw, parsed_label: attempt_write_result}
+          exec: persist_attempt
+          parse: parse_attempt_write
+          predicates: [check_attempt_written, check_attempt_reused]
+          routes: [AttemptWritten, AttemptReused, AttemptConflict]
+        manifest_append:
+          raw_states: [appending_request_intent, reconciling_recovery, appending_capture_acceptance, appending_structure_intent, appending_structure_result, appending_structure_replay, appending_voice_intent, appending_voice_result, appending_voice_replay, appending_style_intent, appending_style_result, appending_style_replay, appending_critique_intent, appending_critique_result, appending_finalization, appending_commit_progress, appending_push_progress, appending_pr_progress, appending_publication_complete, appending_nonpublication_terminal, appending_publication_blocked]
+          labels: {raw_label: manifest_append_raw, parsed_label: manifest_append_result}
+          exec: append_manifest
+          parse: parse_manifest_append
+          predicates: [check_manifest_appended, check_manifest_reused]
+          routes: [ManifestRevisionAppended, ManifestRevisionReused, ManifestConflict]
+        manifest_projection:
+          raw_states: [projecting_request_intent, projecting_recovery, projecting_capture_acceptance, projecting_structure_intent, projecting_structure_result, projecting_structure_replay, projecting_voice_intent, projecting_voice_result, projecting_voice_replay, projecting_style_intent, projecting_style_result, projecting_style_replay, projecting_critique_intent, projecting_critique_result, projecting_finalization, projecting_commit_progress, projecting_push_progress, projecting_pr_progress, projecting_publication_complete, projecting_nonpublication_terminal, projecting_publication_blocked]
+          labels: {raw_label: manifest_projection_raw, parsed_label: manifest_projection}
+          exec: project_manifest
+          parse: parse_manifest
+          predicates: [check_manifest_projected, check_manifest_repaired]
+          routes: [ManifestProjected, ManifestProjectionRepaired, ManifestConflict]
+        finalization:
+          raw_states: [materializing_final_chain]
+          labels: {raw_label: finalization_raw, parsed_label: finalization_result}
+          exec: finalize_chain
+          parse: parse_finalization
+          predicates: [check_final_materialized, check_final_reused]
+          routes: [FinalChainMaterialized, FinalChainReused, FinalizationConflict]
+        publication_check:
+          raw_states: [checking_publication_before_branch, checking_publication_before_push]
+          labels: {raw_label: publication_check_raw, parsed_label: publication_check}
+          exec: check_publication
+          parse: parse_publication_check
+          predicates: [check_publication_absent, check_publication_matching]
+          routes: [PublicationAbsent, PublicationMatching, PublicationConflict]
+        publication_branch:
+          raw_states: [creating_publication_branch]
+          labels: {raw_label: publication_branch_raw, parsed_label: publication_branch}
+          exec: create_publication_branch
+          parse: parse_publication_branch
+          predicates: [check_branch_created, check_branch_reused]
+          routes: [PublicationBranchCreated, PublicationBranchReused, PublicationConflict]
+        publication_stage:
+          raw_states: [staging_final_chain]
+          labels: {raw_label: publication_stage_raw, parsed_label: publication_stage}
+          exec: stage_final_chain
+          parse: parse_publication_stage
+          predicates: [check_stage_succeeded]
+          routes: [FinalChainStaged, PublicationConflict]
+        publication_commit:
+          raw_states: [committing_final_chain]
+          labels: {raw_label: publication_commit_raw, parsed_label: publication_commit}
+          exec: commit_final_chain
+          parse: parse_publication_commit
+          predicates: [check_commit_created, check_commit_reused]
+          routes: [PublicationCommitted, PublicationCommitReused, PublicationConflict]
+        publication_push:
+          raw_states: [pushing_publication]
+          labels: {raw_label: publication_push_raw, parsed_label: publication_push}
+          exec: push_publication
+          parse: parse_publication_push
+          predicates: [check_push_created, check_push_reused]
+          routes: [PublicationPushed, PublicationPushReused, PublicationConflict]
+        pull_request_find:
+          raw_states: [finding_pull_request]
+          labels: {raw_label: pull_request_find_raw, parsed_label: pull_request_find}
+          exec: find_pull_request
+          parse: parse_pr_find
+          predicates: [check_pr_absent, check_pr_matching]
+          routes: [PullRequestAbsent, PullRequestMatching, PublicationConflict]
+        pull_request_create:
+          raw_states: [creating_pull_request]
+          labels: {raw_label: pull_request_create_raw, parsed_label: pull_request_create}
+          exec: create_pull_request
+          parse: parse_pr_create
+          predicates: [check_pr_created, check_pr_reused]
+          routes: [PullRequestCreated, PullRequestReused, PublicationConflict]
+        publication_verification:
+          raw_states: [verifying_publication]
+          labels: {raw_label: publication_verification_raw, parsed_label: publication_verification}
+          exec: verify_pull_request
+          parse: parse_publication_verification
+          predicates: [check_publication_verified]
+          routes: [PublicationVerified, PublicationConflict]
+    child_chain:
+      states_per_context: ["the listed existing raw_state", "composing_<raw_state>_parse_input", "parsing_<raw_state>", "routing_<raw_state>_<n>"]
+      transition_rule:
+        - "ExecutionDone -> composing_<context>_parse_input, execute the context's fixed compose word with label <context>_parse_input"
+        - "the compose word's one configured ready signal -> parsing_<context>, execute the context parser with label <context>_response"
+        - "the parser's parsed signal -> routing_<context>_1, execute the first context predicate"
+      contexts:
+        structure_child:
+          raw_state: invoking_structure
+          child: request_structure
+          factory_signals: [ExecutionDone, ExecutionFailed, CommandError]
+          compose: compose_structure_parse_input
+          parse: parse_structure_response
+          predicates: [check_structure_response]
+          routes: [StructureEditReturned, StructureEditRejected]
+        voice_child:
+          raw_state: invoking_voice
+          compose: compose_voice_parse_input
+          child: request_voice
+          factory_signals: [ExecutionDone, ExecutionFailed, CommandError]
+          parse: parse_voice_response
+          predicates: [check_voice_response]
+          routes: [VoiceEditReturned, VoiceEditRejected]
+        style_child:
+          raw_state: invoking_style
+          compose: compose_style_parse_input
+          child: request_style
+          factory_signals: [ExecutionDone, ExecutionFailed, CommandError]
+          parse: parse_style_response
+          predicates: [check_style_response]
+          routes: [StyleEditReturned, StyleEditRejected]
+        critic_child:
+          raw_state: invoking_critic
+          compose: compose_critic_parse_input
+          child: request_critique
+          factory_signals: [ExecutionDone, ExecutionFailed, CommandError]
+          parse: parse_critic_response
+          predicates: [check_critic_pass, check_critic_warn]
+          routes: [CriticPassed, CriticWarned, CriticRejected]
+    manifest_route_chains:
+      by_raw_state:
+        request: [projecting_request_intent]
+        recovery: [projecting_recovery]
+        stage_result: [projecting_structure_result, projecting_voice_result, projecting_style_result]
+        critique: [projecting_critique_result]
+        terminal: [projecting_publication_complete, projecting_nonpublication_terminal]
+        blocked_projection: [projecting_publication_blocked]
+        projection_only: [projecting_capture_acceptance, projecting_structure_intent, projecting_structure_replay, projecting_voice_intent, projecting_voice_replay, projecting_style_intent, projecting_style_replay, projecting_critique_intent, projecting_finalization, projecting_commit_progress, projecting_push_progress, projecting_pr_progress]
+      request: [check_request_new]
+      stage_result: [check_stage_accepted, check_retry_available, check_keep_original]
+      critique:
+        - "check_manifest_pass: CritiqueAccepted ends the chain; VerdictNotPass executes check_manifest_warn"
+        - "check_manifest_warn: VerdictWarn executes check_warn_allowed; VerdictReject executes check_retry_available"
+        - "check_warn_allowed: CriticWarnAccepted ends the chain; CriticWarnRejected executes check_retry_available"
+        - "check_retry_available: RetryAvailable executes check_responsible_structure; RetryExhausted executes check_keep_original"
+        - "check_responsible_structure: CriticRejectedStructure ends the chain; ResponsibleStageNotStructure executes check_responsible_voice"
+        - "check_responsible_voice: CriticRejectedVoice or schema-closed CriticRejectedStyle ends the chain"
+        - "check_keep_original: ExhaustedKeepOriginal or schema-closed ExhaustedFail ends the chain without finalization"
+      recovery: [check_resume_capture, check_resume_structure, check_resume_voice, check_resume_style, check_resume_critique, check_resume_finalization, check_resume_commit, check_resume_push, check_resume_pr, check_resume_verification, check_terminal_published, check_terminal_kept, check_terminal_failed, check_terminal_blocked]
+      terminal: [check_terminal_published, check_terminal_kept, check_terminal_failed, check_terminal_blocked]
+      blocked_projection: |
+        ManifestProjected or ManifestProjectionRepaired routes directly to
+        suspend_operator. The publication_blocked terminal is reached only if
+        the operator aborts or a later recovery projection reports the durable
+        terminal status.
+      projection_only: |
+        ManifestProjected or ManifestProjectionRepaired routes directly to the
+        next saga action shown in transition_contract; no business scalar is
+        needed at these persistence barriers.
+      constraints:
+        - Every item is one distinct value_predicate ToolDef with one scalar comparison and exactly two configured outcomes plus CommandError.
+        - An unsatisfied outcome enters the next named predicate state; only a schema-closed last alternative may route directly.
+        - Every predicate selects $from(manifest_projection).<field>; the parse transition carries the stable manifest_projection label.
+    lifecycle_factory_signals:
+      suspend_operator: [AwaitApproval, CommandError]
+      inspect_checkpoint: [ToolDone, CommandError]
+      exit_run: [AgentExited, CommandError]
+      operator_decision_source: |
+        OperatorResolved and OperatorAborted are validated resume/event seed
+        signals injected after suspension. They are not suspend emissions.
+    expanded_state_catalog:
+      rule: |
+        The physical flat state set is states plus every deterministic state
+        generated by states_per_context for the listed raw states and every
+        manifest route predicate state named by
+        manifest_route_chains.by_raw_state. There are no other states. A planned
+        closure validator SHALL materialize this set before comparing
+        transitions, signals, actions, labels, and terminals.
+      naming:
+        exec_parse: "parsing_<raw_state>"
+        exec_predicate: "routing_<raw_state>_<one-based-predicate-index>"
+        child_compose: "composing_<raw_state>_parse_input"
+        child_parse: "parsing_<raw_state>"
+        child_predicate: "routing_<raw_state>_<one-based-predicate-index>"
+        manifest_route: "routing_<raw_state>_<one-based-route-predicate-index>"
+      collision_rule: |
+        If manifest_projection supplies both projection-status predicates and a
+        contextual manifest route, the route index continues after the two
+        projection-status predicates. The generated state name is therefore
+        unique for one raw state. Duplicate labels remain intentional and use
+        command state's newest-prior-step rule.
 
   transition_contract:
     notation: |
-      Each row is a required flat transition family. A slash-separated signal
-      list expands to one transition per signal with the same next state and
-      action. "persist current result" means append_manifest followed only by
-      project_manifest in the two explicitly named states; it is not a hidden
-      action. Infrastructure routing always persists the failed or uncertain
-      stage_run before retry, exhaustion, or escalation.
+      Each row is a required saga transition after applying
+      factory_semantic_expansion. A slash-separated signal list expands to one
+      transition per signal with the same next state and action. The action
+      named on a row is never licensed to emit the row's domain signal unless
+      its actual factory does so. For exec and execute_task actions, the exact
+      raw, parse, predicate, label, and signal chain in
+      factory_semantic_expansion is inserted before the domain row is reached.
+      For project_manifest, ManifestProjected or ManifestProjectionRepaired
+      first reaches the context's manifest_route_chains predicates; the route
+      signal shown below is emitted only by the final relevant predicate.
+      Infrastructure routing always persists the failed or uncertain stage_run
+      before retry, exhaustion, or escalation.
     request_and_recovery:
       - {from: awaiting_request, on: SeedRequest, to: validating_request, action: validate_request}
       - {from: awaiting_request, on: SeedRecovery, to: validating_request, action: validate_request}
@@ -359,7 +832,7 @@ flat_machine_contract:
       - {from: appending_request_intent, on: ManifestRevisionAppended/ManifestRevisionReused, to: projecting_request_intent, action: project_manifest}
       - {from: projecting_request_intent, on: RequestNew, to: resolving_source, action: resolve_source}
       - {from: projecting_request_intent, on: RequestResume, to: inspecting_recovery_checkpoint, action: inspect_checkpoint}
-      - {from: inspecting_recovery_checkpoint, on: CheckpointHistoryRead, to: reconciling_recovery, action: append_manifest}
+      - {from: inspecting_recovery_checkpoint, on: ToolDone, to: reconciling_recovery, action: append_manifest}
       - {from: reconciling_recovery, on: ManifestRevisionAppended/ManifestRevisionReused, to: projecting_recovery, action: project_manifest}
       - {from: projecting_recovery, on: ResumeCapture, to: resolving_source, action: resolve_source}
       - {from: projecting_recovery, on: ResumeStructure, to: appending_structure_intent, action: append_manifest}
@@ -394,8 +867,9 @@ flat_machine_contract:
       - {from: hashing_structure_candidate, on: WorkproductHashed, to: writing_structure_attempt, action: persist_attempt}
       - {from: writing_structure_attempt, on: AttemptWritten/AttemptReused, to: appending_structure_result, action: append_manifest}
       - {from: appending_structure_result, on: ManifestRevisionAppended/ManifestRevisionReused, to: projecting_structure_result, action: project_manifest}
-      - {from: projecting_structure_result, on: StructureAccepted, to: appending_voice_intent, action: append_manifest}
-      - {from: projecting_structure_result, on: RetryStructure, to: appending_structure_replay, action: append_manifest}
+      - {from: projecting_structure_result, on: StageAccepted, to: appending_voice_intent, action: append_manifest}
+      - {from: projecting_structure_result, on: RetryAvailable, to: appending_structure_replay, action: append_manifest}
+      - {from: projecting_structure_result, on: ExhaustedKeepOriginal/ExhaustedFail, to: appending_nonpublication_terminal, action: append_manifest}
       - {from: appending_structure_replay, on: ManifestRevisionAppended/ManifestRevisionReused, to: projecting_structure_replay, action: project_manifest}
       - {from: projecting_structure_replay, on: ManifestProjected/ManifestProjectionRepaired, to: appending_structure_intent, action: append_manifest}
 
@@ -408,8 +882,9 @@ flat_machine_contract:
       - {from: hashing_voice_candidate, on: WorkproductHashed, to: writing_voice_attempt, action: persist_attempt}
       - {from: writing_voice_attempt, on: AttemptWritten/AttemptReused, to: appending_voice_result, action: append_manifest}
       - {from: appending_voice_result, on: ManifestRevisionAppended/ManifestRevisionReused, to: projecting_voice_result, action: project_manifest}
-      - {from: projecting_voice_result, on: VoiceAccepted, to: appending_style_intent, action: append_manifest}
-      - {from: projecting_voice_result, on: RetryVoice, to: appending_voice_replay, action: append_manifest}
+      - {from: projecting_voice_result, on: StageAccepted, to: appending_style_intent, action: append_manifest}
+      - {from: projecting_voice_result, on: RetryAvailable, to: appending_voice_replay, action: append_manifest}
+      - {from: projecting_voice_result, on: ExhaustedKeepOriginal/ExhaustedFail, to: appending_nonpublication_terminal, action: append_manifest}
       - {from: appending_voice_replay, on: ManifestRevisionAppended/ManifestRevisionReused, to: projecting_voice_replay, action: project_manifest}
       - {from: projecting_voice_replay, on: ManifestProjected/ManifestProjectionRepaired, to: appending_voice_intent, action: append_manifest}
 
@@ -422,8 +897,9 @@ flat_machine_contract:
       - {from: hashing_style_candidate, on: WorkproductHashed, to: writing_style_attempt, action: persist_attempt}
       - {from: writing_style_attempt, on: AttemptWritten/AttemptReused, to: appending_style_result, action: append_manifest}
       - {from: appending_style_result, on: ManifestRevisionAppended/ManifestRevisionReused, to: projecting_style_result, action: project_manifest}
-      - {from: projecting_style_result, on: StyleAccepted, to: appending_critique_intent, action: append_manifest}
-      - {from: projecting_style_result, on: RetryStyle, to: appending_style_replay, action: append_manifest}
+      - {from: projecting_style_result, on: StageAccepted, to: appending_critique_intent, action: append_manifest}
+      - {from: projecting_style_result, on: RetryAvailable, to: appending_style_replay, action: append_manifest}
+      - {from: projecting_style_result, on: ExhaustedKeepOriginal/ExhaustedFail, to: appending_nonpublication_terminal, action: append_manifest}
       - {from: appending_style_replay, on: ManifestRevisionAppended/ManifestRevisionReused, to: projecting_style_replay, action: project_manifest}
       - {from: projecting_style_replay, on: ManifestProjected/ManifestProjectionRepaired, to: appending_style_intent, action: append_manifest}
 
@@ -437,9 +913,9 @@ flat_machine_contract:
       - {from: writing_critique_attempt, on: AttemptWritten/AttemptReused, to: appending_critique_result, action: append_manifest}
       - {from: appending_critique_result, on: ManifestRevisionAppended/ManifestRevisionReused, to: projecting_critique_result, action: project_manifest}
       - {from: projecting_critique_result, on: CritiqueAccepted/CriticWarnAccepted, to: materializing_final_chain, action: finalize_chain}
-      - {from: projecting_critique_result, on: CriticRejectedStructure/CriticWarnRejectedStructure, to: appending_structure_replay, action: append_manifest}
-      - {from: projecting_critique_result, on: CriticRejectedVoice/CriticWarnRejectedVoice, to: appending_voice_replay, action: append_manifest}
-      - {from: projecting_critique_result, on: CriticRejectedStyle/CriticWarnRejectedStyle, to: appending_style_replay, action: append_manifest}
+      - {from: projecting_critique_result, on: CriticRejectedStructure, to: appending_structure_replay, action: append_manifest}
+      - {from: projecting_critique_result, on: CriticRejectedVoice, to: appending_voice_replay, action: append_manifest}
+      - {from: projecting_critique_result, on: CriticRejectedStyle, to: appending_style_replay, action: append_manifest}
       - {from: projecting_critique_result, on: ExhaustedKeepOriginal, to: appending_nonpublication_terminal, action: append_manifest}
       - {from: projecting_critique_result, on: ExhaustedFail, to: appending_nonpublication_terminal, action: append_manifest}
 
@@ -497,7 +973,11 @@ flat_machine_contract:
         - FinalizationConflict
       rules:
         - Every domain capture, integrity, lineage, or finalization failure routes from its receiving state to appending_nonpublication_terminal with append_manifest.
-        - StructureEditRejected, VoiceEditRejected, and StyleEditRejected route through their stage result append/project states, then RetryStructure, RetryVoice, or RetryStyle when budget remains.
+        - StructureEditRejected, VoiceEditRejected, and StyleEditRejected route through their stage result append/project states, then the fixed StageAccepted, RetryAvailable, RetryExhausted, and keep-or-fail predicate chain.
+        - SourceResolutionInvalid, SourceFetchInvalid, SourceBlobInvalid, WorkproductReadResultInvalid, WorkproductHashInvalid, OriginalWriteResultInvalid, AttemptWriteResultInvalid, and FinalizationResultInvalid fail closed. Before publication they append and project the current failed or integrity-conflict record, then retry the same infrastructure action when permitted or terminate kept_original/failed. After publication intent they append and project publication_blocked.
+        - ManifestAppendResultInvalid, ManifestProjectionInvalid, ManifestConflict, and ToolFailed or CommandError from append/project retry the same persistence action with the same intended revision. If persistence remains unavailable, the machine suspends for operator repair and does not exit or claim any terminal status until the required append and projection succeed.
+        - StructureResponseInvalid, VoiceResponseInvalid, StyleResponseInvalid, and CriticResponseInvalid append and project an invalid stage result before infrastructure retry or exhaustion; they never become a child rejection, candidate, or verdict.
+        - PublicationCheckInvalid, PublicationBranchInvalid, PublicationStageInvalid, PublicationCommitInvalid, PublicationPushInvalid, PullRequestFindInvalid, PullRequestCreateInvalid, and PublicationVerificationInvalid recheck when the bounded action budget permits. If the operation could have produced a local or remote effect, exhaustion appends and projects publication_blocked rather than assuming absence or success.
         - CommandError, ToolFailed, ExecutionFailed, and BudgetExhausted route from every nonterminal receiving state to that stage's result append/project states before RetryCurrentAction, responsible-stage exhaustion, or terminal routing.
         - A retryable infrastructure failure re-enters the same action state with the same idempotency identity; it never allocates a new stage attempt.
         - ExhaustedKeepOriginal and ExhaustedFail route to appending_nonpublication_terminal. Neither route reaches finalization.
@@ -541,10 +1021,12 @@ requirements:
       - id: R1.1
         text: |
           The planned workflow-orchestrator MachineSpec SHALL use exactly the
-          states, terminal states, signal classes, and expanded flat transitions
-          in flat_machine_contract. It SHALL NOT hide a submachine, guard,
-          script, dynamic $tool choice, or imperative workflow router.
-        evidence: Planned structural validation expands every slash-list and failure rule and reports no missing, duplicate, unreachable, or terminal-origin transition.
+          states, terminal states, signal classes, saga transitions, and
+          factory-semantic expansions in flat_machine_contract. Expansion SHALL
+          materialize ordinary flat MachineSpec states and transitions with the
+          declared stable labels; it SHALL NOT hide a submachine, guard, script,
+          dynamic $tool choice, or imperative workflow router.
+        evidence: Planned structural validation expands every slash-list, boundary chain, manifest predicate chain, and failure rule and reports no missing, duplicate, unreachable, or terminal-origin transition.
       - id: R1.2
         text: |
           Every named action SHALL resolve through action_bindings to exactly one
@@ -621,21 +1103,31 @@ requirements:
       - id: R3.4
         text: |
           Because MachineSpec cannot branch on output fields, project_manifest
-          SHALL provide the deterministic bounded signal refinements listed in
-          flat_machine_contract. No runtime machine may be claimed until its
-          selected ToolDef emissions align with srd003.
-        evidence: Planned startup validation rejects the machine while any refined signal is absent from its mapped ToolDef.
+          SHALL emit only the generic exec signals and bounded structured
+          stdout. parse_manifest_projection SHALL schema-validate the projection.
+          The fixed one-scalar manifest predicate chains SHALL provide every
+          deterministic bounded route listed in flat_machine_contract. No
+          runtime machine may be claimed until every selected ToolDef emission
+          aligns with its actual agent-core factory.
+        evidence: Planned factory-semantic validation rejects a custom project_manifest signal, an omitted parse, a multi-comparison predicate, or a transition signal absent from its mapped ToolDef.
 
   R4:
     title: Domain, infrastructure, budgets, and idempotency
     items:
       - id: R4.1
         text: |
-          Named domain outcomes SHALL follow domain routes. CommandError,
-          ToolFailed, ExecutionFailed, cancellation, and uncertain completion
-          SHALL be infrastructure outcomes and SHALL NOT become editor
-          acceptance, critic verdict, finalization, or publication success.
-        evidence: Planned failure injection covers every emitted srd003 signal at every receiving state.
+          Workproduct and git/gh exec words SHALL emit only ToolDone, ToolFailed,
+          or CommandError. Child execute_task words SHALL emit only
+          ExecutionDone, ExecutionFailed, or CommandError. Lifecycle words SHALL
+          retain only their factory-supported signals. Named business outcomes
+          SHALL follow successful schema parsing and one-scalar predicate
+          chains. Every orchestrator exec SHALL run an explicitly JSON-emitting
+          fixed helper operation; exec structured mode SHALL only wrap its raw
+          stdout and exit code, and no parser SHALL consume raw git/gh/digest
+          text. Infrastructure, cancellation, and uncertain completion SHALL NOT
+          become editor acceptance, critic verdict, finalization, or publication
+          success.
+        evidence: Planned helper-argv, helper-JSON, exec-wrapper, parser-source, failure-injection, and factory-closure checks cover every receiving state.
       - id: R4.2
         text: |
           Stage, infrastructure-action, publication-action, machine iteration,
@@ -721,15 +1213,19 @@ requirements:
       - id: R7.1
         text: |
           This SRD SHALL specify behavior only. The profile, MachineSpec,
-          ToolDefs, helper, persistence wiring, services, tests, and publication
-          remain planned and without executable evidence.
+          ToolDefs, constrained JSON-emitting orchestrator helper, persistence
+          wiring, services, tests, and publication remain planned and without
+          executable evidence.
         evidence: Architecture, indexes, roadmap, and implementation_status agree.
       - id: R7.2
         text: |
           Planned validation SHALL parse YAML; prove requirement-to-AC coverage,
-          state and signal closure, action-to-word closure, terminal closure,
-          publication-cut reachability, retry parent selection, semantic routing,
-          bounded cycles, and authority closure; and run mage audit.
+          state and signal closure, action-to-word closure, exact factory
+          emissions, helper-binary/operation/argv authority, JSON producer to
+          exec-wrapper to parser-source closure, stable-label closure, terminal
+          closure, publication-cut reachability, retry parent selection,
+          semantic routing, bounded cycles, and authority closure; and run mage
+          audit.
         evidence: The future test suite names each check and reports no new warnings.
 
 non_goals:
@@ -768,9 +1264,11 @@ acceptance_criteria:
     traces: [R3.1, R3.2, R3.3, R3.4]
   - id: AC5
     criterion: |
-      Domain and infrastructure outcomes remain distinct; bounded counters
-      terminate every cycle; remote calls and stage runs are idempotent; and
-      infrastructure retry never consumes or fabricates a domain attempt.
+      Domain and infrastructure outcomes remain distinct; every parsed exec
+      result originates in fixed helper-produced JSON rather than transformed
+      CLI text; bounded counters terminate every cycle; remote calls and stage
+      runs are idempotent; and infrastructure retry never consumes or
+      fabricates a domain attempt.
     traces: [R4.1, R4.2, R4.3, R4.4]
   - id: AC6
     criterion: |
@@ -787,8 +1285,9 @@ acceptance_criteria:
   - id: AC8
     criterion: |
       All runtime surfaces remain planned, and YAML, requirement traces,
-      state/signal/transition closure, tool-word closure, publication
-      reachability, authority closure, diff, and mage audit are validation gates.
+      state/signal/transition closure, tool-word closure, fixed-helper JSON
+      producer/parser-source closure, publication reachability, authority
+      closure, diff, and mage audit are validation gates.
     traces: [R7.1, R7.2]
 
 shared_requirement_traces:
@@ -851,6 +1350,7 @@ implementation_status:
   profile: not_implemented
   machine: not_implemented
   tool_declarations: not_implemented
+  orchestrator_json_helper: not_implemented
   deterministic_signal_refinement: not_implemented
   persistence_wiring: not_implemented
   services: not_implemented
