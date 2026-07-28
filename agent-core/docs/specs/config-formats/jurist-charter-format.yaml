@@ -38,6 +38,13 @@ ref_execution: |
   reduce_ref_checks for membership, allow_missing, provenance, and ordering.
   pkg/spec does not recursively scan target or inventory files for ref_check.
 
+consistency_execution: |
+  load_corpus lowers each consistency_check to an external file-scan plan. The
+  MachineSpec runs jurist_consistency_scan to enumerate paths and load YAML
+  bytes, then reduce_consistency_checks evaluates YAML paths, rules, and line
+  provenance against that evidence. Required-path checks use the externally
+  supplied inventory; pkg/spec does not open, stat, or walk target files.
+
 suite_selection: |
   The spec-validation builtin tools load charter suites from ToolDef config or
   runtime variables. ToolDef config accepts suite_paths, charter_suites, and

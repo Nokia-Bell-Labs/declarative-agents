@@ -184,36 +184,50 @@ func executeRefFixtures(t *testing.T, root string, charters []Charter) ([]Findin
 	var findings []Finding
 	planIndex := 0
 	for _, charter := range charters {
-		charterRootPath, rootRel := charterRoot(root, charter.Target.Root)
-		baseFiles, err := charterFiles(charterRootPath, rootRel, charter.Target.Include, charter.Target.Exclude)
-		if err != nil {
-			return nil, err
-		}
 		for _, check := range charter.Checks {
 			if check.Kind != "ref_check" {
 				continue
 			}
 			plan := plans[planIndex]
 			planIndex++
-			files, err := narrowCharterFiles(charterRootPath, rootRel, baseFiles, check.Include, check.Exclude)
-			if err != nil {
-				return nil, err
-			}
 			extractor, err := refExtractor(check)
 			if err != nil {
 				return nil, err
 			}
 			var target strings.Builder
-			for _, file := range files {
-				data, err := os.ReadFile(file.abs)
+			scanRoot := plan.Path
+			if !filepath.IsAbs(scanRoot) {
+				scanRoot = filepath.Join(root, scanRoot)
+			}
+			include, exclude := charter.Target.Include, charter.Target.Exclude
+			if len(check.Include) > 0 || len(check.Exclude) > 0 {
+				include, exclude = check.Include, check.Exclude
+			}
+			err = filepath.WalkDir(scanRoot, func(path string, entry os.DirEntry, err error) error {
+				if err != nil || entry.IsDir() {
+					return err
+				}
+				rel, err := filepath.Rel(scanRoot, path)
 				if err != nil {
-					return nil, err
+					return err
+				}
+				rel = filepath.ToSlash(rel)
+				if !includedByGlob(rel, include) || excludedByGlob(rel, exclude) {
+					return nil
+				}
+				data, err := os.ReadFile(path)
+				if err != nil {
+					return err
 				}
 				for index, line := range strings.Split(string(data), "\n") {
 					if len(extractor.extract(line)) > 0 {
-						target.WriteString(rgMatchFixture(file.display, index+1, line+"\n"))
+						target.WriteString(rgMatchFixture(displayCharterPath(plan.DisplayRoot, rel), index+1, line+"\n"))
 					}
 				}
+				return nil
+			})
+			if err != nil {
+				return nil, err
 			}
 			fileInventory := ""
 			if plan.ReferenceFile != "" {

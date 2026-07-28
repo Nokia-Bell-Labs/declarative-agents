@@ -4,100 +4,10 @@ package spec
 
 import (
 	"fmt"
-	"os"
-	"path/filepath"
-	"sort"
 	"strings"
 
 	"gopkg.in/yaml.v3"
 )
-
-// ExecuteConsistencyChecks runs consistency_check charter checks over targetDir.
-func ExecuteConsistencyChecks(targetDir string, charters []Charter) ([]Finding, error) {
-	var findings []Finding
-	for _, charter := range charters {
-		root, rootRel := charterRoot(targetDir, charter.Target.Root)
-		files, err := charterFiles(root, rootRel, charter.Target.Include, charter.Target.Exclude)
-		if err != nil {
-			return nil, fmt.Errorf("charter %q: %w", charter.ID, err)
-		}
-		for _, check := range charter.Checks {
-			if check.Kind != "consistency_check" {
-				continue
-			}
-			checkFindings, err := executeConsistencyCheck(targetDir, charter, check, root, rootRel, files)
-			if err != nil {
-				return nil, err
-			}
-			findings = append(findings, checkFindings...)
-		}
-	}
-	sort.Slice(findings, func(i, j int) bool {
-		return findingLess(findings[i], findings[j])
-	})
-	return findings, nil
-}
-
-func executeConsistencyCheck(targetDir string, charter Charter, check CharterCheck, root, rootRel string, baseFiles []charterFile) ([]Finding, error) {
-	files, err := consistencySourceFiles(root, rootRel, baseFiles, check)
-	if err != nil {
-		return nil, fmt.Errorf("charter %q check %q: %w", charter.ID, check.ID, err)
-	}
-	var findings []Finding
-	for _, file := range files {
-		doc, err := readYAMLDocument(file.abs)
-		if err != nil {
-			return nil, fmt.Errorf("charter %q check %q: %w", charter.ID, check.ID, err)
-		}
-		sourceValues, err := yamlPathValues(doc, sourceYAMLPath(check))
-		if err != nil {
-			return nil, fmt.Errorf("charter %q check %q: %w", charter.ID, check.ID, err)
-		}
-		switch check.Rule {
-		case "equals":
-			ruleFindings, err := consistencyEqualsFindings(charter, check, file, doc, sourceValues)
-			if err != nil {
-				return nil, err
-			}
-			findings = append(findings, ruleFindings...)
-		case "required_path_exists":
-			findings = append(findings, consistencyPathFindings(targetDir, root, charter, check, file, sourceValues)...)
-		case "required_when":
-			ruleFindings, err := consistencyRequiredWhenFindings(targetDir, root, charter, check, file, doc, sourceValues)
-			if err != nil {
-				return nil, err
-			}
-			findings = append(findings, ruleFindings...)
-		default:
-			return nil, fmt.Errorf("charter %q check %q: unknown consistency_check rule %q", charter.ID, check.ID, check.Rule)
-		}
-	}
-	return findings, nil
-}
-
-func consistencySourceFiles(root, rootRel string, baseFiles []charterFile, check CharterCheck) ([]charterFile, error) {
-	if file, ok := stringMapValue(check.Source, "file"); ok && file != "" {
-		abs := resolveCharterPath("", root, file)
-		rel := filepath.ToSlash(file)
-		return []charterFile{{abs: abs, rel: rel, display: displayCharterPath(rootRel, rel)}}, nil
-	}
-	return narrowCharterFiles(root, rootRel, baseFiles, check.Include, check.Exclude)
-}
-
-func readYAMLDocument(path string) (*yaml.Node, error) {
-	data, err := os.ReadFile(path)
-	if err != nil {
-		return nil, fmt.Errorf("read YAML file %s: %w", path, err)
-	}
-	var node yaml.Node
-	if err := yaml.Unmarshal(data, &node); err != nil {
-		return nil, fmt.Errorf("parse YAML file %s: %w", path, err)
-	}
-	if len(node.Content) == 0 {
-		return &node, nil
-	}
-	return node.Content[0], nil
-}
 
 type yamlSelectedValue struct {
 	value string
@@ -337,60 +247,12 @@ func consistencyEqualsFindings(charter Charter, check CharterCheck, file charter
 	return findings, nil
 }
 
-func consistencyPathFindings(targetDir, root string, charter Charter, check CharterCheck, file charterFile, sourceValues []yamlSelectedValue) []Finding {
-	var findings []Finding
-	for _, source := range sourceValues {
-		path := consistencyPathValue(check, source.value)
-		if _, err := os.Stat(resolveConsistencyPath(targetDir, root, check, path)); err == nil {
-			continue
-		}
-		findings = append(findings, consistencyFinding(charter, check, file.display, source.line,
-			fmt.Sprintf("required path %q does not exist", path)))
-	}
-	return findings
-}
-
-func consistencyRequiredWhenFindings(targetDir, root string, charter Charter, check CharterCheck, file charterFile, doc *yaml.Node, sourceValues []yamlSelectedValue) ([]Finding, error) {
-	for _, source := range sourceValues {
-		if !truthyYAMLValue(source.value) {
-			return nil, nil
-		}
-	}
-	if path, ok := stringMapValue(check.Target, "yaml_path"); ok && path != "" {
-		values, err := yamlPathValues(doc, path)
-		if err != nil {
-			return nil, fmt.Errorf("charter %q check %q: %w", charter.ID, check.ID, err)
-		}
-		if len(values) > 0 && truthyYAMLValue(values[0].value) {
-			return nil, nil
-		}
-		return []Finding{consistencyFinding(charter, check, file.display, firstLine(sourceValues), fmt.Sprintf("required target %q is missing", path))}, nil
-	}
-	if path, ok := stringMapValue(check.Target, "path"); ok && path != "" {
-		if _, err := os.Stat(resolveConsistencyPath(targetDir, root, check, path)); err == nil {
-			return nil, nil
-		}
-		return []Finding{consistencyFinding(charter, check, file.display, firstLine(sourceValues), fmt.Sprintf("required path %q does not exist", path))}, nil
-	}
-	return nil, fmt.Errorf("charter %q check %q: required_when requires target.yaml_path or target.path", charter.ID, check.ID)
-}
-
 func consistencyPathValue(check CharterCheck, value string) string {
 	template, ok := stringMapValue(check.Target, "path_template")
 	if !ok || template == "" {
 		return value
 	}
 	return strings.ReplaceAll(template, "{}", value)
-}
-
-func resolveConsistencyPath(targetDir, root string, check CharterCheck, path string) string {
-	if filepath.IsAbs(path) {
-		return filepath.Clean(path)
-	}
-	if base, ok := stringMapValue(check.Target, "root"); ok && base != "" {
-		return resolveCharterPath(targetDir, root, filepath.Join(base, path))
-	}
-	return resolveCharterPath(targetDir, root, path)
 }
 
 func truthyYAMLValue(value string) bool {

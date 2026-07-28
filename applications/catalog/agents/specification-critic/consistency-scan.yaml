@@ -1,0 +1,45 @@
+tools:
+  - name: jurist_consistency_scan
+    type: exec
+    binary: bash
+    args:
+      - -c
+      - |
+        set -eu
+        root=${1%/}
+        find -P "$root" -type f -print0 |
+          LC_ALL=C sort -z |
+          while IFS= read -r -d '' file; do
+            rel=${file#"$root"/}
+            encoded=$(base64 < "$file" | tr -d '\n')
+            printf '%s\t%s\n' "$rel" "$encoded"
+          done
+      - jurist-consistency-scan
+    visibility: internal
+    emits: [ToolDone, ToolFailed, CommandError]
+    description: Externally enumerate and load files for one consistency_check.
+    category: boundary
+    parameters:
+      type: object
+      properties:
+        path:
+          {type: string, positional: true, position: 1, source: $from(consistency_check).path}
+      required: [path]
+    output:
+      description: Sorted relative paths and base64 file contents.
+      mode: structured
+      schema:
+        type: object
+        properties:
+          output: {type: string}
+          exit_code: {type: integer}
+        required: [output, exit_code]
+    output_cap: 4194304
+    side_effects:
+      - {kind: child_process, target: bash/find/base64, state: read_only}
+    reversibility: {classification: reversible, undo: noop}
+    undo: {strategy: noop, description: Scanning changes nothing.}
+    errors:
+      - signal: CommandError
+        condition: bash, find, sort, or base64 cannot execute the scan.
+        state_after_failure: No validation state changes.
