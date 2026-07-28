@@ -127,6 +127,26 @@ factory_reuse:
         {"output":"<helper-json>","exit_code":0}. parse_structured selects only
         $from(<raw-label>).output. Therefore every parsed JSON string originates
         in the helper, not in exec output shaping or raw git/gh/digest stdout.
+    planned_style_editor_helper:
+      status: not_implemented
+      kind: constrained_non_shell_executable
+      fixed_operations:
+        - identify-tightening-intents
+        - assess-tightening-pairs
+        - inspect-style-constraints
+      invocation_contract: |
+        Each style-editor exec ToolDef fixes the helper binary and exactly one
+        operation token in declaration-owned arguments. It receives one bounded
+        JSON document through a fixed stdin_source and has no runtime binary,
+        operation, path, environment, endpoint, model, corpus, credential,
+        command, or arbitrary argv parameter.
+      output_contract: |
+        Each operation emits one bounded JSON object on zero exit. Exec
+        structured mode wraps that object as an output string plus exit_code.
+        A distinct parse_structured word selects only the nested output string
+        and validates a closed schema before any one-scalar predicate routes
+        the report. Helper or process failure exits nonzero and never becomes a
+        domain result.
 
 authority_invariants:
   - Only workflow-orchestrator selects workproduct and git/gh words.
@@ -314,11 +334,11 @@ word_vocabulary:
     - name: invoke_style_editor
       owner: workflow-orchestrator
       implementation: {type: builtin, factory: execute_task, reuse: Profile-only child-agent invocation for style-editor.}
-      inputs: [selected voice bytes and artifact ID, saga/stage/attempt identity, bounded tightening policy, invocation id and idempotency key]
-      outputs: [candidate bytes, parent identity, content hash, transformation-pair provenance, producer identity]
+      inputs: [selected accepted voice bytes, artifact ID, content hash and acceptance identity, saga/stage/attempt identity, ordered passage map, protected-content inventory, bounded tightening and retrieval policy, zeroed retrieval refinement count, initial edit attempt count, invocation id and idempotency key]
+      outputs: [candidate or unchanged parent bytes, parent identity, content hash, outcome, explicit tightening intents, attempted and selected transformation-pair provenance, changed-span ledger, constraint report, stage metadata, producer identity]
       emits: [ExecutionDone, ExecutionFailed, CommandError]
       infrastructure_errors: [profile missing, process start failure, timeout, malformed transport response]
-      domain_errors: [child reports invalid input or cannot produce a bounded edit]
+      domain_errors: [child reports invalid input, no applicable intent, insufficient pairs, exhausted preservation retry, or another failed outcome]
       side_effects: [child_agent_execution]
       reversibility: {classification: irreversible, undo: record_observation}
       compensation: Preserve the selected voice parent and retry under recorded policy.
@@ -1282,44 +1302,356 @@ word_vocabulary:
       authority: Formats schema-validated state with one fixed template and outcome; it cannot edit content or create any authority-bearing value.
 
 
+    - name: validate_style_request
+      owner: style-editor
+      implementation: {type: builtin, factory: parse_structured, reuse: Validate the style-editor request envelope, accepted voice parent, and bounded policy.}
+      inputs: [structured request containing supplied accepted voice bytes and artifact ID, parent hash and acceptance identity, ordered passage map, protected-content inventory, bounded tightening and retrieval policy, zeroed retrieval refinement count, initial edit attempt count, saga and invocation identity]
+      outputs: [schema-valid accepted voice parent, identities, ordered passage map, protected inventory, bounded policy, and counters]
+      emits: [StyleRequestValid, StyleRequestRejected, CommandError]
+      infrastructure_errors: [missing schema, selector failure, validator failure]
+      domain_errors: [missing or empty parent, parent is not accepted voice, wrong stage, malformed identity, invalid passage map or inventory, path or authority-bearing field present]
+      side_effects: [none]
+      reversibility: {classification: reversible, undo: noop}
+      compensation: No state exists to compensate.
+      authority: Parses supplied bytes and bounded values only; it cannot derive intent, read a path, revise voice, widen policy, or add authority.
+
+    - name: compose_style_intent_input
+      owner: style-editor
+      implementation: {type: builtin, factory: compose, reuse: Fixed intent-helper JSON input template and configured signal.}
+      inputs: [accepted voice parent, ordered passage map, protected inventory, and bounded intent taxonomy from $from(validated_style_request)]
+      outputs: [JSON envelope whose stdin field is one bounded JSON string containing only intent-helper input fields]
+      emits: [StyleIntentInputReady]
+      infrastructure_errors: [none emitted by compose; trusted selector defects are recorded on the Result while the configured signal remains StyleIntentInputReady]
+      domain_errors: [none]
+      side_effects: [none]
+      reversibility: {classification: reversible, undo: noop}
+      compensation: Deterministic composition only.
+      authority: Renders one fixed JSON template and cannot identify an intent, edit content, or choose a route.
+
+    - name: identify_style_intents
+      owner: style-editor
+      implementation: {type: exec, factory: exec, reuse: Fixed identify-tightening-intents operation of the planned non-shell style-editor helper.}
+      inputs: [bounded JSON string selected by fixed stdin_source $from(style_intent_input).stdin and rejected before launch above fixed stdin_max_bytes]
+      outputs: [structured exec object whose output string contains a bounded report with intent_status, ordered passage and span targets, explicit intent enums, protected-span exclusions, and source hashes]
+      emits: [ToolDone, ToolFailed, CommandError]
+      infrastructure_errors: [CommandError for unresolved, non-string, empty, or oversized stdin, process start, cancellation, timeout, or structured-output encoding failure; ToolFailed for a launched nonzero exit]
+      domain_errors: [none; no applicable tightening is a zero-exit report with intent_status none]
+      side_effects: [child_process]
+      reversibility: {classification: reversible, undo: noop}
+      compensation: Read-only deterministic observation; discard stdout unless ToolDone.
+      authority: Executes one fixed helper binary and identify-tightening-intents operation with bounded JSON stdin and no shell or runtime authority selection.
+
+    - name: parse_style_intent_report
+      owner: style-editor
+      implementation: {type: builtin, factory: parse_structured, reuse: Parse identify_style_intents stdout against the configured closed intent-report schema.}
+      inputs: [exact ToolDone stdout string selected by $from(style_intent_report_raw).output]
+      outputs: [schema-valid intent_status, ordered target passages and spans, one explicit intent enum per target, exclusions, and source hashes]
+      emits: [StyleIntentReportParsed, StyleIntentReportInvalid, CommandError]
+      infrastructure_errors: [source selector does not resolve or normalized output encoding fails]
+      domain_errors: [malformed, oversized, incomplete, or schema-invalid helper stdout]
+      side_effects: [none]
+      reversibility: {classification: reversible, undo: noop}
+      compensation: Reject an invalid report and retain the accepted voice parent.
+      authority: Validates helper output only; it cannot derive, repair, aggregate, or route an intent.
+
+    - name: style_intents_present
+      owner: style-editor
+      implementation: {type: builtin, factory: value_predicate, reuse: Compare parsed intent_status with configured literal present.}
+      inputs: [left $from(style_intent_report).intent_status, operator eq, right literal present, operand type string]
+      outputs: [one comparison record]
+      emits: [StyleIntentsPresent, StyleIntentsAbsent, CommandError]
+      infrastructure_errors: [selector or coercion failure]
+      domain_errors: [none; schema-closed none is StyleIntentsAbsent]
+      side_effects: [none]
+      reversibility: {classification: reversible, undo: noop}
+      compensation: Scalar comparison only.
+      authority: Performs exactly one configured scalar comparison.
+
+    - name: formulate_tightening_query
+      owner: style-editor
+      implementation: {type: builtin, factory: compose, reuse: Fixed per-intent tightening-pair query template and configured signal.}
+      inputs: [validated target descriptors from $from(style_intent_report), bounded policy from $from(validated_style_request), or helper-computed refined descriptors and next count from $from(style_pair_report)]
+      outputs: [bounded ordered query set keyed by target and explicit intent, stable query identities, and supplied refinement count]
+      emits: [TighteningQueryFormulated]
+      infrastructure_errors: [none emitted by compose; trusted selector defects are recorded on the Result while the configured signal remains TighteningQueryFormulated]
+      domain_errors: [none]
+      side_effects: [none]
+      reversibility: {classification: reversible, undo: noop}
+      compensation: Deterministic composition only.
+      authority: Renders one fixed query template; it does not invent intents, increment a counter, or select retrieval authority.
+
     - name: embed_tightening_query
       owner: style-editor
       implementation: {type: builtin, factory: rest_client_invoke, reuse: Configured Ollama embedding operation.}
-      inputs: [bounded tightening-intent query from request and deterministic prompt composition]
-      outputs: [embedding vector, embedding model identity, carried query identity]
+      inputs: [bounded ordered target-and-intent query set from formulate_tightening_query]
+      outputs: [ordered embedding vectors, embedding model identity, carried query identities]
       emits: [TighteningQueryEmbedded, TighteningQueryRejected, CommandError]
       infrastructure_errors: [REST config, network, timeout, authentication, schema, or mapping failure]
       domain_errors: [provider rejects bounded input]
       side_effects: [external_api]
       reversibility: {classification: irreversible, undo: record_observation}
       compensation: No remote inference can be undone; discard output on failure.
-      authority: Endpoint and model are profile-configured; vector comes only from provider output.
+      authority: Endpoint and model are profile-configured; vectors come only from provider output.
 
     - name: query_tightening_rag
       owner: style-editor
       implementation: {type: builtin, factory: rest_client_invoke, reuse: Vector-in query operation bound to tightening-rag.}
-      inputs: [vector from embed_tightening_query, configured result limit, trace and content-hash identity]
-      outputs: [ranked transformation pairs, distances, metadata, embedding model identity]
+      inputs: [ordered vectors from embed_tightening_query, configured per-intent result limit, trace and parent-hash identity]
+      outputs: [ranked before and after transformation pairs grouped by target and intent, distances, rule and source metadata, embedding model identity]
       emits: [TighteningEvidenceReady, TighteningEvidenceInsufficient, QueryRejected, CommandError]
       infrastructure_errors: [REST config, network, timeout, response schema, or mapping failure]
       domain_errors: [embedding mismatch, query rejected, insufficient evidence]
       side_effects: [external_api]
       reversibility: {classification: reversible, undo: noop}
       compensation: Read-only.
-      authority: Calls only configured tightening-rag; vector is selected from embed_tightening_query.
+      authority: Calls only configured tightening-rag; vectors are selected from embed_tightening_query.
+
+    - name: compose_style_pair_input
+      owner: style-editor
+      implementation: {type: builtin, factory: compose, reuse: Fixed pair-assessment-helper JSON input template and configured signal.}
+      inputs: [grouped ranked retrieval from $from(tightening_retrieval), targets from $from(style_intent_report), query identity and count from $from(tightening_query_set), and configured sufficiency policy]
+      outputs: [JSON envelope whose stdin field is one bounded JSON string containing only pair-assessment input fields]
+      emits: [StylePairInputReady]
+      infrastructure_errors: [none emitted by compose; trusted selector defects are recorded on the Result while the configured signal remains StylePairInputReady]
+      domain_errors: [none]
+      side_effects: [none]
+      reversibility: {classification: reversible, undo: noop}
+      compensation: Deterministic composition only.
+      authority: Renders one fixed JSON template and cannot select pairs or change an intent.
+
+    - name: assess_style_pairs
+      owner: style-editor
+      implementation: {type: exec, factory: exec, reuse: Fixed assess-tightening-pairs operation of the planned non-shell style-editor helper.}
+      inputs: [bounded JSON string selected by fixed stdin_source $from(style_pair_input).stdin and rejected before launch above fixed stdin_max_bytes]
+      outputs: [structured exec object whose output string contains pair_status, selected pair map, complete pair provenance, findings, current and next refinement counts, and helper-computed refined descriptors when eligible]
+      emits: [ToolDone, ToolFailed, CommandError]
+      infrastructure_errors: [CommandError for unresolved, non-string, empty, or oversized stdin, process start, cancellation, timeout, or structured-output encoding failure; ToolFailed for a launched nonzero exit]
+      domain_errors: [none; deficient evidence is a zero-exit report with pair_status deficient]
+      side_effects: [child_process]
+      reversibility: {classification: reversible, undo: noop}
+      compensation: Read-only deterministic observation; discard stdout unless ToolDone.
+      authority: Executes one fixed helper binary and assess-tightening-pairs operation with bounded JSON stdin and no shell or runtime authority selection.
+
+    - name: parse_style_pair_report
+      owner: style-editor
+      implementation: {type: builtin, factory: parse_structured, reuse: Parse assess_style_pairs stdout against the configured closed pair-report schema.}
+      inputs: [exact ToolDone stdout string selected by $from(style_pair_report_raw).output]
+      outputs: [schema-valid pair_status, selected pair map, provenance, findings, counts, and bounded refined descriptors]
+      emits: [StylePairReportParsed, StylePairReportInvalid, CommandError]
+      infrastructure_errors: [source selector does not resolve or normalized output encoding fails]
+      domain_errors: [malformed, oversized, incomplete, or schema-invalid helper stdout]
+      side_effects: [none]
+      reversibility: {classification: reversible, undo: noop}
+      compensation: Reject an invalid report and retain the accepted voice parent.
+      authority: Validates helper output only; it cannot select, repair, aggregate, or route pairs.
+
+    - name: style_pairs_complete
+      owner: style-editor
+      implementation: {type: builtin, factory: value_predicate, reuse: Compare parsed pair_status with configured literal complete.}
+      inputs: [left $from(style_pair_report).pair_status, operator eq, right literal complete, operand type string]
+      outputs: [one comparison record]
+      emits: [StylePairsComplete, StylePairsDeficient, CommandError]
+      infrastructure_errors: [selector or coercion failure]
+      domain_errors: [none; schema-closed deficient is StylePairsDeficient]
+      side_effects: [none]
+      reversibility: {classification: reversible, undo: noop}
+      compensation: Scalar comparison only.
+      authority: Performs exactly one configured scalar comparison.
+
+    - name: style_pair_refinement_available
+      owner: style-editor
+      implementation: {type: builtin, factory: value_predicate, reuse: Compare parsed refinement count with configured hard limit one.}
+      inputs: [left $from(style_pair_report).refinement_count, operator lt, right literal one, operand type number]
+      outputs: [one comparison record]
+      emits: [StylePairRefinementAllowed, StylePairsInsufficient, CommandError]
+      infrastructure_errors: [selector or number coercion failure]
+      domain_errors: [none; exhausted count is StylePairsInsufficient]
+      side_effects: [none]
+      reversibility: {classification: reversible, undo: noop}
+      compensation: Scalar comparison only.
+      authority: Performs exactly one configured scalar comparison.
+
+    - name: compose_style_initial_edit_context
+      owner: style-editor
+      implementation: {type: builtin, factory: compose, reuse: Fixed initial targeted-edit context and configured signal.}
+      inputs: [accepted voice parent and protected inventory from $from(validated_style_request), explicit targets from $from(style_intent_report), selected pair map and provenance from $from(style_pair_report), and initial edit count one]
+      outputs: [bounded targeted-edit context with fixed labels and count one]
+      emits: [StyleInitialEditContextReady]
+      infrastructure_errors: [none emitted by compose; trusted selector defects are recorded on the Result while the configured signal remains StyleInitialEditContextReady]
+      domain_errors: [none]
+      side_effects: [none]
+      reversibility: {classification: reversible, undo: noop}
+      compensation: Deterministic composition only.
+      authority: Renders one fixed context and cannot add targets, pairs, or authority.
+
+    - name: compose_style_retry_context
+      owner: style-editor
+      implementation: {type: builtin, factory: compose, reuse: Fixed preservation-retry context and configured signal.}
+      inputs: [same accepted parent, targets, selected pairs, provenance, and policy from fixed labels; parsed next edit count and bounded retry note from $from(style_constraint_report)]
+      outputs: [bounded retry context with fixed labels and parsed next count]
+      emits: [StyleRetryContextReady]
+      infrastructure_errors: [none emitted by compose; trusted selector defects are recorded on the Result while the configured signal remains StyleRetryContextReady]
+      domain_errors: [none]
+      side_effects: [none]
+      reversibility: {classification: reversible, undo: noop}
+      compensation: Deterministic composition only.
+      authority: Renders one fixed retry context and cannot alter targets, pairs, constraints, or counters.
 
     - name: generate_style_edit
       owner: style-editor
       implementation: {type: builtin, factory: invoke_llm, reuse: Profile-owned Ollama LLM declaration.}
-      inputs: [supplied parent bytes and ID, bounded tightening policy, mapped transformation pairs and provenance]
-      outputs: [candidate bytes, parent ID, pair references, declared provenance]
-      emits: [StyleEditGenerated, StyleEditDeclined, CommandError]
+      inputs: [exact bounded context from the immediately preceding initial or retry compose word]
+      outputs: [candidate bytes, parent ID, ordered changed-span ledger mapping every change to one stated intent and retrieved pair reference, declared provenance]
+      emits: [StyleEditGenerated, StyleEditNoOp, StyleEditDeclined, CommandError]
       infrastructure_errors: [provider config, model discovery, timeout, or chat failure]
-      domain_errors: [schema, grounding, or bounded-edit constraints fail]
+      domain_errors: [schema or grounding invalid, no supported targeted tightening, bounded-edit constraints fail]
       side_effects: [external_api, state_mutation]
       reversibility: {classification: reversible, undo: conversation_truncate}
       compensation: Truncate conversation state; remote inference remains an observation.
-      authority: May author document content and evidence IDs only; cannot author authority-bearing values or acceptance.
+      authority: May edit only stated target spans using mapped pairs and return evidence IDs; it cannot change untargeted content, protected content, voice, meaning, claim strength, or authority, and cannot accept its output.
+
+    - name: compose_style_constraint_input
+      owner: style-editor
+      implementation: {type: builtin, factory: compose, reuse: Fixed preservation-helper JSON input template and configured signal.}
+      inputs: [accepted parent and protected inventory from $from(validated_style_request), targets from $from(style_intent_report), pair map from $from(style_pair_report), and candidate, ledger, and current count from $from(style_candidate)]
+      outputs: [JSON envelope whose stdin field is one bounded JSON string containing only preservation-helper input fields]
+      emits: [StyleConstraintInputReady]
+      infrastructure_errors: [none emitted by compose; trusted selector defects are recorded on the Result while the configured signal remains StyleConstraintInputReady]
+      domain_errors: [none]
+      side_effects: [none]
+      reversibility: {classification: reversible, undo: noop}
+      compensation: Deterministic composition only.
+      authority: Renders one fixed JSON template and cannot inspect, repair, or accept a candidate.
+
+    - name: inspect_style_constraints
+      owner: style-editor
+      implementation: {type: exec, factory: exec, reuse: Fixed inspect-style-constraints operation of the planned non-shell style-editor helper.}
+      inputs: [bounded JSON string selected by fixed stdin_source $from(style_constraint_input).stdin and rejected before launch above fixed stdin_max_bytes]
+      outputs: [structured exec object whose output string contains candidate_status, preservation_status, intent-scope, pair-use, voice, meaning, claim-strength, qualification, citation, number, terminology, quotation, normative-language, protected-span, and unsupported-addition findings plus current and next edit counts and bounded retry note]
+      emits: [ToolDone, ToolFailed, CommandError]
+      infrastructure_errors: [CommandError for unresolved, non-string, empty, or oversized stdin, process start, cancellation, timeout, or structured-output encoding failure; ToolFailed for a launched nonzero exit]
+      domain_errors: [none; a violated invariant is a zero-exit report with preservation_status invalid]
+      side_effects: [child_process]
+      reversibility: {classification: reversible, undo: noop}
+      compensation: Read-only deterministic observation; reject candidate bytes unless parsed scalar predicates pass.
+      authority: Executes one fixed helper binary and inspect-style-constraints operation with bounded JSON stdin and no shell or runtime authority selection.
+
+    - name: parse_style_constraint_report
+      owner: style-editor
+      implementation: {type: builtin, factory: parse_structured, reuse: Parse inspect_style_constraints stdout against the configured closed preservation-report schema.}
+      inputs: [exact ToolDone stdout string selected by $from(style_constraint_report_raw).output]
+      outputs: [schema-valid candidate_status, preservation_status, categorized findings, pair-use ledger checks, counts, and bounded retry note]
+      emits: [StyleConstraintReportParsed, StyleConstraintReportInvalid, CommandError]
+      infrastructure_errors: [source selector does not resolve or normalized output encoding fails]
+      domain_errors: [malformed, oversized, incomplete, or schema-invalid helper stdout]
+      side_effects: [none]
+      reversibility: {classification: reversible, undo: noop}
+      compensation: Reject an invalid report and retain the accepted voice parent.
+      authority: Validates helper output only; it cannot compute findings, repair a candidate, or route more than parsed or invalid.
+
+    - name: style_candidate_is_no_op
+      owner: style-editor
+      implementation: {type: builtin, factory: value_predicate, reuse: Compare parsed candidate_status with configured literal no_op.}
+      inputs: [left $from(style_constraint_report).candidate_status, operator eq, right literal no_op, operand type string]
+      outputs: [one comparison record]
+      emits: [StyleConstraintsNoOp, StyleCandidateChanged, CommandError]
+      infrastructure_errors: [selector or coercion failure]
+      domain_errors: [none; schema-closed changed is StyleCandidateChanged]
+      side_effects: [none]
+      reversibility: {classification: reversible, undo: noop}
+      compensation: Scalar comparison only.
+      authority: Performs exactly one configured scalar comparison.
+
+    - name: style_constraints_hold
+      owner: style-editor
+      implementation: {type: builtin, factory: value_predicate, reuse: Compare parsed preservation_status with configured literal valid.}
+      inputs: [left $from(style_constraint_report).preservation_status, operator eq, right literal valid, operand type string]
+      outputs: [one comparison record]
+      emits: [StyleConstraintsValid, StyleConstraintsViolated, CommandError]
+      infrastructure_errors: [selector or coercion failure]
+      domain_errors: [none; schema-closed invalid is StyleConstraintsViolated]
+      side_effects: [none]
+      reversibility: {classification: reversible, undo: noop}
+      compensation: Scalar comparison only.
+      authority: Performs exactly one configured scalar comparison.
+
+    - name: style_retry_available
+      owner: style-editor
+      implementation: {type: builtin, factory: value_predicate, reuse: Compare parsed edit attempt count with configured hard limit three.}
+      inputs: [left $from(style_constraint_report).edit_attempt_count, operator lt, right literal three, operand type number]
+      outputs: [one comparison record]
+      emits: [StyleRetryAllowed, StyleConstraintsFailed, CommandError]
+      infrastructure_errors: [selector or number coercion failure]
+      domain_errors: [none; exhausted count is StyleConstraintsFailed]
+      side_effects: [none]
+      reversibility: {classification: reversible, undo: noop}
+      compensation: Scalar comparison only.
+      authority: Performs exactly one configured scalar comparison.
+
+    - name: compose_style_success_response
+      owner: style-editor
+      implementation: {type: builtin, factory: compose, reuse: Fixed succeeded response template and configured signal.}
+      inputs: [validated candidate, accepted parent identity, explicit intents, attempted and selected pair provenance, changed-span ledger, constraint report, and stage metadata]
+      outputs: [succeeded response with candidate content and complete pair provenance]
+      emits: [StyleResponseSucceeded]
+      infrastructure_errors: [none emitted by compose; trusted selector defects are recorded on the Result while the configured signal remains StyleResponseSucceeded]
+      domain_errors: [none]
+      side_effects: [none]
+      reversibility: {classification: reversible, undo: noop}
+      compensation: No external state exists to compensate.
+      authority: Formats one fixed outcome and cannot edit content or accept an artifact.
+
+    - name: compose_style_no_intent_response
+      owner: style-editor
+      implementation: {type: builtin, factory: compose, reuse: Fixed no-intent no-op response template and configured signal.}
+      inputs: [unchanged accepted parent, parent identity, parsed intent report, and stage metadata]
+      outputs: [no_op response with unchanged parent and explicit no_applicable_intent status]
+      emits: [StyleResponseNoIntent]
+      infrastructure_errors: [none emitted by compose; trusted selector defects are recorded on the Result while the configured signal remains StyleResponseNoIntent]
+      domain_errors: [none]
+      side_effects: [none]
+      reversibility: {classification: reversible, undo: noop}
+      compensation: No external state exists to compensate.
+      authority: Formats one fixed no-op outcome and cannot retrieve, edit, or accept.
+
+    - name: compose_style_no_op_response
+      owner: style-editor
+      implementation: {type: builtin, factory: compose, reuse: Fixed candidate-no-op response template and configured signal.}
+      inputs: [unchanged accepted parent, parent identity, explicit intents, attempted and selected pair provenance, no-op constraint report, and stage metadata]
+      outputs: [no_op response with unchanged parent and complete available pair provenance]
+      emits: [StyleResponseNoOp]
+      infrastructure_errors: [none emitted by compose; trusted selector defects are recorded on the Result while the configured signal remains StyleResponseNoOp]
+      domain_errors: [none]
+      side_effects: [none]
+      reversibility: {classification: reversible, undo: noop}
+      compensation: No external state exists to compensate.
+      authority: Formats one fixed no-op outcome and cannot edit or accept.
+
+    - name: compose_style_insufficient_response
+      owner: style-editor
+      implementation: {type: builtin, factory: compose, reuse: Fixed insufficient-pairs response template and configured signal.}
+      inputs: [unchanged accepted parent, parent identity, explicit intents, every retrieval attempt and pair report, and stage metadata]
+      outputs: [insufficient_pairs response with unchanged parent and attempted pair provenance]
+      emits: [StyleResponseInsufficientPairs]
+      infrastructure_errors: [none emitted by compose; trusted selector defects are recorded on the Result while the configured signal remains StyleResponseInsufficientPairs]
+      domain_errors: [none]
+      side_effects: [none]
+      reversibility: {classification: reversible, undo: noop}
+      compensation: No external state exists to compensate.
+      authority: Formats one fixed insufficient outcome and cannot edit or accept.
+
+    - name: compose_style_failed_response
+      owner: style-editor
+      implementation: {type: builtin, factory: compose, reuse: Fixed fail-closed response template and configured signal.}
+      inputs: [unchanged accepted parent when request validation succeeded or null otherwise, parent identity when valid, available intent and pair provenance and reports, bounded failure category, and stage metadata]
+      outputs: [failed response with unchanged accepted parent or null and bounded evidence]
+      emits: [StyleResponseFailed]
+      infrastructure_errors: [none emitted by compose; trusted selector defects are recorded on the Result while the configured signal remains StyleResponseFailed]
+      domain_errors: [none]
+      side_effects: [none]
+      reversibility: {classification: reversible, undo: noop}
+      compensation: No external state exists to compensate.
+      authority: Formats one fixed failed outcome and cannot edit, accept, or widen authority.
 
     - name: embed_critic_voice_query
       owner: voice-critic
@@ -1635,6 +1967,11 @@ requirements:
           constrained helper observation, structured-report parsing,
           single-comparison routing, and fixed-outcome response-composition
           words required by its flat MachineSpec.
+          style-editor SHALL also own deterministic request validation,
+          intent and query composition, three constrained helper observations,
+          structured-report parsing, single-comparison routing,
+          branch-specific edit-context composition, and fixed-outcome response
+          composition required by its flat MachineSpec.
           voice-critic SHALL own its separate embedding, voice-rag query, and
           evaluation words.
         evidence: Planned profile manifests collectively match word_vocabulary.editor_and_critic_retrieval, and each profile selects only words it owns.
@@ -1702,6 +2039,22 @@ requirements:
           words and signals SHALL supply every branch needed by srd006 without a
           payload guard, dynamic dispatch, new Go builtin, or shell.
         evidence: Planned factory-semantic, signal, and transition closure expands the srd006 machine and matches every action to the exact emissions of exec, parse_structured, value_predicate, invoke_llm, REST, or compose.
+      - id: R4.7
+        text: |
+          identify_style_intents, assess_style_pairs, and
+          inspect_style_constraints SHALL be constrained non-shell exec words
+          over bounded JSON stdin and SHALL emit only ToolDone, ToolFailed, or
+          CommandError. Their parse_structured successors SHALL emit one
+          configured parsed or invalid outcome plus CommandError. Every
+          value_predicate successor SHALL compare exactly one scalar and emit
+          exactly two configured outcomes plus CommandError. Initial and retry
+          edit-context compose words SHALL each render one fixed context and one
+          configured signal. Separate success, no-intent, candidate-no-op,
+          insufficient-pairs, and failed response compose words SHALL each
+          render one fixed outcome and emit only one configured response signal.
+          These words SHALL supply every srd007 branch without payload guards,
+          dynamic dispatch, a shell, or a new Go builtin.
+        evidence: Planned factory-semantic, action, word, signal, transition, terminal, label, and authority closure expands srd007 and matches exact exec, parse_structured, value_predicate, compose, REST, and invoke_llm emissions.
 
   R5:
     title: Pangram privacy and consent
@@ -1827,12 +2180,12 @@ acceptance_criteria:
       Editor and critic embedding, RAG, and LLM words are corpus-scoped,
       read-only where required, vector provenance is machine-threaded, and
       model output cannot author authority-bearing values. Structure-editor
-      and voice-editor deterministic words provide bounded retrieval refinement,
-      candidate retry, validation, copy-risk, and response routing without
-      payload guards. Structure and voice report helpers, parsers, scalar
-      predicates, context composers, and fixed response composers match their
-      actual factory signal semantics.
-    traces: [R4.1, R4.2, R4.3, R4.4, R4.5, R4.6]
+      voice-editor, and style-editor deterministic words provide bounded
+      retrieval refinement, candidate retry, validation, copy-risk or
+      pair-provenance routing, and fixed responses without payload guards.
+      Specialist report helpers, parsers, scalar predicates, context composers,
+      and fixed response composers match their actual factory signal semantics.
+    traces: [R4.1, R4.2, R4.3, R4.4, R4.5, R4.6, R4.7]
   - id: AC5
     criterion: |
       Only the critic owns separate before/after Pangram scans; exact-hash
@@ -1919,6 +2272,7 @@ implementation_status:
   separate_workproduct_helper_if_used: not_implemented
   structure_editor_helper: not_implemented
   voice_editor_helper: not_implemented
+  style_editor_helper: not_implemented
   rest_definitions: not_implemented
   services: not_implemented
   tests: not_implemented

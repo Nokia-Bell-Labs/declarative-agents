@@ -7,10 +7,10 @@ overview: |
   style edit, independent critique, bounded retry, finalization, one commit,
   push, and pull request.
 
-  Six specified SRDs define service authority, the saga workproduct
+  Seven specified SRDs define service authority, the saga workproduct
   lifecycle, the closed tool vocabulary, the flat workflow-orchestrator
-  machine, and the flat structure-editor and voice-editor machines. Two planned
-  SRDs define the remaining specialist state machines. One planned
+  machine, and the flat structure-editor, voice-editor, and style-editor
+  machines. One planned SRD defines the remaining specialist state machine. One planned
   use case and one planned test suite will trace all eight SRDs reciprocally.
   No profile, service, tool, test, or executable evidence is implemented.
 
@@ -24,7 +24,7 @@ roadmap_summary:
     use_cases_done: 0
     use_cases_total: 1
     status: planned
-    evidence: srd001 through srd006 are specified; no executable evidence exists.
+    evidence: srd001 through srd007 are specified; no executable evidence exists.
 
 foundation_document_index:
   - id: voice-forge-readme
@@ -93,8 +93,8 @@ srd_index:
     test_suites: [test-rel00.0-voice-forge]
   - id: srd007-style-editor
     title: Style Editor State Machine
-    status: planned
-    summary: Tightening-intent detection, transformation-pair retrieval, targeted edits, and provenance.
+    status: specified
+    summary: Flat accepted-voice validation, explicit target intents, before/after pair retrieval, one refinement, targeted tightening, deterministic preservation, bounded retry, fail-closed outcomes, and pair provenance.
     path: docs/specs/software-requirements/srd007-style-editor.yaml
     use_cases: [rel00.0-uc001-edit-document]
     test_suites: [test-rel00.0-voice-forge]
@@ -149,18 +149,17 @@ coverage_gaps:
   - id: planned-srd-corpus
     status: planned
     description: |
-      SRDs srd001 through srd006 are specified with requirement and
-      acceptance-criterion traces. SRDs srd007 and srd008 are indexed but do
-      not yet exist; their traces will be added by their owning documentation
-      issues.
+      SRDs srd001 through srd007 are specified with requirement and
+      acceptance-criterion traces. SRD srd008 is indexed but does not yet
+      exist; its traces will be added by its owning documentation issue.
   - id: planned-runtime-signal-alignment
     status: planned
     description: |
       srd003 now specifies bounded deterministic routing emissions required by
-      srd004, srd005, and srd006 because MachineSpec cannot branch on result payload
-      fields. Future profile ToolDefs must implement those declared emissions
-      before any MachineSpec can validate; no runtime machine or executable
-      conformance is claimed.
+      srd004, srd005, srd006, and srd007 because MachineSpec cannot branch on
+      result payload fields. Future profile ToolDefs and fixed non-shell helpers
+      must implement those declared emissions before any MachineSpec can
+      validate; no runtime machine or executable conformance is claimed.
   - id: planned-release-trace
     status: planned
     description: |

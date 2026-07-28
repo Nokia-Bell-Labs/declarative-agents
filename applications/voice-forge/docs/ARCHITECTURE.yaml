@@ -222,6 +222,68 @@ overview:
     target deficient passages while retaining already accepted anchors.
     Retrieval is read-only, and neither request nor model output can select a
     corpus, endpoint, collection, model, path, ref, credential, or tool.
+  style_editor_flow: |
+    ```mermaid
+    flowchart LR
+      R[Accepted voice bytes] --> V[Validate parent and passage map]
+      V --> I[Identify explicit target intents]
+      I -->|none| N[No-op response]
+      I --> F[Form target and intent queries]
+      F --> E[Embed query set]
+      E --> Q[Query tightening-rag]
+      Q --> P{Applicable pairs complete?}
+      P -->|no, refinement unused| F
+      P -->|no, refinement used| U[Insufficient-pairs response]
+      P -->|yes| X[Targeted style edit]
+      X --> C{Preservation constraints valid?}
+      C -->|yes| S[Succeeded response]
+      C -->|unchanged| N
+      C -->|retry available| X
+      C -->|failed or exhausted| D[Failed response]
+      N --> O[Return accepted voice parent]
+      U --> O
+      S --> O
+      D --> O
+    ```
+
+    srd007 specifies this as one flat request machine. Intent, pair, and
+    preservation observations use three fixed operations of one planned
+    non-shell JSON-emitting style-editor helper. Each helper exec emits only
+    ToolDone, ToolFailed, or CommandError. A distinct parse_structured word
+    selects the nested structured-exec output string, and explicit
+    value_predicate chains compare one scalar and emit two configured outcomes.
+    Fixed compose words render helper input, initial and retry edit contexts,
+    and separate terminal responses; each compose emits one configured signal.
+
+    The initial edit context is reachable only after a parsed intent report
+    identifies exact target spans and a parsed pair report establishes complete
+    applicable pair coverage. Preservation retries retain the accepted voice
+    parent, targets, intents, selected pairs, provenance, and thresholds and are
+    bounded to three total candidates. All no-intent, insufficient, invalid,
+    provider-failed, helper-failed, parse-failed, preservation-failed,
+    infrastructure, and budget paths return the accepted voice parent unchanged
+    after valid request admission.
+  tightening_pair_retrieval_view: |
+    style-editor deterministically forms one query for each explicit target and
+    tightening intent, embeds the ordered query set, and sends only
+    provider-produced vectors and configured bounded identities to
+    tightening-rag. tightening-rag reads one tightening corpus and returns
+    ranked before/after transformation pairs. The editor receives retrieved
+    applicable pairs, not the full rule catalog.
+
+    Every selected pair retains pair and rule IDs, source, repository, path,
+    commit, chunk, instead and do hashes, distance, embedding model, query,
+    target, and retrieval-attempt provenance. One refined query may address only
+    deficient target-intent groups while retaining accepted pairs. Retrieval is
+    read-only. Pair text supplies transformation shape, not facts, claims,
+    citations, numbers, terminology, quotations, normative language, voice, or
+    acceptance authority.
+
+    The preservation helper verifies that every changed span maps to one stated
+    target, explicit intent, and selected pair and that untargeted spans remain
+    byte-identical. It also checks accepted voice, meaning, claim strength,
+    qualifications, citations, numbers, terminology, quotations, normative
+    language, protected spans, and unsupported additions before success.
   persistence_flow: |
     Voice Forge has two durable state planes with different authority. The
     application-owned persistent --output workspace stores document bytes,
@@ -400,8 +462,35 @@ tool_authority_allocation:
         - compose_voice_failed_response
       denied: [saga filesystem, other corpora, structure changes, tightening beyond voice need, verdict, Pangram, GitHub]
     - owner: style-editor
-      exclusive_words: [embed_tightening_query, query_tightening_rag, generate_style_edit]
-      denied: [saga filesystem, other corpora, verdict, Pangram, GitHub]
+      exclusive_words:
+        - validate_style_request
+        - compose_style_intent_input
+        - identify_style_intents
+        - parse_style_intent_report
+        - style_intents_present
+        - formulate_tightening_query
+        - embed_tightening_query
+        - query_tightening_rag
+        - compose_style_pair_input
+        - assess_style_pairs
+        - parse_style_pair_report
+        - style_pairs_complete
+        - style_pair_refinement_available
+        - compose_style_initial_edit_context
+        - compose_style_retry_context
+        - generate_style_edit
+        - compose_style_constraint_input
+        - inspect_style_constraints
+        - parse_style_constraint_report
+        - style_candidate_is_no_op
+        - style_constraints_hold
+        - style_retry_available
+        - compose_style_success_response
+        - compose_style_no_intent_response
+        - compose_style_no_op_response
+        - compose_style_insufficient_response
+        - compose_style_failed_response
+      denied: [saga filesystem, other corpora, structure, voice, critic or acceptance verdict, Pangram, GitHub]
     - owner: voice-critic
       exclusive_words:
         - embed_critic_voice_query
@@ -466,9 +555,9 @@ components:
     role_realization: Executor / Change Manager for the document-tightening domain.
     lifecycle: Request/on-demand application-local machine.
     scaling_boundary: Stateless requests and retrieval load may scale independently.
-    failure_boundary: Retrieval or model failure returns no accepted artifact.
-    authority: Read tightening pairs through RAG, edit stated targets, and return pair provenance.
-    prohibited_authority: Chroma writes, workproduct mutation, critic verdicts, Pangram, and GitHub.
+    failure_boundary: Intent, retrieval, model, preservation, or budget failure returns the accepted voice parent unchanged and no accepted artifact.
+    authority: Identify exact tightening targets through a fixed helper, read applicable before/after pairs through tightening RAG, edit only stated spans with bounded model calls, validate with a fixed helper, and return content with complete pair provenance.
+    prohibited_authority: Structure or voice change, Chroma writes, workproduct mutation, critic or acceptance verdicts, Pangram, and GitHub.
   - name: voice-critic agent service
     path: agents/voice-critic/
     status: planned
@@ -628,7 +717,7 @@ project_structure:
     - {path: agents/workflow-orchestrator/, status: planned, role: Saga coordination, fixed exec declarations, and constrained JSON-emitting helper executable.}
     - {path: agents/structure-editor/, status: planned, role: Structure editing profile, flat machine, declarations, and constrained non-shell report helper.}
     - {path: agents/voice-editor/, status: planned, role: Voice editing profile, flat machine, declarations, and constrained non-shell report helper.}
-    - {path: agents/style-editor/, status: planned, role: Style tightening profile.}
+    - {path: agents/style-editor/, status: planned, role: Style tightening profile, flat machine, declarations, and constrained non-shell report helper.}
     - {path: agents/voice-critic/, status: planned, role: Independent assurance profile.}
     - {path: agents/corpus-ingest/, status: planned, role: Thin canonical ingest wrapper.}
   planned_specifications:
@@ -638,15 +727,16 @@ project_structure:
     - {path: docs/specs/software-requirements/srd004-workflow-orchestrator.yaml, status: specified, role: Flat orchestration states, signals, transitions, persistence, responsible-stage replay, recovery, publication, and terminal outcomes.}
     - {path: docs/specs/software-requirements/srd005-structure-editor.yaml, status: specified, role: Flat request, section-and-outline retrieval, one refinement, structure-only editing, semantic constraints, outcomes, and provenance.}
     - {path: docs/specs/software-requirements/srd006-voice-editor.yaml, status: specified, role: Flat accepted-parent request, rhetorical-role and register passage retrieval, one refinement, bounded voice-only rewrites, preservation constraints, copy-risk, outcomes, and provenance.}
-    - {path: docs/specs/software-requirements/, status: planned, role: Remaining SRDs srd007 through srd008.}
+    - {path: docs/specs/software-requirements/srd007-style-editor.yaml, status: specified, role: Flat accepted-voice request, explicit tightening intents, before/after pair retrieval, one refinement, targeted edits, preservation, bounded retry, outcomes, and pair provenance.}
+    - {path: docs/specs/software-requirements/, status: planned, role: Remaining SRD srd008.}
     - {path: docs/specs/use-cases/rel00.0-uc001-edit-document.yaml, status: planned, role: End-to-end release scenario.}
     - {path: docs/specs/test-suites/test-rel00.0-voice-forge.yaml, status: planned, role: Release tracer and evidence plan.}
 
 implementation_status:
   current_focus: |
-    SRDs srd001 through srd006 specify service boundaries, the writing saga and
+    SRDs srd001 through srd007 specify service boundaries, the writing saga and
     workproducts, the closed tool vocabulary, the workflow-orchestrator machine,
-    and the structure-editor and voice-editor machines. SRDs srd007 through srd008, the release use case, test suite,
+    and the structure-editor, voice-editor, and style-editor machines. SRD srd008, the release use case, test suite,
     profiles, machines, tools, constrained orchestrator helper, services,
     integration evidence, and root registrations remain planned.
   overall: documentation_only_planned
@@ -657,8 +747,9 @@ implementation_status:
     - specified: srd004 flat orchestration states, action mappings, persistence order, responsible-stage replay, recovery, publication, budgets, and terminal outcomes.
     - specified: srd005 flat structure request, retrieval, grounding, one refinement, structure-only edit, semantic constraints, response, and terminal outcomes.
     - specified: srd006 flat accepted-structure request, rhetorical-role and register passage retrieval, one refinement, bounded voice-only rewrite, preservation constraints, copy risk, response, and terminal outcomes.
-    - planned: srd007 through srd008 and executable reciprocal release traces.
-    - planned: Five application-local state machines, the constrained JSON-emitting orchestrator helper, constrained structure-editor and voice-editor report helpers, and the corpus-ingest wrapper.
+    - specified: srd007 flat accepted-voice request, explicit intents, tightening-pair retrieval, one refinement, targeted editing, preservation, bounded retry, response, and terminal outcomes.
+    - planned: srd008 and executable reciprocal release traces.
+    - planned: Five application-local state machines, the constrained JSON-emitting orchestrator helper, constrained structure-editor, voice-editor, and style-editor report helpers, and the corpus-ingest wrapper.
     - planned: RAG, Chroma, Ollama, GitHub CLI, and Pangram integrations.
     - planned: Persistent saga workspace, retries, recovery, and publication.
     - planned: Structural, boundary, failure, recovery, and end-to-end tests.
@@ -680,6 +771,8 @@ related_documents:
     purpose: Specified flat structure-editor retrieval, bounded refinement, structure-only edit, constraint, response, and authority contract.
   - doc: docs/specs/software-requirements/srd006-voice-editor.yaml
     purpose: Specified flat voice-editor passage retrieval, bounded rewrite, preservation, copy-risk, response, and authority contract.
+  - doc: docs/specs/software-requirements/srd007-style-editor.yaml
+    purpose: Specified flat style-editor intent, pair retrieval, targeted edit, preservation, bounded retry, response, provenance, and authority contract.
   - doc: docs/SPECIFICATIONS.yaml
     purpose: Planned SRD, use-case, and test-suite indexes.
   - doc: docs/road-map.yaml
