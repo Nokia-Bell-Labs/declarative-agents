@@ -56,11 +56,11 @@ overview: |
   model, skipping cleanly when it is absent). The rest ollama-profile.yaml runs
   shipped-behavioral (Ollama-gated); the rest sample profile's inbound webhook
   server boundary runs bounded-behavioral over the shipped REST config through a
-  bounded launch/await/stop machine, because its client create/await head cannot
+  bounded launch/await/stop machine, because its client create/probe head cannot
   run in a profile machine — REST client tools enforce a declared-only runtime
   input contract that the loop's verbatim output threading does not satisfy, so
-  the async await_operation polling that head relies on is proven at the
-  agent-core package level instead (rest.TestRESTClient_AwaitOperationPolling).
+  the shipped machine's readiness policy is verified as explicit
+  probe/delay/retry transitions by TestRestShippedProfileWiring.
 
   Gates: generator and its qwen variants, the planner behavioral run, the rest
   ollama-profile variant, and chatbot source routing first require the explicit
@@ -521,16 +521,13 @@ test_cases:
       the webhook server to a free loopback port (and points the OpenAPI import at
       its source), launches the server, posts the configured inbound webhook, and
       asserts the launch -> await -> stop vocabulary routes the enqueued signal to
-      Succeeded with no error-status spans. The client read/create/await head is
+      Succeeded with no error-status spans. The client read/create/probe head is
       not run in a profile machine: REST client tools enforce a declared-only
       runtime input contract while the loop threads each step's full output
       verbatim, so a client step cannot follow another tool step and cannot be the
-      first action against the non-JSON default seed. The async await_operation
-      polling the profile's create/await grammar relies on is implemented in
-      agent-core and covered hermetically by rest.TestRESTClient_AwaitOperationPolling
-      (create -> await_operation poll -> respond against a mock upstream); the
-      #205 load-time blocker (await_operation rejected during validation) is
-      resolved.
+      first action against the non-JSON default seed. The shipped grammar
+      declares one-shot probe, delay, retry, and exhaustion behavior directly;
+      legacy await_operation is rejected during validation.
     expected:
       terminal_states: [Succeeded]
       asserted_tool_spans: [launch_payment_webhooks, await_payment_webhook, stop_payment_webhooks]

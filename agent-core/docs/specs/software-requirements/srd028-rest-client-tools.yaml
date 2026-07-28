@@ -75,6 +75,7 @@ requirements:
       - R5.5: rest_client_await SHALL wait for completion of a previously sent REST operation by request ID, correlation token, or configured operation state.
       - R5.6: rest_client_await SHALL emit RESTResponded, RESTDomainFailed, RESTMissing, RESTAwaitTimedOut, or CommandError.
       - R5.7: rest_client_await SHALL consume or update async operation state according to configured retention policy.
+      - R5.8: One REST client command dispatch SHALL perform at most one outbound HTTP request, except retries explicitly declared by the selected transport retry policy. Readiness polling SHALL use separate probe and delay states in MachineSpec.
 
   R6:
     title: Result signals
@@ -237,8 +238,8 @@ acceptance_criteria:
     traces: [R4.1, R4.2, R4.3, R4.4, R4.5, R10.5]
 
   - id: AC5
-    criterion: Async send and await requirements define request state, request IDs, idempotency metadata, accepted signals, final response signals, timeout signals, and state retention.
-    traces: [R5.1, R5.2, R5.3, R5.4, R5.5, R5.6, R5.7, R10.6, R10.7]
+    criterion: Async send and await requirements define request state, request IDs, idempotency metadata, accepted signals, final response signals, timeout signals, and state retention; readiness polling is a visible MachineSpec probe/delay loop with at most one HTTP request per REST dispatch.
+    traces: [R5.1, R5.2, R5.3, R5.4, R5.5, R5.6, R5.7, R5.8, R10.6, R10.7]
 
   - id: AC6
     criterion: Result signal requirements distinguish resource reads, writes, missing resources, accepted async sends, successful REST responses, REST domain failures, and CommandError infrastructure failures.
@@ -297,7 +298,7 @@ implementation_status:
     - Async request state indexed by request_id with idempotency and correlation metadata recorded in accepted output.
     - CIDR allowlists are enforced while scheme, host, and port validation remains intact.
     - Response bodies are validated against configured response schemas before success signals, and domain_error_code is included in structured output when configured.
-    - Async await can select by correlation token and can poll a configured await_operation: the await resolves the referenced client operation and samples it until it maps its success status (completion, then reported as that operation's success signal) or the async timeout elapses (RESTAwaitTimedOut). await_operation is validated against the client's defined operations; an unknown reference is rejected.
+    - Async await can select stored completion by correlation token. Readiness polling is declared as one-shot REST probes separated by lifecycle delay states; await_operation is rejected with migration guidance.
     - Idempotency metadata is emitted on configured outbound async requests, and retry validation requires idempotency for mutating operations when configured.
     - Mutating REST client commands capture boundary compensation undo mementos with request, resource, idempotency, and compensation metadata. Read-only operations remain noop.
     - Persisted checkpoint rollback can execute boundary compensation when a caller supplies the core CompensationExecutor. internal/tools/rest provides a CompensationExecutor that decodes REST boundary mementos, resolves the configured compensation operation from trusted definitions, filters runtime parameters to declared inputs, and executes through the REST client path.

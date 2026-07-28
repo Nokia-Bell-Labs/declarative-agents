@@ -1372,20 +1372,18 @@ test_cases:
     description: |
       Validate CIDR allowlists, response schema checks, domain_error_code
       output, async correlation selection, idempotency metadata on outbound
-      requests, and await_operation reference validation (a defined reference is
-      accepted; an unknown reference is rejected). await_operation polling
-      behavior is covered by TestRESTClient_AwaitOperationPolling.
+      requests, and rejection of legacy await_operation with guidance to
+      declare REST probe and lifecycle delay states in MachineSpec.
     inputs:
       evidence: TestRESTClient_SafetyAndAsyncConformance
       network_policy: cidr_allowlist
       response_schema: configured
-      async_selectors: [request_id, correlation, await_operation]
+      async_selectors: [request_id, correlation]
     expected:
       cidr_allowlist_enforced: true
       invalid_response_schema_success_signal: false
       domain_error_code_in_output: true
-      unknown_await_operation_reference_rejected: true
-      defined_await_operation_reference_accepted: true
+      await_operation_rejected: true
     traces:
       - srd027-rest-tool-runtime AC6
       - srd028-rest-client-tools AC5

@@ -12,7 +12,7 @@ invariants:
   - OpenAPI imports populate REST definitions without generating Go code.
 initial_state: Idle
 budget:
-  max_iterations: 8
+  max_iterations: 20
 states:
   - name: Idle
     meaning: Initial state before the sample REST flow starts.
@@ -20,8 +20,10 @@ states:
     meaning: A configured REST resource read is in flight.
   - name: CreatingPayment
     meaning: A configured async payment create request is being submitted.
-  - name: AwaitingPayment
-    meaning: The machine waits for async client completion.
+  - name: ProbingPayment
+    meaning: One configured payment readiness request is in flight.
+  - name: WaitingPaymentRetry
+    meaning: The machine waits one declared interval before another probe.
   - name: LaunchingWebhook
     meaning: The configured webhook server is being launched.
   - name: WaitingWebhook
@@ -42,14 +44,12 @@ signals:
     trigger: REST client read returned a configured success status.
   - name: RESTAccepted
     trigger: REST async send accepted a request.
-  - name: RESTResponded
-    trigger: REST async await observed a configured success response.
   - name: RESTMissing
     trigger: REST client mapping reported a missing resource.
   - name: RESTDomainFailed
     trigger: REST client mapping reported a domain failure.
-  - name: RESTAwaitTimedOut
-    trigger: REST async await timed out.
+  - name: PaymentRetryReady
+    trigger: The declared payment retry delay elapsed.
   - name: ServerLaunched
     trigger: REST server launch registered configured routes.
   - name: PaymentWebhookReceived
@@ -69,6 +69,7 @@ transitions:
     signal: RESTResourceRead
     next: CreatingPayment
     action: create_payment
+    label: payment_async
   - state: ReadingPayment
     signal: RESTMissing
     next: Failed
@@ -80,25 +81,31 @@ transitions:
     next: Failed
   - state: CreatingPayment
     signal: RESTAccepted
-    next: AwaitingPayment
-    action: await_payment
+    next: ProbingPayment
+    action: probe_payment
   - state: CreatingPayment
     signal: CommandError
     next: Failed
-  - state: AwaitingPayment
-    signal: RESTResponded
+  - state: ProbingPayment
+    signal: RESTResourceRead
     next: LaunchingWebhook
     action: launch_payment_webhooks
-  - state: AwaitingPayment
+  - state: ProbingPayment
     signal: RESTDomainFailed
     next: Failed
-  - state: AwaitingPayment
+  - state: ProbingPayment
     signal: RESTMissing
-    next: Failed
-  - state: AwaitingPayment
-    signal: RESTAwaitTimedOut
-    next: Failed
-  - state: AwaitingPayment
+    next: WaitingPaymentRetry
+    action: wait_payment_retry
+  - state: ProbingPayment
+    signal: CommandError
+    next: WaitingPaymentRetry
+    action: wait_payment_retry
+  - state: WaitingPaymentRetry
+    signal: PaymentRetryReady
+    next: ProbingPayment
+    action: probe_payment
+  - state: WaitingPaymentRetry
     signal: CommandError
     next: Failed
   - state: LaunchingWebhook

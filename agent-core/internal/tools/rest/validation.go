@@ -282,7 +282,7 @@ func validateMutatingOperation(name string, operation Operation) error {
 	return nil
 }
 
-func validateAsyncOperation(name string, async AsyncClientConfig, clientOps map[string]Operation) error {
+func validateAsyncOperation(name string, async AsyncClientConfig, _ map[string]Operation) error {
 	if async.RequestID == "" {
 		return fmt.Errorf("operation %q async config requires request_id", name)
 	}
@@ -290,9 +290,10 @@ func validateAsyncOperation(name string, async AsyncClientConfig, clientOps map[
 		return fmt.Errorf("operation %q async config requires timeout", name)
 	}
 	if async.AwaitOperation != "" {
-		if _, ok := clientOps[async.AwaitOperation]; !ok {
-			return fmt.Errorf("operation %q async await_operation %q is not a defined client operation", name, async.AwaitOperation)
-		}
+		return fmt.Errorf(
+			"operation %q async await_operation is unsupported; declare probe and delay states in MachineSpec",
+			name,
+		)
 	}
 	return nil
 }
