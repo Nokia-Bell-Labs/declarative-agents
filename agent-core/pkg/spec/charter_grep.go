@@ -6,12 +6,9 @@ import (
 	"bufio"
 	"bytes"
 	"encoding/json"
-	"errors"
 	"fmt"
-	"os/exec"
 	"path/filepath"
 	"regexp"
-	"sort"
 	"strings"
 )
 
@@ -32,37 +29,6 @@ type GrepSearchPlan struct {
 	DisplayRoot string   `json:"display_root"`
 	IncludeGlob string   `json:"include_glob"`
 	ExcludeGlob string   `json:"exclude_glob"`
-}
-
-// ExecuteGrepChecks runs grep_check charter checks over targetDir.
-func ExecuteGrepChecks(targetDir string, charters []Charter) ([]Finding, error) {
-	plans, err := BuildGrepSearchPlans(targetDir, charters)
-	if err != nil {
-		return nil, err
-	}
-	var findings []Finding
-	for _, plan := range plans {
-		cmd := exec.Command("rg", plan.args()...)
-		cmd.Dir = targetDir
-		output, runErr := cmd.CombinedOutput()
-		exitCode := 0
-		if runErr != nil {
-			var exitErr *exec.ExitError
-			if !errors.As(runErr, &exitErr) {
-				return nil, fmt.Errorf("charter %q check %q: run rg: %w", plan.SuiteID, plan.CheckID, runErr)
-			}
-			exitCode = exitErr.ExitCode()
-		}
-		checkFindings, err := ReduceGrepSearch(plan, string(output), exitCode)
-		if err != nil {
-			return nil, err
-		}
-		findings = append(findings, checkFindings...)
-	}
-	sort.Slice(findings, func(i, j int) bool {
-		return findingLess(findings[i], findings[j])
-	})
-	return findings, nil
 }
 
 // BuildGrepSearchPlans validates grep checks and lowers their target policy to
@@ -185,17 +151,6 @@ func combineGrepGlobs(globs []string, exclude bool) string {
 		return "!" + combined
 	}
 	return combined
-}
-
-func (plan GrepSearchPlan) args() []string {
-	args := []string{"--json", "--line-number", "--no-ignore", "--hidden", "--text", "--threads", "1", "--sort", "path"}
-	if plan.IncludeGlob != "" {
-		args = append(args, "--glob", plan.IncludeGlob)
-	}
-	if plan.ExcludeGlob != "" {
-		args = append(args, "--glob", plan.ExcludeGlob)
-	}
-	return append(args, "--", plan.Query, plan.Path)
 }
 
 // ReduceGrepSearch converts one rg JSON event stream into charter findings.

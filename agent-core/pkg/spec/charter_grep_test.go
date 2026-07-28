@@ -3,6 +3,8 @@
 package spec
 
 import (
+	"encoding/json"
+	"fmt"
 	"os"
 	"path/filepath"
 	"testing"
@@ -11,9 +13,8 @@ import (
 	"github.com/stretchr/testify/require"
 )
 
-func TestExecuteGrepChecksForbiddenTermMatchesWithProvenance(t *testing.T) {
+func TestReduceGrepChecksForbiddenTermMatchesWithProvenance(t *testing.T) {
 	root := t.TempDir()
-	writeTargetFile(t, root, "papers/main.md", "public line\nthis has cobbler inside\n")
 	charter := grepCharter("prose-suite", CharterCheck{
 		ID:       "no-internal-vocabulary",
 		Kind:     "grep_check",
@@ -23,7 +24,8 @@ func TestExecuteGrepChecksForbiddenTermMatchesWithProvenance(t *testing.T) {
 		Message:  "Publication prose must not leak internal vocabulary.",
 	})
 
-	findings, err := ExecuteGrepChecks(root, []Charter{charter})
+	findings, err := reduceGrepFixtures(root, []Charter{charter},
+		rgMatchFixture("papers/main.md", 2, "this has cobbler inside\n"))
 
 	require.NoError(t, err)
 	require.Len(t, findings, 1)
@@ -36,9 +38,8 @@ func TestExecuteGrepChecksForbiddenTermMatchesWithProvenance(t *testing.T) {
 	assert.Equal(t, "Publication prose must not leak internal vocabulary.", findings[0].Message)
 }
 
-func TestExecuteGrepChecksNoMatchPasses(t *testing.T) {
+func TestReduceGrepChecksNoMatchPasses(t *testing.T) {
 	root := t.TempDir()
-	writeTargetFile(t, root, "papers/main.md", "clean publication prose\n")
 	charter := grepCharter("prose-suite", CharterCheck{
 		ID:       "no-internal-vocabulary",
 		Kind:     "grep_check",
@@ -47,16 +48,14 @@ func TestExecuteGrepChecksNoMatchPasses(t *testing.T) {
 		Patterns: []string{"cobbler"},
 	})
 
-	findings, err := ExecuteGrepChecks(root, []Charter{charter})
+	findings, err := reduceGrepFixtures(root, []Charter{charter}, "")
 
 	require.NoError(t, err)
 	assert.Empty(t, findings)
 }
 
-func TestExecuteGrepChecksExcludesFiles(t *testing.T) {
+func TestBuildGrepChecksPreservesExcludePolicy(t *testing.T) {
 	root := t.TempDir()
-	writeTargetFile(t, root, "papers/main.md", "clean\n")
-	writeTargetFile(t, root, "papers/build/draft.md", "cobbler\n")
 	charter := grepCharter("prose-suite", CharterCheck{
 		ID:       "no-internal-vocabulary",
 		Kind:     "grep_check",
@@ -66,16 +65,16 @@ func TestExecuteGrepChecksExcludesFiles(t *testing.T) {
 		Patterns: []string{"cobbler"},
 	})
 
-	findings, err := ExecuteGrepChecks(root, []Charter{charter})
+	plans, err := BuildGrepSearchPlans(root, []Charter{charter})
 
 	require.NoError(t, err)
-	assert.Empty(t, findings)
+	require.Len(t, plans, 1)
+	assert.Equal(t, "papers/**/*.md", plans[0].IncludeGlob)
+	assert.Equal(t, "!papers/build/**", plans[0].ExcludeGlob)
 }
 
-func TestExecuteGrepChecksUsesCharterTargetDefaultsAndSeverity(t *testing.T) {
+func TestReduceGrepChecksUsesCharterTargetDefaultsAndSeverity(t *testing.T) {
 	root := t.TempDir()
-	writeTargetFile(t, root, "docs/a.md", "cobbler\n")
-	writeTargetFile(t, root, "docs/private/b.md", "cobbler\n")
 	charter := Charter{
 		ID: "docs-suite",
 		Target: CharterTarget{
@@ -91,7 +90,8 @@ func TestExecuteGrepChecksUsesCharterTargetDefaultsAndSeverity(t *testing.T) {
 		}},
 	}
 
-	findings, err := ExecuteGrepChecks(root, []Charter{charter})
+	findings, err := reduceGrepFixtures(root, []Charter{charter},
+		rgMatchFixture("docs/a.md", 1, "cobbler\n"))
 
 	require.NoError(t, err)
 	require.Len(t, findings, 1)
@@ -99,9 +99,8 @@ func TestExecuteGrepChecksUsesCharterTargetDefaultsAndSeverity(t *testing.T) {
 	assert.Equal(t, "docs/a.md", findings[0].File)
 }
 
-func TestExecuteGrepChecksRegexPattern(t *testing.T) {
+func TestReduceGrepChecksRegexPattern(t *testing.T) {
 	root := t.TempDir()
-	writeTargetFile(t, root, "paper.md", "citation @Known_123\n")
 	charter := grepCharter("regex-suite", CharterCheck{
 		ID:       "citation-form",
 		Kind:     "grep_check",
@@ -111,7 +110,8 @@ func TestExecuteGrepChecksRegexPattern(t *testing.T) {
 		Regex:    true,
 	})
 
-	findings, err := ExecuteGrepChecks(root, []Charter{charter})
+	findings, err := reduceGrepFixtures(root, []Charter{charter},
+		rgMatchFixture("paper.md", 1, "citation @Known_123\n"))
 
 	require.NoError(t, err)
 	require.Len(t, findings, 1)
@@ -119,23 +119,22 @@ func TestExecuteGrepChecksRegexPattern(t *testing.T) {
 	assert.Equal(t, 1, findings[0].Line)
 }
 
-func TestExecuteGrepChecksSortsFindingsDeterministically(t *testing.T) {
+func TestReduceGrepChecksSortsFindingsDeterministically(t *testing.T) {
 	root := t.TempDir()
-	writeDeterministicCharterFiles(t, root, ".md", "cobbler\n")
 	charters := []Charter{
 		grepCharter("suite-b", CharterCheck{ID: "word", Kind: "grep_check", Severity: "warning", Include: []string{"*.md"}, Patterns: []string{"cobbler"}}),
 		grepCharter("suite-a", CharterCheck{ID: "word", Kind: "grep_check", Severity: "warning", Include: []string{"*.md"}, Patterns: []string{"cobbler"}}),
 	}
 
-	findings, err := ExecuteGrepChecks(root, charters)
+	output := rgMatchFixture("a.md", 1, "cobbler\n") + rgMatchFixture("z.md", 1, "cobbler\n")
+	findings, err := reduceGrepFixtures(root, charters, output, output)
 
 	require.NoError(t, err)
 	requireDeterministicCharterOrder(t, findings, ".md")
 }
 
-func TestExecuteGrepChecksMissingModeEmitsFinding(t *testing.T) {
+func TestReduceGrepChecksMissingModeEmitsFinding(t *testing.T) {
 	root := t.TempDir()
-	writeTargetFile(t, root, "paper.md", "text without required phrase\n")
 	charter := grepCharter("required-suite", CharterCheck{
 		ID:       "must-mention-license",
 		Kind:     "grep_check",
@@ -145,13 +144,50 @@ func TestExecuteGrepChecksMissingModeEmitsFinding(t *testing.T) {
 		Mode:     "missing",
 	})
 
-	findings, err := ExecuteGrepChecks(root, []Charter{charter})
+	findings, err := reduceGrepFixtures(root, []Charter{charter}, "")
 
 	require.NoError(t, err)
 	require.Len(t, findings, 1)
 	assert.Empty(t, findings[0].File)
 	require.Zero(t, findings[0].Line)
 	assert.Contains(t, findings[0].Message, "not found")
+}
+
+func reduceGrepFixtures(root string, charters []Charter, outputs ...string) ([]Finding, error) {
+	plans, err := BuildGrepSearchPlans(root, charters)
+	if err != nil {
+		return nil, err
+	}
+	if len(plans) != len(outputs) {
+		return nil, fmt.Errorf("fixture outputs %d do not match plans %d", len(outputs), len(plans))
+	}
+	var findings []Finding
+	for index, plan := range plans {
+		exitCode := 0
+		if outputs[index] == "" {
+			exitCode = 1
+		}
+		reduced, err := ReduceGrepSearch(plan, outputs[index], exitCode)
+		if err != nil {
+			return nil, err
+		}
+		findings = append(findings, reduced...)
+	}
+	SortFindings(findings)
+	return findings, nil
+}
+
+func rgMatchFixture(path string, line int, text string) string {
+	event := map[string]interface{}{
+		"type": "match",
+		"data": map[string]interface{}{
+			"path":        map[string]string{"text": path},
+			"lines":       map[string]string{"text": text},
+			"line_number": line,
+		},
+	}
+	data, _ := json.Marshal(event)
+	return string(data) + "\n"
 }
 
 func grepCharter(id string, check CharterCheck) Charter {
