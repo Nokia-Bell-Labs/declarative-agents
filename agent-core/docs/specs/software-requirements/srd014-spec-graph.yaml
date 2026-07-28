@@ -63,6 +63,7 @@ requirements:
       - R5.5: Charter findings record suite ID, check ID, check kind, severity, message, and any available file and line provenance.
       - R5.6: The built-in spec_corpus charter preserves the current specification corpus validation behavior.
       - R5.7: grep_check target search runs through a declared rg exec word, followed by a machine-visible reduction step; pkg/spec does not scan target files for grep matches.
+      - R5.8: ref_check target extraction and file/directory inventory loading run through a declared external scan word, followed by a machine-visible reduction step; pkg/spec retains only plan lowering and finding reduction.
 
 non_goals:
   - Generating specifications from code.
@@ -88,8 +89,8 @@ acceptance_criteria:
     traces: [R4.1, R4.2, R4.3, R4.4]
 
   - id: AC5
-    criterion: Jurist charter suites load from YAML, run deterministic check kinds, expose grep_check as declared rg search plus finding reduction steps, and report provenance-rich findings.
-    traces: [R5.1, R5.2, R5.3, R5.4, R5.5, R5.7]
+    criterion: Jurist charter suites load from YAML, run deterministic check kinds, expose grep_check and ref_check as declared external scans plus finding reduction steps, and report provenance-rich findings.
+    traces: [R5.1, R5.2, R5.3, R5.4, R5.5, R5.7, R5.8]
 
   - id: AC6
     criterion: The built-in spec_corpus charter reproduces the current specification corpus validation behavior used by mage audit.

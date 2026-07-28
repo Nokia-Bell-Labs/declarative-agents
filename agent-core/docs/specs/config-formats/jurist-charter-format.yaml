@@ -30,6 +30,14 @@ grep_execution: |
   The rg executable is the same runtime dependency used by the filesystem find
   tool and is installed in the agent runtime image.
 
+ref_execution: |
+  load_corpus lowers each ref_check to a deterministic plan containing target
+  regex and glob policy plus trusted inventory paths and inline values. The
+  specification-critic MachineSpec iterates plans through jurist_ref_scan, which
+  uses rg for line evidence and find/cat for declared inventories, then invokes
+  reduce_ref_checks for membership, allow_missing, provenance, and ordering.
+  pkg/spec does not recursively scan target or inventory files for ref_check.
+
 suite_selection: |
   The spec-validation builtin tools load charter suites from ToolDef config or
   runtime variables. ToolDef config accepts suite_paths, charter_suites, and

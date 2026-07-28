@@ -5,6 +5,8 @@
 tools:
   - load_corpus
   - validate_specs
+  - jurist_ref_scan
+  - reduce_ref_checks
   - jurist_rg
   - reduce_grep_checks
   - format_report

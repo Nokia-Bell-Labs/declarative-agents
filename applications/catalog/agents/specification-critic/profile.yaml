@@ -7,3 +7,4 @@ tool_config_dirs:
 tool_declarations:
   - /opt/agent-core/tools/builtin/load-corpus.yaml
   - ripgrep.yaml
+  - ref-scan.yaml

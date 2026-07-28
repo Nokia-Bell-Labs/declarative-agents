@@ -1,0 +1,78 @@
+tools:
+  - name: jurist_ref_scan
+    type: exec
+    binary: bash
+    args:
+      - -c
+      - |
+        set -eu
+        query=$1
+        path=$2
+        shift 2
+        include=
+        exclude=
+        ref_file=
+        ref_dir=
+        while [ "$#" -gt 0 ]; do
+          case "$1" in
+            --include) include=$2; shift 2 ;;
+            --exclude) exclude=$2; shift 2 ;;
+            --reference-file) ref_file=$2; shift 2 ;;
+            --reference-directory) ref_dir=$2; shift 2 ;;
+            *) printf 'unknown ref scan argument: %s\n' "$1" >&2; exit 2 ;;
+          esac
+        done
+        printf '@@TARGET@@\n'
+        rg_args=(--json --line-number --no-ignore --hidden --text --threads 1 --sort path)
+        [ -z "$include" ] || rg_args+=(--glob "$include")
+        [ -z "$exclude" ] || rg_args+=(--glob "$exclude")
+        set +e
+        rg "${rg_args[@]}" -- "$query" "$path"
+        rc=$?
+        set -e
+        [ "$rc" -eq 0 ] || [ "$rc" -eq 1 ] || exit "$rc"
+        printf '@@REFERENCE_FILE@@\n'
+        [ -z "$ref_file" ] || cat -- "$ref_file"
+        printf '@@REFERENCE_DIRECTORY@@\n'
+        if [ -n "$ref_dir" ]; then
+          find -P "$ref_dir" -type f -printf '%P\n' | LC_ALL=C sort
+        fi
+      - jurist-ref-scan
+    visibility: internal
+    emits: [ToolDone, ToolFailed, CommandError]
+    description: Externally scan one ref_check target and its declared inventories.
+    category: boundary
+    parameters:
+      type: object
+      properties:
+        query:
+          {type: string, positional: true, position: 1, source: $from(ref_check).query}
+        path:
+          {type: string, positional: true, position: 2, source: $from(ref_check).path}
+        include_glob:
+          {type: string, flag: --include, position: 3, source: $from(ref_check).include_glob}
+        exclude_glob:
+          {type: string, flag: --exclude, position: 4, source: $from(ref_check).exclude_glob}
+        reference_file:
+          {type: string, flag: --reference-file, position: 5, source: $from(ref_check).reference_file}
+        reference_dir:
+          {type: string, flag: --reference-directory, position: 6, source: $from(ref_check).reference_dir}
+      required: [query, path]
+    output:
+      description: Marked rg JSON evidence plus file and directory inventory data.
+      mode: structured
+      schema:
+        type: object
+        properties:
+          output: {type: string}
+          exit_code: {type: integer}
+        required: [output, exit_code]
+    output_cap: 2097152
+    side_effects:
+      - {kind: child_process, target: bash/rg/find, state: read_only}
+    reversibility: {classification: reversible, undo: noop}
+    undo: {strategy: noop, description: Scanning changes nothing.}
+    errors:
+      - signal: CommandError
+        condition: bash, rg, find, or cat cannot execute the declared scan.
+        state_after_failure: No validation state changes.

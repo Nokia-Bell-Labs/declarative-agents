@@ -34,10 +34,24 @@ func RegisterSpecFactories(br *toolregistry.BuiltinRegistry, directory string) {
 	registerLoadCorpusFactory(br, initVS)
 	registerLoadTestClaimsFactory(br, initVS)
 	registerValidateSpecsFactory(br, initVS)
+	registerReduceRefFactory(br, initVS)
 	registerReduceGrepFactory(br, initVS)
 	registerResolveTestEvidenceFactory(br, initVS)
 	registerReduceTestEvidenceRunFactory(br, initVS)
 	registerFormatReportFactory(br, initVS)
+}
+
+func registerReduceRefFactory(br *toolregistry.BuiltinRegistry, initVS func() *SpecState) {
+	br.Register("reduce_ref_checks", func(def catalog.ToolDef, _ map[string]string) (core.Builder, error) {
+		var cfg specValidationConfig
+		if err := catalog.DecodeToolConfig(def, &cfg); err != nil {
+			return nil, err
+		}
+		if cfg.ResultsFrom == "" {
+			cfg.ResultsFrom = "$from(ref_results).items"
+		}
+		return &ReduceRefChecksBuilder{VS: initVS(), ResultsFrom: cfg.ResultsFrom}, nil
+	})
 }
 
 func registerLoadTestClaimsFactory(br *toolregistry.BuiltinRegistry, initVS func() *SpecState) {

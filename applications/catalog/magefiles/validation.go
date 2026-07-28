@@ -128,11 +128,13 @@ tool_config_dirs:
 tool_declarations:
   - %q
   - %q
+  - %q
 `, filepath.Join(profilesRoot, specificationCriticProfileDir, "machine.yaml"),
 		filepath.Join(profilesRoot, specificationCriticProfileDir, "tools.yaml"),
 		filepath.Join(coreRoot, "tools", "builtin", "spec-validation"),
 		toolDeclPath,
-		filepath.Join(profilesRoot, specificationCriticProfileDir, "ripgrep.yaml"))
+		filepath.Join(profilesRoot, specificationCriticProfileDir, "ripgrep.yaml"),
+		filepath.Join(profilesRoot, specificationCriticProfileDir, "ref-scan.yaml"))
 	if err := os.WriteFile(profilePath, []byte(profile), 0o644); err != nil {
 		return "", fmt.Errorf("write specification-critic demo profile: %w", err)
 	}

@@ -4,78 +4,199 @@ package spec
 
 import (
 	"fmt"
-	"os"
 	"path/filepath"
 	"regexp"
 	"sort"
 	"strings"
 )
 
-// ExecuteRefChecks runs ref_check charter checks over targetDir.
-func ExecuteRefChecks(targetDir string, charters []Charter) ([]Finding, error) {
-	var findings []Finding
+const (
+	refTargetMarker = "@@TARGET@@"
+	refFileMarker   = "@@REFERENCE_FILE@@"
+	refDirMarker    = "@@REFERENCE_DIRECTORY@@"
+)
+
+// RefSearchPlan lowers one ref_check into a declared filesystem scan plus a
+// focused finding reducer.
+type RefSearchPlan struct {
+	SuiteID         string   `json:"suite_id"`
+	CheckID         string   `json:"check_id"`
+	Kind            string   `json:"kind"`
+	Severity        string   `json:"severity"`
+	Message         string   `json:"message,omitempty"`
+	Path            string   `json:"path"`
+	DisplayRoot     string   `json:"display_root"`
+	IncludeGlob     string   `json:"include_glob"`
+	ExcludeGlob     string   `json:"exclude_glob"`
+	Query           string   `json:"query"`
+	Group           int      `json:"group"`
+	AllowMissing    bool     `json:"allow_missing"`
+	Allowed         []string `json:"allowed"`
+	ReferenceFile   string   `json:"reference_file"`
+	ReferenceDir    string   `json:"reference_dir"`
+	ReferenceFormat string   `json:"reference_format"`
+}
+
+// BuildRefSearchPlans validates and lowers ref_check policy without scanning
+// target or inventory files.
+func BuildRefSearchPlans(targetDir string, charters []Charter) ([]RefSearchPlan, error) {
+	plans := make([]RefSearchPlan, 0)
 	for _, charter := range charters {
-		root, rootRel := charterRoot(targetDir, charter.Target.Root)
-		files, err := charterFiles(root, rootRel, charter.Target.Include, charter.Target.Exclude)
-		if err != nil {
-			return nil, fmt.Errorf("charter %q: %w", charter.ID, err)
-		}
 		for _, check := range charter.Checks {
 			if check.Kind != "ref_check" {
 				continue
 			}
-			checkFindings, err := executeRefCheck(targetDir, charter, check, root, rootRel, files)
+			plan, err := buildRefSearchPlan(targetDir, charter, check)
 			if err != nil {
 				return nil, err
 			}
-			findings = append(findings, checkFindings...)
+			plans = append(plans, plan)
 		}
 	}
-	sort.Slice(findings, func(i, j int) bool {
-		return findingLess(findings[i], findings[j])
-	})
-	return findings, nil
+	return plans, nil
 }
 
-func executeRefCheck(targetDir string, charter Charter, check CharterCheck, root, rootRel string, baseFiles []charterFile) ([]Finding, error) {
+func buildRefSearchPlan(targetDir string, charter Charter, check CharterCheck) (RefSearchPlan, error) {
 	extractor, err := refExtractor(check)
 	if err != nil {
-		return nil, fmt.Errorf("charter %q check %q: %w", charter.ID, check.ID, err)
+		return RefSearchPlan{}, fmt.Errorf("charter %q check %q: %w", charter.ID, check.ID, err)
 	}
-	allowed, err := refInventory(targetDir, root, check)
+	if len(check.Refs) == 0 {
+		return RefSearchPlan{}, fmt.Errorf("charter %q check %q: ref_check requires references", charter.ID, check.ID)
+	}
+	path, displayRoot, err := grepSearchRoot(targetDir, charter, check)
 	if err != nil {
-		return nil, fmt.Errorf("charter %q check %q: %w", charter.ID, check.ID, err)
+		return RefSearchPlan{}, err
 	}
-	files, err := narrowCharterFiles(root, rootRel, baseFiles, check.Include, check.Exclude)
-	if err != nil {
-		return nil, fmt.Errorf("charter %q check %q: %w", charter.ID, check.ID, err)
+	include, exclude := effectiveGrepGlobs(charter, check, path)
+	allowed := make([]string, 0)
+	for _, key := range []string{"values", "keys", "inline"} {
+		allowed = append(allowed, stringSliceMapValue(check.Refs, key)...)
 	}
+	sort.Strings(allowed)
+	refFile, _ := stringMapValue(check.Refs, "file")
+	refDir, _ := stringMapValue(check.Refs, "directory")
+	format, _ := stringMapValue(check.Refs, "format")
+	inventoryRoot := path
+	if !filepath.IsAbs(inventoryRoot) {
+		inventoryRoot = filepath.Join(targetDir, inventoryRoot)
+	}
+	return RefSearchPlan{
+		SuiteID: charter.ID, CheckID: check.ID, Kind: check.Kind,
+		Severity: check.Severity, Message: check.Message,
+		Path: path, DisplayRoot: displayRoot,
+		IncludeGlob: combineGrepGlobs(include, false),
+		ExcludeGlob: combineGrepGlobs(exclude, true),
+		Query:       extractor.re.String(), Group: extractor.group,
+		AllowMissing: check.AllowMissing, Allowed: allowed,
+		ReferenceFile:   resolvedOptionalCharterPath(targetDir, inventoryRoot, refFile),
+		ReferenceDir:    resolvedOptionalCharterPath(targetDir, inventoryRoot, refDir),
+		ReferenceFormat: format,
+	}, nil
+}
 
+func resolvedOptionalCharterPath(targetDir, root, path string) string {
+	if path == "" {
+		return ""
+	}
+	return resolveCharterPath(targetDir, root, path)
+}
+
+// ReduceRefSearch combines declared rg evidence and externally loaded
+// inventories into deterministic ref_check findings.
+func ReduceRefSearch(plan RefSearchPlan, output string) ([]Finding, error) {
+	target, fileInventory, dirInventory, err := splitRefSearchOutput(output)
+	if err != nil {
+		return nil, fmt.Errorf("charter %q check %q: %w", plan.SuiteID, plan.CheckID, err)
+	}
+	allowed := refAllowedValues(plan, fileInventory, dirInventory)
+	if len(allowed) == 0 {
+		return nil, fmt.Errorf("charter %q check %q: ref_check references produced no allowed values", plan.SuiteID, plan.CheckID)
+	}
+	check := CharterCheck{
+		ID: plan.CheckID, Kind: plan.Kind, Severity: plan.Severity,
+		Message: plan.Message, Extract: map[string]any{"regex": plan.Query, "group": plan.Group},
+	}
+	extractor, err := refExtractor(check)
+	if err != nil {
+		return nil, err
+	}
+	events, err := parseGrepEvents(GrepSearchPlan{
+		SuiteID: plan.SuiteID, CheckID: plan.CheckID, DisplayRoot: plan.DisplayRoot,
+	}, target)
+	if err != nil {
+		return nil, err
+	}
+	return reduceRefEvents(plan, check, extractor, allowed, events), nil
+}
+
+func refAllowedValues(plan RefSearchPlan, fileInventory, dirInventory string) map[string]bool {
+	allowed := make(map[string]bool, len(plan.Allowed))
+	for _, value := range plan.Allowed {
+		allowed[value] = true
+	}
+	fileValues := inventoryFileValues(fileInventory, plan.ReferenceFormat)
+	for _, value := range append(fileValues, inventoryLines(dirInventory)...) {
+		allowed[value] = true
+	}
+	return allowed
+}
+
+func reduceRefEvents(
+	plan RefSearchPlan,
+	check CharterCheck,
+	extractor refRegexExtractor,
+	allowed map[string]bool,
+	events []grepMatchEvent,
+) []Finding {
+	charter := Charter{ID: plan.SuiteID}
 	var findings []Finding
-	var extracted int
-	for _, file := range files {
-		data, err := os.ReadFile(file.abs)
-		if err != nil {
-			return nil, fmt.Errorf("read target file %s: %w", file.display, err)
-		}
-		lines := strings.Split(string(data), "\n")
-		for idx, line := range lines {
-			if idx == len(lines)-1 && line == "" {
-				continue
-			}
-			for _, ref := range extractor.extract(line) {
-				extracted++
-				if allowed[ref] {
-					continue
-				}
-				findings = append(findings, refFinding(charter, check, file.display, idx+1, ref))
+	extracted := 0
+	for _, event := range events {
+		for _, ref := range extractor.extract(event.Line) {
+			extracted++
+			if !allowed[ref] {
+				findings = append(findings, refFinding(charter, check, event.Path, event.LineNumber, ref))
 			}
 		}
 	}
-	if extracted == 0 && !check.AllowMissing {
+	if extracted == 0 && !plan.AllowMissing {
 		findings = append(findings, refFinding(charter, check, "", 0, ""))
 	}
-	return findings, nil
+	return findings
+}
+
+func splitRefSearchOutput(output string) (string, string, string, error) {
+	if !strings.HasPrefix(output, refTargetMarker) {
+		return "", "", "", fmt.Errorf("ref scan output is missing target marker")
+	}
+	fileAt := strings.Index(output, refFileMarker)
+	dirAt := strings.Index(output, refDirMarker)
+	if fileAt < 0 || dirAt < fileAt {
+		return "", "", "", fmt.Errorf("ref scan output is missing inventory markers")
+	}
+	return strings.TrimPrefix(output[len(refTargetMarker):fileAt], "\n"),
+		strings.TrimPrefix(output[fileAt+len(refFileMarker):dirAt], "\n"),
+		strings.TrimPrefix(output[dirAt+len(refDirMarker):], "\n"), nil
+}
+
+func inventoryFileValues(data, format string) []string {
+	if format == "bibtex_keys" {
+		return bibtexKeys(data)
+	}
+	return inventoryLines(data)
+}
+
+func inventoryLines(data string) []string {
+	var values []string
+	for _, line := range strings.Split(data, "\n") {
+		line = strings.TrimSpace(line)
+		if line != "" && !strings.HasPrefix(line, "#") {
+			values = append(values, line)
+		}
+	}
+	sort.Strings(values)
+	return values
 }
 
 type refRegexExtractor struct {
@@ -115,83 +236,6 @@ func (e refRegexExtractor) extract(line string) []string {
 		}
 	}
 	return refs
-}
-
-func refInventory(targetDir, root string, check CharterCheck) (map[string]bool, error) {
-	if len(check.Refs) == 0 {
-		return nil, fmt.Errorf("ref_check requires references")
-	}
-	allowed := make(map[string]bool)
-	for _, key := range []string{"values", "keys", "inline"} {
-		for _, value := range stringSliceMapValue(check.Refs, key) {
-			allowed[value] = true
-		}
-	}
-	if path, ok := stringMapValue(check.Refs, "file"); ok && path != "" {
-		values, err := refsFromFile(resolveCharterPath(targetDir, root, path), check.Refs)
-		if err != nil {
-			return nil, err
-		}
-		for _, value := range values {
-			allowed[value] = true
-		}
-	}
-	if dir, ok := stringMapValue(check.Refs, "directory"); ok && dir != "" {
-		values, err := refsFromDirectory(resolveCharterPath(targetDir, root, dir))
-		if err != nil {
-			return nil, err
-		}
-		for _, value := range values {
-			allowed[value] = true
-		}
-	}
-	if len(allowed) == 0 {
-		return nil, fmt.Errorf("ref_check references produced no allowed values")
-	}
-	return allowed, nil
-}
-
-func refsFromFile(path string, refs map[string]any) ([]string, error) {
-	data, err := os.ReadFile(path)
-	if err != nil {
-		return nil, fmt.Errorf("read references file %s: %w", path, err)
-	}
-	if format, _ := stringMapValue(refs, "format"); format == "bibtex_keys" {
-		return bibtexKeys(string(data)), nil
-	}
-	var values []string
-	for _, line := range strings.Split(string(data), "\n") {
-		line = strings.TrimSpace(line)
-		if line == "" || strings.HasPrefix(line, "#") {
-			continue
-		}
-		values = append(values, line)
-	}
-	sort.Strings(values)
-	return values, nil
-}
-
-func refsFromDirectory(root string) ([]string, error) {
-	var values []string
-	err := filepath.WalkDir(root, func(path string, entry os.DirEntry, err error) error {
-		if err != nil {
-			return err
-		}
-		if entry.IsDir() {
-			return nil
-		}
-		rel, err := filepath.Rel(root, path)
-		if err != nil {
-			return err
-		}
-		values = append(values, filepath.ToSlash(rel))
-		return nil
-	})
-	if err != nil {
-		return nil, fmt.Errorf("read references directory %s: %w", root, err)
-	}
-	sort.Strings(values)
-	return values, nil
 }
 
 func bibtexKeys(data string) []string {
