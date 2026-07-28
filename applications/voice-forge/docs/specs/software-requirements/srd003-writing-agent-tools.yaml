@@ -147,6 +147,27 @@ factory_reuse:
         and validates a closed schema before any one-scalar predicate routes
         the report. Helper or process failure exits nonzero and never becomes a
         domain result.
+    planned_critic_helper:
+      status: not_implemented
+      kind: constrained_non_shell_executable
+      fixed_operations:
+        - validate-request
+        - validate-evaluation
+        - interpret-pangram
+        - compare-pangram
+      invocation_contract: |
+        Each critic exec ToolDef fixes the helper binary and exactly one
+        operation token in declaration-owned arguments. It receives bounded
+        JSON through fixed stdin or validated request input and has no runtime
+        binary, operation, path, endpoint, model, corpus, credential, command,
+        shell, or arbitrary argv parameter.
+      output_contract: |
+        Each operation emits one bounded JSON object on zero exit. Exec
+        structured mode wraps that object under output with exit_code. A
+        distinct parse_structured word selects only the nested output string,
+        validates a closed schema, and feeds visible one-scalar predicates.
+        The helper may validate hashes and compute advisory differences but
+        cannot edit content, issue a verdict, or select authority.
 
 authority_invariants:
   - Only workflow-orchestrator selects workproduct and git/gh words.
@@ -348,7 +369,7 @@ word_vocabulary:
       owner: workflow-orchestrator
       implementation: {type: builtin, factory: execute_task, reuse: Profile-only child-agent invocation for voice-critic.}
       inputs: [original and selected style bytes and artifact IDs, both hashes, acceptance policy, explicit Pangram consent state, invocation identity]
-      outputs: [schema-bound critique, evaluated hashes, categorized findings, Pangram statuses, verdict, responsible stage and bounded feedback]
+      outputs: [voice-forge.critic-response/v1 completed critique with evaluated hashes, six categorized findings, separate Pangram statuses and comparison, pass/warn/reject, nullable responsible stage, and bounded feedback; failed child outcome uses ExecutionFailed]
       emits: [ExecutionDone, ExecutionFailed, CommandError]
       infrastructure_errors: [profile missing, process start failure, timeout, malformed transport response]
       domain_errors: [valid pass, warn, or reject verdict; invalid critic request]
@@ -593,7 +614,7 @@ word_vocabulary:
     - {name: voice_response_returned, owner: workflow-orchestrator, implementation: {type: builtin, factory: value_predicate, reuse: Compare outcome with returned.}, inputs: [$from(voice_child_response).outcome, configured literal returned], outputs: [one comparison record], emits: [VoiceEditReturned, VoiceEditRejected, CommandError], infrastructure_errors: [selector or coercion failure], domain_errors: [comparison false means schema-closed rejected], side_effects: [none], reversibility: {classification: reversible, undo: noop}, compensation: Preserve the prior parent., authority: Compares one validated scalar.}
     - {name: parse_style_editor_response, owner: workflow-orchestrator, implementation: {type: builtin, factory: parse_structured, reuse: Parse bounded style child stdout after fixed compose capture.}, inputs: [$from(style_child_parse_input).stdout], outputs: [validated outcome candidate provenance and parent identity], emits: [StyleResponseParsed, StyleResponseInvalid, CommandError], infrastructure_errors: [selector or schema configuration failure], domain_errors: [malformed child response], side_effects: [none], reversibility: {classification: reversible, undo: noop}, compensation: Preserve the prior parent., authority: Parses only the configured style response schema.}
     - {name: style_response_returned, owner: workflow-orchestrator, implementation: {type: builtin, factory: value_predicate, reuse: Compare outcome with returned.}, inputs: [$from(style_child_response).outcome, configured literal returned], outputs: [one comparison record], emits: [StyleEditReturned, StyleEditRejected, CommandError], infrastructure_errors: [selector or coercion failure], domain_errors: [comparison false means schema-closed rejected], side_effects: [none], reversibility: {classification: reversible, undo: noop}, compensation: Preserve the prior parent., authority: Compares one validated scalar.}
-    - {name: parse_critic_response, owner: workflow-orchestrator, implementation: {type: builtin, factory: parse_structured, reuse: Parse bounded critic stdout after fixed compose capture.}, inputs: [$from(critic_child_parse_input).stdout], outputs: [validated critique verdict responsible stage findings hashes and bounded feedback], emits: [CriticResponseParsed, CriticResponseInvalid, CommandError], infrastructure_errors: [selector or schema configuration failure], domain_errors: [malformed child response], side_effects: [none], reversibility: {classification: reversible, undo: noop}, compensation: Preserve the selected candidate., authority: Parses only the configured critic response schema.}
+    - {name: parse_critic_response, owner: workflow-orchestrator, implementation: {type: builtin, factory: parse_structured, reuse: Parse bounded critic stdout after fixed compose capture.}, inputs: [$from(critic_child_parse_input).stdout], outputs: [validated voice-forge.critic-response/v1 completed outcome, verdict, exactly six findings, both hashes, nullable responsible stage, bounded feedback, independent voice provenance, separate Pangram scan statuses, advisory comparison, and critic metadata], emits: [CriticResponseParsed, CriticResponseInvalid, CommandError], infrastructure_errors: [selector or schema configuration failure], domain_errors: [malformed response, non-completed outcome, missing finding, hash mismatch, reject without exactly one structure/voice/style stage, or pass/warn with non-null stage], side_effects: [none], reversibility: {classification: reversible, undo: noop}, compensation: Preserve the selected candidate., authority: Parses only the configured completed critic response schema; failed critic service outcomes remain ExecutionFailed and cannot enter verdict predicates.}
     - {name: critic_verdict_is_pass, owner: workflow-orchestrator, implementation: {type: builtin, factory: value_predicate, reuse: Compare verdict with pass.}, inputs: [$from(critic_response).verdict, configured literal pass], outputs: [one comparison record], emits: [CriticPassed, CriticNotPassed, CommandError], infrastructure_errors: [selector or coercion failure], domain_errors: [comparison false], side_effects: [none], reversibility: {classification: reversible, undo: noop}, compensation: No state exists to compensate., authority: Compares one validated scalar.}
     - {name: critic_verdict_is_warn, owner: workflow-orchestrator, implementation: {type: builtin, factory: value_predicate, reuse: Compare verdict with warn.}, inputs: [$from(critic_response).verdict, configured literal warn], outputs: [one comparison record], emits: [CriticWarned, CriticRejected, CommandError], infrastructure_errors: [selector or coercion failure], domain_errors: [comparison false means schema-closed reject], side_effects: [none], reversibility: {classification: reversible, undo: noop}, compensation: No state exists to compensate., authority: Compares one validated scalar.}
 
@@ -1653,44 +1674,54 @@ word_vocabulary:
       compensation: No external state exists to compensate.
       authority: Formats one fixed failed outcome and cannot edit, accept, or widen authority.
 
+    - {name: validate_critic_request, owner: voice-critic, implementation: {type: exec, factory: exec, reuse: Fixed validate-request operation of the planned non-shell critic helper.}, inputs: [original and candidate bytes, declared hashes, artifact identities, target voice, bounded policy, exact-hash consent record], outputs: [bounded JSON request_status and consent_gate_status], emits: [ToolDone, ToolFailed, CommandError], infrastructure_errors: [selector, start, timeout, or helper failure], domain_errors: [hash, identity, schema, or forbidden-field mismatch], side_effects: [child_process], reversibility: {classification: reversible, undo: noop}, compensation: No external state exists to compensate., authority: Compares exact bytes, hashes, consent scope, and forbidden fields; it cannot edit content or upload data.}
+    - {name: parse_critic_request_report, owner: voice-critic, implementation: {type: builtin, factory: parse_structured, reuse: Parse bounded request-helper stdout.}, inputs: [$from(critic_request_report_raw).output], outputs: [validated request_status and consent_gate_status], emits: [CriticRequestReportParsed, CriticRequestReportInvalid, CommandError], infrastructure_errors: [selector or normalized-output encoding failure], domain_errors: [malformed or schema-invalid helper stdout], side_effects: [none], reversibility: {classification: reversible, undo: noop}, compensation: No state exists to compensate., authority: Parses only the fixed request report schema.}
+    - {name: critic_request_is_valid, owner: voice-critic, implementation: {type: builtin, factory: value_predicate, reuse: Compare request_status with valid.}, inputs: [$from(critic_request_report).request_status, configured literal valid], outputs: [one comparison record], emits: [CriticRequestValid, CriticRequestRejected, CommandError], infrastructure_errors: [selector or coercion failure], domain_errors: [comparison false], side_effects: [none], reversibility: {classification: reversible, undo: noop}, compensation: No state exists to compensate., authority: Compares one validated scalar.}
+    - {name: compose_critic_voice_query, owner: voice-critic, implementation: {type: builtin, factory: compose, reuse: Render one fixed comparison query from validated request fields.}, inputs: [target voice, bounded original and candidate descriptors, both hashes], outputs: [fixed query envelope], emits: [CriticVoiceQueryReady], infrastructure_errors: [none], domain_errors: [none], side_effects: [none], reversibility: {classification: reversible, undo: noop}, compensation: No state exists to compensate., authority: Emits one fixed signal and cannot select a corpus, model, endpoint, or verdict.}
     - name: embed_critic_voice_query
       owner: voice-critic
       implementation: {type: builtin, factory: rest_client_invoke, reuse: Configured Ollama embedding operation.}
-      inputs: [deterministically composed comparison query from supplied original and candidate hashes and bounded excerpts]
+      inputs: [query text selected from the fixed critic query envelope]
       outputs: [embedding vector, embedding model identity, carried query identity]
       emits: [CriticQueryEmbedded, CriticQueryRejected, CommandError]
       infrastructure_errors: [REST config, network, timeout, authentication, schema, or mapping failure]
-      domain_errors: [provider rejects bounded input]
+      domain_errors: [provider rejection mapped by configured HTTP status]
       side_effects: [external_api]
       reversibility: {classification: irreversible, undo: record_observation}
       compensation: No remote inference can be undone; discard output on failure.
-      authority: Endpoint/model are configured; vector comes only from provider output.
+      authority: Endpoint and model are configured; the vector comes only from mapped provider output.
 
     - name: query_critic_voice_rag
       owner: voice-critic
       implementation: {type: builtin, factory: rest_client_invoke, reuse: Read-only vector-in query bound to voice-rag.}
       inputs: [vector from embed_critic_voice_query, configured result limit, both evaluated hashes]
       outputs: [ranked passages, distances, metadata, embedding model identity]
-      emits: [CriticVoiceEvidenceReady, CriticVoiceEvidenceInsufficient, QueryRejected, CommandError]
+      emits: [CriticVoiceEvidenceReturned, QueryRejected, CommandError]
       infrastructure_errors: [REST config, network, timeout, response schema, or mapping failure]
-      domain_errors: [embedding mismatch, query rejected, insufficient evidence]
+      domain_errors: [configured HTTP rejection]
       side_effects: [external_api]
       reversibility: {classification: reversible, undo: noop}
       compensation: Read-only.
-      authority: Calls only configured voice-rag and cannot write any corpus.
+      authority: Calls only configured voice-rag and cannot write any corpus or route among corpora.
 
+    - {name: compose_critic_evaluation_context, owner: voice-critic, implementation: {type: builtin, factory: compose, reuse: Render one fixed independent-evaluation context.}, inputs: [validated original and candidate bytes and hashes, target voice, bounded policy, independently retrieved voice passages], outputs: [fixed evaluation context without editor reasoning or Pangram results], emits: [CriticEvaluationContextReady], infrastructure_errors: [none], domain_errors: [none], side_effects: [none], reversibility: {classification: reversible, undo: noop}, compensation: No state exists to compensate., authority: Emits one fixed signal and excludes editor reasoning and Pangram evidence.}
     - name: evaluate_voice_candidate
       owner: voice-critic
       implementation: {type: builtin, factory: invoke_llm, reuse: Profile-owned Ollama LLM declaration.}
-      inputs: [supplied immutable original and candidate bytes and hashes, bounded policy, voice evidence, optional mapped Pangram evidence]
-      outputs: [schema-bound semantic, structure, voice, style, unsupported-addition, and copy-risk findings; pass/warn/reject; responsible stage and feedback]
-      emits: [CriticPassed, CriticWarned, CriticRejected, CriticOutputInvalid, CommandError]
-      infrastructure_errors: [provider config, model discovery, timeout, or chat failure]
-      domain_errors: [valid pass, warn, or reject; schema-invalid or hash-mismatched evaluation]
+      inputs: [exact immediately preceding independent-evaluation context]
+      outputs: [raw model JSON containing both hashes, six finding categories, provisional pass/warn/reject, responsible stage, and bounded feedback]
+      emits: [LLMResponded, CommandError]
+      infrastructure_errors: [provider config, model discovery, timeout, context, or chat failure]
+      domain_errors: [none until explicit parsing and deterministic validation]
       side_effects: [external_api, state_mutation]
       reversibility: {classification: reversible, undo: conversation_truncate}
-      compensation: Truncate conversation state; no verdict is emitted for invalid or infrastructure-failed evaluation.
-      authority: May author findings, declared verdict enums, responsible-stage enum, and bounded feedback; cannot edit content or author authority values. Pangram alone cannot determine verdict.
+      compensation: Truncate conversation state; raw output is not a verdict.
+      authority: Produces assessment data only; it cannot edit content, see editor reasoning, invoke Pangram, or author authority values.
+    - {name: parse_critic_evaluation, owner: voice-critic, implementation: {type: builtin, factory: parse_structured, reuse: Parse raw LLM JSON against the closed evaluation schema.}, inputs: [$from(critic_evaluation_raw).output], outputs: [validated evaluation-shaped JSON], emits: [CriticEvaluationParsed, CriticEvaluationInvalid, CommandError], infrastructure_errors: [selector or normalized-output encoding failure], domain_errors: [malformed or schema-invalid model output], side_effects: [none], reversibility: {classification: reversible, undo: noop}, compensation: Invalid output produces no verdict., authority: Parses without repair and does not route a verdict.}
+    - {name: compose_critic_validation_input, owner: voice-critic, implementation: {type: builtin, factory: compose, reuse: Render one fixed helper envelope from request and parsed evaluation labels.}, inputs: [validated request identity, parsed evaluation], outputs: [JSON object with one bounded stdin string], emits: [CriticValidationInputReady], infrastructure_errors: [none], domain_errors: [none], side_effects: [none], reversibility: {classification: reversible, undo: noop}, compensation: No state exists to compensate., authority: Emits one fixed signal.}
+    - {name: validate_critic_evaluation, owner: voice-critic, implementation: {type: exec, factory: exec, reuse: Fixed validate-evaluation operation of the planned non-shell critic helper.}, inputs: [$from(critic_validation_input).stdin], outputs: [bounded JSON with evaluation_status, verdict, responsible_stage, six findings, and both hashes], emits: [ToolDone, ToolFailed, CommandError], infrastructure_errors: [selector, start, timeout, or helper failure], domain_errors: [hash mismatch, missing finding category, invalid verdict-stage relation, or unbounded feedback], side_effects: [child_process], reversibility: {classification: reversible, undo: noop}, compensation: Invalid output produces no verdict., authority: Deterministically validates cross-field rules; it cannot alter findings, choose a new verdict, or edit content.}
+    - {name: parse_critic_validation_report, owner: voice-critic, implementation: {type: builtin, factory: parse_structured, reuse: Parse bounded evaluation-validator stdout.}, inputs: [$from(critic_validation_report_raw).output], outputs: [validated evaluation report], emits: [CriticValidationReportParsed, CriticValidationReportInvalid, CommandError], infrastructure_errors: [selector or normalized-output encoding failure], domain_errors: [malformed or schema-invalid helper stdout], side_effects: [none], reversibility: {classification: reversible, undo: noop}, compensation: No verdict is produced., authority: Parses only the fixed validation report schema.}
+    - {name: critic_evaluation_is_valid, owner: voice-critic, implementation: {type: builtin, factory: value_predicate, reuse: Compare evaluation_status with valid.}, inputs: [$from(critic_validation_report).evaluation_status, configured literal valid], outputs: [one comparison record], emits: [CriticEvaluationValid, CriticEvaluationRejected, CommandError], infrastructure_errors: [selector or coercion failure], domain_errors: [comparison false], side_effects: [none], reversibility: {classification: reversible, undo: noop}, compensation: No state exists to compensate., authority: Compares one validated scalar.}
 
   critic_pangram:
     - name: check_pangram_consent
@@ -1706,44 +1737,79 @@ word_vocabulary:
       compensation: No state exists to compensate; a non-granted result selects no scan word.
       authority: Performs exactly one configured scalar comparison; the preceding consent-state validator owns status derivation and hash binding.
 
-    - name: await_pangram_consent
+    - {name: compose_pangram_original_request, owner: voice-critic, implementation: {type: builtin, factory: compose, reuse: Render the fixed private original submission body only after the consent predicate.}, inputs: [exact original bytes and hash], outputs: [declared Pangram text parameter and private-link setting], emits: [PangramOriginalRequestReady], infrastructure_errors: [none], domain_errors: [none], side_effects: [none], reversibility: {classification: reversible, undo: noop}, compensation: No upload has occurred., authority: Emits one fixed signal and cannot select transport or credentials.}
+    - name: pangram_submit_original
       owner: voice-critic
-      implementation: {type: builtin, factory: suspend, reuse: Agent-core human-boundary lifecycle gate.}
-      inputs: [recorded consent state, both content hashes, disclosure text and privacy policy identity]
-      outputs: [checkpointed suspension identity for a missing-consent decision]
-      emits: [AwaitApproval, CommandError]
-      infrastructure_errors: [checkpoint or resume-decision failure]
-      domain_errors: [none; check_pangram_consent owns the resumed consent outcome]
-      side_effects: [human_boundary, state_mutation]
-      reversibility: {classification: compensatable, undo: resume_with_denial}
-      compensation: Resume to check_pangram_consent or terminate without Pangram; consent is never inferred.
-      authority: Suspends only for missing consent and grants no endpoint, credential, path, or upload authority.
-
-    - name: pangram_scan_before
-      owner: voice-critic
-      implementation: {type: builtin, factory: rest_client_invoke, reuse: Configured authenticated Pangram before-scan operation.}
+      implementation: {type: builtin, factory: rest_client_invoke, reuse: Configured authenticated POST /task operation.}
       inputs: [exact supplied original bytes and hash, affirmative consent bound to both hashes, configured timeout and request limit]
-      outputs: [mapped advisory score/findings, original hash, request status, provider request identity with secrets redacted]
-      emits: [PangramBeforeReady, PangramBeforeDeclined, PangramBeforeRejected, CommandError]
+      outputs: [mapped task_id and original hash with secrets redacted]
+      emits: [PangramOriginalSubmitted, PangramOriginalDenied, CommandError]
       infrastructure_errors: [REST config, credential resolution, network, authentication, timeout, response schema, or mapping failure]
-      domain_errors: [consent not affirmative, content too large, provider rejects scan]
+      domain_errors: [configured 400, 401, 402, 413, 415, 422, or 429 status mapping]
       side_effects: [external_api]
       reversibility: {classification: irreversible, undo: none_for_upload}
-      compensation: Upload cannot be recalled; retain only bounded redacted evidence and continue or fail under recorded policy.
-      authority: Uploads only supplied original bytes after consent; URL, route, credential, timeout, and privacy limits are configured and invisible to model output.
-
-    - name: pangram_scan_after
+      compensation: Upload cannot be recalled; retain bounded request identity and status.
+      authority: Uploads only supplied original bytes after the exact-hash gate; endpoint, route, credential, limits, and public_dashboard_link false are configured.
+    - name: pangram_poll_original
       owner: voice-critic
-      implementation: {type: builtin, factory: rest_client_invoke, reuse: Configured authenticated Pangram after-scan operation.}
+      implementation: {type: builtin, factory: rest_client_invoke, reuse: "Configured authenticated GET /task/{task_id} operation."}
+      inputs: [task_id from pangram_submit_original]
+      outputs: [one mapped poll body and redacted request metadata]
+      emits: [PangramOriginalObserved, PangramOriginalPollDenied, CommandError]
+      infrastructure_errors: [REST config, credential resolution, network, timeout, response schema, or mapping failure]
+      domain_errors: [configured 403 or 404 status mapping]
+      side_effects: [external_api]
+      reversibility: {classification: reversible, undo: noop}
+      compensation: Read-only poll; the prior upload remains irreversible.
+      authority: Polls only the task created for the exact original hash.
+
+    - {name: compose_pangram_candidate_request, owner: voice-critic, implementation: {type: builtin, factory: compose, reuse: Render the fixed private candidate submission body only after the consent predicate and original scan terminal status.}, inputs: [exact candidate bytes and hash], outputs: [declared Pangram text parameter and private-link setting], emits: [PangramCandidateRequestReady], infrastructure_errors: [none], domain_errors: [none], side_effects: [none], reversibility: {classification: reversible, undo: noop}, compensation: No candidate upload has occurred., authority: Emits one fixed signal and cannot select transport or credentials.}
+    - name: pangram_submit_candidate
+      owner: voice-critic
+      implementation: {type: builtin, factory: rest_client_invoke, reuse: Configured authenticated POST /task operation.}
       inputs: [exact supplied candidate bytes and hash, affirmative consent bound to both hashes, configured timeout and request limit]
-      outputs: [mapped advisory score/findings, candidate hash, request status, provider request identity with secrets redacted]
-      emits: [PangramAfterReady, PangramAfterDeclined, PangramAfterRejected, CommandError]
+      outputs: [mapped task_id and candidate hash with secrets redacted]
+      emits: [PangramCandidateSubmitted, PangramCandidateDenied, CommandError]
       infrastructure_errors: [REST config, credential resolution, network, authentication, timeout, response schema, or mapping failure]
-      domain_errors: [consent not affirmative, content too large, provider rejects scan]
+      domain_errors: [configured 400, 401, 402, 413, 415, 422, or 429 status mapping]
       side_effects: [external_api]
       reversibility: {classification: irreversible, undo: none_for_upload}
-      compensation: Upload cannot be recalled; retain only bounded redacted evidence and continue or fail under recorded policy.
-      authority: Uploads only supplied candidate bytes after consent; no model-authored transport or credential value is accepted.
+      compensation: Upload cannot be recalled; retain bounded request identity and status.
+      authority: Uploads only supplied candidate bytes after the exact-hash gate; no model-authored transport or credential value is accepted.
+    - name: pangram_poll_candidate
+      owner: voice-critic
+      implementation: {type: builtin, factory: rest_client_invoke, reuse: "Configured authenticated GET /task/{task_id} operation."}
+      inputs: [task_id from pangram_submit_candidate]
+      outputs: [one mapped poll body and redacted request metadata]
+      emits: [PangramCandidateObserved, PangramCandidatePollDenied, CommandError]
+      infrastructure_errors: [REST config, credential resolution, network, timeout, response schema, or mapping failure]
+      domain_errors: [configured 403 or 404 status mapping]
+      side_effects: [external_api]
+      reversibility: {classification: reversible, undo: noop}
+      compensation: Read-only poll; the prior upload remains irreversible.
+      authority: Polls only the task created for the exact candidate hash.
+    - {name: compose_pangram_observation_input, owner: voice-critic, implementation: {type: builtin, factory: compose, reuse: Render one fixed helper envelope for an original or candidate poll body.}, inputs: [document kind and hash, mapped poll body, bounded poll count], outputs: [JSON object with one bounded stdin string], emits: [PangramObservationInputReady], infrastructure_errors: [none], domain_errors: [none], side_effects: [none], reversibility: {classification: reversible, undo: noop}, compensation: No state exists to compensate., authority: Emits one fixed signal.}
+    - {name: interpret_pangram_observation, owner: voice-critic, implementation: {type: exec, factory: exec, reuse: Fixed interpret-pangram operation of the planned non-shell critic helper.}, inputs: [$from(pangram_observation_input).stdin], outputs: [bounded JSON status pending, completed, or failed plus documented fractions and paragraph-window evidence], emits: [ToolDone, ToolFailed, CommandError], infrastructure_errors: [selector, start, timeout, or helper failure], domain_errors: [unknown stage, malformed mapped body, or hash mismatch], side_effects: [child_process], reversibility: {classification: reversible, undo: noop}, compensation: No external state exists to compensate., authority: Interprets documented Pangram fields and cannot issue a critic verdict.}
+    - {name: parse_pangram_observation, owner: voice-critic, implementation: {type: builtin, factory: parse_structured, reuse: Parse bounded observation-helper stdout.}, inputs: [$from(pangram_observation_raw).output], outputs: [validated advisory status and evidence], emits: [PangramObservationParsed, PangramObservationInvalid, CommandError], infrastructure_errors: [selector or normalized-output encoding failure], domain_errors: [malformed or schema-invalid helper stdout], side_effects: [none], reversibility: {classification: reversible, undo: noop}, compensation: Record explicit advisory failure., authority: Parses only the fixed observation schema.}
+    - {name: pangram_observation_is_completed, owner: voice-critic, implementation: {type: builtin, factory: value_predicate, reuse: Compare status with completed.}, inputs: [$from(pangram_observation).status, configured literal completed], outputs: [one comparison record], emits: [PangramObservationCompleted, PangramObservationNotCompleted, CommandError], infrastructure_errors: [selector or coercion failure], domain_errors: [comparison false], side_effects: [none], reversibility: {classification: reversible, undo: noop}, compensation: No state exists to compensate., authority: Compares one validated scalar.}
+    - {name: pangram_observation_is_pending, owner: voice-critic, implementation: {type: builtin, factory: value_predicate, reuse: Compare status with pending.}, inputs: [$from(pangram_observation).status, configured literal pending], outputs: [one comparison record], emits: [PangramObservationPending, PangramObservationFailed, CommandError], infrastructure_errors: [selector or coercion failure], domain_errors: [comparison false means schema-closed failed], side_effects: [none], reversibility: {classification: reversible, undo: noop}, compensation: No state exists to compensate., authority: Compares one validated scalar.}
+    - {name: pangram_poll_budget_available, owner: voice-critic, implementation: {type: builtin, factory: value_predicate, reuse: Compare bounded poll count with configured hard limit.}, inputs: [$from(pangram_observation).poll_count, configured poll limit], outputs: [one comparison record], emits: [PangramPollRetryAllowed, PangramPollTimedOut, CommandError], infrastructure_errors: [selector or coercion failure], domain_errors: [comparison false], side_effects: [none], reversibility: {classification: reversible, undo: noop}, compensation: Timeout remains explicit advisory status., authority: Compares one validated scalar.}
+    - {name: wait_pangram_poll, owner: voice-critic, implementation: {type: builtin, factory: delay, reuse: Fixed bounded cancellation-aware delay between Pangram polls.}, inputs: [configured duration only], outputs: [waited duration and deadline flag], emits: [PangramPollDelayElapsed, CommandError], infrastructure_errors: [cancellation or timer failure], domain_errors: [none], side_effects: [time_wait], reversibility: {classification: reversible, undo: noop}, compensation: Waiting changes no external state., authority: Duration and signal are fixed by ToolDef configuration; runtime and model output cannot alter them.}
+    - {name: compose_pangram_scan_evidence, owner: voice-critic, implementation: {type: builtin, factory: compose, reuse: Copy one completed parsed observation into a document-kind-specific stable evidence step.}, inputs: [$from(pangram_observation) completed advisory record including document kind and hash], outputs: [fixed completed scan evidence envelope], emits: [PangramScanEvidenceReady], infrastructure_errors: [none], domain_errors: [none], side_effects: [none], reversibility: {classification: reversible, undo: noop}, compensation: No state exists to compensate., authority: Emits one fixed signal and cannot alter advisory values or verdict.}
+    - {name: compose_pangram_consent_unavailable, owner: voice-critic, implementation: {type: builtin, factory: compose, reuse: Render one fixed no-upload envelope for both documents from validated non-granted consent.}, inputs: [$from(critic_request_report) consent_gate_status and both hashes], outputs: [both document statuses plus consent status], emits: [PangramUnavailableEvidenceReady], infrastructure_errors: [none], domain_errors: [none], side_effects: [none], reversibility: {classification: reversible, undo: noop}, compensation: No upload occurred., authority: Emits one fixed signal and cannot turn non-granted consent into acceptance.}
+    - {name: compose_pangram_original_unavailable, owner: voice-critic, implementation: {type: builtin, factory: compose, reuse: Render one fixed original unavailable envelope from the immediately previous bounded failure result.}, inputs: [immediately previous bounded failure result, original hash], outputs: [original status unavailable and bounded reason], emits: [PangramUnavailableEvidenceReady], infrastructure_errors: [none], domain_errors: [none], side_effects: [none], reversibility: {classification: reversible, undo: noop}, compensation: Prior upload, if any, remains irreversible., authority: Emits one fixed signal and cannot fabricate favorable evidence.}
+    - {name: compose_pangram_candidate_unavailable, owner: voice-critic, implementation: {type: builtin, factory: compose, reuse: Render one fixed candidate unavailable envelope from the immediately previous bounded failure result.}, inputs: [immediately previous bounded failure result, candidate hash], outputs: [candidate status unavailable and bounded reason], emits: [PangramUnavailableEvidenceReady], infrastructure_errors: [none], domain_errors: [none], side_effects: [none], reversibility: {classification: reversible, undo: noop}, compensation: Prior upload, if any, remains irreversible., authority: Emits one fixed signal and cannot fabricate favorable evidence.}
+    - {name: compose_pangram_comparison_unavailable, owner: voice-critic, implementation: {type: builtin, factory: compose, reuse: Render one fixed comparison_failed envelope while retaining both scan records.}, inputs: [original and candidate evidence labels, immediately previous bounded comparison failure], outputs: [comparison_failed status and both retained scan statuses], emits: [PangramUnavailableEvidenceReady], infrastructure_errors: [none], domain_errors: [none], side_effects: [none], reversibility: {classification: reversible, undo: noop}, compensation: No state exists to compensate., authority: Emits one fixed signal and cannot read or alter the verdict.}
+    - {name: compose_pangram_denied_comparison_input, owner: voice-critic, implementation: {type: builtin, factory: compose, reuse: Render one fixed comparison-helper envelope from the single consent-denied record that contains both document statuses.}, inputs: [$from(pangram_all_evidence) consent status and both hashes], outputs: [JSON object with one bounded stdin string], emits: [PangramComparisonInputReady], infrastructure_errors: [none], domain_errors: [none], side_effects: [none], reversibility: {classification: reversible, undo: noop}, compensation: No state exists to compensate., authority: Handles only the no-upload branch and emits one fixed signal.}
+    - {name: compose_pangram_comparison_input, owner: voice-critic, implementation: {type: builtin, factory: compose, reuse: Render one fixed helper envelope from separate original and candidate advisory records.}, inputs: [original advisory status/evidence, candidate advisory status/evidence, both hashes], outputs: [JSON object with one bounded stdin string], emits: [PangramComparisonInputReady], infrastructure_errors: [none], domain_errors: [none], side_effects: [none], reversibility: {classification: reversible, undo: noop}, compensation: No state exists to compensate., authority: Emits one fixed signal.}
+    - {name: compare_pangram_results, owner: voice-critic, implementation: {type: exec, factory: exec, reuse: Fixed compare-pangram operation of the planned non-shell critic helper.}, inputs: [$from(pangram_comparison_input).stdin], outputs: [bounded JSON comparison_status, separate statuses, fraction deltas, segment deltas, and mapping note], emits: [ToolDone, ToolFailed, CommandError], infrastructure_errors: [selector, start, timeout, or helper failure], domain_errors: [hash mismatch or malformed advisory record], side_effects: [child_process], reversibility: {classification: reversible, undo: noop}, compensation: Record explicit comparison unavailable status., authority: Computes advisory differences only; it cannot read or change the independent verdict.}
+    - {name: parse_pangram_comparison, owner: voice-critic, implementation: {type: builtin, factory: parse_structured, reuse: Parse bounded comparison-helper stdout.}, inputs: [$from(pangram_comparison_raw).output], outputs: [validated advisory comparison], emits: [PangramComparisonParsed, PangramComparisonInvalid, CommandError], infrastructure_errors: [selector or normalized-output encoding failure], domain_errors: [malformed or schema-invalid helper stdout], side_effects: [none], reversibility: {classification: reversible, undo: noop}, compensation: Preserve explicit comparison unavailable status., authority: Parses advisory evidence and cannot route the verdict.}
+    - {name: critic_verdict_is_pass, owner: voice-critic, implementation: {type: builtin, factory: value_predicate, reuse: Compare independently validated verdict with pass.}, inputs: [$from(critic_validation_report).verdict, configured literal pass], outputs: [one comparison record], emits: [CriticPassed, CriticNotPassed, CommandError], infrastructure_errors: [selector or coercion failure], domain_errors: [comparison false], side_effects: [none], reversibility: {classification: reversible, undo: noop}, compensation: No state exists to compensate., authority: Compares one validated scalar and does not read Pangram.}
+    - {name: critic_verdict_is_warn, owner: voice-critic, implementation: {type: builtin, factory: value_predicate, reuse: Compare independently validated verdict with warn.}, inputs: [$from(critic_validation_report).verdict, configured literal warn], outputs: [one comparison record], emits: [CriticWarned, CriticRejected, CommandError], infrastructure_errors: [selector or coercion failure], domain_errors: [comparison false means schema-closed reject], side_effects: [none], reversibility: {classification: reversible, undo: noop}, compensation: No state exists to compensate., authority: Compares one validated scalar and does not read Pangram.}
+    - {name: compose_critic_pass_response, owner: voice-critic, implementation: {type: builtin, factory: compose, reuse: Render one fixed pass response from independently validated findings plus advisory comparison.}, inputs: [critic validation report, Pangram comparison], outputs: [critic response schema], emits: [CriticResponsePassed], infrastructure_errors: [none], domain_errors: [none], side_effects: [none], reversibility: {classification: reversible, undo: noop}, compensation: No state exists to compensate., authority: Preserves the validated verdict and emits one fixed signal.}
+    - {name: compose_critic_warn_response, owner: voice-critic, implementation: {type: builtin, factory: compose, reuse: Render one fixed warn response from independently validated findings plus advisory comparison.}, inputs: [critic validation report, Pangram comparison], outputs: [critic response schema], emits: [CriticResponseWarned], infrastructure_errors: [none], domain_errors: [none], side_effects: [none], reversibility: {classification: reversible, undo: noop}, compensation: No state exists to compensate., authority: Preserves the validated verdict and emits one fixed signal.}
+    - {name: compose_critic_reject_response, owner: voice-critic, implementation: {type: builtin, factory: compose, reuse: Render one fixed reject response from independently validated findings plus advisory comparison.}, inputs: [critic validation report with exactly one responsible stage, Pangram comparison], outputs: [critic response schema], emits: [CriticResponseRejected], infrastructure_errors: [none], domain_errors: [none], side_effects: [none], reversibility: {classification: reversible, undo: noop}, compensation: No state exists to compensate., authority: Preserves the validated verdict and responsible stage and emits one fixed signal.}
+    - {name: compose_critic_failed_response, owner: voice-critic, implementation: {type: builtin, factory: compose, reuse: Render one fixed failed response without a pass, warn, or reject verdict.}, inputs: [bounded failure category and evaluated identities when available], outputs: [failed critic response schema], emits: [CriticResponseFailed], infrastructure_errors: [none], domain_errors: [none], side_effects: [none], reversibility: {classification: reversible, undo: noop}, compensation: No state exists to compensate., authority: Cannot fabricate a verdict or responsible stage.}
 
   corpus_wrapper:
     - name: list_declared_corpus
@@ -1972,8 +2038,10 @@ requirements:
           structured-report parsing, single-comparison routing,
           branch-specific edit-context composition, and fixed-outcome response
           composition required by its flat MachineSpec.
-          voice-critic SHALL own its separate embedding, voice-rag query, and
-          evaluation words.
+          voice-critic SHALL own its request validation, independent query and
+          voice-rag retrieval, fixed evaluation context, raw model evaluation,
+          structured parsing, fixed cross-field validation, one-scalar routing,
+          Pangram advisory handling, and fixed response words.
         evidence: Planned profile manifests collectively match word_vocabulary.editor_and_critic_retrieval, and each profile selects only words it owns.
       - id: R4.2
         text: |
@@ -2055,16 +2123,34 @@ requirements:
           These words SHALL supply every srd007 branch without payload guards,
           dynamic dispatch, a shell, or a new Go builtin.
         evidence: Planned factory-semantic, action, word, signal, transition, terminal, label, and authority closure expands srd007 and matches exact exec, parse_structured, value_predicate, compose, REST, and invoke_llm emissions.
+      - id: R4.8
+        text: |
+          voice-critic complex request, evaluation, Pangram-stage, and advisory
+          comparison observations SHALL use fixed operations of a planned
+          non-shell JSON helper. Each exec SHALL emit only ToolDone, ToolFailed,
+          or CommandError and SHALL be followed by parse_structured. Every
+          critic value_predicate SHALL compare one scalar and emit exactly two
+          configured outcomes plus CommandError. evaluate_voice_candidate SHALL
+          emit only LLMResponded or CommandError; its raw JSON SHALL pass through
+          parsing and deterministic cross-field validation before verdict
+          routing. Every compose word SHALL render one fixed context, request,
+          helper input, advisory status, or response and emit one fixed signal.
+          wait_pangram_poll SHALL use the existing delay factory with one fixed
+          positive duration and emit only PangramPollDelayElapsed or
+          CommandError.
+        evidence: Planned factory-semantic, action, word, signal, transition, terminal, label, consent-dominance, independence, advisory-only, responsible-stage, bounded-cycle, and authority closure expands srd008.
 
   R5:
     title: Pangram privacy and consent
     items:
       - id: R5.1
         text: |
-          Only voice-critic SHALL select check_pangram_consent,
-          await_pangram_consent, pangram_scan_before, and pangram_scan_after.
-          Each scan SHALL require affirmative consent bound to the exact
-          original and candidate hashes.
+          Only voice-critic SHALL select check_pangram_consent, the fixed
+          Pangram request composers, pangram_submit_original,
+          pangram_poll_original, pangram_submit_candidate,
+          pangram_poll_candidate, and their advisory interpretation and
+          comparison words. Each submit SHALL require affirmative consent bound
+          to the exact original and candidate hashes.
         evidence: Planned owner and consent tests cover granted, denied, absent, expired, and hash-mismatched consent.
       - id: R5.2
         text: |
@@ -2075,10 +2161,14 @@ requirements:
         evidence: Planned REST validation, timeout, size, redirect, redaction, and credential-leak tests enforce the boundary.
       - id: R5.3
         text: |
-          Before and after scans SHALL be separate irreversible upload words.
-          Their non-compensatable privacy effect and request status SHALL be
-          recorded, and neither result nor failure SHALL alone determine the
-          critic verdict.
+          Original and candidate submissions SHALL be separate irreversible
+          upload words and task polls SHALL be separate read-only words. Their
+          privacy effect, task identity, per-document status, and comparison
+          status SHALL be recorded. REST words SHALL emit only configured HTTP
+          status-mapping signals or CommandError; helper, parser, and scalar
+          predicate chains SHALL interpret asynchronous task stages. No result,
+          movement, absence, or failure SHALL determine or alter the critic
+          verdict.
         evidence: Planned retry and verdict tests preserve upload evidence, avoid false undo, and require independent finding categories.
 
   R6:
@@ -2185,7 +2275,7 @@ acceptance_criteria:
       pair-provenance routing, and fixed responses without payload guards.
       Specialist report helpers, parsers, scalar predicates, context composers,
       and fixed response composers match their actual factory signal semantics.
-    traces: [R4.1, R4.2, R4.3, R4.4, R4.5, R4.6, R4.7]
+    traces: [R4.1, R4.2, R4.3, R4.4, R4.5, R4.6, R4.7, R4.8]
   - id: AC5
     criterion: |
       Only the critic owns separate before/after Pangram scans; exact-hash
@@ -2273,6 +2363,7 @@ implementation_status:
   structure_editor_helper: not_implemented
   voice_editor_helper: not_implemented
   style_editor_helper: not_implemented
+  critic_helper: not_implemented
   rest_definitions: not_implemented
   services: not_implemented
   tests: not_implemented

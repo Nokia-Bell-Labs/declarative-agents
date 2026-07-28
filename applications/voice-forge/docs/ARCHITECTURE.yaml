@@ -28,7 +28,7 @@ overview:
       O --> STE[Style editor]
       STE -->|style candidate bytes| O
       O --> VC[Voice critic]
-      VC -->|critique candidate and verdict| O
+      VC -->|hash-bound critique and verdict| O
       VC -. consent-gated .-> P[Pangram]
       SE --> SR[Structure RAG]
       VE --> VR[Voice RAG]
@@ -284,6 +284,69 @@ overview:
     byte-identical. It also checks accepted voice, meaning, claim strength,
     qualifications, citations, numbers, terminology, quotations, normative
     language, protected spans, and unsupported additions before success.
+  critic_assurance_flow: |
+    ```mermaid
+    flowchart LR
+      R[Immutable original and style candidate<br/>bytes, identities, hashes] --> V[Validate request and consent scope]
+      V --> Q[Compose critic-owned voice query]
+      Q --> E[Embed query]
+      E --> VR[Query voice-rag independently]
+      VR --> C[Compose evaluation context<br/>no editor reasoning, no Pangram]
+      C --> M[Evaluate six finding categories]
+      M --> P[Parse structured model JSON]
+      P --> H[Validate hashes, categories,<br/>verdict and responsible stage]
+      H --> G{Exact-hash consent granted?}
+      G -->|no| U[Explicit advisory unavailable status]
+      G -->|yes| O[Submit and poll original task]
+      O --> A[Submit and poll candidate task]
+      A --> D[Compare advisory results]
+      U --> D
+      D --> B{Route independently validated verdict}
+      B -->|pass| PS[Fixed pass response]
+      B -->|warn| WS[Fixed warn response]
+      B -->|reject| RS[Fixed reject response<br/>one structure, voice, or style stage]
+    ```
+
+    srd008 specifies one flat critic request machine. The critic receives exact
+    original and selected style-candidate bytes and hashes, target voice,
+    bounded policy, and an exact-hash consent record. It receives no editor
+    prompt, reasoning, conversation, confidence, rejected alternative, or
+    verdict recommendation. It formulates its own query and reads only
+    voice-rag. Its model context contains neither editor reasoning nor Pangram
+    output.
+
+    The raw model response emits only LLMResponded or CommandError. A distinct
+    parse_structured word validates its JSON. A fixed operation of a planned
+    non-shell critic helper then checks both hashes, all six findings, verdict
+    cardinality, responsible-stage cardinality, and feedback bounds. Another
+    parser admits the helper JSON, and explicit one-scalar predicates route the
+    validated result. Pass and warn carry no responsible stage. Reject carries
+    exactly one of structure, voice, or style.
+  pangram_advisory_view: |
+    Pangram submission is dominated by a helper-derived consent status that
+    binds affirmative, unexpired consent to both exact supplied hashes and the
+    configured disclosure identity. API-key presence is not consent. Denied,
+    absent, expired, malformed, or hash-mismatched consent reaches no upload
+    word and produces explicit advisory status.
+
+    The critic uses four configured rest_client_invoke words: POST /task and
+    GET /task/{task_id} for the original, then separate POST and GET operations
+    for the candidate. REST emits only configured HTTP status-mapping signals
+    or CommandError. Because Pangram returns pending, STAGE_FAILED, and
+    STAGE_SUCCESS bodies under HTTP 200, REST does not invent task-stage
+    outcomes. A fixed helper interprets each mapped poll body, parse_structured
+    validates its bounded JSON, and one-scalar predicates route completed,
+    pending, or failed. Each poll loop is bounded.
+
+    Comparison retains separate scan statuses, document fractions
+    fraction_ai, fraction_ai_assisted, and fraction_human, segment counts, and
+    available paragraph-window evidence. It does not create one AI score.
+    Independent evaluation and validation finish before consent is checked.
+    Final verdict predicates select only the independent validation report;
+    Pangram evidence is attached after the verdict branch. Denial,
+    unavailability, insufficient credits, rate limit, malformed output,
+    STAGE_FAILED, or timeout remains explicit and never silently accepts.
+    Uploads are irreversible observations and are never falsely compensated.
   persistence_flow: |
     Voice Forge has two durable state planes with different authority. The
     application-owned persistent --output workspace stores document bytes,
@@ -493,14 +556,23 @@ tool_authority_allocation:
       denied: [saga filesystem, other corpora, structure, voice, critic or acceptance verdict, Pangram, GitHub]
     - owner: voice-critic
       exclusive_words:
+        - validate_critic_request
+        - parse_critic_request_report
+        - critic_request_is_valid
+        - compose_critic_voice_query
         - embed_critic_voice_query
         - query_critic_voice_rag
+        - compose_critic_evaluation_context
         - evaluate_voice_candidate
+        - parse_critic_evaluation
+        - compose_critic_validation_input
+        - validate_critic_evaluation
+        - parse_critic_validation_report
+        - critic_evaluation_is_valid
         - check_pangram_consent
-        - await_pangram_consent
-        - pangram_scan_before
-        - pangram_scan_after
-      denied: [content edit, saga filesystem, corpus writes, GitHub]
+        - Pangram request, submit, poll, observation, comparison, and scalar-route words
+        - fixed critic response composers
+      denied: [content edit or replacement prose, editor reasoning, saga filesystem, workproducts, corpus writes, GitHub]
     - owner: corpus-ingest
       exclusive_words: [list_declared_corpus, read_declared_corpus_document, invoke_canonical_corpus_ingest]
       denied: [writing saga, editing, verdict, Pangram, GitHub]
@@ -566,10 +638,12 @@ components:
     scaling_boundary: Evaluations may scale independently while one verdict is bound to one saga attempt.
     failure_boundary: Evaluation or Pangram failure cannot publish or silently become acceptance.
     authority: |
-      Read supplied original and candidate, query voice evidence, invoke
-      consent-gated Pangram scans, and return pass, warn, or reject with a
-      responsible-stage classification.
-    prohibited_authority: Content edits, saga/workproduct mutation, corpus writes, and GitHub mutation.
+      Read supplied immutable original and candidate bytes and hashes, query
+      voice evidence independently, validate all six finding categories,
+      invoke exact-hash consent-gated separate Pangram tasks, compare advisory
+      evidence, and return pass, warn, or reject. Every reject names exactly
+      one structure, voice, or style stage.
+    prohibited_authority: Editor reasoning, content edits or replacement prose, saga/workproduct mutation, corpus writes, and GitHub mutation.
   - name: corpus-ingest agent service
     path: agents/corpus-ingest/
     status: planned
@@ -728,15 +802,15 @@ project_structure:
     - {path: docs/specs/software-requirements/srd005-structure-editor.yaml, status: specified, role: Flat request, section-and-outline retrieval, one refinement, structure-only editing, semantic constraints, outcomes, and provenance.}
     - {path: docs/specs/software-requirements/srd006-voice-editor.yaml, status: specified, role: Flat accepted-parent request, rhetorical-role and register passage retrieval, one refinement, bounded voice-only rewrites, preservation constraints, copy-risk, outcomes, and provenance.}
     - {path: docs/specs/software-requirements/srd007-style-editor.yaml, status: specified, role: Flat accepted-voice request, explicit tightening intents, before/after pair retrieval, one refinement, targeted edits, preservation, bounded retry, outcomes, and pair provenance.}
-    - {path: docs/specs/software-requirements/, status: planned, role: Remaining SRD srd008.}
+    - {path: docs/specs/software-requirements/srd008-voice-critic.yaml, status: specified, role: Flat independent assurance, exact-hash consent, separate Pangram tasks, advisory comparison, verdict, responsible-stage, and authority contract.}
     - {path: docs/specs/use-cases/rel00.0-uc001-edit-document.yaml, status: planned, role: End-to-end release scenario.}
     - {path: docs/specs/test-suites/test-rel00.0-voice-forge.yaml, status: planned, role: Release tracer and evidence plan.}
 
 implementation_status:
   current_focus: |
-    SRDs srd001 through srd007 specify service boundaries, the writing saga and
+    SRDs srd001 through srd008 specify service boundaries, the writing saga and
     workproducts, the closed tool vocabulary, the workflow-orchestrator machine,
-    and the structure-editor, voice-editor, and style-editor machines. SRD srd008, the release use case, test suite,
+    and the structure-editor, voice-editor, style-editor, and voice-critic machines. The release use case, test suite,
     profiles, machines, tools, constrained orchestrator helper, services,
     integration evidence, and root registrations remain planned.
   overall: documentation_only_planned
@@ -748,8 +822,9 @@ implementation_status:
     - specified: srd005 flat structure request, retrieval, grounding, one refinement, structure-only edit, semantic constraints, response, and terminal outcomes.
     - specified: srd006 flat accepted-structure request, rhetorical-role and register passage retrieval, one refinement, bounded voice-only rewrite, preservation constraints, copy risk, response, and terminal outcomes.
     - specified: srd007 flat accepted-voice request, explicit intents, tightening-pair retrieval, one refinement, targeted editing, preservation, bounded retry, response, and terminal outcomes.
-    - planned: srd008 and executable reciprocal release traces.
-    - planned: Five application-local state machines, the constrained JSON-emitting orchestrator helper, constrained structure-editor, voice-editor, and style-editor report helpers, and the corpus-ingest wrapper.
+    - specified: srd008 flat independent assurance, six finding categories, exact-hash consent, separate Pangram tasks, advisory comparison, verdict and responsible-stage closure, bounded polls, response, and terminal outcomes.
+    - planned: Executable reciprocal release traces.
+    - planned: Five application-local state machines, the constrained JSON-emitting orchestrator helper, constrained structure-editor, voice-editor, style-editor, and critic report helpers, and the corpus-ingest wrapper.
     - planned: RAG, Chroma, Ollama, GitHub CLI, and Pangram integrations.
     - planned: Persistent saga workspace, retries, recovery, and publication.
     - planned: Structural, boundary, failure, recovery, and end-to-end tests.
@@ -773,6 +848,8 @@ related_documents:
     purpose: Specified flat voice-editor passage retrieval, bounded rewrite, preservation, copy-risk, response, and authority contract.
   - doc: docs/specs/software-requirements/srd007-style-editor.yaml
     purpose: Specified flat style-editor intent, pair retrieval, targeted edit, preservation, bounded retry, response, provenance, and authority contract.
+  - doc: docs/specs/software-requirements/srd008-voice-critic.yaml
+    purpose: Specified flat independent critic, exact-hash consent, separate Pangram tasks, advisory-only comparison, verdict, responsible-stage, and authority contract.
   - doc: docs/SPECIFICATIONS.yaml
     purpose: Planned SRD, use-case, and test-suite indexes.
   - doc: docs/road-map.yaml

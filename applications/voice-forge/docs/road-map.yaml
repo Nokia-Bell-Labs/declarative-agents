@@ -46,8 +46,8 @@ releases:
         status: specified
         summary: Define flat accepted-voice validation, explicit target intents, before/after pair retrieval, one refinement, targeted tightening, deterministic preservation, bounded retry, fail-closed outcomes, and pair provenance.
       - id: srd008-voice-critic
-        status: planned
-        summary: Define independent assurance, Pangram consent, verdict categories, and retry routing.
+        status: specified
+        summary: Define flat independent assurance, six findings, exact-hash consent, separate Pangram tasks, advisory comparison, categorized verdicts, responsible-stage closure, and bounded authority.
     use_cases:
       - id: rel00.0-uc001-edit-document
         summary: |
@@ -107,8 +107,8 @@ releases:
         status: planned_dependency
     evidence_status:
       foundation_yaml: documented
-      srd_requirements: srd001_through_srd007_specified_srd008_not_created
-      reciprocal_traceability: srd001_through_srd007_indexed_use_case_and_test_suite_planned
+      srd_requirements: srd001_through_srd008_specified
+      reciprocal_traceability: srd001_through_srd008_indexed_use_case_and_test_suite_planned
       profiles_and_machines: not_implemented
       tools_and_services: not_implemented
       structural_tests: not_implemented
