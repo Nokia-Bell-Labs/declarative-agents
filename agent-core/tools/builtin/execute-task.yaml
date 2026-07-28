@@ -1,30 +1,48 @@
 tools:
-- name: execute_task
+- name: mark_nodes_executing
   type: builtin
-  init: execute_task
-  description: Execute the current task via the code generator agent.
+  init: mark_nodes_executing
+  description: Advance the selected task nodes to Executing.
   visibility: internal
   emits:
-  - ExecutionDone
-  - ExecutionFailed
+  - NodesMarkedExecuting
   - CommandError
-  category: boundary
+  category: stateful_internal
   side_effects:
-  - kind: child_agent_execution
-    target: generator_agent
-    description: Runs a child agent configured by machine/tool selection paths.
-  - kind: filesystem_write
-    target: child_workspace
-    description: Child agent may mutate its configured workspace.
+  - kind: state_mutation
+    target: requirement_graph
+    state: selected_nodes_executing
+    description: Advances only current-task graph nodes to Executing.
   reversibility:
-    classification: compensatable
-    undo: child_command_undo_or_workspace_restore
+    classification: reversible
+    undo: pipeline_state_restore
   undo:
-    strategy: compensating_action
-    description: Rely on child agent history, command undo, and workspace restore for side effects.
-    payload: boundary_compensation
-    captures:
-    - child_run_id
-    - child_workspace_ref
-    requires:
-    - Workspace
+    strategy: pipeline_state_restore
+    description: Restore the receipt-recorded graph lifecycle.
+    payload: pipeline_state_snapshot
+    captures: [current_task, graph_status]
+  problem: Child invocation must not hide graph lifecycle mutation.
+  goals: [Advance selected nodes in one machine-selected graph word.]
+  requirements: {input: [A current task and graph are required.], output: [NodesMarkedExecuting is emitted after mutation.], errors: [Invalid graph transitions emit CommandError.]}
+  non_goals: [Does not format files or invoke a child agent.]
+  errors: [{signal: CommandError, condition: Task or graph state is invalid, state_after_failure: Receipt-backed state remains recoverable.}]
+  relationships: {before: [mark_nodes_planning, record_tracker_issue], after: [format_task_file]}
+  output: {description: Graph lifecycle summary, schema: {type: object}}
+
+- name: format_task_file
+  type: builtin
+  init: format_task_file
+  description: Project the current plan into one declared write request for doc/task.yaml.
+  visibility: internal
+  emits: [TaskFileFormatted, CommandError]
+  category: word
+  side_effects: [{kind: none, description: Serializes plan state without writing a file.}]
+  reversibility: {classification: reversible, undo: noop}
+  undo: {strategy: noop, description: Projection changes no state.}
+  problem: The generic write word needs declared path and YAML content without hidden filesystem work.
+  goals: [Produce path and content parameters consumed by write.]
+  requirements: {input: [A current implementation plan is required.], output: [TaskFileFormatted carries write parameters.], errors: [Serialization failures emit CommandError.]}
+  non_goals: [Does not write the task file or invoke a child agent.]
+  errors: [{signal: CommandError, condition: Current plan is absent or cannot serialize, state_after_failure: No state or file changes.}]
+  relationships: {before: [mark_nodes_executing], after: [write]}
+  output: {description: Write parameters for doc/task.yaml, schema: {type: object}}

@@ -129,11 +129,32 @@ func hookBudgetExceeded(hooks LoopHooks, b Budget, rr RunResult, iterations int)
 	return false
 }
 
-func resolveTerminalStatus(hooks LoopHooks, s State) RunStatus {
+func resolveTerminalStatus(hooks LoopHooks, spec *MachineSpec, s State) RunStatus {
 	if hooks.TerminalStatus != nil {
 		return hooks.TerminalStatus(s)
 	}
-	return defaultTerminalStatus(s)
+	return TerminalStatusForState(spec, s)
+}
+
+// TerminalStatusForState resolves declared policy and then legacy defaults.
+func TerminalStatusForState(spec *MachineSpec, state State) RunStatus {
+	if status, ok := DeclaredTerminalStatus(spec, state); ok {
+		return status
+	}
+	return defaultTerminalStatus(state)
+}
+
+// DeclaredTerminalStatus returns the profile-owned outcome for a terminal state.
+func DeclaredTerminalStatus(spec *MachineSpec, state State) (RunStatus, bool) {
+	if spec == nil {
+		return "", false
+	}
+	for _, candidate := range spec.States {
+		if candidate.Name == string(state) && candidate.RunStatus != "" {
+			return candidate.RunStatus, true
+		}
+	}
+	return "", false
 }
 
 func defaultTerminalStatus(s State) RunStatus {

@@ -13,8 +13,10 @@ import (
 
 // Signals emitted by atomic evaluator workspace preparation commands.
 const (
-	SigPointDirCreated  core.Signal = "PointDirCreated"
-	SigSampleDocsCopied core.Signal = "SampleDocsCopied"
+	SigPointDirCreated core.Signal = "PointDirCreated"
+	SigDocsPresent     core.Signal = "SampleDocsPresent"
+	SigDocsAbsent      core.Signal = "SampleDocsAbsent"
+	SigFailureRecorded core.Signal = "PointFailureRecorded"
 )
 
 // createPointDirCmd creates the per-point directory and records paths that
@@ -45,29 +47,33 @@ func (c *createPointDirCmd) Execute() core.Result {
 	return pointToolDone(c.Name(), SigPointDirCreated, string(output))
 }
 
-// copySampleDocsCmd copies optional sample docs into the point dir. Samples
-// without docs still complete successfully so the machine sequence remains fixed.
-type copySampleDocsCmd struct {
+// sampleDocsCmd exposes the optional-docs branch and copy_dir parameters
+// without performing filesystem work.
+type sampleDocsCmd struct {
 	pc *PointContext
 }
 
-func (c *copySampleDocsCmd) Name() string { return "copy_sample_docs" }
-func (c *copySampleDocsCmd) Undo(prior core.Result) core.Result {
-	return (&evaluatorReceiptCmd{inner: c, point: c.pc}).Undo(prior)
-}
+func (c *sampleDocsCmd) Name() string                   { return "sample_docs" }
+func (c *sampleDocsCmd) Undo(_ core.Result) core.Result { return core.NoopUndo(c.Name()) }
 
-func (c *copySampleDocsCmd) Execute() core.Result {
+func (c *sampleDocsCmd) Execute() core.Result {
 	if err := requirePointDir(c.pc); err != nil {
 		return pointToolError(c.Name(), err)
 	}
 	if c.pc.Sample.DocDir == "" {
-		return pointToolDone(c.Name(), SigSampleDocsCopied, "sample has no docs")
+		return pointToolDone(c.Name(), SigDocsAbsent, `{"present":false}`)
 	}
-	dst := filepath.Join(c.pc.PointDir, ArtifactDocDir)
-	if err := copyDir(c.pc.Sample.DocDir, dst); err != nil {
-		return pointToolError(c.Name(), fmt.Errorf("copy docs: %w", err))
+	output, err := json.Marshal(map[string]any{
+		"present": true,
+		"parameters": map[string]string{
+			"source":      c.pc.Sample.DocDir + string(os.PathSeparator) + ".",
+			"destination": filepath.Join(c.pc.PointDir, ArtifactDocDir),
+		},
+	})
+	if err != nil {
+		return pointToolError(c.Name(), fmt.Errorf("encode docs copy parameters: %w", err))
 	}
-	return pointToolDone(c.Name(), SigSampleDocsCopied, fmt.Sprintf("sample docs copied to %s", dst))
+	return pointToolDone(c.Name(), SigDocsPresent, string(output))
 }
 
 func pointToolDone(command string, signal core.Signal, output string) core.Result {
@@ -92,13 +98,6 @@ func requirePointDir(pc *PointContext) error {
 		return fmt.Errorf("point dir not initialized")
 	}
 	return nil
-}
-
-func copyDir(src, dst string) error {
-	if err := os.MkdirAll(dst, 0o755); err != nil {
-		return err
-	}
-	return os.CopyFS(dst, os.DirFS(src))
 }
 
 // recordOracleResultCmd maps the configured oracle exec result into point state.
@@ -251,6 +250,34 @@ func (c *summarizePointResultsCmd) Execute() core.Result {
 		Output:      output,
 		Cost:        core.Cost{TokensIn: pc.Tokens},
 	}
+}
+
+// recordPointFailureCmd projects the failed command result into point metadata.
+// The following collect_metrics word remains the sole meta.json writer.
+type recordPointFailureCmd struct {
+	pc    *PointContext
+	prior core.Result
+}
+
+func (c *recordPointFailureCmd) Name() string { return "record_point_failure" }
+func (c *recordPointFailureCmd) Undo(prior core.Result) core.Result {
+	return (&evaluatorReceiptCmd{inner: c, point: c.pc}).Undo(prior)
+}
+
+func (c *recordPointFailureCmd) Execute() core.Result {
+	c.pc.FailureStage = c.prior.CommandName
+	if c.pc.FailureStage == "" {
+		c.pc.FailureStage = "unknown"
+	}
+	if c.prior.Err != nil {
+		c.pc.FailureCause = c.prior.Err.Error()
+	} else {
+		c.pc.FailureCause = c.prior.Output
+	}
+	if c.pc.FailureCause == "" {
+		c.pc.FailureCause = string(c.prior.Signal)
+	}
+	return pointToolDone(c.Name(), SigFailureRecorded, c.pc.FailureStage+": "+c.pc.FailureCause)
 }
 
 // collectMetricsCmd writes the meta.json file for the evaluation point.

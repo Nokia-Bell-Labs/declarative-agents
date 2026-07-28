@@ -3,29 +3,74 @@
 # Loaded through agents/planner/profile.yaml tool_declarations.
 
 tools:
-  - name: execute_task
+  - name: seed_passthrough_plan
     type: builtin
-    init: execute_task
-    description: "Execute the current task via the code executor agent."
+    init: seed_passthrough_plan
+    description: "Seed the pass-through implementation plan from planner-profile policy."
     visibility: internal
-    emits: [ExecutionDone, ExecutionFailed, CommandError]
+    emits: [PassThroughPlanSeeded, CommandError]
+    category: stateful_internal
+    problem: "The planner pass-through variant owns its implementation-plan wording."
+    goals:
+      - "Keep pass-through plan title and summary in the planner profile."
+      - "Seed plan state separately from task selection and graph lifecycle."
+    requirements:
+      input: ["must run after select_all_ready"]
+      output: ["must emit PassThroughPlanSeeded after setting current plan"]
+      errors: ["must emit CommandError when the selected task or configured text is missing"]
+    non_goals:
+      - "Does not select or mutate graph nodes."
+    output:
+      description: "Profile-configured pass-through plan seeding summary."
+      schema:
+        type: object
+        properties:
+          message: {type: string}
+        required: [message]
+    side_effects:
+      - kind: state_mutation
+        target: planner_pipeline_state
+        state: current_plan_seeded
+        description: "Sets only the current implementation plan."
+    reversibility: {classification: reversible, undo: pipeline_state_restore}
+    undo:
+      strategy: pipeline_state_restore
+      description: "Restore the receipt-recorded planner state."
+    errors:
+      - signal: CommandError
+        condition: "current task or configured plan text is missing"
+        message_shape: "seed_passthrough_plan: <error>"
+        state_after_failure: "no graph lifecycle change occurs"
+    relationships:
+      before: [select_all_ready]
+      after: [mark_nodes_planning]
+    config:
+      title: "Execute all ready requirements"
+      summary: "Pass-through execution for the selected ready graph nodes."
+
+  - name: invoke_executor
+    type: builtin
+    init: self_invoke
+    description: "Invoke the configured executor through the shared child-agent boundary."
+    visibility: internal
+    emits: [ToolDone, ToolFailed, CommandError]
     category: boundary
     problem: |
-      The planner needs a boundary word that hands the current planned task
+      The planner needs a boundary word that hands the materialized task file
       to the executor program. This is not an ordinary deterministic word
       because it starts another agent process whose state machine and tools
       can mutate the workspace.
     goals:
-      - "Run the configured executor machine for exactly the current planner task."
+      - "Run the configured executor profile in the planner workspace."
       - "Propagate profile and trace configuration into the child agent invocation."
       - "Return enough execution status for the planner to decide retry, advance, or fail."
     requirements:
       input:
         - "must require profile in config"
-        - "must consume the current planner task and workspace directory from pipeline state"
+        - "must consume the workspace directory from runtime arguments"
       output:
-        - "must emit ExecutionDone when the child agent exits successfully"
-        - "must emit ExecutionFailed when the child agent exits without satisfying the task"
+        - "must emit ToolDone when the child agent exits successfully"
+        - "must emit ToolFailed when the child agent exits without satisfying the task"
       side_effects:
         - "must spawn one child agent process"
         - "must allow the child agent to mutate the target workspace according to its own selected tools"
@@ -64,10 +109,6 @@ tools:
       - kind: filesystem_write
         target: workspace
         description: "The child agent may write files through its own selected tools."
-      - kind: state_mutation
-        target: planner_pipeline_state
-        state: execution_result_recorded
-        description: "Records child execution outcome for retry/advance decisions."
     reversibility:
       classification: compensatable
       undo: workspace_restore
@@ -79,20 +120,18 @@ tools:
     errors:
       - signal: CommandError
         condition: "config is missing, task state is invalid, or child process cannot be started"
-        message_shape: "execute_task: <error>"
+        message_shape: "invoke_executor: <error>"
         state_after_failure: "workspace unchanged unless the child process already started"
-      - signal: ExecutionFailed
+      - signal: ToolFailed
         condition: "child agent exits with failure status"
-        message_shape: "execute_task failed: <status/output>"
+        message_shape: "invoke_executor failed: <status/output>"
         state_after_failure: "workspace may contain child edits and must be restored from checkpoint if rollback is requested"
     relationships:
-      before: [record_tracker_issue, extract_task, extract_all]
+      before: [record_tracker_issue, extract_task, mark_nodes_planning]
       after: [build, vet, test, increment_retry, mark_task_done]
       overlaps:
-        - tool: self_invoke
-          difference: "self_invoke starts a configured child profile; execute_task starts an executor for a planner task."
         - tool: run_point
-          difference: "run_point invokes an in-process nested machine; execute_task spawns a child agent process."
+          difference: "run_point invokes an in-process nested machine; invoke_executor uses the shared self_invoke child process."
     config:
       profile: agents/executor/profile.yaml
 
@@ -136,12 +175,91 @@ tools:
         message_shape: "reset_retry_count: <error>"
         state_after_failure: "no retry-count entry is published"
     relationships:
-      before: [extract_task, extract_all]
-      after: [reset_history, execute_task, increment_retry]
+      before: [extract_task, mark_nodes_planning]
+      after: [reset_history, invoke_executor, increment_retry]
     config:
       signal: RetryCountInitialized
       inputs: {}
       template: '{"output":"0"}'
+
+  - name: reset_failure_context
+    type: builtin
+    init: compose
+    description: "Seed empty retry context for a newly extracted planner task."
+    visibility: internal
+    emits: [FailureContextInitialized, CommandError]
+    category: word
+    parameters: {type: object, properties: {}, additionalProperties: false}
+    output: {description: "Empty failure context.", schema: {type: object}}
+    side_effects: [{kind: none, description: "Publishes command-state output only."}]
+    reversibility: {classification: reversible, undo: noop}
+    undo: {strategy: noop, description: "History truncation removes the label."}
+    problem: "Initial prompt construction needs the same stable failure-context selector as retries."
+    goals: ["Publish one empty failure_context label per extracted task."]
+    requirements: {input: ["No input required."], output: ["FailureContextInitialized wraps an empty output."], errors: ["Rendering failures emit CommandError."]}
+    non_goals: ["Does not capture validator failures or format prompts."]
+    errors: [{signal: CommandError, condition: "Composition cannot render.", state_after_failure: "No domain state changes."}]
+    relationships: {before: [extract_task], after: [project_planner_context]}
+    config:
+      signal: FailureContextInitialized
+      inputs: {}
+      template: '{"output":""}'
+
+  - name: compose_planner_prompt
+    type: builtin
+    init: compose
+    description: "Render the planner user prompt from labelled structured context."
+    visibility: internal
+    emits: [PromptReady, CommandError]
+    category: word
+    parameters: {type: object, properties: {}, additionalProperties: false}
+    output: {description: "Profile-owned planner user prompt.", schema: {type: string}}
+    side_effects: [{kind: none, description: "Renders text without domain mutation."}]
+    reversibility: {classification: reversible, undo: noop}
+    undo: {strategy: noop, description: "Prompt rendering changes no domain state."}
+    problem: "Planner sections and output instructions belong to the profile rather than embedded Go templates."
+    goals: ["Render initial and retry prompts from the same declared template.", "Include the newest labelled validation failure."]
+    requirements: {input: ["Planner context and failure context labels must resolve."], output: ["PromptReady carries the full user prompt."], errors: ["Missing selectors emit CommandError."]}
+    non_goals: ["Does not call the model or parse its response."]
+    errors: [{signal: CommandError, condition: "A labelled context selector is missing.", state_after_failure: "No domain state changes."}]
+    relationships: {before: [project_planner_context, capture_planner_failure], after: [invoke_llm]}
+    config:
+      signal: PromptReady
+      inputs:
+        task_id: $from(planner_context).task_id
+        srd_id: $from(planner_context).srd_id
+        problem: $from(planner_context).problem
+        goals: $from(planner_context).goals
+        acceptance_criteria: $from(planner_context).acceptance_criteria
+        items: $from(planner_context).items
+        retry_context: $from(failure_context).output
+      template: |-
+        # Implementation Planning
+
+        ## Problem Statement
+        {{ problem }}
+
+        ## Goals
+        {{ goals }}
+
+        ## Acceptance Criteria
+        {{ acceptance_criteria }}
+
+        ## Requirement Items to Implement
+        Task: {{ task_id }} (from {{ srd_id }})
+        {{ items }}
+
+        ## Retry Context
+        {{ retry_context }}
+
+        ## Output Format
+        Return ONLY a YAML implementation plan with:
+        - title: concise task title
+        - summary: one-line summary (optional)
+        - files: list of {path, action (create|modify|delete), note}
+        - requirements: list of {id, text}
+        - design_decisions: list of {id, text} (optional)
+        - acceptance_criteria: list of {id, text}
 
   - name: increment_retry
     type: exec
@@ -241,7 +359,7 @@ tools:
         state_after_failure: "no comparison outcome is reported and no state is changed"
     relationships:
       before: [increment_retry]
-      after: [reset_history, execute_task, remaining_work]
+      after: [reset_history, invoke_executor, remaining_work]
     config:
       left: $from(retry_count).output
       op: lt

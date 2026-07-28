@@ -4,7 +4,7 @@ purpose: |-
   into tasks, generates implementation plans via LLM, materializes
   them as issues, executes them by invoking the generator profile, and
   validates the results. It loops over the requirement graph until
-  all tasks are done, all are blocked, or a batch limit is reached.
+  all tasks are done or all remaining work is blocked.
 configuration:
   machine: agents/planner/machine.yaml
   tools: agents/planner/tools.yaml
@@ -23,16 +23,17 @@ invariants:
 - Graph nodes are marked done/failed to track progress
 - The planner terminates when no more tasks are extractable
 lifecycle: |-
-  1. Idle → Extracting: extract_task from requirement graph
+  1. Idle → Extracting: extract_task from requirement graph; NoTask routes through remaining_work
   2. Extracting → InitializingRetry → Resetting: seed visible retry count, clear LLM history
-  3. Resetting → PromptAssembly: assemble_prompt with SRD context
+  3. Resetting → ProjectingPromptContext → PromptAssembly: project structured context and compose the profile-owned prompt
   4. PromptAssembly → PlanInvoking: invoke_llm for plan generation
   5. PlanInvoking → PlanParsing: parse_plan from LLM response; invalid plans
      are reported and reinvoked until the explicit parse budget is exhausted
   6. PlanParsing → IssueFormatting → IssueBodyWriting: format_issue then write
   7. IssueBodyWriting → IssueCreating → IssueRecording: selected tracker exec then record_tracker_issue
-  8. IssueRecording → Executing: execute_task (run generator profile)
-  9. Executing → Vetting → Building → Testing: validation pipeline
+  8. IssueRecording → MarkingExecuting → FormattingTask → MaterializingTask: graph advance and task-file write
+  9. MaterializingTask → InvokingExecutor: shared self_invoke boundary
+  10. InvokingExecutor → Vetting → Building → Testing: validation pipeline
   10. Validation failure → IncrementingRetry → CheckingRetryLimit
   11. RetryAvailable → Resetting; RetriesExhausted → Exhausted → remaining-work routing
   12. Testing success → MarkingTaskDone → QueryingRemainingWork
@@ -62,9 +63,7 @@ pipeline_diagram: |-
     P -->|RetryAvailable| C
     P -->|RetriesExhausted| X[Exhausted]
     X --> Q
-    B -->|AllDone| K[Completed]
-    B -->|AllBlocked| L[Stalled]
-    B -->|BatchLimit| M[Paused]
+    B -->|NoTask| Q
   ```
 initial_state: Idle
 budget:
@@ -77,13 +76,17 @@ states:
 - name: Extracting
   meaning: |
     Selecting the next ready task from the requirement graph.
-    May terminate if all tasks are done, blocked, or batch limit reached.
+    A neutral NoTask result routes through the remaining_work graph query.
 - name: InitializingRetry
   meaning: Seeding retry count zero in labelled command state for the extracted task.
+- name: InitializingFailureContext
+  meaning: Seeding an empty labelled failure context for the newly extracted task.
 - name: Resetting
   meaning: Clearing conversation history before a new task's LLM call.
 - name: PromptAssembly
-  meaning: Building the task context and SRD references into a prompt.
+  meaning: Rendering profile-owned prompt sections from labelled planner and failure context.
+- name: ProjectingPromptContext
+  meaning: Publishing prompt-neutral task and SRD fields for profile composition.
 - name: PlanInvoking
   meaning: Calling the LLM to generate an implementation plan.
 - name: PlanParsing
@@ -98,8 +101,14 @@ states:
   meaning: Creating an issue through the tracker exec word selected by the profile.
 - name: IssueRecording
   meaning: Recording the configured tracker's issue ID in planner state.
-- name: Executing
-  meaning: Running the generator profile to implement the task.
+- name: MarkingExecuting
+  meaning: Advancing current task nodes to Executing as a focused graph mutation.
+- name: FormattingTask
+  meaning: Serializing the current plan into declared write parameters.
+- name: MaterializingTask
+  meaning: Writing doc/task.yaml through the shared write word.
+- name: InvokingExecutor
+  meaning: Running the executor through the shared self_invoke boundary.
 - name: Vetting
   meaning: Running go vet on the workspace.
 - name: Building
@@ -108,10 +117,14 @@ states:
   meaning: Running go test on the workspace.
 - name: IncrementingRetry
   meaning: Incrementing the latest labelled retry count with jq.
+- name: CapturingFailure
+  meaning: Publishing the preceding validation failure for the next retry prompt.
 - name: CheckingRetryLimit
   meaning: Comparing the visible retry count with the declared limit.
 - name: Exhausted
   meaning: Retry limit reached; query the graph before routing onward.
+- name: MarkingTaskFailed
+  meaning: Advancing exhausted current-task nodes to Failed before querying remaining work.
 - name: MarkingTaskDone
   meaning: Mutating only the successfully validated task's graph nodes to Done.
 - name: QueryingRemainingWork
@@ -120,14 +133,11 @@ states:
   meaning: Terminal. All tasks in the graph are done.
 - name: Stalled
   meaning: Terminal. Remaining tasks are blocked by failed dependencies.
-- name: Paused
-  meaning: Terminal. Batch limit reached — resume later.
 - name: Failed
   meaning: Terminal. An unrecoverable error occurred.
 terminal_states:
 - Completed
 - Stalled
-- Paused
 - Failed
 signals:
 - name: Seed
@@ -136,14 +146,22 @@ signals:
   trigger: The requirement graph was loaded and seeded into pipeline state.
 - name: TaskExtracted
   trigger: A task was extracted from the requirement graph.
+- name: NoTask
+  trigger: Extraction found no ready task; remaining_work must classify the graph.
 - name: RetryCountInitialized
   trigger: Retry count zero was recorded in labelled command state.
+- name: FailureContextInitialized
+  trigger: Empty failure context was recorded for a newly extracted task.
+- name: PlannerContextProjected
+  trigger: Prompt-neutral task and SRD fields were published.
+- name: PromptReady
+  trigger: The profile-owned planner prompt was rendered.
+- name: FailureCaptured
+  trigger: A validation failure was recorded for retry prompt composition.
 - name: AllDone
   trigger: All tasks in the graph are done.
 - name: Blocked
   trigger: Remaining tasks are blocked by failed dependencies.
-- name: BatchLimitReached
-  trigger: Batch limit reached — resume later.
 - name: ToolDone
   trigger: A tool executed successfully.
 - name: ToolFailed
@@ -160,16 +178,18 @@ signals:
   trigger: The configured consecutive parse-error retry limit was reached.
 - name: Materialized
   trigger: An issue was created from the plan.
-- name: ExecutionDone
-  trigger: The generator agent completed successfully.
-- name: ExecutionFailed
-  trigger: The generator agent failed.
+- name: NodesMarkedExecuting
+  trigger: Current task nodes advanced to Executing.
+- name: TaskFileFormatted
+  trigger: The current plan was projected into task-file write parameters.
 - name: RetryAvailable
   trigger: Retries remain for the current task.
 - name: RetriesExhausted
   trigger: All retries consumed for the current task.
 - name: TaskCompleted
   trigger: The current task's graph nodes were marked Done.
+- name: TaskFailed
+  trigger: The exhausted current task's graph nodes were marked Failed.
 - name: WorkRemaining
   trigger: At least one graph task is ready for extraction.
 - name: CommandError
@@ -188,9 +208,17 @@ transitions:
   next: Failed
 - state: Extracting
   signal: TaskExtracted
+  next: InitializingFailureContext
+  action: reset_failure_context
+  label: failure_context
+- state: InitializingFailureContext
+  signal: FailureContextInitialized
   next: InitializingRetry
   action: reset_retry_count
   label: retry_count
+- state: InitializingFailureContext
+  signal: CommandError
+  next: Failed
 - state: InitializingRetry
   signal: RetryCountInitialized
   next: Resetting
@@ -199,26 +227,29 @@ transitions:
   signal: CommandError
   next: Failed
 - state: Extracting
-  signal: AllDone
-  next: Completed
-- state: Extracting
-  signal: Blocked
-  next: Stalled
-- state: Extracting
-  signal: BatchLimitReached
-  next: Paused
+  signal: NoTask
+  next: QueryingRemainingWork
+  action: remaining_work
 - state: Extracting
   signal: CommandError
   next: Failed
 - state: Resetting
   signal: ToolDone
-  next: PromptAssembly
-  action: assemble_prompt
+  next: ProjectingPromptContext
+  action: project_planner_context
+  label: planner_context
 - state: Resetting
+  signal: CommandError
+  next: Failed
+- state: ProjectingPromptContext
+  signal: PlannerContextProjected
+  next: PromptAssembly
+  action: compose_planner_prompt
+- state: ProjectingPromptContext
   signal: CommandError
   next: Failed
 - state: PromptAssembly
-  signal: ToolDone
+  signal: PromptReady
   next: PlanInvoking
   action: invoke_llm
 - state: PromptAssembly
@@ -282,20 +313,45 @@ transitions:
   next: Failed
 - state: IssueRecording
   signal: Materialized
-  next: Executing
-  action: execute_task
+  next: MarkingExecuting
+  action: mark_nodes_executing
 - state: IssueRecording
   signal: CommandError
   next: Failed
-- state: Executing
-  signal: ExecutionDone
+- state: MarkingExecuting
+  signal: NodesMarkedExecuting
+  next: FormattingTask
+  action: format_task_file
+  label: task_file
+- state: MarkingExecuting
+  signal: CommandError
+  next: Failed
+- state: FormattingTask
+  signal: TaskFileFormatted
+  next: MaterializingTask
+  action: write
+- state: FormattingTask
+  signal: CommandError
+  next: Failed
+- state: MaterializingTask
+  signal: ToolDone
+  next: InvokingExecutor
+  action: invoke_executor
+- state: MaterializingTask
+  signal: ToolFailed
+  next: Failed
+- state: MaterializingTask
+  signal: CommandError
+  next: Failed
+- state: InvokingExecutor
+  signal: ToolDone
   next: Vetting
   action: vet
-- state: Executing
-  signal: ExecutionFailed
+- state: InvokingExecutor
+  signal: ToolFailed
   next: Vetting
   action: vet
-- state: Executing
+- state: InvokingExecutor
   signal: CommandError
   next: Failed
 - state: Vetting
@@ -304,9 +360,9 @@ transitions:
   action: build
 - state: Vetting
   signal: ToolFailed
-  next: IncrementingRetry
-  action: increment_retry
-  label: retry_count
+  next: CapturingFailure
+  action: capture_planner_failure
+  label: failure_context
 - state: Vetting
   signal: CommandError
   next: Failed
@@ -316,9 +372,9 @@ transitions:
   action: test
 - state: Building
   signal: ToolFailed
-  next: IncrementingRetry
-  action: increment_retry
-  label: retry_count
+  next: CapturingFailure
+  action: capture_planner_failure
+  label: failure_context
 - state: Building
   signal: CommandError
   next: Failed
@@ -328,10 +384,18 @@ transitions:
   action: mark_task_done
 - state: Testing
   signal: ToolFailed
+  next: CapturingFailure
+  action: capture_planner_failure
+  label: failure_context
+- state: Testing
+  signal: CommandError
+  next: Failed
+- state: CapturingFailure
+  signal: FailureCaptured
   next: IncrementingRetry
   action: increment_retry
   label: retry_count
-- state: Testing
+- state: CapturingFailure
   signal: CommandError
   next: Failed
 - state: IncrementingRetry
@@ -350,9 +414,16 @@ transitions:
   action: reset_history
 - state: CheckingRetryLimit
   signal: RetriesExhausted
+  next: MarkingTaskFailed
+  action: mark_task_failed
+- state: CheckingRetryLimit
+  signal: CommandError
+  next: Failed
+- state: MarkingTaskFailed
+  signal: TaskFailed
   next: Exhausted
   action: remaining_work
-- state: CheckingRetryLimit
+- state: MarkingTaskFailed
   signal: CommandError
   next: Failed
 - state: Exhausted

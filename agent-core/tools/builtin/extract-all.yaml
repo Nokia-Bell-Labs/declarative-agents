@@ -1,20 +1,19 @@
 tools:
-- name: extract_all
+- name: select_all_ready
   type: builtin
-  init: extract_all
-  description: Extract all requirements as a single task group (passthrough mode).
+  init: select_all_ready
+  description: Select all ready requirements as one pass-through task without changing graph lifecycle.
   visibility: internal
   emits:
-  - TaskExtracted
-  - AllDone
-  - Blocked
+  - ReadySelected
+  - NoTask
   - CommandError
   category: stateful_internal
   side_effects:
   - kind: state_mutation
     target: pipeline_state
-    state: passthrough_task_group_selected
-    description: Updates the current task to represent the full requirement group.
+    state: passthrough_task_selected
+    description: Updates only the current task to represent all ready requirements.
   reversibility:
     classification: reversible
     undo: pipeline_state_restore
@@ -22,10 +21,11 @@ tools:
     strategy: pipeline_state_restore
     description: Restore the receipt-recorded pipeline state captured before extraction.
     payload: pipeline_state_snapshot
-    captures: [current_task, current_plan, issue_id, task_deps, graph_status, graph_retries]
-  problem: The machine needs a declared word for extracting all planning tasks without embedding that workflow step in Go control flow.
+    captures: [current_task, current_plan, issue_id, task_deps, graph_status]
+  problem: The pass-through machine needs an atomic word that selects ready requirements without also creating plan policy or changing graph lifecycle.
   goals:
-  - Perform the extract_all action as one machine-selected word.
+  - Select all ready requirements as one machine-selected task.
+  - Leave plan creation and graph lifecycle to later machine-selected words.
   - Return an explicit signal that lets the MachineSpec choose the next state.
   - Keep sequencing outside the tool implementation and in machine.yaml.
   requirements:
@@ -41,7 +41,7 @@ tools:
   errors:
   - signal: CommandError
     condition: required input, configuration, or runtime state is invalid
-    message_shape: 'extract_all: <error>'
+    message_shape: 'select_all_ready: <error>'
     state_after_failure: no additional workflow step is executed by this tool
   relationships:
     before:
@@ -49,7 +49,7 @@ tools:
     after:
     - machine-selected successor
   output:
-    description: extract_all command result summary.
+    description: select_all_ready command result summary.
     schema:
       type: object
       properties:
@@ -59,3 +59,95 @@ tools:
           type: string
       required:
       - message
+
+- name: seed_passthrough_plan
+  type: builtin
+  init: seed_passthrough_plan
+  description: Seed the selected pass-through task with profile-configured plan text.
+  visibility: internal
+  emits: [PassThroughPlanSeeded, CommandError]
+  category: stateful_internal
+  config:
+    title: Execute all ready requirements
+    summary: Pass-through execution for the selected ready graph nodes.
+  side_effects:
+  - kind: state_mutation
+    target: pipeline_state
+    state: current_plan_seeded
+    description: Sets only the current implementation plan from trusted profile configuration.
+  reversibility: {classification: reversible, undo: pipeline_state_restore}
+  undo:
+    strategy: pipeline_state_restore
+    description: Restore the receipt-recorded pipeline state captured before plan seeding.
+    payload: pipeline_state_snapshot
+    captures: [current_task, current_plan, issue_id, task_deps, graph_status]
+  problem: Pass-through plan policy must come from profile configuration rather than Go literals.
+  goals:
+  - Seed one implementation plan from declared title and summary values.
+  - Leave graph lifecycle and child execution to later machine-selected words.
+  requirements:
+    input: [must require a selected current task and non-empty configured title and summary]
+    output: [must emit PassThroughPlanSeeded after setting only current_plan]
+    errors: [must emit CommandError when task state or configuration is invalid]
+  non_goals:
+  - Does not select graph nodes or change node status.
+  - Does not invoke a child agent.
+  errors:
+  - signal: CommandError
+    condition: current task or configured plan text is missing
+    message_shape: 'seed_passthrough_plan: <error>'
+    state_after_failure: no graph lifecycle change occurs
+  relationships:
+    before: [select_all_ready]
+    after: [mark_nodes_planning]
+  output:
+    description: Profile-configured pass-through plan seeding summary.
+    schema:
+      type: object
+      properties:
+        message: {type: string}
+      required: [message]
+
+- name: mark_nodes_planning
+  type: builtin
+  init: mark_nodes_planning
+  description: Advance only the selected task nodes to Planning.
+  visibility: internal
+  emits: [NodesMarkedPlanning, CommandError]
+  category: stateful_internal
+  side_effects:
+  - kind: state_mutation
+    target: requirement_graph
+    state: selected_nodes_planning
+    description: Advances selected current-task nodes to Planning.
+  reversibility: {classification: reversible, undo: pipeline_state_restore}
+  undo:
+    strategy: pipeline_state_restore
+    description: Restore the receipt-recorded graph lifecycle before the mutation.
+    payload: pipeline_state_snapshot
+    captures: [current_task, current_plan, issue_id, task_deps, graph_status]
+  problem: Graph lifecycle mutation must remain separate from pass-through selection and plan policy.
+  goals:
+  - Advance selected nodes through one explicit machine-selected mutation.
+  - Emit a dedicated signal and trace event for the graph change.
+  requirements:
+    input: [must require a selected current task]
+    output: [must emit NodesMarkedPlanning after every selected node reaches Planning]
+    errors: [must emit CommandError when task or graph state cannot advance]
+  non_goals:
+  - Does not select nodes, create a plan, or invoke a child agent.
+  errors:
+  - signal: CommandError
+    condition: current task is missing or a selected node cannot advance to Planning
+    message_shape: 'mark_nodes_planning: <error>'
+    state_after_failure: receipt-backed graph state can be restored
+  relationships:
+    before: [seed_passthrough_plan]
+    after: [reset_retry_count, mark_nodes_executing]
+  output:
+    description: Graph lifecycle mutation summary.
+    schema:
+      type: object
+      properties:
+        message: {type: string}
+      required: [message]

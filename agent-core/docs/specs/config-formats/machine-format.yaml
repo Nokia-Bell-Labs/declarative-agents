@@ -133,8 +133,9 @@ schema:
         - Done
 
       Rich object form: a list of objects with name and optional
-      meaning metadata. The meaning field documents the state's
-      semantic purpose.
+      meaning and run_status metadata. The meaning field documents the state's
+      semantic purpose. Terminal states may declare run_status as succeeded,
+      failed, budget_exceeded, cancelled, or suspended.
         states:
         - name: Idle
           meaning: Initial state before any work begins.
@@ -142,6 +143,7 @@ schema:
           meaning: The main working state where tools execute.
         - name: Done
           meaning: Terminal. All work completed.
+          run_status: succeeded
 
       Both forms may be mixed in the same list. The parser
       (StateSpecs.UnmarshalYAML) detects scalars vs mappings
@@ -149,6 +151,8 @@ schema:
 
       Every state referenced in transitions, initial_state, and
       terminal_states must appear here.
+      run_status is valid only on terminal states. Omitted run_status uses the
+      legacy terminal-name default for backward compatibility.
 
   - field: terminal_states
     type: "[]string"
@@ -236,7 +240,8 @@ schema:
         required: false
         description: |
           Expand this transition's named action over an array selected from a
-          prior command-state entry. Dispatch is deterministic and sequential.
+          prior command-state entry. Dispatch is sequential by default or
+          bounded parallel when max_concurrency is declared.
           Each item is a normal registry-built command dispatch and therefore
           gets its own trace, checkpoint Entry, receipt, cancellation boundary,
           budget iteration, and rollback visibility.
@@ -249,7 +254,10 @@ schema:
             description: Command-state binding label for the current item.
           - field: mode
             type: string
-            description: sequential, the only supported mode.
+            description: sequential (default) or parallel.
+          - field: max_concurrency
+            type: int
+            description: Required positive worker bound for parallel mode; invalid for sequential mode.
           - field: failure
             type: string
             description: fail_fast (default) or collect_all.
@@ -258,7 +266,7 @@ schema:
             description: Item result signals counted as successful.
           - field: abort_on
             type: "[]string"
-            description: Documented item failure signals; fail_fast stops after one.
+            description: Item signals that stop scheduling and cancel contextual siblings.
           - field: join
             type: object
             description: |
@@ -308,11 +316,16 @@ data_driven_iteration:
   checkpoint_resume: |
     AgentSnapshot persists the selected items, next index, ordered outcomes, and
     iterator grammar. Resume continues at the next undispatched item.
+    Parallel completions are committed in deterministic input order, so each
+    item retains its own checkpoint Entry and receipt.
     structured_output is shaped only when the join payload is emitted and is not
     added to IteratorSnapshot, preserving the persisted outcome format.
   concurrency: |
-    Bounded parallel iteration is deferred. mode values other than sequential
-    fail validation rather than silently changing ordering or rollback behavior.
+    parallel requires a positive max_concurrency. Workers execute normal
+    registry-built commands concurrently, while outcomes, RunEvents, checkpoint
+    entries, and join output are reduced in input order. fail_fast cancels
+    contextual siblings and waits for all started work; legacy non-contextual
+    commands are allowed to finish before join so no work is orphaned.
   non_goal: |
     for_each is not a scripting language: it has no expressions, mutation,
     dynamic action names, nested programs, or unbounded concurrency.
@@ -441,7 +454,8 @@ validation_rules: |
   - Duplicate valid transition labels are allowed
   - for_each requires a named action, a valid $from selector and binding label,
     declared continue/join signals, and a declared join state
-  - only sequential mode and fail_fast or collect_all failure policies are valid
+  - mode is sequential or parallel; parallel requires positive max_concurrency
+    and sequential forbids it; failure is fail_fast or collect_all
   - collect_all requires a partial join signal
 
   Phase 2 — BuildTransitionTable():

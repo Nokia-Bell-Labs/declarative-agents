@@ -88,7 +88,7 @@ func TestPlannerRetryPolicyWiring(t *testing.T) {
 	unmarshalShipped(t, filepath.Join("agents", "planner", "tools.yaml"), &selected)
 	for _, tool := range []string{
 		"reset_retry_count", "increment_retry", "check_retry_limit",
-		"mark_task_done", "remaining_work",
+		"mark_task_done", "mark_task_failed", "remaining_work",
 	} {
 		if !contains(selected.Tools, tool) {
 			t.Errorf("planner tools omit %q", tool)
@@ -123,10 +123,24 @@ func TestPlannerRetryPolicyWiring(t *testing.T) {
 			}
 			unmarshalShipped(t, filepath.Join("agents", "planner", machinePath), &machine)
 
-			requireLabeledTransition(t, machine.Transitions, "Extracting", "TaskExtracted", "InitializingRetry", "reset_retry_count", "retry_count")
-			requireLabeledTransition(t, machine.Transitions, "Testing", "ToolFailed", "IncrementingRetry", "increment_retry", "retry_count")
+			if machinePath == "machine.yaml" {
+				requireLabeledTransition(t, machine.Transitions, "Extracting", "TaskExtracted", "InitializingFailureContext", "reset_failure_context", "failure_context")
+				requireLabeledTransition(t, machine.Transitions, "InitializingFailureContext", "FailureContextInitialized", "InitializingRetry", "reset_retry_count", "retry_count")
+			} else {
+				requireTransition(t, machine.Transitions, "Loading", "GraphLoaded", "SelectingReady", "select_all_ready")
+				requireTransition(t, machine.Transitions, "SelectingReady", "ReadySelected", "SeedingPassThroughPlan", "seed_passthrough_plan")
+				requireTransition(t, machine.Transitions, "SeedingPassThroughPlan", "PassThroughPlanSeeded", "MarkingPlanning", "mark_nodes_planning")
+				requireLabeledTransition(t, machine.Transitions, "MarkingPlanning", "NodesMarkedPlanning", "InitializingRetry", "reset_retry_count", "retry_count")
+			}
+			if machinePath == "machine.yaml" {
+				requireLabeledTransition(t, machine.Transitions, "Testing", "ToolFailed", "CapturingFailure", "capture_planner_failure", "failure_context")
+				requireLabeledTransition(t, machine.Transitions, "CapturingFailure", "FailureCaptured", "IncrementingRetry", "increment_retry", "retry_count")
+			} else {
+				requireLabeledTransition(t, machine.Transitions, "Testing", "ToolFailed", "IncrementingRetry", "increment_retry", "retry_count")
+			}
 			requireTransition(t, machine.Transitions, "IncrementingRetry", "ToolDone", "CheckingRetryLimit", "check_retry_limit")
-			requireTransition(t, machine.Transitions, "CheckingRetryLimit", "RetriesExhausted", "Exhausted", "remaining_work")
+			requireTransition(t, machine.Transitions, "CheckingRetryLimit", "RetriesExhausted", "MarkingTaskFailed", "mark_task_failed")
+			requireTransition(t, machine.Transitions, "MarkingTaskFailed", "TaskFailed", "Exhausted", "remaining_work")
 			requireTransition(t, machine.Transitions, "Testing", "ToolDone", "MarkingTaskDone", "mark_task_done")
 			requireTransition(t, machine.Transitions, "MarkingTaskDone", "TaskCompleted", "QueryingRemainingWork", "remaining_work")
 			requireTransition(t, machine.Transitions, "Exhausted", "Blocked", "Stalled", "")
@@ -136,7 +150,7 @@ func TestPlannerRetryPolicyWiring(t *testing.T) {
 				requireTransition(t, machine.Transitions, "CheckingRetryLimit", "RetryAvailable", "Resetting", "reset_history")
 				requireTransition(t, machine.Transitions, "QueryingRemainingWork", "WorkRemaining", "Extracting", "extract_task")
 			} else {
-				requireTransition(t, machine.Transitions, "CheckingRetryLimit", "RetryAvailable", "Executing", "execute_task")
+				requireTransition(t, machine.Transitions, "CheckingRetryLimit", "RetryAvailable", "InvokingExecutor", "invoke_executor")
 				requireTransition(t, machine.Transitions, "QueryingRemainingWork", "WorkRemaining", "Completed", "")
 			}
 		})
@@ -153,8 +167,8 @@ func TestPlannerRetryPolicyWiring(t *testing.T) {
 // It is Ollama-gated: the shipped planner machine declares invoke_llm, which
 // pings Ollama at tool registration, so with no reachable model the profile
 // cannot start (see ollama.go). The full pipeline tail beyond the graph boundary
-// (assemble_prompt -> invoke_llm -> parse_plan -> profile-selected tracker
-// sentence -> execute_task via a generator child -> vet/build/test) needs a
+// (project_planner_context -> compose_planner_prompt -> invoke_llm -> parse_plan -> profile-selected tracker
+// sentence -> write -> self_invoke via an executor child -> vet/build/test) needs a
 // tracker project, a child agent, and the Go toolchain, which the conformance harness
 // deliberately does not provide; the shipped planner is therefore behaviorally
 // exercised to its requirement-graph boundary here and no further, so no clean
@@ -187,7 +201,7 @@ func TestPlannerConformance(t *testing.T) {
 }
 
 // TestPlannerShippedProfileTerminalExecution runs the shipped pass-through
-// planner variant through its real execute_task factory and command. A controlled
+// planner variant through its real write and self_invoke commands. A controlled
 // child executable isolates the process boundary while the shipped profile,
 // declarations, graph loader, extractor, validators, and transition table remain
 // in control of command selection and terminal state mapping.
@@ -228,11 +242,11 @@ func TestPlannerShippedProfileTerminalExecution(t *testing.T) {
 
 	result.RequireExit(t, 0)
 	result.RootRequired(t)
-	result.RequireToolSpans(t, "load_graph", "extract_all", "reset_retry_count", "execute_task", "vet", "build", "test", "mark_task_done", "remaining_work")
+	result.RequireToolSpans(t, "load_graph", "select_all_ready", "seed_passthrough_plan", "mark_nodes_planning", "reset_retry_count", "mark_nodes_executing", "format_task_file", "write", "self_invoke", "vet", "build", "test", "mark_task_done", "remaining_work")
 	result.RequireTerminalState(t, "Completed")
 	args := readFile(t, childArgs)
 	if !strings.Contains(args, "--profile agents/executor/profile.yaml") {
-		t.Fatalf("execute_task child args do not select shipped executor profile:\n%s", args)
+		t.Fatalf("self_invoke child args do not select shipped executor profile:\n%s", args)
 	}
 }
 
@@ -275,8 +289,9 @@ func TestPlannerShippedProfileRetryExhaustion(t *testing.T) {
 	result.RequireExit(t, 2)
 	result.RequireTerminalState(t, "Stalled")
 	result.RequireToolSpans(t, "increment_retry", "check_retry_limit", "remaining_work")
-	if got := len(result.Spans.Named("execute_tool execute_task")); got != 2 {
-		t.Fatalf("execute_task span count = %d, want 2 (initial attempt plus first retry)", got)
+	result.RequireToolSpans(t, "mark_task_failed")
+	if got := len(result.Spans.Named("execute_tool self_invoke")); got != 2 {
+		t.Fatalf("self_invoke span count = %d, want 2 (initial attempt plus first retry)", got)
 	}
 	if got := len(result.Spans.Named("execute_tool increment_retry")); got != 2 {
 		t.Fatalf("increment_retry span count = %d, want 2", got)

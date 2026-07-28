@@ -396,32 +396,57 @@ tools:
       rest_ref: chroma
       operation: count_records
 
+  - name: list_resource_paths
+    type: exec
+    binary: bash
+    args:
+      - -o
+      - pipefail
+      - -c
+      - |
+        find -P . \( -type f -o -type l \) -name '*.md' -print |
+          LC_ALL=C sort |
+          awk '{sub(/^\.\//, ""); print}'
+      - corpus-resource-paths
+    visibility: internal
+    category: boundary
+    emits: [ToolDone, ToolFailed, CommandError]
+    description: Discover corpus paths through the declared filesystem CLI.
+    problem: Recursive corpus traversal belongs at the external find boundary.
+    goals: [Emit deterministic workspace-relative paths for resource shaping.]
+    requirements: {input: [The profile fixes the workspace root.], output: [One path per line.], errors: [Traversal failures stay explicit.]}
+    non_goals: [Does not shape metadata or accept runtime traversal authority.]
+    parameters: {type: object, properties: {}, additionalProperties: false}
+    output_cap: 1048576
+    side_effects:
+      - {kind: child_process, target: find, state: read_only}
+      - {kind: filesystem_read, target: configured_document_resource, state: read_only}
+    reversibility: {classification: reversible, undo: noop}
+    undo: {strategy: noop, description: Discovery changes nothing.}
+    errors: [{signal: ToolFailed, condition: find traversal fails, state_after_failure: No state changes.}]
+
   - name: list_resource
     type: builtin
     init: list_resource
     visibility: internal
     category: boundary
-    description: List the corpus documents so the model can choose which to ingest.
-    problem: The model must discover the corpus files from trusted configuration, not guess paths.
+    description: Shape discovered corpus paths so the model can choose which document to ingest.
+    problem: The model needs allowlisted metadata after a visible external traversal step.
     goals:
-      - List the documents under the configured corpus resource.
+      - Validate and list the discovered documents under the configured corpus resource.
       - Return resource-relative paths for the model to read.
     requirements:
       input:
-        - Runtime input may choose only the configured resource name and optional prefix.
+        - The preceding declared find word supplies workspace-relative paths.
       output:
         - Output includes resource-relative document entries.
       errors:
         - Unknown resources and scan failures emit declared signals.
     non_goals:
       - Does not read document body content.
+      - Does not recursively traverse directories.
       - Does not let runtime input choose roots, include patterns, or extension policy.
-    parameters:
-      type: object
-      properties:
-        resource: {type: string, enum: [corpus]}
-        prefix: {type: string}
-      required: [resource]
+    parameters: {type: object, properties: {}, additionalProperties: false}
     emits: [DocumentListReady, DocumentResourceDenied, CommandError]
     output:
       description: Structured corpus document entries.
@@ -459,6 +484,8 @@ tools:
           extensions: [".md"]
           modes: [raw]
           max_bytes: 1048576
+          category_rules:
+            - {pattern: "*.md", category: overview}
 
   - name: read_resource
     type: builtin

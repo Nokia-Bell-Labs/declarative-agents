@@ -3,7 +3,7 @@ purpose: |-
   The planner is a pipeline agent that decomposes a requirement graph
   into tasks, generates implementation plans via LLM, and materializes
   them as issues. It loops over the requirement graph until all tasks
-  are planned, all are blocked, or a batch limit is reached.
+  are planned or all remaining work is blocked.
 
   Variant: plan-only materializes issues but does not execute generator tasks.
 configuration:
@@ -24,9 +24,9 @@ invariants:
 - Graph nodes are marked done/failed to track progress
 - The planner terminates when no more tasks are extractable
 lifecycle: |-
-  1. Idle → Extracting: extract_task from requirement graph
+  1. Idle → Extracting: extract_task from requirement graph; NoTask routes through remaining_work
   2. Extracting → Resetting: task extracted, clear LLM history
-  3. Resetting → PromptAssembly: assemble_prompt with SRD context
+  3. Resetting → ProjectingPromptContext → PromptAssembly: project structured context and compose the profile-owned prompt
   4. PromptAssembly → PlanInvoking: invoke_llm for plan generation
   5. PlanInvoking → PlanParsing: parse_plan from LLM response; invalid plans
      are reported and reinvoked until the explicit parse budget is exhausted
@@ -49,9 +49,10 @@ pipeline_diagram: |-
     RPE -->|BudgetExhausted| FAIL[Failed]
     F --> G[Format / Write / Tracker Exec / Record]
     G --> B
-    B -->|AllDone| K[Completed]
-    B -->|AllBlocked| L[Stalled]
-    B -->|BatchLimit| M[Paused]
+    B -->|NoTask| Q[QueryingRemainingWork]
+    Q -->|AllDone| K[Completed]
+    Q -->|Blocked| L[Stalled]
+    Q -->|WorkRemaining| B
   ```
 initial_state: Idle
 budget:
@@ -67,8 +68,12 @@ states:
     May terminate if all tasks are done, blocked, or batch limit reached.
 - name: Resetting
   meaning: Clearing conversation history before a new task's LLM call.
+- name: InitializingFailureContext
+  meaning: Seeding empty labelled failure context for a newly extracted task.
 - name: PromptAssembly
-  meaning: Building the task context and SRD references into a prompt.
+  meaning: Rendering profile-owned prompt sections from labelled planner context.
+- name: ProjectingPromptContext
+  meaning: Publishing prompt-neutral task and SRD fields for profile composition.
 - name: PlanInvoking
   meaning: Calling the LLM to generate an implementation plan.
 - name: PlanParsing
@@ -83,18 +88,17 @@ states:
   meaning: Creating an issue through the tracker exec word selected by the profile.
 - name: IssueRecording
   meaning: Recording the configured tracker's issue ID in planner state.
+- name: QueryingRemainingWork
+  meaning: Reading graph state so the machine can route ready, done, or blocked work.
 - name: Completed
   meaning: Terminal. All tasks in the graph are done.
 - name: Stalled
   meaning: Terminal. Remaining tasks are blocked by failed dependencies.
-- name: Paused
-  meaning: Terminal. Batch limit reached — resume later.
 - name: Failed
   meaning: Terminal. An unrecoverable error occurred.
 terminal_states:
 - Completed
 - Stalled
-- Paused
 - Failed
 signals:
 - name: Seed
@@ -103,12 +107,18 @@ signals:
   trigger: The requirement graph was loaded and seeded into pipeline state.
 - name: TaskExtracted
   trigger: A task was extracted from the requirement graph.
+- name: FailureContextInitialized
+  trigger: Empty failure context was recorded for a newly extracted task.
+- name: PlannerContextProjected
+  trigger: Prompt-neutral task and SRD fields were published.
+- name: PromptReady
+  trigger: The profile-owned planner prompt was rendered.
+- name: NoTask
+  trigger: Extraction found no ready task; remaining_work must classify the graph.
 - name: AllDone
   trigger: All tasks in the graph are done.
 - name: Blocked
   trigger: Remaining tasks are blocked by failed dependencies.
-- name: BatchLimitReached
-  trigger: Batch limit reached — resume later.
 - name: ToolDone
   trigger: A tool executed successfully.
 - name: LLMResponded
@@ -123,6 +133,8 @@ signals:
   trigger: The configured consecutive parse-error retry limit was reached.
 - name: Materialized
   trigger: An issue was created from the plan.
+- name: WorkRemaining
+  trigger: At least one graph task is ready for extraction.
 - name: CommandError
   trigger: Infrastructure-level error.
 transitions:
@@ -139,29 +151,40 @@ transitions:
   next: Failed
 - state: Extracting
   signal: TaskExtracted
+  next: InitializingFailureContext
+  action: reset_failure_context
+  label: failure_context
+- state: InitializingFailureContext
+  signal: FailureContextInitialized
   next: Resetting
   action: reset_history
+- state: InitializingFailureContext
+  signal: CommandError
+  next: Failed
 - state: Extracting
-  signal: AllDone
-  next: Completed
-- state: Extracting
-  signal: Blocked
-  next: Stalled
-- state: Extracting
-  signal: BatchLimitReached
-  next: Paused
+  signal: NoTask
+  next: QueryingRemainingWork
+  action: remaining_work
 - state: Extracting
   signal: CommandError
   next: Failed
 - state: Resetting
   signal: ToolDone
-  next: PromptAssembly
-  action: assemble_prompt
+  next: ProjectingPromptContext
+  action: project_planner_context
+  label: planner_context
 - state: Resetting
+  signal: CommandError
+  next: Failed
+- state: ProjectingPromptContext
+  signal: PlannerContextProjected
+  next: PromptAssembly
+  action: compose_planner_prompt
+- state: ProjectingPromptContext
   signal: CommandError
   next: Failed
 - state: PromptAssembly
-  signal: ToolDone
+  signal: PromptReady
   next: PlanInvoking
   action: invoke_llm
 - state: PromptAssembly
@@ -228,5 +251,18 @@ transitions:
   next: Extracting
   action: extract_task
 - state: IssueRecording
+  signal: CommandError
+  next: Failed
+- state: QueryingRemainingWork
+  signal: WorkRemaining
+  next: Extracting
+  action: extract_task
+- state: QueryingRemainingWork
+  signal: AllDone
+  next: Completed
+- state: QueryingRemainingWork
+  signal: Blocked
+  next: Stalled
+- state: QueryingRemainingWork
   signal: CommandError
   next: Failed

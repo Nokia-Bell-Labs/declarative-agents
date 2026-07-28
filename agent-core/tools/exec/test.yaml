@@ -81,7 +81,7 @@ tools:
   relationships:
     before:
     - done
-    - execute_task
+    - invoke_executor
     after:
     - increment_retry
     - mark_task_done

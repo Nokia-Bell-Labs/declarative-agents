@@ -113,6 +113,9 @@ func (r *loopRunner) recordIteratorOutcome() {
 
 func (r *loopRunner) doneIterator() bool {
 	if !r.iterator.Halted && r.iterator.NextIndex < len(r.iterator.Items) {
+		if effectiveForEachMode(r.iterator.Spec) == ForEachParallel {
+			return r.dispatchParallelIterator()
+		}
 		return r.dispatchIteratorItem()
 	}
 	return r.dispatchIteratorJoin()

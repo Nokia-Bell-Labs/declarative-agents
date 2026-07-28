@@ -1,7 +1,7 @@
 # Evaluator point builtin declarations.
 includes:
   - ../create-point-dir.yaml
-  - ../copy-sample-docs.yaml
+  - ../sample-docs.yaml
   - ../dump-config.yaml
   - ../run-agent.yaml
   - ../record-oracle-result.yaml
@@ -9,6 +9,7 @@ includes:
   - ../collect-trace-tokens.yaml
   - ../check-agent-version.yaml
   - ../summarize-point-results.yaml
+  - ../record-point-failure.yaml
   - ../collect-metrics.yaml
 
 tools: []

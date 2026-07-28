@@ -26,7 +26,7 @@ flow:
   - F7: Agent calls Loop(params, ctx). Loop freezes the registry, creates OTel spans, and enters the iteration loop (srd005, srd015).
   - F8: Each iteration checks context cancellation and budget, steps the state machine, dispatches the command via Dispatch with tracing and timeout (srd003, srd005).
   - F9: Loop reaches a terminal state, resolves RunStatus, and returns RunResult with status, iterations, tokens, cost, events, and summary (srd005).
-  - F10: Agent calls the shutdown function to flush exporters, end the root span, and close files. Optionally replays recorded traces via ReplayFile (srd008).
+  - F10: Agent calls the shutdown function to flush exporters, end the root span, and close files. Offline OTLP protobuf-JSON batches are loaded and relayed by a dedicated MachineSpec (srd008).
   - F11: An integration launcher composes file and OTLP export, assigns bounded run identity and a stable service name, and propagates the shared endpoint with a child-specific service name (srd008, srd018).
 
 touchpoints:
@@ -37,7 +37,7 @@ touchpoints:
   - T5: "srd005-agentic-loop R1, R2, R3, R4, R5, R6 -- Budget, RunResult, LoopHooks, LoopParams, Loop, ValidateBuilders"
   - T6: "srd006-yaml-machine-config R1, R2, R3, R4 -- MachineSpec, validation, BuildTransitionTable, LoadMachineSpec"
   - T7: "srd007-tracer-interface R1, R2 -- Tracer interface, minimal dependencies"
-  - T8: "srd008-telemetry R1, R2, R3, R4, R5, R6, R7, R9 -- ExporterConfig, Trace, NewRoot, file/OTLP exporters, TraceAdapter, ReplayFile, retained integration telemetry"
+  - T8: "srd008-telemetry R1, R2, R3, R4, R5, R6, R7, R9 -- ExporterConfig, Trace, NewRoot, file/OTLP exporters, TraceAdapter, declared OTLP replay, retained integration telemetry"
   - T9: "srd010-conversation R1, R2, R4, R5, R6, R7 -- Message, Conversation, append-only history, assembly, system prompt, reset"
   - T10: "srd011-prompt-schema R1, R2, R3, R4, R5, R6, R7 -- Prompt, YAML loading, defaults, validation, assembly"
   - T11: "srd012-system-prompt-template R1, R2, R3, R4, R5, R6 -- embedded system template, PromptData, Envelope, rendering, manifest serialization"
@@ -101,7 +101,7 @@ success_criteria:
       - srd008-telemetry AC6
       - srd008-telemetry AC7
   - id: S12
-    criterion: ReplayFile sends recorded spans to a collector endpoint.
+    criterion: A replay MachineSpec loads a trusted OTLP protobuf-JSON batch and sends it unchanged through relay_spans.
     traces:
       - srd008-telemetry AC9
   - id: S13

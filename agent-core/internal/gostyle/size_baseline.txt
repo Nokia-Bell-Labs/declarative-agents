@@ -20,15 +20,12 @@ func:internal/evaluation/eval_results.go:loadDir
 func:internal/evaluation/eval_run_point.go:Execute
 func:internal/evaluation/eval_session.go:DiscoverSamples
 func:internal/evaluation/eval_session.go:ParseSuiteConfig
-func:internal/evaluation/eval_session_state.go:NextPoint
 func:internal/evaluation/eval_tools.go:Execute
 func:internal/model/llm/ollama/adapter.go:Chat
 func:internal/model/llm/ollama/adapter.go:ListModels
 func:internal/model/prompt/load.go:LoadPrompt
-func:internal/observability/telemetry/replay.go:ReplayFileContext
 func:internal/planning/extract/output.go:BuildOutputTasks
 func:internal/planning/graph/graph.go:addReleaseEdges
-func:internal/planning/graph/persist.go:validateGraphState
 func:internal/planning/pipeline/factories.go:RegisterFactories
 func:internal/runtime/core/dolt_checkpoint.go:Save
 func:internal/runtime/core/dolt_checkpoint.go:createSchema

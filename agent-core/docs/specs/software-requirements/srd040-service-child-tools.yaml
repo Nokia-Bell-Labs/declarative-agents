@@ -53,7 +53,7 @@ requirements:
       - R4.2: Each dispatch SHALL run one validator to completion through the shared child-agent execution path.
       - R4.3: Each output SHALL include that validator's terminal state and exit code.
       - R4.4: Each dispatch SHALL enforce a declared timeout; a validator still running at timeout SHALL be stopped and reported as timed out.
-      - R4.5: MachineSpec sequential for_each SHALL expose every validator dispatch and its ordered join; a thin record word may retain joined outcomes for reporting.
+      - R4.5: MachineSpec bounded parallel for_each SHALL expose every validator dispatch and its deterministic input-order join; a thin record word may retain joined outcomes for reporting.
 
   R5:
     title: list_scenarios

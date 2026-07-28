@@ -33,11 +33,18 @@ type ResourceConfig struct {
 
 // ResourceDefinition defines one read-only filesystem resource.
 type ResourceDefinition struct {
-	Root       string   `json:"root"`
-	Include    []string `json:"include"`
-	Extensions []string `json:"extensions"`
-	Modes      []string `json:"modes"`
-	MaxBytes   int64    `json:"max_bytes"`
+	Root          string                 `json:"root"`
+	Include       []string               `json:"include"`
+	Extensions    []string               `json:"extensions"`
+	Modes         []string               `json:"modes"`
+	MaxBytes      int64                  `json:"max_bytes"`
+	CategoryRules []ResourceCategoryRule `json:"category_rules,omitempty"`
+}
+
+// ResourceCategoryRule assigns profile-owned presentation metadata by path.
+type ResourceCategoryRule struct {
+	Pattern  string `json:"pattern"`
+	Category string `json:"category"`
 }
 
 type resourceEntry struct {
@@ -61,7 +68,7 @@ type resourceDetail struct {
 type listResourceCmd struct {
 	root      string
 	resource  string
-	prefix    string
+	paths     string
 	resources ResourceConfig
 }
 
@@ -73,7 +80,7 @@ func (l *listResourceCmd) Execute() core.Result {
 	if !ok {
 		return commandError(l.Name(), fmt.Errorf("resource %q is not configured", l.resource))
 	}
-	entries, err := listResourceEntries(base, def, l.prefix)
+	entries, err := listResourceEntries(base, def, l.paths)
 	if err != nil {
 		return resourceError(l.Name(), err)
 	}
@@ -133,7 +140,7 @@ func (b *ListResourceBuilder) Build(res core.Result) core.Command {
 	return &listResourceCmd{
 		root:      b.Root,
 		resource:  configuredResource(b.Resources, res.Output),
-		prefix:    extractStringParam(res.Output, "prefix"),
+		paths:     res.Output,
 		resources: b.Resources,
 	}
 }
@@ -164,30 +171,45 @@ func configuredResource(config ResourceConfig, output string) string {
 	return extractStringParam(output, "resource")
 }
 
-func listResourceEntries(base string, def ResourceDefinition, prefix string) ([]resourceEntry, error) {
+func listResourceEntries(base string, def ResourceDefinition, paths string) ([]resourceEntry, error) {
 	var entries []resourceEntry
-	err := filepath.WalkDir(base, func(abs string, entry os.DirEntry, err error) error {
-		if err != nil || entry.IsDir() {
-			return err
+	for _, candidate := range strings.Split(strings.TrimSpace(paths), "\n") {
+		if strings.TrimSpace(candidate) == "" {
+			continue
 		}
-		return appendResourceEntry(&entries, base, abs, def, prefix)
-	})
-	return entries, err
+		rel, err := normalizeResourcePath(candidate)
+		if err != nil {
+			return nil, err
+		}
+		if !resourcePathAllowed(rel, def, "") {
+			continue
+		}
+		if _, err := ValidatePath(base, rel); err != nil {
+			return nil, err
+		}
+		if err := appendResourceEntry(&entries, base, filepath.Join(base, filepath.FromSlash(rel)), def); err != nil {
+			return nil, err
+		}
+	}
+	return entries, nil
 }
 
-func appendResourceEntry(entries *[]resourceEntry, base, abs string, def ResourceDefinition, prefix string) error {
+func appendResourceEntry(entries *[]resourceEntry, base, abs string, def ResourceDefinition) error {
 	rel, err := resourceRel(base, abs)
-	if err != nil || !resourcePathAllowed(rel, def, prefix) {
+	if err != nil {
 		return err
 	}
 	info, err := os.Stat(abs)
 	if err != nil {
 		return err
 	}
+	if info.IsDir() {
+		return nil
+	}
 	*entries = append(*entries, resourceEntry{
 		Path:      rel,
 		Name:      strings.TrimSuffix(path.Base(rel), path.Ext(rel)),
-		Category:  resourceCategory(rel),
+		Category:  resourceCategory(rel, def.CategoryRules),
 		Extension: strings.TrimPrefix(path.Ext(rel), "."),
 		Size:      info.Size(),
 	})
@@ -329,25 +351,17 @@ func resourceRel(base, abs string) (string, error) {
 	return filepath.ToSlash(rel), nil
 }
 
-func resourceCategory(rel string) string {
-	switch {
-	case rel == "road-map.yaml":
-		return "release"
-	case path.Dir(rel) == ".":
-		return "overview"
-	case strings.HasPrefix(rel, "specs/software-requirements/"):
-		return "srd"
-	case strings.HasPrefix(rel, "specs/semantic-models/"):
-		return "semantic-model"
-	case strings.HasPrefix(rel, "specs/config-formats/"):
-		return "config-format"
-	case strings.HasPrefix(rel, "specs/use-cases/"):
-		return "use-case"
-	case strings.HasPrefix(rel, "specs/test-suites/"):
-		return "test-suite"
-	default:
-		return strings.Split(path.Dir(rel), "/")[0]
+func resourceCategory(rel string, rules []ResourceCategoryRule) string {
+	for _, rule := range rules {
+		if resourcePatternMatches(rule.Pattern, rel) {
+			return rule.Category
+		}
 	}
+	dir := path.Dir(rel)
+	if dir == "." {
+		return "root"
+	}
+	return strings.Split(dir, "/")[0]
 }
 
 func resourceContentType(rel string) string {

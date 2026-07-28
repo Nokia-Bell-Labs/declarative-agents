@@ -207,6 +207,8 @@ func TestCatalogMembershipUsesSharedRealizationAndAliasAuthority(t *testing.T) {
 			ToolDeclarations: []string{
 				"/opt/agent-core/tools/builtin/load-corpus.yaml",
 				"../specification-critic/ripgrep.yaml",
+				"../specification-critic/ref-scan.yaml",
+				"../specification-critic/consistency-scan.yaml",
 			},
 		},
 	}

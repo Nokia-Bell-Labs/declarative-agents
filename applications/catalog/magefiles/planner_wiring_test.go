@@ -5,13 +5,25 @@ package main
 import (
 	"os"
 	"path/filepath"
+	"strings"
 	"testing"
 
 	"gopkg.in/yaml.v3"
 )
 
 type plannerMachine struct {
+	States      []plannerState      `yaml:"states"`
+	Signals     []plannerSignal     `yaml:"signals"`
+	Terminals   []string            `yaml:"terminal_states"`
 	Transitions []plannerTransition `yaml:"transitions"`
+}
+
+type plannerState struct {
+	Name string `yaml:"name"`
+}
+
+type plannerSignal struct {
+	Name string `yaml:"name"`
 }
 
 type plannerTransition struct {
@@ -31,9 +43,11 @@ type plannerDeclarations struct {
 }
 
 type plannerDeclaration struct {
-	Name       string `yaml:"name"`
-	Type       string `yaml:"type"`
-	Binary     string `yaml:"binary"`
+	Name       string         `yaml:"name"`
+	Type       string         `yaml:"type"`
+	Binary     string         `yaml:"binary"`
+	Init       string         `yaml:"init"`
+	Config     map[string]any `yaml:"config"`
 	Parameters struct {
 		Properties map[string]plannerParameter `yaml:"properties"`
 	} `yaml:"parameters"`
@@ -75,12 +89,114 @@ func TestPlannerVariantsRouteParseRetriesExplicitly(t *testing.T) {
 	}
 }
 
+func TestPlannerVariantsComposeProfileOwnedPrompts(t *testing.T) {
+	for _, file := range []string{"machine.yaml", "machine-plan-only.yaml"} {
+		t.Run(file, func(t *testing.T) {
+			var machine plannerMachine
+			readPlannerYAML(t, file, &machine)
+			requirePlannerTransition(t, machine, "Extracting", "TaskExtracted", "InitializingFailureContext", "reset_failure_context", "failure_context")
+			requirePlannerTransition(t, machine, "Resetting", "ToolDone", "ProjectingPromptContext", "project_planner_context", "planner_context")
+			requirePlannerTransition(t, machine, "ProjectingPromptContext", "PlannerContextProjected", "PromptAssembly", "compose_planner_prompt", "")
+			requirePlannerTransition(t, machine, "PromptAssembly", "PromptReady", "PlanInvoking", "invoke_llm", "")
+		})
+	}
+
+	var full plannerMachine
+	readPlannerYAML(t, "machine.yaml", &full)
+	requirePlannerTransition(t, full, "Testing", "ToolFailed", "CapturingFailure", "capture_planner_failure", "failure_context")
+	requirePlannerTransition(t, full, "CapturingFailure", "FailureCaptured", "IncrementingRetry", "increment_retry", "retry_count")
+	requirePlannerTransition(t, full, "CheckingRetryLimit", "RetryAvailable", "Resetting", "reset_history", "")
+
+	var declarations plannerDeclarations
+	readPlannerYAML(t, "builtin.yaml", &declarations)
+	var compose plannerDeclaration
+	for _, declaration := range declarations.Tools {
+		if declaration.Name == "compose_planner_prompt" {
+			compose = declaration
+			break
+		}
+	}
+	if compose.Init != "compose" {
+		t.Fatalf("compose_planner_prompt init = %q, want compose", compose.Init)
+	}
+	template, _ := compose.Config["template"].(string)
+	if !strings.Contains(template, "## Retry Context") || !strings.Contains(template, "## Output Format") {
+		t.Fatalf("profile prompt template omits retry or output sections: %q", template)
+	}
+	inputs, _ := compose.Config["inputs"].(map[string]any)
+	if inputs["retry_context"] != "$from(failure_context).output" {
+		t.Fatalf("retry context selector = %#v", inputs["retry_context"])
+	}
+}
+
+func TestPlannerVariantsClassifyEmptyExtractionThroughRemainingWork(t *testing.T) {
+	for _, test := range []struct {
+		file  string
+		state string
+	}{
+		{file: "machine.yaml", state: "Extracting"},
+		{file: "machine-plan-only.yaml", state: "Extracting"},
+		{file: "machine-passthrough.yaml", state: "SelectingReady"},
+	} {
+		t.Run(test.file, func(t *testing.T) {
+			var machine plannerMachine
+			readPlannerYAML(t, test.file, &machine)
+			requirePlannerTransition(t, machine, test.state, "NoTask", "QueryingRemainingWork", "remaining_work", "")
+			requirePlannerTransition(t, machine, "QueryingRemainingWork", "AllDone", "Completed", "", "")
+			requirePlannerTransition(t, machine, "QueryingRemainingWork", "Blocked", "Stalled", "", "")
+			for _, transition := range machine.Transitions {
+				if transition.State == test.state && (transition.Signal == "AllDone" || transition.Signal == "Blocked") {
+					t.Errorf("extraction still classifies graph state directly: %+v", transition)
+				}
+			}
+		})
+	}
+}
+
+func TestPlannerPassThroughSplitsAggregateSelectionPlanAndGraphMutation(t *testing.T) {
+	var machine plannerMachine
+	readPlannerYAML(t, "machine-passthrough.yaml", &machine)
+	requirePlannerTransition(t, machine, "Loading", "GraphLoaded", "SelectingReady", "select_all_ready", "")
+	requirePlannerTransition(t, machine, "SelectingReady", "ReadySelected", "SeedingPassThroughPlan", "seed_passthrough_plan", "")
+	requirePlannerTransition(t, machine, "SeedingPassThroughPlan", "PassThroughPlanSeeded", "MarkingPlanning", "mark_nodes_planning", "")
+	requirePlannerTransition(t, machine, "MarkingPlanning", "NodesMarkedPlanning", "InitializingRetry", "reset_retry_count", "retry_count")
+	for _, transition := range machine.Transitions {
+		if transition.Action == "extract_all" {
+			t.Errorf("pass-through machine still selects compound extract_all: %+v", transition)
+		}
+	}
+}
+
+func TestPlannerVariantsDoNotDeclareUnreachableBatchPause(t *testing.T) {
+	for _, file := range []string{"machine.yaml", "machine-plan-only.yaml"} {
+		t.Run(file, func(t *testing.T) {
+			var machine plannerMachine
+			readPlannerYAML(t, file, &machine)
+			for _, state := range machine.States {
+				if state.Name == "Paused" {
+					t.Error("planner still declares unreachable Paused state")
+				}
+			}
+			for _, signal := range machine.Signals {
+				if signal.Name == "BatchLimitReached" {
+					t.Error("planner still declares unreachable BatchLimitReached signal")
+				}
+			}
+			for _, terminal := range machine.Terminals {
+				if terminal == "Paused" {
+					t.Error("planner still declares unreachable Paused terminal")
+				}
+			}
+		})
+	}
+}
+
 func TestPlannerVariantsSequenceTrackerSentence(t *testing.T) {
 	for _, test := range []struct {
 		file      string
 		afterNext string
 	}{
-		{file: "machine.yaml", afterNext: "Executing"},
+		{file: "machine.yaml", afterNext: "MarkingExecuting"},
 		{file: "machine-plan-only.yaml", afterNext: "Extracting"},
 	} {
 		t.Run(test.file, func(t *testing.T) {
@@ -93,6 +209,24 @@ func TestPlannerVariantsSequenceTrackerSentence(t *testing.T) {
 			requirePlannerTransition(t, machine, "IssueRecording", "Materialized", test.afterNext, "", "")
 			requirePlannerTransition(t, machine, "IssueBodyWriting", "ToolFailed", "Failed", "", "")
 			requirePlannerTransition(t, machine, "IssueCreating", "ToolFailed", "Failed", "", "")
+		})
+	}
+}
+
+func TestPlannerExecutionSeparatesGraphWriteAndChildBoundary(t *testing.T) {
+	for _, file := range []string{"machine.yaml", "machine-passthrough.yaml"} {
+		t.Run(file, func(t *testing.T) {
+			var machine plannerMachine
+			readPlannerYAML(t, file, &machine)
+			requirePlannerTransition(t, machine, "MarkingExecuting", "NodesMarkedExecuting", "FormattingTask", "format_task_file", "task_file")
+			requirePlannerTransition(t, machine, "FormattingTask", "TaskFileFormatted", "MaterializingTask", "write", "")
+			requirePlannerTransition(t, machine, "MaterializingTask", "ToolDone", "InvokingExecutor", "invoke_executor", "")
+			requirePlannerTransition(t, machine, "InvokingExecutor", "ToolDone", "Vetting", "vet", "")
+			for _, transition := range machine.Transitions {
+				if transition.Action == "execute_task" {
+					t.Errorf("planner still selects compound execute_task: %+v", transition)
+				}
+			}
 		})
 	}
 }

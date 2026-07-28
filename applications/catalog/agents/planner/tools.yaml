@@ -16,8 +16,13 @@ tools:
 
   # Planning phase (plan-only + full)
   - extract_task         # action: full, plan-only
-  - extract_all          # action: passthrough
-  - assemble_prompt      # action: full, plan-only
+  - select_all_ready     # action: passthrough
+  - seed_passthrough_plan # action: passthrough
+  - mark_nodes_planning  # action: passthrough
+  - project_planner_context # action: full, plan-only
+  - capture_planner_failure # action: full
+  - reset_failure_context # action: full, plan-only
+  - compose_planner_prompt # compose alias: full, plan-only
   - parse_plan           # action: full, plan-only
   - format_issue         # action: full, plan-only
   - write                # action: full, plan-only
@@ -25,11 +30,14 @@ tools:
   - record_tracker_issue # action: full, plan-only
 
   # Execution phase (full + passthrough)
-  - execute_task         # action: full, passthrough
+  - mark_nodes_executing # action: full, passthrough
+  - format_task_file     # action: full, passthrough
+  - invoke_executor      # self_invoke alias: full, passthrough
   - reset_retry_count    # action: full, passthrough
   - increment_retry      # action: full, passthrough
   - check_retry_limit    # action: full, passthrough
   - mark_task_done       # action: full, passthrough
+  - mark_task_failed     # action: full, passthrough
   - remaining_work       # action: full, passthrough
 
   # LLM (full, plan-only)

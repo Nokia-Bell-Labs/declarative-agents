@@ -41,9 +41,11 @@ func executeCharterCheck(targetDir string, graph *Graph, corpus *Corpus, charter
 		// external search visible in the machine trace.
 		return nil, nil
 	case "ref_check":
-		return ExecuteRefChecks(targetDir, []Charter{charter})
+		// ref_check is executed by declared external scan and reducer states.
+		return nil, nil
 	case "consistency_check":
-		return ExecuteConsistencyChecks(targetDir, []Charter{charter})
+		// consistency_check is executed by declared external scan and reducer states.
+		return nil, nil
 	default:
 		return nil, nil
 	}

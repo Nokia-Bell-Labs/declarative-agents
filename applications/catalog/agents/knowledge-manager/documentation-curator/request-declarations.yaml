@@ -1,19 +1,57 @@
 tools:
+  - name: doc_list_paths
+    type: exec
+    binary: bash
+    args:
+      - -o
+      - pipefail
+      - -c
+      - |
+        prefix=${1#/}
+        [ "$prefix" = "." ] && prefix=
+        cd docs
+        find -P . \( -type f -o -type l \) \( -name '*.yaml' -o -name '*.yml' -o -name '*.md' \) -print |
+          LC_ALL=C sort |
+          awk -v prefix="$prefix" '{sub(/^\.\//, ""); if (prefix == "" || index($0, prefix) == 1) print}'
+      - doc-list-paths
+    visibility: internal
+    category: boundary
+    emits: [ToolDone, ToolFailed, CommandError]
+    description: Discover documentation paths through the declared filesystem CLI.
+    problem: Recursive traversal belongs at the external find boundary rather than inside list_resource Go.
+    goals: [Emit deterministic resource-relative paths under the fixed docs root.]
+    requirements:
+      input: [An optional prefix is the only runtime filter.]
+      output: [One resource-relative file or symlink path per line.]
+      errors: [Missing roots and find failures remain explicit.]
+    non_goals: [Does not shape metadata or accept a runtime root.]
+    parameters:
+      type: object
+      properties:
+        prefix: {type: string, positional: true, position: 1, default: ""}
+    output_cap: 1048576
+    side_effects:
+      - {kind: child_process, target: find, state: read_only}
+      - {kind: filesystem_read, target: docs, state: read_only}
+    reversibility: {classification: reversible, undo: noop}
+    undo: {strategy: noop, description: Discovery changes nothing.}
+    errors: [{signal: ToolFailed, condition: The docs root or find traversal fails, state_after_failure: No state changes.}]
+
   - name: doc_list_resource
     type: builtin
     init: list_resource
     visibility: internal
     category: boundary
     emits: [DocumentListReady, DocumentResourceDenied, CommandError]
-    description: List allowlisted documentation resources.
-    problem: Index requests need path-safe filesystem discovery without a documentation handler.
-    goals: [Return stable metadata for allowed YAML and Markdown files.]
+    description: Shape discovered documentation paths as allowlisted resource metadata.
+    problem: Index requests need path-safe metadata without hiding traversal in Go.
+    goals: [Validate discovered paths and return stable metadata for allowed YAML and Markdown files.]
     requirements:
-      input: [An optional prefix is the only runtime path input.]
+      input: [The preceding declared find word supplies resource-relative paths.]
       output: [Entries contain path, name, category, extension, and size.]
       errors: [Denied paths and filesystem failures emit declared signals.]
-    non_goals: [Does not shape an HTTP response.]
-    parameters: {type: object, properties: {prefix: {type: string}}}
+    non_goals: [Does not traverse directories or shape an HTTP response.]
+    parameters: {type: object, properties: {}, additionalProperties: false}
     output: {description: Documentation resource entries, schema: {type: array}}
     side_effects: [{kind: filesystem_read, target: docs, state: read_only}]
     reversibility: {classification: reversible, undo: noop}
@@ -28,6 +66,16 @@ tools:
           extensions: [yaml, yml, md]
           modes: [raw_yaml, parsed_yaml, raw_markdown]
           max_bytes: 1048576
+          category_rules:
+            - {pattern: road-map.yaml, category: release}
+            - {pattern: "*.yaml", category: overview}
+            - {pattern: "*.yml", category: overview}
+            - {pattern: "*.md", category: overview}
+            - {pattern: "specs/software-requirements/**", category: srd}
+            - {pattern: "specs/semantic-models/**", category: semantic-model}
+            - {pattern: "specs/config-formats/**", category: config-format}
+            - {pattern: "specs/use-cases/**", category: use-case}
+            - {pattern: "specs/test-suites/**", category: test-suite}
 
   - name: doc_read_resource
     type: builtin

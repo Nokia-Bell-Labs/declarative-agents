@@ -55,6 +55,48 @@ func (b *MarkTaskDoneBuilder) BuildReverser() core.Command {
 	return &markTaskDoneCmd{ps: b.PS}
 }
 
+type markTaskFailedCmd struct {
+	ps *State
+}
+
+func (c *markTaskFailedCmd) Name() string { return "mark_task_failed" }
+func (c *markTaskFailedCmd) Undo(prior core.Result) core.Result {
+	return undoPipelineReceipt(c.Name(), c.ps, nil, prior.Receipt)
+}
+
+func (c *markTaskFailedCmd) Execute() (result core.Result) {
+	snapshot := snapshotPipelineState(c.ps)
+	defer func() { result = withPipelineReceipt(result, snapshot, nil) }()
+	if c.ps.CurrentTask == nil || c.ps.Graph == nil {
+		err := fmt.Errorf("mark_task_failed: current task and graph are required")
+		return core.Result{CommandName: c.Name(), Signal: core.CommandError, Err: err, Output: err.Error()}
+	}
+	if err := c.ps.advanceTaskNodesTo(graph.Failed); err != nil {
+		return core.Result{CommandName: c.Name(), Signal: core.CommandError, Err: err, Output: err.Error()}
+	}
+	c.ps.Tracer.Event("pipeline.task_failed",
+		attribute.String("task.id", c.ps.CurrentTask.ID),
+	)
+	return core.Result{
+		CommandName: c.Name(),
+		Signal:      SigTaskFailed,
+		Output:      fmt.Sprintf("task %s failed after retry exhaustion", c.ps.CurrentTask.ID),
+	}
+}
+
+// MarkTaskFailedBuilder constructs focused graph-failure commands.
+type MarkTaskFailedBuilder struct {
+	PS *State
+}
+
+func (b *MarkTaskFailedBuilder) Build(_ core.Result) core.Command {
+	return &markTaskFailedCmd{ps: b.PS}
+}
+
+func (b *MarkTaskFailedBuilder) BuildReverser() core.Command {
+	return &markTaskFailedCmd{ps: b.PS}
+}
+
 // remainingWorkCmd is a read-only graph query. The machine owns every route
 // selected from its WorkRemaining, AllDone, and Blocked signals.
 type remainingWorkCmd struct {

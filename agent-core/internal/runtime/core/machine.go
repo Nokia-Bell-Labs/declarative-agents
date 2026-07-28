@@ -33,40 +33,6 @@ func MarshalMachineSpec(spec MachineSpec) ([]byte, error) {
 	return yaml.Marshal(spec)
 }
 
-// StateSpec describes a state and optional semantic metadata.
-type StateSpec struct {
-	Name    string `yaml:"name"`
-	Meaning string `yaml:"meaning,omitempty"`
-}
-
-// StateSpecs accepts both legacy scalar state lists and rich state objects.
-type StateSpecs []StateSpec
-
-func (s *StateSpecs) UnmarshalYAML(value *yaml.Node) error {
-	specs, err := unmarshalNamedSpecs[StateSpec](value, "state")
-	if err != nil {
-		return err
-	}
-	*s = specs
-	return nil
-}
-
-func (s StateSpecs) Names() []string {
-	names := make([]string, 0, len(s))
-	for _, spec := range s {
-		names = append(names, spec.Name)
-	}
-	return names
-}
-
-func StateSpecsFromNames(names ...string) StateSpecs {
-	specs := make(StateSpecs, 0, len(names))
-	for _, name := range names {
-		specs = append(specs, StateSpec{Name: name})
-	}
-	return specs
-}
-
 // SignalSpec describes a signal and optional semantic metadata.
 type SignalSpec struct {
 	Name    string `yaml:"name"`
@@ -260,6 +226,9 @@ func validateSpec(spec MachineSpec) error {
 		}
 		stateIndexes[s] = i
 		stateSet[s] = true
+		if status := spec.States[i].RunStatus; status != "" && !validRunStatus(status) {
+			errs = append(errs, fmt.Sprintf("states[%d].run_status: invalid value %q", i, status))
+		}
 	}
 
 	if spec.InitialState != "" && !stateSet[spec.InitialState] {
@@ -277,6 +246,14 @@ func validateSpec(spec MachineSpec) error {
 		terminalIndexes[ts] = i
 		if !stateSet[ts] {
 			errs = append(errs, fmt.Sprintf("terminal_state %q not in states list", ts))
+		}
+	}
+	for i, state := range spec.States {
+		_, terminal := terminalIndexes[state.Name]
+		if state.RunStatus != "" && !terminal {
+			errs = append(errs, fmt.Sprintf(
+				"states[%d].run_status: state %q is not terminal", i, state.Name,
+			))
 		}
 	}
 

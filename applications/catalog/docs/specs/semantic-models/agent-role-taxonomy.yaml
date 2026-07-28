@@ -131,7 +131,6 @@ roles:
     outcomes:
       - Completed
       - Stalled
-      - Paused
       - Failed
     checks:
       - Confirm planner invokes executor as a child profile.

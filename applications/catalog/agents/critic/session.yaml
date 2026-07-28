@@ -36,11 +36,11 @@ tools:
     visibility: internal
     description: "Report suite point count after setup."
 
-  - name: next_point
+  - name: materialize_eval_points
     type: builtin
-    init: next_point
+    init: materialize_eval_points
     visibility: internal
-    description: "Advance to the next evaluation point in the grid. Returns PointReady or AllPointsDone."
+    description: "Materialize ordered evaluation point inputs for session for_each dispatch."
 
   - name: run_point
     type: builtin

@@ -33,7 +33,7 @@ tool_categories:
       transitions.
     examples:
       - parse_response
-      - next_point
+      - record_point_failure
       - parse_suite_config
 
   boundary:
@@ -167,7 +167,7 @@ machine_composition:
 
   examples:
     good:
-      - sequence: "create_point_dir -> copy_dir -> copy_sample_docs -> git_init -> stage_all -> commit_workspace_baseline"
+      - sequence: "create_point_dir -> copy_dir -> sample_docs -> conditional copy_dir -> git_init -> stage_all -> commit_workspace_baseline"
         reason: "Workspace preparation is visible in point.yaml as separate words."
       - sequence: "run_oracle_check -> record_oracle_result -> collect_trace_tokens -> check_agent_version -> summarize_point_results"
         reason: "Correctness, metrics, version checks, and summary are distinct point words."
@@ -268,8 +268,8 @@ declaration_placement:
     - tool: invoke_llm
       placement: agents/<agent>/llm/*.yaml
       reason: Model, provider, prompt, and manifest state are profile-bound config.
-    - tool: execute_task
-      placement: tools/builtin/planner/ plus agents/planner/builtin.yaml
+    - tool: invoke_executor
+      placement: agents/planner/builtin.yaml as a self_invoke alias
       reason: Shared child-agent boundary word with planner-local child profile config.
     - tool: build
       placement: tools/exec/go/
@@ -408,7 +408,8 @@ example_tools:
     replacement:
       - create_point_dir
       - copy_dir
-      - copy_sample_docs
+      - sample_docs
+      - conditional copy_dir
       - git_init
       - stage_all
       - commit_workspace_baseline

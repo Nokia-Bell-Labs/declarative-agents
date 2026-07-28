@@ -49,11 +49,12 @@ type evalPointFactorySpec struct {
 
 // RegisterEvalFactories registers all evaluator builtin tool factories
 // (session-level: parse_suite_config, discover_suite_samples,
-// expand_eval_grid, init_eval_session, report_suite_summary, next_point,
-// run_point, report_session;
-// per-point: create_point_dir, copy_sample_docs, record_agent_commit,
+// expand_eval_grid, init_eval_session, report_suite_summary,
+// materialize_eval_points, run_point, report_session;
+// per-point: create_point_dir, sample_docs, record_agent_commit,
 // dump_config, run_agent, record_oracle_result, collect_trace_tokens,
-// check_agent_version, summarize_point_results, collect_metrics) into the
+// check_agent_version, summarize_point_results, record_point_failure,
+// collect_metrics) into the
 // provided registry.BuiltinRegistry. Session state is lazily initialized on first
 // factory call.
 func RegisterEvalFactories(br *toolregistry.BuiltinRegistry, deps EvalFactoryDeps) {
@@ -153,12 +154,12 @@ func evalSessionFactorySpecs() []evalSessionFactorySpec {
 		{name: "expand_eval_grid", build: func(es *EvalSessionState) core.Builder { return &ExpandEvalGridBuilder{ES: es} }},
 		{name: "init_eval_session", build: func(es *EvalSessionState) core.Builder { return &InitEvalSessionBuilder{ES: es} }},
 		{name: "report_suite_summary", build: func(es *EvalSessionState) core.Builder { return &ReportSuiteSummaryBuilder{ES: es} }},
+		{name: "materialize_eval_points", build: func(es *EvalSessionState) core.Builder { return &MaterializeEvalPointsBuilder{ES: es} }},
 	}
 }
 
 func evalConfiguredFactorySpecs() []evalConfiguredFactorySpec {
 	return []evalConfiguredFactorySpec{
-		{name: "next_point", factory: NextPointFactory},
 		{name: "run_point", factory: RunPointFactory},
 		{name: "report_session", factory: ReportSessionFactory},
 	}
@@ -167,12 +168,13 @@ func evalConfiguredFactorySpecs() []evalConfiguredFactorySpec {
 func evalPointFactorySpecs() []evalPointFactorySpec {
 	return []evalPointFactorySpec{
 		{name: "create_point_dir", build: func(es *EvalState) core.Builder { return &CreatePointDirBuilder{ES: es} }},
-		{name: "copy_sample_docs", build: func(es *EvalState) core.Builder { return &CopySampleDocsBuilder{ES: es} }},
+		{name: "sample_docs", build: func(es *EvalState) core.Builder { return &SampleDocsBuilder{ES: es} }},
 		{name: "run_agent", build: func(es *EvalState) core.Builder { return &RunAgentBuilder{ES: es} }},
 		{name: "record_oracle_result", build: func(es *EvalState) core.Builder { return &RecordOracleResultBuilder{ES: es} }},
 		{name: "collect_trace_tokens", build: func(es *EvalState) core.Builder { return &CollectTraceTokensBuilder{ES: es} }},
 		{name: "check_agent_version", build: func(es *EvalState) core.Builder { return &CheckAgentVersionBuilder{ES: es} }},
 		{name: "summarize_point_results", build: func(es *EvalState) core.Builder { return &SummarizePointResultsBuilder{ES: es} }},
+		{name: "record_point_failure", build: func(es *EvalState) core.Builder { return &RecordPointFailureBuilder{ES: es} }},
 		{name: "collect_metrics", build: func(es *EvalState) core.Builder { return &CollectMetricsBuilder{ES: es} }},
 		{name: "record_agent_commit", build: func(es *EvalState) core.Builder { return &RecordAgentCommitBuilder{ES: es} }},
 		{name: "dump_config", build: func(es *EvalState) core.Builder { return &DumpConfigBuilder{ES: es} }},

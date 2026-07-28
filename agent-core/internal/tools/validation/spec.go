@@ -89,7 +89,18 @@ func loadedCorpusOutput(vs *SpecState, corpus *spec.Corpus, charters []spec.Char
 	if err != nil {
 		return "", fmt.Errorf("prepare grep checks failed: %w", err)
 	}
-	output, err := json.Marshal(map[string]interface{}{"summary": summary, "grep_checks": grepChecks})
+	refChecks, err := spec.BuildRefSearchPlans(vs.TargetDirectory, charters)
+	if err != nil {
+		return "", fmt.Errorf("prepare ref checks failed: %w", err)
+	}
+	consistencyChecks, err := spec.BuildConsistencyScanPlans(vs.TargetDirectory, charters)
+	if err != nil {
+		return "", fmt.Errorf("prepare consistency checks failed: %w", err)
+	}
+	output, err := json.Marshal(map[string]interface{}{
+		"summary": summary, "grep_checks": grepChecks, "ref_checks": refChecks,
+		"consistency_checks": consistencyChecks,
+	})
 	if err != nil {
 		return "", fmt.Errorf("encode loaded corpus: %w", err)
 	}
@@ -235,6 +246,164 @@ func grepReductionError(commandName string, err error) core.Result {
 }
 
 var _ core.CommandStateAware = (*reduceGrepChecksCmd)(nil)
+
+// ReduceRefChecksBuilder shapes joined external ref scans into findings.
+type ReduceRefChecksBuilder struct {
+	VS          *SpecState
+	ResultsFrom string
+}
+
+func (b *ReduceRefChecksBuilder) Build(_ core.Result) core.Command {
+	return &reduceRefChecksCmd{vs: b.VS, resultsFrom: b.ResultsFrom}
+}
+
+type reduceRefChecksCmd struct {
+	vs          *SpecState
+	resultsFrom string
+	view        core.CommandStateView
+	snapshot    specSnapshot
+	hasSnapshot bool
+}
+
+type joinedRefOutcome struct {
+	Input  spec.RefSearchPlan `json:"input"`
+	Result struct {
+		Output string `json:"output"`
+	} `json:"result"`
+}
+
+func (c *reduceRefChecksCmd) Name() string                               { return "reduce_ref_checks" }
+func (c *reduceRefChecksCmd) SetCommandState(view core.CommandStateView) { c.view = view }
+func (c *reduceRefChecksCmd) Undo(prior core.Result) core.Result {
+	return undoSpecState(c.Name(), c.vs, prior, c.snapshot, c.hasSnapshot)
+}
+
+func (c *reduceRefChecksCmd) Execute() core.Result {
+	value, err := core.ResolveFromSelector(c.view, c.resultsFrom)
+	if err != nil {
+		return refReductionError(c.Name(), err)
+	}
+	data, err := json.Marshal(value)
+	if err != nil {
+		return refReductionError(c.Name(), fmt.Errorf("encode joined outcomes: %w", err))
+	}
+	var outcomes []joinedRefOutcome
+	if err := json.Unmarshal(data, &outcomes); err != nil {
+		return refReductionError(c.Name(), fmt.Errorf("decode joined outcomes: %w", err))
+	}
+	c.snapshot = snapshotSpec(c.vs)
+	c.hasSnapshot = true
+	for _, outcome := range outcomes {
+		var scan struct {
+			Output string `json:"output"`
+		}
+		if err := json.Unmarshal([]byte(outcome.Result.Output), &scan); err != nil {
+			return refReductionError(c.Name(), fmt.Errorf(
+				"charter %q check %q: decode structured ref scan: %w",
+				outcome.Input.SuiteID, outcome.Input.CheckID, err,
+			))
+		}
+		findings, err := spec.ReduceRefSearch(outcome.Input, scan.Output)
+		if err != nil {
+			return refReductionError(c.Name(), err)
+		}
+		c.vs.Findings = append(c.vs.Findings, findings...)
+	}
+	spec.SortFindings(c.vs.Findings)
+	errs := spec.Errors(c.vs.Findings)
+	c.vs.HasErrors = len(errs) > 0
+	res := validateSpecsResult(c.Name(), len(c.vs.Findings), len(errs))
+	res.Receipt = encodeSpecReceipt(c.snapshot)
+	return res
+}
+
+func refReductionError(commandName string, err error) core.Result {
+	return core.Result{
+		Signal: core.CommandError, CommandName: commandName,
+		Output: fmt.Sprintf("reduce ref checks failed: %v", err), Err: err,
+	}
+}
+
+var _ core.CommandStateAware = (*reduceRefChecksCmd)(nil)
+
+// ReduceConsistencyChecksBuilder reduces joined external file scans.
+type ReduceConsistencyChecksBuilder struct {
+	VS          *SpecState
+	ResultsFrom string
+}
+
+func (b *ReduceConsistencyChecksBuilder) Build(_ core.Result) core.Command {
+	return &reduceConsistencyChecksCmd{vs: b.VS, resultsFrom: b.ResultsFrom}
+}
+
+type reduceConsistencyChecksCmd struct {
+	vs          *SpecState
+	resultsFrom string
+	view        core.CommandStateView
+	snapshot    specSnapshot
+	hasSnapshot bool
+}
+
+type joinedConsistencyOutcome struct {
+	Input  spec.ConsistencyScanPlan `json:"input"`
+	Result struct {
+		Output string `json:"output"`
+	} `json:"result"`
+}
+
+func (c *reduceConsistencyChecksCmd) Name() string                               { return "reduce_consistency_checks" }
+func (c *reduceConsistencyChecksCmd) SetCommandState(view core.CommandStateView) { c.view = view }
+func (c *reduceConsistencyChecksCmd) Undo(prior core.Result) core.Result {
+	return undoSpecState(c.Name(), c.vs, prior, c.snapshot, c.hasSnapshot)
+}
+
+func (c *reduceConsistencyChecksCmd) Execute() core.Result {
+	value, err := core.ResolveFromSelector(c.view, c.resultsFrom)
+	if err != nil {
+		return consistencyReductionError(c.Name(), err)
+	}
+	data, err := json.Marshal(value)
+	if err != nil {
+		return consistencyReductionError(c.Name(), fmt.Errorf("encode joined outcomes: %w", err))
+	}
+	var outcomes []joinedConsistencyOutcome
+	if err := json.Unmarshal(data, &outcomes); err != nil {
+		return consistencyReductionError(c.Name(), fmt.Errorf("decode joined outcomes: %w", err))
+	}
+	c.snapshot = snapshotSpec(c.vs)
+	c.hasSnapshot = true
+	for _, outcome := range outcomes {
+		var scan struct {
+			Output string `json:"output"`
+		}
+		if err := json.Unmarshal([]byte(outcome.Result.Output), &scan); err != nil {
+			return consistencyReductionError(c.Name(), fmt.Errorf(
+				"charter %q check %q: decode structured consistency scan: %w",
+				outcome.Input.SuiteID, outcome.Input.Check.ID, err,
+			))
+		}
+		findings, err := spec.ReduceConsistencyScan(outcome.Input, scan.Output)
+		if err != nil {
+			return consistencyReductionError(c.Name(), err)
+		}
+		c.vs.Findings = append(c.vs.Findings, findings...)
+	}
+	spec.SortFindings(c.vs.Findings)
+	errs := spec.Errors(c.vs.Findings)
+	c.vs.HasErrors = len(errs) > 0
+	res := validateSpecsResult(c.Name(), len(c.vs.Findings), len(errs))
+	res.Receipt = encodeSpecReceipt(c.snapshot)
+	return res
+}
+
+func consistencyReductionError(commandName string, err error) core.Result {
+	return core.Result{
+		Signal: core.CommandError, CommandName: commandName,
+		Output: fmt.Sprintf("reduce consistency checks failed: %v", err), Err: err,
+	}
+}
+
+var _ core.CommandStateAware = (*reduceConsistencyChecksCmd)(nil)
 
 // FormatReportBuilder formats and outputs the findings report.
 type FormatReportBuilder struct {

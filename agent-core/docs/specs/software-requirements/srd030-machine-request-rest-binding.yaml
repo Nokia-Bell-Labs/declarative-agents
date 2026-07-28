@@ -65,6 +65,7 @@ requirements:
       - R4.6: Configuration MAY map allowed terminal states to the same response fields as terminal signals, so a request machine whose words emit a fixed signal vocabulary can still return distinct responses per outcome. Words that emit only ToolDone and ToolFailed SHALL NOT bound a machine to two distinct responses.
       - R4.7: When both maps are configured, the binding SHALL resolve the terminal state first and fall back to the terminal signal, since many signals may reach one terminal state and one signal may reach many.
       - R4.8: A configured terminal state that the request MachineSpec does not declare terminal SHALL fail configuration validation, and an unmapped terminal SHALL report both the terminal state and the terminal signal that were looked up.
+      - R4.9: Nested request RunStatus SHALL use the terminal state's declared MachineSpec run_status; HTTP response mappings classify RunStatus only as a compatibility fallback when run_status is omitted.
       - R4.4: The binding SHALL reject terminal output that cannot satisfy the configured response schema.
       - R4.5: Missing response output SHALL map to a configured default response or a structured server error.
 
@@ -115,8 +116,8 @@ acceptance_criteria:
     traces: [R4.1, R4.2, R4.3, R4.4, R4.5]
 
   - id: AC8
-    criterion: Terminal-state response mapping lets an exec-driven request machine return a distinct response per outcome, resolves state before signal when both are configured, rejects a mapped state the machine never terminates in, and names both keys when no mapping matches.
-    traces: [R4.6, R4.7, R4.8]
+    criterion: Terminal-state response mapping lets an exec-driven request machine return a distinct response per outcome, resolves state before signal when both are configured, rejects a mapped state the machine never terminates in, names both keys when no mapping matches, and uses declared machine run_status for nested RunStatus classification.
+    traces: [R4.6, R4.7, R4.8, R4.9]
     tests:
       - "test-rel03.0-rest-tools: Terminal state mapping separates client and server errors"
 

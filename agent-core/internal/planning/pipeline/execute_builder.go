@@ -3,67 +3,86 @@
 package pipeline
 
 import (
+	"encoding/json"
 	"fmt"
 
-	"github.com/Nokia-Bell-Labs/declarative-agents/agent-core/internal/model/llm"
 	"github.com/Nokia-Bell-Labs/declarative-agents/agent-core/internal/planning/graph"
 	"github.com/Nokia-Bell-Labs/declarative-agents/agent-core/internal/runtime/core"
-	"github.com/Nokia-Bell-Labs/declarative-agents/agent-core/internal/support/execute"
+	"gopkg.in/yaml.v3"
 )
 
-type executeTaskCmd struct {
-	ps  *State
-	run func(*State) (*execute.Result, error)
+const plannerTaskFilePath = "doc/task.yaml"
+
+type markNodesExecutingCmd struct {
+	ps *State
 }
 
-func (c *executeTaskCmd) Name() string { return "execute_task" }
-func (c *executeTaskCmd) Undo(_ core.Result) core.Result {
-	err := fmt.Errorf("undo execute_task requires child agent history or workspace compensation")
-	return core.Result{Signal: core.CommandError, CommandName: c.Name(), Output: err.Error(), Err: err}
+func (c *markNodesExecutingCmd) Name() string { return "mark_nodes_executing" }
+func (c *markNodesExecutingCmd) Undo(prior core.Result) core.Result {
+	return undoPipelineReceipt(c.Name(), c.ps, nil, prior.Receipt)
 }
 
-func (c *executeTaskCmd) Execute() core.Result {
-	if c.ps.CurrentTask == nil || c.ps.CurrentPlan == nil {
-		return core.Result{CommandName: c.Name(), Signal: core.CommandError, Output: "no current task or plan"}
+func (c *markNodesExecutingCmd) Execute() (result core.Result) {
+	snapshot := snapshotPipelineState(c.ps)
+	defer func() { result = withPipelineReceipt(result, snapshot, nil) }()
+	if c.ps.CurrentTask == nil || c.ps.Graph == nil {
+		err := fmt.Errorf("mark_nodes_executing: current task and graph are required")
+		return core.Result{CommandName: c.Name(), Signal: core.CommandError, Err: err, Output: err.Error()}
 	}
 	if err := c.ps.advanceTaskNodesTo(graph.Executing); err != nil {
 		return core.Result{CommandName: c.Name(), Signal: core.CommandError, Err: err, Output: err.Error()}
 	}
-	run := c.run
-	if run == nil {
-		run = runExecuteTask
-	}
-	result, err := run(c.ps)
-	if err != nil {
+	c.ps.Tracer.Event("pipeline.nodes_marked_executing")
+	return core.Result{CommandName: c.Name(), Signal: SigNodesExecuting, Output: "marked current task nodes executing"}
+}
+
+// MarkNodesExecutingBuilder constructs focused graph-lifecycle commands.
+type MarkNodesExecutingBuilder struct {
+	PS *State
+}
+
+func (b *MarkNodesExecutingBuilder) Build(_ core.Result) core.Command {
+	return &markNodesExecutingCmd{ps: b.PS}
+}
+
+func (b *MarkNodesExecutingBuilder) BuildReverser() core.Command {
+	return &markNodesExecutingCmd{ps: b.PS}
+}
+
+type formatTaskFileCmd struct {
+	ps *State
+}
+
+func (c *formatTaskFileCmd) Name() string { return "format_task_file" }
+func (c *formatTaskFileCmd) Undo(_ core.Result) core.Result {
+	return core.NoopUndo(c.Name())
+}
+
+func (c *formatTaskFileCmd) Execute() core.Result {
+	if c.ps.CurrentPlan == nil {
+		err := fmt.Errorf("format_task_file: current plan is required")
 		return core.Result{CommandName: c.Name(), Signal: core.CommandError, Err: err, Output: err.Error()}
 	}
-	return c.executionResult(result)
-}
-
-func runExecuteTask(ps *State) (*execute.Result, error) {
-	return execute.Execute(ps.Ctx, ps.Tracer, ps.ExecConfig, ps.CurrentTask.ID, ps.Directory, ps.CurrentPlan)
-}
-
-func (c *executeTaskCmd) executionResult(result *execute.Result) core.Result {
-	signal := SigExecutionDone
-	output := result.Stdout
-	if !result.Success() {
-		signal = SigExecutionFailed
-		output = fmt.Sprintf("exit %d\nstdout: %s\nstderr: %s",
-			result.ExitCode,
-			llm.Truncate(result.Stdout, 2000),
-			llm.Truncate(result.Stderr, 2000),
-		)
+	content, err := yaml.Marshal(c.ps.CurrentPlan)
+	if err != nil {
+		wrapped := fmt.Errorf("format_task_file: marshal plan: %w", err)
+		return core.Result{CommandName: c.Name(), Signal: core.CommandError, Err: wrapped, Output: wrapped.Error()}
 	}
-	return core.Result{CommandName: c.Name(), Signal: signal, Output: output, Cost: core.Cost{Duration: result.Duration}}
+	output, err := json.Marshal(map[string]any{"parameters": map[string]string{
+		"path": plannerTaskFilePath, "content": string(content),
+	}})
+	if err != nil {
+		wrapped := fmt.Errorf("format_task_file: encode write parameters: %w", err)
+		return core.Result{CommandName: c.Name(), Signal: core.CommandError, Err: wrapped, Output: wrapped.Error()}
+	}
+	return core.Result{CommandName: c.Name(), Signal: SigTaskFileFormatted, Output: string(output)}
 }
 
-// ExecuteTaskBuilder constructs execute_task commands.
-type ExecuteTaskBuilder struct {
-	PS  *State
-	run func(*State) (*execute.Result, error)
+// FormatTaskFileBuilder constructs pure plan-to-write-request projections.
+type FormatTaskFileBuilder struct {
+	PS *State
 }
 
-func (b *ExecuteTaskBuilder) Build(_ core.Result) core.Command {
-	return &executeTaskCmd{ps: b.PS, run: b.run}
+func (b *FormatTaskFileBuilder) Build(_ core.Result) core.Command {
+	return &formatTaskFileCmd{ps: b.PS}
 }

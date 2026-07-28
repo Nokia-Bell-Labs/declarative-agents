@@ -23,20 +23,23 @@ invariants:
 - The planner terminates as completed, stalled, or failed
 lifecycle: |-
   1. Idle → Loading: load_graph reads the requirement corpus
-  2. Loading → Extracting: extract_all creates one executable aggregate task
-  3. Extracting → InitializingRetry → Executing: seed visible retry count, then invoke the executor
-  4. Executing → Vetting → Building → Testing: validation pipeline
-  5. Validation failure → IncrementingRetry → CheckingRetryLimit
-  6. RetryAvailable → Executing; RetriesExhausted → Exhausted → Stalled
-  7. Testing success → MarkingTaskDone → QueryingRemainingWork → Completed
+  2. Loading → SelectingReady: select_all_ready creates one aggregate task without changing graph lifecycle
+  3. SelectingReady → SeedingPassThroughPlan → MarkingPlanning: profile text seeds the plan, then graph nodes advance
+  4. MarkingPlanning → InitializingRetry → Executing: seed visible retry count, then invoke the executor
+  5. Executing → Vetting → Building → Testing: validation pipeline
+  6. Validation failure → IncrementingRetry → CheckingRetryLimit
+  7. RetryAvailable → Executing; RetriesExhausted → Exhausted → Stalled
+  8. Testing success → MarkingTaskDone → QueryingRemainingWork → Completed
 
   The variant executes one aggregate task; retries return directly to Executing.
 pipeline_diagram: |-
   ```mermaid
   flowchart TD
     A[Idle] -->|Seed| L[Loading]
-    L -->|GraphLoaded| B[Extracting]
-    B -->|TaskExtracted| Z[InitializingRetry]
+    L -->|GraphLoaded| B[SelectingReady]
+    B -->|ReadySelected| P[SeedingPassThroughPlan]
+    P -->|PassThroughPlanSeeded| M[MarkingPlanning]
+    M -->|NodesMarkedPlanning| Z[InitializingRetry]
     Z --> H[Executing]
     H --> I[Vet / Build / Test]
     I -->|Success| J[MarkingTaskDone]
@@ -54,12 +57,22 @@ states:
   meaning: Initial state before planning begins.
 - name: Loading
   meaning: Loading the specification corpus and building the requirement graph.
-- name: Extracting
-  meaning: Creating one aggregate executable task from all ready requirements.
+- name: SelectingReady
+  meaning: Selecting all ready requirements into one aggregate task without changing graph lifecycle.
+- name: SeedingPassThroughPlan
+  meaning: Seeding profile-owned title and summary into the current implementation plan.
+- name: MarkingPlanning
+  meaning: Advancing selected aggregate-task nodes to Planning as a separate graph mutation.
 - name: InitializingRetry
   meaning: Seeding retry count zero in labelled command state for the aggregate task.
-- name: Executing
-  meaning: Running the generator agent to implement the task.
+- name: MarkingExecuting
+  meaning: Advancing selected nodes to Executing as a focused graph mutation.
+- name: FormattingTask
+  meaning: Serializing the current plan into task-file write parameters.
+- name: MaterializingTask
+  meaning: Writing doc/task.yaml through the shared write word.
+- name: InvokingExecutor
+  meaning: Running the executor through the shared self_invoke boundary.
 - name: Vetting
   meaning: Running go vet on the workspace.
 - name: Building
@@ -72,6 +85,8 @@ states:
   meaning: Comparing the visible retry count with the declared limit.
 - name: Exhausted
   meaning: Retry limit reached; query graph state before stalling.
+- name: MarkingTaskFailed
+  meaning: Advancing exhausted aggregate-task nodes to Failed before querying remaining work.
 - name: MarkingTaskDone
   meaning: Mutating only the aggregate task's graph nodes to Done.
 - name: QueryingRemainingWork
@@ -91,8 +106,14 @@ signals:
   trigger: Loop initialization.
 - name: GraphLoaded
   trigger: The requirement graph was loaded and seeded into pipeline state.
-- name: TaskExtracted
-  trigger: A task was extracted from the requirement graph.
+- name: ReadySelected
+  trigger: All ready nodes were selected into one aggregate task.
+- name: PassThroughPlanSeeded
+  trigger: Profile-configured pass-through plan text was seeded.
+- name: NodesMarkedPlanning
+  trigger: Selected aggregate-task nodes advanced to Planning.
+- name: NoTask
+  trigger: Extraction found no ready task; remaining_work must classify the graph.
 - name: RetryCountInitialized
   trigger: Retry count zero was recorded in labelled command state.
 - name: AllDone
@@ -103,16 +124,18 @@ signals:
   trigger: A tool executed successfully.
 - name: ToolFailed
   trigger: A tool executed but reported failure.
-- name: ExecutionDone
-  trigger: The generator agent completed successfully.
-- name: ExecutionFailed
-  trigger: The generator agent failed.
+- name: NodesMarkedExecuting
+  trigger: Current task nodes advanced to Executing.
+- name: TaskFileFormatted
+  trigger: The current plan was projected into task-file write parameters.
 - name: RetryAvailable
   trigger: Retries remain for the current task.
 - name: RetriesExhausted
   trigger: All retries consumed for the current task.
 - name: TaskCompleted
   trigger: The current task's graph nodes were marked Done.
+- name: TaskFailed
+  trigger: The exhausted current task's graph nodes were marked Failed.
 - name: WorkRemaining
   trigger: At least one graph task remains ready after the aggregate task.
 - name: CommandError
@@ -124,41 +147,78 @@ transitions:
   action: load_graph
 - state: Loading
   signal: GraphLoaded
-  next: Extracting
-  action: extract_all
+  next: SelectingReady
+  action: select_all_ready
 - state: Loading
   signal: CommandError
   next: Failed
-- state: Extracting
-  signal: TaskExtracted
+- state: SelectingReady
+  signal: ReadySelected
+  next: SeedingPassThroughPlan
+  action: seed_passthrough_plan
+- state: SeedingPassThroughPlan
+  signal: PassThroughPlanSeeded
+  next: MarkingPlanning
+  action: mark_nodes_planning
+- state: MarkingPlanning
+  signal: NodesMarkedPlanning
   next: InitializingRetry
   action: reset_retry_count
   label: retry_count
 - state: InitializingRetry
   signal: RetryCountInitialized
-  next: Executing
-  action: execute_task
+  next: MarkingExecuting
+  action: mark_nodes_executing
 - state: InitializingRetry
   signal: CommandError
   next: Failed
-- state: Extracting
-  signal: AllDone
-  next: Completed
-- state: Extracting
-  signal: Blocked
-  next: Stalled
-- state: Extracting
+- state: SelectingReady
+  signal: NoTask
+  next: QueryingRemainingWork
+  action: remaining_work
+- state: SelectingReady
   signal: CommandError
   next: Failed
-- state: Executing
-  signal: ExecutionDone
+- state: SeedingPassThroughPlan
+  signal: CommandError
+  next: Failed
+- state: MarkingPlanning
+  signal: CommandError
+  next: Failed
+- state: MarkingExecuting
+  signal: NodesMarkedExecuting
+  next: FormattingTask
+  action: format_task_file
+  label: task_file
+- state: MarkingExecuting
+  signal: CommandError
+  next: Failed
+- state: FormattingTask
+  signal: TaskFileFormatted
+  next: MaterializingTask
+  action: write
+- state: FormattingTask
+  signal: CommandError
+  next: Failed
+- state: MaterializingTask
+  signal: ToolDone
+  next: InvokingExecutor
+  action: invoke_executor
+- state: MaterializingTask
+  signal: ToolFailed
+  next: Failed
+- state: MaterializingTask
+  signal: CommandError
+  next: Failed
+- state: InvokingExecutor
+  signal: ToolDone
   next: Vetting
   action: vet
-- state: Executing
-  signal: ExecutionFailed
+- state: InvokingExecutor
+  signal: ToolFailed
   next: Vetting
   action: vet
-- state: Executing
+- state: InvokingExecutor
   signal: CommandError
   next: Failed
 - state: Vetting
@@ -209,13 +269,20 @@ transitions:
   next: Failed
 - state: CheckingRetryLimit
   signal: RetryAvailable
-  next: Executing
-  action: execute_task
+  next: InvokingExecutor
+  action: invoke_executor
 - state: CheckingRetryLimit
   signal: RetriesExhausted
+  next: MarkingTaskFailed
+  action: mark_task_failed
+- state: CheckingRetryLimit
+  signal: CommandError
+  next: Failed
+- state: MarkingTaskFailed
+  signal: TaskFailed
   next: Exhausted
   action: remaining_work
-- state: CheckingRetryLimit
+- state: MarkingTaskFailed
   signal: CommandError
   next: Failed
 - state: Exhausted

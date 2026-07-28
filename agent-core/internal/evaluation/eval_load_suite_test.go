@@ -30,6 +30,7 @@ var sessionWords = []string{
 	"expand_eval_grid",
 	"init_eval_session",
 	"report_suite_summary",
+	"materialize_eval_points",
 }
 
 // pointWords are the evaluator point words whose failure paths the point
@@ -39,6 +40,7 @@ var pointWords = []string{
 	"collect_trace_tokens",
 	"check_agent_version",
 	"summarize_point_results",
+	"record_point_failure",
 	"collect_metrics",
 	"record_agent_commit",
 }

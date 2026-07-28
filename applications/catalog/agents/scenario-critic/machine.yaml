@@ -181,9 +181,8 @@ transitions:
     for_each:
       items: $from(current_scenario).validators
       as: validator
-      mode: sequential
-      # Bounded parallel iteration is deferred. Sequential dispatch preserves
-      # deterministic order without hiding goroutines inside a Go tool.
+      mode: parallel
+      max_concurrency: 4
       failure: collect_all
       continue_on: [ValidatorCompleted, ValidatorIncomplete]
       abort_on: [CommandError]

@@ -52,6 +52,41 @@ tools:
       required: [suite, timestamp, point_id]
     output: {description: Normalized evaluation trace, schema: {type: object}}
 
+  - name: list_bench_config_paths
+    type: exec
+    binary: bash
+    args:
+      - -o
+      - pipefail
+      - -c
+      - |
+        prefix=${1#/}
+        [ "$prefix" = "." ] && prefix=
+        cd agents
+        find -P . \( -type f -o -type l \) \( -name '*.yaml' -o -name '*.yml' \) -print |
+          LC_ALL=C sort |
+          awk -v prefix="$prefix" '{sub(/^\.\//, ""); if (prefix == "" || index($0, prefix) == 1) print}'
+      - bench-config-paths
+    visibility: internal
+    category: boundary
+    emits: [ToolDone, ToolFailed, CommandError]
+    description: Discover bench configuration paths through declared find.
+    problem: Recursive profile traversal belongs at the external filesystem CLI boundary.
+    goals: [Emit deterministic paths beneath the fixed agents root.]
+    requirements: {input: [Optional prefix only.], output: [One resource-relative path per line.], errors: [Traversal failures stay explicit.]}
+    non_goals: [Does not shape metadata or accept a runtime root.]
+    parameters:
+      type: object
+      properties:
+        prefix: {type: string, positional: true, position: 1, default: ""}
+    output_cap: 1048576
+    side_effects:
+      - {kind: child_process, target: find, state: read_only}
+      - {kind: filesystem_read, target: bench_configs, state: read_only}
+    reversibility: {classification: reversible, undo: noop}
+    undo: {strategy: noop, description: Discovery changes nothing.}
+    errors: [{signal: ToolFailed, condition: The agents root or find traversal fails, state_after_failure: No state changes.}]
+
   - &resource_base
     name: list_bench_configs
     type: builtin
@@ -59,12 +94,12 @@ tools:
     visibility: internal
     category: boundary
     emits: [DocumentListReady, DocumentResourceDenied, CommandError]
-    description: List allowlisted bench configuration YAML.
-    problem: Profile views need path-safe generic filesystem discovery.
-    goals: [List YAML files under the configured agents root.]
-    requirements: {input: [Optional prefix only.], output: [Stable resource entries.], errors: [Denied and filesystem outcomes stay distinct.]}
-    non_goals: [Does not shape HTTP responses.]
-    parameters: {type: object, properties: {prefix: {type: string}}}
+    description: Shape discovered bench paths as allowlisted configuration metadata.
+    problem: Profile views need path-safe metadata without hidden recursive traversal.
+    goals: [Validate discovered paths and list YAML files under the configured agents root.]
+    requirements: {input: [Declared find output.], output: [Stable resource entries.], errors: [Denied and filesystem outcomes stay distinct.]}
+    non_goals: [Does not traverse directories or shape HTTP responses.]
+    parameters: {type: object, properties: {}, additionalProperties: false}
     output: {description: Configuration resource entries, schema: {type: array}}
     side_effects: [{kind: filesystem_read, target: bench_configs, state: read_only}]
     reversibility: {classification: reversible, undo: noop}
@@ -79,6 +114,9 @@ tools:
           extensions: [yaml, yml]
           modes: [raw_yaml, parsed_yaml]
           max_bytes: 1048576
+          category_rules:
+            - {pattern: "*.yaml", category: overview}
+            - {pattern: "*.yml", category: overview}
 
   - name: read_bench_config
     <<: *resource_base

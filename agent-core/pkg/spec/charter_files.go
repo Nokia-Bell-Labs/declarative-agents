@@ -3,67 +3,14 @@
 package spec
 
 import (
-	"fmt"
-	"os"
 	"path/filepath"
-	"sort"
 	"strings"
 )
 
-// charterFile is shared target-discovery evidence for the charter kinds that
-// still consume complete files. grep_check deliberately bypasses this path and
-// receives only rg match events.
+// charterFile identifies externally loaded evidence during reduction.
 type charterFile struct {
-	abs     string
 	rel     string
 	display string
-}
-
-func charterRoot(targetDir, root string) (string, string) {
-	if root == "" {
-		root = "."
-	}
-	if filepath.IsAbs(root) {
-		return filepath.Clean(root), "."
-	}
-	return filepath.Join(targetDir, root), filepath.ToSlash(filepath.Clean(root))
-}
-
-func charterFiles(root, rootRel string, include, exclude []string) ([]charterFile, error) {
-	var files []charterFile
-	err := filepath.WalkDir(root, func(path string, entry os.DirEntry, err error) error {
-		if err != nil {
-			return err
-		}
-		if entry.IsDir() {
-			return nil
-		}
-		rel, err := filepath.Rel(root, path)
-		if err != nil {
-			return err
-		}
-		rel = filepath.ToSlash(rel)
-		display := displayCharterPath(rootRel, rel)
-		if !includedByGlob(rel, include) || excludedByGlob(rel, exclude) {
-			return nil
-		}
-		files = append(files, charterFile{abs: path, rel: rel, display: display})
-		return nil
-	})
-	if err != nil {
-		return nil, fmt.Errorf("discover target files: %w", err)
-	}
-	sort.Slice(files, func(i, j int) bool {
-		return files[i].display < files[j].display
-	})
-	return files, nil
-}
-
-func narrowCharterFiles(root, rootRel string, baseFiles []charterFile, include, exclude []string) ([]charterFile, error) {
-	if len(include) == 0 && len(exclude) == 0 {
-		return append([]charterFile(nil), baseFiles...), nil
-	}
-	return charterFiles(root, rootRel, include, exclude)
 }
 
 func displayCharterPath(rootRel, rel string) string {

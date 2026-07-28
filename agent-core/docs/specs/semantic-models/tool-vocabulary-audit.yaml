@@ -290,8 +290,8 @@ tools:
     output_contract: missing
     undo: boundary_compensation (child_agent_workspace_restore, captures child_machine + child_tools + child_run_id + trace_path)
     overlaps:
-      - tool: execute_task
-        difference: self_invoke re-invokes the agent binary directly; execute_task runs a configured child agent for planner
+      - tool: invoke_executor
+        difference: invoke_executor is a planner profile alias of self_invoke
     issues:
       - output.schema for child agent result
     migration_priority: low
@@ -366,44 +366,92 @@ tools:
     role: stateful_internal
     selected_by: [planner]
     inputs_from: [spec_graph]
-    feeds_into: [assemble_prompt]
+    feeds_into: [project_planner_context]
     side_effects: pipeline_state_mutation
     output_contract: missing
     undo: graph_snapshot_restore
     overlaps:
-      - tool: extract_all
-        difference: extract_task selects one next unblocked task; extract_all batches all ready nodes
+      - tool: select_all_ready
+        difference: extract_task selects one weighted task; select_all_ready selects every ready node without plan or graph mutation
     issues:
       - needs command-state undo contract
     migration_priority: medium
 
-  - name: extract_all
+  - name: select_all_ready
     role: stateful_internal
     selected_by: [planner]
     inputs_from: [spec_graph]
-    feeds_into: [assemble_prompt]
+    feeds_into: [seed_passthrough_plan]
     side_effects: pipeline_state_mutation
-    output_contract: missing
-    undo: graph_snapshot_restore
+    output_contract: declared
+    undo: pipeline_state_restore
     overlaps:
       - tool: extract_task
-        difference: extract_all creates a single batch task; extract_task selects one weighted task
-    issues:
-      - needs command-state undo contract
-    migration_priority: medium
+        difference: select_all_ready selects every ready node; extract_task selects one weighted task
+    issues: []
+    migration_priority: complete
 
-  - name: assemble_prompt
+  - name: seed_passthrough_plan
+    role: stateful_internal
+    selected_by: [planner]
+    inputs_from: [select_all_ready, profile_config]
+    feeds_into: [mark_nodes_planning]
+    side_effects: pipeline_state_mutation
+    output_contract: declared
+    undo: pipeline_state_restore
+    overlaps: []
+    issues: []
+    migration_priority: complete
+
+  - name: mark_nodes_planning
+    role: stateful_internal
+    selected_by: [planner]
+    inputs_from: [seed_passthrough_plan]
+    feeds_into: [mark_nodes_executing]
+    side_effects: requirement_graph_mutation
+    output_contract: declared
+    undo: pipeline_state_restore
+    overlaps: []
+    issues: []
+    migration_priority: complete
+
+  - name: project_planner_context
     role: word
     selected_by: [planner]
-    inputs_from: [extract_task, extract_all, spec_corpus]
-    feeds_into: [invoke_llm]
+    inputs_from: [extract_task, spec_corpus]
+    feeds_into: [compose_planner_prompt]
     side_effects: none
-    output_contract: missing
+    output_contract: declared structured context
     undo: noop
     overlaps: []
-    issues:
-      - output should be typed prompt/messages rather than prose-only
-    migration_priority: low
+    issues: []
+    migration_priority: complete
+
+  - name: capture_planner_failure
+    role: word
+    selected_by: [planner]
+    inputs_from: [vet, build, test]
+    feeds_into: [increment_retry, compose_planner_prompt]
+    side_effects: none
+    output_contract: labelled failure context
+    undo: noop
+    overlaps: []
+    issues: []
+    migration_priority: complete
+
+  - name: compose_planner_prompt
+    role: word
+    selected_by: [planner]
+    inputs_from: [project_planner_context, failure_context]
+    feeds_into: [invoke_llm]
+    side_effects: none
+    output_contract: profile-owned prompt text
+    undo: noop
+    overlaps:
+      - tool: compose
+        difference: compose_planner_prompt is the planner profile's configured compose alias
+    issues: []
+    migration_priority: complete
 
   - name: parse_plan
     role: word
@@ -450,7 +498,7 @@ tools:
     role: stateful_internal
     selected_by: [planner]
     inputs_from: [create_tracker_issue]
-    feeds_into: [execute_task, extract_task]
+    feeds_into: [mark_nodes_executing, extract_task]
     side_effects: pipeline_state_mutation
     output_contract: structured issue_id
     undo: restore_previous_pipeline_snapshot
@@ -458,20 +506,43 @@ tools:
     issues: []
     migration_priority: low
 
-  - name: execute_task
+  - name: mark_nodes_executing
+    role: stateful_internal
+    selected_by: [planner]
+    inputs_from: [record_tracker_issue, mark_nodes_planning]
+    feeds_into: [format_task_file]
+    side_effects: requirement_graph_mutation
+    output_contract: declared
+    undo: pipeline_state_restore
+    overlaps: []
+    issues: []
+    migration_priority: complete
+
+  - name: format_task_file
+    role: word
+    selected_by: [planner]
+    inputs_from: [current_plan]
+    feeds_into: [write]
+    side_effects: none
+    output_contract: declared write parameters
+    undo: noop
+    overlaps: []
+    issues: []
+    migration_priority: complete
+
+  - name: invoke_executor
     role: boundary
     selected_by: [planner]
-    inputs_from: [record_tracker_issue, extract_task]
+    inputs_from: [write]
     feeds_into: [vet, build, test]
     side_effects: child_agent_process, workspace_mutation
-    output_contract: missing
-    undo: boundary_compensation (compensating_action, captures child_run_id + child_workspace_ref)
+    output_contract: shared self_invoke result
+    undo: boundary_compensation
     overlaps:
       - tool: self_invoke
-        difference: execute_task runs the planner's executor contract; self_invoke runs an arbitrary configured child profile
-    issues:
-      - output.schema for execution result and workspace diff
-    migration_priority: medium
+        difference: invoke_executor is the planner profile alias configured for the executor profile
+    issues: []
+    migration_priority: complete
 
   - name: reset_retry_count
     role: word
@@ -501,7 +572,7 @@ tools:
     role: word
     selected_by: [planner]
     inputs_from: [increment_retry]
-    feeds_into: [execute_task, remaining_work]
+    feeds_into: [invoke_executor, remaining_work]
     side_effects: none
     output_contract: declared predicate signals
     undo: noop
@@ -521,10 +592,22 @@ tools:
     issues: []
     migration_priority: low
 
+  - name: mark_task_failed
+    role: stateful_internal
+    selected_by: [planner]
+    inputs_from: [check_retry_limit]
+    feeds_into: [remaining_work]
+    side_effects: pipeline_graph_failure
+    output_contract: declared TaskFailed signal
+    undo: restore_pipeline_graph_snapshot
+    overlaps: []
+    issues: []
+    migration_priority: complete
+
   - name: remaining_work
     role: word
     selected_by: [planner]
-    inputs_from: [mark_task_done, check_retry_limit]
+    inputs_from: [mark_task_done, mark_task_failed]
     feeds_into: [extract_task, Completed, Stalled]
     side_effects: none
     output_contract: declared WorkRemaining, AllDone, or Blocked signal
@@ -592,7 +675,7 @@ tools:
     role: word
     selected_by: [evaluator_session]
     inputs_from: [init_eval_session]
-    feeds_into: [next_point]
+    feeds_into: [materialize_eval_points]
     side_effects: stderr_write
     output_contract: declared_by_signal
     undo: noop
@@ -603,30 +686,29 @@ tools:
       - needs output.schema for total point count
     migration_priority: low
 
-  - name: next_point
-    role: stateful_internal
+  - name: materialize_eval_points
+    role: word
     selected_by: [evaluator_session]
     inputs_from: [report_suite_summary]
-    feeds_into: [run_point, report_session]
-    side_effects: eval_session_iterator_mutation
-    output_contract: missing
-    undo: restore_iterator_and_point_context
+    feeds_into: [run_point]
+    side_effects: none
+    output_contract: ordered evaluation point array
+    undo: noop
     overlaps: []
-    issues:
-      - needs output.schema for selected point context
-    migration_priority: medium
+    issues: []
+    migration_priority: low
 
   - name: run_point
     role: boundary
     selected_by: [evaluator_session]
-    inputs_from: [next_point]
-    feeds_into: [next_point]
+    inputs_from: [materialize_eval_points]
+    feeds_into: [run_point, report_session]
     side_effects: nested_machine_execution, point_result_recording, filesystem_mutation
     output_contract: missing
     undo: boundary_compensation (child_command_undo, captures eval_session_snapshot + nested_machine_history)
     overlaps:
-      - tool: execute_task
-        difference: run_point invokes an in-process nested machine; execute_task spawns a child agent process
+      - tool: invoke_executor
+        difference: run_point invokes an in-process nested machine; invoke_executor uses self_invoke
     issues:
       - output.schema for point result summary
     migration_priority: medium
@@ -634,7 +716,7 @@ tools:
   - name: report_session
     role: word
     selected_by: [evaluator_session]
-    inputs_from: [next_point]
+    inputs_from: [run_point]
     feeds_into: [terminal]
     side_effects: stderr_output
     output_contract: missing
@@ -650,7 +732,7 @@ tools:
   - name: create_point_dir
     role: word
     selected_by: [evaluator_point]
-    inputs_from: [next_point]
+    inputs_from: [run_point]
     feeds_into: [copy_dir]
     side_effects: filesystem_write, point_context_mutation
     output_contract: copy_dir source and destination parameters
@@ -659,20 +741,17 @@ tools:
     issues: []
     migration_priority: low
 
-  - name: copy_sample_docs
+  - name: sample_docs
     role: word
     selected_by: [evaluator_point]
     inputs_from: [copy_dir]
-    feeds_into: [git_init]
-    side_effects: filesystem_write_or_none
-    output_contract: missing
-    undo: workspace_restore
-    overlaps:
-      - tool: copy_dir
-        difference: copy_sample_docs preserves an optional no-docs success branch; copy_dir performs the required workspace copy
-    issues:
-      - no-ops successfully when no docs exist, which should be explicit in output.schema
-    migration_priority: medium
+    feeds_into: [copy_dir, git_init]
+    side_effects: none
+    output_contract: optional-docs presence and copy_dir parameters
+    undo: noop
+    overlaps: []
+    issues: []
+    migration_priority: low
 
   - name: commit_workspace_baseline
     role: boundary
@@ -724,8 +803,8 @@ tools:
     output_contract: missing
     undo: boundary_compensation (compensating_action, captures point_context_snapshot + point_workspace + trace_path + result_path)
     overlaps:
-      - tool: execute_task
-        difference: run_agent runs suite harness binary; execute_task runs configured child agent for planner
+      - tool: invoke_executor
+        difference: run_agent runs a suite harness binary; invoke_executor uses self_invoke for the planner executor
     issues:
       - output.schema for agent exit code and trace path
     migration_priority: medium
@@ -799,10 +878,22 @@ tools:
       - output.schema still needs full structured point summary
     migration_priority: medium
 
+  - name: record_point_failure
+    role: stateful_internal
+    selected_by: [evaluator_point]
+    inputs_from: [failed_point_command]
+    feeds_into: [collect_metrics]
+    side_effects: point_context_mutation
+    output_contract: failure stage and cause summary
+    undo: restore_point_context
+    overlaps: []
+    issues: []
+    migration_priority: low
+
   - name: collect_metrics
     role: word
     selected_by: [evaluator_point]
-    inputs_from: [summarize_point_results]
+    inputs_from: [summarize_point_results, record_point_failure]
     feeds_into: [terminal]
     side_effects: filesystem_write
     output_contract: missing
@@ -870,7 +961,7 @@ tools:
     role: word
     selected_by: [evaluator_point]
     inputs_from: [create_point_dir, tool_call]
-    feeds_into: [copy_sample_docs, git_init, build, test]
+    feeds_into: [sample_docs, copy_dir, git_init, build, test]
     side_effects: filesystem_write
     output_contract: missing
     undo: workspace_restore
@@ -895,7 +986,7 @@ tools:
   - name: git_init
     role: word
     selected_by: [evaluator_point]
-    inputs_from: [copy_sample_docs, make_dir, workspace]
+    inputs_from: [sample_docs, copy_dir, make_dir, workspace]
     feeds_into: [stage_all, commit]
     side_effects: filesystem_write_git_metadata
     output_contract: missing
@@ -1049,7 +1140,7 @@ boundary_tools_with_compensation:
     - checkpoint_rollback
     - self_invoke
     - create_tracker_issue
-    - execute_task
+    - invoke_executor
     - run_point
     - run_agent
     - commit

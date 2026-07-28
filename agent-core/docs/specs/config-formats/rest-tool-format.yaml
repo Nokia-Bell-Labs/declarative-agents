@@ -18,7 +18,7 @@ release_03_0_support:
     - REST server emit_signal, emit_dynamic_signal, read_state, invoke_handler, stream_events, health, static_metadata, machine_request, and monitor endpoints.
     - OpenAPI import from local files into client operations and server endpoints.
     - network.cidrs parsing and CIDR enforcement.
-    - async correlation selectors, wire-level idempotency metadata, and await_operation polling (the await samples the referenced operation until it maps success or the timeout elapses); await_operation is validated against the client's defined operations.
+    - async correlation selectors and wire-level idempotency metadata; readiness polling is authored as explicit REST probe and lifecycle delay states in MachineSpec.
     - response_mapping.schema validation before client success signals.
     - OpenAPI-bound endpoint preservation for configured endpoint behavior.
     - REST client compensation mementos and rollback-time execution for mutating operations with configured compensation.
@@ -876,7 +876,7 @@ schema:
       - field: await_operation
         type: string
         required: false
-        description: Client operation the rest_client_await tool polls for completion. When set, await resolves the referenced operation and samples it until it maps its configured success status (reported as that operation's success signal) or the async timeout elapses (RESTAwaitTimedOut). The reference must name an operation defined on the same client. When unset, await reads stored request state by request_id or correlation token.
+        description: Reserved legacy field. Validation rejects it; profile authors declare one-shot REST probe and lifecycle delay states in MachineSpec. rest_client_await only reads stored request completion by request_id or correlation token.
       - field: timeout
         type: duration string
         required: false
@@ -1049,7 +1049,6 @@ format_examples:
                 request_id: $.id
                 correlation: $.correlation_id
                 idempotency_token: "{{ params.order_id }}"
-                await_operation: getPayment
                 timeout: 2m
                 state_retention: consume
               side_effects:

@@ -567,13 +567,13 @@ test_suite_index:
       or a named shipped variant (copy-and-patch only harness-controlled fields),
       so their coverage is shipped-behavioral rather than synthesized; the rest
       sample server boundary is bounded-behavioral (shipped REST config and
-      declarations over a synthesized launch/await/stop machine, client head at
-      the agent-core package level). The executor and rest families also run
+      declarations over a synthesized launch/await/stop machine, with the
+      client probe/delay grammar covered by shipped wiring). The executor and rest families also run
       their shipped variants and carry an ungated load-and-wiring companion. Executor (with qwen27b/qwen35b variants), the
       planner behavioral run, and the rest ollama-profile variant are
       Ollama-gated; lifecycle suspend/resume and history/rollback are Dolt-gated;
-      rest proves its inbound webhook server boundary with async await_operation
-      polling proven at the agent-core package level.
+      rest proves its inbound webhook server boundary and explicitly declares
+      asynchronous readiness probe/delay polling in MachineSpec.
     status: implemented
     path: docs/specs/test-suites/test-rel07.1-profile-conformance.yaml
   - id: test-rel08.0-corpus-agents
@@ -718,9 +718,9 @@ coverage_gaps: |
   graph, and lifecycle history/rollback landed once agent-core routed the
   --request checkpoint id and to_iteration into a target-pinned checkpoint backend
   and the tool configs. The rest family proves its inbound webhook server boundary
-  to Succeeded over the shipped REST config; agent-core now implements async
-  await_operation polling (removing the #205 load-time blocker), and that polling
-  is proven at the agent-core package level. The rest sample client create/await
+  to Succeeded over the shipped REST config; the shipped MachineSpec declares
+  one-shot readiness probes and delay retries while legacy await_operation is
+  rejected. The rest sample client create/probe
   head is not run in a profile machine because REST client tools enforce a
   declared-only runtime input contract that the loop's verbatim output threading
   does not satisfy.

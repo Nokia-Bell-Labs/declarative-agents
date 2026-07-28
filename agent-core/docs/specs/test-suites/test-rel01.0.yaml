@@ -124,7 +124,7 @@ test_cases:
 
   - use_case: rel01.0-uc002-evaluator-benchmark
     name: Evaluator profile suite iterates generator profiles
-    go_test: TestNextPointIteratesProfiles
+    go_test: TestMaterializeEvalPointsPreservesProfileOrder
     inputs:
       profiles:
         - agents/executor/profile-qwen35b.yaml
@@ -170,7 +170,7 @@ test_cases:
 
   - use_case: rel01.0-uc002-evaluator-benchmark
     name: Failed point preserves diagnostic metadata
-    go_test: TestRunPointPreservesMetadataWhenNestedMachineFailsBeforeMetrics
+    go_test: TestPointMachineRoutesFailureThroughMetricsBeforeRunPointReturns
     status: implemented
     inputs:
       point_machine: deterministic failure before collect_metrics

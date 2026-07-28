@@ -1,0 +1,45 @@
+tools:
+- name: mark_task_failed
+  type: builtin
+  init: mark_task_failed
+  description: Mark only the current planner task's graph nodes failed after retry exhaustion.
+  visibility: internal
+  emits: [TaskFailed, CommandError]
+  category: stateful_internal
+  side_effects:
+  - kind: state_mutation
+    target: requirement_graph
+    state: current_task_failed
+    description: Advances current-task nodes from Executing to Failed.
+  reversibility: {classification: reversible, undo: pipeline_state_restore}
+  undo:
+    strategy: pipeline_state_restore
+    description: Restore the receipt-recorded graph status before failure marking.
+    payload: pipeline_state_snapshot
+    captures: [current_task, graph_status]
+  problem: Retry exhaustion must produce an explicit graph failure before remaining-work routing.
+  goals:
+  - Make failed graph lifecycle a machine-selected mutation.
+  - Keep retry-count policy in labelled command state.
+  requirements:
+    input: [must require a current task and graph whose task nodes are Executing]
+    output: [must emit TaskFailed after selected nodes reach Failed]
+    errors: [must emit CommandError when state cannot transition]
+  non_goals:
+  - Does not increment, compare, or reset retry counters.
+  - Does not classify remaining work.
+  errors:
+  - signal: CommandError
+    condition: current task or graph is missing, or a node cannot transition to Failed
+    message_shape: 'mark_task_failed: <error>'
+    state_after_failure: rollback restores graph nodes changed before the error
+  relationships:
+    before: [check_retry_limit]
+    after: [remaining_work]
+  output:
+    description: Explicit graph failure mutation summary.
+    schema:
+      type: object
+      properties:
+        message: {type: string}
+      required: [message]

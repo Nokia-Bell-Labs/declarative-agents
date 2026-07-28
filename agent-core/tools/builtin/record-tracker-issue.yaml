@@ -39,7 +39,7 @@ tools:
     strategy: pipeline_state_restore
     description: Restore IssueID and TaskDeps from the receipt-recorded planner snapshot.
     payload: pipeline_state_snapshot
-    captures: [current_task, current_plan, issue_id, task_deps, graph_status, graph_retries]
+    captures: [current_task, current_plan, issue_id, task_deps, graph_status]
   errors:
   - signal: CommandError
     condition: tracker result failed, is malformed JSON, or contains an empty id
@@ -49,7 +49,7 @@ tools:
     before:
     - tracker exec word
     after:
-    - execute_task
+    - mark_nodes_executing
   output:
     description: The issue ID recorded in planner state.
     schema:

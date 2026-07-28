@@ -3,6 +3,10 @@
 package spec
 
 import (
+	"encoding/base64"
+	"os"
+	"path/filepath"
+	"strings"
 	"testing"
 
 	"github.com/stretchr/testify/assert"
@@ -22,7 +26,7 @@ func TestExecuteConsistencyChecksEqualsPassesForMatchingField(t *testing.T) {
 		Target:   map[string]any{"value": "done"},
 	})
 
-	findings, err := ExecuteConsistencyChecks(root, []Charter{charter})
+	findings, err := executeConsistencyFixtures(t, root, []Charter{charter})
 
 	require.NoError(t, err)
 	assert.Empty(t, findings)
@@ -41,7 +45,7 @@ func TestExecuteConsistencyChecksEqualsReportsMismatchWithProvenance(t *testing.
 		Target:   map[string]any{"value": "done"},
 	})
 
-	findings, err := ExecuteConsistencyChecks(root, []Charter{charter})
+	findings, err := executeConsistencyFixtures(t, root, []Charter{charter})
 
 	require.NoError(t, err)
 	require.Len(t, findings, 1)
@@ -72,7 +76,7 @@ experiments:
 		Target:   map[string]any{"root": "artifacts"},
 	})
 
-	findings, err := ExecuteConsistencyChecks(root, []Charter{charter})
+	findings, err := executeConsistencyFixtures(t, root, []Charter{charter})
 
 	require.NoError(t, err)
 	require.Len(t, findings, 1)
@@ -94,7 +98,7 @@ func TestExecuteConsistencyChecksRequiredWhenTargetFieldMissing(t *testing.T) {
 		Target:   map[string]any{"yaml_path": "$.artifact"},
 	})
 
-	findings, err := ExecuteConsistencyChecks(root, []Charter{charter})
+	findings, err := executeConsistencyFixtures(t, root, []Charter{charter})
 
 	require.NoError(t, err)
 	require.Len(t, findings, 1)
@@ -116,7 +120,7 @@ func TestExecuteConsistencyChecksRequiredWhenFalsePasses(t *testing.T) {
 		Target:   map[string]any{"yaml_path": "$.artifact"},
 	})
 
-	findings, err := ExecuteConsistencyChecks(root, []Charter{charter})
+	findings, err := executeConsistencyFixtures(t, root, []Charter{charter})
 
 	require.NoError(t, err)
 	assert.Empty(t, findings)
@@ -131,7 +135,7 @@ func TestExecuteConsistencyChecksSortsFindingsDeterministically(t *testing.T) {
 		consistencyCharter("suite-a", CharterCheck{ID: "artifacts", Kind: "consistency_check", Severity: "warning", Include: []string{"*.yaml"}, Source: map[string]any{"yaml_path": "$.artifact"}, Rule: "required_path_exists"}),
 	}
 
-	findings, err := ExecuteConsistencyChecks(root, charters)
+	findings, err := executeConsistencyFixtures(t, root, charters)
 
 	require.NoError(t, err)
 	requireDeterministicCharterOrder(t, findings, ".yaml")
@@ -166,7 +170,7 @@ experiments:
 		Target:   map[string]any{"root": "artifacts"},
 	})
 
-	findings, err := ExecuteConsistencyChecks(root, []Charter{charter})
+	findings, err := executeConsistencyFixtures(t, root, []Charter{charter})
 
 	require.NoError(t, err)
 	require.Len(t, findings, 1)
@@ -193,7 +197,7 @@ experiments:
 		Target:   map[string]any{"root": "artifacts"},
 	})
 
-	findings, err := ExecuteConsistencyChecks(root, []Charter{charter})
+	findings, err := executeConsistencyFixtures(t, root, []Charter{charter})
 
 	require.NoError(t, err)
 	assert.Empty(t, findings)
@@ -218,7 +222,7 @@ experiments:
 		Target:   map[string]any{"value": "benchmark"},
 	})
 
-	findings, err := ExecuteConsistencyChecks(root, []Charter{charter})
+	findings, err := executeConsistencyFixtures(t, root, []Charter{charter})
 
 	require.NoError(t, err)
 	assert.Empty(t, findings)
@@ -236,10 +240,54 @@ func TestExecuteConsistencyChecksMalformedFilterReturnsError(t *testing.T) {
 		Rule:     "required_path_exists",
 	})
 
-	_, err := ExecuteConsistencyChecks(root, []Charter{charter})
+	_, err := executeConsistencyFixtures(t, root, []Charter{charter})
 
 	require.Error(t, err)
 	assert.Contains(t, err.Error(), "field=value")
+}
+
+func executeConsistencyFixtures(t *testing.T, targetDir string, charters []Charter) ([]Finding, error) {
+	t.Helper()
+	plans, err := BuildConsistencyScanPlans(targetDir, charters)
+	if err != nil {
+		return nil, err
+	}
+	var findings []Finding
+	for _, plan := range plans {
+		root := plan.Path
+		if !filepath.IsAbs(root) {
+			root = filepath.Join(targetDir, root)
+		}
+		var scan strings.Builder
+		err := filepath.WalkDir(root, func(path string, entry os.DirEntry, err error) error {
+			if err != nil || entry.IsDir() {
+				return err
+			}
+			rel, err := filepath.Rel(root, path)
+			if err != nil {
+				return err
+			}
+			data, err := os.ReadFile(path)
+			if err != nil {
+				return err
+			}
+			scan.WriteString(filepath.ToSlash(rel))
+			scan.WriteByte('\t')
+			scan.WriteString(base64.StdEncoding.EncodeToString(data))
+			scan.WriteByte('\n')
+			return nil
+		})
+		if err != nil {
+			return nil, err
+		}
+		reduced, err := ReduceConsistencyScan(plan, scan.String())
+		if err != nil {
+			return nil, err
+		}
+		findings = append(findings, reduced...)
+	}
+	SortFindings(findings)
+	return findings, nil
 }
 
 func consistencyCharter(id string, check CharterCheck) Charter {

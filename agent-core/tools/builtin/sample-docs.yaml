@@ -1,0 +1,53 @@
+tools:
+- name: sample_docs
+  type: builtin
+  init: sample_docs
+  visibility: internal
+  emits:
+  - SampleDocsPresent
+  - SampleDocsAbsent
+  - CommandError
+  description: Report whether optional sample docs exist and expose copy_dir parameters when present.
+  category: word
+  side_effects:
+  - kind: filesystem_read
+    target: point_context
+    description: Reads the configured sample documentation path.
+  reversibility:
+    classification: reversible
+    undo: noop
+  undo:
+    strategy: noop
+    description: Read-only presence projection has no effects to reverse.
+  problem: The point machine needs an explicit branch before invoking shared copy_dir for optional documentation.
+  goals:
+  - Emit separate signals for present and absent sample documentation.
+  - Return copy_dir source and destination parameters when docs are present.
+  - Keep optional branching in the point machine.
+  requirements:
+    input:
+    - must read the sample docs path and initialized point directory from point state
+    output:
+    - must emit SampleDocsPresent with copy_dir parameters when docs exist
+    - must emit SampleDocsAbsent when the sample has no docs path
+    errors:
+    - must emit CommandError when point state is not initialized
+  non_goals:
+  - Does not copy files.
+  - Does not choose the next workflow step.
+  output:
+    description: Optional-docs presence and shared copy_dir parameters.
+    schema:
+      type: object
+      properties:
+        present:
+          type: boolean
+        parameters:
+          type: object
+          properties:
+            source:
+              type: string
+            destination:
+              type: string
+      required:
+      - present

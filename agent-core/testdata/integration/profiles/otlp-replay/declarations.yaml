@@ -1,0 +1,30 @@
+tools:
+  - name: load_replay_batch
+    type: builtin
+    init: load_otlp_batch
+    category: boundary
+    visibility: internal
+    emits: [BatchLoaded, CommandError]
+    parameters: {type: object, properties: {}, additionalProperties: false}
+    output: {description: Decoded OTLP protobuf-JSON batch, schema: {type: object}}
+    side_effects: [{kind: filesystem_read, target: configured replay file, state: read_only}]
+    reversibility: {classification: reversible, undo: noop}
+    undo: {strategy: noop, description: Loading changes nothing.}
+    config:
+      path: ${OTLP_REPLAY_FILE:-traces/replay.otlp.json}
+
+  - name: relay_replay_batch
+    type: builtin
+    init: relay_spans
+    category: boundary
+    visibility: internal
+    emits: [SpansRelayed, CommandError]
+    parameters: {type: object, properties: {}, additionalProperties: false}
+    output: {description: Relay acceptance metadata, schema: {type: object}}
+    side_effects: [{kind: external_api, target: configured OTLP endpoint, state: batch accepted}]
+    reversibility: {classification: irreversible, undo: irreversible, requires_confirmation: true}
+    undo: {strategy: irreversible, description: OTLP has no retraction operation.}
+    config:
+      endpoint: ${OTLP_REPLAY_ENDPOINT:-127.0.0.1:4317}
+      batch_source: $from(loaded_batch).batch
+      timeout: 10s

@@ -3,9 +3,8 @@
 package evaluation
 
 import (
+	"encoding/json"
 	"fmt"
-	"os"
-	"path/filepath"
 	"time"
 
 	"github.com/Nokia-Bell-Labs/declarative-agents/agent-core/internal/observability/tracing"
@@ -43,9 +42,13 @@ type runPointCmd struct {
 	pointRegistry *core.Registry
 	config        catalog.RunPointConfig
 	runResult     core.RunResult
+	commandState  core.CommandStateView
 }
 
 func (c *runPointCmd) Name() string { return "run_point" }
+func (c *runPointCmd) SetCommandState(view core.CommandStateView) {
+	c.commandState = view
+}
 func (c *runPointCmd) Undo(prior core.Result) core.Result {
 	return (&evaluatorReceiptCmd{
 		inner: c, session: c.es,
@@ -54,6 +57,13 @@ func (c *runPointCmd) Undo(prior core.Result) core.Result {
 }
 
 func (c *runPointCmd) Execute() core.Result {
+	if c.commandState != nil {
+		if err := c.bindPointContext(); err != nil {
+			return core.Result{
+				Signal: core.CommandError, Err: err, Output: err.Error(), CommandName: c.Name(),
+			}
+		}
+	}
 	pc := c.es.PC
 	if pc == nil {
 		return core.Result{
@@ -98,14 +108,11 @@ func (c *runPointCmd) Execute() core.Result {
 	c.runResult = runResult
 	if loopErr != nil {
 		_, _ = fmt.Fprintf(c.es.Stderr, "    ERROR: %v\n", loopErr)
-	}
-
-	if err := preservePointFailureMetadata(pc, runResult); err != nil {
 		c.es.RecordPoint(pc)
 		return core.Result{
 			Signal:      core.CommandError,
-			Err:         err,
-			Output:      err.Error(),
+			Err:         fmt.Errorf("run_point: nested point loop: %w", loopErr),
+			Output:      loopErr.Error(),
 			CommandName: "run_point",
 		}
 	}
@@ -127,39 +134,31 @@ func (c *runPointCmd) Execute() core.Result {
 	}
 }
 
-// preservePointFailureMetadata closes the artifact contract when the nested
-// point machine exits before collect_metrics. Successful point machines that
-// wrote meta.json stay untouched.
-func preservePointFailureMetadata(pc *PointContext, runResult core.RunResult) error {
-	pointDir := pc.PointDir
-	if pointDir == "" {
-		pointDir = filepath.Join(pc.SessionDir, pc.PointID)
-		pc.PointDir = pointDir
+func (c *runPointCmd) bindPointContext() error {
+	data, ok := c.commandState.Lookup("point")
+	if !ok {
+		return fmt.Errorf("run_point: bind iterator point: command-state label %q not found", "point")
 	}
-	metaPath := filepath.Join(pointDir, ArtifactMeta)
-	if _, err := os.Stat(metaPath); err == nil {
-		return nil
-	} else if !os.IsNotExist(err) {
-		return fmt.Errorf("run_point: inspect failure metadata for %s: %w", pc.PointID, err)
+	var input evalPointInput
+	if err := json.Unmarshal([]byte(data), &input); err != nil {
+		return fmt.Errorf("run_point: decode iterator point: %w", err)
 	}
-
-	if len(runResult.Events) > 0 {
-		pc.FailureStage = runResult.Events[len(runResult.Events)-1].CommandName
+	c.es.PC = &PointContext{
+		SessionDir:  c.es.SessionDir,
+		PointID:     input.PointID,
+		Sample:      input.Sample,
+		Harness:     input.Harness,
+		Model:       input.Model,
+		ProfilePath: input.ProfilePath,
+		CoreRoot:    c.es.CoreRoot,
+		GridPoint:   input.GridPoint,
+		Rep:         input.Rep,
+		Timeout:     c.es.timeout,
+		LLMTimeout:  c.es.llmTimeout,
+		OllamaURL:   c.es.ollamaURL,
+		Stderr:      c.es.Stderr,
 	}
-	if runResult.LastError != nil {
-		pc.FailureCause = runResult.LastError.Error()
-	} else {
-		pc.FailureCause = fmt.Sprintf(
-			"point machine ended in %s with status %s before writing %s",
-			runResult.FinalState, runResult.Status, ArtifactMeta,
-		)
-	}
-	if err := os.MkdirAll(pointDir, 0o755); err != nil {
-		return fmt.Errorf("run_point: create failure artifact directory for %s: %w", pc.PointID, err)
-	}
-	if _, err := writeMetaJSON(pc); err != nil {
-		return fmt.Errorf("run_point: preserve failure metadata for %s: %w", pc.PointID, err)
-	}
+	_, _ = fmt.Fprintf(c.es.Stderr, "  → %s\n", input.PointID)
 	return nil
 }
 

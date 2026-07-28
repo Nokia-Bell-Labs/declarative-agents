@@ -4,6 +4,7 @@ package evaluation
 
 import (
 	"bytes"
+	"encoding/json"
 	"fmt"
 	"os"
 	"path/filepath"
@@ -89,7 +90,7 @@ ollama_url: http://suite.example
 	require.Contains(t, stderr.String(), "4 points")
 }
 
-func TestNextPointUndoRestoresEvaluatorSessionCursor(t *testing.T) {
+func TestMaterializeEvalPointsDoesNotMutateSessionPoint(t *testing.T) {
 	base := suiteFixture(t)
 	profileDir := writeProfileFixtures(t, base, "agent")
 	suitePath := filepath.Join(base, "suite.yaml")
@@ -106,16 +107,14 @@ samples_dir: samples
 	requireSignal(t, (&expandEvalGridCmd{es: es}).Execute(), SigEvalGridExpanded)
 	requireSignal(t, (&initEvalSessionCmd{es: es}).Execute(), SigEvalSessionInitialized)
 
-	builder := &NextPointBuilder{ES: es}
-	result := builder.Build(core.Result{}).Execute()
-	requireSignal(t, result, SigPointReady)
-	require.NotNil(t, es.PC)
-	require.True(t, es.started)
-
-	undo := builder.BuildReverser().Undo(result)
-	requireSignal(t, undo, core.ToolDone)
+	result := (&materializeEvalPointsCmd{es: es}).Execute()
+	requireSignal(t, result, SigEvalPointsMaterialized)
 	require.Nil(t, es.PC)
-	require.False(t, es.started)
+	var output struct {
+		Points []evalPointInput `json:"points"`
+	}
+	require.NoError(t, json.Unmarshal([]byte(result.Output), &output))
+	require.Len(t, output.Points, 1)
 }
 
 func TestParseSuiteWithProfiles(t *testing.T) {
@@ -154,7 +153,7 @@ samples_dir: samples
 	require.Contains(t, err.Error(), "profile entries are required")
 }
 
-func TestNextPointIteratesProfiles(t *testing.T) {
+func TestMaterializeEvalPointsPreservesProfileOrder(t *testing.T) {
 	base := suiteFixture(t)
 	profileDir := writeProfileFixtures(t, base, "alpha", "beta")
 
@@ -164,26 +163,41 @@ name: iter-test
 profiles:
   - %s/alpha.yaml
   - %s/beta.yaml
+grid:
+  effort: [low, high]
 samples_dir: samples
+repetitions: 2
 `, profileDir, profileDir)), 0o644))
 
 	es := &EvalSessionState{SuitePath: suitePath, OutputDir: filepath.Join(base, "out"), Stderr: &bytes.Buffer{}}
 	requireSignal(t, (&parseSuiteConfigCmd{es: es}).Execute(), SigSuiteConfigParsed)
 	requireSignal(t, (&discoverSuiteSamplesCmd{es: es}).Execute(), SigSuiteSamplesDiscovered)
+	secondSample := es.Suite.Samples[0]
+	secondSample.Name = "world"
+	es.Suite.Samples = append(es.Suite.Samples, secondSample)
 	requireSignal(t, (&expandEvalGridCmd{es: es}).Execute(), SigEvalGridExpanded)
 	requireSignal(t, (&initEvalSessionCmd{es: es}).Execute(), SigEvalSessionInitialized)
 
-	var points []string
-	for {
-		pc, ok := es.NextPoint()
-		if !ok {
-			break
-		}
-		points = append(points, pc.Harness.Name+"_"+pc.Sample.Name)
-		require.NotEmpty(t, pc.ProfilePath)
+	result := (&materializeEvalPointsCmd{es: es}).Execute()
+	requireSignal(t, result, SigEvalPointsMaterialized)
+	var output struct {
+		Points []evalPointInput `json:"points"`
 	}
+	require.NoError(t, json.Unmarshal([]byte(result.Output), &output))
 
-	require.Equal(t, []string{"alpha_hello", "beta_hello"}, points)
+	var order []string
+	for _, point := range output.Points {
+		order = append(order, fmt.Sprintf("%s/%s/%s/%d",
+			point.Harness.Name, point.GridPoint["effort"], point.Sample.Name, point.Rep))
+	}
+	require.Equal(t, []string{
+		"alpha/low/hello/0", "alpha/low/hello/1", "alpha/low/world/0", "alpha/low/world/1",
+		"alpha/high/hello/0", "alpha/high/hello/1", "alpha/high/world/0", "alpha/high/world/1",
+		"beta/low/hello/0", "beta/low/hello/1", "beta/low/world/0", "beta/low/world/1",
+		"beta/high/hello/0", "beta/high/hello/1", "beta/high/world/0", "beta/high/world/1",
+	}, order)
+	require.NotEmpty(t, output.Points[0].ProfilePath)
+	require.NotEmpty(t, output.Points[1].ProfilePath)
 }
 
 func TestDiscoverSuiteSamplesReportsCommandError(t *testing.T) {

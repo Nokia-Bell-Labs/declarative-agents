@@ -64,7 +64,7 @@ func TestSpecificationCriticConformance(t *testing.T) {
 		result.RequireNoErrorSpans(t)
 
 		// srd005-specification-critic R2: the specification-critic tool pipeline is visible as tool spans.
-		result.RequireToolSpans(t, "load_corpus", "validate_specs", "reduce_grep_checks", "format_report")
+		result.RequireToolSpans(t, "load_corpus", "validate_specs", "reduce_ref_checks", "reduce_consistency_checks", "reduce_grep_checks", "format_report")
 
 		// srd005-specification-critic R3.1/R3.3: a corpus that carries no error-level violation
 		// reaches the Passed terminal with a formatted report.
@@ -85,7 +85,7 @@ func TestSpecificationCriticConformance(t *testing.T) {
 		result.RequireExit(t, 2)
 		result.RootRequired(t)
 		result.RequireNoErrorSpans(t)
-		result.RequireToolSpans(t, "load_corpus", "validate_specs", "reduce_grep_checks", "format_report")
+		result.RequireToolSpans(t, "load_corpus", "validate_specs", "reduce_ref_checks", "reduce_consistency_checks", "reduce_grep_checks", "format_report")
 
 		// srd005-specification-critic R3.3: a corpus with an error-level violation reaches the
 		// Failed terminal.

@@ -1,0 +1,22 @@
+tools:
+  - name: reduce_ref_checks
+    type: builtin
+    init: reduce_ref_checks
+    category: boundary
+    visibility: internal
+    emits: [ValidationPassed, ValidationFailed, CommandError]
+    description: Reduce joined external ref_check scans into deterministic findings.
+    parameters: {type: object, properties: {}}
+    output:
+      description: Aggregate validation finding counts after ref checks.
+      schema: {type: string}
+    side_effects:
+      - {kind: state_mutation, target: specification findings, state: ref findings appended}
+    reversibility: {classification: reversible, undo: restore_snapshot}
+    undo: {strategy: restore_snapshot, description: Restore prior validation findings.}
+    errors:
+      - signal: CommandError
+        condition: Joined scan evidence cannot be decoded or reduced.
+        state_after_failure: The prior validation snapshot remains recoverable.
+    config:
+      results_from: $from(ref_results).items

@@ -407,7 +407,7 @@ tools:
     init: extract_task
     description: "Extract the next unblocked task from the dependency graph."
     visibility: internal
-    emits: [TaskExtracted, AllDone, Blocked, BatchLimitReached, CommandError]
+    emits: [TaskExtracted, NoTask, CommandError]
     category: stateful_internal
     side_effects:
       - kind: state_mutation
@@ -421,41 +421,85 @@ tools:
       strategy: session_state_restore
       description: "Restore the pipeline state snapshot captured before extraction."
 
-  - name: extract_all
+  - name: select_all_ready
     type: builtin
-    init: extract_all
-    description: "Extract all requirements as a single task group (passthrough mode)."
+    init: select_all_ready
+    description: "Select all ready requirements as one pass-through task."
     visibility: internal
-    emits: [TaskExtracted, AllDone, Blocked, CommandError]
+    emits: [ReadySelected, NoTask, CommandError]
     category: stateful_internal
     side_effects:
       - kind: state_mutation
         target: pipeline_state
-        state: passthrough_task_group_selected
-        description: "Updates the current task to represent the full requirement group."
+        state: passthrough_task_selected
+        description: "Updates only the current task to represent all ready requirements."
     reversibility:
       classification: reversible
       undo: "pipeline_state_restore"
     undo:
       strategy: session_state_restore
-      description: "Restore the pipeline state snapshot captured before extraction."
+      description: "Restore the pipeline state snapshot captured before selection."
 
-  - name: assemble_prompt
+  - name: seed_passthrough_plan
     type: builtin
-    init: assemble_prompt
-    description: "Assemble the LLM prompt from task context and SRD requirements."
+    init: seed_passthrough_plan
+    description: "Seed profile-configured pass-through plan text."
     visibility: internal
-    emits: [ToolDone, CommandError]
+    emits: [PassThroughPlanSeeded, CommandError]
+    category: stateful_internal
+    config:
+      title: "Execute all ready requirements"
+      summary: "Pass-through execution for the selected ready graph nodes."
+    side_effects:
+      - kind: state_mutation
+        target: pipeline_state
+        state: current_plan_seeded
+        description: "Sets only the current implementation plan."
+    reversibility: {classification: reversible, undo: "pipeline_state_restore"}
+    undo: {strategy: session_state_restore, description: "Restore the prior pipeline state."}
+
+  - name: mark_nodes_planning
+    type: builtin
+    init: mark_nodes_planning
+    description: "Advance only selected task nodes to Planning."
+    visibility: internal
+    emits: [NodesMarkedPlanning, CommandError]
+    category: stateful_internal
+    side_effects:
+      - kind: state_mutation
+        target: requirement_graph
+        state: selected_nodes_planning
+        description: "Advances selected current-task nodes to Planning."
+    reversibility: {classification: reversible, undo: "pipeline_state_restore"}
+    undo: {strategy: session_state_restore, description: "Restore the prior graph lifecycle."}
+
+  - name: project_planner_context
+    type: builtin
+    init: project_planner_context
+    description: "Project prompt-neutral task and SRD context."
+    visibility: internal
+    emits: [PlannerContextProjected, CommandError]
     category: word
     side_effects:
       - kind: none
-        description: "Formats prompt text from current pipeline context without mutating state."
+        description: "Projects structured context without mutating state."
     reversibility:
       classification: reversible
       undo: "noop"
     undo:
       strategy: noop
-      description: "Prompt assembly has no effects to reverse."
+      description: "Context projection has no effects to reverse."
+
+  - name: capture_planner_failure
+    type: builtin
+    init: capture_planner_failure
+    description: "Publish preceding validation output for retry prompt composition."
+    visibility: internal
+    emits: [FailureCaptured, CommandError]
+    category: word
+    side_effects: [{kind: none, description: "Wraps prior output."}]
+    reversibility: {classification: reversible, undo: noop}
+    undo: {strategy: noop, description: "History truncation removes captured context."}
 
   - name: parse_plan
     type: builtin
@@ -476,29 +520,28 @@ tools:
       strategy: session_state_restore
       description: "Restore the pipeline state snapshot captured before parsing."
 
-  - name: execute_task
+  - name: mark_nodes_executing
     type: builtin
-    init: execute_task
-    description: "Execute the current task via the code generator agent."
+    init: mark_nodes_executing
+    description: "Advance selected task nodes to Executing."
     visibility: internal
-    emits: [ExecutionDone, ExecutionFailed, CommandError]
-    category: boundary
+    emits: [NodesMarkedExecuting, CommandError]
+    category: stateful_internal
     side_effects:
-      - kind: child_agent_execution
-        target: generator_agent
-        description: "Runs a child agent configured by machine/tool selection paths."
-      - kind: filesystem_write
-        target: child_workspace
-        description: "Child agent may mutate its configured workspace."
-    reversibility:
-      classification: compensatable
-      undo: "child_command_undo_or_workspace_restore"
-    undo:
-      strategy: compensating_action
-      description: "Rely on child agent history, command undo, and workspace restore for side effects."
-      payload: boundary_compensation
-      captures: [child_run_id, child_workspace_ref]
-      requires: [Receipt]
+      - {kind: state_mutation, target: requirement_graph, state: selected_nodes_executing}
+    reversibility: {classification: reversible, undo: "pipeline_state_restore"}
+    undo: {strategy: session_state_restore, description: "Restore prior graph lifecycle."}
+
+  - name: format_task_file
+    type: builtin
+    init: format_task_file
+    description: "Project the current plan into write parameters for doc/task.yaml."
+    visibility: internal
+    emits: [TaskFileFormatted, CommandError]
+    category: word
+    side_effects: [{kind: none, description: "Serializes without writing."}]
+    reversibility: {classification: reversible, undo: noop}
+    undo: {strategy: noop, description: "Projection changes no state."}
 
   - name: mark_task_done
     type: builtin
@@ -544,6 +587,25 @@ tools:
       before: [test]
       after: [remaining_work]
 
+  - name: mark_task_failed
+    type: builtin
+    init: mark_task_failed
+    description: "Mark the current planner task's graph nodes failed after retry exhaustion."
+    visibility: internal
+    emits: [TaskFailed, CommandError]
+    category: stateful_internal
+    side_effects:
+      - {kind: state_mutation, target: requirement_graph, state: current_task_failed}
+    reversibility: {classification: reversible, undo: "pipeline_state_restore"}
+    undo: {strategy: session_state_restore, description: "Restore graph status before failure marking."}
+    problem: "Retry exhaustion needs an explicit graph failure before remaining-work routing."
+    goals: ["Advance exhausted task nodes to Failed without owning retry policy."]
+    requirements: {input: ["Current task and graph are required."], output: ["TaskFailed follows mutation."], errors: ["Invalid transitions emit CommandError."]}
+    non_goals: ["Does not count retries or classify remaining work."]
+    errors: [{signal: CommandError, condition: "Task or graph state is invalid.", state_after_failure: "Receipt-backed state is recoverable."}]
+    relationships: {before: [check_retry_limit], after: [remaining_work]}
+    output: {description: "Explicit graph failure summary.", schema: {type: string}}
+
   - name: remaining_work
     type: builtin
     init: remaining_work
@@ -583,7 +645,7 @@ tools:
         message_shape: "remaining_work: graph is required"
         state_after_failure: "Graph and planner state remain unchanged."
     relationships:
-      before: [mark_task_done, check_retry_limit]
+      before: [mark_task_done, mark_task_failed]
       after: [extract_task]
 
   # --- evaluator session tools ---
@@ -685,24 +747,23 @@ tools:
       strategy: noop
       description: "Summary reporting writes only diagnostic output and has no state to restore."
 
-  - name: next_point
+  - name: materialize_eval_points
     type: builtin
-    init: next_point
+    init: materialize_eval_points
     visibility: internal
-    emits: [PointReady, AllPointsDone, CommandError]
-    description: "Advance to the next evaluation point in the grid. Returns PointReady or AllPointsDone."
-    category: stateful_internal
+    emits: [EvalPointsMaterialized, CommandError]
+    description: "Materialize deterministic profile, grid, sample, and repetition combinations for declared iteration."
+    category: word
     side_effects:
-      - kind: state_mutation
+      - kind: state_read
         target: eval_session_state
-        state: current_point_advanced
-        description: "Advances the evaluator session cursor to the next grid point."
+        description: "Reads resolved suite dimensions and runtime defaults without mutating session state."
     reversibility:
       classification: reversible
-      undo: "session_state_restore"
+      undo: "noop"
     undo:
-      strategy: session_state_restore
-      description: "Restore the evaluator session cursor from a prior snapshot."
+      strategy: noop
+      description: "Read-only point materialization has no effects to reverse."
 
   - name: run_point
     type: builtin
@@ -770,25 +831,23 @@ tools:
       description: "Restore point context and artifact workspace state from persisted receipts."
       requires: [Receipt]
 
-  - name: copy_sample_docs
+  - name: sample_docs
     type: builtin
-    init: copy_sample_docs
+    init: sample_docs
     visibility: internal
-    emits: [SampleDocsCopied, CommandError]
-    description: "Copy optional sample docs into the current point directory, or no-op when the sample has no docs."
+    emits: [SampleDocsPresent, SampleDocsAbsent, CommandError]
+    description: "Report optional sample docs and expose shared copy_dir parameters when present."
     category: word
     side_effects:
-      - kind: filesystem_write
-        target: point_docs
-        paths: [doc]
-        description: "Copies sample docs into PointContext.PointDir/doc when docs exist."
+      - kind: filesystem_read
+        target: point_context
+        description: "Reads the configured sample documentation path."
     reversibility:
       classification: reversible
-      undo: "workspace_restore"
+      undo: "noop"
     undo:
-      strategy: workspace_restore
-      description: "Restore copied point documentation from the persisted receipt."
-      requires: [Receipt]
+      strategy: noop
+      description: "Read-only presence projection has no effects to reverse."
 
   - name: run_agent
     type: builtin
@@ -895,6 +954,26 @@ tools:
     undo:
       strategy: noop
       description: "Summarization is read-only and has no effects to reverse."
+
+  - name: record_point_failure
+    type: builtin
+    init: record_point_failure
+    visibility: internal
+    emits: [PointFailureRecorded, CommandError]
+    description: "Project a failed point command result into failure stage and cause fields."
+    category: stateful_internal
+    side_effects:
+      - kind: state_mutation
+        target: point_context
+        state: point_failure_recorded
+        description: "Sets PointContext.FailureStage and PointContext.FailureCause."
+    reversibility:
+      classification: reversible
+      undo: "point_context_restore"
+    undo:
+      strategy: point_context_restore
+      description: "Restore PointContext from the persisted pre-command receipt."
+      requires: [Receipt]
 
   - name: collect_metrics
     type: builtin

@@ -15,12 +15,15 @@ invariants:
 lifecycle: |-
   1. Idle → Loading (Seed): load_corpus from project directory
   2. Loading → Validating (ToolDone): validate_specs
-  3. Validating → Searching: run one declared jurist_rg word per grep_check
-  4. Searching → Reducing (GrepSearched): reduce_grep_checks
-  5. Reducing → Reporting (ValidationPassed/ValidationFailed): format_report
-  6. Reporting → Passed (ToolDone): validation completed successfully
-  6a. Reporting → Failed (ToolFailed): report indicates errors
-  7. Any active step → Failed (CommandError): infrastructure error
+  3. Validating → RefSearching: externally scan one ref_check at a time
+  4. RefSearching → RefReducing: reduce reference evidence
+  5. RefReducing → ConsistencySearching: externally scan consistency evidence
+  6. ConsistencySearching → ConsistencyReducing: evaluate YAML and path rules
+  7. ConsistencyReducing → Searching: run one declared jurist_rg word per grep_check
+  8. Searching → Reducing (GrepSearched): reduce_grep_checks
+  9. Reducing → Reporting (ValidationPassed/ValidationFailed): format_report
+  10. Reporting → Passed/Failed: validation completed with a formatted report
+  11. Any active step → Failed (CommandError): infrastructure error
 
   Search iteration is deterministic and sequential, with no LLM calls.
 initial_state: Idle
@@ -38,6 +41,14 @@ states:
     detection, and coverage gap analysis.
 - name: Searching
   meaning: Running declared ripgrep searches for each grep_check plan.
+- name: RefSearching
+  meaning: Running declared target and inventory scans for each ref_check plan.
+- name: RefReducing
+  meaning: Resolving extracted references against externally loaded inventories.
+- name: ConsistencySearching
+  meaning: Externally loading YAML documents and path inventories for consistency checks.
+- name: ConsistencyReducing
+  meaning: Evaluating YAML rules and provenance over externally loaded evidence.
 - name: Reducing
   meaning: Shaping ripgrep events into match or missing findings with provenance.
 - name: Reporting
@@ -64,6 +75,10 @@ signals:
   trigger: One or more consistency checks failed.
 - name: GrepSearched
   trigger: All grep_check searches completed, including no-match outcomes.
+- name: RefSearched
+  trigger: All ref_check scans completed.
+- name: ConsistencySearched
+  trigger: All consistency_check file scans completed.
 transitions:
 - state: Idle
   signal: Seed
@@ -79,10 +94,96 @@ transitions:
   next: Failed
 - state: Validating
   signal: ValidationPassed
+  next: RefSearching
+  action: jurist_ref_scan
+  label: ref_result
+  for_each:
+    items: $from(loaded_corpus).ref_checks
+    as: ref_check
+    mode: sequential
+    failure: collect_all
+    continue_on: [ToolDone]
+    abort_on: [ToolFailed, CommandError]
+    join:
+      next: RefSearching
+      label: ref_results
+      signals:
+        all_success: RefSearched
+        partial: CommandError
+        failed: CommandError
+        empty: RefSearched
+- state: Validating
+  signal: ValidationFailed
+  next: RefSearching
+  action: jurist_ref_scan
+  label: ref_result
+  for_each:
+    items: $from(loaded_corpus).ref_checks
+    as: ref_check
+    mode: sequential
+    failure: collect_all
+    continue_on: [ToolDone]
+    abort_on: [ToolFailed, CommandError]
+    join:
+      next: RefSearching
+      label: ref_results
+      signals:
+        all_success: RefSearched
+        partial: CommandError
+        failed: CommandError
+        empty: RefSearched
+- state: Validating
+  signal: CommandError
+  next: Failed
+- state: RefSearching
+  signal: RefSearched
+  next: RefReducing
+  action: reduce_ref_checks
+- state: RefSearching
+  signal: CommandError
+  next: Failed
+- state: RefReducing
+  signal: ValidationPassed
+  next: ConsistencySearching
+  action: jurist_consistency_scan
+  label: consistency_result
+  for_each: &consistency_iteration
+    items: $from(loaded_corpus).consistency_checks
+    as: consistency_check
+    mode: sequential
+    failure: collect_all
+    continue_on: [ToolDone]
+    abort_on: [ToolFailed, CommandError]
+    join:
+      next: ConsistencySearching
+      label: consistency_results
+      signals:
+        all_success: ConsistencySearched
+        partial: CommandError
+        failed: CommandError
+        empty: ConsistencySearched
+- state: RefReducing
+  signal: ValidationFailed
+  next: ConsistencySearching
+  action: jurist_consistency_scan
+  label: consistency_result
+  for_each: *consistency_iteration
+- state: RefReducing
+  signal: CommandError
+  next: Failed
+- state: ConsistencySearching
+  signal: ConsistencySearched
+  next: ConsistencyReducing
+  action: reduce_consistency_checks
+- state: ConsistencySearching
+  signal: CommandError
+  next: Failed
+- state: ConsistencyReducing
+  signal: ValidationPassed
   next: Searching
   action: jurist_rg
   label: grep_result
-  for_each:
+  for_each: &grep_iteration
     items: $from(loaded_corpus).grep_checks
     as: grep_check
     mode: sequential
@@ -97,27 +198,13 @@ transitions:
         partial: CommandError
         failed: CommandError
         empty: GrepSearched
-- state: Validating
+- state: ConsistencyReducing
   signal: ValidationFailed
   next: Searching
   action: jurist_rg
   label: grep_result
-  for_each:
-    items: $from(loaded_corpus).grep_checks
-    as: grep_check
-    mode: sequential
-    failure: collect_all
-    continue_on: [ToolDone, ToolFailed]
-    abort_on: [CommandError]
-    join:
-      next: Searching
-      label: grep_results
-      signals:
-        all_success: GrepSearched
-        partial: CommandError
-        failed: CommandError
-        empty: GrepSearched
-- state: Validating
+  for_each: *grep_iteration
+- state: ConsistencyReducing
   signal: CommandError
   next: Failed
 - state: Searching

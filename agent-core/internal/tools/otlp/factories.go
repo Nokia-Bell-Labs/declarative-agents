@@ -14,7 +14,7 @@ import (
 
 // StandardInits lists the receiver lifecycle init names.
 var StandardInits = []string{
-	InitReceiverLaunch, InitAwaitSpans, InitSpoolSpans, InitRelaySpans, InitReceiverStop,
+	InitReceiverLaunch, InitAwaitSpans, InitLoadOTLPBatch, InitSpoolSpans, InitRelaySpans, InitReceiverStop,
 }
 
 // ReceiverToolConfig is the YAML ToolDef config shared by launch and stop.
@@ -41,6 +41,11 @@ type SpoolToolConfig struct {
 	MaxFiles    int    `json:"max_files"`
 }
 
+// LoadToolConfig is the declared load_otlp_batch configuration.
+type LoadToolConfig struct {
+	Path string `json:"path"`
+}
+
 // RelayToolConfig is the declared relay_spans configuration.
 type RelayToolConfig struct {
 	Endpoint        string `json:"endpoint"`
@@ -58,6 +63,8 @@ func RegisterFactories(br *toolregistry.BuiltinRegistry, state *State) {
 		switch init {
 		case InitAwaitSpans:
 			br.Register(init, awaitFactory(state))
+		case InitLoadOTLPBatch:
+			br.Register(init, loadFactory())
 		case InitSpoolSpans:
 			br.Register(init, spoolFactory())
 		case InitRelaySpans:
@@ -65,6 +72,23 @@ func RegisterFactories(br *toolregistry.BuiltinRegistry, state *State) {
 		default:
 			br.Register(init, receiverFactory(init, state))
 		}
+	}
+}
+
+func loadFactory() toolregistry.BuiltinFactory {
+	return func(def catalog.ToolDef, vars map[string]string) (core.Builder, error) {
+		var raw LoadToolConfig
+		if err := catalog.DecodeToolConfig(def, &raw); err != nil {
+			return nil, err
+		}
+		if raw.Path == "" {
+			return nil, fmt.Errorf("tool %q config requires path", def.Name)
+		}
+		path := raw.Path
+		if !filepath.IsAbs(path) && vars["directory"] != "" {
+			path = filepath.Join(vars["directory"], path)
+		}
+		return LoadBuilder{ToolName: def.Name, Config: LoadConfig{Path: path}}, nil
 	}
 }
 

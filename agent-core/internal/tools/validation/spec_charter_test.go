@@ -3,6 +3,7 @@
 package validation
 
 import (
+	"encoding/base64"
 	"os"
 	"path/filepath"
 	"testing"
@@ -12,6 +13,7 @@ import (
 	"github.com/Nokia-Bell-Labs/declarative-agents/agent-core/internal/runtime/core"
 	"github.com/Nokia-Bell-Labs/declarative-agents/agent-core/internal/tools/catalog"
 	toolregistry "github.com/Nokia-Bell-Labs/declarative-agents/agent-core/internal/tools/registry"
+	"github.com/Nokia-Bell-Labs/declarative-agents/agent-core/pkg/spec"
 )
 
 func TestLoadCorpusCarriesZeroCharters(t *testing.T) {
@@ -95,11 +97,17 @@ func TestLoadCorpusOptionalAuditsCharterOnlyTarget(t *testing.T) {
 	require.Empty(t, vs.Corpus.SRDs)
 
 	res := (&ValidateSpecsBuilder{VS: vs}).Build(loadRes).Execute()
-
 	require.NotEqual(t, core.CommandError, res.Signal)
-	require.NotEmpty(t, vs.Findings)
-	require.Equal(t, "paper-suite", vs.Findings[0].SuiteID)
-	require.Equal(t, "consistency_check", vs.Findings[0].Kind)
+	require.Empty(t, vs.Findings, "consistency policy runs in later machine states")
+	plans, err := spec.BuildConsistencyScanPlans(target, vs.Charters)
+	require.NoError(t, err)
+	require.Len(t, plans, 1)
+	scan := "manifest.yaml\t" + base64.StdEncoding.EncodeToString([]byte("status: draft\n"))
+	findings, err := spec.ReduceConsistencyScan(plans[0], scan)
+	require.NoError(t, err)
+	require.NotEmpty(t, findings)
+	require.Equal(t, "paper-suite", findings[0].SuiteID)
+	require.Equal(t, "consistency_check", findings[0].Kind)
 }
 
 func TestLoadCorpusWithoutOptionalStillRequiresCorpus(t *testing.T) {

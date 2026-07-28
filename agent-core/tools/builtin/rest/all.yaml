@@ -382,7 +382,7 @@ tools:
       errors:
         - Missing async state, timeout, transport, and mapping failures emit CommandError or declared timeout signals.
     non_goals:
-      - Does not submit a new REST request unless the configured await operation requires polling.
+      - Does not submit or poll REST requests; probe and delay loops belong to MachineSpec.
     parameters:
       type: object
       properties:

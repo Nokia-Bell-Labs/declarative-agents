@@ -76,6 +76,24 @@ func applyShapedConfig(validateOK, applyOK bool) MachineRequest {
 	}
 }
 
+func TestMachineRequestTerminalStatusUsesMachineDeclaration(t *testing.T) {
+	spec := &core.MachineSpec{
+		States: core.StateSpecs{
+			{Name: "Idle"},
+			{Name: "Finished", RunStatus: core.StatusSucceeded},
+		},
+		TerminalStates: []string{"Finished"},
+	}
+	cfg := MachineRequest{
+		MachineSpec: spec,
+		Response: MachineRequestResponse{TerminalStates: map[string]MachineResponseMapping{
+			"Finished": {Status: http.StatusInternalServerError},
+		}},
+	}
+
+	require.Equal(t, core.StatusSucceeded, machineRequestTerminalStatus(cfg)("Finished"))
+}
+
 // TestMachineRequestTerminalStateSeparatesClientAndServerErrors is the GH-615
 // acceptance case. Before terminal-state mapping the reject and the apply
 // failure were indistinguishable over HTTP: both terminate on ToolFailed, so

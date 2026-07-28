@@ -46,8 +46,6 @@ compensation_boundaries:
   commands:
     - command: create_tracker_issue
       receipt_payload: configured_tracker_issue_id
-    - command: execute_task
-      receipt_payload: child_task_and_workspace_paths
     - command: self_invoke
       receipt_payload: child_run_id_machine_tools_and_trace_artifact
     - command: run_agent
@@ -62,7 +60,8 @@ expected_noop_long_term:
   - find
   - list_files
   - done
-  - assemble_prompt
+  - project_planner_context
+  - capture_planner_failure
   - nudge_reread
   - format_report
   - summarize_point_results
@@ -101,7 +100,13 @@ receipt_undo:
     - command: extract_task
       strategy: pipeline_state_restore
       receipt: reversible_pipeline_snapshot
-    - command: extract_all
+    - command: select_all_ready
+      strategy: pipeline_state_restore
+      receipt: reversible_pipeline_snapshot
+    - command: seed_passthrough_plan
+      strategy: pipeline_state_restore
+      receipt: reversible_pipeline_snapshot
+    - command: mark_nodes_planning
       strategy: pipeline_state_restore
       receipt: reversible_pipeline_snapshot
     - command: parse_plan
@@ -111,6 +116,9 @@ receipt_undo:
       strategy: pipeline_state_restore
       receipt: reversible_pipeline_snapshot
     - command: mark_task_done
+      strategy: pipeline_state_restore
+      receipt: reversible_pipeline_snapshot
+    - command: mark_task_failed
       strategy: pipeline_state_restore
       receipt: reversible_pipeline_snapshot
   workspace_state:
@@ -154,9 +162,9 @@ receipt_undo:
     - command: init_eval_session
       strategy: owned_artifact_removal_and_evaluator_session_restore
       receipt: reversible_eval_session_snapshot_and_owned_artifact_paths
-    - command: next_point
-      strategy: evaluator_session_restore
-      receipt: reversible_eval_session_snapshot
+    - command: materialize_eval_points
+      strategy: noop
+      receipt: none_read_only_projection
     - command: run_point
       strategy: compensating_action
       receipt: compensatable_eval_session_snapshot_and_boundary_compensation
@@ -166,15 +174,18 @@ receipt_undo:
     - command: create_point_dir
       strategy: owned_artifact_removal_and_point_context_restore
       receipt: reversible_point_context_snapshot_and_owned_artifact_paths
-    - command: copy_sample_docs
-      strategy: owned_artifact_removal_and_point_context_restore
-      receipt: reversible_point_context_snapshot_and_owned_artifact_paths
+    - command: sample_docs
+      strategy: noop
+      receipt: none_read_only_projection
     - command: dump_config
       strategy: owned_artifact_removal_and_point_context_restore
       receipt: reversible_point_context_snapshot_and_owned_artifact_paths
     - command: collect_metrics
       strategy: owned_artifact_removal_and_point_context_restore
       receipt: reversible_point_context_snapshot_and_owned_artifact_paths
+    - command: record_point_failure
+      strategy: point_context_restore
+      receipt: reversible_point_context_snapshot
     - command: record_oracle_result
       strategy: point_context_restore
       receipt: reversible_point_context_snapshot
@@ -203,10 +214,6 @@ receipt_undo:
       strategy: close_or_delete_created_issue
       receipt: compensatable_boundary_compensation
       captures: [issue_id]
-    - command: execute_task
-      strategy: child_agent_workspace_restore
-      receipt: compensatable_boundary_compensation
-      captures: [child_run_id, workspace_paths]
     - command: self_invoke
       strategy: child_agent_workspace_restore
       receipt: compensatable_boundary_compensation

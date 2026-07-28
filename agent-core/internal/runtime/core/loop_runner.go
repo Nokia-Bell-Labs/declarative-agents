@@ -120,6 +120,10 @@ func (r *loopRunner) done() bool {
 	if err != nil {
 		return r.stopForUnhandledTransition(err)
 	}
+	if r.iterator != nil && effectiveForEachMode(r.iterator.Spec) == ForEachParallel {
+		r.state = nextState
+		return r.dispatchParallelIterator()
+	}
 	if cmd == nil {
 		if r.stopForTerminal(nextState) {
 			return true
@@ -219,7 +223,7 @@ func (r *loopRunner) stopForTerminal(nextState State) bool {
 		r.state = nextState
 		r.saveTerminalCheckpoint()
 	}
-	status := resolveTerminalStatus(r.params.Hooks, nextState)
+	status := resolveTerminalStatus(r.params.Hooks, r.params.MachineSpec, nextState)
 	if r.checkpointSaveErr != nil {
 		status = StatusFailed
 		r.run.LastError = fmt.Errorf(

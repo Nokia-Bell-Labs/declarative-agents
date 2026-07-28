@@ -1,0 +1,49 @@
+tools:
+- name: record_point_failure
+  type: builtin
+  init: record_point_failure
+  visibility: internal
+  emits:
+  - PointFailureRecorded
+  - CommandError
+  description: Project a failed point command result into failure stage and cause fields.
+  category: stateful_internal
+  problem: Early point failures need explicit state before the shared metrics writer runs.
+  goals:
+  - Capture the failed command name as the failure stage.
+  - Capture the command error or output as the failure cause.
+  - Leave meta.json ownership with collect_metrics.
+  requirements:
+    input:
+    - must consume the immediately preceding failed command result
+    output:
+    - must emit PointFailureRecorded
+    side_effects:
+    - must update PointContext.FailureStage and PointContext.FailureCause
+    undo:
+    - must restore the prior point context snapshot
+  non_goals:
+  - Does not write point artifacts.
+  - Does not choose the next point-machine state.
+  side_effects:
+  - kind: state_mutation
+    target: point_context
+    state: point_failure_recorded
+    description: Stores failure stage and cause from the preceding command result.
+  reversibility:
+    classification: reversible
+    undo: point_context_restore
+  undo:
+    strategy: point_context_restore
+    description: Restore PointContext from the persisted pre-command receipt.
+    payload: point_context_snapshot
+    captures: [point_context]
+  errors:
+  - signal: CommandError
+    condition: point state is unavailable
+    message_shape: 'record_point_failure: <error>'
+    state_after_failure: previous point context is preserved
+  output:
+    description: Recorded failure stage and cause.
+    schema:
+      type: string

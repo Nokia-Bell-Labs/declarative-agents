@@ -101,62 +101,101 @@ tools:
         state_after_failure: Async state is recorded only after accepted submission.
     relationships:
       after: [get_payment]
-      before: [await_payment]
+      before: [probe_payment]
     config:
       rest_ref: payments
       operation: create_payment
 
-  - name: await_payment
+  - name: probe_payment
     type: builtin
-    init: rest_client_await
+    init: rest_client_get
     category: boundary
-    description: Await the configured asynchronous payment request.
-    problem: Async completion must remain visible to the machine.
+    description: Probe the submitted payment exactly once.
+    problem: Async completion polling must remain visible as repeated machine dispatches.
     goals:
-      - Resolve stored payment request state.
-      - Map completion, missing, domain failure, and timeout into declared signals.
+      - Perform at most one outbound HTTP request per dispatch.
+      - Map ready and not-ready responses into declared signals.
     requirements:
       input:
-        - Runtime input identifies an async request by configured request state.
+        - The labeled create result supplies the trusted payment request ID.
       output:
-        - Output includes request ID, operation, status, and mapped response data.
+        - Output includes operation, status, and mapped payment data.
       errors:
-        - Missing async state, timeout, status, and mapping failures are explicit.
+        - Definition, schema, network, timeout, and mapping failures are explicit.
     non_goals:
-      - Does not submit a new payment request.
+      - Does not sleep, retry, or await stored async state.
     parameters:
       type: object
       properties:
-        request_id: {type: string}
-    emits: [RESTResponded, RESTDomainFailed, RESTMissing, RESTAwaitTimedOut, CommandError]
+        params: {type: object}
+    emits: [RESTResourceRead, RESTDomainFailed, RESTMissing, CommandError]
     output:
-      description: Async REST completion result.
+      description: One payment readiness sample.
       schema:
         type: object
         properties:
-          request_id: {type: string}
           operation: {type: string}
           status: {type: integer}
     side_effects:
-      - kind: state_mutation
-        target: rest_command_state
-        state: async_request_consumed
+      - kind: external_api
+        target: payments.payment
+        state: read_only
     reversibility:
-      classification: irreversible
+      classification: reversible
       undo: noop
     undo:
       strategy: noop
-      description: Await does not mutate remote state.
+      description: A readiness probe does not mutate remote state.
     errors:
       - signal: CommandError
-        condition: Async state, timeout, transport, status mapping, or response mapping failure.
-        state_after_failure: Async state follows the configured retention policy.
+        condition: REST config, schema, network, timeout, or response mapping failure.
+        state_after_failure: The submitted payment remains available for another declared probe.
     relationships:
       after: [create_payment]
-      before: [launch_payment_webhooks]
+      before: [wait_payment_retry, launch_payment_webhooks]
     config:
       rest_ref: payments
-      operation: create_payment
+      operation: probe_payment
+
+  - name: wait_payment_retry
+    type: builtin
+    init: delay
+    category: boundary
+    description: Wait once between declared payment readiness probes.
+    problem: Immediate probes create a hot loop, while an internal sleep hides retry policy.
+    goals:
+      - Expose each retry interval as its own machine dispatch.
+      - Remain cancellation-aware without performing network I/O.
+    requirements:
+      input:
+        - The retry interval comes from trusted tool config.
+      output:
+        - Output reports the elapsed wait.
+      errors:
+        - Cancellation emits CommandError.
+    non_goals:
+      - Does not probe payment state or decide whether to retry.
+    parameters: {type: object, properties: {}}
+    emits: [PaymentRetryReady, CommandError]
+    output:
+      description: One bounded retry delay.
+      schema: {type: object}
+    side_effects:
+      - kind: state_read
+        target: local_clock
+        state: read_only
+    reversibility: {classification: reversible, undo: noop}
+    undo: {strategy: noop, description: Waiting changes no state.}
+    errors:
+      - signal: CommandError
+        condition: The wait is cancelled.
+        state_after_failure: The submitted payment remains unchanged.
+    relationships:
+      after: [probe_payment]
+      before: [probe_payment]
+    config:
+      duration: 100ms
+      elapsed_signal: PaymentRetryReady
 
   - name: launch_payment_webhooks
     type: builtin
@@ -206,7 +245,7 @@ tools:
         condition: Config decode, bind, route conflict, or schema failure.
         state_after_failure: Partial launch cleans up owned listener state.
     relationships:
-      after: [await_payment]
+      after: [probe_payment]
       before: [await_payment_webhook, stop_payment_webhooks]
     config:
       rest_ref: payments_webhooks

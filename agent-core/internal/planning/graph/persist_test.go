@@ -102,7 +102,7 @@ func TestLoadGraph_FileNotFound(t *testing.T) {
 	assert.Contains(t, err.Error(), "read graph state")
 }
 
-func TestSaveGraph_FailedRetries(t *testing.T) {
+func TestSaveGraphFailedStatus(t *testing.T) {
 	corpus := loadTestCorpus(t)
 	g, err := BuildGraph(corpus)
 	require.NoError(t, err)
@@ -111,7 +111,6 @@ func TestSaveGraph_FailedRetries(t *testing.T) {
 	require.NoError(t, n.MarkPlanning())
 	require.NoError(t, n.MarkExecuting())
 	require.NoError(t, n.MarkFailed())
-	assert.Equal(t, 1, n.Retries)
 
 	path := filepath.Join(t.TempDir(), "graph.yaml")
 	require.NoError(t, SaveGraph(g, path))
@@ -122,7 +121,6 @@ func TestSaveGraph_FailedRetries(t *testing.T) {
 	rn, ok := restored.Node("srd001-auth-R1.1")
 	require.True(t, ok)
 	assert.Equal(t, Failed, rn.Status)
-	assert.Equal(t, 1, rn.Retries)
 }
 
 func TestLoadGraphRejectsInvalidPersistedState(t *testing.T) {
@@ -142,8 +140,6 @@ func TestLoadGraphRejectsInvalidPersistedState(t *testing.T) {
 		wantErr string
 	}{
 		{name: "unknown status", mutate: func(s *GraphState) { s.Nodes[0].Status = "wedged" }, wantErr: `nodes[0] "A" status "wedged" is invalid`},
-		{name: "negative retries", mutate: func(s *GraphState) { s.Nodes[0].Retries = -1 }, wantErr: `nodes[0] "A" retries must be nonnegative`},
-		{name: "failed without retry", mutate: func(s *GraphState) { s.Nodes[0].Status = Failed }, wantErr: `failed status requires at least one retry`},
 		{name: "missing node id", mutate: func(s *GraphState) { s.Nodes[0].ID = "" }, wantErr: `nodes[0].id is required`},
 		{name: "missing SRD id", mutate: func(s *GraphState) { s.Nodes[0].SRDID = "" }, wantErr: `srd_id is required`},
 		{name: "duplicate node id", mutate: func(s *GraphState) { s.Nodes[1].ID = "A" }, wantErr: `nodes[1].id "A" duplicates nodes[0].id`},
@@ -173,8 +169,7 @@ func TestValidateGraphStateAcceptsReachableLifecycleStates(t *testing.T) {
 		{ID: "planning", SRDID: "srd", Status: Planning},
 		{ID: "executing", SRDID: "srd", Status: Executing},
 		{ID: "done", SRDID: "srd", Status: Done},
-		{ID: "failed", SRDID: "srd", Status: Failed, Retries: 1},
-		{ID: "retried-pending", SRDID: "srd", Status: Pending, Retries: 2},
+		{ID: "failed", SRDID: "srd", Status: Failed},
 	}
 	for _, node := range tests {
 		t.Run(node.ID, func(t *testing.T) {

@@ -129,17 +129,16 @@ func TestEvaluatorMutationBuildersImplementReverser(t *testing.T) {
 		&DiscoverSuiteSamplesBuilder{},
 		&ExpandEvalGridBuilder{},
 		&InitEvalSessionBuilder{},
-		&NextPointBuilder{},
 		&ReportSessionBuilder{},
 		&RunPointBuilder{},
 		&CreatePointDirBuilder{},
-		&CopySampleDocsBuilder{},
 		&DumpConfigBuilder{},
 		&RunAgentBuilder{},
 		&RecordAgentCommitBuilder{},
 		&RecordOracleResultBuilder{},
 		&CollectTraceTokensBuilder{},
 		&CheckAgentVersionBuilder{},
+		&RecordPointFailureBuilder{},
 		&CollectMetricsBuilder{},
 	}
 	for _, builder := range builders {

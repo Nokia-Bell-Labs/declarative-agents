@@ -4,7 +4,7 @@
 tools:
   - create_point_dir
   - copy_dir
-  - copy_sample_docs
+  - sample_docs
   - git_init
   - stage_all
   - commit_workspace_baseline
@@ -17,4 +17,5 @@ tools:
   - collect_trace_tokens
   - check_agent_version
   - summarize_point_results
+  - record_point_failure
   - collect_metrics

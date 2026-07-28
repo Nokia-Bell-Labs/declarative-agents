@@ -69,7 +69,6 @@ rest:
             request_id: $.id
             correlation: $.correlation_id
             idempotency_token: "{{ params.order_id }}"
-            await_operation: getPayment
             timeout: 2s
             state_retention: consume
           side_effects:

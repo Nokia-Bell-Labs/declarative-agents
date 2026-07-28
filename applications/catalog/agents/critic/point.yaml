@@ -34,33 +34,38 @@ invariants:
 - Oracle failures are domain results and still proceed through trace, version, summary, and metrics collection
 - The workspace is a fresh temporary directory for each evaluation point
 - Metrics are collected even when the agent fails or times out
+- Infrastructure failures route through record_point_failure and collect_metrics before Failed
 - The session machine iterates sequentially through all profile-resolved grid points
 - Session and point machines have separate tool selections
 - run_point builds the nested point registry from agents/critic/tools-point.yaml
 lifecycle: |-
   1. Idle → CreatingPointDir: create_point_dir
   2. CreatingPointDir → CopyingSampleWorkspace: copy_dir
-  3. CopyingSampleWorkspace → CopyingSampleDocs: copy_sample_docs
-  4. CopyingSampleDocs → InitializingWorkspaceRepo: git_init
-  5. InitializingWorkspaceRepo → StagingWorkspaceBaseline: stage_all
-  6. StagingWorkspaceBaseline → CommittingWorkspaceBaseline: commit_workspace_baseline
-  7. CommittingWorkspaceBaseline → ResolvingAgentCommit: rev_parse
-  8. ResolvingAgentCommit → RecordingAgentCommit: record_agent_commit
-  9. RecordingAgentCommit → SnapshotConfig: dump_config
-  10. SnapshotConfig → RunningAgent: run_agent
-  11. RunningAgent → RunningOracleCheck: run_oracle_check (on any harness outcome)
-  12. RunningOracleCheck → RecordingOracleResult: record_oracle_result (on pass or fail)
-  13. RecordingOracleResult → CollectingTraceTokens: collect_trace_tokens
-  14. CollectingTraceTokens → CheckingAgentVersion: check_agent_version
-  15. CheckingAgentVersion → SummarizingPointResults: summarize_point_results (checked or mismatch)
-  16. SummarizingPointResults → CollectingMetrics: collect_metrics
-  17. CollectingMetrics → Done
+  3. CopyingSampleWorkspace → CheckingSampleDocs: sample_docs
+  4. CheckingSampleDocs → CopyingSampleDocs: copy_dir (docs present)
+  5. CheckingSampleDocs/CopyingSampleDocs → InitializingWorkspaceRepo: git_init
+  6. InitializingWorkspaceRepo → StagingWorkspaceBaseline: stage_all
+  7. StagingWorkspaceBaseline → CommittingWorkspaceBaseline: commit_workspace_baseline
+  8. CommittingWorkspaceBaseline → ResolvingAgentCommit: rev_parse
+  9. ResolvingAgentCommit → RecordingAgentCommit: record_agent_commit
+  10. RecordingAgentCommit → SnapshotConfig: dump_config
+  11. SnapshotConfig → RunningAgent: run_agent
+  12. RunningAgent → RunningOracleCheck: run_oracle_check (on any harness outcome)
+  13. RunningOracleCheck → RecordingOracleResult: record_oracle_result (on pass or fail)
+  14. RecordingOracleResult → CollectingTraceTokens: collect_trace_tokens
+  15. CollectingTraceTokens → CheckingAgentVersion: check_agent_version
+  16. CheckingAgentVersion → SummarizingPointResults: summarize_point_results (checked or mismatch)
+  17. SummarizingPointResults → CollectingMetrics: collect_metrics
+  18. CollectingMetrics → Done
+  Failure branch: any pre-metrics infrastructure failure → RecordingFailure → CollectingFailureMetrics → Failed
 pipeline_diagram: |-
   ```mermaid
   flowchart LR
     A[create_point_dir] --> B[copy_dir]
-    B --> C[copy_sample_docs]
-    C --> D[git_init]
+    B --> C[sample_docs]
+    C -->|docs present| C2[copy_dir]
+    C -->|docs absent| D[git_init]
+    C2 --> D
     D --> E[stage_all]
     E --> F[commit_workspace_baseline]
     F --> G[rev_parse]
@@ -73,6 +78,9 @@ pipeline_diagram: |-
     M --> N[check_agent_version]
     N --> O[summarize_point_results]
     O --> P[collect_metrics]
+    B -. infrastructure failure .-> Q[record_point_failure]
+    Q --> R[collect_metrics]
+    R --> S[Failed]
   ```
 initial_state: Idle
 budget:
@@ -84,8 +92,10 @@ states:
   meaning: Creating the per-point artifact directory and recording trace path.
 - name: CopyingSampleWorkspace
   meaning: Copying sample workspace files into the point directory.
+- name: CheckingSampleDocs
+  meaning: Reporting whether optional sample docs exist and exposing copy parameters.
 - name: CopyingSampleDocs
-  meaning: Copying optional sample docs into the point directory.
+  meaning: Copying present sample docs with the shared copy_dir word.
 - name: InitializingWorkspaceRepo
   meaning: Initializing the point workspace git repository.
 - name: StagingWorkspaceBaseline
@@ -112,6 +122,10 @@ states:
   meaning: Emitting aggregate result status from populated point context fields.
 - name: CollectingMetrics
   meaning: Writing evaluation metadata (exit code, duration, test results, tokens, convergence data) to meta.json.
+- name: RecordingFailure
+  meaning: Projecting the failed command result into point failure metadata.
+- name: CollectingFailureMetrics
+  meaning: Writing failure metadata through the shared collect_metrics word.
 - name: Done
   meaning: Terminal. Evaluation point completed successfully.
 - name: Failed
@@ -126,8 +140,10 @@ signals:
   trigger: Infrastructure-level error.
 - name: PointDirCreated
   trigger: Point artifact directory created and PointContext paths recorded.
-- name: SampleDocsCopied
-  trigger: Optional sample docs copied, or no docs were present.
+- name: SampleDocsPresent
+  trigger: Optional sample docs exist and copy_dir parameters are available.
+- name: SampleDocsAbsent
+  trigger: The sample has no optional docs.
 - name: ToolDone
   trigger: A selected shared exec word completed successfully.
 - name: ToolFailed
@@ -156,6 +172,8 @@ signals:
   trigger: Point result summary completed.
 - name: MetricsCollected
   trigger: Metrics extraction completed.
+- name: PointFailureRecorded
+  trigger: Failure stage and cause were projected into point context.
 transitions:
 - state: Idle
   signal: Seed
@@ -167,10 +185,18 @@ transitions:
   action: copy_dir
 - state: CopyingSampleWorkspace
   signal: ToolDone
+  next: CheckingSampleDocs
+  action: sample_docs
+- state: CheckingSampleDocs
+  signal: SampleDocsPresent
   next: CopyingSampleDocs
-  action: copy_sample_docs
+  action: copy_dir
+- state: CheckingSampleDocs
+  signal: SampleDocsAbsent
+  next: InitializingWorkspaceRepo
+  action: git_init
 - state: CopyingSampleDocs
-  signal: SampleDocsCopied
+  signal: ToolDone
   next: InitializingWorkspaceRepo
   action: git_init
 - state: InitializingWorkspaceRepo
@@ -248,63 +274,103 @@ transitions:
 - state: CollectingMetrics
   signal: MetricsCollected
   next: Done
+- state: RecordingFailure
+  signal: PointFailureRecorded
+  next: CollectingFailureMetrics
+  action: collect_metrics
+- state: CollectingFailureMetrics
+  signal: MetricsCollected
+  next: Failed
 - state: CreatingPointDir
   signal: CommandError
-  next: Failed
+  next: RecordingFailure
+  action: record_point_failure
 - state: CopyingSampleWorkspace
   signal: ToolFailed
-  next: Failed
+  next: RecordingFailure
+  action: record_point_failure
 - state: CopyingSampleWorkspace
   signal: CommandError
-  next: Failed
+  next: RecordingFailure
+  action: record_point_failure
+- state: CheckingSampleDocs
+  signal: CommandError
+  next: RecordingFailure
+  action: record_point_failure
+- state: CopyingSampleDocs
+  signal: ToolFailed
+  next: RecordingFailure
+  action: record_point_failure
 - state: CopyingSampleDocs
   signal: CommandError
-  next: Failed
+  next: RecordingFailure
+  action: record_point_failure
 - state: InitializingWorkspaceRepo
   signal: ToolFailed
-  next: Failed
+  next: RecordingFailure
+  action: record_point_failure
 - state: InitializingWorkspaceRepo
   signal: CommandError
-  next: Failed
+  next: RecordingFailure
+  action: record_point_failure
 - state: StagingWorkspaceBaseline
   signal: ToolFailed
-  next: Failed
+  next: RecordingFailure
+  action: record_point_failure
 - state: StagingWorkspaceBaseline
   signal: CommandError
-  next: Failed
+  next: RecordingFailure
+  action: record_point_failure
 - state: CommittingWorkspaceBaseline
   signal: ToolFailed
-  next: Failed
+  next: RecordingFailure
+  action: record_point_failure
 - state: CommittingWorkspaceBaseline
   signal: CommandError
-  next: Failed
+  next: RecordingFailure
+  action: record_point_failure
 - state: SnapshotConfig
   signal: CommandError
-  next: Failed
+  next: RecordingFailure
+  action: record_point_failure
 - state: ResolvingAgentCommit
   signal: CommandError
-  next: Failed
+  next: RecordingFailure
+  action: record_point_failure
 - state: RecordingAgentCommit
   signal: CommandError
-  next: Failed
+  next: RecordingFailure
+  action: record_point_failure
 - state: RunningAgent
   signal: CommandError
-  next: Failed
+  next: RecordingFailure
+  action: record_point_failure
 - state: RunningOracleCheck
   signal: CommandError
-  next: Failed
+  next: RecordingFailure
+  action: record_point_failure
 - state: RecordingOracleResult
   signal: CommandError
-  next: Failed
+  next: RecordingFailure
+  action: record_point_failure
 - state: CollectingTraceTokens
   signal: CommandError
-  next: Failed
+  next: RecordingFailure
+  action: record_point_failure
 - state: CheckingAgentVersion
   signal: CommandError
-  next: Failed
+  next: RecordingFailure
+  action: record_point_failure
 - state: SummarizingPointResults
   signal: CommandError
-  next: Failed
+  next: RecordingFailure
+  action: record_point_failure
 - state: CollectingMetrics
+  signal: CommandError
+  next: Failed
+- state: RecordingFailure
+  signal: CommandError
+  next: Failed
+- state: CollectingFailureMetrics
   signal: CommandError
   next: Failed

@@ -52,29 +52,33 @@ selection_files:
     description: |
       Selects session-level tools for <profile-root>/evaluator/machine.yaml:
       parse_suite_config, discover_suite_samples, expand_eval_grid,
-      init_eval_session, report_suite_summary, next_point, run_point,
+      init_eval_session, report_suite_summary, materialize_eval_points, run_point,
       and report_session.
 
   - file: <profile-root>/evaluator/tools-point.yaml
-    tool_count: 13
+    tool_count: 17
     description: |
       Selects per-point tools for <profile-root>/evaluator/point.yaml:
-      create_point_dir, copy_dir, copy_sample_docs,
+      create_point_dir, copy_dir, sample_docs,
       git_init, stage_all,
       commit_workspace_baseline, rev_parse, record_agent_commit,
       dump_config, run_agent, run_oracle_check, record_oracle_result,
       collect_trace_tokens, check_agent_version,
-      summarize_point_results, and collect_metrics. Loaded by run_point
+      summarize_point_results, record_point_failure, and collect_metrics. Loaded by run_point
       to build the nested point registry.
 
   - file: <profile-root>/planner/tools.yaml
-    tool_count: 20
+    tool_count: 29
     description: |
-      Selects planning tools (extract_task, extract_all,
-      assemble_prompt, parse_plan, format_issue, write,
-      create_tracker_issue, record_tracker_issue, execute_task,
+      Selects planning tools (extract_task, select_all_ready,
+      seed_passthrough_plan, mark_nodes_planning,
+      project_planner_context, capture_planner_failure,
+      reset_failure_context, compose_planner_prompt,
+      parse_plan, format_issue, write,
+      create_tracker_issue, record_tracker_issue, mark_nodes_executing,
+      format_task_file, invoke_executor,
       reset_retry_count, increment_retry, check_retry_limit,
-      mark_task_done, remaining_work),
+      mark_task_done, mark_task_failed, remaining_work),
       LLM tools (invoke_llm, reset_history),
       and direct build/test transition tools (build, vet, test).
 

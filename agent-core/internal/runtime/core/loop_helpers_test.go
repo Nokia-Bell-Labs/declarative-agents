@@ -23,8 +23,7 @@ func (r *loopRecorder) Push(name string, _ ...attribute.KeyValue) (tracing.Trace
 	r.mu.Lock()
 	r.spans = append(r.spans, name)
 	r.mu.Unlock()
-	child := &loopRecorder{}
-	return child, func() {}
+	return r, func() {}
 }
 
 func (r *loopRecorder) Event(name string, _ ...attribute.KeyValue) {

@@ -9,22 +9,21 @@ import (
 
 	"go.opentelemetry.io/otel/attribute"
 
-	"github.com/Nokia-Bell-Labs/declarative-agents/agent-core/internal/model/llm"
 	"github.com/Nokia-Bell-Labs/declarative-agents/agent-core/internal/planning/extract"
-	"github.com/Nokia-Bell-Labs/declarative-agents/agent-core/internal/planning/plan"
 	"github.com/Nokia-Bell-Labs/declarative-agents/agent-core/internal/runtime/core"
 	toollm "github.com/Nokia-Bell-Labs/declarative-agents/agent-core/internal/tools/llm"
-	"github.com/Nokia-Bell-Labs/declarative-agents/agent-core/pkg/spec"
 )
 
-type assemblePromptCmd struct {
+type projectPlannerContextCmd struct {
 	ps *State
 }
 
-func (c *assemblePromptCmd) Name() string                   { return "assemble_prompt" }
-func (c *assemblePromptCmd) Undo(_ core.Result) core.Result { return core.NoopUndo(c.Name()) }
+func (c *projectPlannerContextCmd) Name() string { return "project_planner_context" }
+func (c *projectPlannerContextCmd) Undo(_ core.Result) core.Result {
+	return core.NoopUndo(c.Name())
+}
 
-func (c *assemblePromptCmd) Execute() core.Result {
+func (c *projectPlannerContextCmd) Execute() core.Result {
 	task := c.ps.CurrentTask
 	if task == nil {
 		return core.Result{CommandName: c.Name(), Signal: core.CommandError, Output: "no current task"}
@@ -37,39 +36,69 @@ func (c *assemblePromptCmd) Execute() core.Result {
 			Output:      fmt.Sprintf("SRD %q not found in corpus", task.SRDID),
 		}
 	}
-	prompt, err := plan.AssemblePrompt(taskContext(c.ps, task), srdContext(srd), nil, nil)
-	if err != nil {
-		return core.Result{CommandName: c.Name(), Signal: core.CommandError, Err: err, Output: fmt.Sprintf("assemble prompt: %v", err)}
+	context := map[string]string{
+		"task_id": task.ID,
+		"srd_id":  task.SRDID,
+		"problem": srd.Problem,
+		"goals":   bulletList(srd.Goals),
 	}
-	return core.Result{CommandName: c.Name(), Signal: core.ToolDone, Output: prompt}
-}
-
-func taskContext(ps *State, task *extract.Task) plan.TaskContext {
-	var items []plan.TaskItem
+	var items []string
 	for _, nid := range task.NodeIDs {
-		n, _ := ps.Graph.Node(nid)
-		if n != nil {
-			items = append(items, plan.TaskItem{ID: nid, Text: n.Text})
+		if n, _ := c.ps.Graph.Node(nid); n != nil {
+			items = append(items, n.ID+": "+n.Text)
 		}
 	}
-	return plan.TaskContext{ID: task.ID, SRDID: task.SRDID, Items: items}
-}
-
-func srdContext(srd spec.SRD) plan.SRDContext {
-	ctx := plan.SRDContext{Problem: srd.Problem, Goals: srd.Goals}
-	for _, ac := range srd.AcceptanceCriteria {
-		ctx.AcceptanceCriteria = append(ctx.AcceptanceCriteria, ac.ID+": "+ac.Criterion)
+	context["items"] = bulletList(items)
+	var criteria []string
+	for _, criterion := range srd.AcceptanceCriteria {
+		criteria = append(criteria, criterion.ID+": "+criterion.Criterion)
 	}
-	return ctx
+	context["acceptance_criteria"] = bulletList(criteria)
+	output, err := json.Marshal(context)
+	if err != nil {
+		return core.Result{CommandName: c.Name(), Signal: core.CommandError, Err: err, Output: fmt.Sprintf("project planner context: %v", err)}
+	}
+	return core.Result{CommandName: c.Name(), Signal: SigPlannerContextProjected, Output: string(output)}
 }
 
-// AssemblePromptBuilder constructs assemble_prompt commands.
-type AssemblePromptBuilder struct {
+func bulletList(items []string) string {
+	if len(items) == 0 {
+		return "- None"
+	}
+	return "- " + strings.Join(items, "\n- ")
+}
+
+// ProjectPlannerContextBuilder constructs prompt-neutral context projections.
+type ProjectPlannerContextBuilder struct {
 	PS *State
 }
 
-func (b *AssemblePromptBuilder) Build(_ core.Result) core.Command {
-	return &assemblePromptCmd{ps: b.PS}
+func (b *ProjectPlannerContextBuilder) Build(_ core.Result) core.Command {
+	return &projectPlannerContextCmd{ps: b.PS}
+}
+
+type capturePlannerFailureCmd struct {
+	failure string
+}
+
+func (c *capturePlannerFailureCmd) Name() string { return "capture_planner_failure" }
+func (c *capturePlannerFailureCmd) Undo(_ core.Result) core.Result {
+	return core.NoopUndo(c.Name())
+}
+
+func (c *capturePlannerFailureCmd) Execute() core.Result {
+	output, err := json.Marshal(map[string]string{"output": c.failure})
+	if err != nil {
+		return core.Result{CommandName: c.Name(), Signal: core.CommandError, Err: err, Output: err.Error()}
+	}
+	return core.Result{CommandName: c.Name(), Signal: SigFailureCaptured, Output: string(output)}
+}
+
+// CapturePlannerFailureBuilder publishes a validation failure for retry prompts.
+type CapturePlannerFailureBuilder struct{}
+
+func (b *CapturePlannerFailureBuilder) Build(previous core.Result) core.Command {
+	return &capturePlannerFailureCmd{failure: previous.Output}
 }
 
 type parsePlanCmd struct {
@@ -119,22 +148,6 @@ func (b *ParsePlanBuilder) Build(res core.Result) core.Command {
 func (b *ParsePlanBuilder) BuildReverser() core.Command {
 	return &parsePlanCmd{ps: b.PS, retry: b.Retry}
 }
-
-// PlannerAssembler implements llm.PromptAssembler for the planning pipeline.
-type PlannerAssembler struct{}
-
-func (a *PlannerAssembler) AssembleMessages(conv *llm.Conversation, _ *core.Registry, _ core.State) []llm.Message {
-	systemPrompt := strings.Join([]string{
-		"You are an implementation planner for a Go software project.",
-		"Given a task description with requirements and SRD context,",
-		"produce an implementation plan in YAML format.",
-		"The plan must include: title, files (path + action), requirements,",
-		"design_decisions (optional), and acceptance_criteria.",
-	}, " ")
-	return append([]llm.Message{{Role: llm.System, Content: systemPrompt}}, conv.Messages()...)
-}
-
-var _ llm.PromptAssembler = (*PlannerAssembler)(nil)
 
 // marshalPipelineTask serializes pipeline task info for tracing.
 func marshalPipelineTask(task *extract.Task, issueID string) string {

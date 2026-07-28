@@ -10,6 +10,7 @@ includes:
   - ../record-tracker-issue.yaml
   - ../execute-task.yaml
   - ../mark-task-done.yaml
+  - ../mark-task-failed.yaml
   - ../remaining-work.yaml
 
 tools: []

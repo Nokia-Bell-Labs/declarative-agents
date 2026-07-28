@@ -7,27 +7,12 @@ package execute
 
 import (
 	"context"
-	"fmt"
-	"os"
-	"path/filepath"
 	"time"
 
-	"go.opentelemetry.io/otel/attribute"
-	"gopkg.in/yaml.v3"
-
-	agentllm "github.com/Nokia-Bell-Labs/declarative-agents/agent-core/internal/model/llm"
-	"github.com/Nokia-Bell-Labs/declarative-agents/agent-core/internal/observability/tracing"
 	"github.com/Nokia-Bell-Labs/declarative-agents/agent-core/internal/support/subprocess"
 )
 
-const (
-	spanExecute   = "execute_task"
-	defaultBinary = "agent"
-
-	// TaskFilePath is the relative path under the worktree where the
-	// task plan YAML is written before spawning a child agent.
-	TaskFilePath = "doc/task.yaml"
-)
+const defaultBinary = "agent"
 
 // Config holds execution engine settings.
 type Config struct {
@@ -88,51 +73,8 @@ type Result struct {
 // Success returns true when the agent exited with code 0.
 func (r *Result) Success() bool { return r.ExitCode == 0 && r.Err == nil }
 
-// Execute invokes the agent binary with the given plan written to a
-// temporary YAML file. The worktreeDir is passed via --directory and the
-// taskID is used for span attributes and temp file naming.
-//
-// The caller's context carries the OTel span; Execute formats it as a
-// W3C traceparent and passes it via --otel-parent-span.
-func Execute(ctx context.Context, tracer tracing.Tracer, cfg Config, taskID, worktreeDir string, plan any) (*Result, error) {
-	child, done := tracer.Push(spanExecute,
-		attribute.String("task.id", taskID),
-		attribute.String("generator.binary", cfg.binary()),
-		attribute.String("generator.timeout", cfg.timeout().String()),
-	)
-	defer done()
-
-	taskFile := filepath.Join(worktreeDir, TaskFilePath)
-	if err := writeTaskFile(taskFile, plan); err != nil {
-		child.RecordError(err)
-		return nil, fmt.Errorf("execute %s: write task file: %w", taskID, err)
-	}
-
-	otelLogFile := filepath.Join(otelDir(cfg), fmt.Sprintf("agent-%s.otel.json", taskID))
-
-	cfg.Directory = worktreeDir
-	cfg.OTelLogFile = otelLogFile
-	result := RunAgent(child.Context(), cfg)
-
-	if result.Err != nil {
-		child.RecordError(result.Err)
-		return nil, fmt.Errorf("execute %s: %w", taskID, result.Err)
-	}
-
-	if result.ExitCode != 0 {
-		child.SetAttributes(
-			attribute.Int("exit_code", result.ExitCode),
-			attribute.String("stderr", agentllm.Truncate(result.Stderr, 4096)),
-		)
-		child.RecordError(fmt.Errorf("agent exited %d", result.ExitCode))
-	}
-
-	return result, nil
-}
-
-// RunAgent invokes the agent binary with base args from cfg plus any
-// extra args. Unlike Execute, it does not write a task file. Suitable
-// for self_invoke and other child agent invocations.
+// RunAgent invokes the agent binary with base args from cfg plus any extra args.
+// File materialization and workflow sequencing remain separate machine words.
 func RunAgent(ctx context.Context, cfg Config, extraArgs ...string) *Result {
 	r := subprocess.Run(ctx, cfg.subprocessSpec(extraArgs...))
 	return &Result{
@@ -162,22 +104,4 @@ func (c Config) subprocessSpec(extraArgs ...string) subprocess.Spec {
 		Timeout:       c.timeout(),
 		PropagateOTel: true,
 	}
-}
-
-func writeTaskFile(path string, plan any) error {
-	data, err := yaml.Marshal(plan)
-	if err != nil {
-		return fmt.Errorf("marshal plan: %w", err)
-	}
-	if err := os.MkdirAll(filepath.Dir(path), 0o755); err != nil {
-		return err
-	}
-	return os.WriteFile(path, data, 0o644)
-}
-
-func otelDir(cfg Config) string {
-	if cfg.OTelDir != "" {
-		return cfg.OTelDir
-	}
-	return os.TempDir()
 }

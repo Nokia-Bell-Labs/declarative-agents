@@ -154,7 +154,7 @@ srd_index:
     path: docs/specs/software-requirements/srd007-tracer-interface.yaml
   - id: srd008-telemetry
     title: Telemetry Implementation
-    summary: OTel setup with Trace, TraceAdapter, NewRoot, ExporterConfig, file/OTLP exporters, and ReplayFile.
+    summary: OTel setup with Trace, TraceAdapter, NewRoot, ExporterConfig, and live file/OTLP exporters; offline replay is a declared OTLP-tool machine.
     path: docs/specs/software-requirements/srd008-telemetry.yaml
   - id: srd009-ollama-adapter
     title: Ollama LLM Adapter

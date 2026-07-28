@@ -9,15 +9,12 @@ import (
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 
-	"github.com/Nokia-Bell-Labs/declarative-agents/agent-core/internal/model/llm"
 	"github.com/Nokia-Bell-Labs/declarative-agents/agent-core/internal/observability/tracing"
 	"github.com/Nokia-Bell-Labs/declarative-agents/agent-core/internal/planning/extract"
 	"github.com/Nokia-Bell-Labs/declarative-agents/agent-core/internal/planning/graph"
 	"github.com/Nokia-Bell-Labs/declarative-agents/agent-core/internal/planning/plan"
 	"github.com/Nokia-Bell-Labs/declarative-agents/agent-core/internal/runtime/core"
-	"github.com/Nokia-Bell-Labs/declarative-agents/agent-core/internal/tools/catalog"
 	toollm "github.com/Nokia-Bell-Labs/declarative-agents/agent-core/internal/tools/llm"
-	toolregistry "github.com/Nokia-Bell-Labs/declarative-agents/agent-core/internal/tools/registry"
 	"github.com/Nokia-Bell-Labs/declarative-agents/agent-core/pkg/spec"
 )
 
@@ -121,77 +118,9 @@ func TestExtractTaskBuilder_NoMoreTasks(t *testing.T) {
 	cmd := builder.Build(core.Result{})
 	result := cmd.Execute()
 
-	assert.Equal(t, SigAllDone, result.Signal)
-}
-
-func TestExtractAllBuilder_ExtractsAllReady(t *testing.T) {
-	t.Parallel()
-	ps := minimalState(t)
-	builder := &ExtractAllBuilder{PS: ps}
-
-	cmd := builder.Build(core.Result{})
-	result := cmd.Execute()
-
-	assert.Equal(t, SigTaskExtracted, result.Signal)
-	assert.NotNil(t, ps.CurrentTask)
-	require.NotNil(t, ps.CurrentPlan)
-	assert.Equal(t, "Execute all ready requirements", ps.CurrentPlan.Title)
-	assert.Contains(t, result.Output, "extracted all")
-}
-
-func TestExtractAllBuilder_UndoRestoresPipelineState(t *testing.T) {
-	t.Parallel()
-	ps := minimalState(t)
-
-	builder := &ExtractAllBuilder{PS: ps}
-	cmd := builder.Build(core.Result{})
-	result := cmd.Execute()
-	require.Equal(t, SigTaskExtracted, result.Signal)
-	require.NotNil(t, ps.CurrentTask)
-
-	undo := cmd.Undo(result)
-	require.Equal(t, core.ToolDone, undo.Signal)
-	require.Nil(t, ps.CurrentTask)
-	require.Nil(t, ps.CurrentPlan)
-}
-
-func TestExtractAllBuilder_NoReady(t *testing.T) {
-	t.Parallel()
-	ps := minimalState(t)
-	markAllDone(t, ps.Graph)
-
-	builder := &ExtractAllBuilder{PS: ps}
-	cmd := builder.Build(core.Result{})
-	result := cmd.Execute()
-
-	assert.Equal(t, SigAllDone, result.Signal)
-}
-
-func TestAssemblePromptBuilder_ProducesPrompt(t *testing.T) {
-	t.Parallel()
-	ps := minimalState(t)
-
-	task := ps.Extractor.ExtractNext(ps.Graph, ps.MaxWeight)
-	require.NotNil(t, task)
-	ps.CurrentTask = task
-
-	builder := &AssemblePromptBuilder{PS: ps}
-	cmd := builder.Build(core.Result{})
-	result := cmd.Execute()
-
-	assert.Equal(t, core.ToolDone, result.Signal)
-	assert.Contains(t, result.Output, "Implementation Planning")
-}
-
-func TestAssemblePromptBuilder_NoTask(t *testing.T) {
-	t.Parallel()
-	ps := minimalState(t)
-
-	builder := &AssemblePromptBuilder{PS: ps}
-	cmd := builder.Build(core.Result{})
-	result := cmd.Execute()
-
-	assert.Equal(t, core.CommandError, result.Signal)
+	assert.Equal(t, SigNoTask, result.Signal)
+	remaining := (&RemainingWorkBuilder{PS: ps}).Build(core.Result{}).Execute()
+	assert.Equal(t, SigAllDone, remaining.Signal)
 }
 
 func TestParsePlanBuilder_ValidYAML(t *testing.T) {
@@ -336,22 +265,6 @@ func TestRemainingWorkBuilder_ReportsBlockedGraphWithoutMutation(t *testing.T) {
 	require.Equal(t, graph.Executing, node.Status)
 }
 
-func TestPlannerAssembler_PrependsSystem(t *testing.T) {
-	t.Parallel()
-
-	conv := llm.NewConversation(nil, "", llm.ChatOptions{})
-	conv.Append(llm.Message{Role: llm.User, Content: "plan this"})
-
-	asm := &PlannerAssembler{}
-	msgs := asm.AssembleMessages(conv, nil, "")
-
-	require.Len(t, msgs, 2)
-	assert.Equal(t, llm.System, msgs[0].Role)
-	assert.Contains(t, msgs[0].Content, "implementation planner")
-	assert.Equal(t, llm.User, msgs[1].Role)
-	assert.Equal(t, "plan this", msgs[1].Content)
-}
-
 func TestMarshalPipelineTask(t *testing.T) {
 	t.Parallel()
 	task := &extract.Task{
@@ -378,50 +291,6 @@ func TestMinimalState_GraphHasNodes(t *testing.T) {
 	ready := ps.Graph.Ready()
 	assert.Greater(t, len(ready), 0, "minimal corpus should have ready nodes")
 }
-
-func TestRegisterFactoriesExecuteTaskRequiresChildConfig(t *testing.T) {
-	t.Parallel()
-	br := toolregistry.NewBuiltinRegistry()
-	RegisterFactories(br, FactoryDeps{Ctx: context.Background()})
-
-	factory, ok := br.Resolve("execute_task")
-	require.True(t, ok)
-
-	_, err := factory(catalog.ToolDef{Name: "execute_task", Init: "execute_task"}, nil)
-	require.ErrorContains(t, err, "requires profile")
-}
-
-func TestRegisterFactoriesExecuteTaskAcceptsProfileConfig(t *testing.T) {
-	t.Parallel()
-	br := toolregistry.NewBuiltinRegistry()
-	RegisterFactories(br, FactoryDeps{
-		Ctx: context.Background(), ChildAgentBinary: "/tmp/controlled-agent",
-		CoreRoot: "/checkout/agent-core",
-	})
-
-	factory, ok := br.Resolve("execute_task")
-	require.True(t, ok)
-
-	builder, err := factory(catalog.ToolDef{
-		Name: "execute_task",
-		Init: "execute_task",
-		Config: map[string]interface{}{
-			"profile": "agents/executor/profile.yaml",
-		},
-	}, nil)
-	require.NoError(t, err)
-
-	execBuilder, ok := builder.(*ExecuteTaskBuilder)
-	require.True(t, ok)
-	require.Equal(t, "/tmp/controlled-agent", execBuilder.PS.ExecConfig.Binary)
-	require.Equal(t, "agents/executor/profile.yaml", execBuilder.PS.ExecConfig.Profile)
-	require.Equal(t, "/checkout/agent-core", execBuilder.PS.ExecConfig.CoreRoot)
-}
-
-var _ llm.PromptAssembler = (*PlannerAssembler)(nil)
-
-// Ensure unused plan import is consumed (types used in assertions above).
-var _ plan.ImplementationPlan
 
 // TestPlannerNodeLifecycleAdvancesAndDoesNotRepeat proves the GH-507 fix: a ready
 // node is selected once, advances Pending -> Planning -> Executing -> Done across

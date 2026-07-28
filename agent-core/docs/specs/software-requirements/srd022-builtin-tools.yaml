@@ -82,7 +82,7 @@ requirements:
   R6:
     title: Unified child agent invocation
     items:
-      - R6.1: All child agent invocations (execute_task and self_invoke) SHALL use execute.Config as the canonical runtime config type.
+      - R6.1: All child agent invocations SHALL use self_invoke (including profile aliases such as invoke_executor) and execute.Config as the canonical runtime config type.
       - R6.2: CLI argument construction SHALL be centralized in execute.Config.BuildArgs; callers SHALL NOT duplicate flag construction.
       - R6.3: execute.RunAgent SHALL be the shared entry point for child invocations that do not require task-file writing.
       - R6.4: Child agent invocations SHALL propagate OTel tracing via subprocess.Run with PropagateOTel enabled.
@@ -203,7 +203,7 @@ implementation:
   - internal/support/execute/execute.go
   - internal/tools/catalog/ (planned ToolDef and config decoding)
   - internal/tools/control/ (planned child-agent boundary tools)
-  - internal/planning/pipeline/ (current execute_task factory)
+  - internal/planning/pipeline/ (graph and task-file projection words)
   - internal/evaluation/ (read-only evaluation artifact query factories)
   - internal/tools/registry/ (planned BuiltinRegistry and factory catalog)
   - internal/tools/filesystem/ (planned file builtin tools)

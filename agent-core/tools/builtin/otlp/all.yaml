@@ -114,6 +114,56 @@ tools:
     receiver: ingress
     timeout: 30s
 
+- name: load_otlp_batch
+  type: builtin
+  init: load_otlp_batch
+  category: boundary
+  visibility: internal
+  emits: [BatchLoaded, CommandError]
+  description: Read and decode one trusted OTLP protobuf-JSON trace batch.
+  problem: Offline replay needs a visible file/decode step before the shared relay boundary.
+  goals:
+  - Distinguish file-read failures from protobuf-JSON decode failures.
+  - Return the unchanged batch for a later declared relay_spans dispatch.
+  requirements:
+    input:
+    - The OTLP protobuf-JSON path comes from trusted config.
+    output:
+    - Output includes path, span_count, and the decoded batch.
+    errors:
+    - Read and decode failures emit CommandError before any network dispatch.
+  non_goals:
+  - Does not export, retry, mutate, or convert stdouttrace NDJSON.
+  parameters: {type: object, properties: {}, additionalProperties: false}
+  output:
+    description: Trusted OTLP protobuf-JSON batch and metadata.
+    schema:
+      type: object
+      properties:
+        path: {type: string}
+        span_count: {type: integer}
+        batch: {type: object}
+      required: [path, span_count, batch]
+  side_effects:
+  - kind: filesystem_read
+    target: configured OTLP batch path
+    state: read_only
+  reversibility:
+    classification: reversible
+    undo: noop
+  undo:
+    strategy: noop
+    description: Loading a batch changes nothing.
+  errors:
+  - signal: CommandError
+    condition: the configured file cannot be read or decoded as an ExportTraceServiceRequest
+    message_shape: 'tool <name>: read|decode OTLP batch <path>: <cause>'
+    state_after_failure: relay is not invoked
+  relationships:
+    before: [relay_spans]
+  config:
+    path: traces/replay.otlp.json
+
 - name: spool_spans
   type: builtin
   init: spool_spans

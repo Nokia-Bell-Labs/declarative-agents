@@ -6,6 +6,7 @@ import (
 	"encoding/json"
 	"os"
 	"path/filepath"
+	"strings"
 	"testing"
 
 	"github.com/stretchr/testify/require"
@@ -25,7 +26,16 @@ func TestListResourceListsConfiguredDocuments(t *testing.T) {
 	writeResourceFixture(t, root, "docs/specs/use-cases/uc.yaml", "title: Use\n")
 	writeResourceFixture(t, root, "docs/ignored.txt", "ignored\n")
 
-	res := resourceBuilder(root).Build(toolReq(`{"resource":"docs"}`)).Execute()
+	res := resourceBuilder(root).Build(core.Result{Output: strings.Join([]string{
+		"VISION.yaml",
+		"road-map.yaml",
+		"specs/config-formats/cfg.yaml",
+		"specs/semantic-models/model.yaml",
+		"specs/software-requirements/srd.yaml",
+		"specs/test-suites/test.yaml",
+		"specs/use-cases/uc.yaml",
+		"ignored.txt",
+	}, "\n")}).Execute()
 
 	require.Equal(t, SignalDocumentListReady, res.Signal)
 	var entries []resourceEntry
@@ -39,6 +49,37 @@ func TestListResourceListsConfiguredDocuments(t *testing.T) {
 		{Path: "specs/test-suites/test.yaml", Name: "test", Category: "test-suite", Extension: "yaml", Size: 12},
 		{Path: "specs/use-cases/uc.yaml", Name: "uc", Category: "use-case", Extension: "yaml", Size: 11},
 	}, entries)
+}
+
+func TestListResourceUsesGenericCategoriesWithoutProfileRules(t *testing.T) {
+	t.Parallel()
+	root := t.TempDir()
+	writeResourceFixture(t, root, "docs/README.yaml", "title: Root\n")
+	writeResourceFixture(t, root, "docs/domain/nested.yaml", "title: Nested\n")
+	config := resourceTestConfig()
+	config.Resource = "docs"
+	def := config.Resources["docs"]
+	def.CategoryRules = nil
+	config.Resources["docs"] = def
+
+	res := (&ListResourceBuilder{Root: root, Resources: config}).
+		Build(core.Result{Output: "README.yaml\ndomain/nested.yaml"}).Execute()
+
+	require.Equal(t, SignalDocumentListReady, res.Signal)
+	var entries []resourceEntry
+	require.NoError(t, json.Unmarshal([]byte(res.Output), &entries))
+	require.Equal(t, "root", entries[0].Category)
+	require.Equal(t, "domain", entries[1].Category)
+}
+
+func TestListResourceDeniesDiscoveredPathOutsideResource(t *testing.T) {
+	t.Parallel()
+	root := t.TempDir()
+	writeResourceFixture(t, root, "outside.yaml", "title: Outside\n")
+
+	res := resourceBuilder(root).Build(core.Result{Output: "../outside.yaml"}).Execute()
+
+	require.Equal(t, SignalDocumentResourceDenied, res.Signal)
 }
 
 func TestReadResourceReturnsRawAndParsedYAML(t *testing.T) {
@@ -65,7 +106,7 @@ func TestResourceBuildersUseConfiguredResource(t *testing.T) {
 	config.Resource = "docs"
 
 	list := (&ListResourceBuilder{Root: root, Resources: config}).
-		Build(toolReq(`{"resource":"invented"}`)).Execute()
+		Build(core.Result{Output: "VISION.yaml"}).Execute()
 	require.Equal(t, SignalDocumentListReady, list.Signal)
 
 	read := (&ReadResourceBuilder{Root: root, Resources: config}).
@@ -114,7 +155,9 @@ func TestReadResourceInvalidYAMLUsesParseSignal(t *testing.T) {
 }
 
 func resourceBuilder(root string) *ListResourceBuilder {
-	return &ListResourceBuilder{Root: root, Resources: resourceTestConfig()}
+	config := resourceTestConfig()
+	config.Resource = "docs"
+	return &ListResourceBuilder{Root: root, Resources: config}
 }
 
 func readResourceBuilder(root string) *ReadResourceBuilder {
@@ -129,6 +172,15 @@ func resourceTestConfig() ResourceConfig {
 			Extensions: []string{"yaml", "yml"},
 			Modes:      []string{"raw_yaml", "parsed_yaml"},
 			MaxBytes:   4096,
+			CategoryRules: []ResourceCategoryRule{
+				{Pattern: "road-map.yaml", Category: "release"},
+				{Pattern: "*.yaml", Category: "overview"},
+				{Pattern: "specs/software-requirements/**", Category: "srd"},
+				{Pattern: "specs/semantic-models/**", Category: "semantic-model"},
+				{Pattern: "specs/config-formats/**", Category: "config-format"},
+				{Pattern: "specs/use-cases/**", Category: "use-case"},
+				{Pattern: "specs/test-suites/**", Category: "test-suite"},
+			},
 		},
 	}}
 }

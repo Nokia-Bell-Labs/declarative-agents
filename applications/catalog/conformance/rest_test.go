@@ -21,9 +21,8 @@ const restOllamaModel = "qwen3.6:35b-mlx"
 // webhook event, then stop to reach Succeeded. It mirrors the launch/await/stop
 // tail of the full rest machine (testdata/conformance/rest/machine.yaml) — the wiring
 // TestRestShippedProfileWiring asserts the shipped machine actually ships — but
-// omits the client read/create/await head. The client head is exercised hermetically at
-// the agent-core package level (rest.TestRESTClient_AwaitOperationPolling drives
-// create -> await_operation poll -> respond against a mock upstream); the client
+// omits the client read/create/probe head. The shipped machine keeps readiness
+// polling explicit as probe -> delay -> probe transitions; the client
 // steps cannot run in a profile machine because REST client tools enforce a
 // declared-only runtime input contract while the loop threads each step's full
 // output verbatim, so a client step following another tool step is rejected and
@@ -155,7 +154,7 @@ rest_definitions:
 // runs assume. It proves (a) the shipped sample machine
 // (testdata/conformance/rest/machine.yaml) actually contains the launch -> await -> stop
 // inbound webhook boundary that TestRestConformance drives via a bounded
-// machine — the sample profile's client read/create/await head cannot run
+// machine — the sample profile's client read/create/probe head cannot run
 // in-profile (see restWebhookMachine), so the boundary is the runnable slice of
 // the shipped grammar — and (b) the shipped ollama-profile.yaml variant
 // references its own machine, tools, Ollama LLM declaration, and REST
@@ -166,14 +165,17 @@ rest_definitions:
 // (launch_payment_webhooks -> await_payment_webhook -> stop_payment_webhooks ->
 // Succeeded).
 func TestRestShippedProfileWiring(t *testing.T) {
-	// (a) The shipped sample machine wires the inbound webhook boundary.
+	// (a) The shipped sample machine wires explicit client polling and the inbound webhook boundary.
 	var machine struct {
 		InitialState string              `yaml:"initial_state"`
 		Transitions  []machineTransition `yaml:"transitions"`
 	}
 	unmarshalShipped(t, filepath.Join("testdata", "conformance", "rest", "machine.yaml"), &machine)
 
-	requireTransition(t, machine.Transitions, "AwaitingPayment", "RESTResponded", "LaunchingWebhook", "launch_payment_webhooks")
+	requireTransition(t, machine.Transitions, "CreatingPayment", "RESTAccepted", "ProbingPayment", "probe_payment")
+	requireTransition(t, machine.Transitions, "ProbingPayment", "RESTMissing", "WaitingPaymentRetry", "wait_payment_retry")
+	requireTransition(t, machine.Transitions, "WaitingPaymentRetry", "PaymentRetryReady", "ProbingPayment", "probe_payment")
+	requireTransition(t, machine.Transitions, "ProbingPayment", "RESTResourceRead", "LaunchingWebhook", "launch_payment_webhooks")
 	requireTransition(t, machine.Transitions, "LaunchingWebhook", "ServerLaunched", "WaitingWebhook", "await_payment_webhook")
 	requireTransition(t, machine.Transitions, "WaitingWebhook", "PaymentWebhookReceived", "StoppingWebhook", "stop_payment_webhooks")
 	requireTransition(t, machine.Transitions, "StoppingWebhook", "ServerStopped", "Succeeded", "")
