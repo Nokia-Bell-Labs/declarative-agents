@@ -11,8 +11,11 @@ overview: |
   lifecycle, the closed tool vocabulary, the flat workflow-orchestrator
   machine, and the flat structure-editor, voice-editor, and style-editor
   machines, and the independent voice-critic machine and Pangram boundary. One
-  planned use case and one planned test suite will trace all eight SRDs reciprocally.
-  No profile, service, tool, test, or executable evidence is implemented.
+  planned use case and one 29-case planned test suite trace all eight SRDs
+  reciprocally. The use case names all 192 requirement items at exact
+  touchpoints. Its ten success criteria and the suite cover all 63 SRD
+  acceptance criteria. No profile, service, tool, runtime test, or executable
+  evidence is implemented.
 
   Shared application and agent-core requirements remain external references.
   Local SRDs will cite them and define only Voice Forge behavior and stricter
@@ -24,7 +27,7 @@ roadmap_summary:
     use_cases_done: 0
     use_cases_total: 1
     status: planned
-    evidence: srd001 through srd008 are specified; no executable evidence exists.
+    evidence: Eight SRDs, one planned use case, and one 29-case planned test suite are documented; no executable evidence exists.
 
 foundation_document_index:
   - id: voice-forge-readme
@@ -132,7 +135,7 @@ test_suite_index:
     title: Voice Forge Release 00.0 Test Suite
     release: "00.0"
     status: planned
-    test_case_count: planned
+    test_case_count: 29
     traces: [rel00.0-uc001-edit-document]
     srds:
       - srd001-voice-forge-services
@@ -147,11 +150,14 @@ test_suite_index:
 
 coverage_gaps:
   - id: planned-srd-corpus
-    status: planned
+    status: documentation_complete_runtime_planned
     description: |
-      SRDs srd001 through srd008 are specified with requirement and
-      acceptance-criterion traces. The release use case and test suite remain
-      planned for reciprocal executable trace definition.
+      SRDs srd001 through srd008, rel00.0-uc001-edit-document, and
+      test-rel00.0-voice-forge now provide reciprocal documentation traces.
+      All 192 requirement items map to SRD acceptance criteria and exact use-case
+      touchpoints. All 63 acceptance criteria map to use-case success criteria
+      and planned tests. Runtime implementation and executable evidence remain
+      planned.
   - id: planned-runtime-signal-alignment
     status: planned
     description: |
@@ -160,12 +166,6 @@ coverage_gaps:
       result payload fields. Future profile ToolDefs and fixed non-shell helpers
       must implement those declared emissions before any MachineSpec can
       validate; no runtime machine or executable conformance is claimed.
-  - id: planned-release-trace
-    status: planned
-    description: |
-      rel00.0-uc001-edit-document and test-rel00.0-voice-forge are indexed but
-      do not yet exist. GH-1117 will define reciprocal touchpoint, success-
-      criterion, acceptance-criterion, and test-case coverage.
   - id: executable-application
     status: planned
     description: |

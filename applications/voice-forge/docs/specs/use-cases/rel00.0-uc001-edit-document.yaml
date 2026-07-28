@@ -1,0 +1,559 @@
+id: rel00.0-uc001-edit-document
+title: Edit and Publish a Corpus-Conditioned Document
+release: "00.0"
+status: planned
+runtime_status: unimplemented
+
+summary: |
+  A human asks Voice Forge to edit one GitHub document at a selected revision,
+  names the target voice and bounded retry and publication policy, and either
+  grants or withholds exact-hash Pangram upload consent. The planned
+  workflow-orchestrator resolves and captures the source as an immutable
+  original, invokes structure, voice, and style editors serially, obtains an
+  independent six-category critic verdict, replays the responsible stage and
+  all downstream stages when bounded policy permits, finalizes one immutable
+  accepted lineage, and performs one create-or-reuse commit, non-force push,
+  and pull request.
+
+  Every remote intent and accepted or rejected result is durable before the
+  next action. Re-entry reuses recorded identities. Recovery reconciles the
+  append-only application manifest with agent-core checkpoint state. Pangram
+  denial, absence, invalid consent, pending, failure, or unavailability remains
+  explicit advisory evidence and never changes the independently validated
+  verdict. This document specifies planned behavior only; no runtime or
+  executable evidence exists.
+
+actor: |
+  A human document owner who supplies repository, source path and revision,
+  target voice, bounded retry and warn policy, publication destination, saga
+  identity, and an explicit Pangram consent decision. The human retains intent,
+  policy, privacy, exception, and accountability authority.
+
+trigger: |
+  The human submits one validated Voice Forge request for a GitHub-hosted source
+  document and a release 00.0 serial edit-and-publication saga.
+
+preconditions:
+  - The source and publication repositories, base, branch shape, models, corpus identities, service endpoints, credentials, output root, and hard limits are trusted configuration.
+  - The requested repository, path, revision, destination, policy, and saga identity pass the planned allowlist, containment, and conflict checks.
+  - The persistent output workspace is available to exactly one orchestrator writer for the saga ID.
+  - Structure, voice, and tightening corpora remain authoritative outside Chroma; their three planned RAG instances are read-only and corpus-scoped.
+  - Runtime profiles, machines, ToolDefs, helpers, services, tests, and external integrations remain unimplemented in release 00.0.
+
+flow:
+  - id: F1
+    text: |
+      The orchestrator validates the human request, source and publication
+      authority, retry and warn policy, saga identity, and Pangram consent
+      record. It appends and projects the request intent before remote work.
+  - id: F2
+    text: |
+      The orchestrator resolves the requested revision to one full commit,
+      fetches that commit through fixed constrained GitHub source operations,
+      reads the validated blob, computes its SHA-256 and byte length, and writes
+      or reuses 00-original.md exactly once.
+  - id: F3
+    text: |
+      The orchestrator records the captured source repository, path, full
+      commit, exact bytes, digest, and artifact identity in append-only manifest
+      history, projects manifest.yaml, and never overwrites the original.
+  - id: F4
+    text: |
+      The orchestrator appends and projects one structure intent, reads and
+      verifies the immutable original, and invokes structure-editor with bytes
+      and identities rather than a workspace path.
+  - id: F5
+    text: |
+      Structure-editor deterministically retrieves section or outline evidence
+      from structure-rag, permits at most one grounding refinement, performs
+      only supported structural operations, validates semantic and required
+      content preservation, and returns data without persistence authority.
+  - id: F6
+    text: |
+      The orchestrator validates, hashes, and writes or reuses the structure
+      response at its immutable attempt path, then appends and projects its
+      accepted or rejected result before continuing.
+  - id: F7
+    text: |
+      From the selected accepted structure parent, voice-editor retrieves
+      independently mapped rhetorical-role and register anchors from voice-rag,
+      rewrites eligible passages in their original slots, validates meaning and
+      protected content, checks provenance-bound copy risk, and bounds internal
+      candidate generation to three attempts.
+  - id: F8
+    text: |
+      The orchestrator validates, hashes, and persists the voice attempt and its
+      provenance before selecting it and durably advancing.
+  - id: F9
+    text: |
+      From the selected accepted voice parent, style-editor identifies explicit
+      tightening targets, retrieves applicable before/after pairs only from
+      tightening-rag, edits only target spans, preserves voice and protected
+      content, and bounds pair refinement and candidate retries.
+  - id: F10
+    text: |
+      The orchestrator validates, hashes, and persists the style attempt and its
+      complete pair lineage before selecting it and durably advancing.
+  - id: F11
+    text: |
+      The orchestrator appends and projects critique intent, verifies and reads
+      the immutable original and selected style candidate, and invokes the
+      isolated voice-critic with exact bytes, hashes, policy, and consent but no
+      editor reasoning, conversation, path, or verdict recommendation.
+  - id: F12
+    text: |
+      The critic retrieves its own voice evidence and completes semantic
+      preservation, structural intent, voice match, tightening quality,
+      unsupported additions, and anchor-copy-risk findings. Raw model output is
+      parsed and deterministically validated before consent or Pangram routing.
+  - id: F13
+    text: |
+      Only exact-hash, affirmative, unexpired consent reaches separate original
+      and candidate Pangram submit and bounded poll operations. Denied, absent,
+      expired, malformed, or hash-mismatched consent performs no upload.
+      Pending, STAGE_FAILED, timeout, provider failure, and unavailability
+      remain explicit advisory statuses and cannot alter verdict or responsible
+      stage.
+  - id: F14
+    text: |
+      The orchestrator stores the hash-bound critique attempt and manifest
+      result before routing. Pass or policy-permitted warn may proceed. Reject
+      contains exactly one responsible stage: structure, voice, or style.
+  - id: F15
+    text: |
+      Structure rejection restarts from the original and replays structure,
+      voice, style, and critique. Voice rejection preserves selected structure
+      and replays voice onward. Style rejection preserves structure and voice
+      and replays style and critique. Semantic and unsupported-addition findings
+      use the critic-selected responsible editor; no semantic editor exists.
+  - id: F16
+    text: |
+      Every domain retry allocates a new monotonic responsible-stage attempt
+      only after replay intent is durable. Infrastructure retry reuses the
+      current attempt and idempotency key. Exhaustion reaches kept_original or
+      failed under recorded policy and cannot finalize or publish.
+  - id: F17
+    text: |
+      After critic acceptance, finalization creates or reuses 10-structure.md,
+      20-voice.md, 30-style.md, 40-critique.yaml, and final.md exactly once from
+      the selected immutable attempts. final.md is byte-identical to
+      30-style.md; any mismatching existing fixed file blocks progress.
+  - id: F18
+    text: |
+      The orchestrator records one publication key and expected tree, checks
+      identities, creates or reuses one branch, stages the complete finalized
+      saga root, creates or reuses exactly one commit, persists the commit,
+      performs one non-force create-or-reuse push, persists the ref, finds or
+      creates one pull request, persists its identity, and verifies commit,
+      tree, branch head, base, and pull request before published.
+  - id: F19
+    text: |
+      On duplicate delivery or restart, the orchestrator locks and validates the
+      saga, repairs manifest.yaml from contiguous immutable history, verifies
+      every referenced hash, compares checkpoint metadata, and resumes the next
+      incomplete action with recorded identities. Matching effects are reused;
+      conflicts and unverifiable partial publication become
+      publication_blocked and suspend for bounded operator action without force
+      push, deletion, replacement, history rewrite, or false compensation.
+  - id: F20
+    text: |
+      The orchestrator exits only after the matching terminal manifest revision
+      is durable. Release, use case, test suite, runtime, and evidence statuses
+      remain planned or unimplemented until future executable evidence exists.
+
+touchpoints:
+  - id: T1
+    component: service topology and human boundary
+    requirements:
+      - srd001-voice-forge-services R1.1
+      - srd001-voice-forge-services R1.2
+      - srd001-voice-forge-services R1.3
+      - srd001-voice-forge-services R2.1
+      - srd001-voice-forge-services R2.2
+      - srd001-voice-forge-services R2.3
+      - srd001-voice-forge-services R3.1
+      - srd001-voice-forge-services R3.2
+      - srd001-voice-forge-services R3.3
+      - srd001-voice-forge-services R3.4
+      - srd001-voice-forge-services R4.1
+      - srd001-voice-forge-services R4.2
+      - srd001-voice-forge-services R4.3
+      - srd001-voice-forge-services R4.4
+      - srd001-voice-forge-services R5.1
+      - srd001-voice-forge-services R5.2
+      - srd001-voice-forge-services R5.3
+      - srd001-voice-forge-services R5.4
+      - srd001-voice-forge-services R6.1
+      - srd001-voice-forge-services R6.2
+      - srd001-voice-forge-services R6.3
+      - srd001-voice-forge-services R6.4
+      - srd001-voice-forge-services R7.1
+      - srd001-voice-forge-services R7.2
+    reason: |
+      F1 through F20 use the six separated actors, canonical role bindings,
+      corpus-scoped retrieval, human policy, exclusive mutation and Pangram
+      authority, attributed failures, and honest planned status.
+  - id: T2
+    component: immutable saga and publication lineage
+    requirements:
+      - srd002-writing-saga-workproducts R1.1
+      - srd002-writing-saga-workproducts R1.2
+      - srd002-writing-saga-workproducts R1.3
+      - srd002-writing-saga-workproducts R1.4
+      - srd002-writing-saga-workproducts R2.1
+      - srd002-writing-saga-workproducts R2.2
+      - srd002-writing-saga-workproducts R2.3
+      - srd002-writing-saga-workproducts R2.4
+      - srd002-writing-saga-workproducts R2.5
+      - srd002-writing-saga-workproducts R3.1
+      - srd002-writing-saga-workproducts R3.2
+      - srd002-writing-saga-workproducts R3.3
+      - srd002-writing-saga-workproducts R3.4
+      - srd002-writing-saga-workproducts R4.1
+      - srd002-writing-saga-workproducts R4.2
+      - srd002-writing-saga-workproducts R4.3
+      - srd002-writing-saga-workproducts R4.4
+      - srd002-writing-saga-workproducts R4.5
+      - srd002-writing-saga-workproducts R5.1
+      - srd002-writing-saga-workproducts R5.2
+      - srd002-writing-saga-workproducts R5.3
+      - srd002-writing-saga-workproducts R5.4
+      - srd002-writing-saga-workproducts R6.1
+      - srd002-writing-saga-workproducts R6.2
+      - srd002-writing-saga-workproducts R6.3
+      - srd002-writing-saga-workproducts R6.4
+      - srd002-writing-saga-workproducts R7.1
+      - srd002-writing-saga-workproducts R7.2
+      - srd002-writing-saga-workproducts R7.3
+      - srd002-writing-saga-workproducts R7.4
+      - srd002-writing-saga-workproducts R8.1
+      - srd002-writing-saga-workproducts R8.2
+      - srd002-writing-saga-workproducts R8.3
+      - srd002-writing-saga-workproducts R8.4
+      - srd002-writing-saga-workproducts R8.5
+    reason: |
+      F2 through F19 exercise exact source identity, immutable attempts,
+      append-only lineage, durable intent, responsible-stage compensation,
+      restart reconciliation, finalization, and one forward publication.
+  - id: T3
+    component: closed tool, factory, signal, label, and authority boundary
+    requirements:
+      - srd003-writing-agent-tools R1.1
+      - srd003-writing-agent-tools R1.2
+      - srd003-writing-agent-tools R1.3
+      - srd003-writing-agent-tools R1.4
+      - srd003-writing-agent-tools R2.1
+      - srd003-writing-agent-tools R2.2
+      - srd003-writing-agent-tools R2.3
+      - srd003-writing-agent-tools R2.4
+      - srd003-writing-agent-tools R2.5
+      - srd003-writing-agent-tools R3.1
+      - srd003-writing-agent-tools R3.2
+      - srd003-writing-agent-tools R3.3
+      - srd003-writing-agent-tools R4.1
+      - srd003-writing-agent-tools R4.2
+      - srd003-writing-agent-tools R4.3
+      - srd003-writing-agent-tools R4.4
+      - srd003-writing-agent-tools R4.5
+      - srd003-writing-agent-tools R4.6
+      - srd003-writing-agent-tools R4.7
+      - srd003-writing-agent-tools R4.8
+      - srd003-writing-agent-tools R5.1
+      - srd003-writing-agent-tools R5.2
+      - srd003-writing-agent-tools R5.3
+      - srd003-writing-agent-tools R6.1
+      - srd003-writing-agent-tools R6.2
+      - srd003-writing-agent-tools R6.3
+      - srd003-writing-agent-tools R7.1
+      - srd003-writing-agent-tools R7.2
+      - srd003-writing-agent-tools R7.3
+      - srd003-writing-agent-tools R7.4
+    reason: |
+      Every F2 through F19 boundary uses the owning named word, actual factory
+      emissions, stable labels, explicit parsing and scalar routing, honest
+      compensation, and no arbitrary shell or widened authority.
+  - id: T4
+    component: workflow-orchestrator machine
+    requirements:
+      - srd004-workflow-orchestrator R1.1
+      - srd004-workflow-orchestrator R1.2
+      - srd004-workflow-orchestrator R1.3
+      - srd004-workflow-orchestrator R2.1
+      - srd004-workflow-orchestrator R2.2
+      - srd004-workflow-orchestrator R2.3
+      - srd004-workflow-orchestrator R2.4
+      - srd004-workflow-orchestrator R3.1
+      - srd004-workflow-orchestrator R3.2
+      - srd004-workflow-orchestrator R3.3
+      - srd004-workflow-orchestrator R3.4
+      - srd004-workflow-orchestrator R4.1
+      - srd004-workflow-orchestrator R4.2
+      - srd004-workflow-orchestrator R4.3
+      - srd004-workflow-orchestrator R4.4
+      - srd004-workflow-orchestrator R5.1
+      - srd004-workflow-orchestrator R5.2
+      - srd004-workflow-orchestrator R5.3
+      - srd004-workflow-orchestrator R6.1
+      - srd004-workflow-orchestrator R6.2
+      - srd004-workflow-orchestrator R6.3
+      - srd004-workflow-orchestrator R6.4
+      - srd004-workflow-orchestrator R7.1
+      - srd004-workflow-orchestrator R7.2
+    reason: |
+      F1 through F20 follow the flat durable state order, distinguish domain and
+      infrastructure outcomes, close responsible-stage routes, prove the
+      acceptance cut, recover both persistence orderings, and publish forward.
+  - id: T5
+    component: structure-editor machine
+    requirements:
+      - srd005-structure-editor R1.1
+      - srd005-structure-editor R1.2
+      - srd005-structure-editor R2.1
+      - srd005-structure-editor R2.2
+      - srd005-structure-editor R3.1
+      - srd005-structure-editor R3.2
+      - srd005-structure-editor R3.3
+      - srd005-structure-editor R4.1
+      - srd005-structure-editor R4.2
+      - srd005-structure-editor R4.3
+      - srd005-structure-editor R5.1
+      - srd005-structure-editor R5.2
+      - srd005-structure-editor R5.3
+      - srd005-structure-editor R6.1
+      - srd005-structure-editor R6.2
+      - srd005-structure-editor R7.1
+      - srd005-structure-editor R7.2
+    reason: |
+      F4 through F6 use a path-free accepted parent, retrieval-before-edit,
+      one refinement, structure-only preservation, fixed responses, and
+      non-authoritative data return.
+  - id: T6
+    component: voice-editor machine
+    requirements:
+      - srd006-voice-editor R1.1
+      - srd006-voice-editor R1.2
+      - srd006-voice-editor R2.1
+      - srd006-voice-editor R2.2
+      - srd006-voice-editor R2.3
+      - srd006-voice-editor R3.1
+      - srd006-voice-editor R3.2
+      - srd006-voice-editor R3.3
+      - srd006-voice-editor R3.4
+      - srd006-voice-editor R4.1
+      - srd006-voice-editor R4.2
+      - srd006-voice-editor R4.3
+      - srd006-voice-editor R5.1
+      - srd006-voice-editor R5.2
+      - srd006-voice-editor R5.3
+      - srd006-voice-editor R5.4
+      - srd006-voice-editor R6.1
+      - srd006-voice-editor R6.2
+      - srd006-voice-editor R6.3
+      - srd006-voice-editor R6.4
+      - srd006-voice-editor R7.1
+      - srd006-voice-editor R7.2
+    reason: |
+      F7 and F8 use the selected structure parent, role/register retrieval,
+      bounded voice-only rewrites, deterministic preservation, copy-risk
+      control, fixed response data, and no persistence or acceptance authority.
+  - id: T7
+    component: style-editor machine
+    requirements:
+      - srd007-style-editor R1.1
+      - srd007-style-editor R1.2
+      - srd007-style-editor R2.1
+      - srd007-style-editor R2.2
+      - srd007-style-editor R2.3
+      - srd007-style-editor R3.1
+      - srd007-style-editor R3.2
+      - srd007-style-editor R3.3
+      - srd007-style-editor R3.4
+      - srd007-style-editor R4.1
+      - srd007-style-editor R4.2
+      - srd007-style-editor R4.3
+      - srd007-style-editor R4.4
+      - srd007-style-editor R5.1
+      - srd007-style-editor R5.2
+      - srd007-style-editor R5.3
+      - srd007-style-editor R6.1
+      - srd007-style-editor R6.2
+    reason: |
+      F9 and F10 use explicit intents, pair retrieval before target-only edits,
+      preservation and bounded retry, fixed fail-closed responses, and no
+      persistence or acceptance authority.
+  - id: T8
+    component: voice-critic and Pangram boundary
+    requirements:
+      - srd008-voice-critic R1.1
+      - srd008-voice-critic R1.2
+      - srd008-voice-critic R2.1
+      - srd008-voice-critic R2.2
+      - srd008-voice-critic R3.1
+      - srd008-voice-critic R3.2
+      - srd008-voice-critic R3.3
+      - srd008-voice-critic R4.1
+      - srd008-voice-critic R4.2
+      - srd008-voice-critic R4.3
+      - srd008-voice-critic R5.1
+      - srd008-voice-critic R5.2
+      - srd008-voice-critic R6.1
+      - srd008-voice-critic R6.2
+      - srd008-voice-critic R6.3
+      - srd008-voice-critic R7.1
+      - srd008-voice-critic R7.2
+      - srd008-voice-critic R7.3
+      - srd008-voice-critic R8.1
+      - srd008-voice-critic R8.2
+      - srd008-voice-critic R8.3
+      - srd008-voice-critic R9.1
+    reason: |
+      F11 through F15 bind exact immutable inputs, isolate independent
+      assessment, require six findings, close verdict and responsible-stage
+      cardinality, dominate uploads with consent, retain separate asynchronous
+      advisory statuses, and deny critic mutation or publication authority.
+
+success_criteria:
+  - id: S1
+    criterion: |
+      The scenario keeps actor, role, lifecycle, corpus, configuration, failure,
+      and exclusive authority boundaries closed while runtime remains planned.
+    traces:
+      - srd001-voice-forge-services AC1
+      - srd001-voice-forge-services AC2
+      - srd001-voice-forge-services AC3
+      - srd001-voice-forge-services AC4
+      - srd001-voice-forge-services AC5
+      - srd001-voice-forge-services AC6
+      - srd001-voice-forge-services AC7
+  - id: S2
+    criterion: |
+      Exact immutable source, attempt, critique, finalized, manifest, retry,
+      recovery, and one-publication lineage remains complete and idempotent.
+    traces:
+      - srd002-writing-saga-workproducts AC1
+      - srd002-writing-saga-workproducts AC2
+      - srd002-writing-saga-workproducts AC3
+      - srd002-writing-saga-workproducts AC4
+      - srd002-writing-saga-workproducts AC5
+      - srd002-writing-saga-workproducts AC6
+      - srd002-writing-saga-workproducts AC7
+      - srd002-writing-saga-workproducts AC8
+  - id: S3
+    criterion: |
+      Every boundary action uses the closed owner-specific vocabulary, actual
+      factory signals, stable labels, fail-closed selectors, and honest effects.
+    traces:
+      - srd003-writing-agent-tools AC1
+      - srd003-writing-agent-tools AC2
+      - srd003-writing-agent-tools AC3
+      - srd003-writing-agent-tools AC4
+      - srd003-writing-agent-tools AC5
+      - srd003-writing-agent-tools AC6
+      - srd003-writing-agent-tools AC7
+  - id: S4
+    criterion: |
+      The flat orchestrator persists before progress, routes responsible-stage
+      replay, recovers at every cut, crosses the acceptance cut only on a valid
+      critic result, and converges or blocks forward publication safely.
+    traces:
+      - srd004-workflow-orchestrator AC1
+      - srd004-workflow-orchestrator AC2
+      - srd004-workflow-orchestrator AC3
+      - srd004-workflow-orchestrator AC4
+      - srd004-workflow-orchestrator AC5
+      - srd004-workflow-orchestrator AC6
+      - srd004-workflow-orchestrator AC7
+      - srd004-workflow-orchestrator AC8
+  - id: S5
+    criterion: |
+      Structure editing is retrieval-grounded, structure-only, bounded,
+      provenance-complete, fail-closed, and non-authoritative.
+    traces:
+      - srd005-structure-editor AC1
+      - srd005-structure-editor AC2
+      - srd005-structure-editor AC3
+      - srd005-structure-editor AC4
+      - srd005-structure-editor AC5
+      - srd005-structure-editor AC6
+      - srd005-structure-editor AC7
+  - id: S6
+    criterion: |
+      Voice editing preserves the accepted structure and protected meaning,
+      uses role/register anchors, bounds refinement and rewrites, controls copy
+      risk, and returns only non-authoritative data.
+    traces:
+      - srd006-voice-editor AC1
+      - srd006-voice-editor AC2
+      - srd006-voice-editor AC3
+      - srd006-voice-editor AC4
+      - srd006-voice-editor AC5
+      - srd006-voice-editor AC6
+      - srd006-voice-editor AC7
+      - srd006-voice-editor AC8
+      - srd006-voice-editor AC9
+  - id: S7
+    criterion: |
+      Style editing changes only explicit pair-grounded targets, preserves voice
+      and protected content, bounds refinement and retries, fails closed, and
+      returns only non-authoritative data.
+    traces:
+      - srd007-style-editor AC1
+      - srd007-style-editor AC2
+      - srd007-style-editor AC3
+      - srd007-style-editor AC4
+      - srd007-style-editor AC5
+      - srd007-style-editor AC6
+      - srd007-style-editor AC7
+      - srd007-style-editor AC8
+  - id: S8
+    criterion: |
+      Independent exact-hash criticism covers all six categories, closes
+      responsible stages, enforces consent dominance, keeps separate Pangram
+      scans advisory and explicit, bounds polls, and cannot edit or publish.
+    traces:
+      - srd008-voice-critic AC1
+      - srd008-voice-critic AC2
+      - srd008-voice-critic AC3
+      - srd008-voice-critic AC4
+      - srd008-voice-critic AC5
+      - srd008-voice-critic AC6
+      - srd008-voice-critic AC7
+      - srd008-voice-critic AC8
+      - srd008-voice-critic AC9
+  - id: S9
+    criterion: |
+      One accepted selected lineage yields exactly one commit, one non-force
+      pushed ref, and one verified pull request; duplicate or partial execution
+      reuses identities or enters a preserved blocked state.
+    traces:
+      - srd002-writing-saga-workproducts AC5
+      - srd002-writing-saga-workproducts AC7
+      - srd002-writing-saga-workproducts AC8
+      - srd003-writing-agent-tools AC3
+      - srd004-workflow-orchestrator AC6
+      - srd004-workflow-orchestrator AC7
+  - id: S10
+    criterion: |
+      Release, use case, test suite, profiles, machines, ToolDefs, helpers,
+      services, integrations, tests, publication, and executable evidence remain
+      planned or unimplemented without a runtime conformance claim.
+    traces:
+      - srd001-voice-forge-services AC7
+      - srd002-writing-saga-workproducts AC8
+      - srd003-writing-agent-tools AC7
+      - srd004-workflow-orchestrator AC8
+      - srd005-structure-editor AC7
+      - srd006-voice-editor AC9
+      - srd007-style-editor AC8
+      - srd008-voice-critic AC9
+
+out_of_scope:
+  - Runtime profiles, MachineSpecs, ToolDefs, helper executables, services, storage wiring, REST or model declarations, tests, deployment, and root registration.
+  - Executing a real source capture, edit, Pangram upload, commit, push, or pull request.
+  - Parallel document or section processing; release 00.0 processes one document serially.
+  - A semantic editor, a critic retry stage, a Pangram retry stage, or any responsible stage outside structure, voice, and style.
+  - Destructive compensation for immutable files, model or retrieval calls, Pangram uploads, commits, pushes, refs, or pull requests.
+  - Treating Pangram, model confidence, detector output, retrieval distance, or editor self-assessment as acceptance authority.
+
+test_suite_trace: test-rel00.0-voice-forge
+evidence_status: none

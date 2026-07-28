@@ -17,7 +17,7 @@ releases:
       registry changes, or publication evidence.
     status: planned
     capability_status:
-      documentation: specification_in_progress
+      documentation: specification_complete
       runnable_module: not_implemented
       managed_service: planned
       packaged: not_planned_for_release
@@ -58,10 +58,12 @@ releases:
     test_suites:
       - id: test-rel00.0-voice-forge
         summary: |
-          Plan structural, authority, happy-path, specialist-rejection,
-          infrastructure-error, retry-exhaustion, restart-recovery, Pangram-
-          consent-denial, and idempotent-publication evidence.
+          Plan 29 structural, authority, happy-path, critic-category,
+          responsible-stage, boundary-error, retry-exhaustion, all-cut recovery,
+          Pangram consent and provider, idempotency, partial-publication,
+          immutable-lineage, closure, and documentation-consistency cases.
         status: planned
+        test_case_count: 29
     planned_workproducts:
       - {path: workproducts/<saga-id>/manifest.yaml, owner: workflow-orchestrator, status: planned}
       - {path: workproducts/<saga-id>/manifest-history/<revision>.yaml, owner: workflow-orchestrator, status: planned}
@@ -108,7 +110,7 @@ releases:
     evidence_status:
       foundation_yaml: documented
       srd_requirements: srd001_through_srd008_specified
-      reciprocal_traceability: srd001_through_srd008_indexed_use_case_and_test_suite_planned
+      reciprocal_traceability: 192_requirements_and_63_acceptance_criteria_closed_by_one_planned_use_case_and_29_planned_tests
       profiles_and_machines: not_implemented
       tools_and_services: not_implemented
       structural_tests: not_implemented
@@ -119,7 +121,8 @@ releases:
       root_registration: intentionally_unchanged
       executable_evidence: none
     completion_gate: |
-      Release 00.0 remains planned until all eight SRDs, the use case, and the
-      test suite exist with reciprocal traces and executable evidence proves the
-      declared boundaries and terminal outcome. Foundation YAML parsing alone
-      does not satisfy the release.
+      All eight SRDs, the use case, and the 29-case test suite exist with
+      reciprocal documentation traces. Release 00.0 remains planned until
+      future executable evidence proves the declared boundaries and terminal
+      outcome. Documentation parsing and trace closure alone do not satisfy the
+      runtime release.
