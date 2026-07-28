@@ -1,0 +1,128 @@
+id: voice-forge-roadmap
+title: Voice Forge Road Map
+
+releases:
+  - version: "00.0"
+    name: Corpus-conditioned document editing saga
+    description: |
+      Specify one serial original -> structure -> voice -> style -> critique ->
+      publication scenario. A human selects a GitHub source and policy. The
+      workflow orchestrator captures an immutable original, persists each
+      accepted specialist result and its lineage, routes bounded retries from
+      critic findings, and publishes the complete accepted saga in one commit,
+      push, and pull request.
+
+      This release is documentation-only and planned. It does not include
+      profiles, machines, tools, services, deployment, executable tests, root
+      registry changes, or publication evidence.
+    status: planned
+    capability_status:
+      documentation: specification_complete
+      runnable_module: not_implemented
+      managed_service: planned
+      packaged: not_planned_for_release
+      helm_managed: not_planned_for_release
+      kind_demo: not_planned_for_release
+    srds:
+      - id: srd001-voice-forge-services
+        status: specified
+        summary: Define all agent, supporting, and external service boundaries and authority.
+      - id: srd002-writing-saga-workproducts
+        status: specified
+        summary: Define exact immutable lineage, manifest state, stage contracts, idempotency, retries, non-destructive compensation, recovery, and one final publication.
+      - id: srd003-writing-agent-tools
+        status: specified
+        summary: Define the complete ToolDef vocabulary, existing-factory reuse, compensation, and exclusive boundary-tool ownership.
+      - id: srd004-workflow-orchestrator
+        status: specified
+        summary: Define exact flat orchestration, srd003 action mappings, persistence sequencing, responsible-stage replay, recovery, budgets, publication escalation, and terminal outcomes.
+      - id: srd005-structure-editor
+        status: specified
+        summary: Define flat request validation, section-and-outline retrieval, one refinement, structure-only editing, semantic constraints, outcomes, and provenance.
+      - id: srd006-voice-editor
+        status: specified
+        summary: Define flat accepted-structure validation, rhetorical-role and register passage retrieval, one refinement, bounded voice-only rewrites, deterministic preservation constraints, provenance, copy risk, and fail-closed outcomes.
+      - id: srd007-style-editor
+        status: specified
+        summary: Define flat accepted-voice validation, explicit target intents, before/after pair retrieval, one refinement, targeted tightening, deterministic preservation, bounded retry, fail-closed outcomes, and pair provenance.
+      - id: srd008-voice-critic
+        status: specified
+        summary: Define flat independent assurance, six findings, exact-hash consent, separate Pangram tasks, advisory comparison, categorized verdicts, responsible-stage closure, and bounded authority.
+    use_cases:
+      - id: rel00.0-uc001-edit-document
+        summary: |
+          Capture a GitHub original, perform structure, voice, and style stages,
+          obtain an independent verdict, retry bounded responsible stages, and
+          publish one accepted workproduct chain.
+        status: planned
+    test_suites:
+      - id: test-rel00.0-voice-forge
+        summary: |
+          Plan 29 structural, authority, happy-path, critic-category,
+          responsible-stage, boundary-error, retry-exhaustion, all-cut recovery,
+          Pangram consent and provider, idempotency, partial-publication,
+          immutable-lineage, closure, and documentation-consistency cases.
+        status: planned
+        test_case_count: 29
+    planned_workproducts:
+      - {path: workproducts/<saga-id>/manifest.yaml, owner: workflow-orchestrator, status: planned}
+      - {path: workproducts/<saga-id>/manifest-history/<revision>.yaml, owner: workflow-orchestrator, status: planned}
+      - {path: workproducts/<saga-id>/00-original.md, owner: workflow-orchestrator, status: planned}
+      - {path: workproducts/<saga-id>/attempts/<stage>/<attempt>-<sha256>.<md-or-yaml>, owner: workflow-orchestrator, status: planned}
+      - {path: workproducts/<saga-id>/10-structure.md, owner: workflow-orchestrator, status: planned}
+      - {path: workproducts/<saga-id>/20-voice.md, owner: workflow-orchestrator, status: planned}
+      - {path: workproducts/<saga-id>/30-style.md, owner: workflow-orchestrator, status: planned}
+      - {path: workproducts/<saga-id>/40-critique.yaml, owner: workflow-orchestrator, status: planned}
+      - {path: workproducts/<saga-id>/final.md, owner: workflow-orchestrator, status: planned}
+    dependencies:
+      - id: applications-shared-module-contract
+        reference: ../../docs/specs/software-requirements/srd001-application-module-contract.yaml
+        status: available
+        use: Cite baseline application governance without copying it.
+      - id: applications-managed-services-contract
+        reference: ../../docs/specs/software-requirements/srd002-managed-application-services.yaml
+        status: available
+        use: Cite applicable lifecycle and service obligations without copying them.
+      - id: agent-role-realizations
+        reference: ../../docs/specs/semantic-models/agent-role-realizations.yaml
+        status: available
+        use: Pin planned actor bindings and preserve canonical role ownership.
+      - id: canonical-corpus-ingest
+        reference: ../../catalog/
+        status: available_for_future_reference
+        use: Reuse the canonical program through a planned local wrapper.
+      - id: agent-core-profile-machine-tool-contracts
+        reference: ../../../agent-core/docs/specs/
+        status: available
+        use: Cite profile, machine, ToolDef, REST, lifecycle, checkpoint, and command-state authorities.
+      - id: chroma
+        boundary: rebuildable retrieval index
+        status: planned_dependency
+      - id: ollama
+        boundary: allowlisted embedding and generation model service
+        status: planned_dependency
+      - id: github
+        boundary: source and final publication platform
+        status: planned_dependency
+      - id: pangram
+        boundary: optional consent-gated advisory upload
+        status: planned_dependency
+    evidence_status:
+      foundation_yaml: documented
+      srd_requirements: srd001_through_srd008_specified
+      reciprocal_traceability: 192_requirements_and_63_acceptance_criteria_closed_by_one_planned_use_case_and_29_planned_tests
+      profiles_and_machines: not_implemented
+      tools_and_services: not_implemented
+      structural_tests: not_implemented
+      boundary_tests: not_implemented
+      failure_and_recovery_tests: not_implemented
+      end_to_end_test: not_implemented
+      publication_test: not_implemented
+      root_registration: intentionally_unchanged
+      executable_evidence: none
+    completion_gate: |
+      All eight SRDs, the use case, and the 29-case test suite exist with
+      reciprocal documentation traces. Release 00.0 remains planned until
+      future executable evidence proves the declared boundaries and terminal
+      outcome. Documentation parsing and trace closure alone do not satisfy the
+      runtime release.

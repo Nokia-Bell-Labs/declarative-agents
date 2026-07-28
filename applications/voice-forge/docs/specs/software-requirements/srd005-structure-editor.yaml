@@ -1,0 +1,746 @@
+id: srd005-structure-editor
+title: Structure Editor State Machine
+status: specified
+
+problem: |
+  Voice Forge needs a flat request machine that improves section and outline
+  structure without acquiring voice, style, criticism, publication, or
+  workproduct authority. A structure editor that edits before retrieval can
+  substitute generic model preferences for corpus evidence. An editor that
+  rewrites freely can change claims, citations, numbers, qualifications, or
+  required content while appearing to make only a structural change.
+
+  Agent-core MachineSpec branches on signals, not result payload fields.
+  Therefore grounding, the one permitted refinement, semantic-constraint
+  validation, and terminal response outcomes need bounded deterministic signals
+  in the srd003 word contracts. This SRD defines that signal-complete machine
+  while leaving all runtime declarations and evidence planned.
+
+goals:
+  - "G1: Define one flat declarative request machine from supplied parent content to a structured response."
+  - "G2: Make section or outline retrieval a structural prerequisite for every successful edit."
+  - "G3: Permit at most one deterministic query refinement when grounding is insufficient."
+  - "G4: Restrict edits to structure while preserving semantic and required-content constraints."
+  - "G5: Return content, retrieval provenance, and stage metadata without filesystem mutation."
+  - "G6: Exclude voice, style, critic, Pangram, GitHub, workproduct, and acceptance authority."
+
+applicability:
+  release: "00.0"
+  implementation_status: documentation_only_runtime_planned
+  owner: structure-editor
+  machine_form: planned_flat_machine_spec
+  runtime_machine_path: agents/structure-editor/machine.yaml
+  runtime_machine_status: not_implemented
+
+request_contract:
+  source: workflow-orchestrator
+  accepted_parent_kinds: [original, retry_parent]
+  required_fields:
+    - parent_content
+    - parent_artifact_id
+    - parent_content_hash
+    - saga_id
+    - stage
+    - attempt
+    - invocation_id
+    - idempotency_key
+    - bounded_structure_intent
+    - required_content_inventory
+    - policy_digest
+  constraints:
+    - stage equals structure.
+    - parent_content contains bytes, never a filesystem path or repository locator.
+    - A fresh structure attempt uses the immutable original as parent.
+    - A retry uses the orchestrator-selected retry parent recorded by the saga contract.
+    - Request fields cannot select endpoints, models, collections, tools, paths, refs, credentials, or publication behavior.
+
+flat_machine_contract:
+  initial_state: awaiting_request
+  terminal_states: [succeeded, no_op, insufficient_grounding, failed]
+
+  budgets:
+    machine:
+      max_iterations: 32
+      max_tokens: 200000
+      max_duration: 5m0s
+      max_consecutive_parse_errors: omitted
+    policy:
+      query_refinement_limit: 1
+      generation_limit: 1
+      rule: |
+        Refinement count starts at zero. StructureGroundingRefinementAllowed is
+        valid only at count zero. The refined query sets count one, after which
+        insufficient evidence emits StructureGroundingInsufficient. No transition
+        returns from editing or validation to retrieval or generation.
+
+  authority:
+    selected_srd003_words:
+      - validate_structure_request
+      - formulate_structure_query
+      - embed_structure_query
+      - query_structure_rag
+      - compose_structure_grounding_input
+      - inspect_structure_grounding
+      - parse_structure_grounding_report
+      - structure_grounding_sufficient
+      - structure_grounding_refinement_available
+      - compose_structure_edit_context
+      - generate_structure_edit
+      - compose_structure_constraint_input
+      - inspect_structure_constraints
+      - parse_structure_constraint_report
+      - structure_candidate_is_no_op
+      - structure_constraints_hold
+      - compose_structure_success_response
+      - compose_structure_no_op_response
+      - compose_structure_insufficient_response
+      - compose_structure_failed_response
+    prohibited_word_groups:
+      - orchestrator_workproducts
+      - orchestrator_children
+      - orchestrator_github
+      - critic_pangram
+      - corpus_wrapper
+      - lifecycle
+    prohibited_words:
+      - embed_voice_query
+      - query_voice_rag
+      - generate_voice_edit
+      - embed_tightening_query
+      - query_tightening_rag
+      - generate_style_edit
+      - embed_critic_voice_query
+      - query_critic_voice_rag
+      - evaluate_voice_candidate
+    prohibited_capabilities:
+      - read or write a filesystem or saga workproduct
+      - select a voice, imitate an exemplar, or perform style tightening
+      - issue a critic verdict or accept an artifact
+      - invoke Pangram
+      - invoke git, gh, GitHub, generic shell, or arbitrary REST
+      - write Chroma or select another retrieval corpus
+      - publish, commit, persist, or return a workspace path
+
+  action_bindings:
+    validate_request: {word: validate_structure_request, authority: srd003 word_vocabulary.editor_and_critic_retrieval}
+    formulate_query: {word: formulate_structure_query, authority: srd003 word_vocabulary.editor_and_critic_retrieval}
+    embed_query: {word: embed_structure_query, authority: srd003 word_vocabulary.editor_and_critic_retrieval}
+    retrieve_structure: {word: query_structure_rag, authority: srd003 word_vocabulary.editor_and_critic_retrieval}
+    compose_grounding_input: {word: compose_structure_grounding_input, authority: srd003 word_vocabulary.editor_and_critic_retrieval}
+    inspect_grounding: {word: inspect_structure_grounding, authority: srd003 word_vocabulary.editor_and_critic_retrieval}
+    parse_grounding_report: {word: parse_structure_grounding_report, authority: srd003 word_vocabulary.editor_and_critic_retrieval}
+    check_grounding: {word: structure_grounding_sufficient, authority: srd003 word_vocabulary.editor_and_critic_retrieval}
+    check_refinement: {word: structure_grounding_refinement_available, authority: srd003 word_vocabulary.editor_and_critic_retrieval}
+    compose_edit_context: {word: compose_structure_edit_context, authority: srd003 word_vocabulary.editor_and_critic_retrieval}
+    edit_structure: {word: generate_structure_edit, authority: srd003 word_vocabulary.editor_and_critic_retrieval}
+    compose_constraint_input: {word: compose_structure_constraint_input, authority: srd003 word_vocabulary.editor_and_critic_retrieval}
+    inspect_constraints: {word: inspect_structure_constraints, authority: srd003 word_vocabulary.editor_and_critic_retrieval}
+    parse_constraint_report: {word: parse_structure_constraint_report, authority: srd003 word_vocabulary.editor_and_critic_retrieval}
+    check_candidate_no_op: {word: structure_candidate_is_no_op, authority: srd003 word_vocabulary.editor_and_critic_retrieval}
+    check_constraints: {word: structure_constraints_hold, authority: srd003 word_vocabulary.editor_and_critic_retrieval}
+    compose_success_response: {word: compose_structure_success_response, authority: srd003 word_vocabulary.editor_and_critic_retrieval}
+    compose_no_op_response: {word: compose_structure_no_op_response, authority: srd003 word_vocabulary.editor_and_critic_retrieval}
+    compose_insufficient_response: {word: compose_structure_insufficient_response, authority: srd003 word_vocabulary.editor_and_critic_retrieval}
+    compose_failed_response: {word: compose_structure_failed_response, authority: srd003 word_vocabulary.editor_and_critic_retrieval}
+
+  states:
+    - {name: awaiting_request, meaning: Initial state; accepts one orchestrator-supplied request seed.}
+    - {name: validating_request, meaning: Validate parent bytes, identities, intent, inventory, and forbidden fields.}
+    - {name: formulating_query, meaning: Compose an initial or once-refined section-and-outline query deterministically.}
+    - {name: embedding_query, meaning: Embed the formulated query through the configured structure embedding word.}
+    - {name: querying_structure_rag, meaning: Query only structure-rag with the provider-produced vector.}
+    - {name: composing_grounding_input, meaning: Render one fixed envelope whose stdin string contains the bounded grounding-helper JSON document.}
+    - {name: inspecting_grounding, meaning: Run the fixed non-shell helper over bounded retrieval JSON to compute one grounding report.}
+    - {name: parsing_grounding_report, meaning: Parse and schema-validate grounding helper stdout without repairing it.}
+    - {name: checking_grounding, meaning: Compare one parsed grounding_status scalar with configured sufficient.}
+    - {name: checking_refinement_budget, meaning: Compare one parsed refinement count with hard limit one.}
+    - {name: composing_edit_context, meaning: Render the fixed structure-edit context from validated request and grounding labels.}
+    - {name: editing_structure, meaning: Generate one evidence-grounded structure-only candidate.}
+    - {name: composing_constraint_input, meaning: Render one fixed envelope whose stdin string contains the bounded preservation-helper JSON document.}
+    - {name: inspecting_constraints, meaning: Run the fixed non-shell helper over bounded parent, candidate, ledger, and protected-content JSON.}
+    - {name: parsing_constraint_report, meaning: Parse and schema-validate preservation helper stdout without repairing it.}
+    - {name: checking_candidate_no_op, meaning: Compare one parsed candidate_status scalar with configured no_op.}
+    - {name: checking_constraint_result, meaning: Compare one parsed preservation_status scalar with configured valid.}
+    - {name: composing_success_response, meaning: Render the fixed succeeded response and its one configured signal.}
+    - {name: composing_no_op_response, meaning: Render the fixed no-op response and its one configured signal.}
+    - {name: composing_insufficient_response, meaning: Render the fixed insufficient-grounding response and its one configured signal.}
+    - {name: composing_failed_response, meaning: Render the fixed failed response and its one configured signal.}
+    - {name: succeeded, meaning: Terminal; a validated structural edit is returned for orchestrator review.}
+    - {name: no_op, meaning: Terminal; unchanged parent content is returned because no valid structural change was needed.}
+    - {name: insufficient_grounding, meaning: Terminal; unchanged parent content is returned after two insufficient retrieval attempts.}
+    - {name: failed, meaning: Terminal; no candidate is returned as a successful edit.}
+
+  signal_classes:
+    seed: [SeedRequest]
+    domain:
+      - StructureRequestRejected
+      - StructureQueryRejected
+      - QueryRejected
+      - StructureEvidenceInsufficient
+      - ToolFailed
+      - StructureGroundingReportInvalid
+      - StructureGroundingDeficient
+      - StructureGroundingRefinementAllowed
+      - StructureGroundingInsufficient
+      - StructureEditNoOp
+      - StructureEditDeclined
+      - StructureConstraintReportInvalid
+      - StructureCandidateChanged
+      - StructureSemanticConstraintsFailed
+    success:
+      - StructureRequestValid
+      - StructureQueryFormulated
+      - StructureQueryEmbedded
+      - StructureEvidenceReady
+      - StructureGroundingInputReady
+      - ToolDone
+      - StructureGroundingReportParsed
+      - StructureGroundingSufficient
+      - StructureEditContextReady
+      - StructureEditGenerated
+      - StructureConstraintInputReady
+      - StructureConstraintReportParsed
+      - StructureEditValid
+      - StructureResponseSucceeded
+      - StructureResponseNoOp
+      - StructureResponseInsufficientGrounding
+      - StructureResponseFailed
+    infrastructure: [CommandError, BudgetExhausted]
+    deterministic_refinements:
+      authority: srd003-writing-agent-tools R4.5
+      signals:
+        - StructureGroundingReportParsed
+        - StructureGroundingReportInvalid
+        - StructureGroundingSufficient
+        - StructureGroundingDeficient
+        - StructureGroundingRefinementAllowed
+        - StructureGroundingInsufficient
+        - StructureEditContextReady
+        - StructureConstraintReportParsed
+        - StructureConstraintReportInvalid
+        - StructureEditValid
+        - StructureEditNoOp
+        - StructureCandidateChanged
+        - StructureSemanticConstraintsFailed
+        - StructureResponseSucceeded
+        - StructureResponseNoOp
+        - StructureResponseInsufficientGrounding
+        - StructureResponseFailed
+      constraints:
+        - Complex grounding and preservation observations come only from fixed non-shell helper exec words over bounded JSON and reach routing only after parse_structured schema validation.
+        - Each helper stdin document comes from the stdin string in a fixed compose envelope over labeled validated state; each exec selects that string with fixed $from(structure_grounding_input).stdin or $from(structure_constraint_input).stdin, applies fixed stdin_max_bytes, and uses output mode structured.
+        - Each parser selects only the output string from the structured exec object with $from(structure_grounding_report_raw).output or $from(structure_constraint_report_raw).output after ToolDone.
+        - Each value_predicate word reads one parsed scalar, performs one configured comparison, and emits exactly two outcomes plus CommandError.
+        - The edit-context compose word reads fixed labels, renders one context, and emits exactly one configured context signal.
+        - Each response compose word has one fixed outcome template and emits exactly one configured response signal.
+        - Routing cannot inspect prose to choose a tool, corpus, model, authority, or acceptance outcome.
+
+  transition_contract:
+    notation: |
+      Each row is one required MachineSpec transition. A slash-separated signal
+      expands to one transition per signal with the same next state and action.
+      Every helper exec is followed by a parser. Every parsed report is followed
+      by an explicit chain of one-comparison predicate states. The edit model
+      receives an immediately preceding fixed compose context. Each terminal
+      outcome has a separate fixed compose action and response signal.
+    request_query_and_retrieval:
+      - {from: awaiting_request, on: SeedRequest, to: validating_request, action: validate_request, label: validated_structure_request}
+      - {from: validating_request, on: StructureRequestValid, to: formulating_query, action: formulate_query, label: structure_query}
+      - {from: formulating_query, on: StructureQueryFormulated, to: embedding_query, action: embed_query, label: structure_embedding}
+      - {from: embedding_query, on: StructureQueryEmbedded, to: querying_structure_rag, action: retrieve_structure, label: structure_retrieval}
+      - {from: querying_structure_rag, on: StructureEvidenceReady/StructureEvidenceInsufficient, to: composing_grounding_input, action: compose_grounding_input, label: structure_grounding_input}
+      - {from: composing_grounding_input, on: StructureGroundingInputReady, to: inspecting_grounding, action: inspect_grounding, label: structure_grounding_report_raw}
+      - {from: inspecting_grounding, on: ToolDone, to: parsing_grounding_report, action: parse_grounding_report, label: structure_grounding_report}
+      - {from: parsing_grounding_report, on: StructureGroundingReportParsed, to: checking_grounding, action: check_grounding, label: structure_grounding_check}
+      - {from: checking_grounding, on: StructureGroundingSufficient, to: composing_edit_context, action: compose_edit_context, label: structure_edit_context}
+      - {from: composing_edit_context, on: StructureEditContextReady, to: editing_structure, action: edit_structure, label: structure_candidate}
+      - {from: checking_grounding, on: StructureGroundingDeficient, to: checking_refinement_budget, action: check_refinement, label: structure_refinement_check}
+      - {from: checking_refinement_budget, on: StructureGroundingRefinementAllowed, to: formulating_query, action: formulate_query, label: structure_query}
+      - {from: checking_refinement_budget, on: StructureGroundingInsufficient, to: composing_insufficient_response, action: compose_insufficient_response, label: structure_response}
+    edit_validation_and_response:
+      - {from: editing_structure, on: StructureEditGenerated/StructureEditNoOp, to: composing_constraint_input, action: compose_constraint_input, label: structure_constraint_input}
+      - {from: composing_constraint_input, on: StructureConstraintInputReady, to: inspecting_constraints, action: inspect_constraints, label: structure_constraint_report_raw}
+      - {from: editing_structure, on: StructureEditDeclined, to: composing_failed_response, action: compose_failed_response, label: structure_response}
+      - {from: inspecting_constraints, on: ToolDone, to: parsing_constraint_report, action: parse_constraint_report, label: structure_constraint_report}
+      - {from: parsing_constraint_report, on: StructureConstraintReportParsed, to: checking_candidate_no_op, action: check_candidate_no_op, label: structure_no_op_check}
+      - {from: checking_candidate_no_op, on: StructureEditNoOp, to: composing_no_op_response, action: compose_no_op_response, label: structure_response}
+      - {from: checking_candidate_no_op, on: StructureCandidateChanged, to: checking_constraint_result, action: check_constraints, label: structure_constraint_check}
+      - {from: checking_constraint_result, on: StructureEditValid, to: composing_success_response, action: compose_success_response, label: structure_response}
+      - {from: checking_constraint_result, on: StructureSemanticConstraintsFailed, to: composing_failed_response, action: compose_failed_response, label: structure_response}
+      - {from: composing_success_response, on: StructureResponseSucceeded, to: succeeded, action: none}
+      - {from: composing_no_op_response, on: StructureResponseNoOp, to: no_op, action: none}
+      - {from: composing_insufficient_response, on: StructureResponseInsufficientGrounding, to: insufficient_grounding, action: none}
+      - {from: composing_failed_response, on: StructureResponseFailed, to: failed, action: none}
+    failure:
+      domain_to_failed_response:
+        - {from: validating_request, on: StructureRequestRejected, to: composing_failed_response, action: compose_failed_response, label: structure_response}
+        - {from: embedding_query, on: StructureQueryRejected, to: composing_failed_response, action: compose_failed_response, label: structure_response}
+        - {from: querying_structure_rag, on: QueryRejected, to: composing_failed_response, action: compose_failed_response, label: structure_response}
+        - {from: inspecting_grounding, on: ToolFailed, to: composing_failed_response, action: compose_failed_response, label: structure_response}
+        - {from: parsing_grounding_report, on: StructureGroundingReportInvalid, to: composing_failed_response, action: compose_failed_response, label: structure_response}
+        - {from: inspecting_constraints, on: ToolFailed, to: composing_failed_response, action: compose_failed_response, label: structure_response}
+        - {from: parsing_constraint_report, on: StructureConstraintReportInvalid, to: composing_failed_response, action: compose_failed_response, label: structure_response}
+      rule: Every listed row is an explicit failed-response transition.
+      infrastructure_to_failed_response:
+        - {from: validating_request, on: CommandError/BudgetExhausted, to: composing_failed_response, action: compose_failed_response, label: structure_response}
+        - {from: formulating_query, on: BudgetExhausted, to: composing_failed_response, action: compose_failed_response, label: structure_response}
+        - {from: embedding_query, on: CommandError/BudgetExhausted, to: composing_failed_response, action: compose_failed_response, label: structure_response}
+        - {from: querying_structure_rag, on: CommandError/BudgetExhausted, to: composing_failed_response, action: compose_failed_response, label: structure_response}
+        - {from: inspecting_grounding, on: CommandError/BudgetExhausted, to: composing_failed_response, action: compose_failed_response, label: structure_response}
+        - {from: parsing_grounding_report, on: CommandError/BudgetExhausted, to: composing_failed_response, action: compose_failed_response, label: structure_response}
+        - {from: checking_grounding, on: CommandError/BudgetExhausted, to: composing_failed_response, action: compose_failed_response, label: structure_response}
+        - {from: checking_refinement_budget, on: CommandError/BudgetExhausted, to: composing_failed_response, action: compose_failed_response, label: structure_response}
+        - {from: editing_structure, on: CommandError/BudgetExhausted, to: composing_failed_response, action: compose_failed_response, label: structure_response}
+        - {from: inspecting_constraints, on: CommandError/BudgetExhausted, to: composing_failed_response, action: compose_failed_response, label: structure_response}
+        - {from: parsing_constraint_report, on: CommandError/BudgetExhausted, to: composing_failed_response, action: compose_failed_response, label: structure_response}
+        - {from: checking_candidate_no_op, on: CommandError/BudgetExhausted, to: composing_failed_response, action: compose_failed_response, label: structure_response}
+        - {from: checking_constraint_result, on: CommandError/BudgetExhausted, to: composing_failed_response, action: compose_failed_response, label: structure_response}
+      budget_to_failed_terminal:
+        - {from: composing_grounding_input, on: BudgetExhausted, to: failed, action: none}
+        - {from: composing_edit_context, on: BudgetExhausted, to: failed, action: none}
+        - {from: composing_constraint_input, on: BudgetExhausted, to: failed, action: none}
+        - {from: composing_success_response, on: BudgetExhausted, to: failed, action: none}
+        - {from: composing_no_op_response, on: BudgetExhausted, to: failed, action: none}
+        - {from: composing_insufficient_response, on: BudgetExhausted, to: failed, action: none}
+        - {from: composing_failed_response, on: BudgetExhausted, to: failed, action: none}
+      infrastructure_rule: |
+        Every infrastructure row is explicit. Compose words emit no CommandError
+        and always emit their configured signal; only an independently applied
+        BudgetExhausted signal can leave a compose state without that signal.
+
+structural_edit_contract:
+  retrieval_units: [section_record, outline_record]
+  allowed_operations:
+    - Reorder complete supplied sections or bounded source spans.
+    - Combine adjacent supplied material while retaining every source span.
+    - Separate supplied material at declared span boundaries.
+    - Add only configured bounded structural connector text when exact movement requires it.
+  preservation_invariants:
+    - Every source claim remains present with the same meaning and qualification.
+    - Every citation marker and citation-to-claim association remains present.
+    - Every number, unit, equation, date, threshold, and quantitative comparator remains unchanged.
+    - Every hedge, limitation, exception, condition, and uncertainty remains attached to its claim.
+    - Every required-content inventory item remains present exactly once or at its declared multiplicity.
+    - Diction outside bounded structural connectors remains byte-identical; connector changes are minimized and recorded.
+    - No retrieved chunk text becomes document content unless it was already present in the parent.
+  validation_method: |
+    generate_structure_edit returns candidate bytes plus a source-span and
+    structure-operation ledger. inspect_structure_constraints runs one fixed
+    non-shell helper over bounded JSON to compute parent identity, span coverage
+    and multiplicity, claim, citation-association, number, qualification,
+    required-content, connector, and retrieved-prose findings.
+    parse_structure_constraint_report schema-validates the report. Separate
+    value_predicate words then compare only candidate_status and
+    preservation_status. No helper, parser, or predicate repairs or accepts a
+    candidate.
+
+helper_io_contract:
+  grounding:
+    compose_output: A JSON object with a non-empty stdin string containing the bounded grounding-helper JSON document.
+    exec_stdin_source: $from(structure_grounding_input).stdin
+    exec_output_mode: structured
+    parser_source: $from(structure_grounding_report_raw).output
+  preservation:
+    compose_output: A JSON object with a non-empty stdin string containing the bounded preservation-helper JSON document.
+    exec_stdin_source: $from(structure_constraint_input).stdin
+    exec_output_mode: structured
+    parser_source: $from(structure_constraint_report_raw).output
+  factory_semantics: |
+    ResolveFromSelector decodes the labeled compose output and selects its stdin
+    string before launch. Exec rejects unresolved, non-string, empty, or
+    over-limit stdin with CommandError. Process start, cancellation, timeout, or
+    structured-output encoding failure also emits CommandError. The fixed
+    declarations have no runtime parameters or preconditions. A launched process
+    emits ToolDone on zero exit and ToolFailed on non-zero exit. Structured mode
+    replaces Result.Output with an object
+    containing output and exit_code. parse_structured selects the nested output
+    string, emits its configured parsed or invalid signal, and emits CommandError
+    only when that source selector does not resolve or normalized output encoding
+    fails.
+
+grounding_contract:
+  sufficiency_inputs:
+    - configured distance and result-count predicates
+    - embedding-model identity equality
+    - section or outline record type
+    - repository, path, commit, and chunk metadata completeness
+    - query identity and refinement count
+  provenance_per_chunk:
+    - source_repository
+    - source_path
+    - source_commit
+    - chunk_id
+    - record_type
+    - distance
+    - embedding_model
+    - query_identity
+    - retrieval_attempt
+  refinement: |
+    The grounding helper may retain acceptable evidence and compute one bounded
+    refined query descriptor and next count for deficient evidence. The parser
+    validates those fields. Separate grounding-status and refinement-count
+    predicates route the result. formulate_structure_query only renders the
+    parsed descriptor; it does not derive or increment it. The next deficient
+    report emits StructureGroundingInsufficient. Retrieval rejection, helper or
+    parse failure, or insufficient grounding never reaches editing_structure.
+
+response_contract:
+  required_fields:
+    - outcome
+    - content
+    - parent_artifact_id
+    - parent_content_hash
+    - retrieval_provenance
+    - stage_metadata
+  outcomes:
+    succeeded:
+      content: validated candidate bytes
+      meaning: A grounded structure-only candidate passed all constraints; the orchestrator still owns artifact acceptance.
+    no_op:
+      content: unchanged parent bytes
+      meaning: No supported improvement was needed or candidate bytes equal the parent.
+    insufficient_grounding:
+      content: unchanged parent bytes
+      meaning: Initial and refined retrieval both failed configured grounding sufficiency.
+    failed:
+      content: unchanged parent bytes when the request was valid, otherwise explicit null
+      meaning: Validation, provider, retrieval, generation, constraint, budget, or response preparation failed.
+  stage_metadata:
+    - saga_id
+    - stage
+    - attempt
+    - invocation_id
+    - idempotency_key
+    - producer
+    - producer_version
+    - refinement_count
+    - query_identities
+    - evidence_ids
+    - constraint_report
+    - bounded_failure_category
+  mutation_rule: |
+    The response is data only. structure-editor does not write the response,
+    parent, candidate, provenance, stage metadata, or any workproduct to a
+    filesystem, repository, retrieval corpus, or external publication system.
+
+structural_proofs:
+  retrieval_precedes_every_successful_edit:
+    edit_cut_state: composing_edit_context
+    only_incoming_signal: StructureGroundingSufficient
+    predecessor_chain:
+      - compose_structure_grounding_input renders a JSON envelope whose stdin field is the helper document built from labeled validated retrieval state.
+      - inspect_structure_grounding selects $from(structure_grounding_input).stdin and receives only query_structure_rag evidence through that bounded JSON string.
+      - parse_structure_grounding_report selects $from(structure_grounding_report_raw).output and admits only ToolDone stdout that satisfies the configured report schema.
+      - structure_grounding_sufficient compares only the parsed grounding_status scalar.
+      - querying_structure_rag is reached only after embed_structure_query.
+      - embedding_query is reached only after formulate_structure_query.
+      - formulating_query is first reached only after validate_structure_request.
+    success_chain:
+      - compose_structure_edit_context must emit StructureEditContextReady.
+      - editing_structure must emit StructureEditGenerated.
+      - compose_structure_constraint_input must render a JSON envelope whose stdin field is the bounded preservation-helper document.
+      - inspect_structure_constraints must emit ToolDone.
+      - parse_structure_constraint_report must select $from(structure_constraint_report_raw).output and emit StructureConstraintReportParsed.
+      - structure_candidate_is_no_op must emit StructureCandidateChanged.
+      - structure_constraints_hold must emit StructureEditValid.
+      - compose_structure_success_response must emit StructureResponseSucceeded.
+    argument: |
+      succeeded has one incoming edge, StructureResponseSucceeded from
+      composing_success_response. That state is reachable only after
+      StructureEditValid from parsed helper output and the scalar predicate
+      chain. The initial edit context has one incoming signal,
+      StructureGroundingSufficient, after a structure-rag result, helper
+      observation, schema parse, and scalar comparison. Its fixed compose signal
+      is the only entry to editing_structure. Rejection, helper or parse failure,
+      insufficient grounding, no-op, constraint failure, infrastructure failure,
+      and budget exhaustion have no edge to succeeded.
+  one_refinement_bound:
+    cycle: checking_refinement_budget -> formulating_query -> embedding_query -> querying_structure_rag -> composing_grounding_input -> inspecting_grounding -> parsing_grounding_report -> checking_grounding -> checking_refinement_budget
+    guard_signal: StructureGroundingRefinementAllowed
+    argument: |
+      structure_grounding_refinement_available compares parsed refinement_count
+      with hard limit one. It may emit the cycle signal only when the count is
+      below one. The grounding helper computes next count one and a bounded
+      refined descriptor, the parser validates both, and
+      formulate_structure_query renders them without arithmetic. Subsequent
+      deficiency emits StructureGroundingInsufficient, whose only edge leaves
+      the cycle through the fixed insufficient response composer.
+  authority_closure:
+    argument: |
+      Every action alias resolves to one structure-editor-owned srd003 word.
+      The profile selects no voice, style, critic, Pangram, GitHub, workproduct,
+      lifecycle, corpus-write, shell, generic REST, or filesystem word. Terminal
+      success returns data for orchestrator validation and grants no acceptance
+      or persistence authority. Two fixed helper exec words receive bounded
+      JSON stdin and cannot select an executable or path.
+
+requirements:
+  R1:
+    title: Flat machine and closed actions
+    items:
+      - id: R1.1
+        text: |
+          The planned structure-editor MachineSpec SHALL use exactly the states,
+          terminal states, signals, and expanded transitions in
+          flat_machine_contract. It SHALL contain no nested machine, payload
+          guard, script, dynamic $tool dispatch, or hidden imperative router.
+        evidence: Planned structural validation expands transition families and reports no duplicate, missing, unreachable, or terminal-origin transition.
+      - id: R1.2
+        text: |
+          Every named action SHALL resolve through action_bindings to exactly one
+          structure-editor-owned srd003 word. The runtime profile SHALL select
+          exactly those twenty words and no prohibited word.
+        evidence: Planned action, ToolDef emission, profile selection, and owner closure compare srd005 with srd003.
+  R2:
+    title: Request and query formulation
+    items:
+      - id: R2.1
+        text: |
+          The machine SHALL validate one original or retry-parent content
+          envelope supplied by workflow-orchestrator. It SHALL reject absent or
+          malformed content, identity, intent, inventory, or policy and every
+          path-bearing or authority-bearing field.
+        evidence: Planned schema fixtures cover original, retry, wrong-stage, missing-content, identity, inventory, path, endpoint, model, collection, ref, credential, and tool fields.
+      - id: R2.2
+        text: |
+          formulate_structure_query SHALL deterministically compose a bounded
+          section-or-outline retrieval question from validated intent and, only
+          on refinement, bounded prior evidence metadata. Model output SHALL NOT
+          formulate a query or select retrieval authority.
+        evidence: Planned composition fixtures prove stable query identities and reject free-form authority or refinement count greater than one.
+  R3:
+    title: Retrieval, grounding, and refinement
+    items:
+      - id: R3.1
+        text: |
+          Every retrieval SHALL call embed_structure_query and then
+          query_structure_rag. The query SHALL consume only the embedding
+          response vector and SHALL return ranked section or outline records
+          with complete repository, path, commit, chunk, distance, record-type,
+          embedding-model, query, and attempt provenance.
+        evidence: Planned wiring and response-schema tests prove vector origin, structure-rag binding, metadata completeness, and read-only behavior.
+      - id: R3.2
+        text: |
+          inspect_structure_grounding SHALL run one fixed non-shell helper
+          operation over bounded JSON to compute evidence, provenance, policy,
+          query-identity, embedding-identity, count, distance, record-type, and
+          refinement findings. parse_structure_grounding_report SHALL
+          schema-validate that report. structure_grounding_sufficient and
+          structure_grounding_refinement_available SHALL each compare exactly
+          one parsed scalar. Insufficient initial evidence MAY cause exactly one
+          parsed helper-computed query refinement; insufficient refined evidence
+          SHALL return insufficient_grounding with unchanged parent content.
+          compose_structure_grounding_input SHALL render one fixed JSON envelope
+          from fixed labels, and inspect_structure_grounding SHALL select its
+          stdin string through $from(structure_grounding_input).stdin.
+        evidence: Planned compose, exec, bounded-stdin, structured-output, schema, scalar-predicate, and zero-, one-, and two-attempt traces prove exact factory semantics, one_refinement_bound, retained evidence, and terminal bytes.
+      - id: R3.3
+        text: |
+          StructureGroundingSufficient SHALL be the only signal entering
+          composing_edit_context, and StructureEditContextReady SHALL be the only
+          signal entering editing_structure. Retrieval rejection, insufficiency,
+          infrastructure failure, or budget exhaustion SHALL NOT generate or
+          validate a candidate.
+        evidence: Planned graph reachability proves retrieval_precedes_every_successful_edit and negative paths have no success edge.
+  R4:
+    title: Structure-only editing and semantic constraints
+    items:
+      - id: R4.1
+        text: |
+          generate_structure_edit SHALL use supplied parent content and accepted
+          section or outline evidence only to reorder, combine, or separate
+          material and to add bounded structural connectors. It SHALL minimize
+          diction changes and SHALL NOT import retrieved source prose.
+        evidence: Planned prompt, schema, ledger, and adversarial evidence fixtures reject unsupported prose, voice imitation, and style-only changes.
+      - id: R4.2
+        text: |
+          The candidate SHALL preserve every claim, citation and association,
+          number and quantitative relation, qualification, and required-content
+          item. Diction outside declared structural connectors SHALL remain
+          byte-identical.
+        evidence: Planned protected-content fixtures cover deletion, duplication, mutation, reassociation, changed units, weakened hedges, omitted exceptions, and connector overreach.
+      - id: R4.3
+        text: |
+          inspect_structure_constraints SHALL run one fixed non-shell helper
+          operation over bounded JSON to compute parent-identity, source-span
+          coverage and multiplicity, structure-operation-ledger, claim,
+          citation-association, number, qualification, required-content,
+          connector, and retrieved-prose findings.
+          parse_structure_constraint_report SHALL schema-validate that report.
+          structure_candidate_is_no_op and structure_constraints_hold SHALL each
+          compare exactly one parsed scalar and SHALL never repair, accept, or
+          persist a candidate. compose_structure_constraint_input SHALL render
+          one fixed JSON envelope from fixed labels, and
+          inspect_structure_constraints SHALL select its stdin string through
+          $from(structure_constraint_input).stdin. Both StructureEditGenerated
+          and StructureEditNoOp SHALL pass through this helper, parser, and
+          predicate chain before a no-op or success response is composed.
+        evidence: Planned compose, exec, bounded-stdin, structured-output, schema, and scalar-predicate fixtures distinguish valid, byte-identical, malformed-report, helper-failed, and every failed invariant.
+  R5:
+    title: Responses and outcomes
+    items:
+      - id: R5.1
+        text: |
+          compose_structure_success_response,
+          compose_structure_no_op_response,
+          compose_structure_insufficient_response, and
+          compose_structure_failed_response SHALL each use one fixed template,
+          return the response_contract fields with one fixed outcome, and emit
+          only its one configured response signal. A successful response SHALL
+          identify every used source repository, path, commit, and chunk.
+        evidence: Planned compose declaration and response-schema tests validate each fixed signal, outcome, provenance cardinality, identities, selectors, and stage metadata.
+      - id: R5.2
+        text: |
+          no_op and insufficient_grounding SHALL return unchanged parent
+          content. failed SHALL return unchanged parent content when the request
+          was valid and explicit null otherwise. None of these outcomes SHALL be
+          represented as succeeded.
+        evidence: Planned terminal traces compare response bytes and outcome signals for every domain and infrastructure path.
+      - id: R5.3
+        text: |
+          A structure-editor response SHALL remain a non-authoritative child
+          result. Only workflow-orchestrator MAY validate it for immutable
+          workproduct persistence or saga progression.
+        evidence: Planned integration schemas expose no accepted-artifact, path, write, commit, publication, or verdict field.
+  R6:
+    title: Authority and mutation exclusion
+    items:
+      - id: R6.1
+        text: |
+          structure-editor SHALL expose no voice, style, critic, Pangram,
+          GitHub, workproduct, lifecycle, corpus-write, generic shell,
+          filesystem, or arbitrary REST authority. It SHALL issue no acceptance
+          verdict and SHALL NOT select another corpus, endpoint, model, or tool.
+        evidence: Planned profile and declaration closure compares selected words with authority.prohibited groups, words, and capabilities.
+      - id: R6.2
+        text: |
+          structure-editor SHALL be request-scoped and stateless. It SHALL return
+          content, provenance, and metadata as data and SHALL NOT mutate a
+          filesystem, saga, repository, Chroma collection, or publication.
+        evidence: Planned side-effect inspection permits only configured embedding, retrieval, and model observations.
+  R7:
+    title: Planned status and validation
+    items:
+      - id: R7.1
+        text: |
+          This SRD SHALL specify behavior only. The profile, MachineSpec,
+          ToolDefs, REST declarations, model declarations, service, tests, and
+          executable evidence SHALL remain planned.
+        evidence: Architecture, specification index, roadmap, and implementation_status agree on specified documentation and planned runtime.
+      - id: R7.2
+        text: |
+          Planned validation SHALL parse YAML; prove requirement-to-AC coverage,
+          state, transition, signal, terminal, action, word, emission, tool, and
+          authority closure; prove exact exec, parse_structured,
+          value_predicate, and compose factory semantics and non-adjacent label
+          resolution; prove retrieval-before-edit and the one-refinement bound;
+          inspect the diff; and run mage audit.
+        evidence: The future test suite names every check and reports no new warning.
+
+non_goals:
+  - Implement agents/structure-editor/machine.yaml, a profile, ToolDefs, the non-shell structure-editor helper, REST or model declarations, a service, or tests.
+  - Read or write a saga filesystem, persist a workproduct, accept an artifact, or publish.
+  - Match or evaluate voice, tighten style, criticize content, route critic findings, or invoke Pangram.
+  - Query voice-rag or tightening-rag, write Chroma, ingest a corpus, or alter canonical RAG behavior.
+  - Add arbitrary shell, filesystem, REST, GitHub, model, endpoint, collection, path, ref, or credential selection.
+  - Treat retrieved text as source material for new claims or diction.
+  - Retry generation, repair a constraint-failed candidate, or refine retrieval more than once.
+
+acceptance_criteria:
+  - id: AC1
+    criterion: |
+      One flat signal-complete machine maps every action to exactly one
+      structure-editor srd003 word and has four closed terminal outcomes.
+    traces: [R1.1, R1.2]
+  - id: AC2
+    criterion: |
+      Original and retry-parent requests are validated without paths or widened
+      authority, and initial or refined queries are composed deterministically.
+    traces: [R2.1, R2.2]
+  - id: AC3
+    criterion: |
+      Provider embeddings feed read-only structure-rag queries with complete
+      provenance; a fixed helper report, schema parser, and scalar predicates
+      route grounding; refinement occurs at most once; and graph reachability
+      proves retrieval precedes every successful edit.
+    traces: [R3.1, R3.2, R3.3]
+  - id: AC4
+    criterion: |
+      Editing is limited to evidence-grounded reordering, combining, separating,
+      and bounded connectors; claims, citations, numbers, qualifications, and
+      required content are preserved; fixed helper observation, schema parsing,
+      and scalar predicates reject or mark no-op without repair or acceptance.
+    traces: [R4.1, R4.2, R4.3]
+  - id: AC5
+    criterion: |
+      succeeded, no_op, insufficient_grounding, and failed return the declared
+      content, repository/path/commit/chunk provenance, parent identity, and
+      stage metadata while leaving acceptance to workflow-orchestrator.
+    traces: [R5.1, R5.2, R5.3]
+  - id: AC6
+    criterion: |
+      The request-scoped editor returns data without filesystem mutation and
+      exposes no voice, style, critic, Pangram, GitHub, workproduct, corpus-write,
+      generic shell, arbitrary REST, or acceptance authority.
+    traces: [R6.1, R6.2]
+  - id: AC7
+    criterion: |
+      Documentation reports runtime as planned, and YAML, complete AC traces,
+      machine/tool/signal/factory/label closure, retrieval and refinement
+      proofs, authority, diff, and mage audit remain explicit validation gates.
+    traces: [R7.1, R7.2]
+
+shared_requirement_traces:
+  - contract: srd001-voice-forge-services
+    path: srd001-voice-forge-services.yaml
+    requirements: [R1.2, R2.1, R3.1, R4.1, R5.3, R6.1, R6.2]
+  - contract: srd003-writing-agent-tools
+    path: srd003-writing-agent-tools.yaml
+    requirements: [R1.2, R2.1, R2.2, R3.1, R3.2, R3.3, R4.1, R4.3, R5.1, R6.1]
+  - contract: cfg-machine-format
+    path: ../../../../../agent-core/docs/specs/config-formats/machine-format.yaml
+    requirements: [R1.1, R1.2, R3.2, R3.3, R5.1, R7.2]
+  - contract: srd001-rag-server-agent
+    path: ../../../../chatbot-mesh/docs/specs/software-requirements/srd001-rag-server-agent.yaml
+    requirements: [R3.1, R3.2, R3.3]
+
+use_case_traces:
+  - id: rel00.0-uc001-edit-document
+    status: planned
+    path: ../use-cases/rel00.0-uc001-edit-document.yaml
+
+test_suite_traces:
+  - id: test-rel00.0-voice-forge
+    status: planned
+    path: ../test-suites/test-rel00.0-voice-forge.yaml
+    acceptance_criteria: [AC1, AC2, AC3, AC4, AC5, AC6, AC7]
+
+related_documents:
+  - path: ../../ARCHITECTURE.yaml
+    usage: Defines the structure-editor request and retrieval flows and authority boundary.
+  - path: srd001-voice-forge-services.yaml
+    usage: Owns the structure-editor service responsibility, lifecycle, failure, scaling, and authority.
+  - path: srd003-writing-agent-tools.yaml
+    usage: Owns every selected word, deterministic routing signal, effect, error, and compensation.
+  - path: ../../../../../agent-core/docs/specs/config-formats/machine-format.yaml
+    usage: Owns flat MachineSpec states, signals, transitions, actions, terminal states, budgets, and validation.
+  - path: ../../../../../agent-core/docs/constitutions/design.yaml
+    usage: Requires YAML, numbered requirements, traceability, and tool-language boundaries.
+  - path: ../../../../chatbot-mesh/docs/specs/software-requirements/srd001-rag-server-agent.yaml
+    usage: Owns the vector-in, ranked-chunk, one-agent-one-corpus, read-only RAG contract.
+  - external: petar-djukic/coding-skills/.claude/skills/match-structure/SKILL.md
+    usage: Informs section-level analysis and content-preservation constraints without importing voice, style, filesystem, exemplar-rewrite, or model-selection authority.
+
+implementation_status:
+  specification: specified
+  runtime: planned
+  profile: not_implemented
+  machine: not_implemented
+  tool_declarations: not_implemented
+  structure_editor_helper: not_implemented
+  deterministic_signal_refinement: not_implemented
+  rest_declarations: not_implemented
+  model_declarations: not_implemented
+  service: not_implemented
+  tests: not_implemented
+  executable_evidence: none
