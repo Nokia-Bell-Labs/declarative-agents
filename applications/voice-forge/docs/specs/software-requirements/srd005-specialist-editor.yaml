@@ -35,13 +35,13 @@ applicability:
   machine_form: planned_flat_machine_spec
   per_stage_runtime:
     structure:
-      runtime_machine_path: agents/structure-editor/machine.yaml
+      runtime_machine_path: agents/specialist-editor/structure/machine.yaml
       runtime_machine_status: not_implemented
     voice:
-      runtime_machine_path: agents/voice-editor/machine.yaml
+      runtime_machine_path: agents/specialist-editor/voice/machine.yaml
       runtime_machine_status: not_implemented
     style:
-      runtime_machine_path: agents/style-editor/machine.yaml
+      runtime_machine_path: agents/specialist-editor/style/machine.yaml
       runtime_machine_status: not_implemented
 
 stage_parameter:
@@ -519,7 +519,7 @@ stage_configurations:
           the cycle through the fixed insufficient response composer.
       authority_closure:
         argument: |
-          Every action alias resolves to one structure-editor-owned srd003 word.
+          Every action alias resolves to one specialist-editor:structure-owned srd003 word.
           The profile selects no voice, style, critic, Pangram, GitHub, workproduct,
           lifecycle, corpus-write, shell, generic REST, or filesystem word. Terminal
           success returns data for orchestrator validation and grants no acceptance
@@ -1169,7 +1169,7 @@ stage_configurations:
           cycle through the fixed failed response composer with unchanged parent bytes.
       authority_closure:
         argument: |
-          Every action alias resolves to one voice-editor-owned srd003 word. The
+          Every action alias resolves to one specialist-editor:voice-owned srd003 word. The
           profile selects no filesystem, workproduct, structure, tightening,
           critic, Pangram, GitHub, lifecycle, corpus-write, shell, or arbitrary REST
           word. Three fixed helper exec words receive bounded JSON stdin and cannot
@@ -1737,7 +1737,7 @@ stage_configurations:
           failed response with unchanged parent bytes.
       authority_closure:
         argument: |
-          Every action resolves to one style-editor-owned srd003 word. Selected
+          Every action resolves to one specialist-editor:style-owned srd003 word. Selected
           words include only request validation, fixed composition, configured
           embedding and tightening-rag retrieval, three fixed helper operations,
           structured parsing, scalar predicates, and bounded generation. The profile
@@ -2098,7 +2098,7 @@ requirements:
       - id: R14.1
         text: |
           The voice stage SHALL specify behavior only. The profile, MachineSpec,
-          ToolDefs, non-shell voice-editor helper, REST declarations, model
+          ToolDefs, non-shell specialist-editor:voice helper, REST declarations, model
           declarations, service, tests, and executable evidence SHALL remain
           planned.
         evidence: Architecture, specification index, roadmap, and implementation_status agree on specified documentation and planned runtime.
@@ -2262,7 +2262,7 @@ requirements:
       - id: R20.1
         text: |
           The style stage SHALL specify planned behavior only. The profile,
-          MachineSpec, ToolDefs, fixed non-shell style-editor helper, REST and
+          MachineSpec, ToolDefs, fixed non-shell specialist-editor:style helper, REST and
           model declarations, service, tests, and executable evidence remain
           planned.
         evidence: Architecture, specification index, roadmap, and implementation_status agree.

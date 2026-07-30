@@ -36,15 +36,9 @@ releases:
       - id: srd004-workflow-orchestrator
         status: specified
         summary: Define exact flat orchestration, srd003 action mappings, persistence sequencing, responsible-stage replay, recovery, budgets, publication escalation, and terminal outcomes.
-      - id: srd005-structure-editor
+      - id: srd005-specialist-editor
         status: specified
-        summary: Define flat request validation, section-and-outline retrieval, one refinement, structure-only editing, semantic constraints, outcomes, and provenance.
-      - id: srd006-voice-editor
-        status: specified
-        summary: Define flat accepted-structure validation, rhetorical-role and register passage retrieval, one refinement, bounded voice-only rewrites, deterministic preservation constraints, provenance, copy risk, and fail-closed outcomes.
-      - id: srd007-style-editor
-        status: specified
-        summary: Define flat accepted-voice validation, explicit target intents, before/after pair retrieval, one refinement, targeted tightening, deterministic preservation, bounded retry, fail-closed outcomes, and pair provenance.
+        summary: Define the parameterized specialist-editor with structure, voice, and style stages sharing a common pipeline shape but differing in accepted parent type, RAG instance, edit operations, preservation invariants, and response contracts.
       - id: srd008-voice-critic
         status: specified
         summary: Define flat independent assurance, six findings, exact-hash consent, separate Pangram tasks, advisory comparison, categorized verdicts, responsible-stage closure, and bounded authority.

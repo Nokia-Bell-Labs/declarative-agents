@@ -24,8 +24,8 @@ The planned workflow is:
    complete workproduct set once, pushes, and opens or reuses a pull request.
    Before acceptance, every workproduct remains local and uncommitted.
 
-The application plans six agent services: `workflow-orchestrator`,
-`structure-editor`, `voice-editor`, `style-editor`, `voice-critic`, and a
+The application plans four agent actors: `workflow-orchestrator`,
+`specialist-editor` (structure, voice, and style stages), `voice-critic`, and a
 wrapper around the canonical `corpus-ingest` program. Structure, voice, and
 style RAG server instances provide read-only retrieval over separate corpora.
 Chroma is a rebuildable index, Ollama is the model boundary, GitHub is the
@@ -34,7 +34,7 @@ service available only to the critic.
 
 This directory currently contains documentation only. No profile, machine,
 tool, service, test, package, registry entry, or runnable composition is
-implemented or claimed. Release `00.0`, SRDs `srd001` through `srd008`, use case
+implemented or claimed. Release `00.0`, SRDs `srd001` through `srd005` and `srd008`, use case
 `rel00.0-uc001-edit-document`, and test suite
 `test-rel00.0-voice-forge` are planned.
 

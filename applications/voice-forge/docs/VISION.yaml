@@ -108,9 +108,7 @@ canonical_documents:
   - docs/specs/software-requirements/srd002-writing-saga-workproducts.yaml
   - docs/specs/software-requirements/srd003-writing-agent-tools.yaml
   - docs/specs/software-requirements/srd004-workflow-orchestrator.yaml
-  - docs/specs/software-requirements/srd005-structure-editor.yaml
-  - docs/specs/software-requirements/srd006-voice-editor.yaml
-  - docs/specs/software-requirements/srd007-style-editor.yaml
+  - docs/specs/software-requirements/srd005-specialist-editor.yaml
   - docs/specs/software-requirements/srd008-voice-critic.yaml
   - docs/specs/use-cases/rel00.0-uc001-edit-document.yaml
   - docs/specs/test-suites/test-rel00.0-voice-forge.yaml
