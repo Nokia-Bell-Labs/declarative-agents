@@ -3,9 +3,9 @@ title: Voice Forge Architecture
 
 overview:
   summary: |
-    Voice Forge is a planned serial composition of six agent services on
+    Voice Forge is a planned serial composition of four agent actors on
     agent-core. The application-local programs are the workflow-orchestrator,
-    structure-editor, voice-editor, style-editor, and voice-critic. A thin
+    specialist-editor (structure, voice, and style stages), and voice-critic. A thin
     corpus-ingest wrapper references the canonical catalog program. Three
     planned RAG server instances provide read-only access to the structure,
     voice, and tightening corpora.
@@ -135,7 +135,7 @@ overview:
     structure-rag result. Candidate validation preserves claims, citations,
     numbers, qualifications, required content, and non-connector diction.
   structure_retrieval_view: |
-    structure-editor sends only a provider-produced embedding vector, configured
+    specialist-editor:structure sends only a provider-produced embedding vector, configured
     result limit, query identity, trace identity, content hash, and refinement
     count to structure-rag. structure-rag reads one structure corpus and returns
     ranked section or outline records. Every record used by an edit carries
@@ -143,7 +143,7 @@ overview:
     model, query identity, and retrieval-attempt provenance.
 
     Complex grounding and preservation observations run through two fixed
-    operations of one planned non-shell structure-editor helper. A fixed compose
+    operations of one planned non-shell specialist-editor:structure helper. A fixed compose
     word renders a JSON envelope whose stdin field contains the bounded helper
     document from labeled validated state. Each exec selects that string through
     fixed $from(structure_grounding_input).stdin or
@@ -184,7 +184,7 @@ overview:
       D --> O
     ```
 
-    srd006 specifies this as one flat request machine. The retrieval cycle has
+    srd005 voice-stage specifies this as one flat request machine. The retrieval cycle has
     at most one deterministic refinement. Constraint or copy-risk failure may
     return to generation only while fewer than three total candidates have been
     generated. The initial rewrite state is reachable only after every eligible
@@ -205,7 +205,7 @@ overview:
     words render succeeded, no-op, insufficient, and failed envelopes. Every
     compose word emits only its one configured signal.
   voice_passage_retrieval_view: |
-    voice-editor deterministically forms one query for each voice-eligible
+    specialist-editor:voice deterministically forms one query for each voice-eligible
     passage from target voice, rhetorical role, target register, bounded passage
     features, and configured exemplar-role, tag, or stratum policy. It embeds
     the ordered query set and sends only provider-produced vectors, configured
@@ -246,9 +246,9 @@ overview:
       D --> O
     ```
 
-    srd007 specifies this as one flat request machine. Intent, pair, and
+    srd005 style-stage specifies this as one flat request machine. Intent, pair, and
     preservation observations use three fixed operations of one planned
-    non-shell JSON-emitting style-editor helper. Each helper exec emits only
+    non-shell JSON-emitting specialist-editor:style helper. Each helper exec emits only
     ToolDone, ToolFailed, or CommandError. A distinct parse_structured word
     selects the nested structured-exec output string, and explicit
     value_predicate chains compare one scalar and emit two configured outcomes.
@@ -264,7 +264,7 @@ overview:
     infrastructure, and budget paths return the accepted voice parent unchanged
     after valid request admission.
   tightening_pair_retrieval_view: |
-    style-editor deterministically forms one query for each explicit target and
+    specialist-editor:style deterministically forms one query for each explicit target and
     tightening intent, embeds the ordered query set, and sends only
     provider-produced vectors and configured bounded identities to
     tightening-rag. tightening-rag reads one tightening corpus and returns
@@ -494,7 +494,7 @@ tool_authority_allocation:
         - orchestrator parse_structured result words
         - orchestrator one-scalar value_predicate route words
       denied: [editor RAG, editor LLM, critic verdict, Pangram, corpus writes]
-    - owner: structure-editor
+    - owner: specialist-editor:structure
       exclusive_words:
         - validate_structure_request
         - formulate_structure_query
@@ -517,7 +517,7 @@ tool_authority_allocation:
         - compose_structure_insufficient_response
         - compose_structure_failed_response
       denied: [saga filesystem, other corpora, voice or style editing, critic or acceptance verdict, Pangram, GitHub]
-    - owner: voice-editor
+    - owner: specialist-editor:voice
       exclusive_words:
         - validate_voice_request
         - formulate_voice_query
@@ -545,7 +545,7 @@ tool_authority_allocation:
         - compose_voice_insufficient_response
         - compose_voice_failed_response
       denied: [saga filesystem, other corpora, structure changes, tightening beyond voice need, verdict, Pangram, GitHub]
-    - owner: style-editor
+    - owner: specialist-editor:style
       exclusive_words:
         - validate_style_request
         - compose_style_intent_input
@@ -624,33 +624,15 @@ components:
     failure_boundary: Nonzero exit becomes ToolFailed or CommandError; malformed or truncated zero-exit JSON fails the following parser closed.
     authority: May execute only declaration-selected fixed operations and their compiled/configured git/gh argv shapes.
     prohibited_authority: Shell evaluation, arbitrary command or argv, runtime binary/subcommand/URL/refspec/credential selection, editing, retrieval, model invocation, verdicts, and Pangram.
-  - name: structure-editor agent service
-    path: agents/structure-editor/
+  - name: specialist-editor agent service
+    path: agents/specialist-editor/
     status: planned
-    role_realization: Executor / Change Manager for the document-structure domain.
-    lifecycle: Request/on-demand application-local machine.
+    role_realization: Parameterized Executor / Change Manager with structure, voice, and style stages sharing a common pipeline shape.
+    lifecycle: Request/on-demand application-local machine, one stage per invocation.
     scaling_boundary: Stateless requests may scale independently after serial saga ordering is preserved.
-    failure_boundary: A failed response leaves the original or last accepted parent unchanged.
-    authority: Read section and outline evidence through structure RAG, invoke two fixed operations of a planned non-shell helper over bounded JSON, restructure supplied content with bounded model calls, and return provenance and preservation evidence.
-    prohibited_authority: Voice or style editing, Chroma writes, workproduct mutation, critic or acceptance verdicts, Pangram, and GitHub mutation.
-  - name: voice-editor agent service
-    path: agents/voice-editor/
-    status: planned
-    role_realization: Executor / Change Manager for the document-voice domain.
-    lifecycle: Request/on-demand application-local machine.
-    scaling_boundary: Stateless requests and retrieval load may scale independently.
-    failure_boundary: Retrieval, model, preservation, copy-risk, or budget failure returns the accepted structure parent unchanged and no accepted artifact.
-    authority: Read rhetorical-role and register passages through voice RAG, rewrite supplied passages for voice only, invoke three fixed operations of a planned non-shell helper over bounded JSON, and return content, anchor provenance, copy-risk findings, constraint evidence, and stage metadata.
-    prohibited_authority: Chroma writes, workproduct mutation, style tightening beyond voice need, verdicts, Pangram, and GitHub.
-  - name: style-editor agent service
-    path: agents/style-editor/
-    status: planned
-    role_realization: Executor / Change Manager for the document-tightening domain.
-    lifecycle: Request/on-demand application-local machine.
-    scaling_boundary: Stateless requests and retrieval load may scale independently.
-    failure_boundary: Intent, retrieval, model, preservation, or budget failure returns the accepted voice parent unchanged and no accepted artifact.
-    authority: Identify exact tightening targets through a fixed helper, read applicable before/after pairs through tightening RAG, edit only stated spans with bounded model calls, validate with a fixed helper, and return content with complete pair provenance.
-    prohibited_authority: Structure or voice change, Chroma writes, workproduct mutation, critic or acceptance verdicts, Pangram, and GitHub.
+    failure_boundary: A failed response leaves the original or last accepted parent unchanged and produces no accepted artifact.
+    authority: Per-stage retrieval through the stage's RAG instance, bounded model editing within the stage domain, fixed non-shell helper operations over bounded JSON, and return of content with provenance and preservation evidence.
+    prohibited_authority: Cross-stage editing, Chroma writes, workproduct mutation, critic or acceptance verdicts, Pangram, and GitHub mutation.
   - name: voice-critic agent service
     path: agents/voice-critic/
     status: planned
@@ -810,9 +792,7 @@ project_structure:
     - {path: docs/road-map.yaml, status: planned_documentation, role: Release 00.0 plan and evidence status.}
   planned_configuration:
     - {path: agents/workflow-orchestrator/, status: planned, role: Saga coordination, fixed exec declarations, and constrained JSON-emitting helper executable.}
-    - {path: agents/structure-editor/, status: planned, role: Structure editing profile, flat machine, declarations, and constrained non-shell report helper.}
-    - {path: agents/voice-editor/, status: planned, role: Voice editing profile, flat machine, declarations, and constrained non-shell report helper.}
-    - {path: agents/style-editor/, status: planned, role: Style tightening profile, flat machine, declarations, and constrained non-shell report helper.}
+    - {path: agents/specialist-editor/, status: planned, role: Parameterized editor profile with structure, voice, and style stage configurations, flat machines, declarations, and constrained non-shell report helpers.}
     - {path: agents/voice-critic/, status: planned, role: Independent assurance profile.}
     - {path: agents/corpus-ingest/, status: planned, role: Thin canonical ingest wrapper.}
   planned_specifications:
@@ -820,19 +800,17 @@ project_structure:
     - {path: docs/specs/software-requirements/srd002-writing-saga-workproducts.yaml, status: specified, role: Planned immutable workproduct, manifest, retry, recovery, idempotency, and publication contract.}
     - {path: docs/specs/software-requirements/srd003-writing-agent-tools.yaml, status: specified, role: Closed ToolDef vocabulary, factory reuse, signals, errors, effects, compensation, and exclusive authority.}
     - {path: docs/specs/software-requirements/srd004-workflow-orchestrator.yaml, status: specified, role: Flat orchestration states, signals, transitions, persistence, responsible-stage replay, recovery, publication, and terminal outcomes.}
-    - {path: docs/specs/software-requirements/srd005-structure-editor.yaml, status: specified, role: Flat request, section-and-outline retrieval, one refinement, structure-only editing, semantic constraints, outcomes, and provenance.}
-    - {path: docs/specs/software-requirements/srd006-voice-editor.yaml, status: specified, role: Flat accepted-parent request, rhetorical-role and register passage retrieval, one refinement, bounded voice-only rewrites, preservation constraints, copy-risk, outcomes, and provenance.}
-    - {path: docs/specs/software-requirements/srd007-style-editor.yaml, status: specified, role: Flat accepted-voice request, explicit tightening intents, before/after pair retrieval, one refinement, targeted edits, preservation, bounded retry, outcomes, and pair provenance.}
+    - {path: docs/specs/software-requirements/srd005-specialist-editor.yaml, status: specified, role: Parameterized specialist-editor with structure, voice, and style stage configurations sharing a common pipeline shape.}
     - {path: docs/specs/software-requirements/srd008-voice-critic.yaml, status: specified, role: Flat independent assurance, exact-hash consent, separate Pangram tasks, advisory comparison, verdict, responsible-stage, and authority contract.}
     - {path: docs/specs/use-cases/rel00.0-uc001-edit-document.yaml, status: planned, role: End-to-end release scenario.}
     - {path: docs/specs/test-suites/test-rel00.0-voice-forge.yaml, status: planned, role: Release tracer and evidence plan.}
 
 implementation_status:
   current_focus: |
-    SRDs srd001 through srd008 specify service boundaries, the writing saga and
+    SRDs srd001 through srd005 and srd008 specify service boundaries, the writing saga and
     workproducts, the closed tool vocabulary, the workflow-orchestrator machine,
-    and the structure-editor, voice-editor, style-editor, and voice-critic
-    machines. The planned release use case and 29-case planned test suite close
+    the specialist-editor machine (structure, voice, and style stages), and the
+    voice-critic machine. The planned release use case and 29-case planned test suite close
     documentation traceability across all 192 requirement items and 63
     acceptance criteria. Profiles, machines, tools, constrained orchestrator helper, services,
     integration evidence, and root registrations remain planned.
@@ -842,12 +820,10 @@ implementation_status:
     - specified: srd002 workspace schema, artifact lineage, manifest state, stage contracts, retries, recovery, and publication.
     - specified: srd003 tool words, factory reuse, ownership, signals, errors, effects, compensation, and authority closure.
     - specified: srd004 flat orchestration states, action mappings, persistence order, responsible-stage replay, recovery, publication, budgets, and terminal outcomes.
-    - specified: srd005 flat structure request, retrieval, grounding, one refinement, structure-only edit, semantic constraints, response, and terminal outcomes.
-    - specified: srd006 flat accepted-structure request, rhetorical-role and register passage retrieval, one refinement, bounded voice-only rewrite, preservation constraints, copy risk, response, and terminal outcomes.
-    - specified: srd007 flat accepted-voice request, explicit intents, tightening-pair retrieval, one refinement, targeted editing, preservation, bounded retry, response, and terminal outcomes.
+    - specified: srd005 parameterized specialist-editor with structure, voice, and style stages sharing pipeline shape, per-stage retrieval, editing, preservation, and response contracts.
     - specified: srd008 flat independent assurance, six finding categories, exact-hash consent, separate Pangram tasks, advisory comparison, verdict and responsible-stage closure, bounded polls, response, and terminal outcomes.
     - documented_planned: One reciprocal release use case and one 29-case test suite with no executable evidence.
-    - planned: Five application-local state machines, the constrained JSON-emitting orchestrator helper, constrained structure-editor, voice-editor, style-editor, and critic report helpers, and the corpus-ingest wrapper.
+    - planned: Three application-local state machines, the constrained JSON-emitting orchestrator helper, constrained specialist-editor stage report helpers, and critic report helpers, and the corpus-ingest wrapper.
     - planned: RAG, Chroma, Ollama, GitHub CLI, and Pangram integrations.
     - planned: Persistent saga workspace, retries, recovery, and publication.
     - planned: Structural, boundary, failure, recovery, and end-to-end tests.
@@ -865,12 +841,8 @@ related_documents:
     purpose: Specified closed tool vocabulary, existing-factory reuse, and exclusive authority allocation.
   - doc: docs/specs/software-requirements/srd004-workflow-orchestrator.yaml
     purpose: Specified flat orchestration, retry, recovery, finalization, publication, and terminal-state contract.
-  - doc: docs/specs/software-requirements/srd005-structure-editor.yaml
-    purpose: Specified flat structure-editor retrieval, bounded refinement, structure-only edit, constraint, response, and authority contract.
-  - doc: docs/specs/software-requirements/srd006-voice-editor.yaml
-    purpose: Specified flat voice-editor passage retrieval, bounded rewrite, preservation, copy-risk, response, and authority contract.
-  - doc: docs/specs/software-requirements/srd007-style-editor.yaml
-    purpose: Specified flat style-editor intent, pair retrieval, targeted edit, preservation, bounded retry, response, provenance, and authority contract.
+  - doc: docs/specs/software-requirements/srd005-specialist-editor.yaml
+    purpose: Specified parameterized specialist-editor with structure, voice, and style stage configurations, per-stage retrieval, editing, preservation, and response contracts.
   - doc: docs/specs/software-requirements/srd008-voice-critic.yaml
     purpose: Specified flat independent critic, exact-hash consent, separate Pangram tasks, advisory-only comparison, verdict, responsible-stage, and authority contract.
   - doc: docs/specs/use-cases/rel00.0-uc001-edit-document.yaml

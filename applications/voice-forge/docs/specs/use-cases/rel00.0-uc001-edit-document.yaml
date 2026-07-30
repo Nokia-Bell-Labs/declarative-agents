@@ -60,11 +60,11 @@ flow:
   - id: F4
     text: |
       The orchestrator appends and projects one structure intent, reads and
-      verifies the immutable original, and invokes structure-editor with bytes
-      and identities rather than a workspace path.
+      verifies the immutable original, and invokes specialist-editor:structure
+      with bytes and identities rather than a workspace path.
   - id: F5
     text: |
-      Structure-editor deterministically retrieves section or outline evidence
+      Specialist-editor:structure deterministically retrieves section or outline evidence
       from structure-rag, permits at most one grounding refinement, performs
       only supported structural operations, validates semantic and required
       content preservation, and returns data without persistence authority.
@@ -75,7 +75,7 @@ flow:
       accepted or rejected result before continuing.
   - id: F7
     text: |
-      From the selected accepted structure parent, voice-editor retrieves
+      From the selected accepted structure parent, specialist-editor:voice retrieves
       independently mapped rhetorical-role and register anchors from voice-rag,
       rewrites eligible passages in their original slots, validates meaning and
       protected content, checks provenance-bound copy risk, and bounds internal
@@ -86,7 +86,7 @@ flow:
       provenance before selecting it and durably advancing.
   - id: F9
     text: |
-      From the selected accepted voice parent, style-editor identifies explicit
+      From the selected accepted voice parent, specialist-editor:style identifies explicit
       tightening targets, retrieves applicable before/after pairs only from
       tightening-rag, edits only target spans, preserves voice and protected
       content, and bounds pair refinement and candidate retries.
@@ -304,79 +304,79 @@ touchpoints:
       infrastructure outcomes, close responsible-stage routes, prove the
       acceptance cut, recover both persistence orderings, and publish forward.
   - id: T5
-    component: structure-editor machine
+    component: specialist-editor:structure machine
     requirements:
-      - srd005-structure-editor R1.1
-      - srd005-structure-editor R1.2
-      - srd005-structure-editor R2.1
-      - srd005-structure-editor R2.2
-      - srd005-structure-editor R3.1
-      - srd005-structure-editor R3.2
-      - srd005-structure-editor R3.3
-      - srd005-structure-editor R4.1
-      - srd005-structure-editor R4.2
-      - srd005-structure-editor R4.3
-      - srd005-structure-editor R5.1
-      - srd005-structure-editor R5.2
-      - srd005-structure-editor R5.3
-      - srd005-structure-editor R6.1
-      - srd005-structure-editor R6.2
-      - srd005-structure-editor R7.1
-      - srd005-structure-editor R7.2
+      - srd005-specialist-editor R1.1
+      - srd005-specialist-editor R1.2
+      - srd005-specialist-editor R2.1
+      - srd005-specialist-editor R2.2
+      - srd005-specialist-editor R3.1
+      - srd005-specialist-editor R3.2
+      - srd005-specialist-editor R3.3
+      - srd005-specialist-editor R4.1
+      - srd005-specialist-editor R4.2
+      - srd005-specialist-editor R4.3
+      - srd005-specialist-editor R5.1
+      - srd005-specialist-editor R5.2
+      - srd005-specialist-editor R5.3
+      - srd005-specialist-editor R6.1
+      - srd005-specialist-editor R6.2
+      - srd005-specialist-editor R7.1
+      - srd005-specialist-editor R7.2
     reason: |
       F4 through F6 use a path-free accepted parent, retrieval-before-edit,
       one refinement, structure-only preservation, fixed responses, and
       non-authoritative data return.
   - id: T6
-    component: voice-editor machine
+    component: specialist-editor:voice machine
     requirements:
-      - srd006-voice-editor R1.1
-      - srd006-voice-editor R1.2
-      - srd006-voice-editor R2.1
-      - srd006-voice-editor R2.2
-      - srd006-voice-editor R2.3
-      - srd006-voice-editor R3.1
-      - srd006-voice-editor R3.2
-      - srd006-voice-editor R3.3
-      - srd006-voice-editor R3.4
-      - srd006-voice-editor R4.1
-      - srd006-voice-editor R4.2
-      - srd006-voice-editor R4.3
-      - srd006-voice-editor R5.1
-      - srd006-voice-editor R5.2
-      - srd006-voice-editor R5.3
-      - srd006-voice-editor R5.4
-      - srd006-voice-editor R6.1
-      - srd006-voice-editor R6.2
-      - srd006-voice-editor R6.3
-      - srd006-voice-editor R6.4
-      - srd006-voice-editor R7.1
-      - srd006-voice-editor R7.2
+      - srd005-specialist-editor R8.1
+      - srd005-specialist-editor R8.2
+      - srd005-specialist-editor R9.1
+      - srd005-specialist-editor R9.2
+      - srd005-specialist-editor R9.3
+      - srd005-specialist-editor R10.1
+      - srd005-specialist-editor R10.2
+      - srd005-specialist-editor R10.3
+      - srd005-specialist-editor R10.4
+      - srd005-specialist-editor R11.1
+      - srd005-specialist-editor R11.2
+      - srd005-specialist-editor R11.3
+      - srd005-specialist-editor R12.1
+      - srd005-specialist-editor R12.2
+      - srd005-specialist-editor R12.3
+      - srd005-specialist-editor R12.4
+      - srd005-specialist-editor R13.1
+      - srd005-specialist-editor R13.2
+      - srd005-specialist-editor R13.3
+      - srd005-specialist-editor R13.4
+      - srd005-specialist-editor R14.1
+      - srd005-specialist-editor R14.2
     reason: |
       F7 and F8 use the selected structure parent, role/register retrieval,
       bounded voice-only rewrites, deterministic preservation, copy-risk
       control, fixed response data, and no persistence or acceptance authority.
   - id: T7
-    component: style-editor machine
+    component: specialist-editor:style machine
     requirements:
-      - srd007-style-editor R1.1
-      - srd007-style-editor R1.2
-      - srd007-style-editor R2.1
-      - srd007-style-editor R2.2
-      - srd007-style-editor R2.3
-      - srd007-style-editor R3.1
-      - srd007-style-editor R3.2
-      - srd007-style-editor R3.3
-      - srd007-style-editor R3.4
-      - srd007-style-editor R4.1
-      - srd007-style-editor R4.2
-      - srd007-style-editor R4.3
-      - srd007-style-editor R4.4
-      - srd007-style-editor R5.1
-      - srd007-style-editor R5.2
-      - srd007-style-editor R5.3
-      - srd007-style-editor R6.1
-      - srd007-style-editor R6.2
+      - srd005-specialist-editor R15.1
+      - srd005-specialist-editor R15.2
+      - srd005-specialist-editor R16.1
+      - srd005-specialist-editor R16.2
+      - srd005-specialist-editor R16.3
+      - srd005-specialist-editor R17.1
+      - srd005-specialist-editor R17.2
+      - srd005-specialist-editor R17.3
+      - srd005-specialist-editor R17.4
+      - srd005-specialist-editor R18.1
+      - srd005-specialist-editor R18.2
+      - srd005-specialist-editor R18.3
+      - srd005-specialist-editor R18.4
+      - srd005-specialist-editor R19.1
+      - srd005-specialist-editor R19.2
+      - srd005-specialist-editor R19.3
+      - srd005-specialist-editor R20.1
+      - srd005-specialist-editor R20.2
     reason: |
       F9 and F10 use explicit intents, pair retrieval before target-only edits,
       preservation and bounded retry, fixed fail-closed responses, and no
@@ -469,42 +469,42 @@ success_criteria:
       Structure editing is retrieval-grounded, structure-only, bounded,
       provenance-complete, fail-closed, and non-authoritative.
     traces:
-      - srd005-structure-editor AC1
-      - srd005-structure-editor AC2
-      - srd005-structure-editor AC3
-      - srd005-structure-editor AC4
-      - srd005-structure-editor AC5
-      - srd005-structure-editor AC6
-      - srd005-structure-editor AC7
+      - srd005-specialist-editor AC1
+      - srd005-specialist-editor AC2
+      - srd005-specialist-editor AC3
+      - srd005-specialist-editor AC4
+      - srd005-specialist-editor AC5
+      - srd005-specialist-editor AC6
+      - srd005-specialist-editor AC7
   - id: S6
     criterion: |
       Voice editing preserves the accepted structure and protected meaning,
       uses role/register anchors, bounds refinement and rewrites, controls copy
       risk, and returns only non-authoritative data.
     traces:
-      - srd006-voice-editor AC1
-      - srd006-voice-editor AC2
-      - srd006-voice-editor AC3
-      - srd006-voice-editor AC4
-      - srd006-voice-editor AC5
-      - srd006-voice-editor AC6
-      - srd006-voice-editor AC7
-      - srd006-voice-editor AC8
-      - srd006-voice-editor AC9
+      - srd005-specialist-editor AC8
+      - srd005-specialist-editor AC9
+      - srd005-specialist-editor AC10
+      - srd005-specialist-editor AC11
+      - srd005-specialist-editor AC12
+      - srd005-specialist-editor AC13
+      - srd005-specialist-editor AC14
+      - srd005-specialist-editor AC15
+      - srd005-specialist-editor AC16
   - id: S7
     criterion: |
       Style editing changes only explicit pair-grounded targets, preserves voice
       and protected content, bounds refinement and retries, fails closed, and
       returns only non-authoritative data.
     traces:
-      - srd007-style-editor AC1
-      - srd007-style-editor AC2
-      - srd007-style-editor AC3
-      - srd007-style-editor AC4
-      - srd007-style-editor AC5
-      - srd007-style-editor AC6
-      - srd007-style-editor AC7
-      - srd007-style-editor AC8
+      - srd005-specialist-editor AC17
+      - srd005-specialist-editor AC18
+      - srd005-specialist-editor AC19
+      - srd005-specialist-editor AC20
+      - srd005-specialist-editor AC21
+      - srd005-specialist-editor AC22
+      - srd005-specialist-editor AC23
+      - srd005-specialist-editor AC24
   - id: S8
     criterion: |
       Independent exact-hash criticism covers all six categories, closes
@@ -542,9 +542,9 @@ success_criteria:
       - srd002-writing-saga-workproducts AC8
       - srd003-writing-agent-tools AC7
       - srd004-workflow-orchestrator AC8
-      - srd005-structure-editor AC7
-      - srd006-voice-editor AC9
-      - srd007-style-editor AC8
+      - srd005-specialist-editor AC7
+      - srd005-specialist-editor AC16
+      - srd005-specialist-editor AC24
       - srd008-voice-critic AC9
 
 out_of_scope:

@@ -19,9 +19,9 @@ traces:
   - srd002-writing-saga-workproducts
   - srd003-writing-agent-tools
   - srd004-workflow-orchestrator
-  - srd005-structure-editor
-  - srd006-voice-editor
-  - srd007-style-editor
+  - srd005-specialist-editor
+  - srd005-specialist-editor
+  - srd005-specialist-editor
   - srd008-voice-critic
 
 preconditions:
@@ -59,9 +59,9 @@ test_cases:
       - srd002-writing-saga-workproducts AC8
       - srd003-writing-agent-tools AC7
       - srd004-workflow-orchestrator AC8
-      - srd005-structure-editor AC7
-      - srd006-voice-editor AC9
-      - srd007-style-editor AC8
+      - srd005-specialist-editor AC7
+      - srd005-specialist-editor AC16
+      - srd005-specialist-editor AC24
       - srd008-voice-critic AC9
 
   - id: TC002
@@ -185,13 +185,13 @@ test_cases:
     current_evidence: none
     traces:
       - rel00.0-uc001-edit-document S5
-      - srd005-structure-editor AC1
-      - srd005-structure-editor AC2
-      - srd005-structure-editor AC3
-      - srd005-structure-editor AC4
-      - srd005-structure-editor AC5
-      - srd005-structure-editor AC6
-      - srd005-structure-editor AC7
+      - srd005-specialist-editor AC1
+      - srd005-specialist-editor AC2
+      - srd005-specialist-editor AC3
+      - srd005-specialist-editor AC4
+      - srd005-specialist-editor AC5
+      - srd005-specialist-editor AC6
+      - srd005-specialist-editor AC7
 
   - id: TC007
     use_case: rel00.0-uc001-edit-document
@@ -211,15 +211,15 @@ test_cases:
     current_evidence: none
     traces:
       - rel00.0-uc001-edit-document S6
-      - srd006-voice-editor AC1
-      - srd006-voice-editor AC2
-      - srd006-voice-editor AC3
-      - srd006-voice-editor AC4
-      - srd006-voice-editor AC5
-      - srd006-voice-editor AC6
-      - srd006-voice-editor AC7
-      - srd006-voice-editor AC8
-      - srd006-voice-editor AC9
+      - srd005-specialist-editor AC8
+      - srd005-specialist-editor AC9
+      - srd005-specialist-editor AC10
+      - srd005-specialist-editor AC11
+      - srd005-specialist-editor AC12
+      - srd005-specialist-editor AC13
+      - srd005-specialist-editor AC14
+      - srd005-specialist-editor AC15
+      - srd005-specialist-editor AC16
 
   - id: TC008
     use_case: rel00.0-uc001-edit-document
@@ -239,14 +239,14 @@ test_cases:
     current_evidence: none
     traces:
       - rel00.0-uc001-edit-document S7
-      - srd007-style-editor AC1
-      - srd007-style-editor AC2
-      - srd007-style-editor AC3
-      - srd007-style-editor AC4
-      - srd007-style-editor AC5
-      - srd007-style-editor AC6
-      - srd007-style-editor AC7
-      - srd007-style-editor AC8
+      - srd005-specialist-editor AC17
+      - srd005-specialist-editor AC18
+      - srd005-specialist-editor AC19
+      - srd005-specialist-editor AC20
+      - srd005-specialist-editor AC21
+      - srd005-specialist-editor AC22
+      - srd005-specialist-editor AC23
+      - srd005-specialist-editor AC24
 
   - id: TC009
     use_case: rel00.0-uc001-edit-document
@@ -412,7 +412,7 @@ test_cases:
       and replay through style and critique.
     future_evidence: {type: fixture_matrix, path: applications/voice-forge/tests/critic/anchor-copy-risk/cases.yaml}
     current_evidence: none
-    traces: [rel00.0-uc001-edit-document S6, rel00.0-uc001-edit-document S8, srd006-voice-editor AC7, srd008-voice-critic AC3, srd008-voice-critic AC4]
+    traces: [rel00.0-uc001-edit-document S6, rel00.0-uc001-edit-document S8, srd005-specialist-editor AC14, srd008-voice-critic AC3, srd008-voice-critic AC4]
 
   - id: TC019
     use_case: rel00.0-uc001-edit-document
@@ -441,9 +441,9 @@ test_cases:
       - srd002-writing-saga-workproducts AC4
       - srd003-writing-agent-tools AC7
       - srd004-workflow-orchestrator AC5
-      - srd005-structure-editor AC5
-      - srd006-voice-editor AC8
-      - srd007-style-editor AC7
+      - srd005-specialist-editor AC5
+      - srd005-specialist-editor AC15
+      - srd005-specialist-editor AC23
       - srd008-voice-critic AC1
 
   - id: TC020
@@ -665,9 +665,9 @@ test_cases:
       - srd003-writing-agent-tools AC7
       - srd004-workflow-orchestrator AC2
       - srd004-workflow-orchestrator AC8
-      - srd005-structure-editor AC7
-      - srd006-voice-editor AC9
-      - srd007-style-editor AC8
+      - srd005-specialist-editor AC7
+      - srd005-specialist-editor AC16
+      - srd005-specialist-editor AC24
       - srd008-voice-critic AC9
 
   - id: TC029
@@ -688,9 +688,9 @@ test_cases:
     traces:
       - rel00.0-uc001-edit-document S10
       - srd004-workflow-orchestrator AC8
-      - srd005-structure-editor AC7
-      - srd006-voice-editor AC9
-      - srd007-style-editor AC8
+      - srd005-specialist-editor AC7
+      - srd005-specialist-editor AC16
+      - srd005-specialist-editor AC24
       - srd008-voice-critic AC9
 
 planned_coverage_inventory:
@@ -701,9 +701,9 @@ planned_coverage_inventory:
     srd002-writing-saga-workproducts: [AC1, AC2, AC3, AC4, AC5, AC6, AC7, AC8]
     srd003-writing-agent-tools: [AC1, AC2, AC3, AC4, AC5, AC6, AC7]
     srd004-workflow-orchestrator: [AC1, AC2, AC3, AC4, AC5, AC6, AC7, AC8]
-    srd005-structure-editor: [AC1, AC2, AC3, AC4, AC5, AC6, AC7]
-    srd006-voice-editor: [AC1, AC2, AC3, AC4, AC5, AC6, AC7, AC8, AC9]
-    srd007-style-editor: [AC1, AC2, AC3, AC4, AC5, AC6, AC7, AC8]
+    srd005-specialist-editor: [AC1, AC2, AC3, AC4, AC5, AC6, AC7]
+    srd005-specialist-editor: [AC1, AC2, AC3, AC4, AC5, AC6, AC7, AC8, AC9]
+    srd005-specialist-editor: [AC1, AC2, AC3, AC4, AC5, AC6, AC7, AC8]
     srd008-voice-critic: [AC1, AC2, AC3, AC4, AC5, AC6, AC7, AC8, AC9]
   required_case_categories:
     happy_path: [TC010]

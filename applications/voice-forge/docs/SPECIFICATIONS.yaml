@@ -7,15 +7,15 @@ overview: |
   style edit, independent critique, bounded retry, finalization, one commit,
   push, and pull request.
 
-  Eight specified SRDs define service authority, the saga workproduct
+  Six specified SRDs define service authority, the saga workproduct
   lifecycle, the closed tool vocabulary, the flat workflow-orchestrator
-  machine, and the flat structure-editor, voice-editor, and style-editor
-  machines, and the independent voice-critic machine and Pangram boundary. One
-  planned use case and one 29-case planned test suite trace all eight SRDs
-  reciprocally. The use case names all 192 requirement items at exact
-  touchpoints. Its ten success criteria and the suite cover all 63 SRD
-  acceptance criteria. No profile, service, tool, runtime test, or executable
-  evidence is implemented.
+  machine, the parameterized specialist-editor machine (structure, voice,
+  and style stages), and the independent voice-critic machine and Pangram
+  boundary. One planned use case and one 29-case planned test suite trace
+  all six SRDs reciprocally. The use case names all 192 requirement items
+  at exact touchpoints. Its ten success criteria and the suite cover all 63
+  SRD acceptance criteria. No profile, service, tool, runtime test, or
+  executable evidence is implemented.
 
   Shared application and agent-core requirements remain external references.
   Local SRDs will cite them and define only Voice Forge behavior and stricter
@@ -27,7 +27,7 @@ roadmap_summary:
     use_cases_done: 0
     use_cases_total: 1
     status: planned
-    evidence: Eight SRDs, one planned use case, and one 29-case planned test suite are documented; no executable evidence exists.
+    evidence: Six SRDs, one planned use case, and one 29-case planned test suite are documented; no executable evidence exists.
 
 foundation_document_index:
   - id: voice-forge-readme
@@ -80,25 +80,11 @@ srd_index:
     path: docs/specs/software-requirements/srd004-workflow-orchestrator.yaml
     use_cases: [rel00.0-uc001-edit-document]
     test_suites: [test-rel00.0-voice-forge]
-  - id: srd005-structure-editor
-    title: Structure Editor State Machine
+  - id: srd005-specialist-editor
+    title: Specialist Editor State Machine
     status: specified
-    summary: Flat request validation, section-and-outline retrieval, one refinement, structure-only editing, semantic constraints, outcomes, and response provenance.
-    path: docs/specs/software-requirements/srd005-structure-editor.yaml
-    use_cases: [rel00.0-uc001-edit-document]
-    test_suites: [test-rel00.0-voice-forge]
-  - id: srd006-voice-editor
-    title: Voice Editor State Machine
-    status: specified
-    summary: Flat accepted-parent validation, rhetorical-role and register passage retrieval, one refinement, bounded voice-only rewrites, deterministic preservation constraints, copy-risk checks, outcomes, and provenance.
-    path: docs/specs/software-requirements/srd006-voice-editor.yaml
-    use_cases: [rel00.0-uc001-edit-document]
-    test_suites: [test-rel00.0-voice-forge]
-  - id: srd007-style-editor
-    title: Style Editor State Machine
-    status: specified
-    summary: Flat accepted-voice validation, explicit target intents, before/after pair retrieval, one refinement, targeted tightening, deterministic preservation, bounded retry, fail-closed outcomes, and pair provenance.
-    path: docs/specs/software-requirements/srd007-style-editor.yaml
+    summary: Parameterized specialist-editor with structure, voice, and style stages sharing a common pipeline shape but differing in accepted parent type, RAG instance, edit operations, preservation invariants, and response contracts.
+    path: docs/specs/software-requirements/srd005-specialist-editor.yaml
     use_cases: [rel00.0-uc001-edit-document]
     test_suites: [test-rel00.0-voice-forge]
   - id: srd008-voice-critic
@@ -123,9 +109,7 @@ use_case_index:
       - srd002-writing-saga-workproducts
       - srd003-writing-agent-tools
       - srd004-workflow-orchestrator
-      - srd005-structure-editor
-      - srd006-voice-editor
-      - srd007-style-editor
+      - srd005-specialist-editor
       - srd008-voice-critic
     test_suite: test-rel00.0-voice-forge
     path: docs/specs/use-cases/rel00.0-uc001-edit-document.yaml
@@ -142,9 +126,7 @@ test_suite_index:
       - srd002-writing-saga-workproducts
       - srd003-writing-agent-tools
       - srd004-workflow-orchestrator
-      - srd005-structure-editor
-      - srd006-voice-editor
-      - srd007-style-editor
+      - srd005-specialist-editor
       - srd008-voice-critic
     path: docs/specs/test-suites/test-rel00.0-voice-forge.yaml
 
@@ -162,7 +144,7 @@ coverage_gaps:
     status: planned
     description: |
       srd003 now specifies bounded deterministic routing emissions required by
-      srd004, srd005, srd006, srd007, and srd008 because MachineSpec cannot branch on
+      srd004, srd005, and srd008 because MachineSpec cannot branch on
       result payload fields. Future profile ToolDefs and fixed non-shell helpers
       must implement those declared emissions before any MachineSpec can
       validate; no runtime machine or executable conformance is claimed.

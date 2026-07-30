@@ -45,24 +45,15 @@ role_bindings:
       sub_roles: [workflow-orchestrator]
       domain: voice-forge-writing-saga
       execution_scope: service
-    - actor: structure-editor
+    - actor: specialist-editor
       classification: role_realization
       primary_role: executor
       sub_roles: [change-manager]
-      domain: document-structure
       execution_scope: request
-    - actor: voice-editor
-      classification: role_realization
-      primary_role: executor
-      sub_roles: [change-manager]
-      domain: document-voice
-      execution_scope: request
-    - actor: style-editor
-      classification: role_realization
-      primary_role: executor
-      sub_roles: [change-manager]
-      domain: document-tightening
-      execution_scope: request
+      stage_configurations:
+        structure: {domain: document-structure}
+        voice: {domain: document-voice}
+        style: {domain: document-tightening}
     - actor: voice-critic
       classification: role_realization
       primary_role: critic
@@ -105,50 +96,33 @@ service_topology:
           - Issue critic verdicts.
           - Write retrieval collections.
           - Invoke Pangram.
-    - actor: structure-editor
-      responsibility: Restructure supplied content using structure evidence and return content with provenance.
-      lifecycle: Request/on-demand stateless agent execution.
-      persistence: No durable state and no shared-filesystem access; the response is its only output.
-      scaling: Requests may scale independently while the orchestrator preserves serial saga order.
-      failure: Retrieval, model, or validation failure returns no accepted artifact.
-      authority:
-        allowed:
-          - Query only structure-rag.
-          - Invoke allowlisted Ollama models for the bounded request.
-          - Return a structural edit and evidence provenance.
-        prohibited:
-          - Mutate workproducts, Chroma, or GitHub.
-          - Query voice-rag or tightening-rag.
-          - Issue acceptance verdicts or invoke Pangram.
-    - actor: voice-editor
-      responsibility: Rewrite supplied content toward the selected voice using voice evidence and return anchor and copy-risk provenance.
+    - actor: specialist-editor
+      responsibility: Transform supplied content along one configured stage dimension and return content with retrieval provenance.
       lifecycle: Request/on-demand stateless agent execution.
       persistence: No durable state and no shared-filesystem access; the response is its only output.
       scaling: Requests may scale independently while the orchestrator preserves serial saga order.
       failure: Retrieval, model, copy-risk, or validation failure returns no accepted artifact.
+      stage_configurations:
+        structure:
+          responsibility: Restructure supplied content using section and outline evidence.
+          corpus: structure-rag
+          prohibited_corpora: [voice-rag, tightening-rag]
+        voice:
+          responsibility: Rewrite supplied content toward the selected voice using passage anchors with copy-risk detection.
+          corpus: voice-rag
+          prohibited_corpora: [structure-rag, tightening-rag]
+        style:
+          responsibility: Tighten explicit target spans using transformation-pair evidence.
+          corpus: tightening-rag
+          prohibited_corpora: [structure-rag, voice-rag]
       authority:
         allowed:
-          - Query only voice-rag.
+          - Query only the stage-bound RAG instance.
           - Invoke allowlisted Ollama models for the bounded request.
-          - Return a voice edit and evidence provenance.
+          - Return a stage-specific edit and evidence provenance.
         prohibited:
           - Mutate workproducts, Chroma, or GitHub.
-          - Query structure-rag or tightening-rag.
-          - Issue acceptance verdicts or invoke Pangram.
-    - actor: style-editor
-      responsibility: Tighten supplied content using transformation-pair evidence and return content with provenance.
-      lifecycle: Request/on-demand stateless agent execution.
-      persistence: No durable state and no shared-filesystem access; the response is its only output.
-      scaling: Requests may scale independently while the orchestrator preserves serial saga order.
-      failure: Retrieval, model, or validation failure returns no accepted artifact.
-      authority:
-        allowed:
-          - Query only tightening-rag.
-          - Invoke allowlisted Ollama models for the bounded request.
-          - Return targeted style edits and pair provenance.
-        prohibited:
-          - Mutate workproducts, Chroma, or GitHub.
-          - Query structure-rag or voice-rag.
+          - Query a RAG instance outside the configured stage binding.
           - Issue acceptance verdicts or invoke Pangram.
     - actor: voice-critic
       responsibility: Evaluate the supplied immutable original and style candidate and return a categorized verdict and retry feedback.
@@ -185,14 +159,14 @@ service_topology:
   rag_instances:
     - instance: structure-rag
       corpus_scope: structure
-      clients: [structure-editor]
+      clients: [specialist-editor:structure]
     - instance: voice-rag
       corpus_scope: voice
-      clients: [voice-editor, voice-critic]
+      clients: [specialist-editor:voice, voice-critic]
       sharing_rule: The critic may share this instance because both clients read the same voice corpus and neither gains mutation authority.
     - instance: tightening-rag
       corpus_scope: tightening
-      clients: [style-editor]
+      clients: [specialist-editor:style]
     - common_contract:
         implementation_reference: applications/chatbot-mesh/docs/specs/software-requirements/srd001-rag-server-agent.yaml
         responsibility: Serve one configured corpus as ranked chunks and embedding metadata.
@@ -249,11 +223,11 @@ requirements:
     items:
       - id: R1.1
         text: |
-          Voice Forge SHALL define workflow-orchestrator, structure-editor,
-          voice-editor, style-editor, voice-critic, and corpus-ingest as six
-          separate planned agent services with exactly the responsibilities in
-          service_topology.agent_services.
-        evidence: The six actor entries exist, have distinct responsibilities, and remain status planned at runtime.
+          Voice Forge SHALL define workflow-orchestrator, specialist-editor
+          (three stage configurations: structure, voice, style), voice-critic,
+          and corpus-ingest as four planned agent actors with exactly the
+          responsibilities in service_topology.agent_services.
+        evidence: The four actor entries exist, have distinct responsibilities, and remain status planned at runtime.
       - id: R1.2
         text: |
           Each agent separation SHALL identify its authority, failure, scaling,
@@ -272,9 +246,10 @@ requirements:
       - id: R2.1
         text: |
           The workflow-orchestrator SHALL bind Executor / Workflow Orchestrator.
-          The three editors SHALL each bind Executor / Change Manager for their
-          stated domains. The voice-critic SHALL bind Critic / Output Evaluator
-          and Feedback Generator.
+          The specialist-editor SHALL bind Executor / Change Manager with
+          per-stage domains (document-structure, document-voice,
+          document-tightening). The voice-critic SHALL bind Critic / Output
+          Evaluator and Feedback Generator.
         evidence: Planned profiles and the shared role-realization index match role_bindings exactly.
       - id: R2.2
         text: |
@@ -300,9 +275,9 @@ requirements:
         evidence: Planned authority tests deny workproduct and git/gh ToolDefs to every other actor and reject pre-acceptance publication.
       - id: R3.2
         text: |
-          Editors SHALL have authority to transform only supplied content and
-          return it. They SHALL NOT persist an authoritative artifact, publish,
-          issue an acceptance verdict, or invoke Pangram.
+          The specialist-editor SHALL have authority to transform only supplied
+          content and return it. It SHALL NOT persist an authoritative artifact,
+          publish, issue an acceptance verdict, or invoke Pangram.
         evidence: Planned profile-closure tests expose no workproduct, GitHub, verdict, or Pangram words to editor profiles.
       - id: R3.3
         text: |
@@ -327,9 +302,10 @@ requirements:
         evidence: Planned topology and startup validation pin one database, collection set, and embedding model to each instance.
       - id: R4.2
         text: |
-          structure-editor SHALL query only structure-rag, voice-editor SHALL
-          query only voice-rag, and style-editor SHALL query only
-          tightening-rag. voice-critic MAY share voice-rag read-only.
+          specialist-editor:structure SHALL query only structure-rag,
+          specialist-editor:voice SHALL query only voice-rag, and
+          specialist-editor:style SHALL query only tightening-rag.
+          voice-critic MAY share voice-rag read-only.
         evidence: Planned endpoint allowlists and negative tests enforce the client matrix in service_topology.rag_instances.
       - id: R4.3
         text: |
@@ -349,8 +325,8 @@ requirements:
       - id: R5.1
         text: |
           workflow-orchestrator and the three RAG instances SHALL be planned
-          long-running managed services. Editors and voice-critic SHALL execute
-          per request. corpus-ingest SHALL execute as an on-demand
+          long-running managed services. The specialist-editor (all stages) and
+          voice-critic SHALL execute per request. corpus-ingest SHALL execute as an on-demand
           administrative batch outside a writing saga.
         evidence: Planned profiles, service declarations, and lifecycle tests match each declared lifecycle.
       - id: R5.2
@@ -421,7 +397,7 @@ non_goals:
   - Implement profiles, machines, ToolDefs, services, packages, deployments, or tests.
   - Define detailed workproduct, retry, or publication state; srd002 owns that behavior.
   - Define the writing-agent ToolDef vocabulary; srd003 owns those words.
-  - Define editor, critic, or orchestrator state machines; srd004 through srd008 own them.
+  - Define editor, critic, or orchestrator state machines; srd004, srd005, and srd008 own them.
   - Fork canonical corpus-ingest or change its reusable loading behavior.
   - Create one RAG service that multiplexes structure, voice, and tightening corpora.
   - Assign canonical roles to Chroma, Ollama, GitHub, Pangram, deployment forms, or model choices.
@@ -430,9 +406,10 @@ non_goals:
 acceptance_criteria:
   - id: AC1
     criterion: |
-      All six agent services have one responsibility and explicit authority,
-      persistence, lifecycle, scaling, and failure boundaries; child agents
-      receive no shared saga filesystem.
+      All four agent actors (specialist-editor with three stage configurations)
+      have one responsibility and explicit authority, persistence, lifecycle,
+      scaling, and failure boundaries; child agents receive no shared saga
+      filesystem.
     traces: [R1.1, R1.2, R1.3]
   - id: AC2
     criterion: |
