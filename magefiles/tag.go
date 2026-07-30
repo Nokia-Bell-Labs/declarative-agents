@@ -31,14 +31,17 @@ type releaseGate struct {
 type releaseGateRunner func(string) error
 type releaseCommandRunner func(releaseGate) error
 
+type remoteTagsFunc func(date string) (string, error)
+
 // Tag creates a repository-wide release tag and matching module tags.
 func Tag() error {
-	return createReleaseTag(time.Now(), gitOutput, gitCreateTagSet, runReleaseGates)
+	return createReleaseTag(time.Now(), gitOutput, gitRemoteTags, gitCreateTagSet, runReleaseGates)
 }
 
 func createReleaseTag(
 	now time.Time,
 	output gitOutputFunc,
+	remoteTags remoteTagsFunc,
 	createTags gitTagSetFunc,
 	runGates releaseGateRunner,
 ) error {
@@ -80,11 +83,16 @@ func createReleaseTag(
 	}
 
 	date := now.Format("20060102")
-	tags, err := output("tag", "-l", "*"+tagPrefix+date+".*")
+	localTags, err := output("tag", "-l", "*"+tagPrefix+date+".*")
 	if err != nil {
 		return fmt.Errorf("listing local release tags: %w", err)
 	}
-	tag := fmt.Sprintf("%s%s.%d", tagPrefix, date, nextRevisionFromTags(date, tags))
+	remoteTagOutput, err := remoteTags(date)
+	if err != nil {
+		return fmt.Errorf("listing remote release tags: %w", err)
+	}
+	mergedTags := mergeTagLines(localTags, remoteTagOutput)
+	tag := fmt.Sprintf("%s%s.%d", tagPrefix, date, nextRevisionFromTags(date, mergedTags))
 
 	allTags := releaseTags(tag, releaseModules())
 	fmt.Printf("creating atomic tag set %s\n", strings.Join(allTags, ", "))
@@ -179,6 +187,48 @@ func nextRevisionFromTags(date, tags string) int {
 		}
 	}
 	return maxRev + 1
+}
+
+func gitRemoteTags(date string) (string, error) {
+	out, err := exec.Command("git", "ls-remote", "--tags", "origin",
+		"*"+tagPrefix+date+"*").Output()
+	if err != nil {
+		return "", err
+	}
+	return parseRemoteTagRefs(string(out)), nil
+}
+
+func parseRemoteTagRefs(lsRemoteOutput string) string {
+	var tags []string
+	for _, line := range strings.Split(lsRemoteOutput, "\n") {
+		line = strings.TrimSpace(line)
+		if line == "" {
+			continue
+		}
+		parts := strings.SplitN(line, "\t", 2)
+		if len(parts) != 2 {
+			continue
+		}
+		ref := strings.TrimPrefix(parts[1], "refs/tags/")
+		tags = append(tags, ref)
+	}
+	return strings.Join(tags, "\n")
+}
+
+func mergeTagLines(sets ...string) string {
+	seen := make(map[string]bool)
+	var merged []string
+	for _, set := range sets {
+		for _, line := range strings.Split(set, "\n") {
+			line = strings.TrimSpace(line)
+			if line == "" || seen[line] {
+				continue
+			}
+			seen[line] = true
+			merged = append(merged, line)
+		}
+	}
+	return strings.Join(merged, "\n")
 }
 
 type gitOutputFunc func(args ...string) (string, error)
