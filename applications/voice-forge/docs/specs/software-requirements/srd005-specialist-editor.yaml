@@ -1,0 +1,2516 @@
+id: srd005-specialist-editor
+title: Specialist Editor State Machine
+status: specified
+
+problem: |
+  Voice Forge needs three flat request machines that each improve one dimension
+  of a document without acquiring authority over any other dimension, over
+  criticism, publication, or workproduct persistence. The three stages share a
+  pipeline shape — validate, retrieve, edit, validate constraints, respond — but
+  differ in accepted parent type, retrieval corpus, editing authority, and
+  preservation invariants. Specifying them as three independent SRDs duplicates
+  the common machine shape and obscures the parameterization.
+
+  This SRD defines one specialist-editor role parameterized by stage. Each stage
+  configuration binds a separate accepted parent, corpus, word set, signal
+  vocabulary, edit contract, and preservation contract. The common shape —
+  request validation, evidence-grounded editing, deterministic helper-based
+  constraint checking, bounded refinement, and four terminal outcomes — is
+  specified once. Agent-core MachineSpec branches on signals, not result payload
+  fields, so each stage needs its own named signal-complete srd003 words and
+  transition table.
+
+goals:
+  - "G1: Define one parameterized specialist-editor role with three stage configurations sharing a common pipeline shape."
+  - "G2: Structure stage: restructure supplied content using section and outline evidence with at most one query refinement."
+  - "G3: Voice stage: rewrite supplied content toward a selected voice using passage anchors with copy-risk detection and bounded rewrite attempts."
+  - "G4: Style stage: tighten explicit passages using transformation-pair evidence with bounded edit attempts."
+  - "G5: Each stage queries only its own RAG instance and preserves semantic and required-content constraints."
+  - "G6: Each stage returns content, retrieval provenance, and stage metadata without filesystem mutation or acceptance authority."
+
+applicability:
+  release: "00.0"
+  implementation_status: documentation_only_runtime_planned
+  owner: specialist-editor
+  machine_form: planned_flat_machine_spec
+  per_stage_runtime:
+    structure:
+      runtime_machine_path: agents/structure-editor/machine.yaml
+      runtime_machine_status: not_implemented
+    voice:
+      runtime_machine_path: agents/voice-editor/machine.yaml
+      runtime_machine_status: not_implemented
+    style:
+      runtime_machine_path: agents/style-editor/machine.yaml
+      runtime_machine_status: not_implemented
+
+stage_parameter:
+  values: [structure, voice, style]
+  common_pipeline:
+    - Validate one orchestrator-supplied request with stage-specific accepted parent.
+    - Formulate, embed, and retrieve evidence from the stage-bound RAG instance.
+    - Assess evidence through a fixed non-shell helper, parse, and scalar predicate chain.
+    - Optionally refine retrieval once if evidence is insufficient.
+    - Generate one stage-specific edit grounded in accepted evidence.
+    - Validate the candidate through a fixed non-shell helper, parse, and scalar predicate chain.
+    - Compose one of four terminal responses (succeeded, no_op, insufficient, failed).
+  per_stage_bindings:
+    structure:
+      accepted_parent: original or retry_parent content
+      corpus: structure-rag
+      edit_authority: reorder, combine, separate material with bounded structural connectors
+      generation_limit: 1
+    voice:
+      accepted_parent: accepted structure artifact
+      corpus: voice-rag
+      edit_authority: rewrite voice per passage using mapped anchors
+      generation_limit: 3
+      additional_gate: copy-risk assessment
+    style:
+      accepted_parent: accepted voice artifact
+      corpus: tightening-rag
+      edit_authority: tighten explicit target spans using transformation pairs
+      generation_limit: 3
+      additional_gate: intent identification before retrieval
+  common_terminal_states: [succeeded, no_op, insufficient_evidence, failed]
+  common_authority_exclusions:
+    - read or write a filesystem, repository, or saga workproduct
+    - issue a critic verdict or accept an artifact
+    - invoke Pangram or another external detector
+    - invoke git, gh, GitHub, generic shell, or arbitrary REST
+    - write Chroma or select another retrieval corpus
+    - publish, commit, persist, or return a workspace path
+
+stage_configurations:
+
+  structure:
+
+    request_contract:
+      source: workflow-orchestrator
+      accepted_parent_kinds: [original, retry_parent]
+      required_fields:
+        - parent_content
+        - parent_artifact_id
+        - parent_content_hash
+        - saga_id
+        - stage
+        - attempt
+        - invocation_id
+        - idempotency_key
+        - bounded_structure_intent
+        - required_content_inventory
+        - policy_digest
+      constraints:
+        - stage equals structure.
+        - parent_content contains bytes, never a filesystem path or repository locator.
+        - A fresh structure attempt uses the immutable original as parent.
+        - A retry uses the orchestrator-selected retry parent recorded by the saga contract.
+        - Request fields cannot select endpoints, models, collections, tools, paths, refs, credentials, or publication behavior.
+
+    flat_machine_contract:
+      initial_state: awaiting_request
+      terminal_states: [succeeded, no_op, insufficient_grounding, failed]
+
+      budgets:
+        machine:
+          max_iterations: 32
+          max_tokens: 200000
+          max_duration: 5m0s
+          max_consecutive_parse_errors: omitted
+        policy:
+          query_refinement_limit: 1
+          generation_limit: 1
+          rule: |
+            Refinement count starts at zero. StructureGroundingRefinementAllowed is
+            valid only at count zero. The refined query sets count one, after which
+            insufficient evidence emits StructureGroundingInsufficient. No transition
+            returns from editing or validation to retrieval or generation.
+
+      authority:
+        selected_srd003_words:
+          - validate_structure_request
+          - formulate_structure_query
+          - embed_structure_query
+          - query_structure_rag
+          - compose_structure_grounding_input
+          - inspect_structure_grounding
+          - parse_structure_grounding_report
+          - structure_grounding_sufficient
+          - structure_grounding_refinement_available
+          - compose_structure_edit_context
+          - generate_structure_edit
+          - compose_structure_constraint_input
+          - inspect_structure_constraints
+          - parse_structure_constraint_report
+          - structure_candidate_is_no_op
+          - structure_constraints_hold
+          - compose_structure_success_response
+          - compose_structure_no_op_response
+          - compose_structure_insufficient_response
+          - compose_structure_failed_response
+        prohibited_word_groups:
+          - orchestrator_workproducts
+          - orchestrator_children
+          - orchestrator_github
+          - critic_pangram
+          - corpus_wrapper
+          - lifecycle
+        prohibited_words:
+          - embed_voice_query
+          - query_voice_rag
+          - generate_voice_edit
+          - embed_tightening_query
+          - query_tightening_rag
+          - generate_style_edit
+          - embed_critic_voice_query
+          - query_critic_voice_rag
+          - evaluate_voice_candidate
+        prohibited_capabilities:
+          - read or write a filesystem or saga workproduct
+          - select a voice, imitate an exemplar, or perform style tightening
+          - issue a critic verdict or accept an artifact
+          - invoke Pangram
+          - invoke git, gh, GitHub, generic shell, or arbitrary REST
+          - write Chroma or select another retrieval corpus
+          - publish, commit, persist, or return a workspace path
+
+      action_bindings:
+        validate_request: {word: validate_structure_request, authority: srd003 word_vocabulary.editor_and_critic_retrieval}
+        formulate_query: {word: formulate_structure_query, authority: srd003 word_vocabulary.editor_and_critic_retrieval}
+        embed_query: {word: embed_structure_query, authority: srd003 word_vocabulary.editor_and_critic_retrieval}
+        retrieve_structure: {word: query_structure_rag, authority: srd003 word_vocabulary.editor_and_critic_retrieval}
+        compose_grounding_input: {word: compose_structure_grounding_input, authority: srd003 word_vocabulary.editor_and_critic_retrieval}
+        inspect_grounding: {word: inspect_structure_grounding, authority: srd003 word_vocabulary.editor_and_critic_retrieval}
+        parse_grounding_report: {word: parse_structure_grounding_report, authority: srd003 word_vocabulary.editor_and_critic_retrieval}
+        check_grounding: {word: structure_grounding_sufficient, authority: srd003 word_vocabulary.editor_and_critic_retrieval}
+        check_refinement: {word: structure_grounding_refinement_available, authority: srd003 word_vocabulary.editor_and_critic_retrieval}
+        compose_edit_context: {word: compose_structure_edit_context, authority: srd003 word_vocabulary.editor_and_critic_retrieval}
+        edit_structure: {word: generate_structure_edit, authority: srd003 word_vocabulary.editor_and_critic_retrieval}
+        compose_constraint_input: {word: compose_structure_constraint_input, authority: srd003 word_vocabulary.editor_and_critic_retrieval}
+        inspect_constraints: {word: inspect_structure_constraints, authority: srd003 word_vocabulary.editor_and_critic_retrieval}
+        parse_constraint_report: {word: parse_structure_constraint_report, authority: srd003 word_vocabulary.editor_and_critic_retrieval}
+        check_candidate_no_op: {word: structure_candidate_is_no_op, authority: srd003 word_vocabulary.editor_and_critic_retrieval}
+        check_constraints: {word: structure_constraints_hold, authority: srd003 word_vocabulary.editor_and_critic_retrieval}
+        compose_success_response: {word: compose_structure_success_response, authority: srd003 word_vocabulary.editor_and_critic_retrieval}
+        compose_no_op_response: {word: compose_structure_no_op_response, authority: srd003 word_vocabulary.editor_and_critic_retrieval}
+        compose_insufficient_response: {word: compose_structure_insufficient_response, authority: srd003 word_vocabulary.editor_and_critic_retrieval}
+        compose_failed_response: {word: compose_structure_failed_response, authority: srd003 word_vocabulary.editor_and_critic_retrieval}
+
+      states:
+        - {name: awaiting_request, meaning: Initial state; accepts one orchestrator-supplied request seed.}
+        - {name: validating_request, meaning: Validate parent bytes, identities, intent, inventory, and forbidden fields.}
+        - {name: formulating_query, meaning: Compose an initial or once-refined section-and-outline query deterministically.}
+        - {name: embedding_query, meaning: Embed the formulated query through the configured structure embedding word.}
+        - {name: querying_structure_rag, meaning: Query only structure-rag with the provider-produced vector.}
+        - {name: composing_grounding_input, meaning: Render one fixed envelope whose stdin string contains the bounded grounding-helper JSON document.}
+        - {name: inspecting_grounding, meaning: Run the fixed non-shell helper over bounded retrieval JSON to compute one grounding report.}
+        - {name: parsing_grounding_report, meaning: Parse and schema-validate grounding helper stdout without repairing it.}
+        - {name: checking_grounding, meaning: Compare one parsed grounding_status scalar with configured sufficient.}
+        - {name: checking_refinement_budget, meaning: Compare one parsed refinement count with hard limit one.}
+        - {name: composing_edit_context, meaning: Render the fixed structure-edit context from validated request and grounding labels.}
+        - {name: editing_structure, meaning: Generate one evidence-grounded structure-only candidate.}
+        - {name: composing_constraint_input, meaning: Render one fixed envelope whose stdin string contains the bounded preservation-helper JSON document.}
+        - {name: inspecting_constraints, meaning: Run the fixed non-shell helper over bounded parent, candidate, ledger, and protected-content JSON.}
+        - {name: parsing_constraint_report, meaning: Parse and schema-validate preservation helper stdout without repairing it.}
+        - {name: checking_candidate_no_op, meaning: Compare one parsed candidate_status scalar with configured no_op.}
+        - {name: checking_constraint_result, meaning: Compare one parsed preservation_status scalar with configured valid.}
+        - {name: composing_success_response, meaning: Render the fixed succeeded response and its one configured signal.}
+        - {name: composing_no_op_response, meaning: Render the fixed no-op response and its one configured signal.}
+        - {name: composing_insufficient_response, meaning: Render the fixed insufficient-grounding response and its one configured signal.}
+        - {name: composing_failed_response, meaning: Render the fixed failed response and its one configured signal.}
+        - {name: succeeded, meaning: Terminal; a validated structural edit is returned for orchestrator review.}
+        - {name: no_op, meaning: Terminal; unchanged parent content is returned because no valid structural change was needed.}
+        - {name: insufficient_grounding, meaning: Terminal; unchanged parent content is returned after two insufficient retrieval attempts.}
+        - {name: failed, meaning: Terminal; no candidate is returned as a successful edit.}
+
+      signal_classes:
+        seed: [SeedRequest]
+        domain:
+          - StructureRequestRejected
+          - StructureQueryRejected
+          - QueryRejected
+          - StructureEvidenceInsufficient
+          - ToolFailed
+          - StructureGroundingReportInvalid
+          - StructureGroundingDeficient
+          - StructureGroundingRefinementAllowed
+          - StructureGroundingInsufficient
+          - StructureEditNoOp
+          - StructureEditDeclined
+          - StructureConstraintReportInvalid
+          - StructureCandidateChanged
+          - StructureSemanticConstraintsFailed
+        success:
+          - StructureRequestValid
+          - StructureQueryFormulated
+          - StructureQueryEmbedded
+          - StructureEvidenceReady
+          - StructureGroundingInputReady
+          - ToolDone
+          - StructureGroundingReportParsed
+          - StructureGroundingSufficient
+          - StructureEditContextReady
+          - StructureEditGenerated
+          - StructureConstraintInputReady
+          - StructureConstraintReportParsed
+          - StructureEditValid
+          - StructureResponseSucceeded
+          - StructureResponseNoOp
+          - StructureResponseInsufficientGrounding
+          - StructureResponseFailed
+        infrastructure: [CommandError, BudgetExhausted]
+        deterministic_refinements:
+          authority: srd003-writing-agent-tools R4.5
+          signals:
+            - StructureGroundingReportParsed
+            - StructureGroundingReportInvalid
+            - StructureGroundingSufficient
+            - StructureGroundingDeficient
+            - StructureGroundingRefinementAllowed
+            - StructureGroundingInsufficient
+            - StructureEditContextReady
+            - StructureConstraintReportParsed
+            - StructureConstraintReportInvalid
+            - StructureEditValid
+            - StructureEditNoOp
+            - StructureCandidateChanged
+            - StructureSemanticConstraintsFailed
+            - StructureResponseSucceeded
+            - StructureResponseNoOp
+            - StructureResponseInsufficientGrounding
+            - StructureResponseFailed
+          constraints:
+            - Complex grounding and preservation observations come only from fixed non-shell helper exec words over bounded JSON and reach routing only after parse_structured schema validation.
+            - Each helper stdin document comes from the stdin string in a fixed compose envelope over labeled validated state; each exec selects that string with fixed $from(structure_grounding_input).stdin or $from(structure_constraint_input).stdin, applies fixed stdin_max_bytes, and uses output mode structured.
+            - Each parser selects only the output string from the structured exec object with $from(structure_grounding_report_raw).output or $from(structure_constraint_report_raw).output after ToolDone.
+            - Each value_predicate word reads one parsed scalar, performs one configured comparison, and emits exactly two outcomes plus CommandError.
+            - The edit-context compose word reads fixed labels, renders one context, and emits exactly one configured context signal.
+            - Each response compose word has one fixed outcome template and emits exactly one configured response signal.
+            - Routing cannot inspect prose to choose a tool, corpus, model, authority, or acceptance outcome.
+
+      transition_contract:
+        notation: |
+          Each row is one required MachineSpec transition. A slash-separated signal
+          expands to one transition per signal with the same next state and action.
+          Every helper exec is followed by a parser. Every parsed report is followed
+          by an explicit chain of one-comparison predicate states. The edit model
+          receives an immediately preceding fixed compose context. Each terminal
+          outcome has a separate fixed compose action and response signal.
+        request_query_and_retrieval:
+          - {from: awaiting_request, on: SeedRequest, to: validating_request, action: validate_request, label: validated_structure_request}
+          - {from: validating_request, on: StructureRequestValid, to: formulating_query, action: formulate_query, label: structure_query}
+          - {from: formulating_query, on: StructureQueryFormulated, to: embedding_query, action: embed_query, label: structure_embedding}
+          - {from: embedding_query, on: StructureQueryEmbedded, to: querying_structure_rag, action: retrieve_structure, label: structure_retrieval}
+          - {from: querying_structure_rag, on: StructureEvidenceReady/StructureEvidenceInsufficient, to: composing_grounding_input, action: compose_grounding_input, label: structure_grounding_input}
+          - {from: composing_grounding_input, on: StructureGroundingInputReady, to: inspecting_grounding, action: inspect_grounding, label: structure_grounding_report_raw}
+          - {from: inspecting_grounding, on: ToolDone, to: parsing_grounding_report, action: parse_grounding_report, label: structure_grounding_report}
+          - {from: parsing_grounding_report, on: StructureGroundingReportParsed, to: checking_grounding, action: check_grounding, label: structure_grounding_check}
+          - {from: checking_grounding, on: StructureGroundingSufficient, to: composing_edit_context, action: compose_edit_context, label: structure_edit_context}
+          - {from: composing_edit_context, on: StructureEditContextReady, to: editing_structure, action: edit_structure, label: structure_candidate}
+          - {from: checking_grounding, on: StructureGroundingDeficient, to: checking_refinement_budget, action: check_refinement, label: structure_refinement_check}
+          - {from: checking_refinement_budget, on: StructureGroundingRefinementAllowed, to: formulating_query, action: formulate_query, label: structure_query}
+          - {from: checking_refinement_budget, on: StructureGroundingInsufficient, to: composing_insufficient_response, action: compose_insufficient_response, label: structure_response}
+        edit_validation_and_response:
+          - {from: editing_structure, on: StructureEditGenerated/StructureEditNoOp, to: composing_constraint_input, action: compose_constraint_input, label: structure_constraint_input}
+          - {from: composing_constraint_input, on: StructureConstraintInputReady, to: inspecting_constraints, action: inspect_constraints, label: structure_constraint_report_raw}
+          - {from: editing_structure, on: StructureEditDeclined, to: composing_failed_response, action: compose_failed_response, label: structure_response}
+          - {from: inspecting_constraints, on: ToolDone, to: parsing_constraint_report, action: parse_constraint_report, label: structure_constraint_report}
+          - {from: parsing_constraint_report, on: StructureConstraintReportParsed, to: checking_candidate_no_op, action: check_candidate_no_op, label: structure_no_op_check}
+          - {from: checking_candidate_no_op, on: StructureEditNoOp, to: composing_no_op_response, action: compose_no_op_response, label: structure_response}
+          - {from: checking_candidate_no_op, on: StructureCandidateChanged, to: checking_constraint_result, action: check_constraints, label: structure_constraint_check}
+          - {from: checking_constraint_result, on: StructureEditValid, to: composing_success_response, action: compose_success_response, label: structure_response}
+          - {from: checking_constraint_result, on: StructureSemanticConstraintsFailed, to: composing_failed_response, action: compose_failed_response, label: structure_response}
+          - {from: composing_success_response, on: StructureResponseSucceeded, to: succeeded, action: none}
+          - {from: composing_no_op_response, on: StructureResponseNoOp, to: no_op, action: none}
+          - {from: composing_insufficient_response, on: StructureResponseInsufficientGrounding, to: insufficient_grounding, action: none}
+          - {from: composing_failed_response, on: StructureResponseFailed, to: failed, action: none}
+        failure:
+          domain_to_failed_response:
+            - {from: validating_request, on: StructureRequestRejected, to: composing_failed_response, action: compose_failed_response, label: structure_response}
+            - {from: embedding_query, on: StructureQueryRejected, to: composing_failed_response, action: compose_failed_response, label: structure_response}
+            - {from: querying_structure_rag, on: QueryRejected, to: composing_failed_response, action: compose_failed_response, label: structure_response}
+            - {from: inspecting_grounding, on: ToolFailed, to: composing_failed_response, action: compose_failed_response, label: structure_response}
+            - {from: parsing_grounding_report, on: StructureGroundingReportInvalid, to: composing_failed_response, action: compose_failed_response, label: structure_response}
+            - {from: inspecting_constraints, on: ToolFailed, to: composing_failed_response, action: compose_failed_response, label: structure_response}
+            - {from: parsing_constraint_report, on: StructureConstraintReportInvalid, to: composing_failed_response, action: compose_failed_response, label: structure_response}
+          rule: Every listed row is an explicit failed-response transition.
+          infrastructure_to_failed_response:
+            - {from: validating_request, on: CommandError/BudgetExhausted, to: composing_failed_response, action: compose_failed_response, label: structure_response}
+            - {from: formulating_query, on: BudgetExhausted, to: composing_failed_response, action: compose_failed_response, label: structure_response}
+            - {from: embedding_query, on: CommandError/BudgetExhausted, to: composing_failed_response, action: compose_failed_response, label: structure_response}
+            - {from: querying_structure_rag, on: CommandError/BudgetExhausted, to: composing_failed_response, action: compose_failed_response, label: structure_response}
+            - {from: inspecting_grounding, on: CommandError/BudgetExhausted, to: composing_failed_response, action: compose_failed_response, label: structure_response}
+            - {from: parsing_grounding_report, on: CommandError/BudgetExhausted, to: composing_failed_response, action: compose_failed_response, label: structure_response}
+            - {from: checking_grounding, on: CommandError/BudgetExhausted, to: composing_failed_response, action: compose_failed_response, label: structure_response}
+            - {from: checking_refinement_budget, on: CommandError/BudgetExhausted, to: composing_failed_response, action: compose_failed_response, label: structure_response}
+            - {from: editing_structure, on: CommandError/BudgetExhausted, to: composing_failed_response, action: compose_failed_response, label: structure_response}
+            - {from: inspecting_constraints, on: CommandError/BudgetExhausted, to: composing_failed_response, action: compose_failed_response, label: structure_response}
+            - {from: parsing_constraint_report, on: CommandError/BudgetExhausted, to: composing_failed_response, action: compose_failed_response, label: structure_response}
+            - {from: checking_candidate_no_op, on: CommandError/BudgetExhausted, to: composing_failed_response, action: compose_failed_response, label: structure_response}
+            - {from: checking_constraint_result, on: CommandError/BudgetExhausted, to: composing_failed_response, action: compose_failed_response, label: structure_response}
+          budget_to_failed_terminal:
+            - {from: composing_grounding_input, on: BudgetExhausted, to: failed, action: none}
+            - {from: composing_edit_context, on: BudgetExhausted, to: failed, action: none}
+            - {from: composing_constraint_input, on: BudgetExhausted, to: failed, action: none}
+            - {from: composing_success_response, on: BudgetExhausted, to: failed, action: none}
+            - {from: composing_no_op_response, on: BudgetExhausted, to: failed, action: none}
+            - {from: composing_insufficient_response, on: BudgetExhausted, to: failed, action: none}
+            - {from: composing_failed_response, on: BudgetExhausted, to: failed, action: none}
+          infrastructure_rule: |
+            Every infrastructure row is explicit. Compose words emit no CommandError
+            and always emit their configured signal; only an independently applied
+            BudgetExhausted signal can leave a compose state without that signal.
+
+    structural_edit_contract:
+      retrieval_units: [section_record, outline_record]
+      allowed_operations:
+        - Reorder complete supplied sections or bounded source spans.
+        - Combine adjacent supplied material while retaining every source span.
+        - Separate supplied material at declared span boundaries.
+        - Add only configured bounded structural connector text when exact movement requires it.
+      preservation_invariants:
+        - Every source claim remains present with the same meaning and qualification.
+        - Every citation marker and citation-to-claim association remains present.
+        - Every number, unit, equation, date, threshold, and quantitative comparator remains unchanged.
+        - Every hedge, limitation, exception, condition, and uncertainty remains attached to its claim.
+        - Every required-content inventory item remains present exactly once or at its declared multiplicity.
+        - Diction outside bounded structural connectors remains byte-identical; connector changes are minimized and recorded.
+        - No retrieved chunk text becomes document content unless it was already present in the parent.
+      validation_method: |
+        generate_structure_edit returns candidate bytes plus a source-span and
+        structure-operation ledger. inspect_structure_constraints runs one fixed
+        non-shell helper over bounded JSON to compute parent identity, span coverage
+        and multiplicity, claim, citation-association, number, qualification,
+        required-content, connector, and retrieved-prose findings.
+        parse_structure_constraint_report schema-validates the report. Separate
+        value_predicate words then compare only candidate_status and
+        preservation_status. No helper, parser, or predicate repairs or accepts a
+        candidate.
+
+    helper_io_contract:
+      grounding:
+        compose_output: A JSON object with a non-empty stdin string containing the bounded grounding-helper JSON document.
+        exec_stdin_source: $from(structure_grounding_input).stdin
+        exec_output_mode: structured
+        parser_source: $from(structure_grounding_report_raw).output
+      preservation:
+        compose_output: A JSON object with a non-empty stdin string containing the bounded preservation-helper JSON document.
+        exec_stdin_source: $from(structure_constraint_input).stdin
+        exec_output_mode: structured
+        parser_source: $from(structure_constraint_report_raw).output
+      factory_semantics: |
+        ResolveFromSelector decodes the labeled compose output and selects its stdin
+        string before launch. Exec rejects unresolved, non-string, empty, or
+        over-limit stdin with CommandError. Process start, cancellation, timeout, or
+        structured-output encoding failure also emits CommandError. The fixed
+        declarations have no runtime parameters or preconditions. A launched process
+        emits ToolDone on zero exit and ToolFailed on non-zero exit. Structured mode
+        replaces Result.Output with an object containing output and exit_code.
+        parse_structured selects the nested output string, emits its configured
+        parsed or invalid signal, and emits CommandError only when that source
+        selector does not resolve or normalized output encoding fails.
+
+    grounding_contract:
+      sufficiency_inputs:
+        - configured distance and result-count predicates
+        - embedding-model identity equality
+        - section or outline record type
+        - repository, path, commit, and chunk metadata completeness
+        - query identity and refinement count
+      provenance_per_chunk:
+        - source_repository
+        - source_path
+        - source_commit
+        - chunk_id
+        - record_type
+        - distance
+        - embedding_model
+        - query_identity
+        - retrieval_attempt
+      refinement: |
+        The grounding helper may retain acceptable evidence and compute one bounded
+        refined query descriptor and next count for deficient evidence. The parser
+        validates those fields. Separate grounding-status and refinement-count
+        predicates route the result. formulate_structure_query only renders the
+        parsed descriptor; it does not derive or increment it. The next deficient
+        report emits StructureGroundingInsufficient. Retrieval rejection, helper or
+        parse failure, or insufficient grounding never reaches editing_structure.
+
+    response_contract:
+      required_fields:
+        - outcome
+        - content
+        - parent_artifact_id
+        - parent_content_hash
+        - retrieval_provenance
+        - stage_metadata
+      outcomes:
+        succeeded:
+          content: validated candidate bytes
+          meaning: A grounded structure-only candidate passed all constraints; the orchestrator still owns artifact acceptance.
+        no_op:
+          content: unchanged parent bytes
+          meaning: No supported improvement was needed or candidate bytes equal the parent.
+        insufficient_grounding:
+          content: unchanged parent bytes
+          meaning: Initial and refined retrieval both failed configured grounding sufficiency.
+        failed:
+          content: unchanged parent bytes when the request was valid, otherwise explicit null
+          meaning: Validation, provider, retrieval, generation, constraint, budget, or response preparation failed.
+      stage_metadata:
+        - saga_id
+        - stage
+        - attempt
+        - invocation_id
+        - idempotency_key
+        - producer
+        - producer_version
+        - refinement_count
+        - query_identities
+        - evidence_ids
+        - constraint_report
+        - bounded_failure_category
+      mutation_rule: |
+        The response is data only. The structure stage does not write the response,
+        parent, candidate, provenance, stage metadata, or any workproduct to a
+        filesystem, repository, retrieval corpus, or external publication system.
+
+    structural_proofs:
+      retrieval_precedes_every_successful_edit:
+        edit_cut_state: composing_edit_context
+        only_incoming_signal: StructureGroundingSufficient
+        predecessor_chain:
+          - compose_structure_grounding_input renders a JSON envelope whose stdin field is the helper document built from labeled validated retrieval state.
+          - inspect_structure_grounding selects $from(structure_grounding_input).stdin and receives only query_structure_rag evidence through that bounded JSON string.
+          - parse_structure_grounding_report selects $from(structure_grounding_report_raw).output and admits only ToolDone stdout that satisfies the configured report schema.
+          - structure_grounding_sufficient compares only the parsed grounding_status scalar.
+          - querying_structure_rag is reached only after embed_structure_query.
+          - embedding_query is reached only after formulate_structure_query.
+          - formulating_query is first reached only after validate_structure_request.
+        success_chain:
+          - compose_structure_edit_context must emit StructureEditContextReady.
+          - editing_structure must emit StructureEditGenerated.
+          - compose_structure_constraint_input must render a JSON envelope whose stdin field is the bounded preservation-helper document.
+          - inspect_structure_constraints must emit ToolDone.
+          - parse_structure_constraint_report must select $from(structure_constraint_report_raw).output and emit StructureConstraintReportParsed.
+          - structure_candidate_is_no_op must emit StructureCandidateChanged.
+          - structure_constraints_hold must emit StructureEditValid.
+          - compose_structure_success_response must emit StructureResponseSucceeded.
+        argument: |
+          succeeded has one incoming edge, StructureResponseSucceeded from
+          composing_success_response. That state is reachable only after
+          StructureEditValid from parsed helper output and the scalar predicate
+          chain. The initial edit context has one incoming signal,
+          StructureGroundingSufficient, after a structure-rag result, helper
+          observation, schema parse, and scalar comparison. Its fixed compose signal
+          is the only entry to editing_structure. Rejection, helper or parse failure,
+          insufficient grounding, no-op, constraint failure, infrastructure failure,
+          and budget exhaustion have no edge to succeeded.
+      one_refinement_bound:
+        cycle: checking_refinement_budget -> formulating_query -> embedding_query -> querying_structure_rag -> composing_grounding_input -> inspecting_grounding -> parsing_grounding_report -> checking_grounding -> checking_refinement_budget
+        guard_signal: StructureGroundingRefinementAllowed
+        argument: |
+          structure_grounding_refinement_available compares parsed refinement_count
+          with hard limit one. It may emit the cycle signal only when the count is
+          below one. The grounding helper computes next count one and a bounded
+          refined descriptor, the parser validates both, and
+          formulate_structure_query renders them without arithmetic. Subsequent
+          deficiency emits StructureGroundingInsufficient, whose only edge leaves
+          the cycle through the fixed insufficient response composer.
+      authority_closure:
+        argument: |
+          Every action alias resolves to one structure-editor-owned srd003 word.
+          The profile selects no voice, style, critic, Pangram, GitHub, workproduct,
+          lifecycle, corpus-write, shell, generic REST, or filesystem word. Terminal
+          success returns data for orchestrator validation and grants no acceptance
+          or persistence authority. Two fixed helper exec words receive bounded
+          JSON stdin and cannot select an executable or path.
+
+  voice:
+
+    request_contract:
+      source: workflow-orchestrator
+      accepted_parent_kind: structure
+      required_fields:
+        - parent_content
+        - parent_artifact_id
+        - parent_content_hash
+        - parent_stage
+        - parent_acceptance_identity
+        - saga_id
+        - stage
+        - attempt
+        - invocation_id
+        - idempotency_key
+        - target_voice
+        - ordered_passage_map
+        - ordered_query_descriptors
+        - protected_content_inventory
+        - adjacent_context_windows
+        - bounded_voice_policy
+        - retrieval_refinement_count
+        - rewrite_attempt_count
+        - policy_digest
+      constraints:
+        - stage equals voice and parent_stage equals structure.
+        - Parent identity and hash equal the orchestrator-selected accepted structure artifact.
+        - parent_content contains bytes, never a filesystem path or repository locator.
+        - ordered_passage_map covers each voice-eligible paragraph or passage exactly once in accepted structure order.
+        - ordered_query_descriptors bind each eligible passage to supplied rhetorical role, target register, and stable initial query identity.
+        - retrieval_refinement_count equals zero and rewrite_attempt_count equals one for the initial generation.
+        - Headings, lists, tables, code, equations, references, and other configured non-prose units remain protected unless explicitly classified as voice-eligible prose.
+        - A retry uses the same accepted structure parent and bounded feedback selected by the orchestrator.
+        - Request fields cannot select endpoints, models, collections, tools, paths, refs, credentials, Pangram, verdicts, publication behavior, or a different parent.
+
+    flat_machine_contract:
+      initial_state: awaiting_request
+      terminal_states: [succeeded, no_op, insufficient_anchors, failed]
+
+      budgets:
+        machine:
+          max_iterations: 64
+          max_tokens: 300000
+          max_duration: 8m0s
+          max_consecutive_parse_errors: omitted
+        policy:
+          query_refinement_limit: 1
+          rewrite_attempt_limit: 3
+          rule: |
+            Effective request limits are the lesser of validated policy and these
+            hard caps. Retrieval refinement count starts at zero. The initial query
+            covers every voice-eligible passage. A sole refined query may address
+            only passages deficient under the first anchor assessment and retains
+            already accepted anchors. The validated request supplies current rewrite
+            attempt count one for the first generation. Constraint and copy-risk
+            helpers verify that count and compute a bounded next count; parsers
+            validate both. A retry predicate compares the current count with three,
+            and the next generation selects the parsed next count rather than model
+            output. No retry may change parent, passage boundaries, accepted anchor
+            identities, target voice, thresholds, endpoint, model, corpus, or authority.
+
+      authority:
+        selected_srd003_words:
+          - validate_voice_request
+          - formulate_voice_query
+          - embed_voice_query
+          - query_voice_rag
+          - inspect_voice_anchors
+          - parse_voice_anchor_report
+          - voice_anchors_complete
+          - voice_anchor_refinement_available
+          - compose_voice_initial_rewrite_context
+          - compose_voice_constraint_retry_context
+          - compose_voice_copy_retry_context
+          - generate_voice_edit
+          - inspect_voice_constraints
+          - parse_voice_constraint_report
+          - voice_candidate_is_no_op
+          - voice_constraints_hold
+          - voice_constraint_retry_available
+          - inspect_voice_copy_risk
+          - parse_voice_copy_risk_report
+          - voice_copy_risk_clear
+          - voice_copy_retry_available
+          - compose_voice_success_response
+          - compose_voice_no_op_response
+          - compose_voice_insufficient_response
+          - compose_voice_failed_response
+        prohibited_word_groups:
+          - orchestrator_workproducts
+          - orchestrator_children
+          - orchestrator_github
+          - critic_pangram
+          - corpus_wrapper
+          - lifecycle
+        prohibited_words:
+          - validate_structure_request
+          - formulate_structure_query
+          - embed_structure_query
+          - query_structure_rag
+          - compose_structure_grounding_input
+          - inspect_structure_grounding
+          - parse_structure_grounding_report
+          - structure_grounding_sufficient
+          - structure_grounding_refinement_available
+          - compose_structure_edit_context
+          - generate_structure_edit
+          - compose_structure_constraint_input
+          - inspect_structure_constraints
+          - parse_structure_constraint_report
+          - structure_candidate_is_no_op
+          - structure_constraints_hold
+          - compose_structure_success_response
+          - compose_structure_no_op_response
+          - compose_structure_insufficient_response
+          - compose_structure_failed_response
+          - embed_tightening_query
+          - query_tightening_rag
+          - generate_style_edit
+          - embed_critic_voice_query
+          - query_critic_voice_rag
+          - evaluate_voice_candidate
+        prohibited_capabilities:
+          - read or write a filesystem, repository, or saga workproduct
+          - reorder, split, merge, add, or remove passages or structural units
+          - tighten prose except where a diction or sentence realization change is necessary for voice matching
+          - issue a critic verdict or accept an artifact
+          - invoke Pangram or another external style or AI detector
+          - invoke git, gh, GitHub, generic shell, or arbitrary REST
+          - write Chroma or select another retrieval corpus
+          - publish, commit, persist, or return a workspace path
+
+      action_bindings:
+        validate_request: {word: validate_voice_request, authority: srd003 word_vocabulary.editor_and_critic_retrieval}
+        formulate_query: {word: formulate_voice_query, authority: srd003 word_vocabulary.editor_and_critic_retrieval}
+        embed_query: {word: embed_voice_query, authority: srd003 word_vocabulary.editor_and_critic_retrieval}
+        retrieve_anchors: {word: query_voice_rag, authority: srd003 word_vocabulary.editor_and_critic_retrieval}
+        inspect_anchors: {word: inspect_voice_anchors, authority: srd003 word_vocabulary.editor_and_critic_retrieval}
+        parse_anchor_report: {word: parse_voice_anchor_report, authority: srd003 word_vocabulary.editor_and_critic_retrieval}
+        check_anchors_complete: {word: voice_anchors_complete, authority: srd003 word_vocabulary.editor_and_critic_retrieval}
+        check_anchor_refinement: {word: voice_anchor_refinement_available, authority: srd003 word_vocabulary.editor_and_critic_retrieval}
+        compose_initial_rewrite_context: {word: compose_voice_initial_rewrite_context, authority: srd003 word_vocabulary.editor_and_critic_retrieval}
+        compose_constraint_retry_context: {word: compose_voice_constraint_retry_context, authority: srd003 word_vocabulary.editor_and_critic_retrieval}
+        compose_copy_retry_context: {word: compose_voice_copy_retry_context, authority: srd003 word_vocabulary.editor_and_critic_retrieval}
+        rewrite_voice: {word: generate_voice_edit, authority: srd003 word_vocabulary.editor_and_critic_retrieval}
+        inspect_constraints: {word: inspect_voice_constraints, authority: srd003 word_vocabulary.editor_and_critic_retrieval}
+        parse_constraint_report: {word: parse_voice_constraint_report, authority: srd003 word_vocabulary.editor_and_critic_retrieval}
+        check_candidate_no_op: {word: voice_candidate_is_no_op, authority: srd003 word_vocabulary.editor_and_critic_retrieval}
+        check_constraints: {word: voice_constraints_hold, authority: srd003 word_vocabulary.editor_and_critic_retrieval}
+        check_constraint_retry: {word: voice_constraint_retry_available, authority: srd003 word_vocabulary.editor_and_critic_retrieval}
+        inspect_copy_risk: {word: inspect_voice_copy_risk, authority: srd003 word_vocabulary.editor_and_critic_retrieval}
+        parse_copy_report: {word: parse_voice_copy_risk_report, authority: srd003 word_vocabulary.editor_and_critic_retrieval}
+        check_copy_clear: {word: voice_copy_risk_clear, authority: srd003 word_vocabulary.editor_and_critic_retrieval}
+        check_copy_retry: {word: voice_copy_retry_available, authority: srd003 word_vocabulary.editor_and_critic_retrieval}
+        compose_success_response: {word: compose_voice_success_response, authority: srd003 word_vocabulary.editor_and_critic_retrieval}
+        compose_no_op_response: {word: compose_voice_no_op_response, authority: srd003 word_vocabulary.editor_and_critic_retrieval}
+        compose_insufficient_response: {word: compose_voice_insufficient_response, authority: srd003 word_vocabulary.editor_and_critic_retrieval}
+        compose_failed_response: {word: compose_voice_failed_response, authority: srd003 word_vocabulary.editor_and_critic_retrieval}
+
+      states:
+        - {name: awaiting_request, meaning: Initial state; accepts one orchestrator-supplied request seed.}
+        - {name: validating_request, meaning: Validate accepted structure bytes, identities, passage map, inventories, context, policy, and forbidden fields.}
+        - {name: formulating_query, meaning: Compose initial or once-refined rhetorical-role and register query sets deterministically.}
+        - {name: embedding_query, meaning: Embed the ordered passage query set through the configured voice embedding word.}
+        - {name: querying_voice_rag, meaning: Query only voice-rag with provider-produced vectors.}
+        - {name: inspecting_anchor_evidence, meaning: Run the fixed non-shell helper over bounded retrieval JSON to compute one anchor report.}
+        - {name: parsing_anchor_report, meaning: Parse and schema-validate helper stdout without repairing it.}
+        - {name: checking_anchor_completeness, meaning: Compare one parsed all-passages-sufficient scalar with one configured scalar.}
+        - {name: checking_anchor_refinement_budget, meaning: Compare one parsed refinement count with the hard limit.}
+        - {name: composing_initial_rewrite_context, meaning: Render the fixed initial model context from validated request and anchor labels.}
+        - {name: composing_constraint_retry_context, meaning: Render the fixed constraint-retry context with parsed next count and note.}
+        - {name: composing_copy_retry_context, meaning: Render the fixed copy-risk-retry context with parsed next count and note.}
+        - {name: rewriting_voice, meaning: Generate one schema-bound set of independent passage rewrites from accepted anchors.}
+        - {name: inspecting_constraints, meaning: Run the fixed non-shell helper over bounded parent and candidate JSON to compute one preservation report.}
+        - {name: parsing_constraint_report, meaning: Parse and schema-validate constraint helper stdout without repairing it.}
+        - {name: checking_candidate_no_op, meaning: Compare one parsed candidate-is-no-op scalar with one configured scalar.}
+        - {name: checking_constraint_result, meaning: Compare one parsed all-constraints-hold scalar with one configured scalar.}
+        - {name: checking_constraint_retry_budget, meaning: Compare one parsed rewrite count with the hard limit.}
+        - {name: inspecting_copy_risk, meaning: Run the fixed non-shell helper over bounded candidate and anchor JSON to compute one copy-risk report.}
+        - {name: parsing_copy_report, meaning: Parse and schema-validate copy-risk helper stdout without repairing it.}
+        - {name: checking_copy_clear, meaning: Compare one parsed copy-risk-clear scalar with one configured scalar.}
+        - {name: checking_copy_retry_budget, meaning: Compare one parsed rewrite count with the hard limit.}
+        - {name: composing_success_response, meaning: Render the fixed succeeded response and its one configured signal.}
+        - {name: composing_no_op_response, meaning: Render the fixed no-op response and its one configured signal.}
+        - {name: composing_insufficient_response, meaning: Render the fixed insufficient-anchors response and its one configured signal.}
+        - {name: composing_failed_response, meaning: Render the fixed failed response and its one configured signal.}
+        - {name: succeeded, meaning: Terminal; a validated voice-only candidate with clear copy-risk findings is returned for orchestrator review.}
+        - {name: no_op, meaning: Terminal; unchanged accepted structure content is returned because no valid voice rewrite was needed.}
+        - {name: insufficient_anchors, meaning: Terminal; unchanged accepted structure content is returned after two insufficient retrieval assessments.}
+        - {name: failed, meaning: Terminal; accepted structure content is returned unchanged when request validation succeeded, otherwise content is null.}
+
+      signal_classes:
+        seed: [SeedRequest]
+        domain:
+          - VoiceRequestRejected
+          - VoiceQueryRejected
+          - QueryRejected
+          - VoiceEvidenceInsufficient
+          - ToolFailed
+          - VoiceAnchorReportInvalid
+          - VoiceAnchorsDeficient
+          - VoiceAnchorsRefinementAllowed
+          - VoiceAnchorsInsufficient
+          - VoiceEditNoOp
+          - VoiceEditDeclined
+          - VoiceConstraintReportInvalid
+          - VoiceConstraintsNoOp
+          - VoiceCandidateChanged
+          - VoiceConstraintsViolated
+          - VoiceConstraintsRetryAllowed
+          - VoiceConstraintsFailed
+          - VoiceCopyRiskReportInvalid
+          - VoiceCopyRiskDetected
+          - VoiceCopyRiskRetryAllowed
+          - VoiceCopyRiskBlocked
+        success:
+          - VoiceRequestValid
+          - VoiceQueryFormulated
+          - VoiceQueryEmbedded
+          - VoiceEvidenceReady
+          - ToolDone
+          - VoiceAnchorReportParsed
+          - VoiceAnchorsSufficient
+          - VoiceInitialRewriteContextReady
+          - VoiceConstraintRetryContextReady
+          - VoiceCopyRetryContextReady
+          - VoiceEditGenerated
+          - VoiceConstraintReportParsed
+          - VoiceConstraintsValid
+          - VoiceCopyRiskReportParsed
+          - VoiceCopyRiskClear
+          - VoiceResponseSucceeded
+          - VoiceResponseNoOp
+          - VoiceResponseInsufficientAnchors
+          - VoiceResponseFailed
+        infrastructure: [CommandError, BudgetExhausted]
+        deterministic_refinements:
+          authority: srd003-writing-agent-tools R4.6
+          signals:
+            - VoiceAnchorReportParsed
+            - VoiceAnchorReportInvalid
+            - VoiceAnchorsSufficient
+            - VoiceAnchorsDeficient
+            - VoiceAnchorsRefinementAllowed
+            - VoiceAnchorsInsufficient
+            - VoiceInitialRewriteContextReady
+            - VoiceConstraintRetryContextReady
+            - VoiceCopyRetryContextReady
+            - VoiceConstraintReportParsed
+            - VoiceConstraintReportInvalid
+            - VoiceConstraintsValid
+            - VoiceConstraintsNoOp
+            - VoiceCandidateChanged
+            - VoiceConstraintsViolated
+            - VoiceConstraintsRetryAllowed
+            - VoiceConstraintsFailed
+            - VoiceCopyRiskReportParsed
+            - VoiceCopyRiskReportInvalid
+            - VoiceCopyRiskClear
+            - VoiceCopyRiskDetected
+            - VoiceCopyRiskRetryAllowed
+            - VoiceCopyRiskBlocked
+            - VoiceResponseSucceeded
+            - VoiceResponseNoOp
+            - VoiceResponseInsufficientAnchors
+            - VoiceResponseFailed
+          constraints:
+            - Complex observations come only from fixed non-shell helper exec words over bounded JSON and reach routing only after parse_structured schema validation.
+            - Each value_predicate word reads one parsed scalar, performs one configured comparison, and emits exactly two outcomes plus CommandError.
+            - Each branch-specific rewrite-context compose word reads fixed labels, renders one context, and emits exactly one configured context signal.
+            - Each response compose word has one fixed outcome template and emits exactly one configured response signal.
+            - Routing cannot choose a tool, corpus, endpoint, model, target voice, threshold, parent, structure, style operation, verdict, or acceptance outcome from model prose.
+
+      transition_contract:
+        notation: |
+          Each row is one required MachineSpec transition. A slash-separated signal
+          expands to one transition per signal with the same next state and action.
+          Every helper exec is followed by a parser. Every parsed report is followed
+          by an explicit chain of one-comparison predicate states. Each terminal
+          outcome has a separate fixed compose action and response signal.
+        request_query_and_retrieval:
+          - {from: awaiting_request, on: SeedRequest, to: validating_request, action: validate_request, label: validated_voice_request}
+          - {from: validating_request, on: VoiceRequestValid, to: formulating_query, action: formulate_query, label: voice_query_set}
+          - {from: formulating_query, on: VoiceQueryFormulated, to: embedding_query, action: embed_query, label: voice_query_embedding}
+          - {from: embedding_query, on: VoiceQueryEmbedded, to: querying_voice_rag, action: retrieve_anchors, label: voice_retrieval}
+          - {from: querying_voice_rag, on: VoiceEvidenceReady/VoiceEvidenceInsufficient, to: inspecting_anchor_evidence, action: inspect_anchors, label: voice_anchor_report_raw}
+          - {from: inspecting_anchor_evidence, on: ToolDone, to: parsing_anchor_report, action: parse_anchor_report, label: voice_anchor_report}
+          - {from: parsing_anchor_report, on: VoiceAnchorReportParsed, to: checking_anchor_completeness, action: check_anchors_complete, label: voice_anchor_complete_check}
+          - {from: checking_anchor_completeness, on: VoiceAnchorsSufficient, to: composing_initial_rewrite_context, action: compose_initial_rewrite_context, label: voice_rewrite_context}
+          - {from: composing_initial_rewrite_context, on: VoiceInitialRewriteContextReady, to: rewriting_voice, action: rewrite_voice, label: voice_candidate}
+          - {from: checking_anchor_completeness, on: VoiceAnchorsDeficient, to: checking_anchor_refinement_budget, action: check_anchor_refinement, label: voice_anchor_refinement_check}
+          - {from: checking_anchor_refinement_budget, on: VoiceAnchorsRefinementAllowed, to: formulating_query, action: formulate_query, label: voice_query_set}
+          - {from: checking_anchor_refinement_budget, on: VoiceAnchorsInsufficient, to: composing_insufficient_response, action: compose_insufficient_response, label: voice_response}
+        rewrite_validation_copy_and_response:
+          - {from: rewriting_voice, on: VoiceEditGenerated/VoiceEditNoOp, to: inspecting_constraints, action: inspect_constraints, label: voice_constraint_report_raw}
+          - {from: rewriting_voice, on: VoiceEditDeclined, to: composing_failed_response, action: compose_failed_response, label: voice_response}
+          - {from: inspecting_constraints, on: ToolDone, to: parsing_constraint_report, action: parse_constraint_report, label: voice_constraint_report}
+          - {from: parsing_constraint_report, on: VoiceConstraintReportParsed, to: checking_candidate_no_op, action: check_candidate_no_op, label: voice_no_op_check}
+          - {from: checking_candidate_no_op, on: VoiceConstraintsNoOp, to: composing_no_op_response, action: compose_no_op_response, label: voice_response}
+          - {from: checking_candidate_no_op, on: VoiceCandidateChanged, to: checking_constraint_result, action: check_constraints, label: voice_constraint_check}
+          - {from: checking_constraint_result, on: VoiceConstraintsValid, to: inspecting_copy_risk, action: inspect_copy_risk, label: voice_copy_risk_report_raw}
+          - {from: checking_constraint_result, on: VoiceConstraintsViolated, to: checking_constraint_retry_budget, action: check_constraint_retry, label: voice_constraint_retry_check}
+          - {from: checking_constraint_retry_budget, on: VoiceConstraintsRetryAllowed, to: composing_constraint_retry_context, action: compose_constraint_retry_context, label: voice_rewrite_context}
+          - {from: composing_constraint_retry_context, on: VoiceConstraintRetryContextReady, to: rewriting_voice, action: rewrite_voice, label: voice_candidate}
+          - {from: checking_constraint_retry_budget, on: VoiceConstraintsFailed, to: composing_failed_response, action: compose_failed_response, label: voice_response}
+          - {from: inspecting_copy_risk, on: ToolDone, to: parsing_copy_report, action: parse_copy_report, label: voice_copy_risk_report}
+          - {from: parsing_copy_report, on: VoiceCopyRiskReportParsed, to: checking_copy_clear, action: check_copy_clear, label: voice_copy_clear_check}
+          - {from: checking_copy_clear, on: VoiceCopyRiskClear, to: composing_success_response, action: compose_success_response, label: voice_response}
+          - {from: checking_copy_clear, on: VoiceCopyRiskDetected, to: checking_copy_retry_budget, action: check_copy_retry, label: voice_copy_retry_check}
+          - {from: checking_copy_retry_budget, on: VoiceCopyRiskRetryAllowed, to: composing_copy_retry_context, action: compose_copy_retry_context, label: voice_rewrite_context}
+          - {from: composing_copy_retry_context, on: VoiceCopyRetryContextReady, to: rewriting_voice, action: rewrite_voice, label: voice_candidate}
+          - {from: checking_copy_retry_budget, on: VoiceCopyRiskBlocked, to: composing_failed_response, action: compose_failed_response, label: voice_response}
+          - {from: composing_success_response, on: VoiceResponseSucceeded, to: succeeded, action: none}
+          - {from: composing_no_op_response, on: VoiceResponseNoOp, to: no_op, action: none}
+          - {from: composing_insufficient_response, on: VoiceResponseInsufficientAnchors, to: insufficient_anchors, action: none}
+          - {from: composing_failed_response, on: VoiceResponseFailed, to: failed, action: none}
+        failure:
+          domain_to_failed_response:
+            - {from: validating_request, on: VoiceRequestRejected, to: composing_failed_response, action: compose_failed_response, label: voice_response}
+            - {from: embedding_query, on: VoiceQueryRejected, to: composing_failed_response, action: compose_failed_response, label: voice_response}
+            - {from: querying_voice_rag, on: QueryRejected, to: composing_failed_response, action: compose_failed_response, label: voice_response}
+            - {from: inspecting_anchor_evidence, on: ToolFailed, to: composing_failed_response, action: compose_failed_response, label: voice_response}
+            - {from: parsing_anchor_report, on: VoiceAnchorReportInvalid, to: composing_failed_response, action: compose_failed_response, label: voice_response}
+            - {from: inspecting_constraints, on: ToolFailed, to: composing_failed_response, action: compose_failed_response, label: voice_response}
+            - {from: parsing_constraint_report, on: VoiceConstraintReportInvalid, to: composing_failed_response, action: compose_failed_response, label: voice_response}
+            - {from: inspecting_copy_risk, on: ToolFailed, to: composing_failed_response, action: compose_failed_response, label: voice_response}
+            - {from: parsing_copy_report, on: VoiceCopyRiskReportInvalid, to: composing_failed_response, action: compose_failed_response, label: voice_response}
+          rule: Every listed row is an explicit failed-response transition.
+          infrastructure_to_failed_response:
+            - {from: validating_request, on: CommandError/BudgetExhausted, to: composing_failed_response, action: compose_failed_response, label: voice_response}
+            - {from: embedding_query, on: CommandError/BudgetExhausted, to: composing_failed_response, action: compose_failed_response, label: voice_response}
+            - {from: querying_voice_rag, on: CommandError/BudgetExhausted, to: composing_failed_response, action: compose_failed_response, label: voice_response}
+            - {from: inspecting_anchor_evidence, on: CommandError/BudgetExhausted, to: composing_failed_response, action: compose_failed_response, label: voice_response}
+            - {from: parsing_anchor_report, on: CommandError/BudgetExhausted, to: composing_failed_response, action: compose_failed_response, label: voice_response}
+            - {from: checking_anchor_completeness, on: CommandError/BudgetExhausted, to: composing_failed_response, action: compose_failed_response, label: voice_response}
+            - {from: checking_anchor_refinement_budget, on: CommandError/BudgetExhausted, to: composing_failed_response, action: compose_failed_response, label: voice_response}
+            - {from: rewriting_voice, on: CommandError/BudgetExhausted, to: composing_failed_response, action: compose_failed_response, label: voice_response}
+            - {from: inspecting_constraints, on: CommandError/BudgetExhausted, to: composing_failed_response, action: compose_failed_response, label: voice_response}
+            - {from: parsing_constraint_report, on: CommandError/BudgetExhausted, to: composing_failed_response, action: compose_failed_response, label: voice_response}
+            - {from: checking_candidate_no_op, on: CommandError/BudgetExhausted, to: composing_failed_response, action: compose_failed_response, label: voice_response}
+            - {from: checking_constraint_result, on: CommandError/BudgetExhausted, to: composing_failed_response, action: compose_failed_response, label: voice_response}
+            - {from: checking_constraint_retry_budget, on: CommandError/BudgetExhausted, to: composing_failed_response, action: compose_failed_response, label: voice_response}
+            - {from: inspecting_copy_risk, on: CommandError/BudgetExhausted, to: composing_failed_response, action: compose_failed_response, label: voice_response}
+            - {from: parsing_copy_report, on: CommandError/BudgetExhausted, to: composing_failed_response, action: compose_failed_response, label: voice_response}
+            - {from: checking_copy_clear, on: CommandError/BudgetExhausted, to: composing_failed_response, action: compose_failed_response, label: voice_response}
+            - {from: checking_copy_retry_budget, on: CommandError/BudgetExhausted, to: composing_failed_response, action: compose_failed_response, label: voice_response}
+          budget_to_failed_terminal:
+            - {from: formulating_query, on: BudgetExhausted, to: failed, action: none}
+            - {from: composing_initial_rewrite_context, on: BudgetExhausted, to: failed, action: none}
+            - {from: composing_constraint_retry_context, on: BudgetExhausted, to: failed, action: none}
+            - {from: composing_copy_retry_context, on: BudgetExhausted, to: failed, action: none}
+            - {from: composing_success_response, on: BudgetExhausted, to: failed, action: none}
+            - {from: composing_no_op_response, on: BudgetExhausted, to: failed, action: none}
+            - {from: composing_insufficient_response, on: BudgetExhausted, to: failed, action: none}
+            - {from: composing_failed_response, on: BudgetExhausted, to: failed, action: none}
+          infrastructure_rule: |
+            Every infrastructure row is explicit. Compose words emit no CommandError
+            and always emit their configured signal; only an independently applied
+            BudgetExhausted signal can leave a compose state without that signal.
+
+    passage_query_contract:
+      unit: configured voice-eligible paragraph or passage
+      initial_query_inputs:
+        - target voice identity
+        - passage rhetorical role
+        - target register
+        - bounded lexical features from that passage
+        - configured author-voice or venue-voice preference
+        - configured voice tags or strata when present in the request policy
+      excluded_query_authority:
+        - Topical similarity alone cannot establish sufficiency.
+        - Structure records and tightening transformation pairs cannot enter a voice query.
+        - Model output cannot formulate, filter, refine, or rank a query.
+        - Off-topic anchors are not rejected solely for topic when role and register match.
+      batch_shape: |
+        The validated request supplies one ordered initial query descriptor per
+        voice-eligible passage. formulate_voice_query renders those descriptors
+        without iteration or derivation. On refinement, inspect_voice_anchors
+        computes bounded next-query descriptors and the parser validates them before
+        the same composer renders them. embed_voice_query returns vectors in order.
+        query_voice_rag returns a result group for each query. Query identity and
+        passage identity bind each group; no result may be reassigned.
+
+    anchor_contract:
+      sufficiency_inputs:
+        - configured per-passage result-count and distance predicates
+        - embedding-model identity equality
+        - target voice identity
+        - rhetorical-role and register compatibility
+        - author-voice or venue-voice role and configured tag or stratum eligibility
+        - source and chunk metadata completeness
+        - configured source-diversity and duplicate limits
+        - query-set identity, passage identity, and refinement count
+      provenance_per_anchor:
+        - source_repository
+        - source_path
+        - source_commit
+        - chunk_id
+        - passage_id
+        - exemplar_role
+        - rhetorical_role
+        - register
+        - voice_tags
+        - stratum
+        - distance
+        - embedding_model
+        - query_identity
+        - retrieval_attempt
+      refinement: |
+        The first helper report may retain sufficient per-passage anchors and supply
+        bounded next-query descriptors for deficient passages. The parser validates
+        those fields. Separate completeness and refinement-count predicates then
+        route the result. A refined query uses only validated target voice,
+        rhetorical role, register, configured filters, and bounded prior metadata.
+        It cannot relax source eligibility, provenance, embedding equality, or hard
+        distance policy. The next deficient report routes to
+        VoiceAnchorsInsufficient. Retrieval rejection, helper or parse failure,
+        insufficiency, infrastructure failure, or budget exhaustion never reaches
+        rewriting_voice.
+
+    voice_rewrite_contract:
+      operation: |
+        generate_voice_edit receives the accepted structure parent, an ordered
+        passage map, adjacent context, and a per-passage anchor map. It returns one
+        candidate document and an ordered ledger. Each candidate passage is
+        rewritten independently against only its mapped anchors. Assembly places
+        every passage in its original slot. Anchor text supplies voice evidence,
+        never facts or claims.
+      allowed_changes:
+        - Change diction, syntax, cadence, sentence openings, and sentence realization when required to match the selected voice.
+        - Preserve an unchanged passage when no supported voice-only improvement exists.
+        - Use adjacent passages as coherence context without editing their meaning or organization.
+      prohibited_changes:
+        - Reorder, split, merge, add, delete, promote, or demote a passage, heading, list item, table, figure, code block, equation, reference, or structural unit.
+        - Add facts, examples, claims, implications, citations, numbers, terminology, qualifications, or conclusions from anchors or model knowledge.
+        - Weaken, strengthen, broaden, narrow, rescope, or reverse a claim.
+        - Tighten, summarize, shorten, expand, normalize, or polish prose when the change is not required for voice matching.
+        - Copy anchor phrasing above the configured normalized shared-phrase or shingle limit.
+
+    preservation_contract:
+      deterministic_checks:
+        organization:
+          - Ordered passage and protected-unit identities, boundaries, types, hierarchy, and multiplicities equal the accepted structure parent.
+          - Every rewrite ledger entry maps one parent passage to the same candidate slot.
+        meaning:
+          - Required propositions, predicates, argument roles, negations, conditions, exceptions, qualifications, and uncertainty bindings remain equivalent under the configured protected-content representation.
+          - No unsupported proposition or entailment appears in the candidate ledger.
+        claim_strength:
+          - Modality, quantifiers, hedges, confidence, scope, comparison direction, causality, and normative force remain unchanged.
+        citations:
+          - Citation keys, syntax family, ordering where semantically relevant, and citation-to-claim associations remain unchanged.
+        numbers:
+          - Numbers, units, equations, dates, thresholds, ranges, signs, precision, and quantitative comparators remain unchanged.
+        terminology:
+          - Protected domain terms, symbols, acronyms, identifiers, API names, proper nouns, and configured glossary forms remain unchanged.
+        coherence:
+          - Pronoun, antecedent, connective, tense, and referential bindings remain compatible with supplied adjacent context.
+          - A passage rewrite cannot assume content absent from the parent or alter the transition into or out of adjacent passages.
+        voice_scope:
+          - Every changed span maps to a declared voice dimension and anchor reference.
+          - A change with only concision, tightening, generic cleanup, structure, factual, or stylistic rationale fails.
+      failure_behavior: |
+        inspect_voice_constraints computes a bounded report but emits only generic
+        exec outcomes. parse_voice_constraint_report validates that report.
+        voice_candidate_is_no_op, voice_constraints_hold, and
+        voice_constraint_retry_available each perform one scalar comparison.
+        Before the third model attempt the final predicate may emit
+        VoiceConstraintsRetryAllowed. At the limit it emits
+        VoiceConstraintsFailed. No helper, parser, or predicate repairs a candidate.
+        Both VoiceEditGenerated and VoiceEditNoOp pass through the helper, parser,
+        and predicate chain. Candidate bytes are discarded unless that chain passes.
+
+    copy_risk_contract:
+      comparison_scope: Each rewritten passage against only the accepted anchors supplied for that passage, plus a configured cross-anchor duplicate check.
+      findings_per_span:
+        - candidate_passage_id
+        - anchor_source_repository
+        - anchor_source_path
+        - anchor_source_commit
+        - anchor_chunk_id
+        - normalized_shared_text
+        - shared_word_count
+        - shingle_overlap
+        - configured_limit
+        - risk_level
+      rules:
+        - Every candidate receives a copy-risk report, including an explicit clear result.
+        - Exact and normalized shared runs, repeated distinctive shingles, and configured near-verbatim overlap are reported.
+        - Thresholds come from trusted configuration and cannot be relaxed by request content, model output, or retry notes.
+        - Before the third model attempt, suspicious phrasing may emit VoiceCopyRiskRetryAllowed with a bounded anti-copy note.
+        - At the limit, suspicious phrasing emits VoiceCopyRiskBlocked and the response returns the accepted structure parent unchanged.
+        - The voice stage invokes no Pangram, plagiarism service, GitHub search, filesystem scan, or external corpus.
+
+    helper_io_contract:
+      output_mode: structured
+      parser_sources:
+        anchors: $from(voice_anchor_report_raw).output
+        constraints: $from(voice_constraint_report_raw).output
+        copy_risk: $from(voice_copy_risk_report_raw).output
+      factory_semantics: |
+        Each fixed stdin_source must resolve through command state to one non-empty
+        string within fixed stdin_max_bytes before launch. An unresolved, non-string,
+        empty, or oversized source emits CommandError without launching the helper.
+        Process start, cancellation, timeout, or structured-output encoding failure
+        also emits CommandError. The fixed declarations have no runtime parameters
+        or preconditions. A launched process emits ToolDone on zero exit and
+        ToolFailed on non-zero exit. Structured mode places stdout in output and
+        process status in exit_code.
+        Each parse_structured word selects the corresponding nested output string,
+        emits its configured parsed or invalid signal, and emits CommandError only
+        when the source selector does not resolve or normalized output encoding fails.
+
+    response_contract:
+      required_fields:
+        - outcome
+        - content
+        - parent_artifact_id
+        - parent_content_hash
+        - anchor_provenance
+        - copy_risk_findings
+        - constraint_report
+        - stage_metadata
+      outcomes:
+        succeeded:
+          content: validated candidate bytes
+          meaning: Every passage had sufficient anchors, the candidate passed all preservation checks, and copy risk is clear; the orchestrator still owns artifact acceptance.
+        no_op:
+          content: unchanged accepted structure parent bytes
+          meaning: No supported voice-only change was needed or candidate bytes equal the parent.
+        insufficient_anchors:
+          content: unchanged accepted structure parent bytes
+          meaning: Initial and refined retrieval could not supply sufficient rhetorical-role and register anchors for every voice-eligible passage.
+        failed:
+          content: unchanged accepted structure parent bytes when the request was valid, otherwise explicit null
+          meaning: Validation, provider, retrieval, generation, constraint, copy-risk, budget, or response preparation failed.
+      copy_risk_status_by_outcome:
+        succeeded: clear report with any below-limit shared spans and anchor references
+        no_op: explicit not_run_no_changed_passage
+        insufficient_anchors: explicit not_run_no_candidate
+        failed: completed findings when copy assessment ran, otherwise explicit not_run with bounded stage reason
+      stage_metadata:
+        - saga_id
+        - stage
+        - attempt
+        - invocation_id
+        - idempotency_key
+        - producer
+        - producer_version
+        - retrieval_refinement_count
+        - rewrite_attempt_count
+        - query_identities
+        - passage_ids
+        - evidence_ids
+        - helper_identity_and_version
+        - report_schema_identities
+        - report_hashes
+        - scalar_predicate_outcomes
+        - bounded_retry_categories
+        - bounded_failure_category
+      mutation_rule: |
+        The response is data only. The voice stage does not write the response,
+        parent, candidate, anchors, findings, or metadata to a filesystem,
+        repository, retrieval corpus, saga, or external publication system. It does
+        not issue an acceptance or critic verdict.
+
+    structural_proofs:
+      accepted_structure_parent_preserved:
+        request_gate: validate_voice_request
+        validation_cut: checking_constraint_result
+        argument: |
+          validate_voice_request admits only bytes and identity bound to the
+          orchestrator-selected accepted structure artifact. generate_voice_edit may
+          return only same-slot passage rewrites. inspect_voice_constraints computes
+          organization and preservation findings with a fixed helper;
+          parse_voice_constraint_report validates the report; and
+          voice_constraints_hold compares only its all_constraints_hold scalar.
+          succeeded is reachable only after VoiceConstraintsValid. No action can
+          invoke a structure word. All insufficient, declined, helper-failed,
+          report-invalid, constraint-failed, copy-blocked, infrastructure, and
+          budget paths return the original parent bytes or null for an invalid request.
+      retrieval_precedes_every_successful_rewrite:
+        rewrite_cut_state: composing_initial_rewrite_context
+        only_initial_incoming_signal: VoiceAnchorsSufficient
+        predecessor_chain:
+          - inspect_voice_anchors receives only grouped query_voice_rag results through bounded JSON stdin.
+          - parse_voice_anchor_report admits only ToolDone stdout that satisfies the configured report schema.
+          - voice_anchors_complete compares only the parsed all_passages_sufficient scalar.
+          - querying_voice_rag is reached only after embed_voice_query.
+          - embedding_query is reached only after formulate_voice_query.
+          - formulating_query is first reached only after validate_voice_request.
+        success_chain:
+          - compose_voice_initial_rewrite_context must emit VoiceInitialRewriteContextReady.
+          - rewriting_voice must emit VoiceEditGenerated.
+          - inspect_voice_constraints must emit ToolDone.
+          - parse_voice_constraint_report must emit VoiceConstraintReportParsed.
+          - voice_candidate_is_no_op must emit VoiceCandidateChanged.
+          - voice_constraints_hold must emit VoiceConstraintsValid.
+          - inspect_voice_copy_risk must emit ToolDone.
+          - parse_voice_copy_risk_report must emit VoiceCopyRiskReportParsed.
+          - voice_copy_risk_clear must emit VoiceCopyRiskClear.
+          - compose_voice_success_response must emit VoiceResponseSucceeded.
+        argument: |
+          succeeded has one incoming edge, VoiceResponseSucceeded from
+          composing_success_response. That state is reachable only after
+          VoiceCopyRiskClear, which follows parsed helper reports and
+          VoiceConstraintsValid. The initial rewrite context has one incoming anchor
+          signal, VoiceAnchorsSufficient, after a voice-rag result, helper
+          observation, schema parse, and scalar comparison. Its fixed compose signal
+          is the only initial entry to rewriting_voice. Later entries come only
+          through fixed constraint-retry or copy-risk-retry context composers and
+          remain bounded over the same accepted anchors. Retrieval rejection, helper
+          or parse failure, final insufficiency, no-op, decline, exhausted
+          constraints, blocked copy risk, infrastructure failure, and budget
+          exhaustion have no edge to succeeded.
+      one_refinement_bound:
+        cycle: checking_anchor_refinement_budget -> formulating_query -> embedding_query -> querying_voice_rag -> inspecting_anchor_evidence -> parsing_anchor_report -> checking_anchor_completeness -> checking_anchor_refinement_budget
+        guard_signal: VoiceAnchorsRefinementAllowed
+        argument: |
+          voice_anchor_refinement_available compares parsed refinement count with
+          the hard limit one. It may emit the cycle signal only when the count is
+          below one. The anchor helper computes next count one, the parser validates
+          it, and formulate_voice_query renders it without arithmetic while
+          addressing only deficient passages. Subsequent insufficiency emits
+          VoiceAnchorsInsufficient, whose only edge leaves the cycle through the
+          fixed insufficient response composer.
+      rewrite_attempt_bound:
+        cycles:
+          - checking_constraint_retry_budget -> composing_constraint_retry_context -> rewriting_voice -> inspecting_constraints -> parsing_constraint_report -> checking_candidate_no_op -> checking_constraint_result -> checking_constraint_retry_budget
+          - checking_copy_retry_budget -> composing_copy_retry_context -> rewriting_voice -> inspecting_constraints -> parsing_constraint_report -> checking_candidate_no_op -> checking_constraint_result -> inspecting_copy_risk -> parsing_copy_report -> checking_copy_clear -> checking_copy_retry_budget
+        guard_signals: [VoiceConstraintsRetryAllowed, VoiceCopyRiskRetryAllowed]
+        argument: |
+          The validated request supplies count one. Constraint and copy-risk helpers
+          verify the current count and compute a bounded next count, and their
+          parsers validate both. voice_constraint_retry_available and
+          voice_copy_retry_available each compare only the parsed current count with
+          hard limit three and may emit a retry signal only while that count is
+          below three. The next generation selects the parsed next count; model
+          output cannot author it. At count three the predicates emit
+          VoiceConstraintsFailed or VoiceCopyRiskBlocked, whose only edge leaves the
+          cycle through the fixed failed response composer with unchanged parent bytes.
+      authority_closure:
+        argument: |
+          Every action alias resolves to one voice-editor-owned srd003 word. The
+          profile selects no filesystem, workproduct, structure, tightening,
+          critic, Pangram, GitHub, lifecycle, corpus-write, shell, or arbitrary REST
+          word. Three fixed helper exec words receive bounded JSON stdin and cannot
+          select an executable or path. Model output supplies content, ledgers, and
+          evidence references only. Terminal success returns data for orchestrator
+          validation and grants no acceptance or persistence authority.
+
+  style:
+
+    request_contract:
+      source: workflow-orchestrator
+      accepted_parent_kind: voice
+      required_fields:
+        - parent_content
+        - parent_artifact_id
+        - parent_content_hash
+        - parent_stage
+        - parent_acceptance_identity
+        - saga_id
+        - stage
+        - attempt
+        - invocation_id
+        - idempotency_key
+        - ordered_passage_map
+        - protected_content_inventory
+        - bounded_tightening_policy
+        - retrieval_refinement_count
+        - edit_attempt_count
+        - policy_digest
+      constraints:
+        - stage equals style and parent_stage equals voice.
+        - Parent identity and hash equal the orchestrator-selected accepted voice artifact.
+        - parent_content contains bytes, never a path or repository locator.
+        - ordered_passage_map covers every passage and protected unit exactly once in accepted voice order.
+        - retrieval_refinement_count equals zero and edit_attempt_count equals one initially.
+        - Quotations, citations, numbers, terms, normative language, code, equations, references, and configured protected spans are ineligible for editing.
+        - A retry uses the same accepted voice parent, intent map, pair map, thresholds, and bounded helper-produced feedback.
+        - Request fields cannot select endpoints, models, collections, tools, helper operations, paths, refs, credentials, verdicts, acceptance, or publication.
+
+    flat_machine_contract:
+      initial_state: awaiting_request
+      terminal_states: [succeeded, no_op, insufficient_pairs, failed]
+
+      budgets:
+        machine:
+          max_iterations: 64
+          max_tokens: 300000
+          max_duration: 8m0s
+          max_consecutive_parse_errors: omitted
+        policy:
+          pair_query_refinement_limit: 1
+          edit_attempt_limit: 3
+          rule: |
+            Effective request limits are the lesser of validated policy and these
+            hard caps. Pair refinement count starts at zero. One refined query may
+            address only deficient target-intent groups and retains accepted pairs.
+            The accepted request supplies edit count one. The preservation helper
+            verifies that count and computes a bounded next count and retry note.
+            Its parser validates both. style_retry_available compares the current
+            count with three. No retry changes the parent, target spans, intents,
+            selected pairs, provenance, protected inventory, thresholds, endpoint,
+            model, corpus, or authority.
+
+      authority:
+        selected_srd003_words:
+          - validate_style_request
+          - compose_style_intent_input
+          - identify_style_intents
+          - parse_style_intent_report
+          - style_intents_present
+          - formulate_tightening_query
+          - embed_tightening_query
+          - query_tightening_rag
+          - compose_style_pair_input
+          - assess_style_pairs
+          - parse_style_pair_report
+          - style_pairs_complete
+          - style_pair_refinement_available
+          - compose_style_initial_edit_context
+          - compose_style_retry_context
+          - generate_style_edit
+          - compose_style_constraint_input
+          - inspect_style_constraints
+          - parse_style_constraint_report
+          - style_candidate_is_no_op
+          - style_constraints_hold
+          - style_retry_available
+          - compose_style_success_response
+          - compose_style_no_intent_response
+          - compose_style_no_op_response
+          - compose_style_insufficient_response
+          - compose_style_failed_response
+        prohibited_word_groups:
+          - orchestrator_workproducts
+          - orchestrator_children
+          - orchestrator_github
+          - critic_pangram
+          - corpus_wrapper
+          - lifecycle
+        prohibited_words:
+          - validate_structure_request
+          - formulate_structure_query
+          - query_structure_rag
+          - generate_structure_edit
+          - validate_voice_request
+          - formulate_voice_query
+          - query_voice_rag
+          - generate_voice_edit
+          - embed_critic_voice_query
+          - query_critic_voice_rag
+          - evaluate_voice_candidate
+        prohibited_capabilities:
+          - read or write a filesystem, repository, or saga workproduct
+          - reorder, split, merge, add, delete, promote, or demote structural units
+          - select, imitate, evaluate, or revise voice
+          - issue a critic or acceptance verdict
+          - invoke Pangram or another external detector
+          - invoke git, gh, GitHub, generic shell, or arbitrary REST
+          - write Chroma or select another retrieval corpus
+          - publish, commit, persist, or return a workspace path
+
+      action_bindings:
+        validate_request: {word: validate_style_request, authority: srd003 word_vocabulary.editor_and_critic_retrieval}
+        compose_intent_input: {word: compose_style_intent_input, authority: srd003 word_vocabulary.editor_and_critic_retrieval}
+        identify_intents: {word: identify_style_intents, authority: srd003 word_vocabulary.editor_and_critic_retrieval}
+        parse_intent_report: {word: parse_style_intent_report, authority: srd003 word_vocabulary.editor_and_critic_retrieval}
+        check_intents_present: {word: style_intents_present, authority: srd003 word_vocabulary.editor_and_critic_retrieval}
+        formulate_query: {word: formulate_tightening_query, authority: srd003 word_vocabulary.editor_and_critic_retrieval}
+        embed_query: {word: embed_tightening_query, authority: srd003 word_vocabulary.editor_and_critic_retrieval}
+        retrieve_pairs: {word: query_tightening_rag, authority: srd003 word_vocabulary.editor_and_critic_retrieval}
+        compose_pair_input: {word: compose_style_pair_input, authority: srd003 word_vocabulary.editor_and_critic_retrieval}
+        assess_pairs: {word: assess_style_pairs, authority: srd003 word_vocabulary.editor_and_critic_retrieval}
+        parse_pair_report: {word: parse_style_pair_report, authority: srd003 word_vocabulary.editor_and_critic_retrieval}
+        check_pairs_complete: {word: style_pairs_complete, authority: srd003 word_vocabulary.editor_and_critic_retrieval}
+        check_pair_refinement: {word: style_pair_refinement_available, authority: srd003 word_vocabulary.editor_and_critic_retrieval}
+        compose_initial_edit_context: {word: compose_style_initial_edit_context, authority: srd003 word_vocabulary.editor_and_critic_retrieval}
+        compose_retry_context: {word: compose_style_retry_context, authority: srd003 word_vocabulary.editor_and_critic_retrieval}
+        edit_style: {word: generate_style_edit, authority: srd003 word_vocabulary.editor_and_critic_retrieval}
+        compose_constraint_input: {word: compose_style_constraint_input, authority: srd003 word_vocabulary.editor_and_critic_retrieval}
+        inspect_constraints: {word: inspect_style_constraints, authority: srd003 word_vocabulary.editor_and_critic_retrieval}
+        parse_constraint_report: {word: parse_style_constraint_report, authority: srd003 word_vocabulary.editor_and_critic_retrieval}
+        check_candidate_no_op: {word: style_candidate_is_no_op, authority: srd003 word_vocabulary.editor_and_critic_retrieval}
+        check_constraints: {word: style_constraints_hold, authority: srd003 word_vocabulary.editor_and_critic_retrieval}
+        check_retry: {word: style_retry_available, authority: srd003 word_vocabulary.editor_and_critic_retrieval}
+        compose_success_response: {word: compose_style_success_response, authority: srd003 word_vocabulary.editor_and_critic_retrieval}
+        compose_no_intent_response: {word: compose_style_no_intent_response, authority: srd003 word_vocabulary.editor_and_critic_retrieval}
+        compose_no_op_response: {word: compose_style_no_op_response, authority: srd003 word_vocabulary.editor_and_critic_retrieval}
+        compose_insufficient_response: {word: compose_style_insufficient_response, authority: srd003 word_vocabulary.editor_and_critic_retrieval}
+        compose_failed_response: {word: compose_style_failed_response, authority: srd003 word_vocabulary.editor_and_critic_retrieval}
+
+      states:
+        - {name: awaiting_request, meaning: Initial state; accepts one orchestrator request seed.}
+        - {name: validating_request, meaning: Validate the accepted voice parent, identities, passage map, protected inventory, policy, counters, and forbidden fields.}
+        - {name: composing_intent_input, meaning: Render the fixed intent-helper JSON envelope from validated request state.}
+        - {name: identifying_intents, meaning: Run the fixed non-shell helper operation over bounded accepted-parent JSON.}
+        - {name: parsing_intent_report, meaning: Parse and schema-validate intent-helper stdout without repair.}
+        - {name: checking_intents_present, meaning: Compare one parsed intent_status scalar with present.}
+        - {name: formulating_pair_query, meaning: Render initial or once-refined queries keyed by explicit target and intent.}
+        - {name: embedding_pair_query, meaning: Embed the ordered query set with the configured embedding word.}
+        - {name: querying_tightening_rag, meaning: Query only tightening-rag with provider-produced vectors.}
+        - {name: composing_pair_input, meaning: Render the fixed pair-assessment-helper JSON envelope.}
+        - {name: assessing_pairs, meaning: Run the fixed non-shell helper over grouped pair retrieval results.}
+        - {name: parsing_pair_report, meaning: Parse and schema-validate pair-helper stdout without repair.}
+        - {name: checking_pair_completeness, meaning: Compare one parsed pair_status scalar with complete.}
+        - {name: checking_pair_refinement_budget, meaning: Compare one parsed refinement count with hard limit one.}
+        - {name: composing_initial_edit_context, meaning: Render the fixed initial targeted-edit context.}
+        - {name: composing_retry_context, meaning: Render the fixed preservation-retry context with parsed next count and note.}
+        - {name: editing_style, meaning: Generate one candidate limited to stated target spans and mapped pairs.}
+        - {name: composing_constraint_input, meaning: Render the fixed preservation-helper JSON envelope.}
+        - {name: inspecting_constraints, meaning: Run the fixed non-shell helper over parent, candidate, intents, pairs, ledger, and protected inventory.}
+        - {name: parsing_constraint_report, meaning: Parse and schema-validate preservation-helper stdout without repair.}
+        - {name: checking_candidate_no_op, meaning: Compare one parsed candidate_status scalar with no_op.}
+        - {name: checking_constraint_result, meaning: Compare one parsed preservation_status scalar with valid.}
+        - {name: checking_retry_budget, meaning: Compare one parsed edit count with hard limit three.}
+        - {name: composing_success_response, meaning: Render one fixed succeeded response and signal.}
+        - {name: composing_no_intent_response, meaning: Render one fixed no-intent no-op response and signal.}
+        - {name: composing_no_op_response, meaning: Render one fixed candidate-no-op response and signal.}
+        - {name: composing_insufficient_response, meaning: Render one fixed insufficient-pairs response and signal.}
+        - {name: composing_failed_response, meaning: Render one fixed fail-closed response and signal.}
+        - {name: succeeded, meaning: Terminal; a validated pair-grounded targeted edit is returned for orchestrator review.}
+        - {name: no_op, meaning: Terminal; unchanged accepted voice content is returned.}
+        - {name: insufficient_pairs, meaning: Terminal; unchanged accepted voice content is returned after two deficient pair assessments.}
+        - {name: failed, meaning: Terminal; accepted voice content is returned unchanged after valid request failure, otherwise content is null.}
+
+      signal_classes:
+        seed: [SeedRequest]
+        domain:
+          - StyleRequestRejected
+          - TighteningQueryRejected
+          - QueryRejected
+          - TighteningEvidenceInsufficient
+          - ToolFailed
+          - StyleIntentReportInvalid
+          - StyleIntentsAbsent
+          - StylePairsDeficient
+          - StylePairReportInvalid
+          - StylePairRefinementAllowed
+          - StylePairsInsufficient
+          - StyleEditNoOp
+          - StyleEditDeclined
+          - StyleConstraintReportInvalid
+          - StyleConstraintsNoOp
+          - StyleCandidateChanged
+          - StyleConstraintsViolated
+          - StyleRetryAllowed
+          - StyleConstraintsFailed
+        success:
+          - StyleRequestValid
+          - StyleIntentInputReady
+          - ToolDone
+          - StyleIntentReportParsed
+          - StyleIntentsPresent
+          - TighteningQueryFormulated
+          - TighteningQueryEmbedded
+          - TighteningEvidenceReady
+          - StylePairInputReady
+          - StylePairReportParsed
+          - StylePairsComplete
+          - StyleInitialEditContextReady
+          - StyleRetryContextReady
+          - StyleEditGenerated
+          - StyleConstraintInputReady
+          - StyleConstraintReportParsed
+          - StyleConstraintsValid
+          - StyleResponseSucceeded
+          - StyleResponseNoIntent
+          - StyleResponseNoOp
+          - StyleResponseInsufficientPairs
+          - StyleResponseFailed
+        infrastructure: [CommandError, BudgetExhausted]
+        factory_constraints:
+          - identify_style_intents, assess_style_pairs, and inspect_style_constraints emit only ToolDone, ToolFailed, or CommandError.
+          - Each parse_structured word emits its one configured parsed signal, one configured invalid signal, or CommandError.
+          - Each value_predicate word compares one scalar and emits exactly two configured outcomes or CommandError.
+          - Each context or response compose word emits exactly one fixed configured signal and no CommandError.
+          - generate_style_edit receives only the immediately preceding initial or retry compose Result.
+
+      transition_contract:
+        notation: |
+          Each row is one required MachineSpec transition. Slash-separated signals
+          expand to separate transitions with the same next state and action. Every
+          complex observation uses compose input -> fixed helper exec ->
+          parse_structured -> explicit one-scalar value_predicate states. Each
+          terminal outcome has a separate fixed response composer.
+        request_intent_query_and_retrieval:
+          - {from: awaiting_request, on: SeedRequest, to: validating_request, action: validate_request, label: validated_style_request}
+          - {from: validating_request, on: StyleRequestValid, to: composing_intent_input, action: compose_intent_input, label: style_intent_input}
+          - {from: composing_intent_input, on: StyleIntentInputReady, to: identifying_intents, action: identify_intents, label: style_intent_report_raw}
+          - {from: identifying_intents, on: ToolDone, to: parsing_intent_report, action: parse_intent_report, label: style_intent_report}
+          - {from: parsing_intent_report, on: StyleIntentReportParsed, to: checking_intents_present, action: check_intents_present, label: style_intent_check}
+          - {from: checking_intents_present, on: StyleIntentsPresent, to: formulating_pair_query, action: formulate_query, label: tightening_query_set}
+          - {from: checking_intents_present, on: StyleIntentsAbsent, to: composing_no_intent_response, action: compose_no_intent_response, label: style_response}
+          - {from: formulating_pair_query, on: TighteningQueryFormulated, to: embedding_pair_query, action: embed_query, label: tightening_embedding}
+          - {from: embedding_pair_query, on: TighteningQueryEmbedded, to: querying_tightening_rag, action: retrieve_pairs, label: tightening_retrieval}
+          - {from: querying_tightening_rag, on: TighteningEvidenceReady/TighteningEvidenceInsufficient, to: composing_pair_input, action: compose_pair_input, label: style_pair_input}
+          - {from: composing_pair_input, on: StylePairInputReady, to: assessing_pairs, action: assess_pairs, label: style_pair_report_raw}
+          - {from: assessing_pairs, on: ToolDone, to: parsing_pair_report, action: parse_pair_report, label: style_pair_report}
+          - {from: parsing_pair_report, on: StylePairReportParsed, to: checking_pair_completeness, action: check_pairs_complete, label: style_pair_check}
+          - {from: checking_pair_completeness, on: StylePairsComplete, to: composing_initial_edit_context, action: compose_initial_edit_context, label: style_edit_context}
+          - {from: checking_pair_completeness, on: StylePairsDeficient, to: checking_pair_refinement_budget, action: check_pair_refinement, label: style_pair_refinement_check}
+          - {from: checking_pair_refinement_budget, on: StylePairRefinementAllowed, to: formulating_pair_query, action: formulate_query, label: tightening_query_set}
+          - {from: checking_pair_refinement_budget, on: StylePairsInsufficient, to: composing_insufficient_response, action: compose_insufficient_response, label: style_response}
+        edit_validation_and_response:
+          - {from: composing_initial_edit_context, on: StyleInitialEditContextReady, to: editing_style, action: edit_style, label: style_candidate}
+          - {from: composing_retry_context, on: StyleRetryContextReady, to: editing_style, action: edit_style, label: style_candidate}
+          - {from: editing_style, on: StyleEditGenerated/StyleEditNoOp, to: composing_constraint_input, action: compose_constraint_input, label: style_constraint_input}
+          - {from: editing_style, on: StyleEditDeclined, to: composing_failed_response, action: compose_failed_response, label: style_response}
+          - {from: composing_constraint_input, on: StyleConstraintInputReady, to: inspecting_constraints, action: inspect_constraints, label: style_constraint_report_raw}
+          - {from: inspecting_constraints, on: ToolDone, to: parsing_constraint_report, action: parse_constraint_report, label: style_constraint_report}
+          - {from: parsing_constraint_report, on: StyleConstraintReportParsed, to: checking_candidate_no_op, action: check_candidate_no_op, label: style_no_op_check}
+          - {from: checking_candidate_no_op, on: StyleConstraintsNoOp, to: composing_no_op_response, action: compose_no_op_response, label: style_response}
+          - {from: checking_candidate_no_op, on: StyleCandidateChanged, to: checking_constraint_result, action: check_constraints, label: style_constraint_check}
+          - {from: checking_constraint_result, on: StyleConstraintsValid, to: composing_success_response, action: compose_success_response, label: style_response}
+          - {from: checking_constraint_result, on: StyleConstraintsViolated, to: checking_retry_budget, action: check_retry, label: style_retry_check}
+          - {from: checking_retry_budget, on: StyleRetryAllowed, to: composing_retry_context, action: compose_retry_context, label: style_edit_context}
+          - {from: checking_retry_budget, on: StyleConstraintsFailed, to: composing_failed_response, action: compose_failed_response, label: style_response}
+          - {from: composing_success_response, on: StyleResponseSucceeded, to: succeeded, action: none}
+          - {from: composing_no_intent_response, on: StyleResponseNoIntent, to: no_op, action: none}
+          - {from: composing_no_op_response, on: StyleResponseNoOp, to: no_op, action: none}
+          - {from: composing_insufficient_response, on: StyleResponseInsufficientPairs, to: insufficient_pairs, action: none}
+          - {from: composing_failed_response, on: StyleResponseFailed, to: failed, action: none}
+        failure:
+          domain_to_failed_response:
+            - {from: validating_request, on: StyleRequestRejected, to: composing_failed_response, action: compose_failed_response, label: style_response}
+            - {from: embedding_pair_query, on: TighteningQueryRejected, to: composing_failed_response, action: compose_failed_response, label: style_response}
+            - {from: querying_tightening_rag, on: QueryRejected, to: composing_failed_response, action: compose_failed_response, label: style_response}
+            - {from: identifying_intents, on: ToolFailed, to: composing_failed_response, action: compose_failed_response, label: style_response}
+            - {from: parsing_intent_report, on: StyleIntentReportInvalid, to: composing_failed_response, action: compose_failed_response, label: style_response}
+            - {from: assessing_pairs, on: ToolFailed, to: composing_failed_response, action: compose_failed_response, label: style_response}
+            - {from: parsing_pair_report, on: StylePairReportInvalid, to: composing_failed_response, action: compose_failed_response, label: style_response}
+            - {from: inspecting_constraints, on: ToolFailed, to: composing_failed_response, action: compose_failed_response, label: style_response}
+            - {from: parsing_constraint_report, on: StyleConstraintReportInvalid, to: composing_failed_response, action: compose_failed_response, label: style_response}
+          infrastructure_to_failed_response:
+            - {from: validating_request, on: CommandError/BudgetExhausted, to: composing_failed_response, action: compose_failed_response, label: style_response}
+            - {from: identifying_intents, on: CommandError/BudgetExhausted, to: composing_failed_response, action: compose_failed_response, label: style_response}
+            - {from: parsing_intent_report, on: CommandError/BudgetExhausted, to: composing_failed_response, action: compose_failed_response, label: style_response}
+            - {from: checking_intents_present, on: CommandError/BudgetExhausted, to: composing_failed_response, action: compose_failed_response, label: style_response}
+            - {from: embedding_pair_query, on: CommandError/BudgetExhausted, to: composing_failed_response, action: compose_failed_response, label: style_response}
+            - {from: querying_tightening_rag, on: CommandError/BudgetExhausted, to: composing_failed_response, action: compose_failed_response, label: style_response}
+            - {from: assessing_pairs, on: CommandError/BudgetExhausted, to: composing_failed_response, action: compose_failed_response, label: style_response}
+            - {from: parsing_pair_report, on: CommandError/BudgetExhausted, to: composing_failed_response, action: compose_failed_response, label: style_response}
+            - {from: checking_pair_completeness, on: CommandError/BudgetExhausted, to: composing_failed_response, action: compose_failed_response, label: style_response}
+            - {from: checking_pair_refinement_budget, on: CommandError/BudgetExhausted, to: composing_failed_response, action: compose_failed_response, label: style_response}
+            - {from: editing_style, on: CommandError/BudgetExhausted, to: composing_failed_response, action: compose_failed_response, label: style_response}
+            - {from: inspecting_constraints, on: CommandError/BudgetExhausted, to: composing_failed_response, action: compose_failed_response, label: style_response}
+            - {from: parsing_constraint_report, on: CommandError/BudgetExhausted, to: composing_failed_response, action: compose_failed_response, label: style_response}
+            - {from: checking_candidate_no_op, on: CommandError/BudgetExhausted, to: composing_failed_response, action: compose_failed_response, label: style_response}
+            - {from: checking_constraint_result, on: CommandError/BudgetExhausted, to: composing_failed_response, action: compose_failed_response, label: style_response}
+            - {from: checking_retry_budget, on: CommandError/BudgetExhausted, to: composing_failed_response, action: compose_failed_response, label: style_response}
+          budget_to_failed_terminal:
+            - {from: composing_intent_input, on: BudgetExhausted, to: failed, action: none}
+            - {from: formulating_pair_query, on: BudgetExhausted, to: failed, action: none}
+            - {from: composing_pair_input, on: BudgetExhausted, to: failed, action: none}
+            - {from: composing_initial_edit_context, on: BudgetExhausted, to: failed, action: none}
+            - {from: composing_retry_context, on: BudgetExhausted, to: failed, action: none}
+            - {from: composing_constraint_input, on: BudgetExhausted, to: failed, action: none}
+            - {from: composing_success_response, on: BudgetExhausted, to: failed, action: none}
+            - {from: composing_no_intent_response, on: BudgetExhausted, to: failed, action: none}
+            - {from: composing_no_op_response, on: BudgetExhausted, to: failed, action: none}
+            - {from: composing_insufficient_response, on: BudgetExhausted, to: failed, action: none}
+            - {from: composing_failed_response, on: BudgetExhausted, to: failed, action: none}
+          compose_rule: |
+            Compose words do not emit CommandError. They always emit their one
+            configured signal even when trusted selectors fail, while recording
+            selector defects on Result. Planned declaration and label validation
+            must therefore prove every selector resolves. Only independently
+            applied BudgetExhausted may leave a compose state without its signal.
+
+    tightening_intent_contract:
+      source: accepted voice parent only
+      explicit_intents:
+        - remove_needless_words
+        - restore_direct_predicate
+        - remove_filler_or_importance_assertion
+        - replace_indirect_construction
+        - reduce_unsupported_intensifier
+        - reduce_hedge_stack_without_changing_uncertainty
+        - replace_nominalization_with_supported_verb
+        - use_positive_form_without_changing_negation_meaning
+        - remove_duplicate_claim
+      report_per_target:
+        - passage_id
+        - target_span_id
+        - exact_parent_span_hash
+        - intent
+        - bounded finding
+        - protected_overlap_status
+      rules:
+        - An intent is explicit only when the parsed helper report names one allowed enum for one exact parent span.
+        - Judgment-only paragraph concerns are not auto-edit intents.
+        - Quotations, normative requirements, citations, numbers, and protected spans never receive an intent.
+        - No-intent content returns no_op without embedding, retrieval, or generation.
+
+    pair_retrieval_contract:
+      corpus: tightening-rag
+      unit: before_after_transformation_pair
+      query_inputs:
+        - explicit intent enum
+        - bounded target-span lexical and syntactic features
+        - protected-overlap status
+        - stable target and query identity
+        - configured source and rule eligibility
+      sufficiency_inputs:
+        - pair intent and target applicability
+        - before-side feature match
+        - after-side preservation compatibility
+        - configured distance and result count
+        - complete source, rule, pair, and embedding metadata
+        - query, target, and retrieval-attempt identity
+      provenance_per_pair:
+        - pair_id
+        - rule_id
+        - source
+        - source_repository
+        - source_path
+        - source_commit
+        - chunk_id
+        - instead_hash
+        - do_hash
+        - distance
+        - embedding_model
+        - query_identity
+        - target_span_id
+        - retrieval_attempt
+      refinement: |
+        The first pair report may retain sufficient pairs and provide bounded
+        helper-computed descriptors for deficient target-intent groups. The parser
+        validates descriptors and next count. A scalar predicate allows one
+        refinement. A second deficient report returns insufficient_pairs with the
+        accepted voice parent unchanged. Pair prose supplies transformation shape,
+        never facts, claims, citations, numbers, terminology, or voice authority.
+
+    style_edit_contract:
+      operation: |
+        generate_style_edit receives the accepted voice parent, exact target spans,
+        one explicit intent per target, and mapped retrieved pairs. It returns one
+        candidate and an ordered changed-span ledger. Untargeted bytes and protected
+        spans remain byte-identical.
+      permitted_effects:
+        - Remove unnecessary verbosity, filler, delayed predicates, and indirect constructions at stated targets.
+        - Apply only a transformation shape supported by a retrieved applicable pair.
+        - Preserve an unchanged target when the pair does not support a safe edit.
+      prohibited_effects:
+        - Edit a passage or span without a parsed explicit tightening intent.
+        - Change structure, rhetorical role, register, cadence, or diction merely to normalize voice.
+        - Add facts, examples, claims, implications, recommendations, citations, numbers, terms, or conclusions.
+        - Use retrieved pair prose as document content.
+        - Alter a direct quotation or normative requirement.
+
+    preservation_contract:
+      deterministic_checks:
+        target_scope:
+          - Every changed span maps to exactly one target_span_id and explicit intent.
+          - Every ledger entry cites at least one selected applicable pair.
+          - Every untargeted span is byte-identical.
+        voice:
+          - Accepted voice dimensions, register, cadence bounds, rhetorical stance, and author-density floor remain within configured parent-relative limits.
+          - Tightening stops at the accepted parent's measured density and cannot manufacture clipped or generic assistant prose.
+        meaning_and_claim_strength:
+          - Propositions, argument roles, negations, modality, quantifiers, scope, causality, comparison direction, and entailments remain equivalent.
+          - No claim is weakened, strengthened, broadened, narrowed, reversed, or duplicated.
+        qualifications:
+          - Hedges, uncertainty, limitations, exceptions, conditions, and confidence remain attached to the same claims.
+        citations:
+          - Citation keys, syntax, ordering where meaningful, and citation-to-claim associations remain unchanged.
+        numbers:
+          - Numbers, units, equations, dates, thresholds, ranges, signs, precision, and quantitative comparators remain unchanged.
+        terminology:
+          - Protected domain terms, symbols, acronyms, identifiers, API names, proper nouns, and glossary forms remain unchanged.
+        quotations:
+          - Direct and block quotations remain byte-identical, including attribution and boundaries.
+        normative_language:
+          - SHALL, MUST, SHOULD, MAY, requirement IDs, obligation scope, and configured normative forms remain byte-identical.
+        unsupported_additions:
+          - No retrieved, model-known, or inferred proposition appears in the candidate.
+      failure_behavior: |
+        inspect_style_constraints emits only generic exec outcomes.
+        parse_style_constraint_report validates its report.
+        style_candidate_is_no_op, style_constraints_hold, and
+        style_retry_available each compare one scalar. No helper, parser, or
+        predicate repairs, accepts, or persists a candidate. At count three,
+        failure returns the accepted voice parent unchanged.
+
+    helper_io_contract:
+      intent:
+        compose_label: style_intent_input
+        exec_stdin_source: $from(style_intent_input).stdin
+        raw_label: style_intent_report_raw
+        parser_source: $from(style_intent_report_raw).output
+      pairs:
+        compose_label: style_pair_input
+        exec_stdin_source: $from(style_pair_input).stdin
+        raw_label: style_pair_report_raw
+        parser_source: $from(style_pair_report_raw).output
+      preservation:
+        compose_label: style_constraint_input
+        exec_stdin_source: $from(style_constraint_input).stdin
+        raw_label: style_constraint_report_raw
+        parser_source: $from(style_constraint_report_raw).output
+      factory_semantics: |
+        Every exec fixes one helper binary, one operation, structured output mode,
+        stdin_max_bytes, output limits, and no runtime parameters or preconditions.
+        ResolveFromSelector must produce one non-empty string within the byte limit.
+        Selector, start, cancellation, timeout, or structured-encoding failure emits
+        CommandError. A launched zero-exit process emits ToolDone; a nonzero process
+        emits ToolFailed. Structured mode wraps stdout under output with exit_code.
+        parse_structured selects only output, emits its configured parsed or invalid
+        signal, and emits CommandError only for selector or normalized-output
+        encoding failure.
+
+    response_contract:
+      required_fields:
+        - outcome
+        - content
+        - parent_artifact_id
+        - parent_content_hash
+        - tightening_intents
+        - pair_provenance
+        - changed_span_ledger
+        - constraint_report
+        - stage_metadata
+      outcomes:
+        succeeded:
+          content: validated targeted candidate bytes
+          meaning: Every change had an explicit intent and applicable pair, and all preservation constraints passed; orchestrator acceptance remains separate.
+        no_op:
+          content: unchanged accepted voice parent
+          meaning: No explicit intent existed or the validated candidate was byte-identical.
+        insufficient_pairs:
+          content: unchanged accepted voice parent
+          meaning: Initial and refined retrieval could not supply applicable pairs for every target.
+        failed:
+          content: unchanged accepted voice parent when request validation succeeded, otherwise explicit null
+          meaning: Validation, provider, retrieval, helper, parse, generation, preservation, budget, or response preparation failed.
+      stage_metadata:
+        - saga_id
+        - stage
+        - attempt
+        - invocation_id
+        - idempotency_key
+        - producer
+        - producer_version
+        - retrieval_refinement_count
+        - edit_attempt_count
+        - query_identities
+        - target_span_ids
+        - pair_ids
+        - helper_identity_and_version
+        - report_schema_identities
+        - report_hashes
+        - scalar_predicate_outcomes
+        - bounded_retry_category
+        - bounded_failure_category
+      mutation_rule: |
+        The response is data only. The style stage writes no parent, candidate,
+        provenance, report, workproduct, repository, corpus, or publication state.
+        It issues no critic or acceptance verdict.
+
+    structural_proofs:
+      intent_only_editing:
+        edit_cut_state: composing_initial_edit_context
+        only_initial_incoming_signal: StylePairsComplete
+        target_predecessor: StyleIntentsPresent
+        validation_cut: checking_constraint_result
+        argument: |
+          StyleIntentsPresent follows fixed helper observation, schema parsing, and
+          one intent_status comparison. Query descriptors and pair groups retain the
+          exact target IDs and intent enums. The initial edit context is reachable
+          only after StylePairsComplete for those groups. The preservation report
+          verifies every changed span against the target and pair ledger and verifies
+          untargeted bytes. succeeded is reachable only after StyleConstraintsValid.
+          No-intent, ungrounded, invalid, helper-failed, parse-failed, exhausted, and
+          budget paths have no edge to succeeded.
+      retrieval_precedes_every_edit:
+        edit_cut_state: composing_initial_edit_context
+        only_incoming_signal: StylePairsComplete
+        predecessor_chain:
+          - query_tightening_rag receives only vectors from embed_tightening_query.
+          - assess_style_pairs receives only labeled tightening-rag results through bounded JSON stdin.
+          - parse_style_pair_report selects only ToolDone helper stdout and validates the closed schema.
+          - style_pairs_complete compares only pair_status.
+          - StylePairsComplete is the only initial signal entering the edit-context composer.
+        argument: |
+          No generation state is reachable from request validation or intent
+          detection alone. Every initial generation follows tightening-rag,
+          fixed pair assessment, parsing, and scalar sufficiency routing. Retry
+          generation reuses the same parsed selected pair map and cannot retrieve or
+          replace pairs.
+      one_pair_refinement_bound:
+        cycle: checking_pair_refinement_budget -> formulating_pair_query -> embedding_pair_query -> querying_tightening_rag -> composing_pair_input -> assessing_pairs -> parsing_pair_report -> checking_pair_completeness -> checking_pair_refinement_budget
+        guard_signal: StylePairRefinementAllowed
+        argument: |
+          style_pair_refinement_available compares parsed refinement_count with one.
+          The helper computes next count one and bounded descriptors; the parser
+          validates them; formulate_tightening_query only renders them. The next
+          deficient result emits StylePairsInsufficient and exits the cycle.
+      edit_attempt_bound:
+        cycle: checking_retry_budget -> composing_retry_context -> editing_style -> composing_constraint_input -> inspecting_constraints -> parsing_constraint_report -> checking_candidate_no_op -> checking_constraint_result -> checking_retry_budget
+        guard_signal: StyleRetryAllowed
+        argument: |
+          The request starts at count one. The preservation helper verifies current
+          count and computes next count; the parser validates both.
+          style_retry_available compares only current count with three. At count
+          three it emits StyleConstraintsFailed, whose only edge enters the fixed
+          failed response with unchanged parent bytes.
+      authority_closure:
+        argument: |
+          Every action resolves to one style-editor-owned srd003 word. Selected
+          words include only request validation, fixed composition, configured
+          embedding and tightening-rag retrieval, three fixed helper operations,
+          structured parsing, scalar predicates, and bounded generation. The profile
+          selects no filesystem, workproduct, structure, voice, critic, Pangram,
+          GitHub, lifecycle, corpus-write, shell, or arbitrary REST word. Model
+          output cannot select authority or acceptance.
+
+requirements:
+
+  R1:
+    title: Structure stage — flat machine and closed actions
+    stage: structure
+    items:
+      - id: R1.1
+        text: |
+          The planned structure-stage MachineSpec SHALL use exactly the states,
+          terminal states, signals, and expanded transitions in the structure
+          flat_machine_contract. It SHALL contain no nested machine, payload
+          guard, script, dynamic $tool dispatch, or hidden imperative router.
+        evidence: Planned structural validation expands transition families and reports no duplicate, missing, unreachable, or terminal-origin transition.
+      - id: R1.2
+        text: |
+          Every named action SHALL resolve through action_bindings to exactly one
+          structure-stage srd003 word. The runtime profile SHALL select
+          exactly those twenty words and no prohibited word.
+        evidence: Planned action, ToolDef emission, profile selection, and owner closure compare srd005 structure stage with srd003.
+  R2:
+    title: Structure stage — request and query formulation
+    stage: structure
+    items:
+      - id: R2.1
+        text: |
+          The machine SHALL validate one original or retry-parent content
+          envelope supplied by workflow-orchestrator. It SHALL reject absent or
+          malformed content, identity, intent, inventory, or policy and every
+          path-bearing or authority-bearing field.
+        evidence: Planned schema fixtures cover original, retry, wrong-stage, missing-content, identity, inventory, path, endpoint, model, collection, ref, credential, and tool fields.
+      - id: R2.2
+        text: |
+          formulate_structure_query SHALL deterministically compose a bounded
+          section-or-outline retrieval question from validated intent and, only
+          on refinement, bounded prior evidence metadata. Model output SHALL NOT
+          formulate a query or select retrieval authority.
+        evidence: Planned composition fixtures prove stable query identities and reject free-form authority or refinement count greater than one.
+  R3:
+    title: Structure stage — retrieval, grounding, and refinement
+    stage: structure
+    items:
+      - id: R3.1
+        text: |
+          Every retrieval SHALL call embed_structure_query and then
+          query_structure_rag. The query SHALL consume only the embedding
+          response vector and SHALL return ranked section or outline records
+          with complete repository, path, commit, chunk, distance, record-type,
+          embedding-model, query, and attempt provenance.
+        evidence: Planned wiring and response-schema tests prove vector origin, structure-rag binding, metadata completeness, and read-only behavior.
+      - id: R3.2
+        text: |
+          inspect_structure_grounding SHALL run one fixed non-shell helper
+          operation over bounded JSON to compute evidence, provenance, policy,
+          query-identity, embedding-identity, count, distance, record-type, and
+          refinement findings. parse_structure_grounding_report SHALL
+          schema-validate that report. structure_grounding_sufficient and
+          structure_grounding_refinement_available SHALL each compare exactly
+          one parsed scalar. Insufficient initial evidence MAY cause exactly one
+          parsed helper-computed query refinement; insufficient refined evidence
+          SHALL return insufficient_grounding with unchanged parent content.
+          compose_structure_grounding_input SHALL render one fixed JSON envelope
+          from fixed labels, and inspect_structure_grounding SHALL select its
+          stdin string through $from(structure_grounding_input).stdin.
+        evidence: Planned compose, exec, bounded-stdin, structured-output, schema, scalar-predicate, and zero-, one-, and two-attempt traces prove exact factory semantics, one_refinement_bound, retained evidence, and terminal bytes.
+      - id: R3.3
+        text: |
+          StructureGroundingSufficient SHALL be the only signal entering
+          composing_edit_context, and StructureEditContextReady SHALL be the only
+          signal entering editing_structure. Retrieval rejection, insufficiency,
+          infrastructure failure, or budget exhaustion SHALL NOT generate or
+          validate a candidate.
+        evidence: Planned graph reachability proves retrieval_precedes_every_successful_edit and negative paths have no success edge.
+  R4:
+    title: Structure stage — structure-only editing and semantic constraints
+    stage: structure
+    items:
+      - id: R4.1
+        text: |
+          generate_structure_edit SHALL use supplied parent content and accepted
+          section or outline evidence only to reorder, combine, or separate
+          material and to add bounded structural connectors. It SHALL minimize
+          diction changes and SHALL NOT import retrieved source prose.
+        evidence: Planned prompt, schema, ledger, and adversarial evidence fixtures reject unsupported prose, voice imitation, and style-only changes.
+      - id: R4.2
+        text: |
+          The candidate SHALL preserve every claim, citation and association,
+          number and quantitative relation, qualification, and required-content
+          item. Diction outside declared structural connectors SHALL remain
+          byte-identical.
+        evidence: Planned protected-content fixtures cover deletion, duplication, mutation, reassociation, changed units, weakened hedges, omitted exceptions, and connector overreach.
+      - id: R4.3
+        text: |
+          inspect_structure_constraints SHALL run one fixed non-shell helper
+          operation over bounded JSON to compute parent-identity, source-span
+          coverage and multiplicity, structure-operation-ledger, claim,
+          citation-association, number, qualification, required-content,
+          connector, and retrieved-prose findings.
+          parse_structure_constraint_report SHALL schema-validate that report.
+          structure_candidate_is_no_op and structure_constraints_hold SHALL each
+          compare exactly one parsed scalar and SHALL never repair, accept, or
+          persist a candidate. compose_structure_constraint_input SHALL render
+          one fixed JSON envelope from fixed labels, and
+          inspect_structure_constraints SHALL select its stdin string through
+          $from(structure_constraint_input).stdin. Both StructureEditGenerated
+          and StructureEditNoOp SHALL pass through this helper, parser, and
+          predicate chain before a no-op or success response is composed.
+        evidence: Planned compose, exec, bounded-stdin, structured-output, schema, and scalar-predicate fixtures distinguish valid, byte-identical, malformed-report, helper-failed, and every failed invariant.
+  R5:
+    title: Structure stage — responses and outcomes
+    stage: structure
+    items:
+      - id: R5.1
+        text: |
+          compose_structure_success_response,
+          compose_structure_no_op_response,
+          compose_structure_insufficient_response, and
+          compose_structure_failed_response SHALL each use one fixed template,
+          return the response_contract fields with one fixed outcome, and emit
+          only its one configured response signal. A successful response SHALL
+          identify every used source repository, path, commit, and chunk.
+        evidence: Planned compose declaration and response-schema tests validate each fixed signal, outcome, provenance cardinality, identities, selectors, and stage metadata.
+      - id: R5.2
+        text: |
+          no_op and insufficient_grounding SHALL return unchanged parent
+          content. failed SHALL return unchanged parent content when the request
+          was valid and explicit null otherwise. None of these outcomes SHALL be
+          represented as succeeded.
+        evidence: Planned terminal traces compare response bytes and outcome signals for every domain and infrastructure path.
+      - id: R5.3
+        text: |
+          A structure-stage response SHALL remain a non-authoritative child
+          result. Only workflow-orchestrator MAY validate it for immutable
+          workproduct persistence or saga progression.
+        evidence: Planned integration schemas expose no accepted-artifact, path, write, commit, publication, or verdict field.
+  R6:
+    title: Structure stage — authority and mutation exclusion
+    stage: structure
+    items:
+      - id: R6.1
+        text: |
+          The structure stage SHALL expose no voice, style, critic, Pangram,
+          GitHub, workproduct, lifecycle, corpus-write, generic shell,
+          filesystem, or arbitrary REST authority. It SHALL issue no acceptance
+          verdict and SHALL NOT select another corpus, endpoint, model, or tool.
+        evidence: Planned profile and declaration closure compares selected words with authority.prohibited groups, words, and capabilities.
+      - id: R6.2
+        text: |
+          The structure stage SHALL be request-scoped and stateless. It SHALL
+          return content, provenance, and metadata as data and SHALL NOT mutate a
+          filesystem, saga, repository, Chroma collection, or publication.
+        evidence: Planned side-effect inspection permits only configured embedding, retrieval, and model observations.
+  R7:
+    title: Structure stage — planned status and validation
+    stage: structure
+    items:
+      - id: R7.1
+        text: |
+          The structure stage SHALL specify behavior only. The profile,
+          MachineSpec, ToolDefs, REST declarations, model declarations, service,
+          tests, and executable evidence SHALL remain planned.
+        evidence: Architecture, specification index, roadmap, and implementation_status agree on specified documentation and planned runtime.
+      - id: R7.2
+        text: |
+          Planned validation SHALL parse YAML; prove requirement-to-AC coverage,
+          state, transition, signal, terminal, action, word, emission, tool, and
+          authority closure; prove exact exec, parse_structured,
+          value_predicate, and compose factory semantics and non-adjacent label
+          resolution; prove retrieval-before-edit and the one-refinement bound;
+          inspect the diff; and run mage audit.
+        evidence: The future test suite names every check and reports no new warning.
+
+  R8:
+    title: Voice stage — flat machine and closed actions
+    stage: voice
+    items:
+      - id: R8.1
+        text: |
+          The planned voice-stage MachineSpec SHALL use exactly the states,
+          terminal states, signals, and expanded transitions in the voice
+          flat_machine_contract. It SHALL contain no nested machine, payload
+          guard, script, dynamic $tool dispatch, or hidden imperative router.
+        evidence: Planned structural validation expands transition families and reports no duplicate, missing, unreachable, unused, or terminal-origin transition.
+      - id: R8.2
+        text: |
+          Every named action SHALL resolve through action_bindings to exactly
+          one voice-stage srd003 word. The runtime profile SHALL select
+          exactly those twenty-five words and no prohibited word.
+        evidence: Planned action, ToolDef emission, profile selection, and owner closure compare srd005 voice stage with srd003.
+  R9:
+    title: Voice stage — accepted parent and passage query
+    stage: voice
+    items:
+      - id: R9.1
+        text: |
+          The machine SHALL validate one accepted structure content envelope
+          supplied by workflow-orchestrator. It SHALL reject a parent with the
+          wrong stage, status, identity, hash, passage coverage, inventory,
+          context, policy, or any path-bearing or authority-bearing field.
+        evidence: Planned schema fixtures cover valid, retry, wrong-stage, unaccepted, wrong-hash, missing-passage, duplicate-passage, inventory, context, path, endpoint, model, collection, ref, credential, tool, verdict, and publication fields.
+      - id: R9.2
+        text: |
+          formulate_voice_query SHALL deterministically compose one bounded
+          query per voice-eligible passage from target voice, rhetorical role,
+          register, configured role/tag/stratum policy, and bounded passage
+          features. Topical similarity alone SHALL NOT satisfy the query or
+          anchor contract.
+        evidence: Planned composition fixtures prove stable ordered query identities, role/register presence, configured filter behavior, and rejection of free-form authority.
+      - id: R9.3
+        text: |
+          The ordered passage map SHALL preserve the accepted structure
+          artifact's passage and protected-unit order, boundaries, hierarchy,
+          types, and multiplicities. Voice-ineligible units SHALL remain
+          protected.
+        evidence: Planned passage-map fixtures cover headings, prose, lists, tables, figures, code, equations, references, blockquotes, and configured eligibility.
+  R10:
+    title: Voice stage — retrieval, anchor assessment, and refinement
+    stage: voice
+    items:
+      - id: R10.1
+        text: |
+          Every retrieval SHALL call embed_voice_query and then query_voice_rag.
+          The query SHALL consume only ordered provider-response vectors and
+          SHALL return grouped ranked passages with complete source, role,
+          register, voice-tag, stratum, distance, embedding-model, query,
+          passage, and retrieval-attempt provenance.
+        evidence: Planned wiring and response-schema tests prove vector origin, ordering, voice-rag binding, metadata completeness, group identity, and read-only behavior.
+      - id: R10.2
+        text: |
+          inspect_voice_anchors SHALL use one fixed non-shell helper operation
+          over bounded JSON to compute role, register, eligibility, provenance,
+          diversity, distance, count, and embedding findings for every passage.
+          parse_voice_anchor_report SHALL schema-validate its report.
+          voice_anchors_complete and voice_anchor_refinement_available SHALL
+          each perform exactly one scalar comparison. The report SHALL identify
+          selected anchors separately from the eligible pool.
+        evidence: Planned exec, bounded-stdin, schema, and scalar-predicate fixtures distinguish pool from selected anchors and reject topic-only, wrong-register, incomplete-provenance, duplicate, mismatched-embedding, malformed-report, and insufficient result sets.
+      - id: R10.3
+        text: |
+          Insufficient initial anchors MAY cause exactly one refinement for
+          deficient passages. Sufficient initial anchors SHALL be retained.
+          Insufficient refined anchors SHALL return insufficient_anchors with
+          the accepted structure parent unchanged.
+        evidence: Planned zero-, one-, and two-assessment traces prove the one_refinement_bound, retained-anchor identity, and terminal bytes.
+      - id: R10.4
+        text: |
+          VoiceAnchorsSufficient SHALL be the only signal entering the initial
+          rewrite. Retrieval rejection, insufficiency, infrastructure failure,
+          or budget exhaustion SHALL NOT generate or validate a candidate.
+        evidence: Planned graph reachability proves retrieval_precedes_every_successful_rewrite and negative paths have no success edge.
+  R11:
+    title: Voice stage — voice-only passage rewriting
+    stage: voice
+    items:
+      - id: R11.1
+        text: |
+          generate_voice_edit SHALL rewrite each eligible passage independently
+          using only its mapped anchors, target voice, bounded policy, and
+          adjacent context. It SHALL assemble passages into their original slots
+          and return an ordered rewrite ledger.
+        evidence: Planned prompt, schema, mapping, and adversarial fixtures reject cross-passage anchors, changed slots, missing ledger entries, and anchor-derived claims.
+      - id: R11.2
+        text: |
+          A rewrite MAY change diction, syntax, cadence, sentence openings, and
+          sentence realization only where required for voice matching. It SHALL
+          NOT tighten, summarize, shorten, expand, normalize, clean up, or
+          restructure prose beyond that need.
+        evidence: Planned span-rationale fixtures require one declared voice dimension and anchor reference per changed span and reject style-only or structure-only edits.
+      - id: R11.3
+        text: |
+          generate_voice_edit SHALL preserve an unchanged passage when no
+          supported voice-only improvement exists. A byte-identical whole
+          candidate SHALL route to no_op rather than succeeded.
+        evidence: Planned no-change and mixed-passage fixtures preserve unchanged bytes and distinguish no-op from edited outcomes.
+  R12:
+    title: Voice stage — deterministic preservation and bounded rewrite
+    stage: voice
+    items:
+      - id: R12.1
+        text: |
+          inspect_voice_constraints SHALL use one fixed non-shell helper
+          operation over bounded JSON to compute parent-identity, organization,
+          passage-ledger, protected-meaning, claim-strength, citation,
+          quantitative, terminology, adjacent-coherence, unsupported-addition,
+          and voice-only-scope findings. parse_voice_constraint_report SHALL
+          schema-validate the report. Each following value_predicate word SHALL
+          perform exactly one scalar comparison. No word SHALL repair, accept,
+          or persist a candidate.
+        evidence: Planned exec, bounded-stdin, schema, and scalar-predicate fixtures cover every preservation_contract field and distinguish valid, byte-identical, retryable, malformed-report, helper-failed, and exhausted failure.
+      - id: R12.2
+        text: |
+          Meaning and claim-strength checks SHALL preserve proposition scope,
+          negation, modality, quantifiers, causality, comparison direction,
+          hedges, conditions, exceptions, limitations, and uncertainty. A
+          rewrite SHALL add no fact, implication, recommendation, or conclusion.
+        evidence: Planned paired fixtures cover weakening, strengthening, broadening, narrowing, reversal, omitted qualification, invented entailment, and unchanged paraphrase.
+      - id: R12.3
+        text: |
+          Citation keys, syntax family, ordering where relevant, and
+          citation-to-claim associations; numbers, units, equations, dates,
+          thresholds, ranges, signs, precision, and comparators; and protected
+          terminology, symbols, acronyms, identifiers, proper nouns, and
+          glossary forms SHALL remain unchanged.
+        evidence: Planned protected-token and association fixtures cover deletion, invention, mutation, reassociation, conversion, rounding, sign change, and terminology drift.
+      - id: R12.4
+        text: |
+          Constraint failure MAY cause a failure-specific rewrite only while
+          rewrite attempt count is below three. The third failed attempt SHALL
+          return failed with accepted structure parent bytes unchanged.
+        evidence: Planned traces prove the rewrite_attempt_bound, stable parent and anchor identities, bounded notes, and exact fail-closed bytes.
+  R13:
+    title: Voice stage — copy risk, response, and authority
+    stage: voice
+    items:
+      - id: R13.1
+        text: |
+          inspect_voice_copy_risk SHALL use one fixed non-shell helper operation
+          over bounded JSON to compare every rewritten passage with its accepted
+          anchors and report suspicious exact or normalized shared phrasing and
+          shingle overlap with provenance. parse_voice_copy_risk_report SHALL
+          schema-validate the report. voice_copy_risk_clear and
+          voice_copy_retry_available SHALL each perform exactly one scalar
+          comparison.
+        evidence: Planned exec, bounded-stdin, schema, exact, normalized, punctuation, casing, distinctive-shingle, below-limit, cross-anchor, malformed-report, and scalar-predicate fixtures validate findings and signals.
+      - id: R13.2
+        text: |
+          Copy-risk retry MAY occur only while rewrite attempt count is below
+          three and SHALL retain the same parent, anchors, target, and
+          thresholds. Blocked risk at the limit SHALL return failed with the
+          accepted structure parent unchanged.
+        evidence: Planned copy-risk traces prove stable identities, anti-copy note bounds, threshold immutability, exhaustion, and fail-closed bytes.
+      - id: R13.3
+        text: |
+          compose_voice_success_response, compose_voice_no_op_response,
+          compose_voice_insufficient_response, and compose_voice_failed_response
+          SHALL each use one fixed template, return content, parent identity,
+          fixed outcome, selected and attempted anchor provenance, copy-risk
+          findings or explicit status, constraint report or explicit status,
+          and stage metadata, and emit only its one configured response signal.
+        evidence: Planned compose declaration and response-schema tests validate each fixed signal, outcome, provenance cardinality, findings, counters, identities, selectors, and metadata.
+      - id: R13.4
+        text: |
+          The voice-stage response SHALL remain a non-authoritative child
+          result. The stage SHALL have no filesystem, workproduct, structure,
+          tightening, critic, Pangram, GitHub, lifecycle, corpus-write, shell,
+          arbitrary REST, acceptance, or publication authority.
+        evidence: Planned profile and declaration closure compares selected words with every prohibited group, word, capability, field, and side effect.
+  R14:
+    title: Voice stage — planned status and validation
+    stage: voice
+    items:
+      - id: R14.1
+        text: |
+          The voice stage SHALL specify behavior only. The profile, MachineSpec,
+          ToolDefs, non-shell voice-editor helper, REST declarations, model
+          declarations, service, tests, and executable evidence SHALL remain
+          planned.
+        evidence: Architecture, specification index, roadmap, and implementation_status agree on specified documentation and planned runtime.
+      - id: R14.2
+        text: |
+          Planned validation SHALL parse YAML; prove requirement-to-AC coverage,
+          state, transition, signal, terminal, action, word, emission, tool, and
+          authority closure; prove exact exec, parse_structured,
+          value_predicate, and compose factory semantics and non-adjacent label
+          resolution; prove accepted-structure preservation,
+          retrieval-before-rewrite, one-refinement and rewrite-attempt bounds;
+          inspect the diff; and run mage audit.
+        evidence: The future test suite names every check and reports no new warning.
+
+  R15:
+    title: Style stage — flat machine and exact factory closure
+    stage: style
+    items:
+      - id: R15.1
+        text: |
+          The planned style-stage MachineSpec SHALL use exactly the states,
+          signals, transitions, labels, and four terminals in the style
+          flat_machine_contract, with no nested machine, guard, script, dynamic
+          dispatch, or hidden router.
+        evidence: Planned graph validation reports no duplicate, missing, unreachable, unused, or terminal-origin transition.
+      - id: R15.2
+        text: |
+          Every action SHALL map to one style-stage srd003 word.
+          Complex observations SHALL use fixed JSON-emitting non-shell exec,
+          parse_structured, and visible one-scalar/two-outcome predicate chains.
+          Each compose SHALL emit one fixed signal, and each terminal route
+          SHALL use its separate fixed response composer.
+        evidence: Planned action, word, factory-emission, signal, transition, terminal, and label closure matches all twenty-seven selected words.
+  R16:
+    title: Style stage — accepted voice parent and explicit intent
+    stage: style
+    items:
+      - id: R16.1
+        text: |
+          The machine SHALL admit only the orchestrator-selected accepted voice
+          parent with matching stage, identity, hash, acceptance identity,
+          complete passage map, protected inventory, bounded policy, and
+          initial counters. It SHALL reject path-bearing or authority-bearing
+          fields.
+        evidence: Planned schema fixtures cover valid, retry, wrong-stage, unaccepted, hash, map, inventory, counter, path, endpoint, model, collection, ref, credential, verdict, and publication cases.
+      - id: R16.2
+        text: |
+          identify_style_intents SHALL run one fixed helper operation over
+          bounded JSON and report exact target spans with allowed intent enums.
+          parse_style_intent_report SHALL validate the report, and
+          style_intents_present SHALL compare only intent_status. Quotations,
+          normative language, citations, numbers, terms, and protected spans
+          SHALL never become targets.
+        evidence: Planned helper, schema, scalar, and protected-span fixtures cover every intent enum, no-intent, malformed, overlapping, and prohibited target.
+      - id: R16.3
+        text: |
+          A passage or span SHALL be editable only when the parsed intent report
+          names it and one explicit tightening intent. No-intent input SHALL
+          return no_op unchanged without retrieval or generation.
+        evidence: Planned graph and byte-diff proof establishes structural_proofs.intent_only_editing.
+  R17:
+    title: Style stage — pair retrieval and provenance
+    stage: style
+    items:
+      - id: R17.1
+        text: |
+          Every pair query SHALL be keyed by an explicit target and intent,
+          embedded by embed_tightening_query, and sent only to tightening-rag.
+          Only provider response vectors may enter the RAG request.
+        evidence: Planned wiring tests prove vector origin, ordered group identity, corpus binding, and read-only behavior.
+      - id: R17.2
+        text: |
+          assess_style_pairs SHALL run one fixed helper operation over bounded
+          JSON and compute applicability, sufficiency, selected pair maps,
+          complete provenance, and bounded refinement data.
+          parse_style_pair_report SHALL validate the report.
+          style_pairs_complete and style_pair_refinement_available SHALL each
+          compare exactly one scalar.
+        evidence: Planned pair fixtures cover rule, source, before and after hashes, applicability, distance, embedding, grouping, provenance, malformed output, and scalar routes.
+      - id: R17.3
+        text: |
+          Deficient initial groups MAY receive one helper-computed and parsed
+          refinement while accepted pairs remain fixed. Deficient refined
+          evidence SHALL return insufficient_pairs with unchanged parent bytes.
+          Every used pair SHALL retain pair, rule, source, repository, path,
+          commit, chunk, before and after hash, distance, model, query, target,
+          and attempt provenance.
+        evidence: Planned zero-, one-, and two-assessment traces prove the refinement bound and provenance cardinality.
+      - id: R17.4
+        text: |
+          StylePairsComplete SHALL be the only signal entering the initial edit
+          context. Retrieval rejection, insufficiency, helper failure, parse
+          failure, infrastructure failure, or budget exhaustion SHALL NOT
+          generate or validate a candidate.
+        evidence: Planned reachability proves structural_proofs.retrieval_precedes_every_edit.
+  R18:
+    title: Style stage — targeted tightening and preservation
+    stage: style
+    items:
+      - id: R18.1
+        text: |
+          generate_style_edit SHALL receive the accepted voice parent, exact
+          target spans, explicit intents, and mapped applicable pairs. It MAY
+          remove needless verbosity, delayed predicates, filler, unsupported
+          intensifiers, hedge stacks, nominalizations, indirect constructions,
+          and duplicate claims only at those targets. It SHALL return a
+          changed-span ledger with target, intent, and pair references.
+        evidence: Planned prompt, schema, intent, pair-map, and adversarial fixtures reject untargeted, unsupported, pairless, and imported-pair-prose edits.
+      - id: R18.2
+        text: |
+          Every candidate SHALL preserve accepted voice and meaning, claim
+          strength, qualifications, citations, numbers, terminology,
+          quotations, normative language, protected spans, and unsupported-
+          addition absence. Untargeted spans SHALL remain byte-identical.
+        evidence: Planned paired fixtures cover voice flattening, density overshoot, weakening, strengthening, scope, causality, hedge, condition, citation association, quantitative mutation, term drift, quotation, normative force, and invention.
+      - id: R18.3
+        text: |
+          inspect_style_constraints SHALL run one fixed helper operation over
+          bounded JSON. parse_style_constraint_report SHALL validate its report.
+          style_candidate_is_no_op, style_constraints_hold, and
+          style_retry_available SHALL each compare one scalar and SHALL never
+          repair, accept, or persist a candidate.
+        evidence: Planned exec, structured-output, schema, scalar, valid, no-op, violated, malformed, helper-failed, and exhausted fixtures cover every preservation field.
+      - id: R18.4
+        text: |
+          Preservation failure MAY retry only while edit_attempt_count is below
+          three, using the same parent, targets, intents, pair map, provenance,
+          constraints, and thresholds. The third failure SHALL return failed
+          with the accepted voice parent unchanged.
+        evidence: Planned traces prove structural_proofs.edit_attempt_bound and stable identities.
+  R19:
+    title: Style stage — responses and fail-closed authority
+    stage: style
+    items:
+      - id: R19.1
+        text: |
+          The success, no-intent, candidate-no-op, insufficient-pairs, and
+          failed response words SHALL each use one fixed template and emit one
+          fixed signal. Responses SHALL return the declared content, parent
+          identity, intents, pair provenance, changed-span ledger, constraint
+          report, and stage metadata or explicit not-run statuses.
+        evidence: Planned compose and response-schema tests validate each template, signal, outcome, selector, provenance, report, counter, and metadata field.
+      - id: R19.2
+        text: |
+          no_op and insufficient_pairs SHALL return unchanged accepted voice
+          parent bytes. failed SHALL return unchanged accepted voice parent
+          bytes after valid request admission and explicit null otherwise.
+          None SHALL be represented as succeeded.
+        evidence: Planned terminal traces compare exact bytes and outcomes for all domain, infrastructure, and budget paths.
+      - id: R19.3
+        text: |
+          The style-stage response SHALL be non-authoritative. The style stage
+          SHALL expose no acceptance, critic, structure, voice, Pangram, GitHub,
+          workproduct, filesystem, lifecycle, corpus-write, shell, arbitrary
+          REST, or publication authority.
+        evidence: Planned profile, word, field, and side-effect closure checks every selected and prohibited authority.
+  R20:
+    title: Style stage — planned status and validation
+    stage: style
+    items:
+      - id: R20.1
+        text: |
+          The style stage SHALL specify planned behavior only. The profile,
+          MachineSpec, ToolDefs, fixed non-shell style-editor helper, REST and
+          model declarations, service, tests, and executable evidence remain
+          planned.
+        evidence: Architecture, specification index, roadmap, and implementation_status agree.
+      - id: R20.2
+        text: |
+          Planned validation SHALL parse YAML; prove complete requirement-to-AC
+          traces; prove state, action, word, factory emission, signal,
+          transition, terminal, label, and authority closure; prove intent-only
+          and retrieval-before-edit reachability; prove both bounded cycles;
+          inspect the diff; and run mage audit.
+        evidence: The future test suite names every check and reports no new warning.
+
+non_goals:
+  - Implement profiles, machines, ToolDefs, helpers, REST or model declarations, services, or tests for any stage.
+  - Read or write a saga filesystem, persist a workproduct, accept an artifact, or publish.
+  - Issue a critic verdict, invoke Pangram, or invoke git, gh, GitHub, generic shell, or arbitrary REST.
+  - Write Chroma, select another retrieval corpus, or let one stage query another stage's corpus.
+  - Treat retrieved text as source material for new claims, diction, facts, or terminology.
+  - Retry generation beyond the configured stage limit, repair a failed candidate, or relax a constraint on retry.
+  - Let topical similarity alone satisfy a voice query or a detector score alone determine acceptance.
+  - Define a fourth stage or merge any stage's authority with another stage, the orchestrator, or the critic.
+
+acceptance_criteria:
+  - id: AC1
+    criterion: |
+      Structure stage: one flat signal-complete machine maps every action to
+      exactly one structure-stage srd003 word and has four closed terminal
+      outcomes.
+    traces: [R1.1, R1.2]
+  - id: AC2
+    criterion: |
+      Structure stage: original and retry-parent requests are validated without
+      paths or widened authority, and initial or refined queries are composed
+      deterministically.
+    traces: [R2.1, R2.2]
+  - id: AC3
+    criterion: |
+      Structure stage: provider embeddings feed read-only structure-rag queries
+      with complete provenance; a fixed helper report, schema parser, and scalar
+      predicates route grounding; refinement occurs at most once; and graph
+      reachability proves retrieval precedes every successful edit.
+    traces: [R3.1, R3.2, R3.3]
+  - id: AC4
+    criterion: |
+      Structure stage: editing is limited to evidence-grounded reordering,
+      combining, separating, and bounded connectors; claims, citations, numbers,
+      qualifications, and required content are preserved; fixed helper
+      observation, schema parsing, and scalar predicates reject or mark no-op
+      without repair or acceptance.
+    traces: [R4.1, R4.2, R4.3]
+  - id: AC5
+    criterion: |
+      Structure stage: succeeded, no_op, insufficient_grounding, and failed
+      return the declared content, provenance, parent identity, and stage
+      metadata while leaving acceptance to workflow-orchestrator.
+    traces: [R5.1, R5.2, R5.3]
+  - id: AC6
+    criterion: |
+      Structure stage: the request-scoped editor returns data without filesystem
+      mutation and exposes no voice, style, critic, Pangram, GitHub, workproduct,
+      corpus-write, generic shell, arbitrary REST, or acceptance authority.
+    traces: [R6.1, R6.2]
+  - id: AC7
+    criterion: |
+      Structure stage: documentation reports runtime as planned, and YAML,
+      complete AC traces, machine/tool/signal/factory/label closure, retrieval
+      and refinement proofs, authority, diff, and mage audit remain explicit
+      validation gates.
+    traces: [R7.1, R7.2]
+  - id: AC8
+    criterion: |
+      Voice stage: one flat signal-complete machine maps every action to exactly
+      one voice-stage srd003 word and has four closed terminal outcomes.
+    traces: [R8.1, R8.2]
+  - id: AC9
+    criterion: |
+      Voice stage: only an accepted structure parent enters the machine; its
+      ordered passage and protected-unit organization is complete and immutable;
+      requests carry bytes and bounded identity rather than paths or widened
+      authority.
+    traces: [R9.1, R9.3]
+  - id: AC10
+    criterion: |
+      Voice stage: deterministic query sets include rhetorical role, register,
+      and target voice for every eligible passage and do not treat topic alone
+      as sufficient.
+    traces: [R9.2]
+  - id: AC11
+    criterion: |
+      Voice stage: provider embeddings feed grouped read-only voice-rag queries
+      with complete provenance; deterministic assessment reports selected
+      anchors; refinement occurs at most once; and graph reachability proves
+      retrieval precedes every successful rewrite.
+    traces: [R10.1, R10.2, R10.3, R10.4]
+  - id: AC12
+    criterion: |
+      Voice stage: rewrites operate independently per passage in original slots,
+      use anchors only for voice, preserve no-op passages, and change no prose
+      beyond voice-matching need.
+    traces: [R11.1, R11.2, R11.3]
+  - id: AC13
+    criterion: |
+      Voice stage: deterministic validation preserves organization, meaning,
+      claim strength, citations, numbers, terminology, and adjacent coherence;
+      it rejects unsupported additions and bounds all constraint-driven rewrites
+      to three attempts.
+    traces: [R12.1, R12.2, R12.3, R12.4]
+  - id: AC14
+    criterion: |
+      Voice stage: every candidate has a provenance-bound suspicious-phrasing
+      report; copy-risk retries are bounded; blocked or exhausted paths return
+      the accepted structure parent unchanged.
+    traces: [R13.1, R13.2]
+  - id: AC15
+    criterion: |
+      Voice stage: all outcomes return the declared content, parent identity,
+      anchor provenance, copy-risk findings, constraint report, and stage
+      metadata while leaving persistence and acceptance to
+      workflow-orchestrator and exposing none of the prohibited authority.
+    traces: [R13.3, R13.4]
+  - id: AC16
+    criterion: |
+      Voice stage: documentation reports runtime as planned, and YAML, complete
+      AC traces, machine/tool/signal/factory/label closure, retrieval and
+      structure-preservation proofs, bounded cycles, authority, diff, and mage
+      audit remain validation gates.
+    traces: [R14.1, R14.2]
+  - id: AC17
+    criterion: |
+      Style stage: one flat signal-complete machine maps every action to one
+      style-stage srd003 word, matches exact factory emissions and labels, and
+      closes four terminal outcomes.
+    traces: [R15.1, R15.2]
+  - id: AC18
+    criterion: |
+      Style stage: only the accepted voice parent enters; fixed helper
+      observation, schema parsing, and one scalar predicate identify exact
+      editable spans and explicit intents while protected spans remain
+      ineligible.
+    traces: [R16.1, R16.2]
+  - id: AC19
+    criterion: |
+      Style stage: graph and byte-diff proof establishes that only passages
+      with a stated tightening intent can change and no-intent content returns
+      unchanged without retrieval or generation.
+    traces: [R16.3, R18.1, R18.3]
+  - id: AC20
+    criterion: |
+      Style stage: provider vectors feed read-only tightening-rag queries;
+      applicable before/after pairs are assessed through helper, parser, and
+      scalar chains; refinement is bounded; every transformation records
+      complete retrieved pair provenance; and retrieval precedes every edit.
+    traces: [R17.1, R17.2, R17.3, R17.4]
+  - id: AC21
+    criterion: |
+      Style stage: targeted edits remove only supported verbosity and
+      indirectness while deterministic validation preserves voice, meaning,
+      claim strength, qualifications, citations, numbers, terminology,
+      quotations, normative language, protected spans, and
+      unsupported-addition absence.
+    traces: [R18.1, R18.2, R18.3]
+  - id: AC22
+    criterion: |
+      Style stage: pair refinement occurs at most once, edit generation occurs
+      at most three times, all failed or insufficient paths return the accepted
+      voice parent unchanged, and retries retain fixed parent, intents, pairs,
+      provenance, constraints, and authority.
+    traces: [R17.3, R18.4, R19.2]
+  - id: AC23
+    criterion: |
+      Style stage: separate fixed response composers return declared content
+      and evidence while leaving persistence and acceptance to
+      workflow-orchestrator and exposing no prohibited authority.
+    traces: [R19.1, R19.2, R19.3]
+  - id: AC24
+    criterion: |
+      Style stage: documentation reports runtime as planned, and YAML, complete
+      AC traces, exact factory semantics, action/word/signal/transition/
+      terminal/label/authority closure, intent-only and retrieval-before-edit
+      proofs, bounded cycles, diff inspection, and mage audit remain validation
+      gates.
+    traces: [R20.1, R20.2]
+
+shared_requirement_traces:
+  - contract: srd001-voice-forge-services
+    path: srd001-voice-forge-services.yaml
+    requirements: [R1.2, R2.1, R3.1, R4.1, R5.3, R6.1, R6.2, R8.2, R9.1, R10.1, R11.1, R13.3, R13.4, R15.2, R16.1, R17.1, R18.1, R19.3]
+  - contract: srd002-writing-saga-workproducts
+    path: srd002-writing-saga-workproducts.yaml
+    requirements: [R9.1, R9.3, R12.4, R13.2, R13.3, R16.1, R18.4, R19.1, R19.2]
+  - contract: srd003-writing-agent-tools
+    path: srd003-writing-agent-tools.yaml
+    requirements: [R1.2, R2.1, R2.2, R3.1, R3.2, R3.3, R4.1, R4.3, R5.1, R6.1, R8.2, R9.1, R9.2, R10.1, R10.2, R10.3, R10.4, R11.1, R12.1, R12.4, R13.1, R13.2, R13.3, R13.4, R15.2, R16.1, R16.2, R17.1, R17.2, R17.3, R17.4, R18.1, R18.3, R18.4, R19.1, R19.3]
+  - contract: srd004-workflow-orchestrator
+    path: srd004-workflow-orchestrator.yaml
+    requirements: [R9.1, R12.4, R13.2, R13.3, R13.4, R16.1, R18.4, R19.1, R19.2, R19.3]
+  - contract: cfg-machine-format
+    path: ../../../../../agent-core/docs/specs/config-formats/machine-format.yaml
+    requirements: [R1.1, R1.2, R3.2, R3.3, R5.1, R7.2, R8.1, R8.2, R10.3, R10.4, R12.4, R13.2, R13.3, R14.2, R15.1, R15.2, R17.3, R17.4, R18.4, R19.1, R20.2]
+  - contract: srd001-rag-server-agent
+    path: ../../../../chatbot-mesh/docs/specs/software-requirements/srd001-rag-server-agent.yaml
+    requirements: [R3.1, R3.2, R3.3, R10.1, R10.2, R10.3, R10.4, R17.1, R17.2, R17.3, R17.4]
+
+use_case_traces:
+  - id: rel00.0-uc001-edit-document
+    status: planned
+    path: ../use-cases/rel00.0-uc001-edit-document.yaml
+
+test_suite_traces:
+  - id: test-rel00.0-voice-forge
+    status: planned
+    path: ../test-suites/test-rel00.0-voice-forge.yaml
+    acceptance_criteria: [AC1, AC2, AC3, AC4, AC5, AC6, AC7, AC8, AC9, AC10, AC11, AC12, AC13, AC14, AC15, AC16, AC17, AC18, AC19, AC20, AC21, AC22, AC23, AC24]
+
+related_documents:
+  - path: ../../ARCHITECTURE.yaml
+    usage: Defines the specialist-editor request, retrieval, preservation, and authority views for all three stages.
+  - path: srd001-voice-forge-services.yaml
+    usage: Owns the specialist-editor service responsibility, lifecycle, failure, scaling, and authority boundary.
+  - path: srd003-writing-agent-tools.yaml
+    usage: Owns every selected word, deterministic routing signal, effect, error, and compensation for all stages.
+  - path: srd004-workflow-orchestrator.yaml
+    usage: Owns accepted parent selection, child invocation, workproduct persistence, retry, and saga progression.
+  - path: ../../../../../agent-core/docs/specs/config-formats/machine-format.yaml
+    usage: Owns flat MachineSpec states, signals, transitions, actions, terminal states, budgets, and validation.
+  - path: ../../../../../agent-core/docs/constitutions/design.yaml
+    usage: Requires YAML, numbered requirements, traceability, and tool-language boundaries.
+  - path: ../../../../chatbot-mesh/docs/specs/software-requirements/srd001-rag-server-agent.yaml
+    usage: Owns the vector-in, ranked-chunk, one-agent-one-corpus, read-only RAG contract.
+  - external: petar-djukic/coding-skills/.claude/skills/match-structure/SKILL.md
+    usage: Informs structure-stage section-level analysis and content-preservation constraints without importing voice, style, filesystem, exemplar-rewrite, or model-selection authority.
+  - external: petar-djukic/coding-skills/.claude/skills/match-voice/SKILL.md
+    usage: Informs voice-stage passage-level anchors, role and register selection, preservation gates, suspicious shared-phrase checks, bounded retries, and fail-closed behavior without importing filesystem, Pangram, detector, GitHub, critic, structure, style, or runtime authority.
+  - external: petar-djukic/coding-skills/.claude/skills/tighten-style/SKILL.md
+    usage: Informs style-stage author-density, pair-delivery, protected-content, and fail-closed constraints without importing shell, filesystem, full-catalog, voice, critic, or acceptance authority.
+  - external: petar-djukic/coding-skills/.claude/skills/tighten-style/references/tightening-pairs.yaml
+    usage: Defines source-tagged before and after pair shapes for the planned tightening corpus; runtime generation receives retrieved applicable pairs only.
+
+implementation_status:
+  specification: specified
+  runtime: planned
+  profiles: not_implemented
+  machines: not_implemented
+  tool_declarations: not_implemented
+  specialist_editor_helpers: not_implemented
+  deterministic_signal_refinement: not_implemented
+  rest_declarations: not_implemented
+  model_declarations: not_implemented
+  services: not_implemented
+  tests: not_implemented
+  executable_evidence: none
