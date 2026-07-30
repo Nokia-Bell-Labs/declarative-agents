@@ -1,0 +1,399 @@
+tools:
+  - name: launch_observer_control
+    type: builtin
+    init: rest_server_launch
+    visibility: internal
+    category: boundary
+    description: Launch the observer's lifecycle control REST server.
+    problem: The observer needs a lifecycle exit endpoint so a supervisor or the demo deck can stop it cleanly.
+    goals:
+      - Register the lifecycle exit and health routes.
+      - Keep control access inside the existing REST server tool path.
+    requirements:
+      input:
+        - Tool config references the trusted observer control REST server definition.
+      output:
+        - Output reports server name, bound address, route count, and binding kinds.
+      errors:
+        - Config, bind, route conflict, and schema failures emit CommandError.
+    non_goals:
+      - Does not serve monitor reads.
+    parameters:
+      type: object
+      properties: {}
+    emits: [ServerLaunched, CommandError]
+    output:
+      description: Control REST server launch result.
+      schema:
+        type: object
+        properties:
+          server: {type: string}
+          address: {type: string}
+          route_count: {type: integer}
+          bindings: {type: array}
+    side_effects:
+      - kind: network_listen
+        target: observer_control_server
+        state: listener_started
+      - kind: state_mutation
+        target: rest_server_state
+        state: routes_registered
+    reversibility:
+      classification: compensatable
+      undo: rest_server_stop
+    undo:
+      strategy: compensating_action
+      description: Stop the control REST server if the launch command owns the listener.
+    errors:
+      - signal: CommandError
+        condition: Control REST server config, bind, route, or schema failure.
+        state_after_failure: No control route is exposed.
+    relationships:
+      before: [launch_observer_monitor, await_observer_control]
+    config:
+      rest_ref: observer_control
+
+  - name: launch_observer_monitor
+    type: builtin
+    init: rest_server_launch
+    visibility: internal
+    category: boundary
+    description: Launch the observer's monitor REST server with read-state and stream endpoints.
+    problem: The observer needs its own monitor surface so the demo deck and other tools can observe the observer itself.
+    goals:
+      - Register monitor snapshot, metadata, stream, and UX routes.
+      - Keep monitor access inside the existing REST server tool path.
+    requirements:
+      input:
+        - Tool config references the trusted observer monitor REST server definition.
+      output:
+        - Output reports server name, bound address, route count, and binding kinds.
+      errors:
+        - Config, bind, route conflict, and schema failures emit CommandError.
+    non_goals:
+      - Does not serve lifecycle control.
+    parameters:
+      type: object
+      properties: {}
+    emits: [ServerLaunched, CommandError]
+    output:
+      description: Monitor REST server launch result.
+      schema:
+        type: object
+        properties:
+          server: {type: string}
+          address: {type: string}
+          route_count: {type: integer}
+          bindings: {type: array}
+    side_effects:
+      - kind: network_listen
+        target: observer_monitor_server
+        state: listener_started
+      - kind: state_mutation
+        target: rest_server_state
+        state: routes_registered
+    reversibility:
+      classification: compensatable
+      undo: rest_server_stop
+    undo:
+      strategy: compensating_action
+      description: Stop the monitor REST server if the launch command owns the listener.
+    errors:
+      - signal: CommandError
+        condition: Monitor REST server config, bind, route, or schema failure.
+        state_after_failure: No monitor route is exposed.
+    relationships:
+      after: [launch_observer_control]
+      before: [discover_mesh_pods]
+    config:
+      rest_ref: observer_monitor
+
+  - name: discover_mesh_pods
+    type: builtin
+    init: rest_client_get
+    category: boundary
+    description: Poll the Kubernetes API for mesh agent pods matching the release label selector.
+    problem: The observer needs to discover which agents are running so it can poll their monitor surfaces.
+    goals:
+      - Issue a GET to the kube API pod-list endpoint scoped to the release namespace and label selector.
+      - Return pod names and addresses for monitor fan-in.
+    requirements:
+      input:
+        - REST client config supplies the kube API base URL, namespace, and label selector.
+      output:
+        - Output reports discovered pod names and IP addresses.
+      errors:
+        - Network, timeout, auth, and mapping failures emit CommandError.
+    non_goals:
+      - Does not watch for changes; this is a polling discovery.
+      - Does not write to the Kubernetes API.
+    parameters:
+      type: object
+      properties: {}
+    emits: [PodsDiscovered, CommandError]
+    output:
+      description: List of discovered mesh agent pods.
+      schema:
+        type: object
+        properties:
+          pods:
+            type: array
+            items:
+              type: object
+              properties:
+                name: {type: string}
+                ip: {type: string}
+                labels: {type: object}
+    side_effects:
+      - kind: external_api
+        target: kubernetes.pods.list
+        state: read_only
+    reversibility:
+      classification: reversible
+      undo: noop
+    undo:
+      strategy: noop
+      description: Read-only operation; no undo needed.
+    errors:
+      - signal: CommandError
+        condition: Network, timeout, 403 forbidden, or response mapping failure.
+        state_after_failure: Discovery result is empty; polling falls back to next cycle.
+    relationships:
+      after: [launch_observer_monitor]
+      before: [poll_agent_monitors]
+    config:
+      rest_ref: kube_api
+      operation: list_pods
+
+  - name: poll_agent_monitors
+    type: builtin
+    init: rest_client_get
+    category: boundary
+    description: Poll each discovered agent's monitor endpoints and aggregate the fleet view.
+    problem: The fleet view needs current machine spec, state, tools, and events from every running agent.
+    goals:
+      - For each discovered pod, GET /monitor/machine, /monitor/state, /monitor/tools, and /monitor/events.
+      - Aggregate results into the fleet data set served by the observer's UX.
+      - Degrade gracefully for unreachable agents.
+    requirements:
+      input:
+        - The discovered pod list from the preceding discovery step.
+      output:
+        - Output reports per-agent machine spec, state, tools, and events.
+      errors:
+        - Per-agent failures degrade that agent; they do not fail the poll.
+        - A total fan-in failure emits CommandError.
+    non_goals:
+      - Does not consume SSE streams (srd008 R2.4).
+    parameters:
+      type: object
+      properties: {}
+    emits: [AgentsPolled, CommandError]
+    output:
+      description: Aggregated fleet monitor data.
+      schema:
+        type: object
+        properties:
+          agents:
+            type: array
+            items:
+              type: object
+              properties:
+                name: {type: string}
+                reachable: {type: boolean}
+                machine: {type: object}
+                state: {type: object}
+                tools: {type: object}
+                events: {type: array}
+          reachable_count: {type: integer}
+          unreachable_count: {type: integer}
+    side_effects:
+      - kind: external_api
+        target: agent.monitor
+        state: read_only
+    reversibility:
+      classification: reversible
+      undo: noop
+    undo:
+      strategy: noop
+      description: Read-only operation; no undo needed.
+    errors:
+      - signal: CommandError
+        condition: Total fan-in failure when no agent is reachable.
+        state_after_failure: Fleet view shows all agents as unreachable.
+    relationships:
+      after: [discover_mesh_pods]
+    config:
+      rest_ref: agent_monitor
+      operation: poll_fleet
+
+  - name: await_observer_control
+    type: builtin
+    init: rest_await_event
+    visibility: internal
+    category: boundary
+    description: Wait a bounded interval for a lifecycle control event between discovery cycles.
+    problem: The observer needs a timed wait between polling cycles that also accepts lifecycle exit.
+    goals:
+      - Wait on the control server queue for the declared polling interval.
+      - Accept lifecycle exit events.
+      - Time out to trigger the next discovery cycle.
+    requirements:
+      input:
+        - Tool config references the trusted observer control REST server queue.
+      output:
+        - Output reports source, route, signal, and request ID.
+      errors:
+        - Missing server, stopped server, and queue failures emit declared signals.
+    non_goals:
+      - Does not read or mutate monitor snapshots.
+    parameters:
+      type: object
+      properties: {}
+    emits: [ExitRequested, AwaitTimedOut, ServerStopped, CommandError]
+    output:
+      description: Selected control event or timeout.
+      schema:
+        type: object
+        properties:
+          source: {type: string}
+          route: {type: string}
+          signal: {type: string}
+          request_id: {type: string}
+    side_effects:
+      - kind: state_mutation
+        target: rest_server_queue
+        state: selected_event_consumed
+    reversibility:
+      classification: reversible
+      undo: queue_event_restore
+    undo:
+      strategy: queue_event_restore
+      description: Restore the receipt-recorded event to the front of its source queue.
+      payload: rest_await_event
+      captures: [source, event]
+    errors:
+      - signal: CommandError
+        condition: Control source is missing or stopped with command_error policy.
+        state_after_failure: Control listener state is unchanged.
+    relationships:
+      after: [launch_observer_control]
+      before: [stop_observer_control]
+    config:
+      sources:
+        - server: observer_control
+          routes: [exit]
+          signals: [ExitRequested]
+      timeout: ${OBSERVER_POLL_INTERVAL:-10s}
+      stopped_behavior: emit_server_stopped
+
+  - name: stop_observer_monitor
+    type: builtin
+    init: rest_server_stop
+    visibility: internal
+    category: boundary
+    description: Stop the observer's monitor REST server.
+    problem: The observer must release its monitor listener before reaching terminal state.
+    goals:
+      - Stop the configured monitor REST server.
+      - Drain queued events according to server shutdown config.
+      - Emit ServerStopped so the machine can route to the next stop.
+    requirements:
+      input:
+        - Tool config references the trusted observer monitor REST server definition.
+      output:
+        - Output reports server name, bound address, and stopped status.
+      errors:
+        - Missing server, shutdown timeout, and cleanup failures emit CommandError.
+    non_goals:
+      - Does not restart the server.
+    parameters:
+      type: object
+      properties: {}
+    emits: [ServerStopped, CommandError]
+    output:
+      description: Monitor REST server stop result.
+      schema:
+        type: object
+        properties:
+          server: {type: string}
+          address: {type: string}
+          status: {type: string}
+    side_effects:
+      - kind: network_listener_shutdown
+        target: observer_monitor_server
+        state: listener_stopped
+      - kind: state_mutation
+        target: rest_server_state
+        state: server_stopped
+    reversibility:
+      classification: compensatable
+      undo: server_shutdown_or_user_action_compensation
+    undo:
+      strategy: server_shutdown_or_user_action_compensation
+      description: The receipt records shutdown loss; MachineSpec must relaunch the monitor definition.
+      payload: boundary_compensation
+      captures: [server, address, relaunch_requirement]
+    errors:
+      - signal: CommandError
+        condition: Monitor REST server is missing, shutdown times out, or cleanup fails.
+        state_after_failure: Monitor listener state may be partially stopped.
+    relationships:
+      after: [launch_observer_monitor]
+    config:
+      rest_ref: observer_monitor
+
+  - name: stop_observer_control
+    type: builtin
+    init: rest_server_stop
+    visibility: internal
+    category: boundary
+    description: Stop the observer's lifecycle control REST server.
+    problem: The observer must release its control listener as the final stop before terminal state.
+    goals:
+      - Stop the configured control REST server.
+      - Emit ServerStopped so the machine routes to Done.
+    requirements:
+      input:
+        - Tool config references the trusted observer control REST server definition.
+      output:
+        - Output reports server name, bound address, and stopped status.
+      errors:
+        - Missing server, shutdown timeout, and cleanup failures emit CommandError.
+    non_goals:
+      - Does not restart the server.
+    parameters:
+      type: object
+      properties: {}
+    emits: [ServerStopped, CommandError]
+    output:
+      description: Control REST server stop result.
+      schema:
+        type: object
+        properties:
+          server: {type: string}
+          address: {type: string}
+          status: {type: string}
+    side_effects:
+      - kind: network_listener_shutdown
+        target: observer_control_server
+        state: listener_stopped
+      - kind: state_mutation
+        target: rest_server_state
+        state: server_stopped
+    reversibility:
+      classification: compensatable
+      undo: server_shutdown_or_user_action_compensation
+    undo:
+      strategy: server_shutdown_or_user_action_compensation
+      description: The receipt records shutdown loss; MachineSpec must relaunch the control definition.
+      payload: boundary_compensation
+      captures: [server, address, relaunch_requirement]
+    errors:
+      - signal: CommandError
+        condition: Control REST server is missing, shutdown times out, or cleanup fails.
+        state_after_failure: Control listener state may be partially stopped.
+    relationships:
+      after: [await_observer_control]
+    config:
+      rest_ref: observer_control

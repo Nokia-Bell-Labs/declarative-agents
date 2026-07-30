@@ -1,0 +1,145 @@
+rest:
+  version: v1
+  auth:
+    none: {type: none}
+    kube_bearer:
+      type: bearer
+      token_ref: kube_service_account_token
+  limits:
+    control:
+      timeout: 5s
+      read_timeout: 5s
+      max_request_bytes: 16384
+      max_response_bytes: 65536
+      redirect: {mode: none}
+      network:
+        schemes: [http]
+        hosts: [127.0.0.1, localhost]
+        ports: [${OBSERVER_CONTROL_PORT:-18201}]
+        allow_public_listener: true
+    monitor:
+      timeout: 5s
+      read_timeout: 5s
+      max_request_bytes: 4096
+      max_response_bytes: 1048576
+      redirect: {mode: none}
+      network:
+        schemes: [http]
+        hosts: [127.0.0.1, localhost]
+        ports: [${OBSERVER_MONITOR_PORT:-18202}]
+        allow_public_listener: true
+    kube_client:
+      timeout: ${OBSERVER_KUBE_TIMEOUT:-5s}
+      read_timeout: ${OBSERVER_KUBE_TIMEOUT:-5s}
+      max_request_bytes: 0
+      max_response_bytes: 2097152
+      redirect: {mode: none}
+      network:
+        schemes: [https]
+        hosts: [kubernetes.default.svc]
+    agent_monitor_client:
+      timeout: ${OBSERVER_AGENT_TIMEOUT:-3s}
+      read_timeout: ${OBSERVER_AGENT_TIMEOUT:-3s}
+      max_request_bytes: 0
+      max_response_bytes: 1048576
+      redirect: {mode: none}
+      network:
+        schemes: [http]
+
+  servers:
+    observer_control:
+      address: ${OBSERVER_BIND_HOST:-127.0.0.1}:${OBSERVER_CONTROL_PORT:-18201}
+      limits_ref: control
+      queue: {name: observer_control, capacity: 8, timeout: 100ms}
+      shutdown: {timeout: 5s, drain_policy: drain_then_stop}
+      endpoints:
+        exit:
+          method: POST
+          path: /api/lifecycle/exit
+          binding: emit_signal
+          signal: ExitRequested
+          request:
+            body_schema:
+              type: object
+              properties:
+                reason: {type: string}
+          response:
+            output: {accepted: "true"}
+        health: {method: GET, path: /api/lifecycle/health, binding: health}
+
+    observer_monitor:
+      address: ${OBSERVER_BIND_HOST:-127.0.0.1}:${OBSERVER_MONITOR_PORT:-18202}
+      limits_ref: monitor
+      queue: {name: observer_monitor, capacity: 8, overflow: reject, timeout: 100ms}
+      shutdown:
+        timeout: 2s
+        drain_policy: drain
+        stop_listeners: true
+        unblock_await_signal: ServerStopped
+      endpoints:
+        machine_spec:  {method: GET, path: /monitor/machine, binding: read_state, monitor_view: machine_spec}
+        current_state: {method: GET, path: /monitor/state, binding: read_state, monitor_view: current_state}
+        tools:         {method: GET, path: /monitor/tools, binding: read_state, monitor_view: tools}
+        metrics:       {method: GET, path: /monitor/metrics, binding: read_state, monitor_view: metrics}
+        recent_events: {method: GET, path: /monitor/events, binding: read_state, monitor_view: events}
+        event_stream:  {method: GET, path: /monitor/events/stream, binding: stream_events, monitor_view: events}
+        openapi:       {method: GET, path: /monitor/openapi, binding: static_metadata, monitor_view: openapi}
+        control_exit:
+          method: POST
+          path: /monitor/control/exit
+          binding: emit_signal
+          signal: ExitRequested
+          request:
+            body_schema:
+              type: object
+              properties:
+                reason: {type: string}
+          response:
+            output: {accepted: "true"}
+
+  clients:
+    kube_api:
+      base_url: ${KUBE_API_URL:-https://kubernetes.default.svc}
+      auth_ref: kube_bearer
+      limits_ref: kube_client
+      operations:
+        list_pods:
+          method: GET
+          path: /api/v1/namespaces/${OBSERVER_NAMESPACE:-default}/pods
+          params:
+            query:
+              labelSelector: ${OBSERVER_LABEL_SELECTOR:-app.kubernetes.io/instance=chatbot-mesh}
+            body_source: none
+          success: {status: [200], signal: PodsDiscovered}
+          response:
+            output:
+              pods: $.items
+          side_effects:
+            - kind: external_api
+              target: kubernetes.pods.list
+              state: read_only
+          reversibility:
+            classification: reversible
+            undo: noop
+
+    agent_monitor:
+      base_url: ${AGENT_MONITOR_BASE_URL:-http://127.0.0.1:18084}
+      auth_ref: none
+      limits_ref: agent_monitor_client
+      operations:
+        poll_fleet:
+          method: GET
+          path: /monitor/state
+          params:
+            body_source: none
+          success: {status: [200], signal: AgentsPolled}
+          response:
+            output:
+              state: $.body
+          side_effects:
+            - kind: external_api
+              target: agent.monitor
+              state: read_only
+          reversibility:
+            classification: reversible
+            undo: noop

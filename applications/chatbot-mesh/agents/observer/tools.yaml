@@ -1,0 +1,9 @@
+tools:
+  - launch_observer_control
+  - launch_observer_monitor
+  - discover_mesh_pods
+  - poll_agent_monitors
+  - await_observer_control
+  - exit_agent
+  - stop_observer_monitor
+  - stop_observer_control
