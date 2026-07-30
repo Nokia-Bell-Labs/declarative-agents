@@ -284,7 +284,7 @@ flat_machine_contract:
     - {name: appending_structure_intent, meaning: Allocate and persist one structure attempt and invocation key.}
     - {name: projecting_structure_intent, meaning: Project structure intent before reading or invoking.}
     - {name: reading_structure_parent, meaning: Read and verify the selected original.}
-    - {name: invoking_structure, meaning: Invoke structure-editor with bytes and identities only.}
+    - {name: invoking_structure, meaning: Invoke specialist-editor:structure with bytes and identities only.}
     - {name: hashing_structure_candidate, meaning: Validate and hash returned structure bytes.}
     - {name: writing_structure_attempt, meaning: Create or reuse the immutable structure attempt.}
     - {name: appending_structure_result, meaning: Record accepted, rejected, failed, uncertain, or superseded structure state.}
@@ -292,7 +292,7 @@ flat_machine_contract:
     - {name: appending_voice_intent, meaning: Allocate and persist one voice attempt and invocation key.}
     - {name: projecting_voice_intent, meaning: Project voice intent before reading or invoking.}
     - {name: reading_voice_parent, meaning: Read and verify the selected structure artifact.}
-    - {name: invoking_voice, meaning: Invoke voice-editor with bytes and identities only.}
+    - {name: invoking_voice, meaning: Invoke specialist-editor:voice with bytes and identities only.}
     - {name: hashing_voice_candidate, meaning: Validate and hash returned voice bytes.}
     - {name: writing_voice_attempt, meaning: Create or reuse the immutable voice attempt.}
     - {name: appending_voice_result, meaning: Record accepted, rejected, failed, uncertain, or superseded voice state.}
@@ -300,7 +300,7 @@ flat_machine_contract:
     - {name: appending_style_intent, meaning: Allocate and persist one style attempt and invocation key.}
     - {name: projecting_style_intent, meaning: Project style intent before reading or invoking.}
     - {name: reading_style_parent, meaning: Read and verify the selected voice artifact.}
-    - {name: invoking_style, meaning: Invoke style-editor with bytes and identities only.}
+    - {name: invoking_style, meaning: Invoke specialist-editor:style with bytes and identities only.}
     - {name: hashing_style_candidate, meaning: Validate and hash returned style bytes.}
     - {name: writing_style_attempt, meaning: Create or reuse the immutable style attempt.}
     - {name: appending_style_result, meaning: Record accepted, rejected, failed, uncertain, or superseded style state.}
@@ -1230,7 +1230,7 @@ requirements:
 
 non_goals:
   - Implement agents/workflow-orchestrator/machine.yaml, profiles, ToolDefs, helper executables, services, persistence, tests, or GitHub effects.
-  - Define editor or critic internal machines owned by srd005 through srd008.
+  - Define editor or critic internal machines owned by srd005 and srd008.
   - Add a semantic editor or let the orchestrator reinterpret semantic findings.
   - Give the orchestrator retrieval, model, editing, verdict, Pangram, corpus-write, generic shell, or generic GitHub authority.
   - Publish intermediate, rejected, failed, unfinalized, or unaccepted work.
