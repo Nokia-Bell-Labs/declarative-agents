@@ -40,6 +40,7 @@ func TestCreateReleaseTagCreatesNextDailyTag(t *testing.T) {
 				return "", nil
 			}
 		},
+		noRemoteTags,
 		func(tags []string, commit string) error {
 			created = append([]string(nil), tags...)
 			taggedCommit = commit
@@ -87,7 +88,7 @@ func TestCreateReleaseTagInGitRepository(t *testing.T) {
 	runGit(t, "tag", tagPrefix+date+".0")
 	err = createReleaseTag(
 		time.Date(2026, 6, 17, 12, 0, 0, 0, time.UTC),
-		gitOutput, gitCreateTagSet, passReleaseGates)
+		gitOutput, noRemoteTags, gitCreateTagSet, passReleaseGates)
 	if err != nil {
 		t.Fatalf("createReleaseTag returned error: %v", err)
 	}
@@ -112,6 +113,7 @@ func TestCreateReleaseTagRejectsNonMainBranch(t *testing.T) {
 		func(args ...string) (string, error) {
 			return "feature/profile-tags", nil
 		},
+		noRemoteTags,
 		func(tags []string, _ string) error {
 			t.Fatalf("tag creation called on non-main branch: %v", tags)
 			return nil
@@ -140,6 +142,7 @@ func TestCreateReleaseTagWrapsTagListingError(t *testing.T) {
 			}
 			return "", want
 		},
+		noRemoteTags,
 		func(tags []string, _ string) error {
 			t.Fatalf("tag creation called after listing failure: %v", tags)
 			return nil
@@ -156,6 +159,7 @@ func TestCreateReleaseTagWrapsAtomicTagFailure(t *testing.T) {
 	err := createReleaseTag(
 		time.Date(2026, 6, 17, 0, 0, 0, 0, time.UTC),
 		successfulReleaseOutput,
+		noRemoteTags,
 		func(tags []string, commit string) error {
 			if !reflect.DeepEqual(tags, releaseTags("v0.20260617.0", releaseModules())) ||
 				commit != "abc123" {
@@ -179,6 +183,7 @@ func TestCreateReleaseTagGateFailureCreatesNoTags(t *testing.T) {
 	err := createReleaseTag(
 		time.Date(2026, 6, 17, 0, 0, 0, 0, time.UTC),
 		successfulReleaseOutput,
+		noRemoteTags,
 		func(_ []string, _ string) error {
 			tagCalls++
 			return nil
@@ -243,6 +248,7 @@ func TestCreateReleaseTagRejectsCommitChangedByGates(t *testing.T) {
 	err := createReleaseTag(
 		time.Date(2026, 6, 17, 0, 0, 0, 0, time.UTC),
 		output,
+		noRemoteTags,
 		func(_ []string, _ string) error {
 			execCalls++
 			return nil
@@ -268,6 +274,7 @@ func TestCreateReleaseTagRequiresCleanWorktree(t *testing.T) {
 	err := createReleaseTag(
 		time.Date(2026, 6, 17, 0, 0, 0, 0, time.UTC),
 		output,
+		noRemoteTags,
 		func(_ []string, _ string) error {
 			execCalls++
 			return nil
@@ -300,6 +307,7 @@ func TestCreateReleaseTagRejectsWorktreeChangedByGates(t *testing.T) {
 	err := createReleaseTag(
 		time.Date(2026, 6, 17, 0, 0, 0, 0, time.UTC),
 		output,
+		noRemoteTags,
 		func(_ []string, _ string) error {
 			execCalls++
 			return nil
@@ -423,7 +431,117 @@ func TestValidateReleaseBranch(t *testing.T) {
 	}
 }
 
+func TestCreateReleaseTagIncludesRemoteTags(t *testing.T) {
+	var created []string
+	err := createReleaseTag(
+		time.Date(2026, 6, 17, 12, 0, 0, 0, time.UTC),
+		successfulReleaseOutput,
+		func(string) (string, error) {
+			return strings.Join([]string{
+				"v0.20260617.0",
+				"agent-core/v0.20260617.0",
+				"applications/catalog/v0.20260617.2",
+			}, "\n"), nil
+		},
+		func(tags []string, _ string) error {
+			created = append([]string(nil), tags...)
+			return nil
+		},
+		passReleaseGates,
+	)
+	if err != nil {
+		t.Fatalf("createReleaseTag returned error: %v", err)
+	}
+	wantTags := releaseTags("v0.20260617.3", releaseModules())
+	if !reflect.DeepEqual(created, wantTags) {
+		t.Fatalf("atomic tags = %v, want %v (remote had .0 and .2)", created, wantTags)
+	}
+}
+
+func TestCreateReleaseTagRemoteFailureCreatesNoTags(t *testing.T) {
+	remoteErr := errors.New("network unreachable")
+	var tagCalls int
+	err := createReleaseTag(
+		time.Date(2026, 6, 17, 0, 0, 0, 0, time.UTC),
+		successfulReleaseOutput,
+		func(string) (string, error) { return "", remoteErr },
+		func(_ []string, _ string) error {
+			tagCalls++
+			return nil
+		},
+		passReleaseGates,
+	)
+	if !errors.Is(err, remoteErr) {
+		t.Fatalf("error = %v, want remote failure", err)
+	}
+	if !strings.Contains(err.Error(), "remote release tags") {
+		t.Fatalf("error = %q, want remote tag context", err)
+	}
+	if tagCalls != 0 {
+		t.Fatalf("remote failure executed %d tag transactions", tagCalls)
+	}
+}
+
+func TestCreateReleaseTagLocalAndRemoteMaxima(t *testing.T) {
+	var created []string
+	err := createReleaseTag(
+		time.Date(2026, 6, 17, 12, 0, 0, 0, time.UTC),
+		func(args ...string) (string, error) {
+			if strings.Join(args, " ") == "tag -l *v0.20260617.*" {
+				return "v0.20260617.5", nil
+			}
+			return successfulReleaseOutput(args...)
+		},
+		func(string) (string, error) {
+			return "v0.20260617.3\nagent-core/v0.20260617.3", nil
+		},
+		func(tags []string, _ string) error {
+			created = append([]string(nil), tags...)
+			return nil
+		},
+		passReleaseGates,
+	)
+	if err != nil {
+		t.Fatalf("createReleaseTag returned error: %v", err)
+	}
+	wantTags := releaseTags("v0.20260617.6", releaseModules())
+	if !reflect.DeepEqual(created, wantTags) {
+		t.Fatalf("atomic tags = %v, want %v (local max .5 > remote max .3)", created, wantTags)
+	}
+}
+
+func TestParseRemoteTagRefs(t *testing.T) {
+	input := strings.Join([]string{
+		"abc123\trefs/tags/v0.20260617.0",
+		"def456\trefs/tags/agent-core/v0.20260617.0",
+		"ghi789\trefs/tags/applications/catalog/v0.20260617.0",
+		"",
+	}, "\n")
+	got := parseRemoteTagRefs(input)
+	want := strings.Join([]string{
+		"v0.20260617.0",
+		"agent-core/v0.20260617.0",
+		"applications/catalog/v0.20260617.0",
+	}, "\n")
+	if got != want {
+		t.Fatalf("parseRemoteTagRefs = %q, want %q", got, want)
+	}
+}
+
+func TestMergeTagLines(t *testing.T) {
+	got := mergeTagLines(
+		"v0.20260617.0\nagent-core/v0.20260617.0",
+		"v0.20260617.0\nv0.20260617.1",
+	)
+	want := "v0.20260617.0\nagent-core/v0.20260617.0\nv0.20260617.1"
+	if got != want {
+		t.Fatalf("mergeTagLines = %q, want %q", got, want)
+	}
+}
+
 func passReleaseGates(string) error { return nil }
+
+func noRemoteTags(string) (string, error) { return "", nil }
 
 func successfulReleaseOutput(args ...string) (string, error) {
 	switch strings.Join(args, " ") {

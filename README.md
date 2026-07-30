@@ -67,7 +67,9 @@ Application workflows such as planner-executor-critic run from
 `applications/coding-agent`.
 
 `mage tag` requires a clean `main` worktree, records the exact HEAD commit, runs
-all gates above itself, and verifies HEAD is unchanged before creating tags. It
+all gates above itself, and verifies HEAD is unchanged before creating tags.
+Revision selection queries the configured remote before choosing N, so a
+checkout missing fetched tags still picks the next available revision. It
 creates repository tag `v0.YYYYMMDD.N` plus module-scoped tags for
 release-relevant directories: `agent-core/v0.YYYYMMDD.N`,
 `applications/catalog/v0.YYYYMMDD.N`, its matching legacy compatibility tag
