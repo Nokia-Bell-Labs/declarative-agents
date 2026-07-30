@@ -2,12 +2,13 @@ id: chatbot-mesh-example-specifications
 title: Chatbot Mesh Example Specification Index
 
 overview: |
-  Specification index for the standalone chatbot mesh example. Seven SRDs define the
+  Specification index for the standalone chatbot mesh example. Eight SRDs define the
   program: three data-plane -- the RAG server agent (srd001), the chatbot agent
   (srd002), and the Helm deployment model (srd003) -- two control-plane -- the
-  provisioning-workflow-orchestrator (srd004) and the creator (srd005) -- and the deployment-plane applier
-  (srd006), plus the collector agent (srd007). Nine use cases exercise them
-  across eight releases (rel00.0 through rel07.0), each with a formal test suite.
+  provisioning-workflow-orchestrator (srd004) and the creator (srd005) -- the deployment-plane applier
+  (srd006), the collector agent (srd007), and the fleet observer agent (srd008).
+  Ten use cases exercise them across nine releases (rel00.0 through rel08.0), each
+  with a formal test suite.
 
   The application runs on the agent-core runtime and cites agent-core platform SRDs
   (srd021, srd028, srd029, srd030, srd033, srd034, srd035, srd036, and srd016
@@ -37,6 +38,7 @@ role_alignment_index:
     - {current_actor: creator, canonical_role_sub_role: "Creator / Instance Manager; Agent Owner / Agent Lifecycle Manager", retained_or_proposed_name: creator, evidence: srd005, migration_impact: none}
     - {current_actor: applier, canonical_role_sub_role: "Executor / Actuation Agent and Change Manager", retained_or_proposed_name: applier, evidence: srd006, migration_impact: documentation-only}
     - {current_actor: collector, canonical_role_sub_role: "Monitor / Telemetry Collector", retained_or_proposed_name: collector, evidence: srd007, migration_impact: none}
+    - {current_actor: observer, canonical_role_sub_role: "Monitor / Fleet Observer", retained_or_proposed_name: observer, evidence: srd008, migration_impact: none}
   deployment_evidence:
     - helm/templates/chatbot.yaml
     - helm/templates/rag-units.yaml
@@ -44,6 +46,7 @@ role_alignment_index:
     - helm/templates/creator.yaml
     - helm/templates/applier.yaml
     - helm/templates/collector.yaml
+    - helm/templates/observer.yaml
 
 roadmap_summary:
   - version: "00.0"
@@ -86,6 +89,11 @@ roadmap_summary:
     use_cases_done: 0
     use_cases_total: 1
     status: partial
+  - version: "08.0"
+    name: Fleet observer agent
+    use_cases_done: 0
+    use_cases_total: 1
+    status: planned
 
 srd_index:
   - id: srd001-rag-server-agent
@@ -116,6 +124,10 @@ srd_index:
     title: Collector Agent Functional Block
     summary: Monitor / Telemetry Collector realization composing bounded OTLP receive, deterministic spool, unchanged relay, lifecycle surfaces, and self-loop prevention while contrib retains metrics.
     path: docs/specs/software-requirements/srd007-collector-agent.yaml
+  - id: srd008-observer-agent
+    title: Observer Agent Functional Block
+    summary: Monitor / Fleet Observer realization that discovers mesh agents from the Kubernetes API and polls each agent's monitor surface to serve a fleet-level view.
+    path: docs/specs/software-requirements/srd008-observer-agent.yaml
 
 use_case_index:
   - id: rel00.0-uc001-rag-server-query
@@ -172,6 +184,12 @@ use_case_index:
     status: partial
     test_suite: test-rel07.0-collector
     path: docs/specs/use-cases/rel07.0-uc001-collector-ingress.yaml
+  - id: rel08.0-uc001-mesh-observer
+    title: The Observer Agent Discovers the Mesh and Shows a Fleet View
+    release: "08.0"
+    status: planned
+    test_suite: test-rel08.0-observer
+    path: docs/specs/use-cases/rel08.0-uc001-mesh-observer.yaml
 
 test_suite_index:
   - id: test-rel00.0-chatbot-mesh
@@ -214,3 +232,8 @@ test_suite_index:
     release: "07.0"
     traces: [rel07.0-uc001-collector-ingress]
     path: docs/specs/test-suites/test-rel07.0-collector.yaml
+  - id: test-rel08.0-observer
+    title: Test Suite for Release 08.0 Observer Agent
+    release: "08.0"
+    traces: [rel08.0-uc001-mesh-observer]
+    path: docs/specs/test-suites/test-rel08.0-observer.yaml

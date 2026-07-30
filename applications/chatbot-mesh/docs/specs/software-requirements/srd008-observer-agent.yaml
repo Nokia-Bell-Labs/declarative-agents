@@ -1,0 +1,119 @@
+id: srd008-observer-agent
+title: Observer Agent Functional Block
+
+role_realization_decision:
+  current_actor: observer
+  implemented_responsibility: Discover mesh agents from the Kubernetes API and poll each agent's monitor surface to serve a fleet-level view.
+  canonical_role_sub_role: Monitor / Fleet Observer.
+  retained_or_proposed_name: Retain descriptive actor `observer`.
+  authority_boundary: Read-only over kube pod listing and agent monitor surfaces; no lifecycle, deployment, configuration, or trace-intake authority.
+  evidence: [agents/observer/machine.yaml, agents/observer/declarations.yaml, helm/templates/observer.yaml]
+  migration_impact: None.
+
+context: |
+  The `observer` actor assumes Monitor / Fleet Observer and implements a fleet-level
+  view of the running mesh. Each agent in the mesh already self-serves its own
+  monitor surface (agent-core srd033): machine spec, current state, tools, metrics,
+  events, and an SSE event stream. The `runtime-state-reader` profile in
+  `applications/catalog` reads one agent's monitor surface. The observer generalizes
+  this to the full mesh: it discovers members from the Kubernetes API and fans into
+  every member's monitor endpoints.
+
+  The observer is the co-star of the demo deck (#1125). The audience meets the mesh
+  through the observer's UX — seeing every agent's declared machine, tools, and live
+  state — and the deck closes by opening the observer's own profile, proving the
+  instrument is itself a declarative agent on the same runtime.
+
+problem: |
+  The mesh has no fleet-level view. Each agent serves its own monitor surface, and an
+  operator must visit each one individually to understand what is running and what each
+  agent is doing. The demo deck needs one window that answers both questions for the
+  audience: what agents compose the mesh, and what is each one doing right now.
+
+goals:
+  - G1: Discover mesh agents from the Kubernetes API by label selector within the release namespace.
+  - G2: Poll each discovered agent's monitor endpoints and aggregate the results into a fleet view.
+  - G3: Serve a UX that shows the fleet cast list, per-agent state, and recent events.
+  - G4: Expose standard control and monitor surfaces for the observer itself.
+  - G5: Run entirely as a declarative agent profile on the unmodified agent-core runtime.
+
+requirements:
+  R1:
+    title: Mesh discovery
+    items:
+      - R1.1: The observer SHALL discover mesh agent pods by issuing a REST client GET to the Kubernetes API pod listing endpoint with a label selector scoped to the Helm release.
+      - R1.2: Authentication SHALL use the in-cluster service-account bearer token mounted by the Kubernetes downward API.
+      - R1.3: Discovery SHALL run on a declared polling interval, not a one-time snapshot, so that pods added or removed after launch appear in the fleet view.
+      - R1.4: The label selector and namespace SHALL be declared REST client config values, not constants in tool config.
+
+  R2:
+    title: Monitor fan-in
+    items:
+      - R2.1: For each discovered agent pod, the observer SHALL poll the agent's `/monitor/machine`, `/monitor/state`, `/monitor/tools`, and `/monitor/events` endpoints via REST client GET.
+      - R2.2: The polling interval SHALL be a declared REST client config value.
+      - R2.3: A fan-in request that fails or times out SHALL NOT prevent polling of other agents; the fleet view SHALL report the unreachable agent as degraded.
+      - R2.4: The observer SHALL NOT consume SSE streams (`/monitor/events/stream`). The agent-core REST client tooling provides no SSE consumer (stream_events is a server-side binding only). This is an explicit polling design, not a workaround; a future agent-core client streaming capability is a separate concern.
+
+  R3:
+    title: Fleet UX
+    items:
+      - R3.1: The observer SHALL serve a UX that displays a card per discovered agent showing its declared machine name and purpose, tool list, current state, and recent events.
+      - R3.2: The UX SHALL auto-refresh on the declared polling interval.
+      - R3.3: The UX SHALL distinguish agents that are reachable from agents that are unreachable or degraded.
+      - R3.4: UX assets SHALL be served by the observer's own monitor REST server, following the pattern the documentation-curator uses for its monitor UI.
+
+  R4:
+    title: Self-monitoring and control
+    items:
+      - R4.1: The observer SHALL run standard control and monitor servers with health, lifecycle exit, machine spec, current state, tools, metrics, events, event stream, and OpenAPI surfaces.
+      - R4.2: Lifecycle exit SHALL stop the discovery and polling loop, then stop the monitor and control servers.
+      - R4.3: Monitor state SHALL report discovery count, reachable count, unreachable count, total polls, and last poll timestamp.
+
+  R5:
+    title: RBAC and security
+    items:
+      - R5.1: The observer's Helm template SHALL create a ServiceAccount, Role, and RoleBinding granting only `get` and `list` verbs on `pods` in the release namespace.
+      - R5.2: The observer SHALL NOT request cluster-wide RBAC; discovery is namespace-scoped.
+      - R5.3: The observer SHALL NOT write to the Kubernetes API, modify any agent's state, or issue lifecycle commands to other agents.
+
+non_goals:
+  - Consuming SSE event streams from agent monitor surfaces.
+  - Writing to the Kubernetes API or modifying agent state.
+  - Cluster-wide or cross-namespace discovery.
+  - Trace intake, relay, or observability pipeline functions (those belong to the collector).
+  - Replacing per-agent monitor UIs; the fleet view complements them.
+
+acceptance_criteria:
+  - id: AC1
+    criterion: The observer discovers mesh agent pods by label selector within the release namespace using a declared REST client and in-cluster service-account auth.
+    traces: [R1.1, R1.2, R1.3, R1.4]
+  - id: AC2
+    criterion: The observer polls each discovered agent's monitor endpoints and aggregates machine spec, state, tools, and events into one fleet data set, degrading gracefully for unreachable agents.
+    traces: [R2.1, R2.2, R2.3, R2.4]
+  - id: AC3
+    criterion: The served UX shows one card per agent with machine, tools, state, and events, auto-refreshes, and distinguishes reachable from unreachable agents.
+    traces: [R3.1, R3.2, R3.3, R3.4]
+  - id: AC4
+    criterion: Standard control and monitor surfaces expose fleet-level metrics and lifecycle exit stops all loops and servers.
+    traces: [R4.1, R4.2, R4.3]
+  - id: AC5
+    criterion: RBAC is namespace-scoped, read-only, and the observer holds no write or lifecycle authority over any other agent or the Kubernetes API.
+    traces: [R5.1, R5.2, R5.3]
+
+depends_on:
+  - srd_id: srd003-chatbot-deployment
+    symbols_used: [R5]
+
+platform_dependencies:
+  - srd_id: srd033-monitor
+    provider: agent-core
+    symbols_used: [R1, R2, R3, R4, R5, R6, R7]
+
+implementation_status:
+  implemented: []
+  planned:
+    - >-
+      The observer profile, machine, tools, declarations, REST definitions, UX
+      assets, Helm template (Deployment, Service, ServiceAccount, Role,
+      RoleBinding, Ingress), and integration test proving discovery and monitor
+      fan-in against the kind demo rig.

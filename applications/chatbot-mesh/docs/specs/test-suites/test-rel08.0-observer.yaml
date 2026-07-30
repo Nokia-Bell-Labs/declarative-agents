@@ -1,0 +1,78 @@
+id: test-rel08.0-observer
+title: Test Suite for Release 08.0 Observer Agent
+release: "08.0"
+
+traces: [rel08.0-uc001-mesh-observer]
+
+preconditions:
+  - agent-core REST client get, REST server launch, await, and stop words are available.
+  - The observer profile mounts a ServiceAccount with namespace-scoped pod list/get RBAC.
+  - At least the chatbot and one RAG server are running in the demo cluster.
+
+test_cases:
+  - use_case: rel08.0-uc001-mesh-observer
+    name: Observer profile validates
+    status: planned
+    description: The observer profile loads and every action, signal, declaration, REST client, REST server route, and monitor route validates. Boot smoke passes.
+    expected:
+      profile_loads: true
+      machine_validates: true
+      rest_definitions_validate: true
+      boot_smoke_passes: true
+    traces: [rel08.0-uc001-mesh-observer S1, srd008-observer-agent AC1]
+
+  - use_case: rel08.0-uc001-mesh-observer
+    name: Observer discovers mesh agent pods on the demo cluster
+    integration_target: mage integration:rig
+    status: planned
+    description: On a running demo cluster, the observer discovers at least the chatbot and one RAG server pod via kube API label selector. The discovery result contains pod names and addresses.
+    expected:
+      chatbot_discovered: true
+      rag_server_discovered: true
+      discovery_by_label_selector: true
+    traces: [rel08.0-uc001-mesh-observer S1, srd008-observer-agent AC1]
+
+  - use_case: rel08.0-uc001-mesh-observer
+    name: Observer polls agent monitor endpoints and aggregates fleet data
+    integration_target: mage integration:rig
+    status: planned
+    description: For each discovered agent, the observer polls /monitor/machine, /monitor/state, /monitor/tools, and /monitor/events and returns valid JSON. An unreachable agent does not prevent polling others.
+    expected:
+      machine_spec_returned: true
+      current_state_returned: true
+      tools_returned: true
+      events_returned: true
+      unreachable_agent_degraded: true
+    traces: [rel08.0-uc001-mesh-observer S2, srd008-observer-agent AC2]
+
+  - use_case: rel08.0-uc001-mesh-observer
+    name: Fleet UX serves and displays agent cards
+    integration_target: mage demo:up
+    status: planned
+    description: The observer UX is reachable at its .localhost URL and renders a card per agent showing machine name, tools, state, and events. The page auto-refreshes.
+    expected:
+      ux_reachable: true
+      card_per_agent: true
+      auto_refresh: true
+    traces: [rel08.0-uc001-mesh-observer S2, rel08.0-uc001-mesh-observer S3, srd008-observer-agent AC3]
+
+  - use_case: rel08.0-uc001-mesh-observer
+    name: Observer RBAC is namespace-scoped and read-only
+    status: planned
+    description: The rendered Helm template creates a Role (not ClusterRole) with only get and list verbs on pods in the release namespace.
+    expected:
+      role_not_cluster_role: true
+      verbs_get_list_only: true
+      namespace_scoped: true
+    traces: [rel08.0-uc001-mesh-observer S5, srd008-observer-agent AC5]
+
+  - use_case: rel08.0-uc001-mesh-observer
+    name: Observer lifecycle exit stops cleanly
+    integration_target: mage integration:rig
+    status: planned
+    description: A lifecycle exit request stops the discovery loop, monitor, and control servers. The observer reaches terminal Done.
+    expected:
+      discovery_stopped: true
+      monitor_stopped: true
+      terminal_state_done: true
+    traces: [rel08.0-uc001-mesh-observer S4, srd008-observer-agent AC4]

@@ -1,0 +1,67 @@
+id: rel08.0-uc001-mesh-observer
+title: The observer agent discovers the mesh and shows a fleet view
+
+summary: |
+  An operator brings up the demo cluster and opens the observer UX. The observer
+  discovers every mesh agent pod from the Kubernetes API, polls each agent's
+  monitor surface, and displays a fleet cast list: each agent's declared machine,
+  tools, current state, and recent events. While the operator runs a chat turn,
+  the fleet view updates to show the chatbot and RAG server state changes. The
+  observer's own profile is itself a declarative agent on the same runtime.
+
+actor: Demo presenter
+trigger: The demo cluster is running (`mage demo:up`) and the presenter opens the observer UX at its .localhost URL.
+
+flow:
+  - F1: The Helm chart deploys the observer alongside the mesh agents, with a ServiceAccount that grants namespace-scoped pod listing.
+  - F2: The observer launches its monitor and control servers, then starts discovery by polling the Kubernetes API for pods matching the release label selector.
+  - F3: For each discovered pod, the observer polls `/monitor/machine`, `/monitor/state`, `/monitor/tools`, and `/monitor/events`.
+  - F4: The UX renders a card per agent showing declared machine name and purpose, tool list, current state, and recent events.
+  - F5: The presenter seeds a corpus via the corpus-ingest agent; the observer's next poll shows the ingest agent's state transition.
+  - F6: The presenter asks a question in the chatbot SPA; the observer's fleet view shows the chatbot entering its turn states and the RAG servers processing queries.
+  - "F7: The presenter opens the observer's own profile.yaml to close the narrative -- the fleet instrument is itself a declarative agent."
+  - F8: Lifecycle exit stops the observer cleanly.
+
+touchpoints:
+  - "srd008-observer-agent R1 -- Kubernetes API discovery with label selector and service-account auth"
+  - "srd008-observer-agent R2 -- monitor endpoint polling and fan-in aggregation"
+  - "srd008-observer-agent R3 -- fleet UX with auto-refresh and per-agent cards"
+  - "srd008-observer-agent R4 -- self-monitoring and lifecycle exit"
+  - "srd008-observer-agent R5 -- namespace-scoped RBAC, read-only authority"
+  - "srd003-chatbot-deployment R5 -- observer deployed as part of the mesh chart"
+
+success_criteria:
+  - id: S1
+    criterion: The observer discovers every mesh agent pod in the release namespace by label selector.
+    traces: [srd008-observer-agent AC1]
+  - id: S2
+    criterion: The fleet view shows each agent's declared machine, tools, current state, and recent events from polled monitor data.
+    traces: [srd008-observer-agent AC2, srd008-observer-agent AC3]
+  - id: S3
+    criterion: During a live chat turn, the fleet view updates to reflect chatbot and RAG server state changes on the next poll.
+    traces: [srd008-observer-agent AC2, srd008-observer-agent AC3]
+  - id: S4
+    criterion: The observer's own monitor surfaces report fleet-level metrics and lifecycle exit stops cleanly.
+    traces: [srd008-observer-agent AC4]
+  - id: S5
+    criterion: The observer's RBAC is namespace-scoped and read-only; it holds no write authority.
+    traces: [srd008-observer-agent AC5]
+
+failure_scenarios:
+  - id: E1
+    scenario: A mesh agent pod is unreachable (crashed or not yet ready).
+    expected: The observer shows the agent as degraded in the fleet view; other agents remain unaffected.
+  - id: E2
+    scenario: The observer is deployed without the ServiceAccount or Role.
+    expected: Discovery fails with a clear error; the observer enters a failed state, not a silent empty view.
+  - id: E3
+    scenario: A new RAG server is added to the mesh after the observer starts.
+    expected: The next discovery poll picks up the new pod and the fleet view adds a card for it.
+
+out_of_scope:
+  - SSE streaming from agent monitors (polling only per srd008 R2.4).
+  - Cross-namespace or cluster-wide observation.
+  - Controlling or reconfiguring agents from the observer UX.
+
+test_suite_trace: test-rel08.0-observer
+status: planned

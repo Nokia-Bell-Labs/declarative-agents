@@ -232,3 +232,29 @@ releases:
       - id: test-rel07.0-collector
         summary: Profile, intake, self-loop, staged Helm, identity, and retained-evidence proofs for collector ingress; listener rebind and final monitor-state lifecycle proof remain planned.
         status: partial
+
+  - version: "08.0"
+    name: Fleet observer agent
+    description: |
+      A persistent observer agent discovers mesh members from the Kubernetes API
+      and polls each agent's monitor surface to serve a fleet-level view. The UX
+      shows a card per agent with its declared machine, tools, current state, and
+      recent events, auto-refreshing on a declared interval. The observer is
+      itself a declarative agent on the same runtime, and its profile is the
+      punchline of the demo deck (#1125).
+
+      The agent-core REST client has no SSE consumer, so the observer polls
+      monitor snapshots rather than consuming event streams. This is an explicit
+      design, not a workaround; client-side streaming is a separate agent-core
+      concern.
+    status: planned
+    srds:
+      - srd008-observer-agent
+    use_cases:
+      - id: rel08.0-uc001-mesh-observer
+        summary: The observer discovers every mesh agent, polls their monitor surfaces, and displays the fleet cast list in a UX that updates during a live chat turn.
+        status: planned
+    test_suites:
+      - id: test-rel08.0-observer
+        summary: Profile validation, kube discovery, monitor fan-in, fleet UX, RBAC proof, and lifecycle exit.
+        status: planned
