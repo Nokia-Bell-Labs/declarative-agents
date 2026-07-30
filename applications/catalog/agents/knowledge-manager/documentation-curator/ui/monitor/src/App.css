@@ -1,8 +1,4 @@
-/*
- * Design tokens and base styles vendored from the documentation-curator UI
- * (agent-core internal/evaluation/bench/ui/src/App.css) so the monitor shares
- * the same look and feel. Keep token values in sync with that design system.
- */
+/* BEGIN design-tokens — canonical: applications/catalog/ui/design-tokens.css */
 :root {
   --bg-primary: #ffffff;
   --bg-secondary: #ebebeb;
@@ -17,6 +13,14 @@
   --warning: #f7b737;
   --font-mono: 'SF Mono', 'Cascadia Code', 'Consolas', monospace;
 
+  --chart-white: #ffffff;
+  --chart-blue: #005aff;
+  --chart-teal: #23abb6;
+  --chart-green: #37cc73;
+  --chart-yellow: #f7b737;
+  --chart-orange: #747f31;
+  --chart-red: #e23b3b;
+  --chart-pink: #e03dcd;
   --chart-purple: #7d33f2;
 }
 
@@ -31,6 +35,7 @@ body {
 
 a { color: var(--accent); text-decoration: none; }
 a:hover { text-decoration: underline; }
+/* END design-tokens */
 
 h1 {
   font-size: 24px;
