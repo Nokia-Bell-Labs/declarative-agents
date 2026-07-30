@@ -1,0 +1,88 @@
+id: srd044-spool-query-tools
+title: Spool Query Tools
+
+problem: |
+  The OTLP receiver tools (srd042) write trace batches to an NDJSON spool via
+  spool_spans, but nothing reads the spool back. A collector trace UX needs a
+  read path: paginated trace summaries for a list view and per-trace span
+  detail for a waterfall. Without read-side words, every consumer reimplements
+  spool parsing, rotation discovery, and malformed-line tolerance.
+
+goals:
+  - G1: Read the active spool and all rotated files without mutating them.
+  - G2: Aggregate spooled spans into paginated trace summaries, newest first.
+  - G3: Return all spans for one trace with the fields a waterfall UI needs.
+
+requirements:
+  R1:
+    title: Paginated trace listing
+    items:
+      - R1.1: "`spool_list_traces` SHALL read the active spool file and all rotated files discovered by the srd042 rotation naming convention."
+      - R1.2: The tool SHALL aggregate spans by trace ID and produce a summary per trace containing trace id, root service name, root span name, span count, earliest start time, and duration in milliseconds.
+      - R1.3: Summaries SHALL be ordered newest first by earliest start time.
+      - R1.4: Page size and offset SHALL come from trusted config; page size SHALL be capped at a configured maximum.
+      - R1.5: Output SHALL include the page of summaries, total trace count, offset, effective page size, and a count of skipped malformed lines.
+
+  R2:
+    title: Single-trace span detail
+    items:
+      - R2.1: "`spool_get_trace` SHALL read the active spool file and all rotated files and return every span whose trace ID matches the configured value."
+      - R2.2: Each returned span SHALL include span id, parent span id, service name (from resource attributes), span name, start time, end time, status, and attributes.
+      - R2.3: Spans SHALL be ordered by start time ascending.
+      - R2.4: Output SHALL include the trace id, matched spans, span count, and skipped line count.
+      - R2.5: A missing trace id in config SHALL emit CommandError before reading any file.
+
+  R3:
+    title: Read-only tolerance
+    items:
+      - R3.1: Both tools SHALL have side effects none beyond filesystem reads.
+      - R3.2: Both tools SHALL tolerate malformed or truncated NDJSON lines by skipping them and reporting the count.
+      - R3.3: An empty or absent spool SHALL produce an empty result, not an error.
+
+  R4:
+    title: Declaration shape
+    items:
+      - R4.1: Declarations SHALL follow the srd042 pattern with problem, goals, requirements, non_goals, reversibility reversible/noop, and CommandError on unreadable spool path.
+
+non_goals:
+  - Mutating, rotating, or deleting spool files.
+  - Full-text search, attribute filtering, or sampling.
+  - Streaming or watching for new spans.
+  - Exposing an HTTP query endpoint (that is a separate REST surface concern).
+
+acceptance_criteria:
+  - id: AC1
+    criterion: Trace summaries aggregate spans from the active spool and rotated files, with correct root service, root span, count, timing, and newest-first ordering.
+    traces: [R1.1, R1.2, R1.3, R1.5]
+
+  - id: AC2
+    criterion: Pagination respects offset and page size, and page size never exceeds the configured maximum.
+    traces: [R1.4, R1.5]
+
+  - id: AC3
+    criterion: Per-trace detail returns all matching spans with waterfall fields sorted by start time, and an unknown trace id produces an empty result.
+    traces: [R2.1, R2.2, R2.3, R2.4]
+
+  - id: AC4
+    criterion: Malformed NDJSON lines are skipped and counted, and an empty or absent spool returns an empty result without error.
+    traces: [R3.1, R3.2, R3.3]
+
+  - id: AC5
+    criterion: A missing trace id emits CommandError before any file read, and an unreadable spool path emits CommandError.
+    traces: [R2.5, R4.1]
+
+depends_on:
+  - srd_id: srd042-otlp-receiver-tools
+    symbols_used: [spool_spans NDJSON shape, rotation naming, stdouttrace compatibility]
+  - srd_id: srd022-builtin-tools
+    symbols_used: [BuiltinRegistry, ToolDef, DecodeToolConfig]
+
+related_documents:
+  - cfg-tool-authoring-standard
+  - sm-tool-language
+
+implementation_status:
+  implemented:
+    - "`internal/tools/otlp/query.go` owns spool file discovery, NDJSON parsing, trace aggregation, pagination, and per-trace filtering."
+    - "`tools/builtin/otlp/all.yaml` declares the two query words and registry composition."
+    - "`go test ./internal/tools/otlp -run 'TestListTraces|TestGetTrace'` proves aggregation, rotation, pagination, malformed-line tolerance, empty spool, unknown trace, and error paths."

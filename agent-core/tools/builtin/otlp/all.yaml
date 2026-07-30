@@ -335,3 +335,140 @@ tools:
     receiver: ingress
     shutdown_timeout: 5s
     drain_policy: preserve
+
+- name: spool_list_traces
+  type: builtin
+  init: spool_list_traces
+  category: boundary
+  visibility: internal
+  emits: [TracesListed, CommandError]
+  description: Read the NDJSON trace spool and return paginated trace summaries, newest first.
+  problem: A collector needs a read path over spooled traces so operators and UIs can browse ingested data without a separate backend.
+  goals:
+  - Aggregate spooled spans into trace summaries with bounded pagination.
+  - Read across the active spool and rotated files without mutation.
+  requirements:
+    input:
+    - Path, page size, max page size, and offset come from trusted config.
+    output:
+    - Output includes traces (trace id, root service, root span name, span count, start time, duration), total, offset, page size, and skipped line count.
+    side_effects:
+    - Read-only file access.
+    errors:
+    - Unreadable spool path emits CommandError.
+  non_goals:
+  - Does not mutate, rotate, or delete spool files.
+  parameters: {type: object, properties: {}}
+  output:
+    description: Paginated trace summaries and spool health metadata.
+    schema:
+      type: object
+      properties:
+        traces:
+          type: array
+          items:
+            type: object
+            properties:
+              trace_id: {type: string}
+              root_service: {type: string}
+              root_span_name: {type: string}
+              span_count: {type: integer}
+              start_time: {type: string}
+              duration_ms: {type: integer}
+        total: {type: integer}
+        offset: {type: integer}
+        page_size: {type: integer}
+        skipped_lines: {type: integer}
+      required: [traces, total, offset, page_size, skipped_lines]
+  side_effects:
+  - kind: filesystem_read
+    target: configured spool path and rotated files
+    state: read_only
+  reversibility:
+    classification: reversible
+    undo: noop
+  undo:
+    strategy: noop
+    description: Reading a spool changes nothing.
+  errors:
+  - signal: CommandError
+    condition: the configured spool path cannot be read
+    message_shape: 'tool <name>: <cause>'
+    state_after_failure: no output is returned
+  relationships:
+    after: [spool_spans]
+  config:
+    path: traces/collector.ndjson
+    page_size: 20
+    max_page_size: 100
+    offset: 0
+
+- name: spool_get_trace
+  type: builtin
+  init: spool_get_trace
+  category: boundary
+  visibility: internal
+  emits: [TraceRetrieved, CommandError]
+  description: Read all spans for one trace from the NDJSON spool, returning the fields a waterfall UI needs.
+  problem: A trace detail view needs per-span records with parent linkage, timing, and attributes from the spool without a separate query backend.
+  goals:
+  - Return all spans for one trace id with waterfall-ready fields.
+  - Read across the active spool and rotated files without mutation.
+  requirements:
+    input:
+    - Path and trace id come from trusted config.
+    output:
+    - Output includes trace id, spans (span id, parent span id, service, name, start time, end time, status, attributes), span count, and skipped line count.
+    side_effects:
+    - Read-only file access.
+    errors:
+    - Missing trace id or unreadable spool path emits CommandError.
+  non_goals:
+  - Does not mutate, rotate, or delete spool files.
+  parameters: {type: object, properties: {}}
+  output:
+    description: All spans for one trace with waterfall fields.
+    schema:
+      type: object
+      properties:
+        trace_id: {type: string}
+        spans:
+          type: array
+          items:
+            type: object
+            properties:
+              span_id: {type: string}
+              parent_span_id: {type: string}
+              service: {type: string}
+              name: {type: string}
+              start_time: {type: string}
+              end_time: {type: string}
+              status:
+                type: object
+                properties:
+                  code: {type: integer}
+                  description: {type: string}
+              attributes: {type: array}
+        span_count: {type: integer}
+        skipped_lines: {type: integer}
+      required: [trace_id, spans, span_count, skipped_lines]
+  side_effects:
+  - kind: filesystem_read
+    target: configured spool path and rotated files
+    state: read_only
+  reversibility:
+    classification: reversible
+    undo: noop
+  undo:
+    strategy: noop
+    description: Reading a spool changes nothing.
+  errors:
+  - signal: CommandError
+    condition: trace id is missing or the configured spool path cannot be read
+    message_shape: 'tool <name>: <cause>'
+    state_after_failure: no output is returned
+  relationships:
+    after: [spool_spans]
+  config:
+    path: traces/collector.ndjson
+    trace_id: ""

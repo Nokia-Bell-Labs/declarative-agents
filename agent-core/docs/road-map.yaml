@@ -466,6 +466,34 @@ releases:
       - go test ./internal/tools/otlp
       - mage audit
 
+  - version: "12.0"
+    name: Spool query tools
+    description: |
+      Release 12.0 adds a read path over the srd042 NDJSON trace spool.
+      Two focused builtin words, spool_list_traces and spool_get_trace, scan
+      the active spool and rotated files, aggregate spans into paginated trace
+      summaries (newest first), and return per-trace span detail with the
+      fields a waterfall UI needs. Both are read-only, tolerate malformed
+      lines, and treat an absent spool as empty.
+    status: implemented
+    planned_work:
+      - id: gh-1144
+        summary: Add spool query builtin tools (agent-core release 12.0).
+        status: done
+    srds:
+      - srd044-spool-query-tools
+    use_cases:
+      - id: rel12.0-uc001-spool-query
+        summary: A collector reads trace summaries and span detail from its NDJSON spool
+        status: implemented
+    test_suites:
+      - id: test-rel12.0-spool-query
+        summary: Formal tests for trace aggregation, rotation, pagination, malformed-line tolerance, empty spool, unknown trace, and error paths.
+        status: implemented
+    proof:
+      - go test ./internal/tools/otlp -run 'TestListTraces|TestGetTrace'
+      - mage audit
+
   - version: "99.0"
     name: Architectural migrations and cleanup
     description: |
