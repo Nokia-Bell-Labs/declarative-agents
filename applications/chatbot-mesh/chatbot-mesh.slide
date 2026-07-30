@@ -1,0 +1,107 @@
+One Question Through the Mesh
+A chatbot-mesh walkthrough
+30 Jul 2026
+
+* Rig up
+
+Verify the toolchain, then bring the cluster up. A pre-warmed cluster is
+reused; a cold start takes about two minutes.
+
+	mage doctor
+	mage demo:up
+
+The demo prints two URLs when the mesh is ready:
+
+- Chatbot SPA: [[http://chatbot.localhost/][http://chatbot.localhost/]]
+- Fleet observer: [[http://observer.localhost/][http://observer.localhost/]]
+
+There is no orchestration code. Every agent in the mesh is a YAML profile
+loaded by the agent-core runtime. The topology, the routing, the fan-out, and
+the deployment are configuration.
+
+* Meet the mesh through the observer
+
+Open the fleet observer at [[http://observer.localhost/][http://observer.localhost/]].
+
+The observer is itself a declarative agent. It discovers mesh pods via the
+Kubernetes API (a label-selector query), then polls each agent's monitor
+surface — the endpoints every agent self-serves at `/monitor/*`:
+
+- `/monitor/machine` — the state machine definition
+- `/monitor/state` — current state, status, and iteration count
+- `/monitor/tools` — declared tool names
+- `/monitor/metrics` — runtime metrics
+- `/monitor/events` — recent event log
+
+The cast list is the observer live-reading this surface. Each card shows the
+agent's name, current state, purpose, machine stats, tool tags, and recent
+events.
+
+* Meet the mesh: the agents
+
+Eight agents make up the mesh:
+
+- *chatbot* — browser-facing; runs the request-scoped chat turn
+- *rag-server* (×2) — persistent RAG services over disjoint Chroma collections
+- *corpus-ingest* — seeds the vector store from a document corpus
+- *collector* — declarative trace collection via OTLP receiver tools
+- *observer* — fleet-level monitor (the dashboard you are looking at)
+- *provisioning-workflow-orchestrator* — control-plane workflow engine
+- *creator* — generates deployment artifacts from operator intent
+- *applier* — applies and verifies rollout changes to the running mesh
+
+* Seed the corpus
+
+Run the corpus-ingest agent. It loads the document corpus into the Chroma
+collections that the RAG servers query:
+
+	mage seed
+
+Watch chunks land in the Chroma collections. The ingest agent is a thin mesh
+wrapper around the canonical catalog corpus-ingest program — the reusable
+behavior lives in `applications/catalog`, and the mesh owns only the Chroma
+REST configuration and the collection mapping.
+
+* The question
+
+Open [[http://chatbot.localhost/][http://chatbot.localhost/]] in a browser and ask a question.
+
+One turn does the following:
+
+1. Embed the message once (Ollama embedding model).
+2. Select a model tier (the tier selector chooses the chat LLM).
+3. Fan the embedding out to both RAG servers.
+4. Each RAG server queries its Chroma collection and returns ranked chunks.
+5. Compose an answer from the surviving chunks.
+6. Stream the answer back to the browser SPA.
+
+The entire flow — embed, route, fan-out, retrieve, compose, stream — is
+declared in the chatbot's profile. The runtime executes it; no bespoke code
+runs.
+
+* Same turn, deeper
+
+Open the Jaeger UI and find the turn's trace by its `traceparent`.
+
+The span tree shows the chatbot's embed, the tier selection, the parallel
+fan-out to both RAG servers, each server's Chroma query, and the composition
+step. Every span carries the agent name and the tool declaration that produced
+it.
+
+The collector agent receives these spans through its OTLP receiver tools —
+another declarative agent on the same runtime, not a bespoke telemetry
+pipeline.
+
+* Punchline
+
+Open the observer's own profile:
+
+.code agents/observer/profile.yaml
+
+The instrument the audience watched the demo through is itself a declarative
+agent on the same runtime. It has a state machine, tool declarations, and REST
+definitions — the same closure every other agent in the mesh carries.
+
+Tear down:
+
+	mage demo:down
