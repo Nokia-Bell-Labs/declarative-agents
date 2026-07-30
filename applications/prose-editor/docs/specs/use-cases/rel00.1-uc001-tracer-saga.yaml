@@ -1,0 +1,275 @@
+id: rel00.1-uc001-tracer-saga
+title: Tracer-Bullet Saga with Structure Stage and Local Finalization
+release: "00.1"
+status: planned
+runtime_status: unimplemented
+
+summary: |
+  A human asks Prose Editor to edit one GitHub document at a selected revision,
+  naming a target voice and bounded retry policy. The planned workflow
+  orchestrator resolves and captures the source as an immutable original,
+  invokes the specialist-editor structure stage, obtains an independent
+  six-category critic verdict without Pangram, replays the structure stage when
+  bounded policy permits, and finalizes one immutable accepted lineage locally
+  without commit, push, or pull request.
+
+  This tracer-bullet use case exercises the minimal end-to-end saga skeleton.
+  Voice and style stages, Pangram upload, and GitHub publication are deferred
+  to release 00.2. Every remote intent and accepted or rejected result is
+  durable before the next action.
+
+actor: |
+  A human document owner who supplies repository, source path and revision,
+  target voice, bounded retry policy, saga identity, and withheld Pangram
+  consent. Publication policy is not applicable in the tracer release.
+
+trigger: |
+  The human submits one validated Prose Editor request for a GitHub-hosted
+  source document and a release 00.1 tracer saga.
+
+preconditions:
+  - The source repository, path, revision, models, structure corpus identity, service endpoints, credentials, output root, and hard limits are trusted configuration.
+  - The requested repository, path, revision, policy, and saga identity pass the planned allowlist, containment, and conflict checks.
+  - The persistent output workspace is available to exactly one orchestrator writer for the saga ID.
+  - The structure corpus remains authoritative outside Chroma; the planned structure-rag instance is read-only and corpus-scoped.
+  - Voice-rag, tightening-rag, and publication configuration are not required for the tracer.
+
+flow:
+  - id: F1
+    text: |
+      The orchestrator validates the human request, source authority, retry
+      policy, saga identity, and withheld Pangram consent record. It appends
+      and projects the request intent before remote work.
+  - id: F2
+    text: |
+      The orchestrator resolves the requested revision to one full commit,
+      fetches that commit through fixed constrained GitHub source operations,
+      reads the validated blob, computes its SHA-256 and byte length, and writes
+      or reuses 00-original.md exactly once.
+  - id: F3
+    text: |
+      The orchestrator records the captured source repository, path, full
+      commit, exact bytes, digest, and artifact identity in append-only manifest
+      history, projects manifest.yaml, and never overwrites the original.
+  - id: F4
+    text: |
+      The orchestrator appends and projects one structure intent, reads and
+      verifies the immutable original, and invokes specialist-editor:structure
+      with bytes and identities rather than a workspace path.
+  - id: F5
+    text: |
+      Specialist-editor:structure deterministically retrieves section or outline
+      evidence from structure-rag, permits at most one grounding refinement,
+      performs only supported structural operations, validates semantic and
+      required content preservation, and returns data without persistence
+      authority.
+  - id: F6
+    text: |
+      The orchestrator validates, hashes, and writes or reuses the structure
+      response at its immutable attempt path, then appends and projects its
+      accepted or rejected result before continuing.
+  - id: F7
+    text: |
+      The orchestrator appends and projects critique intent, verifies and reads
+      the immutable original and selected structure candidate, and invokes the
+      isolated voice-critic with exact bytes, hashes, policy, and withheld
+      Pangram consent but no editor reasoning, conversation, path, or verdict
+      recommendation.
+  - id: F8
+    text: |
+      The voice-critic independently compares the original and structure
+      candidate. It validates all six finding categories (semantic preservation,
+      structural intent, voice match, tightening quality, unsupported additions,
+      and anchor copy risk). With Pangram consent withheld, no upload tasks are
+      submitted. The critic returns a categorized verdict and responsible-stage
+      assignment.
+  - id: F9
+    text: |
+      On rejection, the orchestrator evaluates the responsible stage. If bounded
+      retry policy permits, it supersedes the rejected structure attempt,
+      replays the structure stage from the immutable original, and re-invokes
+      the critic. On exhaustion, the orchestrator enters kept_original or
+      failed terminal state.
+  - id: F10
+    text: |
+      On acceptance, the orchestrator materializes 00-original.md,
+      10-structure.md, 40-critique.yaml, and final.md at their fixed paths,
+      appends and projects the finalized lineage, and enters the
+      locally_finalized terminal state. No branch, commit, push, or pull
+      request is performed.
+
+touchpoints:
+  - id: T1
+    component: service topology
+    requirements:
+      - srd001-prose-editor-services R1.1
+      - srd001-prose-editor-services R2.1
+      - srd001-prose-editor-services R3.1
+      - srd001-prose-editor-services R3.2
+      - srd001-prose-editor-services R4.1
+      - srd001-prose-editor-services R4.2
+      - srd001-prose-editor-services R5.1
+    reason: |
+      F1 through F10 use orchestrator, specialist-editor:structure,
+      voice-critic, and structure-rag within the service topology subset
+      applicable to the tracer.
+  - id: T2
+    component: workproduct lineage
+    requirements:
+      - srd002-writing-saga-workproducts R1.1
+      - srd002-writing-saga-workproducts R1.2
+      - srd002-writing-saga-workproducts R2.1
+      - srd002-writing-saga-workproducts R2.2
+      - srd002-writing-saga-workproducts R3.1
+      - srd002-writing-saga-workproducts R3.2
+      - srd002-writing-saga-workproducts R4.1
+      - srd002-writing-saga-workproducts R5.1
+      - srd002-writing-saga-workproducts R5.2
+      - srd002-writing-saga-workproducts R6.1
+    reason: |
+      F2, F3, F6, and F10 produce immutable original, structure attempt,
+      critique, and finalized workproducts with append-only manifest lineage
+      and local finalization.
+  - id: T3
+    component: tool vocabulary (tracer subset)
+    requirements:
+      - srd003-writing-agent-tools R1.1
+      - srd003-writing-agent-tools R2.1
+      - srd003-writing-agent-tools R2.3
+      - srd003-writing-agent-tools R3.1
+      - srd003-writing-agent-tools R4.1
+    reason: |
+      F1 through F10 use the closed orchestrator, structure-editor, and critic
+      tool words with factory reuse, compensation, and exclusive ownership.
+  - id: T4
+    component: orchestrator machine (tracer subset)
+    requirements:
+      - srd004-workflow-orchestrator R1.1
+      - srd004-workflow-orchestrator R2.1
+      - srd004-workflow-orchestrator R3.1
+      - srd004-workflow-orchestrator R4.1
+      - srd004-workflow-orchestrator R5.1
+      - srd004-workflow-orchestrator R5.2
+      - srd004-workflow-orchestrator R6.1
+      - srd004-workflow-orchestrator R7.1
+      - srd004-workflow-orchestrator R7.2
+    reason: |
+      F1 through F10 follow the flat durable state order through structure and
+      critic stages, close responsible-stage routes, prove the local
+      finalization path, and recover at saga persistence cuts.
+  - id: T5
+    component: specialist-editor:structure machine
+    requirements:
+      - srd005-specialist-editor R1.1
+      - srd005-specialist-editor R1.2
+      - srd005-specialist-editor R2.1
+      - srd005-specialist-editor R2.2
+      - srd005-specialist-editor R3.1
+      - srd005-specialist-editor R3.2
+      - srd005-specialist-editor R3.3
+      - srd005-specialist-editor R4.1
+      - srd005-specialist-editor R4.2
+      - srd005-specialist-editor R4.3
+      - srd005-specialist-editor R5.1
+      - srd005-specialist-editor R5.2
+      - srd005-specialist-editor R5.3
+      - srd005-specialist-editor R6.1
+      - srd005-specialist-editor R6.2
+      - srd005-specialist-editor R7.1
+      - srd005-specialist-editor R7.2
+    reason: |
+      F4 through F6 use a path-free accepted parent, retrieval-before-edit,
+      one refinement, structure-only preservation, fixed responses, and
+      non-authoritative data return.
+  - id: T6
+    component: voice-critic machine (no Pangram)
+    requirements:
+      - srd008-voice-critic R1.1
+      - srd008-voice-critic R2.1
+      - srd008-voice-critic R2.2
+      - srd008-voice-critic R3.1
+      - srd008-voice-critic R3.2
+      - srd008-voice-critic R4.1
+      - srd008-voice-critic R5.1
+    reason: |
+      F7 and F8 invoke the isolated critic with exact bytes, validate all six
+      finding categories, close the responsible stage, and enforce withheld
+      Pangram consent without any upload tasks.
+
+success_criteria:
+  - id: S1
+    criterion: |
+      The tracer saga runs end-to-end from source capture through local
+      finalization with the orchestrator, specialist-editor:structure,
+      voice-critic, and structure-rag.
+    traces:
+      - srd001-prose-editor-services AC1
+      - srd001-prose-editor-services AC2
+      - srd001-prose-editor-services AC3
+  - id: S2
+    criterion: |
+      Exact immutable source, structure attempt, critique, finalized, and
+      manifest lineage remains complete and idempotent.
+    traces:
+      - srd002-writing-saga-workproducts AC1
+      - srd002-writing-saga-workproducts AC2
+      - srd002-writing-saga-workproducts AC3
+      - srd002-writing-saga-workproducts AC4
+      - srd002-writing-saga-workproducts AC5
+  - id: S3
+    criterion: |
+      Every boundary action uses the closed owner-specific vocabulary, actual
+      factory signals, stable labels, fail-closed selectors, and honest effects
+      for the tracer subset of tool words.
+    traces:
+      - srd003-writing-agent-tools AC1
+      - srd003-writing-agent-tools AC2
+      - srd003-writing-agent-tools AC3
+  - id: S4
+    criterion: |
+      The flat orchestrator persists before progress, routes responsible-stage
+      replay through structure, recovers at every tracer-scope saga cut, and
+      converges to locally_finalized or kept_original terminal state.
+    traces:
+      - srd004-workflow-orchestrator AC1
+      - srd004-workflow-orchestrator AC2
+      - srd004-workflow-orchestrator AC3
+      - srd004-workflow-orchestrator AC4
+      - srd004-workflow-orchestrator AC5
+  - id: S5
+    criterion: |
+      Structure editing is retrieval-grounded, structure-only, bounded,
+      provenance-complete, fail-closed, and non-authoritative.
+    traces:
+      - srd005-specialist-editor AC1
+      - srd005-specialist-editor AC2
+      - srd005-specialist-editor AC3
+      - srd005-specialist-editor AC4
+      - srd005-specialist-editor AC5
+      - srd005-specialist-editor AC6
+      - srd005-specialist-editor AC7
+  - id: S6
+    criterion: |
+      Independent exact-hash criticism covers all six categories, closes the
+      structure responsible stage, and enforces withheld Pangram consent
+      without submitting or polling any upload task.
+    traces:
+      - srd008-voice-critic AC1
+      - srd008-voice-critic AC2
+      - srd008-voice-critic AC3
+      - srd008-voice-critic AC4
+  - id: S7
+    criterion: |
+      Local finalization produces immutable fixed files without any branch,
+      commit, push, or pull-request mutation.
+    traces:
+      - srd002-writing-saga-workproducts AC5
+      - srd004-workflow-orchestrator AC3
+
+out_of_scope:
+  - Voice editing (specialist-editor:voice, voice-rag) — deferred to 00.2.
+  - Style editing (specialist-editor:style, tightening-rag) — deferred to 00.2.
+  - Pangram consent-gated upload and advisory comparison — deferred to 00.2.
+  - GitHub publication (branch, commit, push, pull request) — deferred to 00.2.
+  - Multi-stage responsible retry (voice and style stages) — deferred to 00.2.
+  - Corpus-ingest wrapper — deferred to 00.2.

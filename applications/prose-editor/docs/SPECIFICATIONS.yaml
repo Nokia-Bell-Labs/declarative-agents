@@ -2,32 +2,38 @@ id: prose-editor-specifications
 title: Prose Editor Specification Index
 
 overview: |
-  This documentation-only index plans release 00.0 for one serial Prose Editor
-  saga: GitHub source capture, immutable original, structure edit, voice edit,
-  style edit, independent critique, bounded retry, finalization, one commit,
-  push, and pull request.
-
-  Six specified SRDs define service authority, the saga workproduct
-  lifecycle, the closed tool vocabulary, the flat workflow-orchestrator
-  machine, the parameterized specialist-editor machine (structure, voice,
-  and style stages), and the independent voice-critic machine and Pangram
-  boundary. One planned use case and one 29-case planned test suite trace
-  all six SRDs reciprocally. The use case names all 192 requirement items
-  at exact touchpoints. Its ten success criteria and the suite cover all 63
-  SRD acceptance criteria. No profile, service, tool, runtime test, or
-  executable evidence is implemented.
+  This index covers three Prose Editor releases. Release 00.0 is a
+  documentation baseline: six specified SRDs, one planned full-scenario use
+  case, and one 29-case planned test suite with reciprocal traces across all
+  192 requirement items and 63 acceptance criteria. Release 00.1 stages the
+  tracer-bullet saga skeleton: one tracer use case and one 12-case tracer
+  test suite covering the orchestrator, structure stage, critic without
+  Pangram, and local finalization. Release 00.2 completes the remaining
+  voice, style, Pangram, multi-stage retry, and publication paths.
 
   Shared application and agent-core requirements remain external references.
-  Local SRDs will cite them and define only Prose Editor behavior and stricter
+  Local SRDs cite them and define only Prose Editor behavior and stricter
   authority boundaries.
 
 roadmap_summary:
   - version: "00.0"
-    name: Corpus-conditioned document editing saga
+    name: Specification and documentation baseline
+    use_cases_done: 0
+    use_cases_total: 1
+    status: specification_complete
+    evidence: Six SRDs, one planned use case, and one 29-case planned test suite are documented; no executable evidence exists.
+  - version: "00.1"
+    name: Tracer-bullet saga skeleton
     use_cases_done: 0
     use_cases_total: 1
     status: planned
-    evidence: Six SRDs, one planned use case, and one 29-case planned test suite are documented; no executable evidence exists.
+    evidence: One tracer use case and one 12-case tracer test suite are documented; no executable evidence exists.
+  - version: "00.2"
+    name: Full multi-stage editing and publication
+    use_cases_done: 0
+    use_cases_total: 1
+    status: planned
+    evidence: The 00.0 use case and 29-case test suite become executable in 00.2; no executable evidence exists.
 
 foundation_document_index:
   - id: prose-editor-readme
@@ -57,43 +63,43 @@ srd_index:
     status: specified
     summary: Service shape, role realizations, lifecycle, interfaces, and exclusive authorities.
     path: docs/specs/software-requirements/srd001-prose-editor-services.yaml
-    use_cases: [rel00.0-uc001-edit-document]
-    test_suites: [test-rel00.0-prose-editor]
+    use_cases: [rel00.0-uc001-edit-document, rel00.1-uc001-tracer-saga]
+    test_suites: [test-rel00.0-prose-editor, test-rel00.1-prose-editor]
   - id: srd002-writing-saga-workproducts
     title: Writing Saga and Workproduct Lifecycle
     status: specified
     summary: Exact immutable artifacts, manifest state, stage lineage, idempotency, retry, compensation, recovery, and one final publication.
     path: docs/specs/software-requirements/srd002-writing-saga-workproducts.yaml
-    use_cases: [rel00.0-uc001-edit-document]
-    test_suites: [test-rel00.0-prose-editor]
+    use_cases: [rel00.0-uc001-edit-document, rel00.1-uc001-tracer-saga]
+    test_suites: [test-rel00.0-prose-editor, test-rel00.1-prose-editor]
   - id: srd003-writing-agent-tools
     title: Writing Agent Tool Contracts
     status: specified
     summary: Closed tool vocabulary, existing-factory reuse, exclusive ownership, inputs, outputs, signals, errors, effects, compensation, and authority.
     path: docs/specs/software-requirements/srd003-writing-agent-tools.yaml
-    use_cases: [rel00.0-uc001-edit-document]
-    test_suites: [test-rel00.0-prose-editor]
+    use_cases: [rel00.0-uc001-edit-document, rel00.1-uc001-tracer-saga]
+    test_suites: [test-rel00.0-prose-editor, test-rel00.1-prose-editor]
   - id: srd004-workflow-orchestrator
     title: Workflow Orchestrator State Machine
     status: specified
     summary: Exact flat saga states, srd003 action mappings, durable sequencing, responsible-stage replay, recovery, budgets, publication, escalation, and terminal outcomes.
     path: docs/specs/software-requirements/srd004-workflow-orchestrator.yaml
-    use_cases: [rel00.0-uc001-edit-document]
-    test_suites: [test-rel00.0-prose-editor]
+    use_cases: [rel00.0-uc001-edit-document, rel00.1-uc001-tracer-saga]
+    test_suites: [test-rel00.0-prose-editor, test-rel00.1-prose-editor]
   - id: srd005-specialist-editor
     title: Specialist Editor State Machine
     status: specified
     summary: Parameterized specialist-editor with structure, voice, and style stages sharing a common pipeline shape but differing in accepted parent type, RAG instance, edit operations, preservation invariants, and response contracts.
     path: docs/specs/software-requirements/srd005-specialist-editor.yaml
-    use_cases: [rel00.0-uc001-edit-document]
-    test_suites: [test-rel00.0-prose-editor]
+    use_cases: [rel00.0-uc001-edit-document, rel00.1-uc001-tracer-saga]
+    test_suites: [test-rel00.0-prose-editor, test-rel00.1-prose-editor]
   - id: srd008-voice-critic
     title: Voice Critic State Machine and Pangram Boundary
     status: specified
     summary: Flat independent assurance, six finding categories, exact-hash consent, separate Pangram tasks, advisory comparison, pass/warn/reject, responsible-stage closure, and bounded authority.
     path: docs/specs/software-requirements/srd008-voice-critic.yaml
-    use_cases: [rel00.0-uc001-edit-document]
-    test_suites: [test-rel00.0-prose-editor]
+    use_cases: [rel00.0-uc001-edit-document, rel00.1-uc001-tracer-saga]
+    test_suites: [test-rel00.0-prose-editor, test-rel00.1-prose-editor]
 
 config_format_index: []
 
@@ -113,6 +119,19 @@ use_case_index:
       - srd008-voice-critic
     test_suite: test-rel00.0-prose-editor
     path: docs/specs/use-cases/rel00.0-uc001-edit-document.yaml
+  - id: rel00.1-uc001-tracer-saga
+    title: Tracer-Bullet Saga with Structure Stage and Local Finalization
+    release: "00.1"
+    status: planned
+    srds:
+      - srd001-prose-editor-services
+      - srd002-writing-saga-workproducts
+      - srd003-writing-agent-tools
+      - srd004-workflow-orchestrator
+      - srd005-specialist-editor
+      - srd008-voice-critic
+    test_suite: test-rel00.1-prose-editor
+    path: docs/specs/use-cases/rel00.1-uc001-tracer-saga.yaml
 
 test_suite_index:
   - id: test-rel00.0-prose-editor
@@ -129,17 +148,31 @@ test_suite_index:
       - srd005-specialist-editor
       - srd008-voice-critic
     path: docs/specs/test-suites/test-rel00.0-prose-editor.yaml
+  - id: test-rel00.1-prose-editor
+    title: Prose Editor Release 00.1 Tracer Test Suite
+    release: "00.1"
+    status: planned
+    test_case_count: 12
+    traces: [rel00.1-uc001-tracer-saga]
+    srds:
+      - srd001-prose-editor-services
+      - srd002-writing-saga-workproducts
+      - srd003-writing-agent-tools
+      - srd004-workflow-orchestrator
+      - srd005-specialist-editor
+      - srd008-voice-critic
+    path: docs/specs/test-suites/test-rel00.1-prose-editor.yaml
 
 coverage_gaps:
   - id: planned-srd-corpus
     status: documentation_complete_runtime_planned
     description: |
-      SRDs srd001 through srd008, rel00.0-uc001-edit-document, and
-      test-rel00.0-prose-editor now provide reciprocal documentation traces.
-      All 192 requirement items map to SRD acceptance criteria and exact use-case
-      touchpoints. All 63 acceptance criteria map to use-case success criteria
-      and planned tests. Runtime implementation and executable evidence remain
-      planned.
+      SRDs srd001 through srd008, two use cases (rel00.0-uc001-edit-document
+      and rel00.1-uc001-tracer-saga), and two test suites (29-case 00.0 and
+      12-case 00.1 tracer) provide reciprocal documentation traces. All 192
+      requirement items map to SRD acceptance criteria and exact use-case
+      touchpoints. Runtime implementation is staged across 00.1 (tracer
+      skeleton) and 00.2 (full scenario).
   - id: planned-runtime-signal-alignment
     status: planned
     description: |

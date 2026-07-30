@@ -1,25 +1,31 @@
 id: prose-editor-roadmap
 title: Prose Editor Road Map
 
+feedback_obligation: |
+  Implementation findings that contradict an SRD are reconciled into the
+  affected SRDs before specifying the next release. Spec mass stops
+  compounding ahead of evidence: a requirement that contradicts runtime
+  behavior discovered during 00.1 is corrected before 00.2 scope is
+  finalized. Contradictions are filed as issues and tracked in the release
+  that discovered them.
+
 releases:
   - version: "00.0"
-    name: Corpus-conditioned document editing saga
+    name: Specification and documentation baseline
     description: |
       Specify one serial original -> structure -> voice -> style -> critique ->
-      publication scenario. A human selects a GitHub source and policy. The
-      workflow orchestrator captures an immutable original, persists each
-      accepted specialist result and its lineage, routes bounded retries from
-      critic findings, and publishes the complete accepted saga in one commit,
-      push, and pull request.
+      publication scenario. Six SRDs define the full service topology, saga
+      workproducts, tool vocabulary, workflow-orchestrator machine,
+      parameterized specialist-editor machine, and voice-critic machine.
 
-      This release is documentation-only and planned. It does not include
-      profiles, machines, tools, services, deployment, executable tests, root
-      registry changes, or publication evidence.
-    status: planned
+      This release is documentation-only. It claims no executable evidence,
+      runtime conformance, or publication behavior. The 29-case test suite and
+      use case plan full-scenario coverage but remain unexecuted.
+    status: specification_complete
     capability_status:
       documentation: specification_complete
       runnable_module: not_implemented
-      managed_service: planned
+      managed_service: not_planned_for_release
       packaged: not_planned_for_release
       helm_managed: not_planned_for_release
       kind_demo: not_planned_for_release
@@ -55,17 +61,88 @@ releases:
           Plan 29 structural, authority, happy-path, critic-category,
           responsible-stage, boundary-error, retry-exhaustion, all-cut recovery,
           Pangram consent and provider, idempotency, partial-publication,
-          immutable-lineage, closure, and documentation-consistency cases.
+          immutable-lineage, closure, and documentation-consistency cases for
+          the full scenario. Runtime cases are staged across 00.1 and 00.2.
         status: planned
         test_case_count: 29
+    evidence_status:
+      foundation_yaml: documented
+      srd_requirements: srd001_through_srd005_and_srd008_specified
+      reciprocal_traceability: 192_requirements_and_63_acceptance_criteria_closed_by_one_planned_use_case_and_29_planned_tests
+      executable_evidence: none
+    completion_gate: |
+      All six SRDs, the use case, and the 29-case test suite exist with
+      reciprocal documentation traces. Release 00.0 is complete as a
+      documentation baseline. Runtime evidence is staged in 00.1 and 00.2.
+
+  - version: "00.1"
+    name: Tracer-bullet saga skeleton
+    description: |
+      Prove the end-to-end saga skeleton with the minimal runnable slice:
+      workflow orchestrator, one specialist-editor stage (structure), critic
+      verdict path (Pangram skipped), and local finalization. No voice or
+      style stages, no GitHub publication, no Pangram upload.
+
+      The tracer validates the orchestrator state machine, immutable lineage,
+      structure-rag retrieval, one bounded retry from critic rejection, and
+      local workproduct finalization. Implementation findings that contradict
+      SRD details are reconciled before 00.2 scope is finalized.
+    status: planned
+    capability_status:
+      documentation: specification_complete
+      runnable_module: planned
+      managed_service: not_planned_for_release
+      packaged: not_planned_for_release
+      helm_managed: not_planned_for_release
+      kind_demo: not_planned_for_release
+    requirement_subsets:
+      srd001-prose-editor-services:
+        scope: partial
+        groups: [R1, R2, R3, R4, R5]
+        note: Orchestrator, specialist-editor:structure, voice-critic, and structure-rag only. Voice-rag, tightening-rag, and specialist-editor voice/style stages excluded.
+      srd002-writing-saga-workproducts:
+        scope: partial
+        groups: [R1, R2, R3, R4, R5, R6]
+        note: Structure-stage lineage and local finalization only. Voice, style workproducts and publication excluded.
+      srd003-writing-agent-tools:
+        scope: partial
+        groups: [R1, R2, R3, R4]
+        note: Orchestrator, structure-editor, and critic tool words only. Voice and style tool words excluded.
+      srd004-workflow-orchestrator:
+        scope: partial
+        groups: [R1, R2, R3, R4, R5, R6, R7]
+        note: States through structure, critic, and local finalization. Voice, style, and publication states excluded.
+      srd005-specialist-editor:
+        scope: partial
+        groups: [R1, R2, R3, R4, R5, R6, R7]
+        note: Structure stage only (R1-R7). Voice (R8-R14) and style (R15-R20) stages excluded.
+      srd008-voice-critic:
+        scope: partial
+        groups: [R1, R2, R3, R4, R5]
+        note: Verdict path without Pangram. Consent-gated upload, separate tasks, advisory comparison excluded.
+    use_cases:
+      - id: rel00.1-uc001-tracer-saga
+        summary: |
+          Capture a GitHub original, perform one structure stage, obtain an
+          independent critic verdict without Pangram, retry the responsible
+          stage when bounded policy permits, and finalize the accepted
+          workproduct chain locally without commit, push, or pull request.
+        status: planned
+    test_suites:
+      - id: test-rel00.1-prose-editor
+        summary: |
+          Plan 12 tracer-scoped cases covering orchestrator structure-critic
+          graph, structure-editor machine, critic without Pangram, tracer
+          happy path, structure-stage retry, source capture, workproduct
+          lineage, command errors, retry exhaustion, and recovery.
+        status: planned
+        test_case_count: 12
     planned_workproducts:
       - {path: workproducts/<saga-id>/manifest.yaml, owner: workflow-orchestrator, status: planned}
       - {path: workproducts/<saga-id>/manifest-history/<revision>.yaml, owner: workflow-orchestrator, status: planned}
       - {path: workproducts/<saga-id>/00-original.md, owner: workflow-orchestrator, status: planned}
-      - {path: workproducts/<saga-id>/attempts/<stage>/<attempt>-<sha256>.<md-or-yaml>, owner: workflow-orchestrator, status: planned}
+      - {path: workproducts/<saga-id>/attempts/structure/<attempt>-<sha256>.md, owner: workflow-orchestrator, status: planned}
       - {path: workproducts/<saga-id>/10-structure.md, owner: workflow-orchestrator, status: planned}
-      - {path: workproducts/<saga-id>/20-voice.md, owner: workflow-orchestrator, status: planned}
-      - {path: workproducts/<saga-id>/30-style.md, owner: workflow-orchestrator, status: planned}
       - {path: workproducts/<saga-id>/40-critique.yaml, owner: workflow-orchestrator, status: planned}
       - {path: workproducts/<saga-id>/final.md, owner: workflow-orchestrator, status: planned}
     dependencies:
@@ -81,10 +158,6 @@ releases:
         reference: ../../docs/specs/semantic-models/agent-role-realizations.yaml
         status: available
         use: Pin planned actor bindings and preserve canonical role ownership.
-      - id: canonical-corpus-ingest
-        reference: ../../catalog/
-        status: available_for_future_reference
-        use: Reuse the canonical program through a planned local wrapper.
       - id: agent-core-profile-machine-tool-contracts
         reference: ../../../agent-core/docs/specs/
         status: available
@@ -96,27 +169,109 @@ releases:
         boundary: allowlisted embedding and generation model service
         status: planned_dependency
       - id: github
-        boundary: source and final publication platform
-        status: planned_dependency
-      - id: pangram
-        boundary: optional consent-gated advisory upload
+        boundary: source capture only (publication deferred to 00.2)
         status: planned_dependency
     evidence_status:
       foundation_yaml: documented
-      srd_requirements: srd001_through_srd008_specified
-      reciprocal_traceability: 192_requirements_and_63_acceptance_criteria_closed_by_one_planned_use_case_and_29_planned_tests
-      profiles_and_machines: not_implemented
-      tools_and_services: not_implemented
-      structural_tests: not_implemented
-      boundary_tests: not_implemented
-      failure_and_recovery_tests: not_implemented
-      end_to_end_test: not_implemented
-      publication_test: not_implemented
+      srd_requirements: structure_stage_and_critic_subset
+      profiles_and_machines: planned
+      tools_and_services: planned
+      structural_tests: planned
+      boundary_tests: planned
+      failure_and_recovery_tests: planned
+      end_to_end_test: planned
+      publication_test: deferred_to_00_2
       root_registration: intentionally_unchanged
-      executable_evidence: none
+      executable_evidence: planned
     completion_gate: |
-      All eight SRDs, the use case, and the 29-case test suite exist with
-      reciprocal documentation traces. Release 00.0 remains planned until
-      future executable evidence proves the declared boundaries and terminal
-      outcome. Documentation parsing and trace closure alone do not satisfy the
-      runtime release.
+      The tracer saga runs end-to-end: source capture, structure edit via
+      specialist-editor:structure and structure-rag, critic verdict without
+      Pangram, bounded structure-stage retry, and local finalization with
+      immutable workproduct lineage. All 12 planned tests pass. SRD
+      contradictions discovered during implementation are filed and reconciled
+      before 00.2 scope is finalized.
+
+  - version: "00.2"
+    name: Full multi-stage editing and publication
+    description: |
+      Complete the remaining stages: voice editing via specialist-editor:voice
+      and voice-rag, style editing via specialist-editor:style and
+      tightening-rag, consent-gated Pangram upload, multi-stage responsible
+      retry, and GitHub publication (branch, commit, push, pull request).
+
+      Implementation builds on the 00.1 saga skeleton. SRD requirement items
+      contradicted during 00.1 have been reconciled before this release scope
+      was finalized.
+    status: planned
+    capability_status:
+      documentation: specification_complete
+      runnable_module: planned
+      managed_service: planned
+      packaged: not_planned_for_release
+      helm_managed: not_planned_for_release
+      kind_demo: not_planned_for_release
+    requirement_subsets:
+      srd001-prose-editor-services:
+        scope: remaining
+        note: Voice-rag, tightening-rag, specialist-editor voice/style stages, and corpus-ingest wrapper.
+      srd002-writing-saga-workproducts:
+        scope: remaining
+        note: Voice, style workproducts and GitHub publication lineage.
+      srd003-writing-agent-tools:
+        scope: remaining
+        note: Voice-editor, style-editor, and Pangram tool words.
+      srd004-workflow-orchestrator:
+        scope: remaining
+        note: Voice, style invocation states and publication states.
+      srd005-specialist-editor:
+        scope: remaining
+        groups: [R8, R9, R10, R11, R12, R13, R14, R15, R16, R17, R18, R19, R20]
+        note: Voice stage (R8-R14) and style stage (R15-R20).
+      srd008-voice-critic:
+        scope: remaining
+        note: Pangram consent-gated upload, separate tasks, advisory comparison, and bounded polls.
+    use_cases:
+      - id: rel00.0-uc001-edit-document
+        summary: |
+          The full 00.0 use case becomes executable in 00.2 with all three
+          editor stages, Pangram, multi-stage retry, and GitHub publication.
+        status: planned
+    test_suites:
+      - id: test-rel00.0-prose-editor
+        summary: |
+          The 29-case 00.0 suite becomes executable. Cases not covered by the
+          00.1 tracer suite exercise voice, style, Pangram, multi-stage retry,
+          publication, and full end-to-end paths.
+        status: planned
+        test_case_count: 29
+    dependencies:
+      - id: release-00-1
+        reference: release 00.1
+        status: planned
+        use: Saga skeleton, orchestrator machine, structure stage, and critic verdict path.
+      - id: canonical-corpus-ingest
+        reference: ../../catalog/
+        status: available_for_future_reference
+        use: Reuse the canonical program through a planned local wrapper.
+      - id: pangram
+        boundary: optional consent-gated advisory upload
+        status: planned_dependency
+      - id: github
+        boundary: source and final publication platform
+        status: planned_dependency
+    evidence_status:
+      foundation_yaml: documented
+      srd_requirements: all_192_requirement_items
+      profiles_and_machines: planned
+      tools_and_services: planned
+      structural_tests: planned
+      boundary_tests: planned
+      failure_and_recovery_tests: planned
+      end_to_end_test: planned
+      publication_test: planned
+      root_registration: planned
+      executable_evidence: planned
+    completion_gate: |
+      All 192 requirement items and 63 acceptance criteria have executable
+      evidence. The full 29-case test suite passes. Voice, style, Pangram,
+      multi-stage retry, and GitHub publication paths run end-to-end.
