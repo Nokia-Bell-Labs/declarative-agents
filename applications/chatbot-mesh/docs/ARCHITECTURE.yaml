@@ -117,6 +117,13 @@ role_realization_alignment:
       authority_boundary: Trace intake only; contrib retains metrics and Dolt scraping during migration.
       evidence: [agents/collector/machine.yaml, helm/templates/collector.yaml]
       migration_impact: None; distinguish profile-backed, contrib, and metrics workloads.
+    - current_actor: observer
+      implemented_responsibility: Discover mesh agents from the Kubernetes API and poll each agent's monitor surface to serve a fleet-level view.
+      canonical_role_sub_role: Monitor / Fleet Observer.
+      retained_or_proposed_name: Retain descriptive actor `observer`.
+      authority_boundary: Read-only over kube pod listing and agent monitor surfaces; no lifecycle, deployment, configuration, or trace-intake authority.
+      evidence: [agents/observer/machine.yaml, agents/observer/declarations.yaml, helm/templates/observer.yaml]
+      migration_impact: None.
 
 components:
   - name: chatbot agent
@@ -188,6 +195,15 @@ components:
       The contrib collector remains for metrics and Dolt scraping. Profile, intake,
       relay, self-loop, and Helm evidence are implemented; complete listener and
       monitor lifecycle proof remains planned.
+  - name: observer actor
+    path: agents/observer/
+    responsibility: |
+      Assumes Monitor / Fleet Observer for the demo and operational plane
+      (srd008). The persistent machine discovers mesh agent pods from the
+      Kubernetes API by label selector, polls each agent's monitor endpoints
+      (machine spec, state, tools, events), and serves a fleet-level UX showing
+      the cast list and live state. Holds read-only authority; no lifecycle,
+      deployment, or configuration commands.
   - name: user interface
     path: ux/
     responsibility: |

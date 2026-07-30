@@ -1,0 +1,56 @@
+name: observer
+purpose: |
+  Persistently discover mesh agent pods from the Kubernetes API and poll each
+  agent's monitor surface to serve a fleet-level view (srd008). The machine
+  launches its own monitor and control servers, then loops through discovery and
+  per-agent monitor polling until a lifecycle exit request stops it.
+invariants:
+  - Discovery is namespace-scoped by label selector; no cluster-wide RBAC.
+  - An unreachable agent degrades the fleet view; it does not stop the poll loop.
+  - The polling interval is a declared REST client config value.
+initial_state: Idle
+budget: {max_iterations: 1000000}
+states:
+  - {name: Idle, meaning: Before listeners launch.}
+  - {name: LaunchingControl, meaning: Launching lifecycle control server.}
+  - {name: LaunchingMonitor, meaning: Launching monitor REST server.}
+  - {name: Discovering, meaning: Polling the Kubernetes API for mesh agent pods.}
+  - {name: PollingAgents, meaning: Polling each discovered agent's monitor endpoints.}
+  - {name: AwaitingControl, meaning: Waiting a bounded interval before the next discovery cycle.}
+  - {name: Exiting, meaning: Routing lifecycle exit.}
+  - {name: StoppingMonitor, meaning: Stopping monitor REST server.}
+  - {name: StoppingControl, meaning: Stopping control REST server.}
+  - {name: Done, meaning: Clean terminal shutdown.}
+  - {name: Failed, meaning: Boundary or lifecycle failure.}
+terminal_states: [Done, Failed]
+signals:
+  - {name: Seed, trigger: Startup.}
+  - {name: ServerLaunched, trigger: REST listener bound.}
+  - {name: PodsDiscovered, trigger: Kubernetes API returned a pod list.}
+  - {name: AgentsPolled, trigger: All reachable agents polled for this cycle.}
+  - {name: AwaitTimedOut, trigger: Bounded control wait elapsed; start next cycle.}
+  - {name: ExitRequested, trigger: Lifecycle control event.}
+  - {name: AgentExited, trigger: exit_agent completed.}
+  - {name: ServerStopped, trigger: REST listener stopped.}
+  - {name: CommandError, trigger: Boundary failure.}
+transitions:
+  - {state: Idle, signal: Seed, next: LaunchingControl, action: launch_observer_control}
+  - {state: Idle, signal: CommandError, next: Failed}
+  - {state: LaunchingControl, signal: ServerLaunched, next: LaunchingMonitor, action: launch_observer_monitor}
+  - {state: LaunchingControl, signal: CommandError, next: Failed}
+  - {state: LaunchingMonitor, signal: ServerLaunched, next: Discovering, action: discover_mesh_pods}
+  - {state: LaunchingMonitor, signal: CommandError, next: Failed}
+  - {state: Discovering, signal: PodsDiscovered, next: PollingAgents, action: poll_agent_monitors}
+  - {state: Discovering, signal: CommandError, next: AwaitingControl, action: await_observer_control}
+  - {state: PollingAgents, signal: AgentsPolled, next: AwaitingControl, action: await_observer_control}
+  - {state: PollingAgents, signal: CommandError, next: AwaitingControl, action: await_observer_control}
+  - {state: AwaitingControl, signal: AwaitTimedOut, next: Discovering, action: discover_mesh_pods}
+  - {state: AwaitingControl, signal: ExitRequested, next: Exiting, action: exit_agent}
+  - {state: AwaitingControl, signal: ServerStopped, next: Failed}
+  - {state: AwaitingControl, signal: CommandError, next: Failed}
+  - {state: Exiting, signal: AgentExited, next: StoppingMonitor, action: stop_observer_monitor}
+  - {state: Exiting, signal: CommandError, next: Failed}
+  - {state: StoppingMonitor, signal: ServerStopped, next: StoppingControl, action: stop_observer_control}
+  - {state: StoppingMonitor, signal: CommandError, next: Failed}
+  - {state: StoppingControl, signal: ServerStopped, next: Done}
+  - {state: StoppingControl, signal: CommandError, next: Failed}

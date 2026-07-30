@@ -540,6 +540,7 @@ func chartProfilePrograms() []chartProfileProgram {
 		{"agents/creator", "profiles/agents/creator"},
 		{"agents/applier", "profiles/agents/applier"},
 		{"agents/collector", "profiles/agents/collector"},
+		{"agents/observer", "profiles/agents/observer"},
 		{"agents/corpus-ingest", "profiles/agents/corpus-ingest"},
 		{canonicalCorpusIngestProgram, "profiles/agents/knowledge-manager/corpus-ingest"},
 		{"ux/ux.yaml", "profiles/ux/ux.yaml"},

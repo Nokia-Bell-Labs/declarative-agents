@@ -69,7 +69,7 @@
   },
   "type": "object",
   "additionalProperties": false,
-  "required": ["image", "profiles", "chatbot", "ragUnits", "ragServer", "chroma", "llm", "ollama", "dolt", "collector", "jaeger", "ingress", "validateProfiles", "applier", "controlPlane"],
+  "required": ["image", "profiles", "chatbot", "ragUnits", "ragServer", "chroma", "llm", "ollama", "dolt", "collector", "jaeger", "ingress", "validateProfiles", "observer", "applier", "controlPlane"],
   "properties": {
     "image": {
       "$ref": "#/definitions/image"
@@ -208,6 +208,17 @@
           }
         },
         "topology": {"type": "string", "enum": ["single", "per-model"]}
+      }
+    },
+    "observer": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["enabled", "ports", "pollInterval", "resources"],
+      "properties": {
+        "enabled": {"type": "boolean"},
+        "ports": {"$ref": "#/definitions/agentPorts"},
+        "pollInterval": {"$ref": "#/definitions/nonEmptyString"},
+        "resources": {"$ref": "#/definitions/resources"}
       }
     },
     "applier": {
