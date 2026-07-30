@@ -48,6 +48,7 @@ var chatbotChartSourceFiles = []string{
 	"templates/creator.yaml",
 	"templates/dolt.yaml",
 	"templates/jaeger.yaml",
+	"templates/observer.yaml",
 	"templates/ollama.yaml",
 	"templates/profiles-configmap.yaml",
 	"templates/rag-units.yaml",
