@@ -1,9 +1,9 @@
-id: architecture-voice-forge
-title: Voice Forge Architecture
+id: architecture-prose-editor
+title: Prose Editor Architecture
 
 overview:
   summary: |
-    Voice Forge is a planned serial composition of four agent actors on
+    Prose Editor is a planned serial composition of four agent actors on
     agent-core. The application-local programs are the workflow-orchestrator,
     specialist-editor (structure, voice, and style stages), and voice-critic. A thin
     corpus-ingest wrapper references the canonical catalog program. Three
@@ -348,7 +348,7 @@ overview:
     STAGE_FAILED, or timeout remains explicit and never silently accepts.
     Uploads are irreversible observations and are never falsely compensated.
   persistence_flow: |
-    Voice Forge has two durable state planes with different authority. The
+    Prose Editor has two durable state planes with different authority. The
     application-owned persistent --output workspace stores document bytes,
     immutable attempt artifacts, finalized files, manifest history, and the
     current manifest projection. Agent-core checkpoint storage holds machine
@@ -370,8 +370,8 @@ overview:
       status: planned
       coverage: Eight exact SRD touchpoints cover 192 requirement items; ten success criteria cover 63 acceptance criteria.
     test_suite:
-      id: test-rel00.0-voice-forge
-      path: docs/specs/test-suites/test-rel00.0-voice-forge.yaml
+      id: test-rel00.0-prose-editor
+      path: docs/specs/test-suites/test-rel00.0-prose-editor.yaml
       status: planned
       test_case_count: 29
       evidence_status: none
@@ -490,7 +490,7 @@ tool_authority_allocation:
         - suspend_saga_for_operator
         - inspect_saga_checkpoint
         - rollback_saga_checkpoint
-        - exit_voice_forge_run
+        - exit_prose_editor_run
         - orchestrator parse_structured result words
         - orchestrator one-scalar value_predicate route words
       denied: [editor RAG, editor LLM, critic verdict, Pangram, corpus writes]
@@ -743,7 +743,7 @@ design_decisions:
       services, profiles, machines, tools, lifecycle, persistence, and REST.
     benefits:
       - Platform requirements retain one owner.
-      - The local corpus stays focused on Voice Forge behavior.
+      - The local corpus stays focused on Prose Editor behavior.
   - id: 6
     title: Runtime checkpoints and artifact bytes are separate state planes
     decision: |
@@ -796,14 +796,14 @@ project_structure:
     - {path: agents/voice-critic/, status: planned, role: Independent assurance profile.}
     - {path: agents/corpus-ingest/, status: planned, role: Thin canonical ingest wrapper.}
   planned_specifications:
-    - {path: docs/specs/software-requirements/srd001-voice-forge-services.yaml, status: specified, role: Planned service topology, role bindings, lifecycle, failure, scaling, and authority contract.}
+    - {path: docs/specs/software-requirements/srd001-prose-editor-services.yaml, status: specified, role: Planned service topology, role bindings, lifecycle, failure, scaling, and authority contract.}
     - {path: docs/specs/software-requirements/srd002-writing-saga-workproducts.yaml, status: specified, role: Planned immutable workproduct, manifest, retry, recovery, idempotency, and publication contract.}
     - {path: docs/specs/software-requirements/srd003-writing-agent-tools.yaml, status: specified, role: Closed ToolDef vocabulary, factory reuse, signals, errors, effects, compensation, and exclusive authority.}
     - {path: docs/specs/software-requirements/srd004-workflow-orchestrator.yaml, status: specified, role: Flat orchestration states, signals, transitions, persistence, responsible-stage replay, recovery, publication, and terminal outcomes.}
     - {path: docs/specs/software-requirements/srd005-specialist-editor.yaml, status: specified, role: Parameterized specialist-editor with structure, voice, and style stage configurations sharing a common pipeline shape.}
     - {path: docs/specs/software-requirements/srd008-voice-critic.yaml, status: specified, role: Flat independent assurance, exact-hash consent, separate Pangram tasks, advisory comparison, verdict, responsible-stage, and authority contract.}
     - {path: docs/specs/use-cases/rel00.0-uc001-edit-document.yaml, status: planned, role: End-to-end release scenario.}
-    - {path: docs/specs/test-suites/test-rel00.0-voice-forge.yaml, status: planned, role: Release tracer and evidence plan.}
+    - {path: docs/specs/test-suites/test-rel00.0-prose-editor.yaml, status: planned, role: Release tracer and evidence plan.}
 
 implementation_status:
   current_focus: |
@@ -833,7 +833,7 @@ implementation_status:
 related_documents:
   - doc: docs/VISION.yaml
     purpose: Application goals, boundaries, success criteria, and canonical document list.
-  - doc: docs/specs/software-requirements/srd001-voice-forge-services.yaml
+  - doc: docs/specs/software-requirements/srd001-prose-editor-services.yaml
     purpose: Specified service topology, role realizations, lifecycle, scaling, failure, interfaces, and exclusive authorities.
   - doc: docs/specs/software-requirements/srd002-writing-saga-workproducts.yaml
     purpose: Specified immutable artifact, manifest, retry, compensation, recovery, idempotency, and publication contract.
@@ -847,7 +847,7 @@ related_documents:
     purpose: Specified flat independent critic, exact-hash consent, separate Pangram tasks, advisory-only comparison, verdict, responsible-stage, and authority contract.
   - doc: docs/specs/use-cases/rel00.0-uc001-edit-document.yaml
     purpose: Planned end-to-end source, edit, critique, retry, recovery, finalization, and one-publication scenario with exact requirement and acceptance-criterion traces.
-  - doc: docs/specs/test-suites/test-rel00.0-voice-forge.yaml
+  - doc: docs/specs/test-suites/test-rel00.0-prose-editor.yaml
     purpose: Planned 29-case coverage inventory with future evidence paths and no claimed runtime evidence.
   - doc: docs/SPECIFICATIONS.yaml
     purpose: Planned SRD, use-case, and test-suite indexes.
@@ -872,4 +872,4 @@ related_documents:
   - doc: ../../../agent-core/docs/specs/software-requirements/srd035-checkpoint-port.yaml
     purpose: Planned checkpoint persistence authority.
   - doc: ../../chatbot-mesh/docs/specs/software-requirements/srd001-rag-server-agent.yaml
-    purpose: Existing RAG service behavior reference; Voice Forge will cite rather than copy it.
+    purpose: Existing RAG service behavior reference; Prose Editor will cite rather than copy it.

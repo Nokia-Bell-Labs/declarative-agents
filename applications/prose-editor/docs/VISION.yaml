@@ -1,8 +1,8 @@
-id: voice-forge
-title: Voice Forge Vision
+id: prose-editor
+title: Prose Editor Vision
 
 executive_summary: |
-  Voice Forge is a planned declarative-agent application that turns one
+  Prose Editor is a planned declarative-agent application that turns one
   GitHub-hosted original into an accepted publication candidate through a
   serial original -> structure -> voice -> style -> critique -> publication
   saga. Independent agents own editing and assurance responsibilities. The
@@ -104,14 +104,14 @@ canonical_documents:
   - docs/ARCHITECTURE.yaml
   - docs/SPECIFICATIONS.yaml
   - docs/road-map.yaml
-  - docs/specs/software-requirements/srd001-voice-forge-services.yaml
+  - docs/specs/software-requirements/srd001-prose-editor-services.yaml
   - docs/specs/software-requirements/srd002-writing-saga-workproducts.yaml
   - docs/specs/software-requirements/srd003-writing-agent-tools.yaml
   - docs/specs/software-requirements/srd004-workflow-orchestrator.yaml
   - docs/specs/software-requirements/srd005-specialist-editor.yaml
   - docs/specs/software-requirements/srd008-voice-critic.yaml
   - docs/specs/use-cases/rel00.0-uc001-edit-document.yaml
-  - docs/specs/test-suites/test-rel00.0-voice-forge.yaml
+  - docs/specs/test-suites/test-rel00.0-prose-editor.yaml
 
 shared_contract_references:
   application_module: ../../docs/specs/software-requirements/srd001-application-module-contract.yaml

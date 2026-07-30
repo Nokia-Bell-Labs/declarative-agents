@@ -3,7 +3,7 @@ title: Writing Agent Tool Contracts
 status: specified
 
 problem: |
-  Voice Forge needs one named ToolDef word for every machine action that crosses
+  Prose Editor needs one named ToolDef word for every machine action that crosses
   a workproduct, child-agent, retrieval, model, GitHub, lifecycle, corpus, or
   Pangram boundary. Without a closed vocabulary, a model could invent a path,
   URL, ref, vector, credential, or shell command; an editor could acquire
@@ -369,7 +369,7 @@ word_vocabulary:
       owner: workflow-orchestrator
       implementation: {type: builtin, factory: execute_task, reuse: Profile-only child-agent invocation for voice-critic.}
       inputs: [original and selected style bytes and artifact IDs, both hashes, acceptance policy, explicit Pangram consent state, invocation identity]
-      outputs: [voice-forge.critic-response/v1 completed critique with evaluated hashes, six categorized findings, separate Pangram statuses and comparison, pass/warn/reject, nullable responsible stage, and bounded feedback; failed child outcome uses ExecutionFailed]
+      outputs: [prose-editor.critic-response/v1 completed critique with evaluated hashes, six categorized findings, separate Pangram statuses and comparison, pass/warn/reject, nullable responsible stage, and bounded feedback; failed child outcome uses ExecutionFailed]
       emits: [ExecutionDone, ExecutionFailed, CommandError]
       infrastructure_errors: [profile missing, process start failure, timeout, malformed transport response]
       domain_errors: [valid pass, warn, or reject verdict; invalid critic request]
@@ -614,7 +614,7 @@ word_vocabulary:
     - {name: voice_response_returned, owner: workflow-orchestrator, implementation: {type: builtin, factory: value_predicate, reuse: Compare outcome with returned.}, inputs: [$from(voice_child_response).outcome, configured literal returned], outputs: [one comparison record], emits: [VoiceEditReturned, VoiceEditRejected, CommandError], infrastructure_errors: [selector or coercion failure], domain_errors: [comparison false means schema-closed rejected], side_effects: [none], reversibility: {classification: reversible, undo: noop}, compensation: Preserve the prior parent., authority: Compares one validated scalar.}
     - {name: parse_style_editor_response, owner: workflow-orchestrator, implementation: {type: builtin, factory: parse_structured, reuse: Parse bounded style child stdout after fixed compose capture.}, inputs: [$from(style_child_parse_input).stdout], outputs: [validated outcome candidate provenance and parent identity], emits: [StyleResponseParsed, StyleResponseInvalid, CommandError], infrastructure_errors: [selector or schema configuration failure], domain_errors: [malformed child response], side_effects: [none], reversibility: {classification: reversible, undo: noop}, compensation: Preserve the prior parent., authority: Parses only the configured style response schema.}
     - {name: style_response_returned, owner: workflow-orchestrator, implementation: {type: builtin, factory: value_predicate, reuse: Compare outcome with returned.}, inputs: [$from(style_child_response).outcome, configured literal returned], outputs: [one comparison record], emits: [StyleEditReturned, StyleEditRejected, CommandError], infrastructure_errors: [selector or coercion failure], domain_errors: [comparison false means schema-closed rejected], side_effects: [none], reversibility: {classification: reversible, undo: noop}, compensation: Preserve the prior parent., authority: Compares one validated scalar.}
-    - {name: parse_critic_response, owner: workflow-orchestrator, implementation: {type: builtin, factory: parse_structured, reuse: Parse bounded critic stdout after fixed compose capture.}, inputs: [$from(critic_child_parse_input).stdout], outputs: [validated voice-forge.critic-response/v1 completed outcome, verdict, exactly six findings, both hashes, nullable responsible stage, bounded feedback, independent voice provenance, separate Pangram scan statuses, advisory comparison, and critic metadata], emits: [CriticResponseParsed, CriticResponseInvalid, CommandError], infrastructure_errors: [selector or schema configuration failure], domain_errors: [malformed response, non-completed outcome, missing finding, hash mismatch, reject without exactly one structure/voice/style stage, or pass/warn with non-null stage], side_effects: [none], reversibility: {classification: reversible, undo: noop}, compensation: Preserve the selected candidate., authority: Parses only the configured completed critic response schema; failed critic service outcomes remain ExecutionFailed and cannot enter verdict predicates.}
+    - {name: parse_critic_response, owner: workflow-orchestrator, implementation: {type: builtin, factory: parse_structured, reuse: Parse bounded critic stdout after fixed compose capture.}, inputs: [$from(critic_child_parse_input).stdout], outputs: [validated prose-editor.critic-response/v1 completed outcome, verdict, exactly six findings, both hashes, nullable responsible stage, bounded feedback, independent voice provenance, separate Pangram scan statuses, advisory comparison, and critic metadata], emits: [CriticResponseParsed, CriticResponseInvalid, CommandError], infrastructure_errors: [selector or schema configuration failure], domain_errors: [malformed response, non-completed outcome, missing finding, hash mismatch, reject without exactly one structure/voice/style stage, or pass/warn with non-null stage], side_effects: [none], reversibility: {classification: reversible, undo: noop}, compensation: Preserve the selected candidate., authority: Parses only the configured completed critic response schema; failed critic service outcomes remain ExecutionFailed and cannot enter verdict predicates.}
     - {name: critic_verdict_is_pass, owner: workflow-orchestrator, implementation: {type: builtin, factory: value_predicate, reuse: Compare verdict with pass.}, inputs: [$from(critic_response).verdict, configured literal pass], outputs: [one comparison record], emits: [CriticPassed, CriticNotPassed, CommandError], infrastructure_errors: [selector or coercion failure], domain_errors: [comparison false], side_effects: [none], reversibility: {classification: reversible, undo: noop}, compensation: No state exists to compensate., authority: Compares one validated scalar.}
     - {name: critic_verdict_is_warn, owner: workflow-orchestrator, implementation: {type: builtin, factory: value_predicate, reuse: Compare verdict with warn.}, inputs: [$from(critic_response).verdict, configured literal warn], outputs: [one comparison record], emits: [CriticWarned, CriticRejected, CommandError], infrastructure_errors: [selector or coercion failure], domain_errors: [comparison false means schema-closed reject], side_effects: [none], reversibility: {classification: reversible, undo: noop}, compensation: No state exists to compensate., authority: Compares one validated scalar.}
 
@@ -1891,7 +1891,7 @@ word_vocabulary:
       compensation: Reconcile against append-only manifest; never claim to delete or restore saga files, GitHub effects, model calls, retrieval, or Pangram uploads.
       authority: Changes agent-core runtime state only after operator approval.
 
-    - name: exit_voice_forge_run
+    - name: exit_prose_editor_run
       owner: workflow-orchestrator
       implementation: {type: builtin, factory: exit_agent, reuse: Agent-core finite lifecycle exit.}
       inputs: [terminal status, manifest revision, redacted reason]
@@ -1922,7 +1922,7 @@ requirements:
         evidence: Structural validation checks every word_vocabulary entry for all contract fields.
       - id: R1.3
         text: |
-          Voice Forge SHALL reuse the existing builtin, REST, invoke_llm,
+          Prose Editor SHALL reuse the existing builtin, REST, invoke_llm,
           execute_task, lifecycle, and exec factories. It SHALL NOT require a
           new Go builtin, REST adapter, child-agent factory, or lifecycle
           factory. Orchestrator exec words SHALL fix operations of a planned
@@ -1931,7 +1931,7 @@ requirements:
         evidence: Planned declarations resolve only factory_reuse.factories and generic exec declarations whose binaries and operation args are fixed to the planned helper.
       - id: R1.4
         text: |
-          No Voice Forge profile SHALL expose arbitrary shell, generic
+          No Prose Editor profile SHALL expose arbitrary shell, generic
           executable selection, generic REST URL selection, generic filesystem
           mutation, unconstrained git or gh authority, or runtime helper
           operation selection.
@@ -2198,7 +2198,7 @@ requirements:
           append-only manifest without claiming filesystem or remote reversal.
           suspend_saga_for_operator SHALL emit only AwaitApproval or
           CommandError; inspect_saga_checkpoint and rollback_saga_checkpoint
-          SHALL emit only ToolDone or CommandError; exit_voice_forge_run SHALL
+          SHALL emit only ToolDone or CommandError; exit_prose_editor_run SHALL
           emit only AgentExited or CommandError. Operator resolution and abort
           are validated resume/event signals, not suspend emissions.
         evidence: Planned suspend, restart, rollback, and manifest-reconciliation tests preserve all saga bytes and report irreversible effects.
@@ -2299,8 +2299,8 @@ acceptance_criteria:
     traces: [R7.1, R7.2, R7.3, R7.4]
 
 shared_requirement_traces:
-  - contract: srd001-voice-forge-services
-    path: srd001-voice-forge-services.yaml
+  - contract: srd001-prose-editor-services
+    path: srd001-prose-editor-services.yaml
     requirements: [R1.4, R2.1, R2.3, R3.1, R4.3, R5.1, R6.2]
   - contract: srd002-writing-saga-workproducts
     path: srd002-writing-saga-workproducts.yaml
@@ -2324,15 +2324,15 @@ use_case_traces:
     path: ../use-cases/rel00.0-uc001-edit-document.yaml
 
 test_suite_traces:
-  - id: test-rel00.0-voice-forge
+  - id: test-rel00.0-prose-editor
     status: planned
-    path: ../test-suites/test-rel00.0-voice-forge.yaml
+    path: ../test-suites/test-rel00.0-prose-editor.yaml
     acceptance_criteria: [AC1, AC2, AC3, AC4, AC5, AC6, AC7]
 
 related_documents:
   - path: ../../ARCHITECTURE.yaml
     usage: Defines planned tool-boundary interfaces and authority allocation.
-  - path: srd001-voice-forge-services.yaml
+  - path: srd001-prose-editor-services.yaml
     usage: Owns actor, service, retrieval, and external-boundary authority.
   - path: srd002-writing-saga-workproducts.yaml
     usage: Owns exact artifacts, manifest, retry, recovery, and publication semantics.

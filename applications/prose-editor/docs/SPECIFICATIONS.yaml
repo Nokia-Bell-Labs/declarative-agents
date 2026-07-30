@@ -1,8 +1,8 @@
-id: voice-forge-specifications
-title: Voice Forge Specification Index
+id: prose-editor-specifications
+title: Prose Editor Specification Index
 
 overview: |
-  This documentation-only index plans release 00.0 for one serial Voice Forge
+  This documentation-only index plans release 00.0 for one serial Prose Editor
   saga: GitHub source capture, immutable original, structure edit, voice edit,
   style edit, independent critique, bounded retry, finalization, one commit,
   push, and pull request.
@@ -18,7 +18,7 @@ overview: |
   executable evidence is implemented.
 
   Shared application and agent-core requirements remain external references.
-  Local SRDs will cite them and define only Voice Forge behavior and stricter
+  Local SRDs will cite them and define only Prose Editor behavior and stricter
   authority boundaries.
 
 roadmap_summary:
@@ -30,70 +30,70 @@ roadmap_summary:
     evidence: Six SRDs, one planned use case, and one 29-case planned test suite are documented; no executable evidence exists.
 
 foundation_document_index:
-  - id: voice-forge-readme
-    title: Voice Forge
+  - id: prose-editor-readme
+    title: Prose Editor
     summary: Human entry point, workflow, dependencies, and documentation-only status.
     status: documentation_only
     path: README.md
-  - id: voice-forge
-    title: Voice Forge Vision
+  - id: prose-editor
+    title: Prose Editor Vision
     summary: Problem, goals, scenario, authority boundaries, success criteria, and exclusions.
     status: documentation_only
     path: docs/VISION.yaml
-  - id: architecture-voice-forge
-    title: Voice Forge Architecture
+  - id: architecture-prose-editor
+    title: Prose Editor Architecture
     summary: Planned services, interfaces, flows, authority, technology, and source layout.
     status: documentation_only
     path: docs/ARCHITECTURE.yaml
-  - id: voice-forge-roadmap
-    title: Voice Forge Road Map
+  - id: prose-editor-roadmap
+    title: Prose Editor Road Map
     summary: Release 00.0 scope, dependencies, planned artifacts, and evidence status.
     status: documentation_only
     path: docs/road-map.yaml
 
 srd_index:
-  - id: srd001-voice-forge-services
-    title: Voice Forge Services and Role Boundaries
+  - id: srd001-prose-editor-services
+    title: Prose Editor Services and Role Boundaries
     status: specified
     summary: Service shape, role realizations, lifecycle, interfaces, and exclusive authorities.
-    path: docs/specs/software-requirements/srd001-voice-forge-services.yaml
+    path: docs/specs/software-requirements/srd001-prose-editor-services.yaml
     use_cases: [rel00.0-uc001-edit-document]
-    test_suites: [test-rel00.0-voice-forge]
+    test_suites: [test-rel00.0-prose-editor]
   - id: srd002-writing-saga-workproducts
     title: Writing Saga and Workproduct Lifecycle
     status: specified
     summary: Exact immutable artifacts, manifest state, stage lineage, idempotency, retry, compensation, recovery, and one final publication.
     path: docs/specs/software-requirements/srd002-writing-saga-workproducts.yaml
     use_cases: [rel00.0-uc001-edit-document]
-    test_suites: [test-rel00.0-voice-forge]
+    test_suites: [test-rel00.0-prose-editor]
   - id: srd003-writing-agent-tools
     title: Writing Agent Tool Contracts
     status: specified
     summary: Closed tool vocabulary, existing-factory reuse, exclusive ownership, inputs, outputs, signals, errors, effects, compensation, and authority.
     path: docs/specs/software-requirements/srd003-writing-agent-tools.yaml
     use_cases: [rel00.0-uc001-edit-document]
-    test_suites: [test-rel00.0-voice-forge]
+    test_suites: [test-rel00.0-prose-editor]
   - id: srd004-workflow-orchestrator
     title: Workflow Orchestrator State Machine
     status: specified
     summary: Exact flat saga states, srd003 action mappings, durable sequencing, responsible-stage replay, recovery, budgets, publication, escalation, and terminal outcomes.
     path: docs/specs/software-requirements/srd004-workflow-orchestrator.yaml
     use_cases: [rel00.0-uc001-edit-document]
-    test_suites: [test-rel00.0-voice-forge]
+    test_suites: [test-rel00.0-prose-editor]
   - id: srd005-specialist-editor
     title: Specialist Editor State Machine
     status: specified
     summary: Parameterized specialist-editor with structure, voice, and style stages sharing a common pipeline shape but differing in accepted parent type, RAG instance, edit operations, preservation invariants, and response contracts.
     path: docs/specs/software-requirements/srd005-specialist-editor.yaml
     use_cases: [rel00.0-uc001-edit-document]
-    test_suites: [test-rel00.0-voice-forge]
+    test_suites: [test-rel00.0-prose-editor]
   - id: srd008-voice-critic
     title: Voice Critic State Machine and Pangram Boundary
     status: specified
     summary: Flat independent assurance, six finding categories, exact-hash consent, separate Pangram tasks, advisory comparison, pass/warn/reject, responsible-stage closure, and bounded authority.
     path: docs/specs/software-requirements/srd008-voice-critic.yaml
     use_cases: [rel00.0-uc001-edit-document]
-    test_suites: [test-rel00.0-voice-forge]
+    test_suites: [test-rel00.0-prose-editor]
 
 config_format_index: []
 
@@ -105,37 +105,37 @@ use_case_index:
     release: "00.0"
     status: planned
     srds:
-      - srd001-voice-forge-services
+      - srd001-prose-editor-services
       - srd002-writing-saga-workproducts
       - srd003-writing-agent-tools
       - srd004-workflow-orchestrator
       - srd005-specialist-editor
       - srd008-voice-critic
-    test_suite: test-rel00.0-voice-forge
+    test_suite: test-rel00.0-prose-editor
     path: docs/specs/use-cases/rel00.0-uc001-edit-document.yaml
 
 test_suite_index:
-  - id: test-rel00.0-voice-forge
-    title: Voice Forge Release 00.0 Test Suite
+  - id: test-rel00.0-prose-editor
+    title: Prose Editor Release 00.0 Test Suite
     release: "00.0"
     status: planned
     test_case_count: 29
     traces: [rel00.0-uc001-edit-document]
     srds:
-      - srd001-voice-forge-services
+      - srd001-prose-editor-services
       - srd002-writing-saga-workproducts
       - srd003-writing-agent-tools
       - srd004-workflow-orchestrator
       - srd005-specialist-editor
       - srd008-voice-critic
-    path: docs/specs/test-suites/test-rel00.0-voice-forge.yaml
+    path: docs/specs/test-suites/test-rel00.0-prose-editor.yaml
 
 coverage_gaps:
   - id: planned-srd-corpus
     status: documentation_complete_runtime_planned
     description: |
       SRDs srd001 through srd008, rel00.0-uc001-edit-document, and
-      test-rel00.0-voice-forge now provide reciprocal documentation traces.
+      test-rel00.0-prose-editor now provide reciprocal documentation traces.
       All 192 requirement items map to SRD acceptance criteria and exact use-case
       touchpoints. All 63 acceptance criteria map to use-case success criteria
       and planned tests. Runtime implementation and executable evidence remain

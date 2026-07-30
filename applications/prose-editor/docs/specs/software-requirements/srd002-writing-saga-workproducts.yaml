@@ -3,7 +3,7 @@ title: Writing Saga and Workproduct Lifecycle
 status: specified
 
 problem: |
-  Voice Forge needs a durable contract for the document bytes and lineage that
+  Prose Editor needs a durable contract for the document bytes and lineage that
   cross its serial editing and criticism boundaries. A process checkpoint alone
   is insufficient: agent-core checkpoints persist machine position, execution
   entries, and opaque receipts, but they do not make application document bytes
@@ -71,7 +71,7 @@ workspace_contract:
     contiguous history revision when the projection is absent or torn.
 
 manifest_schema:
-  schema_version: voice-forge.saga-manifest/v1
+  schema_version: prose-editor.saga-manifest/v1
   required_top_level_fields:
     - schema_version
     - saga_id
@@ -454,7 +454,7 @@ requirements:
       - id: R6.4
         text: |
           Dolt Revert and checkpoint_rollback SHALL affect agent-core persisted
-          runtime state only. Voice Forge compensation SHALL reconcile the
+          runtime state only. Prose Editor compensation SHALL reconcile the
           append-only manifest and SHALL NOT claim that checkpoint rollback
           deletes or restores workspace files.
         evidence: Planned rollback tests cite srd036 R6 and retain all saga files across runtime-state revert.
@@ -614,9 +614,9 @@ use_case_traces:
     path: ../use-cases/rel00.0-uc001-edit-document.yaml
 
 test_suite_traces:
-  - id: test-rel00.0-voice-forge
+  - id: test-rel00.0-prose-editor
     status: planned
-    path: ../test-suites/test-rel00.0-voice-forge.yaml
+    path: ../test-suites/test-rel00.0-prose-editor.yaml
     acceptance_criteria: [AC1, AC2, AC3, AC4, AC5, AC6, AC7, AC8]
 
 related_documents:
@@ -624,7 +624,7 @@ related_documents:
     usage: Defines the serial accepted-publication outcome and authority boundaries.
   - path: ../../ARCHITECTURE.yaml
     usage: Defines the planned composition and two persistence planes.
-  - path: srd001-voice-forge-services.yaml
+  - path: srd001-prose-editor-services.yaml
     usage: Defines service ownership and exclusive orchestrator mutation authority.
   - path: ../../../../../agent-core/docs/constitutions/design.yaml
     usage: Defines YAML SRD structure, numbering, status, and traceability rules.

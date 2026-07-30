@@ -1,5 +1,5 @@
-id: test-rel00.0-voice-forge
-title: Voice Forge Release 00.0 Test Suite
+id: test-rel00.0-prose-editor
+title: Prose Editor Release 00.0 Test Suite
 release: "00.0"
 test_case_count: 29
 status: planned
@@ -8,14 +8,14 @@ runtime_status: unimplemented
 overview: |
   This suite plans structural, boundary, failure, recovery, privacy,
   idempotency, publication, and end-to-end evidence for
-  rel00.0-uc001-edit-document and all 63 acceptance criteria in Voice Forge
+  rel00.0-uc001-edit-document and all 63 acceptance criteria in Prose Editor
   srd001 through srd008. Every case names its future evidence type and path.
   None of those runtime fixtures, tests, targets, traces, or reports exists in
   release 00.0, and this suite claims no execution or conformance evidence.
 
 traces:
   - rel00.0-uc001-edit-document
-  - srd001-voice-forge-services
+  - srd001-prose-editor-services
   - srd002-writing-saga-workproducts
   - srd003-writing-agent-tools
   - srd004-workflow-orchestrator
@@ -25,7 +25,7 @@ traces:
   - srd008-voice-critic
 
 preconditions:
-  - The eight Voice Forge SRDs and rel00.0-uc001-edit-document parse and retain status specified and planned respectively.
+  - The eight Prose Editor SRDs and rel00.0-uc001-edit-document parse and retain status specified and planned respectively.
   - Future runtime work supplies hermetic fixtures for GitHub, Chroma, Ollama, RAG, Pangram, filesystem faults, checkpoint state, and process boundaries.
   - Future tests use isolated repositories, temporary persistent output roots, fixed clocks, bounded payloads, redacted credentials, and no production external effects.
   - Live dependency tests, if later added, remain opt-in and cannot substitute for hermetic boundary evidence.
@@ -38,7 +38,7 @@ test_cases:
     status: planned
     runtime_status: unimplemented
     description: |
-      Parse all Voice Forge YAML; verify exact IDs and canonical paths; require
+      Parse all Prose Editor YAML; verify exact IDs and canonical paths; require
       eight SRDs, one planned use case, one planned suite, and release 00.0;
       close SRD/use-case/test reciprocal references; prove every requirement is
       covered by an SRD AC, every AC by a use-case success criterion and test,
@@ -46,7 +46,7 @@ test_cases:
       AC; and reject any runtime or evidence claim.
     future_evidence:
       type: go_test
-      path: applications/voice-forge/magefiles/specification_trace_test.go
+      path: applications/prose-editor/magefiles/specification_trace_test.go
     current_evidence: none
     expected:
       yaml_documents_parse: true
@@ -55,7 +55,7 @@ test_cases:
       runtime_evidence_claims: 0
     traces:
       - rel00.0-uc001-edit-document S10
-      - srd001-voice-forge-services AC7
+      - srd001-prose-editor-services AC7
       - srd002-writing-saga-workproducts AC8
       - srd003-writing-agent-tools AC7
       - srd004-workflow-orchestrator AC8
@@ -76,17 +76,17 @@ test_cases:
       dependency failure attribution.
     future_evidence:
       type: go_test
-      path: applications/voice-forge/magefiles/service_topology_test.go
+      path: applications/prose-editor/magefiles/service_topology_test.go
     current_evidence: none
     traces:
       - rel00.0-uc001-edit-document S1
-      - srd001-voice-forge-services AC1
-      - srd001-voice-forge-services AC2
-      - srd001-voice-forge-services AC3
-      - srd001-voice-forge-services AC4
-      - srd001-voice-forge-services AC5
-      - srd001-voice-forge-services AC6
-      - srd001-voice-forge-services AC7
+      - srd001-prose-editor-services AC1
+      - srd001-prose-editor-services AC2
+      - srd001-prose-editor-services AC3
+      - srd001-prose-editor-services AC4
+      - srd001-prose-editor-services AC5
+      - srd001-prose-editor-services AC6
+      - srd001-prose-editor-services AC7
 
   - id: TC003
     use_case: rel00.0-uc001-edit-document
@@ -102,7 +102,7 @@ test_cases:
       fail-closed behavior without overwritten evidence.
     future_evidence:
       type: go_test
-      path: applications/voice-forge/magefiles/workproduct_lineage_test.go
+      path: applications/prose-editor/magefiles/workproduct_lineage_test.go
     current_evidence: none
     traces:
       - rel00.0-uc001-edit-document S2
@@ -130,7 +130,7 @@ test_cases:
       arbitrary URLs, paths, refs, credentials, vectors, and generic git/gh.
     future_evidence:
       type: go_test
-      path: applications/voice-forge/magefiles/tool_factory_closure_test.go
+      path: applications/prose-editor/magefiles/tool_factory_closure_test.go
     current_evidence: none
     traces:
       - rel00.0-uc001-edit-document S3
@@ -155,7 +155,7 @@ test_cases:
       path from rejection or infrastructure failure into finalization.
     future_evidence:
       type: graph_proof
-      path: applications/voice-forge/magefiles/orchestrator_graph_test.go
+      path: applications/prose-editor/magefiles/orchestrator_graph_test.go
     current_evidence: none
     traces:
       - rel00.0-uc001-edit-document S4
@@ -181,7 +181,7 @@ test_cases:
       bytes, and absence of persistence, verdict, Pangram, and GitHub authority.
     future_evidence:
       type: graph_and_fixture_test
-      path: applications/voice-forge/magefiles/structure_editor_test.go
+      path: applications/prose-editor/magefiles/structure_editor_test.go
     current_evidence: none
     traces:
       - rel00.0-uc001-edit-document S5
@@ -207,7 +207,7 @@ test_cases:
       persistence, structure, style, critic, Pangram, and GitHub authority.
     future_evidence:
       type: graph_and_fixture_test
-      path: applications/voice-forge/magefiles/voice_editor_test.go
+      path: applications/prose-editor/magefiles/voice_editor_test.go
     current_evidence: none
     traces:
       - rel00.0-uc001-edit-document S6
@@ -235,7 +235,7 @@ test_cases:
       authority.
     future_evidence:
       type: graph_and_fixture_test
-      path: applications/voice-forge/magefiles/style_editor_test.go
+      path: applications/prose-editor/magefiles/style_editor_test.go
     current_evidence: none
     traces:
       - rel00.0-uc001-edit-document S7
@@ -261,7 +261,7 @@ test_cases:
       filesystem, workproduct, corpus, GitHub, and publication authority.
     future_evidence:
       type: graph_and_dataflow_test
-      path: applications/voice-forge/magefiles/voice_critic_test.go
+      path: applications/prose-editor/magefiles/voice_critic_test.go
     current_evidence: none
     traces:
       - rel00.0-uc001-edit-document S8
@@ -289,7 +289,7 @@ test_cases:
       revisions, identities, and no pre-acceptance GitHub mutation.
     future_evidence:
       type: hermetic_end_to_end_trace
-      path: applications/voice-forge/tests/e2e/happy-path/trace.yaml
+      path: applications/prose-editor/tests/e2e/happy-path/trace.yaml
     current_evidence: none
     traces:
       - rel00.0-uc001-edit-document S1
@@ -316,7 +316,7 @@ test_cases:
       responsible_stage structure, supersession of structure and downstream
       selections, restart from original, complete downstream replay, and no
       semantic-editor route.
-    future_evidence: {type: hermetic_scenario_trace, path: applications/voice-forge/tests/critic/semantic-structure/trace.yaml}
+    future_evidence: {type: hermetic_scenario_trace, path: applications/prose-editor/tests/critic/semantic-structure/trace.yaml}
     current_evidence: none
     traces: [rel00.0-uc001-edit-document S4, srd004-workflow-orchestrator AC4, srd008-voice-critic AC3, srd008-voice-critic AC4]
 
@@ -329,7 +329,7 @@ test_cases:
       Inject a voice-realization semantic defect; require responsible_stage
       voice, preserve structure, replay voice, style, and critique, and prove no
       semantic-editor route.
-    future_evidence: {type: hermetic_scenario_trace, path: applications/voice-forge/tests/critic/semantic-voice/trace.yaml}
+    future_evidence: {type: hermetic_scenario_trace, path: applications/prose-editor/tests/critic/semantic-voice/trace.yaml}
     current_evidence: none
     traces: [rel00.0-uc001-edit-document S4, srd004-workflow-orchestrator AC4, srd008-voice-critic AC4]
 
@@ -342,7 +342,7 @@ test_cases:
       Inject a tightening-caused semantic defect; require responsible_stage
       style, preserve structure and voice, replay style and critique, and prove
       no semantic-editor route.
-    future_evidence: {type: hermetic_scenario_trace, path: applications/voice-forge/tests/critic/semantic-style/trace.yaml}
+    future_evidence: {type: hermetic_scenario_trace, path: applications/prose-editor/tests/critic/semantic-style/trace.yaml}
     current_evidence: none
     traces: [rel00.0-uc001-edit-document S4, srd004-workflow-orchestrator AC4, srd008-voice-critic AC4]
 
@@ -355,7 +355,7 @@ test_cases:
       Inject unsupported movement, omission, duplication, or connector content;
       require structural_intent reject, structure responsibility, original
       retry parent, complete downstream replay, and retained rejected bytes.
-    future_evidence: {type: hermetic_scenario_trace, path: applications/voice-forge/tests/critic/structural-intent/trace.yaml}
+    future_evidence: {type: hermetic_scenario_trace, path: applications/prose-editor/tests/critic/structural-intent/trace.yaml}
     current_evidence: none
     traces: [rel00.0-uc001-edit-document S2, rel00.0-uc001-edit-document S5, srd002-writing-saga-workproducts AC4, srd008-voice-critic AC4]
 
@@ -368,7 +368,7 @@ test_cases:
       Inject a target-voice mismatch or generic normalization; require
       voice_match reject, voice responsibility, selected structure retry parent,
       complete downstream replay, and retained rejected bytes.
-    future_evidence: {type: hermetic_scenario_trace, path: applications/voice-forge/tests/critic/voice-match/trace.yaml}
+    future_evidence: {type: hermetic_scenario_trace, path: applications/prose-editor/tests/critic/voice-match/trace.yaml}
     current_evidence: none
     traces: [rel00.0-uc001-edit-document S2, rel00.0-uc001-edit-document S6, srd002-writing-saga-workproducts AC4, srd008-voice-critic AC4]
 
@@ -381,7 +381,7 @@ test_cases:
       Inject voice flattening, clipped prose, unsupported tightening, or changed
       normative force; require tightening_quality reject, style responsibility,
       selected voice retry parent, critique replay, and retained rejected bytes.
-    future_evidence: {type: hermetic_scenario_trace, path: applications/voice-forge/tests/critic/tightening-quality/trace.yaml}
+    future_evidence: {type: hermetic_scenario_trace, path: applications/prose-editor/tests/critic/tightening-quality/trace.yaml}
     current_evidence: none
     traces: [rel00.0-uc001-edit-document S2, rel00.0-uc001-edit-document S7, srd002-writing-saga-workproducts AC4, srd008-voice-critic AC4]
 
@@ -396,7 +396,7 @@ test_cases:
       attempts. Require all six findings and exactly the earliest responsible
       stage for each fixture, bounded uncertainty when lineage cannot localize,
       and the corresponding three replay parents.
-    future_evidence: {type: fixture_matrix, path: applications/voice-forge/tests/critic/unsupported-additions/cases.yaml}
+    future_evidence: {type: fixture_matrix, path: applications/prose-editor/tests/critic/unsupported-additions/cases.yaml}
     current_evidence: none
     traces: [rel00.0-uc001-edit-document S4, rel00.0-uc001-edit-document S8, srd004-workflow-orchestrator AC4, srd008-voice-critic AC3, srd008-voice-critic AC4]
 
@@ -410,7 +410,7 @@ test_cases:
       independently retrieved critic evidence; require anchor_copy_risk reject,
       voice responsibility, provenance-bound spans, selected structure parent,
       and replay through style and critique.
-    future_evidence: {type: fixture_matrix, path: applications/voice-forge/tests/critic/anchor-copy-risk/cases.yaml}
+    future_evidence: {type: fixture_matrix, path: applications/prose-editor/tests/critic/anchor-copy-risk/cases.yaml}
     current_evidence: none
     traces: [rel00.0-uc001-edit-document S6, rel00.0-uc001-edit-document S8, srd005-specialist-editor AC14, srd008-voice-critic AC3, srd008-voice-critic AC4]
 
@@ -431,12 +431,12 @@ test_cases:
       become edit success, consent, verdict, finalization, or publication.
     future_evidence:
       type: boundary_fault_matrix
-      path: applications/voice-forge/tests/boundaries/command-errors/cases.yaml
+      path: applications/prose-editor/tests/boundaries/command-errors/cases.yaml
     current_evidence: none
     traces:
       - rel00.0-uc001-edit-document S3
       - rel00.0-uc001-edit-document S4
-      - srd001-voice-forge-services AC5
+      - srd001-prose-editor-services AC5
       - srd002-writing-saga-workproducts AC3
       - srd002-writing-saga-workproducts AC4
       - srd003-writing-agent-tools AC7
@@ -460,7 +460,7 @@ test_cases:
       publication of every rejected or uncertain chain.
     future_evidence:
       type: bounded_retry_matrix
-      path: applications/voice-forge/tests/retry/exhaustion/cases.yaml
+      path: applications/prose-editor/tests/retry/exhaustion/cases.yaml
     current_evidence: none
     traces:
       - rel00.0-uc001-edit-document S2
@@ -490,7 +490,7 @@ test_cases:
       parent, create-or-reuse effects, or explicit blocking.
     future_evidence:
       type: crash_cut_matrix
-      path: applications/voice-forge/tests/recovery/all-saga-cuts/cases.yaml
+      path: applications/prose-editor/tests/recovery/all-saga-cuts/cases.yaml
     current_evidence: none
     traces:
       - rel00.0-uc001-edit-document S2
@@ -518,11 +518,11 @@ test_cases:
       validated verdict, and no favorable default.
     future_evidence:
       type: privacy_call_count_matrix
-      path: applications/voice-forge/tests/pangram/consent-denied/cases.yaml
+      path: applications/prose-editor/tests/pangram/consent-denied/cases.yaml
     current_evidence: none
     traces:
       - rel00.0-uc001-edit-document S8
-      - srd001-voice-forge-services AC3
+      - srd001-prose-editor-services AC3
       - srd003-writing-agent-tools AC5
       - srd008-voice-critic AC5
       - srd008-voice-critic AC7
@@ -542,7 +542,7 @@ test_cases:
       label, irreversible upload reporting, and invariant verdict.
     future_evidence:
       type: asynchronous_boundary_matrix
-      path: applications/voice-forge/tests/pangram/provider-outcomes/cases.yaml
+      path: applications/prose-editor/tests/pangram/provider-outcomes/cases.yaml
     current_evidence: none
     traces:
       - rel00.0-uc001-edit-document S8
@@ -565,7 +565,7 @@ test_cases:
       equivocation, fixed-file mismatch, or identity conflict without overwrite.
     future_evidence:
       type: idempotency_matrix
-      path: applications/voice-forge/tests/idempotency/saga-reentry/cases.yaml
+      path: applications/prose-editor/tests/idempotency/saga-reentry/cases.yaml
     current_evidence: none
     traces:
       - rel00.0-uc001-edit-document S2
@@ -586,7 +586,7 @@ test_cases:
       effect.
     future_evidence:
       type: hermetic_git_github_matrix
-      path: applications/voice-forge/tests/publication/idempotent-reentry/cases.yaml
+      path: applications/prose-editor/tests/publication/idempotent-reentry/cases.yaml
     current_evidence: none
     traces:
       - rel00.0-uc001-edit-document S9
@@ -608,7 +608,7 @@ test_cases:
       PR closure or replacement, history rewrite, or false remote undo.
     future_evidence:
       type: hermetic_git_github_matrix
-      path: applications/voice-forge/tests/publication/partial-conflict/cases.yaml
+      path: applications/prose-editor/tests/publication/partial-conflict/cases.yaml
     current_evidence: none
     traces:
       - rel00.0-uc001-edit-document S9
@@ -631,11 +631,11 @@ test_cases:
       branch, commit, push, or PR mutations before accepted finalization.
     future_evidence:
       type: source_boundary_matrix
-      path: applications/voice-forge/tests/source/capture-lineage/cases.yaml
+      path: applications/prose-editor/tests/source/capture-lineage/cases.yaml
     current_evidence: none
     traces:
       - rel00.0-uc001-edit-document S2
-      - srd001-voice-forge-services AC3
+      - srd001-prose-editor-services AC3
       - srd002-writing-saga-workproducts AC1
       - srd002-writing-saga-workproducts AC3
       - srd003-writing-agent-tools AC3
@@ -656,7 +656,7 @@ test_cases:
       negative business route before and after checkpoint rehydration.
     future_evidence:
       type: mutation_test
-      path: applications/voice-forge/magefiles/factory_graph_mutation_test.go
+      path: applications/prose-editor/magefiles/factory_graph_mutation_test.go
     current_evidence: none
     traces:
       - rel00.0-uc001-edit-document S3
@@ -683,7 +683,7 @@ test_cases:
       implement or prove future runtime behavior.
     future_evidence:
       type: mage_gate
-      path: applications/voice-forge/magefiles/documentation_gate_test.go
+      path: applications/prose-editor/magefiles/documentation_gate_test.go
     current_evidence: none
     traces:
       - rel00.0-uc001-edit-document S10
@@ -697,7 +697,7 @@ planned_coverage_inventory:
   use_case_success_criteria:
     rel00.0-uc001-edit-document: [S1, S2, S3, S4, S5, S6, S7, S8, S9, S10]
   acceptance_criteria:
-    srd001-voice-forge-services: [AC1, AC2, AC3, AC4, AC5, AC6, AC7]
+    srd001-prose-editor-services: [AC1, AC2, AC3, AC4, AC5, AC6, AC7]
     srd002-writing-saga-workproducts: [AC1, AC2, AC3, AC4, AC5, AC6, AC7, AC8]
     srd003-writing-agent-tools: [AC1, AC2, AC3, AC4, AC5, AC6, AC7]
     srd004-workflow-orchestrator: [AC1, AC2, AC3, AC4, AC5, AC6, AC7, AC8]

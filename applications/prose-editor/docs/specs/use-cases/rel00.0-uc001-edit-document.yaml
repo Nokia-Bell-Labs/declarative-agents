@@ -5,7 +5,7 @@ status: planned
 runtime_status: unimplemented
 
 summary: |
-  A human asks Voice Forge to edit one GitHub document at a selected revision,
+  A human asks Prose Editor to edit one GitHub document at a selected revision,
   names the target voice and bounded retry and publication policy, and either
   grants or withholds exact-hash Pangram upload consent. The planned
   workflow-orchestrator resolves and captures the source as an immutable
@@ -30,7 +30,7 @@ actor: |
   policy, privacy, exception, and accountability authority.
 
 trigger: |
-  The human submits one validated Voice Forge request for a GitHub-hosted source
+  The human submits one validated Prose Editor request for a GitHub-hosted source
   document and a release 00.0 serial edit-and-publication saga.
 
 preconditions:
@@ -165,30 +165,30 @@ touchpoints:
   - id: T1
     component: service topology and human boundary
     requirements:
-      - srd001-voice-forge-services R1.1
-      - srd001-voice-forge-services R1.2
-      - srd001-voice-forge-services R1.3
-      - srd001-voice-forge-services R2.1
-      - srd001-voice-forge-services R2.2
-      - srd001-voice-forge-services R2.3
-      - srd001-voice-forge-services R3.1
-      - srd001-voice-forge-services R3.2
-      - srd001-voice-forge-services R3.3
-      - srd001-voice-forge-services R3.4
-      - srd001-voice-forge-services R4.1
-      - srd001-voice-forge-services R4.2
-      - srd001-voice-forge-services R4.3
-      - srd001-voice-forge-services R4.4
-      - srd001-voice-forge-services R5.1
-      - srd001-voice-forge-services R5.2
-      - srd001-voice-forge-services R5.3
-      - srd001-voice-forge-services R5.4
-      - srd001-voice-forge-services R6.1
-      - srd001-voice-forge-services R6.2
-      - srd001-voice-forge-services R6.3
-      - srd001-voice-forge-services R6.4
-      - srd001-voice-forge-services R7.1
-      - srd001-voice-forge-services R7.2
+      - srd001-prose-editor-services R1.1
+      - srd001-prose-editor-services R1.2
+      - srd001-prose-editor-services R1.3
+      - srd001-prose-editor-services R2.1
+      - srd001-prose-editor-services R2.2
+      - srd001-prose-editor-services R2.3
+      - srd001-prose-editor-services R3.1
+      - srd001-prose-editor-services R3.2
+      - srd001-prose-editor-services R3.3
+      - srd001-prose-editor-services R3.4
+      - srd001-prose-editor-services R4.1
+      - srd001-prose-editor-services R4.2
+      - srd001-prose-editor-services R4.3
+      - srd001-prose-editor-services R4.4
+      - srd001-prose-editor-services R5.1
+      - srd001-prose-editor-services R5.2
+      - srd001-prose-editor-services R5.3
+      - srd001-prose-editor-services R5.4
+      - srd001-prose-editor-services R6.1
+      - srd001-prose-editor-services R6.2
+      - srd001-prose-editor-services R6.3
+      - srd001-prose-editor-services R6.4
+      - srd001-prose-editor-services R7.1
+      - srd001-prose-editor-services R7.2
     reason: |
       F1 through F20 use the six separated actors, canonical role bindings,
       corpus-scoped retrieval, human policy, exclusive mutation and Pangram
@@ -418,13 +418,13 @@ success_criteria:
       The scenario keeps actor, role, lifecycle, corpus, configuration, failure,
       and exclusive authority boundaries closed while runtime remains planned.
     traces:
-      - srd001-voice-forge-services AC1
-      - srd001-voice-forge-services AC2
-      - srd001-voice-forge-services AC3
-      - srd001-voice-forge-services AC4
-      - srd001-voice-forge-services AC5
-      - srd001-voice-forge-services AC6
-      - srd001-voice-forge-services AC7
+      - srd001-prose-editor-services AC1
+      - srd001-prose-editor-services AC2
+      - srd001-prose-editor-services AC3
+      - srd001-prose-editor-services AC4
+      - srd001-prose-editor-services AC5
+      - srd001-prose-editor-services AC6
+      - srd001-prose-editor-services AC7
   - id: S2
     criterion: |
       Exact immutable source, attempt, critique, finalized, manifest, retry,
@@ -538,7 +538,7 @@ success_criteria:
       services, integrations, tests, publication, and executable evidence remain
       planned or unimplemented without a runtime conformance claim.
     traces:
-      - srd001-voice-forge-services AC7
+      - srd001-prose-editor-services AC7
       - srd002-writing-saga-workproducts AC8
       - srd003-writing-agent-tools AC7
       - srd004-workflow-orchestrator AC8
@@ -555,5 +555,5 @@ out_of_scope:
   - Destructive compensation for immutable files, model or retrieval calls, Pangram uploads, commits, pushes, refs, or pull requests.
   - Treating Pangram, model confidence, detector output, retrieval distance, or editor self-assessment as acceptance authority.
 
-test_suite_trace: test-rel00.0-voice-forge
+test_suite_trace: test-rel00.0-prose-editor
 evidence_status: none

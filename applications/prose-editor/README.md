@@ -1,6 +1,6 @@
-# Voice Forge
+# Prose Editor
 
-Voice Forge is a planned, documentation-first declarative-agent application for
+Prose Editor is a planned, documentation-first declarative-agent application for
 editing a source document without losing its meaning or provenance. Its release
 00.0 scenario captures an original from GitHub, improves its structure, matches
 a target voice, tightens its style, obtains an independent critique, and
@@ -36,7 +36,7 @@ This directory currently contains documentation only. No profile, machine,
 tool, service, test, package, registry entry, or runnable composition is
 implemented or claimed. Release `00.0`, SRDs `srd001` through `srd005` and `srd008`, use case
 `rel00.0-uc001-edit-document`, and test suite
-`test-rel00.0-voice-forge` are planned.
+`test-rel00.0-prose-editor` are planned.
 
 The design extends the shared application contract in `applications/docs/` and
 the runtime contracts in `agent-core/docs/specs/` by reference. It does not

@@ -3,7 +3,7 @@ title: Workflow Orchestrator State Machine
 status: specified
 
 problem: |
-  Voice Forge needs one flat declarative coordinator for source capture,
+  Prose Editor needs one flat declarative coordinator for source capture,
   structure, voice, style, independent criticism, responsible-stage replay,
   finalization, and forward-only GitHub publication. The coordinator must make
   every boundary action and persistence point visible. It must not hide
@@ -105,7 +105,7 @@ flat_machine_contract:
       - gh_verify_pull_request
       - suspend_saga_for_operator
       - inspect_saga_checkpoint
-      - exit_voice_forge_run
+      - exit_prose_editor_run
       - parse_read_workproduct_result
       - workproduct_read_succeeded
       - workproduct_read_missing
@@ -181,7 +181,7 @@ flat_machine_contract:
     verify_pull_request: {word: gh_verify_pull_request, authority: srd003 word_vocabulary.orchestrator_github}
     suspend_operator: {word: suspend_saga_for_operator, authority: srd003 word_vocabulary.lifecycle}
     inspect_checkpoint: {word: inspect_saga_checkpoint, authority: srd003 word_vocabulary.lifecycle}
-    exit_run: {word: exit_voice_forge_run, authority: srd003 word_vocabulary.lifecycle}
+    exit_run: {word: exit_prose_editor_run, authority: srd003 word_vocabulary.lifecycle}
     parse_read_artifact: {word: parse_read_workproduct_result, authority: srd003 word_vocabulary.orchestrator_structured_routing}
     check_read_artifact: {word: workproduct_read_succeeded, authority: srd003 word_vocabulary.orchestrator_structured_routing}
     check_missing_artifact: {word: workproduct_read_missing, authority: srd003 word_vocabulary.orchestrator_structured_routing}
@@ -1291,8 +1291,8 @@ acceptance_criteria:
     traces: [R7.1, R7.2]
 
 shared_requirement_traces:
-  - contract: srd001-voice-forge-services
-    path: srd001-voice-forge-services.yaml
+  - contract: srd001-prose-editor-services
+    path: srd001-prose-editor-services.yaml
     requirements: [R1.2, R1.3, R6.1]
   - contract: srd002-writing-saga-workproducts
     path: srd002-writing-saga-workproducts.yaml
@@ -1319,15 +1319,15 @@ use_case_traces:
     path: ../use-cases/rel00.0-uc001-edit-document.yaml
 
 test_suite_traces:
-  - id: test-rel00.0-voice-forge
+  - id: test-rel00.0-prose-editor
     status: planned
-    path: ../test-suites/test-rel00.0-voice-forge.yaml
+    path: ../test-suites/test-rel00.0-prose-editor.yaml
     acceptance_criteria: [AC1, AC2, AC3, AC4, AC5, AC6, AC7, AC8]
 
 related_documents:
   - path: ../../ARCHITECTURE.yaml
     usage: Indexes the exact planned orchestrator saga and publication cut.
-  - path: srd001-voice-forge-services.yaml
+  - path: srd001-prose-editor-services.yaml
     usage: Owns orchestrator responsibility and prohibited authority.
   - path: srd002-writing-saga-workproducts.yaml
     usage: Owns artifact, manifest, retry, recovery, idempotency, and publication data semantics.

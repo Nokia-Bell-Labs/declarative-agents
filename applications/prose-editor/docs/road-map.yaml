@@ -1,5 +1,5 @@
-id: voice-forge-roadmap
-title: Voice Forge Road Map
+id: prose-editor-roadmap
+title: Prose Editor Road Map
 
 releases:
   - version: "00.0"
@@ -24,7 +24,7 @@ releases:
       helm_managed: not_planned_for_release
       kind_demo: not_planned_for_release
     srds:
-      - id: srd001-voice-forge-services
+      - id: srd001-prose-editor-services
         status: specified
         summary: Define all agent, supporting, and external service boundaries and authority.
       - id: srd002-writing-saga-workproducts
@@ -50,7 +50,7 @@ releases:
           publish one accepted workproduct chain.
         status: planned
     test_suites:
-      - id: test-rel00.0-voice-forge
+      - id: test-rel00.0-prose-editor
         summary: |
           Plan 29 structural, authority, happy-path, critic-category,
           responsible-stage, boundary-error, retry-exhaustion, all-cut recovery,
