@@ -13,6 +13,12 @@ overview: |
   None of those runtime fixtures, tests, targets, traces, or reports exists in
   release 00.0, and this suite claims no execution or conformance evidence.
 
+  Runtime cases are staged across releases. The 12-case tracer suite
+  (test-rel00.1-prose-editor) covers the structure-critic-finalization
+  subgraph in release 00.1. The remaining cases in this suite — voice, style,
+  Pangram, multi-stage retry, publication, and full end-to-end paths — become
+  executable in release 00.2.
+
 traces:
   - rel00.0-uc001-edit-document
   - srd001-prose-editor-services
