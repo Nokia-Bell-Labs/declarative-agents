@@ -115,6 +115,7 @@ canonical_sub_roles:
   - {id: conflict-resolver, parent: coordinator}
   - {id: consensus-facilitator, parent: coordinator}
   - {id: telemetry-collector, parent: monitor}
+  - {id: fleet-observer, parent: monitor}
   - {id: anomaly-detector, parent: monitor}
   - {id: assurance-reporter, parent: monitor}
   - {id: predictive-modeler, parent: analyst}
@@ -446,6 +447,24 @@ bindings:
           - applications/chatbot-mesh/agents/collector/declarations.yaml
           - applications/chatbot-mesh/helm/templates/collector.yaml
         migration_impact: None; Helm must distinguish the profile-backed collector workload from contrib collector and collector-metrics infrastructure.
+    - actor: observer
+      profile: applications/chatbot-mesh/agents/observer/profile.yaml
+      classification: role_realization
+      primary_role: monitor
+      sub_roles: [fleet-observer]
+      domain: observability
+      execution_scope: server
+      decision:
+        current_actor: observer
+        implemented_responsibility: Discover mesh agent pods from the Kubernetes API and poll each agent's monitor surface to serve a fleet-level view.
+        canonical_role_sub_role: Monitor / Fleet Observer.
+        retained_or_proposed_name: Retain observer as a descriptive actor name.
+        authority_boundary: Read-only over kube pod listing and agent monitor surfaces; no lifecycle, deployment, configuration, or trace-intake authority.
+        evidence:
+          - applications/chatbot-mesh/agents/observer/machine.yaml
+          - applications/chatbot-mesh/agents/observer/declarations.yaml
+          - applications/chatbot-mesh/helm/templates/observer.yaml
+        migration_impact: None.
 
 deployment_realizations:
   chatbot_mesh:
@@ -476,6 +495,9 @@ deployment_realizations:
         actor: collector
         realizes: monitor/telemetry-collector
         condition: collector.implementation=agent
+      - workload: <release>-observer
+        actor: observer
+        realizes: monitor/fleet-observer
     infrastructure_and_adapters:
       - {workload: <release>-collector, classification: infrastructure_adapter, condition: collector.implementation=contrib}
       - {workload: <release>-collector-metrics, classification: infrastructure_adapter, purpose: retained contrib metrics and Dolt scrape path}

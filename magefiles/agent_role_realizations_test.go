@@ -358,8 +358,8 @@ func validateRealizationModel(root string, model realizationModel, discovered []
 		}
 		subRoles[subRole.ID] = subRole.Parent
 	}
-	if len(model.CanonicalSubRoles) != 40 {
-		fail("canonical-sub-role-count", realizationModelPath, fmt.Sprintf("got %d sub-roles, want 40", len(model.CanonicalSubRoles)))
+	if len(model.CanonicalSubRoles) != 41 {
+		fail("canonical-sub-role-count", realizationModelPath, fmt.Sprintf("got %d sub-roles, want 41", len(model.CanonicalSubRoles)))
 	}
 	for _, excluded := range []string{
 		"configuration_variant", "fixture", "human_interface", "infrastructure_adapter",
