@@ -77,6 +77,7 @@ The example carries its own magefile. From this directory:
 ```bash
 mage audit                     # validate the example's specification corpus
 mage helm:package              # stage profiles and build the installable chart
+mage presentation              # serve the "One question through the mesh" slide deck
 mage integration:chatbot       # run a routed fan-out chatbot turn
 mage integration:controlPlane  # exercise the provisioning-workflow-orchestrator and creator control plane
 mage integration:rig           # run hermetic agent scenarios, including collector intake
