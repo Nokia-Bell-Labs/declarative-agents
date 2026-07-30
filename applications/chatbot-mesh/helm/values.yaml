@@ -111,6 +111,18 @@ ollama:
   # independent GPU sizing (srd015 R6.5).
   topology: single
 
+# Fleet observer (srd008): discovers mesh pods by label selector, polls each
+# agent's monitor surface, and serves a fleet-level UX at observer.localhost.
+observer:
+  enabled: true
+  ports:
+    control: 18201
+    monitor: 18202
+  pollInterval: "10s"
+  resources:
+    requests: {cpu: 50m, memory: 64Mi}
+    limits: {cpu: 500m, memory: 256Mi}
+
 # Dolt checkpoint backend (agent-core srd035/srd036).
 dolt:
   enabled: true

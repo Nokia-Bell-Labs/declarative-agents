@@ -96,6 +96,22 @@ rest:
                 reason: {type: string}
           response:
             output: {accepted: "true"}
+        fleet_ui:
+          method: GET
+          path: /ui/{path...}
+          binding: static_assets
+          static_assets:
+            root: "${OBSERVER_UI_ROOT:-ux/observer}"
+            index: index.html
+            spa: false
+          request:
+            path:
+              path: {type: string}
+        root_redirect:
+          method: GET
+          path: /
+          binding: redirect
+          redirect: {location: /ui/, status: 302}
 
   clients:
     kube_api:

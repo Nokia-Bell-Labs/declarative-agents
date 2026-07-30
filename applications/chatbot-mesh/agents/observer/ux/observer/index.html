@@ -1,0 +1,183 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Fleet Observer</title>
+<style>
+*,*::before,*::after{box-sizing:border-box;margin:0;padding:0}
+:root{--bg:#f8f9fa;--card:#fff;--border:#dee2e6;--text:#212529;--muted:#6c757d;
+  --accent:#0d6efd;--ok:#198754;--warn:#ffc107;--err:#dc3545;--mono:"Menlo","Consolas",monospace;
+  --sans:system-ui,-apple-system,sans-serif}
+@media(prefers-color-scheme:dark){:root{--bg:#1a1a2e;--card:#16213e;--border:#334155;
+  --text:#e2e8f0;--muted:#94a3b8;--accent:#60a5fa;--ok:#34d399;--warn:#fbbf24;--err:#f87171}}
+body{font-family:var(--sans);background:var(--bg);color:var(--text);padding:1.5rem;max-width:1200px;margin:0 auto}
+h1{font-size:1.4rem;font-weight:600;margin-bottom:.25rem}
+.subtitle{color:var(--muted);font-size:.85rem;margin-bottom:1.5rem}
+.status-bar{display:flex;gap:1rem;align-items:center;margin-bottom:1.5rem;font-size:.8rem;color:var(--muted)}
+.status-bar .dot{width:8px;height:8px;border-radius:50%;display:inline-block}
+.dot-ok{background:var(--ok)}.dot-err{background:var(--err)}.dot-warn{background:var(--warn)}
+.grid{display:grid;grid-template-columns:repeat(auto-fill,minmax(340px,1fr));gap:1rem}
+.card{background:var(--card);border:1px solid var(--border);border-radius:8px;padding:1rem;overflow:hidden}
+.card-header{display:flex;justify-content:space-between;align-items:center;margin-bottom:.75rem}
+.agent-name{font-weight:600;font-size:1rem}
+.agent-state{font-size:.75rem;padding:2px 8px;border-radius:4px;font-family:var(--mono)}
+.state-idle{background:#e2e8f0;color:#475569}
+.state-running{background:#dbeafe;color:#1e40af}
+.state-done{background:#d1fae5;color:#065f46}
+.state-failed{background:#fee2e2;color:#991b1b}
+.section-label{font-size:.7rem;text-transform:uppercase;letter-spacing:.05em;color:var(--muted);margin:0.75rem 0 .25rem}
+.purpose{font-size:.8rem;color:var(--muted);line-height:1.4;margin-bottom:.5rem}
+.tool-list{display:flex;flex-wrap:wrap;gap:4px}
+.tool-tag{font-size:.7rem;font-family:var(--mono);padding:2px 6px;background:var(--bg);border:1px solid var(--border);border-radius:3px}
+.events{font-size:.75rem;font-family:var(--mono);max-height:120px;overflow-y:auto;line-height:1.6}
+.events div{border-bottom:1px solid var(--border);padding:2px 0}
+.events .signal{color:var(--accent)}
+.events .ts{color:var(--muted)}
+.empty{text-align:center;padding:3rem;color:var(--muted);font-size:.9rem}
+.meta-row{display:flex;gap:1rem;font-size:.8rem;margin-bottom:.25rem}
+.meta-row dt{color:var(--muted);min-width:80px}
+.meta-row dd{font-family:var(--mono)}
+</style>
+</head>
+<body>
+<h1>Fleet Observer</h1>
+<p class="subtitle">Live mesh agent fleet view</p>
+<div class="status-bar">
+  <span><span class="dot" id="poll-dot"></span></span>
+  <span id="poll-status">Connecting...</span>
+  <span id="agent-count"></span>
+  <span style="margin-left:auto" id="last-poll"></span>
+</div>
+<div id="fleet" class="grid"></div>
+<div id="empty-state" class="empty" style="display:none">No agents discovered yet. Waiting for mesh pods...</div>
+<script>
+(function() {
+  const POLL_MS = 10000;
+  const fleet = document.getElementById('fleet');
+  const emptyState = document.getElementById('empty-state');
+  const pollDot = document.getElementById('poll-dot');
+  const pollStatus = document.getElementById('poll-status');
+  const agentCount = document.getElementById('agent-count');
+  const lastPoll = document.getElementById('last-poll');
+
+  function stateClass(state) {
+    if (!state) return 'state-idle';
+    const s = state.toLowerCase();
+    if (s === 'done' || s === 'succeeded') return 'state-done';
+    if (s === 'failed') return 'state-failed';
+    if (s === 'idle') return 'state-idle';
+    return 'state-running';
+  }
+
+  function shortTime(ts) {
+    if (!ts) return '';
+    try {
+      const d = new Date(ts);
+      return d.toLocaleTimeString([], {hour:'2-digit',minute:'2-digit',second:'2-digit'});
+    } catch(_) { return ts; }
+  }
+
+  function renderAgent(agent) {
+    const state = agent.state && agent.state.current_state || agent.state || '';
+    const machine = agent.machine || {};
+    const tools = agent.tools || [];
+    const events = agent.events || [];
+    const name = agent.name || 'unknown';
+    const purpose = machine.purpose || '';
+    const reachable = agent.reachable !== false;
+
+    let html = '<div class="card">';
+    html += '<div class="card-header">';
+    html += '<span class="agent-name">' + esc(name) + '</span>';
+    if (!reachable) {
+      html += '<span class="agent-state state-failed">unreachable</span>';
+    } else {
+      html += '<span class="agent-state ' + stateClass(state) + '">' + esc(state || 'unknown') + '</span>';
+    }
+    html += '</div>';
+
+    if (purpose) {
+      html += '<p class="purpose">' + esc(purpose.split('\n')[0]) + '</p>';
+    }
+
+    if (machine.states) {
+      html += '<div class="section-label">Machine</div>';
+      html += '<div class="meta-row"><dt>States</dt><dd>' + machine.states.length + '</dd></div>';
+      html += '<div class="meta-row"><dt>Transitions</dt><dd>' + (machine.transitions ? machine.transitions.length : 0) + '</dd></div>';
+    }
+
+    if (tools.length > 0) {
+      html += '<div class="section-label">Tools</div>';
+      html += '<div class="tool-list">';
+      var toolNames = Array.isArray(tools) ? tools : (tools.tools || []);
+      if (typeof toolNames[0] === 'object') toolNames = toolNames.map(function(t){ return t.name || t; });
+      toolNames.forEach(function(t) {
+        html += '<span class="tool-tag">' + esc(String(t)) + '</span>';
+      });
+      html += '</div>';
+    }
+
+    if (events.length > 0) {
+      html += '<div class="section-label">Recent Events</div>';
+      html += '<div class="events">';
+      events.slice(-8).reverse().forEach(function(ev) {
+        var signal = ev.signal || ev.name || '';
+        var ts = ev.timestamp || ev.time || '';
+        html += '<div><span class="ts">' + shortTime(ts) + '</span> <span class="signal">' + esc(signal) + '</span></div>';
+      });
+      html += '</div>';
+    }
+
+    html += '</div>';
+    return html;
+  }
+
+  function esc(s) {
+    var d = document.createElement('div');
+    d.textContent = s;
+    return d.innerHTML;
+  }
+
+  async function poll() {
+    pollDot.className = 'dot dot-warn';
+    pollStatus.textContent = 'Polling...';
+    try {
+      var resp = await fetch('/monitor/state');
+      if (!resp.ok) throw new Error('HTTP ' + resp.status);
+      var data = await resp.json();
+
+      var agents = [];
+      if (data.agents) {
+        agents = data.agents;
+      } else if (data.fleet) {
+        agents = data.fleet;
+      } else if (data.current_state) {
+        agents = [{name: 'observer', state: data.current_state, reachable: true}];
+      }
+
+      if (agents.length === 0) {
+        fleet.innerHTML = '';
+        emptyState.style.display = 'block';
+      } else {
+        emptyState.style.display = 'none';
+        fleet.innerHTML = agents.map(renderAgent).join('');
+      }
+
+      var reachable = agents.filter(function(a){ return a.reachable !== false; }).length;
+      agentCount.textContent = reachable + '/' + agents.length + ' reachable';
+      pollDot.className = 'dot dot-ok';
+      pollStatus.textContent = 'Connected';
+    } catch(e) {
+      pollDot.className = 'dot dot-err';
+      pollStatus.textContent = 'Error: ' + e.message;
+    }
+    lastPoll.textContent = 'Last: ' + new Date().toLocaleTimeString();
+  }
+
+  poll();
+  setInterval(poll, POLL_MS);
+})();
+</script>
+</body>
+</html>

@@ -15,6 +15,7 @@ applications/chatbot-mesh/agents/provisioning-workflow-orchestrator/  -> profile
 applications/chatbot-mesh/agents/creator/      -> profiles/agents/creator/       (control plane)
 applications/chatbot-mesh/agents/applier/      -> profiles/agents/applier/       (deployment plane, srd006)
 applications/chatbot-mesh/agents/collector/    -> profiles/agents/collector/     (trace ingress, srd007)
+applications/chatbot-mesh/agents/observer/     -> profiles/agents/observer/      (fleet observer, srd008)
 applications/chatbot-mesh/agents/corpus-ingest/ -> profiles/agents/corpus-ingest/ (application wrapper + REST values)
 $AGENT_CATALOG_ROOT/agents/knowledge-manager/corpus-ingest/ -> profiles/agents/knowledge-manager/corpus-ingest/ (canonical program)
 applications/chatbot-mesh/ux/ux.yaml            -> profiles/ux/ux.yaml

@@ -94,6 +94,7 @@ func (Demo) Up() error {
 			}
 			fmt.Printf("demo: revision %s ready at http://%s/ and http://%s/api/lifecycle/health\n",
 				images.Revision, chatbotDemoHost, chatbotDemoHost)
+			fmt.Println("demo: fleet observer at http://observer.localhost/")
 			return nil
 		})
 }
