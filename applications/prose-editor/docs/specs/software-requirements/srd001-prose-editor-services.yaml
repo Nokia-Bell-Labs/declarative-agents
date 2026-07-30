@@ -1,9 +1,9 @@
-id: srd001-voice-forge-services
-title: Voice Forge Services and Role Boundaries
+id: srd001-prose-editor-services
+title: Prose Editor Services and Role Boundaries
 status: specified
 
 problem: |
-  Voice Forge needs separate editing, assurance, retrieval, ingestion,
+  Prose Editor needs separate editing, assurance, retrieval, ingestion,
   persistence, model, publication, and advisory-analysis boundaries without
   combining authority in one actor. The topology must justify each split by
   responsibility, authority, failure, scaling, or lifecycle and must preserve
@@ -17,7 +17,7 @@ problem: |
   runtime implementation and executable evidence for later issues.
 
 goals:
-  - "G1: Define one responsibility and explicit authority for every Voice Forge actor and boundary."
+  - "G1: Define one responsibility and explicit authority for every Prose Editor actor and boundary."
   - "G2: Bind each agent actor to existing canonical roles without creating application-local roles."
   - "G3: Define lifecycle, persistence, scaling, and failure boundaries for the serial writing saga."
   - "G4: Preserve exclusive orchestrator mutation authority and exclusive critic Pangram authority."
@@ -36,14 +36,14 @@ applicability:
 role_bindings:
   authority: ../../../../docs/specs/semantic-models/agent-role-realizations.yaml
   rule: |
-    Actor names identify Voice Forge realizations or wrappers. Role and sub-role
+    Actor names identify Prose Editor realizations or wrappers. Role and sub-role
     IDs resolve against the shared canonical catalog and do not add roles.
   actors:
     - actor: workflow-orchestrator
       classification: role_realization
       primary_role: executor
       sub_roles: [workflow-orchestrator]
-      domain: voice-forge-writing-saga
+      domain: prose-editor-writing-saga
       execution_scope: service
     - actor: specialist-editor
       classification: role_realization
@@ -66,7 +66,7 @@ role_bindings:
       inheritance_target: applications/catalog/agents/knowledge-manager/corpus-ingest/profile.yaml
       inherited_role: knowledge-manager
       inherited_sub_roles: [ontology-manager]
-      domain: voice-forge-retrieval-corpus
+      domain: prose-editor-retrieval-corpus
       execution_scope: batch
     - actor: rag-server
       classification: role_realization
@@ -141,7 +141,7 @@ service_topology:
           - Query structure-rag or tightening-rag.
           - Treat Pangram output as the verdict.
     - actor: corpus-ingest
-      responsibility: Parameterize and run canonical corpus-ingest for declared Voice Forge collections.
+      responsibility: Parameterize and run canonical corpus-ingest for declared Prose Editor collections.
       lifecycle: On-demand administrative batch execution outside writing sagas.
       persistence: Writes only rebuildable Chroma records; trusted source corpora remain authoritative.
       scaling: Writes serialize per declared collection; independent collections may ingest independently.
@@ -215,7 +215,7 @@ service_topology:
       scaling: Outside application ownership; scans are independently bounded by timeout and request identity.
       failure: Denial of consent, timeout, or service error is explicit evidence and never silently becomes acceptance.
       authority: Analyze uploaded text and return a result.
-      prohibited_authority: Determine the Voice Forge verdict, edit content, mutate saga state, or access GitHub.
+      prohibited_authority: Determine the Prose Editor verdict, edit content, mutate saga state, or access GitHub.
 
 requirements:
   R1:
@@ -223,7 +223,7 @@ requirements:
     items:
       - id: R1.1
         text: |
-          Voice Forge SHALL define workflow-orchestrator, specialist-editor
+          Prose Editor SHALL define workflow-orchestrator, specialist-editor
           (three stage configurations: structure, voice, style), voice-critic,
           and corpus-ingest as four planned agent actors with exactly the
           responsibilities in service_topology.agent_services.
@@ -295,7 +295,7 @@ requirements:
     items:
       - id: R4.1
         text: |
-          Voice Forge SHALL use exactly three long-running read-only RAG server
+          Prose Editor SHALL use exactly three long-running read-only RAG server
           instances: structure-rag, voice-rag, and tightening-rag. Each instance
           SHALL serve exactly one configured corpus and SHALL NOT multiplex,
           select, or route among corpora.
@@ -366,7 +366,7 @@ requirements:
       - id: R6.3
         text: |
           GitHub SHALL be accessed only through orchestrator-owned constrained
-          git and gh ToolDefs. Voice Forge SHALL NOT define GitHub as an
+          git and gh ToolDefs. Prose Editor SHALL NOT define GitHub as an
           application-owned service implementation or expose arbitrary shell.
         evidence: Planned tool declarations allowlist operations and arguments and expose no generic shell word.
       - id: R6.4
@@ -387,7 +387,7 @@ requirements:
         evidence: Architecture, specification index, and roadmap report srd001 as specified while runtime surfaces remain planned or not implemented.
       - id: R7.2
         text: |
-          Voice Forge SHALL cite the shared application module, managed-service,
+          Prose Editor SHALL cite the shared application module, managed-service,
           role-realization, RAG, and agent-core runtime contracts by reference
           and SHALL define only application topology and stricter local
           authority.
@@ -461,9 +461,9 @@ use_case_traces:
     path: ../use-cases/rel00.0-uc001-edit-document.yaml
 
 test_suite_traces:
-  - id: test-rel00.0-voice-forge
+  - id: test-rel00.0-prose-editor
     status: planned
-    path: ../test-suites/test-rel00.0-voice-forge.yaml
+    path: ../test-suites/test-rel00.0-prose-editor.yaml
     acceptance_criteria: [AC1, AC2, AC3, AC4, AC5, AC6, AC7]
 
 related_documents:

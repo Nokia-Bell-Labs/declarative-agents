@@ -3,7 +3,7 @@ title: Voice Critic State Machine and Pangram Boundary
 status: specified
 
 problem: |
-  Voice Forge needs an assurance service that evaluates the immutable original
+  Prose Editor needs an assurance service that evaluates the immutable original
   and selected style candidate without inheriting an editor's reasoning or
   authority. The critic must judge semantic preservation, structural intent,
   voice match, tightening quality, unsupported additions, and anchor-copy risk.
@@ -207,7 +207,7 @@ pangram_advisory_contract:
     response.
 
 response_contract:
-  schema_version: voice-forge.critic-response/v1
+  schema_version: prose-editor.critic-response/v1
   required_fields:
     - schema_version
     - outcome
@@ -981,8 +981,8 @@ acceptance_criteria:
     traces: [R8.3, R9.1]
 
 shared_requirement_traces:
-  - contract: srd001-voice-forge-services
-    path: srd001-voice-forge-services.yaml
+  - contract: srd001-prose-editor-services
+    path: srd001-prose-editor-services.yaml
     requirements: [R2.1, R2.2, R4.1, R5.1, R7.1, R8.2]
   - contract: srd002-writing-saga-workproducts
     path: srd002-writing-saga-workproducts.yaml
@@ -1009,15 +1009,15 @@ use_case_traces:
     path: ../use-cases/rel00.0-uc001-edit-document.yaml
 
 test_suite_traces:
-  - id: test-rel00.0-voice-forge
+  - id: test-rel00.0-prose-editor
     status: planned
-    path: ../test-suites/test-rel00.0-voice-forge.yaml
+    path: ../test-suites/test-rel00.0-prose-editor.yaml
     acceptance_criteria: [AC1, AC2, AC3, AC4, AC5, AC6, AC7, AC8, AC9]
 
 related_documents:
   - path: ../../ARCHITECTURE.yaml
     usage: Defines the critic assurance flow and Pangram privacy boundary.
-  - path: srd001-voice-forge-services.yaml
+  - path: srd001-prose-editor-services.yaml
     usage: Owns critic responsibility, lifecycle, scaling, failure, and authority.
   - path: srd002-writing-saga-workproducts.yaml
     usage: Owns immutable inputs, critique lineage, persistence, and orchestrator retry behavior.

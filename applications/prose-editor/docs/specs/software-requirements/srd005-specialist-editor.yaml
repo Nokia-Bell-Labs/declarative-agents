@@ -3,7 +3,7 @@ title: Specialist Editor State Machine
 status: specified
 
 problem: |
-  Voice Forge needs three flat request machines that each improve one dimension
+  Prose Editor needs three flat request machines that each improve one dimension
   of a document without acquiring authority over any other dimension, over
   criticism, publication, or workproduct persistence. The three stages share a
   pipeline shape — validate, retrieve, edit, validate constraints, respond — but
@@ -2447,8 +2447,8 @@ acceptance_criteria:
     traces: [R20.1, R20.2]
 
 shared_requirement_traces:
-  - contract: srd001-voice-forge-services
-    path: srd001-voice-forge-services.yaml
+  - contract: srd001-prose-editor-services
+    path: srd001-prose-editor-services.yaml
     requirements: [R1.2, R2.1, R3.1, R4.1, R5.3, R6.1, R6.2, R8.2, R9.1, R10.1, R11.1, R13.3, R13.4, R15.2, R16.1, R17.1, R18.1, R19.3]
   - contract: srd002-writing-saga-workproducts
     path: srd002-writing-saga-workproducts.yaml
@@ -2472,15 +2472,15 @@ use_case_traces:
     path: ../use-cases/rel00.0-uc001-edit-document.yaml
 
 test_suite_traces:
-  - id: test-rel00.0-voice-forge
+  - id: test-rel00.0-prose-editor
     status: planned
-    path: ../test-suites/test-rel00.0-voice-forge.yaml
+    path: ../test-suites/test-rel00.0-prose-editor.yaml
     acceptance_criteria: [AC1, AC2, AC3, AC4, AC5, AC6, AC7, AC8, AC9, AC10, AC11, AC12, AC13, AC14, AC15, AC16, AC17, AC18, AC19, AC20, AC21, AC22, AC23, AC24]
 
 related_documents:
   - path: ../../ARCHITECTURE.yaml
     usage: Defines the specialist-editor request, retrieval, preservation, and authority views for all three stages.
-  - path: srd001-voice-forge-services.yaml
+  - path: srd001-prose-editor-services.yaml
     usage: Owns the specialist-editor service responsibility, lifecycle, failure, scaling, and authority boundary.
   - path: srd003-writing-agent-tools.yaml
     usage: Owns every selected word, deterministic routing signal, effect, error, and compensation for all stages.
