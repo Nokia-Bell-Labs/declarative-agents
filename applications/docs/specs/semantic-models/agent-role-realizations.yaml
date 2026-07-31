@@ -437,23 +437,6 @@ bindings:
           - applications/chatbot-mesh/agents/applier/exec-declarations.yaml
           - applications/chatbot-mesh/helm/templates/applier.yaml
         migration_impact: None; documentation must replace claims of an Applier role with Executor / Actuation Agent.
-    - actor: collector
-      profile: applications/catalog/agents/collector/profile.yaml
-      classification: canonical_consumption
-      primary_role: monitor
-      sub_roles: [telemetry-collector]
-      domain: observability
-      decision:
-        current_actor: collector
-        implemented_responsibility: Receive bounded OTLP trace batches, apply declared policy, spool evidence, serve the query surface, optionally relay unchanged traces, and expose lifecycle state.
-        canonical_role_sub_role: Monitor / Telemetry Collector.
-        retained_or_proposed_name: Retain collector as a compatible descriptive actor name.
-        authority_boundary: Owns trace intake and query only; contrib retains metrics and Dolt scraping, and file-only self-telemetry prevents a loop.
-        evidence:
-          - applications/catalog/agents/collector/machine.yaml
-          - applications/catalog/agents/collector/declarations.yaml
-          - applications/chatbot-mesh/helm/templates/collector.yaml
-        migration_impact: Local collector directory deleted; chart consumes the catalog profile via the staging redirection.
     - actor: observer
       profile: applications/chatbot-mesh/agents/observer/profile.yaml
       classification: role_realization

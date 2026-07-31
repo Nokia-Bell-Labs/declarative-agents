@@ -49,7 +49,7 @@ func TestObservabilityUpChecksPortsAndWaitsForHealth(t *testing.T) {
 	if err := (Observability{}).Up(); err != nil {
 		t.Fatal(err)
 	}
-	if len(checked) != 5 {
+	if len(checked) != 5 { // OTLP gRPC, OTLP HTTP, Collector health, Collector query, Prometheus query
 		t.Fatalf("checked ports = %v", checked)
 	}
 	want := []string{"docker", "compose", "-f", observabilityComposeFile, "up", "-d", "--wait"}
@@ -109,11 +109,11 @@ func TestObservabilityComposePinsImagesAndRoutesSignals(t *testing.T) {
 	content := string(data)
 	for _, required := range []string{
 		"otel/opentelemetry-collector-contrib:0.157.0",
-		"cr.jaegertracing.io/jaegertracing/jaeger:2.20.0",
+		"ghcr.io/nokia-bell-labs/declarative-agents/agent-core:0.1.0",
 		"prom/prometheus:v3.13.1",
-		"exporters: [otlp_grpc/jaeger]",
+		"exporters: [otlp_grpc/collector_agent]",
 		"exporters: [prometheus_remote_write]",
-		"jaeger-data:/badger",
+		"collector-spool:/data",
 		"prometheus-data:/prometheus",
 	} {
 		if !strings.Contains(content, required) {

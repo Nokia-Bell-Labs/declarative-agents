@@ -15,7 +15,7 @@ services:
       - "127.0.0.1:${DA_OTEL_HTTP_PORT:-4318}:4318"
       - "127.0.0.1:${DA_OTEL_HEALTH_PORT:-13133}:13133"
     depends_on:
-      jaeger:
+      collector-agent:
         condition: service_healthy
       prometheus:
         condition: service_healthy
@@ -26,20 +26,30 @@ services:
       retries: 20
     restart: unless-stopped
 
-  jaeger:
-    image: cr.jaegertracing.io/jaegertracing/jaeger:2.20.0
-    container_name: declarative-agents-jaeger
-    user: "0"
-    command: ["--config=/jaeger/config.yaml"]
-    configs:
-      - source: jaeger
-        target: /jaeger/config.yaml
-    ports:
-      - "127.0.0.1:${DA_JAEGER_QUERY_PORT:-16686}:16686"
+  collector-agent:
+    image: ghcr.io/nokia-bell-labs/declarative-agents/agent-core:0.1.0
+    container_name: declarative-agents-collector-agent
+    entrypoint: ["agent"]
+    command:
+      - "--profile"
+      - "/profiles/agents/collector/profile.yaml"
+      - "--directory"
+      - "/data"
     volumes:
-      - jaeger-data:/badger
+      - ../../applications/catalog/agents/collector:/profiles/agents/collector:ro
+      - collector-spool:/data
+    environment:
+      COLLECTOR_BIND_HOST: "0.0.0.0"
+      COLLECTOR_RECEIVER_ADDRESS: "0.0.0.0:4317"
+      COLLECTOR_CONTROL_PORT: "18191"
+      COLLECTOR_MONITOR_PORT: "18192"
+      COLLECTOR_QUERY_PORT: "18193"
+      COLLECTOR_SPOOL_PATH: "/data/collector.ndjson"
+      COLLECTOR_MODE: "spool"
+    ports:
+      - "127.0.0.1:${DA_COLLECTOR_QUERY_PORT:-18193}:18193"
     healthcheck:
-      test: ["CMD", "/cmd/jaeger/jaeger-linux", "--version"]
+      test: ["CMD-SHELL", "wget -q -O - http://127.0.0.1:18191/api/lifecycle/health >/dev/null"]
       interval: 5s
       timeout: 5s
       retries: 20
@@ -65,7 +75,7 @@ services:
     restart: unless-stopped
 
 volumes:
-  jaeger-data:
+  collector-spool:
   prometheus-data:
 
 configs:
@@ -87,8 +97,8 @@ configs:
         batch: {}
 
       exporters:
-        otlp_grpc/jaeger:
-          endpoint: jaeger:4317
+        otlp_grpc/collector_agent:
+          endpoint: collector-agent:4317
           tls:
             insecure: true
         prometheus_remote_write:
@@ -100,54 +110,8 @@ configs:
           traces:
             receivers: [otlp]
             processors: [batch]
-            exporters: [otlp_grpc/jaeger]
+            exporters: [otlp_grpc/collector_agent]
           metrics:
             receivers: [otlp]
             processors: [batch]
             exporters: [prometheus_remote_write]
-
-  jaeger:
-    content: |
-      extensions:
-        healthcheckv2:
-          use_v2: true
-          http: {}
-        jaeger_query:
-          storage:
-            traces: badger_store
-        jaeger_storage:
-          backends:
-            badger_store:
-              badger:
-                directories:
-                  keys: /badger/keys
-                  values: /badger/values
-                ephemeral: false
-                ttl:
-                  spans: 720h
-
-      receivers:
-        otlp:
-          protocols:
-            grpc:
-              endpoint: 0.0.0.0:4317
-            http:
-              endpoint: 0.0.0.0:4318
-
-      processors:
-        batch: {}
-
-      exporters:
-        jaeger_storage_exporter:
-          trace_storage: badger_store
-
-      service:
-        extensions: [jaeger_storage, jaeger_query, healthcheckv2]
-        pipelines:
-          traces:
-            receivers: [otlp]
-            processors: [batch]
-            exporters: [jaeger_storage_exporter]
-        telemetry:
-          resource:
-            service.name: jaeger
