@@ -31,6 +31,35 @@ func TestCollectorIntakeFilterScenario(t *testing.T) {
 	}
 }
 
+func TestCollectorLifecycleRebindAndTerminalState(t *testing.T) {
+	applicationRoot, err := filepath.Abs("..")
+	if err != nil {
+		t.Fatal(err)
+	}
+	coreRoot := envOrDefault("AGENT_CORE_ROOT", siblingPath(applicationRoot, "agent-core"))
+	if !agentCoreAvailable(coreRoot) {
+		t.Skipf("agent-core checkout not found at %s", coreRoot)
+	}
+	binary, err := buildAgent(coreRoot)
+	if err != nil {
+		t.Fatal(err)
+	}
+	workDir := t.TempDir()
+	result, err := runCollectorLifecycleScenario(binary, coreRoot, applicationRoot, workDir)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if !result.MonitorReachable {
+		t.Error("monitor was not reachable while collector was running")
+	}
+	if result.TerminalState != "succeeded" {
+		t.Errorf("terminal state = %q, want %q", result.TerminalState, "succeeded")
+	}
+	if !result.AllAddrsRebind {
+		t.Error("not all listener addresses could rebind after exit")
+	}
+}
+
 func TestStageRigRuntimeUsesCatalogScenarioCritic(t *testing.T) {
 	applicationRoot, err := filepath.Abs("..")
 	if err != nil {

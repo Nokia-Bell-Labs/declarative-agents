@@ -221,17 +221,17 @@ releases:
       control, and stop. Its own telemetry is file-only, with a direct self-loop
       proof. Migration is staged: contrib retains agent metrics export and Dolt
       Prometheus scraping until a later metrics-ingress replacement is specified.
-    status: partial
+    status: implemented
     srds:
       - srd007-collector-agent
     use_cases:
       - id: rel07.0-uc001-collector-ingress
         summary: A chatbot trace batch enters the collector agent, remains attributable in spool and Jaeger, while contrib retains metrics evidence.
-        status: partial
+        status: implemented
     test_suites:
       - id: test-rel07.0-collector
-        summary: Profile, intake, self-loop, staged Helm, identity, and retained-evidence proofs for collector ingress; listener rebind and final monitor-state lifecycle proof remain planned.
-        status: partial
+        summary: Profile, intake, self-loop, staged Helm, identity, retained-evidence proofs, and lifecycle listener rebind and terminal state for collector ingress.
+        status: implemented
 
   - version: "08.0"
     name: Fleet observer agent

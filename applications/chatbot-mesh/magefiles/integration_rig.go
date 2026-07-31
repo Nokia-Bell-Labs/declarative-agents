@@ -287,6 +287,122 @@ func runCollectorIntakeScenario(binary, coreRoot, applicationRoot, workDir strin
 	return nil
 }
 
+// collectorLifecycleResult holds the evidence from a collector lifecycle scenario.
+type collectorLifecycleResult struct {
+	TerminalState    string
+	AllAddrsRebind   bool
+	MonitorReachable bool
+}
+
+// runCollectorLifecycleScenario launches the collector, issues an exit, waits
+// for the process to stop, then verifies that all listener addresses are free
+// (rebind proof) and that the monitor reported a bounded terminal state before
+// it stopped.
+func runCollectorLifecycleScenario(binary, coreRoot, applicationRoot, workDir string) (*collectorLifecycleResult, error) {
+	receiver, err := freeLoopbackAddr()
+	if err != nil {
+		return nil, err
+	}
+	control, err := freeLoopbackAddr()
+	if err != nil {
+		return nil, err
+	}
+	_, controlPort, err := net.SplitHostPort(control)
+	if err != nil {
+		return nil, err
+	}
+	monitor, err := freeLoopbackAddr()
+	if err != nil {
+		return nil, err
+	}
+	_, monitorPort, err := net.SplitHostPort(monitor)
+	if err != nil {
+		return nil, err
+	}
+	spool := filepath.Join(workDir, "collector.ndjson")
+	cmd := exec.Command(binary,
+		"--profile", "agents/collector/profile.yaml",
+		"--core-root", coreRoot,
+		"--directory", workDir,
+	)
+	cmd.Dir = applicationRoot
+	cmd.Env = append(os.Environ(),
+		"COLLECTOR_BIND_HOST=127.0.0.1",
+		"COLLECTOR_RECEIVER_ADDRESS="+receiver,
+		"COLLECTOR_CONTROL_PORT="+controlPort,
+		"COLLECTOR_MONITOR_PORT="+monitorPort,
+		"COLLECTOR_SPOOL_PATH="+spool,
+		"COLLECTOR_MODE=spool",
+	)
+	var output bytes.Buffer
+	cmd.Stdout, cmd.Stderr = &output, &output
+	if err := cmd.Start(); err != nil {
+		return nil, err
+	}
+	defer func() {
+		if cmd.ProcessState == nil {
+			_ = cmd.Process.Kill()
+			_, _ = cmd.Process.Wait()
+		}
+	}()
+	controlURL := "http://" + control
+	monitorURL := "http://" + monitor
+	if err := waitHTTPStatus(controlURL+"/api/lifecycle/health", http.StatusOK, 20*time.Second); err != nil {
+		return nil, fmt.Errorf("collector health: %w\n%s", err, output.String())
+	}
+
+	// Verify monitor is reachable while running.
+	monitorReachable := false
+	resp, err := http.Get(monitorURL + "/monitor/state")
+	if err == nil {
+		_ = resp.Body.Close()
+		monitorReachable = resp.StatusCode == http.StatusOK
+	}
+
+	// Issue exit.
+	req, _ := http.NewRequest(http.MethodPost,
+		controlURL+"/api/lifecycle/exit", strings.NewReader(`{"reason":"lifecycle-proof"}`))
+	req.Header.Set("Content-Type", "application/json")
+	exitResp, err := http.DefaultClient.Do(req)
+	if err != nil {
+		return nil, fmt.Errorf("stop collector: %w", err)
+	}
+	_ = exitResp.Body.Close()
+	if err := cmd.Wait(); err != nil {
+		return nil, fmt.Errorf("collector exit: %w\n%s", err, output.String())
+	}
+
+	// Extract terminal state from process output.
+	terminalState := extractTerminalState(output.String())
+
+	// Rebind proof: try to bind each address the collector held.
+	allRebind := true
+	for _, addr := range []string{receiver, control, monitor} {
+		ln, err := net.Listen("tcp", addr)
+		if err != nil {
+			allRebind = false
+			continue
+		}
+		ln.Close()
+	}
+
+	return &collectorLifecycleResult{
+		TerminalState:    terminalState,
+		AllAddrsRebind:   allRebind,
+		MonitorReachable: monitorReachable,
+	}, nil
+}
+
+var terminalStatePattern = regexp.MustCompile(`terminal state: (\w+)`)
+
+func extractTerminalState(output string) string {
+	m := terminalStatePattern.FindStringSubmatch(output)
+	if len(m) >= 2 {
+		return m[1]
+	}
+	return ""
+}
+
 var rigVerdictSignal = regexp.MustCompile(`"command\.signal"[^}]*?"(Scenario(?:Passed|Failed))"`)
 
 // rigVerdicts reads the per-scenario verdict signals from the trace file, in
