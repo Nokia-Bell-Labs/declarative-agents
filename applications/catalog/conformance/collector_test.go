@@ -5,12 +5,33 @@ package conformance
 import (
 	"encoding/json"
 	"io"
+	"net"
 	"net/http"
 	"os"
 	"path/filepath"
 	"testing"
 	"time"
 )
+
+// collectorEnv pins the OTLP receiver to a free address. The receiver default
+// lives in agent-core's builtin declaration (${COLLECTOR_RECEIVER_ADDRESS:-
+// 0.0.0.0:4317}), outside the copied profile directory, so profile patching
+// cannot reach it and only the environment prevents a bind collision with a
+// concurrent run or a live rig.
+func collectorEnv(receiverAddr string) []string {
+	return []string{"COLLECTOR_RECEIVER_ADDRESS=" + receiverAddr}
+}
+
+// occupyDefaultOTLPPort holds 4317 when it is free, proving the test does not
+// depend on it; an already-taken port proves the same thing.
+func occupyDefaultOTLPPort(t *testing.T) {
+	t.Helper()
+	listener, err := net.Listen("tcp", "127.0.0.1:4317")
+	if err != nil {
+		return
+	}
+	t.Cleanup(func() { listener.Close() })
+}
 
 func TestCollectorSpoolModeConformance(t *testing.T) {
 	RequireCoreRoot(t)
@@ -28,8 +49,9 @@ func TestCollectorSpoolModeConformance(t *testing.T) {
 		"${COLLECTOR_BIND_HOST:-127.0.0.1}:${COLLECTOR_QUERY_PORT:-18193}":   queryAddr,
 		"0.0.0.0:4317": receiverAddr,
 	})
+	occupyDefaultOTLPPort(t)
 
-	server := Serve(t, ServeConfig{Profile: profilePath})
+	server := Serve(t, ServeConfig{Profile: profilePath, Env: collectorEnv(receiverAddr)})
 	server.WaitHealthy("http://"+controlAddr+"/api/lifecycle/health", 15*time.Second)
 
 	if status := server.Post("http://"+controlAddr+"/api/lifecycle/exit", `{"reason":"conformance"}`); status != http.StatusAccepted {
@@ -76,7 +98,7 @@ func TestCollectorQueryListTraces(t *testing.T) {
 	spoolDir := filepath.Dir(profilePath)
 	seedCollectorSpool(t, filepath.Join(spoolDir, "traces", "collector.ndjson"))
 
-	server := Serve(t, ServeConfig{Profile: profilePath})
+	server := Serve(t, ServeConfig{Profile: profilePath, Env: collectorEnv(receiverAddr)})
 	server.WaitHealthy("http://"+controlAddr+"/api/lifecycle/health", 15*time.Second)
 
 	resp, err := http.Get("http://" + queryAddr + "/query/traces?page_size=1")
@@ -132,7 +154,7 @@ func TestCollectorQueryGetTrace(t *testing.T) {
 	spoolDir := filepath.Dir(profilePath)
 	seedCollectorSpool(t, filepath.Join(spoolDir, "traces", "collector.ndjson"))
 
-	server := Serve(t, ServeConfig{Profile: profilePath})
+	server := Serve(t, ServeConfig{Profile: profilePath, Env: collectorEnv(receiverAddr)})
 	server.WaitHealthy("http://"+controlAddr+"/api/lifecycle/health", 15*time.Second)
 
 	resp, err := http.Get("http://" + queryAddr + "/query/traces/trace-aaa")
