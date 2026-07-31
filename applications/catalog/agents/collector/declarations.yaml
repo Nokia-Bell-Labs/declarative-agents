@@ -51,6 +51,57 @@ tools:
     relationships: {before: [await_collector_control]}
     config: {rest_ref: collector_monitor}
 
+  - name: launch_collector_query
+    type: builtin
+    init: rest_server_launch
+    category: boundary
+    visibility: internal
+    emits: [ServerLaunched, CommandError]
+    description: Launch collector query routes for bounded spool reads.
+    problem: Trace reads need a dedicated surface separate from monitor and control.
+    goals: [Bind query routes, Keep query reads side-effect free]
+    requirements:
+      input: [Trusted config names collector_query]
+      output: [Reports bound server identity]
+      errors: [Bind and config faults emit CommandError]
+    non_goals: [Does not expose raw span payloads on the monitor surface]
+    parameters: {type: object, properties: {}}
+    output: {description: REST launch result, schema: {type: object}}
+    side_effects:
+      - {kind: network_listen, target: collector_query, state: listener_started}
+    reversibility: {classification: compensatable, undo: rest_server_stop}
+    undo: {strategy: compensating_action, description: Stop the owned query listener.}
+    errors:
+      - {signal: CommandError, condition: config or bind failure, state_after_failure: no new query listener remains}
+    relationships: {before: [await_collector_control], after: [launch_collector_monitor]}
+    config: {rest_ref: collector_query}
+
+  - name: stop_collector_query
+    type: builtin
+    init: rest_server_stop
+    category: boundary
+    visibility: internal
+    emits: [ServerStopped, CommandError]
+    description: Stop the collector query listener.
+    problem: Clean terminal shutdown must release the query address.
+    goals: [Release the owned query listener]
+    requirements: {input: [Trusted query reference], output: [Reports stopped state], errors: [Stop faults emit CommandError]}
+    non_goals: [Does not delete query history]
+    parameters: {type: object, properties: {}}
+    output: {description: REST stop result, schema: {type: object}}
+    side_effects:
+      - {kind: network_listener_shutdown, target: collector_query, state: listener_stopped}
+    reversibility: {classification: compensatable, undo: server_shutdown_or_user_action_compensation}
+    undo:
+      strategy: server_shutdown_or_user_action_compensation
+      description: The receipt records shutdown loss; MachineSpec must relaunch the trusted query definition.
+      payload: boundary_compensation
+      captures: [server, address, drained_events, dropped_events, relaunch_requirement]
+    errors:
+      - {signal: CommandError, condition: stop fails, state_after_failure: listener may be partially stopped}
+    relationships: {after: [otlp_receiver_stop], before: [stop_collector_monitor]}
+    config: {rest_ref: collector_query}
+
   - name: await_collector_control
     type: builtin
     init: rest_await_event

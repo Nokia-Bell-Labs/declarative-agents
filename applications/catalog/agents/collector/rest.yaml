@@ -25,6 +25,17 @@ rest:
         hosts: [127.0.0.1, localhost]
         ports: [${COLLECTOR_MONITOR_PORT:-18192}]
         allow_public_listener: true
+    query:
+      timeout: 10s
+      read_timeout: 5s
+      max_request_bytes: 4096
+      max_response_bytes: 1048576
+      redirect: {mode: none}
+      network:
+        schemes: [http]
+        hosts: [127.0.0.1, localhost]
+        ports: [${COLLECTOR_QUERY_PORT:-18193}]
+        allow_public_listener: true
   servers:
     collector_control:
       address: ${COLLECTOR_BIND_HOST:-127.0.0.1}:${COLLECTOR_CONTROL_PORT:-18191}
@@ -73,3 +84,47 @@ rest:
                 reason: {type: string}
           response:
             output: {accepted: "true"}
+    collector_query:
+      address: ${COLLECTOR_BIND_HOST:-127.0.0.1}:${COLLECTOR_QUERY_PORT:-18193}
+      limits_ref: query
+      shutdown: {timeout: 2s, drain_policy: drain}
+      endpoints:
+        list_traces:
+          method: GET
+          path: /query/traces
+          request:
+            query: {page_size: {type: integer}, offset: {type: integer}}
+          binding: machine_request
+          machine_request:
+            profile: profile.yaml
+            machine: query-machine.yaml
+            timeout: 10s
+            request:
+              query: {page_size: $.page_size, offset: $.offset}
+            response:
+              terminal_states:
+                TracesReady:
+                  status: 200
+                  content_type: application/json
+                  body: {traces: $.traces, total: $.total, offset: $.offset, page_size: $.page_size}
+                Failed: {status: 500, content_type: application/json, body: {error: spool_read_error}}
+        get_trace:
+          method: GET
+          path: /query/traces/{trace_id}
+          request:
+            path: {trace_id: {type: string}}
+          binding: machine_request
+          machine_request:
+            profile: profile.yaml
+            machine: query-machine.yaml
+            initial_signal: GetTraceRequested
+            timeout: 10s
+            request:
+              path: {trace_id: $.trace_id}
+            response:
+              terminal_states:
+                TraceReady:
+                  status: 200
+                  content_type: application/json
+                  body: {trace_id: $.trace_id, spans: $.spans, span_count: $.span_count}
+                Failed: {status: 500, content_type: application/json, body: {error: spool_read_error}}

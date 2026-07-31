@@ -26,8 +26,46 @@ test_cases:
     expected:
       exit_code: 0
       terminal_state: Done
-      tool_spans_present: [otlp_receiver_launch, launch_collector_control, launch_collector_monitor, await_spans, await_collector_control, exit_agent, otlp_receiver_stop, stop_collector_monitor, stop_collector_control]
+      tool_spans_present: [otlp_receiver_launch, launch_collector_control, launch_collector_monitor, launch_collector_query, await_spans, await_collector_control, exit_agent, otlp_receiver_stop, stop_collector_query, stop_collector_monitor, stop_collector_control]
     traces:
       - rel13.0-uc001-collector-family S1
       - rel13.0-uc001-collector-family S3
       - srd020-collector AC1
+
+  - use_case: rel13.0-uc001-collector-family
+    name: Query list traces returns paginated summaries from seeded spool
+    go_test: go test ./conformance -run TestCollectorQueryListTraces
+    status: implemented
+    description: |
+      Seed a spool with two traces, launch the collector, and GET /query/traces
+      with page_size=1. Assert response contains one trace, total=2, and
+      page_size=1.
+    inputs:
+      spool: seeded with 2 traces (3 spans)
+      page_size: 1
+    expected:
+      status: 200
+      total: 2
+      page_size: 1
+      traces_returned: 1
+    traces:
+      - srd020-collector R5.1
+      - srd020-collector R5.3
+
+  - use_case: rel13.0-uc001-collector-family
+    name: Query get trace returns spans for one trace from seeded spool
+    go_test: go test ./conformance -run TestCollectorQueryGetTrace
+    status: implemented
+    description: |
+      Seed a spool with two traces, launch the collector, and GET
+      /query/traces/trace-aaa. Assert response contains trace_id=trace-aaa
+      and span_count=2.
+    inputs:
+      spool: seeded with 2 traces (3 spans)
+      trace_id: trace-aaa
+    expected:
+      status: 200
+      trace_id: trace-aaa
+      span_count: 2
+    traces:
+      - srd020-collector R5.2

@@ -2,6 +2,7 @@ tools:
   - otlp_receiver_launch
   - launch_collector_control
   - launch_collector_monitor
+  - launch_collector_query
   - await_spans
   - filter_collector_batch
   - spool_collector_spans
@@ -10,5 +11,8 @@ tools:
   - await_collector_control
   - exit_agent
   - otlp_receiver_stop
+  - stop_collector_query
   - stop_collector_monitor
   - stop_collector_control
+  - query_list_traces
+  - query_get_trace

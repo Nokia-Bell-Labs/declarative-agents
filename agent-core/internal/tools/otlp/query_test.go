@@ -249,6 +249,61 @@ func TestGetTraceEmptyTraceIDError(t *testing.T) {
 	require.Equal(t, core.CommandError, result.Signal)
 }
 
+func TestListTracesBuildReadsSeedParams(t *testing.T) {
+	dir := t.TempDir()
+	basePath := filepath.Join(dir, "collector.ndjson")
+	writeSpoolSpans(t, basePath, []testSpan{
+		{traceID: "t1", spanID: "s1", service: "a", name: "r1",
+			start: time.Unix(1_700_000_010, 0).UTC(), end: time.Unix(1_700_000_011, 0).UTC()},
+		{traceID: "t2", spanID: "s2", service: "b", name: "r2",
+			start: time.Unix(1_700_000_009, 0).UTC(), end: time.Unix(1_700_000_010, 0).UTC()},
+		{traceID: "t3", spanID: "s3", service: "c", name: "r3",
+			start: time.Unix(1_700_000_008, 0).UTC(), end: time.Unix(1_700_000_009, 0).UTC()},
+	})
+	seed := core.Result{Output: `{"parameters":{"page_size":"1","offset":"1"}}`}
+	cmd := ListTracesBuilder{
+		ToolName: "spool_list_traces",
+		Config:   QueryListConfig{Path: basePath, PageSize: 20, MaxPageSize: 100},
+	}.Build(seed)
+	result := cmd.Execute()
+	require.Equal(t, core.Signal("TracesListed"), result.Signal)
+	var out struct {
+		Traces   []traceSummary `json:"traces"`
+		Total    int            `json:"total"`
+		Offset   int            `json:"offset"`
+		PageSize int            `json:"page_size"`
+	}
+	require.NoError(t, json.Unmarshal([]byte(result.Output), &out))
+	require.Equal(t, 1, out.PageSize)
+	require.Equal(t, 1, out.Offset)
+	require.Len(t, out.Traces, 1)
+	require.Equal(t, "t2", out.Traces[0].TraceID)
+}
+
+func TestGetTraceBuildReadsSeedTraceID(t *testing.T) {
+	dir := t.TempDir()
+	basePath := filepath.Join(dir, "collector.ndjson")
+	writeSpoolSpans(t, basePath, []testSpan{
+		{traceID: "abc", spanID: "s1", service: "svc", name: "op",
+			start: time.Unix(1_700_000_000, 0).UTC(), end: time.Unix(1_700_000_001, 0).UTC()},
+	})
+	seed := core.Result{Output: `{"parameters":{"trace_id":"abc"}}`}
+	cmd := GetTraceBuilder{
+		ToolName: "spool_get_trace",
+		Config:   QueryGetConfig{Path: basePath},
+	}.Build(seed)
+	result := cmd.Execute()
+	require.Equal(t, core.Signal("TraceRetrieved"), result.Signal)
+	var out struct {
+		TraceID   string       `json:"trace_id"`
+		Spans     []spanDetail `json:"spans"`
+		SpanCount int          `json:"span_count"`
+	}
+	require.NoError(t, json.Unmarshal([]byte(result.Output), &out))
+	require.Equal(t, "abc", out.TraceID)
+	require.Equal(t, 1, out.SpanCount)
+}
+
 func TestListTracesEmptyPathError(t *testing.T) {
 	result := ListTracesBuilder{
 		ToolName: "spool_list_traces",

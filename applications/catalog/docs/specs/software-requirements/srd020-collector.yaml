@@ -26,7 +26,8 @@ requirements:
     title: Catalog SRD
     items:
       - R2.1: The family SHALL have a per-family SRD in the catalog adapted from the mesh srd007.
-      - R2.2: The SRD SHALL scope the collector to trace intake only; the monitor exposes no span payloads.
+      - R2.2: The SRD SHALL scope the monitor surface to lifecycle and state reads; the monitor exposes no span payloads.
+      - R2.3: The SRD SHALL define a separate query surface (collector_query) that serves bounded spool reads via spool_list_traces and spool_get_trace.
 
   R3:
     title: Conformance coverage
@@ -40,10 +41,17 @@ requirements:
       - R4.1: The bindings.catalog entry SHALL have classification role_realization, primary_role monitor, sub_roles [telemetry-collector], domain observability.
       - R4.2: The mesh binding SHALL remain until the mesh swap issue replaces it with a catalog reference.
 
+  R5:
+    title: Query REST surface
+    items:
+      - R5.1: A collector_query server SHALL serve GET /query/traces for paginated trace summaries via spool_list_traces.
+      - R5.2: A collector_query server SHALL serve GET /query/traces/{trace_id} for single-trace span detail via spool_get_trace.
+      - R5.3: Page size SHALL be capped in tool config, not trusted from the HTTP request.
+      - R5.4: The query server lifecycle SHALL follow the same launch/stop pattern as control and monitor, with shutdown ordering after receiver stop and before monitor stop.
+
 non_goals:
   - Removing the mesh collector or changing the mesh deployment to reference the catalog family.
   - Metrics ingress or Dolt scraping.
-  - HTTP query endpoints (separate REST surface concern, see srd044 and the query surface issue).
 
 acceptance_criteria:
   - id: AC1

@@ -13,6 +13,7 @@ states:
   - {name: Idle, meaning: Before listeners launch.}
   - {name: LaunchingControl, meaning: Launching lifecycle control.}
   - {name: LaunchingMonitor, meaning: Launching monitor reads.}
+  - {name: LaunchingQuery, meaning: Launching query reads.}
   - {name: AwaitingSpans, meaning: Waiting a bounded interval for one trace batch.}
   - {name: Filtering, meaning: Applying declared non-empty policy.}
   - {name: Spooling, meaning: Writing deterministic evidence.}
@@ -21,6 +22,7 @@ states:
   - {name: AwaitingControl, meaning: Checking lifecycle control between intake waits.}
   - {name: Exiting, meaning: Routing lifecycle exit.}
   - {name: StoppingReceiver, meaning: Stopping OTLP intake.}
+  - {name: StoppingQuery, meaning: Stopping query REST.}
   - {name: StoppingMonitor, meaning: Stopping monitor REST.}
   - {name: StoppingControl, meaning: Stopping control REST.}
   - {name: Done, meaning: Clean terminal shutdown.}
@@ -46,8 +48,10 @@ transitions:
   - {state: Idle, signal: CommandError, next: Failed}
   - {state: LaunchingControl, signal: ReceiverLaunched, next: LaunchingMonitor, action: launch_collector_control}
   - {state: LaunchingControl, signal: CommandError, next: Failed}
-  - {state: LaunchingMonitor, signal: ServerLaunched, next: AwaitingSpans, action: launch_collector_monitor}
+  - {state: LaunchingMonitor, signal: ServerLaunched, next: LaunchingQuery, action: launch_collector_monitor}
   - {state: LaunchingMonitor, signal: CommandError, next: Failed}
+  - {state: LaunchingQuery, signal: ServerLaunched, next: AwaitingSpans, action: launch_collector_query}
+  - {state: LaunchingQuery, signal: CommandError, next: Failed}
   - {state: AwaitingSpans, signal: ServerLaunched, next: AwaitingSpans, action: await_spans, label: received_batch}
   - {state: AwaitingSpans, signal: SpansReceived, next: Filtering, action: filter_collector_batch}
   - {state: AwaitingSpans, signal: AwaitTimedOut, next: AwaitingControl, action: await_collector_control}
@@ -69,8 +73,10 @@ transitions:
   - {state: AwaitingControl, signal: CommandError, next: Failed}
   - {state: Exiting, signal: AgentExited, next: StoppingReceiver, action: otlp_receiver_stop}
   - {state: Exiting, signal: CommandError, next: Failed}
-  - {state: StoppingReceiver, signal: ReceiverStopped, next: StoppingMonitor, action: stop_collector_monitor}
+  - {state: StoppingReceiver, signal: ReceiverStopped, next: StoppingQuery, action: stop_collector_query}
   - {state: StoppingReceiver, signal: CommandError, next: Failed}
+  - {state: StoppingQuery, signal: ServerStopped, next: StoppingMonitor, action: stop_collector_monitor}
+  - {state: StoppingQuery, signal: CommandError, next: Failed}
   - {state: StoppingMonitor, signal: ServerStopped, next: StoppingControl, action: stop_collector_control}
   - {state: StoppingMonitor, signal: CommandError, next: Failed}
   - {state: StoppingControl, signal: ServerStopped, next: Done}

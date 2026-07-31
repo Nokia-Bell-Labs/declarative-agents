@@ -43,9 +43,19 @@ type ListTracesBuilder struct {
 	Config   QueryListConfig
 }
 
-// Build creates one list-traces command.
-func (b ListTracesBuilder) Build(_ core.Result) core.Command {
-	return &listTracesCommand{toolName: b.ToolName, config: b.Config}
+// Build creates one list-traces command. When previous carries a
+// machine_request seed, page_size and offset override config defaults.
+func (b ListTracesBuilder) Build(previous core.Result) core.Command {
+	cfg := b.Config
+	if p := seedParams(previous); p != nil {
+		if v, ok := seedInt(p, "page_size"); ok && v > 0 {
+			cfg.PageSize = v
+		}
+		if v, ok := seedInt(p, "offset"); ok {
+			cfg.Offset = v
+		}
+	}
+	return &listTracesCommand{toolName: b.ToolName, config: cfg}
 }
 
 // GetTraceBuilder constructs single-trace detail commands.
@@ -54,9 +64,16 @@ type GetTraceBuilder struct {
 	Config   QueryGetConfig
 }
 
-// Build creates one get-trace command.
-func (b GetTraceBuilder) Build(_ core.Result) core.Command {
-	return &getTraceCommand{toolName: b.ToolName, config: b.Config}
+// Build creates one get-trace command. When previous carries a
+// machine_request seed, trace_id overrides the config value.
+func (b GetTraceBuilder) Build(previous core.Result) core.Command {
+	cfg := b.Config
+	if p := seedParams(previous); p != nil {
+		if v, _ := p["trace_id"].(string); v != "" {
+			cfg.TraceID = v
+		}
+	}
+	return &getTraceCommand{toolName: b.ToolName, config: cfg}
 }
 
 type listTracesCommand struct {
@@ -345,6 +362,36 @@ func findRootSpan(spans []spoolSpan) spoolSpan {
 		return spans[0]
 	}
 	return spoolSpan{}
+}
+
+func seedParams(r core.Result) map[string]interface{} {
+	if r.Output == "" {
+		return nil
+	}
+	var envelope struct {
+		Params map[string]interface{} `json:"parameters"`
+	}
+	if json.Unmarshal([]byte(r.Output), &envelope) != nil || envelope.Params == nil {
+		return nil
+	}
+	return envelope.Params
+}
+
+func seedInt(params map[string]interface{}, key string) (int, bool) {
+	v, ok := params[key]
+	if !ok {
+		return 0, false
+	}
+	switch n := v.(type) {
+	case float64:
+		return int(n), true
+	case string:
+		var i int
+		if _, err := fmt.Sscanf(n, "%d", &i); err == nil {
+			return i, true
+		}
+	}
+	return 0, false
 }
 
 func serviceFromResource(raw json.RawMessage) string {
