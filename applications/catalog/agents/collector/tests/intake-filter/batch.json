@@ -1,0 +1,32 @@
+{
+  "resourceSpans": [{
+    "resource": {
+      "attributes": [{
+        "key": "service.name",
+        "value": {"stringValue": "collector-rig-fixture"}
+      }]
+    },
+    "scopeSpans": [{
+      "scope": {"name": "collector-rig"},
+      "spans": [
+        {
+          "traceId": "AQIDBAUGBwgJCgsMDQ4PEA==",
+          "spanId": "AQIDBAUGBwg=",
+          "name": "fixture-parent",
+          "kind": "SPAN_KIND_INTERNAL",
+          "startTimeUnixNano": "1000000000",
+          "endTimeUnixNano": "2000000000"
+        },
+        {
+          "traceId": "AQIDBAUGBwgJCgsMDQ4PEA==",
+          "spanId": "CAcGBQQDAgE=",
+          "parentSpanId": "AQIDBAUGBwg=",
+          "name": "fixture-child",
+          "kind": "SPAN_KIND_INTERNAL",
+          "startTimeUnixNano": "1200000000",
+          "endTimeUnixNano": "1800000000"
+        }
+      ]
+    }]
+  }]
+}

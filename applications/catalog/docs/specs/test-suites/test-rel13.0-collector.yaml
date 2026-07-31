@@ -1,0 +1,33 @@
+id: test-rel13.0-collector
+title: Test Suite for Release 13.0 Collector Family
+release: "13.0"
+
+traces:
+  - rel13.0-uc001-collector-family
+
+preconditions:
+  - srd020-collector defines the canonical collector family with default spool mode.
+  - srd042-otlp-receiver-tools provides the OTLP builtins the collector exercises.
+  - The agent-core binary is built and available via RequireCoreRoot.
+
+test_cases:
+  - use_case: rel13.0-uc001-collector-family
+    name: Collector launches in spool mode and shuts down cleanly
+    go_test: go test ./conformance -run TestCollectorSpoolModeConformance
+    status: implemented
+    description: |
+      Launch the collector profile with default environment (spool mode, no
+      relay endpoint). Send an exit request via the control endpoint. Assert
+      the machine reaches Done with no error spans and the expected tool
+      vocabulary.
+    inputs:
+      collector_mode: spool (default)
+      relay_endpoint: unset
+    expected:
+      exit_code: 0
+      terminal_state: Done
+      tool_spans_present: [otlp_receiver_launch, launch_collector_control, launch_collector_monitor, await_spans, await_collector_control, exit_agent, otlp_receiver_stop, stop_collector_monitor, stop_collector_control]
+    traces:
+      - rel13.0-uc001-collector-family S1
+      - rel13.0-uc001-collector-family S3
+      - srd020-collector AC1

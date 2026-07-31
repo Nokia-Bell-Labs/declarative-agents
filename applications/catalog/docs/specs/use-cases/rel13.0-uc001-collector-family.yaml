@@ -1,0 +1,54 @@
+id: rel13.0-uc001-collector-family
+title: A standalone collector receives, spools, and shuts down in spool mode
+
+summary: |
+  The canonical catalog collector launches in default spool mode, binds its
+  OTLP receiver and REST servers, receives one trace batch, spools it, skips
+  relay (mode is spool), and shuts down cleanly when the exit signal arrives.
+
+actor: Deployment or conformance harness running the catalog collector profile
+
+trigger: |
+  The harness launches the collector profile with default environment (no
+  COLLECTOR_MODE override, no COLLECTOR_RELAY_ENDPOINT).
+
+flow:
+  - F1: The profile machine seeds and launches the OTLP receiver, control REST, and monitor REST.
+  - F2: The machine enters the AwaitingSpans loop and waits for a trace batch.
+  - F3: A batch arrives; the machine filters it (span_count > 0), spools the spans to the NDJSON file, and evaluates the relay predicate.
+  - F4: The relay predicate is Unsatisfied (default mode is spool), so the machine returns to the control-check loop without relaying.
+  - F5: The harness posts an exit request; the machine exits, stops the receiver, monitor, and control listeners, and reaches Done.
+
+touchpoints:
+  - T1: "srd020-collector R1 -- default spool mode, no relay"
+  - T2: "srd020-collector R3 -- conformance coverage exercises OTLP builtins"
+  - T3: "srd042-otlp-receiver-tools -- receiver launch, await, spool, stop"
+
+success_criteria:
+  - id: S1
+    criterion: The collector reaches AwaitingSpans and processes at least one batch through filtering and spooling.
+    traces:
+      - srd020-collector AC1
+  - id: S2
+    criterion: The relay predicate is Unsatisfied in default spool mode.
+    traces:
+      - srd020-collector AC3
+  - id: S3
+    criterion: The machine reaches terminal state Done after orderly shutdown.
+    traces:
+      - srd020-collector AC1
+
+failure_scenarios:
+  - id: E1
+    scenario: The OTLP receiver fails to bind.
+    expected: The machine transitions to Failed.
+  - id: E2
+    scenario: The exit POST arrives while awaiting spans.
+    expected: The machine processes the exit on the next control check.
+
+out_of_scope:
+  - Relay mode testing (requires a live upstream endpoint).
+  - Spool query tool integration (separate REST surface concern).
+
+test_suite_trace: test-rel13.0-collector
+status: implemented

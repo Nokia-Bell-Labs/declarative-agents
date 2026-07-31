@@ -291,6 +291,13 @@ bindings:
       domain: runtime-state
       execution_scope: server
       naming_status: migration_required_collision
+    - actor: collector
+      profile: applications/catalog/agents/collector/profile.yaml
+      classification: role_realization
+      primary_role: monitor
+      sub_roles: [telemetry-collector]
+      domain: observability
+      execution_scope: server
 
   coding_agent:
     - actor: coding-planner-server
