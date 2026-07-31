@@ -57,6 +57,10 @@ func (c *relayCommand) Execute() core.Result {
 }
 
 func (c *relayCommand) ExecuteContext(ctx context.Context) core.Result {
+	if c.config.Endpoint == "" {
+		return receiverError(c.Name(), fmt.Errorf(
+			"%s: relay endpoint is not configured; spool-only deployments must not reach relay", c.Name()))
+	}
 	request, err := resolveBatch(c.config.BatchSource, c.previous.Output, c.view)
 	if err != nil {
 		return receiverError(c.Name(), fmt.Errorf("%s: %w", c.Name(), err))
@@ -134,17 +138,20 @@ var (
 )
 
 func validateRelayConfig(toolName string, config RelayConfig) error {
-	if config.Endpoint == "" {
-		return fmt.Errorf("tool %q config requires endpoint", toolName)
-	}
-	if _, _, err := net.SplitHostPort(config.Endpoint); err != nil {
-		return fmt.Errorf("tool %q config has invalid endpoint %q", toolName, config.Endpoint)
+	// An empty endpoint is valid at registration: spool-only deployments never
+	// invoke relay, and demanding a live endpoint here would prevent the
+	// collector from starting at all. Invocation without an endpoint emits
+	// CommandError instead.
+	if config.Endpoint != "" {
+		if _, _, err := net.SplitHostPort(config.Endpoint); err != nil {
+			return fmt.Errorf("tool %q config has invalid endpoint %q", toolName, config.Endpoint)
+		}
 	}
 	if config.ReceiverAddress != "" {
 		if _, _, err := net.SplitHostPort(config.ReceiverAddress); err != nil {
 			return fmt.Errorf("tool %q config has invalid receiver_address %q", toolName, config.ReceiverAddress)
 		}
-		if normalizedEndpoint(config.Endpoint) == normalizedEndpoint(config.ReceiverAddress) {
+		if config.Endpoint != "" && normalizedEndpoint(config.Endpoint) == normalizedEndpoint(config.ReceiverAddress) {
 			return fmt.Errorf(
 				"tool %q config relays to its own receiver address %q",
 				toolName, config.ReceiverAddress,

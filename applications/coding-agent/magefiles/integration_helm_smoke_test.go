@@ -198,6 +198,8 @@ func TestCodingHelmCommitImagePropagatesToBuildManifestAndDeploy(t *testing.T) {
 	for _, want := range []string{
 		"image.repository=declarative-agents/coding-agent-smoke",
 		"image.tag=0123456789ab",
+		"collector.image.repository=declarative-agents/agent-core",
+		"collector.image.tag=local",
 	} {
 		if !strings.Contains(helmCommand, want) {
 			t.Errorf("helm command missing %q: %s", want, helmCommand)

@@ -27,7 +27,10 @@ services:
     restart: unless-stopped
 
   collector-agent:
-    image: ghcr.io/nokia-bell-labs/declarative-agents/agent-core:0.1.0
+    # Built locally by `mage observability:up` (kindrig.BuildAgentCoreImage);
+    # the published registry image is not pullable from every environment.
+    image: ${DA_COLLECTOR_AGENT_IMAGE:-declarative-agents/agent-core:local}
+    pull_policy: never
     container_name: declarative-agents-collector-agent
     entrypoint: ["agent"]
     command:

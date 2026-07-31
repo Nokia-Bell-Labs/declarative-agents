@@ -251,7 +251,7 @@ tools:
       - {signal: CommandError, condition: selection transport or rejection failure, state_after_failure: spool evidence remains}
     relationships: {after: [spool_collector_spans]}
     config:
-      endpoint: ${COLLECTOR_RELAY_ENDPOINT:-localhost:4317}
+      endpoint: ${COLLECTOR_RELAY_ENDPOINT:-}
       receiver_address: ${COLLECTOR_RECEIVER_ADDRESS:-0.0.0.0:4317}
       batch_source: $from(spooled_batch).batch
       timeout: 10s

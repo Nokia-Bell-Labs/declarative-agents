@@ -102,6 +102,18 @@ func packageHelmChart(chartRoot, profilesRoot, destination string) (string, erro
 	if err := prepareHelmProfiles(profilesRoot, chart); err != nil {
 		return "", err
 	}
+	// The collector profile ships in the archive, not the checkout: helm/profiles/
+	// is gitignored, so every packaging path must stage it or the deployed
+	// collector mounts an empty /profiles and crash-loops (GH-1162). The catalog
+	// resolves from the working directory, not chartRoot, because callers may
+	// package a chart copy staged outside the repository.
+	catalogRoot, err := resolveCatalogRoot("package coding-agent chart", ".")
+	if err != nil {
+		return "", err
+	}
+	if err := stageCollectorProfile(catalogRoot, chart); err != nil {
+		return "", err
+	}
 	if err := validateStagedChart(chart); err != nil {
 		return "", err
 	}
@@ -176,7 +188,7 @@ func stageChartSource(source, destination string) error {
 }
 
 func validateStagedChart(chart string) error {
-	if err := validatePreparedPackage(filepath.Join(chart, "profiles")); err != nil {
+	if err := validatePreparedPackage(filepath.Join(chart, "profiles"), "collector"); err != nil {
 		return err
 	}
 	commands := [][]string{
@@ -213,6 +225,22 @@ func validateChartArchive(archive, profilesRoot string) error {
 	}
 	for _, path := range expected {
 		required["coding-agent/profiles/"+path] = true
+	}
+	// The staged collector profile mirrors stageCollectorProfile: the
+	// top-level regular files of the catalog collector family.
+	catalogRoot, err := resolveCatalogRoot("validate coding-agent chart archive", ".")
+	if err != nil {
+		return err
+	}
+	collectorEntries, err := os.ReadDir(filepath.Join(catalogRoot, "agents", "collector"))
+	if err != nil {
+		return err
+	}
+	for _, entry := range collectorEntries {
+		if !entry.Type().IsRegular() {
+			continue
+		}
+		required["coding-agent/profiles/collector/agents/collector/"+entry.Name()] = true
 	}
 	file, err := os.Open(archive)
 	if err != nil {

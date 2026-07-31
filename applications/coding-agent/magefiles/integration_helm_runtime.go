@@ -58,6 +58,11 @@ func prepareCodingHelmCluster(
 			return err
 		}
 	}
+	if err := kindrig.BuildAgentCoreImage(roots.Core, codingHelmCollectorImage); err != nil {
+		return &codingHelmInfrastructureError{
+			Step: "collector image build", Cause: err,
+		}
+	}
 	if err := loadCodingDependencyImage(cluster, codingHelmCollectorImage); err != nil {
 		return &codingHelmInfrastructureError{
 			Step: "dependency image load", Cause: err,
@@ -230,6 +235,7 @@ func installCodingHelmChartWithRunner(
 	archive, applicationRoot, image string,
 ) error {
 	repository, tag := splitCodingImageRef(image)
+	collectorRepository, collectorTag := splitCodingImageRef(codingHelmCollectorImage)
 	ctx, cancel := context.WithTimeout(context.Background(), codingHelmInstallTimeout)
 	defer cancel()
 	output, err := run(ctx, "helm",
@@ -238,6 +244,8 @@ func installCodingHelmChartWithRunner(
 		"--values", filepath.Join(applicationRoot, "helm", "ci", "kind-values.yaml"),
 		"--set", "image.repository="+repository,
 		"--set", "image.tag="+tag,
+		"--set", "collector.image.repository="+collectorRepository,
+		"--set", "collector.image.tag="+collectorTag,
 		"--wait", "--timeout", codingHelmInstallTimeout.String(),
 	)
 	if err != nil {
@@ -456,7 +464,7 @@ type codingCollectorTrace struct {
 }
 
 type codingCollectorSpan struct {
-	ServiceName string `json:"service_name"`
+	ServiceName string `json:"service"`
 }
 
 func codingCollectorGetTrace(endpoint string) (*codingCollectorTrace, error) {
