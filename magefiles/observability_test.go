@@ -109,7 +109,8 @@ func TestObservabilityComposePinsImagesAndRoutesSignals(t *testing.T) {
 	content := string(data)
 	for _, required := range []string{
 		"otel/opentelemetry-collector-contrib:0.157.0",
-		"ghcr.io/nokia-bell-labs/declarative-agents/agent-core:0.1.0",
+		"${DA_COLLECTOR_AGENT_IMAGE:-declarative-agents/agent-core:local}",
+		"pull_policy: never",
 		"prom/prometheus:v3.13.1",
 		"exporters: [otlp_grpc/collector_agent]",
 		"exporters: [prometheus_remote_write]",
@@ -122,6 +123,35 @@ func TestObservabilityComposePinsImagesAndRoutesSignals(t *testing.T) {
 	}
 	if strings.Contains(content, ":latest") {
 		t.Error("compose file contains an unpinned latest image")
+	}
+	if strings.Contains(content, "ghcr.io") {
+		t.Error("compose file references a registry image; the collector agent must build locally")
+	}
+}
+
+func TestObservabilityCollectorImageBuildRespectsOperatorOverride(t *testing.T) {
+	var built []string
+	restore := buildCollectorImage
+	buildCollectorImage = func(coreRoot, image string) error {
+		built = append(built, coreRoot+" "+image)
+		return nil
+	}
+	defer func() { buildCollectorImage = restore }()
+
+	t.Setenv(observabilityCollectorImageEnv, "example.com/operator/agent-core:pinned")
+	if err := ensureCollectorAgentImage(); err != nil {
+		t.Fatal(err)
+	}
+	if len(built) != 0 {
+		t.Fatalf("operator-supplied image must not be built over, built %v", built)
+	}
+
+	t.Setenv(observabilityCollectorImageEnv, "")
+	if err := ensureCollectorAgentImage(); err != nil {
+		t.Fatal(err)
+	}
+	if len(built) != 1 || built[0] != "agent-core declarative-agents/agent-core:local" {
+		t.Fatalf("default build = %v", built)
 	}
 }
 
@@ -140,10 +170,13 @@ func restoreObservabilityHooks(t *testing.T) {
 	output := observabilityOutput
 	health := checkObservability
 	port := checkObservabilityPort
+	build := buildCollectorImage
 	t.Cleanup(func() {
 		runObservabilityCommand = command
 		observabilityOutput = output
 		checkObservability = health
 		checkObservabilityPort = port
+		buildCollectorImage = build
 	})
+	buildCollectorImage = func(string, string) error { return nil }
 }

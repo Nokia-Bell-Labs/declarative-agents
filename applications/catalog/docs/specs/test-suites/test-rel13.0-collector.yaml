@@ -33,6 +33,27 @@ test_cases:
       - srd020-collector AC1
 
   - use_case: rel13.0-uc001-collector-family
+    name: Collector boots from the shipped profile with default environment
+    go_test: go test ./conformance -run TestCollectorDefaultEnvironmentBoot
+    status: implemented
+    description: |
+      Launch the shipped profile without rewriting any file: only ports and
+      the spool path come from the environment, the relay endpoint stays
+      unset, and the machine reaches health then a clean Done (GH-1163). This
+      is the case the port-randomizing suites cannot cover, because they
+      patch the profile before launch.
+    inputs:
+      collector_mode: spool (default)
+      relay_endpoint: unset
+      profile: shipped, unpatched
+    expected:
+      exit_code: 0
+      terminal_state: Done
+    traces:
+      - rel13.0-uc001-collector-family S1
+      - srd020-collector AC1
+
+  - use_case: rel13.0-uc001-collector-family
     name: Query list traces returns paginated summaries from seeded spool
     go_test: go test ./conformance -run TestCollectorQueryListTraces
     status: implemented

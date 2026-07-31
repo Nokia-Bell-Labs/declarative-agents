@@ -13,15 +13,21 @@ import (
 	"time"
 
 	"github.com/magefile/mage/mg"
+
+	"github.com/Nokia-Bell-Labs/declarative-agents/magefiles/kindrig"
 )
 
-const observabilityComposeFile = "deploy/observability/docker-compose.yml"
+const (
+	observabilityComposeFile       = "deploy/observability/docker-compose.yml"
+	observabilityCollectorImageEnv = "DA_COLLECTOR_AGENT_IMAGE"
+)
 
 var (
 	runObservabilityCommand = observabilityCommand
 	observabilityOutput     = commandOutput
 	checkObservability      = observabilityHealth
 	checkObservabilityPort  = portAvailable
+	buildCollectorImage     = kindrig.BuildAgentCoreImage
 )
 
 // Observability manages the persistent integration OTLP ingress, collector agent
@@ -45,10 +51,26 @@ func (Observability) Up() error {
 			}
 		}
 	}
+	if err := ensureCollectorAgentImage(); err != nil {
+		return err
+	}
 	if err := observabilityCompose("up", "-d", "--wait"); err != nil {
 		return err
 	}
 	return checkObservability()
+}
+
+// ensureCollectorAgentImage builds the repo-local runtime image the compose
+// file defaults to. The published ghcr.io image is not pullable from every
+// environment, so the local tag is built from the agent-core checkout; an
+// operator-supplied DA_COLLECTOR_AGENT_IMAGE names an existing image and is
+// never built over.
+func ensureCollectorAgentImage() error {
+	if os.Getenv(observabilityCollectorImageEnv) != "" {
+		return nil
+	}
+	fmt.Printf("+ building %s from agent-core\n", kindrig.DefaultAgentCoreImage)
+	return buildCollectorImage("agent-core", kindrig.DefaultAgentCoreImage)
 }
 
 // Down removes stack containers and keeps retained backend volumes.

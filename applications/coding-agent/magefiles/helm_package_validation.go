@@ -14,7 +14,7 @@ import (
 	"gopkg.in/yaml.v3"
 )
 
-func validatePreparedPackage(root string) error {
+func validatePreparedPackage(root string, extraEntries ...string) error {
 	var deployment deploymentPackageManifest
 	if err := readStrictYAML(
 		filepath.Join(root, "deployment-manifest.yaml"), &deployment); err != nil {
@@ -48,7 +48,11 @@ func validatePreparedPackage(root string) error {
 	for _, entry := range entries {
 		names = append(names, entry.Name())
 	}
-	wantEntries := []string{"critic", "deployment-manifest.yaml", "executor", "manifests", "planner"}
+	// The resolver package carries exactly the three #875 role shards; the
+	// staged chart adds the catalog collector profile as an extra entry
+	// (GH-1162).
+	wantEntries := append([]string{"critic", "deployment-manifest.yaml", "executor", "manifests", "planner"}, extraEntries...)
+	sort.Strings(wantEntries)
 	if !reflect.DeepEqual(names, wantEntries) {
 		return fmt.Errorf("profile package top-level entries = %v, want %v", names, wantEntries)
 	}

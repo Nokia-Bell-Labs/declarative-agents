@@ -263,6 +263,27 @@ func TestHelmPackageArchiveIsSelfContained(t *testing.T) {
 	}
 }
 
+func TestHelmPackageArchiveContainsCollectorProfile(t *testing.T) {
+	if _, err := exec.LookPath("helm"); err != nil {
+		t.Skip("helm not on PATH")
+	}
+	packageRoot, _, cleanup := packageCanonicalDeployment(t)
+	defer cleanup()
+	archive, err := packageHelmChart(
+		filepath.Join("..", "helm"), packageRoot, t.TempDir())
+	if err != nil {
+		t.Fatal(err)
+	}
+	names := chartArchiveFileNames(t, archive)
+	want := "coding-agent/profiles/collector/agents/collector/profile.yaml"
+	for _, name := range names {
+		if name == want {
+			return
+		}
+	}
+	t.Fatalf("archive misses the staged collector profile %s:\n%s", want, strings.Join(names, "\n"))
+}
+
 func TestHelmPackageTwiceExcludesPriorDistAndGeneratedProfiles(t *testing.T) {
 	if _, err := exec.LookPath("helm"); err != nil {
 		t.Skip("helm not on PATH")

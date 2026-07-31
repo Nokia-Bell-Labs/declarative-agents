@@ -108,9 +108,27 @@ func TestReceiverRejectsSelfLoopConfiguration(t *testing.T) {
 		require.ErrorContains(t, err, "own receiver")
 	}
 	require.NoError(t, validateRelayConfig("relay_spans", RelayConfig{
-		Endpoint: "jaeger:4317", ReceiverAddress: "0.0.0.0:4317",
+		Endpoint: "upstream:4317", ReceiverAddress: "0.0.0.0:4317",
 		BatchSource: "$.batch", Timeout: time.Second,
 	}))
+}
+
+func TestRelayAcceptsEmptyEndpointAtRegistrationOnly(t *testing.T) {
+	config := RelayConfig{
+		Endpoint: "", ReceiverAddress: "0.0.0.0:4317",
+		BatchSource: "$.batch", Timeout: time.Second,
+	}
+	require.NoError(t, validateRelayConfig("relay_spans", config))
+
+	previous, err := awaitOutput(Batch{
+		ID: "relay-empty", Request: spoolRequest(), Received: time.Now().UTC(),
+	})
+	require.NoError(t, err)
+	command := RelayBuilder{ToolName: "relay_spans", Config: config}.Build(
+		core.Result{Output: previous})
+	result := command.Execute()
+	require.Equal(t, core.CommandError, result.Signal, result.Output)
+	require.ErrorContains(t, result.Err, "relay endpoint is not configured")
 }
 
 func startRelayService(t *testing.T) (*relayTraceService, string) {

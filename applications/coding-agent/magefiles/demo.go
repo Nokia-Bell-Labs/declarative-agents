@@ -68,6 +68,7 @@ func (Demo) Up() error {
 				return err
 			}
 			repository, tag := splitCodingImageRef(images.Agent)
+			collectorRepository, collectorTag := splitCodingImageRef(codingHelmCollectorImage)
 			ctx, cancel := context.WithTimeout(context.Background(), codingHelmInstallTimeout)
 			output, err := environment.run(ctx, "helm",
 				"upgrade", "--install", codingDemoRelease, archive,
@@ -75,6 +76,8 @@ func (Demo) Up() error {
 				"--values", filepath.Join(roots.Application, "helm", "ci", "kind-values.yaml"),
 				"--set", "image.repository="+repository,
 				"--set", "image.tag="+tag,
+				"--set", "collector.image.repository="+collectorRepository,
+				"--set", "collector.image.tag="+collectorTag,
 				"--wait", "--timeout", codingHelmInstallTimeout.String())
 			cancel()
 			if err != nil {
