@@ -64,6 +64,55 @@ func TestCollectorDefaultEnvironmentBoot(t *testing.T) {
 	result.RequireTerminalState(t, "Done")
 }
 
+// TestCollectorQueryEmptySpool proves a collector with no traffic answers the
+// query surface with an empty list, not an error: the spool file does not
+// exist until the first batch arrives, and a directory misconfigured as the
+// spool path is reported as such (GH-1168).
+func TestCollectorQueryEmptySpool(t *testing.T) {
+	RequireCoreRoot(t)
+	controlPort := freePort(t)
+	queryPort := freePort(t)
+	env := []string{
+		"COLLECTOR_RECEIVER_ADDRESS=" + FreeAddr(t),
+		"COLLECTOR_CONTROL_PORT=" + controlPort,
+		"COLLECTOR_MONITOR_PORT=" + freePort(t),
+		"COLLECTOR_QUERY_PORT=" + queryPort,
+		"COLLECTOR_SPOOL_PATH=" + filepath.Join(t.TempDir(), "collector.ndjson"),
+	}
+
+	server := Serve(t, ServeConfig{
+		Profile: ProfilePath(filepath.Join("agents", "collector", "profile.yaml")),
+		Env:     env,
+	})
+	control := "http://127.0.0.1:" + controlPort
+	server.WaitHealthy(control+"/api/lifecycle/health", 15*time.Second)
+
+	resp, err := http.Get("http://127.0.0.1:" + queryPort + "/query/traces")
+	if err != nil {
+		t.Fatalf("GET /query/traces before any span: %v", err)
+	}
+	body, _ := io.ReadAll(resp.Body)
+	resp.Body.Close()
+	if resp.StatusCode != http.StatusOK {
+		t.Fatalf("empty-spool query status = %d, body = %s", resp.StatusCode, body)
+	}
+	var empty struct {
+		Traces []json.RawMessage `json:"traces"`
+		Total  int               `json:"total"`
+	}
+	if err := json.Unmarshal(body, &empty); err != nil {
+		t.Fatalf("decode empty-spool response: %v", err)
+	}
+	if empty.Total != 0 || len(empty.Traces) != 0 {
+		t.Fatalf("empty-spool query = %s, want zero traces", body)
+	}
+
+	if status := server.Post(control+"/api/lifecycle/exit", `{"reason":"conformance"}`); status != http.StatusAccepted {
+		t.Fatalf("exit POST status = %d", status)
+	}
+	server.WaitExit(35 * time.Second).RequireExit(t, 0)
+}
+
 func freePort(t *testing.T) string {
 	t.Helper()
 	_, port, err := net.SplitHostPort(FreeAddr(t))

@@ -33,6 +33,23 @@ test_cases:
       - srd020-collector AC1
 
   - use_case: rel13.0-uc001-collector-family
+    name: Empty spool answers the query surface with zero traces
+    go_test: go test ./conformance -run TestCollectorQueryEmptySpool
+    status: implemented
+    description: |
+      A collector with no traffic yet has no spool file; GET /query/traces
+      answers 200 with zero traces instead of an error, and a directory
+      misconfigured as the spool path is reported explicitly (GH-1168).
+    inputs:
+      spool: absent (no batch received)
+    expected:
+      status: 200
+      total: 0
+    traces:
+      - rel13.0-uc001-collector-family S2
+      - srd020-collector AC2
+
+  - use_case: rel13.0-uc001-collector-family
     name: Collector boots from the shipped profile with default environment
     go_test: go test ./conformance -run TestCollectorDefaultEnvironmentBoot
     status: implemented

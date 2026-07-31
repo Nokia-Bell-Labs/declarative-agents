@@ -248,6 +248,9 @@ func readSpoolFiles(basePath string) ([]spoolSpan, int, error) {
 	if basePath == "" {
 		return nil, 0, fmt.Errorf("spool path is required")
 	}
+	if info, err := os.Stat(basePath); err == nil && info.IsDir() {
+		return nil, 0, fmt.Errorf("spool path %s is a directory; configure the spool file path", basePath)
+	}
 	paths := discoverSpoolFiles(basePath)
 	if len(paths) == 0 {
 		return nil, 0, nil
@@ -270,11 +273,11 @@ func discoverSpoolFiles(basePath string) []string {
 	maxGeneration := 100
 	for gen := maxGeneration; gen >= 1; gen-- {
 		rotated := rotatedPath(basePath, gen)
-		if _, err := os.Stat(rotated); err == nil {
+		if info, err := os.Stat(rotated); err == nil && info.Mode().IsRegular() {
 			paths = append(paths, rotated)
 		}
 	}
-	if _, err := os.Stat(basePath); err == nil {
+	if info, err := os.Stat(basePath); err == nil && info.Mode().IsRegular() {
 		paths = append(paths, basePath)
 	}
 	return paths
