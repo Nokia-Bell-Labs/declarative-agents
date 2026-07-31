@@ -1,5 +1,8 @@
 .DS_Store
 Thumbs.db
+
+# per-repo credentials (the .secrets contract); never committable
+.secrets/
 generated-files/
 figures/*.png
 .idea/

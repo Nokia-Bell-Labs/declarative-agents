@@ -193,7 +193,7 @@ func writeOllamaLLMOverride(rootDir, outPath, model string) error {
 		return err
 	}
 	replacement := fmt.Sprintf("model: %q", model)
-	updated := strings.Replace(string(data), `model: "qwen3.6:35b-mlx"`, replacement, 1)
+	updated := strings.Replace(string(data), `model: "gemma4:31b-cloud"`, replacement, 1)
 	return os.WriteFile(outPath, []byte(updated), 0o644)
 }
 
@@ -310,12 +310,12 @@ func listedSummaryModels(summary string) []string {
 	if idx < 0 {
 		return nil
 	}
-	raw := strings.TrimSpace(strings.TrimSuffix(summary[idx+len("include:"):], "."))
-	parts := strings.Split(raw, ",")
-	models := make([]string, 0, len(parts))
-	for _, part := range parts {
-		name := strings.TrimSpace(part)
-		if name != "" {
+	// Model names always carry a :tag; field-splitting keeps the check exact
+	// while tolerating prose connectives like "and" between names.
+	var models []string
+	for _, field := range strings.Fields(summary[idx+len("include:"):]) {
+		name := strings.Trim(field, ",.")
+		if strings.Contains(name, ":") {
 			models = append(models, name)
 		}
 	}

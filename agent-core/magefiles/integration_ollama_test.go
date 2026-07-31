@@ -52,3 +52,17 @@ func TestConfiguredOllamaModelFollowsShippedProfile(t *testing.T) {
 		})
 	}
 }
+
+func TestListedSummaryModelsToleratesProseConnectives(t *testing.T) {
+	summary := "Local Ollama models include: ornith:9b, qwen3.6:35b-mlx and glm-5.2:cloud."
+	got := listedSummaryModels(summary)
+	want := []string{"ornith:9b", "qwen3.6:35b-mlx", "glm-5.2:cloud"}
+	if len(got) != len(want) {
+		t.Fatalf("listedSummaryModels() = %v, want %v", got, want)
+	}
+	for i := range want {
+		if got[i] != want[i] {
+			t.Fatalf("listedSummaryModels()[%d] = %q, want %q", i, got[i], want[i])
+		}
+	}
+}
