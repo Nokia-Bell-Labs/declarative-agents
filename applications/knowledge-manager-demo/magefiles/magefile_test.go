@@ -375,6 +375,15 @@ func TestTracingEnabled(t *testing.T) {
 	}
 }
 
+func TestCollectorLifecycleURLsFollowControlRoutes(t *testing.T) {
+	if got := collectorHealthURL(); got != collectorControlAddress+"/api/lifecycle/health" {
+		t.Fatalf("health URL = %s", got)
+	}
+	if got := collectorExitURL(); got != collectorControlAddress+"/api/lifecycle/exit" {
+		t.Fatalf("exit URL = %s", got)
+	}
+}
+
 func TestCollectorCommandConstruction(t *testing.T) {
 	resolved := roots{
 		Application: filepath.Join(string(filepath.Separator), "work", "applications", "knowledge-manager-demo"),
@@ -382,7 +391,7 @@ func TestCollectorCommandConstruction(t *testing.T) {
 		Core:        filepath.Join(string(filepath.Separator), "work", "agent-core"),
 	}
 	binary := filepath.Join(string(filepath.Separator), "tmp", "agent")
-	spool := filepath.Join(string(filepath.Separator), "tmp", "spool")
+	spool := filepath.Join(string(filepath.Separator), "tmp", "spool", "collector.ndjson")
 	cmd := collectorCommand(resolved, binary, spool)
 	wantArgs := []string{
 		binary,

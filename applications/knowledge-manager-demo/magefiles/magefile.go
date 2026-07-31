@@ -346,7 +346,9 @@ func startCollectorAgent(resolved roots, binary string) (func(), error) {
 	if err != nil {
 		return nil, fmt.Errorf("create collector spool directory: %w", err)
 	}
-	cmd := collectorCommand(resolved, binary, spoolDir)
+	// COLLECTOR_SPOOL_PATH names the spool file, not its directory; the
+	// collector reads a directory path as NDJSON and fails (GH-1168).
+	cmd := collectorCommand(resolved, binary, filepath.Join(spoolDir, "collector.ndjson"))
 	cmd.Stdout, cmd.Stderr = os.Stdout, os.Stderr
 	if err := cmd.Start(); err != nil {
 		os.RemoveAll(spoolDir)
@@ -370,7 +372,7 @@ func waitCollectorHealth() error {
 	deadline := time.Now().Add(collectorHealthTimeout)
 	client := &http.Client{Timeout: 2 * time.Second}
 	for time.Now().Before(deadline) {
-		resp, err := client.Get(collectorControlAddress + "/health")
+		resp, err := client.Get(collectorHealthURL())
 		if err == nil {
 			resp.Body.Close()
 			if resp.StatusCode == http.StatusOK {
@@ -382,9 +384,19 @@ func waitCollectorHealth() error {
 	return fmt.Errorf("collector agent did not become healthy within %s", collectorHealthTimeout)
 }
 
+// collectorHealthURL and collectorExitURL follow the collector control
+// server's lifecycle routes (agents/collector/rest.yaml).
+func collectorHealthURL() string {
+	return collectorControlAddress + "/api/lifecycle/health"
+}
+
+func collectorExitURL() string {
+	return collectorControlAddress + "/api/lifecycle/exit"
+}
+
 func postCollectorExit() {
 	client := &http.Client{Timeout: 5 * time.Second}
-	resp, err := client.Post(collectorControlAddress+"/exit", "application/json", nil)
+	resp, err := client.Post(collectorExitURL(), "application/json", nil)
 	if err == nil {
 		resp.Body.Close()
 	}
