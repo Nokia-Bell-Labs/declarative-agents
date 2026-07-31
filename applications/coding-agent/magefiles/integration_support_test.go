@@ -97,6 +97,29 @@ func TestCodingAgentCatalogRootDiscoversSiblingCatalog(t *testing.T) {
 	}
 }
 
+func TestCodingAgentCatalogRootDiscoversFromRelativeStartupDir(t *testing.T) {
+	repository, err := filepath.EvalSymlinks(t.TempDir())
+	if err != nil {
+		t.Fatal(err)
+	}
+	catalog := codingAgentCatalogFixture(t, filepath.Join(repository, "applications", "catalog"))
+	magefiles := filepath.Join(repository, "applications", "coding-agent", "magefiles")
+	if err := os.MkdirAll(magefiles, 0o755); err != nil {
+		t.Fatal(err)
+	}
+	t.Setenv(catalogroot.Env, "")
+	t.Setenv(catalogroot.LegacyEnv, "")
+	t.Chdir(magefiles)
+
+	got, err := resolveCatalogRoot("coding-agent relative discovery test", "..")
+	if err != nil {
+		t.Fatalf("resolveCatalogRoot: %v", err)
+	}
+	if got != catalog {
+		t.Fatalf("catalog root = %q, want %q", got, catalog)
+	}
+}
+
 func codingAgentCatalogFixture(t *testing.T, root string) string {
 	t.Helper()
 	if err := os.MkdirAll(filepath.Join(root, "agents"), 0o755); err != nil {
