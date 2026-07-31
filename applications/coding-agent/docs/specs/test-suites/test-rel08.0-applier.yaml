@@ -1,0 +1,175 @@
+id: test-rel08.0-applier
+title: Test Suite for Release 08.0 Declarative Applier Agent
+release: "08.0"
+status: planned
+
+overview: |
+  This suite validates the applier agent (srd006): the standalone declarative
+  actuator for the coding chart. It drives a decided values patch through validate,
+  apply, and verify, asserting that a non-conforming patch is rejected by the
+  chart-schema dry-run, that a valid patch is applied as a values-file rollout and
+  verified via kubectl rollout status of the planner, executor, and critic
+  Deployments, that an apply or verify failure rolls back, and that the authority
+  boundary holds. A recording-fake tracer covers every declared terminal, real helm
+  validates the coding chart's values.schema.json, and a live kind target proves
+  apply and rollback on cluster. The coding application has no control plane, so no
+  creator, orchestrator, or panel hop appears in this suite.
+
+traces:
+  - rel08.0-uc001-declarative-applier
+
+preconditions:
+  - agent-core is available for the request runtime, REST server, monitor, and exec tools.
+  - The applier profile is deployed with its apply, control, and monitor servers; its image carries helm and kubectl.
+  - The coding chart carries a values.schema.json, and the apply surface is network-gated off the serving and collector pods.
+
+test_cases:
+  - use_case: rel08.0-uc001-declarative-applier
+    name: Applier validates, applies, and verifies a coding-chart values change
+    integration_target: mage integration:applier
+    status: planned
+    description: |
+      Drives a decided values patch against the applier profile: the apply endpoint
+      receives the patch, the applier validates it against the coding chart's
+      values.schema.json by a helm dry-run, rejecting a non-conforming patch with a
+      client error and no rollout; for a valid patch it materializes the values as an
+      overrides file and applies helm upgrade --reuse-values --atomic --wait; it
+      verifies the planner, executor, and critic Deployments via kubectl rollout
+      status and reports the phase, rolling the release back on a verify stall.
+      Asserts the authority boundary: no invocation carries an endpoint, a
+      credential, or per-field --set construction.
+
+      helm and kubectl are recording fakes on the applier's PATH, taking their exit
+      codes from the scenario, so one run walks every terminal of the apply and
+      rollout machines. It is evidence about the machine, the arguments it
+      constructs, and the responses it maps, not that real helm and kubectl behave as
+      the declarations assume; the chart schema is covered by its own case below
+      against real helm, and the live kind target supplies the on-cluster evidence.
+    inputs:
+      valid_patch: adjust a coding role parameter through a values-plane patch
+      invalid_patch: a patch violating the coding chart values schema
+      agents: [applier]
+    expected:
+      invalid_patch_rejected_by_schema_dry_run_no_rollout: true
+      valid_patch_applied_as_values_file_reuse_values_atomic: true
+      no_per_field_set_construction: true
+      rollout_verified_via_kubectl_rollout_status: true
+      apply_or_verify_failure_rolls_back: true
+      patch_carries_no_endpoint_or_credential: true
+    traces:
+      - rel08.0-uc001-declarative-applier S1
+      - rel08.0-uc001-declarative-applier S2
+      - rel08.0-uc001-declarative-applier S3
+      - rel08.0-uc001-declarative-applier S4
+      - rel08.0-uc001-declarative-applier S5
+      - srd006-applier AC1
+      - srd006-applier AC2
+      - srd006-applier AC3
+      - srd006-applier AC4
+
+  - use_case: rel08.0-uc001-declarative-applier
+    name: The coding chart schema rejects a non-conforming values patch
+    integration_target: mage test (coding chart values.schema.json against real helm)
+    status: planned
+    description: |
+      The applier's validate step is a helm dry-run against the coding chart's
+      values.schema.json, so the rejection is only as real as the schema. The case
+      above cannot prove it: its fake helm returns whatever exit code the scenario
+      sets, and a schema that accepted every document would pass it unchanged.
+
+      Real helm renders the real coding chart with two fixtures. The rejection must
+      name the offending path and the constraint it violated, not merely exit
+      non-zero -- a chart failing to render for an unrelated reason exits non-zero
+      too. A third assertion pins the constraint the fixture rests on, so loosening
+      the schema reads as the guard being removed rather than as a broken fixture.
+    inputs:
+      conforming: a values patch within the chart schema
+      non_conforming: a values patch violating the chart schema
+    expected:
+      conforming_patch_renders: true
+      non_conforming_patch_rejected_by_path_and_constraint: true
+      constrained_value_pinned_by_a_third_assertion: true
+    traces:
+      - rel08.0-uc001-declarative-applier S2
+      - srd004-helm-package-validation R1
+      - srd006-applier AC2
+
+  - use_case: rel08.0-uc001-declarative-applier
+    name: The applier holds the deployment CLIs and the serving roles do not
+    integration_target: mage test (rendered chart and role profiles)
+    status: planned
+    description: |
+      Asserts over the rendered chart and the packaged role profiles that only the
+      applier carries helm and kubectl bound as exec tools and that the planner,
+      executor, and critic profiles carry no deployment CLI. Asserts the applier
+      Service targets the pods the applier Deployment creates and that its apply
+      surface is admitted only from the authorized caller, not from the serving or
+      collector pods, so route and NetworkPolicy agree on one authority path.
+    inputs:
+      rendered_chart: staged chart with the applier enabled and networkPolicy enabled
+    expected:
+      applier_alone_binds_helm_and_kubectl: true
+      serving_roles_carry_no_deployment_cli: true
+      apply_surface_admits_only_the_authorized_caller: true
+      apply_surface_not_reachable_from_serving_or_collector_pods: true
+    traces:
+      - rel08.0-uc001-declarative-applier S6
+      - srd006-applier AC4
+      - srd006-applier AC5
+
+  - use_case: rel08.0-uc001-declarative-applier
+    name: A broken rollout read is distinguishable from a progressing one
+    integration_target: mage test (applier rollout machine)
+    status: planned
+    description: |
+      Asserts over the declared profile that the rollout read reaches a broken-read
+      terminal rather than folding it into progressing. kubectl rollout status exits
+      non-zero for a rollout that is still progressing and for one it could not read
+      at all, so a phase taken from that exit code alone would report an absent
+      Deployment, a wrong kubeconfig, a denied RBAC read, or an unreachable API
+      server as ongoing progress. A read the cluster cannot serve returns a gateway
+      error rather than a phase.
+    inputs:
+      deployment_shapes: rolled out, no replica ready yet, and unreadable
+    expected:
+      unreadable_rollout_returns_gateway_error_not_a_phase: true
+      complete_and_progressing_remain_distinguishable: true
+    traces:
+      - rel08.0-uc001-declarative-applier S7
+      - srd006-applier AC3
+
+  - use_case: rel08.0-uc001-declarative-applier
+    name: A live on-cluster rollout and rollback through the applier
+    integration_target: mage integration:applierLive
+    status: planned
+    description: |
+      What the fake CLIs cannot stand in for. The applier image is built on the
+      coding runtime under test, loaded into kind, and the coding chart installed
+      with the applier enabled; a values patch then goes through the apply endpoint
+      and the release moves to a new revision, which is the evidence a 200 is not --
+      the fake tier returns one of those without helm existing.
+
+      The compensating leg is live too. A reserved patch forces a deterministic
+      post-upgrade verification failure; the applier's declared kubectl rollout
+      status times out, reaches the rollback terminal, and invokes real helm
+      rollback, which restores the prior computed release values and ready planner,
+      executor, and critic Deployments. The same non-conforming document the schema
+      case validates locally is rejected here against the real coding chart schema,
+      leaving the release untouched. Bounded host and in-pod probes classify a
+      Kubernetes API or pod-network loss apart from the semantic proof.
+    inputs:
+      cluster: kind with the applier image built and loaded
+      patch: a conforming coding values patch
+      rollback_trigger: a patch that forces a post-upgrade verification failure
+      rejected: a non-conforming coding values patch
+    expected:
+      real_helm_upgrade_changes_the_release: true
+      post_upgrade_verify_failure_reaches_rolled_back: true
+      real_helm_rollback_restores_prior_computed_values: true
+      coding_role_deployments_recover_after_rollback: true
+      non_conforming_patch_rejected_on_the_cluster: true
+    traces:
+      - rel08.0-uc001-declarative-applier S3
+      - rel08.0-uc001-declarative-applier S4
+      - srd005-live-helm-smoke R3
+      - srd006-applier AC3

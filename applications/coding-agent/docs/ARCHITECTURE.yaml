@@ -118,6 +118,21 @@ components:
       reuses canonical planner model and parsing words, invokes the executor and
       critic through declared REST clients, and keeps filesystem authority in
       the shared runtime directory rather than in request input.
+  - name: applier
+    path: agents/applier/
+    status: planned
+    library_requirement: docs/specs/software-requirements/srd006-applier.yaml
+    responsibility: |
+      Actuate the coding chart on Kubernetes. An authorized operator or CI caller
+      submits a decided values-plane patch to the applier's apply endpoint; the
+      applier validates it against the chart's values.schema.json by a helm dry-run,
+      applies it with helm upgrade --reuse-values --atomic --wait, verifies the
+      planner, executor, and critic Deployments via kubectl rollout status, and rolls
+      the release back on an apply or verify failure. The applier alone binds helm
+      and kubectl as exec tools; the serving roles carry none. This is an
+      application-owned agent, not a library reference. The coding application runs
+      no control plane, so the applier is a standalone actuator with no in-cluster
+      creator, orchestrator, or panel.
   - name: documentation
     path: docs/
     responsibility: |
@@ -271,6 +286,25 @@ design_decisions:
       - Static chart evidence is connected to real Kubernetes behavior.
       - Model nondeterminism does not weaken role or trace assertions.
       - Reused clusters are not deleted and failures retain targeted evidence.
+  - id: 12
+    title: Separate the deciding caller from the actuating applier
+    decision: |
+      The applier decides no deployment values. An authorized operator or CI caller
+      decides a values-plane patch and submits it to the applier's apply endpoint;
+      the applier validates it against the coding chart's values.schema.json, applies
+      it as a values-file rollout, verifies the planner, executor, and critic
+      Deployments, and rolls back on failure. Deployment authority is held by the
+      applier alone: it binds helm and kubectl as exec tools, and the planner,
+      executor, and critic profiles carry no deployment CLI. Authority is set by
+      declared, validated config, never by the actuation surface, which is
+      network-gated off the serving and collector pods. The applier image carries
+      helm and kubectl, a recorded divergence from the profile-free image invariant.
+      The coding application has no control plane, so the caller is external, not an
+      in-cluster creator, orchestrator, or panel.
+    benefits:
+      - The deciding operator and the actuating agent stay separable and auditable.
+      - Deployment CLIs never reach a serving role, so a running agent cannot actuate the cluster.
+      - The values-plane boundary keeps host, URL, method, and credential input off the apply path.
 
 technology_choices:
   - component: Agent runtime
@@ -312,6 +346,8 @@ project_structure:
       role: Role-specific closure publication and bounded ConfigMap partition metadata.
     - path: agents/serving/
       role: Persistent planner, executor, and critic host profiles and remote request composition.
+    - path: agents/applier/
+      role: Planned standalone applier profile that validates, applies, verifies, and rolls back a decided coding-chart values patch.
     - path: helm/
       role: Planned one-container-per-agent deployment chart.
     - path: magefiles/
