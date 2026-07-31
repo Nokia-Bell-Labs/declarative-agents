@@ -1,7 +1,7 @@
 schema_version: 1
 application: coding-agent
 agent_profiles:
-  compatible_release: applications/catalog/v0.20260727.0
+  compatible_release: applications/catalog/v0.20260730.0
   references:
     - role: planner
       source: agents/planner/profile.yaml

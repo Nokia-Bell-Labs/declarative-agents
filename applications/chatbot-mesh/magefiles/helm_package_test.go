@@ -62,12 +62,12 @@ func TestHelmPackageIsRepeatableAndExcludesGeneratedInputs(t *testing.T) {
 
 func TestHelmPackageRecordsCatalogCompatibilityPin(t *testing.T) {
 	chart := mustReadPackageTestFile(t, filepath.Join("..", "helm", "Chart.yaml"))
-	const annotation = "declarative-agents.nokia.com/catalog-compatible-release: applications/catalog/v0.20260727.0"
+	const annotation = "declarative-agents.nokia.com/catalog-compatible-release: applications/catalog/v0.20260730.0"
 	if !strings.Contains(string(chart), annotation) {
 		t.Fatalf("Chart.yaml missing exact catalog compatibility annotation %q", annotation)
 	}
 	packaging := mustReadPackageTestFile(t, filepath.Join("..", "helm", "PACKAGING.md"))
-	if !strings.Contains(string(packaging), "applications/catalog/v0.20260727.0") ||
+	if !strings.Contains(string(packaging), "applications/catalog/v0.20260730.0") ||
 		!strings.Contains(string(packaging), "does not create release tags") {
 		t.Fatal("PACKAGING.md does not distinguish the exact compatibility pin from post-merge tag publication")
 	}

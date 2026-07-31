@@ -136,11 +136,11 @@ sections:
     content: |
       Integration telemetry enters one host-level OTLP ingress that starts
       before scenario processes and kind clusters. The ingress is a contract,
-      not a required Collector image: it accepts OTLP gRPC and HTTP, routes
-      traces to Jaeger and metrics to a Prometheus-compatible backend, exposes
-      health and query endpoints, and retains both signals after a scenario
-      tears down. The checked-in Collector stack is the reference
-      implementation.
+      not a required Collector image: it accepts OTLP gRPC and HTTP, spools
+      traces behind a bounded query surface and routes metrics to a
+      Prometheus-compatible backend, exposes health and query endpoints, and
+      retains both signals after a scenario tears down. The checked-in
+      collector-agent stack is the reference implementation.
 
       The stack has explicit `up`, `status`, `reset`, and `down` Mage verbs.
       `up` is idempotent and reuses a healthy operator-owned stack. A scenario
@@ -156,10 +156,10 @@ sections:
       commit, and a unique run id on every signal. Scaled roles append their
       instance identity so concurrent RAG units and repeated runs are distinct.
 
-      A kind chart may keep its chart-local Collector as a gateway, but the
+      A kind chart may keep its chart-local collector as a gateway, but the
       integration values overlay sends that gateway to the host ingress. The
       chart's production defaults remain self-contained and retain their local
-      Collector and Jaeger. Generated kind configuration enables supported
+      collector agent. Generated kind configuration enables supported
       API-server and kubelet tracing. helm and kubectl do not propagate
       traceparent, so control-plane traces are correlated to the scenario by
       run identity and time; they are not part of one agent waterfall.

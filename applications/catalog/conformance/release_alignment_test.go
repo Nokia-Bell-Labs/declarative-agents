@@ -13,6 +13,10 @@ import (
 
 const alignmentMigrationPath = "docs/migrations/v0.20260727.0-agent-role-realization-alignment.yaml"
 
+// currentReleaseNotePath names the newest release note; consumer pins must
+// reference this release because the collector family first exists here.
+const currentReleaseNotePath = "docs/migrations/v0.20260730.0-collector-family.yaml"
+
 func TestAlignmentMigrationReleaseAndConsumerPins(t *testing.T) {
 	t.Parallel()
 	type migration struct {
@@ -67,22 +71,41 @@ func TestAlignmentMigrationReleaseAndConsumerPins(t *testing.T) {
 		}
 	}
 
+	var current struct {
+		Release            string `yaml:"release"`
+		LegacyReleaseAlias string `yaml:"legacy_release_alias"`
+		RootRelease        string `yaml:"root_release"`
+		Status             string `yaml:"status"`
+		Supersedes         string `yaml:"supersedes"`
+	}
+	readRoleYAML(t, currentReleaseNotePath, &current)
+	const currentRoot = "v0.20260730.0"
+	if current.RootRelease != currentRoot ||
+		current.Release != "applications/catalog/"+currentRoot ||
+		current.LegacyReleaseAlias != "agent-profiles/"+currentRoot ||
+		current.Status != "release-ready" {
+		t.Fatalf("current release note metadata = %#v, want exact release-ready canonical/legacy pair for %s", current, currentRoot)
+	}
+	if current.Supersedes != "migration-v0.20260727.0-agent-role-realization-alignment" {
+		t.Errorf("current release note supersedes %q, want the alignment migration", current.Supersedes)
+	}
+
 	var coding struct {
 		AgentProfiles struct {
 			CompatibleRelease string `yaml:"compatible_release"`
 		} `yaml:"agent_profiles"`
 	}
 	readRoleYAML(t, "../coding-agent/agents/application.yaml", &coding)
-	if coding.AgentProfiles.CompatibleRelease != note.Release {
-		t.Errorf("coding-agent compatible_release = %q, want %q", coding.AgentProfiles.CompatibleRelease, note.Release)
+	if coding.AgentProfiles.CompatibleRelease != current.Release {
+		t.Errorf("coding-agent compatible_release = %q, want %q", coding.AgentProfiles.CompatibleRelease, current.Release)
 	}
 	var chart struct {
 		Annotations map[string]string `yaml:"annotations"`
 	}
 	readRoleYAML(t, "../chatbot-mesh/helm/Chart.yaml", &chart)
-	if chart.Annotations["declarative-agents.nokia.com/catalog-compatible-release"] != note.Release {
+	if chart.Annotations["declarative-agents.nokia.com/catalog-compatible-release"] != current.Release {
 		t.Errorf("chatbot-mesh catalog release annotation = %q, want %q",
-			chart.Annotations["declarative-agents.nokia.com/catalog-compatible-release"], note.Release)
+			chart.Annotations["declarative-agents.nokia.com/catalog-compatible-release"], current.Release)
 	}
 }
 

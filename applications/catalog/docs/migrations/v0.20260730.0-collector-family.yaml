@@ -1,0 +1,43 @@
+id: migration-v0.20260730.0-collector-family
+title: Canonical Collector Family Release
+release: applications/catalog/v0.20260730.0
+legacy_release_alias: agent-profiles/v0.20260730.0
+root_release: v0.20260730.0
+status: release-ready
+supersedes: migration-v0.20260727.0-agent-role-realization-alignment
+
+publication:
+  timing: published
+  command: mage tag
+  policy: |
+    The root, canonical catalog, and legacy compatibility tags for
+    v0.20260730.0 were published as one atomic tag set at the same commit
+    (GH-1142/GH-1143). Consumer pins reference this release because the
+    collector family first exists here; earlier catalog releases do not
+    contain applications/catalog/agents/collector.
+
+compatibility_policy:
+  catalog_v0: |
+    This release is additive. Every wrapper and alias from the
+    v0.20260727.0 agent-role-realization migration remains valid through
+    applications/catalog/v0.*. No catalog path is renamed or removed.
+  catalog_v1: Compatibility wrappers from prior migrations are removed at applications/catalog/v1.
+
+additions:
+  - name: collector
+    path: applications/catalog/agents/collector/profile.yaml
+    canonical_binding: {role: monitor, sub_roles: [telemetry-collector]}
+    summary: |
+      OTLP trace ingress as a declarative profile: receive, policy, spool,
+      optional relay, control and monitor lifecycle, bounded spool-query
+      surface, and the trace UI. Promoted from chatbot-mesh (GH-1145) with
+      spool as the default mode and no relay endpoint default.
+  - name: design tokens
+    path: applications/catalog/ui/design-tokens.css
+    summary: Canonical UI design-token source with a conformance drift gate over every shipped profile UI.
+
+consumers:
+  - path: applications/chatbot-mesh/helm/Chart.yaml
+    field: annotations.declarative-agents.nokia.com/catalog-compatible-release
+  - path: applications/coding-agent/agents/application.yaml
+    field: agent_profiles.compatible_release

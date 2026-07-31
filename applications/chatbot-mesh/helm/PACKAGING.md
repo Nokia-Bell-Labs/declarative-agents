@@ -35,7 +35,7 @@ resolved files and needs no profile checkout at runtime.
 
 `Chart.yaml` records
 `declarative-agents.nokia.com/catalog-compatible-release:
-applications/catalog/v0.20260727.0` for that canonical build input. As with the
+applications/catalog/v0.20260730.0` for that canonical build input. As with the
 coding-agent package manifest, this is a compatibility pin, not a claim that an
 arbitrary source checkout is the immutable release. The exact canonical and
 legacy catalog tags are published atomically from `main` after merge; packaging
