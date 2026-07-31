@@ -160,9 +160,9 @@ func TestCodingHelmSmokeUsesProductionProfileFreeImageRecipe(t *testing.T) {
 	}
 }
 
-func TestCodingHelmUsesIsolatedLocalJaegerPort(t *testing.T) {
-	if codingHelmJaegerURL != "http://127.0.0.1:18686" {
-		t.Fatalf("Jaeger URL = %s, want isolated smoke port", codingHelmJaegerURL)
+func TestCodingHelmUsesIsolatedCollectorQueryPort(t *testing.T) {
+	if codingHelmCollectorQueryURL != "http://127.0.0.1:18193" {
+		t.Fatalf("collector query URL = %s, want isolated smoke port", codingHelmCollectorQueryURL)
 	}
 }
 

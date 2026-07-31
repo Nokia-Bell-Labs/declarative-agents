@@ -3,7 +3,7 @@
   "title": "coding-agent values",
   "type": "object",
   "additionalProperties": false,
-  "required": ["image", "profiles", "workspace", "roles", "llm", "ollama", "collector", "jaeger", "podSecurityContext", "containerSecurityContext"],
+  "required": ["image", "profiles", "workspace", "roles", "llm", "ollama", "collector", "podSecurityContext", "containerSecurityContext"],
   "definitions": {
     "image": {
       "type": "object",
@@ -179,19 +179,6 @@
     "collector": {
       "type": "object",
       "additionalProperties": false,
-      "required": ["enabled", "utilityImage", "image", "otlpGRPCPort", "otlpHTTPPort", "resources"],
-      "properties": {
-        "enabled": {"type": "boolean"},
-        "utilityImage": {"type": "string", "pattern": "^[^[:space:]@]+:[A-Za-z0-9_][A-Za-z0-9_.-]{0,127}$"},
-        "image": {"$ref": "#/definitions/image"},
-        "otlpGRPCPort": {"type": "integer", "minimum": 1024, "maximum": 65535},
-        "otlpHTTPPort": {"type": "integer", "minimum": 1024, "maximum": 65535},
-        "resources": {"$ref": "#/definitions/resources"}
-      }
-    },
-    "jaeger": {
-      "type": "object",
-      "additionalProperties": false,
       "required": ["enabled", "image", "otlpGRPCPort", "queryPort", "resources"],
       "properties": {
         "enabled": {"type": "boolean"},
@@ -251,10 +238,6 @@
     {
       "if": {"properties": {"ollama": {"properties": {"enabled": {"const": false}}}}},
       "then": {"properties": {"llm": {"properties": {"externalURL": {"minLength": 1}}}}}
-    },
-    {
-      "if": {"properties": {"jaeger": {"properties": {"enabled": {"const": true}}}}},
-      "then": {"properties": {"collector": {"properties": {"enabled": {"const": true}}}}}
     }
   ]
 }

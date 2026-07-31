@@ -1,13 +1,13 @@
 import { useEffect, useState } from "react";
 
 // The observability v2 waterfall fetches a turn's connected cross-agent trace by
-// id from the trace backend (Jaeger query API), reached same-origin through the
-// chatbot's monitor_proxy (agent-core GH-358): /monitor-proxy/jaeger/api/traces/<id>.
+// id from the collector query surface, reached same-origin through the chatbot's
+// monitor_proxy (agent-core GH-358): /monitor-proxy/collector/query/traces/<id>.
 // Absent locally, so the panel degrades to a backend-missing notice.
-export const TRACE_BACKEND = "jaeger";
+export const TRACE_BACKEND = "collector";
 
 export function traceQueryPath(traceId: string): string {
-  return `/monitor-proxy/${TRACE_BACKEND}/api/traces/${encodeURIComponent(traceId)}`;
+  return `/monitor-proxy/${TRACE_BACKEND}/query/traces/${encodeURIComponent(traceId)}`;
 }
 
 export interface TraceSpan {
@@ -33,32 +33,39 @@ export type TraceState =
   | { status: "empty" }
   | { status: "unavailable"; reason: string };
 
-interface JaegerRef {
-  refType: string;
-  spanID: string;
+interface CollectorSpan {
+  span_id: string;
+  parent_span_id?: string;
+  name: string;
+  service: string;
+  start_time: string;
+  end_time: string;
+  status?: { code?: number; description?: string };
+  attributes?: Record<string, string>;
 }
-interface JaegerSpan {
-  spanID: string;
-  operationName: string;
-  startTime: number;
-  duration: number;
-  processID: string;
-  references?: JaegerRef[];
-}
-interface JaegerTrace {
-  spans: JaegerSpan[];
-  processes: Record<string, { serviceName: string }>;
+interface CollectorTrace {
+  trace_id: string;
+  spans: CollectorSpan[];
+  span_count: number;
 }
 
-function toModel(trace: JaegerTrace): TraceModel {
-  const spans: TraceSpan[] = trace.spans.map((s) => ({
-    id: s.spanID,
-    parentId: (s.references ?? []).find((r) => r.refType === "CHILD_OF")?.spanID,
-    name: s.operationName,
-    service: trace.processes[s.processID]?.serviceName ?? s.processID,
-    startUs: s.startTime,
-    durationUs: s.duration,
-  }));
+function isoToUs(iso: string): number {
+  return new Date(iso).getTime() * 1000;
+}
+
+function toModel(trace: CollectorTrace): TraceModel {
+  const spans: TraceSpan[] = trace.spans.map((s) => {
+    const startUs = isoToUs(s.start_time);
+    const endUs = isoToUs(s.end_time);
+    return {
+      id: s.span_id,
+      parentId: s.parent_span_id || undefined,
+      name: s.name,
+      service: s.service,
+      startUs,
+      durationUs: endUs - startUs,
+    };
+  });
   spans.sort((a, b) => a.startUs - b.startUs);
   const startUs = Math.min(...spans.map((s) => s.startUs));
   const endUs = Math.max(...spans.map((s) => s.startUs + s.durationUs));
@@ -91,19 +98,18 @@ export function useTrace(traceId: string | undefined): TraceState {
         setState({ status: "unavailable", reason: `trace backend returned HTTP ${res.status}` });
         return;
       }
-      let body: { data?: JaegerTrace[] } = {};
+      let body: CollectorTrace | undefined;
       try {
-        body = (await res.json()) as { data?: JaegerTrace[] };
+        body = (await res.json()) as CollectorTrace;
       } catch {
         setState({ status: "unavailable", reason: "trace backend returned a non-JSON body" });
         return;
       }
-      const trace = body.data?.[0];
-      if (!trace || !trace.spans || trace.spans.length === 0) {
+      if (!body || !body.spans || body.spans.length === 0) {
         setState({ status: "empty" });
         return;
       }
-      setState({ status: "ok", trace: toModel(trace) });
+      setState({ status: "ok", trace: toModel(body) });
     })();
     return () => {
       active = false;

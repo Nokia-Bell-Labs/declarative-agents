@@ -80,6 +80,10 @@ app.kubernetes.io/instance: {{ .Release.Name }}
 {{- end -}}
 {{- end -}}
 
+{{- define "coding-agent.collectorImage" -}}
+{{- printf "%s:%s" .Values.collector.image.repository .Values.collector.image.tag -}}
+{{- end -}}
+
 {{- define "coding-agent.ollamaModels" -}}
 {{- .Values.ollama.models | uniq | join " " -}}
 {{- end -}}
@@ -98,12 +102,6 @@ app.kubernetes.io/instance: {{ .Release.Name }}
 {{- fail (printf "role ports conflict at %v (%s and %s)" $port (index $seen ($port | toString)) $name) -}}
 {{- end -}}
 {{- $_ := set $seen ($port | toString) $name -}}
-{{- end -}}
-{{- if and .Values.collector.enabled (eq (int .Values.collector.otlpGRPCPort) (int .Values.collector.otlpHTTPPort)) -}}
-{{- fail "collector OTLP gRPC and HTTP ports must differ" -}}
-{{- end -}}
-{{- if and .Values.jaeger.enabled (not .Values.collector.enabled) -}}
-{{- fail "jaeger.enabled requires collector.enabled" -}}
 {{- end -}}
 {{- if and (not .Values.ollama.enabled) (not .Values.llm.externalURL) -}}
 {{- fail "llm.externalURL is required when ollama is disabled" -}}

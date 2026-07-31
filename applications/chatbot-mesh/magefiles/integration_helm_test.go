@@ -58,8 +58,8 @@ func TestCollectorDefaultRenderStaysSelfContained(t *testing.T) {
 		t.Fatalf("helm template: %v\n%s", err, out)
 	}
 	render := string(out)
-	if !strings.Contains(render, "endpoint: t-chatbot-mesh-jaeger:4317") {
-		t.Fatal("default collector does not export traces to embedded Jaeger")
+	if strings.Contains(render, "jaeger") {
+		t.Fatal("default collector render still references Jaeger")
 	}
 	for _, forbidden := range []string{"otlp/external:", "resource/integration:", "test.run.id"} {
 		if strings.Contains(render, forbidden) {
@@ -80,7 +80,6 @@ func TestCollectorKindOverlayExportsBothSignalsWithRunIdentity(t *testing.T) {
 	}
 	render := string(out)
 	for _, want := range []string{
-		"endpoint: t-chatbot-mesh-jaeger:4317",
 		"otlp/external:",
 		`endpoint: "host.docker.internal:4317"`,
 		"resource/integration:",
@@ -221,53 +220,8 @@ func TestHelmInstallSmokePassesRunIdentityToGateway(t *testing.T) {
 	}
 }
 
-func TestSharedTraceCountFiltersByRunID(t *testing.T) {
-	server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
-		if r.URL.Query().Get("service") != "chatbot" ||
-			!strings.Contains(r.URL.Query().Get("tags"), `"test.run.id":"run-123"`) {
-			t.Errorf("unexpected query: %s", r.URL.RawQuery)
-		}
-		_, _ = w.Write([]byte(`{"data":[{"traceID":"abc"}]}`))
-	}))
-	defer server.Close()
-	count, err := sharedTraceCount(server.URL, "chatbot", "run-123")
-	if err != nil {
-		t.Fatal(err)
-	}
-	if count != 1 {
-		t.Fatalf("trace count = %d, want 1", count)
-	}
-}
-
-func TestCollectSharedTelemetryEvidenceIdentifiesSlowComponent(t *testing.T) {
+func TestCollectSharedMetricsEvidenceRetainsAgentAndDolt(t *testing.T) {
 	started := time.Now().Add(-time.Minute)
-	jaeger := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
-		service := r.URL.Query().Get("service")
-		duration := int64(1000)
-		tags := []map[string]any{}
-		if service == "rag0-chroma" {
-			duration = 9000
-		}
-		if service == "chatbot" {
-			tags = []map[string]any{
-				{"key": "gen_ai.operation.name", "value": "chat"},
-				{"key": "gen_ai.provider.name", "value": "ollama"},
-				{"key": "gen_ai.request.model", "value": "qwen2.5:3b"},
-			}
-		}
-		_ = json.NewEncoder(w).Encode(map[string]any{"data": []any{map[string]any{
-			"traceID": service + "-trace",
-			"spans": []any{map[string]any{
-				"operationName": service + ".operation",
-				"processID":     "p1",
-				"duration":      duration,
-				"tags":          tags,
-			}},
-			"processes": map[string]any{"p1": map[string]any{"serviceName": service}},
-		}}})
-	}))
-	defer jaeger.Close()
-
 	prometheus := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		selector := r.URL.Query().Get("match[]")
 		var series []map[string]string
@@ -286,58 +240,16 @@ func TestCollectSharedTelemetryEvidenceIdentifiesSlowComponent(t *testing.T) {
 	}))
 	defer prometheus.Close()
 
-	evidence, err := collectSharedTelemetryEvidence(jaeger.URL, prometheus.URL, helmTelemetryIdentity{
+	evidence, err := collectSharedMetricsEvidence(prometheus.URL, helmTelemetryIdentity{
 		RunID: "run-123", Started: started,
 	})
 	if err != nil {
 		t.Fatal(err)
 	}
-	if evidence.SlowestService != "rag0-chroma" ||
-		evidence.SlowestOperation != "rag0-chroma.operation" {
-		t.Fatalf("slowest evidence = %s/%s, want rag0-chroma/rag0-chroma.operation",
-			evidence.SlowestService, evidence.SlowestOperation)
-	}
 	if !containsString(evidence.AgentMetrics, "dispatch_count_total") ||
 		!containsString(evidence.DoltMetrics, "dss_concurrent_queries") {
 		t.Fatalf("metric evidence missing: agent=%v dolt=%v",
 			evidence.AgentMetrics, evidence.DoltMetrics)
-	}
-}
-
-func TestJaegerAgentServicesExcludesJaeger(t *testing.T) {
-	srv := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
-		if r.URL.Path != "/api/services" {
-			w.WriteHeader(http.StatusNotFound)
-			return
-		}
-		_, _ = w.Write([]byte(`{"data":["chatbot","rag0","jaeger-all-in-one"]}`))
-	}))
-	defer srv.Close()
-
-	n, services, err := jaegerAgentServices(srv.URL)
-	if err != nil {
-		t.Fatalf("jaegerAgentServices: %v", err)
-	}
-	if n != 2 {
-		t.Fatalf("agent service count = %d, want 2 (services=%v)", n, services)
-	}
-	for _, s := range services {
-		if s == "jaeger-all-in-one" {
-			t.Fatalf("jaeger internal service should be excluded, got %v", services)
-		}
-	}
-}
-
-func TestAssertSmokeSpansBelowThreshold(t *testing.T) {
-	srv := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
-		_, _ = w.Write([]byte(`{"data":["chatbot","jaeger"]}`))
-	}))
-	defer srv.Close()
-
-	// Only one agent service is present, so the >=2 assertion must fail after a
-	// short retry budget rather than hang.
-	if err := assertSmokeSpans(srv.URL, 2, 200*time.Millisecond); err == nil {
-		t.Fatal("assertSmokeSpans should fail when fewer than minServices agent services report")
 	}
 }
 

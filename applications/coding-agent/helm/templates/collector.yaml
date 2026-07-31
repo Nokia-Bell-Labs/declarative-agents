@@ -3,38 +3,15 @@
 apiVersion: v1
 kind: ConfigMap
 metadata:
-  name: {{ $fullname }}-collector
+  name: {{ $fullname }}-collector-profiles
   labels:
     {{- include "coding-agent.labels" . | nindent 4 }}
     app.kubernetes.io/component: collector
 data:
-  config.yaml: |
-    receivers:
-      otlp:
-        protocols:
-          grpc:
-            endpoint: 0.0.0.0:{{ .Values.collector.otlpGRPCPort }}
-          http:
-            endpoint: 0.0.0.0:{{ .Values.collector.otlpHTTPPort }}
-    processors:
-      batch: {}
-    exporters:
-      debug: {verbosity: basic}
-      {{- if .Values.jaeger.enabled }}
-      otlp/jaeger:
-        endpoint: {{ $fullname }}-jaeger:{{ .Values.jaeger.otlpGRPCPort }}
-        tls: {insecure: true}
-      {{- end }}
-    service:
-      pipelines:
-        traces:
-          receivers: [otlp]
-          processors: [batch]
-          exporters: [{{ ternary "otlp/jaeger" "debug" .Values.jaeger.enabled }}]
-        metrics:
-          receivers: [otlp]
-          processors: [batch]
-          exporters: [debug]
+  {{- range $path, $_ := .Files.Glob "profiles/collector/**" }}
+  {{ $path | trimPrefix "profiles/collector/" | replace "/" "__" }}: |-
+    {{- $.Files.Get $path | nindent 4 }}
+  {{- end }}
 ---
 apiVersion: apps/v1
 kind: Deployment
@@ -55,43 +32,57 @@ spec:
         {{- include "coding-agent.selectorLabels" . | nindent 8 }}
         app.kubernetes.io/component: collector
       annotations:
-        checksum/config: {{ printf "%s-%t" (toYaml .Values.collector) .Values.jaeger.enabled | sha256sum }}
+        checksum/config: {{ toYaml .Values.collector | sha256sum }}
     spec:
       automountServiceAccountToken: false
       securityContext:
         {{- toYaml .Values.podSecurityContext | nindent 8 }}
-      {{- if .Values.jaeger.enabled }}
-      initContainers:
-        - name: wait-for-jaeger-otlp
-          image: {{ .Values.collector.utilityImage | quote }}
-          command: ["/bin/sh", "-c"]
-          args:
-            - until nc -z -w 2 {{ $fullname }}-jaeger {{ .Values.jaeger.otlpGRPCPort }}; do sleep 2; done
-          securityContext:
-            {{- toYaml .Values.containerSecurityContext | nindent 12 }}
-      {{- end }}
       containers:
         - name: collector
-          image: "{{ .Values.collector.image.repository }}:{{ .Values.collector.image.tag }}"
+          image: {{ include "coding-agent.collectorImage" . | quote }}
           imagePullPolicy: {{ .Values.collector.image.pullPolicy }}
-          args: ["--config=/etc/collector/config.yaml"]
+          args:
+            - "--profile"
+            - "/profiles/agents/collector/profile.yaml"
+            - "--directory"
+            - "/data"
           securityContext:
             {{- toYaml .Values.containerSecurityContext | nindent 12 }}
+          env:
+            - {name: COLLECTOR_BIND_HOST, value: "0.0.0.0"}
+            - {name: COLLECTOR_RECEIVER_ADDRESS, value: "0.0.0.0:{{ .Values.collector.otlpGRPCPort }}"}
+            - {name: COLLECTOR_CONTROL_PORT, value: "18191"}
+            - {name: COLLECTOR_MONITOR_PORT, value: "18192"}
+            - {name: COLLECTOR_QUERY_PORT, value: {{ .Values.collector.queryPort | quote }}}
+            - {name: COLLECTOR_SPOOL_PATH, value: "/data/collector.ndjson"}
+            - {name: COLLECTOR_MODE, value: "spool"}
           ports:
             - {name: otlp-grpc, containerPort: {{ .Values.collector.otlpGRPCPort }}}
-            - {name: otlp-http, containerPort: {{ .Values.collector.otlpHTTPPort }}}
+            - {name: query, containerPort: {{ .Values.collector.queryPort }}}
           readinessProbe:
-            tcpSocket: {port: otlp-grpc}
+            httpGet: {path: /api/lifecycle/health, port: 18191}
             initialDelaySeconds: 2
             periodSeconds: 5
           resources:
             {{- toYaml .Values.collector.resources | nindent 12 }}
           volumeMounts:
-            - {name: config, mountPath: /etc/collector, readOnly: true}
+            - {name: profiles, mountPath: /profiles, readOnly: true}
+            - {name: spool, mountPath: /data}
             - {name: tmp, mountPath: /tmp}
       volumes:
-        - name: config
-          configMap: {name: {{ $fullname }}-collector}
+        - name: profiles
+          projected:
+            defaultMode: 0444
+            sources:
+              - configMap:
+                  name: {{ $fullname }}-collector-profiles
+                  items:
+                    {{- range $path, $_ := .Files.Glob "profiles/collector/**" }}
+                    - key: {{ $path | trimPrefix "profiles/collector/" | replace "/" "__" }}
+                      path: {{ $path | trimPrefix "profiles/collector/" }}
+                    {{- end }}
+        - name: spool
+          emptyDir: {}
         - name: tmp
           emptyDir: {}
 ---
@@ -108,5 +99,5 @@ spec:
     app.kubernetes.io/component: collector
   ports:
     - {name: otlp-grpc, port: {{ .Values.collector.otlpGRPCPort }}, targetPort: otlp-grpc}
-    - {name: otlp-http, port: {{ .Values.collector.otlpHTTPPort }}, targetPort: otlp-http}
+    - {name: query, port: {{ .Values.collector.queryPort }}, targetPort: query}
 {{- end }}

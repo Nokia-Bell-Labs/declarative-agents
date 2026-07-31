@@ -1,0 +1,63 @@
+id: test-rel09.0-canonical-collector
+title: Test Suite for Release 09.0 Canonical Collector and Jaeger Retirement
+release: "09.0"
+
+traces: [rel09.0-uc001-canonical-collector]
+
+preconditions:
+  - The Jaeger Helm template is deleted and no jaeger values block or schema entry exists.
+  - The collector agent exposes a query surface on port 18193.
+  - The UX trace backend is configured for the collector query surface.
+  - The collector program is consumed from the catalog.
+
+test_cases:
+  - use_case: rel09.0-uc001-canonical-collector
+    name: Default render contains no Jaeger reference
+    go_test: go test ./magefiles -run '^TestCollectorDefaultRenderStaysSelfContained$'
+    status: implemented
+    description: A default helm template render produces no string matching jaeger in any template output.
+    expected:
+      jaeger_in_render: false
+      collector_query_port_rendered: true
+    traces: [rel09.0-uc001-canonical-collector S1, rel09.0-uc001-canonical-collector S2]
+
+  - use_case: rel09.0-uc001-canonical-collector
+    name: Spool identity holds without Jaeger cross-check
+    integration_target: mage integration:helmSmoke
+    status: implemented
+    description: The smoke test asserts collector spool identity by reading the spool directly via kubectl exec; no Jaeger endpoint is contacted.
+    expected:
+      spool_trace_id_present: true
+      service_identity_match: true
+      jaeger_endpoint_contacted: false
+    traces: [rel09.0-uc001-canonical-collector S4, srd007-collector-agent AC2]
+
+  - use_case: rel09.0-uc001-canonical-collector
+    name: Metrics evidence collected from Prometheus
+    go_test: go test ./magefiles -run '^TestCollectSharedMetricsEvidenceRetainsAgentAndDolt$'
+    status: implemented
+    description: Agent and Dolt metrics are collected from Prometheus and retained as evidence after teardown; no Jaeger trace evidence is required.
+    expected:
+      agent_metrics_present: true
+      dolt_metrics_present: true
+      trace_evidence_from_jaeger: false
+    traces: [rel09.0-uc001-canonical-collector S5, srd003-chatbot-deployment AC5]
+
+  - use_case: rel09.0-uc001-canonical-collector
+    name: Collector program consumed from catalog
+    status: implemented
+    description: The chart profile source redirects the collector program to the catalog root alongside the corpus-ingest program.
+    expected:
+      local_agents_collector_absent: true
+      catalog_source_used: true
+    traces: [rel09.0-uc001-canonical-collector S6]
+
+  - use_case: rel09.0-uc001-canonical-collector
+    name: UX waterfall transforms collector query format
+    status: implemented
+    description: The traceApi module converts collector query response format (ISO timestamps, span_id, parent_span_id) to the internal TraceModel (microsecond timestamps, hierarchical spans).
+    expected:
+      iso_to_microsecond_conversion: true
+      flat_span_structure_parsed: true
+      trace_backend_name: collector
+    traces: [rel09.0-uc001-canonical-collector S3]

@@ -24,8 +24,8 @@ var (
 	checkObservabilityPort  = portAvailable
 )
 
-// Observability manages the persistent integration OTLP ingress, Jaeger trace
-// backend, and Prometheus metric backend specified by srd008 R9.
+// Observability manages the persistent integration OTLP ingress, collector agent
+// trace backend, and Prometheus metric backend.
 type Observability mg.Namespace
 
 // Up starts the shared stack or reuses an already healthy one.
@@ -96,7 +96,7 @@ func observabilityPorts() []namedPort {
 		{"OTLP gRPC", envOr("DA_OTEL_GRPC_PORT", "4317")},
 		{"OTLP HTTP", envOr("DA_OTEL_HTTP_PORT", "4318")},
 		{"Collector health", envOr("DA_OTEL_HEALTH_PORT", "13133")},
-		{"Jaeger query", envOr("DA_JAEGER_QUERY_PORT", "16686")},
+		{"Collector query", envOr("DA_COLLECTOR_QUERY_PORT", "18193")},
 		{"Prometheus query", envOr("DA_PROMETHEUS_QUERY_PORT", "9090")},
 	}
 }
@@ -126,7 +126,7 @@ func observabilityHealth() error {
 		url  string
 	}{
 		{"Collector", "http://127.0.0.1:" + envOr("DA_OTEL_HEALTH_PORT", "13133") + "/"},
-		{"Jaeger", "http://127.0.0.1:" + envOr("DA_JAEGER_QUERY_PORT", "16686") + "/api/services"},
+		{"Collector agent", "http://127.0.0.1:" + envOr("DA_COLLECTOR_QUERY_PORT", "18193") + "/query/traces"},
 		{"Prometheus", "http://127.0.0.1:" + envOr("DA_PROMETHEUS_QUERY_PORT", "9090") + "/-/healthy"},
 	}
 	client := &http.Client{Timeout: 2 * time.Second}

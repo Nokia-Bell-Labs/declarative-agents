@@ -37,7 +37,7 @@ requirements:
       - id: R3.2
         text: One planner request shall remotely execute the canonical executor, mutate the shared workspace, pass Go tests, and receive canonical critic acceptance.
       - id: R3.3
-        text: Jaeger shall retain the supplied trace identifier with coding-planner, coding-executor, and coding-critic processes.
+        text: The collector agent shall retain the supplied trace identifier with coding-planner, coding-executor, and coding-critic service spans.
   - id: R4
     title: Failure classification
     items:

@@ -57,10 +57,10 @@ monitored_agents:
   - name: {{ $unit.name }}
     label: RAG server {{ $i }}
 {{- end }}
-{{- if .Values.jaeger.enabled }}
+{{- if eq .Values.collector.implementation "agent" }}
 trace_backend:
-  name: jaeger
-  query_path: /monitor-proxy/jaeger/api/traces/{trace_id}
+  name: collector
+  query_path: /monitor-proxy/collector/query/traces/{trace_id}
 {{- end }}
 {{- if .Values.applier.enabled }}
 deployment_api:

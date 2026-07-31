@@ -21,10 +21,10 @@ test_cases:
     traces: [rel07.0-uc001-collector-ingress S1, rel07.0-uc001-collector-ingress S3, srd007-collector-agent AC1, srd007-collector-agent AC3]
 
   - use_case: rel07.0-uc001-collector-ingress
-    name: A real client batch reaches stdouttrace spool and Jaeger unchanged
+    name: A real client batch reaches stdouttrace spool unchanged
     integration_target: mage integration:helmSmoke
     status: implemented
-    description: A real OTLP client exports parent and child spans with full run identity; spool and Jaeger agree on every identity field.
+    description: A real OTLP client exports parent and child spans with full run identity; the spool preserves every identity field.
     expected:
       trace_id_match: true
       span_id_match: true
@@ -47,9 +47,10 @@ test_cases:
 
   - use_case: rel07.0-uc001-collector-ingress
     name: Collector lifecycle releases receiver control and monitor listeners
-    integration_target: not implemented
-    status: planned
-    description: No mage target currently proves this case. The required integration must issue lifecycle exit while await is blocked, permit every configured address to bind again, and record the final bounded monitor outcome.
+    integration_target: mage integration:rig
+    go_test: go test ./magefiles -run '^TestCollectorLifecycleRebindAndTerminalState$'
+    status: implemented
+    description: The hermetic rig launches the shipped collector profile, verifies monitor reachability, sends lifecycle exit, asserts terminal state succeeded, and rebinds all listener addresses.
     expected:
       blocked_await_released: true
       all_addresses_rebind: true

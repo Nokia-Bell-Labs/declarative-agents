@@ -1,0 +1,59 @@
+id: rel01.0-uc001-demo-trace-collection
+title: Demo Run Collects and Serves Traces
+status: implemented
+
+summary: |
+  The demo launch path starts the canonical collector agent in spool mode
+  before the documentation-curator, exports OTLP traces from the curator to
+  the local collector, and stops the collector cleanly after the curator
+  exits. The presenter opens the collector query surface to show the trace
+  waterfall as part of the demo story.
+
+actor: A developer or presenter running the Knowledge Manager demo.
+trigger: Run mage run from the application root.
+
+preconditions:
+  - AGENT_CATALOG_ROOT resolves to a catalog checkout containing the collector and documentation-curator profiles.
+  - AGENT_CORE_ROOT resolves to a buildable agent-core checkout.
+  - Local collector ports (4317, 18191, 18192, 18193) and curator ports (18081, 18082, 18084) are available.
+
+flow:
+  - id: F1
+    text: mage run builds the agent-core binary and checks whether tracing is enabled (default true, disabled by DEMO_TRACING=false).
+  - id: F2
+    text: When tracing is enabled, the run target starts the collector agent in spool mode with the canonical collector profile, binding the OTLP receiver to 127.0.0.1:4317 and the query surface to port 18193.
+  - id: F3
+    text: The run target waits for the collector control endpoint to become healthy before proceeding.
+  - id: F4
+    text: The run target launches the documentation-curator with --otel-otlp-endpoint and --otel-service-name flags so the curator exports traces to the local collector.
+  - id: F5
+    text: The presenter opens the collector query surface to browse collected traces.
+  - id: F6
+    text: After the curator exits, the run target posts to the collector control exit route, waits for the collector process to terminate, and removes the spool directory.
+
+success_criteria:
+  - id: S1
+    criterion: The collector agent starts before the curator and binds its receiver, control, and query ports.
+    traces:
+      - architecture-knowledge-manager-demo design_decisions 7
+      - test-rel01.0-demo-trace-collection collector_command
+  - id: S2
+    criterion: The curator run command includes OTLP export flags pointing at the local collector.
+    traces:
+      - test-rel01.0-demo-trace-collection traced_curator_command
+  - id: S3
+    criterion: Tracing is on by default and disabled by DEMO_TRACING=false.
+    traces:
+      - test-rel01.0-demo-trace-collection tracing_enabled
+  - id: S4
+    criterion: The collector exits cleanly via its control route after the curator, and no listeners remain orphaned.
+    traces:
+      - architecture-knowledge-manager-demo design_decisions 7
+      - test-rel01.0-demo-trace-collection collector_command
+
+out_of_scope:
+  - Changing the canonical collector or documentation-curator profiles.
+  - Proving live spool content or query results (dependency-gated).
+  - Browser automation of the collector query surface.
+
+test_suite: test-rel01.0-demo-trace-collection

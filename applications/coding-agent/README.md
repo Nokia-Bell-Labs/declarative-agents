@@ -133,8 +133,7 @@ The chart defaults to
 `ghcr.io/nokia-bell-labs/declarative-agents/coding-agent-runtime:0.1.0` and
 renders one persistent coding-runtime container per role, projected
 read-only role ConfigMaps, one shared workspace claim, fixed internal role
-Services, lifecycle probes, optional Ollama, and collector-to-Jaeger OTLP
-routing. `values.schema.json`, semantic template guards, and fixtures under
+Services, lifecycle probes, optional Ollama, and collector agent tracing. `values.schema.json`, semantic template guards, and fixtures under
 `helm/schema-fixtures/` validate values. `mage helm:package` regenerates and
 checks prepared profiles, renders the supported matrix, writes
 `helm/dist/coding-agent-0.1.0.tgz`, verifies its complete inventory, and renders
@@ -237,7 +236,7 @@ Ollama-compatible model responses and production profile, REST, workspace,
 critic, lifecycle, and trace behavior.
 `mage integration:helmSmoke` installs the packaged chart into kind and proves
 the same flow through Kubernetes, including shared workspace mutation and the
-connected Jaeger trace. It skips only for missing host prerequisites.
+connected collector agent trace. It skips only for missing host prerequisites.
 
 ## Documents
 

@@ -39,12 +39,6 @@ data:
           - {key: test.run.id, value: {{ .Values.collector.integrationResource.runID | quote }}, action: upsert}
       {{- end }}
     exporters:
-      {{- if .Values.jaeger.enabled }}
-      otlp/jaeger:
-        endpoint: {{ $fullname }}-jaeger:{{ .Values.jaeger.otlpGRPCPort }}
-        tls:
-          insecure: true
-      {{- end }}
       {{- if $external }}
       otlp/external:
         endpoint: {{ $external | quote }}
@@ -59,13 +53,9 @@ data:
           receivers: [otlp]
           processors: [{{ if $external }}resource/integration, {{ end }}batch]
           exporters:
-            {{- if .Values.jaeger.enabled }}
-            - otlp/jaeger
-            {{- end }}
             {{- if $external }}
             - otlp/external
-            {{- end }}
-            {{- if and (not .Values.jaeger.enabled) (not $external) }}
+            {{- else }}
             - debug
             {{- end }}
         metrics:
@@ -112,13 +102,14 @@ spec:
           env:
             - {name: COLLECTOR_BIND_HOST, value: "0.0.0.0"}
             - {name: COLLECTOR_RECEIVER_ADDRESS, value: "0.0.0.0:{{ .Values.collector.otlpGRPCPort }}"}
-            - {name: COLLECTOR_RELAY_ENDPOINT, value: {{ default (printf "%s-jaeger:%v" $fullname .Values.jaeger.otlpGRPCPort) $external | quote }}}
+            - {name: COLLECTOR_RELAY_ENDPOINT, value: {{ default "" $external | quote }}}
             - {name: COLLECTOR_SPOOL_PATH, value: "{{ .Values.profiles.workMountPath }}/traces/collector.ndjson"}
-            - {name: COLLECTOR_MODE, value: {{ ternary "relay" "spool" .Values.jaeger.enabled | quote }}}
+            - {name: COLLECTOR_MODE, value: {{ ternary "relay" "spool" (ne (default "" $external) "") | quote }}}
           ports:
             - {name: otlp-grpc, containerPort: {{ .Values.collector.otlpGRPCPort }}}
             - {name: control, containerPort: 18191}
             - {name: monitor, containerPort: 18192}
+            - {name: query, containerPort: 18193}
           readinessProbe:
             httpGet: {path: /api/lifecycle/health, port: control}
             initialDelaySeconds: 5
@@ -209,7 +200,9 @@ spec:
     app.kubernetes.io/component: collector
   ports:
     - {name: otlp-grpc, port: {{ .Values.collector.otlpGRPCPort }}, targetPort: otlp-grpc}
-    {{- if not $agent }}
+    {{- if $agent }}
+    - {name: query, port: 18193, targetPort: query}
+    {{- else }}
     - {name: otlp-http, port: {{ .Values.collector.otlpHTTPPort }}, targetPort: otlp-http}
     {{- end }}
 {{- end }}

@@ -27,7 +27,7 @@ flow:
   - id: F5
     text: Planner resolves executor and critic through fixed Service URLs; W3C trace context flows through the serving contract.
   - id: F6
-    text: Role OTLP exporters send to the collector, which sends traces to Jaeger; model clients use the selected Ollama endpoint.
+    text: Role OTLP exporters send to the collector agent, which spools traces and serves a query surface; model clients use the selected Ollama endpoint.
 
 success_criteria:
   - id: S1

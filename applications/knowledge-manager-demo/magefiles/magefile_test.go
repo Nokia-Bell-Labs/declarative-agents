@@ -31,6 +31,7 @@ func TestResolveRootsExplicitRelativeOwners(t *testing.T) {
 	catalog := filepath.Join(repository, "catalog-checkout")
 	core := filepath.Join(repository, "core-checkout")
 	writeFile(t, filepath.Join(catalog, filepath.FromSlash(canonicalProfile)), "name: curator\n")
+	writeFile(t, filepath.Join(catalog, filepath.FromSlash(collectorProfile)), "name: collector\n")
 	writeFile(t, filepath.Join(core, "go.mod"), "module example.test/core\n")
 	if err := os.MkdirAll(filepath.Join(core, "cmd", "agent"), 0o755); err != nil {
 		t.Fatal(err)
@@ -255,8 +256,8 @@ func TestStatsCompositionOnlyJSON(t *testing.T) {
 	if application["ownership"] != "composition" || application["agents_contributed"] != float64(0) {
 		t.Fatalf("application stats = %#v, want composition with zero agents", application)
 	}
-	if application["canonical_references"] != float64(1) {
-		t.Fatalf("canonical_references = %#v, want 1", application["canonical_references"])
+	if application["canonical_references"] != float64(2) {
+		t.Fatalf("canonical_references = %#v, want 2", application["canonical_references"])
 	}
 }
 
@@ -354,6 +355,91 @@ func TestManagedServicesEvidenceContract(t *testing.T) {
 	}
 }
 
+func TestTracingEnabled(t *testing.T) {
+	tests := []struct {
+		value string
+		want  bool
+	}{
+		{"", true},
+		{"true", true},
+		{"1", true},
+		{"false", false},
+		{"FALSE", false},
+		{"False", false},
+	}
+	for _, test := range tests {
+		got := tracingEnabled(func(string) string { return test.value })
+		if got != test.want {
+			t.Errorf("tracingEnabled(%q) = %v, want %v", test.value, got, test.want)
+		}
+	}
+}
+
+func TestCollectorCommandConstruction(t *testing.T) {
+	resolved := roots{
+		Application: filepath.Join(string(filepath.Separator), "work", "applications", "knowledge-manager-demo"),
+		Catalog:     filepath.Join(string(filepath.Separator), "work", "applications", "catalog"),
+		Core:        filepath.Join(string(filepath.Separator), "work", "agent-core"),
+	}
+	binary := filepath.Join(string(filepath.Separator), "tmp", "agent")
+	spool := filepath.Join(string(filepath.Separator), "tmp", "spool")
+	cmd := collectorCommand(resolved, binary, spool)
+	wantArgs := []string{
+		binary,
+		"--profile", filepath.Join(resolved.Catalog, filepath.FromSlash(collectorProfile)),
+		"--directory", resolved.Catalog,
+		"--core-root", resolved.Core,
+	}
+	if !reflect.DeepEqual(cmd.Args, wantArgs) {
+		t.Fatalf("collector args = %#v, want %#v", cmd.Args, wantArgs)
+	}
+	if cmd.Dir != resolved.Catalog {
+		t.Fatalf("collector directory = %s, want %s", cmd.Dir, resolved.Catalog)
+	}
+	envMap := make(map[string]string)
+	for _, entry := range cmd.Env {
+		parts := strings.SplitN(entry, "=", 2)
+		if len(parts) == 2 {
+			envMap[parts[0]] = parts[1]
+		}
+	}
+	wantEnv := map[string]string{
+		"COLLECTOR_MODE":             "spool",
+		"COLLECTOR_BIND_HOST":        "127.0.0.1",
+		"COLLECTOR_RECEIVER_ADDRESS": collectorReceiverAddress,
+		"COLLECTOR_CONTROL_PORT":     "18191",
+		"COLLECTOR_MONITOR_PORT":     "18192",
+		"COLLECTOR_QUERY_PORT":       "18193",
+		"COLLECTOR_SPOOL_PATH":       spool,
+	}
+	for key, want := range wantEnv {
+		if got := envMap[key]; got != want {
+			t.Errorf("env %s = %q, want %q", key, got, want)
+		}
+	}
+}
+
+func TestTracedCuratorCommand(t *testing.T) {
+	resolved := roots{
+		Application: filepath.Join(string(filepath.Separator), "work", "applications", "knowledge-manager-demo"),
+		Catalog:     filepath.Join(string(filepath.Separator), "work", "applications", "catalog"),
+		Core:        filepath.Join(string(filepath.Separator), "work", "agent-core"),
+	}
+	binary := filepath.Join(string(filepath.Separator), "tmp", "agent")
+	plan := runCommandPlan(resolved, binary)
+	plan.Run.Args = append(plan.Run.Args,
+		"--otel-otlp-endpoint", collectorReceiverAddress,
+		"--otel-service-name", "knowledge-manager-curator")
+	wantSuffix := []string{
+		"--otel-otlp-endpoint", collectorReceiverAddress,
+		"--otel-service-name", "knowledge-manager-curator",
+	}
+	got := plan.Run.Args[len(plan.Run.Args)-4:]
+	if !reflect.DeepEqual(got, wantSuffix) {
+		t.Fatalf("traced curator args suffix = %#v, want %#v", got, wantSuffix)
+	}
+}
+
 func rootFixture(t *testing.T) (application, catalog, core string) {
 	t.Helper()
 	repository := t.TempDir()
@@ -362,6 +448,7 @@ func rootFixture(t *testing.T) (application, catalog, core string) {
 	core = filepath.Join(repository, "agent-core")
 	writeFile(t, filepath.Join(application, "go.mod"), "module "+applicationModule+"\n")
 	writeFile(t, filepath.Join(catalog, filepath.FromSlash(canonicalProfile)), "name: curator\n")
+	writeFile(t, filepath.Join(catalog, filepath.FromSlash(collectorProfile)), "name: collector\n")
 	writeFile(t, filepath.Join(core, "go.mod"), "module example.test/core\n")
 	if err := os.MkdirAll(filepath.Join(core, "cmd", "agent"), 0o755); err != nil {
 		t.Fatal(err)
@@ -406,6 +493,7 @@ func copyApplicationFixture(t *testing.T) string {
 		writeFile(t, filepath.Join(repository, filepath.FromSlash(relative)), string(data))
 	}
 	writeFile(t, filepath.Join(repository, "applications", "catalog", filepath.FromSlash(canonicalProfile)), "name: curator\n")
+	writeFile(t, filepath.Join(repository, "applications", "catalog", filepath.FromSlash(collectorProfile)), "name: collector\n")
 	return root
 }
 

@@ -14,6 +14,10 @@ func TestCollectorIntakeFilterScenario(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
+	catalogRoot, err := resolveCatalogRoot("collector intake test", applicationRoot)
+	if err != nil {
+		t.Fatal(err)
+	}
 	coreRoot := envOrDefault("AGENT_CORE_ROOT", siblingPath(applicationRoot, "agent-core"))
 	if !agentCoreAvailable(coreRoot) {
 		t.Skipf("agent-core checkout not found at %s", coreRoot)
@@ -23,11 +27,44 @@ func TestCollectorIntakeFilterScenario(t *testing.T) {
 		t.Fatal(err)
 	}
 	workDir := t.TempDir()
-	if err := runCollectorIntakeScenario(binary, coreRoot, applicationRoot, workDir); err != nil {
+	if err := runCollectorIntakeScenario(binary, coreRoot, catalogRoot, workDir); err != nil {
 		t.Fatal(err)
 	}
 	if _, err := os.Stat(filepath.Join(workDir, "collector.ndjson")); err != nil {
 		t.Fatalf("collector spool evidence: %v", err)
+	}
+}
+
+func TestCollectorLifecycleRebindAndTerminalState(t *testing.T) {
+	applicationRoot, err := filepath.Abs("..")
+	if err != nil {
+		t.Fatal(err)
+	}
+	catalogRoot, err := resolveCatalogRoot("collector lifecycle test", applicationRoot)
+	if err != nil {
+		t.Fatal(err)
+	}
+	coreRoot := envOrDefault("AGENT_CORE_ROOT", siblingPath(applicationRoot, "agent-core"))
+	if !agentCoreAvailable(coreRoot) {
+		t.Skipf("agent-core checkout not found at %s", coreRoot)
+	}
+	binary, err := buildAgent(coreRoot)
+	if err != nil {
+		t.Fatal(err)
+	}
+	workDir := t.TempDir()
+	result, err := runCollectorLifecycleScenario(binary, coreRoot, catalogRoot, workDir)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if !result.MonitorReachable {
+		t.Error("monitor was not reachable while collector was running")
+	}
+	if result.TerminalState != "succeeded" {
+		t.Errorf("terminal state = %q, want %q", result.TerminalState, "succeeded")
+	}
+	if !result.AllAddrsRebind {
+		t.Error("not all listener addresses could rebind after exit")
 	}
 }
 

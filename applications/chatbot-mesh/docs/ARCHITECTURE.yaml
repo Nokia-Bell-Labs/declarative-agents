@@ -37,7 +37,7 @@ overview:
       R1 -->|query_embeddings| CH1[(Chroma collection 1)]
       CB -->|compose surviving chunks| ANS[Answer from chunks]
       ING[Corpus-ingest agent] -->|seed collections| CH0
-      CB -.->|monitor SSE / traceparent| OBS[Observability + Jaeger]
+      CB -.->|monitor SSE / traceparent| OBS[Observability + collector query]
     ```
 
 interfaces:
@@ -59,7 +59,7 @@ interfaces:
       Each agent exposes a monitor read-state and SSE stream (agent-core srd033);
       the chatbot proxies them same-origin. Request-scoped spans propagate
       W3C traceparent (agent-core srd016) and export to an OTel collector and
-      Jaeger for the cross-agent waterfall.
+      the collector query surface for the cross-agent waterfall.
 
 role_realization_alignment:
   authority: applications/docs/specs/semantic-models/agent-role-realizations.yaml
@@ -216,7 +216,7 @@ components:
       Deploy the mesh as one chart: the chatbot Deployment and Service, a
       values-driven list of RAG pairs each rendering a RAG server and a Chroma
       store, an in-cluster Ollama model tier, a Dolt checkpoint backend, and an
-      OTel collector with a Jaeger backend. Co-generate the chatbot client config,
+      the canonical catalog collector with a spool query surface. Co-generate the chatbot client config,
       user interface, and N-RAG fan-out from the values.
   - name: documentation
     path: docs/
@@ -281,7 +281,7 @@ technology_choices:
     technology: Dolt
     purpose: Versioned-SQL checkpoint persistence for resume across restarts.
   - component: Observability
-    technology: OpenTelemetry collector and Jaeger
+    technology: Canonical collector agent with spool query surface
     purpose: Per-agent monitor streams and the cross-agent trace waterfall.
   - component: Deployment
     technology: Helm

@@ -6,21 +6,29 @@ import (
 	"encoding/json"
 	"fmt"
 	"io/fs"
+	"net/http"
 	"os"
 	"os/exec"
 	"path/filepath"
 	"regexp"
 	"slices"
 	"strings"
+	"time"
 
 	"gopkg.in/yaml.v3"
 )
 
 const (
-	applicationModule = "github.com/Nokia-Bell-Labs/declarative-agents/applications/knowledge-manager-demo"
-	catalogRootEnv    = "AGENT_CATALOG_ROOT"
-	coreRootEnv       = "AGENT_CORE_ROOT"
-	canonicalProfile  = "agents/knowledge-manager/documentation-curator/profile.yaml"
+	applicationModule        = "github.com/Nokia-Bell-Labs/declarative-agents/applications/knowledge-manager-demo"
+	catalogRootEnv           = "AGENT_CATALOG_ROOT"
+	coreRootEnv              = "AGENT_CORE_ROOT"
+	tracingEnv               = "DEMO_TRACING"
+	canonicalProfile         = "agents/knowledge-manager/documentation-curator/profile.yaml"
+	collectorProfile         = "agents/collector/profile.yaml"
+	collectorControlAddress  = "http://127.0.0.1:18191"
+	collectorQueryAddress    = "http://127.0.0.1:18193"
+	collectorReceiverAddress = "127.0.0.1:4317"
+	collectorHealthTimeout   = 15 * time.Second
 )
 
 var requiredDocuments = map[string][]string{
@@ -43,6 +51,13 @@ var requiredDocuments = map[string][]string{
 		"touchpoints", "success_criteria", "out_of_scope", "test_suite", "status",
 	},
 	"docs/specs/test-suites/test-rel00.0-guided-knowledge-manager-demo.yaml": {
+		"id", "title", "release", "overview", "traces", "preconditions", "test_cases",
+	},
+	"docs/specs/use-cases/rel01.0-uc001-demo-trace-collection.yaml": {
+		"id", "title", "summary", "actor", "trigger", "preconditions", "flow",
+		"success_criteria", "out_of_scope", "test_suite", "status",
+	},
+	"docs/specs/test-suites/test-rel01.0-demo-trace-collection.yaml": {
 		"id", "title", "release", "overview", "traces", "preconditions", "test_cases",
 	},
 }
@@ -109,7 +124,9 @@ type statsOutput struct {
 	} `json:"application"`
 }
 
-// Run builds agent-core and starts the canonical documentation-curator profile.
+// Run builds agent-core, optionally starts the collector agent for trace
+// collection, and starts the canonical documentation-curator profile.
+// Set DEMO_TRACING=false to disable trace collection.
 func Run() error {
 	resolved, err := resolveRootsFromWorkingDirectory()
 	if err != nil {
@@ -121,14 +138,34 @@ func Run() error {
 	}
 	defer os.RemoveAll(temp)
 
-	plan := runCommandPlan(resolved, filepath.Join(temp, "agent"))
+	binary := filepath.Join(temp, "agent")
+	plan := runCommandPlan(resolved, binary)
 	plan.Build.Stdout, plan.Build.Stderr = os.Stdout, os.Stderr
 	if err := plan.Build.Run(); err != nil {
 		return fmt.Errorf("build agent-core runtime: %w", err)
 	}
+
+	tracing := tracingEnabled(os.Getenv)
+	var collectorCleanup func()
+	if tracing {
+		collectorCleanup, err = startCollectorAgent(resolved, binary)
+		if err != nil {
+			return err
+		}
+		plan.Run.Args = append(plan.Run.Args,
+			"--otel-otlp-endpoint", collectorReceiverAddress,
+			"--otel-service-name", "knowledge-manager-curator")
+	}
+
 	plan.Run.Stdin, plan.Run.Stdout, plan.Run.Stderr = os.Stdin, os.Stdout, os.Stderr
-	if err := plan.Run.Run(); err != nil {
-		return fmt.Errorf("run documentation-curator: %w", err)
+	runErr := plan.Run.Run()
+
+	if collectorCleanup != nil {
+		collectorCleanup()
+	}
+
+	if runErr != nil {
+		return fmt.Errorf("run documentation-curator: %w", runErr)
 	}
 	return nil
 }
@@ -227,6 +264,10 @@ func resolveRoots(application string, getenv func(string) string) (roots, error)
 		"canonical documentation-curator profile", catalogRootEnv); err != nil {
 		return roots{}, err
 	}
+	if err := requireFile(filepath.Join(catalog, filepath.FromSlash(collectorProfile)),
+		"canonical collector profile", catalogRootEnv); err != nil {
+		return roots{}, err
+	}
 	if err := requireFile(filepath.Join(core, "go.mod"), "agent-core checkout", coreRootEnv); err != nil {
 		return roots{}, err
 	}
@@ -274,6 +315,79 @@ func presentationCommand(application string) *exec.Cmd {
 	cmd := exec.Command("go", "tool", "present", "-play=false", "knowledge-manager.slide")
 	cmd.Dir = application
 	return cmd
+}
+
+func tracingEnabled(getenv func(string) string) bool {
+	return !strings.EqualFold(getenv(tracingEnv), "false")
+}
+
+func collectorCommand(resolved roots, binary, spoolDir string) *exec.Cmd {
+	cmd := exec.Command(
+		binary,
+		"--profile", filepath.Join(resolved.Catalog, filepath.FromSlash(collectorProfile)),
+		"--directory", resolved.Catalog,
+		"--core-root", resolved.Core,
+	)
+	cmd.Dir = resolved.Catalog
+	cmd.Env = append(os.Environ(),
+		"COLLECTOR_MODE=spool",
+		"COLLECTOR_BIND_HOST=127.0.0.1",
+		"COLLECTOR_RECEIVER_ADDRESS="+collectorReceiverAddress,
+		"COLLECTOR_CONTROL_PORT=18191",
+		"COLLECTOR_MONITOR_PORT=18192",
+		"COLLECTOR_QUERY_PORT=18193",
+		"COLLECTOR_SPOOL_PATH="+spoolDir,
+	)
+	return cmd
+}
+
+func startCollectorAgent(resolved roots, binary string) (func(), error) {
+	spoolDir, err := os.MkdirTemp("", "collector-spool-*")
+	if err != nil {
+		return nil, fmt.Errorf("create collector spool directory: %w", err)
+	}
+	cmd := collectorCommand(resolved, binary, spoolDir)
+	cmd.Stdout, cmd.Stderr = os.Stdout, os.Stderr
+	if err := cmd.Start(); err != nil {
+		os.RemoveAll(spoolDir)
+		return nil, fmt.Errorf("start collector agent: %w", err)
+	}
+	if err := waitCollectorHealth(); err != nil {
+		cmd.Process.Kill()
+		cmd.Wait()
+		os.RemoveAll(spoolDir)
+		return nil, err
+	}
+	cleanup := func() {
+		postCollectorExit()
+		cmd.Wait()
+		os.RemoveAll(spoolDir)
+	}
+	return cleanup, nil
+}
+
+func waitCollectorHealth() error {
+	deadline := time.Now().Add(collectorHealthTimeout)
+	client := &http.Client{Timeout: 2 * time.Second}
+	for time.Now().Before(deadline) {
+		resp, err := client.Get(collectorControlAddress + "/health")
+		if err == nil {
+			resp.Body.Close()
+			if resp.StatusCode == http.StatusOK {
+				return nil
+			}
+		}
+		time.Sleep(250 * time.Millisecond)
+	}
+	return fmt.Errorf("collector agent did not become healthy within %s", collectorHealthTimeout)
+}
+
+func postCollectorExit() {
+	client := &http.Client{Timeout: 5 * time.Second}
+	resp, err := client.Post(collectorControlAddress+"/exit", "application/json", nil)
+	if err == nil {
+		resp.Body.Close()
+	}
 }
 
 func auditApplication(root string) error {
@@ -327,50 +441,66 @@ func auditTraceability(root string) error {
 			return err
 		}
 	}
-	if len(index.UseCases) != 1 || len(index.TestSuites) != 1 {
-		return fmt.Errorf("SPECIFICATIONS must index exactly one use case and one test suite")
+	if len(index.UseCases) == 0 || len(index.TestSuites) == 0 {
+		return fmt.Errorf("SPECIFICATIONS must index at least one use case and one test suite")
 	}
-	useEntry, suiteEntry := index.UseCases[0], index.TestSuites[0]
-	if err := requireIndexedFile(root, useEntry.Path); err != nil {
-		return err
+	if len(index.UseCases) != len(index.TestSuites) {
+		return fmt.Errorf("SPECIFICATIONS must index the same number of use cases (%d) and test suites (%d)",
+			len(index.UseCases), len(index.TestSuites))
 	}
-	if err := requireIndexedFile(root, suiteEntry.Path); err != nil {
-		return err
+	suitesByID := make(map[string]suiteIndexEntry, len(index.TestSuites))
+	for _, entry := range index.TestSuites {
+		suitesByID[entry.ID] = entry
 	}
-	var useCase useCaseDocument
-	if err := readYAML(filepath.Join(root, filepath.FromSlash(useEntry.Path)), &useCase); err != nil {
-		return err
-	}
-	var suite testSuiteDocument
-	if err := readYAML(filepath.Join(root, filepath.FromSlash(suiteEntry.Path)), &suite); err != nil {
-		return err
-	}
-	if useEntry.ID != useCase.ID || suiteEntry.ID != suite.ID {
-		return fmt.Errorf("SPECIFICATIONS ids do not match their indexed documents")
-	}
-	if useEntry.TestSuite != suite.ID || useCase.TestSuite != suite.ID {
-		return fmt.Errorf("use case %s must name reciprocal test suite %s", useCase.ID, suite.ID)
-	}
-	if !slices.Contains(suiteEntry.Traces, useCase.ID) || !slices.Contains(suite.Traces, useCase.ID) {
-		return fmt.Errorf("test suite %s must trace use case %s in its index and document", suite.ID, useCase.ID)
-	}
-	criterionTraces := make(map[string]bool, len(useCase.SuccessCriteria))
-	for _, criterion := range useCase.SuccessCriteria {
-		criterionTraces[useCase.ID+" "+criterion.ID] = false
-	}
-	for _, testCase := range suite.TestCases {
-		if testCase.ID == "" || testCase.UseCase != useCase.ID {
-			return fmt.Errorf("test case %q must name use case %s", testCase.ID, useCase.ID)
+	for _, useEntry := range index.UseCases {
+		if err := requireIndexedFile(root, useEntry.Path); err != nil {
+			return err
 		}
-		for _, trace := range testCase.Traces {
-			if _, ok := criterionTraces[trace]; ok {
-				criterionTraces[trace] = true
+		var useCase useCaseDocument
+		if err := readYAML(filepath.Join(root, filepath.FromSlash(useEntry.Path)), &useCase); err != nil {
+			return err
+		}
+		if useEntry.ID != useCase.ID {
+			return fmt.Errorf("SPECIFICATIONS id %s does not match document id %s", useEntry.ID, useCase.ID)
+		}
+		suiteEntry, ok := suitesByID[useEntry.TestSuite]
+		if !ok {
+			return fmt.Errorf("use case %s names test suite %s which is not in SPECIFICATIONS", useCase.ID, useEntry.TestSuite)
+		}
+		if err := requireIndexedFile(root, suiteEntry.Path); err != nil {
+			return err
+		}
+		var suite testSuiteDocument
+		if err := readYAML(filepath.Join(root, filepath.FromSlash(suiteEntry.Path)), &suite); err != nil {
+			return err
+		}
+		if suiteEntry.ID != suite.ID {
+			return fmt.Errorf("SPECIFICATIONS id %s does not match document id %s", suiteEntry.ID, suite.ID)
+		}
+		if useCase.TestSuite != suite.ID {
+			return fmt.Errorf("use case %s must name reciprocal test suite %s", useCase.ID, suite.ID)
+		}
+		if !slices.Contains(suiteEntry.Traces, useCase.ID) || !slices.Contains(suite.Traces, useCase.ID) {
+			return fmt.Errorf("test suite %s must trace use case %s in its index and document", suite.ID, useCase.ID)
+		}
+		criterionTraces := make(map[string]bool, len(useCase.SuccessCriteria))
+		for _, criterion := range useCase.SuccessCriteria {
+			criterionTraces[useCase.ID+" "+criterion.ID] = false
+		}
+		for _, testCase := range suite.TestCases {
+			if testCase.ID == "" || testCase.UseCase != useCase.ID {
+				return fmt.Errorf("test case %q must name use case %s", testCase.ID, useCase.ID)
+			}
+			for _, trace := range testCase.Traces {
+				if _, ok := criterionTraces[trace]; ok {
+					criterionTraces[trace] = true
+				}
 			}
 		}
-	}
-	for trace, covered := range criterionTraces {
-		if !covered {
-			return fmt.Errorf("use-case criterion %s has no reciprocal test-case trace", trace)
+		for trace, covered := range criterionTraces {
+			if !covered {
+				return fmt.Errorf("use-case criterion %s has no reciprocal test-case trace", trace)
+			}
 		}
 	}
 	return nil
@@ -447,7 +577,7 @@ func newStatsOutput() statsOutput {
 	var output statsOutput
 	output.Application.Ownership = "composition"
 	output.Application.AgentsContributed = 0
-	output.Application.CanonicalReferences = 1
+	output.Application.CanonicalReferences = 2
 	output.Application.CanonicalProfile = "applications/catalog/" + canonicalProfile
 	return output
 }

@@ -437,23 +437,6 @@ bindings:
           - applications/chatbot-mesh/agents/applier/exec-declarations.yaml
           - applications/chatbot-mesh/helm/templates/applier.yaml
         migration_impact: None; documentation must replace claims of an Applier role with Executor / Actuation Agent.
-    - actor: collector
-      profile: applications/chatbot-mesh/agents/collector/profile.yaml
-      classification: role_realization
-      primary_role: monitor
-      sub_roles: [telemetry-collector]
-      domain: observability
-      decision:
-        current_actor: collector
-        implemented_responsibility: Receive bounded OTLP trace batches, apply declared policy, spool evidence, optionally relay unchanged traces, and expose lifecycle state.
-        canonical_role_sub_role: Monitor / Telemetry Collector.
-        retained_or_proposed_name: Retain collector as a compatible descriptive actor name.
-        authority_boundary: Owns trace intake only; contrib retains metrics and Dolt scraping during staged migration, and file-only self-telemetry prevents a loop.
-        evidence:
-          - applications/chatbot-mesh/agents/collector/machine.yaml
-          - applications/chatbot-mesh/agents/collector/declarations.yaml
-          - applications/chatbot-mesh/helm/templates/collector.yaml
-        migration_impact: None; Helm must distinguish the profile-backed collector workload from contrib collector and collector-metrics infrastructure.
     - actor: observer
       profile: applications/chatbot-mesh/agents/observer/profile.yaml
       classification: role_realization
@@ -512,7 +495,6 @@ deployment_realizations:
       - {workload: <release>-ollama, classification: infrastructure_adapter, purpose: model-serving StatefulSet}
       - {workload: <release>-ollama-preload, classification: infrastructure_adapter, purpose: model preload Job}
       - {workload: <release>-dolt, classification: infrastructure_adapter, purpose: checkpoint-store StatefulSet}
-      - {workload: <release>-jaeger, classification: infrastructure_adapter, purpose: trace-backend Deployment}
     wrapper_only:
       - actor: corpus-ingest
         deployment: creator-launched child run

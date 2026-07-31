@@ -1,0 +1,78 @@
+id: test-rel01.0-demo-trace-collection
+title: Test Suite for Release 01.0 Demo Trace Collection
+release: "01.0"
+
+overview: |
+  This suite validates that the demo launch path wires the canonical collector
+  agent for trace collection. Deterministic Go tests inspect the tracing
+  toggle, collector command construction, and curator OTLP flag injection
+  without starting processes. Live spool and query evidence remains
+  dependency-gated.
+
+status: implemented
+
+traces:
+  - rel01.0-uc001-demo-trace-collection
+
+preconditions:
+  - The application Go module compiles.
+  - Collector and curator profile constants reference canonical catalog paths.
+
+test_cases:
+  - use_case: rel01.0-uc001-demo-trace-collection
+    id: tracing_enabled
+    name: Tracing enabled by default
+    go_test: go test ./magefiles -run '^TestTracingEnabled'
+    status: implemented
+    description: |
+      The deterministic test verifies that tracingEnabled returns true for
+      empty, "true", and "1" environment values, and false only for
+      case-insensitive "false".
+    inputs:
+      env_values: ["", "true", "1", "false", "FALSE", "False"]
+    expected:
+      default_enabled: true
+      disabled_by: "false"
+    traces:
+      - rel01.0-uc001-demo-trace-collection S3
+
+  - use_case: rel01.0-uc001-demo-trace-collection
+    id: collector_command
+    name: Collector agent command construction
+    go_test: go test ./magefiles -run '^TestCollectorCommand'
+    status: implemented
+    description: |
+      The deterministic test constructs the collector command and verifies
+      the profile path, working directory, and all COLLECTOR_* environment
+      variables including mode, bind host, receiver address, port
+      assignments, and spool path.
+    inputs:
+      collector_profile: agents/collector/profile.yaml
+      mode: spool
+      ports: {control: 18191, monitor: 18192, query: 18193, otlp: 4317}
+    expected:
+      profile_from_catalog: true
+      working_directory_is_catalog: true
+      mode_is_spool: true
+      bind_host: "127.0.0.1"
+    traces:
+      - rel01.0-uc001-demo-trace-collection S1
+      - rel01.0-uc001-demo-trace-collection S4
+
+  - use_case: rel01.0-uc001-demo-trace-collection
+    id: traced_curator_command
+    name: Curator receives OTLP export flags
+    go_test: go test ./magefiles -run '^TestTracedCurator'
+    status: implemented
+    description: |
+      The deterministic test constructs the curator run command plan and
+      appends the OTLP flags, verifying that --otel-otlp-endpoint and
+      --otel-service-name appear with the correct values.
+    inputs:
+      otlp_endpoint: "127.0.0.1:4317"
+      service_name: knowledge-manager-curator
+    expected:
+      otel_flags_present: true
+      endpoint_matches_collector_receiver: true
+    traces:
+      - rel01.0-uc001-demo-trace-collection S2

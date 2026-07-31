@@ -21,7 +21,7 @@ test_cases:
   - use_case: rel03.0-uc001-mesh-deployment
     name: Mesh Helm deployment smoke tracer on kind
     integration_target: mage integration:helmSmoke
-    go_test: go test ./magefiles -run '^TestSplitImageRef$|^TestJaegerAgentServicesExcludesJaeger$|^TestAssertSmokeChatServedAcceptsAnswer$|^TestAssertSmokeChatServedRejectsEmptyAnswer$|^TestAssertSmokeSpansBelowThreshold$|^TestHelmSmokeSkipReasonMissingBinary$'
+    go_test: go test ./magefiles -run '^TestSplitImageRef$|^TestAssertSmokeChatServedAcceptsAnswer$|^TestAssertSmokeChatServedRejectsEmptyAnswer$|^TestHelmSmokeSkipReasonMissingBinary$'
     status: implemented
     description: |
       Integration.HelmSmoke deploys the chatbot-mesh chart on a disposable kind
@@ -30,10 +30,10 @@ test_cases:
       stages the chatbot and rag-server profiles into the chart ConfigMap, helm
       installs and waits for every Deployment and StatefulSet ready, port-forwards
       the chatbot chat Service, posts one chat turn and asserts a served answer,
-      and queries Jaeger for spans from more than one service (each agent reports a
-      distinct service.name via --otel-service-name). Teardown deletes the cluster
-      in all paths; the target skips cleanly when the toolchain or models are
-      absent.
+      and verifies collector spool identity and metrics evidence (each agent
+      reports a distinct service.name via --otel-service-name). Teardown deletes
+      the cluster in all paths; the target skips cleanly when the toolchain or
+      models are absent.
     inputs:
       chart: applications/chatbot-mesh/helm/
       values: applications/chatbot-mesh/helm/ci/kind-values.yaml

@@ -40,7 +40,6 @@ func TestHelmSchemaFixtureMatrix(t *testing.T) {
 		"invalid-replicas.yaml":  "/roles/planner/replicas",
 		"invalid-resources.yaml": "/roles/critic/resources/requests/memory",
 		"invalid-storage.yaml":   "/workspace/size",
-		"invalid-telemetry.yaml": "/collector/enabled",
 		"invalid-url.yaml":       "/llm/externalURL",
 	}
 	for name, reason := range expected {
@@ -64,7 +63,6 @@ func TestHelmSemanticValidationSurvivesSchemaBypass(t *testing.T) {
 	}{
 		{"port conflict", "invalid-port.yaml", "role ports conflict"},
 		{"unsafe mount", "invalid-mount.yaml", "workspace.mountPath must be /work"},
-		{"telemetry dependency", "invalid-telemetry.yaml", "jaeger.enabled requires collector.enabled"},
 	}
 	for _, tc := range cases {
 		t.Run(tc.name, func(t *testing.T) {
@@ -88,18 +86,16 @@ func TestHelmWorkspaceAndTelemetryCombinationsRender(t *testing.T) {
 		strings.Count(existing, "claimName: coding-agent-shared-workspace") != 3 {
 		t.Fatal("existing workspace claim did not replace chart PVC for all roles")
 	}
-	debug := helmTemplate(t, chart, "-f",
-		filepath.Join(chart, "schema-fixtures", "valid-collector-debug.yaml"))
-	if !strings.Contains(debug, "app.kubernetes.io/component: collector") ||
-		strings.Contains(debug, "app.kubernetes.io/component: jaeger") ||
-		!strings.Contains(debug, "exporters: [debug]") {
-		t.Fatal("collector-without-Jaeger topology is incoherent")
+	spool := helmTemplate(t, chart, "-f",
+		filepath.Join(chart, "schema-fixtures", "valid-collector-spool.yaml"))
+	if !strings.Contains(spool, "app.kubernetes.io/component: collector") ||
+		!strings.Contains(spool, "COLLECTOR_MODE") {
+		t.Fatal("collector agent spool topology is incoherent")
 	}
 	disabled := helmTemplate(t, chart, "-f",
 		filepath.Join(chart, "schema-fixtures", "valid-no-telemetry.yaml"))
 	for _, forbidden := range []string{
 		"app.kubernetes.io/component: collector",
-		"app.kubernetes.io/component: jaeger",
 		`- "--otel-otlp-endpoint"`,
 	} {
 		if strings.Contains(disabled, forbidden) {

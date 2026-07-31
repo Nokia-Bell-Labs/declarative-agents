@@ -221,17 +221,41 @@ releases:
       control, and stop. Its own telemetry is file-only, with a direct self-loop
       proof. Migration is staged: contrib retains agent metrics export and Dolt
       Prometheus scraping until a later metrics-ingress replacement is specified.
-    status: partial
+    status: implemented
     srds:
       - srd007-collector-agent
     use_cases:
       - id: rel07.0-uc001-collector-ingress
         summary: A chatbot trace batch enters the collector agent, remains attributable in spool and Jaeger, while contrib retains metrics evidence.
-        status: partial
+        status: implemented
     test_suites:
       - id: test-rel07.0-collector
-        summary: Profile, intake, self-loop, staged Helm, identity, and retained-evidence proofs for collector ingress; listener rebind and final monitor-state lifecycle proof remain planned.
-        status: partial
+        summary: Profile, intake, self-loop, staged Helm, identity, retained-evidence proofs, and lifecycle listener rebind and terminal state for collector ingress.
+        status: implemented
+
+  - version: "09.0"
+    name: Canonical collector and Jaeger retirement
+    description: |
+      The mesh removes its Jaeger dependency entirely. The collector agent's
+      spool query surface (port 18193) replaces the Jaeger query API as the
+      trace backend for the UX waterfall. Collector mode derives from
+      externalOTLPEndpoint presence (relay when set, spool otherwise) instead
+      of from jaeger.enabled. Helm drops the Jaeger Deployment, Service,
+      values block, and schema entry. The collector program is consumed from
+      the catalog rather than carried locally. Integration tests assert
+      spool identity and metrics evidence without Jaeger cross-checks.
+    status: implemented
+    srds:
+      - srd007-collector-agent
+      - srd003-chatbot-deployment
+    use_cases:
+      - id: rel09.0-uc001-canonical-collector
+        summary: The mesh deploys with no Jaeger workload; the UX waterfall reads traces from the collector query surface and integration tests verify spool identity and metrics evidence.
+        status: implemented
+    test_suites:
+      - id: test-rel09.0-canonical-collector
+        summary: Helm render purity, UX waterfall transform, spool identity, metrics evidence, and catalog consumption proofs for the Jaeger-free collector.
+        status: implemented
 
   - version: "08.0"
     name: Fleet observer agent

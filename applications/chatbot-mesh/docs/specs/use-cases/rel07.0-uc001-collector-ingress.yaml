@@ -72,4 +72,4 @@ out_of_scope:
   - Jaeger query behavior beyond evidence assertions.
 
 test_suite_trace: test-rel07.0-collector
-status: partial
+status: implemented
