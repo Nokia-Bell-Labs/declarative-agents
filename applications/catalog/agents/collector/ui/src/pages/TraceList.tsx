@@ -27,9 +27,9 @@ export default function TraceList() {
 
   const filtered = filter
     ? traces.filter(t =>
-        t.service?.toLowerCase().includes(filter.toLowerCase()) ||
+        t.root_service?.toLowerCase().includes(filter.toLowerCase()) ||
         t.trace_id?.toLowerCase().includes(filter.toLowerCase()) ||
-        t.root_span?.toLowerCase().includes(filter.toLowerCase()))
+        t.root_span_name?.toLowerCase().includes(filter.toLowerCase()))
     : traces
 
   if (loading) return <div className="loading">Loading traces...</div>
@@ -68,8 +68,8 @@ export default function TraceList() {
               {filtered.map(t => (
                 <tr key={t.trace_id} onClick={() => navigate(`/traces/${t.trace_id}`)}>
                   <td className="mono">{t.trace_id}</td>
-                  <td>{t.root_span}</td>
-                  <td>{t.service}</td>
+                  <td>{t.root_span_name}</td>
+                  <td>{t.root_service}</td>
                   <td>{t.span_count}</td>
                   <td className="mono">{formatTime(t.start_time)}</td>
                   <td className="mono">{formatDuration(t.duration_ms)}</td>

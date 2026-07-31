@@ -64,12 +64,12 @@ export default function TraceDetail() {
         {nodes.map((n, i) => {
           const leftPct = ((n.startMs - traceStartMs) / traceDurationMs) * 100
           const widthPct = (n.durationMs / traceDurationMs) * 100
-          const isError = n.span.Status.Code === 2
+          const isError = n.span.status.Code === 2
           return (
             <div className="waterfall-row" key={i}>
               <div className="waterfall-label">
                 <span className="waterfall-indent" style={{ width: n.depth * 16 }} />
-                <span className="waterfall-name" title={n.span.Name}>{n.span.Name}</span>
+                <span className="waterfall-name" title={n.span.name}>{n.span.name}</span>
               </div>
               <div className="waterfall-bar-track">
                 <div
@@ -90,22 +90,22 @@ function buildWaterfall(spans: SpanDetail[]): SpanNode[] {
   const byId = new Map<string, SpanDetail>()
   const children = new Map<string, SpanDetail[]>()
   for (const s of spans) {
-    byId.set(s.SpanContext.SpanID, s)
-    const parentId = s.Parent?.SpanID || ''
+    byId.set(s.span_id, s)
+    const parentId = s.parent_span_id || ''
     if (!children.has(parentId)) children.set(parentId, [])
     children.get(parentId)!.push(s)
   }
 
-  const roots = spans.filter(s => !s.Parent?.SpanID || !byId.has(s.Parent.SpanID))
-  roots.sort((a, b) => new Date(a.StartTime).getTime() - new Date(b.StartTime).getTime())
+  const roots = spans.filter(s => !s.parent_span_id || !byId.has(s.parent_span_id))
+  roots.sort((a, b) => new Date(a.start_time).getTime() - new Date(b.start_time).getTime())
 
   const nodes: SpanNode[] = []
   function walk(span: SpanDetail, depth: number) {
-    const startMs = new Date(span.StartTime).getTime()
-    const endMs = new Date(span.EndTime).getTime()
+    const startMs = new Date(span.start_time).getTime()
+    const endMs = new Date(span.end_time).getTime()
     nodes.push({ span, depth, startMs, durationMs: Math.max(endMs - startMs, 0) })
-    const kids = children.get(span.SpanContext.SpanID) ?? []
-    kids.sort((a, b) => new Date(a.StartTime).getTime() - new Date(b.StartTime).getTime())
+    const kids = children.get(span.span_id) ?? []
+    kids.sort((a, b) => new Date(a.start_time).getTime() - new Date(b.start_time).getTime())
     for (const child of kids) walk(child, depth + 1)
   }
   for (const root of roots) walk(root, 0)
@@ -115,8 +115,7 @@ function buildWaterfall(spans: SpanDetail[]): SpanNode[] {
 function uniqueServices(spans: SpanDetail[]): string[] {
   const set = new Set<string>()
   for (const s of spans) {
-    const svc = s.Resource?.find(r => r.Key === 'service.name')
-    if (svc?.Value?.Value) set.add(svc.Value.Value)
+    if (s.service) set.add(s.service)
   }
   return [...set].sort()
 }

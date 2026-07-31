@@ -9,6 +9,8 @@ import (
 	"net/http"
 	"os"
 	"path/filepath"
+	"reflect"
+	"sort"
 	"testing"
 	"time"
 )
@@ -114,6 +116,70 @@ func TestCollectorSpoolModeConformance(t *testing.T) {
 		"stop_collector_control",
 	)
 	result.RequireTerminalState(t, "Done")
+}
+
+// TestCollectorQueryResponseContract pins the JSON keys the query surface
+// emits per trace summary and per span. The collector trace UI
+// (agents/collector/ui/src/api/client.ts) and the coding-agent smoke verdict
+// decode exactly these keys; a drift on either side must fail here first
+// (GH-1164).
+func TestCollectorQueryResponseContract(t *testing.T) {
+	RequireCoreRoot(t)
+	controlAddr := FreeAddr(t)
+	monitorAddr := FreeAddr(t)
+	queryAddr := FreeAddr(t)
+	receiverAddr := FreeAddr(t)
+
+	profilePath := CopyShippedProfile(t, filepath.Join("agents", "collector", "profile.yaml"), map[string]string{
+		"127.0.0.1:${COLLECTOR_CONTROL_PORT:-18191}": controlAddr,
+		"127.0.0.1:${COLLECTOR_MONITOR_PORT:-18192}":  monitorAddr,
+		"127.0.0.1:${COLLECTOR_QUERY_PORT:-18193}":     queryAddr,
+		"${COLLECTOR_BIND_HOST:-127.0.0.1}:${COLLECTOR_CONTROL_PORT:-18191}": controlAddr,
+		"${COLLECTOR_BIND_HOST:-127.0.0.1}:${COLLECTOR_MONITOR_PORT:-18192}": monitorAddr,
+		"${COLLECTOR_BIND_HOST:-127.0.0.1}:${COLLECTOR_QUERY_PORT:-18193}":   queryAddr,
+		"0.0.0.0:4317": receiverAddr,
+	})
+	seedCollectorSpool(t, filepath.Join(filepath.Dir(profilePath), "traces", "collector.ndjson"))
+
+	server := Serve(t, ServeConfig{Profile: profilePath, Env: collectorEnv(receiverAddr)})
+	server.WaitHealthy("http://"+controlAddr+"/api/lifecycle/health", 15*time.Second)
+
+	assertKeys := func(url, listField string, want []string) {
+		t.Helper()
+		resp, err := http.Get(url)
+		if err != nil {
+			t.Fatalf("GET %s: %v", url, err)
+		}
+		defer resp.Body.Close()
+		var payload map[string]json.RawMessage
+		if err := json.NewDecoder(resp.Body).Decode(&payload); err != nil {
+			t.Fatalf("decode %s: %v", url, err)
+		}
+		var items []map[string]json.RawMessage
+		if err := json.Unmarshal(payload[listField], &items); err != nil {
+			t.Fatalf("decode %s.%s: %v", url, listField, err)
+		}
+		if len(items) == 0 {
+			t.Fatalf("%s returned no %s", url, listField)
+		}
+		got := make([]string, 0, len(items[0]))
+		for key := range items[0] {
+			got = append(got, key)
+		}
+		sort.Strings(got)
+		if !reflect.DeepEqual(got, want) {
+			t.Fatalf("%s %s keys = %v, want %v (keep agents/collector/ui/src/api/client.ts in sync)", url, listField, got, want)
+		}
+	}
+	assertKeys("http://"+queryAddr+"/query/traces?page_size=1", "traces",
+		[]string{"duration_ms", "root_service", "root_span_name", "span_count", "start_time", "trace_id"})
+	assertKeys("http://"+queryAddr+"/query/traces/trace-aaa", "spans",
+		[]string{"attributes", "end_time", "name", "parent_span_id", "service", "span_id", "start_time", "status"})
+
+	if status := server.Post("http://"+controlAddr+"/api/lifecycle/exit", `{"reason":"conformance"}`); status != http.StatusAccepted {
+		t.Fatalf("exit POST status = %d", status)
+	}
+	server.WaitExit(35 * time.Second)
 }
 
 func TestCollectorQueryListTraces(t *testing.T) {

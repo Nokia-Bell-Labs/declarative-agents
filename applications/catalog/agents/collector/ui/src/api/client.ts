@@ -1,9 +1,13 @@
 const BASE = '/query'
 
+// These interfaces mirror the query surface exactly; the conformance guard
+// TestCollectorQueryResponseContract (applications/catalog/conformance/
+// collector_test.go) pins the emitted keys, so a change on either side fails
+// there first.
 export interface TraceSummary {
   trace_id: string
-  root_span: string
-  service: string
+  root_span_name: string
+  root_service: string
   span_count: number
   start_time: string
   duration_ms: number
@@ -17,14 +21,14 @@ export interface TraceListResponse {
 }
 
 export interface SpanDetail {
-  Name: string
-  SpanContext: { TraceID: string; SpanID: string }
-  Parent: { TraceID: string; SpanID: string }
-  StartTime: string
-  EndTime: string
-  Status: { Code: number; Description: string }
-  Attributes: { Key: string; Value: { Type: string; Value: string } }[]
-  Resource: { Key: string; Value: { Type: string; Value: string } }[]
+  span_id: string
+  parent_span_id: string
+  service: string
+  name: string
+  start_time: string
+  end_time: string
+  status: { Code: number; Description: string }
+  attributes: unknown[]
 }
 
 export interface TraceDetailResponse {

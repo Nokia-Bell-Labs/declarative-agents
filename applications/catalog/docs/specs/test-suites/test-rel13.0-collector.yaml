@@ -54,6 +54,23 @@ test_cases:
       - srd020-collector AC1
 
   - use_case: rel13.0-uc001-collector-family
+    name: Query response keys match the UI and smoke consumers
+    go_test: go test ./conformance -run TestCollectorQueryResponseContract
+    status: implemented
+    description: |
+      Pin the exact JSON keys of a trace summary and a span as emitted by the
+      query surface (GH-1164). The trace UI client and the coding-agent smoke
+      verdict decode these keys; drift on either side fails here first.
+    inputs:
+      spool: seeded two-trace fixture
+    expected:
+      summary_keys: [duration_ms, root_service, root_span_name, span_count, start_time, trace_id]
+      span_keys: [attributes, end_time, name, parent_span_id, service, span_id, start_time, status]
+    traces:
+      - rel13.0-uc001-collector-family S2
+      - srd020-collector AC2
+
+  - use_case: rel13.0-uc001-collector-family
     name: Query list traces returns paginated summaries from seeded spool
     go_test: go test ./conformance -run TestCollectorQueryListTraces
     status: implemented
