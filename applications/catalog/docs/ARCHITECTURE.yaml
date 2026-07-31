@@ -75,12 +75,12 @@ components:
       exclusions. Catalog declarations stay with their owning agents/<family>/
       closure; this path is the taxonomy, not a second declaration registry.
   - name: application presentations
-    path: ../knowledge-manager-demo/
+    path: ../agent-architecture/
     responsibility: |
       Runnable applications own presentation assets, launch composition, and
       application-specific end-to-end evidence while referencing canonical
       catalog profiles. The Knowledge Manager presentation lives at
-      ../knowledge-manager-demo/.
+      ../agent-architecture/.
   - name: integration fixtures
     path: testdata/integration/
     responsibility: |
@@ -196,7 +196,7 @@ project_structure:
       role: Reusable catalog agent blocks, catalog tool declarations, selection lists, overrides, and profile-local assets.
     - path: tools/README.md
       role: Catalog tool-block taxonomy and membership contract.
-    - path: ../knowledge-manager-demo/
+    - path: ../agent-architecture/
       role: Application-owned Knowledge Manager presentation and composition that references the canonical curator.
     - path: testdata/integration/
       role: Profile-owned fixtures consumed by agent-core integration targets.
@@ -223,7 +223,7 @@ implementation_status:
     - done: Release 06 historically migrated demos and integration fixtures into
         demo/ and testdata/integration/.
     - done: Presentation-specific Knowledge Manager assets were subsequently
-        relocated to applications/knowledge-manager-demo; catalog-owned
+        relocated to applications/agent-architecture; catalog-owned
         documentation-curator profile UX and integration evidence remain here.
     - done: Profile bundle release tagging is implemented through mage tag.
     - done: Profile validation and container usage checks verify the mounted

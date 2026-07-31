@@ -1,9 +1,9 @@
 <!-- Copyright (c) 2026 Nokia. All rights reserved. -->
 
-# Knowledge Manager Demo
+# Agent Architecture
 
 This standalone application drives the Knowledge Manager documentation agent
-from [knowledge-manager.slide](knowledge-manager.slide). The deck starts the
+from [agent-architecture.slide](agent-architecture.slide). The deck starts the
 canonical catalog-owned documentation-curator profile, then posts a
 lifecycle-exit request to its control server.
 
@@ -14,7 +14,7 @@ and builtin tools.
 
 ## Source-checkout setup
 
-Run all commands below from `applications/knowledge-manager-demo`. Set the two
+Run all commands below from `applications/agent-architecture`. Set the two
 ownership roots explicitly when the catalog and runtime are independent
 checkouts. These portable defaults select their monorepo locations:
 

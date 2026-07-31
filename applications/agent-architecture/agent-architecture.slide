@@ -1,4 +1,4 @@
-Knowledge Manager Demo
+Agent Architecture
 Standalone Application
 14 Jun 2026
 
@@ -6,7 +6,7 @@ Standalone Application
 
 Click Run to start the Knowledge Manager documentation server.
 
-Run every command from the `applications/knowledge-manager-demo` root. The
+Run every command from the `applications/agent-architecture` root. The
 catalog owns the canonical profile and UI; agent-core owns the development
 runtime:
 

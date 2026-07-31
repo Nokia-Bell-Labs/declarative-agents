@@ -22,7 +22,7 @@
 # PROVENANCE
 # ----------
 # The candidates were mined from applications/catalog, chatbot-mesh,
-# coding-agent, and knowledge-manager-demo. Internal recurrence identifies the
+# coding-agent, and agent-architecture. Internal recurrence identifies the
 # tensions; external examples establish whether the resolutions recur beyond
 # this repository. Confidence is based on those external examples, never on the
 # number of repository occurrences.
@@ -280,7 +280,7 @@ patterns:
       - system: Catalog and three runnable applications
         cite: reference-implementation
         kind: internal
-        note: coding-agent and knowledge-manager-demo reference canonical profiles; chatbot-mesh wraps canonical corpus-ingest while owning local mesh agents.
+        note: coding-agent and agent-architecture reference canonical profiles; chatbot-mesh wraps canonical corpus-ingest while owning local mesh agents.
 
   # ---------------------------------------------------------------------------
   - id: composition-manifest
@@ -742,7 +742,7 @@ grammar_check:
 
 bibliography:
   reference-implementation:
-    text: "Nokia Bell Labs. (2026). Declarative Agents repository: applications/catalog, applications/chatbot-mesh, applications/coding-agent, applications/knowledge-manager-demo, and shared application documents. Internal evidence, not an independent source."
+    text: "Nokia Bell Labs. (2026). Declarative Agents repository: applications/catalog, applications/chatbot-mesh, applications/coding-agent, applications/agent-architecture, and shared application documents. Internal evidence, not an independent source."
   operator-framework-capabilities:
     text: "Operator Framework Authors. (2024). Operator Capability Levels. Operator SDK Documentation."
     url: https://sdk.operatorframework.io/docs/overview/operator-capabilities/

@@ -2,7 +2,7 @@ id: srd030-machine-request-rest-binding
 title: Machine Request REST Binding
 
 problem: |
-  Knowledge Manager demo requests need to enter Agent Core through REST without
+  Agent Architecture requests need to enter Agent Core through REST without
   moving request-specific workflow into Go HTTP handlers. A direct handler can
   validate transport data and write a response. It still hides the sentence
   that handles the request.
@@ -92,7 +92,7 @@ non_goals:
   - Replacing rest_server_await or rest_await_event for long-lived event queues.
   - Letting HTTP callers choose arbitrary machines, tools, prompts, credentials, URLs, or filesystem roots.
   - Generating Go handlers from MachineSpec or OpenAPI documents.
-  - Encoding Knowledge Manager demo behavior in direct Go HTTP handlers.
+  - Encoding Agent Architecture behavior in direct Go HTTP handlers.
 
 acceptance_criteria:
   - id: AC1
@@ -165,7 +165,7 @@ diagrams:
   requirements_trace: |
     ```mermaid
     flowchart LR
-      Problem["Problem: Knowledge Manager demo requests need to enter Agent C..."] --> Goals["Goals: Machine Request REST Binding"]
+      Problem["Problem: Agent Architecture requests need to enter Agent C..."] --> Goals["Goals: Machine Request REST Binding"]
       Goals --> R1["R1: Binding scope"]
       Goals --> R2["R2: Configured machine authority"]
       Goals --> R3["R3: Request input mapping"]

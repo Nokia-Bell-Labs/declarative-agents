@@ -12,7 +12,7 @@ summary: |
   applications/catalog. Agent Core loads the profile through --profile and uses
   --directory for the target workspace. Application presentations compose that
   profile from their own roots; the Knowledge Manager presentation now lives in
-  applications/knowledge-manager-demo.
+  applications/agent-architecture.
 
   The important failure mode is quiet fallback to bundled agent directories.
   A correct run cannot require /opt/agent-core/agents. If the profile root is

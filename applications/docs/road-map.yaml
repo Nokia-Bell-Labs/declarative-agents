@@ -23,9 +23,9 @@ releases:
         proves: The chatbot-mesh application owns an executable audit gate.
       - path: applications/coding-agent/magefiles/magefile.go
         proves: The coding-agent application owns an executable audit gate.
-      - path: applications/knowledge-manager-demo/magefiles/magefile.go
+      - path: applications/agent-architecture/magefiles/magefile.go
         proves: The demo owns executable audit and composition-only stats targets.
-      - path: applications/knowledge-manager-demo/magefiles/magefile_test.go
+      - path: applications/agent-architecture/magefiles/magefile_test.go
         proves: |
           The demo's runnable composition, canonical reference, reciprocal
           traces, and zero-agent accounting have deterministic tests; its live
@@ -62,7 +62,7 @@ releases:
       - path: applications/coding-agent
         ownership: composition-only
         runnable_module: implemented
-      - path: applications/knowledge-manager-demo
+      - path: applications/agent-architecture
         ownership: composition-only
         runnable_module: implemented
         managed_service: partial

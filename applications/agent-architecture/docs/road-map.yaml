@@ -1,5 +1,5 @@
-id: knowledge-manager-demo-roadmap
-title: Knowledge Manager Demo Application Road Map
+id: agent-architecture-roadmap
+title: Agent Architecture Application Road Map
 
 overview: |
   Release 00.0 establishes the standalone guided demo. Release 01.0 adds
@@ -45,12 +45,12 @@ releases:
       - owner: applications/catalog
         id: rel07.0-uc001-documentation-curator-profile-ux
     use_cases:
-      - id: rel00.0-uc001-guided-knowledge-manager-demo
+      - id: rel00.0-uc001-guided-agent-architecture
         summary: An operator serves the deck, starts the canonical curator, opens its UI, and exits it declaratively.
         status: partial
         live_observation_status: dependency_gated
     test_suites:
-      - id: test-rel00.0-guided-knowledge-manager-demo
+      - id: test-rel00.0-guided-agent-architecture
         summary: Deterministic command and contract tests plus dependency-gated launch and exit evidence.
         status: partial
         live_observation_status: dependency_gated
@@ -62,7 +62,7 @@ releases:
         proves_when_run: The canonical catalog profile starts through agent-core with explicit profile, directory, and development core-root arguments.
       - command: mage presentation
         status: dependency_gated
-        proves_when_run: The pinned Go present tool serves knowledge-manager.slide from the application root.
+        proves_when_run: The pinned Go present tool serves agent-architecture.slide from the application root.
       - command: mage audit
         proves: Required documents, reciprocal traces, portable paths, canonical references, and stale-path exclusions satisfy the application contract.
       - command: mage stats
@@ -70,7 +70,7 @@ releases:
       - command: mage audit
         working_directory: repository root
         evidence_path: magefiles/build.go auditParticipants and magefiles/example_modules_test.go TestApplicationModulesParticipateInAudit
-        proves: Root audit dispatches applications/knowledge-manager-demo.
+        proves: Root audit dispatches applications/agent-architecture.
       - command: mage test
         working_directory: repository root
         evidence_path: magefiles/example_modules_test.go TestTestSubModulesDispatchesApplicationModules

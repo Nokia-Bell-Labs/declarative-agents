@@ -13,7 +13,7 @@ goals:
     requirements for application-owned managed services.
   - "G2: Define package and Helm surfaces only for applications that ship them."
   - "G3: Bind kind demos to ENG01 by reference without widening its scope."
-  - "G4: Give the Knowledge Manager demo a contract it can cite selectively."
+  - "G4: Give the Agent Architecture a contract it can cite selectively."
 
 capability_classes:
   managed_service:

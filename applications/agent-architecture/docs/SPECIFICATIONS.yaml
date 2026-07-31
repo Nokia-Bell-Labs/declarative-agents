@@ -1,8 +1,8 @@
-id: knowledge-manager-demo-specifications
-title: Knowledge Manager Demo Application Specification Index
+id: agent-architecture-specifications
+title: Agent Architecture Application Specification Index
 
 overview: |
-  This index governs the standalone Knowledge Manager demo composition.
+  This index governs the standalone Agent Architecture composition.
   Release 00.0 establishes the guided demo with one use case and test suite.
   Release 01.0 adds trace collection through the canonical collector agent.
   The application references the canonical documentation-curator and collector
@@ -35,16 +35,16 @@ roadmap_summary:
     status: implemented
 
 foundation_document_index:
-  - id: knowledge-manager-demo
-    title: Knowledge Manager Demo Application Vision
+  - id: agent-architecture
+    title: Agent Architecture Application Vision
     summary: Application purpose, ownership boundary, dependencies, and success criteria.
     path: docs/VISION.yaml
-  - id: architecture-knowledge-manager-demo
-    title: Knowledge Manager Demo Application Architecture
+  - id: architecture-agent-architecture
+    title: Agent Architecture Application Architecture
     summary: Presentation flow, components, interfaces, dependency direction, and decisions.
     path: docs/ARCHITECTURE.yaml
-  - id: knowledge-manager-demo-roadmap
-    title: Knowledge Manager Demo Application Road Map
+  - id: agent-architecture-roadmap
+    title: Agent Architecture Application Road Map
     summary: Release 00.0 contract, implemented deterministic evidence, and dependency-gated live observations.
     path: docs/road-map.yaml
 
@@ -89,12 +89,12 @@ config_format_index: []
 semantic_model_index: []
 
 use_case_index:
-  - id: rel00.0-uc001-guided-knowledge-manager-demo
-    title: Operator Runs the Guided Knowledge Manager Demo
+  - id: rel00.0-uc001-guided-agent-architecture
+    title: Operator Runs the Guided Agent Architecture
     release: "00.0"
     status: partial
-    test_suite: test-rel00.0-guided-knowledge-manager-demo
-    path: docs/specs/use-cases/rel00.0-uc001-guided-knowledge-manager-demo.yaml
+    test_suite: test-rel00.0-guided-agent-architecture
+    path: docs/specs/use-cases/rel00.0-uc001-guided-agent-architecture.yaml
   - id: rel01.0-uc001-demo-trace-collection
     title: Demo Run Collects and Serves Traces
     release: "01.0"
@@ -103,14 +103,14 @@ use_case_index:
     path: docs/specs/use-cases/rel01.0-uc001-demo-trace-collection.yaml
 
 test_suite_index:
-  - id: test-rel00.0-guided-knowledge-manager-demo
-    title: Test Suite for Release 00.0 Guided Knowledge Manager Demo
+  - id: test-rel00.0-guided-agent-architecture
+    title: Test Suite for Release 00.0 Guided Agent Architecture
     release: "00.0"
     status: partial
     test_case_count: 5
     traces:
-      - rel00.0-uc001-guided-knowledge-manager-demo
-    path: docs/specs/test-suites/test-rel00.0-guided-knowledge-manager-demo.yaml
+      - rel00.0-uc001-guided-agent-architecture
+    path: docs/specs/test-suites/test-rel00.0-guided-agent-architecture.yaml
   - id: test-rel01.0-demo-trace-collection
     title: Test Suite for Release 01.0 Demo Trace Collection
     release: "01.0"

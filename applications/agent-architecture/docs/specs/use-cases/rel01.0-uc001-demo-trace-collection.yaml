@@ -9,7 +9,7 @@ summary: |
   exits. The presenter opens the collector query surface to show the trace
   waterfall as part of the demo story.
 
-actor: A developer or presenter running the Knowledge Manager demo.
+actor: A developer or presenter running the Agent Architecture.
 trigger: Run mage run from the application root.
 
 preconditions:
@@ -35,7 +35,7 @@ success_criteria:
   - id: S1
     criterion: The collector agent starts before the curator and binds its receiver, control, and query ports.
     traces:
-      - architecture-knowledge-manager-demo design_decisions 7
+      - architecture-agent-architecture design_decisions 7
       - test-rel01.0-demo-trace-collection collector_command
   - id: S2
     criterion: The curator run command includes OTLP export flags pointing at the local collector.
@@ -48,7 +48,7 @@ success_criteria:
   - id: S4
     criterion: The collector exits cleanly via its control route after the curator, and no listeners remain orphaned.
     traces:
-      - architecture-knowledge-manager-demo design_decisions 7
+      - architecture-agent-architecture design_decisions 7
       - test-rel01.0-demo-trace-collection collector_command
 
 out_of_scope:

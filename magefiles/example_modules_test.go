@@ -43,8 +43,8 @@ func TestCodingAgentParticipatesInAudit(t *testing.T) {
 	}
 }
 
-func TestKnowledgeManagerDemoIsCompositionApplicationModule(t *testing.T) {
-	const module = "applications/knowledge-manager-demo"
+func TestAgentArchitectureIsCompositionApplicationModule(t *testing.T) {
+	const module = "applications/agent-architecture"
 	if !contains(applicationModules, module) {
 		t.Fatalf("applicationModules = %#v, want it to include %s", applicationModules, module)
 	}
@@ -79,7 +79,7 @@ func TestOrchestrationUsesStableApplicationPaths(t *testing.T) {
 	wantApplications := []string{
 		"applications/chatbot-mesh",
 		"applications/coding-agent",
-		"applications/knowledge-manager-demo",
+		"applications/agent-architecture",
 	}
 	if !reflect.DeepEqual(applicationModules, wantApplications) {
 		t.Fatalf("applicationModules = %#v, want %#v", applicationModules, wantApplications)

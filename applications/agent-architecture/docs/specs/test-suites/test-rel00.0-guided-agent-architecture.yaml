@@ -1,5 +1,5 @@
-id: test-rel00.0-guided-knowledge-manager-demo
-title: Test Suite for Release 00.0 Guided Knowledge Manager Demo
+id: test-rel00.0-guided-agent-architecture
+title: Test Suite for Release 00.0 Guided Agent Architecture
 release: "00.0"
 
 overview: |
@@ -18,7 +18,7 @@ status: partial
 live_observation_status: dependency_gated
 
 traces:
-  - rel00.0-uc001-guided-knowledge-manager-demo
+  - rel00.0-uc001-guided-agent-architecture
 
 preconditions:
   - The six Release 00.0 application documents parse as YAML.
@@ -28,7 +28,7 @@ preconditions:
   - applications/catalog remains the canonical owner of the documentation-curator profile and UI.
 
 test_cases:
-  - use_case: rel00.0-uc001-guided-knowledge-manager-demo
+  - use_case: rel00.0-uc001-guided-agent-architecture
     id: presentation_command
     name: Pinned presentation command
     go_test: go test ./magefiles -run '^TestPresentation'
@@ -38,21 +38,21 @@ test_cases:
     description: |
       The deterministic test constructs the presentation command without
       starting a server. It proves that Mage invokes the Go-module-pinned
-      present tool for knowledge-manager.slide and uses the application root as
+      present tool for agent-architecture.slide and uses the application root as
       the working directory. The live target serves the deck when its port is
       available.
     inputs:
-      application_root: applications/knowledge-manager-demo
-      slide: knowledge-manager.slide
+      application_root: applications/agent-architecture
+      slide: agent-architecture.slide
       tool: Go present dependency declared by go.mod
     expected:
       globally_installed_present_required: false
       slide_path_is_application_local: true
       working_directory_is_application_root: true
     traces:
-      - rel00.0-uc001-guided-knowledge-manager-demo S1
+      - rel00.0-uc001-guided-agent-architecture S1
 
-  - use_case: rel00.0-uc001-guided-knowledge-manager-demo
+  - use_case: rel00.0-uc001-guided-agent-architecture
     id: canonical_curator_command
     name: Canonical curator launch command
     go_test: go test ./magefiles -run '^Test(Run|ResolveRoots)'
@@ -79,13 +79,13 @@ test_cases:
       explicit_directory_argument: true
       development_core_root_argument: true
     traces:
-      - rel00.0-uc001-guided-knowledge-manager-demo S2
-      - rel00.0-uc001-guided-knowledge-manager-demo S3
+      - rel00.0-uc001-guided-agent-architecture S2
+      - rel00.0-uc001-guided-agent-architecture S3
       - srd011-knowledge-manager AC1
       - srd011-knowledge-manager AC2
       - srd001-application-module-contract AC2
 
-  - use_case: rel00.0-uc001-guided-knowledge-manager-demo
+  - use_case: rel00.0-uc001-guided-agent-architecture
     id: lifecycle_exit_contract
     name: Declarative lifecycle-exit contract
     go_test: go test ./magefiles -run '^TestLifecycleExit'
@@ -111,11 +111,11 @@ test_cases:
       live_curator_terminal_observation: dependency_gated
       live_listener_release_observation: dependency_gated
     traces:
-      - rel00.0-uc001-guided-knowledge-manager-demo S4
+      - rel00.0-uc001-guided-agent-architecture S4
       - srd011-knowledge-manager AC3
       - rel07.0-uc001-documentation-curator-profile-ux S4
 
-  - use_case: rel00.0-uc001-guided-knowledge-manager-demo
+  - use_case: rel00.0-uc001-guided-agent-architecture
     id: managed_service_contract
     name: Curator and presentation managed-service evidence
     go_test: go test ./magefiles -run '^TestManagedServices'
@@ -152,12 +152,12 @@ test_cases:
       helm_capability_inferred: false
       kind_capability_inferred: false
     traces:
-      - rel00.0-uc001-guided-knowledge-manager-demo S6
+      - rel00.0-uc001-guided-agent-architecture S6
       - srd002-managed-application-services AC1
       - srd002-managed-application-services AC2
       - srd002-managed-application-services AC3
 
-  - use_case: rel00.0-uc001-guided-knowledge-manager-demo
+  - use_case: rel00.0-uc001-guided-agent-architecture
     id: application_contract
     name: Documentation audit and composition-only stats
     go_test: go test ./magefiles
@@ -186,7 +186,7 @@ test_cases:
       canonical_references: 2
       agents_section_present: false
     traces:
-      - rel00.0-uc001-guided-knowledge-manager-demo S5
+      - rel00.0-uc001-guided-agent-architecture S5
       - srd001-application-module-contract AC3
       - srd001-application-module-contract AC4
       - srd001-application-module-contract AC5

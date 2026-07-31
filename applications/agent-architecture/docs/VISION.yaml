@@ -1,8 +1,8 @@
-id: knowledge-manager-demo
-title: Knowledge Manager Demo Application Vision
+id: agent-architecture
+title: Agent Architecture Application Vision
 
 executive_summary: |
-  applications/knowledge-manager-demo is a standalone presentation application.
+  applications/agent-architecture is a standalone presentation application.
   It guides an operator through launching the canonical documentation-curator
   profile, opening its browser interface, and stopping it with a declarative
   lifecycle-exit client.
@@ -29,7 +29,7 @@ problem: |
   without copying the documentation-curator profile or its user interface.
 
 what_this_does: |
-  The application serves knowledge-manager.slide with a version-pinned Go
+  The application serves agent-architecture.slide with a version-pinned Go
   present tool. A Mage entry point launches the canonical
   applications/catalog/agents/knowledge-manager/documentation-curator/profile.yaml
   through agent-core. The operator opens the catalog-owned interface and then
@@ -103,8 +103,8 @@ canonical_documents:
   - docs/ARCHITECTURE.yaml
   - docs/road-map.yaml
   - docs/SPECIFICATIONS.yaml
-  - docs/specs/use-cases/rel00.0-uc001-guided-knowledge-manager-demo.yaml
-  - docs/specs/test-suites/test-rel00.0-guided-knowledge-manager-demo.yaml
+  - docs/specs/use-cases/rel00.0-uc001-guided-agent-architecture.yaml
+  - docs/specs/test-suites/test-rel00.0-guided-agent-architecture.yaml
 
 external_references:
   - owner: applications

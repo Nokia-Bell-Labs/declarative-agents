@@ -365,7 +365,7 @@ func TestExecuteReleaseGatesStopsAtFailure(t *testing.T) {
 func TestReleaseTags(t *testing.T) {
 	got := releaseTags("v0.20260617.0", []string{
 		"agent-core", catalogModule, "applications/coding-agent",
-		"applications/knowledge-manager-demo",
+		"applications/agent-architecture",
 	})
 	want := []string{
 		"v0.20260617.0",
@@ -373,7 +373,7 @@ func TestReleaseTags(t *testing.T) {
 		"applications/catalog/v0.20260617.0",
 		"agent-profiles/v0.20260617.0",
 		"applications/coding-agent/v0.20260617.0",
-		"applications/knowledge-manager-demo/v0.20260617.0",
+		"applications/agent-architecture/v0.20260617.0",
 	}
 	if !reflect.DeepEqual(got, want) {
 		t.Fatalf("releaseTags = %#v, want %#v", got, want)

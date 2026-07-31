@@ -44,7 +44,7 @@ releases:
       Profile-owned programs moved from agent-core into this repository.
       At Release 06.0, demos and integration fixtures moved with the profiles
       they exercised. Presentation-specific Knowledge Manager assets were later
-      relocated to applications/knowledge-manager-demo; this release record
+      relocated to applications/agent-architecture; this release record
       preserves the historical migration boundary.
 
       Runtime code, builtin tool implementations, release image build logic,

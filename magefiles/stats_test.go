@@ -27,7 +27,7 @@ func TestSumAgentsTotals(t *testing.T) {
 					"canonical_source": "applications/catalog",
 					"canonical_program": "agents/knowledge-manager/corpus-ingest",
 					"yaml": {"files": 2, "lines": 271}}}}}`),
-		"applications/knowledge-manager-demo": json.RawMessage(`{
+		"applications/agent-architecture": json.RawMessage(`{
 			"application": {
 				"ownership": "composition",
 				"agents_contributed": 0,
@@ -37,14 +37,14 @@ func TestSumAgentsTotals(t *testing.T) {
 	}
 
 	var demo map[string]json.RawMessage
-	if err := json.Unmarshal(results["applications/knowledge-manager-demo"], &demo); err != nil {
+	if err := json.Unmarshal(results["applications/agent-architecture"], &demo); err != nil {
 		t.Fatal(err)
 	}
 	if _, exists := demo["application"]; !exists {
-		t.Fatal("Knowledge Manager demo stats must contain an application composition section")
+		t.Fatal("Agent Architecture stats must contain an application composition section")
 	}
 	if _, exists := demo["agents"]; exists {
-		t.Fatal("Knowledge Manager demo stats must report composition without an agents section")
+		t.Fatal("Agent Architecture stats must report composition without an agents section")
 	}
 	total, err := sumAgentsTotals(results)
 	if err != nil {

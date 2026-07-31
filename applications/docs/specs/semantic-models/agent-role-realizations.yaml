@@ -541,7 +541,7 @@ non_role_inventory:
         inherits: scenario-critic
   application_fixtures:
     profiles:
-      - path: applications/knowledge-manager-demo/call-lifecycle-exit/profile.yaml
+      - path: applications/agent-architecture/call-lifecycle-exit/profile.yaml
         classification: infrastructure_adapter
         purpose: bounded lifecycle-exit demo helper
 

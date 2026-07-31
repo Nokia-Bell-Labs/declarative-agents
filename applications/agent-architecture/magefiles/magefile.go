@@ -19,7 +19,7 @@ import (
 )
 
 const (
-	applicationModule        = "github.com/Nokia-Bell-Labs/declarative-agents/applications/knowledge-manager-demo"
+	applicationModule        = "github.com/Nokia-Bell-Labs/declarative-agents/applications/agent-architecture"
 	catalogRootEnv           = "AGENT_CATALOG_ROOT"
 	coreRootEnv              = "AGENT_CORE_ROOT"
 	tracingEnv               = "DEMO_TRACING"
@@ -46,11 +46,11 @@ var requiredDocuments = map[string][]string{
 		"srd_index", "external_requirement_references", "config_format_index",
 		"semantic_model_index", "use_case_index", "test_suite_index", "coverage_gaps",
 	},
-	"docs/specs/use-cases/rel00.0-uc001-guided-knowledge-manager-demo.yaml": {
+	"docs/specs/use-cases/rel00.0-uc001-guided-agent-architecture.yaml": {
 		"id", "title", "summary", "actor", "trigger", "preconditions", "flow",
 		"touchpoints", "success_criteria", "out_of_scope", "test_suite", "status",
 	},
-	"docs/specs/test-suites/test-rel00.0-guided-knowledge-manager-demo.yaml": {
+	"docs/specs/test-suites/test-rel00.0-guided-agent-architecture.yaml": {
 		"id", "title", "release", "overview", "traces", "preconditions", "test_cases",
 	},
 	"docs/specs/use-cases/rel01.0-uc001-demo-trace-collection.yaml": {
@@ -132,7 +132,7 @@ func Run() error {
 	if err != nil {
 		return err
 	}
-	temp, err := os.MkdirTemp("", "knowledge-manager-demo-*")
+	temp, err := os.MkdirTemp("", "agent-architecture-*")
 	if err != nil {
 		return fmt.Errorf("create agent build directory: %w", err)
 	}
@@ -170,7 +170,7 @@ func Run() error {
 	return nil
 }
 
-// Presentation serves knowledge-manager.slide with the module-pinned Go tool.
+// Presentation serves agent-architecture.slide with the module-pinned Go tool.
 func Presentation() error {
 	root, err := applicationRootFromWorkingDirectory()
 	if err != nil {
@@ -198,7 +198,7 @@ func Audit() error {
 	if err := auditApplication(root); err != nil {
 		return err
 	}
-	fmt.Printf("audit: validated %d Knowledge Manager demo YAML documents\n", len(requiredDocuments))
+	fmt.Printf("audit: validated %d Agent Architecture YAML documents\n", len(requiredDocuments))
 	return nil
 }
 
@@ -206,7 +206,7 @@ func Audit() error {
 func Stats() error {
 	encoded, err := json.Marshal(newStatsOutput())
 	if err != nil {
-		return fmt.Errorf("encode Knowledge Manager demo stats: %w", err)
+		return fmt.Errorf("encode Agent Architecture stats: %w", err)
 	}
 	fmt.Println(string(encoded))
 	return nil
@@ -223,7 +223,7 @@ func resolveRootsFromWorkingDirectory() (roots, error) {
 func applicationRootFromWorkingDirectory() (string, error) {
 	cwd, err := os.Getwd()
 	if err != nil {
-		return "", fmt.Errorf("resolve Knowledge Manager demo working directory: %w", err)
+		return "", fmt.Errorf("resolve Agent Architecture working directory: %w", err)
 	}
 	return findApplicationRoot(cwd)
 }
@@ -231,7 +231,7 @@ func applicationRootFromWorkingDirectory() (string, error) {
 func findApplicationRoot(start string) (string, error) {
 	current, err := filepath.Abs(filepath.Clean(start))
 	if err != nil {
-		return "", fmt.Errorf("resolve Knowledge Manager demo root from %q: %w", start, err)
+		return "", fmt.Errorf("resolve Agent Architecture root from %q: %w", start, err)
 	}
 	for {
 		data, readErr := os.ReadFile(filepath.Join(current, "go.mod"))
@@ -245,7 +245,7 @@ func findApplicationRoot(start string) (string, error) {
 		current = parent
 	}
 	return "", fmt.Errorf(
-		"Knowledge Manager demo root not found from %s; run from applications/knowledge-manager-demo or a directory beneath it",
+		"Agent Architecture root not found from %s; run from applications/agent-architecture or a directory beneath it",
 		start,
 	)
 }
@@ -312,7 +312,7 @@ func runCommandPlan(resolved roots, binary string) commandPlan {
 }
 
 func presentationCommand(application string) *exec.Cmd {
-	cmd := exec.Command("go", "tool", "present", "-play=false", "knowledge-manager.slide")
+	cmd := exec.Command("go", "tool", "present", "-play=false", "agent-architecture.slide")
 	cmd.Dir = application
 	return cmd
 }
@@ -533,7 +533,7 @@ func auditOwnedSources(root string) error {
 	}
 	developerPath := regexp.MustCompile(`(?:/Users/|/home/|[A-Za-z]:\\)`)
 	profileReferenceSeen := false
-	scanRoots := []string{"docs", "call-lifecycle-exit", "README.md", "knowledge-manager.slide"}
+	scanRoots := []string{"docs", "call-lifecycle-exit", "README.md", "agent-architecture.slide"}
 	for _, relative := range scanRoots {
 		path := filepath.Join(root, relative)
 		err := filepath.WalkDir(path, func(path string, entry fs.DirEntry, walkErr error) error {

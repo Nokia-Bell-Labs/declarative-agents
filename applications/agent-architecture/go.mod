@@ -1,4 +1,4 @@
-module github.com/Nokia-Bell-Labs/declarative-agents/applications/knowledge-manager-demo
+module github.com/Nokia-Bell-Labs/declarative-agents/applications/agent-architecture
 
 go 1.26.5
 
