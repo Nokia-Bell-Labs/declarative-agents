@@ -6,11 +6,11 @@ tools:
     description: Invoke the configured Ollama model for the live REST proof.
     emits: [LLMResponded, CommandError]
     config:
-      model: "qwen3.6:35b-mlx"
+      model: "gemma4:31b-cloud"
       provider: ollama
       provider_url: "http://localhost:11434"
       manifest_state: Composing
-      response_profile: qwen
+      response_profile: gemma
       max_time: 120
       llm_timeout: 120
       system_prompt: |
