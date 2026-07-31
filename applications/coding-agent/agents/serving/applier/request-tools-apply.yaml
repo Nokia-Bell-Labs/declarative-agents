@@ -1,0 +1,8 @@
+tools:
+  - write_overrides
+  - helm_dry_run
+  - helm_upgrade
+  - kubectl_rollout_status_planner
+  - kubectl_rollout_status_executor
+  - kubectl_rollout_status_critic
+  - helm_rollback

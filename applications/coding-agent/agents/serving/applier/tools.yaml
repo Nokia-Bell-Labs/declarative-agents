@@ -1,0 +1,8 @@
+tools:
+  - launch_applier_requests
+  - launch_applier_control
+  - launch_monitor_rest
+  - await_applier_control
+  - stop_monitor_rest
+  - stop_applier_requests
+  - exit_agent

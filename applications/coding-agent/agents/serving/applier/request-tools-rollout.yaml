@@ -1,0 +1,3 @@
+tools:
+  - kubectl_rollout_poll
+  - kubectl_get_rollout_counts

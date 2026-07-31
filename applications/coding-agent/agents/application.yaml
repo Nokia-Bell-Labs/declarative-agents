@@ -47,3 +47,12 @@ configuration:
     model: none
     child_profile: none
     budget: agents/critic/machine-workspace.yaml
+  applier:
+    # Deployment-plane actuator (srd006): no LLM, no serving child. Its authority
+    # is the helm and kubectl exec words declared in agents/serving/applier; it
+    # verifies the planner, executor, and critic Deployments via kubectl rollout
+    # status and rolls back on failure.
+    rest_targets: none
+    model: none
+    child_profile: none
+    budget: agents/serving/applier/machine.yaml

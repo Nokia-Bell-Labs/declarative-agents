@@ -16,3 +16,5 @@ render; files named `invalid-*` must fail schema or semantic validation.
 - invalid-url: unsupported external LLM URL
 - invalid-mount: untrusted workspace mount path
 - invalid-models: empty in-cluster model set
+- valid-applier-enabled: srd006 applier enabled with its network policy on
+- invalid-applier-port: applier apply port drifted from the profile contract

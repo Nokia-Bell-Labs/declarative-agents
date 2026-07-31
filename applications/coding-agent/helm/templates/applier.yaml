@@ -1,0 +1,274 @@
+{{- if .Values.applier.enabled }}
+{{- include "coding-agent.validateValues" . -}}
+{{- $fullname := include "coding-agent.fullname" . -}}
+{{/*
+The applier (srd006): the coding application's deployment-plane actuation agent.
+It runs the runtime with a mounted profile whose request machines bind the helm and
+kubectl CLIs its image carries as exec words. It edits deployment values and triggers
+rollouts only; it submits no endpoint or credential to a running agent.
+
+Sanctioned image divergence (srd003 R1.2, srd006 R5.3): the applier image carries
+helm and kubectl and the chart at /chart alongside the runtime binary. Recorded here
+so the declarative-decomposition audit does not re-flag it.
+
+The applier profile is mounted from its own ConfigMap (collector-style, .Files.Glob)
+rather than the serving profile ConfigMaps, because it is not a canonical serving role
+and does not flow through deployment.serving_profiles.
+*/}}
+apiVersion: v1
+kind: ConfigMap
+metadata:
+  name: {{ $fullname }}-applier-profiles
+  labels:
+    {{- include "coding-agent.labels" . | nindent 4 }}
+    app.kubernetes.io/component: applier
+data:
+  {{- range $path, $_ := .Files.Glob "profiles/applier/**" }}
+  {{- $key := $path | trimPrefix "profiles/applier/" | replace "/" "__" }}
+  {{ $key }}: |-
+  {{- if eq $key "agents__applier__exec-declarations.yaml" }}
+    {{- /* Rewrite the applier exec args' placeholder coordinates to the installed
+          release so an applier installed under any release name targets its own
+          release, namespace, and role Deployments rather than a baked
+          coding-agent/default. The deployment tokens are replaced before the bare
+          release tokens because they contain the release-chart name. */}}
+    {{- $exec := $.Files.Get $path }}
+    {{- $exec = $exec | replace "deployment/coding-agent-planner" (printf "deployment/%s-planner" $fullname) }}
+    {{- $exec = $exec | replace "deployment/coding-agent-executor" (printf "deployment/%s-executor" $fullname) }}
+    {{- $exec = $exec | replace "deployment/coding-agent-critic" (printf "deployment/%s-critic" $fullname) }}
+    {{- $exec = $exec | replace "upgrade, coding-agent," (printf "upgrade, %s," $.Release.Name) }}
+    {{- $exec = $exec | replace "rollback, coding-agent]" (printf "rollback, %s]" $.Release.Name) }}
+    {{- $exec = $exec | replace "--namespace, default," (printf "--namespace, %s," $.Release.Namespace) }}
+    {{- $exec | nindent 4 }}
+  {{- else }}
+    {{- $.Files.Get $path | nindent 4 }}
+  {{- end }}
+  {{- end }}
+---
+apiVersion: v1
+kind: ServiceAccount
+metadata:
+  name: {{ $fullname }}-applier
+  labels:
+    {{- include "coding-agent.labels" . | nindent 4 }}
+    app.kubernetes.io/component: applier
+---
+apiVersion: rbac.authorization.k8s.io/v1
+kind: Role
+metadata:
+  name: {{ $fullname }}-applier
+  labels:
+    {{- include "coding-agent.labels" . | nindent 4 }}
+    app.kubernetes.io/component: applier
+rules:
+  # Read deployment state for the rollout verification (kubectl rollout status of
+  # the planner, executor, and critic Deployments).
+  - apiGroups: [""]
+    resources: [configmaps, services]
+    verbs: [get, list, watch]
+  - apiGroups: [apps]
+    resources: [deployments]
+    verbs: [get, list, watch]
+  # helm --wait judges readiness by watching the ReplicaSets and Pods a Deployment
+  # owns, so an apply that waits reads them even though it never writes them. It is
+  # also what kubectl rollout status reads.
+  - apiGroups: [apps]
+    resources: [replicasets]
+    verbs: [get, list, watch]
+  - apiGroups: [""]
+    resources: [pods]
+    verbs: [get, list, watch]
+  {{- if .Values.applier.allowApply }}
+  # The apply path runs helm upgrade in-cluster, which manages the chart's objects
+  # and the release Secret. Scoped to this namespace by the RoleBinding.
+  #
+  # helm reads the release Secrets before it does anything -- even --dry-run queries
+  # them to find the current release -- so secrets appear in a read rule here, not
+  # only in the write rule below.
+  - apiGroups: [""]
+    resources: [secrets, serviceaccounts]
+    verbs: [get, list, watch]
+  # An upgrade re-renders the whole chart (srd006 R2.2), so the applier must read and
+  # write every object kind the chart contains. Writing Roles is bounded: the
+  # RoleBinding keeps every grant namespace-scoped, and Kubernetes forbids granting
+  # permissions the grantor does not already hold, so the applier can re-apply its
+  # own Role but cannot widen it.
+  - apiGroups: [networking.k8s.io]
+    resources: [networkpolicies]
+    verbs: [get, list, watch, create, update, patch]
+  - apiGroups: [rbac.authorization.k8s.io]
+    resources: [roles, rolebindings]
+    verbs: [get, list, watch, create, update, patch]
+  - apiGroups: [""]
+    resources: [configmaps, secrets, services, serviceaccounts, persistentvolumeclaims]
+    verbs: [create, update, patch, delete]
+  - apiGroups: [apps]
+    resources: [deployments]
+    verbs: [create, update, patch]
+  {{- end }}
+---
+apiVersion: rbac.authorization.k8s.io/v1
+kind: RoleBinding
+metadata:
+  name: {{ $fullname }}-applier
+  labels:
+    {{- include "coding-agent.labels" . | nindent 4 }}
+    app.kubernetes.io/component: applier
+roleRef:
+  apiGroup: rbac.authorization.k8s.io
+  kind: Role
+  name: {{ $fullname }}-applier
+subjects:
+  - kind: ServiceAccount
+    name: {{ $fullname }}-applier
+---
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: {{ $fullname }}-applier
+  labels:
+    {{- include "coding-agent.labels" . | nindent 4 }}
+    app.kubernetes.io/component: applier
+spec:
+  replicas: 1
+  selector:
+    matchLabels:
+      {{- include "coding-agent.selectorLabels" . | nindent 6 }}
+      app.kubernetes.io/component: applier
+  template:
+    metadata:
+      labels:
+        {{- include "coding-agent.selectorLabels" . | nindent 8 }}
+        app.kubernetes.io/component: applier
+      annotations:
+        checksum/profiles: {{ .Files.Glob "profiles/applier/**" | toString | sha256sum }}
+        {{- with .Values.podAnnotations }}
+        {{- toYaml . | nindent 8 }}
+        {{- end }}
+    spec:
+      # The applier calls the Kubernetes API through helm and kubectl, so unlike the
+      # serving roles it mounts its ServiceAccount token.
+      automountServiceAccountToken: true
+      serviceAccountName: {{ $fullname }}-applier
+      terminationGracePeriodSeconds: 30
+      securityContext:
+        {{- toYaml .Values.podSecurityContext | nindent 8 }}
+      {{- with .Values.nodeSelector }}
+      nodeSelector:
+        {{- toYaml . | nindent 8 }}
+      {{- end }}
+      {{- with .Values.tolerations }}
+      tolerations:
+        {{- toYaml . | nindent 8 }}
+      {{- end }}
+      {{- with .Values.affinity }}
+      affinity:
+        {{- toYaml . | nindent 8 }}
+      {{- end }}
+      containers:
+        - name: applier
+          # The applier image bundles the runtime, helm, kubectl, and the chart at
+          # /chart. The exec words run `helm upgrade <release> /chart ...`.
+          image: "{{ .Values.applier.image.repository }}:{{ .Values.applier.image.tag }}"
+          imagePullPolicy: {{ .Values.applier.image.pullPolicy }}
+          securityContext:
+            {{- toYaml .Values.containerSecurityContext | nindent 12 }}
+          args:
+            - "--profile"
+            - "/profiles/agents/applier/profile.yaml"
+            - "--directory"
+            - "{{ .Values.workspace.mountPath }}"
+            - "--otel-service-name"
+            - "coding-applier"
+            {{- with include "coding-agent.otlpEndpoint" . }}
+            - "--otel-otlp-endpoint"
+            - {{ . | quote }}
+            {{- end }}
+          env:
+            - {name: APPLIER_BIND_HOST, value: "0.0.0.0"}
+            # The workspace the agent writes its values file into, the same path
+            # mounted as the work volume below and passed as --directory, so the
+            # write stays inside the workspace wherever the mount moves.
+            - {name: APPLIER_WORK_DIR, value: {{ .Values.workspace.mountPath | quote }}}
+            - name: POD_NAME
+              valueFrom:
+                fieldRef: {fieldPath: metadata.name}
+            - name: OTEL_RESOURCE_ATTRIBUTES
+              value: "service.namespace=coding-agent,service.instance.id=$(POD_NAME)"
+            # helm and kubectl caches under a writable path, because the root
+            # filesystem is read-only.
+            - {name: HOME, value: /tmp}
+            - {name: HELM_CACHE_HOME, value: /tmp/helm/cache}
+            - {name: HELM_CONFIG_HOME, value: /tmp/helm/config}
+            - {name: HELM_DATA_HOME, value: /tmp/helm/data}
+          ports:
+            - {name: apply, containerPort: {{ .Values.applier.ports.apply }}, protocol: TCP}
+            - {name: control, containerPort: {{ .Values.applier.ports.control }}, protocol: TCP}
+            - {name: monitor, containerPort: {{ .Values.applier.ports.monitor }}, protocol: TCP}
+          readinessProbe:
+            httpGet: {path: /api/lifecycle/health, port: control}
+            initialDelaySeconds: 5
+            periodSeconds: 10
+          resources:
+            {{- toYaml .Values.applier.resources | nindent 12 }}
+          volumeMounts:
+            - {name: profiles, mountPath: /profiles, readOnly: true}
+            - {name: work, mountPath: {{ .Values.workspace.mountPath }}}
+            - {name: tmp, mountPath: /tmp}
+      volumes:
+        - name: profiles
+          projected:
+            defaultMode: 0444
+            sources:
+              - configMap:
+                  name: {{ $fullname }}-applier-profiles
+                  items:
+                    {{- range $path, $_ := .Files.Glob "profiles/applier/**" }}
+                    - key: {{ $path | trimPrefix "profiles/applier/" | replace "/" "__" }}
+                      path: {{ $path | trimPrefix "profiles/applier/" }}
+                    {{- end }}
+        - name: work
+          emptyDir: {}
+        - name: tmp
+          emptyDir: {}
+---
+apiVersion: v1
+kind: Service
+metadata:
+  name: {{ $fullname }}-applier
+  labels:
+    {{- include "coding-agent.labels" . | nindent 4 }}
+    app.kubernetes.io/component: applier
+spec:
+  type: ClusterIP
+  selector:
+    {{- include "coding-agent.selectorLabels" . | nindent 4 }}
+    app.kubernetes.io/component: applier
+  ports:
+    - {name: apply, port: {{ .Values.applier.ports.apply }}, targetPort: apply}
+    - {name: control, port: {{ .Values.applier.ports.control }}, targetPort: control}
+    - {name: monitor, port: {{ .Values.applier.ports.monitor }}, targetPort: monitor}
+{{- if .Values.applier.networkPolicy.enabled }}
+---
+# The apply surface carries no inbound authentication (agent-core REST servers do
+# not), so it is gated at the network layer (srd006 R4.3): the default-deny ingress
+# below admits nothing to the applier pods, keeping the apply port unreachable from
+# the planner, executor, critic, and collector pods. An authorized operator or CI
+# caller reaches it by an explicitly provisioned path (port-forward or an ingress the
+# operator adds), never from inside the release.
+apiVersion: networking.k8s.io/v1
+kind: NetworkPolicy
+metadata:
+  name: {{ $fullname }}-applier
+  labels:
+    {{- include "coding-agent.labels" . | nindent 4 }}
+    app.kubernetes.io/component: applier
+spec:
+  podSelector:
+    matchLabels:
+      {{- include "coding-agent.selectorLabels" . | nindent 6 }}
+      app.kubernetes.io/component: applier
+  policyTypes: [Ingress]
+  ingress: []
+{{- end }}
+{{- end }}
