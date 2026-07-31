@@ -211,6 +211,14 @@ func runCollectorIntakeScenario(binary, coreRoot, catalogRoot, workDir string) e
 	if err != nil {
 		return err
 	}
+	query, err := freeLoopbackAddr()
+	if err != nil {
+		return err
+	}
+	_, queryPort, err := net.SplitHostPort(query)
+	if err != nil {
+		return err
+	}
 	spool := filepath.Join(workDir, "collector.ndjson")
 	cmd := exec.Command(binary,
 		"--profile", "agents/collector/profile.yaml",
@@ -223,6 +231,7 @@ func runCollectorIntakeScenario(binary, coreRoot, catalogRoot, workDir string) e
 		"COLLECTOR_RECEIVER_ADDRESS="+receiver,
 		"COLLECTOR_CONTROL_PORT="+controlPort,
 		"COLLECTOR_MONITOR_PORT="+monitorPort,
+		"COLLECTOR_QUERY_PORT="+queryPort,
 		"COLLECTOR_SPOOL_PATH="+spool,
 		"COLLECTOR_MODE=spool",
 	)
@@ -313,6 +322,14 @@ func runCollectorLifecycleScenario(binary, coreRoot, catalogRoot, workDir string
 	if err != nil {
 		return nil, err
 	}
+	query, err := freeLoopbackAddr()
+	if err != nil {
+		return nil, err
+	}
+	_, queryPort, err := net.SplitHostPort(query)
+	if err != nil {
+		return nil, err
+	}
 	spool := filepath.Join(workDir, "collector.ndjson")
 	cmd := exec.Command(binary,
 		"--profile", "agents/collector/profile.yaml",
@@ -325,6 +342,7 @@ func runCollectorLifecycleScenario(binary, coreRoot, catalogRoot, workDir string
 		"COLLECTOR_RECEIVER_ADDRESS="+receiver,
 		"COLLECTOR_CONTROL_PORT="+controlPort,
 		"COLLECTOR_MONITOR_PORT="+monitorPort,
+		"COLLECTOR_QUERY_PORT="+queryPort,
 		"COLLECTOR_SPOOL_PATH="+spool,
 		"COLLECTOR_MODE=spool",
 	)
