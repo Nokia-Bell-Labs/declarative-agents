@@ -161,8 +161,12 @@ func TestCodingHelmSmokeUsesProductionProfileFreeImageRecipe(t *testing.T) {
 }
 
 func TestCodingHelmUsesIsolatedCollectorQueryPort(t *testing.T) {
-	if codingHelmCollectorQueryURL != "http://127.0.0.1:18193" {
-		t.Fatalf("collector query URL = %s, want isolated smoke port", codingHelmCollectorQueryURL)
+	port, err := freeLocalPort()
+	if err != nil {
+		t.Fatal(err)
+	}
+	if port == "" || port == "18193" {
+		t.Fatalf("collector query forward port = %q, want an ephemeral non-default port", port)
 	}
 }
 

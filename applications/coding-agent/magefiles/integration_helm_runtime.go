@@ -7,6 +7,7 @@ import (
 	"context"
 	"encoding/json"
 	"fmt"
+	"net"
 	"net/http"
 	"os"
 	"os/exec"
@@ -320,11 +321,19 @@ func runCodingSmokeCommand(
 
 type codingPortForwards struct {
 	commands []*exec.Cmd
+	// queryURL reaches the in-cluster collector query surface through an
+	// ephemeral local port, so the smoke never collides with (or silently
+	// queries) the observability rig's fixed 18193 (GH-1165).
+	queryURL string
 }
 
 func startCodingHelmForwards(
 	environment codingSmokeEnvironment,
 ) (*codingPortForwards, error) {
+	queryPort, err := freeLocalPort()
+	if err != nil {
+		return nil, fmt.Errorf("allocate collector query forward port: %w", err)
+	}
 	targets := []struct {
 		service string
 		ports   []string
@@ -332,9 +341,9 @@ func startCodingHelmForwards(
 		{codingHelmRelease + "-coding-agent-planner", []string{"18200:18200", "18201:18201"}},
 		{codingHelmRelease + "-coding-agent-executor", []string{"18211:18211"}},
 		{codingHelmRelease + "-coding-agent-critic", []string{"18221:18221"}},
-		{codingHelmRelease + "-coding-agent-collector", []string{"18193:18193"}},
+		{codingHelmRelease + "-coding-agent-collector", []string{queryPort + ":18193"}},
 	}
-	forwards := &codingPortForwards{}
+	forwards := &codingPortForwards{queryURL: "http://127.0.0.1:" + queryPort}
 	for _, target := range targets {
 		args := []string{"port-forward", "-n", codingHelmNamespace, "service/" + target.service}
 		args = append(args, target.ports...)
@@ -363,7 +372,7 @@ func (forwards *codingPortForwards) stop() {
 	forwards.commands = nil
 }
 
-func verifyCodingHealthEndpoints() error {
+func verifyCodingHealthEndpoints(queryURL string) error {
 	for role, endpoint := range map[string]string{
 		"planner":  "http://127.0.0.1:18201/api/lifecycle/health",
 		"executor": "http://127.0.0.1:18211/api/lifecycle/health",
@@ -373,7 +382,20 @@ func verifyCodingHealthEndpoints() error {
 			return fmt.Errorf("%s lifecycle health: %w", role, err)
 		}
 	}
-	return waitServingHTTP(codingHelmCollectorQueryURL+"/query/traces?page_size=1", codingHelmReadyTimeout)
+	return waitServingHTTP(queryURL+"/query/traces?page_size=1", codingHelmReadyTimeout)
+}
+
+func freeLocalPort() (string, error) {
+	listener, err := net.Listen("tcp", "127.0.0.1:0")
+	if err != nil {
+		return "", err
+	}
+	defer listener.Close()
+	_, port, err := net.SplitHostPort(listener.Addr().String())
+	if err != nil {
+		return "", err
+	}
+	return port, nil
 }
 
 func submitCodingHelmRequest() error {
@@ -424,8 +446,8 @@ func verifyCodingWorkspaceAndVerdict(environment codingSmokeEnvironment) error {
 	return nil
 }
 
-func verifyCodingTrace() error {
-	endpoint := codingHelmCollectorQueryURL + "/query/traces/" + codingHelmTraceID
+func verifyCodingTrace(queryURL string) error {
+	endpoint := queryURL + "/query/traces/" + codingHelmTraceID
 	deadline := time.Now().Add(codingHelmTraceTimeout)
 	var lastErr error
 	for time.Now().Before(deadline) {

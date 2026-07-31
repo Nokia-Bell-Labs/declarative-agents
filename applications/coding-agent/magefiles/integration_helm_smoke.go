@@ -26,9 +26,8 @@ const (
 	// (kindrig.BuildAgentCoreImage); the published ghcr.io chart default is
 	// not pullable from every environment.
 	codingHelmCollectorImage = kindrig.DefaultAgentCoreImage
-	codingHelmTraceID          = "0af7651916cd43dd8448eb211c80319c"
-	codingHelmTraceparent      = "00-" + codingHelmTraceID + "-b7ad6b7169203331-01"
-	codingHelmCollectorQueryURL = "http://127.0.0.1:18193"
+	codingHelmTraceID     = "0af7651916cd43dd8448eb211c80319c"
+	codingHelmTraceparent = "00-" + codingHelmTraceID + "-b7ad6b7169203331-01"
 
 	codingHelmClusterTimeout = 3 * time.Minute
 	codingHelmInstallTimeout = 5 * time.Minute
@@ -227,7 +226,7 @@ func runCodingHelmSmoke(roots integrationRoots) (result error) {
 		return classifyCodingHelmFailure(environment.run, "port-forward", err)
 	}
 	defer forwards.stop()
-	if err := verifyCodingHealthEndpoints(); err != nil {
+	if err := verifyCodingHealthEndpoints(forwards.queryURL); err != nil {
 		return classifyCodingHelmFailure(environment.run, "lifecycle health", err)
 	}
 	if err := submitCodingHelmRequest(); err != nil {
@@ -236,7 +235,7 @@ func runCodingHelmSmoke(roots integrationRoots) (result error) {
 	if err := verifyCodingWorkspaceAndVerdict(environment); err != nil {
 		return classifyCodingHelmFailure(environment.run, "workspace and critic result", err)
 	}
-	if err := verifyCodingTrace(); err != nil {
+	if err := verifyCodingTrace(forwards.queryURL); err != nil {
 		return classifyCodingHelmFailure(environment.run, "connected trace", err)
 	}
 	fmt.Printf("integration:helmSmoke PASS - revision %s packaged chart ran planner -> executor -> critic with shared workspace and trace %s\n",
