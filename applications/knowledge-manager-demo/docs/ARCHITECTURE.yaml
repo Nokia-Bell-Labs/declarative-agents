@@ -216,11 +216,12 @@ design_decisions:
   - id: 5
     title: Report composition without agent ownership
     decision: |
-      mage stats emits application ownership, one canonical reference,
-      agents_contributed: 0, and the canonical profile path without an agents
-      section. It does not emit documentation counts.
+      mage stats emits application ownership, two canonical references
+      (documentation-curator and collector), agents_contributed: 0, and the
+      canonical profile path without an agents section. It does not emit
+      documentation counts.
     benefits:
-      - Root aggregation does not double-count the curator.
+      - Root aggregation does not double-count canonical agents.
       - The application's contribution remains measurable.
       - Ownership is machine-readable.
   - id: 6
@@ -236,6 +237,19 @@ design_decisions:
       - Shared lifecycle and operator obligations have one canonical source.
       - Applicability is explicit for each long-running process.
       - Release status cannot imply unimplemented package or cluster surfaces.
+  - id: 7
+    title: Collect traces with the canonical collector agent
+    decision: |
+      The demo starts the canonical collector agent (mode spool, receiver on
+      127.0.0.1:4317, query on port 18193) before the curator and passes
+      --otel-otlp-endpoint and --otel-service-name to the curator run. After
+      the curator exits, the run target posts to the collector control exit
+      route and waits for the process to terminate. Tracing is on by default
+      and disabled by DEMO_TRACING=false.
+    benefits:
+      - A guided run produces browsable traces without external infrastructure.
+      - The collector reuses the same agent binary and canonical profile.
+      - The presenter shows the trace waterfall from the collector query surface.
 
 technology_choices:
   - component: Presentation server
@@ -284,7 +298,8 @@ implementation_status:
   current_focus: |
     Release 00.0 is partial. Checked-in assets, lifecycle-exit configuration,
     pinned tooling, Mage commands, deterministic tests, and root audit, test,
-    stats, and release participation are implemented. Live managed-service and
+    stats, and release participation are implemented. Release 01.0 adds trace
+    collection through the canonical collector agent. Live managed-service and
     browser observations remain dependency-gated and are not inferred from
     command construction tests.
   progress:
@@ -294,6 +309,7 @@ implementation_status:
     - implemented: Relocated deck, README, and lifecycle-exit profile.
     - implemented: Version-pinned present dependency and tested Mage entry points.
     - implemented: Root audit, test, stats, and release participation.
+    - implemented: Collector agent trace collection wired into the demo run path.
     - partial: Guided presentation, launch, browser, and exit use case.
     - partial: srd002 R1 through R3 conformance for the curator and Go present
         servers; AC1 through AC3 are not yet satisfied.

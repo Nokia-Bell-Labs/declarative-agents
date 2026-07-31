@@ -40,6 +40,23 @@ The catalog root is also the documentation workspace. The profile serves:
 - lifecycle control at `http://127.0.0.1:18082`; and
 - monitoring at `http://localhost:18084/ui/`.
 
+## Trace collection
+
+By default `mage run` starts the canonical collector agent in spool mode
+before the curator and exports the curator's OTLP traces to it. After the
+curator exits, the collector is stopped via its control exit route.
+
+While the demo is running, browse collected traces at:
+
+    http://127.0.0.1:18193/query/traces
+
+To disable trace collection:
+
+    DEMO_TRACING=false mage run
+
+The collector binds the OTLP receiver on `127.0.0.1:4317`, control on port
+18191, monitor on port 18192, and the query surface on port 18193.
+
 ## The lifecycle-exit agent
 
 The exit request is a declarative agent under

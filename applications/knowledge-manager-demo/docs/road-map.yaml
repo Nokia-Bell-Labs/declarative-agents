@@ -2,11 +2,12 @@ id: knowledge-manager-demo-roadmap
 title: Knowledge Manager Demo Application Road Map
 
 overview: |
-  Release 00.0 establishes the standalone guided demo. The release relocates
-  presentation-only assets, references the canonical catalog curator, pins the
-  Go present tool, and provides deterministic Mage evidence. The release
-  extends shared srd001 and srd002 R1 through R3 by reference; it does not
-  define package, Helm, or kind scope.
+  Release 00.0 establishes the standalone guided demo. Release 01.0 adds
+  trace collection through the canonical collector agent so the presenter can
+  show the trace waterfall as part of the demo story. Both releases reference
+  the canonical catalog profiles, pin the Go present tool, and provide
+  deterministic Mage evidence. The releases extend shared srd001 and srd002
+  R1 through R3 by reference; they do not define package, Helm, or kind scope.
 
 releases:
   - version: "00.0"
@@ -91,3 +92,27 @@ releases:
       buildable agent-core checkout, and operator execution. Until they run,
       srd002 AC1 through AC3 and the aggregate managed-service, use-case, suite,
       and release statuses remain partial.
+  - version: "01.0"
+    name: Demo trace collection
+    description: |
+      The demo launch path starts the canonical collector agent in spool mode
+      before the documentation-curator, exports OTLP traces from the curator
+      to the local collector, and stops the collector cleanly via its control
+      exit route after the curator terminates. The presenter opens the collector
+      query surface to show the trace waterfall.
+    status: implemented
+    use_cases:
+      - id: rel01.0-uc001-demo-trace-collection
+        summary: The demo run starts the collector, exports curator traces, and stops the collector cleanly.
+        status: implemented
+    test_suites:
+      - id: test-rel01.0-demo-trace-collection
+        summary: Deterministic tracing toggle, collector command, and curator OTLP flag tests.
+        status: implemented
+    evidence:
+      - command: go test ./magefiles -run '^TestTracingEnabled'
+        proves: Tracing is on by default and disabled by DEMO_TRACING=false.
+      - command: go test ./magefiles -run '^TestCollectorCommand'
+        proves: Collector command targets the canonical profile with correct env and ports.
+      - command: go test ./magefiles -run '^TestTracedCurator'
+        proves: Curator receives OTLP endpoint and service name flags.

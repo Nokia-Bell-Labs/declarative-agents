@@ -176,14 +176,14 @@ test_cases:
       documentation_yaml: docs/VISION.yaml, docs/ARCHITECTURE.yaml, docs/road-map.yaml, docs/SPECIFICATIONS.yaml, the indexed use case, and the indexed test suite
       lifecycle_yaml: call-lifecycle-exit/profile.yaml, call-lifecycle-exit/machine.yaml, and call-lifecycle-exit/rest.yaml are inspected by lifecycle_exit_contract
       canonical_profile_owner: applications/catalog
-      expected_canonical_references: 1
+      expected_canonical_references: 2
     expected:
       yaml_parse_errors: 0
       reciprocal_use_case_traces: true
       portable_paths: true
       ownership: composition
       agents_contributed: 0
-      canonical_references: 1
+      canonical_references: 2
       agents_section_present: false
     traces:
       - rel00.0-uc001-guided-knowledge-manager-demo S5
