@@ -738,7 +738,7 @@ releases:
     test_suites:
       - id: test-rel13.0-collector
         title: Collector family conformance
-        cases: 1
+        cases: 5
         status: implemented
     proof:
       - mage validate
