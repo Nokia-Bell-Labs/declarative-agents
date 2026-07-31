@@ -216,6 +216,16 @@ func TestGetTraceAcrossRotatedFiles(t *testing.T) {
 	require.Equal(t, "child", output.Spans[1].Name)
 }
 
+func TestListTracesDirectorySpoolPathIsExplicitError(t *testing.T) {
+	result := ListTracesBuilder{
+		ToolName: "spool_list_traces",
+		Config:   QueryListConfig{Path: t.TempDir()},
+	}.Build(core.Result{}).Execute()
+
+	require.Equal(t, core.CommandError, result.Signal)
+	require.ErrorContains(t, result.Err, "is a directory")
+}
+
 func TestGetTraceUnknownTraceID(t *testing.T) {
 	dir := t.TempDir()
 	basePath := filepath.Join(dir, "collector.ndjson")
