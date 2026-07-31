@@ -69,12 +69,19 @@ func resolveIntegrationRoots() (integrationRoots, error) {
 }
 
 func resolveCatalogRoot(owner, startupCWD string) (string, error) {
+	// DiscoveryCandidates walks the directory's ancestors, so it needs an
+	// absolute path; a relative one yields candidates that double-join with
+	// the working directory inside Resolve.
+	absCWD, err := filepath.Abs(filepath.Clean(startupCWD))
+	if err != nil {
+		return "", fmt.Errorf("%s: resolve startup working directory %q: %w", owner, startupCWD, err)
+	}
 	resolution, err := catalogroot.Resolve(
 		owner,
-		startupCWD,
+		absCWD,
 		os.Getenv(catalogroot.Env),
 		os.Getenv(catalogroot.LegacyEnv),
-		catalogroot.DiscoveryCandidates(startupCWD)...,
+		catalogroot.DiscoveryCandidates(absCWD)...,
 	)
 	if err != nil {
 		return "", err
