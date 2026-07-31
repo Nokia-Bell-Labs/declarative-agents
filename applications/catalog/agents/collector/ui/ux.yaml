@@ -1,0 +1,23 @@
+id: collector-trace-ui
+title: Collector Trace Query UI
+source_owner: agents/collector
+routes:
+  - id: traces_index
+    path: /traces
+    label: Traces
+    action: list_traces
+    resource: traces
+  - id: trace_detail
+    path: /traces/*
+    label: Trace Detail
+    action: get_trace
+    resource: traces
+actions:
+  list_traces:
+    ui_action: list_traces
+    request_machine_action: query_list_traces
+    route: traces_index
+  get_trace:
+    ui_action: get_trace
+    request_machine_action: query_get_trace
+    route: trace_detail

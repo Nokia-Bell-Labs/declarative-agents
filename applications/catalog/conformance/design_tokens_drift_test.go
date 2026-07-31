@@ -19,6 +19,7 @@ var designTokenUIs = []struct {
 	rel  string
 }{
 	{"bench", "agents/bench/ui/src/App.css"},
+	{"collector", "agents/collector/ui/src/App.css"},
 	{"monitor", "agents/knowledge-manager/documentation-curator/ui/monitor/src/App.css"},
 	{"docs", "agents/knowledge-manager/documentation-curator/ui/docs/src/App.css"},
 	{"chatbot-mesh", "../chatbot-mesh/ux/app/src/App.css"},

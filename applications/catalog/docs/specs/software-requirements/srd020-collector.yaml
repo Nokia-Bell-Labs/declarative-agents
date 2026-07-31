@@ -49,6 +49,12 @@ requirements:
       - R5.3: Page size SHALL be capped in tool config, not trusted from the HTTP request.
       - R5.4: The query server lifecycle SHALL follow the same launch/stop pattern as control and monitor, with shutdown ordering after receiver stop and before monitor stop.
 
+  R6:
+    title: Trace query UI
+    items:
+      - R6.1: The collector family SHALL ship a ui/ directory with a React SPA rendering trace list and per-trace waterfall from the collector_query surface.
+      - R6.2: The UI SHALL vendor the canonical design-token block and join the root uiDist reproducibility gate.
+
 non_goals:
   - Removing the mesh collector or changing the mesh deployment to reference the catalog family.
   - Metrics ingress or Dolt scraping.
