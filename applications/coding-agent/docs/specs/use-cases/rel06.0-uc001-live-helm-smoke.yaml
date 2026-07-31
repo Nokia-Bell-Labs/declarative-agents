@@ -24,11 +24,11 @@ flow:
   - id: F3
     text: Build and load the production profile-free coding image with Go 1.26 and golangci-lint v2.12.2 plus the deterministic model image, create the RWX fixture, and package the chart.
   - id: F4
-    text: Install the .tgz and wait for model, collector, Jaeger, planner, executor, and critic readiness.
+    text: Install the .tgz and wait for model, collector agent, planner, executor, and critic readiness.
   - id: F5
     text: Seed the shared workspace and verify every role lifecycle endpoint.
   - id: F6
-    text: Submit one traced planner request and verify executor mutation, build, v2 lint, Go tests, critic acceptance, and the connected Jaeger trace.
+    text: Submit one traced planner request and verify executor mutation, build, v2 lint, Go tests, critic acceptance, and the connected collector agent trace.
   - id: F7
     text: On failure classify infrastructure versus semantics, emit bounded diagnostics, and clean up; on success clean up.
 
@@ -40,7 +40,7 @@ success_criteria:
     criterion: The shared workspace and critic verdict prove remote role composition.
     traces: [srd005-live-helm-smoke R3.2]
   - id: S3
-    criterion: Jaeger contains all three role service names under the submitted trace ID.
+    criterion: The collector agent contains all three role service names under the submitted trace ID.
     traces: [srd005-live-helm-smoke R3.3]
   - id: S4
     criterion: Skip, classification, diagnostics, and cleanup behavior are bounded and explicit.

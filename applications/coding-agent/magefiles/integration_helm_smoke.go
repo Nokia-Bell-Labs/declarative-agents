@@ -21,12 +21,11 @@ const (
 	codingHelmCluster        = "da-coding-agent-smoke"
 	codingHelmAgentImageRepo = "declarative-agents/coding-agent-smoke"
 	codingHelmModelImageRepo = "declarative-agents/coding-model-smoke"
-	codingHelmGoBaseImage    = "golang:1.26-alpine"
-	codingHelmCollectorImage = "otel/opentelemetry-collector-contrib:0.127.0"
-	codingHelmJaegerImage    = "jaegertracing/all-in-one:1.62.0"
-	codingHelmTraceID        = "0af7651916cd43dd8448eb211c80319c"
-	codingHelmTraceparent    = "00-" + codingHelmTraceID + "-b7ad6b7169203331-01"
-	codingHelmJaegerURL      = "http://127.0.0.1:18686"
+	codingHelmGoBaseImage      = "golang:1.26-alpine"
+	codingHelmCollectorImage   = "ghcr.io/nokia-bell-labs/declarative-agents/agent-core:0.1.0"
+	codingHelmTraceID          = "0af7651916cd43dd8448eb211c80319c"
+	codingHelmTraceparent      = "00-" + codingHelmTraceID + "-b7ad6b7169203331-01"
+	codingHelmCollectorQueryURL = "http://127.0.0.1:18193"
 
 	codingHelmClusterTimeout = 3 * time.Minute
 	codingHelmInstallTimeout = 5 * time.Minute
@@ -144,7 +143,7 @@ func codingHelmSmokeSkipReason(roots integrationRoots, run codingSmokeRunner) st
 		return fmt.Sprintf("Docker unavailable: %v: %s", err, strings.TrimSpace(string(output)))
 	}
 	for _, image := range []string{
-		codingHelmGoBaseImage, codingHelmCollectorImage, codingHelmJaegerImage,
+		codingHelmGoBaseImage, codingHelmCollectorImage,
 	} {
 		ctx, cancel := context.WithTimeout(context.Background(), codingHelmProbeTimeout)
 		output, err := run(ctx, "docker", "image", "inspect", image)
@@ -325,7 +324,6 @@ func collectCodingHelmDiagnostics(run codingSmokeRunner, timeout time.Duration) 
 		{"executor logs", "kubectl", []string{"logs", "-n", codingHelmNamespace, "-l", "app.kubernetes.io/component=executor", "--tail=80"}},
 		{"critic logs", "kubectl", []string{"logs", "-n", codingHelmNamespace, "-l", "app.kubernetes.io/component=critic", "--tail=80"}},
 		{"collector logs", "kubectl", []string{"logs", "-n", codingHelmNamespace, "-l", "app.kubernetes.io/component=collector", "--tail=80"}},
-		{"jaeger logs", "kubectl", []string{"logs", "-n", codingHelmNamespace, "-l", "app.kubernetes.io/component=jaeger", "--tail=80"}},
 		{"model logs", "kubectl", []string{"logs", "-n", codingHelmNamespace, "-l", "app=coding-model", "--tail=80"}},
 	}
 	var report strings.Builder

@@ -15,7 +15,7 @@ requirements:
       - id: R1.1
         text: values.schema.json shall reject unknown keys and malformed image, replica, port, resource, storage, URL, mount, workspace, model, security, and telemetry values.
       - id: R1.2
-        text: Schema conditions shall reject Jaeger without collector ingress and external model mode without an HTTP endpoint.
+        text: Schema conditions shall reject external model mode without an HTTP endpoint.
       - id: R1.3
         text: Template guards shall retain mount, fixed-role-port, telemetry, and model invariants when schema validation is bypassed.
   - id: R2

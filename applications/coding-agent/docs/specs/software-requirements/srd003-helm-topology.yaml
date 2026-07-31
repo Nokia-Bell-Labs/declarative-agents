@@ -43,7 +43,7 @@ requirements:
       - id: R3.3
         text: Every role shall use a distinct OTel service name and export OTLP to the optional collector.
       - id: R3.4
-        text: The collector shall receive OTLP and export traces to the optional Jaeger backend.
+        text: The collector agent shall receive OTLP, spool traces, and serve a query surface.
   - id: R4
     title: Reproducible preparation
     items:
@@ -60,7 +60,7 @@ acceptance_criteria:
     criterion: Editing one prepared role profile changes only that role's rollout checksum.
     traces: [R1.3, R1.4]
   - id: AC3
-    criterion: External and in-cluster model modes plus collector-to-Jaeger tracing render coherently.
+    criterion: External and in-cluster model modes plus collector agent tracing render coherently.
     traces: [R3]
   - id: AC4
     criterion: helm lint and default and CI helm template commands pass after mage helmPrepare.

@@ -71,7 +71,7 @@ releases:
       A package-driven chart renders persistent planner, executor, and critic
       workloads with scoped profile ConfigMaps, shared workspace storage,
       truthful health probes, fixed role Services, model endpoint selection,
-      and collector-to-Jaeger tracing.
+      and collector agent tracing.
     status: implemented
     application_srds:
       - srd003-helm-topology

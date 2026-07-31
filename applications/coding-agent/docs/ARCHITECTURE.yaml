@@ -264,7 +264,7 @@ design_decisions:
       1.26 and golangci-lint v2.12.2, plus a deterministic Ollama-compatible
       boundary, uses a kind-only RWX hostPath fixture, and
       verifies role health, workspace mutation, critic verdict, and a connected
-      Jaeger trace. Docker and Kubernetes probes classify infrastructure
+      collector agent trace. Docker and Kubernetes probes classify infrastructure
       outages separately from semantic failures; diagnostics and cleanup are
       bounded.
     benefits:
@@ -350,7 +350,7 @@ implementation_status:
         closures with provenance, exact reachable assets, and ConfigMap
         partition metadata.
     - implemented: Core Helm resources for role workloads and Services, shared
-        workspace, truthful probes, model selection, and OTLP-to-Jaeger routing.
+        workspace, truthful probes, model selection, and collector agent tracing.
     - implemented: Strict schema and semantic guards, profile package integrity,
         render matrix, and self-contained Helm archive validation.
     - implemented: Packaged-chart kind smoke with deterministic model boundary,

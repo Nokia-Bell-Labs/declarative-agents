@@ -21,8 +21,7 @@ For the live smoke additionally install Docker and kind and pre-pull:
 
 ```bash
 docker pull golang:1.26-alpine
-docker pull otel/opentelemetry-collector-contrib:0.127.0
-docker pull jaegertracing/all-in-one:1.62.0
+docker pull ghcr.io/nokia-bell-labs/declarative-agents/agent-core:0.1.0
 ```
 
 The smoke never skips a chart or runtime failure. It skips only when a required
@@ -103,7 +102,7 @@ Important values:
   workspace storage.
 - `roles.<role>.resources`: pod requests and limits. Replicas are intentionally
   fixed at one until workspace concurrency is modeled.
-- `collector.enabled`, `jaeger.enabled`: telemetry topology.
+- `collector.enabled`: telemetry topology.
 - `ollama.enabled`, `ollama.models`, `ollama.persistence`, `ollama.resources`,
   `ollama.gpu`: optional model tier.
 
@@ -182,25 +181,23 @@ mage integration:helmSmoke
 The target builds the production coding-runtime Dockerfile, kind-loads that
 image and the deterministic model, installs the `.tgz`, verifies all health
 endpoints, submits one planner request, checks build/lint/test workspace
-evidence and the critic verdict, queries Jaeger for the connected three-service
-trace, and tears down everything it owns.
+evidence and the critic verdict, queries the collector agent for the connected
+three-service trace, and tears down everything it owns.
 
-## Telemetry and Jaeger
+## Telemetry
 
-Each role exports OTLP gRPC to the chart collector with service names
+Each role exports OTLP gRPC to the chart collector agent with service names
 `coding-planner`, `coding-executor`, and `coding-critic`. REST boundaries inject
-and extract W3C `traceparent`. The collector batches and forwards traces to
-Jaeger.
+and extract W3C `traceparent`. The collector agent receives OTLP, spools traces
+to disk, and serves a query surface for trace retrieval.
 
-To inspect Jaeger:
+To query traces:
 
 ```bash
-kubectl port-forward -n coding-agent service/coding-agent-coding-agent-jaeger 16686:16686
-open http://127.0.0.1:16686
+kubectl port-forward -n coding-agent service/coding-agent-coding-agent-collector 18193:18193
+curl http://127.0.0.1:18193/query/traces
+curl http://127.0.0.1:18193/query/traces/{trace_id}
 ```
-
-If `collector.enabled=false`, `jaeger.enabled` must also be false. Collector
-without Jaeger uses its debug exporter.
 
 ## Troubleshooting
 

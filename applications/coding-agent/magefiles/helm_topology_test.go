@@ -56,8 +56,8 @@ func TestHelmCoreTopologyRendersRoleContract(t *testing.T) {
 			}
 		}
 	}
-	if got := strings.Count(render, "kind: Deployment"); got != 5 {
-		t.Errorf("default Deployments = %d, want three roles plus collector and Jaeger", got)
+	if got := strings.Count(render, "kind: Deployment"); got != 4 {
+		t.Errorf("default Deployments = %d, want three roles plus collector agent", got)
 	}
 	if got := strings.Count(render,
 		`image: "ghcr.io/nokia-bell-labs/declarative-agents/coding-agent-runtime:0.1.0"`); got != 3 {
@@ -150,6 +150,13 @@ func preparedTestChart(t *testing.T) string {
 	packageRoot, _, cleanup := packageCanonicalDeployment(t)
 	t.Cleanup(cleanup)
 	if err := prepareHelmProfiles(packageRoot, chart); err != nil {
+		t.Fatal(err)
+	}
+	catalogRoot, err := resolveCatalogRoot("test chart", app)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if err := stageCollectorProfile(catalogRoot, chart); err != nil {
 		t.Fatal(err)
 	}
 	return chart

@@ -8,7 +8,6 @@ import (
 	"encoding/json"
 	"fmt"
 	"net/http"
-	"net/url"
 	"os"
 	"os/exec"
 	"path/filepath"
@@ -59,11 +58,9 @@ func prepareCodingHelmCluster(
 			return err
 		}
 	}
-	for _, image := range []string{codingHelmCollectorImage, codingHelmJaegerImage} {
-		if err := loadCodingDependencyImage(cluster, image); err != nil {
-			return &codingHelmInfrastructureError{
-				Step: "dependency image load", Cause: err,
-			}
+	if err := loadCodingDependencyImage(cluster, codingHelmCollectorImage); err != nil {
+		return &codingHelmInfrastructureError{
+			Step: "dependency image load", Cause: err,
 		}
 	}
 	if err := runCodingSmokeCommand(environment, 30*time.Second,
@@ -241,7 +238,6 @@ func installCodingHelmChartWithRunner(
 		"--values", filepath.Join(applicationRoot, "helm", "ci", "kind-values.yaml"),
 		"--set", "image.repository="+repository,
 		"--set", "image.tag="+tag,
-		"--set", "collector.utilityImage="+image,
 		"--wait", "--timeout", codingHelmInstallTimeout.String(),
 	)
 	if err != nil {
@@ -259,7 +255,7 @@ func splitCodingImageRef(image string) (string, string) {
 }
 
 func verifyCodingHelmRollouts(environment codingSmokeEnvironment) error {
-	for _, component := range []string{"planner", "executor", "critic", "collector", "jaeger"} {
+	for _, component := range []string{"planner", "executor", "critic", "collector"} {
 		if err := runCodingSmokeCommand(environment, codingHelmReadyTimeout,
 			"kubectl", "rollout", "status",
 			"deployment/"+codingHelmRelease+"-coding-agent-"+component,
@@ -271,7 +267,7 @@ func verifyCodingHelmRollouts(environment codingSmokeEnvironment) error {
 		"kubectl", "exec", "-n", codingHelmNamespace,
 		"deployment/"+codingHelmRelease+"-coding-agent-planner",
 		"--", "sh", "-c",
-		"nc -z -w 5 smoke-coding-agent-collector 4317 && nc -z -w 5 smoke-coding-agent-jaeger 4317")
+		"nc -z -w 5 smoke-coding-agent-collector 4317")
 }
 
 func seedCodingWorkspace(environment codingSmokeEnvironment, applicationRoot string) error {
@@ -328,7 +324,7 @@ func startCodingHelmForwards(
 		{codingHelmRelease + "-coding-agent-planner", []string{"18200:18200", "18201:18201"}},
 		{codingHelmRelease + "-coding-agent-executor", []string{"18211:18211"}},
 		{codingHelmRelease + "-coding-agent-critic", []string{"18221:18221"}},
-		{codingHelmRelease + "-coding-agent-jaeger", []string{"18686:16686"}},
+		{codingHelmRelease + "-coding-agent-collector", []string{"18193:18193"}},
 	}
 	forwards := &codingPortForwards{}
 	for _, target := range targets {
@@ -369,7 +365,7 @@ func verifyCodingHealthEndpoints() error {
 			return fmt.Errorf("%s lifecycle health: %w", role, err)
 		}
 	}
-	return waitServingHTTP(codingHelmJaegerURL+"/", codingHelmReadyTimeout)
+	return waitServingHTTP(codingHelmCollectorQueryURL+"/query/traces?page_size=1", codingHelmReadyTimeout)
 }
 
 func submitCodingHelmRequest() error {
@@ -421,103 +417,68 @@ func verifyCodingWorkspaceAndVerdict(environment codingSmokeEnvironment) error {
 }
 
 func verifyCodingTrace() error {
+	endpoint := codingHelmCollectorQueryURL + "/query/traces/" + codingHelmTraceID
 	deadline := time.Now().Add(codingHelmTraceTimeout)
 	var lastErr error
 	for time.Now().Before(deadline) {
-		services, err := codingJaegerServices()
+		trace, err := codingCollectorGetTrace(endpoint)
 		if err != nil {
 			lastErr = err
 			time.Sleep(time.Second)
 			continue
 		}
-		var observed []string
-		for _, service := range services {
-			traces, queryErr := codingJaegerTraces(service)
-			if queryErr != nil {
-				lastErr = queryErr
-				continue
-			}
-			for _, trace := range traces {
-				observed = append(observed, service+":"+trace.TraceID)
-				if trace.TraceID != codingHelmTraceID {
-					continue
-				}
-				services := map[string]bool{}
-				for _, process := range trace.Processes {
-					services[process.ServiceName] = true
-				}
-				missing := []string{}
-				for _, service := range []string{"coding-planner", "coding-executor", "coding-critic"} {
-					if !services[service] {
-						missing = append(missing, service)
-					}
-				}
-				if len(missing) == 0 {
-					return nil
-				}
-				lastErr = fmt.Errorf("trace %s missing services %v (found %v)",
-					codingHelmTraceID, missing, services)
+		services := map[string]bool{}
+		for _, span := range trace.Spans {
+			if span.ServiceName != "" {
+				services[span.ServiceName] = true
 			}
 		}
-		if len(services) == 0 {
-			lastErr = fmt.Errorf("Jaeger reports no services")
-		} else if len(observed) == 0 {
-			lastErr = fmt.Errorf("Jaeger services %v report no traces", services)
-		} else if lastErr == nil {
-			lastErr = fmt.Errorf("Jaeger observed traces %v, want %s", observed, codingHelmTraceID)
+		var missing []string
+		for _, service := range []string{"coding-planner", "coding-executor", "coding-critic"} {
+			if !services[service] {
+				missing = append(missing, service)
+			}
 		}
+		if len(missing) == 0 {
+			return nil
+		}
+		lastErr = fmt.Errorf("trace %s has %d spans, missing services %v (found %v)",
+			codingHelmTraceID, trace.SpanCount, missing, services)
 		time.Sleep(time.Second)
 	}
 	return fmt.Errorf("connected trace %s not retained: %w", codingHelmTraceID, lastErr)
 }
 
-type codingJaegerTrace struct {
-	TraceID   string `json:"traceID"`
-	Processes map[string]struct {
-		ServiceName string `json:"serviceName"`
-	} `json:"processes"`
+type codingCollectorTrace struct {
+	TraceID   string                  `json:"trace_id"`
+	Spans     []codingCollectorSpan   `json:"spans"`
+	SpanCount int                     `json:"span_count"`
 }
 
-func codingJaegerServices() ([]string, error) {
-	var response struct {
-		Data []string `json:"data"`
-	}
-	if err := codingJaegerGet(
-		codingHelmJaegerURL+"/api/services", &response); err != nil {
-		return nil, err
-	}
-	return response.Data, nil
+type codingCollectorSpan struct {
+	ServiceName string `json:"service_name"`
 }
 
-func codingJaegerTraces(service string) ([]codingJaegerTrace, error) {
-	var response struct {
-		Data []codingJaegerTrace `json:"data"`
-	}
-	endpoint := codingHelmJaegerURL + "/api/traces?service=" +
-		url.QueryEscape(service) + "&limit=20&start=0&end=" +
-		fmt.Sprint(time.Now().Add(time.Hour).UnixMicro())
-	if err := codingJaegerGet(endpoint, &response); err != nil {
-		return nil, err
-	}
-	return response.Data, nil
-}
-
-func codingJaegerGet(endpoint string, target any) error {
+func codingCollectorGetTrace(endpoint string) (*codingCollectorTrace, error) {
 	ctx, cancel := context.WithTimeout(context.Background(), 3*time.Second)
 	defer cancel()
 	request, err := http.NewRequestWithContext(ctx, http.MethodGet, endpoint, nil)
 	if err != nil {
-		return err
+		return nil, err
 	}
 	response, err := http.DefaultClient.Do(request)
 	if err != nil {
-		return err
+		return nil, err
 	}
 	defer response.Body.Close()
 	if response.StatusCode != http.StatusOK {
-		return fmt.Errorf("Jaeger GET %s status %d", endpoint, response.StatusCode)
+		return nil, fmt.Errorf("collector GET %s status %d", endpoint, response.StatusCode)
 	}
-	return json.NewDecoder(response.Body).Decode(target)
+	var trace codingCollectorTrace
+	if err := json.NewDecoder(response.Body).Decode(&trace); err != nil {
+		return nil, fmt.Errorf("collector trace decode: %w", err)
+	}
+	return &trace, nil
 }
 
 func cleanupCodingHelmSmoke(

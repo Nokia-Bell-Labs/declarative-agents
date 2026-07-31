@@ -15,19 +15,11 @@ llm:
   externalURL: http://coding-model:11434
 
 collector:
-  utilityImage: declarative-agents/coding-agent-smoke:must-be-overridden-with-git-revision
   image:
     pullPolicy: Never
   resources:
     requests: {cpu: 25m, memory: 64Mi}
     limits: {cpu: 250m, memory: 256Mi}
-
-jaeger:
-  image:
-    pullPolicy: Never
-  resources:
-    requests: {cpu: 25m, memory: 64Mi}
-    limits: {cpu: 500m, memory: 512Mi}
 
 roles:
   planner:

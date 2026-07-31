@@ -4,12 +4,13 @@ package main
 
 import (
 	"fmt"
+	"io/fs"
 	"os"
 	"path/filepath"
 )
 
-// HelmPrepare regenerates #875 role packages and stages them into the source
-// chart. The generated helm/profiles tree is the chart's only profile input.
+// HelmPrepare regenerates #875 role packages, stages them into the source
+// chart, and stages the catalog collector profile alongside them.
 func HelmPrepare() error {
 	root, err := os.Getwd()
 	if err != nil {
@@ -20,6 +21,13 @@ func HelmPrepare() error {
 	}
 	source := envOrDefault(profileOutputEnv, filepath.Join(root, filepath.FromSlash(defaultProfileOutput)))
 	if err := prepareHelmProfiles(source, filepath.Join(root, "helm")); err != nil {
+		return err
+	}
+	catalogRoot, err := resolveCatalogRoot("helm prepare", root)
+	if err != nil {
+		return err
+	}
+	if err := stageCollectorProfile(catalogRoot, filepath.Join(root, "helm")); err != nil {
 		return err
 	}
 	fmt.Printf("prepared Helm profile artifacts from %s\n", source)
@@ -51,6 +59,35 @@ func prepareHelmProfiles(packageRoot, chartRoot string) error {
 	}
 	if err := os.Rename(stage, destination); err != nil {
 		return fmt.Errorf("publish Helm profiles: %w", err)
+	}
+	return nil
+}
+
+func stageCollectorProfile(catalogRoot, chartRoot string) error {
+	source := filepath.Join(catalogRoot, "agents", "collector")
+	destination := filepath.Join(chartRoot, "profiles", "collector", "agents", "collector")
+	if err := os.MkdirAll(destination, 0o755); err != nil {
+		return fmt.Errorf("stage collector profile: %w", err)
+	}
+	entries, err := os.ReadDir(source)
+	if err != nil {
+		return fmt.Errorf("read catalog collector: %w", err)
+	}
+	for _, entry := range entries {
+		if entry.IsDir() {
+			continue
+		}
+		info, err := entry.Info()
+		if err != nil {
+			return err
+		}
+		data, err := os.ReadFile(filepath.Join(source, entry.Name()))
+		if err != nil {
+			return fmt.Errorf("read collector %s: %w", entry.Name(), err)
+		}
+		if err := os.WriteFile(filepath.Join(destination, entry.Name()), data, info.Mode().Perm()&fs.ModePerm); err != nil {
+			return fmt.Errorf("write collector %s: %w", entry.Name(), err)
+		}
 	}
 	return nil
 }
