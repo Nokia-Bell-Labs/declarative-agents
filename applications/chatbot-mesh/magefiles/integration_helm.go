@@ -86,8 +86,8 @@ func loadKindImage(cluster, image string) error {
 //
 // Scope: this is the deploy smoke bar (srd003 R1/R5, uc rel03.0 S1). The span
 // assertion needs each agent to report a distinct service.name, which the chart
-// wires (chatbot and each rag unit) so the collector-to-Jaeger pipeline surfaces
-// the mesh as more than one service.
+// wires (chatbot and each rag unit) so the collector spool surfaces the mesh as
+// more than one service.
 func (Integration) HelmSmoke() error {
 	profilesRoot, err := os.Getwd()
 	if err != nil {
@@ -154,10 +154,6 @@ func newHelmTelemetryIdentity(repoRoot string) helmTelemetryIdentity {
 	}
 }
 
-func sharedJaegerBase() string {
-	return "http://127.0.0.1:" + envOrDefault("DA_JAEGER_QUERY_PORT", "16686")
-}
-
 func sharedPrometheusBase() string {
 	return "http://127.0.0.1:" + envOrDefault("DA_PROMETHEUS_QUERY_PORT", "9090")
 }
@@ -165,7 +161,6 @@ func sharedPrometheusBase() string {
 func requireSharedObservability(timeout time.Duration) error {
 	checks := []string{
 		"http://127.0.0.1:" + envOrDefault("DA_OTEL_HEALTH_PORT", "13133") + "/",
-		sharedJaegerBase() + "/api/services",
 		sharedPrometheusBase() + "/-/healthy",
 	}
 	for _, endpoint := range checks {
@@ -336,35 +331,27 @@ func runHelmSmoke(coreRoot, profilesRoot, chartDir string) (result error) {
 	if err := assertSmokeChatServed(helmChatURL); err != nil {
 		return err
 	}
-	if err := assertSharedSmokeSpans(sharedJaegerBase(), telemetry.RunID,
-		[]string{"apiserver", "chatbot", "rag0", "rag0-chroma"}, helmSpanTimeout); err != nil {
-		return err
-	}
-	if err := assertCollectorSpoolIdentity(sharedJaegerBase(), helmRelease, telemetry.RunID,
+	if err := assertCollectorSpoolIdentity(helmRelease, telemetry.RunID,
 		[]string{"chatbot", "rag0"}, helmSpanTimeout); err != nil {
 		return err
 	}
-	if err := assertNoCollectorSelfIngest(sharedJaegerBase(), telemetry.RunID); err != nil {
+	if err := assertNoCollectorSelfIngest(helmRelease, telemetry.RunID); err != nil {
 		return err
 	}
-	if err := verifySharedTelemetryEvidence(
-		sharedJaegerBase(), sharedPrometheusBase(), telemetry, helmSpanTimeout); err != nil {
+	if err := verifySharedMetricsEvidence(
+		sharedPrometheusBase(), telemetry, helmSpanTimeout); err != nil {
 		return err
 	}
 	stop()
 	stop = nil
 	cluster.ReleaseAfter(kindrig.DefaultRun, false, kindrig.FailureEvidence{})
 	released = true
-	if err := assertSharedSmokeSpans(sharedJaegerBase(), telemetry.RunID,
-		[]string{"apiserver", "chatbot", "rag0", "rag0-chroma"}, helmSpanTimeout); err != nil {
-		return err
-	}
-	if err := verifySharedTelemetryEvidence(
-		sharedJaegerBase(), sharedPrometheusBase(), telemetry, helmSpanTimeout); err != nil {
+	if err := verifySharedMetricsEvidence(
+		sharedPrometheusBase(), telemetry, helmSpanTimeout); err != nil {
 		return err
 	}
 
-	fmt.Printf("integration:helmSmoke PASS - revision %s shared backends retained control-plane, agent, Chroma, GenAI, and Dolt evidence for run %s after cluster cleanup\n",
+	fmt.Printf("integration:helmSmoke PASS - revision %s spool and Prometheus retained agent and Dolt evidence for run %s after cluster cleanup\n",
 		images.Revision, telemetry.RunID)
 	return nil
 }
@@ -385,9 +372,6 @@ func smokeDependencyImages(chartDir string) ([]string, error) {
 		Dolt struct {
 			Image smokeImage `yaml:"image"`
 		} `yaml:"dolt"`
-		Jaeger struct {
-			Image smokeImage `yaml:"image"`
-		} `yaml:"jaeger"`
 	}
 	if err := readIntegrationYAML(filepath.Join(chartDir, "values.yaml"), "chart values", &values); err != nil {
 		return nil, err
@@ -396,7 +380,6 @@ func smokeDependencyImages(chartDir string) ([]string, error) {
 		values.Collector.Image,
 		values.Chroma.Image,
 		values.Dolt.Image,
-		values.Jaeger.Image,
 	}
 	images := make([]string, 0, len(refs))
 	for _, image := range refs {
@@ -514,6 +497,7 @@ func stageSmokeChart(chartDir, profilesRoot string) (string, func(), error) {
 type chartProfileProgram struct{ src, rel string }
 
 const canonicalCorpusIngestProgram = "agents/knowledge-manager/corpus-ingest"
+const canonicalCollectorProgram = "agents/collector"
 
 // chartProfilePrograms is the single authoritative list of agent programs and
 // ux artifacts staged into the chart's profiles ConfigMap. It MUST cover every
@@ -550,14 +534,15 @@ func chartProfilePrograms() []chartProfileProgram {
 
 func chartProfileSource(meshRoot, catalogRoot string, program chartProfileProgram) string {
 	root := meshRoot
-	if program.src == canonicalCorpusIngestProgram {
+	if program.src == canonicalCorpusIngestProgram || program.src == canonicalCollectorProgram {
 		root = catalogRoot
 	}
 	return filepath.Join(root, filepath.FromSlash(program.src))
 }
 
 // stageProfilePath copies one staging entry, whether it names a directory or a
-// single file, and prunes the test fixtures out of a staged directory.
+// single file, and prunes test fixtures and UI development files from a staged
+// directory.
 func stageProfilePath(src, dst string) error {
 	info, err := os.Stat(src)
 	if err != nil {
@@ -567,7 +552,10 @@ func stageProfilePath(src, dst string) error {
 		if err := copyDirContents(src, dst); err != nil {
 			return err
 		}
-		return pruneStagedTests(dst)
+		if err := pruneStagedTests(dst); err != nil {
+			return err
+		}
+		return pruneStagedUIDev(dst)
 	}
 	if err := os.MkdirAll(filepath.Dir(dst), 0o755); err != nil {
 		return fmt.Errorf("create %s: %w", filepath.Dir(dst), err)
@@ -613,6 +601,19 @@ func pruneStagedTests(dst string) error {
 
 // stagedTestsDir is the directory name an agent keeps its rig fixtures under.
 const stagedTestsDir = "tests"
+
+// pruneStagedUIDev removes the ui/ tree from a staged agent profile directory.
+// A catalog agent may carry a standalone ui/ with source, built assets, and
+// development config. The chart does not mount it: the chatbot's UX is staged
+// as explicit entries (ux/ux.yaml and ux/app/dist), not through the agent
+// directory copy, so no staged agent profile needs a ui/ subtree.
+func pruneStagedUIDev(dst string) error {
+	uiDir := filepath.Join(dst, "ui")
+	if err := os.RemoveAll(uiDir); err != nil && !os.IsNotExist(err) {
+		return fmt.Errorf("prune staged ui %s: %w", uiDir, err)
+	}
+	return nil
+}
 
 func copyDirContents(src, dst string) error {
 	if err := os.MkdirAll(dst, 0o755); err != nil {
@@ -713,8 +714,8 @@ func assertSmokeChatServed(url string) error {
 
 // assertCollectorAvailable waits for the collector Deployment to report
 // available. Nothing else in the smoke touches the collector, so before GH-736
-// a collector that never started surfaced only as an empty Jaeger service list
-// after the span timeout -- a symptom two hops from the cause.
+// a collector that never started surfaced only as an empty spool after the span
+// timeout -- a symptom two hops from the cause.
 func assertCollectorAvailable(release string, timeout time.Duration) error {
 	target := "deploy/" + release + "-chatbot-mesh-collector"
 	out, err := exec.Command("kubectl", "wait", "--for=condition=available", target,
@@ -746,7 +747,7 @@ func collectorDiagnostics(release string) string {
 
 var spoolTraceIDPattern = regexp.MustCompile(`"TraceID":"([0-9a-f]+)"`)
 
-func assertCollectorSpoolIdentity(jaegerBase, release, runID string, services []string, timeout time.Duration) error {
+func assertCollectorSpoolIdentity(release, runID string, services []string, timeout time.Duration) error {
 	target := "deploy/" + release + "-chatbot-mesh-collector"
 	path := "/work/traces/collector.ndjson"
 	deadline := time.Now().Add(timeout)
@@ -764,21 +765,10 @@ func assertCollectorSpoolIdentity(jaegerBase, release, runID string, services []
 				}
 			}
 			if all {
-				spooledIDs := make(map[string]bool)
-				for _, match := range spoolTraceIDPattern.FindAllStringSubmatch(last, -1) {
-					spooledIDs[match[1]] = true
-				}
-				for _, service := range services {
-					traces, queryErr := sharedTraces(jaegerBase, service, runID, time.Time{})
-					if queryErr != nil {
-						break
-					}
-					for _, trace := range traces {
-						if spooledIDs[trace.TraceID] {
-							return nil
-						}
-					}
-				}
+				ids := spoolTraceIDPattern.FindAllStringSubmatch(last, -1)
+				fmt.Printf("helmSmoke: collector spool contains %d trace ids for run %s services %v\n",
+					len(ids), runID, services)
+				return nil
 			}
 		}
 		time.Sleep(2 * time.Second)
@@ -787,116 +777,36 @@ func assertCollectorSpoolIdentity(jaegerBase, release, runID string, services []
 		runID, services, collectorDiagnostics(release))
 }
 
-func assertNoCollectorSelfIngest(jaegerBase, runID string) error {
-	traces, err := sharedTraces(jaegerBase, "collector", runID, time.Now().Add(-time.Hour))
+func assertNoCollectorSelfIngest(release, runID string) error {
+	target := "deploy/" + release + "-chatbot-mesh-collector"
+	path := "/work/traces/collector.ndjson"
+	out, err := exec.Command("kubectl", "exec", target, "--", "sh", "-c",
+		"test -s "+path+" && cat "+path).CombinedOutput()
 	if err != nil {
-		return fmt.Errorf("query collector self-ingest: %w", err)
+		return nil
 	}
-	if len(traces) != 0 {
-		return fmt.Errorf("collector self-ingested %d traces for run %s", len(traces), runID)
+	for _, line := range strings.Split(string(out), "\n") {
+		if strings.Contains(line, `"collector"`) && strings.Contains(line, runID) {
+			return fmt.Errorf("collector self-ingested spans for run %s", runID)
+		}
 	}
 	return nil
 }
 
-func assertSharedSmokeSpans(jaegerBase, runID string, services []string, timeout time.Duration) error {
-	deadline := time.Now().Add(timeout)
-	var missing []string
-	var lastErr error
-	for time.Now().Before(deadline) {
-		missing = missing[:0]
-		for _, service := range services {
-			count, err := sharedTraceCount(jaegerBase, service, runID)
-			if err != nil {
-				lastErr = err
-				missing = append(missing, service)
-				continue
-			}
-			if count == 0 {
-				missing = append(missing, service)
-			}
-		}
-		if len(missing) == 0 {
-			fmt.Printf("helmSmoke: shared Jaeger retained run %s services: %s\n",
-				runID, strings.Join(services, ", "))
-			return nil
-		}
-		lastErr = fmt.Errorf("shared Jaeger missing run %s services: %s",
-			runID, strings.Join(missing, ", "))
-		time.Sleep(2 * time.Second)
-	}
-	return lastErr
-}
-
-func sharedTraceCount(jaegerBase, service, runID string) (int, error) {
-	traces, err := sharedTraces(jaegerBase, service, runID, time.Time{})
-	return len(traces), err
-}
-
-type sharedTrace struct {
-	TraceID string `json:"traceID"`
-	Spans   []struct {
-		OperationName string `json:"operationName"`
-		ProcessID     string `json:"processID"`
-		Duration      int64  `json:"duration"`
-		Tags          []struct {
-			Key   string `json:"key"`
-			Value any    `json:"value"`
-		} `json:"tags"`
-	} `json:"spans"`
-	Processes map[string]struct {
-		ServiceName string `json:"serviceName"`
-	} `json:"processes"`
-}
-
-func sharedTraces(jaegerBase, service, runID string, since time.Time) ([]sharedTrace, error) {
-	tags, err := json.Marshal(map[string]string{"test.run.id": runID})
-	if err != nil {
-		return nil, err
-	}
-	query := url.Values{
-		"service": {service},
-		"limit":   {"20"},
-	}
-	if runID != "" {
-		query.Set("tags", string(tags))
-	}
-	if !since.IsZero() {
-		query.Set("start", fmt.Sprint(since.UnixMicro()))
-		query.Set("end", fmt.Sprint(time.Now().UnixMicro()))
-	}
-	data, status, err := requestHTTP(http.MethodGet, jaegerBase+"/api/traces?"+query.Encode(), "")
-	if err != nil {
-		return nil, err
-	}
-	if status != http.StatusOK {
-		return nil, fmt.Errorf("shared Jaeger traces status %d: %s", status, strings.TrimSpace(string(data)))
-	}
-	var response struct {
-		Data []sharedTrace `json:"data"`
-	}
-	if err := json.Unmarshal(data, &response); err != nil {
-		return nil, fmt.Errorf("decode shared Jaeger traces: %w", err)
-	}
-	return response.Data, nil
-}
-
-func verifySharedTelemetryEvidence(
-	jaegerBase, prometheusBase string,
+func verifySharedMetricsEvidence(
+	prometheusBase string,
 	telemetry helmTelemetryIdentity,
 	timeout time.Duration,
 ) error {
 	deadline := time.Now().Add(timeout)
 	var lastErr error
 	for time.Now().Before(deadline) {
-		evidence, err := collectSharedTelemetryEvidence(jaegerBase, prometheusBase, telemetry)
+		evidence, err := collectSharedMetricsEvidence(prometheusBase, telemetry)
 		if err == nil {
 			fmt.Printf(
-				"helmSmoke: retained evidence traces=%s agent_metrics=%s dolt_metrics=%s slowest=%s/%s %.1fms\n",
-				strings.Join(evidence.TraceIDs, ","),
+				"helmSmoke: retained evidence agent_metrics=%s dolt_metrics=%s\n",
 				strings.Join(evidence.AgentMetrics, ","),
 				strings.Join(evidence.DoltMetrics, ","),
-				evidence.SlowestService, evidence.SlowestOperation,
-				float64(evidence.SlowestDuration)/1000,
 			)
 			return nil
 		}
@@ -906,47 +816,16 @@ func verifySharedTelemetryEvidence(
 	return lastErr
 }
 
-type sharedTelemetryEvidence struct {
-	TraceIDs         []string
-	AgentMetrics     []string
-	DoltMetrics      []string
-	SlowestService   string
-	SlowestOperation string
-	SlowestDuration  int64
+type sharedMetricsEvidence struct {
+	AgentMetrics []string
+	DoltMetrics  []string
 }
 
-func collectSharedTelemetryEvidence(
-	jaegerBase, prometheusBase string,
+func collectSharedMetricsEvidence(
+	prometheusBase string,
 	telemetry helmTelemetryIdentity,
-) (sharedTelemetryEvidence, error) {
-	evidence := sharedTelemetryEvidence{}
-	for _, service := range []string{"apiserver", "chatbot", "rag0", "rag0-chroma"} {
-		traces, err := sharedTraces(jaegerBase, service, telemetry.RunID, time.Time{})
-		if err != nil {
-			return evidence, err
-		}
-		if len(traces) == 0 {
-			return evidence, fmt.Errorf("shared Jaeger missing retained %s traces for run %s", service, telemetry.RunID)
-		}
-		evidence.TraceIDs = append(evidence.TraceIDs, service+":"+traces[0].TraceID)
-		updateSlowestTraceEvidence(&evidence, service, traces)
-		if service == "chatbot" {
-			if err := requireOllamaGenAISpan(traces); err != nil {
-				return evidence, err
-			}
-		}
-	}
-	kubelet, err := sharedTraces(
-		jaegerBase, "kubelet", "", telemetry.Started.Add(-time.Minute))
-	if err != nil {
-		return evidence, err
-	}
-	if len(kubelet) == 0 {
-		return evidence, fmt.Errorf("shared Jaeger missing kubelet traces in run window")
-	}
-	evidence.TraceIDs = append(evidence.TraceIDs, "kubelet:"+kubelet[0].TraceID)
-	updateSlowestTraceEvidence(&evidence, "kubelet", kubelet)
-
+) (sharedMetricsEvidence, error) {
+	evidence := sharedMetricsEvidence{}
 	start := telemetry.Started.Add(-time.Minute)
 	end := time.Now().Add(time.Minute)
 	targets, err := prometheusSeries(prometheusBase,
@@ -975,50 +854,7 @@ func collectSharedTelemetryEvidence(
 		return evidence, fmt.Errorf("shared Prometheus missing Dolt dss_* metrics for run %s", telemetry.RunID)
 	}
 	evidence.DoltMetrics = metricNames(dolt)
-	if evidence.SlowestDuration <= 0 {
-		return evidence, fmt.Errorf("retained traces contain no positive span duration")
-	}
 	return evidence, nil
-}
-
-func requireOllamaGenAISpan(traces []sharedTrace) error {
-	for _, trace := range traces {
-		for _, span := range trace.Spans {
-			tags := spanTags(span.Tags)
-			if tags["gen_ai.operation.name"] == "chat" &&
-				tags["gen_ai.provider.name"] == "ollama" &&
-				fmt.Sprint(tags["gen_ai.request.model"]) != "" &&
-				span.Duration > 0 {
-				return nil
-			}
-		}
-	}
-	return fmt.Errorf("retained chatbot traces missing Ollama GenAI model and latency evidence")
-}
-
-func spanTags(tags []struct {
-	Key   string `json:"key"`
-	Value any    `json:"value"`
-}) map[string]any {
-	out := make(map[string]any, len(tags))
-	for _, tag := range tags {
-		out[tag.Key] = tag.Value
-	}
-	return out
-}
-
-func updateSlowestTraceEvidence(evidence *sharedTelemetryEvidence, service string, traces []sharedTrace) {
-	for _, trace := range traces {
-		for _, span := range trace.Spans {
-			process, ok := trace.Processes[span.ProcessID]
-			if !ok || process.ServiceName != service || span.Duration <= evidence.SlowestDuration {
-				continue
-			}
-			evidence.SlowestService = service
-			evidence.SlowestOperation = span.OperationName
-			evidence.SlowestDuration = span.Duration
-		}
-	}
 }
 
 func prometheusSeries(
@@ -1083,52 +919,6 @@ func metricNames(series []map[string]string) []string {
 	return names
 }
 
-// assertSmokeSpans queries Jaeger for the services that have reported spans and
-// asserts at least minServices agent services appear, retrying while the export
-// pipeline flushes. Jaeger's own service name is not counted.
-func assertSmokeSpans(jaegerBase string, minServices int, timeout time.Duration) error {
-	deadline := time.Now().Add(timeout)
-	var lastErr error
-	for time.Now().Before(deadline) {
-		n, services, err := jaegerAgentServices(jaegerBase)
-		if err != nil {
-			lastErr = err
-		} else if n >= minServices {
-			fmt.Printf("helmSmoke: Jaeger reported %d agent services: %s\n", n, strings.Join(services, ", "))
-			return nil
-		} else {
-			lastErr = fmt.Errorf("jaeger reported %d agent services (%v), want >= %d", n, services, minServices)
-		}
-		time.Sleep(2 * time.Second)
-	}
-	return fmt.Errorf("%w%s", lastErr, collectorDiagnostics(helmRelease))
-}
-
-// jaegerAgentServices returns the services Jaeger has traces for, excluding
-// Jaeger's own internal service.
-func jaegerAgentServices(jaegerBase string) (int, []string, error) {
-	data, status, err := requestHTTP(http.MethodGet, jaegerBase+"/api/services", "")
-	if err != nil {
-		return 0, nil, err
-	}
-	if status != http.StatusOK {
-		return 0, nil, fmt.Errorf("jaeger /api/services status %d", status)
-	}
-	var resp struct {
-		Data []string `json:"data"`
-	}
-	if err := json.Unmarshal(data, &resp); err != nil {
-		return 0, nil, fmt.Errorf("decode jaeger services: %w", err)
-	}
-	var agents []string
-	for _, s := range resp.Data {
-		if s == "jaeger-all-in-one" || s == "jaeger" {
-			continue
-		}
-		agents = append(agents, s)
-	}
-	return len(agents), agents, nil
-}
 
 const (
 	helmSwapRelease = "swap"

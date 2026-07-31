@@ -79,8 +79,8 @@ export default function TracePanel({ traceId }: { traceId: string | undefined })
   if (state.status === "unavailable") {
     return (
       <div className="trace-notice trace-notice-warn">
-        Trace backend not reachable ({state.reason}). The per-agent monitor panels above stay live; deploy the
-        collector and Jaeger (Helm values) to see the cross-agent waterfall.
+        Trace backend not reachable ({state.reason}). The per-agent monitor panels above stay live; enable the
+        collector agent (Helm values) to see the cross-agent waterfall.
       </div>
     );
   }

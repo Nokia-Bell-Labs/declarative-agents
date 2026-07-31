@@ -21,10 +21,10 @@ test_cases:
     traces: [rel07.0-uc001-collector-ingress S1, rel07.0-uc001-collector-ingress S3, srd007-collector-agent AC1, srd007-collector-agent AC3]
 
   - use_case: rel07.0-uc001-collector-ingress
-    name: A real client batch reaches stdouttrace spool and Jaeger unchanged
+    name: A real client batch reaches stdouttrace spool unchanged
     integration_target: mage integration:helmSmoke
     status: implemented
-    description: A real OTLP client exports parent and child spans with full run identity; spool and Jaeger agree on every identity field.
+    description: A real OTLP client exports parent and child spans with full run identity; the spool preserves every identity field.
     expected:
       trace_id_match: true
       span_id_match: true

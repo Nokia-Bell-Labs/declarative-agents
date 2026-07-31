@@ -1,3 +1,0 @@
-batch: batch.json
-expected_span_count: 2
-expected_service: collector-rig-fixture

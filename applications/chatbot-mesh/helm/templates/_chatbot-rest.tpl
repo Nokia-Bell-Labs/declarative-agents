@@ -247,8 +247,8 @@ rest:
 {{- range $unit := .Values.ragUnits }}
               {{ $unit.name }}: http://{{ $fullname }}-{{ $unit.name }}:{{ $mon }}
 {{- end }}
-{{- if .Values.jaeger.enabled }}
-              jaeger: http://{{ $fullname }}-jaeger:{{ .Values.jaeger.queryPort }}
+{{- if eq .Values.collector.implementation "agent" }}
+              collector: http://{{ $fullname }}-collector:18193
 {{- end }}
           request:
             path:

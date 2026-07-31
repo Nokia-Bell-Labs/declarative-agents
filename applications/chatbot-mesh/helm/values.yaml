@@ -162,11 +162,6 @@ collector:
     commit: ""
     runID: ""
 
-jaeger:
-  enabled: true
-  image: {repository: jaegertracing/all-in-one, tag: "1.62.0", pullPolicy: IfNotPresent}
-  otlpGRPCPort: 4317
-  queryPort: 16686
 
 ingress:
   enabled: true

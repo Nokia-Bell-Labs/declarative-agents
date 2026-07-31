@@ -84,7 +84,7 @@ func (Integration) Rig() error {
 	if err := os.WriteFile(staged, data, 0o755); err != nil {
 		return err
 	}
-	if err := runCollectorIntakeScenario(staged, coreRoot, applicationRoot, binDir); err != nil {
+	if err := runCollectorIntakeScenario(staged, coreRoot, catalogRoot, binDir); err != nil {
 		return fmt.Errorf("collector intake-filter scenario: %w", err)
 	}
 	stagedRigRoot, cleanupRig, err := stageRigRuntime(applicationRoot, catalogRoot)
@@ -140,13 +140,7 @@ func (Integration) Rig() error {
 				i, verdicts[i], want, verdicts)
 		}
 	}
-	if err := assertSharedSmokeSpans(
-		sharedJaegerBase(), runID,
-		append([]string{"scenario-critic-rig"}, rigExpectedCriticIdentities...),
-		helmSpanTimeout); err != nil {
-		return fmt.Errorf("retained host rig evidence: %w", err)
-	}
-	fmt.Printf("integration:rig passed in %s: %d scenarios across two roots, verdicts %v; shared Jaeger retained run %s after process exit\n",
+	fmt.Printf("integration:rig passed in %s: %d scenarios across two roots, verdicts %v for run %s\n",
 		time.Since(start).Round(time.Millisecond), len(verdicts), verdicts, runID)
 	return nil
 }
@@ -183,8 +177,8 @@ type collectorIntakeScenario struct {
 // runCollectorIntakeScenario drives the shipped collector profile over a real
 // OTLP/gRPC boundary with a canned protobuf-JSON batch. The spool assertion is
 // the deterministic rig verdict for the receive -> positive-span filter -> spool leg.
-func runCollectorIntakeScenario(binary, coreRoot, applicationRoot, workDir string) error {
-	scenarioDir := filepath.Join(applicationRoot, "agents/collector/tests/intake-filter")
+func runCollectorIntakeScenario(binary, coreRoot, catalogRoot, workDir string) error {
+	scenarioDir := filepath.Join(catalogRoot, "agents/collector/tests/intake-filter")
 	var scenario collectorIntakeScenario
 	if err := readIntegrationYAML(filepath.Join(scenarioDir, "scenario.yaml"), "collector scenario", &scenario); err != nil {
 		return err
@@ -223,7 +217,7 @@ func runCollectorIntakeScenario(binary, coreRoot, applicationRoot, workDir strin
 		"--core-root", coreRoot,
 		"--directory", workDir,
 	)
-	cmd.Dir = applicationRoot
+	cmd.Dir = catalogRoot
 	cmd.Env = append(os.Environ(),
 		"COLLECTOR_BIND_HOST=127.0.0.1",
 		"COLLECTOR_RECEIVER_ADDRESS="+receiver,
@@ -298,7 +292,7 @@ type collectorLifecycleResult struct {
 // for the process to stop, then verifies that all listener addresses are free
 // (rebind proof) and that the monitor reported a bounded terminal state before
 // it stopped.
-func runCollectorLifecycleScenario(binary, coreRoot, applicationRoot, workDir string) (*collectorLifecycleResult, error) {
+func runCollectorLifecycleScenario(binary, coreRoot, catalogRoot, workDir string) (*collectorLifecycleResult, error) {
 	receiver, err := freeLoopbackAddr()
 	if err != nil {
 		return nil, err
@@ -325,7 +319,7 @@ func runCollectorLifecycleScenario(binary, coreRoot, applicationRoot, workDir st
 		"--core-root", coreRoot,
 		"--directory", workDir,
 	)
-	cmd.Dir = applicationRoot
+	cmd.Dir = catalogRoot
 	cmd.Env = append(os.Environ(),
 		"COLLECTOR_BIND_HOST=127.0.0.1",
 		"COLLECTOR_RECEIVER_ADDRESS="+receiver,

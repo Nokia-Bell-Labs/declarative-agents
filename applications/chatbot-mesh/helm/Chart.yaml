@@ -1,6 +1,6 @@
 apiVersion: v2
 name: chatbot-mesh
-description: The declarative-agents chatbot mesh — chatbot, N values-driven RAG (agent + Chroma) pairs, an LLM, a Dolt checkpoint backend, and an OTel collector with a Jaeger trace backend, over the rel06.0 mounted-profile runtime image (srd015).
+description: The declarative-agents chatbot mesh — chatbot, N values-driven RAG (agent + Chroma) pairs, an LLM, a Dolt checkpoint backend, and the canonical catalog collector with a spool query surface, over the rel06.0 mounted-profile runtime image (srd015).
 type: application
 version: 0.1.0
 appVersion: "0.1.0"

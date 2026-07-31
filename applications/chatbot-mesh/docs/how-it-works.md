@@ -192,7 +192,8 @@ flowchart TB
   CB --> COL["OTel collector"]
   R1 --> COL
   RN --> COL
-  COL --> TR["Jaeger / Tempo"]
+  COL -->|spool| SP[("NDJSON spool")]
+  COL -.->|relay| EXT["external OTLP endpoint"]
 
   VAL[["values.yaml ragUnits list"]] -.co-generates.-> R1
   VAL -.co-generates.-> RN

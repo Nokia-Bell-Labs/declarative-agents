@@ -61,7 +61,7 @@ func TestCollectorImplementationsRender(t *testing.T) {
 // distroless image does not carry. The pod exited 255 with
 // "exec /otelcol-contrib: no such file or directory" on every Apple Silicon
 // host, so no agent span reached the trace backend and the smoke failed two
-// hops away, at an empty Jaeger service list.
+// hops away, at an empty spool.
 //
 // Nothing in the chart or its rendered output was wrong, which is why a render
 // test could not find it: the image reference was valid and the manifest listed

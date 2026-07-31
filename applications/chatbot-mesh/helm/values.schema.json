@@ -69,7 +69,7 @@
   },
   "type": "object",
   "additionalProperties": false,
-  "required": ["image", "profiles", "chatbot", "ragUnits", "ragServer", "chroma", "llm", "ollama", "dolt", "collector", "jaeger", "ingress", "validateProfiles", "observer", "applier", "controlPlane"],
+  "required": ["image", "profiles", "chatbot", "ragUnits", "ragServer", "chroma", "llm", "ollama", "dolt", "collector", "ingress", "validateProfiles", "observer", "applier", "controlPlane"],
   "properties": {
     "image": {
       "$ref": "#/definitions/image"
@@ -288,17 +288,6 @@
             "runID": {"type": "string"}
           }
         }
-      }
-    },
-    "jaeger": {
-      "type": "object",
-      "additionalProperties": false,
-      "required": ["enabled", "image", "otlpGRPCPort", "queryPort"],
-      "properties": {
-        "enabled": {"type": "boolean"},
-        "image": {"$ref": "#/definitions/image"},
-        "otlpGRPCPort": {"$ref": "#/definitions/port"},
-        "queryPort": {"$ref": "#/definitions/port"}
       }
     },
     "ingress": {

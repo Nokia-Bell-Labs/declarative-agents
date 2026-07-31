@@ -1,6 +1,6 @@
 # chatbot-mesh
 
-A Helm chart that deploys the chatbot mesh on Kubernetes: the browser-facing chatbot agent, a values-driven list of RAG units (each a rag-server agent paired with its own Chroma database), a chat/embedding LLM, a Dolt checkpoint backend, and an OTel collector feeding a Jaeger trace backend.
+A Helm chart that deploys the chatbot mesh on Kubernetes: the browser-facing chatbot agent, a values-driven list of RAG units (each a rag-server agent paired with its own Chroma database), a chat/embedding LLM, a Dolt checkpoint backend, and the canonical catalog collector with a spool query surface.
 
 ## Architectural thesis
 
@@ -11,8 +11,9 @@ One runtime image serves every agent role. Each agent's program is a profile sup
 ```mermaid
 flowchart LR
   ingress[Ingress] --> chatbot[chatbot Deployment]
-  chatbot -->|OTLP| collector[OTel collector]
-  collector --> jaeger[Jaeger]
+  chatbot -->|OTLP| collector[collector agent]
+  collector -->|spool| spool[(NDJSON spool)]
+  collector -.->|relay| external[external OTLP endpoint]
   chatbot --> rag0[rag-server rag0]
   chatbot --> rag1[rag-server rag1]
   rag0 --> chroma0[(Chroma rag0)]
@@ -25,7 +26,7 @@ flowchart LR
 
 ## Scope and status
 
-This chart is the deployment topology: chatbot, N RAG units from `ragUnits`, LLM, Dolt, collector, and Jaeger, with ingress and internal Services, over the runtime image with ConfigMap-mounted profiles (srd003 R1, R5). The `helm template`/`helm lint` render is verified. The chart co-generates the chatbot `rest.yaml` and ux from `ragUnits`; add/remove rollouts ask the old chatbot to drain active HTTP turns before it exits, then route subsequent turns to the replacement pod (srd003 R2, R3). Dolt persists checkpoints but cannot preserve an existing client socket. The kind smoke test values live under `ci/`. Control-plane provisioning is out of scope for this data-plane example.
+This chart is the deployment topology: chatbot, N RAG units from `ragUnits`, LLM, Dolt, and collector, with ingress and internal Services, over the runtime image with ConfigMap-mounted profiles (srd003 R1, R5). The `helm template`/`helm lint` render is verified. The chart co-generates the chatbot `rest.yaml` and ux from `ragUnits`; add/remove rollouts ask the old chatbot to drain active HTTP turns before it exits, then route subsequent turns to the replacement pod (srd003 R2, R3). Dolt persists checkpoints but cannot preserve an existing client socket. The kind smoke test values live under `ci/`. Control-plane provisioning is out of scope for this data-plane example.
 
 ## Repository structure
 
@@ -34,7 +35,7 @@ helm/
   Chart.yaml            chart metadata
   values.yaml           default values (ragUnits is the topology source of truth)
   values.schema.json    values validation
-  templates/            chatbot, rag-units (ranged), dolt, collector, jaeger, ollama, profiles ConfigMap
+  templates/            chatbot, rag-units (ranged), dolt, collector, ollama, profiles ConfigMap
   profiles/             agent programs packaged into the profiles ConfigMap (see PACKAGING.md)
   ci/kind-values.yaml   small-footprint values for the smoke test
 ```
@@ -98,7 +99,7 @@ realizing Executor / Workflow Orchestrator; all chart consumers move together.
 
 ## Technology choices
 
-Profiles ride in a ConfigMap projected to nested paths through `items[].path`, because ConfigMap keys cannot contain `/`; this keeps one image and lets a values edit re-render an agent's program. Jaeger all-in-one is the trace backend because its query API is the simplest target for the observability panel's cross-agent waterfall.
+Profiles ride in a ConfigMap projected to nested paths through `items[].path`, because ConfigMap keys cannot contain `/`; this keeps one image and lets a values edit re-render an agent's program. The collector agent spools traces to NDJSON and serves a query surface for the observability panel's cross-agent waterfall; relay to an external OTLP endpoint is conditional on `collector.externalOTLPEndpoint`.
 
 ## Render and lint
 
