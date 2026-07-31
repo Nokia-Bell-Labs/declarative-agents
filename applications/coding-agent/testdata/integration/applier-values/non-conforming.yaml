@@ -1,0 +1,7 @@
+# A non-conforming coding values patch. The coding roles run a single replica --
+# the shared workspace admits no concurrent writer -- so the schema pins each
+# role's replicas to 1. replicas: 2 violates the schema at /roles/planner/replicas,
+# which is what the applier's helm dry-run must reject before any rollout.
+roles:
+  planner:
+    replicas: 2
