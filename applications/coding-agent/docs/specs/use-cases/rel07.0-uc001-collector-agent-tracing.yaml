@@ -1,0 +1,52 @@
+id: rel07.0-uc001-collector-agent-tracing
+title: Trace the Packaged Topology Through the Canonical Collector Agent
+status: implemented
+
+summary: |
+  An operator renders and proves the packaged coding topology with the
+  canonical catalog collector agent as the only trace workload. Roles export
+  OTLP to the collector Service, the collector spools trace evidence and
+  serves the bounded query surface, and no Jaeger workload or utility-image
+  wait chain renders anywhere in the chart.
+
+actor: An operator or CI worker deploying the packaged coding application.
+trigger: Render the chart or run mage integration:helmSmoke after mage helmPrepare.
+
+preconditions:
+  - The applications/catalog checkout is discoverable or AGENT_CATALOG_ROOT names it.
+  - The prepared role packages and the staged collector profile are present in the chart.
+
+flow:
+  - id: F1
+    text: Preparation stages the canonical catalog collector profile into the chart alongside the role shards.
+  - id: F2
+    text: The chart renders the collector agent Deployment and Service with OTLP, query, monitor, and control ports and a lifecycle readiness probe.
+  - id: F3
+    text: Role workloads receive the collector OTLP endpoint and distinct OTel service names; no workload waits on a utility image.
+  - id: F4
+    text: Values and schema validation accept the collector block and reject unknown collector keys, including the removed utilityImage knob.
+  - id: F5
+    text: The live smoke drives one traced request and reads the connected trace back through the collector query surface.
+
+success_criteria:
+  - id: S1
+    criterion: Helm renders the collector agent and no Jaeger manifest under default and CI values.
+    traces: [srd003-helm-topology R3.4]
+  - id: S2
+    criterion: Every role exports OTLP to the collector with a distinct service name.
+    traces: [srd003-helm-topology R3.3]
+  - id: S3
+    criterion: The schema fixture matrix proves valid spool default, valid overrides, and invalid telemetry rejection.
+    traces: [srd004-helm-package-validation R1]
+  - id: S4
+    criterion: The live smoke finds all role service names under the submitted trace ID via the collector query surface.
+    traces: [srd005-live-helm-smoke R3.3]
+  - id: S5
+    criterion: Catalog-root discovery resolves applications/catalog from relative and absolute startup directories without environment overrides.
+    traces: [srd004-helm-package-validation R1]
+
+out_of_scope:
+  - Metrics ingress; the coding chart exports no metrics pipeline.
+  - Relay mode; the chart collector runs spool-only.
+
+test_suite: test-rel07.0-collector-agent-tracing

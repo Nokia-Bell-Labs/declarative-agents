@@ -71,7 +71,8 @@ releases:
       A package-driven chart renders persistent planner, executor, and critic
       workloads with scoped profile ConfigMaps, shared workspace storage,
       truthful health probes, fixed role Services, model endpoint selection,
-      and collector agent tracing.
+      and collector-to-Jaeger tracing. Release 07.0 replaces the trace path
+      with the canonical collector agent.
     status: implemented
     application_srds:
       - srd003-helm-topology
@@ -116,4 +117,26 @@ releases:
     test_suites:
       - id: test-rel06.0-live-helm-smoke
         summary: Skip, classification, diagnostic, fixture, cleanup, and live topology evidence.
+        status: implemented
+  - version: "07.0"
+    name: Canonical collector agent tracing
+    description: |
+      The chart replaces the contrib collector and the Jaeger all-in-one with
+      the canonical catalog collector agent (GH-1152, GH-1156). Roles export
+      OTLP to the profile-backed collector, which spools trace evidence and
+      serves the bounded query surface; the utility-image wait chain and every
+      Jaeger workload leave the chart, and the compatibility pin moves to
+      applications/catalog/v0.20260730.0.
+    status: implemented
+    application_srds:
+      - srd003-helm-topology
+      - srd004-helm-package-validation
+      - srd005-live-helm-smoke
+    use_cases:
+      - id: rel07.0-uc001-collector-agent-tracing
+        summary: An operator renders and proves the packaged topology with the canonical collector agent and no Jaeger workload.
+        status: implemented
+    test_suites:
+      - id: test-rel07.0-collector-agent-tracing
+        summary: Topology, schema, catalog-root discovery, and live smoke evidence with collector agent rendering and spool query trace proof.
         status: implemented

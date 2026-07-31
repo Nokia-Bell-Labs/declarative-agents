@@ -32,12 +32,12 @@ flowchart LR
   R1 -->|query_embeddings| CH1[(Chroma collection 1)]
   CB -->|compose surviving chunks| ANS[Answer from chunks]
   ING[Corpus-ingest agent] -->|seed collections| CH0
-  CB -.->|monitor SSE / traceparent| OBS[Observability + Jaeger]
+  CB -.->|monitor SSE / traceparent| OBS[Collector agent + trace UI]
 ```
 
 ## Scope and status
 
-The example spans both planes. The data plane is the chatbot, the RAG servers, a corpus-ingest agent that seeds the vector store, observability, and Helm deployment. The control plane is a provisioning-workflow-orchestrator agent, a creator agent, and an applier that applies rollout changes to the running mesh. A collector profile provides the staged declarative trace path while contrib retains metrics. An observer agent discovers mesh pods via the Kubernetes API and polls each agent's monitor surface to serve a fleet-level view at observer.localhost. The profiles run on agent-core. Release 05 remains partial pending one live ingest-to-grounded-turn proof, and Release 07 remains partial pending collector listener-rebind and final monitor-state lifecycle proof.
+The example spans both planes. The data plane is the chatbot, the RAG servers, a corpus-ingest agent that seeds the vector store, observability, and Helm deployment. The control plane is a provisioning-workflow-orchestrator agent, a creator agent, and an applier that applies rollout changes to the running mesh. The canonical catalog collector agent owns the trace path — spool evidence, a bounded query surface, and the trace UI — while contrib retains metrics. An observer agent discovers mesh pods via the Kubernetes API and polls each agent's monitor surface to serve a fleet-level view at observer.localhost. The profiles run on agent-core. Release 05 remains partial pending one live ingest-to-grounded-turn proof.
 
 ## Decisions
 

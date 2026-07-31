@@ -81,7 +81,7 @@ runs.
 
 * Same turn, deeper
 
-Open the Jaeger UI and find the turn's trace by its `traceparent`.
+Open the collector trace UI and find the turn's trace by its `traceparent`.
 
 The span tree shows the chatbot's embed, the tier selection, the parallel
 fan-out to both RAG servers, each server's Chroma query, and the composition

@@ -1,0 +1,41 @@
+id: test-rel07.0-collector-agent-tracing
+title: Canonical Collector Agent Tracing Suite
+release: "07.0"
+status: implemented
+
+overview: |
+  The release re-proves the existing topology, schema, and smoke contracts
+  with the canonical collector agent as the only trace workload. Deterministic
+  unit tests pin the collector render, the schema fixture matrix, catalog-root
+  discovery, and the install command; the live smoke target supplies the
+  in-cluster trace evidence through the collector query surface.
+
+traces:
+  - rel07.0-uc001-collector-agent-tracing
+
+test_cases:
+  - use_case: rel07.0-uc001-collector-agent-tracing
+    name: Collector agent topology render
+    go_test: go test ./magefiles -run '^TestHelm(CoreTopologyRendersRoleContract|ProfileChangeRollsOnlyAffectedRole|SmallAndOllamaValuesRender)$'
+    status: implemented
+    traces: [srd003-helm-topology R3.3, srd003-helm-topology R3.4]
+  - use_case: rel07.0-uc001-collector-agent-tracing
+    name: Schema and semantic validation without Jaeger keys
+    go_test: go test ./magefiles -run '^TestHelm(SchemaFixtureMatrix|SemanticValidationSurvivesSchemaBypass|WorkspaceAndTelemetryCombinationsRender)$'
+    status: implemented
+    traces: [srd004-helm-package-validation R1]
+  - use_case: rel07.0-uc001-collector-agent-tracing
+    name: Catalog-root discovery from any startup directory
+    go_test: go test ./magefiles -run '^TestCodingAgentCatalogRoot(EnvironmentPrecedence|DiscoversSiblingCatalog|DiscoversFromRelativeStartupDir)$'
+    status: implemented
+    traces: [srd004-helm-package-validation R1]
+  - use_case: rel07.0-uc001-collector-agent-tracing
+    name: Install command without the removed utilityImage knob
+    go_test: go test ./magefiles -run '^TestCodingHelmCommitImagePropagatesToBuildManifestAndDeploy$'
+    status: implemented
+    traces: [srd005-live-helm-smoke R2]
+  - use_case: rel07.0-uc001-collector-agent-tracing
+    name: Live packaged topology with collector query trace proof
+    integration_target: mage integration:helmSmoke
+    status: implemented
+    traces: [srd005-live-helm-smoke R3.3]
