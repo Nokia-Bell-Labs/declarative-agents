@@ -1,0 +1,71 @@
+tools:
+  - name: query_list_traces
+    type: builtin
+    init: spool_list_traces
+    category: boundary
+    visibility: internal
+    emits: [TracesListed, CommandError]
+    description: Read paginated trace summaries from the collector spool.
+    problem: A trace list view needs bounded summary reads without a separate query backend.
+    goals: [Return paginated summaries sorted by recency, Cap page size in config]
+    requirements:
+      input: [Path and page defaults come from trusted config; page_size and offset may come from the request seed]
+      output: [Output includes traces, total, offset, page_size, skipped_lines]
+      errors: [An unreadable spool emits CommandError]
+    non_goals: [Does not expose raw span payloads]
+    parameters: {type: object, properties: {}}
+    output:
+      description: Paginated trace summaries.
+      schema:
+        type: object
+        properties:
+          traces: {type: array}
+          total: {type: integer}
+          offset: {type: integer}
+          page_size: {type: integer}
+          skipped_lines: {type: integer}
+    side_effects:
+      - {kind: filesystem_read, target: collector trace spool, state: read_only}
+    reversibility: {classification: reversible, undo: noop}
+    undo: {strategy: noop, description: Reading a spool changes nothing.}
+    errors:
+      - {signal: CommandError, condition: spool path cannot be read, state_after_failure: no output is returned}
+    config:
+      path: ${COLLECTOR_SPOOL_PATH:-traces/collector.ndjson}
+      page_size: 20
+      max_page_size: 100
+      offset: 0
+
+  - name: query_get_trace
+    type: builtin
+    init: spool_get_trace
+    category: boundary
+    visibility: internal
+    emits: [TraceRetrieved, CommandError]
+    description: Read all spans for one trace from the collector spool.
+    problem: A trace waterfall view needs per-span records with timing and parent linkage.
+    goals: [Return all spans for one trace id, Read across active and rotated spool files]
+    requirements:
+      input: [Path comes from trusted config; trace_id comes from the request seed]
+      output: [Output includes trace_id, spans, span_count, skipped_lines]
+      errors: [An unreadable spool or missing trace_id emits CommandError]
+    non_goals: [Does not filter or mutate spans]
+    parameters: {type: object, properties: {}}
+    output:
+      description: All spans for one trace.
+      schema:
+        type: object
+        properties:
+          trace_id: {type: string}
+          spans: {type: array}
+          span_count: {type: integer}
+          skipped_lines: {type: integer}
+    side_effects:
+      - {kind: filesystem_read, target: collector trace spool, state: read_only}
+    reversibility: {classification: reversible, undo: noop}
+    undo: {strategy: noop, description: Reading a spool changes nothing.}
+    errors:
+      - {signal: CommandError, condition: spool path cannot be read or trace_id is empty, state_after_failure: no output is returned}
+    config:
+      path: ${COLLECTOR_SPOOL_PATH:-traces/collector.ndjson}
+      trace_id: ""

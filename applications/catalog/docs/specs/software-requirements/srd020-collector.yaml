@@ -1,0 +1,89 @@
+id: srd020-collector
+title: Collector Agent Family
+
+problem: |
+  The chatbot-mesh owns a collector agent that receives, spools, and optionally
+  relays OTLP trace batches. This profile is independently useful outside the
+  mesh — any deployment that needs an OTLP trace collector with a declarative
+  state machine and spool-first evidence model can use it. Promoting it to the
+  catalog gives it a canonical home, a generalized default configuration, and
+  conformance coverage.
+
+goals:
+  - G1: Provide a canonical collector family in the catalog generalized from the mesh profile.
+  - G2: Default to spool mode so a standalone collector works without a relay endpoint.
+  - G3: Cover the family with deterministic conformance tests exercising the agent-core OTLP builtins.
+
+requirements:
+  R1:
+    title: Generalized defaults
+    items:
+      - R1.1: The collector family SHALL default COLLECTOR_MODE to spool, not relay.
+      - R1.2: The relay endpoint SHALL have no default; relay mode requires COLLECTOR_RELAY_ENDPOINT set.
+      - R1.3: The decide_collector_relay predicate SHALL compare COLLECTOR_MODE against relay, defaulting to spool when unset.
+
+  R2:
+    title: Catalog SRD
+    items:
+      - R2.1: The family SHALL have a per-family SRD in the catalog adapted from the mesh srd007.
+      - R2.2: The SRD SHALL scope the monitor surface to lifecycle and state reads; the monitor exposes no span payloads.
+      - R2.3: The SRD SHALL define a separate query surface (collector_query) that serves bounded spool reads via spool_list_traces and spool_get_trace.
+
+  R3:
+    title: Conformance coverage
+    items:
+      - R3.1: The family SHALL enter the membership contract with a bindings.catalog entry in agent-role-realizations.yaml.
+      - R3.2: A per-family conformance test SHALL exercise otlp_receiver_launch, await_spans, spool_collector_spans, and the shutdown sequence.
+
+  R4:
+    title: Role-realization binding
+    items:
+      - R4.1: The bindings.catalog entry SHALL have classification role_realization, primary_role monitor, sub_roles [telemetry-collector], domain observability.
+      - R4.2: The mesh binding SHALL remain until the mesh swap issue replaces it with a catalog reference.
+
+  R5:
+    title: Query REST surface
+    items:
+      - R5.1: A collector_query server SHALL serve GET /query/traces for paginated trace summaries via spool_list_traces.
+      - R5.2: A collector_query server SHALL serve GET /query/traces/{trace_id} for single-trace span detail via spool_get_trace.
+      - R5.3: Page size SHALL be capped in tool config, not trusted from the HTTP request.
+      - R5.4: The query server lifecycle SHALL follow the same launch/stop pattern as control and monitor, with shutdown ordering after receiver stop and before monitor stop.
+
+  R6:
+    title: Trace query UI
+    items:
+      - R6.1: The collector family SHALL ship a ui/ directory with a React SPA rendering trace list and per-trace waterfall from the collector_query surface.
+      - R6.2: The UI SHALL vendor the canonical design-token block and join the root uiDist reproducibility gate.
+
+non_goals:
+  - Removing the mesh collector or changing the mesh deployment to reference the catalog family.
+  - Metrics ingress or Dolt scraping.
+
+acceptance_criteria:
+  - id: AC1
+    criterion: The catalog conformance suite passes with the collector family; the profile launches standalone in spool mode and reaches the AwaitingSpans loop.
+    traces: [R1.1, R1.3, R3.2]
+
+  - id: AC2
+    criterion: The role-realization audit passes with both the catalog and mesh bindings present.
+    traces: [R4.1, R4.2]
+
+  - id: AC3
+    criterion: The relay endpoint config has no default; the decide predicate defaults COLLECTOR_MODE to spool.
+    traces: [R1.2, R1.3]
+
+depends_on:
+  - srd_id: srd042-otlp-receiver-tools
+    symbols_used: [otlp_receiver_launch, await_spans, spool_spans, relay_spans, otlp_receiver_stop]
+  - srd_id: srd044-spool-query-tools
+    symbols_used: [spool_list_traces, spool_get_trace]
+
+related_documents:
+  - srd007-collector-agent
+  - cfg-tool-authoring-standard
+
+implementation_status:
+  implemented:
+    - "applications/catalog/agents/collector/ owns the canonical collector family."
+    - "applications/catalog/conformance/collector_test.go proves receive-spool-exit in spool mode."
+    - "applications/docs/specs/semantic-models/agent-role-realizations.yaml carries the catalog binding."

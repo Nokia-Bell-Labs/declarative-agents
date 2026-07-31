@@ -12,6 +12,7 @@ family_srds:
   - srd012-chroma-corpus-agents
   - srd018-scenario-critic
   - srd019-mock
+  - srd020-collector
 
 conformance_fixture_srds:
   - srd007-rest
@@ -36,6 +37,7 @@ context: |
     - srd012-chroma-corpus-agents (corpus-ingest and corpus-reader)
     - srd018-scenario-critic            (scenario critic)
     - srd019-mock                 (mock)
+    - srd020-collector            (collector)
 
   The REST, lifecycle, and control contracts (srd007, srd009, and srd010) cover
   internal conformance fixtures under testdata/conformance rather than shipped

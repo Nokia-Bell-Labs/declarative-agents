@@ -74,6 +74,7 @@ role_groups:
     profiles:
       - rest
       - runtime-state-reader
+      - collector
       - control
       - lifecycle
     summary: |
@@ -193,6 +194,13 @@ actor_boundaries:
       - runtime monitor store
     boundary: The infrastructure adapter lets a supervisor read cached monitor
       state and request controlled exit; it does not implement canonical Monitor.
+  - profile: collector
+    actors:
+      - OTLP trace sources
+      - spool filesystem
+      - query HTTP clients
+    boundary: The collector receives OTLP trace batches, spools them to NDJSON,
+      and serves bounded reads through query endpoints.
   - profile: control
     actors:
       - lifecycle supervisor

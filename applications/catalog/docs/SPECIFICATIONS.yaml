@@ -162,6 +162,14 @@ roadmap_summary:
       generated Helm inventory checks, release-tag semantics, and scoped
       zero-hit evidence. Publication of the immutable root, canonical catalog,
       and legacy compatibility tags is a post-merge action from clean main.
+  - version: "13.0"
+    name: Collector family promotion
+    status: implemented
+    scope: |
+      Promoted the chatbot-mesh collector agent to a canonical catalog family
+      with default spool mode and no relay endpoint default. Added srd020,
+      conformance coverage exercising agent-core OTLP builtins, and a
+      bindings.catalog role-realization entry.
 
 foundation_document_index:
   - id: agent-profiles
@@ -326,6 +334,13 @@ srd_index:
     status: in-progress
     support: supported-test-time
     path: docs/specs/software-requirements/srd019-mock.yaml
+  - id: srd020-collector
+    title: Collector Agent Family
+    summary: Canonical OTLP trace collector promoted from the chatbot-mesh,
+      defaulting to spool mode with no relay endpoint. Exercises agent-core
+      OTLP builtins (receive, spool, relay) in a reusable catalog family.
+    status: implemented
+    path: docs/specs/software-requirements/srd020-collector.yaml
 
 config_format_index: []
 
@@ -535,6 +550,12 @@ use_case_index:
     summary: Coordinate migration aliases, exact catalog pins, package closures, tag semantics, generated artifacts, and scoped zero-hit evidence.
     status: implemented
     path: docs/specs/use-cases/rel12.0-uc001-agent-role-realization-alignment.yaml
+  - id: rel13.0-uc001-collector-family
+    title: A standalone collector receives, spools, and shuts down in spool mode
+    summary: Canonical catalog collector launches in default spool mode, spools
+      received traces, skips relay, and shuts down cleanly on exit signal.
+    status: implemented
+    path: docs/specs/use-cases/rel13.0-uc001-collector-family.yaml
 
 test_suite_index:
   - id: test-rel06.0-agent-profiles
@@ -649,6 +670,12 @@ test_suite_index:
     summary: Executable aliases, exact release metadata, package closures, Helm render/drift, tag semantics, and zero-hit evidence.
     status: implemented
     path: docs/specs/test-suites/test-rel12.0-agent-role-realization-alignment.yaml
+  - id: test-rel13.0-collector
+    title: Test Suite for Release 13.0 Collector Family
+    summary: Conformance test launching the canonical collector in spool mode and
+      verifying clean shutdown with expected tool spans.
+    status: implemented
+    path: docs/specs/test-suites/test-rel13.0-collector.yaml
 
 coverage_gaps: |
   The SRD and semantic models describe ownership, role boundaries, and

@@ -67,6 +67,7 @@ func StandardFactoryCatalog(deps StandardFactoryDeps) []StandardFactoryCatalogEn
 		hookFactory("compose", []string{"compose", "render_each"}, deps.RegisterCompose),
 		hookFactory("otlp", []string{
 			"otlp_receiver_launch", "await_spans", "load_otlp_batch", "spool_spans", "relay_spans", "otlp_receiver_stop",
+			"spool_list_traces", "spool_get_trace",
 		}, deps.RegisterOTLP),
 		// The rig's service words. The init names are literal here because the
 		// service package imports this one, so the list cannot be read from it.

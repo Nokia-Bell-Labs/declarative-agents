@@ -1,0 +1,28 @@
+name: collector-query
+purpose: |
+  Execute one bounded spool read as a request-scoped machine. The list
+  path returns paginated trace summaries, and the get path returns all
+  spans for one trace id. Neither path mutates machine state.
+initial_state: AwaitingRequest
+budget: {max_iterations: 4}
+states:
+  - {name: AwaitingRequest, meaning: Seeded by a trusted machine_request route.}
+  - {name: ListingTraces, meaning: Paginated trace summary read from spool.}
+  - {name: GettingTrace, meaning: Single-trace span detail read from spool.}
+  - {name: TracesReady, meaning: Terminal paginated trace response.}
+  - {name: TraceReady, meaning: Terminal single-trace response.}
+  - {name: Failed, meaning: Terminal spool read failure.}
+terminal_states: [TracesReady, TraceReady, Failed]
+signals:
+  - Seed
+  - GetTraceRequested
+  - TracesListed
+  - TraceRetrieved
+  - CommandError
+transitions:
+  - {state: AwaitingRequest, signal: Seed, next: ListingTraces, action: query_list_traces}
+  - {state: AwaitingRequest, signal: GetTraceRequested, next: GettingTrace, action: query_get_trace}
+  - {state: ListingTraces, signal: TracesListed, next: TracesReady}
+  - {state: ListingTraces, signal: CommandError, next: Failed}
+  - {state: GettingTrace, signal: TraceRetrieved, next: TraceReady}
+  - {state: GettingTrace, signal: CommandError, next: Failed}

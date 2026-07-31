@@ -15,6 +15,7 @@ import (
 // StandardInits lists the receiver lifecycle init names.
 var StandardInits = []string{
 	InitReceiverLaunch, InitAwaitSpans, InitLoadOTLPBatch, InitSpoolSpans, InitRelaySpans, InitReceiverStop,
+	InitSpoolListTraces, InitSpoolGetTrace,
 }
 
 // ReceiverToolConfig is the YAML ToolDef config shared by launch and stop.
@@ -54,6 +55,20 @@ type RelayToolConfig struct {
 	Timeout         string `json:"timeout"`
 }
 
+// QueryListToolConfig is the declared spool_list_traces configuration.
+type QueryListToolConfig struct {
+	Path        string `json:"path"`
+	PageSize    int    `json:"page_size"`
+	MaxPageSize int    `json:"max_page_size"`
+	Offset      int    `json:"offset"`
+}
+
+// QueryGetToolConfig is the declared spool_get_trace configuration.
+type QueryGetToolConfig struct {
+	Path    string `json:"path"`
+	TraceID string `json:"trace_id"`
+}
+
 // RegisterFactories registers receiver lifecycle factories over one shared state.
 func RegisterFactories(br *toolregistry.BuiltinRegistry, state *State) {
 	if state == nil {
@@ -69,6 +84,10 @@ func RegisterFactories(br *toolregistry.BuiltinRegistry, state *State) {
 			br.Register(init, spoolFactory())
 		case InitRelaySpans:
 			br.Register(init, relayFactory())
+		case InitSpoolListTraces:
+			br.Register(init, queryListFactory())
+		case InitSpoolGetTrace:
+			br.Register(init, queryGetFactory())
 		default:
 			br.Register(init, receiverFactory(init, state))
 		}
@@ -195,6 +214,56 @@ func spoolFactory() toolregistry.BuiltinFactory {
 			Config: SpoolConfig{
 				Path: path, BatchSource: source, MaxBytes: raw.MaxBytes, MaxFiles: raw.MaxFiles,
 			},
+		}, nil
+	}
+}
+
+func queryListFactory() toolregistry.BuiltinFactory {
+	return func(def catalog.ToolDef, vars map[string]string) (core.Builder, error) {
+		var raw QueryListToolConfig
+		if err := catalog.DecodeToolConfig(def, &raw); err != nil {
+			return nil, err
+		}
+		if raw.Path == "" {
+			return nil, fmt.Errorf("tool %q config requires path", def.Name)
+		}
+		path := raw.Path
+		if !filepath.IsAbs(path) && vars["directory"] != "" {
+			path = filepath.Join(vars["directory"], path)
+		}
+		pageSize := raw.PageSize
+		if pageSize <= 0 {
+			pageSize = defaultPageSize
+		}
+		maxPage := raw.MaxPageSize
+		if maxPage <= 0 {
+			maxPage = defaultMaxPageSize
+		}
+		return ListTracesBuilder{
+			ToolName: def.Name,
+			Config: QueryListConfig{
+				Path: path, PageSize: pageSize, MaxPageSize: maxPage, Offset: raw.Offset,
+			},
+		}, nil
+	}
+}
+
+func queryGetFactory() toolregistry.BuiltinFactory {
+	return func(def catalog.ToolDef, vars map[string]string) (core.Builder, error) {
+		var raw QueryGetToolConfig
+		if err := catalog.DecodeToolConfig(def, &raw); err != nil {
+			return nil, err
+		}
+		if raw.Path == "" {
+			return nil, fmt.Errorf("tool %q config requires path", def.Name)
+		}
+		path := raw.Path
+		if !filepath.IsAbs(path) && vars["directory"] != "" {
+			path = filepath.Join(vars["directory"], path)
+		}
+		return GetTraceBuilder{
+			ToolName: def.Name,
+			Config:   QueryGetConfig{Path: path, TraceID: raw.TraceID},
 		}, nil
 	}
 }

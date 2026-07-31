@@ -128,6 +128,12 @@ func TestCatalogMembershipUsesSharedRealizationAndAliasAuthority(t *testing.T) {
 		got.NamingStatus != "" {
 		t.Errorf("specification-critic shared binding = %#v, want Critic / Output Evaluator without migration status", got)
 	}
+	if got := byActor["collector"]; got.Classification != "role_realization" ||
+		got.Profile != "applications/catalog/agents/collector/profile.yaml" ||
+		got.PrimaryRole != "monitor" ||
+		strings.Join(got.SubRoles, ",") != "telemetry-collector" {
+		t.Errorf("collector shared binding = %#v, want role_realization Monitor / Telemetry Collector", got)
+	}
 	for alias, target := range map[string]string{
 		"monitor": "runtime-state-reader",
 		"jurist":  "specification-critic",

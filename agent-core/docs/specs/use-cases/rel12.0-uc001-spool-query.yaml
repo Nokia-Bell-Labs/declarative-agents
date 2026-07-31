@@ -1,0 +1,66 @@
+id: rel12.0-uc001-spool-query
+title: A collector reads trace summaries and span detail from its NDJSON spool
+
+summary: |
+  An operator or UI queries the collector's spooled traces. The list view
+  returns paginated trace summaries aggregated from the active and rotated
+  spool files, newest first. Selecting a trace returns all its spans with the
+  fields a waterfall view needs. Malformed or truncated lines are skipped and
+  counted, and an empty spool returns an empty result.
+
+actor: Operator or downstream query surface reading the collector spool
+
+trigger: |
+  The operator or a REST query surface dispatches spool_list_traces to browse
+  ingested traces, or spool_get_trace to inspect one trace's spans.
+
+flow:
+  - F1: The profile machine dispatches `spool_list_traces` with the spool path, page size, max page size, and offset from trusted config.
+  - F2: The tool reads the active spool file and every rotated file discovered by the srd042 naming convention, skipping malformed lines.
+  - F3: Spans are aggregated by trace ID into summaries with root service, root span name, span count, start time, and duration.
+  - F4: Summaries are sorted newest first, paginated by offset and capped page size, and returned as `TracesListed`.
+  - F5: The operator selects a trace. The machine dispatches `spool_get_trace` with the trace ID and spool path.
+  - F6: The tool reads the spool files, collects all spans matching the trace ID, sorts them by start time, and returns them as `TraceRetrieved` with waterfall fields.
+
+touchpoints:
+  - T1: "srd044-spool-query-tools R1 -- paginated trace listing reads active and rotated files"
+  - T2: "srd044-spool-query-tools R2 -- per-trace span detail with waterfall fields"
+  - T3: "srd044-spool-query-tools R3 -- read-only with malformed-line tolerance"
+  - T4: "srd042-otlp-receiver-tools R4 -- the spool NDJSON shape these tools read is written by spool_spans"
+
+success_criteria:
+  - id: S1
+    criterion: Trace summaries aggregate spans from active and rotated spool files with correct root service, span count, timing, and newest-first order.
+    traces:
+      - srd044-spool-query-tools AC1
+  - id: S2
+    criterion: Pagination respects offset and page size cap.
+    traces:
+      - srd044-spool-query-tools AC2
+  - id: S3
+    criterion: Per-trace detail returns all matching spans with waterfall fields, and an unknown trace returns zero spans.
+    traces:
+      - srd044-spool-query-tools AC3
+  - id: S4
+    criterion: Malformed lines are skipped and counted; an empty spool returns an empty result.
+    traces:
+      - srd044-spool-query-tools AC4
+
+failure_scenarios:
+  - id: E1
+    scenario: A rotated file is missing between two existing generations.
+    expected: The tool reads whichever files exist without error; the gap is invisible in the output.
+  - id: E2
+    scenario: The spool path does not exist.
+    expected: An empty result with zero traces and zero skipped lines.
+  - id: E3
+    scenario: The trace ID does not match any spooled span.
+    expected: An empty spans array and span_count of zero.
+
+out_of_scope:
+  - Mutating or rotating spool files.
+  - Full-text search, attribute filtering, or streaming.
+  - HTTP query endpoints (separate REST surface concern).
+
+test_suite_trace: test-rel12.0-spool-query
+status: implemented

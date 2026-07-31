@@ -351,6 +351,35 @@ roles:
       - Confirm the request log is readable, per-instance, and shows unmatched calls.
       - Confirm a malformed fixture blocks serving instead of failing mid-scenario.
 
+  - id: collector
+    title: OTLP trace collector with spool and query
+    profile_path: agents/collector/profile.yaml
+    actor_boundary: OTLP trace sources, spool filesystem, and query HTTP clients
+    inputs:
+      - OTLP trace batches
+      - query HTTP requests
+    selected_tool_families:
+      - OTLP receiver
+      - spool
+      - query
+      - REST server
+      - lifecycle control
+    runtime_dependencies:
+      - agent-core OTLP receiver tools (srd042)
+      - agent-core spool query tools (srd044)
+      - agent-core REST runtime
+    outputs:
+      - spooled trace NDJSON
+      - paginated trace list and detail responses
+      - lifecycle status
+    outcomes:
+      - Done
+      - Failed
+    checks:
+      - Confirm the receiver spools by default with no relay endpoint.
+      - Confirm the query surface serves bounded reads from the spool.
+      - Confirm shutdown ordering stops query before monitor before control.
+
 relocated_application_roles:
   - id: provisioning-workflow-orchestrator
     status: relocated

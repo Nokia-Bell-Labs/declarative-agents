@@ -720,3 +720,27 @@ releases:
     post_merge:
       - Run mage tag from a clean main checkout after all release gates pass.
       - Push v0.20260727.0, applications/catalog/v0.20260727.0, and agent-profiles/v0.20260727.0 together.
+
+  - id: "13.0"
+    title: Collector family promotion
+    status: implemented
+    dependencies:
+      - agent-core release 12.0 (spool query builtins)
+    planned_work:
+      - {gh: 1145, title: "Promote the collector agent to a canonical catalog family", estimated_loc: "300 YAML, 250 test"}
+    specification:
+      srd: srd020-collector
+      status: implemented
+    use_cases:
+      - id: rel13.0-uc001-collector-family
+        title: A standalone collector receives, spools, and shuts down in spool mode
+        status: implemented
+    test_suites:
+      - id: test-rel13.0-collector
+        title: Collector family conformance
+        cases: 5
+        status: implemented
+    proof:
+      - mage validate
+      - mage conformance
+      - cd ../.. && mage audit

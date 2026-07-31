@@ -1,8 +1,4 @@
-/*
- * Design tokens shared with the documentation-curator monitor UI so the mesh
- * agents present a consistent look. Keep token values in sync with that design
- * system (agents/knowledge-manager/documentation-curator/ui/monitor/src/App.css).
- */
+/* BEGIN design-tokens — canonical: applications/catalog/ui/design-tokens.css */
 :root {
   --bg-primary: #ffffff;
   --bg-secondary: #ebebeb;
@@ -16,6 +12,16 @@
   --danger: #e23b3b;
   --warning: #f7b737;
   --font-mono: 'SF Mono', 'Cascadia Code', 'Consolas', monospace;
+
+  --chart-white: #ffffff;
+  --chart-blue: #005aff;
+  --chart-teal: #23abb6;
+  --chart-green: #37cc73;
+  --chart-yellow: #f7b737;
+  --chart-orange: #747f31;
+  --chart-red: #e23b3b;
+  --chart-pink: #e03dcd;
+  --chart-purple: #7d33f2;
 }
 
 * { margin: 0; padding: 0; box-sizing: border-box; }
@@ -26,6 +32,10 @@ body {
   color: var(--text-primary);
   line-height: 1.5;
 }
+
+a { color: var(--accent); text-decoration: none; }
+a:hover { text-decoration: underline; }
+/* END design-tokens */
 
 .shell {
   display: flex;
