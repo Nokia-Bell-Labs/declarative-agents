@@ -31,7 +31,7 @@ requirements:
       - R1.1: REST configuration SHALL support declarative document resource definitions for filesystem-backed documentation corpora.
       - R1.2: Document resources SHALL be usable by REST server endpoints, REST client words, and machine_request request machines when selected by trusted profile config.
       - R1.3: A document resource SHALL define read-only corpus access unless a separate mutating resource contract declares write behavior.
-      - R1.4: Direct Go documentation handlers SHALL NOT be the composition mechanism for Knowledge Manager demo document behavior.
+      - R1.4: Direct Go documentation handlers SHALL NOT be the composition mechanism for Agent Architecture document behavior.
       - R1.5: Generic document resource code SHALL be reusable by profiles other than Knowledge Manager.
 
   R2:
@@ -93,7 +93,7 @@ acceptance_criteria:
     traces: [R1.1, R1.2, R1.3, R1.5]
 
   - id: AC2
-    criterion: The SRD states that direct Go documentation handlers are not the composition mechanism for Knowledge Manager demo document behavior.
+    criterion: The SRD states that direct Go documentation handlers are not the composition mechanism for Agent Architecture document behavior.
     traces: [R1.4, R6.3]
 
   - id: AC3

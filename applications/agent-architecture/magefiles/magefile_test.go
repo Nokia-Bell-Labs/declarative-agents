@@ -105,14 +105,14 @@ func TestFindApplicationRootFromNestedDirectory(t *testing.T) {
 
 func TestFindApplicationRootFailureIsActionable(t *testing.T) {
 	_, err := findApplicationRoot(t.TempDir())
-	if err == nil || !strings.Contains(err.Error(), "run from applications/knowledge-manager-demo") {
+	if err == nil || !strings.Contains(err.Error(), "run from applications/agent-architecture") {
 		t.Fatalf("error = %v, want actionable root guidance", err)
 	}
 }
 
 func TestRunCommandConstruction(t *testing.T) {
 	resolved := roots{
-		Application: filepath.Join(string(filepath.Separator), "work", "applications", "knowledge-manager-demo"),
+		Application: filepath.Join(string(filepath.Separator), "work", "applications", "agent-architecture"),
 		Catalog:     filepath.Join(string(filepath.Separator), "work", "applications", "catalog"),
 		Core:        filepath.Join(string(filepath.Separator), "work", "agent-core"),
 	}
@@ -140,9 +140,9 @@ func TestRunCommandConstruction(t *testing.T) {
 }
 
 func TestPresentationCommandDisablesPlayground(t *testing.T) {
-	root := filepath.Join(string(filepath.Separator), "work", "applications", "knowledge-manager-demo")
+	root := filepath.Join(string(filepath.Separator), "work", "applications", "agent-architecture")
 	cmd := presentationCommand(root)
-	want := []string{"go", "tool", "present", "-play=false", "knowledge-manager.slide"}
+	want := []string{"go", "tool", "present", "-play=false", "agent-architecture.slide"}
 	if !reflect.DeepEqual(cmd.Args, want) {
 		t.Fatalf("presentation args = %#v, want %#v", cmd.Args, want)
 	}
@@ -162,14 +162,14 @@ func TestAuditApplication(t *testing.T) {
 func TestAuditRejectsBrokenReciprocalTrace(t *testing.T) {
 	root := copyApplicationFixture(t)
 	t.Setenv(catalogRootEnv, filepath.Join(root, "..", "catalog"))
-	suite := filepath.Join(root, "docs", "specs", "test-suites", "test-rel00.0-guided-knowledge-manager-demo.yaml")
+	suite := filepath.Join(root, "docs", "specs", "test-suites", "test-rel00.0-guided-agent-architecture.yaml")
 	data, err := os.ReadFile(suite)
 	if err != nil {
 		t.Fatal(err)
 	}
 	changed := strings.Replace(
 		string(data),
-		"      - rel00.0-uc001-guided-knowledge-manager-demo S6",
+		"      - rel00.0-uc001-guided-agent-architecture S6",
 		"      - srd002-managed-application-services AC1",
 		1,
 	)
@@ -193,7 +193,7 @@ func TestAuditRejectsStaleCatalogDemoPath(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	if _, err := file.WriteString("\nOld deck: applications/catalog/demo/knowledge-manager.slide\n"); err != nil {
+	if _, err := file.WriteString("\nOld deck: applications/catalog/demo/agent-architecture.slide\n"); err != nil {
 		file.Close()
 		t.Fatal(err)
 	}
@@ -386,7 +386,7 @@ func TestCollectorLifecycleURLsFollowControlRoutes(t *testing.T) {
 
 func TestCollectorCommandConstruction(t *testing.T) {
 	resolved := roots{
-		Application: filepath.Join(string(filepath.Separator), "work", "applications", "knowledge-manager-demo"),
+		Application: filepath.Join(string(filepath.Separator), "work", "applications", "agent-architecture"),
 		Catalog:     filepath.Join(string(filepath.Separator), "work", "applications", "catalog"),
 		Core:        filepath.Join(string(filepath.Separator), "work", "agent-core"),
 	}
@@ -430,7 +430,7 @@ func TestCollectorCommandConstruction(t *testing.T) {
 
 func TestTracedCuratorCommand(t *testing.T) {
 	resolved := roots{
-		Application: filepath.Join(string(filepath.Separator), "work", "applications", "knowledge-manager-demo"),
+		Application: filepath.Join(string(filepath.Separator), "work", "applications", "agent-architecture"),
 		Catalog:     filepath.Join(string(filepath.Separator), "work", "applications", "catalog"),
 		Core:        filepath.Join(string(filepath.Separator), "work", "agent-core"),
 	}
@@ -452,7 +452,7 @@ func TestTracedCuratorCommand(t *testing.T) {
 func rootFixture(t *testing.T) (application, catalog, core string) {
 	t.Helper()
 	repository := t.TempDir()
-	application = filepath.Join(repository, "applications", "knowledge-manager-demo")
+	application = filepath.Join(repository, "applications", "agent-architecture")
 	catalog = filepath.Join(repository, "applications", "catalog")
 	core = filepath.Join(repository, "agent-core")
 	writeFile(t, filepath.Join(application, "go.mod"), "module "+applicationModule+"\n")
@@ -478,11 +478,11 @@ func copyApplicationFixture(t *testing.T) string {
 	t.Helper()
 	source := realApplicationRoot(t)
 	repository := t.TempDir()
-	root := filepath.Join(repository, "applications", "knowledge-manager-demo")
+	root := filepath.Join(repository, "applications", "agent-architecture")
 	for _, relative := range []string{"docs", "call-lifecycle-exit"} {
 		copyTree(t, filepath.Join(source, relative), filepath.Join(root, relative))
 	}
-	for _, relative := range []string{"README.md", "knowledge-manager.slide"} {
+	for _, relative := range []string{"README.md", "agent-architecture.slide"} {
 		data, err := os.ReadFile(filepath.Join(source, relative))
 		if err != nil {
 			t.Fatal(err)

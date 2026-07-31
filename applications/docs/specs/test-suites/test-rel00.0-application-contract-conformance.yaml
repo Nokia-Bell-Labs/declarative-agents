@@ -92,7 +92,7 @@ test_cases:
     evidence_type: go_test
     command: |
       cd magefiles
-      go test . -run 'Test(ApplicationModulesParticipateInAudit|ChatbotMeshIsAnApplicationModule|CodingAgentParticipatesInAudit|KnowledgeManagerDemoIsCompositionApplicationModule|EveryOrchestratedModuleDirectoryExists|OrchestrationUsesStableApplicationPaths|ApplicationModulesExcludedFromSubModules|StatsParticipantsIncludeApplicationModules|TestSubModulesDispatchesApplicationModules)$'
+      go test . -run 'Test(ApplicationModulesParticipateInAudit|ChatbotMeshIsAnApplicationModule|CodingAgentParticipatesInAudit|AgentArchitectureIsCompositionApplicationModule|EveryOrchestratedModuleDirectoryExists|OrchestrationUsesStableApplicationPaths|ApplicationModulesExcludedFromSubModules|StatsParticipantsIncludeApplicationModules|TestSubModulesDispatchesApplicationModules)$'
     evidence:
       - magefiles/build.go
       - magefiles/example_modules_test.go
@@ -105,7 +105,7 @@ test_cases:
       root_test_dispatches_applications_with_tests: true
       root_stats_dispatches_applications: true
       applications_excluded_from_platform_build_default: true
-      knowledge_manager_demo_registered: true
+      agent_architecture_registered: true
       catalog_is_reusable_submodule: true
     traces:
       - rel00.0-uc001-application-contract-conformance S1
@@ -123,7 +123,7 @@ test_cases:
       (cd magefiles && go test . -run 'TestSumAgentsTotals')
       (cd applications/coding-agent && go test ./magefiles -run 'TestCollectCodingApplicationStats')
       (cd applications/chatbot-mesh && go test ./magefiles -run 'Test(ScanAgentOwnershipSeparatesCompositionWrapper|RepositoryMeshOwnershipClassifiesCorpusIngestAsComposition)')
-      (cd applications/knowledge-manager-demo && go test ./magefiles -run '^TestStatsCompositionOnlyJSON$')
+      (cd applications/agent-architecture && go test ./magefiles -run '^TestStatsCompositionOnlyJSON$')
     evidence:
       - magefiles/stats.go
       - magefiles/stats_test.go
@@ -132,8 +132,8 @@ test_cases:
       - applications/chatbot-mesh/magefiles/stats.go
       - applications/chatbot-mesh/magefiles/agent_stats.go
       - applications/chatbot-mesh/magefiles/agent_stats_test.go
-      - applications/knowledge-manager-demo/magefiles/magefile.go
-      - applications/knowledge-manager-demo/magefiles/magefile_test.go
+      - applications/agent-architecture/magefiles/magefile.go
+      - applications/agent-architecture/magefiles/magefile_test.go
     expected:
       composition_only_has_no_agents_section: true
       local_agents_counted_by_owner: true
@@ -154,15 +154,15 @@ test_cases:
     evidence:
       - applications/chatbot-mesh/magefiles/magefile.go
       - applications/coding-agent/magefiles/magefile.go
-      - applications/knowledge-manager-demo/magefiles/magefile.go
+      - applications/agent-architecture/magefiles/magefile.go
       - applications/chatbot-mesh/docs/SPECIFICATIONS.yaml
       - applications/coding-agent/docs/SPECIFICATIONS.yaml
-      - applications/knowledge-manager-demo/docs/SPECIFICATIONS.yaml
+      - applications/agent-architecture/docs/SPECIFICATIONS.yaml
     expected:
       root_audit_green: true
       chatbot_mesh_audit_executed: true
       coding_agent_audit_executed: true
-      knowledge_manager_demo_audit_executed: true
+      agent_architecture_audit_executed: true
       local_evidence_owned_by_application: true
     traces:
       - rel00.0-uc001-application-contract-conformance S3
@@ -178,12 +178,12 @@ test_cases:
     command: |
       (cd applications/coding-agent && go test ./magefiles -run 'TestServingProfilesUseRealLifecycleAndCanonicalRoleProfiles|TestPlannerServingFlowUsesDeclaredRemoteBoundaries')
       (cd applications/chatbot-mesh && go test ./magefiles -run 'TestChatbotRolloutDrainsActiveRequests|TestDetachedAgentDualExportsAndStampsResourceIdentity')
-      (cd applications/knowledge-manager-demo && go test ./magefiles -run '^TestManagedServicesEvidenceContract$')
+      (cd applications/agent-architecture && go test ./magefiles -run '^TestManagedServicesEvidenceContract$')
     evidence:
       - applications/coding-agent/docs/specs/test-suites/test-rel02.0-serving-contract.yaml
       - applications/chatbot-mesh/docs/specs/test-suites/test-rel03.0-mesh-deployment.yaml
       - applications/chatbot-mesh/docs/specs/test-suites/test-rel02.0-observability.yaml
-      - applications/knowledge-manager-demo/docs/specs/test-suites/test-rel00.0-guided-knowledge-manager-demo.yaml
+      - applications/agent-architecture/docs/specs/test-suites/test-rel00.0-guided-agent-architecture.yaml
     expected:
       lifecycle_evidence_exists: true
       health_is_role_owned: true
@@ -254,7 +254,7 @@ test_cases:
       - magefiles/stats.go
       - applications/chatbot-mesh/magefiles/stats.go
       - applications/coding-agent/magefiles/stats.go
-      - applications/knowledge-manager-demo/magefiles/magefile.go
+      - applications/agent-architecture/magefiles/magefile.go
     expected:
       json_output: true
       application_modules_present: true

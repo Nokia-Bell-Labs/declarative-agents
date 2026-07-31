@@ -26,7 +26,7 @@ current_candidates:
     ownership: agent-owning
   - path: applications/coding-agent
     ownership: composition-only
-  - path: applications/knowledge-manager-demo
+  - path: applications/agent-architecture
     ownership: composition-only
     runnable_module_status: implemented
     managed_service_status: partial
@@ -46,7 +46,7 @@ flow:
     text: |
       Structural checks validate canonical catalog references, app-owned
       composition paths, and ownership-aware stats with no duplicate canonical
-      agents. For knowledge-manager-demo, local stats report one canonical
+      agents. For agent-architecture, local stats report one canonical
       reference, zero contributed agents, and no agents section, so the root
       total remains 15 canonical agents.
   - id: F3
@@ -59,7 +59,7 @@ flow:
       Root tests verify stable application paths and audit, test, stats, and
       release participation. The application-local audit verifies its corpus
       and executable evidence. Root orchestration registers
-      applications/knowledge-manager-demo alongside chatbot-mesh and
+      applications/agent-architecture alongside chatbot-mesh and
       coding-agent while applications/catalog remains a reusable submodule.
   - id: F5
     text: |

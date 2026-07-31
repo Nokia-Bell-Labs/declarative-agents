@@ -1,15 +1,15 @@
-id: architecture-knowledge-manager-demo
-title: Knowledge Manager Demo Application Architecture
+id: architecture-agent-architecture
+title: Agent Architecture Application Architecture
 
 overview:
   summary: |
-    The Knowledge Manager demo is a presentation composition around one
+    The Agent Architecture is a presentation composition around one
     canonical catalog profile. The application serves a slide deck, starts the
     documentation-curator through agent-core, directs the operator to the
     catalog-owned browser interface, and invokes an application-owned
     declarative profile to request lifecycle exit.
 
-    The dependency direction is applications/knowledge-manager-demo ->
+    The dependency direction is applications/agent-architecture ->
     applications/catalog -> agent-core. AGENT_CATALOG_ROOT locates the
     canonical profile and its user interface. AGENT_CORE_ROOT locates the
     development runtime checkout. An installed agent runtime does not require
@@ -20,7 +20,7 @@ overview:
     ```mermaid
     flowchart LR
       OP[Operator] --> PRESENT[Go present slide server]
-      PRESENT --> DECK[knowledge-manager.slide]
+      PRESENT --> DECK[agent-architecture.slide]
       OP --> RUN[mage run]
       RUN --> CURATOR[Catalog documentation-curator]
       CURATOR --> CORE[agent-core runtime]
@@ -120,7 +120,7 @@ interfaces:
       documents the catalog checkout used by the demo.
   - name: mage presentation
     summary: |
-      Serve knowledge-manager.slide from the application root with the
+      Serve agent-architecture.slide from the application root with the
       version-pinned Go present tool recorded by this application's Go module.
   - name: lifecycle-exit profile
     summary: |
@@ -135,7 +135,7 @@ interfaces:
 
 components:
   - name: presentation deck
-    path: knowledge-manager.slide
+    path: agent-architecture.slide
     ownership: application
     responsibility: |
       Guide presentation startup, canonical curator launch, browser access, and
@@ -272,7 +272,7 @@ project_structure:
   application:
     - path: README.md
       role: Operator prerequisites, ports, commands, and lifecycle.
-    - path: knowledge-manager.slide
+    - path: agent-architecture.slide
       role: Guided presentation.
     - path: call-lifecycle-exit/
       role: Application-owned declarative shutdown client.
@@ -326,9 +326,9 @@ related_documents:
     purpose: Application goals and exclusions.
   - doc: docs/road-map.yaml
     purpose: Release 00.0 status and evidence.
-  - doc: docs/specs/use-cases/rel00.0-uc001-guided-knowledge-manager-demo.yaml
+  - doc: docs/specs/use-cases/rel00.0-uc001-guided-agent-architecture.yaml
     purpose: End-to-end operator flow.
-  - doc: docs/specs/test-suites/test-rel00.0-guided-knowledge-manager-demo.yaml
+  - doc: docs/specs/test-suites/test-rel00.0-guided-agent-architecture.yaml
     purpose: Implemented deterministic evidence and dependency-gated live observations.
   - doc: ../catalog/docs/specs/software-requirements/srd011-knowledge-manager.yaml
     purpose: Canonical Knowledge Manager profile requirements.

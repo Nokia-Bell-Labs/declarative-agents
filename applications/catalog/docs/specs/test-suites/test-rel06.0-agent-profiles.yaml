@@ -8,7 +8,7 @@ overview: |
   applications/catalog validates profile references, mounted container usage, and
   release bundle tagging. agent-core integration targets consume these profiles,
   profile-local UI assets, and fixtures through AGENT_CATALOG_ROOT. Application
-  presentations, including applications/knowledge-manager-demo, own their
+  presentations, including applications/agent-architecture, own their
   composition and end-to-end evidence.
 
   Implemented cases name commands, Go tests, or Mage targets. No case depends
@@ -182,7 +182,7 @@ test_cases:
       metadata, not an executable input. Concrete Knowledge Manager/
       documentation-curator profile and UI proof lives in the catalog-owned
       Rel07 suite; presentation composition lives in
-      applications/knowledge-manager-demo.
+      applications/agent-architecture.
     inputs:
       runtime_state_reader_profile: agents/runtime-state-reader/profile.yaml
       knowledge_manager_profile_proof: test-rel07.0-profile-integrations

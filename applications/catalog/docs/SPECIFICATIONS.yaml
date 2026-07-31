@@ -52,7 +52,7 @@ overview: |
   mounted container smoke execution, profile bundle tagging, and agent-core
   integration consumption back to the SRD and semantic models. The release
   records the historical migration into this catalog; presentation-specific
-  behavior now lives in applications/knowledge-manager-demo. The traceability
+  behavior now lives in applications/agent-architecture. The traceability
   gap is closed.
 
   Release 07.0 implements profile-owned integration tracer bullets for the
@@ -96,7 +96,7 @@ roadmap_summary:
       fixtures into this repository. The catalog still owns the canonical
       profiles, profile-local UI, and integration fixtures consumed from
       AGENT_CATALOG_ROOT, /profiles, or release bundles. Presentation-specific
-      assets now live in applications/knowledge-manager-demo. Formal use cases
+      assets now live in applications/agent-architecture. Formal use cases
       and test suites name executable proof for the completed migration path.
   - version: "07.0"
     name: Profile-owned integration tracer bullets
@@ -682,7 +682,7 @@ coverage_gaps: |
   functional-block requirements for migrated profile families. Profile assets,
   profile-local UI, integration fixtures, release tagging, profile validation,
   and mounted-container smoke checks are implemented. Application presentation
-  behavior is owned and evidenced by applications/knowledge-manager-demo.
+  behavior is owned and evidenced by applications/agent-architecture.
 
   Release 06.0 traceability now covers mounted profile execution and profile
   validation. It also covers mounted container smoke, profile bundle tagging,

@@ -12,7 +12,7 @@ overview: |
   checks parse documents, verify module classification and root orchestration,
   enforce ownership-aware stats, and invoke application-owned capability
   evidence. The current runnable set is chatbot-mesh, coding-agent, and
-  knowledge-manager-demo. The demo's runnable-module evidence is implemented;
+  agent-architecture. The demo's runnable-module evidence is implemented;
   its managed-service status is partial because live srd002 AC1 through AC3
   observations remain dependency-gated. ENG01 remains the sole kind-rig
   contract.
@@ -72,10 +72,10 @@ foundation_document_index:
     title: Application Catalog Architecture
     summary: Canonical reusable catalog ownership and consumer boundary.
     path: catalog/docs/ARCHITECTURE.yaml
-  - id: architecture-knowledge-manager-demo
-    title: Knowledge Manager Demo Application Architecture
+  - id: architecture-agent-architecture
+    title: Agent Architecture Application Architecture
     summary: Composition-only ownership, capability status, and local evidence boundary.
-    path: knowledge-manager-demo/docs/ARCHITECTURE.yaml
+    path: agent-architecture/docs/ARCHITECTURE.yaml
 
 srd_index:
   - id: srd001-application-module-contract

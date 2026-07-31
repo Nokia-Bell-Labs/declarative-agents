@@ -1,8 +1,8 @@
-id: rel00.0-uc001-guided-knowledge-manager-demo
-title: Operator Runs the Guided Knowledge Manager Demo
+id: rel00.0-uc001-guided-agent-architecture
+title: Operator Runs the Guided Agent Architecture
 
 summary: |
-  An operator serves knowledge-manager.slide with the application's pinned Go
+  An operator serves agent-architecture.slide with the application's pinned Go
   present tool. From the standalone application root, the operator launches the
   canonical catalog documentation-curator through agent-core, opens its
   catalog-owned browser interface, follows the deck, and invokes the
@@ -12,7 +12,7 @@ summary: |
 actor: A developer or presenter demonstrating the canonical Knowledge Manager profile.
 
 trigger: |
-  The actor checks out applications/knowledge-manager-demo,
+  The actor checks out applications/agent-architecture,
   applications/catalog, and agent-core, then starts the guided Release 00.0
   presentation.
 
@@ -43,7 +43,7 @@ evidence:
 
 flow:
   - id: F1
-    text: The operator runs mage presentation from the application root; Mage invokes the pinned Go present tool for knowledge-manager.slide with the application root as its working directory.
+    text: The operator runs mage presentation from the application root; Mage invokes the pinned Go present tool for agent-architecture.slide with the application root as its working directory.
   - id: F2
     text: The operator opens the presentation and follows its Knowledge Manager launch step.
   - id: F3
@@ -61,10 +61,10 @@ flow:
 
 touchpoints:
   - id: T1
-    target: architecture-knowledge-manager-demo interfaces
+    target: architecture-agent-architecture interfaces
     reason: Mage presentation and run expose the operator entry points and explicit checkout roots.
   - id: T2
-    target: architecture-knowledge-manager-demo components documentation-curator
+    target: architecture-agent-architecture components documentation-curator
     reason: The application launches the only canonical profile and UI from applications/catalog.
   - id: T3
     target: srd011-knowledge-manager AC1, AC2, AC3
@@ -73,7 +73,7 @@ touchpoints:
     target: rel07.0-uc001-documentation-curator-profile-ux S1, S3, S4
     reason: Catalog integration evidence owns profile loading, UI serving, and controlled listener shutdown.
   - id: T5
-    target: test-rel00.0-guided-knowledge-manager-demo
+    target: test-rel00.0-guided-agent-architecture
     reason: The reciprocal suite checks presentation, launch, lifecycle exit, audit, and stats contracts.
   - id: T6
     target: srd001-application-module-contract AC1, AC2, AC3, AC4, AC5, AC6
@@ -84,44 +84,44 @@ touchpoints:
 
 success_criteria:
   - id: S1
-    criterion: The tested mage presentation command invokes the version-pinned Go present tool for knowledge-manager.slide from the application root; serving the deck is dependency-gated.
+    criterion: The tested mage presentation command invokes the version-pinned Go present tool for agent-architecture.slide from the application root; serving the deck is dependency-gated.
     traces:
-      - architecture-knowledge-manager-demo design_decisions 3
-      - test-rel00.0-guided-knowledge-manager-demo presentation_command
+      - architecture-agent-architecture design_decisions 3
+      - test-rel00.0-guided-agent-architecture presentation_command
   - id: S2
     criterion: The tested mage run command targets the canonical catalog documentation-curator through agent-core with explicit profile, directory, and development core-root arguments; live launch is dependency-gated.
     traces:
-      - architecture-knowledge-manager-demo design_decisions 1
-      - architecture-knowledge-manager-demo design_decisions 4
+      - architecture-agent-architecture design_decisions 1
+      - architecture-agent-architecture design_decisions 4
       - srd011-knowledge-manager AC1
-      - test-rel00.0-guided-knowledge-manager-demo canonical_curator_command
+      - test-rel00.0-guided-agent-architecture canonical_curator_command
   - id: S3
     criterion: The application contains no profile or UI copy; observing the catalog-owned Knowledge Manager interface in a browser is dependency-gated.
     traces:
       - srd011-knowledge-manager AC1
       - rel07.0-uc001-documentation-curator-profile-ux S3
-      - test-rel00.0-guided-knowledge-manager-demo canonical_curator_command
+      - test-rel00.0-guided-agent-architecture canonical_curator_command
   - id: S4
     criterion: The application-owned declarative lifecycle-exit profile defines the fixed request and accepted HTTP status; observing the live post, curator Done state, and listener release is dependency-gated.
     traces:
-      - architecture-knowledge-manager-demo design_decisions 2
+      - architecture-agent-architecture design_decisions 2
       - rel07.0-uc001-documentation-curator-profile-ux S4
-      - test-rel00.0-guided-knowledge-manager-demo lifecycle_exit_contract
+      - test-rel00.0-guided-agent-architecture lifecycle_exit_contract
   - id: S5
     criterion: Application audit and stats preserve reciprocal traces, portable roots, agents_contributed as zero, and no agents section.
     traces:
-      - architecture-knowledge-manager-demo design_decisions 5
-      - test-rel00.0-guided-knowledge-manager-demo application_contract
+      - architecture-agent-architecture design_decisions 5
+      - test-rel00.0-guided-agent-architecture application_contract
       - srd001-application-module-contract AC3
       - srd001-application-module-contract AC5
   - id: S6
     criterion: The curator and Go present servers require bounded startup, role-readiness, liveness, failure, diagnostics, telemetry, configuration, and shutdown evidence appropriate to their local roles; those dependency-gated observations must run before srd002 AC1 through AC3 are satisfied.
     traces:
-      - architecture-knowledge-manager-demo capability_classification managed_services
+      - architecture-agent-architecture capability_classification managed_services
       - srd002-managed-application-services AC1
       - srd002-managed-application-services AC2
       - srd002-managed-application-services AC3
-      - test-rel00.0-guided-knowledge-manager-demo managed_service_contract
+      - test-rel00.0-guided-agent-architecture managed_service_contract
 
 out_of_scope:
   - Changing the canonical documentation-curator profile, UI, or catalog tests.
@@ -130,5 +130,5 @@ out_of_scope:
   - Automating browser interaction or visual slide review.
   - Defining production deployment or authentication for the local demo.
 
-test_suite: test-rel00.0-guided-knowledge-manager-demo
+test_suite: test-rel00.0-guided-agent-architecture
 status: partial

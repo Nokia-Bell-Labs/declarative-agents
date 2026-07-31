@@ -325,7 +325,7 @@ contains composition/config inventory only, not copied catalog programs.
 ## Applications and Fixtures
 
 Runnable demos live in their owning application modules. The Knowledge Manager
-presentation is now at `applications/knowledge-manager-demo`; it composes the
+presentation is now at `applications/agent-architecture`; it composes the
 catalog-owned documentation-curator profile without copying it. Its source
 checkout launch uses the same explicit argv pattern:
 

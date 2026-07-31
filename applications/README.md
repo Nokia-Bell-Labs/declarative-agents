@@ -90,7 +90,7 @@ kind demo mandatory for every application.
 - `coding-agent/`: composition-only runnable application; managed service,
   packaged, Helm-managed, and kind-demo capabilities. Canonical planner,
   executor, and critic implementations remain in `catalog/`.
-- `knowledge-manager-demo/`: composition-only runnable application; the
+- `agent-architecture/`: composition-only runnable application; the
   `runnable_module` capability is implemented and its local `audit`, Go tests,
   and composition-only `stats` participate in root orchestration. Its
   `managed_service` capability is partial because live lifecycle, health,

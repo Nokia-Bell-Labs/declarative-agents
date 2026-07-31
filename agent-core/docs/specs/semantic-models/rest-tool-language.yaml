@@ -185,7 +185,7 @@ relationships:
     invariant: Runtime HTTP callers cannot choose profile, machine, tool declaration roots, model config, credentials, URLs, or workspace roots.
   MachineSpec_to_ResponseWord:
     meaning: Request machines route to response vocabulary when they need to shape an HTTP response.
-    invariant: Direct Go handlers do not compose Knowledge Manager demo request behavior.
+    invariant: Direct Go handlers do not compose Agent Architecture request behavior.
   ResponseWord_to_HTTPResponse:
     meaning: Response word output and terminal signal mappings produce HTTP status, headers, content type, and body.
     invariant: HTTP responses use configured terminal response selection and declared response output fields only.
@@ -252,7 +252,7 @@ non_goals:
   - Adding generated Go clients or generated Go servers.
   - Replacing MachineSpec control flow with REST handler code.
   - Executing lifecycle control directly inside HTTP handlers or rest_await_event.
-  - Executing Knowledge Manager demo request behavior directly inside Go HTTP handlers.
+  - Executing Agent Architecture request behavior directly inside Go HTTP handlers.
   - Allowing model text or inbound callers to choose transport authority.
   - Modeling every provider-specific REST API.
 
