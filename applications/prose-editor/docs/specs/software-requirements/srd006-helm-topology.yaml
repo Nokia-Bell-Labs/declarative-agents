@@ -1,0 +1,263 @@
+id: srd006-helm-topology
+title: Prose Editor Deployment Package and Helm Topology
+status: planned
+
+problem: |
+  Release 00.2 completes the runnable saga and its managed services, but a
+  deployable form still needs a role-specific package and a Kubernetes topology.
+  Prose Editor runs several serving roles with distinct authority: the workflow
+  orchestrator writes workproducts and mutates GitHub, the specialist-editor
+  stages edit content, the voice critic assures output and reaches Pangram, and
+  the structure, voice, and tightening RAG instances serve read-only retrieval.
+  A deployment form must not hand the full application profile tree to every
+  role, must not bake application programs into the shared agent-core image, and
+  must preserve each role's mounted-profile, retrieval, model, and authority
+  boundary once the roles run as separate workloads.
+
+  A vague deployment story could co-locate the orchestrator's publication
+  authority with an editor, multiplex the three corpora behind one RAG process,
+  or let a role receive profile files it never reaches. This SRD fixes the
+  planned package closure, the planned chart topology, the planned values
+  schema, and the planned kind-demo smoke, and it leaves every runtime artifact,
+  chart, and image for later issues. It packages nothing on its own; it states
+  what the package and chart SHALL provide when built.
+
+goals:
+  - "G1: Define one deterministic role-closure package per served Prose Editor role over the existing profile-closure resolver."
+  - "G2: Define a chart that renders one Deployment and Service per served role from mounted profiles on the profile-free runtime image."
+  - "G3: Preserve each role's retrieval, model, persistence, and authority boundary in the rendered topology."
+  - "G4: Define a values schema that constrains deployment values so a submitted change can be validated before it is applied."
+  - "G5: Define a kind-demo smoke that proves the packaged chart installs and serves one saga on a local cluster."
+
+applicability:
+  release: "00.3"
+  capability:
+    runnable_module: planned
+    managed_service: planned
+    packaged: planned
+    helm_managed: planned
+    kind_demo: planned
+  implementation_status: documentation_only_runtime_planned
+
+served_roles:
+  rule: |
+    The chart renders one workload per served Prose Editor role. Editing stages
+    and the critic run as request-scoped services once deployed; the RAG
+    instances are long-running read-only services. Corpus-ingest is an on-demand
+    administrative run, not a served Deployment. Chroma and Ollama are external
+    supporting dependencies reached by a values-selected endpoint or an optional
+    chart-owned Service, never a source of truth for saga content.
+  roles:
+    - name: workflow-orchestrator
+      workload: Deployment and ClusterIP Service
+      note: Holds saga persistence and constrained git and gh publication authority; holds no deployment CLI.
+    - name: specialist-editor
+      workload: Deployment and ClusterIP Service
+      note: Serves the structure, voice, and style stage machines; holds no deployment CLI.
+    - name: voice-critic
+      workload: Deployment and ClusterIP Service
+      note: Holds consent-gated Pangram authority; holds no deployment CLI.
+    - name: structure-rag
+      workload: Deployment and ClusterIP Service
+      note: Read-only structure-corpus retrieval.
+    - name: voice-rag
+      workload: Deployment and ClusterIP Service
+      note: Read-only voice-corpus retrieval, shared by the critic.
+    - name: tightening-rag
+      workload: Deployment and ClusterIP Service
+      note: Read-only tightening-corpus retrieval.
+
+requirements:
+  R1:
+    title: Role-specific deployment package
+    items:
+      - id: R1.1
+        text: |
+          The application deployment manifest SHALL name exactly the served
+          Prose Editor roles and their serving entry profiles and /profiles
+          runtime paths, and SHALL NOT include the corpus-ingest wrapper as a
+          served role.
+        evidence: Planned deployment manifest lists the served roles and no other, each with a serving entry profile and runtime path.
+      - id: R1.2
+        text: |
+          Packaging SHALL use the existing profile-closure resolver to follow
+          application and canonical library references and SHALL NOT create a
+          second reference walker.
+        evidence: Planned package build calls the shared resolver; no new traversal implementation is added.
+      - id: R1.3
+        text: |
+          Each role shard SHALL contain its serving entry profile and exactly
+          the reachable application and canonical assets that profile requires,
+          and no unreachable file.
+        evidence: Planned closure tests assert per-role membership equals the resolver-computed reachable set.
+      - id: R1.4
+        text: |
+          Role paths, file lists, shard order, and manifests SHALL be
+          deterministic, and traversal, dangling references, symlinks,
+          non-regular files, and conflicting destinations SHALL fail before
+          publication.
+        evidence: Planned boundary tests reject the unsafe inputs and prove a stable byte-identical package across repeated builds.
+  R2:
+    title: Role workloads and mounted profiles
+    items:
+      - id: R2.1
+        text: |
+          The chart SHALL render one Deployment and one ClusterIP Service for
+          each served role named in the deployment manifest.
+        evidence: Planned helm template renders exactly the served-role Deployments and Services.
+      - id: R2.2
+        text: |
+          Every role SHALL use the same application-owned, profile-free Prose
+          Editor runtime image and SHALL select the serving profile named by its
+          role manifest through a mounted projected volume rather than a baked-in
+          profile.
+        evidence: Planned rendered pods reference one shared runtime image and mount the role profile ConfigMap.
+      - id: R2.3
+        text: |
+          Role ConfigMaps and projected volumes SHALL derive file membership
+          only from the prepared role manifests, and a checksum of only the
+          role's reachable profile files SHALL annotate its pod template.
+        evidence: Planned tests prove that editing one prepared role profile changes only that role's rollout checksum.
+  R3:
+    title: Serving, retrieval, and model wiring
+    items:
+      - id: R3.1
+        text: |
+          The orchestrator SHALL receive the fixed specialist-editor and
+          voice-critic Service hosts and URLs, and each editor and the critic
+          SHALL receive only its corpus-scoped RAG Service host, so one RAG
+          process serves one corpus.
+        evidence: Planned values wire the fixed role and RAG endpoints; no rendered role reaches a corpus outside its binding.
+      - id: R3.2
+        text: |
+          Editor, critic, and RAG roles SHALL receive one values-selected model
+          and embedding endpoint, from either an external Ollama endpoint or an
+          optional chart-owned Ollama Service, and the optional tier SHALL
+          provide persistent model storage and model-presence startup gating.
+        evidence: Planned external and in-cluster model modes render coherently with startup gating on the optional tier.
+      - id: R3.3
+        text: |
+          Readiness and liveness SHALL call each role's existing control health
+          endpoint, and role pods SHALL use non-root, no-privilege-escalation,
+          dropped-capability, read-only-root, and disabled service-account-token
+          defaults.
+        evidence: Planned probes target the real health endpoint and the rendered pod security context matches the stated defaults.
+      - id: R3.4
+        text: |
+          The rendered topology SHALL preserve one saga writer for the
+          orchestrator, read-only retrieval for the RAG roles, and the exclusive
+          publication and Pangram authorities defined in srd001, and SHALL grant
+          no role a deployment CLI.
+        evidence: Planned rendered profiles carry no helm or kubectl word for any served role.
+  R4:
+    title: Values schema and reproducible preparation
+    items:
+      - id: R4.1
+        text: |
+          The chart SHALL carry a values schema that encodes the deployment
+          value constraints so a submitted values document can be validated by a
+          helm dry-run before it is applied.
+        evidence: Planned values schema names the constrained fields; a conforming document renders and a non-conforming document is rejected by path and constraint.
+      - id: R4.2
+        text: |
+          A planned prepare target SHALL regenerate the role package output and
+          atomically stage it as the chart profile source, and default and
+          small-footprint values SHALL lint and render without further schema
+          work.
+        evidence: Planned prepare, lint, and default and CI template commands pass over the staged package.
+  R5:
+    title: Kind-demo smoke
+    items:
+      - id: R5.1
+        text: |
+          A planned kind-demo target SHALL build the Prose Editor runtime image,
+          load it into a local kind cluster, install the packaged chart, and
+          prove one saga is served end-to-end on the cluster.
+        evidence: Planned kind target installs the chart and drives one saga to a served result.
+      - id: R5.2
+        text: |
+          The kind-demo SHALL classify a cluster, image, or dependency fault
+          apart from a saga semantic failure and SHALL leave no orphaned release
+          on teardown.
+        evidence: Planned kind target reports infrastructure faults separately and removes the release on teardown.
+
+non_goals:
+  - Implement the chart, values schema, package build, images, or kind rig; this SRD specifies them as planned.
+  - Define the applier actuation surface or its validate-apply-verify-rollback machine; srd007 owns that behavior.
+  - Change the saga, tool, orchestrator, editor, or critic behavior owned by srd001 through srd005 and srd008.
+  - Assign canonical roles to Chroma, Ollama, deployment forms, or model choices.
+  - Claim executable, packaged, Helm-managed, or kind-demo evidence before later issues build it.
+
+acceptance_criteria:
+  - id: AC1
+    criterion: |
+      A deterministic role-closure package names exactly the served roles, uses
+      the existing resolver, contains only reachable per-role assets, and rejects
+      unsafe inputs before publication.
+    traces: [R1.1, R1.2, R1.3, R1.4]
+  - id: AC2
+    criterion: |
+      The chart renders one Deployment and Service per served role on the shared
+      profile-free image with mounted profiles and a per-role rollout checksum.
+    traces: [R2.1, R2.2, R2.3]
+  - id: AC3
+    criterion: |
+      The rendered topology wires fixed role and corpus-scoped RAG endpoints,
+      external or in-cluster models with startup gating, truthful probes, secure
+      pod defaults, one saga writer, read-only retrieval, and no deployment CLI
+      on any served role.
+    traces: [R3.1, R3.2, R3.3, R3.4]
+  - id: AC4
+    criterion: |
+      A values schema constrains deployment values so a conforming document
+      renders and a non-conforming document is rejected, and a prepare target
+      atomically stages a lint-clean, template-clean package.
+    traces: [R4.1, R4.2]
+  - id: AC5
+    criterion: |
+      A kind-demo installs the packaged chart, proves one served saga on
+      cluster, separates infrastructure faults from saga failure, and leaves no
+      orphaned release.
+    traces: [R5.1, R5.2]
+
+shared_requirement_traces:
+  - contract: srd001-application-module-contract
+    path: ../../../../docs/specs/software-requirements/srd001-application-module-contract.yaml
+    requirements: [R2.1, R2.2]
+  - contract: srd002-managed-application-services
+    path: ../../../../docs/specs/software-requirements/srd002-managed-application-services.yaml
+    requirements: [R1.1, R1.2, R1.3, R2.1, R3.1]
+    applicability: Planned packaged, Helm-managed, and kind-demo capability for the served roles.
+
+use_case_traces:
+  - id: rel00.3-uc001-declarative-applier
+    status: planned
+    path: ../use-cases/rel00.3-uc001-declarative-applier.yaml
+
+test_suite_traces:
+  - id: test-rel00.3-applier
+    status: planned
+    path: ../test-suites/test-rel00.3-applier.yaml
+    acceptance_criteria: [AC1, AC2, AC3, AC4]
+
+related_documents:
+  - path: ../../VISION.yaml
+    usage: Declares the planned packaged, Helm-managed, and kind-demo capabilities and the deploy boundary.
+  - path: ../../ARCHITECTURE.yaml
+    usage: Defines the planned served topology and indexes this SRD.
+  - path: ./srd001-prose-editor-services.yaml
+    usage: Owns the role authority, retrieval, and Pangram boundaries preserved by the topology.
+  - path: ./srd007-applier.yaml
+    usage: Owns the actuation surface that validates against this chart's values schema and verifies these role Deployments.
+  - path: ../../../../docs/specs/software-requirements/srd002-managed-application-services.yaml
+    usage: Owns the managed-service, packaged, Helm-managed, and kind-demo baseline obligations.
+
+implementation_status:
+  specification: planned
+  runtime: planned
+  package: not_implemented
+  chart: not_implemented
+  values_schema: not_implemented
+  images: not_implemented
+  kind_demo: not_implemented
+  executable_evidence: none

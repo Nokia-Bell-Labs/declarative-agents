@@ -689,6 +689,33 @@ components:
     lifecycle: Optional external dependency reached only by the critic.
     authority: Analyze consented original and candidate uploads and return advisory results.
     prohibited_authority: Acceptance, content edits, saga mutation, and GitHub mutation.
+  - name: deployment package and Helm chart
+    path: planned deployment artifacts (srd006)
+    status: planned
+    role_realization: Deployment packaging and Kubernetes topology for the served roles.
+    lifecycle: Build-time role-closure package staged as the chart profile source, then a chart installed and upgraded on a cluster.
+    scaling_boundary: One deterministic closure per served role; one Deployment and Service per role on the shared profile-free runtime image.
+    failure_boundary: Unsafe package inputs fail before publication; a rendered role carries only its reachable profile files.
+    authority: |
+      Render the workflow-orchestrator, specialist-editor, voice-critic, and the
+      structure, voice, and tightening RAG roles as workloads, wire fixed role and
+      corpus-scoped endpoints, and carry a values schema constraining deployment
+      values. Release 00.3 adds the planned packaged, Helm-managed, and kind-demo
+      capabilities.
+    prohibited_authority: Baking application profiles into the shared image, multiplexing corpora behind one RAG process, and granting any served role a deployment CLI.
+  - name: declarative applier agent
+    path: agents/applier/ (planned)
+    status: planned
+    role_realization: Deployment-plane actuator (srd007).
+    lifecycle: Standalone request-scoped agent whose apply surface an authorized operator or CI caller reaches from outside the serving pods.
+    scaling_boundary: One apply request drives one validate-apply-verify-rollback machine run against the chart.
+    failure_boundary: A verify stall or apply-command failure rolls the release back and reports failure; a rollout read the cluster cannot serve returns a gateway error rather than a phase.
+    authority: |
+      Hold helm and kubectl bound as exec tools, validate a decided values patch
+      against the chart values schema by a helm dry-run, apply it as a values-file
+      rollout, verify the role Deployments via kubectl rollout status, and roll
+      back on failure. Authority is set by declared, validated config.
+    prohibited_authority: Deciding the values change, selecting role profiles, owning agent lifecycle, editing saga content, retrieval, model invocation, verdicts, GitHub, and Pangram.
 
 design_decisions:
   - id: 1
@@ -756,6 +783,24 @@ design_decisions:
       - Document recovery does not depend on checkpoint branch retention.
       - A crash between manifest and checkpoint writes has a deterministic rule.
       - Application lineage does not leak into command-state output or receipts.
+  - id: 7
+    title: Deciding a deployment change is separate from actuating it
+    decision: |
+      The planned release 00.3 deployment form separates decision from
+      actuation. A role-closure package and Helm chart (srd006) render one
+      workload per served role and carry a values schema. A standalone
+      declarative applier (srd007) decides nothing: an authorized operator or CI
+      caller decides a values change and submits it, and the applier validates it
+      against the chart values schema, applies it as a values-file rollout,
+      verifies the role Deployments, and rolls back on failure. The applier alone
+      holds helm and kubectl authority, and its apply surface is network-gated off
+      the orchestrator, editor, critic, and retrieval pods. Prose Editor runs no
+      control plane, so no in-cluster creator or provisioning panel enters the
+      flow.
+    benefits:
+      - Deployment authority is narrowly held by the applier, off the serving pods.
+      - A decided change is validated against the chart schema before any rollout.
+      - Apply and rollback are one auditable machine rather than hand-run CLI steps.
 
 technology_choices:
   - component: Structured documentation
@@ -801,9 +846,13 @@ project_structure:
     - {path: docs/specs/software-requirements/srd003-writing-agent-tools.yaml, status: specified, role: Closed ToolDef vocabulary, factory reuse, signals, errors, effects, compensation, and exclusive authority.}
     - {path: docs/specs/software-requirements/srd004-workflow-orchestrator.yaml, status: specified, role: Flat orchestration states, signals, transitions, persistence, responsible-stage replay, recovery, publication, and terminal outcomes.}
     - {path: docs/specs/software-requirements/srd005-specialist-editor.yaml, status: specified, role: Parameterized specialist-editor with structure, voice, and style stage configurations sharing a common pipeline shape.}
+    - {path: docs/specs/software-requirements/srd006-helm-topology.yaml, status: planned, role: Planned role-closure package, per-role chart topology, values schema, and kind-demo smoke for the served roles.}
+    - {path: docs/specs/software-requirements/srd007-applier.yaml, status: planned, role: Planned standalone declarative applier with validate-apply-verify-rollback and helm and kubectl authority held alone.}
     - {path: docs/specs/software-requirements/srd008-voice-critic.yaml, status: specified, role: Flat independent assurance, exact-hash consent, separate Pangram tasks, advisory comparison, verdict, responsible-stage, and authority contract.}
     - {path: docs/specs/use-cases/rel00.0-uc001-edit-document.yaml, status: planned, role: End-to-end release scenario.}
+    - {path: docs/specs/use-cases/rel00.3-uc001-declarative-applier.yaml, status: planned, role: Planned release 00.3 applier actuation scenario.}
     - {path: docs/specs/test-suites/test-rel00.0-prose-editor.yaml, status: planned, role: Release tracer and evidence plan.}
+    - {path: docs/specs/test-suites/test-rel00.3-applier.yaml, status: planned, role: Planned six-case applier evidence plan.}
 
 implementation_status:
   current_focus: |
@@ -843,6 +892,10 @@ related_documents:
     purpose: Specified flat orchestration, retry, recovery, finalization, publication, and terminal-state contract.
   - doc: docs/specs/software-requirements/srd005-specialist-editor.yaml
     purpose: Specified parameterized specialist-editor with structure, voice, and style stage configurations, per-stage retrieval, editing, preservation, and response contracts.
+  - doc: docs/specs/software-requirements/srd006-helm-topology.yaml
+    purpose: Planned deployment package, per-role Helm topology, values schema, and kind-demo smoke for the served roles.
+  - doc: docs/specs/software-requirements/srd007-applier.yaml
+    purpose: Planned standalone declarative applier that validates, applies, verifies, and rolls back a decided chart values change.
   - doc: docs/specs/software-requirements/srd008-voice-critic.yaml
     purpose: Specified flat independent critic, exact-hash consent, separate Pangram tasks, advisory-only comparison, verdict, responsible-stage, and authority contract.
   - doc: docs/specs/use-cases/rel00.0-uc001-edit-document.yaml

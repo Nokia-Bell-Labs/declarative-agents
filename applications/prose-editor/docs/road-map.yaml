@@ -275,3 +275,96 @@ releases:
       All 192 requirement items and 63 acceptance criteria have executable
       evidence. The full 29-case test suite passes. Voice, style, Pangram,
       multi-stage retry, and GitHub publication paths run end-to-end.
+
+  - version: "00.3"
+    name: Deployment package, Helm topology, and declarative applier
+    description: |
+      Package and deploy the completed application. Two SRDs define the planned
+      deployment form: a deterministic role-closure package plus a Helm chart
+      that renders one Deployment and Service per served role on the profile-free
+      runtime image, and a standalone declarative applier that actuates that
+      chart. The applier validates a decided values patch against the chart
+      values schema with a helm dry-run, applies it as a values-file rollout,
+      verifies the role Deployments via kubectl rollout status, and rolls the
+      release back on failure.
+
+      This release builds on the 00.2 managed service. It adds the packaged,
+      Helm-managed, and kind-demo capabilities and the applier component. The
+      applier holds helm and kubectl authority alone; the workflow orchestrator,
+      specialist-editor stages, voice critic, and retrieval roles carry none. The
+      caller is an authorized operator or CI process reaching the apply surface
+      from outside the serving pods. SRD contradictions discovered during 00.2
+      have been reconciled before this release scope was finalized.
+    status: planned
+    capability_status:
+      documentation: specification_complete
+      runnable_module: planned
+      managed_service: planned
+      packaged: planned
+      helm_managed: planned
+      kind_demo: planned
+    srds:
+      - id: srd006-helm-topology
+        status: planned
+        summary: Define the planned role-closure package, per-role chart topology on the profile-free image, values schema, and kind-demo smoke for the served roles.
+      - id: srd007-applier
+        status: planned
+        summary: Define the planned standalone declarative applier — validate against the chart values schema, apply as a values-file rollout, verify role Deployments, and roll back on failure — with helm and kubectl authority held in the applier alone.
+    use_cases:
+      - id: rel00.3-uc001-declarative-applier
+        summary: |
+          An authorized operator or CI caller submits a decided values patch; the
+          applier validates it against the chart values schema, applies it as a
+          values-file rollout, verifies the role Deployments, and rolls back on a
+          verify stall or apply-command failure, holding the deployment CLIs off
+          the serving pods.
+        status: planned
+    test_suites:
+      - id: test-rel00.3-applier
+        summary: |
+          Plan seven cases covering documentation trace closure, the
+          validate-apply-verify-rollback machine over recording-fake CLIs, the
+          chart values schema against real helm, the authority boundary over the
+          rendered chart and profiles, the broken-rollout-read terminal, a live
+          on-cluster rollout and rollback on kind, and a deterministic
+          role-closure package.
+        status: planned
+        test_case_count: 7
+    dependencies:
+      - id: release-00-2
+        reference: release 00.2
+        status: planned
+        use: Completed runnable saga, managed services, and role serving contracts to package and deploy.
+      - id: applications-managed-services-contract
+        reference: ../../docs/specs/software-requirements/srd002-managed-application-services.yaml
+        status: available
+        use: Cite the packaged, Helm-managed, and kind-demo baseline obligations without copying them.
+      - id: agent-core-rest-machine-exec-contracts
+        reference: ../../../agent-core/docs/specs/
+        status: available
+        use: Cite REST server, machine-request, monitor, and CLI exec authorities the applier builds on.
+      - id: kubernetes
+        boundary: rollout target for the packaged chart
+        status: planned_dependency
+      - id: helm
+        boundary: chart package, dry-run validation, upgrade, and rollback CLI held by the applier
+        status: planned_dependency
+    evidence_status:
+      foundation_yaml: documented
+      srd_requirements: srd006_and_srd007_planned
+      package_and_chart: planned
+      values_schema: planned
+      applier_profile_and_machine: planned
+      structural_tests: planned
+      boundary_tests: planned
+      live_kind_test: planned
+      root_registration: planned
+      executable_evidence: none
+    completion_gate: |
+      The role-closure package and Helm chart render the served-role Deployments
+      on the profile-free image, the applier validates a decided patch against
+      the chart values schema, applies it as a values-file rollout, verifies the
+      role Deployments, and rolls back on failure, with helm and kubectl held in
+      the applier alone. All six planned tests pass, including the live kind
+      rollout and rollback. SRD contradictions discovered during implementation
+      are filed and reconciled before any later release scope is finalized.
