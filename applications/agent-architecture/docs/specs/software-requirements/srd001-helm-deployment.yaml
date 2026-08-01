@@ -1,0 +1,156 @@
+id: srd001-helm-deployment
+title: Agent Architecture Helm Deployment
+status: planned
+
+context: |
+  Release 00.0 and Release 01.0 run the guided demo as local processes: mage
+  run builds agent-core, starts the canonical collector agent and the canonical
+  documentation-curator, and the operator drives the curator through its
+  catalog-owned browser interface. The next capability moves that same
+  composition onto Kubernetes. A chart runs the documentation-curator and the
+  collector as persistent workloads, a deterministic package stages the
+  catalog-owned profile closures the workloads mount, a values schema owns the
+  shape of the deployment values, and a bounded kind target proves the packaged
+  chart installs and serves on a real cluster.
+
+  The chart deploys canonical profiles by reference. It copies neither the
+  documentation-curator profile and its user interface nor the collector
+  profile; it stages their prepared closures and mounts them into a
+  profile-free runtime image, the same ownership boundary the local demo keeps.
+
+problem: |
+  The demo has no Kubernetes surface. Its managed services run only as local
+  processes, so the composition cannot be installed, upgraded, or proven on a
+  cluster, and there is no packaged artifact an operator can validate
+  independently of the source checkout. A Helm topology needs to preserve the
+  mounted-profile, canonical-reference, lifecycle-health, and trace-export
+  contracts the local demo already keeps, reject unsafe or incoherent values
+  before it renders, and carry enough of its own closure that the archive
+  installs without the repository present.
+
+goals:
+  - id: G1
+    text: Render a Kubernetes topology that runs the canonical documentation-curator and the canonical collector agent as persistent workloads from mounted profile closures.
+  - id: G2
+    text: Stage the catalog-owned curator and collector profile closures as a deterministic, checksum-validated package that the chart mounts, and own the deployment values with a values schema.
+  - id: G3
+    text: Prove the packaged chart on a bounded kind cluster, installing only the validated archive and observing curator and collector readiness, a browsable curator surface, an exported trace, and clean lifecycle exit.
+  - id: G4
+    text: Keep the ownership boundary the local demo keeps, mounting canonical profiles into a profile-free runtime image rather than copying them into the chart.
+
+requirements:
+  - id: R1
+    title: Deployed topology
+    items:
+      - id: R1.1
+        text: The chart shall render one Deployment and one ClusterIP Service for the documentation-curator and one Deployment and one ClusterIP Service for the collector agent.
+      - id: R1.2
+        text: Both workloads shall use one application-owned, profile-free runtime image containing agent-core and shall select their mounted canonical profile at startup rather than embedding it in the image.
+      - id: R1.3
+        text: The curator Service shall expose the documentation, lifecycle-control, and monitor ports, and the collector Service shall expose the receiver, control, and query ports the local demo binds.
+      - id: R1.4
+        text: Readiness and liveness probes shall call each workload's real lifecycle health endpoint; process existence alone shall not satisfy readiness.
+      - id: R1.5
+        text: The curator shall export OTLP traces to the in-cluster collector by a values-selected endpoint and service name, and the collector shall spool traces and serve its query surface.
+      - id: R1.6
+        text: Both pods shall use non-root, no-privilege-escalation, dropped-capability, read-only-root, and disabled service-account-token defaults.
+  - id: R2
+    title: Package and values validation
+    items:
+      - id: R2.1
+        text: A mage preparation target shall regenerate the catalog-owned curator and collector profile closures and atomically stage them as the chart's only profile source.
+      - id: R2.2
+        text: Role manifests shall carry a deterministic checksum over ordered path and content bytes, and preparation shall reject stale roles, unknown fields, missing or extra files, checksum mismatch, and out-of-bound ConfigMap partitions before staging.
+      - id: R2.3
+        text: A values.schema.json shall reject unknown keys and malformed image, replica, port, resource, storage, URL, mount, security, and telemetry values, and template guards shall retain mount, fixed-port, and telemetry invariants when schema validation is bypassed.
+      - id: R2.4
+        text: A package target shall stage the chart, run the default and CI render matrix, and create one self-contained archive whose validation requires Chart.yaml, values, schema, core templates, and every generated profile file and rejects links.
+      - id: R2.5
+        text: The resulting archive shall lint and render from a directory with no source checkout present.
+  - id: R3
+    title: Live kind smoke
+    items:
+      - id: R3.1
+        text: A kind target shall skip with a named missing prerequisite when Docker, kind, Helm, kubectl, required checkouts, or Docker health are unavailable, own only clusters it creates, and use a temporary kubeconfig.
+      - id: R3.2
+        text: The target shall install only the validated archive, build and load the same profile-free runtime image the chart references, and mount the packaged curator and collector closures.
+      - id: R3.3
+        text: The curator and collector Deployments and their real lifecycle health endpoints shall become ready, the curator surface shall serve its documentation interface, and a declarative lifecycle-exit request shall stop the curator cleanly.
+      - id: R3.4
+        text: The collector shall retain a trace the curator exports under the curator service name, proving the in-cluster trace path end to end.
+      - id: R3.5
+        text: Smoke-owned namespace, release, forwards, temporary files, and any owned cluster shall be cleaned in all terminal paths, and failure diagnostics shall share one deadline and include Helm status, workloads, events, and targeted curator and collector logs.
+
+acceptance_criteria:
+  - id: AC1
+    criterion: Helm renders exactly one curator and one collector workload with the profile-free image, mounted canonical closures, fixed Services, truthful lifecycle probes, curator-to-collector OTLP export, and hardened pod security.
+    traces: [R1]
+  - id: AC2
+    criterion: Preparation regenerates and checksum-validates the catalog-owned curator and collector closures and rejects stale, tampered, or out-of-bound package inputs before staging.
+    traces: [R2.1, R2.2]
+  - id: AC3
+    criterion: The values schema and template guards accept every valid fixture and reject each invalid fixture by its offending field, and the self-contained archive lints and renders without a source checkout.
+    traces: [R2.3, R2.4, R2.5]
+  - id: AC4
+    criterion: A bounded kind install of the validated archive brings the curator and collector to real readiness, serves the curator surface, exits it cleanly, retains an exported curator trace in the collector, skips on missing prerequisites, and cleans up on every terminal path.
+    traces: [R3]
+
+depends_on:
+  - srd_id: srd002-applier
+    symbols_used: [R1, R2]
+    note: The applier actuates the chart and schema this document defines.
+
+external_contracts:
+  - id: srd002-managed-application-services
+    owner: applications
+    symbols_used: [R4, R5, R6]
+    usage: |
+      This document supplies the packaged, helm_managed, and kind_demo evidence
+      the shared capability contract requires, citing R4 through R6 rather than
+      copying them.
+  - id: srd011-knowledge-manager
+    owner: applications/catalog
+    usage: |
+      Defines the canonical documentation-curator profile, catalog-owned user
+      interface, and lifecycle outcomes the chart deploys by reference.
+
+implementation_status:
+  implemented: []
+  planned:
+    - >-
+      The chart -- the curator and collector Deployments and Services, the
+      profile-free runtime image, the mounted-closure ConfigMaps, the lifecycle
+      probes, and the curator-to-collector OTLP wiring -- the mage preparation
+      and package targets that stage and checksum the catalog-owned closures, the
+      values.schema.json and template guards, the self-contained archive
+      validation, and the bounded kind smoke target. The code lands in later
+      sub-issues of the release; this document and its use cases and test suites
+      land first.
+
+diagrams:
+  requirements_trace: |
+    ```mermaid
+    flowchart LR
+      Problem["Problem: the demo has no Kubernetes surface, packaged artifact, or cluster proof"] --> Goals["Goals: Agent Architecture Helm Deployment"]
+      Goals --> R1["R1: Deployed topology"]
+      Goals --> R2["R2: Package and values validation"]
+      Goals --> R3["R3: Live kind smoke"]
+      R1 --> AC1["AC1: curator and collector workloads render truthfully"]
+      R2 --> AC2["AC2: closures staged and checksum-validated"]
+      R2 --> AC3["AC3: schema, guards, and self-contained archive"]
+      R3 --> AC4["AC4: bounded kind install serves and exits cleanly"]
+    ```
+  deployed_topology: |
+    ```mermaid
+    flowchart LR
+      OP[Operator or CI] -->|helm install| CHART[Packaged chart]
+      CHART --> CURATOR[Curator Deployment and Service]
+      CHART --> COLLECTOR[Collector Deployment and Service]
+      IMAGE[Profile-free runtime image] --> CURATOR
+      IMAGE --> COLLECTOR
+      CLOSURE[Mounted canonical profile closures] --> CURATOR
+      CLOSURE --> COLLECTOR
+      CURATOR -->|OTLP| COLLECTOR
+      OP -->|browser| CURATOR
+      OP -->|query surface| COLLECTOR
+    ```

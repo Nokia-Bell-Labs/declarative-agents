@@ -1,0 +1,72 @@
+id: rel03.0-uc001-live-helm-smoke
+title: Prove the Packaged Agent Architecture Chart on Kind
+status: planned
+
+summary: |
+  A developer installs only the validated chart archive into a bounded kind
+  cluster, builds and loads the same profile-free runtime image the chart
+  references, and mounts the packaged curator and collector closures. The
+  curator and collector Deployments and their real lifecycle health endpoints
+  become ready, the curator serves its documentation interface, a declarative
+  lifecycle-exit request stops the curator cleanly, and the collector retains a
+  trace the curator exported. The target skips with a named missing prerequisite
+  when its toolchain is unavailable and cleans up on every terminal path.
+
+actor: A developer proving the packaged Agent Architecture topology on kind.
+trigger: Run the mage kind smoke target.
+
+preconditions:
+  - Docker, kind, Helm, and kubectl are available and Docker is healthy, or the target skips.
+  - The validated chart archive and the catalog and agent-core checkouts are available.
+
+flow:
+  - id: F1
+    text: The target checks its prerequisites and skips with a named missing tool when Docker, kind, Helm, kubectl, a required checkout, or Docker health is unavailable.
+  - id: F2
+    text: The target creates a kind cluster through a temporary kubeconfig, builds and loads the profile-free runtime image, and installs only the validated archive.
+  - id: F3
+    text: The curator and collector Deployments and their real lifecycle health endpoints become ready.
+  - id: F4
+    text: The curator serves its documentation interface, and a declarative lifecycle-exit request stops the curator cleanly.
+  - id: F5
+    text: The collector retains a trace the curator exported under the curator service name.
+  - id: F6
+    text: The target cleans its namespace, release, forwards, temporary files, and any owned cluster on every terminal path, and failure diagnostics share one deadline and include Helm status, workloads, events, and targeted curator and collector logs.
+
+touchpoints:
+  - id: T1
+    target: srd001-helm-deployment AC4
+    reason: The bounded kind install of the validated archive serves and exits cleanly.
+  - id: T2
+    target: srd001-helm-deployment R3
+    reason: Prerequisite skips, mounted closures, readiness, trace retention, and cleanup follow the live-smoke requirements.
+
+success_criteria:
+  - id: S1
+    criterion: The target installs only the validated archive, builds and loads the profile-free runtime image the chart references, and mounts the packaged curator and collector closures.
+    traces:
+      - srd001-helm-deployment R3.2
+      - srd001-helm-deployment AC4
+  - id: S2
+    criterion: The curator and collector Deployments and their real lifecycle health endpoints become ready, the curator serves its documentation interface, and a declarative lifecycle-exit request stops the curator cleanly.
+    traces:
+      - srd001-helm-deployment R3.3
+      - srd001-helm-deployment AC4
+  - id: S3
+    criterion: The collector retains a trace the curator exported under the curator service name, proving the in-cluster trace path end to end.
+    traces:
+      - srd001-helm-deployment R3.4
+      - srd001-helm-deployment AC4
+  - id: S4
+    criterion: The target skips with a named missing prerequisite without mutating a cluster, and cleans its owned resources on every terminal path with bounded failure diagnostics.
+    traces:
+      - srd001-helm-deployment R3.1
+      - srd001-helm-deployment R3.5
+      - srd001-helm-deployment AC4
+
+out_of_scope:
+  - The applier actuation surface and rollback.
+  - Multi-node or production operational evidence.
+  - Changing the canonical curator or collector profiles.
+
+test_suite: test-rel03.0-live-helm-smoke

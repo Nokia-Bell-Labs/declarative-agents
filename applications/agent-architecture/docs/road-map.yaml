@@ -6,8 +6,13 @@ overview: |
   trace collection through the canonical collector agent so the presenter can
   show the trace waterfall as part of the demo story. Both releases reference
   the canonical catalog profiles, pin the Go present tool, and provide
-  deterministic Mage evidence. The releases extend shared srd001 and srd002
-  R1 through R3 by reference; they do not define package, Helm, or kind scope.
+  deterministic Mage evidence, extending shared srd001 and srd002 R1 through R3
+  by reference. Releases 02.0 and 03.0 add the planned Kubernetes deployment: a
+  chart running the documentation-curator and the collector from mounted
+  catalog-owned closures, a values schema, and a bounded kind smoke, citing
+  srd002 R4 through R6 and the application-owned srd001-helm-deployment. Release
+  04.0 adds the planned standalone declarative applier (srd002-applier). The
+  deployment resources land in later sub-issues, so those releases are planned.
 
 releases:
   - version: "00.0"
@@ -27,11 +32,14 @@ releases:
         services: [documentation-curator, Go present]
         live_observation_status: dependency_gated
       - id: packaged
-        status: not_applicable
+        status: planned
+        realized_in: "02.0"
       - id: helm_managed
-        status: not_applicable
+        status: planned
+        realized_in: "02.0"
       - id: kind_demo
-        status: not_applicable
+        status: planned
+        realized_in: "03.0"
     shared_requirements:
       - owner: applications
         id: srd001-application-module-contract
@@ -116,3 +124,94 @@ releases:
         proves: Collector command targets the canonical profile with correct env and ports.
       - command: go test ./magefiles -run '^TestTracedCurator'
         proves: Curator receives OTLP endpoint and service name flags.
+  - version: "02.0"
+    name: Packaged chart render and validation
+    description: |
+      A chart runs the documentation-curator and the collector as persistent
+      Kubernetes workloads from mounted catalog-owned profile closures. A mage
+      preparation target stages and checksum-validates the closures, a
+      values.schema.json and template guards own the deployment values, and a
+      package target emits one self-contained archive that lints and renders
+      without a source checkout. The chart deploys canonical profiles by
+      reference and copies neither the curator profile and its user interface nor
+      the collector profile. The Helm resources land in later sub-issues, so this
+      release is planned.
+    status: planned
+    capabilities:
+      - id: packaged
+        status: planned
+      - id: helm_managed
+        status: planned
+    shared_requirements:
+      - owner: applications
+        id: srd002-managed-application-services
+        requirements: [R4, R5]
+    application_srds:
+      - srd001-helm-deployment
+    external_requirements:
+      - owner: applications/catalog
+        id: srd011-knowledge-manager
+    use_cases:
+      - id: rel02.0-uc001-render-packaged-chart
+        summary: An operator prepares the catalog-owned closures and renders and validates the packaged chart.
+        status: planned
+    test_suites:
+      - id: test-rel02.0-render-packaged-chart
+        summary: Planned topology render, closure staging and checksum, values schema and guards, and self-contained archive evidence.
+        status: planned
+  - version: "03.0"
+    name: Live Helm smoke
+    description: |
+      A bounded kind target installs only the validated archive, builds and loads
+      the profile-free runtime image the chart references, and mounts the packaged
+      curator and collector closures. The curator and collector Deployments and
+      their real lifecycle health endpoints become ready, the curator serves its
+      documentation interface, a declarative lifecycle-exit request stops the
+      curator cleanly, and the collector retains a trace the curator exported. The
+      target skips on missing prerequisites and cleans up on every terminal path.
+      The kind target lands in a later sub-issue, so this release is planned.
+    status: planned
+    capabilities:
+      - id: kind_demo
+        status: planned
+    shared_requirements:
+      - owner: applications
+        id: srd002-managed-application-services
+        requirements: [R6]
+    application_srds:
+      - srd001-helm-deployment
+    use_cases:
+      - id: rel03.0-uc001-live-helm-smoke
+        summary: A developer proves the packaged topology on a disposable kind cluster.
+        status: planned
+    test_suites:
+      - id: test-rel03.0-live-helm-smoke
+        summary: Planned packaged-archive install, real readiness and clean exit, retained trace, and skip and cleanup evidence.
+        status: planned
+  - version: "04.0"
+    name: Declarative applier agent
+    description: |
+      A standalone declarative applier actuates the chart. An authorized operator
+      or CI caller submits a decided values-plane patch to the applier's apply
+      endpoint; the applier validates it against the chart's values.schema.json by
+      a helm dry-run, applies it with helm upgrade --reuse-values returning
+      without waiting, verifies the curator and collector Deployments via kubectl
+      rollout status, rolls back on a verify stall, and reports an apply-command
+      failure as failed. The applier alone holds helm and kubectl bound as exec
+      tools, the curator and collector carry none, and its apply surface is
+      network-gated off the serving pods. The Agent Architecture runs no control
+      plane, so there is no creator, orchestrator, or panel; the applier image
+      carrying the CLIs is a recorded divergence from the profile-free image
+      contract. The profile, chart resources, and integration targets land in
+      later sub-issues, so this release is planned.
+    status: planned
+    application_srds:
+      - srd002-applier
+    use_cases:
+      - id: rel04.0-uc001-declarative-applier
+        summary: An operator or CI caller submits a decided values patch that the applier validates, applies, verifies, and rolls back on failure.
+        status: planned
+    test_suites:
+      - id: test-rel04.0-declarative-applier
+        summary: Planned recording-fake terminal coverage, real chart-schema rejection, applier-only CLI authority, broken-read classification, and a live on-cluster rollout and rollback.
+        status: planned

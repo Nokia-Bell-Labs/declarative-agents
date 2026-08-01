@@ -17,7 +17,12 @@ executive_summary: |
   applications/docs. It declares runnable_module and managed_service for
   Release 00.0. The managed-service scope covers the canonical
   documentation-curator launched by the application and the application-owned
-  Go present server. packaged, helm_managed, and kind_demo do not apply.
+  Go present server. It also declares packaged, helm_managed, and kind_demo,
+  planned for Releases 02.0 and 03.0: a chart runs the documentation-curator and
+  the collector as Kubernetes workloads from mounted catalog-owned closures, a
+  values schema owns the deployment values, and a bounded kind target proves the
+  packaged archive. A standalone declarative applier actuates that chart for an
+  authorized operator or CI caller in Release 04.0.
 
 problem: |
   Presentation-only launch and lifecycle behavior needs an application owner
@@ -78,6 +83,15 @@ success_criteria:
     mage stats emits valid JSON with ownership: composition,
     agents_contributed: 0, and one canonical reference. It emits no agents
     section.
+  deployable_composition: |
+    Releases 02.0 and 03.0 run the documentation-curator and the collector as
+    Kubernetes workloads from mounted catalog-owned closures, validate the
+    deployment values with a schema, and prove the packaged archive on a bounded
+    kind cluster. Release 04.0 adds a standalone declarative applier that
+    validates, applies, verifies, and rolls back a decided values patch for an
+    authorized operator or CI caller, holding helm and kubectl authority alone.
+    These capabilities are declared and planned; their resources land in later
+    sub-issues.
   shared_contract_conformance: |
     Application documents trace to applicable srd001 requirements, srd002 R1
     through R3, and catalog srd011. Application-local deterministic tests and
@@ -95,7 +109,11 @@ not:
   - We do not replace the declarative lifecycle-exit client with a bespoke HTTP
     program.
   - We do not count the reused documentation-curator as an application agent.
-  - We do not claim packaged, helm_managed, or kind_demo capability.
+  - We do not copy the canonical curator or collector profiles into the chart;
+    the chart mounts their catalog-owned closures.
+  - We do not let the applier decide a values change or hold deployment
+    authority on a serving pod; the caller decides and the applier alone binds
+    helm and kubectl.
   - We do not treat deterministic command construction as proof that a live
     server, browser endpoint, shutdown, or listener release was observed.
 
@@ -112,8 +130,8 @@ external_references:
     purpose: Shared runnable-module, canonical-reference, documentation, Mage, and accounting requirements.
   - owner: applications
     document: docs/specs/software-requirements/srd002-managed-application-services.yaml
-    requirements: [R1, R2, R3]
-    purpose: Shared lifecycle, operator-verb, telemetry, and configuration requirements for both managed servers.
+    requirements: [R1, R2, R3, R4, R5, R6]
+    purpose: Shared lifecycle and operator requirements for both managed servers, and the package, chart, and kind capability groups for the planned deployment.
   - owner: applications/catalog
     document: docs/specs/software-requirements/srd011-knowledge-manager.yaml
     purpose: Canonical documentation-curator family requirements.
