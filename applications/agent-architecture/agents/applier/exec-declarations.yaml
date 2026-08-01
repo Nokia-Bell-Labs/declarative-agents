@@ -11,12 +11,18 @@
 # file content, which the write_overrides word writes from the request seed to
 # the agent's workspace; helm reads the same ${APPLIER_WORK_DIR:-/work} path, so
 # one mounted profile follows the workspace mount per pod. The agent-architecture
-# release, default namespace, and agent-architecture-{curator,collector}
-# Deployments below are placeholder defaults kept as valid YAML for agent-core
-# validation; when the chart packages this file, profiles-configmap rewrites them
-# to the installed release name, namespace, and <fullname>-{curator,collector}
-# Deployments so an applier installed under any release targets its own release
-# (mounted-profile contract, srd001).
+# release, default namespace, and agent-architecture-collector Deployment below are
+# placeholder defaults kept as valid YAML for agent-core validation; when the chart
+# packages this file, the applier template rewrites them to the installed release
+# name, namespace, and <fullname>-collector Deployment so an applier installed under
+# any release targets its own release (mounted-profile contract, srd001).
+#
+# The verify and rollout-read words target the collector, not the curator: the
+# catalog documentation-curator is a bounded demo agent whose await word times out
+# and exits after one short control window, so its Deployment never holds a durable
+# ready rollout and `kubectl rollout status` on it would time out on every healthy
+# apply. The collector is the application's one persistent, k8s-ready server, so it
+# is the stable readiness target (srd002-applier R3.1).
 #
 # Each runs one child process and emits ToolDone on a zero exit and ToolFailed on
 # a non-zero exit (agent-core exec emits exactly these two); the request machine
@@ -141,7 +147,7 @@ tools:
         state_after_failure: the release may be left on the failed revision; the apply machine routes this to Failed for operator attention, while a post-apply rollout stall is compensated by helm_rollback
     relationships:
       after: [helm_dry_run]
-      before: [kubectl_rollout_status_curator]
+      before: [kubectl_rollout_status_collector]
       overlaps:
         - tool: helm_dry_run
           difference: helm_upgrade applies and rolls the release; helm_dry_run only renders and validates.
@@ -197,57 +203,6 @@ tools:
       strategy: irreversible
       description: A rollback is itself a one-way compensating action; reversing it requires a new explicit rollout.
 
-  - name: kubectl_rollout_status_curator
-    type: exec
-    binary: kubectl
-    args: [rollout, status, deployment/agent-architecture-curator, --namespace, default, --timeout, 120s]
-    category: boundary
-    visibility: internal
-    description: Verify the curator Deployment's rollout, letting kubectl compute the phase; a non-zero exit is a stalled or timed-out rollout.
-    problem: The applier must verify the curator rollout completed without computing the phase itself; kubectl rollout status does that and reports it through its exit code.
-    goals:
-      - Report the curator Deployment's rollout completion via kubectl rollout status with a bounded timeout.
-      - Emit ToolDone when the rollout completes and ToolFailed when it stalls or times out.
-    requirements:
-      input:
-        - must read the curator Deployment's rollout status with a bounded timeout
-      output:
-        - must include exit status and captured status output
-      errors:
-        - must emit ToolFailed when the rollout stalls or times out
-    non_goals:
-      - Does not mutate cluster state; it reads rollout status only.
-      - Does not compute the phase in the mapping layer; kubectl computes it.
-    emits: [ToolDone, ToolFailed]
-    output:
-      description: kubectl rollout status process result.
-      schema:
-        type: object
-        properties:
-          exit_code: {type: integer}
-          output: {type: string}
-        required: [exit_code, output]
-    side_effects:
-      - kind: child_process
-        state: read_only
-        target: kubectl
-        description: Runs `kubectl rollout status` on the curator Deployment; reads rollout progress and mutates nothing.
-    reversibility:
-      classification: reversible
-      undo: noop
-      requires_confirmation: false
-    errors:
-      - signal: ToolFailed
-        condition: the curator rollout stalls or the timeout elapses before completion
-        message_shape: <captured kubectl status output>
-        state_after_failure: the rollout is incomplete; the request machine rolls the release back
-    relationships:
-      after: [helm_upgrade]
-      before: [kubectl_rollout_status_collector]
-    undo:
-      strategy: noop
-      description: A status read mutates nothing.
-
   - name: kubectl_rollout_status_collector
     type: exec
     binary: kubectl
@@ -293,7 +248,7 @@ tools:
         message_shape: <captured kubectl status output>
         state_after_failure: the rollout is incomplete; the request machine rolls the release back
     relationships:
-      after: [kubectl_rollout_status_curator]
+      after: [helm_upgrade]
       before: [helm_rollback]
     undo:
       strategy: noop
@@ -302,17 +257,17 @@ tools:
   - name: kubectl_rollout_poll
     type: exec
     binary: kubectl
-    args: [rollout, status, deployment/agent-architecture-curator, --namespace, default, --timeout, 3s]
+    args: [rollout, status, deployment/agent-architecture-collector, --namespace, default, --timeout, 3s]
     category: boundary
     visibility: internal
-    description: Read the curator Deployment's rollout status for the rollout GET endpoint, with a short timeout so the read returns promptly; ToolDone means complete, ToolFailed means not complete.
+    description: Read the collector Deployment's rollout status for the rollout GET endpoint, with a short timeout so the read returns promptly; ToolDone means complete, ToolFailed means not complete. The collector is the read target because it is the application's persistent, k8s-ready server, whereas the bounded curator never holds a durable rollout.
     problem: The rollout read endpoint must report completion without blocking a poll, so it uses a short timeout and reports the outcome via the exit code.
     goals:
       - Report the rollout completion with a short bounded timeout.
       - Emit ToolDone when complete and ToolFailed when the rollout is not complete or the read failed.
     requirements:
       input:
-        - must read the curator Deployment's rollout status with a short timeout
+        - must read the collector Deployment's rollout status with a short timeout
       output:
         - must include exit status and captured status output
       errors:
@@ -361,17 +316,17 @@ tools:
   - name: kubectl_get_rollout_counts
     type: exec
     binary: kubectl
-    args: [get, deployment/agent-architecture-curator, --namespace, default, -o, 'go-template={"ready":{{if .status}}{{if .status.readyReplicas}}{{.status.readyReplicas}}{{else}}0{{end}}{{else}}0{{end}},"desired":{{if .spec.replicas}}{{.spec.replicas}}{{else}}0{{end}},"revision":{{if .metadata.annotations}}{{if index .metadata.annotations "deployment.kubernetes.io/revision"}}{{index .metadata.annotations "deployment.kubernetes.io/revision"}}{{else}}0{{end}}{{else}}0{{end}}}', --allow-missing-template-keys=true]
+    args: [get, deployment/agent-architecture-collector, --namespace, default, -o, 'go-template={"ready":{{if .status}}{{if .status.readyReplicas}}{{.status.readyReplicas}}{{else}}0{{end}}{{else}}0{{end}},"desired":{{if .spec.replicas}}{{.spec.replicas}}{{else}}0{{end}},"revision":{{if .metadata.annotations}}{{if index .metadata.annotations "deployment.kubernetes.io/revision"}}{{index .metadata.annotations "deployment.kubernetes.io/revision"}}{{else}}0{{end}}{{else}}0{{end}}}', --allow-missing-template-keys=true]
     category: boundary
     visibility: internal
-    description: Read the curator Deployment's replica counts and revision as one JSON object, so the rollout response carries ready, desired, and revision alongside the phase, and a read that cannot reach the Deployment fails rather than reporting progress.
+    description: Read the collector Deployment's replica counts and revision as one JSON object, so the rollout response carries ready, desired, and revision alongside the phase, and a read that cannot reach the Deployment fails rather than reporting progress.
     problem: kubectl rollout status exits non-zero both when a rollout is still progressing and when the Deployment, kubeconfig, RBAC, or API server makes the read impossible, so the phase alone cannot tell an ongoing rollout from a broken one, and it carries no counts.
     goals:
       - Emit the ready and desired replica counts and the Deployment revision as a JSON object the response body maps by field.
       - Emit ToolFailed when the Deployment cannot be read, so the machine reaches Unavailable instead of reporting a phase.
     requirements:
       input:
-        - must read the curator Deployment in the configured namespace
+        - must read the collector Deployment in the configured namespace
       output:
         - must emit a JSON object carrying ready, desired, and revision as numbers
       errors:

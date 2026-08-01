@@ -35,11 +35,12 @@ data:
   {{- if eq $key "agents__applier__exec-declarations.yaml" }}
     {{- /* Rewrite the applier exec args' placeholder coordinates to the installed
           release so an applier installed under any release name targets its own
-          release, namespace, and role Deployments rather than a baked
-          agent-architecture/default. The deployment tokens are replaced before the
-          bare release tokens because they contain the release-chart name. */}}
+          release, namespace, and collector Deployment rather than a baked
+          agent-architecture/default. The deployment token is replaced before the
+          bare release tokens because it contains the release-chart name. The applier
+          verifies and reads the collector Deployment (the stable server), not the
+          bounded curator, so only the collector token appears here. */}}
     {{- $exec := $.Files.Get $path }}
-    {{- $exec = $exec | replace "deployment/agent-architecture-curator" (printf "deployment/%s-curator" $fullname) }}
     {{- $exec = $exec | replace "deployment/agent-architecture-collector" (printf "deployment/%s-collector" $fullname) }}
     {{- $exec = $exec | replace "upgrade, agent-architecture," (printf "upgrade, %s," $.Release.Name) }}
     {{- $exec = $exec | replace "rollback, agent-architecture]" (printf "rollback, %s]" $.Release.Name) }}
@@ -67,7 +68,7 @@ metadata:
     app.kubernetes.io/component: applier
 rules:
   # Read deployment state for the rollout verification (kubectl rollout status of
-  # the curator and collector Deployments).
+  # the collector Deployment, the stable verify target).
   - apiGroups: [""]
     resources: [configmaps, services]
     verbs: [get, list, watch]

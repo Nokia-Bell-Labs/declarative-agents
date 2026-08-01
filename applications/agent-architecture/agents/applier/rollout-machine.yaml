@@ -1,7 +1,9 @@
 name: applier-rollout-request
 purpose: |-
-  One request-scoped read of the curator Deployment's rollout status, serving the
-  rollout GET endpoint (srd002-applier R3.3). The machine polls kubectl rollout
+  One request-scoped read of the collector Deployment's rollout status, serving the
+  rollout GET endpoint (srd002-applier R3.3). The collector is the read target
+  because it is the application's persistent, k8s-ready server; the bounded
+  documentation-curator never holds a durable rollout. The machine polls kubectl rollout
   status with a short timeout -- a zero exit is a complete rollout, a non-zero exit
   is not-complete -- and then reads the Deployment itself for the replica counts and
   revision. The second read is what makes the outcome honest: kubectl rollout
@@ -17,7 +19,7 @@ budget:
   max_iterations: 5
 states:
   - {name: AwaitingRequest,   meaning: Seeded by the rollout endpoint.}
-  - {name: Polling,           meaning: Reading the curator Deployment rollout status.}
+  - {name: Polling,           meaning: Reading the collector Deployment rollout status.}
   - {name: ReadingComplete,   meaning: The rollout is complete; reading the counts.}
   - {name: ReadingProgressing, meaning: The rollout is not complete; reading the counts.}
   - {name: Complete,          meaning: Terminal. The rollout is complete.}

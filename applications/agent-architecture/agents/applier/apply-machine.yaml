@@ -5,11 +5,19 @@ purpose: |-
   content and a fixed values-file path. The applier writes the overrides to the
   file (write_overrides), validates them against the chart schema with a helm
   dry-run (helm_dry_run), applies the patch as an in-place rollout that returns
-  without waiting (helm_upgrade), and then verifies the curator and collector
-  Deployments in turn (kubectl_rollout_status_curator, _collector). An apply
-  command that itself fails lands in Failed; a verify stall on either of the two
-  Deployments is compensated by helm_rollback. The applier authors no values
-  decision and passes no endpoint or credential into a running agent.
+  without waiting (helm_upgrade), and then verifies the collector Deployment
+  (kubectl_rollout_status_collector). An apply command that itself fails lands in
+  Failed; a verify stall on the collector is compensated by helm_rollback. The
+  applier authors no values decision and passes no endpoint or credential into a
+  running agent.
+
+  The collector is the verify target rather than the curator because the catalog
+  documentation-curator is a bounded demo agent: its await word times out after one
+  short control window and the process exits, so the curator Deployment never
+  reaches a durable ready rollout and `kubectl rollout status` on it would time out
+  on every healthy apply. The collector is the application's one persistent,
+  k8s-ready server, so it is the stable readiness target a real rollout is verified
+  against (srd002-applier R3.1).
 
   Every word here is an exec word (or the file write), so each emits only ToolDone
   or ToolFailed. The outcomes are told apart by the terminal state a run ends in
@@ -25,10 +33,9 @@ states:
   - {name: Writing, meaning: Writing the overrides to the values file.}
   - {name: Validating, meaning: Rendering the release with --dry-run to validate against the chart schema.}
   - {name: Applying, meaning: Applying the patch as an in-place rollout that returns without waiting for readiness.}
-  - {name: VerifyingCurator, meaning: Reading the curator Deployment rollout status to confirm completion.}
   - {name: VerifyingCollector, meaning: Reading the collector Deployment rollout status to confirm completion.}
   - {name: RollingBack, meaning: Rolling the release back after a verify stall.}
-  - {name: Done, meaning: Terminal. The rollout applied and both Deployments verified.}
+  - {name: Done, meaning: Terminal. The rollout applied and the collector Deployment verified.}
   - {name: Rejected, meaning: Terminal. The dry-run rejected the patch against the chart schema; the caller sent a bad patch and nothing was applied.}
   - {name: RolledBack, meaning: Terminal. A rollout stalled and the release was rolled back to the prior revision.}
   - {name: Failed, meaning: Terminal. The values file could not be written, the apply failed, or the rollback itself failed.}
@@ -47,10 +54,8 @@ transitions:
   - {state: Writing,            signal: ToolFailed, next: Failed}
   - {state: Validating,         signal: ToolDone,   next: Applying,           action: helm_upgrade}
   - {state: Validating,         signal: ToolFailed, next: Rejected}
-  - {state: Applying,           signal: ToolDone,   next: VerifyingCurator,   action: kubectl_rollout_status_curator}
+  - {state: Applying,           signal: ToolDone,   next: VerifyingCollector, action: kubectl_rollout_status_collector}
   - {state: Applying,           signal: ToolFailed, next: Failed}
-  - {state: VerifyingCurator,   signal: ToolDone,   next: VerifyingCollector, action: kubectl_rollout_status_collector}
-  - {state: VerifyingCurator,   signal: ToolFailed, next: RollingBack,        action: helm_rollback}
   - {state: VerifyingCollector, signal: ToolDone,   next: Done}
   - {state: VerifyingCollector, signal: ToolFailed, next: RollingBack,        action: helm_rollback}
   - {state: RollingBack,        signal: ToolDone,   next: RolledBack}

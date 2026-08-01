@@ -21,6 +21,8 @@ const helmPackageDirEnv = "HELM_PACKAGE_DIR"
 var chartSourceInventory = []string{
 	".helmignore",
 	"Chart.yaml",
+	"PACKAGING.md",
+	"README.md",
 	"ci",
 	"schema-fixtures",
 	"templates",

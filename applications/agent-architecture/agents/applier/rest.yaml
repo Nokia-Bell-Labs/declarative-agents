@@ -115,9 +115,10 @@ rest:
                     status: failed
                     error: apply_failed
         rollout:
-          # Read the curator Deployment's rollout status (srd002-applier R3.3).
-          # kubectl computes the phase, then the machine reads the Deployment
-          # itself for the counts so a broken read is not reported as a
+          # Read the collector Deployment's rollout status (srd002-applier R3.3).
+          # The collector is the stable read target; the bounded curator holds no
+          # durable rollout. kubectl computes the phase, then the machine reads the
+          # Deployment itself for the counts so a broken read is not reported as a
           # progressing rollout.
           method: GET
           path: /api/v1/rollout

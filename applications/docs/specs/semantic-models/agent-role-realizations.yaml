@@ -482,7 +482,7 @@ bindings:
       domain: deployment
       decision:
         current_actor: applier
-        implemented_responsibility: Validate a decided values patch against the agent-architecture chart schema, apply it, verify the curator and collector rollouts, and roll the release back on a stall.
+        implemented_responsibility: Validate a decided values patch against the agent-architecture chart schema, apply it, verify the collector rollout (the application's stable, k8s-ready server; the bounded documentation-curator recycles every control window and is not a durable rollout target), and roll the release back on a stall.
         canonical_role_sub_role: Executor / Actuation Agent and Change Manager.
         retained_or_proposed_name: Retain applier as a descriptive actor and Helm workload name; Applier is not a canonical role.
         authority_boundary: A standalone actuator; an authorized operator or CI caller supplies the decided patch, the applier authors no values and receives no runtime transport authority, and the curator and collector hold no deployment CLI.

@@ -1,0 +1,11 @@
+# A conforming agent-architecture values patch: it adjusts the collector's memory
+# request within the chart schema. The applier's dry-run validate step accepts it
+# and the render carries it, which is the evidence a schema that rejected every
+# document could not give. It changes the collector pod template, so the live tier's
+# apply genuinely rolls the collector -- the stable Deployment the applier verifies
+# -- and the verify waits for that real rollout to complete. The value stays under
+# the installed collector memory limit so the pod schedules.
+collector:
+  resources:
+    requests:
+      memory: 96Mi

@@ -1,0 +1,6 @@
+# A non-conforming agent-architecture values patch. The documentation-curator runs
+# a single replica -- the chart pins curator.replicas to exactly 1 (minimum 1,
+# maximum 1) -- so replicas: 2 violates the schema at /curator/replicas, which is
+# what the applier's helm dry-run must reject before any rollout.
+curator:
+  replicas: 2

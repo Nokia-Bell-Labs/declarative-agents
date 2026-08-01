@@ -7,8 +7,9 @@ purpose: |-
   exits the agent and stops the servers. Each inbound apply request runs a
   request-scoped machine (apply-machine.yaml): the applier writes the decided
   values patch to a file, validates it against the agent-architecture chart schema
-  with a helm dry-run, applies it as a rollout, verifies the curator and collector
-  Deployments, and rolls back on failure. The applier acts on the caller's
+  with a helm dry-run, applies it as a rollout, verifies the collector Deployment
+  (the application's stable, k8s-ready server; the bounded curator is not a durable
+  rollout target), and rolls back on failure. The applier acts on the caller's
   decision; it authors no values decision and passes no endpoint or credential into
   a running curator or collector.
 invariants:
