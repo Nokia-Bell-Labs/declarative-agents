@@ -17,6 +17,7 @@ var StandardInits = []string{
 	InitReceiverLaunch, InitAwaitSpans, InitLoadOTLPBatch, InitSpoolSpans, InitRelaySpans, InitReceiverStop,
 	InitSpoolListTraces, InitSpoolGetTrace,
 	InitAwaitMetrics, InitSpoolMetrics,
+	InitSpoolListMetrics, InitSpoolGetMetric,
 }
 
 // ReceiverToolConfig is the YAML ToolDef config shared by launch and stop.
@@ -70,6 +71,20 @@ type QueryGetToolConfig struct {
 	TraceID string `json:"trace_id"`
 }
 
+// QueryListMetricsToolConfig is the declared spool_list_metrics configuration.
+type QueryListMetricsToolConfig struct {
+	Path        string `json:"path"`
+	PageSize    int    `json:"page_size"`
+	MaxPageSize int    `json:"max_page_size"`
+	Offset      int    `json:"offset"`
+}
+
+// QueryGetMetricToolConfig is the declared spool_get_metric configuration.
+type QueryGetMetricToolConfig struct {
+	Path       string `json:"path"`
+	MetricName string `json:"metric_name"`
+}
+
 // RegisterFactories registers receiver lifecycle factories over one shared state.
 func RegisterFactories(br *toolregistry.BuiltinRegistry, state *State) {
 	if state == nil {
@@ -93,6 +108,10 @@ func RegisterFactories(br *toolregistry.BuiltinRegistry, state *State) {
 			br.Register(init, metricAwaitFactory(state))
 		case InitSpoolMetrics:
 			br.Register(init, spoolMetricsFactory())
+		case InitSpoolListMetrics:
+			br.Register(init, queryListMetricsFactory())
+		case InitSpoolGetMetric:
+			br.Register(init, queryGetMetricFactory())
 		default:
 			br.Register(init, receiverFactory(init, state))
 		}
@@ -328,6 +347,56 @@ func queryGetFactory() toolregistry.BuiltinFactory {
 		return GetTraceBuilder{
 			ToolName: def.Name,
 			Config:   QueryGetConfig{Path: path, TraceID: raw.TraceID},
+		}, nil
+	}
+}
+
+func queryListMetricsFactory() toolregistry.BuiltinFactory {
+	return func(def catalog.ToolDef, vars map[string]string) (core.Builder, error) {
+		var raw QueryListMetricsToolConfig
+		if err := catalog.DecodeToolConfig(def, &raw); err != nil {
+			return nil, err
+		}
+		if raw.Path == "" {
+			return nil, fmt.Errorf("tool %q config requires path", def.Name)
+		}
+		path := raw.Path
+		if !filepath.IsAbs(path) && vars["directory"] != "" {
+			path = filepath.Join(vars["directory"], path)
+		}
+		pageSize := raw.PageSize
+		if pageSize <= 0 {
+			pageSize = defaultPageSize
+		}
+		maxPage := raw.MaxPageSize
+		if maxPage <= 0 {
+			maxPage = defaultMaxPageSize
+		}
+		return ListMetricsBuilder{
+			ToolName: def.Name,
+			Config: QueryListMetricsConfig{
+				Path: path, PageSize: pageSize, MaxPageSize: maxPage, Offset: raw.Offset,
+			},
+		}, nil
+	}
+}
+
+func queryGetMetricFactory() toolregistry.BuiltinFactory {
+	return func(def catalog.ToolDef, vars map[string]string) (core.Builder, error) {
+		var raw QueryGetMetricToolConfig
+		if err := catalog.DecodeToolConfig(def, &raw); err != nil {
+			return nil, err
+		}
+		if raw.Path == "" {
+			return nil, fmt.Errorf("tool %q config requires path", def.Name)
+		}
+		path := raw.Path
+		if !filepath.IsAbs(path) && vars["directory"] != "" {
+			path = filepath.Join(vars["directory"], path)
+		}
+		return GetMetricBuilder{
+			ToolName: def.Name,
+			Config:   QueryGetMetricConfig{Path: path, MetricName: raw.MetricName},
 		}, nil
 	}
 }
