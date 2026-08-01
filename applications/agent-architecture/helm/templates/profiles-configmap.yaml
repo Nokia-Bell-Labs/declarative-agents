@@ -1,0 +1,24 @@
+{{- /*
+  Packs the staged documentation-curator profile closure into one ConfigMap the
+  curator pod mounts read-only at /profiles. `mage helmPrepare` regenerates the
+  closure from the pinned catalog checkout into profiles/curator/, so the source
+  chart cannot render before preparation. Keys flatten the path separator; the
+  curator volume projects them back to their runtime paths.
+*/ -}}
+{{- $fullname := include "agent-architecture.fullname" . -}}
+{{- $curatorFiles := .Files.Glob "profiles/curator/**" -}}
+{{- if not $curatorFiles }}
+{{- fail "no staged curator profile closure under profiles/curator; run mage helmPrepare" -}}
+{{- end }}
+apiVersion: v1
+kind: ConfigMap
+metadata:
+  name: {{ $fullname }}-curator-profiles
+  labels:
+    {{- include "agent-architecture.labels" . | nindent 4 }}
+    app.kubernetes.io/component: curator-profiles
+data:
+  {{- range $path, $_ := $curatorFiles }}
+  {{ $path | trimPrefix "profiles/curator/" | replace "/" "__" }}: |-
+    {{- $.Files.Get $path | nindent 4 }}
+  {{- end }}

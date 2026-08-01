@@ -1,0 +1,125 @@
+{{- if .Values.collector.enabled }}
+{{- $fullname := include "agent-architecture.fullname" . -}}
+{{- $collectorFiles := .Files.Glob "profiles/collector/**" -}}
+{{- if not $collectorFiles }}
+{{- fail "no staged collector profile closure under profiles/collector; run mage helmPrepare" -}}
+{{- end }}
+apiVersion: v1
+kind: ConfigMap
+metadata:
+  name: {{ $fullname }}-collector-profiles
+  labels:
+    {{- include "agent-architecture.labels" . | nindent 4 }}
+    app.kubernetes.io/component: collector
+data:
+  {{- range $path, $_ := $collectorFiles }}
+  {{ $path | trimPrefix "profiles/collector/" | replace "/" "__" }}: |-
+    {{- $.Files.Get $path | nindent 4 }}
+  {{- end }}
+---
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: {{ $fullname }}-collector
+  labels:
+    {{- include "agent-architecture.labels" . | nindent 4 }}
+    app.kubernetes.io/component: collector
+spec:
+  replicas: 1
+  selector:
+    matchLabels:
+      {{- include "agent-architecture.selectorLabels" . | nindent 6 }}
+      app.kubernetes.io/component: collector
+  template:
+    metadata:
+      labels:
+        {{- include "agent-architecture.selectorLabels" . | nindent 8 }}
+        app.kubernetes.io/component: collector
+      annotations:
+        checksum/config: {{ toYaml .Values.collector | sha256sum }}
+        {{- with .Values.podAnnotations }}
+        {{- toYaml . | nindent 8 }}
+        {{- end }}
+    spec:
+      automountServiceAccountToken: false
+      securityContext:
+        {{- toYaml .Values.podSecurityContext | nindent 8 }}
+      {{- with .Values.nodeSelector }}
+      nodeSelector:
+        {{- toYaml . | nindent 8 }}
+      {{- end }}
+      {{- with .Values.tolerations }}
+      tolerations:
+        {{- toYaml . | nindent 8 }}
+      {{- end }}
+      containers:
+        - name: collector
+          image: {{ include "agent-architecture.collectorImage" . | quote }}
+          imagePullPolicy: {{ .Values.collector.image.pullPolicy }}
+          args:
+            - "--profile"
+            - "/profiles/agents/collector/profile.yaml"
+            - "--directory"
+            - "/data"
+          securityContext:
+            {{- toYaml .Values.containerSecurityContext | nindent 12 }}
+          env:
+            - {name: COLLECTOR_BIND_HOST, value: "0.0.0.0"}
+            - {name: COLLECTOR_RECEIVER_ADDRESS, value: "0.0.0.0:{{ .Values.collector.otlpGRPCPort }}"}
+            - {name: COLLECTOR_CONTROL_PORT, value: {{ .Values.collector.controlPort | quote }}}
+            - {name: COLLECTOR_MONITOR_PORT, value: {{ .Values.collector.monitorPort | quote }}}
+            - {name: COLLECTOR_QUERY_PORT, value: {{ .Values.collector.queryPort | quote }}}
+            - {name: COLLECTOR_SPOOL_PATH, value: "/data/collector.ndjson"}
+            - {name: COLLECTOR_MODE, value: "spool"}
+          ports:
+            - {name: otlp-grpc, containerPort: {{ .Values.collector.otlpGRPCPort }}}
+            - {name: control, containerPort: {{ .Values.collector.controlPort }}}
+            - {name: monitor, containerPort: {{ .Values.collector.monitorPort }}}
+            - {name: query, containerPort: {{ .Values.collector.queryPort }}}
+          readinessProbe:
+            httpGet: {path: /api/lifecycle/health, port: control}
+            initialDelaySeconds: 2
+            periodSeconds: 5
+          livenessProbe:
+            httpGet: {path: /api/lifecycle/health, port: control}
+            initialDelaySeconds: 10
+            periodSeconds: 15
+          resources:
+            {{- toYaml .Values.collector.resources | nindent 12 }}
+          volumeMounts:
+            - {name: profiles, mountPath: /profiles, readOnly: true}
+            - {name: spool, mountPath: /data}
+            - {name: tmp, mountPath: /tmp}
+      volumes:
+        - name: profiles
+          projected:
+            defaultMode: 0444
+            sources:
+              - configMap:
+                  name: {{ $fullname }}-collector-profiles
+                  items:
+                    {{- range $path, $_ := .Files.Glob "profiles/collector/**" }}
+                    - key: {{ $path | trimPrefix "profiles/collector/" | replace "/" "__" }}
+                      path: {{ $path | trimPrefix "profiles/collector/" }}
+                    {{- end }}
+        - name: spool
+          emptyDir: {}
+        - name: tmp
+          emptyDir: {}
+---
+apiVersion: v1
+kind: Service
+metadata:
+  name: {{ $fullname }}-collector
+  labels:
+    {{- include "agent-architecture.labels" . | nindent 4 }}
+    app.kubernetes.io/component: collector
+spec:
+  selector:
+    {{- include "agent-architecture.selectorLabels" . | nindent 4 }}
+    app.kubernetes.io/component: collector
+  ports:
+    - {name: otlp-grpc, port: {{ .Values.collector.otlpGRPCPort }}, targetPort: otlp-grpc}
+    - {name: control, port: {{ .Values.collector.controlPort }}, targetPort: control}
+    - {name: query, port: {{ .Values.collector.queryPort }}, targetPort: query}
+{{- end }}

@@ -1,0 +1,9 @@
+name: applier-apply-request
+machine: apply-machine.yaml
+tools:
+  - request-tools-apply.yaml
+tool_declarations:
+  - request-declarations.yaml
+  - exec-declarations.yaml
+rest_definitions:
+  - rest.yaml

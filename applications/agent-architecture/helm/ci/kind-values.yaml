@@ -1,0 +1,18 @@
+image:
+  repository: declarative-agents/agent-architecture-smoke
+  # mage integration:helmSmoke always overrides this fail-closed sentinel with
+  # the tested checkout's 12-character commit revision.
+  tag: must-be-overridden-with-git-revision
+  pullPolicy: Never
+
+collector:
+  image:
+    pullPolicy: Never
+  resources:
+    requests: {cpu: 25m, memory: 64Mi}
+    limits: {cpu: 250m, memory: 256Mi}
+
+curator:
+  resources:
+    requests: {cpu: 25m, memory: 64Mi}
+    limits: {cpu: "1", memory: 1Gi}

@@ -31,7 +31,9 @@ current_candidates:
     runnable_module_status: implemented
     managed_service_status: partial
     live_managed_service_evidence: dependency_gated
-    not_applicable: [packaged, helm_managed, kind_demo]
+    packaged_status: planned
+    helm_managed_status: planned
+    kind_demo_status: planned
   - path: applications/catalog
     classification: reusable catalog
     runnable: false

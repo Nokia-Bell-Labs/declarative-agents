@@ -1,0 +1,8 @@
+name: applier-rollout-request
+machine: rollout-machine.yaml
+tools:
+  - request-tools-rollout.yaml
+tool_declarations:
+  - exec-declarations.yaml
+rest_definitions:
+  - rest.yaml

@@ -16,6 +16,14 @@ overview:
     --core-root. Neither the catalog nor agent-core imports this application.
     This module extends applications/docs srd001 and the applicable managed
     service groups in srd002 by reference.
+
+    A planned Kubernetes deployment runs the same composition on a cluster: a
+    chart runs the documentation-curator and the collector as workloads from
+    mounted catalog-owned closures (srd001-helm-deployment), and a standalone
+    declarative applier actuates that chart for an authorized operator or CI
+    caller (srd002-applier). The packaged, helm_managed, and kind_demo
+    capabilities are declared and planned; their resources land in later
+    sub-issues.
   demo_flow_diagram: |
     ```mermaid
     flowchart LR
@@ -56,14 +64,37 @@ capability_classification:
       status: partial
       live_observation_status: dependency_gated
     - capability: packaged
-      applies: false
-      reason: Release 00.0 produces no distributable application artifact.
+      applies: true
+      scope:
+        - deterministic archive staging the catalog-owned curator and collector profile closures
+      shared_requirements:
+        - srd002-managed-application-services R4
+      local_requirements:
+        - srd001-helm-deployment R2
+      status: planned
+      realized_in: "02.0"
     - capability: helm_managed
-      applies: false
-      reason: Release 00.0 ships no Helm chart.
+      applies: true
+      scope:
+        - chart running the documentation-curator and collector as workloads from mounted closures
+        - values.schema.json and template guards over the deployment values
+      shared_requirements:
+        - srd002-managed-application-services R5
+      local_requirements:
+        - srd001-helm-deployment R1
+        - srd001-helm-deployment R2
+      status: planned
+      realized_in: "02.0"
     - capability: kind_demo
-      applies: false
-      reason: Release 00.0 runs local processes and has no kind rig.
+      applies: true
+      scope:
+        - bounded kind install of the validated archive with curator and collector readiness, a served curator surface, and an exported trace
+      shared_requirements:
+        - srd002-managed-application-services R6
+      local_requirements:
+        - srd001-helm-deployment R3
+      status: planned
+      realized_in: "03.0"
   managed_services:
     - name: documentation-curator
       ownership: applications/catalog canonical profile; application-owned launch and exit composition
@@ -250,6 +281,43 @@ design_decisions:
       - A guided run produces browsable traces without external infrastructure.
       - The collector reuses the same agent binary and canonical profile.
       - The presenter shows the trace waterfall from the collector query surface.
+  - id: 8
+    title: Deploy the canonical profile closures through a chart
+    decision: |
+      A chart runs the documentation-curator and the collector as persistent
+      Kubernetes workloads. A mage preparation target stages the catalog-owned
+      curator and collector profile closures as checksum-validated ConfigMaps
+      that the workloads mount into one profile-free runtime image; a
+      values.schema.json owns the deployment values, and a package target emits a
+      self-contained archive a bounded kind target installs. The chart deploys
+      canonical profiles by reference, copying neither the profile nor its user
+      interface. srd001-helm-deployment defines the topology, package, schema, and
+      smoke; srd002-managed-application-services R4 through R6 apply by reference.
+      The resources land in later sub-issues.
+    benefits:
+      - The same composition the local demo runs installs and upgrades on a cluster.
+      - Mounted closures keep the catalog as the one owner of the curator and collector profiles.
+      - A validated archive and bounded kind smoke prove the topology independently of the source tree.
+  - id: 9
+    title: Separate the deciding caller from the actuating applier
+    decision: |
+      The applier decides no deployment values. An authorized operator or CI
+      caller decides a values-plane patch and submits it to the applier's apply
+      endpoint; the applier validates it against the chart's values.schema.json,
+      applies it as a values-file rollout, verifies the curator and collector
+      Deployments, and rolls back on failure. Deployment authority is held by the
+      applier alone: it binds helm and kubectl as exec tools, and the curator and
+      collector profiles carry no deployment CLI. Authority is set by declared,
+      validated config, never by the actuation surface, which is network-gated off
+      the serving pods. The applier image carries helm and kubectl, a recorded
+      divergence from the profile-free image invariant. The Agent Architecture has
+      no control plane, so the caller is external, not an in-cluster creator,
+      orchestrator, or panel. srd002-applier defines the actuation surface,
+      machine, and authority boundary.
+    benefits:
+      - The deciding operator and the actuating agent stay separable and auditable.
+      - Deployment CLIs never reach a serving role, so a running agent cannot actuate the cluster.
+      - The values-plane boundary keeps host, URL, method, and credential input off the apply path.
 
 technology_choices:
   - component: Presentation server
@@ -321,7 +389,11 @@ related_documents:
   - doc: ../docs/specs/software-requirements/srd001-application-module-contract.yaml
     purpose: Shared runnable application module contract.
   - doc: ../docs/specs/software-requirements/srd002-managed-application-services.yaml
-    purpose: Shared R1 through R3 contract for the curator and present managed services.
+    purpose: Shared R1 through R6 contract for the managed services, package, chart, and kind capabilities.
+  - doc: docs/specs/software-requirements/srd001-helm-deployment.yaml
+    purpose: Planned chart topology, profile-closure package, values schema, and kind smoke.
+  - doc: docs/specs/software-requirements/srd002-applier.yaml
+    purpose: Planned standalone applier that validates, applies, verifies, and rolls back a values patch.
   - doc: docs/VISION.yaml
     purpose: Application goals and exclusions.
   - doc: docs/road-map.yaml

@@ -1,0 +1,17 @@
+# Layers on ci/kind-values.yaml to stand the applier up on kind, for the live tier.
+#
+# The chart disables the applier by default: its image bundles helm, kubectl, and the
+# chart rather than being the profile-free runtime image the curator, collector, and
+# smoke tests kind-load, so those tests would wait on an image they never loaded. The
+# live tier builds and loads that image, so it re-enables the applier here rather than
+# editing the values every other cluster test depends on.
+applier:
+  enabled: true
+  # Loaded into the kind node by the target; never pulled.
+  image:
+    pullPolicy: Never
+  networkPolicy:
+    enabled: true
+  resources:
+    requests: {cpu: 50m, memory: 64Mi}
+    limits: {cpu: 500m, memory: 256Mi}

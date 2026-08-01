@@ -67,9 +67,9 @@ releases:
         runnable_module: implemented
         managed_service: partial
         live_managed_service_evidence: dependency_gated
-        packaged: not_applicable
-        helm_managed: not_applicable
-        kind_demo: not_applicable
+        packaged: planned
+        helm_managed: planned
+        kind_demo: planned
     non_runnable_modules:
       - path: applications/catalog
         classification: reusable catalog

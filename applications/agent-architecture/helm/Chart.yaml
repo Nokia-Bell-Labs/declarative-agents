@@ -1,0 +1,11 @@
+apiVersion: v2
+name: agent-architecture
+description: Persistent documentation-curator and collector agents over mounted canonical profiles.
+type: application
+version: 0.1.0
+appVersion: "0.1.0"
+keywords: [declarative-agents, agent-architecture, knowledge-manager]
+maintainers:
+  - name: Nokia Bell Labs
+sources:
+  - https://github.com/Nokia-Bell-Labs/declarative-agents

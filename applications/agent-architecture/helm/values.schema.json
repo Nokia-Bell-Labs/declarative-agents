@@ -1,0 +1,176 @@
+{
+  "$schema": "https://json-schema.org/draft-07/schema#",
+  "title": "agent-architecture values",
+  "type": "object",
+  "additionalProperties": false,
+  "required": ["image", "profiles", "curator", "collector", "applier", "podSecurityContext", "containerSecurityContext"],
+  "definitions": {
+    "image": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["repository", "tag", "pullPolicy"],
+      "properties": {
+        "repository": {"type": "string", "pattern": "^[a-z0-9]+([._/-][a-z0-9]+)*(:[0-9]+)?([/][a-z0-9]+([._-][a-z0-9]+)*)*$"},
+        "tag": {"type": "string", "pattern": "^[A-Za-z0-9_][A-Za-z0-9_.-]{0,127}$"},
+        "pullPolicy": {"type": "string", "enum": ["Always", "IfNotPresent", "Never"]}
+      }
+    },
+    "resourceQuantity": {
+      "type": "string",
+      "pattern": "^[1-9][0-9]*(m|Ki|Mi|Gi|Ti)?$"
+    },
+    "resources": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["requests", "limits"],
+      "properties": {
+        "requests": {
+          "type": "object",
+          "additionalProperties": false,
+          "required": ["cpu", "memory"],
+          "properties": {
+            "cpu": {"$ref": "#/definitions/resourceQuantity"},
+            "memory": {"$ref": "#/definitions/resourceQuantity"}
+          }
+        },
+        "limits": {
+          "type": "object",
+          "additionalProperties": false,
+          "required": ["cpu", "memory"],
+          "properties": {
+            "cpu": {"$ref": "#/definitions/resourceQuantity"},
+            "memory": {"$ref": "#/definitions/resourceQuantity"}
+          }
+        }
+      }
+    },
+    "labels": {
+      "type": "object",
+      "additionalProperties": {"type": "string"}
+    },
+    "tolerations": {
+      "type": "array",
+      "items": {
+        "type": "object",
+        "additionalProperties": false,
+        "properties": {
+          "key": {"type": "string"},
+          "operator": {"type": "string", "enum": ["Exists", "Equal"]},
+          "value": {"type": "string"},
+          "effect": {"type": "string", "enum": ["NoSchedule", "PreferNoSchedule", "NoExecute"]},
+          "tolerationSeconds": {"type": "integer", "minimum": 0}
+        }
+      }
+    }
+  },
+  "properties": {
+    "nameOverride": {"type": "string", "pattern": "^[a-z0-9]([-a-z0-9]*[a-z0-9])?$"},
+    "image": {"$ref": "#/definitions/image"},
+    "profiles": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["mountPath"],
+      "properties": {"mountPath": {"const": "/profiles"}}
+    },
+    "curator": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["replicas", "documentationPort", "controlPort", "monitorPort", "serviceName", "resources"],
+      "properties": {
+        "replicas": {"type": "integer", "minimum": 1, "maximum": 1},
+        "documentationPort": {"const": 18081},
+        "controlPort": {"const": 18082},
+        "monitorPort": {"const": 18084},
+        "serviceName": {"type": "string", "minLength": 1, "pattern": "^[a-z0-9]([-a-z0-9]*[a-z0-9])?$"},
+        "resources": {"$ref": "#/definitions/resources"}
+      }
+    },
+    "collector": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["enabled", "image", "otlpGRPCPort", "controlPort", "monitorPort", "queryPort", "resources"],
+      "properties": {
+        "enabled": {"type": "boolean"},
+        "image": {"$ref": "#/definitions/image"},
+        "otlpGRPCPort": {"const": 4317},
+        "controlPort": {"const": 18191},
+        "monitorPort": {"const": 18192},
+        "queryPort": {"const": 18193},
+        "resources": {"$ref": "#/definitions/resources"}
+      }
+    },
+    "applier": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["enabled", "image", "ports", "workDir", "allowApply", "networkPolicy", "resources"],
+      "properties": {
+        "enabled": {"type": "boolean"},
+        "image": {"$ref": "#/definitions/image"},
+        "ports": {
+          "type": "object",
+          "additionalProperties": false,
+          "required": ["apply", "control", "monitor"],
+          "properties": {
+            "apply": {"const": 18230},
+            "control": {"const": 18231},
+            "monitor": {"const": 18232}
+          }
+        },
+        "workDir": {"const": "/work"},
+        "allowApply": {"type": "boolean"},
+        "networkPolicy": {
+          "type": "object",
+          "additionalProperties": false,
+          "required": ["enabled"],
+          "properties": {"enabled": {"type": "boolean"}}
+        },
+        "resources": {"$ref": "#/definitions/resources"}
+      }
+    },
+    "podSecurityContext": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["runAsNonRoot", "runAsUser", "runAsGroup", "fsGroup", "seccompProfile"],
+      "properties": {
+        "runAsNonRoot": {"const": true},
+        "runAsUser": {"type": "integer", "minimum": 1},
+        "runAsGroup": {"type": "integer", "minimum": 1},
+        "fsGroup": {"type": "integer", "minimum": 1},
+        "seccompProfile": {
+          "type": "object",
+          "additionalProperties": false,
+          "required": ["type"],
+          "properties": {"type": {"const": "RuntimeDefault"}}
+        }
+      }
+    },
+    "containerSecurityContext": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["allowPrivilegeEscalation", "readOnlyRootFilesystem", "capabilities"],
+      "properties": {
+        "allowPrivilegeEscalation": {"const": false},
+        "readOnlyRootFilesystem": {"const": true},
+        "capabilities": {
+          "type": "object",
+          "additionalProperties": false,
+          "required": ["drop"],
+          "properties": {
+            "drop": {
+              "type": "array",
+              "items": {"type": "string"},
+              "contains": {"const": "ALL"}
+            }
+          }
+        }
+      }
+    },
+    "podAnnotations": {
+      "type": "object",
+      "additionalProperties": {"type": "string"}
+    },
+    "nodeSelector": {"$ref": "#/definitions/labels"},
+    "tolerations": {"$ref": "#/definitions/tolerations"},
+    "affinity": {"type": "object"}
+  }
+}

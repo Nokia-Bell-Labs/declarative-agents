@@ -1,0 +1,3 @@
+# Source-tree release output must never recurse into a packaged chart.
+dist/
+*.tgz

@@ -1,0 +1,22 @@
+# Copyright (c) 2026 Nokia. All rights reserved.
+#
+# agent-architecture is a composition-only application: it owns no agent
+# profiles. This manifest records the catalog release the composition is pinned
+# to and the two canonical profiles the chart deploys by reference -- the
+# documentation-curator and the collector -- so `mage helmPrepare` regenerates
+# their closures from a compatible catalog checkout and stages them as the
+# chart's only profile source. The runtime image stays profile-free.
+schema_version: 1
+application: agent-architecture
+agent_profiles:
+  compatible_release: applications/catalog/v0.20260730.0
+  references:
+    - role: curator
+      source: agents/knowledge-manager/documentation-curator/profile.yaml
+      runtime_path: agents/knowledge-manager/documentation-curator/profile.yaml
+    - role: collector
+      source: agents/collector/profile.yaml
+      runtime_path: agents/collector/profile.yaml
+runtime:
+  mount_path: /profiles
+  image_contains_profiles: false

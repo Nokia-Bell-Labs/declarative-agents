@@ -5,7 +5,12 @@ overview: |
   This index governs the standalone Agent Architecture composition.
   Release 00.0 establishes the guided demo with one use case and test suite.
   Release 01.0 adds trace collection through the canonical collector agent.
-  The application references the canonical documentation-curator and collector
+  Releases 02.0 and 03.0 add the planned Kubernetes deployment: a chart running
+  the documentation-curator and the collector from mounted catalog-owned
+  closures, a values schema, and a bounded kind smoke (srd001-helm-deployment).
+  Release 04.0 adds the planned standalone declarative applier that actuates the
+  chart for an authorized operator or CI caller (srd002-applier). The
+  application references the canonical documentation-curator and collector
   requirements and profile UX evidence in applications/catalog; it does not
   fork or re-index them as application-owned requirements.
 
@@ -20,7 +25,10 @@ overview: |
   The application extends shared srd001 and srd002 by reference. runnable_module
   and managed_service apply; srd002 R1 through R3 apply to both the canonical
   documentation-curator server launched by the application and the Go present
-  server. packaged, helm_managed, and kind_demo do not apply.
+  server. packaged, helm_managed, and kind_demo are declared and planned, and
+  cite srd002 R4 through R6; the application owns srd001-helm-deployment and
+  srd002-applier for their local topology, package, schema, smoke, and actuation
+  requirements.
 
 roadmap_summary:
   - version: "00.0"
@@ -33,6 +41,21 @@ roadmap_summary:
     use_cases_done: 1
     use_cases_total: 1
     status: implemented
+  - version: "02.0"
+    name: Packaged chart render and validation
+    use_cases_done: 0
+    use_cases_total: 1
+    status: planned
+  - version: "03.0"
+    name: Live Helm smoke
+    use_cases_done: 0
+    use_cases_total: 1
+    status: planned
+  - version: "04.0"
+    name: Declarative applier agent
+    use_cases_done: 0
+    use_cases_total: 1
+    status: planned
 
 foundation_document_index:
   - id: agent-architecture
@@ -48,7 +71,15 @@ foundation_document_index:
     summary: Release 00.0 contract, implemented deterministic evidence, and dependency-gated live observations.
     path: docs/road-map.yaml
 
-srd_index: []
+srd_index:
+  - id: srd001-helm-deployment
+    title: Agent Architecture Helm Deployment
+    status: planned
+    path: docs/specs/software-requirements/srd001-helm-deployment.yaml
+  - id: srd002-applier
+    title: Declarative Applier Agent
+    status: planned
+    path: docs/specs/software-requirements/srd002-applier.yaml
 
 external_requirement_references:
   - id: srd001-application-module-contract
@@ -63,14 +94,16 @@ external_requirement_references:
   - id: srd002-managed-application-services
     owner: applications
     path: ../docs/specs/software-requirements/srd002-managed-application-services.yaml
-    requirements: [R1, R2, R3]
+    requirements: [R1, R2, R3, R4, R5, R6]
     applies_to:
       - documentation-curator server launched by this application
       - Go present server
+      - planned chart, package, and kind deployment
     usage: |
       Governs lifecycle, control and operator verbs, telemetry, and
-      configuration for both Release 00.0 managed services. Package, Helm, and
-      kind requirement groups do not apply.
+      configuration for both Release 00.0 managed services (R1 through R3). The
+      planned deployment cites the package (R4), Helm (R5), and kind (R6) groups,
+      supplying their evidence through srd001-helm-deployment.
   - id: srd011-knowledge-manager
     owner: applications/catalog
     path: ../catalog/docs/specs/software-requirements/srd011-knowledge-manager.yaml
@@ -101,6 +134,24 @@ use_case_index:
     status: implemented
     test_suite: test-rel01.0-demo-trace-collection
     path: docs/specs/use-cases/rel01.0-uc001-demo-trace-collection.yaml
+  - id: rel02.0-uc001-render-packaged-chart
+    title: Render and Validate the Packaged Agent Architecture Chart
+    release: "02.0"
+    status: planned
+    test_suite: test-rel02.0-render-packaged-chart
+    path: docs/specs/use-cases/rel02.0-uc001-render-packaged-chart.yaml
+  - id: rel03.0-uc001-live-helm-smoke
+    title: Prove the Packaged Agent Architecture Chart on Kind
+    release: "03.0"
+    status: planned
+    test_suite: test-rel03.0-live-helm-smoke
+    path: docs/specs/use-cases/rel03.0-uc001-live-helm-smoke.yaml
+  - id: rel04.0-uc001-declarative-applier
+    title: The Applier Agent Validates, Applies, and Verifies an Agent Architecture Values Change
+    release: "04.0"
+    status: planned
+    test_suite: test-rel04.0-declarative-applier
+    path: docs/specs/use-cases/rel04.0-uc001-declarative-applier.yaml
 
 test_suite_index:
   - id: test-rel00.0-guided-agent-architecture
@@ -119,6 +170,30 @@ test_suite_index:
     traces:
       - rel01.0-uc001-demo-trace-collection
     path: docs/specs/test-suites/test-rel01.0-demo-trace-collection.yaml
+  - id: test-rel02.0-render-packaged-chart
+    title: Test Suite for Release 02.0 Packaged Chart Render and Validation
+    release: "02.0"
+    status: planned
+    test_case_count: 4
+    traces:
+      - rel02.0-uc001-render-packaged-chart
+    path: docs/specs/test-suites/test-rel02.0-render-packaged-chart.yaml
+  - id: test-rel03.0-live-helm-smoke
+    title: Test Suite for Release 03.0 Live Helm Smoke
+    release: "03.0"
+    status: planned
+    test_case_count: 4
+    traces:
+      - rel03.0-uc001-live-helm-smoke
+    path: docs/specs/test-suites/test-rel03.0-live-helm-smoke.yaml
+  - id: test-rel04.0-declarative-applier
+    title: Test Suite for Release 04.0 Declarative Applier Agent
+    release: "04.0"
+    status: planned
+    test_case_count: 5
+    traces:
+      - rel04.0-uc001-declarative-applier
+    path: docs/specs/test-suites/test-rel04.0-declarative-applier.yaml
 
 coverage_gaps:
   - id: live-browser-observation
@@ -129,3 +204,11 @@ coverage_gaps:
       browser rendering, role readiness, exit, and listener-release evidence
       requires available ports, a buildable agent-core checkout, and operator
       execution. Command construction is not live-service proof.
+  - id: kubernetes-deployment
+    status: planned
+    description: |
+      The chart, profile-closure package, values schema, kind smoke, and applier
+      are specified in srd001-helm-deployment and srd002-applier with planned use
+      cases and test suites. The Helm resources, package targets, applier
+      profile, and integration targets land in later sub-issues; the packaged,
+      helm_managed, and kind_demo capabilities remain planned until they do.

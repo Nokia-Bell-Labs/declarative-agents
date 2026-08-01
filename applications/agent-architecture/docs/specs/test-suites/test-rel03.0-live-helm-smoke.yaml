@@ -1,0 +1,102 @@
+id: test-rel03.0-live-helm-smoke
+title: Test Suite for Release 03.0 Live Helm Smoke
+release: "03.0"
+status: planned
+
+overview: |
+  This suite validates the bounded kind smoke (srd001 R3): the packaged archive
+  install, real curator and collector readiness, a browsable curator surface,
+  clean lifecycle exit, an in-cluster trace the collector retains, prerequisite
+  skips, and cleanup with bounded diagnostics. The kind target lands in a later
+  sub-issue, so each case names a planned integration target rather than an
+  existing Go test.
+
+traces:
+  - rel03.0-uc001-live-helm-smoke
+
+preconditions:
+  - Docker, kind, Helm, and kubectl are available and Docker is healthy for the live case.
+  - The validated chart archive and the catalog and agent-core checkouts are available.
+
+test_cases:
+  - use_case: rel03.0-uc001-live-helm-smoke
+    id: install_packaged_chart
+    name: The validated archive installs on kind
+    integration_target: mage integration:helmSmoke
+    status: planned
+    description: |
+      Creates a kind cluster through a temporary kubeconfig, builds and loads the
+      profile-free runtime image the chart references, and installs only the
+      validated archive. Asserts the install source is the validated archive, not
+      a source-tree surrogate, and that the packaged curator and collector
+      closures are the mounted profile source.
+    inputs:
+      cluster: kind with the runtime image built and loaded
+      install_source: validated chart archive
+    expected:
+      installs_validated_archive_only: true
+      profile_free_image_loaded: true
+      packaged_closures_mounted: true
+    traces:
+      - rel03.0-uc001-live-helm-smoke S1
+      - srd001-helm-deployment AC4
+
+  - use_case: rel03.0-uc001-live-helm-smoke
+    id: readiness_and_exit
+    name: Curator and collector reach readiness and exit cleanly
+    integration_target: mage integration:helmSmoke
+    status: planned
+    description: |
+      Waits for the curator and collector Deployments and their real lifecycle
+      health endpoints to become ready, reaches the curator documentation
+      interface, and issues a declarative lifecycle-exit request. Asserts the
+      curator stops cleanly and releases its listeners rather than being killed.
+    inputs:
+      workloads: [curator, collector]
+    expected:
+      real_lifecycle_health_ready: true
+      curator_surface_served: true
+      declarative_exit_stops_curator_cleanly: true
+    traces:
+      - rel03.0-uc001-live-helm-smoke S2
+      - srd001-helm-deployment AC4
+
+  - use_case: rel03.0-uc001-live-helm-smoke
+    id: trace_retained
+    name: The collector retains an exported curator trace
+    integration_target: mage integration:helmSmoke
+    status: planned
+    description: |
+      Drives the curator to export a trace under its service name and queries the
+      collector's spool surface for it. Asserts the collector retains the
+      curator trace, proving the in-cluster OTLP path end to end rather than by
+      render inspection alone.
+    inputs:
+      service_name: knowledge-manager-curator
+    expected:
+      collector_retains_curator_trace: true
+    traces:
+      - rel03.0-uc001-live-helm-smoke S3
+      - srd001-helm-deployment AC4
+
+  - use_case: rel03.0-uc001-live-helm-smoke
+    id: skip_and_cleanup
+    name: Prerequisite skips and terminal cleanup
+    integration_target: mage test (smoke preflight and cleanup)
+    status: planned
+    description: |
+      Drives missing-tool preflight cases and asserts the target prints a
+      specific skip without mutating a cluster. Drives terminal paths and asserts
+      the namespace, release, forwards, temporary files, and any owned cluster
+      are cleaned, and that failure diagnostics share one deadline and include
+      Helm status, workloads, events, and targeted curator and collector logs.
+    inputs:
+      missing_tools: [docker, kind, helm, kubectl]
+      terminal_paths: [success, semantic_failure, infrastructure_failure]
+    expected:
+      missing_prerequisite_skips_without_cluster_mutation: true
+      owned_resources_cleaned_on_every_terminal_path: true
+      failure_diagnostics_bounded_and_targeted: true
+    traces:
+      - rel03.0-uc001-live-helm-smoke S4
+      - srd001-helm-deployment AC4

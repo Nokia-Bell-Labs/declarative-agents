@@ -1,0 +1,25 @@
+The agent-architecture composition is installed with two persistent workloads:
+
+  Curator:   {{ include "agent-architecture.fullname" . }}-curator (documentation {{ .Values.curator.documentationPort }}, control {{ .Values.curator.controlPort }}, monitor {{ .Values.curator.monitorPort }})
+{{- if .Values.collector.enabled }}
+  Collector: {{ include "agent-architecture.fullname" . }}-collector (OTLP {{ .Values.collector.otlpGRPCPort }}, control {{ .Values.collector.controlPort }}, query {{ .Values.collector.queryPort }})
+{{- end }}
+
+Each workload uses {{ include "agent-architecture.image" . }} and mounts its
+canonical catalog profile closure read-only at {{ .Values.profiles.mountPath }}.
+The image is profile-free.
+{{- if .Values.collector.enabled }}
+The curator exports OTLP traces to the collector at
+{{ include "agent-architecture.otlpEndpoint" . }} under service name
+{{ .Values.curator.serviceName }}.
+{{- end }}
+
+The documentation-curator profile binds its servers on loopback, so reach the
+documentation and control surfaces with `kubectl port-forward`, not a ClusterIP
+route:
+
+  kubectl -n {{ .Release.Namespace }} port-forward deploy/{{ include "agent-architecture.fullname" . }}-curator {{ .Values.curator.controlPort }}:{{ .Values.curator.controlPort }} {{ .Values.curator.documentationPort }}:{{ .Values.curator.documentationPort }}
+
+This source chart requires `mage helmPrepare` before lint or install. Use the
+packaged artifact for deployment and `mage integration:helmSmoke` for the
+bounded kind proof.

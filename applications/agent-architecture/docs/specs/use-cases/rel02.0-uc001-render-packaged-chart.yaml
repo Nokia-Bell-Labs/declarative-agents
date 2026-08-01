@@ -1,0 +1,74 @@
+id: rel02.0-uc001-render-packaged-chart
+title: Render and Validate the Packaged Agent Architecture Chart
+status: planned
+
+summary: |
+  An operator prepares the catalog-owned curator and collector profile closures
+  and renders a chart that runs the documentation-curator and the collector as
+  persistent workloads. The workloads share the profile-free runtime image,
+  mount only their prepared closures, report their real lifecycle health, and
+  wire the curator's OTLP export to the in-cluster collector. A values schema
+  and template guards reject unsafe or incoherent values, and a self-contained
+  archive lints and renders with no source checkout present.
+
+actor: An operator preparing an Agent Architecture Kubernetes release.
+trigger: Run the mage preparation target followed by helm lint, helm template, or the package target.
+
+preconditions:
+  - AGENT_CATALOG_ROOT resolves to a catalog checkout containing the documentation-curator and collector profiles.
+  - Helm is available.
+
+flow:
+  - id: F1
+    text: The preparation target regenerates the catalog-owned curator and collector profile closures and atomically stages them as the chart's only profile source.
+  - id: F2
+    text: Helm renders one curator and one collector Deployment, each projecting only its prepared ConfigMaps and selecting its mounted canonical profile.
+  - id: F3
+    text: Each workload exposes its request, control, and monitor or query ports through a ClusterIP Service, and its readiness and liveness probes call its real lifecycle health endpoint.
+  - id: F4
+    text: The curator receives a values-selected OTLP endpoint and service name and exports traces to the collector, which spools them and serves its query surface.
+  - id: F5
+    text: The values schema rejects unknown keys and malformed values, template guards retain mount, fixed-port, and telemetry invariants, and the package target produces one self-contained archive.
+
+touchpoints:
+  - id: T1
+    target: srd001-helm-deployment AC1
+    reason: The rendered topology runs the curator and collector as truthful workloads from mounted closures.
+  - id: T2
+    target: srd001-helm-deployment AC2
+    reason: Preparation stages and checksum-validates the catalog-owned closures.
+  - id: T3
+    target: srd001-helm-deployment AC3
+    reason: The schema, guards, and self-contained archive hold.
+
+success_criteria:
+  - id: S1
+    criterion: The rendered topology contains exactly one curator and one collector workload with the profile-free image, mounted closures, fixed Services, truthful lifecycle probes, and hardened pod security.
+    traces:
+      - srd001-helm-deployment R1
+      - srd001-helm-deployment AC1
+  - id: S2
+    criterion: Preparation regenerates and checksum-validates the catalog-owned curator and collector closures and rejects stale, tampered, or out-of-bound package inputs before staging.
+    traces:
+      - srd001-helm-deployment R2.1
+      - srd001-helm-deployment R2.2
+      - srd001-helm-deployment AC2
+  - id: S3
+    criterion: The values schema and template guards accept every valid fixture and reject each invalid fixture by its offending field, and the self-contained archive lints and renders without a source checkout.
+    traces:
+      - srd001-helm-deployment R2.3
+      - srd001-helm-deployment R2.4
+      - srd001-helm-deployment R2.5
+      - srd001-helm-deployment AC3
+  - id: S4
+    criterion: The curator's OTLP export to the in-cluster collector renders coherently under default and CI values.
+    traces:
+      - srd001-helm-deployment R1.5
+      - srd001-helm-deployment AC1
+
+out_of_scope:
+  - Live kind installation and on-cluster behavior.
+  - The applier actuation surface.
+  - Changing the canonical curator or collector profiles.
+
+test_suite: test-rel02.0-render-packaged-chart
