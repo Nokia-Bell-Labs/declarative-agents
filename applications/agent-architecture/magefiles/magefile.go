@@ -395,11 +395,25 @@ func collectorExitURL() string {
 }
 
 func postCollectorExit() {
-	client := &http.Client{Timeout: 5 * time.Second}
-	resp, err := client.Post(collectorExitURL(), "application/json", nil)
-	if err == nil {
-		resp.Body.Close()
+	if err := postExitRequest(collectorExitURL()); err != nil {
+		fmt.Fprintf(os.Stderr, "warning: collector exit request failed, collector may keep its ports: %v\n", err)
 	}
+}
+
+// postExitRequest sends the JSON body the exit route requires; a nil body is
+// rejected with 400 and the collector keeps running, which leaks its ports
+// into the next demo run (GH-1195).
+func postExitRequest(url string) error {
+	client := &http.Client{Timeout: 5 * time.Second}
+	resp, err := client.Post(url, "application/json", strings.NewReader(`{"reason":"demo cleanup"}`))
+	if err != nil {
+		return err
+	}
+	defer resp.Body.Close()
+	if resp.StatusCode != http.StatusAccepted {
+		return fmt.Errorf("exit route returned %s", resp.Status)
+	}
+	return nil
 }
 
 func auditApplication(root string) error {

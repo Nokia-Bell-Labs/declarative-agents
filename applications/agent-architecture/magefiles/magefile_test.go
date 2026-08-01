@@ -4,6 +4,8 @@ package main
 
 import (
 	"encoding/json"
+	"net/http"
+	"net/http/httptest"
 	"os"
 	"path/filepath"
 	"reflect"
@@ -372,6 +374,45 @@ func TestTracingEnabled(t *testing.T) {
 		if got != test.want {
 			t.Errorf("tracingEnabled(%q) = %v, want %v", test.value, got, test.want)
 		}
+	}
+}
+
+func TestPostExitRequestSendsAcceptedJSONBody(t *testing.T) {
+	var (
+		method      string
+		contentType string
+		body        map[string]string
+	)
+	server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		method = r.Method
+		contentType = r.Header.Get("Content-Type")
+		if err := json.NewDecoder(r.Body).Decode(&body); err != nil {
+			t.Errorf("decode exit body: %v", err)
+		}
+		w.WriteHeader(http.StatusAccepted)
+	}))
+	defer server.Close()
+	if err := postExitRequest(server.URL); err != nil {
+		t.Fatalf("postExitRequest() = %v", err)
+	}
+	if method != http.MethodPost {
+		t.Errorf("method = %s, want POST", method)
+	}
+	if contentType != "application/json" {
+		t.Errorf("content type = %s, want application/json", contentType)
+	}
+	if body["reason"] == "" {
+		t.Errorf("exit body reason is empty; the route rejects bodyless requests with 400")
+	}
+}
+
+func TestPostExitRequestReportsRejectedRequest(t *testing.T) {
+	server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		w.WriteHeader(http.StatusBadRequest)
+	}))
+	defer server.Close()
+	if err := postExitRequest(server.URL); err == nil {
+		t.Fatal("postExitRequest() accepted a 400 response; a rejected exit leaks the collector")
 	}
 }
 
