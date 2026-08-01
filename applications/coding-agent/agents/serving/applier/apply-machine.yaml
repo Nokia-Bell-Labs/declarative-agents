@@ -4,12 +4,12 @@ purpose: |-
   machine_request apply endpoint seeds this machine with the overrides content and
   a fixed values-file path. The applier writes the overrides to the file
   (write_overrides), validates them against the chart schema with a helm dry-run
-  (helm_dry_run), applies the patch as an atomic rollout (helm_upgrade), and then
-  verifies the planner, executor, and critic Deployments in turn
-  (kubectl_rollout_status_planner, _executor, _critic). A failed apply is
-  self-rolled-back by --atomic; a verify stall on any of the three role
-  Deployments is compensated by helm_rollback. The applier authors no values
-  decision and passes no endpoint or credential into a running agent.
+  (helm_dry_run), applies the patch as an in-place rollout that returns without
+  waiting (helm_upgrade), and then verifies the planner, executor, and critic
+  Deployments in turn (kubectl_rollout_status_planner, _executor, _critic). An
+  apply command that itself fails lands in Failed; a verify stall on any of the
+  three role Deployments is compensated by helm_rollback. The applier authors no
+  values decision and passes no endpoint or credential into a running agent.
 
   Every word here is an exec word (or the file write), so each emits only ToolDone
   or ToolFailed. The outcomes are told apart by the terminal state a run ends in
@@ -24,7 +24,7 @@ states:
   - {name: AwaitingRequest, meaning: Seeded by the apply endpoint with the overrides content and path.}
   - {name: Writing, meaning: Writing the overrides to the values file.}
   - {name: Validating, meaning: Rendering the release with --dry-run to validate against the chart schema.}
-  - {name: Applying, meaning: Applying the patch as an atomic, waited rollout.}
+  - {name: Applying, meaning: Applying the patch as an in-place rollout that returns without waiting for readiness.}
   - {name: VerifyingPlanner, meaning: Reading the planner Deployment rollout status to confirm completion.}
   - {name: VerifyingExecutor, meaning: Reading the executor Deployment rollout status to confirm completion.}
   - {name: VerifyingCritic, meaning: Reading the critic Deployment rollout status to confirm completion.}

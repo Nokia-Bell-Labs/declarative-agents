@@ -8,10 +8,11 @@ summary: |
   (srd003). The applier validates the patch against the chart's values.schema.json
   (srd004) with a helm dry-run, rejecting a non-conforming patch without a rollout.
   For a valid patch it materializes the values as an overrides file and applies helm
-  upgrade --reuse-values --atomic --wait, re-rendering the prepared role topology,
-  then verifies the planner, executor, and critic Deployments via kubectl rollout
-  status and reports the phase, rolling the release back on an apply or verify
-  failure. Throughout, the applier edits deployment values and triggers rollouts
+  upgrade --reuse-values, returning without waiting, re-rendering the prepared role
+  topology, then verifies the planner, executor, and critic Deployments via kubectl
+  rollout status and reports the phase, rolling the release back on a verify stall
+  and reporting an apply-command failure as failed. Throughout, the applier edits
+  deployment values and triggers rollouts
   only; the patch carries no host, URL, method, or credential for a running agent,
   the apply surface is reached only by the operator or CI caller, and authority stays
   set by declared, validated config (agent-core srd028 V30). No agent-core change is
@@ -42,9 +43,9 @@ flow:
   - id: F2
     text: The applier validates the patch against the chart's values.schema.json with a helm dry-run and rejects a non-conforming patch with a client error and no rollout.
   - id: F3
-    text: The applier materializes the validated patch as an overrides file and applies helm upgrade --reuse-values --atomic --wait, re-rendering the prepared role topology, rather than constructing per-field --set arguments.
+    text: The applier materializes the validated patch as an overrides file and applies helm upgrade --reuse-values, returning without waiting, re-rendering the prepared role topology, rather than constructing per-field --set arguments.
   - id: F4
-    text: The applier verifies the planner, executor, and critic Deployments via kubectl rollout status and reports the phase, rolling the release back on an apply or verify failure.
+    text: The applier verifies the planner, executor, and critic Deployments via kubectl rollout status and reports the phase, rolling the release back on a verify stall and reporting an apply-command failure as failed.
   - id: F5
     text: The applier reports the terminal phase to the caller; a subsequent coding request is served by the applied topology.
 
@@ -57,7 +58,7 @@ touchpoints:
     reason: The applier validates the patch against the chart schema by a dry-run and applies it as a values-file rollout, values-plane only.
   - id: T3
     target: srd006-applier AC3
-    reason: The applier verifies the role Deployments' rollout and rolls back on an apply or verify failure.
+    reason: The applier verifies the role Deployments' rollout, rolls back on a verify stall, and reports an apply-command failure as failed.
   - id: T4
     target: srd006-applier AC4
     reason: The applier alone holds helm and kubectl, the apply surface is network-gated off the serving pods, and authority stays set by declared validated config.
@@ -79,13 +80,13 @@ success_criteria:
       - srd004-helm-package-validation R1
       - srd006-applier AC2
   - id: S3
-    criterion: A valid patch is materialized as an overrides file and applied with helm upgrade --reuse-values --atomic --wait, re-rendering the prepared role topology, with no per-field --set construction.
+    criterion: A valid patch is materialized as an overrides file and applied with helm upgrade --reuse-values, returning without waiting, re-rendering the prepared role topology, with no per-field --set construction.
     traces:
       - srd006-applier R2.2
       - srd003-helm-topology R1
       - srd006-applier AC2
   - id: S4
-    criterion: The planner, executor, and critic Deployments' rollout is verified via kubectl rollout status and its phase reported, and an apply or verify failure rolls the release back and restores the prior computed release, proven on the kind rig.
+    criterion: The planner, executor, and critic Deployments' rollout is verified via kubectl rollout status and its phase reported, and a verify stall rolls the release back and restores the prior computed release while an apply-command failure is reported as failed, proven on the kind rig.
     traces:
       - srd006-applier R3.1
       - srd006-applier R3.2

@@ -51,9 +51,9 @@ The applier is the deployment-plane actuator: a standalone declarative agent tha
 realizes a decided values change against this chart. An authorized operator or CI
 caller posts a schema-tagged, values-plane patch to the apply endpoint; the applier
 validates it against `values.schema.json` with a `helm upgrade --dry-run`, applies it
-with `helm upgrade --reuse-values --atomic --wait -f overrides.yaml`, verifies the
-planner, executor, and critic Deployments with `kubectl rollout status`, and rolls
-the release back on an apply or verify failure.
+with `helm upgrade --reuse-values -f overrides.yaml` returning without waiting, verifies
+the planner, executor, and critic Deployments with `kubectl rollout status`, rolls the
+release back on a verify stall, and reports an apply-command failure as failed.
 
 The applier alone holds helm and kubectl; the serving roles carry no deployment CLI.
 Its image is a recorded divergence from the profile-free runtime image (srd003 R1.2):

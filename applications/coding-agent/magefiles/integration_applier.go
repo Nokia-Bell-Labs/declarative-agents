@@ -145,7 +145,14 @@ func applierRequest(scenario applierScenario) (int, string, error) {
 }
 
 func applierHTTP(method, url, body string) (int, string, error) {
-	ctx, cancel := context.WithTimeout(context.Background(), applierRequestTimeout)
+	return applierHTTPWithTimeout(method, url, body, applierRequestTimeout)
+}
+
+// applierHTTPWithTimeout is applierHTTP with a caller-chosen deadline. The live
+// tier's apply legs run a real helm upgrade, a 120s kubectl rollout verify, and a
+// helm rollback, so they need a bound well past the fake-tracer's default.
+func applierHTTPWithTimeout(method, url, body string, timeout time.Duration) (int, string, error) {
+	ctx, cancel := context.WithTimeout(context.Background(), timeout)
 	defer cancel()
 	var reader io.Reader
 	if body != "" {
@@ -158,7 +165,7 @@ func applierHTTP(method, url, body string) (int, string, error) {
 	if body != "" {
 		req.Header.Set("Content-Type", "application/json")
 	}
-	resp, err := (&http.Client{Timeout: applierRequestTimeout}).Do(req)
+	resp, err := (&http.Client{Timeout: timeout}).Do(req)
 	if err != nil {
 		return 0, "", err
 	}

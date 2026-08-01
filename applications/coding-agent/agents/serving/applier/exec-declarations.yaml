@@ -23,12 +23,20 @@
 # distinguishes success from failure by the state it is in.
 #
 # The helm flags below are helm 3's spellings, which is what applier.Dockerfile
-# pins (ARG HELM_VERSION). helm 4 renamed both -- --atomic became
-# --rollback-on-failure and --dry-run prefers --dry-run=client -- and warns about
-# the old names, so a developer whose local helm is 4.x will see deprecation
-# warnings from tests that shell out to it. helm rejects an unknown flag outright,
-# so migrating the spellings without bumping the pin would fail every apply on the
-# cluster; the two move together.
+# pins (ARG HELM_VERSION). helm 4 spells the validate-without-applying flag
+# --dry-run=client rather than --dry-run and warns about the old name, so a
+# developer whose local helm is 4.x will see deprecation warnings from tests that
+# shell out to it. helm rejects an unknown flag outright, so migrating the
+# spelling without bumping the pin would fail every apply on the cluster; the two
+# move together.
+#
+# helm_upgrade deliberately carries neither --atomic nor --wait: the upgrade
+# applies and returns immediately, and the machine's own
+# kubectl_rollout_status_{planner,executor,critic} verify steps observe a role
+# rollout stall and compensate it with helm_rollback (apply-machine.yaml). A
+# waited --atomic upgrade would instead block on a never-ready role until helm's
+# own timeout, fail at the apply step, and self-roll-back into Failed, leaving the
+# explicit verify -> RollingBack -> RolledBack path unreachable.
 tools:
   - name: helm_dry_run
     type: exec
@@ -86,14 +94,14 @@ tools:
   - name: helm_upgrade
     type: exec
     binary: helm
-    args: [upgrade, coding-agent, /chart, --namespace, default, --reuse-values, --atomic, --wait, -f, "${APPLIER_WORK_DIR:-/work}/overrides.yaml"]
+    args: [upgrade, coding-agent, /chart, --namespace, default, --reuse-values, -f, "${APPLIER_WORK_DIR:-/work}/overrides.yaml"]
     category: boundary
     visibility: internal
     description: Apply a validated values patch by upgrading the release in place, re-rendering the prepared role topology and rolling the affected agents.
     problem: The applier must realize a decided values patch as an in-place rollout without constructing per-field --set arguments.
     goals:
-      - Upgrade the release with the written values file, reusing prior values, atomically, waiting for readiness.
-      - Emit ToolDone when the rollout succeeds and ToolFailed when it fails; --atomic self-rolls-back a failed upgrade.
+      - Upgrade the release with the written values file, reusing prior values, and return without waiting for readiness so the explicit verify steps observe the rollout.
+      - Emit ToolDone when the upgrade command succeeds and ToolFailed when it fails; a role rollout stall is caught by the rollout-status verify and compensated by helm_rollback.
     requirements:
       input:
         - must upgrade the configured release and chart against /work/overrides.yaml
@@ -116,16 +124,16 @@ tools:
     side_effects:
       - kind: child_process
         target: helm
-        description: Runs `helm upgrade --atomic --wait` as a child process; upgrades the release and rolls the affected Deployments.
+        description: Runs `helm upgrade --reuse-values` as a child process; upgrades the release and re-renders the affected Deployments without waiting for readiness.
     reversibility:
       classification: compensatable
       undo: helm_rollback
       requires_confirmation: false
     errors:
       - signal: ToolFailed
-        condition: the upgrade exits non-zero; --atomic rolls the release back to the prior revision
+        condition: the upgrade command exits non-zero
         message_shape: <captured helm output>
-        state_after_failure: the release is rolled back to its prior revision
+        state_after_failure: the release may be left on the failed revision; the apply machine routes this to Failed for operator attention, while a post-apply role rollout stall is compensated by helm_rollback
     relationships:
       after: [helm_dry_run]
       before: [kubectl_rollout_status_planner]

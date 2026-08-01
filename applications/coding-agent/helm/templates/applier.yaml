@@ -69,9 +69,9 @@ rules:
   - apiGroups: [apps]
     resources: [deployments]
     verbs: [get, list, watch]
-  # helm --wait judges readiness by watching the ReplicaSets and Pods a Deployment
-  # owns, so an apply that waits reads them even though it never writes them. It is
-  # also what kubectl rollout status reads.
+  # kubectl rollout status judges readiness by watching the ReplicaSets and Pods a
+  # Deployment owns, so the applier's verify step reads them even though it never
+  # writes them. The apply itself no longer waits; the verify is what needs this.
   - apiGroups: [apps]
     resources: [replicasets]
     verbs: [get, list, watch]

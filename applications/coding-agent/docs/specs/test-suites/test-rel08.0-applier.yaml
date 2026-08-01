@@ -33,9 +33,9 @@ test_cases:
       receives the patch, the applier validates it against the coding chart's
       values.schema.json by a helm dry-run, rejecting a non-conforming patch with a
       client error and no rollout; for a valid patch it materializes the values as an
-      overrides file and applies helm upgrade --reuse-values --atomic --wait; it
-      verifies the planner, executor, and critic Deployments via kubectl rollout
-      status and reports the phase, rolling the release back on a verify stall.
+      overrides file and applies helm upgrade --reuse-values, returning without
+      waiting; it verifies the planner, executor, and critic Deployments via kubectl
+      rollout status and reports the phase, rolling the release back on a verify stall.
       Asserts the authority boundary: no invocation carries an endpoint, a
       credential, or per-field --set construction.
 
@@ -51,10 +51,10 @@ test_cases:
       agents: [applier]
     expected:
       invalid_patch_rejected_by_schema_dry_run_no_rollout: true
-      valid_patch_applied_as_values_file_reuse_values_atomic: true
+      valid_patch_applied_as_values_file_reuse_values_no_wait: true
       no_per_field_set_construction: true
       rollout_verified_via_kubectl_rollout_status: true
-      apply_or_verify_failure_rolls_back: true
+      verify_stall_rolls_back_apply_failure_reports_failed: true
       patch_carries_no_endpoint_or_credential: true
     traces:
       - rel08.0-uc001-declarative-applier S1

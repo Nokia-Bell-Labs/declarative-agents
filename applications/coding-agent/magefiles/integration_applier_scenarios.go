@@ -45,15 +45,20 @@ func applierScenarios() []applierScenario {
 			wantCalls: []string{
 				// The dry-run validates against the chart schema before anything applies.
 				"helm upgrade", "--dry-run",
-				// The apply is a values-file rollout, atomic and waited (R2.2).
-				"--reuse-values", "--atomic", "--wait", "-f",
+				// The apply is a values-file rollout that returns without waiting (R2.2).
+				"--reuse-values", "-f",
 				// All three role Deployments are verified by kubectl, not by the
 				// applier computing a phase.
 				"deployment/coding-agent-planner",
 				"deployment/coding-agent-executor",
 				"deployment/coding-agent-critic",
 			},
-			absentCalls: []string{"helm rollback"},
+			// helm_upgrade neither waits nor self-rolls-back: the verify steps
+			// observe a stall and helm_rollback compensates it (applier_helm_flags_test.go
+			// pins the argv). --wait belonged only to helm_upgrade, so its absence
+			// proves the waiting apply is gone; --atomic still rides helm_dry_run,
+			// so it is asserted per-word in the flags guard, not here.
+			absentCalls: []string{"--wait", "helm rollback"},
 		},
 		{
 			name:       "a non-conforming patch is rejected with no rollout",
@@ -67,22 +72,29 @@ func applierScenarios() []applierScenario {
 			absentCalls: []string{"--wait", "kubectl rollout status", "helm rollback"},
 		},
 		{
+			// The apply command succeeds, then the planner verify (the first of the
+			// three shared-leg verify words) fails: the machine reaches Applying ->
+			// VerifyingPlanner(stall) -> RollingBack -> RolledBack, the path a waited
+			// --atomic upgrade used to make unreachable. Reaching kubectl rollout
+			// status proves the apply itself ran (the machine only verifies after a
+			// successful Applying).
 			name:       "a stalled verify rolls the release back",
 			applyBody:  applyPatch,
 			exits:      map[string]int{"verify": 1},
 			wantStatus: 500,
 			wantBody:   []string{`"error":"rolled_back"`, `"status":"rolled_back"`},
-			wantCalls:  []string{"--wait", "kubectl rollout status", "helm rollback"},
+			wantCalls:  []string{"--reuse-values", "kubectl rollout status", "helm rollback"},
 		},
 		{
-			name:       "a failed apply reports failure and does not double-roll-back",
+			name:       "a failed apply reports failure and does not roll back",
 			applyBody:  applyPatch,
 			exits:      map[string]int{"upgrade": 1},
 			wantStatus: 500,
 			wantBody:   []string{`"error":"apply_failed"`, `"status":"failed"`},
 			wantCalls:  []string{"helm upgrade", "--dry-run"},
-			// --atomic already rolled the failed upgrade back, so an explicit
-			// rollback here would roll the release back one revision too far.
+			// A hard apply-command failure lands in Failed with no compensating
+			// rollback; helm rollback is reserved for a post-apply verify stall, and
+			// the machine never reaches the verify steps when Applying fails.
 			absentCalls: []string{"helm rollback", "kubectl rollout status"},
 		},
 		{

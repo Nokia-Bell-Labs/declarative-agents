@@ -126,9 +126,10 @@ components:
       Actuate the coding chart on Kubernetes. An authorized operator or CI caller
       submits a decided values-plane patch to the applier's apply endpoint; the
       applier validates it against the chart's values.schema.json by a helm dry-run,
-      applies it with helm upgrade --reuse-values --atomic --wait, verifies the
-      planner, executor, and critic Deployments via kubectl rollout status, and rolls
-      the release back on an apply or verify failure. The applier alone binds helm
+      applies it with helm upgrade --reuse-values returning without waiting, verifies
+      the planner, executor, and critic Deployments via kubectl rollout status, and
+      rolls the release back on a verify stall while reporting an apply-command
+      failure as failed. The applier alone binds helm
       and kubectl as exec tools; the serving roles carry none. This is an
       application-owned agent, not a library reference. The coding application runs
       no control plane, so the applier is a standalone actuator with no in-cluster

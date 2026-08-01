@@ -12,31 +12,41 @@ import (
 )
 
 // These bind the applier's declared helm flags to the helm the applier image
-// ships (srd006 R5.3).
+// ships (srd006 R5.3), and pin the design decision the live tier exposed: the
+// apply must not wait.
 //
-// The flags are major-version-specific. helm 3 takes --atomic and --dry-run;
-// helm 4 deprecates both and spells them --rollback-on-failure and
-// --dry-run=client. Neither spelling works on the other major, so the
-// declarations and the pinned HELM_VERSION are one decision recorded in two
-// files, and nothing else holds them together.
+// The validate-without-applying flag is major-version-specific. helm 3 spells it
+// --dry-run; helm 4 deprecates that and spells it --dry-run=client. Neither works
+// on the other major, so helm_dry_run's declaration and the pinned HELM_VERSION
+// are one decision recorded in two files, and nothing else holds them together.
+// helm rejects an unknown flag outright, so a half-migrated declaration fails
+// every apply on the cluster while the fake-CLI tracer stays green.
 //
-// The failure this prevents is quiet and expensive. --atomic is what rolls a
-// failed upgrade back, and apply-machine.yaml routes Applying + ToolFailed
-// straight to Failed with no compensating rollback *because* of it. Bump the
-// image to helm 4 and the flag first warns, then eventually goes; the apply stops
-// self-rolling-back and that leg leaves the release on a failed revision, with
-// every test still green -- integration:applier drives fake CLIs, which accept
-// any flags at all.
+// helm_upgrade carries no waiting or self-rollback flag at all. --atomic forces
+// --wait, so a waited upgrade blocks on a never-ready role until helm's own
+// timeout, fails at the apply step, and self-rolls-back into Failed -- which
+// makes the machine's explicit verify -> RollingBack -> RolledBack path
+// unreachable (apply-machine.yaml). The apply therefore returns immediately and
+// the kubectl rollout status verify words catch a stall and compensate it with
+// helm_rollback. This guard fails if --atomic, --rollback-on-failure, or --wait
+// reappears on helm_upgrade, because the fake CLIs accept any flags at all and
+// would not notice the regression.
 
 // helmVersionPattern matches the pinned version in the applier Dockerfile.
 var helmVersionPattern = regexp.MustCompile(`(?m)^ARG HELM_VERSION=v(\d+)\.`)
 
-// helmFlagsByMajor is what each helm major calls the two behaviors the applier
-// depends on: rolling a failed upgrade back, and validating without applying.
-var helmFlagsByMajor = map[int]struct{ rollback, dryRun string }{
-	3: {rollback: "--atomic", dryRun: "--dry-run"},
-	4: {rollback: "--rollback-on-failure", dryRun: "--dry-run=client"},
+// helmDryRunByMajor is what each helm major calls validate-without-applying, the
+// one version-specific behavior the applier still depends on.
+var helmDryRunByMajor = map[int]string{
+	3: "--dry-run",
+	4: "--dry-run=client",
 }
+
+// helmUpgradeForbiddenFlags are the waiting and self-rollback flags helm_upgrade
+// must never carry, in either major's spelling. --wait and --atomic are helm 3's;
+// --rollback-on-failure is helm 4's rename of --atomic. Any of them makes the
+// apply block and self-roll-back, closing the explicit rollback path.
+var helmUpgradeForbiddenFlags = []string{"--atomic", "--wait", "--rollback-on-failure"}
 
 // pinnedHelmMajor reads the helm major the applier image ships.
 func pinnedHelmMajor(t *testing.T) int {
@@ -58,14 +68,15 @@ func pinnedHelmMajor(t *testing.T) int {
 }
 
 // TestApplierHelmFlagsMatchTheShippedHelm proves the declared flags are the ones
-// the pinned helm actually takes, in both directions: the right spelling present
-// and the other major's absent.
+// the pinned helm actually takes: helm_dry_run carries the right dry-run spelling
+// and not the other major's, and helm_upgrade carries no waiting or self-rollback
+// flag in any spelling.
 func TestApplierHelmFlagsMatchTheShippedHelm(t *testing.T) {
 	major := pinnedHelmMajor(t)
-	want, known := helmFlagsByMajor[major]
+	wantDryRun, known := helmDryRunByMajor[major]
 	if !known {
-		t.Fatalf("applier.Dockerfile pins helm %d, whose flag spellings this guard does not know; "+
-			"decide what it calls the self-rollback and the dry-run, and add it to helmFlagsByMajor", major)
+		t.Fatalf("applier.Dockerfile pins helm %d, whose dry-run spelling this guard does not know; "+
+			"decide what it calls validate-without-applying, and add it to helmDryRunByMajor", major)
 	}
 
 	var decls execDeclarations
@@ -79,38 +90,35 @@ func TestApplierHelmFlagsMatchTheShippedHelm(t *testing.T) {
 	if !ok {
 		t.Fatal("the applier declares no helm_upgrade word")
 	}
-	if !containsString(upgrade, want.rollback) {
-		t.Errorf("helm_upgrade does not pass %s, which helm %d calls the self-rollback; "+
-			"apply-machine.yaml routes a failed apply straight to Failed because the upgrade rolls itself back, "+
-			"so without it a failed apply leaves the release on the failed revision",
-			want.rollback, major)
+	// The apply must return immediately. A waited upgrade blocks on a never-ready
+	// role, fails at the apply step, and self-rolls-back into Failed, leaving the
+	// verify -> RollingBack -> RolledBack path unreachable (apply-machine.yaml).
+	for _, flag := range helmUpgradeForbiddenFlags {
+		if containsString(upgrade, flag) {
+			t.Errorf("helm_upgrade passes %s, which makes the apply wait and self-roll-back; "+
+				"the apply must return immediately so the kubectl rollout status verify catches a stall "+
+				"and helm_rollback compensates it", flag)
+		}
 	}
+
 	dryRun, ok := args["helm_dry_run"]
 	if !ok {
 		t.Fatal("the applier declares no helm_dry_run word")
 	}
-	if !containsString(dryRun, want.dryRun) {
+	if !containsString(dryRun, wantDryRun) {
 		t.Errorf("helm_dry_run does not pass %s, which helm %d calls the validate-without-applying flag",
-			want.dryRun, major)
+			wantDryRun, major)
 	}
-
-	// The other major's spellings must not appear: helm rejects an unknown flag
-	// outright, so a half-migrated declaration fails every apply on the cluster
-	// while the fake-CLI tracer stays green.
-	for otherMajor, other := range helmFlagsByMajor {
-		if otherMajor == major {
+	// The other major's dry-run spelling must not appear: helm rejects an unknown
+	// flag outright, so a half-migrated declaration fails every apply on the
+	// cluster while the fake-CLI tracer stays green.
+	for otherMajor, otherDryRun := range helmDryRunByMajor {
+		if otherMajor == major || otherDryRun == wantDryRun {
 			continue
 		}
-		for word, declared := range map[string][]string{"helm_upgrade": upgrade, "helm_dry_run": dryRun} {
-			for _, flag := range []string{other.rollback, other.dryRun} {
-				if flag == want.rollback || flag == want.dryRun {
-					continue // a spelling both majors share is not evidence of drift
-				}
-				if containsString(declared, flag) {
-					t.Errorf("%s passes %s, which is helm %d's spelling, but the image ships helm %d",
-						word, flag, otherMajor, major)
-				}
-			}
+		if containsString(dryRun, otherDryRun) {
+			t.Errorf("helm_dry_run passes %s, which is helm %d's spelling, but the image ships helm %d",
+				otherDryRun, otherMajor, major)
 		}
 	}
 }

@@ -64,7 +64,7 @@ requirements:
       - id: R2.1
         text: The applier shall validate a submitted values document against the coding chart's values.schema.json (srd004) by a helm upgrade dry-run before applying, rejecting a non-conforming document with a client error and no rollout.
       - id: R2.2
-        text: The applier shall write the validated values document to an overrides file and apply it with helm upgrade --reuse-values --atomic --wait -f overrides.yaml, re-rendering the prepared role topology, rather than constructing per-field --set arguments.
+        text: The applier shall write the validated values document to an overrides file and apply it with helm upgrade --reuse-values -f overrides.yaml, returning without waiting so the role rollout is verified separately, re-rendering the prepared role topology, rather than constructing per-field --set arguments.
       - id: R2.3
         text: The apply request shall be values-plane only; the applier shall not submit a host, URL, method, or credential to a running planner, executor, or critic.
   - id: R3
@@ -73,7 +73,7 @@ requirements:
       - id: R3.1
         text: After an apply, the applier shall verify the coding role Deployments (<release>-coding-agent-planner, <release>-coding-agent-executor, and <release>-coding-agent-critic) via kubectl rollout status and report the phase from its exit outcome.
       - id: R3.2
-        text: On an apply or verify failure, the applier shall roll the release back -- the atomic upgrade self-rolls-back, with an explicit helm rollback for a verify stall -- and report the failure.
+        text: On a verify failure, the applier shall roll the release back with an explicit helm rollback and report the failure; an apply that fails at the helm upgrade command shall be reported as a failure for operator attention.
       - id: R3.3
         text: A rollout status the cluster cannot serve shall return a gateway error rather than a phase, so a broken read is never reported as a progressing rollout.
   - id: R4
@@ -100,7 +100,7 @@ acceptance_criteria:
     criterion: The applier exposes an apply endpoint bound as a request-scoped machine_request that accepts a schema_version-tagged values-plane document, alongside control and monitor servers on loopback-configurable addresses, and serves no panel state view and depends on no in-cluster caller.
     traces: [R1.1, R1.2, R1.3, R1.4]
   - id: AC2
-    criterion: A submitted values document is validated against the coding chart's values.schema.json by a helm dry-run and, when valid, written to an overrides file and applied with helm upgrade --reuse-values --atomic --wait -- values-plane only, with no per-field --set construction and no endpoint submitted to a running agent.
+    criterion: A submitted values document is validated against the coding chart's values.schema.json by a helm dry-run and, when valid, written to an overrides file and applied with helm upgrade --reuse-values -- values-plane only, with no per-field --set construction and no endpoint submitted to a running agent.
     traces: [R2.1, R2.2, R2.3]
   - id: AC3
     criterion: The rollout of the planner, executor, and critic Deployments is verified via kubectl rollout status and its phase reported, a status the cluster cannot serve returns a gateway error rather than a phase, and an apply or verify failure rolls the release back and reports the failure.
@@ -174,11 +174,11 @@ diagrams:
     ```mermaid
     flowchart LR
       Apply["POST apply (operator or CI caller)"] --> Validate["Validate: helm upgrade --dry-run -f overrides.yaml"]
-      Validate -->|Valid| ApplyStep["Apply: helm upgrade --reuse-values --atomic --wait -f overrides.yaml"]
+      Validate -->|Valid| ApplyStep["Apply: helm upgrade --reuse-values -f overrides.yaml"]
       Validate -->|Invalid| Reject["400"]
       ApplyStep -->|Applied| Verify["Verify: kubectl rollout status of the coding role Deployments"]
-      ApplyStep -->|CommandError| Rollback["helm rollback"]
+      ApplyStep -->|CommandError| Failed["500"]
       Verify -->|HealthReported| Done["200"]
-      Verify -->|RolloutStalled| Rollback
-      Rollback --> Failed["500"]
+      Verify -->|RolloutStalled| Rollback["helm rollback"]
+      Rollback --> RolledBack["500"]
     ```

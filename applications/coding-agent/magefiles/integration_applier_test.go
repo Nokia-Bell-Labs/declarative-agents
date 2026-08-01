@@ -47,7 +47,7 @@ func TestAssertApplierCallsRejectsMissingAndForbidden(t *testing.T) {
 // constructs no --set (R2.2).
 func TestApplierAuthorityProblemRejectsTransportAuthority(t *testing.T) {
 	clean := []string{
-		"helm upgrade coding-agent /chart --namespace default --reuse-values --atomic --wait -f /work/overrides.yaml",
+		"helm upgrade coding-agent /chart --namespace default --reuse-values -f /work/overrides.yaml",
 		"kubectl rollout status deployment/coding-agent-planner --namespace default --timeout 120s",
 	}
 	if problem := applierAuthorityProblem(clean); problem != "" {
