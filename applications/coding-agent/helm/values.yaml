@@ -74,6 +74,33 @@ collector:
     requests: {cpu: 50m, memory: 128Mi}
     limits: {cpu: 500m, memory: 512Mi}
 
+# The applier (srd006): the deployment-plane actuator that realizes a decided
+# values change against this chart on Kubernetes. Disabled by default -- its image
+# bundles helm, kubectl, and the chart at /chart (a sanctioned divergence from the
+# profile-free runtime image, srd003 R1.2), not the runtime image the serving and
+# smoke tests kind-load, so the live tier enables it explicitly (ci/kind-applier-values.yaml).
+applier:
+  enabled: false
+  # The applier image carries the runtime binary plus helm and kubectl and the
+  # chart at /chart. Built from applications/coding-agent/applier.Dockerfile.
+  image:
+    repository: ghcr.io/nokia-bell-labs/declarative-agents/coding-agent-applier
+    tag: "0.1.0"
+    pullPolicy: IfNotPresent
+  # apply/request server, control server, monitor server. Chosen apart from the
+  # role ports (18200-18221) and the collector ports so no listener collides.
+  ports: {apply: 18230, control: 18231, monitor: 18232}
+  # allowApply grants the apply-path RBAC (helm upgrade manages the chart objects).
+  allowApply: true
+  # Gate the apply surface off the serving and collector pods at the network layer:
+  # the declarative REST servers carry no inbound auth, so only an authorized
+  # operator or CI caller reaches the apply port (srd006 R4.3).
+  networkPolicy:
+    enabled: true
+  resources:
+    requests: {cpu: 50m, memory: 64Mi}
+    limits: {cpu: 500m, memory: 256Mi}
+
 podSecurityContext:
   runAsNonRoot: true
   runAsUser: 10001

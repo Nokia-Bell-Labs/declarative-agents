@@ -63,6 +63,13 @@ success_criteria:
   deployable_topology: |
     Kubernetes runs planner, executor, and critic as separate containers with
     explicit workspace, delegation, and result interfaces.
+  deployment_plane_actuation: |
+    A standalone declarative applier agent actuates the deployed chart. An
+    authorized operator or CI caller submits a decided values-plane patch; the
+    applier validates it against the chart's values schema, applies it as a rollout,
+    verifies the planner, executor, and critic Deployments, and rolls back on
+    failure. The applier alone holds the helm and kubectl deployment CLIs; the
+    serving roles hold none, and the apply surface is network-gated off them.
 
 not:
   - We do not copy planner, executor, critic, or their SRDs into this application.

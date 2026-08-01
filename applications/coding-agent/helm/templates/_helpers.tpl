@@ -95,7 +95,7 @@ app.kubernetes.io/instance: {{ .Release.Name }}
 {{- if ne .Values.workspace.mountPath "/work" -}}
 {{- fail "workspace.mountPath must be /work" -}}
 {{- end -}}
-{{- $ports := dict "planner request" .Values.roles.planner.requestPort "planner control" .Values.roles.planner.controlPort "executor request" .Values.roles.executor.requestPort "executor control" .Values.roles.executor.controlPort "critic request" .Values.roles.critic.requestPort "critic control" .Values.roles.critic.controlPort -}}
+{{- $ports := dict "planner request" .Values.roles.planner.requestPort "planner control" .Values.roles.planner.controlPort "executor request" .Values.roles.executor.requestPort "executor control" .Values.roles.executor.controlPort "critic request" .Values.roles.critic.requestPort "critic control" .Values.roles.critic.controlPort "applier apply" .Values.applier.ports.apply "applier control" .Values.applier.ports.control "applier monitor" .Values.applier.ports.monitor -}}
 {{- $seen := dict -}}
 {{- range $name, $port := $ports -}}
 {{- if hasKey $seen ($port | toString) -}}

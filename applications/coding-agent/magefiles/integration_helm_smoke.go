@@ -221,7 +221,7 @@ func runCodingHelmSmoke(roots integrationRoots) (result error) {
 	if err := seedCodingWorkspace(environment, roots.Application); err != nil {
 		return classifyCodingHelmFailure(environment.run, "workspace seed", err)
 	}
-	forwards, err := startCodingHelmForwards(environment)
+	forwards, err := startCodingHelmForwards(environment, false)
 	if err != nil {
 		return classifyCodingHelmFailure(environment.run, "port-forward", err)
 	}
@@ -294,10 +294,14 @@ func checkCodingHelmInfrastructure(run codingSmokeRunner) error {
 	return nil
 }
 
+// classifyCodingHelmFailure separates a cluster/API outage from a semantic
+// defect and attaches bounded diagnostics. includeApplier adds the applier's
+// logs to that bundle for the live tier; the smoke install has no applier, so it
+// passes nothing and the bundle is unchanged.
 func classifyCodingHelmFailure(
-	run codingSmokeRunner, step string, cause error,
+	run codingSmokeRunner, step string, cause error, includeApplier ...bool,
 ) error {
-	diagnostics := collectCodingHelmDiagnostics(run, codingHelmDiagTimeout)
+	diagnostics := collectCodingHelmDiagnostics(run, codingHelmDiagTimeout, includeApplier...)
 	var infrastructure *codingHelmInfrastructureError
 	if errors.As(cause, &infrastructure) {
 		infrastructure.Diagnostics = diagnostics
@@ -310,7 +314,7 @@ func classifyCodingHelmFailure(
 	return &codingHelmSemanticError{Step: step, Cause: cause, Diagnostics: diagnostics}
 }
 
-func collectCodingHelmDiagnostics(run codingSmokeRunner, timeout time.Duration) string {
+func collectCodingHelmDiagnostics(run codingSmokeRunner, timeout time.Duration, includeApplier ...bool) string {
 	ctx, cancel := context.WithTimeout(context.Background(), timeout)
 	defer cancel()
 	commands := []struct {
@@ -327,6 +331,14 @@ func collectCodingHelmDiagnostics(run codingSmokeRunner, timeout time.Duration) 
 		{"critic logs", "kubectl", []string{"logs", "-n", codingHelmNamespace, "-l", "app.kubernetes.io/component=critic", "--tail=80"}},
 		{"collector logs", "kubectl", []string{"logs", "-n", codingHelmNamespace, "-l", "app.kubernetes.io/component=collector", "--tail=80"}},
 		{"model logs", "kubectl", []string{"logs", "-n", codingHelmNamespace, "-l", "app=coding-model", "--tail=80"}},
+	}
+	// The live applier tier enables the applier; the smoke install does not, so
+	// its logs join the bundle only when the caller asks.
+	if len(includeApplier) > 0 && includeApplier[0] {
+		commands = append(commands, struct {
+			label, name string
+			args        []string
+		}{"applier logs", "kubectl", []string{"logs", "-n", codingHelmNamespace, "-l", "app.kubernetes.io/component=applier", "--tail=80"}})
 	}
 	var report strings.Builder
 	report.WriteString("helmSmoke bounded diagnostics:")

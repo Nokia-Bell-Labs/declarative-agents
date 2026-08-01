@@ -1,0 +1,459 @@
+# Exec tool declarations for the applier agent (srd006): the helm and kubectl
+# CLIs its container carries, bound as agent-core exec tools (agent-core srd021).
+# The applier's request machines bind these words to realize a decided values
+# patch as a validate -> apply -> verify -> rollback rollout against the coding
+# chart.
+#
+# The args are fully static: agent-core exec tools take no environment and map
+# params only from the previous result by name (ExecBuilder.Build ->
+# ExtractStringParam), so a per-field parameter would be order-nondeterministic
+# (properties is a Go map) and unsourced. The only dynamic input is the values
+# file content, which the write_overrides word writes from the request seed to
+# the agent's workspace; helm reads the same ${APPLIER_WORK_DIR:-/work} path, so
+# one mounted profile follows the workspace mount per pod. The coding-agent
+# release, default namespace, and coding-agent-{planner,executor,critic}
+# Deployments below are placeholder defaults kept as valid YAML for agent-core
+# validation; when the chart packages this file, profiles-configmaps.yaml
+# rewrites them to the installed release name, namespace, and
+# <fullname>-{planner,executor,critic} Deployments so an applier installed under
+# any release targets its own release (mounted-profile contract, srd003).
+#
+# Each runs one child process and emits ToolDone on a zero exit and ToolFailed on
+# a non-zero exit (agent-core exec emits exactly these two); the request machine
+# distinguishes success from failure by the state it is in.
+#
+# The helm flags below are helm 3's spellings, which is what applier.Dockerfile
+# pins (ARG HELM_VERSION). helm 4 spells the validate-without-applying flag
+# --dry-run=client rather than --dry-run and warns about the old name, so a
+# developer whose local helm is 4.x will see deprecation warnings from tests that
+# shell out to it. helm rejects an unknown flag outright, so migrating the
+# spelling without bumping the pin would fail every apply on the cluster; the two
+# move together.
+#
+# helm_upgrade deliberately carries neither --atomic nor --wait: the upgrade
+# applies and returns immediately, and the machine's own
+# kubectl_rollout_status_{planner,executor,critic} verify steps observe a role
+# rollout stall and compensate it with helm_rollback (apply-machine.yaml). A
+# waited --atomic upgrade would instead block on a never-ready role until helm's
+# own timeout, fail at the apply step, and self-roll-back into Failed, leaving the
+# explicit verify -> RollingBack -> RolledBack path unreachable.
+tools:
+  - name: helm_dry_run
+    type: exec
+    binary: helm
+    args: [upgrade, coding-agent, /chart, --namespace, default, --reuse-values, --atomic, --dry-run, -f, "${APPLIER_WORK_DIR:-/work}/overrides.yaml"]
+    category: boundary
+    visibility: internal
+    description: Validate a values patch against the coding chart values.schema.json without applying it, by rendering the release with helm upgrade --dry-run.
+    problem: The applier must reject a non-conforming values patch before any rollout, using the chart's own schema rather than a bespoke validator.
+    goals:
+      - Render the release with the written values file and --dry-run so helm validates it against values.schema.json.
+      - Emit ToolDone on a clean render and ToolFailed when the schema or template rejects the patch.
+    requirements:
+      input:
+        - must render the configured release and chart against /work/overrides.yaml
+      output:
+        - must include exit status and captured stdout/stderr
+      errors:
+        - must emit ToolFailed when the render is rejected
+    non_goals:
+      - Does not apply the patch; it only renders and validates.
+      - Does not decide the values; the operator or CI caller does.
+    emits: [ToolDone, ToolFailed]
+    output:
+      description: helm upgrade --dry-run process result.
+      schema:
+        type: object
+        properties:
+          exit_code: {type: integer}
+          output: {type: string}
+        required: [exit_code, output]
+    side_effects:
+      - kind: child_process
+        state: read_only
+        target: helm
+        description: Runs `helm upgrade --dry-run` as a child process; renders only, mutates no cluster state.
+    reversibility:
+      classification: reversible
+      undo: noop
+      requires_confirmation: false
+    errors:
+      - signal: ToolFailed
+        condition: helm renders with a non-zero exit (schema or template rejection)
+        message_shape: <captured helm output>
+        state_after_failure: no cluster state changed
+    relationships:
+      before: [helm_upgrade]
+      overlaps:
+        - tool: helm_upgrade
+          difference: helm_dry_run renders and validates only; helm_upgrade applies and rolls the release.
+    undo:
+      strategy: noop
+      description: A dry-run mutates no cluster state.
+
+  - name: helm_upgrade
+    type: exec
+    binary: helm
+    args: [upgrade, coding-agent, /chart, --namespace, default, --reuse-values, -f, "${APPLIER_WORK_DIR:-/work}/overrides.yaml"]
+    category: boundary
+    visibility: internal
+    description: Apply a validated values patch by upgrading the release in place, re-rendering the prepared role topology and rolling the affected agents.
+    problem: The applier must realize a decided values patch as an in-place rollout without constructing per-field --set arguments.
+    goals:
+      - Upgrade the release with the written values file, reusing prior values, and return without waiting for readiness so the explicit verify steps observe the rollout.
+      - Emit ToolDone when the upgrade command succeeds and ToolFailed when it fails; a role rollout stall is caught by the rollout-status verify and compensated by helm_rollback.
+    requirements:
+      input:
+        - must upgrade the configured release and chart against /work/overrides.yaml
+      output:
+        - must include exit status and captured stdout/stderr
+      errors:
+        - must emit ToolFailed when the upgrade fails
+    non_goals:
+      - Does not construct per-field --set arguments; the patch flows as a values file.
+      - Does not submit any endpoint or credential to a running agent.
+    emits: [ToolDone, ToolFailed]
+    output:
+      description: helm upgrade process result.
+      schema:
+        type: object
+        properties:
+          exit_code: {type: integer}
+          output: {type: string}
+        required: [exit_code, output]
+    side_effects:
+      - kind: child_process
+        target: helm
+        description: Runs `helm upgrade --reuse-values` as a child process; upgrades the release and re-renders the affected Deployments without waiting for readiness.
+    reversibility:
+      classification: compensatable
+      undo: helm_rollback
+      requires_confirmation: false
+    errors:
+      - signal: ToolFailed
+        condition: the upgrade command exits non-zero
+        message_shape: <captured helm output>
+        state_after_failure: the release may be left on the failed revision; the apply machine routes this to Failed for operator attention, while a post-apply role rollout stall is compensated by helm_rollback
+    relationships:
+      after: [helm_dry_run]
+      before: [kubectl_rollout_status_planner]
+      overlaps:
+        - tool: helm_dry_run
+          difference: helm_upgrade applies and rolls the release; helm_dry_run only renders and validates.
+    undo:
+      strategy: compensating_action
+      description: helm_rollback returns the release to its prior revision when a verify stall follows a successful upgrade.
+
+  - name: helm_rollback
+    type: exec
+    binary: helm
+    args: [rollback, coding-agent]
+    category: boundary
+    visibility: internal
+    description: Roll the release back to its prior revision when a verify stall follows an apply that helm did not itself roll back.
+    problem: A rollout that applies cleanly but stalls in verification must be reversed to the last good revision.
+    goals:
+      - Roll the configured release back to its immediately prior revision.
+      - Emit ToolDone on success and ToolFailed on failure.
+    requirements:
+      input:
+        - must roll the configured release back to its prior revision
+      output:
+        - must include exit status and captured output
+      errors:
+        - must emit ToolFailed when the rollback fails
+    non_goals:
+      - Does not decide when to roll back; the request machine does.
+    emits: [ToolDone, ToolFailed]
+    output:
+      description: helm rollback process result.
+      schema:
+        type: object
+        properties:
+          exit_code: {type: integer}
+          output: {type: string}
+        required: [exit_code, output]
+    side_effects:
+      - kind: child_process
+        target: helm
+        description: Runs `helm rollback` as a child process; returns the release to its prior revision.
+    reversibility:
+      classification: irreversible
+      undo: irreversible
+      requires_confirmation: true
+    errors:
+      - signal: ToolFailed
+        condition: the rollback exits non-zero
+        message_shape: <captured helm output>
+        state_after_failure: the release may remain on the failed revision and needs operator attention
+    relationships:
+      after: [helm_upgrade, kubectl_rollout_status_critic]
+    undo:
+      strategy: irreversible
+      description: A rollback is itself a one-way compensating action; reversing it requires a new explicit rollout.
+
+  - name: kubectl_rollout_status_planner
+    type: exec
+    binary: kubectl
+    args: [rollout, status, deployment/coding-agent-planner, --namespace, default, --timeout, 120s]
+    category: boundary
+    visibility: internal
+    description: Verify the planner Deployment's rollout, letting kubectl compute the phase; a non-zero exit is a stalled or timed-out rollout.
+    problem: The applier must verify the planner rollout completed without computing the phase itself; kubectl rollout status does that and reports it through its exit code.
+    goals:
+      - Report the planner Deployment's rollout completion via kubectl rollout status with a bounded timeout.
+      - Emit ToolDone when the rollout completes and ToolFailed when it stalls or times out.
+    requirements:
+      input:
+        - must read the planner Deployment's rollout status with a bounded timeout
+      output:
+        - must include exit status and captured status output
+      errors:
+        - must emit ToolFailed when the rollout stalls or times out
+    non_goals:
+      - Does not mutate cluster state; it reads rollout status only.
+      - Does not compute the phase in the mapping layer; kubectl computes it.
+    emits: [ToolDone, ToolFailed]
+    output:
+      description: kubectl rollout status process result.
+      schema:
+        type: object
+        properties:
+          exit_code: {type: integer}
+          output: {type: string}
+        required: [exit_code, output]
+    side_effects:
+      - kind: child_process
+        state: read_only
+        target: kubectl
+        description: Runs `kubectl rollout status` on the planner Deployment; reads rollout progress and mutates nothing.
+    reversibility:
+      classification: reversible
+      undo: noop
+      requires_confirmation: false
+    errors:
+      - signal: ToolFailed
+        condition: the planner rollout stalls or the timeout elapses before completion
+        message_shape: <captured kubectl status output>
+        state_after_failure: the rollout is incomplete; the request machine rolls the release back
+    relationships:
+      after: [helm_upgrade]
+      before: [kubectl_rollout_status_executor]
+    undo:
+      strategy: noop
+      description: A status read mutates nothing.
+
+  - name: kubectl_rollout_status_executor
+    type: exec
+    binary: kubectl
+    args: [rollout, status, deployment/coding-agent-executor, --namespace, default, --timeout, 120s]
+    category: boundary
+    visibility: internal
+    description: Verify the executor Deployment's rollout, letting kubectl compute the phase; a non-zero exit is a stalled or timed-out rollout.
+    problem: The applier must verify the executor rollout completed without computing the phase itself; kubectl rollout status does that and reports it through its exit code.
+    goals:
+      - Report the executor Deployment's rollout completion via kubectl rollout status with a bounded timeout.
+      - Emit ToolDone when the rollout completes and ToolFailed when it stalls or times out.
+    requirements:
+      input:
+        - must read the executor Deployment's rollout status with a bounded timeout
+      output:
+        - must include exit status and captured status output
+      errors:
+        - must emit ToolFailed when the rollout stalls or times out
+    non_goals:
+      - Does not mutate cluster state; it reads rollout status only.
+      - Does not compute the phase in the mapping layer; kubectl computes it.
+    emits: [ToolDone, ToolFailed]
+    output:
+      description: kubectl rollout status process result.
+      schema:
+        type: object
+        properties:
+          exit_code: {type: integer}
+          output: {type: string}
+        required: [exit_code, output]
+    side_effects:
+      - kind: child_process
+        state: read_only
+        target: kubectl
+        description: Runs `kubectl rollout status` on the executor Deployment; reads rollout progress and mutates nothing.
+    reversibility:
+      classification: reversible
+      undo: noop
+      requires_confirmation: false
+    errors:
+      - signal: ToolFailed
+        condition: the executor rollout stalls or the timeout elapses before completion
+        message_shape: <captured kubectl status output>
+        state_after_failure: the rollout is incomplete; the request machine rolls the release back
+    relationships:
+      after: [kubectl_rollout_status_planner]
+      before: [kubectl_rollout_status_critic]
+    undo:
+      strategy: noop
+      description: A status read mutates nothing.
+
+  - name: kubectl_rollout_status_critic
+    type: exec
+    binary: kubectl
+    args: [rollout, status, deployment/coding-agent-critic, --namespace, default, --timeout, 120s]
+    category: boundary
+    visibility: internal
+    description: Verify the critic Deployment's rollout, letting kubectl compute the phase; a non-zero exit is a stalled or timed-out rollout.
+    problem: The applier must verify the critic rollout completed without computing the phase itself; kubectl rollout status does that and reports it through its exit code.
+    goals:
+      - Report the critic Deployment's rollout completion via kubectl rollout status with a bounded timeout.
+      - Emit ToolDone when the rollout completes and ToolFailed when it stalls or times out.
+    requirements:
+      input:
+        - must read the critic Deployment's rollout status with a bounded timeout
+      output:
+        - must include exit status and captured status output
+      errors:
+        - must emit ToolFailed when the rollout stalls or times out
+    non_goals:
+      - Does not mutate cluster state; it reads rollout status only.
+      - Does not compute the phase in the mapping layer; kubectl computes it.
+    emits: [ToolDone, ToolFailed]
+    output:
+      description: kubectl rollout status process result.
+      schema:
+        type: object
+        properties:
+          exit_code: {type: integer}
+          output: {type: string}
+        required: [exit_code, output]
+    side_effects:
+      - kind: child_process
+        state: read_only
+        target: kubectl
+        description: Runs `kubectl rollout status` on the critic Deployment; reads rollout progress and mutates nothing.
+    reversibility:
+      classification: reversible
+      undo: noop
+      requires_confirmation: false
+    errors:
+      - signal: ToolFailed
+        condition: the critic rollout stalls or the timeout elapses before completion
+        message_shape: <captured kubectl status output>
+        state_after_failure: the rollout is incomplete; the request machine rolls the release back
+    relationships:
+      after: [kubectl_rollout_status_executor]
+      before: [helm_rollback]
+    undo:
+      strategy: noop
+      description: A status read mutates nothing.
+
+  - name: kubectl_rollout_poll
+    type: exec
+    binary: kubectl
+    args: [rollout, status, deployment/coding-agent-planner, --namespace, default, --timeout, 3s]
+    category: boundary
+    visibility: internal
+    description: Read the planner Deployment's rollout status for the rollout GET endpoint, with a short timeout so the read returns promptly; ToolDone means complete, ToolFailed means not complete.
+    problem: The rollout read endpoint must report completion without blocking a poll, so it uses a short timeout and reports the outcome via the exit code.
+    goals:
+      - Report the rollout completion with a short bounded timeout.
+      - Emit ToolDone when complete and ToolFailed when the rollout is not complete or the read failed.
+    requirements:
+      input:
+        - must read the planner Deployment's rollout status with a short timeout
+      output:
+        - must include exit status and captured status output
+      errors:
+        - a non-zero exit is carried as the not-complete outcome, which kubectl_get_rollout_counts then separates into progressing and unreachable
+    non_goals:
+      - Does not mutate cluster state.
+      - Does not itself distinguish a cluster error from a still-progressing rollout (exec emits one failure signal); kubectl_get_rollout_counts runs next and fails cleanly when the Deployment cannot be read, so the machine reaches Unavailable rather than reporting progress.
+    emits: [ToolDone, ToolFailed]
+    output:
+      description: kubectl rollout status process result.
+      schema:
+        type: object
+        properties:
+          exit_code: {type: integer}
+          output: {type: string}
+        required: [exit_code, output]
+    side_effects:
+      - kind: child_process
+        state: read_only
+        target: kubectl
+        description: Runs `kubectl rollout status` with a short timeout as a child process; reads status and mutates nothing.
+    reversibility:
+      classification: reversible
+      undo: noop
+      requires_confirmation: false
+    errors:
+      - signal: ToolFailed
+        condition: the rollout is not complete within the short timeout (still progressing), or kubectl could not read the Deployment at all
+        message_shape: <captured kubectl status output>
+        state_after_failure: no cluster state changed; the machine reads the counts next, which separates the two cases
+    relationships:
+      before: [kubectl_get_rollout_counts]
+    undo:
+      strategy: noop
+      description: A status read mutates nothing.
+
+  # The go-template renders the Deployment as one compact JSON object, which is
+  # what lets the rollout response map ready, desired, and revision as fields
+  # rather than as one opaque string (agent-core srd030 R4.3). Every field is
+  # guarded because a Deployment carries no readyReplicas until a replica is
+  # ready and no revision annotation until the controller writes one, and an
+  # ungated miss would render `<no value>` in the middle of the object and emit
+  # invalid JSON. --allow-missing-template-keys is kubectl's default; it is
+  # stated because the guards depend on a missing key evaluating false rather
+  # than erroring.
+  - name: kubectl_get_rollout_counts
+    type: exec
+    binary: kubectl
+    args: [get, deployment/coding-agent-planner, --namespace, default, -o, 'go-template={"ready":{{if .status}}{{if .status.readyReplicas}}{{.status.readyReplicas}}{{else}}0{{end}}{{else}}0{{end}},"desired":{{if .spec.replicas}}{{.spec.replicas}}{{else}}0{{end}},"revision":{{if .metadata.annotations}}{{if index .metadata.annotations "deployment.kubernetes.io/revision"}}{{index .metadata.annotations "deployment.kubernetes.io/revision"}}{{else}}0{{end}}{{else}}0{{end}}}', --allow-missing-template-keys=true]
+    category: boundary
+    visibility: internal
+    description: Read the planner Deployment's replica counts and revision as one JSON object, so the rollout response carries ready, desired, and revision alongside the phase, and a read that cannot reach the Deployment fails rather than reporting progress.
+    problem: kubectl rollout status exits non-zero both when a rollout is still progressing and when the Deployment, kubeconfig, RBAC, or API server makes the read impossible, so the phase alone cannot tell an ongoing rollout from a broken one, and it carries no counts.
+    goals:
+      - Emit the ready and desired replica counts and the Deployment revision as a JSON object the response body maps by field.
+      - Emit ToolFailed when the Deployment cannot be read, so the machine reaches Unavailable instead of reporting a phase.
+    requirements:
+      input:
+        - must read the planner Deployment in the configured namespace
+      output:
+        - must emit a JSON object carrying ready, desired, and revision as numbers
+      errors:
+        - must emit ToolFailed when the Deployment is absent or the cluster read fails
+    non_goals:
+      - Does not mutate cluster state.
+      - Does not compute the phase; kubectl_rollout_poll does, and the machine carries it in the terminal state.
+    emits: [ToolDone, ToolFailed]
+    output:
+      description: The Deployment's rollout counts, rendered by the go-template as a JSON object so the response body maps ready, desired, and revision by field.
+      schema:
+        type: object
+        properties:
+          ready: {type: integer}
+          desired: {type: integer}
+          revision: {type: integer}
+        required: [ready, desired, revision]
+    side_effects:
+      - kind: child_process
+        state: read_only
+        target: kubectl
+        description: Runs `kubectl get deployment -o go-template` as a child process; reads the Deployment and mutates nothing.
+    reversibility:
+      classification: reversible
+      undo: noop
+      requires_confirmation: false
+    errors:
+      - signal: ToolFailed
+        condition: the Deployment does not exist, or the kubeconfig, RBAC, or API server makes the read impossible
+        message_shape: <captured kubectl error output>
+        state_after_failure: no cluster state changed; the machine reaches Unavailable and the endpoint answers 502
+    relationships:
+      after: [kubectl_rollout_poll]
+      overlaps:
+        - tool: kubectl_rollout_poll
+          difference: kubectl_rollout_poll decides the phase from the rollout status exit code; kubectl_get_rollout_counts reads the Deployment object for the counts and proves the read itself works.
+    undo:
+      strategy: noop
+      description: An object read mutates nothing.

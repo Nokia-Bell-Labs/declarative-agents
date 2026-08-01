@@ -44,6 +44,16 @@ roadmap_summary:
     use_cases_done: 1
     use_cases_total: 1
     status: implemented
+  - version: "07.0"
+    name: Canonical collector agent tracing
+    use_cases_done: 1
+    use_cases_total: 1
+    status: implemented
+  - version: "08.0"
+    name: Declarative applier agent
+    use_cases_done: 0
+    use_cases_total: 1
+    status: planned
 
 foundation_document_index:
   - id: coding-agent-example
@@ -84,6 +94,10 @@ srd_index:
     title: Packaged-Chart Live Helm Smoke
     status: implemented
     path: docs/specs/software-requirements/srd005-live-helm-smoke.yaml
+  - id: srd006-applier
+    title: Declarative Applier Agent
+    status: planned
+    path: docs/specs/software-requirements/srd006-applier.yaml
 
 library_srd_references:
   - id: srd002-executor
@@ -143,6 +157,18 @@ use_case_index:
     status: implemented
     test_suite: test-rel06.0-live-helm-smoke
     path: docs/specs/use-cases/rel06.0-uc001-live-helm-smoke.yaml
+  - id: rel07.0-uc001-collector-agent-tracing
+    title: Trace the Packaged Topology Through the Canonical Collector Agent
+    release: "07.0"
+    status: implemented
+    test_suite: test-rel07.0-collector-agent-tracing
+    path: docs/specs/use-cases/rel07.0-uc001-collector-agent-tracing.yaml
+  - id: rel08.0-uc001-declarative-applier
+    title: The Applier Agent Validates, Applies, and Verifies a Coding-Chart Values Change
+    release: "08.0"
+    status: planned
+    test_suite: test-rel08.0-applier
+    path: docs/specs/use-cases/rel08.0-uc001-declarative-applier.yaml
 
 test_suite_index:
   - id: test-rel01.0-coding-loop
@@ -181,6 +207,18 @@ test_suite_index:
     test_case_count: 4
     traces: [rel06.0-uc001-live-helm-smoke]
     path: docs/specs/test-suites/test-rel06.0-live-helm-smoke.yaml
+  - id: test-rel07.0-collector-agent-tracing
+    title: Canonical Collector Agent Tracing Suite
+    release: "07.0"
+    test_case_count: 5
+    traces: [rel07.0-uc001-collector-agent-tracing]
+    path: docs/specs/test-suites/test-rel07.0-collector-agent-tracing.yaml
+  - id: test-rel08.0-applier
+    title: Test Suite for Release 08.0 Declarative Applier Agent
+    release: "08.0"
+    test_case_count: 5
+    traces: [rel08.0-uc001-declarative-applier]
+    path: docs/specs/test-suites/test-rel08.0-applier.yaml
 
 coverage_gaps:
   - id: kubernetes-deployment

@@ -3,7 +3,7 @@
   "title": "coding-agent values",
   "type": "object",
   "additionalProperties": false,
-  "required": ["image", "profiles", "workspace", "roles", "llm", "ollama", "collector", "podSecurityContext", "containerSecurityContext"],
+  "required": ["image", "profiles", "workspace", "roles", "llm", "ollama", "collector", "applier", "podSecurityContext", "containerSecurityContext"],
   "definitions": {
     "image": {
       "type": "object",
@@ -185,6 +185,33 @@
         "image": {"$ref": "#/definitions/image"},
         "otlpGRPCPort": {"type": "integer", "minimum": 1024, "maximum": 65535},
         "queryPort": {"type": "integer", "minimum": 1024, "maximum": 65535},
+        "resources": {"$ref": "#/definitions/resources"}
+      }
+    },
+    "applier": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["enabled", "image", "ports", "allowApply", "networkPolicy", "resources"],
+      "properties": {
+        "enabled": {"type": "boolean"},
+        "image": {"$ref": "#/definitions/image"},
+        "ports": {
+          "type": "object",
+          "additionalProperties": false,
+          "required": ["apply", "control", "monitor"],
+          "properties": {
+            "apply": {"const": 18230},
+            "control": {"const": 18231},
+            "monitor": {"const": 18232}
+          }
+        },
+        "allowApply": {"type": "boolean"},
+        "networkPolicy": {
+          "type": "object",
+          "additionalProperties": false,
+          "required": ["enabled"],
+          "properties": {"enabled": {"type": "boolean"}}
+        },
         "resources": {"$ref": "#/definitions/resources"}
       }
     },

@@ -320,6 +320,23 @@ bindings:
       classification: wrapper
       inherits: critic-workspace
       deployment_form: server
+    - actor: applier
+      profile: applications/coding-agent/agents/serving/applier/profile.yaml
+      classification: role_realization
+      primary_role: executor
+      sub_roles: [actuation-agent, change-manager]
+      domain: deployment
+      decision:
+        current_actor: applier
+        implemented_responsibility: Validate a decided values patch against the coding chart schema, apply it, verify the planner, executor, and critic rollouts, and roll the release back on a stall.
+        canonical_role_sub_role: Executor / Actuation Agent and Change Manager.
+        retained_or_proposed_name: Retain applier as a descriptive actor and Helm workload name; Applier is not a canonical role.
+        authority_boundary: An authorized operator or CI caller supplies the decided patch; the applier authors no values and receives no runtime transport authority, and the serving roles hold no deployment CLI.
+        evidence:
+          - applications/coding-agent/agents/serving/applier/apply-machine.yaml
+          - applications/coding-agent/agents/serving/applier/exec-declarations.yaml
+          - applications/coding-agent/helm/templates/applier.yaml
+        migration_impact: None; documentation describes applier as Executor / Actuation Agent.
 
   chatbot_mesh:
     - actor: chatbot

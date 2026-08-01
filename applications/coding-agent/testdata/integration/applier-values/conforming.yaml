@@ -1,0 +1,9 @@
+# A conforming coding values patch: it adjusts an executor resource request
+# within the coding chart schema. The applier's dry-run validate step accepts it
+# and the render carries it, which is the evidence a schema that rejected every
+# document could not give.
+roles:
+  executor:
+    resources:
+      requests:
+        memory: 321Mi

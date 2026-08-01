@@ -140,3 +140,31 @@ releases:
       - id: test-rel07.0-collector-agent-tracing
         summary: Topology, schema, catalog-root discovery, and live smoke evidence with collector agent rendering and spool query trace proof.
         status: implemented
+  - version: "08.0"
+    name: Declarative applier agent
+    description: |
+      A standalone declarative applier actuates the coding chart. An authorized
+      operator or CI caller submits a decided values-plane patch to the applier's
+      apply endpoint; the applier validates it against the chart's
+      values.schema.json by a helm dry-run, applies it with helm upgrade
+      --reuse-values returning without waiting, verifies the planner, executor, and
+      critic Deployments via kubectl rollout status, rolls back on a verify stall,
+      and reports an apply-command failure as failed. The applier alone holds helm
+      and kubectl bound as exec tools, the
+      serving roles carry none, and its apply surface is network-gated off the
+      serving and collector pods. The coding application runs no control plane, so
+      there is no creator, orchestrator, or panel; the applier image carrying the
+      CLIs is a recorded divergence from the profile-free image contract. Specs land
+      first; the profile, chart resources, and integration targets follow in later
+      sub-issues.
+    status: planned
+    application_srds:
+      - srd006-applier
+    use_cases:
+      - id: rel08.0-uc001-declarative-applier
+        summary: An operator or CI caller submits a decided values patch that the applier validates, applies, verifies, and rolls back on failure.
+        status: planned
+    test_suites:
+      - id: test-rel08.0-applier
+        summary: Recording-fake terminal coverage, real chart-schema rejection, applier-only CLI authority, broken-read classification, and a live on-cluster rollout and rollback.
+        status: planned

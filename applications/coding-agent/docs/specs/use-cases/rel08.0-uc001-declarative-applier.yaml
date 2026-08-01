@@ -1,0 +1,120 @@
+id: rel08.0-uc001-declarative-applier
+title: The Applier Agent Validates, Applies, and Verifies a Coding-Chart Values Change
+status: planned
+
+summary: |
+  An authorized operator or CI caller submits a decided, values-plane patch to the
+  applier (srd006) -- the standalone declarative actuator for the coding chart
+  (srd003). The applier validates the patch against the chart's values.schema.json
+  (srd004) with a helm dry-run, rejecting a non-conforming patch without a rollout.
+  For a valid patch it materializes the values as an overrides file and applies helm
+  upgrade --reuse-values, returning without waiting, re-rendering the prepared role
+  topology, then verifies the planner, executor, and critic Deployments via kubectl
+  rollout status and reports the phase, rolling the release back on a verify stall
+  and reporting an apply-command failure as failed. Throughout, the applier edits
+  deployment values and triggers rollouts
+  only; the patch carries no host, URL, method, or credential for a running agent,
+  the apply surface is reached only by the operator or CI caller, and authority stays
+  set by declared, validated config (agent-core srd028 V30). No agent-core change is
+  required: the actuation is a state machine binding the helm and kubectl CLIs in the
+  applier's container.
+
+  The coding application runs no control plane, so there is no in-cluster creator,
+  orchestrator, or provisioning panel in this flow. The applier is a standalone
+  deployment-plane agent whose apply surface is network-gated off the planner,
+  executor, critic, and collector pods and reachable only by the authorized caller.
+
+actor: An authorized operator or CI process actuating the coding chart through the applier's apply surface.
+
+trigger: |
+  An operator or CI pipeline decides a coding-chart values change (adjust a role
+  replica count, switch the model endpoint, reconfigure a parameter) and submits it
+  to the applier's apply endpoint.
+
+preconditions:
+  - The applier profile is deployed with its apply, control, and monitor servers, and its apply surface is network-gated off the serving and collector pods.
+  - The applier image carries the helm and kubectl CLIs, and its ServiceAccount can upgrade the release and read the coding role Deployments.
+  - The coding chart carries a values.schema.json encoding the deployment values constraints (srd004).
+  - The apply surface is reachable only by the authorized operator or CI caller.
+
+flow:
+  - id: F1
+    text: The operator or CI caller posts the decided values patch to the applier's apply endpoint; it submits no host, URL, method, or credential for a running agent.
+  - id: F2
+    text: The applier validates the patch against the chart's values.schema.json with a helm dry-run and rejects a non-conforming patch with a client error and no rollout.
+  - id: F3
+    text: The applier materializes the validated patch as an overrides file and applies helm upgrade --reuse-values, returning without waiting, re-rendering the prepared role topology, rather than constructing per-field --set arguments.
+  - id: F4
+    text: The applier verifies the planner, executor, and critic Deployments via kubectl rollout status and reports the phase, rolling the release back on a verify stall and reporting an apply-command failure as failed.
+  - id: F5
+    text: The applier reports the terminal phase to the caller; a subsequent coding request is served by the applied topology.
+
+touchpoints:
+  - id: T1
+    target: srd006-applier AC1
+    reason: The applier exposes the request-scoped apply endpoint with control and monitor servers and no panel state view.
+  - id: T2
+    target: srd006-applier AC2
+    reason: The applier validates the patch against the chart schema by a dry-run and applies it as a values-file rollout, values-plane only.
+  - id: T3
+    target: srd006-applier AC3
+    reason: The applier verifies the role Deployments' rollout, rolls back on a verify stall, and reports an apply-command failure as failed.
+  - id: T4
+    target: srd006-applier AC4
+    reason: The applier alone holds helm and kubectl, the apply surface is network-gated off the serving pods, and authority stays set by declared validated config.
+  - id: T5
+    target: srd006-applier AC5
+    reason: Deciding the values and owning lifecycle are non-goals; the applier image carries helm and kubectl as a recorded divergence.
+
+success_criteria:
+  - id: S1
+    criterion: The applier exposes the apply surface bound as a request-scoped machine_request with control and monitor servers, serves no panel state view, and depends on no in-cluster caller.
+    traces:
+      - srd006-applier R1.1
+      - srd006-applier R1.4
+      - srd006-applier AC1
+  - id: S2
+    criterion: A non-conforming values patch is rejected by the chart-schema dry-run with a client error and no rollout.
+    traces:
+      - srd006-applier R2.1
+      - srd004-helm-package-validation R1
+      - srd006-applier AC2
+  - id: S3
+    criterion: A valid patch is materialized as an overrides file and applied with helm upgrade --reuse-values, returning without waiting, re-rendering the prepared role topology, with no per-field --set construction.
+    traces:
+      - srd006-applier R2.2
+      - srd003-helm-topology R1
+      - srd006-applier AC2
+  - id: S4
+    criterion: The planner, executor, and critic Deployments' rollout is verified via kubectl rollout status and its phase reported, and a verify stall rolls the release back and restores the prior computed release while an apply-command failure is reported as failed, proven on the kind rig.
+    traces:
+      - srd006-applier R3.1
+      - srd006-applier R3.2
+      - srd005-live-helm-smoke R3
+      - srd006-applier AC3
+  - id: S5
+    criterion: The patch submits no endpoint or credential to a running agent, the apply surface is reached only by the operator or CI caller and network-gated off the serving pods, and authority stays set by declared validated config.
+    traces:
+      - srd006-applier R2.3
+      - srd006-applier R4.2
+      - srd006-applier R4.3
+      - srd006-applier AC4
+  - id: S6
+    criterion: The applier alone holds helm and kubectl bound as exec tools, the serving roles carry none, and the applier image carrying the CLIs is a recorded, sanctioned divergence from the binary-only image contract.
+    traces:
+      - srd006-applier R4.1
+      - srd006-applier R5.3
+      - srd006-applier AC4
+      - srd006-applier AC5
+  - id: S7
+    criterion: A rollout status the cluster cannot serve -- an absent Deployment, a wrong kubeconfig, a denied RBAC read, an unreachable API server -- returns a gateway error rather than a phase, so a broken read is never reported as a progressing rollout.
+    traces:
+      - srd006-applier R3.3
+      - srd006-applier AC3
+
+out_of_scope:
+  - The decision of what to change, which the operator or CI caller owns (srd006 R5.1).
+  - Role profile selection and packaging, which are the closure and chart's (srd002, srd003).
+  - The coding request path itself (plan, delegate, gate), which is srd001 and the canonical library agents.
+
+test_suite: test-rel08.0-applier

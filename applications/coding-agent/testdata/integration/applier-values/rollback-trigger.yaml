@@ -1,0 +1,11 @@
+# Reserved for the live tier (mage integration:applierLive): a conforming coding
+# values patch whose sentinel resource request (751Mi) the live applier chart keys
+# on to force a deterministic post-upgrade verification failure, so the applier's
+# kubectl rollout status times out, reaches the RolledBack terminal, and invokes
+# real helm rollback. The fake-based integration:applier tracer does not read this
+# file; it is the on-cluster rollback trigger the live target feeds.
+roles:
+  executor:
+    resources:
+      requests:
+        memory: 751Mi

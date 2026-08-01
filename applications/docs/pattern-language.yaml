@@ -728,7 +728,11 @@ patterns:
       - system: chatbot-mesh provisioning-workflow-orchestrator, creator, and applier
         cite: reference-implementation
         kind: internal
-        note: The provisioning-workflow-orchestrator sequences intent, the creator manages lifecycle, and the applier alone holds Helm and kubectl actuation; no second application currently repeats the full form.
+        note: The provisioning-workflow-orchestrator sequences intent, the creator manages lifecycle, and the applier alone holds Helm and kubectl actuation; this is the full form, with a decision plane driving the actuator.
+      - system: coding-agent applier
+        cite: reference-implementation
+        kind: internal
+        note: A second application realizes the actuator half without an in-cluster decision plane; an authorized operator or CI caller supplies the decided values patch, and the applier alone validates, applies, verifies the role rollouts, and compensates with a Helm rollback, holding Helm and kubectl actuation apart from the serving roles.
 
 grammar_check:
   note: >

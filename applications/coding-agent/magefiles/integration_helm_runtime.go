@@ -263,8 +263,13 @@ func splitCodingImageRef(image string) (string, string) {
 	return image[:index], image[index+1:]
 }
 
-func verifyCodingHelmRollouts(environment codingSmokeEnvironment) error {
-	for _, component := range []string{"planner", "executor", "critic", "collector"} {
+// verifyCodingHelmRollouts waits for every role Deployment the install created.
+// The smoke install enables planner, executor, critic, and collector; the live
+// applier tier passes "applier" as an extra so its Deployment is waited on too,
+// without the smoke waiting on a Deployment it never installs.
+func verifyCodingHelmRollouts(environment codingSmokeEnvironment, extra ...string) error {
+	components := append([]string{"planner", "executor", "critic", "collector"}, extra...)
+	for _, component := range components {
 		if err := runCodingSmokeCommand(environment, codingHelmReadyTimeout,
 			"kubectl", "rollout", "status",
 			"deployment/"+codingHelmRelease+"-coding-agent-"+component,
@@ -327,8 +332,13 @@ type codingPortForwards struct {
 	queryURL string
 }
 
+// startCodingHelmForwards opens the role and collector forwards the smoke drives.
+// The live applier tier passes includeApplier so the applier's apply (18230) and
+// control (18231) ports are forwarded too; the smoke install never enables the
+// applier, so it passes false and no forward waits on a service that is absent.
 func startCodingHelmForwards(
 	environment codingSmokeEnvironment,
+	includeApplier bool,
 ) (*codingPortForwards, error) {
 	queryPort, err := freeLocalPort()
 	if err != nil {
@@ -342,6 +352,12 @@ func startCodingHelmForwards(
 		{codingHelmRelease + "-coding-agent-executor", []string{"18211:18211"}},
 		{codingHelmRelease + "-coding-agent-critic", []string{"18221:18221"}},
 		{codingHelmRelease + "-coding-agent-collector", []string{queryPort + ":18193"}},
+	}
+	if includeApplier {
+		targets = append(targets, struct {
+			service string
+			ports   []string
+		}{codingHelmRelease + "-coding-agent-applier", []string{"18230:18230", "18231:18231"}})
 	}
 	forwards := &codingPortForwards{queryURL: "http://127.0.0.1:" + queryPort}
 	for _, target := range targets {
