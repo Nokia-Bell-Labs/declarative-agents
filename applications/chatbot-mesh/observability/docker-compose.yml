@@ -39,7 +39,7 @@ services:
       - "--directory"
       - "/data"
     volumes:
-      - ../../applications/catalog/agents/collector:/profiles/agents/collector:ro
+      - ../../catalog/agents/collector:/profiles/agents/collector:ro
       - collector-spool:/data
     environment:
       COLLECTOR_BIND_HOST: "0.0.0.0"

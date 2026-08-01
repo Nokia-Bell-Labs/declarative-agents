@@ -37,23 +37,13 @@ either scope fails the release gate at any known high or critical vulnerability.
 
 ### Persistent integration observability
 
-Start the shared OTLP ingress, collector agent trace backend, and Prometheus
-metric backend before telemetry-required integrations. `down` keeps backend
-volumes; only `reset` deletes them.
-
-```bash
-mage observability:up
-mage observability:status
-mage observability:down
-mage observability:reset
-```
-
-Defaults expose OTLP gRPC on `4317`, OTLP HTTP on `4318`, Collector health on
-`13133`, collector query surface on `18193`, and Prometheus query on `9090`.
-Override them with `DA_OTEL_GRPC_PORT`, `DA_OTEL_HTTP_PORT`,
-`DA_OTEL_HEALTH_PORT`, `DA_COLLECTOR_QUERY_PORT`, and
-`DA_PROMETHEUS_QUERY_PORT`. Integration targets may reuse a healthy stack but
-do not stop or reset it.
+The persistent OTLP ingress, collector agent trace backend, and Prometheus
+metric backend live with their consumer: run `mage observability:up|status|
+down|reset` from `applications/chatbot-mesh`, which owns the compose stack
+under
+[`applications/chatbot-mesh/observability/`](applications/chatbot-mesh/observability/).
+Its ports and lifecycle are documented in the
+[chatbot-mesh README](applications/chatbot-mesh/README.md).
 
 Root releases require every release gate to exit successfully before tagging:
 `mage audit`, `mage test`, `agent-core` and `applications/catalog`
@@ -103,6 +93,7 @@ mage clean    # remove generated artifacts
 ```bash
 cd applications/chatbot-mesh
 mage audit                  # validate the application's spec corpus
+mage observability:up       # start the persistent telemetry stack its gates need
 mage helm:package           # build the installable chart
 mage integration:helmSmoke  # prove the packaged mesh on kind
 ```

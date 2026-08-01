@@ -18,20 +18,22 @@ import (
 )
 
 const (
-	observabilityComposeFile       = "deploy/observability/docker-compose.yml"
+	observabilityComposeFile       = "observability/docker-compose.yml"
 	observabilityCollectorImageEnv = "DA_COLLECTOR_AGENT_IMAGE"
 )
 
 var (
 	runObservabilityCommand = observabilityCommand
-	observabilityOutput     = commandOutput
+	observabilityOutput     = observabilityCommandOutput
 	checkObservability      = observabilityHealth
 	checkObservabilityPort  = portAvailable
 	buildCollectorImage     = kindrig.BuildAgentCoreImage
 )
 
 // Observability manages the persistent integration OTLP ingress, collector agent
-// trace backend, and Prometheus metric backend.
+// trace backend, and Prometheus metric backend the mesh integration gates
+// require (srd008-telemetry R9). The stack outlives any one integration run;
+// down keeps backend volumes and only reset deletes them.
 type Observability mg.Namespace
 
 // Up starts the shared stack or reuses an already healthy one.
@@ -69,8 +71,13 @@ func ensureCollectorAgentImage() error {
 	if os.Getenv(observabilityCollectorImageEnv) != "" {
 		return nil
 	}
-	fmt.Printf("+ building %s from agent-core\n", kindrig.DefaultAgentCoreImage)
-	return buildCollectorImage("agent-core", kindrig.DefaultAgentCoreImage)
+	root, err := os.Getwd()
+	if err != nil {
+		return fmt.Errorf("resolve observability working directory: %w", err)
+	}
+	coreRoot := envOrDefault(agentCoreRootEnv, siblingPath(root, "agent-core"))
+	fmt.Printf("+ building %s from %s\n", kindrig.DefaultAgentCoreImage, coreRoot)
+	return buildCollectorImage(coreRoot, kindrig.DefaultAgentCoreImage)
 }
 
 // Down removes stack containers and keeps retained backend volumes.
@@ -115,19 +122,12 @@ type namedPort struct {
 
 func observabilityPorts() []namedPort {
 	return []namedPort{
-		{"OTLP gRPC", envOr("DA_OTEL_GRPC_PORT", "4317")},
-		{"OTLP HTTP", envOr("DA_OTEL_HTTP_PORT", "4318")},
-		{"Collector health", envOr("DA_OTEL_HEALTH_PORT", "13133")},
-		{"Collector query", envOr("DA_COLLECTOR_QUERY_PORT", "18193")},
-		{"Prometheus query", envOr("DA_PROMETHEUS_QUERY_PORT", "9090")},
+		{"OTLP gRPC", envOrDefault("DA_OTEL_GRPC_PORT", "4317")},
+		{"OTLP HTTP", envOrDefault("DA_OTEL_HTTP_PORT", "4318")},
+		{"Collector health", envOrDefault("DA_OTEL_HEALTH_PORT", "13133")},
+		{"Collector query", envOrDefault("DA_COLLECTOR_QUERY_PORT", "18193")},
+		{"Prometheus query", envOrDefault("DA_PROMETHEUS_QUERY_PORT", "9090")},
 	}
-}
-
-func envOr(name, fallback string) string {
-	if value := os.Getenv(name); value != "" {
-		return value
-	}
-	return fallback
 }
 
 func portAvailable(name, port string) error {
@@ -135,7 +135,7 @@ func portAvailable(name, port string) error {
 	if err == nil {
 		return listener.Close()
 	}
-	owner, _ := commandOutput("lsof", "-nP", "-iTCP:"+port, "-sTCP:LISTEN")
+	owner, _ := observabilityCommandOutput("lsof", "-nP", "-iTCP:"+port, "-sTCP:LISTEN")
 	if owner != "" {
 		return fmt.Errorf("%s port %s is unavailable:\n%s", name, port, strings.TrimSpace(owner))
 	}
@@ -147,9 +147,9 @@ func observabilityHealth() error {
 		name string
 		url  string
 	}{
-		{"Collector", "http://127.0.0.1:" + envOr("DA_OTEL_HEALTH_PORT", "13133") + "/"},
-		{"Collector agent", "http://127.0.0.1:" + envOr("DA_COLLECTOR_QUERY_PORT", "18193") + "/query/traces"},
-		{"Prometheus", "http://127.0.0.1:" + envOr("DA_PROMETHEUS_QUERY_PORT", "9090") + "/-/healthy"},
+		{"Collector", "http://127.0.0.1:" + envOrDefault("DA_OTEL_HEALTH_PORT", "13133") + "/"},
+		{"Collector agent", "http://127.0.0.1:" + envOrDefault("DA_COLLECTOR_QUERY_PORT", "18193") + "/query/traces"},
+		{"Prometheus", "http://127.0.0.1:" + envOrDefault("DA_PROMETHEUS_QUERY_PORT", "9090") + "/-/healthy"},
 	}
 	client := &http.Client{Timeout: 2 * time.Second}
 	for _, check := range checks {
@@ -173,7 +173,7 @@ func observabilityCommand(name string, args ...string) error {
 	return cmd.Run()
 }
 
-func commandOutput(name string, args ...string) (string, error) {
+func observabilityCommandOutput(name string, args ...string) (string, error) {
 	out, err := exec.Command(name, args...).CombinedOutput()
 	return string(out), err
 }

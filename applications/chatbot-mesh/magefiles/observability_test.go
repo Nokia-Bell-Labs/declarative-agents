@@ -116,6 +116,7 @@ func TestObservabilityComposePinsImagesAndRoutesSignals(t *testing.T) {
 		"exporters: [prometheus_remote_write]",
 		"collector-spool:/data",
 		"prometheus-data:/prometheus",
+		"../../catalog/agents/collector:/profiles/agents/collector:ro",
 	} {
 		if !strings.Contains(content, required) {
 			t.Errorf("compose file missing %q", required)
@@ -147,11 +148,13 @@ func TestObservabilityCollectorImageBuildRespectsOperatorOverride(t *testing.T) 
 	}
 
 	t.Setenv(observabilityCollectorImageEnv, "")
+	t.Setenv(agentCoreRootEnv, filepath.Join(string(filepath.Separator), "core", "checkout"))
 	if err := ensureCollectorAgentImage(); err != nil {
 		t.Fatal(err)
 	}
-	if len(built) != 1 || built[0] != "agent-core declarative-agents/agent-core:local" {
-		t.Fatalf("default build = %v", built)
+	want := filepath.Join(string(filepath.Separator), "core", "checkout") + " declarative-agents/agent-core:local"
+	if len(built) != 1 || built[0] != want {
+		t.Fatalf("default build = %v, want %q", built, want)
 	}
 }
 
