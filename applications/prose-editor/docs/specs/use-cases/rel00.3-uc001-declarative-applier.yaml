@@ -1,0 +1,211 @@
+id: rel00.3-uc001-declarative-applier
+title: The Applier Agent Validates, Applies, and Verifies a Prose Editor Chart Values Change
+release: "00.3"
+status: planned
+runtime_status: unimplemented
+
+summary: |
+  An authorized operator or CI caller submits a decided, values-plane patch to
+  the applier (srd007) — the standalone declarative actuator for the Prose Editor
+  chart (srd006). The applier validates the patch against the chart's values
+  schema with a helm dry-run, rejecting a non-conforming patch without a rollout.
+  For a valid patch it materializes the values as an overrides file and applies
+  helm upgrade with reuse-values, returning without waiting and re-rendering the
+  prepared role topology, then verifies the workflow-orchestrator,
+  specialist-editor, voice-critic, and RAG Deployments via kubectl rollout status
+  and reports the phase, rolling the release back on a verify stall and reporting
+  an apply-command failure as failed.
+
+  Throughout, the applier edits deployment values and triggers rollouts only. The
+  patch carries no host, URL, method, or credential for a running orchestrator,
+  editor, critic, or RAG role, the apply surface is reached only by the operator
+  or CI caller, and authority stays set by declared, validated config. No
+  agent-core change is required: the actuation is a state machine binding the helm
+  and kubectl CLIs in the applier's container.
+
+  Prose Editor runs no control plane, so there is no in-cluster creator,
+  orchestrator of deployments, or provisioning panel in this flow. The applier is
+  a standalone deployment-plane agent whose apply surface is network-gated off the
+  orchestrator, editor, critic, and retrieval pods and reachable only by the
+  authorized caller.
+
+actor: |
+  An authorized operator or CI process actuating the Prose Editor chart through
+  the applier's apply surface.
+
+trigger: |
+  An operator or CI pipeline decides a Prose Editor chart values change (adjust a
+  role replica count, switch the model or embedding endpoint, reconfigure a
+  retrieval parameter) and submits it to the applier's apply endpoint.
+
+preconditions:
+  - The Prose Editor chart (srd006) is packaged and installed, carrying a values schema that encodes the deployment value constraints.
+  - The applier profile is deployed with its apply, control, and monitor servers, and its apply surface is network-gated off the serving and retrieval pods.
+  - The applier image carries the helm and kubectl CLIs, and its ServiceAccount can upgrade the release and read the Prose Editor role Deployments.
+  - The apply surface is reachable only by the authorized operator or CI caller.
+
+flow:
+  - id: F1
+    text: |
+      The operator or CI caller posts the decided, schema-version-tagged values
+      patch to the applier's apply endpoint; it submits no host, URL, method, or
+      credential for a running orchestrator, editor, critic, or RAG role.
+  - id: F2
+    text: |
+      The applier rejects an unknown schema version, then validates the patch
+      against the chart's values schema with a helm dry-run and rejects a
+      non-conforming patch with a client error and no rollout.
+  - id: F3
+    text: |
+      The applier materializes the validated patch as an overrides file and
+      applies helm upgrade with reuse-values, returning without waiting and
+      re-rendering the prepared role topology, rather than constructing per-field
+      arguments.
+  - id: F4
+    text: |
+      The applier verifies the workflow-orchestrator, specialist-editor,
+      voice-critic, and RAG Deployments via kubectl rollout status and reports the
+      phase, rolling the release back with an explicit helm rollback on a verify
+      stall and reporting an apply-command failure as failed. A rollout status the
+      cluster cannot serve returns a gateway error rather than a phase.
+  - id: F5
+    text: |
+      The applier reports the terminal phase to the caller; a subsequent Prose
+      Editor saga is served by the applied topology.
+
+touchpoints:
+  - id: T1
+    component: actuation surface
+    requirements:
+      - srd007-applier R1.1
+      - srd007-applier R1.2
+      - srd007-applier R1.3
+      - srd007-applier R1.4
+    reason: |
+      F1 posts a schema-version-tagged values-plane document to the
+      request-scoped apply endpoint alongside control and monitor servers, with no
+      panel state view and no in-cluster caller.
+  - id: T2
+    component: validate then apply
+    requirements:
+      - srd007-applier R2.1
+      - srd007-applier R2.2
+      - srd007-applier R2.3
+      - srd006-helm-topology R4.1
+    reason: |
+      F2 and F3 validate the patch against the chart values schema by a dry-run
+      and apply it as a values-file rollout, values-plane only.
+  - id: T3
+    component: verify and roll back
+    requirements:
+      - srd007-applier R3.1
+      - srd007-applier R3.2
+      - srd007-applier R3.3
+      - srd006-helm-topology R2.1
+    reason: |
+      F4 verifies the role Deployments' rollout, rolls back on a verify stall,
+      reports an apply-command failure as failed, and distinguishes an unreadable
+      read from a progressing one.
+  - id: T4
+    component: authority boundary
+    requirements:
+      - srd007-applier R4.1
+      - srd007-applier R4.2
+      - srd007-applier R4.3
+      - srd006-helm-topology R3.4
+    reason: |
+      F1 through F4 keep helm and kubectl in the applier alone, hold authority in
+      declared validated config, and keep the apply surface network-gated off the
+      serving and retrieval pods.
+  - id: T5
+    component: non-goals and packaging
+    requirements:
+      - srd007-applier R5.1
+      - srd007-applier R5.2
+      - srd007-applier R5.3
+    reason: |
+      Deciding the values and owning lifecycle are non-goals; the applier image
+      carries helm and kubectl as a recorded divergence.
+  - id: T6
+    component: packaged chart precondition
+    requirements:
+      - srd006-helm-topology R1.1
+      - srd006-helm-topology R1.2
+      - srd006-helm-topology R1.3
+      - srd006-helm-topology R1.4
+    reason: |
+      The applier actuates a deterministic role-closure package installed as the
+      chart; the package names exactly the served roles, contains only reachable
+      per-role assets, and rejects unsafe inputs before publication.
+
+success_criteria:
+  - id: S1
+    criterion: |
+      The applier exposes the apply surface bound as a request-scoped machine
+      request with control and monitor servers, serves no panel state view, and
+      depends on no in-cluster caller.
+    traces:
+      - srd007-applier AC1
+  - id: S2
+    criterion: |
+      A non-conforming values patch is rejected by the chart-schema dry-run with a
+      client error and no rollout.
+    traces:
+      - srd007-applier AC2
+      - srd006-helm-topology AC4
+  - id: S3
+    criterion: |
+      A valid patch is materialized as an overrides file and applied with helm
+      upgrade using reuse-values, returning without waiting and re-rendering the
+      prepared role topology, with no per-field construction.
+    traces:
+      - srd007-applier AC2
+      - srd006-helm-topology AC2
+  - id: S4
+    criterion: |
+      The workflow-orchestrator, specialist-editor, voice-critic, and RAG
+      Deployments' rollout is verified via kubectl rollout status and its phase
+      reported, and a verify stall rolls the release back while an apply-command
+      failure is reported as failed, proven on the kind rig.
+    traces:
+      - srd007-applier AC3
+      - srd006-helm-topology AC5
+  - id: S5
+    criterion: |
+      The patch submits no endpoint or credential to a running agent, the apply
+      surface is reached only by the operator or CI caller and network-gated off
+      the serving and retrieval pods, and authority stays set by declared
+      validated config.
+    traces:
+      - srd007-applier AC4
+  - id: S6
+    criterion: |
+      The applier alone holds helm and kubectl bound as exec tools, the serving
+      roles carry none, and the applier image carrying the CLIs is a recorded,
+      sanctioned divergence from the binary-only image contract.
+    traces:
+      - srd007-applier AC4
+      - srd007-applier AC5
+      - srd006-helm-topology AC3
+  - id: S7
+    criterion: |
+      A rollout status the cluster cannot serve — an absent Deployment, a wrong
+      kubeconfig, a denied RBAC read, an unreachable API server — returns a gateway
+      error rather than a phase, so a broken read is never reported as a
+      progressing rollout.
+    traces:
+      - srd007-applier AC3
+  - id: S8
+    criterion: |
+      The chart the applier actuates is a deterministic role-closure package that
+      names exactly the served roles, uses the existing resolver, contains only
+      reachable per-role assets, and rejects unsafe inputs before publication.
+    traces:
+      - srd006-helm-topology AC1
+
+out_of_scope:
+  - The decision of what to change, which the operator or CI caller owns (srd007 R5.1).
+  - Role profile selection and packaging, which are the package's and chart's (srd006).
+  - The Prose Editor saga path (source, edit, critique, publication), which is srd001 through srd005 and srd008.
+
+test_suite: test-rel00.3-applier

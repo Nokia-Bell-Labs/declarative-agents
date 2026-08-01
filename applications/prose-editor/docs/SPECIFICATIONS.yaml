@@ -2,14 +2,17 @@ id: prose-editor-specifications
 title: Prose Editor Specification Index
 
 overview: |
-  This index covers three Prose Editor releases. Release 00.0 is a
+  This index covers four Prose Editor releases. Release 00.0 is a
   documentation baseline: six specified SRDs, one planned full-scenario use
   case, and one 29-case planned test suite with reciprocal traces across all
   192 requirement items and 63 acceptance criteria. Release 00.1 stages the
   tracer-bullet saga skeleton: one tracer use case and one 12-case tracer
   test suite covering the orchestrator, structure stage, critic without
   Pangram, and local finalization. Release 00.2 completes the remaining
-  voice, style, Pangram, multi-stage retry, and publication paths.
+  voice, style, Pangram, multi-stage retry, and publication paths. Release
+  00.3 packages and deploys the completed application: two planned SRDs for the
+  role-closure package, Helm topology, and standalone declarative applier, with
+  one applier use case and one seven-case applier test suite.
 
   Shared application and agent-core requirements remain external references.
   Local SRDs cite them and define only Prose Editor behavior and stricter
@@ -34,6 +37,12 @@ roadmap_summary:
     use_cases_total: 1
     status: planned
     evidence: The 00.0 use case and 29-case test suite become executable in 00.2; no executable evidence exists.
+  - version: "00.3"
+    name: Deployment package, Helm topology, and declarative applier
+    use_cases_done: 0
+    use_cases_total: 1
+    status: planned
+    evidence: Two planned SRDs, one applier use case, and one seven-case applier test suite are documented; no executable evidence exists.
 
 foundation_document_index:
   - id: prose-editor-readme
@@ -93,6 +102,20 @@ srd_index:
     path: docs/specs/software-requirements/srd005-specialist-editor.yaml
     use_cases: [rel00.0-uc001-edit-document, rel00.1-uc001-tracer-saga]
     test_suites: [test-rel00.0-prose-editor, test-rel00.1-prose-editor]
+  - id: srd006-helm-topology
+    title: Prose Editor Deployment Package and Helm Topology
+    status: planned
+    summary: Planned role-closure package, per-role chart topology on the profile-free image, values schema, and kind-demo smoke for the served roles.
+    path: docs/specs/software-requirements/srd006-helm-topology.yaml
+    use_cases: [rel00.3-uc001-declarative-applier]
+    test_suites: [test-rel00.3-applier]
+  - id: srd007-applier
+    title: Declarative Applier Agent
+    status: planned
+    summary: Planned standalone declarative actuator — validate against the chart values schema, apply as a values-file rollout, verify role Deployments, roll back on failure — with helm and kubectl authority held in the applier alone.
+    path: docs/specs/software-requirements/srd007-applier.yaml
+    use_cases: [rel00.3-uc001-declarative-applier]
+    test_suites: [test-rel00.3-applier]
   - id: srd008-voice-critic
     title: Voice Critic State Machine and Pangram Boundary
     status: specified
@@ -132,6 +155,15 @@ use_case_index:
       - srd008-voice-critic
     test_suite: test-rel00.1-prose-editor
     path: docs/specs/use-cases/rel00.1-uc001-tracer-saga.yaml
+  - id: rel00.3-uc001-declarative-applier
+    title: The Applier Agent Validates, Applies, and Verifies a Prose Editor Chart Values Change
+    release: "00.3"
+    status: planned
+    srds:
+      - srd006-helm-topology
+      - srd007-applier
+    test_suite: test-rel00.3-applier
+    path: docs/specs/use-cases/rel00.3-uc001-declarative-applier.yaml
 
 test_suite_index:
   - id: test-rel00.0-prose-editor
@@ -162,6 +194,16 @@ test_suite_index:
       - srd005-specialist-editor
       - srd008-voice-critic
     path: docs/specs/test-suites/test-rel00.1-prose-editor.yaml
+  - id: test-rel00.3-applier
+    title: Prose Editor Release 00.3 Declarative Applier Test Suite
+    release: "00.3"
+    status: planned
+    test_case_count: 7
+    traces: [rel00.3-uc001-declarative-applier]
+    srds:
+      - srd006-helm-topology
+      - srd007-applier
+    path: docs/specs/test-suites/test-rel00.3-applier.yaml
 
 coverage_gaps:
   - id: planned-srd-corpus

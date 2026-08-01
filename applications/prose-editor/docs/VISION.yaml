@@ -13,6 +13,14 @@ executive_summary: |
   tests, and publication behavior remain planned. The application cites the
   shared applications and agent-core contracts instead of restating them.
 
+  Later releases plan the runnable saga (00.1 tracer skeleton, 00.2 full
+  editing and publication) and, in 00.3, the deployment form: a role-closure
+  package, a Helm topology that renders one workload per served role, and a
+  standalone declarative applier that actuates that chart. The applier decides
+  nothing; an authorized operator or CI caller decides a values change and the
+  applier validates, applies, verifies, and rolls it back. The packaged,
+  Helm-managed, and kind-demo capabilities are planned for release 00.3.
+
 problem: |
   A sequence of writing assistants can improve prose while silently changing
   claims, weakening qualifications, copying source language, losing provenance,
@@ -81,6 +89,14 @@ success_criteria:
   honest_status: |
     Documentation labels every profile, machine, tool, service, test, and
     release outcome planned until executable evidence exists.
+  deployable_actuation: |
+    The planned deployment form separates decision from actuation. A role-closure
+    package and Helm chart render one workload per served role; a standalone
+    declarative applier validates a decided values change against the chart values
+    schema, applies it as a rollout, verifies the role Deployments, and rolls back
+    on failure. The applier alone holds helm and kubectl authority, and the caller
+    is an authorized operator or CI process reaching the apply surface from outside
+    the serving pods.
 
 not:
   - We do not claim a runnable application, deployed service, profile, machine,
