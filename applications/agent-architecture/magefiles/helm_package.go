@@ -67,6 +67,13 @@ func packageHelmChart(chartRoot, catalogRoot, destination string) (string, error
 	if err := prepareChartProfiles(catalogRoot, chart); err != nil {
 		return "", err
 	}
+	// The applier profile is application-owned, so it ships in the archive the same
+	// way the catalog closures do: staged fresh from the source tree next to the
+	// regenerated curator and collector closures (mage helm:package includes the
+	// applier profile). chartRoot is <app>/helm, so its parent is the app root.
+	if err := stageApplierProfile(filepath.Dir(chartRoot), chart); err != nil {
+		return "", err
+	}
 	if err := validatePreparedProfiles(filepath.Join(chart, "profiles")); err != nil {
 		return "", fmt.Errorf("validate staged profiles: %w", err)
 	}
@@ -182,6 +189,7 @@ func validateChartArchive(archive, stagedChart string) error {
 		"agent-architecture/profiles/" + preparedManifestFilename,
 		"agent-architecture/profiles/curator/" + curatorProfileRuntime,
 		"agent-architecture/profiles/collector/" + collectorProfileRuntime,
+		"agent-architecture/profiles/applier/agents/applier/profile.yaml",
 	} {
 		if !required[must] {
 			return fmt.Errorf("staged chart is missing required file %s; run mage helmPrepare", must)

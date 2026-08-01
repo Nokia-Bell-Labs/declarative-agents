@@ -1,0 +1,7 @@
+# The applier enabled with its network policy on: a values-plane deployment of the
+# srd002-applier actuator that must lint and render.
+applier:
+  enabled: true
+  allowApply: true
+  networkPolicy:
+    enabled: true

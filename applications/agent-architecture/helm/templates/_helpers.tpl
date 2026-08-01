@@ -46,6 +46,11 @@ app.kubernetes.io/instance: {{ .Release.Name }}
 {{- $_ := set $ports "collector monitor" .Values.collector.monitorPort -}}
 {{- $_ := set $ports "collector query" .Values.collector.queryPort -}}
 {{- end -}}
+{{- if .Values.applier.enabled -}}
+{{- $_ := set $ports "applier apply" .Values.applier.ports.apply -}}
+{{- $_ := set $ports "applier control" .Values.applier.ports.control -}}
+{{- $_ := set $ports "applier monitor" .Values.applier.ports.monitor -}}
+{{- end -}}
 {{- $seen := dict -}}
 {{- range $name, $port := $ports -}}
 {{- if hasKey $seen ($port | toString) -}}

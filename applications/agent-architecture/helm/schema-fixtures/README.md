@@ -6,6 +6,8 @@ validation by their offending field.
 
 - valid-collector-spool: collector agent in spool mode (the default)
 - valid-no-telemetry: collector disabled, curator alone
+- valid-applier-enabled: applier actuator enabled with its network policy on
+- invalid-applier-port: applier apply port drifted from the profile contract
 - invalid-image: malformed OCI repository
 - invalid-port: curator documentation port drifted from the profile contract
 - invalid-mount: untrusted profiles mount path

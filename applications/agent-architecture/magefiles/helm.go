@@ -65,7 +65,46 @@ func HelmPrepare() error {
 	if err := prepareChartProfiles(resolved.Catalog, chartRoot); err != nil {
 		return err
 	}
+	if err := stageApplierProfile(resolved.Application, chartRoot); err != nil {
+		return err
+	}
 	fmt.Printf("prepared curator and collector profile closures from %s\n", resolved.Catalog)
+	return nil
+}
+
+// stageApplierProfile stages the application-owned applier profile
+// (srd002-applier) into the chart alongside the catalog-owned curator and
+// collector closures: a flat family of files mounted at /profiles/agents/applier.
+// The applier is not a catalog-referenced role and is not regenerated from the
+// catalog, so it never enters the prepared manifest's role set; like the two
+// catalog closures it is a profile the chart carries under profiles/, and the
+// applier.yaml template renders it only when applier.enabled is set.
+func stageApplierProfile(appRoot, chartRoot string) error {
+	source := filepath.Join(appRoot, "agents", "applier")
+	destination := filepath.Join(chartRoot, "profiles", "applier", "agents", "applier")
+	if err := os.MkdirAll(destination, 0o755); err != nil {
+		return fmt.Errorf("stage applier profile: %w", err)
+	}
+	entries, err := os.ReadDir(source)
+	if err != nil {
+		return fmt.Errorf("read applier profile: %w", err)
+	}
+	for _, entry := range entries {
+		if entry.IsDir() {
+			continue
+		}
+		info, err := entry.Info()
+		if err != nil {
+			return err
+		}
+		data, err := os.ReadFile(filepath.Join(source, entry.Name()))
+		if err != nil {
+			return fmt.Errorf("read applier %s: %w", entry.Name(), err)
+		}
+		if err := os.WriteFile(filepath.Join(destination, entry.Name()), data, info.Mode().Perm()&fs.ModePerm); err != nil {
+			return fmt.Errorf("write applier %s: %w", entry.Name(), err)
+		}
+	}
 	return nil
 }
 
@@ -233,7 +272,10 @@ func validatePreparedProfiles(profilesRoot string) error {
 		names = append(names, entry.Name())
 	}
 	sort.Strings(names)
-	want := []string{"collector", "curator", preparedManifestFilename}
+	// The applier profile is application-owned and staged alongside the two
+	// catalog closures (stageApplierProfile); it carries no manifest role entry,
+	// so it appears only as a top-level directory here.
+	want := []string{"applier", "collector", "curator", preparedManifestFilename}
 	if !reflect.DeepEqual(names, want) {
 		return fmt.Errorf("staged profiles top-level entries = %v, want %v", names, want)
 	}

@@ -3,7 +3,7 @@
   "title": "agent-architecture values",
   "type": "object",
   "additionalProperties": false,
-  "required": ["image", "profiles", "curator", "collector", "podSecurityContext", "containerSecurityContext"],
+  "required": ["image", "profiles", "curator", "collector", "applier", "podSecurityContext", "containerSecurityContext"],
   "definitions": {
     "image": {
       "type": "object",
@@ -96,6 +96,34 @@
         "controlPort": {"const": 18191},
         "monitorPort": {"const": 18192},
         "queryPort": {"const": 18193},
+        "resources": {"$ref": "#/definitions/resources"}
+      }
+    },
+    "applier": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["enabled", "image", "ports", "workDir", "allowApply", "networkPolicy", "resources"],
+      "properties": {
+        "enabled": {"type": "boolean"},
+        "image": {"$ref": "#/definitions/image"},
+        "ports": {
+          "type": "object",
+          "additionalProperties": false,
+          "required": ["apply", "control", "monitor"],
+          "properties": {
+            "apply": {"const": 18230},
+            "control": {"const": 18231},
+            "monitor": {"const": 18232}
+          }
+        },
+        "workDir": {"const": "/work"},
+        "allowApply": {"type": "boolean"},
+        "networkPolicy": {
+          "type": "object",
+          "additionalProperties": false,
+          "required": ["enabled"],
+          "properties": {"enabled": {"type": "boolean"}}
+        },
         "resources": {"$ref": "#/definitions/resources"}
       }
     },
