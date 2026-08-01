@@ -110,7 +110,7 @@ func TestCollectorQueryEmptySpool(t *testing.T) {
 	if status := server.Post(control+"/api/lifecycle/exit", `{"reason":"conformance"}`); status != http.StatusAccepted {
 		t.Fatalf("exit POST status = %d", status)
 	}
-	server.WaitExit(35 * time.Second).RequireExit(t, 0)
+	server.WaitExit(35*time.Second).RequireExit(t, 0)
 }
 
 func freePort(t *testing.T) string {
@@ -130,9 +130,9 @@ func TestCollectorSpoolModeConformance(t *testing.T) {
 	receiverAddr := FreeAddr(t)
 
 	profilePath := CopyShippedProfile(t, filepath.Join("agents", "collector", "profile.yaml"), map[string]string{
-		"127.0.0.1:${COLLECTOR_CONTROL_PORT:-18191}": controlAddr,
-		"127.0.0.1:${COLLECTOR_MONITOR_PORT:-18192}":  monitorAddr,
-		"127.0.0.1:${COLLECTOR_QUERY_PORT:-18193}":     queryAddr,
+		"127.0.0.1:${COLLECTOR_CONTROL_PORT:-18191}":                         controlAddr,
+		"127.0.0.1:${COLLECTOR_MONITOR_PORT:-18192}":                         monitorAddr,
+		"127.0.0.1:${COLLECTOR_QUERY_PORT:-18193}":                           queryAddr,
 		"${COLLECTOR_BIND_HOST:-127.0.0.1}:${COLLECTOR_CONTROL_PORT:-18191}": controlAddr,
 		"${COLLECTOR_BIND_HOST:-127.0.0.1}:${COLLECTOR_MONITOR_PORT:-18192}": monitorAddr,
 		"${COLLECTOR_BIND_HOST:-127.0.0.1}:${COLLECTOR_QUERY_PORT:-18193}":   queryAddr,
@@ -180,9 +180,9 @@ func TestCollectorQueryResponseContract(t *testing.T) {
 	receiverAddr := FreeAddr(t)
 
 	profilePath := CopyShippedProfile(t, filepath.Join("agents", "collector", "profile.yaml"), map[string]string{
-		"127.0.0.1:${COLLECTOR_CONTROL_PORT:-18191}": controlAddr,
-		"127.0.0.1:${COLLECTOR_MONITOR_PORT:-18192}":  monitorAddr,
-		"127.0.0.1:${COLLECTOR_QUERY_PORT:-18193}":     queryAddr,
+		"127.0.0.1:${COLLECTOR_CONTROL_PORT:-18191}":                         controlAddr,
+		"127.0.0.1:${COLLECTOR_MONITOR_PORT:-18192}":                         monitorAddr,
+		"127.0.0.1:${COLLECTOR_QUERY_PORT:-18193}":                           queryAddr,
 		"${COLLECTOR_BIND_HOST:-127.0.0.1}:${COLLECTOR_CONTROL_PORT:-18191}": controlAddr,
 		"${COLLECTOR_BIND_HOST:-127.0.0.1}:${COLLECTOR_MONITOR_PORT:-18192}": monitorAddr,
 		"${COLLECTOR_BIND_HOST:-127.0.0.1}:${COLLECTOR_QUERY_PORT:-18193}":   queryAddr,
@@ -239,9 +239,9 @@ func TestCollectorQueryListTraces(t *testing.T) {
 	receiverAddr := FreeAddr(t)
 
 	profilePath := CopyShippedProfile(t, filepath.Join("agents", "collector", "profile.yaml"), map[string]string{
-		"127.0.0.1:${COLLECTOR_CONTROL_PORT:-18191}": controlAddr,
-		"127.0.0.1:${COLLECTOR_MONITOR_PORT:-18192}":  monitorAddr,
-		"127.0.0.1:${COLLECTOR_QUERY_PORT:-18193}":     queryAddr,
+		"127.0.0.1:${COLLECTOR_CONTROL_PORT:-18191}":                         controlAddr,
+		"127.0.0.1:${COLLECTOR_MONITOR_PORT:-18192}":                         monitorAddr,
+		"127.0.0.1:${COLLECTOR_QUERY_PORT:-18193}":                           queryAddr,
 		"${COLLECTOR_BIND_HOST:-127.0.0.1}:${COLLECTOR_CONTROL_PORT:-18191}": controlAddr,
 		"${COLLECTOR_BIND_HOST:-127.0.0.1}:${COLLECTOR_MONITOR_PORT:-18192}": monitorAddr,
 		"${COLLECTOR_BIND_HOST:-127.0.0.1}:${COLLECTOR_QUERY_PORT:-18193}":   queryAddr,
@@ -295,9 +295,9 @@ func TestCollectorQueryGetTrace(t *testing.T) {
 	receiverAddr := FreeAddr(t)
 
 	profilePath := CopyShippedProfile(t, filepath.Join("agents", "collector", "profile.yaml"), map[string]string{
-		"127.0.0.1:${COLLECTOR_CONTROL_PORT:-18191}": controlAddr,
-		"127.0.0.1:${COLLECTOR_MONITOR_PORT:-18192}":  monitorAddr,
-		"127.0.0.1:${COLLECTOR_QUERY_PORT:-18193}":     queryAddr,
+		"127.0.0.1:${COLLECTOR_CONTROL_PORT:-18191}":                         controlAddr,
+		"127.0.0.1:${COLLECTOR_MONITOR_PORT:-18192}":                         monitorAddr,
+		"127.0.0.1:${COLLECTOR_QUERY_PORT:-18193}":                           queryAddr,
 		"${COLLECTOR_BIND_HOST:-127.0.0.1}:${COLLECTOR_CONTROL_PORT:-18191}": controlAddr,
 		"${COLLECTOR_BIND_HOST:-127.0.0.1}:${COLLECTOR_MONITOR_PORT:-18192}": monitorAddr,
 		"${COLLECTOR_BIND_HOST:-127.0.0.1}:${COLLECTOR_QUERY_PORT:-18193}":   queryAddr,
@@ -338,6 +338,155 @@ func TestCollectorQueryGetTrace(t *testing.T) {
 		t.Fatalf("exit POST status = %d", status)
 	}
 	server.WaitExit(35 * time.Second)
+}
+
+func TestCollectorQueryListMetrics(t *testing.T) {
+	RequireCoreRoot(t)
+	controlAddr := FreeAddr(t)
+	monitorAddr := FreeAddr(t)
+	queryAddr := FreeAddr(t)
+	receiverAddr := FreeAddr(t)
+
+	profilePath := CopyShippedProfile(t, filepath.Join("agents", "collector", "profile.yaml"), map[string]string{
+		"127.0.0.1:${COLLECTOR_CONTROL_PORT:-18191}":                         controlAddr,
+		"127.0.0.1:${COLLECTOR_MONITOR_PORT:-18192}":                         monitorAddr,
+		"127.0.0.1:${COLLECTOR_QUERY_PORT:-18193}":                           queryAddr,
+		"${COLLECTOR_BIND_HOST:-127.0.0.1}:${COLLECTOR_CONTROL_PORT:-18191}": controlAddr,
+		"${COLLECTOR_BIND_HOST:-127.0.0.1}:${COLLECTOR_MONITOR_PORT:-18192}": monitorAddr,
+		"${COLLECTOR_BIND_HOST:-127.0.0.1}:${COLLECTOR_QUERY_PORT:-18193}":   queryAddr,
+		"0.0.0.0:4317": receiverAddr,
+	})
+	seedCollectorMetricSpool(t, filepath.Join(filepath.Dir(profilePath), "metrics", "collector.ndjson"))
+
+	server := Serve(t, ServeConfig{Profile: profilePath, Env: collectorEnv(receiverAddr)})
+	server.WaitHealthy("http://"+controlAddr+"/api/lifecycle/health", 15*time.Second)
+
+	resp, err := http.Get("http://" + queryAddr + "/query/metrics?page_size=1")
+	if err != nil {
+		t.Fatalf("GET /query/metrics: %v", err)
+	}
+	defer resp.Body.Close()
+	if resp.StatusCode != http.StatusOK {
+		body, _ := io.ReadAll(resp.Body)
+		t.Fatalf("GET /query/metrics status = %d, body = %s", resp.StatusCode, body)
+	}
+	var listResult struct {
+		Metrics  []map[string]json.RawMessage `json:"metrics"`
+		Total    int                          `json:"total"`
+		PageSize int                          `json:"page_size"`
+	}
+	if err := json.NewDecoder(resp.Body).Decode(&listResult); err != nil {
+		t.Fatalf("decode metric list response: %v", err)
+	}
+	if listResult.Total != 2 {
+		t.Errorf("total = %d, want 2", listResult.Total)
+	}
+	if listResult.PageSize != 1 {
+		t.Errorf("page_size = %d, want 1 (request clamped)", listResult.PageSize)
+	}
+	if len(listResult.Metrics) != 1 {
+		t.Fatalf("metrics returned = %d, want 1", len(listResult.Metrics))
+	}
+	// Pin the summary key contract a metric UI would decode.
+	got := make([]string, 0, len(listResult.Metrics[0]))
+	for key := range listResult.Metrics[0] {
+		got = append(got, key)
+	}
+	sort.Strings(got)
+	want := []string{"data_point_count", "name", "record_count", "services", "type", "unit"}
+	if !reflect.DeepEqual(got, want) {
+		t.Errorf("metric summary keys = %v, want %v", got, want)
+	}
+
+	if status := server.Post("http://"+controlAddr+"/api/lifecycle/exit", `{"reason":"conformance"}`); status != http.StatusAccepted {
+		t.Fatalf("exit POST status = %d", status)
+	}
+	server.WaitExit(35 * time.Second)
+}
+
+func TestCollectorQueryGetMetric(t *testing.T) {
+	RequireCoreRoot(t)
+	controlAddr := FreeAddr(t)
+	monitorAddr := FreeAddr(t)
+	queryAddr := FreeAddr(t)
+	receiverAddr := FreeAddr(t)
+
+	profilePath := CopyShippedProfile(t, filepath.Join("agents", "collector", "profile.yaml"), map[string]string{
+		"127.0.0.1:${COLLECTOR_CONTROL_PORT:-18191}":                         controlAddr,
+		"127.0.0.1:${COLLECTOR_MONITOR_PORT:-18192}":                         monitorAddr,
+		"127.0.0.1:${COLLECTOR_QUERY_PORT:-18193}":                           queryAddr,
+		"${COLLECTOR_BIND_HOST:-127.0.0.1}:${COLLECTOR_CONTROL_PORT:-18191}": controlAddr,
+		"${COLLECTOR_BIND_HOST:-127.0.0.1}:${COLLECTOR_MONITOR_PORT:-18192}": monitorAddr,
+		"${COLLECTOR_BIND_HOST:-127.0.0.1}:${COLLECTOR_QUERY_PORT:-18193}":   queryAddr,
+		"0.0.0.0:4317": receiverAddr,
+	})
+	seedCollectorMetricSpool(t, filepath.Join(filepath.Dir(profilePath), "metrics", "collector.ndjson"))
+
+	server := Serve(t, ServeConfig{Profile: profilePath, Env: collectorEnv(receiverAddr)})
+	server.WaitHealthy("http://"+controlAddr+"/api/lifecycle/health", 15*time.Second)
+
+	resp, err := http.Get("http://" + queryAddr + "/query/metrics/dispatch_count")
+	if err != nil {
+		t.Fatalf("GET /query/metrics/dispatch_count: %v", err)
+	}
+	defer resp.Body.Close()
+	if resp.StatusCode != http.StatusOK {
+		body, _ := io.ReadAll(resp.Body)
+		t.Fatalf("GET /query/metrics/dispatch_count status = %d, body = %s", resp.StatusCode, body)
+	}
+	var getResult struct {
+		MetricName     string            `json:"metric_name"`
+		Records        []json.RawMessage `json:"records"`
+		RecordCount    int               `json:"record_count"`
+		DataPointCount int               `json:"data_point_count"`
+	}
+	if err := json.NewDecoder(resp.Body).Decode(&getResult); err != nil {
+		t.Fatalf("decode metric get response: %v", err)
+	}
+	if getResult.MetricName != "dispatch_count" {
+		t.Errorf("metric_name = %q, want %q", getResult.MetricName, "dispatch_count")
+	}
+	if getResult.RecordCount != 2 {
+		t.Errorf("record_count = %d, want 2", getResult.RecordCount)
+	}
+	if getResult.DataPointCount != 5 {
+		t.Errorf("data_point_count = %d, want 5", getResult.DataPointCount)
+	}
+
+	if status := server.Post("http://"+controlAddr+"/api/lifecycle/exit", `{"reason":"conformance"}`); status != http.StatusAccepted {
+		t.Fatalf("exit POST status = %d", status)
+	}
+	server.WaitExit(35 * time.Second)
+}
+
+// seedCollectorMetricSpool writes metric NDJSON records in the shape
+// spool_metrics emits, so the query surface reads them back without a live
+// intake cycle (mirrors seedCollectorSpool for traces).
+func seedCollectorMetricSpool(t *testing.T, path string) {
+	t.Helper()
+	if err := os.MkdirAll(filepath.Dir(path), 0o755); err != nil {
+		t.Fatalf("mkdir metric spool: %v", err)
+	}
+	resource := func(service string) []map[string]any {
+		return []map[string]any{{"Key": "service.name", "Value": map[string]any{"Type": "STRING", "Value": service}}}
+	}
+	records := []map[string]any{
+		{"Name": "dispatch_count", "Type": "Sum", "Unit": "1", "DataPointCount": 3, "Resource": resource("chatbot"), "Scope": map[string]any{"Name": "agent-core"}, "Metric": map[string]any{"name": "dispatch_count"}},
+		{"Name": "dispatch_count", "Type": "Sum", "Unit": "1", "DataPointCount": 2, "Resource": resource("rag0"), "Scope": map[string]any{"Name": "agent-core"}, "Metric": map[string]any{"name": "dispatch_count"}},
+		{"Name": "dss_rows", "Type": "Gauge", "Unit": "1", "DataPointCount": 1, "Resource": resource("dolt"), "Scope": map[string]any{"Name": "agent-core"}, "Metric": map[string]any{"name": "dss_rows"}},
+	}
+	var data []byte
+	for _, record := range records {
+		line, err := json.Marshal(record)
+		if err != nil {
+			t.Fatalf("marshal metric record: %v", err)
+		}
+		data = append(data, line...)
+		data = append(data, '\n')
+	}
+	if err := os.WriteFile(path, data, 0o600); err != nil {
+		t.Fatalf("write metric spool: %v", err)
+	}
 }
 
 func seedCollectorSpool(t *testing.T, path string) {

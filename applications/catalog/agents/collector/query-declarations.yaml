@@ -69,3 +69,75 @@ tools:
     config:
       path: ${COLLECTOR_SPOOL_PATH:-traces/collector.ndjson}
       trace_id: ""
+
+  - name: query_list_metrics
+    type: builtin
+    init: spool_list_metrics
+    category: boundary
+    visibility: internal
+    emits: [MetricsListed, CommandError]
+    description: Read paginated metric summaries from the collector metric spool.
+    problem: A metric list view needs bounded per-name summary reads without a separate query backend.
+    goals: [Return paginated summaries by metric name, Cap page size in config]
+    requirements:
+      input: [Path and page defaults come from trusted config; page_size and offset may come from the request seed]
+      output: [Output includes metrics, total, offset, page_size, skipped_lines]
+      errors: [An unreadable spool emits CommandError]
+    non_goals: [Does not expose raw data-point payloads on the monitor surface]
+    parameters: {type: object, properties: {}}
+    output:
+      description: Paginated metric summaries.
+      schema:
+        type: object
+        properties:
+          metrics: {type: array}
+          total: {type: integer}
+          offset: {type: integer}
+          page_size: {type: integer}
+          skipped_lines: {type: integer}
+    side_effects:
+      - {kind: filesystem_read, target: collector metric spool, state: read_only}
+    reversibility: {classification: reversible, undo: noop}
+    undo: {strategy: noop, description: Reading a spool changes nothing.}
+    errors:
+      - {signal: CommandError, condition: spool path cannot be read, state_after_failure: no output is returned}
+    config:
+      path: ${COLLECTOR_METRICS_SPOOL_PATH:-metrics/collector.ndjson}
+      page_size: 20
+      max_page_size: 100
+      offset: 0
+
+  - name: query_get_metric
+    type: builtin
+    init: spool_get_metric
+    category: boundary
+    visibility: internal
+    emits: [MetricRetrieved, CommandError]
+    description: Read all spooled records for one metric name from the collector metric spool.
+    problem: A metric detail view needs per-record data points and resource identity by name.
+    goals: [Return all records for one metric name, Read across active and rotated spool files]
+    requirements:
+      input: [Path comes from trusted config; metric_name comes from the request seed]
+      output: [Output includes metric_name, records, record_count, data_point_count, skipped_lines]
+      errors: [An unreadable spool or missing metric_name emits CommandError]
+    non_goals: [Does not aggregate across metric names or mutate records]
+    parameters: {type: object, properties: {}}
+    output:
+      description: All records for one metric name.
+      schema:
+        type: object
+        properties:
+          metric_name: {type: string}
+          records: {type: array}
+          record_count: {type: integer}
+          data_point_count: {type: integer}
+          skipped_lines: {type: integer}
+    side_effects:
+      - {kind: filesystem_read, target: collector metric spool, state: read_only}
+    reversibility: {classification: reversible, undo: noop}
+    undo: {strategy: noop, description: Reading a spool changes nothing.}
+    errors:
+      - {signal: CommandError, condition: spool path cannot be read or metric_name is empty, state_after_failure: no output is returned}
+    config:
+      path: ${COLLECTOR_METRICS_SPOOL_PATH:-metrics/collector.ndjson}
+      metric_name: ""

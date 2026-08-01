@@ -196,6 +196,62 @@ tools:
       max_bytes: 10485760
       max_files: 3
 
+  - name: await_collector_metrics
+    type: builtin
+    init: await_metrics
+    category: boundary
+    visibility: internal
+    emits: [MetricsReceived, AwaitTimedOut, ReceiverStopped, CommandError]
+    description: Wait a short bounded interval for one metric batch between trace intake cycles.
+    problem: A single-threaded machine must drain buffered metrics without blocking trace intake or lifecycle response.
+    goals: [Return one complete metric batch or a distinct timeout, Keep the poll bounded]
+    requirements:
+      input: [Receiver name and a short timeout come from trusted config]
+      output: [Returns one metric batch plus data-point and metric-name metadata]
+      errors: [Receiver stop and cancellation remain distinct signals]
+    non_goals: [Does not spool, mutate, or relay metrics]
+    parameters: {type: object, properties: {}}
+    output: {description: Metric batch and bounded metadata, schema: {type: object}}
+    side_effects:
+      - {kind: state_mutation, target: receiver metric queue, state: consumes one FIFO metric batch}
+    reversibility: {classification: irreversible, undo: irreversible, requires_confirmation: true}
+    undo: {strategy: irreversible, description: A consumed concurrent queue item cannot be restored in original order.}
+    errors:
+      - {signal: CommandError, condition: receiver is absent or the wait is canceled, state_after_failure: no metric batch is returned}
+    relationships: {after: [await_collector_control], before: [spool_collector_metrics]}
+    config:
+      receiver: ingress
+      timeout: 500ms
+
+  - name: spool_collector_metrics
+    type: builtin
+    init: spool_metrics
+    category: boundary
+    visibility: internal
+    emits: [MetricsSpooled, CommandError]
+    description: Spool the last accepted metric batch as NDJSON metric records to a separate file.
+    problem: Metric evidence must be retained deterministically without a Prometheus backend.
+    goals: [Write one NDJSON record per metric, Keep the metric spool separate from the trace spool]
+    requirements:
+      input: [Select the labeled metric await batch from command state]
+      output: [Report path, metric count, data-point count, bytes, and the unchanged batch]
+      errors: [Selection, append, rotation, and sync failures emit CommandError]
+    non_goals: [Does not relay metrics or touch the trace spool]
+    parameters: {type: object, properties: {}}
+    output: {description: Metric spool result and batch, schema: {type: object}}
+    side_effects:
+      - {kind: filesystem_write, target: collector metric spool, state: durable_lines_appended}
+    reversibility: {classification: irreversible, undo: irreversible, requires_confirmation: true}
+    undo: {strategy: irreversible, description: Audit evidence remains retained and cannot be removed safely after rotation.}
+    errors:
+      - {signal: CommandError, condition: selection or filesystem failure, state_after_failure: command-state source remains}
+    relationships: {after: [await_collector_metrics]}
+    config:
+      path: ${COLLECTOR_METRICS_SPOOL_PATH:-metrics/collector.ndjson}
+      batch_source: $from(received_metrics).batch
+      max_bytes: 10485760
+      max_files: 3
+
   - name: decide_collector_relay
     type: builtin
     init: value_predicate
