@@ -16,6 +16,7 @@ import (
 var StandardInits = []string{
 	InitReceiverLaunch, InitAwaitSpans, InitLoadOTLPBatch, InitSpoolSpans, InitRelaySpans, InitReceiverStop,
 	InitSpoolListTraces, InitSpoolGetTrace,
+	InitAwaitMetrics, InitSpoolMetrics,
 }
 
 // ReceiverToolConfig is the YAML ToolDef config shared by launch and stop.
@@ -88,6 +89,10 @@ func RegisterFactories(br *toolregistry.BuiltinRegistry, state *State) {
 			br.Register(init, queryListFactory())
 		case InitSpoolGetTrace:
 			br.Register(init, queryGetFactory())
+		case InitAwaitMetrics:
+			br.Register(init, metricAwaitFactory(state))
+		case InitSpoolMetrics:
+			br.Register(init, spoolMetricsFactory())
 		default:
 			br.Register(init, receiverFactory(init, state))
 		}
@@ -210,6 +215,65 @@ func spoolFactory() toolregistry.BuiltinFactory {
 			path = filepath.Join(vars["directory"], path)
 		}
 		return SpoolBuilder{
+			ToolName: def.Name,
+			Config: SpoolConfig{
+				Path: path, BatchSource: source, MaxBytes: raw.MaxBytes, MaxFiles: raw.MaxFiles,
+			},
+		}, nil
+	}
+}
+
+func metricAwaitFactory(state *State) toolregistry.BuiltinFactory {
+	return func(def catalog.ToolDef, _ map[string]string) (core.Builder, error) {
+		var raw AwaitToolConfig
+		if err := catalog.DecodeToolConfig(def, &raw); err != nil {
+			return nil, err
+		}
+		if raw.Receiver == "" {
+			return nil, fmt.Errorf("tool %q config requires receiver", def.Name)
+		}
+		timeout := defaultBatchAwaitTimeout
+		if raw.Timeout != "" {
+			parsed, err := time.ParseDuration(raw.Timeout)
+			if err != nil || parsed <= 0 {
+				return nil, fmt.Errorf("tool %q config has invalid timeout %q", def.Name, raw.Timeout)
+			}
+			timeout = parsed
+		}
+		return MetricAwaitBuilder{
+			ToolName: def.Name, Config: AwaitConfig{Receiver: raw.Receiver, Timeout: timeout},
+			State: state,
+		}, nil
+	}
+}
+
+func spoolMetricsFactory() toolregistry.BuiltinFactory {
+	return func(def catalog.ToolDef, vars map[string]string) (core.Builder, error) {
+		var raw SpoolToolConfig
+		if err := catalog.DecodeToolConfig(def, &raw); err != nil {
+			return nil, err
+		}
+		if raw.Path == "" {
+			return nil, fmt.Errorf("tool %q config requires path", def.Name)
+		}
+		source := raw.BatchSource
+		if source == "" {
+			source = defaultBatchSource
+		}
+		if _, ok := core.ParseSelector(source); !ok {
+			return nil, fmt.Errorf("tool %q config has invalid batch_source %q", def.Name, source)
+		}
+		if raw.MaxBytes < 0 {
+			return nil, fmt.Errorf("tool %q config max_bytes must not be negative", def.Name)
+		}
+		if raw.MaxFiles < 0 {
+			return nil, fmt.Errorf("tool %q config max_files must not be negative", def.Name)
+		}
+		path := raw.Path
+		if !filepath.IsAbs(path) && vars["directory"] != "" {
+			path = filepath.Join(vars["directory"], path)
+		}
+		return SpoolMetricsBuilder{
 			ToolName: def.Name,
 			Config: SpoolConfig{
 				Path: path, BatchSource: source, MaxBytes: raw.MaxBytes, MaxFiles: raw.MaxFiles,

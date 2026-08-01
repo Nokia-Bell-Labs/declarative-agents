@@ -14,6 +14,7 @@ import (
 	"time"
 
 	"github.com/Nokia-Bell-Labs/declarative-agents/agent-core/internal/runtime/core"
+	colmetricpb "go.opentelemetry.io/proto/otlp/collector/metrics/v1"
 	coltracepb "go.opentelemetry.io/proto/otlp/collector/trace/v1"
 	"google.golang.org/grpc"
 	"google.golang.org/protobuf/proto"
@@ -92,10 +93,13 @@ func (s *State) Launch(cfg ReceiverConfig) (map[string]any, error) {
 	}
 	runtime := &receiverRuntime{
 		name: cfg.Name, config: cfg, listener: listener,
-		queue: make(chan Batch, cfg.QueueCapacity), stopped: make(chan struct{}),
+		queue:       make(chan Batch, cfg.QueueCapacity),
+		metricQueue: make(chan MetricBatch, cfg.QueueCapacity),
+		stopped:     make(chan struct{}),
 	}
 	runtime.server = grpc.NewServer()
 	coltracepb.RegisterTraceServiceServer(runtime.server, runtime)
+	colmetricpb.RegisterMetricsServiceServer(runtime.server, &metricServiceServer{runtime: runtime})
 
 	s.mu.Lock()
 	if current, exists := s.receivers[cfg.Name]; exists && !current.isStopped() {
@@ -156,15 +160,19 @@ type receiverRuntime struct {
 	listener    net.Listener
 	server      *grpc.Server
 	queue       chan Batch
+	metricQueue chan MetricBatch
 	stopped     chan struct{}
 	stopOnce    sync.Once
 	stoppedOnce sync.Once
 	sequence    atomic.Uint64
+	metricSeq   atomic.Uint64
 
-	mu             sync.Mutex
-	droppedBatches int
-	droppedSpans   int
-	stopOutput     map[string]any
+	mu                   sync.Mutex
+	droppedBatches       int
+	droppedSpans         int
+	droppedMetricBatches int
+	droppedDataPoints    int
+	stopOutput           map[string]any
 }
 
 func (r *receiverRuntime) Export(
@@ -257,11 +265,15 @@ func (r *receiverRuntime) recordStopOutput() {
 	r.mu.Lock()
 	defer r.mu.Unlock()
 	queued := len(r.queue)
+	queuedMetrics := len(r.metricQueue)
 	droppedOnStop := r.dropQueuedBatches()
+	droppedMetricsOnStop := r.dropQueuedMetrics()
 	r.stopOutput = map[string]any{
 		"receiver": r.name, "address": r.listener.Addr().String(),
 		"queued_batches": queued, "dropped_on_stop": droppedOnStop,
 		"dropped_batches": r.droppedBatches, "dropped_spans": r.droppedSpans,
+		"queued_metrics": queuedMetrics, "dropped_metrics_on_stop": droppedMetricsOnStop,
+		"dropped_metric_batches": r.droppedMetricBatches, "dropped_data_points": r.droppedDataPoints,
 		"drain_policy": string(r.config.DrainPolicy), "status": "stopped",
 	}
 }
