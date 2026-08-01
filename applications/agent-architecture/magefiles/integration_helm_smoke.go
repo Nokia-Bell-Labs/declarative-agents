@@ -1,0 +1,546 @@
+// Copyright (c) 2026 Nokia. All rights reserved.
+
+package main
+
+import (
+	"context"
+	"encoding/json"
+	"fmt"
+	"io"
+	"net"
+	"net/http"
+	"os"
+	"os/exec"
+	"path/filepath"
+	"strings"
+	"time"
+
+	"github.com/Nokia-Bell-Labs/declarative-agents/magefiles/kindrig"
+	"github.com/magefile/mage/mg"
+)
+
+const (
+	smokeCluster    = "da-agent-architecture-smoke"
+	smokeRelease    = "smoke"
+	smokeNamespace  = "agent-architecture-smoke"
+	smokeImageRepo  = "declarative-agents/agent-architecture-smoke"
+	smokeCollectorImage = kindrig.DefaultAgentCoreImage
+
+	smokeClusterTimeout = 3 * time.Minute
+	smokeInstallTimeout = 5 * time.Minute
+	smokeReadyTimeout   = 2 * time.Minute
+	smokeProbeTimeout   = 5 * time.Second
+	smokeTraceTimeout   = 60 * time.Second
+	smokeDiagTimeout    = 15 * time.Second
+)
+
+// Integration groups bounded integration proofs.
+type Integration mg.Namespace
+
+type smokeEnvironment struct {
+	kubeconfig string
+}
+
+func (environment smokeEnvironment) run(ctx context.Context, name string, args ...string) ([]byte, error) {
+	command := exec.CommandContext(ctx, name, args...)
+	command.Env = os.Environ()
+	if environment.kubeconfig != "" {
+		command.Env = append(command.Env, "KUBECONFIG="+environment.kubeconfig)
+	}
+	return command.CombinedOutput()
+}
+
+// HelmSmoke installs the packaged chart into a disposable kind cluster and
+// proves the curator and collector reach real readiness, the curator serves its
+// documentation interface, the collector retains a trace the curator exports
+// under its service name, and a lifecycle-exit request stops the curator
+// cleanly. Only missing host prerequisites skip; every terminal path cleans up
+// (srd001 R3).
+func (Integration) HelmSmoke() error {
+	resolved, err := resolveRootsFromWorkingDirectory()
+	if err != nil {
+		// A missing catalog or core checkout is a skip, not a failure.
+		fmt.Printf("SKIP helmSmoke: %v\n", err)
+		return nil
+	}
+	if reason := smokeSkipReason(resolved); reason != "" {
+		fmt.Printf("SKIP helmSmoke: %s\n", reason)
+		return nil
+	}
+	return runHelmSmoke(resolved)
+}
+
+func smokeSkipReason(resolved roots) string {
+	for _, binary := range []string{"docker", "kind", "helm", "kubectl", "go", "git"} {
+		if _, err := exec.LookPath(binary); err != nil {
+			return binary + " not found on PATH"
+		}
+	}
+	for _, requirement := range []struct{ path, label string }{
+		{filepath.Join(resolved.Catalog, filepath.FromSlash(canonicalProfile)), "canonical documentation-curator profile"},
+		{filepath.Join(resolved.Catalog, filepath.FromSlash(collectorProfile)), "canonical collector profile"},
+		{filepath.Join(resolved.Core, "go.mod"), "agent-core checkout"},
+	} {
+		if info, err := os.Stat(requirement.path); err != nil || info.IsDir() {
+			return fmt.Sprintf("%s not found at %s", requirement.label, requirement.path)
+		}
+	}
+	ctx, cancel := context.WithTimeout(context.Background(), smokeProbeTimeout)
+	defer cancel()
+	if output, err := (smokeEnvironment{}).run(ctx, "docker", "info"); err != nil {
+		return fmt.Sprintf("Docker unavailable: %v: %s", err, strings.TrimSpace(string(output)))
+	}
+	return ""
+}
+
+func runHelmSmoke(resolved roots) (result error) {
+	image, revision, err := kindrig.CommitImage(smokeImageRepo, mustGitRevision(resolved.Application))
+	if err != nil {
+		return err
+	}
+	kindConfig := filepath.Join(resolved.Application, "helm", "ci", "kind-config.yaml")
+	kindRun := func(args ...string) ([]byte, error) {
+		ctx, cancel := context.WithTimeout(context.Background(), smokeClusterTimeout)
+		defer cancel()
+		return smokeEnvironment{}.run(ctx, "kind", args...)
+	}
+	cluster, err := kindrig.EnsureCluster(kindRun, smokeCluster, kindConfig, 120*time.Second)
+	if err != nil {
+		return fmt.Errorf("helmSmoke kind cluster acquisition: %w", err)
+	}
+	kubeconfig, cleanupKubeconfig, err := smokeKubeconfig(smokeCluster)
+	if err != nil {
+		cluster.Release(kindRun)
+		return fmt.Errorf("helmSmoke kubeconfig: %w", err)
+	}
+	defer cleanupKubeconfig()
+	environment := smokeEnvironment{kubeconfig: kubeconfig}
+	defer func() {
+		cleanupHelmSmoke(environment, cluster, kindRun, result != nil)
+	}()
+
+	if err := prepareSmokeCluster(environment, cluster.Name, resolved, image); err != nil {
+		return smokeFailure(environment.run, "cluster preparation", err)
+	}
+	archiveDir, err := os.MkdirTemp("", "agent-architecture-smoke-chart-*")
+	if err != nil {
+		return err
+	}
+	defer os.RemoveAll(archiveDir)
+	archive, err := packageHelmChart(filepath.Join(resolved.Application, "helm"), resolved.Catalog, archiveDir)
+	if err != nil {
+		return fmt.Errorf("helmSmoke chart package: %w", err)
+	}
+	if err := installSmokeChart(environment, archive, resolved.Application, image); err != nil {
+		return smokeFailure(environment.run, "Helm install", err)
+	}
+	// The collector is a persistent server, so its rollout stabilizes. The
+	// canonical curator is a bounded demo agent (its await_curator_control word
+	// times out after 30s to a terminal state), so it only reaches Available for
+	// one control window per pod rather than staying up; the smoke proves R3.3
+	// inside that window rather than requiring sustained availability.
+	if err := runSmokeCommand(environment, smokeReadyTimeout, "kubectl", "rollout", "status",
+		"deployment/"+smokeRelease+"-agent-architecture-collector", "-n", smokeNamespace, "--timeout=90s"); err != nil {
+		return smokeFailure(environment.run, "collector readiness", err)
+	}
+	queryLocal, err := freeLocalPort()
+	if err != nil {
+		return err
+	}
+	collectorForward, err := forwardService(environment, smokeRelease+"-agent-architecture-collector", queryLocal+":18193")
+	if err != nil {
+		return smokeFailure(environment.run, "collector port-forward", err)
+	}
+	defer collectorForward.stop()
+	queryURL := "http://127.0.0.1:" + queryLocal
+	if err := waitHTTP200(queryURL+"/query/traces?page_size=1", smokeReadyTimeout); err != nil {
+		return smokeFailure(environment.run, "collector query surface", err)
+	}
+	// Serve documentation, then stop the curator cleanly with a lifecycle-exit
+	// request, all inside one control window; the exit flushes the exporter so
+	// the collector retains the spans even after the curator process is gone.
+	if err := exerciseCuratorWindow(environment); err != nil {
+		return smokeFailure(environment.run, "curator serve and clean exit", err)
+	}
+	if err := verifyCuratorTrace(queryURL, curatorServiceName); err != nil {
+		return smokeFailure(environment.run, "curator trace retention", err)
+	}
+	fmt.Printf("integration:helmSmoke PASS - revision %s installed the packaged chart; curator served documentation and exited cleanly, collector retained a %s trace\n",
+		revision, curatorServiceName)
+	return nil
+}
+
+// exerciseCuratorWindow catches a live curator pod: it waits for the curator
+// Deployment to report Available, serves documentation to emit spans, and posts
+// the declarative lifecycle-exit request that stops it cleanly (Done). Because
+// the curator recycles every control window, it retries against a fresh window
+// if it loses the race.
+func exerciseCuratorWindow(environment smokeEnvironment) error {
+	service := smokeRelease + "-agent-architecture-curator"
+	var lastErr error
+	for attempt := 1; attempt <= 4; attempt++ {
+		if err := runSmokeCommand(environment, 60*time.Second, "kubectl", "wait",
+			"--for=condition=Available", "deployment/"+service,
+			"-n", smokeNamespace, "--timeout=45s"); err != nil {
+			lastErr = err
+			continue
+		}
+		controlLocal, err := freeLocalPort()
+		if err != nil {
+			return err
+		}
+		documentationLocal, err := freeLocalPort()
+		if err != nil {
+			return err
+		}
+		forward, err := forwardService(environment, service, controlLocal+":18082", documentationLocal+":18081")
+		if err != nil {
+			lastErr = err
+			continue
+		}
+		controlURL := "http://127.0.0.1:" + controlLocal
+		documentationURL := "http://127.0.0.1:" + documentationLocal
+		if err := runCuratorWindow(controlURL, documentationURL); err != nil {
+			forward.stop()
+			lastErr = err
+			continue
+		}
+		forward.stop()
+		return nil
+	}
+	return fmt.Errorf("curator control window not caught in 4 attempts: %w", lastErr)
+}
+
+func runCuratorWindow(controlURL, documentationURL string) error {
+	if err := waitHTTP200(controlURL+"/api/lifecycle/health", 20*time.Second); err != nil {
+		return err
+	}
+	if err := driveCuratorDocuments(documentationURL); err != nil {
+		return err
+	}
+	return requestCuratorExit(controlURL)
+}
+
+const curatorServiceName = "knowledge-manager-curator"
+
+func mustGitRevision(applicationRoot string) string {
+	repositoryRoot := filepath.Clean(filepath.Join(applicationRoot, "..", ".."))
+	cmd := exec.Command("git", "-C", repositoryRoot, "rev-parse", "HEAD")
+	output, err := cmd.CombinedOutput()
+	if err != nil {
+		return "0000000000000000000000000000000000000000"
+	}
+	return strings.TrimSpace(string(output))
+}
+
+func smokeKubeconfig(cluster string) (string, func(), error) {
+	ctx, cancel := context.WithTimeout(context.Background(), smokeProbeTimeout)
+	defer cancel()
+	output, err := smokeEnvironment{}.run(ctx, "kind", "get", "kubeconfig", "--name", cluster)
+	if err != nil {
+		return "", nil, fmt.Errorf("kind get kubeconfig: %w: %s", err, strings.TrimSpace(string(output)))
+	}
+	dir, err := os.MkdirTemp("", "agent-architecture-kubeconfig-*")
+	if err != nil {
+		return "", nil, err
+	}
+	path := filepath.Join(dir, "config")
+	if err := os.WriteFile(path, output, 0o600); err != nil {
+		_ = os.RemoveAll(dir)
+		return "", nil, err
+	}
+	return path, func() { _ = os.RemoveAll(dir) }, nil
+}
+
+func prepareSmokeCluster(environment smokeEnvironment, cluster string, resolved roots, image string) error {
+	ctx, cancel := context.WithTimeout(context.Background(), 40*time.Second)
+	_, _ = environment.run(ctx, "kubectl", "delete", "namespace", smokeNamespace,
+		"--ignore-not-found=true", "--wait=true", "--timeout=30s")
+	cancel()
+	if err := buildAgentArchitectureImage(resolved.Application, image); err != nil {
+		return err
+	}
+	if err := kindrig.BuildAgentCoreImage(resolved.Core, smokeCollectorImage); err != nil {
+		return fmt.Errorf("build collector image: %w", err)
+	}
+	kindLoad := func(ctx context.Context, args ...string) ([]byte, error) {
+		return smokeEnvironment{}.run(ctx, "kind", args...)
+	}
+	for _, loadImage := range []string{image, smokeCollectorImage} {
+		ctx, cancel := context.WithTimeout(context.Background(), smokeClusterTimeout)
+		err := kindrig.LoadImage(ctx, kindLoad, cluster, loadImage)
+		cancel()
+		if err != nil {
+			return err
+		}
+	}
+	return runSmokeCommand(environment, 30*time.Second, "kubectl", "create", "namespace", smokeNamespace)
+}
+
+func installSmokeChart(environment smokeEnvironment, archive, applicationRoot, image string) error {
+	repository, tag := splitImageRef(image)
+	collectorRepository, collectorTag := splitImageRef(smokeCollectorImage)
+	ctx, cancel := context.WithTimeout(context.Background(), smokeInstallTimeout)
+	defer cancel()
+	output, err := environment.run(ctx, "helm",
+		"install", smokeRelease, archive,
+		"--namespace", smokeNamespace,
+		"--values", filepath.Join(applicationRoot, "helm", "ci", "kind-values.yaml"),
+		"--set", "image.repository="+repository,
+		"--set", "image.tag="+tag,
+		"--set", "collector.image.repository="+collectorRepository,
+		"--set", "collector.image.tag="+collectorTag,
+		// No --wait: the bounded curator never stays ready, so waiting on the
+		// whole release would always time out. Readiness is asserted per workload
+		// below.
+		"--timeout", smokeInstallTimeout.String(),
+	)
+	if err != nil {
+		return fmt.Errorf("helm install: %w: %s", err, strings.TrimSpace(string(output)))
+	}
+	return nil
+}
+
+func splitImageRef(image string) (string, string) {
+	index := strings.LastIndex(image, ":")
+	if index < 0 || strings.Contains(image[index:], "/") {
+		return image, "latest"
+	}
+	return image[:index], image[index+1:]
+}
+
+func runSmokeCommand(environment smokeEnvironment, timeout time.Duration, name string, args ...string) error {
+	ctx, cancel := context.WithTimeout(context.Background(), timeout)
+	defer cancel()
+	output, err := environment.run(ctx, name, args...)
+	if err != nil {
+		return fmt.Errorf("%s %s: %w: %s", name, strings.Join(args, " "), err, strings.TrimSpace(string(output)))
+	}
+	return nil
+}
+
+type portForward struct {
+	command *exec.Cmd
+}
+
+// forwardService starts a kubectl port-forward for the given local:target pairs
+// against a Service. The Service must have a ready endpoint, so a curator
+// forward is opened only after the curator Deployment reports Available.
+func forwardService(environment smokeEnvironment, service string, pairs ...string) (*portForward, error) {
+	args := append([]string{"port-forward", "-n", smokeNamespace, "service/" + service}, pairs...)
+	command := exec.Command("kubectl", args...)
+	command.Env = append(os.Environ(), "KUBECONFIG="+environment.kubeconfig)
+	command.Stdout, command.Stderr = os.Stderr, os.Stderr
+	if err := command.Start(); err != nil {
+		return nil, fmt.Errorf("start port-forward %s: %w", service, err)
+	}
+	return &portForward{command: command}, nil
+}
+
+func (forward *portForward) stop() {
+	if forward == nil || forward.command == nil {
+		return
+	}
+	if forward.command.Process != nil {
+		_ = forward.command.Process.Kill()
+	}
+	_ = forward.command.Wait()
+}
+
+func freeLocalPort() (string, error) {
+	listener, err := net.Listen("tcp", "127.0.0.1:0")
+	if err != nil {
+		return "", err
+	}
+	defer listener.Close()
+	_, port, err := net.SplitHostPort(listener.Addr().String())
+	if err != nil {
+		return "", err
+	}
+	return port, nil
+}
+
+func waitHTTP200(url string, timeout time.Duration) error {
+	deadline := time.Now().Add(timeout)
+	client := &http.Client{Timeout: 3 * time.Second}
+	var lastErr error
+	for time.Now().Before(deadline) {
+		resp, err := client.Get(url)
+		if err == nil {
+			io.Copy(io.Discard, resp.Body)
+			resp.Body.Close()
+			if resp.StatusCode == http.StatusOK {
+				return nil
+			}
+			lastErr = fmt.Errorf("GET %s status %d", url, resp.StatusCode)
+		} else {
+			lastErr = err
+		}
+		time.Sleep(500 * time.Millisecond)
+	}
+	return fmt.Errorf("no HTTP 200 from %s within %s: %w", url, timeout, lastErr)
+}
+
+// driveCuratorDocuments hits the curator's documentation interface, proving it
+// serves and driving a machine_request whose spans the curator exports to the
+// collector.
+func driveCuratorDocuments(documentationURL string) error {
+	if err := waitHTTP200(documentationURL+"/api/v1/docs", 15*time.Second); err != nil {
+		return err
+	}
+	// A few requests give the exporter something to batch and flush.
+	client := &http.Client{Timeout: 3 * time.Second}
+	for index := 0; index < 3; index++ {
+		resp, err := client.Get(documentationURL + "/api/v1/docs")
+		if err == nil {
+			io.Copy(io.Discard, resp.Body)
+			resp.Body.Close()
+		}
+		time.Sleep(200 * time.Millisecond)
+	}
+	return nil
+}
+
+type collectorTraceSummary struct {
+	TraceID string `json:"trace_id"`
+}
+
+type collectorTraceList struct {
+	Traces []collectorTraceSummary `json:"traces"`
+	Total  int                     `json:"total"`
+}
+
+type collectorSpan struct {
+	Service string `json:"service"`
+}
+
+type collectorTraceDetail struct {
+	TraceID   string          `json:"trace_id"`
+	Spans     []collectorSpan `json:"spans"`
+	SpanCount int             `json:"span_count"`
+}
+
+// verifyCuratorTrace polls the collector query surface until a retained trace
+// carries a span under the curator service name (srd001 R3.4).
+func verifyCuratorTrace(queryURL, service string) error {
+	deadline := time.Now().Add(smokeTraceTimeout)
+	client := &http.Client{Timeout: 3 * time.Second}
+	var lastErr error
+	for time.Now().Before(deadline) {
+		list, err := getCollectorTraceList(client, queryURL+"/query/traces?page_size=50")
+		if err != nil {
+			lastErr = err
+			time.Sleep(time.Second)
+			continue
+		}
+		for _, summary := range list.Traces {
+			detail, err := getCollectorTraceDetail(client, queryURL+"/query/traces/"+summary.TraceID)
+			if err != nil {
+				lastErr = err
+				continue
+			}
+			for _, span := range detail.Spans {
+				if span.Service == service {
+					return nil
+				}
+			}
+		}
+		lastErr = fmt.Errorf("no retained trace carries service %q (traces so far: %d)", service, list.Total)
+		time.Sleep(time.Second)
+	}
+	return fmt.Errorf("collector did not retain a %q trace within %s: %w", service, smokeTraceTimeout, lastErr)
+}
+
+func getCollectorTraceList(client *http.Client, url string) (*collectorTraceList, error) {
+	resp, err := client.Get(url)
+	if err != nil {
+		return nil, err
+	}
+	defer resp.Body.Close()
+	if resp.StatusCode != http.StatusOK {
+		return nil, fmt.Errorf("GET %s status %d", url, resp.StatusCode)
+	}
+	var list collectorTraceList
+	if err := json.NewDecoder(resp.Body).Decode(&list); err != nil {
+		return nil, fmt.Errorf("decode trace list: %w", err)
+	}
+	return &list, nil
+}
+
+func getCollectorTraceDetail(client *http.Client, url string) (*collectorTraceDetail, error) {
+	resp, err := client.Get(url)
+	if err != nil {
+		return nil, err
+	}
+	defer resp.Body.Close()
+	if resp.StatusCode != http.StatusOK {
+		return nil, fmt.Errorf("GET %s status %d", url, resp.StatusCode)
+	}
+	var detail collectorTraceDetail
+	if err := json.NewDecoder(resp.Body).Decode(&detail); err != nil {
+		return nil, fmt.Errorf("decode trace detail: %w", err)
+	}
+	return &detail, nil
+}
+
+// requestCuratorExit posts the declarative lifecycle-exit request and accepts
+// the curator's acknowledgement (srd001 R3.3).
+func requestCuratorExit(controlURL string) error {
+	client := &http.Client{Timeout: 5 * time.Second}
+	resp, err := client.Post(controlURL+"/api/lifecycle/exit", "application/json",
+		strings.NewReader(`{"reason":"helm smoke"}`))
+	if err != nil {
+		return err
+	}
+	defer resp.Body.Close()
+	io.Copy(io.Discard, resp.Body)
+	if resp.StatusCode != http.StatusOK && resp.StatusCode != http.StatusAccepted {
+		return fmt.Errorf("lifecycle exit status %d", resp.StatusCode)
+	}
+	return nil
+}
+
+func smokeFailure(run func(context.Context, string, ...string) ([]byte, error), step string, cause error) error {
+	diagnostics := collectSmokeDiagnostics(run)
+	return fmt.Errorf("helmSmoke %s failure: %w\n%s", step, cause, diagnostics)
+}
+
+func collectSmokeDiagnostics(run func(context.Context, string, ...string) ([]byte, error)) string {
+	ctx, cancel := context.WithTimeout(context.Background(), smokeDiagTimeout)
+	defer cancel()
+	commands := []struct {
+		label string
+		args  []string
+	}{
+		{"helm status", []string{"status", smokeRelease, "-n", smokeNamespace}},
+		{"workloads", []string{"get", "deploy,pods,cm,svc", "-n", smokeNamespace, "-o", "wide"}},
+		{"events", []string{"get", "events", "-n", smokeNamespace, "--sort-by=.metadata.creationTimestamp"}},
+		{"curator logs", []string{"logs", "-n", smokeNamespace, "-l", "app.kubernetes.io/component=curator", "--tail=80"}},
+		{"collector logs", []string{"logs", "-n", smokeNamespace, "-l", "app.kubernetes.io/component=collector", "--tail=80"}},
+	}
+	var report strings.Builder
+	report.WriteString("helmSmoke bounded diagnostics:")
+	for _, command := range commands {
+		name := "kubectl"
+		if command.label == "helm status" {
+			name = "helm"
+		}
+		output, err := run(ctx, name, command.args...)
+		fmt.Fprintf(&report, "\n\n== %s ==\n%s", command.label, strings.TrimSpace(string(output)))
+		if err != nil {
+			fmt.Fprintf(&report, "\n[diagnostic failed: %v]", err)
+		}
+	}
+	return report.String()
+}
+
+func cleanupHelmSmoke(environment smokeEnvironment, cluster kindrig.Cluster, kindRun kindrig.Runner, failed bool) {
+	ctx, cancel := context.WithTimeout(context.Background(), 30*time.Second)
+	_, _ = environment.run(ctx, "helm", "uninstall", smokeRelease, "-n", smokeNamespace, "--wait", "--timeout=20s")
+	cancel()
+	ctx, cancel = context.WithTimeout(context.Background(), 40*time.Second)
+	_, _ = environment.run(ctx, "kubectl", "delete", "namespace", smokeNamespace,
+		"--ignore-not-found=true", "--wait=true", "--timeout=30s")
+	cancel()
+	cluster.Release(kindRun)
+}

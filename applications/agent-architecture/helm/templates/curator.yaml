@@ -1,0 +1,132 @@
+{{- include "agent-architecture.validateValues" . -}}
+{{- $fullname := include "agent-architecture.fullname" . -}}
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: {{ $fullname }}-curator
+  labels:
+    {{- include "agent-architecture.labels" . | nindent 4 }}
+    app.kubernetes.io/component: curator
+spec:
+  replicas: {{ .Values.curator.replicas }}
+  selector:
+    matchLabels:
+      {{- include "agent-architecture.selectorLabels" . | nindent 6 }}
+      app.kubernetes.io/component: curator
+  template:
+    metadata:
+      labels:
+        {{- include "agent-architecture.selectorLabels" . | nindent 8 }}
+        app.kubernetes.io/component: curator
+      annotations:
+        checksum/config: {{ toYaml .Values.curator | sha256sum }}
+        {{- with .Values.podAnnotations }}
+        {{- toYaml . | nindent 8 }}
+        {{- end }}
+    spec:
+      automountServiceAccountToken: false
+      securityContext:
+        {{- toYaml .Values.podSecurityContext | nindent 8 }}
+      {{- with .Values.nodeSelector }}
+      nodeSelector:
+        {{- toYaml . | nindent 8 }}
+      {{- end }}
+      {{- with .Values.tolerations }}
+      tolerations:
+        {{- toYaml . | nindent 8 }}
+      {{- end }}
+      {{- with .Values.affinity }}
+      affinity:
+        {{- toYaml . | nindent 8 }}
+      {{- end }}
+      containers:
+        - name: curator
+          image: {{ include "agent-architecture.image" . | quote }}
+          imagePullPolicy: {{ .Values.image.pullPolicy }}
+          # The catalog documentation-curator profile is mounted, never baked in.
+          # It binds documentation/control/monitor on loopback, so the readiness
+          # and liveness probes call its real lifecycle health endpoint over the
+          # pod's own localhost (srd001 R1.4); OTLP export to the collector is a
+          # runtime flag, not a profile edit (R1.5).
+          args:
+            - "--profile"
+            - "/profiles/agents/knowledge-manager/documentation-curator/profile.yaml"
+            # The curator serves and curates documents from a writable workspace;
+            # the profile mount at /profiles is read-only, so --directory points
+            # at a writable emptyDir. Read-only /profiles as the workspace makes
+            # the document endpoints return HTTP 500.
+            - "--directory"
+            - "/work"
+            {{- $endpoint := include "agent-architecture.otlpEndpoint" . }}
+            {{- if $endpoint }}
+            - "--otel-otlp-endpoint"
+            - {{ $endpoint | quote }}
+            - "--otel-service-name"
+            - {{ .Values.curator.serviceName | quote }}
+            {{- end }}
+          securityContext:
+            {{- toYaml .Values.containerSecurityContext | nindent 12 }}
+          ports:
+            - {name: documentation, containerPort: {{ .Values.curator.documentationPort }}}
+            - {name: control, containerPort: {{ .Values.curator.controlPort }}}
+            - {name: monitor, containerPort: {{ .Values.curator.monitorPort }}}
+          readinessProbe:
+            exec:
+              command:
+                - "wget"
+                - "-q"
+                - "-O"
+                - "/dev/null"
+                - "http://127.0.0.1:{{ .Values.curator.controlPort }}/api/lifecycle/health"
+            initialDelaySeconds: 2
+            periodSeconds: 5
+            timeoutSeconds: 3
+          livenessProbe:
+            exec:
+              command:
+                - "wget"
+                - "-q"
+                - "-O"
+                - "/dev/null"
+                - "http://127.0.0.1:{{ .Values.curator.controlPort }}/api/lifecycle/health"
+            initialDelaySeconds: 10
+            periodSeconds: 15
+            timeoutSeconds: 3
+          resources:
+            {{- toYaml .Values.curator.resources | nindent 12 }}
+          volumeMounts:
+            - {name: profiles, mountPath: /profiles, readOnly: true}
+            - {name: workspace, mountPath: /work}
+            - {name: tmp, mountPath: /tmp}
+      volumes:
+        - name: profiles
+          projected:
+            defaultMode: 0444
+            sources:
+              - configMap:
+                  name: {{ $fullname }}-curator-profiles
+                  items:
+                    {{- range $path, $_ := .Files.Glob "profiles/curator/**" }}
+                    - key: {{ $path | trimPrefix "profiles/curator/" | replace "/" "__" }}
+                      path: {{ $path | trimPrefix "profiles/curator/" }}
+                    {{- end }}
+        - name: workspace
+          emptyDir: {}
+        - name: tmp
+          emptyDir: {}
+---
+apiVersion: v1
+kind: Service
+metadata:
+  name: {{ $fullname }}-curator
+  labels:
+    {{- include "agent-architecture.labels" . | nindent 4 }}
+    app.kubernetes.io/component: curator
+spec:
+  selector:
+    {{- include "agent-architecture.selectorLabels" . | nindent 4 }}
+    app.kubernetes.io/component: curator
+  ports:
+    - {name: documentation, port: {{ .Values.curator.documentationPort }}, targetPort: documentation}
+    - {name: control, port: {{ .Values.curator.controlPort }}, targetPort: control}
+    - {name: monitor, port: {{ .Values.curator.monitorPort }}, targetPort: monitor}
