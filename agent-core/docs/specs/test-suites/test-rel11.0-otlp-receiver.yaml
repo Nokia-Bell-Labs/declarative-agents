@@ -6,7 +6,7 @@ traces:
   - rel11.0-uc001-otlp-receiver-await
 
 preconditions:
-  - srd042-otlp-receiver-tools defines launch, bounded queue, await, spool, relay, stop, and self-loop behavior.
+  - srd042-otlp-receiver-tools defines launch, bounded queue, await, spool, relay, stop, self-loop, and metric intake/spool/query behavior.
   - srd008-telemetry defines OTLP export, stdouttrace evidence, stable integration identity, and the ingress self-loop rule.
   - The tests bind isolated loopback ports and do not require a persistent external collector.
   - Focused Go tests provide executable package evidence; deployment-only scope assertions remain identified as non-executable.
@@ -148,20 +148,69 @@ test_cases:
       - srd042-otlp-receiver-tools AC5
 
   - use_case: rel11.0-uc001-otlp-receiver-await
-    name: Trace receiver makes no metrics claim
-    status: specified
+    name: Receiver accepts trace and metric exports on one listener
+    go_test: go test ./internal/tools/otlp -run TestReceiverExportAwaitMetrics
+    status: implemented
     description: |
-      Specification and declaration validation expose only the OTLP trace
-      service. No metric or log receiver factory is registered. Deployment
-      documentation retains a separate metrics route while the persistent
-      integration contract requires Prometheus and Dolt evidence.
+      A real OTLP TraceService client and a real OTLP MetricsService client
+      export to the same bound listener. Both batches are accepted; the metric
+      export lands on a separate queue and does not disturb the trace queue.
+    non_executable_scope_assertion: |
+      No OTLP logs service is registered, and the deployment needs no separate
+      metrics backend once the collector agent retains both signals. The
+      logs-absence and backend-independence are scope assertions specified by
+      srd042 R8/R9, not package test evidence.
     inputs:
       protocols: [trace, metric, log]
     expected:
-      trace: declared
-      metric: not_declared
+      trace: accepted
+      metric: accepted
       log: not_declared
-      deployment_metrics_path: separate
+      metrics_backend: none_required
     traces:
       - rel11.0-uc001-otlp-receiver-await S6
       - srd042-otlp-receiver-tools AC6
+
+  - use_case: rel11.0-uc001-otlp-receiver-await
+    name: Metric spool records NDJSON and rotates by complete batch
+    go_test: go test ./internal/tools/otlp -run TestSpoolMetricsRoundTripAndRotation
+    status: implemented
+    description: |
+      Spool converts a received metric request into one NDJSON record per
+      metric carrying name, type, data-point count, and resource identity.
+      Rotation occurs before a complete batch and leaves no partial line. The
+      metric spool is a separate file from the trace spool.
+    inputs:
+      max_files: 2
+      max_bytes: one complete batch plus one byte
+      batches: 3
+    expected:
+      record_name: dispatch_count
+      record_type: Sum
+      data_point_count: 2
+      partial_lines: 0
+    traces:
+      - rel11.0-uc001-otlp-receiver-await S7
+      - srd042-otlp-receiver-tools AC8
+
+  - use_case: rel11.0-uc001-otlp-receiver-await
+    name: Metric query lists by name and reads back one metric's records
+    go_test: go test ./internal/tools/otlp -run 'TestSpool(ListMetricsSummaries|GetMetricByName)'
+    status: implemented
+    description: |
+      spool_list_metrics aggregates spooled records into per-name summaries with
+      record and data-point counts and the contributing services, paginated
+      deterministically. spool_get_metric returns every record for one metric
+      name with service identity and data points, read-only.
+    inputs:
+      metrics:
+        - {name: dispatch_count, services: [chatbot, rag0], data_points: [3, 2]}
+        - {name: dss_rows, services: [dolt], data_points: [1]}
+    expected:
+      list_total: 2
+      dispatch_count_records: 2
+      dispatch_count_data_points: 5
+      dispatch_count_services: [chatbot, rag0]
+    traces:
+      - rel11.0-uc001-otlp-receiver-await S7
+      - srd042-otlp-receiver-tools AC8

@@ -1,5 +1,5 @@
 id: rel11.0-uc001-otlp-receiver-await
-title: A persistent machine receives, records, and relays OTLP trace batches
+title: A persistent machine receives, records, and relays OTLP trace and metric batches
 
 summary: |
   An operator starts a profile whose machine binds an OTLP/gRPC receiver and
@@ -9,11 +9,14 @@ summary: |
   deterministic agent trace files. Relay preserves the request's resource and
   span identity for a persistent upstream backend.
 
-  The receiver process exports its own runtime telemetry to a file, not to the
-  endpoint it owns. Metrics continue through a separate ingress path because
-  this release defines trace words only.
+  The same listener also accepts OTLP metric exports on a separate bounded
+  queue: `await_metrics` hands a metric batch to the machine, `spool_metrics`
+  records one NDJSON line per metric, and `spool_list_metrics` and
+  `spool_get_metric` read that evidence back by name and run identity. The
+  receiver process exports its own runtime telemetry to a file, not to the
+  endpoint it owns.
 
-actor: Operator running a declarative agent as an OTLP trace ingress
+actor: Operator running a declarative agent as an OTLP trace and metric ingress
 
 trigger: |
   The operator starts the ingress profile and a client agent exports an
@@ -29,6 +32,10 @@ flow:
   - F7: In relay mode, the machine dispatches `relay_spans`; the upstream receives the unchanged trace request and returns success (srd042 R5).
   - F8: The machine returns to `await_spans` for the next batch.
   - F9: A lifecycle control event routes to `otlp_receiver_stop`, which stops intake, unblocks awaiters, and reaches a success terminal (srd042 R6).
+  - F10: A client exports one OTLP metric request to the same listener; the MetricsService handler decodes and enqueues the complete request on a separate bounded metric queue under the same backpressure rules (srd042 R9.1, R9.2).
+  - F11: "`await_metrics` consumes the oldest metric batch and returns its payload plus data-point, service, and metric-name metadata as `MetricsReceived` (srd042 R9.2)."
+  - F12: "`spool_metrics` appends one NDJSON record per metric carrying resource, scope, and data-point identity under the same bounded rotation as the trace spool (srd042 R9.3)."
+  - F13: "`spool_list_metrics` and `spool_get_metric` read the metric spool back by name and run identity without mutation (srd042 R9.4)."
 
 touchpoints:
   - T1: "srd042-otlp-receiver-tools R0 -- transport words stay separate and MachineSpec owns their sentence"
@@ -39,8 +46,9 @@ touchpoints:
   - T6: "srd042-otlp-receiver-tools R5 -- declared relay preserves protobuf identity"
   - T7: "srd042-otlp-receiver-tools R6 -- stop owns listener and waiter cleanup"
   - T8: "srd042-otlp-receiver-tools R7 -- file-only process telemetry prevents ingress self-export"
-  - T9: "srd042-otlp-receiver-tools R8 -- metrics remain on a separate conforming path"
+  - T9: "srd042-otlp-receiver-tools R8 -- the receiver accepts trace and metric exports on one gRPC listener"
   - T10: "srd008-telemetry R9 -- integration evidence keeps stable service and run identity"
+  - T11: "srd042-otlp-receiver-tools R9 -- metric intake, spool, and query mirror the trace words without a separate backend"
 
 success_criteria:
   - id: S1
@@ -64,9 +72,13 @@ success_criteria:
     traces:
       - srd042-otlp-receiver-tools AC5
   - id: S6
-    criterion: The deployment keeps its required metrics evidence on a separate path and makes no metrics claim for these trace-only words.
+    criterion: The receiver accepts trace and metric exports on one gRPC listener and makes no OTLP logs claim; no separate metrics backend is required.
     traces:
       - srd042-otlp-receiver-tools AC6
+  - id: S7
+    criterion: A real OTLP/gRPC client exports a metric batch that await returns, spool records as NDJSON with resource and metric identity, and the query words read back by name, all while trace intake stays unchanged.
+    traces:
+      - srd042-otlp-receiver-tools AC8
 
 failure_scenarios:
   - id: E1
@@ -82,11 +94,11 @@ failure_scenarios:
     scenario: The receiver exports its own lifecycle spans to its listening endpoint.
     expected: Rejected; the profile uses file-only telemetry and the self-loop proof observes no collector-process batch.
   - id: E5
-    scenario: A deployment removes its metrics gateway when adopting the trace receiver.
-    expected: Rejected while srd008 R9 metrics evidence applies; trace-only adoption retains a separate metrics path.
+    scenario: A metric export reaches the trace queue, or a metric word alters a spooled span.
+    expected: Rejected; the metric signal uses a separate queue and spool, and trace intake, spool, relay, and query behavior stay unchanged.
 
 out_of_scope:
-  - OTLP metrics and logs.
+  - OTLP logs.
   - General-purpose collector throughput or multi-tenant isolation.
   - Jaeger query and trace search behavior.
   - TLS and authenticated transport.
