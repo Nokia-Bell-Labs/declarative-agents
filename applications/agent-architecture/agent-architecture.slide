@@ -16,7 +16,7 @@ runtime:
 Open the running servers after they start:
 
 - Documentation: [[http://localhost:18081][http://localhost:18081]]
-- Control (lifecycle exit): [[http://127.0.0.1:18082][http://127.0.0.1:18082]]
+- Control (lifecycle exit): [[http://127.0.0.1:18082/api/lifecycle/health][http://127.0.0.1:18082/api/lifecycle/health]]
 - Monitor: [[http://localhost:18084/ui/][http://localhost:18084/ui/]]
 
 Run the canonical catalog profile through an agent built from the selected
