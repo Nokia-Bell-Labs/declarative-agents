@@ -85,8 +85,8 @@ requirements:
       - R9.1: Integration runs SHALL keep the file exporter as deterministic evidence and add OTLP export to the shared integration ingress; live export SHALL NOT replace file assertions.
       - R9.2: Every integration span and metric SHALL carry repository, module, target or scenario, git commit, and a unique run id as resource identity so concurrent and historical runs remain filterable.
       - R9.3: Integration service.name values SHALL use stable role names and SHALL add an instance suffix for scaled roles such as RAG agents and Chroma stores.
-      - R9.4: The shared ingress SHALL be an OTLP endpoint contract, not a collector image contract. A conforming ingress SHALL accept OTLP gRPC and HTTP, route traces to Jaeger and metrics to a Prometheus-compatible backend, and remain healthy outside any one integration lifecycle.
-      - R9.5: Integration teardown SHALL NOT delete the shared ingress or its backend data. Trace and metric evidence SHALL remain queryable after host subprocesses and disposable kind clusters stop.
+      - R9.4: The shared ingress SHALL be an OTLP endpoint contract, not a collector image contract. A conforming ingress SHALL accept OTLP/gRPC trace and metric exports and SHALL remain healthy outside any one integration lifecycle. The canonical realization is the collector agent (srd042), which retains both signals in its spool and serves them from its query surface; no third-party trace or metric backend is required.
+      - R9.5: Integration teardown SHALL NOT delete the shared ingress or its spooled evidence. Trace and metric evidence SHALL remain queryable after host subprocesses and disposable kind clusters stop.
       - R9.6: A component implementing the shared ingress SHALL NOT export its own telemetry back to that ingress.
       - R9.7: OTel Logs and native Ollama server tracing are not part of this contract. Agent GenAI client spans represent Ollama calls until Ollama provides a native server signal used by the suite.
 
@@ -95,7 +95,7 @@ non_goals:
   - Defining tool-specific metric meaning; ToolDef declarations and tool families own that vocabulary.
   - Custom production resource attributes beyond service name; integration runs add only the bounded identity in R9.2.
   - Replacing deterministic file evidence with a live backend.
-  - Defining a particular Collector distribution as the integration ingress.
+  - Mandating a third-party Collector distribution or metric backend as the integration ingress; the collector agent is the canonical realization of the OTLP contract.
   - Introducing OTel Logs or claiming native Ollama server tracing.
 
 acceptance_criteria:
@@ -136,7 +136,7 @@ acceptance_criteria:
     traces: [R7.1, R7.2, R7.3, R7.4]
 
   - id: AC10
-    criterion: Integration runs dual-export file and OTLP evidence with bounded run identity and stable service names through an implementation-independent ingress that retains Jaeger traces and Prometheus-compatible metrics after scenario teardown, avoids a telemetry self-loop, and states the OTel Logs and Ollama limitations.
+    criterion: Integration runs dual-export file and OTLP evidence with bounded run identity and stable service names through an implementation-independent OTLP/gRPC ingress whose collector-agent realization retains trace and metric spools queryable after scenario teardown, avoids a telemetry self-loop, and states the OTel Logs and Ollama limitations.
     traces: [R9.1, R9.2, R9.3, R9.4, R9.5, R9.6, R9.7]
 
 related_documents:

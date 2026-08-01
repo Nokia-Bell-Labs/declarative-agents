@@ -15,9 +15,9 @@ problem: |
   branching visible in the grammar.
 
 goals:
-  - G1: Receive OTLP trace batches through a declared server-binding family.
+  - G1: Receive OTLP trace and metric batches through a declared server-binding family.
   - G2: Deliver bounded batches to a persistent machine through a blocking await word.
-  - G3: Write deterministic trace evidence in the existing stdouttrace NDJSON shape.
+  - G3: Write deterministic trace and metric evidence in NDJSON shapes (stdouttrace for spans).
   - G4: Relay a selected batch to an upstream OTLP endpoint without changing span identity.
   - G5: Prevent the component implementing ingress from exporting telemetry to itself.
 
@@ -105,14 +105,23 @@ requirements:
       - R7.4: Tests SHALL prove that collector lifecycle and machine spans do not arrive at its receiver while client-agent spans do.
 
   R8:
-    title: Scope and staged metrics boundary
+    title: Scope and signal coverage
     items:
-      - R8.1: This release SHALL receive OTLP traces only.
-      - R8.2: OTLP metrics, OTLP logs, Prometheus scraping, and Dolt metric collection SHALL remain outside these words.
-      - R8.3: A deployment adopting this trace receiver while srd008 R9 metrics evidence remains required SHALL retain a separate conforming metrics path; it SHALL NOT claim that the trace receiver satisfies the full shared-ingress contract alone.
+      - R8.1: The receiver SHALL accept OTLP trace and metric exports on the same gRPC listener.
+      - R8.2: OTLP logs and direct Prometheus scraping SHALL remain outside these words; Dolt metrics reach the receiver as OTLP metric exports forwarded by the in-cluster collector, not by direct scraping.
+      - R8.3: The receiver SHALL satisfy the srd008 R9 shared-ingress contract for both trace and metric evidence, so no separate metrics backend is required.
+
+  R9:
+    title: Metric intake, spool, and query
+    items:
+      - R9.1: "`otlp_receiver_launch` SHALL register the OTLP MetricsService Export operation on the same gRPC listener as the TraceService, and SHALL decode `ExportMetricsServiceRequest` batches with `go.opentelemetry.io/proto/otlp` without translating transport payloads in the handler."
+      - R9.2: Receiver state SHALL hold complete OTLP metric export requests as batches under the same bounded FIFO and drop discipline as trace batches, and the drop policy SHALL report dropped batch and data-point counts in bounded diagnostics.
+      - R9.3: A declared spool word SHALL append received metric batches as complete NDJSON lines carrying resource attributes, scope, metric name, and data points, under the same lock and bounded rotation as the trace spool, and SHALL NOT leave a partial line.
+      - R9.4: Declared read-only query words SHALL list and fetch spooled metrics by run identity and metric name, mirroring the trace query words.
+      - R9.5: Trace intake, spool, relay, and query behavior SHALL remain unchanged; metric words SHALL NOT alter span records or the stdouttrace shape.
 
 non_goals:
-  - Receiving OTLP metrics or logs.
+  - Receiving OTLP logs.
   - Acting as a general-purpose, firehose-rate telemetry collector.
   - Sampling languages beyond machine composition from existing predicate words.
   - Querying Jaeger or serving a trace search API.
@@ -141,12 +150,16 @@ acceptance_criteria:
     traces: [R7.1, R7.2, R7.3, R7.4]
 
   - id: AC6
-    criterion: The trace receiver makes no metrics or logs claim, and deployments retain a separate metrics path wherever the persistent integration contract requires one.
+    criterion: The receiver accepts OTLP trace and metric exports on one gRPC listener, makes no OTLP logs claim, and satisfies the persistent integration metrics contract without a separate metrics backend.
     traces: [R8.1, R8.2, R8.3]
 
   - id: AC7
     criterion: An offline replay machine loads one trusted OTLP protobuf-JSON batch and relays it unchanged through separate visible words, with distinct read and decode failures.
     traces: [R0.2, R0.3, R0.4, R3.7, R3.8, R3.9, R5.1, R5.2, R5.4, R5.5]
+
+  - id: AC8
+    criterion: The receiver accepts an OTLP/gRPC metric export into the same bounded queue, spools it as NDJSON with resource and metric identity intact under bounded rotation, and serves it back through declared read-only query words, leaving trace intake, spool, relay, and query behavior unchanged.
+    traces: [R9.1, R9.2, R9.3, R9.4, R9.5]
 
 depends_on:
   - srd_id: srd003-command-dispatch
@@ -167,6 +180,8 @@ related_documents:
 
 implementation_status:
   implemented:
-    - "`internal/tools/otlp` owns receiver state, launch, await, offline batch load, spool, relay, stop, and focused tests."
-    - "`tools/builtin/otlp/all.yaml` declares the six OTLP words and registry composition."
+    - "`internal/tools/otlp` owns receiver state, launch, await, offline batch load, spool, relay, stop, and focused tests for the trace signal."
+    - "`tools/builtin/otlp/all.yaml` declares the six OTLP trace words and registry composition."
     - "`go test ./internal/tools/otlp` proves bounded receive, await, offline load-to-relay, spool compatibility, relay identity, lifecycle cleanup, and static self-loop rejection."
+  planned:
+    - "R8/R9 metric intake, spool, and query (the MetricsService registration, `spool_metrics`, and metric query words) are specified here and implemented under GH-1204; the receiver is trace-only until that lands."
