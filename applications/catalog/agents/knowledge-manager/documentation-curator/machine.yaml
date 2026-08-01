@@ -75,7 +75,9 @@ transitions:
     metric_labels: {phase: exit}
   - state: AwaitingControl
     signal: AwaitTimedOut
-    next: Failed
+    next: AwaitingControl
+    action: await_curator_control
+    metric_labels: {phase: control_await}
   - state: AwaitingControl
     signal: ServerStopped
     next: Failed
