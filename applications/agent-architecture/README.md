@@ -53,12 +53,12 @@ Run every command from `applications/agent-architecture`, except the one-time
 port preflight in step 1, which runs from the repository root. Steps 2, 3,
 and 5 each take their own terminal.
 
-1. Free the demo ports. The repository's shared observability stack binds
+1. Free the demo ports. The chatbot-mesh persistent observability stack binds
    the ports the demo's trace collector needs (`127.0.0.1:4317` and
    `:18193`); if it is running, `mage run` fails
    with `bind OTLP receiver "ingress": address already in use`. Stop it from
-   the repository root with `mage observability:down`, or skip tracing with
-   `DEMO_TRACING=false mage run`.
+   `applications/chatbot-mesh` with `mage observability:down`, or skip tracing
+   with `DEMO_TRACING=false mage run`.
 
 2. Serve the deck:
 
@@ -148,9 +148,9 @@ To disable trace collection:
 
 The collector binds the OTLP receiver on `127.0.0.1:4317`, control on port
 18191, monitor on port 18192, and the query surface on port 18193. The
-repository's shared observability stack (`mage observability:up` at the
-root) binds 4317 and 18193 too; stop it with `mage observability:down`
-before a traced demo run.
+chatbot-mesh persistent observability stack (`mage observability:up` in
+`applications/chatbot-mesh`) binds 4317 and 18193 too; stop it with
+`mage observability:down` from that directory before a traced demo run.
 
 ## The lifecycle-exit agent
 

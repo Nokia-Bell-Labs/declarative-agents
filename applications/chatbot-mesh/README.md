@@ -62,12 +62,13 @@ Four decisions frame the extraction. They are recorded here so a reader understa
 
 ```
 applications/chatbot-mesh/
-  docs/          VISION, ARCHITECTURE, road-map, and the example's own specs
-  agents/        chatbot, rag-server, corpus-ingest, provisioning-workflow-orchestrator, creator, applier, collector, observer
-  ux/            the single-page application and UX config
-  helm/          the deployment chart
-  README.md      this file
-  magefile.go    the example's own audit and integration entry
+  docs/           VISION, ARCHITECTURE, road-map, and the example's own specs
+  agents/         chatbot, rag-server, corpus-ingest, provisioning-workflow-orchestrator, creator, applier, collector, observer
+  ux/             the single-page application and UX config
+  helm/           the deployment chart
+  observability/  the persistent integration telemetry compose stack
+  README.md       this file
+  magefile.go     the example's own audit and integration entry
 ```
 
 ## Build
@@ -82,6 +83,28 @@ mage integration:chatbot       # run a routed fan-out chatbot turn
 mage integration:controlPlane  # exercise the provisioning-workflow-orchestrator and creator control plane
 mage integration:rig           # run hermetic agent scenarios, including collector intake
 ```
+
+The telemetry-required gates (`integration:rig`, the helm telemetry checks)
+need the persistent observability stack: an OTLP ingress routing traces to the
+canonical collector agent and metrics to Prometheus, defined under
+[`observability/`](observability/) and required by srd008-telemetry R9 to
+outlive any one integration run. `down` keeps backend volumes; only `reset`
+deletes them.
+
+```bash
+mage observability:up      # start the stack, or reuse a healthy one
+mage observability:status  # compose state plus health endpoints
+mage observability:down    # stop containers, keep trace and metric volumes
+mage observability:reset   # stop containers and delete the volumes
+```
+
+Defaults expose OTLP gRPC on `4317`, OTLP HTTP on `4318`, collector health on
+`13133`, the collector query surface on `18193`, and Prometheus on `9090`;
+override with `DA_OTEL_GRPC_PORT`, `DA_OTEL_HTTP_PORT`, `DA_OTEL_HEALTH_PORT`,
+`DA_COLLECTOR_QUERY_PORT`, and `DA_PROMETHEUS_QUERY_PORT`. The stack shares
+ports 4317 and 18193 with the agent-architecture demo's local collector, so
+stop it before running that demo. The collector-agent container mounts the
+canonical collector profile from the sibling `applications/catalog` checkout.
 
 The shared ENG01 operator verbs are:
 
