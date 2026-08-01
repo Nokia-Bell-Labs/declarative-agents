@@ -32,16 +32,16 @@ func applierValuesFixture(t *testing.T, name string) string {
 	return filepath.Join("..", "testdata", "integration", "applier-values", name)
 }
 
-// renderWithValues renders the source chart with one values file, returning
-// helm's combined output and whether it succeeded. The coding chart validates
-// values against values.schema.json before templating, so a schema rejection
-// surfaces on the source chart without staged profiles.
+// renderWithValues renders a prepared chart with one values file, returning
+// helm's combined output and whether it succeeded. It renders the staged chart
+// preparedTestChart builds -- the same one every other render test uses --
+// because the roleManifest guard aborts templating on the unstaged source
+// chart before a conforming patch can render. A non-conforming patch is still
+// rejected at values.schema.json validation, which runs before templating and
+// is independent of staging.
 func renderWithValues(t *testing.T, values string) (string, bool) {
 	t.Helper()
-	if _, err := exec.LookPath("helm"); err != nil {
-		t.Skip("helm not on PATH")
-	}
-	out, err := exec.Command("helm", "template", "t", findChartDir(t), "-f", values).CombinedOutput()
+	out, err := exec.Command("helm", "template", "t", preparedTestChart(t), "-f", values).CombinedOutput()
 	return string(out), err == nil
 }
 
