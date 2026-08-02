@@ -37,7 +37,7 @@ flowchart LR
 
 ## Scope and status
 
-The example spans both planes. The data plane is the chatbot, the RAG servers, a corpus-ingest agent that seeds the vector store, observability, and Helm deployment. The control plane is a provisioning-workflow-orchestrator agent, a creator agent, and an applier that applies rollout changes to the running mesh. The canonical catalog collector agent owns the trace path — spool evidence, a bounded query surface, and the trace UI — while contrib retains metrics. An observer agent discovers mesh pods via the Kubernetes API and polls each agent's monitor surface to serve a fleet-level view at observer.localhost. The profiles run on agent-core. Release 05 remains partial pending one live ingest-to-grounded-turn proof.
+The example spans both planes. The data plane is the chatbot, the RAG servers, a corpus-ingest agent that seeds the vector store, observability, and Helm deployment. The control plane is a provisioning-workflow-orchestrator agent, a creator agent, and an applier that applies rollout changes to the running mesh. The canonical catalog collector agent owns both signals — spool evidence and a bounded query surface for traces and metrics, plus the trace UI — so no separate metric backend is needed. An observer agent discovers mesh pods via the Kubernetes API and polls each agent's monitor surface to serve a fleet-level view at observer.localhost. The profiles run on agent-core. Release 05 remains partial pending one live ingest-to-grounded-turn proof.
 
 ## Decisions
 
@@ -66,7 +66,7 @@ applications/chatbot-mesh/
   agents/         chatbot, rag-server, corpus-ingest, provisioning-workflow-orchestrator, creator, applier, collector, observer
   ux/             the single-page application and UX config
   helm/           the deployment chart
-  observability/  the persistent integration telemetry compose stack
+  observability/  the persistent telemetry ingress state (.run/, gitignored)
   README.md       this file
   magefile.go     the example's own audit and integration entry
 ```
@@ -85,26 +85,29 @@ mage integration:rig           # run hermetic agent scenarios, including collect
 ```
 
 The telemetry-required gates (`integration:rig`, the helm telemetry checks)
-need the persistent observability stack: an OTLP ingress routing traces to the
-canonical collector agent and metrics to Prometheus, defined under
-[`observability/`](observability/) and required by srd008-telemetry R9 to
-outlive any one integration run. `down` keeps backend volumes; only `reset`
-deletes them.
+need the persistent OTLP ingress: the canonical collector agent run as a
+background host process, accepting both trace and metric exports on one gRPC
+listener and retaining them in its spool (srd008-telemetry R9, srd042 R8/R9).
+There is no docker-compose stack and no Prometheus backend; kind remains the
+only Docker consumer. The spool outlives any one integration run — `down`
+keeps it and only `reset` deletes it.
 
 ```bash
-mage observability:up      # start the stack, or reuse a healthy one
-mage observability:status  # compose state plus health endpoints
-mage observability:down    # stop containers, keep trace and metric volumes
-mage observability:reset   # stop containers and delete the volumes
+mage observability:up      # build the agent and start the ingress, or reuse a healthy one
+mage observability:status  # report whether the ingress is running and healthy
+mage observability:down    # stop the ingress, keep the trace and metric spool
+mage observability:reset   # stop the ingress and delete the spool
 ```
 
-Defaults expose OTLP gRPC on `4317`, OTLP HTTP on `4318`, collector health on
-`13133`, the collector query surface on `18193`, and Prometheus on `9090`;
-override with `DA_OTEL_GRPC_PORT`, `DA_OTEL_HTTP_PORT`, `DA_OTEL_HEALTH_PORT`,
-`DA_COLLECTOR_QUERY_PORT`, and `DA_PROMETHEUS_QUERY_PORT`. The stack shares
-ports 4317 and 18193 with the agent-architecture demo's local collector, so
-stop it before running that demo. The collector-agent container mounts the
-canonical collector profile from the sibling `applications/catalog` checkout.
+Defaults expose OTLP gRPC on `4317`, collector control on `18191`, and the
+collector query surface on `18193` (`/query/traces` and `/query/metrics`);
+override with `DA_OTEL_GRPC_PORT`, `DA_COLLECTOR_CONTROL_PORT`, and
+`DA_COLLECTOR_QUERY_PORT`. The ingress shares ports 4317 and 18193 with the
+agent-architecture demo's local collector, so stop it before running that
+demo. It runs the canonical collector profile from the sibling
+`applications/catalog` checkout, built from the `agent-core` checkout (set
+`AGENT_CORE_ROOT` when it is not a sibling); its state lives under
+`observability/.run/` (gitignored).
 
 The shared ENG01 operator verbs are:
 
