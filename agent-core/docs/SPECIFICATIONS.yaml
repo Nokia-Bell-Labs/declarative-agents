@@ -30,6 +30,7 @@ overview: |
   service-child, validator, and scenario-discovery tools. Release 10.0 covers
   srd041 for the value predicate word. Release 11.0 covers srd042 for the OTLP
   receiver tool family. Release 12.0 covers srd044 for the spool query tools.
+  Release 13.0 covers srd045 for the span-analytics tools.
   Release 99.0 covers srd037 dispatch planning and srd043
   application/catalog source-layout migration.
 
@@ -113,6 +114,11 @@ roadmap_summary:
     use_cases_done: 1
     use_cases_total: 1
     status: implemented
+  - version: "13.0"
+    name: Span analytics tools
+    use_cases_done: 0
+    use_cases_total: 1
+    status: planned
   - version: "99.0"
     name: Architectural migrations and cleanup
     use_cases_done: 2
@@ -321,6 +327,11 @@ srd_index:
     summary: Read-only builtin words for paginated trace listing and per-trace span detail from the srd042 NDJSON spool, with rotation discovery and malformed-line tolerance.
     status: implemented
     path: docs/specs/software-requirements/srd044-spool-query-tools.yaml
+  - id: srd045-span-analytics-tools
+    title: Span Analytics Tools
+    summary: Read-only builtin words for aggregate reads over the srd042 NDJSON spool -- a filtered duration-over-time heatmap, group-by counts with a reported dropped remainder, and attribute divergence between a selected region and its complement.
+    status: planned
+    path: docs/specs/software-requirements/srd045-span-analytics-tools.yaml
 
 config_format_index:
   - id: cfg-machine-format
@@ -559,6 +570,12 @@ use_case_index:
     status: implemented
     test_suite: test-rel12.0-spool-query
     path: docs/specs/use-cases/rel12.0-uc001-spool-query.yaml
+  - id: rel13.0-uc001-span-analytics
+    title: Aggregate reads turn a spool into a latency heatmap and a divergence ranking
+    release: "13.0"
+    status: planned
+    test_suite: test-rel13.0-span-analytics
+    path: docs/specs/use-cases/rel13.0-uc001-span-analytics.yaml
   - id: rel99.0-uc001-tool-dispatch-simplification
     title: Maintainer simplifies tool dispatch wiring without changing core dispatch
     release: "99.0"
@@ -693,6 +710,14 @@ test_suite_index:
     formal_test_cases: 10
     status: implemented
     path: docs/specs/test-suites/test-rel12.0-spool-query.yaml
+  - id: test-rel13.0-span-analytics
+    title: Test Suite for Release 13.0 Span Analytics Tools
+    release: "13.0"
+    traces:
+      - rel13.0-uc001-span-analytics
+    formal_test_cases: 8
+    status: planned
+    path: docs/specs/test-suites/test-rel13.0-span-analytics.yaml
   - id: test-rel99.0-tool-dispatch-simplification
     title: Test Suite for Release 99.0 Tool Dispatch Simplification
     release: "99.0"

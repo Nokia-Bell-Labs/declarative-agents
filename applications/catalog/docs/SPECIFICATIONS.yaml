@@ -178,6 +178,15 @@ roadmap_summary:
       via static_assets, same-origin with /query/*, with SPA deep-link
       fallback and an explicit error on a missing UI root. The UI root is a
       literal profile-declared path, not a new environment variable.
+  - version: "15.0"
+    name: Collector Explore panel
+    status: planned
+    scope: |
+      Add a Honeycomb-style Explore panel: /query/spans/stats and
+      /query/spans/breakdown routes bind the agent-core span-analytics tools
+      (release 13.0), and the Explore UI page renders a duration heatmap,
+      drag-selects a region, shows the ranked attribute divergence, and links
+      exemplar spans into the per-trace waterfall.
 
 foundation_document_index:
   - id: agent-profiles
@@ -346,8 +355,9 @@ srd_index:
     title: Collector Agent Family
     summary: Canonical OTLP trace collector promoted from the chatbot-mesh,
       defaulting to spool mode with no relay endpoint. Exercises agent-core
-      OTLP builtins (receive, spool, relay) in a reusable catalog family, and
-      serves its own trace UI same-origin with the query surface (R7).
+      OTLP builtins (receive, spool, relay) in a reusable catalog family,
+      serves its own trace UI same-origin with the query surface (R7), and
+      exposes an Explore panel over span analytics (R8-R9).
     status: implemented
     path: docs/specs/software-requirements/srd020-collector.yaml
 
@@ -572,6 +582,13 @@ use_case_index:
       query responses unchanged.
     status: implemented
     path: docs/specs/use-cases/rel14.0-uc001-served-trace-ui.yaml
+  - id: rel15.0-uc001-explore-panel
+    title: An operator narrows a latency band to a responsible attribute and lands on a trace
+    summary: The Explore page renders a duration heatmap from /query/spans/stats,
+      drag-selects a region, shows the ranked attribute divergence from
+      /query/spans/breakdown, and links exemplar spans into the waterfall.
+    status: planned
+    path: docs/specs/use-cases/rel15.0-uc001-explore-panel.yaml
 
 test_suite_index:
   - id: test-rel06.0-agent-profiles
@@ -699,6 +716,13 @@ test_suite_index:
       a missing UI root.
     status: implemented
     path: docs/specs/test-suites/test-rel14.0-served-ui.yaml
+  - id: test-rel15.0-explore
+    title: Test Suite for Release 15.0 Collector Explore Panel
+    summary: Conformance cases for the /query/spans/stats and /query/spans/breakdown
+      response contracts, config-driven caps, empty-spool responses, the Explore
+      UI route declaration, and uiDist reproducibility.
+    status: planned
+    path: docs/specs/test-suites/test-rel15.0-explore.yaml
 
 coverage_gaps: |
   The SRD and semantic models describe ownership, role boundaries, and

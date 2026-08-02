@@ -1,0 +1,63 @@
+id: rel13.0-uc001-span-analytics
+title: Aggregate reads turn a spool into a latency heatmap and a divergence ranking
+
+summary: |
+  A consumer drives the span-analytics tools over a seeded NDJSON spool. It
+  filters spans by time, service, name, and attribute equality; buckets the
+  filtered spans into a duration-over-time heatmap; counts them grouped by an
+  attribute with a reported dropped remainder; and ranks the attributes that
+  most distinguish a selected slow region from its complement. Every read is
+  side-effect free, tolerant of malformed lines, and deterministic.
+
+actor: The collector query surface (or a test harness) invoking the builtin analytics tools
+
+trigger: |
+  A batch of spans has been spooled, and a consumer requests aggregate
+  statistics or an attribute breakdown over a filtered region of the spool.
+
+flow:
+  - F1: The consumer invokes spool_span_stats with a filter (time range, service, span name, attribute equality) and a heatmap request; the tool reads the active and rotated spool files and returns the time-by-duration grid with axis boundaries, matched total, and skipped-line count.
+  - F2: The consumer invokes spool_span_stats with a group_by key; the tool returns per-value counts ordered by count then value, capped at top-N, with the dropped group and span totals.
+  - F3: The consumer invokes spool_span_breakdown with a baseline filter and a selection filter; the tool partitions baseline spans into inside and outside the selection and ranks attribute values by divergence, capped at top-N with a dropped count.
+  - F4: A malformed line in the spool is skipped and counted; an absent spool yields an empty result rather than an error.
+  - F5: A missing or unreadable spool path emits CommandError before any aggregation runs.
+
+touchpoints:
+  - T1: "srd045-span-analytics-tools R1 -- conjunctive span filter over the srd044 read path"
+  - T2: "srd045-span-analytics-tools R2, R3 -- duration heatmap and group-by counts in spool_span_stats"
+  - T3: "srd045-span-analytics-tools R4 -- attribute divergence in spool_span_breakdown"
+  - T4: "srd044-spool-query-tools -- spool discovery, NDJSON parsing, span shape reused"
+
+success_criteria:
+  - id: S1
+    criterion: A conjunctive filter selects exactly the matching spans and the heatmap cell counts sum to the matched total.
+    traces:
+      - srd045-span-analytics-tools AC1
+      - srd045-span-analytics-tools AC2
+  - id: S2
+    criterion: Group-by counts are ordered and capped at top-N with the dropped group and span totals reported.
+    traces:
+      - srd045-span-analytics-tools AC3
+  - id: S3
+    criterion: The breakdown ranks attribute values by a deterministic divergence between the selection and its complement, capped with a dropped count.
+    traces:
+      - srd045-span-analytics-tools AC4
+  - id: S4
+    criterion: Malformed lines are skipped and counted, an absent spool is empty, and a missing or unreadable path emits CommandError.
+    traces:
+      - srd045-span-analytics-tools AC5
+
+failure_scenarios:
+  - id: E1
+    scenario: The selection filter matches no span.
+    expected: spool_span_breakdown returns an empty ranking, not an error.
+  - id: E2
+    scenario: The spool path config is empty.
+    expected: The tool emits CommandError before reading any file.
+
+out_of_scope:
+  - The HTTP query routes that expose these tools (catalog srd020, rel15.0).
+  - The Explore UI page that renders the heatmap and ranking (catalog rel15.0).
+
+test_suite_trace: test-rel13.0-span-analytics
+status: planned

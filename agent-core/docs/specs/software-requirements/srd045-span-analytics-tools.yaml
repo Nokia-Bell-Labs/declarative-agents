@@ -1,0 +1,106 @@
+id: srd045-span-analytics-tools
+title: Span Analytics Tools
+
+problem: |
+  The spool query tools (srd044) read traces back as paginated summaries and
+  per-trace waterfalls, but they cannot answer aggregate questions over the
+  spool: where the latency lives, which attribute values dominate a slice, and
+  what distinguishes a slow region from the rest. A Honeycomb-style Explore
+  panel needs three aggregate reads over the same NDJSON spool -- a filtered
+  duration-over-time heatmap, group-by counts, and an attribute-divergence
+  ("BubbleUp") comparison of a selected region against its complement. Without
+  span-analytics words, every consumer reimplements spool parsing, filtering,
+  and bucketing, and the aggregation runs nowhere near the spool.
+
+goals:
+  - G1: Filter spooled spans by time range, service name, span name, and attribute equality without mutating the spool.
+  - G2: Bucket the filtered spans into a duration-over-time heatmap grid for a latency view.
+  - G3: Count the filtered spans grouped by an attribute, reporting the top groups and the dropped remainder rather than truncating silently.
+  - G4: Rank the attributes that most distinguish a selected region of spans from its complement.
+
+requirements:
+  R1:
+    title: Span filter
+    items:
+      - R1.1: "Both tools SHALL read the active spool file and all rotated files discovered by the srd042 rotation naming convention, reusing the srd044 read path."
+      - R1.2: A filter SHALL accept an optional inclusive start time and exclusive end time on span start time, an optional service name, an optional span name, and zero or more attribute key/value equality constraints.
+      - R1.3: Filter terms SHALL combine as a conjunction; a span matches when it satisfies every supplied term, and an empty filter matches every span.
+      - R1.4: Span duration SHALL be computed as end time minus start time; service name SHALL be read from resource attributes as in srd044.
+
+  R2:
+    title: Duration heatmap
+    items:
+      - R2.1: "`spool_span_stats` SHALL bucket filtered spans into a grid of time buckets on the X axis and duration buckets on the Y axis, each cell holding a span count."
+      - R2.2: The time axis SHALL be divided into a configured number of equal buckets spanning the filter's time range, or the matched spans' min-to-max start time when the range is open.
+      - R2.3: The duration axis SHALL use configured bucket boundaries; a span falls in the bucket whose half-open range contains its duration, with an overflow bucket for durations at or above the last boundary.
+      - R2.4: Output SHALL include the time bucket boundaries, the duration bucket boundaries, the cell counts, the total matched span count, and the count of skipped malformed lines.
+
+  R3:
+    title: Group-by counts
+    items:
+      - R3.1: "`spool_span_stats` SHALL group filtered spans by a requested key -- an attribute key, the service name, or the span name -- and count spans per distinct value."
+      - R3.2: Groups SHALL be ordered by count descending, ties broken by value ascending, and the response SHALL carry at most a configured top-N.
+      - R3.3: When more than top-N distinct values exist, the response SHALL report the number of dropped groups and the total span count they cover, so truncation is never silent.
+
+  R4:
+    title: Attribute divergence
+    items:
+      - R4.1: "`spool_span_breakdown` SHALL take a baseline filter and a selection filter, partition the baseline-matched spans into the selection (inside) and its complement (outside), and compare attribute-value frequencies between the two sets."
+      - R4.2: For each attribute key/value observed, the tool SHALL report the inside count, the outside count, the inside and outside proportions, and a deterministic divergence score that is higher when the value is more concentrated inside the selection than outside.
+      - R4.3: Results SHALL be ordered by divergence score descending, ties broken by key then value ascending, limited to a configured top-N, with the dropped count reported.
+      - R4.4: An empty selection or an empty baseline SHALL produce an empty ranking, not an error.
+
+  R5:
+    title: Read-only, deterministic, declared
+    items:
+      - R5.1: Both tools SHALL have no side effects beyond filesystem reads, and SHALL tolerate malformed or truncated NDJSON lines by skipping and counting them.
+      - R5.2: An empty or absent spool SHALL produce an empty result, not an error.
+      - R5.3: Every output SHALL be deterministic for a fixed spool and configuration, with all ordering fully specified so map iteration never leaks into results.
+      - R5.4: Spool path, filters, bucket boundaries, group key, and top-N SHALL arrive as tool declaration config or request parameters; no behavior SHALL depend on an environment variable.
+      - R5.5: A missing or unreadable spool path SHALL emit CommandError before any aggregation, following the srd044 declaration shape.
+
+non_goals:
+  - Mutating, rotating, or deleting spool files.
+  - Full-text search or regular-expression attribute matching.
+  - Streaming, watching, or sampling.
+  - Exposing an HTTP endpoint (that is a separate REST surface concern, srd020).
+  - Statistical significance testing beyond the deterministic divergence score.
+
+acceptance_criteria:
+  - id: AC1
+    criterion: A conjunctive filter (time range, service, span name, attribute equality) selects exactly the spans satisfying every term, and an empty filter matches all; service and duration derive as in srd044.
+    traces: [R1.1, R1.2, R1.3, R1.4]
+
+  - id: AC2
+    criterion: spool_span_stats returns a time-by-duration heatmap grid whose cell counts sum to the matched total, with reported time and duration bucket boundaries and skipped-line count.
+    traces: [R2.1, R2.2, R2.3, R2.4]
+
+  - id: AC3
+    criterion: spool_span_stats group-by returns per-value counts ordered by count then value, capped at top-N, and reports the dropped group and span totals when values exceed top-N.
+    traces: [R3.1, R3.2, R3.3]
+
+  - id: AC4
+    criterion: spool_span_breakdown ranks attribute values by a deterministic divergence between the selection and its complement, ordered and capped with a reported dropped count, and yields an empty ranking for an empty selection or baseline.
+    traces: [R4.1, R4.2, R4.3, R4.4]
+
+  - id: AC5
+    criterion: Both tools skip and count malformed lines, treat an absent spool as empty, produce deterministic output for fixed input, take all configuration without environment variables, and emit CommandError on a missing or unreadable spool path.
+    traces: [R5.1, R5.2, R5.3, R5.4, R5.5]
+
+depends_on:
+  - srd_id: srd044-spool-query-tools
+    symbols_used: [spool file discovery, NDJSON parsing, span shape, service-name resolution]
+  - srd_id: srd042-otlp-receiver-tools
+    symbols_used: [spool_spans NDJSON shape, rotation naming, stdouttrace compatibility]
+  - srd_id: srd022-builtin-tools
+    symbols_used: [BuiltinRegistry, ToolDef, DecodeToolConfig]
+
+related_documents:
+  - cfg-tool-authoring-standard
+  - sm-tool-language
+
+implementation_status:
+  planned:
+    - "`internal/tools/otlp/analytics.go` will own span filtering, heatmap bucketing, group-by counting, and attribute divergence over the srd044 read path."
+    - "`tools/builtin/otlp/all.yaml` will declare spool_span_stats and spool_span_breakdown with literal defaults and request-parameter schemas."
+    - "`go test ./internal/tools/otlp -run TestSpanStats|TestSpanBreakdown` will prove filtering, bucketing, group-by top-N, divergence ranking, determinism, and error paths."
