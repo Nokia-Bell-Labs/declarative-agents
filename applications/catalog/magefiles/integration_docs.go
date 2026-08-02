@@ -411,7 +411,7 @@ func postDocumentationCuratorExit(controlAddr string) error {
 	if err != nil {
 		return fmt.Errorf("post lifecycle exit: %w", err)
 	}
-	defer resp.Body.Close()
+	defer func() { _ = resp.Body.Close() }()
 	if resp.StatusCode != http.StatusAccepted {
 		return fmt.Errorf("lifecycle exit returned status %d", resp.StatusCode)
 	}

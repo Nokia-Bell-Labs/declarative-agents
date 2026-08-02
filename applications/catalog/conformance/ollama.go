@@ -77,11 +77,11 @@ func liveModelGate(optIn, timeoutValue, model string, probe func(string) error) 
 func probeOllama(client *http.Client, baseURL, model string) error {
 	resp, err := client.Get(baseURL + "/api/tags")
 	if err != nil {
-		return fmt.Errorf("Ollama not reachable at %s: %w", baseURL, err)
+		return fmt.Errorf("cannot reach Ollama at %s: %w", baseURL, err)
 	}
-	defer resp.Body.Close()
+	defer func() { _ = resp.Body.Close() }()
 	if resp.StatusCode != http.StatusOK {
-		return fmt.Errorf("Ollama tags endpoint returned %d", resp.StatusCode)
+		return fmt.Errorf("the Ollama tags endpoint returned %d", resp.StatusCode)
 	}
 	var payload struct {
 		Models []struct {
@@ -96,5 +96,5 @@ func probeOllama(client *http.Client, baseURL, model string) error {
 			return nil
 		}
 	}
-	return fmt.Errorf("Ollama model %q not pulled", model)
+	return fmt.Errorf("the Ollama model %q is not pulled", model)
 }

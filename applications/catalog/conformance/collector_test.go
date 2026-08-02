@@ -32,7 +32,7 @@ func occupyDefaultOTLPPort(t *testing.T) {
 	if err != nil {
 		return
 	}
-	t.Cleanup(func() { listener.Close() })
+	t.Cleanup(func() { _ = listener.Close() })
 }
 
 // TestCollectorDefaultEnvironmentBoot proves the shipped profile starts in
@@ -92,7 +92,7 @@ func TestCollectorQueryEmptySpool(t *testing.T) {
 		t.Fatalf("GET /query/traces before any span: %v", err)
 	}
 	body, _ := io.ReadAll(resp.Body)
-	resp.Body.Close()
+	_ = resp.Body.Close()
 	if resp.StatusCode != http.StatusOK {
 		t.Fatalf("empty-spool query status = %d, body = %s", resp.StatusCode, body)
 	}
@@ -199,7 +199,7 @@ func TestCollectorQueryResponseContract(t *testing.T) {
 		if err != nil {
 			t.Fatalf("GET %s: %v", url, err)
 		}
-		defer resp.Body.Close()
+		defer func() { _ = resp.Body.Close() }()
 		var payload map[string]json.RawMessage
 		if err := json.NewDecoder(resp.Body).Decode(&payload); err != nil {
 			t.Fatalf("decode %s: %v", url, err)
@@ -258,7 +258,7 @@ func TestCollectorQueryListTraces(t *testing.T) {
 	if err != nil {
 		t.Fatalf("GET /query/traces: %v", err)
 	}
-	defer resp.Body.Close()
+	defer func() { _ = resp.Body.Close() }()
 	if resp.StatusCode != http.StatusOK {
 		body, _ := io.ReadAll(resp.Body)
 		t.Fatalf("GET /query/traces status = %d, body = %s", resp.StatusCode, body)
@@ -314,7 +314,7 @@ func TestCollectorQueryGetTrace(t *testing.T) {
 	if err != nil {
 		t.Fatalf("GET /query/traces/trace-aaa: %v", err)
 	}
-	defer resp.Body.Close()
+	defer func() { _ = resp.Body.Close() }()
 	if resp.StatusCode != http.StatusOK {
 		body, _ := io.ReadAll(resp.Body)
 		t.Fatalf("GET /query/traces/trace-aaa status = %d, body = %s", resp.StatusCode, body)
@@ -365,7 +365,7 @@ func TestCollectorQueryListMetrics(t *testing.T) {
 	if err != nil {
 		t.Fatalf("GET /query/metrics: %v", err)
 	}
-	defer resp.Body.Close()
+	defer func() { _ = resp.Body.Close() }()
 	if resp.StatusCode != http.StatusOK {
 		body, _ := io.ReadAll(resp.Body)
 		t.Fatalf("GET /query/metrics status = %d, body = %s", resp.StatusCode, body)
@@ -429,7 +429,7 @@ func TestCollectorQueryGetMetric(t *testing.T) {
 	if err != nil {
 		t.Fatalf("GET /query/metrics/dispatch_count: %v", err)
 	}
-	defer resp.Body.Close()
+	defer func() { _ = resp.Body.Close() }()
 	if resp.StatusCode != http.StatusOK {
 		body, _ := io.ReadAll(resp.Body)
 		t.Fatalf("GET /query/metrics/dispatch_count status = %d, body = %s", resp.StatusCode, body)
