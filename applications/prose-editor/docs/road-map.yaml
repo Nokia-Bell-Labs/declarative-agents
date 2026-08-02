@@ -19,7 +19,7 @@ releases:
       parameterized specialist-editor machine, and voice-critic machine.
 
       This release is documentation-only. It claims no executable evidence,
-      runtime conformance, or publication behavior. The 29-case test suite and
+      runtime conformance, or publication behavior. The 30-case test suite and
       use case plan full-scenario coverage but remain unexecuted.
     status: specification_complete
     capability_status:
@@ -32,7 +32,7 @@ releases:
     srds:
       - id: srd001-prose-editor-services
         status: specified
-        summary: Define all agent, supporting, and external service boundaries and authority.
+        summary: Define all agent, supporting, and external service boundaries and authority, including the shared agent-core telemetry flag contract every service accepts.
       - id: srd002-writing-saga-workproducts
         status: specified
         summary: Define exact immutable lineage, manifest state, stage contracts, idempotency, retries, non-destructive compensation, recovery, and one final publication.
@@ -58,20 +58,21 @@ releases:
     test_suites:
       - id: test-rel00.0-prose-editor
         summary: |
-          Plan 29 structural, authority, happy-path, critic-category,
+          Plan 30 structural, authority, happy-path, critic-category,
           responsible-stage, boundary-error, retry-exhaustion, all-cut recovery,
           Pangram consent and provider, idempotency, partial-publication,
-          immutable-lineage, closure, and documentation-consistency cases for
-          the full scenario. Runtime cases are staged across 00.1 and 00.2.
+          immutable-lineage, closure, documentation-consistency, and telemetry
+          cases for the full scenario. Runtime cases are staged across 00.1
+          and 00.2.
         status: planned
-        test_case_count: 29
+        test_case_count: 30
     evidence_status:
       foundation_yaml: documented
       srd_requirements: srd001_through_srd005_and_srd008_specified
-      reciprocal_traceability: 192_requirements_and_63_acceptance_criteria_closed_by_one_planned_use_case_and_29_planned_tests
+      reciprocal_traceability: 195_requirements_and_64_acceptance_criteria_closed_by_one_planned_use_case_and_30_planned_tests
       executable_evidence: none
     completion_gate: |
-      All six SRDs, the use case, and the 29-case test suite exist with
+      All six SRDs, the use case, and the 30-case test suite exist with
       reciprocal documentation traces. Release 00.0 is complete as a
       documentation baseline. Runtime evidence is staged in 00.1 and 00.2.
 
@@ -98,8 +99,8 @@ releases:
     requirement_subsets:
       srd001-prose-editor-services:
         scope: partial
-        groups: [R1, R2, R3, R4, R5]
-        note: Orchestrator, specialist-editor:structure, voice-critic, and structure-rag only. Voice-rag, tightening-rag, and specialist-editor voice/style stages excluded.
+        groups: [R1, R2, R3, R4, R5, R8]
+        note: Orchestrator, specialist-editor:structure, voice-critic, and structure-rag only, including the R8 telemetry contract across those services. Voice-rag, tightening-rag, and specialist-editor voice/style stages excluded.
       srd002-writing-saga-workproducts:
         scope: partial
         groups: [R1, R2, R3, R4, R5, R6]
@@ -131,12 +132,13 @@ releases:
     test_suites:
       - id: test-rel00.1-prose-editor
         summary: |
-          Plan 12 tracer-scoped cases covering orchestrator structure-critic
+          Plan 13 tracer-scoped cases covering orchestrator structure-critic
           graph, structure-editor machine, critic without Pangram, tracer
           happy path, structure-stage retry, source capture, workproduct
-          lineage, command errors, retry exhaustion, and recovery.
+          lineage, command errors, retry exhaustion, recovery, and the
+          telemetry contract across the tracer services.
         status: planned
-        test_case_count: 12
+        test_case_count: 13
     planned_workproducts:
       - {path: workproducts/<saga-id>/manifest.yaml, owner: workflow-orchestrator, status: planned}
       - {path: workproducts/<saga-id>/manifest-history/<revision>.yaml, owner: workflow-orchestrator, status: planned}
@@ -239,11 +241,11 @@ releases:
     test_suites:
       - id: test-rel00.0-prose-editor
         summary: |
-          The 29-case 00.0 suite becomes executable. Cases not covered by the
+          The 30-case 00.0 suite becomes executable. Cases not covered by the
           00.1 tracer suite exercise voice, style, Pangram, multi-stage retry,
-          publication, and full end-to-end paths.
+          publication, telemetry, and full end-to-end paths.
         status: planned
-        test_case_count: 29
+        test_case_count: 30
     dependencies:
       - id: release-00-1
         reference: release 00.1
@@ -261,7 +263,7 @@ releases:
         status: planned_dependency
     evidence_status:
       foundation_yaml: documented
-      srd_requirements: all_192_requirement_items
+      srd_requirements: all_195_requirement_items
       profiles_and_machines: planned
       tools_and_services: planned
       structural_tests: planned
@@ -272,8 +274,8 @@ releases:
       root_registration: planned
       executable_evidence: planned
     completion_gate: |
-      All 192 requirement items and 63 acceptance criteria have executable
-      evidence. The full 29-case test suite passes. Voice, style, Pangram,
+      All 195 requirement items and 64 acceptance criteria have executable
+      evidence. The full 30-case test suite passes. Voice, style, Pangram,
       multi-stage retry, and GitHub publication paths run end-to-end.
 
   - version: "00.3"
@@ -306,7 +308,7 @@ releases:
     srds:
       - id: srd006-helm-topology
         status: planned
-        summary: Define the planned role-closure package, per-role chart topology on the profile-free image, values schema, and kind-demo smoke for the served roles.
+        summary: Define the planned role-closure package, per-role chart topology on the profile-free image, values schema, kind-demo smoke, and the canonical collector workload with its served trace UI and per-role OTLP flags.
       - id: srd007-applier
         status: planned
         summary: Define the planned standalone declarative applier — validate against the chart values schema, apply as a values-file rollout, verify role Deployments, and roll back on failure — with helm and kubectl authority held in the applier alone.
@@ -322,14 +324,15 @@ releases:
     test_suites:
       - id: test-rel00.3-applier
         summary: |
-          Plan seven cases covering documentation trace closure, the
+          Plan eight cases covering documentation trace closure, the
           validate-apply-verify-rollback machine over recording-fake CLIs, the
           chart values schema against real helm, the authority boundary over the
           rendered chart and profiles, the broken-rollout-read terminal, a live
-          on-cluster rollout and rollback on kind, and a deterministic
-          role-closure package.
+          on-cluster rollout and rollback on kind, a deterministic
+          role-closure package, and the collector observability topology with
+          its served trace UI.
         status: planned
-        test_case_count: 7
+        test_case_count: 8
     dependencies:
       - id: release-00-2
         reference: release 00.2
@@ -365,6 +368,6 @@ releases:
       on the profile-free image, the applier validates a decided patch against
       the chart values schema, applies it as a values-file rollout, verifies the
       role Deployments, and rolls back on failure, with helm and kubectl held in
-      the applier alone. All six planned tests pass, including the live kind
+      the applier alone. All eight planned tests pass, including the live kind
       rollout and rollback. SRD contradictions discovered during implementation
       are filed and reconciled before any later release scope is finalized.

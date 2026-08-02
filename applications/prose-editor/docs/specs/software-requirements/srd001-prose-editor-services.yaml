@@ -22,6 +22,7 @@ goals:
   - "G3: Define lifecycle, persistence, scaling, and failure boundaries for the serial writing saga."
   - "G4: Preserve exclusive orchestrator mutation authority and exclusive critic Pangram authority."
   - "G5: Reuse three corpus-scoped read-only RAG server instances and canonical corpus-ingest behavior by reference."
+  - "G6: Adopt the shared agent-core telemetry contract so every service joins one saga trace through declared flags, never environment variables."
 
 applicability:
   release: "00.0"
@@ -392,6 +393,33 @@ requirements:
           and SHALL define only application topology and stricter local
           authority.
         evidence: related_documents names each authority and local requirements do not reproduce its full platform contract.
+  R8:
+    title: Telemetry contract
+    items:
+      - id: R8.1
+        text: |
+          Every planned Prose Editor service SHALL accept the agent-core
+          standard telemetry flags --otel-log-file, --otel-parent-span,
+          --otel-otlp-endpoint, and --otel-service-name (agent-core srd018 R1,
+          R7). Telemetry configuration SHALL come only from declared flags and
+          validated profile or deployment values, never from environment
+          variables.
+        evidence: Planned startup tests accept the four flags on every service and reject environment-variable telemetry configuration.
+      - id: R8.2
+        text: |
+          The orchestrator SHALL invoke specialist-editor stages and the
+          voice-critic with propagated trace context and telemetry destination
+          built through PropagateArgs, so each child joins the saga trace via
+          the W3C traceparent under its own declared service name (agent-core
+          srd018 R2.5 and R7.3, srd016 traceparent format).
+        evidence: Planned integration tests assert connected parent and child spans and per-role service.name values across one saga trace.
+      - id: R8.3
+        text: |
+          Services SHALL emit machine, tool, and model spans through the
+          agent-core runtime, including GenAI semantic-convention spans for
+          Ollama calls. No Prose Editor service SHALL wire a per-service OTel
+          SDK.
+        evidence: Planned span inspection finds agent-core-emitted GenAI spans and no application-local exporter or SDK setup.
 
 non_goals:
   - Implement profiles, machines, ToolDefs, services, packages, deployments, or tests.
@@ -445,6 +473,13 @@ acceptance_criteria:
       Indexes report this SRD as specified while every runtime surface remains
       planned, and shared contracts remain external references.
     traces: [R7.1, R7.2]
+  - id: AC8
+    criterion: |
+      Every service accepts the four standard telemetry flags with no
+      environment-variable configuration, children join the saga trace through
+      PropagateArgs traceparent propagation under distinct service names, and
+      spans are emitted only through the agent-core runtime.
+    traces: [R8.1, R8.2, R8.3]
 
 shared_requirement_traces:
   - contract: srd001-application-module-contract
@@ -464,7 +499,7 @@ test_suite_traces:
   - id: test-rel00.0-prose-editor
     status: planned
     path: ../test-suites/test-rel00.0-prose-editor.yaml
-    acceptance_criteria: [AC1, AC2, AC3, AC4, AC5, AC6, AC7]
+    acceptance_criteria: [AC1, AC2, AC3, AC4, AC5, AC6, AC7, AC8]
 
 related_documents:
   - path: ../../VISION.yaml
@@ -483,6 +518,10 @@ related_documents:
     usage: Owns request-scoped machine execution behind a service endpoint.
   - path: ../../../../../agent-core/docs/specs/software-requirements/srd033-monitor-rest-api.yaml
     usage: Owns monitor views for planned long-running agent services.
+  - path: ../../../../../agent-core/docs/specs/software-requirements/srd018-cli-flag-contract.yaml
+    usage: Owns the standard telemetry, propagation, and budget flag contract every service accepts.
+  - path: ../../../../../agent-core/docs/specs/software-requirements/srd016-traceparent.yaml
+    usage: Owns the W3C traceparent format and parent-child trace continuity contract.
 
 implementation_status:
   specification: specified

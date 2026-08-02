@@ -137,6 +137,18 @@ touchpoints:
       The applier actuates a deterministic role-closure package installed as the
       chart; the package names exactly the served roles, contains only reachable
       per-role assets, and rejects unsafe inputs before publication.
+  - id: T7
+    component: observability topology
+    requirements:
+      - srd006-helm-topology R6.1
+      - srd006-helm-topology R6.2
+      - srd006-helm-topology R6.3
+    reason: |
+      The chart the applier actuates renders the canonical collector with its
+      OTLP ingress, query port, and served trace UI; every role Deployment the
+      applier verifies in F4 carries --otel-otlp-endpoint and a distinct
+      --otel-service-name rendered from values, and the collector sits outside
+      the role-closure package with no application authority.
 
 success_criteria:
   - id: S1
@@ -202,6 +214,14 @@ success_criteria:
       reachable per-role assets, and rejects unsafe inputs before publication.
     traces:
       - srd006-helm-topology AC1
+  - id: S9
+    criterion: |
+      The applied topology carries the canonical collector with its served
+      trace UI, every role exports OTLP to it under a distinct service name
+      through values-rendered flags with no environment variables, and the
+      collector holds no application authority.
+    traces:
+      - srd006-helm-topology AC6
 
 out_of_scope:
   - The decision of what to change, which the operator or CI caller owns (srd007 R5.1).

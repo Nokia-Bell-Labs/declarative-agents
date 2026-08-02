@@ -195,6 +195,18 @@ touchpoints:
       F7 and F8 invoke the isolated critic with exact bytes, validate all six
       finding categories, close the responsible stage, and enforce withheld
       Pangram consent without any upload tasks.
+  - id: T7
+    component: telemetry contract
+    requirements:
+      - srd001-prose-editor-services R8.1
+      - srd001-prose-editor-services R8.2
+      - srd001-prose-editor-services R8.3
+    reason: |
+      The orchestrator, specialist-editor:structure, voice-critic, and
+      structure-rag accept the standard telemetry flags; the child invocations
+      in F4 and F7 propagate trace context through PropagateArgs so the tracer
+      saga renders as one connected trace, with spans emitted only through the
+      agent-core runtime and no environment-variable configuration.
 
 success_criteria:
   - id: S1
@@ -206,6 +218,7 @@ success_criteria:
       - srd001-prose-editor-services AC1
       - srd001-prose-editor-services AC2
       - srd001-prose-editor-services AC3
+      - srd001-prose-editor-services AC8
   - id: S2
     criterion: |
       Exact immutable source, structure attempt, critique, finalized, and

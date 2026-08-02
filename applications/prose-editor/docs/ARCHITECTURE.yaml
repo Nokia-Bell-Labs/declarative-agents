@@ -368,12 +368,12 @@ overview:
       id: rel00.0-uc001-edit-document
       path: docs/specs/use-cases/rel00.0-uc001-edit-document.yaml
       status: planned
-      coverage: Eight exact SRD touchpoints cover 192 requirement items; ten success criteria cover 63 acceptance criteria.
+      coverage: Eight exact SRD touchpoints cover 195 requirement items; ten success criteria cover 64 acceptance criteria.
     test_suite:
       id: test-rel00.0-prose-editor
       path: docs/specs/test-suites/test-rel00.0-prose-editor.yaml
       status: planned
-      test_case_count: 29
+      test_case_count: 30
       evidence_status: none
       coverage: |
         Planned cases cover the happy path; all six critic categories and each
@@ -382,7 +382,8 @@ overview:
         and hash-invalid states; Pangram pending, failed, timed-out, malformed
         and unavailable states; saga and publication re-entry; partial
         publication; immutable lineage; factory, graph, authority, signal, and
-        label closure; and documentation consistency.
+        label closure; documentation consistency; and the shared telemetry
+        contract.
 
 interfaces:
   - name: human request and policy boundary
@@ -841,26 +842,26 @@ project_structure:
     - {path: agents/voice-critic/, status: planned, role: Independent assurance profile.}
     - {path: agents/corpus-ingest/, status: planned, role: Thin canonical ingest wrapper.}
   planned_specifications:
-    - {path: docs/specs/software-requirements/srd001-prose-editor-services.yaml, status: specified, role: Planned service topology, role bindings, lifecycle, failure, scaling, and authority contract.}
+    - {path: docs/specs/software-requirements/srd001-prose-editor-services.yaml, status: specified, role: Planned service topology, role bindings, lifecycle, failure, scaling, authority, and telemetry contract.}
     - {path: docs/specs/software-requirements/srd002-writing-saga-workproducts.yaml, status: specified, role: Planned immutable workproduct, manifest, retry, recovery, idempotency, and publication contract.}
     - {path: docs/specs/software-requirements/srd003-writing-agent-tools.yaml, status: specified, role: Closed ToolDef vocabulary, factory reuse, signals, errors, effects, compensation, and exclusive authority.}
     - {path: docs/specs/software-requirements/srd004-workflow-orchestrator.yaml, status: specified, role: Flat orchestration states, signals, transitions, persistence, responsible-stage replay, recovery, publication, and terminal outcomes.}
     - {path: docs/specs/software-requirements/srd005-specialist-editor.yaml, status: specified, role: Parameterized specialist-editor with structure, voice, and style stage configurations sharing a common pipeline shape.}
-    - {path: docs/specs/software-requirements/srd006-helm-topology.yaml, status: planned, role: Planned role-closure package, per-role chart topology, values schema, and kind-demo smoke for the served roles.}
+    - {path: docs/specs/software-requirements/srd006-helm-topology.yaml, status: planned, role: Planned role-closure package, per-role chart topology, values schema, kind-demo smoke, and collector observability workload with its served trace UI.}
     - {path: docs/specs/software-requirements/srd007-applier.yaml, status: planned, role: Planned standalone declarative applier with validate-apply-verify-rollback and helm and kubectl authority held alone.}
     - {path: docs/specs/software-requirements/srd008-voice-critic.yaml, status: specified, role: Flat independent assurance, exact-hash consent, separate Pangram tasks, advisory comparison, verdict, responsible-stage, and authority contract.}
     - {path: docs/specs/use-cases/rel00.0-uc001-edit-document.yaml, status: planned, role: End-to-end release scenario.}
     - {path: docs/specs/use-cases/rel00.3-uc001-declarative-applier.yaml, status: planned, role: Planned release 00.3 applier actuation scenario.}
     - {path: docs/specs/test-suites/test-rel00.0-prose-editor.yaml, status: planned, role: Release tracer and evidence plan.}
-    - {path: docs/specs/test-suites/test-rel00.3-applier.yaml, status: planned, role: Planned six-case applier evidence plan.}
+    - {path: docs/specs/test-suites/test-rel00.3-applier.yaml, status: planned, role: Planned eight-case applier evidence plan.}
 
 implementation_status:
   current_focus: |
     SRDs srd001 through srd005 and srd008 specify service boundaries, the writing saga and
     workproducts, the closed tool vocabulary, the workflow-orchestrator machine,
     the specialist-editor machine (structure, voice, and style stages), and the
-    voice-critic machine. The planned release use case and 29-case planned test suite close
-    documentation traceability across all 192 requirement items and 63
+    voice-critic machine. The planned release use case and 30-case planned test suite close
+    documentation traceability across all 195 requirement items and 64
     acceptance criteria. Profiles, machines, tools, constrained orchestrator helper, services,
     integration evidence, and root registrations remain planned.
   overall: documentation_only_planned
@@ -871,7 +872,7 @@ implementation_status:
     - specified: srd004 flat orchestration states, action mappings, persistence order, responsible-stage replay, recovery, publication, budgets, and terminal outcomes.
     - specified: srd005 parameterized specialist-editor with structure, voice, and style stages sharing pipeline shape, per-stage retrieval, editing, preservation, and response contracts.
     - specified: srd008 flat independent assurance, six finding categories, exact-hash consent, separate Pangram tasks, advisory comparison, verdict and responsible-stage closure, bounded polls, response, and terminal outcomes.
-    - documented_planned: One reciprocal release use case and one 29-case test suite with no executable evidence.
+    - documented_planned: One reciprocal release use case and one 30-case test suite with no executable evidence.
     - planned: Three application-local state machines, the constrained JSON-emitting orchestrator helper, constrained specialist-editor stage report helpers, and critic report helpers, and the corpus-ingest wrapper.
     - planned: RAG, Chroma, Ollama, GitHub CLI, and Pangram integrations.
     - planned: Persistent saga workspace, retries, recovery, and publication.
@@ -901,7 +902,7 @@ related_documents:
   - doc: docs/specs/use-cases/rel00.0-uc001-edit-document.yaml
     purpose: Planned end-to-end source, edit, critique, retry, recovery, finalization, and one-publication scenario with exact requirement and acceptance-criterion traces.
   - doc: docs/specs/test-suites/test-rel00.0-prose-editor.yaml
-    purpose: Planned 29-case coverage inventory with future evidence paths and no claimed runtime evidence.
+    purpose: Planned 30-case coverage inventory with future evidence paths and no claimed runtime evidence.
   - doc: docs/SPECIFICATIONS.yaml
     purpose: Planned SRD, use-case, and test-suite indexes.
   - doc: docs/road-map.yaml

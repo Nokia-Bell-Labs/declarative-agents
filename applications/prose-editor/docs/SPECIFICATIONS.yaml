@@ -4,15 +4,17 @@ title: Prose Editor Specification Index
 overview: |
   This index covers four Prose Editor releases. Release 00.0 is a
   documentation baseline: six specified SRDs, one planned full-scenario use
-  case, and one 29-case planned test suite with reciprocal traces across all
-  192 requirement items and 63 acceptance criteria. Release 00.1 stages the
-  tracer-bullet saga skeleton: one tracer use case and one 12-case tracer
+  case, and one 30-case planned test suite with reciprocal traces across all
+  195 requirement items and 64 acceptance criteria. Release 00.1 stages the
+  tracer-bullet saga skeleton: one tracer use case and one 13-case tracer
   test suite covering the orchestrator, structure stage, critic without
-  Pangram, and local finalization. Release 00.2 completes the remaining
-  voice, style, Pangram, multi-stage retry, and publication paths. Release
-  00.3 packages and deploys the completed application: two planned SRDs for the
-  role-closure package, Helm topology, and standalone declarative applier, with
-  one applier use case and one seven-case applier test suite.
+  Pangram, local finalization, and the shared telemetry contract. Release
+  00.2 completes the remaining voice, style, Pangram, multi-stage retry, and
+  publication paths. Release 00.3 packages and deploys the completed
+  application: two planned SRDs for the role-closure package, Helm topology
+  with the canonical collector and its served trace UI, and standalone
+  declarative applier, with one applier use case and one eight-case applier
+  test suite.
 
   Shared application and agent-core requirements remain external references.
   Local SRDs cite them and define only Prose Editor behavior and stricter
@@ -24,25 +26,25 @@ roadmap_summary:
     use_cases_done: 0
     use_cases_total: 1
     status: specification_complete
-    evidence: Six SRDs, one planned use case, and one 29-case planned test suite are documented; no executable evidence exists.
+    evidence: Six SRDs, one planned use case, and one 30-case planned test suite are documented; no executable evidence exists.
   - version: "00.1"
     name: Tracer-bullet saga skeleton
     use_cases_done: 0
     use_cases_total: 1
     status: planned
-    evidence: One tracer use case and one 12-case tracer test suite are documented; no executable evidence exists.
+    evidence: One tracer use case and one 13-case tracer test suite are documented; no executable evidence exists.
   - version: "00.2"
     name: Full multi-stage editing and publication
     use_cases_done: 0
     use_cases_total: 1
     status: planned
-    evidence: The 00.0 use case and 29-case test suite become executable in 00.2; no executable evidence exists.
+    evidence: The 00.0 use case and 30-case test suite become executable in 00.2; no executable evidence exists.
   - version: "00.3"
     name: Deployment package, Helm topology, and declarative applier
     use_cases_done: 0
     use_cases_total: 1
     status: planned
-    evidence: Two planned SRDs, one applier use case, and one seven-case applier test suite are documented; no executable evidence exists.
+    evidence: Two planned SRDs, one applier use case, and one eight-case applier test suite are documented; no executable evidence exists.
 
 foundation_document_index:
   - id: prose-editor-readme
@@ -70,7 +72,7 @@ srd_index:
   - id: srd001-prose-editor-services
     title: Prose Editor Services and Role Boundaries
     status: specified
-    summary: Service shape, role realizations, lifecycle, interfaces, and exclusive authorities.
+    summary: Service shape, role realizations, lifecycle, interfaces, exclusive authorities, and the shared agent-core telemetry flag contract.
     path: docs/specs/software-requirements/srd001-prose-editor-services.yaml
     use_cases: [rel00.0-uc001-edit-document, rel00.1-uc001-tracer-saga]
     test_suites: [test-rel00.0-prose-editor, test-rel00.1-prose-editor]
@@ -105,7 +107,7 @@ srd_index:
   - id: srd006-helm-topology
     title: Prose Editor Deployment Package and Helm Topology
     status: planned
-    summary: Planned role-closure package, per-role chart topology on the profile-free image, values schema, and kind-demo smoke for the served roles.
+    summary: Planned role-closure package, per-role chart topology on the profile-free image, values schema, kind-demo smoke, and the canonical collector workload with its served trace UI and per-role OTLP flags.
     path: docs/specs/software-requirements/srd006-helm-topology.yaml
     use_cases: [rel00.3-uc001-declarative-applier]
     test_suites: [test-rel00.3-applier]
@@ -170,7 +172,7 @@ test_suite_index:
     title: Prose Editor Release 00.0 Test Suite
     release: "00.0"
     status: planned
-    test_case_count: 29
+    test_case_count: 30
     traces: [rel00.0-uc001-edit-document]
     srds:
       - srd001-prose-editor-services
@@ -184,7 +186,7 @@ test_suite_index:
     title: Prose Editor Release 00.1 Tracer Test Suite
     release: "00.1"
     status: planned
-    test_case_count: 12
+    test_case_count: 13
     traces: [rel00.1-uc001-tracer-saga]
     srds:
       - srd001-prose-editor-services
@@ -198,7 +200,7 @@ test_suite_index:
     title: Prose Editor Release 00.3 Declarative Applier Test Suite
     release: "00.3"
     status: planned
-    test_case_count: 7
+    test_case_count: 8
     traces: [rel00.3-uc001-declarative-applier]
     srds:
       - srd006-helm-topology
@@ -210,8 +212,8 @@ coverage_gaps:
     status: documentation_complete_runtime_planned
     description: |
       SRDs srd001 through srd008, two use cases (rel00.0-uc001-edit-document
-      and rel00.1-uc001-tracer-saga), and two test suites (29-case 00.0 and
-      12-case 00.1 tracer) provide reciprocal documentation traces. All 192
+      and rel00.1-uc001-tracer-saga), and two test suites (30-case 00.0 and
+      13-case 00.1 tracer) provide reciprocal documentation traces. All 195
       requirement items map to SRD acceptance criteria and exact use-case
       touchpoints. Runtime implementation is staged across 00.1 (tracer
       skeleton) and 00.2 (full scenario).

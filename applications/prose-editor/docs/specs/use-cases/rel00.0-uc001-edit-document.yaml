@@ -189,10 +189,15 @@ touchpoints:
       - srd001-prose-editor-services R6.4
       - srd001-prose-editor-services R7.1
       - srd001-prose-editor-services R7.2
+      - srd001-prose-editor-services R8.1
+      - srd001-prose-editor-services R8.2
+      - srd001-prose-editor-services R8.3
     reason: |
       F1 through F20 use the six separated actors, canonical role bindings,
       corpus-scoped retrieval, human policy, exclusive mutation and Pangram
-      authority, attributed failures, and honest planned status.
+      authority, attributed failures, and honest planned status. Every child
+      invocation in F4 through F15 carries propagated trace context under the
+      shared telemetry flag contract, so one saga renders as one trace.
   - id: T2
     component: immutable saga and publication lineage
     requirements:
@@ -416,7 +421,9 @@ success_criteria:
   - id: S1
     criterion: |
       The scenario keeps actor, role, lifecycle, corpus, configuration, failure,
-      and exclusive authority boundaries closed while runtime remains planned.
+      and exclusive authority boundaries closed while runtime remains planned,
+      and every service joins the saga trace under the shared telemetry
+      contract.
     traces:
       - srd001-prose-editor-services AC1
       - srd001-prose-editor-services AC2
@@ -425,6 +432,7 @@ success_criteria:
       - srd001-prose-editor-services AC5
       - srd001-prose-editor-services AC6
       - srd001-prose-editor-services AC7
+      - srd001-prose-editor-services AC8
   - id: S2
     criterion: |
       Exact immutable source, attempt, critique, finalized, manifest, retry,
