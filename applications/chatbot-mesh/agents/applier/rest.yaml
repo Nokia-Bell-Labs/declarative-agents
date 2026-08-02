@@ -237,20 +237,6 @@ rest:
         timeout: 5s
         drain_policy: drain_then_stop
       endpoints:
-        exit:
-          method: POST
-          path: /api/lifecycle/exit
-          binding: emit_signal
-          signal: ExitRequested
-          request:
-            body_schema:
-              type: object
-              properties:
-                reason: {type: string}
-                status: {type: string}
-          response:
-            output:
-              accepted: "true"
         health:
           method: GET
           path: /api/lifecycle/health
@@ -259,6 +245,7 @@ rest:
     monitor:
       address: ${APPLIER_BIND_HOST:-127.0.0.1}:18092
       limits_ref: local_applier_monitor
+      lifecycle_exit: {disabled: true}
       queue:
         name: applier_monitor
         capacity: 8
@@ -276,16 +263,3 @@ rest:
         metrics:       {method: GET, path: /monitor/metrics,       binding: read_state,    monitor_view: metrics}
         recent_events: {method: GET, path: /monitor/events,        binding: read_state,    monitor_view: events}
         event_stream:  {method: GET, path: /monitor/events/stream, binding: stream_events, monitor_view: events}
-        control_exit:
-          method: POST
-          path: /monitor/control/exit
-          binding: emit_signal
-          signal: ExitRequested
-          request:
-            body_schema:
-              type: object
-              properties:
-                reason: {type: string}
-          response:
-            output:
-              accepted: "true"

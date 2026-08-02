@@ -166,15 +166,15 @@ tools:
     init: rest_await_event
     visibility: internal
     category: boundary
-    description: Await a lifecycle exit event from the control or monitor server.
+    description: Await a lifecycle exit event from the control server.
     problem: The provisioning-workflow-orchestrator needs one grammar-visible wait word so the process stays alive while serving instance operations.
     goals:
-      - Wait on the control and monitor server queues after launch.
+      - Wait on the control server queue after launch.
       - Accept only configured lifecycle exit events.
       - Return the selected lifecycle signal to MachineSpec.
     requirements:
       input:
-        - Tool config references the trusted control and monitor REST server queues.
+        - Tool config references the trusted control REST server queue.
       output:
         - Output reports source, route, signal, payload, and request ID.
       errors:
@@ -225,9 +225,6 @@ tools:
       sources:
         - server: creator_control
           routes: [exit]
-          signals: [ExitRequested]
-        - server: monitor
-          routes: [control_exit]
           signals: [ExitRequested]
       timeout: 600s
       stopped_behavior: emit_server_stopped
