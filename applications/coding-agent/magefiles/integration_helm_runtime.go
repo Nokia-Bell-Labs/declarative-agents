@@ -126,7 +126,7 @@ func buildCodingHelmModelImage(image string) error {
 	if err != nil {
 		return err
 	}
-	defer os.RemoveAll(contextDir)
+	defer func() { _ = os.RemoveAll(contextDir) }()
 	source := `package main
 import ("encoding/json"; "net/http"; "strings")
 func main() {
@@ -406,7 +406,7 @@ func freeLocalPort() (string, error) {
 	if err != nil {
 		return "", err
 	}
-	defer listener.Close()
+	defer func() { _ = listener.Close() }()
 	_, port, err := net.SplitHostPort(listener.Addr().String())
 	if err != nil {
 		return "", err
@@ -496,9 +496,9 @@ func verifyCodingTrace(queryURL string) error {
 }
 
 type codingCollectorTrace struct {
-	TraceID   string                  `json:"trace_id"`
-	Spans     []codingCollectorSpan   `json:"spans"`
-	SpanCount int                     `json:"span_count"`
+	TraceID   string                `json:"trace_id"`
+	Spans     []codingCollectorSpan `json:"spans"`
+	SpanCount int                   `json:"span_count"`
 }
 
 type codingCollectorSpan struct {
@@ -516,7 +516,7 @@ func codingCollectorGetTrace(endpoint string) (*codingCollectorTrace, error) {
 	if err != nil {
 		return nil, err
 	}
-	defer response.Body.Close()
+	defer func() { _ = response.Body.Close() }()
 	if response.StatusCode != http.StatusOK {
 		return nil, fmt.Errorf("collector GET %s status %d", endpoint, response.StatusCode)
 	}

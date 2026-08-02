@@ -176,7 +176,7 @@ func ollamaSkipReason(client *http.Client, baseURL, model string) string {
 	if err != nil {
 		return fmt.Sprintf("Ollama not reachable at %s: %v", baseURL, err)
 	}
-	defer resp.Body.Close()
+	defer func() { _ = resp.Body.Close() }()
 	if resp.StatusCode != http.StatusOK {
 		return fmt.Sprintf("Ollama tags endpoint returned %d", resp.StatusCode)
 	}

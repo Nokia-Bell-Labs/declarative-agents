@@ -164,7 +164,7 @@ func readStrictYAML(filename string, target any) error {
 	if err != nil {
 		return fmt.Errorf("read %s: %w", filename, err)
 	}
-	defer file.Close()
+	defer func() { _ = file.Close() }()
 	decoder := yaml.NewDecoder(file)
 	decoder.KnownFields(true)
 	if err := decoder.Decode(target); err != nil {

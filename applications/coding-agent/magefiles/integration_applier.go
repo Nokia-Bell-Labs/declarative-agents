@@ -77,7 +77,7 @@ func runApplierIntegration(roots integrationRoots) error {
 	if err != nil {
 		return err
 	}
-	defer os.RemoveAll(traceDir)
+	defer func() { _ = os.RemoveAll(traceDir) }()
 
 	agent, err := startApplierAgent(binary, roots.Core, profiles, fakes,
 		filepath.Join(traceDir, "applier.ndjson"))
@@ -169,7 +169,7 @@ func applierHTTPWithTimeout(method, url, body string, timeout time.Duration) (in
 	if err != nil {
 		return 0, "", err
 	}
-	defer resp.Body.Close()
+	defer func() { _ = resp.Body.Close() }()
 	data, err := io.ReadAll(resp.Body)
 	if err != nil {
 		return resp.StatusCode, "", err
