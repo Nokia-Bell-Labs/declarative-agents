@@ -7,64 +7,33 @@ import (
 	"path/filepath"
 	"strings"
 	"testing"
-
-	"github.com/Nokia-Bell-Labs/declarative-agents/applications/catalog/catalogroot"
 )
 
-func TestCodingAgentCatalogRootEnvironmentPrecedence(t *testing.T) {
+func TestCodingAgentCatalogRootFromDemoConfig(t *testing.T) {
 	startup := t.TempDir()
 	canonical := codingAgentCatalogFixture(t, filepath.Join(startup, "canonical"))
-	legacy := codingAgentCatalogFixture(t, filepath.Join(startup, "legacy"))
 
 	tests := []struct {
-		name      string
-		canonical string
-		legacy    string
-		want      string
-		wantError []string
+		name        string
+		catalogRoot string
+		want        string
 	}{
-		{name: "canonical only", canonical: canonical, want: canonical},
-		{name: "legacy only", legacy: legacy, want: legacy},
-		{
-			name:      "equal dual input uses canonical",
-			canonical: canonical,
-			legacy:    filepath.Join(canonical, "."),
-			want:      canonical,
-		},
-		{
-			name:      "conflicting dual input fails",
-			canonical: canonical,
-			legacy:    legacy,
-			wantError: []string{catalogroot.Env, canonical, catalogroot.LegacyEnv, legacy},
-		},
-		{
-			name:      "relative canonical resolves from startup directory",
-			canonical: "canonical",
-			want:      canonical,
-		},
+		{name: "absolute catalog_root", catalogRoot: canonical, want: canonical},
+		{name: "relative catalog_root resolves from startup directory", catalogRoot: "canonical", want: canonical},
 	}
 
 	for _, test := range tests {
 		t.Run(test.name, func(t *testing.T) {
-			t.Setenv(catalogroot.Env, test.canonical)
-			t.Setenv(catalogroot.LegacyEnv, test.legacy)
+			writeCodingAgentDemoConfig(t, startup, "catalog_root: "+test.catalogRoot)
 			before, err := os.Getwd()
 			if err != nil {
 				t.Fatal(err)
 			}
 			got, err := resolveCatalogRoot("coding-agent focused test", startup)
-			if len(test.wantError) > 0 {
-				if err == nil {
-					t.Fatal("expected catalog-root conflict")
-				}
-				for _, value := range test.wantError {
-					if !strings.Contains(err.Error(), value) {
-						t.Errorf("error %q does not contain %q", err, value)
-					}
-				}
-			} else if err != nil {
+			if err != nil {
 				t.Fatalf("resolveCatalogRoot: %v", err)
-			} else if got != test.want || !filepath.IsAbs(got) {
+			}
+			if got != test.want || !filepath.IsAbs(got) {
 				t.Fatalf("catalog root = %q, want absolute %q", got, test.want)
 			}
 			after, err := os.Getwd()
@@ -85,8 +54,6 @@ func TestCodingAgentCatalogRootDiscoversSiblingCatalog(t *testing.T) {
 	if err := os.MkdirAll(owner, 0o755); err != nil {
 		t.Fatal(err)
 	}
-	t.Setenv(catalogroot.Env, "")
-	t.Setenv(catalogroot.LegacyEnv, "")
 
 	got, err := resolveCatalogRoot("coding-agent discovery test", owner)
 	if err != nil {
@@ -107,8 +74,6 @@ func TestCodingAgentCatalogRootDiscoversFromRelativeStartupDir(t *testing.T) {
 	if err := os.MkdirAll(magefiles, 0o755); err != nil {
 		t.Fatal(err)
 	}
-	t.Setenv(catalogroot.Env, "")
-	t.Setenv(catalogroot.LegacyEnv, "")
 	t.Chdir(magefiles)
 
 	got, err := resolveCatalogRoot("coding-agent relative discovery test", "..")
@@ -117,6 +82,17 @@ func TestCodingAgentCatalogRootDiscoversFromRelativeStartupDir(t *testing.T) {
 	}
 	if got != catalog {
 		t.Fatalf("catalog root = %q, want %q", got, catalog)
+	}
+}
+
+// writeCodingAgentDemoConfig writes a demo.yaml with the given "key: value"
+// lines into the application root, so tests drive catalog-root resolution
+// through the declared config instead of environment variables.
+func writeCodingAgentDemoConfig(t *testing.T, applicationRoot string, lines ...string) {
+	t.Helper()
+	content := strings.Join(lines, "\n") + "\n"
+	if err := os.WriteFile(filepath.Join(applicationRoot, demoConfigFile), []byte(content), 0o644); err != nil {
+		t.Fatal(err)
 	}
 }
 

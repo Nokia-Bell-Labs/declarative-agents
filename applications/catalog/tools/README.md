@@ -91,14 +91,12 @@ configure catalog blocks but must not fork their reusable behavior.
 |---|---|---|
 | Source root | `agent-profiles/` | `applications/catalog/` |
 | Runnable products | `examples/<name>/` | `applications/<name>/` |
-| Catalog environment | `AGENT_PROFILES_ROOT` | `AGENT_CATALOG_ROOT` |
+| Catalog root selection | environment variable | `catalog_root` in `demo.yaml` |
 | Catalog module tag | `agent-profiles/v0.*` | `applications/catalog/v0.*` |
 | Packaged profile mount | `/profiles` | `/profiles` (unchanged) |
 | Core declaration mount | `/opt/agent-core/tools` | `/opt/agent-core/tools` (unchanged) |
 
-During Release 99.0, `AGENT_PROFILES_ROOT` is a deprecated alias used only when
-`AGENT_CATALOG_ROOT` is unset. If both are set, they must resolve to the same
-absolute path. Existing `agent-profiles/v0.*` tags remain immutable, and
+Existing `agent-profiles/v0.*` tags remain immutable, and
 coordinated v0 releases publish matching canonical and compatibility tags.
 New documentation and manifests use `applications/catalog/v0.*`.
 
@@ -114,7 +112,8 @@ mage conformance
 mage integration:all
 
 # applications/coding-agent or applications/chatbot-mesh
-AGENT_CATALOG_ROOT="$(git rev-parse --show-toplevel)/applications/catalog" mage audit
+# set catalog_root to "$(git rev-parse --show-toplevel)/applications/catalog" in demo.yaml, then:
+mage audit
 ```
 
 Source roots, Go module paths, release tags, packaged closure destinations, and

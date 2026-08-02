@@ -76,15 +76,11 @@ func resolveCatalogRoot(owner, startupCWD string) (string, error) {
 	resolution, err := catalogroot.Resolve(
 		owner,
 		absCWD,
-		os.Getenv(catalogroot.Env),
-		os.Getenv(catalogroot.LegacyEnv),
+		loadDemoConfigOrEmpty(absCWD).CatalogRoot,
 		catalogroot.DiscoveryCandidates(absCWD)...,
 	)
 	if err != nil {
 		return "", err
-	}
-	if diagnostic := resolution.Deprecation(); diagnostic != "" {
-		fmt.Fprintln(os.Stderr, diagnostic)
 	}
 	return resolution.Path, nil
 }

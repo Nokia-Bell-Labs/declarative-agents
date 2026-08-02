@@ -63,9 +63,7 @@ mage packageValidate
 
 The default output is `build/profiles`; set `profiles_output` in
 `demo.yaml` to select another output directory and
-`AGENT_CATALOG_ROOT` to package a different checkout. Release 99.0 also accepts
-deprecated `AGENT_PROFILES_ROOT` only when the canonical variable is unset; if
-both are set, they must resolve to the same absolute path. The resolver follows
+`catalog_root` to package a different checkout. The resolver follows
 profile-local `machine`, tool-selection, declaration, config-directory, REST,
 child-profile, and nested critic references. Relative references resolve from
 the YAML file that declares them; `agents/...` references resolve from the

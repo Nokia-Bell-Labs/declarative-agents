@@ -52,7 +52,7 @@ touchpoints:
 
 success_criteria:
   - id: S1
-    criterion: The evaluator suite resolves through AGENT_CATALOG_ROOT or the repository checkout.
+    criterion: The evaluator suite resolves through the demo.yaml catalog_root or the repository checkout.
     traces:
       - sm-agent-role-taxonomy evaluator checks
   - id: S2

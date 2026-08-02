@@ -33,7 +33,7 @@ what_this_does: |
   membership contract.
 
   `testdata/integration/` stores catalog-owned suites and fixtures. Catalog and
-  application commands resolve this source tree through AGENT_CATALOG_ROOT;
+  application commands resolve this source tree through the demo.yaml catalog_root;
   application-specific presentations stay under
   `applications/<application>/`, and Agent Core integrations use core-owned
   fixtures instead.
@@ -57,7 +57,7 @@ success_criteria:
     Profile-owned files live in this repository. Runtime packages, builtin tool
     implementations, and container build logic stay in agent-core.
   mounted_runtime_contract: |
-    Local source commands use AGENT_CATALOG_ROOT. Containers run a packaged
+    Local source commands use the demo.yaml catalog_root. Containers run a packaged
     closure mounted at /profiles with an explicit --profile argument.
   integration_fixture_contract: |
     Catalog and application integration targets consume canonical profiles and

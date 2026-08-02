@@ -21,7 +21,7 @@ trigger: |
   A maintainer runs the specification-critic profile against a target directory and a charter
   suite:
 
-    agent --profile "$AGENT_CATALOG_ROOT/agents/specification-critic/profile.yaml" \
+    agent --profile "agents/specification-critic/profile.yaml" \
           --directory <target-directory>
 
 preconditions:
@@ -32,7 +32,7 @@ preconditions:
 
 flow:
   - id: F1
-    text: The maintainer resolves the specification-critic profile from AGENT_CATALOG_ROOT or the repository checkout without developer-specific absolute paths.
+    text: The maintainer resolves the specification-critic profile from the demo.yaml catalog_root or the repository checkout without developer-specific absolute paths.
   - id: F2
     text: The machine loads the specification corpus from the target directory in the Loading state via load_corpus.
   - id: F3

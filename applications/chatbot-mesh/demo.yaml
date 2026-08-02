@@ -8,6 +8,10 @@
 # The DA_* collector and integration variables are a separate injection contract
 # (GH-1251) and are not configured here.
 
+# Catalog source root that owns the reusable agent blocks. Defaults to
+# repository discovery (the monorepo applications/catalog).
+# catalog_root: ../catalog
+
 # agent-core checkout the runtime binary and specification-critic tools build from.
 # core_root: ../../agent-core
 

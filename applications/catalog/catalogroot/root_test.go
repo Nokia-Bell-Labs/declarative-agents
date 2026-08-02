@@ -9,48 +9,31 @@ import (
 	"testing"
 )
 
-func TestResolveEnvironmentPrecedence(t *testing.T) {
+func TestResolveExplicitRoot(t *testing.T) {
 	cwd := t.TempDir()
-	canonical := catalogFixture(t)
-	legacy := catalogFixture(t)
+	explicit := catalogFixture(t)
 
 	tests := []struct {
-		name       string
-		canonical  string
-		legacy     string
-		wantPath   string
-		wantSource Source
-		deprecated bool
-		wantError  []string
+		name        string
+		catalogRoot string
+		wantPath    string
+		wantSource  Source
+		wantError   []string
 	}{
 		{
-			name: "canonical only", canonical: canonical,
-			wantPath: canonical, wantSource: SourceCanonical,
+			name: "explicit valid root", catalogRoot: explicit,
+			wantPath: explicit, wantSource: SourceExplicit,
 		},
 		{
-			name: "legacy only", legacy: legacy,
-			wantPath: legacy, wantSource: SourceLegacy, deprecated: true,
-		},
-		{
-			name:      "equal dual input uses canonical",
-			canonical: canonical, legacy: filepath.Join(canonical, "."),
-			wantPath: canonical, wantSource: SourceCanonical, deprecated: true,
-		},
-		{
-			name:      "conflicting dual input fails",
-			canonical: canonical, legacy: legacy,
-			wantError: []string{Env, canonical, LegacyEnv, legacy, "different paths"},
-		},
-		{
-			name:      "canonical invalid does not fall back",
-			canonical: filepath.Join(cwd, "missing"),
-			wantError: []string{Env, filepath.Join(cwd, "missing"), "invalid catalog root"},
+			name:        "explicit invalid does not fall back",
+			catalogRoot: filepath.Join(cwd, "missing"),
+			wantError:   []string{"catalog_root", filepath.Join(cwd, "missing"), "invalid catalog root"},
 		},
 	}
 
 	for _, test := range tests {
 		t.Run(test.name, func(t *testing.T) {
-			got, err := Resolve("test command", cwd, test.canonical, test.legacy)
+			got, err := Resolve("test command", cwd, test.catalogRoot)
 			if len(test.wantError) > 0 {
 				requireErrorContains(t, err, test.wantError...)
 				return
@@ -58,12 +41,8 @@ func TestResolveEnvironmentPrecedence(t *testing.T) {
 			if err != nil {
 				t.Fatalf("Resolve returned error: %v", err)
 			}
-			if got.Path != test.wantPath || got.Source != test.wantSource || got.Deprecated != test.deprecated {
-				t.Fatalf("Resolve = %#v, want path=%q source=%q deprecated=%t",
-					got, test.wantPath, test.wantSource, test.deprecated)
-			}
-			if test.deprecated && !strings.Contains(got.Deprecation(), LegacyEnv) {
-				t.Fatalf("Deprecation() = %q, want %s", got.Deprecation(), LegacyEnv)
+			if got.Path != test.wantPath || got.Source != test.wantSource {
+				t.Fatalf("Resolve = %#v, want path=%q source=%q", got, test.wantPath, test.wantSource)
 			}
 		})
 	}
@@ -78,7 +57,7 @@ func TestResolveRelativeInputsAgainstStartupWorkingDirectory(t *testing.T) {
 		t.Fatal(err)
 	}
 
-	got, err := Resolve("relative test", cwd, "catalog", "")
+	got, err := Resolve("relative test", cwd, "catalog")
 	if err != nil {
 		t.Fatalf("Resolve returned error: %v", err)
 	}
@@ -103,7 +82,7 @@ func TestResolveDiscoversApplicationsCatalog(t *testing.T) {
 		t.Fatal(err)
 	}
 
-	got, err := Resolve("coding-agent package", owner, "", "", DiscoveryCandidates(owner)...)
+	got, err := Resolve("coding-agent package", owner, "", DiscoveryCandidates(owner)...)
 	if err != nil {
 		t.Fatalf("Resolve returned error: %v", err)
 	}
@@ -124,26 +103,12 @@ func TestResolveInstalledRuntimeAndMissingCatalogDiagnostics(t *testing.T) {
 		t.Fatal(err)
 	}
 
-	_, err := Resolve("installed runtime", installed, "", "", DiscoveryCandidates(installed)...)
-	requireErrorContains(t, err, "installed runtime", Env, "applications/catalog")
+	_, err := Resolve("installed runtime", installed, "", DiscoveryCandidates(installed)...)
+	requireErrorContains(t, err, "installed runtime", "catalog_root", "applications/catalog")
 
 	attempted := filepath.Join(installed, "explicit-missing")
-	_, err = Resolve("catalog conformance", installed, attempted, "")
-	requireErrorContains(t, err, "catalog conformance", Env, attempted, "invalid catalog root")
-}
-
-func TestResolveFromEnvironmentSnapshotsInputs(t *testing.T) {
-	root := catalogFixture(t)
-	t.Setenv(Env, root)
-	t.Setenv(LegacyEnv, "")
-
-	got, err := ResolveFromEnvironment("environment test")
-	if err != nil {
-		t.Fatalf("ResolveFromEnvironment returned error: %v", err)
-	}
-	if got.Path != root || got.Source != SourceCanonical {
-		t.Fatalf("ResolveFromEnvironment = %#v", got)
-	}
+	_, err = Resolve("catalog conformance", installed, attempted)
+	requireErrorContains(t, err, "catalog conformance", "catalog_root", attempted, "invalid catalog root")
 }
 
 func TestDiscoveryCandidatesNeverNameLegacySourceRoot(t *testing.T) {

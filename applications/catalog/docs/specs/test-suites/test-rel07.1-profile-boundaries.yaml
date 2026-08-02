@@ -28,7 +28,7 @@ traces:
 preconditions:
   - agent-core is available as AGENT_CORE_ROOT or as a sibling ../../agent-core checkout.
   - applications/catalog owns all profile paths, machines, tool selections, suites, REST definitions, and OpenAPI assets named by each test case.
-  - Profiles load through AGENT_CATALOG_ROOT or repository-relative paths.
+  - Profiles load through the demo.yaml catalog_root or repository-relative paths.
   - agent-core remains responsible for the specification validation tools, lifecycle ports and checkpoint store, and the reusable HTTP runtime.
 
 test_cases:

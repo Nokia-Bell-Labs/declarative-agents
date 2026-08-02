@@ -13,7 +13,7 @@ actor: An operator or CI worker deploying the packaged coding application.
 trigger: Render the chart or run mage integration:helmSmoke after mage helmPrepare.
 
 preconditions:
-  - The applications/catalog checkout is discoverable or AGENT_CATALOG_ROOT names it.
+  - The applications/catalog checkout is discoverable or the demo.yaml catalog_root names it.
   - The prepared role packages and the staged collector profile are present in the chart.
 
 flow:

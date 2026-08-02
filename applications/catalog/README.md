@@ -251,12 +251,9 @@ agent --profile "$(pwd)/agents/executor/profile.yaml" --directory /path/to/works
 ```
 
 Application tooling that consumes this source tree uses
-`AGENT_CATALOG_ROOT`. Relative values are resolved once against the command's
-startup directory. During Release 99.0 only, `AGENT_PROFILES_ROOT` is accepted
-as a deprecated alias when `AGENT_CATALOG_ROOT` is unset. If both are set, they
-must clean to the same absolute path; otherwise the command fails before doing
-work. The alias is removed after Release 99.0. These variables select a source
-checkout and do not change the packaged `/profiles` mount, compatibility tag,
+the demo.yaml catalog_root. Relative values are resolved once against the command's
+startup directory. The catalog_root selects a source
+checkout and does not change the packaged `/profiles` mount, compatibility tag,
 or recorded source provenance.
 
 From the **agent-core** checkout, integration Mage targets consume this tree

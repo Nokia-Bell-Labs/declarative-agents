@@ -71,7 +71,7 @@ roles:
       - Failed
       - BudgetExceeded
     checks:
-      - Load profile from AGENT_CATALOG_ROOT.
+      - Load profile from the demo.yaml catalog_root.
       - Run mounted profile command with --profile and --directory.
       - Confirm build, lint, and test validation are machine-declared.
 
@@ -101,7 +101,7 @@ roles:
       - Done
       - Failed
     checks:
-      - Resolve suite fixtures through AGENT_CATALOG_ROOT.
+      - Resolve suite fixtures through the demo.yaml catalog_root.
       - Confirm point machine runs in isolated workspaces.
       - Confirm failed child runs still produce point summaries and metrics.
       - Trace critic to executor with rel07.0-uc002-evaluator-generator-profile-boundary.

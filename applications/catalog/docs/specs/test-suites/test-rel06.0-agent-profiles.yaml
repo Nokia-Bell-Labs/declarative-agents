@@ -7,7 +7,7 @@ overview: |
   Release 06.0 migration. The proofs stay split by ownership boundary.
   applications/catalog validates profile references, mounted container usage, and
   release bundle tagging. agent-core integration targets consume these profiles,
-  profile-local UI assets, and fixtures through AGENT_CATALOG_ROOT. Application
+  profile-local UI assets, and fixtures through the demo.yaml catalog_root. Application
   presentations, including applications/agent-architecture, own their
   composition and end-to-end evidence.
 
@@ -26,7 +26,7 @@ traces:
 preconditions:
   - agent-core is available as AGENT_CORE_ROOT or as a sibling ../../agent-core checkout.
   - An agent-core runtime image is available before running mage containerSmoke.
-  - agent-core integration targets are run from the agent-core repository with AGENT_CATALOG_ROOT pointing at this repository.
+  - agent-core integration targets are run from the agent-core repository with the demo.yaml catalog_root pointing at this repository.
   - mage tag is run from main and creates only a local tag unless the maintainer pushes it later.
 
 test_cases:
@@ -145,14 +145,14 @@ test_cases:
   - use_case: rel06.0-uc001-mounted-profile-execution
     name: Coding application consumes canonical profile closures
     go_test: applications/coding-agent package and integration targets
-    integration_target: AGENT_CATALOG_ROOT=/path/to/applications/catalog mage integration:codingLoop
+    integration_target: mage integration:codingLoop with catalog_root set to /path/to/applications/catalog in demo.yaml
     status: implemented
     description: |
-      Run the coding-agent application integration while AGENT_CATALOG_ROOT
+      Run the coding-agent application integration while the demo.yaml catalog_root
       points at applications/catalog. The application packages and runs the canonical
       planner, executor, and critic profile closures.
     inputs:
-      profile_root: AGENT_CATALOG_ROOT
+      profile_root: demo.yaml catalog_root
       generator_fixture: testdata/integration/uc001-generator-coding
       evaluator_suite: testdata/integration/uc002-evaluator-benchmark/suite.yaml
     expected:
@@ -172,11 +172,11 @@ test_cases:
   - use_case: rel06.0-uc001-mounted-profile-execution
     name: Agent Core monitor integration consumes runtime-state-reader assets
     go_test: agent-core integration targets
-    integration_target: AGENT_CATALOG_ROOT=/path/to/applications/catalog mage integration:monitor
+    integration_target: mage integration:monitor with catalog_root set to /path/to/applications/catalog in demo.yaml
     status: implemented
     description: |
       Run agent-core integration targets from the agent-core repository with
-      AGENT_CATALOG_ROOT pointing at applications/catalog. monitor consumes the
+      the demo.yaml catalog_root pointing at applications/catalog. monitor consumes the
       shipped runtime-state-reader profile. The rel04-monitor YAML record is
       documentation-only
       metadata, not an executable input. Concrete Knowledge Manager/
