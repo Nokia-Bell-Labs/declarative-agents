@@ -577,9 +577,9 @@ non_role_inventory:
         inherits: scenario-critic
   application_fixtures:
     profiles:
-      - path: applications/agent-architecture/call-lifecycle-exit/profile.yaml
+      - path: applications/catalog/agents/lifecycle-exit/profile.yaml
         classification: infrastructure_adapter
-        purpose: bounded lifecycle-exit demo helper
+        purpose: catalog-owned reusable lifecycle-exit client used by the agent-architecture demo
 
 inheritance_and_override_rules:
   - An inheriting wrapper or variant receives all role and sub-role bindings from its target.

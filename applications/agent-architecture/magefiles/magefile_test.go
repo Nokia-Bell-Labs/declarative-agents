@@ -324,7 +324,7 @@ func TestLifecycleExitContract(t *testing.T) {
 		ToolDeclarations []string `yaml:"tool_declarations"`
 		RESTDefinitions  []string `yaml:"rest_definitions"`
 	}
-	readTestYAML(t, filepath.Join(root, "call-lifecycle-exit", "profile.yaml"), &profile)
+	readTestYAML(t, filepath.Join(root, "..", "catalog", "agents", "lifecycle-exit", "profile.yaml"), &profile)
 	if profile.Machine != "machine.yaml" ||
 		!reflect.DeepEqual(profile.Tools, []string{"tools.yaml"}) ||
 		!reflect.DeepEqual(profile.ToolDeclarations, []string{"declarations.yaml"}) ||
@@ -342,7 +342,7 @@ func TestLifecycleExitContract(t *testing.T) {
 			Action string `yaml:"action"`
 		} `yaml:"transitions"`
 	}
-	readTestYAML(t, filepath.Join(root, "call-lifecycle-exit", "machine.yaml"), &machine)
+	readTestYAML(t, filepath.Join(root, "..", "catalog", "agents", "lifecycle-exit", "machine.yaml"), &machine)
 	if machine.InitialState != "Idle" || !reflect.DeepEqual(machine.TerminalStates, []string{"Done", "Failed"}) {
 		t.Fatalf("lifecycle states = initial %q terminals %#v", machine.InitialState, machine.TerminalStates)
 	}
@@ -356,7 +356,7 @@ func TestLifecycleExitContract(t *testing.T) {
 		t.Fatal("lifecycle machine lacks ExitAccepted transition to Done")
 	}
 
-	rest, err := os.ReadFile(filepath.Join(root, "call-lifecycle-exit", "rest.yaml"))
+	rest, err := os.ReadFile(filepath.Join(root, "..", "catalog", "agents", "lifecycle-exit", "rest.yaml"))
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -572,7 +572,7 @@ func copyApplicationFixture(t *testing.T) string {
 	source := realApplicationRoot(t)
 	repository := t.TempDir()
 	root := filepath.Join(repository, "applications", "agent-architecture")
-	for _, relative := range []string{"docs", "call-lifecycle-exit"} {
+	for _, relative := range []string{"docs"} {
 		copyTree(t, filepath.Join(source, relative), filepath.Join(root, relative))
 	}
 	for _, relative := range []string{"README.md", "agent-architecture.slide"} {

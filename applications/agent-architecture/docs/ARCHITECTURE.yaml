@@ -34,7 +34,7 @@ overview:
       CURATOR --> CORE[agent-core runtime]
       OP --> BROWSER[Catalog-owned Knowledge Manager UI]
       BROWSER --> CURATOR
-      OP --> EXIT[Application lifecycle-exit profile]
+      OP --> EXIT[Catalog lifecycle-exit client]
       EXIT --> CONTROL[Curator control route]
       CONTROL --> DONE[Curator Done and listeners released]
     ```
@@ -97,7 +97,7 @@ capability_classification:
       realized_in: "03.0"
   managed_services:
     - name: documentation-curator
-      ownership: applications/catalog canonical profile; application-owned launch and exit composition
+      ownership: applications/catalog canonical profile and lifecycle-exit client; application-owned launch composition
       shared_requirement_groups: [R1, R2, R3]
       planned_local_evidence:
         - go test ./magefiles -run '^Test(Run|ResolveRoots)' proves command construction and root resolution
@@ -152,11 +152,11 @@ interfaces:
     summary: |
       Serve agent-architecture.slide from the application root with the
       version-pinned Go present tool recorded by this application's Go module.
-  - name: lifecycle-exit profile
+  - name: lifecycle-exit client
     summary: |
-      call-lifecycle-exit/profile.yaml selects an application-owned declarative
-      machine. Its fixed REST declaration posts the demo exit reason to the
-      curator control route and accepts HTTP 202.
+      ../catalog/agents/lifecycle-exit/profile.yaml selects the catalog-owned
+      declarative client the application invokes. Its fixed REST declaration
+      posts the demo exit reason to the curator control route and accepts HTTP 202.
   - name: browser endpoints
     summary: |
       The catalog profile serves its documentation interface on localhost:18081,
@@ -170,12 +170,13 @@ components:
     responsibility: |
       Guide presentation startup, canonical curator launch, browser access, and
       lifecycle exit. Code inclusions resolve from the application root.
-  - name: lifecycle-exit composition
-    path: call-lifecycle-exit/
-    ownership: application
+  - name: lifecycle-exit client
+    path: ../catalog/agents/lifecycle-exit/
+    ownership: applications/catalog
     responsibility: |
       Declare the fixed control-client authority, request body, one boundary
-      word, and terminal success or failure for demo shutdown.
+      word, and terminal success or failure for a shutdown request. The
+      application references this catalog-owned client and does not copy it.
   - name: Mage tooling
     path: magefiles/
     ownership: application
@@ -342,8 +343,6 @@ project_structure:
       role: Operator prerequisites, ports, commands, and lifecycle.
     - path: agent-architecture.slide
       role: Guided presentation.
-    - path: call-lifecycle-exit/
-      role: Application-owned declarative shutdown client.
     - path: magefiles/
       role: Run, presentation, audit, stats, and deterministic tests.
     - path: go.mod
