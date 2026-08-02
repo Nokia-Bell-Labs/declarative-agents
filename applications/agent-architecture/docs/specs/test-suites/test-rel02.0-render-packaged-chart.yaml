@@ -15,7 +15,7 @@ traces:
   - rel02.0-uc001-render-packaged-chart
 
 preconditions:
-  - AGENT_CATALOG_ROOT resolves to a catalog checkout with the curator and collector profiles.
+  - The demo.yaml catalog_root resolves to a catalog checkout with the curator and collector profiles.
   - Helm is available for lint and template renders.
 
 test_cases:

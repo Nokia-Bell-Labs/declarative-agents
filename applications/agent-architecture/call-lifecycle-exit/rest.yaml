@@ -24,8 +24,8 @@ rest:
       # The lifecycle-exit endpoint of a running agent's control server. The demo
       # posts one exit request through this declared client; the control-server URL
       # is a declared client base, not runtime input, and the endpoint carries no
-      # transport authority (auth: none).
-      base_url: ${CURATOR_URL:-http://127.0.0.1:18082}
+      # transport authority (auth: none). Overriding it means editing this literal.
+      base_url: http://127.0.0.1:18082
       auth_ref: none
       limits_ref: local_curator_control
       operations:

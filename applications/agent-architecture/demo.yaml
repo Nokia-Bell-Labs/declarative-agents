@@ -1,0 +1,22 @@
+# Agent Architecture demo configuration.
+#
+# Every setting is optional and declarative — the demo reads it here, never from
+# an environment variable. With every key commented out (the shipped state) the
+# demo runs zero-configuration against the monorepo layout. Uncomment a key to
+# override it; relative paths are resolved from this application directory.
+
+# Ownership root for the catalog-owned curator and collector profiles.
+# catalog_root: ../catalog
+
+# agent-core checkout the runtime is built from.
+# core_root: ../../agent-core
+
+# Start the collector agent so `mage run` collects traces. Set false to run the
+# curator alone.
+# tracing: true
+
+# Chart package output directory for `mage helm:package`.
+# helm_dist: helm/dist
+
+# Runtime image reference `mage image:build` tags.
+# image: ghcr.io/nokia-bell-labs/declarative-agents/agent-architecture-runtime:0.1.0

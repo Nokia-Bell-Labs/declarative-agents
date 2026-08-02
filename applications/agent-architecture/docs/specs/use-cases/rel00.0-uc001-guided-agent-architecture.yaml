@@ -18,9 +18,9 @@ trigger: |
 
 preconditions:
   - The application Go module has downloaded its version-pinned Go present tool dependency.
-  - AGENT_CATALOG_ROOT names a catalog checkout or resolves to the monorepo ../catalog default.
-  - AGENT_CORE_ROOT names an agent-core checkout or resolves to the monorepo ../../agent-core default.
-  - The canonical documentation-curator profile exists at AGENT_CATALOG_ROOT/agents/knowledge-manager/documentation-curator/profile.yaml.
+  - The demo.yaml catalog_root names a catalog checkout or defaults to the monorepo ../catalog.
+  - The demo.yaml core_root names an agent-core checkout or defaults to the monorepo ../../agent-core.
+  - The canonical documentation-curator profile exists at the catalog_root's agents/knowledge-manager/documentation-curator/profile.yaml.
   - Local presentation, documentation, control, and monitor ports are available.
 
 evidence:
@@ -47,9 +47,9 @@ flow:
   - id: F2
     text: The operator opens the presentation and follows its Knowledge Manager launch step.
   - id: F3
-    text: The operator runs mage run; Mage resolves AGENT_CATALOG_ROOT and AGENT_CORE_ROOT and builds or locates the agent-core binary.
+    text: The operator runs mage run; Mage resolves catalog_root and core_root from demo.yaml and builds or locates the agent-core binary.
   - id: F4
-    text: The run target launches AGENT_CATALOG_ROOT/agents/knowledge-manager/documentation-curator/profile.yaml with explicit --profile, --directory, and development --core-root arguments, using the catalog root as the documentation workspace.
+    text: The run target launches the catalog_root's agents/knowledge-manager/documentation-curator/profile.yaml with explicit --profile, --directory, and development --core-root arguments, using the catalog root as the documentation workspace.
   - id: F5
     text: The operator opens the documentation interface on localhost:18081 and may inspect the monitor interface on localhost:18084.
   - id: F6

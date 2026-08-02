@@ -20,9 +20,9 @@ import (
 
 const (
 	applicationModule        = "github.com/Nokia-Bell-Labs/declarative-agents/applications/agent-architecture"
-	catalogRootEnv           = "AGENT_CATALOG_ROOT"
-	coreRootEnv              = "AGENT_CORE_ROOT"
-	tracingEnv               = "DEMO_TRACING"
+	demoConfigFile           = "demo.yaml"
+	defaultCatalogRoot       = "../catalog"
+	defaultCoreRoot          = "../../agent-core"
 	canonicalProfile         = "agents/knowledge-manager/documentation-curator/profile.yaml"
 	collectorProfile         = "agents/collector/profile.yaml"
 	collectorControlAddress  = "http://127.0.0.1:18191"
@@ -30,6 +30,38 @@ const (
 	collectorReceiverAddress = "127.0.0.1:4317"
 	collectorHealthTimeout   = 15 * time.Second
 )
+
+// demoConfig carries the optional, declarative overrides the agent-architecture
+// demo reads from demo.yaml. Every field is optional: an absent file or an unset
+// field falls back to the monorepo default, so mage run needs no configuration.
+// Overriding a value means editing this declaration — never an environment
+// variable. Tracing is a pointer so an omitted key is distinguishable from an
+// explicit false.
+type demoConfig struct {
+	CatalogRoot string `yaml:"catalog_root"`
+	CoreRoot    string `yaml:"core_root"`
+	Tracing     *bool  `yaml:"tracing"`
+	HelmDist    string `yaml:"helm_dist"`
+	Image       string `yaml:"image"`
+}
+
+// loadDemoConfig reads demo.yaml from the application root. A missing file is the
+// zero-configuration path and yields an empty config, not an error; every
+// resolver treats empty fields as "use the default".
+func loadDemoConfig(applicationRoot string) (demoConfig, error) {
+	var config demoConfig
+	data, err := os.ReadFile(filepath.Join(applicationRoot, demoConfigFile))
+	if err != nil {
+		if os.IsNotExist(err) {
+			return config, nil
+		}
+		return config, fmt.Errorf("read %s: %w", demoConfigFile, err)
+	}
+	if err := yaml.Unmarshal(data, &config); err != nil {
+		return config, fmt.Errorf("parse %s: %w", demoConfigFile, err)
+	}
+	return config, nil
+}
 
 var requiredDocuments = map[string][]string{
 	"docs/VISION.yaml": {
@@ -62,10 +94,17 @@ var requiredDocuments = map[string][]string{
 	},
 }
 
+// roots holds the checkout locations and the demo.yaml-declared settings
+// resolved for one run: the ownership roots plus the tracing toggle, chart
+// output directory, and runtime image reference every target reads instead of an
+// environment variable.
 type roots struct {
 	Application string
 	Catalog     string
 	Core        string
+	Tracing     bool
+	HelmDist    string
+	Image       string
 }
 
 type commandPlan struct {
@@ -126,7 +165,7 @@ type statsOutput struct {
 
 // Run builds agent-core, optionally starts the collector agent for trace
 // collection, and starts the canonical documentation-curator profile.
-// Set DEMO_TRACING=false to disable trace collection.
+// Set tracing to false in demo.yaml to disable trace collection.
 func Run() error {
 	resolved, err := resolveRootsFromWorkingDirectory()
 	if err != nil {
@@ -145,7 +184,7 @@ func Run() error {
 		return fmt.Errorf("build agent-core runtime: %w", err)
 	}
 
-	tracing := tracingEnabled(os.Getenv)
+	tracing := resolved.Tracing
 	var collectorCleanup func()
 	if tracing {
 		collectorCleanup, err = startCollectorAgent(resolved, binary)
@@ -217,7 +256,11 @@ func resolveRootsFromWorkingDirectory() (roots, error) {
 	if err != nil {
 		return roots{}, err
 	}
-	return resolveRoots(root, os.Getenv)
+	config, err := loadDemoConfig(root)
+	if err != nil {
+		return roots{}, err
+	}
+	return resolveRoots(root, config)
 }
 
 func applicationRootFromWorkingDirectory() (string, error) {
@@ -250,34 +293,63 @@ func findApplicationRoot(start string) (string, error) {
 	)
 }
 
-func resolveRoots(application string, getenv func(string) string) (roots, error) {
-	catalog, err := ownerRoot(getenv(catalogRootEnv), application, filepath.Join(application, "..", "catalog"))
+func resolveRoots(application string, config demoConfig) (roots, error) {
+	catalog, err := ownerRoot(config.CatalogRoot, application, filepath.Join(application, filepath.FromSlash(defaultCatalogRoot)))
 	if err != nil {
-		return roots{}, fmt.Errorf("resolve %s: %w", catalogRootEnv, err)
+		return roots{}, fmt.Errorf("resolve catalog_root: %w", err)
 	}
-	core, err := ownerRoot(getenv(coreRootEnv), application, filepath.Join(application, "..", "..", "agent-core"))
+	core, err := ownerRoot(config.CoreRoot, application, filepath.Join(application, filepath.FromSlash(defaultCoreRoot)))
 	if err != nil {
-		return roots{}, fmt.Errorf("resolve %s: %w", coreRootEnv, err)
+		return roots{}, fmt.Errorf("resolve core_root: %w", err)
 	}
-	resolved := roots{Application: application, Catalog: catalog, Core: core}
+	resolved := roots{
+		Application: application,
+		Catalog:     catalog,
+		Core:        core,
+		Tracing:     tracingEnabled(config),
+		HelmDist:    helmDistDirectory(application, config),
+		Image:       imageReference(config),
+	}
 	if err := requireFile(filepath.Join(catalog, filepath.FromSlash(canonicalProfile)),
-		"canonical documentation-curator profile", catalogRootEnv); err != nil {
+		"canonical documentation-curator profile", "catalog_root"); err != nil {
 		return roots{}, err
 	}
 	if err := requireFile(filepath.Join(catalog, filepath.FromSlash(collectorProfile)),
-		"canonical collector profile", catalogRootEnv); err != nil {
+		"canonical collector profile", "catalog_root"); err != nil {
 		return roots{}, err
 	}
-	if err := requireFile(filepath.Join(core, "go.mod"), "agent-core checkout", coreRootEnv); err != nil {
+	if err := requireFile(filepath.Join(core, "go.mod"), "agent-core checkout", "core_root"); err != nil {
 		return roots{}, err
 	}
 	if info, statErr := os.Stat(filepath.Join(core, "cmd", "agent")); statErr != nil || !info.IsDir() {
 		return roots{}, fmt.Errorf(
-			"agent-core command directory not found at %s; set %s to an agent-core checkout",
-			filepath.Join(core, "cmd", "agent"), coreRootEnv,
+			"agent-core command directory not found at %s; set core_root in %s to an agent-core checkout",
+			filepath.Join(core, "cmd", "agent"), demoConfigFile,
 		)
 	}
 	return resolved, nil
+}
+
+// helmDistDirectory resolves the chart package output directory: the demo.yaml
+// helm_dist override when set (relative values are anchored at the application
+// root), otherwise the default helm/dist under the application.
+func helmDistDirectory(application string, config demoConfig) string {
+	if config.HelmDist == "" {
+		return filepath.Join(application, "helm", "dist")
+	}
+	if filepath.IsAbs(config.HelmDist) {
+		return filepath.Clean(config.HelmDist)
+	}
+	return filepath.Join(application, config.HelmDist)
+}
+
+// imageReference resolves the runtime image reference: the demo.yaml image
+// override when set, otherwise the built-in repository and tag.
+func imageReference(config demoConfig) string {
+	if config.Image == "" {
+		return agentArchitectureImageRepository + ":" + agentArchitectureImageTag
+	}
+	return config.Image
 }
 
 func ownerRoot(value, application, fallback string) (string, error) {
@@ -290,10 +362,10 @@ func ownerRoot(value, application, fallback string) (string, error) {
 	return filepath.Abs(filepath.Clean(value))
 }
 
-func requireFile(path, label, environment string) error {
+func requireFile(path, label, configKey string) error {
 	info, err := os.Stat(path)
 	if err != nil || info.IsDir() {
-		return fmt.Errorf("%s not found at %s; set %s to the owning checkout", label, path, environment)
+		return fmt.Errorf("%s not found at %s; set %s in %s to the owning checkout", label, path, configKey, demoConfigFile)
 	}
 	return nil
 }
@@ -317,8 +389,10 @@ func presentationCommand(application string) *exec.Cmd {
 	return cmd
 }
 
-func tracingEnabled(getenv func(string) string) bool {
-	return !strings.EqualFold(getenv(tracingEnv), "false")
+// tracingEnabled reports whether the collector should start. Tracing is on
+// unless demo.yaml sets tracing to false; an omitted key keeps the default.
+func tracingEnabled(config demoConfig) bool {
+	return config.Tracing == nil || *config.Tracing
 }
 
 func collectorCommand(resolved roots, binary, spoolDir string) *exec.Cmd {
@@ -440,12 +514,16 @@ func auditApplication(root string) error {
 	if err := auditOwnedSources(root); err != nil {
 		return err
 	}
-	catalog, err := ownerRoot(os.Getenv(catalogRootEnv), root, filepath.Join(root, "..", "catalog"))
+	config, err := loadDemoConfig(root)
+	if err != nil {
+		return err
+	}
+	catalog, err := ownerRoot(config.CatalogRoot, root, filepath.Join(root, filepath.FromSlash(defaultCatalogRoot)))
 	if err != nil {
 		return fmt.Errorf("resolve canonical profile owner: %w", err)
 	}
 	if err := requireFile(filepath.Join(catalog, filepath.FromSlash(canonicalProfile)),
-		"canonical documentation-curator profile", catalogRootEnv); err != nil {
+		"canonical documentation-curator profile", "catalog_root"); err != nil {
 		return err
 	}
 	if _, err := os.Stat(filepath.Join(root, filepath.FromSlash(canonicalProfile))); !os.IsNotExist(err) {

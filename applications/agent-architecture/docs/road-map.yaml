@@ -119,7 +119,7 @@ releases:
         status: implemented
     evidence:
       - command: go test ./magefiles -run '^TestTracingEnabled'
-        proves: Tracing is on by default and disabled by DEMO_TRACING=false.
+        proves: Tracing is on by default and disabled by tracing:false in demo.yaml.
       - command: go test ./magefiles -run '^TestCollectorCommand'
         proves: Collector command targets the canonical profile with correct env and ports.
       - command: go test ./magefiles -run '^TestTracedCurator'

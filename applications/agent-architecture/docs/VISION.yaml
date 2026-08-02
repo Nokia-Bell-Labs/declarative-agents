@@ -41,8 +41,8 @@ what_this_does: |
   runs the application-owned call-lifecycle-exit profile to request a clean
   shutdown.
 
-  Source-checkout operation resolves AGENT_CATALOG_ROOT and AGENT_CORE_ROOT,
-  with portable monorepo defaults. The application reports only composition
+  Source-checkout operation resolves the catalog_root and core_root declared in
+  demo.yaml, with portable monorepo defaults. The application reports only composition
   facts, including agents_contributed: 0, so repository statistics count the
   canonical profile once under applications/catalog. Root mage audit, mage
   test, and mage stats dispatch this application as an application module.
@@ -68,16 +68,16 @@ success_criteria:
     access, and declarative lifecycle exit through one use case and one
     reciprocal executable test suite.
   canonical_profile_reuse: |
-    Every launch resolves the documentation-curator from AGENT_CATALOG_ROOT.
-    This application contains no copy of that profile, its machine, or its user
-    interface.
+    Every launch resolves the documentation-curator from the catalog_root
+    declared in demo.yaml. This application contains no copy of that profile, its
+    machine, or its user interface.
   reproducible_operator_tools: |
     The Go present command is a pinned tool dependency. Mage exposes run,
     presentation, audit, and stats entry points with tested command
     construction.
   portable_development: |
-    Source checkouts accept explicit AGENT_CORE_ROOT and AGENT_CATALOG_ROOT
-    values and provide monorepo-relative defaults without developer-specific
+    Source checkouts accept explicit core_root and catalog_root values declared
+    in demo.yaml and provide monorepo-relative defaults without developer-specific
     absolute paths.
   composition_only_accounting: |
     mage stats emits valid JSON with ownership: composition,

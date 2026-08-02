@@ -58,7 +58,7 @@ and 5 each take their own terminal.
    `:18193`); if it is running, `mage run` fails
    with `bind OTLP receiver "ingress": address already in use`. Stop it from
    `applications/chatbot-mesh` with `mage observability:down`, or skip tracing
-   with `DEMO_TRACING=false mage run`.
+   by setting `tracing: false` in `demo.yaml` before `mage run`.
 
 2. Serve the deck:
 
@@ -87,10 +87,10 @@ and 5 each take their own terminal.
    - collected traces at http://127.0.0.1:18193/query/traces.
 
 5. In a third terminal, stop the curator through its own API by running the
-   lifecycle-exit agent. Set `AGENT_CORE_ROOT` as in Source-checkout setup
-   and build the `agent` binary as in Start the Knowledge Manager, then:
+   lifecycle-exit agent. Build the `agent` binary from `../../agent-core` as in
+   Start the Knowledge Manager, then:
 
-       agent --profile "$(pwd)/call-lifecycle-exit/profile.yaml" --directory "$(pwd)" --core-root "$AGENT_CORE_ROOT"
+       agent --profile "$(pwd)/call-lifecycle-exit/profile.yaml" --directory "$(pwd)" --core-root "../../agent-core"
 
    On success the exit agent reports `terminal state: succeeded`, the curator
    shuts down, and `mage run` stops the collector and returns cleanly. A trailing
@@ -99,32 +99,30 @@ and 5 each take their own terminal.
 
 ## Source-checkout setup
 
-Run all commands below from `applications/agent-architecture`. Set the two
-ownership roots explicitly when the catalog and runtime are independent
-checkouts. These portable defaults select their monorepo locations:
-
-    export AGENT_CATALOG_ROOT="${AGENT_CATALOG_ROOT:-$(cd ../catalog && pwd)}"
-    export AGENT_CORE_ROOT="${AGENT_CORE_ROOT:-$(cd ../../agent-core && pwd)}"
-
-`AGENT_CATALOG_ROOT` owns the canonical profile and UI.
-`AGENT_CORE_ROOT` owns the development runtime and the core declarations that
-the profile names under `/opt/agent-core`.
+Run all commands below from `applications/agent-architecture`. The demo resolves
+two ownership roots: the catalog at `../catalog`, which owns the canonical
+profile and UI, and agent-core at `../../agent-core`, which owns the development
+runtime and the core declarations the profile names under `/opt/agent-core`.
+Those are the monorepo defaults. When the catalog and runtime are independent
+checkouts, declare their paths in `demo.yaml` — `catalog_root` and `core_root` —
+and substitute them for the literal paths in the commands below. The mage
+targets read `demo.yaml`; the demo uses no environment variables.
 
 ## Start the Knowledge Manager
 
-Use an `agent` binary built from the selected `AGENT_CORE_ROOT`. `mage run`
-builds its own copy into a private temporary directory, so the manual path
-and the exit client need one on `PATH`:
+Use an `agent` binary built from `../../agent-core`. `mage run` builds its own
+copy into a private temporary directory, so the manual path and the exit client
+need one on `PATH`:
 
-    (cd "$AGENT_CORE_ROOT" && go build -tags production -o agent ./cmd/agent)
-    export PATH="$AGENT_CORE_ROOT:$PATH"
+    (cd ../../agent-core && go build -tags production -o agent ./cmd/agent)
+    export PATH="$(cd ../../agent-core && pwd):$PATH"
 
 Then start the canonical profile:
 
     agent \
-      --profile "$AGENT_CATALOG_ROOT/agents/knowledge-manager/documentation-curator/profile.yaml" \
-      --directory "$AGENT_CATALOG_ROOT" \
-      --core-root "$AGENT_CORE_ROOT"
+      --profile "../catalog/agents/knowledge-manager/documentation-curator/profile.yaml" \
+      --directory "../catalog" \
+      --core-root "../../agent-core"
 
 The catalog root is also the documentation workspace. The profile serves:
 
@@ -142,9 +140,9 @@ While the demo is running, browse collected traces at:
 
     http://127.0.0.1:18193/query/traces
 
-To disable trace collection:
+To disable trace collection, set `tracing: false` in `demo.yaml`, then:
 
-    DEMO_TRACING=false mage run
+    mage run
 
 The collector binds the OTLP receiver on `127.0.0.1:4317`, control on port
 18191, monitor on port 18192, and the query surface on port 18193. The
@@ -160,13 +158,14 @@ machine has one boundary word, `post_exit`, that binds the rest tool to POST the
 fixed `{"reason": "demo presentation"}` body to
 `/api/lifecycle/exit`; the machine reaches terminal state `Done` when the server
 returns HTTP 202 Accepted. The control-server URL is a declared REST client base
-(`CURATOR_URL`, default `http://127.0.0.1:18082`), not runtime input, and the
-endpoint carries no transport authority (`auth: none`). Run it with:
+(the literal `base_url` in `call-lifecycle-exit/rest.yaml`, default
+`http://127.0.0.1:18082`), not runtime input, and the endpoint carries no
+transport authority (`auth: none`). Run it with:
 
     agent \
       --profile "$(pwd)/call-lifecycle-exit/profile.yaml" \
       --directory "$(pwd)" \
-      --core-root "$AGENT_CORE_ROOT"
+      --core-root "../../agent-core"
 
 Expressing the exit call as a machine rather than a Go binary makes the demo an
 instance of the system's own thesis: runtime behavior lives in YAML and is run
@@ -175,12 +174,12 @@ by the interpreter. It replaces the former `call_lifecycle_exit/main.go`.
 ## Installed runtime
 
 An installed runtime already supplies core-owned declarations at
-`/opt/agent-core`, so it does not use `AGENT_CORE_ROOT` or `--core-root`. It
+`/opt/agent-core`, so it does not use `core_root` or `--core-root`. It
 still needs an explicit catalog root for the canonical profile:
 
     agent \
-      --profile "$AGENT_CATALOG_ROOT/agents/knowledge-manager/documentation-curator/profile.yaml" \
-      --directory "$AGENT_CATALOG_ROOT"
+      --profile "../catalog/agents/knowledge-manager/documentation-curator/profile.yaml" \
+      --directory "../catalog"
 
 Run the application-owned exit client from this application root:
 
