@@ -3,6 +3,7 @@
 package main
 
 import (
+	"net"
 	"os"
 	"path/filepath"
 	"strings"
@@ -120,5 +121,56 @@ func TestMeshScenarioCriticIdentities(t *testing.T) {
 				}
 			}
 		})
+	}
+}
+
+// TestRigMockPortsMatchScenarioFixtures guards the preflight against drift: the
+// ports it refuses to run over must be exactly the ones the scenarios pin their
+// mock fixtures to. Repin a fixture without updating the preflight and this
+// fails, before a developer rediscovers GH-1229 the hard way.
+func TestRigMockPortsMatchScenarioFixtures(t *testing.T) {
+	scenarios := []string{
+		"agents/chatbot/tests/single-turn/scenario.yaml",
+		"agents/chatbot/tests/degraded-rag/scenario.yaml",
+	}
+	for _, mock := range rigMockFixturePorts {
+		for _, scenario := range scenarios {
+			data, err := os.ReadFile(filepath.Join("..", filepath.FromSlash(scenario)))
+			if err != nil {
+				t.Fatal(err)
+			}
+			if !strings.Contains(string(data), "127.0.0.1:"+mock.port) {
+				t.Errorf("%s does not pin a fixture to preflight port %s (%s)", scenario, mock.port, mock.name)
+			}
+		}
+	}
+}
+
+// TestRigMockPortSkipReason confirms the preflight skips when a fixture port is
+// held and clears once it is free — the non-blocking behaviour GH-1229 asked
+// for. It injects a self-bound port so the check is hermetic and never depends
+// on whether a real Ollama happens to be running on the host.
+func TestRigMockPortSkipReason(t *testing.T) {
+	listener, err := net.Listen("tcp", "127.0.0.1:0")
+	if err != nil {
+		t.Fatal(err)
+	}
+	_, port, err := net.SplitHostPort(listener.Addr().String())
+	if err != nil {
+		t.Fatal(err)
+	}
+
+	saved := rigMockFixturePorts
+	defer func() { rigMockFixturePorts = saved }()
+	rigMockFixturePorts = []struct{ name, port string }{{"test mock fixture", port}}
+
+	if reason := rigMockPortSkipReason(); reason == "" {
+		t.Fatalf("expected a skip reason while port %s is held", port)
+	}
+	if err := listener.Close(); err != nil {
+		t.Fatal(err)
+	}
+	if reason := rigMockPortSkipReason(); reason != "" {
+		t.Fatalf("expected no skip reason once port %s is free, got: %s", port, reason)
 	}
 }
