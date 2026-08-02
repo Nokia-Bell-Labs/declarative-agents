@@ -26,7 +26,7 @@ const (
 // helmRoleSpecs names the two catalog-owned closures the chart mounts. Order is
 // the sorted order the prepared manifest and its validator expect.
 var helmRoleSpecs = []roleSpec{
-	{role: "collector", sourceRel: "agents/collector", profileRuntime: collectorProfileRuntime},
+	{role: "collector", sourceRel: "agents/collector", profileRuntime: collectorProfileRuntime, uiSubdir: "ui/dist"},
 	{role: "curator", sourceRel: "agents/knowledge-manager/documentation-curator", profileRuntime: curatorProfileRuntime},
 }
 
@@ -34,6 +34,11 @@ type roleSpec struct {
 	role           string
 	sourceRel      string
 	profileRuntime string
+	// uiSubdir, when set, is a subdirectory under sourceRel whose tree is staged
+	// recursively alongside the top-level closure files. The collector serves its
+	// trace UI from ui/dist (srd020 R7); it fits the ConfigMap payload limit, so
+	// it ships in the closure rather than being skipped like larger UI trees.
+	uiSubdir string
 }
 
 type preparedRole struct {
@@ -128,6 +133,13 @@ func prepareChartProfiles(catalogRoot, chartRoot string) error {
 		if err := stageTopLevelFiles(source, destination, spec.role); err != nil {
 			return err
 		}
+		if spec.uiSubdir != "" {
+			uiSource := filepath.Join(source, filepath.FromSlash(spec.uiSubdir))
+			uiDestination := filepath.Join(destination, filepath.FromSlash(spec.uiSubdir))
+			if err := stageSubtree(uiSource, uiDestination, spec.role); err != nil {
+				return err
+			}
+		}
 		files, err := regularRelativeFiles(filepath.Join(stage, spec.role))
 		if err != nil {
 			return err
@@ -202,6 +214,41 @@ func stageTopLevelFiles(source, destination, role string) error {
 		}
 	}
 	return nil
+}
+
+// stageSubtree copies the regular files under source into destination,
+// preserving the tree shape. It stages a served UI's built assets (srd020 R7)
+// into a role closure; symlinks are rejected the same way stageTopLevelFiles
+// rejects them so the archive carries no links.
+func stageSubtree(source, destination, role string) error {
+	return filepath.WalkDir(source, func(path string, entry fs.DirEntry, walkErr error) error {
+		if walkErr != nil {
+			return walkErr
+		}
+		rel, err := filepath.Rel(source, path)
+		if err != nil {
+			return err
+		}
+		target := filepath.Join(destination, rel)
+		if entry.IsDir() {
+			return os.MkdirAll(target, 0o755)
+		}
+		info, err := entry.Info()
+		if err != nil {
+			return err
+		}
+		if info.Mode()&os.ModeSymlink != 0 {
+			return fmt.Errorf("%s closure entry %s is a symlink", role, rel)
+		}
+		if !info.Mode().IsRegular() {
+			return nil
+		}
+		data, err := os.ReadFile(path)
+		if err != nil {
+			return fmt.Errorf("read %s %s: %w", role, rel, err)
+		}
+		return os.WriteFile(target, data, info.Mode().Perm())
+	})
 }
 
 // validatePreparedProfiles rejects a staged closure whose manifest is stale,

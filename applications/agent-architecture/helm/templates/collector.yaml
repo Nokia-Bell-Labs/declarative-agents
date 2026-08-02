@@ -56,6 +56,11 @@ spec:
         - name: collector
           image: {{ include "agent-architecture.collectorImage" . | quote }}
           imagePullPolicy: {{ .Values.collector.image.pullPolicy }}
+          # The collector serves its trace UI from the literal ui/dist path
+          # (srd020 R7), resolved against the working directory. The profile
+          # directory holds the staged ui/dist, so the working directory is the
+          # mounted profile directory -- no UI environment variable (GH-1228).
+          workingDir: /profiles/agents/collector
           args:
             - "--profile"
             - "/profiles/agents/collector/profile.yaml"
