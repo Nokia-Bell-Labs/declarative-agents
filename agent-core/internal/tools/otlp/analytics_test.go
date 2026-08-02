@@ -229,9 +229,8 @@ func TestSpanBreakdownDivergenceRanking(t *testing.T) {
 	writeAnalyticsSpans(t, path, spans)
 
 	out := runBreakdown(t, path, seedResult(t, map[string]any{
-		"baseline":  map[string]any{},
-		"selection": map[string]any{"min_duration_ms": 500},
-		"top_n":     5,
+		"selection_min_duration_ms": 500,
+		"top_n":                     5,
 	}))
 	require.Equal(t, 4, out.InsideTotal)
 	require.Equal(t, 6, out.OutsideTotal)
@@ -251,8 +250,7 @@ func TestSpanBreakdownEmptySelection(t *testing.T) {
 		{traceID: "t", spanID: "a", service: "svc", name: "op", start: s0, end: e0, attrs: map[string]string{"k": "v"}},
 	})
 	out := runBreakdown(t, path, seedResult(t, map[string]any{
-		"baseline":  map[string]any{},
-		"selection": map[string]any{"service": "nonexistent"},
+		"selection_service": "nonexistent",
 	}))
 	require.Equal(t, 0, out.InsideTotal)
 	require.Empty(t, out.Ranked)

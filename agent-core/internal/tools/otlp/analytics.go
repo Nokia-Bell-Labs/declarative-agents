@@ -210,12 +210,8 @@ type SpanBreakdownBuilder struct {
 func (b SpanBreakdownBuilder) Build(previous core.Result) core.Command {
 	cfg := b.Config
 	if p := seedParams(previous); p != nil {
-		if base, ok := p["baseline"].(map[string]interface{}); ok {
-			cfg.Baseline = seedFilter(base)
-		}
-		if sel, ok := p["selection"].(map[string]interface{}); ok {
-			cfg.Selection = seedFilter(sel)
-		}
+		cfg.Baseline = seedFilterPrefixed(p, "baseline_")
+		cfg.Selection = seedFilterPrefixed(p, "selection_")
 		if v, ok := seedInt(p, "top_n"); ok && v > 0 {
 			cfg.TopN = v
 		}
@@ -223,29 +219,35 @@ func (b SpanBreakdownBuilder) Build(previous core.Result) core.Command {
 	return &spanBreakdownCommand{toolName: b.ToolName, config: cfg}
 }
 
-// seedFilter reads a spanFilter from a seed parameter map. Absent keys leave
-// the corresponding term unset.
+// seedFilter reads an unprefixed spanFilter from a seed parameter map.
 func seedFilter(p map[string]interface{}) spanFilter {
+	return seedFilterPrefixed(p, "")
+}
+
+// seedFilterPrefixed reads a spanFilter whose keys carry the given prefix, so
+// one flat seed can carry both a baseline_ and a selection_ filter. Absent keys
+// leave the corresponding term unset.
+func seedFilterPrefixed(p map[string]interface{}, prefix string) spanFilter {
 	f := spanFilter{Attrs: map[string]string{}}
-	if v, ok := seedInt64(p, "start_ms"); ok {
+	if v, ok := seedInt64(p, prefix+"start_ms"); ok {
 		f.StartMs = v
 	}
-	if v, ok := seedInt64(p, "end_ms"); ok {
+	if v, ok := seedInt64(p, prefix+"end_ms"); ok {
 		f.EndMs = v
 	}
-	if v, ok := p["service"].(string); ok {
+	if v, ok := p[prefix+"service"].(string); ok {
 		f.Service = v
 	}
-	if v, ok := p["span_name"].(string); ok {
+	if v, ok := p[prefix+"span_name"].(string); ok {
 		f.SpanName = v
 	}
-	if v, ok := seedInt64(p, "min_duration_ms"); ok {
+	if v, ok := seedInt64(p, prefix+"min_duration_ms"); ok {
 		f.MinDurMs = v
 	}
-	if v, ok := seedInt64(p, "max_duration_ms"); ok {
+	if v, ok := seedInt64(p, prefix+"max_duration_ms"); ok {
 		f.MaxDurMs = v
 	}
-	if attrs, ok := p["attributes"].(map[string]interface{}); ok {
+	if attrs, ok := p[prefix+"attributes"].(map[string]interface{}); ok {
 		for k, v := range attrs {
 			f.Attrs[k] = stringifyAttr(v)
 		}

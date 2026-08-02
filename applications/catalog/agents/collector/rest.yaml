@@ -168,6 +168,82 @@ rest:
                   content_type: application/json
                   body: {metric_name: $.metric_name, records: $.records, record_count: $.record_count, data_point_count: $.data_point_count}
                 Failed: {status: 500, content_type: application/json, body: {error: spool_read_error}}
+        span_stats:
+          method: GET
+          path: /query/spans/stats
+          request:
+            query:
+              start_ms: {type: integer}
+              end_ms: {type: integer}
+              service: {type: string}
+              span_name: {type: string}
+              min_duration_ms: {type: integer}
+              max_duration_ms: {type: integer}
+              time_buckets: {type: integer}
+              group_by: {type: string}
+              top_n: {type: integer}
+          binding: machine_request
+          machine_request:
+            profile: profile.yaml
+            machine: query-machine.yaml
+            initial_signal: SpanStatsRequested
+            timeout: 10s
+            request:
+              query:
+                start_ms: $.start_ms
+                end_ms: $.end_ms
+                service: $.service
+                span_name: $.span_name
+                min_duration_ms: $.min_duration_ms
+                max_duration_ms: $.max_duration_ms
+                time_buckets: $.time_buckets
+                group_by: $.group_by
+                top_n: $.top_n
+            response:
+              terminal_states:
+                SpanStatsResponse:
+                  status: 200
+                  content_type: application/json
+                  body: {heatmap: $.heatmap, matched: $.matched, skipped_lines: $.skipped_lines, group_by: $.group_by, groups: $.groups, dropped_groups: $.dropped_groups, dropped_span_total: $.dropped_span_total}
+                Failed: {status: 500, content_type: application/json, body: {error: spool_read_error}}
+        span_breakdown:
+          method: GET
+          path: /query/spans/breakdown
+          request:
+            query:
+              baseline_start_ms: {type: integer}
+              baseline_end_ms: {type: integer}
+              selection_start_ms: {type: integer}
+              selection_end_ms: {type: integer}
+              selection_min_duration_ms: {type: integer}
+              selection_max_duration_ms: {type: integer}
+              selection_service: {type: string}
+              selection_span_name: {type: string}
+              top_n: {type: integer}
+          binding: machine_request
+          machine_request:
+            profile: profile.yaml
+            machine: query-machine.yaml
+            initial_signal: SpanBreakdownRequested
+            timeout: 10s
+            request:
+              query:
+                baseline_start_ms: $.baseline_start_ms
+                baseline_end_ms: $.baseline_end_ms
+                selection_start_ms: $.selection_start_ms
+                selection_end_ms: $.selection_end_ms
+                selection_min_duration_ms: $.selection_min_duration_ms
+                selection_max_duration_ms: $.selection_max_duration_ms
+                selection_service: $.selection_service
+                selection_span_name: $.selection_span_name
+                top_n: $.top_n
+            response:
+              terminal_states:
+                SpanBreakdownResponse:
+                  status: 200
+                  content_type: application/json
+                  body: {inside_total: $.inside_total, outside_total: $.outside_total, ranked: $.ranked, dropped: $.dropped, skipped_lines: $.skipped_lines}
+                Failed: {status: 500, content_type: application/json, body: {error: spool_read_error}}
         # Serve the shipped trace UI same-origin with /query/* (srd020 R7). The
         # /query/* routes carry more literal path segments than this catch-all,
         # so the router always prefers them; the SPA answers everything else and

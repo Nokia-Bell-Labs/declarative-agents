@@ -14,8 +14,8 @@ preconditions:
 test_cases:
   - use_case: rel15.0-uc001-explore-panel
     name: Stats route returns the pinned heatmap and group-by contract
-    integration_target: go test ./conformance -run TestCollectorSpanStatsContract
-    status: planned
+    go_test: go test ./conformance -run TestCollectorSpanStatsContract
+    status: implemented
     description: |
       Seed a spool, GET /query/spans/stats with a filter and heatmap request,
       and assert the pinned JSON keys: time bucket boundaries, duration bucket
@@ -32,8 +32,8 @@ test_cases:
 
   - use_case: rel15.0-uc001-explore-panel
     name: Breakdown route returns the pinned divergence contract
-    integration_target: go test ./conformance -run TestCollectorSpanBreakdownContract
-    status: planned
+    go_test: go test ./conformance -run TestCollectorSpanBreakdownContract
+    status: implemented
     description: |
       Seed a spool where one attribute value concentrates in a slow region. GET
       /query/spans/breakdown with a selection filter returns the ranked
@@ -51,25 +51,26 @@ test_cases:
 
   - use_case: rel15.0-uc001-explore-panel
     name: Result caps come from tool config, not the request
-    integration_target: go test ./conformance -run TestCollectorExploreCapsFromConfig
-    status: planned
+    go_test: go test ./conformance -run TestCollectorExploreCapsFromConfig
+    status: implemented
     description: |
-      A request asking for a top_n larger than the configured cap is clamped to
-      the configured cap; the response reports the effective cap and the dropped
-      count.
+      With max_top_n patched to 1, a request for top_n 1000 over the two-service
+      fixture still returns one group and reports one dropped group, proving the
+      configured cap beats the request value.
     inputs:
       requested_top_n: 1000
-      configured_cap: 20
+      configured_cap: 1
     expected:
       status: 200
-      effective_cap: 20
+      returned_groups: 1
+      dropped_groups: 1
     traces:
       - srd020-collector AC6
 
   - use_case: rel15.0-uc001-explore-panel
     name: Empty spool yields well-formed empty Explore responses
-    integration_target: go test ./conformance -run TestCollectorExploreEmptySpool
-    status: planned
+    go_test: go test ./conformance -run TestCollectorExploreEmptySpool
+    status: implemented
     description: |
       With no spooled spans, GET /query/spans/stats returns an empty heatmap
       (zero cells, zero matched) and GET /query/spans/breakdown returns an empty

@@ -12,27 +12,37 @@ states:
   - {name: GettingTrace, meaning: Single-trace span detail read from spool.}
   - {name: ListingMetrics, meaning: Paginated metric summary read from spool.}
   - {name: GettingMetric, meaning: Single-metric record detail read from spool.}
+  - {name: ComputingSpanStats, meaning: Duration heatmap and group-by counts over filtered spans.}
+  - {name: ComputingBreakdown, meaning: Attribute divergence between a selection and its complement.}
   - {name: TracesReady, meaning: Terminal paginated trace response.}
   - {name: TraceReady, meaning: Terminal single-trace response.}
   - {name: MetricsReady, meaning: Terminal paginated metric response.}
   - {name: MetricReady, meaning: Terminal single-metric response.}
+  - {name: SpanStatsResponse, meaning: Terminal duration-heatmap and group-by response.}
+  - {name: SpanBreakdownResponse, meaning: Terminal attribute-divergence response.}
   - {name: Failed, meaning: Terminal spool read failure.}
-terminal_states: [TracesReady, TraceReady, MetricsReady, MetricReady, Failed]
+terminal_states: [TracesReady, TraceReady, MetricsReady, MetricReady, SpanStatsResponse, SpanBreakdownResponse, Failed]
 signals:
   - Seed
   - GetTraceRequested
   - ListMetricsRequested
   - GetMetricRequested
+  - SpanStatsRequested
+  - SpanBreakdownRequested
   - TracesListed
   - TraceRetrieved
   - MetricsListed
   - MetricRetrieved
+  - SpanStatsReady
+  - SpanBreakdownReady
   - CommandError
 transitions:
   - {state: AwaitingRequest, signal: Seed, next: ListingTraces, action: query_list_traces}
   - {state: AwaitingRequest, signal: GetTraceRequested, next: GettingTrace, action: query_get_trace}
   - {state: AwaitingRequest, signal: ListMetricsRequested, next: ListingMetrics, action: query_list_metrics}
   - {state: AwaitingRequest, signal: GetMetricRequested, next: GettingMetric, action: query_get_metric}
+  - {state: AwaitingRequest, signal: SpanStatsRequested, next: ComputingSpanStats, action: query_span_stats}
+  - {state: AwaitingRequest, signal: SpanBreakdownRequested, next: ComputingBreakdown, action: query_span_breakdown}
   - {state: ListingTraces, signal: TracesListed, next: TracesReady}
   - {state: ListingTraces, signal: CommandError, next: Failed}
   - {state: GettingTrace, signal: TraceRetrieved, next: TraceReady}
@@ -41,3 +51,7 @@ transitions:
   - {state: ListingMetrics, signal: CommandError, next: Failed}
   - {state: GettingMetric, signal: MetricRetrieved, next: MetricReady}
   - {state: GettingMetric, signal: CommandError, next: Failed}
+  - {state: ComputingSpanStats, signal: SpanStatsReady, next: SpanStatsResponse}
+  - {state: ComputingSpanStats, signal: CommandError, next: Failed}
+  - {state: ComputingBreakdown, signal: SpanBreakdownReady, next: SpanBreakdownResponse}
+  - {state: ComputingBreakdown, signal: CommandError, next: Failed}
