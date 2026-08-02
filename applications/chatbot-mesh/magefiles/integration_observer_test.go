@@ -130,3 +130,69 @@ func TestSplitHostPort(t *testing.T) {
 		}
 	}
 }
+
+// TestObserverRBACRender proves the observer's rendered RBAC is a namespaced
+// Role (never a ClusterRole) granting only get/list on pods, services,
+// deployments, and metrics.k8s.io pod metrics -- no write verbs (srd008 R5, AC5).
+func TestObserverRBACRender(t *testing.T) {
+	if _, err := exec.LookPath("helm"); err != nil {
+		t.Skip("helm not on PATH")
+	}
+	out, err := exec.Command("helm", "template", "t", findChartDir(t), "--set", "observer.enabled=true").CombinedOutput()
+	if err != nil {
+		t.Fatalf("helm template: %v\n%s", err, out)
+	}
+	var observerRole string
+	for _, doc := range strings.Split(string(out), "\n---") {
+		if strings.Contains(doc, "kind: Role") && strings.Contains(doc, "name: t-chatbot-mesh-observer") {
+			observerRole = doc
+			break
+		}
+	}
+	if observerRole == "" {
+		t.Fatal("observer Role not rendered")
+	}
+	for _, want := range []string{"resources: [pods, services]", "apiGroups: [apps]", "resources: [deployments]", "apiGroups: [metrics.k8s.io]"} {
+		if !strings.Contains(observerRole, want) {
+			t.Errorf("observer Role missing %q", want)
+		}
+	}
+	for _, writeVerb := range []string{"create", "update", "patch", "delete", "watch"} {
+		if strings.Contains(observerRole, writeVerb) {
+			t.Errorf("observer Role must be read-only but contains verb %q", writeVerb)
+		}
+	}
+}
+
+// TestObserverKindIntegration runs observerKindIntegration against a live kind
+// cluster when OBSERVER_KIND_KUBE_API_URL is set, verifying kube-API discovery
+// and monitor fan-in on a real cluster (GH-1226); it skips cleanly otherwise.
+func TestObserverKindIntegration(t *testing.T) {
+	kubeAPIURL := os.Getenv("OBSERVER_KIND_KUBE_API_URL")
+	if kubeAPIURL == "" {
+		t.Skip("set OBSERVER_KIND_KUBE_API_URL (and optionally OBSERVER_KIND_NAMESPACE/OBSERVER_KIND_LABEL_SELECTOR) to run the observer kind integration")
+	}
+	applicationRoot, err := filepath.Abs("..")
+	if err != nil {
+		t.Fatal(err)
+	}
+	coreRoot := demoCoreRoot(applicationRoot)
+	if !agentCoreAvailable(coreRoot) {
+		t.Skipf("agent-core checkout not found at %s", coreRoot)
+	}
+	namespace := os.Getenv("OBSERVER_KIND_NAMESPACE")
+	if namespace == "" {
+		namespace = "default"
+	}
+	selector := os.Getenv("OBSERVER_KIND_LABEL_SELECTOR")
+	if selector == "" {
+		selector = "app.kubernetes.io/instance=chatbot-mesh"
+	}
+	discovered, err := observerKindIntegration(applicationRoot, coreRoot, kubeAPIURL, namespace, selector)
+	if err != nil {
+		t.Fatalf("observer kind integration: %v", err)
+	}
+	if discovered == 0 {
+		t.Errorf("observer discovered 0 agents on the kind cluster; want at least one")
+	}
+}

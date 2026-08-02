@@ -180,10 +180,8 @@ func splitHostPort(addr string) (host, port string, err error) {
 }
 
 // observerKindIntegration runs against a live kind cluster to verify kube API
-// discovery and monitor fan-in. Its skip-guarded test is not yet wired, so it
-// has no caller; kept rather than deleted so the coverage work reuses it.
-//
-//nolint:unused // entry point for the not-yet-wired observer kind-integration test (GH-1213 follow-up)
+// discovery and monitor fan-in. TestObserverKindIntegration is its skip-guarded
+// caller (GH-1226), gated on OBSERVER_KIND_KUBE_API_URL.
 func observerKindIntegration(applicationRoot, coreRoot, kubeAPIURL, namespace, labelSelector string) (int, error) {
 	binary, err := buildAgent(coreRoot)
 	if err != nil {

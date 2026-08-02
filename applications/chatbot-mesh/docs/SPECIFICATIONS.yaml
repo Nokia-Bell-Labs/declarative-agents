@@ -126,7 +126,7 @@ srd_index:
     path: docs/specs/software-requirements/srd007-collector-agent.yaml
   - id: srd008-observer-agent
     title: Observer Agent Functional Block
-    summary: Monitor / Fleet Observer realization that discovers mesh agents from the Kubernetes API and polls each agent's monitor surface to serve a fleet-level view.
+    summary: Monitor / Fleet Observer realization that discovers mesh agents and the deployment topology from the Kubernetes API, polls each agent's monitor surface and per-pod resource usage (metrics.k8s.io), and serves a fleet-level view.
     path: docs/specs/software-requirements/srd008-observer-agent.yaml
 
 use_case_index:

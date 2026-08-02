@@ -15,19 +15,21 @@ trigger: The demo cluster is running (`mage demo:up`) and the presenter opens th
 flow:
   - F1: The Helm chart deploys the observer alongside the mesh agents, with a ServiceAccount that grants namespace-scoped pod listing.
   - F2: The observer launches its monitor and control servers, then starts discovery by polling the Kubernetes API for pods matching the release label selector.
-  - F3: For each discovered pod, the observer polls `/monitor/machine`, `/monitor/state`, `/monitor/tools`, and `/monitor/events`.
-  - F4: The UX renders a card per agent showing declared machine name and purpose, tool list, current state, and recent events.
-  - F5: The presenter seeds a corpus via the corpus-ingest agent; the observer's next poll shows the ingest agent's state transition.
-  - F6: The presenter asks a question in the chatbot SPA; the observer's fleet view shows the chatbot entering its turn states and the RAG servers processing queries.
-  - "F7: The presenter opens the observer's own profile.yaml to close the narrative -- the fleet instrument is itself a declarative agent."
-  - F8: Lifecycle exit stops the observer cleanly.
+  - F3: The observer also lists the release Deployments and Services and polls the metrics.k8s.io PodMetrics endpoint for per-pod CPU and memory.
+  - F4: For each discovered pod, the observer polls `/monitor/machine`, `/monitor/state`, `/monitor/tools`, and `/monitor/events`.
+  - F5: The UX renders the deployment topology -- pods grouped by owning Deployment and fronting Service -- with a card per agent showing declared machine name and purpose, tool list, current state, recent events, and the pod's CPU and memory.
+  - F6: The presenter seeds a corpus via the corpus-ingest agent; the observer's next poll shows the ingest agent's state transition.
+  - F7: The presenter asks a question in the chatbot SPA; the observer's fleet view shows the chatbot entering its turn states and the RAG servers processing queries.
+  - "F8: The presenter opens the observer's own profile.yaml to close the narrative -- the fleet instrument is itself a declarative agent."
+  - F9: Lifecycle exit stops the observer cleanly.
 
 touchpoints:
-  - "srd008-observer-agent R1 -- Kubernetes API discovery with label selector and service-account auth"
+  - "srd008-observer-agent R1 -- Kubernetes API discovery of pods, Deployments, and Services with label selector and service-account auth"
   - "srd008-observer-agent R2 -- monitor endpoint polling and fan-in aggregation"
-  - "srd008-observer-agent R3 -- fleet UX with auto-refresh and per-agent cards"
+  - "srd008-observer-agent R3 -- fleet UX with auto-refresh, per-agent cards, and topology layout"
   - "srd008-observer-agent R4 -- self-monitoring and lifecycle exit"
-  - "srd008-observer-agent R5 -- namespace-scoped RBAC, read-only authority"
+  - "srd008-observer-agent R5 -- namespace-scoped RBAC over pods, Deployments, Services, and pod metrics"
+  - "srd008-observer-agent R6 -- metrics.k8s.io resource-usage polling with explicit unavailable state"
   - "srd003-chatbot-deployment R5 -- observer deployed as part of the mesh chart"
 
 success_criteria:
@@ -46,6 +48,12 @@ success_criteria:
   - id: S5
     criterion: The observer's RBAC is namespace-scoped and read-only; it holds no write authority.
     traces: [srd008-observer-agent AC5]
+  - id: S6
+    criterion: The fleet view's topology matches the running Deployments, Services, and pods within one poll, grouping pods by owning Deployment and fronting Service.
+    traces: [srd008-observer-agent AC6]
+  - id: S7
+    criterion: Each pod card shows CPU and memory from metrics.k8s.io, or an explicit "metrics unavailable" state when the metrics API is absent.
+    traces: [srd008-observer-agent AC7]
 
 failure_scenarios:
   - id: E1
@@ -57,6 +65,9 @@ failure_scenarios:
   - id: E3
     scenario: A new RAG server is added to the mesh after the observer starts.
     expected: The next discovery poll picks up the new pod and the fleet view adds a card for it.
+  - id: E4
+    scenario: The cluster has no metrics-server (for example a bare kind cluster), so metrics.k8s.io is absent.
+    expected: Topology and monitor fan-in still render; each card shows "metrics unavailable" rather than the observer failing.
 
 out_of_scope:
   - SSE streaming from agent monitors (polling only per srd008 R2.4).

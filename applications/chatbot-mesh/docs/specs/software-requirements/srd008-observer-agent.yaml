@@ -36,6 +36,7 @@ goals:
   - G3: Serve a UX that shows the fleet cast list, per-agent state, and recent events.
   - G4: Expose standard control and monitor surfaces for the observer itself.
   - G5: Run entirely as a declarative agent profile on the unmodified agent-core runtime.
+  - G6: Show the deployment topology and per-pod resource usage, so the fleet view answers what the deployment looks like and what it consumes.
 
 requirements:
   R1:
@@ -45,6 +46,8 @@ requirements:
       - R1.2: Authentication SHALL use the in-cluster service-account bearer token mounted by the Kubernetes downward API.
       - R1.3: Discovery SHALL run on a declared polling interval, not a one-time snapshot, so that pods added or removed after launch appear in the fleet view.
       - R1.4: The label selector and namespace SHALL be declared REST client config values, not constants in tool config.
+      - R1.5: Discovery SHALL also list the release Deployments and Services in the namespace by label selector, so the fleet view can render the deployment topology, not only the pod set.
+      - R1.6: Observer configuration -- selectors, namespace, intervals, and endpoints -- SHALL come from REST client and tool declarations resolved at load, following the mesh convention; the topology and resource additions SHALL introduce no new environment variable.
 
   R2:
     title: Monitor fan-in
@@ -61,6 +64,7 @@ requirements:
       - R3.2: The UX SHALL auto-refresh on the declared polling interval.
       - R3.3: The UX SHALL distinguish agents that are reachable from agents that are unreachable or degraded.
       - R3.4: UX assets SHALL be served by the observer's own monitor REST server, following the pattern the documentation-curator uses for its monitor UI.
+      - R3.5: The UX SHALL render the deployment topology -- pods grouped by their owning Deployment and the Services fronting them -- and show each pod's CPU and memory usage on its card, or an explicit "metrics unavailable" state when resource data is absent.
 
   R4:
     title: Self-monitoring and control
@@ -72,9 +76,16 @@ requirements:
   R5:
     title: RBAC and security
     items:
-      - R5.1: The observer's Helm template SHALL create a ServiceAccount, Role, and RoleBinding granting only `get` and `list` verbs on `pods` in the release namespace.
+      - R5.1: The observer's Helm template SHALL create a ServiceAccount, Role, and RoleBinding granting only `get` and `list` verbs on `pods`, `services`, `deployments` (apps), and `pods` under `metrics.k8s.io` in the release namespace.
       - R5.2: The observer SHALL NOT request cluster-wide RBAC; discovery is namespace-scoped.
       - R5.3: The observer SHALL NOT write to the Kubernetes API, modify any agent's state, or issue lifecycle commands to other agents.
+
+  R6:
+    title: Resource usage
+    items:
+      - R6.1: The observer SHALL poll the namespaced `metrics.k8s.io` PodMetrics endpoint on the declared interval and associate each pod's CPU and memory usage with its fleet entry.
+      - R6.2: When the metrics API is absent (for example a kind cluster with no metrics-server), the observer SHALL report resource usage as explicitly unavailable rather than failing discovery or the fleet view.
+      - R6.3: Resource polling SHALL follow the R2.3 degradation rule -- a failed metrics read SHALL NOT prevent topology discovery or monitor fan-in.
 
 non_goals:
   - Consuming SSE event streams from agent monitor surfaces.
@@ -99,6 +110,12 @@ acceptance_criteria:
   - id: AC5
     criterion: RBAC is namespace-scoped, read-only, and the observer holds no write or lifecycle authority over any other agent or the Kubernetes API.
     traces: [R5.1, R5.2, R5.3]
+  - id: AC6
+    criterion: The observer discovers Deployments and Services alongside pods and the UX renders the deployment topology grouped by owning Deployment and fronting Service; the topology and resource additions introduce no new environment variable.
+    traces: [R1.5, R1.6, R3.5]
+  - id: AC7
+    criterion: The observer polls metrics.k8s.io PodMetrics and shows per-pod CPU and memory on each card, reporting resource usage as explicitly unavailable rather than failing when the metrics API is absent.
+    traces: [R6.1, R6.2, R6.3]
 
 depends_on:
   - srd_id: srd003-chatbot-deployment
@@ -117,3 +134,7 @@ implementation_status:
       assets, Helm template (Deployment, Service, ServiceAccount, Role,
       RoleBinding, Ingress), and integration test proving discovery and monitor
       fan-in against the kind demo rig.
+    - >-
+      Topology discovery (Deployments, Services) and metrics.k8s.io PodMetrics
+      resource polling, with the UX rendering the deployment layout and per-pod
+      CPU and memory, degrading explicitly when the metrics API is absent.

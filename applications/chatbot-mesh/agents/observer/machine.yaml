@@ -15,7 +15,10 @@ states:
   - {name: LaunchingControl, meaning: Launching lifecycle control server.}
   - {name: LaunchingMonitor, meaning: Launching monitor REST server.}
   - {name: Discovering, meaning: Polling the Kubernetes API for mesh agent pods.}
+  - {name: ListingDeployments, meaning: Listing the release Deployments for the topology view.}
+  - {name: ListingServices, meaning: Listing the release Services for the topology view.}
   - {name: PollingAgents, meaning: Polling each discovered agent's monitor endpoints.}
+  - {name: PollingMetrics, meaning: Polling metrics.k8s.io for per-pod CPU and memory.}
   - {name: AwaitingControl, meaning: Waiting a bounded interval before the next discovery cycle.}
   - {name: Exiting, meaning: Routing lifecycle exit.}
   - {name: StoppingMonitor, meaning: Stopping monitor REST server.}
@@ -27,6 +30,9 @@ signals:
   - {name: Seed, trigger: Startup.}
   - {name: ServerLaunched, trigger: REST listener bound.}
   - {name: PodsDiscovered, trigger: Kubernetes API returned a pod list.}
+  - {name: DeploymentsListed, trigger: Kubernetes API returned a Deployment list.}
+  - {name: ServicesListed, trigger: Kubernetes API returned a Service list.}
+  - {name: MetricsPolled, trigger: metrics.k8s.io returned pod resource usage.}
   - {name: AgentsPolled, trigger: All reachable agents polled for this cycle.}
   - {name: AwaitTimedOut, trigger: Bounded control wait elapsed; start next cycle.}
   - {name: ExitRequested, trigger: Lifecycle control event.}
@@ -40,10 +46,16 @@ transitions:
   - {state: LaunchingControl, signal: CommandError, next: Failed}
   - {state: LaunchingMonitor, signal: ServerLaunched, next: Discovering, action: discover_mesh_pods}
   - {state: LaunchingMonitor, signal: CommandError, next: Failed}
-  - {state: Discovering, signal: PodsDiscovered, next: PollingAgents, action: poll_agent_monitors}
-  - {state: Discovering, signal: CommandError, next: AwaitingControl, action: await_observer_control}
-  - {state: PollingAgents, signal: AgentsPolled, next: AwaitingControl, action: await_observer_control}
-  - {state: PollingAgents, signal: CommandError, next: AwaitingControl, action: await_observer_control}
+  - {state: Discovering, signal: PodsDiscovered, next: ListingDeployments, action: list_mesh_deployments}
+  - {state: Discovering, signal: CommandError, next: ListingDeployments, action: list_mesh_deployments}
+  - {state: ListingDeployments, signal: DeploymentsListed, next: ListingServices, action: list_mesh_services}
+  - {state: ListingDeployments, signal: CommandError, next: ListingServices, action: list_mesh_services}
+  - {state: ListingServices, signal: ServicesListed, next: PollingAgents, action: poll_agent_monitors}
+  - {state: ListingServices, signal: CommandError, next: PollingAgents, action: poll_agent_monitors}
+  - {state: PollingAgents, signal: AgentsPolled, next: PollingMetrics, action: poll_pod_metrics}
+  - {state: PollingAgents, signal: CommandError, next: PollingMetrics, action: poll_pod_metrics}
+  - {state: PollingMetrics, signal: MetricsPolled, next: AwaitingControl, action: await_observer_control}
+  - {state: PollingMetrics, signal: CommandError, next: AwaitingControl, action: await_observer_control}
   - {state: AwaitingControl, signal: AwaitTimedOut, next: Discovering, action: discover_mesh_pods}
   - {state: AwaitingControl, signal: ExitRequested, next: Exiting, action: exit_agent}
   - {state: AwaitingControl, signal: ServerStopped, next: Failed}

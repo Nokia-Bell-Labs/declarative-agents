@@ -59,12 +59,36 @@ test_cases:
   - use_case: rel08.0-uc001-mesh-observer
     name: Observer RBAC is namespace-scoped and read-only
     status: planned
-    description: The rendered Helm template creates a Role (not ClusterRole) with only get and list verbs on pods in the release namespace.
+    description: The rendered Helm template creates a Role (not ClusterRole) with only get and list verbs on pods, services, deployments, and metrics.k8s.io pod metrics in the release namespace.
     expected:
       role_not_cluster_role: true
       verbs_get_list_only: true
+      resources_pods_services_deployments_podmetrics: true
       namespace_scoped: true
     traces: [rel08.0-uc001-mesh-observer S5, srd008-observer-agent AC5]
+
+  - use_case: rel08.0-uc001-mesh-observer
+    name: Observer discovers topology and the UX groups pods by Deployment and Service
+    integration_target: mage integration:rig
+    status: planned
+    description: The observer lists the release Deployments and Services alongside pods; the fleet view groups each pod under its owning Deployment and the Service fronting it, matching the running topology within one poll. Configuration uses declarations and flags with no environment variable.
+    expected:
+      deployments_discovered: true
+      services_discovered: true
+      pods_grouped_by_deployment: true
+      no_new_environment_variable: true
+    traces: [rel08.0-uc001-mesh-observer S6, srd008-observer-agent AC6]
+
+  - use_case: rel08.0-uc001-mesh-observer
+    name: Observer shows per-pod resource usage and degrades when metrics are absent
+    integration_target: mage integration:rig
+    status: planned
+    description: The observer polls metrics.k8s.io PodMetrics and shows each pod's CPU and memory on its card. When the cluster has no metrics-server, topology and monitor fan-in still render and each card shows an explicit "metrics unavailable" state rather than failing.
+    expected:
+      cpu_and_memory_per_pod: true
+      metrics_unavailable_state_when_absent: true
+      discovery_unaffected_by_metrics_failure: true
+    traces: [rel08.0-uc001-mesh-observer S7, srd008-observer-agent AC7]
 
   - use_case: rel08.0-uc001-mesh-observer
     name: Observer lifecycle exit stops cleanly
