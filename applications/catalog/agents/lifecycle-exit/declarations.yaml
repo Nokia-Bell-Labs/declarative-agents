@@ -8,7 +8,7 @@ tools:
     description: Post the fixed lifecycle-exit request to the target agent's control server.
     problem: A supervisor must ask a running agent to exit, and that request is a declared REST call, not an embedded HTTP client.
     goals:
-      - Resolve the curator client and the post_exit operation.
+      - Resolve the control client and the post_exit operation.
       - Post the fixed exit request and return the control server's acceptance.
     requirements:
       input:
@@ -33,7 +33,7 @@ tools:
           accepted: {type: string}
     side_effects:
       - kind: external_api
-        target: curator.lifecycle_exit
+        target: control.lifecycle_exit
         state: exit_requested
     reversibility:
       classification: irreversible
@@ -44,12 +44,12 @@ tools:
       description: An accepted lifecycle-exit request cannot be withdrawn; restarting the target agent is a separate action.
     errors:
       - signal: CommandError
-        condition: The curator client definition is missing, or the exit call fails on network, timeout, or mapping.
+        condition: The control client definition is missing, or the exit call fails on network, timeout, or mapping.
         state_after_failure: The exit request outcome is unknown to the caller.
     relationships:
       overlaps:
         - tool: rest_client_invoke
           difference: This catalog-owned word binds the control-server lifecycle-exit operation.
     config:
-      rest_ref: curator
+      rest_ref: control
       operation: post_exit

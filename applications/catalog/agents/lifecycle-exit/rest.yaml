@@ -5,7 +5,7 @@ rest:
     none:
       type: none
   limits:
-    local_curator_control:
+    local_control_api:
       timeout: 10s
       read_timeout: 10s
       max_request_bytes: 16384
@@ -15,21 +15,21 @@ rest:
       network:
         schemes: [http]
         # The target control-server host is the egress allowlist entry and the
-        # single point of variation: a consumer sets CURATOR_HOST to the target
-        # agent's control DNS name, defaulting to loopback locally. The
+        # single point of variation: a consumer sets LIFECYCLE_EXIT_HOST to the
+        # target agent's control DNS name, defaulting to loopback locally. The
         # agent-architecture presentation targets the documentation-curator.
-        hosts: [${CURATOR_HOST:-127.0.0.1}, localhost]
+        hosts: [${LIFECYCLE_EXIT_HOST:-127.0.0.1}, localhost]
         ports: [18082]
   clients:
-    curator:
+    control:
       # The canonical lifecycle-exit endpoint of a running agent's control server.
       # This catalog-owned client posts one exit request; the control-server URL is
       # a declared client base, not runtime input, and the endpoint carries no
       # transport authority (auth: none). Retargeting means overriding this base_url
-      # (and CURATOR_HOST), the only per-consumer difference.
+      # (and LIFECYCLE_EXIT_HOST), the only per-consumer difference.
       base_url: http://127.0.0.1:18082
       auth_ref: none
-      limits_ref: local_curator_control
+      limits_ref: local_control_api
       operations:
         post_exit:
           # Post the fixed lifecycle-exit request. The reason is declared in the
@@ -48,7 +48,7 @@ rest:
               accepted: $.accepted
           side_effects:
             - kind: external_api
-              target: curator.lifecycle_exit
+              target: control.lifecycle_exit
               state: exit_requested
           reversibility:
             classification: irreversible
