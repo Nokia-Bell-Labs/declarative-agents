@@ -96,7 +96,7 @@ func deployDemo(environment smokeEnvironment, resolved roots, image string) erro
 	if err != nil {
 		return err
 	}
-	defer os.RemoveAll(archiveDir)
+	defer func() { _ = os.RemoveAll(archiveDir) }()
 	archive, err := packageHelmChart(filepath.Join(resolved.Application, "helm"), resolved.Catalog, archiveDir)
 	if err != nil {
 		return err

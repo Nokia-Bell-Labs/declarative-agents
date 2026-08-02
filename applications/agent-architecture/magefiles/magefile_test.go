@@ -196,7 +196,7 @@ func TestAuditRejectsStaleCatalogDemoPath(t *testing.T) {
 		t.Fatal(err)
 	}
 	if _, err := file.WriteString("\nOld deck: applications/catalog/demo/agent-architecture.slide\n"); err != nil {
-		file.Close()
+		_ = file.Close()
 		t.Fatal(err)
 	}
 	if err := file.Close(); err != nil {
@@ -217,7 +217,7 @@ func TestAuditRejectsDeveloperSpecificPath(t *testing.T) {
 		t.Fatal(err)
 	}
 	if _, err := file.WriteString("\nLocal checkout: /Users/example/catalog\n"); err != nil {
-		file.Close()
+		_ = file.Close()
 		t.Fatal(err)
 	}
 	if err := file.Close(); err != nil {

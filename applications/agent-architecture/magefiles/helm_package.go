@@ -58,7 +58,7 @@ func packageHelmChart(chartRoot, catalogRoot, destination string) (string, error
 	if err != nil {
 		return "", err
 	}
-	defer os.RemoveAll(stage)
+	defer func() { _ = os.RemoveAll(stage) }()
 	chart := filepath.Join(stage, "agent-architecture")
 	if err := stageChartSource(chartRoot, chart); err != nil {
 		return "", fmt.Errorf("stage source chart: %w", err)
@@ -201,12 +201,12 @@ func validateChartArchive(archive, stagedChart string) error {
 	if err != nil {
 		return fmt.Errorf("open chart archive: %w", err)
 	}
-	defer file.Close()
+	defer func() { _ = file.Close() }()
 	gz, err := gzip.NewReader(file)
 	if err != nil {
 		return fmt.Errorf("open chart gzip: %w", err)
 	}
-	defer gz.Close()
+	defer func() { _ = gz.Close() }()
 	reader := tar.NewReader(gz)
 	for {
 		header, err := reader.Next()
