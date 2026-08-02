@@ -113,7 +113,7 @@ tools:
     config:
       sources:
         - server: monitor
-          routes: [control_exit]
+          routes: [exit]
           signals: [ExitRequested]
       timeout: 30s
       stopped_behavior: emit_server_stopped

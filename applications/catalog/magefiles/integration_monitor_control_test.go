@@ -16,8 +16,14 @@ func TestCollectMonitorControlEvidenceRecordsRoutesAndLifecycleBoundary(t *testi
 	if err != nil {
 		t.Fatalf("collectMonitorControlEvidence: %v", err)
 	}
-	if evidence.MonitorControlRoute != "/monitor/control/exit" {
-		t.Fatalf("monitor control route = %q", evidence.MonitorControlRoute)
+	if !evidence.MonitorExitInjected {
+		t.Fatalf("expected monitor server to declare no static exit route: %#v", evidence)
+	}
+	if evidence.MonitorAwaitRoute != "exit" {
+		t.Fatalf("monitor await route = %q", evidence.MonitorAwaitRoute)
+	}
+	if evidence.MonitorExitSignal != "ExitRequested" {
+		t.Fatalf("monitor exit signal = %q", evidence.MonitorExitSignal)
 	}
 	if evidence.ControlExitRoute != "/api/lifecycle/exit" {
 		t.Fatalf("control exit route = %q", evidence.ControlExitRoute)
@@ -40,7 +46,8 @@ func TestAssertMonitorControlEvidenceRejectsMissingLifecycleRouting(t *testing.T
 		ControlProfile:            "testdata/conformance/control/profile.yaml",
 		MonitorStateRoutes:        []string{"/monitor/state"},
 		ControlExitRoute:          "/api/lifecycle/exit",
-		MonitorControlRoute:       "/monitor/control/exit",
+		MonitorExitInjected:       true,
+		MonitorAwaitRoute:         "exit",
 		MonitorExitSignal:         "ExitRequested",
 		ControlLifecycleSignal:    "AgentExited",
 		MonitorStopTransition:     true,
@@ -78,6 +85,8 @@ func writeMonitorControlFixture(t *testing.T, root, controlAction string) {
 	t.Helper()
 	writeFile(t, filepath.Join(root, "agents", "runtime-state-reader", "profile.yaml"), "name: runtime-state-reader\n")
 	writeFile(t, filepath.Join(root, "testdata", "conformance", "control", "profile.yaml"), "name: control\n")
+	// The monitor server carries observability routes only; lifecycle exit is
+	// agent-core-injected, so no static exit route is declared here.
 	writeFile(t, filepath.Join(root, "agents", "runtime-state-reader", "rest.yaml"), `rest:
   servers:
     monitor:
@@ -87,11 +96,15 @@ func writeMonitorControlFixture(t *testing.T, root, controlAction string) {
         tools: {path: /monitor/tools, binding: read_state}
         metrics: {path: /monitor/metrics, binding: read_state}
         recent_events: {path: /monitor/events, binding: read_state}
-        control_exit:
-          method: POST
-          path: /monitor/control/exit
-          binding: emit_signal
-          signal: ExitRequested
+`)
+	// The lifecycle await filters the injected exit route on the monitor server.
+	writeFile(t, filepath.Join(root, "agents", "runtime-state-reader", "declarations.yaml"), `tools:
+  - name: await_monitor_control
+    config:
+      sources:
+        - server: monitor
+          routes: [exit]
+          signals: [ExitRequested]
 `)
 	writeFile(t, filepath.Join(root, "testdata", "conformance", "control", "rest.yaml"), `rest:
   servers:
