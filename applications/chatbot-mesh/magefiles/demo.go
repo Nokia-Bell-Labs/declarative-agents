@@ -37,7 +37,7 @@ func (Demo) Up() error {
 	if err != nil {
 		return err
 	}
-	coreRoot := envOrDefault(agentCoreRootEnv, siblingPath(root, "agent-core"))
+	coreRoot := demoCoreRoot(root)
 	chartDir := applicationChartDir(root)
 	images, err := resolveChatbotIntegrationImages(root)
 	if err != nil {

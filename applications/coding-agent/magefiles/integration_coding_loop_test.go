@@ -34,8 +34,11 @@ func TestOllamaSkipReasonAcceptsCanonicalModel(t *testing.T) {
 }
 
 func TestLiveSkipReasonRejectsNonCanonicalProbeEndpoint(t *testing.T) {
-	t.Setenv(ollamaProbeURLEnv, "http://127.0.0.1:1")
-	reason := liveSkipReason(integrationRoots{})
+	root := t.TempDir()
+	if err := os.WriteFile(filepath.Join(root, demoConfigFile), []byte("ollama_url: http://127.0.0.1:1\n"), 0o644); err != nil {
+		t.Fatal(err)
+	}
+	reason := liveSkipReason(integrationRoots{Application: root})
 	if !strings.Contains(reason, "does not match canonical profile endpoint") {
 		t.Fatalf("skip reason = %q", reason)
 	}

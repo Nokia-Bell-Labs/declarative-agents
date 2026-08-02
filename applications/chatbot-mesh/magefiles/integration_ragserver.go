@@ -36,7 +36,7 @@ func (Integration) RagServer() error {
 	if err != nil {
 		return err
 	}
-	coreRoot := envOrDefault(agentCoreRootEnv, siblingPath(profilesRoot, "agent-core"))
+	coreRoot := demoCoreRoot(profilesRoot)
 	if err := requireProfilePaths(profilesRoot, ragServerProfile, chromaIngestProfile, corpusRestAsset); err != nil {
 		return err
 	}

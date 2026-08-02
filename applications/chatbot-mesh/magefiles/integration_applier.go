@@ -39,7 +39,7 @@ func (Integration) Applier() error {
 	if err != nil {
 		return err
 	}
-	coreRoot := envOrDefault(agentCoreRootEnv, siblingPath(profilesRoot, "agent-core"))
+	coreRoot := demoCoreRoot(profilesRoot)
 	if err := requireProfilePaths(profilesRoot,
 		"agents/applier/profile.yaml", "agents/applier/apply-machine.yaml",
 		"agents/applier/rollout-machine.yaml", "agents/applier/state-machine.yaml",
@@ -48,7 +48,7 @@ func (Integration) Applier() error {
 		return err
 	}
 	if !agentCoreAvailable(coreRoot) {
-		fmt.Printf("SKIP applier: agent-core checkout not found at %s (set %s)\n", coreRoot, agentCoreRootEnv)
+		fmt.Printf("SKIP applier: agent-core checkout not found at %s (set core_root in demo.yaml)\n", coreRoot)
 		return nil
 	}
 	return runApplierIntegration(profilesRoot, coreRoot)

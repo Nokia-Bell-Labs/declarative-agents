@@ -14,7 +14,7 @@ traces:
   - rel01.0-uc001-coding-loop
 
 preconditions:
-  - agent-core is available through AGENT_CORE_ROOT or the repository's agent-core directory and can build the real agent binary.
+  - agent-core is available through the demo.yaml core_root or the repository's agent-core directory and can build the real agent binary.
   - Ollama is reachable with the configured planning and execution models; each live stage skips cleanly when it is unavailable.
   - The application package snapshots planner, executor, and critic from one compatible applications/catalog checkout and records its revision.
   - A fresh copy of the greet fixture workspace is used for each stage.
@@ -33,7 +33,7 @@ test_cases:
       Go validation, and report a successful terminal outcome with evidence.
       This stage does not invoke the planner or critic.
     inputs:
-      agent_binary: production agent-core binary built from AGENT_CORE_ROOT
+      agent_binary: production agent-core binary built from the demo.yaml core_root
       executor_profile: applications/catalog/agents/executor/profile.yaml resolved through the application package
       task_prompt: Implement the greeting behavior specified by srd001-greet.yaml.
       workspace: fresh testdata/integration/coding-loop/workspace copy

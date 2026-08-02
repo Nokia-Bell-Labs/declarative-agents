@@ -72,16 +72,20 @@ func TestSpecificationCriticSucceeded(t *testing.T) {
 // are present does resolution succeed.
 func TestResolveAuditToolsRequiresRuntimeAndValidator(t *testing.T) {
 	t.Run("missing agent-core runtime fails", func(t *testing.T) {
-		t.Setenv(agentCoreRootEnv, filepath.Join(t.TempDir(), "absent-core"))
-		t.Setenv(specificationCriticProfileEnv, writeFile(t, "profile.yaml", "name: fake-specification-critic\n"))
-		if _, _, err := resolveAuditTools(t.TempDir(), t.TempDir()); err == nil {
+		root := t.TempDir()
+		writeDemoConfig(t, root,
+			"core_root: "+filepath.Join(t.TempDir(), "absent-core"),
+			"spec_critic_profile: "+writeFile(t, "profile.yaml", "name: fake-specification-critic\n"))
+		if _, _, err := resolveAuditTools(root, t.TempDir()); err == nil {
 			t.Fatal("expected an error when agent-core is absent, got nil")
 		}
 	})
 	t.Run("missing specification-critic validator fails", func(t *testing.T) {
-		t.Setenv(agentCoreRootEnv, fakeCore(t))
-		t.Setenv(specificationCriticProfileEnv, filepath.Join(t.TempDir(), "absent-profile.yaml"))
-		if _, _, err := resolveAuditTools(t.TempDir(), t.TempDir()); err == nil {
+		root := t.TempDir()
+		writeDemoConfig(t, root,
+			"core_root: "+fakeCore(t),
+			"spec_critic_profile: "+filepath.Join(t.TempDir(), "absent-profile.yaml"))
+		if _, _, err := resolveAuditTools(root, t.TempDir()); err == nil {
 			t.Fatal("expected an error when the specification-critic validator is absent, got nil")
 		}
 	})
@@ -89,9 +93,9 @@ func TestResolveAuditToolsRequiresRuntimeAndValidator(t *testing.T) {
 		core := fakeCore(t)
 		profile := writeFile(t, "profile.yaml", "name: fake-specification-critic\n")
 		catalog := t.TempDir()
-		t.Setenv(agentCoreRootEnv, core)
-		t.Setenv(specificationCriticProfileEnv, profile)
-		coreRoot, specificationCriticProfile, err := resolveAuditTools(t.TempDir(), catalog)
+		root := t.TempDir()
+		writeDemoConfig(t, root, "core_root: "+core, "spec_critic_profile: "+profile)
+		coreRoot, specificationCriticProfile, err := resolveAuditTools(root, catalog)
 		if err != nil {
 			t.Fatalf("unexpected error: %v", err)
 		}
@@ -99,6 +103,17 @@ func TestResolveAuditToolsRequiresRuntimeAndValidator(t *testing.T) {
 			t.Fatalf("resolved (%s, %s), want (%s, %s)", coreRoot, specificationCriticProfile, core, profile)
 		}
 	})
+}
+
+// writeDemoConfig writes a demo.yaml with the given "key: value" lines into the
+// application root, so tests drive the magefile resolvers through the declared
+// config instead of environment variables.
+func writeDemoConfig(t *testing.T, applicationRoot string, lines ...string) {
+	t.Helper()
+	content := strings.Join(lines, "\n") + "\n"
+	if err := os.WriteFile(filepath.Join(applicationRoot, demoConfigFile), []byte(content), 0o644); err != nil {
+		t.Fatal(err)
+	}
 }
 
 func TestResolveCatalogRootEnvironmentPrecedence(t *testing.T) {

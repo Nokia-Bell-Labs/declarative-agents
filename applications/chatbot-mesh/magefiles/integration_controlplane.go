@@ -49,7 +49,7 @@ func (Integration) ControlPlane() error {
 	if err != nil {
 		return err
 	}
-	coreRoot := envOrDefault(agentCoreRootEnv, siblingPath(profilesRoot, "agent-core"))
+	coreRoot := demoCoreRoot(profilesRoot)
 	if err := requireProfilePaths(profilesRoot,
 		"agents/provisioning-workflow-orchestrator/profile.yaml", "agents/creator/profile.yaml",
 		"agents/chatbot/rest.yaml",
@@ -57,7 +57,7 @@ func (Integration) ControlPlane() error {
 		return err
 	}
 	if !agentCoreAvailable(coreRoot) {
-		fmt.Printf("SKIP controlPlane: agent-core checkout not found at %s (set %s)\n", coreRoot, agentCoreRootEnv)
+		fmt.Printf("SKIP controlPlane: agent-core checkout not found at %s (set core_root in demo.yaml)\n", coreRoot)
 		return nil
 	}
 	return runControlPlaneIntegration(profilesRoot, coreRoot)

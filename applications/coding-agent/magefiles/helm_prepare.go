@@ -19,7 +19,7 @@ func HelmPrepare() error {
 	if err := Package(); err != nil {
 		return err
 	}
-	source := envOrDefault(profileOutputEnv, filepath.Join(root, filepath.FromSlash(defaultProfileOutput)))
+	source := demoProfilesOutput(root)
 	if err := prepareHelmProfiles(source, filepath.Join(root, "helm")); err != nil {
 		return err
 	}

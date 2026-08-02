@@ -59,7 +59,7 @@ func (Integration) Chatbot() error {
 	if err != nil {
 		return err
 	}
-	coreRoot := envOrDefault(agentCoreRootEnv, siblingPath(profilesRoot, "agent-core"))
+	coreRoot := demoCoreRoot(profilesRoot)
 	if err := requireProfilePaths(profilesRoot,
 		chatbotProfile, ragServerProfile, chromaIngestProfile,
 		"agents/chatbot/rest.yaml", "agents/chatbot/request-declarations.yaml",

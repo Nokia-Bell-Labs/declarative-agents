@@ -15,17 +15,92 @@ import (
 	"strings"
 
 	"github.com/Nokia-Bell-Labs/declarative-agents/applications/catalog/catalogroot"
+	"gopkg.in/yaml.v3"
 )
 
 const (
-	// agentCoreRootEnv points at the agent-core checkout the runtime binary and the
-	// specification-critic tools are built and resolved from; it defaults to a sibling checkout.
-	agentCoreRootEnv = "AGENT_CORE_ROOT"
-	// specificationCriticProfileEnv overrides the profile within the selected catalog.
-	specificationCriticProfileEnv = "SPECIFICATION_CRITIC_PROFILE"
+	demoConfigFile   = "demo.yaml"
+	agentCoreDirName = "agent-core"
 
 	specificationCriticProfileRel = "agents/specification-critic/profile.yaml"
 )
+
+// demoConfig carries the optional, declarative overrides the chatbot-mesh
+// magefiles read from demo.yaml. Every field is optional: an absent file or an
+// unset field falls back to the monorepo default. Overriding a value means
+// editing this declaration, never an environment variable. (The DA_* collector
+// and integration variables are a separate injection contract, tracked in
+// GH-1251, and are not read here.)
+type demoConfig struct {
+	CoreRoot          string `yaml:"core_root"`
+	HelmDist          string `yaml:"helm_dist"`
+	SpecCriticProfile string `yaml:"spec_critic_profile"`
+}
+
+// loadDemoConfig reads demo.yaml from the application root. A missing file is the
+// zero-configuration path and yields an empty config, not an error.
+func loadDemoConfig(applicationRoot string) (demoConfig, error) {
+	var config demoConfig
+	data, err := os.ReadFile(filepath.Join(applicationRoot, demoConfigFile))
+	if err != nil {
+		if os.IsNotExist(err) {
+			return config, nil
+		}
+		return config, fmt.Errorf("read %s: %w", demoConfigFile, err)
+	}
+	if err := yaml.Unmarshal(data, &config); err != nil {
+		return config, fmt.Errorf("parse %s: %w", demoConfigFile, err)
+	}
+	return config, nil
+}
+
+// loadDemoConfigOrEmpty returns the parsed demo.yaml, or an empty config when the
+// file is absent or unreadable. It suits the resolver helpers below, which fall
+// back to the monorepo default rather than threading an error through every
+// magefile call site.
+func loadDemoConfigOrEmpty(applicationRoot string) demoConfig {
+	config, _ := loadDemoConfig(applicationRoot)
+	return config
+}
+
+// demoCoreRoot resolves the agent-core checkout: demo.yaml core_root when set
+// (relative values anchored at the application root), otherwise the monorepo
+// sibling two levels above the application root.
+func demoCoreRoot(applicationRoot string) string {
+	if coreRoot := loadDemoConfigOrEmpty(applicationRoot).CoreRoot; coreRoot != "" {
+		if filepath.IsAbs(coreRoot) {
+			return filepath.Clean(coreRoot)
+		}
+		return filepath.Join(applicationRoot, coreRoot)
+	}
+	return siblingPath(applicationRoot, agentCoreDirName)
+}
+
+// demoHelmDist resolves the chart package output directory: demo.yaml helm_dist
+// when set (relative values anchored at the application root), otherwise
+// helm/dist under the application root.
+func demoHelmDist(applicationRoot string) string {
+	if helmDist := loadDemoConfigOrEmpty(applicationRoot).HelmDist; helmDist != "" {
+		if filepath.IsAbs(helmDist) {
+			return filepath.Clean(helmDist)
+		}
+		return filepath.Join(applicationRoot, helmDist)
+	}
+	return filepath.Join(applicationRoot, "helm", "dist")
+}
+
+// demoSpecCriticProfile resolves the specification-critic validator profile:
+// demo.yaml spec_critic_profile when set (relative values anchored at the
+// application root), otherwise the canonical profile under the catalog root.
+func demoSpecCriticProfile(applicationRoot, catalogRoot string) string {
+	if profile := loadDemoConfigOrEmpty(applicationRoot).SpecCriticProfile; profile != "" {
+		if filepath.IsAbs(profile) {
+			return filepath.Clean(profile)
+		}
+		return filepath.Join(applicationRoot, profile)
+	}
+	return filepath.Join(catalogRoot, filepath.FromSlash(specificationCriticProfileRel))
+}
 
 // Audit runs the specification critic over this application's specification corpus, so the application
 // self-governs: load_corpus reads docs/SPECIFICATIONS.yaml, docs/specs, and
@@ -99,13 +174,13 @@ func Audit() error {
 // or the validator profile itself, so a missing tool is a clear failure, not a
 // skip. Skip behavior is reserved for explicitly optional integration targets.
 func resolveAuditTools(root, catalogRoot string) (coreRoot, specificationCriticProfile string, err error) {
-	coreRoot = envOrDefault(agentCoreRootEnv, siblingPath(root, "agent-core"))
+	coreRoot = demoCoreRoot(root)
 	if !agentCoreAvailable(coreRoot) {
-		return "", "", fmt.Errorf("audit: agent-core checkout not found at %s (set %s); the self-governance gate requires the agent-core runtime", coreRoot, agentCoreRootEnv)
+		return "", "", fmt.Errorf("audit: agent-core checkout not found at %s (set core_root in %s); the self-governance gate requires the agent-core runtime", coreRoot, demoConfigFile)
 	}
-	specificationCriticProfile = envOrDefault(specificationCriticProfileEnv, filepath.Join(catalogRoot, filepath.FromSlash(specificationCriticProfileRel)))
+	specificationCriticProfile = demoSpecCriticProfile(root, catalogRoot)
 	if _, statErr := os.Stat(specificationCriticProfile); statErr != nil {
-		return "", "", fmt.Errorf("audit: specification-critic validator profile not found at %s (set %s); the self-governance gate requires its validator", specificationCriticProfile, specificationCriticProfileEnv)
+		return "", "", fmt.Errorf("audit: specification-critic validator profile not found at %s (set spec_critic_profile in %s); the self-governance gate requires its validator", specificationCriticProfile, demoConfigFile)
 	}
 	return coreRoot, specificationCriticProfile, nil
 }

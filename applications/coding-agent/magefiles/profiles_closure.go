@@ -18,7 +18,6 @@ import (
 
 const (
 	profileManifestPath  = "agents/application.yaml"
-	profileOutputEnv     = "CODING_AGENT_PROFILES_OUTPUT"
 	defaultProfileOutput = "build/profiles"
 )
 
@@ -73,7 +72,7 @@ type profileClosure struct {
 }
 
 // Package assembles the coding application's complete, deterministic profile
-// closure under build/profiles (or CODING_AGENT_PROFILES_OUTPUT).
+// closure under build/profiles (or the demo.yaml profiles_output).
 func Package() error {
 	appRoot, err := os.Getwd()
 	if err != nil {
@@ -92,7 +91,7 @@ func Package() error {
 	if err != nil {
 		return err
 	}
-	output := envOrDefault(profileOutputEnv, filepath.Join(appRoot, filepath.FromSlash(defaultProfileOutput)))
+	output := demoProfilesOutput(appRoot)
 	source, err := inspectPackageSource(profilesRoot, manifest.AgentProfiles.CompatibleRelease)
 	if err != nil {
 		return err

@@ -32,7 +32,7 @@ func (Integration) Observer() error {
 	if err != nil {
 		return err
 	}
-	coreRoot := envOrDefault(agentCoreRootEnv, siblingPath(applicationRoot, "agent-core"))
+	coreRoot := demoCoreRoot(applicationRoot)
 	if !agentCoreAvailable(coreRoot) {
 		fmt.Printf("SKIP integration:observer: agent-core checkout not found at %s\n", coreRoot)
 		return nil

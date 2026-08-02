@@ -17,7 +17,6 @@ const (
 	codingAgentImageRepository = "ghcr.io/nokia-bell-labs/declarative-agents/coding-agent-runtime"
 	codingAgentImageTag        = "0.1.0"
 	codingAgentGolangciLint    = "v2.12.2"
-	codingAgentImageEnv        = "CODING_AGENT_IMAGE"
 )
 
 // Image groups production coding-agent image targets.
@@ -29,11 +28,7 @@ func (Image) Build() error {
 	if err != nil {
 		return err
 	}
-	image := envOrDefault(
-		codingAgentImageEnv,
-		codingAgentImageRepository+":"+codingAgentImageTag,
-	)
-	return buildCodingAgentImage(applicationRoot, image)
+	return buildCodingAgentImage(applicationRoot, demoImage(applicationRoot))
 }
 
 func buildCodingAgentImage(applicationRoot, image string) error {

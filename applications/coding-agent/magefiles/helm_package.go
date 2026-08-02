@@ -16,8 +16,6 @@ import (
 	"github.com/magefile/mage/mg"
 )
 
-const helmPackageDirEnv = "HELM_PACKAGE_DIR"
-
 var chartSourceInventory = []string{
 	".helmignore",
 	"Chart.yaml",
@@ -81,12 +79,8 @@ func (Helm) Package() error {
 	if err := Package(); err != nil {
 		return err
 	}
-	profiles := envOrDefault(
-		profileOutputEnv, filepath.Join(root, filepath.FromSlash(defaultProfileOutput)))
-	destination := envOrDefault(
-		helmPackageDirEnv, filepath.Join(root, "helm", "dist"))
 	archive, err := packageHelmChart(
-		filepath.Join(root, "helm"), profiles, destination)
+		filepath.Join(root, "helm"), demoProfilesOutput(root), demoHelmDist(root))
 	if err != nil {
 		return err
 	}

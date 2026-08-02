@@ -61,8 +61,8 @@ mage package
 mage packageValidate
 ```
 
-The default output is `build/profiles`; set
-`CODING_AGENT_PROFILES_OUTPUT` to select another output directory and
+The default output is `build/profiles`; set `profiles_output` in
+`demo.yaml` to select another output directory and
 `AGENT_CATALOG_ROOT` to package a different checkout. Release 99.0 also accepts
 deprecated `AGENT_PROFILES_ROOT` only when the canonical variable is unset; if
 both are set, they must resolve to the same absolute path. The resolver follows
@@ -137,7 +137,7 @@ Services, lifecycle probes, optional Ollama, and collector agent tracing. `value
 `helm/schema-fixtures/` validate values. `mage helm:package` regenerates and
 checks prepared profiles, renders the supported matrix, writes
 `helm/dist/coding-agent-0.1.0.tgz`, verifies its complete inventory, and renders
-the archive independently. `CODING_AGENT_IMAGE` overrides the tag built by
+the archive independently. Setting `image` in `demo.yaml` overrides the tag built by
 `mage image:build`; the live smoke invokes that same Dockerfile rather than a
 smoke-only recipe. See the [deployment guide](docs/deployment.md), or run the
 bounded packaged-chart proof with `mage integration:helmSmoke`.

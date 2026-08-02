@@ -27,7 +27,7 @@ func TestObserverMonitorEndpoints(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	coreRoot := envOrDefault(agentCoreRootEnv, siblingPath(applicationRoot, "agent-core"))
+	coreRoot := demoCoreRoot(applicationRoot)
 	if !agentCoreAvailable(coreRoot) {
 		t.Skipf("agent-core checkout not found at %s", coreRoot)
 	}

@@ -73,7 +73,7 @@ helm install chatbot-mesh helm/dist/chatbot-mesh-*.tgz \
   -f helm/ci/kind-llm-values.yaml
 ```
 
-`HELM_PACKAGE_DIR=/path mage helm:package` overrides the output directory. The
+Setting `helm_dist` in `demo.yaml` overrides the output directory `mage helm:package` writes to. The
 package target prunes profile test fixtures and stages only the UX descriptor
 and built SPA, keeping the profiles ConfigMap below Kubernetes' size limit. It
 also rejects unclassified source files, validates the supported values matrix,
