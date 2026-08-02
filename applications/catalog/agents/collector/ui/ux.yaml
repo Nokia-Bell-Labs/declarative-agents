@@ -12,6 +12,11 @@ routes:
     label: Trace Detail
     action: get_trace
     resource: traces
+  - id: explore
+    path: /explore
+    label: Explore
+    action: span_stats
+    resource: spans
 actions:
   list_traces:
     ui_action: list_traces
@@ -21,3 +26,11 @@ actions:
     ui_action: get_trace
     request_machine_action: query_get_trace
     route: trace_detail
+  span_stats:
+    ui_action: span_stats
+    request_machine_action: query_span_stats
+    route: explore
+  span_breakdown:
+    ui_action: span_breakdown
+    request_machine_action: query_span_breakdown
+    route: explore

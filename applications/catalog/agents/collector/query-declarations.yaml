@@ -141,3 +141,80 @@ tools:
     config:
       path: ${COLLECTOR_METRICS_SPOOL_PATH:-metrics/collector.ndjson}
       metric_name: ""
+
+  - name: query_span_stats
+    type: builtin
+    init: spool_span_stats
+    category: boundary
+    visibility: internal
+    emits: [SpanStatsReady, CommandError]
+    description: Filter spooled spans and return a duration heatmap and group-by counts.
+    problem: An Explore panel needs an aggregate latency view over the trace spool without a separate analytics backend.
+    goals: [Bucket filtered spans into a duration-over-time heatmap, Count filtered spans grouped by an attribute with a reported dropped remainder]
+    requirements:
+      input: [Path, bucket shape, and caps come from trusted config; the filter, group_by, and top_n come from the request seed]
+      output: [Output includes heatmap, matched, groups, dropped_groups, dropped_span_total, skipped_lines]
+      errors: [An unreadable spool emits CommandError]
+    non_goals: [Does not mutate spans, Does not depend on an environment variable it introduces]
+    parameters: {type: object, properties: {}}
+    output:
+      description: A duration heatmap and optional group-by counts over filtered spans.
+      schema:
+        type: object
+        properties:
+          heatmap: {type: object}
+          matched: {type: integer}
+          skipped_lines: {type: integer}
+          group_by: {type: string}
+          groups: {type: array}
+          dropped_groups: {type: integer}
+          dropped_span_total: {type: integer}
+    side_effects:
+      - {kind: filesystem_read, target: collector trace spool, state: read_only}
+    reversibility: {classification: reversible, undo: noop}
+    undo: {strategy: noop, description: Reading a spool changes nothing.}
+    errors:
+      - {signal: CommandError, condition: spool path cannot be read, state_after_failure: no output is returned}
+    config:
+      path: ${COLLECTOR_SPOOL_PATH:-traces/collector.ndjson}
+      time_buckets: 24
+      duration_edges_ms: [0, 1, 10, 50, 100, 500, 1000, 5000]
+      group_by: ""
+      top_n: 20
+      max_top_n: 100
+
+  - name: query_span_breakdown
+    type: builtin
+    init: spool_span_breakdown
+    category: boundary
+    visibility: internal
+    emits: [SpanBreakdownReady, CommandError]
+    description: Rank the attributes that distinguish a selected span region from its complement.
+    problem: After spotting a slow region an operator needs to know which attribute values explain it.
+    goals: [Partition a baseline into a selection and its complement, Rank attribute values by concentration inside the selection]
+    requirements:
+      input: [Path and caps come from trusted config; the baseline and selection filters and top_n come from the request seed]
+      output: [Output includes inside_total, outside_total, ranked, dropped, skipped_lines]
+      errors: [An unreadable spool emits CommandError]
+    non_goals: [Does not mutate spans, Does not depend on an environment variable it introduces]
+    parameters: {type: object, properties: {}}
+    output:
+      description: The ranked attribute divergence between the selection and its complement.
+      schema:
+        type: object
+        properties:
+          inside_total: {type: integer}
+          outside_total: {type: integer}
+          ranked: {type: array}
+          dropped: {type: integer}
+          skipped_lines: {type: integer}
+    side_effects:
+      - {kind: filesystem_read, target: collector trace spool, state: read_only}
+    reversibility: {classification: reversible, undo: noop}
+    undo: {strategy: noop, description: Reading a spool changes nothing.}
+    errors:
+      - {signal: CommandError, condition: spool path cannot be read, state_after_failure: no output is returned}
+    config:
+      path: ${COLLECTOR_SPOOL_PATH:-traces/collector.ndjson}
+      top_n: 20
+      max_top_n: 100

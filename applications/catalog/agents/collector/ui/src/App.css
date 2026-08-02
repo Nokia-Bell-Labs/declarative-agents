@@ -308,3 +308,49 @@ tbody tr:hover {
   font-size: 10px;
   color: var(--text-tertiary);
 }
+
+/* Explore page */
+.explore-panels {
+  display: flex;
+  gap: 24px;
+  flex-wrap: wrap;
+  margin-top: 16px;
+}
+
+.panel {
+  flex: 1 1 320px;
+  min-width: 280px;
+}
+
+.heatmap {
+  user-select: none;
+  cursor: crosshair;
+  max-width: 100%;
+}
+
+.heatmap-cell {
+  stroke: var(--bg-primary);
+  stroke-width: 1;
+}
+
+.heatmap-cell-selected {
+  stroke: var(--accent);
+  stroke-width: 2;
+}
+
+.heatmap-label {
+  font-family: var(--font-mono);
+  font-size: 10px;
+  fill: var(--text-tertiary);
+}
+
+.exemplar-list {
+  list-style: none;
+  padding: 0;
+  margin: 0;
+}
+
+.exemplar-list li {
+  padding: 4px 0;
+  border-bottom: 1px solid var(--border);
+}

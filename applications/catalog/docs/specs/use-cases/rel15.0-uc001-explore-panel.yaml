@@ -1,0 +1,66 @@
+id: rel15.0-uc001-explore-panel
+title: An operator narrows a latency band to a responsible attribute and lands on a trace
+
+summary: |
+  An operator opens the collector Explore page. A duration-over-time heatmap
+  renders from /query/spans/stats. The operator drag-selects a slow band; the
+  page fetches /query/spans/breakdown for that region and shows the ranked
+  attributes that distinguish the selection from the rest, plus exemplar spans.
+  Clicking an exemplar opens the existing per-trace waterfall. The whole loop is
+  aggregate to selection to explanation to a single trace, same-origin with the
+  query API.
+
+actor: Operator browsing a deployed collector
+
+trigger: |
+  The collector is running with spooled spans, and the operator opens the
+  Explore page at the collector query origin.
+
+flow:
+  - F1: The Explore page requests GET /query/spans/stats with an optional filter; the collector runs spool_span_stats and returns a duration-over-time heatmap with axis boundaries and cell counts.
+  - F2: The page renders the heatmap; the operator drag-selects a rectangular region (a time span and a duration band).
+  - F3: The page requests GET /query/spans/breakdown with the selection as the selection filter and the current view as the baseline; the collector runs spool_span_breakdown and returns the ranked attribute divergence.
+  - F4: The page shows the ranked attributes (value, inside/outside counts, score) and a list of exemplar spans from the selection.
+  - F5: The operator clicks an exemplar span; the page navigates to the per-trace waterfall (R6) for that trace id.
+  - F6: With an empty spool, the heatmap and breakdown render an explicit empty state rather than an error.
+
+touchpoints:
+  - T1: "srd020-collector R8 -- /query/spans/stats and /query/spans/breakdown routes"
+  - T2: "srd020-collector R9 -- the Explore page, drag-select, ranked divergence, and waterfall links"
+  - T3: "srd045-span-analytics-tools -- the spool_span_stats and spool_span_breakdown tools the routes bind"
+  - T4: "srd020-collector R6 -- the per-trace waterfall the exemplars link into"
+
+success_criteria:
+  - id: S1
+    criterion: GET /query/spans/stats returns the pinned heatmap and group-by contract; the Explore page renders the heatmap from it.
+    traces:
+      - srd020-collector AC6
+      - srd020-collector AC8
+  - id: S2
+    criterion: A drag-selected region drives GET /query/spans/breakdown and the page shows the ranked attribute divergence for that selection.
+    traces:
+      - srd020-collector AC6
+      - srd020-collector AC8
+  - id: S3
+    criterion: An exemplar span links into the existing per-trace waterfall.
+    traces:
+      - srd020-collector AC8
+  - id: S4
+    criterion: An empty or absent spool yields a well-formed empty stats and breakdown response and an explicit empty UI state.
+    traces:
+      - srd020-collector AC7
+
+failure_scenarios:
+  - id: E1
+    scenario: The drag-selected region contains no span.
+    expected: The breakdown returns an empty ranking and the page shows an explicit empty state.
+  - id: E2
+    scenario: The spool is absent when the page loads.
+    expected: The stats route returns an empty heatmap and the page renders its empty state, not an error banner.
+
+out_of_scope:
+  - The agent-core span-analytics tools themselves (agent-core rel13.0).
+  - Metrics analytics or Dolt scraping.
+
+test_suite_trace: test-rel15.0-explore
+status: planned

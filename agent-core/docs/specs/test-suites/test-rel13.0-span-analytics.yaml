@@ -1,0 +1,151 @@
+id: test-rel13.0-span-analytics
+title: Test Suite for Release 13.0 Span Analytics Tools
+release: "13.0"
+
+traces:
+  - rel13.0-uc001-span-analytics
+
+preconditions:
+  - srd045-span-analytics-tools defines spool_span_stats and spool_span_breakdown behavior.
+  - srd044-spool-query-tools provides the spool read path and span shape the analytics reuse.
+  - Tests create spool files in temporary directories and do not require a running OTLP receiver.
+
+test_cases:
+  - use_case: rel13.0-uc001-span-analytics
+    name: Conjunctive filter selects exactly the matching spans
+    go_test: go test ./internal/tools/otlp -run TestSpanStatsFilterConjunction
+    status: implemented
+    description: |
+      A spool of spans across two services and two span names. A filter naming
+      one service, one span name, and one attribute equality matches only the
+      spans satisfying every term; changing any term changes the matched set.
+    inputs:
+      services: 2
+      filter: {service: svc-a, span_name: handle, attribute: {phase: parse}}
+    expected:
+      signal: SpanStatsReady
+      matched: exact conjunction
+    traces:
+      - rel13.0-uc001-span-analytics S1
+      - srd045-span-analytics-tools AC1
+
+  - use_case: rel13.0-uc001-span-analytics
+    name: Empty filter matches every span
+    go_test: go test ./internal/tools/otlp -run TestSpanStatsEmptyFilterMatchesAll
+    status: implemented
+    description: |
+      With no filter terms, the matched total equals the count of valid spans in
+      the spool.
+    inputs:
+      filter: {}
+    expected:
+      signal: SpanStatsReady
+      matched: all valid spans
+    traces:
+      - srd045-span-analytics-tools AC1
+
+  - use_case: rel13.0-uc001-span-analytics
+    name: Heatmap grid cell counts sum to the matched total
+    go_test: go test ./internal/tools/otlp -run TestSpanStatsHeatmapGrid
+    status: implemented
+    description: |
+      Spans with known start times and durations bucket into a time-by-duration
+      grid. The sum of all cell counts equals the matched total, the reported
+      time and duration boundaries are monotonic, and a duration at or above the
+      last boundary lands in the overflow bucket.
+    inputs:
+      time_buckets: 4
+      duration_boundaries_ms: [0, 10, 100, 1000]
+    expected:
+      signal: SpanStatsReady
+      cell_sum_equals_matched: true
+    traces:
+      - rel13.0-uc001-span-analytics S1
+      - srd045-span-analytics-tools AC2
+
+  - use_case: rel13.0-uc001-span-analytics
+    name: Group-by counts are ordered and capped with a dropped remainder
+    go_test: go test ./internal/tools/otlp -run TestSpanStatsGroupByTopN
+    status: implemented
+    description: |
+      Spans across five distinct attribute values with different counts. A
+      group_by on that attribute with top_n 3 returns the three highest-count
+      values ordered by count then value, and reports two dropped groups plus
+      the span total they cover.
+    inputs:
+      distinct_values: 5
+      group_by: tool.name
+      top_n: 3
+    expected:
+      signal: SpanStatsReady
+      returned_groups: 3
+      dropped_groups: 2
+    traces:
+      - rel13.0-uc001-span-analytics S2
+      - srd045-span-analytics-tools AC3
+
+  - use_case: rel13.0-uc001-span-analytics
+    name: Breakdown ranks attributes that distinguish the selection
+    go_test: go test ./internal/tools/otlp -run TestSpanBreakdownDivergenceRanking
+    status: implemented
+    description: |
+      A baseline of spans where one attribute value is concentrated in a slow
+      selection. spool_span_breakdown ranks that value first with inside and
+      outside counts, inside and outside proportions, and a deterministic score,
+      capped at top_n with a dropped count.
+    inputs:
+      baseline_filter: {}
+      selection_filter: {min_duration_ms: 500}
+      top_n: 5
+    expected:
+      signal: SpanBreakdownReady
+      top_ranked: the concentrated value
+    traces:
+      - rel13.0-uc001-span-analytics S3
+      - srd045-span-analytics-tools AC4
+
+  - use_case: rel13.0-uc001-span-analytics
+    name: Empty selection yields an empty ranking
+    go_test: go test ./internal/tools/otlp -run TestSpanBreakdownEmptySelection
+    status: implemented
+    description: |
+      A selection filter that matches no span produces SpanBreakdownReady with
+      an empty ranking rather than an error.
+    inputs:
+      selection_filter: {service: nonexistent}
+    expected:
+      signal: SpanBreakdownReady
+      ranked: 0
+    traces:
+      - srd045-span-analytics-tools AC4
+
+  - use_case: rel13.0-uc001-span-analytics
+    name: Malformed lines are skipped, absent spool is empty, output is deterministic
+    go_test: go test ./internal/tools/otlp -run TestSpanStatsMalformedAndDeterministic
+    status: implemented
+    description: |
+      A spool with two malformed lines and valid spans reports skipped_lines 2;
+      an absent spool returns an empty result; two runs over the same spool and
+      config return byte-identical output.
+    inputs:
+      malformed_lines: 2
+    expected:
+      signal: SpanStatsReady
+      skipped_lines: 2
+      deterministic: true
+    traces:
+      - srd045-span-analytics-tools AC5
+
+  - use_case: rel13.0-uc001-span-analytics
+    name: Missing spool path emits CommandError
+    go_test: go test ./internal/tools/otlp -run TestSpanStatsEmptyPathError
+    status: implemented
+    description: |
+      A spool_span_stats with an empty path config emits CommandError before any
+      aggregation runs.
+    inputs:
+      path: ""
+    expected:
+      signal: CommandError
+    traces:
+      - srd045-span-analytics-tools AC5
