@@ -16,6 +16,7 @@ import (
 var StandardInits = []string{
 	InitReceiverLaunch, InitAwaitSpans, InitLoadOTLPBatch, InitSpoolSpans, InitRelaySpans, InitReceiverStop,
 	InitSpoolListTraces, InitSpoolGetTrace,
+	InitSpoolSpanStats, InitSpoolSpanBreakdown,
 	InitAwaitMetrics, InitSpoolMetrics,
 	InitSpoolListMetrics, InitSpoolGetMetric,
 }
@@ -104,6 +105,10 @@ func RegisterFactories(br *toolregistry.BuiltinRegistry, state *State) {
 			br.Register(init, queryListFactory())
 		case InitSpoolGetTrace:
 			br.Register(init, queryGetFactory())
+		case InitSpoolSpanStats:
+			br.Register(init, spanStatsFactory())
+		case InitSpoolSpanBreakdown:
+			br.Register(init, spanBreakdownFactory())
 		case InitAwaitMetrics:
 			br.Register(init, metricAwaitFactory(state))
 		case InitSpoolMetrics:

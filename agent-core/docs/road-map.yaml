@@ -506,21 +506,21 @@ releases:
       Both are read-only, tolerate malformed lines, treat an absent spool as
       empty, take all configuration without environment variables, and produce
       deterministic output.
-    status: planned
+    status: implemented
     planned_work:
       - id: gh-1240
         summary: Add span-analytics builtin tools (agent-core release 13.0).
-        status: planned
+        status: done
     srds:
       - srd045-span-analytics-tools
     use_cases:
       - id: rel13.0-uc001-span-analytics
         summary: Aggregate reads turn a spool into a latency heatmap and a divergence ranking
-        status: planned
+        status: implemented
     test_suites:
       - id: test-rel13.0-span-analytics
         summary: Filtering, heatmap bucketing, group-by top-N, divergence ranking, determinism, and error paths.
-        status: planned
+        status: implemented
     proof:
       - go test ./internal/tools/otlp -run 'TestSpanStats|TestSpanBreakdown'
       - mage audit

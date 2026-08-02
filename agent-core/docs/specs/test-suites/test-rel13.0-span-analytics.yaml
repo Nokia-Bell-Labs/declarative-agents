@@ -13,8 +13,8 @@ preconditions:
 test_cases:
   - use_case: rel13.0-uc001-span-analytics
     name: Conjunctive filter selects exactly the matching spans
-    integration_target: go test ./internal/tools/otlp -run TestSpanStatsFilterConjunction
-    status: planned
+    go_test: go test ./internal/tools/otlp -run TestSpanStatsFilterConjunction
+    status: implemented
     description: |
       A spool of spans across two services and two span names. A filter naming
       one service, one span name, and one attribute equality matches only the
@@ -31,8 +31,8 @@ test_cases:
 
   - use_case: rel13.0-uc001-span-analytics
     name: Empty filter matches every span
-    integration_target: go test ./internal/tools/otlp -run TestSpanStatsEmptyFilterMatchesAll
-    status: planned
+    go_test: go test ./internal/tools/otlp -run TestSpanStatsEmptyFilterMatchesAll
+    status: implemented
     description: |
       With no filter terms, the matched total equals the count of valid spans in
       the spool.
@@ -46,8 +46,8 @@ test_cases:
 
   - use_case: rel13.0-uc001-span-analytics
     name: Heatmap grid cell counts sum to the matched total
-    integration_target: go test ./internal/tools/otlp -run TestSpanStatsHeatmapGrid
-    status: planned
+    go_test: go test ./internal/tools/otlp -run TestSpanStatsHeatmapGrid
+    status: implemented
     description: |
       Spans with known start times and durations bucket into a time-by-duration
       grid. The sum of all cell counts equals the matched total, the reported
@@ -65,8 +65,8 @@ test_cases:
 
   - use_case: rel13.0-uc001-span-analytics
     name: Group-by counts are ordered and capped with a dropped remainder
-    integration_target: go test ./internal/tools/otlp -run TestSpanStatsGroupByTopN
-    status: planned
+    go_test: go test ./internal/tools/otlp -run TestSpanStatsGroupByTopN
+    status: implemented
     description: |
       Spans across five distinct attribute values with different counts. A
       group_by on that attribute with top_n 3 returns the three highest-count
@@ -86,8 +86,8 @@ test_cases:
 
   - use_case: rel13.0-uc001-span-analytics
     name: Breakdown ranks attributes that distinguish the selection
-    integration_target: go test ./internal/tools/otlp -run TestSpanBreakdownDivergenceRanking
-    status: planned
+    go_test: go test ./internal/tools/otlp -run TestSpanBreakdownDivergenceRanking
+    status: implemented
     description: |
       A baseline of spans where one attribute value is concentrated in a slow
       selection. spool_span_breakdown ranks that value first with inside and
@@ -106,8 +106,8 @@ test_cases:
 
   - use_case: rel13.0-uc001-span-analytics
     name: Empty selection yields an empty ranking
-    integration_target: go test ./internal/tools/otlp -run TestSpanBreakdownEmptySelection
-    status: planned
+    go_test: go test ./internal/tools/otlp -run TestSpanBreakdownEmptySelection
+    status: implemented
     description: |
       A selection filter that matches no span produces SpanBreakdownReady with
       an empty ranking rather than an error.
@@ -121,8 +121,8 @@ test_cases:
 
   - use_case: rel13.0-uc001-span-analytics
     name: Malformed lines are skipped, absent spool is empty, output is deterministic
-    integration_target: go test ./internal/tools/otlp -run TestSpanStatsMalformedAndDeterministic
-    status: planned
+    go_test: go test ./internal/tools/otlp -run TestSpanStatsMalformedAndDeterministic
+    status: implemented
     description: |
       A spool with two malformed lines and valid spans reports skipped_lines 2;
       an absent spool returns an empty result; two runs over the same spool and
@@ -138,8 +138,8 @@ test_cases:
 
   - use_case: rel13.0-uc001-span-analytics
     name: Missing spool path emits CommandError
-    integration_target: go test ./internal/tools/otlp -run TestSpanStatsEmptyPathError
-    status: planned
+    go_test: go test ./internal/tools/otlp -run TestSpanStatsEmptyPathError
+    status: implemented
     description: |
       A spool_span_stats with an empty path config emits CommandError before any
       aggregation runs.

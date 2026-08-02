@@ -473,6 +473,165 @@ tools:
     path: traces/collector.ndjson
     trace_id: ""
 
+- name: spool_span_stats
+  type: builtin
+  init: spool_span_stats
+  category: boundary
+  visibility: internal
+  emits: [SpanStatsReady, CommandError]
+  description: Filter spooled spans and return a duration-over-time heatmap and group-by counts.
+  problem: An Explore panel needs an aggregate latency view over the spool -- where the time is spent and how a slice breaks down by an attribute -- without a separate analytics backend.
+  goals:
+  - Filter spans by time, service, name, and attribute equality, then bucket them into a duration-over-time heatmap.
+  - Count filtered spans grouped by an attribute, reporting the dropped remainder rather than truncating silently.
+  requirements:
+    input:
+    - Spool path, time-bucket count, duration bucket edges, group-by key, and caps come from trusted config; the filter, group-by, and top-N arrive per request.
+    output:
+    - Output includes the heatmap grid with axis boundaries, the matched span count, group-by counts, the dropped group and span totals, and skipped line count.
+    side_effects:
+    - Read-only file access.
+    errors:
+    - Unreadable spool path emits CommandError.
+  non_goals:
+  - Does not mutate, rotate, or delete spool files.
+  - Does not depend on any environment variable.
+  parameters:
+    type: object
+    properties:
+      start_ms: {type: integer}
+      end_ms: {type: integer}
+      service: {type: string}
+      span_name: {type: string}
+      min_duration_ms: {type: integer}
+      max_duration_ms: {type: integer}
+      attributes: {type: object}
+      time_buckets: {type: integer}
+      group_by: {type: string}
+      top_n: {type: integer}
+  output:
+    description: A duration-over-time heatmap and optional group-by counts over the filtered spans.
+    schema:
+      type: object
+      properties:
+        heatmap:
+          type: object
+          properties:
+            time_bucket_boundaries: {type: array, items: {type: integer}}
+            duration_bucket_boundaries: {type: array, items: {type: integer}}
+            cells: {type: array, items: {type: array, items: {type: integer}}}
+          required: [time_bucket_boundaries, duration_bucket_boundaries, cells]
+        matched: {type: integer}
+        skipped_lines: {type: integer}
+        group_by: {type: string}
+        groups:
+          type: array
+          items:
+            type: object
+            properties:
+              value: {type: string}
+              count: {type: integer}
+        dropped_groups: {type: integer}
+        dropped_span_total: {type: integer}
+      required: [heatmap, matched, skipped_lines]
+  side_effects:
+  - kind: filesystem_read
+    target: configured spool path and rotated files
+    state: read_only
+  reversibility:
+    classification: reversible
+    undo: noop
+  undo:
+    strategy: noop
+    description: Reading a spool changes nothing.
+  errors:
+  - signal: CommandError
+    condition: the configured spool path cannot be read
+    message_shape: 'tool <name>: <cause>'
+    state_after_failure: no output is returned
+  relationships:
+    after: [spool_spans]
+  config:
+    path: traces/collector.ndjson
+    time_buckets: 24
+    duration_edges_ms: [0, 1, 10, 50, 100, 500, 1000, 5000]
+    group_by: ""
+    top_n: 20
+    max_top_n: 100
+
+- name: spool_span_breakdown
+  type: builtin
+  init: spool_span_breakdown
+  category: boundary
+  visibility: internal
+  emits: [SpanBreakdownReady, CommandError]
+  description: Rank the attributes that most distinguish a selected span region from its complement.
+  problem: After spotting a slow region in the heatmap, an operator needs to know which attribute values explain it, without guessing which dimension to group by.
+  goals:
+  - Partition a baseline span set into a selection and its complement, then rank attribute values by their concentration inside the selection.
+  - Report inside and outside counts and a deterministic divergence score, capped with a dropped remainder.
+  requirements:
+    input:
+    - Spool path and caps come from trusted config; the baseline and selection filters and top-N arrive per request.
+    output:
+    - Output includes inside and outside totals, the ranked attribute divergences, the dropped count, and skipped line count.
+    side_effects:
+    - Read-only file access.
+    errors:
+    - Unreadable spool path emits CommandError.
+  non_goals:
+  - Does not mutate, rotate, or delete spool files.
+  - Does not depend on any environment variable.
+  parameters:
+    type: object
+    properties:
+      baseline: {type: object}
+      selection: {type: object}
+      top_n: {type: integer}
+  output:
+    description: The ranked attribute divergence between the selection and its complement.
+    schema:
+      type: object
+      properties:
+        inside_total: {type: integer}
+        outside_total: {type: integer}
+        ranked:
+          type: array
+          items:
+            type: object
+            properties:
+              key: {type: string}
+              value: {type: string}
+              inside_count: {type: integer}
+              outside_count: {type: integer}
+              inside_proportion: {type: number}
+              outside_proportion: {type: number}
+              score: {type: number}
+        dropped: {type: integer}
+        skipped_lines: {type: integer}
+      required: [inside_total, outside_total, ranked, dropped, skipped_lines]
+  side_effects:
+  - kind: filesystem_read
+    target: configured spool path and rotated files
+    state: read_only
+  reversibility:
+    classification: reversible
+    undo: noop
+  undo:
+    strategy: noop
+    description: Reading a spool changes nothing.
+  errors:
+  - signal: CommandError
+    condition: the configured spool path cannot be read
+    message_shape: 'tool <name>: <cause>'
+    state_after_failure: no output is returned
+  relationships:
+    after: [spool_spans]
+  config:
+    path: traces/collector.ndjson
+    top_n: 20
+    max_top_n: 100
+
 - name: await_metrics
   type: builtin
   init: await_metrics
