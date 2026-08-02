@@ -93,7 +93,7 @@ func (Integration) HelmSmoke() error {
 	if err != nil {
 		return err
 	}
-	coreRoot := envOrDefault(agentCoreRootEnv, siblingPath(profilesRoot, "agent-core"))
+	coreRoot := demoCoreRoot(profilesRoot)
 	chartDir := applicationChartDir(profilesRoot)
 	if err := requireProfilePaths(profilesRoot,
 		"agents/chatbot/profile.yaml", "agents/chatbot/rest.yaml",
@@ -121,7 +121,7 @@ func helmSmokeSkipReason(profilesRoot, coreRoot string) string {
 		}
 	}
 	if !agentCoreAvailable(coreRoot) {
-		return fmt.Sprintf("agent-core checkout not found at %s (set %s)", coreRoot, agentCoreRootEnv)
+		return fmt.Sprintf("agent-core checkout not found at %s (set core_root in demo.yaml)", coreRoot)
 	}
 	return chatbotOllamaSkipReason(profilesRoot)
 }
@@ -925,7 +925,7 @@ func (Integration) HelmSwap() error {
 	if err != nil {
 		return err
 	}
-	coreRoot := envOrDefault(agentCoreRootEnv, siblingPath(profilesRoot, "agent-core"))
+	coreRoot := demoCoreRoot(profilesRoot)
 	chartDir := applicationChartDir(profilesRoot)
 	if _, err := os.Stat(filepath.Join(chartDir, "Chart.yaml")); err != nil {
 		return fmt.Errorf("chatbot-mesh chart not found at %s: %w", chartDir, err)
@@ -937,7 +937,7 @@ func (Integration) HelmSwap() error {
 		}
 	}
 	if !agentCoreAvailable(coreRoot) {
-		fmt.Printf("SKIP helmSwap: agent-core checkout not found at %s (set %s)\n", coreRoot, agentCoreRootEnv)
+		fmt.Printf("SKIP helmSwap: agent-core checkout not found at %s (set core_root in demo.yaml)\n", coreRoot)
 		return nil
 	}
 	return runHelmSwap(coreRoot, profilesRoot, chartDir)
@@ -1204,7 +1204,7 @@ func (Integration) HelmLLMTier() error {
 	if err != nil {
 		return err
 	}
-	coreRoot := envOrDefault(agentCoreRootEnv, siblingPath(profilesRoot, "agent-core"))
+	coreRoot := demoCoreRoot(profilesRoot)
 	chartDir := applicationChartDir(profilesRoot)
 	if _, err := os.Stat(filepath.Join(chartDir, "Chart.yaml")); err != nil {
 		return fmt.Errorf("chatbot-mesh chart not found at %s: %w", chartDir, err)
@@ -1216,7 +1216,7 @@ func (Integration) HelmLLMTier() error {
 		}
 	}
 	if !agentCoreAvailable(coreRoot) {
-		fmt.Printf("SKIP helmLLMTier: agent-core checkout not found at %s (set %s)\n", coreRoot, agentCoreRootEnv)
+		fmt.Printf("SKIP helmLLMTier: agent-core checkout not found at %s (set core_root in demo.yaml)\n", coreRoot)
 		return nil
 	}
 	return runHelmLLMTier(coreRoot, profilesRoot, chartDir)

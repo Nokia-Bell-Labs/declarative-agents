@@ -45,7 +45,7 @@ func (Integration) Chroma() error {
 	if err != nil {
 		return err
 	}
-	coreRoot := envOrDefault(agentCoreRootEnv, siblingPath(profilesRoot, "agent-core"))
+	coreRoot := demoCoreRoot(profilesRoot)
 	if err := requireProfilePaths(profilesRoot, chromaIngestProfile, corpusRestAsset); err != nil {
 		return err
 	}
@@ -74,9 +74,9 @@ func Seed() error {
 	if err != nil {
 		return err
 	}
-	coreRoot := envOrDefault(agentCoreRootEnv, siblingPath(profilesRoot, "agent-core"))
+	coreRoot := demoCoreRoot(profilesRoot)
 	if !agentCoreAvailable(coreRoot) {
-		fmt.Printf("SKIP seed: agent-core checkout not found at %s (set %s)\n", coreRoot, agentCoreRootEnv)
+		fmt.Printf("SKIP seed: agent-core checkout not found at %s (set core_root in demo.yaml)\n", coreRoot)
 		return nil
 	}
 	if err := requireProfilePaths(profilesRoot, chromaIngestProfile, corpusRestAsset); err != nil {

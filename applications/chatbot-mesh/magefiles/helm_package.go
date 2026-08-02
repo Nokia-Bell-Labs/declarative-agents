@@ -16,8 +16,6 @@ import (
 	"github.com/magefile/mage/mg"
 )
 
-const helmPackageDirEnv = "HELM_PACKAGE_DIR"
-
 var chatbotChartSourceFiles = []string{
 	".helmignore",
 	"Chart.yaml",
@@ -68,7 +66,7 @@ func (Helm) Package() error {
 	if err != nil {
 		return err
 	}
-	destination := envOrDefault(helmPackageDirEnv, filepath.Join(root, "helm", "dist"))
+	destination := demoHelmDist(root)
 	return packageHelmChart(filepath.Join(root, "helm"), root, destination)
 }
 

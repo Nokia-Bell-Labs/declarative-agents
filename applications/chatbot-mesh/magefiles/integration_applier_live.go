@@ -106,7 +106,7 @@ func (Integration) ApplierLive() error {
 	if err != nil {
 		return err
 	}
-	coreRoot := envOrDefault(agentCoreRootEnv, siblingPath(profilesRoot, "agent-core"))
+	coreRoot := demoCoreRoot(profilesRoot)
 	if reason := applierLiveSkipReason(coreRoot); reason != "" {
 		fmt.Printf("SKIP applierLive: %s\n", reason)
 		return nil
@@ -124,7 +124,7 @@ func applierLiveSkipReason(coreRoot string) string {
 		}
 	}
 	if !agentCoreAvailable(coreRoot) {
-		return fmt.Sprintf("agent-core checkout not found at %s (set %s)", coreRoot, agentCoreRootEnv)
+		return fmt.Sprintf("agent-core checkout not found at %s (set core_root in demo.yaml)", coreRoot)
 	}
 	return ""
 }

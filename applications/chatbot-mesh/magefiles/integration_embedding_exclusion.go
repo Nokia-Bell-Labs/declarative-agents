@@ -99,7 +99,7 @@ func (Integration) EmbeddingExclusion() error {
 	if err != nil {
 		return err
 	}
-	coreRoot := envOrDefault("AGENT_CORE_ROOT", siblingPath(applicationRoot, "agent-core"))
+	coreRoot := demoCoreRoot(applicationRoot)
 	if !agentCoreAvailable(coreRoot) {
 		fmt.Printf("SKIP integration:embeddingExclusion: agent-core checkout not found at %s\n", coreRoot)
 		return nil

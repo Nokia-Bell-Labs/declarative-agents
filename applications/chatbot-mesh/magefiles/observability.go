@@ -115,9 +115,9 @@ func startCollector() error {
 	if err != nil {
 		return fmt.Errorf("resolve collector working directory: %w", err)
 	}
-	coreRoot := envOrDefault(agentCoreRootEnv, siblingPath(root, "agent-core"))
+	coreRoot := demoCoreRoot(root)
 	if !agentCoreAvailable(coreRoot) {
-		return fmt.Errorf("agent-core checkout not found at %s; set %s", coreRoot, agentCoreRootEnv)
+		return fmt.Errorf("agent-core checkout not found at %s; set core_root in demo.yaml", coreRoot)
 	}
 	catalogRoot, err := resolveCatalogRoot("observability collector", root)
 	if err != nil {

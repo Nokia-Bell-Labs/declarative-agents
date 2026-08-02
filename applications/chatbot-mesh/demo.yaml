@@ -1,0 +1,18 @@
+# chatbot-mesh demo configuration.
+#
+# Every setting is optional and declarative — the magefiles read it here, never
+# from an environment variable. With every key commented out (the shipped state)
+# the targets run zero-configuration against the monorepo layout. Uncomment a key
+# to override it; relative paths are resolved from this application directory.
+#
+# The DA_* collector and integration variables are a separate injection contract
+# (GH-1251) and are not configured here.
+
+# agent-core checkout the runtime binary and specification-critic tools build from.
+# core_root: ../../agent-core
+
+# Chart package output directory for `mage helm:package`.
+# helm_dist: helm/dist
+
+# Specification-critic validator profile the self-governance audit runs.
+# spec_critic_profile: ../catalog/agents/specification-critic/profile.yaml
