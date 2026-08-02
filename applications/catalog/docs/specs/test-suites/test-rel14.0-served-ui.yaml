@@ -1,0 +1,95 @@
+id: test-rel14.0-served-ui
+title: Test Suite for Release 14.0 Served Collector Trace UI
+release: "14.0"
+
+traces:
+  - rel14.0-uc001-served-trace-ui
+
+preconditions:
+  - srd020-collector R7 defines the served UI on the collector_query server.
+  - The collector family ships a built ui/dist tree (srd020-collector R6).
+  - The agent-core binary is built and available via RequireCoreRoot.
+
+test_cases:
+  - use_case: rel14.0-uc001-served-trace-ui
+    name: Query origin serves the SPA index at root
+    integration_target: go test ./conformance -run TestCollectorServesUIIndex
+    status: planned
+    description: |
+      Launch the collector and GET / on the query origin. Assert a 200 with an
+      HTML content type and the SPA index document body.
+    inputs:
+      request: GET /
+    expected:
+      status: 200
+      content_type: text/html
+    traces:
+      - rel14.0-uc001-served-trace-ui S1
+      - srd020-collector AC4
+
+  - use_case: rel14.0-uc001-served-trace-ui
+    name: Deep link resolves to the SPA index
+    integration_target: go test ./conformance -run TestCollectorServesUIDeepLink
+    status: planned
+    description: |
+      GET /traces/trace-aaa (a client-router path, not a file) returns the SPA
+      index document with a 200, so the client can render the waterfall route.
+    inputs:
+      request: GET /traces/trace-aaa
+    expected:
+      status: 200
+      content_type: text/html
+      body: SPA index
+    traces:
+      - rel14.0-uc001-served-trace-ui S2
+      - srd020-collector AC4
+
+  - use_case: rel14.0-uc001-served-trace-ui
+    name: Query API is unaffected by the static_assets catch-all
+    integration_target: go test ./conformance -run TestCollectorQueryUnaffectedByUI
+    status: planned
+    description: |
+      With the UI served, GET /query/traces still returns the pinned JSON
+      contract and GET /query/traces/{trace_id} still returns span detail; the
+      static_assets catch-all never intercepts a /query/* path.
+    inputs:
+      spool: seeded two-trace fixture
+      requests: [GET /query/traces, GET /query/traces/trace-aaa]
+    expected:
+      status: 200
+      summary_keys: [duration_ms, root_service, root_span_name, span_count, start_time, trace_id]
+    traces:
+      - rel14.0-uc001-served-trace-ui S3
+      - srd020-collector AC4
+
+  - use_case: rel14.0-uc001-served-trace-ui
+    name: Missing UI root yields an explicit error
+    integration_target: go test ./conformance -run TestCollectorMissingUIRoot
+    status: planned
+    description: |
+      Launch the collector with the static_assets root pointing at an absent
+      directory. GET / answers an explicit HTTP error status, not a 200 with an
+      empty body, and /query/* still works.
+    inputs:
+      ui_root: absent directory
+      request: GET /
+    expected:
+      status: explicit error (not 200, not empty body)
+    traces:
+      - rel14.0-uc001-served-trace-ui S4
+      - srd020-collector AC5
+
+  - use_case: rel14.0-uc001-served-trace-ui
+    name: UI root is a literal profile path with no new environment variable
+    integration_target: go test ./conformance -run TestCollectorUIRootLiteral
+    status: planned
+    description: |
+      The collector rest.yaml static_assets root is a literal path resolved
+      relative to the profile directory, with no ${VAR} expansion. Assert the
+      shipped rest.yaml declares no new environment variable for the UI root.
+    inputs:
+      file: agents/collector/rest.yaml
+    expected:
+      new_ui_env_var: none
+    traces:
+      - srd020-collector AC5

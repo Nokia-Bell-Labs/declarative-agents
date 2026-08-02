@@ -13,6 +13,7 @@ goals:
   - G1: Provide a canonical collector family in the catalog generalized from the mesh profile.
   - G2: Default to spool mode so a standalone collector works without a relay endpoint.
   - G3: Cover the family with deterministic conformance tests exercising the agent-core OTLP builtins.
+  - G4: Serve the shipped trace UI from the collector itself, so every collector deployment browses its own spool without a separate UI workload.
 
 requirements:
   R1:
@@ -55,6 +56,15 @@ requirements:
       - R6.1: The collector family SHALL ship a ui/ directory with a React SPA rendering trace list and per-trace waterfall from the collector_query surface.
       - R6.2: The UI SHALL vendor the canonical design-token block and join the root uiDist reproducibility gate.
 
+  R7:
+    title: Served UI
+    items:
+      - R7.1: The collector_query server SHALL serve the shipped ui/dist tree through a static_assets endpoint with spa true, so the UI is reachable at the same origin as /query/*.
+      - R7.2: The UI index SHALL answer GET / and SPA deep links (for example /traces/{trace_id}) SHALL resolve to the index document so the client router renders the requested view.
+      - R7.3: The /query/* API endpoints SHALL take precedence over the static_assets catch-all; serving the UI SHALL NOT alter any /query/* response body or status.
+      - R7.4: The static_assets root SHALL be a literal path declared in the collector REST configuration, resolved relative to the profile directory; it SHALL NOT be introduced as a new environment variable.
+      - R7.5: When the configured UI root is absent, the server SHALL answer with an explicit HTTP error status, not a silent empty body.
+
 non_goals:
   - Removing the mesh collector or changing the mesh deployment to reference the catalog family.
   - Metrics ingress or Dolt scraping.
@@ -71,6 +81,14 @@ acceptance_criteria:
   - id: AC3
     criterion: The relay endpoint config has no default; the decide predicate defaults COLLECTOR_MODE to spool.
     traces: [R1.2, R1.3]
+
+  - id: AC4
+    criterion: The collector_query server serves the UI index at / and resolves SPA deep links to that index, at the same origin as the query API, and no /query/* response changes.
+    traces: [R7.1, R7.2, R7.3]
+
+  - id: AC5
+    criterion: The UI root is a literal profile-declared path with no new environment variable, and a missing UI root yields an explicit error status rather than a blank page.
+    traces: [R7.4, R7.5]
 
 depends_on:
   - srd_id: srd042-otlp-receiver-tools
