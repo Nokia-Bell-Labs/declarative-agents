@@ -72,7 +72,7 @@ func TestCheckPreflightRequiresDockerDaemonOnLinux(t *testing.T) {
 		return nil, errors.New("unexpected command")
 	}
 	_, err := CheckPreflight(context.Background(), run, "linux")
-	if err == nil || !strings.Contains(err.Error(), "Docker daemon unavailable") {
+	if err == nil || !strings.Contains(err.Error(), "Docker daemon is unavailable") {
 		t.Fatalf("daemon error = %v", err)
 	}
 }
@@ -93,7 +93,7 @@ func TestCheckPreflightRejectsOldVersionAndSmallDockerDesktop(t *testing.T) {
 	t.Run("small Docker Desktop", func(t *testing.T) {
 		run := healthyPreflightRunner("2 4294967296")
 		_, err := CheckPreflight(context.Background(), run, "darwin")
-		if err == nil || !strings.Contains(err.Error(), "below required") {
+		if err == nil || !strings.Contains(err.Error(), "below the required") {
 			t.Fatalf("resource error = %v", err)
 		}
 	})

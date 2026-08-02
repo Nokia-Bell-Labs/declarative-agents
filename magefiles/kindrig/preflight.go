@@ -103,7 +103,7 @@ func CheckPreflight(ctx context.Context, run HostRunner, goos string) (Preflight
 	output, err := run(commandCtx, "docker", "info", "--format", "{{.NCPU}} {{.MemTotal}}")
 	cancel()
 	if err != nil {
-		return report, fmt.Errorf("Docker daemon unavailable: %w: %s",
+		return report, fmt.Errorf("the Docker daemon is unavailable: %w: %s",
 			err, strings.TrimSpace(string(output)))
 	}
 	if goos == "darwin" {
@@ -120,7 +120,7 @@ func CheckPreflight(ctx context.Context, run HostRunner, goos string) (Preflight
 		report.MemoryGiB = float64(memory) / (1 << 30)
 		if cpus < MinimumDockerCPUs || report.MemoryGiB < MinimumDockerMemoryGiB {
 			return report, fmt.Errorf(
-				"Docker Desktop resources %.1f GiB/%d CPUs are below required %d GiB/%d CPUs",
+				"the Docker Desktop resources %.1f GiB/%d CPUs are below the required %d GiB/%d CPUs",
 				report.MemoryGiB, cpus, MinimumDockerMemoryGiB, MinimumDockerCPUs)
 		}
 	}

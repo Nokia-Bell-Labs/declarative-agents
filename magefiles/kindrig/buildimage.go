@@ -27,7 +27,7 @@ func BuildAgentCoreImage(coreRoot, image string) error {
 	if err != nil {
 		return err
 	}
-	defer os.RemoveAll(ctxDir)
+	defer func() { _ = os.RemoveAll(ctxDir) }()
 
 	build := exec.Command("go", "build", "-tags", "production", "-trimpath",
 		"-ldflags=-s -w", "-o", filepath.Join(ctxDir, "agent"), "./cmd/agent")
@@ -84,7 +84,7 @@ func copyTreeContents(src, dst string) error {
 		if err != nil {
 			return err
 		}
-		defer source.Close()
+		defer func() { _ = source.Close() }()
 		if err := os.MkdirAll(filepath.Dir(target), 0o755); err != nil {
 			return err
 		}
@@ -92,7 +92,7 @@ func copyTreeContents(src, dst string) error {
 		if err != nil {
 			return err
 		}
-		defer destination.Close()
+		defer func() { _ = destination.Close() }()
 		_, err = io.Copy(destination, source)
 		return err
 	})
