@@ -1,0 +1,50 @@
+id: rel99.0-uc001-observer-family
+title: The observer is a catalog-owned family adopted across applications
+
+summary: |
+  The fleet observer becomes a catalog-owned family generalized from the
+  chatbot-mesh observer: its namespace and label selector are parameterized so
+  each application binds it against its own release. Coding-agent and
+  agent-architecture adopt the family by reference, and the chatbot-mesh
+  observer rebinds to it, following the collector's mesh-to-catalog promotion.
+
+actor: Application author adopting the catalog observer family
+
+trigger: |
+  An application needs a fleet-level view of its mesh and binds the catalog
+  observer family against its release selector instead of forking the profile.
+
+flow:
+  - F1: The catalog carries the generalized observer-family SRD (srd021) with parameterized namespace and label selector defaults.
+  - F2: The family carries the mesh observer's topology discovery, monitor fan-in, resource usage, and served fleet UX forward as generalized requirements.
+  - F3: An adopting application deploys the family as a workload pointed at its own release selector and namespace, without forking the profile.
+  - F4: The chatbot-mesh observer rebinds to the catalog family, retaining the descriptive observer actor name.
+  - F5: The adoption implementation adds the bindings.catalog and deployment_realizations rows once the catalog observer profile and per-application workloads exist.
+
+touchpoints:
+  - T1: "srd021-observer R1 -- generalized namespace and label selector defaults, no new environment variable"
+  - T2: "srd021-observer R3 -- carried topology, fan-in, resource, and served-UX capabilities"
+  - T3: "srd021-observer R4 -- coding-agent, agent-architecture, and chatbot-mesh adoption"
+  - T4: "srd008-observer-agent -- the mesh observer the family generalizes"
+
+success_criteria:
+  - id: S1
+    criterion: The catalog carries a generalized observer-family SRD with parameterized namespace and label selector and no new environment variable.
+    traces:
+      - srd021-observer AC1
+  - id: S2
+    criterion: The family carries topology discovery, monitor fan-in, resource usage, and the served fleet UX forward from the mesh observer.
+    traces:
+      - srd021-observer AC2
+  - id: S3
+    criterion: The specification names the adopters and defers realization rows to the adoption implementation because the inventory gate requires existing profile paths.
+    traces:
+      - srd021-observer AC3
+
+out_of_scope:
+  - Shipping the catalog observer profile, tools, and UX.
+  - Prose-editor adoption (follows its own observability SRD work).
+  - Trace intake or metrics scraping (collector, srd020).
+
+test_suite_trace: test-rel99.0-observer
+status: planned

@@ -168,3 +168,17 @@ releases:
       - id: test-rel08.0-applier
         summary: Recording-fake terminal coverage, real chart-schema rejection, applier-only CLI authority, broken-read classification, and a live on-cluster rollout and rollback.
         status: planned
+
+  - version: "99.0"
+    name: Fleet observer adoption
+    description: |
+      Adopt the catalog-owned observer family (catalog srd021-observer,
+      monitor/fleet-observer) as a coding-agent workload pointed at this
+      application's release label selector and namespace, giving the coding mesh
+      a fleet view without forking the profile. Unscheduled; specification of the
+      catalog family lands first (GH-1247). No new environment variables.
+    status: planned
+    planned_work:
+      - id: gh-1247
+        summary: Specify the cross-application observer family this application adopts.
+        status: planned

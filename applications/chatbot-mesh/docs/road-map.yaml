@@ -274,6 +274,11 @@ releases:
       monitor snapshots rather than consuming event streams. This is an explicit
       design, not a workaround; client-side streaming is a separate agent-core
       concern.
+
+      Once the catalog observer family ships (catalog srd021-observer, release
+      99.0), this mesh observer rebinds to the catalog family and srd008 becomes
+      the mesh-local generalization source, retaining the descriptive observer
+      actor name via the historical_aliases pattern (GH-1247).
     status: planned
     srds:
       - srd008-observer-agent
