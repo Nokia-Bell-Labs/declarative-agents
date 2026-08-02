@@ -2,7 +2,10 @@ tools:
   - launch_observer_control
   - launch_observer_monitor
   - discover_mesh_pods
+  - list_mesh_deployments
+  - list_mesh_services
   - poll_agent_monitors
+  - poll_pod_metrics
   - await_observer_control
   - exit_agent
   - stop_observer_monitor

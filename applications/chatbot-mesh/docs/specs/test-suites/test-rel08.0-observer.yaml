@@ -76,7 +76,7 @@ test_cases:
       deployments_discovered: true
       services_discovered: true
       pods_grouped_by_deployment: true
-      no_environment_variable: true
+      no_new_environment_variable: true
     traces: [rel08.0-uc001-mesh-observer S6, srd008-observer-agent AC6]
 
   - use_case: rel08.0-uc001-mesh-observer

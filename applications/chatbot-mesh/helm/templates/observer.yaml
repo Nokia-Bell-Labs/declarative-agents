@@ -17,6 +17,12 @@ metadata:
     app.kubernetes.io/component: observer
 rules:
   - apiGroups: [""]
+    resources: [pods, services]
+    verbs: [get, list]
+  - apiGroups: [apps]
+    resources: [deployments]
+    verbs: [get, list]
+  - apiGroups: [metrics.k8s.io]
     resources: [pods]
     verbs: [get, list]
 ---

@@ -137,6 +137,60 @@ rest:
           reversibility:
             classification: reversible
             undo: noop
+        list_deployments:
+          method: GET
+          path: /apis/apps/v1/namespaces/${OBSERVER_NAMESPACE:-default}/deployments
+          params:
+            query:
+              labelSelector: ${OBSERVER_LABEL_SELECTOR:-app.kubernetes.io/instance=chatbot-mesh}
+            body_source: none
+          success: {status: [200], signal: DeploymentsListed}
+          response:
+            output:
+              deployments: $.items
+          side_effects:
+            - kind: external_api
+              target: kubernetes.deployments.list
+              state: read_only
+          reversibility:
+            classification: reversible
+            undo: noop
+        list_services:
+          method: GET
+          path: /api/v1/namespaces/${OBSERVER_NAMESPACE:-default}/services
+          params:
+            query:
+              labelSelector: ${OBSERVER_LABEL_SELECTOR:-app.kubernetes.io/instance=chatbot-mesh}
+            body_source: none
+          success: {status: [200], signal: ServicesListed}
+          response:
+            output:
+              services: $.items
+          side_effects:
+            - kind: external_api
+              target: kubernetes.services.list
+              state: read_only
+          reversibility:
+            classification: reversible
+            undo: noop
+        list_pod_metrics:
+          method: GET
+          path: /apis/metrics.k8s.io/v1beta1/namespaces/${OBSERVER_NAMESPACE:-default}/pods
+          params:
+            query:
+              labelSelector: ${OBSERVER_LABEL_SELECTOR:-app.kubernetes.io/instance=chatbot-mesh}
+            body_source: none
+          success: {status: [200], signal: MetricsPolled}
+          response:
+            output:
+              pod_metrics: $.items
+          side_effects:
+            - kind: external_api
+              target: kubernetes.podmetrics.list
+              state: read_only
+          reversibility:
+            classification: reversible
+            undo: noop
 
     agent_monitor:
       base_url: ${AGENT_MONITOR_BASE_URL:-http://127.0.0.1:18084}

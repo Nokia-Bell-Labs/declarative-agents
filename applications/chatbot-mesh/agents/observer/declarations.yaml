@@ -165,6 +165,154 @@ tools:
       rest_ref: kube_api
       operation: list_pods
 
+  - name: list_mesh_deployments
+    type: builtin
+    init: rest_client_get
+    category: boundary
+    description: List the release Deployments for the topology view.
+    problem: The fleet view needs the deployment topology, not only the pod set, to show what the deployment looks like.
+    goals:
+      - GET the kube API Deployment-list endpoint scoped to the release namespace and label selector.
+      - Return Deployment items so the UX can group pods by their owning Deployment.
+    requirements:
+      input:
+        - REST client config supplies the kube API base URL, namespace, and label selector.
+      output:
+        - Output reports the discovered Deployment items.
+      errors:
+        - Network, timeout, auth, and mapping failures emit CommandError; the cycle degrades to the next step.
+    non_goals:
+      - Does not write to the Kubernetes API.
+    parameters:
+      type: object
+      properties: {}
+    emits: [DeploymentsListed, CommandError]
+    output:
+      description: List of release Deployments.
+      schema:
+        type: object
+        properties:
+          deployments: {type: array}
+    side_effects:
+      - kind: external_api
+        target: kubernetes.deployments.list
+        state: read_only
+    reversibility:
+      classification: reversible
+      undo: noop
+    undo:
+      strategy: noop
+      description: Read-only operation; no undo needed.
+    errors:
+      - signal: CommandError
+        condition: Network, timeout, 403 forbidden, or response mapping failure.
+        state_after_failure: Topology omits Deployments this cycle; the loop proceeds.
+    relationships:
+      after: [discover_mesh_pods]
+      before: [list_mesh_services]
+    config:
+      rest_ref: kube_api
+      operation: list_deployments
+
+  - name: list_mesh_services
+    type: builtin
+    init: rest_client_get
+    category: boundary
+    description: List the release Services for the topology view.
+    problem: The topology view groups pods behind the Services that front them.
+    goals:
+      - GET the kube API Service-list endpoint scoped to the release namespace and label selector.
+      - Return Service items so the UX can render the fronting Services.
+    requirements:
+      input:
+        - REST client config supplies the kube API base URL, namespace, and label selector.
+      output:
+        - Output reports the discovered Service items.
+      errors:
+        - Network, timeout, auth, and mapping failures emit CommandError; the cycle degrades to the next step.
+    non_goals:
+      - Does not write to the Kubernetes API.
+    parameters:
+      type: object
+      properties: {}
+    emits: [ServicesListed, CommandError]
+    output:
+      description: List of release Services.
+      schema:
+        type: object
+        properties:
+          services: {type: array}
+    side_effects:
+      - kind: external_api
+        target: kubernetes.services.list
+        state: read_only
+    reversibility:
+      classification: reversible
+      undo: noop
+    undo:
+      strategy: noop
+      description: Read-only operation; no undo needed.
+    errors:
+      - signal: CommandError
+        condition: Network, timeout, 403 forbidden, or response mapping failure.
+        state_after_failure: Topology omits Services this cycle; the loop proceeds.
+    relationships:
+      after: [list_mesh_deployments]
+      before: [poll_agent_monitors]
+    config:
+      rest_ref: kube_api
+      operation: list_services
+
+  - name: poll_pod_metrics
+    type: builtin
+    init: rest_client_get
+    category: boundary
+    description: Poll metrics.k8s.io for per-pod CPU and memory usage.
+    problem: The fleet view needs each pod's resource usage to show what the deployment consumes.
+    goals:
+      - GET the namespaced metrics.k8s.io PodMetrics endpoint scoped to the label selector.
+      - Return per-pod CPU and memory usage for the fleet cards.
+    requirements:
+      input:
+        - REST client config supplies the kube API base URL, namespace, and label selector.
+      output:
+        - Output reports pod resource-usage items.
+      errors:
+        - An absent metrics API (404) or other failure emits CommandError; resource usage is reported unavailable and the loop proceeds.
+    non_goals:
+      - Does not write to the Kubernetes API.
+      - Does not fail discovery or fan-in when metrics are unavailable.
+    parameters:
+      type: object
+      properties: {}
+    emits: [MetricsPolled, CommandError]
+    output:
+      description: Per-pod resource usage from metrics.k8s.io.
+      schema:
+        type: object
+        properties:
+          pod_metrics: {type: array}
+    side_effects:
+      - kind: external_api
+        target: kubernetes.podmetrics.list
+        state: read_only
+    reversibility:
+      classification: reversible
+      undo: noop
+    undo:
+      strategy: noop
+      description: Read-only operation; no undo needed.
+    errors:
+      - signal: CommandError
+        condition: The metrics API is absent (no metrics-server) or the read fails.
+        state_after_failure: Resource usage is reported as unavailable; topology and fan-in are unaffected.
+    relationships:
+      after: [poll_agent_monitors]
+      before: [await_observer_control]
+    config:
+      rest_ref: kube_api
+      operation: list_pod_metrics
+
   - name: poll_agent_monitors
     type: builtin
     init: rest_client_get

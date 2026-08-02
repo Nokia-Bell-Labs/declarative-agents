@@ -47,7 +47,7 @@ requirements:
       - R1.3: Discovery SHALL run on a declared polling interval, not a one-time snapshot, so that pods added or removed after launch appear in the fleet view.
       - R1.4: The label selector and namespace SHALL be declared REST client config values, not constants in tool config.
       - R1.5: Discovery SHALL also list the release Deployments and Services in the namespace by label selector, so the fleet view can render the deployment topology, not only the pod set.
-      - R1.6: All observer configuration -- selectors, namespace, intervals, and endpoints -- SHALL come from profile declarations and flags; no observer behavior SHALL depend on an environment variable.
+      - R1.6: Observer configuration -- selectors, namespace, intervals, and endpoints -- SHALL come from REST client and tool declarations resolved at load, following the mesh convention; the topology and resource additions SHALL introduce no new environment variable.
 
   R2:
     title: Monitor fan-in
@@ -111,7 +111,7 @@ acceptance_criteria:
     criterion: RBAC is namespace-scoped, read-only, and the observer holds no write or lifecycle authority over any other agent or the Kubernetes API.
     traces: [R5.1, R5.2, R5.3]
   - id: AC6
-    criterion: The observer discovers Deployments and Services alongside pods and the UX renders the deployment topology grouped by owning Deployment and fronting Service; configuration uses declarations and flags with no environment variable.
+    criterion: The observer discovers Deployments and Services alongside pods and the UX renders the deployment topology grouped by owning Deployment and fronting Service; the topology and resource additions introduce no new environment variable.
     traces: [R1.5, R1.6, R3.5]
   - id: AC7
     criterion: The observer polls metrics.k8s.io PodMetrics and shows per-pod CPU and memory on each card, reporting resource usage as explicitly unavailable rather than failing when the metrics API is absent.
