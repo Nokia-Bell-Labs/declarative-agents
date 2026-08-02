@@ -298,6 +298,11 @@ bindings:
       sub_roles: [telemetry-collector]
       domain: observability
       execution_scope: server
+    - actor: lifecycle-exit
+      profile: applications/catalog/agents/lifecycle-exit/profile.yaml
+      classification: infrastructure_adapter
+      domain: lifecycle
+      execution_scope: client
 
   coding_agent:
     - actor: coding-planner-server
@@ -575,11 +580,6 @@ non_role_inventory:
       - path: applications/chatbot-mesh/testdata/rig/profile.yaml
         classification: fixture
         inherits: scenario-critic
-  application_fixtures:
-    profiles:
-      - path: applications/catalog/agents/lifecycle-exit/profile.yaml
-        classification: infrastructure_adapter
-        purpose: catalog-owned reusable lifecycle-exit client used by the agent-architecture demo
 
 inheritance_and_override_rules:
   - An inheriting wrapper or variant receives all role and sub-role bindings from its target.

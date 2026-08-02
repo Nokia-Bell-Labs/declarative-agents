@@ -223,6 +223,27 @@ roles:
       - Confirm the adapter does not claim telemetry collection, anomaly detection, or assurance reporting.
       - Trace runtime-state-reader/control status with rel07.0-uc005-monitor-control-profile-boundary.
 
+  - id: lifecycle-exit
+    title: Lifecycle exit client
+    profile_path: agents/lifecycle-exit/profile.yaml
+    actor_boundary: supervisor requesting a running agent's shutdown
+    classification: infrastructure_adapter
+    inputs:
+      - fixed exit request body
+    selected_tool_families:
+      - lifecycle control
+    runtime_dependencies:
+      - agent-core REST runtime
+    outputs:
+      - control-server exit acceptance
+    outcomes:
+      - Done
+      - Failed
+    checks:
+      - Confirm the exit request body is fixed in the REST operation, not runtime input.
+      - Confirm the target control-server address is a declared client base.
+      - Confirm the client posts one request through a declared boundary word rather than an embedded HTTP client.
+
   - id: documentation-curator
     title: Knowledge Manager documentation curator
     profile_path: agents/knowledge-manager/documentation-curator/profile.yaml

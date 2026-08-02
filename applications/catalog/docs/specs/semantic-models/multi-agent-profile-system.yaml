@@ -77,6 +77,7 @@ role_groups:
       - collector
       - control
       - lifecycle
+      - lifecycle-exit
     summary: |
       Boundary runtime work exercises REST, monitor, control, and lifecycle
       vocabulary. Each boundary appears as explicit MachineSpec steps rather
@@ -212,6 +213,10 @@ actor_boundaries:
       - workspace
     boundary: Lifecycle tools read or rewrite checkpoints and route approval
       decisions.
+  - profile: lifecycle-exit
+    actors:
+      - supervisor
+    boundary: A fixed exit request becomes one control-server POST that emits ExitRequested.
   - profile: documentation-curator
     actors:
       - human browser
