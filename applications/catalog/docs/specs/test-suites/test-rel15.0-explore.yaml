@@ -87,8 +87,8 @@ test_cases:
 
   - use_case: rel15.0-uc001-explore-panel
     name: Explore page is wired into the UI descriptor
-    integration_target: go test ./conformance -run TestCollectorExploreRouteDeclared
-    status: planned
+    go_test: go test ./conformance -run TestCollectorExploreRouteDeclared
+    status: implemented
     description: |
       The collector ui/ux.yaml declares an /explore route and the actions that
       bind the stats and breakdown machine requests, so the served SPA exposes
@@ -104,7 +104,7 @@ test_cases:
   - use_case: rel15.0-uc001-explore-panel
     name: Explore UI reproduces from a clean source build
     integration_target: mage uiDist
-    status: planned
+    status: implemented
     description: |
       The tracked collector ui/dist, including the Explore page, matches the
       output of a clean npm ci + build from the lockfile-pinned source.

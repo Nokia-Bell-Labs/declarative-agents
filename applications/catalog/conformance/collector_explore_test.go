@@ -8,6 +8,7 @@ import (
 	"net/http"
 	"os"
 	"path/filepath"
+	"strings"
 	"testing"
 	"time"
 )
@@ -257,5 +258,21 @@ func TestCollectorExploreEmptySpool(t *testing.T) {
 	_ = json.Unmarshal(breakdown["ranked"], &ranked)
 	if len(ranked) != 0 {
 		t.Errorf("empty-spool ranked = %d, want 0", len(ranked))
+	}
+}
+
+// TestCollectorExploreRouteDeclared proves the collector UI descriptor wires the
+// Explore page and the actions that bind the stats and breakdown machine
+// requests, so the served SPA exposes the Explore drill-in (srd020 R9, AC8).
+func TestCollectorExploreRouteDeclared(t *testing.T) {
+	data, err := os.ReadFile(ProfilePath(filepath.Join("agents", "collector", "ui", "ux.yaml")))
+	if err != nil {
+		t.Fatalf("read collector ux.yaml: %v", err)
+	}
+	ux := string(data)
+	for _, want := range []string{"path: /explore", "query_span_stats", "query_span_breakdown"} {
+		if !strings.Contains(ux, want) {
+			t.Errorf("collector ux.yaml missing %q", want)
+		}
 	}
 }

@@ -775,7 +775,7 @@ releases:
 
   - id: "15.0"
     title: Collector Explore panel
-    status: planned
+    status: implemented
     related_agent_core_release: "13.0"
     dependencies:
       - agent-core release 13.0 (span-analytics builtins)
@@ -786,16 +786,16 @@ releases:
       - {gh: 1242, title: "Collector UI Explore page with heatmap drag-select and TraceDetail links", estimated_loc: "500 TS/TSX"}
     specification:
       srd: srd020-collector
-      status: planned
+      status: implemented
     use_cases:
       - id: rel15.0-uc001-explore-panel
         title: An operator narrows a latency band to a responsible attribute and lands on a trace
-        status: planned
+        status: implemented
     test_suites:
       - id: test-rel15.0-explore
         title: Collector Explore panel
         cases: 6
-        status: planned
+        status: implemented
     proof:
       - mage validate
       - mage conformance

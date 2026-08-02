@@ -180,7 +180,7 @@ roadmap_summary:
       literal profile-declared path, not a new environment variable.
   - version: "15.0"
     name: Collector Explore panel
-    status: planned
+    status: implemented
     scope: |
       Add a Honeycomb-style Explore panel: /query/spans/stats and
       /query/spans/breakdown routes bind the agent-core span-analytics tools
@@ -587,7 +587,7 @@ use_case_index:
     summary: The Explore page renders a duration heatmap from /query/spans/stats,
       drag-selects a region, shows the ranked attribute divergence from
       /query/spans/breakdown, and links exemplar spans into the waterfall.
-    status: planned
+    status: implemented
     path: docs/specs/use-cases/rel15.0-uc001-explore-panel.yaml
 
 test_suite_index:
@@ -721,7 +721,7 @@ test_suite_index:
     summary: Conformance cases for the /query/spans/stats and /query/spans/breakdown
       response contracts, config-driven caps, empty-spool responses, the Explore
       UI route declaration, and uiDist reproducibility.
-    status: planned
+    status: implemented
     path: docs/specs/test-suites/test-rel15.0-explore.yaml
 
 coverage_gaps: |
