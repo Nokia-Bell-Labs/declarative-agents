@@ -168,3 +168,20 @@ rest:
                   content_type: application/json
                   body: {metric_name: $.metric_name, records: $.records, record_count: $.record_count, data_point_count: $.data_point_count}
                 Failed: {status: 500, content_type: application/json, body: {error: spool_read_error}}
+        # Serve the shipped trace UI same-origin with /query/* (srd020 R7). The
+        # /query/* routes carry more literal path segments than this catch-all,
+        # so the router always prefers them; the SPA answers everything else and
+        # falls back to index.html for client-router deep links. The root is a
+        # literal path resolved against the collector's working directory (the
+        # profile directory) -- no environment variable (srd020 R7.4, GH-1228).
+        ui:
+          method: GET
+          path: /{path...}
+          binding: static_assets
+          static_assets:
+            root: ui/dist
+            index: index.html
+            spa: true
+          request:
+            path:
+              path: {type: string}

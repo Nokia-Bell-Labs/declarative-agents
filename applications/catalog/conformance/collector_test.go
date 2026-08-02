@@ -11,6 +11,7 @@ import (
 	"path/filepath"
 	"reflect"
 	"sort"
+	"strings"
 	"testing"
 	"time"
 )
@@ -537,5 +538,189 @@ func seedCollectorSpool(t *testing.T, path string) {
 	}
 	if err := os.WriteFile(path, data, 0o600); err != nil {
 		t.Fatalf("write spool: %v", err)
+	}
+}
+
+// collectorAddrs holds the four loopback addresses a collector run binds.
+type collectorAddrs struct{ control, monitor, query, receiver string }
+
+// copyCollectorProfileWithPorts copies the shipped collector profile tree
+// (including ui/dist) into a temp dir and patches its listen addresses to
+// free ports. The copy's directory is the working directory the served UI
+// root (ui/dist) resolves against.
+func copyCollectorProfileWithPorts(t *testing.T) (string, collectorAddrs) {
+	t.Helper()
+	a := collectorAddrs{control: FreeAddr(t), monitor: FreeAddr(t), query: FreeAddr(t), receiver: FreeAddr(t)}
+	profilePath := CopyShippedProfile(t, filepath.Join("agents", "collector", "profile.yaml"), map[string]string{
+		"127.0.0.1:${COLLECTOR_CONTROL_PORT:-18191}":                         a.control,
+		"127.0.0.1:${COLLECTOR_MONITOR_PORT:-18192}":                         a.monitor,
+		"127.0.0.1:${COLLECTOR_QUERY_PORT:-18193}":                           a.query,
+		"${COLLECTOR_BIND_HOST:-127.0.0.1}:${COLLECTOR_CONTROL_PORT:-18191}": a.control,
+		"${COLLECTOR_BIND_HOST:-127.0.0.1}:${COLLECTOR_MONITOR_PORT:-18192}": a.monitor,
+		"${COLLECTOR_BIND_HOST:-127.0.0.1}:${COLLECTOR_QUERY_PORT:-18193}":   a.query,
+		"0.0.0.0:4317": a.receiver,
+	})
+	return profilePath, a
+}
+
+// serveCollectorUI launches the copied collector with its working directory set
+// to the profile directory, so the literal ui/dist static root resolves against
+// the profile (srd020 R7.4), and waits until the control server is healthy.
+func serveCollectorUI(t *testing.T, profilePath string, a collectorAddrs) *Server {
+	t.Helper()
+	server := Serve(t, ServeConfig{Profile: profilePath, WorkDir: filepath.Dir(profilePath), Env: collectorEnv(a.receiver)})
+	server.WaitHealthy("http://"+a.control+"/api/lifecycle/health", 15*time.Second)
+	return server
+}
+
+// getBody issues a GET and returns the body, content type, and status.
+func getBody(t *testing.T, url string) (string, string, int) {
+	t.Helper()
+	resp, err := http.Get(url)
+	if err != nil {
+		t.Fatalf("GET %s: %v", url, err)
+	}
+	defer func() { _ = resp.Body.Close() }()
+	body, _ := io.ReadAll(resp.Body)
+	return string(body), resp.Header.Get("Content-Type"), resp.StatusCode
+}
+
+// stopCollector posts the lifecycle exit and drains the run.
+func stopCollector(t *testing.T, server *Server, controlAddr string) {
+	t.Helper()
+	if status := server.Post("http://"+controlAddr+"/api/lifecycle/exit", `{"reason":"conformance"}`); status != http.StatusAccepted {
+		t.Fatalf("exit POST status = %d", status)
+	}
+	server.WaitExit(35 * time.Second)
+}
+
+// TestCollectorServesUIIndex proves the collector_query server serves the
+// shipped SPA index at / from the ui/dist root, same-origin with /query/*
+// (srd020 R7.1).
+func TestCollectorServesUIIndex(t *testing.T) {
+	RequireCoreRoot(t)
+	profilePath, a := copyCollectorProfileWithPorts(t)
+	server := serveCollectorUI(t, profilePath, a)
+
+	body, ctype, status := getBody(t, "http://"+a.query+"/")
+	if status != http.StatusOK {
+		t.Fatalf("GET / status = %d, want 200; body:\n%s", status, body)
+	}
+	if !strings.HasPrefix(ctype, "text/html") {
+		t.Errorf("GET / content-type = %q, want text/html", ctype)
+	}
+	if !strings.Contains(body, "Collector Traces") {
+		t.Errorf("GET / body is not the SPA index; got:\n%s", body)
+	}
+	stopCollector(t, server, a.control)
+}
+
+// TestCollectorServesUIDeepLink proves a client-router deep link that is not a
+// real file resolves to the SPA index via spa fallback, so the browser can
+// render the waterfall route (srd020 R7.2).
+func TestCollectorServesUIDeepLink(t *testing.T) {
+	RequireCoreRoot(t)
+	profilePath, a := copyCollectorProfileWithPorts(t)
+	server := serveCollectorUI(t, profilePath, a)
+
+	body, ctype, status := getBody(t, "http://"+a.query+"/traces/trace-aaa")
+	if status != http.StatusOK {
+		t.Fatalf("GET /traces/trace-aaa status = %d, want 200; body:\n%s", status, body)
+	}
+	if !strings.HasPrefix(ctype, "text/html") {
+		t.Errorf("deep-link content-type = %q, want text/html", ctype)
+	}
+	if !strings.Contains(body, "Collector Traces") {
+		t.Errorf("deep link did not fall back to the SPA index; got:\n%s", body)
+	}
+	stopCollector(t, server, a.control)
+}
+
+// TestCollectorQueryUnaffectedByUI proves the /query/* API keeps its response
+// contract while the UI is served: the literal query routes outrank the
+// static catch-all, so serving the SPA changes no query response (srd020 R7.3).
+func TestCollectorQueryUnaffectedByUI(t *testing.T) {
+	RequireCoreRoot(t)
+	profilePath, a := copyCollectorProfileWithPorts(t)
+	seedCollectorSpool(t, filepath.Join(filepath.Dir(profilePath), "traces", "collector.ndjson"))
+	server := serveCollectorUI(t, profilePath, a)
+
+	// The SPA is served at root.
+	if _, _, status := getBody(t, "http://"+a.query+"/"); status != http.StatusOK {
+		t.Fatalf("GET / status = %d, want 200", status)
+	}
+	// The query API answers its pinned contract, not the SPA.
+	body, ctype, status := getBody(t, "http://"+a.query+"/query/traces?page_size=1")
+	if status != http.StatusOK {
+		t.Fatalf("GET /query/traces status = %d, want 200; body:\n%s", status, body)
+	}
+	if !strings.HasPrefix(ctype, "application/json") {
+		t.Fatalf("GET /query/traces content-type = %q, want application/json (catch-all intercepted the query route)", ctype)
+	}
+	var listResult struct {
+		Traces   []map[string]json.RawMessage `json:"traces"`
+		Total    int                          `json:"total"`
+		PageSize int                          `json:"page_size"`
+	}
+	if err := json.Unmarshal([]byte(body), &listResult); err != nil {
+		t.Fatalf("decode /query/traces: %v; body:\n%s", err, body)
+	}
+	if listResult.Total != 2 || listResult.PageSize != 1 || len(listResult.Traces) != 1 {
+		t.Fatalf("query response drifted: total=%d page_size=%d returned=%d, want 2/1/1",
+			listResult.Total, listResult.PageSize, len(listResult.Traces))
+	}
+	got := make([]string, 0, len(listResult.Traces[0]))
+	for key := range listResult.Traces[0] {
+		got = append(got, key)
+	}
+	sort.Strings(got)
+	want := []string{"duration_ms", "root_service", "root_span_name", "span_count", "start_time", "trace_id"}
+	if !reflect.DeepEqual(got, want) {
+		t.Fatalf("summary keys = %v, want %v", got, want)
+	}
+	stopCollector(t, server, a.control)
+}
+
+// TestCollectorMissingUIRoot proves an absent UI root yields an explicit error
+// status rather than a silent empty 200, and the query API still works
+// (srd020 R7.5).
+func TestCollectorMissingUIRoot(t *testing.T) {
+	RequireCoreRoot(t)
+	profilePath, a := copyCollectorProfileWithPorts(t)
+	if err := os.RemoveAll(filepath.Join(filepath.Dir(profilePath), "ui", "dist")); err != nil {
+		t.Fatalf("remove ui/dist: %v", err)
+	}
+	server := serveCollectorUI(t, profilePath, a)
+
+	body, _, status := getBody(t, "http://"+a.query+"/")
+	if status == http.StatusOK {
+		t.Fatalf("GET / with missing UI root returned 200 (blank page); want an explicit error. body:\n%s", body)
+	}
+	// The query API is unaffected by the missing UI root.
+	if _, _, qstatus := getBody(t, "http://"+a.query+"/query/traces"); qstatus != http.StatusOK {
+		t.Fatalf("GET /query/traces status = %d, want 200 even with UI root absent", qstatus)
+	}
+	stopCollector(t, server, a.control)
+}
+
+// TestCollectorUIRootLiteral proves the shipped rest.yaml declares the UI root
+// as a literal path with no environment-variable expansion and introduces no
+// new UI environment variable (srd020 R7.4, GH-1228).
+func TestCollectorUIRootLiteral(t *testing.T) {
+	data, err := os.ReadFile(ProfilePath(filepath.Join("agents", "collector", "rest.yaml")))
+	if err != nil {
+		t.Fatalf("read collector rest.yaml: %v", err)
+	}
+	rest := string(data)
+	if !strings.Contains(rest, "root: ui/dist") {
+		t.Fatalf("collector rest.yaml does not declare the literal static root 'ui/dist'")
+	}
+	for _, line := range strings.Split(rest, "\n") {
+		if strings.Contains(line, "root:") && strings.Contains(line, "ui/dist") && strings.Contains(line, "${") {
+			t.Fatalf("collector UI root uses an environment variable: %q", strings.TrimSpace(line))
+		}
+	}
+	if strings.Contains(rest, "COLLECTOR_UI_ROOT") {
+		t.Fatalf("collector rest.yaml introduces a new UI environment variable")
 	}
 }

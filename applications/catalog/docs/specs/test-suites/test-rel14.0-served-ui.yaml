@@ -13,8 +13,8 @@ preconditions:
 test_cases:
   - use_case: rel14.0-uc001-served-trace-ui
     name: Query origin serves the SPA index at root
-    integration_target: go test ./conformance -run TestCollectorServesUIIndex
-    status: planned
+    go_test: go test ./conformance -run TestCollectorServesUIIndex
+    status: implemented
     description: |
       Launch the collector and GET / on the query origin. Assert a 200 with an
       HTML content type and the SPA index document body.
@@ -29,8 +29,8 @@ test_cases:
 
   - use_case: rel14.0-uc001-served-trace-ui
     name: Deep link resolves to the SPA index
-    integration_target: go test ./conformance -run TestCollectorServesUIDeepLink
-    status: planned
+    go_test: go test ./conformance -run TestCollectorServesUIDeepLink
+    status: implemented
     description: |
       GET /traces/trace-aaa (a client-router path, not a file) returns the SPA
       index document with a 200, so the client can render the waterfall route.
@@ -46,8 +46,8 @@ test_cases:
 
   - use_case: rel14.0-uc001-served-trace-ui
     name: Query API is unaffected by the static_assets catch-all
-    integration_target: go test ./conformance -run TestCollectorQueryUnaffectedByUI
-    status: planned
+    go_test: go test ./conformance -run TestCollectorQueryUnaffectedByUI
+    status: implemented
     description: |
       With the UI served, GET /query/traces still returns the pinned JSON
       contract and GET /query/traces/{trace_id} still returns span detail; the
@@ -64,8 +64,8 @@ test_cases:
 
   - use_case: rel14.0-uc001-served-trace-ui
     name: Missing UI root yields an explicit error
-    integration_target: go test ./conformance -run TestCollectorMissingUIRoot
-    status: planned
+    go_test: go test ./conformance -run TestCollectorMissingUIRoot
+    status: implemented
     description: |
       Launch the collector with the static_assets root pointing at an absent
       directory. GET / answers an explicit HTTP error status, not a 200 with an
@@ -81,8 +81,8 @@ test_cases:
 
   - use_case: rel14.0-uc001-served-trace-ui
     name: UI root is a literal profile path with no new environment variable
-    integration_target: go test ./conformance -run TestCollectorUIRootLiteral
-    status: planned
+    go_test: go test ./conformance -run TestCollectorUIRootLiteral
+    status: implemented
     description: |
       The collector rest.yaml static_assets root is a literal path resolved
       relative to the profile directory, with no ${VAR} expansion. Assert the
