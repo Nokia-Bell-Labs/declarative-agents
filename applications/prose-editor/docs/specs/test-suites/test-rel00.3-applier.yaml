@@ -1,19 +1,21 @@
 id: test-rel00.3-applier
 title: Prose Editor Release 00.3 Declarative Applier Test Suite
 release: "00.3"
-test_case_count: 7
+test_case_count: 8
 status: planned
 runtime_status: unimplemented
 
 overview: |
-  This suite plans seven cases for rel00.3-uc001-declarative-applier: the standalone
+  This suite plans eight cases for rel00.3-uc001-declarative-applier: the standalone
   declarative actuator (srd007) for the Prose Editor chart (srd006). It drives a
   decided values patch through validate, apply, and verify, asserting that a
   non-conforming patch is rejected by the chart-schema dry-run, that a valid patch
   is applied as a values-file rollout and verified via kubectl rollout status of
   the workflow-orchestrator, specialist-editor, voice-critic, and RAG Deployments,
   that an apply or verify failure rolls back, that the authority boundary holds,
-  and that the chart is a deterministic role-closure package. A recording-fake
+  that the chart is a deterministic role-closure package, and that the rendered
+  topology carries the canonical collector with its served trace UI and per-role
+  OTLP flags. A recording-fake
   tracer plans coverage of every declared terminal, real helm validates the
   chart's values schema, and a live kind target plans apply and rollback on
   cluster.
@@ -254,3 +256,32 @@ test_cases:
     traces:
       - rel00.3-uc001-declarative-applier S8
       - srd006-helm-topology AC1
+
+  - id: TC008
+    use_case: rel00.3-uc001-declarative-applier
+    name: The rendered topology carries the collector, served trace UI, and per-role OTLP flags
+    status: planned
+    runtime_status: unimplemented
+    description: |
+      Assert over the rendered chart that the canonical catalog collector is a
+      Deployment and ClusterIP Service exposing the OTLP gRPC ingress port and
+      the query port, and that a request to the query origin serves the shipped
+      trace UI index. Assert that every role Deployment carries
+      --otel-otlp-endpoint pointing at the collector Service and a distinct
+      --otel-service-name, rendered as command-line flags, and that no rendered
+      pod carries a telemetry environment variable. Assert the collector shard
+      is absent from every role-closure package and its profile carries no
+      saga, publication, retrieval, or deployment word.
+    future_evidence:
+      type: graph_and_fixture_test
+      path: applications/prose-editor/magefiles/observability_topology_test.go
+    current_evidence: none
+    expected:
+      collector_deployment_and_service_rendered_with_otlp_and_query_ports: true
+      trace_ui_served_at_the_query_origin: true
+      every_role_carries_collector_endpoint_and_distinct_service_name: true
+      telemetry_environment_variables_rendered: 0
+      collector_outside_role_closure_package_with_no_application_authority: true
+    traces:
+      - rel00.3-uc001-declarative-applier S9
+      - srd006-helm-topology AC6

@@ -1,16 +1,17 @@
 id: test-rel00.1-prose-editor
 title: Prose Editor Release 00.1 Tracer Test Suite
 release: "00.1"
-test_case_count: 12
+test_case_count: 13
 status: planned
 runtime_status: unimplemented
 
 overview: |
-  This suite plans 12 tracer-scoped cases for rel00.1-uc001-tracer-saga,
+  This suite plans 13 tracer-scoped cases for rel00.1-uc001-tracer-saga,
   covering the minimal runnable slice: orchestrator structure-critic graph,
   structure-editor machine, critic without Pangram, tracer happy path,
   structure-stage retry from critic rejection, source capture, workproduct
-  lineage, command errors, retry exhaustion, and recovery at tracer saga cuts.
+  lineage, command errors, retry exhaustion, recovery at tracer saga cuts,
+  and the shared telemetry contract across the tracer services.
 
   Voice, style, Pangram, multi-stage retry, and publication cases remain in the
   00.0 suite and become executable in release 00.2. None of the runtime
@@ -307,3 +308,31 @@ test_cases:
       - rel00.1-uc001-tracer-saga S4
       - srd004-workflow-orchestrator AC4
       - srd004-workflow-orchestrator AC5
+
+  - id: TC013
+    use_case: rel00.1-uc001-tracer-saga
+    name: Tracer services accept the telemetry flags and join one saga trace
+    status: planned
+    runtime_status: unimplemented
+    description: |
+      Assert that the orchestrator, specialist-editor:structure, voice-critic,
+      and structure-rag accept --otel-log-file, --otel-parent-span,
+      --otel-otlp-endpoint, and --otel-service-name, and that no telemetry
+      value is read from an environment variable. Run the tracer happy path
+      with live export configured and verify the child invocations carry a
+      propagated traceparent built through PropagateArgs, each service reports
+      its own declared service.name, and the resulting spans form one
+      connected trace emitted only by the agent-core runtime.
+    future_evidence:
+      type: go_test
+      path: applications/prose-editor/magefiles/tracer_telemetry_contract_test.go
+    current_evidence: none
+    expected:
+      four_standard_flags_accepted_by_tracer_services: true
+      environment_variable_telemetry_configuration: 0
+      connected_tracer_trace_across_parent_and_children: true
+      distinct_service_names_per_role: true
+      spans_emitted_only_by_agent_core_runtime: true
+    traces:
+      - rel00.1-uc001-tracer-saga S1
+      - srd001-prose-editor-services AC8

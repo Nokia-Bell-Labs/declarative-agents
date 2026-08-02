@@ -28,6 +28,7 @@ goals:
   - "G3: Preserve each role's retrieval, model, persistence, and authority boundary in the rendered topology."
   - "G4: Define a values schema that constrains deployment values so a submitted change can be validated before it is applied."
   - "G5: Define a kind-demo smoke that proves the packaged chart installs and serves one saga on a local cluster."
+  - "G6: Deploy the canonical catalog collector with its served trace UI and point every role's OTLP export at it through values-rendered flags."
 
 applicability:
   release: "00.3"
@@ -46,7 +47,10 @@ served_roles:
     instances are long-running read-only services. Corpus-ingest is an on-demand
     administrative run, not a served Deployment. Chroma and Ollama are external
     supporting dependencies reached by a values-selected endpoint or an optional
-    chart-owned Service, never a source of truth for saga content.
+    chart-owned Service, never a source of truth for saga content. The chart
+    also renders the canonical catalog collector as a chart-owned observability
+    workload (R6); the collector is not a served application role and joins no
+    role-closure package.
   roles:
     - name: workflow-orchestrator
       workload: Deployment and ClusterIP Service
@@ -180,12 +184,39 @@ requirements:
           apart from a saga semantic failure and SHALL leave no orphaned release
           on teardown.
         evidence: Planned kind target reports infrastructure faults separately and removes the release on teardown.
+  R6:
+    title: Observability topology
+    items:
+      - id: R6.1
+        text: |
+          The chart SHALL render the canonical catalog collector family
+          (catalog srd020) as one Deployment and one ClusterIP Service exposing
+          the OTLP gRPC ingress port and the query port, and the collector
+          SHALL serve the shipped trace UI at the query origin (catalog srd020
+          R7).
+        evidence: Planned helm template renders the collector workload with both ports and the collector query server serves the UI index.
+      - id: R6.2
+        text: |
+          Every rendered role workload SHALL receive --otel-otlp-endpoint
+          pointing at the collector Service and a distinct --otel-service-name
+          identifying its role, rendered as command-line flags from values and
+          never as environment variables (srd001 R8.1).
+        evidence: Planned rendered pods carry both flags per role with the collector endpoint and unique service names, and no telemetry environment variable.
+      - id: R6.3
+        text: |
+          The collector SHALL remain a chart-owned observability workload
+          outside the role-closure package with no saga, publication,
+          retrieval, or deployment authority, and collector unavailability
+          SHALL NOT change any role's saga behavior beyond disabled live
+          export.
+        evidence: Planned closure and authority tests exclude the collector from role shards and deny it every application authority word.
 
 non_goals:
   - Implement the chart, values schema, package build, images, or kind rig; this SRD specifies them as planned.
   - Define the applier actuation surface or its validate-apply-verify-rollback machine; srd007 owns that behavior.
   - Change the saga, tool, orchestrator, editor, or critic behavior owned by srd001 through srd005 and srd008.
   - Assign canonical roles to Chroma, Ollama, deployment forms, or model choices.
+  - Own the collector family behavior, query contract, or trace UI; catalog srd020 owns them.
   - Claim executable, packaged, Helm-managed, or kind-demo evidence before later issues build it.
 
 acceptance_criteria:
@@ -219,6 +250,13 @@ acceptance_criteria:
       cluster, separates infrastructure faults from saga failure, and leaves no
       orphaned release.
     traces: [R5.1, R5.2]
+  - id: AC6
+    criterion: |
+      The chart renders the canonical collector with OTLP ingress, query port,
+      and served trace UI; every role exports OTLP to it under a distinct
+      service name through values-rendered flags; and the collector holds no
+      application authority and sits outside the role-closure package.
+    traces: [R6.1, R6.2, R6.3]
 
 shared_requirement_traces:
   - contract: srd001-application-module-contract
@@ -238,7 +276,7 @@ test_suite_traces:
   - id: test-rel00.3-applier
     status: planned
     path: ../test-suites/test-rel00.3-applier.yaml
-    acceptance_criteria: [AC1, AC2, AC3, AC4]
+    acceptance_criteria: [AC1, AC2, AC3, AC4, AC5, AC6]
 
 related_documents:
   - path: ../../VISION.yaml
@@ -251,6 +289,10 @@ related_documents:
     usage: Owns the actuation surface that validates against this chart's values schema and verifies these role Deployments.
   - path: ../../../../docs/specs/software-requirements/srd002-managed-application-services.yaml
     usage: Owns the managed-service, packaged, Helm-managed, and kind-demo baseline obligations.
+  - path: ../../../../catalog/docs/specs/software-requirements/srd020-collector.yaml
+    usage: Owns the canonical collector family, its query surface, and the served trace UI this chart deploys.
+  - path: ../../../../../agent-core/docs/specs/software-requirements/srd018-cli-flag-contract.yaml
+    usage: Owns the --otel-otlp-endpoint and --otel-service-name flag contract the rendered workloads receive.
 
 implementation_status:
   specification: planned

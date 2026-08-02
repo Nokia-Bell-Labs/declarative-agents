@@ -1,19 +1,19 @@
 id: test-rel00.0-prose-editor
 title: Prose Editor Release 00.0 Test Suite
 release: "00.0"
-test_case_count: 29
+test_case_count: 30
 status: planned
 runtime_status: unimplemented
 
 overview: |
   This suite plans structural, boundary, failure, recovery, privacy,
-  idempotency, publication, and end-to-end evidence for
-  rel00.0-uc001-edit-document and all 63 acceptance criteria in Prose Editor
+  idempotency, publication, telemetry, and end-to-end evidence for
+  rel00.0-uc001-edit-document and all 64 acceptance criteria in Prose Editor
   srd001 through srd008. Every case names its future evidence type and path.
   None of those runtime fixtures, tests, targets, traces, or reports exists in
   release 00.0, and this suite claims no execution or conformance evidence.
 
-  Runtime cases are staged across releases. The 12-case tracer suite
+  Runtime cases are staged across releases. The 13-case tracer suite
   (test-rel00.1-prose-editor) covers the structure-critic-finalization
   subgraph in release 00.1. The remaining cases in this suite — voice, style,
   Pangram, multi-stage retry, publication, and full end-to-end paths — become
@@ -699,11 +699,40 @@ test_cases:
       - srd005-specialist-editor AC24
       - srd008-voice-critic AC9
 
+  - id: TC030
+    use_case: rel00.0-uc001-edit-document
+    name: Telemetry flag contract, trace continuity, and agent-core-only spans
+    status: planned
+    runtime_status: unimplemented
+    description: |
+      Assert over the planned service profiles and launch declarations that
+      every Prose Editor service accepts --otel-log-file, --otel-parent-span,
+      --otel-otlp-endpoint, and --otel-service-name, and that no telemetry
+      value is read from an environment variable. Drive one saga with live
+      export configured and verify the orchestrator, specialist-editor stage,
+      and voice-critic spans join one connected trace via propagated
+      traceparent, each under its own declared service.name, with GenAI
+      semantic-convention spans emitted by the agent-core runtime and no
+      application-local OTel SDK wiring.
+    future_evidence:
+      type: go_test
+      path: applications/prose-editor/magefiles/telemetry_contract_test.go
+    current_evidence: none
+    expected:
+      four_standard_flags_accepted_by_every_service: true
+      environment_variable_telemetry_configuration: 0
+      connected_saga_trace_across_parent_and_children: true
+      distinct_service_names_per_role: true
+      spans_emitted_only_by_agent_core_runtime: true
+    traces:
+      - rel00.0-uc001-edit-document S1
+      - srd001-prose-editor-services AC8
+
 planned_coverage_inventory:
   use_case_success_criteria:
     rel00.0-uc001-edit-document: [S1, S2, S3, S4, S5, S6, S7, S8, S9, S10]
   acceptance_criteria:
-    srd001-prose-editor-services: [AC1, AC2, AC3, AC4, AC5, AC6, AC7]
+    srd001-prose-editor-services: [AC1, AC2, AC3, AC4, AC5, AC6, AC7, AC8]
     srd002-writing-saga-workproducts: [AC1, AC2, AC3, AC4, AC5, AC6, AC7, AC8]
     srd003-writing-agent-tools: [AC1, AC2, AC3, AC4, AC5, AC6, AC7]
     srd004-workflow-orchestrator: [AC1, AC2, AC3, AC4, AC5, AC6, AC7, AC8]
@@ -730,6 +759,7 @@ planned_coverage_inventory:
     immutable_source_and_lineage: [TC003, TC027]
     factory_graph_authority_signal_label_closure: [TC004, TC005, TC006, TC007, TC008, TC009, TC028]
     documentation_consistency: [TC001, TC029]
+    telemetry_contract: [TC030]
 
 evidence_status:
   executable_tests: none
