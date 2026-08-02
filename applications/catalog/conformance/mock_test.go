@@ -104,8 +104,8 @@ func TestMockServesFixtureSequence(t *testing.T) {
 		t.Fatalf("unmatched route status = %d, want %d", got, http.StatusNotFound)
 	}
 
-	if status := server.Post(baseURL+"/_mock/control/exit", `{"reason":"conformance"}`); status != http.StatusAccepted {
-		t.Fatalf("mock control exit POST status = %d, want %d", status, http.StatusAccepted)
+	if status := server.Post(baseURL+"/api/lifecycle/exit", `{"reason":"conformance"}`); status != http.StatusAccepted {
+		t.Fatalf("mock lifecycle exit POST status = %d, want %d", status, http.StatusAccepted)
 	}
 	result := server.WaitExit(15 * time.Second)
 
@@ -165,8 +165,8 @@ func TestMockRequestLogRecordsCalls(t *testing.T) {
 		t.Fatalf("unmatched call should be recorded as a miss: %v", entries[2])
 	}
 
-	if status := server.Post(baseURL+"/_mock/control/exit", `{"reason":"conformance"}`); status != http.StatusAccepted {
-		t.Fatalf("mock control exit POST status = %d, want %d", status, http.StatusAccepted)
+	if status := server.Post(baseURL+"/api/lifecycle/exit", `{"reason":"conformance"}`); status != http.StatusAccepted {
+		t.Fatalf("mock lifecycle exit POST status = %d, want %d", status, http.StatusAccepted)
 	}
 	result := server.WaitExit(15 * time.Second)
 	result.RequireExit(t, 0)

@@ -429,16 +429,6 @@ rest:
       queue: {name: documentation_curator_control, capacity: 8, timeout: 30s}
       shutdown: {timeout: 5s, drain_policy: drain_then_stop}
       endpoints:
-        exit:
-          method: POST
-          path: /api/lifecycle/exit
-          binding: emit_signal
-          signal: ExitRequested
-          request:
-            body_schema:
-              type: object
-              properties: {reason: {type: string}, status: {type: string}}
-          response: {output: {accepted: "true"}}
         control_health:
           method: GET
           path: /api/lifecycle/health
@@ -447,6 +437,7 @@ rest:
     monitor:
       address: 127.0.0.1:18084
       limits_ref: local_monitor
+      lifecycle_exit: {disabled: true}
       queue: {name: documentation_curator_monitor, capacity: 8, overflow: reject, timeout: 100ms}
       shutdown: {timeout: 2s, drain_policy: drain, stop_listeners: true, unblock_await_signal: ServerStopped}
       endpoints:
@@ -457,14 +448,6 @@ rest:
         recent_events: {method: GET, path: /monitor/events, binding: read_state, monitor_view: events}
         event_stream: {method: GET, path: /monitor/events/stream, binding: stream_events, monitor_view: events}
         openapi: {method: GET, path: /monitor/openapi, binding: static_metadata, monitor_view: openapi}
-        control_exit:
-          method: POST
-          path: /monitor/control/exit
-          binding: emit_signal
-          signal: ExitRequested
-          request:
-            body_schema: {type: object, properties: {reason: {type: string}}}
-          response: {output: {accepted: "true"}}
         monitor_ui:
           method: GET
           path: /ui/{path...}
