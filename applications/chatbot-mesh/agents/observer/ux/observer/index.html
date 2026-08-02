@@ -59,6 +59,15 @@ h1{font-size:1.4rem;font-weight:600;margin-bottom:.25rem}
 .meta-row{display:flex;gap:1rem;font-size:.8rem;margin-bottom:.25rem}
 .meta-row dt{color:var(--text-secondary);min-width:80px}
 .meta-row dd{font-family:var(--font-mono)}
+.resources{display:flex;gap:12px;font-family:var(--font-mono);font-size:12px;margin-top:4px}
+.res-unavailable{color:var(--text-tertiary);font-style:italic}
+.topology{margin:16px 0}
+.topo-group{border:1px solid var(--border);border-radius:6px;padding:8px 12px;margin-bottom:8px}
+.topo-group h3{margin:0 0 4px;font-size:13px}
+.topo-svc{color:var(--text-secondary);font-size:12px}
+.topo-pods{display:flex;flex-wrap:wrap;gap:6px;margin-top:6px}
+.pod-chip{font-family:var(--font-mono);font-size:11px;background:var(--bg-tertiary);border-radius:4px;padding:2px 6px}
+.section-title{font-size:14px;margin:16px 0 8px;color:var(--text-secondary)}
 </style>
 </head>
 <body>
@@ -70,12 +79,15 @@ h1{font-size:1.4rem;font-weight:600;margin-bottom:.25rem}
   <span id="agent-count"></span>
   <span style="margin-left:auto" id="last-poll"></span>
 </div>
+<div id="topology" class="topology"></div>
+<div class="section-title" id="agents-title" style="display:none">Agents</div>
 <div id="fleet" class="grid"></div>
 <div id="empty-state" class="empty" style="display:none">No agents discovered yet. Waiting for mesh pods...</div>
 <script>
 (function() {
   const POLL_MS = 10000;
   const fleet = document.getElementById('fleet');
+  const topology = document.getElementById('topology');
   const emptyState = document.getElementById('empty-state');
   const pollDot = document.getElementById('poll-dot');
   const pollStatus = document.getElementById('poll-status');
@@ -99,7 +111,15 @@ h1{font-size:1.4rem;font-weight:600;margin-bottom:.25rem}
     } catch(_) { return ts; }
   }
 
-  function renderAgent(agent) {
+  // resourceLabel returns a CPU/memory string for a pod, or an explicit
+  // unavailable marker when metrics are absent (srd008 R6.2).
+  function resourceLabel(name, metricsMap) {
+    var m = metricsMap[name];
+    if (!m) return '<span class="res-unavailable">metrics unavailable</span>';
+    return '<span>cpu ' + esc(m.cpu || '?') + '</span><span>mem ' + esc(m.memory || '?') + '</span>';
+  }
+
+  function renderAgent(agent, metricsMap) {
     const state = agent.state && agent.state.current_state || agent.state || '';
     const machine = agent.machine || {};
     const tools = agent.tools || [];
@@ -117,6 +137,8 @@ h1{font-size:1.4rem;font-weight:600;margin-bottom:.25rem}
       html += '<span class="agent-state ' + stateClass(state) + '">' + esc(state || 'unknown') + '</span>';
     }
     html += '</div>';
+
+    html += '<div class="resources">' + resourceLabel(name, metricsMap || {}) + '</div>';
 
     if (purpose) {
       html += '<p class="purpose">' + esc(purpose.split('\n')[0]) + '</p>';
@@ -160,6 +182,58 @@ h1{font-size:1.4rem;font-weight:600;margin-bottom:.25rem}
     return d.innerHTML;
   }
 
+  // buildMetricsMap maps pod name -> summed CPU/memory usage from the
+  // metrics.k8s.io PodMetrics items (srd008 R6.1). Absent data yields an empty
+  // map, so every card falls back to "metrics unavailable".
+  function buildMetricsMap(podMetrics) {
+    var map = {};
+    (podMetrics || []).forEach(function(pm) {
+      var name = pm.name || (pm.metadata && pm.metadata.name);
+      if (!name) return;
+      if (pm.cpu || pm.memory) { map[name] = {cpu: pm.cpu, memory: pm.memory}; return; }
+      var cpu = '', mem = '';
+      (pm.containers || []).forEach(function(c) {
+        if (c.usage) { cpu = cpu || c.usage.cpu; mem = mem || c.usage.memory; }
+      });
+      map[name] = {cpu: cpu, memory: mem};
+    });
+    return map;
+  }
+
+  // renderTopology groups pods by their owning Deployment (via the
+  // app.kubernetes.io/component label) and lists the fronting Services, so the
+  // fleet view shows the deployment layout (srd008 R3.5).
+  function renderTopology(data, metricsMap) {
+    var deployments = data.deployments || [];
+    var services = data.services || [];
+    var agents = data.agents || data.fleet || [];
+    if (deployments.length === 0 && services.length === 0) { topology.innerHTML = ''; return; }
+    var svcByComponent = {};
+    services.forEach(function(s) {
+      var sel = (s.spec && s.spec.selector) || {};
+      var comp = sel['app.kubernetes.io/component'];
+      var nm = s.name || (s.metadata && s.metadata.name);
+      if (comp) svcByComponent[comp] = nm;
+    });
+    var html = '<div class="section-title">Topology</div>';
+    deployments.forEach(function(d) {
+      var nm = d.name || (d.metadata && d.metadata.name) || 'deployment';
+      var comp = (d.metadata && d.metadata.labels && d.metadata.labels['app.kubernetes.io/component']) || nm;
+      var pods = agents.filter(function(a){ return (a.component || a.name || '').indexOf(comp) !== -1; });
+      html += '<div class="topo-group">';
+      html += '<h3>' + esc(nm) + '</h3>';
+      if (svcByComponent[comp]) html += '<div class="topo-svc">service: ' + esc(svcByComponent[comp]) + '</div>';
+      html += '<div class="topo-pods">';
+      pods.forEach(function(p) {
+        var pn = p.name || 'pod';
+        var res = metricsMap[pn] ? (metricsMap[pn].cpu + '/' + metricsMap[pn].memory) : 'n/a';
+        html += '<span class="pod-chip">' + esc(pn) + ' · ' + esc(res) + '</span>';
+      });
+      html += '</div></div>';
+    });
+    topology.innerHTML = html;
+  }
+
   async function poll() {
     pollDot.className = 'dot dot-warn';
     pollStatus.textContent = 'Polling...';
@@ -177,12 +251,17 @@ h1{font-size:1.4rem;font-weight:600;margin-bottom:.25rem}
         agents = [{name: 'observer', state: data.current_state, reachable: true}];
       }
 
+      var metricsMap = buildMetricsMap(data.pod_metrics);
+      renderTopology(data, metricsMap);
+
       if (agents.length === 0) {
         fleet.innerHTML = '';
+        document.getElementById('agents-title').style.display = 'none';
         emptyState.style.display = 'block';
       } else {
         emptyState.style.display = 'none';
-        fleet.innerHTML = agents.map(renderAgent).join('');
+        document.getElementById('agents-title').style.display = 'block';
+        fleet.innerHTML = agents.map(function(a){ return renderAgent(a, metricsMap); }).join('');
       }
 
       var reachable = agents.filter(function(a){ return a.reachable !== false; }).length;
