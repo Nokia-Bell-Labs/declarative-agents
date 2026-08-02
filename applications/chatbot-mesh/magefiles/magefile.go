@@ -32,6 +32,7 @@ const (
 // and integration variables are a separate injection contract, tracked in
 // GH-1251, and are not read here.)
 type demoConfig struct {
+	CatalogRoot       string `yaml:"catalog_root"`
 	CoreRoot          string `yaml:"core_root"`
 	HelmDist          string `yaml:"helm_dist"`
 	SpecCriticProfile string `yaml:"spec_critic_profile"`
@@ -185,9 +186,10 @@ func resolveAuditTools(root, catalogRoot string) (coreRoot, specificationCriticP
 	return coreRoot, specificationCriticProfile, nil
 }
 
-// resolveCatalogRoot snapshots the canonical and Release 99 compatibility
-// inputs against the application owner's startup directory. It never changes
-// process CWD; child commands continue to run from the chatbot-mesh root.
+// resolveCatalogRoot resolves the catalog source root from the declared
+// demo.yaml catalog_root against the application owner's startup directory, or
+// by repository discovery. It never changes process CWD; child commands
+// continue to run from the chatbot-mesh root.
 func resolveCatalogRoot(owner, startupCWD string) (string, error) {
 	startupCWD, err := filepath.Abs(filepath.Clean(startupCWD))
 	if err != nil {
@@ -196,15 +198,11 @@ func resolveCatalogRoot(owner, startupCWD string) (string, error) {
 	resolution, err := catalogroot.Resolve(
 		owner,
 		startupCWD,
-		os.Getenv(catalogroot.Env),
-		os.Getenv(catalogroot.LegacyEnv),
+		loadDemoConfigOrEmpty(startupCWD).CatalogRoot,
 		catalogroot.DiscoveryCandidates(startupCWD)...,
 	)
 	if err != nil {
 		return "", err
-	}
-	if diagnostic := resolution.Deprecation(); diagnostic != "" {
-		fmt.Fprintln(os.Stderr, diagnostic)
 	}
 	return resolution.Path, nil
 }

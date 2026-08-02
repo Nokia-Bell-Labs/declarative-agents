@@ -18,7 +18,7 @@ func catalogOwnerRoot(owner string) (string, error) {
 	if err != nil {
 		return "", fmt.Errorf("%s: resolve catalog owner root: %w", owner, err)
 	}
-	resolution, err := catalogroot.Resolve(owner, cwd, cwd, "")
+	resolution, err := catalogroot.Resolve(owner, cwd, cwd)
 	if err != nil {
 		return "", fmt.Errorf("%s; run the command from applications/catalog", err)
 	}

@@ -91,7 +91,7 @@ func TestHelmPackageRunsFromCopiedStandaloneLayout(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	t.Setenv("AGENT_CATALOG_ROOT", canonicalRoot)
+	writeDemoConfig(t, standalone, "catalog_root: "+canonicalRoot)
 
 	destination := filepath.Join(standalone, "helm", "dist")
 	if err := packageHelmChart(

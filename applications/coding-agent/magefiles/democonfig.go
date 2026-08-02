@@ -18,6 +18,7 @@ const demoConfigFile = "demo.yaml"
 // editing this declaration, never an environment variable. (Catalog-root
 // resolution stays with the shared catalogroot package, tracked in GH-1250.)
 type demoConfig struct {
+	CatalogRoot    string `yaml:"catalog_root"`
 	CoreRoot       string `yaml:"core_root"`
 	HelmDist       string `yaml:"helm_dist"`
 	Image          string `yaml:"image"`

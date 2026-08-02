@@ -4,8 +4,10 @@
 # from an environment variable. With every key commented out (the shipped state)
 # the targets run zero-configuration against the monorepo layout. Uncomment a key
 # to override it; relative paths are resolved from this application directory.
-#
-# Catalog-root resolution stays with the shared catalogroot package (GH-1250).
+
+# Catalog source root that owns the reusable agent blocks. Defaults to
+# repository discovery (the monorepo applications/catalog).
+# catalog_root: ../catalog
 
 # agent-core checkout the integration targets build the runtime from.
 # core_root: ../../agent-core

@@ -116,51 +116,32 @@ func writeDemoConfig(t *testing.T, applicationRoot string, lines ...string) {
 	}
 }
 
-func TestResolveCatalogRootEnvironmentPrecedence(t *testing.T) {
-	catalog, err := filepath.Abs(filepath.Join("..", "..", "catalog"))
-	if err != nil {
+func TestResolveCatalogRootFromDemoConfig(t *testing.T) {
+	startup := t.TempDir()
+	catalog := filepath.Join(startup, "catalog")
+	if err := os.MkdirAll(filepath.Join(catalog, "agents"), 0o755); err != nil {
 		t.Fatal(err)
 	}
-	other := filepath.Join(t.TempDir(), "catalog")
-	if err := os.MkdirAll(filepath.Join(other, "agents"), 0o755); err != nil {
-		t.Fatal(err)
-	}
-	writeAgentFixture(t, filepath.Join(other, "go.mod"),
+	writeAgentFixture(t, filepath.Join(catalog, "go.mod"),
 		"module github.com/Nokia-Bell-Labs/declarative-agents/applications/catalog\n")
 
 	tests := []struct {
-		name      string
-		canonical string
-		legacy    string
-		want      string
-		wantError []string
+		name        string
+		catalogRoot string
+		want        string
 	}{
-		{name: "canonical", canonical: catalog, want: catalog},
-		{name: "relative canonical", canonical: "../catalog", want: catalog},
-		{name: "legacy compatibility", legacy: catalog, want: catalog},
-		{name: "equal dual inputs", canonical: catalog, legacy: filepath.Join(catalog, "."), want: catalog},
-		{name: "conflicting inputs", canonical: catalog, legacy: other,
-			wantError: []string{"AGENT_CATALOG_ROOT", "AGENT_PROFILES_ROOT", "different paths"}},
+		{name: "absolute catalog_root", catalogRoot: catalog, want: catalog},
+		{name: "relative catalog_root resolves from startup directory", catalogRoot: "catalog", want: catalog},
 	}
 	for _, test := range tests {
 		t.Run(test.name, func(t *testing.T) {
-			t.Setenv("AGENT_CATALOG_ROOT", test.canonical)
-			t.Setenv("AGENT_PROFILES_ROOT", test.legacy)
+			writeDemoConfig(t, startup, "catalog_root: "+test.catalogRoot)
 			before, err := os.Getwd()
 			if err != nil {
 				t.Fatal(err)
 			}
-			got, err := resolveCatalogRoot("chatbot test", filepath.Join(before, ".."))
-			if len(test.wantError) > 0 {
-				if err == nil {
-					t.Fatal("expected catalog-root conflict")
-				}
-				for _, text := range test.wantError {
-					if !strings.Contains(err.Error(), text) {
-						t.Errorf("error %q missing %q", err, text)
-					}
-				}
-			} else if err != nil || got != test.want {
+			got, err := resolveCatalogRoot("chatbot test", startup)
+			if err != nil || got != test.want {
 				t.Fatalf("resolveCatalogRoot = %q, %v; want %q", got, err, test.want)
 			}
 			after, getwdErr := os.Getwd()
