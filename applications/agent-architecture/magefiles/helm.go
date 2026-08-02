@@ -360,13 +360,6 @@ func hasDuplicateStrings(values []string) bool {
 	return false
 }
 
-func envOrDefault(name, fallback string) string {
-	if value := strings.TrimSpace(os.Getenv(name)); value != "" {
-		return value
-	}
-	return fallback
-}
-
 func copyRegularFile(source, destination string) error {
 	info, err := os.Stat(source)
 	if err != nil {

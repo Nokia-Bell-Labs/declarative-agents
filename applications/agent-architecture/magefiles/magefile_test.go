@@ -17,11 +17,18 @@ import (
 
 func TestResolveRootsDefaults(t *testing.T) {
 	app, catalog, core := rootFixture(t)
-	got, err := resolveRoots(app, func(string) string { return "" })
+	got, err := resolveRoots(app, demoConfig{})
 	if err != nil {
 		t.Fatal(err)
 	}
-	want := roots{Application: app, Catalog: catalog, Core: core}
+	want := roots{
+		Application: app,
+		Catalog:     catalog,
+		Core:        core,
+		Tracing:     true,
+		HelmDist:    filepath.Join(app, "helm", "dist"),
+		Image:       agentArchitectureImageRepository + ":" + agentArchitectureImageTag,
+	}
 	if !reflect.DeepEqual(got, want) {
 		t.Fatalf("resolveRoots() = %#v, want %#v", got, want)
 	}
@@ -38,11 +45,11 @@ func TestResolveRootsExplicitRelativeOwners(t *testing.T) {
 	if err := os.MkdirAll(filepath.Join(core, "cmd", "agent"), 0o755); err != nil {
 		t.Fatal(err)
 	}
-	values := map[string]string{
-		catalogRootEnv: filepath.Join("..", "..", "catalog-checkout"),
-		coreRootEnv:    filepath.Join("..", "..", "core-checkout"),
+	config := demoConfig{
+		CatalogRoot: filepath.Join("..", "..", "catalog-checkout"),
+		CoreRoot:    filepath.Join("..", "..", "core-checkout"),
 	}
-	got, err := resolveRoots(app, func(name string) string { return values[name] })
+	got, err := resolveRoots(app, config)
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -55,23 +62,23 @@ func TestResolveRootsReportsMissingOwners(t *testing.T) {
 	app, _, _ := rootFixture(t)
 	tests := []struct {
 		name    string
-		values  map[string]string
+		config  demoConfig
 		message string
 	}{
 		{
 			name:    "catalog profile",
-			values:  map[string]string{catalogRootEnv: filepath.Join(app, "missing-catalog")},
+			config:  demoConfig{CatalogRoot: filepath.Join(app, "missing-catalog")},
 			message: "canonical documentation-curator profile not found",
 		},
 		{
 			name:    "core checkout",
-			values:  map[string]string{coreRootEnv: filepath.Join(app, "missing-core")},
+			config:  demoConfig{CoreRoot: filepath.Join(app, "missing-core")},
 			message: "agent-core checkout not found",
 		},
 	}
 	for _, test := range tests {
 		t.Run(test.name, func(t *testing.T) {
-			_, err := resolveRoots(app, func(name string) string { return test.values[name] })
+			_, err := resolveRoots(app, test.config)
 			if err == nil || !strings.Contains(err.Error(), test.message) {
 				t.Fatalf("error = %v, want message containing %q", err, test.message)
 			}
@@ -84,9 +91,60 @@ func TestResolveRootsReportsMissingAgentCommand(t *testing.T) {
 	if err := os.RemoveAll(filepath.Join(core, "cmd", "agent")); err != nil {
 		t.Fatal(err)
 	}
-	_, err := resolveRoots(app, func(string) string { return "" })
+	_, err := resolveRoots(app, demoConfig{})
 	if err == nil || !strings.Contains(err.Error(), "agent-core command directory not found") {
 		t.Fatalf("error = %v, want missing command directory", err)
+	}
+}
+
+func TestLoadDemoConfigAbsentFileIsZeroConfig(t *testing.T) {
+	config, err := loadDemoConfig(t.TempDir())
+	if err != nil {
+		t.Fatal(err)
+	}
+	if config != (demoConfig{}) {
+		t.Fatalf("absent %s = %#v, want empty config", demoConfigFile, config)
+	}
+}
+
+func TestLoadDemoConfigOverlaysDeclaredValues(t *testing.T) {
+	root := t.TempDir()
+	writeFile(t, filepath.Join(root, demoConfigFile),
+		"catalog_root: ../elsewhere\ntracing: false\nimage: example.test/runtime:9\n")
+	config, err := loadDemoConfig(root)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if config.CatalogRoot != "../elsewhere" {
+		t.Errorf("catalog_root = %q, want ../elsewhere", config.CatalogRoot)
+	}
+	if config.Tracing == nil || *config.Tracing {
+		t.Errorf("tracing = %v, want an explicit false", config.Tracing)
+	}
+	if config.Image != "example.test/runtime:9" {
+		t.Errorf("image = %q, want example.test/runtime:9", config.Image)
+	}
+}
+
+func TestResolveRootsHonorsDeclaredOverrides(t *testing.T) {
+	app, _, _ := rootFixture(t)
+	disabled := false
+	got, err := resolveRoots(app, demoConfig{
+		Tracing:  &disabled,
+		HelmDist: "out/charts",
+		Image:    "example.test/runtime:9",
+	})
+	if err != nil {
+		t.Fatal(err)
+	}
+	if got.Tracing {
+		t.Error("tracing = true, want false from demo.yaml")
+	}
+	if want := filepath.Join(app, "out", "charts"); got.HelmDist != want {
+		t.Errorf("helm dist = %s, want %s", got.HelmDist, want)
+	}
+	if got.Image != "example.test/runtime:9" {
+		t.Errorf("image = %s, want example.test/runtime:9", got.Image)
 	}
 }
 
@@ -155,7 +213,6 @@ func TestPresentationCommandDisablesPlayground(t *testing.T) {
 
 func TestAuditApplication(t *testing.T) {
 	root := realApplicationRoot(t)
-	t.Setenv(catalogRootEnv, filepath.Join(root, "..", "catalog"))
 	if err := auditApplication(root); err != nil {
 		t.Fatal(err)
 	}
@@ -163,7 +220,6 @@ func TestAuditApplication(t *testing.T) {
 
 func TestAuditRejectsBrokenReciprocalTrace(t *testing.T) {
 	root := copyApplicationFixture(t)
-	t.Setenv(catalogRootEnv, filepath.Join(root, "..", "catalog"))
 	suite := filepath.Join(root, "docs", "specs", "test-suites", "test-rel00.0-guided-agent-architecture.yaml")
 	data, err := os.ReadFile(suite)
 	if err != nil {
@@ -189,7 +245,6 @@ func TestAuditRejectsBrokenReciprocalTrace(t *testing.T) {
 
 func TestAuditRejectsStaleCatalogDemoPath(t *testing.T) {
 	root := copyApplicationFixture(t)
-	t.Setenv(catalogRootEnv, filepath.Join(root, "..", "catalog"))
 	readme := filepath.Join(root, "README.md")
 	file, err := os.OpenFile(readme, os.O_APPEND|os.O_WRONLY, 0)
 	if err != nil {
@@ -210,7 +265,6 @@ func TestAuditRejectsStaleCatalogDemoPath(t *testing.T) {
 
 func TestAuditRejectsDeveloperSpecificPath(t *testing.T) {
 	root := copyApplicationFixture(t)
-	t.Setenv(catalogRootEnv, filepath.Join(root, "..", "catalog"))
 	readme := filepath.Join(root, "README.md")
 	file, err := os.OpenFile(readme, os.O_APPEND|os.O_WRONLY, 0)
 	if err != nil {
@@ -231,7 +285,6 @@ func TestAuditRejectsDeveloperSpecificPath(t *testing.T) {
 
 func TestAuditRejectsCanonicalProfileCopy(t *testing.T) {
 	root := copyApplicationFixture(t)
-	t.Setenv(catalogRootEnv, filepath.Join(root, "..", "catalog"))
 	writeFile(t, filepath.Join(root, filepath.FromSlash(canonicalProfile)), "name: copied-curator\n")
 	err := auditApplication(root)
 	if err == nil || !strings.Contains(err.Error(), "must not contain a copy") {
@@ -308,7 +361,7 @@ func TestLifecycleExitContract(t *testing.T) {
 		t.Fatal(err)
 	}
 	for _, contract := range []string{
-		"base_url: ${CURATOR_URL:-http://127.0.0.1:18082}",
+		"base_url: http://127.0.0.1:18082",
 		"auth_ref: none",
 		"method: POST",
 		"path: /api/lifecycle/exit",
@@ -358,21 +411,20 @@ func TestManagedServicesEvidenceContract(t *testing.T) {
 }
 
 func TestTracingEnabled(t *testing.T) {
+	enabled, disabled := true, false
 	tests := []struct {
-		value string
-		want  bool
+		name    string
+		tracing *bool
+		want    bool
 	}{
-		{"", true},
-		{"true", true},
-		{"1", true},
-		{"false", false},
-		{"FALSE", false},
-		{"False", false},
+		{"omitted defaults on", nil, true},
+		{"explicit true", &enabled, true},
+		{"explicit false", &disabled, false},
 	}
 	for _, test := range tests {
-		got := tracingEnabled(func(string) string { return test.value })
+		got := tracingEnabled(demoConfig{Tracing: test.tracing})
 		if got != test.want {
-			t.Errorf("tracingEnabled(%q) = %v, want %v", test.value, got, test.want)
+			t.Errorf("tracingEnabled(%s) = %v, want %v", test.name, got, test.want)
 		}
 	}
 }

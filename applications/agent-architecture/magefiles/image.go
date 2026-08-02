@@ -16,7 +16,6 @@ import (
 const (
 	agentArchitectureImageRepository = "ghcr.io/nokia-bell-labs/declarative-agents/agent-architecture-runtime"
 	agentArchitectureImageTag        = "0.1.0"
-	agentArchitectureImageEnv        = "AGENT_ARCHITECTURE_IMAGE"
 	imageBuildTimeout                = 5 * time.Minute
 )
 
@@ -32,8 +31,7 @@ func (Image) Build() error {
 	if err != nil {
 		return err
 	}
-	image := envOrDefault(agentArchitectureImageEnv, agentArchitectureImageRepository+":"+agentArchitectureImageTag)
-	return buildAgentArchitectureImage(resolved.Application, image)
+	return buildAgentArchitectureImage(resolved.Application, resolved.Image)
 }
 
 func buildAgentArchitectureImage(applicationRoot, image string) error {
