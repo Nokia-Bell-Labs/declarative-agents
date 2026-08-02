@@ -264,12 +264,12 @@ func validateChatbotChartArchive(archive string, stagedFiles []string) error {
 	if err != nil {
 		return fmt.Errorf("open chart archive: %w", err)
 	}
-	defer file.Close()
+	defer func() { _ = file.Close() }()
 	gz, err := gzip.NewReader(file)
 	if err != nil {
 		return fmt.Errorf("open chart gzip: %w", err)
 	}
-	defer gz.Close()
+	defer func() { _ = gz.Close() }()
 	reader := tar.NewReader(gz)
 	for {
 		header, err := reader.Next()

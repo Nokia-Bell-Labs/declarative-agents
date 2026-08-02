@@ -164,7 +164,7 @@ func startDetachedAgentWithEnv(launch agentLaunch) (func(kill bool) error, error
 			if err := cmd.Process.Kill(); err != nil {
 				return fmt.Errorf("kill %s: %w", profile, err)
 			}
-			_ = <-done // a signal exit is expected after an explicit force-kill.
+			<-done // a signal exit is expected after an explicit force-kill.
 			return nil
 		}
 		select {
@@ -312,7 +312,7 @@ func requestHTTPWithClient(client *http.Client, method, url, body string) ([]byt
 	if err != nil {
 		return nil, 0, err
 	}
-	defer resp.Body.Close()
+	defer func() { _ = resp.Body.Close() }()
 	data, err := io.ReadAll(resp.Body)
 	return data, resp.StatusCode, err
 }
@@ -351,15 +351,16 @@ func freeLoopbackAddr() (string, error) {
 	if err != nil {
 		return "", err
 	}
-	defer listener.Close()
+	defer func() { _ = listener.Close() }()
 	return listener.Addr().String(), nil
 }
 
-// writeExecutable writes a script to path with the executable bit set, for the
-// fake helm/kubectl binaries a tracer puts on PATH.
-func writeExecutable(path, script, label string) error {
-	if err := os.WriteFile(path, []byte(script), 0o755); err != nil {
-		return fmt.Errorf("write %s: %w", label, err)
+// containsString reports whether values contains want.
+func containsString(values []string, want string) bool {
+	for _, value := range values {
+		if value == want {
+			return true
+		}
 	}
-	return nil
+	return false
 }

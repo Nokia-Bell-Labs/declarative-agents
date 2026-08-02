@@ -141,7 +141,7 @@ func observerGetJSON(url string) (map[string]interface{}, error) {
 	if err != nil {
 		return nil, err
 	}
-	defer resp.Body.Close()
+	defer func() { _ = resp.Body.Close() }()
 	if resp.StatusCode != http.StatusOK {
 		body, _ := io.ReadAll(resp.Body)
 		return nil, fmt.Errorf("GET %s: %d %s", url, resp.StatusCode, string(body))
@@ -180,9 +180,10 @@ func splitHostPort(addr string) (host, port string, err error) {
 }
 
 // observerKindIntegration runs against a live kind cluster to verify kube API
-// discovery and monitor fan-in. Exported as a function so the test file can call
-// it under a skip guard. Returns the number of discovered agents and the first
-// error.
+// discovery and monitor fan-in. Its skip-guarded test is not yet wired, so it
+// has no caller; kept rather than deleted so the coverage work reuses it.
+//
+//nolint:unused // entry point for the not-yet-wired observer kind-integration test (GH-1213 follow-up)
 func observerKindIntegration(applicationRoot, coreRoot, kubeAPIURL, namespace, labelSelector string) (int, error) {
 	binary, err := buildAgent(coreRoot)
 	if err != nil {

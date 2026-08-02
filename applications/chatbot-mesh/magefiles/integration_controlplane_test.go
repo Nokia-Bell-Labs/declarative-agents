@@ -45,7 +45,7 @@ func TestFakeDeploymentAPIBindFailureIsAnError(t *testing.T) {
 	if err != nil {
 		t.Fatalf("reserve address: %v", err)
 	}
-	defer reservation.Close()
+	defer func() { _ = reservation.Close() }()
 	address := reservation.Addr().String()
 
 	_, err = startFakeDeploymentAPIOnAddr(&deploymentAPIRecorder{}, address)

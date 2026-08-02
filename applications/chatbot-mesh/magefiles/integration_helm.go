@@ -433,7 +433,7 @@ func buildSmokeRuntimeImage(coreRoot, image string) error {
 	if err != nil {
 		return err
 	}
-	defer os.RemoveAll(ctxDir)
+	defer func() { _ = os.RemoveAll(ctxDir) }()
 
 	build := exec.Command("go", "build", "-tags", "production", "-trimpath",
 		"-ldflags=-s -w", "-o", filepath.Join(ctxDir, "agent"), "./cmd/agent")
@@ -1408,12 +1408,6 @@ func finishLLMPreloadTransition(run helmLLMCommandRunner, workloads []string) er
 
 func kubectlRolloutStatus(kind, name string, timeout time.Duration) error {
 	cmd := exec.Command("kubectl", "rollout", "status", kind+"/"+name, "--timeout", timeout.String())
-	cmd.Stdout, cmd.Stderr = os.Stderr, os.Stderr
-	return cmd.Run()
-}
-
-func waitJobComplete(name string, timeout time.Duration) error {
-	cmd := exec.Command("kubectl", "wait", "--for=condition=complete", "job/"+name, "--timeout", timeout.String())
 	cmd.Stdout, cmd.Stderr = os.Stderr, os.Stderr
 	return cmd.Run()
 }

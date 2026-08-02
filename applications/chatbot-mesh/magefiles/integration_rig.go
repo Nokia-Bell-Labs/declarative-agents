@@ -36,8 +36,6 @@ var rigExpectedVerdicts = []string{
 	"ScenarioPassed", // rag-server/query: the mesh agent against a mock Chroma
 }
 
-var rigExpectedCriticIdentities = []string{"chatbot-turn-critic", "rag-query-critic"}
-
 // Rig runs the scenario critic test rig over this application's agents and the
 // catalog reference subject in one pass — the cross-root proof: one
 // rig, two repository areas, discovered by convention. The rag-server is
@@ -256,7 +254,7 @@ func runCollectorIntakeScenario(binary, coreRoot, catalogRoot, workDir string) e
 	if err != nil {
 		return err
 	}
-	defer conn.Close()
+	defer func() { _ = conn.Close() }()
 	if _, err := coltracepb.NewTraceServiceClient(conn).Export(ctx, &batch, grpc.WaitForReady(true)); err != nil {
 		return fmt.Errorf("export canned batch: %w\n%s", err, output.String())
 	}
@@ -395,7 +393,7 @@ func runCollectorLifecycleScenario(binary, coreRoot, catalogRoot, workDir string
 			allRebind = false
 			continue
 		}
-		ln.Close()
+		_ = ln.Close()
 	}
 
 	return &collectorLifecycleResult{

@@ -22,9 +22,7 @@ func Stats() error {
 	if err != nil {
 		return err
 	}
-	rec := meshStatsOutput{
-		Agents: ownership.Agents, Composition: ownership.Composition,
-	}
+	rec := meshStatsOutput(ownership)
 
 	enc := json.NewEncoder(os.Stdout)
 	enc.SetIndent("", "  ")
@@ -36,7 +34,7 @@ func meshCountLines(path string) (int, error) {
 	if err != nil {
 		return 0, err
 	}
-	defer f.Close()
+	defer func() { _ = f.Close() }()
 	n := 0
 	s := bufio.NewScanner(f)
 	for s.Scan() {

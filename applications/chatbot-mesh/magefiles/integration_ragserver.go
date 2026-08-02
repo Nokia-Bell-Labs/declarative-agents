@@ -64,7 +64,7 @@ func runRagServerIntegration(profilesRoot, coreRoot string) error {
 	if err != nil {
 		return fmt.Errorf("create chroma data dir: %w", err)
 	}
-	defer os.RemoveAll(dataDir)
+	defer func() { _ = os.RemoveAll(dataDir) }()
 	containerID, err := startRequiredChromaContainer(dataDir, ensureChromaServer)
 	if err != nil {
 		return fmt.Errorf("rag-server dependency startup: %w", err)
