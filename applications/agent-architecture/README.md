@@ -5,11 +5,12 @@
 This standalone application drives the Knowledge Manager documentation agent
 from [agent-architecture.slide](agent-architecture.slide). The deck starts the
 canonical catalog-owned documentation-curator profile, then posts a
-lifecycle-exit request to its control server.
+lifecycle-exit request to its control server through the catalog-owned
+lifecycle-exit client.
 
-The application owns this README, the deck, and the declarative lifecycle-exit
-client. `applications/catalog` remains the only owner of the
-documentation-curator profile and its UI, while `agent-core` owns the runtime
+The application owns this README and the deck; it composes catalog-owned
+profiles. `applications/catalog` owns the documentation-curator profile and its
+UI and the reusable lifecycle-exit client, while `agent-core` owns the runtime
 and builtin tools.
 
 ## Prerequisites (macOS)
@@ -87,10 +88,10 @@ and 5 each take their own terminal.
    - collected traces at http://127.0.0.1:18193/query/traces.
 
 5. In a third terminal, stop the curator through its own API by running the
-   lifecycle-exit agent. Build the `agent` binary from `../../agent-core` as in
-   Start the Knowledge Manager, then:
+   catalog-owned lifecycle-exit client. Build the `agent` binary from
+   `../../agent-core` as in Start the Knowledge Manager, then:
 
-       agent --profile "$(pwd)/call-lifecycle-exit/profile.yaml" --directory "$(pwd)" --core-root "../../agent-core"
+       agent --profile "../catalog/agents/lifecycle-exit/profile.yaml" --directory "../catalog" --core-root "../../agent-core"
 
    On success the exit agent reports `terminal state: succeeded`, the curator
    shuts down, and `mage run` stops the collector and returns cleanly. A trailing
@@ -150,26 +151,29 @@ chatbot-mesh persistent collector ingress (`mage observability:up` in
 `applications/chatbot-mesh`) binds 4317 and 18193 too; stop it with
 `mage observability:down` from that directory before a traced demo run.
 
-## The lifecycle-exit agent
+## The lifecycle-exit client
 
 The exit request is a declarative agent under
-[call-lifecycle-exit/](call-lifecycle-exit/), not a bespoke HTTP client. Its
-machine has one boundary word, `post_exit`, that binds the rest tool to POST the
-fixed `{"reason": "demo presentation"}` body to
-`/api/lifecycle/exit`; the machine reaches terminal state `Done` when the server
-returns HTTP 202 Accepted. The control-server URL is a declared REST client base
-(the literal `base_url` in `call-lifecycle-exit/rest.yaml`, default
-`http://127.0.0.1:18082`), not runtime input, and the endpoint carries no
-transport authority (`auth: none`). Run it with:
+[`../catalog/agents/lifecycle-exit/`](../catalog/agents/lifecycle-exit/), a
+catalog-owned reusable client rather than a bespoke HTTP client. Its machine has
+one boundary word, `post_exit`, that binds the rest tool to POST the fixed
+`{"reason": "demo presentation"}` body to `/api/lifecycle/exit`; the machine
+reaches terminal state `Done` when the server returns HTTP 202 Accepted. The
+control-server URL is a declared REST client base (the literal `base_url` in
+`../catalog/agents/lifecycle-exit/rest.yaml`, default `http://127.0.0.1:18082`),
+not runtime input, and the endpoint carries no transport authority (`auth:
+none`). Retargeting to another agent's control server is a single `base_url`
+change, no profile copy. Run it with:
 
     agent \
-      --profile "$(pwd)/call-lifecycle-exit/profile.yaml" \
-      --directory "$(pwd)" \
+      --profile "../catalog/agents/lifecycle-exit/profile.yaml" \
+      --directory "../catalog" \
       --core-root "../../agent-core"
 
-Expressing the exit call as a machine rather than a Go binary makes the demo an
+Expressing the exit call as a machine rather than a Go binary makes it an
 instance of the system's own thesis: runtime behavior lives in YAML and is run
-by the interpreter. It replaces the former `call_lifecycle_exit/main.go`.
+by the interpreter. The catalog owns this reusable client; this application's
+demo is one consumer.
 
 ## Installed runtime
 
@@ -181,9 +185,9 @@ still needs an explicit catalog root for the canonical profile:
       --profile "../catalog/agents/knowledge-manager/documentation-curator/profile.yaml" \
       --directory "../catalog"
 
-Run the application-owned exit client from this application root:
+Run the catalog-owned exit client:
 
-    agent --profile "$(pwd)/call-lifecycle-exit/profile.yaml" --directory "$(pwd)"
+    agent --profile "../catalog/agents/lifecycle-exit/profile.yaml" --directory "../catalog"
 
 ## Kubernetes demo (optional)
 

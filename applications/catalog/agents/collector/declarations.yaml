@@ -132,7 +132,6 @@ tools:
     config:
       sources:
         - {server: collector_control, routes: [exit], signals: [ExitRequested]}
-        - {server: collector_monitor, routes: [control_exit], signals: [ExitRequested]}
       timeout: 100ms
       stopped_behavior: emit_server_stopped
 

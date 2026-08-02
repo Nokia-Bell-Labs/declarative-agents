@@ -625,7 +625,7 @@ func auditOwnedSources(root string) error {
 	}
 	developerPath := regexp.MustCompile(`(?:/Users/|/home/|[A-Za-z]:\\)`)
 	profileReferenceSeen := false
-	scanRoots := []string{"docs", "call-lifecycle-exit", "README.md", "agent-architecture.slide"}
+	scanRoots := []string{"docs", "README.md", "agent-architecture.slide"}
 	for _, relative := range scanRoots {
 		path := filepath.Join(root, relative)
 		err := filepath.WalkDir(path, func(path string, entry fs.DirEntry, walkErr error) error {

@@ -73,18 +73,6 @@ rest:
       queue: {name: critic_control, capacity: 8, timeout: 30s}
       shutdown: {timeout: 5s, drain_policy: drain_then_stop}
       endpoints:
-        exit:
-          method: POST
-          path: /api/lifecycle/exit
-          binding: emit_signal
-          signal: ExitRequested
-          request:
-            body_schema:
-              type: object
-              properties:
-                reason: {type: string}
-          response:
-            output: {accepted: "true"}
         health:
           method: GET
           path: /api/lifecycle/health

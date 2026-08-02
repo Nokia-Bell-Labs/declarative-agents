@@ -29,8 +29,8 @@ func TestRuntimeStateReaderConformance(t *testing.T) {
 
 	server := Serve(t, ServeConfig{Profile: profilePath})
 	server.WaitHealthy("http://"+addr+"/monitor/state", 15*time.Second)
-	if status := server.Post("http://"+addr+"/monitor/control/exit", `{"reason":"conformance"}`); status != http.StatusAccepted {
-		t.Fatalf("monitor control exit POST status = %d, want %d", status, http.StatusAccepted)
+	if status := server.Post("http://"+addr+"/api/lifecycle/exit", `{"reason":"conformance"}`); status != http.StatusAccepted {
+		t.Fatalf("lifecycle exit POST status = %d, want %d", status, http.StatusAccepted)
 	}
 	result := server.WaitExit(15 * time.Second)
 

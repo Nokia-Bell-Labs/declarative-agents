@@ -35,12 +35,12 @@ The request is itself a declarative agent, not a bespoke HTTP client: a four-sta
 machine moves from `Idle` to `Posting`, binds the REST operation, and then reaches
 terminal `Done` or `Failed`. Run it through the same source-checkout interpreter:
 
-	agent --profile "$(pwd)/call-lifecycle-exit/profile.yaml" --directory "$(pwd)" --core-root "../../agent-core"
+	agent --profile "../catalog/agents/lifecycle-exit/profile.yaml" --directory "../catalog" --core-root "../../agent-core"
 
 With an installed runtime, omit `--core-root`:
 
-	agent --profile "$(pwd)/call-lifecycle-exit/profile.yaml" --directory "$(pwd)"
+	agent --profile "../catalog/agents/lifecycle-exit/profile.yaml" --directory "../catalog"
 
-The REST authority lives in the profile, not in runtime input:
+The REST authority lives in the catalog-owned client profile, not in runtime input:
 
-.code call-lifecycle-exit/rest.yaml /post_exit:/,/signal: ExitAccepted/
+.code ../catalog/agents/lifecycle-exit/rest.yaml /post_exit:/,/signal: ExitAccepted/

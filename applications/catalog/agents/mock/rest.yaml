@@ -36,21 +36,6 @@ rest:
           path: /_mock/log
           binding: mock_log
 
-        control_exit:
-          method: POST
-          path: /_mock/control/exit
-          binding: emit_signal
-          signal: ExitRequested
-          request:
-            body_schema:
-              type: object
-              properties:
-                reason:
-                  type: string
-          response:
-            output:
-              accepted: true
-
         # The catch-all mount is last in specificity: the literal routes above
         # win, and everything else is answered from the fixture. Its declared
         # method is not a constraint -- the fixture decides which methods and

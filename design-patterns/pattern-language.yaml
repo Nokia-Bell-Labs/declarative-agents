@@ -1430,7 +1430,7 @@ patterns:
       - system: Reference implementation — profile-owned monitor routes
         cite: reference-implementation
         kind: internal
-        note: The shipped monitor profile owns its read, SSE, OpenAPI, and ExitRequested routes; the CLI proof discovers the ephemeral loopback address from REST launch output.
+        note: The shipped monitor profile owns its read, SSE, and OpenAPI routes; lifecycle exit is provided by agent-core's injected /api/lifecycle/exit endpoint (GH-1264), and the CLI proof discovers the ephemeral loopback address from REST launch output.
         evidence:
           classification: shipped
           checks:
@@ -1480,11 +1480,6 @@ patterns:
               assertion: yaml_value
               field: rest.servers.monitor.endpoints.openapi.path
               equals: /monitor/openapi
-            - path: applications/catalog/agents/runtime-state-reader/rest.yaml
-              artifact: rest_definition
-              assertion: yaml_value
-              field: rest.servers.monitor.endpoints.control_exit.path
-              equals: /monitor/control/exit
             - path: agent-core/cmd/agent/main_monitor_test.go
               artifact: go_test
               assertion: go_test

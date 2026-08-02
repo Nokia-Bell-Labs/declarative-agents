@@ -8,7 +8,7 @@ Attach a control-plane server to the running engine so observers can query execu
 
 ## Reference implementation status
 
-The shipped `applications/catalog/agents/runtime-state-reader` infrastructure adapter owns read routes for machine, state, tools, metrics, recent events, event SSE, and OpenAPI. Its only control route is `POST /monitor/control/exit`, which emits `ExitRequested`. The listener binds `127.0.0.1:0`; supervisors discover the selected address from the REST launch output.
+The shipped `applications/catalog/agents/runtime-state-reader` infrastructure adapter owns read routes for machine, state, tools, metrics, recent events, event SSE, and OpenAPI. It declares no control route of its own: agent-core injects the canonical `POST /api/lifecycle/exit` lifecycle-control endpoint into every served agent (GH-1264), which emits `ExitRequested`, and the profile's control await selects that injected route. The listener binds `127.0.0.1:0`; supervisors discover the selected address from the REST launch output.
 
 The REST runtime has conformance-tested `lifecycle_control` and `inject_signal` bindings, but no production profile selects them. Arbitrary signal injection, pause/resume/rollback control, PID-file discovery, coding-agent rollback, multi-agent polling, and checkpoint restoration by a lifecycle agent remain design intent.
 
@@ -65,7 +65,7 @@ In-process policy callbacks (before/after dispatch, on state change, on budget t
 
 After each dispatch, once the transition is committed, the engine hands the recorder a RunEvent (state, signal, tool, result, iteration, timestamp, remaining budget). The store retains a bounded recent window and feeds snapshot and SSE bindings.
 
-The shipped monitor profile declares these routes:
+The shipped monitor profile declares these observability routes:
 
 | Method and path | Binding and view |
 |---|---|
@@ -76,15 +76,14 @@ The shipped monitor profile declares these routes:
 | `GET /monitor/events` | `read_state`: recent events |
 | `GET /monitor/events/stream` | `stream_events`: event SSE |
 | `GET /monitor/openapi` | `static_metadata`: generated route description |
-| `POST /monitor/control/exit` | `emit_signal`: `ExitRequested` |
 
-The REST runtime also implements generic `emit_signal` and `lifecycle_control` bindings. Tests prove queueing, policy validation, and lifecycle action mapping, but these binding names are not endpoint paths and no production profile selects arbitrary injection, pause, resume, or rollback.
+The profile declares no exit route. agent-core injects `POST /api/lifecycle/exit` (`lifecycle_control`, `ExitRequested`) into every served agent, so the operator port exposes a shutdown control without each profile restating it, and the monitor server carries observability only. The REST runtime also implements generic `emit_signal` and `lifecycle_control` bindings. Tests prove queueing, policy validation, and lifecycle action mapping, but these binding names are not endpoint paths and no production profile selects arbitrary injection, pause, resume, or rollback.
 
 Signal injection in Fig. 32 is the complete pattern and current conformance behavior, not the shipped monitor profile's HTTP surface. A profile that selects the binding must declare the path, allowed signal, and machine transition.
 
 ![](figures/fig-33-signal-injection.png)
 
-| **Figure 32.** Sequence diagram of the generic injection binding. The shipped monitor profile selects only the exit signal route. {wide} |
+| **Figure 32.** Sequence diagram of the generic injection binding. The shipped monitor profile relies on the injected exit route and selects no injection binding of its own. {wide} |
 |:---:|
 
 A lifecycle agent that browses checkpoint history and restores terminated runs remains design intent; no such production profile is part of the shipped monitor surface.
@@ -139,11 +138,8 @@ servers:
         path: /monitor/state
         binding: read_state
         monitor_view: current_state
-      control_exit:
-        method: POST
-        path: /monitor/control/exit
-        binding: emit_signal
-        signal: ExitRequested
+      # No exit route is declared: agent-core injects POST /api/lifecycle/exit
+      # (lifecycle_control, ExitRequested) into every served agent.
 ```
 
 `launch_rest_server` returns structured output containing the bound `address`. Supervisors, including the CLI proof, construct the base URL from that output rather than using a PID/profile discovery file or a fixed port.
@@ -158,7 +154,7 @@ Operator Port sits within Machine Interpreter and requires Machine Interpreter, 
 
 ## Known Uses
 
-**Shipped runtime-state-reader profile.** `agents/runtime-state-reader` serves profile-owned monitor state, metrics, event, SSE, OpenAPI, and exit routes. Its CLI proof discovers the ephemeral loopback address from launch output, reads live state and metrics, posts `/monitor/control/exit`, and observes a successful terminal state.
+**Shipped runtime-state-reader profile.** `agents/runtime-state-reader` serves profile-owned monitor state, metrics, event, SSE, and OpenAPI routes; its shutdown control is the agent-core-injected `/api/lifecycle/exit`. Its CLI proof discovers the ephemeral loopback address from launch output, reads live state and metrics, posts `/api/lifecycle/exit`, and observes a successful terminal state.
 
 **Long-running coding-agent intervention (design intent).** Watching coding transitions, detecting cycles, and injecting `RollbackRequested` is not implemented by a shipped profile.
 

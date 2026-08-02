@@ -8,10 +8,11 @@ executive_summary: |
   lifecycle-exit client.
 
   The dependency direction is application -> applications/catalog ->
-  agent-core. The application owns the slide deck, operator entry points,
-  lifecycle-exit composition, and composition-only reporting. The catalog
-  remains the only canonical owner of the documentation-curator profile and
-  user interface. agent-core owns the runtime and builtin capabilities.
+  agent-core. The application owns the slide deck, operator entry points, and
+  composition-only reporting; it composes catalog-owned profiles. The catalog is
+  the canonical owner of the documentation-curator profile and user interface
+  and of the reusable lifecycle-exit client. agent-core owns the runtime and
+  builtin capabilities.
 
   This application extends the shared runnable-application contract in
   applications/docs. It declares runnable_module and managed_service for
@@ -25,21 +26,21 @@ executive_summary: |
   authorized operator or CI caller in Release 04.0.
 
 problem: |
-  Presentation-only launch and lifecycle behavior needs an application owner
-  distinct from the reusable catalog profile. Otherwise the demo appears to be
+  Presentation-only launch and lifecycle behavior must not copy or fork the
+  reusable catalog profiles it demonstrates. Otherwise the demo appears to be
   part of the canonical profile contract and can depend on operator-installed
   presentation tooling.
 
-  The standalone application records the demo lifecycle and dependencies
-  without copying the documentation-curator profile or its user interface.
+  The standalone application records the demo composition and dependencies
+  without copying the documentation-curator profile, its user interface, or the
+  reusable lifecycle-exit client, all of which the catalog owns.
 
 what_this_does: |
   The application serves agent-architecture.slide with a version-pinned Go
   present tool. A Mage entry point launches the canonical
   applications/catalog/agents/knowledge-manager/documentation-curator/profile.yaml
   through agent-core. The operator opens the catalog-owned interface and then
-  runs the application-owned call-lifecycle-exit profile to request a clean
-  shutdown.
+  runs the catalog-owned lifecycle-exit client to request a clean shutdown.
 
   Source-checkout operation resolves the catalog_root and core_root declared in
   demo.yaml, with portable monorepo defaults. The application reports only composition

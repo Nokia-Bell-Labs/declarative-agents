@@ -6,7 +6,7 @@ summary: |
   present tool. From the standalone application root, the operator launches the
   canonical catalog documentation-curator through agent-core, opens its
   catalog-owned browser interface, follows the deck, and invokes the
-  application-owned declarative lifecycle-exit profile. The curator reaches
+  catalog-owned declarative lifecycle-exit client. The curator reaches
   Done and releases its listeners when the dependency-gated live flow succeeds.
 
 actor: A developer or presenter demonstrating the canonical Knowledge Manager profile.
@@ -53,7 +53,7 @@ flow:
   - id: F5
     text: The operator opens the documentation interface on localhost:18081 and may inspect the monitor interface on localhost:18084.
   - id: F6
-    text: The operator invokes call-lifecycle-exit/profile.yaml through the same agent-core interpreter from the application root.
+    text: The operator invokes the catalog-owned ../catalog/agents/lifecycle-exit/profile.yaml through the same agent-core interpreter.
   - id: F7
     text: The lifecycle-exit machine posts its fixed reason to 127.0.0.1:18082/api/lifecycle/exit, accepts HTTP 202, and reaches its Done terminal.
   - id: F8
@@ -102,7 +102,7 @@ success_criteria:
       - rel07.0-uc001-documentation-curator-profile-ux S3
       - test-rel00.0-guided-agent-architecture canonical_curator_command
   - id: S4
-    criterion: The application-owned declarative lifecycle-exit profile defines the fixed request and accepted HTTP status; observing the live post, curator Done state, and listener release is dependency-gated.
+    criterion: The catalog-owned declarative lifecycle-exit client defines the fixed request and accepted HTTP status; observing the live post, curator Done state, and listener release is dependency-gated.
     traces:
       - architecture-agent-architecture design_decisions 2
       - rel07.0-uc001-documentation-curator-profile-ux S4

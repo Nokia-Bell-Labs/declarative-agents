@@ -58,17 +58,3 @@ rest:
           path: /monitor/openapi
           binding: static_metadata
           monitor_view: openapi
-        control_exit:
-          method: POST
-          path: /monitor/control/exit
-          binding: emit_signal
-          signal: ExitRequested
-          request:
-            body_schema:
-              type: object
-              properties:
-                reason:
-                  type: string
-          response:
-            output:
-              accepted: "true"

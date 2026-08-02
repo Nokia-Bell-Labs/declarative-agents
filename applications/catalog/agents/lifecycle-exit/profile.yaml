@@ -1,5 +1,5 @@
 # Copyright (c) 2026 Nokia. All rights reserved.
-name: call-lifecycle-exit
+name: lifecycle-exit
 machine: machine.yaml
 tools:
   - tools.yaml

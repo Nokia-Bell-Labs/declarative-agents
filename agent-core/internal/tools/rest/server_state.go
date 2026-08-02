@@ -169,6 +169,7 @@ func (s *ServerState) resolveAwaitSources(options AwaitAnyOptions) ([]resolvedAw
 }
 
 func newServerRuntime(def ServerDefinition) (*serverRuntime, error) {
+	def.Server.Endpoints = injectLifecycleExit(def.Server)
 	if err := validateRouteConflicts(def.Server.Endpoints); err != nil {
 		return nil, err
 	}

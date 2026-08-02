@@ -335,7 +335,7 @@ func TestOperatorPortChapterUsesShippedRoutesAndDiscovery(t *testing.T) {
 		"/monitor/events",
 		"/monitor/events/stream",
 		"/monitor/openapi",
-		"/monitor/control/exit",
+		"/api/lifecycle/exit",
 		"REST launch output",
 		"conformance",
 		"design intent",

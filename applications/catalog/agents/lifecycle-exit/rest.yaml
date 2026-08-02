@@ -14,17 +14,19 @@ rest:
         mode: none
       network:
         schemes: [http]
-        # The control-server host is the egress allowlist entry; a values-driven demo
-        # sets CURATOR_HOST to the target agent's control DNS name, defaulting to
-        # loopback locally.
+        # The target control-server host is the egress allowlist entry and the
+        # single point of variation: a consumer sets CURATOR_HOST to the target
+        # agent's control DNS name, defaulting to loopback locally. The
+        # agent-architecture presentation targets the documentation-curator.
         hosts: [${CURATOR_HOST:-127.0.0.1}, localhost]
         ports: [18082]
   clients:
     curator:
-      # The lifecycle-exit endpoint of a running agent's control server. The demo
-      # posts one exit request through this declared client; the control-server URL
-      # is a declared client base, not runtime input, and the endpoint carries no
-      # transport authority (auth: none). Overriding it means editing this literal.
+      # The canonical lifecycle-exit endpoint of a running agent's control server.
+      # This catalog-owned client posts one exit request; the control-server URL is
+      # a declared client base, not runtime input, and the endpoint carries no
+      # transport authority (auth: none). Retargeting means overriding this base_url
+      # (and CURATOR_HOST), the only per-consumer difference.
       base_url: http://127.0.0.1:18082
       auth_ref: none
       limits_ref: local_curator_control

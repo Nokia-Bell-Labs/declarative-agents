@@ -112,7 +112,7 @@ tools:
     config:
       sources:
         - server: mock
-          routes: [control_exit]
+          routes: [exit]
           signals: [ExitRequested]
       # Tool declarations are not environment-expanded (only REST definitions
       # are), so this bound is literal. It must outlast a scenario: a rig

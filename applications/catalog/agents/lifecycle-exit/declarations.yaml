@@ -6,7 +6,7 @@ tools:
     visibility: internal
     category: boundary
     description: Post the fixed lifecycle-exit request to the target agent's control server.
-    problem: The demo must ask a running agent to exit, and that request is a declared REST call, not an embedded HTTP client.
+    problem: A supervisor must ask a running agent to exit, and that request is a declared REST call, not an embedded HTTP client.
     goals:
       - Resolve the curator client and the post_exit operation.
       - Post the fixed exit request and return the control server's acceptance.
@@ -41,7 +41,7 @@ tools:
       requires_confirmation: true
     undo:
       strategy: irreversible
-      description: An accepted lifecycle-exit request cannot be withdrawn; restarting the curator is a separate action.
+      description: An accepted lifecycle-exit request cannot be withdrawn; restarting the target agent is a separate action.
     errors:
       - signal: CommandError
         condition: The curator client definition is missing, or the exit call fails on network, timeout, or mapping.
@@ -49,7 +49,7 @@ tools:
     relationships:
       overlaps:
         - tool: rest_client_invoke
-          difference: This demo-specific word binds the control-server lifecycle-exit operation.
+          difference: This catalog-owned word binds the control-server lifecycle-exit operation.
     config:
       rest_ref: curator
       operation: post_exit

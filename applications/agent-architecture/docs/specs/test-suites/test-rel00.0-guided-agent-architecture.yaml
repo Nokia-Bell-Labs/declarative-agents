@@ -100,7 +100,7 @@ test_cases:
       accepted, and transitions to Done. Dependency-gated live evidence
       observes the canonical curator reaching Done and releasing listeners.
     inputs:
-      profile: call-lifecycle-exit/profile.yaml
+      profile: ../catalog/agents/lifecycle-exit/profile.yaml
       endpoint: http://127.0.0.1:18082/api/lifecycle/exit
       request_reason: demo presentation
     expected:
@@ -174,7 +174,7 @@ test_cases:
       the application composition fields and no agents section.
     inputs:
       documentation_yaml: docs/VISION.yaml, docs/ARCHITECTURE.yaml, docs/road-map.yaml, docs/SPECIFICATIONS.yaml, the indexed use case, and the indexed test suite
-      lifecycle_yaml: call-lifecycle-exit/profile.yaml, call-lifecycle-exit/machine.yaml, and call-lifecycle-exit/rest.yaml are inspected by lifecycle_exit_contract
+      lifecycle_yaml: ../catalog/agents/lifecycle-exit/profile.yaml, ../catalog/agents/lifecycle-exit/machine.yaml, and ../catalog/agents/lifecycle-exit/rest.yaml are inspected by lifecycle_exit_contract
       canonical_profile_owner: applications/catalog
       expected_canonical_references: 2
     expected:

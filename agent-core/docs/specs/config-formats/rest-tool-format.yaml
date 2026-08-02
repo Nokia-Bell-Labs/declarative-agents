@@ -23,7 +23,8 @@ release_03_0_support:
     - OpenAPI-bound endpoint preservation for configured endpoint behavior.
     - REST client compensation mementos and rollback-time execution for mutating operations with configured compensation.
     - machine_request terminal response schema validation before success responses.
-    - lifecycle_control endpoints: ValidateDefinition validates the action (exit, pause, rollback_request, resume, inject_signal) and the rollback selector, and the endpoint enqueues the lifecycle request event for MachineSpec routing rather than running a lifecycle operation directly (TestRESTServer_LifecycleControlEnqueuesSignals). Configured emit_signal control routes that MachineSpec routes to exit_agent remain as an alternative used by current control profiles.
+    - lifecycle_control endpoints: ValidateDefinition validates the action (exit, pause, rollback_request, resume, inject_signal) and the rollback selector, and the endpoint enqueues the lifecycle request event for MachineSpec routing rather than running a lifecycle operation directly (TestRESTServer_LifecycleControlEnqueuesSignals).
+    - canonical lifecycle-exit injection: agent-core synthesizes a POST /api/lifecycle/exit lifecycle_control endpoint (action exit, signal ExitRequested) for every served agent at launch, so a profile need not declare it. Injection is skipped when the server opts out (lifecycle_exit.disabled), already declares the canonical path, or already uses the reserved route name, and never mutates the resolved endpoint map (TestRESTServer_InjectsCanonicalLifecycleExit, TestRESTServer_LifecycleExitInjectionIdempotent, TestRESTServer_LifecycleExitOptOut). Hand-declared emit_signal control routes remain a supported alternative and are being retired from the shipped profiles in favor of the injected endpoint.
   partial:
     - rest_await_event read_policy values outside the implemented first-available behavior are rejected during ToolDef factory validation.
   reserved:
@@ -398,6 +399,30 @@ schema:
         type: shutdown_config
         required: false
         description: Graceful shutdown timeout and drain behavior.
+      - field: lifecycle_exit
+        type: lifecycle_exit_injection_config
+        required: false
+        description: >-
+          Tunes agent-core's synthesis of the canonical lifecycle-control exit
+          endpoint for this server. Injection is on by default; omit this field
+          to accept it. Set disabled to opt a server out (a pure fixture, or a
+          monitor server that must carry observability only).
+
+  lifecycle_exit_injection_config:
+    fields:
+      - field: disabled
+        type: bool
+        required: false
+        description: >-
+          When true, agent-core injects no canonical exit endpoint for this
+          server. Default false injects POST /api/lifecycle/exit.
+      - field: auth_ref
+        type: string
+        required: false
+        description: >-
+          Optional auth profile reference carried onto the injected endpoint's
+          require_auth_ref. Empty keeps parity with today's auth:none control
+          servers.
 
   endpoint:
     fields:
@@ -436,7 +461,7 @@ schema:
       - field: lifecycle_control
         type: lifecycle_control_config
         required: false
-        description: Lifecycle control request mapping. ValidateDefinition validates the action (exit, pause, rollback_request, resume, inject_signal) and the rollback selector; the endpoint enqueues the lifecycle request event for MachineSpec routing rather than running a lifecycle operation directly. Current control profiles alternatively use emit_signal control endpoints routed through MachineSpec.
+        description: Lifecycle control request mapping. ValidateDefinition validates the action (exit, pause, rollback_request, resume, inject_signal) and the rollback selector; the endpoint enqueues the lifecycle request event for MachineSpec routing rather than running a lifecycle operation directly. agent-core injects a canonical lifecycle_control exit endpoint per served agent (see rest_server.lifecycle_exit), so most profiles need not declare one; hand-declared emit_signal control endpoints remain a supported alternative.
       - field: machine_request
         type: machine_request_config
         required: false

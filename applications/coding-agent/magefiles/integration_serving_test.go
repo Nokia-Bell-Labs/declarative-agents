@@ -47,15 +47,20 @@ func TestServingProfilesUseRealLifecycleAndCanonicalRoleProfiles(t *testing.T) {
 			t.Fatal(err)
 		}
 		text := string(data)
+		// The lifecycle exit route is injected per served agent by agent-core
+		// (GH-1264), so serving profiles no longer declare /api/lifecycle/exit
+		// themselves; they still declare the health probe and the request binding.
 		for _, want := range []string{
 			"binding: machine_request",
 			"path: /api/lifecycle/health",
 			"binding: health",
-			"path: /api/lifecycle/exit",
 		} {
 			if !strings.Contains(text, want) {
 				t.Errorf("%s serving profile missing %q", role, want)
 			}
+		}
+		if strings.Contains(text, "path: /api/lifecycle/exit") {
+			t.Errorf("%s serving profile declares /api/lifecycle/exit; it should rely on the injected endpoint", role)
 		}
 	}
 	executor := readServingFile(t, root, "executor", "rest.yaml")

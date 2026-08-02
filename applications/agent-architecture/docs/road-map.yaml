@@ -21,7 +21,7 @@ releases:
       An operator serves the slide deck, launches the canonical
       documentation-curator from an explicit catalog root, opens its
       catalog-owned browser interface, and requests clean shutdown through the
-      application-owned declarative lifecycle-exit profile. The application
+      catalog-owned declarative lifecycle-exit client. The application
       reports composition only and contributes no canonical agents.
     status: partial
     capabilities:

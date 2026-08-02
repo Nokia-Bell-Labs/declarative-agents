@@ -133,11 +133,25 @@ type RetryPolicy struct {
 
 // Server defines one configured inbound REST listener.
 type Server struct {
-	Address   string              `yaml:"address"`
-	LimitsRef string              `yaml:"limits_ref,omitempty"`
-	Queue     QueueConfig         `yaml:"queue,omitempty"`
-	Endpoints map[string]Endpoint `yaml:"endpoints"`
-	Shutdown  ShutdownConfig      `yaml:"shutdown,omitempty"`
+	Address       string                 `yaml:"address"`
+	LimitsRef     string                 `yaml:"limits_ref,omitempty"`
+	Queue         QueueConfig            `yaml:"queue,omitempty"`
+	Endpoints     map[string]Endpoint    `yaml:"endpoints"`
+	Shutdown      ShutdownConfig         `yaml:"shutdown,omitempty"`
+	LifecycleExit LifecycleExitInjection `yaml:"lifecycle_exit,omitempty"`
+}
+
+// LifecycleExitInjection tunes agent-core's per-server synthesis of the
+// canonical POST /api/lifecycle/exit lifecycle_control endpoint (GH-1264).
+// Injection is on by default so a served agent exposes lifecycle control
+// without each profile re-declaring it; Disabled opts a server out (a pure
+// fixture, or a monitor server that must carry observability only). AuthRef
+// carries an auth profile reference onto the injected endpoint's
+// require_auth_ref, and empty keeps parity with today's auth:none control
+// servers.
+type LifecycleExitInjection struct {
+	Disabled bool   `yaml:"disabled,omitempty"`
+	AuthRef  string `yaml:"auth_ref,omitempty"`
 }
 
 // Endpoint defines one inbound route and binding behavior.
