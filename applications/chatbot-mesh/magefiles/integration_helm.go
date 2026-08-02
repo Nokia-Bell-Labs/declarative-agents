@@ -154,14 +154,19 @@ func newHelmTelemetryIdentity(repoRoot string) helmTelemetryIdentity {
 	}
 }
 
-func sharedPrometheusBase() string {
-	return "http://127.0.0.1:" + envOrDefault("DA_PROMETHEUS_QUERY_PORT", "9090")
+func collectorQueryBase() string {
+	return "http://127.0.0.1:" + envOrDefault("DA_COLLECTOR_QUERY_PORT", "18193")
+}
+
+func collectorControlBase() string {
+	return "http://127.0.0.1:" + envOrDefault("DA_COLLECTOR_CONTROL_PORT", "18191")
 }
 
 func requireSharedObservability(timeout time.Duration) error {
 	checks := []string{
-		"http://127.0.0.1:" + envOrDefault("DA_OTEL_HEALTH_PORT", "13133") + "/",
-		sharedPrometheusBase() + "/-/healthy",
+		collectorControlBase() + "/api/lifecycle/health",
+		collectorQueryBase() + "/query/traces",
+		collectorQueryBase() + "/query/metrics",
 	}
 	for _, endpoint := range checks {
 		if err := waitHTTPStatus(endpoint, http.StatusOK, timeout); err != nil {
@@ -339,7 +344,7 @@ func runHelmSmoke(coreRoot, profilesRoot, chartDir string) (result error) {
 		return err
 	}
 	if err := verifySharedMetricsEvidence(
-		sharedPrometheusBase(), telemetry, helmSpanTimeout); err != nil {
+		collectorQueryBase(), telemetry, helmSpanTimeout); err != nil {
 		return err
 	}
 	stop()
@@ -347,11 +352,11 @@ func runHelmSmoke(coreRoot, profilesRoot, chartDir string) (result error) {
 	cluster.ReleaseAfter(kindrig.DefaultRun, false, kindrig.FailureEvidence{})
 	released = true
 	if err := verifySharedMetricsEvidence(
-		sharedPrometheusBase(), telemetry, helmSpanTimeout); err != nil {
+		collectorQueryBase(), telemetry, helmSpanTimeout); err != nil {
 		return err
 	}
 
-	fmt.Printf("integration:helmSmoke PASS - revision %s spool and Prometheus retained agent and Dolt evidence for run %s after cluster cleanup\n",
+	fmt.Printf("integration:helmSmoke PASS - revision %s spool and collector retained agent and Dolt metric evidence for run %s after cluster cleanup\n",
 		images.Revision, telemetry.RunID)
 	return nil
 }
@@ -794,14 +799,14 @@ func assertNoCollectorSelfIngest(release, runID string) error {
 }
 
 func verifySharedMetricsEvidence(
-	prometheusBase string,
+	queryBase string,
 	telemetry helmTelemetryIdentity,
 	timeout time.Duration,
 ) error {
 	deadline := time.Now().Add(timeout)
 	var lastErr error
 	for time.Now().Before(deadline) {
-		evidence, err := collectSharedMetricsEvidence(prometheusBase, telemetry)
+		evidence, err := collectSharedMetricsEvidence(queryBase, telemetry)
 		if err == nil {
 			fmt.Printf(
 				"helmSmoke: retained evidence agent_metrics=%s dolt_metrics=%s\n",
@@ -821,104 +826,85 @@ type sharedMetricsEvidence struct {
 	DoltMetrics  []string
 }
 
+// collectSharedMetricsEvidence reads the collector agent's metric query surface
+// (srd042 R9, GH-1207) rather than Prometheus. The agent dispatch metric is
+// found by the services that emit it (chatbot and rag0) rather than a fixed
+// name, since the OTLP metric name is not Prometheus-mangled; Dolt metrics keep
+// the dss_ prefix and the run identity rides in each record's resource
+// attributes.
 func collectSharedMetricsEvidence(
-	prometheusBase string,
+	queryBase string,
 	telemetry helmTelemetryIdentity,
 ) (sharedMetricsEvidence, error) {
 	evidence := sharedMetricsEvidence{}
-	start := telemetry.Started.Add(-time.Minute)
-	end := time.Now().Add(time.Minute)
-	targets, err := prometheusSeries(prometheusBase,
-		fmt.Sprintf(`target_info{test_run_id=%q}`, telemetry.RunID), start, end)
+	summaries, err := collectorMetricSummaries(queryBase)
 	if err != nil {
 		return evidence, err
 	}
-	if err := requireMetricJobs(targets, []string{"chatbot", "rag0", "dolt"}); err != nil {
-		return evidence, err
+	var agentMetric string
+	for _, summary := range summaries {
+		if metricServicesInclude(summary.Services, "chatbot", "rag0") {
+			agentMetric = summary.Name
+			evidence.AgentMetrics = append(evidence.AgentMetrics, summary.Name)
+		}
+		if strings.HasPrefix(summary.Name, "dss_") && metricServicesInclude(summary.Services, "dolt") {
+			evidence.DoltMetrics = append(evidence.DoltMetrics, summary.Name)
+		}
 	}
-	agent, err := prometheusSeries(prometheusBase,
-		`dispatch_count_total{job=~"chatbot|rag0"}`, start, end)
+	if agentMetric == "" {
+		return evidence, fmt.Errorf("collector metrics missing an agent metric emitted by chatbot and rag0 for run %s", telemetry.RunID)
+	}
+	if len(evidence.DoltMetrics) == 0 {
+		return evidence, fmt.Errorf("collector metrics missing Dolt dss_* metrics for run %s", telemetry.RunID)
+	}
+	records, status, err := requestHTTP(http.MethodGet,
+		queryBase+"/query/metrics/"+url.PathEscape(agentMetric), "")
 	if err != nil {
 		return evidence, err
 	}
-	if err := requireMetricJobs(agent, []string{"chatbot", "rag0"}); err != nil {
-		return evidence, err
+	if status != http.StatusOK {
+		return evidence, fmt.Errorf("collector /query/metrics/%s status %d: %s",
+			agentMetric, status, strings.TrimSpace(string(records)))
 	}
-	evidence.AgentMetrics = metricNames(agent)
-	dolt, err := prometheusSeries(prometheusBase,
-		`{__name__=~"dss_.*",job="dolt"}`, start, end)
-	if err != nil {
-		return evidence, err
+	if !strings.Contains(string(records), telemetry.RunID) {
+		return evidence, fmt.Errorf("collector metric %s records lack run id %s", agentMetric, telemetry.RunID)
 	}
-	if len(dolt) == 0 {
-		return evidence, fmt.Errorf("shared Prometheus missing Dolt dss_* metrics for run %s", telemetry.RunID)
-	}
-	evidence.DoltMetrics = metricNames(dolt)
+	sort.Strings(evidence.AgentMetrics)
+	sort.Strings(evidence.DoltMetrics)
 	return evidence, nil
 }
 
-func prometheusSeries(
-	prometheusBase, selector string,
-	start, end time.Time,
-) ([]map[string]string, error) {
-	query := url.Values{
-		"match[]": {selector},
-		"start":   {fmt.Sprint(start.Unix())},
-		"end":     {fmt.Sprint(end.Unix())},
-	}
-	data, status, err := requestHTTP(
-		http.MethodGet, prometheusBase+"/api/v1/series?"+query.Encode(), "")
+type collectorMetricSummary struct {
+	Name     string   `json:"name"`
+	Services []string `json:"services"`
+}
+
+func collectorMetricSummaries(queryBase string) ([]collectorMetricSummary, error) {
+	data, status, err := requestHTTP(http.MethodGet, queryBase+"/query/metrics?page_size=100", "")
 	if err != nil {
 		return nil, err
 	}
 	if status != http.StatusOK {
-		return nil, fmt.Errorf("shared Prometheus series status %d: %s",
+		return nil, fmt.Errorf("collector /query/metrics status %d: %s",
 			status, strings.TrimSpace(string(data)))
 	}
-	var response struct {
-		Status string              `json:"status"`
-		Data   []map[string]string `json:"data"`
+	var listed struct {
+		Metrics []collectorMetricSummary `json:"metrics"`
 	}
-	if err := json.Unmarshal(data, &response); err != nil {
-		return nil, fmt.Errorf("decode shared Prometheus series: %w", err)
+	if err := json.Unmarshal(data, &listed); err != nil {
+		return nil, fmt.Errorf("decode collector metric list: %w", err)
 	}
-	if response.Status != "success" {
-		return nil, fmt.Errorf("shared Prometheus series query failed")
-	}
-	return response.Data, nil
+	return listed.Metrics, nil
 }
 
-func requireMetricJobs(series []map[string]string, expected []string) error {
-	seen := make(map[string]bool, len(series))
-	for _, item := range series {
-		seen[item["job"]] = true
-	}
-	var missing []string
-	for _, job := range expected {
-		if !seen[job] {
-			missing = append(missing, job)
+func metricServicesInclude(services []string, required ...string) bool {
+	for _, want := range required {
+		if !containsString(services, want) {
+			return false
 		}
 	}
-	if len(missing) > 0 {
-		return fmt.Errorf("shared Prometheus missing jobs: %s", strings.Join(missing, ", "))
-	}
-	return nil
+	return true
 }
-
-func metricNames(series []map[string]string) []string {
-	seen := make(map[string]bool, len(series))
-	var names []string
-	for _, item := range series {
-		name := item["__name__"]
-		if name != "" && !seen[name] {
-			seen[name] = true
-			names = append(names, name)
-		}
-	}
-	sort.Strings(names)
-	return names
-}
-
 
 const (
 	helmSwapRelease = "swap"

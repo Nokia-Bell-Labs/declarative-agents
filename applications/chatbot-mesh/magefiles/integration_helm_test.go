@@ -222,34 +222,58 @@ func TestHelmInstallSmokePassesRunIdentityToGateway(t *testing.T) {
 
 func TestCollectSharedMetricsEvidenceRetainsAgentAndDolt(t *testing.T) {
 	started := time.Now().Add(-time.Minute)
-	prometheus := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
-		selector := r.URL.Query().Get("match[]")
-		var series []map[string]string
-		switch {
-		case strings.HasPrefix(selector, "target_info"):
-			series = []map[string]string{{"job": "chatbot"}, {"job": "rag0"}, {"job": "dolt"}}
-		case strings.HasPrefix(selector, "dispatch_count_total"):
-			series = []map[string]string{
-				{"__name__": "dispatch_count_total", "job": "chatbot"},
-				{"__name__": "dispatch_count_total", "job": "rag0"},
-			}
-		default:
-			series = []map[string]string{{"__name__": "dss_concurrent_queries", "job": "dolt"}}
+	const runID = "run-123"
+	collector := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		if r.URL.Path == "/query/metrics" {
+			_ = json.NewEncoder(w).Encode(map[string]any{"metrics": []map[string]any{
+				{"name": "dispatch_count", "services": []string{"chatbot", "rag0"}},
+				{"name": "dss_concurrent_queries", "services": []string{"dolt"}},
+			}})
+			return
 		}
-		_ = json.NewEncoder(w).Encode(map[string]any{"status": "success", "data": series})
+		// The get response carries the run id in a record's resource attrs.
+		_ = json.NewEncoder(w).Encode(map[string]any{
+			"metric_name": strings.TrimPrefix(r.URL.Path, "/query/metrics/"),
+			"records": []map[string]any{{"metric": map[string]any{
+				"resource": []map[string]any{{"key": "test_run_id", "value": runID}},
+			}}},
+			"record_count": 1,
+		})
 	}))
-	defer prometheus.Close()
+	defer collector.Close()
 
-	evidence, err := collectSharedMetricsEvidence(prometheus.URL, helmTelemetryIdentity{
-		RunID: "run-123", Started: started,
+	evidence, err := collectSharedMetricsEvidence(collector.URL, helmTelemetryIdentity{
+		RunID: runID, Started: started,
 	})
 	if err != nil {
 		t.Fatal(err)
 	}
-	if !containsString(evidence.AgentMetrics, "dispatch_count_total") ||
+	if !containsString(evidence.AgentMetrics, "dispatch_count") ||
 		!containsString(evidence.DoltMetrics, "dss_concurrent_queries") {
 		t.Fatalf("metric evidence missing: agent=%v dolt=%v",
 			evidence.AgentMetrics, evidence.DoltMetrics)
+	}
+}
+
+func TestCollectSharedMetricsEvidenceRejectsMissingRunID(t *testing.T) {
+	collector := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		if r.URL.Path == "/query/metrics" {
+			_ = json.NewEncoder(w).Encode(map[string]any{"metrics": []map[string]any{
+				{"name": "dispatch_count", "services": []string{"chatbot", "rag0"}},
+				{"name": "dss_rows", "services": []string{"dolt"}},
+			}})
+			return
+		}
+		_ = json.NewEncoder(w).Encode(map[string]any{
+			"metric_name": "dispatch_count",
+			"records":     []map[string]any{{"metric": map[string]any{"resource": []map[string]any{}}}},
+		})
+	}))
+	defer collector.Close()
+
+	_, err := collectSharedMetricsEvidence(collector.URL, helmTelemetryIdentity{RunID: "run-xyz"})
+	if err == nil || !strings.Contains(err.Error(), "run id") {
+		t.Fatalf("expected a missing-run-id error, got %v", err)
 	}
 }
 
