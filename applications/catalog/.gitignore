@@ -1,1 +1,6 @@
 **/node_modules/
+
+# Collector spool output (default COLLECTOR_SPOOL_PATH / COLLECTOR_METRICS_SPOOL_PATH),
+# written under the catalog root when integration and conformance gates run the collector.
+metrics/
+traces/
