@@ -28,6 +28,19 @@ const (
 	bindingMockLog          = "mock_log"
 )
 
+const (
+	// lifecycleExitRouteName is the reserved endpoint name under which agent-core
+	// injects the canonical lifecycle-control exit route, chosen to match the
+	// route filter existing control awaits already use (GH-1264).
+	lifecycleExitRouteName = "exit"
+	// lifecycleExitPath is the canonical lifecycle-control exit path.
+	lifecycleExitPath = "/api/lifecycle/exit"
+	// lifecycleExitSignal is the grammar signal the injected exit endpoint emits.
+	lifecycleExitSignal = "ExitRequested"
+	// lifecycleActionExit is the lifecycle_control action the injected endpoint runs.
+	lifecycleActionExit = "exit"
+)
+
 // handledServerBindings is the closed set of endpoint bindings handleEndpoint
 // dispatches. A binding outside this set falls to the 501 default handler, so
 // config validation rejects it up front (validateEndpoint) rather than letting

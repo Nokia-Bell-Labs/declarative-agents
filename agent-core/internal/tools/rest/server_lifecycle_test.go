@@ -176,6 +176,65 @@ func TestRESTServer_ShutdownConfigValidation(t *testing.T) {
 	}
 }
 
+func TestRESTServer_InjectsCanonicalLifecycleExit(t *testing.T) {
+	t.Parallel()
+
+	// A server that declares no exit route still answers the canonical path,
+	// and the enqueued event matches a control await filtering by the reserved
+	// route name, so injection alone drives the agent to exit (GH-1264).
+	state, baseURL := launchRESTServer(t, bareLifecycleServer("inject_default"), LimitProfile{})
+	defer stopRESTServer(t, state, "inject_default")
+
+	result := postJSON(t, baseURL+"/api/lifecycle/exit", `{"reason":"operator"}`, http.StatusAccepted)
+	require.Equal(t, true, result["accepted"])
+	require.Equal(t, "ExitRequested", result["signal"])
+
+	event, signal, err := state.AwaitAny(AwaitAnyOptions{
+		Sources: []AwaitSource{{
+			Server: "inject_default", Routes: []string{"exit"}, Signals: []string{"ExitRequested"},
+		}},
+		Timeout: time.Second,
+	})
+	require.NoError(t, err)
+	require.Equal(t, "ExitRequested", signal)
+	require.Equal(t, "exit", event.Route)
+	require.Equal(t, "operator", event.Payload["reason"])
+}
+
+func TestRESTServer_LifecycleExitInjectionIdempotent(t *testing.T) {
+	t.Parallel()
+
+	// A profile that already declares the canonical path launches without a
+	// route conflict and adds no duplicate: injection fills the gap, it does not
+	// override the profile's own exit declaration.
+	server := bareLifecycleServer("inject_declared")
+	server.Endpoints["exit"] = Endpoint{
+		Method: "POST", Path: "/api/lifecycle/exit", Binding: bindingEmitSignal,
+		Signal:   "ExitRequested",
+		Response: ResponseMapping{Output: map[string]string{"accepted": "true"}},
+	}
+	state := NewServerState()
+	output, baseURL := launchRESTServerWithState(t, state, server, LimitProfile{})
+	defer stopRESTServer(t, state, "inject_declared")
+
+	require.Equal(t, float64(2), output["route_count"])
+	postStatus(t, baseURL+"/api/lifecycle/exit", `{"reason":"operator"}`, http.StatusAccepted)
+}
+
+func TestRESTServer_LifecycleExitOptOut(t *testing.T) {
+	t.Parallel()
+
+	// Opt-out suppresses injection, so the canonical path is not served while
+	// the server's own routes still answer.
+	server := bareLifecycleServer("inject_optout")
+	server.LifecycleExit.Disabled = true
+	state, baseURL := launchRESTServer(t, server, LimitProfile{})
+	defer stopRESTServer(t, state, "inject_optout")
+
+	postStatus(t, baseURL+"/api/lifecycle/exit", `{"reason":"operator"}`, http.StatusNotFound)
+	require.Equal(t, "ok", getJSON(t, baseURL+"/health")["status"])
+}
+
 func TestRESTServer_StreamEventsUnblocksOnStop(t *testing.T) {
 	t.Parallel()
 

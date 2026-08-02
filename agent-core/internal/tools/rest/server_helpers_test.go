@@ -205,6 +205,19 @@ func lifecycleControlServer() Server {
 	}
 }
 
+// bareLifecycleServer declares no exit route, so agent-core's canonical
+// lifecycle-exit injection is what makes POST /api/lifecycle/exit answer.
+func bareLifecycleServer(name string) Server {
+	return Server{
+		Address:  "127.0.0.1:0",
+		Queue:    QueueConfig{Name: name, Capacity: 8, Timeout: "20ms", Overflow: queueOverflowReject},
+		Shutdown: ShutdownConfig{Timeout: "200ms", DrainPolicy: "drain"},
+		Endpoints: map[string]Endpoint{
+			"health": {Method: "GET", Path: "/health", Binding: bindingHealth},
+		},
+	}
+}
+
 func handlerServer() Server {
 	return Server{
 		Address: "127.0.0.1:0",
