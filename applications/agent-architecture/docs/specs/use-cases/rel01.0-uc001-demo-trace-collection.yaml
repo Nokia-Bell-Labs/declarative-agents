@@ -13,13 +13,13 @@ actor: A developer or presenter running the Agent Architecture.
 trigger: Run mage run from the application root.
 
 preconditions:
-  - AGENT_CATALOG_ROOT resolves to a catalog checkout containing the collector and documentation-curator profiles.
-  - AGENT_CORE_ROOT resolves to a buildable agent-core checkout.
+  - The demo.yaml catalog_root resolves to a catalog checkout containing the collector and documentation-curator profiles.
+  - The demo.yaml core_root resolves to a buildable agent-core checkout.
   - Local collector ports (4317, 18191, 18192, 18193) and curator ports (18081, 18082, 18084) are available.
 
 flow:
   - id: F1
-    text: mage run builds the agent-core binary and checks whether tracing is enabled (default true, disabled by DEMO_TRACING=false).
+    text: mage run builds the agent-core binary and checks whether tracing is enabled (default true, disabled by tracing:false in demo.yaml).
   - id: F2
     text: When tracing is enabled, the run target starts the collector agent in spool mode with the canonical collector profile, binding the OTLP receiver to 127.0.0.1:4317 and the query surface to port 18193.
   - id: F3
@@ -42,7 +42,7 @@ success_criteria:
     traces:
       - test-rel01.0-demo-trace-collection traced_curator_command
   - id: S3
-    criterion: Tracing is on by default and disabled by DEMO_TRACING=false.
+    criterion: Tracing is on by default and disabled by tracing:false in demo.yaml.
     traces:
       - test-rel01.0-demo-trace-collection tracing_enabled
   - id: S4

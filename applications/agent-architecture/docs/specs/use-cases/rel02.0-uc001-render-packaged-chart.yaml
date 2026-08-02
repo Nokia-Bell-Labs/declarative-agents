@@ -15,7 +15,7 @@ actor: An operator preparing an Agent Architecture Kubernetes release.
 trigger: Run the mage preparation target followed by helm lint, helm template, or the package target.
 
 preconditions:
-  - AGENT_CATALOG_ROOT resolves to a catalog checkout containing the documentation-curator and collector profiles.
+  - The demo.yaml catalog_root resolves to a catalog checkout containing the documentation-curator and collector profiles.
   - Helm is available.
 
 flow:

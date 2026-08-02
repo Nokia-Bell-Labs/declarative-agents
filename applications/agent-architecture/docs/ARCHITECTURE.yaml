@@ -10,8 +10,8 @@ overview:
     declarative profile to request lifecycle exit.
 
     The dependency direction is applications/agent-architecture ->
-    applications/catalog -> agent-core. AGENT_CATALOG_ROOT locates the
-    canonical profile and its user interface. AGENT_CORE_ROOT locates the
+    applications/catalog -> agent-core. The demo.yaml catalog_root locates the
+    canonical profile and its user interface. The demo.yaml core_root locates the
     development runtime checkout. An installed agent runtime does not require
     --core-root. Neither the catalog nor agent-core imports this application.
     This module extends applications/docs srd001 and the applicable managed
@@ -133,21 +133,20 @@ interfaces:
       governs the runnable composition. srd002-managed-application-services R1
       through R3 govern both long-running local servers. Local documents name
       application behavior and evidence without restating shared obligations.
-  - name: AGENT_CATALOG_ROOT
+  - name: demo.yaml
     summary: |
-      Explicit source-checkout root for applications/catalog. mage run resolves
-      the canonical documentation-curator profile beneath this root. The
-      monorepo default is ../catalog from the application directory.
-  - name: AGENT_CORE_ROOT
-    summary: |
-      Explicit development checkout for agent-core. Source runs use its agent
-      binary and pass --core-root so installed declaration paths resolve. The
-      monorepo default is ../../agent-core from the application directory.
+      Optional declarative configuration read from the application root. Every
+      field is optional and defaults to the monorepo layout: catalog_root
+      (../catalog) locates the canonical documentation-curator profile,
+      core_root (../../agent-core) locates the development checkout, tracing
+      toggles the collector, helm_dist sets the chart output directory, and
+      image sets the runtime image reference. Overriding a value means editing
+      this declaration; the demo reads no environment variables.
   - name: mage run
     summary: |
       Build or locate agent-core and launch the canonical documentation-curator
       with explicit --profile, --directory, and development --core-root
-      arguments. The working directory is AGENT_CATALOG_ROOT so the curator
+      arguments. The working directory is the catalog_root so the curator
       documents the catalog checkout used by the demo.
   - name: mage presentation
     summary: |
@@ -184,14 +183,14 @@ components:
       Resolve portable roots, construct run and presentation commands, audit
       documentation and traceability, and emit composition-only statistics.
   - name: documentation-curator
-    path: $AGENT_CATALOG_ROOT/agents/knowledge-manager/documentation-curator/
+    path: ../catalog/agents/knowledge-manager/documentation-curator/
     ownership: applications/catalog
     responsibility: |
       Provide the only canonical Knowledge Manager profile, UI assets, UX
       configuration, request machine, REST definitions, and profile-local
       resources. The application references this path and does not copy it.
   - name: agent runtime
-    path: $AGENT_CORE_ROOT
+    path: ../../agent-core
     ownership: agent-core
     responsibility: |
       Provide cmd/agent, the state-machine interpreter, documentation host,
@@ -208,8 +207,9 @@ design_decisions:
     title: Reference one canonical curator
     decision: |
       The application resolves
-      agents/knowledge-manager/documentation-curator/profile.yaml beneath
-      AGENT_CATALOG_ROOT. It does not copy or modify the profile or UI.
+      agents/knowledge-manager/documentation-curator/profile.yaml beneath the
+      catalog_root declared in demo.yaml. It does not copy or modify the profile
+      or UI.
     benefits:
       - Catalog fixes have one canonical home.
       - Application changes remain presentation and composition changes.
@@ -236,9 +236,9 @@ design_decisions:
   - id: 4
     title: Separate development roots
     decision: |
-      AGENT_CATALOG_ROOT selects the canonical profile checkout.
-      AGENT_CORE_ROOT selects the runtime development checkout. Monorepo
-      defaults are portable relative paths, and explicit values support
+      The demo.yaml catalog_root selects the canonical profile checkout.
+      The demo.yaml core_root selects the runtime development checkout. Monorepo
+      defaults are portable relative paths, and declared values support
       independent checkouts.
     benefits:
       - Catalog and runtime revisions remain visible.
@@ -276,7 +276,7 @@ design_decisions:
       --otel-otlp-endpoint and --otel-service-name to the curator run. After
       the curator exits, the run target posts to the collector control exit
       route and waits for the process to terminate. Tracing is on by default
-      and disabled by DEMO_TRACING=false.
+      and disabled by setting tracing:false in demo.yaml.
     benefits:
       - A guided run produces browsable traces without external infrastructure.
       - The collector reuses the same agent binary and canonical profile.

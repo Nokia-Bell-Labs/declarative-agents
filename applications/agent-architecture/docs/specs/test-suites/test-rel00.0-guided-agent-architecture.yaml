@@ -23,7 +23,7 @@ traces:
 preconditions:
   - The six Release 00.0 application documents parse as YAML.
   - The application Go module records a version-pinned Go present tool dependency.
-  - AGENT_CATALOG_ROOT and AGENT_CORE_ROOT may be explicit independent checkouts or their portable monorepo defaults.
+  - The demo.yaml catalog_root and core_root may be explicit independent checkouts or their portable monorepo defaults.
   - Live evidence has available local ports and a buildable agent-core checkout.
   - applications/catalog remains the canonical owner of the documentation-curator profile and UI.
 
@@ -60,17 +60,17 @@ test_cases:
     status: implemented
     live_status: dependency_gated
     description: |
-      The deterministic tests prove explicit environment roots, monorepo
+      The deterministic tests prove declared demo.yaml roots, monorepo
       defaults, exact command arguments, catalog-root working directory, and
       actionable missing-root failures. The command points to the canonical
       catalog profile and passes --profile, --directory, and development
       --core-root to agent-core. The live target starts the curator when the
       runtime checkout and ports are available.
     inputs:
-      catalog_root_env: AGENT_CATALOG_ROOT
-      core_root_env: AGENT_CORE_ROOT
+      catalog_root_config: demo.yaml catalog_root
+      core_root_config: demo.yaml core_root
       canonical_profile: agents/knowledge-manager/documentation-curator/profile.yaml
-      documentation_workspace: AGENT_CATALOG_ROOT
+      documentation_workspace: demo.yaml catalog_root
     expected:
       profile_owner: applications/catalog
       profile_copy_in_application: false

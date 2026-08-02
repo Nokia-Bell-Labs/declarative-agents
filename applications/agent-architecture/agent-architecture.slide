@@ -7,11 +7,10 @@ Standalone Application
 Click Run to start the Knowledge Manager documentation server.
 
 Run every command from the `applications/agent-architecture` root. The
-catalog owns the canonical profile and UI; agent-core owns the development
-runtime:
-
-	export AGENT_CATALOG_ROOT="${AGENT_CATALOG_ROOT:-$(cd ../catalog && pwd)}"
-	export AGENT_CORE_ROOT="${AGENT_CORE_ROOT:-$(cd ../../agent-core && pwd)}"
+catalog owns the canonical profile and UI at `../catalog`; agent-core owns the
+development runtime at `../../agent-core`. Those are the monorepo defaults; to
+run against checkouts elsewhere, set `catalog_root` and `core_root` in
+`demo.yaml` and substitute your paths below.
 
 Open the running servers after they start:
 
@@ -22,11 +21,11 @@ Open the running servers after they start:
 Run the canonical catalog profile through an agent built from the selected
 agent-core checkout:
 
-	agent --profile "$AGENT_CATALOG_ROOT/agents/knowledge-manager/documentation-curator/profile.yaml" --directory "$AGENT_CATALOG_ROOT" --core-root "$AGENT_CORE_ROOT"
+	agent --profile "../catalog/agents/knowledge-manager/documentation-curator/profile.yaml" --directory "../catalog" --core-root "../../agent-core"
 
 An installed runtime already owns `/opt/agent-core`; omit `--core-root`:
 
-	agent --profile "$AGENT_CATALOG_ROOT/agents/knowledge-manager/documentation-curator/profile.yaml" --directory "$AGENT_CATALOG_ROOT"
+	agent --profile "../catalog/agents/knowledge-manager/documentation-curator/profile.yaml" --directory "../catalog"
 
 * Call the lifecycle exit API
 
@@ -36,7 +35,7 @@ The request is itself a declarative agent, not a bespoke HTTP client: a four-sta
 machine moves from `Idle` to `Posting`, binds the REST operation, and then reaches
 terminal `Done` or `Failed`. Run it through the same source-checkout interpreter:
 
-	agent --profile "$(pwd)/call-lifecycle-exit/profile.yaml" --directory "$(pwd)" --core-root "$AGENT_CORE_ROOT"
+	agent --profile "$(pwd)/call-lifecycle-exit/profile.yaml" --directory "$(pwd)" --core-root "../../agent-core"
 
 With an installed runtime, omit `--core-root`:
 
