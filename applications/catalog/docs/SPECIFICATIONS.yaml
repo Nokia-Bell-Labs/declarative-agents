@@ -172,7 +172,7 @@ roadmap_summary:
       bindings.catalog role-realization entry.
   - version: "14.0"
     name: Served collector trace UI
-    status: planned
+    status: implemented
     scope: |
       Serve the shipped collector ui/dist SPA from the collector_query server
       via static_assets, same-origin with /query/*, with SPA deep-link
@@ -570,7 +570,7 @@ use_case_index:
     summary: The collector_query server serves the shipped ui/dist SPA
       same-origin with /query/*, resolving deep links to the index and leaving
       query responses unchanged.
-    status: planned
+    status: implemented
     path: docs/specs/use-cases/rel14.0-uc001-served-trace-ui.yaml
 
 test_suite_index:
@@ -697,7 +697,7 @@ test_suite_index:
     summary: Conformance cases for the served SPA index at root, deep-link
       fallback, query API unaffected by the catch-all, and an explicit error on
       a missing UI root.
-    status: planned
+    status: implemented
     path: docs/specs/test-suites/test-rel14.0-served-ui.yaml
 
 coverage_gaps: |

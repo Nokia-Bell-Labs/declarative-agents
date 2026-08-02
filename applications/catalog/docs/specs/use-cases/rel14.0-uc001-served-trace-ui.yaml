@@ -51,4 +51,4 @@ out_of_scope:
   - Metrics UI or Dolt scraping.
 
 test_suite_trace: test-rel14.0-served-ui
-status: planned
+status: implemented
