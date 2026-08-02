@@ -8,6 +8,7 @@ figures/*.png
 .idea/
 .vscode/
 .claude
+.cursor
 *.swp
 magefiles/mage_output_file.go
 
