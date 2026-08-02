@@ -7,6 +7,7 @@ generated-files/
 figures/*.png
 .idea/
 .vscode/
+.claude
 *.swp
 magefiles/mage_output_file.go
 
