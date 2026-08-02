@@ -60,7 +60,7 @@ func TestLiveModelGateOptInStillRequiresDependency(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	if !strings.Contains(skip, `Ollama model "missing:model" not pulled`) {
+	if !strings.Contains(skip, `the Ollama model "missing:model" is not pulled`) {
 		t.Fatalf("dependency skip reason = %q, want missing exact model", skip)
 	}
 }
