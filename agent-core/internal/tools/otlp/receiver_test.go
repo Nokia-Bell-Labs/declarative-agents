@@ -26,7 +26,7 @@ func TestReceiverExportAwait(t *testing.T) {
 	t.Cleanup(func() { _, _ = state.Stop("receive") })
 
 	conn, client := traceClient(t, output["address"].(string))
-	defer conn.Close()
+	defer func() { _ = conn.Close() }()
 	request := traceRequest("chatbot", 3)
 	response, err := client.Export(context.Background(), request)
 	require.NoError(t, err)
@@ -62,7 +62,7 @@ func TestReceiverOverflowPolicies(t *testing.T) {
 			require.NoError(t, err)
 			t.Cleanup(func() { _, _ = state.Stop("overflow") })
 			conn, client := traceClient(t, output["address"].(string))
-			defer conn.Close()
+			defer func() { _ = conn.Close() }()
 
 			_, err = client.Export(context.Background(), traceRequest("first", 1))
 			require.NoError(t, err)

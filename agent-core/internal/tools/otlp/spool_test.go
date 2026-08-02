@@ -165,7 +165,7 @@ func requireCompleteJSONLines(t *testing.T, path string) {
 	t.Helper()
 	file, err := os.Open(path)
 	require.NoError(t, err)
-	defer file.Close()
+	defer func() { _ = file.Close() }()
 	scanner := bufio.NewScanner(file)
 	count := 0
 	for scanner.Scan() {

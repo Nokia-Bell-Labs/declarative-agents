@@ -160,7 +160,7 @@ type terminalActionBuilder struct {
 }
 
 func (b terminalActionBuilder) Build(Result) Command {
-	return terminalActionCommand{executions: b.executions}
+	return terminalActionCommand(b)
 }
 
 type terminalActionCommand struct {
