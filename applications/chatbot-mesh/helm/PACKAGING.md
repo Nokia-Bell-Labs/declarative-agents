@@ -17,7 +17,7 @@ applications/chatbot-mesh/agents/applier/      -> profiles/agents/applier/      
 applications/chatbot-mesh/agents/collector/    -> profiles/agents/collector/     (trace ingress, srd007)
 applications/chatbot-mesh/agents/observer/     -> profiles/agents/observer/      (fleet observer, srd008)
 applications/chatbot-mesh/agents/corpus-ingest/ -> profiles/agents/corpus-ingest/ (application wrapper + REST values)
-$AGENT_CATALOG_ROOT/agents/knowledge-manager/corpus-ingest/ -> profiles/agents/knowledge-manager/corpus-ingest/ (canonical program)
+applications/catalog/agents/knowledge-manager/corpus-ingest/ -> profiles/agents/knowledge-manager/corpus-ingest/ (canonical program)
 applications/chatbot-mesh/ux/ux.yaml            -> profiles/ux/ux.yaml
 applications/chatbot-mesh/ux/app/dist/          -> profiles/ux/app/dist/
 ```
@@ -26,9 +26,8 @@ Corpus ingest is the reference-mechanism exception to the otherwise
 example-local source list: the mesh owns only a wrapper profile and its
 `corpus-rest.yaml` parameterization. Machine, tools, and declarations come from
 the canonical `applications/catalog` directory and are staged at the same
-runtime path the wrapper references. `AGENT_CATALOG_ROOT` selects that checkout;
-Release 99 tooling accepts `AGENT_PROFILES_ROOT` as a deprecated alias only when
-the canonical input is unset. In-tree builds discover the repository's
+runtime path the wrapper references. The `demo.yaml` catalog_root selects that
+checkout. In-tree builds discover the repository's
 `applications/catalog` directory. The checkout is required to
 build and test corpus ingest, while the resulting chart archive contains the
 resolved files and needs no profile checkout at runtime.

@@ -25,7 +25,7 @@ trigger: |
   An operator runs an installed agent-core image or local agent binary with a
   profile path supplied from applications/catalog:
 
-    agent --profile "$AGENT_CATALOG_ROOT/agents/executor/profile.yaml" \
+    agent --profile "agents/executor/profile.yaml" \
           --directory <workspace>
 
   Container callers use the same contract with /profiles:
@@ -33,7 +33,7 @@ trigger: |
     agent --profile /profiles/agents/specification-critic/profile.yaml --directory /work
 
 preconditions:
-  - applications/catalog is available as AGENT_CATALOG_ROOT, /profiles, or a release bundle.
+  - applications/catalog is available as the demo.yaml catalog_root, /profiles, or a release bundle.
   - agent-core supplies the agent binary and core-owned shared tool roots.
   - The selected profile's workspace is mounted or available through --directory.
 
@@ -47,7 +47,7 @@ flow:
   - id: F4
     text: Shared tool declarations resolve through documented core-owned roots such as /opt/agent-core/tools.
   - id: F5
-    text: Catalog-owned profiles and integration fixtures are read from applications/catalog when integration targets set AGENT_CATALOG_ROOT; application presentations remain under their owning application roots.
+    text: Catalog-owned profiles and integration fixtures are read from applications/catalog when integration targets set catalog_root in demo.yaml; application presentations remain under their owning application roots.
   - id: F6
     text: A mounted container run uses /profiles for agent programs and /work for the workspace.
   - id: F7
@@ -65,14 +65,14 @@ touchpoints:
     reason: applications/catalog owns configured programs and agent-core owns execution.
   - id: T4
     target: sm-agent-role-taxonomy checks
-    reason: Role checks name AGENT_CATALOG_ROOT and mounted profile execution.
+    reason: Role checks name the demo.yaml catalog_root and mounted profile execution.
   - id: T5
     target: mage containerSmoke
     reason: Container proof mounts this repository at /profiles and runs the specification-critic profile.
 
 success_criteria:
   - id: S1
-    criterion: Runtime commands point --profile at AGENT_CATALOG_ROOT or /profiles.
+    criterion: Runtime commands point --profile at the demo.yaml catalog_root or /profiles.
     traces:
       - srd001-agent-functional-blocks R1.1
       - sm-multi-agent-profile-system profile_asset_rules
@@ -91,7 +91,7 @@ success_criteria:
     traces:
       - sm-multi-agent-profile-system validation_views
   - id: S5
-    criterion: Integration targets can consume canonical profiles and catalog-owned fixtures through AGENT_CATALOG_ROOT without making application presentations catalog-owned.
+    criterion: Integration targets can consume canonical profiles and catalog-owned fixtures through the demo.yaml catalog_root without making application presentations catalog-owned.
     traces:
       - srd003-critic R2.3
       - srd008-runtime-state-reader R2.1

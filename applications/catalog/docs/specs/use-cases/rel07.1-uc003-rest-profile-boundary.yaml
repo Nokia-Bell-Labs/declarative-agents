@@ -21,11 +21,11 @@ actor: Profile maintainer verifying REST client and server boundary behavior.
 trigger: |
   A maintainer runs the REST sample profile from applications/catalog:
 
-    agent --profile "$AGENT_CATALOG_ROOT/testdata/conformance/rest/profile.yaml"
+    agent --profile "testdata/conformance/rest/profile.yaml"
 
   The ollama variant uses the same contract:
 
-    agent --profile "$AGENT_CATALOG_ROOT/testdata/conformance/rest/ollama-profile.yaml"
+    agent --profile "testdata/conformance/rest/ollama-profile.yaml"
 
 preconditions:
   - testdata/conformance/rest/profile.yaml selects testdata/conformance/rest/machine.yaml, testdata/conformance/rest/tools.yaml, testdata/conformance/rest/declarations.yaml, and testdata/conformance/rest/rest.yaml.

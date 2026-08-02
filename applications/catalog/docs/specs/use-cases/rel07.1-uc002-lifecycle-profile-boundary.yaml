@@ -21,9 +21,9 @@ actor: Profile maintainer verifying lifecycle history, rollback, and approval be
 trigger: |
   A maintainer runs each lifecycle program from applications/catalog:
 
-    agent --profile "$AGENT_CATALOG_ROOT/testdata/conformance/lifecycle/history/profile.yaml"
-    agent --profile "$AGENT_CATALOG_ROOT/testdata/conformance/lifecycle/rollback/profile.yaml"
-    agent --profile "$AGENT_CATALOG_ROOT/testdata/conformance/lifecycle/approval/profile.yaml"
+    agent --profile "testdata/conformance/lifecycle/history/profile.yaml"
+    agent --profile "testdata/conformance/lifecycle/rollback/profile.yaml"
+    agent --profile "testdata/conformance/lifecycle/approval/profile.yaml"
 
 preconditions:
   - testdata/conformance/lifecycle/history.yaml and testdata/conformance/lifecycle/rollback.yaml select checkpoint_history and checkpoint_rollback from testdata/conformance/lifecycle/tools.yaml.

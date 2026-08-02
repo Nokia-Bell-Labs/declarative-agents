@@ -86,7 +86,7 @@ issue_templates:
         text: Move profile-owned files into the target path.
     acceptance_criteria:
       - id: AC1
-        text: The migrated profile loads from AGENT_CATALOG_ROOT without
+        text: The migrated profile loads from the demo.yaml catalog_root without
           developer-specific absolute paths.
 
 validation_notes:

@@ -153,7 +153,7 @@ components:
       composes, and reduces these critics without becoming their implementation
       owner.
   - name: corpus-ingest agent
-    path: agents/corpus-ingest/ wrapper; $AGENT_CATALOG_ROOT/agents/knowledge-manager/corpus-ingest/ canonical build input
+    path: agents/corpus-ingest/ wrapper; <catalog_root>/agents/knowledge-manager/corpus-ingest/ canonical build input
     responsibility: |
       Seed a Chroma collection from a document directory: the canonical library
       machine lists trusted paths, the model selects among them, and the machine

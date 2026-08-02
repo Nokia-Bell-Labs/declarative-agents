@@ -27,7 +27,7 @@ traces:
 preconditions:
   - agent-core is available as AGENT_CORE_ROOT or as a sibling ../../agent-core checkout.
   - applications/catalog owns all profile paths, fixtures, suites, and expected outputs named by the tracer.
-  - Integration targets load concrete profiles through AGENT_CATALOG_ROOT or repository-relative paths.
+  - Integration targets load concrete profiles through the demo.yaml catalog_root or repository-relative paths.
   - agent-core remains responsible only for runtime execution and builtin capabilities.
 
 test_cases:

@@ -63,7 +63,7 @@ why_we_build_this: |
 success_criteria:
   copyable_application: |
     The application runs on the published agent-core image. A copied directory uses
-    the documented AGENT_CATALOG_ROOT build/test dependency for the canonical
+    the documented demo.yaml catalog_root build/test dependency for the canonical
     corpus-ingest program, and the packaged chart carries the resolved closure
     without requiring that checkout at runtime.
   self_contained_data_plane: |

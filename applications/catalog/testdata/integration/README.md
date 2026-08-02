@@ -3,7 +3,7 @@
 This directory holds profile-owned integration fixtures and documentation-only
 proof records. Each executable fixture is exercised by exactly one consuming
 target; some targets live in this repository and some in an `agent-core` checkout
-that mounts this repository through `AGENT_CATALOG_ROOT`. The table below is the
+that mounts this repository through the demo.yaml catalog_root. The table below is the
 authoritative map from each entry to its consumer, test suite, and use case. An
 entry marked "No code consumer" is metadata and is not an executable test input.
 
