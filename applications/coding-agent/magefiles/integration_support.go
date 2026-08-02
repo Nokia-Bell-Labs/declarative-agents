@@ -20,9 +20,6 @@ import (
 )
 
 const (
-	agentCoreRootEnv  = "AGENT_CORE_ROOT"
-	ollamaProbeURLEnv = "CODING_AGENT_OLLAMA_URL"
-
 	canonicalOllamaURL = "http://localhost:11434"
 	canonicalModel     = "qwen3.6:35b-mlx"
 	liveStageTimeout   = 15 * time.Minute
@@ -57,9 +54,9 @@ func resolveIntegrationRoots() (integrationRoots, error) {
 		return integrationRoots{}, err
 	}
 	repository := filepath.Clean(filepath.Join(app, "..", ".."))
-	core, err := absoluteOwnerPath(os.Getenv(agentCoreRootEnv), app, filepath.Join(repository, "agent-core"))
+	core, err := absoluteOwnerPath(loadDemoConfigOrEmpty(app).CoreRoot, app, filepath.Join(repository, "agent-core"))
 	if err != nil {
-		return integrationRoots{}, fmt.Errorf("coding-agent integration: resolve %s: %w", agentCoreRootEnv, err)
+		return integrationRoots{}, fmt.Errorf("coding-agent integration: resolve core_root: %w", err)
 	}
 	return integrationRoots{
 		Application: app,
@@ -128,19 +125,12 @@ func packageIntegrationRoots(roots integrationRoots) (integrationRoots, func(), 
 	return roots, cleanup, nil
 }
 
-func envOrDefault(name, fallback string) string {
-	if value := strings.TrimSpace(os.Getenv(name)); value != "" {
-		return value
-	}
-	return fallback
-}
-
 // liveSkipReason keeps the application targets optional. It checks the exact
 // model selected by the canonical planner and executor profiles, rather than
 // treating any reachable Ollama installation as sufficient.
 func liveSkipReason(roots integrationRoots, extraBinaries ...string) string {
-	if probe := strings.TrimSpace(os.Getenv(ollamaProbeURLEnv)); probe != "" && probe != canonicalOllamaURL {
-		return fmt.Sprintf("%s=%s does not match canonical profile endpoint %s", ollamaProbeURLEnv, probe, canonicalOllamaURL)
+	if probe := strings.TrimSpace(loadDemoConfigOrEmpty(roots.Application).OllamaURL); probe != "" && probe != canonicalOllamaURL {
+		return fmt.Sprintf("demo.yaml ollama_url=%s does not match canonical profile endpoint %s", probe, canonicalOllamaURL)
 	}
 	if reason := baseIntegrationSkipReason(roots, extraBinaries...); reason != "" {
 		return reason

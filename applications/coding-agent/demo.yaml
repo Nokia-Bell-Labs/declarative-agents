@@ -1,0 +1,24 @@
+# coding-agent demo configuration.
+#
+# Every setting is optional and declarative — the magefiles read it here, never
+# from an environment variable. With every key commented out (the shipped state)
+# the targets run zero-configuration against the monorepo layout. Uncomment a key
+# to override it; relative paths are resolved from this application directory.
+#
+# Catalog-root resolution stays with the shared catalogroot package (GH-1250).
+
+# agent-core checkout the integration targets build the runtime from.
+# core_root: ../../agent-core
+
+# Chart package output directory for `mage helm:package`.
+# helm_dist: helm/dist
+
+# Runtime image reference `mage image:build` tags.
+# image: ghcr.io/nokia-bell-labs/declarative-agents/coding-agent-runtime:0.1.0
+
+# Profile-closure output directory the package and helm-prepare targets write.
+# profiles_output: build/profiles
+
+# Ollama endpoint the live integration targets probe; must match the canonical
+# profile endpoint or the live stages skip.
+# ollama_url: http://localhost:11434
