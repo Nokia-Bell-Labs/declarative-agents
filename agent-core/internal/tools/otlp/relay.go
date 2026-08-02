@@ -88,7 +88,7 @@ func (c *relayCommand) relay(
 	if err != nil {
 		return nil, fmt.Errorf("connect relay endpoint %s: %w", c.config.Endpoint, err)
 	}
-	defer conn.Close()
+	defer func() { _ = conn.Close() }()
 	response, err := coltracepb.NewTraceServiceClient(conn).Export(exportCtx, request)
 	if err != nil {
 		if exportCtx.Err() != nil {

@@ -21,13 +21,13 @@ const (
 	codingHelmCluster        = "da-coding-agent-smoke"
 	codingHelmAgentImageRepo = "declarative-agents/coding-agent-smoke"
 	codingHelmModelImageRepo = "declarative-agents/coding-model-smoke"
-	codingHelmGoBaseImage = "golang:1.26-alpine"
+	codingHelmGoBaseImage    = "golang:1.26-alpine"
 	// codingHelmCollectorImage is built locally from the agent-core checkout
 	// (kindrig.BuildAgentCoreImage); the published ghcr.io chart default is
 	// not pullable from every environment.
 	codingHelmCollectorImage = kindrig.DefaultAgentCoreImage
-	codingHelmTraceID     = "0af7651916cd43dd8448eb211c80319c"
-	codingHelmTraceparent = "00-" + codingHelmTraceID + "-b7ad6b7169203331-01"
+	codingHelmTraceID        = "0af7651916cd43dd8448eb211c80319c"
+	codingHelmTraceparent    = "00-" + codingHelmTraceID + "-b7ad6b7169203331-01"
 
 	codingHelmClusterTimeout = 3 * time.Minute
 	codingHelmInstallTimeout = 5 * time.Minute
@@ -199,7 +199,7 @@ func runCodingHelmSmoke(roots integrationRoots) (result error) {
 	if err != nil {
 		return err
 	}
-	defer os.RemoveAll(archiveDir)
+	defer func() { _ = os.RemoveAll(archiveDir) }()
 	if err := Package(); err != nil {
 		return &codingHelmSemanticError{Step: "profile package", Cause: err}
 	}

@@ -52,7 +52,7 @@ func prepareHelmProfiles(packageRoot, chartRoot string) error {
 	if err != nil {
 		return err
 	}
-	defer os.RemoveAll(stage)
+	defer func() { _ = os.RemoveAll(stage) }()
 	if err := copyTree(packageRoot, stage); err != nil {
 		return fmt.Errorf("stage Helm profiles: %w", err)
 	}

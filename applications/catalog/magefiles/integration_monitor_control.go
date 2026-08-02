@@ -66,7 +66,7 @@ func (Integration) MonitorControl() error {
 	if err != nil {
 		return fmt.Errorf("create monitor-control run dir: %w", err)
 	}
-	defer os.RemoveAll(runDir)
+	defer func() { _ = os.RemoveAll(runDir) }()
 	if err := writeMonitorControlEvidence(runDir, evidence); err != nil {
 		return err
 	}

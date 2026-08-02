@@ -79,7 +79,7 @@ func PackageValidate() error {
 	if err != nil {
 		return err
 	}
-	defer os.RemoveAll(stage)
+	defer func() { _ = os.RemoveAll(stage) }()
 	output := filepath.Join(stage, "profiles")
 	shards, err := packageServingDeployment(
 		roots.Application, roots.Profiles, output, manifest, source)

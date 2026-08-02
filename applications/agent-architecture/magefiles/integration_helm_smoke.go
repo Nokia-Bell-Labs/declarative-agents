@@ -20,10 +20,10 @@ import (
 )
 
 const (
-	smokeCluster    = "da-agent-architecture-smoke"
-	smokeRelease    = "smoke"
-	smokeNamespace  = "agent-architecture-smoke"
-	smokeImageRepo  = "declarative-agents/agent-architecture-smoke"
+	smokeCluster        = "da-agent-architecture-smoke"
+	smokeRelease        = "smoke"
+	smokeNamespace      = "agent-architecture-smoke"
+	smokeImageRepo      = "declarative-agents/agent-architecture-smoke"
 	smokeCollectorImage = kindrig.DefaultAgentCoreImage
 
 	smokeClusterTimeout = 3 * time.Minute
@@ -126,7 +126,7 @@ func runHelmSmoke(resolved roots) (result error) {
 	if err != nil {
 		return err
 	}
-	defer os.RemoveAll(archiveDir)
+	defer func() { _ = os.RemoveAll(archiveDir) }()
 	archive, err := packageHelmChart(filepath.Join(resolved.Application, "helm"), resolved.Catalog, archiveDir)
 	if err != nil {
 		return fmt.Errorf("helmSmoke chart package: %w", err)
@@ -352,7 +352,7 @@ func freeLocalPort() (string, error) {
 	if err != nil {
 		return "", err
 	}
-	defer listener.Close()
+	defer func() { _ = listener.Close() }()
 	_, port, err := net.SplitHostPort(listener.Addr().String())
 	if err != nil {
 		return "", err
@@ -367,8 +367,8 @@ func waitHTTP200(url string, timeout time.Duration) error {
 	for time.Now().Before(deadline) {
 		resp, err := client.Get(url)
 		if err == nil {
-			io.Copy(io.Discard, resp.Body)
-			resp.Body.Close()
+			_, _ = io.Copy(io.Discard, resp.Body)
+			_ = resp.Body.Close()
 			if resp.StatusCode == http.StatusOK {
 				return nil
 			}
@@ -393,8 +393,8 @@ func driveCuratorDocuments(documentationURL string) error {
 	for index := 0; index < 3; index++ {
 		resp, err := client.Get(documentationURL + "/api/v1/docs")
 		if err == nil {
-			io.Copy(io.Discard, resp.Body)
-			resp.Body.Close()
+			_, _ = io.Copy(io.Discard, resp.Body)
+			_ = resp.Body.Close()
 		}
 		time.Sleep(200 * time.Millisecond)
 	}
@@ -436,7 +436,6 @@ func verifyCuratorTrace(queryURL, service string) error {
 		for _, summary := range list.Traces {
 			detail, err := getCollectorTraceDetail(client, queryURL+"/query/traces/"+summary.TraceID)
 			if err != nil {
-				lastErr = err
 				continue
 			}
 			for _, span := range detail.Spans {
@@ -456,7 +455,7 @@ func getCollectorTraceList(client *http.Client, url string) (*collectorTraceList
 	if err != nil {
 		return nil, err
 	}
-	defer resp.Body.Close()
+	defer func() { _ = resp.Body.Close() }()
 	if resp.StatusCode != http.StatusOK {
 		return nil, fmt.Errorf("GET %s status %d", url, resp.StatusCode)
 	}
@@ -472,7 +471,7 @@ func getCollectorTraceDetail(client *http.Client, url string) (*collectorTraceDe
 	if err != nil {
 		return nil, err
 	}
-	defer resp.Body.Close()
+	defer func() { _ = resp.Body.Close() }()
 	if resp.StatusCode != http.StatusOK {
 		return nil, fmt.Errorf("GET %s status %d", url, resp.StatusCode)
 	}
@@ -492,8 +491,8 @@ func requestCuratorExit(controlURL string) error {
 	if err != nil {
 		return err
 	}
-	defer resp.Body.Close()
-	io.Copy(io.Discard, resp.Body)
+	defer func() { _ = resp.Body.Close() }()
+	_, _ = io.Copy(io.Discard, resp.Body)
 	if resp.StatusCode != http.StatusOK && resp.StatusCode != http.StatusAccepted {
 		return fmt.Errorf("lifecycle exit status %d", resp.StatusCode)
 	}

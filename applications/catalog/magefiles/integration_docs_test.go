@@ -174,7 +174,3 @@ func readTestFile(t *testing.T, path string) string {
 	}
 	return string(data)
 }
-
-func quoteYAML(value string) string {
-	return `"` + value + `"`
-}

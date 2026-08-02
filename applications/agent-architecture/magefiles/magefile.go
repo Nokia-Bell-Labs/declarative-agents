@@ -136,7 +136,7 @@ func Run() error {
 	if err != nil {
 		return fmt.Errorf("create agent build directory: %w", err)
 	}
-	defer os.RemoveAll(temp)
+	defer func() { _ = os.RemoveAll(temp) }()
 
 	binary := filepath.Join(temp, "agent")
 	plan := runCommandPlan(resolved, binary)
@@ -245,7 +245,7 @@ func findApplicationRoot(start string) (string, error) {
 		current = parent
 	}
 	return "", fmt.Errorf(
-		"Agent Architecture root not found from %s; run from applications/agent-architecture or a directory beneath it",
+		"could not find the Agent Architecture root from %s; run from applications/agent-architecture or a directory beneath it",
 		start,
 	)
 }
@@ -351,19 +351,19 @@ func startCollectorAgent(resolved roots, binary string) (func(), error) {
 	cmd := collectorCommand(resolved, binary, filepath.Join(spoolDir, "collector.ndjson"))
 	cmd.Stdout, cmd.Stderr = os.Stdout, os.Stderr
 	if err := cmd.Start(); err != nil {
-		os.RemoveAll(spoolDir)
+		_ = os.RemoveAll(spoolDir)
 		return nil, fmt.Errorf("start collector agent: %w", err)
 	}
 	if err := waitCollectorHealth(); err != nil {
-		cmd.Process.Kill()
-		cmd.Wait()
-		os.RemoveAll(spoolDir)
+		_ = cmd.Process.Kill()
+		_ = cmd.Wait()
+		_ = os.RemoveAll(spoolDir)
 		return nil, err
 	}
 	cleanup := func() {
 		postCollectorExit()
-		cmd.Wait()
-		os.RemoveAll(spoolDir)
+		_ = cmd.Wait()
+		_ = os.RemoveAll(spoolDir)
 	}
 	return cleanup, nil
 }
@@ -374,7 +374,7 @@ func waitCollectorHealth() error {
 	for time.Now().Before(deadline) {
 		resp, err := client.Get(collectorHealthURL())
 		if err == nil {
-			resp.Body.Close()
+			_ = resp.Body.Close()
 			if resp.StatusCode == http.StatusOK {
 				return nil
 			}
@@ -409,7 +409,7 @@ func postExitRequest(url string) error {
 	if err != nil {
 		return err
 	}
-	defer resp.Body.Close()
+	defer func() { _ = resp.Body.Close() }()
 	if resp.StatusCode != http.StatusAccepted {
 		return fmt.Errorf("exit route returned %s", resp.Status)
 	}

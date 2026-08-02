@@ -106,18 +106,6 @@ func Seed() error {
 	return nil
 }
 
-// chromaOllamaSkipReason returns a non-empty reason when Ollama is unreachable,
-// the chroma model config cannot be read, or a model the config uses is not
-// installed. The required models come from the shipped config, so the gate never
-// duplicates the model names.
-func chromaOllamaSkipReason(profilesRoot string) string {
-	required, err := chromaRequiredModels(profilesRoot)
-	if err != nil {
-		return fmt.Sprintf("read chroma model config: %v", err)
-	}
-	return chromaOllamaSkipReasonForModels(required)
-}
-
 func chromaOllamaSkipReasonForModels(required []string) string {
 	if err := waitHTTPStatus(ollamaVersionURL, http.StatusOK, 2*time.Second); err != nil {
 		return fmt.Sprintf("Ollama not reachable at %s: %v", ollamaVersionURL, err)
@@ -279,7 +267,7 @@ func runChromaIntegration(profilesRoot, coreRoot string) error {
 	if err != nil {
 		return fmt.Errorf("create chroma data dir: %w", err)
 	}
-	defer os.RemoveAll(dataDir)
+	defer func() { _ = os.RemoveAll(dataDir) }()
 	containerID, err := startRequiredChromaContainer(dataDir, ensureChromaServer)
 	if err != nil {
 		return err

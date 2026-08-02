@@ -148,7 +148,7 @@ func iteratorRegistry(items []string, order *orderedItems) *Registry {
 type iteratorListBuilder struct{ items []string }
 
 func (b iteratorListBuilder) Build(Result) Command {
-	return iteratorListCommand{items: b.items}
+	return iteratorListCommand(b)
 }
 
 type iteratorListCommand struct{ items []string }

@@ -64,7 +64,7 @@ func TestChatbotSourceRouterConformance(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	defer resp.Body.Close()
+	defer func() { _ = resp.Body.Close() }()
 	if resp.StatusCode != http.StatusOK {
 		t.Fatalf("Ollama chat returned %d", resp.StatusCode)
 	}

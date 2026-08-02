@@ -136,7 +136,7 @@ func (Integration) EmbeddingExclusion() error {
 	}
 
 	stops, err := startExclusionMocks(binary, coreRoot, mockProfile, work)
-	defer stopAll(stops)
+	defer func() { stopAll(stops) }()
 	if err != nil {
 		return err
 	}

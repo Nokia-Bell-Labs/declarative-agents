@@ -59,7 +59,7 @@ func (Demo) Up() error {
 			if err != nil {
 				return err
 			}
-			defer os.RemoveAll(destination)
+			defer func() { _ = os.RemoveAll(destination) }()
 			archive, err := packageHelmChart(
 				filepath.Join(roots.Application, "helm"),
 				filepath.Join(roots.Application, filepath.FromSlash(defaultProfileOutput)),

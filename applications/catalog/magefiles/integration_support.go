@@ -49,7 +49,7 @@ func freeLoopbackAddr() (string, error) {
 	if err != nil {
 		return "", err
 	}
-	defer listener.Close()
+	defer func() { _ = listener.Close() }()
 	return listener.Addr().String(), nil
 }
 
@@ -104,7 +104,7 @@ func requestHTTP(method, url, body string) ([]byte, int, error) {
 	if err != nil {
 		return nil, 0, err
 	}
-	defer resp.Body.Close()
+	defer func() { _ = resp.Body.Close() }()
 	data, err := io.ReadAll(resp.Body)
 	return data, resp.StatusCode, err
 }
@@ -136,13 +136,6 @@ func commandWithOutput(cmd *exec.Cmd) (*bytes.Buffer, error) {
 	cmd.Stdout = &output
 	cmd.Stderr = &output
 	return &output, cmd.Run()
-}
-
-func writeExecutable(path, script, label string) error {
-	if err := os.WriteFile(path, []byte(script), 0o755); err != nil {
-		return fmt.Errorf("write %s: %w", label, err)
-	}
-	return nil
 }
 
 func readIntegrationYAML(path, label string, out any) error {

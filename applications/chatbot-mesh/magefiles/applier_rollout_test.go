@@ -122,15 +122,6 @@ func applierExecWord(t *testing.T, name string) execDeclaration {
 	return execDeclaration{}
 }
 
-func containsString(values []string, want string) bool {
-	for _, value := range values {
-		if value == want {
-			return true
-		}
-	}
-	return false
-}
-
 // TestApplierRolloutMachineSeparatesBrokenRead proves the machine reaches three
 // terminal outcomes, not two: a failed counts read lands in Unavailable from
 // either phase leg rather than joining the progressing one.

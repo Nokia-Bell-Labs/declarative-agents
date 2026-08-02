@@ -218,9 +218,3 @@ func requireDeterministicCharterOrder(t *testing.T, findings []Finding, extensio
 		assert.Equal(t, want.file, findings[index].File)
 	}
 }
-
-func writeDeterministicCharterFiles(t *testing.T, root, extension, data string) {
-	t.Helper()
-	writeTargetFile(t, root, "z"+extension, data)
-	writeTargetFile(t, root, "a"+extension, data)
-}

@@ -68,7 +68,7 @@ func (Integration) ServingHealth() error {
 	if err != nil {
 		return err
 	}
-	defer os.RemoveAll(traceDir)
+	defer func() { _ = os.RemoveAll(traceDir) }()
 	agents, err := startServingAgents(binary, roots.Core, profiles, workspace, traceDir, "")
 	if err != nil {
 		return err
@@ -125,7 +125,7 @@ func (Integration) ServingRemote() error {
 	if err != nil {
 		return err
 	}
-	defer os.RemoveAll(traceDir)
+	defer func() { _ = os.RemoveAll(traceDir) }()
 	model := newServingModel()
 	defer model.Close()
 	agents, err := startServingAgents(binary, roots.Core, profiles, workspace, traceDir, model.URL)
@@ -392,7 +392,7 @@ func servingJSONRequestWithTimeout(endpoint, payload, traceparent string, timeou
 	if err != nil {
 		return 0, "", err
 	}
-	defer resp.Body.Close()
+	defer func() { _ = resp.Body.Close() }()
 	data, err := io.ReadAll(resp.Body)
 	if err != nil {
 		return 0, "", err

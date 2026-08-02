@@ -100,7 +100,7 @@ func requireBenchProfiles(t *testing.T, endpoint string) {
 	if err != nil {
 		t.Fatalf("GET %s: %v", endpoint, err)
 	}
-	defer response.Body.Close()
+	defer func() { _ = response.Body.Close() }()
 	var payload struct {
 		Data []struct {
 			Name         string `json:"name"`
@@ -163,7 +163,7 @@ func requireBenchResponse(t *testing.T, url string, status int, contains string)
 	if err != nil {
 		t.Fatalf("GET %s: %v", url, err)
 	}
-	defer response.Body.Close()
+	defer func() { _ = response.Body.Close() }()
 	body, err := io.ReadAll(response.Body)
 	if err != nil {
 		t.Fatalf("read GET %s: %v", url, err)
