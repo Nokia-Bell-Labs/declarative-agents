@@ -1,12 +1,13 @@
 name: collector
 purpose: |
   Persistently receive OTLP trace batches, reject empty batches through a
-  declared predicate, spool accepted spans, optionally relay them, and service
-  lifecycle control between bounded intake waits.
+  declared predicate, spool accepted spans, optionally relay them, receive and
+  spool OTLP metric batches on a separate queue and file, and service lifecycle
+  control between bounded intake waits.
 invariants:
   - Every accepted batch is spooled before relay.
   - Collector process telemetry is configured by deployment as file-only.
-  - Metrics remain on the staged contrib path.
+  - Accepted metric batches spool to a separate metric evidence file; trace intake, spool, and relay are unaffected.
 initial_state: Idle
 budget: {max_iterations: 1000000}
 states:
@@ -19,6 +20,8 @@ states:
   - {name: Spooling, meaning: Writing deterministic evidence.}
   - {name: DecidingRelay, meaning: Selecting test or relay mode.}
   - {name: Relaying, meaning: Exporting the spooled batch upstream.}
+  - {name: AwaitingMetrics, meaning: Waiting a bounded interval for one metric batch.}
+  - {name: SpoolingMetrics, meaning: Writing deterministic metric evidence.}
   - {name: AwaitingControl, meaning: Checking lifecycle control between intake waits.}
   - {name: Exiting, meaning: Routing lifecycle exit.}
   - {name: StoppingReceiver, meaning: Stopping OTLP intake.}
@@ -37,6 +40,8 @@ signals:
   - {name: Unsatisfied, trigger: Predicate did not hold.}
   - {name: SpansSpooled, trigger: Deterministic append synced.}
   - {name: SpansRelayed, trigger: Upstream accepted the batch.}
+  - {name: MetricsReceived, trigger: One complete metric batch arrived.}
+  - {name: MetricsSpooled, trigger: Deterministic metric append synced.}
   - {name: AwaitTimedOut, trigger: Bounded intake or control wait elapsed.}
   - {name: ExitRequested, trigger: Lifecycle control event.}
   - {name: AgentExited, trigger: exit_agent completed.}
@@ -67,7 +72,13 @@ transitions:
   - {state: DecidingRelay, signal: CommandError, next: Failed}
   - {state: Relaying, signal: SpansRelayed, next: AwaitingControl, action: await_collector_control}
   - {state: Relaying, signal: CommandError, next: AwaitingControl, action: await_collector_control}
-  - {state: AwaitingControl, signal: AwaitTimedOut, next: AwaitingSpans, action: await_spans, label: received_batch}
+  - {state: AwaitingControl, signal: AwaitTimedOut, next: AwaitingMetrics, action: await_collector_metrics, label: received_metrics}
+  - {state: AwaitingMetrics, signal: MetricsReceived, next: SpoolingMetrics, action: spool_collector_metrics, label: spooled_metrics}
+  - {state: AwaitingMetrics, signal: AwaitTimedOut, next: AwaitingSpans, action: await_spans, label: received_batch}
+  - {state: AwaitingMetrics, signal: ReceiverStopped, next: Failed}
+  - {state: AwaitingMetrics, signal: CommandError, next: Failed}
+  - {state: SpoolingMetrics, signal: MetricsSpooled, next: AwaitingSpans, action: await_spans, label: received_batch}
+  - {state: SpoolingMetrics, signal: CommandError, next: Failed}
   - {state: AwaitingControl, signal: ExitRequested, next: Exiting, action: exit_agent}
   - {state: AwaitingControl, signal: ServerStopped, next: Failed}
   - {state: AwaitingControl, signal: CommandError, next: Failed}

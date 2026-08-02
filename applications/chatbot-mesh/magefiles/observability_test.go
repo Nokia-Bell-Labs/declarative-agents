@@ -4,18 +4,15 @@ package main
 
 import (
 	"errors"
-	"os"
-	"path/filepath"
-	"reflect"
 	"strings"
 	"testing"
 )
 
-func TestObservabilityUpReusesHealthyStack(t *testing.T) {
+func TestObservabilityUpReusesHealthyIngress(t *testing.T) {
 	restoreObservabilityHooks(t)
 	checkObservability = func() error { return nil }
-	runObservabilityCommand = func(string, ...string) error {
-		t.Fatal("healthy stack must not run docker")
+	startCollectorProcess = func() error {
+		t.Fatal("healthy ingress must not start a new collector")
 		return nil
 	}
 
@@ -24,7 +21,7 @@ func TestObservabilityUpReusesHealthyStack(t *testing.T) {
 	}
 }
 
-func TestObservabilityUpChecksPortsAndWaitsForHealth(t *testing.T) {
+func TestObservabilityUpChecksPortsAndStarts(t *testing.T) {
 	restoreObservabilityHooks(t)
 	healthCalls := 0
 	checkObservability = func() error {
@@ -34,39 +31,38 @@ func TestObservabilityUpChecksPortsAndWaitsForHealth(t *testing.T) {
 		}
 		return nil
 	}
-	observabilityOutput = func(string, ...string) (string, error) { return "", nil }
+	collectorAlreadyRunning = func() bool { return false }
 	var checked []string
 	checkObservabilityPort = func(name, port string) error {
 		checked = append(checked, name+":"+port)
 		return nil
 	}
-	var command []string
-	runObservabilityCommand = func(name string, args ...string) error {
-		command = append([]string{name}, args...)
+	started := false
+	startCollectorProcess = func() error {
+		started = true
 		return nil
 	}
 
 	if err := (Observability{}).Up(); err != nil {
 		t.Fatal(err)
 	}
-	if len(checked) != 5 { // OTLP gRPC, OTLP HTTP, Collector health, Collector query, Prometheus query
+	if len(checked) != 3 { // OTLP gRPC, Collector control, Collector query
 		t.Fatalf("checked ports = %v", checked)
 	}
-	want := []string{"docker", "compose", "-f", observabilityComposeFile, "up", "-d", "--wait"}
-	if !reflect.DeepEqual(command, want) {
-		t.Fatalf("command = %v, want %v", command, want)
+	if !started {
+		t.Fatal("collector process was not started")
 	}
 }
 
-func TestObservabilityUpReportsCollisionBeforeCompose(t *testing.T) {
+func TestObservabilityUpReportsPortCollisionBeforeStart(t *testing.T) {
 	restoreObservabilityHooks(t)
 	checkObservability = func() error { return errors.New("not started") }
-	observabilityOutput = func(string, ...string) (string, error) { return "", nil }
+	collectorAlreadyRunning = func() bool { return false }
 	checkObservabilityPort = func(name, port string) error {
 		return errors.New("port owner")
 	}
-	runObservabilityCommand = func(string, ...string) error {
-		t.Fatal("compose must not run after collision")
+	startCollectorProcess = func() error {
+		t.Fatal("collector must not start after a port collision")
 		return nil
 	}
 
@@ -75,111 +71,65 @@ func TestObservabilityUpReportsCollisionBeforeCompose(t *testing.T) {
 	}
 }
 
-func TestObservabilityLifecycleCommandsPreserveOrDeleteVolumes(t *testing.T) {
+func TestObservabilityUpSkipsPortCheckWhenRunning(t *testing.T) {
 	restoreObservabilityHooks(t)
-	var commands [][]string
-	runObservabilityCommand = func(name string, args ...string) error {
-		commands = append(commands, append([]string{name}, args...))
+	checkObservability = func() error { return errors.New("not healthy yet") }
+	collectorAlreadyRunning = func() bool { return true }
+	checkObservabilityPort = func(name, port string) error {
+		t.Fatal("a running ingress must not re-check ports")
 		return nil
 	}
-	checkObservability = func() error { return nil }
+	starts := 0
+	startCollectorProcess = func() error {
+		starts++
+		checkObservability = func() error { return nil }
+		return nil
+	}
 
-	if err := (Observability{}).Status(); err != nil {
+	if err := (Observability{}).Up(); err != nil {
 		t.Fatal(err)
+	}
+	if starts != 1 {
+		t.Fatalf("starts = %d, want 1", starts)
+	}
+}
+
+func TestObservabilityDownStopsCollector(t *testing.T) {
+	restoreObservabilityHooks(t)
+	stopped := false
+	stopCollectorProcess = func() error {
+		stopped = true
+		return nil
 	}
 	if err := (Observability{}).Down(); err != nil {
 		t.Fatal(err)
 	}
-	if err := (Observability{}).Reset(); err != nil {
-		t.Fatal(err)
-	}
-	if got := strings.Join(commands[1], " "); strings.Contains(got, " -v") {
-		t.Fatalf("down deletes volumes: %s", got)
-	}
-	if got := strings.Join(commands[2], " "); !strings.HasSuffix(got, "down -v") {
-		t.Fatalf("reset command = %s", got)
-	}
-}
-
-func TestObservabilityComposePinsImagesAndRoutesSignals(t *testing.T) {
-	data, err := os.ReadFile(filepath.Join("..", observabilityComposeFile))
-	if err != nil {
-		t.Fatal(err)
-	}
-	content := string(data)
-	for _, required := range []string{
-		"otel/opentelemetry-collector-contrib:0.157.0",
-		"${DA_COLLECTOR_AGENT_IMAGE:-declarative-agents/agent-core:local}",
-		"pull_policy: never",
-		"prom/prometheus:v3.13.1",
-		"exporters: [otlp_grpc/collector_agent]",
-		"exporters: [prometheus_remote_write]",
-		"collector-spool:/data",
-		"prometheus-data:/prometheus",
-		"../../catalog/agents/collector:/profiles/agents/collector:ro",
-	} {
-		if !strings.Contains(content, required) {
-			t.Errorf("compose file missing %q", required)
-		}
-	}
-	if strings.Contains(content, ":latest") {
-		t.Error("compose file contains an unpinned latest image")
-	}
-	if strings.Contains(content, "ghcr.io") {
-		t.Error("compose file references a registry image; the collector agent must build locally")
-	}
-}
-
-func TestObservabilityCollectorImageBuildRespectsOperatorOverride(t *testing.T) {
-	var built []string
-	restore := buildCollectorImage
-	buildCollectorImage = func(coreRoot, image string) error {
-		built = append(built, coreRoot+" "+image)
-		return nil
-	}
-	defer func() { buildCollectorImage = restore }()
-
-	t.Setenv(observabilityCollectorImageEnv, "example.com/operator/agent-core:pinned")
-	if err := ensureCollectorAgentImage(); err != nil {
-		t.Fatal(err)
-	}
-	if len(built) != 0 {
-		t.Fatalf("operator-supplied image must not be built over, built %v", built)
-	}
-
-	t.Setenv(observabilityCollectorImageEnv, "")
-	t.Setenv(agentCoreRootEnv, filepath.Join(string(filepath.Separator), "core", "checkout"))
-	if err := ensureCollectorAgentImage(); err != nil {
-		t.Fatal(err)
-	}
-	want := filepath.Join(string(filepath.Separator), "core", "checkout") + " declarative-agents/agent-core:local"
-	if len(built) != 1 || built[0] != want {
-		t.Fatalf("default build = %v, want %q", built, want)
+	if !stopped {
+		t.Fatal("down did not stop the collector")
 	}
 }
 
 func TestObservabilityPortsAreConfigurable(t *testing.T) {
 	t.Setenv("DA_OTEL_GRPC_PORT", "24317")
-	t.Setenv("DA_PROMETHEUS_QUERY_PORT", "29090")
+	t.Setenv("DA_COLLECTOR_QUERY_PORT", "28193")
 	ports := observabilityPorts()
-	if ports[0].value != "24317" || ports[4].value != "29090" {
+	if ports[0].value != "24317" || ports[2].value != "28193" {
 		t.Fatalf("ports = %#v", ports)
 	}
 }
 
 func restoreObservabilityHooks(t *testing.T) {
 	t.Helper()
-	command := runObservabilityCommand
-	output := observabilityOutput
+	start := startCollectorProcess
+	stop := stopCollectorProcess
 	health := checkObservability
 	port := checkObservabilityPort
-	build := buildCollectorImage
+	running := collectorAlreadyRunning
 	t.Cleanup(func() {
-		runObservabilityCommand = command
-		observabilityOutput = output
+		startCollectorProcess = start
+		stopCollectorProcess = stop
 		checkObservability = health
 		checkObservabilityPort = port
-		buildCollectorImage = build
+		collectorAlreadyRunning = running
 	})
-	buildCollectorImage = func(string, string) error { return nil }
 }

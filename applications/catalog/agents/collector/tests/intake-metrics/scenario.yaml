@@ -1,0 +1,5 @@
+batch: batch.json
+expected_metric_count: 1
+expected_metric_name: fixture_dispatch_count
+expected_data_point_count: 2
+expected_service: collector-rig-fixture

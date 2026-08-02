@@ -5,10 +5,10 @@ tools:
   category: boundary
   visibility: internal
   emits: [ReceiverLaunched, CommandError]
-  description: Bind a declared OTLP/gRPC trace receiver and return without waiting for traffic.
-  problem: A machine cannot own trace-ingress lifecycle unless listener launch is an explicit word.
+  description: Bind a declared OTLP/gRPC receiver for trace and metric exports and return without waiting for traffic.
+  problem: A machine cannot own telemetry-ingress lifecycle unless listener launch is an explicit word.
   goals:
-  - Bind one named trace receiver with a bounded queue.
+  - Bind one named receiver with bounded trace and metric queues.
   - Keep the launch-to-await transition visible in MachineSpec.
   requirements:
     input:
@@ -472,3 +472,250 @@ tools:
   config:
     path: traces/collector.ndjson
     trace_id: ""
+
+- name: await_metrics
+  type: builtin
+  init: await_metrics
+  category: boundary
+  visibility: internal
+  emits: [MetricsReceived, AwaitTimedOut, ReceiverStopped, CommandError]
+  description: Wait for and consume one complete FIFO metric batch from a named OTLP receiver.
+  problem: Metric handler goroutines cannot decide machine policy, so accepted metric batches need a bounded handoff into the grammar.
+  goals:
+  - Return one complete metric request and bounded decision metadata.
+  - Distinguish timeout, lifecycle stop, and transport faults.
+  requirements:
+    input:
+    - Receiver and timeout come from trusted config.
+    output:
+    - Output includes batch, batch_id, data_point_count, service_names, metric_names, resource_attributes, and received_at.
+    errors:
+    - An absent receiver or canceled wait emits CommandError; timeout and receiver stop have distinct signals.
+  non_goals:
+  - Does not spool, relay, or mutate metrics.
+  parameters: {type: object, properties: {}}
+  output:
+    description: Complete OTLP metric batch plus bounded metadata used by declared decisions.
+    schema:
+      type: object
+      properties:
+        batch: {type: object}
+        batch_id: {type: string}
+        data_point_count: {type: integer}
+        service_names: {type: array}
+        metric_names: {type: array}
+        resource_attributes: {type: object}
+        received_at: {type: string}
+      required: [batch, batch_id, data_point_count, service_names, metric_names, resource_attributes]
+  side_effects:
+  - kind: state_mutation
+    target: configured receiver
+    state: consumes one FIFO metric batch
+  reversibility:
+    classification: irreversible
+    undo: irreversible
+    requires_confirmation: true
+  undo:
+    strategy: irreversible
+    description: A consumed concurrent queue item cannot be restored in original order.
+  errors:
+  - signal: CommandError
+    condition: receiver is absent or context cancellation is not the declared timeout
+    message_shape: 'tool <name>: OTLP receiver <receiver>: <cause>'
+    state_after_failure: no batch is returned
+  relationships:
+    before: [spool_metrics]
+    after: [otlp_receiver_launch]
+  config:
+    receiver: ingress
+    timeout: 30s
+
+- name: spool_metrics
+  type: builtin
+  init: spool_metrics
+  category: boundary
+  visibility: internal
+  emits: [MetricsSpooled, CommandError]
+  description: Append a selected OTLP metric batch as complete NDJSON metric lines carrying resource, scope, and data-point identity.
+  problem: A live backend is not deterministic test evidence, so received metrics need a local format a declared query reads.
+  goals:
+  - Preserve metric name, resource, and data-point identity in one NDJSON record per metric.
+  - Rotate only before a complete batch and sync evidence before success.
+  requirements:
+    input:
+    - Path, batch selector, and rotation bounds come from trusted config.
+    output:
+    - Output reports path, metric count, data-point count, bytes written, and repeats the selected batch.
+    side_effects:
+    - Appends and syncs a metric evidence file.
+    errors:
+    - Selector, conversion, rotation, append, and sync failures emit CommandError.
+  non_goals:
+  - Does not relay, query, or delete accepted metrics; does not touch the trace spool.
+  parameters: {type: object, properties: {}}
+  output:
+    description: Metric spool result plus the unchanged selected OTLP batch.
+    schema:
+      type: object
+      properties:
+        path: {type: string}
+        metric_count: {type: integer}
+        data_point_count: {type: integer}
+        bytes_written: {type: integer}
+        batch: {type: object}
+      required: [path, metric_count, data_point_count, bytes_written, batch]
+  side_effects:
+  - kind: filesystem_write
+    target: configured metric spool path
+    state: appends durable audit evidence and may rotate bounded generations
+  reversibility:
+    classification: irreversible
+    undo: irreversible
+    requires_confirmation: true
+  undo:
+    strategy: irreversible
+    description: Appended audit evidence is retained.
+  errors:
+  - signal: CommandError
+    condition: batch selection, encoding, rotation, append, or sync fails
+    message_shape: 'tool <name>: <spool operation>: <cause>'
+    state_after_failure: the source batch remains in command state
+  relationships:
+    after: [await_metrics]
+  config:
+    path: metrics/collector.ndjson
+    batch_source: $.batch
+    max_bytes: 10485760
+    max_files: 3
+
+- name: spool_list_metrics
+  type: builtin
+  init: spool_list_metrics
+  category: boundary
+  visibility: internal
+  emits: [MetricsListed, CommandError]
+  description: Read the NDJSON metric spool and return paginated metric summaries by name.
+  problem: A collector needs a read path over spooled metrics so operators and UIs can browse ingested data without a separate backend.
+  goals:
+  - Aggregate spooled metric records into per-name summaries with bounded pagination.
+  - Read across the active spool and rotated files without mutation.
+  requirements:
+    input:
+    - Path, page size, max page size, and offset come from trusted config.
+    output:
+    - Output includes metrics (name, type, unit, record count, data-point count, services), total, offset, page size, and skipped line count.
+    side_effects:
+    - Read-only file access.
+    errors:
+    - Unreadable spool path emits CommandError.
+  non_goals:
+  - Does not mutate, rotate, or delete spool files; does not read the trace spool.
+  parameters: {type: object, properties: {}}
+  output:
+    description: Paginated metric summaries and spool health metadata.
+    schema:
+      type: object
+      properties:
+        metrics:
+          type: array
+          items:
+            type: object
+            properties:
+              name: {type: string}
+              type: {type: string}
+              unit: {type: string}
+              record_count: {type: integer}
+              data_point_count: {type: integer}
+              services: {type: array}
+        total: {type: integer}
+        offset: {type: integer}
+        page_size: {type: integer}
+        skipped_lines: {type: integer}
+      required: [metrics, total, offset, page_size, skipped_lines]
+  side_effects:
+  - kind: filesystem_read
+    target: configured metric spool path and rotated files
+    state: read_only
+  reversibility:
+    classification: reversible
+    undo: noop
+  undo:
+    strategy: noop
+    description: Reading a spool changes nothing.
+  errors:
+  - signal: CommandError
+    condition: the configured metric spool path cannot be read
+    message_shape: 'tool <name>: <cause>'
+    state_after_failure: no output is returned
+  relationships:
+    after: [spool_metrics]
+  config:
+    path: metrics/collector.ndjson
+    page_size: 20
+    max_page_size: 100
+    offset: 0
+
+- name: spool_get_metric
+  type: builtin
+  init: spool_get_metric
+  category: boundary
+  visibility: internal
+  emits: [MetricRetrieved, CommandError]
+  description: Read all spooled records for one metric name from the NDJSON metric spool.
+  problem: A metric detail view needs per-record data points and resource identity from the spool without a separate query backend.
+  goals:
+  - Return all records for one metric name with service and data-point detail.
+  - Read across the active spool and rotated files without mutation.
+  requirements:
+    input:
+    - Path and metric name come from trusted config.
+    output:
+    - Output includes metric name, records (name, type, unit, data-point count, service, metric), record count, data-point count, and skipped line count.
+    side_effects:
+    - Read-only file access.
+    errors:
+    - Missing metric name or unreadable spool path emits CommandError.
+  non_goals:
+  - Does not mutate, rotate, or delete spool files.
+  parameters: {type: object, properties: {}}
+  output:
+    description: All spooled records for one metric name.
+    schema:
+      type: object
+      properties:
+        metric_name: {type: string}
+        records:
+          type: array
+          items:
+            type: object
+            properties:
+              name: {type: string}
+              type: {type: string}
+              unit: {type: string}
+              data_point_count: {type: integer}
+              service: {type: string}
+              metric: {type: object}
+        record_count: {type: integer}
+        data_point_count: {type: integer}
+        skipped_lines: {type: integer}
+      required: [metric_name, records, record_count, data_point_count, skipped_lines]
+  side_effects:
+  - kind: filesystem_read
+    target: configured metric spool path and rotated files
+    state: read_only
+  reversibility:
+    classification: reversible
+    undo: noop
+  undo:
+    strategy: noop
+    description: Reading a spool changes nothing.
+  errors:
+  - signal: CommandError
+    condition: metric name is missing or the configured metric spool path cannot be read
+    message_shape: 'tool <name>: <cause>'
+    state_after_failure: no output is returned
+  relationships:
+    after: [spool_metrics]
+  config:
+    path: metrics/collector.ndjson
+    metric_name: ""

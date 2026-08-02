@@ -8,6 +8,8 @@ tools:
   - spool_collector_spans
   - decide_collector_relay
   - relay_collector_spans
+  - await_collector_metrics
+  - spool_collector_metrics
   - await_collector_control
   - exit_agent
   - otlp_receiver_stop
@@ -16,3 +18,5 @@ tools:
   - stop_collector_control
   - query_list_traces
   - query_get_trace
+  - query_list_metrics
+  - query_get_metric

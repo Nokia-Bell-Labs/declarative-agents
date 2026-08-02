@@ -1003,7 +1003,7 @@ test_cases:
     inputs:
       exporters: [file, otlp]
       identity: [repository, module, target, git_commit, run_id, service_name]
-      backends: [jaeger, prometheus]
+      backends: [collector-agent-traces, collector-agent-metrics]
     expected:
       child_endpoint_propagated: true
       child_service_identity_explicit: true

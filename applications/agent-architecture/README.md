@@ -53,7 +53,7 @@ Run every command from `applications/agent-architecture`, except the one-time
 port preflight in step 1, which runs from the repository root. Steps 2, 3,
 and 5 each take their own terminal.
 
-1. Free the demo ports. The chatbot-mesh persistent observability stack binds
+1. Free the demo ports. The chatbot-mesh persistent collector ingress binds
    the ports the demo's trace collector needs (`127.0.0.1:4317` and
    `:18193`); if it is running, `mage run` fails
    with `bind OTLP receiver "ingress": address already in use`. Stop it from
@@ -148,7 +148,7 @@ To disable trace collection:
 
 The collector binds the OTLP receiver on `127.0.0.1:4317`, control on port
 18191, monitor on port 18192, and the query surface on port 18193. The
-chatbot-mesh persistent observability stack (`mage observability:up` in
+chatbot-mesh persistent collector ingress (`mage observability:up` in
 `applications/chatbot-mesh`) binds 4317 and 18193 too; stop it with
 `mage observability:down` from that directory before a traced demo run.
 

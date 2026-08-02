@@ -128,3 +128,43 @@ rest:
                   content_type: application/json
                   body: {trace_id: $.trace_id, spans: $.spans, span_count: $.span_count}
                 Failed: {status: 500, content_type: application/json, body: {error: spool_read_error}}
+        list_metrics:
+          method: GET
+          path: /query/metrics
+          request:
+            query: {page_size: {type: integer}, offset: {type: integer}}
+          binding: machine_request
+          machine_request:
+            profile: profile.yaml
+            machine: query-machine.yaml
+            initial_signal: ListMetricsRequested
+            timeout: 10s
+            request:
+              query: {page_size: $.page_size, offset: $.offset}
+            response:
+              terminal_states:
+                MetricsReady:
+                  status: 200
+                  content_type: application/json
+                  body: {metrics: $.metrics, total: $.total, offset: $.offset, page_size: $.page_size}
+                Failed: {status: 500, content_type: application/json, body: {error: spool_read_error}}
+        get_metric:
+          method: GET
+          path: /query/metrics/{metric_name}
+          request:
+            path: {metric_name: {type: string}}
+          binding: machine_request
+          machine_request:
+            profile: profile.yaml
+            machine: query-machine.yaml
+            initial_signal: GetMetricRequested
+            timeout: 10s
+            request:
+              path: {metric_name: $.metric_name}
+            response:
+              terminal_states:
+                MetricReady:
+                  status: 200
+                  content_type: application/json
+                  body: {metric_name: $.metric_name, records: $.records, record_count: $.record_count, data_point_count: $.data_point_count}
+                Failed: {status: 500, content_type: application/json, body: {error: spool_read_error}}

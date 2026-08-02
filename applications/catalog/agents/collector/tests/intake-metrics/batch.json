@@ -1,0 +1,26 @@
+{
+  "resourceMetrics": [{
+    "resource": {
+      "attributes": [{
+        "key": "service.name",
+        "value": {"stringValue": "collector-rig-fixture"}
+      }]
+    },
+    "scopeMetrics": [{
+      "scope": {"name": "collector-rig"},
+      "metrics": [{
+        "name": "fixture_dispatch_count",
+        "unit": "1",
+        "description": "fixture counter",
+        "sum": {
+          "aggregationTemporality": "AGGREGATION_TEMPORALITY_CUMULATIVE",
+          "isMonotonic": true,
+          "dataPoints": [
+            {"timeUnixNano": "1000000000", "asInt": "1"},
+            {"timeUnixNano": "2000000000", "asInt": "2"}
+          ]
+        }
+      }]
+    }]
+  }]
+}

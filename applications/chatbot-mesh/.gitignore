@@ -4,3 +4,4 @@
 
 # Persistent local integration failure artifacts.
 /build/
+observability/.run/

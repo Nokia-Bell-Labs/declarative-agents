@@ -456,11 +456,11 @@ releases:
       - srd042-otlp-receiver-tools
     use_cases:
       - id: rel11.0-uc001-otlp-receiver-await
-        summary: A persistent machine receives, records, and relays OTLP trace batches through declared words.
+        summary: A persistent machine receives, records, and relays OTLP trace and metric batches through declared words.
         status: implemented
     test_suites:
       - id: test-rel11.0-otlp-receiver
-        summary: Formal tests for receive, backpressure, await, spool compatibility, relay identity, lifecycle cleanup, and self-loop prevention.
+        summary: Formal tests for receive, backpressure, await, spool compatibility, relay identity, lifecycle cleanup, self-loop prevention, and metric intake, spool, and query.
         status: implemented
     proof:
       - go test ./internal/tools/otlp

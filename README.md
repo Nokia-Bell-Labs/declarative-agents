@@ -37,12 +37,12 @@ either scope fails the release gate at any known high or critical vulnerability.
 
 ### Persistent integration observability
 
-The persistent OTLP ingress, collector agent trace backend, and Prometheus
-metric backend live with their consumer: run `mage observability:up|status|
-down|reset` from `applications/chatbot-mesh`, which owns the compose stack
-under
-[`applications/chatbot-mesh/observability/`](applications/chatbot-mesh/observability/).
-Its ports and lifecycle are documented in the
+The persistent OTLP ingress is the canonical collector agent run as a host
+process: it receives both trace and metric exports on one gRPC listener and
+retains them in its spool, so no docker-compose stack or Prometheus backend is
+involved and kind stays the only Docker consumer. Run
+`mage observability:up|status|down|reset` from `applications/chatbot-mesh`,
+which owns the ingress; its ports and lifecycle are documented in the
 [chatbot-mesh README](applications/chatbot-mesh/README.md).
 
 Root releases require every release gate to exit successfully before tagging:
@@ -93,7 +93,7 @@ mage clean    # remove generated artifacts
 ```bash
 cd applications/chatbot-mesh
 mage audit                  # validate the application's spec corpus
-mage observability:up       # start the persistent telemetry stack its gates need
+mage observability:up       # start the persistent collector ingress its gates need
 mage helm:package           # build the installable chart
 mage integration:helmSmoke  # prove the packaged mesh on kind
 ```

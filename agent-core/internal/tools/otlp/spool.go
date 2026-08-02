@@ -99,6 +99,26 @@ func resolveBatch(
 	previous string,
 	view core.CommandStateView,
 ) (*coltracepb.ExportTraceServiceRequest, error) {
+	payload, err := resolveSelectorPayload(selector, previous, view)
+	if err != nil {
+		return nil, err
+	}
+	var request coltracepb.ExportTraceServiceRequest
+	if err := protojson.Unmarshal(payload, &request); err != nil {
+		return nil, fmt.Errorf("decode selected OTLP batch: %w", err)
+	}
+	return &request, nil
+}
+
+// resolveSelectorPayload resolves a batch_source selector against the current
+// command state or the previous output and returns the selected value as JSON.
+// Both the trace and metric spool words decode this payload into their own
+// OTLP request type.
+func resolveSelectorPayload(
+	selector string,
+	previous string,
+	view core.CommandStateView,
+) ([]byte, error) {
 	if selector == "" {
 		selector = defaultBatchSource
 	}
@@ -128,11 +148,7 @@ func resolveBatch(
 	if err != nil {
 		return nil, fmt.Errorf("encode selected batch: %w", err)
 	}
-	var request coltracepb.ExportTraceServiceRequest
-	if err := protojson.Unmarshal(payload, &request); err != nil {
-		return nil, fmt.Errorf("decode selected OTLP batch: %w", err)
-	}
-	return &request, nil
+	return payload, nil
 }
 
 var spoolLocks sync.Map
