@@ -1,3 +1,4 @@
-# Source-tree release output must never recurse into a packaged chart.
-dist/
+# Source-tree release output must never recurse into a packaged chart. Anchored
+# to the chart root so a served UI's ui/dist (srd020 R7) is still packaged.
+/dist/
 *.tgz

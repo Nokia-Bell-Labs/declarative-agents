@@ -67,6 +67,25 @@ data:
             {{- else }}
             - debug
             {{- end }}
+{{- if $agent }}
+---
+# The collector's built trace UI (srd020 R7), carried by a collector-only
+# ConfigMap so it never enters the shared profiles ConfigMap that every pod
+# mounts. The collector container mounts it at /collector-ui and serves ui/dist
+# from there.
+apiVersion: v1
+kind: ConfigMap
+metadata:
+  name: {{ $fullname }}-collector-ui
+  labels:
+    {{- include "chatbot-mesh.labels" . | nindent 4 }}
+    app.kubernetes.io/component: collector
+data:
+  {{- range $path, $_ := .Files.Glob "collector-ui/**" }}
+  {{ $path | trimPrefix "collector-ui/" | replace "/" "__" }}: |-
+    {{- $.Files.Get $path | nindent 4 }}
+  {{- end }}
+{{- end }}
 ---
 apiVersion: apps/v1
 kind: Deployment
@@ -92,6 +111,13 @@ spec:
           {{- if $agent }}
           image: "{{ .Values.image.repository }}:{{ .Values.image.tag }}"
           imagePullPolicy: {{ .Values.image.pullPolicy }}
+          # The collector serves its trace UI from the literal ui/dist path
+          # (srd020 R7), resolved against the working directory. The UI bundle
+          # rides a collector-only ConfigMap mounted at /collector-ui rather than
+          # the shared profiles ConfigMap (which mounts into every pod and must
+          # stay under its size limit), so the working directory is /collector-ui
+          # -- no UI environment variable (GH-1228).
+          workingDir: /collector-ui
           args:
             - "--profile"
             - "{{ .Values.profiles.mountPath }}/agents/collector/profile.yaml"
@@ -104,6 +130,11 @@ spec:
             - {name: COLLECTOR_RECEIVER_ADDRESS, value: "0.0.0.0:{{ .Values.collector.otlpGRPCPort }}"}
             - {name: COLLECTOR_RELAY_ENDPOINT, value: {{ default "" $external | quote }}}
             - {name: COLLECTOR_SPOOL_PATH, value: "{{ .Values.profiles.workMountPath }}/traces/collector.ndjson"}
+            # The working directory is a read-only ConfigMap, so the relative
+            # metrics-spool default would fail; point it at the writable work
+            # volume. COLLECTOR_METRICS_SPOOL_PATH is an existing variable, and
+            # this keeps received metrics off the read-only mount (GH-1228).
+            - {name: COLLECTOR_METRICS_SPOOL_PATH, value: "{{ .Values.profiles.workMountPath }}/metrics/collector.ndjson"}
             - {name: COLLECTOR_MODE, value: {{ ternary "relay" "spool" (ne (default "" $external) "") | quote }}}
           ports:
             - {name: otlp-grpc, containerPort: {{ .Values.collector.otlpGRPCPort }}}
@@ -117,6 +148,7 @@ spec:
           volumeMounts:
             - {name: profiles, mountPath: {{ .Values.profiles.mountPath }}, readOnly: true}
             - {name: work, mountPath: {{ .Values.profiles.workMountPath }}}
+            - {name: collector-ui, mountPath: /collector-ui, readOnly: true}
           {{- else }}
           image: "{{ .Values.collector.image.repository }}:{{ .Values.collector.image.tag }}"
           imagePullPolicy: {{ .Values.collector.image.pullPolicy }}
@@ -132,6 +164,17 @@ spec:
         {{- include "chatbot-mesh.profilesVolume" . | nindent 8 }}
         - name: work
           emptyDir: {}
+        - name: collector-ui
+          projected:
+            defaultMode: 0444
+            sources:
+              - configMap:
+                  name: {{ $fullname }}-collector-ui
+                  items:
+                    {{- range $path, $_ := .Files.Glob "collector-ui/**" }}
+                    - key: {{ $path | trimPrefix "collector-ui/" | replace "/" "__" }}
+                      path: {{ $path | trimPrefix "collector-ui/" }}
+                    {{- end }}
         {{- else }}
         - name: config
           configMap:

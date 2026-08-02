@@ -504,6 +504,13 @@ type chartProfileProgram struct{ src, rel string }
 const canonicalCorpusIngestProgram = "agents/knowledge-manager/corpus-ingest"
 const canonicalCollectorProgram = "agents/collector"
 
+// canonicalCollectorUIProgram stages the collector's built trace UI (srd020 R7)
+// from the catalog into a dedicated collector-ui/ tree, not the shared profiles
+// tree. The profiles ConfigMap mounts into every pod, and the UI bundle is
+// needed only on the collector; keeping it out of profiles/ holds the shared
+// ConfigMap under its size limit while a collector-only ConfigMap carries it.
+const canonicalCollectorUIProgram = "agents/collector/ui/dist"
+
 // chartProfilePrograms is the single authoritative list of agent programs and
 // ux artifacts staged into the chart's profiles ConfigMap. It MUST cover every
 // agent profile mounted by an enabled Deployment (see helm/templates/*.yaml);
@@ -529,6 +536,7 @@ func chartProfilePrograms() []chartProfileProgram {
 		{"agents/creator", "profiles/agents/creator"},
 		{"agents/applier", "profiles/agents/applier"},
 		{"agents/collector", "profiles/agents/collector"},
+		{canonicalCollectorUIProgram, "collector-ui/ui/dist"},
 		{"agents/observer", "profiles/agents/observer"},
 		{"agents/corpus-ingest", "profiles/agents/corpus-ingest"},
 		{canonicalCorpusIngestProgram, "profiles/agents/knowledge-manager/corpus-ingest"},
@@ -539,7 +547,8 @@ func chartProfilePrograms() []chartProfileProgram {
 
 func chartProfileSource(meshRoot, catalogRoot string, program chartProfileProgram) string {
 	root := meshRoot
-	if program.src == canonicalCorpusIngestProgram || program.src == canonicalCollectorProgram {
+	if program.src == canonicalCorpusIngestProgram || program.src == canonicalCollectorProgram ||
+		program.src == canonicalCollectorUIProgram {
 		root = catalogRoot
 	}
 	return filepath.Join(root, filepath.FromSlash(program.src))

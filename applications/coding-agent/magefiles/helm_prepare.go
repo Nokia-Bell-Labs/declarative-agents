@@ -150,5 +150,11 @@ func stageCollectorProfile(catalogRoot, chartRoot string) error {
 			return fmt.Errorf("write collector %s: %w", entry.Name(), err)
 		}
 	}
+	// The collector serves its trace UI from ui/dist (srd020 R7); stage the built
+	// assets so the profiles volume carries them. Only dist ships -- the source,
+	// lockfile, and node config stay out of the deployed profiles.
+	if err := copyTree(filepath.Join(source, "ui", "dist"), filepath.Join(destination, "ui", "dist")); err != nil {
+		return fmt.Errorf("stage collector ui: %w", err)
+	}
 	return nil
 }

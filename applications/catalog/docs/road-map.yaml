@@ -744,3 +744,31 @@ releases:
       - mage validate
       - mage conformance
       - cd ../.. && mage audit
+
+  - id: "14.0"
+    title: Served collector trace UI
+    status: implemented
+    dependencies:
+      - catalog release 13.0 (collector family and shipped ui/)
+    planned_work:
+      - {gh: 1236, title: "Specify the served collector trace UI", estimated_loc: "0 (documentation)"}
+      - {gh: 1237, title: "Collector serves ui/dist via static_assets on the query listener", estimated_loc: "50 YAML, 150 test"}
+      - {gh: 1254, title: "Serve the collector UI from the coding-agent chart", estimated_loc: "120"}
+      - {gh: 1255, title: "Serve the collector UI from the agent-architecture chart", estimated_loc: "120"}
+      - {gh: 1256, title: "Serve the collector UI from the chatbot-mesh chart (dedicated ConfigMap, writable metrics spool)", estimated_loc: "160"}
+    specification:
+      srd: srd020-collector
+      status: implemented
+    use_cases:
+      - id: rel14.0-uc001-served-trace-ui
+        title: The collector serves its own trace UI at the query origin
+        status: implemented
+    test_suites:
+      - id: test-rel14.0-served-ui
+        title: Served collector trace UI
+        cases: 5
+        status: implemented
+    proof:
+      - mage validate
+      - mage conformance
+      - cd ../.. && mage audit

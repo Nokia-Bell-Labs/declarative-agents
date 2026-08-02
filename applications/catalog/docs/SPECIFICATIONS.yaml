@@ -170,6 +170,14 @@ roadmap_summary:
       with default spool mode and no relay endpoint default. Added srd020,
       conformance coverage exercising agent-core OTLP builtins, and a
       bindings.catalog role-realization entry.
+  - version: "14.0"
+    name: Served collector trace UI
+    status: implemented
+    scope: |
+      Serve the shipped collector ui/dist SPA from the collector_query server
+      via static_assets, same-origin with /query/*, with SPA deep-link
+      fallback and an explicit error on a missing UI root. The UI root is a
+      literal profile-declared path, not a new environment variable.
 
 foundation_document_index:
   - id: agent-profiles
@@ -338,7 +346,8 @@ srd_index:
     title: Collector Agent Family
     summary: Canonical OTLP trace collector promoted from the chatbot-mesh,
       defaulting to spool mode with no relay endpoint. Exercises agent-core
-      OTLP builtins (receive, spool, relay) in a reusable catalog family.
+      OTLP builtins (receive, spool, relay) in a reusable catalog family, and
+      serves its own trace UI same-origin with the query surface (R7).
     status: implemented
     path: docs/specs/software-requirements/srd020-collector.yaml
 
@@ -556,6 +565,13 @@ use_case_index:
       received traces, skips relay, and shuts down cleanly on exit signal.
     status: implemented
     path: docs/specs/use-cases/rel13.0-uc001-collector-family.yaml
+  - id: rel14.0-uc001-served-trace-ui
+    title: The collector serves its own trace UI at the query origin
+    summary: The collector_query server serves the shipped ui/dist SPA
+      same-origin with /query/*, resolving deep links to the index and leaving
+      query responses unchanged.
+    status: implemented
+    path: docs/specs/use-cases/rel14.0-uc001-served-trace-ui.yaml
 
 test_suite_index:
   - id: test-rel06.0-agent-profiles
@@ -676,6 +692,13 @@ test_suite_index:
       verifying clean shutdown with expected tool spans.
     status: implemented
     path: docs/specs/test-suites/test-rel13.0-collector.yaml
+  - id: test-rel14.0-served-ui
+    title: Test Suite for Release 14.0 Served Collector Trace UI
+    summary: Conformance cases for the served SPA index at root, deep-link
+      fallback, query API unaffected by the catch-all, and an explicit error on
+      a missing UI root.
+    status: implemented
+    path: docs/specs/test-suites/test-rel14.0-served-ui.yaml
 
 coverage_gaps: |
   The SRD and semantic models describe ownership, role boundaries, and

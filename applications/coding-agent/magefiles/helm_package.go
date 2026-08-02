@@ -255,6 +255,25 @@ func validateChartArchive(archive, profilesRoot string) error {
 		}
 		required["coding-agent/profiles/collector/agents/collector/"+entry.Name()] = true
 	}
+	// The collector's served trace UI ships as ui/dist (srd020 R7); the staged
+	// tree carries every built asset, so each is a required archive entry.
+	collectorUIRoot := filepath.Join(catalogRoot, "agents", "collector", "ui", "dist")
+	if err := filepath.Walk(collectorUIRoot, func(path string, info os.FileInfo, walkErr error) error {
+		if walkErr != nil {
+			return walkErr
+		}
+		if info.IsDir() {
+			return nil
+		}
+		rel, err := filepath.Rel(collectorUIRoot, path)
+		if err != nil {
+			return err
+		}
+		required["coding-agent/profiles/collector/agents/collector/ui/dist/"+filepath.ToSlash(rel)] = true
+		return nil
+	}); err != nil {
+		return err
+	}
 	// The staged applier profile mirrors stageApplierProfile: the top-level regular
 	// files of the application's agents/serving/applier family.
 	applierRoot, err := resolveApplicationRoot("validate coding-agent chart archive")
