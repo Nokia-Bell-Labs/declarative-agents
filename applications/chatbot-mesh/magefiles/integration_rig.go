@@ -55,6 +55,10 @@ func (Integration) Rig() error {
 		fmt.Printf("SKIP integration:rig: agent-core checkout not found at %s\n", coreRoot)
 		return nil
 	}
+	if reason := rigMockPortSkipReason(); reason != "" {
+		fmt.Printf("SKIP integration:rig: %s\n", reason)
+		return nil
+	}
 	catalogRoot, err := resolveCatalogRoot("chatbot-mesh integration rig", applicationRoot)
 	if err != nil {
 		return err
@@ -141,6 +145,32 @@ func (Integration) Rig() error {
 	fmt.Printf("integration:rig passed in %s: %d scenarios across two roots, verdicts %v for run %s\n",
 		time.Since(start).Round(time.Millisecond), len(verdicts), verdicts, runID)
 	return nil
+}
+
+// rigMockFixturePorts are the loopback ports the hermetic rig's mock fixtures
+// bind. They are pinned, not ephemeral: the chatbot's client network limits
+// admit only these addresses, so a scenario's mock LLM and mock RAGs must own
+// exactly these ports. The mock LLM at 11434 is the collision that surfaced
+// GH-1229 — a developer's `ollama serve` holds 11434, the mock cannot bind, and
+// the chatbot silently talks to real Ollama, failing scenarios for reasons that
+// have nothing to do with the code under test.
+var rigMockFixturePorts = []struct{ name, port string }{
+	{"mock LLM (stop `ollama serve`: the hermetic rig's mock LLM must own this port)", "11434"},
+	{"mock rag0", "18085"},
+	{"mock rag1", "18095"},
+}
+
+// rigMockPortSkipReason reports why the rig cannot run hermetically, or "" when
+// every mock fixture port is free. It is a skip, not a failure: a port held by
+// an unrelated local service is an environment condition the developer resolves,
+// not a defect in the agents under test.
+func rigMockPortSkipReason() string {
+	for _, mock := range rigMockFixturePorts {
+		if err := portAvailable(mock.name, mock.port); err != nil {
+			return err.Error()
+		}
+	}
+	return ""
 }
 
 func stageRigRuntime(applicationRoot, catalogRoot string) (string, func(), error) {
