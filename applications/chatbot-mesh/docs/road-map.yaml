@@ -261,11 +261,14 @@ releases:
     name: Fleet observer agent
     description: |
       A persistent observer agent discovers mesh members from the Kubernetes API
-      and polls each agent's monitor surface to serve a fleet-level view. The UX
-      shows a card per agent with its declared machine, tools, current state, and
-      recent events, auto-refreshing on a declared interval. The observer is
-      itself a declarative agent on the same runtime, and its profile is the
-      punchline of the demo deck (#1125).
+      and polls each agent's monitor surface to serve a fleet-level view. Beyond
+      the per-agent cast list, the observer discovers the deployment topology
+      (Deployments and Services) and polls metrics.k8s.io for per-pod CPU and
+      memory, so the UX shows what the deployment looks like and what it consumes,
+      grouping pods by owning Deployment and fronting Service and degrading
+      explicitly when the metrics API is absent. The UX auto-refreshes on a
+      declared interval. The observer is itself a declarative agent on the same
+      runtime, and its profile is the punchline of the demo deck (#1125).
 
       The agent-core REST client has no SSE consumer, so the observer polls
       monitor snapshots rather than consuming event streams. This is an explicit
@@ -276,9 +279,9 @@ releases:
       - srd008-observer-agent
     use_cases:
       - id: rel08.0-uc001-mesh-observer
-        summary: The observer discovers every mesh agent, polls their monitor surfaces, and displays the fleet cast list in a UX that updates during a live chat turn.
+        summary: The observer discovers every mesh agent and the deployment topology, polls monitor surfaces and per-pod resource usage, and displays a fleet view that updates during a live chat turn.
         status: planned
     test_suites:
       - id: test-rel08.0-observer
-        summary: Profile validation, kube discovery, monitor fan-in, fleet UX, RBAC proof, and lifecycle exit.
+        summary: Profile validation, kube discovery, monitor fan-in, topology grouping, per-pod resource usage, fleet UX, RBAC proof, and lifecycle exit.
         status: planned
