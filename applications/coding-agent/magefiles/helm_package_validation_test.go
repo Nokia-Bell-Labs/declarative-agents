@@ -311,7 +311,10 @@ func TestHelmPackageTwiceExcludesPriorDistAndGeneratedProfiles(t *testing.T) {
 		t.Fatalf("repeat package inventory changed:\nfirst=%v\nsecond=%v", firstFiles, secondFiles)
 	}
 	for _, name := range secondFiles {
-		if strings.Contains(name, "/dist/") || strings.HasSuffix(name, ".tgz") ||
+		// The chart-root dist/ is release output and must never recurse into the
+		// archive; a served UI's ui/dist (srd020 R7) is legitimate chart content,
+		// so the exclusion is anchored to the chart root rather than any /dist/.
+		if strings.HasPrefix(name, "coding-agent/dist/") || strings.HasSuffix(name, ".tgz") ||
 			strings.HasSuffix(name, "/profiles/stale.yaml") {
 			t.Errorf("repeat archive embedded excluded source content %s", name)
 		}
