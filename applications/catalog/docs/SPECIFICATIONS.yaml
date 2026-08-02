@@ -187,6 +187,16 @@ roadmap_summary:
       (release 13.0), and the Explore UI page renders a duration heatmap,
       drag-selects a region, shows the ranked attribute divergence, and links
       exemplar spans into the per-trace waterfall.
+  - version: "99.0"
+    name: Observer family promotion
+    status: planned
+    scope: |
+      Promote the chatbot-mesh fleet observer to a catalog-owned
+      monitor/fleet-observer family (srd021), parameterized by namespace and
+      label selector so coding-agent, agent-architecture, and the chatbot-mesh
+      adopt it by reference. Specification only; the profile, UX, and
+      agent-role-realizations rows are the adoption implementation, deferred
+      because the inventory gate requires existing profile paths.
 
 foundation_document_index:
   - id: agent-profiles
@@ -360,6 +370,14 @@ srd_index:
       exposes an Explore panel over span analytics (R8-R9).
     status: implemented
     path: docs/specs/software-requirements/srd020-collector.yaml
+  - id: srd021-observer
+    title: Observer Agent Family
+    summary: Generalized fleet observer promoted from the chatbot-mesh (srd008)
+      to a catalog-owned monitor/fleet-observer family, parameterized by
+      namespace and label selector for per-application adoption. Specification
+      only; the profile, UX, and realization rows are the adoption implementation.
+    status: planned
+    path: docs/specs/software-requirements/srd021-observer.yaml
 
 config_format_index: []
 
@@ -589,6 +607,13 @@ use_case_index:
       /query/spans/breakdown, and links exemplar spans into the waterfall.
     status: implemented
     path: docs/specs/use-cases/rel15.0-uc001-explore-panel.yaml
+  - id: rel99.0-uc001-observer-family
+    title: The observer is a catalog-owned family adopted across applications
+    summary: The fleet observer becomes a catalog-owned family generalized from
+      the chatbot-mesh observer, parameterized per application; coding-agent,
+      agent-architecture, and the chatbot-mesh adopt it by reference.
+    status: planned
+    path: docs/specs/use-cases/rel99.0-uc001-observer-family.yaml
 
 test_suite_index:
   - id: test-rel06.0-agent-profiles
@@ -723,6 +748,13 @@ test_suite_index:
       UI route declaration, and uiDist reproducibility.
     status: implemented
     path: docs/specs/test-suites/test-rel15.0-explore.yaml
+  - id: test-rel99.0-observer
+    title: Test Suite for Release 99.0 Observer Family Promotion
+    summary: Specification-graph cases for the generalized observer-family SRD,
+      the carried capabilities, and the named adopters with deferred realization
+      rows.
+    status: planned
+    path: docs/specs/test-suites/test-rel99.0-observer.yaml
 
 coverage_gaps: |
   The SRD and semantic models describe ownership, role boundaries, and

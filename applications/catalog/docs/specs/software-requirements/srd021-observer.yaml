@@ -1,0 +1,82 @@
+id: srd021-observer
+title: Observer Agent Family
+
+problem: |
+  The chatbot-mesh owns a fleet observer (srd008): a declarative agent that
+  discovers the deployment topology and mesh agents from the Kubernetes API,
+  polls each agent's monitor surface and per-pod resource usage, and serves a
+  fleet-level view. Coding-agent and agent-architecture deploy their own
+  multi-agent meshes and need the same fleet instrument, and today each would
+  fork the mesh profile. Promoting the observer to a catalog-owned family --
+  the way srd020 promoted the collector -- gives it a canonical home, a
+  generalized default configuration parameterized per application, conformance
+  coverage, and a monitor/fleet-observer role binding each application adopts by
+  reference rather than by copy.
+
+goals:
+  - G1: Provide a canonical observer family in the catalog generalized from the chatbot-mesh observer (srd008).
+  - G2: Parameterize namespace and label selector so any application binds the family against its own release without forking.
+  - G3: Carry the mesh observer's capabilities forward -- topology discovery, monitor fan-in, resource usage, and the served fleet UX.
+  - G4: Bind the family as monitor/fleet-observer and let coding-agent, agent-architecture, and the chatbot-mesh adopt it by reference.
+  - G5: Keep the family namespace-scoped read-only and introduce no new environment variable.
+
+requirements:
+  R1:
+    title: Generalized defaults
+    items:
+      - R1.1: The observer family SHALL take the release namespace and label selector as REST client declaration values, defaulting the same generalized way srd020 R1 generalized the collector, so a standalone deploy works without per-application forks.
+      - R1.2: The family SHALL discover pods, Deployments, and Services and poll metrics.k8s.io by label selector within the bound namespace, carrying the srd008 R1.5 topology and R6 resource requirements forward unchanged.
+      - R1.3: The family SHALL introduce no new environment variable; configuration arrives as REST client and tool declarations resolved at load.
+
+  R2:
+    title: Catalog SRD and role binding
+    items:
+      - R2.1: The family SHALL have this per-family catalog SRD generalized from the mesh srd008.
+      - R2.2: The family SHALL bind as classification role_realization, primary_role monitor, sub_roles [fleet-observer], domain observability, once the catalog observer profile ships.
+      - R2.3: The bindings.catalog and deployment_realizations rows in agent-role-realizations.yaml SHALL be added by the adoption implementation, not this specification, because the inventory gate rejects a binding whose profile path does not yet exist.
+
+  R3:
+    title: Carried capabilities
+    items:
+      - R3.1: The family SHALL serve the fleet UX (fleet cards, topology layout, per-pod resources) per srd008 R3 and R3.5, served from the observer's own monitor REST server.
+      - R3.2: The family SHALL fan in each discovered agent's monitor endpoints per srd008 R2 and degrade gracefully for unreachable agents or an absent metrics API.
+      - R3.3: The family SHALL expose standard control and monitor surfaces and a clean lifecycle exit per srd008 R4.
+
+  R4:
+    title: Per-application adoption
+    items:
+      - R4.1: Coding-agent and agent-architecture SHALL each deploy the catalog observer family as a workload pointed at their own release label selector and namespace, adopting the family by reference.
+      - R4.2: The chatbot-mesh observer SHALL rebind to the catalog family, retaining the descriptive observer actor name via the historical_aliases pattern used by the catalog role-catalog renames.
+      - R4.3: Prose-editor adoption follows its own topology-and-observability SRD work; it is out of scope for this family SRD.
+
+non_goals:
+  - Shipping the catalog observer profile, tools, and UX (that is the adoption implementation, tracked separately).
+  - Trace intake, relay, or metrics scraping (those belong to the collector, srd020).
+  - Cluster-wide or cross-namespace observation.
+  - Adding realization rows for workloads or profiles that do not yet exist.
+
+acceptance_criteria:
+  - id: AC1
+    criterion: The catalog carries a generalized observer-family SRD whose namespace and label selector are parameterized declaration values with no new environment variable.
+    traces: [R1.1, R1.3, R2.1]
+  - id: AC2
+    criterion: The family carries the mesh observer's topology discovery, monitor fan-in, resource usage, and served fleet UX forward as generalized requirements.
+    traces: [R1.2, R3.1, R3.2, R3.3]
+  - id: AC3
+    criterion: The specification names coding-agent, agent-architecture, and the chatbot-mesh as adopters binding the family as monitor/fleet-observer, and defers the realization rows to the adoption implementation because the inventory gate requires existing profile paths.
+    traces: [R2.2, R2.3, R4.1, R4.2, R4.3]
+
+depends_on:
+  - srd_id: srd033-monitor
+    provider: agent-core
+    symbols_used: [monitor read-state views, REST client get, REST server launch/await/stop]
+
+related_documents:
+  - srd008-observer-agent
+  - srd020-collector
+
+implementation_status:
+  planned:
+    - "The generalized catalog observer profile, tools, declarations, REST definitions, and UX, promoted from applications/chatbot-mesh/agents/observer."
+    - "bindings.catalog and per-application deployment_realizations rows in agent-role-realizations.yaml, added when the catalog observer profile and per-application workloads exist."
+    - "Coding-agent and agent-architecture adoption of the family against their release selectors; chatbot-mesh observer rebinding to the catalog family."

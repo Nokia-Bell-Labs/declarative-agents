@@ -1,0 +1,68 @@
+id: test-rel99.0-observer
+title: Test Suite for Release 99.0 Observer Family Promotion
+release: "99.0"
+
+traces:
+  - rel99.0-uc001-observer-family
+
+preconditions:
+  - srd021-observer defines the generalized catalog observer family.
+  - srd008-observer-agent defines the chatbot-mesh observer the family generalizes.
+  - The catalog observer profile, per-application workloads, and realization rows are the adoption implementation, tracked separately.
+
+test_cases:
+  - use_case: rel99.0-uc001-observer-family
+    name: Generalized observer-family SRD with parameterized defaults
+    integration_target: cd ../.. && mage audit
+    status: planned
+    description: |
+      srd021-observer specifies parameterized namespace and label selector
+      declaration defaults and states the no-new-environment-variable rule; the
+      spec graph validates and the SRD is not orphaned.
+    inputs:
+      srd: srd021-observer
+    expected:
+      parameterized_defaults: true
+      no_new_environment_variable: true
+    traces:
+      - rel99.0-uc001-observer-family S1
+      - srd021-observer AC1
+
+  - use_case: rel99.0-uc001-observer-family
+    name: Carried capabilities from the mesh observer
+    integration_target: cd ../.. && mage audit
+    status: planned
+    description: |
+      srd021-observer carries topology discovery, monitor fan-in, resource
+      usage, and the served fleet UX forward from srd008 as generalized
+      requirements, with related_documents pointing at srd008.
+    inputs:
+      generalized_from: srd008-observer-agent
+    expected:
+      topology_discovery: true
+      monitor_fan_in: true
+      resource_usage: true
+      served_fleet_ux: true
+    traces:
+      - rel99.0-uc001-observer-family S2
+      - srd021-observer AC2
+
+  - use_case: rel99.0-uc001-observer-family
+    name: Adopters named and realization rows deferred
+    integration_target: cd ../.. && mage audit
+    status: planned
+    description: |
+      srd021-observer names coding-agent, agent-architecture, and the
+      chatbot-mesh as adopters binding monitor/fleet-observer, and defers the
+      bindings.catalog and deployment_realizations rows to the adoption
+      implementation because the actor-role inventory gate rejects a binding
+      whose profile path does not yet exist.
+    inputs:
+      adopters: [coding-agent, agent-architecture, chatbot-mesh]
+    expected:
+      adopters_named: true
+      realization_rows_deferred: true
+      inventory_gate_passes: true
+    traces:
+      - rel99.0-uc001-observer-family S3
+      - srd021-observer AC3

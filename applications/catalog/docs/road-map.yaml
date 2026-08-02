@@ -801,3 +801,25 @@ releases:
       - mage conformance
       - cd ../.. && mage uiDist
       - cd ../.. && mage audit
+
+  - id: "99.0"
+    title: Observer family promotion
+    status: planned
+    dependencies:
+      - chatbot-mesh release 08.0 (the fleet observer this family generalizes)
+    planned_work:
+      - {gh: 1247, title: "Specify the cross-application fleet observer (catalog promotion + per-application adoption)", estimated_loc: "0 (documentation)"}
+    specification:
+      srd: srd021-observer
+      status: planned
+    use_cases:
+      - id: rel99.0-uc001-observer-family
+        title: The observer is a catalog-owned family adopted across applications
+        status: planned
+    test_suites:
+      - id: test-rel99.0-observer
+        title: Observer family promotion
+        cases: 3
+        status: planned
+    proof:
+      - cd ../.. && mage audit
