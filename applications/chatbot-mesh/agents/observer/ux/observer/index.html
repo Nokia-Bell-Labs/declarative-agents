@@ -234,22 +234,48 @@ h1{font-size:1.4rem;font-weight:600;margin-bottom:.25rem}
     topology.innerHTML = html;
   }
 
+  // labelArray reads one command_state entry's declared output field. It returns
+  // [] when the label has no recorded step yet or its output is unavailable, so a
+  // mid-cycle or degraded poll renders the empty/degraded state (srd008 R2.3).
+  function labelArray(labels, label, field) {
+    var entry = labels[label];
+    if (!entry || entry.available === false || !entry.output) return [];
+    var value = entry.output[field];
+    return Array.isArray(value) ? value : [];
+  }
+
+  // fleetData unwraps the command_state labels envelope from /monitor/fleet into
+  // the {agents, deployments, services, pod_metrics} shape the render pipeline
+  // consumes (srd008 R2, R3, R6; GH-1270).
+  function fleetData(labels) {
+    return {
+      agents: labelArray(labels, 'poll_agent_monitors', 'agents'),
+      deployments: labelArray(labels, 'list_mesh_deployments', 'deployments'),
+      services: labelArray(labels, 'list_mesh_services', 'services'),
+      pod_metrics: labelArray(labels, 'poll_pod_metrics', 'pod_metrics'),
+    };
+  }
+
+  // observerState fetches the observer's own run state for the status bar. It is
+  // best-effort and never fails the fleet poll (srd008 R3.2).
+  async function observerState() {
+    try {
+      var resp = await fetch('/monitor/state');
+      if (!resp.ok) return '';
+      var body = await resp.json();
+      return (body.run && body.run.state) || '';
+    } catch(_) { return ''; }
+  }
+
   async function poll() {
     pollDot.className = 'dot dot-warn';
     pollStatus.textContent = 'Polling...';
     try {
-      var resp = await fetch('/monitor/state');
+      var resp = await fetch('/monitor/fleet');
       if (!resp.ok) throw new Error('HTTP ' + resp.status);
-      var data = await resp.json();
-
-      var agents = [];
-      if (data.agents) {
-        agents = data.agents;
-      } else if (data.fleet) {
-        agents = data.fleet;
-      } else if (data.current_state) {
-        agents = [{name: 'observer', state: data.current_state, reachable: true}];
-      }
+      var body = await resp.json();
+      var data = fleetData(body.labels || {});
+      var agents = data.agents;
 
       var metricsMap = buildMetricsMap(data.pod_metrics);
       renderTopology(data, metricsMap);
@@ -267,7 +293,8 @@ h1{font-size:1.4rem;font-weight:600;margin-bottom:.25rem}
       var reachable = agents.filter(function(a){ return a.reachable !== false; }).length;
       agentCount.textContent = reachable + '/' + agents.length + ' reachable';
       pollDot.className = 'dot dot-ok';
-      pollStatus.textContent = 'Connected';
+      var observer = await observerState();
+      pollStatus.textContent = observer ? 'Connected · observer ' + observer : 'Connected';
     } catch(e) {
       pollDot.className = 'dot dot-err';
       pollStatus.textContent = 'Error: ' + e.message;

@@ -20,7 +20,18 @@ const (
 	observerExitPath    = "/api/lifecycle/exit"
 	observerStatePath   = "/monitor/state"
 	observerMachinePath = "/monitor/machine"
+	observerFleetPath   = "/monitor/fleet"
 )
+
+// observerFleetLabels are the command_state labels the fleet view exposes, one
+// per aggregation step, addressed by command name (GH-1270).
+var observerFleetLabels = []string{
+	"discover_mesh_pods",
+	"list_mesh_deployments",
+	"list_mesh_services",
+	"poll_agent_monitors",
+	"poll_pod_metrics",
+}
 
 // Observer proves the observer agent boots, serves its monitor surface, and
 // reaches a running machine state. The scenario launches the observer profile
@@ -115,6 +126,18 @@ func (Integration) Observer() error {
 		return fmt.Errorf("observer state missing run state: %v", state)
 	}
 
+	// The fleet view serves the command_state allowlist even when discovery
+	// degrades: every declared label is a key whose value is an entry or null.
+	fleet, err := observerFleetLabelsView(monitorURL)
+	if err != nil {
+		return fmt.Errorf("observer fleet: %w\n%s", err, output.String())
+	}
+	for _, label := range observerFleetLabels {
+		if _, ok := fleet[label]; !ok {
+			return fmt.Errorf("observer fleet view missing declared label %q: %v", label, fleet)
+		}
+	}
+
 	req, _ := http.NewRequest(http.MethodPost,
 		controlURL+observerExitPath,
 		strings.NewReader(`{"reason":"integration complete"}`))
@@ -151,6 +174,39 @@ func observerGetJSON(url string) (map[string]interface{}, error) {
 		return nil, fmt.Errorf("decode %s: %w", url, err)
 	}
 	return result, nil
+}
+
+// observerFleetLabelsView GETs the command_state fleet view and returns its
+// labels object, which maps each declared label to an entry or null (GH-1270).
+func observerFleetLabelsView(monitorURL string) (map[string]interface{}, error) {
+	body, err := observerGetJSON(monitorURL + observerFleetPath)
+	if err != nil {
+		return nil, err
+	}
+	labels, ok := body["labels"].(map[string]interface{})
+	if !ok {
+		return nil, fmt.Errorf("fleet response missing labels object: %v", body)
+	}
+	return labels, nil
+}
+
+// observerFleetAgents extracts the discovered agent count from the fleet view's
+// poll_agent_monitors entry, returning 0 when the label has no recorded step or
+// its output is unavailable.
+func observerFleetAgents(labels map[string]interface{}) int {
+	entry, ok := labels["poll_agent_monitors"].(map[string]interface{})
+	if !ok {
+		return 0
+	}
+	fleetOutput, ok := entry["output"].(map[string]interface{})
+	if !ok {
+		return 0
+	}
+	agents, ok := fleetOutput["agents"].([]interface{})
+	if !ok {
+		return 0
+	}
+	return len(agents)
 }
 
 // observerHasRunState checks whether the monitor state response contains a
@@ -244,17 +300,11 @@ func observerKindIntegration(applicationRoot, coreRoot, kubeAPIURL, namespace, l
 	// Allow two poll cycles for discovery + fan-in.
 	time.Sleep(8 * time.Second)
 
-	state, err := observerGetJSON(monitorURL + observerStatePath)
+	fleet, err := observerFleetLabelsView(monitorURL)
 	if err != nil {
-		return 0, fmt.Errorf("observer state: %w\n%s", err, output.String())
+		return 0, fmt.Errorf("observer fleet: %w\n%s", err, output.String())
 	}
-
-	discovered := 0
-	if agents, ok := state["agents"].([]interface{}); ok {
-		discovered = len(agents)
-	} else if fleet, ok := state["fleet"].([]interface{}); ok {
-		discovered = len(fleet)
-	}
+	discovered := observerFleetAgents(fleet)
 
 	req, _ := http.NewRequest(http.MethodPost,
 		controlURL+observerExitPath,

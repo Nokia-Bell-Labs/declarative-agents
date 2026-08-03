@@ -127,7 +127,14 @@ platform_dependencies:
     symbols_used: [R1, R2, R3, R4, R5, R6, R7]
 
 implementation_status:
-  implemented: []
+  implemented:
+    - >-
+      The aggregated fleet payload is exposed on a readable monitor surface
+      through the srd033 R7 command_state view: the observer serves a
+      /monitor/fleet endpoint whose labels allowlist names the five aggregation
+      steps, and the UX unwraps that per-label envelope into the agents,
+      deployments, services, and pod_metrics it renders, degrading to the empty
+      view when a step has no output yet (GH-1270).
   planned:
     - >-
       The observer profile, machine, tools, declarations, REST definitions, UX
@@ -138,3 +145,8 @@ implementation_status:
       Topology discovery (Deployments, Services) and metrics.k8s.io PodMetrics
       resource polling, with the UX rendering the deployment layout and per-pod
       CPU and memory, degrading explicitly when the metrics API is absent.
+    - >-
+      End-to-end kube discovery on the kind demo: the observer's kube_api
+      service-account-token credential and list_pods request rendering fail on
+      the cluster, so discovery returns no agents. Tracked separately from the
+      monitor-exposure work of GH-1270.
