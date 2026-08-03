@@ -1,6 +1,6 @@
 import { useEffect, useRef, useState } from "react";
 
-// The monitored agents. This list mirrors ui/ux.yaml monitored_agents and the
+// The monitored agents. This list mirrors ui.yaml monitored_agents and the
 // rest.yaml monitor_proxy upstreams; keep the three in sync. The panel reads each
 // agent's monitor through the chatbot's same-origin proxy, so no agent binds a
 // cross-origin request from the browser.

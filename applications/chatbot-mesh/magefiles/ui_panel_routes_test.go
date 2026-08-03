@@ -12,7 +12,7 @@ import (
 	"gopkg.in/yaml.v3"
 )
 
-// This is the check that would have caught GH-723. ux.yaml declared three panel
+// This is the check that would have caught GH-723. ui.yaml declared three panel
 // paths and the SPA implemented none of them: it held the active panel in
 // component state, so every declared path rendered the chat panel. Each artifact
 // read alone looks correct -- the config lists routes, the app renders panels --
@@ -22,50 +22,50 @@ import (
 // the app's route table rather than its rendering, because the table is the
 // contract the config is co-generated against (srd002 R5, srd003).
 
-type uxRoutesDoc struct {
+type uiRoutesDoc struct {
 	Routes []struct {
 		ID   string `yaml:"id"`
 		Path string `yaml:"path"`
 	} `yaml:"routes"`
 }
 
-// panelRouteRE matches the entries of PANEL_ROUTES in ux/app/src/routes.ts, for
+// panelRouteRE matches the entries of PANEL_ROUTES in agents/chatbot/ui/app/src/routes.ts, for
 // example: { id: "chat", path: "/chat", label: "Chat" }
 var panelRouteRE = regexp.MustCompile(`\{\s*id:\s*"([a-z-]+)",\s*path:\s*"(/[a-z-]*)"`)
 
-func meshUXRoot(t *testing.T) string {
+func meshUIRoot(t *testing.T) string {
 	t.Helper()
 	root, err := os.Getwd()
 	if err != nil {
 		t.Fatalf("getwd: %v", err)
 	}
 	// The magefiles package runs from applications/chatbot-mesh/magefiles.
-	return filepath.Join(filepath.Dir(root), "ux")
+	return filepath.Join(filepath.Dir(root), "agents", "chatbot", "ui")
 }
 
-func declaredUXRoutes(t *testing.T) map[string]string {
+func declaredUIRoutes(t *testing.T) map[string]string {
 	t.Helper()
-	data, err := os.ReadFile(filepath.Join(meshUXRoot(t), "ux.yaml"))
+	data, err := os.ReadFile(filepath.Join(meshUIRoot(t), "ui.yaml"))
 	if err != nil {
-		t.Fatalf("read ux.yaml: %v", err)
+		t.Fatalf("read ui.yaml: %v", err)
 	}
-	var doc uxRoutesDoc
+	var doc uiRoutesDoc
 	if err := yaml.Unmarshal(data, &doc); err != nil {
-		t.Fatalf("parse ux.yaml: %v", err)
+		t.Fatalf("parse ui.yaml: %v", err)
 	}
 	routes := map[string]string{}
 	for _, route := range doc.Routes {
 		routes[route.ID] = route.Path
 	}
 	if len(routes) == 0 {
-		t.Fatal("ux.yaml declares no routes; the cross-check would pass vacuously")
+		t.Fatal("ui.yaml declares no routes; the cross-check would pass vacuously")
 	}
 	return routes
 }
 
 func implementedPanelRoutes(t *testing.T) map[string]string {
 	t.Helper()
-	path := filepath.Join(meshUXRoot(t), "app", "src", "routes.ts")
+	path := filepath.Join(meshUIRoot(t), "app", "src", "routes.ts")
 	data, err := os.ReadFile(path)
 	if err != nil {
 		t.Fatalf("read routes.ts: %v", err)
@@ -80,40 +80,40 @@ func implementedPanelRoutes(t *testing.T) map[string]string {
 	return routes
 }
 
-// TestUXDeclaredRoutesAreImplemented fails when ux.yaml and the SPA disagree,
+// TestUIDeclaredRoutesAreImplemented fails when ui.yaml and the SPA disagree,
 // in either direction: a route declared and not implemented renders the wrong
 // panel, and a route implemented and not declared is a surface the co-generated
 // config does not know about.
-func TestUXDeclaredRoutesAreImplemented(t *testing.T) {
+func TestUIDeclaredRoutesAreImplemented(t *testing.T) {
 	t.Parallel()
-	declared := declaredUXRoutes(t)
+	declared := declaredUIRoutes(t)
 	implemented := implementedPanelRoutes(t)
 
 	for id, path := range declared {
 		got, ok := implemented[id]
 		if !ok {
-			t.Errorf("ux.yaml declares route %q (%s) that the SPA does not implement", id, path)
+			t.Errorf("ui.yaml declares route %q (%s) that the SPA does not implement", id, path)
 			continue
 		}
 		if got != path {
-			t.Errorf("route %q path: ux.yaml has %q, SPA has %q", id, path, got)
+			t.Errorf("route %q path: ui.yaml has %q, SPA has %q", id, path, got)
 		}
 	}
 	for id, path := range implemented {
 		if _, ok := declared[id]; !ok {
-			t.Errorf("SPA implements route %q (%s) that ux.yaml does not declare", id, path)
+			t.Errorf("SPA implements route %q (%s) that ui.yaml does not declare", id, path)
 		}
 	}
 }
 
-// TestUXRouteIDsMatchSidebarGroups keeps the nav and the routes in step: the
+// TestUIRouteIDsMatchSidebarGroups keeps the nav and the routes in step: the
 // sidebar groups name the panels an operator can reach, so a group without a
 // route is an unreachable entry.
-func TestUXRouteIDsMatchSidebarGroups(t *testing.T) {
+func TestUIRouteIDsMatchSidebarGroups(t *testing.T) {
 	t.Parallel()
-	data, err := os.ReadFile(filepath.Join(meshUXRoot(t), "ux.yaml"))
+	data, err := os.ReadFile(filepath.Join(meshUIRoot(t), "ui.yaml"))
 	if err != nil {
-		t.Fatalf("read ux.yaml: %v", err)
+		t.Fatalf("read ui.yaml: %v", err)
 	}
 	var doc struct {
 		Sidebar struct {
@@ -121,9 +121,9 @@ func TestUXRouteIDsMatchSidebarGroups(t *testing.T) {
 		} `yaml:"sidebar"`
 	}
 	if err := yaml.Unmarshal(data, &doc); err != nil {
-		t.Fatalf("parse ux.yaml: %v", err)
+		t.Fatalf("parse ui.yaml: %v", err)
 	}
-	declared := declaredUXRoutes(t)
+	declared := declaredUIRoutes(t)
 
 	var missing []string
 	for group := range doc.Sidebar.Groups {

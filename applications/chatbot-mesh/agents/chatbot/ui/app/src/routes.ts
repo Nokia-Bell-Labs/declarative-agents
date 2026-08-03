@@ -1,5 +1,5 @@
 // Panel routing for the three-panel shell. The paths here are the ones
-// ux/ux.yaml declares (srd002 R5, srd003); a Go test cross-checks the two so a
+// ui.yaml declares (srd002 R5, srd003); a Go test cross-checks the two so a
 // route added to the config and not to the app fails the build rather than
 // silently rendering the chat panel (GH-723).
 

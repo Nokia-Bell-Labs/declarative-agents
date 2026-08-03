@@ -21,7 +21,7 @@ trigger: |
 preconditions:
   - A RAG server agent (rel00.0-uc001) is reachable as a declared rest.yaml client.
   - A chat LLM and an embedding provider are reachable as declared clients.
-  - The chatbot profile validates and owns the turn machine and the ux.yaml panel placement.
+  - The chatbot profile validates and owns the turn machine and the ui.yaml panel placement.
 
 flow:
   - id: F1

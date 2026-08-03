@@ -7,7 +7,7 @@ import { PANEL_ROUTES, panelForPath, panelHref, type PanelId } from "./routes";
 
 // Three-panel shell (srd002 R5): chat, observability, and provisioning are built.
 // The active panel is derived from the URL rather than held in component state,
-// so every panel ux.yaml declares is linkable and survives a reload (GH-723).
+// so every panel ui.yaml declares is linkable and survives a reload (GH-723).
 
 function panelFor(active: PanelId): React.ReactNode {
   switch (active) {

@@ -89,7 +89,7 @@ spec:
             - {name: OBSERVER_NAMESPACE, value: {{ .Release.Namespace | quote }}}
             - {name: OBSERVER_LABEL_SELECTOR, value: {{ printf "app.kubernetes.io/instance=%s" .Release.Name | quote }}}
             - {name: OBSERVER_POLL_INTERVAL, value: {{ .Values.observer.pollInterval | quote }}}
-            - {name: OBSERVER_UI_ROOT, value: "{{ .Values.profiles.mountPath }}/agents/observer/ux/observer"}
+            - {name: OBSERVER_UI_ROOT, value: "{{ .Values.profiles.mountPath }}/agents/observer/ui"}
           ports:
             - {name: control, containerPort: {{ .Values.observer.ports.control }}}
             - {name: monitor, containerPort: {{ .Values.observer.ports.monitor }}}

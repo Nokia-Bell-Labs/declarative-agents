@@ -125,7 +125,7 @@ deployment_api_contract:
       selector per named field (rest.MachineResponseMapping.Body is a flat
       string map), so a nested llm/params object cannot be assembled from
       several source paths in one step. The provisioning panel's client
-      (ux/app/src/provisioningApi.ts) reassembles the nested MeshView it
+      (agents/chatbot/ui/app/src/provisioningApi.ts) reassembles the nested MeshView it
       renders from these flat fields (GH-753); this contract states the wire
       shape the applier actually serves, not the panel's internal type.
     fields:

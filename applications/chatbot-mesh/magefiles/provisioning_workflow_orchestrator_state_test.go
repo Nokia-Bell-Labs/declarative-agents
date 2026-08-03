@@ -223,7 +223,7 @@ func TestStateFieldsSurviveTheProvisioningWorkflowOrchestratorHop(t *testing.T) 
 // UI; the fix is to serve it or narrow the interface, not fabricate a zero.
 func TestPanelWireStateInterfaceMatchesWhatIsServed(t *testing.T) {
 	meshRoot := filepath.Dir(filepath.Dir(agentDir(t, "provisioning-workflow-orchestrator")))
-	source, err := os.ReadFile(filepath.Join(meshRoot, "ux", "app", "src", "provisioningApi.ts"))
+	source, err := os.ReadFile(filepath.Join(meshRoot, "agents", "chatbot", "ui", "app", "src", "provisioningApi.ts"))
 	if err != nil {
 		t.Fatalf("read provisioningApi.ts: %v", err)
 	}

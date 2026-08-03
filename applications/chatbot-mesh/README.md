@@ -52,7 +52,7 @@ Four decisions frame the extraction. They are recorded here so a reader understa
    `agents/corpus-ingest/` keeps the wrapper plus `corpus-rest.yaml`. Trusted
    discovery, machine, declarations, and tools come from the canonical library.
 
-3. Helm and UX are top-level directories. The chart lives under `helm/` and the single-page application under `ux/`, each clearly marked, rather than under `deploy/` or nested beneath an agent.
+3. A served UI lives under its serving agent. The single-page application sits at `agents/chatbot/ui/` and the observer's fleet view at `agents/observer/ui/`, each beneath the agent whose `static_assets` binding serves it, per the `eng02-agent-ui-placement` guideline (GH-1316). The deployment chart stays top-level under `helm/`, distinct from the profiles it deploys.
 
 4. Co-generation stays, for now. The Helm chart renders the chatbot client config, the user interface, and the N-RAG fan-out from the chart values; the packaged profile copies are the local integration source and the render overrides them in the cluster. Inverting this so the profile is the source is a separate follow-up.
 
@@ -62,7 +62,7 @@ Four decisions frame the extraction. They are recorded here so a reader understa
 applications/chatbot-mesh/
   docs/           VISION, ARCHITECTURE, road-map, and the example's own specs
   agents/         chatbot, rag-server, corpus-ingest, provisioning-workflow-orchestrator, creator, applier, collector, observer
-  ux/             the single-page application and UX config
+                  (chatbot/ui/ holds the SPA; observer/ui/ the fleet view)
   helm/           the deployment chart
   observability/  the persistent telemetry ingress state (.run/, gitignored)
   README.md       this file

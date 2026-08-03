@@ -51,7 +51,7 @@ test_cases:
   - use_case: rel03.0-uc001-mesh-deployment
     name: Chatbot topology and selected-target REST drift lock
     integration_target: mage integration:helmSmoke
-    go_test: go test ./magefiles -run '^TestChatbotRestCoGeneratedFromRagUnits$|^TestChatbotUXMonitoredAgentsCoGenerated$|^TestChatbotFanOutCoGeneratedForNRags$'
+    go_test: go test ./magefiles -run '^TestChatbotRestCoGeneratedFromRagUnits$|^TestChatbotUIMonitoredAgentsCoGenerated$|^TestChatbotFanOutCoGeneratedForNRags$'
     status: implemented
     description: |
       Locks srd003 R2: ragUnits renders the chatbot's ordered topology declaration,

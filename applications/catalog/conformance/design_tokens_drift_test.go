@@ -22,7 +22,7 @@ var designTokenUIs = []struct {
 	{"collector", "agents/collector/ui/src/App.css"},
 	{"monitor", "agents/knowledge-manager/documentation-curator/ui/monitor/src/App.css"},
 	{"docs", "agents/knowledge-manager/documentation-curator/ui/docs/src/App.css"},
-	{"chatbot-mesh", "../chatbot-mesh/ux/app/src/App.css"},
+	{"chatbot-mesh", "../chatbot-mesh/agents/chatbot/ui/app/src/App.css"},
 }
 
 func TestDesignTokensVendoredCopiesMatchCanonical(t *testing.T) {

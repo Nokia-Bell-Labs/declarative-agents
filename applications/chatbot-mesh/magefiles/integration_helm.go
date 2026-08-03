@@ -463,7 +463,7 @@ func smokeRuntimeBuildArgs(image string) []string {
 }
 
 // stageSmokeChart copies the chart to a temp directory and stages the agent
-// programs and the ux artifacts into its profiles subtree (the PACKAGING.md
+// programs and the UI artifacts into its profiles subtree (the PACKAGING.md
 // step), so the ConfigMap carries the agent profiles and the SPA bundle the
 // chatbot serves. It returns the staged chart path and a cleanup function.
 func stageSmokeChart(chartDir, profilesRoot string) (string, func(), error) {
@@ -506,22 +506,26 @@ const canonicalCollectorProgram = "agents/collector"
 const canonicalCollectorUIProgram = "agents/collector/ui/dist"
 
 // chartProfilePrograms is the single authoritative list of agent programs and
-// ux artifacts staged into the chart's profiles ConfigMap. It MUST cover every
+// UI artifacts staged into the chart's profiles ConfigMap. It MUST cover every
 // agent profile mounted by an enabled Deployment (see helm/templates/*.yaml);
 // the applier (srd006) Deployment mounts agents/applier/profile.yaml, so
 // omitting it here left an enabled applier with no profile to start (GH-485).
 // TestStagedProfilesCoverEnabledDeployments enforces the coverage.
 //
-// The ux contributes two entries rather than its whole tree, because every file
-// staged here becomes a ConfigMap key and a projected mount item in every agent
-// pod (profiles-configmap.yaml and profilesVolume both glob profiles/**). The
-// chart consumes exactly two things from the ux: ux.yaml, the UI descriptor, and
-// ux/app/dist, the built bundle the chatbot's static_assets binding serves at
-// /ui (agents/chatbot/rest.yaml). Staging the tree also carried the panel
+// The chatbot UI now lives under its serving agent at agents/chatbot/ui
+// (eng02-agent-ui-placement, GH-1316), and pruneStagedUIDev strips the ui/
+// subtree from the staged agents/chatbot copy. It is restored as two explicit
+// entries because every file staged here becomes a ConfigMap key and a
+// projected mount item in every agent pod (profiles-configmap.yaml and
+// profilesVolume both glob profiles/**). The chart consumes exactly two things
+// from the chatbot UI: ui.yaml, the UI descriptor, and app/dist, the built
+// bundle the chatbot's static_assets binding serves at /ui
+// (agents/chatbot/rest.yaml). Staging the whole ui/ tree also carried the panel
 // sources, the tsconfig, and a 60 KiB package-lock.json into every pod, and it
 // swept in node_modules whenever a developer had run npm install -- which helm
 // rejects outright, since esbuild's binary is over the 5 MiB per-file chart
-// limit (GH-702).
+// limit (GH-702). The observer serves a single static index.html and restores
+// its whole agents/observer/ui after the same prune.
 func chartProfilePrograms() []chartProfileProgram {
 	return []chartProfileProgram{
 		{"agents/chatbot", "profiles/agents/chatbot"},
@@ -532,10 +536,11 @@ func chartProfilePrograms() []chartProfileProgram {
 		{"agents/collector", "profiles/agents/collector"},
 		{canonicalCollectorUIProgram, "collector-ui/ui/dist"},
 		{"agents/observer", "profiles/agents/observer"},
+		{"agents/observer/ui", "profiles/agents/observer/ui"},
 		{"agents/corpus-ingest", "profiles/agents/corpus-ingest"},
 		{canonicalCorpusIngestProgram, "profiles/agents/knowledge-manager/corpus-ingest"},
-		{"ux/ux.yaml", "profiles/ux/ux.yaml"},
-		{"ux/app/dist", "profiles/ux/app/dist"},
+		{"agents/chatbot/ui/ui.yaml", "profiles/agents/chatbot/ui/ui.yaml"},
+		{"agents/chatbot/ui/app/dist", "profiles/agents/chatbot/ui/app/dist"},
 	}
 }
 
@@ -584,8 +589,8 @@ func stageProfilePath(src, dst string) error {
 // mount mock service definitions and the ConfigMap grows with the test suite
 // rather than with the product.
 //
-// This is the pruning GH-702 did for the ux tree, which the epic GH-662 fixtures
-// reintroduced by arriving after it. It is done here rather than in
+// This is the pruning GH-702 did for the chatbot UI tree, which the epic GH-662
+// fixtures reintroduced by arriving after it. It is done here rather than in
 // copyDirContents because that helper also copies the chart itself and
 // agent-core's tools, neither of which should learn what an agent fixture is.
 //
@@ -611,10 +616,12 @@ func pruneStagedTests(dst string) error {
 const stagedTestsDir = "tests"
 
 // pruneStagedUIDev removes the ui/ tree from a staged agent profile directory.
-// A catalog agent may carry a standalone ui/ with source, built assets, and
-// development config. The chart does not mount it: the chatbot's UX is staged
-// as explicit entries (ux/ux.yaml and ux/app/dist), not through the agent
-// directory copy, so no staged agent profile needs a ui/ subtree.
+// An agent that serves a UI carries a ui/ with source, built assets, and
+// development config, but the chart must mount only the served artifacts, not
+// the dev tree: the chatbot UI is restored as explicit entries
+// (agents/chatbot/ui/ui.yaml and agents/chatbot/ui/app/dist) and the observer
+// UI as agents/observer/ui, each staged after this prune strips the full ui/
+// copy. Catalog agents whose ui/ the chart never serves are simply dropped.
 func pruneStagedUIDev(dst string) error {
 	uiDir := filepath.Join(dst, "ui")
 	if err := os.RemoveAll(uiDir); err != nil && !os.IsNotExist(err) {

@@ -1,11 +1,11 @@
 {{/*
-The chatbot ux.yaml, co-generated from .Values.ragUnits (srd003 R2). The
+The chatbot ui.yaml, co-generated from .Values.ragUnits (srd003 R2). The
 monitored-agents list derives from the same RAG list as the topology and the
 rest.yaml monitor_proxy upstreams, so the observability panel's per-agent
-sub-panels track the deployed RAGs. The packaged ux/ux.yaml stays the local
-source; this render overrides that ConfigMap key in the cluster.
+sub-panels track the deployed RAGs. The packaged agents/chatbot/ui/ui.yaml
+stays the local source; this render overrides that ConfigMap key in the cluster.
 */}}
-{{- define "chatbot-mesh.chatbotUX" -}}
+{{- define "chatbot-mesh.chatbotUI" -}}
 id: chatbot-ui
 title: Chatbot Agent UI
 source_owner: agents/chatbot

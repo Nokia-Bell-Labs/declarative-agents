@@ -30,7 +30,7 @@ preconditions:
 
 flow:
   - id: F1
-    text: The panel opens one sub-panel per monitored agent (chatbot and each RAG) from ux.yaml monitored_agents, reading each agent's monitor state and SSE stream through the same-origin monitor_proxy.
+    text: The panel opens one sub-panel per monitored agent (chatbot and each RAG) from ui.yaml monitored_agents, reading each agent's monitor state and SSE stream through the same-origin monitor_proxy.
   - id: F2
     text: Each sub-panel shows the agent's run state, a metric-sample counter, and a feed of run-event state transitions.
   - id: F3

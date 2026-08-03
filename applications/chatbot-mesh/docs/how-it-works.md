@@ -72,7 +72,7 @@ Table 1: Mesh components
 | Provisioning Workflow Orchestrator (`agents/provisioning-workflow-orchestrator/`) | control | Decide the values change; sequence ingest and reconfiguration |
 | Creator (`agents/creator/`) | control | Act: agent lifecycle and request-draining rollout; holds deployment-API authority |
 | Applier (`agents/applier/`) | control | Declarative deployment API (srd006) the creator drives; validate-apply-verify-rollback binding helm/kubectl exec words |
-| User interface (`ux/`) | both | The SPA with chat, observability, and provisioning panels |
+| User interface (`agents/chatbot/ui/`) | both | The SPA with chat, observability, and provisioning panels |
 | Helm chart (`helm/`) | deploy | Deploy the whole mesh as one chart from values-driven RAG pairs |
 
 The normative detail lives in the SRDs: the RAG server in
