@@ -67,9 +67,6 @@ func prepareChart(t *testing.T, withApplier bool) string {
 	if err := prepareChartProfiles(resolved.Catalog, chart); err != nil {
 		t.Fatalf("stage catalog profiles: %v", err)
 	}
-	if err := prepareCuratorAssets(resolved.Catalog, chart); err != nil {
-		t.Fatalf("stage curator assets: %v", err)
-	}
 	if withApplier {
 		if err := stageApplierProfile(resolved.Application, chart); err != nil {
 			t.Fatalf("stage applier profile: %v", err)

@@ -48,7 +48,7 @@ requirements:
       - id: R1.1
         text: The chart shall render one Deployment and one ClusterIP Service for the documentation-curator and one Deployment and one ClusterIP Service for the collector agent.
       - id: R1.2
-        text: Both workloads shall run the shared agent-core image and shall select their mounted canonical profile config at startup rather than embedding the profile in the image. The documentation-curator's browser UI and catalog docs assets exceed the profile ConfigMap payload limit; they shall ship as gzipped, sharded ConfigMaps the curator init container concatenates and unpacks into its writable workspace at startup so the profile's static_assets roots and document root resolve, rather than being baked into a per-app runtime image (GH-1368).
+        text: Both workloads shall run the shared agent-core image and shall select their mounted canonical profile config at startup rather than embedding the profile in the image. The documentation-curator's browser UI and catalog docs assets exceed the profile ConfigMap payload limit; they shall ship as gzipped, sharded ConfigMaps provisioned out-of-release by the deploy/test tooling and referenced by name (curatorUI.shards), which the curator init container concatenates and unpacks into its writable workspace at startup so the profile's static_assets roots and document root resolve. They are provisioned outside the Helm release, not baked into a per-app runtime image, because the incompressible gzipped UI would otherwise push the Helm release Secret past the apiserver's request limit (GH-1368, GH-1402).
       - id: R1.3
         text: The curator Service shall expose the documentation, lifecycle-control, and monitor ports, and the collector Service shall expose the receiver, control, and query ports the local demo binds.
       - id: R1.4
@@ -76,7 +76,7 @@ requirements:
       - id: R3.1
         text: A kind target shall skip with a named missing prerequisite when Docker, kind, Helm, kubectl, required checkouts, or Docker health are unavailable, own only clusters it creates, and use a temporary kubeconfig.
       - id: R3.2
-        text: The target shall install only the validated archive, build and load the shared agent-core image the chart references for both workloads, and mount the packaged curator and collector closures and the curator UI shard ConfigMaps.
+        text: The target shall install only the validated archive, build and load the shared agent-core image the chart references for both workloads, mount the packaged curator and collector closures, and provision the curator UI shard ConfigMaps out-of-release (kubectl) so the curator mounts and unpacks them.
       - id: R3.3
         text: The curator and collector Deployments and their real lifecycle health endpoints shall become ready, the curator surface shall serve its documentation interface, and a declarative lifecycle-exit request shall stop the curator cleanly.
       - id: R3.4
@@ -122,12 +122,13 @@ implementation_status:
   planned:
     - >-
       The chart -- the curator and collector Deployments and Services on the
-      shared agent-core image, the mounted-closure ConfigMaps, the curator UI
-      shard ConfigMaps, the lifecycle probes, and the curator-to-collector OTLP
-      wiring -- the mage preparation and package targets that stage and checksum
-      the catalog-owned closures and pack the curator UI shards, the
-      values.schema.json and template guards, the self-contained archive
-      validation, and the bounded kind smoke target. The code lands in later
+      shared agent-core image, the mounted-closure ConfigMaps, the
+      curatorUI.shards references to the out-of-release UI shard ConfigMaps, the
+      lifecycle probes, and the curator-to-collector OTLP wiring -- the mage
+      preparation and package targets that stage and checksum the catalog-owned
+      closures, the deploy/test tooling that provisions the curator UI shard
+      ConfigMaps out-of-release, the values.schema.json and template guards, the
+      self-contained archive validation, and the bounded kind smoke target. The code lands in later
       sub-issues of the release; this document and its use cases and test suites
       land first.
 
@@ -154,7 +155,8 @@ diagrams:
       IMAGE --> COLLECTOR
       CLOSURE[Mounted canonical profile closures] --> CURATOR
       CLOSURE --> COLLECTOR
-      UISHARDS[Curator UI ConfigMap shards] --> CURATOR
+      TOOLING[Deploy/test tooling kubectl] -->|out-of-release| UISHARDS[Curator UI ConfigMap shards]
+      UISHARDS --> CURATOR
       CURATOR -->|OTLP| COLLECTOR
       OP -->|browser| CURATOR
       OP -->|query surface| COLLECTOR

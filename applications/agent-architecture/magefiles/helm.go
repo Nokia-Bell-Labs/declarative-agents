@@ -106,19 +106,21 @@ func HelmPrepare() error {
 	if err := stageApplierProfile(resolved.Application, chartRoot); err != nil {
 		return err
 	}
-	if err := prepareCuratorAssets(resolved.Catalog, chartRoot); err != nil {
-		return err
-	}
-	fmt.Printf("prepared curator and collector profile closures and curator UI assets from %s\n", resolved.Catalog)
+	// Curator UI shards are no longer staged into the chart: they are provisioned
+	// out-of-release by the deploy/test tooling (GH-1402), so HelmPrepare only
+	// stages the profile closures the chart carries.
+	fmt.Printf("prepared curator and collector profile closures from %s\n", resolved.Catalog)
 	return nil
 }
 
 // prepareCuratorAssets packs the documentation-curator's browser UI and the
 // catalog docs tree into one deterministic tar.gz and splits it into sub-1-MiB
 // shards under chartRoot/curator-assets, atomically swapping the shard directory
-// so a failed staging never leaves a partial asset set. The curator-ui template
-// projects each shard as a ConfigMap and the curator init container concatenates
-// and unpacks them into /work (GH-1368; replaces the baked /opt/curator-ui).
+// so a failed staging never leaves a partial asset set. The deploy/test tooling
+// (provisionCuratorUIShards) reads these shards and creates one out-of-release
+// ConfigMap per shard (GH-1402); the curator init container concatenates the
+// mounted shards and unpacks them into /work (GH-1368; replaces the baked
+// /opt/curator-ui).
 func prepareCuratorAssets(catalogRoot, chartRoot string) error {
 	archive, err := buildCuratorAssetArchive(catalogRoot)
 	if err != nil {

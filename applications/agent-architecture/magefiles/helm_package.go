@@ -73,12 +73,11 @@ func packageHelmChart(chartRoot, catalogRoot, destination string) (string, error
 	if err := stageApplierProfile(filepath.Dir(chartRoot), chart); err != nil {
 		return "", err
 	}
-	// The curator UI/docs shards ride in the archive the same way profiles do:
-	// helm/curator-assets is gitignored and regenerated fresh from the pinned
-	// catalog so the packaged chart is self-contained (GH-1368).
-	if err := prepareCuratorAssets(catalogRoot, chart); err != nil {
-		return "", err
-	}
+	// The curator UI/docs shards do NOT ride in the archive: the gzipped UI is
+	// incompressible and carrying it in the Helm release (chart files plus the
+	// rendered binaryData) blows past the 3 MiB release limit (GH-1402). The
+	// deploy/test tooling provisions the shard ConfigMaps out-of-release and the
+	// chart references them by name via curatorUI.shards.
 	if err := validatePreparedProfiles(filepath.Join(chart, "profiles")); err != nil {
 		return "", fmt.Errorf("validate staged profiles: %w", err)
 	}
@@ -114,8 +113,11 @@ func stageChartSource(source, destination string) error {
 		allowed[name] = true
 	}
 	// Generated profile inputs, curator UI asset shards, and prior release outputs
-	// are excluded; profiles and curator-assets are regenerated from the catalog
-	// below so the packaged chart is self-contained (GH-1368).
+	// are excluded and never copied into the archive: profiles are regenerated
+	// from the catalog below, while curator UI shards are provisioned
+	// out-of-release by the deploy/test tooling (GH-1368, GH-1402). A leftover
+	// helm/curator-assets tree from a local build is tolerated here but not
+	// packaged.
 	allowed["profiles"] = true
 	allowed[curatorAssetsDir] = true
 	allowed["dist"] = true

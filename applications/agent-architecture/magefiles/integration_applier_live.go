@@ -185,10 +185,11 @@ func stageApplierLiveChart(resolved roots) (string, func(), error) {
 		cleanup()
 		return "", nil, err
 	}
-	if err := prepareCuratorAssets(resolved.Catalog, chart); err != nil {
-		cleanup()
-		return "", nil, err
-	}
+	// No curator UI shards here: the applier mounts this chart as a base64
+	// applier.chartArchive ConfigMap, so carrying the ~1.2 MiB gzipped UI would
+	// blow the 3 MiB release limit (GH-1402). applierLive does not exercise the
+	// curator UI (only the collector and applier are awaited), so the curator
+	// renders without it (curatorUI.shards defaults empty).
 	if err := validatePreparedProfiles(filepath.Join(chart, "profiles")); err != nil {
 		cleanup()
 		return "", nil, fmt.Errorf("validate staged profiles: %w", err)

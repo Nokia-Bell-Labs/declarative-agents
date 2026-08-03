@@ -92,18 +92,27 @@ func deployDemo(environment smokeEnvironment, resolved roots) error {
 	if err != nil {
 		return err
 	}
+	// Provision the curator UI shard ConfigMaps out-of-release (GH-1402) so the
+	// demo curator serves its documentation UI from the unpacked shards.
+	shardNames, err := provisionCuratorUIShards(environment, resolved.Catalog, demoNamespace, demoRelease)
+	if err != nil {
+		return fmt.Errorf("provision curator UI shards: %w", err)
+	}
 	repository, tag := splitImageRef(smokeCollectorImage)
 	ctx, cancel = context.WithTimeout(context.Background(), smokeInstallTimeout)
 	defer cancel()
-	output, err := environment.run(ctx, "helm",
+	args := []string{
 		"upgrade", "--install", demoRelease, archive,
 		"--namespace", demoNamespace,
 		"--values", filepath.Join(resolved.Application, "helm", "ci", "kind-values.yaml"),
-		"--set", "image.repository="+repository,
-		"--set", "image.tag="+tag,
-		"--set", "collector.image.repository="+repository,
-		"--set", "collector.image.tag="+tag,
-		"--wait", "--timeout", smokeInstallTimeout.String())
+		"--set", "image.repository=" + repository,
+		"--set", "image.tag=" + tag,
+		"--set", "collector.image.repository=" + repository,
+		"--set", "collector.image.tag=" + tag,
+	}
+	args = append(args, curatorUIShardSetArgs(shardNames)...)
+	args = append(args, "--wait", "--timeout", smokeInstallTimeout.String())
+	output, err := environment.run(ctx, "helm", args...)
 	if err != nil {
 		return fmt.Errorf("helm demo install: %w: %s", err, strings.TrimSpace(string(output)))
 	}

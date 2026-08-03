@@ -1,6 +1,6 @@
 {{- include "agent-architecture.validateValues" . -}}
 {{- $fullname := include "agent-architecture.fullname" . -}}
-{{- $curatorAssets := .Files.Glob "curator-assets/part-*" -}}
+{{- $curatorUIShards := .Values.curatorUI.shards | default (list) -}}
 apiVersion: apps/v1
 kind: Deployment
 metadata:
@@ -40,14 +40,17 @@ spec:
       affinity:
         {{- toYaml . | nindent 8 }}
       {{- end }}
-      {{- if $curatorAssets }}
+      {{- if $curatorUIShards }}
       initContainers:
         # The curator's browser UI dist trees and the catalog docs tree are
-        # delivered as gzipped, sharded ConfigMaps (curator-ui.yaml) rather than
-        # baked into a per-app image (GH-1368). Concatenate the shards in key
-        # order back into one tar.gz and unpack it into the writable workspace so
-        # the profile's ui/*/dist static_assets roots and its docs/ document root
-        # resolve under --directory /work (GH-1261, GH-1293).
+        # delivered as gzipped, sharded ConfigMaps the deploy/test tooling
+        # provisions out-of-release (curatorUI.shards) rather than baked into a
+        # per-app image (GH-1368) or carried inside the Helm release, which the
+        # gzipped UI would blow past the 3 MiB release limit (GH-1402).
+        # Concatenate the shards in key order back into one tar.gz and unpack it
+        # into the writable workspace so the profile's ui/*/dist static_assets
+        # roots and its docs/ document root resolve under --directory /work
+        # (GH-1261, GH-1293).
         - name: stage-curator-ui
           image: {{ include "agent-architecture.image" . | quote }}
           imagePullPolicy: {{ .Values.image.pullPolicy }}
@@ -131,19 +134,18 @@ spec:
                     - key: {{ $path | trimPrefix "profiles/curator/" | replace "/" "__" }}
                       path: {{ $path | trimPrefix "profiles/curator/" }}
                     {{- end }}
-        {{- if $curatorAssets }}
-        # One projected source per curator-ui shard ConfigMap; the init container
-        # concatenates them (part-000, part-001, ...) into the original tar.gz.
+        {{- if $curatorUIShards }}
+        # One projected source per out-of-release curator-ui shard ConfigMap
+        # (curatorUI.shards, provisioned by the deploy/test tooling); each holds
+        # a single binaryData key part-NNN, so the init container concatenates
+        # them (part-000, part-001, ...) into the original tar.gz.
         - name: curator-ui
           projected:
             defaultMode: 0444
             sources:
-              {{- range $path, $_ := $curatorAssets }}
+              {{- range $curatorUIShards }}
               - configMap:
-                  name: {{ $fullname }}-curator-ui-{{ base $path }}
-                  items:
-                    - key: {{ base $path }}
-                      path: {{ base $path }}
+                  name: {{ . }}
               {{- end }}
         {{- end }}
         - name: workspace

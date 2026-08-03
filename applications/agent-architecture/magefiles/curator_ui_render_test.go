@@ -7,57 +7,60 @@ import (
 	"testing"
 )
 
-// TestHelmCuratorUIDeliveredAsConfigMaps proves the documentation-curator's
-// browser UI and the catalog docs tree reach the pod as sharded ConfigMaps that
-// an init container unpacks into the workspace, rather than baked into a per-app
-// runtime image at /opt/curator-ui (GH-1368). The staged assets shard into more
-// than one ConfigMap, and each is projected and concatenated back into the
-// tar.gz the init container extracts so the profile's browser-UI dist roots and
-// its docs/ document root resolve under --directory /work (GH-1261, GH-1293).
-func TestHelmCuratorUIDeliveredAsConfigMaps(t *testing.T) {
+// TestHelmCuratorUIReferencesOutOfReleaseShards proves the documentation-curator
+// mounts its browser UI and catalog docs from shard ConfigMaps provisioned
+// OUTSIDE the Helm release (curatorUI.shards) rather than baked into a per-app
+// runtime image at /opt/curator-ui (GH-1368) or carried in-release, which the
+// gzipped UI would push past the 3 MiB release limit (GH-1402). When the shard
+// names are supplied, the curator gains an init container that concatenates the
+// mounted shards back into the tar.gz it unpacks into /work, and a projected
+// volume with one configMap source per named shard.
+func TestHelmCuratorUIReferencesOutOfReleaseShards(t *testing.T) {
 	chart := preparedTestChart(t)
-	render := helmTemplate(t, chart)
+	render := helmTemplate(t, chart,
+		"--set", "curatorUI.shards[0]=smoke-curator-ui-000",
+		"--set", "curatorUI.shards[1]=smoke-curator-ui-001",
+	)
 	for _, want := range []string{
-		"name: t-agent-architecture-curator-ui-part-000",
-		"app.kubernetes.io/component: curator-ui",
-		"binaryData:",
 		"- name: stage-curator-ui",
 		`command: ["sh", "-c", "cat /curator-ui/part-* | tar -xzf - -C /work"]`,
 		"- {name: curator-ui, mountPath: /curator-ui, readOnly: true}",
 		"- name: curator-ui",
+		"name: smoke-curator-ui-000",
+		"name: smoke-curator-ui-001",
 	} {
 		if !strings.Contains(render, want) {
 			t.Errorf("curator UI render missing %q", want)
 		}
 	}
-	// The retired image-baking mechanism must not linger.
-	for _, forbidden := range []string{"/opt/curator-ui", "cp -a /opt/curator-ui"} {
+	// The chart must NOT emit the UI bytes itself: the shards are out-of-release,
+	// so no curator-ui ConfigMap or binaryData block may appear in the release.
+	for _, forbidden := range []string{
+		"app.kubernetes.io/component: curator-ui",
+		"binaryData:",
+		"/opt/curator-ui",
+		"agent-architecture-runtime",
+	} {
 		if strings.Contains(render, forbidden) {
-			t.Errorf("curator render still references the retired baked UI path %q", forbidden)
+			t.Errorf("curator render still carries the retired in-image/in-release UI marker %q", forbidden)
 		}
-	}
-	// The curator runs the shared agent-core image, not a per-app runtime.
-	if strings.Contains(render, "agent-architecture-runtime") {
-		t.Error("curator render still references the retired agent-architecture-runtime image")
 	}
 }
 
-// TestHelmCuratorUIShardsProjectEveryConfigMap proves every staged shard becomes
-// both a ConfigMap and a matching projected volume source, so the init
-// container's cat of the mounted shards reconstructs the whole archive.
-func TestHelmCuratorUIShardsProjectEveryConfigMap(t *testing.T) {
+// TestHelmCuratorUIOmittedWithoutShards proves a bare render with no shard names
+// omits the init container and the curator-ui volume entirely, so a plain
+// install (or the applier-live tier, which does not exercise the UI) brings the
+// curator up without it rather than failing on absent ConfigMaps.
+func TestHelmCuratorUIOmittedWithoutShards(t *testing.T) {
 	chart := preparedTestChart(t)
 	render := helmTemplate(t, chart)
-	configMaps := strings.Count(render, "app.kubernetes.io/component: curator-ui")
-	if configMaps < 2 {
-		t.Fatalf("curator UI rendered %d shard ConfigMaps, want the multi-shard delivery", configMaps)
-	}
-	// Each shard ConfigMap is projected once as a volume source keyed by its name.
-	sources := strings.Count(render, "-curator-ui-part-")
-	// Each shard appears in its ConfigMap metadata name and in its projected
-	// source name, so the projected-source count is at least the ConfigMap count.
-	if sources < configMaps {
-		t.Errorf("curator UI shards: %d ConfigMaps but only %d name references; a shard is unprojected",
-			configMaps, sources)
+	for _, forbidden := range []string{
+		"- name: stage-curator-ui",
+		"cat /curator-ui/part-*",
+		"- name: curator-ui",
+	} {
+		if strings.Contains(render, forbidden) {
+			t.Errorf("curator render should omit the UI wiring without curatorUI.shards, but found %q", forbidden)
+		}
 	}
 }

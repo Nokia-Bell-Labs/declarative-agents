@@ -5,8 +5,9 @@ status: planned
 summary: |
   A developer installs only the validated chart archive into a bounded kind
   cluster, builds and loads the shared profile-free agent-core image the chart
-  references for both workloads, and mounts the packaged curator and collector
-  closures and curator UI shard ConfigMaps. The
+  references for both workloads, mounts the packaged curator and collector
+  closures, and provisions the curator UI shard ConfigMaps out-of-release so the
+  curator unpacks them. The
   curator and collector Deployments and their real lifecycle health endpoints
   become ready, the curator serves its documentation interface, a declarative
   lifecycle-exit request stops the curator cleanly, and the collector retains a
@@ -44,7 +45,7 @@ touchpoints:
 
 success_criteria:
   - id: S1
-    criterion: The target installs only the validated archive, builds and loads the shared profile-free agent-core image the chart references, and mounts the packaged curator and collector closures and curator UI shard ConfigMaps.
+    criterion: The target installs only the validated archive, builds and loads the shared profile-free agent-core image the chart references, mounts the packaged curator and collector closures, and provisions the curator UI shard ConfigMaps out-of-release for the curator to unpack.
     traces:
       - srd001-helm-deployment R3.2
       - srd001-helm-deployment AC4

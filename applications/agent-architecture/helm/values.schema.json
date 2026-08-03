@@ -85,6 +85,16 @@
         "resources": {"$ref": "#/definitions/resources"}
       }
     },
+    "curatorUI": {
+      "type": "object",
+      "additionalProperties": false,
+      "properties": {
+        "shards": {
+          "type": "array",
+          "items": {"type": "string", "pattern": "^[a-z0-9]([-a-z0-9.]*[a-z0-9])?$"}
+        }
+      }
+    },
     "collector": {
       "type": "object",
       "additionalProperties": false,

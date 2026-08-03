@@ -138,7 +138,13 @@ func runHelmSmoke(resolved roots) (result error) {
 	if err != nil {
 		return fmt.Errorf("helmSmoke chart package: %w", err)
 	}
-	if err := installSmokeChart(environment, archive, resolved.Application); err != nil {
+	// Provision the curator UI shard ConfigMaps out-of-release (GH-1402) before
+	// installing, so the curator init container finds them when its pod starts.
+	shardNames, err := provisionCuratorUIShards(environment, resolved.Catalog, smokeNamespace, smokeRelease)
+	if err != nil {
+		return smokeFailure(environment.run, "curator UI shard provisioning", err)
+	}
+	if err := installSmokeChart(environment, archive, resolved.Application, shardNames); err != nil {
 		return smokeFailure(environment.run, "Helm install", err)
 	}
 	// The collector is a persistent server, so its rollout stabilizes. The
@@ -296,23 +302,27 @@ func prepareSmokeCluster(environment smokeEnvironment, cluster string, resolved 
 	return runSmokeCommand(environment, 30*time.Second, "kubectl", "create", "namespace", smokeNamespace)
 }
 
-func installSmokeChart(environment smokeEnvironment, archive, applicationRoot string) error {
+func installSmokeChart(environment smokeEnvironment, archive, applicationRoot string, shardNames []string) error {
 	repository, tag := splitImageRef(smokeCollectorImage)
 	ctx, cancel := context.WithTimeout(context.Background(), smokeInstallTimeout)
 	defer cancel()
-	output, err := environment.run(ctx, "helm",
+	args := []string{
 		"install", smokeRelease, archive,
 		"--namespace", smokeNamespace,
 		"--values", filepath.Join(applicationRoot, "helm", "ci", "kind-values.yaml"),
-		"--set", "image.repository="+repository,
-		"--set", "image.tag="+tag,
-		"--set", "collector.image.repository="+repository,
-		"--set", "collector.image.tag="+tag,
-		// No --wait: the bounded curator never stays ready, so waiting on the
-		// whole release would always time out. Readiness is asserted per workload
-		// below.
-		"--timeout", smokeInstallTimeout.String(),
-	)
+		"--set", "image.repository=" + repository,
+		"--set", "image.tag=" + tag,
+		"--set", "collector.image.repository=" + repository,
+		"--set", "collector.image.tag=" + tag,
+	}
+	// Point the curator at the out-of-release UI shard ConfigMaps provisioned
+	// above so its init container mounts and unpacks them (GH-1402).
+	args = append(args, curatorUIShardSetArgs(shardNames)...)
+	// No --wait: the bounded curator never stays ready, so waiting on the
+	// whole release would always time out. Readiness is asserted per workload
+	// below.
+	args = append(args, "--timeout", smokeInstallTimeout.String())
+	output, err := environment.run(ctx, "helm", args...)
 	if err != nil {
 		return fmt.Errorf("helm install: %w: %s", err, strings.TrimSpace(string(output)))
 	}
