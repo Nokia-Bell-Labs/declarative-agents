@@ -5,6 +5,7 @@ package conformance
 import (
 	"bytes"
 	"context"
+	"encoding/json"
 	"fmt"
 	"net"
 	"os"
@@ -119,17 +120,27 @@ func (s *DoltServer) DSN() string { return s.dsn }
 // one such branch for the resume invocation to target.
 func (s *DoltServer) LatestRunBranch(t *testing.T) string {
 	t.Helper()
+	// Ask dolt for JSON and decode it, rather than scanning CSV lines for a
+	// run- prefix. The prefix scan did double duty as header-skip and value
+	// filter -- it worked only because the header column is literally 'name'
+	// and silently returned an empty branch name on any format change, which
+	// then flowed on as a branch (GH-1391).
 	out := runDolt(t, s.dataDir, s.env,
 		"sql", "-q",
 		"SELECT name FROM dolt_branches WHERE name LIKE 'run-%' ORDER BY name DESC LIMIT 1",
-		"-r", "csv")
-	for _, line := range strings.Split(out, "\n") {
-		line = strings.TrimSpace(line)
-		if strings.HasPrefix(line, "run-") {
-			return line
-		}
+		"-r", "json")
+	var result struct {
+		Rows []struct {
+			Name string `json:"name"`
+		} `json:"rows"`
 	}
-	return ""
+	if err := json.Unmarshal([]byte(out), &result); err != nil {
+		t.Fatalf("parse dolt sql json output: %v\noutput:\n%s", err, out)
+	}
+	if len(result.Rows) == 0 || result.Rows[0].Name == "" {
+		t.Fatalf("no run-* branch found in dolt_branches; output:\n%s", out)
+	}
+	return result.Rows[0].Name
 }
 
 // Stop cancels and joins the server process before its temporary directory is
