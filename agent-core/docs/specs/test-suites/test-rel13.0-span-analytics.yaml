@@ -149,3 +149,19 @@ test_cases:
       signal: CommandError
     traces:
       - srd045-span-analytics-tools AC5
+
+  - use_case: rel13.0-uc001-span-analytics
+    name: Selection exemplars are capped, deterministic, and deduplicated
+    go_test: go test ./internal/tools/otlp -run Exemplar
+    status: implemented
+    description: |
+      spool_span_stats and spool_span_breakdown return exemplar_trace_ids drawn
+      from the matched and selection sets; the list is deduplicated, ordered by
+      ascending trace ID, capped at exemplar_cap, and excludes spans with no
+      trace ID.
+    inputs:
+      exemplar_cap: 2
+    expected:
+      exemplar_trace_ids_deterministic: true
+    traces:
+      - srd045-span-analytics-tools AC6

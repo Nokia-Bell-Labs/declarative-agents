@@ -123,7 +123,12 @@ func TestCollectorSpanStatsContract(t *testing.T) {
 	if status != http.StatusOK {
 		t.Fatalf("stats status = %d, want 200", status)
 	}
-	requireKeys(t, payload, "heatmap", "matched", "skipped_lines", "group_by", "groups", "dropped_groups", "dropped_span_total")
+	requireKeys(t, payload, "heatmap", "matched", "exemplar_trace_ids", "skipped_lines", "group_by", "groups", "dropped_groups", "dropped_span_total")
+	var statsExemplars []string
+	_ = json.Unmarshal(payload["exemplar_trace_ids"], &statsExemplars)
+	if len(statsExemplars) == 0 {
+		t.Errorf("stats exemplar_trace_ids empty; want exemplars for the matched set")
+	}
 
 	var heatmap struct {
 		TimeBucketBoundaries     []int64 `json:"time_bucket_boundaries"`
@@ -184,7 +189,12 @@ func TestCollectorSpanBreakdownContract(t *testing.T) {
 	if status != http.StatusOK {
 		t.Fatalf("breakdown status = %d, want 200", status)
 	}
-	requireKeys(t, payload, "inside_total", "outside_total", "ranked", "dropped", "skipped_lines")
+	requireKeys(t, payload, "inside_total", "outside_total", "exemplar_trace_ids", "ranked", "dropped", "skipped_lines")
+	var breakdownExemplars []string
+	_ = json.Unmarshal(payload["exemplar_trace_ids"], &breakdownExemplars)
+	if len(breakdownExemplars) == 0 {
+		t.Errorf("breakdown exemplar_trace_ids empty; want exemplars for the inside (selection) set")
+	}
 	var inside, outside int
 	_ = json.Unmarshal(payload["inside_total"], &inside)
 	_ = json.Unmarshal(payload["outside_total"], &outside)

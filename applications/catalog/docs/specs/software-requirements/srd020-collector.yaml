@@ -69,8 +69,8 @@ requirements:
   R8:
     title: Explore query surface
     items:
-      - R8.1: The collector_query server SHALL serve GET /query/spans/stats, bound through a query-machine action to the agent-core spool_span_stats tool, returning a duration-over-time heatmap and group-by counts for a filtered span set.
-      - R8.2: The collector_query server SHALL serve GET /query/spans/breakdown, bound to spool_span_breakdown, returning the ranked attribute divergence between a selected span region and its complement.
+      - R8.1: The collector_query server SHALL serve GET /query/spans/stats, bound through a query-machine action to the agent-core spool_span_stats tool, returning a duration-over-time heatmap, group-by counts, and a capped list of exemplar trace IDs for the matched span set.
+      - R8.2: The collector_query server SHALL serve GET /query/spans/breakdown, bound to spool_span_breakdown, returning the ranked attribute divergence between a selected span region and its complement, and a capped list of exemplar trace IDs for the selection.
       - R8.3: Both routes SHALL accept the filter, bucket, group-by, selection, and top-N inputs as request query parameters passed to the tool config; page and result caps SHALL come from tool config, not be trusted from the request. No route behavior SHALL depend on an environment variable.
       - R8.4: The stats and breakdown JSON response contracts SHALL be pinned by conformance tests so UI and tool drift fail there first, following the R5 query-contract precedent.
       - R8.5: An empty or absent spool SHALL yield a well-formed empty stats or breakdown response, not an error.
@@ -79,7 +79,7 @@ requirements:
     title: Explore UI
     items:
       - R9.1: The shipped UI SHALL add an Explore page that renders the duration heatmap from /query/spans/stats and lets the operator drag-select a region of it.
-      - R9.2: The Explore page SHALL show the ranked attribute divergence for the selected region from /query/spans/breakdown, and list exemplar spans that link into the existing per-trace waterfall (R6).
+      - R9.2: The Explore page SHALL show the ranked attribute divergence for the selected region from /query/spans/breakdown, and list the selection-scoped exemplar traces the breakdown (or, before any selection, the stats) response returns, each linking into the existing per-trace waterfall (R6).
       - R9.3: The Explore page SHALL join the root uiDist reproducibility gate and reach the server through same-origin /query/* only, adding no new runtime dependency for the heatmap.
 
 non_goals:
@@ -108,7 +108,7 @@ acceptance_criteria:
     traces: [R7.4, R7.5]
 
   - id: AC6
-    criterion: GET /query/spans/stats returns the heatmap and group-by contract and GET /query/spans/breakdown returns the ranked divergence contract, both pinned by conformance, with caps taken from tool config not the request.
+    criterion: GET /query/spans/stats returns the heatmap, group-by, and exemplar-trace-ID contract and GET /query/spans/breakdown returns the ranked divergence and exemplar-trace-ID contract, both pinned by conformance, with caps taken from tool config not the request.
     traces: [R8.1, R8.2, R8.3, R8.4]
 
   - id: AC7
@@ -116,7 +116,7 @@ acceptance_criteria:
     traces: [R8.5]
 
   - id: AC8
-    criterion: The Explore page renders the heatmap, drag-selects a region, shows the ranked divergence and exemplar spans linking into the waterfall, and reproduces from a clean uiDist build.
+    criterion: The Explore page renders the heatmap, drag-selects a region, shows the ranked divergence and the selection-scoped exemplar traces linking into the waterfall, and reproduces from a clean uiDist build.
     traces: [R9.1, R9.2, R9.3]
 
 depends_on:

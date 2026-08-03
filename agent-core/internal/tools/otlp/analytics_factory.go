@@ -21,15 +21,17 @@ type SpanStatsToolConfig struct {
 	GroupBy         string  `json:"group_by"`
 	TopN            int     `json:"top_n"`
 	MaxTopN         int     `json:"max_top_n"`
+	ExemplarCap     int     `json:"exemplar_cap"`
 }
 
 // SpanBreakdownToolConfig is the declared spool_span_breakdown configuration.
 // The baseline and selection filters arrive per-request via the machine seed;
 // config carries the spool path and caps.
 type SpanBreakdownToolConfig struct {
-	Path    string `json:"path"`
-	TopN    int    `json:"top_n"`
-	MaxTopN int    `json:"max_top_n"`
+	Path        string `json:"path"`
+	TopN        int    `json:"top_n"`
+	MaxTopN     int    `json:"max_top_n"`
+	ExemplarCap int    `json:"exemplar_cap"`
 }
 
 // resolveSpoolPath resolves a configured spool path against the workspace
@@ -61,6 +63,7 @@ func spanStatsFactory() toolregistry.BuiltinFactory {
 				Path: resolveSpoolPath(raw.Path, vars), Filter: spanFilter{Attrs: map[string]string{}},
 				TimeBuckets: raw.TimeBuckets, DurationEdgesMs: raw.DurationEdgesMs,
 				GroupBy: raw.GroupBy, TopN: raw.TopN, MaxTopN: raw.MaxTopN,
+				ExemplarCap: raw.ExemplarCap,
 			},
 		}, nil
 	}
@@ -78,10 +81,11 @@ func spanBreakdownFactory() toolregistry.BuiltinFactory {
 		return SpanBreakdownBuilder{
 			ToolName: def.Name,
 			Config: SpanBreakdownConfig{
-				Path:      resolveSpoolPath(raw.Path, vars),
-				Baseline:  spanFilter{Attrs: map[string]string{}},
-				Selection: spanFilter{Attrs: map[string]string{}},
-				TopN:      raw.TopN, MaxTopN: raw.MaxTopN,
+				Path:        resolveSpoolPath(raw.Path, vars),
+				Baseline:    spanFilter{Attrs: map[string]string{}},
+				Selection:   spanFilter{Attrs: map[string]string{}},
+				TopN:        raw.TopN, MaxTopN: raw.MaxTopN,
+				ExemplarCap: raw.ExemplarCap,
 			},
 		}, nil
 	}

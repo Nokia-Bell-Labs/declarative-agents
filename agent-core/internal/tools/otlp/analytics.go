@@ -162,6 +162,9 @@ type SpanStatsConfig struct {
 	GroupBy         string
 	TopN            int
 	MaxTopN         int
+	// ExemplarCap bounds the exemplar_trace_ids list returned for the matched
+	// set. Zero selects the committed default (defaultExemplarCap).
+	ExemplarCap int
 }
 
 // SpanBreakdownConfig configures an attribute-divergence comparison of a
@@ -172,6 +175,9 @@ type SpanBreakdownConfig struct {
 	Selection spanFilter
 	TopN      int
 	MaxTopN   int
+	// ExemplarCap bounds the exemplar_trace_ids list returned for the inside
+	// (selection) set. Zero selects the committed default (defaultExemplarCap).
+	ExemplarCap int
 }
 
 // SpanStatsBuilder constructs duration-heatmap and group-by commands.
@@ -302,14 +308,17 @@ func (c *spanStatsCommand) Execute() core.Result {
 	output := struct {
 		Heatmap          heatmapPayload `json:"heatmap"`
 		Matched          int            `json:"matched"`
+		ExemplarTraceIDs []string       `json:"exemplar_trace_ids"`
 		SkippedLines     int            `json:"skipped_lines"`
 		GroupBy          string         `json:"group_by"`
 		Groups           []groupCount   `json:"groups"`
 		DroppedGroups    int            `json:"dropped_groups"`
 		DroppedSpanTotal int            `json:"dropped_span_total"`
 	}{
-		Heatmap: heatmap, Matched: len(matched), SkippedLines: skipped,
-		GroupBy: groupBy, Groups: groups,
+		Heatmap: heatmap, Matched: len(matched),
+		ExemplarTraceIDs: exemplarTraceIDs(matched, c.config.ExemplarCap),
+		SkippedLines:     skipped,
+		GroupBy:          groupBy, Groups: groups,
 		DroppedGroups: droppedGroups, DroppedSpanTotal: droppedSpans,
 	}
 	encoded, err := json.Marshal(output)
@@ -357,14 +366,16 @@ func (c *spanBreakdownCommand) Execute() core.Result {
 	ranked, dropped := rankDivergence(inside, outside, effectiveTopN(c.config.TopN, c.config.MaxTopN))
 
 	output := struct {
-		InsideTotal  int               `json:"inside_total"`
-		OutsideTotal int               `json:"outside_total"`
-		Ranked       []divergenceEntry `json:"ranked"`
-		Dropped      int               `json:"dropped"`
-		SkippedLines int               `json:"skipped_lines"`
+		InsideTotal      int               `json:"inside_total"`
+		OutsideTotal     int               `json:"outside_total"`
+		ExemplarTraceIDs []string          `json:"exemplar_trace_ids"`
+		Ranked           []divergenceEntry `json:"ranked"`
+		Dropped          int               `json:"dropped"`
+		SkippedLines     int               `json:"skipped_lines"`
 	}{
 		InsideTotal: len(inside), OutsideTotal: len(outside),
-		Ranked: ranked, Dropped: dropped, SkippedLines: skipped,
+		ExemplarTraceIDs: exemplarTraceIDs(inside, c.config.ExemplarCap),
+		Ranked:           ranked, Dropped: dropped, SkippedLines: skipped,
 	}
 	encoded, err := json.Marshal(output)
 	if err != nil {
