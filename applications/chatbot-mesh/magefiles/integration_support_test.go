@@ -13,6 +13,36 @@ import (
 	"time"
 )
 
+// detachedAgentGracefulWait is a generous upper bound for the argument-capture
+// fake agents to start, write their files, and exit. It is deliberately not a
+// scheduler-sized deadline: these fakes self-exit in milliseconds, so the wait
+// only guards against a genuine hang. The forced-kill-after-timeout branch is
+// covered separately by TestDetachedAgentCleanupReportsProcessOutcomes with a
+// short wait, so no test both requires a fast exit and asserts on a tight
+// wall-clock deadline (GH-1342).
+const detachedAgentGracefulWait = 30 * time.Second
+
+// waitForNonEmptyFile blocks until path exists with content or the timeout
+// elapses, decoupling argument-capture readiness from process shutdown so the
+// assertions never race a child that has not finished writing.
+func waitForNonEmptyFile(t *testing.T, path string, timeout time.Duration) []byte {
+	t.Helper()
+	deadline := time.Now().Add(timeout)
+	for {
+		data, err := os.ReadFile(path)
+		if err == nil && len(data) > 0 {
+			return data
+		}
+		if time.Now().After(deadline) {
+			if err != nil {
+				t.Fatalf("file %s not written within %s: %v", path, timeout, err)
+			}
+			t.Fatalf("file %s still empty after %s", path, timeout)
+		}
+		time.Sleep(10 * time.Millisecond)
+	}
+}
+
 func TestWaitHTTPStatusBoundsStalledRequestByOuterDeadline(t *testing.T) {
 	t.Parallel()
 	server := httptest.NewServer(http.HandlerFunc(func(_ http.ResponseWriter, req *http.Request) {
@@ -119,19 +149,17 @@ func TestDetachedAgentDualExportsAndStampsResourceIdentity(t *testing.T) {
 		RunID:        "run-123",
 		GitCommit:    "abc123",
 		Env:          []string{"ARGS_FILE=" + argsPath, "ATTRS_FILE=" + attrsPath},
-		GracefulWait: time.Second,
+		GracefulWait: detachedAgentGracefulWait,
 	})
 	if err != nil {
 		t.Fatal(err)
 	}
+	// Synchronize on the child having written its argument file before asserting,
+	// independently of how it shuts down.
+	args := string(waitForNonEmptyFile(t, argsPath, detachedAgentGracefulWait))
 	if err := stop(false); err != nil {
 		t.Fatal(err)
 	}
-	argsData, err := os.ReadFile(argsPath)
-	if err != nil {
-		t.Fatal(err)
-	}
-	args := string(argsData)
 	for _, want := range []string{
 		"--otel-log-file\n", "--otel-otlp-endpoint\n127.0.0.1:4317\n",
 		"--otel-service-name\nrag0\n",
@@ -140,11 +168,7 @@ func TestDetachedAgentDualExportsAndStampsResourceIdentity(t *testing.T) {
 			t.Errorf("args missing %q:\n%s", want, args)
 		}
 	}
-	attrsData, err := os.ReadFile(attrsPath)
-	if err != nil {
-		t.Fatal(err)
-	}
-	attrs := string(attrsData)
+	attrs := string(waitForNonEmptyFile(t, attrsPath, detachedAgentGracefulWait))
 	for _, want := range []string{
 		"test.repository=Nokia-Bell-Labs%2Fdeclarative-agents",
 		"test.module=applications%2Fchatbot-mesh",
@@ -169,19 +193,17 @@ func TestDetachedAgentKeepsFileOnlyArgsWithoutEndpoint(t *testing.T) {
 		Binary: binary, ProfilesRoot: root, CoreRoot: root,
 		Profile: "profile.yaml", TracePath: filepath.Join(root, "trace.json"),
 		RunID: "run-123", GitCommit: "abc123",
-		Env: []string{"ARGS_FILE=" + argsPath}, GracefulWait: time.Second,
+		Env: []string{"ARGS_FILE=" + argsPath}, GracefulWait: detachedAgentGracefulWait,
 	})
 	if err != nil {
 		t.Fatal(err)
 	}
+	// Synchronize on the argument file before asserting, then confirm graceful
+	// completion without a scheduler-sized deadline.
+	args := string(waitForNonEmptyFile(t, argsPath, detachedAgentGracefulWait))
 	if err := stop(false); err != nil {
 		t.Fatal(err)
 	}
-	argsData, err := os.ReadFile(argsPath)
-	if err != nil {
-		t.Fatal(err)
-	}
-	args := string(argsData)
 	if strings.Contains(args, "--otel-otlp-endpoint") || strings.Contains(args, "--otel-service-name") {
 		t.Fatalf("file-only launch gained live-export args:\n%s", args)
 	}
