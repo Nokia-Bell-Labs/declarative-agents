@@ -485,24 +485,29 @@ patterns:
     forces:
       - One definition must serve three audiences: model, developer, engine.
       - A tool's side effects and failure modes must be explicit, not inferred.
-      - Each tool should do exactly one thing so composition lives in the machine.
+      - Each tool should do exactly one agent-visible thing so contract and effect composition live in the machine.
       - Reversibility must be knowable before the tool is dispatched.
     solution: >
       Make each tool an atomic operation with a structured contract: problem,
       goals, non-goals, requirements, acceptance criteria, and a reversibility
       tier (reversible / compensatable / irreversible), plus its emittable
-      signals and declared predecessors and successors. A tool that needs "and"
-      to describe it is two tools. Composition emerges later, in the machine —
-      never inside a tool.
+      signals and declared predecessors and successors. Atomicity is judged at
+      selectable domain-operation and rollback boundaries, not by counting
+      validation, parsing, formatting, protocol, or helper-process stages used
+      to construct one result. Composition emerges later, in the machine —
+      never hidden behind one contract.
     implementation: >
       A complete contract must answer four questions: can a developer implement
       it, can the agent select it, can its output compose with the next tool,
-      and is failure state defined. A tool should not contain a loop,
-      multi-outcome branch, or embedded state machine unless it is explicitly a
-      non-terminal boundary tool. Reversibility must be explicit: reversible
-      tools restore from their receipt, compensatable tools declare corrective
-      action and semantic differences, and irreversible tools are skipped and
-      logged. Omitting reversibility is a contract error, not irreversibility.
+      and is failure state defined. A tool must not hide workflow loops,
+      separately selectable domain branches, or undeclared child-tool dispatch.
+      Bounded internal control flow that validates input, enforces policy,
+      implements one protocol, parses/formats one result, or completes one
+      recovery boundary is not composition by itself. Reversibility must be
+      explicit: reversible tools restore from their receipt, compensatable tools
+      declare corrective action and semantic differences, and irreversible
+      tools are skipped and logged. Omitting reversibility is a contract error,
+      not irreversibility.
       Enforce completeness during authoring and specification audit. At ordinary
       runtime startup, validate only wiring needed for execution: parse retries,
       emitted-signal routes, and receipt-consuming undo.

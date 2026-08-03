@@ -13,7 +13,7 @@ An agent's capability is bounded by its tool set. A model can reason about any t
 
 Current frameworks define tools as function signatures with docstrings. Signatures tell the model what arguments to pass; docstrings describe, in prose, what the tool does. Neither states how the tool changes the world, whether that change can be undone, which tools precede or follow it, or how it fails mid-execution. The model infers all of this from experience, and infers differently across contexts, sessions, and model versions.
 
-One principle governs the fix: **each tool does exactly one thing.** "Cut" is one operation; "cut the bread into slices and arrange them on the plate" is several. If a tool needs "and" to describe it, it is two tools; if its behaviour changes on a mode flag, it is several tools in one interface. Multi-step behaviour emerges later, through composition by the machine (Chapter 2); the tool author's job is to define atomic tools.
+One principle governs the fix: **each tool does exactly one agent-visible thing.** "Cut" is one operation; "cut the bread into slices and arrange them on the plate" is several independently meaningful effects. Atomicity is judged at the selectable contract and rollback boundaries, not by counting implementation helpers, subprocesses, validation branches, parsing loops, or formatting stages needed to construct one result. If a mode flag selects distinct domain operations or a tool hides separately selectable effects, it is several tools in one interface. Multi-step workflow behaviour emerges later, through composition by the machine (Chapter 2); the tool author's job is to define atomic contracts.
 
 
 ## Applicability
@@ -50,7 +50,7 @@ The tool contract is the structured requirements document behind each tool, not 
 
 ### The tool cycle
 
-At runtime a tool is one iteration of the machine's dispatch cycle: the machine dispatches a tool, the tool executes an effect and emits a signal, and that signal drives the next transition. The activity diagram in Fig. 11 shows the loop. A tool should therefore never contain a loop, a conditional over multiple outcomes, or an embedded state machine. Those are execution-level constructs that belong in the machine. (The sole exception is a non-terminal tool, which hides a sub-machine behind an atomic interface.)
+At runtime a tool is one iteration of the machine's dispatch cycle: the machine dispatches a tool, the tool executes an effect and emits a signal, and that signal drives the next transition. The activity diagram in Fig. 11 shows the loop. A tool must not hide a workflow loop, branch among separately selectable domain operations, or dispatch undeclared child tools. Internal bounded iteration and conditionals that validate input, implement a protocol, enforce policy, parse/format one result, or continue a single atomic recovery operation are implementation details, provided they do not introduce another contract or rollback boundary. A non-terminal boundary tool may also hide a sub-machine behind its declared atomic interface.
 
 ![](figures/fig-12-tool-cycle.png)
 
@@ -69,6 +69,8 @@ A completed contract passes four questions, each targeting a different consumer.
 The activity diagram in Fig. 12 shows the gate: pass all four or the contract is incomplete, and any failure routes back to revision. Partial passes are meaningless. An implementable-but-not-composable tool fails in production just as surely, only later and more expensively.
 
 Composite tools violate the pattern's core rule: each tool should do exactly one thing. When a tool needs "and" to describe its operation, such as create a resource and configure it, the composition belongs in the machine's transition table rather than inside the tool. Hiding that sequence inside a tool prevents static validation, makes reuse harder, and obscures rollback boundaries. During a tool-set audit, a composite tool is evidence of incomplete decomposition and should be split unless it is explicitly a non-terminal boundary tool.
+
+An audit must distinguish this contract-level composition from implementation structure. The presence of `net/http`, `exec.Command`, a directory walk, a parser, or a loop is evidence to inspect, not itself a finding. Before recommending an external executable, the audit must prove behavioral equivalence (including security, observability, receipts, errors, portability, and performance), runtime provisioning, and an executable test path. Test-only orchestration is outside this pattern unless the harness itself is the product under review; replacing an independent observer with the system's own words can make conformance circular.
 
 ![](figures/fig-13-contract-gate.png)
 
