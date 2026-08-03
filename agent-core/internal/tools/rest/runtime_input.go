@@ -33,3 +33,22 @@ func ValidateRuntimeInput(input map[string]interface{}) error {
 	}
 	return nil
 }
+
+// declaredParamNames is the set of param names an operation declares across its
+// path, query, header, and body-schema bindings.
+func declaredParamNames(binding RequestBinding) map[string]bool {
+	names := map[string]bool{}
+	for name := range binding.Path {
+		names[name] = true
+	}
+	for name := range binding.Query {
+		names[name] = true
+	}
+	for name := range binding.Headers {
+		names[name] = true
+	}
+	for name := range schemaProperties(binding.BodySchema) {
+		names[name] = true
+	}
+	return names
+}

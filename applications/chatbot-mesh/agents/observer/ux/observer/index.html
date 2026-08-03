@@ -206,7 +206,7 @@ h1{font-size:1.4rem;font-weight:600;margin-bottom:.25rem}
   function renderTopology(data, metricsMap) {
     var deployments = data.deployments || [];
     var services = data.services || [];
-    var agents = data.agents || data.fleet || [];
+    var pods = data.pods || [];
     if (deployments.length === 0 && services.length === 0) { topology.innerHTML = ''; return; }
     var svcByComponent = {};
     services.forEach(function(s) {
@@ -215,17 +215,25 @@ h1{font-size:1.4rem;font-weight:600;margin-bottom:.25rem}
       var nm = s.name || (s.metadata && s.metadata.name);
       if (comp) svcByComponent[comp] = nm;
     });
+    // Group the discovered pods by their owning Deployment's component label, so
+    // the topology shows real pods per Deployment from discovery alone, without
+    // depending on the per-agent monitor fan-in.
+    var podsByComponent = {};
+    pods.forEach(function(p) {
+      var labels = (p.metadata && p.metadata.labels) || {};
+      var comp = labels['app.kubernetes.io/component'];
+      var nm = p.name || (p.metadata && p.metadata.name) || 'pod';
+      if (comp) (podsByComponent[comp] = podsByComponent[comp] || []).push(nm);
+    });
     var html = '<div class="section-title">Topology</div>';
     deployments.forEach(function(d) {
       var nm = d.name || (d.metadata && d.metadata.name) || 'deployment';
       var comp = (d.metadata && d.metadata.labels && d.metadata.labels['app.kubernetes.io/component']) || nm;
-      var pods = agents.filter(function(a){ return (a.component || a.name || '').indexOf(comp) !== -1; });
       html += '<div class="topo-group">';
       html += '<h3>' + esc(nm) + '</h3>';
       if (svcByComponent[comp]) html += '<div class="topo-svc">service: ' + esc(svcByComponent[comp]) + '</div>';
       html += '<div class="topo-pods">';
-      pods.forEach(function(p) {
-        var pn = p.name || 'pod';
+      (podsByComponent[comp] || []).forEach(function(pn) {
         var res = metricsMap[pn] ? (metricsMap[pn].cpu + '/' + metricsMap[pn].memory) : 'n/a';
         html += '<span class="pod-chip">' + esc(pn) + ' · ' + esc(res) + '</span>';
       });
@@ -234,13 +242,17 @@ h1{font-size:1.4rem;font-weight:600;margin-bottom:.25rem}
     topology.innerHTML = html;
   }
 
-  // labelArray reads one command_state entry's declared output field. It returns
-  // [] when the label has no recorded step yet or its output is unavailable, so a
-  // mid-cycle or degraded poll renders the empty/degraded state (srd008 R2.3).
+  // labelArray reads one command_state entry's declared output field. The REST
+  // client exposes the operation's response.output result under `mapped`, so the
+  // discovered array lives at output.mapped[field] (with a direct fallback). It
+  // returns [] when the label has no recorded step yet or its output is
+  // unavailable, so a mid-cycle or degraded poll renders the empty/degraded
+  // state (srd008 R2.3).
   function labelArray(labels, label, field) {
     var entry = labels[label];
     if (!entry || entry.available === false || !entry.output) return [];
-    var value = entry.output[field];
+    var out = entry.output.mapped || entry.output;
+    var value = out[field];
     return Array.isArray(value) ? value : [];
   }
 
@@ -250,6 +262,7 @@ h1{font-size:1.4rem;font-weight:600;margin-bottom:.25rem}
   function fleetData(labels) {
     return {
       agents: labelArray(labels, 'poll_agent_monitors', 'agents'),
+      pods: labelArray(labels, 'discover_mesh_pods', 'pods'),
       deployments: labelArray(labels, 'list_mesh_deployments', 'deployments'),
       services: labelArray(labels, 'list_mesh_services', 'services'),
       pod_metrics: labelArray(labels, 'poll_pod_metrics', 'pod_metrics'),

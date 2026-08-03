@@ -84,9 +84,10 @@ func (Integration) Observer() error {
 		"OBSERVER_CONTROL_PORT="+controlPort,
 		"OBSERVER_MONITOR_PORT="+monitorPort,
 		"OBSERVER_POLL_INTERVAL=2s",
-		// Point kube client at a non-routable address so discovery degrades
-		// instead of hanging on a real kube API.
-		"KUBE_API_URL=https://127.0.0.1:1",
+		// Point the kube client at a non-routable loopback address so discovery
+		// degrades instead of hanging. http matches the client's proxy-only
+		// network limits (GH-1302).
+		"KUBE_API_URL=http://127.0.0.1:1",
 		"OBSERVER_KUBE_TIMEOUT=1s",
 		"OBSERVER_AGENT_TIMEOUT=1s",
 	)
@@ -190,23 +191,30 @@ func observerFleetLabelsView(monitorURL string) (map[string]interface{}, error) 
 	return labels, nil
 }
 
-// observerFleetAgents extracts the discovered agent count from the fleet view's
-// poll_agent_monitors entry, returning 0 when the label has no recorded step or
-// its output is unavailable.
-func observerFleetAgents(labels map[string]interface{}) int {
-	entry, ok := labels["poll_agent_monitors"].(map[string]interface{})
+// observerFleetDiscoveredPods counts the pods the observer discovered from the
+// fleet view's discover_mesh_pods entry, returning 0 when the label has no
+// recorded step or its output is unavailable. The REST client exposes the
+// operation's response.output result under `mapped`, so the pod list lives at
+// output.mapped.pods (GH-1302). Per-agent monitor fan-in (poll_agent_monitors)
+// is a single static endpoint and is tracked separately.
+func observerFleetDiscoveredPods(labels map[string]interface{}) int {
+	entry, ok := labels["discover_mesh_pods"].(map[string]interface{})
 	if !ok {
 		return 0
 	}
-	fleetOutput, ok := entry["output"].(map[string]interface{})
+	output, ok := entry["output"].(map[string]interface{})
 	if !ok {
 		return 0
 	}
-	agents, ok := fleetOutput["agents"].([]interface{})
+	mapped, ok := output["mapped"].(map[string]interface{})
 	if !ok {
 		return 0
 	}
-	return len(agents)
+	pods, ok := mapped["pods"].([]interface{})
+	if !ok {
+		return 0
+	}
+	return len(pods)
 }
 
 // observerHasRunState checks whether the monitor state response contains a
@@ -304,7 +312,7 @@ func observerKindIntegration(applicationRoot, coreRoot, kubeAPIURL, namespace, l
 	if err != nil {
 		return 0, fmt.Errorf("observer fleet: %w\n%s", err, output.String())
 	}
-	discovered := observerFleetAgents(fleet)
+	discovered := observerFleetDiscoveredPods(fleet)
 
 	req, _ := http.NewRequest(http.MethodPost,
 		controlURL+observerExitPath,
