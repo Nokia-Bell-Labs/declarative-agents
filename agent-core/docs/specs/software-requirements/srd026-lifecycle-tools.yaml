@@ -63,6 +63,7 @@ requirements:
       - R3.8: checkpoint_rollback output SHALL include the run_id, target step index, the number of entries reverted, and any skipped irreversible entries.
       - R3.9: checkpoint_rollback SHALL classify its own undo as compensatable because it rewrites persisted run state and invokes external compensation.
       - R3.10: checkpoint_rollback SHALL carry operator compensation metadata naming run_id, target step index, and operator_decision as required context; the engine never interprets the per-entry tool receipts it replays.
+      - R3.11: Each receipt-walk attempt SHALL be observable on the rollback boundary span as rollback.entry_reversed, rollback.entry_undo_failed, or rollback.entry_skipped with its step and command; the final structured report SHALL retain aggregate reversed, failed, and skipped outcomes.
 
   R4:
     title: Typed config and runtime inputs
