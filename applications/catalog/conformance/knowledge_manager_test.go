@@ -35,6 +35,7 @@ import (
 // control tool families), R3.1 (control exit and listener shutdown), and R3.2
 // (Done terminal outcome).
 func TestKnowledgeManagerConformance(t *testing.T) {
+	t.Parallel()
 	coreRoot := RequireCoreRoot(t)
 
 	docsAddr := FreeAddr(t)
@@ -87,6 +88,7 @@ func TestKnowledgeManagerConformance(t *testing.T) {
 // are patched; the shipped machine, declarations, REST operations, prompt, and
 // tool selection remain in control of sequencing and data threading.
 func TestCorpusReaderConformance(t *testing.T) {
+	t.Parallel()
 	var embedded, queried, grounded atomic.Bool
 	fixture := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		w.Header().Set("Content-Type", "application/json")
@@ -150,6 +152,7 @@ func TestCorpusReaderConformance(t *testing.T) {
 }
 
 func TestCorpusReaderRESTFailureConformance(t *testing.T) {
+	t.Parallel()
 	fixture := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		w.Header().Set("Content-Type", "application/json")
 		if r.URL.Path == "/api/tags" {
@@ -222,6 +225,7 @@ type knowledgeToolDeclaration struct {
 }
 
 func TestCorpusIngestListsTrustedCorpusBeforeModelControl(t *testing.T) {
+	t.Parallel()
 	var machine struct {
 		States []struct {
 			Name string `yaml:"name"`
