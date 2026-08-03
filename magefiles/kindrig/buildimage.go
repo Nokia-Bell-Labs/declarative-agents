@@ -16,43 +16,74 @@ import (
 // because the published image is not pullable from every environment.
 const DefaultAgentCoreImage = "declarative-agents/agent-core:local"
 
+// agentCoreDockerfile is the minimal runtime image contract: the linux agent on
+// PATH and the core tools under AGENT_CORE_HOME. chatbot-mesh's
+// buildSmokeRuntimeImage is the sibling of this builder and must keep the same
+// contract.
+const agentCoreDockerfile = "FROM alpine:3.22\n" +
+	"RUN apk add --no-cache ca-certificates bash\n" +
+	"COPY agent /usr/local/bin/agent\n" +
+	"COPY tools /opt/agent-core/tools\n" +
+	"ENV AGENT_CORE_HOME=/opt/agent-core HOME=/tmp PATH=/usr/local/bin:/usr/bin:/bin\n" +
+	"ENTRYPOINT [\"agent\"]\n"
+
+// imageCommandRunner runs an external command in dir with extra environment,
+// injected so the build/docker invocations are observed and their failures
+// exercised without a real toolchain.
+type imageCommandRunner func(dir string, env []string, name string, args ...string) error
+
+// imageBuilder holds the command and filesystem boundaries the image build
+// depends on, so each boundary -- and its failure -- can be exercised in tests.
+type imageBuilder struct {
+	run       imageCommandRunner
+	writeFile func(name string, data []byte, perm os.FileMode) error
+	copyTree  func(src, dst string) error
+}
+
+func defaultImageBuilder() imageBuilder {
+	return imageBuilder{
+		run:       runImageCommand,
+		writeFile: os.WriteFile,
+		copyTree:  copyTreeContents,
+	}
+}
+
+func runImageCommand(dir string, env []string, name string, args ...string) error {
+	cmd := exec.Command(name, args...)
+	cmd.Dir = dir
+	if len(env) > 0 {
+		cmd.Env = append(os.Environ(), env...)
+	}
+	cmd.Stdout, cmd.Stderr = os.Stderr, os.Stderr
+	return cmd.Run()
+}
+
 // BuildAgentCoreImage builds the linux agent binary from the local agent-core
 // checkout and bakes it into a minimal runtime image, so local flows run the
-// code under test rather than a published image. The image mirrors the
-// production runtime contract: agent on PATH and core tools under
-// AGENT_CORE_HOME. chatbot-mesh's buildSmokeRuntimeImage is the sibling of
-// this builder and must keep the same image contract.
+// code under test rather than a published image.
 func BuildAgentCoreImage(coreRoot, image string) error {
+	return defaultImageBuilder().build(coreRoot, image)
+}
+
+func (b imageBuilder) build(coreRoot, image string) error {
 	ctxDir, err := os.MkdirTemp("", "agent-core-image-*")
 	if err != nil {
 		return err
 	}
 	defer func() { _ = os.RemoveAll(ctxDir) }()
 
-	build := exec.Command("go", "build", "-tags", "production", "-trimpath",
-		"-ldflags=-s -w", "-o", filepath.Join(ctxDir, "agent"), "./cmd/agent")
-	build.Dir = coreRoot
-	build.Env = append(os.Environ(), "CGO_ENABLED=0", "GOOS=linux")
-	build.Stdout, build.Stderr = os.Stderr, os.Stderr
-	if err := build.Run(); err != nil {
+	if err := b.run(coreRoot, []string{"CGO_ENABLED=0", "GOOS=linux"},
+		"go", "build", "-tags", "production", "-trimpath", "-ldflags=-s -w",
+		"-o", filepath.Join(ctxDir, "agent"), "./cmd/agent"); err != nil {
 		return fmt.Errorf("build linux agent: %w", err)
 	}
-	if err := copyTreeContents(filepath.Join(coreRoot, "tools"), filepath.Join(ctxDir, "tools")); err != nil {
+	if err := b.copyTree(filepath.Join(coreRoot, "tools"), filepath.Join(ctxDir, "tools")); err != nil {
 		return err
 	}
-	dockerfile := "FROM alpine:3.22\n" +
-		"RUN apk add --no-cache ca-certificates bash\n" +
-		"COPY agent /usr/local/bin/agent\n" +
-		"COPY tools /opt/agent-core/tools\n" +
-		"ENV AGENT_CORE_HOME=/opt/agent-core HOME=/tmp PATH=/usr/local/bin:/usr/bin:/bin\n" +
-		"ENTRYPOINT [\"agent\"]\n"
-	if err := os.WriteFile(filepath.Join(ctxDir, "Dockerfile"), []byte(dockerfile), 0o644); err != nil {
+	if err := b.writeFile(filepath.Join(ctxDir, "Dockerfile"), []byte(agentCoreDockerfile), 0o644); err != nil {
 		return fmt.Errorf("write agent-core image Dockerfile: %w", err)
 	}
-	docker := exec.Command("docker", AgentCoreImageBuildArgs(image)...)
-	docker.Dir = ctxDir
-	docker.Stdout, docker.Stderr = os.Stderr, os.Stderr
-	if err := docker.Run(); err != nil {
+	if err := b.run(ctxDir, nil, "docker", AgentCoreImageBuildArgs(image)...); err != nil {
 		return fmt.Errorf("docker build %s: %w", image, err)
 	}
 	return nil
@@ -80,20 +111,38 @@ func copyTreeContents(src, dst string) error {
 		if !entry.Type().IsRegular() {
 			return nil
 		}
-		source, err := os.Open(path)
-		if err != nil {
-			return err
-		}
-		defer func() { _ = source.Close() }()
-		if err := os.MkdirAll(filepath.Dir(target), 0o755); err != nil {
-			return err
-		}
-		destination, err := os.Create(target)
-		if err != nil {
-			return err
-		}
-		defer func() { _ = destination.Close() }()
-		_, err = io.Copy(destination, source)
-		return err
+		return copyRegularFile(path, target)
 	})
+}
+
+// copyRegularFile copies one regular file, closing both descriptors
+// immediately rather than deferring to the end of a traversal (so a many-file
+// tree cannot exhaust descriptors) and reporting read, write, and close
+// failures.
+func copyRegularFile(src, dst string) error {
+	source, err := os.Open(src)
+	if err != nil {
+		return err
+	}
+	if err := os.MkdirAll(filepath.Dir(dst), 0o755); err != nil {
+		_ = source.Close()
+		return err
+	}
+	destination, err := os.Create(dst)
+	if err != nil {
+		_ = source.Close()
+		return err
+	}
+	_, copyErr := io.Copy(destination, source)
+	closeDstErr := destination.Close()
+	closeSrcErr := source.Close()
+	switch {
+	case copyErr != nil:
+		return fmt.Errorf("copy %s to %s: %w", src, dst, copyErr)
+	case closeDstErr != nil:
+		return fmt.Errorf("close %s: %w", dst, closeDstErr)
+	case closeSrcErr != nil:
+		return fmt.Errorf("close %s: %w", src, closeSrcErr)
+	}
+	return nil
 }
