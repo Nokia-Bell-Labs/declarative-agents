@@ -464,8 +464,10 @@ func buildSmokeRuntimeImage(coreRoot, image string) error {
 	if err := copyDirContents(filepath.Join(coreRoot, "tools"), filepath.Join(ctxDir, "tools")); err != nil {
 		return err
 	}
+	// Sibling of kindrig's agentCoreDockerfile; keep the tool contract in sync
+	// (jq and ripgrep match the production agent-core transform tools, GH-1368).
 	dockerfile := "FROM alpine:3.22\n" +
-		"RUN apk add --no-cache ca-certificates bash\n" +
+		"RUN apk add --no-cache ca-certificates bash jq ripgrep\n" +
 		"COPY agent /usr/local/bin/agent\n" +
 		"COPY tools /opt/agent-core/tools\n" +
 		"ENV AGENT_CORE_HOME=/opt/agent-core HOME=/tmp PATH=/usr/local/bin:/usr/bin:/bin\n" +

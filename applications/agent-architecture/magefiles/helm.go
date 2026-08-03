@@ -3,6 +3,9 @@
 package main
 
 import (
+	"archive/tar"
+	"bytes"
+	"compress/gzip"
 	"crypto/sha256"
 	"fmt"
 	"io/fs"
@@ -21,7 +24,37 @@ const (
 	collectorProfileRuntime  = "agents/collector/profile.yaml"
 	configMapPayloadLimit    = 900 * 1024
 	preparedManifestFilename = "prepared-manifest.yaml"
+	// The documentation-curator's browser UI and the catalog docs tree exceed the
+	// profile ConfigMap payload limit, so instead of a per-app runtime image
+	// (retired, GH-1368) they are packed into one deterministic tar.gz, split into
+	// sub-1-MiB shards under curatorAssetsDir, and shipped as ConfigMaps the
+	// curator init container concatenates and unpacks into /work.
+	curatorAssetsDir        = "curator-assets"
+	curatorAssetShardPrefix = "part-"
+	// 512 KiB of raw gzip per shard base64-encodes to ~699 KiB, well under the
+	// ~1 MiB ConfigMap object limit even with the object's metadata.
+	curatorAssetShardSize = 512 * 1024
 )
+
+// curatorAssetTree is one source directory staged into the curator asset archive
+// under a workspace-relative prefix. arcPrefix mirrors the paths the retired
+// image baked under /opt/curator-ui so untarring into --directory /work resolves
+// the curator profile's ui/*/dist static_assets roots and its docs/ document
+// root (GH-1261, GH-1293).
+type curatorAssetTree struct {
+	arcPrefix string
+	source    string
+}
+
+func curatorAssetSources(catalogRoot string) []curatorAssetTree {
+	return []curatorAssetTree{
+		{
+			arcPrefix: "agents/knowledge-manager/documentation-curator/ui",
+			source:    filepath.Join(catalogRoot, "agents", "knowledge-manager", "documentation-curator", "ui"),
+		},
+		{arcPrefix: "docs", source: filepath.Join(catalogRoot, "docs")},
+	}
+}
 
 // helmRoleSpecs names the two catalog-owned closures the chart mounts. Order is
 // the sorted order the prepared manifest and its validator expect.
@@ -73,8 +106,93 @@ func HelmPrepare() error {
 	if err := stageApplierProfile(resolved.Application, chartRoot); err != nil {
 		return err
 	}
-	fmt.Printf("prepared curator and collector profile closures from %s\n", resolved.Catalog)
+	if err := prepareCuratorAssets(resolved.Catalog, chartRoot); err != nil {
+		return err
+	}
+	fmt.Printf("prepared curator and collector profile closures and curator UI assets from %s\n", resolved.Catalog)
 	return nil
+}
+
+// prepareCuratorAssets packs the documentation-curator's browser UI and the
+// catalog docs tree into one deterministic tar.gz and splits it into sub-1-MiB
+// shards under chartRoot/curator-assets, atomically swapping the shard directory
+// so a failed staging never leaves a partial asset set. The curator-ui template
+// projects each shard as a ConfigMap and the curator init container concatenates
+// and unpacks them into /work (GH-1368; replaces the baked /opt/curator-ui).
+func prepareCuratorAssets(catalogRoot, chartRoot string) error {
+	archive, err := buildCuratorAssetArchive(catalogRoot)
+	if err != nil {
+		return err
+	}
+	destination := filepath.Join(chartRoot, curatorAssetsDir)
+	stage, err := os.MkdirTemp(chartRoot, ".curator-assets-stage-*")
+	if err != nil {
+		return err
+	}
+	defer func() { _ = os.RemoveAll(stage) }()
+	for index, offset := 0, 0; offset < len(archive); index++ {
+		end := offset + curatorAssetShardSize
+		if end > len(archive) {
+			end = len(archive)
+		}
+		name := fmt.Sprintf("%s%03d", curatorAssetShardPrefix, index)
+		if err := os.WriteFile(filepath.Join(stage, name), archive[offset:end], 0o644); err != nil {
+			return fmt.Errorf("write curator asset shard %s: %w", name, err)
+		}
+		offset = end
+	}
+	if err := os.RemoveAll(destination); err != nil {
+		return err
+	}
+	if err := os.Rename(stage, destination); err != nil {
+		return fmt.Errorf("publish curator assets: %w", err)
+	}
+	return nil
+}
+
+// buildCuratorAssetArchive returns a deterministic gzip tarball of the curator
+// asset trees. Files are emitted in sorted order with fixed metadata and the
+// gzip header carries no name or timestamp, so identical inputs produce identical
+// bytes; GNU headers carry the long asset paths busybox tar reads on extraction.
+func buildCuratorAssetArchive(catalogRoot string) ([]byte, error) {
+	var buffer bytes.Buffer
+	gz := gzip.NewWriter(&buffer)
+	writer := tar.NewWriter(gz)
+	for _, tree := range curatorAssetSources(catalogRoot) {
+		files, err := regularRelativeFiles(tree.source)
+		if err != nil {
+			return nil, fmt.Errorf("read curator asset tree %s: %w", tree.source, err)
+		}
+		if len(files) == 0 {
+			return nil, fmt.Errorf("curator asset tree %s is empty", tree.source)
+		}
+		for _, rel := range files {
+			data, err := os.ReadFile(filepath.Join(tree.source, filepath.FromSlash(rel)))
+			if err != nil {
+				return nil, fmt.Errorf("read curator asset %s: %w", rel, err)
+			}
+			header := &tar.Header{
+				Name:     tree.arcPrefix + "/" + rel,
+				Mode:     0o644,
+				Size:     int64(len(data)),
+				Typeflag: tar.TypeReg,
+				Format:   tar.FormatGNU,
+			}
+			if err := writer.WriteHeader(header); err != nil {
+				return nil, fmt.Errorf("write curator asset header %s: %w", header.Name, err)
+			}
+			if _, err := writer.Write(data); err != nil {
+				return nil, fmt.Errorf("write curator asset body %s: %w", header.Name, err)
+			}
+		}
+	}
+	if err := writer.Close(); err != nil {
+		return nil, fmt.Errorf("close curator asset tar: %w", err)
+	}
+	if err := gz.Close(); err != nil {
+		return nil, fmt.Errorf("close curator asset gzip: %w", err)
+	}
+	return buffer.Bytes(), nil
 }
 
 // stageApplierProfile stages the application-owned applier profile

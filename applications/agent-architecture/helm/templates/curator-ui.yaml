@@ -1,0 +1,22 @@
+{{- /*
+  Projects the documentation-curator's browser UI and the catalog docs tree,
+  packed by `mage helmPrepare` into sub-1-MiB gzip shards under curator-assets/,
+  as one ConfigMap per shard. Delivering the assets with the Helm release retires
+  the per-app runtime image that used to bake them at /opt/curator-ui (GH-1368).
+  The curator init container concatenates the shards in key order and unpacks the
+  tar.gz into its workspace so the profile's browser-UI dist static_assets roots
+  and its docs/ document root resolve under --directory /work (GH-1261, GH-1293).
+*/ -}}
+{{- $fullname := include "agent-architecture.fullname" . -}}
+{{- range $path, $_ := .Files.Glob "curator-assets/part-*" }}
+---
+apiVersion: v1
+kind: ConfigMap
+metadata:
+  name: {{ $fullname }}-curator-ui-{{ base $path }}
+  labels:
+    {{- include "agent-architecture.labels" $ | nindent 4 }}
+    app.kubernetes.io/component: curator-ui
+binaryData:
+  {{ base $path }}: {{ $.Files.Get $path | b64enc }}
+{{- end }}

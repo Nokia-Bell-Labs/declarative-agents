@@ -18,7 +18,6 @@ const (
 	demoCluster   = "da-agent-architecture-demo"
 	demoRelease   = "demo"
 	demoNamespace = "agent-architecture-demo"
-	demoImageRepo = "declarative-agents/agent-architecture-demo"
 )
 
 // Demo groups the persistent kind demo cluster targets.
@@ -38,10 +37,6 @@ func (Demo) Up() error {
 	if err != nil {
 		return err
 	}
-	image, _, err := kindrig.CommitImage(demoImageRepo, mustGitRevision(resolved.Application))
-	if err != nil {
-		return err
-	}
 	config := filepath.Join(resolved.Application, "helm", "ci", "kind-demo-config.yaml")
 	return kindrig.DemoUp(kindrig.DefaultRun, demoCluster, config, 120*time.Second, func(kindrig.Cluster) error {
 		kubeconfig, cleanup, err := smokeKubeconfig(demoCluster)
@@ -50,7 +45,7 @@ func (Demo) Up() error {
 		}
 		defer cleanup()
 		environment := smokeEnvironment{kubeconfig: kubeconfig}
-		if err := deployDemo(environment, resolved, image); err != nil {
+		if err := deployDemo(environment, resolved); err != nil {
 			return err
 		}
 		fmt.Printf("demo: curator control at deploy/%s-agent-architecture-curator:18082, documentation :18081; collector query :18193\n", demoRelease)
@@ -67,27 +62,23 @@ func (Demo) Down() error {
 	return kindrig.DemoDown(kindrig.DefaultRun, demoCluster)
 }
 
-func deployDemo(environment smokeEnvironment, resolved roots, image string) error {
+func deployDemo(environment smokeEnvironment, resolved roots) error {
 	ctx, cancel := context.WithTimeout(context.Background(), 40*time.Second)
 	_, _ = environment.run(ctx, "kubectl", "delete", "namespace", demoNamespace,
 		"--ignore-not-found=true", "--wait=true", "--timeout=30s")
 	cancel()
-	if err := buildAgentArchitectureImage(resolved.Application, image); err != nil {
-		return err
-	}
+	// Both workloads run one locally built agent-core image (GH-1368).
 	if err := kindrig.BuildAgentCoreImage(resolved.Core, smokeCollectorImage); err != nil {
-		return fmt.Errorf("build collector image: %w", err)
+		return fmt.Errorf("build agent-core image: %w", err)
 	}
 	kindLoad := func(ctx context.Context, args ...string) ([]byte, error) {
 		return smokeEnvironment{}.run(ctx, "kind", args...)
 	}
-	for _, loadImage := range []string{image, smokeCollectorImage} {
-		ctx, cancel := context.WithTimeout(context.Background(), smokeClusterTimeout)
-		err := kindrig.LoadImage(ctx, kindLoad, demoCluster, loadImage)
-		cancel()
-		if err != nil {
-			return err
-		}
+	loadCtx, cancelLoad := context.WithTimeout(context.Background(), smokeClusterTimeout)
+	loadErr := kindrig.LoadImage(loadCtx, kindLoad, demoCluster, smokeCollectorImage)
+	cancelLoad()
+	if loadErr != nil {
+		return loadErr
 	}
 	if err := runSmokeCommand(environment, 30*time.Second, "kubectl", "create", "namespace", demoNamespace); err != nil {
 		return err
@@ -101,8 +92,7 @@ func deployDemo(environment smokeEnvironment, resolved roots, image string) erro
 	if err != nil {
 		return err
 	}
-	repository, tag := splitImageRef(image)
-	collectorRepository, collectorTag := splitImageRef(smokeCollectorImage)
+	repository, tag := splitImageRef(smokeCollectorImage)
 	ctx, cancel = context.WithTimeout(context.Background(), smokeInstallTimeout)
 	defer cancel()
 	output, err := environment.run(ctx, "helm",
@@ -111,8 +101,8 @@ func deployDemo(environment smokeEnvironment, resolved roots, image string) erro
 		"--values", filepath.Join(resolved.Application, "helm", "ci", "kind-values.yaml"),
 		"--set", "image.repository="+repository,
 		"--set", "image.tag="+tag,
-		"--set", "collector.image.repository="+collectorRepository,
-		"--set", "collector.image.tag="+collectorTag,
+		"--set", "collector.image.repository="+repository,
+		"--set", "collector.image.tag="+tag,
 		"--wait", "--timeout", smokeInstallTimeout.String())
 	if err != nil {
 		return fmt.Errorf("helm demo install: %w: %s", err, strings.TrimSpace(string(output)))

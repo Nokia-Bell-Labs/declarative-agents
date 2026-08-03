@@ -73,6 +73,12 @@ func packageHelmChart(chartRoot, catalogRoot, destination string) (string, error
 	if err := stageApplierProfile(filepath.Dir(chartRoot), chart); err != nil {
 		return "", err
 	}
+	// The curator UI/docs shards ride in the archive the same way profiles do:
+	// helm/curator-assets is gitignored and regenerated fresh from the pinned
+	// catalog so the packaged chart is self-contained (GH-1368).
+	if err := prepareCuratorAssets(catalogRoot, chart); err != nil {
+		return "", err
+	}
 	if err := validatePreparedProfiles(filepath.Join(chart, "profiles")); err != nil {
 		return "", fmt.Errorf("validate staged profiles: %w", err)
 	}
@@ -107,14 +113,16 @@ func stageChartSource(source, destination string) error {
 	for _, name := range chartSourceInventory {
 		allowed[name] = true
 	}
-	// Generated profile inputs and prior release outputs are excluded; profiles
-	// are regenerated from the catalog below.
+	// Generated profile inputs, curator UI asset shards, and prior release outputs
+	// are excluded; profiles and curator-assets are regenerated from the catalog
+	// below so the packaged chart is self-contained (GH-1368).
 	allowed["profiles"] = true
+	allowed[curatorAssetsDir] = true
 	allowed["dist"] = true
 	seen := make(map[string]bool, len(entries))
 	for _, entry := range entries {
 		name := entry.Name()
-		if strings.HasPrefix(name, ".profiles-stage-") {
+		if strings.HasPrefix(name, ".profiles-stage-") || strings.HasPrefix(name, ".curator-assets-stage-") {
 			continue
 		}
 		if !allowed[name] {

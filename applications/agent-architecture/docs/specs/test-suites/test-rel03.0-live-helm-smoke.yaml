@@ -26,7 +26,7 @@ test_cases:
     status: planned
     description: |
       Creates a kind cluster through a temporary kubeconfig, builds and loads the
-      profile-free runtime image the chart references, and installs only the
+      shared profile-free agent-core image the chart references, and installs only the
       validated archive. Asserts the install source is the validated archive, not
       a source-tree surrogate, and that the packaged curator and collector
       closures are the mounted profile source.

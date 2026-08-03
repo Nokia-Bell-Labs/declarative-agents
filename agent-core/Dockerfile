@@ -43,6 +43,7 @@ RUN apk add --no-cache \
     git \
     grep \
     gzip \
+    jq \
     make \
     openssh-client \
     ripgrep \

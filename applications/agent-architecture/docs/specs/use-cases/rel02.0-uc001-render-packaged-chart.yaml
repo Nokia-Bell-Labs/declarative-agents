@@ -5,8 +5,8 @@ status: planned
 summary: |
   An operator prepares the catalog-owned curator and collector profile closures
   and renders a chart that runs the documentation-curator and the collector as
-  persistent workloads. The workloads share the profile-free runtime image,
-  mount only their prepared closures, report their real lifecycle health, and
+  persistent workloads. The workloads share the profile-free agent-core image
+  (GH-1368), mount only their prepared closures, report their real lifecycle health, and
   wire the curator's OTLP export to the in-cluster collector. A values schema
   and template guards reject unsafe or incoherent values, and a self-contained
   archive lints and renders with no source checkout present.

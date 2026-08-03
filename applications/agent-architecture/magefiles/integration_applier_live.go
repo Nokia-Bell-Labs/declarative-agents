@@ -69,10 +69,9 @@ func (Integration) ApplierLive() error {
 }
 
 func runApplierLive(resolved roots) (result error) {
-	image, revision, err := kindrig.CommitImage(smokeImageRepo, mustGitRevision(resolved.Application))
-	if err != nil {
-		return err
-	}
+	// The curator and collector run the locally built agent-core image (GH-1368);
+	// only the applier layers helm and kubectl on top of it.
+	revision := mustGitRevision(resolved.Application)
 	applierImage, _, err := kindrig.CommitImage(applierLiveImageRepo, mustGitRevision(resolved.Application))
 	if err != nil {
 		return err
@@ -118,9 +117,9 @@ func runApplierLive(resolved roots) (result error) {
 		cleanupHelmSmoke(environment, cluster, kindRun, result != nil)
 	}()
 
-	// Reuse the smoke cluster preparation verbatim: it builds and loads the runtime
-	// and collector images and creates the namespace.
-	if err := prepareSmokeCluster(environment, cluster.Name, resolved, image); err != nil {
+	// Reuse the smoke cluster preparation verbatim: it builds and loads the shared
+	// agent-core image both workloads run and creates the namespace.
+	if err := prepareSmokeCluster(environment, cluster.Name, resolved); err != nil {
 		return smokeFailure(environment.run, "cluster preparation", err)
 	}
 
@@ -138,7 +137,7 @@ func runApplierLive(resolved roots) (result error) {
 		return fmt.Errorf("applier image load: %w", err)
 	}
 
-	if err := installApplierLiveChart(environment, chartDir, chartArchive, resolved.Application, image, applierImage); err != nil {
+	if err := installApplierLiveChart(environment, chartDir, chartArchive, resolved.Application, smokeCollectorImage, applierImage); err != nil {
 		return smokeFailure(environment.run, "Helm install", err)
 	}
 	if err := verifyApplierLiveRollouts(environment); err != nil {
@@ -183,6 +182,10 @@ func stageApplierLiveChart(resolved roots) (string, func(), error) {
 		return "", nil, err
 	}
 	if err := stageApplierProfile(resolved.Application, chart); err != nil {
+		cleanup()
+		return "", nil, err
+	}
+	if err := prepareCuratorAssets(resolved.Catalog, chart); err != nil {
 		cleanup()
 		return "", nil, err
 	}
