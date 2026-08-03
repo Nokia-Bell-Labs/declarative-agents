@@ -6,6 +6,7 @@ import (
 	"errors"
 	"os"
 	"os/exec"
+	"path/filepath"
 	"reflect"
 	"strings"
 	"testing"
@@ -334,9 +335,41 @@ func TestReleaseGatesMatchDocumentedContract(t *testing.T) {
 			args: []string{"mage", "integration:all"}},
 		{name: "catalog conformance", dir: "/release/applications/catalog",
 			args: []string{"mage", "conformance"}},
+		{name: "applications/chatbot-mesh integration", dir: "/release/applications/chatbot-mesh",
+			args: []string{"mage", "integration:all"}},
+		{name: "applications/coding-agent integration", dir: "/release/applications/coding-agent",
+			args: []string{"mage", "integration:all"}},
+		{name: "applications/agent-architecture integration", dir: "/release/applications/agent-architecture",
+			args: []string{"mage", "integration:all"}},
 	}
 	if !reflect.DeepEqual(got, want) {
 		t.Fatalf("release gates = %#v, want %#v", got, want)
+	}
+}
+
+// TestReleaseGatesCoverEveryApplicationModule is the orchestration guard: every
+// released application module must participate in the release gate through its
+// own integration:all aggregate, so a released application can never be tagged
+// without its integration evidence running (GH-1343).
+func TestReleaseGatesCoverEveryApplicationModule(t *testing.T) {
+	gates := releaseGates("/release")
+	for _, mod := range applicationModules {
+		wantGate := releaseGate{
+			name: mod + " integration",
+			dir:  filepath.Join("/release", filepath.FromSlash(mod)),
+			args: []string{"mage", "integration:all"},
+		}
+		found := false
+		for _, g := range gates {
+			if reflect.DeepEqual(g, wantGate) {
+				found = true
+				break
+			}
+		}
+		if !found {
+			t.Fatalf("release gates missing integration:all participant for application module %q; gates = %#v",
+				mod, gates)
+		}
 	}
 }
 

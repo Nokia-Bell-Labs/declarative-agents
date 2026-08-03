@@ -114,7 +114,7 @@ func runReleaseGates(commit string) error {
 
 func releaseGates(root string) []releaseGate {
 	catalogRoot := filepath.Join(root, catalogModule)
-	return []releaseGate{
+	gates := []releaseGate{
 		{name: "root audit", dir: root, args: []string{"mage", "audit"}},
 		{name: "root test", dir: root, args: []string{"mage", "test"}},
 		{name: "agent-core integration", dir: filepath.Join(root, "agent-core"),
@@ -124,6 +124,17 @@ func releaseGates(root string) []releaseGate {
 		{name: "catalog conformance", dir: catalogRoot,
 			args: []string{"mage", "conformance"}},
 	}
+	// Every released application module must enter the release gate through its
+	// own integration:all aggregate; otherwise an application is tagged without
+	// its application-owned integration evidence ever running (GH-1343).
+	for _, mod := range applicationModules {
+		gates = append(gates, releaseGate{
+			name: mod + " integration",
+			dir:  filepath.Join(root, filepath.FromSlash(mod)),
+			args: []string{"mage", "integration:all"},
+		})
+	}
+	return gates
 }
 
 func executeReleaseGates(gates []releaseGate, run releaseCommandRunner) error {
