@@ -38,14 +38,16 @@ problem: |
   to the chart's native schema and the rollout phase read from a CLI exit code,
   needing no engine change. The requirements must name the actuation surface, the
   validate-then-apply and verify-then-rollback machine, the authority boundary, and
-  the sanctioned image divergence, separately from the agent-core runtime.
+  the sanctioned image divergence -- the shared applier image that adds helm and
+  kubectl to agent-core and mounts the chart at /chart rather than baking it
+  (GH-1368) -- separately from the agent-core runtime.
 
 goals:
   - G1: Model the applier as a persistent deployment-plane agent that exposes the state, apply, and rollout surface on the Service the provisioner served, so the creator's declared client and the panel are unchanged.
   - G2: Validate a submitted values patch against the chart's schema before applying, and apply it as a values-file rollout rather than per-field --set construction.
   - G3: Verify the rollout from a CLI status read and roll the release back on an apply or verify failure.
   - G4: Hold no chat authority; authenticate the actuation surface apart from chat and set authority by declared, validated config alone.
-  - G5: Carry the helm and kubectl CLIs in the applier image as a recorded, sanctioned divergence from the binary-only image contract (srd003 R1.3).
+  - G5: Run the applier on the shared applier image -- agent-core plus the helm and kubectl CLIs, a recorded, sanctioned divergence from the binary-only image contract (srd003 R1.3) -- and deliver the app's chart to the applier pod as a mounted volume at /chart rather than baking it into the image (GH-1368), so one shared image serves every application.
 
 requirements:
   R1:
@@ -80,7 +82,7 @@ requirements:
     items:
       - R5.1: The applier SHALL NOT decide the values changes; that decision is the provisioning-workflow-orchestrator's (srd004 R3.1).
       - R5.2: The applier SHALL NOT select templates or own agent lifecycle; those are the creator's (srd005).
-      - R5.3: The applier image SHALL carry the helm and kubectl CLIs alongside the runtime binary; this is a sanctioned divergence from the binary-only image contract (srd003 R1.3), recorded so the declarative-decomposition audit does not re-flag it.
+      - R5.3: The applier SHALL run the shared applier image, which carries the helm and kubectl CLIs alongside the agent-core runtime binary; this is a sanctioned divergence from the binary-only image contract (srd003 R1.3), recorded so the declarative-decomposition audit does not re-flag it. The app's chart SHALL be delivered to the applier pod as a mounted volume at /chart rather than baked into the image (GH-1368), so one shared image serves every application.
 
 deployment_api_contract:
   version: "1"
@@ -164,7 +166,7 @@ acceptance_criteria:
       - "test-rel06.0-applier: The panel route reaches only the authorized surface"
       - "test-rel06.0-applier: The rendered chart routes provisioning to the provisioning-workflow-orchestrator"
   - id: AC5
-    criterion: Deciding the values (provisioning-workflow-orchestrator) and template selection or lifecycle (creator) are non-goals, and the applier image carries helm and kubectl as a recorded, sanctioned divergence from the binary-only image contract.
+    criterion: Deciding the values (provisioning-workflow-orchestrator) and template selection or lifecycle (creator) are non-goals, and the applier runs the shared applier image -- agent-core with helm and kubectl as a recorded, sanctioned divergence from the binary-only image contract -- with the app's chart delivered as a mounted volume at /chart rather than baked into the image (GH-1368).
     traces: [R5.1, R5.2, R5.3]
 
 depends_on:

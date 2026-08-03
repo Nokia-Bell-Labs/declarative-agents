@@ -24,9 +24,13 @@ from a directory with no source checkout present.
 
 ## Enable the applier
 
-The applier is disabled by default: its image bundles helm, kubectl, and the chart
-rather than being the profile-free runtime image the curator and collector use, so
-every other cluster test installs the mesh without it. Enable it with the live-tier
+The applier is disabled by default: it runs the shared applier image (agent-core
+plus helm and kubectl, built from `agent-core/applier.Dockerfile`; GH-1368) rather
+than the profile-free runtime image the curator and collector use, so every other
+cluster test installs the mesh without it. The image bakes no chart; the chart it
+runs `helm upgrade agent-architecture /chart` against is delivered to the pod at
+`/chart` as a mounted volume (`applier.chartArchive`, unpacked by an init
+container), so the bytes travel with the Helm release. Enable it with the live-tier
 overlay:
 
 ```sh

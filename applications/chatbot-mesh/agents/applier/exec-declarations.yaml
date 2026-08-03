@@ -20,8 +20,8 @@
 # a non-zero exit (agent-core exec emits exactly these two); the request-machine
 # distinguishes success from failure by the state it is in.
 #
-# The helm flags below are helm 3's spellings, which is what applier.Dockerfile
-# pins (ARG HELM_VERSION). helm 4 renamed both -- --atomic became
+# The helm flags below are helm 3's spellings, which is what the shared
+# agent-core/applier.Dockerfile pins (ARG HELM_VERSION). helm 4 renamed both -- --atomic became
 # --rollback-on-failure and --dry-run prefers --dry-run=client -- and warns about
 # the old names, so a developer whose local helm is 4.x will see deprecation
 # warnings from tests that shell out to it. That is the local helm talking, not

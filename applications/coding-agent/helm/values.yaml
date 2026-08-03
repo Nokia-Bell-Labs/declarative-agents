@@ -75,18 +75,29 @@ collector:
     limits: {cpu: 500m, memory: 512Mi}
 
 # The applier (srd006): the deployment-plane actuator that realizes a decided
-# values change against this chart on Kubernetes. Disabled by default -- its image
-# bundles helm, kubectl, and the chart at /chart (a sanctioned divergence from the
-# profile-free runtime image, srd003 R1.2), not the runtime image the serving and
-# smoke tests kind-load, so the live tier enables it explicitly (ci/kind-applier-values.yaml).
+# values change against this chart on Kubernetes. Disabled by default -- it runs
+# the shared applier image (agent-core plus helm and kubectl, a sanctioned
+# divergence from the profile-free runtime image, srd003 R1.2; GH-1368), which is
+# not the runtime image the serving and smoke tests kind-load, so the live tier
+# enables it explicitly (ci/kind-applier-values.yaml) and supplies the chart it
+# mounts at /chart via applier.chartArchive.
 applier:
   enabled: false
-  # The applier image carries the runtime binary plus helm and kubectl and the
-  # chart at /chart. Built from applications/coding-agent/applier.Dockerfile.
+  # The shared applier image carries the agent-core runtime plus helm and kubectl
+  # (GH-1368); it bakes no chart. Built from agent-core/applier.Dockerfile.
   image:
-    repository: ghcr.io/nokia-bell-labs/declarative-agents/coding-agent-applier
+    repository: ghcr.io/nokia-bell-labs/declarative-agents/applier
     tag: "0.1.0"
     pullPolicy: IfNotPresent
+  # The packaged chart the applier's `helm upgrade coding-agent /chart` word
+  # installs, base64-encoded, delivered to the applier pod at /chart as a mounted
+  # volume rather than baked into the image (GH-1368). Empty by default; whoever
+  # enables the applier supplies it, e.g. the release tooling passes
+  #   --set-file applier.chartArchive=<packaged-chart.tgz.b64>
+  # so the chart bytes travel with the Helm release. With it empty the applier
+  # renders without the chart mount (fine for render-only checks; a live applier
+  # needs the chart).
+  chartArchive: ""
   # apply/request server, control server, monitor server. Chosen apart from the
   # role ports (18200-18221) and the collector ports so no listener collides.
   ports: {apply: 18230, control: 18231, monitor: 18232}

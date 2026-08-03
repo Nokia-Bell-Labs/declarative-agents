@@ -28,7 +28,7 @@
 # a non-zero exit (agent-core exec emits exactly these two); the request machine
 # distinguishes success from failure by the state it is in.
 #
-# The helm flags below are helm 3's spellings, which is what applier.Dockerfile
+# The helm flags below are helm 3's spellings, which is what agent-core/applier.Dockerfile
 # pins (ARG HELM_VERSION). helm 4 spells the validate-without-applying flag
 # --dry-run=client rather than --dry-run and warns about the old name, so a
 # developer whose local helm is 4.x will see deprecation warnings from tests that

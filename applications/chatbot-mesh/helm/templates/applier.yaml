@@ -7,10 +7,14 @@ agent-core runtime with a mounted profile whose request-machine binds the helm a
 kubectl CLIs in this image as exec words. It edits deployment values and triggers
 rollouts only; it submits no endpoint or credential to a running agent.
 
-Sanctioned image divergence (srd003 R1.3): the applier image carries helm and
-kubectl and the chart at /chart alongside the runtime binary, diverging from the
-binary-only runtime image because a deployment-plane agent needs its CLIs in its
-container. Recorded here so the declarative-decomposition audit does not re-flag it.
+Sanctioned image divergence (srd003 R1.3): the shared applier image carries helm
+and kubectl alongside the agent-core runtime binary, diverging from the binary-only
+runtime image because a deployment-plane agent needs its CLIs in its container.
+Recorded here so the declarative-decomposition audit does not re-flag it. The chart
+is not baked into the image (GH-1368): it is delivered to the applier pod at /chart
+as a mounted volume (the packaged chart, unpacked by the stage-chart init
+container), so the bytes travel with the Helm release and one shared image serves
+every app.
 */}}
 apiVersion: v1
 kind: ConfigMap
@@ -24,6 +28,23 @@ data:
   # topology, mounted read-only for the applier's state read path.
   mesh.json: |-
     {{- include "chatbot-mesh.meshView" . | nindent 4 }}
+{{- if .Values.applier.chartArchive }}
+---
+# The chart the applier's `helm upgrade chatbot-mesh /chart` word installs,
+# delivered to the applier pod as data rather than baked into the shared applier
+# image (GH-1368): the app's packaged chart tarball, base64 in this ConfigMap,
+# unpacked into an emptyDir at /chart by the stage-chart init container below. The
+# bytes travel with the Helm release, so the shared image carries no per-app chart.
+apiVersion: v1
+kind: ConfigMap
+metadata:
+  name: {{ $fullname }}-applier-chart
+  labels:
+    {{- include "chatbot-mesh.labels" . | nindent 4 }}
+    app.kubernetes.io/component: applier
+binaryData:
+  chart.tgz: {{ .Values.applier.chartArchive | quote }}
+{{- end }}
 ---
 apiVersion: v1
 kind: ServiceAccount
@@ -128,11 +149,27 @@ spec:
         app.kubernetes.io/component: applier
     spec:
       serviceAccountName: {{ $fullname }}-applier
+      {{- if .Values.applier.chartArchive }}
+      initContainers:
+        # Unpack the app's packaged chart into the shared /chart emptyDir so the
+        # applier's `helm upgrade chatbot-mesh /chart` word finds a chart directory.
+        # The chart is delivered as data (the applier-chart ConfigMap), not baked
+        # into the shared applier image (GH-1368). --strip-components=1 drops the
+        # tarball's top-level chatbot-mesh/ directory so /chart is the chart root.
+        - name: stage-chart
+          image: "{{ .Values.applier.image.repository }}:{{ .Values.applier.image.tag }}"
+          imagePullPolicy: {{ .Values.applier.image.pullPolicy }}
+          command: ["sh", "-c", "tar -xzf /chart-src/chart.tgz -C /chart --strip-components=1"]
+          volumeMounts:
+            - {name: chart-src, mountPath: /chart-src, readOnly: true}
+            - {name: chart, mountPath: /chart}
+      {{- end }}
       containers:
         - name: applier
-          # The applier image bundles the runtime, helm, kubectl, and the chart at
-          # /chart (srd003 R1.3 divergence). The exec words run `helm upgrade
-          # chatbot-mesh /chart ...`, so the release name matches the chart name.
+          # The shared applier image carries the agent-core runtime plus helm and
+          # kubectl; the chart is mounted at /chart (not baked, GH-1368). The exec
+          # words run `helm upgrade chatbot-mesh /chart ...`, so the release name
+          # matches the chart name.
           image: "{{ .Values.applier.image.repository }}:{{ .Values.applier.image.tag }}"
           imagePullPolicy: {{ .Values.applier.image.pullPolicy }}
           args:
@@ -173,7 +210,19 @@ spec:
             - {name: profiles, mountPath: {{ .Values.profiles.mountPath }}, readOnly: true}
             - {name: work, mountPath: {{ .Values.profiles.workMountPath }}}
             - {name: mesh-state, mountPath: /etc/applier, readOnly: true}
+            {{- if .Values.applier.chartArchive }}
+            # The chart the stage-chart init container unpacked, at the /chart path
+            # the helm_upgrade exec word references (GH-1368).
+            - {name: chart, mountPath: /chart}
+            {{- end }}
       volumes:
+        {{- if .Values.applier.chartArchive }}
+        - name: chart
+          emptyDir: {}
+        - name: chart-src
+          configMap:
+            name: {{ $fullname }}-applier-chart
+        {{- end }}
         {{- include "chatbot-mesh.profilesVolume" . | nindent 8 }}
         - name: work
           emptyDir: {}

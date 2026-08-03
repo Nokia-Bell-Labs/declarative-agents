@@ -44,7 +44,7 @@ goals:
   - id: G4
     text: Hold helm and kubectl authority in the applier alone; planner, executor, and critic carry none, and authority is set by declared, validated config.
   - id: G5
-    text: Carry the helm and kubectl CLIs in the applier image as a recorded, sanctioned divergence from the profile-free, binary-only image contract.
+    text: Run the shared applier image (agent-core plus the helm and kubectl CLIs, no baked chart) as a recorded, sanctioned divergence from the profile-free, binary-only image contract; the chart the applier installs is delivered to its pod as a mounted volume, not baked into the image.
 
 requirements:
   - id: R1
@@ -93,7 +93,7 @@ requirements:
       - id: R5.2
         text: The applier shall not select role profiles or own agent lifecycle; those remain the packaging and chart's (srd002, srd003).
       - id: R5.3
-        text: The applier image shall carry the helm and kubectl CLIs alongside the runtime binary; this is a sanctioned divergence from the profile-free, binary-only image contract (srd003 R1.2), recorded so the declarative-decomposition audit does not re-flag it.
+        text: The applier shall run the shared applier image -- agent-core plus the helm and kubectl CLIs, one recipe across every application, baking no chart; this is a sanctioned divergence from the profile-free, binary-only image contract (srd003 R1.2), recorded so the declarative-decomposition audit does not re-flag it. The chart the applier installs shall be delivered to its pod at /chart as a mounted volume, so the chart bytes travel with the Helm release rather than an image rebuild.
 
 acceptance_criteria:
   - id: AC1
@@ -109,7 +109,7 @@ acceptance_criteria:
     criterion: The applier alone holds helm and kubectl bound as exec tools, the serving roles carry none, authority is set by declared validated config and never by this surface (agent-core srd028 V30), and the apply surface is unreachable from the serving and collector pods at the network layer.
     traces: [R4.1, R4.2, R4.3]
   - id: AC5
-    criterion: Deciding the values (the operator or CI caller) and profile selection or lifecycle (packaging and chart) are non-goals, and the applier image carries helm and kubectl as a recorded, sanctioned divergence from the binary-only image contract.
+    criterion: Deciding the values (the operator or CI caller) and profile selection or lifecycle (packaging and chart) are non-goals, and the applier runs the shared applier image (agent-core plus helm and kubectl, no baked chart) as a recorded, sanctioned divergence from the binary-only image contract, with the chart it installs mounted at /chart rather than baked in.
     traces: [R5.1, R5.2, R5.3]
 
 depends_on:

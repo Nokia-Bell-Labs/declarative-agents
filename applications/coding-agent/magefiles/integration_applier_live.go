@@ -4,6 +4,7 @@ package main
 
 import (
 	"context"
+	"encoding/base64"
 	"encoding/json"
 	"fmt"
 	"net/http"
@@ -24,12 +25,15 @@ const (
 	// startCodingHelmForwards) apply unchanged; it stands its own dedicated
 	// cluster apart from the smoke one so a cluster failure here reads as a
 	// cluster failure, not a smoke regression.
-	codingApplierLiveCluster   = "da-coding-agent-applier"
-	codingApplierLiveImageRepo = "declarative-agents/coding-agent-applier"
+	codingApplierLiveCluster = "da-coding-agent-applier"
+	// The shared applier image (GH-1368): agent-core plus helm and kubectl, no
+	// baked chart. One repo serves every application's applier because the image
+	// content is application-agnostic; the per-run tag is the tested commit.
+	codingApplierLiveImageRepo = "declarative-agents/applier"
 
-	// The applier's exec declarations are written for helm 3, which
-	// applier.Dockerfile pins (ARG HELM_VERSION). A helm-4 image would reject
-	// the --atomic/--dry-run spellings outright.
+	// The applier's exec declarations are written for helm 3, which the shared
+	// agent-core/applier.Dockerfile pins (ARG HELM_VERSION). A helm-4 image would
+	// reject the --atomic/--dry-run spellings outright.
 	codingApplierDeclaredHelmMajor = "3"
 
 	// The live apply legs run a real helm upgrade, a real 120s kubectl rollout
@@ -84,10 +88,12 @@ func runCodingApplierLive(roots integrationRoots) (result error) {
 		return err
 	}
 
-	// One instrumented chart directory serves both the host-side install and
-	// the applier image's /chart, so Helm records and rolls back one coherent
-	// chart. Package() must run first so the profile closure the chart mounts
-	// exists on disk.
+	// One instrumented chart directory serves both the host-side install and the
+	// applier's mounted /chart, so Helm records and rolls back one coherent chart.
+	// Package() must run first so the profile closure the chart mounts exists on
+	// disk. The chart is delivered to the applier pod as a volume, not baked into
+	// the image (GH-1368): it is packaged to a tarball, base64-encoded, and passed
+	// as applier.chartArchive so the chart bytes travel with the Helm release.
 	if err := Package(); err != nil {
 		return &codingHelmSemanticError{Step: "profile package", Cause: err}
 	}
@@ -96,6 +102,14 @@ func runCodingApplierLive(roots integrationRoots) (result error) {
 		return err
 	}
 	defer cleanupChart()
+	chartArchive, cleanupArchive, err := packageCodingApplierChart(chartDir)
+	if err != nil {
+		return &codingHelmSemanticError{Step: "applier chart package", Cause: err}
+	}
+	defer cleanupArchive()
+	if err := assertCodingApplierChartArchiveCarriesProfiles(chartArchive); err != nil {
+		return &codingHelmSemanticError{Step: "applier chart verification", Cause: err}
+	}
 
 	kindConfig := filepath.Join(roots.Application, "helm", "ci", "kind-config.yaml")
 	kindRun := func(args ...string) ([]byte, error) {
@@ -133,10 +147,11 @@ func runCodingApplierLive(roots integrationRoots) (result error) {
 		return classifyCodingHelmFailure(environment.run, "cluster preparation", err, true)
 	}
 
-	// The applier image is built FROM the runtime image prepareCodingHelmCluster
-	// just built and carries the instrumented /chart, so the in-cluster upgrade
-	// renders the same chart the host installs.
-	if err := buildCodingApplierImage(roots.Application, chartDir, images.Agent, applierImage); err != nil {
+	// The shared applier image is FROM agent-core (GH-1368): agent-core plus helm
+	// and kubectl, no baked chart. prepareCodingHelmCluster already built and
+	// loaded the agent-core image the collector runs on; the applier layers on it,
+	// and the chart reaches the pod through the mounted applier.chartArchive.
+	if err := buildCodingApplierImage(roots.Core, codingHelmCollectorImage, applierImage); err != nil {
 		return &codingHelmSemanticError{Step: "applier image build", Cause: err}
 	}
 	if err := assertCodingApplierImageCarriesItsTools(applierImage); err != nil {
@@ -146,7 +161,7 @@ func runCodingApplierLive(roots integrationRoots) (result error) {
 		return &codingHelmInfrastructureError{Step: "applier image load", Cause: err}
 	}
 
-	if err := installCodingApplierLiveChart(environment, chartDir, roots.Application, images.Agent, applierImage); err != nil {
+	if err := installCodingApplierLiveChart(environment, chartDir, chartArchive, roots.Application, images.Agent, applierImage); err != nil {
 		return classifyCodingHelmFailure(environment.run, "Helm install", err, true)
 	}
 	if err := verifyCodingHelmRollouts(environment, "applier"); err != nil {
@@ -187,10 +202,10 @@ func resolveCodingApplierImage(applicationRoot string) (string, error) {
 
 // stageCodingApplierLiveChart assembles one chart directory carrying the profile
 // closure, the collector and applier profiles, and a test-only post-upgrade
-// rollback trigger. Both the host-side install and the applier image's /chart use
-// this directory, so a values change re-renders one coherent instrumented chart
-// (srd006 R2.2). It mirrors packageHelmChart's staging without packaging to a
-// tgz, because the applier image needs a directory to COPY.
+// rollback trigger. The host installs this directory, and packageCodingApplierChart
+// packages it to the tarball the applier mounts at /chart, so a values change
+// re-renders one coherent instrumented chart (srd006 R2.2). It mirrors
+// packageHelmChart's staging.
 func stageCodingApplierLiveChart(applicationRoot string) (string, func(), error) {
 	profiles := filepath.Join(applicationRoot, filepath.FromSlash(defaultProfileOutput))
 	stage, err := os.MkdirTemp("", "coding-agent-applier-live-chart-*")
@@ -295,41 +310,102 @@ spec:
 {{- end }}
 `
 
-// buildCodingApplierImage builds the applier image from the locally built runtime
-// image and the supplied staged chart rather than published artifacts, so the
-// live tier runs the code under test the way the smoke does.
-//
-// The build context carries the *staged* chart, not the one in the repo: the
-// Dockerfile's `COPY helm /chart` takes whatever the context has, and the chart
-// in the repo carries no profiles (helm/profiles/ is gitignored and staged by
-// Package). An image built from the unstaged chart renders a nearly empty
-// profiles ConfigMap, so an in-cluster upgrade would replace the live one and no
-// agent would survive its next restart.
+// buildCodingApplierImage builds the shared applier image from the locally built
+// agent-core runtime rather than published artifacts, so the live tier runs the
+// code under test the way the smoke does (GH-1368). The image is agent-core plus
+// helm and kubectl and bakes no chart; the chart reaches the running pod through
+// the mounted applier.chartArchive, so the build context carries nothing.
 //
 // TARGETARCH is passed explicitly. The Dockerfile defaults it to amd64, and a
 // plain docker build on an arm64 host does not set it -- the result is an arm64
 // image carrying amd64 helm and kubectl, which crash the first time an exec word
 // runs one. The kind nodes are the host's architecture, so the image has to be
 // too.
-func buildCodingApplierImage(applicationRoot, chartDir, runtimeImage, image string) error {
-	buildCtx, err := os.MkdirTemp("", "coding-applier-image-ctx-*")
-	if err != nil {
-		return err
-	}
-	defer func() { _ = os.RemoveAll(buildCtx) }()
-	if err := copyTree(chartDir, filepath.Join(buildCtx, "helm")); err != nil {
-		return fmt.Errorf("place the staged chart in the build context: %w", err)
-	}
+func buildCodingApplierImage(coreRoot, runtimeImage, image string) error {
 	ctx, cancel := context.WithTimeout(context.Background(), codingHelmClusterTimeout)
 	defer cancel()
 	cmd := exec.CommandContext(ctx, "docker", "build",
-		"-f", filepath.Join(applicationRoot, "applier.Dockerfile"),
+		"-f", filepath.Join(coreRoot, "applier.Dockerfile"),
 		"--build-arg", "RUNTIME_IMAGE="+runtimeImage,
 		"--build-arg", "TARGETARCH="+runtime.GOARCH,
-		"-t", image, buildCtx)
+		"-t", image, coreRoot)
 	if output, err := cmd.CombinedOutput(); err != nil {
 		return fmt.Errorf("docker build %s: %w: %s", image, err, strings.TrimSpace(string(output)))
 	}
+	return nil
+}
+
+// packageCodingApplierChart packages the staged chart directory into a gzipped
+// tarball and returns its path. This is the chart the applier's `helm upgrade
+// coding-agent /chart` word installs, delivered to the pod as data through the
+// applier.chartArchive value rather than baked into the image (GH-1368). It is
+// the same instrumented chart the host installs, so an in-cluster upgrade
+// re-renders one coherent chart.
+func packageCodingApplierChart(chartDir string) (string, func(), error) {
+	dest, err := os.MkdirTemp("", "coding-applier-chart-tgz-*")
+	if err != nil {
+		return "", nil, err
+	}
+	cleanup := func() { _ = os.RemoveAll(dest) }
+	output, err := exec.Command("helm", "package", chartDir, "--destination", dest).CombinedOutput()
+	if err != nil {
+		cleanup()
+		return "", nil, fmt.Errorf("helm package applier chart: %w: %s", err, strings.TrimSpace(string(output)))
+	}
+	archive := filepath.Join(dest, "coding-agent-0.1.0.tgz")
+	if _, err := os.Stat(archive); err != nil {
+		cleanup()
+		return "", nil, fmt.Errorf("packaged applier chart %s: %w", archive, err)
+	}
+	return archive, cleanup, nil
+}
+
+// codingApplierChartArchiveB64 base64-encodes the packaged chart into a temporary
+// file so it can be passed to helm as `--set-file applier.chartArchive=<file>`;
+// the chart template puts the value straight into the applier-chart ConfigMap's
+// binaryData, which the kubelet decodes to the raw tarball the init container
+// unpacks at /chart.
+func codingApplierChartArchiveB64(archive string) (string, func(), error) {
+	raw, err := os.ReadFile(archive)
+	if err != nil {
+		return "", nil, fmt.Errorf("read packaged applier chart: %w", err)
+	}
+	dir, err := os.MkdirTemp("", "coding-applier-chart-b64-*")
+	if err != nil {
+		return "", nil, err
+	}
+	cleanup := func() { _ = os.RemoveAll(dir) }
+	path := filepath.Join(dir, "chart.tgz.b64")
+	if err := os.WriteFile(path, []byte(base64.StdEncoding.EncodeToString(raw)), 0o600); err != nil {
+		cleanup()
+		return "", nil, fmt.Errorf("write applier chart archive base64: %w", err)
+	}
+	return path, cleanup, nil
+}
+
+// assertCodingApplierChartArchiveCarriesProfiles renders the packaged chart the
+// applier will mount at /chart, using the host helm, and requires every serving
+// role's profile to appear. This is what an apply actually does: the applier runs
+// helm upgrade coding-agent /chart, which re-renders the co-generated topology
+// (srd006 R2.2), so the ConfigMap that render produces replaces the live one. If
+// the mounted chart carried no profiles the render would be empty, the
+// replacement would strip every profile, and no agent would survive its next
+// restart.
+func assertCodingApplierChartArchiveCarriesProfiles(archive string) error {
+	out, err := exec.Command("helm", "template", "coding-agent", archive,
+		"--set", "applier.enabled=true").CombinedOutput()
+	if err != nil {
+		return fmt.Errorf("render packaged applier chart: %w\n%s", err, out)
+	}
+	render := string(out)
+	for _, role := range []string{"planner", "executor", "critic"} {
+		key := role + "__profile.yaml"
+		if !strings.Contains(render, key) {
+			return fmt.Errorf("the packaged applier chart renders no %s; an apply would replace the live "+
+				"profiles ConfigMap with one missing it, and that agent would not come back from a restart", key)
+		}
+	}
+	fmt.Println("applierLive: the chart the applier mounts at /chart renders every serving-role profile")
 	return nil
 }
 
@@ -346,7 +422,6 @@ func assertCodingApplierImageCarriesItsTools(image string) error {
 	}{
 		{"helm", []string{"helm", "version", "--short"}, "v"},
 		{"kubectl", []string{"kubectl", "version", "--client"}, "Client Version"},
-		{"the chart at /chart", []string{"cat", "/chart/Chart.yaml"}, "coding-agent"},
 		{"the agent binary", []string{"agent", "--help"}, "profile"},
 	}
 	for _, probe := range probes {
@@ -361,10 +436,7 @@ func assertCodingApplierImageCarriesItsTools(image string) error {
 		}
 		fmt.Printf("applierLive: image carries %s\n", probe.what)
 	}
-	if err := assertCodingApplierImageHelmMajor(image); err != nil {
-		return err
-	}
-	return assertCodingApplierImageChartCarriesProfiles(image)
+	return assertCodingApplierImageHelmMajor(image)
 }
 
 // assertCodingApplierImageHelmMajor proves the helm inside the image is the major
@@ -387,45 +459,28 @@ func assertCodingApplierImageHelmMajor(image string) error {
 	return nil
 }
 
-// assertCodingApplierImageChartCarriesProfiles renders the chart the image ships,
-// using the image's own helm, and requires every serving role's profile to appear
-// in the rendered profiles ConfigMaps. This is what an apply actually does: the
-// applier runs helm upgrade <release> /chart, which re-renders the co-generated
-// topology (srd006 R2.2), so the ConfigMap that render produces replaces the live
-// one. If /chart carries an unstaged chart the render is empty, the replacement
-// strips every profile, and no agent survives its next restart.
-func assertCodingApplierImageChartCarriesProfiles(image string) error {
-	out, err := exec.Command("docker", "run", "--rm", "--entrypoint", "helm", image,
-		"template", "coding-agent", "/chart", "--set", "applier.enabled=true").CombinedOutput()
-	if err != nil {
-		return fmt.Errorf("render /chart with the image's own helm: %w\n%s", err, out)
-	}
-	render := string(out)
-	for _, role := range []string{"planner", "executor", "critic"} {
-		key := role + "__profile.yaml"
-		if !strings.Contains(render, key) {
-			return fmt.Errorf("the chart at /chart renders no %s; an apply would replace the live profiles "+
-				"ConfigMap with one missing it, and that agent would not come back from a restart", key)
-		}
-	}
-	fmt.Println("applierLive: the chart at /chart renders every serving-role profile")
-	return nil
-}
-
 // installCodingApplierLiveChart installs the instrumented chart directory with the
 // applier enabled. It layers the kind footprint every cluster test shares, then
 // the applier the others deliberately disable, and pins the locally built and
-// loaded images.
+// loaded images. The chart the applier mounts at /chart is delivered as data:
+// applier.chartArchive carries the base64 tarball the init container unpacks
+// (GH-1368), so the shared applier image bakes no chart.
 func installCodingApplierLiveChart(
-	environment codingSmokeEnvironment, chartDir, applicationRoot, runtimeImage, applierImage string,
+	environment codingSmokeEnvironment, chartDir, chartArchive, applicationRoot, runtimeImage, applierImage string,
 ) error {
 	repository, tag := splitCodingImageRef(runtimeImage)
 	collectorRepository, collectorTag := splitCodingImageRef(codingHelmCollectorImage)
 	applierRepository, applierTag := splitCodingImageRef(applierImage)
+	archiveB64, cleanupB64, err := codingApplierChartArchiveB64(chartArchive)
+	if err != nil {
+		return err
+	}
+	defer cleanupB64()
 	ctx, cancel := context.WithTimeout(context.Background(), codingHelmInstallTimeout)
 	defer cancel()
 	output, err := environment.run(ctx, "helm",
 		"install", codingHelmRelease, chartDir,
+		"--set-file", "applier.chartArchive="+archiveB64,
 		"--namespace", codingHelmNamespace,
 		"--values", filepath.Join(applicationRoot, "helm", "ci", "kind-values.yaml"),
 		"--values", filepath.Join(applicationRoot, "helm", "ci", "kind-applier-values.yaml"),

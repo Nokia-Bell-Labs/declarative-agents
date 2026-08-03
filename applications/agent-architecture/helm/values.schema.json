@@ -106,6 +106,7 @@
       "properties": {
         "enabled": {"type": "boolean"},
         "image": {"$ref": "#/definitions/image"},
+        "chartArchive": {"type": "string"},
         "ports": {
           "type": "object",
           "additionalProperties": false,
