@@ -12,6 +12,7 @@ import (
 
 	"github.com/Nokia-Bell-Labs/declarative-agents/agent-core/internal/observability/monitor"
 	"github.com/Nokia-Bell-Labs/declarative-agents/agent-core/internal/runtime/core"
+	"github.com/Nokia-Bell-Labs/declarative-agents/agent-core/internal/support/subprocess"
 	"github.com/Nokia-Bell-Labs/declarative-agents/agent-core/internal/tools/catalog"
 )
 
@@ -144,13 +145,20 @@ func (c *ExecCmd) ExecuteContext(ctx context.Context) core.Result {
 	if err := c.checkPrecondition(ctx, dir); err != nil {
 		return core.Result{Output: err.Error(), Signal: core.ToolFailed, CommandName: c.def.Name}
 	}
-	out, duration, err := runExecProcess(ctx, c.def, dir, c.buildArgs(), stdin)
-	res := SubprocessResult(c.def.Name, out, err)
-	c.recordExecMetrics(duration, out, err)
+	run := subprocess.Run(ctx, subprocess.Spec{
+		Binary:           c.def.Binary,
+		Args:             c.buildArgs(),
+		Dir:              dir,
+		Stdin:            stdin,
+		CombinedOutput:   true,
+		NoDefaultTimeout: true,
+	})
+	res := SubprocessResult(c.def.Name, run)
+	c.recordExecMetrics(run.Duration, len(run.Stdout), run.ExitCode)
 	if c.def.OutputCap > 0 {
 		res.Output = CapOutput(res.Output, c.def.OutputCap)
 	}
-	res = shapeExecOutput(c.def, res, err)
+	res = shapeExecOutput(c.def, res, run.ExitCode)
 	if res.Signal != core.CommandError {
 		res.Receipt = c.encodeReceipt()
 	}
