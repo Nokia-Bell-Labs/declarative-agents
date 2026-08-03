@@ -65,12 +65,12 @@ func TestCollectorDefaultEnvironmentBoot(t *testing.T) {
 	result.RequireTerminalState(t, "Done")
 }
 
-// TestCollectorQueryEmptySpool proves a collector with no traffic answers the
-// query surface with an empty list, not an error: the spool file does not
-// exist until the first batch arrives, and a directory misconfigured as the
-// spool path is reported as such (GH-1168).
-func TestCollectorQueryEmptySpool(t *testing.T) {
-	RequireCoreRoot(t)
+// bootCollectorAtSpool starts the shipped collector with the query spool path
+// bound to spoolPath (which need not exist yet) and returns the control origin,
+// the query origin, and the server. The caller drives lifecycle exit so it can
+// assert a clean shutdown.
+func bootCollectorAtSpool(t *testing.T, spoolPath string) (control, queryURL string, server *Server) {
+	t.Helper()
 	controlPort := freePort(t)
 	queryPort := freePort(t)
 	env := []string{
@@ -78,40 +78,106 @@ func TestCollectorQueryEmptySpool(t *testing.T) {
 		"COLLECTOR_CONTROL_PORT=" + controlPort,
 		"COLLECTOR_MONITOR_PORT=" + freePort(t),
 		"COLLECTOR_QUERY_PORT=" + queryPort,
-		"COLLECTOR_SPOOL_PATH=" + filepath.Join(t.TempDir(), "collector.ndjson"),
+		"COLLECTOR_SPOOL_PATH=" + spoolPath,
 	}
-
-	server := Serve(t, ServeConfig{
+	server = Serve(t, ServeConfig{
 		Profile: ProfilePath(filepath.Join("agents", "collector", "profile.yaml")),
 		Env:     env,
 	})
-	control := "http://127.0.0.1:" + controlPort
+	control = "http://127.0.0.1:" + controlPort
 	server.WaitHealthy(control+"/api/lifecycle/health", 15*time.Second)
+	return control, "http://127.0.0.1:" + queryPort, server
+}
 
-	resp, err := http.Get("http://127.0.0.1:" + queryPort + "/query/traces")
-	if err != nil {
-		t.Fatalf("GET /query/traces before any span: %v", err)
-	}
-	body, _ := io.ReadAll(resp.Body)
-	_ = resp.Body.Close()
-	if resp.StatusCode != http.StatusOK {
-		t.Fatalf("empty-spool query status = %d, body = %s", resp.StatusCode, body)
-	}
-	var empty struct {
-		Traces []json.RawMessage `json:"traces"`
-		Total  int               `json:"total"`
-	}
-	if err := json.Unmarshal(body, &empty); err != nil {
-		t.Fatalf("decode empty-spool response: %v", err)
-	}
-	if empty.Total != 0 || len(empty.Traces) != 0 {
-		t.Fatalf("empty-spool query = %s, want zero traces", body)
-	}
+// TestCollectorQueryEmptySpool proves a collector with no traffic answers the
+// query surface with a well-formed empty list, not an error, and that a
+// directory misconfigured as the spool path is reported explicitly rather than
+// masquerading as an empty result (GH-1168).
+func TestCollectorQueryEmptySpool(t *testing.T) {
+	RequireCoreRoot(t)
 
-	if status := server.Post(control+"/api/lifecycle/exit", `{"reason":"conformance"}`); status != http.StatusAccepted {
-		t.Fatalf("exit POST status = %d", status)
-	}
-	server.WaitExit(35*time.Second).RequireExit(t, 0)
+	t.Run("AbsentFileReturnsEmptyList", func(t *testing.T) {
+		// A file that does not exist yet is the pre-first-batch state.
+		control, queryURL, server := bootCollectorAtSpool(t, filepath.Join(t.TempDir(), "collector.ndjson"))
+
+		body, _, status := getBody(t, queryURL+"/query/traces")
+		if status != http.StatusOK {
+			t.Fatalf("empty-spool query status = %d, body = %s", status, body)
+		}
+		// Require the documented keys are present, not merely that zero values
+		// decode: a bare {} response (or a dropped key) must fail here.
+		raw := map[string]json.RawMessage{}
+		if err := json.Unmarshal([]byte(body), &raw); err != nil {
+			t.Fatalf("decode empty-spool response: %v; body:\n%s", err, body)
+		}
+		for _, key := range []string{"traces", "total"} {
+			if _, ok := raw[key]; !ok {
+				t.Fatalf("empty-spool response missing key %q; body:\n%s", key, body)
+			}
+		}
+		// Checked typed decoding of each field: a wrong JSON type fails here.
+		var total int
+		if err := json.Unmarshal(raw["total"], &total); err != nil {
+			t.Fatalf("total is not an integer: %v", err)
+		}
+		var traces []json.RawMessage
+		if err := json.Unmarshal(raw["traces"], &traces); err != nil {
+			t.Fatalf("traces is not a list: %v", err)
+		}
+		if total != 0 || len(traces) != 0 {
+			t.Fatalf("empty-spool query = %s, want zero traces", body)
+		}
+
+		if s := server.Post(control+"/api/lifecycle/exit", `{"reason":"conformance"}`); s != http.StatusAccepted {
+			t.Fatalf("exit POST status = %d", s)
+		}
+		server.WaitExit(35*time.Second).RequireExit(t, 0)
+	})
+
+	t.Run("DirectorySpoolIsReported", func(t *testing.T) {
+		// A directory at the spool path is a misconfiguration the query surface
+		// must surface, not silently read as an empty spool.
+		spoolDir := filepath.Join(t.TempDir(), "collector-spool-dir")
+		if err := os.MkdirAll(spoolDir, 0o755); err != nil {
+			t.Fatalf("create spool directory: %v", err)
+		}
+		control, queryURL, server := bootCollectorAtSpool(t, spoolDir)
+
+		body, ctype, status := getBody(t, queryURL+"/query/traces")
+		// The collector declares the read failure as HTTP 500 with a typed
+		// spool_read_error envelope (agents/collector/rest.yaml), not a 200
+		// empty list.
+		if status != http.StatusInternalServerError {
+			t.Fatalf("directory-spool query status = %d, want 500 (spool_read_error); body:\n%s", status, body)
+		}
+		if !strings.HasPrefix(ctype, "application/json") {
+			t.Errorf("directory-spool content-type = %q, want application/json", ctype)
+		}
+		var errEnvelope struct {
+			Error string `json:"error"`
+			Trace struct {
+				Route          string `json:"route"`
+				Status         string `json:"status"`
+				TerminalSignal string `json:"terminal_signal"`
+			} `json:"trace"`
+		}
+		if err := json.Unmarshal([]byte(body), &errEnvelope); err != nil {
+			t.Fatalf("decode directory-spool error: %v; body:\n%s", err, body)
+		}
+		if errEnvelope.Error != "spool_read_error" {
+			t.Errorf("directory-spool error = %q, want %q; body:\n%s", errEnvelope.Error, "spool_read_error", body)
+		}
+		if errEnvelope.Trace.Route != "list_traces" || errEnvelope.Trace.Status != "failed" ||
+			errEnvelope.Trace.TerminalSignal != "CommandError" {
+			t.Errorf("directory-spool trace = %+v, want route=list_traces status=failed terminal_signal=CommandError",
+				errEnvelope.Trace)
+		}
+
+		if s := server.Post(control+"/api/lifecycle/exit", `{"reason":"conformance"}`); s != http.StatusAccepted {
+			t.Fatalf("exit POST status = %d", s)
+		}
+		server.WaitExit(35*time.Second).RequireExit(t, 0)
+	})
 }
 
 func freePort(t *testing.T) string {
