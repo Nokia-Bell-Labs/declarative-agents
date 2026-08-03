@@ -16,9 +16,6 @@ const (
 	defaultProfilesMount    = "/profiles"
 	defaultWorkMount        = "/work"
 
-	envContainerImage = "AGENT_CORE_IMAGE"
-	envContainerNetRC = "AGENT_CORE_NETRC"
-
 	dockerEngine = "docker"
 )
 
@@ -28,7 +25,7 @@ func Docker() error {
 	if err != nil {
 		return err
 	}
-	opts, err := dockerBuildOptionsFromEnv(ref)
+	opts, err := dockerBuildOptionsFromDemo(ref)
 	if err != nil {
 		return err
 	}
@@ -49,15 +46,23 @@ type dockerBuildOptions struct {
 	NetRC string
 }
 
-func dockerBuildOptionsFromEnv(ref string) (dockerBuildOptions, error) {
-	if err := requireDocker(exec.LookPath); err != nil {
+func dockerBuildOptionsFromDemo(ref string) (dockerBuildOptions, error) {
+	return resolveDockerBuildOptions(ref, ".", exec.LookPath)
+}
+
+func resolveDockerBuildOptions(ref, root string, lookPath lookPathFunc) (dockerBuildOptions, error) {
+	if err := requireDocker(lookPath); err != nil {
+		return dockerBuildOptions{}, err
+	}
+	config, err := loadAgentCoreDemoConfig(root)
+	if err != nil {
 		return dockerBuildOptions{}, err
 	}
 	return dockerBuildOptions{
-		Image: envOrDefault(envContainerImage, defaultContainerImage),
+		Image: valueOrDefault(config.ContainerImage, defaultContainerImage),
 		Ref:   ref,
-		Repo:  strings.TrimSpace(os.Getenv(agentCoreRepoEnvVar)),
-		NetRC: envOrDefault(envContainerNetRC, defaultContainerNetRC),
+		Repo:  strings.TrimSpace(config.ReleaseRepo),
+		NetRC: valueOrDefault(config.ContainerNetRC, defaultContainerNetRC),
 	}, nil
 }
 
@@ -176,8 +181,8 @@ func shellQuote(arg string) string {
 	return "'" + strings.ReplaceAll(arg, "'", `'\''`) + "'"
 }
 
-func envOrDefault(name, fallback string) string {
-	if value := strings.TrimSpace(os.Getenv(name)); value != "" {
+func valueOrDefault(value, fallback string) string {
+	if value = strings.TrimSpace(value); value != "" {
 		return value
 	}
 	return fallback

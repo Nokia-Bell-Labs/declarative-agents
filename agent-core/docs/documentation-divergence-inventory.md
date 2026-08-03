@@ -60,8 +60,10 @@ Source evidence:
   stay in the builder; the runtime stage is Alpine with `agent`, git/Unix
   utilities, and selected YAML config under `/opt/agent-core`.
 - `magefiles/docker.go` resolves the latest remote release tag by default,
-  passes it as `AGENT_CORE_REF`, requires Docker, defaults the build secret to repository-local `.netrc`, and prints a
-  transparent build settings block plus the exact command.
+  reads optional release and image overrides from `demo.yaml`, passes the
+  resolved ref to Docker as `AGENT_CORE_REF`, defaults the build secret to
+  repository-local `.netrc`, and prints the build settings plus the exact
+  command.
 - `.gitignore` ignores `.netrc`, `docker-build-secret-*`, and
   `magefiles/mage_output_file.go`.
 

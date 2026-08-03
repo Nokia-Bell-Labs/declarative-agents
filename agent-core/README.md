@@ -180,16 +180,17 @@ mage docker
 `v0.YYYYMMDD.N` shape, passes it to the Dockerfile as `AGENT_CORE_REF`, and
 builds `agent-core:latest`. Repository releases may also publish a matching
 module-scoped tag such as `agent-core/v0.YYYYMMDD.N`, but Docker release
-resolution continues to use the root tag family unless `AGENT_CORE_REF`
-overrides it. The target requires Docker, and prints the resolved build settings
-plus the exact Docker command before building.
+resolution continues to use the root tag family unless `release_ref` in
+`demo.yaml` overrides it. The target requires Docker, and prints the resolved
+build settings plus the exact Docker command before building.
 
-Common overrides:
+To override release or container settings, uncomment the relevant keys in
+`demo.yaml`:
 
-```bash
-AGENT_CORE_REF=v0.20260612.N mage docker
-AGENT_CORE_IMAGE=registry.example/agent-core:v0.20260612.N mage docker
-AGENT_CORE_REPO=https://gitlabe1.ext.net.nokia.com/proof-of-concepts/agent-core.git mage docker
+```yaml
+release_ref: v0.20260612.N
+release_repo: https://gitlabe1.ext.net.nokia.com/proof-of-concepts/agent-core.git
+container_image: registry.example/agent-core:v0.20260612.N
 ```
 
 For private HTTPS GitLab access, put a build-only `.netrc` in the repository
@@ -213,10 +214,10 @@ Set restrictive permissions on the build-only file:
 chmod 600 .netrc
 ```
 
-Override the path if needed:
+Override the path in `demo.yaml` if needed:
 
-```bash
-AGENT_CORE_NETRC=/path/to/netrc mage docker
+```yaml
+container_netrc: /path/to/netrc
 ```
 
 The equivalent lower-level Docker command is:

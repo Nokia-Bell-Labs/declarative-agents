@@ -6,21 +6,54 @@ import (
 	"fmt"
 	"os"
 	"os/exec"
+	"path/filepath"
 	"regexp"
 	"strconv"
 	"strings"
+
+	"gopkg.in/yaml.v3"
 )
 
 const (
 	tagPrefix            = "v0."
-	agentCoreRefEnvVar   = "AGENT_CORE_REF"
-	agentCoreRepoEnvVar  = "AGENT_CORE_REPO"
+	agentCoreDemoFile    = "demo.yaml"
 	defaultAgentCoreRepo = "https://github.com/Nokia-Bell-Labs/declarative-agents/agent-core.git"
 )
 
+type agentCoreDemoConfig struct {
+	ReleaseRef     string `yaml:"release_ref"`
+	ReleaseRepo    string `yaml:"release_repo"`
+	ContainerImage string `yaml:"container_image"`
+	ContainerNetRC string `yaml:"container_netrc"`
+}
+
 // containerReleaseRef returns the release ref used for container builds.
 func containerReleaseRef() (string, error) {
-	return resolveContainerReleaseRef(os.Getenv(agentCoreRefEnvVar), os.Getenv(agentCoreRepoEnvVar), gitOutput)
+	return containerReleaseRefFrom(".", gitOutput)
+}
+
+func containerReleaseRefFrom(root string, git gitOutputFunc) (string, error) {
+	config, err := loadAgentCoreDemoConfig(root)
+	if err != nil {
+		return "", err
+	}
+	return resolveContainerReleaseRef(config.ReleaseRef, config.ReleaseRepo, git)
+}
+
+func loadAgentCoreDemoConfig(root string) (agentCoreDemoConfig, error) {
+	configPath := filepath.Join(root, agentCoreDemoFile)
+	data, err := os.ReadFile(configPath)
+	if os.IsNotExist(err) {
+		return agentCoreDemoConfig{}, nil
+	}
+	if err != nil {
+		return agentCoreDemoConfig{}, fmt.Errorf("read %s: %w", configPath, err)
+	}
+	var config agentCoreDemoConfig
+	if err := yaml.Unmarshal(data, &config); err != nil {
+		return agentCoreDemoConfig{}, fmt.Errorf("parse %s: %w", configPath, err)
+	}
+	return config, nil
 }
 
 type gitOutputFunc func(args ...string) (string, error)
