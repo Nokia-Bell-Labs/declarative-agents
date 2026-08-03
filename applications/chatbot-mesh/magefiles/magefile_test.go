@@ -200,6 +200,24 @@ func TestChatbotReadmeResolvesCanonicalPuppeteerOwner(t *testing.T) {
 	}
 }
 
+func TestChatbotReadmeDocumentsAuditDemoConfig(t *testing.T) {
+	readme, err := os.ReadFile(filepath.Join("..", "README.md"))
+	if err != nil {
+		t.Fatal(err)
+	}
+	text := string(readme)
+	for _, required := range []string{"`core_root` in `demo.yaml`", "`spec_critic_profile` in `demo.yaml`"} {
+		if !strings.Contains(text, required) {
+			t.Errorf("chatbot README missing audit configuration %q", required)
+		}
+	}
+	for _, stale := range []string{"`AGENT_CORE_ROOT`", "`JURIST_PROFILE`"} {
+		if strings.Contains(text, stale) {
+			t.Errorf("chatbot README retains stale audit configuration %q", stale)
+		}
+	}
+}
+
 // fakeCore returns a temp directory that agentCoreAvailable accepts as an
 // agent-core module checkout (it carries a go.mod file).
 func fakeCore(t *testing.T) string {

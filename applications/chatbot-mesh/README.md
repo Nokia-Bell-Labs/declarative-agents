@@ -140,11 +140,11 @@ Run `mage -l` to list the named `integration:*` targets; each skips cleanly when
 
 `mage audit` is the self-governance gate. It runs the catalog specification-critic validator
 over the application's own corpus, so it needs the agent-core runtime
-(`AGENT_CORE_ROOT`, default repository `agent-core`) and the catalog root
+(`core_root` in `demo.yaml`, default repository `agent-core`) and the catalog root
 (`catalog_root` in `demo.yaml`, default repository `applications/catalog`).
-`JURIST_PROFILE` may override the profile within that catalog. Unlike optional
-`integration:*` targets, audit fails clearly when a required platform tool is
-missing.
+`spec_critic_profile` in `demo.yaml` may override the profile within that
+catalog. Unlike optional `integration:*` targets, audit fails clearly when a
+required platform tool is missing.
 
 The agents run on the agent-core image with a mounted profile, for example `agent --profile agents/chatbot/profile.yaml`. The Helm chart deploys the mesh on a kind cluster; see `helm/` for values and CI configuration.
 
