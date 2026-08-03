@@ -3,6 +3,7 @@
 package main
 
 import (
+	"flag"
 	"net/http"
 	"os"
 	"os/exec"
@@ -10,6 +11,15 @@ import (
 	"strings"
 	"testing"
 	"time"
+)
+
+var (
+	kindKubeAPIURL = flag.String("kind-kube-api-url", "",
+		"Kubernetes API URL for the observer kind integration")
+	kindNamespace = flag.String("kind-namespace", "default",
+		"Kubernetes namespace for the observer kind integration")
+	kindLabelSelector = flag.String("kind-label-selector", "app.kubernetes.io/instance=chatbot-mesh",
+		"Kubernetes label selector for the observer kind integration")
 )
 
 func TestObserverProfileExists(t *testing.T) {
@@ -165,12 +175,11 @@ func TestObserverRBACRender(t *testing.T) {
 }
 
 // TestObserverKindIntegration runs observerKindIntegration against a live kind
-// cluster when OBSERVER_KIND_KUBE_API_URL is set, verifying kube-API discovery
-// and monitor fan-in on a real cluster (GH-1226); it skips cleanly otherwise.
+// cluster when -kind-kube-api-url is passed, verifying kube-API discovery and
+// monitor fan-in on a real cluster (GH-1226); it skips cleanly otherwise.
 func TestObserverKindIntegration(t *testing.T) {
-	kubeAPIURL := os.Getenv("OBSERVER_KIND_KUBE_API_URL")
-	if kubeAPIURL == "" {
-		t.Skip("set OBSERVER_KIND_KUBE_API_URL (and optionally OBSERVER_KIND_NAMESPACE/OBSERVER_KIND_LABEL_SELECTOR) to run the observer kind integration")
+	if *kindKubeAPIURL == "" {
+		t.Skip("pass -kind-kube-api-url with go test -args to run the observer kind integration")
 	}
 	applicationRoot, err := filepath.Abs("..")
 	if err != nil {
@@ -180,15 +189,9 @@ func TestObserverKindIntegration(t *testing.T) {
 	if !agentCoreAvailable(coreRoot) {
 		t.Skipf("agent-core checkout not found at %s", coreRoot)
 	}
-	namespace := os.Getenv("OBSERVER_KIND_NAMESPACE")
-	if namespace == "" {
-		namespace = "default"
-	}
-	selector := os.Getenv("OBSERVER_KIND_LABEL_SELECTOR")
-	if selector == "" {
-		selector = "app.kubernetes.io/instance=chatbot-mesh"
-	}
-	discovered, err := observerKindIntegration(applicationRoot, coreRoot, kubeAPIURL, namespace, selector)
+	discovered, err := observerKindIntegration(
+		applicationRoot, coreRoot, *kindKubeAPIURL, *kindNamespace, *kindLabelSelector,
+	)
 	if err != nil {
 		t.Fatalf("observer kind integration: %v", err)
 	}

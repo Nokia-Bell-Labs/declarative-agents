@@ -155,11 +155,11 @@ mage containerSmoke   # when the agent-core image prerequisite is present
 `go test ./...`, `mage test`, and `mage conformance` do not initiate model
 inference merely because Ollama or a declared model is installed. The six live
 paths (the three executor variants, planner, the REST Ollama variant, and the
-chatbot source router) require `AGENT_PROFILES_LIVE_CONFORMANCE=1`; `mage
-liveConformance` sets that opt-in. Live runs still require each test's exact
-declared model and never substitute another model. They use a five-minute
-per-run default, configurable with a positive Go duration such as
-`AGENT_PROFILES_LIVE_TIMEOUT=10m mage liveConformance`.
+chatbot source router) require `mage liveConformance`, or the equivalent direct
+test invocation `go test ./conformance -args -live=true`. Live runs still
+require each test's exact declared model and never substitute another model.
+They use a five-minute per-run default, configurable for direct test invocations
+with a positive Go duration such as `-args -live=true -live-timeout=10m`.
 
 `mage validate` derives its profile inventory from real profile-shaped files
 under `agents/`; family conformance and specification indexes provide the

@@ -4,23 +4,24 @@ package conformance
 
 import (
 	"encoding/json"
+	"flag"
 	"fmt"
 	"net/http"
-	"os"
-	"strings"
 	"testing"
 	"time"
 )
 
 const (
-	// LiveConformanceEnv is the explicit opt-in for tests that perform live model
-	// inference. Model installation alone must never enable those tests.
-	LiveConformanceEnv = "AGENT_PROFILES_LIVE_CONFORMANCE"
-	// LiveConformanceTimeoutEnv optionally overrides the per-run live inference
-	// timeout using Go duration syntax.
-	LiveConformanceTimeoutEnv = "AGENT_PROFILES_LIVE_TIMEOUT"
-
 	defaultLiveConformanceTimeout = 5 * time.Minute
+	liveConformanceFlag           = "live"
+	liveConformanceTimeoutFlag    = "live-timeout"
+)
+
+var (
+	liveConformance = flag.Bool(liveConformanceFlag, false,
+		"enable conformance tests that perform live model inference")
+	liveConformanceTimeout = flag.Duration(liveConformanceTimeoutFlag, defaultLiveConformanceTimeout,
+		"per-run timeout for live model inference")
 )
 
 // ollamaBaseURL is the default local Ollama endpoint the generator/planner LLM
@@ -33,8 +34,8 @@ const ollamaBaseURL = "http://localhost:11434"
 func RequireLiveModel(t *testing.T, model string) time.Duration {
 	t.Helper()
 	timeout, skip, err := liveModelGate(
-		os.Getenv(LiveConformanceEnv),
-		os.Getenv(LiveConformanceTimeoutEnv),
+		*liveConformance,
+		*liveConformanceTimeout,
 		model,
 		func(model string) error {
 			return probeOllama(&http.Client{Timeout: 3 * time.Second}, ollamaBaseURL, model)
@@ -49,21 +50,13 @@ func RequireLiveModel(t *testing.T, model string) time.Duration {
 	return timeout
 }
 
-func liveModelGate(optIn, timeoutValue, model string, probe func(string) error) (time.Duration, string, error) {
-	if strings.TrimSpace(optIn) != "1" {
-		return 0, fmt.Sprintf(
-			"live model conformance disabled; run `mage liveConformance` or set %s=1",
-			LiveConformanceEnv,
-		), nil
+func liveModelGate(optIn bool, timeout time.Duration, model string, probe func(string) error) (time.Duration, string, error) {
+	if !optIn {
+		return 0, "live model conformance disabled; run `mage liveConformance`", nil
 	}
 
-	timeout := defaultLiveConformanceTimeout
-	if value := strings.TrimSpace(timeoutValue); value != "" {
-		parsed, err := time.ParseDuration(value)
-		if err != nil || parsed <= 0 {
-			return 0, "", fmt.Errorf("%s=%q must be a positive Go duration (for example 5m)", LiveConformanceTimeoutEnv, timeoutValue)
-		}
-		timeout = parsed
+	if timeout <= 0 {
+		return 0, "", fmt.Errorf("-%s must be a positive Go duration (for example 5m)", liveConformanceTimeoutFlag)
 	}
 	if err := probe(model); err != nil {
 		return 0, fmt.Sprintf(

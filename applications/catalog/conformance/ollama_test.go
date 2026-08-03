@@ -12,7 +12,7 @@ import (
 
 func TestLiveModelGateDoesNotProbeWithoutExplicitOptIn(t *testing.T) {
 	probes := 0
-	timeout, skip, err := liveModelGate("", "", "installed:model", func(string) error {
+	timeout, skip, err := liveModelGate(false, defaultLiveConformanceTimeout, "installed:model", func(string) error {
 		probes++
 		return nil
 	})
@@ -25,17 +25,15 @@ func TestLiveModelGateDoesNotProbeWithoutExplicitOptIn(t *testing.T) {
 	if timeout != 0 {
 		t.Fatalf("disabled live timeout = %s, want zero", timeout)
 	}
-	for _, want := range []string{"mage liveConformance", LiveConformanceEnv + "=1"} {
-		if !strings.Contains(skip, want) {
-			t.Errorf("disabled skip reason %q does not contain %q", skip, want)
-		}
+	if want := "mage liveConformance"; !strings.Contains(skip, want) {
+		t.Errorf("disabled skip reason %q does not contain %q", skip, want)
 	}
 }
 
 func TestLiveModelGateOptInProbesExactModel(t *testing.T) {
 	const model = "required:model"
 	var probed string
-	timeout, skip, err := liveModelGate("1", "7m", model, func(got string) error {
+	timeout, skip, err := liveModelGate(true, 7*time.Minute, model, func(got string) error {
 		probed = got
 		return nil
 	})
@@ -54,7 +52,7 @@ func TestLiveModelGateOptInProbesExactModel(t *testing.T) {
 }
 
 func TestLiveModelGateOptInStillRequiresDependency(t *testing.T) {
-	_, skip, err := liveModelGate("1", "", "missing:model", func(string) error {
+	_, skip, err := liveModelGate(true, defaultLiveConformanceTimeout, "missing:model", func(string) error {
 		return probeOllama(http.DefaultClient, unavailableOllama(t), "missing:model")
 	})
 	if err != nil {
@@ -67,12 +65,12 @@ func TestLiveModelGateOptInStillRequiresDependency(t *testing.T) {
 
 func TestLiveModelGateRejectsInvalidTimeout(t *testing.T) {
 	probes := 0
-	_, _, err := liveModelGate("1", "eventually", "required:model", func(string) error {
+	_, _, err := liveModelGate(true, 0, "required:model", func(string) error {
 		probes++
 		return nil
 	})
-	if err == nil || !strings.Contains(err.Error(), LiveConformanceTimeoutEnv) {
-		t.Fatalf("invalid timeout error = %v, want %s guidance", err, LiveConformanceTimeoutEnv)
+	if err == nil || !strings.Contains(err.Error(), "-"+liveConformanceTimeoutFlag) {
+		t.Fatalf("invalid timeout error = %v, want -%s guidance", err, liveConformanceTimeoutFlag)
 	}
 	if probes != 0 {
 		t.Fatalf("dependency probe ran %d times with invalid timeout", probes)
