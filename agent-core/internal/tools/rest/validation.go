@@ -7,6 +7,7 @@ import (
 	"net"
 	"net/http"
 	"strings"
+	"time"
 
 	"github.com/Nokia-Bell-Labs/declarative-agents/agent-core/internal/runtime/core"
 )
@@ -51,10 +52,42 @@ func ValidateDefinition(def Definition) error {
 	if err := validateOpenAPINameCollisions(def); err != nil {
 		return err
 	}
+	if err := validateRetryPolicies(def.RetryPolicies); err != nil {
+		return err
+	}
 	if err := validateClients(def.Clients, def.RetryPolicies); err != nil {
 		return err
 	}
 	return validateServers(def.Servers, def.Limits)
+}
+
+// validateRetryPolicies rejects an unsupported backoff or an unparseable delay
+// at load, so a typo fails there rather than silently degrading to a flat or
+// zero delay at dispatch (GH-1379). The runtime honors backoff and max_delay
+// (client_command.retryDelay), so both are validated here.
+func validateRetryPolicies(policies map[string]RetryPolicy) error {
+	for name, retry := range policies {
+		switch retry.Backoff {
+		case "", "none", "fixed", "exponential":
+		default:
+			return fmt.Errorf("retry policy %q has unsupported backoff %q; want none, fixed, or exponential", name, retry.Backoff)
+		}
+		if err := validateOptionalDuration(retry.InitialDelay); err != nil {
+			return fmt.Errorf("retry policy %q initial_delay %q: %w", name, retry.InitialDelay, err)
+		}
+		if err := validateOptionalDuration(retry.MaxDelay); err != nil {
+			return fmt.Errorf("retry policy %q max_delay %q: %w", name, retry.MaxDelay, err)
+		}
+	}
+	return nil
+}
+
+func validateOptionalDuration(value string) error {
+	if value == "" {
+		return nil
+	}
+	_, err := time.ParseDuration(value)
+	return err
 }
 
 func validateAuthProfiles(profiles map[string]AuthProfile) error {

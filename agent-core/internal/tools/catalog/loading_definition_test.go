@@ -77,6 +77,11 @@ func TestParseToolDefs_Errors(t *testing.T) {
 			yaml:  "tools: [[[",
 			errIs: "parse tool defs",
 		},
+		{
+			name:  "unknown precondition",
+			yaml:  "tools:\n  - name: foo\n    binary: git\n    precondition: git-repo",
+			errIs: "unknown precondition",
+		},
 	}
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {

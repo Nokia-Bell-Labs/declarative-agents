@@ -83,13 +83,15 @@ func TestRunAgentReceiptRestoresPointAndSurfacesChildCompensation(t *testing.T) 
 	result := builder.Build(core.Result{}).Execute()
 	require.Equal(t, SigHarnessFinished, result.Signal, result.Output)
 	require.NotEmpty(t, result.Receipt)
-	require.FileExists(t, resultPath)
+	// run_agent no longer writes result.json (GH-1378): it emits write
+	// parameters for the following write word, so the artifact is not present
+	// after run_agent and is not part of run_agent's compensation.
 	var receipt evaluatorReceipt
 	require.NoError(t, json.Unmarshal([]byte(result.Receipt), &receipt))
 	metadata, ok := receipt.BoundaryMetadata.(map[string]any)
 	require.True(t, ok)
 	require.Equal(t, script, metadata["binary"])
-	require.Equal(t, resultPath, metadata["result_path"])
+	require.NotContains(t, metadata, "result_path")
 
 	pc.ExitCode = 99
 	undoResult := builder.BuildReverser().Undo(core.Result{Receipt: result.Receipt})
@@ -97,8 +99,6 @@ func TestRunAgentReceiptRestoresPointAndSurfacesChildCompensation(t *testing.T) 
 	require.Equal(t, core.CommandError, undoResult.Signal)
 	require.Contains(t, undoResult.Output, "boundary compensation required")
 	require.Zero(t, pc.ExitCode)
-	_, err := os.Stat(resultPath)
-	require.ErrorIs(t, err, os.ErrNotExist)
 }
 
 func TestRunPointReceiptRestoresSessionAndSurfacesNestedCompensation(t *testing.T) {

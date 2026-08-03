@@ -4,8 +4,8 @@ package evaluation
 
 import (
 	"context"
+	"encoding/json"
 	"fmt"
-	"os"
 	"path/filepath"
 
 	"github.com/Nokia-Bell-Labs/declarative-agents/agent-core/internal/runtime/core"
@@ -46,14 +46,33 @@ func (c *runAgentCmd) Execute() core.Result {
 	return c.recordResult(result)
 }
 
+// recordResult projects the child-process outcome into point state and emits
+// the result-artifact write parameters for the following builtin write word.
+// It no longer performs the filesystem write itself (GH-1378): sibling
+// evaluation words emit parameters for a later word rather than doing the side
+// effect, so the machine dispatches write with path=result.json and
+// content=child stdout.
 func (c *runAgentCmd) recordResult(result *execute.Result) core.Result {
 	pc := c.pc
 	pc.Duration = result.Duration
 	pc.ExitCode = result.ExitCode
 	pc.TimedOut = result.TimedOut
 
-	if err := os.WriteFile(pc.ResultPath, []byte(result.Stdout), 0o644); err != nil {
-		err = fmt.Errorf("run_agent: write result artifact %q: %w", pc.ResultPath, err)
+	sig := SigHarnessFinished
+	if pc.TimedOut {
+		sig = SigHarnessTimedOut
+	} else if pc.ExitCode != 0 {
+		sig = SigHarnessFailed
+	}
+
+	output, err := json.Marshal(map[string]any{
+		"parameters": map[string]string{
+			"path":    ArtifactResult,
+			"content": result.Stdout,
+		},
+	})
+	if err != nil {
+		err = fmt.Errorf("run_agent: encode result write parameters: %w", err)
 		return core.Result{
 			CommandName: c.Name(),
 			Signal:      core.CommandError,
@@ -63,17 +82,10 @@ func (c *runAgentCmd) recordResult(result *execute.Result) core.Result {
 		}
 	}
 
-	sig := SigHarnessFinished
-	if pc.TimedOut {
-		sig = SigHarnessTimedOut
-	} else if pc.ExitCode != 0 {
-		sig = SigHarnessFailed
-	}
-
 	return core.Result{
 		CommandName: c.Name(),
 		Signal:      sig,
-		Output:      result.Stdout,
+		Output:      string(output),
 		Cost:        core.Cost{Duration: pc.Duration},
 	}
 }

@@ -3,8 +3,6 @@
 package conformance
 
 import (
-	"net/http"
-	"net/http/httptest"
 	"strings"
 	"testing"
 	"time"
@@ -55,14 +53,46 @@ func TestLiveModelGateOptInProbesExactModel(t *testing.T) {
 
 func TestLiveModelGateOptInStillRequiresDependency(t *testing.T) {
 	t.Parallel()
+	const installed = "NAME              ID            SIZE     MODIFIED\ninstalled:model   abc123        1.0 GB   2 days ago\n"
 	_, skip, err := liveModelGate(true, defaultLiveConformanceTimeout, "missing:model", func(string) error {
-		return probeOllama(http.DefaultClient, unavailableOllama(t), "missing:model")
+		return ollamaListRequires(installed, "missing:model")
 	})
 	if err != nil {
 		t.Fatal(err)
 	}
 	if !strings.Contains(skip, `the Ollama model "missing:model" is not pulled`) {
 		t.Fatalf("dependency skip reason = %q, want missing exact model", skip)
+	}
+}
+
+func TestOllamaListRequiresMatchesExactAndLatest(t *testing.T) {
+	t.Parallel()
+	const listing = "NAME              ID            SIZE     MODIFIED\n" +
+		"qwen2.5:7b        abc123        4.7 GB   2 days ago\n" +
+		"llama3.2:latest   def456        2.0 GB   1 week ago\n"
+	cases := []struct {
+		name    string
+		model   string
+		wantErr bool
+	}{
+		{"exact tag", "qwen2.5:7b", false},
+		{"untagged resolves to latest", "llama3.2", false},
+		{"tagged latest", "llama3.2:latest", false},
+		{"missing model", "mistral:7b", true},
+		{"untagged missing", "mistral", true},
+	}
+	for _, tc := range cases {
+		tc := tc
+		t.Run(tc.name, func(t *testing.T) {
+			t.Parallel()
+			err := ollamaListRequires(listing, tc.model)
+			if tc.wantErr && err == nil {
+				t.Fatalf("model %q: want not-pulled error, got nil", tc.model)
+			}
+			if !tc.wantErr && err != nil {
+				t.Fatalf("model %q: want nil, got %v", tc.model, err)
+			}
+		})
 	}
 }
 
@@ -79,18 +109,4 @@ func TestLiveModelGateRejectsInvalidTimeout(t *testing.T) {
 	if probes != 0 {
 		t.Fatalf("dependency probe ran %d times with invalid timeout", probes)
 	}
-}
-
-func unavailableOllama(t *testing.T) string {
-	t.Helper()
-	server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
-		if r.URL.Path != "/api/tags" {
-			http.NotFound(w, r)
-			return
-		}
-		w.Header().Set("Content-Type", "application/json")
-		_, _ = w.Write([]byte(`{"models":[{"name":"installed:model"}]}`))
-	}))
-	t.Cleanup(server.Close)
-	return server.URL
 }

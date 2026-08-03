@@ -15,6 +15,7 @@ import (
 	"strings"
 	"time"
 
+	"github.com/Nokia-Bell-Labs/declarative-agents/applications/catalog/agentbuild"
 	"gopkg.in/yaml.v3"
 )
 
@@ -33,15 +34,8 @@ func requireProfilePaths(root string, rels ...string) error {
 
 func buildIntegrationAgent(coreRoot string) (string, error) {
 	binary := filepath.Join(os.TempDir(), "application-catalog-integration-agent")
-	cmd := exec.Command("go", "build", "-tags", "production", "-o", binary, "./cmd/agent")
-	cmd.Dir = coreRoot
-	cmd.Stdout = os.Stdout
-	cmd.Stderr = os.Stderr
 	fmt.Printf("building agent binary from %s...\n", coreRoot)
-	if err := cmd.Run(); err != nil {
-		return "", fmt.Errorf("build agent: %w", err)
-	}
-	return binary, nil
+	return agentbuild.Build(coreRoot, binary, os.Stdout)
 }
 
 func freeLoopbackAddr() (string, error) {

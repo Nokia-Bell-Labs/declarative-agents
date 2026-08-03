@@ -4,6 +4,7 @@ includes:
   - ../sample-docs.yaml
   - ../dump-config.yaml
   - ../run-agent.yaml
+  - ../write.yaml
   - ../record-oracle-result.yaml
   - ../record-agent-commit.yaml
   - ../collect-trace-tokens.yaml

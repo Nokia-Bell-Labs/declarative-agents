@@ -3,64 +3,25 @@
 package exec
 
 import (
-	"bytes"
 	"context"
 	osexec "os/exec"
-	"syscall"
 	"time"
+
+	"github.com/Nokia-Bell-Labs/declarative-agents/agent-core/internal/support/subprocess"
 )
 
-const defaultWaitDelay = 3 * time.Second
+// RunResult is the outcome of a process-group-managed subprocess. The transport
+// itself lives in internal/support/subprocess; exec keeps this alias so its
+// callers and the documented word-library seam (srd013) reference one type
+// backed by one implementation (GH-1393).
+type RunResult = subprocess.Result
 
-// ProcGroupCmd configures cmd to run in its own process group.
-func ProcGroupCmd(cmd *osexec.Cmd) {
-	cmd.SysProcAttr = &syscall.SysProcAttr{Setpgid: true}
-	cmd.Cancel = func() error {
-		return syscall.Kill(-cmd.Process.Pid, syscall.SIGKILL)
-	}
-	cmd.WaitDelay = defaultWaitDelay
-}
+// ProcGroupCmd configures cmd to run in its own process group for clean
+// cancellation, delegating to the single implementation (srd013 R4.2).
+func ProcGroupCmd(cmd *osexec.Cmd) { subprocess.SetProcGroup(cmd) }
 
-// RunResult captures stdout, stderr, exit code, and elapsed time.
-type RunResult struct {
-	Stdout   string
-	Stderr   string
-	ExitCode int
-	Duration time.Duration
-	Err      error
-}
-
-// Success returns true when the subprocess exited with code 0.
-func (r *RunResult) Success() bool { return r.ExitCode == 0 && r.Err == nil }
-
-// RunProcGroup runs a process-group-managed subprocess within timeout.
-func RunProcGroup(ctx context.Context, timeout time.Duration, dir string, name string, args ...string) *RunResult {
-	tctx, cancel := context.WithTimeout(ctx, timeout)
-	defer cancel()
-
-	cmd := osexec.CommandContext(tctx, name, args...)
-	cmd.Dir = dir
-	ProcGroupCmd(cmd)
-
-	var stdout, stderr bytes.Buffer
-	cmd.Stdout = &stdout
-	cmd.Stderr = &stderr
-
-	start := time.Now()
-	runErr := cmd.Run()
-	return runProcGroupResult(stdout.String(), stderr.String(), time.Since(start), runErr)
-}
-
-func runProcGroupResult(stdout, stderr string, elapsed time.Duration, runErr error) *RunResult {
-	result := &RunResult{Stdout: stdout, Stderr: stderr, Duration: elapsed}
-	if runErr == nil {
-		return result
-	}
-	if exitErr, ok := runErr.(*osexec.ExitError); ok {
-		result.ExitCode = exitErr.ExitCode()
-		return result
-	}
-	result.ExitCode = -1
-	result.Err = runErr
-	return result
+// RunProcGroup runs a process-group-managed subprocess within timeout by way of
+// the shared transport.
+func RunProcGroup(ctx context.Context, timeout time.Duration, dir, name string, args ...string) *RunResult {
+	return subprocess.Run(ctx, subprocess.Spec{Binary: name, Args: args, Dir: dir, Timeout: timeout})
 }

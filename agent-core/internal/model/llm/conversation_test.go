@@ -41,10 +41,6 @@ func (s *stubClient) Chat(_ context.Context, msgs []Message, _ ChatOptions) (Cha
 	return resp, nil
 }
 
-func (s *stubClient) ListModels(_ context.Context) ([]ModelInfo, error) {
-	return nil, nil
-}
-
 var _ Client = (*stubClient)(nil)
 
 func requireConversationSend(t *testing.T, conversation *Conversation, message string) {

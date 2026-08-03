@@ -14,6 +14,8 @@ import (
 	"sync"
 	"testing"
 	"time"
+
+	"github.com/Nokia-Bell-Labs/declarative-agents/applications/catalog/agentbuild"
 )
 
 const defaultRunTimeout = 90 * time.Second
@@ -195,19 +197,14 @@ var (
 )
 
 // agentBinary builds the agent binary from coreRoot once per test process and
-// returns its path. It mirrors magefiles/integration_support.go
-// buildIntegrationAgent; magefiles is package main, so the builder is
-// duplicated here rather than imported.
+// returns its path. It calls the shared agentbuild recipe (GH-1390), buffering
+// build output so it is only surfaced on failure.
 func agentBinary(t *testing.T, coreRoot string) string {
 	t.Helper()
 	binaryOnce.Do(func() {
 		out := filepath.Join(os.TempDir(), "application-catalog-conformance-agent")
-		cmd := exec.Command("go", "build", "-tags", "production", "-o", out, "./cmd/agent")
-		cmd.Dir = coreRoot
 		var buf bytes.Buffer
-		cmd.Stdout = &buf
-		cmd.Stderr = &buf
-		if err := cmd.Run(); err != nil {
+		if _, err := agentbuild.Build(coreRoot, out, &buf); err != nil {
 			binaryErr = err
 			t.Logf("build agent from %s failed:\n%s", coreRoot, buf.String())
 			return

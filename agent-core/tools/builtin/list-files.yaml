@@ -97,9 +97,9 @@ tools:
         default: '4'
   side_effects:
   - kind: child_process
-    target: find
+    target: bash
     state: read_only
-    description: Runs GNU find with a fixed workspace working directory and bounded depth.
+    description: Runs a bash pipeline whose children are find (bounded-depth listing), awk (sort-key and indent shaping), and sort (deterministic order), all read-only from a fixed workspace working directory.
   - kind: filesystem_read
     target: workspace_tree
     description: Reads workspace directory entries without mutating state.
@@ -128,6 +128,16 @@ tools:
   non_goals:
   - Does not choose the next workflow step; machine.yaml owns sequencing.
   - Does not hide unrelated tool execution behind this word.
+  # GH-1376: the audit's ideal decomposition is a machine sub-sequence
+  # ValidateListPath (Go) -> ListPaths (find exec) -> FormatTree (Go reducer).
+  # list_files is an atomic filesystem primitive an LLM calls as a single
+  # ReAct tool action, not a machine that can host intermediate states, so that
+  # split would require an atomic-tool-as-submachine mechanism that does not
+  # exist. The declared exception here: the validate/list/format steps stay
+  # inside this one word's bash pipeline (find is the externalized lister; awk
+  # shapes deterministic order and indentation), and its true children are
+  # declared in side_effects above so the compound is at least honest.
+  - Does not become a machine sub-sequence; it is a single atomic word by design (GH-1376).
   errors:
   - signal: CommandError
     condition: bash, find, awk, or sort cannot be started

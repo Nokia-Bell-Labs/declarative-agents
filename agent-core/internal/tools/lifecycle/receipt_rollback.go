@@ -191,35 +191,48 @@ func undoEntry(registry core.CommandResolver, tracer tracing.Tracer, step int, e
 		CommandName: entry.CommandName,
 	})
 	if res.Signal == core.CommandError || res.Err != nil {
-		detail := res.Output
-		if detail == "" && res.Err != nil {
-			detail = res.Err.Error()
-		}
-		if tracer != nil {
-			tracer.Event("rollback.entry_undo_failed",
-				attribute.Int("step", step),
-				attribute.String("command", entry.CommandName),
-				attribute.String("detail", detail),
-			)
-		}
-		return entryOutcome{
-			line:    fmt.Sprintf("  step=%d %s: undo failed: %s\n", step, entry.CommandName, res.Output),
-			failure: &UndoFailure{Step: step, CommandName: entry.CommandName, Detail: detail},
-		}
+		return undoFailureOutcome(tracer, step, entry, res)
 	}
+	// GH-1377: surface every reversed entry, not just failures/skips, so the
+	// compensation dispatches this word fans out — notably REST Undo re-entering
+	// the HTTP client — appear on the rollback span instead of being invisible.
+	traceRollbackEntry(tracer, "rollback.entry_reversed", step, entry.CommandName,
+		attribute.String("detail", res.Output))
 	return entryOutcome{line: fmt.Sprintf("  step=%d %s: %s\n", step, entry.CommandName, res.Output)}
 }
 
-func skipOutcome(tracer tracing.Tracer, step int, entry core.Entry, reason string) entryOutcome {
-	if tracer != nil {
-		tracer.Event("rollback.entry_skipped",
-			attribute.Int("step", step),
-			attribute.String("command", entry.CommandName),
-			attribute.String("reason", reason),
-		)
+// undoFailureOutcome records a receipt-walk Undo that returned CommandError.
+func undoFailureOutcome(tracer tracing.Tracer, step int, entry core.Entry, res core.Result) entryOutcome {
+	detail := res.Output
+	if detail == "" && res.Err != nil {
+		detail = res.Err.Error()
 	}
+	traceRollbackEntry(tracer, "rollback.entry_undo_failed", step, entry.CommandName,
+		attribute.String("detail", detail))
+	return entryOutcome{
+		line:    fmt.Sprintf("  step=%d %s: undo failed: %s\n", step, entry.CommandName, res.Output),
+		failure: &UndoFailure{Step: step, CommandName: entry.CommandName, Detail: detail},
+	}
+}
+
+func skipOutcome(tracer tracing.Tracer, step int, entry core.Entry, reason string) entryOutcome {
+	traceRollbackEntry(tracer, "rollback.entry_skipped", step, entry.CommandName,
+		attribute.String("reason", reason))
 	return entryOutcome{
 		line:    fmt.Sprintf("  step=%d %s: skipped (%s)\n", step, entry.CommandName, reason),
 		skipped: true,
 	}
+}
+
+// traceRollbackEntry emits one rollback receipt-walk event so each compensation
+// attempt (reversed, failed, or skipped) is recorded on the rollback span.
+func traceRollbackEntry(tracer tracing.Tracer, event string, step int, command string, extra attribute.KeyValue) {
+	if tracer == nil {
+		return
+	}
+	tracer.Event(event,
+		attribute.Int("step", step),
+		attribute.String("command", command),
+		extra,
+	)
 }

@@ -180,9 +180,21 @@ func validateToolDefs(defs []ToolDef) error {
 		default:
 			return fmt.Errorf("tool %q: unknown type %q", td.Name, td.Type)
 		}
+		if !validPreconditions[td.Precondition] {
+			return fmt.Errorf("tool %q: unknown precondition %q", td.Name, td.Precondition)
+		}
 		if err := core.ValidateMetricConfig(td.Name, td.Metrics); err != nil {
 			return fmt.Errorf("tool %q: %w", td.Name, err)
 		}
 	}
 	return nil
+}
+
+// validPreconditions enumerates the precondition gates an exec tool may
+// declare; the exec builder interprets each one before launch. Load rejects
+// anything else so a typo like "git-repo" fails at load instead of silently
+// falling through to the git check at dispatch (GH-1381).
+var validPreconditions = map[string]bool{
+	"":         true,
+	"git_repo": true,
 }

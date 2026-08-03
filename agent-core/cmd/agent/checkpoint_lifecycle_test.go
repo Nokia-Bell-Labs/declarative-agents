@@ -281,6 +281,7 @@ func lifecycleRunResources(t *testing.T, events *[]string) runResources {
 		Tracer: tracing.NoopTracer{},
 		Definitions: []catalog.ToolDef{{
 			Name: "checkpoint_history", Type: "builtin", Init: "checkpoint_history",
+			Config: map[string]interface{}{"checkpoint": "$request.checkpoint"},
 		}},
 		Machine: core.MachineSpec{},
 		shutdownTelemetry: func() {

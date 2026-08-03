@@ -11,6 +11,7 @@ import (
 	"github.com/Nokia-Bell-Labs/declarative-agents/agent-core/internal/runtime/core"
 	"github.com/Nokia-Bell-Labs/declarative-agents/agent-core/internal/tools/catalog"
 	toolexec "github.com/Nokia-Bell-Labs/declarative-agents/agent-core/internal/tools/exec"
+	"github.com/Nokia-Bell-Labs/declarative-agents/agent-core/internal/tools/filesystem"
 	toolregistry "github.com/Nokia-Bell-Labs/declarative-agents/agent-core/internal/tools/registry"
 )
 
@@ -202,6 +203,16 @@ func buildPointRegistry(es *EvalState, cfg catalog.RunPointConfig) (*core.Regist
 	}
 
 	reg := core.NewRegistry()
+	builtins, execFactory := pointToolFactories(es)
+	if err := toolregistry.RegisterUnifiedTools(reg, builtins, "", selected, nil, execFactory); err != nil {
+		return nil, fmt.Errorf("run_point: register selected point tools: %w", err)
+	}
+	return reg, nil
+}
+
+// pointToolFactories builds the point-registry builtin registry and exec
+// factory, both rooted at the current point workspace resolved at dispatch.
+func pointToolFactories(es *EvalState) (*toolregistry.BuiltinRegistry, toolregistry.ExecBuilderFactory) {
 	builtins := toolregistry.NewBuiltinRegistry()
 	RegisterEvalPointFactories(builtins, es)
 	pointRoot := func() string {
@@ -210,11 +221,14 @@ func buildPointRegistry(es *EvalState, cfg catalog.RunPointConfig) (*core.Regist
 		}
 		return es.PC.PointDir
 	}
+	// The result-artifact write is a declared machine transition (GH-1378):
+	// run_agent emits path/content parameters and the point machine dispatches
+	// the generic write word rooted at the current point workspace.
+	builtins.Register("file_write", func(def catalog.ToolDef, _ map[string]string) (core.Builder, error) {
+		return &filesystem.WriteBuilder{RootFunc: pointRoot, Metrics: def.Metrics}, nil
+	})
 	execFactory := func(def catalog.ToolDef, _ string) core.Builder {
 		return &toolexec.ExecBuilder{Def: def, RootFunc: pointRoot}
 	}
-	if err := toolregistry.RegisterUnifiedTools(reg, builtins, "", selected, nil, execFactory); err != nil {
-		return nil, fmt.Errorf("run_point: register selected point tools: %w", err)
-	}
-	return reg, nil
+	return builtins, execFactory
 }

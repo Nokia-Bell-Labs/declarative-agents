@@ -194,24 +194,3 @@ func TestChat_MalformedResponse(t *testing.T) {
 	require.Error(t, err)
 	require.Contains(t, err.Error(), "parse chat response")
 }
-
-func TestListModels_Success(t *testing.T) {
-	t.Parallel()
-	srv := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
-		resp := detailedTagsResp{Models: []detailedModelEntry{
-			{Name: "llama3:latest", Size: 4_000_000_000, Digest: "abc123"},
-			{Name: "mistral:7b", Size: 7_000_000_000, Digest: "def456"},
-		}}
-		w.Header().Set("Content-Type", "application/json")
-		_ = json.NewEncoder(w).Encode(resp)
-	}))
-	defer srv.Close()
-
-	a := &Adapter{baseURL: srv.URL, client: srv.Client()}
-	models, err := a.ListModels(context.Background())
-	require.NoError(t, err)
-	require.Len(t, models, 2)
-	require.Equal(t, "llama3:latest", models[0].Name)
-	require.Equal(t, "ollama", models[0].Provider)
-	require.Equal(t, "abc123", models[0].Details["digest"])
-}

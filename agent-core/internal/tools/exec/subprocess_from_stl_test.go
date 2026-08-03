@@ -4,31 +4,29 @@ package exec
 
 import (
 	"fmt"
-	osexec "os/exec"
 	"testing"
 
 	"github.com/stretchr/testify/assert"
 
 	"github.com/Nokia-Bell-Labs/declarative-agents/agent-core/internal/runtime/core"
+	"github.com/Nokia-Bell-Labs/declarative-agents/agent-core/internal/support/subprocess"
 )
 
 func TestSubprocessResult_Success(t *testing.T) {
-	res := SubprocessResult("test-tool", []byte("ok\n"), nil)
+	res := SubprocessResult("test-tool", &subprocess.Result{Stdout: "ok\n"})
 	assert.Equal(t, core.ToolDone, res.Signal)
 	assert.Equal(t, "ok", res.Output)
 	assert.Equal(t, "test-tool", res.CommandName)
 }
 
 func TestSubprocessResult_ExitError(t *testing.T) {
-	cmd := osexec.Command("false")
-	err := cmd.Run()
-	res := SubprocessResult("build", []byte("error output\n"), err)
+	res := SubprocessResult("build", &subprocess.Result{Stdout: "error output\n", ExitCode: 1})
 	assert.Equal(t, core.ToolFailed, res.Signal)
 	assert.Equal(t, "error output", res.Output)
 }
 
 func TestSubprocessResult_InfraError(t *testing.T) {
-	res := SubprocessResult("build", nil, fmt.Errorf("binary not found"))
+	res := SubprocessResult("build", &subprocess.Result{ExitCode: -1, Err: fmt.Errorf("binary not found")})
 	assert.Equal(t, core.CommandError, res.Signal)
 	assert.Error(t, res.Err)
 }

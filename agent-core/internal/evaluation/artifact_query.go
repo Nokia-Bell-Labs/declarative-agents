@@ -155,62 +155,6 @@ type EvaluationToolSnapshot struct {
 	Output    string `json:"output,omitempty"`
 }
 
-func ListEvaluationSessions(dataDir string) ([]EvaluationSessionSummary, error) {
-	suites, err := os.ReadDir(dataDir)
-	if os.IsNotExist(err) {
-		return []EvaluationSessionSummary{}, nil
-	}
-	if err != nil {
-		return nil, err
-	}
-	sessions := make([]EvaluationSessionSummary, 0)
-	for _, suite := range suites {
-		if !suite.IsDir() {
-			continue
-		}
-		timestamps, err := os.ReadDir(filepath.Join(dataDir, suite.Name()))
-		if err != nil {
-			continue
-		}
-		for _, timestamp := range timestamps {
-			if !timestamp.IsDir() {
-				continue
-			}
-			summary := scanEvaluationSession(suite.Name(), timestamp.Name(), filepath.Join(dataDir, suite.Name(), timestamp.Name()))
-			if summary.PointCount > 0 {
-				sessions = append(sessions, summary)
-			}
-		}
-	}
-	sort.Slice(sessions, func(i, j int) bool { return sessions[i].ID > sessions[j].ID })
-	return sessions, nil
-}
-
-func scanEvaluationSession(suite, timestamp, dir string) EvaluationSessionSummary {
-	summary := EvaluationSessionSummary{ID: suite + "/" + timestamp, Name: suite, Timestamp: timestamp}
-	entries, _ := os.ReadDir(dir)
-	for _, entry := range entries {
-		if !entry.IsDir() {
-			continue
-		}
-		var meta EvalMeta
-		data, err := os.ReadFile(filepath.Join(dir, entry.Name(), ArtifactMeta))
-		if err != nil || json.Unmarshal(data, &meta) != nil {
-			continue
-		}
-		summary.PointCount++
-		switch {
-		case meta.TimedOut:
-			summary.TimeoutCount++
-		case meta.TestsPassed:
-			summary.PassCount++
-		default:
-			summary.FailCount++
-		}
-	}
-	return summary
-}
-
 func AnalyzeEvaluationSession(dataDir, suite, timestamp string) (EvaluationSessionDetail, error) {
 	dir, err := evaluationSessionDir(dataDir, suite, timestamp)
 	if err != nil {
@@ -365,6 +309,14 @@ func ReadEvaluationTrace(dataDir, suite, timestamp, pointID string) (EvaluationT
 		}
 		return EvaluationTrace{}, err
 	}
+	return evaluationTraceFromSpans(pointID, spans), nil
+}
+
+// evaluationTraceFromSpans projects raw trace spans onto the read-only trace
+// view: per-span timing and gen_ai token attributes, plus the derived tool
+// snapshots. Kept separate so ReadEvaluationTrace stays read + confine +
+// delegate (GH-1398).
+func evaluationTraceFromSpans(pointID string, spans []*Span) EvaluationTrace {
 	snapshots := ExtractToolSnapshots(spans)
 	result := EvaluationTrace{
 		PointID:   pointID,
@@ -384,7 +336,7 @@ func ReadEvaluationTrace(dataDir, suite, timestamp, pointID string) (EvaluationT
 	for i, snapshot := range snapshots {
 		result.Snapshots[i] = EvaluationToolSnapshot{Tool: snapshot.Tool, Signal: snapshot.Signal, Iteration: i + 1}
 	}
-	return result, nil
+	return result
 }
 
 func evaluationSessionDir(dataDir, suite, timestamp string) (string, error) {

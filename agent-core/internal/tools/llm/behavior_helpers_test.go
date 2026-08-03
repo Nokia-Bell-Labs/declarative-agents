@@ -19,19 +19,11 @@ func (s *fakeChatClient) Chat(_ context.Context, _ []modelllm.Message, _ modelll
 	return s.response, s.err
 }
 
-func (s *fakeChatClient) ListModels(_ context.Context) ([]modelllm.ModelInfo, error) {
-	return nil, nil
-}
-
 type waitClient struct{}
 
 func (w waitClient) Chat(ctx context.Context, _ []modelllm.Message, _ modelllm.ChatOptions) (modelllm.ChatResponse, error) {
 	<-ctx.Done()
 	return modelllm.ChatResponse{}, ctx.Err()
-}
-
-func (w waitClient) ListModels(_ context.Context) ([]modelllm.ModelInfo, error) {
-	return nil, nil
 }
 
 type fakeAssembler struct{}

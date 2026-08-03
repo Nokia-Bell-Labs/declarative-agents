@@ -5,14 +5,20 @@ package exec
 import (
 	"context"
 	"fmt"
-	"os"
 	"path/filepath"
 	"strconv"
+	"strings"
+	"time"
 
 	"github.com/Nokia-Bell-Labs/declarative-agents/agent-core/internal/observability/monitor"
 	"github.com/Nokia-Bell-Labs/declarative-agents/agent-core/internal/runtime/core"
+	"github.com/Nokia-Bell-Labs/declarative-agents/agent-core/internal/support/subprocess"
 	"github.com/Nokia-Bell-Labs/declarative-agents/agent-core/internal/tools/catalog"
 )
+
+// gitPreconditionTimeout bounds the git rev-parse precondition probe so a hung
+// or slow git cannot stall dispatch.
+const gitPreconditionTimeout = 5 * time.Second
 
 // RegisterToolDefs registers exec tool definitions with the given registry.
 func RegisterToolDefs(reg *core.Registry, root string, defs []catalog.ToolDef) {
@@ -136,16 +142,23 @@ func (c *ExecCmd) ExecuteContext(ctx context.Context) core.Result {
 		}
 	}
 	dir := c.execDir()
-	if err := c.checkPrecondition(dir); err != nil {
+	if err := c.checkPrecondition(ctx, dir); err != nil {
 		return core.Result{Output: err.Error(), Signal: core.ToolFailed, CommandName: c.def.Name}
 	}
-	out, duration, err := runExecProcess(ctx, c.def, dir, c.buildArgs(), stdin)
-	res := SubprocessResult(c.def.Name, out, err)
-	c.recordExecMetrics(duration, out, err)
+	run := subprocess.Run(ctx, subprocess.Spec{
+		Binary:           c.def.Binary,
+		Args:             c.buildArgs(),
+		Dir:              dir,
+		Stdin:            stdin,
+		CombinedOutput:   true,
+		NoDefaultTimeout: true,
+	})
+	res := SubprocessResult(c.def.Name, run)
+	c.recordExecMetrics(run.Duration, len(run.Stdout), run.ExitCode)
 	if c.def.OutputCap > 0 {
 		res.Output = CapOutput(res.Output, c.def.OutputCap)
 	}
-	res = shapeExecOutput(c.def, res, err)
+	res = shapeExecOutput(c.def, res, run.ExitCode)
 	if res.Signal != core.CommandError {
 		res.Receipt = c.encodeReceipt()
 	}
@@ -226,27 +239,39 @@ func appendMappedArg(args []string, pm catalog.ParamMapping, val string) []strin
 	}
 }
 
-func (c *ExecCmd) checkPrecondition(dir string) error {
+// checkPrecondition gates dispatch on the declared precondition. An unknown
+// value is an error rather than a silent fall-through to the git check, so a
+// typo surfaces at dispatch even if it reached here without load-time
+// validation (GH-1381).
+func (c *ExecCmd) checkPrecondition(ctx context.Context, dir string) error {
 	switch c.def.Precondition {
-	case "git_repo":
-		return checkGitRepo(dir)
 	case "":
 		return nil
+	case "git_repo":
+		return checkGitRepo(ctx, dir)
 	default:
-		if err := checkGitRepo(dir); err != nil {
-			return fmt.Errorf("precondition %q failed: %v", c.def.Precondition, err)
-		}
-		return nil
+		return fmt.Errorf("unknown precondition %q", c.def.Precondition)
 	}
 }
 
-func checkGitRepo(dir string) error {
-	gitPath := filepath.Join(dir, ".git")
-	if _, err := os.Stat(gitPath); err != nil {
-		if os.IsNotExist(err) {
-			return fmt.Errorf("not a git repository: %s", dir)
-		}
-		return fmt.Errorf("checking git repo %s: %v", dir, err)
+// checkGitRepo asks git itself whether dir sits in a working tree, replacing an
+// os.Stat on <dir>/.git. The stat rejected any subdirectory of a repository and
+// accepted a worktree gitfile without resolving it; git rev-parse handles both,
+// and reports the same failure git would (GH-1381).
+func checkGitRepo(ctx context.Context, dir string) error {
+	res := RunProcGroup(ctx, gitPreconditionTimeout, dir, "git", "rev-parse", "--git-dir")
+	if res.Success() {
+		return nil
 	}
-	return nil
+	if res.Err != nil {
+		return fmt.Errorf("checking git repo %s: %w", dir, res.Err)
+	}
+	detail := strings.TrimSpace(res.Stderr)
+	if detail == "" {
+		detail = strings.TrimSpace(res.Stdout)
+	}
+	if detail == "" {
+		return fmt.Errorf("not a git repository: %s", dir)
+	}
+	return fmt.Errorf("not a git repository: %s: %s", dir, detail)
 }
