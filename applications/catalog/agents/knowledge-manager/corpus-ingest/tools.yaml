@@ -5,6 +5,7 @@ tools:
   - parse_response
   - report_parse_error
   - done
+  - list_resource_paths
   - list_resource
   - read_resource
   - embed_document
