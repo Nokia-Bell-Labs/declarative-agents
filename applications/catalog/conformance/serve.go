@@ -14,6 +14,7 @@ import (
 	"os"
 	"os/exec"
 	"path/filepath"
+	"sort"
 	"strings"
 	"testing"
 	"time"
@@ -24,6 +25,11 @@ import (
 // lifecycle/control event. Run() is synchronous and cannot drive them, so this
 // file adds async launch plus HTTP control: Serve returns a handle the test
 // pokes with WaitHealthy/Post and then drains with WaitExit.
+//
+// This is test-runner orchestration, not an agent workflow implementation. It
+// deliberately observes the built CLI through process and HTTP boundaries;
+// driving conformance through the product's own rest/service words would make
+// the proof circular and lose the independent process-death watchdog (#1388).
 
 const (
 	defaultHealthTimeout = 15 * time.Second
@@ -241,7 +247,7 @@ func rewriteFile(t *testing.T, path string, replacements map[string]string) stri
 // need no patching: --core-root remaps them onto the checkout
 // (spec.SetAgentCoreInstallRoot).
 //
-// patches applies exact string replacements across every copied file, for the
+// patches applies simultaneous exact string replacements across every copied file, for the
 // few values the harness must control (chiefly hard-coded listen addresses). It
 // patches only the named fields — it never rebuilds the machine, tools, or
 // wrapper — and returns the path to the copied profile.yaml.
@@ -250,8 +256,12 @@ func CopyShippedProfile(t *testing.T, relProfile string, patches map[string]stri
 	srcProfile := ProfilePath(relProfile)
 	srcDir := filepath.Dir(srcProfile)
 	dstDir := t.TempDir()
+	replacer, err := newProfileReplacer(patches)
+	if err != nil {
+		t.Fatalf("copy shipped profile %s: %v", relProfile, err)
+	}
 
-	err := filepath.WalkDir(srcDir, func(path string, d fs.DirEntry, walkErr error) error {
+	err = filepath.WalkDir(srcDir, func(path string, d fs.DirEntry, walkErr error) error {
 		if walkErr != nil {
 			return walkErr
 		}
@@ -270,10 +280,7 @@ func CopyShippedProfile(t *testing.T, relProfile string, patches map[string]stri
 		if err != nil {
 			return err
 		}
-		content := string(data)
-		for old, replacement := range patches {
-			content = strings.ReplaceAll(content, old, replacement)
-		}
+		content := replacer.Replace(string(data))
 		if err := os.MkdirAll(filepath.Dir(target), 0o755); err != nil {
 			return err
 		}
@@ -283,4 +290,27 @@ func CopyShippedProfile(t *testing.T, relProfile string, patches map[string]stri
 		t.Fatalf("copy shipped profile %s: %v", relProfile, err)
 	}
 	return filepath.Join(dstDir, filepath.Base(srcProfile))
+}
+
+func newProfileReplacer(patches map[string]string) (*strings.Replacer, error) {
+	keys := make([]string, 0, len(patches))
+	for old := range patches {
+		if old == "" {
+			return nil, fmt.Errorf("profile patch contains an empty match")
+		}
+		keys = append(keys, old)
+	}
+	sort.Strings(keys)
+	for i, key := range keys {
+		for _, other := range keys[i+1:] {
+			if strings.Contains(other, key) {
+				return nil, fmt.Errorf("profile patches %q and %q overlap", key, other)
+			}
+		}
+	}
+	pairs := make([]string, 0, len(keys)*2)
+	for _, old := range keys {
+		pairs = append(pairs, old, patches[old])
+	}
+	return strings.NewReplacer(pairs...), nil
 }

@@ -20,6 +20,14 @@ overview: |
   emits; when that checkout is absent the affected suite cases skip rather than
   fail, so the proof line is honest about its precondition.
 
+  The conformance harness is an independent test observer, not a product
+  workflow: it owns testing.T failure reporting, child-process launch/death
+  detection, loopback health polling, HTTP stimulus, bounded waits, and trace
+  collection. It intentionally does not drive those checks through the agent's
+  own rest/service words, which would make the proof circular and hide process
+  death behind the system under test (#1388). Shipped profiles still own all
+  runtime workflow sequencing being verified.
+
   Evidence is recorded honestly per family. A case is implemented when its test
   runs the flow and asserts the trace hermetically against the discovered checkout.
 
