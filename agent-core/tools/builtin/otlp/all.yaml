@@ -488,7 +488,7 @@ tools:
     input:
     - Spool path, time-bucket count, duration bucket edges, group-by key, and caps come from trusted config; the filter, group-by, and top-N arrive per request.
     output:
-    - Output includes the heatmap grid with axis boundaries, the matched span count, group-by counts, the dropped group and span totals, and skipped line count.
+    - Output includes the heatmap grid with axis boundaries, the matched span count, a capped list of exemplar trace IDs for the matched set, group-by counts, the dropped group and span totals, and skipped line count.
     side_effects:
     - Read-only file access.
     errors:
@@ -522,6 +522,7 @@ tools:
             cells: {type: array, items: {type: array, items: {type: integer}}}
           required: [time_bucket_boundaries, duration_bucket_boundaries, cells]
         matched: {type: integer}
+        exemplar_trace_ids: {type: array, items: {type: string}}
         skipped_lines: {type: integer}
         group_by: {type: string}
         groups:
@@ -533,7 +534,7 @@ tools:
               count: {type: integer}
         dropped_groups: {type: integer}
         dropped_span_total: {type: integer}
-      required: [heatmap, matched, skipped_lines]
+      required: [heatmap, matched, exemplar_trace_ids, skipped_lines]
   side_effects:
   - kind: filesystem_read
     target: configured spool path and rotated files
@@ -558,6 +559,7 @@ tools:
     group_by: ""
     top_n: 20
     max_top_n: 100
+    exemplar_cap: 20
 
 - name: spool_span_breakdown
   type: builtin
@@ -574,7 +576,7 @@ tools:
     input:
     - Spool path and caps come from trusted config; the baseline and selection filters and top-N arrive per request.
     output:
-    - Output includes inside and outside totals, the ranked attribute divergences, the dropped count, and skipped line count.
+    - Output includes inside and outside totals, a capped list of exemplar trace IDs for the selection, the ranked attribute divergences, the dropped count, and skipped line count.
     side_effects:
     - Read-only file access.
     errors:
@@ -595,6 +597,7 @@ tools:
       properties:
         inside_total: {type: integer}
         outside_total: {type: integer}
+        exemplar_trace_ids: {type: array, items: {type: string}}
         ranked:
           type: array
           items:
@@ -609,7 +612,7 @@ tools:
               score: {type: number}
         dropped: {type: integer}
         skipped_lines: {type: integer}
-      required: [inside_total, outside_total, ranked, dropped, skipped_lines]
+      required: [inside_total, outside_total, exemplar_trace_ids, ranked, dropped, skipped_lines]
   side_effects:
   - kind: filesystem_read
     target: configured spool path and rotated files
@@ -631,6 +634,7 @@ tools:
     path: traces/collector.ndjson
     top_n: 20
     max_top_n: 100
+    exemplar_cap: 20
 
 - name: await_metrics
   type: builtin

@@ -4,6 +4,38 @@ package otlp
 
 import "sort"
 
+// defaultExemplarCap bounds exemplar_trace_ids when a tool declares no
+// exemplar_cap. Kept small: the Explore page links a handful of representative
+// traces per selection, not the whole matched set.
+const defaultExemplarCap = 20
+
+// exemplarTraceIDs projects a span set onto a capped, deterministic,
+// deduplicated list of trace IDs. Ordering is lexicographic on the hex trace
+// ID so the same selection always yields the same exemplars regardless of
+// spool read order; a non-positive limit selects the default cap.
+func exemplarTraceIDs(spans []enrichedSpan, limit int) []string {
+	if limit <= 0 {
+		limit = defaultExemplarCap
+	}
+	seen := make(map[string]struct{}, len(spans))
+	ids := make([]string, 0, len(spans))
+	for _, s := range spans {
+		if s.traceID == "" {
+			continue
+		}
+		if _, ok := seen[s.traceID]; ok {
+			continue
+		}
+		seen[s.traceID] = struct{}{}
+		ids = append(ids, s.traceID)
+	}
+	sort.Strings(ids)
+	if len(ids) > limit {
+		ids = ids[:limit]
+	}
+	return ids
+}
+
 func filterEnriched(spans []enrichedSpan, f spanFilter) []enrichedSpan {
 	out := make([]enrichedSpan, 0, len(spans))
 	for _, s := range spans {

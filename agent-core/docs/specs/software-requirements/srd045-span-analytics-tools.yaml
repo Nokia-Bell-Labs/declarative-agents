@@ -33,7 +33,7 @@ requirements:
       - R2.1: "`spool_span_stats` SHALL bucket filtered spans into a grid of time buckets on the X axis and duration buckets on the Y axis, each cell holding a span count."
       - R2.2: The time axis SHALL be divided into a configured number of equal buckets spanning the filter's time range, or the matched spans' min-to-max start time when the range is open.
       - R2.3: The duration axis SHALL use configured bucket boundaries; a span falls in the bucket whose half-open range contains its duration, with an overflow bucket for durations at or above the last boundary.
-      - R2.4: Output SHALL include the time bucket boundaries, the duration bucket boundaries, the cell counts, the total matched span count, and the count of skipped malformed lines.
+      - R2.4: Output SHALL include the time bucket boundaries, the duration bucket boundaries, the cell counts, the total matched span count, a capped list of exemplar trace IDs for the matched set (R6), and the count of skipped malformed lines.
 
   R3:
     title: Group-by counts
@@ -56,8 +56,14 @@ requirements:
       - R5.1: Both tools SHALL have no side effects beyond filesystem reads, and SHALL tolerate malformed or truncated NDJSON lines by skipping and counting them.
       - R5.2: An empty or absent spool SHALL produce an empty result, not an error.
       - R5.3: Every output SHALL be deterministic for a fixed spool and configuration, with all ordering fully specified so map iteration never leaks into results.
-      - R5.4: Spool path, filters, bucket boundaries, group key, and top-N SHALL arrive as tool declaration config or request parameters; no behavior SHALL depend on an environment variable.
+      - R5.4: Spool path, filters, bucket boundaries, group key, top-N, and the exemplar cap SHALL arrive as tool declaration config or request parameters; no behavior SHALL depend on an environment variable.
       - R5.5: A missing or unreadable spool path SHALL emit CommandError before any aggregation, following the srd044 declaration shape.
+
+  R6:
+    title: Selection exemplars
+    items:
+      - R6.1: "Both `spool_span_stats` and `spool_span_breakdown` SHALL return a list of exemplar trace IDs (`exemplar_trace_ids`) drawn from the matched span set (stats) and the selection (inside) span set (breakdown), so a caller can link a region of interest to representative traces."
+      - R6.2: The exemplar list SHALL be deduplicated, ordered deterministically by ascending trace ID, and capped at a configured `exemplar_cap` count that selects a committed default when unset; spans carrying no trace ID SHALL be excluded.
 
 non_goals:
   - Mutating, rotating, or deleting spool files.
@@ -86,6 +92,10 @@ acceptance_criteria:
   - id: AC5
     criterion: Both tools skip and count malformed lines, treat an absent spool as empty, produce deterministic output for fixed input, take all configuration without environment variables, and emit CommandError on a missing or unreadable spool path.
     traces: [R5.1, R5.2, R5.3, R5.4, R5.5]
+
+  - id: AC6
+    criterion: Both tools return a deduplicated, deterministically ordered, exemplar_cap-limited list of exemplar trace IDs for the matched set (stats) and the selection set (breakdown), excluding spans with no trace ID.
+    traces: [R6.1, R6.2]
 
 depends_on:
   - srd_id: srd044-spool-query-tools

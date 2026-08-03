@@ -68,6 +68,7 @@ type statsOutput struct {
 		Cells                    [][]int `json:"cells"`
 	} `json:"heatmap"`
 	Matched          int          `json:"matched"`
+	ExemplarTraceIDs []string     `json:"exemplar_trace_ids"`
 	SkippedLines     int          `json:"skipped_lines"`
 	GroupBy          string       `json:"group_by"`
 	Groups           []groupCount `json:"groups"`
@@ -194,11 +195,12 @@ func TestSpanStatsGroupByTopN(t *testing.T) {
 }
 
 type breakdownOutput struct {
-	InsideTotal  int               `json:"inside_total"`
-	OutsideTotal int               `json:"outside_total"`
-	Ranked       []divergenceEntry `json:"ranked"`
-	Dropped      int               `json:"dropped"`
-	SkippedLines int               `json:"skipped_lines"`
+	InsideTotal      int               `json:"inside_total"`
+	OutsideTotal     int               `json:"outside_total"`
+	ExemplarTraceIDs []string          `json:"exemplar_trace_ids"`
+	Ranked           []divergenceEntry `json:"ranked"`
+	Dropped          int               `json:"dropped"`
+	SkippedLines     int               `json:"skipped_lines"`
 }
 
 func runBreakdown(t *testing.T, path string, seed core.Result) breakdownOutput {
@@ -254,6 +256,78 @@ func TestSpanBreakdownEmptySelection(t *testing.T) {
 	}))
 	require.Equal(t, 0, out.InsideTotal)
 	require.Empty(t, out.Ranked)
+}
+
+func TestExemplarTraceIDsDedupeSortCap(t *testing.T) {
+	spans := []enrichedSpan{
+		{traceID: "tc"}, {traceID: "ta"}, {traceID: "tb"},
+		{traceID: "ta"}, // duplicate collapses
+		{traceID: ""},   // blank is skipped
+		{traceID: "td"},
+	}
+	// Deduped and lexicographically ordered, independent of input order.
+	require.Equal(t, []string{"ta", "tb", "tc", "td"}, exemplarTraceIDs(spans, 0))
+	// Cap keeps the first N of the deterministic order.
+	require.Equal(t, []string{"ta", "tb"}, exemplarTraceIDs(spans, 2))
+	// Empty set yields an empty (non-nil-required) list.
+	require.Empty(t, exemplarTraceIDs(nil, 5))
+}
+
+func TestSpanStatsExemplarsDedupedAndSorted(t *testing.T) {
+	base := time.Unix(1_700_000_000, 0).UTC()
+	path := filepath.Join(t.TempDir(), "collector.ndjson")
+	var spans []analyticsSpan
+	// Three distinct traces, one with two spans, written out of sorted order.
+	for i, id := range []string{"tc", "ta", "ta", "tb"} {
+		s, e := at(base, i*10, 5)
+		spans = append(spans, analyticsSpan{traceID: id, spanID: string(rune('a' + i)), service: "svc", name: "op", start: s, end: e})
+	}
+	writeAnalyticsSpans(t, path, spans)
+
+	out := runStats(t, path, core.Result{})
+	require.Equal(t, 4, out.Matched)
+	require.Equal(t, []string{"ta", "tb", "tc"}, out.ExemplarTraceIDs)
+}
+
+func TestSpanStatsExemplarCapLimitsList(t *testing.T) {
+	base := time.Unix(1_700_000_000, 0).UTC()
+	path := filepath.Join(t.TempDir(), "collector.ndjson")
+	var spans []analyticsSpan
+	for i, id := range []string{"t5", "t1", "t4", "t2", "t3"} {
+		s, e := at(base, i*10, 5)
+		spans = append(spans, analyticsSpan{traceID: id, spanID: string(rune('a' + i)), service: "svc", name: "op", start: s, end: e})
+	}
+	writeAnalyticsSpans(t, path, spans)
+
+	result := SpanStatsBuilder{
+		ToolName: "spool_span_stats",
+		Config:   SpanStatsConfig{Path: path, TimeBuckets: 4, MaxTopN: 100, ExemplarCap: 2},
+	}.Build(core.Result{}).Execute()
+	require.Equal(t, core.Signal("SpanStatsReady"), result.Signal, result.Output)
+	var out statsOutput
+	require.NoError(t, json.Unmarshal([]byte(result.Output), &out))
+	require.Equal(t, []string{"t1", "t2"}, out.ExemplarTraceIDs)
+}
+
+func TestSpanBreakdownExemplarsFromInsideOnly(t *testing.T) {
+	base := time.Unix(1_700_000_000, 0).UTC()
+	path := filepath.Join(t.TempDir(), "collector.ndjson")
+	var spans []analyticsSpan
+	// Fast spans (outside): traces o1, o2. Slow spans >=500ms (inside): i2, i1.
+	for i, id := range []string{"o1", "o2"} {
+		s, e := at(base, i*10, 10)
+		spans = append(spans, analyticsSpan{traceID: id, spanID: string(rune('a' + i)), service: "svc", name: "op", start: s, end: e})
+	}
+	for i, id := range []string{"i2", "i1"} {
+		s, e := at(base, 100+i*10, 800)
+		spans = append(spans, analyticsSpan{traceID: id, spanID: string(rune('m' + i)), service: "svc", name: "op", start: s, end: e})
+	}
+	writeAnalyticsSpans(t, path, spans)
+
+	out := runBreakdown(t, path, seedResult(t, map[string]any{"selection_min_duration_ms": 500}))
+	require.Equal(t, 2, out.InsideTotal)
+	// Exemplars are the inside (selection) traces only, deduped and sorted.
+	require.Equal(t, []string{"i1", "i2"}, out.ExemplarTraceIDs)
 }
 
 func TestSpanStatsMalformedAndDeterministic(t *testing.T) {
