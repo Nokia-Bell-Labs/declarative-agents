@@ -3,7 +3,6 @@
 package main
 
 import (
-	"os"
 	"os/exec"
 	"path/filepath"
 	"regexp"
@@ -101,10 +100,78 @@ func TestStagedChatbotUICarriesTheServedBundle(t *testing.T) {
 	}
 }
 
-// TestStagedProfilesFitTheConfigMapLimit proves the staged profiles stay inside
-// Kubernetes' 1 MiB ConfigMap limit. The limit applies to the object, not to a
-// key, so it is the sum that matters -- and it was the chatbot UI tree that made the sum
-// grow without anyone deploying anything new.
+func TestStagedObserverUICarriesOnlyTheServedBundle(t *testing.T) {
+	keys := renderedProfileKeys(t)
+	var index, assets bool
+	for _, key := range keys {
+		if !strings.HasPrefix(key, "agents__observer__ui__") {
+			continue
+		}
+		if !strings.HasPrefix(key, "agents__observer__ui__dist__") {
+			t.Errorf("rendered ConfigMap carries observer build input %s; only ui/dist belongs in a pod", key)
+		}
+		if key == "agents__observer__ui__dist__index.html" {
+			index = true
+		}
+		if strings.HasPrefix(key, "agents__observer__ui__dist__assets__") {
+			assets = true
+		}
+	}
+	if !index {
+		t.Error("rendered ConfigMap has no agents__observer__ui__dist__index.html; the observer /ui would 404")
+	}
+	if !assets {
+		t.Error("rendered ConfigMap has no observer dist assets; the observer shell would load without its bundle")
+	}
+}
+
+func TestObserverUIUsesDedicatedConfigMapAtPreservedPath(t *testing.T) {
+	if _, err := exec.LookPath("helm"); err != nil {
+		t.Skip("helm not on PATH")
+	}
+	chartDir := findChartDir(t)
+	staged, cleanup, err := stageSmokeChart(chartDir, filepath.Dir(chartDir))
+	if err != nil {
+		t.Fatalf("stage chart: %v", err)
+	}
+	defer cleanup()
+	out, err := exec.Command("helm", "template", "relx", staged, "--namespace", "nsy").CombinedOutput()
+	if err != nil {
+		t.Fatalf("helm template: %v\n%s", err, out)
+	}
+	var shared, observerUI, observerDeployment string
+	for _, doc := range strings.Split(string(out), "\n---") {
+		switch {
+		case strings.Contains(doc, "kind: Deployment") &&
+			strings.Contains(doc, "name: relx-chatbot-mesh-observer"):
+			observerDeployment = doc
+		case strings.Contains(doc, "name: relx-chatbot-mesh-profiles"):
+			shared = doc
+		case strings.Contains(doc, "name: relx-chatbot-mesh-observer-ui"):
+			observerUI = doc
+		}
+	}
+	if strings.Contains(shared, "agents__observer__ui__dist__") {
+		t.Error("shared profiles ConfigMap still carries the observer UI bundle")
+	}
+	if !strings.Contains(observerUI, "agents__observer__ui__dist__index.html") {
+		t.Error("observer-only ConfigMap is missing the UI index")
+	}
+	for _, contract := range []string{
+		"name: observer-ui",
+		"mountPath: \"/profiles/agents/observer/ui/dist\"",
+		"name: relx-chatbot-mesh-observer-ui",
+	} {
+		if !strings.Contains(observerDeployment, contract) {
+			t.Errorf("observer Deployment missing dedicated UI mount contract %q", contract)
+		}
+	}
+}
+
+// TestStagedProfilesFitTheConfigMapLimit proves the rendered shared profiles
+// ConfigMap stays inside Kubernetes' 1 MiB limit. UI bundles mounted only into
+// their serving actors use dedicated ConfigMaps and must not be charged to this
+// shared object that every agent pod mounts.
 func TestStagedProfilesFitTheConfigMapLimit(t *testing.T) {
 	if _, err := exec.LookPath("helm"); err != nil {
 		t.Skip("helm not on PATH")
@@ -116,23 +183,26 @@ func TestStagedProfilesFitTheConfigMapLimit(t *testing.T) {
 	}
 	defer cleanup()
 
-	var total int64
-	err = filepath.Walk(filepath.Join(staged, "profiles"), func(_ string, info os.FileInfo, err error) error {
-		if err != nil {
-			return err
-		}
-		if !info.IsDir() {
-			total += info.Size()
-		}
-		return nil
-	})
+	out, err := exec.Command("helm", "template", "relx", staged, "--namespace", "nsy").CombinedOutput()
 	if err != nil {
-		t.Fatalf("walk staged profiles: %v", err)
+		t.Fatalf("helm template: %v\n%s", err, out)
 	}
+	var profilesConfigMap string
+	for _, doc := range strings.Split(string(out), "\n---") {
+		if strings.Contains(doc, "kind: ConfigMap") &&
+			strings.Contains(doc, "name: relx-chatbot-mesh-profiles") {
+			profilesConfigMap = doc
+			break
+		}
+	}
+	if profilesConfigMap == "" {
+		t.Fatal("rendered chart has no shared profiles ConfigMap")
+	}
+	total := len(profilesConfigMap)
 
 	const configMapLimit = 1 << 20
 	if total > configMapLimit {
-		t.Errorf("staged profiles total %d bytes, over the %d ConfigMap limit", total, configMapLimit)
+		t.Errorf("rendered profiles ConfigMap is %d bytes, over the %d-byte limit", total, configMapLimit)
 	}
 	// Reserve a quarter of the object limit (256 KiB) for YAML/object overhead
 	// and ordinary profile growth. The old half-limit guard left more unused
@@ -141,7 +211,7 @@ func TestStagedProfilesFitTheConfigMapLimit(t *testing.T) {
 	// early warning without treating useful ConfigMap capacity as unavailable.
 	const safetyThreshold = configMapLimit * 3 / 4
 	if total > safetyThreshold {
-		t.Errorf("staged profiles total %d bytes, over the %d-byte safety threshold for a %d-byte ConfigMap",
+		t.Errorf("rendered profiles ConfigMap is %d bytes, over the %d-byte safety threshold for a %d-byte ConfigMap",
 			total, safetyThreshold, configMapLimit)
 	}
 }

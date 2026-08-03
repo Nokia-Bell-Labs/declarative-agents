@@ -545,7 +545,7 @@ const canonicalCollectorProgram = "agents/collector"
 const canonicalCollectorUIProgram = "agents/collector/ui/dist"
 
 // chartProfilePrograms is the single authoritative list of agent programs and
-// UI artifacts staged into the chart's profiles ConfigMap. It MUST cover every
+// UI artifacts staged into the chart package. It MUST cover every
 // agent profile mounted by an enabled Deployment (see helm/templates/*.yaml);
 // the applier (srd006) Deployment mounts agents/applier/profile.yaml, so
 // omitting it here left an enabled applier with no profile to start (GH-485).
@@ -563,8 +563,10 @@ const canonicalCollectorUIProgram = "agents/collector/ui/dist"
 // sources, the tsconfig, and a 60 KiB package-lock.json into every pod, and it
 // swept in node_modules whenever a developer had run npm install -- which helm
 // rejects outright, since esbuild's binary is over the 5 MiB per-file chart
-// limit (GH-702). The observer serves a single static index.html and restores
-// its whole agents/observer/ui after the same prune.
+// limit (GH-702). The observer likewise restores only its generated dist tree
+// after the same prune; the chart carries it in an observer-only ConfigMap,
+// mounted back at the same profiles/ path. Package sources and node_modules are
+// build inputs.
 func chartProfilePrograms() []chartProfileProgram {
 	return []chartProfileProgram{
 		{"agents/chatbot", "profiles/agents/chatbot"},
@@ -575,7 +577,7 @@ func chartProfilePrograms() []chartProfileProgram {
 		{"agents/collector", "profiles/agents/collector"},
 		{canonicalCollectorUIProgram, "collector-ui/ui/dist"},
 		{"agents/observer", "profiles/agents/observer"},
-		{"agents/observer/ui", "profiles/agents/observer/ui"},
+		{"agents/observer/ui/dist", "profiles/agents/observer/ui/dist"},
 		{"agents/corpus-ingest", "profiles/agents/corpus-ingest"},
 		{canonicalCorpusIngestProgram, "profiles/agents/knowledge-manager/corpus-ingest"},
 		{"agents/chatbot/ui/ui.yaml", "profiles/agents/chatbot/ui/ui.yaml"},
@@ -659,8 +661,8 @@ const stagedTestsDir = "tests"
 // development config, but the chart must mount only the served artifacts, not
 // the dev tree: the chatbot UI is restored as explicit entries
 // (agents/chatbot/ui/ui.yaml and agents/chatbot/ui/app/dist) and the observer
-// UI as agents/observer/ui, each staged after this prune strips the full ui/
-// copy. Catalog agents whose ui/ the chart never serves are simply dropped.
+// UI as agents/observer/ui/dist, each staged after this prune strips the full
+// ui/ copy. Catalog agents whose ui/ the chart never serves are simply dropped.
 func pruneStagedUIDev(dst string) error {
 	uiDir := filepath.Join(dst, "ui")
 	if err := os.RemoveAll(uiDir); err != nil && !os.IsNotExist(err) {

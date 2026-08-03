@@ -126,15 +126,15 @@ test_cases:
       - srd020-collector R5.2
 
   - use_case: rel13.0-uc001-collector-family
-    name: Design-token drift test covers collector UI App.css
-    go_test: go test ./conformance -run TestDesignTokensVendoredCopiesMatchCanonical/collector
+    name: Canonical design-token import covers collector UI App.css
+    go_test: go test ./conformance -run TestDesignTokensImportsResolveCanonical/collector
     status: implemented
     description: |
-      The vendored design-token block in the collector UI App.css must be
-      byte-identical to the canonical source in applications/catalog/ui/design-tokens.css.
+      Collector App.css must import applications/catalog/ui/design-tokens.css
+      directly and contain no copied canonical token declarations.
     inputs:
       canonical: applications/catalog/ui/design-tokens.css
-      vendored: agents/collector/ui/src/App.css
+      consumer: agents/collector/ui/src/App.css
     expected:
       drift: none
     traces:

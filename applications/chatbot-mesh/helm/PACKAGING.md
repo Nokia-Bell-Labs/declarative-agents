@@ -1,9 +1,11 @@
 # Packaged profiles
 
-The `profiles/` subtree is packaged into the
-`<release>-chatbot-mesh-profiles` ConfigMap and projected into each agent at
+The `profiles/` subtree supplies the shared
+`<release>-chatbot-mesh-profiles` ConfigMap projected into each agent at
 `/profiles` (nested paths restored from the encoded ConfigMap keys; see
-`templates/_helpers.tpl`).
+`templates/_helpers.tpl`). The observer UI remains at its established packaged
+path below `profiles/`, but the chart places that bundle in an observer-only
+ConfigMap and mounts it back at the same runtime path.
 
 A packaging step copies the agent programs and the UI artifacts the chart
 deploys into that directory before `helm package`/`helm install`:
@@ -17,7 +19,7 @@ applications/chatbot-mesh/agents/applier/      -> profiles/agents/applier/      
 applications/chatbot-mesh/agents/collector/    -> profiles/agents/collector/     (trace ingress, srd007)
 $AGENT_CATALOG_ROOT/agents/collector/ui/dist/ -> collector-ui/ui/dist/          (served trace UI, srd020 R7; collector-only ConfigMap, not the shared profiles tree)
 applications/chatbot-mesh/agents/observer/     -> profiles/agents/observer/      (fleet observer, srd008)
-applications/chatbot-mesh/agents/observer/ui/  -> profiles/agents/observer/ui/   (observer fleet UI, restored after the ui/ prune)
+applications/chatbot-mesh/agents/observer/ui/dist/ -> profiles/agents/observer/ui/dist/ (observer fleet UI bundle; observer-only ConfigMap)
 applications/chatbot-mesh/agents/corpus-ingest/ -> profiles/agents/corpus-ingest/ (application wrapper + REST values)
 applications/catalog/agents/knowledge-manager/corpus-ingest/ -> profiles/agents/knowledge-manager/corpus-ingest/ (canonical program)
 applications/chatbot-mesh/agents/chatbot/ui/ui.yaml   -> profiles/agents/chatbot/ui/ui.yaml
@@ -42,15 +44,14 @@ arbitrary source checkout is the immutable release. The exact canonical and
 legacy catalog tags are published atomically from `main` after merge; packaging
 on this branch stages the reviewed checkout and does not create release tags.
 
-The chatbot UI contributes those two entries, not its whole tree. Every file staged
-under `profiles/` becomes a ConfigMap key and a projected mount item in *every*
-agent pod, so the staged set is exactly what the chart consumes: `ui.yaml`, and
-the bundle the chatbot's `static_assets` binding serves. This document remains
-outside that subtree because documentation is not runtime input. The panel
-sources, `tsconfig.json`, and the 60 KiB `package-lock.json` are build inputs,
-not deployment inputs, and `node_modules` -- present whenever a developer has
-run `npm install` -- carries files over helm's 5 MiB per-file limit, which fails
-the render outright (GH-702).
+The chatbot and observer UIs contribute their built runtime entries, not their
+whole package trees. The chatbot bundle remains in the shared profiles
+ConfigMap. The larger observer React bundle is excluded from that shared object
+and mounted only into the observer from `<release>-chatbot-mesh-observer-ui`;
+its archive and runtime location remain `profiles/agents/observer/ui/dist`.
+This document remains outside the runtime subtree because documentation is not
+runtime input. Panel sources, `tsconfig.json`, package lockfiles, and
+`node_modules` are build inputs rather than deployment inputs.
 
 The chatbot `rest.yaml`, `agents/chatbot/ui/ui.yaml`, and `request-topology.yaml` are
 co-generated from `ragUnits`: the profiles ConfigMap emits rendered versions

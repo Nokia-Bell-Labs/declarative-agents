@@ -1,6 +1,20 @@
 {{- if .Values.observer.enabled }}
 {{- $fullname := include "chatbot-mesh.fullname" . -}}
 apiVersion: v1
+kind: ConfigMap
+metadata:
+  name: {{ $fullname }}-observer-ui
+  labels:
+    {{- include "chatbot-mesh.labels" . | nindent 4 }}
+    app.kubernetes.io/component: observer
+data:
+  {{- range $path, $_ := .Files.Glob "profiles/agents/observer/ui/dist/**" }}
+  {{- $relative := $path | trimPrefix "profiles/agents/observer/ui/dist/" }}
+  {{ printf "agents__observer__ui__dist__%s" ($relative | replace "/" "__") }}: |-
+    {{- $.Files.Get $path | nindent 4 }}
+  {{- end }}
+---
+apiVersion: v1
 kind: ServiceAccount
 metadata:
   name: {{ $fullname }}-observer
@@ -89,7 +103,7 @@ spec:
             - {name: OBSERVER_NAMESPACE, value: {{ .Release.Namespace | quote }}}
             - {name: OBSERVER_LABEL_SELECTOR, value: {{ printf "app.kubernetes.io/instance=%s" .Release.Name | quote }}}
             - {name: OBSERVER_POLL_INTERVAL, value: {{ .Values.observer.pollInterval | quote }}}
-            - {name: OBSERVER_UI_ROOT, value: "{{ .Values.profiles.mountPath }}/agents/observer/ui"}
+            - {name: OBSERVER_UI_ROOT, value: "{{ .Values.profiles.mountPath }}/agents/observer/ui/dist"}
             # The kube_api client targets the loopback kubectl-proxy sidecar with
             # auth_ref none; the sidecar adds the service-account bearer token
             # (GH-1302).
@@ -105,6 +119,7 @@ spec:
             {{- toYaml .Values.observer.resources | nindent 12 }}
           volumeMounts:
             - {name: profiles, mountPath: {{ .Values.profiles.mountPath }}, readOnly: true}
+            - {name: observer-ui, mountPath: "{{ .Values.profiles.mountPath }}/agents/observer/ui/dist", readOnly: true}
             - {name: work, mountPath: {{ .Values.profiles.workMountPath }}}
         # kubectl-proxy sidecar: holds the pod's service-account token and serves
         # an unauthenticated read-only proxy on loopback. It rejects write verbs
@@ -123,6 +138,18 @@ spec:
             {{- toYaml .Values.observer.proxy.resources | nindent 12 }}
       volumes:
         {{- include "chatbot-mesh.profilesVolume" . | nindent 8 }}
+        - name: observer-ui
+          projected:
+            defaultMode: 0444
+            sources:
+              - configMap:
+                  name: {{ $fullname }}-observer-ui
+                  items:
+                    {{- range $path, $_ := .Files.Glob "profiles/agents/observer/ui/dist/**" }}
+                    {{- $relative := $path | trimPrefix "profiles/agents/observer/ui/dist/" }}
+                    - key: {{ printf "agents__observer__ui__dist__%s" ($relative | replace "/" "__") }}
+                      path: {{ $relative }}
+                    {{- end }}
         - name: work
           emptyDir: {}
 ---

@@ -10,7 +10,7 @@ data:
   {{- $cogen := list "agents__chatbot__rest.yaml" "agents__chatbot__ui__ui.yaml" "agents__chatbot__request-topology.yaml" }}
   {{- range $path, $_ := .Files.Glob "profiles/**" }}
   {{- $key := $path | trimPrefix "profiles/" | replace "/" "__" }}
-  {{- if not (has $key $cogen) }}
+  {{- if and (not (has $key $cogen)) (not (hasPrefix "agents__observer__ui__dist__" $key)) }}
   {{ $key }}: |-
   {{- if eq $key "agents__applier__exec-declarations.yaml" }}
     {{- /* Rewrite the applier exec args' placeholder coordinates to the installed
