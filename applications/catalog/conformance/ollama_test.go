@@ -11,6 +11,7 @@ import (
 )
 
 func TestLiveModelGateDoesNotProbeWithoutExplicitOptIn(t *testing.T) {
+	t.Parallel()
 	probes := 0
 	timeout, skip, err := liveModelGate(false, defaultLiveConformanceTimeout, "installed:model", func(string) error {
 		probes++
@@ -31,6 +32,7 @@ func TestLiveModelGateDoesNotProbeWithoutExplicitOptIn(t *testing.T) {
 }
 
 func TestLiveModelGateOptInProbesExactModel(t *testing.T) {
+	t.Parallel()
 	const model = "required:model"
 	var probed string
 	timeout, skip, err := liveModelGate(true, 7*time.Minute, model, func(got string) error {
@@ -52,6 +54,7 @@ func TestLiveModelGateOptInProbesExactModel(t *testing.T) {
 }
 
 func TestLiveModelGateOptInStillRequiresDependency(t *testing.T) {
+	t.Parallel()
 	_, skip, err := liveModelGate(true, defaultLiveConformanceTimeout, "missing:model", func(string) error {
 		return probeOllama(http.DefaultClient, unavailableOllama(t), "missing:model")
 	})
@@ -64,6 +67,7 @@ func TestLiveModelGateOptInStillRequiresDependency(t *testing.T) {
 }
 
 func TestLiveModelGateRejectsInvalidTimeout(t *testing.T) {
+	t.Parallel()
 	probes := 0
 	_, _, err := liveModelGate(true, 0, "required:model", func(string) error {
 		probes++

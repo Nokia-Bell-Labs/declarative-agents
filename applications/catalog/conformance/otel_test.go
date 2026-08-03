@@ -17,6 +17,7 @@ const synthetic = `
 `
 
 func TestParseSpansSkipsNonSpanObjects(t *testing.T) {
+	t.Parallel()
 	spans, err := ParseSpans(strings.NewReader(synthetic))
 	if err != nil {
 		t.Fatalf("ParseSpans: %v", err)
@@ -27,6 +28,7 @@ func TestParseSpansSkipsNonSpanObjects(t *testing.T) {
 }
 
 func TestSpansRootAndQueries(t *testing.T) {
+	t.Parallel()
 	spans, err := ParseSpans(strings.NewReader(synthetic))
 	if err != nil {
 		t.Fatalf("ParseSpans: %v", err)
@@ -60,6 +62,7 @@ func TestSpansRootAndQueries(t *testing.T) {
 }
 
 func TestSpanStringAttr(t *testing.T) {
+	t.Parallel()
 	spans, err := ParseSpans(strings.NewReader(synthetic))
 	if err != nil {
 		t.Fatalf("ParseSpans: %v", err)

@@ -27,6 +27,7 @@ import (
 // tool families), R2.3 (agent-core lifecycle ports and the checkpoint store),
 // and R3.2 (Succeeded and Rejected terminal outcomes).
 func TestLifecycleApprovalSuspendResume(t *testing.T) {
+	t.Parallel()
 	RequireCoreRoot(t)
 	dolt := StartDolt(t)
 	profile := filepath.Join("testdata", "conformance", "lifecycle", "approval", "profile.yaml")

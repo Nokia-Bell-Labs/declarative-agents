@@ -20,6 +20,7 @@ const chatbotSourceRouterModel = "qwen2.5:3b"
 // intentionally separate from tier selection: this case asks for one scoped
 // corpus and validates the names-only structured contract.
 func TestChatbotSourceRouterConformance(t *testing.T) {
+	t.Parallel()
 	liveTimeout := RequireLiveModel(t, chatbotSourceRouterModel)
 	root := filepath.Join("..", "..", "chatbot-mesh", "agents", "chatbot")
 	data, err := os.ReadFile(filepath.Join(root, "request-declarations.yaml"))
