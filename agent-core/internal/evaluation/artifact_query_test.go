@@ -57,6 +57,87 @@ func TestEvaluationArtifactQueriesRejectTraversal(t *testing.T) {
 	require.Error(t, err)
 }
 
+// TestEvaluationArtifactQueriesRejectSymlinkEscape is the GH-1358 confinement
+// guard: an in-tree symlink at the suite, timestamp, point, or trace-file level
+// that resolves outside the results root must be denied with no bytes returned.
+// safeEvaluationComponent is only a lexical check; os.Stat/os.ReadFile follow
+// symlinks, so the read path must verify the resolved path stays under the root.
+func TestEvaluationArtifactQueriesRejectSymlinkEscape(t *testing.T) {
+	const ts = "20260101T000000Z"
+	const point = "pt1"
+
+	writeTrace := func(t *testing.T, dir string) {
+		t.Helper()
+		require.NoError(t, os.MkdirAll(dir, 0o755))
+		require.NoError(t, os.WriteFile(filepath.Join(dir, ArtifactTrace), []byte("{}\n"), 0o644))
+	}
+
+	t.Run("suite symlink escapes root", func(t *testing.T) {
+		root := t.TempDir()
+		outside := t.TempDir()
+		writeTrace(t, filepath.Join(outside, ts, point))
+		if err := os.Symlink(outside, filepath.Join(root, "suitelink")); err != nil {
+			t.Skipf("symlinks unsupported: %v", err)
+		}
+
+		trace, err := ReadEvaluationTrace(root, "suitelink", ts, point)
+		require.ErrorContains(t, err, "denied evaluation")
+		require.Empty(t, trace.Spans)
+		require.Empty(t, trace.PointID)
+
+		_, err = AnalyzeEvaluationSession(root, "suitelink", ts)
+		require.ErrorContains(t, err, "denied evaluation")
+	})
+
+	t.Run("timestamp symlink escapes root", func(t *testing.T) {
+		root := t.TempDir()
+		outside := t.TempDir()
+		require.NoError(t, os.MkdirAll(filepath.Join(root, "suite"), 0o755))
+		writeTrace(t, filepath.Join(outside, point))
+		if err := os.Symlink(outside, filepath.Join(root, "suite", "tslink")); err != nil {
+			t.Skipf("symlinks unsupported: %v", err)
+		}
+
+		trace, err := ReadEvaluationTrace(root, "suite", "tslink", point)
+		require.ErrorContains(t, err, "denied evaluation")
+		require.Empty(t, trace.Spans)
+
+		_, err = ListEvaluationPoints(root, "suite", "tslink")
+		require.ErrorContains(t, err, "denied evaluation")
+	})
+
+	t.Run("point symlink escapes root", func(t *testing.T) {
+		root := t.TempDir()
+		outside := t.TempDir()
+		session := filepath.Join(root, "suite", ts)
+		require.NoError(t, os.MkdirAll(session, 0o755))
+		writeTrace(t, filepath.Join(outside, "secret"))
+		if err := os.Symlink(filepath.Join(outside, "secret"), filepath.Join(session, "ptlink")); err != nil {
+			t.Skipf("symlinks unsupported: %v", err)
+		}
+
+		trace, err := ReadEvaluationTrace(root, "suite", ts, "ptlink")
+		require.ErrorContains(t, err, "denied evaluation")
+		require.Empty(t, trace.Spans)
+	})
+
+	t.Run("trace file symlink escapes point dir", func(t *testing.T) {
+		root := t.TempDir()
+		outside := t.TempDir()
+		pointDir := filepath.Join(root, "suite", ts, point)
+		require.NoError(t, os.MkdirAll(pointDir, 0o755))
+		secret := filepath.Join(outside, "secret.jsonl")
+		require.NoError(t, os.WriteFile(secret, []byte("{}\n"), 0o644))
+		if err := os.Symlink(secret, filepath.Join(pointDir, ArtifactTrace)); err != nil {
+			t.Skipf("symlinks unsupported: %v", err)
+		}
+
+		trace, err := ReadEvaluationTrace(root, "suite", ts, point)
+		require.ErrorContains(t, err, "denied evaluation")
+		require.Empty(t, trace.Spans)
+	})
+}
+
 func TestListEvaluationSessionsMissingRootIsEmpty(t *testing.T) {
 	sessions, err := ListEvaluationSessions(filepath.Join(t.TempDir(), "missing"))
 	require.NoError(t, err)

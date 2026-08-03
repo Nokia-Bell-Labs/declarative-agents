@@ -347,7 +347,18 @@ func ReadEvaluationTrace(dataDir, suite, timestamp, pointID string) (EvaluationT
 	if !safeEvaluationComponent(pointID) {
 		return EvaluationTrace{}, fmt.Errorf("denied evaluation point path")
 	}
-	spans, err := ReadTraceFile(filepath.Join(dir, pointID, ArtifactTrace))
+	// Confine the resolved trace path within the session directory before
+	// reading. safeEvaluationComponent is a lexical guard only; os.ReadFile and
+	// os.Stat follow symlinks, so an in-tree symlink at the point or file level
+	// could otherwise escape the results root (GH-1358).
+	tracePath, err := confineWithinRoot(dir, filepath.Join(dir, pointID, ArtifactTrace))
+	if err != nil {
+		if os.IsNotExist(err) {
+			return EvaluationTrace{}, os.ErrNotExist
+		}
+		return EvaluationTrace{}, err
+	}
+	spans, err := ReadTraceFile(tracePath)
 	if err != nil {
 		if os.IsNotExist(err) {
 			return EvaluationTrace{}, os.ErrNotExist
@@ -391,12 +402,47 @@ func evaluationSessionDir(dataDir, suite, timestamp string) (string, error) {
 	if !info.IsDir() {
 		return "", os.ErrNotExist
 	}
-	return dir, nil
+	// os.Stat above followed symlinks, so a symlinked suite or timestamp
+	// component can point outside dataDir. Resolve the path and require it to
+	// remain within the results root before any reader uses it (GH-1358).
+	return confineWithinRoot(dataDir, dir)
 }
 
 func safeEvaluationComponent(value string) bool {
 	return value != "" && value != "." && value != ".." &&
 		!strings.ContainsAny(value, `/\`+"\x00")
+}
+
+// confineWithinRoot resolves the symlinks in target and returns the resolved
+// path only if it stays within root after resolution. root must exist; a
+// nonexistent target propagates os.ErrNotExist so callers keep their
+// not-found behavior. An escape returns a "denied evaluation" error, which the
+// command layer maps to SignalEvaluationDenied.
+func confineWithinRoot(root, target string) (string, error) {
+	rootResolved, err := filepath.EvalSymlinks(root)
+	if err != nil {
+		return "", err
+	}
+	resolved, err := filepath.EvalSymlinks(target)
+	if err != nil {
+		return "", err
+	}
+	if !pathWithin(rootResolved, resolved) {
+		return "", fmt.Errorf("denied evaluation path: %q escapes results root", target)
+	}
+	return resolved, nil
+}
+
+// pathWithin reports whether p is root itself or lies beneath it.
+func pathWithin(root, p string) bool {
+	if p == root {
+		return true
+	}
+	rel, err := filepath.Rel(root, p)
+	if err != nil {
+		return false
+	}
+	return rel != ".." && !strings.HasPrefix(rel, ".."+string(filepath.Separator))
 }
 
 func decodeArtifactParams(raw string) map[string]any {
