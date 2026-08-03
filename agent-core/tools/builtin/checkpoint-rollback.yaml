@@ -4,6 +4,11 @@ tools:
   contract: migrated
   init: checkpoint_rollback
   visibility: internal
+  # Target run id and rollback step arrive through the universal --request file,
+  # not CLI flags; declare them as request sources the composition root resolves.
+  config:
+    checkpoint: $request.checkpoint
+    to_iteration: $request.to_iteration
   emits:
   - ToolDone
   - CommandError

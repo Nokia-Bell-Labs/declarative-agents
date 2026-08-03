@@ -4,6 +4,10 @@ tools:
   contract: migrated
   init: checkpoint_history
   visibility: internal
+  # Target run id arrives through the universal --request file, not a CLI flag;
+  # declare it as a request source the composition root resolves.
+  config:
+    checkpoint: $request.checkpoint
   emits:
   - ToolDone
   - CommandError
