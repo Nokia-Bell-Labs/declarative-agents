@@ -408,7 +408,7 @@ test_cases:
 
   - use_case: rel07.0-uc002-two-plane-revert
     name: Revert reaps later two-plane rows and invalidates store entries
-    go_test: go test ./internal/runtime/core -run 'TestDoltCheckpoint(RevertReapsBothPlanes|TerminalReapsBothPlanesWithBranch)'
+    go_test: go test ./internal/runtime/core -run 'TestDoltCheckpoint(RevertReapsBothPlanes|TerminalReapsRunHistoryBeforeMerge)'
     status: implemented
     description: |
       Revert(run_id, 1) resets the run branch so the tool_outputs and receipts

@@ -15,10 +15,11 @@ context: |
 
   The chart deploys canonical profiles by reference. It copies neither the
   documentation-curator profile config nor the collector profile; it stages
-  their prepared closures and mounts them into the runtime image, the same
-  ownership boundary the local demo keeps. The curator's browser UI is the one
-  exception: it exceeds the ConfigMap payload limit, so the image bakes it and
-  an init container stages it into the workspace -- a recorded divergence (R1.2).
+  their prepared closures and mounts them into the shared agent-core image both
+  workloads run, the same ownership boundary the local demo keeps. The curator's
+  browser UI exceeds the profile ConfigMap payload limit, so it ships as gzipped,
+  sharded ConfigMaps the curator init container unpacks into its workspace,
+  keeping the application off any per-app runtime image (R1.2, GH-1368).
 
 problem: |
   The demo has no Kubernetes surface. Its managed services run only as local
@@ -38,7 +39,7 @@ goals:
   - id: G3
     text: Prove the packaged chart on a bounded kind cluster, installing only the validated archive and observing curator and collector readiness, a browsable curator surface, an exported trace, and clean lifecycle exit.
   - id: G4
-    text: Keep the ownership boundary the local demo keeps, mounting canonical profile config into the runtime image rather than copying it into the chart; the curator's oversized browser UI is a recorded baked exception (R1.2).
+    text: Keep the ownership boundary the local demo keeps, mounting canonical profile config into the shared agent-core image rather than copying it into the chart; the curator's oversized browser UI ships as sharded ConfigMaps unpacked at startup, not baked into a per-app image (R1.2, GH-1368).
 
 requirements:
   - id: R1
@@ -47,7 +48,7 @@ requirements:
       - id: R1.1
         text: The chart shall render one Deployment and one ClusterIP Service for the documentation-curator and one Deployment and one ClusterIP Service for the collector agent.
       - id: R1.2
-        text: Both workloads shall use one application-owned runtime image containing agent-core and shall select their mounted canonical profile config at startup rather than embedding the profile in the image. The image additionally carries the documentation-curator's browser UI assets, which exceed the profile ConfigMap payload limit; the curator init container shall stage them into its writable workspace at startup so the profile's static_assets roots resolve.
+        text: Both workloads shall run the shared agent-core image and shall select their mounted canonical profile config at startup rather than embedding the profile in the image. The documentation-curator's browser UI and catalog docs assets exceed the profile ConfigMap payload limit; they shall ship as gzipped, sharded ConfigMaps provisioned out-of-release by the deploy/test tooling and referenced by name (curatorUI.shards), which the curator init container concatenates and unpacks into its writable workspace at startup so the profile's static_assets roots and document root resolve. They are provisioned outside the Helm release, not baked into a per-app runtime image, because the incompressible gzipped UI would otherwise push the Helm release Secret past the apiserver's request limit (GH-1368, GH-1402).
       - id: R1.3
         text: The curator Service shall expose the documentation, lifecycle-control, and monitor ports, and the collector Service shall expose the receiver, control, and query ports the local demo binds.
       - id: R1.4
@@ -75,7 +76,7 @@ requirements:
       - id: R3.1
         text: A kind target shall skip with a named missing prerequisite when Docker, kind, Helm, kubectl, required checkouts, or Docker health are unavailable, own only clusters it creates, and use a temporary kubeconfig.
       - id: R3.2
-        text: The target shall install only the validated archive, build and load the same runtime image the chart references, and mount the packaged curator and collector closures.
+        text: The target shall install only the validated archive, build and load the shared agent-core image the chart references for both workloads, mount the packaged curator and collector closures, and provision the curator UI shard ConfigMaps out-of-release (kubectl) so the curator mounts and unpacks them.
       - id: R3.3
         text: The curator and collector Deployments and their real lifecycle health endpoints shall become ready, the curator surface shall serve its documentation interface, and a declarative lifecycle-exit request shall stop the curator cleanly.
       - id: R3.4
@@ -85,7 +86,7 @@ requirements:
 
 acceptance_criteria:
   - id: AC1
-    criterion: Helm renders exactly one curator and one collector workload with the profile-free image, mounted canonical closures, fixed Services, truthful lifecycle probes, curator-to-collector OTLP export, and hardened pod security.
+    criterion: Helm renders exactly one curator and one collector workload with the shared profile-free agent-core image, mounted canonical closures, the curator UI shard ConfigMaps, fixed Services, truthful lifecycle probes, curator-to-collector OTLP export, and hardened pod security.
     traces: [R1]
   - id: AC2
     criterion: Preparation regenerates and checksum-validates the catalog-owned curator and collector closures and rejects stale, tampered, or out-of-bound package inputs before staging.
@@ -120,12 +121,14 @@ implementation_status:
   implemented: []
   planned:
     - >-
-      The chart -- the curator and collector Deployments and Services, the
-      profile-free runtime image, the mounted-closure ConfigMaps, the lifecycle
-      probes, and the curator-to-collector OTLP wiring -- the mage preparation
-      and package targets that stage and checksum the catalog-owned closures, the
-      values.schema.json and template guards, the self-contained archive
-      validation, and the bounded kind smoke target. The code lands in later
+      The chart -- the curator and collector Deployments and Services on the
+      shared agent-core image, the mounted-closure ConfigMaps, the
+      curatorUI.shards references to the out-of-release UI shard ConfigMaps, the
+      lifecycle probes, and the curator-to-collector OTLP wiring -- the mage
+      preparation and package targets that stage and checksum the catalog-owned
+      closures, the deploy/test tooling that provisions the curator UI shard
+      ConfigMaps out-of-release, the values.schema.json and template guards, the
+      self-contained archive validation, and the bounded kind smoke target. The code lands in later
       sub-issues of the release; this document and its use cases and test suites
       land first.
 
@@ -148,10 +151,12 @@ diagrams:
       OP[Operator or CI] -->|helm install| CHART[Packaged chart]
       CHART --> CURATOR[Curator Deployment and Service]
       CHART --> COLLECTOR[Collector Deployment and Service]
-      IMAGE[Profile-free runtime image] --> CURATOR
+      IMAGE[Shared agent-core image] --> CURATOR
       IMAGE --> COLLECTOR
       CLOSURE[Mounted canonical profile closures] --> CURATOR
       CLOSURE --> COLLECTOR
+      TOOLING[Deploy/test tooling kubectl] -->|out-of-release| UISHARDS[Curator UI ConfigMap shards]
+      UISHARDS --> CURATOR
       CURATOR -->|OTLP| COLLECTOR
       OP -->|browser| CURATOR
       OP -->|query surface| COLLECTOR

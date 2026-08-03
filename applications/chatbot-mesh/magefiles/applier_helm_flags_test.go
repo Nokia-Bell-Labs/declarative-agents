@@ -28,7 +28,7 @@ import (
 // with every test still green -- integration:applier drives fake CLIs, which
 // accept any flags at all.
 
-// helmVersionPattern matches the pinned version in the applier Dockerfile.
+// helmVersionPattern matches the pinned version in the shared applier Dockerfile.
 var helmVersionPattern = regexp.MustCompile(`(?m)^ARG HELM_VERSION=v(\d+)\.`)
 
 // helmFlagsByMajor is what each helm major calls the two behaviors the applier
@@ -42,13 +42,16 @@ var helmFlagsByMajor = map[int]struct{ rollback, dryRun string }{
 func pinnedHelmMajor(t *testing.T) int {
 	t.Helper()
 	meshRoot := filepath.Dir(findChartDir(t))
-	data, err := os.ReadFile(filepath.Join(meshRoot, "applier.Dockerfile"))
+	// The applier image is the shared agent-core/applier.Dockerfile (GH-1368),
+	// two levels up from the application root.
+	dockerfile := filepath.Join(meshRoot, "..", "..", "agent-core", "applier.Dockerfile")
+	data, err := os.ReadFile(dockerfile)
 	if err != nil {
-		t.Fatalf("read applier.Dockerfile: %v", err)
+		t.Fatalf("read agent-core/applier.Dockerfile: %v", err)
 	}
 	match := helmVersionPattern.FindSubmatch(data)
 	if match == nil {
-		t.Fatal("applier.Dockerfile pins no ARG HELM_VERSION=vN.…; the flag guard cannot tell which helm ships")
+		t.Fatal("agent-core/applier.Dockerfile pins no ARG HELM_VERSION=vN.…; the flag guard cannot tell which helm ships")
 	}
 	major, err := strconv.Atoi(string(match[1]))
 	if err != nil {
@@ -64,7 +67,7 @@ func TestApplierHelmFlagsMatchTheShippedHelm(t *testing.T) {
 	major := pinnedHelmMajor(t)
 	want, known := helmFlagsByMajor[major]
 	if !known {
-		t.Fatalf("applier.Dockerfile pins helm %d, whose flag spellings this guard does not know; "+
+		t.Fatalf("agent-core/applier.Dockerfile pins helm %d, whose flag spellings this guard does not know; "+
 			"decide what it calls the self-rollback and the dry-run, and add it to helmFlagsByMajor", major)
 	}
 

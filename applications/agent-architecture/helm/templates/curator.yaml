@@ -1,5 +1,6 @@
 {{- include "agent-architecture.validateValues" . -}}
 {{- $fullname := include "agent-architecture.fullname" . -}}
+{{- $curatorUIShards := .Values.curatorUI.shards | default (list) -}}
 apiVersion: apps/v1
 kind: Deployment
 metadata:
@@ -39,23 +40,29 @@ spec:
       affinity:
         {{- toYaml . | nindent 8 }}
       {{- end }}
+      {{- if $curatorUIShards }}
       initContainers:
-        # The curator's staged workspace — its browser UI dist trees and the
-        # catalog docs tree — is baked into the image under /opt/curator-ui
-        # because the dist trees are too large for the profile ConfigMap mount.
-        # Stage it into the writable workspace so the profile's literal
-        # ui/*/dist static_assets roots and its docs/ document root resolve
-        # under --directory /work (GH-1261, GH-1293).
+        # The curator's browser UI dist trees and the catalog docs tree are
+        # delivered as gzipped, sharded ConfigMaps the deploy/test tooling
+        # provisions out-of-release (curatorUI.shards) rather than baked into a
+        # per-app image (GH-1368) or carried inside the Helm release, which the
+        # gzipped UI would blow past the 3 MiB release limit (GH-1402).
+        # Concatenate the shards in key order back into one tar.gz and unpack it
+        # into the writable workspace so the profile's ui/*/dist static_assets
+        # roots and its docs/ document root resolve under --directory /work
+        # (GH-1261, GH-1293).
         - name: stage-curator-ui
           image: {{ include "agent-architecture.image" . | quote }}
           imagePullPolicy: {{ .Values.image.pullPolicy }}
-          command: ["sh", "-c", "cp -a /opt/curator-ui/. /work/"]
+          command: ["sh", "-c", "cat /curator-ui/part-* | tar -xzf - -C /work"]
           securityContext:
             {{- toYaml .Values.containerSecurityContext | nindent 12 }}
           resources:
             {{- toYaml .Values.curator.resources | nindent 12 }}
           volumeMounts:
             - {name: workspace, mountPath: /work}
+            - {name: curator-ui, mountPath: /curator-ui, readOnly: true}
+      {{- end }}
       containers:
         - name: curator
           image: {{ include "agent-architecture.image" . | quote }}
@@ -127,6 +134,20 @@ spec:
                     - key: {{ $path | trimPrefix "profiles/curator/" | replace "/" "__" }}
                       path: {{ $path | trimPrefix "profiles/curator/" }}
                     {{- end }}
+        {{- if $curatorUIShards }}
+        # One projected source per out-of-release curator-ui shard ConfigMap
+        # (curatorUI.shards, provisioned by the deploy/test tooling); each holds
+        # a single binaryData key part-NNN, so the init container concatenates
+        # them (part-000, part-001, ...) into the original tar.gz.
+        - name: curator-ui
+          projected:
+            defaultMode: 0444
+            sources:
+              {{- range $curatorUIShards }}
+              - configMap:
+                  name: {{ . }}
+              {{- end }}
+        {{- end }}
         - name: workspace
           emptyDir: {}
         - name: tmp

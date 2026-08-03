@@ -16,7 +16,7 @@
 # helm_dist: helm/dist
 
 # Runtime image reference `mage image:build` tags.
-# image: ghcr.io/nokia-bell-labs/declarative-agents/coding-agent-runtime:0.1.0
+# image: ghcr.io/nokia-bell-labs/declarative-agents/agent-core-toolchain:0.1.0
 
 # Profile-closure output directory the package and helm-prepare targets write.
 # profiles_output: build/profiles

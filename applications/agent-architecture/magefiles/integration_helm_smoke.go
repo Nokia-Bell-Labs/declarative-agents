@@ -23,7 +23,6 @@ const (
 	smokeCluster        = "da-agent-architecture-smoke"
 	smokeRelease        = "smoke"
 	smokeNamespace      = "agent-architecture-smoke"
-	smokeImageRepo      = "declarative-agents/agent-architecture-smoke"
 	smokeCollectorImage = kindrig.DefaultAgentCoreImage
 
 	smokeClusterTimeout  = 3 * time.Minute
@@ -103,10 +102,9 @@ func smokeSkipReason(resolved roots) string {
 }
 
 func runHelmSmoke(resolved roots) (result error) {
-	image, revision, err := kindrig.CommitImage(smokeImageRepo, mustGitRevision(resolved.Application))
-	if err != nil {
-		return err
-	}
+	// Both workloads run the locally built agent-core image (GH-1368); the
+	// application builds no runtime image of its own.
+	revision := mustGitRevision(resolved.Application)
 	kindConfig := filepath.Join(resolved.Application, "helm", "ci", "kind-config.yaml")
 	kindRun := func(args ...string) ([]byte, error) {
 		ctx, cancel := context.WithTimeout(context.Background(), smokeClusterTimeout)
@@ -128,7 +126,7 @@ func runHelmSmoke(resolved roots) (result error) {
 		cleanupHelmSmoke(environment, cluster, kindRun, result != nil)
 	}()
 
-	if err := prepareSmokeCluster(environment, cluster.Name, resolved, image); err != nil {
+	if err := prepareSmokeCluster(environment, cluster.Name, resolved); err != nil {
 		return smokeFailure(environment.run, "cluster preparation", err)
 	}
 	archiveDir, err := os.MkdirTemp("", "agent-architecture-smoke-chart-*")
@@ -140,7 +138,13 @@ func runHelmSmoke(resolved roots) (result error) {
 	if err != nil {
 		return fmt.Errorf("helmSmoke chart package: %w", err)
 	}
-	if err := installSmokeChart(environment, archive, resolved.Application, image); err != nil {
+	// Provision the curator UI shard ConfigMaps out-of-release (GH-1402) before
+	// installing, so the curator init container finds them when its pod starts.
+	shardNames, err := provisionCuratorUIShards(environment, resolved.Catalog, smokeNamespace, smokeRelease)
+	if err != nil {
+		return smokeFailure(environment.run, "curator UI shard provisioning", err)
+	}
+	if err := installSmokeChart(environment, archive, resolved.Application, shardNames); err != nil {
 		return smokeFailure(environment.run, "Helm install", err)
 	}
 	// The collector is a persistent server, so its rollout stabilizes. The
@@ -276,49 +280,49 @@ func smokeKubeconfig(cluster string) (string, func(), error) {
 	return path, func() { _ = os.RemoveAll(dir) }, nil
 }
 
-func prepareSmokeCluster(environment smokeEnvironment, cluster string, resolved roots, image string) error {
+func prepareSmokeCluster(environment smokeEnvironment, cluster string, resolved roots) error {
 	ctx, cancel := context.WithTimeout(context.Background(), 40*time.Second)
 	_, _ = environment.run(ctx, "kubectl", "delete", "namespace", smokeNamespace,
 		"--ignore-not-found=true", "--wait=true", "--timeout=30s")
 	cancel()
-	if err := buildAgentArchitectureImage(resolved.Application, image); err != nil {
-		return err
-	}
+	// The curator and collector both run agent-core (GH-1368); build and load one
+	// image for both rather than a separate per-app runtime.
 	if err := kindrig.BuildAgentCoreImage(resolved.Core, smokeCollectorImage); err != nil {
-		return fmt.Errorf("build collector image: %w", err)
+		return fmt.Errorf("build agent-core image: %w", err)
 	}
 	kindLoad := func(ctx context.Context, args ...string) ([]byte, error) {
 		return smokeEnvironment{}.run(ctx, "kind", args...)
 	}
-	for _, loadImage := range []string{image, smokeCollectorImage} {
-		ctx, cancel := context.WithTimeout(context.Background(), smokeClusterTimeout)
-		err := kindrig.LoadImage(ctx, kindLoad, cluster, loadImage)
-		cancel()
-		if err != nil {
-			return err
-		}
+	loadCtx, cancelLoad := context.WithTimeout(context.Background(), smokeClusterTimeout)
+	err := kindrig.LoadImage(loadCtx, kindLoad, cluster, smokeCollectorImage)
+	cancelLoad()
+	if err != nil {
+		return err
 	}
 	return runSmokeCommand(environment, 30*time.Second, "kubectl", "create", "namespace", smokeNamespace)
 }
 
-func installSmokeChart(environment smokeEnvironment, archive, applicationRoot, image string) error {
-	repository, tag := splitImageRef(image)
-	collectorRepository, collectorTag := splitImageRef(smokeCollectorImage)
+func installSmokeChart(environment smokeEnvironment, archive, applicationRoot string, shardNames []string) error {
+	repository, tag := splitImageRef(smokeCollectorImage)
 	ctx, cancel := context.WithTimeout(context.Background(), smokeInstallTimeout)
 	defer cancel()
-	output, err := environment.run(ctx, "helm",
+	args := []string{
 		"install", smokeRelease, archive,
 		"--namespace", smokeNamespace,
 		"--values", filepath.Join(applicationRoot, "helm", "ci", "kind-values.yaml"),
-		"--set", "image.repository="+repository,
-		"--set", "image.tag="+tag,
-		"--set", "collector.image.repository="+collectorRepository,
-		"--set", "collector.image.tag="+collectorTag,
-		// No --wait: the bounded curator never stays ready, so waiting on the
-		// whole release would always time out. Readiness is asserted per workload
-		// below.
-		"--timeout", smokeInstallTimeout.String(),
-	)
+		"--set", "image.repository=" + repository,
+		"--set-string", "image.tag=" + tag,
+		"--set", "collector.image.repository=" + repository,
+		"--set-string", "collector.image.tag=" + tag,
+	}
+	// Point the curator at the out-of-release UI shard ConfigMaps provisioned
+	// above so its init container mounts and unpacks them (GH-1402).
+	args = append(args, curatorUIShardSetArgs(shardNames)...)
+	// No --wait: the bounded curator never stays ready, so waiting on the
+	// whole release would always time out. Readiness is asserted per workload
+	// below.
+	args = append(args, "--timeout", smokeInstallTimeout.String())
+	output, err := environment.run(ctx, "helm", args...)
 	if err != nil {
 		return fmt.Errorf("helm install: %w: %s", err, strings.TrimSpace(string(output)))
 	}

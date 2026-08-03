@@ -18,7 +18,10 @@ import (
 )
 
 const (
-	applierLiveImageRepository = "declarative-agents/chatbot-mesh-applier"
+	// The shared applier image (GH-1368): agent-core plus helm and kubectl, no
+	// baked chart. One repo serves every application's applier because the image
+	// content is application-agnostic; the per-run tag is the tested commit.
+	applierLiveImageRepository = "declarative-agents/applier"
 	applierLiveCluster         = "da-chatbot-mesh-applier"
 	applierLiveRelease         = "live"
 
@@ -35,6 +38,17 @@ const (
 // kubectl in the applier image to regress the chatbot Deployment. That makes
 // the following declared kubectl rollout status fail deterministically, without
 // racing an out-of-band patch against Helm's own --wait.
+//
+// The strategic patch also drops the chatbot's progressDeadlineSeconds so the
+// unpullable image trips ProgressDeadlineExceeded in seconds rather than after
+// kubectl rollout status --timeout 120s expires. Without it the verify would
+// consume nearly the whole apply request budget (rest.yaml apply timeout 130s),
+// leaving no headroom for helm_upgrade and helm_rollback, so the request machine
+// was cancelled mid-verify and the endpoint answered 504 machine_timeout instead
+// of the RolledBack -> 500 the scenario proves (a race lost on a slow node). The
+// short deadline makes the RolledBack path fit the budget deterministically. The
+// underlying production concern -- a real stalled apply's 120s verify racing the
+// 130s budget -- is tracked separately from image consolidation.
 //
 // The extra Role is installed by the host-side initial install. The applier
 // therefore already holds these test-only permissions when an in-cluster upgrade
@@ -86,7 +100,7 @@ spec:
         - deployment/{{ $fullname }}-chatbot
         - --type=strategic
         - -p
-        - '{"spec":{"template":{"spec":{"containers":[{"name":"chatbot","image":"invalid.local/applier-live-rollback:missing"}]}}}}'
+        - '{"spec":{"progressDeadlineSeconds":20,"template":{"spec":{"containers":[{"name":"chatbot","image":"invalid.local/applier-live-rollback:missing"}]}}}}'
 {{- end }}
 {{- end }}
 `
@@ -145,12 +159,50 @@ func runApplierLive(coreRoot, profilesRoot string) error {
 	}
 	defer cleanupChart()
 
+	// The chart reaches the applier pod as a mounted volume, not baked into the
+	// shared applier image (GH-1368): the staged chart is packaged to a tarball and
+	// carried by a ConfigMap provisioned out-of-release (GH-1407), referenced by the
+	// chart's applier.chartArchiveConfigMap value. One coherent instrumented chart is
+	// both installed host-side and mounted at /chart, so a values change re-renders
+	// the same chart.
+	chartArchive, cleanupArchive, err := packageApplierChart(staged)
+	if err != nil {
+		return err
+	}
+	defer cleanupArchive()
+	if err := assertApplierChartArchiveCarriesProfiles(chartArchive); err != nil {
+		return err
+	}
+
+	// The shared applier image is FROM the agent-core runtime built above (GH-1368):
+	// agent-core plus helm and kubectl, no baked chart.
 	fmt.Printf("applierLive: building applier image %s on %s\n", images.Applier, images.Runtime)
-	if err := buildApplierImage(profilesRoot, staged, images.Runtime, images.Applier); err != nil {
+	if err := buildApplierImage(coreRoot, images.Runtime, images.Applier); err != nil {
 		return err
 	}
 	if err := assertApplierImageCarriesItsTools(images.Applier); err != nil {
 		return err
+	}
+
+	// The applier tier stands up the full mesh (chatbot, rag, chroma, dolt,
+	// collector, observer), so the kind node needs every external dependency
+	// image. Preload them from the host the same way helmSmoke and demo do
+	// (GH-1368): the host docker pulls (and caches) them, then they are imported
+	// into the kind node, so the node never pulls from a registry itself. A node
+	// that pulls directly fails behind a TLS-intercepting proxy it does not trust.
+	// The applier's helm_upgrade runs --atomic --wait, so unlike helmSmoke it
+	// gates on EVERY release pod reaching Ready -- including the observer's
+	// rancher/kubectl proxy, which the smoke set omits (helmSmoke never waits on
+	// the observer). Load the full applier set so no pod stalls in ImagePullBackOff.
+	dependencyImages, err := applierLiveDependencyImages(chartDir)
+	if err != nil {
+		return err
+	}
+	for _, image := range dependencyImages {
+		fmt.Printf("applierLive: preloading dependency image %s\n", image)
+		if out, pullErr := exec.Command("docker", "pull", "--platform", "linux/"+runtime.GOARCH, image).CombinedOutput(); pullErr != nil {
+			return fmt.Errorf("pull applier dependency %s: %w: %s", image, pullErr, strings.TrimSpace(string(out)))
+		}
 	}
 
 	cluster, err := kindrig.EnsureCluster(kindrig.DefaultRun, applierLiveCluster,
@@ -166,8 +218,13 @@ func runApplierLive(coreRoot, profilesRoot string) error {
 	if err := loadKindImage(applierLiveCluster, images.Runtime); err != nil {
 		return err
 	}
+	for _, image := range dependencyImages {
+		if err := loadSmokeDependencyImage(applierLiveCluster, image); err != nil {
+			return err
+		}
+	}
 
-	if err := helmInstallApplierLive(staged, images.Runtime, images.Applier); err != nil {
+	if err := helmInstallApplierLive(staged, chartArchive, images.Runtime, images.Applier); err != nil {
 		return err
 	}
 	if err := waitApplierDeploymentReady(); err != nil {
@@ -181,6 +238,33 @@ func runApplierLive(coreRoot, profilesRoot string) error {
 		"revision, compensates a post-upgrade verification failure with a real Helm rollback, and rejects a "+
 		"non-conforming patch against the real chart schema without touching it\n", images.Revision)
 	return nil
+}
+
+// applierLiveDependencyImages is the full set of external images the applier tier
+// brings up, so the kind node has every one preloaded before the applier's
+// --atomic --wait upgrade gates on release-wide readiness. It extends the smoke
+// set (collector, chroma, dolt) with the observer's kubectl proxy image, which
+// the smoke tier never waits on and so never loads.
+func applierLiveDependencyImages(chartDir string) ([]string, error) {
+	images, err := smokeDependencyImages(chartDir)
+	if err != nil {
+		return nil, err
+	}
+	var values struct {
+		Observer struct {
+			Proxy struct {
+				Image smokeImage `yaml:"image"`
+			} `yaml:"proxy"`
+		} `yaml:"observer"`
+	}
+	if err := readIntegrationYAML(filepath.Join(chartDir, "values.yaml"), "chart values", &values); err != nil {
+		return nil, err
+	}
+	proxy := values.Observer.Proxy.Image
+	if proxy.Repository == "" || proxy.Tag == "" {
+		return nil, fmt.Errorf("applier dependency image requires observer proxy repository and tag")
+	}
+	return append(images, proxy.Repository+":"+proxy.Tag), nil
 }
 
 // stageApplierLiveChart gives only this live tier a deterministic post-upgrade
@@ -200,26 +284,65 @@ func stageApplierLiveChart(chartDir, profilesRoot string) (string, func(), error
 	return staged, cleanup, nil
 }
 
+// applierLiveChartConfigMap names the ConfigMap that carries the packaged chart
+// to the applier pod. It is provisioned out-of-release (see helmInstallApplierLive)
+// and referenced by the chart's applier.chartArchiveConfigMap value.
+const applierLiveChartConfigMap = applierLiveRelease + "-applier-chart"
+
 // helmInstallApplierLive installs the mesh with the applier enabled. The two
 // values files layer: the kind footprint every cluster test shares, then the
-// applier the others deliberately disable.
-func helmInstallApplierLive(chartPath, runtimeImage, applierImage string) error {
+// applier the others deliberately disable. The chart the applier mounts at /chart
+// is delivered as data (GH-1368): the packaged tarball is carried by a ConfigMap
+// this tooling provisions OUT of the Helm release (kubectl apply) and the chart
+// references by name via applier.chartArchiveConfigMap. Keeping it out of the
+// release is what holds the release Secret under the 1 MiB apiserver limit -- the
+// chatbot-mesh chart embeds the collector UI, so carrying the archive in-release
+// (values plus a rendered binaryData ConfigMap) stored it twice and overflowed
+// (GH-1407). This mirrors the GH-1402 curator-UI shard provisioning.
+func helmInstallApplierLive(chartPath, chartArchive, runtimeImage, applierImage string) error {
 	repo, tag := splitImageRef(runtimeImage)
 	applierRepo, applierTag := splitImageRef(applierImage)
+	if err := provisionApplierChartConfigMap(chartArchive); err != nil {
+		return err
+	}
 	cmd := exec.Command("helm", "install", applierLiveRelease, chartPath,
 		"--values", filepath.Join(chartPath, "ci", "kind-values.yaml"),
 		"--values", filepath.Join(chartPath, "ci", "kind-applier-values.yaml"),
+		"--set", "applier.chartArchiveConfigMap="+applierLiveChartConfigMap,
 		"--set", "image.repository="+repo,
-		"--set", "image.tag="+tag,
+		"--set-string", "image.tag="+tag,
 		"--set", "image.pullPolicy=Never",
 		"--set", "applier.image.repository="+applierRepo,
-		"--set", "applier.image.tag="+applierTag,
+		"--set-string", "applier.image.tag="+applierTag,
 		"--set", "llm.externalURL=http://host.docker.internal:11434",
 		"--timeout", helmInstallTimeout.String(),
 	)
 	cmd.Stdout, cmd.Stderr = os.Stderr, os.Stderr
 	if err := cmd.Run(); err != nil {
 		return fmt.Errorf("helm install %s: %w", applierLiveRelease, err)
+	}
+	return nil
+}
+
+// provisionApplierChartConfigMap creates the out-of-release ConfigMap carrying the
+// packaged chart. kubectl stores the tarball under binaryData because it is not
+// valid UTF-8, and the chart's stage-chart init container unpacks it at /chart.
+//
+// `kubectl create` is used rather than `kubectl apply`: apply records the object
+// in a last-applied-configuration annotation, and the base64 chart tarball
+// (~0.5 MiB) blows past the 256 KiB annotation limit. A pre-delete keeps it
+// idempotent when the kind cluster is reused.
+func provisionApplierChartConfigMap(chartArchive string) error {
+	del := exec.Command("kubectl", "delete", "configmap", applierLiveChartConfigMap, "--ignore-not-found")
+	del.Stdout, del.Stderr = os.Stderr, os.Stderr
+	if err := del.Run(); err != nil {
+		return fmt.Errorf("clear stale applier chart ConfigMap %s: %w", applierLiveChartConfigMap, err)
+	}
+	create := exec.Command("kubectl", "create", "configmap", applierLiveChartConfigMap,
+		"--from-file=chart.tgz="+chartArchive)
+	create.Stdout, create.Stderr = os.Stderr, os.Stderr
+	if err := create.Run(); err != nil {
+		return fmt.Errorf("create applier chart ConfigMap %s: %w", applierLiveChartConfigMap, err)
 	}
 	return nil
 }
@@ -239,45 +362,55 @@ func waitApplierDeploymentReady() error {
 	return nil
 }
 
-// buildApplierImage builds the applier image from the locally built runtime
-// image and the supplied staged chart rather than published artifacts, so the
-// live tier runs the code under test the way the smoke does.
-//
-// The build context carries the *staged* chart, not the one in the repo. The
-// Dockerfile's `COPY helm /chart` takes whatever the context has, and the chart
-// in the repo has no agent profiles -- the packaging step stages them
-// (chartProfilePrograms). An image built from the unstaged chart renders a
-// profiles ConfigMap with only the four co-generated keys, so an in-cluster
-// upgrade would replace the live ConfigMap with a nearly empty one and no agent
-// would survive its next restart (GH-748). Re-rendering the whole chart is the
-// contract -- a values change re-renders the co-generated topology (srd006 R2.2,
-// srd003 R2) -- which is exactly why what /chart contains matters.
+// buildApplierImage builds the shared applier image from the locally built
+// agent-core runtime rather than published artifacts, so the live tier runs the
+// code under test the way the smoke does (GH-1368). The image is agent-core plus
+// helm and kubectl and bakes no chart; the chart reaches the running pod through
+// the mounted out-of-release chart ConfigMap, so the build context carries nothing
+// per-app. It builds from the shared agent-core/applier.Dockerfile with the
+// agent-core tree as the context.
 //
 // TARGETARCH is passed explicitly. The Dockerfile defaults it to amd64, and a
 // plain `docker build` on an arm64 host does not set it -- the result is an
 // arm64 image carrying amd64 helm and kubectl, which crash the first time an
 // exec word runs one. The kind nodes are the host's architecture, so the image
 // has to be too.
-func buildApplierImage(profilesRoot, staged, runtimeImage, image string) error {
-	buildCtx, err := os.MkdirTemp("", "applier-image-ctx-*")
-	if err != nil {
-		return err
-	}
-	defer func() { _ = os.RemoveAll(buildCtx) }()
-	if err := copyDirContents(staged, filepath.Join(buildCtx, "helm")); err != nil {
-		return fmt.Errorf("place the staged chart in the build context: %w", err)
-	}
-
+func buildApplierImage(coreRoot, runtimeImage, image string) error {
 	cmd := exec.Command("docker", "build",
-		"-f", filepath.Join(profilesRoot, "applier.Dockerfile"),
+		"-f", filepath.Join(coreRoot, "applier.Dockerfile"),
 		"--build-arg", "RUNTIME_IMAGE="+runtimeImage,
 		"--build-arg", "TARGETARCH="+runtime.GOARCH,
-		"-t", image, buildCtx)
+		"-t", image, coreRoot)
 	cmd.Stdout, cmd.Stderr = os.Stderr, os.Stderr
 	if err := cmd.Run(); err != nil {
 		return fmt.Errorf("docker build %s: %w", image, err)
 	}
 	return nil
+}
+
+// packageApplierChart packages the staged chart directory into a gzipped tarball
+// and returns its path. This is the chart the applier's `helm upgrade
+// chatbot-mesh /chart` word installs, delivered to the pod as data through the
+// out-of-release chart ConfigMap rather than baked into the image (GH-1368). It is
+// the same instrumented chart the host installs, so an in-cluster upgrade
+// re-renders one coherent chart.
+func packageApplierChart(chartDir string) (string, func(), error) {
+	dest, err := os.MkdirTemp("", "chatbot-mesh-applier-chart-tgz-*")
+	if err != nil {
+		return "", nil, err
+	}
+	cleanup := func() { _ = os.RemoveAll(dest) }
+	output, err := exec.Command("helm", "package", chartDir, "--destination", dest).CombinedOutput()
+	if err != nil {
+		cleanup()
+		return "", nil, fmt.Errorf("helm package applier chart: %w: %s", err, strings.TrimSpace(string(output)))
+	}
+	archive := filepath.Join(dest, "chatbot-mesh-0.1.0.tgz")
+	if _, err := os.Stat(archive); err != nil {
+		cleanup()
+		return "", nil, fmt.Errorf("packaged applier chart %s: %w", archive, err)
+	}
+	return archive, cleanup, nil
 }
 
 // applierImageProbe is one thing the image must carry for the applier's
@@ -296,10 +429,10 @@ func applierImageProbes() []applierImageProbe {
 	return []applierImageProbe{
 		{what: "helm", args: []string{"helm", "version", "--short"}, want: "v"},
 		{what: "kubectl", args: []string{"kubectl", "version", "--client"}, want: "Client Version"},
-		// The chart the helm words install, at the path their args name.
-		{what: "the chart at /chart", args: []string{"cat", "/chart/Chart.yaml"}, want: "chatbot-mesh"},
 		// The runtime the profile runs; the applier is an agent before it is a
-		// pair of CLIs.
+		// pair of CLIs. The chart is not baked into the image (GH-1368); it reaches
+		// the pod through the mounted out-of-release chart ConfigMap, verified
+		// host-side by assertApplierChartArchiveCarriesProfiles.
 		{what: "the agent binary", args: []string{"agent", "--help"}, want: "profile"},
 	}
 }
@@ -320,37 +453,36 @@ func assertApplierImageCarriesItsTools(image string) error {
 		}
 		fmt.Printf("applierLive: image carries %s\n", probe.what)
 	}
-	if err := assertApplierImageHelmMajor(image); err != nil {
-		return err
-	}
-	return assertApplierImageChartCarriesProfiles(image)
+	return assertApplierImageHelmMajor(image)
 }
 
-// assertApplierImageChartCarriesProfiles renders the chart the image ships,
-// using the image's own helm, and requires every agent profile an enabled
-// Deployment mounts to appear in the profiles ConfigMap.
+// assertApplierChartArchiveCarriesProfiles renders the packaged chart the applier
+// will mount at /chart, using the host helm, and requires every agent profile an
+// enabled Deployment mounts to appear in the profiles ConfigMap.
 //
 // This is what an apply actually does. The applier runs
 // `helm upgrade chatbot-mesh /chart`, which re-renders the co-generated topology
 // (srd006 R2.2), so the ConfigMap that render produces replaces the live one. If
-// /chart carries an unstaged chart the render is nearly empty, the replacement
-// strips every agent profile, and no agent survives its next restart -- with the
-// apply reporting success, because helm did exactly what it was asked (GH-748).
-func assertApplierImageChartCarriesProfiles(image string) error {
-	out, err := exec.Command("docker", "run", "--rm", "--entrypoint", "helm", image,
-		"template", "chatbot-mesh", "/chart").CombinedOutput()
+// the mounted chart carried no profiles the render would be nearly empty, the
+// replacement would strip every agent profile, and no agent would survive its
+// next restart -- with the apply reporting success, because helm did exactly what
+// it was asked (GH-748). The chart is delivered as data now (GH-1368), so this
+// asserts the archive rather than the image.
+func assertApplierChartArchiveCarriesProfiles(archive string) error {
+	out, err := exec.Command("helm", "template", "chatbot-mesh", archive,
+		"--set", "applier.enabled=true").CombinedOutput()
 	if err != nil {
-		return fmt.Errorf("render /chart with the image's own helm: %w\n%s", err, out)
+		return fmt.Errorf("render packaged applier chart: %w\n%s", err, out)
 	}
 	render := string(out)
 	for _, agent := range []string{"chatbot", "rag-server", "provisioning-workflow-orchestrator", "creator", "applier"} {
 		key := "agents__" + agent + "__profile.yaml"
 		if !strings.Contains(render, key) {
-			return fmt.Errorf("the chart at /chart renders no %s; an apply would replace the live profiles "+
-				"ConfigMap with one missing it, and that agent would not come back from a restart", key)
+			return fmt.Errorf("the chart the applier mounts at /chart renders no %s; an apply would replace the "+
+				"live profiles ConfigMap with one missing it, and that agent would not come back from a restart", key)
 		}
 	}
-	fmt.Println("applierLive: the chart at /chart renders every agent profile")
+	fmt.Println("applierLive: the chart the applier mounts at /chart renders every agent profile")
 	return nil
 }
 

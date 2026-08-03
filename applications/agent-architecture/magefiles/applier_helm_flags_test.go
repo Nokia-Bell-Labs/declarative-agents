@@ -41,13 +41,16 @@ var helmUpgradeForbiddenFlags = []string{"--atomic", "--wait", "--rollback-on-fa
 func pinnedHelmMajor(t *testing.T) int {
 	t.Helper()
 	appRoot := filepath.Dir(findChartDir(t))
-	data, err := os.ReadFile(filepath.Join(appRoot, "applier.Dockerfile"))
+	// The applier image is the shared agent-core/applier.Dockerfile (GH-1368),
+	// two levels up from the application root.
+	dockerfile := filepath.Join(appRoot, "..", "..", "agent-core", "applier.Dockerfile")
+	data, err := os.ReadFile(dockerfile)
 	if err != nil {
-		t.Fatalf("read applier.Dockerfile: %v", err)
+		t.Fatalf("read agent-core/applier.Dockerfile: %v", err)
 	}
 	match := helmVersionPattern.FindSubmatch(data)
 	if match == nil {
-		t.Fatal("applier.Dockerfile pins no ARG HELM_VERSION=vN.…; the flag guard cannot tell which helm ships")
+		t.Fatal("agent-core/applier.Dockerfile pins no ARG HELM_VERSION=vN.…; the flag guard cannot tell which helm ships")
 	}
 	major, err := strconv.Atoi(string(match[1]))
 	if err != nil {
@@ -64,7 +67,7 @@ func TestApplierHelmFlagsMatchTheShippedHelm(t *testing.T) {
 	major := pinnedHelmMajor(t)
 	wantDryRun, known := helmDryRunByMajor[major]
 	if !known {
-		t.Fatalf("applier.Dockerfile pins helm %d, whose dry-run spelling this guard does not know; "+
+		t.Fatalf("agent-core/applier.Dockerfile pins helm %d, whose dry-run spelling this guard does not know; "+
 			"decide what it calls validate-without-applying, and add it to helmDryRunByMajor", major)
 	}
 

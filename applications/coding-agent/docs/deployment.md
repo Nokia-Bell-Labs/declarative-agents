@@ -50,12 +50,13 @@ It contains the strict values schema and every generated role asset. Packaging
 validates profile checksums, ConfigMap partitions, archive inventory, lint, and
 an independent archive render.
 
-`mage image:build` builds
-`ghcr.io/nokia-bell-labs/declarative-agents/coding-agent-runtime:0.1.0` from
-`applications/coding-agent/Dockerfile`; set `image` in `demo.yaml` to build another
-tag. The live Helm smoke uses this exact recipe. The image contains no profiles,
-but it does contain `agent`, the Go toolchain, the v2.12.2 linter, and core tool
-declarations.
+`mage image:build` builds the shared
+`ghcr.io/nokia-bell-labs/declarative-agents/agent-core-toolchain:0.1.0` from
+`agent-core/toolchain.Dockerfile`, layered on a locally built `agent-core` base
+(GH-1368); set `image` in `demo.yaml` to build another tag. The live Helm smoke
+uses this exact recipe. The image contains no profiles, but it does layer the
+Go toolchain and the v2.12.2 linter onto `agent` and the core tool declarations
+already carried by agent-core.
 
 ## Install
 

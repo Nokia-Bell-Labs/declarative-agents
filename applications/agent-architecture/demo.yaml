@@ -18,5 +18,6 @@
 # Chart package output directory for `mage helm:package`.
 # helm_dist: helm/dist
 
-# Runtime image reference `mage image:build` tags.
-# image: ghcr.io/nokia-bell-labs/declarative-agents/agent-architecture-runtime:0.1.0
+# Both workloads run the shared agent-core image (GH-1368); there is no per-app
+# runtime image. `mage image:build` builds agent-core locally for kind.
+# image: ghcr.io/nokia-bell-labs/declarative-agents/agent-core:0.1.0

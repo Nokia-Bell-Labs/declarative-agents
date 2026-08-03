@@ -464,8 +464,10 @@ func buildSmokeRuntimeImage(coreRoot, image string) error {
 	if err := copyDirContents(filepath.Join(coreRoot, "tools"), filepath.Join(ctxDir, "tools")); err != nil {
 		return err
 	}
+	// Sibling of kindrig's agentCoreDockerfile; keep the tool contract in sync
+	// (jq and ripgrep match the production agent-core transform tools, GH-1368).
 	dockerfile := "FROM alpine:3.22\n" +
-		"RUN apk add --no-cache ca-certificates bash\n" +
+		"RUN apk add --no-cache ca-certificates bash jq ripgrep\n" +
 		"COPY agent /usr/local/bin/agent\n" +
 		"COPY tools /opt/agent-core/tools\n" +
 		"ENV AGENT_CORE_HOME=/opt/agent-core HOME=/tmp PATH=/usr/local/bin:/usr/bin:/bin\n" +
@@ -674,7 +676,7 @@ func helmInstallSmokeWithRunner(chartPath, image string, telemetry helmTelemetry
 	args := []string{"install", helmRelease, chartPath,
 		"--values", filepath.Join(chartPath, "ci", "kind-values.yaml"),
 		"--set", "image.repository=" + repo,
-		"--set", "image.tag=" + tag,
+		"--set-string", "image.tag=" + tag,
 		"--set", "image.pullPolicy=Never",
 		"--set", "llm.externalURL=http://host.docker.internal:11434",
 		"--set-string", "collector.externalOTLPEndpoint=" + telemetry.OTLPEndpoint,
@@ -1045,7 +1047,7 @@ func helmSwapDeploy(chartPath, image, verb string, extra []string) error {
 	args := []string{verb, helmSwapRelease, chartPath,
 		"--values", filepath.Join(chartPath, "ci", "kind-values.yaml"),
 		"--set", "image.repository=" + repo,
-		"--set", "image.tag=" + tag,
+		"--set-string", "image.tag=" + tag,
 		"--set", "image.pullPolicy=Never",
 		"--wait", "--timeout", helmInstallTimeout.String(),
 	}
@@ -1344,7 +1346,7 @@ func helmInstallLLMWithRunner(
 	args := []string{"install", helmLLMRelease, chartPath,
 		"--values", filepath.Join(chartPath, "ci", "kind-llm-values.yaml"),
 		"--set", "image.repository=" + repo,
-		"--set", "image.tag=" + tag,
+		"--set-string", "image.tag=" + tag,
 		"--set", "image.pullPolicy=Never",
 		"--set", "ollama.preload.suspend=true",
 		"--timeout", helmLLMInstallTimeout.String(),

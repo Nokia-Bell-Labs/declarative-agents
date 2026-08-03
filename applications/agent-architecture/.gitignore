@@ -1,4 +1,5 @@
 /build/
 /helm/dist/
 /helm/profiles/
+/helm/curator-assets/
 /magefiles/mage_output_file.go

@@ -238,6 +238,7 @@
       "properties": {
         "enabled": {"type": "boolean"},
         "image": {"$ref": "#/definitions/image"},
+        "chartArchiveConfigMap": {"type": "string"},
         "ports": {
           "allOf": [
             {"$ref": "#/definitions/agentPorts"},

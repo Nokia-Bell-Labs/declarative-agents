@@ -25,7 +25,7 @@ goals:
   - "G2: Validate a submitted values patch against the Prose Editor chart's values schema before applying, and apply it as a values-file rollout rather than per-field construction."
   - "G3: Verify the rollout of the Prose Editor role Deployments from a CLI status read and roll the release back on an apply or verify failure."
   - "G4: Hold helm and kubectl authority in the applier alone; the orchestrator, editors, critic, and retrieval roles carry none, and authority is set by declared, validated config."
-  - "G5: Carry the helm and kubectl CLIs in the applier image as a recorded, sanctioned divergence from the profile-free, binary-only image contract."
+  - "G5: Run the shared applier image (agent-core plus the helm and kubectl CLIs, no baked chart) as a recorded, sanctioned divergence from the profile-free, binary-only image contract; the chart the applier installs is delivered to its pod as a mounted volume, not baked into the image."
 
 applicability:
   release: "00.3"
@@ -164,11 +164,15 @@ requirements:
         evidence: Planned applier profile carries no role-selection or lifecycle-ownership word.
       - id: R5.3
         text: |
-          The applier image SHALL carry the helm and kubectl CLIs alongside the
-          runtime binary; this is a sanctioned divergence from the profile-free,
+          The applier SHALL run the shared applier image -- agent-core plus the
+          helm and kubectl CLIs, one recipe across every application, baking no
+          chart; this is a sanctioned divergence from the profile-free,
           binary-only image contract (srd006 R2.2), recorded so a
-          declarative-decomposition audit does not re-flag it.
-        evidence: Planned image manifest records the helm and kubectl divergence for the applier image alone.
+          declarative-decomposition audit does not re-flag it. The chart the
+          applier installs SHALL be delivered to its pod at /chart as a mounted
+          volume, so the chart bytes travel with the Helm release rather than an
+          image rebuild.
+        evidence: Planned image manifest records the shared applier image (helm and kubectl on agent-core) and the mounted-chart delivery for the applier alone.
 
 non_goals:
   - Decide what values to change; the operator or CI caller owns that decision.
@@ -208,9 +212,10 @@ acceptance_criteria:
   - id: AC5
     criterion: |
       Deciding the values (the operator or CI caller) and profile selection or
-      lifecycle (package and chart) are non-goals, and the applier image carries
-      helm and kubectl as a recorded, sanctioned divergence from the binary-only
-      image contract.
+      lifecycle (package and chart) are non-goals, and the applier runs the shared
+      applier image (agent-core plus helm and kubectl, no baked chart) as a
+      recorded, sanctioned divergence from the binary-only image contract, with the
+      chart it installs mounted at /chart rather than baked in.
     traces: [R5.1, R5.2, R5.3]
 
 depends_on:

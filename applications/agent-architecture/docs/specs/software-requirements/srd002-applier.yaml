@@ -31,8 +31,10 @@ problem: |
   values.schema.json (srd001 R2) and the rollout phase read from a CLI exit
   code. The requirements must name the actuation surface, the validate-then-apply
   and verify-then-rollback machine, the authority boundary that keeps helm and
-  kubectl off the serving pods, and the sanctioned image divergence, separately
-  from the agent-core runtime the applier builds on. Because the Agent
+  kubectl off the serving pods, and the sanctioned divergence of the shared
+  applier image -- agent-core plus helm and kubectl, with the chart delivered as a
+  mounted volume rather than baked in -- separately from the agent-core runtime
+  the applier builds on. Because the Agent
   Architecture has no control plane, the applier is a standalone actuator with no
   panel state view and no in-cluster caller.
 
@@ -46,7 +48,7 @@ goals:
   - id: G4
     text: Hold helm and kubectl authority in the applier alone; the curator and collector carry none, and authority is set by declared, validated config.
   - id: G5
-    text: Carry the helm and kubectl CLIs in the applier image as a recorded, sanctioned divergence from the profile-free, binary-only image contract.
+    text: Run the applier on the shared applier image -- agent-core plus the helm and kubectl CLIs -- a recorded, sanctioned divergence from the profile-free, binary-only image contract, and deliver the chart to the applier pod as a mounted volume rather than baking it into the image.
 
 requirements:
   - id: R1
@@ -95,7 +97,7 @@ requirements:
       - id: R5.2
         text: The applier shall not select workload profiles or own agent lifecycle; those remain the packaging and chart's (srd001).
       - id: R5.3
-        text: The applier image shall carry the helm and kubectl CLIs alongside the runtime binary; this is a sanctioned divergence from the profile-free, binary-only image contract (srd001 R1.2), recorded so the declarative-decomposition audit does not re-flag it.
+        text: The applier shall run the shared applier image -- agent-core plus the helm and kubectl CLIs -- a sanctioned divergence from the profile-free, binary-only image contract (srd001 R1.2), recorded so the declarative-decomposition audit does not re-flag it; the chart shall be delivered to the applier pod as a mounted volume rather than baked into the image.
 
 acceptance_criteria:
   - id: AC1
@@ -111,7 +113,7 @@ acceptance_criteria:
     criterion: The applier alone holds helm and kubectl bound as exec tools, the curator and collector carry none, authority is set by declared validated config and never by this surface (agent-core srd028 V30), and the apply surface is unreachable from the serving pods at the network layer.
     traces: [R4.1, R4.2, R4.3]
   - id: AC5
-    criterion: Deciding the values (the operator or CI caller) and profile selection or lifecycle (packaging and chart) are non-goals, and the applier image carries helm and kubectl as a recorded, sanctioned divergence from the binary-only image contract.
+    criterion: Deciding the values (the operator or CI caller) and profile selection or lifecycle (packaging and chart) are non-goals, and the applier runs the shared applier image (agent-core plus helm and kubectl) as a recorded, sanctioned divergence from the binary-only image contract, with the chart delivered to the applier pod as a mounted volume rather than baked into the image.
     traces: [R5.1, R5.2, R5.3]
 
 depends_on:
@@ -147,8 +149,10 @@ implementation_status:
       applier Deployment, image, and NetworkPolicy that keep the apply surface
       off the serving pods, and an integration target that drives a values patch
       through validate, apply, verify, and rollback against the packaged chart on
-      the kind rig (srd001 R3). The applier image carrying helm and kubectl is a
-      recorded divergence from the profile-free image contract. The code lands in
+      the kind rig (srd001 R3). The applier running the shared applier image --
+      agent-core plus helm and kubectl, with the chart delivered to the pod as a
+      mounted volume rather than baked in -- is a recorded divergence from the
+      profile-free image contract. The code lands in
       later sub-issues of the release; this document and its use case and test
       suite land first.
 

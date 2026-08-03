@@ -13,17 +13,18 @@ import (
 )
 
 func TestCodingAgentImageBuildUsesPublishedRecipe(t *testing.T) {
-	applicationRoot := filepath.Join(string(filepath.Separator), "repo", "applications", "coding-agent")
-	contextDir, dockerfile, args := codingAgentImageBuild(applicationRoot, "example/runtime:test")
-	if contextDir != filepath.Join(string(filepath.Separator), "repo") {
-		t.Errorf("build context = %q, want repository root", contextDir)
+	coreRoot := filepath.Join(string(filepath.Separator), "repo", "agent-core")
+	contextDir, dockerfile, args := codingAgentImageBuild(coreRoot, "declarative-agents/agent-core:local", "example/runtime:test")
+	if contextDir != coreRoot {
+		t.Errorf("build context = %q, want agent-core root", contextDir)
 	}
-	if dockerfile != filepath.Join(applicationRoot, "Dockerfile") {
+	if dockerfile != filepath.Join(coreRoot, "toolchain.Dockerfile") {
 		t.Errorf("Dockerfile = %q", dockerfile)
 	}
 	want := []string{
 		"build", "--pull=false",
 		"--build-arg", "GOLANGCI_LINT_VERSION=" + codingAgentGolangciLint,
+		"--build-arg", "RUNTIME_IMAGE=declarative-agents/agent-core:local",
 		"-f", dockerfile,
 		"-t", "example/runtime:test",
 		".",

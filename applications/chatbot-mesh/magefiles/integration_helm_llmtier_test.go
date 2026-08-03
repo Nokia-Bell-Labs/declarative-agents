@@ -351,7 +351,7 @@ func TestHelmLLMTierInstallExposesTransition(t *testing.T) {
 	if !strings.Contains(command, "--set ollama.preload.suspend=true") {
 		t.Fatalf("helm install does not suspend preload for observation: %s", command)
 	}
-	if !strings.Contains(command, "--set image.tag=0123456789ab") {
+	if !strings.Contains(command, "--set-string image.tag=0123456789ab") {
 		t.Fatalf("helm install omits commit-addressed image: %s", command)
 	}
 }

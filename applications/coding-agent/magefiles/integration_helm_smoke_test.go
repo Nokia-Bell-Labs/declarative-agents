@@ -135,27 +135,30 @@ func TestCodingHelmFixturesMatchServingAndStorageContract(t *testing.T) {
 }
 
 func TestCodingHelmSmokeUsesProductionProfileFreeImageRecipe(t *testing.T) {
-	data, err := os.ReadFile(filepath.Join("..", "Dockerfile"))
+	// The coding roles run the shared agent-core-toolchain recipe (GH-1368):
+	// agent-core plus the Go toolchain and golangci-lint, layered by RUNTIME_IMAGE
+	// rather than rebuilt per application.
+	data, err := os.ReadFile(filepath.Join("..", "..", "..", "agent-core", "toolchain.Dockerfile"))
 	if err != nil {
 		t.Fatal(err)
 	}
 	dockerfile := string(data)
 	for _, want := range []string{
 		"ARG GOLANGCI_LINT_VERSION=v2.12.2",
-		"FROM ${GO_IMAGE} AS runtime",
+		"ARG RUNTIME_IMAGE=",
 		"github.com/golangci/golangci-lint/v2/cmd/golangci-lint@${GOLANGCI_LINT_VERSION}",
-		"COPY --from=builder /out/agent /usr/local/bin/agent",
-		"COPY --from=builder /out/golangci-lint /usr/local/bin/golangci-lint",
-		"COPY agent-core/tools /opt/agent-core/tools",
+		"FROM ${RUNTIME_IMAGE}",
+		"COPY --from=toolchain /usr/local/go /usr/local/go",
+		"COPY --from=toolchain /out/golangci-lint /usr/local/bin/golangci-lint",
 		"USER 10001:10001",
 	} {
 		if !strings.Contains(dockerfile, want) {
-			t.Errorf("production Dockerfile missing %q", want)
+			t.Errorf("agent-core-toolchain Dockerfile missing %q", want)
 		}
 	}
-	for _, forbidden := range []string{"COPY profiles", "COPY agents", "v1.64.8"} {
+	for _, forbidden := range []string{"COPY profiles", "COPY agents", "COPY helm", "v1.64.8"} {
 		if strings.Contains(dockerfile, forbidden) {
-			t.Errorf("production Dockerfile violates its image contract via %q", forbidden)
+			t.Errorf("agent-core-toolchain Dockerfile violates its image contract via %q", forbidden)
 		}
 	}
 }
@@ -172,7 +175,7 @@ func TestCodingHelmUsesIsolatedCollectorQueryPort(t *testing.T) {
 
 func TestCodingHelmCommitImagePropagatesToBuildManifestAndDeploy(t *testing.T) {
 	image := "declarative-agents/coding-agent-smoke:0123456789ab"
-	_, _, buildArgs := codingAgentImageBuild("..", image)
+	_, _, buildArgs := codingAgentImageBuild("..", "declarative-agents/agent-core:local", image)
 	if !strings.Contains(strings.Join(buildArgs, " "), "-t "+image) {
 		t.Fatalf("docker build args omit commit image: %v", buildArgs)
 	}

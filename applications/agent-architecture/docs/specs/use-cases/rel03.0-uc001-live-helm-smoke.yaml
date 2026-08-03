@@ -4,8 +4,10 @@ status: planned
 
 summary: |
   A developer installs only the validated chart archive into a bounded kind
-  cluster, builds and loads the same profile-free runtime image the chart
-  references, and mounts the packaged curator and collector closures. The
+  cluster, builds and loads the shared profile-free agent-core image the chart
+  references for both workloads, mounts the packaged curator and collector
+  closures, and provisions the curator UI shard ConfigMaps out-of-release so the
+  curator unpacks them. The
   curator and collector Deployments and their real lifecycle health endpoints
   become ready, the curator serves its documentation interface, a declarative
   lifecycle-exit request stops the curator cleanly, and the collector retains a
@@ -23,7 +25,7 @@ flow:
   - id: F1
     text: The target checks its prerequisites and skips with a named missing tool when Docker, kind, Helm, kubectl, a required checkout, or Docker health is unavailable.
   - id: F2
-    text: The target creates a kind cluster through a temporary kubeconfig, builds and loads the profile-free runtime image, and installs only the validated archive.
+    text: The target creates a kind cluster through a temporary kubeconfig, builds and loads the shared profile-free agent-core image, and installs only the validated archive.
   - id: F3
     text: The curator and collector Deployments and their real lifecycle health endpoints become ready.
   - id: F4
@@ -43,7 +45,7 @@ touchpoints:
 
 success_criteria:
   - id: S1
-    criterion: The target installs only the validated archive, builds and loads the profile-free runtime image the chart references, and mounts the packaged curator and collector closures.
+    criterion: The target installs only the validated archive, builds and loads the shared profile-free agent-core image the chart references, mounts the packaged curator and collector closures, and provisions the curator UI shard ConfigMaps out-of-release for the curator to unpack.
     traces:
       - srd001-helm-deployment R3.2
       - srd001-helm-deployment AC4

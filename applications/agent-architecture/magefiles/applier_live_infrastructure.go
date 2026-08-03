@@ -91,10 +91,17 @@ func applierLiveInfrastructureProbes() []applierLiveProbe {
 			// connection-refused that reads like an SA/token gap (GH-1175). The
 			// applier's own exec words never pass --request-timeout, so dropping it here
 			// matches how the applier actually reaches the API.
+			//
+			// -c applier targets the applier container explicitly: the chart
+			// delivers itself as a volume (GH-1369), so the pod also has a
+			// stage-chart init container, and a bare `kubectl exec` prints a
+			// "Defaulted container ... out of: applier, stage-chart (init)"
+			// notice that would corrupt the readyz output the probe compares
+			// against "ok" (GH-1403).
 			args: []string{
 				"--request-timeout=" + requestTimeout,
 				"-n", smokeNamespace,
-				"exec", deployment, "--",
+				"exec", deployment, "-c", "applier", "--",
 				"kubectl", "get", "--raw=/readyz",
 			},
 		},

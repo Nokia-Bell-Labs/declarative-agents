@@ -17,11 +17,13 @@ import (
 const DefaultAgentCoreImage = "declarative-agents/agent-core:local"
 
 // agentCoreDockerfile is the minimal runtime image contract: the linux agent on
-// PATH and the core tools under AGENT_CORE_HOME. chatbot-mesh's
-// buildSmokeRuntimeImage is the sibling of this builder and must keep the same
-// contract.
+// PATH and the core tools under AGENT_CORE_HOME. jq and ripgrep match the
+// transform tools the production agent-core image carries so mounted profiles
+// whose exec words are jq/rg (e.g. the documentation-curator, GH-1368) run in
+// kind smokes on this local image. chatbot-mesh's buildSmokeRuntimeImage is the
+// sibling of this builder and must keep the same contract.
 const agentCoreDockerfile = "FROM alpine:3.22\n" +
-	"RUN apk add --no-cache ca-certificates bash\n" +
+	"RUN apk add --no-cache ca-certificates bash jq ripgrep\n" +
 	"COPY agent /usr/local/bin/agent\n" +
 	"COPY tools /opt/agent-core/tools\n" +
 	"ENV AGENT_CORE_HOME=/opt/agent-core HOME=/tmp PATH=/usr/local/bin:/usr/bin:/bin\n" +
