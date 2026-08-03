@@ -9,8 +9,13 @@ import (
 	"path/filepath"
 )
 
+// agentCoreModule is the platform module that owns cmd/agent. Every module
+// audit that rebuilds the agent binary compiles this same package, so the root
+// audit warms its build cache once before fanning out (see warmAgentBuild).
+const agentCoreModule = "agent-core"
+
 var subModules = []string{
-	"agent-core",
+	agentCoreModule,
 	"applications/catalog",
 	"design-patterns",
 }
