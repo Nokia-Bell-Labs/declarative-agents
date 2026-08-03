@@ -122,4 +122,8 @@ type LoopParams struct {
 	// value defaults to NoopCheckpoint, preserving disabled-mode behavior.
 	Checkpoint      Checkpoint
 	MonitorRecorder monitor.RuntimeRecorder
+	// CommandStateObserver receives the execution log after each dispatch so a
+	// live command-state source stays current for a background monitor server. A
+	// nil value keeps disabled-mode behavior (srd033-monitor-rest-api R7.1).
+	CommandStateObserver CommandStateObserver
 }

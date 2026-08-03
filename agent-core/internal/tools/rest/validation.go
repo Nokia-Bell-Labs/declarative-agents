@@ -496,6 +496,9 @@ func validateLifecycleControlEndpoint(name string, endpoint Endpoint) error {
 
 func validateMonitorView(name string, endpoint Endpoint) error {
 	if endpoint.MonitorView == "" {
+		if len(endpoint.Labels) > 0 {
+			return fmt.Errorf("endpoint %q labels is only valid with monitor_view command_state", name)
+		}
 		return nil
 	}
 	switch endpoint.Binding {
@@ -504,7 +507,18 @@ func validateMonitorView(name string, endpoint Endpoint) error {
 		return fmt.Errorf("endpoint %q monitor_view requires read_state, static_metadata, or stream_events binding", name)
 	}
 	switch endpoint.MonitorView {
+	case monitorViewCommandState:
+		if endpoint.Binding != bindingReadState {
+			return fmt.Errorf("endpoint %q monitor_view command_state requires read_state binding", name)
+		}
+		if len(endpoint.Labels) == 0 {
+			return fmt.Errorf("endpoint %q monitor_view command_state requires a non-empty labels allowlist", name)
+		}
+		return nil
 	case monitorViewMachine, monitorViewState, monitorViewTools, monitorViewMetrics, monitorViewEvents, "openapi":
+		if len(endpoint.Labels) > 0 {
+			return fmt.Errorf("endpoint %q labels is only valid with monitor_view command_state", name)
+		}
 		return nil
 	default:
 		return fmt.Errorf("endpoint %q has unsupported monitor_view %q", name, endpoint.MonitorView)

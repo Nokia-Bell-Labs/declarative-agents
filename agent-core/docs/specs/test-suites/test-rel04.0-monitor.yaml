@@ -348,3 +348,81 @@ test_cases:
     traces:
       - rel04.0-uc002-monitor-rest-api S5
       - srd033-monitor-rest-api AC5
+
+  - use_case: rel04.0-uc002-monitor-rest-api
+    name: Monitor command_state view returns declared labeled output
+    status: planned
+    description: |
+      Intended Go test TestMonitorREST_CommandStateView, added by GH-1297.
+      Serve a read_state endpoint that declares monitor_view command_state with
+      a labels allowlist, backed by a live command-state view over a run that has
+      recorded steps under those labels. The response should be an object keyed
+      by the declared labels, each present entry carrying the step's
+      redaction-cleared declared output and the run envelope fields state,
+      signal, iteration, and updated_at. A declared label with no recorded step
+      yet should return an explicit absent entry rather than an error. Receipts
+      should be absent, and the handler should read only, executing no tools.
+    inputs:
+      declared_labels: [poll_agent_monitors, list_mesh_deployments, unrecorded_label]
+      recorded_labels: [poll_agent_monitors, list_mesh_deployments]
+    expected:
+      response_keyed_by_declared_labels: true
+      entry_carries_declared_output: true
+      entry_carries_run_envelope: [state, signal, iteration, updated_at]
+      unrecorded_label_absent_entry: true
+      receipts_absent: true
+      tools_executed: false
+    traces:
+      - rel04.0-uc002-monitor-rest-api S1
+      - srd033-monitor-rest-api AC7
+
+  - use_case: rel04.0-uc002-monitor-rest-api
+    name: Monitor command_state view rejects misuse of labels
+    status: planned
+    description: |
+      Intended Go test TestMonitorCommandStateView_ValidationRejectsMisuse,
+      added by GH-1297.
+      Load endpoint configurations that misuse the command_state contract.
+      Configuration validation should reject a command_state endpoint that
+      declares no labels or an empty labels allowlist, and should reject any
+      non-command_state monitor_view that declares labels. A valid
+      command_state endpoint with a non-empty labels allowlist should load.
+    inputs:
+      rejected:
+        - command_state_without_labels
+        - command_state_with_empty_labels
+        - current_state_with_labels
+      accepted:
+        - command_state_with_nonempty_labels
+    expected:
+      command_state_without_labels_rejected: true
+      empty_labels_rejected: true
+      labels_on_other_view_rejected: true
+      valid_command_state_loads: true
+    traces:
+      - rel04.0-uc002-monitor-rest-api S1
+      - srd033-monitor-rest-api AC7
+
+  - use_case: rel04.0-uc002-monitor-rest-api
+    name: Monitor command_state view redacts omitted and legacy output
+    status: planned
+    description: |
+      Intended Go test TestMonitorREST_CommandStateRedaction, added by GH-1297.
+      Back a command_state endpoint with a command-state view whose entries
+      include output_omitted, unversioned legacy, and oversized output. The view
+      should surface omitted, unversioned, and unknown-version entries as typed
+      unavailable entries rather than raw output, and should replace an entry
+      whose output exceeds the configured limits_ref response size with an
+      explicit unavailable marker rather than failing the whole response.
+    inputs:
+      entry_states: [output_omitted, unversioned_legacy, oversized_output]
+      limits_ref_bounded: true
+    expected:
+      omitted_output_unavailable_entry: true
+      legacy_output_unavailable_entry: true
+      oversized_output_unavailable_marker: true
+      raw_output_exposed: false
+      whole_response_failed: false
+    traces:
+      - rel04.0-uc002-monitor-rest-api S5
+      - srd033-monitor-rest-api AC7

@@ -379,6 +379,9 @@ func buildPreparedRun(cmd *cobra.Command, resources runResources) (preparedRun, 
 	reg := core.NewRegistry()
 	builtins := toolregistry.NewBuiltinRegistry()
 	retries := parseErrorRetryTracker(resources.Machine)
+	// One live source is shared: the loop refreshes it per dispatch and the
+	// monitor command_state view reads it (srd033-monitor-rest-api R7.1).
+	commandStateSource := core.NewLiveCommandStateSource()
 	st := newAgentState(cfg, agentStateDeps{
 		Registry:            reg,
 		Tracer:              resources.Tracer,
@@ -388,6 +391,7 @@ func buildPreparedRun(cmd *cobra.Command, resources runResources) (preparedRun, 
 		Ctx:                 loopCtx,
 		Monitor: monitorState(
 			monitorRuntime.Store, monitorRuntime.Recorder, &resources.Machine, resources.Definitions,
+			commandStateSource,
 		),
 		RestDefs:     resources.RestDefinitions,
 		shutdown:     shutdown.Request,
@@ -402,6 +406,7 @@ func buildPreparedRun(cmd *cobra.Command, resources runResources) (preparedRun, 
 	params := loopParams(cfg, loopParamDeps{
 		Machine: resources.Machine, State: st, Registry: reg, Tracer: resources.Tracer,
 		RunID: runID, Checkpoint: checkpoint.Checkpoint, MonitorRecorder: monitorRuntime.Recorder,
+		CommandStateObserver: commandStateSource,
 	})
 	return preparedRun{
 		Config: cfg, Params: params, State: st, Ctx: loopCtx,
@@ -530,9 +535,10 @@ type loopParamDeps struct {
 	State           *agentState
 	Registry        *core.Registry
 	Tracer          tracing.Tracer
-	RunID           string
-	Checkpoint      core.Checkpoint
-	MonitorRecorder monitor.RuntimeRecorder
+	RunID                string
+	Checkpoint           core.Checkpoint
+	MonitorRecorder      monitor.RuntimeRecorder
+	CommandStateObserver core.CommandStateObserver
 }
 
 func loopParams(cfg runtimeConfig, deps loopParamDeps) core.LoopParams {
@@ -553,8 +559,9 @@ func loopParams(cfg runtimeConfig, deps loopParamDeps) core.LoopParams {
 		ToolAction:      toolAction,
 		Registry:        deps.Registry,
 		Directory:       cfg.Directory,
-		Checkpoint:      deps.Checkpoint,
-		MonitorRecorder: deps.MonitorRecorder,
+		Checkpoint:           deps.Checkpoint,
+		MonitorRecorder:      deps.MonitorRecorder,
+		CommandStateObserver: deps.CommandStateObserver,
 		Hooks: core.LoopHooks{
 			OnResult:             cliResultReporter,
 			SnapshotConversation: deps.State.snapshotConversation,

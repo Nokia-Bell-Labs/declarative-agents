@@ -73,6 +73,16 @@ rest:
         recent_events: {method: GET, path: /monitor/events, binding: read_state, monitor_view: events}
         event_stream:  {method: GET, path: /monitor/events/stream, binding: stream_events, monitor_view: events}
         openapi:       {method: GET, path: /monitor/openapi, binding: static_metadata, monitor_view: openapi}
+        # The fleet view exposes each aggregation step's latest declared output
+        # (pods, Deployments, Services, per-agent fan-in, pod metrics) through the
+        # command_state monitor view. The transitions carry no authored label, so
+        # the allowlist addresses the steps by command name (srd033 R7, GH-1270).
+        fleet:
+          method: GET
+          path: /monitor/fleet
+          binding: read_state
+          monitor_view: command_state
+          labels: [discover_mesh_pods, list_mesh_deployments, list_mesh_services, poll_agent_monitors, poll_pod_metrics]
         fleet_ui:
           method: GET
           path: /ui/{path...}

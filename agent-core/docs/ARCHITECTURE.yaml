@@ -783,6 +783,18 @@ overview:
       JSON responses use lower_snake_case API field names instead of Go
       struct field names.
 
+      One opt-in read view reaches past the metric store into the
+      command-state store of srd038. A read_state endpoint that declares
+      monitor_view command_state and a labels allowlist exposes the
+      redaction-cleared declared output of the named steps. Because the monitor
+      REST server launches once and runs in the background while the loop keeps
+      dispatching, the command-state source is a live provider the loop refreshes
+      per dispatch, the same shape as the monitor recorder, not a view captured
+      at launch that would freeze at the first iteration. Receipts stay
+      unaddressable, and the srd038 typed redaction boundary bounds what the view
+      may return. The fleet observer polls this view to render discovered pods,
+      Deployments, Services, per-agent monitor fan-in, and pod resource usage.
+
       Monitor serving uses the same lifecycle shape as the Knowledge Manager
       documentation curator. After a launch word, the REST listener runs in the
       background. A monitor MachineSpec must not make that launch state
