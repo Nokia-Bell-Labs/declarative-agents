@@ -116,7 +116,11 @@ func releaseGates(root string) []releaseGate {
 	catalogRoot := filepath.Join(root, catalogModule)
 	gates := []releaseGate{
 		{name: "root audit", dir: root, args: []string{"mage", "audit"}},
-		{name: "root test", dir: root, args: []string{"mage", "test"}},
+		// DA_RELEASE_GATE makes the UI reproducibility gate treat a missing npm
+		// as fatal rather than a developer skip (GH-1349), so a release cannot
+		// pass without rebuilding shipped UIs and auditing their dependencies.
+		{name: "root test", dir: root, args: []string{"mage", "test"},
+			env: []string{uiDistReleaseEnv + "=1"}},
 		{name: "agent-core integration", dir: filepath.Join(root, "agent-core"),
 			args: []string{"mage", "integration:all"}},
 		{name: "catalog integration", dir: catalogRoot,

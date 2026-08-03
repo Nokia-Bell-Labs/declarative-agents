@@ -97,6 +97,54 @@ func TestAuditUIDependenciesChecksBuildAndProductionScopes(t *testing.T) {
 	}
 }
 
+func TestUIDistPrerequisitePolicies(t *testing.T) {
+	found := func(string) (string, error) { return "/usr/bin/npm", nil }
+	missing := func(string) (string, error) { return "", errors.New("not found") }
+
+	t.Run("present npm proceeds regardless of mode", func(t *testing.T) {
+		for _, release := range []bool{false, true} {
+			proceed, err := uiDistPrerequisite(found, release)
+			if err != nil || !proceed {
+				t.Fatalf("release=%v: proceed=%v err=%v, want true/nil", release, proceed, err)
+			}
+		}
+	})
+
+	t.Run("missing npm outside release skips cleanly", func(t *testing.T) {
+		proceed, err := uiDistPrerequisite(missing, false)
+		if err != nil {
+			t.Fatalf("err = %v, want clean skip", err)
+		}
+		if proceed {
+			t.Fatal("proceed = true, want skip when npm is absent outside a release")
+		}
+	})
+
+	t.Run("missing npm in release is fatal", func(t *testing.T) {
+		proceed, err := uiDistPrerequisite(missing, true)
+		if err == nil {
+			t.Fatal("err = nil, want a fatal release-gate failure when npm is absent")
+		}
+		if proceed {
+			t.Fatal("proceed = true after a fatal prerequisite error")
+		}
+		if !strings.Contains(err.Error(), uiDistReleaseEnv) {
+			t.Fatalf("error = %v, want it to reference %s", err, uiDistReleaseEnv)
+		}
+	})
+}
+
+func TestReleaseModeEnabledReadsEnv(t *testing.T) {
+	t.Setenv(uiDistReleaseEnv, "")
+	if releaseModeEnabled() {
+		t.Fatal("release mode enabled with empty env")
+	}
+	t.Setenv(uiDistReleaseEnv, "1")
+	if !releaseModeEnabled() {
+		t.Fatalf("release mode not enabled with %s=1", uiDistReleaseEnv)
+	}
+}
+
 func TestRebuildAndDiffUIStopsOnHighBuildAudit(t *testing.T) {
 	app := t.TempDir()
 	writeUIFile(t, filepath.Join(app, "package.json"), `{"scripts":{"build":"vite build"}}`)

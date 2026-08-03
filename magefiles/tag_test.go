@@ -328,7 +328,8 @@ func TestReleaseGatesMatchDocumentedContract(t *testing.T) {
 	got := releaseGates(root)
 	want := []releaseGate{
 		{name: "root audit", dir: root, args: []string{"mage", "audit"}},
-		{name: "root test", dir: root, args: []string{"mage", "test"}},
+		{name: "root test", dir: root, args: []string{"mage", "test"},
+			env: []string{uiDistReleaseEnv + "=1"}},
 		{name: "agent-core integration", dir: "/release/agent-core",
 			args: []string{"mage", "integration:all"}},
 		{name: "catalog integration", dir: "/release/applications/catalog",
@@ -345,6 +346,25 @@ func TestReleaseGatesMatchDocumentedContract(t *testing.T) {
 	if !reflect.DeepEqual(got, want) {
 		t.Fatalf("release gates = %#v, want %#v", got, want)
 	}
+}
+
+// TestRootTestReleaseGateSignalsReleaseMode guards that the root test gate
+// carries the release-mode env so UIDist treats a missing npm as fatal rather
+// than a skip (GH-1349); without it a release could pass without rebuilding
+// shipped UIs or auditing their dependencies.
+func TestRootTestReleaseGateSignalsReleaseMode(t *testing.T) {
+	for _, g := range releaseGates("/release") {
+		if g.name != "root test" {
+			continue
+		}
+		for _, e := range g.env {
+			if e == uiDistReleaseEnv+"=1" {
+				return
+			}
+		}
+		t.Fatalf("root test gate env = %v, missing %s=1", g.env, uiDistReleaseEnv)
+	}
+	t.Fatal("no root test release gate found")
 }
 
 // TestReleaseGatesCoverEveryApplicationModule is the orchestration guard: every

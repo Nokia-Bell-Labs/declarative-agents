@@ -25,16 +25,52 @@ var uiSearchRoots = []string{
 
 const uiAuditLevel = "high"
 
+// uiDistReleaseEnv is set by the release gate so UIDist treats a missing npm as
+// a fatal gate failure instead of a developer-convenience skip. Outside a
+// release (a plain `mage test` on a machine without node/npm), the gate skips
+// cleanly so day-to-day Go work is not blocked (GH-1349).
+const uiDistReleaseEnv = "DA_RELEASE_GATE"
+
 type uiRunner func(string, string, ...string) error
+
+// releaseModeEnabled reports whether UIDist is running as part of a release
+// gate, in which case skipping a required prerequisite is not permitted.
+func releaseModeEnabled() bool {
+	return strings.TrimSpace(os.Getenv(uiDistReleaseEnv)) != ""
+}
+
+// uiDistPrerequisite decides whether the UI reproducibility gate can run given
+// npm availability and whether this is a release gate. It returns proceed=true
+// when npm is present; a fatal error when npm is absent during a release
+// (the gate must not silently pass without rebuilding shipped UIs and auditing
+// their dependencies); and proceed=false with no error when npm is absent
+// outside a release (a clean developer skip). The prerequisite lookup is
+// injected so both policies are testable at the orchestration level.
+func uiDistPrerequisite(lookPath func(string) (string, error), releaseMode bool) (bool, error) {
+	if _, err := lookPath("npm"); err == nil {
+		return true, nil
+	}
+	if releaseMode {
+		return false, fmt.Errorf(
+			"uiDist: npm not found but %s is set; the release requires rebuilding shipped "+
+				"UIs and auditing their dependencies — install node/npm on the release runner",
+			uiDistReleaseEnv)
+	}
+	fmt.Println("SKIP uiDist: npm not found; the UI reproducibility gate needs node/npm")
+	return false, nil
+}
 
 // UIDist rebuilds every shipped profile UI from source with a clean,
 // lockfile-pinned install (npm ci), gates both full build-chain and
 // production-only dependencies at high severity, and fails when the tracked
-// dist differs from the build output (GH-518, GH-1003). It skips cleanly when
-// npm is unavailable.
+// dist differs from the build output (GH-518, GH-1003). Missing npm is fatal
+// during a release gate and a clean skip otherwise (GH-1349).
 func UIDist() error {
-	if _, err := exec.LookPath("npm"); err != nil {
-		fmt.Println("SKIP uiDist: npm not found; the UI reproducibility gate needs node/npm")
+	proceed, err := uiDistPrerequisite(exec.LookPath, releaseModeEnabled())
+	if err != nil {
+		return err
+	}
+	if !proceed {
 		return nil
 	}
 	uis, err := discoverShippedUIs(uiSearchRoots)
