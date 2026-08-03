@@ -3,6 +3,7 @@
 package main
 
 import (
+	"context"
 	"flag"
 	"net/http"
 	"os"
@@ -81,12 +82,28 @@ func TestObserverMonitorEndpoints(t *testing.T) {
 	if err := cmd.Start(); err != nil {
 		t.Fatalf("start observer: %v", err)
 	}
-	defer func() {
-		if cmd.ProcessState == nil {
-			_ = cmd.Process.Kill()
-			_, _ = cmd.Process.Wait()
+
+	// A single goroutine owns cmd.Wait; its result is delivered exactly once.
+	// reaped is closed once the main flow has consumed that result so the
+	// cleanup below knows the process is already accounted for.
+	waitErr := make(chan error, 1)
+	go func() { waitErr <- cmd.Wait() }()
+	reaped := make(chan struct{})
+
+	// Unconditional kill + bounded reap on every exit path (including early
+	// t.Fatal), so a stuck agent can never leak or block the test forever.
+	t.Cleanup(func() {
+		select {
+		case <-reaped:
+			return
+		default:
 		}
-	}()
+		_ = cmd.Process.Kill()
+		select {
+		case <-waitErr:
+		case <-time.After(5 * time.Second):
+		}
+	})
 
 	controlURL := "http://" + controlAddr
 	monitorURL := "http://" + monitorAddr
@@ -111,14 +128,34 @@ func TestObserverMonitorEndpoints(t *testing.T) {
 		t.Fatalf("observer state missing run state: %v", state)
 	}
 
-	req, _ := http.NewRequest(http.MethodPost,
+	ctx, cancel := context.WithTimeout(context.Background(), 10*time.Second)
+	defer cancel()
+	req, err := http.NewRequestWithContext(ctx, http.MethodPost,
 		controlURL+observerExitPath,
 		strings.NewReader(`{"reason":"test complete"}`))
-	req.Header.Set("Content-Type", "application/json")
-	if resp, err := http.DefaultClient.Do(req); err == nil {
-		_ = resp.Body.Close()
+	if err != nil {
+		t.Fatalf("build observer exit request: %v", err)
 	}
-	_ = cmd.Wait()
+	req.Header.Set("Content-Type", "application/json")
+	resp, err := http.DefaultClient.Do(req)
+	if err != nil {
+		t.Fatalf("post observer exit: %v", err)
+	}
+	status := resp.StatusCode
+	_ = resp.Body.Close()
+	if status != http.StatusAccepted {
+		t.Fatalf("observer exit status = %d, want %d", status, http.StatusAccepted)
+	}
+
+	select {
+	case waitResult := <-waitErr:
+		close(reaped)
+		if !agentRunCompleted(waitResult) {
+			t.Fatalf("observer exit contract violated: %v", waitResult)
+		}
+	case <-time.After(15 * time.Second):
+		t.Fatal("observer did not exit within 15s after accepted exit request")
+	}
 }
 
 func TestSplitHostPort(t *testing.T) {
