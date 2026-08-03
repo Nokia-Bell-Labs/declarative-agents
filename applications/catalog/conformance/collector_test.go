@@ -40,6 +40,7 @@ func occupyDefaultOTLPPort(t *testing.T) {
 // spool mode with no relay endpoint configured (GH-1163): only ports and the
 // spool path come from the environment, and no profile file is rewritten.
 func TestCollectorDefaultEnvironmentBoot(t *testing.T) {
+	t.Parallel()
 	RequireCoreRoot(t)
 	controlPort := freePort(t)
 	env := []string{
@@ -70,6 +71,7 @@ func TestCollectorDefaultEnvironmentBoot(t *testing.T) {
 // exist until the first batch arrives, and a directory misconfigured as the
 // spool path is reported as such (GH-1168).
 func TestCollectorQueryEmptySpool(t *testing.T) {
+	t.Parallel()
 	RequireCoreRoot(t)
 	controlPort := freePort(t)
 	queryPort := freePort(t)
@@ -124,6 +126,7 @@ func freePort(t *testing.T) string {
 }
 
 func TestCollectorSpoolModeConformance(t *testing.T) {
+	t.Parallel()
 	RequireCoreRoot(t)
 	controlAddr := FreeAddr(t)
 	monitorAddr := FreeAddr(t)
@@ -174,6 +177,7 @@ func TestCollectorSpoolModeConformance(t *testing.T) {
 // decode exactly these keys; a drift on either side must fail here first
 // (GH-1164).
 func TestCollectorQueryResponseContract(t *testing.T) {
+	t.Parallel()
 	RequireCoreRoot(t)
 	controlAddr := FreeAddr(t)
 	monitorAddr := FreeAddr(t)
@@ -233,6 +237,7 @@ func TestCollectorQueryResponseContract(t *testing.T) {
 }
 
 func TestCollectorQueryListTraces(t *testing.T) {
+	t.Parallel()
 	RequireCoreRoot(t)
 	controlAddr := FreeAddr(t)
 	monitorAddr := FreeAddr(t)
@@ -289,6 +294,7 @@ func TestCollectorQueryListTraces(t *testing.T) {
 }
 
 func TestCollectorQueryGetTrace(t *testing.T) {
+	t.Parallel()
 	RequireCoreRoot(t)
 	controlAddr := FreeAddr(t)
 	monitorAddr := FreeAddr(t)
@@ -342,6 +348,7 @@ func TestCollectorQueryGetTrace(t *testing.T) {
 }
 
 func TestCollectorQueryListMetrics(t *testing.T) {
+	t.Parallel()
 	RequireCoreRoot(t)
 	controlAddr := FreeAddr(t)
 	monitorAddr := FreeAddr(t)
@@ -406,6 +413,7 @@ func TestCollectorQueryListMetrics(t *testing.T) {
 }
 
 func TestCollectorQueryGetMetric(t *testing.T) {
+	t.Parallel()
 	RequireCoreRoot(t)
 	controlAddr := FreeAddr(t)
 	monitorAddr := FreeAddr(t)
@@ -598,6 +606,7 @@ func stopCollector(t *testing.T, server *Server, controlAddr string) {
 // shipped SPA index at / from the ui/dist root, same-origin with /query/*
 // (srd020 R7.1).
 func TestCollectorServesUIIndex(t *testing.T) {
+	t.Parallel()
 	RequireCoreRoot(t)
 	profilePath, a := copyCollectorProfileWithPorts(t)
 	server := serveCollectorUI(t, profilePath, a)
@@ -619,6 +628,7 @@ func TestCollectorServesUIIndex(t *testing.T) {
 // real file resolves to the SPA index via spa fallback, so the browser can
 // render the waterfall route (srd020 R7.2).
 func TestCollectorServesUIDeepLink(t *testing.T) {
+	t.Parallel()
 	RequireCoreRoot(t)
 	profilePath, a := copyCollectorProfileWithPorts(t)
 	server := serveCollectorUI(t, profilePath, a)
@@ -640,6 +650,7 @@ func TestCollectorServesUIDeepLink(t *testing.T) {
 // contract while the UI is served: the literal query routes outrank the
 // static catch-all, so serving the SPA changes no query response (srd020 R7.3).
 func TestCollectorQueryUnaffectedByUI(t *testing.T) {
+	t.Parallel()
 	RequireCoreRoot(t)
 	profilePath, a := copyCollectorProfileWithPorts(t)
 	seedCollectorSpool(t, filepath.Join(filepath.Dir(profilePath), "traces", "collector.ndjson"))
@@ -685,6 +696,7 @@ func TestCollectorQueryUnaffectedByUI(t *testing.T) {
 // status rather than a silent empty 200, and the query API still works
 // (srd020 R7.5).
 func TestCollectorMissingUIRoot(t *testing.T) {
+	t.Parallel()
 	RequireCoreRoot(t)
 	profilePath, a := copyCollectorProfileWithPorts(t)
 	if err := os.RemoveAll(filepath.Join(filepath.Dir(profilePath), "ui", "dist")); err != nil {
@@ -707,6 +719,7 @@ func TestCollectorMissingUIRoot(t *testing.T) {
 // as a literal path with no environment-variable expansion and introduces no
 // new UI environment variable (srd020 R7.4, GH-1228).
 func TestCollectorUIRootLiteral(t *testing.T) {
+	t.Parallel()
 	data, err := os.ReadFile(ProfilePath(filepath.Join("agents", "collector", "rest.yaml")))
 	if err != nil {
 		t.Fatalf("read collector rest.yaml: %v", err)
