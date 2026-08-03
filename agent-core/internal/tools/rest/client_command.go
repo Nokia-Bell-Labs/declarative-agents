@@ -376,15 +376,58 @@ func (c *clientCmd) executeRequest(request *http.Request) core.Result {
 func (c clientCmd) doWithRetry(request *http.Request) (*http.Response, int, error) {
 	client := httpClient(c.operation.Limits)
 	attempts := retryAttempts(c.operation.Retry)
+	ctx := request.Context()
 	for attempt := 1; attempt <= attempts; attempt++ {
 		response, err := client.Do(cloneRequest(request))
 		if shouldReturnResponse(response, err, attempt, attempts, c.operation.Retry) {
 			return response, attempt, err
 		}
 		closeResponse(response)
-		time.Sleep(parseDuration(c.operation.Retry.InitialDelay, 0))
+		if err := sleepWithContext(ctx, retryDelay(c.operation.Retry, attempt)); err != nil {
+			return nil, attempt, err
+		}
 	}
 	return nil, attempts, fmt.Errorf("REST request failed after %d attempts", attempts)
+}
+
+// retryDelay computes the wait before the next attempt from the declared
+// backoff. srd028 R5.8 sanctions transport-declared retries, so the declared
+// backoff and max_delay are honored rather than ignored (GH-1379): exponential
+// doubles initial_delay per attempt and is capped by max_delay; fixed, none,
+// and the empty default hold a flat initial_delay.
+func retryDelay(retry RetryPolicy, attempt int) time.Duration {
+	initial := parseDuration(retry.InitialDelay, 0)
+	maxDelay := parseDuration(retry.MaxDelay, 0)
+	delay := initial
+	if retry.Backoff == "exponential" {
+		for i := 1; i < attempt; i++ {
+			delay *= 2
+			if maxDelay > 0 && delay >= maxDelay {
+				return maxDelay
+			}
+		}
+	}
+	if maxDelay > 0 && delay > maxDelay {
+		return maxDelay
+	}
+	return delay
+}
+
+// sleepWithContext waits for d unless the dispatch context is cancelled first,
+// so a cancelled run stops burning the retry delay instead of blocking on a
+// bare time.Sleep (GH-1379).
+func sleepWithContext(ctx context.Context, d time.Duration) error {
+	if d <= 0 {
+		return ctx.Err()
+	}
+	timer := time.NewTimer(d)
+	defer timer.Stop()
+	select {
+	case <-ctx.Done():
+		return ctx.Err()
+	case <-timer.C:
+		return nil
+	}
 }
 
 func httpClient(limits LimitProfile) *http.Client {

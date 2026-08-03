@@ -3,10 +3,10 @@
 package conformance
 
 import (
-	"encoding/json"
 	"flag"
 	"fmt"
-	"net/http"
+	"os/exec"
+	"strings"
 	"testing"
 	"time"
 )
@@ -24,8 +24,10 @@ var (
 		"per-run timeout for live model inference")
 )
 
-// ollamaBaseURL is the default local Ollama endpoint the generator/planner LLM
-// declarations point at (agents/*/llm/default.yaml provider_url).
+// ollamaBaseURL is the default local Ollama endpoint used for live inference
+// wire calls (agents/*/llm/default.yaml provider_url). Model availability is
+// probed through the `ollama list` CLI instead of this URL (GH-1389), so a
+// provider_url change no longer silently defeats the live-conformance gate.
 const ollamaBaseURL = "http://localhost:11434"
 
 // RequireLiveModel first enforces the explicit live-conformance opt-in, then
@@ -37,9 +39,7 @@ func RequireLiveModel(t *testing.T, model string) time.Duration {
 		*liveConformance,
 		*liveConformanceTimeout,
 		model,
-		func(model string) error {
-			return probeOllama(&http.Client{Timeout: 3 * time.Second}, ollamaBaseURL, model)
-		},
+		probeOllama,
 	)
 	if err != nil {
 		t.Fatal(err)
@@ -67,25 +67,35 @@ func liveModelGate(optIn bool, timeout time.Duration, model string, probe func(s
 	return timeout, "", nil
 }
 
-func probeOllama(client *http.Client, baseURL, model string) error {
-	resp, err := client.Get(baseURL + "/api/tags")
+// probeOllama checks model availability through the `ollama list` CLI. Like the
+// dolt helper, the CLI's own errors answer both "is Ollama reachable" and "is
+// the exact model pulled", so the probe no longer depends on a hardcoded URL
+// whose only tie to the declared provider_url was a comment (GH-1389).
+func probeOllama(model string) error {
+	if _, err := exec.LookPath("ollama"); err != nil {
+		return fmt.Errorf("cannot find the Ollama CLI on PATH: %w", err)
+	}
+	out, err := exec.Command("ollama", "list").CombinedOutput()
 	if err != nil {
-		return fmt.Errorf("cannot reach Ollama at %s: %w", baseURL, err)
+		return fmt.Errorf("cannot reach Ollama via `ollama list`: %w: %s", err, strings.TrimSpace(string(out)))
 	}
-	defer func() { _ = resp.Body.Close() }()
-	if resp.StatusCode != http.StatusOK {
-		return fmt.Errorf("the Ollama tags endpoint returned %d", resp.StatusCode)
+	return ollamaListRequires(string(out), model)
+}
+
+// ollamaListRequires reports nil when `ollama list` output includes the exact
+// model tag. Untagged model names are matched against the `:latest` tag that
+// Ollama assigns by default.
+func ollamaListRequires(listOutput, model string) error {
+	want := model
+	if !strings.Contains(want, ":") {
+		want += ":latest"
 	}
-	var payload struct {
-		Models []struct {
-			Name string `json:"name"`
-		} `json:"models"`
-	}
-	if err := json.NewDecoder(resp.Body).Decode(&payload); err != nil {
-		return fmt.Errorf("decode Ollama tags: %w", err)
-	}
-	for _, m := range payload.Models {
-		if m.Name == model {
+	for _, line := range strings.Split(listOutput, "\n") {
+		fields := strings.Fields(line)
+		if len(fields) == 0 {
+			continue
+		}
+		if name := fields[0]; name == model || name == want {
 			return nil
 		}
 	}

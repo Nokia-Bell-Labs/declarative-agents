@@ -23,9 +23,10 @@ func WithHTTPClient(c *http.Client) Option {
 	return func(a *Adapter) { a.client = c }
 }
 
-// WithSkipModelCheck disables the startup model-availability check.
-// Useful when the adapter is created only for ListModels or other
-// operations that don't require a specific model.
+// WithSkipModelCheck disables the startup model-availability check. Callers
+// that probe availability elsewhere (for example a declared rest_client_invoke
+// word) skip the check so a dead backend surfaces as a routable machine
+// transition rather than an adapter-construction failure.
 func WithSkipModelCheck() Option {
 	return func(a *Adapter) { a.skipModelCheck = true }
 }

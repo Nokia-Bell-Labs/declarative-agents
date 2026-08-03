@@ -4,8 +4,6 @@ package exec
 
 import (
 	"context"
-	"errors"
-	osexec "os/exec"
 	"regexp"
 	"strings"
 	"time"
@@ -70,27 +68,16 @@ func (c *ExecCmd) SetMonitorRecorder(rec monitor.ToolMetricsRecorder) {
 	c.rec = rec
 }
 
-func (c *ExecCmd) recordExecMetrics(duration time.Duration, output []byte, err error) {
+func (c *ExecCmd) recordExecMetrics(duration time.Duration, outputBytes, exitCode int) {
 	if c.rec == nil {
 		return
 	}
 	values := map[string]float64{
 		"process_duration": float64(duration.Milliseconds()),
-		"output_bytes":     float64(len(output)),
-		"exit_code":        float64(exitCode(err)),
+		"output_bytes":     float64(outputBytes),
+		"exit_code":        float64(exitCode),
 	}
 	core.RecordDeclaredToolMetrics(context.Background(), c.rec, c.Name(), c.def.Metrics, values, map[string]string{
 		"binary": c.def.Binary,
 	})
-}
-
-func exitCode(err error) int {
-	if err == nil {
-		return 0
-	}
-	var exitErr *osexec.ExitError
-	if errors.As(err, &exitErr) {
-		return exitErr.ExitCode()
-	}
-	return -1
 }

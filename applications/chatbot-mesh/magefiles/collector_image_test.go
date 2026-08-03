@@ -26,7 +26,13 @@ func TestCollectorImplementationsRender(t *testing.T) {
 			want: []string{
 				"agents/collector/profile.yaml",
 				"--otel-metric-otlp-endpoint",
+			},
+			// The declarative collector owns OTLP metric intake (GH-1207), so agent
+			// mode deploys no contrib collector and no separate metrics gateway
+			// (GH-1366).
+			notWant: []string{
 				"collector-metrics",
+				"opentelemetry-collector-contrib",
 			},
 		},
 		{
@@ -100,7 +106,9 @@ func collectorImageRef(t *testing.T) string {
 // TestPinnedCollectorImageRunsOnThisArchitecture executes the pinned collector
 // on the host architecture. A chart that renders perfectly is still broken when
 // its image cannot exec, and that failure only ever appears on the architecture
-// that carries the bad build.
+// that carries the bad build. Since GH-1366 the contrib image is opt-in
+// (implementation: contrib), so this guards the opt-in path; it stays because a
+// contrib install must still exec on Apple Silicon.
 func TestPinnedCollectorImageRunsOnThisArchitecture(t *testing.T) {
 	t.Parallel()
 	if _, err := exec.LookPath("docker"); err != nil {

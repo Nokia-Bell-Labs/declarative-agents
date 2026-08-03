@@ -4,32 +4,33 @@ package exec
 
 import (
 	"encoding/json"
-	"errors"
 	"fmt"
-	osexec "os/exec"
 	"strings"
 
 	"github.com/Nokia-Bell-Labs/declarative-agents/agent-core/internal/runtime/core"
+	"github.com/Nokia-Bell-Labs/declarative-agents/agent-core/internal/support/subprocess"
 )
 
 // DefaultOutputLineCap is the default maximum number of output lines before truncation.
 const DefaultOutputLineCap = 200
 
-// SubprocessResult maps subprocess output and error to a core.Result.
-func SubprocessResult(name string, output []byte, err error) core.Result {
-	out := strings.TrimRight(string(output), "\n")
-	if err == nil {
-		return core.Result{Output: out, Signal: core.ToolDone, CommandName: name}
-	}
-	var exitErr *osexec.ExitError
-	if errors.As(err, &exitErr) {
+// SubprocessResult maps a shared-transport result to a core.Result. Exec tools
+// run with combined output, so the merged stream is on Stdout; a transport
+// error is a CommandError, a nonzero exit is a tool-level failure (GH-1393).
+func SubprocessResult(name string, r *subprocess.Result) core.Result {
+	out := strings.TrimRight(r.Stdout, "\n")
+	switch {
+	case r.Err != nil:
+		return core.Result{
+			Output:      out,
+			Signal:      core.CommandError,
+			Err:         fmt.Errorf("%s: %w", name, r.Err),
+			CommandName: name,
+		}
+	case r.ExitCode != 0:
 		return core.Result{Output: out, Signal: core.ToolFailed, CommandName: name}
-	}
-	return core.Result{
-		Output:      out,
-		Signal:      core.CommandError,
-		Err:         fmt.Errorf("%s: %w", name, err),
-		CommandName: name,
+	default:
+		return core.Result{Output: out, Signal: core.ToolDone, CommandName: name}
 	}
 }
 

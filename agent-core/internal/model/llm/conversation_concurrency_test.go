@@ -52,10 +52,6 @@ func (c *controlledClient) Chat(ctx context.Context, msgs []Message, _ ChatOptio
 	return ChatResponse{Content: "response-" + userMessage}, nil
 }
 
-func (c *controlledClient) ListModels(_ context.Context) ([]ModelInfo, error) {
-	return nil, nil
-}
-
 func (c *controlledClient) Calls() [][]Message {
 	c.mu.Lock()
 	defer c.mu.Unlock()

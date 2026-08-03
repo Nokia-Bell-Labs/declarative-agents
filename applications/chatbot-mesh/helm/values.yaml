@@ -151,14 +151,17 @@ dolt:
 # backend that the observability panel queries (R5.2).
 collector:
   enabled: true
-  # agent moves trace ingress into the declarative collector profile. The
-  # contrib option preserves the previous combined trace/metric gateway.
+  # agent (default) runs the declarative collector profile, which owns both trace
+  # and OTLP metric intake (GH-1207); no contrib container is deployed. The opt-in
+  # contrib option preserves the previous combined trace/metric gateway and the
+  # pull-based Dolt Prometheus scrape.
   implementation: agent
-  # 0.127.0 ships a statically linked arm64 binary. The 0.116.0 arm64 image is
-  # dynamically linked against /lib/ld-linux-aarch64.so.1, which a distroless
-  # image does not carry, so the collector exited 255 with
-  # "exec /otelcol-contrib: no such file or directory" on every Apple Silicon
-  # host and no agent span ever reached the trace backend (GH-736).
+  # Contrib image, used only when implementation: contrib. 0.127.0 ships a
+  # statically linked arm64 binary. The 0.116.0 arm64 image is dynamically linked
+  # against /lib/ld-linux-aarch64.so.1, which a distroless image does not carry,
+  # so the collector exited 255 with "exec /otelcol-contrib: no such file or
+  # directory" on every Apple Silicon host and no agent span ever reached the
+  # trace backend (GH-736).
   image: {repository: otel/opentelemetry-collector-contrib, tag: "0.127.0", pullPolicy: IfNotPresent}
   otlpGRPCPort: 4317
   otlpHTTPPort: 4318

@@ -40,7 +40,7 @@ flow:
   - id: F5
     text: When the trace backend is absent the waterfall degrades to a backend-missing notice, leaving the per-agent monitor panels live.
   - id: F6
-    text: For an integration run, the launcher records the run identity and queries retained agent, Chroma, and Kubernetes traces plus agent and Dolt metrics after the scenario processes and kind cluster stop.
+    text: For an integration run, the launcher records the run identity and queries retained agent, Chroma, and Kubernetes traces plus agent OTLP metrics after the scenario processes and kind cluster stop; the in-cluster Dolt Prometheus scrape is retired in agent mode (GH-1366).
 
 touchpoints:
   - id: T1
@@ -70,7 +70,7 @@ success_criteria:
       - srd002-chatbot-agent R5.3
       - srd002-chatbot-agent AC5
   - id: S4
-    criterion: An integration run retains filterable traces and metrics after scenario teardown, including stable agent and Chroma services, separately correlated control-plane traces, and Dolt metrics.
+    criterion: An integration run retains filterable traces and metrics after scenario teardown, including stable agent and Chroma services, separately correlated control-plane traces, and agent OTLP metrics; Dolt metrics apply only under the opt-in contrib collector (GH-1366).
     traces:
       - srd003-chatbot-deployment R5.5
       - srd003-chatbot-deployment R5.6

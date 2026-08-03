@@ -6,6 +6,7 @@ import (
 	"context"
 	"encoding/json"
 	"os"
+	"path/filepath"
 	"testing"
 
 	"github.com/stretchr/testify/assert"
@@ -415,6 +416,28 @@ func TestExecCmd_Precondition_GitRepo(t *testing.T) {
 	res := (&ExecCmd{def: def, root: t.TempDir(), params: map[string]string{}}).Execute()
 	assert.Equal(t, core.ToolFailed, res.Signal)
 	assert.Contains(t, res.Output, "not a git repository")
+}
+
+// A subdirectory of a real repository resolves: the old os.Stat on <dir>/.git
+// rejected it, git rev-parse accepts it (GH-1381).
+func TestExecCmd_Precondition_GitRepo_Subdirectory(t *testing.T) {
+	root := t.TempDir()
+	require.NoError(t, RunProcGroup(context.Background(), gitPreconditionTimeout, root, "git", "init").Err)
+	sub := filepath.Join(root, "nested", "deeper")
+	require.NoError(t, os.MkdirAll(sub, 0o755))
+
+	def := catalog.ToolDef{Name: "rev", Binary: "git", Args: []string{"rev-parse", "--git-dir"}, Precondition: "git_repo"}
+	res := (&ExecCmd{def: def, root: sub, params: map[string]string{}}).Execute()
+	assert.Equal(t, core.ToolDone, res.Signal, "subdirectory of a repo must pass the git precondition")
+}
+
+// An unknown precondition is an error at dispatch, not a silent fall-through to
+// the git check (GH-1381).
+func TestExecCmd_Precondition_Unknown(t *testing.T) {
+	def := catalog.ToolDef{Name: "typo", Binary: "echo", Args: []string{"hi"}, Precondition: "git-repo"}
+	res := (&ExecCmd{def: def, root: t.TempDir(), params: map[string]string{}}).Execute()
+	assert.Equal(t, core.ToolFailed, res.Signal)
+	assert.Contains(t, res.Output, "unknown precondition")
 }
 
 func TestRegisterToolDefs(t *testing.T) {

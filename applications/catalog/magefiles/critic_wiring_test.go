@@ -108,8 +108,13 @@ func TestCriticSessionSequence(t *testing.T) {
 // transitions are what make a failed point still produce a result.
 func TestCriticPointFailureSignals(t *testing.T) {
 	machine := criticMachine(t, "point.yaml")
-	assertTransition(t, machine, "RunningAgent", "HarnessFailed", "RunningOracleCheck", "run_oracle_check")
-	assertTransition(t, machine, "RunningAgent", "HarnessTimedOut", "RunningOracleCheck", "run_oracle_check")
+	// Every harness outcome first persists result.json through the shared write
+	// word (GH-1378), then proceeds to the oracle check.
+	assertTransition(t, machine, "RunningAgent", "HarnessFailed", "WritingResult", "write")
+	assertTransition(t, machine, "RunningAgent", "HarnessTimedOut", "WritingResult", "write")
+	assertTransition(t, machine, "WritingResult", "ToolDone", "RunningOracleCheck", "run_oracle_check")
+	assertTransition(t, machine, "WritingResult", "ToolFailed", "RecordingFailure", "record_point_failure")
+	assertTransition(t, machine, "WritingResult", "CommandError", "RecordingFailure", "record_point_failure")
 	assertTransition(t, machine, "RunningOracleCheck", "ToolFailed", "RecordingOracleResult", "record_oracle_result")
 	assertTransition(t, machine, "RecordingOracleResult", "OracleCheckFailed", "CollectingTraceTokens", "collect_trace_tokens")
 	assertTransition(t, machine, "CollectingTraceTokens", "TraceTokensCollected", "CheckingAgentVersion", "check_agent_version")
@@ -122,7 +127,7 @@ func TestCriticPointFailureSignals(t *testing.T) {
 
 func TestCriticPointSelectsSharedWorkspaceExecWords(t *testing.T) {
 	selection := criticToolSelection(t, "tools-point.yaml")
-	for _, word := range []string{"copy_dir", "git_init", "stage_all", "commit_workspace_baseline"} {
+	for _, word := range []string{"copy_dir", "git_init", "stage_all", "commit_workspace_baseline", "write"} {
 		requireSelected(t, selection, word)
 	}
 	for _, retired := range []string{"copy_sample_workspace", "init_workspace_repo", "stage_workspace_baseline"} {
@@ -142,6 +147,8 @@ func TestCriticPointWorkspaceSequenceUsesSharedExecSignals(t *testing.T) {
 	assertTransition(t, machine, "CommittingWorkspaceBaseline", "ToolDone", "ResolvingAgentCommit", "rev_parse")
 	assertTransition(t, machine, "ResolvingAgentCommit", "ToolDone", "RecordingAgentCommit", "record_agent_commit")
 	assertTransition(t, machine, "RecordingAgentCommit", "AgentCommitRecorded", "SnapshotConfig", "dump_config")
+	assertTransition(t, machine, "SnapshotConfig", "ConfigDumped", "RunningAgent", "run_agent")
+	assertTransition(t, machine, "RunningAgent", "HarnessFinished", "WritingResult", "write")
 }
 
 func TestCriticPointOracleCommandIsProfileConfiguredExec(t *testing.T) {

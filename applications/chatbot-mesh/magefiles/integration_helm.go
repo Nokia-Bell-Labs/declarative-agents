@@ -890,9 +890,9 @@ func collectSharedMetricsEvidence(
 	if agentMetric == "" {
 		return evidence, fmt.Errorf("collector metrics missing an agent metric emitted by chatbot and rag0 for run %s", telemetry.RunID)
 	}
-	if len(evidence.DoltMetrics) == 0 {
-		return evidence, fmt.Errorf("collector metrics missing Dolt dss_* metrics for run %s", telemetry.RunID)
-	}
+	// In agent mode the declarative collector has no Prometheus scrape, so the
+	// in-cluster Dolt metric path is retired (GH-1366); Dolt dss_* metrics are
+	// recorded when present (opt-in contrib) but no longer required.
 	records, status, err := requestHTTP(http.MethodGet,
 		queryBase+"/query/metrics/"+url.PathEscape(agentMetric), "")
 	if err != nil {

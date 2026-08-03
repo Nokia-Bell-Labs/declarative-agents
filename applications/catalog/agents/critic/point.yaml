@@ -50,13 +50,14 @@ lifecycle: |-
   9. ResolvingAgentCommit → RecordingAgentCommit: record_agent_commit
   10. RecordingAgentCommit → SnapshotConfig: dump_config
   11. SnapshotConfig → RunningAgent: run_agent
-  12. RunningAgent → RunningOracleCheck: run_oracle_check (on any harness outcome)
-  13. RunningOracleCheck → RecordingOracleResult: record_oracle_result (on pass or fail)
-  14. RecordingOracleResult → CollectingTraceTokens: collect_trace_tokens
-  15. CollectingTraceTokens → CheckingAgentVersion: check_agent_version
-  16. CheckingAgentVersion → SummarizingPointResults: summarize_point_results (checked or mismatch)
-  17. SummarizingPointResults → CollectingMetrics: collect_metrics
-  18. CollectingMetrics → Done
+  12. RunningAgent → WritingResult: write (persist result.json on any harness outcome)
+  13. WritingResult → RunningOracleCheck: run_oracle_check
+  14. RunningOracleCheck → RecordingOracleResult: record_oracle_result (on pass or fail)
+  15. RecordingOracleResult → CollectingTraceTokens: collect_trace_tokens
+  16. CollectingTraceTokens → CheckingAgentVersion: check_agent_version
+  17. CheckingAgentVersion → SummarizingPointResults: summarize_point_results (checked or mismatch)
+  18. SummarizingPointResults → CollectingMetrics: collect_metrics
+  19. CollectingMetrics → Done
   Failure branch: any pre-metrics infrastructure failure → RecordingFailure → CollectingFailureMetrics → Failed
 pipeline_diagram: |-
   ```mermaid
@@ -72,7 +73,8 @@ pipeline_diagram: |-
     G --> H[record_agent_commit]
     H --> I[dump_config]
     I --> J[run_agent]
-    J -->|any outcome| K[run_oracle_check]
+    J -->|any outcome| J2[write result.json]
+    J2 --> K[run_oracle_check]
     K --> L[record_oracle_result]
     L --> M[collect_trace_tokens]
     M --> N[check_agent_version]
@@ -110,6 +112,8 @@ states:
   meaning: Serializing the full experiment configuration into experiment.yaml.
 - name: RunningAgent
   meaning: The executor agent is running as a subprocess.
+- name: WritingResult
+  meaning: Persisting the child agent's stdout to result.json through the shared write word.
 - name: RunningOracleCheck
   meaning: Running the profile-configured oracle command in the point workspace.
 - name: RecordingOracleResult
@@ -229,16 +233,28 @@ transitions:
   action: run_agent
 - state: RunningAgent
   signal: HarnessFinished
-  next: RunningOracleCheck
-  action: run_oracle_check
+  next: WritingResult
+  action: write
 - state: RunningAgent
   signal: HarnessFailed
-  next: RunningOracleCheck
-  action: run_oracle_check
+  next: WritingResult
+  action: write
 - state: RunningAgent
   signal: HarnessTimedOut
+  next: WritingResult
+  action: write
+- state: WritingResult
+  signal: ToolDone
   next: RunningOracleCheck
   action: run_oracle_check
+- state: WritingResult
+  signal: ToolFailed
+  next: RecordingFailure
+  action: record_point_failure
+- state: WritingResult
+  signal: CommandError
+  next: RecordingFailure
+  action: record_point_failure
 - state: RunningOracleCheck
   signal: ToolDone
   next: RecordingOracleResult

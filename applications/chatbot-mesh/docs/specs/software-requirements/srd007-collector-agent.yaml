@@ -6,9 +6,9 @@ role_realization_decision:
   implemented_responsibility: Receive bounded OTLP trace batches, apply declared policy, spool evidence, optionally relay unchanged traces, and expose lifecycle state.
   canonical_role_sub_role: Monitor / Telemetry Collector.
   retained_or_proposed_name: Retain `collector` as a compatible descriptive actor.
-  authority_boundary: Owns trace intake only; contrib retains metrics and Dolt scraping during staged migration, and file-only self-telemetry prevents a loop.
+  authority_boundary: Owns trace and OTLP metric intake (GH-1207); the in-cluster Dolt Prometheus scrape is retired (GH-1366), contrib is an opt-in trace-path option only, and file-only self-telemetry prevents a loop.
   evidence: [agents/collector/machine.yaml, agents/collector/declarations.yaml, helm/templates/collector.yaml]
-  migration_impact: None; Helm distinguishes the profile-backed collector from contrib collector and collector-metrics infrastructure.
+  migration_impact: Agent mode is the default and deploys no contrib collector or collector-metrics infrastructure; contrib remains selectable for the trace path only.
 
 context: |
   The `collector` actor assumes Monitor / Telemetry Collector and implements the mesh's
@@ -16,11 +16,11 @@ context: |
   contrib collector on the trace path while MachineSpec owns receive, inspect,
   spool, relay, retry, control, and monitor behavior.
 
-  Migration is staged. The existing contrib deployment temporarily retains
-  OTLP metrics export and Dolt Prometheus scraping required by srd003 R5 and
-  issue #816. The collector agent therefore satisfies trace ingress only; the
-  chart does not claim the full shared-ingress contract without that metrics
-  path.
+  The migration is complete. The collector agent now owns both OTLP trace and
+  OTLP metric intake (GH-1207) and exposes the metric query surface the
+  observability evidence reads. Agent mode is the default and deploys no contrib
+  collector; the pull-based in-cluster Dolt Prometheus scrape it once provided is
+  retired (GH-1366). Contrib remains selectable for the trace path only.
 
 problem: |
   The chart's third-party collector hides trace intake and routing outside the
@@ -78,16 +78,16 @@ requirements:
   R6:
     title: Staged Helm migration
     items:
-      - R6.1: Values SHALL select `contrib` or `agent` trace ingress while preserving the existing default until the agent path passes persistent integration evidence.
-      - R6.2: In agent mode, mesh agents and Chroma SHALL send traces to the collector agent, which SHALL relay to Jaeger.
-      - R6.3: During the staged release, contrib SHALL retain OTLP metric intake, Prometheus-compatible export, and Dolt scraping required by issue #816 and srd003 R5.8.
-      - R6.4: Agent-mode health SHALL require both the collector-agent trace path and the retained metrics path; neither path alone SHALL be reported as full ingress conformance.
+      - R6.1: Values SHALL select `contrib` or `agent` ingress; `agent` SHALL be the default.
+      - R6.2: In agent mode, mesh agents and Chroma SHALL send traces and OTLP metrics to the collector agent, which SHALL relay traces to Jaeger.
+      - R6.3: Agent mode SHALL deploy no contrib collector and no separate collector-metrics gateway; the pull-based in-cluster Dolt Prometheus scrape SHALL be retired in agent mode (GH-1366).
+      - R6.4: Agent-mode health SHALL require the collector-agent trace and OTLP metric path; the opt-in `contrib` option SHALL remain available for the trace path only.
       - R6.5: Teardown SHALL NOT delete persistent host trace or metric evidence.
 
 non_goals:
   - Reimplementing OTLP transport in the profile.
-  - Receiving OTLP metrics or logs in the collector agent.
-  - Removing the contrib metrics path in this release.
+  - Receiving OTLP logs in the collector agent.
+  - Adding a Prometheus scrape capability to the collector agent (the retired Dolt scrape is not replaced).
   - General-purpose collector throughput or multi-tenant isolation.
   - Querying Jaeger from the collector profile.
 
@@ -108,7 +108,7 @@ acceptance_criteria:
     criterion: File-only process telemetry and normalized endpoint validation prevent a self-loop, proven by client spans entering while collector spans do not.
     traces: [R5.1, R5.2, R5.3, R5.4]
   - id: AC6
-    criterion: The Helm migration switches trace ingress independently while contrib retains the required metrics and Dolt-scrape path, and health and retained evidence cover both.
+    criterion: Agent mode is the default and deploys no contrib collector or collector-metrics gateway; agents send traces and OTLP metrics to the collector agent, the in-cluster Dolt scrape is retired, contrib stays selectable for the trace path only, and teardown preserves persistent host evidence.
     traces: [R6.1, R6.2, R6.3, R6.4, R6.5]
 
 depends_on:
@@ -127,8 +127,9 @@ implementation_status:
   implemented:
     - >-
       The collector profile, bounded OTLP intake, deterministic spool and relay
-      modes, self-loop exclusion, staged Helm trace switch, retained contrib
-      metrics path, and persistent evidence checks. mage integration:rig drives
+      modes, self-loop exclusion, default agent-mode trace and OTLP metric
+      intake with the opt-in contrib trace path, and persistent evidence checks.
+      mage integration:rig drives
       a real client batch through the shipped filter-to-spool machine leg, while
       Helm smoke and observability evidence cover live routing and identity.
   planned:

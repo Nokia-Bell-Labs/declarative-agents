@@ -92,13 +92,13 @@ configure catalog blocks but must not fork their reusable behavior.
 | Source root | `agent-profiles/` | `applications/catalog/` |
 | Runnable products | `examples/<name>/` | `applications/<name>/` |
 | Catalog root selection | environment variable | `catalog_root` in `demo.yaml` |
-| Catalog module tag | `agent-profiles/v0.*` | `applications/catalog/v0.*` |
+| Catalog release tag | `agent-profiles/v0.*`, then `applications/catalog/v0.*` | root `v0.*` (GH-1373) |
 | Packaged profile mount | `/profiles` | `/profiles` (unchanged) |
 | Core declaration mount | `/opt/agent-core/tools` | `/opt/agent-core/tools` (unchanged) |
 
-Existing `agent-profiles/v0.*` tags remain immutable, and
-coordinated v0 releases publish matching canonical and compatibility tags.
-New documentation and manifests use `applications/catalog/v0.*`.
+Existing `agent-profiles/v0.*` and `applications/catalog/v0.*` tags remain
+immutable; since GH-1373 each coordinated release publishes the single root
+tag. New documentation and manifests use the root `v0.*` form.
 
 Run commands from the owning module root:
 

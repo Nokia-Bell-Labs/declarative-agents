@@ -371,9 +371,15 @@ func newLLMClient(cfg catalog.LLMToolConfig, tracer tracing.Tracer) (modelllm.Cl
 	if cfg.ProviderURL == "" {
 		return nil, "", fmt.Errorf("invoke_llm config provider %q requires provider_url", cfg.Provider)
 	}
+	// WithSkipModelCheck keeps the availability probe out of tool
+	// registration (GH-1375): a dead Ollama must surface as a machine
+	// transition (a declared rest_client_invoke probe word), not as a tool
+	// construction failure that emits no signal and cannot be routed on. The
+	// POST /api/chat transport stays runtime-owned by the Inference Boundary.
 	client, err := ollama.NewAdapter(cfg.ProviderURL, cfg.Model,
 		ollama.WithHTTPClient(&http.Client{Timeout: httpTimeout(cfg)}),
 		ollama.WithTracer(tracer),
+		ollama.WithSkipModelCheck(),
 	)
 	return client, serverAddr(cfg.ProviderURL), err
 }

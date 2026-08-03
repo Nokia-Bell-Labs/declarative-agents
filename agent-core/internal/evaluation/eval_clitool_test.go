@@ -4,16 +4,28 @@ package evaluation
 
 import (
 	"context"
-	"errors"
+	"encoding/json"
 	"os"
 	"path/filepath"
 	"testing"
 	"time"
 
 	"github.com/stretchr/testify/require"
-
-	"github.com/Nokia-Bell-Labs/declarative-agents/agent-core/internal/runtime/core"
 )
+
+// resultWriteParams decodes the write parameters run_agent emits for the
+// following write word.
+func resultWriteParams(t *testing.T, output string) (path, content string) {
+	t.Helper()
+	var decoded struct {
+		Parameters struct {
+			Path    string `json:"path"`
+			Content string `json:"content"`
+		} `json:"parameters"`
+	}
+	require.NoError(t, json.Unmarshal([]byte(output), &decoded))
+	return decoded.Parameters.Path, decoded.Parameters.Content
+}
 
 func TestRunAgentCmdUsesSharedExecuteConfigArgs(t *testing.T) {
 	t.Parallel()
@@ -31,39 +43,18 @@ func TestRunAgentCmdUsesSharedExecuteConfigArgs(t *testing.T) {
 	result := (&runAgentCmd{pc: pc, ctx: context.Background()}).Execute()
 
 	require.Equal(t, SigHarnessFinished, result.Signal)
-	require.Contains(t, result.Output, "--profile agents/executor/profile.yaml")
-	require.Contains(t, result.Output, "--core-root /checkout/agent-core")
-	require.Contains(t, result.Output, "--directory "+pointDir)
-	require.Contains(t, result.Output, "--otel-log-file "+tracePath)
-	data, err := os.ReadFile(resultPath)
-	require.NoError(t, err)
-	require.Contains(t, string(data), "--profile agents/executor/profile.yaml")
+	// run_agent emits write parameters instead of writing the artifact itself
+	// (GH-1378): path is the workspace-relative result.json and content is the
+	// child agent's stdout.
+	path, content := resultWriteParams(t, result.Output)
+	require.Equal(t, ArtifactResult, path)
+	require.Contains(t, content, "--profile agents/executor/profile.yaml")
+	require.Contains(t, content, "--core-root /checkout/agent-core")
+	require.Contains(t, content, "--directory "+pointDir)
+	require.Contains(t, content, "--otel-log-file "+tracePath)
 }
 
-func TestRunAgentCmdReportsResultArtifactWriteFailure(t *testing.T) {
-	t.Parallel()
-
-	pointDir := t.TempDir()
-	resultPath := filepath.Join(pointDir, "missing", "result.json")
-	pc := &PointContext{
-		PointDir: pointDir, TracePath: filepath.Join(pointDir, "trace.ndjson"),
-		ResultPath: resultPath, Harness: Harness{Binary: "echo"},
-		ProfilePath: "agents/executor/profile.yaml", Timeout: 5 * time.Second,
-	}
-
-	result := (&runAgentCmd{pc: pc, ctx: context.Background()}).Execute()
-
-	require.Equal(t, core.CommandError, result.Signal)
-	require.Error(t, result.Err)
-	require.True(t, errors.Is(result.Err, os.ErrNotExist))
-	require.Contains(t, result.Output, resultPath)
-	require.Equal(t, 0, pc.ExitCode)
-	require.False(t, pc.TimedOut)
-	require.Positive(t, pc.Duration)
-	require.Equal(t, pc.Duration, result.Cost.Duration)
-}
-
-func TestRunAgentCmdPersistsNonzeroExitOutput(t *testing.T) {
+func TestRunAgentCmdEmitsNonzeroExitOutputParameters(t *testing.T) {
 	t.Parallel()
 
 	pointDir := t.TempDir()
@@ -81,7 +72,9 @@ func TestRunAgentCmdPersistsNonzeroExitOutput(t *testing.T) {
 	require.Equal(t, SigHarnessFailed, result.Signal)
 	require.NoError(t, result.Err)
 	require.Equal(t, 7, pc.ExitCode)
-	data, err := os.ReadFile(resultPath)
-	require.NoError(t, err)
-	require.Equal(t, "child output", string(data))
+	require.Positive(t, pc.Duration)
+	require.Equal(t, pc.Duration, result.Cost.Duration)
+	path, content := resultWriteParams(t, result.Output)
+	require.Equal(t, ArtifactResult, path)
+	require.Equal(t, "child output", content)
 }

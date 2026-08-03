@@ -12,6 +12,7 @@ tools:
   - record_agent_commit
   - dump_config
   - run_agent
+  - write
   - run_oracle_check
   - record_oracle_result
   - collect_trace_tokens

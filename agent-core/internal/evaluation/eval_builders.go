@@ -59,14 +59,16 @@ func (b *RunAgentBuilder) Build(_ core.Result) core.Command {
 		return &failCmd{err: fmt.Errorf("run_agent: EvalState.PC not initialized")}
 	}
 	pc := b.ES.PC
+	// run_agent no longer owns the result.json artifact (GH-1378): the write
+	// word writes it under its own workspace_restore receipt, so run_agent's
+	// compensation covers only the child process and point-context restore.
 	return &evaluatorReceiptCmd{
 		inner: &runAgentCmd{pc: pc, ctx: b.ES.Ctx}, point: pc,
-		removePaths: func() []string { return []string{pc.ResultPath} },
-		boundary:    "harness child process and point workspace require compensation",
+		boundary: "harness child process and point workspace require compensation",
 		boundaryMetadata: func() any {
 			return map[string]any{
 				"binary": pc.Harness.Binary, "profile": pc.ProfilePath,
-				"point_dir": pc.PointDir, "trace_path": pc.TracePath, "result_path": pc.ResultPath,
+				"point_dir": pc.PointDir, "trace_path": pc.TracePath,
 				"exit_code": pc.ExitCode, "timed_out": pc.TimedOut,
 			}
 		},

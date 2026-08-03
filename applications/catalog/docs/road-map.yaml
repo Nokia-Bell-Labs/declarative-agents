@@ -571,9 +571,10 @@ releases:
       log validators assert against.
 
       Both profiles are supported test-time library members. Their paths and
-      behavior are part of the canonical applications/catalog/v0.* public
+      behavior are part of the canonical v0.* public release
       surface even while the release remains in-progress on the evidence gaps
-      below. Matching agent-profiles/v0.* names are v0 compatibility aliases,
+      below. Earlier applications/catalog/v0.* tags and matching
+      agent-profiles/v0.* names are v0 compatibility aliases,
       and immutable historical legacy tags remain valid. Rig-subject and other
       conformance fixtures remain internal test data, not members.
 
@@ -582,7 +583,7 @@ releases:
       scenario composition is an actor function, not the canonical Assembler
       responsibility. New consumers use agents/scenario-critic/profile.yaml.
       The old agents/assembler/profile.yaml path is a non-forking wrapper through
-      applications/catalog/v0.* and is removed at applications/catalog/v1.
+      the remainder of v0 and is removed at v1.
 
       Tests are profile-owned data. A scenario is a tests/<scenario>/
       directory beside the agent it tests, holding validator machines and
@@ -670,7 +671,7 @@ releases:
       home.
 
       Reusable old catalog paths are one-file, non-forking wrappers through
-      applications/catalog/v0.* and are removed at v1. Application-local test
+      the remainder of v0 and are removed at v1. Application-local test
       identities and the chatbot-mesh coordinator workload migrated atomically
       and retain historical entries without runtime aliases. The exact planned
       release is applications/catalog/v0.20260727.0 with matching

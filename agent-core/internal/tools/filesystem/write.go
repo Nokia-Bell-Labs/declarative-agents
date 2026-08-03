@@ -69,10 +69,21 @@ func writablePath(root, path string) (string, error) {
 	return filepath.Clean(joined), nil
 }
 
-// WriteBuilder constructs write commands.
+// WriteBuilder constructs write commands. RootFunc, when set, resolves the
+// workspace root at Build time and takes precedence over the static Root —
+// nested machines (for example the evaluator point machine) only know their
+// workspace directory once an earlier word has created it.
 type WriteBuilder struct {
-	Root    string
-	Metrics core.MetricConfig
+	Root     string
+	RootFunc func() string
+	Metrics  core.MetricConfig
+}
+
+func (b *WriteBuilder) root() string {
+	if b.RootFunc != nil {
+		return b.RootFunc()
+	}
+	return b.Root
 }
 
 func (b *WriteBuilder) Build(res core.Result) core.Command {
@@ -84,14 +95,14 @@ func (b *WriteBuilder) Build(res core.Result) core.Command {
 	if c == "" {
 		return missingParam("write", "content")
 	}
-	return &writeCmd{root: b.Root, path: p, content: c, metrics: b.Metrics}
+	return &writeCmd{root: b.root(), path: p, content: c, metrics: b.Metrics}
 }
 
 // BuildReverser returns a write command configured only for receipt-driven Undo:
 // the receipt carries the prior file state, so the rollback receipt walk needs
 // no path/content input (core.Reverser; srd035-checkpoint-port R3).
 func (b *WriteBuilder) BuildReverser() core.Command {
-	return &writeCmd{root: b.Root, metrics: b.Metrics}
+	return &writeCmd{root: b.root(), metrics: b.Metrics}
 }
 
 // WriteToolSpec returns the ToolSpec for the write tool.

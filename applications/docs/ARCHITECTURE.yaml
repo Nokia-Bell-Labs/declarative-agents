@@ -258,7 +258,7 @@ project_structure:
     - path: magefiles/stats.go
       role: Root metrics aggregation and canonical agent totals.
     - path: magefiles/tag.go
-      role: Root release gates and release-relevant module tags.
+      role: Root release gates and the single repository release tag.
 
 implementation_status:
   current_focus: |

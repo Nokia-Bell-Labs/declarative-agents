@@ -33,10 +33,21 @@ test_cases:
     traces: [rel09.0-uc001-canonical-collector S4, srd007-collector-agent AC2]
 
   - use_case: rel09.0-uc001-canonical-collector
-    name: Metrics evidence collected from Prometheus
+    name: Agent-mode metric evidence needs no in-cluster Dolt scrape
+    go_test: go test ./magefiles -run '^TestCollectSharedMetricsEvidenceAgentModeNeedsNoDolt$'
+    status: implemented
+    description: In default agent mode the collector agent owns OTLP metric intake; agent metrics are collected and retained as evidence after teardown while the in-cluster Dolt Prometheus scrape is retired (GH-1366). No Jaeger trace evidence is required.
+    expected:
+      agent_metrics_present: true
+      dolt_metrics_present: false
+      trace_evidence_from_jaeger: false
+    traces: [rel09.0-uc001-canonical-collector S5, srd003-chatbot-deployment AC5]
+
+  - use_case: rel09.0-uc001-canonical-collector
+    name: Contrib collector still retains Dolt metric evidence when opted in
     go_test: go test ./magefiles -run '^TestCollectSharedMetricsEvidenceRetainsAgentAndDolt$'
     status: implemented
-    description: Agent and Dolt metrics are collected from Prometheus and retained as evidence after teardown; no Jaeger trace evidence is required.
+    description: When the opt-in contrib collector is selected its Prometheus scrape still surfaces Dolt dss_* metrics, and both agent and Dolt metrics are retained as evidence (GH-1366).
     expected:
       agent_metrics_present: true
       dolt_metrics_present: true

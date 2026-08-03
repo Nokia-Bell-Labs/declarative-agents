@@ -10,11 +10,10 @@ import (
 )
 
 const (
-	defaultContainerImage   = "agent-core:latest"
-	defaultIntegrationImage = "agent-core-integration:latest"
-	defaultContainerNetRC   = ".netrc"
-	defaultProfilesMount    = "/profiles"
-	defaultWorkMount        = "/work"
+	defaultContainerImage = "agent-core:latest"
+	defaultContainerNetRC = ".netrc"
+	defaultProfilesMount  = "/profiles"
+	defaultWorkMount      = "/work"
 
 	dockerEngine = "docker"
 )
@@ -112,8 +111,6 @@ func containerBuildSummary(opts dockerBuildOptions, args []string) string {
 	fmt.Fprintln(&b, "  container output: streamed directly")
 	fmt.Fprintf(&b, "command: %s\n", displayBuildCommand(opts, args))
 	fmt.Fprintf(&b, "mounted profile example: %s\n", displayRuntimeCommand(opts))
-	fmt.Fprintf(&b, "integration image command: %s\n", displayIntegrationBuildCommand(opts))
-	fmt.Fprintf(&b, "integration container example: %s\n", displayIntegrationCommand(opts))
 	return b.String()
 }
 
@@ -132,29 +129,6 @@ func displayRuntimeCommand(opts dockerBuildOptions) string {
 		opts.Image,
 		"--profile", defaultProfilesMount + "/agents/executor/profile.yaml",
 		"--directory", defaultWorkMount,
-	})
-}
-
-func displayIntegrationBuildCommand(opts dockerBuildOptions) string {
-	args := containerBuildArgs(opts)
-	for i, arg := range args {
-		if arg == opts.Image && i > 0 && args[i-1] == "-t" {
-			args[i] = defaultIntegrationImage
-			break
-		}
-	}
-	if len(args) > 0 {
-		args = append(args[:len(args)-1], "--target", "integration", args[len(args)-1])
-	}
-	return displayBuildCommand(opts, args)
-}
-
-func displayIntegrationCommand(_ dockerBuildOptions) string {
-	return shellCommand([]string{
-		dockerEngine, "run", "--rm",
-		"-w", "/src",
-		defaultIntegrationImage,
-		"mage", "integration:monitor",
 	})
 }
 

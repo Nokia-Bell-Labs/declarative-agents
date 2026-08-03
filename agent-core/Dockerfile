@@ -26,11 +26,6 @@ RUN go test ./...
 
 RUN CGO_ENABLED=0 GOOS=linux go build -ldflags="-s -w" -o /out/agent ./cmd/agent
 
-FROM builder AS integration
-
-RUN apk add --no-cache nodejs npm \
-    && go install github.com/magefile/mage@latest
-
 FROM ${RUNTIME_IMAGE} AS runtime
 
 RUN apk add --no-cache \

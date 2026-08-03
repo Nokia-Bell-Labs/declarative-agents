@@ -76,6 +76,17 @@ tools:
   non_goals:
   - Does not choose the next workflow step; machine.yaml owns sequencing.
   - Does not hide unrelated tool execution behind this word.
+  # Recorded exception to externalize-to-CLI-tools (GH-1392). read stays an
+  # in-process builtin even though its siblings were externalized (find -> rg,
+  # list_files -> a find-based exec word) and an exec equivalent exists
+  # (sed -n plus nl, with file --mime-encoding for the binary sniff). read is
+  # the highest-frequency word in a coding-agent loop, so it pays any per-call
+  # cost on every iteration. Measured on Apple M4 Max via
+  # internal/tools/filesystem/read_bench_test.go: the in-process path is
+  # ~0.13 ms/op; a single sed fork+exec (the exec floor, before nl and file)
+  # is ~2.1 ms/op, ~15x slower. rg's binding pays that fork+exec once per
+  # search; read would pay it per read. Verdict: do not externalize.
+  - Does not fork a CLI per read; the fork+exec cost is not tolerable at loop frequency (GH-1392).
   errors:
   - signal: CommandError
     condition: required input, configuration, or runtime state is invalid

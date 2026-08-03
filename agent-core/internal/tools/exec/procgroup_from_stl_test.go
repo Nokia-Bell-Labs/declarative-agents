@@ -10,6 +10,8 @@ import (
 
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
+
+	"github.com/Nokia-Bell-Labs/declarative-agents/agent-core/internal/support/subprocess"
 )
 
 func TestProcGroupCmd_SetsFields(t *testing.T) {
@@ -17,7 +19,7 @@ func TestProcGroupCmd_SetsFields(t *testing.T) {
 	ProcGroupCmd(cmd)
 	assert.True(t, cmd.SysProcAttr.Setpgid)
 	assert.NotNil(t, cmd.Cancel)
-	assert.Equal(t, defaultWaitDelay, cmd.WaitDelay)
+	assert.Equal(t, subprocess.DefaultWaitDelay, cmd.WaitDelay)
 }
 
 func TestRunProcGroup_Success(t *testing.T) {

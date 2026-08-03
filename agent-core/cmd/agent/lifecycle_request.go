@@ -5,6 +5,7 @@ package main
 import (
 	"fmt"
 	"os"
+	"strings"
 
 	"gopkg.in/yaml.v3"
 
@@ -17,10 +18,13 @@ import (
 // target run id and rollback target iteration are not CLI flags — the design
 // keeps lifecycle-specific parameters out of the universal flag set
 // (TestRootCommandHasNoLifecycleOnlyFlags) — so they arrive through the
-// universal --request file. This file parses that request and routes it two
-// ways: it injects the checkpoint id and to_iteration into the checkpoint tool
-// configs, and it opens a separate read/revert backend pinned to the target run
-// so the inspecting machine never persists over the run it is reading
+// universal --request file. Rather than switching on tool identity, each tool
+// declares where those values come from with a $request.<field> config source
+// (for example checkpoint: $request.checkpoint). This file resolves those
+// declared sources generically against the parsed request, and — when a tool
+// opts into a checkpoint source and both a Dolt DSN and a target run are
+// present — opens a separate read/revert backend pinned to the target run so
+// the inspecting machine never persists over the run it is reading
 // (srd009-lifecycle rel02.0-uc002, srd036-dolt-state-persistence R5/R6).
 
 // lifecycleRequest is the checkpoint-operation request payload read from the
@@ -49,54 +53,94 @@ func loadLifecycleRequest(path string) (lifecycleRequest, error) {
 	return req, nil
 }
 
-// defsSelectCheckpointOps reports whether the profile selects a checkpoint
-// history or rollback tool, i.e. whether the request-driven target path applies.
-func defsSelectCheckpointOps(defs []catalog.ToolDef) bool {
-	for _, def := range defs {
-		switch def.Init {
-		case "checkpoint_history", "checkpoint_rollback":
-			return true
+// requestSourcePrefix marks a config value that resolves from the universal
+// --request file at composition time, e.g. "$request.checkpoint".
+const requestSourcePrefix = "$request."
+
+// requestSourceField returns the request field named by a "$request.<field>"
+// config value and whether the value is such a selector.
+func requestSourceField(v interface{}) (string, bool) {
+	s, ok := v.(string)
+	if !ok || !strings.HasPrefix(s, requestSourcePrefix) {
+		return "", false
+	}
+	return strings.TrimPrefix(s, requestSourcePrefix), true
+}
+
+// requestSources maps each supported request field to its resolved value and
+// whether the field is present; absent fields let a tool keep its config default.
+func (r lifecycleRequest) requestSources() map[string]func() (interface{}, bool) {
+	return map[string]func() (interface{}, bool){
+		"checkpoint": func() (interface{}, bool) { return r.Checkpoint, r.Checkpoint != "" },
+		"to_iteration": func() (interface{}, bool) {
+			if r.ToIteration == nil {
+				return nil, false
+			}
+			return *r.ToIteration, true
+		},
+	}
+}
+
+// defsDeclareRequestSources reports whether any selected tool declares a
+// $request.<field> config source, i.e. whether the request-driven path applies.
+func defsDeclareRequestSources(defs []catalog.ToolDef) bool {
+	for i := range defs {
+		for _, v := range defs[i].Config {
+			if _, ok := requestSourceField(v); ok {
+				return true
+			}
 		}
 	}
 	return false
 }
 
-// applyLifecycleRequest injects the request's checkpoint id and to_iteration
-// into the matching checkpoint tool configs, so the tools select the target run
-// and rollback receives its required target iteration without a CLI flag.
-func applyLifecycleRequest(defs []catalog.ToolDef, req lifecycleRequest) {
+// resolveRequestSources replaces each declared $request.<field> config value
+// with the request's value, deleting the key when the field is unset so the
+// tool falls back to its config default. It runs before any tool decodes its
+// config, so the placeholder never reaches the typed struct. Unknown request
+// fields are rejected to catch typos at composition time.
+func resolveRequestSources(defs []catalog.ToolDef, req lifecycleRequest) error {
+	sources := req.requestSources()
 	for i := range defs {
-		switch defs[i].Init {
-		case "checkpoint_history", "checkpoint_rollback":
-			if defs[i].Config == nil {
-				defs[i].Config = map[string]interface{}{}
+		for key, v := range defs[i].Config {
+			field, ok := requestSourceField(v)
+			if !ok {
+				continue
 			}
-			if req.Checkpoint != "" {
-				defs[i].Config["checkpoint"] = req.Checkpoint
+			resolve, known := sources[field]
+			if !known {
+				return fmt.Errorf("tool %q config %q references unknown request source %s%s",
+					defs[i].Name, key, requestSourcePrefix, field)
 			}
-			if defs[i].Init == "checkpoint_rollback" && req.ToIteration != nil {
-				defs[i].Config["to_iteration"] = *req.ToIteration
+			if value, present := resolve(); present {
+				defs[i].Config[key] = value
+			} else {
+				delete(defs[i].Config, key)
 			}
 		}
 	}
+	return nil
 }
 
 // resolveLifecycleCheckpoint wires the checkpoint-operation backend for history
-// and rollback. When the profile selects a checkpoint op it parses the request,
-// injects it into the tool configs, and — when a Dolt DSN and a target run are
-// both present — opens a separate backend pinned to that run with no terminal
-// merge, so read/rollback touch the target run branch while the inspecting
-// machine keeps persisting to its own run through loopCheckpoint. Absent a
-// target it returns loopCheckpoint unchanged, preserving prior behavior.
+// and rollback. When a selected tool declares a $request.<field> source it
+// parses the request, resolves those declared sources into the tool configs,
+// and — when a Dolt DSN and a target run are both present — opens a separate
+// backend pinned to that run with no terminal merge, so read/rollback touch the
+// target run branch while the inspecting machine keeps persisting to its own run
+// through loopCheckpoint. Absent a target it returns loopCheckpoint unchanged,
+// preserving prior behavior.
 func resolveLifecycleCheckpoint(cfg runtimeConfig, defs []catalog.ToolDef, loopCheckpoint core.Checkpoint) (openedCheckpoint, error) {
-	if !defsSelectCheckpointOps(defs) {
+	if !defsDeclareRequestSources(defs) {
 		return openedCheckpoint{Checkpoint: loopCheckpoint}, nil
 	}
 	req, err := loadLifecycleRequest(cfg.Request)
 	if err != nil {
 		return openedCheckpoint{}, err
 	}
-	applyLifecycleRequest(defs, req)
+	if err := resolveRequestSources(defs, req); err != nil {
+		return openedCheckpoint{}, err
+	}
 	if cfg.DoltDSN == "" || req.Checkpoint == "" {
 		return openedCheckpoint{Checkpoint: loopCheckpoint}, nil
 	}
