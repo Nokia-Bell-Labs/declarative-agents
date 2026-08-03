@@ -24,7 +24,7 @@ requirements:
       - id: R2.1
         text: The target shall install only the validated packaged .tgz.
       - id: R2.2
-        text: It shall build and load the same profile-free coding runtime Dockerfile referenced by production values, containing Go 1.26 and golangci-lint v2.12.2 for canonical build, lint, and test validation.
+        text: It shall build and load the same shared agent-core-toolchain recipe referenced by production values (agent-core/toolchain.Dockerfile layered on agent-core, GH-1368), containing Go 1.26 and golangci-lint v2.12.2 for canonical build, lint, and test validation.
       - id: R2.3
         text: A deterministic Ollama-compatible in-cluster service shall provide model responses without replacing any agent, REST, workspace, critic, or telemetry behavior.
       - id: R2.4

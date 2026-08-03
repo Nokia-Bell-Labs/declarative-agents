@@ -7,7 +7,8 @@ optional deployment-plane applier (srd006).
 
 ## Architectural thesis
 
-One profile-free runtime image serves every role. Each agent's program is a profile
+One profile-free runtime image serves every role: the shared agent-core-toolchain
+(agent-core layered with the Go toolchain, GH-1368). Each agent's program is a profile
 supplied from a ConfigMap and mounted read-only at `/profiles`, not baked into the
 image, so the same image runs the planner, executor, and critic, and a values change
 re-renders the topology without rebuilding images (the agent-core mounted-profile

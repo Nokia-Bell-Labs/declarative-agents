@@ -10,11 +10,15 @@ import (
 	"path/filepath"
 	"strings"
 
+	"github.com/Nokia-Bell-Labs/declarative-agents/magefiles/kindrig"
 	"github.com/magefile/mage/mg"
 )
 
 const (
-	codingAgentImageRepository = "ghcr.io/nokia-bell-labs/declarative-agents/coding-agent-runtime"
+	// The coding roles run the shared agent-core-toolchain image (GH-1368):
+	// agent-core plus the Go toolchain and golangci-lint the executor's exec words
+	// need. It replaces the retired per-app coding-agent-runtime.
+	codingAgentImageRepository = "ghcr.io/nokia-bell-labs/declarative-agents/agent-core-toolchain"
 	codingAgentImageTag        = "0.1.0"
 	codingAgentGolangciLint    = "v2.12.2"
 )
@@ -22,17 +26,32 @@ const (
 // Image groups production coding-agent image targets.
 type Image mg.Namespace
 
-// Build builds the profile-free production image used by every chart role.
+// Build builds the profile-free production image used by every chart role: the
+// shared agent-core-toolchain, layered on a locally built agent-core so the target
+// is self-contained (GH-1368).
 func (Image) Build() error {
 	applicationRoot, err := os.Getwd()
 	if err != nil {
 		return err
 	}
-	return buildCodingAgentImage(applicationRoot, demoImage(applicationRoot))
+	coreRoot := codingAgentCoreRoot(applicationRoot)
+	if err := kindrig.BuildAgentCoreImage(coreRoot, kindrig.DefaultAgentCoreImage); err != nil {
+		return err
+	}
+	return buildCodingAgentImage(coreRoot, kindrig.DefaultAgentCoreImage, demoImage(applicationRoot))
 }
 
-func buildCodingAgentImage(applicationRoot, image string) error {
-	contextDir, dockerfile, args := codingAgentImageBuild(applicationRoot, image)
+// codingAgentCoreRoot resolves the agent-core checkout that carries the shared
+// toolchain.Dockerfile, two levels up from an application root.
+func codingAgentCoreRoot(applicationRoot string) string {
+	return filepath.Clean(filepath.Join(applicationRoot, "..", "..", "agent-core"))
+}
+
+// buildCodingAgentImage builds the shared agent-core-toolchain image from the
+// agent-core base named by runtimeImage. runtimeImage is passed as RUNTIME_IMAGE;
+// empty leaves the Dockerfile's published default.
+func buildCodingAgentImage(coreRoot, runtimeImage, image string) error {
+	contextDir, dockerfile, args := codingAgentImageBuild(coreRoot, runtimeImage, image)
 	ctx, cancel := context.WithTimeout(context.Background(), codingHelmClusterTimeout)
 	defer cancel()
 	command := exec.CommandContext(ctx, "docker", args...)
@@ -44,15 +63,15 @@ func buildCodingAgentImage(applicationRoot, image string) error {
 	return nil
 }
 
-func codingAgentImageBuild(applicationRoot, image string) (string, string, []string) {
-	repositoryRoot := filepath.Clean(filepath.Join(applicationRoot, "..", ".."))
-	dockerfile := filepath.Join(applicationRoot, "Dockerfile")
+func codingAgentImageBuild(coreRoot, runtimeImage, image string) (string, string, []string) {
+	dockerfile := filepath.Join(coreRoot, "toolchain.Dockerfile")
 	args := []string{
 		"build", "--pull=false",
 		"--build-arg", "GOLANGCI_LINT_VERSION=" + codingAgentGolangciLint,
-		"-f", dockerfile,
-		"-t", image,
-		".",
 	}
-	return repositoryRoot, dockerfile, args
+	if runtimeImage != "" {
+		args = append(args, "--build-arg", "RUNTIME_IMAGE="+runtimeImage)
+	}
+	args = append(args, "-f", dockerfile, "-t", image, ".")
+	return coreRoot, dockerfile, args
 }

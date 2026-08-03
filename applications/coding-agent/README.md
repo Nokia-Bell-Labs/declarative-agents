@@ -127,8 +127,9 @@ helm template coding-agent helm -f helm/ci/small-values.yaml
 mage helm:package
 ```
 
-The chart defaults to
-`ghcr.io/nokia-bell-labs/declarative-agents/coding-agent-runtime:0.1.0` and
+The chart defaults to the shared
+`ghcr.io/nokia-bell-labs/declarative-agents/agent-core-toolchain:0.1.0` (agent-core
+layered with the Go toolchain, GH-1368) and
 renders one persistent coding-runtime container per role, projected
 read-only role ConfigMaps, one shared workspace claim, fixed internal role
 Services, lifecycle probes, optional Ollama, and collector agent tracing. `values.schema.json`, semantic template guards, and fixtures under

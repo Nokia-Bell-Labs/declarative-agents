@@ -42,7 +42,15 @@ func prepareCodingHelmCluster(
 	if err != nil {
 		return fmt.Errorf("prepare kind workspace: %w: %s", err, strings.TrimSpace(string(output)))
 	}
-	if err := buildCodingAgentImage(roots.Application, images.Agent); err != nil {
+	// The coding roles and the collector both run on agent-core (GH-1368): build the
+	// agent-core base once, then layer the Go toolchain on it for the role image so
+	// the executor's go build / go test / golangci-lint exec words have a toolchain.
+	if err := kindrig.BuildAgentCoreImage(roots.Core, codingHelmCollectorImage); err != nil {
+		return &codingHelmInfrastructureError{
+			Step: "agent-core image build", Cause: err,
+		}
+	}
+	if err := buildCodingAgentImage(roots.Core, codingHelmCollectorImage, images.Agent); err != nil {
 		return err
 	}
 	if err := buildCodingHelmModelImage(images.Model); err != nil {
@@ -57,11 +65,6 @@ func prepareCodingHelmCluster(
 		cancel()
 		if err != nil {
 			return err
-		}
-	}
-	if err := kindrig.BuildAgentCoreImage(roots.Core, codingHelmCollectorImage); err != nil {
-		return &codingHelmInfrastructureError{
-			Step: "collector image build", Cause: err,
 		}
 	}
 	if err := loadCodingDependencyImage(cluster, codingHelmCollectorImage); err != nil {
