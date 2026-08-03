@@ -182,23 +182,6 @@ func validateDeclaredRuntimeParams(params map[string]interface{}, binding Reques
 	return nil
 }
 
-func declaredParamNames(binding RequestBinding) map[string]bool {
-	names := map[string]bool{}
-	for name := range binding.Path {
-		names[name] = true
-	}
-	for name := range binding.Query {
-		names[name] = true
-	}
-	for name := range binding.Headers {
-		names[name] = true
-	}
-	for name := range schemaProperties(binding.BodySchema) {
-		names[name] = true
-	}
-	return names
-}
-
 func renderURL(def ClientOperationDefinition, params map[string]interface{}, view core.CommandStateView) (string, error) {
 	baseURL, selected, err := resolveOperationBaseURL(def.Operation, def.Client.BaseURL, view)
 	if err != nil {
@@ -215,8 +198,15 @@ func renderURL(def ClientOperationDefinition, params map[string]interface{}, vie
 	}
 	endpoint := base.ResolveReference(rel)
 	query := endpoint.Query()
-	for name := range def.Operation.Params.Query {
-		query.Set(name, fmt.Sprint(params[name]))
+	// A runtime param wins; otherwise the operation's declared query value is the
+	// fallback, so a body_source none operation keeps its configured value rather
+	// than rendering the string "<nil>" from a cleared params map.
+	for name, declared := range def.Operation.Params.Query {
+		value := declared
+		if runtime, ok := params[name]; ok {
+			value = runtime
+		}
+		query.Set(name, fmt.Sprint(value))
 	}
 	endpoint.RawQuery = query.Encode()
 	if selected {
