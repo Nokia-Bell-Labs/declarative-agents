@@ -98,6 +98,14 @@ var allowedUndeclaredHeaders = map[string]bool{
 	"x-request-id":              true,
 	"traceparent":               true,
 	"tracestate":                true,
+	"forwarded":                 true,
+	"x-forwarded-for":           true,
+	"x-forwarded-host":          true,
+	"x-forwarded-port":          true,
+	"x-forwarded-prefix":        true,
+	"x-forwarded-proto":         true,
+	"x-forwarded-server":        true,
+	"x-real-ip":                 true,
 }
 
 func (r *serverRuntime) ServeHTTP(w http.ResponseWriter, req *http.Request) {
