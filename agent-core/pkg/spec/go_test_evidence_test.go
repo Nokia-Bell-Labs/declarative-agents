@@ -48,6 +48,17 @@ func TestCheckEvidenceResolvesAndReports(t *testing.T) {
 		{"comma list all present", "TestFoo, TestBar", ""},
 		{"comma list one missing", "TestFoo, TestGone", "TestGone"},
 
+		// Malformed Test-prefixed values must not fall through to prose
+		// (GH-1350). A name with embedded spaces (a global rename that left the
+		// old spaced words behind) is reported as malformed, not skipped, even
+		// when it sits among valid names.
+		{"embedded-space name malformed", "TestFooBar Baz Qux", "malformed Go test name"},
+		{"embedded-space name among valid", "TestFoo, TestBar Baz Qux, TestOnlyInStl", "malformed Go test name"},
+		{"stale rename with spaces reports the bad member",
+			"TestProvisioning Workflow OrchestratorAdmits", `"TestProvisioning Workflow OrchestratorAdmits"`},
+		// A value whose members are not all Test-prefixed stays prose.
+		{"mixed prose stays descriptive", "TestFoo and some notes, see the demo", ""},
+
 		// Package-scoped -run.
 		{"package run present", "go test ./pkg/spec -run TestFoo", ""},
 		{"package run equals form", "go test ./pkg/spec -run=TestFoo", ""},

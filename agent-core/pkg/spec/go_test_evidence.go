@@ -111,7 +111,41 @@ func (inv *GoTestInventory) checkEvidence(raw string) string {
 	if names, ok := bareTestNames(evidence); ok {
 		return inv.checkBareNames(names)
 	}
+	// The value parsed neither as a go test command nor as a valid bare-name
+	// list. If it is nonetheless an intended Go-test reference — every
+	// comma-separated member begins with the "Test" prefix — it is malformed
+	// (embedded spaces, a stale global rename, etc.) and must be reported
+	// rather than silently treated as descriptive prose, which would leave the
+	// formal suite green while the reference proves nothing (GH-1350).
+	if problem := malformedTestNameList(evidence); problem != "" {
+		return problem
+	}
 	return "" // descriptive evidence, not a validated form
+}
+
+// malformedTestNameList reports a problem when evidence looks like an intended
+// comma-separated list of bare Go test names — every member begins with "Test"
+// — but at least one member is not a valid top-level test identifier. When any
+// member does not begin with "Test", the value is treated as descriptive
+// evidence (returns ""), keeping the validator conservative about prose.
+func malformedTestNameList(evidence string) string {
+	parts := strings.Split(evidence, ",")
+	var malformed []string
+	for _, p := range parts {
+		name := strings.TrimSpace(p)
+		if name == "" || !strings.HasPrefix(name, "Test") {
+			return "" // not an intended test-name list; leave as prose
+		}
+		if !goTestNameRE.MatchString(name) {
+			malformed = append(malformed, fmt.Sprintf("%q", name))
+		}
+	}
+	if len(malformed) == 0 {
+		return "" // a well-formed list is handled by bareTestNames
+	}
+	return fmt.Sprintf("malformed Go test name %s (not a valid top-level test "+
+		"identifier); use a bare Test name, a comma-separated list of them, or a "+
+		"`go test` command", strings.Join(malformed, ", "))
 }
 
 // skipGoTestEvidence reports whether evidence is Mage or a shell pipeline, which
