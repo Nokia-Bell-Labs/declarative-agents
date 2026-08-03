@@ -38,6 +38,18 @@ tools:
   non_goals:
   - Does not resume the agent after rollback.
   - Does not revert files, HTTP, or workspace effects inside the Dolt adapter; Revert is DB-only and external effects are reversed only through tool receipts.
+  # GH-1377: the audit's ideal decomposition is a machine
+  # revert -> list_rollback_entries -> for_each undo_entry -> summarize, so each
+  # compensation is its own routed word. This word stays compound by a recorded
+  # recovery-bootstrap exception: rollback is the recovery path that runs when no
+  # machine can drive itself (a corrupt or partly-persisted run), so it cannot
+  # itself depend on the machine loop it exists to repair. The residual risk the
+  # audit flags — the reverse receipt walk dispatching other tools' Undo, notably
+  # REST compensation re-entering the HTTP client, appearing as no transition or
+  # log entry — is mitigated: every reversed, failed, or skipped entry now emits
+  # a rollback.entry_* event on the rollback span (see receipt_rollback.go), so
+  # the fan-out is observable even though it is not a machine transition.
+  - Does not decompose into per-entry machine words; it is a single recovery-bootstrap word by design (GH-1377), with each compensation surfaced as a rollback span event.
   parameters:
     type: object
     properties:

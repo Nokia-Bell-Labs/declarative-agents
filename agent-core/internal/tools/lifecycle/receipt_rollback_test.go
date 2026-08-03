@@ -8,6 +8,7 @@ import (
 
 	"github.com/stretchr/testify/require"
 
+	"github.com/Nokia-Bell-Labs/declarative-agents/agent-core/internal/observability/tracing"
 	"github.com/Nokia-Bell-Labs/declarative-agents/agent-core/internal/runtime/core"
 )
 
@@ -118,4 +119,39 @@ func TestRollbackViaReceiptsCleanWhenAllReverse(t *testing.T) {
 	require.NoError(t, err)
 	require.Equal(t, 1, report.Reverted)
 	require.Contains(t, report.Detail, "reversed 1, skipped 0, failed 0")
+}
+
+// TestRollbackViaReceiptsSurfacesEveryCompensation proves GH-1377's fallback:
+// each receipt-walk Undo — reversed, skipped, or failed — is recorded on the
+// rollback span, so the compensation fan-out (e.g. REST Undo re-entering the
+// HTTP client) is observable rather than invisible.
+func TestRollbackViaReceiptsSurfacesEveryCompensation(t *testing.T) {
+	t.Parallel()
+
+	reg := core.NewRegistry()
+	reg.Register(core.ToolSpec{Name: "ok", Visibility: core.Internal}, reverserStub{name: "ok"})
+	reg.Register(core.ToolSpec{Name: "fails", Visibility: core.Internal}, reverserStub{name: "fails", undoFails: true})
+
+	execution := core.Execution{
+		{Iteration: 1, CommandName: "read", Signal: core.ToolDone},
+		{Iteration: 2, CommandName: "ok", Signal: core.ToolDone, Receipt: "r-ok"},
+		{Iteration: 3, CommandName: "fails", Signal: core.ToolDone, Receipt: "r-fail"},
+		{Iteration: 4, CommandName: "irreversible", Signal: core.ToolDone},
+	}
+
+	tr := tracing.NewRecordingTracer()
+	_, _ = rollbackViaReceipts(rollbackViaReceiptsOptions{
+		Reverter:        &recordingReverter{},
+		Registry:        reg,
+		Tracer:          tr,
+		RunID:           "run-events",
+		Execution:       execution,
+		TargetIteration: 1,
+	})
+
+	reversed := tr.FindEvent("rollback.entry_reversed")
+	require.NotNil(t, reversed, "a successful compensation must emit rollback.entry_reversed")
+	require.Equal(t, "ok", reversed.Attrs["command"])
+	require.NotNil(t, tr.FindEvent("rollback.entry_undo_failed"))
+	require.NotNil(t, tr.FindEvent("rollback.entry_skipped"))
 }
