@@ -311,11 +311,13 @@ func (inv *GoTestInventory) checkRunPattern(pattern string, pkgs []string) strin
 	if idx := strings.IndexByte(pattern, '/'); idx >= 0 {
 		top = pattern[:idx]
 	}
-	// Each top-level alternation branch names a separate proof, so each must
-	// match. Checking only the whole pattern lets one branch match while another
-	// names a test that does not exist: the command still runs something, so it
-	// exits green while the missing proof goes unreported (GH-592).
-	for _, branch := range topLevelBranches(top) {
+	// Each alternation branch names a separate proof, so each must match.
+	// Checking only the whole pattern lets one branch match while another names
+	// a test that does not exist: the command still runs something, so it exits
+	// green while the missing proof goes unreported. This covers both top-level
+	// alternation (GH-592) and a grouped explicit-name alternation such as
+	// Test(A|B|C)$ (GH-1353), which expands to its individual named proofs.
+	for _, branch := range explicitNameBranches(top) {
 		re, err := regexp.Compile(branch)
 		if err != nil {
 			return fmt.Sprintf("invalid -run regex %q: %v", pattern, err)
@@ -342,50 +344,6 @@ func (inv *GoTestInventory) matchesAny(re *regexp.Regexp, pkgs []string) bool {
 		}
 	}
 	return false
-}
-
-// topLevelBranches splits a -run pattern on alternation that is not inside a
-// group, so "TestA|TestB" yields two proofs while "Test(A|B)" stays one. Group
-// alternation is a shared-prefix shorthand rather than separate names, and
-// expanding it would mean reimplementing regex expansion, so it is left whole.
-// An unbalanced pattern is returned as a single branch and fails later at
-// compile, where the error names the real problem.
-func topLevelBranches(pattern string) []string {
-	var branches []string
-	var current strings.Builder
-	depth := 0
-	for i := 0; i < len(pattern); i++ {
-		switch ch := pattern[i]; ch {
-		case '\\':
-			current.WriteByte(ch)
-			if i+1 < len(pattern) {
-				i++
-				current.WriteByte(pattern[i])
-			}
-			continue
-		case '(', '[':
-			depth++
-		case ')', ']':
-			depth--
-		case '|':
-			if depth == 0 {
-				branches = append(branches, current.String())
-				current.Reset()
-				continue
-			}
-		}
-		current.WriteByte(pattern[i])
-	}
-	branches = append(branches, current.String())
-	if depth != 0 {
-		return []string{pattern}
-	}
-	for _, b := range branches {
-		if strings.TrimSpace(b) == "" {
-			return []string{pattern} // an empty branch matches everything; do not split
-		}
-	}
-	return branches
 }
 
 // stripQuotes removes a single matching pair of surrounding single or double

@@ -63,6 +63,15 @@ func TestCheckEvidenceResolvesAndReports(t *testing.T) {
 		{"package run present", "go test ./pkg/spec -run TestFoo", ""},
 		{"package run equals form", "go test ./pkg/spec -run=TestFoo", ""},
 		{"regex alternation matches", "go test ./internal/tools/stl -run 'Test(A|B)'", ""},
+
+		// Grouped explicit-name alternation expands to one proof per name, so a
+		// single surviving branch cannot mask a stale one (GH-1353).
+		{"grouped explicit all present", "go test ./internal/tools/stl -run 'Test(A|B|OnlyInStl)$'", ""},
+		{"grouped one stale name reported", "go test ./internal/tools/stl -run 'Test(A|Gone)$'", "TestGone"},
+		{"grouped stale among many", "go test ./pkg/spec -run 'TestFoo|Test(Bar|Gone)$'", "TestGone"},
+		// A group whose alternatives carry regex metacharacters stays whole and
+		// still resolves when it matches something.
+		{"regex-metachar group stays whole", "go test ./internal/tools/stl -run 'Test(A.*|B)'", ""},
 		{"run cannot match another package", "go test ./pkg/spec -run TestOnlyInStl", "matches no test"},
 		{"zero match despite exit zero", "go test ./pkg/spec -run TestNope", "matches no test"},
 		{"invalid regex", "go test ./pkg/spec -run 'Test('", "invalid -run regex"},
@@ -288,11 +297,22 @@ func TestCheckRunPatternRequiresEveryBranchToMatch(t *testing.T) {
 	}
 }
 
-// TestCheckRunPatternGroupAlternationUnchanged asserts a shared-prefix group is
-// still judged as one proof, so an existing command keeps passing.
-func TestCheckRunPatternGroupAlternationUnchanged(t *testing.T) {
+// TestCheckRunPatternGroupAlternationExpandsExplicitNames asserts a shared-prefix
+// explicit-name group is expanded into its individual proofs, so a surviving
+// alternative can no longer mask a stale one (GH-1353, superseding the earlier
+// one-regex treatment from GH-592). A group whose alternatives carry regex
+// metacharacters is still judged whole.
+func TestCheckRunPatternGroupAlternationExpandsExplicitNames(t *testing.T) {
 	inv := testInventory()
-	if got := inv.checkRunPattern("Test(Foo|NotHere)", []string{"example.com/mod/pkg/spec"}); got != "" {
-		t.Errorf("group alternation should match as one pattern, got %q", got)
+	pkgs := []string{"example.com/mod/pkg/spec"}
+	if got := inv.checkRunPattern("Test(Foo|Bar)", pkgs); got != "" {
+		t.Errorf("all-present group should resolve, got %q", got)
+	}
+	got := inv.checkRunPattern("Test(Foo|NotHere)", pkgs)
+	if !strings.Contains(got, "TestNotHere") {
+		t.Errorf("stale group alternative should be reported by name, got %q", got)
+	}
+	if got := inv.checkRunPattern("Test(Foo.*|NotHere)", pkgs); got != "" {
+		t.Errorf("regex-metachar group should stay whole and match, got %q", got)
 	}
 }
