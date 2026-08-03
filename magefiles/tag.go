@@ -15,10 +15,9 @@ import (
 )
 
 const (
-	tagPrefix              = "v0."
-	baseBranch             = "main"
-	catalogModule          = "applications/catalog"
-	legacyCatalogTagPrefix = "agent-profiles/"
+	tagPrefix     = "v0."
+	baseBranch    = "main"
+	catalogModule = "applications/catalog"
 )
 
 type releaseGate struct {
@@ -33,7 +32,7 @@ type releaseCommandRunner func(releaseGate) error
 
 type remoteTagsFunc func(date string) (string, error)
 
-// Tag creates a repository-wide release tag and matching module tags.
+// Tag creates the single repository-wide release tag.
 func Tag() error {
 	return createReleaseTag(time.Now(), gitOutput, gitRemoteTags, gitCreateTagSet, runReleaseGates)
 }
@@ -94,12 +93,11 @@ func createReleaseTag(
 	mergedTags := mergeTagLines(localTags, remoteTagOutput)
 	tag := fmt.Sprintf("%s%s.%d", tagPrefix, date, nextRevisionFromTags(date, mergedTags))
 
-	allTags := releaseTags(tag, releaseModules())
-	fmt.Printf("creating atomic tag set %s\n", strings.Join(allTags, ", "))
-	if err := createTags(allTags, commit); err != nil {
-		return fmt.Errorf("creating atomic release tag set: %w", err)
+	fmt.Printf("creating release tag %s\n", tag)
+	if err := createTags([]string{tag}, commit); err != nil {
+		return fmt.Errorf("creating release tag: %w", err)
 	}
-	fmt.Printf("done — created %s\n", strings.Join(allTags, ", "))
+	fmt.Printf("done — created %s\n", tag)
 	return nil
 }
 
@@ -145,23 +143,6 @@ func runReleaseCommand(gate releaseGate) error {
 	return cmd.Run()
 }
 
-func releaseTags(rootTag string, modules []string) []string {
-	tags := []string{rootTag}
-	for _, mod := range modules {
-		tags = append(tags, mod+"/"+rootTag)
-		if mod == catalogModule && strings.HasPrefix(rootTag, tagPrefix) {
-			// Release 99 keeps the historical v0 module identifier executable.
-			// Both names are created atomically at the same immutable commit.
-			tags = append(tags, legacyCatalogTagPrefix+rootTag)
-		}
-	}
-	return tags
-}
-
-func releaseModules() []string {
-	return append(append([]string{}, subModules...), applicationModules...)
-}
-
 func validateReleaseBranch(branch string) error {
 	current := strings.TrimSpace(branch)
 	if current != baseBranch {
@@ -171,6 +152,9 @@ func validateReleaseBranch(branch string) error {
 }
 
 func nextRevisionFromTags(date, tags string) int {
+	// Releases before GH-1373 created module-scoped tags (agent-core/v0.*,
+	// applications/catalog/v0.*, agent-profiles/v0.*) at the same dates, so
+	// the pattern tolerates any prefix when computing the next revision.
 	revRe := regexp.MustCompile(`^(?:[^/]+/)*` + regexp.QuoteMeta(tagPrefix) +
 		regexp.QuoteMeta(date) + `\.(\d+)$`)
 	maxRev := -1

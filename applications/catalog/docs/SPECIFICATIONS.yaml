@@ -18,8 +18,9 @@ overview: |
   library. Membership requires independent usefulness or multiple consumers,
   one canonical home, a family SRD, conformance, portable closure, and
   application-safe parameterization. Applications own composition and package
-  referenced closures against exact canonical applications/catalog/v0.*
-  releases. Matching agent-profiles/v0.* names are v0 compatibility aliases,
+  referenced closures against exact canonical repository v0.* releases
+  (GH-1373). Earlier applications/catalog/v0.* releases and matching
+  agent-profiles/v0.* names are v0 compatibility aliases,
   and immutable historical legacy tags remain valid. scenario-critic and mock are
   supported test-time library members under the same release contract.
   Rig-subject and REST/control/lifecycle conformance fixtures remain internal in
@@ -34,8 +35,8 @@ overview: |
   tree.
 
   The pre-#1072 agents/assembler/profile.yaml path remains a non-forking
-  compatibility wrapper through applications/catalog/v0.* and is removed at
-  applications/catalog/v1. New consumers use
+  compatibility wrapper through the remainder of v0 and is removed at
+  v1. New consumers use
   agents/scenario-critic/profile.yaml. Historical Release 11 SRD, use-case, and
   test-suite IDs are retained only in explicit historical_aliases fields.
 

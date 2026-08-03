@@ -121,7 +121,7 @@ func readApplicationProfileManifest(filename string) (applicationProfileManifest
 	}
 	if !isCompatibleProfileRelease(manifest.AgentProfiles.CompatibleRelease) {
 		return manifest, fmt.Errorf(
-			"compatible_release %q must match applications/catalog/v0.* or agent-profiles/v0.*",
+			"compatible_release %q must match v0.*, applications/catalog/v0.*, or agent-profiles/v0.*",
 			manifest.AgentProfiles.CompatibleRelease,
 		)
 	}
@@ -206,7 +206,9 @@ func validateServingReferences(references []profileReference) error {
 }
 
 func isCompatibleProfileRelease(version string) bool {
-	for _, prefix := range []string{"applications/catalog/v0.", "agent-profiles/v0."} {
+	// The root form v0.* is the canonical release identifier (GH-1373); the
+	// two module-scoped prefixes remain valid for releases tagged before it.
+	for _, prefix := range []string{"v0.", "applications/catalog/v0.", "agent-profiles/v0."} {
 		suffix := strings.TrimPrefix(version, prefix)
 		if strings.HasPrefix(version, prefix) && suffix != "" && !strings.ContainsAny(suffix, `/\`) {
 			return true

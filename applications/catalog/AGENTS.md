@@ -22,9 +22,9 @@ remain in that closure. Generic Go implementations stay under
 `agent-core/internal/tools`, and core shared declarations stay under
 `agent-core/tools`. The complete contract is in `tools/README.md`.
 
-The canonical compatibility surface is versioned by
-`applications/catalog/v0.*`; matching `agent-profiles/v0.*` tags remain legacy
-v0 compatibility identifiers. Treat path,
+The canonical compatibility surface is versioned by repository release tags
+`v0.*` (GH-1373); existing `applications/catalog/v0.*` and matching
+`agent-profiles/v0.*` tags remain legacy v0 compatibility identifiers. Treat path,
 machine/tool/signal/terminal contracts, request shapes, configuration names, and
 closure membership as compatibility-sensitive. Record breaking migrations and
 update consumers in the coordinated release.

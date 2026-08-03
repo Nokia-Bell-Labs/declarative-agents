@@ -541,8 +541,9 @@ releases:
       application consumers resolve an explicit AGENT_CATALOG_ROOT without
       changing process CWD. Source and Go module paths move while /profiles and
       /opt/agent-core/tools runtime mounts remain stable. Canonical
-      applications/catalog/v0.* tags coexist with agent-profiles/v0.*
-      compatibility tags for the remainder of v0.
+      applications/catalog/v0.* tags coexisted with agent-profiles/v0.*
+      compatibility tags until GH-1373 trimmed each release to the single
+      root v0.* tag.
     status: done
     planned_work:
       - id: gh-1040
