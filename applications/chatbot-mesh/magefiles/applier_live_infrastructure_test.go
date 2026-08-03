@@ -29,11 +29,24 @@ func TestApplierLiveInfrastructureHealthy(t *testing.T) {
 	}
 	for _, want := range []string{
 		"exec deployment/live-chatbot-mesh-applier",
+		// -c applier targets the applier container so the stage-chart init
+		// container (GH-1368) does not trigger a "Defaulted container" notice
+		// that corrupts the readyz comparison (GH-1403).
+		"-c applier",
 		"-- kubectl",
 		"get --raw=/readyz",
 	} {
 		if !strings.Contains(calls[1], want) {
 			t.Errorf("pod probe = %q, want %q", calls[1], want)
+		}
+	}
+	// The in-pod kubectl must not carry --request-timeout (GH-1175): only the outer
+	// host kubectl does. The flag routes kubectl through the explicit-flag config
+	// path, which skips in-cluster detection and falls back to localhost:8080.
+	inner := calls[1]
+	if idx := strings.Index(inner, "-- kubectl"); idx >= 0 {
+		if strings.Contains(inner[idx:], "--request-timeout") {
+			t.Errorf("in-pod probe carries --request-timeout, which breaks in-cluster config: %q", inner)
 		}
 	}
 }
