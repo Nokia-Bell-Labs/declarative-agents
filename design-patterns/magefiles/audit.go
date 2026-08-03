@@ -3,6 +3,7 @@
 package main
 
 import (
+	"encoding/json"
 	"errors"
 	"fmt"
 	"go/ast"
@@ -325,14 +326,86 @@ func executeFocusedGoTest(path, name string) error {
 	}
 	pkg = "./" + filepath.ToSlash(pkg)
 	command := exec.Command("go", "test", pkg,
-		"-run", "^"+regexp.QuoteMeta(name)+"$", "-count=1")
+		"-run", "^"+regexp.QuoteMeta(name)+"$", "-count=1", "-v", "-json")
 	command.Dir = module
-	output, err := command.CombinedOutput()
-	if err != nil {
-		return fmt.Errorf("focused Go test %s in %s failed: %w: %s",
-			name, pkg, err, strings.TrimSpace(string(output)))
+	output, runErr := command.CombinedOutput()
+	result := scanFocusedGoTestJSON(output, name)
+	// A genuine test failure is the most specific signal: report it with the
+	// test's own output before considering the raw exit status.
+	if result.failed {
+		return fmt.Errorf("focused Go test %s in %s failed: %s",
+			name, pkg, strings.TrimSpace(result.testOutput))
+	}
+	// The command errored without a recorded result for the named test
+	// (build failure, panic before the test event, etc.).
+	if runErr != nil {
+		return fmt.Errorf("focused Go test %s in %s failed to run: %w: %s",
+			name, pkg, runErr, strings.TrimSpace(string(output)))
+	}
+	// Exit status was zero but no top-level test with this exact name actually
+	// executed. Go reports "no tests to run" and exits 0 when -run matches
+	// nothing, which would otherwise pass as false-green evidence.
+	if !result.ran {
+		return fmt.Errorf("focused Go test %s in %s matched no executed test "+
+			"(\"no tests to run\"); the selector must name a real test in the package",
+			name, pkg)
+	}
+	if !result.passed {
+		return fmt.Errorf("focused Go test %s in %s produced no pass result event",
+			name, pkg)
 	}
 	return nil
+}
+
+// focusedGoTestResult summarizes what the go test2json stream proved about a
+// single top-level test selector.
+type focusedGoTestResult struct {
+	ran        bool
+	passed     bool
+	failed     bool
+	testOutput string
+}
+
+// scanFocusedGoTestJSON reads a `go test -json` event stream and reports
+// whether the exact top-level test named ran, and its terminal outcome. Only
+// events for the exact test name are considered so that a non-matching or
+// absent selector cannot be mistaken for an executed pass. Non-JSON lines
+// (interleaved build errors) are ignored; the caller inspects the raw output
+// and exit status for those cases.
+func scanFocusedGoTestJSON(output []byte, name string) focusedGoTestResult {
+	var result focusedGoTestResult
+	var collected strings.Builder
+	for _, line := range strings.Split(string(output), "\n") {
+		line = strings.TrimSpace(line)
+		if line == "" || !strings.HasPrefix(line, "{") {
+			continue
+		}
+		var event struct {
+			Action string `json:"Action"`
+			Test   string `json:"Test"`
+			Output string `json:"Output"`
+		}
+		if err := json.Unmarshal([]byte(line), &event); err != nil {
+			continue
+		}
+		if event.Test != name {
+			continue
+		}
+		switch event.Action {
+		case "run":
+			result.ran = true
+		case "output":
+			collected.WriteString(event.Output)
+		case "pass":
+			result.ran = true
+			result.passed = true
+		case "fail":
+			result.ran = true
+			result.failed = true
+		}
+	}
+	result.testOutput = collected.String()
+	return result
 }
 
 func nearestGoModule(start string) (string, error) {
@@ -358,7 +431,13 @@ func isGoTestFunction(fn *ast.FuncDecl) bool {
 		return false
 	}
 	selector, ok := pointer.X.(*ast.SelectorExpr)
-	return ok && selector.Sel.Name == "T"
+	if !ok || selector.Sel.Name != "T" {
+		return false
+	}
+	// Prove the parameter is *testing.T, not an unrelated type whose selector
+	// happens to be named T.
+	pkg, ok := selector.X.(*ast.Ident)
+	return ok && pkg.Name == "testing"
 }
 
 func validateGoSymbol(path, name string) error {
