@@ -126,8 +126,8 @@ acceptance_criteria:
     traces: [R2.1, R2.2, R2.3, R2.4, R2.5, R2.6, R2.7, R2.8, R2.9]
 
   - id: AC3
-    criterion: checkpoint_rollback requirements define typed config, a checkpoint-port/Dolt dependency, a target step, Dolt Revert plus a reverse receipt walk over restored Results, skip-and-log of irreversible entries, output, emitted signals, and compensatable undo metadata with receipts left opaque to the engine.
-    traces: [R3.1, R3.2, R3.3, R3.4, R3.5, R3.6, R3.7, R3.8, R3.9, R3.10]
+    criterion: checkpoint_rollback requirements define typed config, a checkpoint-port/Dolt dependency, a target step, Dolt Revert plus a reverse receipt walk over restored Results, per-entry observability, skip-and-log of irreversible entries, output, emitted signals, and compensatable undo metadata with receipts left opaque to the engine.
+    traces: [R3.1, R3.2, R3.3, R3.4, R3.5, R3.6, R3.7, R3.8, R3.9, R3.10, R3.11]
 
   - id: AC4
     criterion: Runtime inputs stay outside hidden lifecycle subcommand flags, typed config keeps required values explicit, and lifecycle adapters use the resolved checkpoint backend (Dolt by default) unless an override is supplied.

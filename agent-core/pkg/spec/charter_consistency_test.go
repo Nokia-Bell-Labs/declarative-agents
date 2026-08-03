@@ -4,6 +4,7 @@ package spec
 
 import (
 	"encoding/base64"
+	"encoding/json"
 	"os"
 	"os/exec"
 	"path/filepath"
@@ -107,6 +108,18 @@ func TestBuildConsistencyScanLowersGlobsAndExactSource(t *testing.T) {
 	assert.Equal(t, "docs/**/*.yaml", plans[0].IncludeGlob)
 	assert.Equal(t, "!docs/generated/**", plans[0].ExcludeGlob)
 	assert.Equal(t, "docs/manifest.yaml", plans[0].SourceGlob)
+}
+
+func TestConsistencyScanPlanSerializesOptionalCommandStateFields(t *testing.T) {
+	t.Parallel()
+	data, err := json.Marshal(ConsistencyScanPlan{})
+	require.NoError(t, err)
+	var fields map[string]any
+	require.NoError(t, json.Unmarshal(data, &fields))
+	for _, field := range []string{"include_glob", "exclude_glob", "source_glob"} {
+		require.Contains(t, fields, field)
+		require.Equal(t, "", fields[field])
+	}
 }
 
 func TestBuildConsistencyScanConfinesAbsoluteSourceToRoot(t *testing.T) {

@@ -19,9 +19,9 @@ type ConsistencyScanPlan struct {
 	Check       CharterCheck `json:"check"`
 	Path        string       `json:"path"`
 	DisplayRoot string       `json:"display_root"`
-	IncludeGlob string       `json:"include_glob,omitempty"`
-	ExcludeGlob string       `json:"exclude_glob,omitempty"`
-	SourceGlob  string       `json:"source_glob,omitempty"`
+	IncludeGlob string       `json:"include_glob"`
+	ExcludeGlob string       `json:"exclude_glob"`
+	SourceGlob  string       `json:"source_glob"`
 }
 
 // BuildConsistencyScanPlans validates source paths without opening target files.

@@ -69,8 +69,8 @@ non_goals:
 
 acceptance_criteria:
   - id: AC1
-    criterion: A server endpoint declared with the mock binding serves the fixture's literal responses for a matching route in declared order over the shared REST server runtime, and repeats the last response after the script is exhausted.
-    traces: [R1.1, R1.2, R1.3, R1.4, R2.1, R2.2, R2.3, R2.5]
+    criterion: A server endpoint declared with the same-binary mock binding serves the fixture's literal responses for a matching route in declared order over the shared REST server runtime, repeats the last response after the script is exhausted, and requires compatibility plus provisioning before any third-party replacement.
+    traces: [R1.1, R1.2, R1.3, R1.4, R1.5, R2.1, R2.2, R2.3, R2.5]
   - id: AC2
     criterion: A request matching no fixture route receives a 404 and appears in the request log as a miss.
     traces: [R2.4, R3.1]

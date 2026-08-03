@@ -70,8 +70,8 @@ acceptance_criteria:
     traces: [R3.1, R3.2, R3.3]
 
   - id: AC5
-    criterion: A missing trace id emits CommandError before any file read, and an unreadable spool path emits CommandError.
-    traces: [R2.5, R4.1]
+    criterion: A missing trace id emits CommandError before any file read, an unreadable spool path emits CommandError, and an alternate query engine requires full contract parity plus runtime provisioning.
+    traces: [R2.5, R4.1, R4.2]
 
 depends_on:
   - srd_id: srd042-otlp-receiver-tools

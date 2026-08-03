@@ -225,8 +225,8 @@ tool_words:
 
 acceptance_criteria:
   - id: AC1
-    criterion: REST client tools are documented as first-class boundary ToolDef words backed by declarative client, resource, and operation definitions.
-    traces: [R1.1, R1.2, R1.3, R1.4, R1.5, R2.1, R2.2]
+    criterion: REST client tools are documented as first-class boundary ToolDef words backed by declarative client, resource, and operation definitions, with one policy-preserving generic transport implementation.
+    traces: [R1.1, R1.2, R1.3, R1.4, R1.5, R1.6, R2.1, R2.2]
 
   - id: AC2
     criterion: Tool config fixes client, resource, operation, transport policy, and schemas while runtime input supplies only declared parameters and every path parameter is present, nonempty, and escaped before transport.

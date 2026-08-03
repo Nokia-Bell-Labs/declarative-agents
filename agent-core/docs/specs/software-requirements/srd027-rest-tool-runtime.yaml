@@ -157,8 +157,8 @@ acceptance_criteria:
     traces: [R3.1, R3.2, R3.3, R3.4, R3.5, R3.6]
 
   - id: AC4
-    criterion: Runtime platform requirements name net/http, internal/tools/catalog, internal/tools/registry, core.Result, and sequential core.Loop behavior.
-    traces: [R4.1, R4.2, R4.3, R4.4, R4.5]
+    criterion: Runtime platform requirements name net/http, internal/tools/catalog, internal/tools/registry, core.Result, and sequential core.Loop behavior, and require full contract parity plus provisioning before an alternate subprocess transport.
+    traces: [R4.1, R4.2, R4.3, R4.4, R4.5, R4.6]
 
   - id: AC5
     criterion: Synchronous and asynchronous REST semantics define blocking fused words, non-blocking send and launch words, await words, request state, shared inbox messages, and declared emitted signals.

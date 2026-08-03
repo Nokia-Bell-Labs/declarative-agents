@@ -133,8 +133,8 @@ non_goals:
 
 acceptance_criteria:
   - id: AC1
-    criterion: A declared launch word accepts an OTLP/gRPC trace export into a bounded queue and a declared await word returns that complete batch to a machine.
-    traces: [R0.1, R0.2, R0.3, R0.4, R1.1, R1.2, R1.3, R1.4, R1.5, R1.6, R2.1, R2.2, R2.3, R2.4, R2.5, R2.6, R3.1, R3.2, R3.3, R3.4, R3.5, R3.6]
+    criterion: A declared launch word accepts an OTLP/gRPC trace export into a bounded queue and a declared await word returns that complete batch to a machine, while transport/spool internals retain their compatibility and provisioning gate.
+    traces: [R0.1, R0.2, R0.3, R0.4, R0.5, R1.1, R1.2, R1.3, R1.4, R1.5, R1.6, R2.1, R2.2, R2.3, R2.4, R2.5, R2.6, R3.1, R3.2, R3.3, R3.4, R3.5, R3.6]
 
   - id: AC2
     criterion: A received batch is appended as complete stdouttrace-compatible NDJSON lines with span and resource identity intact, and bounded rotation never leaves a partial line.
@@ -157,8 +157,8 @@ acceptance_criteria:
     traces: [R8.1, R8.2, R8.3]
 
   - id: AC7
-    criterion: An offline replay machine loads one trusted OTLP protobuf-JSON batch and relays it unchanged through separate visible words, with distinct read and decode failures.
-    traces: [R0.2, R0.3, R0.4, R3.7, R3.8, R3.9, R5.1, R5.2, R5.4, R5.5]
+    criterion: An offline replay machine validates and loads one trusted OTLP protobuf-JSON batch and relays it unchanged through separate visible words, with distinct read and decode failures and no unvalidated byte-copy substitute.
+    traces: [R0.2, R0.3, R0.4, R3.7, R3.8, R3.9, R3.10, R5.1, R5.2, R5.4, R5.5]
 
   - id: AC8
     criterion: The receiver accepts an OTLP/gRPC metric export into the same bounded queue, spools it as NDJSON with resource and metric identity intact under bounded rotation, and serves it back through declared read-only query words, leaving trace intake, spool, relay, and query behavior unchanged.
