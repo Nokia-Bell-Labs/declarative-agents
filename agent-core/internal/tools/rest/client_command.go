@@ -392,23 +392,42 @@ func (c clientCmd) doWithRetry(request *http.Request) (*http.Response, int, erro
 
 // retryDelay computes the wait before the next attempt from the declared
 // backoff. srd028 R5.8 sanctions transport-declared retries, so the declared
-// backoff and max_delay are honored rather than ignored (GH-1379): exponential
-// doubles initial_delay per attempt and is capped by max_delay; fixed, none,
-// and the empty default hold a flat initial_delay.
+// backoff and max_delay are honored rather than ignored (GH-1379): none waits
+// zero, fixed (and the legacy empty default) use initial_delay, and exponential
+// doubles initial_delay with overflow-safe saturation at max_delay.
 func retryDelay(retry RetryPolicy, attempt int) time.Duration {
+	if retry.Backoff == "none" {
+		return 0
+	}
 	initial := parseDuration(retry.InitialDelay, 0)
 	maxDelay := parseDuration(retry.MaxDelay, 0)
-	delay := initial
-	if retry.Backoff == "exponential" {
-		for i := 1; i < attempt; i++ {
-			delay *= 2
-			if maxDelay > 0 && delay >= maxDelay {
-				return maxDelay
-			}
-		}
+	if retry.Backoff != "exponential" {
+		return capRetryDelay(initial, maxDelay)
 	}
-	if maxDelay > 0 && delay > maxDelay {
-		return maxDelay
+	return exponentialRetryDelay(initial, maxDelay, attempt)
+}
+
+func exponentialRetryDelay(initial, maximum time.Duration, attempt int) time.Duration {
+	delay := capRetryDelay(initial, maximum)
+	if delay <= 0 || attempt <= 1 || maximum > 0 && delay >= maximum {
+		return delay
+	}
+	const maxDuration = time.Duration(1<<63 - 1)
+	for step := 1; step < attempt; step++ {
+		if maximum > 0 && delay > maximum/2 {
+			return maximum
+		}
+		if delay > maxDuration/2 {
+			return capRetryDelay(maxDuration, maximum)
+		}
+		delay *= 2
+	}
+	return capRetryDelay(delay, maximum)
+}
+
+func capRetryDelay(delay, maximum time.Duration) time.Duration {
+	if maximum > 0 && delay > maximum {
+		return maximum
 	}
 	return delay
 }

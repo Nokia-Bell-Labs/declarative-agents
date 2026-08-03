@@ -106,7 +106,7 @@ requirements:
       - R8.3: Retry policy SHALL be configured per operation and SHALL respect srd027 timeout, redirect, and size-limit rules.
       - R8.4: Retries SHALL not be enabled for non-idempotent operations unless config declares an idempotency token or safe retry policy.
       - R8.5: Tool output and traces SHOULD include retry count and idempotency metadata when available.
-      - R8.6: A retry policy's declared backoff (none, fixed, or exponential) and max_delay SHALL be honored between attempts, and the delay between attempts SHALL be cancellation-aware so a cancelled dispatch stops waiting. An unsupported backoff or unparseable delay SHALL be rejected at load.
+      - R8.6: A retry policy's declared backoff and max_delay SHALL be honored between attempts—none waits zero, fixed uses initial_delay, and exponential doubles initial_delay with overflow-safe saturation at max_delay—and the delay SHALL be cancellation-aware so a cancelled dispatch stops waiting. An unsupported backoff, negative attempt count, or invalid/negative delay SHALL be rejected at load.
 
   R9:
     title: Metrics, tracing, and redaction
