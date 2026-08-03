@@ -442,6 +442,23 @@ schema:
         type: string
         required: true
         description: Endpoint binding kind from srd029-rest-server-tools R5 or srd030-machine-request-rest-binding.
+      - field: monitor_view
+        type: string
+        required: false
+        description: >-
+          Selects a cached monitor view for read_state, static_metadata, and
+          stream_events endpoints. One of machine_spec, current_state, tools,
+          metrics, events, openapi, or command_state (srd033-monitor-rest-api
+          R3, R7). command_state additionally requires labels.
+      - field: labels
+        type: "[]string"
+        required: when_monitor_view_command_state
+        description: >-
+          Non-empty allowlist of authored transition labels or command names
+          whose redaction-cleared declared output a command_state endpoint
+          exposes through the srd038 command-state store. Required and non-empty
+          when monitor_view is command_state; rejected on any other view
+          (srd033-monitor-rest-api R7.1, R7.6).
       - field: signal
         type: string
         required: false

@@ -35,6 +35,7 @@ goals:
   - G3: Keep REST authority and OpenAPI documentation profile-owned.
   - G4: Define endpoint coverage for machine, tool, metric, event, and stream reads.
   - G5: Define redaction, caching, and failure behavior for monitor readers.
+  - G6: Define an opt-in command-state view that exposes the redaction-cleared declared output of profile-named steps from srd038-command-state-store.
 
 requirements:
   R1:
@@ -52,7 +53,7 @@ requirements:
       - R2.1: The monitor API SHALL provide an OpenAPI description for every configured monitor endpoint.
       - R2.2: OpenAPI operation IDs SHALL be stable and derived from configured monitor endpoint names.
       - R2.3: Response schemas SHALL describe machine spec metadata, current state, selected tools, per-tool metrics, aggregate metrics, recent events, event stream frames, errors, and diagnostics.
-      - R2.4: OpenAPI output SHALL omit secrets, raw prompts, full tool output, arbitrary workspace paths, and unbounded labels.
+      - R2.4: OpenAPI output SHALL omit secrets, raw prompts, full tool output, arbitrary workspace paths, and unbounded labels. A command_state endpoint (R7) is the one bounded exception, and its schema SHALL describe a map of the endpoint's declared labels to entry objects carrying the redaction-cleared declared output and run envelope, and SHALL NOT describe receipts or undeclared step output.
       - R2.5: OpenAPI generation SHALL NOT generate Go server code in the first implementation.
       - R2.6: OpenAPI output SHALL include profile-owned lifecycle control endpoints configured for the monitor server, including POST /monitor/control/exit when that route exists.
       - R2.7: OpenAPI schemas SHALL use JSON Schema scalar types for scalar monitor fields, including string, integer, number, and boolean.
@@ -93,7 +94,7 @@ requirements:
     title: Redaction and failure behavior
     items:
       - R5.1: Monitor responses SHALL apply the attribute safety rules from sm-tool-metrics-monitoring before returning labels or samples.
-      - R5.2: Responses SHALL NOT include raw prompts, full model responses, full tool output, secrets, arbitrary URLs, request IDs as labels, timestamps as labels, stack traces, command output, or user free text.
+      - R5.2: Responses SHALL NOT include raw prompts, full model responses, full tool output, secrets, arbitrary URLs, request IDs as labels, timestamps as labels, stack traces, command output, or user free text. A command_state endpoint (R7) MAY return the declared param output that srd038 CommandStateView exposes for its profile-named labels, because that output has already passed the srd038 typed redaction boundary; this exception SHALL NOT extend to receipts, secrets, prompts, or the output of any step the endpoint does not name.
       - R5.3: Missing monitor state SHALL return a configured empty snapshot or a documented not-ready response.
       - R5.4: Handler failures SHALL return structured errors with endpoint name, failure stage, redacted message, and correlation metadata.
       - R5.5: REST API failures SHALL NOT change command Result.Signal, monitor store state, or MachineSpec state.
@@ -110,6 +111,17 @@ requirements:
       - R6.7: A checked-in fixed monitor port is a profile default, not a test isolation guarantee; tests SHALL document or avoid conflicts from parallel runs and stale listeners.
       - R6.8: When the monitor server is configured with 127.0.0.1:0, supervisors and automated proofs SHALL discover the bound address from the REST server launch output before querying monitor endpoints.
       - R6.9: The real cmd/agent proof SHALL use agents/runtime-state-reader/profile.yaml or an equivalent profile-owned path that preserves the full monitor serving lifecycle.
+
+  R7:
+    title: Command-state view
+    items:
+      - R7.1: A read_state monitor endpoint MAY declare monitor_view command_state with a required, non-empty labels allowlist naming authored transition labels or command names from the running MachineSpec; the endpoint SHALL expose the latest recorded output of each named step through the srd038-command-state-store CommandStateView.
+      - R7.2: The command_state response SHALL be an object keyed by the endpoint's declared labels; each present entry SHALL carry the selected step's redaction-cleared declared output and the run envelope fields state, signal, iteration, and updated_at, and SHALL NOT carry receipts, which remain structurally unaddressable through srd038 R3.3.
+      - R7.3: A declared label with no recorded step yet SHALL return an explicit absent entry for that label rather than an error or a failed response, consistent with the not-ready behavior in R5.3.
+      - R7.4: The command_state view SHALL read only output that srd038 CommandStateView exposes under a recognized redaction version and applied status; output_omitted, unversioned legacy, and unknown-version entries SHALL surface as a typed unavailable entry per srd038 R5.6, never as raw output.
+      - R7.5: The command_state response SHALL be bounded by the server's configured limits_ref maximum response size; an entry whose output would exceed the bound SHALL be replaced by an explicit unavailable marker for that label rather than failing the whole response.
+      - R7.6: The labels allowlist SHALL be required and non-empty when monitor_view is command_state and SHALL NOT be accepted on any other monitor_view; configuration validation SHALL reject a command_state endpoint that declares no labels and any non-command_state endpoint that declares labels.
+      - R7.7: The command_state view SHALL remain read-only under R1.2; it SHALL NOT execute tools, dispatch MachineSpec actions, inspect prompts, or scrape workspace files, and its exposure SHALL be limited to the opt-in, profile-declared labels of the endpoint.
 
 implementation_status:
   current: |
@@ -139,13 +151,20 @@ implementation_status:
     profile-owned, read cached state only, and do not provide durable metric
     history.
 
+    The command_state view (R7) is specified and pending implementation under
+    GH-1297: a read_state endpoint declaring monitor_view command_state and a
+    labels allowlist exposes the redaction-cleared declared output of the named
+    steps through the srd038 CommandStateView. The fleet observer of
+    GH-1270 is its first consumer.
+
 non_goals:
   - Writing monitor state through REST.
   - Creating workflow signals from monitor REST read endpoints.
   - Executing tools or MachineSpec actions from monitor HTTP handlers.
   - Replacing REST server tool contracts in srd029-rest-server-tools.
-  - Exposing raw prompts, full outputs, secrets, or arbitrary workspace files.
+  - Exposing raw prompts, full outputs, secrets, or arbitrary workspace files. The command_state view is bounded to redaction-cleared declared output of profile-named labels and does not weaken this boundary.
   - Defining durable metric history.
+  - Defining the command-state store, its label grammar, or its redaction boundary; that belongs to srd038-command-state-store, which the command_state view reads.
 
 acceptance_criteria:
   - id: AC1
@@ -188,11 +207,21 @@ acceptance_criteria:
     tests:
       - "test-rel04.0-monitor: Real CLI monitor process stays queryable until exit"
 
+  - id: AC7
+    criterion: The command_state view exposes only the redaction-cleared declared output of the endpoint's profile-named labels through the srd038 CommandStateView, returns an explicit absent entry for a label with no recorded step, surfaces omitted and legacy output as typed unavailable entries, bounds each entry by the configured response size, and is accepted only with a non-empty labels allowlist that no other view may carry.
+    traces: [R7.1, R7.2, R7.3, R7.4, R7.5, R7.6, R7.7]
+    tests:
+      - "test-rel04.0-monitor: Monitor command_state view returns declared labeled output"
+      - "test-rel04.0-monitor: Monitor command_state view rejects misuse of labels"
+      - "test-rel04.0-monitor: Monitor command_state view redacts omitted and legacy output"
+
 depends_on:
   - srd_id: srd029-rest-server-tools
     symbols_used: [read_state, stream_events, health, static_metadata]
   - srd_id: srd032-tool-metrics-monitor-store
     symbols_used: [ToolMetricsRecorder, monitor snapshot, diagnostics]
+  - srd_id: srd038-command-state-store
+    symbols_used: [CommandStateView, command-state store, typed unavailable error]
 
 related_documents:
   - sm-tool-metrics-monitoring
@@ -210,6 +239,7 @@ diagrams:
       Goals --> R4["R4: Event streams"]
       Goals --> R5["R5: Redaction and failure behavior"]
       Goals --> R6["R6: Serving lifecycle"]
+      Goals --> R7["R7: Command-state view"]
       AC1["AC1: API scope requirements define read-only cached monitor en..."]
       R1 --> AC1
       AC2["AC2: OpenAPI requirements cover configured endpoint descriptio..."]
@@ -222,4 +252,6 @@ diagrams:
       R5 --> AC5
       AC6["AC6: Serving lifecycle requirements keep runtime-state-reader queryable..."]
       R6 --> AC6
+      AC7["AC7: Command-state view exposes redaction-cleared declared out..."]
+      R7 --> AC7
     ```
