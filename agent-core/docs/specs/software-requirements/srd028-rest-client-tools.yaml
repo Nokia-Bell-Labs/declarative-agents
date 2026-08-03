@@ -34,6 +34,7 @@ requirements:
       - R1.3: REST client tools SHALL use configured REST operation definitions loaded from hand-authored YAML or OpenAPI imports.
       - R1.4: REST client tools SHALL use shared runtime rules from srd027-rest-tool-runtime.
       - R1.5: REST client tools SHALL keep workflow order in MachineSpec transitions, not inside service-specific Go adapters.
+      - R1.6: The generic net/http request execution, policy enforcement, response reduction, observability, and receipt capture SHALL remain one boundary implementation. Non-CIDR operations SHALL NOT silently switch to a weaker subprocess path merely because curl is available (GH-1385).
 
   R2:
     title: Config-bound operation authority
@@ -169,6 +170,7 @@ non_goals:
   - Allowing runtime input to choose arbitrary URLs, methods, authentication, or network destinations.
   - Generating Go clients from OpenAPI documents.
   - Replacing MachineSpec sequencing with hidden REST client workflows.
+  - Requiring a curl executable for REST client words without full srd027/srd028 parity and runtime-image provisioning.
 
 tool_words:
   - name: rest_client_get
