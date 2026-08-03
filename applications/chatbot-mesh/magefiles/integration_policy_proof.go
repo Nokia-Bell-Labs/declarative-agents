@@ -37,7 +37,7 @@ import (
 const (
 	policyKindCluster = "da-chatbot-mesh-policy"
 	policyMeshNS      = "mesh"
-	policyIngressNS   = "ingress-nginx"
+	policyIngressNS   = "traefik"
 	policyRelease     = "rel"
 	// calicoManifest is pinned: an unpinned CNI would let the proof's meaning
 	// drift with an upstream release.
@@ -394,11 +394,11 @@ func standInPodsYAML() string {
 	for _, pod := range policyStandIns() {
 		docs = append(docs, httpdPod(policyMeshNS, pod.Component, pod.PortName, pod.Port, meshLabels(pod.Component)))
 	}
-	// The ingress controller lives in a namespace named ingress-nginx, which
+	// The ingress controller lives in a namespace named traefik, which
 	// Kubernetes auto-labels with kubernetes.io/metadata.name -- the label the
 	// provisioning-workflow-orchestrator policy's namespaceSelector matches.
 	docs = append(docs, sleeperPod(policyIngressNS, "controller",
-		map[string]string{"app.kubernetes.io/name": "ingress-nginx"}))
+		map[string]string{"app.kubernetes.io/name": "traefik"}))
 	return strings.Join(docs, "---\n")
 }
 

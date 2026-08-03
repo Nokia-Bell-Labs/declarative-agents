@@ -9,6 +9,7 @@ import (
 	"os"
 	"os/exec"
 	"path/filepath"
+	"slices"
 	"strings"
 	"testing"
 	"time"
@@ -28,6 +29,24 @@ func TestSplitImageRef(t *testing.T) {
 		if repo != c.repo || tag != c.tag {
 			t.Errorf("splitImageRef(%q) = (%q, %q), want (%q, %q)", c.image, repo, tag, c.repo, c.tag)
 		}
+	}
+}
+
+func TestKindDependencyImagesCoverEveryExternalPodImage(t *testing.T) {
+	chartDir := filepath.Join("..", "helm")
+	smoke, err := smokeDependencyImages(chartDir)
+	if err != nil {
+		t.Fatal(err)
+	}
+	wantSmoke := []string{
+		"otel/opentelemetry-collector-contrib:0.127.0",
+		"chromadb/chroma:1.5.3",
+		"dolthub/dolt-sql-server:latest",
+		"rancher/kubectl:v1.31.4",
+		"busybox:1.36",
+	}
+	if !slices.Equal(smoke, wantSmoke) {
+		t.Fatalf("smoke dependencies = %v, want %v", smoke, wantSmoke)
 	}
 }
 

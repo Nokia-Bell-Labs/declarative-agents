@@ -3,9 +3,11 @@
 package rest
 
 import (
-	"github.com/stretchr/testify/require"
 	"net/http"
 	"testing"
+
+	"github.com/Nokia-Bell-Labs/declarative-agents/agent-core/internal/runtime/core"
+	"github.com/stretchr/testify/require"
 )
 
 func TestRESTServer_AwaitInboundSignals(t *testing.T) {
@@ -49,6 +51,31 @@ func TestRESTServer_RejectsUndeclaredQueryAndHeader(t *testing.T) {
 	}, http.StatusBadRequest)
 
 	requireAwaitSignal(t, state, "validation", "AwaitTimedOut")
+}
+
+func TestRESTServer_ToleratesForwardingMetadataWithoutExposingIt(t *testing.T) {
+	t.Parallel()
+
+	state, baseURL := launchRESTServer(t, validationServer(), LimitProfile{MaxRequestBytes: 128})
+	defer stopRESTServer(t, state, "validation")
+
+	headers := map[string]string{
+		"Forwarded":          "for=192.0.2.10;proto=https;host=chatbot.example",
+		"X-Forwarded-For":    "192.0.2.10",
+		"X-Forwarded-Host":   "chatbot.example",
+		"X-Forwarded-Port":   "443",
+		"X-Forwarded-Prefix": "/chat",
+		"X-Forwarded-Proto":  "https",
+		"X-Forwarded-Server": "edge-1",
+		"X-Real-Ip":          "192.0.2.10",
+	}
+	requestStatusWithHeaders(t, http.MethodPost, baseURL+"/approve/1", `{}`,
+		headers, http.StatusAccepted)
+	result := awaitCommand(state, "validation").Execute()
+	require.Equal(t, core.Signal("Approved"), result.Signal)
+	for name, value := range headers {
+		require.NotContains(t, result.Output, value, "%s leaked into request payload", name)
+	}
 }
 
 func TestRESTServer_RedactsAwaitAndStreamOutput(t *testing.T) {

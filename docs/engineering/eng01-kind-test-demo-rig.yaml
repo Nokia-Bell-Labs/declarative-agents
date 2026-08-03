@@ -98,11 +98,23 @@ sections:
       the test process and needs no cluster add-ons. Demos use an
       ingress: the scenario's kind configuration maps host ports to the
       ingress controller through `extraPortMappings`, the demo target
-      installs ingress-nginx, and every agent in the mesh is reachable
+      installs one minimal Traefik controller, and every agent in the mesh is reachable
       at a stable `localhost:<port>/<agent>` path the README can print.
-      The implemented demos pin ingress-nginx `controller-v1.13.3` and use
-      `.localhost` hostnames, which resolve to loopback without `/etc/hosts`
-      edits.
+      The implemented demos pin Traefik by version and per-architecture image
+      digest and use `.localhost` hostnames, which resolve to loopback without
+      `/etc/hosts` edits. The controller enables only the standard Kubernetes
+      Ingress provider: no dashboard, Traefik CRDs, Gateway API, admission
+      webhook, certificate manager, or automatic TLS. The host container engine
+      pulls the digest-pinned source, retags it under a rig-local name, and kind
+      loads that tag into the node with `imagePullPolicy: Never`, so a node
+      behind a TLS-intercepting proxy never reaches the registry itself.
+
+      The repository retired ingress-nginx in GH-1321 after the upstream project
+      ended maintenance in March 2026. Its validating admission webhook raced
+      fresh demo installs even after the controller pod reported Ready. Traefik
+      needs no admission webhook for standard Ingress resources; it reconciles
+      them after startup, and the rig waits for its Deployment readiness before
+      installing the application.
 
       Services of type LoadBalancer are not permitted in kind values
       overlays; kind has no load balancer, and the service would pend

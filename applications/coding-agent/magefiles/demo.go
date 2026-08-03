@@ -89,7 +89,7 @@ func (Demo) Up() error {
 				defer cancel()
 				return environment.run(ctx, name, args...)
 			}
-			if err := kindrig.InstallIngress(run); err != nil {
+			if err := kindrig.InstallIngress(run, codingDemoCluster); err != nil {
 				return err
 			}
 			ingress, cleanupIngress, err := codingDemoIngress()
@@ -100,6 +100,15 @@ func (Demo) Up() error {
 			if output, err := run("kubectl", "apply", "-f", ingress); err != nil {
 				return fmt.Errorf("apply coding demo ingress: %w: %s",
 					err, strings.TrimSpace(string(output)))
+			}
+			for role, endpoint := range map[string]string{
+				"planner":  "http://planner-health.coding.localhost/api/lifecycle/health",
+				"executor": "http://executor.coding.localhost/api/lifecycle/health",
+				"critic":   "http://critic.coding.localhost/api/lifecycle/health",
+			} {
+				if err := waitServingHTTP(endpoint, 30*time.Second); err != nil {
+					return fmt.Errorf("%s demo ingress not ready: %w", role, err)
+				}
 			}
 			fmt.Printf("demo: revision %s planner at http://planner.coding.localhost/; health at http://planner-health.coding.localhost/api/lifecycle/health, http://executor.coding.localhost/api/lifecycle/health, http://critic.coding.localhost/api/lifecycle/health\n",
 				images.Revision)
@@ -129,7 +138,7 @@ metadata:
   name: coding-agent-demo
   namespace: %s
 spec:
-  ingressClassName: nginx
+  ingressClassName: traefik
   rules:
     - host: planner.coding.localhost
       http: {paths: [{path: /, pathType: Prefix, backend: {service: {name: %splanner, port: {name: request}}}}]}

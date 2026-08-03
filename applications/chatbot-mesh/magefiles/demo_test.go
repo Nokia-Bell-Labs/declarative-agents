@@ -5,6 +5,7 @@ package main
 import (
 	"os"
 	"path/filepath"
+	"slices"
 	"strings"
 	"testing"
 )
@@ -26,7 +27,21 @@ func TestChatbotDemoUsesPinnedIngressCluster(t *testing.T) {
 		}
 	}
 	if chatbotDemoCluster != "da-chatbot-mesh-demo" ||
-		chatbotDemoHost != "chatbot.localhost" {
-		t.Fatalf("demo identity = %s %s", chatbotDemoCluster, chatbotDemoHost)
+		chatbotDemoHost != "chatbot.localhost" ||
+		chatbotDemoIngressClass != "traefik" ||
+		chatbotDemoValuesFile != "kind-values.yaml" {
+		t.Fatalf("demo identity = %s %s %s %s", chatbotDemoCluster,
+			chatbotDemoHost, chatbotDemoIngressClass, chatbotDemoValuesFile)
+	}
+}
+
+func TestChatbotDemoRequiresTheChartModelsFromHostOllama(t *testing.T) {
+	models, err := demoRequiredModels(filepath.Join("..", "helm"))
+	if err != nil {
+		t.Fatal(err)
+	}
+	want := []string{"qwen3-embedding:8b", "qwen2.5:3b", "ornith:9b"}
+	if !slices.Equal(models, want) {
+		t.Fatalf("demo models = %v, want %v", models, want)
 	}
 }

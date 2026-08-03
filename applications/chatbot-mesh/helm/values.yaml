@@ -244,18 +244,19 @@ controlPlane:
     # what lets the browser route work while the applier's apply surface stays
     # creator-only (srd006 R4.1, srd003 R4.5).
     #
-    # Name your own ingress controller with these selectors; the defaults match a
-    # conventional ingress-nginx install. Both apply together, so the source must
+    # Name your own ingress controller with these selectors; the defaults match
+    # the minimal Traefik controller installed by the shared kind demo rig
+    # (eng01, GH-1321). Both apply together, so the source must
     # be an ingress-controller pod in the ingress-controller namespace.
     networkPolicy:
       enabled: true
       ingressController:
         namespaceSelector:
           matchLabels:
-            kubernetes.io/metadata.name: ingress-nginx
+            kubernetes.io/metadata.name: traefik
         podSelector:
           matchLabels:
-            app.kubernetes.io/name: ingress-nginx
+            app.kubernetes.io/name: traefik
     resources:
       requests: {cpu: 50m, memory: 64Mi}
       limits: {cpu: 500m, memory: 256Mi}

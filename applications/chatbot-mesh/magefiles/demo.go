@@ -4,6 +4,7 @@ package main
 
 import (
 	"fmt"
+	"net/http"
 	"os"
 	"os/exec"
 	"path/filepath"
@@ -16,9 +17,11 @@ import (
 )
 
 const (
-	chatbotDemoCluster = "da-chatbot-mesh-demo"
-	chatbotDemoRelease = "demo"
-	chatbotDemoHost    = "chatbot.localhost"
+	chatbotDemoCluster      = "da-chatbot-mesh-demo"
+	chatbotDemoRelease      = "demo"
+	chatbotDemoHost         = "chatbot.localhost"
+	chatbotDemoIngressClass = "traefik"
+	chatbotDemoValuesFile   = "kind-values.yaml"
 )
 
 type Demo mg.Namespace
@@ -39,6 +42,13 @@ func (Demo) Up() error {
 	}
 	coreRoot := demoCoreRoot(root)
 	chartDir := applicationChartDir(root)
+	models, err := demoRequiredModels(chartDir)
+	if err != nil {
+		return err
+	}
+	if reason := chromaOllamaSkipReasonForModels(models); reason != "" {
+		return fmt.Errorf("demo requires host Ollama with the chart models installed: %s", reason)
+	}
 	images, err := resolveChatbotIntegrationImages(root)
 	if err != nil {
 		return err
@@ -73,18 +83,22 @@ func (Demo) Up() error {
 					return err
 				}
 			}
-			if err := kindrig.InstallIngress(kindrig.DefaultCommandRun); err != nil {
+			if err := kindrig.InstallIngress(kindrig.DefaultCommandRun, chatbotDemoCluster); err != nil {
 				return err
 			}
 			repository, tag := splitImageRef(images.Runtime)
 			args := []string{
 				"upgrade", "--install", chatbotDemoRelease, staged,
-				"--values", filepath.Join(staged, "ci", "kind-llm-values.yaml"),
+				// Keep the browser demo within a laptop budget and independent of
+				// in-pod model-registry trust: reuse the host Ollama and cached
+				// models. integration:helmLLMTier separately proves the optional
+				// self-contained in-cluster tier (GH-1321).
+				"--values", filepath.Join(staged, "ci", chatbotDemoValuesFile),
 				"--set", "image.repository=" + repository,
 				"--set-string", "image.tag=" + tag,
 				"--set", "image.pullPolicy=Never",
 				"--set", "ingress.enabled=true",
-				"--set", "ingress.className=nginx",
+				"--set", "ingress.className=" + chatbotDemoIngressClass,
 				"--set", "ingress.host=" + chatbotDemoHost,
 				"--wait", "--timeout", helmLLMInstallTimeout.String(),
 			}
@@ -92,8 +106,15 @@ func (Demo) Up() error {
 				return fmt.Errorf("helm demo install: %w: %s",
 					err, strings.TrimSpace(string(output)))
 			}
-			fmt.Printf("demo: revision %s ready at http://%s/ and http://%s/api/lifecycle/health\n",
-				images.Revision, chatbotDemoHost, chatbotDemoHost)
+			if err := waitHTTPStatus("http://"+chatbotDemoHost+"/",
+				http.StatusOK, 30*time.Second); err != nil {
+				return fmt.Errorf("chatbot demo ingress not ready: %w", err)
+			}
+			if err := waitHTTPStatus("http://observer.localhost/", http.StatusOK, 30*time.Second); err != nil {
+				return fmt.Errorf("observer demo ingress not ready: %w", err)
+			}
+			fmt.Printf("demo: revision %s ready at http://%s/\n",
+				images.Revision, chatbotDemoHost)
 			fmt.Println("demo: fleet observer at http://observer.localhost/")
 			return nil
 		})
@@ -105,4 +126,35 @@ func (Demo) Down() error {
 		return fmt.Errorf("demo teardown requested but preflight failed: %w", err)
 	}
 	return kindrig.DemoDown(kindrig.DefaultRun, chatbotDemoCluster)
+}
+
+func demoRequiredModels(chartDir string) ([]string, error) {
+	var values struct {
+		Ollama struct {
+			Models struct {
+				Embedding string   `yaml:"embedding"`
+				Chat      []string `yaml:"chat"`
+				Tier      string   `yaml:"tier"`
+			} `yaml:"models"`
+		} `yaml:"ollama"`
+	}
+	if err := readIntegrationYAML(filepath.Join(chartDir, "values.yaml"),
+		"chart values", &values); err != nil {
+		return nil, err
+	}
+	candidates := append([]string{values.Ollama.Models.Embedding},
+		values.Ollama.Models.Chat...)
+	candidates = append(candidates, values.Ollama.Models.Tier)
+	seen := map[string]bool{}
+	models := make([]string, 0, len(candidates))
+	for _, model := range candidates {
+		if model != "" && !seen[model] {
+			seen[model] = true
+			models = append(models, model)
+		}
+	}
+	if len(models) == 0 {
+		return nil, fmt.Errorf("chart values declare no Ollama models for the demo")
+	}
+	return models, nil
 }

@@ -3,12 +3,28 @@
 package kindrig
 
 import (
+	_ "embed"
 	"fmt"
+	"os"
+	"runtime"
 	"strings"
 	"time"
 )
 
-const IngressNGINXManifest = "https://raw.githubusercontent.com/kubernetes/ingress-nginx/controller-v1.13.3/deploy/static/provider/kind/deploy.yaml"
+const (
+	traefikImageRepository   = "docker.io/library/traefik"
+	traefikRuntimeRepository = "kindrig/traefik"
+	traefikImageVersion      = "v3.7.10"
+	traefikImagePlaceholder  = "KINDRIG_TRAEFIK_IMAGE"
+)
+
+var traefikImageDigests = map[string]string{
+	"amd64": "sha256:0ae6898c4a6ad568e8eabad0839b1660eb54a72aa43089ead05c6f624f866b23",
+	"arm64": "sha256:8f34ac785161ddfe26f4e291982967e92962c126120526a519c4cff521179436",
+}
+
+//go:embed traefik-kind.yaml
+var traefikKindManifest string
 
 // DemoUp creates or reuses a named demo cluster and invokes deploy. A failed
 // deployment deletes only a cluster created by this invocation; a reused
@@ -48,22 +64,74 @@ func DemoDown(run Runner, name string) error {
 	return nil
 }
 
-// InstallIngress installs the pinned kind ingress controller and observes its
-// readiness. The caller supplies a runner bound to the demo cluster.
-func InstallIngress(run CommandRunner) error {
-	commands := [][]string{
-		{"apply", "-f", IngressNGINXManifest},
-		{"wait", "--namespace", "ingress-nginx",
-			"--for=condition=Ready", "pod",
-			"--selector=app.kubernetes.io/component=controller",
-			"--timeout=180s"},
+// InstallIngress loads and installs the pinned minimal Traefik controller, then
+// observes its readiness. The caller supplies a runner bound to cluster.
+//
+// The image is host-pulled and kind-loaded before the manifest is applied. A
+// kind node behind a TLS-intercepting proxy may not trust the host's CA, while
+// the host container engine does; loading also makes repeated demo starts
+// independent of registry availability. Traefik watches standard Ingress
+// resources without a validating webhook, so applying an application chart can
+// no longer race an admission server that is not listening yet (GH-1321).
+func InstallIngress(run CommandRunner, cluster string) error {
+	if strings.TrimSpace(cluster) == "" {
+		return fmt.Errorf("install ingress: kind cluster name is required")
 	}
-	for _, args := range commands {
-		output, err := run("kubectl", args...)
+	sourceImage, err := traefikImage(runtime.GOARCH)
+	if err != nil {
+		return err
+	}
+	runtimeImage := traefikRuntimeRepository + ":" + traefikImageVersion
+	manifest := strings.ReplaceAll(traefikKindManifest, traefikImagePlaceholder, runtimeImage)
+	path, cleanup, err := writeIngressManifest(manifest)
+	if err != nil {
+		return err
+	}
+	defer cleanup()
+
+	commands := [][]string{
+		{"docker", "pull", "--platform", "linux/" + runtime.GOARCH, sourceImage},
+		{"docker", "tag", sourceImage, runtimeImage},
+		{"kind", "load", "docker-image", runtimeImage, "--name", cluster},
+		{"kubectl", "apply", "-f", path},
+		{"kubectl", "rollout", "status", "deployment/traefik",
+			"--namespace", "traefik", "--timeout=180s"},
+	}
+	for _, command := range commands {
+		name, args := command[0], command[1:]
+		output, err := run(name, args...)
 		if err != nil {
-			return fmt.Errorf("kubectl %s: %w: %s",
-				strings.Join(args, " "), err, strings.TrimSpace(string(output)))
+			return fmt.Errorf("%s %s: %w: %s", name, strings.Join(args, " "),
+				err, strings.TrimSpace(string(output)))
 		}
 	}
 	return nil
+}
+
+func traefikImage(arch string) (string, error) {
+	digest, ok := traefikImageDigests[arch]
+	if !ok {
+		return "", fmt.Errorf("install ingress: Traefik %s has no pinned digest for linux/%s",
+			traefikImageVersion, arch)
+	}
+	return traefikImageRepository + ":" + traefikImageVersion + "@" + digest, nil
+}
+
+func writeIngressManifest(manifest string) (string, func(), error) {
+	file, err := os.CreateTemp("", "kindrig-traefik-*.yaml")
+	if err != nil {
+		return "", nil, fmt.Errorf("create Traefik manifest: %w", err)
+	}
+	path := file.Name()
+	cleanup := func() { _ = os.Remove(path) }
+	if _, err := file.WriteString(manifest); err != nil {
+		_ = file.Close()
+		cleanup()
+		return "", nil, fmt.Errorf("write Traefik manifest: %w", err)
+	}
+	if err := file.Close(); err != nil {
+		cleanup()
+		return "", nil, fmt.Errorf("close Traefik manifest: %w", err)
+	}
+	return path, cleanup, nil
 }

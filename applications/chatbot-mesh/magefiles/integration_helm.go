@@ -384,6 +384,13 @@ type smokeImage struct {
 	Tag        string `yaml:"tag"`
 }
 
+const smokeUtilityImage = "busybox:1.36"
+
+// smokeDependencyImages returns every external image used by the kind smoke
+// topology when its Ollama tier is disabled. Keeping the complete set on the
+// host-pull/kind-load path prevents kind's containerd from reaching a registry
+// directly, which fails behind TLS-intercepting proxies that only the host
+// container engine trusts (GH-1321).
 func smokeDependencyImages(chartDir string) ([]string, error) {
 	var values struct {
 		Collector struct {
@@ -395,6 +402,11 @@ func smokeDependencyImages(chartDir string) ([]string, error) {
 		Dolt struct {
 			Image smokeImage `yaml:"image"`
 		} `yaml:"dolt"`
+		Observer struct {
+			Proxy struct {
+				Image smokeImage `yaml:"image"`
+			} `yaml:"proxy"`
+		} `yaml:"observer"`
 	}
 	if err := readIntegrationYAML(filepath.Join(chartDir, "values.yaml"), "chart values", &values); err != nil {
 		return nil, err
@@ -403,15 +415,16 @@ func smokeDependencyImages(chartDir string) ([]string, error) {
 		values.Collector.Image,
 		values.Chroma.Image,
 		values.Dolt.Image,
+		values.Observer.Proxy.Image,
 	}
-	images := make([]string, 0, len(refs))
+	images := make([]string, 0, len(refs)+1)
 	for _, image := range refs {
 		if image.Repository == "" || image.Tag == "" {
 			return nil, fmt.Errorf("smoke dependency image requires repository and tag")
 		}
 		images = append(images, image.Repository+":"+image.Tag)
 	}
-	return images, nil
+	return append(images, smokeUtilityImage), nil
 }
 
 func loadSmokeDependencyImage(cluster, image string) error {
