@@ -4,30 +4,23 @@ package main
 
 import (
 	"fmt"
-	"net"
 	"os"
 	"os/exec"
-	"time"
 )
 
-const doltIntegrationAddress = "127.0.0.1:3306"
-
-// Dolt proves checkpoint persistence and command-state rehydration against a
-// live Dolt SQL server. Run `mage dolt:up` to provide the sidecar.
+// Dolt proves checkpoint persistence and command-state rehydration against a real
+// Dolt SQL server. The test harness launches `dolt sql-server` from a prebuilt
+// dolt binary for the duration of the run (no Docker, no manual setup), so this
+// target only needs a dolt binary on PATH (or AGENT_CORE_DOLT_BIN).
 func (Integration) Dolt() error {
 	beginUC("dolt")
-	conn, err := net.DialTimeout("tcp", doltIntegrationAddress, 3*time.Second)
-	if err != nil {
-		return skipUC("dolt", fmt.Sprintf(
-			"no Dolt SQL server at %s; run `mage dolt:up`: %v",
-			doltIntegrationAddress, err,
-		))
+	if _, err := exec.LookPath("dolt"); err != nil && os.Getenv("AGENT_CORE_DOLT_BIN") == "" {
+		return skipUC("dolt", "no dolt binary on PATH; install dolt (https://docs.dolthub.com/introduction/installation) or set AGENT_CORE_DOLT_BIN")
 	}
-	_ = conn.Close()
 
 	cmd := exec.Command(
 		"go", "test", "./cmd/agent",
-		"-run", "TestDoltCheckpointSuspendResumeRoundTrip|TestDoltCheckpointSuspendResumeAcrossProcesses|TestDoltCommandStateRehydratesThroughRealAdapter",
+		"-run", "TestDoltCheckpoint|TestDoltCommandStateRehydratesThroughRealAdapter",
 		"-count=1",
 	)
 	cmd.Stdout = os.Stdout

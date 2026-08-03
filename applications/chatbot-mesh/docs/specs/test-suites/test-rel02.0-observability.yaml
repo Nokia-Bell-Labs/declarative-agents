@@ -63,14 +63,15 @@ test_cases:
       identity and representative services and metrics, tears down its owned
       cluster, then queries the host backends again. Agent and Chroma spans
       remain filterable by run id. Kubernetes control-plane traces are
-      correlated by run id and time rather than parentage. Agent and Dolt
-      metrics remain queryable. The production chart render still contains its
+      correlated by run id and time rather than parentage. Agent OTLP
+      metrics remain queryable; the in-cluster Dolt Prometheus scrape is retired
+      in agent mode (GH-1366). The production chart render still contains its
       self-contained Collector and Jaeger defaults.
     inputs:
       shared_trace_backend: jaeger
       shared_metric_backend: prometheus
       expected_trace_services: [chatbot, rag0, rag0-chroma, apiserver, kubelet]
-      expected_metrics: [agent_runtime, dolt_sql_server]
+      expected_metrics: [agent_runtime]
     expected:
       file_and_otlp_dual_export: true
       run_identity_on_signals: true

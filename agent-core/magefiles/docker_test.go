@@ -111,7 +111,6 @@ func TestContainerBuildSummaryForDocker(t *testing.T) {
 		"  container output: streamed directly",
 		"command: DOCKER_BUILDKIT=1 docker build --progress=plain --secret id=git_credentials,src=/home/user/.netrc --build-arg AGENT_CORE_REF=v0.20260612.1 -t agent-core:latest .",
 		"mounted profile example: docker run --rm -v /path/to/applications/catalog:/profiles:ro -v '$PWD:/work' -w /work agent-core:latest --profile /profiles/agents/executor/profile.yaml --directory /work",
-		"integration container example: docker run --rm -w /src agent-core-integration:latest mage integration:monitor",
 	} {
 		if !strings.Contains(got, want) {
 			t.Fatalf("containerBuildSummary missing %q in:\n%s", want, got)
@@ -128,18 +127,6 @@ func TestDisplayBuildCommandForDockerIncludesBuildkit(t *testing.T) {
 	want := "DOCKER_BUILDKIT=1 docker build --progress=plain --build-arg AGENT_CORE_REF=v0.20260612.1 -t agent-core:latest ."
 	if got != want {
 		t.Fatalf("displayBuildCommand = %q, want %q", got, want)
-	}
-}
-
-func TestDisplayIntegrationBuildCommandUsesTarget(t *testing.T) {
-	opts := dockerBuildOptions{
-		Image: "agent-core:latest",
-		Ref:   "v0.20260612.1",
-	}
-	got := displayIntegrationBuildCommand(opts)
-	want := "DOCKER_BUILDKIT=1 docker build --progress=plain --build-arg AGENT_CORE_REF=v0.20260612.1 -t agent-core-integration:latest --target integration ."
-	if got != want {
-		t.Fatalf("displayIntegrationBuildCommand = %q, want %q", got, want)
 	}
 }
 
@@ -160,19 +147,6 @@ func TestDockerfileRuntimeExcludesAgentProfiles(t *testing.T) {
 	for _, want := range []string{
 		"Error: --profile is required; mount profiles and pass --profile /profiles/agents/<name>/profile.yaml",
 		"ENTRYPOINT [\"agent-entrypoint\"]",
-	} {
-		if !strings.Contains(content, want) {
-			t.Fatalf("Dockerfile missing %q", want)
-		}
-	}
-}
-
-func TestDockerfileDefinesIntegrationTarget(t *testing.T) {
-	content := readDockerfile(t)
-	for _, want := range []string{
-		"FROM builder AS integration",
-		"RUN apk add --no-cache nodejs npm",
-		"go install github.com/magefile/mage@latest",
 	} {
 		if !strings.Contains(content, want) {
 			t.Fatalf("Dockerfile missing %q", want)

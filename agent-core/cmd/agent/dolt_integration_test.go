@@ -3,10 +3,12 @@
 package main
 
 import (
+	"bytes"
 	"context"
 	"database/sql"
 	"encoding/json"
 	"fmt"
+	"net"
 	"os"
 	"os/exec"
 	"path/filepath"
@@ -18,24 +20,20 @@ import (
 	"github.com/Nokia-Bell-Labs/declarative-agents/agent-core/internal/runtime/core"
 )
 
-const (
-	// doltServerDSN is a conventional local dolt sql-server address, without a
-	// database. The test connects here, creates its own database, and skips when
-	// no server is reachable, so it needs no environment configuration.
-	doltServerDSN = "root@tcp(127.0.0.1:3306)/"
-	doltTestDB    = "agent_core_test"
-)
+const doltTestDB = "agent_core_test"
 
 // TestDoltCheckpointSuspendResumeRoundTrip proves same-process adapter reopen:
 // a run persisted through DoltCheckpoint is reloaded by a new adapter with an
 // equivalent Position, folded conversation, and opaque receipts. Cross-process
-// persistence is covered separately below. Dolt speaks the MySQL
-// wire protocol, so the test drives a running `dolt sql-server` through the
-// composition-root "dolt" driver. It runs against a reachable local dolt
-// sql-server and skips otherwise.
+// persistence is covered separately below. Dolt speaks the MySQL wire protocol,
+// so the test drives a `dolt sql-server` through the composition-root "dolt"
+// driver. The server is launched from a prebuilt dolt binary for the duration of
+// the test (no Docker, no manual setup); the test skips only when no dolt binary
+// is available.
 func TestDoltCheckpointSuspendResumeRoundTrip(t *testing.T) {
-	requireDoltServer(t)
-	dsn := doltServerDSN + doltTestDB
+	base := startDoltServer(t)
+	requireDoltTestDB(t, base)
+	dsn := base + doltTestDB
 
 	runID := fmt.Sprintf("run-it-%d", time.Now().UnixNano())
 	noMerge := func(core.State) bool { return false }
@@ -89,11 +87,12 @@ func TestDoltCheckpointSuspendResumeAcrossProcesses(t *testing.T) {
 		return
 	}
 
-	requireDoltServer(t)
+	base := startDoltServer(t)
+	requireDoltTestDB(t, base)
 	runID := fmt.Sprintf("run-process-it-%d", time.Now().UnixNano())
 	artifact := filepath.Join(t.TempDir(), "loaded.json")
-	runDoltProcessProof(t, "save", runID, artifact)
-	runDoltProcessProof(t, "load", runID, artifact)
+	runDoltProcessProof(t, base, "save", runID, artifact)
+	runDoltProcessProof(t, base, "load", runID, artifact)
 
 	data, err := os.ReadFile(artifact)
 	require.NoError(t, err)
@@ -112,11 +111,12 @@ func TestDoltCheckpointSuspendResumeAcrossProcesses(t *testing.T) {
 	require.Equal(t, `{"kind":"process-boundary"}`, loaded.Execution[0].Receipt)
 }
 
-func runDoltProcessProof(t *testing.T, mode, runID, artifact string) {
+func runDoltProcessProof(t *testing.T, base, mode, runID, artifact string) {
 	t.Helper()
 	cmd := exec.Command(os.Args[0], "-test.run=^TestDoltCheckpointSuspendResumeAcrossProcesses$")
 	cmd.Env = append(os.Environ(),
 		"DOLT_PROCESS_PROOF_MODE="+mode,
+		"DOLT_PROCESS_PROOF_DSN="+base,
 		"DOLT_PROCESS_PROOF_RUN_ID="+runID,
 		"DOLT_PROCESS_PROOF_ARTIFACT="+artifact,
 	)
@@ -126,7 +126,7 @@ func runDoltProcessProof(t *testing.T, mode, runID, artifact string) {
 
 func runDoltProcessProofChild(t *testing.T, mode string) {
 	t.Helper()
-	dsn := doltServerDSN + doltTestDB
+	dsn := os.Getenv("DOLT_PROCESS_PROOF_DSN") + doltTestDB
 	runID := os.Getenv("DOLT_PROCESS_PROOF_RUN_ID")
 	checkpoint, err := core.OpenDoltCheckpoint(dsn, runID, func(core.State) bool { return false })
 	require.NoError(t, err)
@@ -166,11 +166,11 @@ func runDoltProcessProofChild(t *testing.T, mode string) {
 // TestDoltCommandStateRehydratesThroughRealAdapter covers the rel07.0 restart
 // through the real Dolt code path: an execution persisted and reloaded by a fresh
 // DoltCheckpoint rebuilds a command-state view whose label lookup resolves the
-// step's output (srd038 R1.4; srd036 R5). It runs against a reachable local dolt
-// sql-server and skips otherwise.
+// step's output (srd038 R1.4; srd036 R5).
 func TestDoltCommandStateRehydratesThroughRealAdapter(t *testing.T) {
-	requireDoltServer(t)
-	dsn := doltServerDSN + doltTestDB
+	base := startDoltServer(t)
+	requireDoltTestDB(t, base)
+	dsn := base + doltTestDB
 
 	runID := fmt.Sprintf("run-cs-%d", time.Now().UnixNano())
 	noMerge := func(core.State) bool { return false }
@@ -200,22 +200,171 @@ func TestDoltCommandStateRehydratesThroughRealAdapter(t *testing.T) {
 	require.JSONEq(t, `{"mapped":{"embedding":[0.1,0.2]}}`, out)
 }
 
-// requireDoltServer skips the test unless a local dolt sql-server is reachable,
-// creating the test database on it, so the test needs no environment
-// configuration to select the server.
-func requireDoltServer(t *testing.T) {
+// TestDoltCheckpointTerminalMergesAndDeletes proves the terminal lifecycle
+// against the real adapter: a terminal Save merges the run branch to main and
+// deletes it (DOLT_MERGE and DOLT_BRANCH('-d')), after which a fresh adapter
+// resolves the finalized marker from main and reports ErrCheckpointFinalized
+// (srd036 R4.3, R5).
+func TestDoltCheckpointTerminalMergesAndDeletes(t *testing.T) {
+	base := startDoltServer(t)
+	requireDoltTestDB(t, base)
+	dsn := base + doltTestDB
+
+	runID := fmt.Sprintf("run-term-%d", time.Now().UnixNano())
+	terminal := func(s core.State) bool { return s == "Done" }
+
+	saver, err := core.OpenDoltCheckpoint(dsn, runID, terminal)
+	require.NoError(t, err)
+	exec := core.Execution{{
+		Iteration: 1, CommandName: "finish", FromState: "Working", ToState: "Done",
+		Signal: core.TaskCompleted,
+		Result: core.DigestResult(core.Result{Signal: core.TaskCompleted}),
+	}}
+	require.NoError(t, saver.Save(core.Position{CurrentState: "Done", LastSignal: core.TaskCompleted}, exec))
+	require.NoError(t, saver.Close())
+
+	loader, err := core.OpenDoltCheckpoint(dsn, runID, terminal)
+	require.NoError(t, err)
+	defer func() { require.NoError(t, loader.Close()) }()
+
+	gotPos, _, err := loader.Load()
+	require.ErrorIs(t, err, core.ErrCheckpointFinalized)
+	require.Equal(t, core.State("Done"), gotPos.CurrentState)
+}
+
+// TestDoltCheckpointRevertResetsBranch proves git-style rollback of the
+// DB-persisted state: after two steps, reverting to step 0 resets the run branch
+// to that commit (DOLT_RESET('--hard') resolved through dolt_log), so a reload
+// sees only the first step (srd036 R6).
+func TestDoltCheckpointRevertResetsBranch(t *testing.T) {
+	base := startDoltServer(t)
+	requireDoltTestDB(t, base)
+	dsn := base + doltTestDB
+
+	runID := fmt.Sprintf("run-rev-%d", time.Now().UnixNano())
+	noMerge := func(core.State) bool { return false }
+
+	adapter, err := core.OpenDoltCheckpoint(dsn, runID, noMerge)
+	require.NoError(t, err)
+	step0 := core.Execution{{
+		Iteration: 1, CommandName: "first", FromState: "Start", ToState: "Working",
+		Signal: core.LLMResponded, Result: core.DigestResult(core.Result{Signal: core.LLMResponded, Output: "first-output"}),
+	}}
+	require.NoError(t, adapter.Save(core.Position{CurrentState: "Working", LastSignal: core.LLMResponded}, step0))
+
+	step1 := core.Execution{step0[0], {
+		Iteration: 2, CommandName: "second", FromState: "Working", ToState: "Working",
+		Signal: core.LLMResponded, Result: core.DigestResult(core.Result{Signal: core.LLMResponded, Output: "second-output"}),
+	}}
+	require.NoError(t, adapter.Save(core.Position{CurrentState: "Working", LastSignal: core.LLMResponded}, step1))
+
+	require.NoError(t, adapter.Revert(runID, 0))
+	require.NoError(t, adapter.Close())
+
+	loader, err := core.OpenDoltCheckpoint(dsn, runID, noMerge)
+	require.NoError(t, err)
+	defer func() { require.NoError(t, loader.Close()) }()
+
+	_, gotExec, err := loader.Load()
+	require.NoError(t, err)
+	require.Len(t, gotExec, 1, "revert to step 0 must drop the second step")
+	require.Equal(t, "first", gotExec[0].CommandName)
+	require.Equal(t, "first-output", gotExec[0].Result.Output)
+}
+
+// doltBinary resolves the dolt executable: an explicit AGENT_CORE_DOLT_BIN
+// override wins, otherwise the binary is looked up on PATH. An empty result means
+// no dolt is available and the gated tests skip.
+func doltBinary() string {
+	if override := os.Getenv("AGENT_CORE_DOLT_BIN"); override != "" {
+		return override
+	}
+	if path, err := exec.LookPath("dolt"); err == nil {
+		return path
+	}
+	return ""
+}
+
+// startDoltServer launches a `dolt sql-server` from a prebuilt dolt binary on an
+// ephemeral port against a throwaway data directory, waits until it accepts
+// connections, and returns a database-less DSN base ("root@tcp(127.0.0.1:PORT)/").
+// The server is torn down when the test ends. It skips when no dolt binary is
+// installed so `go test ./...` stays green on machines without dolt, while
+// `mage integration:dolt` runs it for real.
+func startDoltServer(t *testing.T) string {
 	t.Helper()
-	db, err := sql.Open("dolt", doltServerDSN)
-	if err != nil {
-		t.Skipf("open dolt driver: %v; skipping Dolt integration test", err)
+	bin := doltBinary()
+	if bin == "" {
+		t.Skip("no dolt binary found (install dolt or set AGENT_CORE_DOLT_BIN); skipping Dolt integration test")
 	}
+
+	port := freeTCPPort(t)
+	dataDir := t.TempDir()
+	ctx, cancel := context.WithCancel(context.Background())
+	cmd := exec.CommandContext(ctx, bin, "sql-server",
+		"--host=127.0.0.1",
+		fmt.Sprintf("--port=%d", port),
+		"--data-dir="+dataDir,
+	)
+	// DOLT_ROOT_HOST=% lets root connect over TCP from 127.0.0.1; the server
+	// otherwise only provisions root@localhost. The empty password matches the DSN.
+	cmd.Env = append(os.Environ(), "DOLT_ROOT_HOST=%", "DOLT_ROOT_PASSWORD=")
+	var log bytes.Buffer
+	cmd.Stdout = &log
+	cmd.Stderr = &log
+	require.NoError(t, cmd.Start())
+	t.Cleanup(func() {
+		cancel()
+		_ = cmd.Wait()
+	})
+
+	base := fmt.Sprintf("root@tcp(127.0.0.1:%d)/", port)
+	waitForDolt(t, base, &log)
+	return base
+}
+
+// freeTCPPort reserves an ephemeral port and releases it for the server to claim.
+func freeTCPPort(t *testing.T) int {
+	t.Helper()
+	listener, err := net.Listen("tcp", "127.0.0.1:0")
+	require.NoError(t, err)
+	port := listener.Addr().(*net.TCPAddr).Port
+	require.NoError(t, listener.Close())
+	return port
+}
+
+// waitForDolt polls the freshly started server until it answers a ping or the
+// deadline passes, surfacing the captured server log on timeout.
+func waitForDolt(t *testing.T, base string, log *bytes.Buffer) {
+	t.Helper()
+	db, err := sql.Open("dolt", base)
+	require.NoError(t, err)
 	defer func() { _ = db.Close() }()
-	ctx, cancel := context.WithTimeout(context.Background(), 3*time.Second)
+
+	deadline := time.Now().Add(60 * time.Second)
+	for {
+		ctx, cancel := context.WithTimeout(context.Background(), time.Second)
+		err := db.PingContext(ctx)
+		cancel()
+		if err == nil {
+			return
+		}
+		if time.Now().After(deadline) {
+			t.Fatalf("dolt sql-server did not become ready within 60s: %v\nserver log:\n%s", err, log.String())
+		}
+		time.Sleep(200 * time.Millisecond)
+	}
+}
+
+// requireDoltTestDB creates the shared test database on a database-less DSN base
+// so subsequent adapters can select it.
+func requireDoltTestDB(t *testing.T, base string) {
+	t.Helper()
+	db, err := sql.Open("dolt", base)
+	require.NoError(t, err)
+	defer func() { _ = db.Close() }()
+	ctx, cancel := context.WithTimeout(context.Background(), 10*time.Second)
 	defer cancel()
-	if err := db.PingContext(ctx); err != nil {
-		t.Skipf("no reachable dolt sql-server at %s (%v); run `mage dolt:up` to start a persistent one, then re-run; skipping Dolt integration test", doltServerDSN, err)
-	}
-	if _, err := db.ExecContext(ctx, "CREATE DATABASE IF NOT EXISTS "+doltTestDB); err != nil {
-		t.Skipf("create database %s on dolt sql-server: %v; skipping", doltTestDB, err)
-	}
+	_, err = db.ExecContext(ctx, "CREATE DATABASE IF NOT EXISTS "+doltTestDB)
+	require.NoError(t, err)
 }

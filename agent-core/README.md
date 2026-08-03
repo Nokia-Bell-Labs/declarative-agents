@@ -127,24 +127,35 @@ durable history. Set `--dolt-dsn` to a MySQL-wire DSN for a running `dolt
 sql-server` when a run must persist checkpoints for history, resume, or
 rollback.
 
-### Local Dolt Server (persistent)
+### Dolt Integration Tests
 
-`docker-compose.dolt.yml` runs a local `dolt sql-server` whose storage persists
-across container removal, for lifecycle checkpoints and the gated Dolt
-integration tests. The `dolt-data` named volume holds the chunk store, so the
-container is disposable while the data is not.
+The gated Dolt checkpoint tests (`cmd/agent/dolt_integration_test.go`) exercise
+the real adapter over the MySQL wire protocol. They launch a throwaway `dolt
+sql-server` from a prebuilt dolt binary on an ephemeral port for the duration of
+each test — no Docker and no manual setup:
 
 ```bash
-mage dolt:up       # start the server (docker compose up -d)
-mage dolt:status   # show the service and the persistent volume
-mage dolt:down     # stop and remove the container, keeping the data
-mage dolt:reset    # stop and delete the volume, discarding all data
+mage integration:dolt   # runs the gated tests, auto-managing the server
 ```
 
-The server listens on `127.0.0.1:3306` with a `root` account reachable over TCP
-(`DOLT_ROOT_HOST=%`). Point a run at it with
-`--dolt-dsn "root@tcp(127.0.0.1:3306)/<database>"`. With the server up, the
-gated tests in `cmd/agent/dolt_integration_test.go` run instead of skipping.
+The tests require only a `dolt` binary on `PATH` (install from
+<https://docs.dolthub.com/introduction/installation>) or an explicit
+`AGENT_CORE_DOLT_BIN` override; they skip cleanly when no binary is found, so
+`go test ./...` stays green on machines without dolt.
+
+### Persistent Dolt Server (production)
+
+Production runs point `--dolt-dsn` at a long-lived `dolt sql-server` over the
+MySQL wire protocol. Start one directly with the dolt binary and give root TCP
+access from the host:
+
+```bash
+DOLT_ROOT_HOST=% dolt sql-server --host 127.0.0.1 --port 3306 --data-dir <dir>
+```
+
+Then point a run at it with
+`--dolt-dsn "root@tcp(127.0.0.1:3306)/<database>"`. Storage persists in
+`<dir>`, so the server is disposable while the data is not.
 
 ## Quick Start
 
@@ -264,24 +275,6 @@ Profiles inside the mounted repository can reference shared image assets with
 absolute paths such as `/opt/agent-core/tools/builtin` and
 `/opt/agent-core/tools/exec`.
 If mounted output permissions matter, add `--user "$(id -u):$(id -g)"`.
-
-For integration tests inside a container, build the source-bearing integration
-target and mount profile assets from outside the image:
-
-```bash
-docker build \
-  --target integration \
-  --secret id=git_credentials,src=.netrc \
-  --build-arg AGENT_CORE_REF=v0.20260612.N \
-  -t agent-core-integration:latest .
-
-docker run --rm \
-  -v "$AGENT_CATALOG_ROOT:/profiles/agents:ro" \
-  -w /src \
-  -e AGENT_CATALOG_ROOT=/profiles/agents \
-  agent-core-integration:latest \
-  mage integration:monitor
-```
 
 Recent verification: `mage docker` built `agent-core:latest` from a remote
 release, `docker run --rm agent-core:latest --help` started the packaged

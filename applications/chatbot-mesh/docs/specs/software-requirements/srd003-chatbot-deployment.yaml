@@ -91,9 +91,9 @@ requirements:
       - R5.5: The integration values overlay SHALL retain the chart-local Collector as a gateway where useful and SHALL export through it to the pre-existing host integration ingress. The overlay SHALL NOT make the external sink a production default.
       - R5.6: Integration services SHALL use stable service.name values for chatbot, each RAG agent, each Chroma instance, and enabled Kubernetes control-plane components. Every signal SHALL carry repository, module, target, commit, and unique run identity.
       - R5.7: Chroma SHALL export native OTLP traces through the gateway. Agent-to-Chroma HTTP calls SHALL inject traceparent so Chroma spans join the caller trace.
-      - R5.8: Dolt SHALL expose Prometheus metrics, and the Collector metric pipeline SHALL scrape and export them to the shared Prometheus-compatible backend.
+      - R5.8: Dolt SHALL continue to expose Prometheus metrics on its metrics port. Only the opt-in `contrib` collector MAY scrape and export them; the default `agent` collector has no Prometheus scrape capability, so agent mode does not collect in-cluster Dolt metrics (GH-1366).
       - R5.9: Kind integration configuration SHALL enable supported control-plane tracing to the shared ingress. Because helm and kubectl do not propagate traceparent, those traces SHALL be correlated by run identity and time rather than claimed as one agent waterfall.
-      - R5.10: Integration evidence SHALL remain queryable after chart and cluster teardown. It SHALL record sink health, run identity, representative trace ids and services, and agent and Dolt metric availability.
+      - R5.10: Integration evidence SHALL remain queryable after chart and cluster teardown. It SHALL record sink health, run identity, representative trace ids and services, and agent metric availability; Dolt metric availability applies only under the opt-in contrib collector (GH-1366).
       - R5.11: Native Ollama server tracing and OTel Logs are explicit limitations. Ollama evidence SHALL use agent-core GenAI client spans until native server tracing is available.
   R6:
     title: In-cluster LLM tier
@@ -134,7 +134,7 @@ acceptance_criteria:
     tests:
       - "test-rel06.0-applier: The panel route reaches only the authorized surface"
   - id: AC5
-    criterion: The observability wiring preserves self-contained production defaults and defines an integration-only gateway to a persistent host sink, stable run and service identity, Chroma trace propagation, Dolt metrics, separately correlated kind control-plane traces, retained evidence, and the Ollama and OTel Logs limitations.
+    criterion: The observability wiring preserves self-contained production defaults and defines an integration-only gateway to a persistent host sink, stable run and service identity, Chroma trace propagation, Dolt metrics under the opt-in contrib collector only, separately correlated kind control-plane traces, retained evidence, and the Ollama and OTel Logs limitations.
     traces: [R5.1, R5.2, R5.3, R5.4, R5.5, R5.6, R5.7, R5.8, R5.9, R5.10, R5.11]
   - id: AC6
     criterion: The in-cluster LLM tier is specified -- an optional Ollama subchart enabled by default with PVC model storage and an enabled/external switch that leaves R2 unchanged, a model-preload Job pulling the embedding, chat, and tier-selector models named once in values, agent readiness gated on model presence, GPU scheduling as values with a CPU-only path, and a recorded single-instance default topology.
@@ -214,7 +214,7 @@ diagrams:
       RAG1 -->|OTLP| Collector
       RAGn -->|OTLP| Collector
       Chroma["Chroma stores"] -->|native OTLP traces| Collector
-      Dolt -->|Prometheus scrape| Collector
+      Dolt -.->|Prometheus scrape, contrib collector only| Collector
       Collector --> Backend["Trace backend (Tempo/Jaeger)"]
       Collector --> Metrics["Prometheus-compatible metrics backend"]
       Collector -. integration overlay .-> HostIngress["Persistent host OTLP ingress"]
