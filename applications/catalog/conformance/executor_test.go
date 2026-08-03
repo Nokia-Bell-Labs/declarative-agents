@@ -35,7 +35,9 @@ const (
 // action), R2.2 (the LLM tool family), and R3.2 (a clean terminal outcome).
 func TestExecutorConformance(t *testing.T) {
 	t.Parallel()
-	runBoundedShippedGenerator(t, filepath.Join("agents", "executor", "profile.yaml"), generatorModel)
+	runBoundedShippedGenerator(
+		t, filepath.Join("agents", "executor", "profile.yaml"), ollamaURLFromEnvironment(), generatorModel,
+	)
 }
 
 // TestExecutorQwen35bConformance runs the shipped generator-qwen35b variant.
@@ -43,7 +45,9 @@ func TestExecutorConformance(t *testing.T) {
 // boundary as profile.yaml through the variant wrapper an operator ships.
 func TestExecutorQwen35bConformance(t *testing.T) {
 	t.Parallel()
-	runBoundedShippedGenerator(t, filepath.Join("agents", "executor", "profile-qwen35b.yaml"), generatorModel)
+	runBoundedShippedGenerator(
+		t, filepath.Join("agents", "executor", "profile-qwen35b.yaml"), ollamaURLFromEnvironment(), generatorModel,
+	)
 }
 
 // TestExecutorQwen27bConformance runs the shipped generator-qwen27b variant,
@@ -51,7 +55,9 @@ func TestExecutorQwen35bConformance(t *testing.T) {
 // served and skips cleanly otherwise.
 func TestExecutorQwen27bConformance(t *testing.T) {
 	t.Parallel()
-	runBoundedShippedGenerator(t, filepath.Join("agents", "executor", "profile-qwen27b.yaml"), generatorQwen27bModel)
+	runBoundedShippedGenerator(
+		t, filepath.Join("agents", "executor", "profile-qwen27b.yaml"), ollamaBaseURL, generatorQwen27bModel,
+	)
 }
 
 // runBoundedShippedGenerator copies the shipped executor profile at relProfile,
@@ -59,9 +65,9 @@ func TestExecutorQwen27bConformance(t *testing.T) {
 // wrapper rebuild), runs it, and asserts the model boundary fired: a chat
 // <model> gen_ai span under a single root, a clean BudgetExceeded terminal, and
 // no error-status spans. It is Ollama-gated on model.
-func runBoundedShippedGenerator(t *testing.T, relProfile, model string) {
+func runBoundedShippedGenerator(t *testing.T, relProfile, providerURL, model string) {
 	t.Helper()
-	liveTimeout := RequireLiveModel(t, model)
+	liveTimeout := RequireLiveModel(t, providerURL, model)
 	RequireCoreRoot(t)
 
 	// Bound the machine to one iteration: Idle -> Composing (invoke_llm), then

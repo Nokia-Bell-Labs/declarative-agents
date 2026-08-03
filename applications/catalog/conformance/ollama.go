@@ -3,9 +3,11 @@
 package conformance
 
 import (
+	"encoding/json"
 	"flag"
 	"fmt"
-	"os/exec"
+	"net/http"
+	"os"
 	"strings"
 	"testing"
 	"time"
@@ -24,22 +26,22 @@ var (
 		"per-run timeout for live model inference")
 )
 
-// ollamaBaseURL is the default local Ollama endpoint used for live inference
-// wire calls (agents/*/llm/default.yaml provider_url). Model availability is
-// probed through the `ollama list` CLI instead of this URL (GH-1389), so a
-// provider_url change no longer silently defeats the live-conformance gate.
+// ollamaBaseURL is the fallback used by declarations whose provider_url is
+// ${OLLAMA_URL:-http://localhost:11434}.
 const ollamaBaseURL = "http://localhost:11434"
 
 // RequireLiveModel first enforces the explicit live-conformance opt-in, then
-// checks that the exact model required by the test is available. It returns the
-// configured timeout for the live request or agent run.
-func RequireLiveModel(t *testing.T, model string) time.Duration {
+// checks the exact provider URL and model required by the test. Passing the URL
+// at the call site keeps the gate aligned with the profile under test.
+func RequireLiveModel(t *testing.T, baseURL, model string) time.Duration {
 	t.Helper()
 	timeout, skip, err := liveModelGate(
 		*liveConformance,
 		*liveConformanceTimeout,
 		model,
-		probeOllama,
+		func(model string) error {
+			return probeOllama(&http.Client{Timeout: 3 * time.Second}, baseURL, model)
+		},
 	)
 	if err != nil {
 		t.Fatal(err)
@@ -48,6 +50,13 @@ func RequireLiveModel(t *testing.T, model string) time.Duration {
 		t.Skip(skip)
 	}
 	return timeout
+}
+
+func ollamaURLFromEnvironment() string {
+	if configured := strings.TrimSpace(os.Getenv("OLLAMA_URL")); configured != "" {
+		return strings.TrimRight(configured, "/")
+	}
+	return ollamaBaseURL
 }
 
 func liveModelGate(optIn bool, timeout time.Duration, model string, probe func(string) error) (time.Duration, string, error) {
@@ -67,37 +76,38 @@ func liveModelGate(optIn bool, timeout time.Duration, model string, probe func(s
 	return timeout, "", nil
 }
 
-// probeOllama checks model availability through the `ollama list` CLI. Like the
-// dolt helper, the CLI's own errors answer both "is Ollama reachable" and "is
-// the exact model pulled", so the probe no longer depends on a hardcoded URL
-// whose only tie to the declared provider_url was a comment (GH-1389).
-func probeOllama(model string) error {
-	if _, err := exec.LookPath("ollama"); err != nil {
-		return fmt.Errorf("cannot find the Ollama CLI on PATH: %w", err)
-	}
-	out, err := exec.Command("ollama", "list").CombinedOutput()
+func probeOllama(client *http.Client, baseURL, model string) error {
+	baseURL = strings.TrimRight(baseURL, "/")
+	resp, err := client.Get(baseURL + "/api/tags")
 	if err != nil {
-		return fmt.Errorf("cannot reach Ollama via `ollama list`: %w: %s", err, strings.TrimSpace(string(out)))
+		return fmt.Errorf("cannot reach Ollama at %s: %w", baseURL, err)
 	}
-	return ollamaListRequires(string(out), model)
-}
-
-// ollamaListRequires reports nil when `ollama list` output includes the exact
-// model tag. Untagged model names are matched against the `:latest` tag that
-// Ollama assigns by default.
-func ollamaListRequires(listOutput, model string) error {
-	want := model
-	if !strings.Contains(want, ":") {
-		want += ":latest"
+	defer func() { _ = resp.Body.Close() }()
+	if resp.StatusCode != http.StatusOK {
+		return fmt.Errorf("the Ollama tags endpoint returned %d", resp.StatusCode)
 	}
-	for _, line := range strings.Split(listOutput, "\n") {
-		fields := strings.Fields(line)
-		if len(fields) == 0 {
-			continue
-		}
-		if name := fields[0]; name == model || name == want {
+	var payload struct {
+		Models []struct {
+			Name string `json:"name"`
+		} `json:"models"`
+	}
+	if err := json.NewDecoder(resp.Body).Decode(&payload); err != nil {
+		return fmt.Errorf("decode Ollama tags: %w", err)
+	}
+	for _, m := range payload.Models {
+		if ollamaModelMatches(m.Name, model) {
 			return nil
 		}
 	}
 	return fmt.Errorf("the Ollama model %q is not pulled", model)
+}
+
+func ollamaModelMatches(available, required string) bool {
+	if strings.EqualFold(available, required) {
+		return true
+	}
+	if !strings.Contains(required, ":") {
+		return strings.EqualFold(available, required+":latest")
+	}
+	return false
 }
