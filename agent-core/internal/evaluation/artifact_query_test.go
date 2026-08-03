@@ -10,6 +10,8 @@ import (
 	"time"
 
 	"github.com/stretchr/testify/require"
+
+	"github.com/Nokia-Bell-Labs/declarative-agents/agent-core/internal/runtime/core"
 )
 
 func TestEvaluationArtifactQueriesPreserveBenchData(t *testing.T) {
@@ -48,6 +50,143 @@ func TestEvaluationArtifactQueriesPreserveBenchData(t *testing.T) {
 	require.Equal(t, pointID, traceData.PointID)
 	require.Len(t, traceData.Spans, 1)
 	require.Len(t, traceData.Snapshots, 1)
+}
+
+// seedEvaluationArtifacts writes one complete evaluation point (meta + trace)
+// under a fresh results root and returns the root plus its coordinates.
+func seedEvaluationArtifacts(t *testing.T) (root, suite, timestamp, pointID string) {
+	t.Helper()
+	root = t.TempDir()
+	suite, timestamp = "suite1", "20260614T100000Z"
+	pointID = EvalPointID("sample1", "harness1", "model1", nil, 1)
+	pointDir := filepath.Join(root, suite, timestamp, pointID)
+	require.NoError(t, os.MkdirAll(pointDir, 0o755))
+	writeArtifactQueryJSON(t, filepath.Join(pointDir, ArtifactMeta), EvalMeta{
+		Harness: "harness1", Model: "model1", Sample: "sample1", Repetition: 1,
+		ExitCode: 0, Duration: time.Second, TestsPassed: true,
+	})
+	trace := `{"Name":"execute_tool test","StartTime":"2026-01-01T00:00:00Z","EndTime":"2026-01-01T00:00:01Z","Attributes":[{"Key":"command.name","Value":{"Type":"STRING","Value":"test"}},{"Key":"command.signal","Value":{"Type":"STRING","Value":"ToolDone"}}],"Events":[]}` + "\n"
+	require.NoError(t, os.WriteFile(filepath.Join(pointDir, ArtifactTrace), []byte(trace), 0o644))
+	return root, suite, timestamp, pointID
+}
+
+func artifactParams(t *testing.T, kv map[string]string) string {
+	t.Helper()
+	data, err := json.Marshal(kv)
+	require.NoError(t, err)
+	return string(data)
+}
+
+// TestEvaluationArtifactCommandBoundary exercises the registered command
+// boundary -- Build(res).Execute() -- for every operation, so the formal suite
+// evidence observes parameter decoding, the output envelope, and signal mapping
+// rather than only the lower-layer query helpers (GH-1358).
+func TestEvaluationArtifactCommandBoundary(t *testing.T) {
+	root, suite, timestamp, pointID := seedEvaluationArtifacts(t)
+
+	cases := []struct {
+		name       string
+		operation  string
+		params     string
+		wantSignal core.Signal
+		wantSubs   []string
+	}{
+		{
+			name:       "list sessions",
+			operation:  "list_evaluation_sessions",
+			wantSignal: SignalEvaluationDataReady,
+			wantSubs:   []string{`"data"`, suite, timestamp},
+		},
+		{
+			name:       "analyze session",
+			operation:  "analyze_evaluation_session",
+			params:     artifactParams(t, map[string]string{"suite": suite, "timestamp": timestamp}),
+			wantSignal: SignalEvaluationDataReady,
+			wantSubs:   []string{`"modelStats"`, "model1"},
+		},
+		{
+			name:       "list points",
+			operation:  "list_evaluation_points",
+			params:     artifactParams(t, map[string]string{"suite": suite, "timestamp": timestamp}),
+			wantSignal: SignalEvaluationDataReady,
+			wantSubs:   []string{pointID, `"testsPassed":true`},
+		},
+		{
+			name:       "read trace",
+			operation:  "read_evaluation_trace",
+			params:     artifactParams(t, map[string]string{"suite": suite, "timestamp": timestamp, "point_id": pointID}),
+			wantSignal: SignalEvaluationDataReady,
+			wantSubs:   []string{`"spans"`, pointID},
+		},
+		{
+			name:       "unknown operation",
+			operation:  "delete_everything",
+			wantSignal: core.CommandError,
+			wantSubs:   []string{"unknown evaluation artifact operation"},
+		},
+		{
+			name:       "denied traversal",
+			operation:  "analyze_evaluation_session",
+			params:     artifactParams(t, map[string]string{"suite": "..", "timestamp": timestamp}),
+			wantSignal: SignalEvaluationDenied,
+			wantSubs:   []string{"denied evaluation"},
+		},
+		{
+			name:       "malformed parameters denied",
+			operation:  "analyze_evaluation_session",
+			params:     "not-json",
+			wantSignal: SignalEvaluationDenied,
+			wantSubs:   []string{"denied evaluation"},
+		},
+		{
+			name:       "missing point",
+			operation:  "read_evaluation_trace",
+			params:     artifactParams(t, map[string]string{"suite": suite, "timestamp": timestamp, "point_id": "absent"}),
+			wantSignal: SignalEvaluationMissing,
+		},
+	}
+
+	for _, tc := range cases {
+		tc := tc
+		t.Run(tc.name, func(t *testing.T) {
+			t.Parallel()
+			builder := &EvaluationArtifactBuilder{Name: "evaluation_artifact", Operation: tc.operation, DataDir: root}
+			cmd := builder.Build(core.Result{Output: tc.params})
+			require.Equal(t, "evaluation_artifact", cmd.Name())
+
+			result := cmd.Execute()
+			require.Equal(t, tc.wantSignal, result.Signal, result.Output)
+			for _, sub := range tc.wantSubs {
+				require.Contains(t, result.Output, sub)
+			}
+			if tc.wantSignal == SignalEvaluationDataReady {
+				var env map[string]json.RawMessage
+				require.NoError(t, json.Unmarshal([]byte(result.Output), &env))
+				require.Contains(t, env, "data", "success envelope must carry a data field")
+			}
+		})
+	}
+}
+
+// TestEvaluationArtifactBuilderDecodesNestedParameters proves the command reads
+// parameters wrapped under a "parameters" key, the shape declared tools emit.
+func TestEvaluationArtifactBuilderDecodesNestedParameters(t *testing.T) {
+	t.Parallel()
+	root, suite, timestamp, pointID := seedEvaluationArtifacts(t)
+	payload := `{"parameters":{"suite":"` + suite + `","timestamp":"` + timestamp + `","point_id":"` + pointID + `"}}`
+
+	builder := &EvaluationArtifactBuilder{Name: "evaluation_artifact", Operation: "read_evaluation_trace", DataDir: root}
+	result := builder.Build(core.Result{Output: payload}).Execute()
+
+	require.Equal(t, SignalEvaluationDataReady, result.Signal, result.Output)
+	require.Contains(t, result.Output, pointID)
+}
+
+func TestEvaluationArtifactCommandUndoIsNoop(t *testing.T) {
+	t.Parallel()
+	builder := &EvaluationArtifactBuilder{Name: "evaluation_artifact", Operation: "list_evaluation_sessions", DataDir: t.TempDir()}
+	undo := builder.Build(core.Result{}).Undo(core.Result{})
+	require.Equal(t, core.ToolDone, undo.Signal)
 }
 
 func TestEvaluationArtifactQueriesRejectTraversal(t *testing.T) {
