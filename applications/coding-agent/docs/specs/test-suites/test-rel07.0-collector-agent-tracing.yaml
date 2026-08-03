@@ -26,7 +26,7 @@ test_cases:
     traces: [srd004-helm-package-validation R1]
   - use_case: rel07.0-uc001-collector-agent-tracing
     name: Catalog-root discovery from any startup directory
-    go_test: go test ./magefiles -run '^TestCodingAgentCatalogRoot(EnvironmentPrecedence|DiscoversSiblingCatalog|DiscoversFromRelativeStartupDir)$'
+    go_test: go test ./magefiles -run '^TestCodingAgentCatalogRoot(FromDemoConfig|DiscoversSiblingCatalog|DiscoversFromRelativeStartupDir)$'
     status: implemented
     traces: [srd004-helm-package-validation R1]
   - use_case: rel07.0-uc001-collector-agent-tracing
