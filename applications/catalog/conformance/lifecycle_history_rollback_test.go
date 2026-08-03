@@ -24,6 +24,7 @@ import (
 // actions), R2.2 (the checkpoint tool families), R2.3 (the checkpoint store),
 // and R3.2 (Done terminal outcomes).
 func TestLifecycleHistoryRollback(t *testing.T) {
+	t.Parallel()
 	RequireCoreRoot(t)
 	dolt := StartDolt(t)
 

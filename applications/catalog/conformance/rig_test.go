@@ -75,6 +75,7 @@ func rigSpanCount(result RunResult, name string) int {
 //
 // Traces rel11.0-uc001-scenario-critic-scenario-run S1-S5 and srd018 AC1, AC2, AC6.
 func TestRigSelfProof(t *testing.T) {
+	t.Parallel()
 	binDir := rigBinDir(t)
 	pathEnv := "PATH=" + binDir + string(os.PathListSeparator) + os.Getenv("PATH")
 

@@ -52,6 +52,7 @@ var specificationCriticFailingFixture = ProfilePath(filepath.Join("testdata", "i
 // either terminal. Mirrors the profile wiring of magefiles/validation.go
 // validateSpecificationCriticCharterDemo.
 func TestSpecificationCriticConformance(t *testing.T) {
+	t.Parallel()
 	RequireCoreRoot(t)
 
 	t.Run("CleanCorpusPasses", func(t *testing.T) {

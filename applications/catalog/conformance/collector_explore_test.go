@@ -116,6 +116,7 @@ func requireKeys(t *testing.T, payload map[string]json.RawMessage, keys ...strin
 // a heatmap with axis boundaries and cells whose counts sum to the matched
 // total, plus group-by counts (srd020 R8, AC6).
 func TestCollectorSpanStatsContract(t *testing.T) {
+	t.Parallel()
 	RequireCoreRoot(t)
 	queryAddr, _, _ := serveCollectorWithSpool(t, true, nil)
 
@@ -166,6 +167,7 @@ func TestCollectorSpanStatsContract(t *testing.T) {
 // contract: inside and outside totals and a ranked attribute divergence
 // (srd020 R8, AC6).
 func TestCollectorSpanBreakdownContract(t *testing.T) {
+	t.Parallel()
 	RequireCoreRoot(t)
 	queryAddr, _, profileDir := serveCollectorWithSpool(t, false, nil)
 
@@ -225,6 +227,7 @@ func TestCollectorSpanBreakdownContract(t *testing.T) {
 // larger request value: with max_top_n patched to 1, a request for top_n 1000
 // still returns one group and reports the dropped remainder (srd020 R8.3, AC6).
 func TestCollectorExploreCapsFromConfig(t *testing.T) {
+	t.Parallel()
 	RequireCoreRoot(t)
 	queryAddr, _, _ := serveCollectorWithSpool(t, true, map[string]string{"max_top_n: 100": "max_top_n: 1"})
 
@@ -250,6 +253,7 @@ func TestCollectorExploreCapsFromConfig(t *testing.T) {
 // lists — with checked typed decoding, so a bare {} or a wrong-typed field
 // fails rather than passing on zero values.
 func TestCollectorExploreEmptySpool(t *testing.T) {
+	t.Parallel()
 	RequireCoreRoot(t)
 	queryAddr, _, _ := serveCollectorWithSpool(t, false, nil)
 
@@ -326,6 +330,7 @@ func TestCollectorExploreEmptySpool(t *testing.T) {
 // Explore page and the actions that bind the stats and breakdown machine
 // requests, so the served SPA exposes the Explore drill-in (srd020 R9, AC8).
 func TestCollectorExploreRouteDeclared(t *testing.T) {
+	t.Parallel()
 	data, err := os.ReadFile(ProfilePath(filepath.Join("agents", "collector", "ui", "ux.yaml")))
 	if err != nil {
 		t.Fatalf("read collector ux.yaml: %v", err)

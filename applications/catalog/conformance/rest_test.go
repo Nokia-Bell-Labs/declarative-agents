@@ -111,6 +111,7 @@ const restWebhookTools = `tools:
 // consumes as a visible await word (await_payment_webhook), and shutdown is an
 // explicit machine word (stop_payment_webhooks) reaching Succeeded.
 func TestRestConformance(t *testing.T) {
+	t.Parallel()
 	RequireCoreRoot(t)
 	tmp := t.TempDir()
 	addr := FreeAddr(t)
@@ -165,6 +166,7 @@ rest_definitions:
 // (launch_payment_webhooks -> await_payment_webhook -> stop_payment_webhooks ->
 // Succeeded).
 func TestRestShippedProfileWiring(t *testing.T) {
+	t.Parallel()
 	// (a) The shipped sample machine wires explicit client polling and the inbound webhook boundary.
 	var machine struct {
 		InitialState string              `yaml:"initial_state"`
@@ -219,6 +221,7 @@ func TestRestShippedProfileWiring(t *testing.T) {
 // Traces srd007-rest: OpenAPI imports back a live REST client word the model
 // selects, and the REST result feeds the model boundary.
 func TestRestOllamaConformance(t *testing.T) {
+	t.Parallel()
 	liveTimeout := RequireLiveModel(t, restOllamaModel)
 	RequireCoreRoot(t)
 

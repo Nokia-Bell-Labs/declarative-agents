@@ -20,6 +20,7 @@ import (
 // Traces srd008-runtime-state-reader: the adapter serves cached monitor state
 // while awaiting a control event, then stops its listener before terminating.
 func TestRuntimeStateReaderConformance(t *testing.T) {
+	t.Parallel()
 	RequireCoreRoot(t)
 	addr := FreeAddr(t)
 
