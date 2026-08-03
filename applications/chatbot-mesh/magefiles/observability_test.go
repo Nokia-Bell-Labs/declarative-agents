@@ -110,11 +110,16 @@ func TestObservabilityDownStopsCollector(t *testing.T) {
 }
 
 func TestObservabilityPortsAreConfigurable(t *testing.T) {
-	t.Setenv("DA_OTEL_GRPC_PORT", "24317")
-	t.Setenv("DA_COLLECTOR_QUERY_PORT", "28193")
-	ports := observabilityPorts()
+	settings := observabilitySettingsFrom(demoConfig{
+		OTELGRPCPort:       "24317",
+		CollectorQueryPort: "28193",
+	})
+	ports := observabilityPortsFrom(settings)
 	if ports[0].value != "24317" || ports[2].value != "28193" {
 		t.Fatalf("ports = %#v", ports)
+	}
+	if ports[1].value != collectorControlPortDefault {
+		t.Fatalf("unset control port = %s, want the %s default", ports[1].value, collectorControlPortDefault)
 	}
 }
 

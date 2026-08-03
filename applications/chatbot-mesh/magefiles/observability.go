@@ -100,10 +100,14 @@ type namedPort struct {
 }
 
 func observabilityPorts() []namedPort {
+	return observabilityPortsFrom(demoObservability())
+}
+
+func observabilityPortsFrom(settings observabilitySettings) []namedPort {
 	return []namedPort{
-		{"OTLP gRPC", envOrDefault("DA_OTEL_GRPC_PORT", "4317")},
-		{"Collector control", envOrDefault("DA_COLLECTOR_CONTROL_PORT", "18191")},
-		{"Collector query", envOrDefault("DA_COLLECTOR_QUERY_PORT", "18193")},
+		{"OTLP gRPC", settings.OTELGRPCPort},
+		{"Collector control", settings.ControlPort},
+		{"Collector query", settings.QueryPort},
 	}
 }
 
@@ -158,14 +162,21 @@ func startCollector() error {
 	return nil
 }
 
+// collectorEnviron builds the collector child's process environment. The
+// COLLECTOR_* variables are the collector profile's declared parameterization
+// contract: agent-core expands ${VAR:-default} references in mounted
+// declarations (srd013 R5.6/R5.7), so setting them here is the same act as a
+// Helm chart setting pod env — using the collector's contract, not
+// configuring the magefile. The magefile's own inputs come from demo.yaml.
 func collectorEnviron(spoolDir string) []string {
+	settings := demoObservability()
 	return []string{
 		"COLLECTOR_MODE=spool",
-		"COLLECTOR_BIND_HOST=" + envOrDefault("DA_COLLECTOR_BIND_HOST", "0.0.0.0"),
-		"COLLECTOR_RECEIVER_ADDRESS=0.0.0.0:" + envOrDefault("DA_OTEL_GRPC_PORT", "4317"),
-		"COLLECTOR_CONTROL_PORT=" + envOrDefault("DA_COLLECTOR_CONTROL_PORT", "18191"),
-		"COLLECTOR_MONITOR_PORT=" + envOrDefault("DA_COLLECTOR_MONITOR_PORT", "18192"),
-		"COLLECTOR_QUERY_PORT=" + envOrDefault("DA_COLLECTOR_QUERY_PORT", "18193"),
+		"COLLECTOR_BIND_HOST=" + settings.BindHost,
+		"COLLECTOR_RECEIVER_ADDRESS=0.0.0.0:" + settings.OTELGRPCPort,
+		"COLLECTOR_CONTROL_PORT=" + settings.ControlPort,
+		"COLLECTOR_MONITOR_PORT=" + settings.MonitorPort,
+		"COLLECTOR_QUERY_PORT=" + settings.QueryPort,
 		"COLLECTOR_SPOOL_PATH=" + filepath.Join(spoolDir, "traces", "collector.ndjson"),
 		"COLLECTOR_METRICS_SPOOL_PATH=" + filepath.Join(spoolDir, "metrics", "collector.ndjson"),
 	}
@@ -200,7 +211,7 @@ func stopCollector() error {
 }
 
 func postCollectorExit() error {
-	url := "http://127.0.0.1:" + envOrDefault("DA_COLLECTOR_CONTROL_PORT", "18191") + "/api/lifecycle/exit"
+	url := "http://127.0.0.1:" + demoObservability().ControlPort + "/api/lifecycle/exit"
 	client := &http.Client{Timeout: 5 * time.Second}
 	resp, err := client.Post(url, "application/json", strings.NewReader(`{"reason":"observability down"}`))
 	if err != nil {
@@ -260,12 +271,13 @@ func portAvailable(name, port string) error {
 // observabilityHealth verifies the collector control server is up and its query
 // surface answers, proving both the ingress and the read path are live.
 func observabilityHealth() error {
+	settings := demoObservability()
 	checks := []struct {
 		name string
 		url  string
 	}{
-		{"Collector control", "http://127.0.0.1:" + envOrDefault("DA_COLLECTOR_CONTROL_PORT", "18191") + "/api/lifecycle/health"},
-		{"Collector query", "http://127.0.0.1:" + envOrDefault("DA_COLLECTOR_QUERY_PORT", "18193") + "/query/traces"},
+		{"Collector control", "http://127.0.0.1:" + settings.ControlPort + "/api/lifecycle/health"},
+		{"Collector query", "http://127.0.0.1:" + settings.QueryPort + "/query/traces"},
 	}
 	client := &http.Client{Timeout: 2 * time.Second}
 	for _, check := range checks {

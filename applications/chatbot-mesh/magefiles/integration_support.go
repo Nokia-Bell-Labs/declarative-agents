@@ -33,25 +33,26 @@ const integrationHTTPRequestTimeout = 2 * time.Second
 // bound is sized for model work rather than for a healthy round trip.
 const integrationInferenceTimeoutDefault = 120 * time.Second
 
-// integrationInferenceTimeoutEnv overrides the inference bound, so a slower host
-// or a larger model does not require a code change.
-const integrationInferenceTimeoutEnv = "MESH_INFERENCE_TIMEOUT"
-
-const (
-	integrationOTLPEndpointEnv = "DA_INTEGRATION_OTLP_ENDPOINT"
-	integrationRunIDEnv        = "DA_INTEGRATION_RUN_ID"
-	integrationCommitEnv       = "DA_INTEGRATION_GIT_COMMIT"
-)
-
 var integrationHTTPClient = &http.Client{Timeout: integrationHTTPRequestTimeout}
 
 var integrationInferenceClient = &http.Client{Timeout: integrationInferenceTimeout()}
 
-// integrationInferenceTimeout returns the configured inference bound, falling
-// back to the default when the override is unset or unparseable. A bad value
-// must not silently become a 2s bound and resurrect GH-709.
+// integrationInferenceTimeout returns the configured inference bound: demo.yaml
+// inference_timeout when set, so a slower host or a larger model does not
+// require a code change, otherwise the shipped default.
 func integrationInferenceTimeout() time.Duration {
-	raw := strings.TrimSpace(os.Getenv(integrationInferenceTimeoutEnv))
+	root, err := os.Getwd()
+	if err != nil {
+		return integrationInferenceTimeoutDefault
+	}
+	return inferenceTimeoutFrom(loadDemoConfigOrEmpty(root))
+}
+
+// inferenceTimeoutFrom parses the demo.yaml inference bound, falling back to
+// the default when the field is unset or unparseable. A bad value must not
+// silently become a 2s bound and resurrect GH-709.
+func inferenceTimeoutFrom(config demoConfig) time.Duration {
+	raw := strings.TrimSpace(config.InferenceTimeout)
 	if raw == "" {
 		return integrationInferenceTimeoutDefault
 	}
@@ -135,7 +136,7 @@ func startDetachedAgentWithEnv(launch agentLaunch) (func(kill bool) error, error
 		"--core-root", launch.CoreRoot,
 		"--otel-log-file", launch.TracePath,
 	}
-	endpoint := firstNonEmpty(launch.OTLPEndpoint, os.Getenv(integrationOTLPEndpointEnv))
+	endpoint := firstNonEmpty(launch.OTLPEndpoint, demoIntegrationOTLPEndpoint())
 	serviceName := firstNonEmpty(launch.ServiceName, profileServiceName(profile))
 	args = append(args, integrationTelemetryArgs(endpoint, serviceName)...)
 	cmd := exec.Command(launch.Binary, args...)
@@ -143,11 +144,11 @@ func startDetachedAgentWithEnv(launch agentLaunch) (func(kill bool) error, error
 	cmd.Stdout = os.Stderr
 	cmd.Stderr = os.Stderr
 	target := firstNonEmpty(launch.Target, profile)
-	runID := firstNonEmpty(launch.RunID, os.Getenv(integrationRunIDEnv))
+	runID := strings.TrimSpace(launch.RunID)
 	if runID == "" {
 		runID = generatedRunID(target)
 	}
-	commit := firstNonEmpty(launch.GitCommit, os.Getenv(integrationCommitEnv))
+	commit := strings.TrimSpace(launch.GitCommit)
 	if commit == "" {
 		commit = gitCommit(profilesRoot)
 	}
@@ -244,15 +245,9 @@ func integrationTelemetryArgs(endpoint, serviceName string) []string {
 }
 
 func hostIntegrationTelemetry(target, serviceName, repoRoot string) ([]string, string) {
-	endpoint := strings.TrimSpace(os.Getenv(integrationOTLPEndpointEnv))
-	runID := strings.TrimSpace(os.Getenv(integrationRunIDEnv))
-	if runID == "" {
-		runID = generatedRunID(target)
-	}
-	commit := strings.TrimSpace(os.Getenv(integrationCommitEnv))
-	if commit == "" {
-		commit = gitCommit(repoRoot)
-	}
+	endpoint := demoIntegrationOTLPEndpoint()
+	runID := generatedRunID(target)
+	commit := gitCommit(repoRoot)
 	return integrationTelemetryArgs(endpoint, serviceName),
 		"OTEL_RESOURCE_ATTRIBUTES=" + integrationResourceAttributes(target, runID, commit)
 }
@@ -326,9 +321,9 @@ func requestInference(method, url, body, work string) ([]byte, int, error) {
 	started := time.Now()
 	data, status, err := requestHTTPWithClient(integrationInferenceClient, method, url, body)
 	if err != nil {
-		return nil, 0, fmt.Errorf("%s at %s failed after %s (inference timeout %s, override with %s): %w",
+		return nil, 0, fmt.Errorf("%s at %s failed after %s (inference timeout %s, set inference_timeout in %s to change it): %w",
 			work, url, time.Since(started).Round(time.Millisecond),
-			integrationInferenceTimeout(), integrationInferenceTimeoutEnv, err)
+			integrationInferenceTimeout(), demoConfigFile, err)
 	}
 	return data, status, nil
 }

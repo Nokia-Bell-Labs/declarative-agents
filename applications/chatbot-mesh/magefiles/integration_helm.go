@@ -134,17 +134,11 @@ type helmTelemetryIdentity struct {
 }
 
 func newHelmTelemetryIdentity(repoRoot string) helmTelemetryIdentity {
-	runID := strings.TrimSpace(os.Getenv(integrationRunIDEnv))
-	if runID == "" {
-		runID = generatedRunID("integration:helmSmoke")
-	}
-	commit := strings.TrimSpace(os.Getenv(integrationCommitEnv))
-	if commit == "" {
-		commit = gitCommit(repoRoot)
-	}
-	endpoint := strings.TrimSpace(os.Getenv(integrationOTLPEndpointEnv))
+	runID := generatedRunID("integration:helmSmoke")
+	commit := gitCommit(repoRoot)
+	endpoint := demoIntegrationOTLPEndpoint()
 	if endpoint == "" {
-		endpoint = "host.docker.internal:" + envOrDefault("DA_OTEL_GRPC_PORT", "4317")
+		endpoint = "host.docker.internal:" + demoObservability().OTELGRPCPort
 	} else {
 		endpoint = strings.Replace(endpoint, "127.0.0.1", "host.docker.internal", 1)
 		endpoint = strings.Replace(endpoint, "localhost", "host.docker.internal", 1)
@@ -155,11 +149,11 @@ func newHelmTelemetryIdentity(repoRoot string) helmTelemetryIdentity {
 }
 
 func collectorQueryBase() string {
-	return "http://127.0.0.1:" + envOrDefault("DA_COLLECTOR_QUERY_PORT", "18193")
+	return "http://127.0.0.1:" + demoObservability().QueryPort
 }
 
 func collectorControlBase() string {
-	return "http://127.0.0.1:" + envOrDefault("DA_COLLECTOR_CONTROL_PORT", "18191")
+	return "http://127.0.0.1:" + demoObservability().ControlPort
 }
 
 func requireSharedObservability(timeout time.Duration) error {

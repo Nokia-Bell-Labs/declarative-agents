@@ -28,14 +28,29 @@ const (
 // demoConfig carries the optional, declarative overrides the chatbot-mesh
 // magefiles read from demo.yaml. Every field is optional: an absent file or an
 // unset field falls back to the monorepo default. Overriding a value means
-// editing this declaration, never an environment variable. (The DA_* collector
-// and integration variables are a separate injection contract, tracked in
-// GH-1251, and are not read here.)
+// editing this declaration, never an environment variable (GH-1251).
 type demoConfig struct {
 	CatalogRoot       string `yaml:"catalog_root"`
 	CoreRoot          string `yaml:"core_root"`
 	HelmDist          string `yaml:"helm_dist"`
 	SpecCriticProfile string `yaml:"spec_critic_profile"`
+
+	// Collector ingress endpoints: where the observability targets bind the
+	// collector and where the integration targets dial it.
+	OTELGRPCPort         string `yaml:"otel_grpc_port"`
+	CollectorControlPort string `yaml:"collector_control_port"`
+	CollectorMonitorPort string `yaml:"collector_monitor_port"`
+	CollectorQueryPort   string `yaml:"collector_query_port"`
+	CollectorBindHost    string `yaml:"collector_bind_host"`
+
+	// InferenceTimeout bounds one model call in the integration tracers, as a
+	// Go duration string ("45s", "3m"). Empty means the shipped default.
+	InferenceTimeout string `yaml:"inference_timeout"`
+
+	// IntegrationOTLPEndpoint is where integration launches export live
+	// telemetry when the target does not choose an endpoint itself. Empty
+	// keeps those launches file-only.
+	IntegrationOTLPEndpoint string `yaml:"integration_otlp_endpoint"`
 }
 
 // loadDemoConfig reads demo.yaml from the application root. A missing file is the
@@ -280,11 +295,59 @@ func siblingPath(applicationRoot, rel string) string {
 	return filepath.Clean(filepath.Join(applicationRoot, "..", "..", rel))
 }
 
-func envOrDefault(name, fallback string) string {
-	if value := strings.TrimSpace(os.Getenv(name)); value != "" {
-		return value
+// Collector ingress defaults. OTLP gRPC and the query surface are shared with
+// the agent-architecture demo's local collector, so the two cannot run at once
+// unless one is repointed in demo.yaml.
+const (
+	otelGRPCPortDefault         = "4317"
+	collectorControlPortDefault = "18191"
+	collectorMonitorPortDefault = "18192"
+	collectorQueryPortDefault   = "18193"
+	collectorBindHostDefault    = "0.0.0.0"
+)
+
+// observabilitySettings names the collector ingress endpoints the magefiles
+// use: the ports and bind host the observability targets hand the collector
+// child process, and the loopback ports the integration targets dial.
+type observabilitySettings struct {
+	OTELGRPCPort string
+	ControlPort  string
+	MonitorPort  string
+	QueryPort    string
+	BindHost     string
+}
+
+// observabilitySettingsFrom resolves the collector ingress endpoints from a
+// demo.yaml config, filling unset fields with the shipped defaults.
+func observabilitySettingsFrom(config demoConfig) observabilitySettings {
+	return observabilitySettings{
+		OTELGRPCPort: firstNonEmpty(config.OTELGRPCPort, otelGRPCPortDefault),
+		ControlPort:  firstNonEmpty(config.CollectorControlPort, collectorControlPortDefault),
+		MonitorPort:  firstNonEmpty(config.CollectorMonitorPort, collectorMonitorPortDefault),
+		QueryPort:    firstNonEmpty(config.CollectorQueryPort, collectorQueryPortDefault),
+		BindHost:     firstNonEmpty(config.CollectorBindHost, collectorBindHostDefault),
 	}
-	return fallback
+}
+
+// demoObservability resolves the collector ingress endpoints from demo.yaml in
+// the mage invocation directory, the application root every target runs from.
+func demoObservability() observabilitySettings {
+	root, err := os.Getwd()
+	if err != nil {
+		return observabilitySettingsFrom(demoConfig{})
+	}
+	return observabilitySettingsFrom(loadDemoConfigOrEmpty(root))
+}
+
+// demoIntegrationOTLPEndpoint resolves the live-export endpoint for
+// integration launches whose target does not choose one: demo.yaml
+// integration_otlp_endpoint, or empty, which keeps the launch file-only.
+func demoIntegrationOTLPEndpoint() string {
+	root, err := os.Getwd()
+	if err != nil {
+		return ""
+	}
+	return strings.TrimSpace(loadDemoConfigOrEmpty(root).IntegrationOTLPEndpoint)
 }
 
 // exitMachineFailed is the agent's exit code for a run whose machine reached a
