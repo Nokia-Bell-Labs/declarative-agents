@@ -94,12 +94,22 @@ const requiredGolangciLintMajor = 2
 
 const golangciLintInstallURL = "https://golangci-lint.run/welcome/install/"
 
-// Lint runs golangci-lint on the project after verifying a compatible binary.
+// Lint runs golangci-lint on the runtime and standalone Mage modules after
+// verifying a compatible binary.
 func Lint() error {
 	if err := checkGolangciLintVersion(requiredGolangciLintMajor); err != nil {
 		return err
 	}
-	return sh.Run("golangci-lint", "run", "./...")
+	for _, module := range []string{".", "magefiles"} {
+		cmd := exec.Command("golangci-lint", "run", "./...")
+		cmd.Dir = module
+		cmd.Stdout = os.Stdout
+		cmd.Stderr = os.Stderr
+		if err := cmd.Run(); err != nil {
+			return fmt.Errorf("lint %s: %w", module, err)
+		}
+	}
+	return nil
 }
 
 // checkGolangciLintVersion verifies a golangci-lint binary whose major version

@@ -13,10 +13,29 @@ linters:
   default: none
   enable:
     - errcheck      # every error is handled or intentionally discarded (go-style)
+    - forbidigo     # runtime and build configuration must not come from process env
     - govet
     - ineffassign
     - staticcheck
     - unused
+
+  settings:
+    forbidigo:
+      analyze-types: true
+      forbid:
+        - pattern: ^os\.Getenv$
+          msg: use explicit configuration instead of os.Getenv
+        - pattern: ^os\.LookupEnv$
+          msg: use explicit configuration instead of os.LookupEnv
+        - pattern: ^os\.Setenv$
+          msg: pass environment on the child command instead of os.Setenv
+
+  exclusions:
+    rules:
+      # Tests may stage process environment for child and re-exec helpers.
+      - path: _test\.go$
+        linters:
+          - forbidigo
 
 # Report every issue. The golangci-lint defaults (max-same-issues: 3,
 # max-issues-per-linter: 50) cap output, so identical-message findings such as

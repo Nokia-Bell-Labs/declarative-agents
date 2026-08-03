@@ -114,7 +114,7 @@ func (Integration) Rig() error {
 	cmd := exec.Command(binary, append(args, telemetryArgs...)...)
 	cmd.Dir = applicationRoot
 	cmd.Env = append(os.Environ(),
-		"PATH="+binDir+string(os.PathListSeparator)+os.Getenv("PATH"),
+		childPathWithPrefix(os.Environ(), binDir),
 		"AGENT_CATALOG_ROOT="+catalogRoot,
 		resourceEnv,
 	)

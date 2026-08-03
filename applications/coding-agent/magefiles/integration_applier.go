@@ -254,7 +254,7 @@ func startApplierAgent(binary, coreRoot, profilesRoot string, fakes *applierFake
 	cmd.Env = append(os.Environ(),
 		// The fakes are shell scripts, so the ordinary tools stay on PATH; the
 		// fakes' bin dir is prepended so helm and kubectl resolve to them.
-		"PATH="+fakes.binDir+string(os.PathListSeparator)+os.Getenv("PATH"),
+		childPathWithPrefix(os.Environ(), fakes.binDir),
 		// The workspace the values file lands in, matching what the chart sets
 		// from workspace.mountPath (APPLIER_WORK_DIR). Without it write_overrides
 		// resolves /work against a workspace that does not contain it and every

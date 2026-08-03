@@ -107,7 +107,9 @@ configuration:
   - Do not add mode-specific branches to cmd/agent when a profile, machine, or ToolDef can express the behavior.
   - Use typed config structs when decoding ToolDef config.
   - Keep compatibility paths explicit and tested.
-  - Sanctioned exception to the no-os.Getenv rule, outside cmd/agent, is the substitution feature in internal/tools/rest/envexpand.go (os.LookupEnv expands ${VAR:-default} references in mounted REST definitions from chart-injected values, not an ad-hoc config channel). magefiles/ may read build or CI env where no configuration alternative exists.
+  - The forbidigo gate enforces the process-environment read/write ban in every non-fixture Go module, including standalone magefiles modules. Production and Mage code SHALL NOT call os.Getenv, os.LookupEnv, or os.Setenv; _test.go files are excluded because tests may stage environment for child and re-exec helpers.
+  - The two annotated contract sites are internal/support/envexpand/envexpand.go, where os.LookupEnv expands ${VAR:-default} references in mounted declarations as required by srd013 R5.6/R5.7, and applications/chatbot-mesh/magefiles/integration_chroma.go, whose preflight mirrors that expansion before runtime loading.
+  - os.Environ is allowed for child-process inheritance. A caller may add environment entries on an exec.Cmd when a declared or third-party child contract requires them, including PATH prepends, KUBECONFIG, DOLT_ROOT_PATH, CGO_ENABLED, GOOS, DOCKER_BUILDKIT, and BD_NON_INTERACTIVE; those values do not authorize reading process environment as an application configuration channel.
 tool_language:
   rules:
   - MachineSpec owns workflow sequencing.
