@@ -114,9 +114,13 @@ func runReleaseGates(commit string) error {
 
 func releaseGates(root string) []releaseGate {
 	catalogRoot := filepath.Join(root, catalogModule)
-	return []releaseGate{
+	gates := []releaseGate{
 		{name: "root audit", dir: root, args: []string{"mage", "audit"}},
-		{name: "root test", dir: root, args: []string{"mage", "test"}},
+		// DA_RELEASE_GATE makes the UI reproducibility gate treat a missing npm
+		// as fatal rather than a developer skip (GH-1349), so a release cannot
+		// pass without rebuilding shipped UIs and auditing their dependencies.
+		{name: "root test", dir: root, args: []string{"mage", "test"},
+			env: []string{uiDistReleaseEnv + "=1"}},
 		{name: "agent-core integration", dir: filepath.Join(root, "agent-core"),
 			args: []string{"mage", "integration:all"}},
 		{name: "catalog integration", dir: catalogRoot,
@@ -124,6 +128,17 @@ func releaseGates(root string) []releaseGate {
 		{name: "catalog conformance", dir: catalogRoot,
 			args: []string{"mage", "conformance"}},
 	}
+	// Every released application module must enter the release gate through its
+	// own integration:all aggregate; otherwise an application is tagged without
+	// its application-owned integration evidence ever running (GH-1343).
+	for _, mod := range applicationModules {
+		gates = append(gates, releaseGate{
+			name: mod + " integration",
+			dir:  filepath.Join(root, filepath.FromSlash(mod)),
+			args: []string{"mage", "integration:all"},
+		})
+	}
+	return gates
 }
 
 func executeReleaseGates(gates []releaseGate, run releaseCommandRunner) error {

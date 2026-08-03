@@ -4,6 +4,7 @@ package evaluation
 
 import (
 	"fmt"
+	"sort"
 	"strings"
 )
 
@@ -39,8 +40,18 @@ type RunProgression struct {
 func Classify(snapshots []ToolSnapshot, succeeded bool) RunProgression {
 	byTool := groupSnapshotsByTool(snapshots)
 
+	// Iterate tools in a stable order so identical snapshots always produce the
+	// same serialized Tools array and Summary; a bare map range would order them
+	// nondeterministically (GH-1358).
+	tools := make([]string, 0, len(byTool))
+	for tool := range byTool {
+		tools = append(tools, tool)
+	}
+	sort.Strings(tools)
+
 	var progs []ToolProgression
-	for tool, snaps := range byTool {
+	for _, tool := range tools {
+		snaps := byTool[tool]
 		tp := ToolProgression{
 			Tool:      tool,
 			Snapshots: snaps,

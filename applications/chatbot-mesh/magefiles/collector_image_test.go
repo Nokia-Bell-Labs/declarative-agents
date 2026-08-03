@@ -12,6 +12,9 @@ import (
 
 func TestCollectorImplementationsRender(t *testing.T) {
 	t.Parallel()
+	if _, err := exec.LookPath("helm"); err != nil {
+		t.Skip("helm not on PATH")
+	}
 	chartDir := findChartDir(t)
 	tests := []struct {
 		implementation string

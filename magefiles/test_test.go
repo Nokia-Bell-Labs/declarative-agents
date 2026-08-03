@@ -138,6 +138,61 @@ func TestUnitSubModulesWrapsRunnerError(t *testing.T) {
 	}
 }
 
+// TestEveryMaintainedGoModuleIsDispatchedExactlyOnce is the orchestration guard:
+// every non-fixture Go module in the repository must be dispatched by the root
+// Test gate exactly once, including standalone nested modules like
+// design-patterns/magefiles and agent-core/magefiles (GH-1345).
+func TestEveryMaintainedGoModuleIsDispatchedExactlyOnce(t *testing.T) {
+	modules, err := discoverMaintainedGoModules("..")
+	if err != nil {
+		t.Fatalf("discoverMaintainedGoModules: %v", err)
+	}
+	if len(modules) == 0 {
+		t.Fatal("discovered no maintained Go modules; discovery is broken")
+	}
+
+	dispatch := map[string]int{}
+	for _, target := range testTargets() {
+		dispatch[filepath.ToSlash(target.module)]++
+	}
+
+	for _, mod := range modules {
+		if got := dispatch[mod]; got != 1 {
+			t.Errorf("maintained Go module %q dispatched %d time(s) by the Test gate, want exactly 1", mod, got)
+		}
+	}
+
+	// Guard the specific nested modules that motivated the fix so a regression
+	// that drops them from the registry fails loudly.
+	for _, nested := range []string{"agent-core/magefiles", "design-patterns/magefiles", "magefiles"} {
+		if !contains(modules, nested) {
+			t.Fatalf("discovery missed nested module %q; expected it under the repo root", nested)
+		}
+		if dispatch[nested] != 1 {
+			t.Errorf("nested module %q dispatched %d time(s), want exactly 1", nested, dispatch[nested])
+		}
+	}
+}
+
+// TestDiscoverMaintainedGoModulesExcludesFixtures proves fixture and vendored
+// modules under testdata/node_modules never enter the maintained-module set.
+func TestDiscoverMaintainedGoModulesExcludesFixtures(t *testing.T) {
+	root := t.TempDir()
+	writeGoMod(t, filepath.Join(root, "agent-core"))
+	writeGoMod(t, filepath.Join(root, "agent-core", "magefiles"))
+	writeGoMod(t, filepath.Join(root, "applications", "catalog", "testdata", "integration", "fixture"))
+	writeGoMod(t, filepath.Join(root, "ui", "node_modules", "dep"))
+
+	got, err := discoverMaintainedGoModules(root)
+	if err != nil {
+		t.Fatalf("discoverMaintainedGoModules: %v", err)
+	}
+	want := []string{"agent-core", "agent-core/magefiles"}
+	if !reflect.DeepEqual(got, want) {
+		t.Fatalf("discovered modules = %#v, want %#v", got, want)
+	}
+}
+
 func writeGoMod(t *testing.T, dir string) {
 	t.Helper()
 	mkdir(t, dir)

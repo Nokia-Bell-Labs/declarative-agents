@@ -4,6 +4,7 @@ package tracing
 
 import (
 	"context"
+	"sync"
 
 	"go.opentelemetry.io/otel/attribute"
 )
@@ -25,58 +26,102 @@ type RecordedSpan struct {
 
 // RecordingTracer captures all tracing calls in memory for test assertions.
 // It implements Tracer by recording spans, events, and attributes.
+//
+// A tracer and every child scope Push returns share one recorder through the
+// root pointer, so events and spans emitted through a child are visible on the
+// root the test holds. A mutex on the root guards recording, so concurrent
+// spans and events are race-safe; read the recorded slices after the recording
+// goroutines have joined.
 type RecordingTracer struct {
 	Events []RecordedEvent
 	Spans  []RecordedSpan
-	cur    int
+
+	root *RecordingTracer
+	mu   sync.Mutex
+	cur  int
 }
 
 // NewRecordingTracer creates a RecordingTracer with no active span.
-func NewRecordingTracer() *RecordingTracer { return &RecordingTracer{cur: -1} }
+func NewRecordingTracer() *RecordingTracer {
+	r := &RecordingTracer{cur: -1}
+	r.root = r
+	return r
+}
+
+// base returns the shared root recorder. A tracer built by NewRecordingTracer
+// is its own root; every child Push creates points back to that same root.
+func (r *RecordingTracer) base() *RecordingTracer {
+	if r.root != nil {
+		return r.root
+	}
+	return r
+}
 
 func (r *RecordingTracer) Push(name string, attrs ...attribute.KeyValue) (Tracer, func()) {
-	m := make(map[string]interface{})
-	for _, a := range attrs {
-		m[string(a.Key)] = AttrValue(a.Value)
+	base := r.base()
+	span := RecordedSpan{Name: name, Attrs: attrsToMap(attrs), SetAttrs: make(map[string]interface{})}
+
+	base.mu.Lock()
+	idx := len(base.Spans)
+	base.Spans = append(base.Spans, span)
+	base.mu.Unlock()
+
+	child := &RecordingTracer{root: base, cur: idx}
+	return child, func() {
+		base.mu.Lock()
+		base.Spans[idx].Completed = true
+		base.mu.Unlock()
 	}
-	idx := len(r.Spans)
-	r.Spans = append(r.Spans, RecordedSpan{Name: name, Attrs: m, SetAttrs: make(map[string]interface{})})
-	child := &RecordingTracer{Events: r.Events, Spans: r.Spans, cur: idx}
-	return child, func() { r.Spans[idx].Completed = true }
 }
 
 func (r *RecordingTracer) Event(name string, attrs ...attribute.KeyValue) {
-	m := make(map[string]interface{})
-	for _, a := range attrs {
-		m[string(a.Key)] = AttrValue(a.Value)
-	}
-	r.Events = append(r.Events, RecordedEvent{Name: name, Attrs: m})
+	base := r.base()
+	event := RecordedEvent{Name: name, Attrs: attrsToMap(attrs)}
+	base.mu.Lock()
+	base.Events = append(base.Events, event)
+	base.mu.Unlock()
 }
 
 func (r *RecordingTracer) SetAttributes(attrs ...attribute.KeyValue) {
-	if r.cur >= 0 && r.cur < len(r.Spans) {
+	base := r.base()
+	base.mu.Lock()
+	defer base.mu.Unlock()
+	if r.cur >= 0 && r.cur < len(base.Spans) {
 		for _, a := range attrs {
-			r.Spans[r.cur].SetAttrs[string(a.Key)] = AttrValue(a.Value)
+			base.Spans[r.cur].SetAttrs[string(a.Key)] = AttrValue(a.Value)
 		}
 	}
 }
 
 func (r *RecordingTracer) RecordError(_ error) {
-	if r.cur >= 0 && r.cur < len(r.Spans) {
-		r.Spans[r.cur].HasError = true
+	base := r.base()
+	base.mu.Lock()
+	defer base.mu.Unlock()
+	if r.cur >= 0 && r.cur < len(base.Spans) {
+		base.Spans[r.cur].HasError = true
 	}
 }
 
 func (r *RecordingTracer) Context() context.Context { return context.Background() }
 
-// FindEvent returns the first event with the given name, or nil.
+// FindEvent returns the first event with the given name, or nil. Call it after
+// recording completes; it reads the shared recorder without locking.
 func (r *RecordingTracer) FindEvent(name string) *RecordedEvent {
-	for i := range r.Events {
-		if r.Events[i].Name == name {
-			return &r.Events[i]
+	base := r.base()
+	for i := range base.Events {
+		if base.Events[i].Name == name {
+			return &base.Events[i]
 		}
 	}
 	return nil
+}
+
+func attrsToMap(attrs []attribute.KeyValue) map[string]interface{} {
+	m := make(map[string]interface{}, len(attrs))
+	for _, a := range attrs {
+		m[string(a.Key)] = AttrValue(a.Value)
+	}
+	return m
 }
 
 // AttrValue extracts a Go value from an OTel attribute.Value.

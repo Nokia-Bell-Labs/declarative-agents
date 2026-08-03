@@ -249,6 +249,9 @@ func TestCollectorExploreCapsFromConfig(t *testing.T) {
 
 // TestCollectorExploreEmptySpool proves both Explore routes answer a well-formed
 // empty aggregate rather than an error when no spans are spooled (srd020 AC7).
+// It inspects the full response schema — the heatmap shape and the group/rank
+// lists — with checked typed decoding, so a bare {} or a wrong-typed field
+// fails rather than passing on zero values.
 func TestCollectorExploreEmptySpool(t *testing.T) {
 	t.Parallel()
 	RequireCoreRoot(t)
@@ -258,18 +261,66 @@ func TestCollectorExploreEmptySpool(t *testing.T) {
 	if status != http.StatusOK {
 		t.Fatalf("stats status = %d, want 200 for empty spool", status)
 	}
+	requireKeys(t, stats, "heatmap", "matched", "exemplar_trace_ids",
+		"skipped_lines", "group_by", "groups", "dropped_groups", "dropped_span_total")
 	var matched int
-	_ = json.Unmarshal(stats["matched"], &matched)
+	if err := json.Unmarshal(stats["matched"], &matched); err != nil {
+		t.Fatalf("decode matched: %v", err)
+	}
 	if matched != 0 {
 		t.Errorf("empty-spool matched = %d, want 0", matched)
+	}
+	var heatmap struct {
+		TimeBucketBoundaries     []int64 `json:"time_bucket_boundaries"`
+		DurationBucketBoundaries []int64 `json:"duration_bucket_boundaries"`
+		Cells                    [][]int `json:"cells"`
+	}
+	if err := json.Unmarshal(stats["heatmap"], &heatmap); err != nil {
+		t.Fatalf("decode heatmap: %v", err)
+	}
+	// A well-formed empty heatmap has rectangular cells that sum to zero.
+	sum, width := 0, -1
+	for _, row := range heatmap.Cells {
+		if width == -1 {
+			width = len(row)
+		} else if len(row) != width {
+			t.Errorf("heatmap cells not rectangular: row width %d != %d", len(row), width)
+		}
+		for _, c := range row {
+			sum += c
+		}
+	}
+	if sum != 0 {
+		t.Errorf("empty-spool heatmap cells sum = %d, want 0", sum)
+	}
+	var groups []json.RawMessage
+	if err := json.Unmarshal(stats["groups"], &groups); err != nil {
+		t.Fatalf("decode groups: %v", err)
+	}
+	if len(groups) != 0 {
+		t.Errorf("empty-spool groups = %d, want 0", len(groups))
 	}
 
 	breakdown, status := getExplore(t, "http://"+queryAddr+"/query/spans/breakdown?selection_max_duration_ms=100")
 	if status != http.StatusOK {
 		t.Fatalf("breakdown status = %d, want 200 for empty spool", status)
 	}
+	requireKeys(t, breakdown, "inside_total", "outside_total",
+		"exemplar_trace_ids", "ranked", "dropped", "skipped_lines")
+	var inside, outside int
+	if err := json.Unmarshal(breakdown["inside_total"], &inside); err != nil {
+		t.Fatalf("decode inside_total: %v", err)
+	}
+	if err := json.Unmarshal(breakdown["outside_total"], &outside); err != nil {
+		t.Fatalf("decode outside_total: %v", err)
+	}
+	if inside != 0 || outside != 0 {
+		t.Errorf("empty-spool inside=%d outside=%d, want 0/0", inside, outside)
+	}
 	var ranked []json.RawMessage
-	_ = json.Unmarshal(breakdown["ranked"], &ranked)
+	if err := json.Unmarshal(breakdown["ranked"], &ranked); err != nil {
+		t.Fatalf("decode ranked: %v", err)
+	}
 	if len(ranked) != 0 {
 		t.Errorf("empty-spool ranked = %d, want 0", len(ranked))
 	}

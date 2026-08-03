@@ -4,7 +4,9 @@ package main
 
 import (
 	"encoding/json"
+	"math"
 	"slices"
+	"strings"
 	"testing"
 )
 
@@ -31,6 +33,89 @@ func TestParseRagQueryResponseChunksAndMetadata(t *testing.T) {
 	}
 	if resp.Trace.Iterations != 2 {
 		t.Fatalf("iterations = %d, want 2", resp.Trace.Iterations)
+	}
+	if err := resp.validateAlignment(); err != nil {
+		t.Fatalf("validateAlignment: %v", err)
+	}
+}
+
+func TestValidateAlignment(t *testing.T) {
+	tests := []struct {
+		name    string
+		body    string
+		wantErr string
+	}{
+		{
+			name: "aligned ids documents and distances pass",
+			body: `{"ids":[["a","b"]],"documents":[["doc a","doc b"]],"distances":[[0.1,0.9]]}`,
+		},
+		{
+			name:    "no ids array is rejected",
+			body:    `{"ids":[],"documents":[],"distances":[]}`,
+			wantErr: "no ids array",
+		},
+		{
+			name:    "missing documents outer dimension is rejected",
+			body:    `{"ids":[["a","b"]],"distances":[[0.1,0.9]]}`,
+			wantErr: "documents outer dimension",
+		},
+		{
+			name:    "missing distances outer dimension is rejected",
+			body:    `{"ids":[["a","b"]],"documents":[["doc a","doc b"]]}`,
+			wantErr: "distances outer dimension",
+		},
+		{
+			name:    "documents inner dimension mismatch is rejected",
+			body:    `{"ids":[["a","b"]],"documents":[["only one"]],"distances":[[0.1,0.9]]}`,
+			wantErr: "documents inner dimension",
+		},
+		{
+			name:    "distances inner dimension mismatch is rejected",
+			body:    `{"ids":[["a","b"]],"documents":[["doc a","doc b"]],"distances":[[0.1]]}`,
+			wantErr: "distances inner dimension",
+		},
+		{
+			name:    "empty document alongside an id is rejected",
+			body:    `{"ids":[["a","b"]],"documents":[["doc a","   "]],"distances":[[0.1,0.9]]}`,
+			wantErr: "empty document",
+		},
+		{
+			name: "non-finite distance is rejected",
+			// JSON has no Inf literal; a distance array shorter cannot express it,
+			// so drive it through a constructed response below instead.
+			body:    "",
+			wantErr: "non-finite distance",
+		},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			var resp ragQueryResponse
+			if tt.body == "" {
+				// Construct a non-finite distance directly since JSON lacks Inf.
+				resp = ragQueryResponse{
+					IDs:       [][]string{{"a"}},
+					Documents: [][]string{{"doc a"}},
+					Distances: [][]float64{{math.Inf(1)}},
+				}
+			} else {
+				var err error
+				resp, err = parseRagQueryResponse([]byte(tt.body))
+				if err != nil {
+					t.Fatalf("parse: %v", err)
+				}
+			}
+			err := resp.validateAlignment()
+			if tt.wantErr == "" {
+				if err != nil {
+					t.Fatalf("validateAlignment: unexpected error %v", err)
+				}
+				return
+			}
+			if err == nil || !strings.Contains(err.Error(), tt.wantErr) {
+				t.Fatalf("validateAlignment error = %v, want containing %q", err, tt.wantErr)
+			}
+		})
 	}
 }
 

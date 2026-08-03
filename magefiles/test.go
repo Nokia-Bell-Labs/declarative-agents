@@ -7,6 +7,7 @@ import (
 	"os"
 	"os/exec"
 	"path/filepath"
+	"sort"
 	"strings"
 )
 
@@ -18,24 +19,92 @@ var Aliases = map[string]interface{}{
 type unitTestRunner func(string) error
 type moduleTestDetector func(string) (bool, error)
 
-// Test runs unit tests for every participating module: platform sub-modules
-// through their mage test target, then application modules through go test (they
-// own Go tests but expose no mage test target).
+// testTarget pairs a module directory with the command that runs its tests.
+type testTarget struct {
+	module string
+	run    unitTestRunner
+}
+
+// nestedTestModules are standalone Go modules that live inside another module's
+// directory tree, so neither `go test ./...` in the parent nor the parent's
+// mage test target reaches them; each carries its own go.mod. Without explicit
+// dispatch their tests never gate a release (GH-1345): the root magefiles
+// (shared kindrig packages), agent-core's magefiles, and the design-patterns
+// magefiles (which is the design-patterns module itself, its go.mod nested
+// under magefiles).
+var nestedTestModules = []string{
+	"magefiles",
+	"agent-core/magefiles",
+	"design-patterns/magefiles",
+}
+
+// testTargets is the single registry of module directories the root Test gate
+// runs, each paired with its command. Platform sub-modules run through their
+// mage test target; application and standalone nested modules run through
+// `go test`. Every maintained non-fixture Go module must appear here exactly
+// once (TestEveryMaintainedGoModuleIsDispatchedExactlyOnce).
+func testTargets() []testTarget {
+	targets := make([]testTarget, 0,
+		len(subModules)+len(applicationModules)+len(nestedTestModules))
+	for _, m := range subModules {
+		targets = append(targets, testTarget{module: m, run: runMageTest})
+	}
+	for _, m := range applicationModules {
+		targets = append(targets, testTarget{module: m, run: runGoUnitTests})
+	}
+	for _, m := range nestedTestModules {
+		targets = append(targets, testTarget{module: m, run: runGoUnitTests})
+	}
+	return targets
+}
+
+// Test runs unit tests for every participating module from the single
+// testTargets registry: platform sub-modules through their mage test target,
+// application and standalone nested modules through go test.
 func Test() error {
-	if err := testSubModules(subModules, moduleHasGoTests, runMageTest); err != nil {
-		return err
-	}
-	if err := testSubModules(applicationModules, moduleHasGoTests, runGoUnitTests); err != nil {
-		return err
-	}
-	// The root magefiles module carries shared packages (kindrig); it is in
-	// neither module list, so without this step its tests never gate a release.
-	if err := testSubModules([]string{"magefiles"}, moduleHasGoTests, runGoUnitTests); err != nil {
-		return err
+	for _, target := range testTargets() {
+		if err := testSubModules([]string{target.module}, moduleHasGoTests, target.run); err != nil {
+			return err
+		}
 	}
 	// Shipped UI reproducibility gate: fail if a tracked dist no longer matches a
 	// clean source build (GH-518). Skips cleanly where node/npm is absent.
 	return UIDist()
+}
+
+// discoverMaintainedGoModules returns every non-fixture Go module directory
+// under root (relative, slash-separated), skipping fixture and vendored trees.
+// It is the source of truth the orchestration test compares the dispatch
+// registry against, so a newly added maintained module cannot silently escape
+// the test gate.
+func discoverMaintainedGoModules(root string) ([]string, error) {
+	var modules []string
+	err := filepath.WalkDir(root, func(path string, entry os.DirEntry, err error) error {
+		if err != nil {
+			return err
+		}
+		if entry.IsDir() {
+			switch entry.Name() {
+			case ".git", "node_modules", "testdata", "generated-files":
+				return filepath.SkipDir
+			}
+			return nil
+		}
+		if entry.Name() != "go.mod" {
+			return nil
+		}
+		rel, relErr := filepath.Rel(root, filepath.Dir(path))
+		if relErr != nil {
+			return relErr
+		}
+		modules = append(modules, filepath.ToSlash(rel))
+		return nil
+	})
+	if err != nil {
+		return nil, err
+	}
+	sort.Strings(modules)
+	return modules, nil
 }
 
 // TestUnit is a compatibility target for mage test:unit; use Test for release gates.

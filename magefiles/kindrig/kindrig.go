@@ -102,6 +102,56 @@ func EnsureCluster(run Runner, name, configPath string, wait time.Duration) (Clu
 	return Cluster{Name: name, Created: true}, nil
 }
 
+// CaptureRun runs a kind subcommand and returns only its captured combined
+// output without mirroring to the terminal. It is used for subcommands whose
+// output is data to consume (like `get kubeconfig`) rather than progress to
+// stream, so the kubeconfig is not leaked onto the terminal.
+func CaptureRun(args ...string) ([]byte, error) {
+	return exec.Command("kind", args...).CombinedOutput()
+}
+
+// Kubeconfig fetches the named cluster's kubeconfig via `kind get kubeconfig`
+// and writes it to a private temporary file, returning its path and a cleanup
+// func. Binding every Helm/kubectl/port-forward subprocess to this file (see
+// BindKubeconfig) is what keeps a reused, pre-existing cluster's commands off
+// the ambient current context, which can point at an unrelated cluster and
+// cause a live integration to mutate it (GH-1341).
+func Kubeconfig(run Runner, name string) (string, func(), error) {
+	out, err := run("get", "kubeconfig", "--name", name)
+	if err != nil {
+		return "", nil, fmt.Errorf("kind get kubeconfig %s: %w: %s", name, err, strings.TrimSpace(string(out)))
+	}
+	if len(bytes.TrimSpace(out)) == 0 {
+		return "", nil, fmt.Errorf("kind get kubeconfig %s: empty kubeconfig", name)
+	}
+	dir, err := os.MkdirTemp("", "kindrig-kubeconfig-*")
+	if err != nil {
+		return "", nil, fmt.Errorf("kind kubeconfig %s temp dir: %w", name, err)
+	}
+	path := filepath.Join(dir, "config")
+	if err := os.WriteFile(path, out, 0o600); err != nil {
+		_ = os.RemoveAll(dir)
+		return "", nil, fmt.Errorf("write kind kubeconfig %s: %w", name, err)
+	}
+	return path, func() { _ = os.RemoveAll(dir) }, nil
+}
+
+// BindKubeconfig points the process (and thus every child kubectl/helm/kind
+// subprocess that inherits the environment) at the given kubeconfig by setting
+// KUBECONFIG. It returns a restore func that reinstates the prior value, so a
+// scenario's cluster binding does not leak past its own lifetime.
+func BindKubeconfig(path string) func() {
+	previous, had := os.LookupEnv("KUBECONFIG")
+	_ = os.Setenv("KUBECONFIG", path)
+	return func() {
+		if had {
+			_ = os.Setenv("KUBECONFIG", previous)
+			return
+		}
+		_ = os.Unsetenv("KUBECONFIG")
+	}
+}
+
 // Release deletes the cluster only when this run created it. A cleanup failure
 // is reported but not fatal: the target's own result is what matters.
 func (c Cluster) Release(run Runner) {

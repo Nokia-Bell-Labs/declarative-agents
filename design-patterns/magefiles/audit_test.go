@@ -227,6 +227,65 @@ func TestClaimedBehavior(t *testing.T) { t.Fatal("behavior regressed") }
 	}
 }
 
+func TestReferenceEvidenceRejectsSelectorMatchingNoExecutedTest(t *testing.T) {
+	root := t.TempDir()
+	writeAuditFixture(t, filepath.Join(root, "go.mod"), "module fixture\n\ngo 1.26\n")
+	writeAuditFixture(t, filepath.Join(root, "greet.go"), "package fixture\n\nfunc Greet() string { return \"hi\" }\n")
+	// The test is syntactically a valid Test* function (so it passes the AST
+	// gate) but a build constraint excludes it from the compiled package. The
+	// package still builds (greet.go), so `go test -run` matches nothing and
+	// exits 0 with "no tests to run" — the false-green the audit must reject.
+	writeAuditFixture(t, filepath.Join(root, "claim_test.go"), `//go:build never
+
+package fixture
+import "testing"
+func TestClaimedBehavior(t *testing.T) {}
+`)
+	check := evidenceCheck{
+		Path: "claim_test.go", Artifact: "go_test",
+		Assertion: "go_test", Test: "TestClaimedBehavior",
+	}
+	err := runEvidenceCheck(root, "no executed test", check)
+	if err == nil || !strings.Contains(err.Error(), "no executed test") {
+		t.Fatalf("error = %v, want rejection of a selector that runs zero tests", err)
+	}
+}
+
+func TestReferenceEvidenceAcceptsExecutedPassingTest(t *testing.T) {
+	root := t.TempDir()
+	writeAuditFixture(t, filepath.Join(root, "go.mod"), "module fixture\n\ngo 1.26\n")
+	writeAuditFixture(t, filepath.Join(root, "claim_test.go"), `package fixture
+import "testing"
+func TestClaimedBehavior(t *testing.T) {}
+`)
+	check := evidenceCheck{
+		Path: "claim_test.go", Artifact: "go_test",
+		Assertion: "go_test", Test: "TestClaimedBehavior",
+	}
+	if err := runEvidenceCheck(root, "passing behavior", check); err != nil {
+		t.Fatalf("error = %v, want an executed passing test to satisfy evidence", err)
+	}
+}
+
+func TestReferenceEvidenceRejectsNonTestingTParameter(t *testing.T) {
+	root := t.TempDir()
+	writeAuditFixture(t, filepath.Join(root, "go.mod"), "module fixture\n\ngo 1.26\n")
+	// The parameter is a pointer to a local type, not testing.T, so it must
+	// not be accepted as a Go test even though it is named Test*.
+	writeAuditFixture(t, filepath.Join(root, "claim_test.go"), `package fixture
+type impostor struct{}
+func TestClaimedBehavior(t *impostor) {}
+`)
+	check := evidenceCheck{
+		Path: "claim_test.go", Artifact: "go_test",
+		Assertion: "go_test", Test: "TestClaimedBehavior",
+	}
+	err := runEvidenceCheck(root, "impostor parameter", check)
+	if err == nil || !strings.Contains(err.Error(), "testing.T parameter") {
+		t.Fatalf("error = %v, want rejection of a non-testing.T parameter", err)
+	}
+}
+
 func TestReferenceEvidenceRejectsBehaviorallyFalseYAMLRelationship(t *testing.T) {
 	root := t.TempDir()
 	writeAuditFixture(t, filepath.Join(root, "a.yaml"),

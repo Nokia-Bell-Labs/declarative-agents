@@ -142,7 +142,7 @@ test_cases:
 
   - use_case: rel13.0-uc001-collector-family
     name: Collector UI dist reproduces from a clean source build
-    go_test: mage uiDist
+    go_test: cd ../.. && mage uiDist
     status: implemented
     description: |
       The tracked dist directory matches the output of a clean npm ci + build

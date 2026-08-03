@@ -231,7 +231,7 @@ test_cases:
   - use_case: rel06.0-uc001-declarative-applier
     name: A broken rollout read is distinguishable from a progressing one, and the counts reach the panel
     integration_target: mage test (magefiles/applier_rollout_test.go, magefiles/provisioning_workflow_orchestrator_intake_test.go, GH-686)
-    go_test: TestApplierRolloutMachineSeparatesBrokenRead, TestApplierRolloutEndpointMapsThreeOutcomes, TestApplierRolloutTerminalMappingsAgree, TestApplierRolloutCountsWordContract, TestApplierRolloutCountsRenderJSON, TestRolloutCountsSurviveTheCreatorHop, TestRolloutCountsSurviveTheProvisioning Workflow OrchestratorHop, TestPanelRolloutInterfaceMatchesWhatIsServed
+    go_test: TestApplierRolloutMachineSeparatesBrokenRead, TestApplierRolloutEndpointMapsThreeOutcomes, TestApplierRolloutTerminalMappingsAgree, TestApplierRolloutCountsWordContract, TestApplierRolloutCountsRenderJSON, TestRolloutCountsSurviveTheCreatorHop, TestRolloutCountsSurviveTheProvisioningWorkflowOrchestratorHop, TestPanelRolloutInterfaceMatchesWhatIsServed
     status: done
     description: |
       Asserts over the declared profiles that the rollout read reaches three
@@ -262,7 +262,7 @@ test_cases:
   - use_case: rel06.0-uc001-declarative-applier
     name: The rendered chart routes provisioning to the provisioning-workflow-orchestrator
     integration_target: mage test (magefiles/provisioning_route_render_test.go, GH-681)
-    go_test: TestProvisioningIngressRoutesToTheProvisioning Workflow Orchestrator, TestApplierApplyStaysCreatorOnly, TestProvisioning Workflow OrchestratorAdmitsOnlyTheIngressControllerOnIntent, TestNoProvisioningRouteWithoutTheControlPlane
+    go_test: TestProvisioningIngressRoutesToTheProvisioningWorkflowOrchestrator, TestApplierApplyStaysCreatorOnly, TestProvisioningWorkflowOrchestratorAdmitsOnlyTheIngressControllerOnIntent, TestNoProvisioningRouteWithoutTheControlPlane
     status: done
     description: |
       Asserts over the rendered chart, not the template text, that browser

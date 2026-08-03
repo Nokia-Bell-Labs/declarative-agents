@@ -32,7 +32,7 @@ preconditions:
 test_cases:
   - use_case: rel06.0-uc002-profile-validation
     name: Profile validation resolves migrated profile references
-    go_test: go test ./magefiles -run 'Test(ValidateProfilesResolvesExternalCoreToolRefs|DiscoverProfilesIncludesVariants|ValidateProfilesValidatesProfileVariants|ValidateProfilesRejectsCopiedCoreAgentRefs|ValidateProfilesReportsMissingReference)$'
+    go_test: go test ./magefiles -run 'Test(ValidatePortableProfileRefsResolvesExternalCoreToolRefs|DiscoverProfilesIncludesVariants|ValidatePortableProfileRefsValidatesProfileVariants|ValidatePortableProfileRefsRejectsCopiedCoreAgentRefs|ValidatePortableProfileRefsReportsMissingReference)$'
     integration_target: mage validate
     status: implemented
     description: |

@@ -6,6 +6,7 @@ import (
 	"errors"
 	"os"
 	"os/exec"
+	"path/filepath"
 	"reflect"
 	"strings"
 	"testing"
@@ -327,16 +328,68 @@ func TestReleaseGatesMatchDocumentedContract(t *testing.T) {
 	got := releaseGates(root)
 	want := []releaseGate{
 		{name: "root audit", dir: root, args: []string{"mage", "audit"}},
-		{name: "root test", dir: root, args: []string{"mage", "test"}},
+		{name: "root test", dir: root, args: []string{"mage", "test"},
+			env: []string{uiDistReleaseEnv + "=1"}},
 		{name: "agent-core integration", dir: "/release/agent-core",
 			args: []string{"mage", "integration:all"}},
 		{name: "catalog integration", dir: "/release/applications/catalog",
 			args: []string{"mage", "integration:all"}},
 		{name: "catalog conformance", dir: "/release/applications/catalog",
 			args: []string{"mage", "conformance"}},
+		{name: "applications/chatbot-mesh integration", dir: "/release/applications/chatbot-mesh",
+			args: []string{"mage", "integration:all"}},
+		{name: "applications/coding-agent integration", dir: "/release/applications/coding-agent",
+			args: []string{"mage", "integration:all"}},
+		{name: "applications/agent-architecture integration", dir: "/release/applications/agent-architecture",
+			args: []string{"mage", "integration:all"}},
 	}
 	if !reflect.DeepEqual(got, want) {
 		t.Fatalf("release gates = %#v, want %#v", got, want)
+	}
+}
+
+// TestRootTestReleaseGateSignalsReleaseMode guards that the root test gate
+// carries the release-mode env so UIDist treats a missing npm as fatal rather
+// than a skip (GH-1349); without it a release could pass without rebuilding
+// shipped UIs or auditing their dependencies.
+func TestRootTestReleaseGateSignalsReleaseMode(t *testing.T) {
+	for _, g := range releaseGates("/release") {
+		if g.name != "root test" {
+			continue
+		}
+		for _, e := range g.env {
+			if e == uiDistReleaseEnv+"=1" {
+				return
+			}
+		}
+		t.Fatalf("root test gate env = %v, missing %s=1", g.env, uiDistReleaseEnv)
+	}
+	t.Fatal("no root test release gate found")
+}
+
+// TestReleaseGatesCoverEveryApplicationModule is the orchestration guard: every
+// released application module must participate in the release gate through its
+// own integration:all aggregate, so a released application can never be tagged
+// without its integration evidence running (GH-1343).
+func TestReleaseGatesCoverEveryApplicationModule(t *testing.T) {
+	gates := releaseGates("/release")
+	for _, mod := range applicationModules {
+		wantGate := releaseGate{
+			name: mod + " integration",
+			dir:  filepath.Join("/release", filepath.FromSlash(mod)),
+			args: []string{"mage", "integration:all"},
+		}
+		found := false
+		for _, g := range gates {
+			if reflect.DeepEqual(g, wantGate) {
+				found = true
+				break
+			}
+		}
+		if !found {
+			t.Fatalf("release gates missing integration:all participant for application module %q; gates = %#v",
+				mod, gates)
+		}
 	}
 }
 

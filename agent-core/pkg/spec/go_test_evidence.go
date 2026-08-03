@@ -111,7 +111,41 @@ func (inv *GoTestInventory) checkEvidence(raw string) string {
 	if names, ok := bareTestNames(evidence); ok {
 		return inv.checkBareNames(names)
 	}
+	// The value parsed neither as a go test command nor as a valid bare-name
+	// list. If it is nonetheless an intended Go-test reference — every
+	// comma-separated member begins with the "Test" prefix — it is malformed
+	// (embedded spaces, a stale global rename, etc.) and must be reported
+	// rather than silently treated as descriptive prose, which would leave the
+	// formal suite green while the reference proves nothing (GH-1350).
+	if problem := malformedTestNameList(evidence); problem != "" {
+		return problem
+	}
 	return "" // descriptive evidence, not a validated form
+}
+
+// malformedTestNameList reports a problem when evidence looks like an intended
+// comma-separated list of bare Go test names — every member begins with "Test"
+// — but at least one member is not a valid top-level test identifier. When any
+// member does not begin with "Test", the value is treated as descriptive
+// evidence (returns ""), keeping the validator conservative about prose.
+func malformedTestNameList(evidence string) string {
+	parts := strings.Split(evidence, ",")
+	var malformed []string
+	for _, p := range parts {
+		name := strings.TrimSpace(p)
+		if name == "" || !strings.HasPrefix(name, "Test") {
+			return "" // not an intended test-name list; leave as prose
+		}
+		if !goTestNameRE.MatchString(name) {
+			malformed = append(malformed, fmt.Sprintf("%q", name))
+		}
+	}
+	if len(malformed) == 0 {
+		return "" // a well-formed list is handled by bareTestNames
+	}
+	return fmt.Sprintf("malformed Go test name %s (not a valid top-level test "+
+		"identifier); use a bare Test name, a comma-separated list of them, or a "+
+		"`go test` command", strings.Join(malformed, ", "))
 }
 
 // skipGoTestEvidence reports whether evidence is Mage or a shell pipeline, which
@@ -277,11 +311,13 @@ func (inv *GoTestInventory) checkRunPattern(pattern string, pkgs []string) strin
 	if idx := strings.IndexByte(pattern, '/'); idx >= 0 {
 		top = pattern[:idx]
 	}
-	// Each top-level alternation branch names a separate proof, so each must
-	// match. Checking only the whole pattern lets one branch match while another
-	// names a test that does not exist: the command still runs something, so it
-	// exits green while the missing proof goes unreported (GH-592).
-	for _, branch := range topLevelBranches(top) {
+	// Each alternation branch names a separate proof, so each must match.
+	// Checking only the whole pattern lets one branch match while another names
+	// a test that does not exist: the command still runs something, so it exits
+	// green while the missing proof goes unreported. This covers both top-level
+	// alternation (GH-592) and a grouped explicit-name alternation such as
+	// Test(A|B|C)$ (GH-1353), which expands to its individual named proofs.
+	for _, branch := range explicitNameBranches(top) {
 		re, err := regexp.Compile(branch)
 		if err != nil {
 			return fmt.Sprintf("invalid -run regex %q: %v", pattern, err)
@@ -308,50 +344,6 @@ func (inv *GoTestInventory) matchesAny(re *regexp.Regexp, pkgs []string) bool {
 		}
 	}
 	return false
-}
-
-// topLevelBranches splits a -run pattern on alternation that is not inside a
-// group, so "TestA|TestB" yields two proofs while "Test(A|B)" stays one. Group
-// alternation is a shared-prefix shorthand rather than separate names, and
-// expanding it would mean reimplementing regex expansion, so it is left whole.
-// An unbalanced pattern is returned as a single branch and fails later at
-// compile, where the error names the real problem.
-func topLevelBranches(pattern string) []string {
-	var branches []string
-	var current strings.Builder
-	depth := 0
-	for i := 0; i < len(pattern); i++ {
-		switch ch := pattern[i]; ch {
-		case '\\':
-			current.WriteByte(ch)
-			if i+1 < len(pattern) {
-				i++
-				current.WriteByte(pattern[i])
-			}
-			continue
-		case '(', '[':
-			depth++
-		case ')', ']':
-			depth--
-		case '|':
-			if depth == 0 {
-				branches = append(branches, current.String())
-				current.Reset()
-				continue
-			}
-		}
-		current.WriteByte(pattern[i])
-	}
-	branches = append(branches, current.String())
-	if depth != 0 {
-		return []string{pattern}
-	}
-	for _, b := range branches {
-		if strings.TrimSpace(b) == "" {
-			return []string{pattern} // an empty branch matches everything; do not split
-		}
-	}
-	return branches
 }
 
 // stripQuotes removes a single matching pair of surrounding single or double
