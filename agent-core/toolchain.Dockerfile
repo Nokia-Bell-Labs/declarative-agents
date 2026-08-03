@@ -20,7 +20,10 @@ USER root
 # base runtime set (srd003 R1.2 already ships bash/coreutils/git/grep/sed/tar/... in
 # the production agent-core image); apk add is a no-op for packages the base already
 # carries and backfills them when the base is the minimal local agent-core.
-RUN apk add --no-cache git make
+# agent-core narrows PATH to /usr/local/bin:/usr/bin:/bin, which excludes the
+# /sbin that holds alpine's apk; restore the sbin dirs for this layer so apk
+# resolves (GH-1404).
+RUN PATH="/usr/local/sbin:/usr/sbin:/sbin:${PATH}" apk add --no-cache git make
 # The Go toolchain and linter the executor's exec words run.
 COPY --from=toolchain /usr/local/go /usr/local/go
 COPY --from=toolchain /out/golangci-lint /usr/local/bin/golangci-lint
