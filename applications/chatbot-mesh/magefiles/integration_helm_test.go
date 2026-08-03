@@ -79,27 +79,40 @@ func TestCollectorKindOverlayExportsBothSignalsWithRunIdentity(t *testing.T) {
 		t.Fatalf("helm template kind overlay: %v\n%s", err, out)
 	}
 	render := string(out)
+	// Agent mode relays both signals through the declarative collector to the host
+	// ingress and tags each agent's telemetry with the integration run identity via
+	// OTEL_RESOURCE_ATTRIBUTES; metrics ride the same agent collector as traces
+	// (GH-1207, GH-1366).
 	for _, want := range []string{
-		"otlp/external:",
-		`endpoint: "host.docker.internal:4317"`,
-		"resource/integration:",
-		"key: test.repository",
-		`value: "Nokia-Bell-Labs/declarative-agents"`,
-		"key: test.module",
-		"key: test.target",
-		"key: vcs.ref.head.revision",
-		"key: test.run.id",
-		"metrics:",
-		"prometheus/dolt:",
-		`t-chatbot-mesh-dolt:11228`,
+		"COLLECTOR_RELAY_ENDPOINT",
+		`value: "host.docker.internal:4317"`,
+		"COLLECTOR_MODE",
+		"OTEL_RESOURCE_ATTRIBUTES",
+		"test.repository=Nokia-Bell-Labs/declarative-agents",
+		"test.module=applications/chatbot-mesh",
+		"test.target=integration:helm",
+		"vcs.ref.head.revision=unknown",
+		"test.run.id=local-kind",
 		"CHROMA_OPEN_TELEMETRY__ENDPOINT",
-		`http://t-chatbot-mesh-collector-metrics:4317`,
+		`http://t-chatbot-mesh-collector:4317`,
 		"CHROMA_OPEN_TELEMETRY__SERVICE_NAME",
 		`value: "rag0-chroma"`,
-		`args: ["--config", "/etc/dolt/config.yaml"]`,
 	} {
 		if !strings.Contains(render, want) {
 			t.Errorf("kind collector render missing %q", want)
+		}
+	}
+	// The agent collector owns metric intake, so no contrib collector, no separate
+	// metrics gateway, and no in-cluster Dolt Prometheus scrape are rendered.
+	for _, notWant := range []string{
+		"opentelemetry-collector-contrib",
+		"collector-metrics",
+		"prometheus/dolt:",
+		"otlp/external:",
+		"resource/integration:",
+	} {
+		if strings.Contains(render, notWant) {
+			t.Errorf("kind agent-mode render unexpectedly contains %q", notWant)
 		}
 	}
 }
@@ -252,6 +265,43 @@ func TestCollectSharedMetricsEvidenceRetainsAgentAndDolt(t *testing.T) {
 		!containsString(evidence.DoltMetrics, "dss_concurrent_queries") {
 		t.Fatalf("metric evidence missing: agent=%v dolt=%v",
 			evidence.AgentMetrics, evidence.DoltMetrics)
+	}
+}
+
+// TestCollectSharedMetricsEvidenceAgentModeNeedsNoDolt proves the GH-1366
+// retirement: with the contrib Dolt scrape gone in agent mode, evidence passes on
+// the agent metric alone and surfaces no Dolt metrics.
+func TestCollectSharedMetricsEvidenceAgentModeNeedsNoDolt(t *testing.T) {
+	started := time.Now().Add(-time.Minute)
+	const runID = "run-agent"
+	collector := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		if r.URL.Path == "/query/metrics" {
+			_ = json.NewEncoder(w).Encode(map[string]any{"metrics": []map[string]any{
+				{"name": "dispatch_count", "services": []string{"chatbot", "rag0"}},
+			}})
+			return
+		}
+		_ = json.NewEncoder(w).Encode(map[string]any{
+			"metric_name": strings.TrimPrefix(r.URL.Path, "/query/metrics/"),
+			"records": []map[string]any{{"metric": map[string]any{
+				"resource": []map[string]any{{"key": "test_run_id", "value": runID}},
+			}}},
+			"record_count": 1,
+		})
+	}))
+	defer collector.Close()
+
+	evidence, err := collectSharedMetricsEvidence(collector.URL, helmTelemetryIdentity{
+		RunID: runID, Started: started,
+	})
+	if err != nil {
+		t.Fatalf("agent-mode metric evidence should not require Dolt metrics: %v", err)
+	}
+	if !containsString(evidence.AgentMetrics, "dispatch_count") {
+		t.Fatalf("missing agent metric: %v", evidence.AgentMetrics)
+	}
+	if len(evidence.DoltMetrics) != 0 {
+		t.Fatalf("agent mode should surface no Dolt metrics, got %v", evidence.DoltMetrics)
 	}
 }
 

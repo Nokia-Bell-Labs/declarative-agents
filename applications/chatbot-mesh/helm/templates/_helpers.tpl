@@ -89,11 +89,13 @@ have ready. busybox supplies wget and grep.
 {{- end -}}
 
 {{/*
-Metrics remain on collector-contrib while agent owns trace ingress.
+In agent mode the declarative collector owns both trace and OTLP metric intake
+(GH-1207), so agents export metrics to the same collector service as traces; the
+contrib collector-metrics gateway is retired (GH-1366).
 */}}
 {{- define "chatbot-mesh.otlpMetricEndpoint" -}}
 {{- if and .Values.collector.enabled (eq .Values.collector.implementation "agent") -}}
-{{ include "chatbot-mesh.fullname" . }}-collector-metrics:{{ .Values.collector.otlpGRPCPort }}
+{{ include "chatbot-mesh.fullname" . }}-collector:{{ .Values.collector.otlpGRPCPort }}
 {{- end -}}
 {{- end -}}
 

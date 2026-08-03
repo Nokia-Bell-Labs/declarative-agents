@@ -7,7 +7,7 @@ traces: [rel07.0-uc001-collector-ingress]
 preconditions:
   - agent-core srd042 receiver, await, spool, relay, and stop words are available.
   - The collector profile exports its process telemetry to file only.
-  - The staged chart keeps contrib running for OTLP metrics and Dolt scraping.
+  - The default agent chart routes both traces and OTLP metrics to the collector agent; no contrib metrics gateway or in-cluster Dolt scrape is deployed (GH-1207, GH-1366).
 
 test_cases:
   - use_case: rel07.0-uc001-collector-ingress
@@ -69,15 +69,15 @@ test_cases:
     traces: [rel07.0-uc001-collector-ingress S5, srd007-collector-agent AC5]
 
   - use_case: rel07.0-uc001-collector-ingress
-    name: Agent trace mode retains contrib metrics and Dolt scraping
+    name: Agent mode routes traces and OTLP metrics through the collector agent
     integration_target: mage integration:helmSmoke
     status: implemented
-    description: The rendered and live staged topology sends traces through the collector agent while agent metrics and Dolt scrape samples remain available through contrib.
+    description: The rendered and live agent topology sends both traces and OTLP metrics through the collector agent; no contrib gateway is deployed and the in-cluster Dolt Prometheus scrape is retired (GH-1366).
     expected:
       trace_ingress: collector_agent
-      metric_ingress: contrib
+      metric_ingress: collector_agent
       agent_metrics_available: true
-      dolt_metrics_available: true
+      dolt_metrics_available: false
       combined_health_required: true
     traces: [rel07.0-uc001-collector-ingress S6, srd007-collector-agent AC6, srd003-chatbot-deployment AC5]
 
@@ -85,7 +85,7 @@ test_cases:
     name: Persistent evidence survives mesh teardown
     integration_target: mage integration:observabilityEvidence
     status: implemented
-    description: After chart and cluster teardown, representative trace ids, service/run identity, agent metrics, and Dolt metrics remain queryable.
+    description: After chart and cluster teardown, representative trace ids, service/run identity, and agent metrics remain queryable; Dolt metrics apply only under the opt-in contrib collector (GH-1366).
     expected:
       trace_evidence_retained: true
       metric_evidence_retained: true
