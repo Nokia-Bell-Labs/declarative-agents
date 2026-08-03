@@ -26,13 +26,22 @@ const (
 	smokeImageRepo      = "declarative-agents/agent-architecture-smoke"
 	smokeCollectorImage = kindrig.DefaultAgentCoreImage
 
-	smokeClusterTimeout = 3 * time.Minute
-	smokeInstallTimeout = 5 * time.Minute
-	smokeReadyTimeout   = 2 * time.Minute
-	smokeProbeTimeout   = 5 * time.Second
-	smokeTraceTimeout   = 60 * time.Second
-	smokeDiagTimeout    = 15 * time.Second
+	smokeClusterTimeout  = 3 * time.Minute
+	smokeInstallTimeout  = 5 * time.Minute
+	smokeReadyTimeout    = 2 * time.Minute
+	smokeProbeTimeout    = 5 * time.Second
+	smokeTraceTimeout    = 60 * time.Second
+	smokeDiagTimeout     = 15 * time.Second
+	smokeShutdownTimeout = 60 * time.Second
 )
+
+// smokeAgentCompletionExitCodes are the container exit codes that count as a
+// clean agent shutdown: 0 for a machine that reached its Done state and 2 for
+// one that reached a declared terminal (failed) state. This mirrors
+// agent-core's run-completion contract used across the mage suites, so a
+// lifecycle exit that ends the run either way is treated as clean while a
+// crash (OOMKilled, SIGSEGV, etc.) is not.
+var smokeAgentCompletionExitCodes = map[int]bool{0: true, 2: true}
 
 // Integration groups bounded integration proofs.
 type Integration mg.Namespace
@@ -200,12 +209,27 @@ func exerciseCuratorWindow(environment smokeEnvironment) error {
 		}
 		controlURL := "http://127.0.0.1:" + controlLocal
 		documentationURL := "http://127.0.0.1:" + documentationLocal
+		// Record the addressed pod's identity and restart state *before* the
+		// exit request so we can prove this process actually terminates rather
+		// than trusting the HTTP acknowledgement alone.
+		addressed, err := curatorPodIdentity(environment)
+		if err != nil {
+			forward.stop()
+			lastErr = err
+			continue
+		}
 		if err := runCuratorWindow(controlURL, documentationURL); err != nil {
 			forward.stop()
 			lastErr = err
 			continue
 		}
 		forward.stop()
+		// The clean-shutdown claim is only real if the addressed curator
+		// process/pod terminates and releases its listeners; observe it.
+		if err := observeCuratorShutdown(environment, addressed, smokeShutdownTimeout); err != nil {
+			lastErr = err
+			continue
+		}
 		return nil
 	}
 	return fmt.Errorf("curator control window not caught in 4 attempts: %w", lastErr)
@@ -497,6 +521,176 @@ func requestCuratorExit(controlURL string) error {
 		return fmt.Errorf("lifecycle exit status %d", resp.StatusCode)
 	}
 	return nil
+}
+
+// curatorPod is the identity and restart state of the addressed curator pod,
+// captured before the exit request so shutdown can be attributed to it.
+type curatorPod struct {
+	name     string
+	uid      string
+	restarts int
+}
+
+// kubePodList / kubePod / kubeContainerStatus mirror the subset of the
+// kubectl pod JSON needed to attribute a clean shutdown to the addressed pod.
+type kubePodList struct {
+	Items []kubePod `json:"items"`
+}
+
+type kubePod struct {
+	Metadata struct {
+		Name string `json:"name"`
+		UID  string `json:"uid"`
+	} `json:"metadata"`
+	Status struct {
+		Phase             string                `json:"phase"`
+		ContainerStatuses []kubeContainerStatus `json:"containerStatuses"`
+	} `json:"status"`
+}
+
+type kubeContainerStatus struct {
+	Name         string `json:"name"`
+	RestartCount int    `json:"restartCount"`
+	State        struct {
+		Terminated *kubeTerminated `json:"terminated,omitempty"`
+	} `json:"state"`
+	LastState struct {
+		Terminated *kubeTerminated `json:"terminated,omitempty"`
+	} `json:"lastState"`
+}
+
+type kubeTerminated struct {
+	ExitCode int    `json:"exitCode"`
+	Reason   string `json:"reason"`
+}
+
+// curatorPodIdentity resolves the currently running curator pod and records its
+// UID and application-container restart count.
+func curatorPodIdentity(environment smokeEnvironment) (curatorPod, error) {
+	ctx, cancel := context.WithTimeout(context.Background(), smokeProbeTimeout)
+	defer cancel()
+	out, err := environment.run(ctx, "kubectl", "get", "pods",
+		"-l", "app.kubernetes.io/component=curator", "-n", smokeNamespace, "-o", "json")
+	if err != nil {
+		return curatorPod{}, fmt.Errorf("get curator pods: %w: %s", err, strings.TrimSpace(string(out)))
+	}
+	return selectCuratorPod(out)
+}
+
+// selectCuratorPod picks the running curator pod from a kubectl pod-list JSON
+// document and returns its identity and application-container restart count. It
+// is pure so the selection logic is unit-tested without a cluster.
+func selectCuratorPod(raw []byte) (curatorPod, error) {
+	var list kubePodList
+	if err := json.Unmarshal(raw, &list); err != nil {
+		return curatorPod{}, fmt.Errorf("decode curator pod list: %w", err)
+	}
+	for _, pod := range list.Items {
+		if pod.Status.Phase != "Running" {
+			continue
+		}
+		container := curatorContainer(pod.Status.ContainerStatuses)
+		return curatorPod{name: pod.Metadata.Name, uid: pod.Metadata.UID, restarts: container.RestartCount}, nil
+	}
+	return curatorPod{}, fmt.Errorf("no running curator pod found")
+}
+
+// curatorContainer selects the application container from a pod's statuses,
+// preferring a curator/agent-named container and falling back to the first.
+func curatorContainer(statuses []kubeContainerStatus) kubeContainerStatus {
+	for _, status := range statuses {
+		if strings.Contains(status.Name, "curator") || strings.Contains(status.Name, "agent") {
+			return status
+		}
+	}
+	if len(statuses) > 0 {
+		return statuses[0]
+	}
+	return kubeContainerStatus{}
+}
+
+// observeCuratorShutdown blocks until the addressed curator pod is observed to
+// terminate cleanly, or the timeout elapses. Disappearance of the pod identity,
+// a restart of the addressed container with an accepted exit code, or a fully
+// terminated container all satisfy the clean-shutdown contract; a terminated
+// container with a crash exit code fails immediately.
+func observeCuratorShutdown(environment smokeEnvironment, prior curatorPod, timeout time.Duration) error {
+	deadline := time.Now().Add(timeout)
+	var lastErr error
+	for time.Now().Before(deadline) {
+		ctx, cancel := context.WithTimeout(context.Background(), smokeProbeTimeout)
+		out, err := environment.run(ctx, "kubectl", "get", "pod", prior.name,
+			"-n", smokeNamespace, "-o", "json")
+		cancel()
+		if err != nil {
+			// The addressed pod's identity is gone: it terminated and the
+			// Deployment is recreating it, so its former listeners are released.
+			if isKubectlNotFound(out) {
+				return nil
+			}
+			lastErr = fmt.Errorf("get curator pod %s: %w: %s", prior.name, err, strings.TrimSpace(string(out)))
+			time.Sleep(2 * time.Second)
+			continue
+		}
+		done, err := curatorShutdownObserved(out, prior)
+		if err != nil {
+			return err
+		}
+		if done {
+			return nil
+		}
+		time.Sleep(2 * time.Second)
+	}
+	if lastErr == nil {
+		lastErr = fmt.Errorf("curator pod %s did not terminate within %s after the accepted exit request",
+			prior.name, timeout)
+	}
+	return lastErr
+}
+
+// curatorShutdownObserved interprets a single-pod kubectl JSON document against
+// the previously addressed pod. It returns (true, nil) when the addressed
+// process is proven to have terminated cleanly, (false, nil) when it is still
+// running, and a non-nil error when it terminated with a crash exit code. It is
+// pure so the attribution logic is unit-tested without a cluster.
+func curatorShutdownObserved(raw []byte, prior curatorPod) (bool, error) {
+	var pod kubePod
+	if err := json.Unmarshal(raw, &pod); err != nil {
+		return false, fmt.Errorf("decode curator pod %s: %w", prior.name, err)
+	}
+	if prior.uid != "" && pod.Metadata.UID != "" && pod.Metadata.UID != prior.uid {
+		// Same name, new UID: the addressed pod was replaced, i.e. gone.
+		return true, nil
+	}
+	container := curatorContainer(pod.Status.ContainerStatuses)
+	// A restart proves the addressed process exited; inspect how it exited.
+	if container.RestartCount > prior.restarts {
+		if terminated := container.LastState.Terminated; terminated != nil {
+			return curatorTerminationClean(terminated)
+		}
+		return true, nil
+	}
+	// No restart, but the container may have terminated for good (Succeeded).
+	if terminated := container.State.Terminated; terminated != nil {
+		return curatorTerminationClean(terminated)
+	}
+	return false, nil
+}
+
+// curatorTerminationClean maps a terminated container state onto the clean
+// shutdown contract.
+func curatorTerminationClean(terminated *kubeTerminated) (bool, error) {
+	if smokeAgentCompletionExitCodes[terminated.ExitCode] {
+		return true, nil
+	}
+	return false, fmt.Errorf("curator terminated uncleanly: exit code %d (%s)",
+		terminated.ExitCode, terminated.Reason)
+}
+
+// isKubectlNotFound reports whether kubectl output indicates the resource is
+// absent, which for the addressed pod means it terminated and was reaped.
+func isKubectlNotFound(out []byte) bool {
+	return strings.Contains(string(out), "NotFound") || strings.Contains(string(out), "not found")
 }
 
 func smokeFailure(run func(context.Context, string, ...string) ([]byte, error), step string, cause error) error {
