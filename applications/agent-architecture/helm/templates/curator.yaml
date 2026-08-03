@@ -40,10 +40,12 @@ spec:
         {{- toYaml . | nindent 8 }}
       {{- end }}
       initContainers:
-        # The curator's browser UI is baked into the image under /opt/curator-ui
-        # because its dist trees are too large for the profile ConfigMap mount.
-        # Stage them into the writable workspace so the profile's literal
-        # ui/*/dist static_assets roots resolve under --directory /work (GH-1261).
+        # The curator's staged workspace — its browser UI dist trees and the
+        # catalog docs tree — is baked into the image under /opt/curator-ui
+        # because the dist trees are too large for the profile ConfigMap mount.
+        # Stage it into the writable workspace so the profile's literal
+        # ui/*/dist static_assets roots and its docs/ document root resolve
+        # under --directory /work (GH-1261, GH-1293).
         - name: stage-curator-ui
           image: {{ include "agent-architecture.image" . | quote }}
           imagePullPolicy: {{ .Values.image.pullPolicy }}
