@@ -102,11 +102,11 @@ func (Integration) Rig() error {
 		"--otel-log-file", trace,
 	}
 	endpoint := firstNonEmpty(
-		os.Getenv(integrationOTLPEndpointEnv),
-		"127.0.0.1:"+envOrDefault("DA_OTEL_GRPC_PORT", "4317"),
+		demoIntegrationOTLPEndpoint(),
+		"127.0.0.1:"+demoObservability().OTELGRPCPort,
 	)
-	runID := firstNonEmpty(os.Getenv(integrationRunIDEnv), generatedRunID("integration:rig"))
-	commit := firstNonEmpty(os.Getenv(integrationCommitEnv), gitCommit(applicationRoot))
+	runID := generatedRunID("integration:rig")
+	commit := gitCommit(applicationRoot)
 	telemetryArgs := integrationTelemetryArgs(endpoint, "scenario-critic-rig")
 	resourceEnv := "OTEL_RESOURCE_ATTRIBUTES=" +
 		integrationResourceAttributes("integration:rig", runID, commit)

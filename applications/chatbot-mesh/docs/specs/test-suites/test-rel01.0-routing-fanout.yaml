@@ -13,7 +13,7 @@ traces:
   - rel01.0-uc001-routed-fanout
 
 preconditions:
-  - agent-core is available as AGENT_CORE_ROOT or a sibling ../agent-core checkout.
+  - agent-core is available as core_root in demo.yaml or a sibling ../agent-core checkout.
   - A Chroma server and an Ollama are reachable with the configured embedding, tier-selector, and two chat-LLM models.
   - This application owns the chatbot profile, separate source-router and tier-selector prompts, and fan-out declarations, under applications/chatbot-mesh/agents/.
 

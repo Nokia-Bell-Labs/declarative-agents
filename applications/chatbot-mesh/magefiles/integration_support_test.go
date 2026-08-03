@@ -159,7 +159,6 @@ func TestDetachedAgentDualExportsAndStampsResourceIdentity(t *testing.T) {
 }
 
 func TestDetachedAgentKeepsFileOnlyArgsWithoutEndpoint(t *testing.T) {
-	t.Setenv(integrationOTLPEndpointEnv, "")
 	root := t.TempDir()
 	argsPath := filepath.Join(root, "args.txt")
 	binary := filepath.Join(root, "fake-agent")

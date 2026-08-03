@@ -99,13 +99,23 @@ mage observability:reset   # stop the ingress and delete the spool
 
 Defaults expose OTLP gRPC on `4317`, collector control on `18191`, and the
 collector query surface on `18193` (`/query/traces` and `/query/metrics`);
-override with `DA_OTEL_GRPC_PORT`, `DA_COLLECTOR_CONTROL_PORT`, and
-`DA_COLLECTOR_QUERY_PORT`. The ingress shares ports 4317 and 18193 with the
+override with `otel_grpc_port`, `collector_control_port`,
+`collector_monitor_port`, `collector_query_port`, and `collector_bind_host`
+in `demo.yaml`. The ingress shares ports 4317 and 18193 with the
 agent-architecture demo's local collector, so stop it before running that
 demo. It runs the canonical collector profile from the sibling
 `applications/catalog` checkout, built from the `agent-core` checkout (set
-`AGENT_CORE_ROOT` when it is not a sibling); its state lives under
+`core_root` in `demo.yaml` when it is not a sibling); its state lives under
 `observability/.run/` (gitignored).
+
+The magefile hands the collector child process its `COLLECTOR_*` environment.
+Those variables are the collector profile's declared parameterization
+contract — agent-core expands `${VAR:-default}` references in mounted
+declarations (srd013 R5.6/R5.7) — so the magefile sets them the same way a
+Helm chart sets pod env. The magefile's own configuration comes from
+`demo.yaml`, never from the environment: `inference_timeout` bounds one model
+call in the integration tracers, and `integration_otlp_endpoint` points
+integration launches at a live OTLP ingress (empty keeps them file-only).
 
 The shared ENG01 operator verbs are:
 

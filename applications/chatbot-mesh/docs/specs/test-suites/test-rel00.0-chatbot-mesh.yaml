@@ -18,7 +18,7 @@ traces:
   - rel00.0-uc002-chatbot-turn
 
 preconditions:
-  - agent-core is available as AGENT_CORE_ROOT or a sibling ../agent-core checkout.
+  - agent-core is available as core_root in demo.yaml or a sibling ../agent-core checkout.
   - A Chroma server and an Ollama (or external LLM) are reachable with the configured embedding and answer models.
   - This application owns RAG/chatbot assets and corpus-ingest REST parameterization; applications/catalog owns the canonical corpus-ingest program selected by the wrapper.
 

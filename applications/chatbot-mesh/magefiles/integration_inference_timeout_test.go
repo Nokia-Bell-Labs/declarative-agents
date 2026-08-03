@@ -97,7 +97,7 @@ func TestInferenceTimeoutErrorNamesTheWork(t *testing.T) {
 		"embed query vector with model qwen3-embedding:8b",
 		server.URL,
 		"inference timeout",
-		integrationInferenceTimeoutEnv,
+		"inference_timeout in " + demoConfigFile,
 	} {
 		if !strings.Contains(err.Error(), want) {
 			t.Errorf("requestInference() error = %q, want it to name %q", err, want)
@@ -120,10 +120,10 @@ func TestInferenceClientOutranksProbeClient(t *testing.T) {
 }
 
 func TestIntegrationInferenceTimeoutReadsOverride(t *testing.T) {
-	t.Setenv(integrationInferenceTimeoutEnv, "45s")
+	config := demoConfig{InferenceTimeout: "45s"}
 
-	if got := integrationInferenceTimeout(); got != 45*time.Second {
-		t.Fatalf("integrationInferenceTimeout() = %s, want 45s", got)
+	if got := inferenceTimeoutFrom(config); got != 45*time.Second {
+		t.Fatalf("inferenceTimeoutFrom() = %s, want 45s", got)
 	}
 }
 
@@ -132,10 +132,8 @@ func TestIntegrationInferenceTimeoutReadsOverride(t *testing.T) {
 // timeout" and falling back to the probe bound would resurrect GH-709.
 func TestIntegrationInferenceTimeoutRejectsUnusableValues(t *testing.T) {
 	for _, value := range []string{"", "   ", "not-a-duration", "0s", "-5s"} {
-		t.Setenv(integrationInferenceTimeoutEnv, value)
-
-		if got := integrationInferenceTimeout(); got != integrationInferenceTimeoutDefault {
-			t.Errorf("integrationInferenceTimeout() with %q = %s, want the %s default",
+		if got := inferenceTimeoutFrom(demoConfig{InferenceTimeout: value}); got != integrationInferenceTimeoutDefault {
+			t.Errorf("inferenceTimeoutFrom(%q) = %s, want the %s default",
 				value, got, integrationInferenceTimeoutDefault)
 		}
 	}

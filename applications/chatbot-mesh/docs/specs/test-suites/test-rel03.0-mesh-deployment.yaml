@@ -13,7 +13,7 @@ traces:
   - rel03.0-uc001-mesh-deployment
 
 preconditions:
-  - agent-core is available as AGENT_CORE_ROOT or a sibling ../agent-core checkout.
+  - agent-core is available as core_root in demo.yaml or a sibling ../agent-core checkout.
   - A kind cluster and docker/helm/kubectl are available for the on-cluster tracers, and the rel06.0 runtime image is loadable.
   - The application owns the deployment chart (applications/chatbot-mesh/helm) and the chatbot/RAG profiles named by the tracers.
 
