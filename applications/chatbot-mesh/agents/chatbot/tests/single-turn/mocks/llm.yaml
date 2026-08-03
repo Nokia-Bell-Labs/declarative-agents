@@ -1,22 +1,9 @@
 # Mock for the Ollama provider, claiming these behaviors:
-# - GET /api/tags: model discovery, as read by agent-core's adapter checkModel
-#   (internal/model/llm/ollama/adapter.go tagsResp). It must list every model
-#   the chatbot's invoke_llm words declare: qwen2.5:3b (tier selector, fast) and
-#   ornith:9b (deep).
 # - POST /api/embeddings: the embed_query REST word maps $.embedding.
 # - POST /api/chat: adapter chatResp shape {message:{role,content},...}. The
 #   source selector, tier selector, and answer call hit this HTTP route in order.
 # The real-stack ladder (#408) validates these claims against live Ollama.
 routes:
-  - method: GET
-    path: /api/tags
-    responses:
-      - status: 200
-        body:
-          models:
-            - name: "qwen2.5:3b"
-            - name: "ornith:9b"
-
   - method: POST
     path: /api/embeddings
     responses:
