@@ -86,29 +86,31 @@ func applyTraceContext(req *http.Request, sc oteltrace.SpanContext) {
 }
 
 func normalizeRuntimeParams(input map[string]interface{}, binding RequestBinding, view core.CommandStateView) (map[string]interface{}, error) {
-	if err := ValidateRuntimeInput(input); err != nil {
-		return nil, err
-	}
 	params := input
 	if nested, ok := input["params"].(map[string]interface{}); ok {
 		params = nested
 	}
-	if binding.BodySource == bodySourceNone {
-		// The operation declares it takes no runtime parameters, so the prior
-		// Result's output must not be read as params. This lets a self-contained
-		// REST word (for example a readiness check) follow another REST word
-		// whose output fields would otherwise fail the declared-only contract.
+	switch binding.BodySource {
+	case bodySourceNone:
+		// The operation takes no runtime params, so the prior Result's output is
+		// discarded rather than validated: a self-contained REST word may follow
+		// one whose output fields would otherwise fail the authority guard below.
 		params = map[string]interface{}{}
-	}
-	if binding.BodySource == bodySourcePreviousResult {
+	case bodySourcePreviousResult:
 		params = selectPreviousResultParams(params, binding)
-	}
-	if binding.BodySource == bodySourceCommandState {
+	case bodySourceCommandState:
 		selected, err := selectCommandStateParams(view, binding)
 		if err != nil {
 			return nil, err
 		}
 		params = selected
+	default:
+		// Passthrough: the input becomes the params directly, so it must not carry
+		// transport authority (method, url, auth). The other body sources replace
+		// params with declared-only selections config validation already guards.
+		if err := ValidateRuntimeInput(input); err != nil {
+			return nil, err
+		}
 	}
 	if err := validateDeclaredRuntimeParams(params, binding); err != nil {
 		return nil, err
