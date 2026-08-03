@@ -106,9 +106,9 @@ func deployDemo(environment smokeEnvironment, resolved roots) error {
 		"--namespace", demoNamespace,
 		"--values", filepath.Join(resolved.Application, "helm", "ci", "kind-values.yaml"),
 		"--set", "image.repository=" + repository,
-		"--set", "image.tag=" + tag,
+		"--set-string", "image.tag=" + tag,
 		"--set", "collector.image.repository=" + repository,
-		"--set", "collector.image.tag=" + tag,
+		"--set-string", "collector.image.tag=" + tag,
 	}
 	args = append(args, curatorUIShardSetArgs(shardNames)...)
 	args = append(args, "--wait", "--timeout", smokeInstallTimeout.String())

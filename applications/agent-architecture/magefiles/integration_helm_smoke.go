@@ -311,9 +311,9 @@ func installSmokeChart(environment smokeEnvironment, archive, applicationRoot st
 		"--namespace", smokeNamespace,
 		"--values", filepath.Join(applicationRoot, "helm", "ci", "kind-values.yaml"),
 		"--set", "image.repository=" + repository,
-		"--set", "image.tag=" + tag,
+		"--set-string", "image.tag=" + tag,
 		"--set", "collector.image.repository=" + repository,
-		"--set", "collector.image.tag=" + tag,
+		"--set-string", "collector.image.tag=" + tag,
 	}
 	// Point the curator at the out-of-release UI shard ConfigMaps provisioned
 	// above so its init container mounts and unpacks them (GH-1402).

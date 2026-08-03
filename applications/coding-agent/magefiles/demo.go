@@ -75,9 +75,9 @@ func (Demo) Up() error {
 				"--namespace", codingHelmNamespace,
 				"--values", filepath.Join(roots.Application, "helm", "ci", "kind-values.yaml"),
 				"--set", "image.repository="+repository,
-				"--set", "image.tag="+tag,
+				"--set-string", "image.tag="+tag,
 				"--set", "collector.image.repository="+collectorRepository,
-				"--set", "collector.image.tag="+collectorTag,
+				"--set-string", "collector.image.tag="+collectorTag,
 				"--wait", "--timeout", codingHelmInstallTimeout.String())
 			cancel()
 			if err != nil {

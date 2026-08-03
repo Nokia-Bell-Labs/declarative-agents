@@ -485,11 +485,11 @@ func installCodingApplierLiveChart(
 		"--values", filepath.Join(applicationRoot, "helm", "ci", "kind-values.yaml"),
 		"--values", filepath.Join(applicationRoot, "helm", "ci", "kind-applier-values.yaml"),
 		"--set", "image.repository="+repository,
-		"--set", "image.tag="+tag,
+		"--set-string", "image.tag="+tag,
 		"--set", "collector.image.repository="+collectorRepository,
-		"--set", "collector.image.tag="+collectorTag,
+		"--set-string", "collector.image.tag="+collectorTag,
 		"--set", "applier.image.repository="+applierRepository,
-		"--set", "applier.image.tag="+applierTag,
+		"--set-string", "applier.image.tag="+applierTag,
 		"--wait", "--timeout", codingHelmInstallTimeout.String(),
 	)
 	if err != nil {

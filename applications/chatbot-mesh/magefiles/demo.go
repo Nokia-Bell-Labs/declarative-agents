@@ -81,7 +81,7 @@ func (Demo) Up() error {
 				"upgrade", "--install", chatbotDemoRelease, staged,
 				"--values", filepath.Join(staged, "ci", "kind-llm-values.yaml"),
 				"--set", "image.repository=" + repository,
-				"--set", "image.tag=" + tag,
+				"--set-string", "image.tag=" + tag,
 				"--set", "image.pullPolicy=Never",
 				"--set", "ingress.enabled=true",
 				"--set", "ingress.className=nginx",
