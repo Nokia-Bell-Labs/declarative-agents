@@ -79,3 +79,53 @@ func TestSpanStringAttr(t *testing.T) {
 		t.Fatal("StringAttr(missing) returned ok=true")
 	}
 }
+
+func TestParseSpansRejectsRenamedContextField(t *testing.T) {
+	t.Parallel()
+	input := `{"Name":"agent.run","Context":{"TraceID":"0af7651916cd43dd8448eb211c80319c","SpanID":"b7ad6b7169203331"},"Status":{"Code":"Unset"}}`
+
+	_, err := ParseSpans(strings.NewReader(input))
+
+	if err == nil || !strings.Contains(err.Error(), "missing SpanContext") {
+		t.Fatalf("ParseSpans error = %v, want missing SpanContext", err)
+	}
+}
+
+func TestParseSpansRejectsMalformedSpanFields(t *testing.T) {
+	t.Parallel()
+	tests := []struct {
+		name  string
+		input string
+		want  string
+	}{
+		{
+			name:  "invalid trace id",
+			input: `{"Name":"agent.run","SpanContext":{"TraceID":"bad","SpanID":"b7ad6b7169203331"}}`,
+			want:  "TraceID",
+		},
+		{
+			name:  "zero span id",
+			input: `{"Name":"agent.run","SpanContext":{"TraceID":"0af7651916cd43dd8448eb211c80319c","SpanID":"0000000000000000"}}`,
+			want:  "SpanID",
+		},
+		{
+			name:  "wrong attributes shape",
+			input: `{"Name":"agent.run","SpanContext":{"TraceID":"0af7651916cd43dd8448eb211c80319c","SpanID":"b7ad6b7169203331"},"Attributes":"bad"}`,
+			want:  "decode span object",
+		},
+		{
+			name:  "unknown status",
+			input: `{"Name":"agent.run","SpanContext":{"TraceID":"0af7651916cd43dd8448eb211c80319c","SpanID":"b7ad6b7169203331"},"Status":{"Code":"Renamed"}}`,
+			want:  "unsupported status",
+		},
+	}
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			t.Parallel()
+			_, err := ParseSpans(strings.NewReader(tt.input))
+			if err == nil || !strings.Contains(err.Error(), tt.want) {
+				t.Fatalf("ParseSpans error = %v, want containing %q", err, tt.want)
+			}
+		})
+	}
+}
