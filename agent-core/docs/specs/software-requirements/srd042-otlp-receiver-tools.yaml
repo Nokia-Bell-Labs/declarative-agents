@@ -29,6 +29,7 @@ requirements:
       - R0.2: OTLP protobuf decoding, socket ownership, queue synchronization, NDJSON encoding, and gRPC export SHALL live in the focused `internal/tools/otlp` package.
       - R0.3: MachineSpec SHALL own launch, await, offline load, filter, spool, relay, retry, and stop order.
       - R0.4: The package SHALL expose separate `otlp_receiver_launch`, `await_spans`, `load_otlp_batch`, `spool_spans`, `relay_spans`, and `otlp_receiver_stop` words; no word SHALL hide a complete ingress or replay sentence.
+      - R0.5: Internal protobuf validation, stdouttrace-compatible span projection, synchronized complete-batch append, and bounded rotation SHALL remain in process unless a replacement proves field-level compatibility, queue/backpressure preservation, atomic batch writes, rotation semantics, runtime provisioning, and the same declared signals. The existence of otelcol or a stdout exporter alone is not equivalence (GH-1382).
 
   R1:
     title: Receiver launch
@@ -63,6 +64,7 @@ requirements:
       - R3.7: "`load_otlp_batch` SHALL read one trusted OTLP protobuf-JSON file, decode it as an ExportTraceServiceRequest, and emit `BatchLoaded` or `CommandError` without exporting it."
       - R3.8: Load output SHALL include path, span count, and the decoded batch so a following declared `relay_spans` word can export it.
       - R3.9: Read and protobuf-JSON decode failures SHALL remain distinct and SHALL prevent relay dispatch.
+      - R3.10: "`load_otlp_batch` SHALL NOT be replaced by an unvalidated byte copy: protobuf-JSON decoding is the trust-boundary check that makes its typed batch safe for relay."
 
   R4:
     title: Deterministic spool
@@ -127,6 +129,7 @@ non_goals:
   - Querying Jaeger or serving a trace search API.
   - TLS, authentication, compression negotiation beyond gRPC defaults, or multi-tenant isolation.
   - Replacing deterministic per-run file export from producing agents.
+  - Requiring otelcol as a runtime dependency for the receiver's declared spool contract without a compatibility and provisioning decision.
 
 acceptance_criteria:
   - id: AC1

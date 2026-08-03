@@ -43,12 +43,14 @@ requirements:
     title: Declaration shape
     items:
       - R4.1: Declarations SHALL follow the srd042 pattern with problem, goals, requirements, non_goals, reversibility reversible/noop, and CommandError on unreadable spool path.
+      - R4.2: Query implementation SHALL remain behind these atomic read-only word contracts. A DuckDB-backed implementation is optional only if it preserves rotated-file discovery, malformed-line accounting, stdouttrace value semantics, deterministic ordering, empty/absent-spool behavior, and runtime-image provisioning; a CLI's SQL feature set alone is not sufficient equivalence (GH-1382).
 
 non_goals:
   - Mutating, rotating, or deleting spool files.
   - Full-text search, attribute filtering, or sampling.
   - Streaming or watching for new spans.
   - Exposing an HTTP query endpoint (that is a separate REST surface concern).
+  - Requiring DuckDB in the base runtime solely to replace tested in-process reducers.
 
 acceptance_criteria:
   - id: AC1

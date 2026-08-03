@@ -58,6 +58,7 @@ requirements:
       - R5.3: Every output SHALL be deterministic for a fixed spool and configuration, with all ordering fully specified so map iteration never leaks into results.
       - R5.4: Spool path, filters, bucket boundaries, group key, top-N, and the exemplar cap SHALL arrive as tool declaration config or request parameters; no behavior SHALL depend on an environment variable.
       - R5.5: A missing or unreadable spool path SHALL emit CommandError before any aggregation, following the srd044 declaration shape.
+      - R5.6: Analytics implementation SHALL remain behind the atomic read-only word contracts. A DuckDB plan/reducer may replace it only after parity tests prove stdouttrace attribute semantics, malformed-line counts, filters, bucket boundaries, top-N/dropped totals, exemplars, divergence ordering, empty-spool behavior, and runtime provisioning (GH-1382).
 
   R6:
     title: Selection exemplars
@@ -71,6 +72,7 @@ non_goals:
   - Streaming, watching, or sampling.
   - Exposing an HTTP endpoint (that is a separate REST surface concern, srd020).
   - Statistical significance testing beyond the deterministic divergence score.
+  - Requiring DuckDB in the base runtime solely because equivalent SQL operators exist.
 
 acceptance_criteria:
   - id: AC1
@@ -110,7 +112,7 @@ related_documents:
   - sm-tool-language
 
 implementation_status:
-  planned:
-    - "`internal/tools/otlp/analytics.go` will own span filtering, heatmap bucketing, group-by counting, and attribute divergence over the srd044 read path."
-    - "`tools/builtin/otlp/all.yaml` will declare spool_span_stats and spool_span_breakdown with literal defaults and request-parameter schemas."
-    - "`go test ./internal/tools/otlp -run TestSpanStats|TestSpanBreakdown` will prove filtering, bucketing, group-by top-N, divergence ranking, determinism, and error paths."
+  implemented:
+    - "`internal/tools/otlp/analytics.go` and `analytics_compute.go` own span filtering, heatmap bucketing, group-by counting, exemplars, and attribute divergence over the srd044 read path."
+    - "`tools/builtin/otlp/all.yaml` declares spool_span_stats and spool_span_breakdown with literal defaults and request-parameter schemas."
+    - "`go test ./internal/tools/otlp -run 'TestSpanStats|TestSpanBreakdown'` proves filtering, bucketing, group-by top-N, divergence ranking, determinism, exemplars, malformed-line handling, and error paths."
