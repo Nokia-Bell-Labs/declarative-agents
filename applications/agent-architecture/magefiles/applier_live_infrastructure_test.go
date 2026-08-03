@@ -30,6 +30,10 @@ func TestApplierLiveInfrastructureHealthy(t *testing.T) {
 	for _, want := range []string{
 		"exec deployment/" + smokeRelease + "-agent-architecture-applier",
 		"-n " + smokeNamespace,
+		// -c applier targets the applier container so the stage-chart init
+		// container (GH-1369) does not trigger a "Defaulted container" notice
+		// that corrupts the readyz comparison (GH-1403).
+		"-c applier",
 		"-- kubectl",
 		"get --raw=/readyz",
 	} {
