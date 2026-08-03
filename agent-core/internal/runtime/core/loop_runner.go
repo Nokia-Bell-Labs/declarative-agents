@@ -106,6 +106,9 @@ func (r *loopRunner) recordStart() {
 		State:     string(r.state),
 		Iteration: r.iteration,
 	})
+	// A resumed run seeds the observer with its persisted history so the monitor
+	// resolves prior-step labels before the first fresh dispatch.
+	r.observeCommandState()
 }
 
 func (r *loopRunner) done() bool {
@@ -320,6 +323,7 @@ func (r *loopRunner) saveCheckpoint(fromState State, transitionSignal Signal, co
 		r.execution,
 		dispatchEntry(r.iteration, fromState, r.state, transitionSignal, commandStateLabel, r.result),
 	)
+	r.observeCommandState()
 	if !r.checkpointEnabled {
 		return
 	}

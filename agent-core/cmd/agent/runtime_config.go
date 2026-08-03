@@ -361,11 +361,18 @@ func monitorState(
 	recorder monitor.RuntimeRecorder,
 	machine *core.MachineSpec,
 	defs []catalog.ToolDef,
+	commandState core.CommandStateSource,
 ) toolrest.MonitorState {
 	if store == nil {
 		return toolrest.MonitorState{}
 	}
-	return toolrest.MonitorState{Store: store, Recorder: recorder, Machine: machine, Tools: defs}
+	return toolrest.MonitorState{
+		Store:        store,
+		Recorder:     recorder,
+		Machine:      machine,
+		Tools:        defs,
+		CommandState: commandState,
+	}
 }
 
 func monitorConfigured(machine core.MachineSpec, defs []catalog.ToolDef, restDefs toolrest.Collection) bool {

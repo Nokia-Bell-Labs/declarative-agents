@@ -140,9 +140,31 @@ func monitorResponseSchema(view string) map[string]interface{} {
 		return monitorMetricsSchema()
 	case monitorViewEvents:
 		return monitorEventsSchema()
+	case monitorViewCommandState:
+		return monitorCommandStateSchema()
 	default:
 		return monitorSchemaObject(map[string]map[string]interface{}{"data": monitorSchemaObject(nil)})
 	}
+}
+
+// monitorCommandStateSchema describes the command_state response as a map of the
+// endpoint's declared labels to entry objects. The declared labels are
+// profile-owned and dynamic, so the schema is a map with additionalProperties
+// rather than a fixed property set, and it carries the redaction-cleared output
+// and run envelope but never receipts (srd033-monitor-rest-api R2.4, R7.2).
+func monitorCommandStateSchema() map[string]interface{} {
+	entry := monitorSchemaObject(map[string]map[string]interface{}{
+		"available":  {"type": "boolean"},
+		"reason":     monitorSchemaString(),
+		"output":     {},
+		"state":      monitorSchemaString(),
+		"signal":     monitorSchemaString(),
+		"iteration":  monitorSchemaInteger(),
+		"updated_at": monitorSchemaDateTime(),
+	})
+	return monitorSchemaObject(map[string]map[string]interface{}{
+		"labels": monitorSchemaMap(entry),
+	})
 }
 
 func monitorMachineSchema() map[string]interface{} {

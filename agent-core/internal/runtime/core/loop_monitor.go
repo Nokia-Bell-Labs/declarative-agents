@@ -31,3 +31,13 @@ func recordMonitorRun(ctx context.Context, rec monitor.RuntimeRecorder, run moni
 	}
 	_ = rec.RecordRun(ctx, run)
 }
+
+// observeCommandState refreshes the live command-state source with the current
+// execution log after each dispatch, so a background monitor server reads
+// completed steps rather than a launch-time snapshot (srd033 R7.1).
+func (r *loopRunner) observeCommandState() {
+	if r.params.CommandStateObserver == nil {
+		return
+	}
+	r.params.CommandStateObserver.ObserveCommandState(r.execution)
+}

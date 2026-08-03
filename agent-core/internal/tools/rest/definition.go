@@ -166,6 +166,7 @@ type Endpoint struct {
 	SignalMapping      map[string]string   `yaml:"signal_mapping,omitempty"`
 	LifecycleControl   LifecycleControl    `yaml:"lifecycle_control,omitempty"`
 	MonitorView        string              `yaml:"monitor_view,omitempty"`
+	Labels             []string            `yaml:"labels,omitempty"`
 	Request            RequestBinding      `yaml:"request,omitempty"`
 	Response           ResponseMapping     `yaml:"response,omitempty"`
 	Queue              QueueConfig         `yaml:"queue,omitempty"`

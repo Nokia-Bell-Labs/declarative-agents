@@ -6,6 +6,7 @@ import (
 	"encoding/json"
 	"fmt"
 	"net/http"
+	"strings"
 
 	"github.com/Nokia-Bell-Labs/declarative-agents/agent-core/internal/observability/monitor"
 	"github.com/Nokia-Bell-Labs/declarative-agents/agent-core/internal/runtime/core"
@@ -13,11 +14,12 @@ import (
 )
 
 const (
-	monitorViewMachine = "machine_spec"
-	monitorViewState   = "current_state"
-	monitorViewTools   = "tools"
-	monitorViewMetrics = "metrics"
-	monitorViewEvents  = "events"
+	monitorViewMachine      = "machine_spec"
+	monitorViewState        = "current_state"
+	monitorViewTools        = "tools"
+	monitorViewMetrics      = "metrics"
+	monitorViewEvents       = "events"
+	monitorViewCommandState = "command_state"
 )
 
 type monitorField[T any] struct {
@@ -72,12 +74,74 @@ func (r *serverRuntime) writeReadState(w http.ResponseWriter, name string, endpo
 		writeJSON(w, http.StatusOK, r.stateOutput())
 		return
 	}
+	if endpoint.MonitorView == monitorViewCommandState {
+		writeJSON(w, http.StatusOK, r.monitorCommandStateView(endpoint.Labels))
+		return
+	}
 	output, err := r.monitorView(name, endpoint.MonitorView)
 	if err != nil {
 		writeMonitorError(w, name, err)
 		return
 	}
 	writeJSON(w, http.StatusOK, output)
+}
+
+// monitorCommandStateView assembles the opt-in command_state response: a map of
+// the endpoint's declared labels to entry objects. An absent step renders null,
+// a matched step whose output cannot cross the srd038 redaction boundary or
+// exceeds the configured response size renders an explicit unavailable entry,
+// and a present step carries its redaction-cleared output and run envelope
+// (srd033-monitor-rest-api R7.2, R7.3, R7.4, R7.5).
+func (r *serverRuntime) monitorCommandStateView(labels []string) map[string]interface{} {
+	entries := map[string]interface{}{}
+	source := r.def.Monitor.CommandState
+	maxBytes := r.def.Limits.MaxResponseBytes
+	for _, label := range labels {
+		if source == nil {
+			entries[label] = nil
+			continue
+		}
+		entry, found := source.LookupCommandState(label)
+		switch {
+		case !found:
+			entries[label] = nil
+		case !entry.Available:
+			entries[label] = commandStateUnavailable("output_unavailable")
+		case maxBytes > 0 && len(entry.Output) > maxBytes:
+			entries[label] = commandStateUnavailable("exceeds_response_limit")
+		default:
+			entries[label] = commandStateEntryView(entry)
+		}
+	}
+	return map[string]interface{}{"labels": entries}
+}
+
+func commandStateEntryView(entry core.MonitorCommandStateEntry) map[string]interface{} {
+	return map[string]interface{}{
+		"available":  true,
+		"output":     rawJSONOrString(entry.Output),
+		"state":      entry.State,
+		"signal":     entry.Signal,
+		"iteration":  entry.Iteration,
+		"updated_at": entry.UpdatedAt,
+	}
+}
+
+func commandStateUnavailable(reason string) map[string]interface{} {
+	return map[string]interface{}{"available": false, "reason": reason}
+}
+
+// rawJSONOrString embeds valid JSON output verbatim so a reader receives
+// structured data, and falls back to the raw string when the output is not JSON.
+func rawJSONOrString(output string) interface{} {
+	trimmed := strings.TrimSpace(output)
+	if trimmed == "" {
+		return nil
+	}
+	if json.Valid([]byte(trimmed)) {
+		return json.RawMessage(trimmed)
+	}
+	return output
 }
 
 func (r *serverRuntime) writeStaticMetadata(w http.ResponseWriter, endpoint Endpoint) {
