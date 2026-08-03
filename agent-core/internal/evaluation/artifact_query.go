@@ -365,7 +365,12 @@ func ReadEvaluationTrace(dataDir, suite, timestamp, pointID string) (EvaluationT
 		}
 		return EvaluationTrace{}, err
 	}
-	snapshots := ExtractToolSnapshots(spans)
+	return assembleEvaluationTrace(pointID, spans, ExtractToolSnapshots(spans)), nil
+}
+
+// assembleEvaluationTrace projects the raw trace spans and tool snapshots into
+// the read-only EvaluationTrace view returned to callers.
+func assembleEvaluationTrace(pointID string, spans []*Span, snapshots []ToolSnapshot) EvaluationTrace {
 	result := EvaluationTrace{
 		PointID:   pointID,
 		Spans:     make([]EvaluationTraceSpan, len(spans)),
@@ -384,7 +389,7 @@ func ReadEvaluationTrace(dataDir, suite, timestamp, pointID string) (EvaluationT
 	for i, snapshot := range snapshots {
 		result.Snapshots[i] = EvaluationToolSnapshot{Tool: snapshot.Tool, Signal: snapshot.Signal, Iteration: i + 1}
 	}
-	return result, nil
+	return result
 }
 
 func evaluationSessionDir(dataDir, suite, timestamp string) (string, error) {

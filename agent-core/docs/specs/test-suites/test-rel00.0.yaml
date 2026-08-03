@@ -292,7 +292,7 @@ test_cases:
 
   - use_case: rel00.0-uc001-domain-agent-integration
     name: MachineSpec iterates trusted command-state arrays
-    go_test: go test ./internal/runtime/core -run 'TestLoopForEach(DispatchesItemsInOrderAndJoins|EmptyCollectionStillJoins|ResumeContinuesAfterLastPersistedItem|CollectAllJoinsPartialInInputOrder|AbortSignalStopsCollectAll)|TestMachineSpecForEach(Validation|RoundTrips)|TestIteratorJoinStructuredOutput'
+    go_test: go test ./internal/runtime/core -run 'TestLoopForEach(DispatchesItemsInOrderAndJoins|EmptyCollectionJoinsDirectlyToTerminal|ResumeContinuesAfterLastPersistedItem|CollectAllJoinsPartialInInputOrder|AbortSignalStopsCollectAll)|TestMachineSpecForEach(Validation|RoundTrips)|TestIteratorJoinStructuredOutput'
     inputs:
       items: $from(items).items
       mode: sequential
