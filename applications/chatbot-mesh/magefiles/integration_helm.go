@@ -77,6 +77,24 @@ func loadKindImage(cluster, image string) error {
 	return kindrig.LoadImage(ctx, kindrig.DefaultRunContext, cluster, image)
 }
 
+// bindClusterKubeconfig pins every subsequent Helm/kubectl/port-forward
+// subprocess to the named kind cluster's own kubeconfig. Because EnsureCluster
+// reuses a pre-existing cluster without switching contexts, and the raw kubectl
+// and helm invocations here inherit the ambient environment, an unrelated
+// current context could otherwise be the target of a live mutation (GH-1341).
+// The returned cleanup restores the prior KUBECONFIG and removes the temp file.
+func bindClusterKubeconfig(cluster string) (func(), error) {
+	path, cleanup, err := kindrig.Kubeconfig(kindrig.CaptureRun, cluster)
+	if err != nil {
+		return nil, err
+	}
+	restore := kindrig.BindKubeconfig(path)
+	return func() {
+		restore()
+		cleanup()
+	}, nil
+}
+
 // HelmSmoke deploys the chatbot-mesh chart on a disposable kind cluster with the
 // ci values and proves the mesh stands up, serves a chat turn, and exports spans
 // from more than one service. It gates on docker, kind, helm, and kubectl and on
@@ -297,6 +315,12 @@ func runHelmSmoke(coreRoot, profilesRoot, chartDir string) (result error) {
 			})
 		}
 	}()
+
+	unbindKubeconfig, err := bindClusterKubeconfig(helmKindCluster)
+	if err != nil {
+		return err
+	}
+	defer unbindKubeconfig()
 
 	if err := loadKindImage(helmKindCluster, images.Runtime); err != nil {
 		return err
@@ -978,6 +1002,11 @@ func runHelmSwap(coreRoot, profilesRoot, chartDir string) error {
 		return err
 	}
 	defer swapCluster.Release(kindrig.DefaultRun)
+	unbindKubeconfig, err := bindClusterKubeconfig(helmSwapCluster)
+	if err != nil {
+		return err
+	}
+	defer unbindKubeconfig()
 	if err := loadKindImage(helmSwapCluster, images.Runtime); err != nil {
 		return err
 	}
@@ -1252,6 +1281,11 @@ func runHelmLLMTier(coreRoot, profilesRoot, chartDir string) error {
 		return err
 	}
 	defer llmCluster.Release(kindrig.DefaultRun)
+	unbindKubeconfig, err := bindClusterKubeconfig(helmLLMCluster)
+	if err != nil {
+		return err
+	}
+	defer unbindKubeconfig()
 	if err := loadKindImage(helmLLMCluster, images.Runtime); err != nil {
 		return err
 	}

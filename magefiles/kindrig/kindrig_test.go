@@ -16,12 +16,14 @@ import (
 // fakeKind records the kind subcommands a run issues and replays a scripted
 // cluster list, so ownership is proven without creating a real cluster.
 type fakeKind struct {
-	existing  []string
-	calls     [][]string
-	createErr error
-	deleteErr error
-	listErr   error
-	exportErr error
+	existing      []string
+	calls         [][]string
+	createErr     error
+	deleteErr     error
+	listErr       error
+	exportErr     error
+	kubeconfig    []byte
+	kubeconfigErr error
 }
 
 func (f *fakeKind) run(args ...string) ([]byte, error) {
@@ -32,6 +34,11 @@ func (f *fakeKind) run(args ...string) ([]byte, error) {
 			return nil, f.listErr
 		}
 		return []byte(strings.Join(f.existing, "\n") + "\n"), nil
+	case len(args) >= 2 && args[0] == "get" && args[1] == "kubeconfig":
+		if f.kubeconfigErr != nil {
+			return f.kubeconfig, f.kubeconfigErr
+		}
+		return f.kubeconfig, nil
 	case len(args) >= 2 && args[0] == "create":
 		return nil, f.createErr
 	case len(args) >= 2 && args[0] == "delete":
@@ -408,5 +415,116 @@ func TestReleaseAfterSuccessDeletesWithoutEvidence(t *testing.T) {
 	}
 	if _, err := os.Stat(dir); !os.IsNotExist(err) {
 		t.Fatalf("successful release created evidence directory: %v", err)
+	}
+}
+
+func TestKubeconfigWritesClusterConfigToPrivateFile(t *testing.T) {
+	const content = "apiVersion: v1\nkind: Config\nclusters: []\n"
+	kind := &fakeKind{kubeconfig: []byte(content)}
+	path, cleanup, err := Kubeconfig(kind.run, "da-chatbot-mesh-smoke")
+	if err != nil {
+		t.Fatalf("kubeconfig: %v", err)
+	}
+	defer cleanup()
+
+	call := kind.lastCall("get")
+	if len(call) != 4 || call[1] != "kubeconfig" || call[3] != "da-chatbot-mesh-smoke" {
+		t.Fatalf("kind get kubeconfig call = %v, want [get kubeconfig --name da-chatbot-mesh-smoke]", call)
+	}
+	got, err := os.ReadFile(path)
+	if err != nil {
+		t.Fatalf("read kubeconfig: %v", err)
+	}
+	if string(got) != content {
+		t.Fatalf("kubeconfig content = %q, want %q", got, content)
+	}
+	info, err := os.Stat(path)
+	if err != nil {
+		t.Fatalf("stat kubeconfig: %v", err)
+	}
+	if perm := info.Mode().Perm(); perm != 0o600 {
+		t.Fatalf("kubeconfig mode = %o, want 600", perm)
+	}
+	cleanup()
+	if _, err := os.Stat(path); !os.IsNotExist(err) {
+		t.Fatalf("cleanup left kubeconfig behind: %v", err)
+	}
+}
+
+func TestKubeconfigRejectsEmptyAndErrors(t *testing.T) {
+	if _, _, err := Kubeconfig((&fakeKind{kubeconfig: []byte("   \n")}).run, "c"); err == nil {
+		t.Fatal("empty kubeconfig must error")
+	}
+	failing := &fakeKind{kubeconfig: []byte("boom"), kubeconfigErr: errors.New("no such cluster")}
+	if _, _, err := Kubeconfig(failing.run, "c"); err == nil {
+		t.Fatal("kind get kubeconfig failure must error")
+	}
+}
+
+func TestBindKubeconfigSetsAndRestores(t *testing.T) {
+	t.Run("restores a prior value", func(t *testing.T) {
+		t.Setenv("KUBECONFIG", "/ambient/context")
+		restore := BindKubeconfig("/cluster/config")
+		if got := os.Getenv("KUBECONFIG"); got != "/cluster/config" {
+			t.Fatalf("KUBECONFIG = %q, want /cluster/config", got)
+		}
+		restore()
+		if got := os.Getenv("KUBECONFIG"); got != "/ambient/context" {
+			t.Fatalf("restored KUBECONFIG = %q, want /ambient/context", got)
+		}
+	})
+
+	t.Run("unsets when there was no prior value", func(t *testing.T) {
+		t.Setenv("KUBECONFIG", "seed") // ensure a known baseline for t.Setenv restore
+		_ = os.Unsetenv("KUBECONFIG")
+		restore := BindKubeconfig("/cluster/config")
+		restore()
+		if _, had := os.LookupEnv("KUBECONFIG"); had {
+			t.Fatal("KUBECONFIG must be unset when there was no prior value")
+		}
+	})
+}
+
+// TestReusedClusterBindsAwayFromAmbientContext is the isolation regression:
+// even when a named cluster already exists (reuse) and the ambient KUBECONFIG
+// points at an unrelated cluster, generating and binding the cluster's own
+// kubeconfig routes subsequent commands to it rather than the ambient context
+// (GH-1341).
+func TestReusedClusterBindsAwayFromAmbientContext(t *testing.T) {
+	ambient := filepath.Join(t.TempDir(), "ambient-kubeconfig")
+	if err := os.WriteFile(ambient, []byte("apiVersion: v1\nkind: Config\n# unrelated cluster\n"), 0o600); err != nil {
+		t.Fatalf("write ambient kubeconfig: %v", err)
+	}
+	t.Setenv("KUBECONFIG", ambient)
+
+	kind := &fakeKind{
+		existing:   []string{"da-chatbot-mesh-smoke"},
+		kubeconfig: []byte("apiVersion: v1\nkind: Config\n# da-chatbot-mesh-smoke\n"),
+	}
+	cluster, err := EnsureCluster(kind.run, "da-chatbot-mesh-smoke", testConfig(t), 0)
+	if err != nil {
+		t.Fatalf("ensure: %v", err)
+	}
+	if cluster.Created {
+		t.Fatal("pre-existing cluster must be reused, not created")
+	}
+
+	path, cleanup, err := Kubeconfig(kind.run, cluster.Name)
+	if err != nil {
+		t.Fatalf("kubeconfig: %v", err)
+	}
+	defer cleanup()
+	restore := BindKubeconfig(path)
+	defer restore()
+
+	if got := os.Getenv("KUBECONFIG"); got != path {
+		t.Fatalf("bound KUBECONFIG = %q, want the cluster's %q (not ambient %q)", got, path, ambient)
+	}
+	if os.Getenv("KUBECONFIG") == ambient {
+		t.Fatal("commands would still target the ambient context")
+	}
+	restore()
+	if got := os.Getenv("KUBECONFIG"); got != ambient {
+		t.Fatalf("after restore KUBECONFIG = %q, want ambient %q", got, ambient)
 	}
 }
