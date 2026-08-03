@@ -1,6 +1,7 @@
 import fs from 'node:fs/promises'
 import path from 'node:path'
 import puppeteer, { type Browser, type HTTPResponse, type Page } from 'puppeteer-core'
+import { parseE2EConfig } from './config.ts'
 
 type Trace = {
   status?: string
@@ -30,17 +31,12 @@ type NetworkEntry = {
   status?: number
 }
 
-const baseURL = process.env.KM_DOCS_BASE_URL ?? 'http://127.0.0.1:18081/'
-const executablePath = process.env.PUPPETEER_EXECUTABLE_PATH ?? process.env.CHROME_BIN
-const artifactDir = process.env.KM_DOCS_ARTIFACT_DIR ?? path.join(process.cwd(), 'e2e-artifacts')
+const { baseURL, executablePath, artifactDir } = parseE2EConfig(process.argv.slice(2))
 const networkLog: NetworkEntry[] = []
 const consoleLog: string[] = []
 const capturedResponses: CapturedResponse[] = []
 
 async function main() {
-  if (!executablePath) {
-    throw new Error('PUPPETEER_EXECUTABLE_PATH or CHROME_BIN is required')
-  }
   await fs.mkdir(artifactDir, { recursive: true })
   const browser = await puppeteer.launch({
     executablePath,

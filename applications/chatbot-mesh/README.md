@@ -150,7 +150,8 @@ The agents run on the agent-core image with a mounted profile, for example `agen
 
 Driving the SPA in a browser uses the canonical documentation-curator
 [`ui/docs` package](../catalog/agents/knowledge-manager/documentation-curator/ui/docs/):
-run `npm ci` there, set `PUPPETEER_EXECUTABLE_PATH` or `CHROME_BIN` to a system
-browser, and invoke its supported `npm run test:e2e:machine-request` script.
+run `npm ci` there and invoke
+`npm run test:e2e:machine-request -- --executable-path=/path/to/browser` with a
+system Chrome or Chromium executable.
 The [browser E2E runbook](../../agent-core/README.md#browser-end-to-end-tests)
 explains why the shared package owns `puppeteer-core` and downloads no browser.

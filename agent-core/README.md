@@ -295,8 +295,8 @@ test suite under
 `../applications/catalog/agents/knowledge-manager/documentation-curator/ui/docs`.
 We depend on `puppeteer-core`
 rather than `puppeteer`, so npm downloads no browser. The host supplies one,
-and the test reads its path from `PUPPETEER_EXECUTABLE_PATH`, falling back to
-`CHROME_BIN`. Table 1 lists what a machine needs before the suite runs.
+and the test receives its path through the explicit `--executable-path`
+argument. Table 1 lists what a machine needs before the suite runs.
 
 Table 1: Browser test prerequisites
 
@@ -304,31 +304,32 @@ Table 1: Browser test prerequisites
 |---|---|
 | Node dependencies | `npm ci` inside the profile's `ui/docs` directory |
 | A browser | System Chrome or Chromium, installed by the host |
-| Browser path | `PUPPETEER_EXECUTABLE_PATH`, or `CHROME_BIN` as the fallback |
+| Browser path | Passed to the npm script with `--executable-path` |
 
 Run the suite from inside the package directory:
 
 ```bash
 cd ../applications/catalog/agents/knowledge-manager/documentation-curator/ui/docs
 npm ci
-export PUPPETEER_EXECUTABLE_PATH="/Applications/Google Chrome.app/Contents/MacOS/Google Chrome"
-npm run test:e2e:machine-request
+npm run test:e2e:machine-request -- \
+  --executable-path="/Applications/Google Chrome.app/Contents/MacOS/Google Chrome"
 ```
 
 Two details cost more time than they should. The scripts are ES modules, and
 ES module resolution ignores `NODE_PATH`, so a script that lives outside the
 package cannot reach its `node_modules` that way; run it from the package
 directory, or point its import at an absolute path. And `puppeteer-core`
-launches nothing without `executablePath`, so a missing browser variable
-surfaces as a launch failure rather than as a clear missing-configuration
-message. The suite checks the variable itself and fails with
-`PUPPETEER_EXECUTABLE_PATH or CHROME_BIN is required`.
+launches nothing without `executablePath`, so the suite requires the explicit
+`--executable-path` argument and reports a clear configuration error when it is
+missing. The package script supplies the stable base URL and artifact directory
+defaults. Append `--base-url=URL` or `--artifact-dir=PATH` after `--` to
+override either value.
 
 We choose `puppeteer-core` deliberately. The full `puppeteer` package
 downloads its own Chromium on every install, which we do not want in CI images
 or on developer machines that already carry a browser. Adding `puppeteer` to
-resolve a missing-browser error reverses that choice; set the path variable
-instead.
+resolve a missing-browser error reverses that choice; pass the browser path
+explicitly instead.
 
 ## Installation
 

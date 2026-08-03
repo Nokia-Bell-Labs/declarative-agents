@@ -7,7 +7,8 @@
     "dev": "vite",
     "build": "tsc && vite build",
     "preview": "vite preview",
-    "test:e2e:machine-request": "tsx e2e/machine-request-docs.spec.ts"
+    "test:e2e:config": "tsx --test e2e/config.test.ts",
+    "test:e2e:machine-request": "tsx e2e/machine-request-docs.spec.ts --base-url=http://127.0.0.1:18081/ --artifact-dir=e2e-artifacts"
   },
   "dependencies": {
     "highlight.js": "^11.11.1",
