@@ -265,24 +265,6 @@ absolute paths such as `/opt/agent-core/tools/builtin` and
 `/opt/agent-core/tools/exec`.
 If mounted output permissions matter, add `--user "$(id -u):$(id -g)"`.
 
-For integration tests inside a container, build the source-bearing integration
-target and mount profile assets from outside the image:
-
-```bash
-docker build \
-  --target integration \
-  --secret id=git_credentials,src=.netrc \
-  --build-arg AGENT_CORE_REF=v0.20260612.N \
-  -t agent-core-integration:latest .
-
-docker run --rm \
-  -v "$AGENT_CATALOG_ROOT:/profiles/agents:ro" \
-  -w /src \
-  -e AGENT_CATALOG_ROOT=/profiles/agents \
-  agent-core-integration:latest \
-  mage integration:monitor
-```
-
 Recent verification: `mage docker` built `agent-core:latest` from a remote
 release, `docker run --rm agent-core:latest --help` started the packaged
 `agent` binary, and `docker run --rm agent-core:latest` reported that
