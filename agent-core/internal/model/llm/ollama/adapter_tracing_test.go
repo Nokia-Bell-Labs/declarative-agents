@@ -6,6 +6,7 @@ import (
 	"context"
 	"encoding/json"
 	"github.com/Nokia-Bell-Labs/declarative-agents/agent-core/internal/model/llm"
+	"github.com/Nokia-Bell-Labs/declarative-agents/agent-core/internal/observability/tracing"
 	"github.com/stretchr/testify/require"
 	"net/http"
 	"net/http/httptest"
@@ -17,16 +18,16 @@ func TestNewAdapter_TracesCheckModelLifecycle(t *testing.T) {
 	srv := httptest.NewServer(tagsHandler([]string{"llama3:latest", "mistral:7b"}))
 	defer srv.Close()
 
-	tr := newRecordingTracer()
+	tr := tracing.NewRecordingTracer()
 	a, err := NewAdapter(srv.URL, "llama3", WithHTTPClient(srv.Client()), WithTracer(tr))
 	require.NoError(t, err)
 	require.NotNil(t, a)
 
-	start := tr.findEvent("check_model.start")
+	start := tr.FindEvent("check_model.start")
 	require.NotNil(t, start)
 	require.Equal(t, "llama3", start.Attrs["llm.model"])
 
-	done := tr.findEvent("check_model.done")
+	done := tr.FindEvent("check_model.done")
 	require.NotNil(t, done)
 	require.Equal(t, int64(2), done.Attrs["model_count"])
 	require.Equal(t, true, done.Attrs["match"])
@@ -37,22 +38,22 @@ func TestNewAdapter_TracesCheckModelNotFound(t *testing.T) {
 	srv := httptest.NewServer(tagsHandler([]string{"mistral:7b"}))
 	defer srv.Close()
 
-	tr := newRecordingTracer()
+	tr := tracing.NewRecordingTracer()
 	_, err := NewAdapter(srv.URL, "llama3", WithHTTPClient(srv.Client()), WithTracer(tr))
 	require.Error(t, err)
 
-	done := tr.findEvent("check_model.done")
+	done := tr.FindEvent("check_model.done")
 	require.NotNil(t, done)
 	require.Equal(t, false, done.Attrs["match"])
 }
 
 func TestNewAdapter_TracesCheckModelConnectionError(t *testing.T) {
 	t.Parallel()
-	tr := newRecordingTracer()
+	tr := tracing.NewRecordingTracer()
 	_, err := NewAdapter("http://127.0.0.1:1", "llama3", WithHTTPClient(&http.Client{}), WithTracer(tr))
 	require.Error(t, err)
 
-	errEvt := tr.findEvent("check_model.error")
+	errEvt := tr.FindEvent("check_model.error")
 	require.NotNil(t, errEvt)
 	require.Contains(t, errEvt.Attrs["error"], "connect")
 }
@@ -64,11 +65,11 @@ func TestNewAdapter_TracesCheckModelBadStatus(t *testing.T) {
 	}))
 	defer srv.Close()
 
-	tr := newRecordingTracer()
+	tr := tracing.NewRecordingTracer()
 	_, err := NewAdapter(srv.URL, "llama3", WithHTTPClient(srv.Client()), WithTracer(tr))
 	require.Error(t, err)
 
-	errEvt := tr.findEvent("check_model.error")
+	errEvt := tr.FindEvent("check_model.error")
 	require.NotNil(t, errEvt)
 	require.Equal(t, int64(500), errEvt.Attrs["http.status_code"])
 }
@@ -78,7 +79,7 @@ func TestChat_EmitsSemconvInferenceSpan(t *testing.T) {
 	srv := httptest.NewServer(chatAPIHandler("hello", 100, 15))
 	defer srv.Close()
 
-	tr := newRecordingTracer()
+	tr := tracing.NewRecordingTracer()
 	a, err := NewAdapter(srv.URL, "llama3", WithHTTPClient(srv.Client()), WithTracer(tr))
 	require.NoError(t, err)
 
@@ -115,7 +116,7 @@ func TestChat_SpanRecordsErrorOnHTTPFailure(t *testing.T) {
 	}))
 	defer srv.Close()
 
-	tr := newRecordingTracer()
+	tr := tracing.NewRecordingTracer()
 	a, err := NewAdapter(srv.URL, "llama3", WithHTTPClient(srv.Client()), WithTracer(tr))
 	require.NoError(t, err)
 
