@@ -69,6 +69,7 @@ requirements:
       - R4.2: The mock profile must select the REST server tool family and the lifecycle control words it needs to serve and exit.
       - R4.3: Mock dependencies must name agent-core for the mock endpoint binding and REST server runtime; the fixture content stays profile-owned or scenario-owned.
       - R4.4: The mock must run as the same agent binary over a mounted profile, requiring no dedicated container image.
+      - R4.5: The mock must not acquire a dedicated CLI/runtime dependency unless it preserves the full srd039 scripted-response, request-log, validation, concurrency, lifecycle, and telemetry contract without requiring a separate image (GH-1386).
 
   R5:
     title: Outputs and outcomes
@@ -81,6 +82,7 @@ non_goals:
   - Proxy to, record from, or replay a real upstream service.
   - Assert anything; the mock serves and records, and the validator asserts.
   - Model a client-side mock; the mock serves inbound requests only.
+  - Replace the shared agent-core binding with a partially compatible third-party mock process.
 
 acceptance_criteria:
   - id: AC1
