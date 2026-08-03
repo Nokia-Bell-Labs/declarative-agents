@@ -30,10 +30,6 @@ func (fakeClient) Chat(context.Context, []modelllm.Message, modelllm.ChatOptions
 	return modelllm.ChatResponse{Content: `{"tool":"done","parameters":{"summary":"ok"}}`}, nil
 }
 
-func (fakeClient) ListModels(context.Context) ([]modelllm.ModelInfo, error) {
-	return nil, nil
-}
-
 // capturingClient records the ChatOptions of the last Chat call so tests can
 // assert the decoding parameters that reach the model boundary.
 type capturingClient struct{ opts modelllm.ChatOptions }
@@ -41,10 +37,6 @@ type capturingClient struct{ opts modelllm.ChatOptions }
 func (c *capturingClient) Chat(_ context.Context, _ []modelllm.Message, opts modelllm.ChatOptions) (modelllm.ChatResponse, error) {
 	c.opts = opts
 	return modelllm.ChatResponse{Content: `{"tool":"done","parameters":{"summary":"ok"}}`}, nil
-}
-
-func (*capturingClient) ListModels(context.Context) ([]modelllm.ModelInfo, error) {
-	return nil, nil
 }
 
 func floatPtr(f float64) *float64 { return &f }
@@ -139,6 +131,24 @@ func TestInvokeLLMUsesRuntimeStateForManifest(t *testing.T) {
 
 	require.Equal(t, core.LLMResponded, res.Signal)
 	require.Equal(t, []core.State{"Composing"}, assembler.states)
+}
+
+// TestNewInvokeLLMBuilderDoesNotProbeAtRegistration pins GH-1375: constructing
+// the invoke_llm builder must not probe the backend, so an unreachable Ollama
+// never fails tool registration. Availability is a declared machine transition.
+func TestNewInvokeLLMBuilderDoesNotProbeAtRegistration(t *testing.T) {
+	t.Parallel()
+	def := catalog.ToolDef{Name: "invoke_llm", Config: map[string]interface{}{
+		"provider":       "ollama",
+		"provider_url":   "http://127.0.0.1:1",
+		"model":          "qwen2.5:7b",
+		"manifest_state": "Composing",
+	}}
+
+	builder, err := NewInvokeLLMBuilder(def, InvokeLLMFactoryDeps{Ctx: context.Background()})
+
+	require.NoError(t, err)
+	require.NotNil(t, builder)
 }
 
 func TestInvokeLLMFallsBackToConfiguredManifestState(t *testing.T) {

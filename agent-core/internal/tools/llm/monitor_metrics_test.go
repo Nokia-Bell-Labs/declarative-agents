@@ -28,8 +28,6 @@ func (metricClient) Chat(context.Context, []modelllm.Message, modelllm.ChatOptio
 	return modelllm.ChatResponse{Content: "ok", TokensIn: 11, TokensOut: 7}, nil
 }
 
-func (metricClient) ListModels(context.Context) ([]modelllm.ModelInfo, error) { return nil, nil }
-
 type metricAssembler struct{}
 
 func (metricAssembler) AssembleMessages(conv *modelllm.Conversation, _ *core.Registry, _ core.State) []modelllm.Message {

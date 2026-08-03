@@ -1529,7 +1529,7 @@ implementation_status:
     - done: Telemetry (internal/observability/telemetry) — OTel providers, exporters, adapter, traceparent, replay
     - done: GenAI semconv (internal/observability/telemetry/genai) — constants, span builders, attribute helpers
     - done: Model boundary support (internal/model/llm) — Client, Conversation, profiles, parseutil, interfaces
-    - done: Ollama client implementation (internal/model/llm/ollama) — Chat, ListModels, model validation, tracing
+    - done: Ollama client implementation (internal/model/llm/ollama) — Chat, model validation, tracing
     - done: Prompt assembly (internal/model/prompt) — Prompt struct, YAML loading, system template
     - done: Standard tool library behavior — file, build, model boundary, lifecycle adapters, config loading
     - done: Standard tool library package split — internal/tools/catalog, registry, exec, filesystem, llm, rest, service, otlp, lifecycle, control, compose, validation, and undo

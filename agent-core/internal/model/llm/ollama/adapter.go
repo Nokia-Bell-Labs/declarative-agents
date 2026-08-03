@@ -2,7 +2,8 @@
 
 // Package ollama implements the llm.Client interface for the Ollama
 // inference server. It communicates via the Ollama HTTP API: POST
-// /api/chat for completions and GET /api/tags for model discovery.
+// /api/chat for completions and GET /api/tags for the optional startup
+// model-availability check.
 package ollama
 
 import (
@@ -56,23 +57,6 @@ type tagsResp struct {
 
 type modelEntry struct {
 	Name string `json:"name"`
-}
-
-// detailedTagsResp is the full GET /api/tags response with metadata.
-type detailedTagsResp struct {
-	Models []detailedModelEntry `json:"models"`
-}
-
-type detailedModelEntry struct {
-	Name       string    `json:"name"`
-	Size       int64     `json:"size"`
-	ModifiedAt time.Time `json:"modified_at"`
-	Digest     string    `json:"digest"`
-	Details    struct {
-		ParameterSize     string `json:"parameter_size"`
-		QuantizationLevel string `json:"quantization_level"`
-		Family            string `json:"family"`
-	} `json:"details"`
 }
 
 // Adapter wraps the Ollama HTTP API and implements llm.Client.
@@ -203,68 +187,6 @@ func (a *Adapter) chatSpan(ctx context.Context, model string) (tracing.Tracer, f
 	}
 
 	return a.tracer.Push(genai.InferenceSpanName(model), attrs...)
-}
-
-// ListModels queries Ollama GET /api/tags and returns metadata for all
-// locally available models. Satisfies llm.Client.
-func (a *Adapter) ListModels(ctx context.Context) ([]llm.ModelInfo, error) {
-	a.traceEvent("list_models.start",
-		attribute.String("ollama.base_url", a.baseURL),
-	)
-
-	url := a.baseURL + "/api/tags"
-	req, err := http.NewRequestWithContext(ctx, http.MethodGet, url, nil)
-	if err != nil {
-		return nil, fmt.Errorf("create request: %w", err)
-	}
-
-	resp, err := a.client.Do(req)
-	if err != nil {
-		a.traceEvent("list_models.error", attribute.String("error", err.Error()))
-		return nil, fmt.Errorf("failed to connect to Ollama at %s: %w", a.baseURL, err)
-	}
-	defer func() { _ = resp.Body.Close() }()
-
-	if resp.StatusCode != http.StatusOK {
-		a.traceEvent("list_models.error", attribute.Int("http.status_code", resp.StatusCode))
-		return nil, fmt.Errorf("ollama /api/tags returned status %d", resp.StatusCode)
-	}
-
-	body, err := io.ReadAll(resp.Body)
-	if err != nil {
-		return nil, fmt.Errorf("read /api/tags response: %w", err)
-	}
-
-	var tags detailedTagsResp
-	if err := json.Unmarshal(body, &tags); err != nil {
-		return nil, fmt.Errorf("parse /api/tags response: %w", err)
-	}
-
-	models := make([]llm.ModelInfo, len(tags.Models))
-	for i, m := range tags.Models {
-		details := map[string]string{
-			"digest": m.Digest,
-		}
-		if m.Details.ParameterSize != "" {
-			details["parameter_size"] = m.Details.ParameterSize
-		}
-		if m.Details.QuantizationLevel != "" {
-			details["quantization_level"] = m.Details.QuantizationLevel
-		}
-		if m.Details.Family != "" {
-			details["family"] = m.Details.Family
-		}
-		models[i] = llm.ModelInfo{
-			Name:       m.Name,
-			Size:       m.Size,
-			ModifiedAt: m.ModifiedAt,
-			Provider:   "ollama",
-			Details:    details,
-		}
-	}
-
-	a.traceEvent("list_models.done", attribute.Int("model_count", len(models)))
-	return models, nil
 }
 
 // checkModel verifies that a.model is available via GET /api/tags.
