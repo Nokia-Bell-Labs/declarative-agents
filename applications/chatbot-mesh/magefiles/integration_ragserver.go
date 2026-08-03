@@ -5,10 +5,12 @@ package main
 import (
 	"encoding/json"
 	"fmt"
+	"math"
 	"net/http"
 	"os"
 	"os/exec"
 	"path/filepath"
+	"strings"
 	"time"
 )
 
@@ -216,6 +218,9 @@ func assertRagQueryReturnsChunks(vector []float64) error {
 	if resp.chunkCount() > 3 {
 		return fmt.Errorf("rag query returned %d chunks for n_results=3; request count not honored: %s", resp.chunkCount(), data)
 	}
+	if err := resp.validateAlignment(); err != nil {
+		return fmt.Errorf("rag query result unusable: %w: %s", err, data)
+	}
 	if resp.EmbeddingModel == "" {
 		return fmt.Errorf("rag query response is missing the embedding_model metadata: %s", data)
 	}
@@ -247,6 +252,9 @@ func assertRagQueryHonorsNResults(vector []float64) error {
 	}
 	if resp.chunkCount() != 1 {
 		return fmt.Errorf("rag query n_results=1 returned %d chunks, want exactly 1: %s", resp.chunkCount(), data)
+	}
+	if err := resp.validateAlignment(); err != nil {
+		return fmt.Errorf("rag query n_results=1 result unusable: %w: %s", err, data)
 	}
 	return nil
 }
@@ -306,6 +314,50 @@ func (r ragQueryResponse) chunkCount() int {
 		return 0
 	}
 	return len(r.IDs[0])
+}
+
+// validateAlignment enforces that the query result is actually usable rather
+// than merely carrying IDs. Chroma returns ids, documents, and distances as
+// parallel arrays, so a real chunk must have a nonempty document and a finite
+// distance at the same position. It requires matching outer and inner
+// dimensions across all three arrays, a nonempty document per chunk, and a
+// finite distance per chunk (srd rel00.0: chunks carry IDs and distances).
+func (r ragQueryResponse) validateAlignment() error {
+	if len(r.IDs) == 0 {
+		return fmt.Errorf("rag query result carries no ids array")
+	}
+	if len(r.Documents) != len(r.IDs) {
+		return fmt.Errorf("documents outer dimension %d != ids outer dimension %d",
+			len(r.Documents), len(r.IDs))
+	}
+	if len(r.Distances) != len(r.IDs) {
+		return fmt.Errorf("distances outer dimension %d != ids outer dimension %d",
+			len(r.Distances), len(r.IDs))
+	}
+	for row := range r.IDs {
+		ids, docs, dists := r.IDs[row], r.Documents[row], r.Distances[row]
+		if len(docs) != len(ids) {
+			return fmt.Errorf("row %d: documents inner dimension %d != ids inner dimension %d",
+				row, len(docs), len(ids))
+		}
+		if len(dists) != len(ids) {
+			return fmt.Errorf("row %d: distances inner dimension %d != ids inner dimension %d",
+				row, len(dists), len(ids))
+		}
+		for chunk, doc := range docs {
+			if strings.TrimSpace(doc) == "" {
+				return fmt.Errorf("row %d chunk %d: empty document alongside id %q",
+					row, chunk, ids[chunk])
+			}
+		}
+		for chunk, dist := range dists {
+			if math.IsNaN(dist) || math.IsInf(dist, 0) {
+				return fmt.Errorf("row %d chunk %d: non-finite distance %v alongside id %q",
+					row, chunk, dist, ids[chunk])
+			}
+		}
+	}
+	return nil
 }
 
 func parseRagQueryResponse(data []byte) (ragQueryResponse, error) {
