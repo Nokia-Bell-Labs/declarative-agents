@@ -47,8 +47,8 @@ which owns the ingress; its ports and lifecycle are documented in the
 
 Root releases require every release gate to exit successfully before tagging:
 `mage audit`, `mage test`, `agent-core` and `applications/catalog`
-`mage integration:all`, catalog `mage conformance` with `AGENT_CORE_ROOT` set to
-the release checkout, and application-owned gates from each application root.
+`mage integration:all`, catalog `mage conformance` using repository discovery,
+and application-owned gates from each application root.
 A documented skip reported by a gate is accepted only when that gate exits
 successfully. A failed gate cannot be waived; fix the failure and run the gates
 again before creating a tag.

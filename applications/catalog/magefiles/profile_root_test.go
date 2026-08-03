@@ -8,14 +8,10 @@ import (
 	"testing"
 )
 
-const testAgentCoreModule = "github.com/Nokia-Bell-Labs/declarative-agents/agent-core"
-
 func TestResolveAgentCoreRootFromCatalog(t *testing.T) {
 	repository := t.TempDir()
 	catalogRoot := filepath.Join(repository, "applications", "catalog")
 	coreRoot := filepath.Join(repository, "agent-core")
-	writeModule(t, coreRoot, testAgentCoreModule)
-	t.Setenv(agentCoreRootEnv, "")
 
 	got, err := resolveAgentCoreRoot(catalogRoot)
 	if err != nil {
@@ -26,13 +22,12 @@ func TestResolveAgentCoreRootFromCatalog(t *testing.T) {
 	}
 }
 
-func TestResolveAgentCoreRootHonorsAbsoluteAndRelativeEnvironment(t *testing.T) {
+func TestResolveAgentCoreRootHonorsAbsoluteAndRelativeDemoConfig(t *testing.T) {
 	catalogRoot := t.TempDir()
 	absoluteRoot := filepath.Join(t.TempDir(), "agent-core")
-	writeModule(t, absoluteRoot, testAgentCoreModule)
 
 	t.Run("absolute", func(t *testing.T) {
-		t.Setenv(agentCoreRootEnv, absoluteRoot)
+		writeCatalogDemoConfig(t, catalogRoot, "core_root: "+absoluteRoot+"\n")
 		got, err := resolveAgentCoreRoot(catalogRoot)
 		if err != nil {
 			t.Fatalf("resolveAgentCoreRoot returned error: %v", err)
@@ -44,8 +39,7 @@ func TestResolveAgentCoreRootHonorsAbsoluteAndRelativeEnvironment(t *testing.T) 
 
 	t.Run("relative to owner root", func(t *testing.T) {
 		relativeRoot := filepath.Join(catalogRoot, "test-core")
-		writeModule(t, relativeRoot, testAgentCoreModule)
-		t.Setenv(agentCoreRootEnv, "test-core")
+		writeCatalogDemoConfig(t, catalogRoot, "core_root: test-core\n")
 		got, err := resolveAgentCoreRoot(catalogRoot)
 		if err != nil {
 			t.Fatalf("resolveAgentCoreRoot returned error: %v", err)
@@ -59,7 +53,7 @@ func TestResolveAgentCoreRootHonorsAbsoluteAndRelativeEnvironment(t *testing.T) 
 func TestResolveAgentCoreRootDoesNotRequireCheckoutForSkipSemantics(t *testing.T) {
 	catalogRoot := t.TempDir()
 	missingRoot := filepath.Join(t.TempDir(), "missing-core")
-	t.Setenv(agentCoreRootEnv, missingRoot)
+	writeCatalogDemoConfig(t, catalogRoot, "core_root: "+missingRoot+"\n")
 
 	got, err := resolveAgentCoreRoot(catalogRoot)
 	if err != nil {
@@ -70,16 +64,42 @@ func TestResolveAgentCoreRootDoesNotRequireCheckoutForSkipSemantics(t *testing.T
 	}
 }
 
-func writeModule(t *testing.T, root, module string) {
+func TestResolveAgentCoreImageFromDemoConfig(t *testing.T) {
+	catalogRoot := t.TempDir()
+
+	image, err := resolveAgentCoreImage(catalogRoot)
+	if err != nil {
+		t.Fatalf("resolveAgentCoreImage returned error: %v", err)
+	}
+	if image != defaultAgentCoreImage {
+		t.Fatalf("resolveAgentCoreImage = %q, want %q", image, defaultAgentCoreImage)
+	}
+
+	writeCatalogDemoConfig(t, catalogRoot, "core_image: registry.example/agent-core:test\n")
+	image, err = resolveAgentCoreImage(catalogRoot)
+	if err != nil {
+		t.Fatalf("resolveAgentCoreImage returned error: %v", err)
+	}
+	if image != "registry.example/agent-core:test" {
+		t.Fatalf("resolveAgentCoreImage = %q, want configured image", image)
+	}
+}
+
+func TestResolveAgentCoreRootRejectsMalformedDemoConfig(t *testing.T) {
+	catalogRoot := t.TempDir()
+	writeCatalogDemoConfig(t, catalogRoot, "core_root: [\n")
+
+	if _, err := resolveAgentCoreRoot(catalogRoot); err == nil {
+		t.Fatal("resolveAgentCoreRoot returned nil error for malformed demo.yaml")
+	}
+}
+
+func writeCatalogDemoConfig(t *testing.T, root, contents string) {
 	t.Helper()
 	if err := os.MkdirAll(root, 0o755); err != nil {
 		t.Fatal(err)
 	}
-	if err := os.WriteFile(
-		filepath.Join(root, "go.mod"),
-		[]byte("module "+module+"\n\ngo 1.26.3\n"),
-		0o644,
-	); err != nil {
+	if err := os.WriteFile(filepath.Join(root, catalogDemoConfigFile), []byte(contents), 0o644); err != nil {
 		t.Fatal(err)
 	}
 }

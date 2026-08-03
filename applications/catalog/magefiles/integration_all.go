@@ -41,7 +41,7 @@ func (i Integration) All() error {
 		fmt.Printf("\n=== %s ===\n", t.name)
 		if t.needsCore && !coreAvailable {
 			skipped++
-			reason := fmt.Sprintf("agent-core checkout not found at %s (set %s)", coreRoot, agentCoreRootEnv)
+			reason := fmt.Sprintf("agent-core checkout not found at %s (set core_root in %s)", coreRoot, catalogDemoConfigFile)
 			fmt.Printf("SKIP %s: %s\n", t.name, reason)
 			results = append(results, fmt.Sprintf("  SKIP  %s", t.name))
 			continue

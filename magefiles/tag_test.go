@@ -333,8 +333,7 @@ func TestReleaseGatesMatchDocumentedContract(t *testing.T) {
 		{name: "catalog integration", dir: "/release/applications/catalog",
 			args: []string{"mage", "integration:all"}},
 		{name: "catalog conformance", dir: "/release/applications/catalog",
-			args: []string{"mage", "conformance"},
-			env:  []string{"AGENT_CORE_ROOT=/release/agent-core"}},
+			args: []string{"mage", "conformance"}},
 	}
 	if !reflect.DeepEqual(got, want) {
 		t.Fatalf("release gates = %#v, want %#v", got, want)

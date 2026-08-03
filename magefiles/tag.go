@@ -113,7 +113,6 @@ func runReleaseGates(commit string) error {
 }
 
 func releaseGates(root string) []releaseGate {
-	coreRoot := filepath.Join(root, "agent-core")
 	catalogRoot := filepath.Join(root, catalogModule)
 	return []releaseGate{
 		{name: "root audit", dir: root, args: []string{"mage", "audit"}},
@@ -123,8 +122,7 @@ func releaseGates(root string) []releaseGate {
 		{name: "catalog integration", dir: catalogRoot,
 			args: []string{"mage", "integration:all"}},
 		{name: "catalog conformance", dir: catalogRoot,
-			args: []string{"mage", "conformance"},
-			env:  []string{"AGENT_CORE_ROOT=" + coreRoot}},
+			args: []string{"mage", "conformance"}},
 	}
 }
 

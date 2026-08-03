@@ -403,11 +403,9 @@ references against the resolved agent-core tree.
 mage validate
 ```
 
-After the source move, run repository-local validation with
-`AGENT_CORE_ROOT="$(git rev-parse --show-toplevel)/agent-core" mage validate`.
-When `AGENT_CORE_ROOT` is unset, catalog Mage targets resolve the monorepo
-checkout at `../../agent-core` from this owner root. Relative
-`AGENT_CORE_ROOT` values are also interpreted from this owner root.
+Catalog Mage targets resolve the monorepo checkout at `../../agent-core` from
+this owner root. To use another checkout, uncomment `core_root` in `demo.yaml`;
+relative paths are interpreted from this owner root.
 
 With an `agent-core` image available, run the mounted-profile container smoke
 check:
@@ -416,8 +414,8 @@ check:
 mage containerSmoke
 ```
 
-Optional image selection uses the constant `agentCoreImageEnv` in
-`magefiles/validation.go` (defaults to `agent-core:latest`).
+Optional image selection uses `core_image` in `demo.yaml` and defaults to
+`agent-core:latest`.
 
 Before running the profile, the smoke target fails if the image contains
 `/opt/agent-core/agents`. It then mounts this catalog at `/profiles`, mounts

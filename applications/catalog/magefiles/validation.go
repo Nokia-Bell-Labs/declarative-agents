@@ -14,8 +14,6 @@ import (
 )
 
 const (
-	agentCoreRootEnv                  = "AGENT_CORE_ROOT"
-	agentCoreImageEnv                 = "AGENT_CORE_IMAGE"
 	dockerEngine                      = "docker"
 	defaultAgentCoreImage             = "agent-core:latest"
 	containerProfilesMount            = "/profiles"
@@ -70,7 +68,11 @@ func ContainerSmoke() error {
 	if err := requireDocker(exec.LookPath); err != nil {
 		return err
 	}
-	return runContainerSmoke(defaultRun, root, coreRoot, envOrDefault(agentCoreImageEnv, defaultAgentCoreImage))
+	coreImage, err := resolveAgentCoreImage(root)
+	if err != nil {
+		return err
+	}
+	return runContainerSmoke(defaultRun, root, coreRoot, coreImage)
 }
 
 func validatePortableProfileRefs(root, coreRoot string) error {
@@ -359,11 +361,4 @@ func defaultRun(name string, args ...string) error {
 	cmd.Stdout = os.Stdout
 	cmd.Stderr = os.Stderr
 	return cmd.Run()
-}
-
-func envOrDefault(name, fallback string) string {
-	if value := strings.TrimSpace(os.Getenv(name)); value != "" {
-		return value
-	}
-	return fallback
 }
