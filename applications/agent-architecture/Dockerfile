@@ -1,10 +1,14 @@
 # syntax=docker/dockerfile:1.7
 #
-# The agent-architecture runtime image: one profile-free image that runs both
-# the documentation-curator and the collector. It carries the agent binary and
-# the core-owned tool declarations the curator profile names under
-# /opt/agent-core; the canonical profiles are mounted at /profiles, never baked
-# in. Build context is the repository root so the builder reaches agent-core.
+# The agent-architecture runtime image: one image that runs both the
+# documentation-curator and the collector. It carries the agent binary and the
+# core-owned tool declarations the curator profile names under /opt/agent-core.
+# Canonical profiles (config) are mounted at /profiles, never baked in. The one
+# exception is the documentation-curator's browser UI: its built dist trees
+# total several MB, far past the profile ConfigMap payload limit, so the
+# immutable assets are baked under /opt/curator-ui and an init container stages
+# them into the curator's writable workspace at runtime (GH-1261). Build context
+# is the repository root so the builder reaches agent-core and the catalog UI.
 
 ARG GO_IMAGE=golang:1.26-alpine
 ARG RUNTIME_IMAGE=alpine:3.22
@@ -30,6 +34,13 @@ WORKDIR /work
 
 COPY --from=builder /out/agent /usr/local/bin/agent
 COPY agent-core/tools /opt/agent-core/tools
+
+# The documentation-curator's browser UI (ux.json, docs, and monitor dist trees)
+# is baked here because it is too large for the profile ConfigMap mount. The
+# curator init container copies it into the writable workspace at runtime so the
+# profile's literal ui/*/dist static_assets roots resolve (GH-1261).
+COPY applications/catalog/agents/knowledge-manager/documentation-curator/ui \
+    /opt/curator-ui/agents/knowledge-manager/documentation-curator/ui
 
 RUN addgroup -S -g 10001 agent \
     && adduser -S -u 10001 -G agent agent \

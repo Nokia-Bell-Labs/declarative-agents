@@ -288,13 +288,16 @@ design_decisions:
       A chart runs the documentation-curator and the collector as persistent
       Kubernetes workloads. A mage preparation target stages the catalog-owned
       curator and collector profile closures as checksum-validated ConfigMaps
-      that the workloads mount into one profile-free runtime image; a
-      values.schema.json owns the deployment values, and a package target emits a
-      self-contained archive a bounded kind target installs. The chart deploys
-      canonical profiles by reference, copying neither the profile nor its user
-      interface. srd001-helm-deployment defines the topology, package, schema, and
-      smoke; srd002-managed-application-services R4 through R6 apply by reference.
-      The resources land in later sub-issues.
+      that the workloads mount into one runtime image; a values.schema.json owns
+      the deployment values, and a package target emits a self-contained archive a
+      bounded kind target installs. The chart deploys canonical profiles by
+      reference, copying the profile config for neither workload. The curator's
+      browser UI is the one exception: its dist trees exceed the ConfigMap payload
+      limit, so the image bakes them and an init container stages them into the
+      curator workspace at startup -- a recorded divergence from the profile-free
+      image invariant, alongside the applier CLIs (decision 9). srd001-helm-deployment
+      defines the topology, package, schema, and smoke; srd002-managed-application-services
+      R4 through R6 apply by reference. The resources land in later sub-issues.
     benefits:
       - The same composition the local demo runs installs and upgrades on a cluster.
       - Mounted closures keep the catalog as the one owner of the curator and collector profiles.

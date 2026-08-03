@@ -5,7 +5,8 @@
 # to and the two canonical profiles the chart deploys by reference -- the
 # documentation-curator and the collector -- so `mage helmPrepare` regenerates
 # their closures from a compatible catalog checkout and stages them as the
-# chart's only profile source. The runtime image stays profile-free.
+# chart's only profile source. The runtime image carries no profile config; the
+# curator's oversized browser UI is the one baked exception (srd001 R1.2).
 schema_version: 1
 application: agent-architecture
 agent_profiles:
