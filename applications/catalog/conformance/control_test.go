@@ -23,6 +23,7 @@ import (
 // selects one control event, and exit_agent owns exit as visible lifecycle
 // vocabulary.
 func TestControlConformance(t *testing.T) {
+	t.Parallel()
 	RequireCoreRoot(t)
 	addr := FreeAddr(t)
 	port := PortOf(t, addr)

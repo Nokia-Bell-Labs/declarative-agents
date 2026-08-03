@@ -13,6 +13,7 @@ import (
 )
 
 func TestDoltServerStopJoinsProcessBeforeDirectoryRemoval(t *testing.T) {
+	t.Parallel()
 	if os.Getenv("DOLT_STOP_HELPER") == "1" {
 		for {
 			time.Sleep(time.Second)

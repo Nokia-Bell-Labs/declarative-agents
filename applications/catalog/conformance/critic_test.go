@@ -58,6 +58,7 @@ echo "generator profile boundary exercised"
 // -> report session pipeline), R2.2 (evaluator session and child-execution tool
 // families), and R3.2 (Done terminal outcome).
 func TestCriticConformance(t *testing.T) {
+	t.Parallel()
 	RequireCoreRoot(t)
 
 	// The point machine launches the child generator agent from the configured
@@ -103,6 +104,7 @@ func TestCriticConformance(t *testing.T) {
 // profile runs the declared oracle, selects the matching machine branch, and
 // writes the explicit verdict artifact consumed by applications.
 func TestCriticChangedWorkspaceVerdicts(t *testing.T) {
+	t.Parallel()
 	RequireCoreRoot(t)
 	tests := []struct {
 		name       string
@@ -133,6 +135,7 @@ func TestCriticChangedWorkspaceVerdicts(t *testing.T) {
 import "testing"
 
 func TestHello(t *testing.T) {
+	t.Parallel()
 	if got := Hello("Go"); got != "Hello, Go!" {
 		t.Fatalf("Hello = %q", got)
 	}

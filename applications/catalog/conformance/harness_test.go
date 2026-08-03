@@ -22,6 +22,7 @@ func coreCheckout(t *testing.T) string {
 // absent checkout skips rather than fails, so a docs-only checkout keeps `go
 // test ./...` hermetic (GH-584).
 func TestResolveCoreRootPolicy(t *testing.T) {
+	t.Parallel()
 	repositoryCheckout := coreCheckout(t)
 	empty := t.TempDir() // exists but holds no go.mod
 
@@ -59,6 +60,7 @@ func TestResolveCoreRootPolicy(t *testing.T) {
 }
 
 func TestAgentCoreRepositoryPathFromApplicationsCatalog(t *testing.T) {
+	t.Parallel()
 	repository := t.TempDir()
 	catalogRoot := filepath.Join(repository, "applications", "catalog")
 	if got := agentCoreRepositoryPath(catalogRoot); got != filepath.Join(repository, "agent-core") {
@@ -70,6 +72,7 @@ func TestAgentCoreRepositoryPathFromApplicationsCatalog(t *testing.T) {
 // directory called go.mod is not a module, so it must not satisfy the
 // prerequisite.
 func TestResolveCoreRootRejectsDirectoryNamedGoMod(t *testing.T) {
+	t.Parallel()
 	dir := t.TempDir()
 	if err := os.Mkdir(filepath.Join(dir, "go.mod"), 0o755); err != nil {
 		t.Fatal(err)

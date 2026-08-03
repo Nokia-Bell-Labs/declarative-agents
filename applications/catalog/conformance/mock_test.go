@@ -78,6 +78,7 @@ func mockStatus(t *testing.T, method, url, body string) int {
 //
 // Traces srd019-mock AC1 and AC2, and rel11.0-uc002-mock-serves-fixtures S2.
 func TestMockServesFixtureSequence(t *testing.T) {
+	t.Parallel()
 	RequireCoreRoot(t)
 	addr := FreeAddr(t)
 	baseURL := "http://" + addr
@@ -121,6 +122,7 @@ func TestMockServesFixtureSequence(t *testing.T) {
 //
 // Traces srd019-mock AC3 and rel11.0-uc002-mock-serves-fixtures S3.
 func TestMockRequestLogRecordsCalls(t *testing.T) {
+	t.Parallel()
 	RequireCoreRoot(t)
 	addr := FreeAddr(t)
 	baseURL := "http://" + addr
@@ -179,6 +181,7 @@ func TestMockRequestLogRecordsCalls(t *testing.T) {
 //
 // Traces srd019-mock AC2, and rel11.0-uc002-mock-serves-fixtures S1 and S5.
 func TestMockTwoInstancesDifferentFixtures(t *testing.T) {
+	t.Parallel()
 	RequireCoreRoot(t)
 
 	type instance struct {
@@ -235,6 +238,7 @@ func TestMockTwoInstancesDifferentFixtures(t *testing.T) {
 //
 // Traces srd019-mock AC2 (R2.4) and rel11.0-uc002-mock-serves-fixtures S4.
 func TestMockMalformedFixtureFailsStartup(t *testing.T) {
+	t.Parallel()
 	RequireCoreRoot(t)
 
 	cases := map[string]string{

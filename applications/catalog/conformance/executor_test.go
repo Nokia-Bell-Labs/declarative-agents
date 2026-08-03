@@ -34,6 +34,7 @@ const (
 // Traces srd002-executor: R1.1 (invoke_llm as the machine's model-boundary
 // action), R2.2 (the LLM tool family), and R3.2 (a clean terminal outcome).
 func TestExecutorConformance(t *testing.T) {
+	t.Parallel()
 	runBoundedShippedGenerator(t, filepath.Join("agents", "executor", "profile.yaml"), generatorModel)
 }
 
@@ -41,6 +42,7 @@ func TestExecutorConformance(t *testing.T) {
 // It shares the default 35B model declaration, so it exercises the same model
 // boundary as profile.yaml through the variant wrapper an operator ships.
 func TestExecutorQwen35bConformance(t *testing.T) {
+	t.Parallel()
 	runBoundedShippedGenerator(t, filepath.Join("agents", "executor", "profile-qwen35b.yaml"), generatorModel)
 }
 
@@ -48,6 +50,7 @@ func TestExecutorQwen35bConformance(t *testing.T) {
 // which points at the 27B model declaration. It is gated on that model being
 // served and skips cleanly otherwise.
 func TestExecutorQwen27bConformance(t *testing.T) {
+	t.Parallel()
 	runBoundedShippedGenerator(t, filepath.Join("agents", "executor", "profile-qwen27b.yaml"), generatorQwen27bModel)
 }
 
@@ -101,6 +104,7 @@ func runBoundedShippedGenerator(t *testing.T, relProfile, model string) {
 // Traces srd002-executor R1.1 (invoke_llm as the seed model-boundary action)
 // and R3.2 (BudgetExhausted reaches the BudgetExceeded terminal).
 func TestExecutorShippedProfileWiring(t *testing.T) {
+	t.Parallel()
 	type generatorProfile struct {
 		rel     string
 		llmDecl string

@@ -26,6 +26,7 @@ import (
 // The generic REST event queue is the human input boundary. The Serving -> Done
 // path needs no evaluator launch, so this test drives only shutdown.
 func TestBenchConformance(t *testing.T) {
+	t.Parallel()
 	RequireCoreRoot(t)
 	addr := FreeAddr(t)
 
@@ -75,6 +76,7 @@ func TestBenchConformance(t *testing.T) {
 }
 
 func TestBenchProfilesAreCheckoutIndependent(t *testing.T) {
+	t.Parallel()
 	RequireCoreRoot(t)
 	addr := FreeAddr(t)
 	profilePath := CopyShippedProfile(t, filepath.Join("agents", "bench", "profile.yaml"), map[string]string{

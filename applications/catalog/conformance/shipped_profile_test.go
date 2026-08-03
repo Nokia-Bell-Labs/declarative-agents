@@ -15,6 +15,7 @@ import (
 // I/O and does not build the agent binary, so it runs in the model-free fast
 // default without the sibling agent-core checkout.
 func TestCopyShippedProfile(t *testing.T) {
+	t.Parallel()
 	const rel = "testdata/conformance/rest/profile.yaml"
 	srcDir := filepath.Dir(ProfilePath(rel))
 
@@ -55,6 +56,7 @@ func TestCopyShippedProfile(t *testing.T) {
 // TestCopyShippedProfileNoPatches copies a shipped profile with no patches and
 // asserts every file is byte-identical to the shipped source.
 func TestCopyShippedProfileNoPatches(t *testing.T) {
+	t.Parallel()
 	const rel = "agents/runtime-state-reader/profile.yaml"
 	srcDir := filepath.Dir(ProfilePath(rel))
 
