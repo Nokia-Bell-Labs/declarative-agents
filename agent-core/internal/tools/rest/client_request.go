@@ -86,29 +86,31 @@ func applyTraceContext(req *http.Request, sc oteltrace.SpanContext) {
 }
 
 func normalizeRuntimeParams(input map[string]interface{}, binding RequestBinding, view core.CommandStateView) (map[string]interface{}, error) {
-	if err := ValidateRuntimeInput(input); err != nil {
-		return nil, err
-	}
 	params := input
 	if nested, ok := input["params"].(map[string]interface{}); ok {
 		params = nested
 	}
-	if binding.BodySource == bodySourceNone {
-		// The operation declares it takes no runtime parameters, so the prior
-		// Result's output must not be read as params. This lets a self-contained
-		// REST word (for example a readiness check) follow another REST word
-		// whose output fields would otherwise fail the declared-only contract.
+	switch binding.BodySource {
+	case bodySourceNone:
+		// The operation takes no runtime params, so the prior Result's output is
+		// discarded rather than validated: a self-contained REST word may follow
+		// one whose output fields would otherwise fail the authority guard below.
 		params = map[string]interface{}{}
-	}
-	if binding.BodySource == bodySourcePreviousResult {
+	case bodySourcePreviousResult:
 		params = selectPreviousResultParams(params, binding)
-	}
-	if binding.BodySource == bodySourceCommandState {
+	case bodySourceCommandState:
 		selected, err := selectCommandStateParams(view, binding)
 		if err != nil {
 			return nil, err
 		}
 		params = selected
+	default:
+		// Passthrough: the input becomes the params directly, so it must not carry
+		// transport authority (method, url, auth). The other body sources replace
+		// params with declared-only selections config validation already guards.
+		if err := ValidateRuntimeInput(input); err != nil {
+			return nil, err
+		}
 	}
 	if err := validateDeclaredRuntimeParams(params, binding); err != nil {
 		return nil, err
@@ -180,23 +182,6 @@ func validateDeclaredRuntimeParams(params map[string]interface{}, binding Reques
 	return nil
 }
 
-func declaredParamNames(binding RequestBinding) map[string]bool {
-	names := map[string]bool{}
-	for name := range binding.Path {
-		names[name] = true
-	}
-	for name := range binding.Query {
-		names[name] = true
-	}
-	for name := range binding.Headers {
-		names[name] = true
-	}
-	for name := range schemaProperties(binding.BodySchema) {
-		names[name] = true
-	}
-	return names
-}
-
 func renderURL(def ClientOperationDefinition, params map[string]interface{}, view core.CommandStateView) (string, error) {
 	baseURL, selected, err := resolveOperationBaseURL(def.Operation, def.Client.BaseURL, view)
 	if err != nil {
@@ -213,8 +198,15 @@ func renderURL(def ClientOperationDefinition, params map[string]interface{}, vie
 	}
 	endpoint := base.ResolveReference(rel)
 	query := endpoint.Query()
-	for name := range def.Operation.Params.Query {
-		query.Set(name, fmt.Sprint(params[name]))
+	// A runtime param wins; otherwise the operation's declared query value is the
+	// fallback, so a body_source none operation keeps its configured value rather
+	// than rendering the string "<nil>" from a cleared params map.
+	for name, declared := range def.Operation.Params.Query {
+		value := declared
+		if runtime, ok := params[name]; ok {
+			value = runtime
+		}
+		query.Set(name, fmt.Sprint(value))
 	}
 	endpoint.RawQuery = query.Encode()
 	if selected {

@@ -1,10 +1,11 @@
 rest:
   version: v1
   auth:
+    # The kube API is reached through a loopback kubectl-proxy sidecar that adds
+    # the service-account bearer token, so the observer itself needs no
+    # credential — the declarative runtime carries no credential resolver
+    # (GH-1302).
     none: {type: none}
-    kube_bearer:
-      type: bearer
-      token_ref: kube_service_account_token
   limits:
     control:
       timeout: 5s
@@ -34,9 +35,11 @@ rest:
       max_request_bytes: 0
       max_response_bytes: 2097152
       redirect: {mode: none}
+      # The client reaches the kube API only through the loopback kubectl-proxy
+      # sidecar over http, never the API server directly (GH-1302).
       network:
-        schemes: [https]
-        hosts: [kubernetes.default.svc]
+        schemes: [http]
+        hosts: [127.0.0.1, localhost]
     agent_monitor_client:
       timeout: ${OBSERVER_AGENT_TIMEOUT:-3s}
       read_timeout: ${OBSERVER_AGENT_TIMEOUT:-3s}
@@ -102,8 +105,12 @@ rest:
 
   clients:
     kube_api:
-      base_url: ${KUBE_API_URL:-https://kubernetes.default.svc}
-      auth_ref: kube_bearer
+      # KUBE_API_URL points at the loopback kubectl-proxy sidecar in the cluster;
+      # the default keeps a local run pointed at the same loopback contract. The
+      # sidecar supplies the bearer token, so this client authenticates with none
+      # (GH-1302).
+      base_url: ${KUBE_API_URL:-http://127.0.0.1:8001}
+      auth_ref: none
       limits_ref: kube_client
       operations:
         list_pods:

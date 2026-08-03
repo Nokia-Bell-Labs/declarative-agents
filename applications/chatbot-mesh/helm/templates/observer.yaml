@@ -90,6 +90,10 @@ spec:
             - {name: OBSERVER_LABEL_SELECTOR, value: {{ printf "app.kubernetes.io/instance=%s" .Release.Name | quote }}}
             - {name: OBSERVER_POLL_INTERVAL, value: {{ .Values.observer.pollInterval | quote }}}
             - {name: OBSERVER_UI_ROOT, value: "{{ .Values.profiles.mountPath }}/agents/observer/ui"}
+            # The kube_api client targets the loopback kubectl-proxy sidecar with
+            # auth_ref none; the sidecar adds the service-account bearer token
+            # (GH-1302).
+            - {name: KUBE_API_URL, value: "http://127.0.0.1:{{ .Values.observer.proxy.port }}"}
           ports:
             - {name: control, containerPort: {{ .Values.observer.ports.control }}}
             - {name: monitor, containerPort: {{ .Values.observer.ports.monitor }}}
@@ -102,6 +106,21 @@ spec:
           volumeMounts:
             - {name: profiles, mountPath: {{ .Values.profiles.mountPath }}, readOnly: true}
             - {name: work, mountPath: {{ .Values.profiles.workMountPath }}}
+        # kubectl-proxy sidecar: holds the pod's service-account token and serves
+        # an unauthenticated read-only proxy on loopback. It rejects write verbs
+        # and needs no RBAC beyond the observer's existing get/list Role, so bearer
+        # auth never enters the declarative runtime (GH-1302).
+        - name: kube-proxy
+          image: {{ printf "%s:%s" .Values.observer.proxy.image.repository .Values.observer.proxy.image.tag | quote }}
+          imagePullPolicy: {{ .Values.observer.proxy.image.pullPolicy }}
+          command: ["kubectl"]
+          args:
+            - "proxy"
+            - "--port={{ .Values.observer.proxy.port }}"
+            - "--address=127.0.0.1"
+            - "--reject-methods=POST,PUT,PATCH,DELETE"
+          resources:
+            {{- toYaml .Values.observer.proxy.resources | nindent 12 }}
       volumes:
         {{- include "chatbot-mesh.profilesVolume" . | nindent 8 }}
         - name: work
