@@ -181,7 +181,7 @@ rest:
                 SpanStatsResponse:
                   status: 200
                   content_type: application/json
-                  body: {heatmap: $.heatmap, matched: $.matched, skipped_lines: $.skipped_lines, group_by: $.group_by, groups: $.groups, dropped_groups: $.dropped_groups, dropped_span_total: $.dropped_span_total}
+                  body: {heatmap: $.heatmap, matched: $.matched, exemplar_trace_ids: $.exemplar_trace_ids, skipped_lines: $.skipped_lines, group_by: $.group_by, groups: $.groups, dropped_groups: $.dropped_groups, dropped_span_total: $.dropped_span_total}
                 Failed: {status: 500, content_type: application/json, body: {error: spool_read_error}}
         span_breakdown:
           method: GET
@@ -219,7 +219,7 @@ rest:
                 SpanBreakdownResponse:
                   status: 200
                   content_type: application/json
-                  body: {inside_total: $.inside_total, outside_total: $.outside_total, ranked: $.ranked, dropped: $.dropped, skipped_lines: $.skipped_lines}
+                  body: {inside_total: $.inside_total, outside_total: $.outside_total, exemplar_trace_ids: $.exemplar_trace_ids, ranked: $.ranked, dropped: $.dropped, skipped_lines: $.skipped_lines}
                 Failed: {status: 500, content_type: application/json, body: {error: spool_read_error}}
         # Serve the shipped trace UI same-origin with /query/* (srd020 R7). The
         # /query/* routes carry more literal path segments than this catch-all,

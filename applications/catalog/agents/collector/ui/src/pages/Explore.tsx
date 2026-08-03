@@ -3,10 +3,8 @@ import { Link } from 'react-router'
 import {
   getSpanStats,
   getSpanBreakdown,
-  listTraces,
   type SpanStatsResponse,
   type SpanBreakdownResponse,
-  type TraceSummary,
 } from '../api/client'
 
 interface Cell {
@@ -42,7 +40,6 @@ export default function Explore() {
   const [dragEnd, setDragEnd] = useState<Cell | null>(null)
   const [breakdown, setBreakdown] = useState<SpanBreakdownResponse | null>(null)
   const [breakdownError, setBreakdownError] = useState('')
-  const [exemplars, setExemplars] = useState<TraceSummary[]>([])
 
   useEffect(() => {
     setLoading(true)
@@ -53,9 +50,6 @@ export default function Explore() {
       })
       .catch(e => setError(e.message))
       .finally(() => setLoading(false))
-    listTraces(20, 0)
-      .then(d => setExemplars(d.traces ?? []))
-      .catch(() => setExemplars([]))
   }, [])
 
   function applySelection(a: Cell, b: Cell) {
@@ -76,6 +70,12 @@ export default function Explore() {
       </div>
     )
   }
+
+  // Exemplars are scoped to the current selection: once a region is dragged the
+  // breakdown response carries trace IDs drawn from the inside set; before any
+  // selection the stats response carries exemplars for the whole matched set.
+  const scoped = breakdown != null
+  const exemplarIds = (scoped ? breakdown.exemplar_trace_ids : stats.exemplar_trace_ids) ?? []
 
   return (
     <div>
@@ -100,19 +100,16 @@ export default function Explore() {
         <BreakdownPanel breakdown={breakdown} error={breakdownError} />
         <GroupPanel stats={stats} />
       </div>
-      <h2>Traces</h2>
-      {exemplars.length === 0 ? (
-        <div className="empty">No traces to show.</div>
+      <h2>{scoped ? 'Traces in selection' : 'Exemplar traces'}</h2>
+      {exemplarIds.length === 0 ? (
+        <div className="empty">{scoped ? 'No traces in this selection.' : 'No traces to show.'}</div>
       ) : (
         <ul className="exemplar-list">
-          {exemplars.map(t => (
-            <li key={t.trace_id}>
-              <Link className="mono" to={`/traces/${t.trace_id}`}>
-                {t.trace_id}
-              </Link>{' '}
-              <span style={{ color: 'var(--text-secondary)' }}>
-                {t.root_service} · {t.root_span_name}
-              </span>
+          {exemplarIds.map(id => (
+            <li key={id}>
+              <Link className="mono" to={`/traces/${id}`}>
+                {id}
+              </Link>
             </li>
           ))}
         </ul>

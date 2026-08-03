@@ -67,6 +67,7 @@ export interface GroupCount {
 export interface SpanStatsResponse {
   heatmap: HeatmapPayload
   matched: number
+  exemplar_trace_ids: string[] | null
   skipped_lines: number
   group_by: string
   groups: GroupCount[] | null
@@ -87,6 +88,7 @@ export interface DivergenceEntry {
 export interface SpanBreakdownResponse {
   inside_total: number
   outside_total: number
+  exemplar_trace_ids: string[] | null
   ranked: DivergenceEntry[] | null
   dropped: number
   skipped_lines: number

@@ -153,7 +153,7 @@ tools:
     goals: [Bucket filtered spans into a duration-over-time heatmap, Count filtered spans grouped by an attribute with a reported dropped remainder]
     requirements:
       input: [Path, bucket shape, and caps come from trusted config; the filter, group_by, and top_n come from the request seed]
-      output: [Output includes heatmap, matched, groups, dropped_groups, dropped_span_total, skipped_lines]
+      output: [Output includes heatmap, matched, exemplar_trace_ids, groups, dropped_groups, dropped_span_total, skipped_lines]
       errors: [An unreadable spool emits CommandError]
     non_goals: [Does not mutate spans, Does not depend on an environment variable it introduces]
     parameters: {type: object, properties: {}}
@@ -164,6 +164,7 @@ tools:
         properties:
           heatmap: {type: object}
           matched: {type: integer}
+          exemplar_trace_ids: {type: array}
           skipped_lines: {type: integer}
           group_by: {type: string}
           groups: {type: array}
@@ -182,6 +183,7 @@ tools:
       group_by: ""
       top_n: 20
       max_top_n: 100
+      exemplar_cap: 20
 
   - name: query_span_breakdown
     type: builtin
@@ -194,7 +196,7 @@ tools:
     goals: [Partition a baseline into a selection and its complement, Rank attribute values by concentration inside the selection]
     requirements:
       input: [Path and caps come from trusted config; the baseline and selection filters and top_n come from the request seed]
-      output: [Output includes inside_total, outside_total, ranked, dropped, skipped_lines]
+      output: [Output includes inside_total, outside_total, exemplar_trace_ids, ranked, dropped, skipped_lines]
       errors: [An unreadable spool emits CommandError]
     non_goals: [Does not mutate spans, Does not depend on an environment variable it introduces]
     parameters: {type: object, properties: {}}
@@ -205,6 +207,7 @@ tools:
         properties:
           inside_total: {type: integer}
           outside_total: {type: integer}
+          exemplar_trace_ids: {type: array}
           ranked: {type: array}
           dropped: {type: integer}
           skipped_lines: {type: integer}
@@ -218,3 +221,4 @@ tools:
       path: ${COLLECTOR_SPOOL_PATH:-traces/collector.ndjson}
       top_n: 20
       max_top_n: 100
+      exemplar_cap: 20
