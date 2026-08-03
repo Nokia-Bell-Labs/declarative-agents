@@ -101,6 +101,21 @@ sections:
       directly at the agent root, with no dist subdirectory, points the default
       at agents/<name>/ui instead; the override contract is unchanged.
 
+      One case is exempt from the environment override, and the exemption is
+      mandated rather than tolerated. When an agent's built UI ships in its own
+      ConfigMap — held out of the shared profiles tree every pod mounts, because
+      that tree carries a size limit — and the agent sets its working directory
+      to that mount, the root is a literal path resolved against that working
+      directory, declared with no environment variable. The collector is this
+      case: srd020 R7.4 is a normative SHALL that the static_assets root be a
+      literal path resolved relative to the profile directory and SHALL NOT be
+      introduced as a new environment variable, so the collector declares
+      root: ui/dist while its charts mount the trace UI at a collector-local
+      working directory (GH-1228). Where a spec forbids the environment variable,
+      this literal, profile-directory-relative form is required, not merely
+      permitted; the ${VAR:-default} form governs every agent a spec does not so
+      constrain.
+
       Table 1: Root form by launch context
 
       | Context | Working directory | Root value |
@@ -119,7 +134,7 @@ sections:
       |---------------|-------------|-----------------|----------|
       | bench | catalog | agents/bench/ui | yes |
       | documentation-curator | catalog | agents/knowledge-manager/documentation-curator/ui | yes |
-      | collector | catalog | agents/collector/ui | directory yes; root written agent-relative (ui/dist) |
+      | collector | catalog | agents/collector/ui | yes — literal ui/dist root is a sanctioned exception (srd020 R7.4) |
       | chatbot | chatbot-mesh | ux/ (application top level) | no — moves to agents/chatbot/ui |
       | observer | chatbot-mesh | agents/observer/ux | directory named ux, not ui |
 
@@ -127,10 +142,13 @@ sections:
       directory — migrate under GH-1316, which moves ux/ to agents/chatbot/ui
       (with ux.yaml becoming ui.yaml), renames the observer tree to
       agents/observer/ui, and rewrites every root, chart value, magefile path,
-      and spec reference to match. The collector conforms in placement but
-      writes its root agent-relative (ui/dist); normalizing it to the
-      prescribed form is catalog-side follow-up, tracked separately so the
-      collector's working directory and chart mount move together.
+      and spec reference to match. The collector conforms in placement and
+      writes its root as a literal ui/dist. That is not a pending normalization
+      but a sanctioned exception: srd020 R7.4 forbids introducing an environment
+      variable for the collector UI root, and the trace UI rides a
+      collector-only ConfigMap mounted at a collector-local working directory
+      (GH-1228), so the literal profile-directory-relative path is the required
+      form. The collector rest configuration and both charts stay as they are.
 
       A new agent that serves a UI starts conforming: create agents/<name>/ui,
       put the built output under agents/<name>/ui/dist and the route
@@ -145,3 +163,4 @@ references:
   - "applications/chatbot-mesh/agents/chatbot/rest.yaml (the ${VAR:-default} root form)"
   - "GH-1316 (chatbot-mesh ux/ to agents/chatbot/ui migration)"
   - "agent-core/docs/specs/software-requirements/srd013 R5.6/R5.7 (mounted-declaration ${VAR:-default} parameterization)"
+  - "applications/catalog/docs/specs/software-requirements/srd020-collector.yaml R7.4 (collector static_assets root: literal, profile-directory-relative, no new environment variable)"
