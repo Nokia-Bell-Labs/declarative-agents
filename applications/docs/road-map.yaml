@@ -170,3 +170,124 @@ releases:
         proves: Canonical roles, actor/profile realizations, inheritance, and ownership boundaries remain machine-readable.
       - path: applications/docs/pattern-language.yaml
         proves: Canonical reuse, composition, package closure, profile-free runtime, wrappers, and workload boundaries have construction patterns.
+  - version: "14.0"
+    name: Application consistency and conformance
+    description: |
+      Specify one capability-aware composition, actor, package, UI, README, and
+      status contract for Chatbot Mesh, Coding Agent, Agent Architecture, and
+      Prose Editor. agents/application.yaml becomes the composition authority.
+      Packaged closures and provenance derive from it, while absent optional
+      capabilities require no empty directories. This release document does not
+      claim that the four application migrations are complete.
+    status: specified
+    parent: gh-1414-normalize-showcase-applications
+    dependencies:
+      - id: srd001-application-module-contract
+        status: implemented
+        reason: Supplies baseline runnable and audit-only module governance.
+      - id: srd002-managed-application-services
+        status: implemented
+        reason: Supplies managed-service, package, Helm, and kind capability gates.
+      - id: sm-agent-role-realizations
+        status: implemented
+        reason: Owns actor classification, role bindings, inheritance, and naming grammar.
+      - id: application-composition-pattern-language
+        status: implemented
+        reason: Defines canonical ownership, composition manifest, closure, wrapper, and workload patterns.
+      - id: design-constitution
+        status: implemented
+        reason: Defines structured document fields and reciprocal traceability.
+    srds:
+      - srd003-application-consistency
+    use_cases:
+      - id: rel14.0-uc001-application-consistency
+        summary: |
+          Normalize and verify one showcase application while preserving
+          capability gating, ownership, and truthful audit-only or runnable status.
+        status: planned
+    test_suites:
+      - id: test-rel14.0-application-consistency
+        summary: |
+          Parse and trace shared documents, then validate manifests, actor
+          grammar, package derivation, UI tokens, README/status agreement, the
+          four-application matrix, and root audit.
+        status: partial
+        implemented_cases: [TC1, TC8]
+        planned_cases: [TC2, TC3, TC4, TC5, TC6, TC7]
+    implementation_sequence:
+      - order: 1
+        action: Specify the shared SRD, use case, suite, architecture, roadmap, index, and root guide.
+        status: implemented
+      - order: 2
+        action: Add shared manifest and application-layout validation without requiring optional surfaces.
+        status: planned
+      - order: 3
+        action: Normalize Chatbot Mesh actor roots, manifest, deployment entries, UIs, and shared-token consumption.
+        status: planned
+      - order: 4
+        action: Normalize Coding Agent manifest, actor variants, ownership, and manifest-derived packaging.
+        status: planned
+      - order: 5
+        action: Normalize Agent Architecture manifest, applier ownership, package/UI roots, and stale capability status.
+        status: planned
+      - order: 6
+        action: Add Prose Editor's manifest and local audit, then register it as audit-only without runtime claims.
+        status: planned
+      - order: 7
+        action: Run the full Release 14.0 suite and close only evidence-backed capability states.
+        status: planned
+    current_application_evidence:
+      - path: applications/chatbot-mesh
+        module_state: runnable
+        ownership: agent-owning
+        release_14_status: normalization_planned
+        note: |
+          Local actors, deployment, and UIs exist; a complete composition
+          manifest and shared-token consumption evidence remain Release 14 work.
+      - path: applications/coding-agent
+        module_state: runnable
+        ownership: requires_reconciliation
+        release_14_status: normalization_planned
+        note: |
+          The existing manifest and package resolver provide a starting point,
+          but local serving and applier profiles make the historical
+          composition-only label require evidence-based reconciliation.
+      - path: applications/agent-architecture
+        module_state: runnable
+        ownership: requires_reconciliation
+        release_14_status: normalization_planned
+        note: |
+          Canonical curator and collector consumers coexist with an
+          application-owned applier and executable deployment surfaces whose
+          local planned statuses require reconciliation.
+      - path: applications/prose-editor
+        module_state: documentation_only_unregistered
+        target_state: audit_only
+        release_14_status: transition_planned
+        note: |
+          The transition requires agents/application.yaml, a local audit target,
+          and root audit-only membership. It does not require runnable actors or
+          optional capability directories.
+    evidence_status:
+      shared_documents: implemented
+      reciprocal_traceability: implemented
+      yaml_parse_case: implemented
+      current_root_audit: implemented
+      cross_application_manifest_validation: planned
+      application_normalization: planned
+      prose_audit_only_transition: planned
+    implementation_evidence:
+      - path: applications/docs/specs/software-requirements/srd003-application-consistency.yaml
+        proves: Numbered capability-aware composition consistency requirements and acceptance criteria.
+      - path: applications/docs/specs/use-cases/rel14.0-uc001-application-consistency.yaml
+        proves: Four-application flow, ownership touchpoints, and audit-only transition.
+      - path: applications/docs/specs/test-suites/test-rel14.0-application-consistency.yaml
+        proves: Requirement-to-AC-to-flow-to-test coverage and explicit implemented versus planned cases.
+      - path: applications/docs/ARCHITECTURE.yaml
+        proves: Normalized authority, ownership components, decisions, target structure, and status.
+      - path: applications/docs/SPECIFICATIONS.yaml
+        proves: Reciprocal SRD, use-case, suite, and coverage-gap indexes.
+      - path: applications/README.md
+        proves: Capability-gated directory guidance and truthful current classifications.
+      - command: mage audit
+        proves: Current repository documentation and ownership gates remain green.

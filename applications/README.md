@@ -49,8 +49,14 @@ remains the authority for purpose, boundaries, and the ordered process.
   execute. It owns application documentation, audit evidence, tests where code
   exists, and root orchestration participation.
 - A **composition-only application** is runnable but contributes no canonical
-  agent implementation. It references catalog members and reports reuse without
-  adding those agents to repository totals.
+  or application-local agent implementation. It may own thin wrappers and
+  composition, but it references implementations and reports reuse without
+  adding those agents to repository totals. A shipped local role realization,
+  such as an applier, requires agent-owning classification.
+- An **audit-only application** owns `agents/application.yaml`, the common
+  documentation corpus, a local audit target, and root audit-only registration.
+  It does not claim a runnable composition, tests, stats, packaging, deployment,
+  or UI unless separate evidence supports those capabilities.
 - `applications/catalog/` is a **reusable catalog module**. It owns canonical
   declarative blocks and conformance evidence. It is not a runnable application.
 
@@ -65,6 +71,74 @@ consumption, application-owned composition, package-time closure, deployment
 topology, and module governance. It extends the
 [single-agent pattern language](../design-patterns/pattern-language.yaml)
 without repeating agent internals.
+
+## Common core and optional directories
+
+Release 14.0 defines this common core for every runnable or audit-only
+application:
+
+- `README.md`: purpose, status, composition, capabilities, ownership boundaries,
+  run or planned entry points, verification, and documentation.
+- `agents/application.yaml`: schema-versioned composition authority for direct
+  catalog and local profile roots, runtime paths, compatibility, deployment and
+  UI entries when present, capability status, and evidence.
+- `docs/VISION.yaml`, `docs/ARCHITECTURE.yaml`, `docs/road-map.yaml`, and
+  `docs/SPECIFICATIONS.yaml`: the application-local design and traceability
+  corpus.
+- `magefiles/` or an equivalent local Mage entry: `audit` is required. Tests,
+  stats, package, Helm, integration, doctor, and demo targets exist only when
+  the application has those surfaces.
+
+All other directories are capability- or content-dependent:
+
+- `agents/<actor>/` exists only for an application-owned production actor or
+  thin wrapper. Composition-only applications need no empty actor directory.
+- `agents/<actor>/ui/` exists only when that actor serves a UI. A UI with no
+  serving actor may use the application-level `ui/` root.
+- `helm/` exists only for `helm_managed`.
+- package output and package tests exist only for `packaged`; generated closure
+  inventories derive from `agents/application.yaml` and are not maintained as a
+  second list.
+- kind fixtures and verbs exist only for `kind_demo`.
+- `testdata/` and actor-local `tests/` exist only when tests require them and do
+  not enter production profile roots or agent accounting.
+
+Do not add an empty actor, service, package, chart, kind, request, or UI
+directory to imply conformance. An absent undeclared capability is
+`not_applicable`, not implemented.
+
+## Normalized agent program names
+
+An actor's primary files are `profile.yaml`, `machine.yaml`, `tools.yaml`,
+`declarations.yaml`, and `rest.yaml` when those surfaces exist. A distinct
+operation uses one lower-kebab prefix across related files, such as
+`apply-profile.yaml`, `apply-machine.yaml`, `apply-tools.yaml`, and
+`apply-declarations.yaml`. `request-profile.yaml`, `request-machine.yaml`,
+`request-tools.yaml`, and `request-declarations.yaml` are the reserved request
+variant names. A variant does not need every file.
+
+`tools.yaml` and `<operation>-tools.yaml` select tool names.
+`declarations.yaml` and `<operation>-declarations.yaml` own profile ToolDefs.
+Actor-served UI stays under `agents/<actor>/ui/` and is declared with its REST
+`static_assets` boundary in `agents/application.yaml`.
+
+Canonical reusable implementations stay under `catalog/agents/`. Applications
+own local actors, wrappers, endpoints, deployment, credentials, UI, and
+end-to-end evidence. `agent-core` owns profile, machine, tool, REST, lifecycle,
+telemetry, checkpoint, and execution semantics.
+
+## Promotion and shared UI tokens
+
+Promote an application asset to `catalog/` only when it is independently useful
+or has at least two real consumers. Promotion moves reusable behavior and
+conformance evidence, migrates every consumer to the canonical path, and removes
+copies. Application-specific topology and bindings remain local.
+
+A UI claims shared design-token conformance only when it consumes
+[`catalog/ui/design-tokens.css`](catalog/ui/design-tokens.css) through a build
+import or a deterministic generated copy. A checked-in generated token block
+must name the canonical source and have a byte-for-byte drift test. Visual
+similarity or a handwritten copy is not consumption.
 
 ## Capability classes
 
@@ -83,23 +157,51 @@ The baseline does not require packaging, Helm, Kubernetes, kind, or a managed
 service. ENG01 governs applications that provide a kind demo; it does not make a
 kind demo mandatory for every application.
 
+## Status vocabulary
+
+Application manifests and conformance summaries use:
+
+- `planned`: specified work has no executable evidence yet.
+- `audit_only`: manifest and documentation audit participate in the root gate;
+  no runnable composition is claimed.
+- `partial`: some required evidence exists and the missing evidence is named.
+- `dependency_gated`: the named evidence requires an unavailable external
+  prerequisite and is not counted as passing.
+- `implemented`: named executable evidence satisfies the applicable contract.
+- `not_applicable`: the application does not declare or ship that capability.
+
+Statuses are capability-specific. An implemented `runnable_module` does not
+imply implemented `managed_service`, `packaged`, `helm_managed`, `kind_demo`, or
+UI evidence. A prose-only directory is not `audit_only` until its manifest,
+local audit target, and root audit-only registration exist.
+
 ## Current classification
 
-- `chatbot-mesh/`: runnable application; managed service, packaged,
-  Helm-managed, and kind-demo capabilities.
-- `coding-agent/`: composition-only runnable application; managed service,
-  packaged, Helm-managed, and kind-demo capabilities. Canonical planner,
-  executor, and critic implementations remain in `catalog/`.
-- `agent-architecture/`: composition-only runnable application; the
-  `runnable_module` capability is implemented and its local `audit`, Go tests,
-  and composition-only `stats` participate in root orchestration. Its
-  `managed_service` capability is partial because live lifecycle, health,
-  telemetry, and shutdown observations are dependency-gated. `packaged`,
-  `helm_managed`, and `kind_demo` are declared and planned: a chart runs the
-  documentation-curator and the collector from mounted catalog-owned closures,
-  and a standalone declarative applier actuates it, specified in
-  `srd001-helm-deployment` and `srd002-applier` with their resources landing in
-  later sub-issues. The canonical documentation-curator remains in `catalog/`.
+- `chatbot-mesh/`: agent-owning runnable application. It ships managed-service,
+  packaged, Helm-managed, kind-demo, and actor-served UI surfaces. Release 14.0
+  still needs one complete manifest authority and explicit shared-token
+  consumption evidence.
+- `coding-agent/`: runnable application that consumes canonical planner,
+  executor, and critic implementations and also ships application-owned serving
+  and applier profiles. The old composition-only label is therefore not
+  sufficient current ownership evidence; Release 14.0 reconciles it as
+  agent-owning or removes the local realization. Its managed-service, packaged,
+  Helm-managed, and kind-demo releases have executable evidence. It ships no
+  application UI.
+- `agent-architecture/`: runnable application that consumes the canonical
+  documentation-curator and collector and ships an application-owned applier.
+  The old composition-only label requires Release 14.0 reconciliation. Its
+  `runnable_module` evidence is implemented. `managed_service` remains partial
+  because live local lifecycle observations are dependency-gated. Package,
+  Helm, kind, and applier assets and tests exist, while local roadmap and
+  architecture still call them planned; those capability statuses remain
+  partial until the manifest and local documents agree with executable evidence.
+  The curator and collector implementations and their UIs remain catalog-owned.
+- `prose-editor/`: documentation-only and unregistered. It is not runnable and
+  is not yet audit-only. Release 14.0 plans the audit-only transition through
+  `agents/application.yaml`, a local audit target, and root
+  `auditOnlyApplicationModules` membership. No actor, managed-service, package,
+  Helm, kind, or UI implementation is claimed or required for that transition.
 - `catalog/`: reusable catalog module, not a runnable application.
 
 Root Mage orchestration is the source of truth for participating modules.

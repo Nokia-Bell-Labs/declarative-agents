@@ -60,6 +60,14 @@ interfaces:
       applications/docs defines baseline and capability-dependent obligations.
       Application-local architecture and SRDs cite requirement IDs here and add
       only business behavior, topology, or stricter local policy.
+  - name: normalized composition manifest
+    summary: |
+      applications/<application>/agents/application.yaml is the target
+      composition authority for runnable and audit-only applications. It names
+      direct catalog and local roots, runtime paths, compatibility, applicable
+      deployment and UI entries, module and ownership status, capabilities, and
+      evidence. Package, Helm, stats, and audit code consume it instead of
+      maintaining another root inventory.
   - name: role realization binding
     summary: |
       The shared agent-role-realizations semantic model treats canonical roles
@@ -113,6 +121,44 @@ components:
       Pin canonical role and sub-role IDs, classify every shipped profile, bind
       actors to roles, define wrapper inheritance and naming grammar, and record
       incompatible canonical-name collisions for migration.
+  - name: application composition authority
+    path: applications/<application>/agents/application.yaml
+    responsibility: |
+      Declare schema and application identity, ownership and module status,
+      capability statuses, direct catalog and local profile roots, runtime
+      paths, catalog compatibility, deployment entries, UI assets, and evidence.
+      Audit-only manifests may declare planned roots but cannot use them as
+      executable evidence.
+  - name: application-owned actor
+    path: applications/<application>/agents/<actor>/
+    responsibility: |
+      Own one local production actor or thin wrapper and its primary or
+      operation-prefixed profiles, machines, name-only tool selections, ToolDef
+      declarations, REST definitions, request variants, and actor-served UI.
+      Canonical reusable implementations remain under applications/catalog/agents/.
+  - name: application user interface
+    path: applications/<application>/agents/<actor>/ui/ or applications/<application>/ui/
+    responsibility: |
+      Keep actor-served UI beside its serving actor and use the application-level
+      root only when no actor owns the surface. Declare source, generated dist,
+      REST serving definition, runtime destination, and canonical shared-token
+      consumption in the composition manifest. No UI path is required when the
+      application ships no UI.
+  - name: manifest-derived package resolver
+    path: applications/<application>/magefiles/
+    responsibility: |
+      For packaged applications, traverse all reachable profile, machine, tool,
+      declaration, REST, child-profile, configuration, and declared UI assets
+      from manifest roots. Emit deterministic checksummed inventories and
+      compatibility-separated source provenance for Helm and release consumers.
+      Generated inventories are outputs, not composition authorities.
+  - name: application README and status surface
+    path: applications/<application>/README.md
+    responsibility: |
+      Expose the common purpose, status, composition, capability, ownership,
+      entry-point, verification, and documentation sections. Keep baseline and
+      optional capability statuses independent and align audit_only or runnable
+      status with root Mage classification.
 
 design_decisions:
   - id: 1
@@ -196,6 +242,82 @@ design_decisions:
       - Application actor names remain descriptive when several roles are bound.
       - Deployment and model variants stay distinguishable from semantic specialization.
       - Canonical-name collisions become explicit migrations instead of taxonomy changes.
+  - id: 7
+    title: One manifest owns composition
+    decision: |
+      agents/application.yaml is the normalized authority for direct catalog and
+      local roots, stable runtime paths, compatibility, deployment entries, UI
+      assets, capabilities, ownership, and status. Build code, Helm values,
+      README prose, and generated package manifests may consume or explain this
+      declaration but cannot add another direct root.
+    benefits:
+      - Reviewers can determine the composition without reconstructing build code.
+      - Package, deployment, audit, and status checks share one input.
+      - Duplicate runtime paths and stale roots fail at one boundary.
+  - id: 8
+    title: Directory obligations follow capabilities
+    decision: |
+      agents/application.yaml and the documentation/audit core apply to runnable
+      and audit-only modules. Actor, service, package, Helm, kind, request, and
+      UI directories exist only when their surfaces exist. A composition-only
+      module may have no local actor directory, and an audit-only module may
+      declare planned roots without creating executable stubs.
+    benefits:
+      - Small and documentation-first applications avoid false conformance.
+      - Missing optional surfaces remain not applicable instead of passing no-ops.
+      - Prose Editor can enter audit-only without claiming a runtime.
+  - id: 9
+    title: Operation prefixes align program files
+    decision: |
+      profile.yaml, machine.yaml, tools.yaml, declarations.yaml, and rest.yaml
+      are primary names. A distinct operation uses one lower-kebab prefix across
+      <operation>-profile.yaml, <operation>-machine.yaml,
+      <operation>-tools.yaml, <operation>-declarations.yaml, and
+      <operation>-rest.yaml as needed. request is the reserved prefix for a
+      served request variant. tools files select names; declarations files own
+      ToolDefs. A variant does not require every possible file.
+    benefits:
+      - Related files are discoverable by name.
+      - Tool selection and ToolDef authority remain distinct.
+      - Optional request and REST surfaces do not create empty files.
+  - id: 10
+    title: Packages derive from declared roots
+    decision: |
+      A packaged application starts closure traversal from executable manifest
+      roots and deployment entries only. The resolver traverses every reachable
+      program and declared UI asset, records compatibility separately from
+      actual catalog and application revisions, and emits the only package
+      inventory Helm consumes.
+    benefits:
+      - A profile cannot enter a chart through an unreviewed second list.
+      - Provenance identifies both compatibility and actual source.
+      - Generated inventory drift is detectable before publication.
+  - id: 11
+    title: Reuse must be demonstrated and consumed
+    decision: |
+      Application assets move to the catalog only when independently useful or
+      consumed by at least two applications. Promotion migrates every consumer
+      and removes copies while local bindings remain application-owned. A UI
+      claims shared design tokens only when its build imports the canonical
+      catalog source or a deterministic generated token block is protected by a
+      byte-for-byte drift test.
+    benefits:
+      - Speculative abstractions do not widen the catalog.
+      - Promoted behavior retains one owner and complete consumer migration.
+      - Shared-token labels correspond to actual values, not visual similarity.
+  - id: 12
+    title: Status is evidence and capability specific
+    decision: |
+      planned, audit_only, partial, dependency_gated, implemented, and
+      not_applicable form the normalized conformance vocabulary. audit_only
+      requires a manifest, local audit, and root audit-only registration but
+      claims no runnable composition. partial and dependency_gated name missing
+      evidence; implemented names executable evidence. Each optional capability
+      is classified independently.
+    benefits:
+      - An implemented baseline does not overstate deployment maturity.
+      - Root orchestration and human-facing status can be compared mechanically.
+      - Transitional documentation has an exact, non-runnable state.
 
 technology_choices:
   - component: Structured documentation
@@ -215,6 +337,37 @@ technology_choices:
     purpose: Implement helm_managed and kind_demo capabilities when declared.
 
 project_structure:
+  target_application:
+    - path: applications/<application>/agents/application.yaml
+      required_for: runnable_module or audit_only
+      role: |
+        Single schema-versioned composition, capability, status, deployment,
+        UI, compatibility, and runtime-path authority.
+    - path: applications/<application>/agents/<actor>/
+      required_for: each application-owned production actor or wrapper
+      role: |
+        profile.yaml plus only the machine, tools, declarations, REST, request,
+        configuration, tests, and UI files the actor actually uses.
+    - path: applications/<application>/agents/<actor>/ui/
+      required_for: actor-served UI only
+      role: UI source and generated output served by that actor's REST definition.
+    - path: applications/<application>/ui/
+      required_for: application-wide UI with no serving actor only
+      role: Application-owned UI declared with an explicit serving boundary.
+    - path: applications/<application>/docs/
+      required_for: runnable_module or audit_only
+      role: Local vision, architecture, roadmap, specifications, and evidence traces.
+    - path: applications/<application>/magefiles/
+      required_for: runnable_module or audit_only
+      role: |
+        Local audit and applicable executable evidence; packaged applications
+        also derive closure and provenance from agents/application.yaml.
+    - path: applications/<application>/helm/
+      required_for: helm_managed only
+      role: Chart consuming manifest-derived package outputs.
+    - path: applications/<application>/testdata/ or agents/<actor>/tests/
+      required_for: tests that need fixtures only
+      role: Non-production fixtures excluded from direct roots and role accounting.
   shared:
     - path: applications/README.md
       role: |
@@ -244,12 +397,25 @@ project_structure:
     - path: applications/chatbot-mesh/
       role: Runnable application with local agents and all optional capability classes.
     - path: applications/coding-agent/
-      role: Composition-only runnable application with all optional capability classes.
+      role: |
+        Runnable application consuming canonical planner, executor, and critic
+        roots while also shipping application-owned serving and applier
+        profiles. Release 14.0 reconciles its stale composition-only label and
+        derives all package roots from the normalized manifest.
     - path: applications/agent-architecture/
       role: |
-        Composition-only runnable application with implemented runnable-module
-        evidence, partial managed-service evidence, and no package, Helm, or
-        kind-demo capability.
+        Runnable application consuming canonical curator and collector roots
+        while shipping an application-owned applier. Baseline evidence is
+        implemented and managed-service evidence is partial. Package, Helm,
+        kind, and applier assets exist while local documents still call them
+        planned, so Release 14.0 reconciles ownership and capability status
+        before claiming conformance.
+    - path: applications/prose-editor/
+      role: |
+        Documentation-only, unregistered application candidate. Release 14.0
+        plans an audit-only transition through a manifest, local audit target,
+        and root audit-only registration without runnable or optional capability
+        claims.
   orchestration:
     - path: magefiles/build.go
       role: Module classification and audit/stats participant lists.
@@ -272,6 +438,14 @@ implementation_status:
     chatbot-mesh, coding-agent, and agent-architecture structures.
     Structural commands verify shared YAML, module paths, root participation,
     and ownership-aware stats.
+
+    Release 14.0 now specifies the normalized composition authority, actor and
+    UI ownership grammar, operation-prefixed names, manifest-derived package and
+    provenance flow, promotion and shared-token rules, README/status vocabulary,
+    and explicit catalog/application/agent-core boundaries. The shared
+    documentation and reciprocal traces are implemented. Application migrations,
+    ownership/status reconciliation, and the Prose Editor audit-only transition
+    remain planned and must not be inferred from this specification.
   progress:
     - implemented: Multi-agent rationale, bidirectional operating flows, human
         governance boundary, six-step construction sequence, and pinned
@@ -298,6 +472,21 @@ implementation_status:
         AC1 through AC3 observations remain dependency-gated.
     - implemented: applications/catalog remains a submodule and canonical
         catalog, not a runnable application.
+    - specified: Release 14.0 srd003, cross-application use case, and
+        capability-aware test suite with complete requirement and acceptance
+        criterion coverage.
+    - implemented: Release 14.0 shared YAML parsing, reciprocal indexing, and
+        current root mage audit evidence.
+    - planned: Normalize manifests, actors, operation names, packages, UIs,
+        READMEs, and status across Chatbot Mesh, Coding Agent, and Agent
+        Architecture.
+    - planned: Reconcile Coding Agent and Agent Architecture ownership and
+        capability claims against shipped application-local actor and deployment
+        evidence.
+    - planned: Transition Prose Editor from documentation-only unregistered to
+        audit_only through agents/application.yaml, a local audit target, and
+        root audit-only membership, without runtime claims or empty optional
+        directories.
 
 related_documents:
   - doc: docs/pattern-language.yaml
@@ -319,6 +508,12 @@ related_documents:
     purpose: Canonical catalog ownership and consumer contract.
   - doc: docs/specs/semantic-models/agent-role-realizations.yaml
     purpose: Canonical role provenance, realization naming, bindings, classifications, and aliases.
+  - doc: docs/specs/software-requirements/srd003-application-consistency.yaml
+    purpose: Release 14.0 normalized manifest, ownership, naming, package, UI, README, status, and boundary contract.
+  - doc: docs/specs/use-cases/rel14.0-uc001-application-consistency.yaml
+    purpose: Cross-application normalization flow and Prose Editor audit-only transition.
+  - doc: docs/specs/test-suites/test-rel14.0-application-consistency.yaml
+    purpose: Structural and capability-gated executable conformance evidence.
   - doc: ../chatbot-mesh/docs/ARCHITECTURE.yaml
     purpose: Local-agent runnable application reference.
   - doc: ../coding-agent/docs/ARCHITECTURE.yaml
