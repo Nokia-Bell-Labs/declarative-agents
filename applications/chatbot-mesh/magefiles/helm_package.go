@@ -37,7 +37,7 @@ var chatbotChartSourceFiles = []string{
 	"templates/NOTES.txt",
 	"templates/_chatbot-rest.tpl",
 	"templates/_chatbot-topology.tpl",
-	"templates/_chatbot-ux.tpl",
+	"templates/_chatbot-ui.tpl",
 	"templates/_helpers.tpl",
 	"templates/applier.yaml",
 	"templates/chatbot.yaml",
@@ -59,7 +59,7 @@ type Helm mg.Namespace
 // Package stages the mesh profiles and UI into an installable Helm archive.
 //
 // The source chart intentionally does not duplicate the canonical programs under
-// agents/ and ux/. Operators must install this packaged artifact, not the
+// agents/. Operators must install this packaged artifact, not the
 // unstaged helm/ directory.
 func (Helm) Package() error {
 	root, err := os.Getwd()

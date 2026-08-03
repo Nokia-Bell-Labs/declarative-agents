@@ -91,7 +91,7 @@ rest:
           path: /ui/{path...}
           binding: static_assets
           static_assets:
-            root: "${OBSERVER_UI_ROOT:-ux/observer}"
+            root: "${OBSERVER_UI_ROOT:-agents/observer/ui}"
             index: index.html
             spa: false
           request:

@@ -11,7 +11,7 @@ import (
 	"testing"
 )
 
-// These cover what the ux contributes to the packaged chart (GH-702). Every file
+// These cover what the chatbot UI contributes to the packaged chart (GH-702). Every file
 // staged into profiles/ becomes a ConfigMap key and a projected mount item in
 // every agent pod, so the staged set has to be what the chart consumes rather
 // than whatever happens to sit in the source tree.
@@ -40,7 +40,7 @@ func renderedProfileKeys(t *testing.T) []string {
 	}
 	var keys []string
 	for _, m := range configMapKeyRE.FindAllStringSubmatch(string(out), -1) {
-		if strings.HasPrefix(m[1], "agents__") || strings.HasPrefix(m[1], "ux__") {
+		if strings.HasPrefix(m[1], "agents__") {
 			keys = append(keys, m[1])
 		}
 	}
@@ -50,60 +50,60 @@ func renderedProfileKeys(t *testing.T) []string {
 	return keys
 }
 
-// TestStagedUXCarriesOnlyWhatTheChartServes proves the ux contributes its
+// TestStagedChatbotUICarriesOnlyWhatTheChartServes proves the chatbot UI contributes its
 // descriptor and its built bundle and nothing else. The panel sources, the
 // tsconfig, and package-lock.json are build inputs; node_modules is worse than
 // noise, because esbuild's binary is over helm's 5 MiB per-file limit and fails
 // the render outright, so a developer who had run npm install could not render
 // the chart at all.
-func TestStagedUXCarriesOnlyWhatTheChartServes(t *testing.T) {
+func TestStagedChatbotUICarriesOnlyWhatTheChartServes(t *testing.T) {
 	for _, key := range renderedProfileKeys(t) {
-		if !strings.HasPrefix(key, "ux__app__") {
+		if !strings.HasPrefix(key, "agents__chatbot__ui__app__") {
 			continue
 		}
-		if !strings.HasPrefix(key, "ux__app__dist__") {
-			t.Errorf("rendered ConfigMap carries %s; only the built bundle under ux/app/dist belongs in a pod", key)
+		if !strings.HasPrefix(key, "agents__chatbot__ui__app__dist__") {
+			t.Errorf("rendered ConfigMap carries %s; only the built bundle under agents/chatbot/ui/app/dist belongs in a pod", key)
 		}
 	}
 }
 
-// TestStagedUXCarriesTheServedBundle proves the counterpart: the chatbot's
-// static_assets binding serves ux/app/dist off the profile mount, so cutting the
+// TestStagedChatbotUICarriesTheServedBundle proves the counterpart: the chatbot's
+// static_assets binding serves agents/chatbot/ui/app/dist off the profile mount, so cutting the
 // staged tree must not cut the bundle with it. The panel would 404 at /ui.
-func TestStagedUXCarriesTheServedBundle(t *testing.T) {
+func TestStagedChatbotUICarriesTheServedBundle(t *testing.T) {
 	keys := renderedProfileKeys(t)
 	var index, assets bool
 	for _, key := range keys {
-		if key == "ux__app__dist__index.html" {
+		if key == "agents__chatbot__ui__app__dist__index.html" {
 			index = true
 		}
-		if strings.HasPrefix(key, "ux__app__dist__assets__") {
+		if strings.HasPrefix(key, "agents__chatbot__ui__app__dist__assets__") {
 			assets = true
 		}
 	}
 	if !index {
-		t.Error("rendered ConfigMap has no ux__app__dist__index.html; the chatbot's /ui would 404")
+		t.Error("rendered ConfigMap has no agents__chatbot__ui__app__dist__index.html; the chatbot's /ui would 404")
 	}
 	if !assets {
-		t.Error("rendered ConfigMap has no ux__app__dist__assets__* key; the SPA would load without its bundle")
+		t.Error("rendered ConfigMap has no agents__chatbot__ui__app__dist__assets__* key; the SPA would load without its bundle")
 	}
 
 	// The descriptor key is co-generated from ragUnits, so it is emitted whether
 	// or not the packaging step placed the file -- assert it is served all the same.
 	var descriptor bool
 	for _, key := range keys {
-		if key == "ux__ux.yaml" {
+		if key == "agents__chatbot__ui__ui.yaml" {
 			descriptor = true
 		}
 	}
 	if !descriptor {
-		t.Error("rendered ConfigMap has no ux__ux.yaml; the UI descriptor is unserved")
+		t.Error("rendered ConfigMap has no agents__chatbot__ui__ui.yaml; the UI descriptor is unserved")
 	}
 }
 
 // TestStagedProfilesFitTheConfigMapLimit proves the staged profiles stay inside
 // Kubernetes' 1 MiB ConfigMap limit. The limit applies to the object, not to a
-// key, so it is the sum that matters -- and it was the ux tree that made the sum
+// key, so it is the sum that matters -- and it was the chatbot UI tree that made the sum
 // grow without anyone deploying anything new.
 func TestStagedProfilesFitTheConfigMapLimit(t *testing.T) {
 	if _, err := exec.LookPath("helm"); err != nil {
@@ -153,7 +153,7 @@ func TestStagedProfilesFitTheConfigMapLimit(t *testing.T) {
 // shipping them means production pods mount mock service definitions and the
 // ConfigMap grows with the test suite rather than with the product.
 //
-// This is the coupling GH-702 removed for the ux tree, reintroduced by fixtures
+// This is the coupling GH-702 removed for the chatbot UI tree, reintroduced by fixtures
 // that arrived after it. The assertion exists so the next fixture directory
 // cannot re-enter silently.
 func TestStagedProfilesExcludeTestFixtures(t *testing.T) {

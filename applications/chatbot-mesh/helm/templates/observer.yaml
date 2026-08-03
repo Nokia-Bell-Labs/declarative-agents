@@ -89,7 +89,7 @@ spec:
             - {name: OBSERVER_NAMESPACE, value: {{ .Release.Namespace | quote }}}
             - {name: OBSERVER_LABEL_SELECTOR, value: {{ printf "app.kubernetes.io/instance=%s" .Release.Name | quote }}}
             - {name: OBSERVER_POLL_INTERVAL, value: {{ .Values.observer.pollInterval | quote }}}
-            - {name: OBSERVER_UI_ROOT, value: "{{ .Values.profiles.mountPath }}/agents/observer/ux/observer"}
+            - {name: OBSERVER_UI_ROOT, value: "{{ .Values.profiles.mountPath }}/agents/observer/ui"}
             # The kube_api client targets the loopback kubectl-proxy sidecar with
             # auth_ref none; the sidecar adds the service-account bearer token
             # (GH-1302).

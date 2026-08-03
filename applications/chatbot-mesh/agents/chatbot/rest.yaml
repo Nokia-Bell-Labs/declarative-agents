@@ -222,8 +222,8 @@ rest:
           # Same-origin reverse proxy so the SPA reads every mesh agent's monitor
           # state and SSE stream through this server (agent-core monitor_proxy,
           # GH-358). The upstreams are the monitored-agents surface srd003
-          # co-generates; keep them in sync with ux/ux.yaml monitored_agents and
-          # the SPA agent list in ux/app/src/monitorApi.ts.
+          # co-generates; keep them in sync with agents/chatbot/ui/ui.yaml monitored_agents and
+          # the SPA agent list in agents/chatbot/ui/app/src/monitorApi.ts.
           monitor_proxy:
             upstreams:
               chatbot: http://127.0.0.1:18082
@@ -239,7 +239,7 @@ rest:
           path: /ui/{path...}
           binding: static_assets
           static_assets:
-            root: "${CHATBOT_UI_ROOT:-ux/app/dist}"
+            root: "${CHATBOT_UI_ROOT:-agents/chatbot/ui/app/dist}"
             index: index.html
             spa: true
           request:

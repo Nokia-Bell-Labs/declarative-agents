@@ -3,7 +3,7 @@ import { useCallback, useEffect, useRef, useState } from "react";
 // The provisioning surface the panel drives (srd003 R4). It is same-origin at
 // /provisioning, routed by the chatbot ingress to the provisioning-workflow-orchestrator's intent
 // server, so the panel's POST apply avoids the GET-only monitor_proxy and no call
-// crosses origin. The base is values-driven via ux.yaml and defaults to the
+// crosses origin. The base is values-driven via ui.yaml and defaults to the
 // same-origin path.
 //
 // The panel does not reach the deployment API. Its apply is an operator

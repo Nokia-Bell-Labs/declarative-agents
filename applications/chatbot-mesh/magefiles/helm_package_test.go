@@ -52,7 +52,7 @@ func TestHelmPackageIsRepeatableAndExcludesGeneratedInputs(t *testing.T) {
 		"chatbot-mesh/templates/chatbot.yaml",
 		"chatbot-mesh/profiles/agents/chatbot/profile.yaml",
 		"chatbot-mesh/profiles/agents/knowledge-manager/corpus-ingest/profile.yaml",
-		"chatbot-mesh/profiles/ux/app/dist/index.html",
+		"chatbot-mesh/profiles/agents/chatbot/ui/app/dist/index.html",
 	} {
 		if !containsArchiveFile(second, required) {
 			t.Errorf("archive is missing required runtime asset %s", required)
@@ -78,15 +78,15 @@ func TestHelmPackageRunsFromCopiedStandaloneLayout(t *testing.T) {
 		t.Skip("helm not on PATH")
 	}
 	standalone := filepath.Join(t.TempDir(), "chatbot-mesh")
-	for _, dir := range []string{"helm", "agents", "ux/app/dist"} {
+	for _, dir := range []string{"helm", "agents", "agents/chatbot/ui/app/dist"} {
 		if err := copyDirContents(
 			filepath.Join("..", filepath.FromSlash(dir)),
 			filepath.Join(standalone, filepath.FromSlash(dir))); err != nil {
 			t.Fatalf("copy standalone %s: %v", dir, err)
 		}
 	}
-	writePackageTestFile(t, filepath.Join(standalone, "ux", "ux.yaml"),
-		string(mustReadPackageTestFile(t, filepath.Join("..", "ux", "ux.yaml"))))
+	writePackageTestFile(t, filepath.Join(standalone, "agents", "chatbot", "ui", "ui.yaml"),
+		string(mustReadPackageTestFile(t, filepath.Join("..", "agents", "chatbot", "ui", "ui.yaml"))))
 	canonicalRoot, err := filepath.Abs(filepath.Join("..", "..", "catalog"))
 	if err != nil {
 		t.Fatal(err)
@@ -240,7 +240,7 @@ func TestHelmPackageContainsRequiredProfileEntrypoints(t *testing.T) {
 		"agents__applier__profile.yaml",
 		"agents__corpus-ingest__profile.yaml",
 		"agents__knowledge-manager__corpus-ingest__machine.yaml",
-		"ux__app__dist__index.html",
+		"agents__chatbot__ui__app__dist__index.html",
 	} {
 		if !strings.Contains(render, key+": |-") {
 			t.Errorf("packaged profiles ConfigMap missing %s", key)

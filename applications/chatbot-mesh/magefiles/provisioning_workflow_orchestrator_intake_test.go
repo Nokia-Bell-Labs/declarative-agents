@@ -134,7 +134,7 @@ func TestProvisioningWorkflowOrchestratorServesThePanelApplyPath(t *testing.T) {
 		t.Errorf("apply method = %q, want POST", apply.Method)
 	}
 	if apply.Path != "/provisioning/api/apply" {
-		t.Errorf("apply path = %q, want /provisioning/api/apply (the path ux/app/src/provisioningApi.ts calls)", apply.Path)
+		t.Errorf("apply path = %q, want /provisioning/api/apply (the path agents/chatbot/ui/app/src/provisioningApi.ts calls)", apply.Path)
 	}
 	if apply.Binding != "machine_request" {
 		t.Errorf("apply binding = %q, want machine_request", apply.Binding)
@@ -602,7 +602,7 @@ func TestRolloutCountsSurviveTheProvisioningWorkflowOrchestratorHop(t *testing.T
 func TestPanelRolloutInterfaceMatchesWhatIsServed(t *testing.T) {
 	// agentDir walks up to the mesh root, so the panel sits two levels above it.
 	meshRoot := filepath.Dir(filepath.Dir(agentDir(t, "provisioning-workflow-orchestrator")))
-	source, err := os.ReadFile(filepath.Join(meshRoot, "ux", "app", "src", "provisioningApi.ts"))
+	source, err := os.ReadFile(filepath.Join(meshRoot, "agents", "chatbot", "ui", "app", "src", "provisioningApi.ts"))
 	if err != nil {
 		t.Fatalf("read provisioningApi.ts: %v", err)
 	}

@@ -17,7 +17,7 @@ context: |
   and follows the
   the standard agent layout: a rest.yaml with static_assets,
   machine_request, monitor, and control servers; a ui/ directory holding a built
-  single-page app; and a ux.yaml actor configuration that places the panels.
+  single-page app; and a ui.yaml actor configuration that places the panels.
 
   Each chat turn is a request-scoped machine run. A turn uses separate classifier
   calls to select declared RAG sources and one chat-LLM word (the $tool
@@ -31,7 +31,7 @@ context: |
 
   The reusable HTTP runtime, static-asset host, machine_request binding, monitor,
   and command-state store stay in agent-core. The turn machine, the tier-selector
-  classifier prompt, the RAG and LLM client declarations, the SPA, and the ux.yaml
+  classifier prompt, the RAG and LLM client declarations, the SPA, and the ui.yaml
   panel placement stay profile-owned.
 
 problem: |
@@ -48,7 +48,7 @@ goals:
   - G2: Define separate source and tier classifiers with declared-vocabulary validation and normative fallbacks.
   - G3: Define selected sequential multi-RAG fan-out with not-selected, per-RAG degradation, and embedding-space mismatch outcomes.
   - G4: Fix stateless-v1 sessions (browser sends history) and record durable sessions as a follow-on non-goal.
-  - G5: Declare the two-panel UX surface in ux.yaml over a static_assets-served SPA, deferring panel content to their own requirements.
+  - G5: Declare the two-panel UX surface in ui.yaml over a static_assets-served SPA, deferring panel content to their own requirements.
   - G6: Keep RAG and LLM endpoints declared rest.yaml clients so nothing in the turn machine or UX can alter transport authority.
 
 requirements:
@@ -84,7 +84,7 @@ requirements:
   R5:
     title: UX surface
     items:
-      - R5.1: The agent SHALL declare three panels -- chat, observability, and provisioning -- in ux.yaml. The provisioning panel delegates a user's provisioning intent to the provisioning-workflow-orchestrator (srd004) through a declared client rather than editing config itself.
+      - R5.1: The agent SHALL declare three panels -- chat, observability, and provisioning -- in ui.yaml. The provisioning panel delegates a user's provisioning intent to the provisioning-workflow-orchestrator (srd004) through a declared client rather than editing config itself.
       - R5.2: static_assets SHALL serve the built SPA that renders the panels; the SPA build and panel content requirements SHALL be owned by their own issues, not this SRD.
   R6:
     title: Transport-authority boundary
@@ -113,7 +113,7 @@ acceptance_criteria:
     criterion: Stateless-v1 sessions (browser-sent history, no server store) and the durable-session follow-on are stated as requirements and non-goals rather than prose.
     traces: [R4.1, R4.2]
   - id: AC5
-    criterion: The three-panel ux.yaml surface over a static_assets-served SPA is declared, with panel content and SPA build deferred to their own issues.
+    criterion: The three-panel ui.yaml surface over a static_assets-served SPA is declared, with panel content and SPA build deferred to their own issues.
     traces: [R5.1, R5.2]
   - id: AC6
     criterion: The transport-authority boundary permits only trusted topology-selected RAG authorities while method, path, auth, operation, and network policy remain declared and model/request input cannot supply an endpoint.
@@ -207,6 +207,6 @@ diagrams:
       R2 --> AC2["AC2: separate source/tier classifiers with trusted fallback"]
       R3 --> AC3["AC3: selected fan-out and distinct source outcomes"]
       R4 --> AC4["AC4: stateless v1, durable sessions follow-on"]
-      R5 --> AC5["AC5: two-panel ux.yaml over static_assets SPA"]
+      R5 --> AC5["AC5: two-panel ui.yaml over static_assets SPA"]
       R6 --> AC6["AC6: declared clients hold transport authority"]
     ```

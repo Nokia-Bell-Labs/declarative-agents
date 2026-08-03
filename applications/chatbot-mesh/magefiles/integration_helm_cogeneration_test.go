@@ -142,9 +142,9 @@ func TestChatbotRestCoGeneratedFromRagUnits(t *testing.T) {
 	}
 }
 
-// TestChatbotUXMonitoredAgentsCoGenerated locks the monitored-agents surface to
+// TestChatbotUIMonitoredAgentsCoGenerated locks the monitored-agents surface to
 // the same ragUnits list (srd003 R2).
-func TestChatbotUXMonitoredAgentsCoGenerated(t *testing.T) {
+func TestChatbotUIMonitoredAgentsCoGenerated(t *testing.T) {
 	if _, err := exec.LookPath("helm"); err != nil {
 		t.Skip("helm not on PATH")
 	}
@@ -156,15 +156,15 @@ func TestChatbotUXMonitoredAgentsCoGenerated(t *testing.T) {
 	if err != nil {
 		t.Fatalf("helm template: %v\n%s", err, out)
 	}
-	ux := configMapKeyBlock(string(out), "ux__ux.yaml")
+	ux := configMapKeyBlock(string(out), "agents__chatbot__ui__ui.yaml")
 	if ux == "" {
-		t.Fatal("co-generated ux.yaml key not found")
+		t.Fatal("co-generated ui.yaml key not found")
 	}
 	if !strings.Contains(ux, "name: only") {
 		t.Error("ux monitored_agents missing the sole rag unit")
 	}
 	if strings.Contains(ux, "name: rag1") {
-		t.Error("packaged rag1 monitored-agent leaked into the co-generated ux.yaml")
+		t.Error("packaged rag1 monitored-agent leaked into the co-generated ui.yaml")
 	}
 }
 

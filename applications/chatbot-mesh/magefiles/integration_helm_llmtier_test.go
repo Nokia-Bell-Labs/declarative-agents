@@ -91,12 +91,12 @@ func TestKindLLMModelsReachDeployedDeclarations(t *testing.T) {
 		`name: CHATBOT_FAST_MODEL`,
 		`name: CHATBOT_DEEP_MODEL`,
 		`name: CHATBOT_UI_ROOT`,
-		`value: "/profiles/ux/app/dist"`,
+		`value: "/profiles/agents/chatbot/ui/app/dist"`,
 		`value: "qwen2.5:0.5b"`,
 		`model: "${CHATBOT_TIER_MODEL:-qwen2.5:3b}"`,
 		`model: "${CHATBOT_FAST_MODEL:-qwen2.5:3b}"`,
 		`model: "${CHATBOT_DEEP_MODEL:-ornith:9b}"`,
-		`root: "${CHATBOT_UI_ROOT:-ux/app/dist}"`,
+		`root: "${CHATBOT_UI_ROOT:-agents/chatbot/ui/app/dist}"`,
 	} {
 		if !strings.Contains(render, want) {
 			t.Errorf("kind LLM render missing %q", want)

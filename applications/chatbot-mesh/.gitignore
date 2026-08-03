@@ -1,5 +1,5 @@
-# Node dependencies for the ux SPA. Run `npm ci` in ux/app to restore.
-# The built SPA (ux/app/dist) is committed, so it is intentionally not ignored.
+# Node dependencies for the chatbot UI SPA. Run `npm ci` in agents/chatbot/ui/app to restore.
+# The built SPA (agents/chatbot/ui/app/dist) is committed, so it is intentionally not ignored.
 **/node_modules/
 
 # Persistent local integration failure artifacts.

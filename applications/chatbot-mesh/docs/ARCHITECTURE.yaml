@@ -205,7 +205,7 @@ components:
       the cast list and live state. Holds read-only authority; no lifecycle,
       deployment, or configuration commands.
   - name: user interface
-    path: ux/
+    path: agents/chatbot/ui/
     responsibility: |
       The single-page application (chat, observability, trace, and provisioning
       panels) and its UX config. Rendered into the deployed agents from the Helm
@@ -247,12 +247,15 @@ design_decisions:
       - Application endpoints and collection identity stay mesh-owned.
       - Trusted discovery and ingest behavior do not fork from the library.
   - id: 3
-    title: Helm and UX are top-level directories
+    title: A served UI lives under its serving agent
     decision: |
-      The deployment chart lives under `helm/` and the interface under `ux/`,
-      each clearly marked, rather than under `deploy/` or nested beneath an agent.
+      Each user interface lives beneath the agent whose `static_assets` binding
+      serves it -- the single-page application at `agents/chatbot/ui/`, the
+      observer fleet view at `agents/observer/ui/` -- per the
+      eng02-agent-ui-placement guideline (GH-1316). The deployment chart stays
+      top-level under `helm/`, rather than under `deploy/`.
     benefits:
-      - A reader locates the deployment and the interface immediately.
+      - A reader finds an interface beside the agent that owns and serves it.
       - The chart and the profiles it deploys live in one project.
   - id: 4
     title: Co-generation stays, for now
@@ -292,7 +295,7 @@ project_structure:
   configuration:
     - path: agents/
       role: The chatbot, RAG server, and corpus-ingest agent programs.
-    - path: ux/
+    - path: agents/chatbot/ui/
       role: The single-page application and UX config.
     - path: helm/
       role: The deployment chart.

@@ -7,7 +7,7 @@ metadata:
     {{- include "chatbot-mesh.labels" . | nindent 4 }}
     app.kubernetes.io/component: profiles
 data:
-  {{- $cogen := list "agents__chatbot__rest.yaml" "ux__ux.yaml" "agents__chatbot__request-topology.yaml" }}
+  {{- $cogen := list "agents__chatbot__rest.yaml" "agents__chatbot__ui__ui.yaml" "agents__chatbot__request-topology.yaml" }}
   {{- range $path, $_ := .Files.Glob "profiles/**" }}
   {{- $key := $path | trimPrefix "profiles/" | replace "/" "__" }}
   {{- if not (has $key $cogen) }}
@@ -35,7 +35,7 @@ data:
   # are packaged verbatim rather than rendered from this list.
   agents__chatbot__rest.yaml: |-
     {{- include "chatbot-mesh.chatbotRest" . | nindent 4 }}
-  ux__ux.yaml: |-
-    {{- include "chatbot-mesh.chatbotUX" . | nindent 4 }}
+  agents__chatbot__ui__ui.yaml: |-
+    {{- include "chatbot-mesh.chatbotUI" . | nindent 4 }}
   agents__chatbot__request-topology.yaml: |-
     {{- include "chatbot-mesh.chatbotTopology" . | nindent 4 }}

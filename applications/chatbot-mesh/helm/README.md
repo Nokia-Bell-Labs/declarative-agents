@@ -62,7 +62,7 @@ Realized as chart-owned templates rather than a nested Helm subchart so the Olla
 
 ## Package and install from a checkout
 
-The canonical agent programs live beside the chart under `agents/` and `ux/`;
+The canonical agent programs live beside the chart under `agents/`;
 the source `helm/` directory is not an install artifact by itself. Package it
 first so every required profile and SPA asset is staged into the chart:
 

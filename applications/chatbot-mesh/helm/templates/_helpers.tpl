@@ -146,7 +146,7 @@ mount. GH-314 co-generates the chatbot rest.yaml into this subtree before packag
   configMap:
     name: {{ include "chatbot-mesh.fullname" . }}-profiles
     items:
-    {{- $cogen := list "agents__chatbot__rest.yaml" "ux__ux.yaml" "agents__chatbot__request-machine.yaml" "agents__chatbot__request-fanout.yaml" }}
+    {{- $cogen := list "agents__chatbot__rest.yaml" "agents__chatbot__ui__ui.yaml" "agents__chatbot__request-machine.yaml" "agents__chatbot__request-fanout.yaml" }}
     {{- range $path, $_ := .Files.Glob "profiles/**" }}
       {{- $key := $path | trimPrefix "profiles/" | replace "/" "__" }}
       {{- if not (has $key $cogen) }}
@@ -156,7 +156,7 @@ mount. GH-314 co-generates the chatbot rest.yaml into this subtree before packag
     {{- end }}
       {{- /* The co-generated keys, projected whether or not a packaging step placed the file on disk. */}}
       - {key: agents__chatbot__rest.yaml, path: agents/chatbot/rest.yaml}
-      - {key: ux__ux.yaml, path: ux/ux.yaml}
+      - {key: agents__chatbot__ui__ui.yaml, path: agents/chatbot/ui/ui.yaml}
       - {key: agents__chatbot__request-machine.yaml, path: agents/chatbot/request-machine.yaml}
       - {key: agents__chatbot__request-fanout.yaml, path: agents/chatbot/request-fanout.yaml}
 {{- end -}}
