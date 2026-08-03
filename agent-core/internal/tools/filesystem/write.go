@@ -88,11 +88,11 @@ func (b *WriteBuilder) root() string {
 
 func (b *WriteBuilder) Build(res core.Result) core.Command {
 	p := extractStringParam(res.Output, "path")
-	c := extractStringParam(res.Output, "content")
+	c, contentPresent := extractStringParamValue(res.Output, "content")
 	if p == "" {
 		return missingParam("write", "path")
 	}
-	if c == "" {
+	if !contentPresent {
 		return missingParam("write", "content")
 	}
 	return &writeCmd{root: b.root(), path: p, content: c, metrics: b.Metrics}
