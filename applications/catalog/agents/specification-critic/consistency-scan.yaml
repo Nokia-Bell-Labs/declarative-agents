@@ -5,14 +5,57 @@ tools:
     args:
       - -c
       - |
-        set -eu
-        root=${1%/}
-        find -P "$root" -type f -print0 |
-          LC_ALL=C sort -z |
+        set -euo pipefail
+        root=
+        include_glob=
+        exclude_glob=
+        source_glob=
+        while [ "$#" -gt 0 ]; do
+          case "$1" in
+            --path) root=$2; shift 2 ;;
+            --include-glob) include_glob=$2; shift 2 ;;
+            --exclude-glob) exclude_glob=$2; shift 2 ;;
+            --source-glob) source_glob=$2; shift 2 ;;
+            *) printf 'jurist_consistency_scan: unknown argument: %s\n' "$1" >&2; exit 2 ;;
+          esac
+        done
+        if [ -z "$root" ]; then
+          printf 'jurist_consistency_scan: --path is required\n' >&2
+          exit 2
+        fi
+        root=${root%/}
+
+        rg_files() {
+          filtered=$1
+          args=(--files --hidden --no-ignore --sort path -0)
+          if [ "$filtered" = yes ]; then
+            if [ -n "$source_glob" ]; then
+              args+=(--glob "$source_glob")
+            else
+              [ -z "$include_glob" ] || args+=(--glob "$include_glob")
+              [ -z "$exclude_glob" ] || args+=(--glob "$exclude_glob")
+            fi
+          fi
+          if rg "${args[@]}" "$root"; then
+            return 0
+          else
+            status=$?
+            [ "$status" -eq 1 ]
+          fi
+        }
+
+        rg_files no |
           while IFS= read -r -d '' file; do
             rel=${file#"$root"/}
+            path64=$(printf '%s' "$rel" | base64 | tr -d '\n')
+            printf 'I\t%s\n' "$path64"
+          done
+        rg_files yes |
+          while IFS= read -r -d '' file; do
+            rel=${file#"$root"/}
+            path64=$(printf '%s' "$rel" | base64 | tr -d '\n')
             encoded=$(base64 < "$file" | tr -d '\n')
-            printf '%s\t%s\n' "$rel" "$encoded"
+            printf 'F\t%s\t%s\n' "$path64" "$encoded"
           done
       - jurist-consistency-scan
     visibility: internal
@@ -23,10 +66,16 @@ tools:
       type: object
       properties:
         path:
-          {type: string, positional: true, position: 1, source: $from(consistency_check).path}
+          {type: string, flag: --path, position: 1, source: $from(consistency_check).path}
+        include_glob:
+          {type: string, flag: --include-glob, position: 2, source: $from(consistency_check).include_glob}
+        exclude_glob:
+          {type: string, flag: --exclude-glob, position: 3, source: $from(consistency_check).exclude_glob}
+        source_glob:
+          {type: string, flag: --source-glob, position: 4, source: $from(consistency_check).source_glob}
       required: [path]
     output:
-      description: Sorted relative paths and base64 file contents.
+      description: Tagged base64 paths for the complete inventory and tagged base64 contents only for rg-selected files.
       mode: structured
       schema:
         type: object
@@ -36,10 +85,13 @@ tools:
         required: [output, exit_code]
     output_cap: 4194304
     side_effects:
-      - {kind: child_process, target: bash/find/base64, state: read_only}
+      - {kind: child_process, target: bash, state: read_only}
+      - {kind: child_process, target: rg, state: read_only}
+      - {kind: child_process, target: base64, state: read_only}
+      - {kind: child_process, target: tr, state: read_only}
     reversibility: {classification: reversible, undo: noop}
     undo: {strategy: noop, description: Scanning changes nothing.}
     errors:
       - signal: CommandError
-        condition: bash, find, sort, or base64 cannot execute the scan.
+        condition: bash, rg, base64, or tr cannot execute the scan.
         state_after_failure: No validation state changes.

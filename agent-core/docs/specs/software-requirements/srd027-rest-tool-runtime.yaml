@@ -64,6 +64,7 @@ requirements:
       - R4.3: REST builtin factories SHALL register through internal/tools/registry.
       - R4.4: REST commands SHALL return core.Result values whose Signal drives MachineSpec transitions.
       - R4.5: REST commands SHALL preserve core.Loop sequential semantics even when HTTP work runs in background goroutines.
+      - R4.6: net/http is the implementation of one atomic configured REST boundary, not hidden service-specific workflow orchestration. A subprocess transport such as curl MAY replace it only with parity for cancellation, typed request/response mapping, redirects and DNS/CIDR policy, size limits, retries, trace propagation, metrics, redaction, receipts/compensation, structured error stages, and runtime provisioning (GH-1385).
 
   R5:
     title: Synchronous and asynchronous semantics
@@ -140,6 +141,7 @@ non_goals:
   - Allowing model text to choose arbitrary REST URLs, methods, authentication, or network destinations.
   - Replacing MachineSpec sequencing with hidden REST tool workflows.
   - Letting lifecycle HTTP handlers pause, roll back, exit, or inject signals without a MachineSpec transition.
+  - Requiring curl in the base runtime solely because command-line flags overlap part of the generic REST boundary contract.
 
 acceptance_criteria:
   - id: AC1
@@ -155,8 +157,8 @@ acceptance_criteria:
     traces: [R3.1, R3.2, R3.3, R3.4, R3.5, R3.6]
 
   - id: AC4
-    criterion: Runtime platform requirements name net/http, internal/tools/catalog, internal/tools/registry, core.Result, and sequential core.Loop behavior.
-    traces: [R4.1, R4.2, R4.3, R4.4, R4.5]
+    criterion: Runtime platform requirements name net/http, internal/tools/catalog, internal/tools/registry, core.Result, and sequential core.Loop behavior, and require full contract parity plus provisioning before an alternate subprocess transport.
+    traces: [R4.1, R4.2, R4.3, R4.4, R4.5, R4.6]
 
   - id: AC5
     criterion: Synchronous and asynchronous REST semantics define blocking fused words, non-blocking send and launch words, await words, request state, shared inbox messages, and declared emitted signals.

@@ -13,16 +13,24 @@ import (
 const defaultOutputLineCap = 200
 
 func extractStringParam(jsonOutput, key string) string {
+	value, _ := extractStringParamValue(jsonOutput, key)
+	return value
+}
+
+// extractStringParamValue distinguishes a missing/non-string parameter from a
+// present empty string. Empty content is valid for write even though most
+// filesystem parameters use an empty value as "not supplied".
+func extractStringParamValue(jsonOutput, key string) (string, bool) {
 	var params struct {
 		Parameters map[string]interface{} `json:"parameters"`
 	}
 	if err := json.Unmarshal([]byte(jsonOutput), &params); err != nil {
-		return ""
+		return "", false
 	}
 	if v, ok := params.Parameters[key].(string); ok {
-		return v
+		return v, true
 	}
-	return ""
+	return "", false
 }
 
 func extractIntParam(jsonOutput, key string) int {

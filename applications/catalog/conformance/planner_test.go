@@ -164,9 +164,9 @@ func TestPlannerRetryPolicyWiring(t *testing.T) {
 // gap was about. This runs the wrapper an operator ships — not a synthesized,
 // bounded machine — so it exercises the real planner tool declarations.
 //
-// It is Ollama-gated: the shipped planner machine declares invoke_llm, which
-// pings Ollama at tool registration, so with no reachable model the profile
-// cannot start (see ollama.go). The full pipeline tail beyond the graph boundary
+// It is Ollama-gated: the conformance harness probes the profile's effective
+// provider URL and required model before launching the shipped planner. The
+// full pipeline tail beyond the graph boundary
 // (project_planner_context -> compose_planner_prompt -> invoke_llm -> parse_plan -> profile-selected tracker
 // sentence -> write -> self_invoke via an executor child -> vet/build/test) needs a
 // tracker project, a child agent, and the Go toolchain, which the conformance harness
@@ -178,7 +178,7 @@ func TestPlannerRetryPolicyWiring(t *testing.T) {
 // Traces srd004-planner: AC1 (load_graph as the graph-boundary action) and AC2
 // (the requirement graph is built into pipeline state).
 func TestPlannerConformance(t *testing.T) {
-	liveTimeout := RequireLiveModel(t, plannerModel)
+	liveTimeout := RequireLiveModel(t, ollamaURLFromEnvironment(), plannerModel)
 	coreRoot := RequireCoreRoot(t)
 
 	corpus := filepath.Join(coreRoot, "pkg", "spec", "testdata", "valid")

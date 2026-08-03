@@ -22,11 +22,13 @@ determinism: |
   and finding order.
 
 grep_execution: |
-  load_corpus lowers each grep_check to a deterministic search plan containing
-  the charter pattern, root, and effective include/exclude globs. The jurist
-  MachineSpec iterates those plans through the declared jurist_rg exec word and
-  then invokes reduce_grep_checks to map rg JSON events and exit-one no-match
-  outcomes into findings. pkg/spec does not scan target files for grep matches.
+  load_corpus lowers each match-mode pattern to its own deterministic search
+  plan containing the pattern, root, and effective include/exclude globs; this
+  makes the producing rg invocation the attribution source without re-matching
+  Rust regex results in Go. Missing mode keeps one combined any-match plan. The
+  jurist MachineSpec iterates plans through the declared jurist_rg exec word and
+  invokes reduce_grep_checks to map rg JSON events and exit-one no-match outcomes
+  into findings. pkg/spec neither scans target files nor recompiles rg patterns.
   The rg executable is the same runtime dependency used by the filesystem find
   tool and is installed in the agent runtime image.
 
@@ -40,10 +42,12 @@ ref_execution: |
 
 consistency_execution: |
   load_corpus lowers each consistency_check to an external file-scan plan. The
-  MachineSpec runs jurist_consistency_scan to enumerate paths and load YAML
-  bytes, then reduce_consistency_checks evaluates YAML paths, rules, and line
-  provenance against that evidence. Required-path checks use the externally
-  supplied inventory; pkg/spec does not open, stat, or walk target files.
+  MachineSpec runs jurist_consistency_scan: packaged rg emits the complete path
+  inventory, lowers include/exclude/source-file globs before reading content,
+  and base64-encodes only selected YAML bytes. reduce_consistency_checks then
+  evaluates YAML paths, rules, and line provenance against that evidence.
+  Required-path checks use the unfiltered external inventory; pkg/spec does not
+  open, stat, walk, or re-filter target files.
 
 suite_selection: |
   The spec-validation builtin tools load charter suites from ToolDef config or
@@ -220,6 +224,11 @@ check_kinds:
           $.experiments[?status=done].apparatus.artifacts[*] without flagging
           planned or deferred entries. Filter field names and values must not
           contain a dot or bracket.
+          This is a versioned JSONPath-like charter syntax, not a yq expression:
+          yq uses different traversal/filter grammar, typed comparison, and
+          zero-based line semantics. Implementations must preserve this syntax
+          and its lexical comparison/one-based provenance contract rather than
+          passing selectors unchanged to yq.
           source.file is optional and selects one target-relative, charter-root-
           relative, or absolute YAML file instead of the check include set.
       - field: rule
@@ -257,8 +266,9 @@ kind_required_fields:
     required_fields:
       - patterns
     notes: |
-      regex: true also requires each pattern to compile as a supported regular
-      expression. mode defaults to match. Search uses ripgrep regex syntax.
+      regex: true requires ripgrep-supported syntax; rg validates each lowered
+      plan and an invalid expression becomes a command error. mode defaults to
+      match. No Go/RE2 compatibility is required.
 
   - kind: ref_check
     required_fields:

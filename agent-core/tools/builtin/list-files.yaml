@@ -99,7 +99,19 @@ tools:
   - kind: child_process
     target: bash
     state: read_only
-    description: Runs a bash pipeline whose children are find (bounded-depth listing), awk (sort-key and indent shaping), and sort (deterministic order), all read-only from a fixed workspace working directory.
+    description: Hosts the read-only listing pipeline from the fixed workspace working directory.
+  - kind: child_process
+    target: find
+    state: read_only
+    description: Enumerates entries without following symlinks and with bounded depth.
+  - kind: child_process
+    target: awk
+    state: read_only
+    description: Shapes deterministic sort keys and indentation input.
+  - kind: child_process
+    target: sort
+    state: read_only
+    description: Orders listed entries under the C locale.
   - kind: filesystem_read
     target: workspace_tree
     description: Reads workspace directory entries without mutating state.
@@ -128,16 +140,12 @@ tools:
   non_goals:
   - Does not choose the next workflow step; machine.yaml owns sequencing.
   - Does not hide unrelated tool execution behind this word.
-  # GH-1376: the audit's ideal decomposition is a machine sub-sequence
-  # ValidateListPath (Go) -> ListPaths (find exec) -> FormatTree (Go reducer).
-  # list_files is an atomic filesystem primitive an LLM calls as a single
-  # ReAct tool action, not a machine that can host intermediate states, so that
-  # split would require an atomic-tool-as-submachine mechanism that does not
-  # exist. The declared exception here: the validate/list/format steps stay
-  # inside this one word's bash pipeline (find is the externalized lister; awk
-  # shapes deterministic order and indentation), and its true children are
-  # declared in side_effects above so the compound is at least honest.
-  - Does not become a machine sub-sequence; it is a single atomic word by design (GH-1376).
+  # GH-1376 resolution: path validation, bounded enumeration, ordering, and
+  # formatting construct one list_files result under one read-only contract.
+  # None is an independently selectable domain action or rollback boundary.
+  # Internal control flow and helper processes do not by themselves make an
+  # agent-visible tool composite; hidden dispatches or distinct effects would.
+  - Does not expose implementation stages as independently selectable machine actions.
   errors:
   - signal: CommandError
     condition: bash, find, awk, or sort cannot be started

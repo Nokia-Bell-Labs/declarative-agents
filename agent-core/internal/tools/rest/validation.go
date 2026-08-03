@@ -67,6 +67,9 @@ func ValidateDefinition(def Definition) error {
 // (client_command.retryDelay), so both are validated here.
 func validateRetryPolicies(policies map[string]RetryPolicy) error {
 	for name, retry := range policies {
+		if retry.Attempts < 0 {
+			return fmt.Errorf("retry policy %q attempts must be non-negative", name)
+		}
 		switch retry.Backoff {
 		case "", "none", "fixed", "exponential":
 		default:
@@ -86,8 +89,14 @@ func validateOptionalDuration(value string) error {
 	if value == "" {
 		return nil
 	}
-	_, err := time.ParseDuration(value)
-	return err
+	duration, err := time.ParseDuration(value)
+	if err != nil {
+		return err
+	}
+	if duration < 0 {
+		return fmt.Errorf("must be non-negative")
+	}
+	return nil
 }
 
 func validateAuthProfiles(profiles map[string]AuthProfile) error {

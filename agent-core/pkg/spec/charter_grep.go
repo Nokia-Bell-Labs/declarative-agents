@@ -40,34 +40,48 @@ func BuildGrepSearchPlans(targetDir string, charters []Charter) ([]GrepSearchPla
 			if check.Kind != "grep_check" {
 				continue
 			}
-			plan, err := buildGrepSearchPlan(targetDir, charter, check)
+			checkPlans, err := buildGrepSearchPlansForCheck(targetDir, charter, check)
 			if err != nil {
 				return nil, err
 			}
-			plans = append(plans, plan)
+			plans = append(plans, checkPlans...)
 		}
 	}
 	return plans, nil
 }
 
-func buildGrepSearchPlan(targetDir string, charter Charter, check CharterCheck) (GrepSearchPlan, error) {
+func buildGrepSearchPlansForCheck(targetDir string, charter Charter, check CharterCheck) ([]GrepSearchPlan, error) {
 	mode, err := validateGrepCheck(charter, check)
 	if err != nil {
-		return GrepSearchPlan{}, err
+		return nil, err
 	}
 	path, displayRoot, err := grepSearchRoot(targetDir, charter, check)
 	if err != nil {
-		return GrepSearchPlan{}, err
+		return nil, err
 	}
 	include, exclude := effectiveGrepGlobs(charter, check, path)
-	return GrepSearchPlan{
+	base := GrepSearchPlan{
 		SuiteID: charter.ID, CheckID: check.ID, Kind: check.Kind,
 		Severity: check.Severity, Message: check.Message, Mode: mode,
-		Patterns: append([]string(nil), check.Patterns...), Regex: check.Regex,
-		Query: grepQuery(check), Path: path, DisplayRoot: displayRoot,
+		Regex: check.Regex, Path: path, DisplayRoot: displayRoot,
 		IncludeGlob: combineGrepGlobs(include, false),
 		ExcludeGlob: combineGrepGlobs(exclude, true),
-	}, nil
+	}
+	groups := [][]string{check.Patterns}
+	if mode == "match" {
+		groups = make([][]string, len(check.Patterns))
+		for i, pattern := range check.Patterns {
+			groups[i] = []string{pattern}
+		}
+	}
+	plans := make([]GrepSearchPlan, 0, len(groups))
+	for _, patterns := range groups {
+		plan := base
+		plan.Patterns = append([]string(nil), patterns...)
+		plan.Query = grepQuery(patterns, check.Regex)
+		plans = append(plans, plan)
+	}
+	return plans, nil
 }
 
 func validateGrepCheck(charter Charter, check CharterCheck) (string, error) {
@@ -80,9 +94,6 @@ func validateGrepCheck(charter Charter, check CharterCheck) (string, error) {
 	}
 	if mode != "match" && mode != "missing" {
 		return "", fmt.Errorf("charter %q check %q: unknown grep_check mode %q", charter.ID, check.ID, check.Mode)
-	}
-	if _, err := compileGrepPatterns(check); err != nil {
-		return "", fmt.Errorf("charter %q check %q: %w", charter.ID, check.ID, err)
 	}
 	return mode, nil
 }
@@ -114,10 +125,10 @@ func effectiveGrepGlobs(charter Charter, check CharterCheck, path string) ([]str
 	return include, exclude
 }
 
-func grepQuery(check CharterCheck) string {
-	queryParts := make([]string, len(check.Patterns))
-	for i, pattern := range check.Patterns {
-		if !check.Regex {
+func grepQuery(patterns []string, regex bool) string {
+	queryParts := make([]string, len(patterns))
+	for i, pattern := range patterns {
+		if !regex {
 			pattern = regexp.QuoteMeta(pattern)
 		}
 		queryParts[i] = "(?:" + pattern + ")"
@@ -160,21 +171,22 @@ func ReduceGrepSearch(plan GrepSearchPlan, output string, exitCode int) ([]Findi
 		return nil, fmt.Errorf("charter %q check %q: rg failed (exit %d): %s",
 			plan.SuiteID, plan.CheckID, exitCode, strings.TrimSpace(output))
 	}
-	check := CharterCheck{Patterns: plan.Patterns, Regex: plan.Regex}
-	patterns, err := compileGrepPatterns(check)
-	if err != nil {
-		return nil, fmt.Errorf("charter %q check %q: %w", plan.SuiteID, plan.CheckID, err)
-	}
 	events, err := parseGrepEvents(plan, output)
 	if err != nil {
 		return nil, err
 	}
 	var findings []Finding
+	if plan.Mode == "match" && len(plan.Patterns) != 1 {
+		return nil, fmt.Errorf("charter %q check %q: match plan requires exactly one attributed pattern",
+			plan.SuiteID, plan.CheckID)
+	}
 	for _, event := range events {
 		if plan.Mode != "match" {
 			continue
 		}
-		findings = append(findings, grepEventFindings(plan, event, patterns)...)
+		findings = append(findings, grepPlanFinding(
+			plan, grepDisplayPath(plan, event.Path), event.LineNumber, plan.Patterns[0],
+		))
 	}
 	if plan.Mode == "missing" && len(events) == 0 {
 		findings = append(findings, grepPlanFinding(plan, "", 0, strings.Join(plan.Patterns, ", ")))
@@ -223,18 +235,6 @@ func parseGrepEvents(plan GrepSearchPlan, output string) ([]grepMatchEvent, erro
 	return events, nil
 }
 
-func grepEventFindings(plan GrepSearchPlan, event grepMatchEvent, patterns []grepPattern) []Finding {
-	var findings []Finding
-	for _, pattern := range patterns {
-		if pattern.matches(event.Line) {
-			findings = append(findings, grepPlanFinding(
-				plan, grepDisplayPath(plan, event.Path), event.LineNumber, pattern.raw,
-			))
-		}
-	}
-	return findings
-}
-
 func grepDisplayPath(plan GrepSearchPlan, path string) string {
 	path = filepath.Clean(path)
 	if filepath.IsAbs(path) {
@@ -265,32 +265,4 @@ func grepPlanFinding(plan GrepSearchPlan, file string, line int, pattern string)
 		SuiteID: plan.SuiteID, CheckID: plan.CheckID, Kind: plan.Kind,
 		File: file, Line: line,
 	}
-}
-
-type grepPattern struct {
-	raw string
-	re  *regexp.Regexp
-}
-
-func compileGrepPatterns(check CharterCheck) ([]grepPattern, error) {
-	patterns := make([]grepPattern, 0, len(check.Patterns))
-	for _, raw := range check.Patterns {
-		if !check.Regex {
-			patterns = append(patterns, grepPattern{raw: raw})
-			continue
-		}
-		re, err := regexp.Compile(raw)
-		if err != nil {
-			return nil, fmt.Errorf("invalid regex pattern %q: %w", raw, err)
-		}
-		patterns = append(patterns, grepPattern{raw: raw, re: re})
-	}
-	return patterns, nil
-}
-
-func (p grepPattern) matches(line string) bool {
-	if p.re != nil {
-		return p.re.MatchString(line)
-	}
-	return strings.Contains(line, p.raw)
 }

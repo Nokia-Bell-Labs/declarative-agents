@@ -11,6 +11,9 @@ import (
 	"time"
 
 	"github.com/stretchr/testify/require"
+
+	"github.com/Nokia-Bell-Labs/declarative-agents/agent-core/internal/runtime/core"
+	"github.com/Nokia-Bell-Labs/declarative-agents/agent-core/internal/tools/filesystem"
 )
 
 // resultWriteParams decodes the write parameters run_agent emits for the
@@ -77,4 +80,26 @@ func TestRunAgentCmdEmitsNonzeroExitOutputParameters(t *testing.T) {
 	path, content := resultWriteParams(t, result.Output)
 	require.Equal(t, ArtifactResult, path)
 	require.Equal(t, "child output", content)
+}
+
+func TestRunAgentCmdEmptyOutputWritesEmptyArtifact(t *testing.T) {
+	t.Parallel()
+
+	pointDir := t.TempDir()
+	script := filepath.Join(pointDir, "silent-agent")
+	require.NoError(t, os.WriteFile(script, []byte("#!/bin/sh\nexit 0\n"), 0o755))
+	pc := &PointContext{
+		PointDir: pointDir, TracePath: filepath.Join(pointDir, "trace.ndjson"),
+		ResultPath: filepath.Join(pointDir, ArtifactResult), Harness: Harness{Binary: script},
+		ProfilePath: "agents/executor/profile.yaml", Timeout: 5 * time.Second,
+	}
+
+	runResult := (&runAgentCmd{pc: pc, ctx: context.Background()}).Execute()
+	require.Equal(t, SigHarnessFinished, runResult.Signal, runResult.Output)
+	writeResult := (&filesystem.WriteBuilder{Root: pointDir}).Build(runResult).Execute()
+
+	require.Equal(t, core.ToolDone, writeResult.Signal, writeResult.Output)
+	data, err := os.ReadFile(pc.ResultPath)
+	require.NoError(t, err)
+	require.Empty(t, data)
 }

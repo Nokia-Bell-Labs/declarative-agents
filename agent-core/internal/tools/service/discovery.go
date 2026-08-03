@@ -5,10 +5,8 @@ package service
 import (
 	"fmt"
 	"os"
-	"os/exec"
 	"path/filepath"
 	"sort"
-	"strings"
 )
 
 // Scenario is one discovered test scenario: a tests/<name>/ directory beside
@@ -20,10 +18,6 @@ type Scenario struct {
 	Dir        string   `json:"dir"`
 	Validators []string `json:"validators"`
 	Fixtures   []string `json:"fixtures"`
-
-	// realized is set once the scenario's machine.yaml marker is seen; markers
-	// under tests/<name>/ without one are not scenarios (srd018 R2.1).
-	realized bool
 }
 
 const (
@@ -31,9 +25,6 @@ const (
 	machineFileName = "machine.yaml"
 	profileFileName = "profile.yaml"
 	mocksDirName    = "mocks"
-	// scenarioMaxDepth bounds the find scan to root/<subject>/tests/<name>/…
-	// two levels deep (nested validator profiles and mocks fixtures).
-	scenarioMaxDepth = "5"
 )
 
 // ListScenarios enumerates scenarios under the given roots. A root holds
@@ -42,13 +33,10 @@ const (
 // never hardcoded paths (srd040 R5.4), so the same rig serves the agent
 // families and the agents under applications/.
 //
-// Directory traversal is externalized to a single find per root
-// (externalize-to-CLI-tools, #1384); Go only reduces the listed marker files
-// into Scenario structs. A root that does not exist is skipped rather than
-// failing, so a caller can declare optional roots. The result is sorted for
-// determinism (R5.3).
+// A root that does not exist is skipped rather than failing, so a caller can
+// declare optional roots. The result is sorted for determinism (R5.3).
 func ListScenarios(roots []string) ([]Scenario, error) {
-	byDir := map[string]*Scenario{}
+	var found []Scenario
 	for _, root := range roots {
 		info, err := os.Stat(root)
 		if err != nil {
@@ -60,107 +48,120 @@ func ListScenarios(roots []string) ([]Scenario, error) {
 		if !info.IsDir() {
 			continue
 		}
-		paths, err := findScenarioMarkers(root)
+		scenarios, err := scenariosUnderRoot(root)
 		if err != nil {
 			return nil, err
 		}
-		reduceScenarioMarkers(root, paths, byDir)
+		found = append(found, scenarios...)
 	}
-	return sortedScenarios(byDir), nil
-}
 
-// findScenarioMarkers lists every scenario marker file under root in one find:
-// the machine.yaml that defines a scenario, the profile.yaml validators (its
-// own and one per nested validator directory), and the mocks/ fixture files.
-func findScenarioMarkers(root string) ([]string, error) {
-	cmd := exec.Command("find", "-P", root,
-		"-mindepth", "1", "-maxdepth", scenarioMaxDepth, "-type", "f",
-		"(", "-name", machineFileName, "-o", "-name", profileFileName,
-		"-o", "-path", "*/"+mocksDirName+"/*", ")")
-	out, err := cmd.Output()
-	if err != nil {
-		return nil, fmt.Errorf("discover scenarios in %s: %w", root, err)
-	}
-	var paths []string
-	for _, line := range strings.Split(strings.TrimSpace(string(out)), "\n") {
-		if line != "" {
-			paths = append(paths, line)
-		}
-	}
-	return paths, nil
-}
-
-// reduceScenarioMarkers groups marker paths into scenarios keyed by their
-// tests/<name>/ directory. A scenario is realized only once its machine.yaml is
-// seen; anything under tests/ without one is ignored (srd018 R2.1).
-func reduceScenarioMarkers(root string, paths []string, byDir map[string]*Scenario) {
-	for _, path := range paths {
-		rel, ok := scenarioRelParts(root, path)
-		if !ok {
-			continue
-		}
-		subject, name, remainder := rel[0], rel[2], rel[3:]
-		dir := filepath.Join(root, subject, testsDirName, name)
-		scenario := byDir[dir]
-		if scenario == nil {
-			scenario = &Scenario{
-				Subject: subject, SubjectDir: filepath.Join(root, subject),
-				Name: name, Dir: dir,
-			}
-			byDir[dir] = scenario
-		}
-		classifyScenarioMarker(scenario, path, remainder)
-	}
-}
-
-// scenarioRelParts splits a marker path into its root-relative components and
-// reports whether it sits under <subject>/tests/<name>/, the only shape a
-// scenario marker can take.
-func scenarioRelParts(root, path string) ([]string, bool) {
-	rel, err := filepath.Rel(root, path)
-	if err != nil {
-		return nil, false
-	}
-	parts := strings.Split(rel, string(filepath.Separator))
-	if len(parts) < 4 || parts[1] != testsDirName {
-		return nil, false
-	}
-	return parts, true
-}
-
-// classifyScenarioMarker records one marker against its scenario: the machine
-// file realizes the scenario, a profile.yaml (own or one nested validator dir)
-// is a validator, and a direct mocks/ file is a fixture.
-func classifyScenarioMarker(scenario *Scenario, path string, remainder []string) {
-	switch {
-	case len(remainder) == 1 && remainder[0] == machineFileName:
-		scenario.realized = true
-	case len(remainder) == 1 && remainder[0] == profileFileName:
-		scenario.Validators = append(scenario.Validators, path)
-	case len(remainder) == 2 && remainder[1] == profileFileName && remainder[0] != mocksDirName:
-		scenario.Validators = append(scenario.Validators, path)
-	case len(remainder) == 2 && remainder[0] == mocksDirName:
-		scenario.Fixtures = append(scenario.Fixtures, path)
-	}
-}
-
-// sortedScenarios drops unrealized scenarios (no machine.yaml), sorts each
-// scenario's validators and fixtures, and orders scenarios by subject then name.
-func sortedScenarios(byDir map[string]*Scenario) []Scenario {
-	var found []Scenario
-	for _, scenario := range byDir {
-		if !scenario.realized {
-			continue
-		}
-		sort.Strings(scenario.Validators)
-		sort.Strings(scenario.Fixtures)
-		found = append(found, *scenario)
-	}
 	sort.Slice(found, func(i, j int) bool {
 		if found[i].SubjectDir != found[j].SubjectDir {
 			return found[i].SubjectDir < found[j].SubjectDir
 		}
 		return found[i].Name < found[j].Name
 	})
-	return found
+	return found, nil
+}
+
+func scenariosUnderRoot(root string) ([]Scenario, error) {
+	agents, err := os.ReadDir(root)
+	if err != nil {
+		return nil, fmt.Errorf("read root %s: %w", root, err)
+	}
+	var found []Scenario
+	for _, agent := range agents {
+		if !agent.IsDir() {
+			continue
+		}
+		subjectDir := filepath.Join(root, agent.Name())
+		testsDir := filepath.Join(subjectDir, testsDirName)
+		entries, err := os.ReadDir(testsDir)
+		if err != nil {
+			if os.IsNotExist(err) {
+				continue
+			}
+			return nil, fmt.Errorf("read %s: %w", testsDir, err)
+		}
+		for _, entry := range entries {
+			if !entry.IsDir() {
+				continue
+			}
+			scenarioDir := filepath.Join(testsDir, entry.Name())
+			// A scenario is a directory holding a validator machine; anything
+			// else under tests/ is ignored rather than reported as a scenario.
+			if _, err := os.Stat(filepath.Join(scenarioDir, machineFileName)); err != nil {
+				continue
+			}
+			scenario, err := readScenario(agent.Name(), subjectDir, entry.Name(), scenarioDir)
+			if err != nil {
+				return nil, err
+			}
+			found = append(found, scenario)
+		}
+	}
+	return found, nil
+}
+
+func readScenario(subject, subjectDir, name, dir string) (Scenario, error) {
+	validators, err := scenarioValidators(dir)
+	if err != nil {
+		return Scenario{}, err
+	}
+	fixtures, err := scenarioFixtures(dir)
+	if err != nil {
+		return Scenario{}, err
+	}
+	return Scenario{
+		Subject: subject, SubjectDir: subjectDir, Name: name, Dir: dir,
+		Validators: validators, Fixtures: fixtures,
+	}, nil
+}
+
+// scenarioValidators collects the scenario's validator profiles. The
+// scenario's own profile.yaml binds its machine.yaml; each nested directory
+// holding a profile is an additional validator, which is how a scenario
+// declares several (srd018 R2.2).
+func scenarioValidators(dir string) ([]string, error) {
+	var validators []string
+	if _, err := os.Stat(filepath.Join(dir, profileFileName)); err == nil {
+		validators = append(validators, filepath.Join(dir, profileFileName))
+	}
+	entries, err := os.ReadDir(dir)
+	if err != nil {
+		return nil, fmt.Errorf("read scenario %s: %w", dir, err)
+	}
+	for _, entry := range entries {
+		if !entry.IsDir() || entry.Name() == mocksDirName {
+			continue
+		}
+		nested := filepath.Join(dir, entry.Name(), profileFileName)
+		if _, err := os.Stat(nested); err == nil {
+			validators = append(validators, nested)
+		}
+	}
+	sort.Strings(validators)
+	return validators, nil
+}
+
+// scenarioFixtures collects the mock fixture files a scenario mounts. A
+// scenario without a mocks directory simply has none.
+func scenarioFixtures(dir string) ([]string, error) {
+	mocksDir := filepath.Join(dir, mocksDirName)
+	entries, err := os.ReadDir(mocksDir)
+	if err != nil {
+		if os.IsNotExist(err) {
+			return nil, nil
+		}
+		return nil, fmt.Errorf("read fixtures for %s: %w", dir, err)
+	}
+	var fixtures []string
+	for _, entry := range entries {
+		if entry.IsDir() {
+			continue
+		}
+		fixtures = append(fixtures, filepath.Join(mocksDir, entry.Name()))
+	}
+	sort.Strings(fixtures)
+	return fixtures, nil
 }

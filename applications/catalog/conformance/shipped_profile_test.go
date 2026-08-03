@@ -70,6 +70,29 @@ func TestCopyShippedProfileNoPatches(t *testing.T) {
 	}
 }
 
+func TestProfilePatchesAreSimultaneousAndRejectOverlap(t *testing.T) {
+	t.Parallel()
+	replacer, err := newProfileReplacer(map[string]string{
+		"alpha": "beta",
+		"beta":  "gamma",
+	})
+	if err != nil {
+		t.Fatal(err)
+	}
+	if got := replacer.Replace("alpha beta"); got != "beta gamma" {
+		t.Fatalf("simultaneous replacement = %q, want %q", got, "beta gamma")
+	}
+
+	_, err = newProfileReplacer(map[string]string{"listen": "a", "listen_address": "b"})
+	if err == nil || !strings.Contains(err.Error(), "overlap") {
+		t.Fatalf("overlapping patches error = %v, want overlap rejection", err)
+	}
+	_, err = newProfileReplacer(map[string]string{"": "value"})
+	if err == nil || !strings.Contains(err.Error(), "empty") {
+		t.Fatalf("empty patch error = %v, want empty-match rejection", err)
+	}
+}
+
 func readFile(t *testing.T, path string) string {
 	t.Helper()
 	data, err := os.ReadFile(path)

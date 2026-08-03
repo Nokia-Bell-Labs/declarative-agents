@@ -34,6 +34,7 @@ requirements:
       - R1.3: REST client tools SHALL use configured REST operation definitions loaded from hand-authored YAML or OpenAPI imports.
       - R1.4: REST client tools SHALL use shared runtime rules from srd027-rest-tool-runtime.
       - R1.5: REST client tools SHALL keep workflow order in MachineSpec transitions, not inside service-specific Go adapters.
+      - R1.6: The generic net/http request execution, policy enforcement, response reduction, observability, and receipt capture SHALL remain one boundary implementation. Non-CIDR operations SHALL NOT silently switch to a weaker subprocess path merely because curl is available (GH-1385).
 
   R2:
     title: Config-bound operation authority
@@ -106,7 +107,7 @@ requirements:
       - R8.3: Retry policy SHALL be configured per operation and SHALL respect srd027 timeout, redirect, and size-limit rules.
       - R8.4: Retries SHALL not be enabled for non-idempotent operations unless config declares an idempotency token or safe retry policy.
       - R8.5: Tool output and traces SHOULD include retry count and idempotency metadata when available.
-      - R8.6: A retry policy's declared backoff (none, fixed, or exponential) and max_delay SHALL be honored between attempts, and the delay between attempts SHALL be cancellation-aware so a cancelled dispatch stops waiting. An unsupported backoff or unparseable delay SHALL be rejected at load.
+      - R8.6: A retry policy's declared backoff and max_delay SHALL be honored between attempts—none waits zero, fixed uses initial_delay, and exponential doubles initial_delay with overflow-safe saturation at max_delay—and the delay SHALL be cancellation-aware so a cancelled dispatch stops waiting. An unsupported backoff, negative attempt count, or invalid/negative delay SHALL be rejected at load.
 
   R9:
     title: Metrics, tracing, and redaction
@@ -169,6 +170,7 @@ non_goals:
   - Allowing runtime input to choose arbitrary URLs, methods, authentication, or network destinations.
   - Generating Go clients from OpenAPI documents.
   - Replacing MachineSpec sequencing with hidden REST client workflows.
+  - Requiring a curl executable for REST client words without full srd027/srd028 parity and runtime-image provisioning.
 
 tool_words:
   - name: rest_client_get
@@ -223,8 +225,8 @@ tool_words:
 
 acceptance_criteria:
   - id: AC1
-    criterion: REST client tools are documented as first-class boundary ToolDef words backed by declarative client, resource, and operation definitions.
-    traces: [R1.1, R1.2, R1.3, R1.4, R1.5, R2.1, R2.2]
+    criterion: REST client tools are documented as first-class boundary ToolDef words backed by declarative client, resource, and operation definitions, with one policy-preserving generic transport implementation.
+    traces: [R1.1, R1.2, R1.3, R1.4, R1.5, R1.6, R2.1, R2.2]
 
   - id: AC2
     criterion: Tool config fixes client, resource, operation, transport policy, and schemas while runtime input supplies only declared parameters and every path parameter is present, nonempty, and escaped before transport.
