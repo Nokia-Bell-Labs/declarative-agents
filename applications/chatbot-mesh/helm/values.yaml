@@ -122,6 +122,16 @@ observer:
   resources:
     requests: {cpu: 50m, memory: 64Mi}
     limits: {cpu: 500m, memory: 256Mi}
+  # kube API access goes through a kubectl-proxy sidecar that holds the pod's
+  # service-account token and forwards read-only requests, so bearer auth stays
+  # out of the declarative runtime (which carries no credential resolver). The
+  # observer reaches the proxy over loopback with auth_ref none (GH-1302).
+  proxy:
+    image: {repository: rancher/kubectl, tag: v1.31.4, pullPolicy: IfNotPresent}
+    port: 8001
+    resources:
+      requests: {cpu: 25m, memory: 32Mi}
+      limits: {cpu: 250m, memory: 128Mi}
 
 # Dolt checkpoint backend (agent-core srd035/srd036).
 dolt:

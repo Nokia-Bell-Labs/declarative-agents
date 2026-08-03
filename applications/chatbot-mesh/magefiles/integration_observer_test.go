@@ -193,6 +193,6 @@ func TestObserverKindIntegration(t *testing.T) {
 		t.Fatalf("observer kind integration: %v", err)
 	}
 	if discovered == 0 {
-		t.Errorf("observer discovered 0 agents on the kind cluster; want at least one")
+		t.Errorf("observer discovered 0 pods on the kind cluster; want at least one")
 	}
 }

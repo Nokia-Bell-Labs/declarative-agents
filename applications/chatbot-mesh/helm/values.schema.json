@@ -213,12 +213,22 @@
     "observer": {
       "type": "object",
       "additionalProperties": false,
-      "required": ["enabled", "ports", "pollInterval", "resources"],
+      "required": ["enabled", "ports", "pollInterval", "resources", "proxy"],
       "properties": {
         "enabled": {"type": "boolean"},
         "ports": {"$ref": "#/definitions/agentPorts"},
         "pollInterval": {"$ref": "#/definitions/nonEmptyString"},
-        "resources": {"$ref": "#/definitions/resources"}
+        "resources": {"$ref": "#/definitions/resources"},
+        "proxy": {
+          "type": "object",
+          "additionalProperties": false,
+          "required": ["image", "port", "resources"],
+          "properties": {
+            "image": {"$ref": "#/definitions/image"},
+            "port": {"type": "integer", "minimum": 1},
+            "resources": {"$ref": "#/definitions/resources"}
+          }
+        }
       }
     },
     "applier": {

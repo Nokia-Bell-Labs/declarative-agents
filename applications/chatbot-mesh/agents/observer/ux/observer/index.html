@@ -234,13 +234,17 @@ h1{font-size:1.4rem;font-weight:600;margin-bottom:.25rem}
     topology.innerHTML = html;
   }
 
-  // labelArray reads one command_state entry's declared output field. It returns
-  // [] when the label has no recorded step yet or its output is unavailable, so a
-  // mid-cycle or degraded poll renders the empty/degraded state (srd008 R2.3).
+  // labelArray reads one command_state entry's declared output field. The REST
+  // client exposes the operation's response.output result under `mapped`, so the
+  // discovered array lives at output.mapped[field] (with a direct fallback). It
+  // returns [] when the label has no recorded step yet or its output is
+  // unavailable, so a mid-cycle or degraded poll renders the empty/degraded
+  // state (srd008 R2.3).
   function labelArray(labels, label, field) {
     var entry = labels[label];
     if (!entry || entry.available === false || !entry.output) return [];
-    var value = entry.output[field];
+    var out = entry.output.mapped || entry.output;
+    var value = out[field];
     return Array.isArray(value) ? value : [];
   }
 
