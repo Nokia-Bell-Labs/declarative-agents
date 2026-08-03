@@ -110,8 +110,9 @@ deployment:
 	}
 }
 
-func TestApplicationManifestAcceptsCanonicalAndLegacyV0CompatibilityTags(t *testing.T) {
+func TestApplicationManifestAcceptsRootCanonicalAndLegacyV0CompatibilityTags(t *testing.T) {
 	for _, release := range []string{
+		"v0.20260724.0",
 		"applications/catalog/v0.20260724.0",
 		"agent-profiles/v0.20260724.0",
 	} {
@@ -120,7 +121,9 @@ func TestApplicationManifestAcceptsCanonicalAndLegacyV0CompatibilityTags(t *test
 		}
 	}
 	for _, release := range []string{
-		"v0.20260724.0",
+		"v1.0.0",
+		"v0.",
+		"v0.20260724.0/extra",
 		"applications/catalog/v1.0.0",
 		"applications/catalog/v0.",
 		"applications/catalog/v0.20260724.0/extra",
@@ -185,6 +188,7 @@ func TestCheckoutFallbackDoesNotClaimReleaseTag(t *testing.T) {
 
 func TestPackageSourceRecordsExactCanonicalOrLegacyRelease(t *testing.T) {
 	for _, release := range []string{
+		"v0.20260724.0",
 		"applications/catalog/v0.20260724.0",
 		"agent-profiles/v0.20260724.0",
 	} {

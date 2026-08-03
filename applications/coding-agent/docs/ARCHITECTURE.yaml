@@ -155,7 +155,7 @@ design_decisions:
     title: Assemble profile closure at package time
     decision: |
       `agents/application.yaml` declares a compatible
-      `applications/catalog/v0.*` release and names four direct references:
+      catalog `v0.*` release and names four direct references:
       planner, executor, critic
       session, and critic changed-workspace. `mage package` snapshots the
       configured checkout, resolves profile-local references from their

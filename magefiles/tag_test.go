@@ -63,9 +63,9 @@ func TestCreateReleaseTagCreatesNextDailyTag(t *testing.T) {
 	if !reflect.DeepEqual(calls, want) {
 		t.Fatalf("git calls = %#v, want %#v", calls, want)
 	}
-	wantTags := releaseTags("v0.20260617.3", releaseModules())
+	wantTags := []string{"v0.20260617.3"}
 	if !reflect.DeepEqual(created, wantTags) || taggedCommit != "abc123" {
-		t.Fatalf("atomic tags = %v at %s, want %v at abc123",
+		t.Fatalf("release tags = %v at %s, want %v at abc123",
 			created, taggedCommit, wantTags)
 	}
 }
@@ -97,15 +97,9 @@ func TestCreateReleaseTagInGitRepository(t *testing.T) {
 	if !strings.Contains(out, tagPrefix+date+".1") {
 		t.Fatalf("local tags = %q, want next daily revision", out)
 	}
-	for _, mod := range releaseModules() {
-		moduleTag := mod + "/" + tagPrefix + date + ".1"
-		if !strings.Contains(runGitOutput(t, "tag", "-l", moduleTag), moduleTag) {
-			t.Fatalf("local tags missing module tag %q", moduleTag)
-		}
-	}
-	legacyTag := legacyCatalogTagPrefix + tagPrefix + date + ".1"
-	if got := strings.TrimSpace(runGitOutput(t, "tag", "-l", legacyTag)); got != legacyTag {
-		t.Fatalf("local tags missing compatibility tag %q", legacyTag)
+	all := strings.Fields(runGitOutput(t, "tag", "-l"))
+	if len(all) != 2 {
+		t.Fatalf("local tags = %v, want only the seed tag and the new root tag", all)
 	}
 }
 
@@ -162,9 +156,9 @@ func TestCreateReleaseTagWrapsAtomicTagFailure(t *testing.T) {
 		successfulReleaseOutput,
 		noRemoteTags,
 		func(tags []string, commit string) error {
-			if !reflect.DeepEqual(tags, releaseTags("v0.20260617.0", releaseModules())) ||
+			if !reflect.DeepEqual(tags, []string{"v0.20260617.0"}) ||
 				commit != "abc123" {
-				t.Fatalf("atomic request = %v at %s", tags, commit)
+				t.Fatalf("tag request = %v at %s", tags, commit)
 			}
 			return want
 		},
@@ -173,8 +167,8 @@ func TestCreateReleaseTagWrapsAtomicTagFailure(t *testing.T) {
 	if !errors.Is(err, want) {
 		t.Fatalf("error = %v, want to wrap %v", err, want)
 	}
-	if !strings.Contains(err.Error(), "atomic release tag set") {
-		t.Fatalf("error = %q, want atomic tag context", err)
+	if !strings.Contains(err.Error(), "creating release tag") {
+		t.Fatalf("error = %q, want tag creation context", err)
 	}
 }
 
@@ -216,7 +210,7 @@ func TestGitCreateTagSetIsAtomicOnConflict(t *testing.T) {
 	t.Cleanup(func() { _ = os.Chdir(previous) })
 
 	commit := strings.TrimSpace(runGitOutput(t, "rev-parse", "HEAD"))
-	tags := releaseTags("v0.20260617.0", releaseModules())
+	tags := []string{"v0.20260617.0", "module-a/v0.20260617.0", "module-b/v0.20260617.0"}
 	runGit(t, "tag", tags[2])
 	if err := gitCreateTagSet(tags, commit); err == nil {
 		t.Fatal("atomic tag creation succeeded despite conflicting module tag")
@@ -414,44 +408,6 @@ func TestExecuteReleaseGatesStopsAtFailure(t *testing.T) {
 	}
 }
 
-func TestReleaseTags(t *testing.T) {
-	got := releaseTags("v0.20260617.0", []string{
-		"agent-core", catalogModule, "applications/coding-agent",
-		"applications/agent-architecture",
-	})
-	want := []string{
-		"v0.20260617.0",
-		"agent-core/v0.20260617.0",
-		"applications/catalog/v0.20260617.0",
-		"agent-profiles/v0.20260617.0",
-		"applications/coding-agent/v0.20260617.0",
-		"applications/agent-architecture/v0.20260617.0",
-	}
-	if !reflect.DeepEqual(got, want) {
-		t.Fatalf("releaseTags = %#v, want %#v", got, want)
-	}
-}
-
-func TestAlignmentReleaseCreatesExactCatalogCompatibilityPair(t *testing.T) {
-	got := releaseTags("v0.20260727.0", []string{catalogModule})
-	want := []string{
-		"v0.20260727.0",
-		"applications/catalog/v0.20260727.0",
-		"agent-profiles/v0.20260727.0",
-	}
-	if !reflect.DeepEqual(got, want) {
-		t.Fatalf("alignment release tags = %#v, want exact atomic canonical/legacy pair %#v", got, want)
-	}
-}
-
-func TestReleaseTagsStopsLegacyCompatibilityAtV1(t *testing.T) {
-	got := releaseTags("v1.0.0", []string{catalogModule})
-	want := []string{"v1.0.0", "applications/catalog/v1.0.0"}
-	if !reflect.DeepEqual(got, want) {
-		t.Fatalf("releaseTags v1 = %#v, want %#v", got, want)
-	}
-}
-
 func TestNextRevisionFromTags(t *testing.T) {
 	got := nextRevisionFromTags("20260617", strings.Join([]string{
 		"v0.20260617.4",
@@ -504,9 +460,9 @@ func TestCreateReleaseTagIncludesRemoteTags(t *testing.T) {
 	if err != nil {
 		t.Fatalf("createReleaseTag returned error: %v", err)
 	}
-	wantTags := releaseTags("v0.20260617.3", releaseModules())
+	wantTags := []string{"v0.20260617.3"}
 	if !reflect.DeepEqual(created, wantTags) {
-		t.Fatalf("atomic tags = %v, want %v (remote had .0 and .2)", created, wantTags)
+		t.Fatalf("release tags = %v, want %v (remote had .0 and .2)", created, wantTags)
 	}
 }
 
@@ -556,9 +512,9 @@ func TestCreateReleaseTagLocalAndRemoteMaxima(t *testing.T) {
 	if err != nil {
 		t.Fatalf("createReleaseTag returned error: %v", err)
 	}
-	wantTags := releaseTags("v0.20260617.6", releaseModules())
+	wantTags := []string{"v0.20260617.6"}
 	if !reflect.DeepEqual(created, wantTags) {
-		t.Fatalf("atomic tags = %v, want %v (local max .5 > remote max .3)", created, wantTags)
+		t.Fatalf("release tags = %v, want %v (local max .5 > remote max .3)", created, wantTags)
 	}
 }
 

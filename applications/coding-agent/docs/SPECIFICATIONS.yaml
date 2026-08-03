@@ -9,7 +9,7 @@ overview: |
   requirements in `applications/catalog`.
 
   Library references are not forks. Packaging snapshots the configured checkout
-  compatible with the declared `applications/catalog/v0.*` release, records its
+  compatible with the declared catalog `v0.*` release, records its
   revision, and assembles the transitive profile closure before deployment. The
   shared agent-core runtime image remains profile-free.
 

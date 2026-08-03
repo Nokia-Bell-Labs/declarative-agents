@@ -52,7 +52,7 @@ success_criteria:
     profiles or SRDs.
   closed_package: |
     Packaging records the configured checkout's revision and compatible
-    `applications/catalog/v0.*` release, then assembles the transitive closure of
+    catalog `v0.*` release, then assembles the transitive closure of
     referenced profiles, declarations, tools, and config into the application
     profile tree.
   profile_free_runtime: |

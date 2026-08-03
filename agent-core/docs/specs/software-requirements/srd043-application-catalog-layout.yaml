@@ -78,12 +78,12 @@ requirements:
   R6:
     title: Tag and provenance transition
     items:
-      - R6.1: applications/catalog/v0.YYYYMMDD.N SHALL be the canonical module tag prefix after relocation.
-      - R6.2: Existing agent-profiles/v0.* tags SHALL remain immutable valid compatibility identifiers and SHALL never be moved or recreated at another commit.
-      - R6.3: For the remainder of major version v0, each new coordinated catalog release SHALL create applications/catalog/v0.YYYYMMDD.N and the matching agent-profiles/v0.YYYYMMDD.N compatibility tag at the same commit.
-      - R6.4: v0 consumers and validators SHALL accept either exact prefix as compatible_release; newly authored manifests and documentation SHALL use applications/catalog/v0.*.
+      - R6.1: The repository root tag v0.YYYYMMDD.N SHALL be the canonical catalog release identifier as of GH-1373; applications/catalog/v0.YYYYMMDD.N was the canonical module tag prefix from relocation until then.
+      - R6.2: Existing applications/catalog/v0.* and agent-profiles/v0.* tags SHALL remain immutable valid compatibility identifiers and SHALL never be moved or recreated at another commit.
+      - R6.3: Each new coordinated release SHALL create the single root tag v0.YYYYMMDD.N and no module-scoped or compatibility tags (GH-1373).
+      - R6.4: v0 consumers and validators SHALL accept the root form v0.*, applications/catalog/v0.*, and agent-profiles/v0.* as compatible_release; newly authored manifests and documentation SHALL use the root form.
       - R6.5: A package SHALL record the exact compatible_release string it validated and independent source provenance; only a clean checkout exactly at that tag MAY record kind release, while any other source SHALL record kind checkout.
-      - R6.6: The legacy tag prefix SHALL stop receiving new tags at v1; v1 migration notes SHALL identify applications/catalog/v1.* as the only catalog tag family.
+      - R6.6: Module-scoped tag prefixes SHALL receive no new tags after GH-1373; v1 migration notes SHALL identify v1.* as the only tag family.
 
   R7:
     title: Migration gates and sequencing
@@ -103,9 +103,9 @@ compatibility_policy: |
   then removed.
 
   Tag compatibility is longer because existing manifests pin immutable public
-  v0 identifiers. Existing agent-profiles/v0.* tags remain valid, and new v0
-  releases receive canonical and legacy tags at the same commit. New manifests
-  use applications/catalog/v0.*. The compatibility tag stops at v1. Package
+  v0 identifiers. Existing applications/catalog/v0.* and agent-profiles/v0.*
+  tags remain valid, and since GH-1373 each new release receives the single
+  root tag v0.YYYYMMDD.N. New manifests use the root form. Package
   provenance always records what was actually checked out; a compatible tag
   never turns a dirty or different checkout into a release.
 

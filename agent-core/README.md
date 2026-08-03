@@ -178,9 +178,9 @@ mage docker
 
 `mage docker` discovers the latest remote root release tag with the
 `v0.YYYYMMDD.N` shape, passes it to the Dockerfile as `AGENT_CORE_REF`, and
-builds `agent-core:latest`. Repository releases may also publish a matching
-module-scoped tag such as `agent-core/v0.YYYYMMDD.N`, but Docker release
-resolution continues to use the root tag family unless `release_ref` in
+builds `agent-core:latest`. Releases before GH-1373 also published
+module-scoped tags such as `agent-core/v0.YYYYMMDD.N`, but Docker release
+resolution uses the root tag family unless `release_ref` in
 `demo.yaml` overrides it. The target requires Docker, and prints the resolved
 build settings plus the exact Docker command before building.
 

@@ -2,11 +2,12 @@
 
 This directory is the repository-specific catalog of reusable declarative tool
 and agent blocks for `agent-core` applications. Its compatibility surface is the
-profile programs and profile-local assets published canonically by
-`applications/catalog/v0.*` tags. For the remainder of v0, each coordinated
-release also publishes the executable compatibility tag `agent-profiles/v0.*`
-at the same commit. `agent-core` executes those programs; applications under
-`applications/` compose them by reference.
+profile programs and profile-local assets published canonically by repository
+release tags `v0.*` (GH-1373); earlier releases published
+`applications/catalog/v0.*` tags with matching `agent-profiles/v0.*`
+compatibility tags, and those existing tags remain valid identifiers.
+`agent-core` executes those programs; applications under `applications/`
+compose them by reference.
 
 Under this root, YAML agent programs sit beside profile-local config,
 human-facing profile assets, and integration fixtures. Application
@@ -90,8 +91,8 @@ The canonical renamed paths are `agents/scenario-critic/profile.yaml`,
 `agents/specification-critic/profile.yaml`. Their former `agents/assembler`,
 `agents/monitor`, and `agents/jurist` paths are one-file compatibility wrappers
 that select canonical machines, declarations, and REST assets without copying
-them. They are supported through `applications/catalog/v0.*` and removed at
-`applications/catalog/v1`; new consumers must use canonical paths. The complete
+them. They are supported through the remainder of v0 and removed at
+v1; new consumers must use canonical paths. The complete
 application-local identity migration and exact release pair are recorded in
 `docs/migrations/v0.20260727.0-agent-role-realization-alignment.yaml`.
 
@@ -104,10 +105,10 @@ criteria.
 ### Consumer contract
 
 Applications live beside this catalog under `applications/` and name catalog
-profiles by root-relative path. They pin a compatible
-`applications/catalog/v0.*` release and assemble the transitive closure at
-package time. Release 99 tooling also accepts exact `agent-profiles/v0.*`
-compatibility pins. The runtime receives a closed mounted tree; it is not a
+profiles by root-relative path. They pin a compatible `v0.*` release and
+assemble the transitive closure at package time. Tooling also accepts exact
+`applications/catalog/v0.*` and `agent-profiles/v0.*` pins from releases
+before GH-1373. The runtime receives a closed mounted tree; it is not a
 package resolver or registry.
 
 Consumers may add an application wrapper that selects canonical machine/tools
@@ -117,9 +118,11 @@ chatbot-mesh corpus-ingest is the wrapper/parameterization reference.
 
 ### Compatibility and release evidence
 
-`applications/catalog/v0.YYYYMMDD.N` identifies one immutable catalog bundle.
-The matching `agent-profiles/v0.YYYYMMDD.N` name remains executable for
-existing v0 consumers and resolves to the same commit. An
+The repository release tag `v0.YYYYMMDD.N` identifies one immutable catalog
+bundle. Tags from releases before GH-1373 carry the
+`applications/catalog/v0.YYYYMMDD.N` form, and their matching
+`agent-profiles/v0.YYYYMMDD.N` names remain executable for
+existing v0 consumers and resolve to the same commit. An
 application's `compatible_release` means that its references and configuration
 were validated against that release family; it is not proof that a dirty or
 different checkout is the tagged release. Packaging records both compatibility
@@ -284,9 +287,9 @@ that mount path to **`--profile`**. Mount the workspace and pass it to
 Applications consume profiles by reference; they do not copy canonical catalog
 profiles into their source trees. An application manifest names each entry
 profile with a path relative to this catalog root and pins a compatible
-`applications/catalog/v0.*` release (or an exact legacy `agent-profiles/v0.*`
-pin during the v0 transition). Packaging, not the runtime, resolves the
-complete closure into a tree mounted at `/profiles`.
+`v0.*` release (or an exact `applications/catalog/v0.*` or
+`agent-profiles/v0.*` pin from before GH-1373). Packaging, not the runtime,
+resolves the complete closure into a tree mounted at `/profiles`.
 
 Reference resolution follows the runtime's existing path surfaces:
 
@@ -356,38 +359,31 @@ tracer bullets. Application presentation evidence remains with each application.
 
 ## Release Tags
 
-Profile bundle releases use the repository release revision and a module-scoped
-canonical catalog tag. During v0 the root tag transaction also creates the
-legacy compatibility identifier:
+Catalog releases use the single repository release tag (GH-1373):
 
 ```text
 v0.YYYYMMDD.N
-applications/catalog/v0.YYYYMMDD.N
-agent-profiles/v0.YYYYMMDD.N
 ```
 
-The root tag identifies the coordinated repository release. The
-`applications/catalog/v0.YYYYMMDD.N` tag is the Go module-valid canonical
-catalog release. `agent-profiles/v0.YYYYMMDD.N` remains an immutable,
-executable compatibility identifier for existing v0 consumers. Both catalog
-names are created atomically at the same commit; existing legacy tags are never
-moved or recreated. New manifests and documentation use the canonical name.
-The compatibility family stops receiving new tags at v1.
+The root tag identifies the coordinated repository release, and since GH-1373
+it is the canonical catalog release identifier. Releases before GH-1373 also
+carry `applications/catalog/v0.YYYYMMDD.N` and the executable
+`agent-profiles/v0.YYYYMMDD.N` compatibility identifier at the same commit;
+those existing tags are never moved or recreated. New manifests and
+documentation use the root form.
 
 After profile changes are ready for mounted-path, checkout, or release-bundle
-consumers, create release tags from the repository root on `main`:
+consumers, create the release tag from the repository root on `main`:
 
 ```bash
 mage tag
 ```
 
-At tag time, the root target reads existing local root tags for the current date
-and creates the next daily revision, such as `v0.20260617.0` or
-`v0.20260617.1`. It also creates matching module tags including
-`applications/catalog/v0.20260617.N`, plus the matching
-`agent-profiles/v0.20260617.N` compatibility tag for v0. Profile bundle tags
-version this catalog's YAML programs, profile-local UI assets, documentation,
-and integration fixtures. They do not include application-owned presentations.
+At tag time, the root target reads existing local and remote tags for the
+current date and creates the next daily revision, such as `v0.20260617.0` or
+`v0.20260617.1`. Release tags version this catalog's YAML programs,
+profile-local UI assets, documentation, and integration fixtures alongside the
+rest of the repository. They do not include application-owned presentations.
 Runtime image builds continue to resolve the root `v0.*` tag family unless the
 `agent-core` Docker release target is explicitly overridden.
 

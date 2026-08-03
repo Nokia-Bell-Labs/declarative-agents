@@ -135,10 +135,10 @@ design_decisions:
       Applications reference members and assemble closures at package time;
       they do not fork reusable programs.
 
-      The canonical compatibility surface is versioned by exact
-      applications/catalog/v0.* tags. Matching agent-profiles/v0.* names are
-      v0 compatibility aliases, and immutable historical legacy tags remain
-      valid.
+      The canonical compatibility surface is versioned by exact repository
+      v0.* release tags (GH-1373). Earlier applications/catalog/v0.* tags and
+      matching agent-profiles/v0.* names are v0 compatibility aliases, and
+      immutable historical legacy tags remain valid.
       Profile paths, machines, selected tool/signal/terminal contracts,
       request/response shapes, configuration names/defaults, and closure
       membership are compatibility-sensitive. Breaking changes require an
