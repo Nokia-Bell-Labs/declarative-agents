@@ -163,7 +163,7 @@ releases:
     name: Live Helm smoke
     description: |
       A bounded kind target installs only the validated archive, builds and loads
-      the profile-free runtime image the chart references, and mounts the packaged
+      the runtime image the chart references, and mounts the packaged
       curator and collector closures. The curator and collector Deployments and
       their real lifecycle health endpoints become ready, the curator serves its
       documentation interface, a declarative lifecycle-exit request stops the

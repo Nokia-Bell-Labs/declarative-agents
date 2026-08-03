@@ -39,6 +39,21 @@ spec:
       affinity:
         {{- toYaml . | nindent 8 }}
       {{- end }}
+      initContainers:
+        # The curator's browser UI is baked into the image under /opt/curator-ui
+        # because its dist trees are too large for the profile ConfigMap mount.
+        # Stage them into the writable workspace so the profile's literal
+        # ui/*/dist static_assets roots resolve under --directory /work (GH-1261).
+        - name: stage-curator-ui
+          image: {{ include "agent-architecture.image" . | quote }}
+          imagePullPolicy: {{ .Values.image.pullPolicy }}
+          command: ["sh", "-c", "cp -a /opt/curator-ui/. /work/"]
+          securityContext:
+            {{- toYaml .Values.containerSecurityContext | nindent 12 }}
+          resources:
+            {{- toYaml .Values.curator.resources | nindent 12 }}
+          volumeMounts:
+            - {name: workspace, mountPath: /work}
       containers:
         - name: curator
           image: {{ include "agent-architecture.image" . | quote }}

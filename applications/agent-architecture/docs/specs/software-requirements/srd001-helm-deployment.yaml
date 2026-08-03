@@ -14,9 +14,11 @@ context: |
   chart installs and serves on a real cluster.
 
   The chart deploys canonical profiles by reference. It copies neither the
-  documentation-curator profile and its user interface nor the collector
-  profile; it stages their prepared closures and mounts them into a
-  profile-free runtime image, the same ownership boundary the local demo keeps.
+  documentation-curator profile config nor the collector profile; it stages
+  their prepared closures and mounts them into the runtime image, the same
+  ownership boundary the local demo keeps. The curator's browser UI is the one
+  exception: it exceeds the ConfigMap payload limit, so the image bakes it and
+  an init container stages it into the workspace -- a recorded divergence (R1.2).
 
 problem: |
   The demo has no Kubernetes surface. Its managed services run only as local
@@ -36,7 +38,7 @@ goals:
   - id: G3
     text: Prove the packaged chart on a bounded kind cluster, installing only the validated archive and observing curator and collector readiness, a browsable curator surface, an exported trace, and clean lifecycle exit.
   - id: G4
-    text: Keep the ownership boundary the local demo keeps, mounting canonical profiles into a profile-free runtime image rather than copying them into the chart.
+    text: Keep the ownership boundary the local demo keeps, mounting canonical profile config into the runtime image rather than copying it into the chart; the curator's oversized browser UI is a recorded baked exception (R1.2).
 
 requirements:
   - id: R1
@@ -45,7 +47,7 @@ requirements:
       - id: R1.1
         text: The chart shall render one Deployment and one ClusterIP Service for the documentation-curator and one Deployment and one ClusterIP Service for the collector agent.
       - id: R1.2
-        text: Both workloads shall use one application-owned, profile-free runtime image containing agent-core and shall select their mounted canonical profile at startup rather than embedding it in the image.
+        text: Both workloads shall use one application-owned runtime image containing agent-core and shall select their mounted canonical profile config at startup rather than embedding the profile in the image. The image additionally carries the documentation-curator's browser UI assets, which exceed the profile ConfigMap payload limit; the curator init container shall stage them into its writable workspace at startup so the profile's static_assets roots resolve.
       - id: R1.3
         text: The curator Service shall expose the documentation, lifecycle-control, and monitor ports, and the collector Service shall expose the receiver, control, and query ports the local demo binds.
       - id: R1.4
@@ -73,7 +75,7 @@ requirements:
       - id: R3.1
         text: A kind target shall skip with a named missing prerequisite when Docker, kind, Helm, kubectl, required checkouts, or Docker health are unavailable, own only clusters it creates, and use a temporary kubeconfig.
       - id: R3.2
-        text: The target shall install only the validated archive, build and load the same profile-free runtime image the chart references, and mount the packaged curator and collector closures.
+        text: The target shall install only the validated archive, build and load the same runtime image the chart references, and mount the packaged curator and collector closures.
       - id: R3.3
         text: The curator and collector Deployments and their real lifecycle health endpoints shall become ready, the curator surface shall serve its documentation interface, and a declarative lifecycle-exit request shall stop the curator cleanly.
       - id: R3.4
