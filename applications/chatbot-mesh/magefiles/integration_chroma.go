@@ -216,6 +216,7 @@ func resolveModelReference(model string) string {
 	if match == nil {
 		return model
 	}
+	//nolint:forbidigo // This preflight mirrors srd013 R5.6/R5.7 expansion before runtime loading.
 	if value, ok := os.LookupEnv(match[1]); ok {
 		return value
 	}

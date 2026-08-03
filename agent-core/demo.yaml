@@ -1,0 +1,20 @@
+# Agent Core release and container build configuration.
+#
+# Every setting is optional and declarative -- the magefiles read it here,
+# never from an environment variable. With every key commented out (the
+# shipped state), release and Docker targets keep their zero-configuration
+# defaults. Uncomment a key to override it.
+
+# Release tag passed to the Dockerfile. Defaults to the latest remote
+# v0.YYYYMMDD.N root release tag.
+# release_ref: v0.20260612.N
+
+# Git repository used for release-tag discovery and the Docker source clone.
+# release_repo: https://github.com/Nokia-Bell-Labs/declarative-agents/agent-core.git
+
+# Runtime image name built by `mage docker`.
+# container_image: agent-core:latest
+
+# Netrc file exposed to Docker BuildKit as the git_credentials secret.
+# Defaults to the repository-local .netrc.
+# container_netrc: .netrc

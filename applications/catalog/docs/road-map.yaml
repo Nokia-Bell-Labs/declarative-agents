@@ -248,7 +248,7 @@ releases:
         status: implemented
     proof:
       - mage validate
-      - AGENT_CORE_ROOT=/path/to/agent-core mage conformance
+      - mage conformance  # requires the sibling ../../agent-core checkout
     deferred:
       - Profile-owned Mage integration targets that execute the specification-critic,
         lifecycle, and rest boundary fixtures, mirroring
@@ -653,7 +653,7 @@ releases:
         status: in-progress
     proof:
       - mage validate
-      - AGENT_CORE_ROOT=/path/to/agent-core mage rig
+      - mage rig  # set demo.yaml core_root when the sibling checkout is unavailable
     success_markers:
       - Adding a test means adding files under a tests/ directory, never editing the scenario critic.
       - One mock profile serves every dependency; response content lives in scenario fixtures.

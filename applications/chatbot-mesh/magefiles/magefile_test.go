@@ -162,8 +162,8 @@ func TestChatbotReadmeResolvesCanonicalPuppeteerOwner(t *testing.T) {
 	for _, required := range []string{
 		relativePackage,
 		"`npm ci`",
-		"`npm run test:e2e:machine-request`",
-		"`PUPPETEER_EXECUTABLE_PATH`",
+		"npm run test:e2e:machine-request",
+		"--executable-path=/path/to/browser",
 	} {
 		if !strings.Contains(text, required) {
 			t.Errorf("chatbot README missing Puppeteer instruction %q", required)
@@ -192,6 +192,29 @@ func TestChatbotReadmeResolvesCanonicalPuppeteerOwner(t *testing.T) {
 	}
 	if pkg.Scripts["test:e2e:machine-request"] == "" {
 		t.Fatal("documented Puppeteer E2E script no longer exists")
+	}
+	for _, argument := range []string{"--base-url=", "--artifact-dir="} {
+		if !strings.Contains(pkg.Scripts["test:e2e:machine-request"], argument) {
+			t.Errorf("Puppeteer E2E script missing explicit default %q", argument)
+		}
+	}
+}
+
+func TestChatbotReadmeDocumentsAuditDemoConfig(t *testing.T) {
+	readme, err := os.ReadFile(filepath.Join("..", "README.md"))
+	if err != nil {
+		t.Fatal(err)
+	}
+	text := string(readme)
+	for _, required := range []string{"`core_root` in `demo.yaml`", "`spec_critic_profile` in `demo.yaml`"} {
+		if !strings.Contains(text, required) {
+			t.Errorf("chatbot README missing audit configuration %q", required)
+		}
+	}
+	for _, stale := range []string{"`AGENT_CORE_ROOT`", "`JURIST_PROFILE`"} {
+		if strings.Contains(text, stale) {
+			t.Errorf("chatbot README retains stale audit configuration %q", stale)
+		}
 	}
 }
 

@@ -1,0 +1,13 @@
+# Catalog demo configuration.
+#
+# Every setting is optional and declarative — the magefiles read it here, never
+# from an environment variable. With every key commented out (the shipped state)
+# the targets run zero-configuration against the monorepo layout. Uncomment a key
+# to override it; relative paths are resolved from this application directory.
+
+# agent-core checkout the catalog validation and integration targets build from.
+# Defaults to repository discovery (the monorepo ../../agent-core).
+# core_root: ../../agent-core
+
+# Runtime image used by `mage containerSmoke`.
+# core_image: agent-core:latest

@@ -25,7 +25,7 @@ traces:
   - rel07.0-uc005-monitor-control-profile-boundary
 
 preconditions:
-  - agent-core is available as AGENT_CORE_ROOT or as a sibling ../../agent-core checkout.
+  - agent-core is available as a sibling ../../agent-core checkout or through demo.yaml core_root.
   - applications/catalog owns all profile paths, fixtures, suites, and expected outputs named by the tracer.
   - Integration targets load concrete profiles through the demo.yaml catalog_root or repository-relative paths.
   - agent-core remains responsible only for runtime execution and builtin capabilities.

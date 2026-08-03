@@ -26,6 +26,54 @@ func TestRequireDocker(t *testing.T) {
 	}
 }
 
+func TestResolveDockerBuildOptionsFromDemoConfig(t *testing.T) {
+	tests := []struct {
+		name     string
+		contents string
+		want     dockerBuildOptions
+	}{
+		{
+			name: "defaults",
+			want: dockerBuildOptions{
+				Image: defaultContainerImage,
+				Ref:   "v0.20260612.2",
+				NetRC: defaultContainerNetRC,
+			},
+		},
+		{
+			name: "overrides",
+			contents: strings.Join([]string{
+				"release_repo: https://example.invalid/agent-core.git",
+				"container_image: registry.example/agent-core:test",
+				"container_netrc: /tmp/build.netrc",
+			}, "\n"),
+			want: dockerBuildOptions{
+				Image: "registry.example/agent-core:test",
+				Ref:   "v0.20260612.2",
+				Repo:  "https://example.invalid/agent-core.git",
+				NetRC: "/tmp/build.netrc",
+			},
+		},
+	}
+	for _, tc := range tests {
+		t.Run(tc.name, func(t *testing.T) {
+			root := t.TempDir()
+			if tc.contents != "" {
+				writeAgentCoreDemoConfig(t, root, tc.contents)
+			}
+			got, err := resolveDockerBuildOptions("v0.20260612.2", root, func(string) (string, error) {
+				return "/usr/bin/docker", nil
+			})
+			if err != nil {
+				t.Fatalf("resolveDockerBuildOptions returned error: %v", err)
+			}
+			if !reflect.DeepEqual(got, tc.want) {
+				t.Fatalf("resolveDockerBuildOptions = %#v, want %#v", got, tc.want)
+			}
+		})
+	}
+}
+
 func TestContainerBuildArgsForDocker(t *testing.T) {
 	got := containerBuildArgs(dockerBuildOptions{
 		Image: "agent-core:latest",

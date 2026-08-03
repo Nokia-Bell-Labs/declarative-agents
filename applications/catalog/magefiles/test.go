@@ -19,20 +19,17 @@ func Test() error {
 // when the caller's shell has retained the live-conformance opt-in.
 func Conformance() error {
 	fmt.Println("running go test ./conformance -count=1")
-	return sh.RunWith(
-		map[string]string{"AGENT_PROFILES_LIVE_CONFORMANCE": "0"},
-		"go", "test", "./conformance", "-count=1",
-	)
+	return sh.Run("go", "test", "./conformance", "-count=1", "-args", "-live=false")
 }
 
 // LiveConformance explicitly enables conformance paths that perform inference
 // against the exact Ollama models declared by each test. Dependency checks still
-// skip unavailable models; AGENT_PROFILES_LIVE_TIMEOUT can override their
-// default per-run timeout using Go duration syntax.
+// skip unavailable models; direct go test callers can override the five-minute
+// per-run timeout with -args -live=true -live-timeout=<duration>.
 func LiveConformance() error {
 	fmt.Println("running live model conformance (unavailable declared models will skip)")
-	return sh.RunWith(
-		map[string]string{"AGENT_PROFILES_LIVE_CONFORMANCE": "1"},
-		"go", "test", "./conformance", "-count=1",
+	return sh.Run(
+		"go", "test", "./conformance", "-count=1", "-args",
+		"-live=true", "-live-timeout=5m",
 	)
 }

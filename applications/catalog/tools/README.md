@@ -107,7 +107,7 @@ Run commands from the owning module root:
 mage audit
 
 # applications/catalog
-AGENT_CORE_ROOT="$(git rev-parse --show-toplevel)/agent-core" mage validate
+mage validate
 mage conformance
 mage integration:all
 

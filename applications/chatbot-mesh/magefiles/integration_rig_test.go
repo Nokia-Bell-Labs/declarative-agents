@@ -78,7 +78,7 @@ func TestStageRigRuntimeUsesCatalogScenarioCritic(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	stage, cleanup, err := stageRigRuntime(applicationRoot, catalogRoot)
+	stage, cleanup, err := stageRigRuntime(applicationRoot, catalogRoot, "127.0.0.1:4317")
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -98,6 +98,13 @@ func TestStageRigRuntimeUsesCatalogScenarioCritic(t *testing.T) {
 	}
 	if string(profile) != "name: scenario-critic\nmachine: ../../agents/scenario-critic/machine.yaml\ntools:\n  - ../../agents/scenario-critic/tools.yaml\ntool_declarations:\n  - declarations.yaml\nrest_definitions:\n  - rest.yaml\n" {
 		t.Fatalf("staged rig profile does not select catalog scenario critic:\n%s", profile)
+	}
+	declarations, err := os.ReadFile(filepath.Join(stage, "testdata", "rig", "declarations.yaml"))
+	if err != nil {
+		t.Fatal(err)
+	}
+	if !strings.Contains(string(declarations), `otlp_endpoint: "127.0.0.1:4317"`) {
+		t.Fatalf("staged rig declarations do not configure the validator OTLP endpoint:\n%s", declarations)
 	}
 }
 

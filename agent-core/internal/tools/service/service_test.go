@@ -52,6 +52,15 @@ func TestMain(m *testing.M) {
 		// A failed terminal now exits non-zero, matching the binary (srd018 R6).
 		fmt.Fprintln(os.Stderr, "terminal state: failed")
 		os.Exit(2)
+	case "expect-otlp":
+		for i, arg := range os.Args {
+			if arg == "--otel-otlp-endpoint" && i+1 < len(os.Args) && os.Args[i+1] == "127.0.0.1:4317" {
+				fmt.Fprintln(os.Stderr, "terminal state: succeeded")
+				os.Exit(0)
+			}
+		}
+		fmt.Fprintln(os.Stderr, "missing validator OTLP endpoint")
+		os.Exit(2)
 	case "hang":
 		// A bare select{} would trip Go's deadlock detector and exit at once;
 		// sleeping actually hangs, which is what the timeout path needs.

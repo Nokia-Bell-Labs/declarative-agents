@@ -4,10 +4,95 @@ package main
 
 import (
 	"errors"
+	"os"
+	"path/filepath"
 	"reflect"
 	"strings"
 	"testing"
 )
+
+func TestLoadAgentCoreDemoConfig(t *testing.T) {
+	tests := []struct {
+		name     string
+		contents string
+		want     agentCoreDemoConfig
+	}{
+		{name: "absent"},
+		{name: "commented", contents: "# release_ref: v0.20260612.1\n"},
+		{
+			name: "overrides",
+			contents: strings.Join([]string{
+				"release_ref: v0.20260612.2",
+				"release_repo: https://example.invalid/agent-core.git",
+				"container_image: registry.example/agent-core:test",
+				"container_netrc: /tmp/build.netrc",
+			}, "\n"),
+			want: agentCoreDemoConfig{
+				ReleaseRef:     "v0.20260612.2",
+				ReleaseRepo:    "https://example.invalid/agent-core.git",
+				ContainerImage: "registry.example/agent-core:test",
+				ContainerNetRC: "/tmp/build.netrc",
+			},
+		},
+	}
+	for _, tc := range tests {
+		t.Run(tc.name, func(t *testing.T) {
+			root := t.TempDir()
+			if tc.contents != "" {
+				writeAgentCoreDemoConfig(t, root, tc.contents)
+			}
+			got, err := loadAgentCoreDemoConfig(root)
+			if err != nil {
+				t.Fatalf("loadAgentCoreDemoConfig returned error: %v", err)
+			}
+			if !reflect.DeepEqual(got, tc.want) {
+				t.Fatalf("loadAgentCoreDemoConfig = %#v, want %#v", got, tc.want)
+			}
+		})
+	}
+}
+
+func TestContainerReleaseRefFromDemoConfig(t *testing.T) {
+	t.Run("release ref", func(t *testing.T) {
+		root := t.TempDir()
+		writeAgentCoreDemoConfig(t, root, "release_ref: v0.20260612.2\n")
+		got, err := containerReleaseRefFrom(root, func(args ...string) (string, error) {
+			t.Fatal("containerReleaseRefFrom called git despite release_ref")
+			return "", nil
+		})
+		if err != nil {
+			t.Fatalf("containerReleaseRefFrom returned error: %v", err)
+		}
+		if got != "v0.20260612.2" {
+			t.Fatalf("containerReleaseRefFrom = %q, want v0.20260612.2", got)
+		}
+	})
+	t.Run("release repo", func(t *testing.T) {
+		root := t.TempDir()
+		writeAgentCoreDemoConfig(t, root, "release_repo: https://example.invalid/agent-core.git\n")
+		got, err := containerReleaseRefFrom(root, func(args ...string) (string, error) {
+			want := "ls-remote --tags --refs https://example.invalid/agent-core.git v0.*"
+			if strings.Join(args, " ") != want {
+				t.Fatalf("git args = %q, want %q", strings.Join(args, " "), want)
+			}
+			return "abc123\trefs/tags/v0.20260612.3", nil
+		})
+		if err != nil {
+			t.Fatalf("containerReleaseRefFrom returned error: %v", err)
+		}
+		if got != "v0.20260612.3" {
+			t.Fatalf("containerReleaseRefFrom = %q, want v0.20260612.3", got)
+		}
+	})
+}
+
+func TestLoadAgentCoreDemoConfigRejectsMalformedYAML(t *testing.T) {
+	root := t.TempDir()
+	writeAgentCoreDemoConfig(t, root, "release_ref: [\n")
+	if _, err := loadAgentCoreDemoConfig(root); err == nil {
+		t.Fatal("loadAgentCoreDemoConfig returned nil error for malformed demo.yaml")
+	}
+}
 
 func TestResolveContainerReleaseRefUsesOverride(t *testing.T) {
 	called := false
@@ -94,5 +179,12 @@ func TestLatestReleaseTag(t *testing.T) {
 	}
 	if got != "v0.20260609.0" {
 		t.Fatalf("latestReleaseTag = %q, want v0.20260609.0", got)
+	}
+}
+
+func writeAgentCoreDemoConfig(t *testing.T, root, contents string) {
+	t.Helper()
+	if err := os.WriteFile(filepath.Join(root, agentCoreDemoFile), []byte(contents), 0o644); err != nil {
+		t.Fatal(err)
 	}
 }

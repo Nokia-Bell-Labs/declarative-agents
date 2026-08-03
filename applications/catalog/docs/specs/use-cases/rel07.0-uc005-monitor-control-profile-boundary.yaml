@@ -19,7 +19,7 @@ actor: Profile maintainer verifying runtime-state-reader/control boundary behavi
 trigger: |
   A maintainer runs the monitor-control integration target:
 
-    AGENT_CORE_ROOT=/path/to/agent-core mage integration:monitorControl
+    mage integration:monitorControl
 
 preconditions:
   - agents/runtime-state-reader/profile.yaml and testdata/conformance/control/profile.yaml validate.

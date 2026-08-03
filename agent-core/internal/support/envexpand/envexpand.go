@@ -23,6 +23,7 @@ var refPattern = regexp.MustCompile(`\$\{([A-Za-z_][A-Za-z0-9_]*)(:-([^}]*))?\}`
 func Expand(data []byte) []byte {
 	return refPattern.ReplaceAllFunc(data, func(match []byte) []byte {
 		groups := refPattern.FindSubmatch(match)
+		//nolint:forbidigo // srd013 R5.6/R5.7 requires ${VAR:-default} expansion at the declaration boundary.
 		if v, ok := os.LookupEnv(string(groups[1])); ok {
 			return []byte(v)
 		}

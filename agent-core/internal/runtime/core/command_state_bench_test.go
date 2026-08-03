@@ -3,6 +3,7 @@
 package core
 
 import (
+	"flag"
 	"fmt"
 	"os"
 	"os/exec"
@@ -17,6 +18,9 @@ const (
 	benchBlobSize = 100 * 1024 // ~100KB per step output
 	benchSteps    = 32
 )
+
+var doltBench = flag.Bool("dolt-bench", false,
+	"enable the filesystem-heavy real Dolt storage benchmark")
 
 func largeBlobExecution(steps, blobSize int) Execution {
 	blob := strings.Repeat("x", blobSize)
@@ -59,11 +63,12 @@ func BenchmarkDoltCheckpointSQLPayloadPerStep(b *testing.B) {
 // for repeated and distinct deterministic blobs. Enable it explicitly because
 // it requires the dolt executable and performs filesystem-heavy commits:
 //
-//	AGENT_CORE_DOLT_BENCH=1 go test ./internal/runtime/core -run '^$' \
-//	  -bench BenchmarkDoltRepositoryGrowthLargeBlob -benchtime=1x
+//	go test ./internal/runtime/core -run '^$' \
+//	  -bench BenchmarkDoltRepositoryGrowthLargeBlob -benchtime=1x \
+//	  -args -dolt-bench=true
 func BenchmarkDoltRepositoryGrowthLargeBlob(b *testing.B) {
-	if os.Getenv("AGENT_CORE_DOLT_BENCH") != "1" {
-		b.Skip("set AGENT_CORE_DOLT_BENCH=1 to run the real Dolt storage benchmark")
+	if !*doltBench {
+		b.Skip("pass -dolt-bench=true with go test -args to run the real Dolt storage benchmark")
 	}
 	dolt, err := exec.LookPath("dolt")
 	if err != nil {

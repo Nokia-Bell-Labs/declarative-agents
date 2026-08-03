@@ -24,7 +24,7 @@ traces:
   - rel06.0-uc002-profile-validation
 
 preconditions:
-  - agent-core is available as AGENT_CORE_ROOT or as a sibling ../../agent-core checkout.
+  - agent-core is available as a sibling ../../agent-core checkout or through demo.yaml core_root.
   - An agent-core runtime image is available before running mage containerSmoke.
   - agent-core integration targets are run from the agent-core repository with the demo.yaml catalog_root pointing at this repository.
   - mage tag is run from main and creates only a local tag unless the maintainer pushes it later.
@@ -38,11 +38,11 @@ test_cases:
     description: |
       Validate every profile-shaped YAML file under agents/. The proof covers
       profile.yaml, profile-*.yaml, and *-profile.yaml discovery. It also checks
-      that /opt/agent-core/tools maps to AGENT_CORE_ROOT while references to
+      that /opt/agent-core/tools maps to the selected agent-core checkout while references to
       /opt/agent-core/agents fail.
     inputs:
       profile_root: agents/
-      core_root: AGENT_CORE_ROOT
+      core_root: demo.yaml core_root or sibling checkout
       supported_profile_names:
         - profile.yaml
         - profile-*.yaml
@@ -103,7 +103,7 @@ test_cases:
     inputs:
       suite: agents/specification-critic/suites/demo-charter.yaml
       fixture: testdata/integration/specification-critic-charter-demo
-      core_root: AGENT_CORE_ROOT
+      core_root: demo.yaml core_root or sibling checkout
     expected:
       profile_loads_default_core_suite_config: true
       demo_suite_selected_by_temp_profile_override: true

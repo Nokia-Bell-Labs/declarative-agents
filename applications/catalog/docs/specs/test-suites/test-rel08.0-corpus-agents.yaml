@@ -15,8 +15,8 @@ traces:
   - rel08.0-uc002-corpus-query
 
 preconditions:
-  - A compatible agent-core checkout is available through AGENT_CORE_ROOT or as
-      the sibling agent-core directory.
+  - A compatible agent-core checkout is available as the sibling
+      ../../agent-core directory.
   - No live Chroma or Ollama service is required for the deterministic reader
       conformance cases.
 

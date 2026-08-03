@@ -26,7 +26,7 @@ traces:
 
 preconditions:
   - agent-core provides the mock endpoint binding (srd039) and the service-child, validator-execution, and discovery words (srd040).
-  - agent-core is available as AGENT_CORE_ROOT or a sibling checkout for mage validate and the rig target.
+  - agent-core is available as a sibling ../../agent-core checkout or through demo.yaml core_root for mage validate and the rig target.
   - No live Chroma, Ollama, Docker, or Kubernetes is required by any case in this suite; a case that needs one is misfiled.
 
 test_cases:
@@ -180,11 +180,13 @@ test_cases:
       validators: [first, second]
       teardown_order: [subject, mocks_in_start_order]
       mode: sequential
+      validator_otlp_endpoint: declared run_scenario_validator tool configuration
     expected:
       entry_per_validator: true
       entry_per_child_stop: true
       joins_are_labeled_and_ordered: true
       no_hidden_collection_loop: true
+      validator_spans_exported_to_declared_otlp_endpoint: true
     traces:
       - rel11.0-uc001-scenario-critic-scenario-run S1
       - rel11.0-uc001-scenario-critic-scenario-run S5

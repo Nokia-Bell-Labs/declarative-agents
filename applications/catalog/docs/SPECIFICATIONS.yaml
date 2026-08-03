@@ -817,7 +817,7 @@ coverage_gaps: |
   planner, and rest families each also carry an ungated, model-free
   load-and-wiring companion that asserts shipped-profile load and machine wiring
   where a gate would otherwise skip the run. All ten Release 07 cases are implemented
-  under AGENT_CORE_ROOT; executor and its qwen variants, the planner behavioral
+  against the discovered sibling agent-core checkout; executor and its qwen variants, the planner behavioral
   run, and the rest ollama-profile variant are Ollama-gated, and lifecycle
   suspend/resume and history/rollback are Dolt-gated. Planner conformance landed
   once agent-core gained a load_graph pipeline word that seeds the requirement

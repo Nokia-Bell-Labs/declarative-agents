@@ -82,7 +82,7 @@ func runApplierIntegration(profilesRoot, coreRoot string) error {
 		// apply dies on its first word.
 		Workdir: fakes.workDir,
 		Env: []string{
-			"PATH=" + fakes.binDir + string(os.PathListSeparator) + os.Getenv("PATH"),
+			childPathWithPrefix(os.Environ(), fakes.binDir),
 			"APPLIER_WORK_DIR=" + fakes.workDir,
 		},
 		GracefulWait: 15 * time.Second,

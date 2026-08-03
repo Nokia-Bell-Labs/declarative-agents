@@ -23,14 +23,14 @@ trigger: |
   A maintainer prepares profile changes for review, release bundle tagging, or
   mounted execution:
 
-    AGENT_CORE_ROOT=/path/to/agent-core mage validate
+    mage validate
 
   After review, the maintainer can create a local profile bundle tag:
 
     mage tag
 
 preconditions:
-  - agent-core is available as AGENT_CORE_ROOT or a sibling ../../agent-core checkout.
+  - agent-core is available as a sibling ../../agent-core checkout or through demo.yaml core_root.
   - Profile assets live under agents/.
   - The repository is on main before mage tag creates a release tag.
 
@@ -42,7 +42,7 @@ flow:
   - id: F3
     text: Profile-local references resolve from the profile directory.
   - id: F4
-    text: /opt/agent-core/tools references resolve through AGENT_CORE_ROOT.
+    text: /opt/agent-core/tools references resolve through the selected agent-core checkout.
   - id: F5
     text: References to /opt/agent-core/agents are rejected because migrated profiles must not depend on copied core agent assets.
   - id: F6
@@ -82,7 +82,7 @@ success_criteria:
       - srd001-agent-functional-blocks R1.1
       - sm-multi-agent-profile-system profile_asset_rules
   - id: S3
-    criterion: Validation maps /opt/agent-core/tools to AGENT_CORE_ROOT without accepting /opt/agent-core/agents.
+    criterion: Validation maps /opt/agent-core/tools to the selected agent-core checkout without accepting /opt/agent-core/agents.
     traces:
       - srd001-agent-functional-blocks R1.2
       - srd001-agent-functional-blocks R1.3

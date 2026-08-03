@@ -76,8 +76,9 @@ type ToolConfig struct {
 	Address   string   `yaml:"address,omitempty"`
 	Env       []string `yaml:"env,omitempty"`
 
-	Timeout string `yaml:"timeout,omitempty"`
-	Grace   string `yaml:"grace,omitempty"`
+	Timeout      string `yaml:"timeout,omitempty"`
+	Grace        string `yaml:"grace,omitempty"`
+	OTLPEndpoint string `yaml:"otlp_endpoint,omitempty" json:"otlp_endpoint,omitempty"`
 
 	Roots     []string `yaml:"roots,omitempty"`
 	Fixture   string   `yaml:"fixture,omitempty"`
