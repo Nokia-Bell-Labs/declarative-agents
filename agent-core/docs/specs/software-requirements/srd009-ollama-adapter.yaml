@@ -10,10 +10,12 @@ problem: |
   minimal Chat stub.
 
   A single, well-tested adapter in agent-core eliminates the duplication
-  and gives every agent the full feature set (model validation, tracing)
-  out of the box. Model discovery (GET /api/tags enumeration) is not an
-  adapter capability: availability is probed by declared REST words
-  (GH-1375), so the adapter port carries only Chat.
+  and gives callers model validation and tracing without widening the
+  llm.Client port beyond Chat. NewAdapter validates by default for direct
+  callers. The invoke_llm word deliberately skips registration-time network
+  I/O: profiles that require preflight readiness declare a REST transition,
+  while other profiles route backend failure from the first Chat dispatch
+  as CommandError (GH-1375).
 
 goals:
   - G1: Provide a production-ready Ollama adapter in internal/model/llm/ollama satisfying llm.Client.
@@ -29,7 +31,7 @@ requirements:
       - R1.2: NewAdapter accepts the base URL, model name, and variadic Option functions. It verifies the model is available and returns an error if not.
       - R1.3: The default http.Client has a 5-minute timeout. WithHTTPClient overrides it.
       - R1.4: Adapter.Model() returns the model name the adapter was created for.
-      - R1.5: WithSkipModelCheck disables the startup model-availability check. Callers that probe availability with a declared REST word skip it so a dead backend surfaces as a routable machine transition, not an adapter-construction failure (GH-1375).
+      - R1.5: WithSkipModelCheck disables the startup model-availability check. invoke_llm uses it so registration remains configuration-only; profiles MAY declare a REST preflight, and otherwise Chat connection failures SHALL surface as the tool's routable CommandError (GH-1375).
 
   R2:
     title: Chat (POST /api/chat)
@@ -65,6 +67,7 @@ non_goals:
   - Streaming responses.
   - Adapters for non-Ollama providers (OpenAI, vLLM).
   - Automatic model pulling.
+  - Requiring every profile to run a model-availability preflight before Chat.
   - Prompt assembly or conversation history (those are separate packages).
   - Cost/pricing calculation (zero for local Ollama).
 
@@ -86,7 +89,7 @@ acceptance_criteria:
     traces: [R6.1, R6.2, R6.3]
 
   - id: AC5
-    criterion: WithHTTPClient overrides the default 5-minute-timeout client. WithSkipModelCheck skips startup model validation.
+    criterion: WithHTTPClient overrides the default 5-minute-timeout client. WithSkipModelCheck skips startup model validation; invoke_llm registration performs no backend request and an unreachable backend emits CommandError when dispatched.
     traces: [R1.3, R1.5]
 
   - id: AC6

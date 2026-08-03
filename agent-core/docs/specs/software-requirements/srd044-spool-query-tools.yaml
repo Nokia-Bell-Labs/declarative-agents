@@ -43,12 +43,14 @@ requirements:
     title: Declaration shape
     items:
       - R4.1: Declarations SHALL follow the srd042 pattern with problem, goals, requirements, non_goals, reversibility reversible/noop, and CommandError on unreadable spool path.
+      - R4.2: Query implementation SHALL remain behind these atomic read-only word contracts. A DuckDB-backed implementation is optional only if it preserves rotated-file discovery, malformed-line accounting, stdouttrace value semantics, deterministic ordering, empty/absent-spool behavior, and runtime-image provisioning; a CLI's SQL feature set alone is not sufficient equivalence (GH-1382).
 
 non_goals:
   - Mutating, rotating, or deleting spool files.
   - Full-text search, attribute filtering, or sampling.
   - Streaming or watching for new spans.
   - Exposing an HTTP query endpoint (that is a separate REST surface concern).
+  - Requiring DuckDB in the base runtime solely to replace tested in-process reducers.
 
 acceptance_criteria:
   - id: AC1
@@ -68,8 +70,8 @@ acceptance_criteria:
     traces: [R3.1, R3.2, R3.3]
 
   - id: AC5
-    criterion: A missing trace id emits CommandError before any file read, and an unreadable spool path emits CommandError.
-    traces: [R2.5, R4.1]
+    criterion: A missing trace id emits CommandError before any file read, an unreadable spool path emits CommandError, and an alternate query engine requires full contract parity plus runtime provisioning.
+    traces: [R2.5, R4.1, R4.2]
 
 depends_on:
   - srd_id: srd042-otlp-receiver-tools

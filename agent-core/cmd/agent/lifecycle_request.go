@@ -94,13 +94,16 @@ func defsDeclareRequestSources(defs []catalog.ToolDef) bool {
 	return false
 }
 
+type resolvedRequestSource struct {
+	Tool, Config, Field string
+}
+
 // resolveRequestSources replaces each declared $request.<field> config value
-// with the request's value, deleting the key when the field is unset so the
-// tool falls back to its config default. It runs before any tool decodes its
-// config, so the placeholder never reaches the typed struct. Unknown request
-// fields are rejected to catch typos at composition time.
-func resolveRequestSources(defs []catalog.ToolDef, req lifecycleRequest) error {
+// before typed config decode and returns provenance for composition-root wiring.
+// Unset fields are deleted so defaults apply; unknown fields fail as typos.
+func resolveRequestSources(defs []catalog.ToolDef, req lifecycleRequest) ([]resolvedRequestSource, error) {
 	sources := req.requestSources()
+	var resolved []resolvedRequestSource
 	for i := range defs {
 		for key, v := range defs[i].Config {
 			field, ok := requestSourceField(v)
@@ -109,27 +112,36 @@ func resolveRequestSources(defs []catalog.ToolDef, req lifecycleRequest) error {
 			}
 			resolve, known := sources[field]
 			if !known {
-				return fmt.Errorf("tool %q config %q references unknown request source %s%s",
+				return nil, fmt.Errorf("tool %q config %q references unknown request source %s%s",
 					defs[i].Name, key, requestSourcePrefix, field)
 			}
 			if value, present := resolve(); present {
 				defs[i].Config[key] = value
+				resolved = append(resolved, resolvedRequestSource{
+					Tool: defs[i].Name, Config: key, Field: field,
+				})
 			} else {
 				delete(defs[i].Config, key)
 			}
 		}
 	}
-	return nil
+	return resolved, nil
+}
+
+func resolvesCheckpointTarget(resolved []resolvedRequestSource) bool {
+	for _, source := range resolved {
+		if source.Config == "checkpoint" && source.Field == "checkpoint" {
+			return true
+		}
+	}
+	return false
 }
 
 // resolveLifecycleCheckpoint wires the checkpoint-operation backend for history
-// and rollback. When a selected tool declares a $request.<field> source it
-// parses the request, resolves those declared sources into the tool configs,
-// and — when a Dolt DSN and a target run are both present — opens a separate
-// backend pinned to that run with no terminal merge, so read/rollback touch the
-// target run branch while the inspecting machine keeps persisting to its own run
-// through loopCheckpoint. Absent a target it returns loopCheckpoint unchanged,
-// preserving prior behavior.
+// and rollback. Request selectors are resolved generically for every selected
+// tool, but a separate backend opens only when resolution provenance says a
+// config named checkpoint consumed $request.checkpoint. Unrelated request
+// sources therefore cannot activate lifecycle backend wiring.
 func resolveLifecycleCheckpoint(cfg runtimeConfig, defs []catalog.ToolDef, loopCheckpoint core.Checkpoint) (openedCheckpoint, error) {
 	if !defsDeclareRequestSources(defs) {
 		return openedCheckpoint{Checkpoint: loopCheckpoint}, nil
@@ -138,10 +150,11 @@ func resolveLifecycleCheckpoint(cfg runtimeConfig, defs []catalog.ToolDef, loopC
 	if err != nil {
 		return openedCheckpoint{}, err
 	}
-	if err := resolveRequestSources(defs, req); err != nil {
+	resolved, err := resolveRequestSources(defs, req)
+	if err != nil {
 		return openedCheckpoint{}, err
 	}
-	if cfg.DoltDSN == "" || req.Checkpoint == "" {
+	if cfg.DoltDSN == "" || req.Checkpoint == "" || !resolvesCheckpointTarget(resolved) {
 		return openedCheckpoint{Checkpoint: loopCheckpoint}, nil
 	}
 	target, err := openDoltCheckpoint(cfg.DoltDSN, req.Checkpoint, nil)

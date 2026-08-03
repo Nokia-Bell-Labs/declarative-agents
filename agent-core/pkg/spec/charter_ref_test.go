@@ -199,35 +199,25 @@ func executeRefFixtures(t *testing.T, root string, charters []Charter) ([]Findin
 			if !filepath.IsAbs(scanRoot) {
 				scanRoot = filepath.Join(root, scanRoot)
 			}
-			include, exclude := charter.Target.Include, charter.Target.Exclude
-			if len(check.Include) > 0 || len(check.Exclude) > 0 {
-				include, exclude = check.Include, check.Exclude
+			include, exclude := effectiveGrepGlobs(charter, check, plan.Path)
+			selected, err := testConsistencySelectedPaths(root, scanRoot, ConsistencyScanPlan{
+				Path:        plan.Path,
+				IncludeGlob: combineGrepGlobs(include, false),
+				ExcludeGlob: combineGrepGlobs(exclude, true),
+			})
+			if err != nil {
+				return nil, err
 			}
-			err = filepath.WalkDir(scanRoot, func(path string, entry os.DirEntry, err error) error {
-				if err != nil || entry.IsDir() {
-					return err
-				}
-				rel, err := filepath.Rel(scanRoot, path)
+			for _, rel := range selected {
+				data, err := os.ReadFile(filepath.Join(scanRoot, filepath.FromSlash(rel)))
 				if err != nil {
-					return err
-				}
-				rel = filepath.ToSlash(rel)
-				if !includedByGlob(rel, include) || excludedByGlob(rel, exclude) {
-					return nil
-				}
-				data, err := os.ReadFile(path)
-				if err != nil {
-					return err
+					return nil, err
 				}
 				for index, line := range strings.Split(string(data), "\n") {
 					if len(extractor.extract(line)) > 0 {
 						target.WriteString(rgMatchFixture(displayCharterPath(plan.DisplayRoot, rel), index+1, line+"\n"))
 					}
 				}
-				return nil
-			})
-			if err != nil {
-				return nil, err
 			}
 			fileInventory := ""
 			if plan.ReferenceFile != "" {

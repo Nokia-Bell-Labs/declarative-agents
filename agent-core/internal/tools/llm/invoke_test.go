@@ -135,7 +135,8 @@ func TestInvokeLLMUsesRuntimeStateForManifest(t *testing.T) {
 
 // TestNewInvokeLLMBuilderDoesNotProbeAtRegistration pins GH-1375: constructing
 // the invoke_llm builder must not probe the backend, so an unreachable Ollama
-// never fails tool registration. Availability is a declared machine transition.
+// never fails tool registration. Profiles may declare a preflight transition;
+// otherwise dispatch reports the unreachable backend as CommandError.
 func TestNewInvokeLLMBuilderDoesNotProbeAtRegistration(t *testing.T) {
 	t.Parallel()
 	def := catalog.ToolDef{Name: "invoke_llm", Config: map[string]interface{}{
@@ -149,6 +150,29 @@ func TestNewInvokeLLMBuilderDoesNotProbeAtRegistration(t *testing.T) {
 
 	require.NoError(t, err)
 	require.NotNil(t, builder)
+}
+
+func TestInvokeLLMUnreachableBackendIsRoutableAtDispatch(t *testing.T) {
+	t.Parallel()
+	def := catalog.ToolDef{Name: "invoke_llm", Config: map[string]interface{}{
+		"provider":       "ollama",
+		"provider_url":   "http://127.0.0.1:1",
+		"model":          "qwen2.5:7b",
+		"manifest_state": "Composing",
+	}}
+	builder, err := NewInvokeLLMBuilder(def, InvokeLLMFactoryDeps{
+		History:  modelllm.NewConversation(nil, "", modelllm.ChatOptions{}),
+		Registry: core.NewRegistry(),
+		Tracer:   tracing.NoopTracer{},
+		Ctx:      context.Background(),
+	})
+	require.NoError(t, err)
+
+	res := builder.Build(core.Result{State: "Composing", Output: "hello"}).Execute()
+
+	require.Equal(t, core.CommandError, res.Signal)
+	require.Error(t, res.Err)
+	require.Contains(t, res.Output, "ollama chat request failed")
 }
 
 func TestInvokeLLMFallsBackToConfiguredManifestState(t *testing.T) {

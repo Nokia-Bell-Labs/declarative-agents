@@ -30,6 +30,7 @@ requirements:
       - R1.2: The mock binding SHALL follow the shared REST server runtime rules of srd029-rest-server-tools for listener lifecycle, ports, and telemetry.
       - R1.3: Mock fixture data SHALL come from a fixture file path declared in the endpoint configuration, with environment expansion applied per the shared REST definition loading rules, or from inline routes in the endpoint configuration.
       - R1.4: Fixture data SHALL load when the server starts, not per request.
+      - R1.5: The binding SHALL remain part of the shared agent REST server runtime so the shipped mock profile uses the same agent binary and lifecycle. A third-party mock CLI MAY replace it only after a compatibility spike proves ordered-last-repeats scripts, unmatched-request journaling, per-instance isolation, startup validation, concurrent sequencing, declared lifecycle/telemetry, fixture migration, and runtime-image provisioning (GH-1386).
 
   R2:
     title: Fixture format
@@ -64,11 +65,12 @@ non_goals:
   - Response templating, latency injection, or proxying to a real upstream.
   - A client-side mock; the binding serves inbound requests only.
   - Persistence of the request log across server restarts.
+  - Requiring Prism, Mockoon, WireMock, or another dedicated mock executable solely because it can serve some canned HTTP responses.
 
 acceptance_criteria:
   - id: AC1
-    criterion: A server endpoint declared with the mock binding serves the fixture's literal responses for a matching route in declared order over the shared REST server runtime, and repeats the last response after the script is exhausted.
-    traces: [R1.1, R1.2, R1.3, R1.4, R2.1, R2.2, R2.3, R2.5]
+    criterion: A server endpoint declared with the same-binary mock binding serves the fixture's literal responses for a matching route in declared order over the shared REST server runtime, repeats the last response after the script is exhausted, and requires compatibility plus provisioning before any third-party replacement.
+    traces: [R1.1, R1.2, R1.3, R1.4, R1.5, R2.1, R2.2, R2.3, R2.5]
   - id: AC2
     criterion: A request matching no fixture route receives a 404 and appears in the request log as a miss.
     traces: [R2.4, R3.1]

@@ -119,6 +119,20 @@ func TestWrite_NewFile(t *testing.T) {
 	assert.Equal(t, "package foo\n", string(data))
 }
 
+func TestWrite_EmptyContentCreatesEmptyFile(t *testing.T) {
+	t.Parallel()
+
+	root := t.TempDir()
+	cmd := (&WriteBuilder{Root: root}).Build(toolReq(`{"path":"empty.txt","content":""}`))
+
+	res := cmd.Execute()
+
+	require.Equal(t, core.ToolDone, res.Signal, res.Output)
+	data, err := os.ReadFile(filepath.Join(root, "empty.txt"))
+	require.NoError(t, err)
+	require.Empty(t, data)
+}
+
 func TestWrite_UndoRemovesCreatedFile(t *testing.T) {
 	t.Parallel()
 

@@ -34,12 +34,14 @@ func TestResolveRequestSourcesReplacesPresentAndDropsAbsent(t *testing.T) {
 		},
 	}}
 
-	require.NoError(t, resolveRequestSources(defs, lifecycleRequest{Checkpoint: "run-7", ToIteration: &step}))
+	resolved, err := resolveRequestSources(defs, lifecycleRequest{Checkpoint: "run-7", ToIteration: &step})
+	require.NoError(t, err)
 
 	require.Equal(t, "run-7", defs[0].Config["checkpoint"])
 	require.Equal(t, 4, defs[0].Config["to_iteration"])
 	// Non-$request values are left untouched.
 	require.Equal(t, "$from(prev).output", defs[0].Config["input"])
+	require.True(t, resolvesCheckpointTarget(resolved))
 }
 
 func TestResolveRequestSourcesDeletesUnsetSoDefaultsApply(t *testing.T) {
@@ -51,12 +53,14 @@ func TestResolveRequestSourcesDeletesUnsetSoDefaultsApply(t *testing.T) {
 		},
 	}}
 
-	require.NoError(t, resolveRequestSources(defs, lifecycleRequest{}))
+	resolved, err := resolveRequestSources(defs, lifecycleRequest{})
+	require.NoError(t, err)
 
 	_, hasCheckpoint := defs[0].Config["checkpoint"]
 	_, hasIteration := defs[0].Config["to_iteration"]
 	require.False(t, hasCheckpoint, "unset checkpoint must be removed so the tool selects latest")
 	require.False(t, hasIteration, "unset to_iteration must be removed so rollback keeps its default")
+	require.False(t, resolvesCheckpointTarget(resolved))
 }
 
 func TestResolveRequestSourcesRejectsUnknownField(t *testing.T) {
@@ -65,7 +69,20 @@ func TestResolveRequestSourcesRejectsUnknownField(t *testing.T) {
 		Config: map[string]interface{}{"checkpoint": "$request.mystery"},
 	}}
 
-	err := resolveRequestSources(defs, lifecycleRequest{})
+	_, err := resolveRequestSources(defs, lifecycleRequest{})
 
 	require.ErrorContains(t, err, "unknown request source $request.mystery")
+}
+
+func TestUnrelatedRequestSourceDoesNotSelectCheckpointBackend(t *testing.T) {
+	defs := []catalog.ToolDef{{
+		Name:   "report",
+		Config: map[string]interface{}{"query": "$request.checkpoint"},
+	}}
+
+	resolved, err := resolveRequestSources(defs, lifecycleRequest{Checkpoint: "run-7"})
+
+	require.NoError(t, err)
+	require.Equal(t, "run-7", defs[0].Config["query"])
+	require.False(t, resolvesCheckpointTarget(resolved))
 }

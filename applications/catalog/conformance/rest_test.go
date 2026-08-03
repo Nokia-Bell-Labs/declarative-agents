@@ -212,9 +212,9 @@ func TestRestShippedProfileWiring(t *testing.T) {
 // whose upstream is the local Ollama itself, so unlike the sample machine's
 // machine-sequenced client head this model-selected client call runs in-profile.
 //
-// It is Ollama-gated: invoke_llm pings Ollama at tool registration and calls the
-// model during the run, so with no reachable model the profile cannot start (see
-// ollama.go). Because the model chooses when to call the REST word and when to
+// It is Ollama-gated: the conformance harness probes the profile's provider URL
+// and required model before launch, and invoke_llm calls that model during the
+// run. Because the model chooses when to call the REST word and when to
 // answer, the run is asserted to reach one of the profile's shipped terminal
 // states via a real model boundary that exercised the REST word.
 //
@@ -222,7 +222,7 @@ func TestRestShippedProfileWiring(t *testing.T) {
 // selects, and the REST result feeds the model boundary.
 func TestRestOllamaConformance(t *testing.T) {
 	t.Parallel()
-	liveTimeout := RequireLiveModel(t, restOllamaModel)
+	liveTimeout := RequireLiveModel(t, ollamaBaseURL, restOllamaModel)
 	RequireCoreRoot(t)
 
 	result := Run(t, RunConfig{

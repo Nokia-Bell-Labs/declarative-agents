@@ -73,6 +73,55 @@ func TestBuildGrepChecksPreservesExcludePolicy(t *testing.T) {
 	assert.Equal(t, "!papers/build/**", plans[0].ExcludeGlob)
 }
 
+func TestBuildGrepMatchCreatesOneAttributedPlanPerPattern(t *testing.T) {
+	t.Parallel()
+	charter := grepCharter("multi", CharterCheck{
+		ID: "terms", Kind: "grep_check", Severity: "error",
+		Patterns: []string{"alpha", "beta"}, Regex: true,
+	})
+
+	plans, err := BuildGrepSearchPlans(".", []Charter{charter})
+
+	require.NoError(t, err)
+	require.Len(t, plans, 2)
+	assert.Equal(t, []string{"alpha"}, plans[0].Patterns)
+	assert.Equal(t, "(?:alpha)", plans[0].Query)
+	assert.Equal(t, []string{"beta"}, plans[1].Patterns)
+	assert.Equal(t, "(?:beta)", plans[1].Query)
+}
+
+func TestBuildGrepMissingKeepsOneCombinedPlan(t *testing.T) {
+	t.Parallel()
+	charter := grepCharter("multi", CharterCheck{
+		ID: "required", Kind: "grep_check", Severity: "error", Mode: "missing",
+		Patterns: []string{"alpha", "beta"},
+	})
+
+	plans, err := BuildGrepSearchPlans(".", []Charter{charter})
+
+	require.NoError(t, err)
+	require.Len(t, plans, 1)
+	assert.Equal(t, []string{"alpha", "beta"}, plans[0].Patterns)
+	assert.Equal(t, "(?:alpha)|(?:beta)", plans[0].Query)
+}
+
+func TestReduceGrepAttributesEachPatternWithoutGoRematch(t *testing.T) {
+	t.Parallel()
+	charter := grepCharter("multi", CharterCheck{
+		ID: "terms", Kind: "grep_check", Severity: "error",
+		Patterns: []string{`\p{Emoji}`, "release"},
+		Regex:    true,
+	})
+	event := rgMatchFixture("notes.md", 3, "🚀 release\n")
+
+	findings, err := reduceGrepFixtures(".", []Charter{charter}, event, event)
+
+	require.NoError(t, err)
+	require.Len(t, findings, 2)
+	assert.Contains(t, findings[0].Message+findings[1].Message, `\p{Emoji}`)
+	assert.Contains(t, findings[0].Message+findings[1].Message, "release")
+}
+
 func TestReduceGrepChecksUsesCharterTargetDefaultsAndSeverity(t *testing.T) {
 	root := t.TempDir()
 	charter := Charter{

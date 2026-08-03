@@ -351,7 +351,7 @@ schema:
       - field: backoff
         type: string
         required: false
-        description: One of none, fixed, or exponential.
+        description: One of none (zero delay), fixed (initial_delay each retry), or exponential (doubling initial_delay).
       - field: initial_delay
         type: duration string
         required: false
@@ -359,7 +359,7 @@ schema:
       - field: max_delay
         type: duration string
         required: false
-        description: Maximum delay between retries.
+        description: Non-negative maximum delay between retries; exponential growth saturates at this value without overflow.
       - field: retry_status
         type: "[]int"
         required: false
