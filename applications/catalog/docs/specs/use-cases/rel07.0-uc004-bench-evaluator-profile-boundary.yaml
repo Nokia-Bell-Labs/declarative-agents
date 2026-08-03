@@ -19,7 +19,7 @@ actor: Human operator using the bench profile through a local harness.
 trigger: |
   A maintainer runs the bench-evaluator integration target:
 
-    AGENT_CORE_ROOT=/path/to/agent-core mage integration:benchEvaluator
+    mage integration:benchEvaluator
 
 preconditions:
   - agents/bench/profile.yaml and agents/critic/profile.yaml validate.

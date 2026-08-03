@@ -23,10 +23,10 @@ actor: Profile maintainer or operator asking a question against an ingested corp
 trigger: |
   A maintainer runs the profile-owned reader conformance cases:
 
-    AGENT_CORE_ROOT=/path/to/agent-core \
-      go test ./conformance -run TestCorpusReader -count=1
+    go test ./conformance -run TestCorpusReader -count=1
 
 preconditions:
+  - A compatible agent-core checkout exists at the sibling ../../agent-core path.
   - The deterministic harness serves known Chroma heartbeat, collection, and query responses.
   - The deterministic harness serves Ollama tags, embedding, and chat responses for the configured answer model.
   - agents/knowledge-manager/corpus-reader profile validates and owns the Chroma and Ollama REST definitions and the reader prompt.

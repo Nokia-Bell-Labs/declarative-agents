@@ -118,32 +118,21 @@ func (r RunResult) RequireToolSpans(t *testing.T, tools ...string) {
 // (cmd/agent/main.go: telemetry.NewRoot("agent", "agent.run", ...)).
 const RootSpanName = "agent.run"
 
-// AgentCoreRootEnv is the documented way to point the conformance run at an
-// agent-core checkout that is not a sibling of this repository. The formal
-// suites name it as the prerequisite alongside the sibling layout, and the mage
-// targets already honor it.
-const AgentCoreRootEnv = "AGENT_CORE_ROOT"
-
 // coreRootOutcome is how the conformance prerequisite resolved.
 type coreRootOutcome int
 
 const (
 	// coreRootFound: a usable checkout was located.
 	coreRootFound coreRootOutcome = iota
-	// coreRootAbsent: nothing was configured and no repository checkout exists, so the run
-	// skips and plain `go test ./...` stays hermetic for docs-only checkouts.
+	// coreRootAbsent: no repository checkout exists, so the run skips and plain
+	// `go test ./...` stays hermetic for docs-only checkouts.
 	coreRootAbsent
-	// coreRootInvalid: AGENT_CORE_ROOT was set but does not hold a checkout. An
-	// explicit configuration that cannot be honored is a misconfiguration, so the
-	// run fails rather than skipping and hiding it (GH-584).
-	coreRootInvalid
 )
 
-// coreRootResolution records the resolved path, where it came from, and what the
-// caller should do about it.
+// coreRootResolution records the discovered path and what the caller should do
+// about it.
 type coreRootResolution struct {
 	Path    string
-	Source  string
 	Outcome coreRootOutcome
 }
 
@@ -157,41 +146,27 @@ func isCoreCheckout(dir string) bool {
 	return err == nil && !info.IsDir()
 }
 
-// resolveCoreRoot applies the documented prerequisite policy: an explicitly
-// configured AGENT_CORE_ROOT wins and must be usable, otherwise the repository
-// checkout is used, otherwise the prerequisite is absent. It is pure so the
-// policy is table-tested without touching the process environment.
-func resolveCoreRoot(env, repositoryCheckout string) coreRootResolution {
-	if strings.TrimSpace(env) != "" {
-		if isCoreCheckout(env) {
-			return coreRootResolution{Path: env, Source: AgentCoreRootEnv, Outcome: coreRootFound}
-		}
-		return coreRootResolution{Path: env, Source: AgentCoreRootEnv, Outcome: coreRootInvalid}
-	}
+// resolveCoreRoot applies the documented prerequisite policy: use the repository
+// checkout when present, otherwise report the prerequisite as absent.
+func resolveCoreRoot(repositoryCheckout string) coreRootResolution {
 	if isCoreCheckout(repositoryCheckout) {
-		return coreRootResolution{Path: repositoryCheckout, Source: "repository checkout", Outcome: coreRootFound}
+		return coreRootResolution{Path: repositoryCheckout, Outcome: coreRootFound}
 	}
-	return coreRootResolution{Path: repositoryCheckout, Source: "repository checkout", Outcome: coreRootAbsent}
+	return coreRootResolution{Path: repositoryCheckout, Outcome: coreRootAbsent}
 }
 
 // RequireCoreRoot returns the agent-core checkout the conformance package builds
-// the agent binary from, honoring AGENT_CORE_ROOT and falling back to the
-// monorepo checkout. A set-but-unusable AGENT_CORE_ROOT fails the test; an
-// entirely absent prerequisite skips it.
+// the agent binary from. It discovers the monorepo checkout and skips the test
+// when that checkout is absent.
 func RequireCoreRoot(t *testing.T) string {
 	t.Helper()
-	res := resolveCoreRoot(os.Getenv(AgentCoreRootEnv), agentCoreRepositoryPath(ProfilesRoot()))
-	switch res.Outcome {
-	case coreRootInvalid:
-		t.Fatalf("%s=%s does not hold an agent-core checkout (no go.mod); unset it to use the repository checkout",
-			AgentCoreRootEnv, res.Path)
-	case coreRootAbsent:
-		t.Skipf("agent-core checkout not found at %s and %s is unset; skipping conformance run",
-			res.Path, AgentCoreRootEnv)
+	res := resolveCoreRoot(agentCoreRepositoryPath(ProfilesRoot()))
+	if res.Outcome == coreRootAbsent {
+		t.Skipf("agent-core checkout not found at %s; skipping conformance run", res.Path)
 	}
 	abs, err := filepath.Abs(res.Path)
 	if err != nil {
-		t.Fatalf("resolve %q from %s: %v", res.Path, res.Source, err)
+		t.Fatalf("resolve repository checkout %q: %v", res.Path, err)
 	}
 	return abs
 }

@@ -26,7 +26,7 @@ traces:
 
 preconditions:
   - agent-core provides the mock endpoint binding (srd039) and the service-child, validator-execution, and discovery words (srd040).
-  - agent-core is available as AGENT_CORE_ROOT or a sibling checkout for mage validate and the rig target.
+  - agent-core is available as a sibling ../../agent-core checkout or through demo.yaml core_root for mage validate and the rig target.
   - No live Chroma, Ollama, Docker, or Kubernetes is required by any case in this suite; a case that needs one is misfiled.
 
 test_cases:

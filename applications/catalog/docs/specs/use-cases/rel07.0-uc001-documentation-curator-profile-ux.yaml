@@ -18,10 +18,10 @@ actor: Profile maintainer verifying the Knowledge Manager profile bundle.
 trigger: |
   A maintainer runs the profile-owned documentation-curator integration target:
 
-    AGENT_CORE_ROOT=/path/to/agent-core mage integration:documentationCurator
+    mage integration:documentationCurator
 
 preconditions:
-  - agent-core is available as AGENT_CORE_ROOT or a sibling ../../agent-core checkout.
+  - agent-core is available as a sibling ../../agent-core checkout or through demo.yaml core_root.
   - agents/knowledge-manager/documentation-curator/profile.yaml resolves profile-local assets.
   - The test can bind local loopback ports for documentation, machine_request, and control routes.
 
