@@ -19,8 +19,9 @@ type ConsistencyScanPlan struct {
 	Check       CharterCheck `json:"check"`
 	Path        string       `json:"path"`
 	DisplayRoot string       `json:"display_root"`
-	Include     []string     `json:"include"`
-	Exclude     []string     `json:"exclude"`
+	IncludeGlob string       `json:"include_glob,omitempty"`
+	ExcludeGlob string       `json:"exclude_glob,omitempty"`
+	SourceGlob  string       `json:"source_glob,omitempty"`
 }
 
 // BuildConsistencyScanPlans validates source paths without opening target files.
@@ -38,17 +39,44 @@ func BuildConsistencyScanPlans(targetDir string, charters []Charter) ([]Consiste
 			if err != nil {
 				return nil, err
 			}
-			include, exclude := charter.Target.Include, charter.Target.Exclude
-			if len(check.Include) > 0 || len(check.Exclude) > 0 {
-				include, exclude = check.Include, check.Exclude
+			include, exclude := effectiveGrepGlobs(charter, check, path)
+			sourceGlob, err := consistencySourceGlob(targetDir, path, check)
+			if err != nil {
+				return nil, fmt.Errorf("charter %q check %q: %w", charter.ID, check.ID, err)
 			}
 			plans = append(plans, ConsistencyScanPlan{
 				SuiteID: charter.ID, Check: check, Path: path, DisplayRoot: displayRoot,
-				Include: append([]string(nil), include...), Exclude: append([]string(nil), exclude...),
+				IncludeGlob: combineGrepGlobs(include, false),
+				ExcludeGlob: combineGrepGlobs(exclude, true),
+				SourceGlob:  sourceGlob,
 			})
 		}
 	}
 	return plans, nil
+}
+
+func consistencySourceGlob(targetDir, path string, check CharterCheck) (string, error) {
+	source, ok := stringMapValue(check.Source, "file")
+	if !ok || source == "" {
+		return "", nil
+	}
+	source = filepath.Clean(source)
+	if filepath.IsAbs(source) {
+		root := path
+		if !filepath.IsAbs(root) {
+			root = filepath.Join(targetDir, root)
+		}
+		rel, err := filepath.Rel(root, source)
+		if err != nil || rel == ".." || strings.HasPrefix(rel, ".."+string(filepath.Separator)) {
+			return "", fmt.Errorf("source file %q is outside target root", source)
+		}
+		source = rel
+	}
+	globs := []string{filepath.ToSlash(source)}
+	if !filepath.IsAbs(path) && path != "." {
+		globs = prefixGrepGlobs(path, globs)
+	}
+	return combineGrepGlobs(globs, false), nil
 }
 
 type scannedConsistencyFile struct {
@@ -57,25 +85,25 @@ type scannedConsistencyFile struct {
 	data    []byte
 }
 
+type consistencyScanEvidence struct {
+	files     []scannedConsistencyFile
+	inventory map[string]bool
+}
+
 // ReduceConsistencyScan evaluates YAML rules over externally loaded file
 // evidence. Filesystem existence is checked against that same declared scan.
 func ReduceConsistencyScan(plan ConsistencyScanPlan, output string) ([]Finding, error) {
-	files, err := parseConsistencyScan(plan, output)
+	evidence, err := parseConsistencyScan(plan, output)
 	if err != nil {
 		return nil, fmt.Errorf("charter %q check %q: %w", plan.SuiteID, plan.Check.ID, err)
 	}
-	selected := selectConsistencyFiles(plan, files)
-	if source, ok := stringMapValue(plan.Check.Source, "file"); ok && source != "" && len(selected) == 0 {
+	if source, ok := stringMapValue(plan.Check.Source, "file"); ok && source != "" && len(evidence.files) == 0 {
 		return nil, fmt.Errorf("charter %q check %q: source file %q was not present in external scan",
 			plan.SuiteID, plan.Check.ID, source)
 	}
-	inventory := make(map[string]bool, len(files))
-	for _, file := range files {
-		inventory[filepath.ToSlash(filepath.Clean(file.rel))] = true
-	}
 	var findings []Finding
-	for _, file := range selected {
-		fileFindings, err := reduceConsistencyFile(plan, file, inventory)
+	for _, file := range evidence.files {
+		fileFindings, err := reduceConsistencyFile(plan, file, evidence.inventory)
 		if err != nil {
 			return nil, err
 		}
@@ -85,46 +113,43 @@ func ReduceConsistencyScan(plan ConsistencyScanPlan, output string) ([]Finding, 
 	return findings, nil
 }
 
-func parseConsistencyScan(plan ConsistencyScanPlan, output string) ([]scannedConsistencyFile, error) {
-	var files []scannedConsistencyFile
+func parseConsistencyScan(plan ConsistencyScanPlan, output string) (consistencyScanEvidence, error) {
+	evidence := consistencyScanEvidence{inventory: map[string]bool{}}
 	for _, line := range strings.Split(strings.TrimSpace(output), "\n") {
 		if line == "" {
 			continue
 		}
-		parts := strings.SplitN(line, "\t", 2)
-		if len(parts) != 2 {
-			return nil, fmt.Errorf("invalid consistency scan record")
+		parts := strings.SplitN(line, "\t", 3)
+		if len(parts) < 2 {
+			return evidence, fmt.Errorf("invalid consistency scan record")
 		}
-		data, err := base64.StdEncoding.DecodeString(parts[1])
+		pathData, err := base64.StdEncoding.DecodeString(parts[1])
 		if err != nil {
-			return nil, fmt.Errorf("decode scanned file %q: %w", parts[0], err)
+			return evidence, fmt.Errorf("decode scanned path: %w", err)
 		}
-		rel := filepath.ToSlash(filepath.Clean(parts[0]))
-		files = append(files, scannedConsistencyFile{
-			rel: rel, display: displayCharterPath(plan.DisplayRoot, rel), data: data,
-		})
-	}
-	sort.Slice(files, func(i, j int) bool { return files[i].display < files[j].display })
-	return files, nil
-}
-
-func selectConsistencyFiles(plan ConsistencyScanPlan, files []scannedConsistencyFile) []scannedConsistencyFile {
-	if source, ok := stringMapValue(plan.Check.Source, "file"); ok && source != "" {
-		source = filepath.ToSlash(filepath.Clean(source))
-		for _, file := range files {
-			if file.rel == source {
-				return []scannedConsistencyFile{file}
+		rel := filepath.ToSlash(filepath.Clean(string(pathData)))
+		switch parts[0] {
+		case "I":
+			evidence.inventory[rel] = true
+		case "F":
+			if len(parts) != 3 {
+				return evidence, fmt.Errorf("invalid consistency file record for %q", rel)
 			}
+			data, err := base64.StdEncoding.DecodeString(parts[2])
+			if err != nil {
+				return evidence, fmt.Errorf("decode scanned file %q: %w", rel, err)
+			}
+			evidence.files = append(evidence.files, scannedConsistencyFile{
+				rel: rel, display: displayCharterPath(plan.DisplayRoot, rel), data: data,
+			})
+		default:
+			return evidence, fmt.Errorf("unknown consistency scan record %q", parts[0])
 		}
-		return nil
 	}
-	var selected []scannedConsistencyFile
-	for _, file := range files {
-		if includedByGlob(file.rel, plan.Include) && !excludedByGlob(file.rel, plan.Exclude) {
-			selected = append(selected, file)
-		}
-	}
-	return selected
+	sort.Slice(evidence.files, func(i, j int) bool {
+		return evidence.files[i].display < evidence.files[j].display
+	})
+	return evidence, nil
 }
 
 func reduceConsistencyFile(

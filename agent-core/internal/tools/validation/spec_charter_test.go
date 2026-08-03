@@ -102,7 +102,9 @@ func TestLoadCorpusOptionalAuditsCharterOnlyTarget(t *testing.T) {
 	plans, err := spec.BuildConsistencyScanPlans(target, vs.Charters)
 	require.NoError(t, err)
 	require.Len(t, plans, 1)
-	scan := "manifest.yaml\t" + base64.StdEncoding.EncodeToString([]byte("status: draft\n"))
+	path := base64.StdEncoding.EncodeToString([]byte("manifest.yaml"))
+	scan := "I\t" + path + "\nF\t" + path + "\t" +
+		base64.StdEncoding.EncodeToString([]byte("status: draft\n"))
 	findings, err := spec.ReduceConsistencyScan(plans[0], scan)
 	require.NoError(t, err)
 	require.NotEmpty(t, findings)
