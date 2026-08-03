@@ -4,23 +4,21 @@ package service
 
 import (
 	"context"
-	"os"
 	"strings"
 	"time"
 
 	"github.com/Nokia-Bell-Labs/declarative-agents/agent-core/internal/support/execute"
 )
 
-const scenarioCriticOTLPEndpointEnv = "SCENARIO_CRITIC_OTEL_ENDPOINT"
-
 // ValidatorSpec is one validator machine to run to completion.
 type ValidatorSpec struct {
-	Name      string   `yaml:"name"`
-	Profile   string   `yaml:"profile"`
-	CoreRoot  string   `yaml:"-"`
-	Directory string   `yaml:"directory,omitempty"`
-	Request   string   `yaml:"request,omitempty"`
-	Env       []string `yaml:"env,omitempty"`
+	Name         string   `yaml:"name"`
+	Profile      string   `yaml:"profile"`
+	CoreRoot     string   `yaml:"-"`
+	Directory    string   `yaml:"directory,omitempty"`
+	Request      string   `yaml:"request,omitempty"`
+	OTLPEndpoint string   `yaml:"otlp_endpoint,omitempty"`
+	Env          []string `yaml:"env,omitempty"`
 }
 
 // ValidatorOutcome is one validator's result. TimedOut is reported rather than
@@ -54,7 +52,7 @@ func runOneValidator(ctx context.Context, binary string, spec ValidatorSpec, tim
 		Directory:       spec.Directory,
 		Request:         spec.Request,
 		OTelServiceName: name,
-		OTLPEndpoint:    os.Getenv(scenarioCriticOTLPEndpointEnv),
+		OTLPEndpoint:    spec.OTLPEndpoint,
 		Timeout:         timeout,
 		Env:             spec.Env,
 	}

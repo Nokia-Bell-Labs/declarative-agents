@@ -11,6 +11,7 @@ import (
 	"github.com/stretchr/testify/require"
 
 	"github.com/Nokia-Bell-Labs/declarative-agents/agent-core/internal/runtime/core"
+	"github.com/Nokia-Bell-Labs/declarative-agents/agent-core/internal/tools/catalog"
 )
 
 func TestRecordScenarioValidators_PreservesJoinOrder(t *testing.T) {
@@ -56,14 +57,14 @@ func TestRunScenarioValidator_EmitsItemReceipt(t *testing.T) {
 	profile := filepath.Join(root, "alpha", testsDirName, "only", profileFileName)
 	require.NoError(t, os.WriteFile(profile, []byte("name: chatbot-turn-critic\n"), 0o644))
 
-	cmd := Builder{
-		ToolName: "run_validator", Init: InitRunScenarioValidator,
-		State: NewState(), Session: session,
-		Config: ToolConfig{
-			Binary: os.Args[0], Validator: "$from(validator).profile",
-			Env: []string{envChildMode + "=exit0"}, Timeout: "30s",
-		},
-	}.Build(core.Result{})
+	factory := factoryFor(InitRunScenarioValidator, FactoryDeps{State: NewState(), Session: session})
+	built, err := factory(catalog.ToolDef{Name: "run_validator", Config: map[string]interface{}{
+		"binary": os.Args[0], "validator": "$from(validator).profile",
+		"otlp_endpoint": "127.0.0.1:4317",
+		"env":           []string{envChildMode + "=expect-otlp"}, "timeout": "30s",
+	}}, nil)
+	require.NoError(t, err)
+	cmd := built.Build(core.Result{})
 	aware, ok := cmd.(core.CommandStateAware)
 	require.True(t, ok)
 	aware.SetCommandState(labeledStateView{

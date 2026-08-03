@@ -255,7 +255,7 @@ func (c command) runScenarioValidator(ctx context.Context) core.Result {
 	env := append([]string{"SUBJECT_URL=" + subjectURL}, c.session.SubjectEnv()...)
 	outcome := runOneValidator(ctx, c.cfg.Binary, ValidatorSpec{
 		Name: name, Profile: profile, CoreRoot: c.coreRoot, Directory: c.cfg.Directory,
-		Env: append(env, c.cfg.Env...),
+		OTLPEndpoint: c.cfg.OTLPEndpoint, Env: append(env, c.cfg.Env...),
 	}, parseDuration(c.cfg.Timeout, defaultRunTimeout))
 	signal := SignalValidatorCompleted
 	if outcome.TimedOut || outcome.Error != "" {

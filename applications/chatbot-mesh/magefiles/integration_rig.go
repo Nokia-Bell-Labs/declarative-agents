@@ -12,6 +12,7 @@ import (
 	"os/exec"
 	"path/filepath"
 	"regexp"
+	"strconv"
 	"strings"
 	"time"
 
@@ -89,7 +90,11 @@ func (Integration) Rig() error {
 	if err := runCollectorIntakeScenario(staged, coreRoot, catalogRoot, binDir); err != nil {
 		return fmt.Errorf("collector intake-filter scenario: %w", err)
 	}
-	stagedRigRoot, cleanupRig, err := stageRigRuntime(applicationRoot, catalogRoot)
+	endpoint := firstNonEmpty(
+		demoIntegrationOTLPEndpoint(),
+		"127.0.0.1:"+demoObservability().OTELGRPCPort,
+	)
+	stagedRigRoot, cleanupRig, err := stageRigRuntime(applicationRoot, catalogRoot, endpoint)
 	if err != nil {
 		return err
 	}
@@ -101,10 +106,6 @@ func (Integration) Rig() error {
 		"--core-root", coreRoot,
 		"--otel-log-file", trace,
 	}
-	endpoint := firstNonEmpty(
-		demoIntegrationOTLPEndpoint(),
-		"127.0.0.1:"+demoObservability().OTELGRPCPort,
-	)
 	runID := generatedRunID("integration:rig")
 	commit := gitCommit(applicationRoot)
 	telemetryArgs := integrationTelemetryArgs(endpoint, "scenario-critic-rig")
@@ -115,7 +116,6 @@ func (Integration) Rig() error {
 	cmd.Env = append(os.Environ(),
 		"PATH="+binDir+string(os.PathListSeparator)+os.Getenv("PATH"),
 		"AGENT_CATALOG_ROOT="+catalogRoot,
-		"SCENARIO_CRITIC_OTEL_ENDPOINT="+endpoint,
 		resourceEnv,
 	)
 	var out bytes.Buffer
@@ -173,7 +173,7 @@ func rigMockPortSkipReason() string {
 	return ""
 }
 
-func stageRigRuntime(applicationRoot, catalogRoot string) (string, func(), error) {
+func stageRigRuntime(applicationRoot, catalogRoot, validatorOTLPEndpoint string) (string, func(), error) {
 	stage, err := os.MkdirTemp("", "chatbot-mesh-rig-*")
 	if err != nil {
 		return "", nil, err
@@ -192,6 +192,23 @@ func stageRigRuntime(applicationRoot, catalogRoot string) (string, func(), error
 	); err != nil {
 		cleanup()
 		return "", nil, fmt.Errorf("stage catalog scenario critic: %w", err)
+	}
+	declarations := filepath.Join(stage, "testdata", "rig", "declarations.yaml")
+	data, err := os.ReadFile(declarations)
+	if err != nil {
+		cleanup()
+		return "", nil, fmt.Errorf("read staged rig declarations: %w", err)
+	}
+	const placeholder = `      otlp_endpoint: ""`
+	if strings.Count(string(data), placeholder) != 1 {
+		cleanup()
+		return "", nil, fmt.Errorf("staged rig declarations must contain one validator OTLP endpoint placeholder")
+	}
+	configured := strings.Replace(string(data), placeholder,
+		"      otlp_endpoint: "+strconv.Quote(validatorOTLPEndpoint), 1)
+	if err := os.WriteFile(declarations, []byte(configured), 0o644); err != nil {
+		cleanup()
+		return "", nil, fmt.Errorf("configure staged rig validator OTLP endpoint: %w", err)
 	}
 	return stage, cleanup, nil
 }

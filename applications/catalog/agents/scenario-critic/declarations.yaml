@@ -333,6 +333,7 @@ tools:
       input:
         - The validator profile comes from the trusted $from(validator).profile iterator binding.
         - The session holds the current subject URL.
+        - The optional validator OTLP endpoint comes from declared tool configuration.
       output:
         - Output reports this validator's terminal state and exit code.
       errors:
@@ -371,6 +372,7 @@ tools:
     config:
       validator: $from(validator).profile
       timeout: 5m
+      otlp_endpoint: ""
     relationships:
       after: [probe_subject_health]
       before: [record_scenario_validators]
