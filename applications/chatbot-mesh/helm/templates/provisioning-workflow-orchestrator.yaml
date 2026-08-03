@@ -91,7 +91,7 @@ spec:
 # stay unreachable from outside the mesh.
 #
 # The selectors are values so an operator can name their own ingress controller;
-# the defaults match a conventional ingress-nginx install. An explicit selector
+# the defaults match the minimal Traefik kind-demo install (GH-1321). An explicit selector
 # rather than an open port is the point. The applier's policy is precise about
 # who may reach its apply surface, and this one is precise about who may reach the
 # intake (srd003 R4.5; GH-502).

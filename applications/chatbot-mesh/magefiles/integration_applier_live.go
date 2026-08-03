@@ -191,9 +191,9 @@ func runApplierLive(coreRoot, profilesRoot string) error {
 	// into the kind node, so the node never pulls from a registry itself. A node
 	// that pulls directly fails behind a TLS-intercepting proxy it does not trust.
 	// The applier's helm_upgrade runs --atomic --wait, so unlike helmSmoke it
-	// gates on EVERY release pod reaching Ready -- including the observer's
-	// rancher/kubectl proxy, which the smoke set omits (helmSmoke never waits on
-	// the observer). Load the full applier set so no pod stalls in ImagePullBackOff.
+	// gates on EVERY release pod reaching Ready. The shared smoke set includes
+	// the observer proxy and utility init image as of GH-1321, so no release pod
+	// can stall in ImagePullBackOff on a node that cannot reach the registry.
 	dependencyImages, err := applierLiveDependencyImages(chartDir)
 	if err != nil {
 		return err
@@ -240,31 +240,11 @@ func runApplierLive(coreRoot, profilesRoot string) error {
 	return nil
 }
 
-// applierLiveDependencyImages is the full set of external images the applier tier
-// brings up, so the kind node has every one preloaded before the applier's
-// --atomic --wait upgrade gates on release-wide readiness. It extends the smoke
-// set (collector, chroma, dolt) with the observer's kubectl proxy image, which
-// the smoke tier never waits on and so never loads.
+// applierLiveDependencyImages is the full external image set for the applier
+// tier. Its kind values disable Ollama, so this is the same collector, Chroma,
+// Dolt, observer-proxy, and utility set used by the smoke topology.
 func applierLiveDependencyImages(chartDir string) ([]string, error) {
-	images, err := smokeDependencyImages(chartDir)
-	if err != nil {
-		return nil, err
-	}
-	var values struct {
-		Observer struct {
-			Proxy struct {
-				Image smokeImage `yaml:"image"`
-			} `yaml:"proxy"`
-		} `yaml:"observer"`
-	}
-	if err := readIntegrationYAML(filepath.Join(chartDir, "values.yaml"), "chart values", &values); err != nil {
-		return nil, err
-	}
-	proxy := values.Observer.Proxy.Image
-	if proxy.Repository == "" || proxy.Tag == "" {
-		return nil, fmt.Errorf("applier dependency image requires observer proxy repository and tag")
-	}
-	return append(images, proxy.Repository+":"+proxy.Tag), nil
+	return smokeDependencyImages(chartDir)
 }
 
 // stageApplierLiveChart gives only this live tier a deterministic post-upgrade

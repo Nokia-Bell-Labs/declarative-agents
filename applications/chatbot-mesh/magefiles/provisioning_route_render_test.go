@@ -204,6 +204,12 @@ func TestProvisioningWorkflowOrchestratorAdmitsOnlyTheIngressControllerOnIntent(
 	if from.PodSelector == nil || len(from.PodSelector.MatchLabels) == 0 {
 		t.Error("provisioning-workflow-orchestrator policy admits any pod in the namespace; the ingress controller must be named")
 	}
+	if got := from.NamespaceSelector.MatchLabels["kubernetes.io/metadata.name"]; got != "traefik" {
+		t.Errorf("ingress-controller namespace selector = %q, want traefik", got)
+	}
+	if got := from.PodSelector.MatchLabels["app.kubernetes.io/name"]; got != "traefik" {
+		t.Errorf("ingress-controller pod selector = %q, want traefik", got)
+	}
 
 	if len(rule.Ports) != 1 {
 		t.Fatalf("provisioning-workflow-orchestrator policy opens %d ports, want intent only", len(rule.Ports))

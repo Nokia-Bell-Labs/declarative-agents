@@ -35,6 +35,7 @@ func TestCodingDemoUsesPinnedIngressClusterAndRoutes(t *testing.T) {
 		t.Fatal(err)
 	}
 	for _, want := range []string{
+		"ingressClassName: traefik",
 		"planner.coding.localhost",
 		"planner-health.coding.localhost",
 		"executor.coding.localhost",

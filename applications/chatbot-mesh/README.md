@@ -129,6 +129,11 @@ mage demo:down   # delete only da-chatbot-mesh-demo
 Docker Desktop resources fail with remediation instead of producing an
 integration-style skip. A cluster created by a failed demo deployment is
 removed; a pre-existing demo cluster is reused and never removed implicitly.
+The browser demo reuses Ollama on the host through `host.docker.internal` and
+the models named by the chart values; `helm/ci/kind-values.yaml` selects that
+external endpoint. This keeps one model store and runtime on a laptop.
+`mage integration:helmLLMTier` separately proves the
+optional self-contained in-cluster Ollama tier and its preload gate.
 
 `mage helm:package` and local integrations that exercise catalog programs
 resolve the demo.yaml `catalog_root` once from this application root, defaulting through
