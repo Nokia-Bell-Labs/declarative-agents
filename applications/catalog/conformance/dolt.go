@@ -6,13 +6,16 @@ import (
 	"bytes"
 	"context"
 	"encoding/json"
+	"errors"
 	"fmt"
+	"io/fs"
 	"net"
 	"os"
 	"os/exec"
 	"path/filepath"
 	"strings"
 	"sync"
+	"syscall"
 	"testing"
 	"time"
 )
@@ -54,14 +57,25 @@ type DoltServer struct {
 
 // StartDolt initializes an isolated dolt database and starts a sql-server bound
 // to a free loopback port, returning a handle whose DSN feeds --dolt-dsn. The
-// server and its config live entirely under t.TempDir() (via DOLT_ROOT_PATH),
-// so it neither reads nor mutates the developer's global dolt identity, and it
-// is killed on test cleanup.
+// server and its config live entirely under an explicitly owned temporary
+// directory (via DOLT_ROOT_PATH), so it neither reads nor mutates the
+// developer's global dolt identity. One test cleanup stops and joins the server,
+// then removes that directory after a bounded filesystem-quiescence check.
 func StartDolt(t *testing.T) *DoltServer {
 	t.Helper()
 	RequireDolt(t)
 
-	root := t.TempDir()
+	root, err := os.MkdirTemp("", "catalog-conformance-dolt-*")
+	if err != nil {
+		t.Fatalf("create dolt temp directory: %v", err)
+	}
+	s := &DoltServer{t: t, out: &bytes.Buffer{}}
+	t.Cleanup(func() {
+		if err := cleanupDolt(root, s.Stop, os.RemoveAll, time.Sleep); err != nil {
+			t.Errorf("clean up dolt sql-server: %v\noutput:\n%s", err, s.out.String())
+		}
+	})
+
 	// Isolate dolt's global config/identity under the temp tree so DOLT_COMMIT
 	// has an author without touching the developer's ~/.dolt config.
 	doltHome := filepath.Join(root, "dolthome")
@@ -85,26 +99,21 @@ func StartDolt(t *testing.T) *DoltServer {
 	cmd := exec.CommandContext(ctx, "dolt", "sql-server", "--host", "127.0.0.1", "--port", port)
 	cmd.Dir = root
 	cmd.Env = env
-	out := &bytes.Buffer{}
-	cmd.Stdout = out
-	cmd.Stderr = out
+	cmd.Stdout = s.out
+	cmd.Stderr = s.out
 	if err := cmd.Start(); err != nil {
 		cancel()
 		t.Fatalf("start dolt sql-server: %v", err)
 	}
-	s := &DoltServer{
-		t: t, dataDir: dataDir, env: env, cancel: cancel, cmd: cmd,
-		out: out, done: make(chan struct{}),
-	}
+	s.dataDir = dataDir
+	s.env = env
+	s.cancel = cancel
+	s.cmd = cmd
+	s.done = make(chan struct{})
 	go func() {
 		s.waitErr = cmd.Wait()
 		close(s.done)
 	}()
-	t.Cleanup(func() {
-		if err := s.Stop(); err != nil {
-			t.Errorf("stop dolt sql-server: %v\noutput:\n%s", err, s.out.String())
-		}
-	})
 
 	s.waitListen(addr, 30*time.Second)
 	s.dsn = fmt.Sprintf("root@tcp(127.0.0.1:%s)/agent", port)
@@ -146,11 +155,14 @@ func (s *DoltServer) LatestRunBranch(t *testing.T) string {
 // Stop cancels and joins the server process before its temporary directory is
 // removed. If context cancellation does not terminate Dolt promptly, Stop
 // explicitly kills and joins it so background filesystem activity cannot race
-// t.TempDir cleanup.
+// the owned-directory cleanup.
 func (s *DoltServer) Stop() error {
 	s.stop.Do(func() {
 		if s.cancel != nil {
 			s.cancel()
+		}
+		if s.cmd == nil {
+			return
 		}
 		select {
 		case <-s.done:
@@ -170,6 +182,68 @@ func (s *DoltServer) Stop() error {
 		}
 	})
 	return s.stopErr
+}
+
+const (
+	doltCleanupAttempts    = 20
+	doltCleanupQuietPeriod = 50 * time.Millisecond
+)
+
+// cleanupDolt owns the complete teardown order. It always stops and joins the
+// server before attempting directory removal, and reports errors from both
+// phases instead of allowing one to conceal the other.
+func cleanupDolt(
+	root string,
+	stop func() error,
+	removeAll func(string) error,
+	wait func(time.Duration),
+) error {
+	stopErr := stop()
+	removeErr := removeDoltTempDir(root, removeAll, wait)
+	if stopErr != nil {
+		stopErr = fmt.Errorf("stop and join dolt sql-server: %w", stopErr)
+	}
+	return errors.Join(stopErr, removeErr)
+}
+
+// removeDoltTempDir tolerates only the narrow race seen when a just-joined Dolt
+// process has late filesystem activity: RemoveAll may report ENOTEMPTY, or may
+// succeed immediately before an entry is recreated. Each successful removal
+// must remain absent for one quiet period. Other errors (notably permissions)
+// fail immediately, and a persistent race reports both the owned root and the
+// failing entry returned by the filesystem.
+func removeDoltTempDir(
+	root string,
+	removeAll func(string) error,
+	wait func(time.Duration),
+) error {
+	var lastErr error
+	for attempt := 1; attempt <= doltCleanupAttempts; attempt++ {
+		removeErr := removeAll(root)
+		switch {
+		case removeErr == nil, errors.Is(removeErr, fs.ErrNotExist):
+			lastErr = nil
+		case errors.Is(removeErr, syscall.ENOTEMPTY):
+			lastErr = removeErr
+		default:
+			return fmt.Errorf("remove dolt temp directory %q: %w", root, removeErr)
+		}
+
+		wait(doltCleanupQuietPeriod)
+		_, statErr := os.Lstat(root)
+		switch {
+		case errors.Is(statErr, fs.ErrNotExist):
+			return nil
+		case statErr != nil:
+			return fmt.Errorf("verify removal of dolt temp directory %q: %w", root, statErr)
+		case lastErr == nil:
+			lastErr = fmt.Errorf("path %q was recreated after removal", root)
+		}
+	}
+	return fmt.Errorf(
+		"remove dolt temp directory %q after %d attempts: %w",
+		root, doltCleanupAttempts, lastErr,
+	)
 }
 
 func isExpectedDoltShutdown(err error) bool {
