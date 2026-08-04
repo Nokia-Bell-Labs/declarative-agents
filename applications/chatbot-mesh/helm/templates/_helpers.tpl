@@ -151,7 +151,7 @@ mount. GH-314 co-generates the chatbot rest.yaml into this subtree before packag
     {{- $cogen := list "agents__chatbot__rest.yaml" "agents__chatbot__ui__ui.yaml" "agents__chatbot__request-machine.yaml" "agents__chatbot__request-fanout.yaml" }}
     {{- range $path, $_ := .Files.Glob "profiles/**" }}
       {{- $key := $path | trimPrefix "profiles/" | replace "/" "__" }}
-      {{- if not (has $key $cogen) }}
+      {{- if and (not (has $key $cogen)) (not (hasPrefix "agents__observer__ui__dist__" $key)) }}
       - key: {{ $key }}
         path: {{ $path | trimPrefix "profiles/" }}
       {{- end }}

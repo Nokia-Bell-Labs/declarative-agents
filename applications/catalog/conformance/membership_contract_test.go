@@ -134,6 +134,12 @@ func TestCatalogMembershipUsesSharedRealizationAndAliasAuthority(t *testing.T) {
 		strings.Join(got.SubRoles, ",") != "telemetry-collector" {
 		t.Errorf("collector shared binding = %#v, want role_realization Monitor / Telemetry Collector", got)
 	}
+	if got := byActor["deployment-applier"]; got.Classification != "role_realization" ||
+		got.Profile != "applications/catalog/agents/applier/profile.yaml" ||
+		got.PrimaryRole != "executor" ||
+		strings.Join(got.SubRoles, ",") != "actuation-agent,change-manager" {
+		t.Errorf("applier shared binding = %#v, want role_realization Executor / Actuation Agent / Change Manager", got)
+	}
 	for alias, target := range map[string]string{
 		"monitor": "runtime-state-reader",
 		"jurist":  "specification-critic",

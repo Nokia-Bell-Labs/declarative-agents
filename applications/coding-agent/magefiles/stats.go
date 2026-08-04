@@ -7,24 +7,9 @@ import (
 	"fmt"
 	"os"
 
+	"github.com/Nokia-Bell-Labs/declarative-agents/magefiles/appmanifest"
 	"gopkg.in/yaml.v3"
 )
-
-type applicationManifestStats struct {
-	AgentProfiles struct {
-		References []struct {
-			Role string `yaml:"role"`
-		} `yaml:"references"`
-	} `yaml:"agent_profiles"`
-	Deployment struct {
-		ServingProfiles []struct {
-			Role string `yaml:"role"`
-		} `yaml:"serving_profiles"`
-	} `yaml:"deployment"`
-	Runtime struct {
-		ImageContainsProfiles bool `yaml:"image_contains_profiles"`
-	} `yaml:"runtime"`
-}
 
 type codingApplicationStats struct {
 	Application struct {
@@ -32,16 +17,19 @@ type codingApplicationStats struct {
 		AgentsContributed   int      `json:"agents_contributed"`
 		CanonicalReferences int      `json:"canonical_references"`
 		CanonicalRoles      []string `json:"canonical_roles"`
+		CompositionWrappers int      `json:"composition_wrappers"`
 		ServingProfiles     int      `json:"serving_profiles"`
 		ServingRoles        []string `json:"serving_roles"`
 		ProfileFreeRuntime  bool     `json:"profile_free_runtime"`
+		UIAssets            int      `json:"ui_assets"`
+		PackageAssets       int      `json:"package_assets"`
 	} `json:"application"`
 }
 
 // Stats reports application composition without adding an "agents" section.
-// Canonical planner, executor, and critic implementations are counted once by
-// applications/catalog; this target makes their reuse and the owned serving profiles
-// visible without adding them to the repository-wide agents_total.
+// Canonical implementations are counted once by applications/catalog; this
+// target reports every manifest-declared deployment without maintaining a
+// second serving-role inventory.
 func Stats() error {
 	stats, err := collectCodingApplicationStats("agents/application.yaml")
 	if err != nil {
@@ -61,20 +49,26 @@ func collectCodingApplicationStats(path string) (codingApplicationStats, error) 
 	if err != nil {
 		return result, fmt.Errorf("read application manifest: %w", err)
 	}
-	var manifest applicationManifestStats
+	var manifest appmanifest.Manifest
 	if err := yaml.Unmarshal(data, &manifest); err != nil {
 		return result, fmt.Errorf("parse application manifest: %w", err)
 	}
 
-	result.Application.Ownership = "composition"
-	result.Application.CanonicalReferences = len(manifest.AgentProfiles.References)
-	for _, reference := range manifest.AgentProfiles.References {
-		result.Application.CanonicalRoles = append(result.Application.CanonicalRoles, reference.Role)
+	result.Application.Ownership = manifest.Ownership
+	for _, root := range manifest.Roots {
+		if root.Ownership == "catalog" {
+			result.Application.CanonicalReferences++
+			result.Application.CanonicalRoles = append(result.Application.CanonicalRoles, root.ID)
+		} else if root.Ownership == "local" {
+			result.Application.CompositionWrappers++
+		}
 	}
-	result.Application.ServingProfiles = len(manifest.Deployment.ServingProfiles)
-	for _, profile := range manifest.Deployment.ServingProfiles {
-		result.Application.ServingRoles = append(result.Application.ServingRoles, profile.Role)
+	for _, entry := range manifest.Deployment.Entries {
+		result.Application.ServingProfiles++
+		result.Application.ServingRoles = append(result.Application.ServingRoles, entry.ID)
 	}
 	result.Application.ProfileFreeRuntime = !manifest.Runtime.ImageContainsProfiles
+	result.Application.UIAssets = len(manifest.UI.Assets)
+	result.Application.PackageAssets = len(manifest.Package.Assets)
 	return result, nil
 }

@@ -74,7 +74,7 @@ spec:
           # runtime flag, not a profile edit (R1.5).
           args:
             - "--profile"
-            - "/profiles/agents/knowledge-manager/documentation-curator/profile.yaml"
+            - {{ include "agent-architecture.roleProfile" (dict "root" . "role" "curator") | quote }}
             # The curator serves and curates documents from a writable workspace;
             # the profile mount at /profiles is read-only, so --directory points
             # at a writable emptyDir. Read-only /profiles as the workspace makes

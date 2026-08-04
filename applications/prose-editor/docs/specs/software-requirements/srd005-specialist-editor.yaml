@@ -2470,12 +2470,19 @@ use_case_traces:
   - id: rel00.0-uc001-edit-document
     status: planned
     path: ../use-cases/rel00.0-uc001-edit-document.yaml
+  - id: rel00.1-uc001-tracer-saga
+    status: implemented
+    path: ../use-cases/rel00.1-uc001-tracer-saga.yaml
 
 test_suite_traces:
   - id: test-rel00.0-prose-editor
     status: planned
     path: ../test-suites/test-rel00.0-prose-editor.yaml
     acceptance_criteria: [AC1, AC2, AC3, AC4, AC5, AC6, AC7, AC8, AC9, AC10, AC11, AC12, AC13, AC14, AC15, AC16, AC17, AC18, AC19, AC20, AC21, AC22, AC23, AC24]
+  - id: test-rel00.1-prose-editor
+    status: implemented
+    path: ../test-suites/test-rel00.1-prose-editor.yaml
+    acceptance_criteria: [AC1, AC2, AC3, AC4, AC5, AC6, AC7]
 
 related_documents:
   - path: ../../ARCHITECTURE.yaml
@@ -2503,14 +2510,14 @@ related_documents:
 
 implementation_status:
   specification: specified
-  runtime: planned
-  profiles: not_implemented
-  machines: not_implemented
-  tool_declarations: not_implemented
+  runtime: release_00_1_structure_deterministic_tracer
+  profiles: release_00_1_structure_only
+  machines: release_00_1_structure_flat_machine
+  tool_declarations: release_00_1_structure_subset
   specialist_editor_helpers: not_implemented
-  deterministic_signal_refinement: not_implemented
-  rest_declarations: not_implemented
-  model_declarations: not_implemented
+  deterministic_signal_refinement: release_00_1_one_query_refinement
+  rest_declarations: release_00_1_structure_only
+  model_declarations: release_00_1_structure_only
   services: not_implemented
-  tests: not_implemented
-  executable_evidence: none
+  tests: structural_and_deterministic_retrieval_fixture
+  executable_evidence: deterministic_tracer

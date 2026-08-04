@@ -51,8 +51,14 @@ func TestHelmPackageIsRepeatableAndExcludesGeneratedInputs(t *testing.T) {
 	for _, required := range []string{
 		"chatbot-mesh/templates/chatbot.yaml",
 		"chatbot-mesh/profiles/agents/chatbot/profile.yaml",
+		"chatbot-mesh/profiles/applications/catalog/applier/apply-machine.yaml",
+		"chatbot-mesh/profiles/applications/catalog/applier/declarations.yaml",
+		"chatbot-mesh/profiles/applications/chatbot-mesh/applier/profile.yaml",
+		"chatbot-mesh/profiles/applications/chatbot-mesh/applier/exec-declarations.yaml",
 		"chatbot-mesh/profiles/agents/knowledge-manager/corpus-ingest/profile.yaml",
 		"chatbot-mesh/profiles/agents/chatbot/ui/app/dist/index.html",
+		"chatbot-mesh/profiles/agents/observer/ui/dist/index.html",
+		"chatbot-mesh/provenance/application-closure.yaml",
 	} {
 		if !containsArchiveFile(second, required) {
 			t.Errorf("archive is missing required runtime asset %s", required)
@@ -62,12 +68,12 @@ func TestHelmPackageIsRepeatableAndExcludesGeneratedInputs(t *testing.T) {
 
 func TestHelmPackageRecordsCatalogCompatibilityPin(t *testing.T) {
 	chart := mustReadPackageTestFile(t, filepath.Join("..", "helm", "Chart.yaml"))
-	const annotation = "declarative-agents.nokia.com/catalog-compatible-release: applications/catalog/v0.20260730.0"
+	const annotation = "declarative-agents.nokia.com/catalog-compatible-release: v0.20260804.0"
 	if !strings.Contains(string(chart), annotation) {
 		t.Fatalf("Chart.yaml missing exact catalog compatibility annotation %q", annotation)
 	}
 	packaging := mustReadPackageTestFile(t, filepath.Join("..", "helm", "PACKAGING.md"))
-	if !strings.Contains(string(packaging), "applications/catalog/v0.20260730.0") ||
+	if !strings.Contains(string(packaging), "v0.20260804.0") ||
 		!strings.Contains(string(packaging), "does not create release tags") {
 		t.Fatal("PACKAGING.md does not distinguish the exact compatibility pin from post-merge tag publication")
 	}
@@ -237,10 +243,12 @@ func TestHelmPackageContainsRequiredProfileEntrypoints(t *testing.T) {
 		"agents__rag-server__profile.yaml",
 		"agents__provisioning-workflow-orchestrator__profile.yaml",
 		"agents__creator__profile.yaml",
-		"agents__applier__profile.yaml",
+		"applications__chatbot-mesh__applier__profile.yaml",
+		"applications__catalog__applier__machine.yaml",
 		"agents__corpus-ingest__profile.yaml",
 		"agents__knowledge-manager__corpus-ingest__machine.yaml",
 		"agents__chatbot__ui__app__dist__index.html",
+		"agents__observer__ui__dist__index.html",
 	} {
 		if !strings.Contains(render, key+": |-") {
 			t.Errorf("packaged profiles ConfigMap missing %s", key)

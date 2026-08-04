@@ -85,23 +85,24 @@ func TestApplicationManifestRejectsTraversalAndAbsolutePaths(t *testing.T) {
 		{name: "absolute", source: "/profiles/agents/planner/profile.yaml"},
 	} {
 		t.Run(tc.name, func(t *testing.T) {
-			filename := filepath.Join(t.TempDir(), "application.yaml")
+			appRoot := filepath.Join(t.TempDir(), "test")
+			filename := filepath.Join(appRoot, "agents", "application.yaml")
 			writeTestFile(t, filename, `schema_version: 1
 application: test
-agent_profiles:
-  compatible_release: applications/catalog/v0.20260724.0
-  references:
-    - role: planner
-      source: `+tc.source+`
-      runtime_path: agents/planner/profile.yaml
+ownership: agent-owning
+module_status: implemented
+capabilities:
+  runnable_module: {status: implemented, evidence: [test]}
+  packaged: {status: implemented, evidence: [test]}
+roots:
+  - id: planner
+    ownership: catalog
+    source: `+tc.source+`
+    runtime_path: agents/planner/profile.yaml
+    compatible_release: v0.20260724.0
 runtime:
   mount_path: /profiles
   image_contains_profiles: false
-deployment:
-  serving_profiles:
-    - {role: planner, source: agents/serving/planner/profile.yaml, runtime_path: applications/coding-agent/planner/profile.yaml}
-    - {role: executor, source: agents/serving/executor/profile.yaml, runtime_path: applications/coding-agent/executor/profile.yaml}
-    - {role: critic, source: agents/serving/critic/profile.yaml, runtime_path: applications/coding-agent/critic/profile.yaml}
 `)
 			if _, err := readApplicationProfileManifest(filename); err == nil {
 				t.Fatalf("manifest source %q was accepted", tc.source)
@@ -149,7 +150,7 @@ func TestProfileClosureRejectsConflictingDestinations(t *testing.T) {
 	writeTestFile(t, filepath.Join(root, "agents/a/profile.yaml"), "name: a\n")
 	writeTestFile(t, filepath.Join(root, "agents/b/profile.yaml"), "name: b\n")
 	manifest := testProfileManifest("agents/a/profile.yaml", "agents/shared/profile.yaml")
-	manifest.AgentProfiles.References = append(manifest.AgentProfiles.References, profileReference{
+	manifest.Catalog.References = append(manifest.Catalog.References, profileReference{
 		Role: "b", Source: "agents/b/profile.yaml", RuntimePath: "agents/shared/profile.yaml",
 	})
 	_, err := assembleProfileClosure(manifest, root, filepath.Join(t.TempDir(), "profiles"), testPackageSource())
@@ -233,9 +234,9 @@ func TestCodingApplicationManifestStagesEveryMountedProfile(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	if manifest.AgentProfiles.CompatibleRelease != "applications/catalog/v0.20260730.0" {
-		t.Fatalf("coding-agent compatible_release = %q, want collector-family release",
-			manifest.AgentProfiles.CompatibleRelease)
+	if manifest.Catalog.CompatibleRelease != "v0.20260804.0" {
+		t.Fatalf("coding-agent compatible_release = %q, want applier-family release",
+			manifest.Catalog.CompatibleRelease)
 	}
 	profilesRoot := filepath.Clean(filepath.Join(appRoot, "..", "catalog"))
 	output := filepath.Join(t.TempDir(), "profiles")
@@ -252,8 +253,9 @@ func TestCodingApplicationManifestStagesEveryMountedProfile(t *testing.T) {
 		"executor":         "agents/executor/profile.yaml",
 		"critic":           "agents/critic/profile.yaml",
 		"critic-workspace": "agents/critic/profile-workspace.yaml",
+		"collector":        "agents/collector/profile.yaml",
 	}
-	for _, ref := range manifest.AgentProfiles.References {
+	for _, ref := range manifest.Catalog.References {
 		want, exists := wantRoles[ref.Role]
 		if !exists {
 			t.Errorf("unexpected application profile role %q", ref.Role)
@@ -276,6 +278,7 @@ func TestCodingApplicationManifestStagesEveryMountedProfile(t *testing.T) {
 		"agents/critic/point.yaml",
 		"agents/critic/profile-workspace.yaml",
 		"agents/critic/workspace-exec.yaml",
+		"agents/collector/profile.yaml",
 	} {
 		if !staged[required] {
 			t.Errorf("canonical closure missing transitive asset %s", required)
@@ -304,32 +307,24 @@ func TestCodingApplicationAgentsContainOnlyCompositionAndServingAssets(t *testin
 	}
 	want := []string{
 		"application.yaml",
-		"serving/applier/apply-machine.yaml",
-		"serving/applier/declarations.yaml",
-		"serving/applier/exec-declarations.yaml",
-		"serving/applier/machine.yaml",
-		"serving/applier/profile.yaml",
-		"serving/applier/request-declarations.yaml",
-		"serving/applier/request-profile-apply.yaml",
-		"serving/applier/request-profile-rollout.yaml",
-		"serving/applier/request-tools-apply.yaml",
-		"serving/applier/request-tools-rollout.yaml",
-		"serving/applier/rest.yaml",
-		"serving/applier/rollout-machine.yaml",
-		"serving/applier/tools.yaml",
-		"serving/common/declarations.yaml",
-		"serving/common/machine.yaml",
-		"serving/common/tools.yaml",
-		"serving/critic/profile.yaml",
-		"serving/critic/rest.yaml",
-		"serving/executor/profile.yaml",
-		"serving/executor/rest.yaml",
-		"serving/planner/profile.yaml",
-		"serving/planner/request-declarations.yaml",
-		"serving/planner/request-machine.yaml",
-		"serving/planner/request-profile.yaml",
-		"serving/planner/request-tools.yaml",
-		"serving/planner/rest.yaml",
+		"applier/apply-profile.yaml",
+		"applier/exec-declarations.yaml",
+		"applier/profile.yaml",
+		"applier/rest.yaml",
+		"applier/rollout-profile.yaml",
+		"critic/profile.yaml",
+		"critic/rest.yaml",
+		"executor/profile.yaml",
+		"executor/rest.yaml",
+		"planner/profile.yaml",
+		"planner/request-declarations.yaml",
+		"planner/request-machine.yaml",
+		"planner/request-profile.yaml",
+		"planner/request-tools.yaml",
+		"planner/rest.yaml",
+		"role-server/declarations.yaml",
+		"role-server/machine.yaml",
+		"role-server/tools.yaml",
 	}
 	if !reflect.DeepEqual(files, want) {
 		t.Fatalf("application agents files = %#v, want composition-only %#v", files, want)
@@ -365,8 +360,8 @@ func testProfileManifest(source, runtimePath string) applicationProfileManifest 
 	var manifest applicationProfileManifest
 	manifest.SchemaVersion = 1
 	manifest.Application = "test"
-	manifest.AgentProfiles.CompatibleRelease = "applications/catalog/v0.20260724.0"
-	manifest.AgentProfiles.References = []profileReference{{
+	manifest.Catalog.CompatibleRelease = "applications/catalog/v0.20260724.0"
+	manifest.Catalog.References = []profileReference{{
 		Role: "planner", Source: source, RuntimePath: runtimePath,
 	}}
 	manifest.Runtime.MountPath = "/profiles"

@@ -35,6 +35,28 @@ type ContextRunner func(context.Context, ...string) ([]byte, error)
 // environment.
 type CommandRunner func(name string, args ...string) ([]byte, error)
 
+// ReusePolicy controls what EnsureClusterWithOptions may do when kind lists the
+// requested cluster but its Kubernetes API is unhealthy.
+type ReusePolicy uint8
+
+const (
+	// PreserveUnhealthyCluster is the safe default: kindrig reports the failed
+	// health check and never deletes a cluster whose ownership is unknown.
+	PreserveUnhealthyCluster ReusePolicy = iota
+	// RecreateUnhealthyOwnedCluster is an explicit assertion by the caller that
+	// the fixed cluster name is dedicated to it. An unhealthy listed cluster may
+	// be deleted and recreated; the returned Cluster is then marked Created so
+	// normal cleanup deletes the replacement.
+	RecreateUnhealthyOwnedCluster
+)
+
+// EnsureOptions customizes reuse validation. HealthRun is injectable for unit
+// tests and callers that need a context-bound command runner.
+type EnsureOptions struct {
+	ReusePolicy ReusePolicy
+	HealthRun   CommandRunner
+}
+
 // FailureEvidence describes the persistent diagnostics to collect when an
 // owned cluster's scenario fails. Directory is the final artifact directory,
 // and Namespaces limits kubectl collection to scenario-owned namespaces.
@@ -82,24 +104,115 @@ type Cluster struct {
 // a scenario needs when its node cannot become Ready until a CNI is installed
 // after create.
 func EnsureCluster(run Runner, name, configPath string, wait time.Duration) (Cluster, error) {
+	return EnsureClusterWithOptions(run, name, configPath, wait, EnsureOptions{})
+}
+
+// EnsureClusterWithOptions is EnsureCluster with an explicit existing-cluster
+// policy. Every listed cluster must pass a Kubernetes API readiness probe using
+// a kubeconfig generated for that cluster before it can be reused.
+func EnsureClusterWithOptions(
+	run Runner,
+	name, configPath string,
+	wait time.Duration,
+	options EnsureOptions,
+) (Cluster, error) {
 	if configPath == "" {
 		return Cluster{}, fmt.Errorf("kind cluster %s: a checked-in config file is required (eng01)", name)
 	}
 	if _, err := os.Stat(configPath); err != nil {
 		return Cluster{}, fmt.Errorf("kind cluster %s: config %s: %w", name, configPath, err)
 	}
-	if Exists(run, name) {
-		fmt.Printf("kind: reusing pre-existing cluster %s; it will not be deleted\n", name)
-		return Cluster{Name: name}, nil
+	if options.ReusePolicy > RecreateUnhealthyOwnedCluster {
+		return Cluster{}, fmt.Errorf("kind cluster %s: unsupported reuse policy %d", name, options.ReusePolicy)
 	}
+	if Exists(run, name) {
+		healthRun := options.HealthRun
+		if healthRun == nil {
+			healthRun = DefaultCommandRun
+		}
+		healthErr := checkClusterHealth(run, healthRun, name)
+		if healthErr == nil {
+			fmt.Printf("kind: reusing healthy pre-existing cluster %s; it will not be deleted\n", name)
+			return Cluster{Name: name}, nil
+		}
+		if options.ReusePolicy != RecreateUnhealthyOwnedCluster {
+			return Cluster{}, fmt.Errorf(
+				"kind cluster %s is listed but cannot be reused: %w; refusing to delete a cluster "+
+					"not explicitly owned by this caller; remediation: restore its API health, "+
+					"choose another cluster name, or remove it manually with kind delete cluster --name %s",
+				name, healthErr, name)
+		}
+		fmt.Printf("kind: dedicated cluster %s is unhealthy; deleting and recreating it\n", name)
+		if output, err := run("delete", "cluster", "--name", name); err != nil {
+			detail := strings.TrimSpace(string(output))
+			if detail != "" {
+				return Cluster{}, fmt.Errorf(
+					"kind cluster %s failed %v; caller authorized recreation, but kind delete "+
+						"cluster --name %s failed: %w: %s; remediation: restore the cluster API "+
+						"or remove the dedicated cluster manually, then rerun",
+					name, healthErr, name, err, detail)
+			}
+			return Cluster{}, fmt.Errorf(
+				"kind cluster %s failed %v; caller authorized recreation, but kind delete cluster "+
+					"--name %s failed: %w; remediation: restore the cluster API or remove the "+
+					"dedicated cluster manually, then rerun",
+				name, healthErr, name, err)
+		}
+		cluster, err := createCluster(run, name, configPath, wait)
+		if err != nil {
+			return Cluster{}, fmt.Errorf(
+				"kind cluster %s failed %v; caller-authorized recreation could not create its "+
+					"replacement: %w; remediation: resolve the create failure and rerun",
+				name, healthErr, err)
+		}
+		return cluster, nil
+	}
+	return createCluster(run, name, configPath, wait)
+}
+
+func createCluster(run Runner, name, configPath string, wait time.Duration) (Cluster, error) {
 	args := []string{"create", "cluster", "--name", name, "--config", configPath}
 	if wait > 0 {
 		args = append(args, "--wait", wait.String())
 	}
-	if _, err := run(args...); err != nil {
+	if output, err := run(args...); err != nil {
+		detail := strings.TrimSpace(string(output))
+		if detail != "" {
+			return Cluster{}, fmt.Errorf("kind create cluster %s: %w: %s", name, err, detail)
+		}
 		return Cluster{}, fmt.Errorf("kind create cluster %s: %w", name, err)
 	}
 	return Cluster{Name: name, Created: true}, nil
+}
+
+const clusterHealthRequestTimeout = "10s"
+
+func checkClusterHealth(kindRun Runner, commandRun CommandRunner, name string) error {
+	kubeconfig, cleanup, err := Kubeconfig(kindRun, name)
+	if err != nil {
+		return fmt.Errorf(
+			"health command kubectl --kubeconfig <generated for %s> --request-timeout=%s "+
+				"get --raw=/readyz could not start: %w",
+			name, clusterHealthRequestTimeout, err)
+	}
+	defer cleanup()
+
+	args := []string{
+		"--kubeconfig", kubeconfig,
+		"--request-timeout=" + clusterHealthRequestTimeout,
+		"get", "--raw=/readyz",
+	}
+	output, err := commandRun("kubectl", args...)
+	if err == nil {
+		return nil
+	}
+	detail := strings.TrimSpace(string(output))
+	if detail != "" {
+		return fmt.Errorf("health command kubectl %s failed: %w: %s",
+			strings.Join(args, " "), err, detail)
+	}
+	return fmt.Errorf("health command kubectl %s failed: %w",
+		strings.Join(args, " "), err)
 }
 
 // CaptureRun runs a kind subcommand and returns only its captured combined

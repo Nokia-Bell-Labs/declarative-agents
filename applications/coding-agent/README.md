@@ -3,7 +3,7 @@
 A deployable planner, executor, and critic coding loop built from canonical
 `applications/catalog` agents.
 
-## What this is
+## Purpose
 
 The coding agent is an application composition. A planner turns SRD context into
 a task and delegates it to an executor. The executor changes an isolated
@@ -23,7 +23,7 @@ packaging, persistent serving composition, live integration targets, and
 portable fixture in addition to the application specification. Helm assets
 consume the role-sharded package without redefining profile membership.
 
-## Coding loop
+## Composition
 
 ```mermaid
 flowchart LR
@@ -47,12 +47,16 @@ script, or another fake agent binary.
 
 ## Packaging and runtime boundary
 
-`agents/application.yaml` names the planner, executor, critic session, and
-critic changed-workspace entry profiles by paths relative to the
-catalog root. `agents/serving/` contains only application composition:
-persistent host lifecycle, declared remote boundaries, and terminal response
-mapping. It references canonical library assets and does not copy their
-machines, declarations, or reusable role behavior.
+`agents/application.yaml` is the Release 14 composition authority. It names the
+canonical planner, executor, critic session, and critic changed-workspace roots,
+plus the canonical collector and local planner, executor, critic, and applier
+deployment roots. Its UI section also declares the collector's served `ui/dist`
+asset and package destination. The three
+serving wrappers live directly under `agents/<actor>/`; their shared lifecycle
+wrapper lives at `agents/role-server/`. This name records its explicit
+application ownership and purpose without inventing a `common` actor. The
+wrappers reference canonical library assets and do not copy their machines,
+declarations, or reusable role behavior.
 
 From this directory, assemble the deployable role closures:
 
@@ -73,7 +77,8 @@ absolute paths, globs in runtime references, symlinks, dangling references, and
 two sources targeting one destination fail packaging.
 
 `build/profiles/deployment-manifest.yaml` records the profile-free runtime
-contract and the sorted `critic`, `executor`, and `planner` shards. Each role
+contract and every sorted manifest deployment shard, including `collector`.
+Each role
 directory is an independent root mounted at `/profiles` and contains only its
 resolved closure. `build/profiles/manifests/<role>.yaml` lists the serving entry
 profile, exact reachable files, provenance, and deterministic ConfigMap
@@ -114,6 +119,12 @@ reference it from an application-owned profile, as the chatbot-mesh chart does.
 This packager copies references verbatim and does not interpret placeholders.
 No coding-application value is added to the library.
 
+## Capabilities
+
+The manifest records implemented runnable-module, managed-service, packaged,
+Helm-managed, kind-demo, and UI capabilities with executable evidence. The UI
+claim is the catalog collector surface deployed by this application.
+
 ## Core Helm topology
 
 Prepare #875 profile artifacts before linting or rendering the source chart:
@@ -143,6 +154,10 @@ bounded packaged-chart proof with `mage integration:helmSmoke`.
 
 ## Status
 
+The module status is `implemented` and its ownership classification is
+`composition-only`: all local actor profiles are serving or applier composition
+wrappers and contribute no additional canonical agent implementation.
+
 All three coding-loop stages and compatible-checkout, transitive profile
 packaging are implemented with the production agent-core binary and canonical
 profiles. The package records the source revision without claiming release
@@ -159,17 +174,26 @@ schema/package validation and bounded kind deployment proof are implemented.
 The existing critic benchmark/session profile remains available unchanged; the
 changed-workspace mode is a separate canonical profile variant.
 
+## Ownership Boundaries
+
+The catalog owns reusable planner, executor, critic, collector, and applier
+behavior. This application owns its manifest, thin serving wrappers, shared
+`role-server` lifecycle wrapper, local applier composition wrapper and command
+bindings, package derivation, Helm topology, fixtures, and end-to-end evidence.
+Agent-core owns runtime profile, machine, tool, REST, lifecycle, and execution
+semantics.
+
 ## Layout
 
 ```text
 applications/coding-agent/
   agents/
     application.yaml
-    serving/
-      common/
-      planner/
-      executor/
-      critic/
+    role-server/
+    planner/
+    executor/
+    critic/
+    applier/
   docs/
     VISION.yaml
     ARCHITECTURE.yaml
@@ -192,7 +216,13 @@ There is no local `specs/software-requirements/` content. Application behavior
 traces to the library SRDs, so copying them here would create a second canonical
 home.
 
-## Audit
+## Run or Planned Entry Points
+
+All declared entry points are implemented. Use `mage package`,
+`mage packageValidate`, `mage helm:package`, and the `mage integration:*`
+targets described below.
+
+## Verification
 
 From this directory:
 
@@ -237,12 +267,13 @@ critic, lifecycle, and trace behavior.
 the same flow through Kubernetes, including shared workspace mutation and the
 connected collector agent trace. It skips only for missing host prerequisites.
 
-## Documents
+## Documentation
 
 - [Vision](docs/VISION.yaml)
 - [Architecture](docs/ARCHITECTURE.yaml)
 - [Road map](docs/road-map.yaml)
 - [Specification index](docs/SPECIFICATIONS.yaml)
 - [Deployment and operations](docs/deployment.md)
+- [Release 14 actor-directory migration](docs/migrations/rel14.0-actor-directories.yaml)
 - [Coding-loop use case](docs/specs/use-cases/rel01.0-uc001-coding-loop.yaml)
 - [Coding-loop test suite](docs/specs/test-suites/test-rel01.0-coding-loop.yaml)

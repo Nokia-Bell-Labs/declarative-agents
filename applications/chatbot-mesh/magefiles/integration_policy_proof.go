@@ -169,7 +169,8 @@ func runPolicyProof(chartDir string) error {
 // ensurePolicyCluster reuses or creates the policy cluster. It uses its own name
 // rather than the smoke cluster so the CNI is the one this proof was written
 // against; reusing a cluster built with a different CNI would measure a different
-// system. Ownership follows the same rule as the other targets -- only a cluster
+// system. Reuse still passes through kindrig's generated-kubeconfig API health
+// check. Ownership follows the same rule as the other targets -- only a cluster
 // this run created may be deleted (GH-589).
 //
 // A reused cluster is taken on trust that it is this target's own. The self-test
@@ -177,21 +178,22 @@ func runPolicyProof(chartDir string) error {
 // reused cluster that enforces differently is not, which is why the printed notice
 // names the risk.
 func ensurePolicyCluster() (kindrig.Cluster, error) {
-	if kindrig.Exists(kindrig.DefaultRun, policyKindCluster) {
-		fmt.Printf("kind: reusing pre-existing cluster %s; it will not be deleted. "+
-			"If it was not created by this target its CNI may differ from %s\n",
-			policyKindCluster, calicoManifest)
-		return kindrig.Cluster{Name: policyKindCluster}, nil
-	}
-
-	fmt.Printf("policyProof: creating %s with the default CNI disabled\n", policyKindCluster)
 	// The node stays NotReady until a CNI lands, so a Ready wait here would always
-	// time out (wait 0). Calico is installed next and the readiness wait follows it.
-	cluster, err := kindrig.EnsureCluster(kindrig.DefaultRun, policyKindCluster, policyKindConfig, 0)
+	// time out (wait 0). A reused cluster is nevertheless API-health checked by
+	// EnsureCluster before it is returned.
+	cluster, err := kindrig.EnsureCluster(
+		kindrig.DefaultRun, policyKindCluster, policyKindConfig, 0)
 	if err != nil {
 		return kindrig.Cluster{}, err
 	}
+	if !cluster.Created {
+		fmt.Printf("kind: reusing pre-existing cluster %s; it will not be deleted. "+
+			"If it was not created by this target its CNI may differ from %s\n",
+			policyKindCluster, calicoManifest)
+		return cluster, nil
+	}
 
+	fmt.Printf("policyProof: created %s with the default CNI disabled\n", policyKindCluster)
 	fmt.Println("policyProof: installing Calico")
 	if err := kubectlPolicy("apply", "-f", calicoManifest); err != nil {
 		return cluster, fmt.Errorf("install calico: %w", err)

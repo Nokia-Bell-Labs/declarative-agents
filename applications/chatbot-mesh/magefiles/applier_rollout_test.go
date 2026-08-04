@@ -28,6 +28,7 @@ type rolloutEndpoint struct {
 	Path           string `yaml:"path"`
 	MachineRequest struct {
 		Machine       string `yaml:"machine"`
+		Profile       string `yaml:"profile"`
 		InitialSignal string `yaml:"initial_signal"`
 		Response      struct {
 			TerminalStates  map[string]rolloutResponseMapping `yaml:"terminal_states"`
@@ -101,11 +102,27 @@ func applierRolloutEndpoint(t *testing.T) rolloutEndpoint {
 func applierRolloutMachine(t *testing.T) rolloutMachine {
 	t.Helper()
 	endpoint := applierRolloutEndpoint(t)
-	if endpoint.MachineRequest.Machine == "" {
-		t.Fatal("rollout endpoint names no machine")
+	if endpoint.MachineRequest.Profile == "" {
+		t.Fatal("rollout endpoint names no request profile")
+	}
+	return applierMachineFromProfile(t, endpoint.MachineRequest.Profile)
+}
+
+func applierMachineFromProfile(t *testing.T, profileRef string) rolloutMachine {
+	t.Helper()
+	var profile struct {
+		Machine string `yaml:"machine"`
+	}
+	readIntakeYAML(t, filepath.Join(agentDir(t, "applier"), profileRef), &profile)
+	if profile.Machine == "" {
+		t.Fatalf("request profile %s names no machine", profileRef)
+	}
+	machinePath := filepath.Join(agentDir(t, "applier"), profile.Machine)
+	if strings.Contains(filepath.ToSlash(profile.Machine), "catalog/applier/") {
+		machinePath = filepath.Join("..", "..", "catalog", "agents", "applier", filepath.Base(profile.Machine))
 	}
 	var machine rolloutMachine
-	readIntakeYAML(t, filepath.Join(agentDir(t, "applier"), endpoint.MachineRequest.Machine), &machine)
+	readIntakeYAML(t, machinePath, &machine)
 	return machine
 }
 

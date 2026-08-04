@@ -1,9 +1,0 @@
-name: coding-executor-server
-machine: ../common/machine.yaml
-tools:
-  - ../common/tools.yaml
-tool_declarations:
-  - ../common/declarations.yaml
-  - /opt/agent-core/tools/builtin/lifecycle/exit-agent.yaml
-rest_definitions:
-  - rest.yaml

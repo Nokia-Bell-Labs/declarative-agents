@@ -5,8 +5,8 @@ tools:
 tool_declarations:
   - declarations.yaml
   - request-declarations.yaml
-  - request-topology.yaml
-  - request-fanout.yaml
+  - request-topology-declarations.yaml
+  - request-fanout-declarations.yaml
   - /opt/agent-core/tools/builtin/lifecycle/exit-agent.yaml
 rest_definitions:
   - rest.yaml

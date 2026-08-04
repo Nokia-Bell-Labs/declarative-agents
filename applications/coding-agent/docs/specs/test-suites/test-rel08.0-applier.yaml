@@ -1,7 +1,7 @@
 id: test-rel08.0-applier
 title: Test Suite for Release 08.0 Declarative Applier Agent
 release: "08.0"
-status: planned
+status: implemented
 
 overview: |
   This suite validates the applier agent (srd006): the standalone declarative
@@ -27,7 +27,7 @@ test_cases:
   - use_case: rel08.0-uc001-declarative-applier
     name: Applier validates, applies, and verifies a coding-chart values change
     integration_target: mage integration:applier
-    status: planned
+    status: implemented
     description: |
       Drives a decided values patch against the applier profile: the apply endpoint
       receives the patch, the applier validates it against the coding chart's
@@ -70,7 +70,7 @@ test_cases:
   - use_case: rel08.0-uc001-declarative-applier
     name: The coding chart schema rejects a non-conforming values patch
     integration_target: mage test (coding chart values.schema.json against real helm)
-    status: planned
+    status: implemented
     description: |
       The applier's validate step is a helm dry-run against the coding chart's
       values.schema.json, so the rejection is only as real as the schema. The case
@@ -97,7 +97,7 @@ test_cases:
   - use_case: rel08.0-uc001-declarative-applier
     name: The applier holds the deployment CLIs and the serving roles do not
     integration_target: mage test (rendered chart and role profiles)
-    status: planned
+    status: implemented
     description: |
       Asserts over the rendered chart and the packaged role profiles that only the
       applier carries helm and kubectl bound as exec tools and that the planner,
@@ -120,7 +120,7 @@ test_cases:
   - use_case: rel08.0-uc001-declarative-applier
     name: A broken rollout read is distinguishable from a progressing one
     integration_target: mage test (applier rollout machine)
-    status: planned
+    status: implemented
     description: |
       Asserts over the declared profile that the rollout read reaches a broken-read
       terminal rather than folding it into progressing. kubectl rollout status exits
@@ -141,7 +141,7 @@ test_cases:
   - use_case: rel08.0-uc001-declarative-applier
     name: A live on-cluster rollout and rollback through the applier
     integration_target: mage integration:applierLive
-    status: planned
+    status: implemented
     description: |
       What the fake CLIs cannot stand in for. The applier image is built on the
       coding runtime under test, loaded into kind, and the coding chart installed

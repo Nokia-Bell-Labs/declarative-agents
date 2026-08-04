@@ -1,0 +1,42 @@
+name: applier-apply-request
+purpose: |-
+  Realize one decided values patch through the common write, validate, apply,
+  verify, and compensate shape. The request binding supplies the patch and fixed
+  workspace path. Application-owned ToolDefs bind the chart, release, namespace,
+  rollout command, and deployment targets. A validation failure is Rejected, an
+  apply failure is Failed, and a verification failure is compensated by rollback.
+initial_state: AwaitingRequest
+budget:
+  max_iterations: 8
+states:
+  - {name: AwaitingRequest, meaning: Seeded by an application-owned apply endpoint.}
+  - {name: Writing, meaning: Writing the decided overrides to the values file.}
+  - {name: Validating, meaning: Validating the values against the application chart.}
+  - {name: Applying, meaning: Applying the validated patch.}
+  - {name: Verifying, meaning: Verifying every application-owned rollout target.}
+  - {name: RollingBack, meaning: Compensating a verification failure.}
+  - {name: Done, meaning: Terminal. The rollout applied and verified.}
+  - {name: Rejected, meaning: Terminal. Validation rejected the patch before apply.}
+  - {name: RolledBack, meaning: Terminal. Verification failed and compensation succeeded.}
+  - {name: Failed, meaning: Terminal. Write, apply, or compensation failed.}
+terminal_states:
+  - Done
+  - Rejected
+  - RolledBack
+  - Failed
+signals:
+  - {name: Seed, trigger: An application-owned endpoint starts a request-scoped run.}
+  - {name: ToolDone, trigger: A boundary word completed.}
+  - {name: ToolFailed, trigger: A boundary word failed.}
+transitions:
+  - {state: AwaitingRequest, signal: Seed,       next: Writing,     action: write_overrides}
+  - {state: Writing,         signal: ToolDone,   next: Validating,  action: helm_dry_run}
+  - {state: Writing,         signal: ToolFailed, next: Failed}
+  - {state: Validating,      signal: ToolDone,   next: Applying,    action: helm_upgrade}
+  - {state: Validating,      signal: ToolFailed, next: Rejected}
+  - {state: Applying,        signal: ToolDone,   next: Verifying,   action: verify_rollout}
+  - {state: Applying,        signal: ToolFailed, next: Failed}
+  - {state: Verifying,       signal: ToolDone,   next: Done}
+  - {state: Verifying,       signal: ToolFailed, next: RollingBack, action: helm_rollback}
+  - {state: RollingBack,     signal: ToolDone,   next: RolledBack}
+  - {state: RollingBack,     signal: ToolFailed, next: Failed}

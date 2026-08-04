@@ -63,14 +63,7 @@ func packageHelmChart(chartRoot, catalogRoot, destination string) (string, error
 	// The profile closures ship in the archive, not the checkout: helm/profiles is
 	// gitignored, so every packaging path stages them fresh from the pinned
 	// catalog or the deployed workloads mount an empty /profiles.
-	if err := prepareChartProfiles(catalogRoot, chart); err != nil {
-		return "", err
-	}
-	// The applier profile is application-owned, so it ships in the archive the same
-	// way the catalog closures do: staged fresh from the source tree next to the
-	// regenerated curator and collector closures (mage helm:package includes the
-	// applier profile). chartRoot is <app>/helm, so its parent is the app root.
-	if err := stageApplierProfile(filepath.Dir(chartRoot), chart); err != nil {
+	if err := prepareChartProfiles(filepath.Dir(chartRoot), catalogRoot, chart); err != nil {
 		return "", err
 	}
 	// The curator UI/docs shards do NOT ride in the archive: the gzipped UI is
@@ -191,15 +184,16 @@ func validateChartArchive(archive, stagedChart string) error {
 	for _, path := range staged {
 		required["agent-architecture/"+path] = true
 	}
-	// A chart staged without preparation carries no profiles/ tree, so the
-	// staged-set comparison below already refuses it; assert the closure entry
-	// profiles are present so an empty staging is a named failure.
-	for _, must := range []string{
-		"agent-architecture/profiles/" + preparedManifestFilename,
-		"agent-architecture/profiles/curator/" + curatorProfileRuntime,
-		"agent-architecture/profiles/collector/" + collectorProfileRuntime,
-		"agent-architecture/profiles/applier/agents/applier/profile.yaml",
-	} {
+	var prepared preparedManifest
+	if err := readStrictYAML(filepath.Join(stagedChart, "profiles", preparedManifestFilename), &prepared); err != nil {
+		return fmt.Errorf("read staged profile provenance: %w", err)
+	}
+	mustExist := []string{"agent-architecture/profiles/" + preparedManifestFilename}
+	for _, role := range prepared.Roles {
+		mustExist = append(mustExist,
+			"agent-architecture/profiles/"+role.Path+"/"+role.Profile)
+	}
+	for _, must := range mustExist {
 		if !required[must] {
 			return fmt.Errorf("staged chart is missing required file %s; run mage helmPrepare", must)
 		}

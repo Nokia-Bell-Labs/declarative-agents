@@ -1,0 +1,83 @@
+id: srd022-applier
+title: Canonical Deployment Applier Family
+
+context: |
+  The applier family is the reusable Executor / Actuation Agent and Change
+  Manager realization shared by chatbot-mesh, coding-agent, and
+  agent-architecture. The catalog owns lifecycle hosting, request-machine
+  sequencing, name-only selections, and shared ToolDefs. Each application owns
+  its wrapper, REST authority, chart and schema, release and namespace,
+  Deployment targets, Helm and kubectl commands, and rollout policy.
+
+problem: |
+  Three applications copied the same lifecycle machine, request machines,
+  selections, and ToolDefs. Their application-specific deployment coordinates
+  differ, so copying obscured the stable family contract while promoting an
+  entire application implementation would transfer excessive authority.
+
+goals:
+  - G1: Establish one reusable applier machine and ToolDef closure.
+  - G2: Preserve application ownership of deployment coordinates and authority.
+  - G3: Preserve validation, explicit verification, compensation, and least authority.
+  - G4: Keep the family portable, independently bootable, and versioned through root v0 releases.
+
+requirements:
+  R1:
+    title: Canonical lifecycle and request machines
+    items:
+      - R1.1: The family must host request, control, and monitor listeners, await an explicit lifecycle exit, and stop owned listeners in order.
+      - R1.2: The apply machine must sequence write, validate, apply, verify, and rollback, with terminal outcomes Done, Rejected, RolledBack, and Failed.
+      - R1.3: The rollout-read machine must distinguish Complete, Progressing, and Unavailable by following the bounded status poll with a Deployment read.
+  R2:
+    title: Shared vocabulary
+    items:
+      - R2.1: tools.yaml, apply-tools.yaml, and rollout-tools.yaml must remain name-only selections.
+      - R2.2: declarations.yaml must own lifecycle host ToolDefs and apply-declarations.yaml must own the workspace write ToolDef.
+      - R2.3: ToolDefs must declare signals, side effects, reversibility, errors, and compensation contracts.
+  R3:
+    title: Application-owned boundary
+    items:
+      - R3.1: Chart name, schema path, release, namespace, Deployment names, Helm and kubectl arguments, endpoint paths and ports, and authorization policy must remain application-owned.
+      - R3.2: A wrapper must select canonical machines and shared declarations while supplying only local REST and rollout declarations.
+      - R3.3: Request input must not select a profile, chart, schema, release, namespace, Deployment, endpoint, credential, or rollout command.
+  R4:
+    title: Validation and compensation
+    items:
+      - R4.1: Validation must complete before apply and a validation failure must reach Rejected without mutation.
+      - R4.2: Apply must be followed by explicit verification of every application-selected rollout target.
+      - R4.3: A verification failure must invoke rollback; successful compensation reaches RolledBack and failed compensation reaches Failed.
+  R5:
+    title: Portability, release, and ownership
+    items:
+      - R5.1: The catalog profile and request variants must close every non-runtime reference and boot independently of an application chart.
+      - R5.2: Applications must package the canonical closure and local wrapper with source provenance and no copied promoted file.
+      - R5.3: The family path and machine, signal, terminal, request, and selection contracts are part of the current root v0.* compatibility surface.
+      - R5.4: Repository statistics must count applier once under applications/catalog and classify application appliers as composition wrappers.
+
+non_goals:
+  - Own any consuming application's chart, endpoint, deployment topology, credentials, RBAC, or operator workflow.
+  - Implement Helm, kubectl, REST, lifecycle, or filesystem runtime behavior.
+  - Require one application to adopt another application's state-read extension.
+
+acceptance_criteria:
+  - id: AC1
+    criterion: Catalog conformance boots the standalone profile and checks lifecycle, apply, rollout-read, terminal, and name-only selection contracts.
+    traces: [R1.1, R1.2, R1.3, R2.1, R2.2, R2.3, R5.1]
+  - id: AC2
+    criterion: All three consumers select the canonical machines and shared ToolDefs while retaining local REST, rollout declarations, and authority.
+    traces: [R3.1, R3.2, R3.3]
+  - id: AC3
+    criterion: Fake and applicable live tests prove validation precedes mutation and verification failure is compensated.
+    traces: [R4.1, R4.2, R4.3]
+  - id: AC4
+    criterion: Deterministic package, duplicate, release, role-binding, and statistics audits prove one implementation owner and current root v0 compatibility.
+    traces: [R5.2, R5.3, R5.4]
+
+depends_on:
+  - srd_id: srd001-agent-functional-blocks
+    symbols_used: [R1, R2, R3]
+
+platform_dependencies:
+  - srd_id: srd003-application-consistency
+    provider: applications
+    symbols_used: [R2, R4, R5, R7]

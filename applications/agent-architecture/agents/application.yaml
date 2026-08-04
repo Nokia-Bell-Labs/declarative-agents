@@ -1,23 +1,115 @@
-# Copyright (c) 2026 Nokia. All rights reserved.
-#
-# agent-architecture is a composition-only application: it owns no agent
-# profiles. This manifest records the catalog release the composition is pinned
-# to and the two canonical profiles the chart deploys by reference -- the
-# documentation-curator and the collector -- so `mage helmPrepare` regenerates
-# their closures from a compatible catalog checkout and stages them as the
-# chart's only profile source. The runtime image carries no profile config; the
-# curator's oversized browser UI is the one baked exception (srd001 R1.2).
 schema_version: 1
 application: agent-architecture
-agent_profiles:
-  compatible_release: applications/catalog/v0.20260730.0
-  references:
-    - role: curator
-      source: agents/knowledge-manager/documentation-curator/profile.yaml
-      runtime_path: agents/knowledge-manager/documentation-curator/profile.yaml
-    - role: collector
-      source: agents/collector/profile.yaml
-      runtime_path: agents/collector/profile.yaml
+ownership: composition-only
+module_status: implemented
+capabilities:
+  runnable_module:
+    status: implemented
+    evidence:
+      - go test ./magefiles -run '^Test(RunCommandConstruction|CollectorCommandConstruction|PresentationCommandDisablesPlayground)$'
+  managed_service:
+    status: partial
+    evidence:
+      - go test ./magefiles -run '^TestManagedServicesEvidenceContract$'
+      - Live local curator and Go present lifecycle observations remain dependency_gated.
+  packaged:
+    status: implemented
+    evidence:
+      - go test ./magefiles -run '^Test(ManifestMutationControlsPreparedProfiles|UndeclaredDeploymentRootFailsPreparation|PreparedProfilesFollowManifest)$'
+      - mage helm:package
+  helm_managed:
+    status: implemented
+    evidence:
+      - go test ./magefiles -run '^Test(HelmCollectorServesUI|HelmCuratorUIReferencesOutOfReleaseShards|ApplierMountsEveryProfileItStarts)$'
+  kind_demo:
+    status: implemented
+    evidence:
+      - mage integration:helmSmoke
+      - go test ./magefiles -run '^Test(SelectCuratorPod|CuratorShutdownObserved)$'
+  ui:
+    status: implemented
+    evidence:
+      - go test ./magefiles -run '^Test(HelmCollectorServesUI|HelmCuratorUIReferencesOutOfReleaseShards)$'
+      - go test ./applications/catalog/conformance -run '^TestDesignTokens'
+roots:
+  - id: documentation-curator
+    ownership: catalog
+    source: agents/knowledge-manager/documentation-curator/profile.yaml
+    runtime_path: agents/knowledge-manager/documentation-curator/profile.yaml
+    compatible_release: v0.20260804.0
+  - id: collector
+    ownership: catalog
+    source: agents/collector/profile.yaml
+    runtime_path: agents/collector/profile.yaml
+    compatible_release: v0.20260804.0
+  - id: lifecycle-exit
+    ownership: catalog
+    source: agents/lifecycle-exit/profile.yaml
+    runtime_path: agents/lifecycle-exit/profile.yaml
+    compatible_release: v0.20260804.0
+  - id: applier
+    ownership: local
+    source: agents/applier/profile.yaml
+    runtime_path: applications/agent-architecture/applier/profile.yaml
 runtime:
   mount_path: /profiles
   image_contains_profiles: false
+deployment:
+  entries:
+    - id: curator
+      root: documentation-curator
+      workload: curator
+      profile_path: agents/knowledge-manager/documentation-curator/profile.yaml
+      mount_path: /profiles
+    - id: collector
+      root: collector
+      workload: collector
+      profile_path: agents/collector/profile.yaml
+      mount_path: /profiles
+    - id: applier
+      root: applier
+      workload: applier
+      profile_path: applications/agent-architecture/applier/profile.yaml
+      mount_path: /profiles
+ui:
+  assets:
+    - id: documentation-curator-ux
+      owner: documentation-curator
+      ownership: catalog
+      source: agents/knowledge-manager/documentation-curator/ui/ux.json
+      runtime_path: agents/knowledge-manager/documentation-curator/ui/ux.json
+      package_path: agents/knowledge-manager/documentation-curator/ui/ux.json
+      rest_definition: agents/knowledge-manager/documentation-curator/rest.yaml
+      shared_tokens: "canonical import: applications/catalog/ui/design-tokens.css"
+    - id: documentation-curator-docs
+      owner: documentation-curator
+      ownership: catalog
+      source: agents/knowledge-manager/documentation-curator/ui/docs/dist
+      runtime_path: agents/knowledge-manager/documentation-curator/ui/docs/dist
+      package_path: agents/knowledge-manager/documentation-curator/ui/docs/dist
+      rest_definition: agents/knowledge-manager/documentation-curator/rest.yaml
+      shared_tokens: "canonical import: applications/catalog/ui/design-tokens.css"
+    - id: documentation-curator-monitor
+      owner: documentation-curator
+      ownership: catalog
+      source: agents/knowledge-manager/documentation-curator/ui/monitor/dist
+      runtime_path: agents/knowledge-manager/documentation-curator/ui/monitor/dist
+      package_path: agents/knowledge-manager/documentation-curator/ui/monitor/dist
+      rest_definition: agents/knowledge-manager/documentation-curator/rest.yaml
+      shared_tokens: "canonical import: applications/catalog/ui/design-tokens.css"
+    - id: collector
+      owner: collector
+      ownership: catalog
+      source: agents/collector/ui/dist
+      runtime_path: agents/collector/ui/dist
+      package_path: agents/collector/ui/dist
+      rest_definition: agents/collector/rest.yaml
+      shared_tokens: "canonical import: applications/catalog/ui/design-tokens.css"
+package:
+  assets:
+    - id: catalog-docs
+      owner: documentation-curator
+      ownership: catalog
+      source: docs
+      runtime_path: docs
+      package_path: docs

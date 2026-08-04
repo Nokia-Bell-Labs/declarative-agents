@@ -3,7 +3,10 @@
 package main
 
 import (
+	"bytes"
+	"context"
 	"fmt"
+
 	"github.com/Nokia-Bell-Labs/declarative-agents/agent-core/internal/runtime/core"
 	"github.com/Nokia-Bell-Labs/declarative-agents/agent-core/internal/tools/catalog"
 	"github.com/stretchr/testify/require"
@@ -17,6 +20,137 @@ import (
 	"strings"
 	"testing"
 )
+
+func TestSeedRequestSuppliesUniversalRequestPayload(t *testing.T) {
+	path := filepath.Join(t.TempDir(), "request.json")
+	require.NoError(t, os.WriteFile(path, []byte(`{"saga_id":"trace-1"}`), 0o644))
+	var params core.LoopParams
+
+	require.NoError(t, seedRequest(&params, path))
+
+	require.Equal(t, core.Seed, params.InitialSignal)
+	require.Equal(t, core.Seed, params.InitialResult.Signal)
+	require.JSONEq(t, `{"saga_id":"trace-1"}`, params.InitialResult.Output)
+}
+
+func TestSeedRequestWithoutPathLeavesBootstrapUnchanged(t *testing.T) {
+	params := core.LoopParams{
+		InitialSignal: core.Signal("Existing"),
+		InitialResult: core.Result{Signal: core.Signal("Existing"), Output: "existing"},
+	}
+
+	require.NoError(t, seedRequest(&params, " \t"))
+
+	require.Equal(t, core.Signal("Existing"), params.InitialSignal)
+	require.Equal(t, "existing", params.InitialResult.Output)
+}
+
+func TestSeedRequestRejectsUnreadableFile(t *testing.T) {
+	var params core.LoopParams
+
+	err := seedRequest(&params, filepath.Join(t.TempDir(), "missing-request.yaml"))
+
+	require.ErrorContains(t, err, "read --request file")
+	require.Empty(t, params.InitialSignal)
+	require.Empty(t, params.InitialResult.Output)
+}
+
+func TestResumeLoadOverridesRequestSeed(t *testing.T) {
+	checkpoint := &core.InMemoryCheckpoint{}
+	require.NoError(t, checkpoint.Save(core.Position{CurrentState: "Start"}, nil))
+	params := terminalLoopParams()
+	params.Checkpoint = checkpoint
+	params.InitialSignal = core.Seed
+	params.InitialResult = core.Result{Signal: core.Seed, Output: "new request bytes"}
+	params.Table = core.TransitionTable{
+		{State: "Start", Signal: core.Seed}:     {NextState: "WrongSeedPath"},
+		{State: "Start", Signal: core.Approved}: {NextState: "Resumed"},
+	}
+	params.IsTerminal = func(state core.State) bool {
+		return state == "WrongSeedPath" || state == "Resumed"
+	}
+	params.Hooks.TerminalStatus = func(core.State) core.RunStatus { return core.StatusSucceeded }
+
+	result, err := runOrResume(runtimeConfig{
+		ResumeCheckpoint: "run-1", ResumeSignal: string(core.Approved),
+	}, resumeDeps{Params: params, State: &agentState{}, Ctx: context.Background()})
+
+	require.NoError(t, err)
+	require.Equal(t, core.State("Resumed"), result.FinalState)
+	require.Equal(t, core.StatusSucceeded, result.Status)
+}
+
+func TestCLIResultReporterRetainsLatestMachineOutput(t *testing.T) {
+	got := cliResultReporter(core.RunResult{}, core.Result{
+		Signal: core.Signal("ResponseReady"), Output: `{"verdict":"pass"}`,
+	})
+
+	require.JSONEq(t, `{"verdict":"pass"}`, got.Summary)
+}
+
+func TestCLIResultReporterBoundsLatestMachineOutput(t *testing.T) {
+	got := cliResultReporter(core.RunResult{}, core.Result{
+		Signal: core.Signal("ResponseReady"),
+		Output: strings.Repeat("x", terminalSummaryMaxBytes+100),
+	})
+
+	require.Len(t, got.Summary, terminalSummaryMaxBytes)
+	require.True(t, strings.HasSuffix(got.Summary, terminalSummaryTruncated))
+}
+
+func TestRunPreparedPrintsSummaryFinalStateAndMappedExit(t *testing.T) {
+	originalExitCode := runExitCode
+	t.Cleanup(func() { runExitCode = originalExitCode })
+	builder := staticSignalBuilder{
+		name: "respond", signal: core.ToolDone, output: `{"answer":"done"}`,
+	}
+	params := terminalLoopParams()
+	params.Hooks.OnResult = cliResultReporter
+	params.Hooks.TerminalStatus = func(core.State) core.RunStatus { return core.StatusSucceeded }
+	params.Table = core.TransitionTable{
+		{State: "Start", Signal: core.Seed}: {
+			NextState: "Finished",
+			Action: func(result core.Result) core.Command {
+				return builder.Build(result)
+			},
+		},
+	}
+	_, cancel := context.WithCancel(context.Background())
+	prepared := preparedRun{
+		Config: runtimeConfig{}, Params: params, State: &agentState{},
+		Ctx: context.Background(), Cancel: cancel, Shutdown: newDeferredShutdown(cancel),
+	}
+	var stderr string
+
+	stdout, err := captureStdout(t, func() error {
+		var runErr error
+		stderr, runErr = captureStderr(t, func() error { return runPrepared(prepared) })
+		return runErr
+	})
+
+	require.NoError(t, err)
+	require.Equal(t, "{\"answer\":\"done\"}\n", stdout)
+	require.Contains(t, stderr, "terminal state: succeeded\n")
+	require.Contains(t, stderr, "final machine state: Finished\n")
+	require.Equal(t, ExitSucceeded, runExitCode)
+}
+
+func captureStdout(t *testing.T, fn func() error) (string, error) {
+	t.Helper()
+	old := os.Stdout
+	r, w, err := os.Pipe()
+	require.NoError(t, err)
+	os.Stdout = w
+	defer func() { os.Stdout = old }()
+
+	runErr := fn()
+	require.NoError(t, w.Close())
+	var buf bytes.Buffer
+	_, readErr := buf.ReadFrom(r)
+	require.NoError(t, readErr)
+	require.NoError(t, r.Close())
+	return buf.String(), runErr
+}
 
 func TestMainRuntimeDoesNotBranchOnAgentModeNames(t *testing.T) {
 	t.Parallel()

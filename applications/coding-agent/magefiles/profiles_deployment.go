@@ -71,7 +71,7 @@ func PackageValidate() error {
 	if err != nil {
 		return err
 	}
-	source, err := inspectPackageSource(roots.Profiles, manifest.AgentProfiles.CompatibleRelease)
+	source, err := inspectPackageSource(roots.Profiles, manifest.Catalog.CompatibleRelease)
 	if err != nil {
 		return err
 	}
@@ -99,7 +99,7 @@ func PackageValidate() error {
 	if err := bootSmokeProfiles(binary, roots.Core, profiles); err != nil {
 		return err
 	}
-	fmt.Printf("package validation passed for %d serving role shards\n", len(shards))
+	fmt.Printf("package validation passed for %d deployment shards\n", len(shards))
 	return nil
 }
 
@@ -125,13 +125,29 @@ func packageServingDeployment(
 	}
 	defer func() { _ = os.RemoveAll(stage) }()
 
-	references := append([]profileReference(nil), manifest.Deployment.ServingProfiles...)
+	references := append([]profileReference(nil), manifest.Deployment.Entries...)
 	sort.Slice(references, func(i, j int) bool { return references[i].Role < references[j].Role })
 	shards := make([]deploymentShard, 0, len(references))
 	for _, ref := range references {
 		closure, err := resolveServingRoleClosure(virtualRoot, ref)
 		if err != nil {
 			return nil, fmt.Errorf("serving role %s: %w", ref.Role, err)
+		}
+		for _, asset := range manifest.UIAssets {
+			if asset.Owner != ref.Root {
+				continue
+			}
+			if asset.PackagePath != asset.RuntimePath {
+				return nil, fmt.Errorf(
+					"serving role %s asset %s package_path %s must equal mounted runtime_path %s",
+					ref.Role, asset.ID, asset.PackagePath, asset.RuntimePath)
+			}
+			if err := closure.enqueue(asset.Source, asset.PackagePath); err != nil {
+				return nil, fmt.Errorf("serving role %s asset %s: %w", ref.Role, asset.ID, err)
+			}
+		}
+		if err := closure.resolve(); err != nil {
+			return nil, fmt.Errorf("serving role %s assets: %w", ref.Role, err)
 		}
 		roleRoot := filepath.Join(stage, ref.Role)
 		files, partitions, err := writeRoleClosure(virtualRoot, roleRoot, closure.assets)
@@ -230,11 +246,18 @@ func stageDeploymentSource(appRoot, profilesRoot string) (string, func(), error)
 		return "", nil, fmt.Errorf("stage canonical agent sources: %w", err)
 	}
 	if err := copySourceTreeStrict(
-		filepath.Join(appRoot, "agents", "serving"),
+		filepath.Join(profilesRoot, "agents", "applier"),
+		filepath.Join(stage, "applications", "catalog", "applier"),
+	); err != nil {
+		cleanup()
+		return "", nil, fmt.Errorf("stage canonical applier runtime projection: %w", err)
+	}
+	if err := copySourceTreeStrict(
+		filepath.Join(appRoot, "agents"),
 		filepath.Join(stage, "applications", "coding-agent"),
 	); err != nil {
 		cleanup()
-		return "", nil, fmt.Errorf("stage application serving sources: %w", err)
+		return "", nil, fmt.Errorf("stage application actor sources: %w", err)
 	}
 	return stage, cleanup, nil
 }

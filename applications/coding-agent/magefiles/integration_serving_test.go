@@ -28,7 +28,7 @@ func TestStageServingProfileTreeCombinesClosureAndApplicationProfiles(t *testing
 		"agents/planner/profile.yaml",
 		"agents/executor/profile.yaml",
 		"agents/critic/profile-workspace.yaml",
-		"applications/coding-agent/common/machine.yaml",
+		"applications/coding-agent/role-server/machine.yaml",
 		"applications/coding-agent/planner/profile.yaml",
 		"applications/coding-agent/executor/profile.yaml",
 		"applications/coding-agent/critic/profile.yaml",
@@ -40,7 +40,7 @@ func TestStageServingProfileTreeCombinesClosureAndApplicationProfiles(t *testing
 }
 
 func TestServingProfilesUseRealLifecycleAndCanonicalRoleProfiles(t *testing.T) {
-	root := filepath.Join("..", "agents", "serving")
+	root := filepath.Join("..", "agents")
 	for _, role := range servingRoles {
 		data, err := os.ReadFile(filepath.Join(root, role, "rest.yaml"))
 		if err != nil {
@@ -64,16 +64,16 @@ func TestServingProfilesUseRealLifecycleAndCanonicalRoleProfiles(t *testing.T) {
 		}
 	}
 	executor := readServingFile(t, root, "executor", "rest.yaml")
-	if !strings.Contains(executor, "profile: ../../../agents/executor/profile.yaml") {
+	if !strings.Contains(executor, "profile: agents/executor/profile.yaml") {
 		t.Error("executor server does not run the canonical executor profile")
 	}
 	critic := readServingFile(t, root, "critic", "rest.yaml")
-	if !strings.Contains(critic, "profile: ../../../agents/critic/profile-workspace.yaml") {
+	if !strings.Contains(critic, "profile: agents/critic/profile-workspace.yaml") {
 		t.Error("critic server does not run the canonical changed-workspace profile")
 	}
 	planner := readServingFile(t, root, "planner", "request-profile.yaml")
 	for _, want := range []string{
-		"../../../agents/planner/llm/default.yaml",
+		"agents/planner/llm/default.yaml",
 		"/opt/agent-core/tools/builtin/planner",
 	} {
 		if !strings.Contains(planner, want) {
@@ -83,7 +83,7 @@ func TestServingProfilesUseRealLifecycleAndCanonicalRoleProfiles(t *testing.T) {
 }
 
 func TestPlannerServingFlowUsesDeclaredRemoteBoundaries(t *testing.T) {
-	root := filepath.Join("..", "agents", "serving", "planner")
+	root := filepath.Join("..", "agents", "planner")
 	machine := readServingFile(t, root, "request-machine.yaml")
 	executorAt := strings.Index(machine, "action: delegate_executor")
 	criticAt := strings.Index(machine, "action: delegate_critic")

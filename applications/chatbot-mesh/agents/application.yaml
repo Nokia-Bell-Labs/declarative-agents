@@ -1,0 +1,150 @@
+schema_version: 1
+application: chatbot-mesh
+ownership: agent-owning
+module_status: implemented
+capabilities:
+  runnable_module:
+    status: implemented
+    evidence:
+      - go test ./...
+      - mage audit
+  managed_service:
+    status: implemented
+    evidence:
+      - mage integration:rig
+      - mage integration:controlPlane
+  packaged:
+    status: implemented
+    evidence:
+      - mage helm:package
+      - go test ./magefiles -run '^TestHelmPackage'
+  helm_managed:
+    status: implemented
+    evidence:
+      - go test ./magefiles -run '^Test(Helm|Staged|ObserverUI|CollectorUI)'
+  kind_demo:
+    status: implemented
+    evidence:
+      - mage integration:helmSmoke
+  ui:
+    status: implemented
+    evidence:
+      - go test ./magefiles -run '^Test(StagedChatbotUI|StagedObserverUI|ObserverUI|CollectorUI)'
+      - go test ./applications/catalog/conformance -run '^TestDesignTokens'
+roots:
+  - id: chatbot
+    ownership: local
+    source: agents/chatbot/profile.yaml
+    runtime_path: agents/chatbot/profile.yaml
+  - id: rag-server
+    ownership: local
+    source: agents/rag-server/profile.yaml
+    runtime_path: agents/rag-server/profile.yaml
+  - id: provisioning-workflow-orchestrator
+    ownership: local
+    source: agents/provisioning-workflow-orchestrator/profile.yaml
+    runtime_path: agents/provisioning-workflow-orchestrator/profile.yaml
+  - id: creator
+    ownership: local
+    source: agents/creator/profile.yaml
+    runtime_path: agents/creator/profile.yaml
+  - id: applier
+    ownership: local
+    source: agents/applier/profile.yaml
+    runtime_path: applications/chatbot-mesh/applier/profile.yaml
+  - id: observer
+    ownership: local
+    source: agents/observer/profile.yaml
+    runtime_path: agents/observer/profile.yaml
+  - id: corpus-ingest
+    ownership: local
+    source: agents/corpus-ingest/profile.yaml
+    runtime_path: agents/corpus-ingest/profile.yaml
+  - id: catalog-corpus-ingest
+    ownership: catalog
+    source: agents/knowledge-manager/corpus-ingest/profile.yaml
+    runtime_path: agents/knowledge-manager/corpus-ingest/profile.yaml
+    compatible_release: v0.20260804.0
+  - id: collector
+    ownership: catalog
+    source: agents/collector/profile.yaml
+    runtime_path: agents/collector/profile.yaml
+    compatible_release: v0.20260804.0
+runtime:
+  mount_path: /profiles
+  image_contains_profiles: false
+deployment:
+  entries:
+    - id: chatbot
+      root: chatbot
+      workload: chatbot
+      profile_path: agents/chatbot/profile.yaml
+      mount_path: /profiles
+    - id: rag-server
+      root: rag-server
+      workload: rag-server
+      profile_path: agents/rag-server/profile.yaml
+      mount_path: /profiles
+    - id: provisioning-workflow-orchestrator
+      root: provisioning-workflow-orchestrator
+      workload: provisioning-workflow-orchestrator
+      profile_path: agents/provisioning-workflow-orchestrator/profile.yaml
+      mount_path: /profiles
+    - id: creator
+      root: creator
+      workload: creator
+      profile_path: agents/creator/profile.yaml
+      mount_path: /profiles
+    - id: applier
+      root: applier
+      workload: applier
+      profile_path: applications/chatbot-mesh/applier/profile.yaml
+      mount_path: /profiles
+    - id: observer
+      root: observer
+      workload: observer
+      profile_path: agents/observer/profile.yaml
+      mount_path: /profiles
+    - id: corpus-ingest
+      root: corpus-ingest
+      profile_path: agents/corpus-ingest/profile.yaml
+      mount_path: /profiles
+    - id: collector
+      root: collector
+      workload: collector
+      profile_path: agents/collector/profile.yaml
+      mount_path: /profiles
+ui:
+  assets:
+    - id: chatbot-descriptor
+      owner: chatbot
+      ownership: local
+      source: agents/chatbot/ui/ui.yaml
+      runtime_path: agents/chatbot/ui/ui.yaml
+      package_path: profiles/agents/chatbot/ui/ui.yaml
+      rest_definition: agents/chatbot/rest.yaml
+      shared_tokens: "canonical import: applications/catalog/ui/design-tokens.css"
+    - id: chatbot
+      owner: chatbot
+      ownership: local
+      source: agents/chatbot/ui/app/dist
+      runtime_path: agents/chatbot/ui/app/dist
+      package_path: profiles/agents/chatbot/ui/app/dist
+      rest_definition: agents/chatbot/rest.yaml
+      shared_tokens: "canonical import: applications/catalog/ui/design-tokens.css"
+    - id: observer
+      owner: observer
+      ownership: local
+      source: agents/observer/ui/dist
+      runtime_path: agents/observer/ui/dist
+      package_path: profiles/agents/observer/ui/dist
+      rest_definition: agents/observer/rest.yaml
+      shared_tokens: "canonical import: applications/catalog/ui/design-tokens.css"
+    - id: collector
+      owner: collector
+      ownership: catalog
+      source: agents/collector/ui/dist
+      runtime_path: collector-ui/ui/dist
+      package_path: collector-ui/ui/dist
+      rest_definition: agents/collector/rest.yaml
+      shared_tokens: "canonical import: applications/catalog/ui/design-tokens.css"

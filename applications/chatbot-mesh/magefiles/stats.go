@@ -5,12 +5,20 @@ package main
 import (
 	"bufio"
 	"encoding/json"
+	"fmt"
 	"os"
+
+	"gopkg.in/yaml.v3"
 )
 
 type meshStatsOutput struct {
 	Agents      agentsSection      `json:"agents"`
 	Composition compositionSection `json:"composition"`
+	Application struct {
+		Ownership           string `json:"ownership"`
+		AgentsContributed   int    `json:"agents_contributed"`
+		CompositionWrappers int    `json:"composition_wrappers"`
+	} `json:"application"`
 }
 
 // Stats outputs local implementation metrics and composition reuse separately.
@@ -22,11 +30,32 @@ func Stats() error {
 	if err != nil {
 		return err
 	}
-	rec := meshStatsOutput(ownership)
+	data, err := os.ReadFile("agents/application.yaml")
+	if err != nil {
+		return fmt.Errorf("read application manifest for stats: %w", err)
+	}
+	var manifest struct {
+		Ownership string `yaml:"ownership"`
+	}
+	if err := yaml.Unmarshal(data, &manifest); err != nil {
+		return fmt.Errorf("parse application manifest for stats: %w", err)
+	}
+	rec := newMeshStatsOutput(ownership, manifest.Ownership)
 
 	enc := json.NewEncoder(os.Stdout)
 	enc.SetIndent("", "  ")
 	return enc.Encode(rec)
+}
+
+func newMeshStatsOutput(ownership agentOwnershipStats, applicationOwnership string) meshStatsOutput {
+	rec := meshStatsOutput{
+		Agents:      ownership.Agents,
+		Composition: ownership.Composition,
+	}
+	rec.Application.Ownership = applicationOwnership
+	rec.Application.AgentsContributed = ownership.Agents.Total.Agents
+	rec.Application.CompositionWrappers = ownership.Composition.Total.Wrappers
+	return rec
 }
 
 func meshCountLines(path string) (int, error) {

@@ -61,13 +61,23 @@ func TestCorpusIngestRuntimeStagesCanonicalLibraryProgram(t *testing.T) {
 }
 
 func TestChartStagesCanonicalCorpusIngestReference(t *testing.T) {
-	found := false
-	for _, program := range chartProfilePrograms() {
-		if program.rel == "profiles/agents/knowledge-manager/corpus-ingest" {
-			found = program.src == canonicalCorpusIngestProgram
+	applicationRoot := filepath.Clean("..")
+	catalogRoot, err := resolveCatalogRoot("corpus-ingest manifest test", applicationRoot)
+	if err != nil {
+		t.Fatal(err)
+	}
+	composition, err := resolveChatbotComposition(applicationRoot, catalogRoot)
+	if err != nil {
+		t.Fatal(err)
+	}
+	for _, root := range composition.manifest.Roots {
+		if root.ID == "catalog-corpus-ingest" {
+			if root.Ownership != "catalog" ||
+				root.Source != "agents/knowledge-manager/corpus-ingest/profile.yaml" {
+				t.Fatalf("canonical corpus-ingest root = %#v", root)
+			}
+			return
 		}
 	}
-	if !found {
-		t.Fatal("chart packaging does not stage canonical corpus-ingest library assets")
-	}
+	t.Fatal("agents/application.yaml has no catalog-owned corpus-ingest root")
 }

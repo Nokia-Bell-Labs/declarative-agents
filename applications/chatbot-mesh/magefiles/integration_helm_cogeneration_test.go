@@ -33,9 +33,9 @@ func TestChatbotFanOutCoGeneratedForNRags(t *testing.T) {
 	if err != nil {
 		t.Fatalf("helm template: %v\n%s", err, out)
 	}
-	topology := configMapKeyBlock(string(out), "agents__chatbot__request-topology.yaml")
+	topology := configMapKeyBlock(string(out), "agents__chatbot__request-topology-declarations.yaml")
 	if topology == "" {
-		t.Fatal("co-generated request-topology.yaml key not found")
+		t.Fatal("co-generated request-topology-declarations.yaml key not found")
 	}
 	for _, name := range []string{"alpha", "bravo", "charlie"} {
 		if !strings.Contains(topology, `"name": "`+name+`"`) ||
@@ -57,7 +57,7 @@ func TestChatbotFanOutCoGeneratedForNRags(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	fanout, err := os.ReadFile(filepath.Join(root, "request-fanout.yaml"))
+	fanout, err := os.ReadFile(filepath.Join(root, "request-fanout-declarations.yaml"))
 	if err != nil {
 		t.Fatal(err)
 	}

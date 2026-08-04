@@ -13,14 +13,12 @@ import (
 // These helpers back the applier test surface (test-rel08.0-applier). They read
 // the shipped applier profile and stage the coding chart with the applier
 // enabled, mirroring the chatbot-mesh applier tests retargeted to coding-agent's
-// serving-tree profile path and deployment names.
+// normalized actor path and deployment names.
 
-// agentDir returns the directory of a serving-tree agent profile. The applier is
-// a serving-tree profile (agents/serving/applier), not a canonical role packaged
-// through deployment.serving_profiles.
+// agentDir returns a normalized application-owned actor directory.
 func agentDir(t *testing.T, name string) string {
 	t.Helper()
-	return filepath.Join("..", "agents", "serving", name)
+	return filepath.Join("..", "agents", name)
 }
 
 // readIntakeYAML decodes a profile YAML file into a partial struct. It is
@@ -50,20 +48,9 @@ func findChartDir(t *testing.T) string {
 	return dir
 }
 
-// preparedApplierChart stages the chart with its serving profiles and the
-// application-owned applier profile, so an applier-enabled render carries the
-// applier ConfigMap the Deployment mounts. preparedTestChart alone stages the
-// serving roles and the collector but not the applier, which is special-cased
-// the same way (stageApplierProfile).
+// preparedApplierChart returns the production-prepared chart. The applier is a
+// manifest deployment root and is already present in the generated package.
 func preparedApplierChart(t *testing.T) string {
 	t.Helper()
-	chart := preparedTestChart(t)
-	appRoot, err := resolveApplicationRoot("applier chart test")
-	if err != nil {
-		t.Fatal(err)
-	}
-	if err := stageApplierProfile(appRoot, chart); err != nil {
-		t.Fatalf("stage applier profile: %v", err)
-	}
-	return chart
+	return preparedTestChart(t)
 }

@@ -1,0 +1,24 @@
+{
+  "name": "chatbot-mesh-observer-ui",
+  "private": true,
+  "version": "0.0.0",
+  "type": "module",
+  "scripts": {
+    "dev": "vite",
+    "build": "tsc && vite build",
+    "preview": "vite preview",
+    "test": "tsx --test test/*.test.ts test/*.test.tsx"
+  },
+  "dependencies": {
+    "react": "^19.2.8",
+    "react-dom": "^19.2.8"
+  },
+  "devDependencies": {
+    "@types/react": "^19.2.17",
+    "@types/react-dom": "^19.2.3",
+    "@vitejs/plugin-react": "^4.5.2",
+    "tsx": "^4.22.4",
+    "typescript": "^5.8.3",
+    "vite": "^6.3.5"
+  }
+}

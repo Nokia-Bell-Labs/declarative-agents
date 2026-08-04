@@ -1,5 +1,22 @@
 {{- if .Values.observer.enabled }}
 {{- $fullname := include "chatbot-mesh.fullname" . -}}
+{{- $uiArchive := .Values.observer.uiArchiveConfigMap | default "" -}}
+{{- if not $uiArchive }}
+apiVersion: v1
+kind: ConfigMap
+metadata:
+  name: {{ $fullname }}-observer-ui
+  labels:
+    {{- include "chatbot-mesh.labels" . | nindent 4 }}
+    app.kubernetes.io/component: observer
+data:
+  {{- range $path, $_ := .Files.Glob "profiles/agents/observer/ui/dist/**" }}
+  {{- $relative := $path | trimPrefix "profiles/agents/observer/ui/dist/" }}
+  {{ printf "agents__observer__ui__dist__%s" ($relative | replace "/" "__") }}: |-
+    {{- $.Files.Get $path | nindent 4 }}
+  {{- end }}
+---
+{{- end }}
 apiVersion: v1
 kind: ServiceAccount
 metadata:
@@ -60,8 +77,31 @@ spec:
       labels:
         {{- include "chatbot-mesh.selectorLabels" . | nindent 8 }}
         app.kubernetes.io/component: observer
+      {{- if $uiArchive }}
+      annotations:
+        checksum/observer-ui-archive: {{ required "observer.uiArchiveChecksum is required with observer.uiArchiveConfigMap" .Values.observer.uiArchiveChecksum | quote }}
+      {{- end }}
     spec:
       serviceAccountName: {{ $fullname }}-observer
+      {{- if $uiArchive }}
+      initContainers:
+        - name: stage-observer-ui
+          image: {{ include "chatbot-mesh.image" . | quote }}
+          imagePullPolicy: {{ .Values.image.pullPolicy }}
+          command:
+            - sh
+            - -c
+            - >-
+              echo '{{ .Values.observer.uiArchiveChecksum }}  /observer-ui-src/assets.tgz' |
+              sha256sum -c - &&
+              tar -xzf /observer-ui-src/assets.tgz -C /observer-ui &&
+              cd /observer-ui &&
+              sha256sum -c .inventory.sha256 &&
+              rm .inventory.sha256
+          volumeMounts:
+            - {name: observer-ui-source, mountPath: /observer-ui-src, readOnly: true}
+            - {name: observer-ui, mountPath: /observer-ui}
+      {{- end }}
       containers:
         - name: observer
           image: {{ include "chatbot-mesh.image" . | quote }}
@@ -89,7 +129,11 @@ spec:
             - {name: OBSERVER_NAMESPACE, value: {{ .Release.Namespace | quote }}}
             - {name: OBSERVER_LABEL_SELECTOR, value: {{ printf "app.kubernetes.io/instance=%s" .Release.Name | quote }}}
             - {name: OBSERVER_POLL_INTERVAL, value: {{ .Values.observer.pollInterval | quote }}}
-            - {name: OBSERVER_UI_ROOT, value: "{{ .Values.profiles.mountPath }}/agents/observer/ui"}
+            {{- if $uiArchive }}
+            - {name: OBSERVER_UI_ROOT, value: "/observer-ui"}
+            {{- else }}
+            - {name: OBSERVER_UI_ROOT, value: "{{ .Values.profiles.mountPath }}/agents/observer/ui/dist"}
+            {{- end }}
             # The kube_api client targets the loopback kubectl-proxy sidecar with
             # auth_ref none; the sidecar adds the service-account bearer token
             # (GH-1302).
@@ -105,6 +149,14 @@ spec:
             {{- toYaml .Values.observer.resources | nindent 12 }}
           volumeMounts:
             - {name: profiles, mountPath: {{ .Values.profiles.mountPath }}, readOnly: true}
+            {{- if $uiArchive }}
+            # Keep the external emptyDir beside, rather than nested under, the
+            # read-only profiles ConfigMap mount. Nested volume mounts can mask
+            # the observer profile itself on kubelet mount setup.
+            - {name: observer-ui, mountPath: "/observer-ui", readOnly: true}
+            {{- else }}
+            - {name: observer-ui, mountPath: "{{ .Values.profiles.mountPath }}/agents/observer/ui/dist", readOnly: true}
+            {{- end }}
             - {name: work, mountPath: {{ .Values.profiles.workMountPath }}}
         # kubectl-proxy sidecar: holds the pod's service-account token and serves
         # an unauthenticated read-only proxy on loopback. It rejects write verbs
@@ -123,6 +175,27 @@ spec:
             {{- toYaml .Values.observer.proxy.resources | nindent 12 }}
       volumes:
         {{- include "chatbot-mesh.profilesVolume" . | nindent 8 }}
+        - name: observer-ui
+          {{- if $uiArchive }}
+          emptyDir: {}
+        - name: observer-ui-source
+          configMap:
+            name: {{ $uiArchive }}
+            items:
+              - {key: assets.tgz, path: assets.tgz}
+          {{- else }}
+          projected:
+            defaultMode: 0444
+            sources:
+              - configMap:
+                  name: {{ $fullname }}-observer-ui
+                  items:
+                    {{- range $path, $_ := .Files.Glob "profiles/agents/observer/ui/dist/**" }}
+                    {{- $relative := $path | trimPrefix "profiles/agents/observer/ui/dist/" }}
+                    - key: {{ printf "agents__observer__ui__dist__%s" ($relative | replace "/" "__") }}
+                      path: {{ $relative }}
+                    {{- end }}
+          {{- end }}
         - name: work
           emptyDir: {}
 ---

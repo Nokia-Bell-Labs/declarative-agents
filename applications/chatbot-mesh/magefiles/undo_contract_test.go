@@ -31,14 +31,14 @@ func TestMutationUndoContractsStaySemanticallyAligned(t *testing.T) {
 		confirmation                                  bool
 	}
 	cases := []expectedContract{
-		{"../agents/applier/declarations.yaml", "await_applier_control", "reversible", "queue_event_restore", "rest_await_event", false},
+		{"../../catalog/agents/applier/declarations.yaml", "await_applier_control", "reversible", "queue_event_restore", "rest_await_event", false},
 		{"../agents/chatbot/declarations.yaml", "await_chatbot_control", "reversible", "queue_event_restore", "rest_await_event", false},
 		{"../../catalog/agents/collector/declarations.yaml", "await_collector_control", "reversible", "queue_event_restore", "rest_await_event", false},
 		{"../agents/provisioning-workflow-orchestrator/declarations.yaml", "await_provisioning_workflow_orchestrator_control", "reversible", "queue_event_restore", "rest_await_event", false},
 		{"../agents/creator/declarations.yaml", "await_creator_control", "reversible", "queue_event_restore", "rest_await_event", false},
 		{"../agents/rag-server/declarations.yaml", "await_rag_control", "reversible", "queue_event_restore", "rest_await_event", false},
-		{"../agents/applier/declarations.yaml", "stop_monitor_rest", "compensatable", "server_shutdown_or_user_action_compensation", "boundary_compensation", false},
-		{"../agents/applier/declarations.yaml", "stop_applier_requests", "compensatable", "server_shutdown_or_user_action_compensation", "boundary_compensation", false},
+		{"../../catalog/agents/applier/declarations.yaml", "stop_monitor_rest", "compensatable", "server_shutdown_or_user_action_compensation", "boundary_compensation", false},
+		{"../../catalog/agents/applier/declarations.yaml", "stop_applier_requests", "compensatable", "server_shutdown_or_user_action_compensation", "boundary_compensation", false},
 		{"../agents/chatbot/declarations.yaml", "stop_monitor_rest", "compensatable", "server_shutdown_or_user_action_compensation", "boundary_compensation", false},
 		{"../agents/chatbot/declarations.yaml", "stop_chat_requests", "compensatable", "server_shutdown_or_user_action_compensation", "boundary_compensation", false},
 		{"../agents/provisioning-workflow-orchestrator/declarations.yaml", "stop_monitor_rest", "compensatable", "server_shutdown_or_user_action_compensation", "boundary_compensation", false},

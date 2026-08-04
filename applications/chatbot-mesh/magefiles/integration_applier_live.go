@@ -158,6 +158,11 @@ func runApplierLive(coreRoot, profilesRoot string) error {
 		return err
 	}
 	defer cleanupChart()
+	assets, cleanupAssets, err := externalizeApplierLiveUIs(staged)
+	if err != nil {
+		return err
+	}
+	defer cleanupAssets()
 
 	// The chart reaches the applier pod as a mounted volume, not baked into the
 	// shared applier image (GH-1368): the staged chart is packaged to a tarball and
@@ -211,6 +216,11 @@ func runApplierLive(coreRoot, profilesRoot string) error {
 		return err
 	}
 	defer cluster.Release(kindrig.DefaultRun)
+	unbindKubeconfig, err := bindClusterKubeconfig(applierLiveCluster)
+	if err != nil {
+		return err
+	}
+	defer unbindKubeconfig()
 
 	if err := loadKindImage(applierLiveCluster, images.Applier); err != nil {
 		return err
@@ -224,13 +234,22 @@ func runApplierLive(coreRoot, profilesRoot string) error {
 		}
 	}
 
-	if err := helmInstallApplierLive(staged, chartArchive, images.Runtime, images.Applier); err != nil {
+	if err := helmInstallApplierLive(staged, chartArchive, images.Runtime, images.Applier, assets); err != nil {
 		return err
 	}
 	if err := waitApplierDeploymentReady(); err != nil {
 		return err
 	}
+	if err := assertApplierLiveAssetsMounted(assets); err != nil {
+		return err
+	}
+	if err := assertApplierReleaseSecrets(chartArchive, assets); err != nil {
+		return err
+	}
 	if err := assertApplierServesItsSurface(profilesRoot); err != nil {
+		return err
+	}
+	if err := assertApplierReleaseSecrets(chartArchive, assets); err != nil {
 		return err
 	}
 	fmt.Printf("integration:applierLive PASS - revision %s the applier runs on kind from an image built on the runtime "+
@@ -279,24 +298,28 @@ const applierLiveChartConfigMap = applierLiveRelease + "-applier-chart"
 // chatbot-mesh chart embeds the collector UI, so carrying the archive in-release
 // (values plus a rendered binaryData ConfigMap) stored it twice and overflowed
 // (GH-1407). This mirrors the GH-1402 curator-UI shard provisioning.
-func helmInstallApplierLive(chartPath, chartArchive, runtimeImage, applierImage string) error {
-	repo, tag := splitImageRef(runtimeImage)
-	applierRepo, applierTag := splitImageRef(applierImage)
+func helmInstallApplierLive(
+	chartPath, chartArchive, runtimeImage, applierImage string,
+	assets []applierLiveAsset,
+) error {
+	measured, err := measureApplierReleaseBudget(
+		chartPath, chartArchive, runtimeImage, applierImage, assets)
+	if err != nil {
+		return err
+	}
+	fmt.Printf("applierLive: release budget PASS - %s\n", measured.String())
 	if err := provisionApplierChartConfigMap(chartArchive); err != nil {
 		return err
 	}
-	cmd := exec.Command("helm", "install", applierLiveRelease, chartPath,
-		"--values", filepath.Join(chartPath, "ci", "kind-values.yaml"),
-		"--values", filepath.Join(chartPath, "ci", "kind-applier-values.yaml"),
-		"--set", "applier.chartArchiveConfigMap="+applierLiveChartConfigMap,
-		"--set", "image.repository="+repo,
-		"--set-string", "image.tag="+tag,
-		"--set", "image.pullPolicy=Never",
-		"--set", "applier.image.repository="+applierRepo,
-		"--set-string", "applier.image.tag="+applierTag,
-		"--set", "llm.externalURL=http://host.docker.internal:11434",
-		"--timeout", helmInstallTimeout.String(),
-	)
+	for _, asset := range assets {
+		if err := provisionApplierLiveAsset(asset); err != nil {
+			return err
+		}
+	}
+	args := append([]string{"install", applierLiveRelease, chartPath},
+		applierLiveValueArgs(chartPath, runtimeImage, applierImage, assets)...)
+	args = append(args, "--timeout", helmInstallTimeout.String())
+	cmd := exec.Command("helm", args...)
 	cmd.Stdout, cmd.Stderr = os.Stderr, os.Stderr
 	if err := cmd.Run(); err != nil {
 		return fmt.Errorf("helm install %s: %w", applierLiveRelease, err)
@@ -457,10 +480,16 @@ func assertApplierChartArchiveCarriesProfiles(archive string) error {
 	render := string(out)
 	for _, agent := range []string{"chatbot", "rag-server", "provisioning-workflow-orchestrator", "creator", "applier"} {
 		key := "agents__" + agent + "__profile.yaml"
+		if agent == "applier" {
+			key = "applications__chatbot-mesh__applier__profile.yaml"
+		}
 		if !strings.Contains(render, key) {
 			return fmt.Errorf("the chart the applier mounts at /chart renders no %s; an apply would replace the "+
 				"live profiles ConfigMap with one missing it, and that agent would not come back from a restart", key)
 		}
+	}
+	if !strings.Contains(render, "applications__catalog__applier__machine.yaml") {
+		return fmt.Errorf("the chart the applier mounts at /chart omits the canonical applier machine")
 	}
 	fmt.Println("applierLive: the chart the applier mounts at /chart renders every agent profile")
 	return nil

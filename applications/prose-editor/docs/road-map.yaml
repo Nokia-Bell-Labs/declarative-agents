@@ -79,19 +79,22 @@ releases:
   - version: "00.1"
     name: Tracer-bullet saga skeleton
     description: |
-      Prove the end-to-end saga skeleton with the minimal runnable slice:
+      The end-to-end saga skeleton is implemented as a deterministic,
+      agent-core-interpreted local tracer with the minimal runnable slice:
       workflow orchestrator, one specialist-editor stage (structure), critic
       verdict path (Pangram skipped), and local finalization. No voice or
       style stages, no GitHub publication, no Pangram upload.
 
-      The tracer validates the orchestrator state machine, immutable lineage,
-      structure-rag retrieval, one bounded retry from critic rejection, and
-      local workproduct finalization. Implementation findings that contradict
-      SRD details are reconciled before 00.2 scope is finalized.
-    status: planned
+      The tracer executes the shipped workflow-orchestrator profile through
+      agent-core and its self_invoke words execute the shipped structure editor
+      and voice critic profiles. Interpreter traces, immutable lineage, manifest
+      history, structure-rag receipts, one bounded retry, restart recovery, and
+      idempotent finalization are asserted. Deterministic boundaries replace
+      live LLM, GitHub, Pangram, Helm, and Kubernetes services.
+    status: implemented
     capability_status:
       documentation: specification_complete
-      runnable_module: planned
+      runnable_module: implemented
       managed_service: not_planned_for_release
       packaged: not_planned_for_release
       helm_managed: not_planned_for_release
@@ -99,8 +102,8 @@ releases:
     requirement_subsets:
       srd001-prose-editor-services:
         scope: partial
-        groups: [R1, R2, R3, R4, R5, R8]
-        note: Orchestrator, specialist-editor:structure, voice-critic, and structure-rag only, including the R8 telemetry contract across those services. Voice-rag, tightening-rag, and specialist-editor voice/style stages excluded.
+        groups: [R1, R2, R3, R4, R5]
+        note: Orchestrator, specialist-editor:structure, voice-critic, and structure-rag only. Served-process telemetry, voice-rag, tightening-rag, and specialist-editor voice/style stages are excluded.
       srd002-writing-saga-workproducts:
         scope: partial
         groups: [R1, R2, R3, R4, R5, R6]
@@ -128,25 +131,25 @@ releases:
           independent critic verdict without Pangram, retry the responsible
           stage when bounded policy permits, and finalize the accepted
           workproduct chain locally without commit, push, or pull request.
-        status: planned
+        status: implemented
     test_suites:
       - id: test-rel00.1-prose-editor
         summary: |
-          Plan 13 tracer-scoped cases covering orchestrator structure-critic
+          Twelve deterministic tracer-scoped cases cover orchestrator structure-critic
           graph, structure-editor machine, critic without Pangram, tracer
           happy path, structure-stage retry, source capture, workproduct
-          lineage, command errors, retry exhaustion, recovery, and the
-          telemetry contract across the tracer services.
-        status: planned
-        test_case_count: 13
+          lineage, command errors, retry exhaustion, recovery, and idempotent
+          replay.
+        status: implemented
+        test_case_count: 12
     planned_workproducts:
-      - {path: workproducts/<saga-id>/manifest.yaml, owner: workflow-orchestrator, status: planned}
-      - {path: workproducts/<saga-id>/manifest-history/<revision>.yaml, owner: workflow-orchestrator, status: planned}
-      - {path: workproducts/<saga-id>/00-original.md, owner: workflow-orchestrator, status: planned}
-      - {path: workproducts/<saga-id>/attempts/structure/<attempt>-<sha256>.md, owner: workflow-orchestrator, status: planned}
-      - {path: workproducts/<saga-id>/10-structure.md, owner: workflow-orchestrator, status: planned}
-      - {path: workproducts/<saga-id>/40-critique.yaml, owner: workflow-orchestrator, status: planned}
-      - {path: workproducts/<saga-id>/final.md, owner: workflow-orchestrator, status: planned}
+      - {path: workproducts/<saga-id>/manifest.yaml, owner: workflow-orchestrator, status: implemented}
+      - {path: workproducts/<saga-id>/manifest-history/<revision>.yaml, owner: workflow-orchestrator, status: implemented}
+      - {path: workproducts/<saga-id>/00-original.md, owner: workflow-orchestrator, status: implemented}
+      - {path: workproducts/<saga-id>/attempts/structure/<attempt>-<sha256>.md, owner: workflow-orchestrator, status: implemented}
+      - {path: workproducts/<saga-id>/10-structure.md, owner: workflow-orchestrator, status: implemented}
+      - {path: workproducts/<saga-id>/40-critique.yaml, owner: workflow-orchestrator, status: implemented}
+      - {path: workproducts/<saga-id>/final.md, owner: workflow-orchestrator, status: implemented}
     dependencies:
       - id: applications-shared-module-contract
         reference: ../../docs/specs/software-requirements/srd001-application-module-contract.yaml
@@ -156,6 +159,10 @@ releases:
         reference: ../../docs/specs/software-requirements/srd002-managed-application-services.yaml
         status: available
         use: Cite applicable lifecycle and service obligations without copying them.
+      - id: applications-consistency-contract
+        reference: ../../docs/specs/software-requirements/srd003-application-consistency.yaml
+        status: available
+        use: Govern the audit-only manifest, status vocabulary, ownership, and root classification.
       - id: agent-role-realizations
         reference: ../../docs/specs/semantic-models/agent-role-realizations.yaml
         status: available
@@ -176,22 +183,23 @@ releases:
     evidence_status:
       foundation_yaml: documented
       srd_requirements: structure_stage_and_critic_subset
-      profiles_and_machines: planned
-      tools_and_services: planned
-      structural_tests: planned
-      boundary_tests: planned
-      failure_and_recovery_tests: planned
-      end_to_end_test: planned
+      profiles_and_machines: implemented
+      tools_and_services: tooldefs_and_deterministic_boundaries_implemented
+      structural_tests: implemented
+      boundary_tests: deterministic_fixtures
+      failure_and_recovery_tests: implemented
+      end_to_end_test: interpreter_driven_deterministic_local
       publication_test: deferred_to_00_2
-      root_registration: intentionally_unchanged
-      executable_evidence: planned
+      root_registration: runnable
+      executable_evidence: interpreter_driven_deterministic_tracer
     completion_gate: |
       The tracer saga runs end-to-end: source capture, structure edit via
       specialist-editor:structure and structure-rag, critic verdict without
       Pangram, bounded structure-stage retry, and local finalization with
-      immutable workproduct lineage. All 12 planned tests pass. SRD
-      contradictions discovered during implementation are filed and reconciled
-      before 00.2 scope is finalized.
+      immutable workproduct lineage. All 12 corrected tests pass repeatedly,
+      including boundary, exhaustion, recovery, idempotency, and fault
+      injection. No publication, voice/style, packaging, Helm, or kind action
+      is part of this release.
 
   - version: "00.2"
     name: Full multi-stage editing and publication

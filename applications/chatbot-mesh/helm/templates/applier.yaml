@@ -16,7 +16,7 @@ as a mounted volume (the packaged chart, unpacked by the stage-chart init
 container), so one shared image serves every app.
 
 The chart tarball is carried by a ConfigMap the deploy/test tooling provisions
-out-of-release (kubectl apply), named by applier.chartArchiveConfigMap. It is kept
+out-of-release (kubectl create), named by applier.chartArchiveConfigMap. It is kept
 out of the Helm release because the chatbot-mesh chart embeds the collector trace
 UI, and encoding the packaged chart into the release values and a rendered
 ConfigMap's binaryData stored the archive twice and pushed the release Secret past
@@ -172,7 +172,7 @@ spec:
           imagePullPolicy: {{ .Values.applier.image.pullPolicy }}
           args:
             - "--profile"
-            - "{{ .Values.profiles.mountPath }}/agents/applier/profile.yaml"
+            - "{{ .Values.profiles.mountPath }}/applications/chatbot-mesh/applier/profile.yaml"
             - "--directory"
             - "{{ .Values.profiles.workMountPath }}"
             {{- with include "chatbot-mesh.otlpEndpoint" . }}

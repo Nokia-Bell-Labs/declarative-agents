@@ -177,11 +177,7 @@ func stageApplierLiveChart(resolved roots) (string, func(), error) {
 		cleanup()
 		return "", nil, fmt.Errorf("stage source chart: %w", err)
 	}
-	if err := prepareChartProfiles(resolved.Catalog, chart); err != nil {
-		cleanup()
-		return "", nil, err
-	}
-	if err := stageApplierProfile(resolved.Application, chart); err != nil {
+	if err := prepareChartProfiles(resolved.Application, resolved.Catalog, chart); err != nil {
 		cleanup()
 		return "", nil, err
 	}
@@ -332,7 +328,8 @@ func assertApplierChartArchiveCarriesProfiles(archive string) error {
 	for _, key := range []string{
 		"documentation-curator__profile.yaml",
 		"agents__collector__profile.yaml",
-		"agents__applier__profile.yaml",
+		"applications__agent-architecture__applier__profile.yaml",
+		"applications__catalog__applier__machine.yaml",
 	} {
 		if !strings.Contains(render, key) {
 			return fmt.Errorf("the packaged applier chart renders no %s; an apply would replace the live "+

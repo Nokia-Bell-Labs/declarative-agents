@@ -50,14 +50,10 @@ func TestDiscoverShippedUIs(t *testing.T) {
 	// A shipped UI: lockfile + build script + tracked dist.
 	app := filepath.Join(root, "agents", "chatbot", "ui", "app")
 	writeUIFile(t, filepath.Join(app, "package-lock.json"), "{}")
-	writeUIFile(t, filepath.Join(app, "package.json"), `{"scripts":{"build":"vite build"}}`)
+	writeUIFile(t, filepath.Join(app, "package.json"), `{"scripts":{"dev":"vite","build":"vite build","preview":"vite preview"}}`)
 	writeUIFile(t, filepath.Join(app, "dist", "index.html"), "<html>")
 	// A lockfile inside node_modules must be ignored.
 	writeUIFile(t, filepath.Join(app, "node_modules", "dep", "package-lock.json"), "{}")
-	// A package with a lockfile but no build script is not a shipped UI.
-	nob := filepath.Join(root, "agents", "tool")
-	writeUIFile(t, filepath.Join(nob, "package-lock.json"), "{}")
-	writeUIFile(t, filepath.Join(nob, "package.json"), `{"scripts":{"test":"jest"}}`)
 
 	uis, err := discoverShippedUIs([]string{root})
 	if err != nil {
@@ -65,6 +61,99 @@ func TestDiscoverShippedUIs(t *testing.T) {
 	}
 	if len(uis) != 1 || uis[0] != app {
 		t.Fatalf("discoverShippedUIs = %v, want [%s]", uis, app)
+	}
+}
+
+func TestDiscoverShippedUIsRejectsScriptOrDistDrift(t *testing.T) {
+	t.Parallel()
+	for _, tc := range []struct {
+		name    string
+		scripts string
+		dist    bool
+		want    string
+	}{
+		{name: "missing preview", scripts: `{"dev":"vite","build":"vite build"}`, dist: true, want: `"preview" script`},
+		{name: "missing dist", scripts: `{"dev":"vite","build":"vite build","preview":"vite preview"}`, want: "no tracked dist tree"},
+	} {
+		t.Run(tc.name, func(t *testing.T) {
+			root := t.TempDir()
+			app := filepath.Join(root, "ui")
+			writeUIFile(t, filepath.Join(app, "package-lock.json"), "{}")
+			writeUIFile(t, filepath.Join(app, "package.json"), `{"scripts":`+tc.scripts+`}`)
+			if tc.dist {
+				writeUIFile(t, filepath.Join(app, "dist", "index.html"), "<html>")
+			}
+			_, err := discoverShippedUIs([]string{root})
+			if err == nil || !strings.Contains(err.Error(), tc.want) {
+				t.Fatalf("discover error = %v, want %q", err, tc.want)
+			}
+		})
+	}
+}
+
+func TestRepositoryShippedUIDiscovery(t *testing.T) {
+	repoRoot, err := filepath.Abs("..")
+	if err != nil {
+		t.Fatal(err)
+	}
+	var roots []string
+	for _, root := range uiSearchRoots {
+		roots = append(roots, filepath.Join(repoRoot, filepath.FromSlash(root)))
+	}
+	got, err := discoverShippedUIs(roots)
+	if err != nil {
+		t.Fatal(err)
+	}
+	wantRel := []string{
+		"applications/catalog/agents/bench/ui",
+		"applications/catalog/agents/collector/ui",
+		"applications/catalog/agents/knowledge-manager/documentation-curator/ui/docs",
+		"applications/catalog/agents/knowledge-manager/documentation-curator/ui/monitor",
+		"applications/chatbot-mesh/agents/chatbot/ui/app",
+		"applications/chatbot-mesh/agents/observer/ui",
+	}
+	var want []string
+	for _, path := range wantRel {
+		want = append(want, filepath.Join(repoRoot, filepath.FromSlash(path)))
+	}
+	if !reflect.DeepEqual(got, want) {
+		t.Fatalf("discoverShippedUIs = %v, want %v", got, want)
+	}
+}
+
+func TestShippedUIsImportCanonicalDesignTokens(t *testing.T) {
+	repoRoot, err := filepath.Abs("..")
+	if err != nil {
+		t.Fatal(err)
+	}
+	canonical := filepath.Clean(filepath.Join(repoRoot, filepath.FromSlash(canonicalUITokensPath)))
+	for _, rel := range []string{
+		"applications/catalog/agents/bench/ui",
+		"applications/catalog/agents/collector/ui",
+		"applications/catalog/agents/knowledge-manager/documentation-curator/ui/docs",
+		"applications/catalog/agents/knowledge-manager/documentation-curator/ui/monitor",
+		"applications/chatbot-mesh/agents/chatbot/ui/app",
+		"applications/chatbot-mesh/agents/observer/ui",
+	} {
+		app := filepath.Join(repoRoot, filepath.FromSlash(rel))
+		data, err := os.ReadFile(filepath.Join(app, "src", "App.css"))
+		if err != nil {
+			t.Fatal(err)
+		}
+		first := strings.SplitN(string(data), "\n", 2)[0]
+		const prefix = `@import "`
+		if !strings.HasPrefix(first, prefix) || !strings.HasSuffix(first, `";`) {
+			t.Errorf("%s: first CSS line does not import canonical tokens: %q", rel, first)
+			continue
+		}
+		imported := strings.TrimSuffix(strings.TrimPrefix(first, prefix), `";`)
+		resolved := filepath.Clean(filepath.Join(app, "src", filepath.FromSlash(imported)))
+		if resolved != canonical {
+			t.Errorf("%s: token import resolves to %s, want %s", rel, resolved, canonical)
+		}
+		if strings.Contains(string(data), "--bg-primary:") {
+			t.Errorf("%s: App.css contains a copied canonical token declaration", rel)
+		}
 	}
 }
 
@@ -171,5 +260,28 @@ func TestRebuildAndDiffUIStopsOnHighBuildAudit(t *testing.T) {
 	}
 	if buildCalled {
 		t.Fatal("UI build ran after vulnerable build dependency audit")
+	}
+}
+
+func TestRebuildAndDiffUIRunsDeclaredTestsBeforeBuild(t *testing.T) {
+	app := t.TempDir()
+	writeUIFile(t, filepath.Join(app, "package.json"),
+		`{"scripts":{"dev":"vite","build":"vite build","preview":"vite preview","test":"node --test"}}`)
+	writeUIFile(t, filepath.Join(app, "package-lock.json"), "{}")
+	writeUIFile(t, filepath.Join(app, "dist", "index.html"), "<html>")
+	var calls []string
+	run := func(dir, _ string, args ...string) error {
+		calls = append(calls, strings.Join(args, " "))
+		if strings.Join(args, " ") == "run build" {
+			writeUIFile(t, filepath.Join(dir, "dist", "index.html"), "<html>")
+		}
+		return nil
+	}
+	if err := rebuildAndDiffUIWithRunner(app, run); err != nil {
+		t.Fatal(err)
+	}
+	want := []string{"ci", "audit --audit-level=high", "audit --omit=dev --audit-level=high", "test", "run build"}
+	if !reflect.DeepEqual(calls, want) {
+		t.Fatalf("runner calls = %v, want %v", calls, want)
 	}
 }

@@ -1,0 +1,107 @@
+rest:
+  version: v1
+  auth:
+    none: {type: none}
+  limits:
+    local_structure_corpus:
+      timeout: 30s
+      read_timeout: 30s
+      max_request_bytes: 1048576
+      max_response_bytes: 1048576
+      redirect: {mode: none}
+      network:
+        schemes: [http]
+        hosts: [127.0.0.1, localhost]
+        ports: [8000, 11434, ${PROSE_TRACER_MODEL_PORT:-18086}]
+  clients:
+    ollama:
+      base_url: "${OLLAMA_URL:-http://127.0.0.1:11434}"
+      auth_ref: none
+      limits_ref: local_structure_corpus
+      operations:
+        version:
+          method: GET
+          path: /api/version
+          params: {body_source: none}
+          success: {status: [200], signal: OllamaReady}
+          response:
+            output: {version: $.version}
+          side_effects:
+            - {kind: external_api, target: ollama.version, state: read_only}
+          reversibility: {classification: reversible, undo: noop}
+        embed_query:
+          method: POST
+          path: /api/embeddings
+          params:
+            body_source: previous_result
+            input_mapping: {}
+          body:
+            model: "${PROSE_EDITOR_EMBEDDING_MODEL:-qwen3-embedding:8b}"
+            prompt: "What structure and outline patterns apply to this document?"
+          success: {status: [200], signal: QueryEmbedded}
+          response:
+            output: {embedding: $.embedding}
+          side_effects:
+            - {kind: external_api, target: ollama.embeddings, state: read_only}
+          reversibility: {classification: reversible, undo: noop}
+    chroma:
+      base_url: "${CHROMA_URL:-http://127.0.0.1:8000}"
+      auth_ref: none
+      limits_ref: local_structure_corpus
+      operations:
+        heartbeat:
+          method: GET
+          path: /api/v2/heartbeat
+          params: {body_source: none}
+          success: {status: [200], signal: ChromaReady}
+          side_effects:
+            - {kind: external_api, target: chroma.heartbeat, state: read_only}
+          reversibility: {classification: reversible, undo: noop}
+        create_or_get_collection_query:
+          method: GET
+          path: "/api/v2/tenants/default_tenant/databases/default_database/collections/${STRUCTURE_COLLECTION:-structure}"
+          params:
+            body_schema:
+              type: object
+              required: [query_embeddings]
+              properties:
+                query_embeddings: {type: array}
+            body_source: previous_result
+            input_mapping:
+              query_embeddings: $.mapped.embedding
+            carry_forward: [query_embeddings]
+          success: {status: [200], signal: CollectionReady}
+          response:
+            output: {collection_id: $.id}
+          side_effects:
+            - {kind: external_api, target: chroma.collection, state: read_only}
+          reversibility: {classification: reversible, undo: noop}
+        query_records:
+          method: POST
+          path: /api/v2/tenants/default_tenant/databases/default_database/collections/{collection}/query
+          params:
+            path:
+              collection: {type: string}
+            body_schema:
+              type: object
+              required: [query_embeddings]
+              properties:
+                query_embeddings: {type: array}
+            body_source: previous_result
+            input_mapping:
+              collection: $.mapped.collection_id
+              query_embeddings: $.carried.query_embeddings
+          body:
+            query_embeddings: ["{{ params.query_embeddings }}"]
+            n_results: 8
+            include: [documents, distances, metadatas]
+          success: {status: [200], signal: QueryResponded}
+          response:
+            output:
+              ids: $.ids
+              documents: $.documents
+              distances: $.distances
+              metadatas: $.metadatas
+          side_effects:
+            - {kind: external_api, target: chroma.query, state: read_only}
+          reversibility: {classification: reversible, undo: noop}

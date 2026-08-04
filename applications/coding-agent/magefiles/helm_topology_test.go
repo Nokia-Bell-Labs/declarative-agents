@@ -23,7 +23,9 @@ func TestHelmPrepareStagesPackageAsOnlyProfileSource(t *testing.T) {
 	}
 	for _, rel := range []string{
 		"deployment-manifest.yaml",
+		"manifests/applier.yaml",
 		"manifests/planner.yaml",
+		"applier/applications/coding-agent/applier/profile.yaml",
 		"planner/applications/coding-agent/planner/profile.yaml",
 		"executor/applications/coding-agent/executor/profile.yaml",
 		"critic/applications/coding-agent/critic/profile.yaml",
@@ -63,8 +65,8 @@ func TestHelmCoreTopologyRendersRoleContract(t *testing.T) {
 		`image: "ghcr.io/nokia-bell-labs/declarative-agents/agent-core-toolchain:0.1.0"`); got != 3 {
 		t.Errorf("shared agent-core-toolchain image count = %d, want 3", got)
 	}
-	if got := strings.Count(render, "checksum/profiles:"); got != 3 {
-		t.Errorf("profile rollout checksum count = %d, want 3", got)
+	if got := strings.Count(render, "checksum/profiles:"); got != 4 {
+		t.Errorf("profile rollout checksum count = %d, want 4 manifest deployments", got)
 	}
 	if got := strings.Count(render, "httpGet: {path: /api/lifecycle/health, port: control}"); got != 6 {
 		t.Errorf("truthful lifecycle probes = %d, want readiness+liveness for 3 roles", got)
@@ -152,13 +154,6 @@ func preparedTestChart(t *testing.T) string {
 	if err := prepareHelmProfiles(packageRoot, chart); err != nil {
 		t.Fatal(err)
 	}
-	catalogRoot, err := resolveCatalogRoot("test chart", app)
-	if err != nil {
-		t.Fatal(err)
-	}
-	if err := stageCollectorProfile(catalogRoot, chart); err != nil {
-		t.Fatal(err)
-	}
 	return chart
 }
 
@@ -191,6 +186,27 @@ func TestHelmCollectorServesUI(t *testing.T) {
 	}
 	if strings.Contains(render, "_UI_ROOT") {
 		t.Error("collector render unexpectedly sets a UI root environment variable (GH-1228)")
+	}
+}
+
+func TestHelmCollectorMountFollowsGeneratedManifest(t *testing.T) {
+	chart := preparedTestChart(t)
+	manifestPath := filepath.Join(chart, "profiles", "manifests", "collector.yaml")
+	var manifest rolePackageManifest
+	readYAMLFile(t, manifestPath, &manifest)
+	manifest.Profile = "agents/collector-alternate/profile.yaml"
+	if err := writeYAML(manifestPath, manifest); err != nil {
+		t.Fatal(err)
+	}
+
+	render := helmTemplate(t, chart)
+	for _, want := range []string{
+		`workingDir: /profiles/agents/collector-alternate`,
+		`- "/profiles/agents/collector-alternate/profile.yaml"`,
+	} {
+		if !strings.Contains(render, want) {
+			t.Errorf("collector render did not follow generated manifest: missing %q", want)
+		}
 	}
 }
 

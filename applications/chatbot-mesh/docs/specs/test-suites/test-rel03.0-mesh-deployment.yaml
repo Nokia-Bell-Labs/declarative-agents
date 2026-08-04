@@ -56,7 +56,7 @@ test_cases:
     description: |
       Locks srd003 R2: ragUnits renders the chatbot's ordered topology declaration,
       REST network allowlist, monitor_proxy upstreams, and monitored-agent list.
-      request-machine.yaml and request-fanout.yaml remain packaged verbatim with
+      request-machine.yaml and request-fanout-declarations.yaml remain packaged verbatim with
       one for_each and one rag_query. A three-RAG render changes only topology data
       and allowlisted/upstream hosts, retains one selected-target REST operation,
       binds servers to 0.0.0.0, and passes the profile validation gate.

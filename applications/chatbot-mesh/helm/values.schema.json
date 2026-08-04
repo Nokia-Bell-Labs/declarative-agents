@@ -213,9 +213,11 @@
     "observer": {
       "type": "object",
       "additionalProperties": false,
-      "required": ["enabled", "ports", "pollInterval", "resources", "proxy"],
+      "required": ["enabled", "uiArchiveConfigMap", "uiArchiveChecksum", "ports", "pollInterval", "resources", "proxy"],
       "properties": {
         "enabled": {"type": "boolean"},
+        "uiArchiveConfigMap": {"type": "string"},
+        "uiArchiveChecksum": {"type": "string", "pattern": "^(|[a-f0-9]{64})$"},
         "ports": {"$ref": "#/definitions/agentPorts"},
         "pollInterval": {"$ref": "#/definitions/nonEmptyString"},
         "resources": {"$ref": "#/definitions/resources"},
@@ -279,10 +281,12 @@
     "collector": {
       "type": "object",
       "additionalProperties": false,
-      "required": ["enabled", "implementation", "image", "otlpGRPCPort", "otlpHTTPPort", "externalOTLPEndpoint", "integrationResource"],
+      "required": ["enabled", "implementation", "uiArchiveConfigMap", "uiArchiveChecksum", "image", "otlpGRPCPort", "otlpHTTPPort", "externalOTLPEndpoint", "integrationResource"],
       "properties": {
         "enabled": {"type": "boolean"},
         "implementation": {"type": "string", "enum": ["agent", "contrib"]},
+        "uiArchiveConfigMap": {"type": "string"},
+        "uiArchiveChecksum": {"type": "string", "pattern": "^(|[a-f0-9]{64})$"},
         "image": {"$ref": "#/definitions/image"},
         "otlpGRPCPort": {"$ref": "#/definitions/port"},
         "otlpHTTPPort": {"$ref": "#/definitions/port"},

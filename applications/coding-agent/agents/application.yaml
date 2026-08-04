@@ -1,58 +1,113 @@
 schema_version: 1
 application: coding-agent
-agent_profiles:
-  compatible_release: applications/catalog/v0.20260730.0
-  references:
-    - role: planner
-      source: agents/planner/profile.yaml
-      runtime_path: agents/planner/profile.yaml
-    - role: executor
-      source: agents/executor/profile.yaml
-      runtime_path: agents/executor/profile.yaml
-    - role: critic
-      source: agents/critic/profile.yaml
-      runtime_path: agents/critic/profile.yaml
-    - role: critic-workspace
-      source: agents/critic/profile-workspace.yaml
-      runtime_path: agents/critic/profile-workspace.yaml
+ownership: composition-only
+module_status: implemented
+capabilities:
+  runnable_module:
+    status: implemented
+    evidence:
+      - go test ./magefiles
+  managed_service:
+    status: implemented
+    evidence:
+      - mage integration:servingHealth
+      - mage integration:servingRemote
+  packaged:
+    status: implemented
+    evidence:
+      - mage packageValidate
+  helm_managed:
+    status: implemented
+    evidence:
+      - go test ./magefiles -run '^TestHelm'
+      - mage helm:package
+  kind_demo:
+    status: implemented
+    evidence:
+      - mage integration:helmSmoke
+  ui:
+    status: implemented
+    evidence:
+      - go test ./magefiles -run '^Test(ManifestMutationControlsCollectorAssets|HelmCollectorServesUI)$'
+roots:
+  - id: planner
+    ownership: catalog
+    source: agents/planner/profile.yaml
+    runtime_path: agents/planner/profile.yaml
+    compatible_release: v0.20260804.0
+  - id: executor
+    ownership: catalog
+    source: agents/executor/profile.yaml
+    runtime_path: agents/executor/profile.yaml
+    compatible_release: v0.20260804.0
+  - id: critic
+    ownership: catalog
+    source: agents/critic/profile.yaml
+    runtime_path: agents/critic/profile.yaml
+    compatible_release: v0.20260804.0
+  - id: critic-workspace
+    ownership: catalog
+    source: agents/critic/profile-workspace.yaml
+    runtime_path: agents/critic/profile-workspace.yaml
+    compatible_release: v0.20260804.0
+  - id: coding-planner-server
+    ownership: local
+    source: agents/planner/profile.yaml
+    runtime_path: applications/coding-agent/planner/profile.yaml
+  - id: coding-executor-server
+    ownership: local
+    source: agents/executor/profile.yaml
+    runtime_path: applications/coding-agent/executor/profile.yaml
+  - id: coding-critic-server
+    ownership: local
+    source: agents/critic/profile.yaml
+    runtime_path: applications/coding-agent/critic/profile.yaml
+  - id: applier
+    ownership: local
+    source: agents/applier/profile.yaml
+    runtime_path: applications/coding-agent/applier/profile.yaml
+  - id: collector
+    ownership: catalog
+    source: agents/collector/profile.yaml
+    runtime_path: agents/collector/profile.yaml
+    compatible_release: v0.20260804.0
 runtime:
   mount_path: /profiles
   image_contains_profiles: false
 deployment:
-  serving_profiles:
-    - role: planner
-      source: agents/serving/planner/profile.yaml
-      runtime_path: applications/coding-agent/planner/profile.yaml
-    - role: executor
-      source: agents/serving/executor/profile.yaml
-      runtime_path: applications/coding-agent/executor/profile.yaml
-    - role: critic
-      source: agents/serving/critic/profile.yaml
-      runtime_path: applications/coding-agent/critic/profile.yaml
-configuration:
-  planner:
-    llm: agents/planner/llm/default.yaml
-    child_profile: agents/executor/profile.yaml
-    budget: agents/planner/machine.yaml
-  executor:
-    llm: agents/executor/llm/default.yaml
-    budget: agents/executor/machine.yaml
-  critic:
-    rest_targets: none
-    model: none
-    child_profile: none
-    budget: agents/critic/machine.yaml
-  critic-workspace:
-    rest_targets: none
-    model: none
-    child_profile: none
-    budget: agents/critic/machine-workspace.yaml
-  applier:
-    # Deployment-plane actuator (srd006): no LLM, no serving child. Its authority
-    # is the helm and kubectl exec words declared in agents/serving/applier; it
-    # verifies the planner, executor, and critic Deployments via kubectl rollout
-    # status and rolls back on failure.
-    rest_targets: none
-    model: none
-    child_profile: none
-    budget: agents/serving/applier/machine.yaml
+  entries:
+    - id: planner
+      root: coding-planner-server
+      workload: planner
+      profile_path: applications/coding-agent/planner/profile.yaml
+      mount_path: /profiles
+    - id: executor
+      root: coding-executor-server
+      workload: executor
+      profile_path: applications/coding-agent/executor/profile.yaml
+      mount_path: /profiles
+    - id: critic
+      root: coding-critic-server
+      workload: critic
+      profile_path: applications/coding-agent/critic/profile.yaml
+      mount_path: /profiles
+    - id: applier
+      root: applier
+      workload: applier
+      profile_path: applications/coding-agent/applier/profile.yaml
+      mount_path: /profiles
+    - id: collector
+      root: collector
+      workload: collector
+      profile_path: agents/collector/profile.yaml
+      mount_path: /profiles
+ui:
+  assets:
+    - id: collector
+      owner: collector
+      ownership: catalog
+      source: agents/collector/ui/dist
+      runtime_path: agents/collector/ui/dist
+      package_path: agents/collector/ui/dist
+      rest_definition: agents/collector/rest.yaml
+      shared_tokens: "canonical import: applications/catalog/ui/design-tokens.css"

@@ -61,8 +61,7 @@ rest:
           path: /provisioning/api/state
           binding: machine_request
           machine_request:
-            profile: profile.yaml
-            machine: state-machine.yaml
+            profile: state-profile.yaml
             timeout: 15s
             request:
               body: {}
@@ -117,8 +116,7 @@ rest:
                 schema_version: {type: string}
                 content: {type: string}
           machine_request:
-            profile: profile.yaml
-            machine: apply-machine.yaml
+            profile: apply-profile.yaml
             timeout: 130s
             request:
               body:
@@ -180,8 +178,7 @@ rest:
           path: /provisioning/api/rollout
           binding: machine_request
           machine_request:
-            profile: profile.yaml
-            machine: rollout-machine.yaml
+            profile: rollout-profile.yaml
             timeout: 10s
             request:
               body: {}

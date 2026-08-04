@@ -1,0 +1,16 @@
+schema_version: prose-editor.critic-response/v1
+outcome: completed
+verdict: reject
+responsible_stage: structure
+feedback: Restore the original factual and immutability claims.
+findings:
+  - {category: semantic_preservation, status: reject}
+  - {category: structural_intent, status: reject}
+  - {category: voice_match, status: pass}
+  - {category: tightening_quality, status: pass}
+  - {category: unsupported_additions, status: reject}
+  - {category: anchor_copy_risk, status: pass}
+pangram:
+  consent_status: withheld
+  calls: 0
+producer: voice-critic

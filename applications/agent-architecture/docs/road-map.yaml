@@ -7,12 +7,13 @@ overview: |
   show the trace waterfall as part of the demo story. Both releases reference
   the canonical catalog profiles, pin the Go present tool, and provide
   deterministic Mage evidence, extending shared srd001 and srd002 R1 through R3
-  by reference. Releases 02.0 and 03.0 add the planned Kubernetes deployment: a
+  by reference. Releases 02.0 and 03.0 provide the implemented Kubernetes deployment: a
   chart running the documentation-curator and the collector from mounted
   catalog-owned closures, a values schema, and a bounded kind smoke, citing
   srd002 R4 through R6 and the application-owned srd001-helm-deployment. Release
-  04.0 adds the planned standalone declarative applier (srd002-applier). The
-  deployment resources land in later sub-issues, so those releases are planned.
+  04.0 provides the implemented standalone declarative applier
+  (srd002-applier). The package, render, bounded kind, and applier integration
+  targets are checked in; live execution remains prerequisite-gated.
 
 releases:
   - version: "00.0"
@@ -32,13 +33,13 @@ releases:
         services: [documentation-curator, Go present]
         live_observation_status: dependency_gated
       - id: packaged
-        status: planned
+        status: implemented
         realized_in: "02.0"
       - id: helm_managed
-        status: planned
+        status: implemented
         realized_in: "02.0"
       - id: kind_demo
-        status: planned
+        status: implemented
         realized_in: "03.0"
     shared_requirements:
       - owner: applications
@@ -133,15 +134,15 @@ releases:
       values.schema.json and template guards own the deployment values, and a
       package target emits one self-contained archive that lints and renders
       without a source checkout. The chart deploys canonical profiles by
-      reference and copies neither the curator profile and its user interface nor
-      the collector profile. The Helm resources land in later sub-issues, so this
-      release is planned.
-    status: planned
+      reference and copies neither canonical implementation. Oversized curator UI
+      assets are provisioned out-of-release from manifest-declared catalog roots;
+      the collector UI remains in its bounded role package.
+    status: implemented
     capabilities:
       - id: packaged
-        status: planned
+        status: implemented
       - id: helm_managed
-        status: planned
+        status: implemented
     shared_requirements:
       - owner: applications
         id: srd002-managed-application-services
@@ -154,11 +155,16 @@ releases:
     use_cases:
       - id: rel02.0-uc001-render-packaged-chart
         summary: An operator prepares the catalog-owned closures and renders and validates the packaged chart.
-        status: planned
+        status: implemented
     test_suites:
       - id: test-rel02.0-render-packaged-chart
-        summary: Planned topology render, closure staging and checksum, values schema and guards, and self-contained archive evidence.
-        status: planned
+        summary: Topology render, manifest-derived closure and checksum, values schema and guards, and self-contained archive evidence.
+        status: implemented
+    evidence:
+      - command: go test ./magefiles
+        proves: Manifest mutations control package output, undeclared roots fail, prepared provenance validates, and package/render/UI/applier guards pass.
+      - command: mage helm:package
+        proves: The manifest-derived self-contained chart archive lints and renders.
   - version: "03.0"
     name: Live Helm smoke
     description: |
@@ -169,11 +175,12 @@ releases:
       documentation interface, a declarative lifecycle-exit request stops the
       curator cleanly, and the collector retains a trace the curator exported. The
       target skips on missing prerequisites and cleans up on every terminal path.
-      The kind target lands in a later sub-issue, so this release is planned.
-    status: planned
+      The target is checked in and skips truthfully when a required live
+      prerequisite is unavailable.
+    status: implemented
     capabilities:
       - id: kind_demo
-        status: planned
+        status: implemented
     shared_requirements:
       - owner: applications
         id: srd002-managed-application-services
@@ -183,11 +190,16 @@ releases:
     use_cases:
       - id: rel03.0-uc001-live-helm-smoke
         summary: A developer proves the packaged topology on a disposable kind cluster.
-        status: planned
+        status: implemented
     test_suites:
       - id: test-rel03.0-live-helm-smoke
-        summary: Planned packaged-archive install, real readiness and clean exit, retained trace, and skip and cleanup evidence.
-        status: planned
+        summary: Packaged-archive install, real readiness and clean exit, retained trace, and skip and cleanup evidence.
+        status: implemented
+    evidence:
+      - command: mage integration:helmSmoke
+        proves: The bounded prerequisite-gated kind workflow installs the archive, observes workloads and lifecycle exit, and cleans up.
+      - command: go test ./magefiles -run '^Test(SelectCuratorPod|CuratorShutdownObserved)$'
+        proves: Deterministic pod selection and clean lifecycle termination classification.
   - version: "04.0"
     name: Declarative applier agent
     description: |
@@ -202,19 +214,28 @@ releases:
       network-gated off the serving pods. The Agent Architecture runs no control
       plane, so there is no creator, orchestrator, or panel; the applier image
       carrying the CLIs is a recorded divergence from the profile-free image
-      contract. The profile, chart resources, and integration targets land in
-      later sub-issues, so this release is planned.
-    status: planned
+      contract. The profile, chart resources, recording-fake tracer, schema
+      tests, and prerequisite-gated live target are checked in. The
+      application-local applier wrapper composes the canonical catalog applier
+      while retaining chart-specific REST, command, schema, and rollout bindings.
+    status: implemented
     application_srds:
       - srd002-applier
     use_cases:
       - id: rel04.0-uc001-declarative-applier
         summary: An operator or CI caller submits a decided values patch that the applier validates, applies, verifies, and rolls back on failure.
-        status: planned
+        status: implemented
     test_suites:
       - id: test-rel04.0-declarative-applier
-        summary: Planned recording-fake terminal coverage, real chart-schema rejection, applier-only CLI authority, broken-read classification, and a live on-cluster rollout and rollback.
-        status: planned
+        summary: Recording-fake terminal coverage, real chart-schema rejection, applier-only CLI authority, broken-read classification, and a live on-cluster rollout and rollback target.
+        status: implemented
+    evidence:
+      - command: go test ./magefiles -run '^TestApplier'
+        proves: Local applier machine, schema, render, authority, rollout, and bounded infrastructure contracts.
+      - command: mage integration:applier
+        proves: Recording fakes drive every declared terminal and enforce values-plane authority.
+      - command: mage integration:applierLive
+        proves: The prerequisite-gated kind target exercises real upgrade, verification, rollback, and schema rejection.
 
   - version: "99.0"
     name: Fleet observer adoption

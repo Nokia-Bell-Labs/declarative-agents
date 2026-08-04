@@ -12,9 +12,10 @@ One profile-free runtime image serves every role: the shared agent-core-toolchai
 supplied from a ConfigMap and mounted read-only at `/profiles`, not baked into the
 image, so the same image runs the planner, executor, and critic, and a values change
 re-renders the topology without rebuilding images (the agent-core mounted-profile
-contract; see `docs/SPECIFICATIONS.yaml`). The serving profiles are packaged into
-per-role ConfigMaps by `mage helmPrepare`; the collector and applier profiles are
-staged alongside them.
+contract; see `docs/SPECIFICATIONS.yaml`). Every manifest deployment entry,
+including the catalog collector, is packaged into per-workload ConfigMaps by
+`mage helmPrepare`; its declared UI asset is included in the same collector
+shard.
 
 ## Topology
 

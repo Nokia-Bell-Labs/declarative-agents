@@ -96,7 +96,11 @@ func TestApplierScenariosCoverEveryTerminal(t *testing.T) {
 		{"state-machine.yaml", stateLegs},
 	} {
 		var machine rolloutMachine
-		readIntakeYAML(t, filepath.Join(agentDir(t, "applier"), tc.machine), &machine)
+		machinePath := filepath.Join("..", "..", "catalog", "agents", "applier", tc.machine)
+		if tc.machine == "state-machine.yaml" {
+			machinePath = filepath.Join(agentDir(t, "applier"), tc.machine)
+		}
+		readIntakeYAML(t, machinePath, &machine)
 		if len(machine.TerminalStates) == 0 {
 			t.Fatalf("%s declares no terminal states", tc.machine)
 		}
@@ -133,7 +137,7 @@ func TestFakeScriptsClassifyTheDeclaredInvocations(t *testing.T) {
 		{"helm_upgrade", "helm", "upgrade"},
 		{"helm_rollback", "helm", "rollback"},
 		{"kubectl_rollout_poll", "kubectl", "poll"},
-		{"kubectl_rollout_status", "kubectl", "verify"},
+		{"verify_rollout", "kubectl", "verify"},
 		{"kubectl_get_rollout_counts", "kubectl", "counts"},
 		{"helm_get_values", "helm", "get-values"},
 	} {

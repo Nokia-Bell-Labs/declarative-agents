@@ -1,6 +1,6 @@
 id: srd006-applier
 title: Declarative Applier Agent
-status: planned
+status: implemented
 
 context: |
   The applier is the coding application's deployment-plane actuator: a standalone
@@ -16,10 +16,11 @@ context: |
   submits it; the applier receives that decided document and realizes it. It edits
   deployment values and triggers rollouts only. It never submits a host, URL, method,
   or credential to a running planner, executor, or critic. Authority is set by
-  declared, validated config, never by this actuation surface. The reusable request
-  runtime, monitor server, REST server, and exec tools stay in agent-core; the
-  actuation surface, the validate-apply-verify-rollback machine, and the declared
-  helm and kubectl bindings are profile-owned.
+  declared, validated config, never by this actuation surface. The reusable
+  lifecycle and validate-apply-verify-rollback machines and shared ToolDefs live
+  in the catalog applier family (srd022). This application owns its endpoint,
+  chart, schema, Helm and kubectl bindings, rollout targets, RBAC, and caller
+  authorization; agent-core owns runtime execution.
 
 problem: |
   The coding chart (srd003) is installed and upgraded today by an operator running
@@ -123,6 +124,9 @@ depends_on:
 platform_dependencies:
   # agent-core runtime contracts this agent builds on. External references, owned
   # by agent-core, not part of this application's corpus.
+  - srd_id: srd022-applier
+    provider: applications/catalog
+    symbols_used: [R1, R2, R3, R4, R5]
   - srd_id: srd029-rest-server-tools
     provider: agent-core
     symbols_used: [R1]

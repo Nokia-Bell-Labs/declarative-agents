@@ -79,6 +79,14 @@ func testConfig(t *testing.T) string {
 	return path
 }
 
+func healthyEnsureOptions() EnsureOptions {
+	return EnsureOptions{
+		HealthRun: func(string, ...string) ([]byte, error) {
+			return []byte("ok"), nil
+		},
+	}
+}
+
 // TestEnsureClusterCreatesWhenAbsent covers the absent case: no cluster
 // exists, so the run creates one and owns it.
 func TestEnsureClusterCreatesWhenAbsent(t *testing.T) {
@@ -98,17 +106,157 @@ func TestEnsureClusterCreatesWhenAbsent(t *testing.T) {
 // TestEnsureClusterReusesPreExistingWithoutOwnership covers the pre-existing
 // case: the run reuses the cluster and must not claim ownership.
 func TestEnsureClusterReusesPreExistingWithoutOwnership(t *testing.T) {
-	kind := &fakeKind{existing: []string{"da-chatbot-mesh-smoke"}}
-	cluster, err := EnsureCluster(kind.run, "da-chatbot-mesh-smoke", testConfig(t), 120*time.Second)
+	kind := &fakeKind{
+		existing:   []string{"da-chatbot-mesh-smoke"},
+		kubeconfig: []byte("apiVersion: v1\nkind: Config\n"),
+	}
+	for i := 0; i < 2; i++ {
+		cluster, err := EnsureClusterWithOptions(
+			kind.run, "da-chatbot-mesh-smoke", testConfig(t), 120*time.Second,
+			healthyEnsureOptions())
+		if err != nil {
+			t.Fatalf("ensure %d: %v", i+1, err)
+		}
+		if cluster.Created {
+			t.Error("a healthy pre-existing cluster must never be owned by this run")
+		}
+	}
+	if kind.issued("create") || kind.issued("delete") {
+		t.Errorf("healthy reuse must not mutate the cluster, calls: %v", kind.calls)
+	}
+}
+
+func TestEnsureClusterRefusesUnhealthyUnownedReuse(t *testing.T) {
+	kind := &fakeKind{
+		existing:   []string{"developer-cluster"},
+		kubeconfig: []byte("apiVersion: v1\nkind: Config\n"),
+	}
+	var healthCall string
+	var generatedKubeconfig string
+	options := EnsureOptions{
+		HealthRun: func(name string, args ...string) ([]byte, error) {
+			healthCall = name + " " + strings.Join(args, " ")
+			generatedKubeconfig = args[1]
+			content, err := os.ReadFile(generatedKubeconfig)
+			if err != nil {
+				t.Fatalf("read generated health kubeconfig: %v", err)
+			}
+			if !strings.Contains(string(content), "kind: Config") {
+				t.Fatalf("health kubeconfig = %q, want generated cluster config", content)
+			}
+			return []byte("TLS handshake timeout"), errors.New("exit status 1")
+		},
+	}
+	cluster, err := EnsureClusterWithOptions(
+		kind.run, "developer-cluster", testConfig(t), 120*time.Second, options)
+	if err == nil {
+		t.Fatal("an unhealthy unowned cluster must be refused")
+	}
+	if cluster != (Cluster{}) {
+		t.Fatalf("refused cluster = %+v, want zero ownership", cluster)
+	}
+	for _, want := range []string{
+		"developer-cluster",
+		"health command kubectl",
+		"get --raw=/readyz",
+		"refusing to delete",
+		"remediation:",
+	} {
+		if !strings.Contains(err.Error(), want) {
+			t.Errorf("error omitted %q: %v", want, err)
+		}
+	}
+	if !strings.Contains(healthCall, "--kubeconfig ") ||
+		!strings.Contains(healthCall, "--request-timeout=10s get --raw=/readyz") {
+		t.Errorf("health call = %q, want generated kubeconfig and readyz", healthCall)
+	}
+	if kind.issued("delete") || kind.issued("create") {
+		t.Fatalf("unowned cluster was mutated: %v", kind.calls)
+	}
+	if _, statErr := os.Stat(generatedKubeconfig); !os.IsNotExist(statErr) {
+		t.Fatalf("health kubeconfig was not cleaned up: %v", statErr)
+	}
+}
+
+func TestEnsureClusterRecreatesUnhealthyOwnedReuse(t *testing.T) {
+	kind := &fakeKind{
+		existing:   []string{"da-coding-agent-applier"},
+		kubeconfig: []byte("apiVersion: v1\nkind: Config\n"),
+	}
+	options := EnsureOptions{
+		ReusePolicy: RecreateUnhealthyOwnedCluster,
+		HealthRun: func(string, ...string) ([]byte, error) {
+			return []byte("connection refused"), errors.New("exit status 1")
+		},
+	}
+	cluster, err := EnsureClusterWithOptions(
+		kind.run, "da-coding-agent-applier", testConfig(t), 120*time.Second, options)
 	if err != nil {
 		t.Fatalf("ensure: %v", err)
 	}
-	if cluster.Created {
-		t.Error("a pre-existing cluster must never be owned by this run")
+	if !cluster.Created {
+		t.Fatal("a recreated cluster must be owned for cleanup")
 	}
-	if kind.issued("create") {
-		t.Error("must not re-create an existing cluster")
+	if len(kind.calls) != 4 ||
+		kind.calls[0][0] != "get" ||
+		kind.calls[1][1] != "kubeconfig" ||
+		kind.calls[2][0] != "delete" ||
+		kind.calls[3][0] != "create" {
+		t.Fatalf("recovery calls = %v, want list, kubeconfig, delete, create", kind.calls)
 	}
+
+	cluster.Release(kind.run)
+	if deletes := countKindCalls(kind.calls, "delete"); deletes != 2 {
+		t.Fatalf("cleanup delete count = %d, want recovery plus owned release; calls: %v",
+			deletes, kind.calls)
+	}
+}
+
+func TestEnsureClusterReportsOwnedRecreationFailureWithoutOwnership(t *testing.T) {
+	createErr := errors.New("node image unavailable")
+	kind := &fakeKind{
+		existing:   []string{"da-coding-agent-applier"},
+		kubeconfig: []byte("apiVersion: v1\nkind: Config\n"),
+		createErr:  createErr,
+	}
+	options := EnsureOptions{
+		ReusePolicy: RecreateUnhealthyOwnedCluster,
+		HealthRun: func(string, ...string) ([]byte, error) {
+			return nil, errors.New("API unavailable")
+		},
+	}
+	cluster, err := EnsureClusterWithOptions(
+		kind.run, "da-coding-agent-applier", testConfig(t), 120*time.Second, options)
+	if !errors.Is(err, createErr) {
+		t.Fatalf("recreation error = %v, want %v", err, createErr)
+	}
+	for _, want := range []string{
+		"da-coding-agent-applier", "health command kubectl", "remediation:",
+	} {
+		if !strings.Contains(err.Error(), want) {
+			t.Errorf("recreation error omitted %q: %v", want, err)
+		}
+	}
+	if cluster != (Cluster{}) {
+		t.Fatalf("failed recreation claimed ownership: %+v", cluster)
+	}
+	if countKindCalls(kind.calls, "delete") != 1 || !kind.issued("create") {
+		t.Fatalf("failed recreation calls = %v, want delete then create", kind.calls)
+	}
+	cluster.Release(kind.run)
+	if countKindCalls(kind.calls, "delete") != 1 {
+		t.Fatalf("zero result attempted cleanup: %v", kind.calls)
+	}
+}
+
+func countKindCalls(calls [][]string, verb string) int {
+	var count int
+	for _, call := range calls {
+		if len(call) > 0 && call[0] == verb {
+			count++
+		}
+	}
+	return count
 }
 
 // TestEnsureClusterRequiresConfig is the eng01 gate: creating a cluster
@@ -501,7 +649,8 @@ func TestReusedClusterBindsAwayFromAmbientContext(t *testing.T) {
 		existing:   []string{"da-chatbot-mesh-smoke"},
 		kubeconfig: []byte("apiVersion: v1\nkind: Config\n# da-chatbot-mesh-smoke\n"),
 	}
-	cluster, err := EnsureCluster(kind.run, "da-chatbot-mesh-smoke", testConfig(t), 0)
+	cluster, err := EnsureClusterWithOptions(
+		kind.run, "da-chatbot-mesh-smoke", testConfig(t), 0, healthyEnsureOptions())
 	if err != nil {
 		t.Fatalf("ensure: %v", err)
 	}

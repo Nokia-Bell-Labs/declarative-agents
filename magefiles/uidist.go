@@ -23,7 +23,10 @@ var uiSearchRoots = []string{
 	"applications/chatbot-mesh",
 }
 
-const uiAuditLevel = "high"
+const (
+	uiAuditLevel          = "high"
+	canonicalUITokensPath = "applications/catalog/ui/design-tokens.css"
+)
 
 // uiDistReleaseEnv is set by the release gate so UIDist treats a missing npm as
 // a fatal gate failure instead of a developer-convenience skip. Outside a
@@ -90,8 +93,10 @@ func UIDist() error {
 	return nil
 }
 
-// discoverShippedUIs returns each app directory under the search roots that has a
-// package-lock.json (pinned tooling), a build script, and a tracked dist tree.
+// discoverShippedUIs returns each locked UI package under the search roots.
+// Every such package is shipped and therefore must expose the common script
+// vocabulary and a tracked dist tree; silently omitting a malformed package
+// would make the reproducibility gate pass without checking all shipped UIs.
 func discoverShippedUIs(roots []string) ([]string, error) {
 	var uis []string
 	for _, root := range roots {
@@ -109,9 +114,19 @@ func discoverShippedUIs(roots []string) ([]string, error) {
 				return nil
 			}
 			appDir := filepath.Dir(path)
-			if hasBuildScript(appDir) && isDir(filepath.Join(appDir, "dist")) {
-				uis = append(uis, appDir)
+			pkg, err := readUIPackage(appDir)
+			if err != nil {
+				return err
 			}
+			for _, script := range []string{"dev", "build", "preview"} {
+				if strings.TrimSpace(pkg.Scripts[script]) == "" {
+					return fmt.Errorf("%s: shipped UI package is missing required %q script", appDir, script)
+				}
+			}
+			if !isDir(filepath.Join(appDir, "dist")) {
+				return fmt.Errorf("%s: shipped UI package has no tracked dist tree", appDir)
+			}
+			uis = append(uis, appDir)
 			return nil
 		})
 		if err != nil && !os.IsNotExist(err) {
@@ -122,18 +137,28 @@ func discoverShippedUIs(roots []string) ([]string, error) {
 	return uis, nil
 }
 
-func hasBuildScript(dir string) bool {
+type uiPackage struct {
+	Scripts map[string]string `json:"scripts"`
+}
+
+func readUIPackage(dir string) (uiPackage, error) {
 	data, err := os.ReadFile(filepath.Join(dir, "package.json"))
 	if err != nil {
-		return false
+		return uiPackage{}, fmt.Errorf("%s: read package.json: %w", dir, err)
 	}
-	var pkg struct {
-		Scripts map[string]string `json:"scripts"`
+	var pkg uiPackage
+	if err := json.Unmarshal(data, &pkg); err != nil {
+		return uiPackage{}, fmt.Errorf("%s: parse package.json: %w", dir, err)
 	}
-	if json.Unmarshal(data, &pkg) != nil {
-		return false
+	return pkg, nil
+}
+
+func hasTestScript(dir string) (bool, error) {
+	pkg, err := readUIPackage(dir)
+	if err != nil {
+		return false, err
 	}
-	return strings.TrimSpace(pkg.Scripts["build"]) != ""
+	return strings.TrimSpace(pkg.Scripts["test"]) != "", nil
 }
 
 func isDir(p string) bool {
@@ -153,8 +178,8 @@ func rebuildAndDiffUIWithRunner(appDir string, run uiRunner) error {
 		return err
 	}
 	defer func() { _ = os.RemoveAll(tmp) }()
-	build := filepath.Join(tmp, "app")
-	if err := copyDirExcluding(appDir, build, map[string]bool{"node_modules": true, "dist": true}); err != nil {
+	build, err := stageUIBuild(appDir, tmp)
+	if err != nil {
 		return err
 	}
 	if err := run(build, "npm", "ci"); err != nil {
@@ -163,6 +188,15 @@ func rebuildAndDiffUIWithRunner(appDir string, run uiRunner) error {
 	if err := auditUIDependencies(build, run); err != nil {
 		return fmt.Errorf("%s: %w", appDir, err)
 	}
+	hasTest, err := hasTestScript(build)
+	if err != nil {
+		return fmt.Errorf("%s: %w", appDir, err)
+	}
+	if hasTest {
+		if err := run(build, "npm", "test"); err != nil {
+			return fmt.Errorf("%s: npm test failed: %w", appDir, err)
+		}
+	}
 	if err := run(build, "npm", "run", "build"); err != nil {
 		return fmt.Errorf("%s: npm run build failed: %w", appDir, err)
 	}
@@ -170,6 +204,51 @@ func rebuildAndDiffUIWithRunner(appDir string, run uiRunner) error {
 		return fmt.Errorf("%s: tracked dist differs from a clean source build; rebuild and commit dist:\n%s", appDir, diff)
 	}
 	return nil
+}
+
+// stageUIBuild preserves a package's repository-relative location and stages
+// the canonical token source beside it. Relative CSS imports therefore resolve
+// identically in a clean gate build and in the source checkout, while packaged
+// closures continue to consume the compiled token CSS from their tracked dist.
+func stageUIBuild(appDir, tmp string) (string, error) {
+	absApp, err := filepath.Abs(appDir)
+	if err != nil {
+		return "", err
+	}
+	repoRoot, rel, ok := uiRepositoryLayout(absApp)
+	if !ok {
+		build := filepath.Join(tmp, "app")
+		return build, copyDirExcluding(appDir, build, map[string]bool{"node_modules": true, "dist": true})
+	}
+
+	buildRepo := filepath.Join(tmp, "repo")
+	build := filepath.Join(buildRepo, rel)
+	if err := copyDirExcluding(appDir, build, map[string]bool{"node_modules": true, "dist": true}); err != nil {
+		return "", err
+	}
+	if err := copyFile(
+		filepath.Join(repoRoot, filepath.FromSlash(canonicalUITokensPath)),
+		filepath.Join(buildRepo, filepath.FromSlash(canonicalUITokensPath)),
+	); err != nil {
+		return "", fmt.Errorf("stage canonical UI tokens: %w", err)
+	}
+	return build, nil
+}
+
+func uiRepositoryLayout(absApp string) (root, rel string, ok bool) {
+	for candidate := absApp; ; candidate = filepath.Dir(candidate) {
+		if info, err := os.Stat(filepath.Join(candidate, filepath.FromSlash(canonicalUITokensPath))); err == nil && !info.IsDir() {
+			rel, err := filepath.Rel(candidate, absApp)
+			if err == nil && rel != ".." && !strings.HasPrefix(rel, ".."+string(filepath.Separator)) {
+				return candidate, rel, true
+			}
+			return "", "", false
+		}
+		parent := filepath.Dir(candidate)
+		if parent == candidate {
+			return "", "", false
+		}
+	}
 }
 
 func auditUIDependencies(dir string, run uiRunner) error {

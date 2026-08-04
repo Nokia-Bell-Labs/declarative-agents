@@ -1,6 +1,6 @@
 id: rel08.0-uc001-declarative-applier
 title: The Applier Agent Validates, Applies, and Verifies a Coding-Chart Values Change
-status: planned
+status: implemented
 
 summary: |
   An authorized operator or CI caller submits a decided, values-plane patch to the

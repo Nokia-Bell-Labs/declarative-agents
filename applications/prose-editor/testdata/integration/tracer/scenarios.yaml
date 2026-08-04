@@ -1,0 +1,61 @@
+schema_version: prose-editor.tracer-scenarios/v1
+source:
+  repository: example.com/acme/docs
+  path: docs/release-notes.md
+  commit: 0123456789abcdef0123456789abcdef01234567
+  file: source/original.md
+retry_limit: 1
+scenarios:
+  - name: happy
+    saga_id: tracer-happy
+    editor_responses: [responses/editor/accepted-01.yaml]
+    critic_responses: [responses/critic/pass.yaml]
+    expected_terminal: locally_finalized
+  - name: reject-then-accept
+    saga_id: tracer-retry
+    editor_responses:
+      - responses/editor/rejected-01.yaml
+      - responses/editor/accepted-02.yaml
+    critic_responses:
+      - responses/critic/reject-semantic.yaml
+      - responses/critic/pass.yaml
+    expected_terminal: locally_finalized
+  - name: retry-exhausted
+    saga_id: tracer-exhausted
+    editor_responses:
+      - responses/editor/rejected-01.yaml
+      - responses/editor/rejected-01.yaml
+    critic_responses:
+      - responses/critic/reject-semantic.yaml
+      - responses/critic/reject-semantic.yaml
+    expected_terminal: kept_original
+  - name: fault-wrong-hashes
+    saga_id: tracer-fault-wrong-hashes
+    editor_responses: [responses/editor/accepted-01.yaml]
+    critic_responses: [responses/critic/fault-wrong-hashes.yaml]
+    expected_terminal: failed
+  - name: fault-duplicate-missing-categories
+    saga_id: tracer-fault-duplicate-missing-categories
+    editor_responses: [responses/editor/accepted-01.yaml]
+    critic_responses: [responses/critic/fault-duplicate-missing-categories.yaml]
+    expected_terminal: failed
+  - name: fault-pass-with-stage
+    saga_id: tracer-fault-pass-with-stage
+    editor_responses: [responses/editor/accepted-01.yaml]
+    critic_responses: [responses/critic/fault-pass-with-stage.yaml]
+    expected_terminal: failed
+  - name: fault-reject-without-stage
+    saga_id: tracer-fault-reject-without-stage
+    editor_responses: [responses/editor/accepted-01.yaml]
+    critic_responses: [responses/critic/fault-reject-without-stage.yaml]
+    expected_terminal: failed
+  - name: fault-pass-with-reject-status
+    saga_id: tracer-fault-pass-with-reject-status
+    editor_responses: [responses/editor/accepted-01.yaml]
+    critic_responses: [responses/critic/fault-pass-with-reject-status.yaml]
+    expected_terminal: failed
+  - name: fault-reject-with-passing-statuses
+    saga_id: tracer-fault-reject-with-passing-statuses
+    editor_responses: [responses/editor/accepted-01.yaml]
+    critic_responses: [responses/critic/fault-reject-with-passing-statuses.yaml]
+    expected_terminal: failed

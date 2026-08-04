@@ -89,7 +89,17 @@ func runApplierIntegration(resolved roots) error {
 	}
 	defer func() { _ = os.RemoveAll(traceDir) }()
 
-	agent, err := startApplierAgent(binary, resolved, fakes,
+	profileStage, err := os.MkdirTemp("", "agent-architecture-applier-profiles-*")
+	if err != nil {
+		return err
+	}
+	defer func() { _ = os.RemoveAll(profileStage) }()
+	if err := prepareChartProfiles(resolved.Application, resolved.Catalog, profileStage); err != nil {
+		return err
+	}
+	profileRoot := filepath.Join(profileStage, "profiles", "applier")
+
+	agent, err := startApplierAgent(binary, resolved, profileRoot, fakes,
 		filepath.Join(traceDir, "applier.ndjson"))
 	if err != nil {
 		return err
@@ -269,8 +279,8 @@ func (a *applierAgent) diagnostics() string {
 // startApplierAgent launches the shipped applier profile as a detached server with
 // the recording fakes ahead of the real tools on its PATH, and its workspace set to
 // the fakes' work directory so write_overrides lands inside it.
-func startApplierAgent(binary string, resolved roots, fakes *applierFakes, tracePath string) (*applierAgent, error) {
-	profile := filepath.Join(resolved.Application, "agents", "applier", "profile.yaml")
+func startApplierAgent(binary string, resolved roots, profilesRoot string, fakes *applierFakes, tracePath string) (*applierAgent, error) {
+	profile := filepath.Join(profilesRoot, "applications", "agent-architecture", "applier", "profile.yaml")
 	var output bytes.Buffer
 	cmd := exec.Command(binary,
 		"--profile", profile,

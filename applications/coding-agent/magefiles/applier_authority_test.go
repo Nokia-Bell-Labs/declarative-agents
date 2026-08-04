@@ -22,7 +22,7 @@ import (
 var deploymentCLIBinaries = map[string]bool{"helm": true, "kubectl": true}
 
 // execBinariesUnder collects the binary of every exec word declared in the YAML
-// files directly under a serving-tree agent directory.
+// files directly under a normalized actor directory.
 func execBinariesUnder(t *testing.T, dir string) map[string]string {
 	t.Helper()
 	entries, err := os.ReadDir(dir)
@@ -60,7 +60,7 @@ func execBinariesUnder(t *testing.T, dir string) map[string]string {
 // exec word. A role that grew one would hold deployment authority the applier is
 // meant to hold alone.
 func TestServingRolesCarryNoDeploymentCLI(t *testing.T) {
-	for _, role := range []string{"planner", "executor", "critic", "common"} {
+	for _, role := range []string{"planner", "executor", "critic", "role-server"} {
 		t.Run(role, func(t *testing.T) {
 			for name, binary := range execBinariesUnder(t, agentDir(t, role)) {
 				if deploymentCLIBinaries[binary] {

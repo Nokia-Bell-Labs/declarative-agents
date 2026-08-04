@@ -24,6 +24,11 @@ func TestApplicationModulesParticipateInAudit(t *testing.T) {
 			t.Fatalf("auditParticipants() = %#v, missing sub-module %q", participants, mod)
 		}
 	}
+	for _, mod := range auditOnlyApplicationModules {
+		if !contains(participants, mod) {
+			t.Fatalf("auditParticipants() = %#v, missing audit-only module %q", participants, mod)
+		}
+	}
 }
 
 // TestChatbotMeshIsAnApplicationModule pins the mesh module into the application gate
@@ -53,8 +58,39 @@ func TestAgentArchitectureIsCompositionApplicationModule(t *testing.T) {
 	}
 }
 
+func TestProseEditorIsRunnableButNotBuildManaged(t *testing.T) {
+	const module = "applications/prose-editor"
+	if len(auditOnlyApplicationModules) != 0 {
+		t.Fatalf("auditOnlyApplicationModules = %#v, want empty after tracer promotion",
+			auditOnlyApplicationModules)
+	}
+	if !contains(applicationModules, module) || contains(subModules, module) {
+		t.Fatalf("Prose Editor registry membership is wrong: applications=%#v submodules=%#v",
+			applicationModules, subModules)
+	}
+	foundTest := false
+	for _, target := range testTargets() {
+		if target.module == module {
+			foundTest = true
+		}
+	}
+	if !foundTest {
+		t.Fatal("runnable Prose Editor is missing from root test targets")
+	}
+	foundGate := false
+	for _, gate := range releaseGates("..") {
+		if gate.dir == filepath.Join("..", filepath.FromSlash(module)) {
+			foundGate = reflect.DeepEqual(gate.args, []string{"mage", "integration:all"})
+		}
+	}
+	if !foundGate {
+		t.Fatal("runnable Prose Editor is missing its release integration gate")
+	}
+}
+
 func TestEveryOrchestratedModuleDirectoryExists(t *testing.T) {
 	modules := append(append([]string{}, subModules...), applicationModules...)
+	modules = append(modules, auditOnlyApplicationModules...)
 	for _, module := range modules {
 		info, err := os.Stat(filepath.Join("..", filepath.FromSlash(module)))
 		if err != nil {
@@ -80,9 +116,13 @@ func TestOrchestrationUsesStableApplicationPaths(t *testing.T) {
 		"applications/chatbot-mesh",
 		"applications/coding-agent",
 		"applications/agent-architecture",
+		"applications/prose-editor",
 	}
 	if !reflect.DeepEqual(applicationModules, wantApplications) {
 		t.Fatalf("applicationModules = %#v, want %#v", applicationModules, wantApplications)
+	}
+	if len(auditOnlyApplicationModules) != 0 {
+		t.Fatalf("auditOnlyApplicationModules = %#v, want empty", auditOnlyApplicationModules)
 	}
 }
 
@@ -91,7 +131,8 @@ func TestOrchestrationUsesStableApplicationPaths(t *testing.T) {
 // the Build and All gates, which iterate subModules and would fail on a module
 // that defines no build/default target.
 func TestApplicationModulesExcludedFromSubModules(t *testing.T) {
-	for _, mod := range applicationModules {
+	modules := append(append([]string{}, applicationModules...), auditOnlyApplicationModules...)
+	for _, mod := range modules {
 		if contains(subModules, mod) {
 			t.Fatalf("subModules must not contain application module %q (it has no build target)", mod)
 		}
@@ -111,6 +152,11 @@ func TestStatsParticipantsIncludeApplicationModules(t *testing.T) {
 	for _, mod := range subModules {
 		if !contains(participants, mod) {
 			t.Fatalf("statsParticipants() = %#v, missing sub-module %q", participants, mod)
+		}
+	}
+	for _, mod := range auditOnlyApplicationModules {
+		if !contains(participants, mod) {
+			t.Fatalf("statsParticipants() = %#v, missing audit-only module %q", participants, mod)
 		}
 	}
 }

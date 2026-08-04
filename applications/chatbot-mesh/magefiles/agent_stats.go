@@ -122,7 +122,7 @@ func scanAgentOwnership(
 		}
 		if compositionOnly {
 			result.Composition.PerWrapper[entry.Name()] = compositionWrapper{
-				Ownership: "composition", CanonicalSource: "applications/catalog",
+				Ownership: "composition-wrapper", CanonicalSource: "applications/catalog",
 				CanonicalProgram: canonical, YAML: stats.YAML,
 			}
 			result.Composition.Total.Wrappers++
@@ -146,9 +146,6 @@ func compositionProgram(
 	agentsDir, agentDir string,
 	stats agentStats,
 ) (string, bool, error) {
-	if stats.States != 0 || stats.Tools != 0 {
-		return "", false, nil
-	}
 	profilePath := filepath.Join(agentDir, "profile.yaml")
 	var profile agentProfileDoc
 	if err := unmarshalYAMLFile(profilePath, &profile); err != nil {
@@ -156,6 +153,15 @@ func compositionProgram(
 			return "", false, nil
 		}
 		return "", false, err
+	}
+	if strings.HasPrefix(filepath.ToSlash(profile.Machine), "agents/") {
+		return filepath.ToSlash(filepath.Dir(profile.Machine)), true, nil
+	}
+	if strings.HasSuffix(filepath.ToSlash(filepath.Dir(profile.Machine)), "catalog/applier") {
+		return "agents/applier", true, nil
+	}
+	if stats.States != 0 || stats.Tools != 0 {
+		return "", false, nil
 	}
 	target := filepath.Clean(filepath.Join(agentDir, filepath.FromSlash(profile.Machine)))
 	local, err := filepath.Rel(agentDir, target)

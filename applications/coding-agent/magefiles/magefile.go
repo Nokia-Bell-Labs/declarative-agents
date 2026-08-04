@@ -34,7 +34,7 @@ func Audit() error {
 	}
 	defer func() { _ = os.RemoveAll(packagedRoot) }()
 	packagedRoot = filepath.Join(packagedRoot, "profiles")
-	source, err := inspectPackageSource(roots.Profiles, manifest.AgentProfiles.CompatibleRelease)
+	source, err := inspectPackageSource(roots.Profiles, manifest.Catalog.CompatibleRelease)
 	if err != nil {
 		return err
 	}
@@ -51,8 +51,8 @@ func Audit() error {
 		return err
 	}
 	defer cleanup()
-	profiles := make([]string, 0, len(manifest.AgentProfiles.References))
-	for _, ref := range manifest.AgentProfiles.References {
+	profiles := make([]string, 0, len(manifest.Catalog.References))
+	for _, ref := range manifest.Catalog.References {
 		profiles = append(profiles, filepath.Join(packagedRoot, filepath.FromSlash(ref.RuntimePath)))
 	}
 	for _, shard := range shards {

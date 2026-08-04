@@ -3,11 +3,14 @@ title: Agent Architecture Application Architecture
 
 overview:
   summary: |
-    The Agent Architecture is a presentation composition around one
-    canonical catalog profile. The application serves a slide deck, starts the
-    documentation-curator through agent-core, directs the operator to the
-    catalog-owned browser interface, and invokes an application-owned
-    declarative profile to request lifecycle exit.
+    The Agent Architecture is a composition around catalog-owned
+    documentation-curator, collector, and lifecycle-exit roots plus one local
+    deployment applier. The application serves a slide deck, starts the curator
+    and collector through agent-core, directs the operator to their
+    catalog-owned browser interfaces, and uses the lifecycle-exit contract for
+    shutdown compatibility evidence. The current Mage run and kind paths send
+    the bounded lifecycle HTTP request directly; they do not execute or copy the
+    catalog lifecycle-exit profile.
 
     The dependency direction is applications/agent-architecture ->
     applications/catalog -> agent-core. The demo.yaml catalog_root locates the
@@ -17,13 +20,15 @@ overview:
     This module extends applications/docs srd001 and the applicable managed
     service groups in srd002 by reference.
 
-    A planned Kubernetes deployment runs the same composition on a cluster: a
+    The implemented Kubernetes deployment runs the same composition on a cluster: a
     chart runs the documentation-curator and the collector as workloads from
     mounted catalog-owned closures (srd001-helm-deployment), and a standalone
     declarative applier actuates that chart for an authorized operator or CI
     caller (srd002-applier). The packaged, helm_managed, and kind_demo
-    capabilities are declared and planned; their resources land in later
-    sub-issues.
+    capabilities are backed by checked-in package, render, and integration
+    targets. The local applier is a composition wrapper over the canonical
+    catalog applier; application-specific command bindings and deployment
+    authority remain local.
   demo_flow_diagram: |
     ```mermaid
     flowchart LR
@@ -71,7 +76,7 @@ capability_classification:
         - srd002-managed-application-services R4
       local_requirements:
         - srd001-helm-deployment R2
-      status: planned
+      status: implemented
       realized_in: "02.0"
     - capability: helm_managed
       applies: true
@@ -83,7 +88,7 @@ capability_classification:
       local_requirements:
         - srd001-helm-deployment R1
         - srd001-helm-deployment R2
-      status: planned
+      status: implemented
       realized_in: "02.0"
     - capability: kind_demo
       applies: true
@@ -93,7 +98,7 @@ capability_classification:
         - srd002-managed-application-services R6
       local_requirements:
         - srd001-helm-deployment R3
-      status: planned
+      status: implemented
       realized_in: "03.0"
   managed_services:
     - name: documentation-curator
@@ -154,9 +159,11 @@ interfaces:
       version-pinned Go present tool recorded by this application's Go module.
   - name: lifecycle-exit client
     summary: |
-      ../catalog/agents/lifecycle-exit/profile.yaml selects the catalog-owned
-      declarative client the application invokes. Its fixed REST declaration
-      posts the demo exit reason to the curator control route and accepts HTTP 202.
+      ../catalog/agents/lifecycle-exit/profile.yaml is the catalog-owned
+      compatibility root for the lifecycle client contract. Its fixed REST
+      declaration documents the curator control route. Current Mage integration
+      code sends the equivalent bounded HTTP request directly and does not
+      package or launch this finite profile.
   - name: browser endpoints
     summary: |
       The catalog profile serves its documentation interface on localhost:18081,
@@ -174,15 +181,18 @@ components:
     path: ../catalog/agents/lifecycle-exit/
     ownership: applications/catalog
     responsibility: |
-      Declare the fixed control-client authority, request body, one boundary
-      word, and terminal success or failure for a shutdown request. The
-      application references this catalog-owned client and does not copy it.
+      Declare the fixed control-client authority and shutdown contract. The
+      application references this catalog-owned profile for compatibility and
+      contract evidence, does not copy it, and currently performs the matching
+      bounded HTTP request in Mage integration code.
   - name: Mage tooling
     path: magefiles/
     ownership: application
     responsibility: |
-      Resolve portable roots, construct run and presentation commands, audit
-      documentation and traceability, and emit composition-only statistics.
+      Resolve portable roots, consume agents/application.yaml through the shared
+      appmanifest closure, prepare and validate Helm role packages and
+      provenance, construct run and presentation commands, audit documentation,
+      and emit composition-only statistics.
   - name: documentation-curator
     path: ../catalog/agents/knowledge-manager/documentation-curator/
     ownership: applications/catalog
@@ -216,14 +226,16 @@ design_decisions:
       - Application changes remain presentation and composition changes.
       - Repository statistics count the curator once.
   - id: 2
-    title: Keep lifecycle exit declarative
+    title: Preserve canonical lifecycle-exit ownership
     decision: |
-      The application owns a small profile whose machine binds one REST word to
-      the fixed lifecycle-exit route. No bespoke Go HTTP client is introduced.
+      The application preserves the catalog-owned lifecycle-exit profile as a
+      direct compatibility root and ownership authority. The current local and
+      kind orchestration sends the equivalent fixed, bounded HTTP request in Go;
+      it does not own, copy, package, or launch another lifecycle profile.
     benefits:
-      - The shutdown step demonstrates the same declarative runtime model.
-      - Transport authority remains in reviewed configuration.
-      - The request and accepted response are testable without a live server.
+      - Catalog ownership and compatibility remain explicit.
+      - The request body and accepted response are testable without a live server.
+      - No duplicate lifecycle profile is introduced.
   - id: 3
     title: Pin the standard presentation tool
     decision: |
@@ -248,10 +260,10 @@ design_decisions:
   - id: 5
     title: Report composition without agent ownership
     decision: |
-      mage stats emits application ownership, two canonical references
-      (documentation-curator and collector), agents_contributed: 0, and the
-      canonical profile path without an agents section. It does not emit
-      documentation counts.
+      mage stats emits application ownership, three canonical references
+      (documentation-curator, collector, and lifecycle-exit),
+      agents_contributed: 0, and the canonical curator profile path without an
+      agents section. It does not emit documentation counts.
     benefits:
       - Root aggregation does not double-count canonical agents.
       - The application's contribution remains measurable.
@@ -262,9 +274,10 @@ design_decisions:
       The application declares runnable_module and managed_service. Both the
       documentation-curator and Go present processes are managed services for
       this composition, so srd002 R1 through R3 apply to each. The application
-      declares no package, Helm, or kind capability. Local documents record
-      service-specific evidence and gaps instead of copying shared requirement
-      text.
+      also declares implemented package, Helm, and kind capabilities backed by
+      the checked-in package, render, and bounded integration targets. Local
+      documents record service-specific evidence and gaps instead of copying
+      shared requirement text.
     benefits:
       - Shared lifecycle and operator obligations have one canonical source.
       - Applicability is explicit for each long-running process.
@@ -293,11 +306,13 @@ design_decisions:
       bounded kind target installs. The chart deploys canonical profiles by
       reference, copying the profile config for neither workload. The curator's
       browser UI is the one exception: its dist trees exceed the ConfigMap payload
-      limit, so the image bakes them and an init container stages them into the
-      curator workspace at startup -- a recorded divergence from the profile-free
-      image invariant, alongside the applier CLIs (decision 9). srd001-helm-deployment
+      limit, so deploy/test tooling provisions deterministic shards outside the
+      Helm release and an init container stages them into the curator workspace
+      at startup. The runtime image remains profile-free; only the applier image
+      carries its sanctioned CLIs (decision 9). srd001-helm-deployment
       defines the topology, package, schema, and smoke; srd002-managed-application-services
-      R4 through R6 apply by reference. The resources land in later sub-issues.
+      R4 through R6 apply by reference. The package, chart, and bounded kind
+      integration targets are checked in.
     benefits:
       - The same composition the local demo runs installs and upgrades on a cluster.
       - Mounted closures keep the catalog as the one owner of the curator and collector profiles.
@@ -332,7 +347,7 @@ technology_choices:
     purpose: Expose run, presentation, audit, and stats entry points.
   - component: Agent program
     technology: YAML profiles interpreted by agent-core
-    purpose: Run the catalog curator and application lifecycle-exit machine.
+    purpose: Run catalog curator and collector profiles plus the local deployment applier.
   - component: Reusable profile
     technology: applications/catalog
     purpose: Supply the canonical documentation-curator profile and UI.
@@ -366,12 +381,13 @@ project_structure:
 
 implementation_status:
   current_focus: |
-    Release 00.0 is partial. Checked-in assets, lifecycle-exit configuration,
-    pinned tooling, Mage commands, deterministic tests, and root audit, test,
-    stats, and release participation are implemented. Release 01.0 adds trace
-    collection through the canonical collector agent. Live managed-service and
-    browser observations remain dependency-gated and are not inferred from
-    command construction tests.
+    The runnable module, trace collection, manifest-derived package, Helm chart,
+    bounded kind target, and local declarative applier are implemented. The
+    application remains composition-only: curator, collector, lifecycle-exit,
+    canonical applier, and their UIs stay catalog-owned, while the local applier
+    wrapper, command bindings, and deployment stay application-owned. Live local managed-service browser
+    observations remain dependency-gated and are not inferred from command
+    construction tests.
   progress:
     - implemented: Application ownership and dependency direction.
     - implemented: Reciprocal deterministic test suite for run, presentation, audit, and stats.
@@ -380,6 +396,9 @@ implementation_status:
     - implemented: Version-pinned present dependency and tested Mage entry points.
     - implemented: Root audit, test, stats, and release participation.
     - implemented: Collector agent trace collection wired into the demo run path.
+    - implemented: agents/application.yaml is the direct-root, deployment, UI, capability, and compatibility authority.
+    - implemented: Helm preparation and packaging derive curator, collector, and applier packages and provenance from the shared appmanifest closure.
+    - implemented: Packaged chart render, schema guards, bounded kind smoke target, and declarative applier evidence.
     - partial: Guided presentation, launch, browser, and exit use case.
     - partial: srd002 R1 through R3 conformance for the curator and Go present
         servers; AC1 through AC3 are not yet satisfied.
@@ -393,9 +412,9 @@ related_documents:
   - doc: ../docs/specs/software-requirements/srd002-managed-application-services.yaml
     purpose: Shared R1 through R6 contract for the managed services, package, chart, and kind capabilities.
   - doc: docs/specs/software-requirements/srd001-helm-deployment.yaml
-    purpose: Planned chart topology, profile-closure package, values schema, and kind smoke.
+    purpose: Implemented chart topology, manifest-derived profile package, values schema, and bounded kind smoke.
   - doc: docs/specs/software-requirements/srd002-applier.yaml
-    purpose: Planned standalone applier that validates, applies, verifies, and rolls back a values patch.
+    purpose: Implemented local standalone applier that validates, applies, verifies, and rolls back a values patch.
   - doc: docs/VISION.yaml
     purpose: Application goals and exclusions.
   - doc: docs/road-map.yaml

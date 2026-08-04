@@ -104,29 +104,6 @@ func packageHelmChart(chartRoot, profilesRoot, destination string) (string, erro
 	if err := prepareHelmProfiles(profilesRoot, chart); err != nil {
 		return "", err
 	}
-	// The collector profile ships in the archive, not the checkout: helm/profiles/
-	// is gitignored, so every packaging path must stage it or the deployed
-	// collector mounts an empty /profiles and crash-loops (GH-1162). The catalog
-	// resolves from the working directory, not chartRoot, because callers may
-	// package a chart copy staged outside the repository.
-	catalogRoot, err := resolveCatalogRoot("package coding-agent chart", ".")
-	if err != nil {
-		return "", err
-	}
-	if err := stageCollectorProfile(catalogRoot, chart); err != nil {
-		return "", err
-	}
-	// The applier profile ships in the archive the same way the collector does:
-	// helm/profiles/ is gitignored, so every packaging path must stage it or the
-	// deployed applier mounts an empty /profiles. It is application-owned, so it
-	// resolves from the coding-agent application root rather than the catalog root.
-	applierRoot, err := resolveApplicationRoot("package coding-agent chart")
-	if err != nil {
-		return "", err
-	}
-	if err := stageApplierProfile(applierRoot, chart); err != nil {
-		return "", err
-	}
 	if err := validateStagedChart(chart); err != nil {
 		return "", err
 	}
@@ -201,7 +178,7 @@ func stageChartSource(source, destination string) error {
 }
 
 func validateStagedChart(chart string) error {
-	if err := validatePreparedPackage(filepath.Join(chart, "profiles"), "collector", "applier"); err != nil {
+	if err := validatePreparedPackage(filepath.Join(chart, "profiles")); err != nil {
 		return err
 	}
 	commands := [][]string{
@@ -238,57 +215,6 @@ func validateChartArchive(archive, profilesRoot string) error {
 	}
 	for _, path := range expected {
 		required["coding-agent/profiles/"+path] = true
-	}
-	// The staged collector profile mirrors stageCollectorProfile: the
-	// top-level regular files of the catalog collector family.
-	catalogRoot, err := resolveCatalogRoot("validate coding-agent chart archive", ".")
-	if err != nil {
-		return err
-	}
-	collectorEntries, err := os.ReadDir(filepath.Join(catalogRoot, "agents", "collector"))
-	if err != nil {
-		return err
-	}
-	for _, entry := range collectorEntries {
-		if !entry.Type().IsRegular() {
-			continue
-		}
-		required["coding-agent/profiles/collector/agents/collector/"+entry.Name()] = true
-	}
-	// The collector's served trace UI ships as ui/dist (srd020 R7); the staged
-	// tree carries every built asset, so each is a required archive entry.
-	collectorUIRoot := filepath.Join(catalogRoot, "agents", "collector", "ui", "dist")
-	if err := filepath.Walk(collectorUIRoot, func(path string, info os.FileInfo, walkErr error) error {
-		if walkErr != nil {
-			return walkErr
-		}
-		if info.IsDir() {
-			return nil
-		}
-		rel, err := filepath.Rel(collectorUIRoot, path)
-		if err != nil {
-			return err
-		}
-		required["coding-agent/profiles/collector/agents/collector/ui/dist/"+filepath.ToSlash(rel)] = true
-		return nil
-	}); err != nil {
-		return err
-	}
-	// The staged applier profile mirrors stageApplierProfile: the top-level regular
-	// files of the application's agents/serving/applier family.
-	applierRoot, err := resolveApplicationRoot("validate coding-agent chart archive")
-	if err != nil {
-		return err
-	}
-	applierEntries, err := os.ReadDir(filepath.Join(applierRoot, "agents", "serving", "applier"))
-	if err != nil {
-		return err
-	}
-	for _, entry := range applierEntries {
-		if !entry.Type().IsRegular() {
-			continue
-		}
-		required["coding-agent/profiles/applier/agents/applier/"+entry.Name()] = true
 	}
 	file, err := os.Open(archive)
 	if err != nil {

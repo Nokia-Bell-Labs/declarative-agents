@@ -8,11 +8,22 @@ overview: |
   or kind-demo capabilities. applications/catalog is indexed as a related
   foundation but is not a runnable application.
 
-  The release 00.0 use case and suite trace both SRDs reciprocally. Structural
+  srd003 implements the Release 14.0 consistency target: one
+  agents/application.yaml composition authority, application-owned actor and UI
+  grammar, manifest-derived packages, canonical promotion and shared-token
+  rules, common README and status vocabulary, and explicit catalog/application/
+  agent-core boundaries. Its capability gates do not require empty optional
+  directories.
+
+  The release 00.0 use case and suite trace the baseline SRDs reciprocally.
+  Release 14.0 adds a reciprocal cross-application use case and suite.
+  Structural
   checks parse documents, verify module classification and root orchestration,
   enforce ownership-aware stats, and invoke application-owned capability
-  evidence. The current runnable set is chatbot-mesh, coding-agent, and
-  agent-architecture. The demo's runnable-module evidence is implemented;
+  evidence. The runnable set is chatbot-mesh, coding-agent,
+  agent-architecture, and Prose Editor. Prose Editor contributes three local
+  agents and reports one canonical corpus-reader wrapper separately. Agent
+  Architecture's runnable-module evidence is implemented;
   its managed-service status is partial because live srd002 AC1 through AC3
   observations remain dependency-gated. ENG01 remains the sole kind-rig
   contract.
@@ -36,6 +47,16 @@ roadmap_summary:
     use_cases_total: 0
     status: implemented
     evidence: The shared vision, root guide, architecture index, and roadmap parse and pass the repository audit.
+  - version: "14.0"
+    name: Application consistency and conformance
+    use_cases_done: 1
+    use_cases_total: 1
+    status: implemented
+    evidence: |
+      The SRD, cross-application use case, and eight-case test suite are
+      reciprocal and executable. Root conformance tests validate all four
+      manifests, ownership, package assets, canonical applier promotion, shared
+      UI tokens, README/status classification, and runnable Prose evidence.
 
 foundation_document_index:
   - id: application-composition-pattern-language
@@ -92,6 +113,16 @@ srd_index:
     path: docs/specs/software-requirements/srd002-managed-application-services.yaml
     use_cases: [rel00.0-uc001-application-contract-conformance]
     test_suites: [test-rel00.0-application-contract-conformance]
+  - id: srd003-application-consistency
+    title: Application Composition Consistency and Conformance
+    status: implemented
+    applicability: |
+      Manifest, actor, naming, README, status, and ownership requirements apply
+      to runnable or audit-only applications; package, deployment, kind, and UI
+      requirements apply only when the matching capability or asset exists.
+    path: docs/specs/software-requirements/srd003-application-consistency.yaml
+    use_cases: [rel14.0-uc001-application-consistency]
+    test_suites: [test-rel14.0-application-consistency]
 
 config_format_index: []
 
@@ -118,6 +149,14 @@ use_case_index:
       - srd002-managed-application-services
     test_suite: test-rel00.0-application-contract-conformance
     path: docs/specs/use-cases/rel00.0-uc001-application-contract-conformance.yaml
+  - id: rel14.0-uc001-application-consistency
+    title: Normalize and Verify a Showcase Application Composition
+    release: "14.0"
+    status: implemented
+    srds:
+      - srd003-application-consistency
+    test_suite: test-rel14.0-application-consistency
+    path: docs/specs/use-cases/rel14.0-uc001-application-consistency.yaml
 
 test_suite_index:
   - id: test-rel00.0-application-contract-conformance
@@ -130,8 +169,24 @@ test_suite_index:
       - srd001-application-module-contract
       - srd002-managed-application-services
     path: docs/specs/test-suites/test-rel00.0-application-contract-conformance.yaml
+  - id: test-rel14.0-application-consistency
+    title: Release 14.0 Application Consistency Test Suite
+    release: "14.0"
+    status: implemented
+    test_case_count: 8
+    traces: [rel14.0-uc001-application-consistency]
+    srds:
+      - srd003-application-consistency
+    path: docs/specs/test-suites/test-rel14.0-application-consistency.yaml
 
 coverage_gaps:
+  - id: release-14-application-normalization
+    status: implemented
+    description: |
+      The four showcase applications now have validated manifests and normalized
+      ownership. Coding Agent and Agent Architecture are composition-only with
+      local composition wrappers; Chatbot Mesh and Prose Editor are agent-owning
+      while reporting wrappers separately. TC1 through TC8 are executable.
   - id: knowledge-manager-live-managed-service-evidence
     status: dependency_gated
     description: |

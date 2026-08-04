@@ -114,7 +114,11 @@ func applierRolloutMachine(t *testing.T) rolloutMachine {
 		t.Fatalf("rollout request profile %s names no machine", profileRef)
 	}
 	var machine rolloutMachine
-	readIntakeYAML(t, filepath.Join(agentDir(t, "applier"), profile.Machine), &machine)
+	machinePath := filepath.Join(agentDir(t, "applier"), profile.Machine)
+	if strings.Contains(filepath.ToSlash(profile.Machine), "catalog/applier/") {
+		machinePath = filepath.Join("..", "..", "catalog", "agents", "applier", filepath.Base(profile.Machine))
+	}
+	readIntakeYAML(t, machinePath, &machine)
 	return machine
 }
 

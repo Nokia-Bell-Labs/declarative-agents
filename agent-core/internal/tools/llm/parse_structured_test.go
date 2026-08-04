@@ -52,6 +52,34 @@ func TestParseStructuredValidatesModelOutput(t *testing.T) {
 	require.JSONEq(t, `{"names":["a","b"]}`, res.Output)
 }
 
+func TestParseStructuredValidatesAdjacentSeedOutput(t *testing.T) {
+	cmd := ParseStructuredBuilder{
+		ToolName: "validate_request", Source: "$.output",
+		Schema: structuredSchema(t), Parsed: "Parsed", Unparsed: "Unparsed",
+	}.Build(core.Result{Signal: core.Seed, Output: `{"names":["seed"]}`})
+
+	res := cmd.Execute()
+
+	require.NoError(t, res.Err)
+	require.Equal(t, core.Signal("Parsed"), res.Signal)
+	require.JSONEq(t, `{"names":["seed"]}`, res.Output)
+}
+
+func TestParseStructuredRejectsInvalidAdjacentOutput(t *testing.T) {
+	for _, raw := range []string{`{"names":`, `{"names":[1]}`, `{}`} {
+		cmd := ParseStructuredBuilder{
+			ToolName: "validate_request", Source: "$.output",
+			Schema: structuredSchema(t), Parsed: "Parsed", Unparsed: "Unparsed",
+		}.Build(core.Result{Signal: core.Seed, Output: raw})
+
+		res := cmd.Execute()
+
+		require.Equal(t, core.Signal("Unparsed"), res.Signal)
+		require.NoError(t, res.Err, "invalid adjacent content is a modeled outcome")
+		require.NotEmpty(t, res.Output)
+	}
+}
+
 func TestParseStructuredMalformedAndInvalidUseFailureSignal(t *testing.T) {
 	for _, raw := range []string{`{"names":`, `{"names":[1]}`, `{}`} {
 		cmd := ParseStructuredBuilder{

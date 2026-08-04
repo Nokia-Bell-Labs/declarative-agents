@@ -48,12 +48,10 @@ func findChartDir(t *testing.T) string {
 	return dir
 }
 
-// prepareChart stages the source chart with its catalog-owned curator and
-// collector closures into a temp directory, optionally adding the
-// application-owned applier profile. Staging matters: the source chart's
-// profiles-configmap fails to render without a staged closure, and the applier
-// ConfigMap carries only what the packaging step copied.
-func prepareChart(t *testing.T, withApplier bool) string {
+// prepareChart stages the source chart with every manifest-declared deployment
+// closure. Staging matters: the source chart cannot render without the generated
+// packages and provenance.
+func prepareChart(t *testing.T) string {
 	t.Helper()
 	resolved, err := resolveRootsFromWorkingDirectory()
 	if err != nil {
@@ -64,30 +62,24 @@ func prepareChart(t *testing.T, withApplier bool) string {
 	if err := stageChartSource(filepath.Join(resolved.Application, "helm"), chart); err != nil {
 		t.Fatalf("stage source chart: %v", err)
 	}
-	if err := prepareChartProfiles(resolved.Catalog, chart); err != nil {
-		t.Fatalf("stage catalog profiles: %v", err)
-	}
-	if withApplier {
-		if err := stageApplierProfile(resolved.Application, chart); err != nil {
-			t.Fatalf("stage applier profile: %v", err)
-		}
+	if err := prepareChartProfiles(resolved.Application, resolved.Catalog, chart); err != nil {
+		t.Fatalf("stage manifest profiles: %v", err)
 	}
 	return chart
 }
 
-// preparedTestChart stages the chart with the serving-role closures but not the
-// applier, matching a default cluster install.
+// preparedTestChart stages the chart for a default render. The applier package is
+// present because the manifest declares it, while values keep its workload off.
 func preparedTestChart(t *testing.T) string {
 	t.Helper()
-	return prepareChart(t, false)
+	return prepareChart(t)
 }
 
-// preparedApplierChart stages the chart with the application-owned applier profile
-// added, so an applier-enabled render carries the applier ConfigMap the Deployment
-// mounts.
+// preparedApplierChart returns the same complete package for an applier-enabled
+// render.
 func preparedApplierChart(t *testing.T) string {
 	t.Helper()
-	return prepareChart(t, true)
+	return prepareChart(t)
 }
 
 // helmTemplate renders a prepared chart, skipping when helm is not on PATH.

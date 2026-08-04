@@ -1,0 +1,120 @@
+tools:
+  - name: launch_applier_requests
+    type: builtin
+    init: rest_server_launch
+    visibility: internal
+    category: boundary
+    description: Launch the application-owned applier request server.
+    parameters: {type: object, properties: {}}
+    emits: [ServerLaunched, CommandError]
+    side_effects:
+      - {kind: network_listen, target: applier_apply, state: listener_started}
+    reversibility: {classification: compensatable, undo: rest_server_stop}
+    undo:
+      strategy: compensating_action
+      description: Stop the application-owned request listener.
+    errors:
+      - {signal: CommandError, condition: Request server configuration or listener startup fails, state_after_failure: No request listener is exposed.}
+    config: {rest_ref: applier_apply}
+
+  - name: launch_applier_control
+    type: builtin
+    init: rest_server_launch
+    visibility: internal
+    category: boundary
+    description: Launch the application-owned lifecycle control server.
+    parameters: {type: object, properties: {}}
+    emits: [ServerLaunched, CommandError]
+    side_effects:
+      - {kind: network_listen, target: applier_control, state: listener_started}
+    reversibility: {classification: compensatable, undo: rest_server_stop}
+    undo:
+      strategy: compensating_action
+      description: Stop the application-owned control listener.
+    errors:
+      - {signal: CommandError, condition: Control server configuration or listener startup fails, state_after_failure: No control listener is exposed.}
+    config: {rest_ref: applier_control}
+
+  - name: launch_monitor_rest
+    type: builtin
+    init: rest_server_launch
+    visibility: internal
+    category: boundary
+    description: Launch the application-owned read-only monitor server.
+    parameters: {type: object, properties: {}}
+    emits: [ServerLaunched, CommandError]
+    side_effects:
+      - {kind: network_listen, target: monitor, state: listener_started}
+    reversibility: {classification: compensatable, undo: rest_server_stop}
+    undo:
+      strategy: compensating_action
+      description: Stop the application-owned monitor listener.
+    errors:
+      - {signal: CommandError, condition: Monitor server configuration or listener startup fails, state_after_failure: No monitor listener is exposed.}
+    config: {rest_ref: monitor}
+
+  - name: await_applier_control
+    type: builtin
+    init: rest_await_event
+    visibility: internal
+    category: boundary
+    description: Await only the declared lifecycle exit event.
+    parameters: {type: object, properties: {}}
+    emits: [ExitRequested, AwaitTimedOut, ServerStopped, CommandError]
+    side_effects:
+      - {kind: state_mutation, target: rest_server_queue, state: selected_event_consumed}
+    reversibility: {classification: reversible, undo: queue_event_restore}
+    undo:
+      strategy: queue_event_restore
+      description: Restore the receipt-recorded event to the source queue.
+      payload: rest_await_event
+      captures: [source, event]
+    errors:
+      - {signal: AwaitTimedOut, condition: No lifecycle event arrives before the timeout, state_after_failure: Listeners remain open.}
+      - {signal: ServerStopped, condition: The control server stops while awaiting, state_after_failure: The stopped source delivers no events.}
+      - {signal: CommandError, condition: The source is missing or its queue fails, state_after_failure: Listener state is unchanged.}
+    config:
+      sources:
+        - {server: applier_control, routes: [exit], signals: [ExitRequested]}
+      timeout: 600s
+      stopped_behavior: emit_server_stopped
+
+  - name: stop_monitor_rest
+    type: builtin
+    init: rest_server_stop
+    visibility: internal
+    category: boundary
+    description: Stop the application-owned monitor listener.
+    parameters: {type: object, properties: {}}
+    emits: [ServerStopped, CommandError]
+    side_effects:
+      - {kind: network_listener_shutdown, target: monitor, state: listener_stopped}
+    reversibility: {classification: compensatable, undo: server_shutdown_or_user_action_compensation}
+    undo:
+      strategy: server_shutdown_or_user_action_compensation
+      description: Relaunch the trusted monitor definition when compensation is required.
+      payload: boundary_compensation
+      captures: [server, address, drained_events, dropped_events, relaunch_requirement]
+    errors:
+      - {signal: CommandError, condition: Monitor shutdown or cleanup fails, state_after_failure: Listener state may be partially stopped.}
+    config: {rest_ref: monitor}
+
+  - name: stop_applier_requests
+    type: builtin
+    init: rest_server_stop
+    visibility: internal
+    category: boundary
+    description: Stop the application-owned request listener.
+    parameters: {type: object, properties: {}}
+    emits: [ServerStopped, CommandError]
+    side_effects:
+      - {kind: network_listener_shutdown, target: applier_apply, state: listener_stopped}
+    reversibility: {classification: compensatable, undo: server_shutdown_or_user_action_compensation}
+    undo:
+      strategy: server_shutdown_or_user_action_compensation
+      description: Relaunch the trusted request definition when compensation is required.
+      payload: boundary_compensation
+      captures: [server, address, drained_events, dropped_events, relaunch_requirement]
+    errors:
+      - {signal: CommandError, condition: Request listener shutdown or cleanup fails, state_after_failure: Listener state may be partially stopped.}
+    config: {rest_ref: applier_apply}

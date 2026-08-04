@@ -37,9 +37,12 @@ func TestDemoUpFailureReleasesOnlyOwnedCluster(t *testing.T) {
 	}
 	for _, test := range tests {
 		t.Run(test.name, func(t *testing.T) {
-			kind := &fakeKind{existing: test.existing}
-			err := DemoUp(kind.run, "da-example-demo", testConfig(t), 0,
-				func(Cluster) error { return deployErr })
+			kind := &fakeKind{
+				existing:   test.existing,
+				kubeconfig: []byte("apiVersion: v1\nkind: Config\n"),
+			}
+			err := demoUp(kind.run, "da-example-demo", testConfig(t), 0,
+				healthyEnsureOptions(), func(Cluster) error { return deployErr })
 			if !errors.Is(err, deployErr) {
 				t.Fatalf("error = %v", err)
 			}

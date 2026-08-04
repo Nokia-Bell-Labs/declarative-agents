@@ -140,7 +140,7 @@ tools:
 	if !exists {
 		t.Fatalf("composition = %+v, missing corpus-ingest", stats.Composition)
 	}
-	if wrapper.Ownership != "composition" ||
+	if wrapper.Ownership != "composition-wrapper" ||
 		wrapper.CanonicalSource != "applications/catalog" ||
 		wrapper.CanonicalProgram != "agents/knowledge-manager/corpus-ingest" {
 		t.Fatalf("wrapper = %+v", wrapper)
@@ -165,9 +165,21 @@ func TestRepositoryMeshOwnershipClassifiesCorpusIngestAsComposition(t *testing.T
 		"agents/knowledge-manager/corpus-ingest" {
 		t.Fatalf("repository composition = %+v", stats.Composition)
 	}
+	if _, exists := stats.Agents.PerAgent["applier"]; exists {
+		t.Fatal("repository applier wrapper counted as local implementation")
+	}
+	if stats.Composition.PerWrapper["applier"].CanonicalProgram != "agents/applier" {
+		t.Fatalf("repository applier composition = %+v", stats.Composition)
+	}
 	if stats.Agents.Total.Agents != len(stats.Agents.PerAgent) {
 		t.Fatalf("agent total %d != per-agent count %d",
 			stats.Agents.Total.Agents, len(stats.Agents.PerAgent))
+	}
+	output := newMeshStatsOutput(stats, "agent-owning")
+	if output.Application.Ownership != "agent-owning" ||
+		output.Application.AgentsContributed != 5 ||
+		output.Application.CompositionWrappers != 2 {
+		t.Fatalf("repository ownership summary = %#v", output.Application)
 	}
 }
 

@@ -26,6 +26,23 @@ app.kubernetes.io/instance: {{ .Release.Name }}
 {{- printf "%s:%s" .Values.collector.image.repository .Values.collector.image.tag -}}
 {{- end -}}
 
+{{- define "agent-architecture.roleProfile" -}}
+{{- $prepared := .root.Files.Get "profiles/prepared-manifest.yaml" | fromYaml -}}
+{{- if not $prepared -}}
+{{- fail "no prepared manifest; run mage helmPrepare" -}}
+{{- end -}}
+{{- $profile := "" -}}
+{{- range $entry := $prepared.roles -}}
+{{- if eq $entry.role $.role -}}
+{{- $profile = printf "%s/%s" $prepared.mount_path $entry.profile -}}
+{{- end -}}
+{{- end -}}
+{{- if not $profile -}}
+{{- fail (printf "chart role %s is not declared by agents/application.yaml" .role) -}}
+{{- end -}}
+{{- $profile -}}
+{{- end -}}
+
 {{- define "agent-architecture.otlpEndpoint" -}}
 {{- if .Values.collector.enabled -}}
 {{- printf "%s-collector:%v" (include "agent-architecture.fullname" .) .Values.collector.otlpGRPCPort -}}

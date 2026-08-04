@@ -14,9 +14,9 @@ into the image (GH-1368): it is delivered to the applier pod at /chart as a
 mounted volume (the packaged chart, unpacked by the stage-chart init container),
 so the bytes travel with the Helm release and one shared image serves every app.
 
-The applier profile is mounted from its own ConfigMap (collector-style, .Files.Glob)
-rather than the serving profile ConfigMaps, because it is not a canonical serving role
-and does not flow through deployment.serving_profiles.
+The applier profile is mounted from its manifest-derived deployment shard. It
+keeps a dedicated ConfigMap because its privileged workload has a different
+template and image from the three serving roles.
 */}}
 apiVersion: v1
 kind: ConfigMap
@@ -29,7 +29,7 @@ data:
   {{- range $path, $_ := .Files.Glob "profiles/applier/**" }}
   {{- $key := $path | trimPrefix "profiles/applier/" | replace "/" "__" }}
   {{ $key }}: |-
-  {{- if eq $key "agents__applier__exec-declarations.yaml" }}
+  {{- if eq $key "applications__coding-agent__applier__exec-declarations.yaml" }}
     {{- /* Rewrite the applier exec args' placeholder coordinates to the installed
           release so an applier installed under any release name targets its own
           release, namespace, and role Deployments rather than a baked
@@ -213,7 +213,7 @@ spec:
             {{- toYaml .Values.containerSecurityContext | nindent 12 }}
           args:
             - "--profile"
-            - "/profiles/agents/applier/profile.yaml"
+            - "/profiles/applications/coding-agent/applier/profile.yaml"
             - "--directory"
             - "{{ .Values.workspace.mountPath }}"
             - "--otel-service-name"

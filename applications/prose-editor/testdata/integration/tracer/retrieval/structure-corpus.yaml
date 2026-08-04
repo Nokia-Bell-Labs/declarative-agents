@@ -1,0 +1,12 @@
+schema_version: prose-editor.structure-corpus/v1
+records:
+  - id: structure-outline-001
+    record_type: outline
+    source:
+      repository: example.com/reference/structure
+      path: corpus/outlines.md
+      commit: 1111111111111111111111111111111111111111
+      chunk_id: outline-001
+    guidance: Lead with the invariant, then present the ordered process as a list.
+    distance: 0.125
+    embedding_model: deterministic-fixture-v1

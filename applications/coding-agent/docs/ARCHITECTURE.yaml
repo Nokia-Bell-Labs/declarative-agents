@@ -1,6 +1,11 @@
 id: architecture-coding-agent-example
 title: Coding Agent Architecture
 
+capability_classification:
+  ownership: composition-only
+  module_status: implemented
+  composition_wrappers: [planner, executor, critic, applier]
+
 overview:
   summary: |
     The coding agent composes three canonical applications/catalog agents.
@@ -105,13 +110,13 @@ components:
       image.
   - name: Kubernetes deployment
     path: helm/
-    status: core_topology_implemented
+    status: implemented
     responsibility: |
       Run planner, executor, and critic as separate workloads, mount the
       packaged profiles and workspace at declared paths, and expose only the
       delegation and result interfaces required by the coding loop.
   - name: Persistent serving composition
-    path: agents/serving/
+    path: agents/
     status: implemented
     responsibility: |
       Host truthful role request and lifecycle endpoints. The planner request
@@ -120,7 +125,7 @@ components:
       the shared runtime directory rather than in request input.
   - name: applier
     path: agents/applier/
-    status: planned
+    status: implemented
     library_requirement: docs/specs/software-requirements/srd006-applier.yaml
     responsibility: |
       Actuate the coding chart on Kubernetes. An authorized operator or CI caller
@@ -154,10 +159,10 @@ design_decisions:
   - id: 2
     title: Assemble profile closure at package time
     decision: |
-      `agents/application.yaml` declares a compatible
-      catalog `v0.*` release and names four direct references:
-      planner, executor, critic
-      session, and critic changed-workspace. `mage package` snapshots the
+      `agents/application.yaml` uses the shared Release 14 schema, declares a
+      compatible catalog `v0.*` release, and names the four canonical roots plus
+      local planner, executor, critic, and applier deployment roots. `mage
+      package` snapshots the
       configured checkout, resolves profile-local references from their
       declaring YAML and `agents/...` references from the library root, then
       preserves those paths in the per-application profile tree.
@@ -231,9 +236,10 @@ design_decisions:
   - id: 8
     title: Package one exact closure per serving role
     decision: |
-      Deployment packaging stages application and canonical sources into one
-      temporary namespace, then invokes the #847 profileClosure resolver once
-      per serving entry profile. Each role root preserves /profiles paths and
+      Deployment packaging validates and resolves the shared application
+      manifest, stages application and canonical sources into one temporary
+      namespace, then publishes one closure per deployment entry. Each root
+      preserves /profiles paths and
       receives only reachable assets. Sorted files are assigned sequentially to
       900 KiB ConfigMap payload partitions; an individual oversized entry fails.
       Deployment and role manifests record provenance, profile paths, partition
@@ -345,12 +351,17 @@ project_structure:
       role: Deterministic transitive library-profile closure assembly.
     - path: magefiles/profiles_deployment.go
       role: Role-specific closure publication and bounded ConfigMap partition metadata.
-    - path: agents/serving/
+    - path: agents/
       role: Persistent planner, executor, and critic host profiles and remote request composition.
+    - path: agents/role-server/
+      role: Explicitly application-owned shared lifecycle wrapper used by the three serving actors.
     - path: agents/applier/
-      role: Planned standalone applier profile that validates, applies, verifies, and rolls back a decided coding-chart values patch.
+      role: |
+        Standalone local composition wrapper over the canonical catalog applier.
+        Application-owned command bindings validate, apply, verify, and roll
+        back a decided coding-chart values patch.
     - path: helm/
-      role: Planned one-container-per-agent deployment chart.
+      role: Implemented role-sharded deployment chart.
     - path: magefiles/
       role: Application packaging, audit, and staged integration targets.
   library:

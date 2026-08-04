@@ -1,18 +1,7 @@
 {{- if .Values.collector.enabled }}
 {{- $fullname := include "coding-agent.fullname" . -}}
-apiVersion: v1
-kind: ConfigMap
-metadata:
-  name: {{ $fullname }}-collector-profiles
-  labels:
-    {{- include "coding-agent.labels" . | nindent 4 }}
-    app.kubernetes.io/component: collector
-data:
-  {{- range $path, $_ := .Files.Glob "profiles/collector/**" }}
-  {{ $path | trimPrefix "profiles/collector/" | replace "/" "__" }}: |-
-    {{- $.Files.Get $path | nindent 4 }}
-  {{- end }}
----
+{{- $context := dict "root" . "role" "collector" -}}
+{{- $manifest := include "coding-agent.roleManifest" $context | fromYaml -}}
 apiVersion: apps/v1
 kind: Deployment
 metadata:
@@ -33,6 +22,7 @@ spec:
         app.kubernetes.io/component: collector
       annotations:
         checksum/config: {{ toYaml .Values.collector | sha256sum }}
+        checksum/profiles: {{ include "coding-agent.profileChecksum" $context }}
     spec:
       automountServiceAccountToken: false
       securityContext:
@@ -45,10 +35,10 @@ spec:
           # (srd020 R7), resolved against the working directory. The profile
           # directory holds the staged ui/dist, so the working directory is the
           # mounted profile directory -- no UI environment variable (GH-1228).
-          workingDir: /profiles/agents/collector
+          workingDir: {{ printf "/profiles/%s" $manifest.profile | dir }}
           args:
             - "--profile"
-            - "/profiles/agents/collector/profile.yaml"
+            - {{ printf "/profiles/%s" $manifest.profile | quote }}
             - "--directory"
             - "/data"
           securityContext:
@@ -75,17 +65,7 @@ spec:
             - {name: spool, mountPath: /data}
             - {name: tmp, mountPath: /tmp}
       volumes:
-        - name: profiles
-          projected:
-            defaultMode: 0444
-            sources:
-              - configMap:
-                  name: {{ $fullname }}-collector-profiles
-                  items:
-                    {{- range $path, $_ := .Files.Glob "profiles/collector/**" }}
-                    - key: {{ $path | trimPrefix "profiles/collector/" | replace "/" "__" }}
-                      path: {{ $path | trimPrefix "profiles/collector/" }}
-                    {{- end }}
+        {{- include "coding-agent.profilesVolume" $context | nindent 8 }}
         - name: spool
           emptyDir: {}
         - name: tmp

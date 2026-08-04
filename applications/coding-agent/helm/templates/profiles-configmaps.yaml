@@ -1,4 +1,5 @@
-{{- range $role := list "planner" "executor" "critic" }}
+{{- range $role := list "planner" "executor" "critic" "collector" }}
+{{- if or (ne $role "collector") $.Values.collector.enabled }}
 {{- $context := dict "root" $ "role" $role -}}
 {{- $manifest := include "coding-agent.roleManifest" $context | fromYaml -}}
 {{- range $partition := $manifest.config_maps }}
@@ -17,5 +18,6 @@ data:
     {{- $.Files.Get (printf "profiles/%s/%s" $role .) | nindent 4 }}
   {{- end }}
 ---
+{{ end }}
 {{ end }}
 {{ end }}

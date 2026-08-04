@@ -24,12 +24,16 @@ import (
 // project them into one volume without per-key item maps and the init container's
 // `cat /curator-ui/part-*` reassembles them in order.
 func provisionCuratorUIShards(environment smokeEnvironment, catalogRoot, namespace, releasePrefix string) ([]string, error) {
+	applicationRoot, err := applicationRootFromWorkingDirectory()
+	if err != nil {
+		return nil, err
+	}
 	dir, err := os.MkdirTemp("", "curator-ui-shards-*")
 	if err != nil {
 		return nil, err
 	}
 	defer func() { _ = os.RemoveAll(dir) }()
-	if err := prepareCuratorAssets(catalogRoot, dir); err != nil {
+	if err := prepareCuratorAssets(applicationRoot, catalogRoot, dir); err != nil {
 		return nil, fmt.Errorf("stage curator UI shards: %w", err)
 	}
 	shardPaths, err := filepath.Glob(filepath.Join(dir, curatorAssetsDir, curatorAssetShardPrefix+"*"))

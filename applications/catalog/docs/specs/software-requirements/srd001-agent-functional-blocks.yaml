@@ -13,6 +13,7 @@ family_srds:
   - srd018-scenario-critic
   - srd019-mock
   - srd020-collector
+  - srd022-applier
 
 conformance_fixture_srds:
   - srd007-rest
@@ -38,6 +39,7 @@ context: |
     - srd018-scenario-critic            (scenario critic)
     - srd019-mock                 (mock)
     - srd020-collector            (collector)
+    - srd022-applier              (deployment applier)
 
   The REST, lifecycle, and control contracts (srd007, srd009, and srd010) cover
   internal conformance fixtures under testdata/conformance rather than shipped

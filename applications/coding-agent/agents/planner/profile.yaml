@@ -1,0 +1,9 @@
+name: coding-planner-server
+machine: ../role-server/machine.yaml
+tools:
+  - ../role-server/tools.yaml
+tool_declarations:
+  - ../role-server/declarations.yaml
+  - /opt/agent-core/tools/builtin/lifecycle/exit-agent.yaml
+rest_definitions:
+  - rest.yaml

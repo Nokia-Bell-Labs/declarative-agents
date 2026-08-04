@@ -2,6 +2,7 @@
 {{- $fullname := include "chatbot-mesh.fullname" . -}}
 {{- $external := .Values.collector.externalOTLPEndpoint -}}
 {{- $agent := eq .Values.collector.implementation "agent" -}}
+{{- $uiArchive := .Values.collector.uiArchiveConfigMap | default "" -}}
 {{- if not $agent }}
 apiVersion: v1
 kind: ConfigMap
@@ -69,7 +70,7 @@ data:
             - debug
             {{- end }}
 {{- end }}
-{{- if $agent }}
+{{- if and $agent (not $uiArchive) }}
 ---
 # The collector's built trace UI (srd020 R7), carried by a collector-only
 # ConfigMap so it never enters the shared profiles ConfigMap that every pod
@@ -107,7 +108,30 @@ spec:
       labels:
         {{- include "chatbot-mesh.selectorLabels" . | nindent 8 }}
         app.kubernetes.io/component: collector
+      {{- if $uiArchive }}
+      annotations:
+        checksum/collector-ui-archive: {{ required "collector.uiArchiveChecksum is required with collector.uiArchiveConfigMap" .Values.collector.uiArchiveChecksum | quote }}
+      {{- end }}
     spec:
+      {{- if and $agent $uiArchive }}
+      initContainers:
+        - name: stage-collector-ui
+          image: "{{ .Values.image.repository }}:{{ .Values.image.tag }}"
+          imagePullPolicy: {{ .Values.image.pullPolicy }}
+          command:
+            - sh
+            - -c
+            - >-
+              echo '{{ .Values.collector.uiArchiveChecksum }}  /collector-ui-src/assets.tgz' |
+              sha256sum -c - &&
+              tar -xzf /collector-ui-src/assets.tgz -C /collector-ui &&
+              cd /collector-ui &&
+              sha256sum -c .inventory.sha256 &&
+              rm .inventory.sha256
+          volumeMounts:
+            - {name: collector-ui-source, mountPath: /collector-ui-src, readOnly: true}
+            - {name: collector-ui, mountPath: /collector-ui}
+      {{- end }}
       containers:
         - name: collector
           {{- if $agent }}
@@ -167,6 +191,14 @@ spec:
         - name: work
           emptyDir: {}
         - name: collector-ui
+          {{- if $uiArchive }}
+          emptyDir: {}
+        - name: collector-ui-source
+          configMap:
+            name: {{ $uiArchive }}
+            items:
+              - {key: assets.tgz, path: assets.tgz}
+          {{- else }}
           projected:
             defaultMode: 0444
             sources:
@@ -177,6 +209,7 @@ spec:
                     - key: {{ $path | trimPrefix "collector-ui/" | replace "/" "__" }}
                       path: {{ $path | trimPrefix "collector-ui/" }}
                     {{- end }}
+          {{- end }}
         {{- else }}
         - name: config
           configMap:

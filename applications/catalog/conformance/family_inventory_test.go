@@ -171,7 +171,7 @@ func TestFamilySRDInventoryMatchesSpecificationIndex(t *testing.T) {
 		"srd005-specification-critic": true, "srd006-bench": true, "srd008-runtime-state-reader": true,
 		"srd011-knowledge-manager": true, "srd012-chroma-corpus-agents": true,
 		"srd018-scenario-critic": true, "srd019-mock": true,
-		"srd020-collector": true,
+		"srd020-collector": true, "srd022-applier": true,
 	}
 	for _, id := range foundation.Families {
 		delete(wantFamilies, id)

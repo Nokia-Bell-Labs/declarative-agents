@@ -71,6 +71,19 @@ func TestSubModulesRunsModulesWithGoTests(t *testing.T) {
 	}
 }
 
+func TestCatalogTestTargetUsesMageRunner(t *testing.T) {
+	for _, target := range testTargets() {
+		if target.module != "applications/catalog" {
+			continue
+		}
+		if reflect.ValueOf(target.run).Pointer() != reflect.ValueOf(runMageTest).Pointer() {
+			t.Fatal("catalog test target does not use its stable-binary Mage runner")
+		}
+		return
+	}
+	t.Fatal("catalog test target is not registered")
+}
+
 func TestSubModulesWrapsRunnerError(t *testing.T) {
 	root := t.TempDir()
 	writeGoMod(t, filepath.Join(root, "agent-core"))
@@ -140,8 +153,8 @@ func TestUnitSubModulesWrapsRunnerError(t *testing.T) {
 
 // TestEveryMaintainedGoModuleIsDispatchedExactlyOnce is the orchestration guard:
 // every non-fixture Go module in the repository must be dispatched by the root
-// Test gate exactly once, including standalone nested modules like
-// design-patterns/magefiles and agent-core/magefiles (GH-1345).
+// Test gate exactly once, except explicitly audit-only applications whose local
+// Go exists solely to implement their root-dispatched audit/stats surface.
 func TestEveryMaintainedGoModuleIsDispatchedExactlyOnce(t *testing.T) {
 	modules, err := discoverMaintainedGoModules("..")
 	if err != nil {
@@ -157,8 +170,21 @@ func TestEveryMaintainedGoModuleIsDispatchedExactlyOnce(t *testing.T) {
 	}
 
 	for _, mod := range modules {
-		if got := dispatch[mod]; got != 1 {
-			t.Errorf("maintained Go module %q dispatched %d time(s) by the Test gate, want exactly 1", mod, got)
+		want := 1
+		if contains(auditOnlyApplicationModules, mod) {
+			want = 0
+		}
+		if got := dispatch[mod]; got != want {
+			t.Errorf("maintained Go module %q dispatched %d time(s) by the Test gate, want %d", mod, got, want)
+		}
+	}
+
+	for _, module := range auditOnlyApplicationModules {
+		if !contains(modules, module) {
+			t.Fatalf("discovery missed audit-only module %q", module)
+		}
+		if dispatch[module] != 0 {
+			t.Fatalf("audit-only module %q entered runnable Test dispatch", module)
 		}
 	}
 

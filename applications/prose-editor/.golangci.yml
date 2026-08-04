@@ -1,0 +1,25 @@
+version: "2"
+
+linters:
+  default: none
+  enable:
+    - forbidigo
+  settings:
+    forbidigo:
+      analyze-types: true
+      forbid:
+        - pattern: ^os\.Getenv$
+          msg: use explicit configuration instead of os.Getenv
+        - pattern: ^os\.LookupEnv$
+          msg: use explicit configuration instead of os.LookupEnv
+        - pattern: ^os\.Setenv$
+          msg: pass environment on the child command instead of os.Setenv
+  exclusions:
+    rules:
+      - path: _test\.go$
+        linters:
+          - forbidigo
+
+issues:
+  max-issues-per-linter: 0
+  max-same-issues: 0

@@ -312,10 +312,10 @@ test_cases:
 
   - use_case: rel00.0-uc001-domain-agent-integration
     name: Builtin collection words transform and validate selected arrays and structured output
-    go_test: go test ./internal/tools/control ./internal/tools/compose ./internal/tools/llm -run 'Test(Partition|SelectSubset|ValidatePartition|ValidateSelectSubset|RenderEach|ValidateRenderEach|ParseStructured|CompileStructured)'
+    go_test: go test ./internal/tools/catalog ./internal/tools/control ./internal/tools/compose ./internal/tools/llm -run 'Test(Partition|SelectSubset|ValidatePartition|ValidateSelectSubset|RenderEach|ValidateRenderEach|ValidateParseStructuredConfig|ParseStructured|CompileStructured)'
     inputs:
       words: [partition, select_subset, render_each, parse_structured]
-      outcomes: [full, partial, empty, malformed, schema_invalid, unresolved_selector]
+      outcomes: [full, partial, empty, adjacent_valid, adjacent_invalid, malformed, schema_invalid, unresolved_selector]
     expected:
       input_order_preserved: true
       undeclared_candidates_excluded: true
@@ -323,6 +323,8 @@ test_cases:
       duplicate_name_policy_deterministic: true
       iterator_structured_output_traversable: true
       empty_array_renders_empty: true
+      parse_structured_accepts_adjacent_output: true
+      other_current_result_paths_rejected: true
       content_failure_uses_declared_signal: true
       malformed_config_rejected_before_dispatch: true
     traces:
@@ -995,6 +997,39 @@ test_cases:
       flag_names_match: true
     traces:
       - srd018-cli-flag-contract AC1
+
+  - use_case: rel00.0-uc001-domain-agent-integration
+    name: Runtime request bootstrap, resume precedence, and process result contract
+    go_test: go test ./cmd/agent -run 'Test(SeedRequest|ResumeLoad|CLIResultReporter|RunPreparedPrints|ExitCodeForStatus)'
+    inputs:
+      request_cases: [finite_bytes, absent, unreadable]
+      resume_case: checkpoint_load_with_request_seed_present
+      summary_limit_bytes: 1048576
+      run_statuses: [succeeded, suspended, failed, budget_exceeded, cancelled]
+    expected:
+      non_resume_request_becomes_seed_output: true
+      no_request_bootstrap_unchanged: true
+      unreadable_request_is_error: true
+      loaded_checkpoint_overrides_request_seed: true
+      stdout_summary_bounded: true
+      stderr_has_run_and_machine_state: true
+      exit_code_uses_run_status: true
+    traces:
+      - cfg-runtime-contract
+      - srd018-cli-flag-contract AC1
+
+  - use_case: rel00.0-uc001-domain-agent-integration
+    name: Self invoke records bounded child process result attributes
+    go_test: go test ./internal/tools/control -run TestSelfInvokeTraceRecordsBoundedChildResult
+    inputs:
+      child_result: [profile, run_id, exit_code, stdout, stderr]
+      content_prefix_limit_bytes: 500
+    expected:
+      current_span_attributes_recorded: true
+      result_event_recorded: true
+      stdout_and_stderr_bounded: true
+    traces:
+      - cfg-runtime-contract
 
   - use_case: rel00.0-uc001-domain-agent-integration
     name: Integration telemetry dual export and retained backend evidence

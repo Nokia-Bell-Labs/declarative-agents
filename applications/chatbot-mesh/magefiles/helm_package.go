@@ -126,14 +126,9 @@ func stagePackageChart(chartDir, profilesRoot, catalogRoot string) (string, func
 		cleanup()
 		return "", nil, err
 	}
-	for _, program := range chartProfilePrograms() {
-		if err := stageProfilePath(
-			chartProfileSource(profilesRoot, catalogRoot, program),
-			filepath.Join(chart, program.rel),
-		); err != nil {
-			cleanup()
-			return "", nil, err
-		}
+	if err := stageChatbotComposition(chart, profilesRoot, catalogRoot); err != nil {
+		cleanup()
+		return "", nil, err
 	}
 	return chart, cleanup, nil
 }

@@ -196,7 +196,7 @@ func stageServingProfileTree(roots integrationRoots) (string, func(), error) {
 		cleanup()
 		return "", nil, err
 	}
-	source, err := inspectPackageSource(roots.Profiles, manifest.AgentProfiles.CompatibleRelease)
+	source, err := inspectPackageSource(roots.Profiles, manifest.Catalog.CompatibleRelease)
 	if err != nil {
 		cleanup()
 		return "", nil, err
@@ -205,10 +205,17 @@ func stageServingProfileTree(roots integrationRoots) (string, func(), error) {
 		cleanup()
 		return "", nil, fmt.Errorf("assemble #847 profile closure: %w", err)
 	}
-	destination := filepath.Join(root, "applications", "coding-agent")
-	if err := copyTree(filepath.Join(roots.Application, "agents", "serving"), destination); err != nil {
+	if err := copyTree(
+		filepath.Join(roots.Profiles, "agents", "applier"),
+		filepath.Join(root, "applications", "catalog", "applier"),
+	); err != nil {
 		cleanup()
-		return "", nil, fmt.Errorf("stage application serving profiles: %w", err)
+		return "", nil, fmt.Errorf("stage canonical applier runtime projection: %w", err)
+	}
+	destination := filepath.Join(root, "applications", "coding-agent")
+	if err := copyTree(filepath.Join(roots.Application, "agents"), destination); err != nil {
+		cleanup()
+		return "", nil, fmt.Errorf("stage application actor profiles: %w", err)
 	}
 	return root, cleanup, nil
 }

@@ -1,0 +1,56 @@
+id: migration-v0.20260804.0-applier-family
+title: Canonical Applier Family Promotion
+root_release: v0.20260804.0
+status: release-ready
+supersedes: migration-v0.20260730.0-collector-family
+
+publication:
+  timing: post-merge
+  command: mage tag
+  policy: |
+    Publish the next immutable root v0 release only from a clean main checkout
+    after catalog, application, package, and repository audits pass. No
+    module-scoped or legacy tag is created for this new release.
+
+compatibility_policy:
+  catalog_v0: |
+    The applier family is additive at agents/applier. Existing catalog paths
+    remain valid. Its profile, machine, signal, terminal, request, and selection
+    contracts are supported through root v0.*.
+  catalog_v1: |
+    Any future breaking applier contract change requires an explicit migration
+    and coordinated consumer update.
+
+addition:
+  name: applier
+  path: applications/catalog/agents/applier/profile.yaml
+  canonical_binding: {role: executor, sub_roles: [actuation-agent, change-manager]}
+  consumers:
+    - applications/chatbot-mesh/agents/applier/profile.yaml
+    - applications/coding-agent/agents/applier/profile.yaml
+    - applications/agent-architecture/agents/applier/profile.yaml
+  responsibility: |
+    Own lifecycle hosting, request-machine shape, name-only selections, shared
+    lifecycle and workspace-write ToolDefs, and validate/apply/verify/rollback
+    sequencing.
+
+local_boundaries:
+  - chart and schema identity
+  - release and namespace
+  - Deployment targets and rollout commands
+  - REST endpoint paths, ports, limits, and response mapping
+  - credentials, RBAC, NetworkPolicy, and caller authorization
+
+removed_copies:
+  - applications/chatbot-mesh/agents/applier/{machine,apply-machine,rollout-machine,tools,declarations,request-declarations}.yaml
+  - applications/coding-agent/agents/applier/{machine,apply-machine,rollout-machine,tools,declarations,request-declarations,request-tools-*}.yaml
+  - applications/agent-architecture/agents/applier/{machine,apply-machine,rollout-machine,tools,declarations,request-declarations,request-tools-*}.yaml
+
+evidence:
+  - mage validate
+  - mage conformance
+  - go test ./applications/catalog/conformance -run 'Applier'
+  - go test ./applications/chatbot-mesh/magefiles
+  - go test ./applications/coding-agent/magefiles
+  - go test ./applications/agent-architecture/magefiles
+  - mage audit

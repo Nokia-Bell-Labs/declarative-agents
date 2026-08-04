@@ -117,8 +117,9 @@ func runCodingApplierLive(roots integrationRoots) (result error) {
 		defer cancel()
 		return codingSmokeEnvironment{}.run(ctx, "kind", args...)
 	}
-	cluster, err := kindrig.EnsureCluster(
-		kindRun, codingApplierLiveCluster, kindConfig, 120*time.Second)
+	cluster, err := kindrig.EnsureClusterWithOptions(
+		kindRun, codingApplierLiveCluster, kindConfig, 120*time.Second,
+		codingApplierLiveEnsureOptions())
 	if err != nil {
 		return &codingHelmInfrastructureError{Step: "kind cluster acquisition", Cause: err}
 	}
@@ -184,6 +185,17 @@ func runCodingApplierLive(roots integrationRoots) (result error) {
 	return nil
 }
 
+func codingApplierLiveEnsureOptions() kindrig.EnsureOptions {
+	return kindrig.EnsureOptions{
+		ReusePolicy: kindrig.RecreateUnhealthyOwnedCluster,
+		HealthRun: func(name string, args ...string) ([]byte, error) {
+			ctx, cancel := context.WithTimeout(context.Background(), codingHelmProbeTimeout)
+			defer cancel()
+			return codingSmokeEnvironment{}.run(ctx, name, args...)
+		},
+	}
+}
+
 // resolveCodingApplierImage names the applier image by the tested checkout's
 // commit, the same revision tag resolveCodingHelmImages uses, so the image built
 // here is the one loaded and installed.
@@ -200,8 +212,8 @@ func resolveCodingApplierImage(applicationRoot string) (string, error) {
 	return image, nil
 }
 
-// stageCodingApplierLiveChart assembles one chart directory carrying the profile
-// closure, the collector and applier profiles, and a test-only post-upgrade
+// stageCodingApplierLiveChart assembles one chart directory carrying the
+// manifest-derived closure and a test-only post-upgrade
 // rollback trigger. The host installs this directory, and packageCodingApplierChart
 // packages it to the tarball the applier mounts at /chart, so a values change
 // re-renders one coherent instrumented chart (srd006 R2.2). It mirrors
@@ -219,19 +231,6 @@ func stageCodingApplierLiveChart(applicationRoot string) (string, func(), error)
 		return "", nil, fmt.Errorf("stage source chart: %w", err)
 	}
 	if err := prepareHelmProfiles(profiles, chart); err != nil {
-		cleanup()
-		return "", nil, err
-	}
-	catalogRoot, err := resolveCatalogRoot("applierLive stage chart", applicationRoot)
-	if err != nil {
-		cleanup()
-		return "", nil, err
-	}
-	if err := stageCollectorProfile(catalogRoot, chart); err != nil {
-		cleanup()
-		return "", nil, err
-	}
-	if err := stageApplierProfile(applicationRoot, chart); err != nil {
 		cleanup()
 		return "", nil, err
 	}

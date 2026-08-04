@@ -12,6 +12,7 @@ import (
 	"strings"
 	"testing"
 
+	"github.com/Nokia-Bell-Labs/declarative-agents/magefiles/appmanifest"
 	"gopkg.in/yaml.v3"
 )
 
@@ -293,7 +294,17 @@ func TestAuditRejectsCanonicalProfileCopy(t *testing.T) {
 }
 
 func TestStatsCompositionOnlyJSON(t *testing.T) {
-	encoded, err := json.Marshal(newStatsOutput())
+	resolved, err := resolveRootsFromWorkingDirectory()
+	if err != nil {
+		t.Fatal(err)
+	}
+	manifest, err := appmanifest.Load(
+		filepath.Join(resolved.Application, "agents", "application.yaml"),
+		appmanifest.Options{ApplicationRoot: resolved.Application, CatalogRoot: resolved.Catalog})
+	if err != nil {
+		t.Fatal(err)
+	}
+	encoded, err := json.Marshal(newStatsOutput(manifest))
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -308,11 +319,17 @@ func TestStatsCompositionOnlyJSON(t *testing.T) {
 	if !ok {
 		t.Fatalf("application = %#v, want object", document["application"])
 	}
-	if application["ownership"] != "composition" || application["agents_contributed"] != float64(0) {
-		t.Fatalf("application stats = %#v, want composition with zero agents", application)
+	if application["ownership"] != "composition-only" || application["agents_contributed"] != float64(0) {
+		t.Fatalf("application stats = %#v, want composition-only with zero agents", application)
 	}
-	if application["canonical_references"] != float64(2) {
-		t.Fatalf("canonical_references = %#v, want 2", application["canonical_references"])
+	if application["canonical_references"] != float64(3) {
+		t.Fatalf("canonical_references = %#v, want 3", application["canonical_references"])
+	}
+	if application["deployment_entries"] != float64(3) ||
+		application["ui_assets"] != float64(4) ||
+		application["package_assets"] != float64(1) ||
+		application["composition_wrappers"] != float64(1) {
+		t.Fatalf("manifest-derived asset stats = %#v", application)
 	}
 }
 
@@ -572,7 +589,7 @@ func copyApplicationFixture(t *testing.T) string {
 	source := realApplicationRoot(t)
 	repository := t.TempDir()
 	root := filepath.Join(repository, "applications", "agent-architecture")
-	for _, relative := range []string{"docs"} {
+	for _, relative := range []string{"agents", "docs"} {
 		copyTree(t, filepath.Join(source, relative), filepath.Join(root, relative))
 	}
 	for _, relative := range []string{"README.md", "agent-architecture.slide"} {
@@ -594,8 +611,16 @@ func copyApplicationFixture(t *testing.T) string {
 		}
 		writeFile(t, filepath.Join(repository, filepath.FromSlash(relative)), string(data))
 	}
-	writeFile(t, filepath.Join(repository, "applications", "catalog", filepath.FromSlash(canonicalProfile)), "name: curator\n")
-	writeFile(t, filepath.Join(repository, "applications", "catalog", filepath.FromSlash(collectorProfile)), "name: collector\n")
+	for _, relative := range []string{
+		"agents/knowledge-manager/documentation-curator",
+		"agents/collector",
+		"agents/lifecycle-exit",
+		"agents/applier",
+	} {
+		copyTree(t,
+			filepath.Join(source, "..", "catalog", filepath.FromSlash(relative)),
+			filepath.Join(repository, "applications", "catalog", filepath.FromSlash(relative)))
+	}
 	return root
 }
 

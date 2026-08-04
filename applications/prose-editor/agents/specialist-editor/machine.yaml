@@ -1,0 +1,87 @@
+name: prose-specialist-editor-structure
+purpose: |-
+  Produce a non-authoritative structure-stage candidate from supplied parent
+  bytes. Retrieval from the one configured structure corpus precedes editing;
+  one insufficient retrieval may be refined once.
+invariants:
+  - The request carries parent bytes and identities, never a workspace path.
+  - Only structure-rag is queried and retrieval is read-only.
+  - No voice, style, verdict, persistence, publication, or deployment action exists.
+  - The response is candidate data; only the orchestrator can persist or accept it.
+initial_state: AwaitingRequest
+budget:
+  max_iterations: 24
+  max_tokens: 100000
+  max_duration: 5m0s
+states:
+  - AwaitingRequest
+  - ValidatingRequest
+  - FormulatingQuery
+  - EmbeddingQuery
+  - QueryingStructure
+  - RefiningQuery
+  - EmbeddingRefinedQuery
+  - QueryingRefinedStructure
+  - ComposingEditContext
+  - EditingStructure
+  - CapturingCandidate
+  - ParsingCandidate
+  - CheckingCandidate
+  - ComposingResponse
+  - Succeeded
+  - InsufficientGrounding
+  - Failed
+terminal_states: [Succeeded, InsufficientGrounding, Failed]
+signals:
+  - Seed
+  - StructureRequestValid
+  - StructureRequestRejected
+  - StructureQueryFormulated
+  - StructureQueryEmbedded
+  - StructureEvidenceReady
+  - StructureEvidenceInsufficient
+  - QueryRejected
+  - StructureEditContextReady
+  - LLMResponded
+  - StructureCandidateCaptured
+  - StructureCandidateParsed
+  - StructureCandidateInvalid
+  - StructureCandidateValid
+  - StructureCandidateRejected
+  - StructureResponseReady
+  - CommandError
+transitions:
+  - {state: AwaitingRequest, signal: Seed, next: ValidatingRequest, action: validate_structure_request, label: validated_structure_request}
+  - {state: ValidatingRequest, signal: StructureRequestValid, next: FormulatingQuery, action: formulate_structure_query, label: structure_query}
+  - {state: ValidatingRequest, signal: StructureRequestRejected, next: Failed}
+  - {state: ValidatingRequest, signal: CommandError, next: Failed}
+  - {state: FormulatingQuery, signal: StructureQueryFormulated, next: EmbeddingQuery, action: embed_structure_query, label: structure_embedding}
+  - {state: FormulatingQuery, signal: CommandError, next: Failed}
+  - {state: EmbeddingQuery, signal: StructureQueryEmbedded, next: QueryingStructure, action: query_structure_rag, label: structure_retrieval}
+  - {state: EmbeddingQuery, signal: CommandError, next: Failed}
+  - {state: QueryingStructure, signal: StructureEvidenceReady, next: ComposingEditContext, action: compose_structure_edit_context, label: structure_edit_context}
+  - {state: QueryingStructure, signal: StructureEvidenceInsufficient, next: RefiningQuery, action: formulate_structure_query, label: structure_query}
+  - {state: QueryingStructure, signal: QueryRejected, next: Failed}
+  - {state: QueryingStructure, signal: CommandError, next: Failed}
+  - {state: RefiningQuery, signal: StructureQueryFormulated, next: EmbeddingRefinedQuery, action: embed_structure_query, label: structure_embedding}
+  - {state: RefiningQuery, signal: CommandError, next: Failed}
+  - {state: EmbeddingRefinedQuery, signal: StructureQueryEmbedded, next: QueryingRefinedStructure, action: query_structure_rag, label: structure_retrieval}
+  - {state: EmbeddingRefinedQuery, signal: CommandError, next: Failed}
+  - {state: QueryingRefinedStructure, signal: StructureEvidenceReady, next: ComposingEditContext, action: compose_structure_edit_context, label: structure_edit_context}
+  - {state: QueryingRefinedStructure, signal: StructureEvidenceInsufficient, next: InsufficientGrounding}
+  - {state: QueryingRefinedStructure, signal: QueryRejected, next: Failed}
+  - {state: QueryingRefinedStructure, signal: CommandError, next: Failed}
+  - {state: ComposingEditContext, signal: StructureEditContextReady, next: EditingStructure, action: generate_structure_edit, label: structure_candidate_raw}
+  - {state: ComposingEditContext, signal: CommandError, next: Failed}
+  - {state: EditingStructure, signal: LLMResponded, next: CapturingCandidate, action: capture_structure_candidate, label: structure_candidate_transport}
+  - {state: EditingStructure, signal: CommandError, next: Failed}
+  - {state: CapturingCandidate, signal: StructureCandidateCaptured, next: ParsingCandidate, action: parse_structure_candidate, label: structure_candidate}
+  - {state: CapturingCandidate, signal: CommandError, next: Failed}
+  - {state: ParsingCandidate, signal: StructureCandidateParsed, next: CheckingCandidate, action: structure_candidate_is_valid, label: structure_candidate_check}
+  - {state: ParsingCandidate, signal: StructureCandidateInvalid, next: Failed}
+  - {state: ParsingCandidate, signal: CommandError, next: Failed}
+  - {state: CheckingCandidate, signal: StructureCandidateValid, next: ComposingResponse, action: compose_structure_response, label: structure_response}
+  - {state: CheckingCandidate, signal: StructureCandidateRejected, next: Failed}
+  - {state: CheckingCandidate, signal: CommandError, next: Failed}
+  - {state: ComposingResponse, signal: StructureResponseReady, next: Succeeded}
+  - {state: ComposingResponse, signal: CommandError, next: Failed}

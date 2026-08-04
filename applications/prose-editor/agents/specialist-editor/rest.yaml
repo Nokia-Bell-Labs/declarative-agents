@@ -1,0 +1,92 @@
+rest:
+  version: v1
+  auth:
+    none: {type: none}
+  limits:
+    local_models:
+      timeout: 30s
+      read_timeout: 30s
+      max_request_bytes: 262144
+      max_response_bytes: 1048576
+      redirect: {mode: none}
+      network:
+        schemes: [http]
+        hosts: [127.0.0.1, localhost]
+        ports: [11434, ${PROSE_TRACER_MODEL_PORT:-18086}]
+    local_structure_rag:
+      timeout: 15s
+      read_timeout: 15s
+      max_request_bytes: 1048576
+      max_response_bytes: 1048576
+      redirect: {mode: none}
+      network:
+        schemes: [http]
+        hosts: [127.0.0.1, localhost]
+        ports: [${PROSE_TRACER_RAG_PORT:-18085}]
+  clients:
+    embedding:
+      base_url: "${OLLAMA_URL:-http://127.0.0.1:11434}"
+      auth_ref: none
+      limits_ref: local_models
+      operations:
+        embed_structure_query:
+          method: POST
+          path: /api/embeddings
+          params:
+            body_schema:
+              type: object
+              required: [query, n_results]
+              properties:
+                query: {type: string}
+                n_results: {type: integer, minimum: 1, maximum: 32}
+            body_source: previous_result
+            input_mapping:
+              query: $.query
+              n_results: $.n_results
+            carry_forward: [n_results]
+          body:
+            model: "${PROSE_EDITOR_EMBEDDING_MODEL:-qwen3-embedding:8b}"
+            prompt: "{{ params.query }}"
+          success: {status: [200], signal: StructureQueryEmbedded}
+          response:
+            output:
+              embedding: $.embedding
+          side_effects:
+            - {kind: external_api, target: ollama.embeddings, state: read_only}
+          reversibility: {classification: reversible, undo: noop}
+    structure_rag:
+      base_url: "${STRUCTURE_RAG_URL:-http://127.0.0.1:18085}"
+      auth_ref: none
+      limits_ref: local_structure_rag
+      operations:
+        query:
+          method: POST
+          path: /api/v1/rag/query
+          params:
+            body_schema:
+              type: object
+              required: [query_embeddings, n_results]
+              properties:
+                query_embeddings: {type: array}
+                n_results: {type: integer, minimum: 1, maximum: 32}
+            body_source: previous_result
+            input_mapping:
+              query_embeddings: $.mapped.embedding
+              n_results: $.carried.n_results
+          body:
+            query_embeddings: ["{{ params.query_embeddings }}"]
+            n_results: "{{ params.n_results }}"
+          success: {status: [200], signal: StructureEvidenceReady}
+          failures:
+            - {status: [404], signal: StructureEvidenceInsufficient}
+            - {status: [400, 422], signal: QueryRejected}
+          response:
+            output:
+              ids: $.ids
+              documents: $.documents
+              distances: $.distances
+              metadatas: $.metadatas
+              embedding_model: $.embedding_model
+          side_effects:
+            - {kind: external_api, target: structure_rag.query, state: read_only}
+          reversibility: {classification: reversible, undo: noop}

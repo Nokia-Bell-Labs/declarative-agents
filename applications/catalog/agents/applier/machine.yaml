@@ -1,0 +1,53 @@
+name: applier
+purpose: |-
+  Host a deployment actuation boundary as a persistent service. The host starts
+  the request, control, and monitor listeners, waits for a lifecycle exit event,
+  exits the agent, and stops the listeners. Application wrappers supply the REST
+  definitions and deployment authority; this machine supplies only lifecycle
+  sequencing shared by applier consumers.
+invariants:
+  - REST authority is supplied by the selected profile and never by request input.
+  - The host grants no chart, release, namespace, deployment, endpoint, or credential authority.
+initial_state: Idle
+budget:
+  max_iterations: 10000
+states:
+  - {name: Idle, meaning: Initial state before the applier servers start.}
+  - {name: LaunchingRequests, meaning: The request server is starting.}
+  - {name: LaunchingControl, meaning: The control server is starting.}
+  - {name: LaunchingMonitor, meaning: The monitor server is starting.}
+  - {name: AwaitingControl, meaning: Serving; waiting for a lifecycle exit event.}
+  - {name: Exiting, meaning: Routing ExitRequested to exit_agent.}
+  - {name: StoppingMonitor, meaning: Stopping the monitor server.}
+  - {name: StoppingRequests, meaning: Stopping the request server.}
+  - {name: Failed, meaning: Terminal. A server or boundary word failed.}
+  - {name: Done, meaning: Terminal. Clean shutdown after a lifecycle exit.}
+terminal_states:
+  - Done
+  - Failed
+signals:
+  - {name: Seed, trigger: Agent startup.}
+  - {name: ServerLaunched, trigger: A server launched.}
+  - {name: ExitRequested, trigger: A lifecycle exit event was enqueued.}
+  - {name: AgentExited, trigger: exit_agent completed.}
+  - {name: ServerStopped, trigger: A server stopped.}
+  - {name: AwaitTimedOut, trigger: No lifecycle event arrived before the await timeout.}
+  - {name: CommandError, trigger: A server or boundary word failed.}
+transitions:
+  - {state: Idle,              signal: Seed,           next: LaunchingRequests, action: launch_applier_requests}
+  - {state: LaunchingRequests, signal: ServerLaunched, next: LaunchingControl,   action: launch_applier_control}
+  - {state: LaunchingRequests, signal: CommandError,   next: Failed}
+  - {state: LaunchingControl,  signal: ServerLaunched, next: LaunchingMonitor,   action: launch_monitor_rest}
+  - {state: LaunchingControl,  signal: CommandError,   next: Failed}
+  - {state: LaunchingMonitor,  signal: ServerLaunched, next: AwaitingControl,    action: await_applier_control}
+  - {state: LaunchingMonitor,  signal: CommandError,   next: Failed}
+  - {state: AwaitingControl,   signal: ExitRequested,  next: Exiting,            action: exit_agent}
+  - {state: AwaitingControl,   signal: AwaitTimedOut,  next: AwaitingControl,    action: await_applier_control}
+  - {state: AwaitingControl,   signal: ServerStopped,  next: Failed}
+  - {state: AwaitingControl,   signal: CommandError,   next: Failed}
+  - {state: Exiting,           signal: AgentExited,    next: StoppingMonitor,    action: stop_monitor_rest}
+  - {state: Exiting,           signal: CommandError,   next: Failed}
+  - {state: StoppingMonitor,   signal: ServerStopped,  next: StoppingRequests,   action: stop_applier_requests}
+  - {state: StoppingMonitor,   signal: CommandError,   next: Failed}
+  - {state: StoppingRequests,  signal: ServerStopped,  next: Done}
+  - {state: StoppingRequests,  signal: CommandError,   next: Failed}

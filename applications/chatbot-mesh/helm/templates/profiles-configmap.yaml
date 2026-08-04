@@ -7,12 +7,12 @@ metadata:
     {{- include "chatbot-mesh.labels" . | nindent 4 }}
     app.kubernetes.io/component: profiles
 data:
-  {{- $cogen := list "agents__chatbot__rest.yaml" "agents__chatbot__ui__ui.yaml" "agents__chatbot__request-topology.yaml" }}
+  {{- $cogen := list "agents__chatbot__rest.yaml" "agents__chatbot__ui__ui.yaml" "agents__chatbot__request-topology-declarations.yaml" }}
   {{- range $path, $_ := .Files.Glob "profiles/**" }}
   {{- $key := $path | trimPrefix "profiles/" | replace "/" "__" }}
-  {{- if not (has $key $cogen) }}
+  {{- if and (not (has $key $cogen)) (not (hasPrefix "agents__observer__ui__dist__" $key)) }}
   {{ $key }}: |-
-  {{- if eq $key "agents__applier__exec-declarations.yaml" }}
+  {{- if eq $key "applications__chatbot-mesh__applier__exec-declarations.yaml" }}
     {{- /* Rewrite the applier exec args' placeholder coordinates to the installed
           release so an applier installed under any release name targets its own
           release, namespace, and chatbot Deployment rather than a baked
@@ -37,5 +37,5 @@ data:
     {{- include "chatbot-mesh.chatbotRest" . | nindent 4 }}
   agents__chatbot__ui__ui.yaml: |-
     {{- include "chatbot-mesh.chatbotUI" . | nindent 4 }}
-  agents__chatbot__request-topology.yaml: |-
+  agents__chatbot__request-topology-declarations.yaml: |-
     {{- include "chatbot-mesh.chatbotTopology" . | nindent 4 }}

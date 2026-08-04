@@ -1,0 +1,267 @@
+id: rel14.0-uc001-application-consistency
+title: Normalize and Verify a Showcase Application Composition
+release: "14.0"
+status: implemented
+
+summary: |
+  A maintainer normalizes one showcase application around
+  agents/application.yaml, preserves actor and runtime ownership, derives
+  applicable package and UI evidence, and verifies capability-aware
+  conformance. The same flow covers Chatbot Mesh, Coding Agent, Agent
+  Architecture, and Prose Editor without treating absent optional directories
+  or planned behavior as implemented.
+
+actor: A maintainer normalizing or reviewing a showcase application.
+
+trigger: |
+  An application enters Release 14.0 normalization, changes a direct profile
+  root or capability, or moves between unregistered, audit-only, and runnable
+  root orchestration.
+
+preconditions:
+  - The shared srd001, srd002, srd003, pattern language, and role-realization
+    model are available.
+  - applications/catalog is available as the canonical implementation and
+    shared UI-token owner.
+  - agent-core validators are available for referenced profile, machine, tool,
+    ToolDef, and REST documents.
+  - The maintainer records current evidence before changing a status claim.
+
+candidate_matrix:
+  - application: chatbot-mesh
+    current_module_state: runnable
+    current_ownership: agent-owning
+    relevant_surfaces: [managed_service, packaged, helm_managed, kind_demo, ui]
+    normalization_focus: |
+      Add the manifest authority over local actors, the canonical
+      corpus-ingest and collector consumers, deployment entries, and both
+      actor-served UIs; prove canonical design-token consumption.
+  - application: coding-agent
+    current_module_state: runnable
+    current_ownership: composition-only
+    relevant_surfaces: [managed_service, packaged, helm_managed, kind_demo]
+    normalization_focus: |
+      Retain canonical planner, executor, critic, collector, and applier
+      implementations while classifying local serving and applier profiles as
+      composition wrappers that contribute no duplicate agents.
+  - application: agent-architecture
+    current_module_state: runnable
+    current_ownership: composition-only
+    relevant_surfaces: [managed_service, packaged, helm_managed, kind_demo, ui]
+    normalization_focus: |
+      Derive curator, collector, applier, deployment, UI, and catalog-doc
+      package assets from the manifest and classify the local applier as a
+      composition wrapper over the canonical implementation.
+  - application: prose-editor
+    current_module_state: runnable
+    current_ownership: agent-owning
+    relevant_surfaces: [runnable_module]
+    normalization_focus: |
+      Verify the implemented deterministic tracer as three application-owned
+      agents plus one local structure-RAG composition wrapper over the canonical
+      corpus-reader, without claiming package, Helm, kind, service, or UI capabilities.
+
+flow:
+  - id: F1
+    text: |
+      The maintainer inventories direct profile roots, actor ownership,
+      deployment entry profiles, served UI assets, capability claims, and
+      current executable evidence. Planned paths and generated package
+      inventories are recorded separately from authoritative inputs.
+    traces:
+      - srd003-application-consistency R1
+      - srd003-application-consistency R6
+      - srd003-application-consistency R7
+  - id: F2
+    text: |
+      The maintainer creates or normalizes agents/application.yaml with one
+      schema and application identity, module and ownership status, capability
+      statuses, direct catalog and local roots, stable runtime paths,
+      compatibility, and only applicable deployment and UI entries.
+    traces:
+      - srd003-application-consistency R1.1
+      - srd003-application-consistency R1.2
+      - srd003-application-consistency R1.3
+      - srd003-application-consistency R1.4
+      - srd003-application-consistency R1.5
+      - srd003-application-consistency R1.6
+  - id: F3
+    text: |
+      Local actors and wrappers are placed or mapped under agents/<actor>/.
+      Catalog implementations remain canonical references. Fixtures remain
+      outside production roots, and no optional directory is created only to
+      satisfy the layout.
+    traces:
+      - srd003-application-consistency R2.1
+      - srd003-application-consistency R2.2
+      - srd003-application-consistency R2.3
+      - srd003-application-consistency R2.4
+  - id: F4
+    text: |
+      Within each shipped actor surface, the maintainer aligns primary and
+      operation-prefixed profile, machine, name-only tools, ToolDef declaration,
+      REST, request, and UI names. Absent request or UI variants remain absent.
+    traces:
+      - srd003-application-consistency R3.1
+      - srd003-application-consistency R3.2
+      - srd003-application-consistency R3.3
+      - srd003-application-consistency R3.4
+      - srd003-application-consistency R3.5
+  - id: F5
+    text: |
+      For a packaged application, packaging starts from manifest roots, traverses
+      all reachable profile and declared UI assets, records compatibility and
+      actual provenance, and generates the inventory consumed by Helm. For an
+      application without packaged, this step is not applicable.
+    traces:
+      - srd003-application-consistency R4.1
+      - srd003-application-consistency R4.2
+      - srd003-application-consistency R4.3
+      - srd003-application-consistency R4.4
+  - id: F6
+    text: |
+      The maintainer evaluates duplicated assets for canonical promotion. A
+      demonstrated reusable asset migrates with all consumers and compatibility;
+      otherwise it remains local. Each UI claiming shared tokens proves an import
+      or a generated, drift-checked copy of the canonical token source.
+    traces:
+      - srd003-application-consistency R5.1
+      - srd003-application-consistency R5.2
+      - srd003-application-consistency R5.3
+  - id: F7
+    text: |
+      The README is aligned to the common sections. Manifest, README,
+      architecture, roadmap, Mage surfaces, and root lists use the common
+      status vocabulary and identify missing or dependency-gated evidence for
+      each capability independently.
+    traces:
+      - srd003-application-consistency R6.1
+      - srd003-application-consistency R6.2
+      - srd003-application-consistency R6.3
+      - srd003-application-consistency R6.4
+  - id: F8
+    text: |
+      Structural tests parse and trace the corpus, validate the manifest and
+      naming grammar, compare root orchestration and status, and verify ownership.
+      Applicable executable package, Helm, kind, UI, and application tests run.
+      Every absent capability is reported not_applicable rather than passed.
+    traces:
+      - srd003-application-consistency R7.1
+      - srd003-application-consistency R7.2
+      - srd003-application-consistency R7.3
+
+touchpoints:
+  - id: T1
+    target: applications/<application>/agents/application.yaml
+    reason: Single application-owned composition and capability authority.
+  - id: T2
+    target: applications/<application>/agents/<actor>/
+    reason: Local actor, wrapper, request, and actor-served UI ownership.
+  - id: T3
+    target: applications/catalog/agents/
+    reason: Canonical reusable implementation ownership and compatibility source.
+  - id: T4
+    target: applications/catalog/ui/design-tokens.css
+    reason: Canonical shared UI-token source when a UI declares consumption.
+  - id: T5
+    target: applications/<application>/magefiles/
+    reason: Manifest validation, package derivation, local audit, and capability evidence.
+  - id: T6
+    target: magefiles/build.go
+    reason: Runnable versus audit-only root membership.
+  - id: T7
+    target: agent-core
+    reason: Runtime validation and execution semantics remain external authority.
+  - id: T8
+    target: srd003-application-consistency AC1
+    reason: Manifest authority and capability gating.
+  - id: T9
+    target: srd003-application-consistency AC2
+    reason: Actor, catalog, fixture, and optional-directory grammar.
+  - id: T10
+    target: srd003-application-consistency AC3
+    reason: Program and UI naming consistency.
+  - id: T11
+    target: srd003-application-consistency AC4
+    reason: Manifest-derived package closure and provenance.
+  - id: T12
+    target: srd003-application-consistency AC5
+    reason: Canonical promotion and actual shared-token consumption.
+  - id: T13
+    target: srd003-application-consistency AC6
+    reason: Common README, statuses, and root classification.
+  - id: T14
+    target: srd003-application-consistency AC7
+    reason: Catalog, application, and runtime ownership closure.
+  - id: T15
+    target: test-rel14.0-application-consistency
+    reason: Structural and capability-gated executable evidence for this flow.
+
+success_criteria:
+  - id: S1
+    criterion: |
+      The candidate has one manifest authority whose direct roots, runtime
+      paths, compatibility, deployment, UI, capabilities, and status are
+      internally consistent.
+    traces:
+      - srd003-application-consistency R1
+      - srd003-application-consistency AC1
+  - id: S2
+    criterion: |
+      Local actors and variants follow the normalized grammar, canonical
+      implementations remain catalog-owned, and absent optional surfaces do not
+      require placeholders.
+    traces:
+      - srd003-application-consistency R2
+      - srd003-application-consistency R3
+      - srd003-application-consistency AC2
+      - srd003-application-consistency AC3
+  - id: S3
+    criterion: |
+      Every applicable package and Helm profile root and provenance record
+      derives from the manifest, while non-packaged applications skip the group
+      as not applicable.
+    traces:
+      - srd003-application-consistency R4
+      - srd003-application-consistency AC4
+  - id: S4
+    criterion: |
+      Reusable promotion has consumer evidence and one owner, and every
+      shared-token claim proves canonical consumption.
+    traces:
+      - srd003-application-consistency R5
+      - srd003-application-consistency AC5
+  - id: S5
+    criterion: |
+      README, manifest, local documents, executable evidence, and root
+      orchestration agree on module and per-capability status.
+    traces:
+      - srd003-application-consistency R6
+      - srd003-application-consistency AC6
+  - id: S6
+    criterion: |
+      The application owns composition and evidence, the catalog owns reusable
+      behavior, and agent-core owns runtime semantics with no duplicate
+      implementation or redefined format.
+    traces:
+      - srd003-application-consistency R7
+      - srd003-application-consistency AC7
+  - id: S7
+    criterion: |
+      All four applications have truthful normalization findings. Prose Editor
+      is runnable with three contributed agents and one canonical wrapper while
+      its optional service, package, Helm, kind, and UI capabilities remain
+      not_applicable.
+    traces:
+      - srd003-application-consistency R1.2
+      - srd003-application-consistency R2.2
+      - srd003-application-consistency R6.4
+
+out_of_scope:
+  - Rename or move application assets in this documentation release.
+  - Implement Prose Editor profiles, services, packaging, Helm, kind, or UI.
+  - Require an optional directory or capability because another application has it.
+  - Change canonical catalog behavior or agent-core runtime formats.
+  - Mark Release 14.0 normalization complete before named executable evidence exists.
+
+test_suite: test-rel14.0-application-consistency
