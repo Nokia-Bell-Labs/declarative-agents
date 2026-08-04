@@ -25,6 +25,7 @@ type agentCoreDemoConfig struct {
 	ReleaseRepo    string `yaml:"release_repo"`
 	ContainerImage string `yaml:"container_image"`
 	ContainerNetRC string `yaml:"container_netrc"`
+	DoltBin        string `yaml:"dolt_bin"`
 }
 
 // containerReleaseRef returns the release ref used for container builds.

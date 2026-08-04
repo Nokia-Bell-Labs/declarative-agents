@@ -26,12 +26,14 @@ func TestLoadAgentCoreDemoConfig(t *testing.T) {
 				"release_repo: https://example.invalid/agent-core.git",
 				"container_image: registry.example/agent-core:test",
 				"container_netrc: /tmp/build.netrc",
+				"dolt_bin: /opt/dolt/bin/dolt",
 			}, "\n"),
 			want: agentCoreDemoConfig{
 				ReleaseRef:     "v0.20260612.2",
 				ReleaseRepo:    "https://example.invalid/agent-core.git",
 				ContainerImage: "registry.example/agent-core:test",
 				ContainerNetRC: "/tmp/build.netrc",
+				DoltBin:        "/opt/dolt/bin/dolt",
 			},
 		},
 	}
@@ -91,6 +93,33 @@ func TestLoadAgentCoreDemoConfigRejectsMalformedYAML(t *testing.T) {
 	writeAgentCoreDemoConfig(t, root, "release_ref: [\n")
 	if _, err := loadAgentCoreDemoConfig(root); err == nil {
 		t.Fatal("loadAgentCoreDemoConfig returned nil error for malformed demo.yaml")
+	}
+}
+
+func TestResolveDoltBinary(t *testing.T) {
+	tests := []struct {
+		name       string
+		configured string
+		wantLookup string
+	}{
+		{name: "path fallback", wantLookup: "dolt"},
+		{name: "declared setting", configured: " /opt/dolt/bin/dolt ", wantLookup: "/opt/dolt/bin/dolt"},
+	}
+	for _, tc := range tests {
+		t.Run(tc.name, func(t *testing.T) {
+			got, err := resolveDoltBinary(tc.configured, func(name string) (string, error) {
+				if name != tc.wantLookup {
+					t.Fatalf("lookPath name = %q, want %q", name, tc.wantLookup)
+				}
+				return "/resolved/dolt", nil
+			})
+			if err != nil {
+				t.Fatalf("resolveDoltBinary returned error: %v", err)
+			}
+			if got != "/resolved/dolt" {
+				t.Fatalf("resolveDoltBinary = %q, want /resolved/dolt", got)
+			}
+		})
 	}
 }
 

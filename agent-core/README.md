@@ -139,8 +139,9 @@ mage integration:dolt   # runs the gated tests, auto-managing the server
 ```
 
 The tests require only a `dolt` binary on `PATH` (install from
-<https://docs.dolthub.com/introduction/installation>) or an explicit
-`AGENT_CORE_DOLT_BIN` override; they skip cleanly when no binary is found, so
+<https://docs.dolthub.com/introduction/installation>). To use another binary,
+set `dolt_bin` in `demo.yaml`; `mage integration:dolt` passes that declaration
+to the tests through `-dolt-bin`. Tests skip cleanly when no binary is found, so
 `go test ./...` stays green on machines without dolt.
 
 ### Persistent Dolt Server (production)
