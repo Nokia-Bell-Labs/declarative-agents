@@ -1,8 +1,8 @@
 id: rel00.1-uc001-tracer-saga
 title: Tracer-Bullet Saga with Structure Stage and Local Finalization
 release: "00.1"
-status: planned
-runtime_status: unimplemented
+status: partial
+runtime_status: program_closure
 
 summary: |
   A human asks Prose Editor to edit one GitHub document at a selected revision,
@@ -17,6 +17,11 @@ summary: |
   Voice and style stages, Pangram upload, and GitHub publication are deferred
   to release 00.2. Every remote intent and accepted or rejected result is
   durable before the next action.
+
+  Release 00.1 now implements and structurally validates the declarative
+  profile, machine, tool, wrapper, role, and portable-manifest closure. The
+  deterministic end-to-end boundary fixture evidence remains unimplemented and
+  is not claimed by this status.
 
 actor: |
   A human document owner who supplies repository, source path and revision,

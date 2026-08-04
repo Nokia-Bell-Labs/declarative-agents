@@ -525,10 +525,10 @@ related_documents:
 
 implementation_status:
   specification: specified
-  runtime: planned
-  profiles: not_implemented
-  machines: not_implemented
-  tools: not_implemented
+  runtime: release_00_1_program_closure
+  profiles: release_00_1_orchestrator_structure_critic_and_structure_rag
+  machines: release_00_1_structurally_validated
+  tools: release_00_1_owner_closure_validated
   services: not_implemented
-  tests: not_implemented
-  executable_evidence: none
+  tests: structural_only
+  executable_evidence: program_closure

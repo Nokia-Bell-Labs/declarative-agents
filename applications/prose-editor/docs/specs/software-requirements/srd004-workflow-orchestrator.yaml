@@ -1346,14 +1346,14 @@ related_documents:
 
 implementation_status:
   specification: specified
-  runtime: planned
-  profile: not_implemented
-  machine: not_implemented
-  tool_declarations: not_implemented
+  runtime: release_00_1_program_closure_only
+  profile: release_00_1_implemented
+  machine: release_00_1_flat_tracer_implemented
+  tool_declarations: release_00_1_subset_implemented
   orchestrator_json_helper: not_implemented
-  deterministic_signal_refinement: not_implemented
+  deterministic_signal_refinement: release_00_1_critic_route_implemented
   persistence_wiring: not_implemented
   services: not_implemented
-  tests: not_implemented
+  tests: structural_only
   publication: not_implemented
-  executable_evidence: none
+  executable_evidence: program_closure

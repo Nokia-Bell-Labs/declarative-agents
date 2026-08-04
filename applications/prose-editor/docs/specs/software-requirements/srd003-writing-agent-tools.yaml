@@ -2357,17 +2357,17 @@ related_documents:
 
 implementation_status:
   specification: specified
-  runtime: planned
-  profiles: not_implemented
-  machines: not_implemented
-  tool_declarations: not_implemented
+  runtime: release_00_1_program_closure_only
+  profiles: release_00_1_orchestrator_structure_critic_and_structure_rag
+  machines: release_00_1_structurally_validated
+  tool_declarations: release_00_1_subset_implemented
   orchestrator_json_helper: not_implemented
   separate_workproduct_helper_if_used: not_implemented
   structure_editor_helper: not_implemented
   voice_editor_helper: not_implemented
   style_editor_helper: not_implemented
   critic_helper: not_implemented
-  rest_definitions: not_implemented
+  rest_definitions: release_00_1_structure_subset_implemented
   services: not_implemented
-  tests: not_implemented
-  executable_evidence: none
+  tests: structural_only
+  executable_evidence: program_closure

@@ -9,6 +9,7 @@ import (
 	"fmt"
 	"io"
 	"os"
+	"os/exec"
 	"path/filepath"
 	"sort"
 	"strings"
@@ -20,8 +21,8 @@ import (
 const (
 	applicationModule      = "github.com/Nokia-Bell-Labs/declarative-agents/applications/prose-editor"
 	applicationManifest    = "agents/application.yaml"
-	canonicalCorpusProfile = "agents/knowledge-manager/corpus-ingest/profile.yaml"
-	canonicalRelease       = "v0.20260803.0"
+	canonicalCorpusProfile = "agents/knowledge-manager/corpus-reader/profile.yaml"
+	canonicalRelease       = "v0.20260804.0"
 	demoConfigFile         = "demo.yaml"
 )
 
@@ -36,14 +37,17 @@ var (
 		"Verification",
 		"Documentation",
 	}
-	plannedLocalRoots = []string{
-		"corpus-ingest",
+	executableLocalRoots = []string{
 		"specialist-editor",
 		"structure-rag",
-		"tightening-rag",
 		"voice-critic",
-		"voice-rag",
 		"workflow-orchestrator",
+	}
+	tracerProfiles = []string{
+		"agents/workflow-orchestrator/profile.yaml",
+		"agents/specialist-editor/profile.yaml",
+		"agents/voice-critic/profile.yaml",
+		"agents/structure-rag/profile.yaml",
 	}
 )
 
@@ -58,11 +62,11 @@ type applicationStats struct {
 		AgentsContributed   int      `json:"agents_contributed"`
 		CanonicalReferences int      `json:"canonical_references"`
 		CanonicalProfiles   []string `json:"canonical_profiles"`
-		PlannedRoots        []string `json:"planned_roots"`
+		ExecutableRoots     []string `json:"executable_roots"`
 	} `json:"application"`
 }
 
-// Audit validates the audit-only manifest and documentation corpus.
+// Audit validates the audit-only tracer program closure and documentation corpus.
 func Audit() error {
 	root, err := applicationRootFromWorkingDirectory()
 	if err != nil {
@@ -72,11 +76,14 @@ func Audit() error {
 	if err != nil {
 		return err
 	}
-	fmt.Printf("audit: validated Prose Editor manifest and %d YAML documents\n", count)
+	if err := validateTracerProfileBoot(root); err != nil {
+		return err
+	}
+	fmt.Printf("audit: validated Prose Editor tracer closure and %d YAML documents\n", count)
 	return nil
 }
 
-// Stats reports planned composition without contributing an agents section.
+// Stats reports the audit-only executable program composition.
 func Stats() error {
 	root, err := applicationRootFromWorkingDirectory()
 	if err != nil {
@@ -99,8 +106,22 @@ func auditApplication(root string) (int, error) {
 	if err != nil {
 		return 0, err
 	}
-	if err := validateAuditOnlyManifest(manifest); err != nil {
+	if err := validateTracerManifest(manifest); err != nil {
 		return 0, err
+	}
+	config, err := loadDemoConfig(root)
+	if err != nil {
+		return 0, err
+	}
+	catalogRoot, err := resolveCatalogRoot(root, config)
+	if err != nil {
+		return 0, err
+	}
+	if _, err := appmanifest.Resolve(manifest, appmanifest.Options{
+		ApplicationRoot: root,
+		CatalogRoot:     catalogRoot,
+	}); err != nil {
+		return 0, fmt.Errorf("resolve Prose Editor tracer closure: %w", err)
 	}
 	count, err := auditYAMLDocuments(root)
 	if err != nil {
@@ -125,7 +146,7 @@ func loadApplicationManifest(root string) (appmanifest.Manifest, error) {
 		return appmanifest.Manifest{}, err
 	}
 	if err := requireRegularFile(filepath.Join(catalogRoot, filepath.FromSlash(canonicalCorpusProfile))); err != nil {
-		return appmanifest.Manifest{}, fmt.Errorf("canonical corpus-ingest dependency: %w", err)
+		return appmanifest.Manifest{}, fmt.Errorf("canonical corpus-reader dependency: %w", err)
 	}
 	return appmanifest.Load(
 		filepath.Join(root, filepath.FromSlash(applicationManifest)),
@@ -133,18 +154,18 @@ func loadApplicationManifest(root string) (appmanifest.Manifest, error) {
 	)
 }
 
-func validateAuditOnlyManifest(manifest appmanifest.Manifest) error {
+func validateTracerManifest(manifest appmanifest.Manifest) error {
 	if manifest.Application != "prose-editor" ||
-		manifest.Ownership != "composition-only" ||
+		manifest.Ownership != "agent-owning" ||
 		manifest.ModuleStatus != "audit_only" {
-		return fmt.Errorf("application manifest identity/status is not audit-only Prose Editor")
+		return fmt.Errorf("application manifest identity/status is not audit-only Prose Editor tracer")
 	}
 	wantCapabilities := map[string]string{
 		"runnable_module": "audit_only",
-		"managed_service": "planned",
-		"packaged":        "planned",
-		"helm_managed":    "planned",
-		"kind_demo":       "planned",
+		"managed_service": "not_applicable",
+		"packaged":        "not_applicable",
+		"helm_managed":    "not_applicable",
+		"kind_demo":       "not_applicable",
 		"ui":              "not_applicable",
 	}
 	if len(manifest.Capabilities) != len(wantCapabilities) {
@@ -163,28 +184,28 @@ func validateAuditOnlyManifest(manifest appmanifest.Manifest) error {
 
 	var local, catalog []string
 	for _, root := range manifest.Roots {
-		if !root.Planned {
-			return fmt.Errorf("root %s must remain planned while the module is audit-only", root.ID)
+		if root.Planned {
+			return fmt.Errorf("tracer root %s must be executable", root.ID)
 		}
 		switch root.Ownership {
 		case "local":
 			local = append(local, root.ID)
 		case "catalog":
-			if root.ID != "catalog-corpus-ingest" ||
+			if root.ID != "catalog-corpus-reader" ||
 				root.Source != canonicalCorpusProfile ||
-				root.RuntimePath != canonicalCorpusProfile ||
+				root.RuntimePath != "applications/catalog/knowledge-manager/corpus-reader/profile.yaml" ||
 				root.CompatibleRelease != canonicalRelease {
-				return fmt.Errorf("catalog root %s is not the canonical corpus-ingest reference", root.ID)
+				return fmt.Errorf("catalog root %s is not the canonical corpus-reader reference", root.ID)
 			}
 			catalog = append(catalog, root.ID)
 		}
 	}
 	sort.Strings(local)
-	if strings.Join(local, "\x00") != strings.Join(plannedLocalRoots, "\x00") {
-		return fmt.Errorf("planned local roots = %v, want %v", local, plannedLocalRoots)
+	if strings.Join(local, "\x00") != strings.Join(executableLocalRoots, "\x00") {
+		return fmt.Errorf("executable local roots = %v, want %v", local, executableLocalRoots)
 	}
 	if len(catalog) != 1 {
-		return fmt.Errorf("canonical roots = %v, want [catalog-corpus-ingest]", catalog)
+		return fmt.Errorf("canonical roots = %v, want [catalog-corpus-reader]", catalog)
 	}
 	return nil
 }
@@ -272,8 +293,8 @@ func auditStatusClaims(root string) error {
 	if architecture.Overview.Status != "audit_only" ||
 		architecture.ImplementationStatus.Overall != "audit_only" ||
 		architecture.ImplementationStatus.RegistryStatus != "audit_only" ||
-		architecture.ImplementationStatus.ExecutableEvidence != "governance_only" {
-		return errors.New("architecture status must claim audit-only governance evidence and no runtime")
+		architecture.ImplementationStatus.ExecutableEvidence != "program_closure" {
+		return errors.New("architecture status must claim audit-only tracer program closure")
 	}
 
 	var roadmap struct {
@@ -298,11 +319,11 @@ func auditStatusClaims(root string) error {
 			continue
 		}
 		foundRelease = true
-		if release.Status != "planned" ||
+		if release.Status != "partial" ||
 			release.CapabilityStatus.RunnableModule != "audit_only" ||
 			release.EvidenceStatus.RootRegistration != "audit_only" ||
-			release.EvidenceStatus.ExecutableEvidence != "governance_only" {
-			return errors.New("road-map release 00.1 must separate audit-only governance from planned runtime")
+			release.EvidenceStatus.ExecutableEvidence != "program_closure" {
+			return errors.New("road-map release 00.1 must report audit-only program closure")
 		}
 	}
 	if !foundRelease {
@@ -320,13 +341,8 @@ func auditStatusClaims(root string) error {
 		root, "docs", "specs", "test-suites", "test-rel00.1-prose-editor.yaml"), &suite); err != nil {
 		return err
 	}
-	if suite.Status != "planned" || suite.RuntimeStatus != "unimplemented" {
-		return errors.New("release 00.1 tracer suite must remain planned and unimplemented")
-	}
-	for index, testCase := range suite.TestCases {
-		if testCase.CurrentEvidence != "none" {
-			return fmt.Errorf("release 00.1 tracer test case %d claims runtime evidence", index+1)
-		}
+	if suite.Status != "partial" || suite.RuntimeStatus != "structural_only" {
+		return errors.New("release 00.1 tracer suite must report structural-only evidence")
 	}
 	return nil
 }
@@ -335,21 +351,92 @@ func newStats(manifest appmanifest.Manifest) applicationStats {
 	var result applicationStats
 	result.Application.Ownership = manifest.Ownership
 	result.Application.ModuleStatus = manifest.ModuleStatus
+	result.Application.AgentsContributed = 3
 	for _, root := range manifest.Roots {
-		if root.Planned {
-			result.Application.PlannedRoots = append(result.Application.PlannedRoots, root.ID)
-		}
 		if root.Ownership == "catalog" {
 			result.Application.CanonicalReferences++
 			result.Application.CanonicalProfiles = append(
 				result.Application.CanonicalProfiles,
 				"applications/catalog/"+root.Source,
 			)
+		} else {
+			result.Application.ExecutableRoots = append(result.Application.ExecutableRoots, root.ID)
 		}
 	}
 	sort.Strings(result.Application.CanonicalProfiles)
-	sort.Strings(result.Application.PlannedRoots)
+	sort.Strings(result.Application.ExecutableRoots)
 	return result
+}
+
+func validateTracerProfileBoot(root string) error {
+	coreRoot, err := filepath.Abs(filepath.Join(root, "..", "..", "agent-core"))
+	if err != nil {
+		return err
+	}
+	config, err := loadDemoConfig(root)
+	if err != nil {
+		return err
+	}
+	catalogRoot, err := resolveCatalogRoot(root, config)
+	if err != nil {
+		return err
+	}
+	manifest, err := loadApplicationManifest(root)
+	if err != nil {
+		return err
+	}
+	inventory, err := appmanifest.Resolve(manifest, appmanifest.Options{
+		ApplicationRoot: root,
+		CatalogRoot:     catalogRoot,
+	})
+	if err != nil {
+		return err
+	}
+	temp, err := os.MkdirTemp("", "prose-editor-agent-*")
+	if err != nil {
+		return err
+	}
+	defer func() { _ = os.RemoveAll(temp) }()
+	profilesRoot := filepath.Join(temp, "profiles")
+	for _, file := range inventory.Files {
+		var source string
+		switch {
+		case strings.HasPrefix(file.Source, "application/"):
+			source = filepath.Join(root, filepath.FromSlash(strings.TrimPrefix(file.Source, "application/")))
+		case strings.HasPrefix(file.Source, "catalog/"):
+			source = filepath.Join(catalogRoot, filepath.FromSlash(strings.TrimPrefix(file.Source, "catalog/")))
+		default:
+			return fmt.Errorf("unknown closure source %s", file.Source)
+		}
+		data, readErr := os.ReadFile(source)
+		if readErr != nil {
+			return readErr
+		}
+		destination := filepath.Join(profilesRoot, filepath.FromSlash(file.RuntimePath))
+		if mkdirErr := os.MkdirAll(filepath.Dir(destination), 0o755); mkdirErr != nil {
+			return mkdirErr
+		}
+		if writeErr := os.WriteFile(destination, data, 0o644); writeErr != nil {
+			return writeErr
+		}
+	}
+	binary := filepath.Join(temp, "agent")
+	build := exec.Command("go", "build", "-o", binary, "./cmd/agent")
+	build.Dir = coreRoot
+	if output, buildErr := build.CombinedOutput(); buildErr != nil {
+		return fmt.Errorf("build agent-core preflight binary: %w\n%s", buildErr, output)
+	}
+	for _, manifestRoot := range manifest.Roots {
+		if manifestRoot.Ownership != "local" {
+			continue
+		}
+		profile := filepath.Join(profilesRoot, filepath.FromSlash(manifestRoot.RuntimePath))
+		command := exec.Command(binary, "--validate-config", "--profile", profile, "--core-root", coreRoot)
+		if output, runErr := command.CombinedOutput(); runErr != nil {
+			return fmt.Errorf("validate tracer profile %s: %w\n%s", manifestRoot.ID, runErr, output)
+		}
+	}
+	return nil
 }
 
 func applicationRootFromWorkingDirectory() (string, error) {

@@ -2503,14 +2503,14 @@ related_documents:
 
 implementation_status:
   specification: specified
-  runtime: planned
-  profiles: not_implemented
-  machines: not_implemented
-  tool_declarations: not_implemented
+  runtime: release_00_1_structure_program_closure_only
+  profiles: release_00_1_structure_only
+  machines: release_00_1_structure_flat_machine
+  tool_declarations: release_00_1_structure_subset
   specialist_editor_helpers: not_implemented
-  deterministic_signal_refinement: not_implemented
-  rest_declarations: not_implemented
-  model_declarations: not_implemented
+  deterministic_signal_refinement: release_00_1_one_query_refinement
+  rest_declarations: release_00_1_structure_only
+  model_declarations: release_00_1_structure_only
   services: not_implemented
-  tests: not_implemented
-  executable_evidence: none
+  tests: structural_only
+  executable_evidence: program_closure

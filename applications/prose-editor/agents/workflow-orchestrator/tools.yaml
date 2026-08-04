@@ -1,0 +1,12 @@
+tools:
+  - capture_source
+  - write_original
+  - append_manifest_revision
+  - invoke_structure_editor
+  - write_structure_attempt
+  - invoke_voice_critic
+  - capture_critic_output
+  - parse_critic_response
+  - critic_verdict_is_pass
+  - write_critique_attempt
+  - materialize_final_chain

@@ -1,0 +1,9 @@
+tools:
+  - validate_critic_request
+  - compose_critic_evaluation_context
+  - evaluate_structure_candidate
+  - capture_critic_evaluation
+  - parse_critic_evaluation
+  - critic_verdict_is_pass
+  - compose_critic_pass_response
+  - compose_critic_reject_response

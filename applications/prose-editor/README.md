@@ -9,57 +9,58 @@ obtains an independent critique, and publishes an accepted result once.
 
 ## Status
 
-The module status is `audit_only`. The executable evidence added for release
-`00.1` is limited to parsing the application manifest and documentation,
-checking status consistency, and reporting composition statistics. No profile,
-machine, tool, service, package, deployment, test fixture, or runnable
-composition is implemented or claimed.
+The module status remains `audit_only`: Prose Editor is not in the root runnable
+or release registries. Release `00.1` now has an executable program closure for
+the workflow orchestrator, structure-stage specialist editor, independent
+critic, and structure-RAG wrapper. Structural tests load the profiles, prove
+machine/tool/authority closure, resolve a portable manifest closure, and run
+agent-core `--validate-config` for every local profile.
 
 Release `00.1`, use case `rel00.1-uc001-tracer-saga`, and test suite
-`test-rel00.1-prose-editor` remain planned and runtime-unimplemented. Promotion
-to a runnable module requires a later evidence-backed status transition.
+`test-rel00.1-prose-editor` are partial and structural-only. Deterministic
+end-to-end fixture evidence, real boundary helpers, services, and root runnable
+promotion remain separate work.
 
 ## Composition
 
-`agents/application.yaml` is the composition authority. It declares seven
-planned local roots: `workflow-orchestrator`, `specialist-editor`,
-`voice-critic`, the `corpus-ingest` wrapper, and the `structure-rag`,
-`voice-rag`, and `tightening-rag` instances. None of those paths exists as a
-runtime profile.
+`agents/application.yaml` is the composition authority. It declares four
+executable local roots: `workflow-orchestrator`, `specialist-editor`,
+`voice-critic`, and `structure-rag`.
 
 The only canonical catalog reference is
-`applications/catalog/agents/knowledge-manager/corpus-ingest/profile.yaml`,
-pinned as compatible with `v0.20260803.0`. The reference remains planned in
-this audit-only module and contributes no duplicate agent implementation.
+`applications/catalog/agents/knowledge-manager/corpus-reader/profile.yaml`,
+pinned as compatible with `v0.20260804.0`. The local structure-RAG profile is a
+thin configuration wrapper over that canonical program.
 
 ## Capabilities
 
 - `runnable_module`: `audit_only`
-- `managed_service`: `planned`
-- `packaged`: `planned`
-- `helm_managed`: `planned`
-- `kind_demo`: `planned`
+- `managed_service`: `not_applicable`
+- `packaged`: `not_applicable`
+- `helm_managed`: `not_applicable`
+- `kind_demo`: `not_applicable`
 - `ui`: `not_applicable`
 
-These statuses describe future intent, not executable runtime evidence.
+The runnable baseline is not claimed until deterministic tracer execution
+evidence exists.
 
 ## Ownership Boundaries
 
-Prose Editor owns its manifest, planned topology, application-specific
+Prose Editor owns its manifest, tracer programs, application-specific
 documentation, audit policy, and composition accounting. The catalog owns the
-canonical corpus-ingest implementation. Agent-core owns profile, machine, tool,
+canonical corpus-reader implementation. Agent-core owns profile, machine, tool,
 REST, lifecycle, telemetry, checkpoint, and execution semantics.
 
-No application actor currently owns runtime behavior. The planned
-workflow-orchestrator alone would own saga and GitHub mutation, while the
-planned voice critic alone would own consent-gated Pangram access. Those are
-documented authority boundaries only.
+The workflow orchestrator alone declares workproduct mutation. The editor
+returns candidate data, the critic returns verdict data, and the RAG wrapper is
+read-only. Release `00.1` declares no voice/style stage, Pangram, GitHub
+publication, Helm, kind, or applier authority.
 
 ## Planned Entry Points
 
-The planned runtime entry points are the roots named in
-`agents/application.yaml`. They are all marked `planned: true`; there is no
-`run`, build, package, Helm, integration, or demo target.
+The loadable program entry points are the four local roots named in
+`agents/application.yaml`. There is no run, package, Helm, integration, or demo
+target, and the application remains outside the root runnable registry.
 
 The only current Mage entry points are governance surfaces:
 
@@ -79,9 +80,11 @@ mage audit
 mage stats
 ```
 
-The audit parses every local YAML document, validates the shared application
-manifest contract, checks the exact canonical dependency, and rejects runtime
-claims. Stats reports zero contributed agents and has no `agents` section.
+The audit parses every local YAML document, validates and resolves the shared
+application manifest, checks role and authority closure, stages the portable
+profile closure, and validates all four local profiles through agent-core.
+Stats reports three application-owned role realizations and one canonical
+wrapper dependency without adding an `agents` total to the runnable registry.
 
 ## Documentation
 

@@ -1,0 +1,208 @@
+tools:
+  - name: validate_structure_request
+    type: builtin
+    init: parse_structured
+    visibility: internal
+    category: word
+    description: Validate a path-free structure request containing parent bytes and bounded identities.
+    parameters: {type: object, properties: {}, additionalProperties: false}
+    emits: [StructureRequestValid, StructureRequestRejected, CommandError]
+    config:
+      source: $.output
+      schema:
+        type: object
+        required: [parent_content, parent_artifact_id, parent_content_hash, saga_id, stage, attempt]
+        properties:
+          parent_content: {type: string, minLength: 1, maxLength: 196608}
+          parent_artifact_id: {type: string, minLength: 1, maxLength: 512}
+          parent_content_hash: {type: string, pattern: "^[0-9a-f]{64}$"}
+          saga_id: {type: string, minLength: 1, maxLength: 128}
+          stage: {type: string, const: structure}
+          attempt: {type: integer, minimum: 1, maximum: 2}
+          bounded_structure_intent: {type: string, maxLength: 4096}
+        additionalProperties: false
+      parsed: StructureRequestValid
+      unparsed: StructureRequestRejected
+    side_effects: []
+    reversibility: {classification: reversible, undo: noop}
+    undo: {strategy: noop, description: Request validation changes no state.}
+
+  - name: formulate_structure_query
+    type: builtin
+    init: compose
+    visibility: internal
+    category: word
+    description: Render a deterministic section-and-outline query from validated intent.
+    parameters: {type: object, properties: {}, additionalProperties: false}
+    emits: [StructureQueryFormulated, CommandError]
+    config:
+      signal: StructureQueryFormulated
+      inputs:
+        intent: $from(validated_structure_request).bounded_structure_intent
+      template: '{"query":"Document structure guidance for: {{ intent }}","n_results":8}'
+    side_effects: []
+    reversibility: {classification: reversible, undo: noop}
+    undo: {strategy: noop, description: Query composition changes no state.}
+
+  - name: embed_structure_query
+    type: builtin
+    init: rest_client_invoke
+    visibility: internal
+    category: boundary
+    description: Obtain the structure query vector from the configured embedding provider.
+    parameters: {type: object, properties: {}, additionalProperties: false}
+    emits: [StructureQueryEmbedded, CommandError]
+    config: {rest_ref: embedding, operation: embed_structure_query}
+    side_effects:
+      - {kind: external_api, target: configured_embedding_provider, state: read_only}
+    reversibility: {classification: irreversible, undo: record_observation}
+    undo: {strategy: noop, description: Remote inference cannot be undone.}
+
+  - name: query_structure_rag
+    type: builtin
+    init: rest_client_invoke
+    visibility: internal
+    category: boundary
+    description: Query only the configured structure RAG endpoint with a provider-produced vector.
+    parameters: {type: object, properties: {}, additionalProperties: false}
+    emits: [StructureEvidenceReady, StructureEvidenceInsufficient, QueryRejected, CommandError]
+    config: {rest_ref: structure_rag, operation: query}
+    side_effects:
+      - {kind: external_api, target: structure_rag.query, state: read_only}
+    reversibility: {classification: reversible, undo: noop}
+    undo: {strategy: noop, description: Retrieval is read-only.}
+
+  - name: compose_structure_edit_context
+    type: builtin
+    init: compose
+    visibility: internal
+    category: word
+    description: Compose parent bytes and retrieved structure evidence for bounded editing.
+    parameters: {type: object, properties: {}, additionalProperties: false}
+    emits: [StructureEditContextReady, CommandError]
+    config:
+      signal: StructureEditContextReady
+      inputs:
+        request: $from(validated_structure_request)
+        evidence: $from(structure_retrieval)
+      template: |-
+        Parent and immutable identities:
+        {{ json request }}
+        Read-only structure evidence:
+        {{ json evidence }}
+    side_effects: []
+    reversibility: {classification: reversible, undo: noop}
+    undo: {strategy: noop, description: Context composition changes no state.}
+
+  - name: generate_structure_edit
+    type: builtin
+    init: invoke_llm
+    visibility: internal
+    category: boundary
+    description: Return a structure-only candidate and provenance; never persist or accept it.
+    parameters: {type: object, properties: {}, additionalProperties: false}
+    emits: [LLMResponded, CommandError]
+    config:
+      model: "${PROSE_EDITOR_MODEL:-qwen2.5:3b}"
+      provider: ollama
+      provider_url: "${OLLAMA_URL:-http://127.0.0.1:11434}"
+      manifest_state: EditingStructure
+      response_profile: qwen
+      user_prompt_from: $from(structure_edit_context)
+      answer_only: true
+      max_time: 120
+      llm_timeout: 120
+      system_prompt: |
+        Return exactly one JSON object with outcome, content, parent_artifact_id,
+        parent_content_hash, and retrieval_provenance. Outcome is "candidate"
+        or "no_op". Reorder, combine, or separate supplied material only. Keep
+        claims, citations, numbers, qualifications, required content, and
+        non-connector diction unchanged. Do not return paths, tools, URLs,
+        credentials, verdicts, voice edits, style edits, or publication data.
+    side_effects:
+      - {kind: external_api, target: configured_model, state: inference_observed}
+      - {kind: state_mutation, target: conversation_history, state: appended}
+    reversibility: {classification: reversible, undo: conversation_truncate}
+    undo: {strategy: conversation_truncate, description: Restore pre-call conversation state.}
+
+  - name: capture_structure_candidate
+    type: builtin
+    init: compose
+    visibility: internal
+    category: word
+    description: JSON-escape raw model output before schema validation.
+    parameters: {type: object, properties: {}, additionalProperties: false}
+    emits: [StructureCandidateCaptured, CommandError]
+    config:
+      signal: StructureCandidateCaptured
+      inputs:
+        response: $.
+      template: '{"response": {{ json response }}}'
+    side_effects: []
+    reversibility: {classification: reversible, undo: noop}
+    undo: {strategy: noop, description: Capturing output changes no state.}
+
+  - name: parse_structure_candidate
+    type: builtin
+    init: parse_structured
+    visibility: internal
+    category: word
+    description: Validate candidate content, parent identity, and retrieval provenance.
+    parameters: {type: object, properties: {}, additionalProperties: false}
+    emits: [StructureCandidateParsed, StructureCandidateInvalid, CommandError]
+    config:
+      source: $from(structure_candidate_transport).response
+      schema:
+        type: object
+        required: [outcome, content, parent_artifact_id, parent_content_hash, retrieval_provenance]
+        properties:
+          outcome: {type: string, enum: [candidate, no_op]}
+          content: {type: string, minLength: 1, maxLength: 196608}
+          parent_artifact_id: {type: string, minLength: 1, maxLength: 512}
+          parent_content_hash: {type: string, pattern: "^[0-9a-f]{64}$"}
+          retrieval_provenance:
+            type: array
+            maxItems: 64
+            items: {type: object}
+        additionalProperties: false
+      parsed: StructureCandidateParsed
+      unparsed: StructureCandidateInvalid
+    side_effects: []
+    reversibility: {classification: reversible, undo: noop}
+    undo: {strategy: noop, description: Parsing changes no state.}
+
+  - name: structure_candidate_is_valid
+    type: builtin
+    init: value_predicate
+    visibility: internal
+    category: word
+    description: Admit schema-valid candidate or no-op outcomes and reject all other values.
+    parameters: {type: object, properties: {}, additionalProperties: false}
+    emits: [StructureCandidateValid, StructureCandidateRejected, CommandError]
+    config:
+      left: $from(structure_candidate).outcome
+      op: in
+      right: [candidate, no_op]
+      operand_type: string
+      satisfied: StructureCandidateValid
+      unsatisfied: StructureCandidateRejected
+    side_effects: []
+    reversibility: {classification: reversible, undo: noop}
+    undo: {strategy: noop, description: Comparing an outcome changes no state.}
+
+  - name: compose_structure_response
+    type: builtin
+    init: compose
+    visibility: internal
+    category: response
+    description: Return candidate data to the orchestrator without persistence authority.
+    parameters: {type: object, properties: {}, additionalProperties: false}
+    emits: [StructureResponseReady, CommandError]
+    config:
+      signal: StructureResponseReady
+      inputs:
+        candidate: $from(structure_candidate)
+      template: '{{ json candidate }}'
+    side_effects: []
+    reversibility: {classification: reversible, undo: noop}
+    undo: {strategy: noop, description: Response composition changes no state.}

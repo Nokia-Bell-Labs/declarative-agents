@@ -641,12 +641,12 @@ related_documents:
 
 implementation_status:
   specification: specified
-  runtime: planned
-  profiles: not_implemented
-  machines: not_implemented
-  tools: not_implemented
+  runtime: release_00_1_program_closure_only
+  profiles: release_00_1_orchestrator_program
+  machines: release_00_1_structural_lineage_graph
+  tools: release_00_1_workproduct_tooldefs
   services: not_implemented
   persistent_workspace: not_implemented
-  tests: not_implemented
+  tests: structural_only
   publication: not_implemented
-  executable_evidence: none
+  executable_evidence: program_closure

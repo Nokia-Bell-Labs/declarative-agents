@@ -1,0 +1,8 @@
+name: prose-structure-rag
+machine: ../../catalog/knowledge-manager/corpus-reader/machine.yaml
+tools:
+  - ../../catalog/knowledge-manager/corpus-reader/tools.yaml
+tool_declarations:
+  - ../../catalog/knowledge-manager/corpus-reader/declarations.yaml
+rest_definitions:
+  - rest.yaml

@@ -1,0 +1,195 @@
+tools:
+  - name: capture_source
+    type: exec
+    visibility: internal
+    category: boundary
+    description: Capture the allowlisted source revision through one fixed tracer helper operation.
+    parameters: {type: object, properties: {}, additionalProperties: false}
+    emits: [ToolDone, ToolFailed, CommandError]
+    binary: prose-editor-tracer-boundary
+    args: [capture-source]
+    output_cap: 256
+    output:
+      mode: structured
+      schema: {type: object}
+    side_effects:
+      - {kind: external_api, target: configured_source_repository, state: read_only}
+    reversibility: {classification: reversible, undo: noop}
+    undo: {strategy: noop, description: Source capture is read-only.}
+
+  - name: write_original
+    type: exec
+    visibility: internal
+    category: boundary
+    description: Write or verify the fixed immutable original through one fixed helper operation.
+    parameters: {type: object, properties: {}, additionalProperties: false}
+    emits: [ToolDone, ToolFailed, CommandError]
+    binary: prose-editor-tracer-boundary
+    args: [write-original]
+    output_cap: 256
+    output: {mode: structured, schema: {type: object}}
+    side_effects:
+      - {kind: filesystem_write, target: workproducts/00-original.md, state: immutable}
+    reversibility: {classification: irreversible, undo: preserve_original}
+    undo: {strategy: noop, description: The immutable original is preserved on compensation.}
+
+  - name: append_manifest_revision
+    type: exec
+    visibility: internal
+    category: boundary
+    description: Append one immutable manifest-history revision and project manifest.yaml.
+    parameters: {type: object, properties: {}, additionalProperties: false}
+    emits: [ToolDone, ToolFailed, CommandError]
+    binary: prose-editor-tracer-boundary
+    args: [append-manifest-revision]
+    output_cap: 256
+    output: {mode: structured, schema: {type: object}}
+    side_effects:
+      - {kind: filesystem_write, target: workproducts/manifest-history, state: append_only}
+      - {kind: filesystem_write, target: workproducts/manifest.yaml, state: projected}
+    reversibility: {classification: compensatable, undo: append_corrective_revision}
+    undo: {strategy: compensating_action, description: Append a corrective revision; never rewrite history.}
+
+  - name: invoke_structure_editor
+    type: builtin
+    init: self_invoke
+    visibility: internal
+    category: boundary
+    description: Invoke only the application-owned structure-stage profile.
+    parameters: {type: object, properties: {}, additionalProperties: false}
+    emits: [ToolDone, ToolFailed, CommandError]
+    config:
+      profile: ../specialist-editor/profile.yaml
+    side_effects:
+      - {kind: child_agent_execution, target: specialist-editor-structure, state: candidate_observed}
+    reversibility: {classification: irreversible, undo: record_observation}
+    undo: {strategy: noop, description: Preserve the parent and retain child execution evidence.}
+
+  - name: write_structure_attempt
+    type: exec
+    visibility: internal
+    category: boundary
+    description: Write or verify one immutable content-addressed structure attempt.
+    parameters: {type: object, properties: {}, additionalProperties: false}
+    emits: [ToolDone, ToolFailed, CommandError]
+    binary: prose-editor-tracer-boundary
+    args: [write-structure-attempt]
+    output_cap: 256
+    output: {mode: structured, schema: {type: object}}
+    side_effects:
+      - {kind: filesystem_write, target: workproducts/attempts/structure, state: immutable}
+    reversibility: {classification: irreversible, undo: append_supersession}
+    undo: {strategy: compensating_action, description: Supersede by manifest revision without deleting bytes.}
+
+  - name: invoke_voice_critic
+    type: builtin
+    init: self_invoke
+    visibility: internal
+    category: boundary
+    description: Invoke the isolated Release 00.1 critic with immutable bytes and hashes only.
+    parameters: {type: object, properties: {}, additionalProperties: false}
+    emits: [ToolDone, ToolFailed, CommandError]
+    config:
+      profile: ../voice-critic/profile.yaml
+    side_effects:
+      - {kind: child_agent_execution, target: voice-critic, state: verdict_observed}
+    reversibility: {classification: irreversible, undo: record_observation}
+    undo: {strategy: noop, description: Retain the independent verdict observation.}
+
+  - name: capture_critic_output
+    type: builtin
+    init: compose
+    visibility: internal
+    category: word
+    description: JSON-escape the adjacent critic child stdout for schema validation.
+    parameters: {type: object, properties: {}, additionalProperties: false}
+    emits: [CriticOutputCaptured, CommandError]
+    config:
+      signal: CriticOutputCaptured
+      inputs:
+        response: $.
+      template: '{"response": {{ json response }}}'
+    side_effects: []
+    reversibility: {classification: reversible, undo: noop}
+    undo: {strategy: noop, description: Capturing output changes no state.}
+
+  - name: parse_critic_response
+    type: builtin
+    init: parse_structured
+    visibility: internal
+    category: word
+    description: Validate the bounded critic verdict returned by the isolated child.
+    parameters: {type: object, properties: {}, additionalProperties: false}
+    emits: [CriticResponseParsed, CriticResponseInvalid, CommandError]
+    config:
+      source: $from(critic_transport).response
+      schema:
+        type: object
+        required: [verdict, responsible_stage, findings]
+        properties:
+          verdict: {type: string, enum: [pass, reject]}
+          responsible_stage: {type: string, enum: [none, structure]}
+          findings:
+            type: array
+            minItems: 6
+            maxItems: 6
+            items: {type: object}
+        additionalProperties: true
+      parsed: CriticResponseParsed
+      unparsed: CriticResponseInvalid
+    side_effects: []
+    reversibility: {classification: reversible, undo: noop}
+    undo: {strategy: noop, description: Parsing changes no state.}
+
+  - name: critic_verdict_is_pass
+    type: builtin
+    init: value_predicate
+    visibility: internal
+    category: word
+    description: Route only the persisted critic verdict scalar.
+    parameters: {type: object, properties: {}, additionalProperties: false}
+    emits: [CriticAccepted, CriticRejected, CommandError]
+    config:
+      left: $from(critic_response).verdict
+      op: eq
+      right: pass
+      operand_type: string
+      satisfied: CriticAccepted
+      unsatisfied: CriticRejected
+    side_effects: []
+    reversibility: {classification: reversible, undo: noop}
+    undo: {strategy: noop, description: Comparing a verdict changes no state.}
+
+  - name: write_critique_attempt
+    type: exec
+    visibility: internal
+    category: boundary
+    description: Write or verify one immutable critique attempt before verdict routing.
+    parameters: {type: object, properties: {}, additionalProperties: false}
+    emits: [ToolDone, ToolFailed, CommandError]
+    binary: prose-editor-tracer-boundary
+    args: [write-critique-attempt]
+    output_cap: 256
+    output: {mode: structured, schema: {type: object}}
+    side_effects:
+      - {kind: filesystem_write, target: workproducts/attempts/critique, state: immutable}
+    reversibility: {classification: irreversible, undo: append_supersession}
+    undo: {strategy: compensating_action, description: Supersede by manifest revision without deleting bytes.}
+
+  - name: materialize_final_chain
+    type: exec
+    visibility: internal
+    category: boundary
+    description: Materialize only the Release 00.1 accepted local final chain.
+    parameters: {type: object, properties: {}, additionalProperties: false}
+    emits: [ToolDone, ToolFailed, CommandError]
+    binary: prose-editor-tracer-boundary
+    args: [materialize-final-chain]
+    output_cap: 256
+    output: {mode: structured, schema: {type: object}}
+    side_effects:
+      - {kind: filesystem_write, target: workproducts/10-structure.md, state: immutable}
+      - {kind: filesystem_write, target: workproducts/40-critique.yaml, state: immutable}
+      - {kind: filesystem_write, target: workproducts/final.md, state: immutable}
+    reversibility: {classification: irreversible, undo: preserve_and_block}
+    undo: {strategy: noop, description: Reuse matching files and block on any mismatch.}

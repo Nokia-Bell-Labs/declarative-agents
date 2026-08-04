@@ -1,18 +1,18 @@
 schema_version: 1
 application: prose-editor
-ownership: composition-only
+ownership: agent-owning
 module_status: audit_only
 capabilities:
   runnable_module:
     status: audit_only
   managed_service:
-    status: planned
+    status: not_applicable
   packaged:
-    status: planned
+    status: not_applicable
   helm_managed:
-    status: planned
+    status: not_applicable
   kind_demo:
-    status: planned
+    status: not_applicable
   ui:
     status: not_applicable
 roots:
@@ -20,42 +20,22 @@ roots:
     ownership: local
     source: agents/workflow-orchestrator/profile.yaml
     runtime_path: applications/prose-editor/workflow-orchestrator/profile.yaml
-    planned: true
   - id: specialist-editor
     ownership: local
     source: agents/specialist-editor/profile.yaml
     runtime_path: applications/prose-editor/specialist-editor/profile.yaml
-    planned: true
   - id: voice-critic
     ownership: local
     source: agents/voice-critic/profile.yaml
     runtime_path: applications/prose-editor/voice-critic/profile.yaml
-    planned: true
-  - id: corpus-ingest
-    ownership: local
-    source: agents/corpus-ingest/profile.yaml
-    runtime_path: applications/prose-editor/corpus-ingest/profile.yaml
-    planned: true
   - id: structure-rag
     ownership: local
-    source: agents/rag-server/structure-profile.yaml
-    runtime_path: applications/prose-editor/rag-server/structure-profile.yaml
-    planned: true
-  - id: voice-rag
-    ownership: local
-    source: agents/rag-server/voice-profile.yaml
-    runtime_path: applications/prose-editor/rag-server/voice-profile.yaml
-    planned: true
-  - id: tightening-rag
-    ownership: local
-    source: agents/rag-server/tightening-profile.yaml
-    runtime_path: applications/prose-editor/rag-server/tightening-profile.yaml
-    planned: true
-  - id: catalog-corpus-ingest
+    source: agents/structure-rag/profile.yaml
+    runtime_path: applications/prose-editor/structure-rag/profile.yaml
+  - id: catalog-corpus-reader
     ownership: catalog
-    source: agents/knowledge-manager/corpus-ingest/profile.yaml
-    runtime_path: agents/knowledge-manager/corpus-ingest/profile.yaml
-    compatible_release: v0.20260803.0
-    planned: true
+    source: agents/knowledge-manager/corpus-reader/profile.yaml
+    runtime_path: applications/catalog/knowledge-manager/corpus-reader/profile.yaml
+    compatible_release: v0.20260804.0
 runtime:
   image_contains_profiles: false

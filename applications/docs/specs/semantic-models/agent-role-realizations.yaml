@@ -372,6 +372,40 @@ bindings:
       inheritance_target: applications/catalog/agents/applier/rollout-profile.yaml
       execution_scope: rollout-read
 
+  prose_editor:
+    - actor: workflow-orchestrator
+      profile: applications/prose-editor/agents/workflow-orchestrator/profile.yaml
+      classification: role_realization
+      primary_role: executor
+      sub_roles: [workflow-orchestrator]
+      domain: prose-editor-tracer-saga
+      execution_scope: request
+      authority_boundary: Sole Release 00.1 workproduct writer and stage sequencer; no editing, retrieval, verdict, upload, publication, or deployment authority.
+    - actor: specialist-editor
+      profile: applications/prose-editor/agents/specialist-editor/profile.yaml
+      classification: role_realization
+      primary_role: executor
+      sub_roles: [change-manager]
+      domain: document-structure
+      execution_scope: request
+      authority_boundary: Returns a structure-only candidate grounded in read-only retrieval; no workproduct, verdict, publication, or deployment authority.
+    - actor: voice-critic
+      profile: applications/prose-editor/agents/voice-critic/profile.yaml
+      classification: role_realization
+      primary_role: critic
+      sub_roles: [output-evaluator, feedback-generator]
+      domain: document-assurance
+      execution_scope: request
+      authority_boundary: Returns an independent six-category verdict; no editing, workproduct, upload, publication, or deployment authority.
+    - actor: structure-rag
+      profile: applications/prose-editor/agents/structure-rag/profile.yaml
+      classification: wrapper
+      inherits: corpus-reader
+      inheritance_target: applications/catalog/agents/knowledge-manager/corpus-reader/profile.yaml
+      domain: document-structure
+      execution_scope: request
+      authority_boundary: Selects the canonical corpus-reader program with a structure-only read contract and no collection-write, editing, verdict, publication, or deployment authority.
+
   chatbot_mesh:
     - actor: chatbot
       profile: applications/chatbot-mesh/agents/chatbot/profile.yaml

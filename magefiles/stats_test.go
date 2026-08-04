@@ -36,12 +36,12 @@ func TestSumAgentsTotals(t *testing.T) {
 			}}`),
 		"applications/prose-editor": json.RawMessage(`{
 			"application": {
-				"ownership": "composition-only",
+				"ownership": "agent-owning",
 				"module_status": "audit_only",
-				"agents_contributed": 0,
+				"agents_contributed": 3,
 				"canonical_references": 1,
 				"canonical_profiles": [
-					"applications/catalog/agents/knowledge-manager/corpus-ingest/profile.yaml"
+					"applications/catalog/agents/knowledge-manager/corpus-reader/profile.yaml"
 				]
 			}}`),
 	}
@@ -64,7 +64,7 @@ func TestSumAgentsTotals(t *testing.T) {
 		t.Fatal("Prose Editor stats must contain an application composition section")
 	}
 	if _, exists := prose["agents"]; exists {
-		t.Fatal("Prose Editor stats must report zero-agent composition without an agents section")
+		t.Fatal("audit-only Prose Editor must not enter the runnable agents total")
 	}
 	total, err := sumAgentsTotals(results)
 	if err != nil {

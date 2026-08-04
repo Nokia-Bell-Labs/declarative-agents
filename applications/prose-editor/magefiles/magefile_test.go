@@ -18,11 +18,11 @@ func TestAuditApplicationParsesManifestAndDocumentation(t *testing.T) {
 		t.Fatal(err)
 	}
 	if count != 21 {
-		t.Fatalf("audited YAML documents = %d, want 21", count)
+		t.Fatalf("audited documentation YAML = %d, want 21", count)
 	}
 }
 
-func TestAuditOnlyManifestRejectsRunnableEvidence(t *testing.T) {
+func TestTracerManifestRejectsRunnablePromotion(t *testing.T) {
 	root := realApplicationRoot(t)
 	manifest, err := loadApplicationManifest(root)
 	if err != nil {
@@ -32,9 +32,9 @@ func TestAuditOnlyManifestRejectsRunnableEvidence(t *testing.T) {
 	capability.Status = "implemented"
 	capability.Evidence = []string{"not valid for an audit-only module"}
 	manifest.Capabilities["runnable_module"] = capability
-	if err := validateAuditOnlyManifest(manifest); err == nil ||
+	if err := validateTracerManifest(manifest); err == nil ||
 		!strings.Contains(err.Error(), "runnable_module") {
-		t.Fatalf("validateAuditOnlyManifest error = %v, want runnable status rejection", err)
+		t.Fatalf("validateTracerManifest error = %v, want runnable status rejection", err)
 	}
 }
 
@@ -57,22 +57,22 @@ func TestStatsReportExactCompositionWithoutAgents(t *testing.T) {
 		t.Fatal(err)
 	}
 	stats := newStats(manifest)
-	if stats.Application.Ownership != "composition-only" ||
+	if stats.Application.Ownership != "agent-owning" ||
 		stats.Application.ModuleStatus != "audit_only" ||
-		stats.Application.AgentsContributed != 0 {
+		stats.Application.AgentsContributed != 3 {
 		t.Fatalf("application stats identity = %#v", stats.Application)
 	}
 	if stats.Application.CanonicalReferences != 1 ||
 		!reflect.DeepEqual(stats.Application.CanonicalProfiles, []string{
-			"applications/catalog/agents/knowledge-manager/corpus-ingest/profile.yaml",
+			"applications/catalog/agents/knowledge-manager/corpus-reader/profile.yaml",
 		}) {
 		t.Fatalf("canonical references = %d %v, want exact corpus-ingest reference",
 			stats.Application.CanonicalReferences, stats.Application.CanonicalProfiles)
 	}
-	wantRoots := append([]string{"catalog-corpus-ingest"}, plannedLocalRoots...)
+	wantRoots := append([]string(nil), executableLocalRoots...)
 	sortStrings(wantRoots)
-	if !reflect.DeepEqual(stats.Application.PlannedRoots, wantRoots) {
-		t.Fatalf("planned roots = %v, want %v", stats.Application.PlannedRoots, wantRoots)
+	if !reflect.DeepEqual(stats.Application.ExecutableRoots, wantRoots) {
+		t.Fatalf("executable roots = %v, want %v", stats.Application.ExecutableRoots, wantRoots)
 	}
 	encoded, err := json.Marshal(stats)
 	if err != nil {

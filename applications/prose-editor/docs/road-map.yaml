@@ -93,7 +93,7 @@ releases:
       structure-rag retrieval, one bounded retry from critic rejection, and
       local workproduct finalization. Implementation findings that contradict
       SRD details are reconciled before 00.2 scope is finalized.
-    status: planned
+    status: partial
     capability_status:
       documentation: specification_complete
       runnable_module: audit_only
@@ -133,7 +133,7 @@ releases:
           independent critic verdict without Pangram, retry the responsible
           stage when bounded policy permits, and finalize the accepted
           workproduct chain locally without commit, push, or pull request.
-        status: planned
+        status: partial
     test_suites:
       - id: test-rel00.1-prose-editor
         summary: |
@@ -142,7 +142,7 @@ releases:
           happy path, structure-stage retry, source capture, workproduct
           lineage, command errors, retry exhaustion, recovery, and the
           telemetry contract across the tracer services.
-        status: planned
+        status: partial
         test_case_count: 13
     planned_workproducts:
       - {path: workproducts/<saga-id>/manifest.yaml, owner: workflow-orchestrator, status: planned}
@@ -185,15 +185,15 @@ releases:
     evidence_status:
       foundation_yaml: documented
       srd_requirements: structure_stage_and_critic_subset
-      profiles_and_machines: planned
-      tools_and_services: planned
-      structural_tests: planned
-      boundary_tests: planned
+      profiles_and_machines: implemented
+      tools_and_services: tooldefs_implemented_services_planned
+      structural_tests: implemented
+      boundary_tests: structural_only
       failure_and_recovery_tests: planned
       end_to_end_test: planned
       publication_test: deferred_to_00_2
       root_registration: audit_only
-      executable_evidence: governance_only
+      executable_evidence: program_closure
     completion_gate: |
       The tracer saga runs end-to-end: source capture, structure edit via
       specialist-editor:structure and structure-rag, critic verdict without

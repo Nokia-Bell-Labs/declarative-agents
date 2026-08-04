@@ -1040,13 +1040,13 @@ related_documents:
 
 implementation_status:
   specification: specified
-  runtime: planned
-  profile: not_implemented
-  machine: not_implemented
-  tool_declarations: not_implemented
+  runtime: release_00_1_no_pangram_program_closure
+  profile: release_00_1_implemented
+  machine: release_00_1_independent_critic_implemented
+  tool_declarations: release_00_1_subset_implemented
   critic_helper: not_implemented
   rest_definitions: not_implemented
-  model_declarations: not_implemented
+  model_declarations: release_00_1_implemented
   service: not_implemented
-  tests: not_implemented
-  executable_evidence: none
+  tests: structural_only
+  executable_evidence: program_closure

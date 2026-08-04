@@ -1,8 +1,9 @@
-# Prose Editor audit configuration.
+# Prose Editor audit and tracer-closure configuration.
 #
-# Prose Editor is audit-only. This file declares only the ownership root needed
-# to validate its canonical catalog reference; it does not configure a runtime.
+# Prose Editor remains outside the root runnable registry. This file declares
+# only the ownership root needed to resolve and stage its canonical wrapper
+# dependency for structural profile validation; it does not configure services.
 # Relative paths are resolved from this application directory.
 
-# Catalog checkout containing the canonical corpus-ingest profile.
+# Catalog checkout containing the canonical corpus-reader profile.
 # catalog_root: ../catalog

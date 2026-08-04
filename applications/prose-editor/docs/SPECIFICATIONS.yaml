@@ -31,8 +31,8 @@ roadmap_summary:
     name: Tracer-bullet saga skeleton
     use_cases_done: 0
     use_cases_total: 1
-    status: planned
-    evidence: One tracer use case and one 13-case tracer test suite are documented; no executable evidence exists.
+    status: partial
+    evidence: Declarative programs, portable closure, authority checks, wrapper/role conformance, and profile boot are executable; deterministic scenario evidence remains planned.
   - version: "00.2"
     name: Full multi-stage editing and publication
     use_cases_done: 0
@@ -147,7 +147,7 @@ use_case_index:
   - id: rel00.1-uc001-tracer-saga
     title: Tracer-Bullet Saga with Structure Stage and Local Finalization
     release: "00.1"
-    status: planned
+    status: partial
     srds:
       - srd001-prose-editor-services
       - srd002-writing-saga-workproducts
@@ -185,7 +185,7 @@ test_suite_index:
   - id: test-rel00.1-prose-editor
     title: Prose Editor Release 00.1 Tracer Test Suite
     release: "00.1"
-    status: planned
+    status: partial
     test_case_count: 13
     traces: [rel00.1-uc001-tracer-saga]
     srds:
@@ -226,11 +226,12 @@ coverage_gaps:
       must implement those declared emissions before any MachineSpec can
       validate; no runtime machine or executable conformance is claimed.
   - id: executable-application
-    status: planned
+    status: partial
     description: |
-      Profiles, machines, ToolDefs, services, persistent storage, external
-      integrations, Mage targets, and root registration are outside this
-      documentation epic. No runtime conformance claim is made.
+      Release 00.1 profiles, machines, ToolDefs, canonical wrapper, structural
+      Mage tests, portable closure, and profile boot exist. Services, persistent
+      boundary helpers, deterministic end-to-end fixtures, external integration
+      evidence, and runnable-root registration remain planned.
   - id: external-dependency-evidence
     status: planned
     description: |

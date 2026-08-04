@@ -607,7 +607,7 @@ tool_authority_allocation:
 components:
   - name: workflow-orchestrator agent service
     path: agents/workflow-orchestrator/
-    status: planned
+    status: release_00_1_program_implemented
     role_realization: Executor / Workflow Orchestrator
     lifecycle: Long-running request service with persistent per-saga state.
     scaling_boundary: A saga has one writer; distinct saga IDs may be scheduled independently.
@@ -627,7 +627,7 @@ components:
     prohibited_authority: Shell evaluation, arbitrary command or argv, runtime binary/subcommand/URL/refspec/credential selection, editing, retrieval, model invocation, verdicts, and Pangram.
   - name: specialist-editor agent service
     path: agents/specialist-editor/
-    status: planned
+    status: release_00_1_structure_program_implemented
     role_realization: Parameterized Executor / Change Manager with structure, voice, and style stages sharing a common pipeline shape.
     lifecycle: Request/on-demand application-local machine, one stage per invocation.
     scaling_boundary: Stateless requests may scale independently after serial saga ordering is preserved.
@@ -636,7 +636,7 @@ components:
     prohibited_authority: Cross-stage editing, Chroma writes, workproduct mutation, critic or acceptance verdicts, Pangram, and GitHub mutation.
   - name: voice-critic agent service
     path: agents/voice-critic/
-    status: planned
+    status: release_00_1_no_pangram_program_implemented
     role_realization: Critic / Output Evaluator
     lifecycle: Request/on-demand application-local machine, isolated from editor reasoning.
     scaling_boundary: Evaluations may scale independently while one verdict is bound to one saga attempt.
@@ -659,7 +659,7 @@ components:
     prohibited_authority: Saga coordination, workproduct access, editing, criticism, Pangram, and GitHub publication.
   - name: RAG server instances
     path: planned structure, voice, and tightening supporting services
-    status: planned
+    status: release_00_1_structure_wrapper_implemented_others_planned
     role_realization: Knowledge Manager / Recommendation Generator
     lifecycle: Long-running read-only supporting agent services, each bound to one declared corpus.
     scaling_boundary: Query serving may scale separately from ingestion and editors.
@@ -836,12 +836,14 @@ project_structure:
     - {path: docs/ARCHITECTURE.yaml, status: audit_only, role: Topology, flows, authority, and planned structure.}
     - {path: docs/SPECIFICATIONS.yaml, status: audit_only, role: Planned corpus and traceability index.}
     - {path: docs/road-map.yaml, status: audit_only, role: Release plans and governance evidence status.}
-    - {path: agents/application.yaml, status: audit_only, role: Planned-root composition and capability authority.}
-    - {path: magefiles/magefile.go, status: audit_only, role: Manifest/document audit and composition-only stats.}
+    - {path: agents/application.yaml, status: program_closure, role: Release 00.1 executable-root composition and capability authority.}
+    - {path: magefiles/magefile.go, status: program_closure, role: Manifest/document audit, portable closure, profile boot, structural tests, and stats.}
+  executable_release_00_1_configuration:
+    - {path: agents/workflow-orchestrator/, status: implemented, role: Flat tracer saga coordination and orchestrator-owned ToolDefs.}
+    - {path: agents/specialist-editor/, status: implemented, role: Structure-only parameterized editor profile, machine, REST boundary, and ToolDefs.}
+    - {path: agents/voice-critic/, status: implemented, role: Independent six-category critic program with no Pangram closure.}
+    - {path: agents/structure-rag/, status: implemented_wrapper, role: Thin structure configuration over canonical catalog corpus-reader behavior.}
   planned_configuration:
-    - {path: agents/workflow-orchestrator/, status: planned, role: Saga coordination, fixed exec declarations, and constrained JSON-emitting helper executable.}
-    - {path: agents/specialist-editor/, status: planned, role: Parameterized editor profile with structure, voice, and style stage configurations, flat machines, declarations, and constrained non-shell report helpers.}
-    - {path: agents/voice-critic/, status: planned, role: Independent assurance profile.}
     - {path: agents/corpus-ingest/, status: planned, role: Thin canonical ingest wrapper.}
   planned_specifications:
     - {path: docs/specs/software-requirements/srd001-prose-editor-services.yaml, status: specified, role: Planned service topology, role bindings, lifecycle, failure, scaling, authority, and telemetry contract.}
@@ -866,12 +868,16 @@ implementation_status:
     documentation traceability across all 195 requirement items and 64
     acceptance criteria. The application now has an audit-only manifest, local
     documentation audit, composition-only stats, and root audit/stats registration.
-    Profiles, machines, tools, constrained helpers, services, and runtime evidence
-    remain planned.
+    Release 00.1 now has loadable workflow-orchestrator, structure-editor,
+    voice-critic, and structure-RAG wrapper profiles with flat machines,
+    name-only tool selections, owned ToolDefs, portable manifest closure, role
+    bindings, structural authority proofs, and agent-core boot validation.
+    Boundary helper execution, deterministic fixture traces, services, and
+    runnable-root promotion remain planned.
   overall: audit_only
   progress:
-    - audit_only: agents/application.yaml declares only planned roots and capabilities; local and root audits validate it without creating a runtime surface.
-    - audit_only: Composition stats report zero contributed agents and one exact canonical corpus-ingest reference.
+    - program_closure: agents/application.yaml declares only the four Release 00.1 local roots and one canonical corpus-reader root.
+    - program_closure: Composition stats report three application-owned role realizations and one exact canonical corpus-reader reference.
     - specified: srd001 service topology, role bindings, lifecycle, scaling, failure, interfaces, and authority.
     - specified: srd002 workspace schema, artifact lineage, manifest state, stage contracts, retries, recovery, and publication.
     - specified: srd003 tool words, factory reuse, ownership, signals, errors, effects, compensation, and authority closure.
@@ -879,11 +885,12 @@ implementation_status:
     - specified: srd005 parameterized specialist-editor with structure, voice, and style stages sharing pipeline shape, per-stage retrieval, editing, preservation, and response contracts.
     - specified: srd008 flat independent assurance, six finding categories, exact-hash consent, separate Pangram tasks, advisory comparison, verdict and responsible-stage closure, bounded polls, response, and terminal outcomes.
     - documented_planned: One reciprocal release use case and one 30-case test suite with no executable evidence.
-    - planned: Three application-local state machines, the constrained JSON-emitting orchestrator helper, constrained specialist-editor stage report helpers, and critic report helpers, and the corpus-ingest wrapper.
+    - implemented: Flat tracer orchestrator, structure-stage editor, independent no-Pangram critic, name-only tools, owned declarations, and structure-RAG wrapper.
+    - planned: Constrained JSON-emitting boundary helpers, deterministic fixture traces, and the corpus-ingest wrapper.
     - planned: RAG, Chroma, Ollama, GitHub CLI, and Pangram integrations.
     - planned: Persistent saga workspace, retries, recovery, and publication.
     - planned: Structural, boundary, failure, recovery, and end-to-end tests.
-  executable_evidence: governance_only
+  executable_evidence: program_closure
   registry_status: audit_only
 
 related_documents:

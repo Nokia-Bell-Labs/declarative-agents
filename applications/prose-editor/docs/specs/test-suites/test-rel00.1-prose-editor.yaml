@@ -2,8 +2,8 @@ id: test-rel00.1-prose-editor
 title: Prose Editor Release 00.1 Tracer Test Suite
 release: "00.1"
 test_case_count: 13
-status: planned
-runtime_status: unimplemented
+status: partial
+runtime_status: structural_only
 
 overview: |
   This suite plans 13 tracer-scoped cases for rel00.1-uc001-tracer-saga,
@@ -14,10 +14,11 @@ overview: |
   and the shared telemetry contract across the tracer services.
 
   Voice, style, Pangram, multi-stage retry, and publication cases remain in the
-  00.0 suite and become executable in release 00.2. None of the runtime
-  fixtures, tests, targets, traces, or reports below exists in release 00.1,
-  and this suite claims no execution or conformance evidence until those
-  fixtures are built.
+  00.0 suite and become executable in release 00.2. Release 00.1 now supplies
+  structural Go evidence for profile loading, portable manifest closure,
+  machine/tool/authority closure, wrapper and role conformance, and agent-core
+  configuration boot. Deterministic boundary fixtures and end-to-end traces
+  remain unimplemented and are not claimed.
 
 traces:
   - rel00.1-uc001-tracer-saga
@@ -33,26 +34,26 @@ preconditions:
   - Future runtime work supplies hermetic fixtures for GitHub, Chroma, Ollama, structure-rag, filesystem faults, checkpoint state, and process boundaries.
   - Future tests use isolated repositories, temporary persistent output roots, fixed clocks, bounded payloads, redacted credentials, and no production external effects.
   - Live dependency tests, if later added, remain opt-in and cannot substitute for hermetic boundary evidence.
-  - Current executable evidence is none; every test case below remains planned.
+  - Current executable evidence is structural-only; scenario and fixture cases remain planned.
 
 test_cases:
   - id: TC001
     use_case: rel00.1-uc001-tracer-saga
     name: Documentation trace closure for the tracer release
-    status: planned
-    runtime_status: unimplemented
+    status: partial
+    runtime_status: structural_verified
     description: |
       Parse all Prose Editor YAML; verify that the tracer use case, tracer test
       suite, and road-map release 00.1 exist with correct IDs and paths; close
       reciprocal references between the tracer use case touchpoints,
       success criteria, and this test suite; verify that every requirement group
       listed in road-map 00.1 requirement_subsets is covered by a tracer use
-      case touchpoint and at least one tracer test case; and reject any runtime
-      or evidence claim for release 00.1.
+      case touchpoint and at least one tracer test case; and distinguish
+      structural program evidence from unimplemented scenario evidence.
     future_evidence:
       type: go_test
       path: applications/prose-editor/magefiles/tracer_trace_closure_test.go
-    current_evidence: none
+    current_evidence: magefiles/tracer_programs_test.go
     expected:
       yaml_documents_parse: true
       tracer_use_case_exists: true
@@ -67,8 +68,8 @@ test_cases:
   - id: TC002
     use_case: rel00.1-uc001-tracer-saga
     name: Orchestrator structure-critic-finalization graph proof
-    status: planned
-    runtime_status: unimplemented
+    status: implemented
+    runtime_status: structural_verified
     description: |
       Materialize the tracer-scoped factory-semantic expansion and prove state,
       transition, signal, action, label, terminal, and bounded-cycle closure
@@ -79,7 +80,7 @@ test_cases:
     future_evidence:
       type: graph_proof
       path: applications/prose-editor/magefiles/tracer_orchestrator_graph_test.go
-    current_evidence: none
+    current_evidence: magefiles/tracer_programs_test.go
     traces:
       - rel00.1-uc001-tracer-saga S4
       - srd004-workflow-orchestrator AC1
@@ -91,8 +92,8 @@ test_cases:
   - id: TC003
     use_case: rel00.1-uc001-tracer-saga
     name: Structure-editor machine, retrieval, preservation, and authority proof
-    status: planned
-    runtime_status: unimplemented
+    status: partial
+    runtime_status: structural_verified
     description: |
       Prove the flat structure-editor machine and exact factory closure, request
       containment, structure-rag vector provenance, complete chunk provenance,
@@ -102,7 +103,7 @@ test_cases:
     future_evidence:
       type: graph_and_fixture_test
       path: applications/prose-editor/magefiles/tracer_structure_editor_test.go
-    current_evidence: none
+    current_evidence: magefiles/tracer_programs_test.go
     traces:
       - rel00.1-uc001-tracer-saga S5
       - srd005-specialist-editor AC1
@@ -116,8 +117,8 @@ test_cases:
   - id: TC004
     use_case: rel00.1-uc001-tracer-saga
     name: Critic machine without Pangram, six findings, and authority proof
-    status: planned
-    runtime_status: unimplemented
+    status: partial
+    runtime_status: structural_verified
     description: |
       Prove flat factory closure, exact immutable inputs via hash, critic-owned
       retrieval, all six finding categories validated, model parse and
@@ -128,7 +129,7 @@ test_cases:
     future_evidence:
       type: graph_and_dataflow_test
       path: applications/prose-editor/magefiles/tracer_voice_critic_test.go
-    current_evidence: none
+    current_evidence: magefiles/tracer_programs_test.go
     traces:
       - rel00.1-uc001-tracer-saga S6
       - srd008-voice-critic AC1
@@ -249,8 +250,8 @@ test_cases:
   - id: TC010
     use_case: rel00.1-uc001-tracer-saga
     name: Tracer tool vocabulary closure
-    status: planned
-    runtime_status: unimplemented
+    status: implemented
+    runtime_status: structural_verified
     description: |
       Compare every expanded action in the tracer flow against the tracer
       subset of srd003 tool words. Prove fixed helper, operation, stable label,
@@ -260,7 +261,7 @@ test_cases:
     future_evidence:
       type: go_test
       path: applications/prose-editor/magefiles/tracer_tool_closure_test.go
-    current_evidence: none
+    current_evidence: magefiles/tracer_programs_test.go
     traces:
       - rel00.1-uc001-tracer-saga S3
       - srd003-writing-agent-tools AC1
