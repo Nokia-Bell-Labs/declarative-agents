@@ -144,6 +144,9 @@ func Audit() error {
 	if err != nil {
 		return err
 	}
+	if _, err := resolveChatbotComposition(root, catalogRoot); err != nil {
+		return fmt.Errorf("audit application composition: %w", err)
+	}
 	coreRoot, specificationCriticProfile, err := resolveAuditTools(root, catalogRoot)
 	if err != nil {
 		return err

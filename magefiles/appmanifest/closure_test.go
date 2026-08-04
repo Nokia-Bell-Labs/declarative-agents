@@ -169,6 +169,41 @@ func TestResolveAllowsDuplicateDestinationWithIdenticalContent(t *testing.T) {
 	}
 }
 
+func TestResolveMapsRuntimeAbsoluteReferencesToDeclaredOwnership(t *testing.T) {
+	appRoot, catalogRoot := newApplicationRoot(t), t.TempDir()
+	writeFixtureFile(t, filepath.Join(appRoot, "agents/wrapper/profile.yaml"), `name: wrapper
+machine: ../library/machine.yaml
+tool_declarations: [../local-helper/declarations.yaml]
+`)
+	writeFixtureFile(t, filepath.Join(catalogRoot, "agents/library/profile.yaml"),
+		"name: library\nmachine: machine.yaml\n")
+	writeFixtureFile(t, filepath.Join(catalogRoot, "agents/library/machine.yaml"), "name: library\n")
+	writeFixtureFile(t, filepath.Join(appRoot, "agents/local-helper/profile.yaml"),
+		"name: local-helper\ntool_declarations: [declarations.yaml]\n")
+	writeFixtureFile(t, filepath.Join(appRoot, "agents/local-helper/declarations.yaml"), "tools: []\n")
+	manifest := closureManifest(
+		Root{ID: "wrapper", Ownership: "local", Source: "agents/wrapper/profile.yaml",
+			RuntimePath: "agents/wrapper/profile.yaml"},
+		Root{ID: "library", Ownership: "catalog", Source: "agents/library/profile.yaml",
+			RuntimePath: "agents/library/profile.yaml", CompatibleRelease: "v0.20260803.0"},
+		Root{ID: "local-helper", Ownership: "local", Source: "agents/local-helper/profile.yaml",
+			RuntimePath: "agents/local-helper/profile.yaml"},
+	)
+	inventory, err := Resolve(manifest, Options{
+		ApplicationRoot: appRoot,
+		CatalogRoot:     catalogRoot,
+	})
+	if err != nil {
+		t.Fatal(err)
+	}
+	if got := inventoryFile(inventory, "agents/library/machine.yaml").Source; got != "catalog/agents/library/machine.yaml" {
+		t.Fatalf("catalog runtime reference source = %q", got)
+	}
+	if got := inventoryFile(inventory, "agents/local-helper/declarations.yaml").Source; got != "application/agents/local-helper/declarations.yaml" {
+		t.Fatalf("local runtime reference source = %q", got)
+	}
+}
+
 func TestResolveIsByteDeterministic(t *testing.T) {
 	appRoot, catalogRoot, manifest := completeClosureFixture(t)
 	var previous []byte

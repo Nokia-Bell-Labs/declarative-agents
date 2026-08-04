@@ -228,7 +228,7 @@ func TestStagedProfilesFitTheConfigMapLimit(t *testing.T) {
 // cannot re-enter silently.
 func TestStagedProfilesExcludeTestFixtures(t *testing.T) {
 	for _, key := range renderedProfileKeys(t) {
-		if strings.Contains(key, "__"+stagedTestsDir+"__") {
+		if strings.Contains(key, "__tests__") {
 			t.Errorf("rendered ConfigMap carries %s; agent test fixtures do not belong in a pod", key)
 		}
 	}

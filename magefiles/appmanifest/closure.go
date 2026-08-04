@@ -53,10 +53,19 @@ type closureResolver struct {
 	applicationRoot string
 	catalogRoot     string
 	runtimeOwned    []string
+	runtimeSources  []runtimeSourceMapping
 	maxFiles        int
 	files           map[string]InventoryFile
 	visited         map[string]bool
 	queue           []closureItem
+}
+
+type runtimeSourceMapping struct {
+	ownership   string
+	sourcePath  string
+	sourceDir   string
+	runtimePath string
+	runtimeDir  string
 }
 
 // Resolve validates a manifest, traverses every executable root and declared UI
@@ -96,6 +105,14 @@ func Resolve(manifest Manifest, options Options) (Inventory, error) {
 		if root.Planned {
 			continue
 		}
+		mapping := runtimeSourceMapping{
+			ownership:   root.Ownership,
+			sourcePath:  root.Source,
+			sourceDir:   path.Dir(root.Source),
+			runtimePath: root.RuntimePath,
+			runtimeDir:  path.Dir(root.RuntimePath),
+		}
+		resolver.runtimeSources = append(resolver.runtimeSources, mapping)
 		inventory.Roots = append(inventory.Roots, RootProvenance{
 			ID: root.ID, Ownership: root.Ownership, Source: logicalSource(root.Ownership, root.Source),
 			RuntimePath: root.RuntimePath, CompatibleRelease: root.CompatibleRelease,
@@ -105,6 +122,18 @@ func Resolve(manifest Manifest, options Options) (Inventory, error) {
 			rootID: root.ID, lineage: []string{sourceKey(root.Ownership, root.Source)},
 		})
 	}
+	sort.Slice(resolver.runtimeSources, func(i, j int) bool {
+		if len(resolver.runtimeSources[i].runtimeDir) != len(resolver.runtimeSources[j].runtimeDir) {
+			return len(resolver.runtimeSources[i].runtimeDir) > len(resolver.runtimeSources[j].runtimeDir)
+		}
+		if resolver.runtimeSources[i].runtimeDir != resolver.runtimeSources[j].runtimeDir {
+			return resolver.runtimeSources[i].runtimeDir < resolver.runtimeSources[j].runtimeDir
+		}
+		if resolver.runtimeSources[i].ownership != resolver.runtimeSources[j].ownership {
+			return resolver.runtimeSources[i].ownership < resolver.runtimeSources[j].ownership
+		}
+		return resolver.runtimeSources[i].sourcePath < resolver.runtimeSources[j].sourcePath
+	})
 	rootByID := make(map[string]Root, len(manifest.Roots))
 	for _, root := range manifest.Roots {
 		rootByID[root.ID] = root
@@ -259,7 +288,7 @@ func (resolver *closureResolver) resolveYAML(item closureItem, data []byte) erro
 			return fmt.Errorf("%s contains unbounded glob reference %s",
 				logicalSource(item.ownership, item.source), reference)
 		}
-		ownership, source, runtime, err := resolveReference(item, reference)
+		ownership, source, runtime, err := resolver.resolveReference(item, reference)
 		if err != nil {
 			return fmt.Errorf("%s references %s: %w", logicalSource(item.ownership, item.source), reference, err)
 		}
@@ -312,7 +341,7 @@ func (resolver *closureResolver) isRuntimeOwned(reference string) bool {
 	return false
 }
 
-func resolveReference(item closureItem, reference string) (string, string, string, error) {
+func (resolver *closureResolver) resolveReference(item closureItem, reference string) (string, string, string, error) {
 	portable := filepath.ToSlash(strings.TrimSpace(reference))
 	if portable == "" || strings.Contains(portable, `\`) {
 		return "", "", "", errors.New("reference is empty or non-portable")
@@ -321,6 +350,9 @@ func resolveReference(item closureItem, reference string) (string, string, strin
 		source, err := cleanJoined("", portable)
 		if err != nil {
 			return "", "", "", err
+		}
+		if ownership, mappedSource, declared, err := resolver.declaredRuntimeSource(source); declared || err != nil {
+			return ownership, mappedSource, source, err
 		}
 		return "catalog", source, source, nil
 	}
@@ -332,7 +364,43 @@ func resolveReference(item closureItem, reference string) (string, string, strin
 	if err != nil {
 		return "", "", "", err
 	}
+	if ownership, mappedSource, declared, mappingErr := resolver.declaredRuntimeSource(runtime); mappingErr == nil && declared {
+		return ownership, mappedSource, runtime, nil
+	}
 	return item.ownership, source, runtime, nil
+}
+
+func (resolver *closureResolver) declaredRuntimeSource(runtime string) (string, string, bool, error) {
+	for _, mapping := range resolver.runtimeSources {
+		if runtime == mapping.runtimePath {
+			return mapping.ownership, mapping.sourcePath, true, nil
+		}
+	}
+	var selected *runtimeSourceMapping
+	for _, mapping := range resolver.runtimeSources {
+		if runtime != mapping.runtimeDir && !strings.HasPrefix(runtime, mapping.runtimeDir+"/") {
+			continue
+		}
+		if selected != nil && selected.runtimeDir != mapping.runtimeDir {
+			break
+		}
+		if selected != nil &&
+			(selected.ownership != mapping.ownership || selected.sourceDir != mapping.sourceDir) {
+			return "", "", false, fmt.Errorf(
+				"runtime reference %s has ambiguous declared ownership", runtime)
+		}
+		candidate := mapping
+		selected = &candidate
+	}
+	if selected == nil {
+		return "", "", false, nil
+	}
+	relative := strings.TrimPrefix(strings.TrimPrefix(runtime, selected.runtimeDir), "/")
+	source, err := cleanJoined(selected.sourceDir, relative)
+	if err != nil {
+		return "", "", false, err
+	}
+	return selected.ownership, source, true, nil
 }
 
 func cleanJoined(base, reference string) (string, error) {

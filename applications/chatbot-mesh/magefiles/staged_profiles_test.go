@@ -5,75 +5,73 @@ package main
 import (
 	"os"
 	"path/filepath"
-	"regexp"
-	"sort"
 	"strings"
 	"testing"
 )
 
-var profileMountRE = regexp.MustCompile(`agents/([a-z0-9-]+)/profile\.yaml`)
-
-// TestStagedProfilesCoverEnabledDeployments proves the authoritative packaging
-// list (chartProfilePrograms) stages an agent profile for every profile mounted
-// by a chart Deployment. This is the GH-485 regression guard: the applier
-// Deployment mounts agents/applier/profile.yaml, so the staging list must copy
-// agents/applier or an enabled applier starts with no profile.
+// TestStagedProfilesCoverEnabledDeployments proves every profile selected by a
+// chart template is declared by a deployment entry in agents/application.yaml.
 func TestStagedProfilesCoverEnabledDeployments(t *testing.T) {
 	chartDir := findChartDir(t)
-	templatesDir := filepath.Join(chartDir, "templates")
-
-	entries, err := os.ReadDir(templatesDir)
+	applicationRoot := filepath.Dir(chartDir)
+	catalogRoot, err := resolveCatalogRoot("manifest deployment coverage", applicationRoot)
 	if err != nil {
-		t.Fatalf("read templates dir: %v", err)
+		t.Fatal(err)
 	}
-
-	mounted := map[string]bool{}
-	for _, e := range entries {
-		if e.IsDir() || filepath.Ext(e.Name()) != ".yaml" {
-			continue
-		}
-		data, err := os.ReadFile(filepath.Join(templatesDir, e.Name()))
-		if err != nil {
-			t.Fatalf("read %s: %v", e.Name(), err)
-		}
-		for _, m := range profileMountRE.FindAllStringSubmatch(string(data), -1) {
-			mounted[m[1]] = true
-		}
+	composition, err := resolveChatbotComposition(applicationRoot, catalogRoot)
+	if err != nil {
+		t.Fatal(err)
 	}
-	if len(mounted) == 0 {
-		t.Fatal("no agent profile mounts found in chart templates; regex or layout changed")
-	}
-
-	staged := map[string]bool{}
-	for _, p := range chartProfilePrograms() {
-		staged[filepath.Base(p.src)] = true
-	}
-
-	var missing []string
-	for agent := range mounted {
-		if !staged[agent] {
-			missing = append(missing, agent)
-		}
-	}
-	sort.Strings(missing)
-	if len(missing) > 0 {
-		t.Fatalf("chart Deployments mount profiles not staged by chartProfilePrograms: %v", missing)
+	if err := validateChartProfileReferences(chartDir, composition.manifest); err != nil {
+		t.Fatal(err)
 	}
 }
 
-// TestPackagingDocMatchesStagingList proves PACKAGING.md documents exactly the
-// programs the code stages, so a packaging change cannot be documentation-only
-// (GH-485). The destination is matched as written rather than with a trailing
-// slash appended, because a staging entry may name a single file (GH-702).
-func TestPackagingDocMatchesStagingList(t *testing.T) {
+func TestChartRejectsProfileOutsideApplicationManifest(t *testing.T) {
+	chart := filepath.Join(t.TempDir(), "helm")
+	if err := copyDirContents(filepath.Join("..", "helm"), chart); err != nil {
+		t.Fatal(err)
+	}
+	template := filepath.Join(chart, "templates", "chatbot.yaml")
+	file, err := os.OpenFile(template, os.O_APPEND|os.O_WRONLY, 0)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if _, err := file.WriteString("\n# /profiles/agents/undeclared/profile.yaml\n"); err != nil {
+		_ = file.Close()
+		t.Fatal(err)
+	}
+	if err := file.Close(); err != nil {
+		t.Fatal(err)
+	}
+	applicationRoot := filepath.Clean("..")
+	catalogRoot, err := resolveCatalogRoot("undeclared chart profile test", applicationRoot)
+	if err != nil {
+		t.Fatal(err)
+	}
+	composition, err := resolveChatbotComposition(applicationRoot, catalogRoot)
+	if err != nil {
+		t.Fatal(err)
+	}
+	err = validateChartProfileReferences(chart, composition.manifest)
+	if err == nil || !strings.Contains(err.Error(), "outside agents/application.yaml") {
+		t.Fatalf("undeclared chart profile error = %v", err)
+	}
+}
+
+func TestPackagingDocNamesManifestAuthority(t *testing.T) {
 	chartDir := findChartDir(t)
 	doc, err := os.ReadFile(filepath.Join(chartDir, "PACKAGING.md"))
 	if err != nil {
 		t.Fatalf("read PACKAGING.md: %v", err)
 	}
-	for _, p := range chartProfilePrograms() {
-		if !containsStr(string(doc), p.rel) {
-			t.Errorf("PACKAGING.md does not document staged program %q (%s)", p.src, p.rel)
+	for _, required := range []string{
+		"agents/application.yaml",
+		"provenance/application-closure.yaml",
+		"transitive closure",
+	} {
+		if !strings.Contains(string(doc), required) {
+			t.Errorf("PACKAGING.md does not document %q", required)
 		}
 	}
 }
@@ -84,17 +82,4 @@ func TestStagedProfilesExcludePackagingDocs(t *testing.T) {
 			t.Errorf("rendered ConfigMap carries documentation key %q; packaging docs are not runtime profile input", key)
 		}
 	}
-}
-
-func containsStr(haystack, needle string) bool {
-	return len(needle) > 0 && (len(haystack) >= len(needle)) && indexOf(haystack, needle) >= 0
-}
-
-func indexOf(s, sub string) int {
-	for i := 0; i+len(sub) <= len(s); i++ {
-		if s[i:i+len(sub)] == sub {
-			return i
-		}
-	}
-	return -1
 }

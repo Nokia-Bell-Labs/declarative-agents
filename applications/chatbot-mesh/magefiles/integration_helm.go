@@ -501,10 +501,8 @@ func smokeRuntimeBuildArgs(image string) []string {
 	return []string{"build", "-t", image, "."}
 }
 
-// stageSmokeChart copies the chart to a temp directory and stages the agent
-// programs and the UI artifacts into its profiles subtree (the PACKAGING.md
-// step), so the ConfigMap carries the agent profiles and the SPA bundle the
-// chatbot serves. It returns the staged chart path and a cleanup function.
+// stageSmokeChart copies the classified chart source to a temp directory and
+// stages the exact manifest-derived closure and provenance used by packaging.
 func stageSmokeChart(chartDir, profilesRoot string) (string, func(), error) {
 	catalogRoot, err := resolveCatalogRoot("chatbot-mesh Helm staging", profilesRoot)
 	if err != nil {
@@ -516,159 +514,15 @@ func stageSmokeChart(chartDir, profilesRoot string) (string, func(), error) {
 	}
 	cleanup := func() { _ = os.RemoveAll(staged) }
 	dst := filepath.Join(staged, "chatbot-mesh")
-	if err := copyDirContents(chartDir, dst); err != nil {
+	if err := stageChatbotChartSource(chartDir, dst); err != nil {
 		cleanup()
 		return "", nil, err
 	}
-	for _, p := range chartProfilePrograms() {
-		if err := stageProfilePath(chartProfileSource(profilesRoot, catalogRoot, p), filepath.Join(dst, p.rel)); err != nil {
-			cleanup()
-			return "", nil, err
-		}
+	if err := stageChatbotComposition(dst, profilesRoot, catalogRoot); err != nil {
+		cleanup()
+		return "", nil, err
 	}
 	return dst, cleanup, nil
-}
-
-// chartProfileProgram is one source-to-staged mapping copied into the packaged
-// chart's profiles subtree before helm package/install. src names either a
-// directory or a single file.
-type chartProfileProgram struct{ src, rel string }
-
-const canonicalCorpusIngestProgram = "agents/knowledge-manager/corpus-ingest"
-const canonicalCollectorProgram = "agents/collector"
-
-// canonicalCollectorUIProgram stages the collector's built trace UI (srd020 R7)
-// from the catalog into a dedicated collector-ui/ tree, not the shared profiles
-// tree. The profiles ConfigMap mounts into every pod, and the UI bundle is
-// needed only on the collector; keeping it out of profiles/ holds the shared
-// ConfigMap under its size limit while a collector-only ConfigMap carries it.
-const canonicalCollectorUIProgram = "agents/collector/ui/dist"
-
-// chartProfilePrograms is the single authoritative list of agent programs and
-// UI artifacts staged into the chart package. It MUST cover every
-// agent profile mounted by an enabled Deployment (see helm/templates/*.yaml);
-// the applier (srd006) Deployment mounts agents/applier/profile.yaml, so
-// omitting it here left an enabled applier with no profile to start (GH-485).
-// TestStagedProfilesCoverEnabledDeployments enforces the coverage.
-//
-// The chatbot UI now lives under its serving agent at agents/chatbot/ui
-// (eng02-agent-ui-placement, GH-1316), and pruneStagedUIDev strips the ui/
-// subtree from the staged agents/chatbot copy. It is restored as two explicit
-// entries because every file staged here becomes a ConfigMap key and a
-// projected mount item in every agent pod (profiles-configmap.yaml and
-// profilesVolume both glob profiles/**). The chart consumes exactly two things
-// from the chatbot UI: ui.yaml, the UI descriptor, and app/dist, the built
-// bundle the chatbot's static_assets binding serves at /ui
-// (agents/chatbot/rest.yaml). Staging the whole ui/ tree also carried the panel
-// sources, the tsconfig, and a 60 KiB package-lock.json into every pod, and it
-// swept in node_modules whenever a developer had run npm install -- which helm
-// rejects outright, since esbuild's binary is over the 5 MiB per-file chart
-// limit (GH-702). The observer likewise restores only its generated dist tree
-// after the same prune; the chart carries it in an observer-only ConfigMap,
-// mounted back at the same profiles/ path. Package sources and node_modules are
-// build inputs.
-func chartProfilePrograms() []chartProfileProgram {
-	return []chartProfileProgram{
-		{"agents/chatbot", "profiles/agents/chatbot"},
-		{"agents/rag-server", "profiles/agents/rag-server"},
-		{"agents/provisioning-workflow-orchestrator", "profiles/agents/provisioning-workflow-orchestrator"},
-		{"agents/creator", "profiles/agents/creator"},
-		{"agents/applier", "profiles/agents/applier"},
-		{"agents/collector", "profiles/agents/collector"},
-		{canonicalCollectorUIProgram, "collector-ui/ui/dist"},
-		{"agents/observer", "profiles/agents/observer"},
-		{"agents/observer/ui/dist", "profiles/agents/observer/ui/dist"},
-		{"agents/corpus-ingest", "profiles/agents/corpus-ingest"},
-		{canonicalCorpusIngestProgram, "profiles/agents/knowledge-manager/corpus-ingest"},
-		{"agents/chatbot/ui/ui.yaml", "profiles/agents/chatbot/ui/ui.yaml"},
-		{"agents/chatbot/ui/app/dist", "profiles/agents/chatbot/ui/app/dist"},
-	}
-}
-
-func chartProfileSource(meshRoot, catalogRoot string, program chartProfileProgram) string {
-	root := meshRoot
-	if program.src == canonicalCorpusIngestProgram || program.src == canonicalCollectorProgram ||
-		program.src == canonicalCollectorUIProgram {
-		root = catalogRoot
-	}
-	return filepath.Join(root, filepath.FromSlash(program.src))
-}
-
-// stageProfilePath copies one staging entry, whether it names a directory or a
-// single file, and prunes test fixtures and UI development files from a staged
-// directory.
-func stageProfilePath(src, dst string) error {
-	info, err := os.Stat(src)
-	if err != nil {
-		return fmt.Errorf("stage %s: %w", src, err)
-	}
-	if info.IsDir() {
-		if err := copyDirContents(src, dst); err != nil {
-			return err
-		}
-		if err := pruneStagedTests(dst); err != nil {
-			return err
-		}
-		return pruneStagedUIDev(dst)
-	}
-	if err := os.MkdirAll(filepath.Dir(dst), 0o755); err != nil {
-		return fmt.Errorf("create %s: %w", filepath.Dir(dst), err)
-	}
-	cmd := exec.Command("cp", "-a", src, dst)
-	if out, err := cmd.CombinedOutput(); err != nil {
-		return fmt.Errorf("copy %s -> %s: %s: %w", src, dst, strings.TrimSpace(string(out)), err)
-	}
-	return nil
-}
-
-// pruneStagedTests removes the agent test fixtures a staged profile directory
-// carries. The rig fixtures under agents/<name>/tests -- mock LLM and RAG
-// definitions, scenarios, and their own profiles -- configure test doubles and
-// have no role at runtime, but every staged file becomes a ConfigMap key and a
-// projected mount item in *every* agent pod (profiles-configmap.yaml and
-// profilesVolume both glob profiles/**). Shipping them means production pods
-// mount mock service definitions and the ConfigMap grows with the test suite
-// rather than with the product.
-//
-// This is the pruning GH-702 did for the chatbot UI tree, which the epic GH-662
-// fixtures reintroduced by arriving after it. It is done here rather than in
-// copyDirContents because that helper also copies the chart itself and
-// agent-core's tools, neither of which should learn what an agent fixture is.
-//
-// Pruning after the copy rather than filtering during it keeps one copy
-// mechanism and catches a tests directory at any depth, including one added
-// later.
-func pruneStagedTests(dst string) error {
-	return filepath.WalkDir(dst, func(path string, entry os.DirEntry, err error) error {
-		if err != nil {
-			return err
-		}
-		if !entry.IsDir() || entry.Name() != stagedTestsDir {
-			return nil
-		}
-		if err := os.RemoveAll(path); err != nil {
-			return fmt.Errorf("prune staged tests %s: %w", path, err)
-		}
-		return filepath.SkipDir
-	})
-}
-
-// stagedTestsDir is the directory name an agent keeps its rig fixtures under.
-const stagedTestsDir = "tests"
-
-// pruneStagedUIDev removes the ui/ tree from a staged agent profile directory.
-// An agent that serves a UI carries a ui/ with source, built assets, and
-// development config, but the chart must mount only the served artifacts, not
-// the dev tree: the chatbot UI is restored as explicit entries
-// (agents/chatbot/ui/ui.yaml and agents/chatbot/ui/app/dist) and the observer
-// UI as agents/observer/ui/dist, each staged after this prune strips the full
-// ui/ copy. Catalog agents whose ui/ the chart never serves are simply dropped.
-func pruneStagedUIDev(dst string) error {
-	uiDir := filepath.Join(dst, "ui")
-	if err := os.RemoveAll(uiDir); err != nil && !os.IsNotExist(err) {
-		return fmt.Errorf("prune staged ui %s: %w", uiDir, err)
-	}
-	return nil
 }
 
 func copyDirContents(src, dst string) error {

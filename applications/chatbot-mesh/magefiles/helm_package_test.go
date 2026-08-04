@@ -54,6 +54,7 @@ func TestHelmPackageIsRepeatableAndExcludesGeneratedInputs(t *testing.T) {
 		"chatbot-mesh/profiles/agents/knowledge-manager/corpus-ingest/profile.yaml",
 		"chatbot-mesh/profiles/agents/chatbot/ui/app/dist/index.html",
 		"chatbot-mesh/profiles/agents/observer/ui/dist/index.html",
+		"chatbot-mesh/provenance/application-closure.yaml",
 	} {
 		if !containsArchiveFile(second, required) {
 			t.Errorf("archive is missing required runtime asset %s", required)

@@ -40,8 +40,9 @@ func isLoopback(value string) bool {
 	return false
 }
 
-// stagedDeclarationFiles returns every *.yaml under the agent directories the
-// chart stages, excluding test fixtures, which never run in a pod.
+// stagedDeclarationFiles returns every YAML source in the manifest-derived
+// profile closure. Fixtures and development trees are unreachable and therefore
+// never enter this inventory.
 func stagedDeclarationFiles(t *testing.T) []string {
 	t.Helper()
 	root, err := os.Getwd()
@@ -53,25 +54,20 @@ func stagedDeclarationFiles(t *testing.T) []string {
 	if err != nil {
 		t.Fatal(err)
 	}
+	composition, err := resolveChatbotComposition(profilesRoot, catalogRoot)
+	if err != nil {
+		t.Fatal(err)
+	}
 	var files []string
-	for _, program := range chartProfilePrograms() {
-		if !strings.HasPrefix(program.rel, "profiles/agents/") {
+	for _, file := range composition.inventory.Files {
+		if filepath.Ext(file.RuntimePath) != ".yaml" {
 			continue
 		}
-		src := chartProfileSource(profilesRoot, catalogRoot, program)
-		err := filepath.Walk(src, func(path string, info os.FileInfo, err error) error {
-			if err != nil || info.IsDir() || filepath.Ext(path) != ".yaml" {
-				return err
-			}
-			if strings.Contains(path, string(filepath.Separator)+"tests"+string(filepath.Separator)) {
-				return nil
-			}
-			files = append(files, path)
-			return nil
-		})
+		source, err := chatbotInventorySource(profilesRoot, catalogRoot, file.Source)
 		if err != nil {
-			t.Fatalf("walk %s: %v", src, err)
+			t.Fatal(err)
 		}
+		files = append(files, source)
 	}
 	if len(files) == 0 {
 		t.Fatal("no staged declaration files found; the guard would pass vacuously")
