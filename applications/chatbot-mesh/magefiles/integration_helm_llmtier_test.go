@@ -335,24 +335,59 @@ func TestLLMPreloadReadinessTransitionDiagnostics(t *testing.T) {
 }
 
 func TestHelmLLMTierInstallExposesTransition(t *testing.T) {
-	var command string
+	chart, chartArchive, assets := stageThinIntegrationChart(t, helmLLMRelease)
+	var command []string
+	image := "declarative-agents/agent-core:0123456789ab"
 	err := helmInstallLLMWithRunner(
-		"/chart", "declarative-agents/agent-core:0123456789ab",
+		chart, chartArchive, image, assets,
 		func(name string, args ...string) ([]byte, error) {
-			command = name + " " + strings.Join(args, " ")
+			command = append([]string{name}, args...)
 			return nil, nil
 		})
 	if err != nil {
 		t.Fatal(err)
 	}
-	if strings.Contains(command, " --wait") {
-		t.Fatalf("helm install hides readiness transition behind --wait: %s", command)
+	valueArgs := helmLLMValueArgs(chart, image, assets)
+	want := append([]string{"helm", "install", helmLLMRelease, chart}, valueArgs...)
+	want = append(want, "--timeout", helmLLMInstallTimeout.String())
+	if strings.Join(command, "\x00") != strings.Join(want, "\x00") {
+		t.Fatalf("LLM install command:\n got: %#v\nwant: %#v", command, want)
 	}
-	if !strings.Contains(command, "--set ollama.preload.suspend=true") {
-		t.Fatalf("helm install does not suspend preload for observation: %s", command)
+	joined := strings.Join(command, " ")
+	if strings.Contains(joined, " --wait") {
+		t.Fatalf("helm install hides readiness transition behind --wait: %s", joined)
 	}
-	if !strings.Contains(command, "--set-string image.tag=0123456789ab") {
-		t.Fatalf("helm install omits commit-addressed image: %s", command)
+	if !strings.Contains(joined, "--set ollama.preload.suspend=true") {
+		t.Fatalf("helm install does not suspend preload for observation: %s", joined)
+	}
+	if !strings.Contains(joined, "--set-string image.tag=0123456789ab") {
+		t.Fatalf("helm install omits commit-addressed image: %s", joined)
+	}
+	assertExternalAssetArgs(t, joined, assets)
+	measured, err := measureHelmReleaseBudget(
+		helmLLMRelease, chart, chartArchive, valueArgs)
+	if err != nil {
+		t.Fatalf("LLM-tier release budget: %v", err)
+	}
+	if measured.ProjectedSecretBytes > helmReleaseBudget {
+		t.Fatalf("LLM-tier projected release = %d, budget = %d",
+			measured.ProjectedSecretBytes, helmReleaseBudget)
+	}
+}
+
+func TestHelmLLMTierInstallReturnsCapturedOutput(t *testing.T) {
+	chart, chartArchive, assets := stageThinIntegrationChart(t, helmLLMRelease)
+	err := helmInstallLLMWithRunner(
+		chart,
+		chartArchive,
+		"declarative-agents/agent-core:llm-output",
+		assets,
+		func(string, ...string) ([]byte, error) {
+			return []byte("controlled LLM Helm output"), errors.New("controlled failure")
+		},
+	)
+	if err == nil || !strings.Contains(err.Error(), "controlled LLM Helm output") {
+		t.Fatalf("LLM install error = %v, want captured Helm output", err)
 	}
 }
 

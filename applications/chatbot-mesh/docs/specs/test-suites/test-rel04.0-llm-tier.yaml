@@ -21,6 +21,7 @@ test_cases:
   - use_case: rel04.0-uc001-in-cluster-llm-tier
     name: Default install answers a turn with no external LLM dependency
     integration_target: mage integration:helmLLMTier
+    go_test: go test ./magefiles -run '^TestHelmLLMTierInstallExposesTransition$|^TestHelmLLMTierInstallReturnsCapturedOutput$'
     status: implemented
     description: |
       helm install with defaults on a kind cluster deploys the Ollama subchart with
@@ -29,6 +30,12 @@ test_cases:
       turn and asserts a answer from the retrieved chunks with no external LLM endpoint configured.
       CPU-only small models; the smoke/production sizing divergence is a recorded
       limitation.
+
+      The staged chart externalizes provenance-verified collector and observer UI
+      bytes before packaging. The exact no-`--wait` install values are projected
+      against that thin chart before Helm, the v1 release Secret is checked
+      against the 896 KiB safety budget after install, and init-container
+      checksums verify the mounted UIs against the canonical package inventory.
     inputs:
       chart: applications/chatbot-mesh/helm/
       values: defaults (ollama.enabled=true)
@@ -37,6 +44,12 @@ test_cases:
       ollama_subchart_deployed_with_pvc: true
       preload_job_pulls_all_declared_models: true
       turn_answered_no_external_llm: true
+      helm_install_wait: false
+      projected_release_secret_max_bytes: 917504
+      actual_release_secret_max_bytes: 917504
+      external_ui_archives_out_of_release: [collector, observer]
+      runtime_ui_inventory_verified: true
+      canonical_package_closure_complete: true
     traces:
       - rel04.0-uc001-in-cluster-llm-tier S1
       - srd003-chatbot-deployment AC6

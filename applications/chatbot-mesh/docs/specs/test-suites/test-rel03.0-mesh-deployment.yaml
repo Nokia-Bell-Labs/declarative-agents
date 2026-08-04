@@ -21,7 +21,7 @@ test_cases:
   - use_case: rel03.0-uc001-mesh-deployment
     name: Mesh Helm deployment smoke tracer on kind
     integration_target: mage integration:helmSmoke
-    go_test: go test ./magefiles -run '^TestSplitImageRef$|^TestAssertSmokeChatServedAcceptsAnswer$|^TestAssertSmokeChatServedRejectsEmptyAnswer$|^TestHelmSmokeSkipReasonMissingBinary$'
+    go_test: go test ./magefiles -run '^TestSplitImageRef$|^TestAssertSmokeChatServedAcceptsAnswer$|^TestAssertSmokeChatServedRejectsEmptyAnswer$|^TestHelmSmokeSkipReasonMissingBinary$|^TestHelmInstallSmokePassesRunIdentityToGateway$|^TestHelmSmokeInstallReturnsCapturedOutput$'
     status: implemented
     description: |
       Integration.HelmSmoke deploys the chatbot-mesh chart on a disposable kind
@@ -34,6 +34,14 @@ test_cases:
       reports a distinct service.name via --otel-service-name). Teardown deletes
       the cluster in all paths; the target skips cleanly when the toolchain or
       models are absent.
+
+      After manifest-closure provenance verification, the staged-only collector
+      and observer UIs are archived into out-of-release ConfigMaps. The exact
+      install values are rendered against a packaged thin chart before Helm, and
+      the v1 release Secret is checked against the 896 KiB safety budget after
+      install. Init-container checksum verification proves the mounted UI bytes
+      still match the canonical package inventory; canonical packaging itself
+      remains complete.
     inputs:
       chart: applications/chatbot-mesh/helm/
       values: applications/chatbot-mesh/helm/ci/kind-values.yaml
@@ -43,6 +51,11 @@ test_cases:
       chat_turn_served: true
       spans_from_multiple_services: true
       skips_clean_without_toolchain: true
+      projected_release_secret_max_bytes: 917504
+      actual_release_secret_max_bytes: 917504
+      external_ui_archives_out_of_release: [collector, observer]
+      runtime_ui_inventory_verified: true
+      canonical_package_closure_complete: true
     traces:
       - rel03.0-uc001-mesh-deployment S1
       - srd003-chatbot-deployment AC1
@@ -77,7 +90,7 @@ test_cases:
   - use_case: rel03.0-uc001-mesh-deployment
     name: Mesh hot-swap tracer on kind
     integration_target: mage integration:helmSwap
-    go_test: go test ./magefiles -run '^TestChatbotFanOutCoGeneratedForNRags$'
+    go_test: go test ./magefiles -run '^TestChatbotFanOutCoGeneratedForNRags$|^TestHelmSwapInstallAndUpgradeUseThinReleaseArgs$|^TestHelmSwapReturnsCapturedOutput$'
     status: implemented
     description: |
       Integration.HelmSwap proves the tiered-swap rollout mechanics on a kind
@@ -92,6 +105,12 @@ test_cases:
       from the replacement pod. It needs docker/kind/helm/kubectl but no installed
       Ollama models; it skips cleanly when the toolchain is absent and deletes a
       cluster it created in all paths.
+
+      Both install and upgrade use the same external collector/observer archive
+      names and checksums. Each revision is projected from its exact values
+      vector before Helm; v1 and v2 release Secrets are then checked against the
+      896 KiB budget, and the mounted inventory bytes are verified after each
+      revision.
     inputs:
       chart: applications/chatbot-mesh/helm/
       values_rag_list: [rag0, rag1, rag2]
@@ -103,6 +122,11 @@ test_cases:
       later_rag_identity_does_not_drift: true
       active_turn_completes_before_old_pod_exits: true
       replacement_pod_serves_next_turn: true
+      projected_release_secret_max_bytes: 917504
+      actual_release_secret_max_bytes: 917504
+      helm_release_revisions_checked: [1, 2]
+      external_ui_archives_out_of_release: [collector, observer]
+      runtime_ui_inventory_verified_each_revision: true
     traces:
       - rel03.0-uc001-mesh-deployment S3
       - srd003-chatbot-deployment AC3

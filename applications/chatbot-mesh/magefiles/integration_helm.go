@@ -282,6 +282,16 @@ func runHelmSmoke(coreRoot, profilesRoot, chartDir string) (result error) {
 		return err
 	}
 	defer cleanupChart()
+	assets, cleanupAssets, err := externalizeUIAssets(stagedChart, helmRelease)
+	if err != nil {
+		return err
+	}
+	defer cleanupAssets()
+	chartArchive, cleanupArchive, err := packageApplierChart(stagedChart)
+	if err != nil {
+		return err
+	}
+	defer cleanupArchive()
 	dependencyImages, err := smokeDependencyImages(chartDir)
 	if err != nil {
 		return err
@@ -322,6 +332,9 @@ func runHelmSmoke(coreRoot, profilesRoot, chartDir string) (result error) {
 	}
 	defer unbindKubeconfig()
 
+	if err := provisionExternalUIAssets(assets); err != nil {
+		return err
+	}
 	if err := loadKindImage(helmKindCluster, images.Runtime); err != nil {
 		return err
 	}
@@ -330,7 +343,13 @@ func runHelmSmoke(coreRoot, profilesRoot, chartDir string) (result error) {
 			return err
 		}
 	}
-	if err := helmInstallSmoke(stagedChart, images.Runtime, telemetry); err != nil {
+	if err := helmInstallSmoke(stagedChart, chartArchive, images.Runtime, telemetry, assets); err != nil {
+		return err
+	}
+	if err := assertHelmIntegrationRelease(helmRelease, chartArchive, assets, 1); err != nil {
+		return err
+	}
+	if err := assertExternalUIAssetsMounted(helmRelease, assets, helmReadyTimeout); err != nil {
 		return err
 	}
 
@@ -536,13 +555,47 @@ func copyDirContents(src, dst string) error {
 	return nil
 }
 
-func helmInstallSmoke(chartPath, image string, telemetry helmTelemetryIdentity) error {
-	return helmInstallSmokeWithRunner(chartPath, image, telemetry, runHelmSmokeCommand)
+func helmInstallSmoke(
+	chartPath, chartArchive, image string,
+	telemetry helmTelemetryIdentity,
+	assets []externalUIAsset,
+) error {
+	return helmInstallSmokeWithRunner(
+		chartPath, chartArchive, image, telemetry, assets, runHelmSmokeCommand)
 }
 
-func helmInstallSmokeWithRunner(chartPath, image string, telemetry helmTelemetryIdentity, run helmLLMCommandRunner) error {
+func helmInstallSmokeWithRunner(
+	chartPath, chartArchive, image string,
+	telemetry helmTelemetryIdentity,
+	assets []externalUIAsset,
+	run helmLLMCommandRunner,
+) error {
+	valueArgs := helmSmokeValueArgs(chartPath, image, telemetry, assets)
+	measured, err := measureHelmReleaseBudget(
+		helmRelease, chartPath, chartArchive, valueArgs)
+	if err != nil {
+		return err
+	}
+	fmt.Printf("helmSmoke: release budget PASS - %s\n", measured.String())
+	args := append([]string{"install", helmRelease, chartPath}, valueArgs...)
+	args = append(args, "--wait", "--timeout", helmInstallTimeout.String())
+	out, err := run("helm", args...)
+	if len(out) > 0 {
+		_, _ = os.Stderr.Write(out)
+	}
+	if err != nil {
+		return fmt.Errorf("helm install %s: %w: %s", helmRelease, err, strings.TrimSpace(string(out)))
+	}
+	return nil
+}
+
+func helmSmokeValueArgs(
+	chartPath, image string,
+	telemetry helmTelemetryIdentity,
+	assets []externalUIAsset,
+) []string {
 	repo, tag := splitImageRef(image)
-	args := []string{"install", helmRelease, chartPath,
+	args := []string{
 		"--values", filepath.Join(chartPath, "ci", "kind-values.yaml"),
 		"--set", "image.repository=" + repo,
 		"--set-string", "image.tag=" + tag,
@@ -552,14 +605,36 @@ func helmInstallSmokeWithRunner(chartPath, image string, telemetry helmTelemetry
 		"--set-string", "collector.integrationResource.target=integration:helmSmoke",
 		"--set-string", "collector.integrationResource.commit=" + telemetry.Commit,
 		"--set-string", "collector.integrationResource.runID=" + telemetry.RunID,
-		"--wait", "--timeout", helmInstallTimeout.String(),
 	}
-	out, err := run("helm", args...)
-	if len(out) > 0 {
-		_, _ = os.Stderr.Write(out)
+	return append(args, externalUIAssetValueArgs(assets)...)
+}
+
+func provisionExternalUIAssets(assets []externalUIAsset) error {
+	for _, asset := range assets {
+		if err := provisionExternalUIAsset(asset); err != nil {
+			return err
+		}
 	}
+	return nil
+}
+
+// assertHelmIntegrationRelease checks every stored revision against the release
+// budget, then proves that the revision just created exists. The second check is
+// significant for the swap gate, where a successful-looking upgrade must create
+// v2 rather than leave only the install Secret.
+func assertHelmIntegrationRelease(
+	releaseName, chartArchive string,
+	assets []externalUIAsset,
+	revision int,
+) error {
+	if err := assertHelmReleaseSecrets(releaseName, chartArchive, assets); err != nil {
+		return err
+	}
+	name := fmt.Sprintf("sh.helm.release.v1.%s.v%d", releaseName, revision)
+	out, err := exec.Command("kubectl", "get", "secret", name).CombinedOutput()
 	if err != nil {
-		return fmt.Errorf("helm install %s: %w: %s", helmRelease, err, strings.TrimSpace(string(out)))
+		return fmt.Errorf("Helm release %s revision %d Secret missing: %w: %s",
+			releaseName, revision, err, strings.TrimSpace(string(out)))
 	}
 	return nil
 }
@@ -867,6 +942,16 @@ func runHelmSwap(coreRoot, profilesRoot, chartDir string) error {
 		return err
 	}
 	defer cleanupChart()
+	assets, cleanupAssets, err := externalizeUIAssets(stagedChart, helmSwapRelease)
+	if err != nil {
+		return err
+	}
+	defer cleanupAssets()
+	chartArchive, cleanupArchive, err := packageApplierChart(stagedChart)
+	if err != nil {
+		return err
+	}
+	defer cleanupArchive()
 
 	swapCluster, err := kindrig.EnsureCluster(kindrig.DefaultRun, helmSwapCluster, helmKindConfig(chartDir), helmClusterWait)
 	if err != nil {
@@ -878,6 +963,9 @@ func runHelmSwap(coreRoot, profilesRoot, chartDir string) error {
 		return err
 	}
 	defer unbindKubeconfig()
+	if err := provisionExternalUIAssets(assets); err != nil {
+		return err
+	}
 	if err := loadKindImage(helmSwapCluster, images.Runtime); err != nil {
 		return err
 	}
@@ -896,14 +984,24 @@ func runHelmSwap(coreRoot, profilesRoot, chartDir string) error {
 		"--set", "ragUnits[2].embeddingModel=qwen3-embedding:8b",
 		"--set", "ragUnits[2].replicas=1",
 	)
-	if err := helmSwapDeploy(stagedChart, images.Runtime, "install", initial); err != nil {
+	if err := helmSwapDeploy(
+		stagedChart, chartArchive, images.Runtime, "install", initial, assets); err != nil {
+		return err
+	}
+	if err := assertHelmIntegrationRelease(
+		helmSwapRelease, chartArchive, assets, 1); err != nil {
+		return err
+	}
+	if err := assertExternalUIAssetsMounted(
+		helmSwapRelease, assets, helmReadyTimeout); err != nil {
 		return err
 	}
 
 	if err := assertSwapRepoint(); err != nil {
 		return err
 	}
-	if err := assertSwapReplaceMiddleRag(stagedChart, images.Runtime, llmMock); err != nil {
+	if err := assertSwapReplaceMiddleRag(
+		stagedChart, chartArchive, images.Runtime, llmMock, assets); err != nil {
 		return err
 	}
 	fmt.Printf("integration:helmSwap PASS - revision %s repoint left the chatbot pod unchanged; replacing middle unit rag1 with rag4 preserved rag2 identity and an in-flight turn, rolled the chatbot, and served a turn from the replacement pod\n", images.Revision)
@@ -911,22 +1009,55 @@ func runHelmSwap(coreRoot, profilesRoot, chartDir string) error {
 }
 
 // helmSwapDeploy installs or upgrades the release with the given extra --set args.
-func helmSwapDeploy(chartPath, image, verb string, extra []string) error {
+func helmSwapDeploy(
+	chartPath, chartArchive, image, verb string,
+	extra []string,
+	assets []externalUIAsset,
+) error {
+	return helmSwapDeployWithRunner(
+		chartPath, chartArchive, image, verb, extra, assets, runHelmSmokeCommand)
+}
+
+func helmSwapDeployWithRunner(
+	chartPath, chartArchive, image, verb string,
+	extra []string,
+	assets []externalUIAsset,
+	run helmLLMCommandRunner,
+) error {
+	valueArgs := helmSwapValueArgs(chartPath, image, extra, assets)
+	measured, err := measureHelmReleaseBudget(
+		helmSwapRelease, chartPath, chartArchive, valueArgs)
+	if err != nil {
+		return err
+	}
+	fmt.Printf("helmSwap %s: release budget PASS - %s\n", verb, measured.String())
+	args := append([]string{verb, helmSwapRelease, chartPath}, valueArgs...)
+	args = append(args, "--wait", "--timeout", helmInstallTimeout.String())
+	out, err := run("helm", args...)
+	if len(out) > 0 {
+		_, _ = os.Stderr.Write(out)
+	}
+	if err != nil {
+		return fmt.Errorf("helm %s %s: %w: %s",
+			verb, helmSwapRelease, err, strings.TrimSpace(string(out)))
+	}
+	return nil
+}
+
+func helmSwapValueArgs(
+	chartPath, image string,
+	extra []string,
+	assets []externalUIAsset,
+) []string {
 	repo, tag := splitImageRef(image)
-	args := []string{verb, helmSwapRelease, chartPath,
+	args := []string{
 		"--values", filepath.Join(chartPath, "ci", "kind-values.yaml"),
 		"--set", "image.repository=" + repo,
 		"--set-string", "image.tag=" + tag,
 		"--set", "image.pullPolicy=Never",
-		"--wait", "--timeout", helmInstallTimeout.String(),
 	}
 	args = append(args, extra...)
-	cmd := exec.Command("helm", args...)
-	cmd.Stdout, cmd.Stderr = os.Stderr, os.Stderr
-	if err := cmd.Run(); err != nil {
-		return fmt.Errorf("helm %s %s: %w", verb, helmSwapRelease, err)
-	}
-	return nil
+	return append(args, externalUIAssetValueArgs(assets)...)
 }
 
 // assertSwapRepoint patches the rag0 Service selector and asserts the chatbot pod
@@ -958,8 +1089,9 @@ func assertSwapRepoint() error {
 // adds rag4, then proves rag2 kept its identity, the active turn drained, and the
 // chatbot Deployment rolled to the replacement config (srd003 R2/R3.2).
 func assertSwapReplaceMiddleRag(
-	chartPath, image string,
+	chartPath, chartArchive, image string,
 	llmMock *helmSwapLLMMock,
+	assets []externalUIAsset,
 ) error {
 	genBefore, err := chatbotDeploymentGeneration()
 	if err != nil {
@@ -995,7 +1127,16 @@ func assertSwapReplaceMiddleRag(
 		"--set", "ragUnits[2].embeddingModel=qwen3-embedding:8b",
 		"--set", "ragUnits[2].replicas=1",
 	)
-	if err := helmSwapDeploy(chartPath, image, "upgrade", extra); err != nil {
+	if err := helmSwapDeploy(
+		chartPath, chartArchive, image, "upgrade", extra, assets); err != nil {
+		return err
+	}
+	if err := assertHelmIntegrationRelease(
+		helmSwapRelease, chartArchive, assets, 2); err != nil {
+		return err
+	}
+	if err := assertExternalUIAssetsMounted(
+		helmSwapRelease, assets, helmReadyTimeout); err != nil {
 		return err
 	}
 	if err := <-turnResult; err != nil {
@@ -1146,6 +1287,16 @@ func runHelmLLMTier(coreRoot, profilesRoot, chartDir string) error {
 		return err
 	}
 	defer cleanupChart()
+	assets, cleanupAssets, err := externalizeUIAssets(stagedChart, helmLLMRelease)
+	if err != nil {
+		return err
+	}
+	defer cleanupAssets()
+	chartArchive, cleanupArchive, err := packageApplierChart(stagedChart)
+	if err != nil {
+		return err
+	}
+	defer cleanupArchive()
 
 	llmCluster, err := kindrig.EnsureCluster(kindrig.DefaultRun, helmLLMCluster, helmKindConfig(chartDir), helmClusterWait)
 	if err != nil {
@@ -1157,10 +1308,18 @@ func runHelmLLMTier(coreRoot, profilesRoot, chartDir string) error {
 		return err
 	}
 	defer unbindKubeconfig()
+	if err := provisionExternalUIAssets(assets); err != nil {
+		return err
+	}
 	if err := loadKindImage(helmLLMCluster, images.Runtime); err != nil {
 		return err
 	}
-	if err := helmInstallLLM(stagedChart, images.Runtime); err != nil {
+	if err := helmInstallLLM(
+		stagedChart, chartArchive, images.Runtime, assets); err != nil {
+		return err
+	}
+	if err := assertHelmIntegrationRelease(
+		helmLLMRelease, chartArchive, assets, 1); err != nil {
 		return err
 	}
 
@@ -1186,6 +1345,10 @@ func runHelmLLMTier(coreRoot, profilesRoot, chartDir string) error {
 	if err := finishLLMPreloadTransition(runHelmLLMCommand, workloads); err != nil {
 		return err
 	}
+	if err := assertExternalUIAssetsMounted(
+		helmLLMRelease, assets, helmLLMReadyTimeout); err != nil {
+		return err
+	}
 
 	stop, err := kubectlPortForward("svc/"+helmLLMRelease+"-chatbot-mesh-chatbot", 18080, 18081)
 	if err != nil {
@@ -1203,31 +1366,52 @@ func runHelmLLMTier(coreRoot, profilesRoot, chartDir string) error {
 	return nil
 }
 
-func helmInstallLLM(chartPath, image string) error {
-	return helmInstallLLMWithRunner(chartPath, image, runHelmLLMCommand)
+func helmInstallLLM(
+	chartPath, chartArchive, image string,
+	assets []externalUIAsset,
+) error {
+	return helmInstallLLMWithRunner(
+		chartPath, chartArchive, image, assets, runHelmLLMCommand)
 }
 
 func helmInstallLLMWithRunner(
-	chartPath, image string,
+	chartPath, chartArchive, image string,
+	assets []externalUIAsset,
 	run helmLLMCommandRunner,
 ) error {
-	repo, tag := splitImageRef(image)
-	args := []string{"install", helmLLMRelease, chartPath,
-		"--values", filepath.Join(chartPath, "ci", "kind-llm-values.yaml"),
-		"--set", "image.repository=" + repo,
-		"--set-string", "image.tag=" + tag,
-		"--set", "image.pullPolicy=Never",
-		"--set", "ollama.preload.suspend=true",
-		"--timeout", helmLLMInstallTimeout.String(),
+	valueArgs := helmLLMValueArgs(chartPath, image, assets)
+	measured, err := measureHelmReleaseBudget(
+		helmLLMRelease, chartPath, chartArchive, valueArgs)
+	if err != nil {
+		return err
 	}
+	fmt.Printf("helmLLMTier: release budget PASS - %s\n", measured.String())
+	args := append([]string{"install", helmLLMRelease, chartPath}, valueArgs...)
+	args = append(args, "--timeout", helmLLMInstallTimeout.String())
 	out, err := run("helm", args...)
 	if len(out) > 0 {
 		_, _ = os.Stderr.Write(out)
 	}
 	if err != nil {
-		return fmt.Errorf("helm install %s: %w", helmLLMRelease, err)
+		return fmt.Errorf("helm install %s: %w: %s",
+			helmLLMRelease, err, strings.TrimSpace(string(out)))
 	}
 	return nil
+}
+
+func helmLLMValueArgs(
+	chartPath, image string,
+	assets []externalUIAsset,
+) []string {
+	repo, tag := splitImageRef(image)
+	args := []string{
+		"--values", filepath.Join(chartPath, "ci", "kind-llm-values.yaml"),
+		"--set", "image.repository=" + repo,
+		"--set-string", "image.tag=" + tag,
+		"--set", "image.pullPolicy=Never",
+		"--set", "ollama.preload.suspend=true",
+	}
+	return append(args, externalUIAssetValueArgs(assets)...)
 }
 
 type helmLLMCommandRunner func(name string, args ...string) ([]byte, error)

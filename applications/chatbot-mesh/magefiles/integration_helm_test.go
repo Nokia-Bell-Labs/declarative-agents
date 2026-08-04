@@ -4,6 +4,7 @@ package main
 
 import (
 	"encoding/json"
+	"errors"
 	"net/http"
 	"net/http/httptest"
 	"os"
@@ -223,6 +224,7 @@ nodes:
 }
 
 func TestHelmInstallSmokePassesRunIdentityToGateway(t *testing.T) {
+	chart, chartArchive, assets := stageThinIntegrationChart(t, helmRelease)
 	var command []string
 	run := func(name string, args ...string) ([]byte, error) {
 		command = append([]string{name}, args...)
@@ -234,8 +236,24 @@ func TestHelmInstallSmokePassesRunIdentityToGateway(t *testing.T) {
 		Commit:       "abc123",
 	}
 	image := "declarative-agents/agent-core:0123456789ab"
-	if err := helmInstallSmokeWithRunner("/chart", image, telemetry, run); err != nil {
+	if err := helmInstallSmokeWithRunner(
+		chart, chartArchive, image, telemetry, assets, run); err != nil {
 		t.Fatal(err)
+	}
+	valueArgs := helmSmokeValueArgs(chart, image, telemetry, assets)
+	wantCommand := append([]string{"helm", "install", helmRelease, chart}, valueArgs...)
+	wantCommand = append(wantCommand, "--wait", "--timeout", helmInstallTimeout.String())
+	if !slices.Equal(command, wantCommand) {
+		t.Fatalf("helm command:\n got: %#v\nwant: %#v", command, wantCommand)
+	}
+	measured, err := measureHelmReleaseBudget(
+		helmRelease, chart, chartArchive, valueArgs)
+	if err != nil {
+		t.Fatalf("smoke release budget: %v", err)
+	}
+	if measured.ProjectedSecretBytes > helmReleaseBudget {
+		t.Fatalf("smoke projected release = %d, budget = %d",
+			measured.ProjectedSecretBytes, helmReleaseBudget)
 	}
 	joined := strings.Join(command, " ")
 	for _, want := range []string{
@@ -248,6 +266,162 @@ func TestHelmInstallSmokePassesRunIdentityToGateway(t *testing.T) {
 	} {
 		if !strings.Contains(joined, want) {
 			t.Errorf("helm command missing %q: %s", want, joined)
+		}
+	}
+	assertExternalAssetArgs(t, joined, assets)
+}
+
+func TestHelmSmokeInstallReturnsCapturedOutput(t *testing.T) {
+	chart, chartArchive, assets := stageThinIntegrationChart(t, helmRelease)
+	err := helmInstallSmokeWithRunner(
+		chart,
+		chartArchive,
+		"declarative-agents/agent-core:smoke-output",
+		helmTelemetryIdentity{
+			OTLPEndpoint: "host.docker.internal:4317",
+			RunID:        "run-output",
+			Commit:       "abc123",
+		},
+		assets,
+		func(string, ...string) ([]byte, error) {
+			return []byte("controlled smoke Helm output"), errors.New("controlled failure")
+		},
+	)
+	if err == nil || !strings.Contains(err.Error(), "controlled smoke Helm output") {
+		t.Fatalf("smoke install error = %v, want captured Helm output", err)
+	}
+}
+
+func TestHelmSwapInstallAndUpgradeUseThinReleaseArgs(t *testing.T) {
+	chart, chartArchive, assets := stageThinIntegrationChart(t, helmSwapRelease)
+	image := "declarative-agents/agent-core:swap-budget"
+	tests := []struct {
+		verb  string
+		extra []string
+	}{
+		{
+			verb: "install",
+			extra: []string{
+				"--set", "llm.externalURL=http://host.docker.internal:12345",
+				"--set", "llm.port=12345",
+				"--set", "ragUnits[1].name=rag1",
+				"--set", "ragUnits[1].description=Second integration corpus",
+				"--set", "ragUnits[1].collection=corpus1",
+				"--set", "ragUnits[1].embeddingModel=qwen3-embedding:8b",
+				"--set", "ragUnits[1].replicas=1",
+				"--set", "ragUnits[2].name=rag2",
+				"--set", "ragUnits[2].description=Third integration corpus",
+				"--set", "ragUnits[2].collection=corpus2",
+				"--set", "ragUnits[2].embeddingModel=qwen3-embedding:8b",
+				"--set", "ragUnits[2].replicas=1",
+			},
+		},
+		{
+			verb: "upgrade",
+			extra: []string{
+				"--set", "llm.externalURL=http://host.docker.internal:12345",
+				"--set", "llm.port=12345",
+				"--set", "ragUnits[1].name=rag2",
+				"--set", "ragUnits[1].description=Replacement integration corpus",
+				"--set", "ragUnits[1].collection=corpus2",
+				"--set", "ragUnits[1].embeddingModel=qwen3-embedding:8b",
+				"--set", "ragUnits[1].replicas=1",
+				"--set", "ragUnits[2].name=rag4",
+				"--set", "ragUnits[2].description=Additional integration corpus",
+				"--set", "ragUnits[2].collection=corpus4",
+				"--set", "ragUnits[2].embeddingModel=qwen3-embedding:8b",
+				"--set", "ragUnits[2].replicas=1",
+			},
+		},
+	}
+	for _, tc := range tests {
+		t.Run(tc.verb, func(t *testing.T) {
+			var command []string
+			err := helmSwapDeployWithRunner(
+				chart, chartArchive, image, tc.verb, tc.extra, assets,
+				func(name string, args ...string) ([]byte, error) {
+					command = append([]string{name}, args...)
+					return nil, nil
+				},
+			)
+			if err != nil {
+				t.Fatal(err)
+			}
+			valueArgs := helmSwapValueArgs(chart, image, tc.extra, assets)
+			want := append([]string{"helm", tc.verb, helmSwapRelease, chart}, valueArgs...)
+			want = append(want, "--wait", "--timeout", helmInstallTimeout.String())
+			if !slices.Equal(command, want) {
+				t.Fatalf("%s command:\n got: %#v\nwant: %#v", tc.verb, command, want)
+			}
+			measured, err := measureHelmReleaseBudget(
+				helmSwapRelease, chart, chartArchive, valueArgs)
+			if err != nil {
+				t.Fatalf("%s release budget: %v", tc.verb, err)
+			}
+			if measured.ProjectedSecretBytes > helmReleaseBudget {
+				t.Fatalf("%s projected release = %d, budget = %d",
+					tc.verb, measured.ProjectedSecretBytes, helmReleaseBudget)
+			}
+			assertExternalAssetArgs(t, strings.Join(command, " "), assets)
+		})
+	}
+}
+
+func TestHelmSwapReturnsCapturedOutput(t *testing.T) {
+	chart, chartArchive, assets := stageThinIntegrationChart(t, helmSwapRelease)
+	err := helmSwapDeployWithRunner(
+		chart,
+		chartArchive,
+		"declarative-agents/agent-core:swap-output",
+		"upgrade",
+		[]string{"--set", "llm.externalURL=http://host.docker.internal:12345"},
+		assets,
+		func(string, ...string) ([]byte, error) {
+			return []byte("controlled swap Helm output"), errors.New("controlled failure")
+		},
+	)
+	if err == nil || !strings.Contains(err.Error(), "controlled swap Helm output") {
+		t.Fatalf("swap upgrade error = %v, want captured Helm output", err)
+	}
+}
+
+func stageThinIntegrationChart(
+	t *testing.T,
+	releaseName string,
+) (string, string, []externalUIAsset) {
+	t.Helper()
+	if _, err := exec.LookPath("helm"); err != nil {
+		t.Skip("helm not on PATH")
+	}
+	chartDir := findChartDir(t)
+	staged, cleanupChart, err := stageSmokeChart(chartDir, filepath.Dir(chartDir))
+	if err != nil {
+		t.Fatal(err)
+	}
+	t.Cleanup(cleanupChart)
+	assets, cleanupAssets, err := externalizeUIAssets(staged, releaseName)
+	if err != nil {
+		t.Fatal(err)
+	}
+	t.Cleanup(cleanupAssets)
+	archive, cleanupArchive, err := packageApplierChart(staged)
+	if err != nil {
+		t.Fatal(err)
+	}
+	t.Cleanup(cleanupArchive)
+	return staged, archive, assets
+}
+
+func assertExternalAssetArgs(t *testing.T, command string, assets []externalUIAsset) {
+	t.Helper()
+	for _, asset := range assets {
+		for _, want := range []string{
+			asset.Component + ".uiArchiveConfigMap=" + asset.ConfigMapName,
+			asset.Component + ".uiArchiveChecksum=" + asset.Checksum,
+		} {
+			if !strings.Contains(command, want) {
+				t.Errorf("helm command missing external asset argument %q: %s", want, command)
+			}
 		}
 	}
 }
