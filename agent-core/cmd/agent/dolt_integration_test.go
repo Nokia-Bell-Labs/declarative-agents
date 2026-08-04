@@ -7,11 +7,13 @@ import (
 	"context"
 	"database/sql"
 	"encoding/json"
+	"flag"
 	"fmt"
 	"net"
 	"os"
 	"os/exec"
 	"path/filepath"
+	"strings"
 	"testing"
 	"time"
 
@@ -21,6 +23,8 @@ import (
 )
 
 const doltTestDB = "agent_core_test"
+
+var doltBin = flag.String("dolt-bin", "", "path or command name for the Dolt integration-test executable")
 
 // TestDoltCheckpointSuspendResumeRoundTrip proves same-process adapter reopen:
 // a run persisted through DoltCheckpoint is reloaded by a new adapter with an
@@ -272,12 +276,20 @@ func TestDoltCheckpointRevertResetsBranch(t *testing.T) {
 	require.Equal(t, "first-output", gotExec[0].Result.Output)
 }
 
-// doltBinary resolves the dolt executable: an explicit AGENT_CORE_DOLT_BIN
-// override wins, otherwise the binary is looked up on PATH. An empty result means
-// no dolt is available and the gated tests skip.
+func TestDoltBinaryPrefersExplicitFlag(t *testing.T) {
+	previous := *doltBin
+	t.Cleanup(func() { *doltBin = previous })
+	*doltBin = " /declared/bin/dolt "
+
+	require.Equal(t, "/declared/bin/dolt", doltBinary())
+}
+
+// doltBinary resolves the dolt executable: an explicit test flag wins,
+// otherwise the binary is looked up on PATH. An empty result means no dolt is
+// available and the gated tests skip.
 func doltBinary() string {
-	if override := os.Getenv("AGENT_CORE_DOLT_BIN"); override != "" {
-		return override
+	if configured := strings.TrimSpace(*doltBin); configured != "" {
+		return configured
 	}
 	if path, err := exec.LookPath("dolt"); err == nil {
 		return path
@@ -295,7 +307,7 @@ func startDoltServer(t *testing.T) string {
 	t.Helper()
 	bin := doltBinary()
 	if bin == "" {
-		t.Skip("no dolt binary found (install dolt or set AGENT_CORE_DOLT_BIN); skipping Dolt integration test")
+		t.Skip("no dolt binary found (install dolt or pass -dolt-bin); skipping Dolt integration test")
 	}
 
 	port := freeTCPPort(t)

@@ -18,3 +18,7 @@
 # Netrc file exposed to Docker BuildKit as the git_credentials secret.
 # Defaults to the repository-local .netrc.
 # container_netrc: .netrc
+
+# Dolt executable used by `mage integration:dolt`.
+# Defaults to looking up dolt on PATH.
+# dolt_bin: /path/to/dolt

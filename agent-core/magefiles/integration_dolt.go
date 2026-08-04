@@ -6,22 +6,32 @@ import (
 	"fmt"
 	"os"
 	"os/exec"
+	"strings"
 )
 
 // Dolt proves checkpoint persistence and command-state rehydration against a real
 // Dolt SQL server. The test harness launches `dolt sql-server` from a prebuilt
 // dolt binary for the duration of the run (no Docker, no manual setup), so this
-// target only needs a dolt binary on PATH (or AGENT_CORE_DOLT_BIN).
+// target only needs a dolt binary on PATH or a dolt_bin setting in demo.yaml.
 func (Integration) Dolt() error {
 	beginUC("dolt")
-	if _, err := exec.LookPath("dolt"); err != nil && os.Getenv("AGENT_CORE_DOLT_BIN") == "" {
-		return skipUC("dolt", "no dolt binary on PATH; install dolt (https://docs.dolthub.com/introduction/installation) or set AGENT_CORE_DOLT_BIN")
+	config, err := loadAgentCoreDemoConfig(".")
+	if err != nil {
+		return fmt.Errorf("dolt: load demo config: %w", err)
+	}
+	doltBin, err := resolveDoltBinary(config.DoltBin, exec.LookPath)
+	if err != nil {
+		if configured := strings.TrimSpace(config.DoltBin); configured != "" {
+			return skipUC("dolt", fmt.Sprintf("configured dolt_bin %q is unavailable", configured))
+		}
+		return skipUC("dolt", "no dolt binary on PATH; install dolt (https://docs.dolthub.com/introduction/installation) or set dolt_bin in demo.yaml")
 	}
 
 	cmd := exec.Command(
 		"go", "test", "./cmd/agent",
 		"-run", "TestDoltCheckpoint|TestDoltCommandStateRehydratesThroughRealAdapter",
 		"-count=1",
+		"-args", "-dolt-bin", doltBin,
 	)
 	cmd.Stdout = os.Stdout
 	cmd.Stderr = os.Stderr
@@ -30,4 +40,12 @@ func (Integration) Dolt() error {
 	}
 	fmt.Println("dolt: PASS - checkpoints survive adapter and process boundaries")
 	return nil
+}
+
+func resolveDoltBinary(configured string, lookPath func(string) (string, error)) (string, error) {
+	name := strings.TrimSpace(configured)
+	if name == "" {
+		name = "dolt"
+	}
+	return lookPath(name)
 }
