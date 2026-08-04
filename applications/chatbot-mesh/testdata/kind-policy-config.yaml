@@ -3,7 +3,9 @@
 # take over; the podSubnet is Calico's expected default. The node image is
 # pinned by version and digest so every machine creates the same cluster
 # (eng01-kind-test-demo-rig); the digest is the default node image of kind
-# v0.32.0.
+# v0.32.0. Calico v3.32.1 is paired with Kubernetes v1.36.1 because Calico
+# tests v3.32 against Kubernetes 1.34-1.36:
+# https://docs.tigera.io/calico/latest/getting-started/kubernetes/requirements
 kind: Cluster
 apiVersion: kind.x-k8s.io/v1alpha4
 networking:
