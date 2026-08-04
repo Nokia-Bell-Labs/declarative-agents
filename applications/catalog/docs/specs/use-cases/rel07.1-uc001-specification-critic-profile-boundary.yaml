@@ -42,7 +42,7 @@ flow:
   - id: F5
     text: The machine reaches the Passed or Failed terminal state, and findings identify suite, check, severity, message, and any file and line provenance.
   - id: F6
-    text: Audit gates select audit-profile.yaml, whose machine declares Go module, package, test-list, and full test-run exec steps, resolves formal claims, reduces pass, fail, skip, and did-not-run events, and reports through format_report.
+    text: Audit gates select audit-profile.yaml, whose machine declares Go module, package, test-list, and full test-run exec steps, resolves formal claims, reduces pass, fail, skip, and did-not-run events, and reports through format_report. The catalog gate stages a catalog-local executable binding that preserves the same Go JSON inventory and execution streams while running conformance from a unique stable test-binary path; the generic profile remains reusable by other modules.
 
 touchpoints:
   - id: T1

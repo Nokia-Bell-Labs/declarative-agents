@@ -164,6 +164,11 @@ mage integration:all
 mage containerSmoke   # when the agent-core image prerequisite is present
 ```
 
+`mage audit` stages a catalog-local formal-evidence helper without changing the
+reusable specification-critic profile. Non-conformance packages retain normal
+`go test -json` inventory and execution; conformance emits the same Go JSON
+evidence from a uniquely staged test binary and removes it after each phase.
+
 `go test ./...`, `mage test`, and `mage conformance` do not initiate model
 inference merely because Ollama or a declared model is installed. The six live
 paths (the three executor variants, planner, the REST Ollama variant, and the

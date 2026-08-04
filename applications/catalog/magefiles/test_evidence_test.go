@@ -3,9 +3,12 @@
 package main
 
 import (
+	"errors"
 	"fmt"
+	"io"
 	"os"
 	"path/filepath"
+	"strconv"
 	"strings"
 	"testing"
 )
@@ -14,16 +17,26 @@ import (
 // agent's evidence resolver over this module root and accepts a clean result.
 func TestValidateTestEvidencePassesOnCleanModule(t *testing.T) {
 	var got []string
+	cleaned := false
 	run := func(binary string, args ...string) ([]byte, error) {
 		got = append([]string{binary}, args...)
 		return []byte("test evidence valid"), nil
 	}
-	if err := validateTestEvidence(run, "/tmp/agent", "/module", "/core"); err != nil {
+	stage := func(string) (string, func() error, error) {
+		return "/staged/audit-profile.yaml", func() error {
+			cleaned = true
+			return nil
+		}, nil
+	}
+	if err := validateTestEvidence(run, stage, "/tmp/agent", "/module", "/core"); err != nil {
 		t.Fatalf("clean evidence should pass, got %v", err)
 	}
-	want := "/tmp/agent --profile /module/agents/specification-critic/audit-profile.yaml --directory /module --core-root /core"
+	want := "/tmp/agent --profile /staged/audit-profile.yaml --directory /module --core-root /core"
 	if strings.Join(got, " ") != want {
 		t.Errorf("invocation = %q, want %q", strings.Join(got, " "), want)
+	}
+	if !cleaned {
+		t.Error("staged evidence profile was not cleaned")
 	}
 }
 
@@ -35,7 +48,7 @@ func TestValidateTestEvidenceFailsAuditOnFindings(t *testing.T) {
 	run := func(_ string, _ ...string) ([]byte, error) {
 		return []byte(report), fmt.Errorf("exit status 1")
 	}
-	err := validateTestEvidence(run, "/tmp/agent", "/module", "/core")
+	err := validateTestEvidence(run, successfulEvidenceStage, "/tmp/agent", "/module", "/core")
 	if err == nil {
 		t.Fatal("findings should fail the audit")
 	}
@@ -52,9 +65,92 @@ func TestValidateTestEvidenceFallsBackToExitError(t *testing.T) {
 	run := func(_ string, _ ...string) ([]byte, error) {
 		return nil, fmt.Errorf("fork/exec: permission denied")
 	}
-	err := validateTestEvidence(run, "/tmp/agent", "/module", "/core")
+	err := validateTestEvidence(run, successfulEvidenceStage, "/tmp/agent", "/module", "/core")
 	if err == nil || !strings.Contains(err.Error(), "permission denied") {
 		t.Fatalf("expected the exec error to surface, got %v", err)
+	}
+}
+
+func successfulEvidenceStage(string) (string, func() error, error) {
+	return "/staged/audit-profile.yaml", func() error { return nil }, nil
+}
+
+func TestValidateTestEvidenceReportsCleanupFailure(t *testing.T) {
+	wantErr := errors.New("cleanup failed")
+	stage := func(string) (string, func() error, error) {
+		return "/staged/audit-profile.yaml", func() error { return wantErr }, nil
+	}
+	err := validateTestEvidence(
+		func(string, ...string) ([]byte, error) { return nil, nil },
+		stage,
+		"/tmp/agent",
+		"/module",
+		"/core",
+	)
+	if !errors.Is(err, wantErr) {
+		t.Fatalf("validateTestEvidence error = %v, want cleanup failure", err)
+	}
+}
+
+func TestStageCatalogTestEvidenceProfileCleansAfterBuildFailure(t *testing.T) {
+	wantErr := errors.New("build failed")
+	commands := &recordingCatalogRunner{failCall: 1, failErr: wantErr}
+	runner := newTestCatalogRunner(t, commands)
+
+	_, _, err := stageCatalogTestEvidenceProfileWith(runner.catalogRoot, runner)
+	if !errors.Is(err, wantErr) {
+		t.Fatalf("stage error = %v, want build failure", err)
+	}
+	calls := commands.recordedCalls()
+	if len(calls) != 1 {
+		t.Fatalf("commands = %d, want helper build only", len(calls))
+	}
+	assertRemoved(t, filepath.Dir(outputPath(t, calls[0])))
+}
+
+func TestStageCatalogTestEvidenceProfileOverridesGoBinaryLocally(t *testing.T) {
+	root, err := filepath.Abs("..")
+	if err != nil {
+		t.Fatal(err)
+	}
+	commands := &recordingCatalogRunner{}
+	runner := catalogTestRunner{
+		catalogRoot: root,
+		stdout:      io.Discard,
+		stderr:      io.Discard,
+		runCommand:  commands.run,
+		mkdirTemp:   os.MkdirTemp,
+		removeAll:   os.RemoveAll,
+	}
+
+	profile, cleanup, err := stageCatalogTestEvidenceProfileWith(root, runner)
+	if err != nil {
+		t.Fatalf("stage returned error: %v", err)
+	}
+	tempDir := filepath.Dir(profile)
+	t.Cleanup(func() { _ = os.RemoveAll(tempDir) })
+	helper := outputPath(t, commands.recordedCalls()[0])
+	declaration, err := os.ReadFile(filepath.Join(tempDir, "go-test.yaml"))
+	if err != nil {
+		t.Fatal(err)
+	}
+	if strings.Contains(string(declaration), "binary: go") {
+		t.Error("staged declaration retained raw Go binary")
+	}
+	if got := strings.Count(string(declaration), strconv.Quote(helper)); got != 4 {
+		t.Errorf("staged helper references = %d, want 4", got)
+	}
+	if err := cleanup(); err != nil {
+		t.Fatalf("cleanup returned error: %v", err)
+	}
+	assertRemoved(t, tempDir)
+
+	original, err := os.ReadFile(filepath.Join(root, "agents", "specification-critic", "go-test.yaml"))
+	if err != nil {
+		t.Fatal(err)
+	}
+	if !strings.Contains(string(original), "binary: go") {
+		t.Error("generic specification-critic declaration was modified")
 	}
 }
 
