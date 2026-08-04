@@ -20,3 +20,12 @@
 
 # Specification-critic validator profile the self-governance audit runs.
 # spec_critic_profile: ../catalog/agents/specification-critic/profile.yaml
+
+# Per-request bound for model calls made directly by integration tracers.
+# This does not bound the canonical Chroma corpus-ingest agent's complete run.
+# inference_timeout: 2m
+
+# Whole-run bound for canonical Chroma corpus ingest, including three or more
+# profile-owned model calls that may each legally take 300 seconds. Defaults to
+# 20m, leaving bounded time for startup, embedding, writes, and verification.
+# chroma_ingest_timeout: 20m

@@ -3,11 +3,121 @@
 package main
 
 import (
+	"context"
 	"errors"
 	"os"
 	"path/filepath"
+	"strings"
 	"testing"
+	"time"
 )
+
+func TestDemoChromaIngestTimeoutDefaultAndOverride(t *testing.T) {
+	t.Parallel()
+	t.Run("default", func(t *testing.T) {
+		t.Parallel()
+		if got := demoChromaIngestTimeout(t.TempDir()); got != chromaIngestTimeoutDefault {
+			t.Fatalf("demoChromaIngestTimeout() = %s, want %s", got, chromaIngestTimeoutDefault)
+		}
+	})
+	t.Run("override", func(t *testing.T) {
+		t.Parallel()
+		root := t.TempDir()
+		writeDemoConfig(t, root, "chroma_ingest_timeout: 17m30s")
+		config, err := loadDemoConfig(root)
+		if err != nil {
+			t.Fatalf("loadDemoConfig: %v", err)
+		}
+		if config.ChromaIngestTimeout != "17m30s" {
+			t.Fatalf("parsed chroma_ingest_timeout = %q, want 17m30s", config.ChromaIngestTimeout)
+		}
+		if got := demoChromaIngestTimeout(root); got != 17*time.Minute+30*time.Second {
+			t.Fatalf("demoChromaIngestTimeout() = %s, want 17m30s", got)
+		}
+	})
+}
+
+func TestChromaIngestTimeoutRejectsUnusableValues(t *testing.T) {
+	t.Parallel()
+	for _, value := range []string{"", "   ", "not-a-duration", "0s", "-5s"} {
+		if got := chromaIngestTimeoutFrom(demoConfig{ChromaIngestTimeout: value}); got != chromaIngestTimeoutDefault {
+			t.Errorf("chromaIngestTimeoutFrom(%q) = %s, want default %s",
+				value, got, chromaIngestTimeoutDefault)
+		}
+	}
+}
+
+func TestRunChromaAgentTimeoutDiagnosis(t *testing.T) {
+	t.Parallel()
+	err := runChromaAgentWithTimeout(10*time.Millisecond, func(ctx context.Context) ([]byte, error) {
+		<-ctx.Done()
+		return []byte("last complete ingest event"), errors.New("signal: killed")
+	})
+	if !errors.Is(err, context.DeadlineExceeded) {
+		t.Fatalf("runChromaAgentWithTimeout() error = %v, want context deadline exceeded", err)
+	}
+	for _, want := range []string{
+		"chroma ingest exceeded its 10ms whole-run timeout",
+		"after ",
+		"deadline ",
+		"chroma_ingest_timeout in " + demoConfigFile,
+		"last complete ingest event",
+	} {
+		if !strings.Contains(err.Error(), want) {
+			t.Errorf("timeout error = %q, want it to name %q", err, want)
+		}
+	}
+	if strings.Contains(err.Error(), "signal: killed") {
+		t.Errorf("timeout error retained bare process diagnosis: %q", err)
+	}
+}
+
+// TestRunChromaAgentWaitsForRunnerCleanup proves the bounded wrapper does not
+// return when its context expires; it returns only after the command boundary
+// has finished its kill-and-Wait path and therefore reaped the owned child.
+func TestRunChromaAgentWaitsForRunnerCleanup(t *testing.T) {
+	t.Parallel()
+	timeoutObserved := make(chan struct{})
+	allowReap := make(chan struct{})
+	reaped := make(chan struct{})
+	result := make(chan error, 1)
+
+	go func() {
+		result <- runChromaAgentWithTimeout(10*time.Millisecond, func(ctx context.Context) ([]byte, error) {
+			<-ctx.Done()
+			close(timeoutObserved)
+			<-allowReap
+			close(reaped)
+			return nil, ctx.Err()
+		})
+	}()
+
+	select {
+	case <-timeoutObserved:
+	case <-time.After(time.Second):
+		t.Fatal("runner did not observe the ingest deadline")
+	}
+	select {
+	case err := <-result:
+		t.Fatalf("bounded run returned before runner cleanup: %v", err)
+	default:
+	}
+
+	close(allowReap)
+	select {
+	case err := <-result:
+		if !errors.Is(err, context.DeadlineExceeded) {
+			t.Fatalf("bounded run error = %v, want context deadline exceeded", err)
+		}
+	case <-time.After(time.Second):
+		t.Fatal("bounded run did not return after runner cleanup")
+	}
+	select {
+	case <-reaped:
+	default:
+		t.Fatal("bounded run returned before runner reported the child reaped")
+	}
+}
 
 func TestStartRequiredChromaContainerClassifiesLaunchOutcome(t *testing.T) {
 	t.Parallel()

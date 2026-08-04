@@ -13,6 +13,7 @@ import (
 	"os/exec"
 	"path/filepath"
 	"strings"
+	"time"
 
 	"github.com/Nokia-Bell-Labs/declarative-agents/applications/catalog/catalogroot"
 	"gopkg.in/yaml.v3"
@@ -47,11 +48,21 @@ type demoConfig struct {
 	// Go duration string ("45s", "3m"). Empty means the shipped default.
 	InferenceTimeout string `yaml:"inference_timeout"`
 
+	// ChromaIngestTimeout bounds the complete canonical corpus-ingest agent run,
+	// as a Go duration string ("15m", "20m"). It is distinct from the
+	// per-request inference bound. Empty means the shipped default.
+	ChromaIngestTimeout string `yaml:"chroma_ingest_timeout"`
+
 	// IntegrationOTLPEndpoint is where integration launches export live
 	// telemetry when the target does not choose an endpoint itself. Empty
 	// keeps those launches file-only.
 	IntegrationOTLPEndpoint string `yaml:"integration_otlp_endpoint"`
 }
+
+// chromaIngestTimeoutDefault allows the two-document fixture's three legal
+// 300-second model calls to complete, with five minutes left for startup,
+// embedding, Chroma writes, and terminal verification.
+const chromaIngestTimeoutDefault = 20 * time.Minute
 
 // loadDemoConfig reads demo.yaml from the application root. A missing file is the
 // zero-configuration path and yields an empty config, not an error.
@@ -77,6 +88,26 @@ func loadDemoConfig(applicationRoot string) (demoConfig, error) {
 func loadDemoConfigOrEmpty(applicationRoot string) demoConfig {
 	config, _ := loadDemoConfig(applicationRoot)
 	return config
+}
+
+// demoChromaIngestTimeout resolves the whole canonical ingest budget from the
+// application-owned demo configuration.
+func demoChromaIngestTimeout(applicationRoot string) time.Duration {
+	return chromaIngestTimeoutFrom(loadDemoConfigOrEmpty(applicationRoot))
+}
+
+// chromaIngestTimeoutFrom parses chroma_ingest_timeout and falls back to the
+// bounded shipped default when the field is absent or unusable.
+func chromaIngestTimeoutFrom(config demoConfig) time.Duration {
+	raw := strings.TrimSpace(config.ChromaIngestTimeout)
+	if raw == "" {
+		return chromaIngestTimeoutDefault
+	}
+	parsed, err := time.ParseDuration(raw)
+	if err != nil || parsed <= 0 {
+		return chromaIngestTimeoutDefault
+	}
+	return parsed
 }
 
 // demoCoreRoot resolves the agent-core checkout: demo.yaml core_root when set

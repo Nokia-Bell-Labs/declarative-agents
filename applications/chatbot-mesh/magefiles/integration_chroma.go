@@ -356,6 +356,7 @@ func stopChromaContainer(containerID string) {
 
 func runChromaIngest(binary, profilesRoot, coreRoot string) error {
 	corpusDir := filepath.Join(profilesRoot, chromaCorpusFixture, "corpus")
+	ingestTimeout := demoChromaIngestTimeout(profilesRoot)
 	runtimeRoot, cleanupRuntime, err := stageCorpusIngestRuntime(profilesRoot)
 	if err != nil {
 		return err
@@ -367,7 +368,7 @@ func runChromaIngest(binary, profilesRoot, coreRoot string) error {
 	}
 	defer cleanup()
 	profile := filepath.Join(runtimeRoot, chromaIngestProfile)
-	if err := runChromaAgent(binary, runtimeRoot, coreRoot, profile, corpusDir, trace); err != nil {
+	if err := runChromaAgent(binary, runtimeRoot, coreRoot, profile, corpusDir, trace, ingestTimeout); err != nil {
 		return fmt.Errorf("chroma ingest run failed: %w", err)
 	}
 	if err := assertChromaIngestTrace(trace); err != nil {
@@ -417,9 +418,7 @@ func stageCorpusIngestRuntime(meshRoot string) (string, func(), error) {
 	return stage, cleanup, nil
 }
 
-func runChromaAgent(binary, profilesRoot, coreRoot, profile, directory, tracePath string) error {
-	ctx, cancel := context.WithTimeout(context.Background(), 5*time.Minute)
-	defer cancel()
+func runChromaAgent(binary, profilesRoot, coreRoot, profile, directory, tracePath string, timeout time.Duration) error {
 	args := []string{
 		"--profile", profile,
 		"--directory", directory,
@@ -428,10 +427,41 @@ func runChromaAgent(binary, profilesRoot, coreRoot, profile, directory, tracePat
 		"--otel-log-file", tracePath,
 	}
 	telemetryArgs, resourceEnv := hostIntegrationTelemetry("integration:chroma", "corpus-ingest", profilesRoot)
-	cmd := exec.CommandContext(ctx, binary, append(args, telemetryArgs...)...)
-	cmd.Dir = profilesRoot
-	cmd.Env = append(os.Environ(), resourceEnv)
-	out, err := cmd.CombinedOutput()
+	return runChromaAgentWithTimeout(
+		timeout,
+		func(ctx context.Context) ([]byte, error) {
+			cmd := exec.CommandContext(ctx, binary, append(args, telemetryArgs...)...)
+			cmd.Dir = profilesRoot
+			cmd.Env = append(os.Environ(), resourceEnv)
+			// CombinedOutput calls Wait after CommandContext kills the child, so
+			// timeout reporting cannot race process reaping or runtime cleanup.
+			return cmd.CombinedOutput()
+		},
+	)
+}
+
+// chromaAgentRun is the context-aware command boundary for the canonical ingest.
+// Tests substitute a deterministic runner to exercise deadline and reaping
+// behavior without starting an agent or waiting out the production budget.
+type chromaAgentRun func(context.Context) ([]byte, error)
+
+func runChromaAgentWithTimeout(timeout time.Duration, run chromaAgentRun) error {
+	started := time.Now()
+	ctx, cancel := context.WithTimeout(context.Background(), timeout)
+	defer cancel()
+	deadline, _ := ctx.Deadline()
+	out, err := run(ctx)
+	elapsed := time.Since(started).Round(time.Millisecond)
+	if contextErr := ctx.Err(); contextErr != nil {
+		if detail := strings.TrimSpace(string(out)); detail != "" {
+			return fmt.Errorf(
+				"chroma ingest exceeded its %s whole-run timeout after %s (deadline %s; set chroma_ingest_timeout in %s to change it): %w\n%s",
+				timeout, elapsed, deadline.UTC().Format(time.RFC3339Nano), demoConfigFile, contextErr, detail)
+		}
+		return fmt.Errorf(
+			"chroma ingest exceeded its %s whole-run timeout after %s (deadline %s; set chroma_ingest_timeout in %s to change it): %w",
+			timeout, elapsed, deadline.UTC().Format(time.RFC3339Nano), demoConfigFile, contextErr)
+	}
 	if err != nil {
 		return fmt.Errorf("%w\n%s", err, out)
 	}
