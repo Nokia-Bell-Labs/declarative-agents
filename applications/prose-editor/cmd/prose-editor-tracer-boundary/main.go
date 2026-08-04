@@ -169,7 +169,19 @@ func main() {
 		fatalf("%v", err)
 	}
 	if os.Args[1] == "serve" {
-		if err := b.serve(); err != nil {
+		if len(os.Args) != 5 {
+			fatalf("serve requires model, RAG, and readiness file descriptors")
+		}
+		listeners, err := inheritedListeners(os.Args[2:4])
+		if err != nil {
+			fatalf("%v", err)
+		}
+		readiness, err := inheritedFile(os.Args[4], "prose-tracer-readiness")
+		if err != nil {
+			closeListeners(listeners)
+			fatalf("%v", err)
+		}
+		if err := b.serve(listeners, readiness); err != nil {
 			fatalf("%v", err)
 		}
 		return
@@ -598,19 +610,65 @@ func (b *boundary) materializeFinal(state *manifest, key string, replay bool) (s
 	return `{"materialized":true}`, digest(structureBytes), nil
 }
 
-func (b *boundary) serve() error {
+func inheritedListeners(arguments []string) ([]net.Listener, error) {
+	if len(arguments) != 2 {
+		return nil, errors.New("serve requires model and RAG listener file descriptors")
+	}
+	listeners := make([]net.Listener, 0, len(arguments))
+	for index, argument := range arguments {
+		file, err := inheritedFile(argument, fmt.Sprintf("prose-tracer-listener-%d", index))
+		if err != nil {
+			closeListeners(listeners)
+			return nil, err
+		}
+		listener, err := net.FileListener(file)
+		_ = file.Close()
+		if err != nil {
+			closeListeners(listeners)
+			return nil, fmt.Errorf("inherit listener file descriptor %s: %w", argument, err)
+		}
+		listeners = append(listeners, listener)
+	}
+	return listeners, nil
+}
+
+func inheritedFile(argument, name string) (*os.File, error) {
+	fd, err := strconv.Atoi(argument)
+	if err != nil || fd < 3 {
+		return nil, fmt.Errorf("invalid inherited file descriptor %q", argument)
+	}
+	file := os.NewFile(uintptr(fd), name)
+	if file == nil {
+		return nil, fmt.Errorf("open inherited file descriptor %d", fd)
+	}
+	return file, nil
+}
+
+func closeListeners(listeners []net.Listener) {
+	for _, listener := range listeners {
+		_ = listener.Close()
+	}
+}
+
+func (b *boundary) serve(listeners []net.Listener, readiness *os.File) error {
+	defer readiness.Close()
+	if len(listeners) != 2 {
+		closeListeners(listeners)
+		return fmt.Errorf("serve requires 2 listeners, got %d", len(listeners))
+	}
 	handler := http.HandlerFunc(b.handleHTTP)
 	servers := make([]*http.Server, 0, 2)
 	errs := make(chan error, 2)
-	for _, address := range []string{"127.0.0.1:18086", "127.0.0.1:18085"} {
-		listener, err := net.Listen("tcp", address)
-		if err != nil {
-			return fmt.Errorf("listen %s: %w", address, err)
-		}
+	for _, listener := range listeners {
 		server := &http.Server{Handler: handler, ReadHeaderTimeout: 5 * time.Second}
 		servers = append(servers, server)
 		go func() { errs <- server.Serve(listener) }()
 	}
+	if _, err := readiness.Write([]byte{1}); err != nil {
+		closeListeners(listeners)
+		return fmt.Errorf("signal boundary readiness: %w", err)
+	}
+	_ = readiness.Close()
 	fmt.Println("tracer boundary ready")
 	signals := make(chan os.Signal, 1)
 	signal.Notify(signals, syscall.SIGINT, syscall.SIGTERM)

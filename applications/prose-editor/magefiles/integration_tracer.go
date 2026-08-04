@@ -16,6 +16,7 @@ import (
 	"path/filepath"
 	"reflect"
 	"sort"
+	"strconv"
 	"strings"
 	"time"
 
@@ -40,7 +41,7 @@ func (Integration) Tracer() error {
 	if err != nil {
 		return err
 	}
-	defer os.RemoveAll(runtime.buildDir)
+	defer runtime.close()
 
 	suite, err := loadInterpreterSuite(root)
 	if err != nil {
@@ -83,14 +84,16 @@ type interpreterScenario struct {
 }
 
 type tracerRuntime struct {
-	buildDir     string
-	agent        string
-	boundary     string
-	coreRoot     string
-	orchestrator string
-	workflowCWD  string
-	fixtures     string
-	application  string
+	buildDir      string
+	agent         string
+	boundary      string
+	coreRoot      string
+	orchestrator  string
+	workflowCWD   string
+	fixtures      string
+	application   string
+	modelListener *net.TCPListener
+	ragListener   *net.TCPListener
 }
 
 type interpreterRun struct {
@@ -171,6 +174,17 @@ func buildTracerRuntime(root string) (tracerRuntime, error) {
 	if err != nil {
 		return tracerRuntime{}, err
 	}
+	modelListener, err := reserveLoopbackListener()
+	if err != nil {
+		_ = os.RemoveAll(buildDir)
+		return tracerRuntime{}, fmt.Errorf("reserve model boundary listener: %w", err)
+	}
+	ragListener, err := reserveLoopbackListener()
+	if err != nil {
+		_ = modelListener.Close()
+		_ = os.RemoveAll(buildDir)
+		return tracerRuntime{}, fmt.Errorf("reserve RAG boundary listener: %w", err)
+	}
 	runtime := tracerRuntime{
 		buildDir: buildDir, agent: filepath.Join(buildDir, "agent"),
 		boundary:     filepath.Join(buildDir, "prose-editor-tracer-boundary"),
@@ -178,16 +192,35 @@ func buildTracerRuntime(root string) (tracerRuntime, error) {
 		orchestrator: filepath.Join(root, "agents", "workflow-orchestrator", "profile.yaml"),
 		workflowCWD:  filepath.Join(root, "agents", "workflow-orchestrator"),
 		fixtures:     filepath.Join(root, tracerFixtureRoot), application: root,
+		modelListener: modelListener, ragListener: ragListener,
 	}
 	if err := runBuild(runtime.coreRoot, "go", "build", "-o", runtime.agent, "./cmd/agent"); err != nil {
-		_ = os.RemoveAll(buildDir)
+		runtime.close()
 		return tracerRuntime{}, err
 	}
 	if err := runBuild(root, "go", "build", "-o", runtime.boundary, "./cmd/prose-editor-tracer-boundary"); err != nil {
-		_ = os.RemoveAll(buildDir)
+		runtime.close()
 		return tracerRuntime{}, err
 	}
 	return runtime, nil
+}
+
+func reserveLoopbackListener() (*net.TCPListener, error) {
+	listener, err := net.ListenTCP("tcp", &net.TCPAddr{IP: net.ParseIP("127.0.0.1")})
+	if err != nil {
+		return nil, err
+	}
+	return listener, nil
+}
+
+func (runtime tracerRuntime) close() {
+	if runtime.modelListener != nil {
+		_ = runtime.modelListener.Close()
+	}
+	if runtime.ragListener != nil {
+		_ = runtime.ragListener.Close()
+	}
+	_ = os.RemoveAll(runtime.buildDir)
 }
 
 func runBuild(directory, binary string, args ...string) error {
@@ -417,6 +450,7 @@ func runAgentSession(
 	}
 	_ = os.WriteFile(filepath.Join(workspace, ".evidence", "root-"+session+".stdout"), stdout.Bytes(), 0o644)
 	_ = os.WriteFile(filepath.Join(workspace, ".evidence", "root-"+session+".stderr"), stderr.Bytes(), 0o644)
+	stopBoundaryServer(server)
 	result := interpreterRun{Session: session, Stdout: stdout.String(), Stderr: stderr.String(), Trace: trace}
 	if runErr != nil {
 		traceData, _ := os.ReadFile(trace)
@@ -434,6 +468,10 @@ func tracerEnvironment(
 	workspace, session, fault string,
 ) []string {
 	path := runtime.buildDir + string(os.PathListSeparator) + os.Getenv("PATH")
+	modelAddress := runtime.modelListener.Addr().String()
+	ragAddress := runtime.ragListener.Addr().String()
+	modelPort := strconv.Itoa(runtime.modelListener.Addr().(*net.TCPAddr).Port)
+	ragPort := strconv.Itoa(runtime.ragListener.Addr().(*net.TCPAddr).Port)
 	env := append([]string{}, os.Environ()...)
 	env = append(env,
 		"PATH="+path,
@@ -445,40 +483,66 @@ func tracerEnvironment(
 		"PROSE_EDITOR_MODEL=tracer-editor",
 		"PROSE_CRITIC_MODEL=tracer-critic",
 		"PROSE_EDITOR_EMBEDDING_MODEL=tracer-embedding",
-		"OLLAMA_URL=http://127.0.0.1:18086",
-		"STRUCTURE_RAG_URL=http://127.0.0.1:18085",
+		"PROSE_TRACER_MODEL_PORT="+modelPort,
+		"PROSE_TRACER_RAG_PORT="+ragPort,
+		"OLLAMA_URL=http://"+modelAddress,
+		"STRUCTURE_RAG_URL=http://"+ragAddress,
 	)
 	return env
 }
 
 func startBoundaryServer(runtime tracerRuntime, env []string) (*exec.Cmd, *bytes.Buffer, *bytes.Buffer, error) {
-	command := exec.Command(runtime.boundary, "serve")
+	modelFile, err := runtime.modelListener.File()
+	if err != nil {
+		return nil, nil, nil, fmt.Errorf("duplicate model boundary listener: %w", err)
+	}
+	ragFile, err := runtime.ragListener.File()
+	if err != nil {
+		_ = modelFile.Close()
+		return nil, nil, nil, fmt.Errorf("duplicate RAG boundary listener: %w", err)
+	}
+	readyReader, readyWriter, err := os.Pipe()
+	if err != nil {
+		_ = modelFile.Close()
+		_ = ragFile.Close()
+		return nil, nil, nil, fmt.Errorf("create boundary readiness pipe: %w", err)
+	}
+	defer readyReader.Close()
+	command := exec.Command(runtime.boundary, "serve", "3", "4", "5")
 	command.Dir = runtime.workflowCWD
 	command.Env = env
+	command.ExtraFiles = []*os.File{modelFile, ragFile, readyWriter}
 	stdout, stderr := &bytes.Buffer{}, &bytes.Buffer{}
 	command.Stdout, command.Stderr = stdout, stderr
-	if err := command.Start(); err != nil {
-		return nil, stdout, stderr, err
+	startErr := command.Start()
+	_ = modelFile.Close()
+	_ = ragFile.Close()
+	_ = readyWriter.Close()
+	if startErr != nil {
+		return nil, stdout, stderr, startErr
 	}
-	deadline := time.Now().Add(5 * time.Second)
-	for time.Now().Before(deadline) {
-		first, firstErr := net.DialTimeout("tcp", "127.0.0.1:18086", 100*time.Millisecond)
-		if firstErr == nil {
-			_ = first.Close()
-			second, secondErr := net.DialTimeout("tcp", "127.0.0.1:18085", 100*time.Millisecond)
-			if secondErr == nil {
-				_ = second.Close()
-				return command, stdout, stderr, nil
-			}
+	ready := make(chan error, 1)
+	go func() {
+		var marker [1]byte
+		_, err := readyReader.Read(marker[:])
+		ready <- err
+	}()
+	select {
+	case err := <-ready:
+		if err == nil {
+			return command, stdout, stderr, nil
 		}
-		time.Sleep(25 * time.Millisecond)
+		stopBoundaryServer(command)
+		return nil, stdout, stderr, fmt.Errorf("boundary server readiness failed: %w: %s", err, stderr.String())
+	case <-time.After(5 * time.Second):
+		stopBoundaryServer(command)
+		<-ready
+		return nil, stdout, stderr, fmt.Errorf("boundary server did not become ready: %s", stderr.String())
 	}
-	stopBoundaryServer(command)
-	return nil, stdout, stderr, fmt.Errorf("boundary server did not become ready: %s", stderr.String())
 }
 
 func stopBoundaryServer(command *exec.Cmd) {
-	if command == nil || command.Process == nil {
+	if command == nil || command.Process == nil || command.ProcessState != nil {
 		return
 	}
 	_ = command.Process.Signal(os.Interrupt)

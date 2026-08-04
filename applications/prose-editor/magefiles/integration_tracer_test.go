@@ -8,9 +8,21 @@ import (
 	"testing"
 )
 
-func TestRelease001InterpreterEvidence(t *testing.T) {
-	if err := (Integration{}).Tracer(); err != nil {
-		t.Fatal(err)
+func TestConcurrentRelease001InterpreterEvidence(t *testing.T) {
+	const gates = 2
+	start := make(chan struct{})
+	results := make(chan error, gates)
+	for gate := 0; gate < gates; gate++ {
+		go func() {
+			<-start
+			results <- (Integration{}).Tracer()
+		}()
+	}
+	close(start)
+	for gate := 0; gate < gates; gate++ {
+		if err := <-results; err != nil {
+			t.Errorf("concurrent tracer gate %d: %v", gate+1, err)
+		}
 	}
 }
 
@@ -27,6 +39,8 @@ func TestIntegrationTracerExecutesShippedMachines(t *testing.T) {
 		`"specialist-editor/profile.yaml"`,
 		`"voice-critic/profile.yaml"`,
 		`"terminal state: succeeded"`,
+		`"PROSE_TRACER_MODEL_PORT="+modelPort`,
+		`"PROSE_TRACER_RAG_PORT="+ragPort`,
 	} {
 		if !strings.Contains(source, required) {
 			t.Errorf("interpreter tracer missing execution proof %q", required)
@@ -37,6 +51,8 @@ func TestIntegrationTracerExecutesShippedMachines(t *testing.T) {
 		"func tracerStructure(",
 		"func tracerCritique(",
 		"manifest.Phase",
+		`OLLAMA_URL=http://127.0.0.1:18086`,
+		`STRUCTURE_RAG_URL=http://127.0.0.1:18085`,
 	} {
 		if strings.Contains(source, forbidden) {
 			t.Errorf("interpreter tracer still duplicates sequencing with %q", forbidden)
