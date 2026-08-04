@@ -205,10 +205,10 @@ coverage_gaps:
       requires available ports, a buildable agent-core checkout, and operator
       execution. Command construction is not live-service proof.
   - id: kubernetes-deployment
-    status: planned
+    status: implemented
     description: |
       The chart, profile-closure package, values schema, kind smoke, and applier
-      are specified in srd001-helm-deployment and srd002-applier with planned use
-      cases and test suites. The Helm resources, package targets, applier
-      profile, and integration targets land in later sub-issues; the packaged,
-      helm_managed, and kind_demo capabilities remain planned until they do.
+      are implemented through srd001-helm-deployment and srd002-applier use
+      cases and test suites. Package, Helm, kind, and canonical-applier wrapper
+      evidence is executable; live runs retain their documented host
+      prerequisite gates.

@@ -61,7 +61,7 @@ returns candidate data, the critic returns verdict data, and the RAG wrapper is
 read-only. Release `00.1` declares no voice/style stage, Pangram, GitHub
 publication, Helm, kind, or applier authority.
 
-## Planned Entry Points
+## Run or Planned Entry Points
 
 The loadable program entry points are the four local roots named in
 `agents/application.yaml`. The only integration target is the hermetic tracer;

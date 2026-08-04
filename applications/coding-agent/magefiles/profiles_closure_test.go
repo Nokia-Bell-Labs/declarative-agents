@@ -89,7 +89,7 @@ func TestApplicationManifestRejectsTraversalAndAbsolutePaths(t *testing.T) {
 			filename := filepath.Join(appRoot, "agents", "application.yaml")
 			writeTestFile(t, filename, `schema_version: 1
 application: test
-ownership: fixture
+ownership: agent-owning
 module_status: implemented
 capabilities:
   runnable_module: {status: implemented, evidence: [test]}
@@ -253,7 +253,7 @@ func TestCodingApplicationManifestStagesEveryMountedProfile(t *testing.T) {
 		"executor":         "agents/executor/profile.yaml",
 		"critic":           "agents/critic/profile.yaml",
 		"critic-workspace": "agents/critic/profile-workspace.yaml",
-		"collector":         "agents/collector/profile.yaml",
+		"collector":        "agents/collector/profile.yaml",
 	}
 	for _, ref := range manifest.Catalog.References {
 		want, exists := wantRoles[ref.Role]

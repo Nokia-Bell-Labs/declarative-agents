@@ -49,10 +49,12 @@ remains the authority for purpose, boundaries, and the ordered process.
   execute. It owns application documentation, audit evidence, tests where code
   exists, and root orchestration participation.
 - A **composition-only application** is runnable but contributes no canonical
-  or application-local agent implementation. It may own thin wrappers and
-  composition, but it references implementations and reports reuse without
-  adding those agents to repository totals. A shipped local role realization,
-  such as an applier, requires agent-owning classification.
+  or application-local agent implementation. It may own thin serving, request,
+  or applier composition wrappers and composition-specific bindings, but it
+  references canonical implementations and reports reuse without adding those
+  agents to repository totals. A local profile is agent-owning only when it
+  owns application-specific machine behavior rather than wrapping a canonical
+  realization.
 - An **audit-only application** owns `agents/application.yaml`, the common
   documentation corpus, a local audit target, and root audit-only registration.
   It does not claim a runnable composition, tests, stats, packaging, deployment,
@@ -178,30 +180,27 @@ local audit target, and root audit-only registration exist.
 ## Current classification
 
 - `chatbot-mesh/`: agent-owning runnable application. It ships managed-service,
-  packaged, Helm-managed, kind-demo, and actor-served UI surfaces. Release 14.0
-  still needs one complete manifest authority and explicit shared-token
-  consumption evidence.
+  packaged, Helm-managed, kind-demo, and actor-served UI surfaces. Its five
+  local implementations enter agent totals; corpus-ingest and applier are
+  composition wrappers. The manifest-derived package and canonical token
+  imports are executable Release 14 evidence.
 - `coding-agent/`: runnable application that consumes canonical planner,
-  executor, and critic implementations and also ships application-owned serving
-  and applier profiles. The old composition-only label is therefore not
-  sufficient current ownership evidence; Release 14.0 reconciles it as
-  agent-owning or removes the local realization. Its managed-service, packaged,
-  Helm-managed, and kind-demo releases have executable evidence. It ships no
-  application UI.
+  executor, critic, collector, and applier implementations. Its local planner,
+  executor, critic, and applier profiles are composition wrappers, so the
+  application is composition-only and contributes zero agents. Its
+  managed-service, packaged, Helm-managed, kind-demo, and catalog UI surfaces
+  have executable evidence.
 - `agent-architecture/`: runnable application that consumes the canonical
-  documentation-curator and collector and ships an application-owned applier.
-  The old composition-only label requires Release 14.0 reconciliation. Its
-  `runnable_module` evidence is implemented. `managed_service` remains partial
-  because live local lifecycle observations are dependency-gated. Package,
-  Helm, kind, and applier assets and tests exist, while local roadmap and
-  architecture still call them planned; those capability statuses remain
-  partial until the manifest and local documents agree with executable evidence.
-  The curator and collector implementations and their UIs remain catalog-owned.
-- `prose-editor/`: documentation-only and unregistered. It is not runnable and
-  is not yet audit-only. Release 14.0 plans the audit-only transition through
-  `agents/application.yaml`, a local audit target, and root
-  `auditOnlyApplicationModules` membership. No actor, managed-service, package,
-  Helm, kind, or UI implementation is claimed or required for that transition.
+  documentation-curator, collector, lifecycle-exit, and applier. Its local
+  applier is a composition wrapper, so it remains composition-only and
+  contributes zero agents. `runnable_module`, package, Helm, kind, and catalog
+  UI evidence are implemented. `managed_service` remains partial because live
+  lifecycle observations are dependency-gated.
+- `prose-editor/`: agent-owning runnable application. Its deterministic tracer
+  contributes workflow-orchestrator, specialist-editor, and voice-critic and
+  reports structure-RAG as one composition wrapper over the canonical
+  corpus-reader. Managed service, package, Helm, kind, and UI capabilities are
+  `not_applicable`.
 - `catalog/`: reusable catalog module, not a runnable application.
 
 Root Mage orchestration is the source of truth for participating modules.

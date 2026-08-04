@@ -1,6 +1,12 @@
 id: architecture-chatbot-mesh-example
 title: "Chatbot Mesh Architecture"
 
+capability_classification:
+  ownership: agent-owning
+  module_status: implemented
+  agents_contributed: 5
+  composition_wrappers: [corpus-ingest, applier]
+
 overview:
   summary: |
     The chatbot mesh is a program of declarative agents that run on the agent-core

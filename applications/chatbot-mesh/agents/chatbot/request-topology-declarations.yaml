@@ -1,5 +1,5 @@
-# Local two-source topology. The Helm chart co-generates this one declaration
-# from ragUnits; changing the list changes only trusted data, never the number of
+# Local two-source topology. The Helm chart co-generates this declaration from
+# ragUnits; changing the list changes only trusted data, never the number of
 # words or machine states. catalog intentionally contains only names and
 # descriptions; selected REST/config fields stay in trusted items.
 tools:

@@ -1,6 +1,12 @@
 id: architecture-prose-editor
 title: Prose Editor Architecture
 
+capability_classification:
+  ownership: agent-owning
+  module_status: implemented
+  agents_contributed: 3
+  composition_wrappers: [structure-rag]
+
 overview:
   summary: |
     Prose Editor is a planned serial composition of four agent actors on

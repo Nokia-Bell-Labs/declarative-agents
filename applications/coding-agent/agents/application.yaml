@@ -1,6 +1,6 @@
 schema_version: 1
 application: coding-agent
-ownership: composition
+ownership: composition-only
 module_status: implemented
 capabilities:
   runnable_module:

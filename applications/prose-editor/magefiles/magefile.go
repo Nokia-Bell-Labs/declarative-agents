@@ -33,7 +33,7 @@ var (
 		"Composition",
 		"Capabilities",
 		"Ownership Boundaries",
-		"Planned Entry Points",
+		"Run or Planned Entry Points",
 		"Verification",
 		"Documentation",
 	}
@@ -65,6 +65,7 @@ type applicationStats struct {
 		ModuleStatus        string   `json:"module_status"`
 		AgentsContributed   int      `json:"agents_contributed"`
 		CanonicalReferences int      `json:"canonical_references"`
+		CompositionWrappers int      `json:"composition_wrappers"`
 		CanonicalProfiles   []string `json:"canonical_profiles"`
 		ExecutableRoots     []string `json:"executable_roots"`
 	} `json:"application"`
@@ -396,6 +397,8 @@ func newStats(root string, manifest appmanifest.Manifest) (applicationStats, err
 			result.Application.ExecutableRoots = append(result.Application.ExecutableRoots, root.ID)
 		}
 	}
+	result.Application.CompositionWrappers =
+		len(result.Application.ExecutableRoots) - result.Application.AgentsContributed
 	sort.Strings(result.Application.CanonicalProfiles)
 	sort.Strings(result.Application.ExecutableRoots)
 	return result, nil

@@ -1,6 +1,11 @@
 id: architecture-coding-agent-example
 title: Coding Agent Architecture
 
+capability_classification:
+  ownership: composition-only
+  module_status: implemented
+  composition_wrappers: [planner, executor, critic, applier]
+
 overview:
   summary: |
     The coding agent composes three canonical applications/catalog agents.
@@ -351,7 +356,10 @@ project_structure:
     - path: agents/role-server/
       role: Explicitly application-owned shared lifecycle wrapper used by the three serving actors.
     - path: agents/applier/
-      role: Standalone local applier profile that validates, applies, verifies, and rolls back a decided coding-chart values patch.
+      role: |
+        Standalone local composition wrapper over the canonical catalog applier.
+        Application-owned command bindings validate, apply, verify, and roll
+        back a decided coding-chart values patch.
     - path: helm/
       role: Implemented role-sharded deployment chart.
     - path: magefiles/

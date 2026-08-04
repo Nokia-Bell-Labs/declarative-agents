@@ -356,7 +356,7 @@ func minimalClosureFixture(t *testing.T, profile string) (string, string, Manife
 
 func closureManifest(roots ...Root) Manifest {
 	return Manifest{
-		SchemaVersion: SchemaVersion, Application: "fixture-app", Ownership: "fixture-team",
+		SchemaVersion: SchemaVersion, Application: "fixture-app", Ownership: "agent-owning",
 		ModuleStatus: "implemented",
 		Capabilities: map[string]Capability{
 			"runnable_module": {Status: "implemented", Evidence: []string{"test"}},

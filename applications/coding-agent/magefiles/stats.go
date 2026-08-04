@@ -17,6 +17,7 @@ type codingApplicationStats struct {
 		AgentsContributed   int      `json:"agents_contributed"`
 		CanonicalReferences int      `json:"canonical_references"`
 		CanonicalRoles      []string `json:"canonical_roles"`
+		CompositionWrappers int      `json:"composition_wrappers"`
 		ServingProfiles     int      `json:"serving_profiles"`
 		ServingRoles        []string `json:"serving_roles"`
 		ProfileFreeRuntime  bool     `json:"profile_free_runtime"`
@@ -53,13 +54,14 @@ func collectCodingApplicationStats(path string) (codingApplicationStats, error) 
 		return result, fmt.Errorf("parse application manifest: %w", err)
 	}
 
-	result.Application.Ownership = "composition"
+	result.Application.Ownership = manifest.Ownership
 	for _, root := range manifest.Roots {
-		if root.Ownership != "catalog" {
-			continue
+		if root.Ownership == "catalog" {
+			result.Application.CanonicalReferences++
+			result.Application.CanonicalRoles = append(result.Application.CanonicalRoles, root.ID)
+		} else if root.Ownership == "local" {
+			result.Application.CompositionWrappers++
 		}
-		result.Application.CanonicalReferences++
-		result.Application.CanonicalRoles = append(result.Application.CanonicalRoles, root.ID)
 	}
 	for _, entry := range manifest.Deployment.Entries {
 		result.Application.ServingProfiles++

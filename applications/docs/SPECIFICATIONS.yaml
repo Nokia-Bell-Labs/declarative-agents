@@ -8,7 +8,7 @@ overview: |
   or kind-demo capabilities. applications/catalog is indexed as a related
   foundation but is not a runnable application.
 
-  srd003 specifies the Release 14.0 consistency target: one
+  srd003 implements the Release 14.0 consistency target: one
   agents/application.yaml composition authority, application-owned actor and UI
   grammar, manifest-derived packages, canonical promotion and shared-token
   rules, common README and status vocabulary, and explicit catalog/application/
@@ -20,10 +20,10 @@ overview: |
   Structural
   checks parse documents, verify module classification and root orchestration,
   enforce ownership-aware stats, and invoke application-owned capability
-  evidence. The current runnable set is chatbot-mesh, coding-agent, and
-  agent-architecture. Prose Editor is documentation-only and unregistered; its
-  audit-only transition remains planned until it has a manifest, local audit,
-  and root registration. Agent Architecture's runnable-module evidence is implemented;
+  evidence. The runnable set is chatbot-mesh, coding-agent,
+  agent-architecture, and Prose Editor. Prose Editor contributes three local
+  agents and reports one canonical corpus-reader wrapper separately. Agent
+  Architecture's runnable-module evidence is implemented;
   its managed-service status is partial because live srd002 AC1 through AC3
   observations remain dependency-gated. ENG01 remains the sole kind-rig
   contract.
@@ -49,13 +49,14 @@ roadmap_summary:
     evidence: The shared vision, root guide, architecture index, and roadmap parse and pass the repository audit.
   - version: "14.0"
     name: Application consistency and conformance
-    use_cases_done: 0
+    use_cases_done: 1
     use_cases_total: 1
-    status: specified
+    status: implemented
     evidence: |
-      The SRD, cross-application use case, and test suite are reciprocal.
-      Documentation parsing and root mage audit are executable; application
-      normalization cases remain planned.
+      The SRD, cross-application use case, and eight-case test suite are
+      reciprocal and executable. Root conformance tests validate all four
+      manifests, ownership, package assets, canonical applier promotion, shared
+      UI tokens, README/status classification, and runnable Prose evidence.
 
 foundation_document_index:
   - id: application-composition-pattern-language
@@ -114,7 +115,7 @@ srd_index:
     test_suites: [test-rel00.0-application-contract-conformance]
   - id: srd003-application-consistency
     title: Application Composition Consistency and Conformance
-    status: specified
+    status: implemented
     applicability: |
       Manifest, actor, naming, README, status, and ownership requirements apply
       to runnable or audit-only applications; package, deployment, kind, and UI
@@ -151,7 +152,7 @@ use_case_index:
   - id: rel14.0-uc001-application-consistency
     title: Normalize and Verify a Showcase Application Composition
     release: "14.0"
-    status: planned
+    status: implemented
     srds:
       - srd003-application-consistency
     test_suite: test-rel14.0-application-consistency
@@ -171,7 +172,7 @@ test_suite_index:
   - id: test-rel14.0-application-consistency
     title: Release 14.0 Application Consistency Test Suite
     release: "14.0"
-    status: partial
+    status: implemented
     test_case_count: 8
     traces: [rel14.0-uc001-application-consistency]
     srds:
@@ -180,15 +181,12 @@ test_suite_index:
 
 coverage_gaps:
   - id: release-14-application-normalization
-    status: planned
+    status: implemented
     description: |
-      The shared composition and consistency contract is specified, but the four
-      showcase applications have not yet completed one coordinated normalization.
-      Chatbot Mesh needs a complete manifest and UI-token evidence. Coding Agent
-      and Agent Architecture need ownership and status reconciliation around
-      shipped application-local actors and manifest-derived package roots.
-      Prose Editor remains documentation-only and unregistered until a manifest,
-      local audit, and root audit-only entry land. TC2 through TC7 remain planned.
+      The four showcase applications now have validated manifests and normalized
+      ownership. Coding Agent and Agent Architecture are composition-only with
+      local composition wrappers; Chatbot Mesh and Prose Editor are agent-owning
+      while reporting wrappers separately. TC1 through TC8 are executable.
   - id: knowledge-manager-live-managed-service-evidence
     status: dependency_gated
     description: |

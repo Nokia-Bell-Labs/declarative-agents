@@ -33,7 +33,8 @@ func TestLoadRejectsInvalidSchemaPathsDuplicatesAndCapabilities(t *testing.T) {
 		{"schema", func(m *Manifest) { m.SchemaVersion = 99 }, "unsupported"},
 		{"application identity", func(m *Manifest) { m.Application = "Bad Name" }, "lower-kebab"},
 		{"application root identity", func(m *Manifest) { m.Application = "other-app" }, "does not match"},
-		{"missing ownership", func(m *Manifest) { m.Ownership = "" }, "no ownership"},
+		{"missing ownership", func(m *Manifest) { m.Ownership = "" }, "unknown application ownership"},
+		{"unknown ownership", func(m *Manifest) { m.Ownership = "composition" }, "unknown application ownership"},
 		{"absolute source", func(m *Manifest) { m.Roots[0].Source = "/tmp/profile.yaml" }, "portable relative"},
 		{"source traversal", func(m *Manifest) { m.Roots[0].Source = "agents/../profile.yaml" }, "traversal"},
 		{"duplicate root", func(m *Manifest) { m.Roots[1].ID = m.Roots[0].ID }, "duplicate root"},
@@ -171,7 +172,7 @@ func validManifest() Manifest {
 	return Manifest{
 		SchemaVersion: SchemaVersion,
 		Application:   "fixture-app",
-		Ownership:     "fixture-team",
+		Ownership:     "agent-owning",
 		ModuleStatus:  "implemented",
 		Capabilities: map[string]Capability{
 			"runnable_module": {Status: "implemented", Evidence: []string{"mage test"}},

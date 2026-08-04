@@ -51,13 +51,14 @@ This document remains outside the runtime subtree because documentation is not
 runtime input. Panel sources, `tsconfig.json`, package lockfiles, and
 `node_modules` are build inputs rather than deployment inputs.
 
-The chatbot `rest.yaml`, `agents/chatbot/ui/ui.yaml`, and `request-topology.yaml` are
-co-generated from `ragUnits`: the profiles ConfigMap emits rendered versions
+The chatbot `rest.yaml`, `agents/chatbot/ui/ui.yaml`, and
+`request-topology-declarations.yaml` are co-generated from `ragUnits`: the
+profiles ConfigMap emits rendered versions
 through `_chatbot-rest.tpl`, `_chatbot-ui.tpl`, and `_chatbot-topology.tpl`.
 The selected-target REST operation, its network allowlist, monitor upstreams,
 and ordered runtime topology therefore share one source of truth with the RAG
-objects. `request-machine.yaml` and `request-fanout.yaml` are packaged verbatim:
-they contain one sequential `for_each`, one `rag_query`, generic partitions, and
+objects. `request-machine.yaml` and `request-fanout-declarations.yaml` are
+packaged verbatim: they contain one sequential `for_each`, one `rag_query`, generic partitions, and
 `render_each`, so source additions change data but no word or state count. The
 `rag-server` profile is env-parameterized, so the
 packaged copy is used verbatim and the chart passes per-pod environment. SPA

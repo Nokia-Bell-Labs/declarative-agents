@@ -66,11 +66,12 @@ func TestStatsReportRunnableAgentsAndExactComposition(t *testing.T) {
 		t.Fatalf("application stats identity = %#v", stats.Application)
 	}
 	if stats.Application.CanonicalReferences != 1 ||
+		stats.Application.CompositionWrappers != 1 ||
 		!reflect.DeepEqual(stats.Application.CanonicalProfiles, []string{
 			"applications/catalog/agents/knowledge-manager/corpus-reader/profile.yaml",
 		}) {
-		t.Fatalf("canonical references = %d %v, want exact corpus-ingest reference",
-			stats.Application.CanonicalReferences, stats.Application.CanonicalProfiles)
+		t.Fatalf("composition references = %#v, want one corpus-reader wrapper",
+			stats.Application)
 	}
 	wantRoots := append([]string(nil), executableLocalRoots...)
 	sortStrings(wantRoots)

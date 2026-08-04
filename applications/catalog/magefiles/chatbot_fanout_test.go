@@ -120,7 +120,7 @@ func TestChatbotSourceSelectionUsesTrustedTopologyAndFallback(t *testing.T) {
 	parsed := loadChatbotMachine(t)
 	machine := string(readRequiredChatbotAsset(t, chatbotAssetPath("request-machine.yaml")))
 	declarations := string(readRequiredChatbotAsset(t, chatbotAssetPath("request-declarations.yaml")))
-	topology := string(readRequiredChatbotAsset(t, chatbotAssetPath("request-topology.yaml")))
+	topology := string(readRequiredChatbotAsset(t, chatbotAssetPath("request-topology-declarations.yaml")))
 	for _, required := range []string{
 		"action: select_sources",
 		"action: capture_source_selection",
@@ -199,11 +199,11 @@ func TestChatbotSourceRouterPromptMatchesDeclaration(t *testing.T) {
 // pipeline: query outcomes are partitioned by signal, successful structured
 // outputs by embedding model, and only the compatible set is rendered.
 func TestChatbotComposeReadsEachRagSource(t *testing.T) {
-	fanout := chatbotAssetPath("request-fanout.yaml")
+	fanout := chatbotAssetPath("request-fanout-declarations.yaml")
 	data := readRequiredChatbotAsset(t, fanout)
 	text := string(data)
 	if strings.Contains(text, "rag_merge") || strings.Contains(text, "$from(rag_merge)") {
-		t.Error("request-fanout.yaml still references rag_merge (GH-365)")
+		t.Error("request-fanout-declarations.yaml still references rag_merge (GH-365)")
 	}
 	for _, sel := range []string{
 		"$from(rag_queries).items",

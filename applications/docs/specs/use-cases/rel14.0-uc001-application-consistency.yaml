@@ -1,7 +1,7 @@
 id: rel14.0-uc001-application-consistency
 title: Normalize and Verify a Showcase Application Composition
 release: "14.0"
-status: planned
+status: implemented
 
 summary: |
   A maintainer normalizes one showcase application around
@@ -38,28 +38,28 @@ candidate_matrix:
       actor-served UIs; prove canonical design-token consumption.
   - application: coding-agent
     current_module_state: runnable
-    current_ownership: requires_reconciliation
+    current_ownership: composition-only
     relevant_surfaces: [managed_service, packaged, helm_managed, kind_demo]
     normalization_focus: |
-      Retain canonical planner, executor, and critic roots, move serving and
-      applier entries under the actor grammar, and reconcile the historical
-      composition-only label with shipped application-owned actor profiles.
+      Retain canonical planner, executor, critic, collector, and applier
+      implementations while classifying local serving and applier profiles as
+      composition wrappers that contribute no duplicate agents.
   - application: agent-architecture
     current_module_state: runnable
-    current_ownership: requires_reconciliation
+    current_ownership: composition-only
     relevant_surfaces: [managed_service, packaged, helm_managed, kind_demo, ui]
     normalization_focus: |
-      Derive curator, collector, applier, deployment, and UI assets from the
-      manifest and reconcile application-local applier ownership and stale
-      planned deployment status against executable evidence.
+      Derive curator, collector, applier, deployment, UI, and catalog-doc
+      package assets from the manifest and classify the local applier as a
+      composition wrapper over the canonical implementation.
   - application: prose-editor
-    current_module_state: documentation_only_unregistered
-    target_transition_state: audit_only
-    relevant_surfaces: []
+    current_module_state: runnable
+    current_ownership: agent-owning
+    relevant_surfaces: [runnable_module]
     normalization_focus: |
-      Add a planned-root manifest, local documentation audit, and root
-      audit-only registration without creating empty actors, packages, charts,
-      kind rigs, or UIs and without claiming a runnable composition.
+      Verify the implemented deterministic tracer as three application-owned
+      agents plus one local structure-RAG composition wrapper over the canonical
+      corpus-reader, without claiming package, Helm, kind, service, or UI capabilities.
 
 flow:
   - id: F1
@@ -248,12 +248,13 @@ success_criteria:
       - srd003-application-consistency AC7
   - id: S7
     criterion: |
-      Chatbot Mesh, Coding Agent, and Agent Architecture receive truthful
-      normalization findings, while Prose Editor can enter audit-only without
-      claiming runnable or optional capability conformance.
+      All four applications have truthful normalization findings. Prose Editor
+      is runnable with three contributed agents and one canonical wrapper while
+      its optional service, package, Helm, kind, and UI capabilities remain
+      not_applicable.
     traces:
       - srd003-application-consistency R1.2
-      - srd003-application-consistency R2.3
+      - srd003-application-consistency R2.2
       - srd003-application-consistency R6.4
 
 out_of_scope:

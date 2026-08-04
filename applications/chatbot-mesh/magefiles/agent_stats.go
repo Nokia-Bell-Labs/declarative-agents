@@ -122,7 +122,7 @@ func scanAgentOwnership(
 		}
 		if compositionOnly {
 			result.Composition.PerWrapper[entry.Name()] = compositionWrapper{
-				Ownership: "composition", CanonicalSource: "applications/catalog",
+				Ownership: "composition-wrapper", CanonicalSource: "applications/catalog",
 				CanonicalProgram: canonical, YAML: stats.YAML,
 			}
 			result.Composition.Total.Wrappers++

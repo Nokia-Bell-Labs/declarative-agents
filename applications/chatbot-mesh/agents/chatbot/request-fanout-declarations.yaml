@@ -1,7 +1,8 @@
-# Source-count-independent multi-RAG fan-out. request-topology.yaml declares the
-# ordered topology; one sequential MachineSpec for_each dispatches rag_query over
-# it. The join retains each item and its structured REST output, so generic
-# partition and render_each words can filter and render without indexed words.
+# Source-count-independent multi-RAG fan-out. request-topology-declarations.yaml
+# declares the ordered topology; one sequential MachineSpec for_each dispatches
+# rag_query over it. The join retains each item and its structured REST output,
+# so generic partition and render_each words can filter and render without
+# indexed words.
 tools:
   - name: rag_query
     type: builtin

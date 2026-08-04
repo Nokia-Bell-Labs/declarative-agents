@@ -10,7 +10,8 @@ import (
 )
 
 func TestCollectCodingApplicationStatsReportsCompositionWithoutAgents(t *testing.T) {
-	manifest := `roots:
+	manifest := `ownership: composition-only
+roots:
   - {id: planner, ownership: catalog}
   - {id: executor, ownership: catalog}
   - {id: critic, ownership: catalog}
@@ -40,8 +41,8 @@ ui:
 	if err != nil {
 		t.Fatal(err)
 	}
-	if stats.Application.Ownership != "composition" {
-		t.Errorf("ownership = %q, want composition", stats.Application.Ownership)
+	if stats.Application.Ownership != "composition-only" {
+		t.Errorf("ownership = %q, want composition-only", stats.Application.Ownership)
 	}
 	if stats.Application.AgentsContributed != 0 {
 		t.Errorf("agents_contributed = %d, want 0", stats.Application.AgentsContributed)
@@ -51,6 +52,9 @@ ui:
 			[]string{"planner", "executor", "critic", "critic-workspace", "collector"}) {
 		t.Errorf("canonical references = %d %#v",
 			stats.Application.CanonicalReferences, stats.Application.CanonicalRoles)
+	}
+	if stats.Application.CompositionWrappers != 2 {
+		t.Errorf("composition_wrappers = %d, want 2", stats.Application.CompositionWrappers)
 	}
 	if stats.Application.ServingProfiles != 5 ||
 		!reflect.DeepEqual(stats.Application.ServingRoles,

@@ -154,6 +154,10 @@ bounded packaged-chart proof with `mage integration:helmSmoke`.
 
 ## Status
 
+The module status is `implemented` and its ownership classification is
+`composition-only`: all local actor profiles are serving or applier composition
+wrappers and contribute no additional canonical agent implementation.
+
 All three coding-loop stages and compatible-checkout, transitive profile
 packaging are implemented with the production agent-core binary and canonical
 profiles. The package records the source revision without claiming release
@@ -172,11 +176,12 @@ changed-workspace mode is a separate canonical profile variant.
 
 ## Ownership Boundaries
 
-The catalog owns reusable planner, executor, and critic behavior. This
-application owns its manifest, thin serving wrappers, shared `role-server`
-lifecycle wrapper, local applier, package derivation, Helm topology, fixtures,
-and end-to-end evidence. Agent-core owns runtime profile, machine, tool, REST,
-lifecycle, and execution semantics.
+The catalog owns reusable planner, executor, critic, collector, and applier
+behavior. This application owns its manifest, thin serving wrappers, shared
+`role-server` lifecycle wrapper, local applier composition wrapper and command
+bindings, package derivation, Helm topology, fixtures, and end-to-end evidence.
+Agent-core owns runtime profile, machine, tool, REST, lifecycle, and execution
+semantics.
 
 ## Layout
 

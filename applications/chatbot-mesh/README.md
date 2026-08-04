@@ -2,7 +2,7 @@
 
 A routed, multi-RAG, observable, deployable chatbot built entirely from declarative agents on the agent-core runtime.
 
-## What this is
+## Purpose
 
 The chatbot mesh is a copyable example program. A browser-facing chatbot agent runs a request-scoped turn: it embeds the message once, routes the question to a chat model, fans the embedding out to one or more retrieval-augmented generation (RAG) servers, composes an answer from the surviving sources' chunks, and streams observability for the turn. One Helm chart deploys the whole mesh, including an in-cluster model tier.
 
@@ -17,7 +17,7 @@ canonical closure and has no runtime dependency on the profile checkout.
 
 For a reader's walkthrough of how the parts fit together — a single chat turn, live reconfiguration, and deployment, with diagrams — see [docs/how-it-works.md](docs/how-it-works.md).
 
-## Turn flow
+## Composition
 
 ```mermaid
 flowchart LR
@@ -33,9 +33,25 @@ flowchart LR
   CB -.->|monitor SSE / traceparent| OBS[Collector agent + trace UI]
 ```
 
-## Scope and status
+## Status
 
-The example spans both planes. The data plane is the chatbot, the RAG servers, a corpus-ingest agent that seeds the vector store, observability, and Helm deployment. The control plane is a provisioning-workflow-orchestrator agent, a creator agent, and an applier that applies rollout changes to the running mesh. The canonical catalog collector agent owns both signals — spool evidence and a bounded query surface for traces and metrics, plus the trace UI — so no separate metric backend is needed. An observer agent discovers mesh pods via the Kubernetes API and polls each agent's monitor surface to serve a fleet-level view at observer.localhost. The profiles run on agent-core. Release 05 remains partial pending one live ingest-to-grounded-turn proof.
+The module status is `implemented`. The example spans both planes. The data
+plane is the chatbot, the RAG servers, a corpus-ingest agent that seeds the
+vector store, observability, and Helm deployment. The control plane is a
+provisioning-workflow-orchestrator agent, a creator agent, and an applier that
+applies rollout changes to the running mesh. The canonical catalog collector
+agent owns both signals — spool evidence and a bounded query surface for traces
+and metrics, plus the trace UI — so no separate metric backend is needed. An
+observer agent discovers mesh pods via the Kubernetes API and polls each
+agent's monitor surface to serve a fleet-level view at observer.localhost. The
+profiles run on agent-core. Release 05 remains partial pending one live
+ingest-to-grounded-turn proof.
+
+## Capabilities
+
+`agents/application.yaml` records `runnable_module`, `managed_service`,
+`packaged`, `helm_managed`, `kind_demo`, and `ui` as `implemented`, with
+application-owned commands and tests for each capability.
 
 ## Decisions
 
@@ -56,6 +72,15 @@ Four decisions frame the extraction. They are recorded here so a reader understa
 
 4. Co-generation stays, for now. The Helm chart renders the chatbot client config, the user interface, and the N-RAG fan-out from the chart values; the packaged profile copies are the local integration source and the render overrides them in the cluster. Inverting this so the profile is the source is a separate follow-up.
 
+## Ownership Boundaries
+
+Chatbot Mesh is `agent-owning`: five local role realizations contribute to
+repository agent totals. The local corpus-ingest and applier profiles are
+composition wrappers over catalog-owned implementations and are reported
+separately. The catalog also owns collector; agent-core owns runtime semantics.
+The application owns composition, topology, deployment, UI, credentials,
+operator workflow, and end-to-end evidence.
+
 ## Layout
 
 ```
@@ -69,7 +94,7 @@ applications/chatbot-mesh/
   magefile.go     the example's own audit and integration entry
 ```
 
-## Build
+## Run or Planned Entry Points
 
 The example carries its own magefile. From this directory:
 
@@ -143,6 +168,12 @@ chart is self-contained at runtime and does not silently fork canonical programs
 
 Run `mage -l` to list the named `integration:*` targets; each skips cleanly when its toolchain is absent. There is no `integration:collector` lifecycle target yet.
 
+## Verification
+
+From `applications/chatbot-mesh`, run `go test ./...`, `mage audit`, and
+`mage helm:package`. The root `mage test`, `mage audit`, and `mage stats` gates
+also include this application.
+
 `mage audit` is the self-governance gate. It runs the catalog specification-critic validator
 over the application's own corpus, so it needs the agent-core runtime
 (`core_root` in `demo.yaml`, default repository `agent-core`) and the catalog root
@@ -160,3 +191,9 @@ run `npm ci` there and invoke
 system Chrome or Chromium executable.
 The [browser E2E runbook](../../agent-core/README.md#browser-end-to-end-tests)
 explains why the shared package owns `puppeteer-core` and downloads no browser.
+
+## Documentation
+
+Start with `docs/VISION.yaml`, `docs/ARCHITECTURE.yaml`, `docs/road-map.yaml`,
+and `docs/SPECIFICATIONS.yaml`. Deployment package details are in
+`helm/PACKAGING.md`; the operator walkthrough is in `docs/how-it-works.md`.

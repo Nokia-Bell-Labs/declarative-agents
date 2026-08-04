@@ -1,6 +1,6 @@
 id: srd003-application-consistency
 title: Application Composition Consistency and Conformance
-status: specified
+status: implemented
 
 problem: |
   The showcase applications express equivalent composition, actor, package,
@@ -301,8 +301,9 @@ requirements:
           call itself audit_only until that transition is executable.
         evidence: |
           Root tests compare the manifest and README with applicationModules and
-          auditOnlyApplicationModules and distinguish Prose Editor's current
-          documentation-only state from its planned audit-only transition.
+          auditOnlyApplicationModules. Prose Editor's implemented tracer is
+          classified as runnable, not audit-only, and its optional capabilities
+          remain independently not_applicable.
 
   R7:
     title: Ownership boundary closure
@@ -337,7 +338,7 @@ requirements:
           load application profiles through the existing runtime validators.
 
 non_goals:
-  - Implement or rename the four applications in this specification issue.
+  - Require identical optional capabilities across the four applications.
   - Require a managed service, package, chart, kind demo, UI, request variant,
     local actor, or generated directory when the corresponding capability is absent.
   - Change agent-core profile, machine, ToolDef, REST, lifecycle, or telemetry semantics.

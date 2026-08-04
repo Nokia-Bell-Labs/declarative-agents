@@ -86,7 +86,7 @@ func TestPackagedIntegrationRootsDoNotObserveCheckoutMutations(t *testing.T) {
 	profilesRoot := t.TempDir()
 	writeTestFile(t, filepath.Join(appRoot, "agents", "application.yaml"), `schema_version: 1
 application: test
-ownership: fixture
+ownership: agent-owning
 module_status: implemented
 capabilities:
   runnable_module: {status: implemented, evidence: [test]}

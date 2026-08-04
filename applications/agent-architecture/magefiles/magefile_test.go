@@ -319,15 +319,16 @@ func TestStatsCompositionOnlyJSON(t *testing.T) {
 	if !ok {
 		t.Fatalf("application = %#v, want object", document["application"])
 	}
-	if application["ownership"] != "composition" || application["agents_contributed"] != float64(0) {
-		t.Fatalf("application stats = %#v, want composition with zero agents", application)
+	if application["ownership"] != "composition-only" || application["agents_contributed"] != float64(0) {
+		t.Fatalf("application stats = %#v, want composition-only with zero agents", application)
 	}
 	if application["canonical_references"] != float64(3) {
 		t.Fatalf("canonical_references = %#v, want 3", application["canonical_references"])
 	}
 	if application["deployment_entries"] != float64(3) ||
 		application["ui_assets"] != float64(4) ||
-		application["package_assets"] != float64(1) {
+		application["package_assets"] != float64(1) ||
+		application["composition_wrappers"] != float64(1) {
 		t.Fatalf("manifest-derived asset stats = %#v", application)
 	}
 }

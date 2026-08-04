@@ -17,10 +17,11 @@ helm install my-release helm/dist/agent-architecture-*.tgz \
   --namespace agent-architecture --create-namespace
 ```
 
-`mage helm:package` regenerates the curator and collector profile closures from the
-catalog, stages the application-owned applier profile, validates the staged tree,
-and packages `helm/dist/agent-architecture-0.1.0.tgz`. The archive lints and renders
-from a directory with no source checkout present.
+`mage helm:package` regenerates the curator and collector profile closures from
+the catalog, stages the application-owned composition wrapper over the
+canonical applier, validates the staged tree, and packages
+`helm/dist/agent-architecture-0.1.0.tgz`. The archive lints and renders from a
+directory with no source checkout present.
 
 ## Enable the applier
 

@@ -28,6 +28,7 @@ var (
 	templatePattern      = regexp.MustCompile(`\$\{[^}\r\n]+\}`)
 	knownStatuses        = stringSet("planned", "audit_only", "partial", "dependency_gated", "implemented", "not_applicable")
 	knownCapabilities    = stringSet("runnable_module", "managed_service", "packaged", "helm_managed", "kind_demo", "ui")
+	knownOwnership       = stringSet("agent-owning", "composition-only")
 )
 
 // Options names the two ownership boundaries used by validation and closure.
@@ -158,8 +159,8 @@ func (manifest *Manifest) validate(options Options) error {
 	if !identifierPattern.MatchString(manifest.Application) {
 		return fmt.Errorf("application %q must be a lower-kebab identifier", manifest.Application)
 	}
-	if strings.TrimSpace(manifest.Ownership) == "" {
-		return errors.New("application manifest has no ownership")
+	if !knownOwnership[manifest.Ownership] {
+		return fmt.Errorf("unknown application ownership %q", manifest.Ownership)
 	}
 	if !knownStatuses[manifest.ModuleStatus] {
 		return fmt.Errorf("unknown module_status %q", manifest.ModuleStatus)

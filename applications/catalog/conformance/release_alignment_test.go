@@ -109,8 +109,8 @@ func TestAlignmentMigrationReleaseAndConsumerPins(t *testing.T) {
 				root.CompatibleRelease, applierRelease)
 		}
 	}
-	if catalogRoots != 4 {
-		t.Errorf("coding-agent catalog roots = %d, want planner, executor, critic, and critic-workspace", catalogRoots)
+	if catalogRoots != 5 {
+		t.Errorf("coding-agent catalog roots = %d, want planner, executor, critic, critic-workspace, and collector", catalogRoots)
 	}
 	var chart struct {
 		Annotations map[string]string `yaml:"annotations"`

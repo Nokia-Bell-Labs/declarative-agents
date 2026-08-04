@@ -265,7 +265,7 @@ design_decisions:
     benefits:
       - Small and documentation-first applications avoid false conformance.
       - Missing optional surfaces remain not applicable instead of passing no-ops.
-      - Prose Editor can enter audit-only without claiming a runtime.
+      - Documentation-first applications can enter audit-only without claiming a runtime.
   - id: 9
     title: Operation prefixes align program files
     decision: |
@@ -399,23 +399,22 @@ project_structure:
     - path: applications/coding-agent/
       role: |
         Runnable application consuming canonical planner, executor, and critic
-        roots while also shipping application-owned serving and applier
-        profiles. Release 14.0 reconciles its stale composition-only label and
-        derives all package roots from the normalized manifest.
+        roots while shipping local serving and applier composition wrappers.
+        It remains composition-only, contributes zero agents, and derives all
+        package roots from the normalized manifest.
     - path: applications/agent-architecture/
       role: |
         Runnable application consuming canonical curator and collector roots
-        while shipping an application-owned applier. Baseline evidence is
-        implemented and managed-service evidence is partial. Package, Helm,
-        kind, and applier assets exist while local documents still call them
-        planned, so Release 14.0 reconciles ownership and capability status
-        before claiming conformance.
+        while shipping a local wrapper over the canonical applier. It remains
+        composition-only and contributes zero agents. Baseline, package, Helm,
+        kind, and catalog UI evidence is implemented; managed-service evidence
+        remains partial.
     - path: applications/prose-editor/
       role: |
-        Documentation-only, unregistered application candidate. Release 14.0
-        plans an audit-only transition through a manifest, local audit target,
-        and root audit-only registration without runnable or optional capability
-        claims.
+        Agent-owning runnable deterministic tracer with three local agents and
+        one structure-RAG composition wrapper over canonical corpus-reader.
+        Optional service, package, Helm, kind, and UI capabilities are
+        not_applicable.
   orchestration:
     - path: magefiles/build.go
       role: Module classification and audit/stats participant lists.
@@ -439,13 +438,12 @@ implementation_status:
     Structural commands verify shared YAML, module paths, root participation,
     and ownership-aware stats.
 
-    Release 14.0 now specifies the normalized composition authority, actor and
+    Release 14.0 implements the normalized composition authority, actor and
     UI ownership grammar, operation-prefixed names, manifest-derived package and
     provenance flow, promotion and shared-token rules, README/status vocabulary,
     and explicit catalog/application/agent-core boundaries. The shared
-    documentation and reciprocal traces are implemented. Application migrations,
-    ownership/status reconciliation, and the Prose Editor audit-only transition
-    remain planned and must not be inferred from this specification.
+    documentation, reciprocal traces, application migrations, ownership/status
+    reconciliation, and runnable Prose Editor classification are executable.
   progress:
     - implemented: Multi-agent rationale, bidirectional operating flows, human
         governance boundary, six-step construction sequence, and pinned
@@ -457,36 +455,30 @@ implementation_status:
     - implemented: Root tests pin runnable application membership, path
         stability, audit/test/stats dispatch, and application exclusion from
         platform Build and All.
-    - implemented: Root stats sums only module agents sections; coding-agent
-        reports composition without an agents section.
+    - implemented: Root stats sums only module agents sections; coding-agent and
+        agent-architecture report composition-only wrappers without agents sections.
     - implemented: chatbot-mesh and coding-agent own local audit, tests, stats,
         packaging, Helm, and kind integration evidence.
     - implemented: agent-architecture owns a runnable composition, local
-        audit and Go tests, and composition-only stats; magefiles/build.go
+        audit and Go tests, manifest-derived package assets, and composition-only stats; magefiles/build.go
         registers it for root audit, test, stats, and release participation.
-    - implemented: Root stats retains 15 canonical agents because
-        agent-architecture reports one catalog reference, zero contributed
-        agents, and no agents section.
+    - implemented: Root stats counts canonical implementations once and reports
+        application composition wrappers outside agents sections.
     - partial: agent-architecture managed-service conformance; deterministic
         command and configuration evidence is implemented, while live srd002
         AC1 through AC3 observations remain dependency-gated.
     - implemented: applications/catalog remains a submodule and canonical
         catalog, not a runnable application.
-    - specified: Release 14.0 srd003, cross-application use case, and
-        capability-aware test suite with complete requirement and acceptance
-        criterion coverage.
-    - implemented: Release 14.0 shared YAML parsing, reciprocal indexing, and
-        current root mage audit evidence.
-    - planned: Normalize manifests, actors, operation names, packages, UIs,
-        READMEs, and status across Chatbot Mesh, Coding Agent, and Agent
-        Architecture.
-    - planned: Reconcile Coding Agent and Agent Architecture ownership and
-        capability claims against shipped application-local actor and deployment
-        evidence.
-    - planned: Transition Prose Editor from documentation-only unregistered to
-        audit_only through agents/application.yaml, a local audit target, and
-        root audit-only membership, without runtime claims or empty optional
-        directories.
+    - implemented: Release 14.0 srd003, cross-application use case, and
+        eight-case capability-aware test suite with complete requirement and
+        acceptance-criterion coverage.
+    - implemented: Release 14.0 shared YAML parsing, reciprocal indexing,
+        manifest validation, actor naming, package assets, canonical promotion,
+        token imports, README/status checks, four-app matrix, and root Mage gates.
+    - implemented: Chatbot Mesh reports five local implementations and two
+        wrappers; Coding Agent and Agent Architecture are composition-only with
+        four and one wrappers respectively; Prose Editor reports three local
+        implementations and one wrapper.
 
 related_documents:
   - doc: docs/pattern-language.yaml
@@ -511,7 +503,7 @@ related_documents:
   - doc: docs/specs/software-requirements/srd003-application-consistency.yaml
     purpose: Release 14.0 normalized manifest, ownership, naming, package, UI, README, status, and boundary contract.
   - doc: docs/specs/use-cases/rel14.0-uc001-application-consistency.yaml
-    purpose: Cross-application normalization flow and Prose Editor audit-only transition.
+    purpose: Completed cross-application normalization flow and runnable Prose Editor classification.
   - doc: docs/specs/test-suites/test-rel14.0-application-consistency.yaml
     purpose: Structural and capability-gated executable conformance evidence.
   - doc: ../chatbot-mesh/docs/ARCHITECTURE.yaml

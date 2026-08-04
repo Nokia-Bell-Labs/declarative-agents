@@ -81,7 +81,7 @@ success_criteria:
     in demo.yaml and provide monorepo-relative defaults without developer-specific
     absolute paths.
   composition_only_accounting: |
-    mage stats emits valid JSON with ownership: composition,
+    mage stats emits valid JSON with ownership: composition-only,
     agents_contributed: 0, and one canonical reference. It emits no agents
     section.
   deployable_composition: |

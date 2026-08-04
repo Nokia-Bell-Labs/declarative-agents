@@ -181,7 +181,7 @@ test_cases:
       yaml_parse_errors: 0
       reciprocal_use_case_traces: true
       portable_paths: true
-      ownership: composition
+      ownership: composition-only
       agents_contributed: 0
       canonical_references: 2
       agents_section_present: false

@@ -20,8 +20,8 @@ template consumes the applier shard. The collector UI enters its shard through
 the manifest's declared UI source, runtime path, and package path.
 
 The collector is a catalog-owned manifest deployment entry; no package code
-walks or adds it independently. The local applier is rooted at
-`agents/applier/profile.yaml`, packaged at
+walks or adds it independently. The local applier composition wrapper is rooted
+at `agents/applier/profile.yaml`, consumes the canonical catalog applier, and is packaged at
 `/profiles/applications/coding-agent/applier/profile.yaml`, and retains its
 self-contained relative request-machine references.
 

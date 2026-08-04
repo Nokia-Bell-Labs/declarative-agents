@@ -17,19 +17,22 @@ func TestSumAgentsTotals(t *testing.T) {
 			"agents": 9, "states": 115, "transitions": 206, "tools": 94,
 			"yaml": {"files": 82, "lines": 8531}}}}`),
 		"applications/chatbot-mesh": json.RawMessage(`{"agents": {"total": {
-			"agents": 6, "states": 123, "transitions": 192, "tools": 51,
+			"agents": 5, "states": 123, "transitions": 192, "tools": 51,
 			"yaml": {"files": 69, "lines": 6911}}},
 			"composition": {"total": {
-				"wrappers": 1, "canonical_references": 1,
+				"wrappers": 2, "canonical_references": 2,
 				"yaml": {"files": 2, "lines": 271}},
 				"per_wrapper": {"corpus-ingest": {
-					"ownership": "composition",
+					"ownership": "composition-wrapper",
 					"canonical_source": "applications/catalog",
 					"canonical_program": "agents/knowledge-manager/corpus-ingest",
-					"yaml": {"files": 2, "lines": 271}}}}}`),
+					"yaml": {"files": 2, "lines": 271}}}},
+			"application": {
+				"ownership": "agent-owning", "agents_contributed": 5,
+				"composition_wrappers": 2}}`),
 		"applications/agent-architecture": json.RawMessage(`{
 			"application": {
-				"ownership": "composition",
+				"ownership": "composition-only",
 				"agents_contributed": 0,
 				"canonical_references": 1,
 				"canonical_profile": "applications/catalog/agents/knowledge-manager/documentation-curator/profile.yaml"
@@ -73,8 +76,8 @@ func TestSumAgentsTotals(t *testing.T) {
 	if err != nil {
 		t.Fatalf("sumAgentsTotals returned error: %v", err)
 	}
-	if total.Agents != 18 {
-		t.Errorf("Agents = %d, want 18", total.Agents)
+	if total.Agents != 17 {
+		t.Errorf("Agents = %d, want 17", total.Agents)
 	}
 	if total.States != 296 {
 		t.Errorf("States = %d, want 296", total.States)

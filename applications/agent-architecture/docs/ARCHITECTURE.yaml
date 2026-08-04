@@ -26,7 +26,9 @@ overview:
     declarative applier actuates that chart for an authorized operator or CI
     caller (srd002-applier). The packaged, helm_managed, and kind_demo
     capabilities are backed by checked-in package, render, and integration
-    targets. The local applier remains application-owned pending GH-1420.
+    targets. The local applier is a composition wrapper over the canonical
+    catalog applier; application-specific command bindings and deployment
+    authority remain local.
   demo_flow_diagram: |
     ```mermaid
     flowchart LR
@@ -382,8 +384,8 @@ implementation_status:
     The runnable module, trace collection, manifest-derived package, Helm chart,
     bounded kind target, and local declarative applier are implemented. The
     application remains composition-only: curator, collector, lifecycle-exit,
-    and their UIs stay catalog-owned, while the application-specific applier and
-    deployment stay local pending GH-1420. Live local managed-service browser
+    canonical applier, and their UIs stay catalog-owned, while the local applier
+    wrapper, command bindings, and deployment stay application-owned. Live local managed-service browser
     observations remain dependency-gated and are not inferred from command
     construction tests.
   progress:

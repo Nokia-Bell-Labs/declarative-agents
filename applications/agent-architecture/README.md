@@ -2,6 +2,8 @@
 
 # Agent Architecture
 
+## Purpose
+
 This standalone application drives the Knowledge Manager documentation agent
 from [agent-architecture.slide](agent-architecture.slide). The deck starts the
 canonical catalog-owned documentation-curator profile, then posts a
@@ -12,6 +14,55 @@ The application owns this README and the deck; it composes catalog-owned
 profiles. `applications/catalog` owns the documentation-curator profile and its
 UI and the reusable lifecycle-exit client, while `agent-core` owns the runtime
 and builtin tools.
+
+## Status
+
+The module status is `implemented` and its ownership is `composition-only`.
+The runnable, packaged, Helm-managed, kind-demo, and catalog UI surfaces have
+executable evidence. Managed-service conformance is `partial` because the
+remaining live lifecycle observations are `dependency_gated`.
+
+## Composition
+
+`agents/application.yaml` is the composition authority for the canonical
+documentation-curator, collector, and lifecycle-exit roots and the local
+applier composition wrapper. The local wrapper consumes the canonical catalog
+applier; it is not an additional implementation.
+
+## Capabilities
+
+- `runnable_module`: `implemented`
+- `managed_service`: `partial`
+- `packaged`: `implemented`
+- `helm_managed`: `implemented`
+- `kind_demo`: `implemented`
+- `ui`: `implemented` through catalog-owned curator and collector assets
+
+## Ownership Boundaries
+
+The catalog owns curator, collector, lifecycle-exit, applier, and their
+canonical UIs. This application owns composition, the applier's local command
+bindings, presentation, package derivation, Helm topology, kind workflow, and
+end-to-end evidence. It contributes zero agents to repository totals and
+reports one composition wrapper separately. Agent-core owns runtime semantics.
+
+## Run or Planned Entry Points
+
+All declared entry points are implemented. Use `mage run` and
+`mage presentation` for the local composition, or `mage demo:up` and
+`mage demo:down` for the optional Kubernetes demo.
+
+## Verification
+
+From `applications/agent-architecture`, run `go test ./...`, `mage audit`,
+`mage stats`, and `mage helm:package`. Root `mage test`, `mage audit`, and
+`mage stats` include this module.
+
+## Documentation
+
+The structured design corpus is `docs/VISION.yaml`, `docs/ARCHITECTURE.yaml`,
+`docs/road-map.yaml`, and `docs/SPECIFICATIONS.yaml`. Helm details are in
+`helm/README.md`.
 
 ## Prerequisites (macOS)
 

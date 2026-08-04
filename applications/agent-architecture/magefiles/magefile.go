@@ -161,6 +161,7 @@ type statsOutput struct {
 		AgentsContributed   int    `json:"agents_contributed"`
 		CanonicalReferences int    `json:"canonical_references"`
 		CanonicalProfile    string `json:"canonical_profile"`
+		CompositionWrappers int    `json:"composition_wrappers"`
 		DeploymentEntries   int    `json:"deployment_entries"`
 		UIAssets            int    `json:"ui_assets"`
 		PackageAssets       int    `json:"package_assets"`
@@ -697,11 +698,13 @@ func readYAML(path string, out any) error {
 
 func newStatsOutput(manifest appmanifest.Manifest) statsOutput {
 	var output statsOutput
-	output.Application.Ownership = "composition"
+	output.Application.Ownership = manifest.Ownership
 	output.Application.AgentsContributed = 0
 	for _, root := range manifest.Roots {
 		if root.Ownership == "catalog" && !root.Planned {
 			output.Application.CanonicalReferences++
+		} else if root.Ownership == "local" && !root.Planned {
+			output.Application.CompositionWrappers++
 		}
 	}
 	output.Application.CanonicalProfile = "applications/catalog/" + canonicalProfile

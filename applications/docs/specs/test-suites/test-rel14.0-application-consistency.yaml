@@ -1,15 +1,15 @@
 id: test-rel14.0-application-consistency
 title: Release 14.0 Application Consistency Test Suite
 release: "14.0"
-status: partial
+status: implemented
 test_case_count: 8
 
 overview: |
-  This suite separates implemented documentation evidence from planned
-  application normalization evidence. TC1 and TC8 parse and audit the shared
-  Release 14.0 specification on the current tree. TC2 through TC7 become
-  executable as the four applications adopt the manifest, actor, package, UI,
-  README, status, and root-orchestration contract. Optional capability cases
+  All eight cases are executable. TC1 and TC8 parse and audit the shared
+  Release 14.0 specification. TC2 through TC7 validate the four application
+  manifests, actor grammar, manifest-derived package assets, canonical
+  promotion and UI-token consumption, README/status/root agreement, ownership
+  accounting, and the runnable Prose Editor matrix. Optional capability cases
   run only for applications that declare the matching capability.
 
 traces:
@@ -111,10 +111,10 @@ test_cases:
   - id: TC2
     use_case: rel14.0-uc001-application-consistency
     name: Composition manifests are complete and capability-aware
-    status: planned
+    status: implemented
     evidence_type: go_test
-    planned_command: |
-      go test ./magefiles -run '^TestApplicationConsistencyManifests$'
+    command: |
+      (cd magefiles && go test -run '^TestApplicationConsistencyManifests$')
     expected:
       all_runnable_and_audit_only_manifests_parse: true
       identities_and_statuses_match_roots: true
@@ -129,10 +129,10 @@ test_cases:
   - id: TC3
     use_case: rel14.0-uc001-application-consistency
     name: Actor ownership and program names conform
-    status: planned
+    status: implemented
     evidence_type: go_test
-    planned_command: |
-      go test ./magefiles -run '^TestApplicationActorGrammar$'
+    command: |
+      (cd magefiles && go test -run '^TestApplicationActorGrammar$')
     expected:
       local_actors_below_actor_roots: true
       canonical_implementations_catalog_owned: true
@@ -149,13 +149,14 @@ test_cases:
   - id: TC4
     use_case: rel14.0-uc001-application-consistency
     name: Packaged closure and provenance derive from the manifest
-    status: planned
+    status: implemented
     evidence_type: application_tests
     applicability: packaged
-    planned_command: |
+    command: |
+      (cd magefiles && go test -run '^TestManifestDerivedPackageAssets$')
       (cd applications/chatbot-mesh && go test ./magefiles -run '^TestManifestDerivedPackageClosure$')
-      (cd applications/coding-agent && go test ./magefiles -run '^TestManifestDerivedPackageClosure$')
-      (cd applications/agent-architecture && go test ./magefiles -run '^TestManifestDerivedPackageClosure$')
+      (cd applications/coding-agent && go test ./magefiles -run '^Test(ManifestMutationControlsCollectorAssets|UndeclaredCollectorUIIsNotPackaged|UndeclaredCollectorRootIsNotPackaged)$')
+      (cd applications/agent-architecture && go test ./magefiles -run '^Test(ManifestMutationControlsCatalogDocsArchive|UndeclaredCatalogDocsAreNotArchived)$')
     expected:
       manifest_is_only_direct_root_inventory: true
       all_reference_classes_traversed: true
@@ -170,12 +171,12 @@ test_cases:
   - id: TC5
     use_case: rel14.0-uc001-application-consistency
     name: Promotion and shared UI-token claims have real consumers
-    status: planned
+    status: implemented
     evidence_type: go_test_and_ui_build
     applicability: promotion candidates or ui
-    planned_command: |
-      go test ./magefiles -run '^TestApplicationPromotionAndUITokens$'
-      (cd applications/catalog && go test ./conformance -run '^TestDesignTokens')
+    command: |
+      (cd magefiles && go test -run '^TestApplicationPromotionAndUITokens$')
+      (cd applications/catalog && go test ./conformance -run '^Test(DesignTokens|ApplierPromotion)')
     expected:
       promotion_has_independent_or_multiple_consumers: true
       promoted_source_has_one_owner: true
@@ -189,10 +190,10 @@ test_cases:
   - id: TC6
     use_case: rel14.0-uc001-application-consistency
     name: README, status, capabilities, and root lists agree
-    status: planned
+    status: implemented
     evidence_type: go_test
-    planned_command: |
-      go test ./magefiles -run '^TestApplicationReadmeStatusAndRootClassification$'
+    command: |
+      (cd magefiles && go test -run '^TestApplicationReadmeStatusAndRootClassification$')
     expected:
       common_readme_sections_present: true
       status_vocabulary_closed: true
@@ -206,19 +207,20 @@ test_cases:
 
   - id: TC7
     use_case: rel14.0-uc001-application-consistency
-    name: Four-application matrix and Prose audit-only transition are truthful
-    status: planned
+    name: Four-application matrix and runnable Prose classification are truthful
+    status: implemented
     evidence_type: go_test
-    planned_command: |
-      go test ./magefiles -run '^TestRelease14ApplicationMatrix$'
+    command: |
+      (cd magefiles && go test -run '^TestRelease14ApplicationMatrix$')
     expected:
       chatbot_mesh_normalized: true
       coding_agent_ownership_reconciled: true
       agent_architecture_status_reconciled: true
-      prose_editor_manifest_and_local_audit_present: true
-      prose_editor_in_audit_only_list: true
-      prose_editor_not_in_runnable_list: true
-      prose_editor_runtime_capabilities_not_claimed: true
+      prose_editor_runnable_manifest_and_local_audit_present: true
+      prose_editor_in_runnable_list: true
+      prose_editor_not_in_audit_only_list: true
+      prose_editor_has_three_agents_and_one_wrapper: true
+      prose_editor_optional_runtime_capabilities_not_claimed: true
     traces:
       - rel14.0-uc001-application-consistency S7
       - srd003-application-consistency AC1
@@ -235,7 +237,7 @@ test_cases:
       root_audit_green: true
       shared_release_14_yaml_has_no_new_warnings: true
       catalog_application_runtime_boundaries_preserved: true
-      planned_normalization_not_reported_implemented: true
+      completed_normalization_reported_implemented: true
     traces:
       - rel14.0-uc001-application-consistency S6
       - srd003-application-consistency AC7
@@ -280,11 +282,8 @@ requirement_coverage:
 
 coverage_notes:
   implemented_now:
-    - TC1 validates the Release 14.0 documentation and reciprocal traces.
-    - TC8 runs the existing root audit and prevents the specification change
-      from introducing a documentation regression.
+    - TC1 through TC8 are executable and validate the completed Release 14
+      normalization, reciprocal traces, and repository audit.
   remaining:
-    - TC2 through TC7 require application manifest, layout, package, README,
-      status, and Prose audit-only changes in later Release 14.0 issues.
     - A capability with no declaration remains not_applicable and does not need
       an empty directory or a passing no-op test.
