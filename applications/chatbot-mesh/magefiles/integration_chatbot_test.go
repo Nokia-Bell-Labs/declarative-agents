@@ -7,6 +7,7 @@ import (
 	"os"
 	"path/filepath"
 	"reflect"
+	"strings"
 	"testing"
 )
 
@@ -49,6 +50,118 @@ func TestChatResponseDecodesTrace(t *testing.T) {
 	if got := citedRecordNumbers(resp.Answer); !reflect.DeepEqual(got, []int{1}) {
 		t.Fatalf("citedRecordNumbers = %v, want [1]", got)
 	}
+}
+
+func TestAssertChatbotTierSelectionTraceAttributesAnswerDispatch(t *testing.T) {
+	trace := writeChromaTrace(t, []string{
+		chatbotSpanLine("machine_request chatbot/chat", "turn-fast", "", nil),
+		chatbotSpanLine("chat qwen-fast", "source-selector", "turn-fast", map[string]string{"gen_ai.request.model": "qwen-fast"}),
+		chatbotSpanLine("chat qwen-fast", "tier-selector", "turn-fast", map[string]string{"gen_ai.request.model": "qwen-fast"}),
+		chatbotSpanLine("execute_tool parse_response", "fast-parse", "turn-fast", map[string]string{"command.name": "parse_response"}),
+		chatbotSpanLine("chat qwen-fast", "fast-answer", "turn-fast", map[string]string{"command.name": "invoke_llm", "gen_ai.request.model": "qwen-fast"}),
+		chatbotSpanLine("execute_tool compose_response", "fast-compose", "turn-fast", map[string]string{"command.name": "compose_response"}),
+		chatbotSpanLine("machine_request chatbot/chat", "turn-deep", "", nil),
+		chatbotSpanLine("chat qwen-fast", "deep-selector", "turn-deep", map[string]string{"gen_ai.request.model": "qwen-fast"}),
+		chatbotSpanLine("execute_tool parse_response", "deep-parse", "turn-deep", map[string]string{"command.name": "parse_response"}),
+		chatbotSpanLine("chat ornith-deep", "deep-answer", "turn-deep", map[string]string{"command.name": "invoke_llm", "gen_ai.request.model": "ornith-deep"}),
+		chatbotSpanLine("execute_tool compose_response", "deep-compose", "turn-deep", map[string]string{"command.name": "compose_response"}),
+	})
+	if err := assertChatbotTierSelectionTrace(trace, "qwen-fast", "ornith-deep"); err != nil {
+		t.Fatalf("expected attributed fast and deep answer dispatches to pass: %v", err)
+	}
+}
+
+func TestAssertChatbotTierSelectionTraceDoesNotRequireBothTiers(t *testing.T) {
+	trace := writeChromaTrace(t, []string{
+		chatbotSpanLine("machine_request chatbot/chat", "turn-1", "", nil),
+		chatbotSpanLine("execute_tool parse_response", "parse-1", "turn-1", map[string]string{"command.name": "parse_response"}),
+		chatbotSpanLine("chat qwen-fast", "answer-1", "turn-1", map[string]string{"command.name": "invoke_llm", "gen_ai.request.model": "qwen-fast"}),
+		chatbotSpanLine("execute_tool compose_response", "compose-1", "turn-1", map[string]string{"command.name": "compose_response"}),
+		chatbotSpanLine("machine_request chatbot/chat", "turn-2", "", nil),
+		chatbotSpanLine("execute_tool parse_response", "parse-2", "turn-2", map[string]string{"command.name": "parse_response"}),
+		chatbotSpanLine("chat qwen-fast", "answer-2", "turn-2", map[string]string{"command.name": "invoke_llm", "gen_ai.request.model": "qwen-fast"}),
+		chatbotSpanLine("execute_tool compose_response", "compose-2", "turn-2", map[string]string{"command.name": "compose_response"}),
+	})
+	if err := assertChatbotTierSelectionTrace(trace, "qwen-fast", "ornith-deep"); err != nil {
+		t.Fatalf("two model-dependent fast selections should pass: %v", err)
+	}
+}
+
+func TestAssertChatbotTierSelectionTraceRejectsInvalidAttribution(t *testing.T) {
+	tests := []struct {
+		name    string
+		lines   []string
+		wantErr string
+	}{
+		{
+			name: "selector-only Qwen is not an answer dispatch",
+			lines: []string{
+				chatbotSpanLine("machine_request chatbot/chat", "turn", "", nil),
+				chatbotSpanLine("chat qwen-fast", "selector", "turn", map[string]string{"gen_ai.request.model": "qwen-fast"}),
+				chatbotSpanLine("execute_tool parse_response", "parse", "turn", map[string]string{"command.name": "parse_response"}),
+				chatbotSpanLine("execute_tool compose_response", "compose", "turn", map[string]string{"command.name": "compose_response"}),
+			},
+			wantErr: "0 answer-word dispatch spans",
+		},
+		{
+			name: "undeclared answer model",
+			lines: []string{
+				chatbotSpanLine("machine_request chatbot/chat", "turn", "", nil),
+				chatbotSpanLine("execute_tool parse_response", "parse", "turn", map[string]string{"command.name": "parse_response"}),
+				chatbotSpanLine("chat other", "answer", "turn", map[string]string{"command.name": "invoke_llm", "gen_ai.request.model": "other"}),
+				chatbotSpanLine("execute_tool compose_response", "compose", "turn", map[string]string{"command.name": "compose_response"}),
+			},
+			wantErr: "undeclared model",
+		},
+		{
+			name: "two answer words",
+			lines: []string{
+				chatbotSpanLine("machine_request chatbot/chat", "turn", "", nil),
+				chatbotSpanLine("execute_tool parse_response", "parse", "turn", map[string]string{"command.name": "parse_response"}),
+				chatbotSpanLine("chat qwen-fast", "fast", "turn", map[string]string{"command.name": "invoke_llm", "gen_ai.request.model": "qwen-fast"}),
+				chatbotSpanLine("chat ornith-deep", "deep", "turn", map[string]string{"command.name": "invoke_llm", "gen_ai.request.model": "ornith-deep"}),
+				chatbotSpanLine("execute_tool compose_response", "compose", "turn", map[string]string{"command.name": "compose_response"}),
+			},
+			wantErr: "2 answer-word dispatch spans",
+		},
+		{
+			name: "answer dispatch without model",
+			lines: []string{
+				chatbotSpanLine("machine_request chatbot/chat", "turn", "", nil),
+				chatbotSpanLine("execute_tool parse_response", "parse", "turn", map[string]string{"command.name": "parse_response"}),
+				chatbotSpanLine("chat unknown", "answer", "turn", map[string]string{"command.name": "invoke_llm"}),
+				chatbotSpanLine("execute_tool compose_response", "compose", "turn", map[string]string{"command.name": "compose_response"}),
+			},
+			wantErr: "has no gen_ai.request.model",
+		},
+	}
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			err := assertChatbotTierSelectionTrace(writeChromaTrace(t, tt.lines), "qwen-fast", "ornith-deep")
+			if err == nil || !strings.Contains(err.Error(), tt.wantErr) {
+				t.Fatalf("error = %v, want substring %q", err, tt.wantErr)
+			}
+		})
+	}
+}
+
+func chatbotSpanLine(name, spanID, parentID string, attrs map[string]string) string {
+	attributes := make([]map[string]interface{}, 0, len(attrs))
+	for key, value := range attrs {
+		attributes = append(attributes, map[string]interface{}{
+			"Key": key, "Value": map[string]interface{}{"Type": "STRING", "Value": value},
+		})
+	}
+	line, err := json.Marshal(map[string]interface{}{
+		"Name":        name,
+		"SpanContext": map[string]string{"TraceID": "trace", "SpanID": spanID},
+		"Parent":      map[string]string{"TraceID": "trace", "SpanID": parentID},
+		"Attributes":  attributes,
+	})
+	if err != nil {
+		panic(err)
+	}
+	return string(line)
 }
 
 func TestChatbotRequiredModelsResolveShippedDefaults(t *testing.T) {

@@ -38,9 +38,9 @@ const (
 // tier-selector-enabled chatbot, and an external Ollama for the embedding, tier selector, and
 // two chat models. It drives the chat machine_request endpoint (not the browser):
 //
-//   - a factual turn and an analytical turn exercise the $tool tier selector, and the
-//     chatbot span log is asserted to show both the fast and the deep chat model
-//     answered (the tier selector dispatched each word);
+//   - a factual turn and an analytical turn exercise the $tool tier selector, and
+//     each turn's chatbot span log is asserted to show exactly one declared answer
+//     word with its configured chat model attributed to that dispatch;
 //   - a cross-corpus turn draws the disjoint rag1 corpus into the answer
 //     (sequential fan-out; compose renders each RAG under its [ragN] header, no
 //     merge word);
@@ -180,8 +180,9 @@ func runChatbotIntegration(profilesRoot, coreRoot string) error {
 		return err
 	}
 
-	// Tier selector: a factual turn and an analytical turn. The chat trace (asserted after
-	// exit) must show both the fast and the deep chat model answered.
+	// Tier selector: a factual turn and an analytical turn. The live classifier's
+	// choice is model-dependent; the trace asserted after exit must show exactly
+	// one declared answer-word dispatch with its configured model for each turn.
 	if err := assertChatbotTierSelectedTurn("What do the Chroma corpus agents use to compute embeddings?"); err != nil {
 		return fmt.Errorf("factual tier-selected turn: %w", err)
 	}
@@ -241,7 +242,7 @@ func runChatbotIntegration(profilesRoot, coreRoot string) error {
 		return fmt.Errorf("rag1 %w", err)
 	}
 
-	fmt.Println("integration:chatbot PASS - source router scoped one turn and selected both corpora for a spanning turn, tier selector dispatched both chat models, rag1-down degraded to 200, and each rag-server joined the connected trace")
+	fmt.Println("integration:chatbot PASS - source router scoped one turn and selected both corpora for a spanning turn, every turn dispatched one declared answer model, rag1-down degraded to 200, and each rag-server joined the connected trace")
 	return nil
 }
 
@@ -385,28 +386,89 @@ func assertChatbotMonitorReachable() error {
 }
 
 // assertChatbotTierSelectionTrace proves, from the chatbot's own span log, that
-// the tier selector dispatched both chat-LLM words over the turns: a genai chat span for the
-// fast model and one for the deep model.
+// every chat turn dynamically dispatched exactly one declared answer word and
+// that the dispatch carries the word's configured model. The answer phase starts
+// after parse_tier's parse_response span, so earlier model spans from
+// select_sources and select_tier cannot count.
 func assertChatbotTierSelectionTrace(tracePath, fastModel, deepModel string) error {
 	spans, err := readChromaSpans(tracePath)
 	if err != nil {
 		return err
 	}
-	models := map[string]bool{}
+	if fastModel == deepModel {
+		return fmt.Errorf("chatbot answer words use the same model %q; trace attribution would be ambiguous", fastModel)
+	}
+	declaredByModel := map[string]string{
+		fastModel: "invoke_llm_fast",
+		deepModel: "invoke_llm_deep",
+	}
+	parentByID := make(map[string]string, len(spans))
+	var turns []chromaSpan
 	for _, s := range spans {
-		if !strings.HasPrefix(s.Name, "chat ") {
-			continue
+		if s.SpanContext.SpanID != "" {
+			parentByID[s.SpanContext.SpanID] = s.Parent.SpanID
 		}
-		if m, ok := s.stringAttr("gen_ai.request.model"); ok {
-			models[m] = true
+		if strings.HasPrefix(s.Name, "machine_request ") {
+			turns = append(turns, s)
 		}
 	}
-	for _, want := range []string{fastModel, deepModel} {
-		if !models[want] {
-			return fmt.Errorf("chatbot trace shows no chat span for model %q (tier selector must dispatch both chat words); saw %v", want, sortedModelKeys(models))
+	if len(turns) == 0 {
+		return fmt.Errorf("chatbot trace shows no machine_request chat turns")
+	}
+	for _, turn := range turns {
+		var answerSpans []chromaSpan
+		parseTierSeen := false
+		parseTierCount := 0
+		composeResponseCount := 0
+		for _, s := range spans {
+			if !chatbotSpanNestedUnder(s, turn.SpanContext.SpanID, parentByID) {
+				continue
+			}
+			switch s.commandName() {
+			case "parse_response":
+				parseTierCount++
+				parseTierSeen = true
+			case "compose_response":
+				composeResponseCount++
+				parseTierSeen = false
+			default:
+				if parseTierSeen && strings.HasPrefix(s.Name, "chat ") {
+					answerSpans = append(answerSpans, s)
+				}
+			}
+		}
+		if parseTierCount != 1 || composeResponseCount != 1 {
+			return fmt.Errorf("chatbot turn %s has parse_tier/compose_response span counts %d/%d, want 1/1",
+				turn.SpanContext.SpanID, parseTierCount, composeResponseCount)
+		}
+		if len(answerSpans) != 1 {
+			return fmt.Errorf("chatbot turn %s has %d answer-word dispatch spans after parse_tier, want exactly one",
+				turn.SpanContext.SpanID, len(answerSpans))
+		}
+		model, ok := answerSpans[0].stringAttr("gen_ai.request.model")
+		if !ok {
+			return fmt.Errorf("chatbot turn %s answer-word dispatch has no gen_ai.request.model", turn.SpanContext.SpanID)
+		}
+		word, ok := declaredByModel[model]
+		if !ok {
+			return fmt.Errorf("chatbot turn %s answer-word dispatch uses undeclared model %q; declared fast/deep models are %v",
+				turn.SpanContext.SpanID, model, sortedModelKeys(map[string]bool{fastModel: true, deepModel: true}))
+		}
+		if answerSpans[0].Name != "chat "+model {
+			return fmt.Errorf("chatbot turn %s answer word %q has model %q but span name %q",
+				turn.SpanContext.SpanID, word, model, answerSpans[0].Name)
 		}
 	}
 	return nil
+}
+
+func chatbotSpanNestedUnder(span chromaSpan, ancestorID string, parentByID map[string]string) bool {
+	for parentID := span.Parent.SpanID; parentID != ""; parentID = parentByID[parentID] {
+		if parentID == ancestorID {
+			return true
+		}
+	}
+	return false
 }
 
 func sortedModelKeys(m map[string]bool) []string {

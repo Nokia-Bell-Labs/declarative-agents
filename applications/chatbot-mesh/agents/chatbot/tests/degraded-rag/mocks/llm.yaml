@@ -27,7 +27,9 @@ routes:
         body:
           message:
             role: assistant
-            content: '{"tool":"invoke_llm_fast"}'
+            # The single-turn fixture preserves deterministic fast-word evidence;
+            # this degraded fixture proves the deep answer branch.
+            content: '{"tool":"invoke_llm_deep"}'
           eval_count: 4
           prompt_eval_count: 12
       - status: 200
