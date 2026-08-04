@@ -94,6 +94,46 @@ func TestApplierLiveInfrastructureClassifiesPodAPIFailure(t *testing.T) {
 	}
 }
 
+func TestApplierLiveInitialReadinessFailureCollectsDiagnostics(t *testing.T) {
+	var sequence []string
+	run := func(_ context.Context, name string, args ...string) ([]byte, error) {
+		command := name + " " + strings.Join(args, " ")
+		sequence = append(sequence, command)
+		return []byte("evidence from " + command), nil
+	}
+	cause := errors.New("deployment exceeded its progress deadline")
+	err := waitApplierLiveInitialReadiness(run, func() error {
+		sequence = append(sequence, "wait for initial readiness")
+		return cause
+	})
+
+	var semantic *applierLiveSemanticError
+	if !errors.As(err, &semantic) {
+		t.Fatalf("error = %T %v, want semantic readiness failure", err, err)
+	}
+	if semantic.Step != "initial readiness" || !errors.Is(err, cause) {
+		t.Fatalf("readiness error did not preserve step and cause: %v", err)
+	}
+	if len(sequence) != len(applierLiveDiagnosticCommands())+1 {
+		t.Fatalf("sequence has %d steps, want wait plus %d diagnostics:\n%s",
+			len(sequence), len(applierLiveDiagnosticCommands()), strings.Join(sequence, "\n"))
+	}
+	if sequence[0] != "wait for initial readiness" {
+		t.Fatalf("diagnostics ran before readiness failed:\n%s", strings.Join(sequence, "\n"))
+	}
+	for _, want := range []string{
+		"actual release Secret sizes",
+		"Deployment ReplicaSet and pod status",
+		"stage-chart init logs",
+		"previous applier logs",
+		"Service and endpoints",
+	} {
+		if !strings.Contains(err.Error(), want) {
+			t.Errorf("initial-readiness error missing %q:\n%v", want, err)
+		}
+	}
+}
+
 func TestApplierLiveDiagnosticsAreBoundedAndKeepFailures(t *testing.T) {
 	t.Run("overall timeout", func(t *testing.T) {
 		started := time.Now()
@@ -111,27 +151,95 @@ func TestApplierLiveDiagnosticsAreBoundedAndKeepFailures(t *testing.T) {
 		if calls != len(applierLiveDiagnosticCommands()) {
 			t.Errorf("calls = %d, want all %d diagnostic sections", calls, len(applierLiveDiagnosticCommands()))
 		}
-		for _, want := range []string{"helm status", "helm history", "pod readiness", "events", "applier logs", "deadline exceeded"} {
+		for _, want := range []string{
+			"Helm status",
+			"Helm history",
+			"actual release Secret sizes",
+			"applier Deployment ReplicaSet and pod status",
+			"container and init status",
+			"stage-chart init logs",
+			"previous applier logs",
+			"node capacity",
+			"chart ConfigMap archive key",
+			"applier Service and endpoints",
+			"deadline exceeded",
+		} {
 			if !strings.Contains(report, want) {
 				t.Errorf("report missing %q:\n%s", want, report)
 			}
 		}
 	})
 
-	t.Run("command failures", func(t *testing.T) {
+	t.Run("partial command failures", func(t *testing.T) {
+		calls := 0
 		run := func(_ context.Context, name string, args ...string) ([]byte, error) {
+			calls++
 			command := name + " " + strings.Join(args, " ")
-			return []byte("partial output for " + command), fmt.Errorf("%s failed", name)
+			if calls%3 == 0 {
+				return []byte("partial output for " + command), fmt.Errorf("%s failed", name)
+			}
+			return []byte("complete output for " + command), nil
 		}
 
 		report := collectApplierLiveDiagnostics(run, time.Second)
-		if count := strings.Count(report, "[diagnostic failed:"); count != len(applierLiveDiagnosticCommands()) {
-			t.Errorf("failure count = %d, want %d:\n%s", count, len(applierLiveDiagnosticCommands()), report)
+		if calls != len(applierLiveDiagnosticCommands()) {
+			t.Errorf("calls = %d, want every one of %d diagnostics", calls, len(applierLiveDiagnosticCommands()))
 		}
-		if !strings.Contains(report, "partial output") {
-			t.Errorf("report discarded command output:\n%s", report)
+		if count := strings.Count(report, "[diagnostic failed:"); count != calls/3 {
+			t.Errorf("failure count = %d, want %d:\n%s", count, calls/3, report)
+		}
+		for _, want := range []string{"partial output", "complete output", "applier Service and endpoints"} {
+			if !strings.Contains(report, want) {
+				t.Errorf("report discarded %q:\n%s", want, report)
+			}
 		}
 	})
+}
+
+func TestApplierLiveDiagnosticsIncludeInitPreviousAndOrderedBootstrapEvidence(t *testing.T) {
+	commands := applierLiveDiagnosticCommands()
+	var labels, invocations []string
+	for _, command := range commands {
+		labels = append(labels, command.label)
+		invocations = append(invocations, command.name+" "+strings.Join(command.args, " "))
+	}
+	wantLabels := []string{
+		"Helm status",
+		"Helm history",
+		"actual release Secret sizes",
+		"applier Deployment ReplicaSet and pod status",
+		"container and init status",
+		"applier pod scheduling probes and termination",
+		"events",
+		"stage-chart init logs",
+		"current applier logs",
+		"previous applier logs",
+		"node capacity and allocatable resources",
+		"chart ConfigMap archive key",
+		"applier Service and endpoints",
+	}
+	if strings.Join(labels, "\n") != strings.Join(wantLabels, "\n") {
+		t.Fatalf("diagnostic order:\n got: %v\nwant: %v", labels, wantLabels)
+	}
+	joined := strings.Join(invocations, "\n")
+	for _, want := range []string{
+		"get deployment,replicaset,pod",
+		`go-template={{range .items}}`,
+		"base64decode | len",
+		"describe pods",
+		"-o json",
+		"logs -l " + "app.kubernetes.io/instance=" + applierLiveRelease +
+			",app.kubernetes.io/component=applier -c stage-chart",
+		"-c applier --tail=120",
+		"-c applier --previous --tail=120",
+		"CAPACITY_MEMORY:.status.capacity.memory",
+		"configmap " + applierLiveChartConfigMap,
+		"service/live-chatbot-mesh-applier endpoints/live-chatbot-mesh-applier",
+	} {
+		if !strings.Contains(joined, want) {
+			t.Errorf("diagnostic commands missing %q:\n%s", want, joined)
+		}
+	}
 }
 
 func TestApplierLiveApplyFailureClassification(t *testing.T) {

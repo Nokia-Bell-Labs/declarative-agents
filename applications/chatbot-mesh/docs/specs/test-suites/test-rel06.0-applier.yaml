@@ -136,7 +136,7 @@ test_cases:
   - use_case: rel06.0-uc001-declarative-applier
     name: Live applier infrastructure failures are bounded and classified
     integration_target: mage test (magefiles/applier_live_infrastructure_test.go, GH-872)
-    go_test: TestApplierLiveInfrastructureHealthy, TestApplierLiveInfrastructureClassifiesHostAPIFailure, TestApplierLiveInfrastructureClassifiesPodAPIFailure, TestApplierLiveDiagnosticsAreBoundedAndKeepFailures, TestApplierLiveApplyFailureClassification
+    go_test: TestApplierLiveInfrastructureHealthy, TestApplierLiveInfrastructureClassifiesHostAPIFailure, TestApplierLiveInfrastructureClassifiesPodAPIFailure, TestApplierLiveInitialReadinessFailureCollectsDiagnostics, TestApplierLiveDiagnosticsAreBoundedAndKeepFailures, TestApplierLiveDiagnosticsIncludeInitPreviousAndOrderedBootstrapEvidence, TestApplierLiveApplyFailureClassification
     status: implemented
     description: |
       Deterministic command-runner tests pin the live tier's infrastructure
@@ -145,12 +145,16 @@ test_cases:
       applier Deployment must reach the same endpoint using the pod's mounted
       service account and cluster network.
 
-      If an apply assertion fails, the target repeats those probes and collects
-      Helm status/history, pod readiness, events, and applier logs under one bounded
-      diagnostic deadline. A failed recheck is reported as infrastructure
-      unavailable while a healthy recheck preserves the machine or Helm assertion
-      as a semantic failure. Timeout and command-failure fixtures prove diagnostics
-      terminate and retain partial evidence even when the cluster is unhealthy.
+      An initial Deployment-readiness failure and a later apply assertion failure
+      both collect evidence under one bounded deadline. The ordered bundle retains
+      Helm state and actual release Secret sizes; Deployment, ReplicaSet, pod
+      condition/restart/waiting/termination state and readiness events; stage-chart
+      init output; current and previous applier output; node capacity; the chart
+      ConfigMap archive key; and the applier Service/endpoints. A failed apply
+      recheck is reported as infrastructure unavailable while a healthy recheck
+      preserves the machine or Helm assertion as a semantic failure. Timeout and
+      partial-command-failure fixtures prove diagnostics terminate and keep all
+      sections and partial evidence even when the cluster is unhealthy.
     inputs:
       healthy: host and applier-pod readyz probes answer ok
       host_failure: host Kubernetes API probe fails
@@ -160,7 +164,9 @@ test_cases:
       healthy_paths_reach_semantic_assertions: true
       host_api_failure_classified_as_infrastructure: true
       pod_network_or_api_failure_classified_as_infrastructure: true
+      initial_readiness_failure_captures_bootstrap_evidence: true
       diagnostics_have_one_overall_deadline: true
+      init_current_and_previous_logs_are_retained: true
       healthy_recheck_preserves_semantic_failure: true
       unhealthy_recheck_does_not_claim_live_success: true
     traces:
@@ -197,9 +203,19 @@ test_cases:
       The same non-conforming document the schema case validates locally is
       rejected here against the real chart schema, leaving the release untouched.
 
-      Before each live apply, bounded host and in-pod readyz probes distinguish
-      Kubernetes API or pod-network loss from the semantic proof. An apply failure
-      triggers bounded Helm, pod, event, and applier-log diagnostics before cleanup.
+      Immediately after the host Helm install, the tier reads and decodes the
+      actual revision-1 release Secret before waiting for the applier Deployment;
+      later checks retain the same release-budget assertion across the apply and
+      rollback revisions. Before each live apply, bounded host and in-pod readyz
+      probes distinguish Kubernetes API or pod-network loss from the semantic
+      proof.
+
+      Initial readiness and later failures retain the ordered bootstrap bundle
+      described above plus kind node logs and namespace evidence before an owned
+      cluster is deleted. The bundle is written below build/kind-evidence with
+      Deployment/ReplicaSet/pod state, init and previous logs, resource capacity,
+      chart delivery, Service/endpoints, events, and release Secret size. A reused
+      cluster is neither harvested by the release hook nor deleted.
       Infrastructure-unavailable is a distinct failure classification and does not
       satisfy this case: status done records what a healthy completed run proves,
       not that an unhealthy environment passed.
@@ -217,6 +233,9 @@ test_cases:
       rollback_trigger: testdata/integration/applier-values/rollback-trigger.yaml
       rejected: testdata/integration/applier-values/non-conforming.yaml
     expected:
+      revision_one_release_secret_asserted_before_readiness: true
+      failed_owned_bootstrap_retains_evidence_before_delete: true
+      reused_cluster_not_harvested_or_deleted_by_release: true
       real_helm_upgrade_changes_the_release: true
       post_upgrade_verify_failure_reaches_rolled_back: true
       real_helm_rollback_restores_prior_computed_values: true

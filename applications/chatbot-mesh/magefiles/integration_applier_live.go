@@ -143,7 +143,7 @@ func applierLiveSkipReason(coreRoot string) string {
 	return ""
 }
 
-func runApplierLive(coreRoot, profilesRoot string) error {
+func runApplierLive(coreRoot, profilesRoot string) (result error) {
 	images, err := resolveChatbotIntegrationImages(profilesRoot)
 	if err != nil {
 		return err
@@ -215,12 +215,29 @@ func runApplierLive(coreRoot, profilesRoot string) error {
 	if err != nil {
 		return err
 	}
-	defer cluster.Release(kindrig.DefaultRun)
-	unbindKubeconfig, err := bindClusterKubeconfig(applierLiveCluster)
+	evidenceDir := helmScenarioEvidenceDirectory(
+		profilesRoot, applierLiveCluster, images.Revision)
+	var unbindKubeconfig func()
+	defer func() {
+		failed := result != nil
+		if failed && cluster.Created {
+			diagnostics := captureApplierLiveDiagnostics(
+				evidenceDir, runApplierLiveCommand, applierLiveDiagnosticsTimeout)
+			result = fmt.Errorf("%w\n%s", result, diagnostics)
+		}
+		cluster.ReleaseAfter(kindrig.DefaultRun, failed, kindrig.FailureEvidence{
+			Directory:  evidenceDir,
+			Namespaces: []string{"default"},
+			Run:        boundedHelmEvidenceRunner(helmEvidenceCommandTimeout),
+		})
+		if unbindKubeconfig != nil {
+			unbindKubeconfig()
+		}
+	}()
+	unbindKubeconfig, err = bindClusterKubeconfig(applierLiveCluster)
 	if err != nil {
 		return err
 	}
-	defer unbindKubeconfig()
 
 	if err := loadKindImage(applierLiveCluster, images.Applier); err != nil {
 		return err
@@ -237,7 +254,13 @@ func runApplierLive(coreRoot, profilesRoot string) error {
 	if err := helmInstallApplierLive(staged, chartArchive, images.Runtime, images.Applier, assets); err != nil {
 		return err
 	}
-	if err := waitApplierDeploymentReady(); err != nil {
+	// Check the object the API server actually accepted before readiness can
+	// obscure a release-storage regression behind a Deployment timeout.
+	if err := assertHelmReleaseSecrets(applierLiveRelease, chartArchive, assets); err != nil {
+		return err
+	}
+	if err := waitApplierLiveInitialReadiness(
+		runApplierLiveCommand, waitApplierDeploymentReady); err != nil {
 		return err
 	}
 	if err := assertExternalUIAssetsMounted(applierLiveRelease, assets, applierReadyWait); err != nil {

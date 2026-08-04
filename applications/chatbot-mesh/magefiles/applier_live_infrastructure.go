@@ -6,7 +6,9 @@ import (
 	"context"
 	"errors"
 	"fmt"
+	"os"
 	"os/exec"
+	"path/filepath"
 	"strings"
 	"time"
 )
@@ -146,14 +148,78 @@ type applierLiveDiagnosticCommand struct {
 }
 
 func applierLiveDiagnosticCommands() []applierLiveDiagnosticCommand {
+	selector := "app.kubernetes.io/instance=" + applierLiveRelease
+	applierSelector := selector + ",app.kubernetes.io/component=applier"
+	deployment := applierLiveRelease + "-chatbot-mesh-applier"
+
+	// Keep the shared Helm status, structured container state, and event
+	// commands aligned with the other live Helm gates. The remaining commands
+	// retain evidence peculiar to the applier's chart-staging bootstrap.
+	shared := make(map[string]applierLiveDiagnosticCommand)
+	for _, command := range helmFailureDiagnosticCommands(applierLiveRelease) {
+		shared[command.label] = applierLiveDiagnosticCommand{
+			label: command.label,
+			name:  command.name,
+			args:  command.args,
+		}
+	}
 	return []applierLiveDiagnosticCommand{
-		{label: "helm status", name: "helm", args: []string{"status", applierLiveRelease}},
-		{label: "helm history", name: "helm", args: []string{"history", applierLiveRelease}},
-		{label: "pod readiness", name: "kubectl", args: []string{"get", "pods", "-o", "wide"}},
-		{label: "events", name: "kubectl", args: []string{"get", "events", "--sort-by=.metadata.creationTimestamp"}},
-		{label: "applier logs", name: "kubectl", args: []string{
-			"logs", "-l", "app.kubernetes.io/component=applier", "--tail=60",
-		}},
+		shared["Helm status"],
+		applierLiveDiagnosticCommand{
+			label: "Helm history", name: "helm",
+			args: []string{"history", applierLiveRelease},
+		},
+		applierLiveDiagnosticCommand{
+			label: "actual release Secret sizes", name: "kubectl",
+			args: []string{
+				"get", "secret", "-l", "owner=helm,name=" + applierLiveRelease,
+				"-o", `go-template={{range .items}}{{.metadata.name}}{{"\t"}}{{index .data "release" | base64decode | len}}{{"\n"}}{{end}}`,
+			},
+		},
+		applierLiveDiagnosticCommand{
+			label: "applier Deployment ReplicaSet and pod status", name: "kubectl",
+			args: []string{
+				"get", "deployment,replicaset,pod", "-l", applierSelector, "-o", "wide",
+			},
+		},
+		shared["container and init status"],
+		applierLiveDiagnosticCommand{
+			label: "applier pod scheduling probes and termination", name: "kubectl",
+			args: []string{"describe", "pods", "-l", applierSelector},
+		},
+		shared["events"],
+		applierLiveDiagnosticCommand{
+			label: "stage-chart init logs", name: "kubectl",
+			args: []string{"logs", "-l", applierSelector, "-c", "stage-chart", "--tail=120"},
+		},
+		applierLiveDiagnosticCommand{
+			label: "current applier logs", name: "kubectl",
+			args: []string{"logs", "-l", applierSelector, "-c", "applier", "--tail=120"},
+		},
+		applierLiveDiagnosticCommand{
+			label: "previous applier logs", name: "kubectl",
+			args: []string{"logs", "-l", applierSelector, "-c", "applier", "--previous", "--tail=120"},
+		},
+		applierLiveDiagnosticCommand{
+			label: "node capacity and allocatable resources", name: "kubectl",
+			args: []string{
+				"get", "nodes", "-o",
+				"custom-columns=NAME:.metadata.name,CAPACITY_CPU:.status.capacity.cpu,CAPACITY_MEMORY:.status.capacity.memory,ALLOCATABLE_CPU:.status.allocatable.cpu,ALLOCATABLE_MEMORY:.status.allocatable.memory,ALLOCATABLE_PODS:.status.allocatable.pods",
+			},
+		},
+		applierLiveDiagnosticCommand{
+			label: "chart ConfigMap archive key", name: "kubectl",
+			args: []string{
+				"get", "configmap", applierLiveChartConfigMap, "-o",
+				`go-template={{.metadata.name}}{{"\n"}}{{range $key, $value := .binaryData}}{{$key}}{{"\t"}}{{len $value}}{{"\n"}}{{end}}`,
+			},
+		},
+		applierLiveDiagnosticCommand{
+			label: "applier Service and endpoints", name: "kubectl",
+			args: []string{
+				"get", "service/" + deployment, "endpoints/" + deployment, "-o", "wide",
+			},
+		},
 	}
 }
 
@@ -180,6 +246,40 @@ func collectApplierLiveDiagnostics(run applierLiveCommandRunner, timeout time.Du
 		}
 	}
 	return report.String()
+}
+
+func captureApplierLiveDiagnostics(
+	directory string,
+	run applierLiveCommandRunner,
+	timeout time.Duration,
+) string {
+	report := collectApplierLiveDiagnostics(run, timeout)
+	if err := os.MkdirAll(directory, 0o755); err != nil {
+		return report + fmt.Sprintf(
+			"\n[write bounded diagnostics failed: create %s: %v]", directory, err)
+	}
+	path := filepath.Join(directory, "applier-live-diagnostics.txt")
+	if err := os.WriteFile(path, []byte(report+"\n"), 0o644); err != nil {
+		return report + fmt.Sprintf("\n[write bounded diagnostics failed: %v]", err)
+	}
+	return report + "\n[evidence: " + path + "]"
+}
+
+// waitApplierLiveInitialReadiness attaches the bootstrap evidence while the
+// cluster still exists. The outer cluster lifecycle persists the same bounded
+// bundle before deleting an owned cluster.
+func waitApplierLiveInitialReadiness(
+	run applierLiveCommandRunner,
+	wait func() error,
+) error {
+	if err := wait(); err != nil {
+		return &applierLiveSemanticError{
+			Step:        "initial readiness",
+			Cause:       err,
+			Diagnostics: collectApplierLiveDiagnostics(run, applierLiveDiagnosticsTimeout),
+		}
+	}
+	return nil
 }
 
 // runApplierLiveApplyStep preflights both API paths, preserves the existing
