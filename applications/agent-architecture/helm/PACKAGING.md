@@ -7,10 +7,20 @@ because `helm/profiles/` is gitignored:
 - `profiles/curator/` and `profiles/collector/` are catalog-owned closures,
   regenerated from the pinned catalog checkout by `mage helmPrepare` and recorded in
   a checksum-bearing `prepared-manifest.yaml`.
-- `profiles/applier/agents/applier/` is the application-owned applier profile,
-  staged flat from `agents/applier/` alongside the catalog closures. It carries no
-  manifest role entry; the `applier.yaml` template mounts it only when
-  `applier.enabled` is set.
+- `profiles/applier/` is the application-owned applier closure selected by the
+  manifest's `applier` deployment entry and mounted when `applier.enabled` is
+  set.
+
+The same composition manifest declares all four UI assets and the opaque
+catalog `docs/` package asset with ownership, runtime, and package paths. When
+the curator payload exceeds the ConfigMap limit, those declared assets alone
+are packed into out-of-release shards. Package code does not walk an additional
+catalog docs root.
+
+The generated `prepared-manifest.yaml` metadata now uses the generic
+`asset_roots` and `external_asset_roots` names in place of the UI-only names.
+Archive member paths, mounted runtime paths, and source asset bytes are
+unchanged.
 
 ## Applier exec-declarations placeholder rewrite
 

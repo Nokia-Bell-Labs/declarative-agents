@@ -14,7 +14,7 @@ import (
 	"gopkg.in/yaml.v3"
 )
 
-func validatePreparedPackage(root string, extraEntries ...string) error {
+func validatePreparedPackage(root string) error {
 	var deployment deploymentPackageManifest
 	if err := readStrictYAML(
 		filepath.Join(root, "deployment-manifest.yaml"), &deployment); err != nil {
@@ -25,19 +25,17 @@ func validatePreparedPackage(root string, extraEntries ...string) error {
 		deployment.ConfigMapPayloadLimit != configMapPayloadLimit {
 		return fmt.Errorf("invalid deployment manifest contract")
 	}
-	wantRoles := []string{"applier", "critic", "executor", "planner"}
-	if len(deployment.Shards) != len(wantRoles) {
-		return fmt.Errorf("deployment manifest has %d shards, want 4", len(deployment.Shards))
+	if len(deployment.Shards) == 0 {
+		return fmt.Errorf("deployment manifest has no shards")
 	}
 	for index, shard := range deployment.Shards {
-		role := wantRoles[index]
-		if shard.Role != role || shard.Path != role ||
-			shard.Manifest != "manifests/"+role+".yaml" ||
-			shard.Profile != "applications/coding-agent/"+role+"/profile.yaml" {
+		if shard.Role == "" || shard.Path != shard.Role ||
+			shard.Manifest != "manifests/"+shard.Role+".yaml" || shard.Profile == "" ||
+			(index > 0 && deployment.Shards[index-1].Role >= shard.Role) {
 			return fmt.Errorf("deployment shard %d is stale or malformed: %#v", index, shard)
 		}
 		if err := validateRolePackage(root, deployment, shard); err != nil {
-			return fmt.Errorf("%s shard: %w", role, err)
+			return fmt.Errorf("%s shard: %w", shard.Role, err)
 		}
 	}
 	entries, err := os.ReadDir(root)
@@ -48,9 +46,10 @@ func validatePreparedPackage(root string, extraEntries ...string) error {
 	for _, entry := range entries {
 		names = append(names, entry.Name())
 	}
-	// The resolver package carries every manifest deployment entry; the staged
-	// chart adds the catalog collector profile as an extra entry (GH-1162).
-	wantEntries := append([]string{"applier", "critic", "deployment-manifest.yaml", "executor", "manifests", "planner"}, extraEntries...)
+	wantEntries := []string{"deployment-manifest.yaml", "manifests"}
+	for _, shard := range deployment.Shards {
+		wantEntries = append(wantEntries, shard.Path)
+	}
 	sort.Strings(wantEntries)
 	if !reflect.DeepEqual(names, wantEntries) {
 		return fmt.Errorf("profile package top-level entries = %v, want %v", names, wantEntries)

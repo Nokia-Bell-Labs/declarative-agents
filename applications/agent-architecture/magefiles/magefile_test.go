@@ -325,6 +325,11 @@ func TestStatsCompositionOnlyJSON(t *testing.T) {
 	if application["canonical_references"] != float64(3) {
 		t.Fatalf("canonical_references = %#v, want 3", application["canonical_references"])
 	}
+	if application["deployment_entries"] != float64(3) ||
+		application["ui_assets"] != float64(4) ||
+		application["package_assets"] != float64(1) {
+		t.Fatalf("manifest-derived asset stats = %#v", application)
+	}
 }
 
 func TestLifecycleExitContract(t *testing.T) {

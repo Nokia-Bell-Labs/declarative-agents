@@ -133,6 +133,22 @@ func packageServingDeployment(
 		if err != nil {
 			return nil, fmt.Errorf("serving role %s: %w", ref.Role, err)
 		}
+		for _, asset := range manifest.UIAssets {
+			if asset.Owner != ref.Root {
+				continue
+			}
+			if asset.PackagePath != asset.RuntimePath {
+				return nil, fmt.Errorf(
+					"serving role %s asset %s package_path %s must equal mounted runtime_path %s",
+					ref.Role, asset.ID, asset.PackagePath, asset.RuntimePath)
+			}
+			if err := closure.enqueue(asset.Source, asset.PackagePath); err != nil {
+				return nil, fmt.Errorf("serving role %s asset %s: %w", ref.Role, asset.ID, err)
+			}
+		}
+		if err := closure.resolve(); err != nil {
+			return nil, fmt.Errorf("serving role %s assets: %w", ref.Role, err)
+		}
 		roleRoot := filepath.Join(stage, ref.Role)
 		files, partitions, err := writeRoleClosure(virtualRoot, roleRoot, closure.assets)
 		if err != nil {

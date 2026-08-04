@@ -7,23 +7,9 @@ import (
 	"fmt"
 	"os"
 
+	"github.com/Nokia-Bell-Labs/declarative-agents/magefiles/appmanifest"
 	"gopkg.in/yaml.v3"
 )
-
-type applicationManifestStats struct {
-	Roots []struct {
-		ID        string `yaml:"id"`
-		Ownership string `yaml:"ownership"`
-	} `yaml:"roots"`
-	Deployment struct {
-		Entries []struct {
-			ID string `yaml:"id"`
-		} `yaml:"entries"`
-	} `yaml:"deployment"`
-	Runtime struct {
-		ImageContainsProfiles bool `yaml:"image_contains_profiles"`
-	} `yaml:"runtime"`
-}
 
 type codingApplicationStats struct {
 	Application struct {
@@ -34,13 +20,15 @@ type codingApplicationStats struct {
 		ServingProfiles     int      `json:"serving_profiles"`
 		ServingRoles        []string `json:"serving_roles"`
 		ProfileFreeRuntime  bool     `json:"profile_free_runtime"`
+		UIAssets            int      `json:"ui_assets"`
+		PackageAssets       int      `json:"package_assets"`
 	} `json:"application"`
 }
 
 // Stats reports application composition without adding an "agents" section.
-// Canonical planner, executor, critic, and applier implementations are counted once by
-// applications/catalog; this target makes their reuse and the owned serving profiles
-// visible without adding them to the repository-wide agents_total.
+// Canonical implementations are counted once by applications/catalog; this
+// target reports every manifest-declared deployment without maintaining a
+// second serving-role inventory.
 func Stats() error {
 	stats, err := collectCodingApplicationStats("agents/application.yaml")
 	if err != nil {
@@ -60,7 +48,7 @@ func collectCodingApplicationStats(path string) (codingApplicationStats, error) 
 	if err != nil {
 		return result, fmt.Errorf("read application manifest: %w", err)
 	}
-	var manifest applicationManifestStats
+	var manifest appmanifest.Manifest
 	if err := yaml.Unmarshal(data, &manifest); err != nil {
 		return result, fmt.Errorf("parse application manifest: %w", err)
 	}
@@ -74,12 +62,11 @@ func collectCodingApplicationStats(path string) (codingApplicationStats, error) 
 		result.Application.CanonicalRoles = append(result.Application.CanonicalRoles, root.ID)
 	}
 	for _, entry := range manifest.Deployment.Entries {
-		if entry.ID == "applier" {
-			continue
-		}
 		result.Application.ServingProfiles++
 		result.Application.ServingRoles = append(result.Application.ServingRoles, entry.ID)
 	}
 	result.Application.ProfileFreeRuntime = !manifest.Runtime.ImageContainsProfiles
+	result.Application.UIAssets = len(manifest.UI.Assets)
+	result.Application.PackageAssets = len(manifest.Package.Assets)
 	return result, nil
 }

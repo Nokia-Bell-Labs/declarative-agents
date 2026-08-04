@@ -42,7 +42,7 @@ type preparedRole struct {
 	Ownership         string   `yaml:"ownership"`
 	Source            string   `yaml:"source"`
 	CompatibleRelease string   `yaml:"compatible_release,omitempty"`
-	UIRoots           []string `yaml:"ui_roots,omitempty"`
+	AssetRoots        []string `yaml:"asset_roots,omitempty"`
 	Checksum          string   `yaml:"checksum"`
 	Files             []string `yaml:"files"`
 }
@@ -54,7 +54,7 @@ type preparedManifest struct {
 	MountPath             string                `yaml:"mount_path"`
 	ConfigMapPayloadLimit int                   `yaml:"config_map_payload_limit_bytes"`
 	Roles                 []preparedRole        `yaml:"roles"`
-	ExternalUIRoots       []string              `yaml:"external_ui_roots,omitempty"`
+	ExternalAssetRoots    []string              `yaml:"external_asset_roots,omitempty"`
 	Closure               appmanifest.Inventory `yaml:"closure"`
 }
 
@@ -64,10 +64,10 @@ type preparedRolePlan struct {
 }
 
 type compositionPlan struct {
-	manifest        appmanifest.Manifest
-	inventory       appmanifest.Inventory
-	roles           []preparedRolePlan
-	externalUIRoots []string
+	manifest           appmanifest.Manifest
+	inventory          appmanifest.Inventory
+	roles              []preparedRolePlan
+	externalAssetRoots []string
 }
 
 // HelmPrepare resolves all deployment entries from agents/application.yaml and
@@ -129,17 +129,16 @@ func prepareCuratorAssets(applicationRoot, catalogRoot, chartRoot string) error 
 	return nil
 }
 
-// buildCuratorAssetArchive returns a deterministic gzip tarball of the UI files
-// the manifest-derived profile plan moved out of oversized ConfigMaps, plus the
-// catalog docs tree the curator serves. UI paths come only from the shared
-// appmanifest closure; there is no Helm-owned UI inventory.
+// buildCuratorAssetArchive returns a deterministic gzip tarball of the
+// manifest-declared assets moved out of oversized ConfigMaps. Both UI and
+// catalog documentation paths come only from the shared appmanifest closure.
 func buildCuratorAssetArchive(applicationRoot, catalogRoot string) ([]byte, error) {
 	plan, err := resolveCompositionPlan(applicationRoot, catalogRoot)
 	if err != nil {
 		return nil, err
 	}
-	external := make(map[string]bool, len(plan.externalUIRoots))
-	for _, id := range plan.externalUIRoots {
+	external := make(map[string]bool, len(plan.externalAssetRoots))
+	for _, id := range plan.externalAssetRoots {
 		external[id] = true
 	}
 	type archiveAsset struct {
@@ -160,19 +159,8 @@ func buildCuratorAssetArchive(applicationRoot, catalogRoot string) ([]byte, erro
 			if err != nil {
 				return nil, err
 			}
-			assets = append(assets, archiveAsset{name: file.RuntimePath, source: source})
+			assets = append(assets, archiveAsset{name: file.PackagePath, source: source})
 		}
-	}
-	docsRoot := filepath.Join(catalogRoot, "docs")
-	docs, err := regularRelativeFiles(docsRoot)
-	if err != nil {
-		return nil, fmt.Errorf("read curator docs tree %s: %w", docsRoot, err)
-	}
-	for _, relative := range docs {
-		assets = append(assets, archiveAsset{
-			name:   "docs/" + relative,
-			source: filepath.Join(docsRoot, filepath.FromSlash(relative)),
-		})
 	}
 	sort.Slice(assets, func(i, j int) bool { return assets[i].name < assets[j].name })
 	if len(assets) == 0 {
@@ -263,7 +251,7 @@ func prepareChartProfiles(applicationRoot, catalogRoot, chartRoot string) error 
 		MountPath:             plan.manifest.Runtime.MountPath,
 		ConfigMapPayloadLimit: configMapPayloadLimit,
 		Roles:                 roles,
-		ExternalUIRoots:       plan.externalUIRoots,
+		ExternalAssetRoots:    plan.externalAssetRoots,
 		Closure:               plan.inventory,
 	}
 	if err := writeYAML(filepath.Join(stage, preparedManifestFilename), manifest); err != nil {
@@ -295,16 +283,19 @@ func resolveCompositionPlan(applicationRoot, catalogRoot string) (compositionPla
 	for _, root := range manifest.Roots {
 		roots[root.ID] = root
 	}
-	uiRootsByOwner := make(map[string][]string)
+	assetRootsByOwner := make(map[string][]string)
 	for _, asset := range manifest.UI.Assets {
-		uiRootsByOwner[asset.Owner] = append(uiRootsByOwner[asset.Owner], "ui-"+asset.ID)
+		assetRootsByOwner[asset.Owner] = append(assetRootsByOwner[asset.Owner], "ui-"+asset.ID)
+	}
+	for _, asset := range manifest.Package.Assets {
+		assetRootsByOwner[asset.Owner] = append(assetRootsByOwner[asset.Owner], "asset-"+asset.ID)
 	}
 	entries := append([]appmanifest.DeploymentEntry(nil), manifest.Deployment.Entries...)
 	sort.Slice(entries, func(i, j int) bool { return entries[i].ID < entries[j].ID })
 	for _, entry := range entries {
 		root := roots[entry.Root]
-		uiRoots := uiRootsByOwner[entry.Root]
-		packageRoots := append([]string{entry.Root}, uiRoots...)
+		assetRoots := assetRootsByOwner[entry.Root]
+		packageRoots := append([]string{entry.Root}, assetRoots...)
 		files := inventoryFilesForRoots(inventory, packageRoots)
 		if len(files) == 0 {
 			return compositionPlan{}, fmt.Errorf(
@@ -315,15 +306,15 @@ func resolveCompositionPlan(applicationRoot, catalogRoot string) (compositionPla
 			return compositionPlan{}, err
 		}
 		if payload > configMapPayloadLimit {
-			if len(uiRoots) == 0 {
+			if len(assetRoots) == 0 {
 				return compositionPlan{}, fmt.Errorf(
-					"deployment entry %s payload %d exceeds limit %d and has no declared UI to externalize",
+					"deployment entry %s payload %d exceeds limit %d and has no declared assets to externalize",
 					entry.ID, payload, configMapPayloadLimit)
 			}
-			files = excludeInventoryRoots(files, uiRoots)
+			files = excludeInventoryRoots(files, assetRoots)
 			if len(files) == 0 {
 				return compositionPlan{}, fmt.Errorf(
-					"deployment entry %s contains only external UI assets", entry.ID)
+					"deployment entry %s contains only external package assets", entry.ID)
 			}
 			payload, err = inventoryPayload(applicationRoot, catalogRoot, files)
 			if err != nil {
@@ -331,10 +322,10 @@ func resolveCompositionPlan(applicationRoot, catalogRoot string) (compositionPla
 			}
 			if payload > configMapPayloadLimit {
 				return compositionPlan{}, fmt.Errorf(
-					"deployment entry %s ConfigMap payload %d exceeds limit %d after externalizing UI",
+					"deployment entry %s ConfigMap payload %d exceeds limit %d after externalizing assets",
 					entry.ID, payload, configMapPayloadLimit)
 			}
-			plan.externalUIRoots = append(plan.externalUIRoots, uiRoots...)
+			plan.externalAssetRoots = append(plan.externalAssetRoots, assetRoots...)
 		}
 		profile := entry.ProfilePath
 		if profile == "" {
@@ -351,13 +342,13 @@ func resolveCompositionPlan(applicationRoot, catalogRoot string) (compositionPla
 				Role: entry.ID, Root: entry.Root, Path: entry.ID, Profile: profile,
 				Ownership: root.Ownership, Source: source,
 				CompatibleRelease: root.CompatibleRelease,
-				UIRoots:           append([]string(nil), uiRoots...),
+				AssetRoots:        append([]string(nil), assetRoots...),
 			},
 			files: files,
 		})
 	}
-	sort.Strings(plan.externalUIRoots)
-	plan.externalUIRoots = uniqueStrings(plan.externalUIRoots)
+	sort.Strings(plan.externalAssetRoots)
+	plan.externalAssetRoots = uniqueStrings(plan.externalAssetRoots)
 	return plan, nil
 }
 
@@ -497,7 +488,7 @@ func validatePreparedProfiles(profilesRoot string) error {
 		}
 		for _, path := range actual {
 			file, exists := closureFiles[path]
-			allowedRoots := append([]string{role.Root}, role.UIRoots...)
+			allowedRoots := append([]string{role.Root}, role.AssetRoots...)
 			traceable := false
 			for _, root := range allowedRoots {
 				if containsValue(file.Roots, root) {

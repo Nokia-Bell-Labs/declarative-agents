@@ -253,6 +253,7 @@ func TestCodingApplicationManifestStagesEveryMountedProfile(t *testing.T) {
 		"executor":         "agents/executor/profile.yaml",
 		"critic":           "agents/critic/profile.yaml",
 		"critic-workspace": "agents/critic/profile-workspace.yaml",
+		"collector":         "agents/collector/profile.yaml",
 	}
 	for _, ref := range manifest.Catalog.References {
 		want, exists := wantRoles[ref.Role]
@@ -277,6 +278,7 @@ func TestCodingApplicationManifestStagesEveryMountedProfile(t *testing.T) {
 		"agents/critic/point.yaml",
 		"agents/critic/profile-workspace.yaml",
 		"agents/critic/workspace-exec.yaml",
+		"agents/collector/profile.yaml",
 	} {
 		if !staged[required] {
 			t.Errorf("canonical closure missing transitive asset %s", required)

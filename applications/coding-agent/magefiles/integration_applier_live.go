@@ -212,8 +212,8 @@ func resolveCodingApplierImage(applicationRoot string) (string, error) {
 	return image, nil
 }
 
-// stageCodingApplierLiveChart assembles one chart directory carrying the profile
-// manifest-derived closure, the collector profile, and a test-only post-upgrade
+// stageCodingApplierLiveChart assembles one chart directory carrying the
+// manifest-derived closure and a test-only post-upgrade
 // rollback trigger. The host installs this directory, and packageCodingApplierChart
 // packages it to the tarball the applier mounts at /chart, so a values change
 // re-renders one coherent instrumented chart (srd006 R2.2). It mirrors
@@ -231,15 +231,6 @@ func stageCodingApplierLiveChart(applicationRoot string) (string, func(), error)
 		return "", nil, fmt.Errorf("stage source chart: %w", err)
 	}
 	if err := prepareHelmProfiles(profiles, chart); err != nil {
-		cleanup()
-		return "", nil, err
-	}
-	catalogRoot, err := resolveCatalogRoot("applierLive stage chart", applicationRoot)
-	if err != nil {
-		cleanup()
-		return "", nil, err
-	}
-	if err := stageCollectorProfile(catalogRoot, chart); err != nil {
 		cleanup()
 		return "", nil, err
 	}

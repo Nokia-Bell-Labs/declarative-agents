@@ -10,6 +10,7 @@ import (
 	"strings"
 	"testing"
 
+	"github.com/Nokia-Bell-Labs/declarative-agents/magefiles/appmanifest"
 	"gopkg.in/yaml.v3"
 )
 
@@ -17,6 +18,17 @@ func TestDeploymentPackageContainsExactRoleClosures(t *testing.T) {
 	root, manifest, cleanup := packageCanonicalDeployment(t)
 	defer cleanup()
 	want := map[string][]string{
+		"collector": {
+			"agents/collector/declarations.yaml",
+			"agents/collector/machine.yaml",
+			"agents/collector/profile.yaml",
+			"agents/collector/query-declarations.yaml",
+			"agents/collector/rest.yaml",
+			"agents/collector/tools.yaml",
+			"agents/collector/ui/dist/assets/index-5A82fh-G.js",
+			"agents/collector/ui/dist/assets/index-lOxaVWl8.css",
+			"agents/collector/ui/dist/index.html",
+		},
 		"applier": {
 			"applications/catalog/applier/apply-declarations.yaml",
 			"applications/catalog/applier/apply-machine.yaml",
@@ -75,9 +87,6 @@ func TestDeploymentPackageContainsExactRoleClosures(t *testing.T) {
 		roleManifest := readRolePackageManifest(t, filepath.Join(root, "manifests", role+".yaml"))
 		if !reflect.DeepEqual(roleManifest.Files, expected) {
 			t.Errorf("%s files:\n got %#v\nwant %#v", role, roleManifest.Files, expected)
-		}
-		if roleManifest.Profile != "applications/coding-agent/"+role+"/profile.yaml" {
-			t.Errorf("%s profile = %q", role, roleManifest.Profile)
 		}
 		if len(roleManifest.ConfigMaps) != 1 ||
 			!reflect.DeepEqual(roleManifest.ConfigMaps[0].Files, expected) {
@@ -193,15 +202,18 @@ func TestDeploymentServingReferenceRejectsDanglingAsset(t *testing.T) {
 	}
 }
 
-func TestDeploymentReferencesRequireNormalizedApplicationPaths(t *testing.T) {
+func TestDeploymentReferencesAcceptManifestSelectedRoots(t *testing.T) {
 	references := []profileReference{
 		{Role: "planner", Source: "agents/copied-planner/profile.yaml", RuntimePath: "applications/coding-agent/planner/profile.yaml"},
-		{Role: "executor", Source: "agents/executor/profile.yaml", RuntimePath: "applications/coding-agent/executor/profile.yaml"},
-		{Role: "critic", Source: "agents/critic/profile.yaml", RuntimePath: "applications/coding-agent/critic/profile.yaml"},
+		{Role: "telemetry", Source: "agents/collector/profile.yaml", RuntimePath: "agents/collector/profile.yaml"},
 	}
+	if err := validateDeploymentReferences(references); err != nil {
+		t.Fatalf("manifest-selected deployment references were rejected: %v", err)
+	}
+	references = append(references, references[0])
 	if err := validateDeploymentReferences(references); err == nil ||
-		!strings.Contains(err.Error(), "source") {
-		t.Fatalf("non-canonical serving source error = %v", err)
+		!strings.Contains(err.Error(), "duplicate") {
+		t.Fatalf("duplicate deployment reference error = %v", err)
 	}
 }
 
@@ -216,6 +228,66 @@ func TestDeploymentManifestPreservesProfileFreeRuntime(t *testing.T) {
 	}
 	if manifest.ApplicationSource.Revision == "" {
 		t.Fatal("deployment package omits application source revision")
+	}
+}
+
+func TestManifestMutationControlsCollectorAssets(t *testing.T) {
+	appRoot, catalogRoot := mutableCodingCompositionFixture(t)
+	manifest := loadMutableCodingManifest(t, appRoot, catalogRoot)
+	manifest.UI.Assets[0].Source = "agents/collector/ui/dist/assets"
+	manifest.UI.Assets[0].RuntimePath = "agents/collector/ui/assets"
+	manifest.UI.Assets[0].PackagePath = "agents/collector/ui/assets"
+	writeMutableCodingManifest(t, appRoot, manifest)
+
+	output := packageMutableCodingComposition(t, appRoot, catalogRoot)
+	if _, err := os.Stat(filepath.Join(
+		output, "collector", "agents", "collector", "ui", "assets")); err != nil {
+		t.Fatalf("manifest-selected collector assets were not staged: %v", err)
+	}
+	if _, err := os.Stat(filepath.Join(
+		output, "collector", "agents", "collector", "ui", "dist", "index.html")); !os.IsNotExist(err) {
+		t.Fatalf("undeclared collector UI index remained staged: %v", err)
+	}
+}
+
+func TestUndeclaredCollectorUIIsNotPackaged(t *testing.T) {
+	appRoot, catalogRoot := mutableCodingCompositionFixture(t)
+	manifest := loadMutableCodingManifest(t, appRoot, catalogRoot)
+	manifest.UI.Assets = nil
+	manifest.Capabilities["ui"] = appmanifest.Capability{Status: "not_applicable"}
+	writeMutableCodingManifest(t, appRoot, manifest)
+
+	output := packageMutableCodingComposition(t, appRoot, catalogRoot)
+	if _, err := os.Stat(filepath.Join(
+		output, "collector", "agents", "collector", "ui")); !os.IsNotExist(err) {
+		t.Fatalf("undeclared collector UI entered package: %v", err)
+	}
+}
+
+func TestUndeclaredCollectorRootIsNotPackaged(t *testing.T) {
+	appRoot, catalogRoot := mutableCodingCompositionFixture(t)
+	manifest := loadMutableCodingManifest(t, appRoot, catalogRoot)
+	var roots []appmanifest.Root
+	for _, root := range manifest.Roots {
+		if root.ID != "collector" {
+			roots = append(roots, root)
+		}
+	}
+	manifest.Roots = roots
+	var entries []appmanifest.DeploymentEntry
+	for _, entry := range manifest.Deployment.Entries {
+		if entry.Root != "collector" {
+			entries = append(entries, entry)
+		}
+	}
+	manifest.Deployment.Entries = entries
+	manifest.UI.Assets = nil
+	manifest.Capabilities["ui"] = appmanifest.Capability{Status: "not_applicable"}
+	writeMutableCodingManifest(t, appRoot, manifest)
+
+	output := packageMutableCodingComposition(t, appRoot, catalogRoot)
+	if _, err := os.Stat(filepath.Join(output, "collector")); !os.IsNotExist(err) {
+		t.Fatalf("undeclared collector root entered package: %v", err)
 	}
 }
 
@@ -246,6 +318,51 @@ func canonicalDeploymentInputs(t *testing.T) (integrationRoots, applicationProfi
 		t.Fatal(err)
 	}
 	return roots, manifest
+}
+
+func mutableCodingCompositionFixture(t *testing.T) (string, string) {
+	t.Helper()
+	source := filepath.Clean("..")
+	appRoot := filepath.Join(t.TempDir(), "coding-agent")
+	if err := copySourceTreeStrict(filepath.Join(source, "agents"), filepath.Join(appRoot, "agents")); err != nil {
+		t.Fatal(err)
+	}
+	return appRoot, filepath.Clean(filepath.Join(source, "..", "catalog"))
+}
+
+func loadMutableCodingManifest(t *testing.T, appRoot, catalogRoot string) appmanifest.Manifest {
+	t.Helper()
+	manifest, err := appmanifest.Load(
+		filepath.Join(appRoot, filepath.FromSlash(profileManifestPath)),
+		appmanifest.Options{ApplicationRoot: appRoot, CatalogRoot: catalogRoot})
+	if err != nil {
+		t.Fatal(err)
+	}
+	return manifest
+}
+
+func writeMutableCodingManifest(t *testing.T, appRoot string, manifest appmanifest.Manifest) {
+	t.Helper()
+	data, err := yaml.Marshal(manifest)
+	if err != nil {
+		t.Fatal(err)
+	}
+	writeTestFile(t, filepath.Join(appRoot, filepath.FromSlash(profileManifestPath)), string(data))
+}
+
+func packageMutableCodingComposition(t *testing.T, appRoot, catalogRoot string) string {
+	t.Helper()
+	manifest, err := readApplicationProfileManifestWithCatalog(
+		filepath.Join(appRoot, filepath.FromSlash(profileManifestPath)), catalogRoot)
+	if err != nil {
+		t.Fatal(err)
+	}
+	output := filepath.Join(t.TempDir(), "profiles")
+	if _, err := packageServingDeployment(
+		appRoot, catalogRoot, output, manifest, testPackageSource()); err != nil {
+		t.Fatal(err)
+	}
+	return output
 }
 
 func readRolePackageManifest(t *testing.T, filename string) rolePackageManifest {

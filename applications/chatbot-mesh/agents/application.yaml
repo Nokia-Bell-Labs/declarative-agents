@@ -118,25 +118,33 @@ ui:
   assets:
     - id: chatbot-descriptor
       owner: chatbot
+      ownership: local
       source: agents/chatbot/ui/ui.yaml
       runtime_path: agents/chatbot/ui/ui.yaml
+      package_path: profiles/agents/chatbot/ui/ui.yaml
       rest_definition: agents/chatbot/rest.yaml
       shared_tokens: "canonical import: applications/catalog/ui/design-tokens.css"
     - id: chatbot
       owner: chatbot
+      ownership: local
       source: agents/chatbot/ui/app/dist
       runtime_path: agents/chatbot/ui/app/dist
+      package_path: profiles/agents/chatbot/ui/app/dist
       rest_definition: agents/chatbot/rest.yaml
       shared_tokens: "canonical import: applications/catalog/ui/design-tokens.css"
     - id: observer
       owner: observer
+      ownership: local
       source: agents/observer/ui/dist
       runtime_path: agents/observer/ui/dist
+      package_path: profiles/agents/observer/ui/dist
       rest_definition: agents/observer/rest.yaml
       shared_tokens: "canonical import: applications/catalog/ui/design-tokens.css"
     - id: collector
       owner: collector
+      ownership: catalog
       source: agents/collector/ui/dist
       runtime_path: collector-ui/ui/dist
+      package_path: collector-ui/ui/dist
       rest_definition: agents/collector/rest.yaml
       shared_tokens: "canonical import: applications/catalog/ui/design-tokens.css"

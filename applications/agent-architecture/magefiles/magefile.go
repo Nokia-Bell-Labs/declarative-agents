@@ -161,6 +161,9 @@ type statsOutput struct {
 		AgentsContributed   int    `json:"agents_contributed"`
 		CanonicalReferences int    `json:"canonical_references"`
 		CanonicalProfile    string `json:"canonical_profile"`
+		DeploymentEntries   int    `json:"deployment_entries"`
+		UIAssets            int    `json:"ui_assets"`
+		PackageAssets       int    `json:"package_assets"`
 	} `json:"application"`
 }
 
@@ -702,5 +705,8 @@ func newStatsOutput(manifest appmanifest.Manifest) statsOutput {
 		}
 	}
 	output.Application.CanonicalProfile = "applications/catalog/" + canonicalProfile
+	output.Application.DeploymentEntries = len(manifest.Deployment.Entries)
+	output.Application.UIAssets = len(manifest.UI.Assets)
+	output.Application.PackageAssets = len(manifest.Package.Assets)
 	return output
 }

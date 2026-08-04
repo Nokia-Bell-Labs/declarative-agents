@@ -39,6 +39,7 @@ func TestResolveCompleteClosureAndProvenance(t *testing.T) {
 		"applications/fixture-app/local/profile.yaml",
 		"applications/fixture-app/local/ui/app.js",
 		"applications/fixture-app/local/ui/index.html",
+		"docs/index.yaml",
 	}
 	if !reflect.DeepEqual(got, want) {
 		t.Fatalf("closure paths = %#v, want %#v", got, want)
@@ -53,8 +54,11 @@ func TestResolveCompleteClosureAndProvenance(t *testing.T) {
 		}
 	}
 	if gotRoots := inventoryRootIDs(inventory); !reflect.DeepEqual(gotRoots,
-		[]string{"catalog-root", "local-root", "ui-local-ui"}) {
+		[]string{"asset-catalog-docs", "catalog-root", "local-root", "ui-local-ui"}) {
 		t.Fatalf("root provenance = %v", gotRoots)
+	}
+	if got := inventoryFile(inventory, "docs/index.yaml").PackagePath; got != "curator/docs/index.yaml" {
+		t.Fatalf("catalog docs package path = %q", got)
 	}
 }
 
@@ -310,6 +314,8 @@ tools:
 	writeFixtureFile(t, filepath.Join(appRoot, "agents/common/machine.yaml"), "name: local-common\n")
 	writeFixtureFile(t, filepath.Join(appRoot, "agents/local/ui/index.html"), "<html></html>\n")
 	writeFixtureFile(t, filepath.Join(appRoot, "agents/local/ui/app.js"), "console.log('fixture')\n")
+	writeFixtureFile(t, filepath.Join(catalogRoot, "docs/index.yaml"),
+		"machine: this-is-documentation-not-a-profile-reference.yaml\n")
 	writeFixtureFile(t, filepath.Join(appRoot, "agents/local/rest.yaml"), `rest:
   servers:
     local:
@@ -326,9 +332,14 @@ tools:
 	)
 	manifest.Capabilities["ui"] = Capability{Status: "implemented", Evidence: []string{"UI test"}}
 	manifest.UI.Assets = []UIAsset{{
-		ID: "local-ui", Owner: "local-root", Source: "agents/local/ui",
+		ID: "local-ui", Owner: "local-root", Ownership: "local", Source: "agents/local/ui",
 		RuntimePath:    "applications/fixture-app/local/ui",
+		PackagePath:    "applications/fixture-app/local/ui",
 		RESTDefinition: "agents/local/rest.yaml", SharedTokens: "canonical",
+	}}
+	manifest.Package.Assets = []PackageAsset{{
+		ID: "catalog-docs", Owner: "catalog-root", Ownership: "catalog",
+		Source: "docs", RuntimePath: "docs", PackagePath: "curator/docs",
 	}}
 	return appRoot, catalogRoot, manifest
 }

@@ -65,6 +65,18 @@ func TestLoadRejectsInvalidSchemaPathsDuplicatesAndCapabilities(t *testing.T) {
 		{"UI runtime duplicate", func(m *Manifest) {
 			m.UI.Assets[0].RuntimePath = m.Roots[1].RuntimePath
 		}, "duplicate normalized runtime"},
+		{"UI ownership mismatch", func(m *Manifest) {
+			m.UI.Assets[0].Ownership = "catalog"
+		}, "does not match owner"},
+		{"UI package traversal", func(m *Manifest) {
+			m.UI.Assets[0].PackagePath = "../ui"
+		}, "traversal"},
+		{"package ownership mismatch", func(m *Manifest) {
+			m.Package.Assets[0].Ownership = "local"
+		}, "does not match owner"},
+		{"package destination duplicate", func(m *Manifest) {
+			m.Package.Assets[0].PackagePath = m.UI.Assets[0].PackagePath
+		}, "duplicate normalized package"},
 	}
 	for _, test := range tests {
 		t.Run(test.name, func(t *testing.T) {
@@ -143,6 +155,7 @@ func TestLoadAllowsPlannedMissingRootOnlyForAuditOnlyModule(t *testing.T) {
 	manifest.Capabilities["packaged"] = Capability{Status: "not_applicable"}
 	manifest.Capabilities["ui"] = Capability{Status: "not_applicable"}
 	manifest.UI.Assets = nil
+	manifest.Package.Assets = nil
 	manifest.Deployment.Entries = nil
 	manifest.Roots = []Root{{
 		ID: "future", Ownership: "local", Source: "agents/future/profile.yaml",
@@ -177,9 +190,14 @@ func validManifest() Manifest {
 			ProfilePath: "applications/fixture-app/local/profile.yaml", MountPath: "/profiles",
 		}}},
 		UI: UI{Assets: []UIAsset{{
-			ID: "local-ui", Owner: "local-root", Source: "agents/local/ui",
+			ID: "local-ui", Owner: "local-root", Ownership: "local", Source: "agents/local/ui",
 			RuntimePath:    "applications/fixture-app/local/ui",
+			PackagePath:    "applications/fixture-app/local/ui",
 			RESTDefinition: "agents/local/rest.yaml", SharedTokens: "canonical",
+		}}},
+		Package: Package{Assets: []PackageAsset{{
+			ID: "catalog-docs", Owner: "catalog-root", Ownership: "catalog",
+			Source: "docs", RuntimePath: "docs", PackagePath: "curator/docs",
 		}}},
 	}
 }
@@ -188,6 +206,7 @@ func manifestFixture(t *testing.T) (string, string) {
 	t.Helper()
 	appRoot, catalogRoot := newApplicationRoot(t), t.TempDir()
 	writeFixtureFile(t, filepath.Join(catalogRoot, "agents/catalog/profile.yaml"), "name: catalog\n")
+	writeFixtureFile(t, filepath.Join(catalogRoot, "docs/index.yaml"), "title: fixture\n")
 	writeFixtureFile(t, filepath.Join(appRoot, "agents/local/profile.yaml"), "name: local\n")
 	writeFixtureFile(t, filepath.Join(appRoot, "agents/local/ui/index.html"), "<html></html>\n")
 	writeFixtureFile(t, filepath.Join(appRoot, "agents/local/rest.yaml"), `rest:

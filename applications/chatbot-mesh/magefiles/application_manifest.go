@@ -93,7 +93,8 @@ func stageChatbotComposition(chartRoot, applicationRoot, catalogRoot string) err
 	}
 	files := make([]chatbotPackageFile, 0, len(composition.inventory.Files))
 	for _, file := range composition.inventory.Files {
-		packagePath, err := chatbotPackagePath(composition.manifest, file.RuntimePath)
+		packagePath, err := chatbotPackagePath(
+			composition.manifest, file.RuntimePath, file.PackagePath)
 		if err != nil {
 			return err
 		}
@@ -161,11 +162,19 @@ func chatbotSourceRevision(root string) chatbotCheckoutProvenance {
 	}
 }
 
-func chatbotPackagePath(manifest appmanifest.Manifest, runtimePath string) (string, error) {
+func chatbotPackagePath(manifest appmanifest.Manifest, runtimePath, declaredPackagePath string) (string, error) {
 	runtimePath = path.Clean(filepath.ToSlash(runtimePath))
 	if runtimePath == "." || runtimePath == ".." || strings.HasPrefix(runtimePath, "../") ||
 		path.IsAbs(runtimePath) {
 		return "", fmt.Errorf("invalid closure runtime path %q", runtimePath)
+	}
+	declaredPackagePath = path.Clean(filepath.ToSlash(declaredPackagePath))
+	if declaredPackagePath != "" && declaredPackagePath != "." && declaredPackagePath != runtimePath {
+		if declaredPackagePath == ".." || strings.HasPrefix(declaredPackagePath, "../") ||
+			path.IsAbs(declaredPackagePath) {
+			return "", fmt.Errorf("invalid closure package path %q", declaredPackagePath)
+		}
+		return declaredPackagePath, nil
 	}
 	if strings.HasPrefix(runtimePath, "agents/") ||
 		strings.HasPrefix(runtimePath, "applications/") {

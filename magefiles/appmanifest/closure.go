@@ -31,22 +31,26 @@ type RootProvenance struct {
 	Ownership         string `yaml:"ownership"`
 	Source            string `yaml:"source"`
 	RuntimePath       string `yaml:"runtime_path"`
+	PackagePath       string `yaml:"package_path"`
 	CompatibleRelease string `yaml:"compatible_release,omitempty"`
 }
 
 type InventoryFile struct {
 	Source      string   `yaml:"source"`
 	RuntimePath string   `yaml:"runtime_path"`
+	PackagePath string   `yaml:"package_path"`
 	Checksum    string   `yaml:"checksum"`
 	Roots       []string `yaml:"roots"`
 }
 
 type closureItem struct {
-	ownership string
-	source    string
-	runtime   string
-	rootID    string
-	lineage   []string
+	ownership   string
+	source      string
+	runtime     string
+	packagePath string
+	rootID      string
+	lineage     []string
+	opaque      bool
 }
 
 type closureResolver struct {
@@ -56,6 +60,7 @@ type closureResolver struct {
 	runtimeSources  []runtimeSourceMapping
 	maxFiles        int
 	files           map[string]InventoryFile
+	packages        map[string]InventoryFile
 	visited         map[string]bool
 	queue           []closureItem
 }
@@ -98,6 +103,7 @@ func Resolve(manifest Manifest, options Options) (Inventory, error) {
 		runtimeOwned:    runtimeOwned,
 		maxFiles:        maxFiles,
 		files:           make(map[string]InventoryFile),
+		packages:        make(map[string]InventoryFile),
 		visited:         make(map[string]bool),
 	}
 	inventory := Inventory{SchemaVersion: SchemaVersion, Application: manifest.Application}
@@ -115,10 +121,11 @@ func Resolve(manifest Manifest, options Options) (Inventory, error) {
 		resolver.runtimeSources = append(resolver.runtimeSources, mapping)
 		inventory.Roots = append(inventory.Roots, RootProvenance{
 			ID: root.ID, Ownership: root.Ownership, Source: logicalSource(root.Ownership, root.Source),
-			RuntimePath: root.RuntimePath, CompatibleRelease: root.CompatibleRelease,
+			RuntimePath: root.RuntimePath, PackagePath: root.RuntimePath,
+			CompatibleRelease: root.CompatibleRelease,
 		})
 		resolver.queue = append(resolver.queue, closureItem{
-			ownership: root.Ownership, source: root.Source, runtime: root.RuntimePath,
+			ownership: root.Ownership, source: root.Source, runtime: root.RuntimePath, packagePath: root.RuntimePath,
 			rootID: root.ID, lineage: []string{sourceKey(root.Ownership, root.Source)},
 		})
 	}
@@ -139,18 +146,27 @@ func Resolve(manifest Manifest, options Options) (Inventory, error) {
 		rootByID[root.ID] = root
 	}
 	for _, asset := range manifest.UI.Assets {
-		ownership := "local"
-		if owner, exists := rootByID[asset.Owner]; exists && owner.Ownership == "catalog" {
-			ownership = "catalog"
-		}
 		id := "ui-" + asset.ID
 		inventory.Roots = append(inventory.Roots, RootProvenance{
-			ID: id, Ownership: ownership, Source: logicalSource(ownership, asset.Source),
-			RuntimePath: asset.RuntimePath,
+			ID: id, Ownership: asset.Ownership, Source: logicalSource(asset.Ownership, asset.Source),
+			RuntimePath: asset.RuntimePath, PackagePath: asset.PackagePath,
 		})
 		resolver.queue = append(resolver.queue, closureItem{
-			ownership: ownership, source: asset.Source, runtime: asset.RuntimePath,
-			rootID: id, lineage: []string{sourceKey(ownership, asset.Source)},
+			ownership: asset.Ownership, source: asset.Source, runtime: asset.RuntimePath,
+			packagePath: asset.PackagePath, rootID: id,
+			lineage: []string{sourceKey(asset.Ownership, asset.Source)}, opaque: true,
+		})
+	}
+	for _, asset := range manifest.Package.Assets {
+		id := "asset-" + asset.ID
+		inventory.Roots = append(inventory.Roots, RootProvenance{
+			ID: id, Ownership: asset.Ownership, Source: logicalSource(asset.Ownership, asset.Source),
+			RuntimePath: asset.RuntimePath, PackagePath: asset.PackagePath,
+		})
+		resolver.queue = append(resolver.queue, closureItem{
+			ownership: asset.Ownership, source: asset.Source, runtime: asset.RuntimePath,
+			packagePath: asset.PackagePath, rootID: id,
+			lineage: []string{sourceKey(asset.Ownership, asset.Source)}, opaque: true,
 		})
 	}
 	if err := resolver.run(); err != nil {
@@ -217,7 +233,7 @@ func (resolver *closureResolver) run() error {
 		if err := resolver.addFile(item, data); err != nil {
 			return err
 		}
-		if strings.HasSuffix(item.source, ".yaml") || strings.HasSuffix(item.source, ".yml") {
+		if !item.opaque && (strings.HasSuffix(item.source, ".yaml") || strings.HasSuffix(item.source, ".yml")) {
 			if err := resolver.resolveYAML(item, data); err != nil {
 				return err
 			}
@@ -240,7 +256,8 @@ func (resolver *closureResolver) expandDirectory(item closureItem, directory str
 		}
 		resolver.queue = append(resolver.queue, closureItem{
 			ownership: item.ownership, source: source, runtime: runtime,
-			rootID: item.rootID, lineage: append([]string(nil), item.lineage...),
+			packagePath: path.Join(item.packagePath, entry.Name()),
+			rootID:      item.rootID, lineage: append([]string(nil), item.lineage...), opaque: item.opaque,
 		})
 	}
 	return nil
@@ -251,7 +268,7 @@ func (resolver *closureResolver) addFile(item closureItem, data []byte) error {
 	checksum := "sha256:" + hex.EncodeToString(sum[:])
 	source := logicalSource(item.ownership, item.source)
 	if previous, exists := resolver.files[item.runtime]; exists {
-		if previous.Checksum != checksum {
+		if previous.Checksum != checksum || previous.PackagePath != item.packagePath {
 			return fmt.Errorf("conflicting destination %s from %s and %s", item.runtime, previous.Source, source)
 		}
 		if source < previous.Source {
@@ -264,9 +281,17 @@ func (resolver *closureResolver) addFile(item closureItem, data []byte) error {
 	if len(resolver.files) >= resolver.maxFiles {
 		return fmt.Errorf("profile closure exceeds maximum of %d files", resolver.maxFiles)
 	}
-	resolver.files[item.runtime] = InventoryFile{
-		Source: source, RuntimePath: item.runtime, Checksum: checksum, Roots: []string{item.rootID},
+	if previous, exists := resolver.packages[item.packagePath]; exists &&
+		(previous.RuntimePath != item.runtime || previous.Checksum != checksum) {
+		return fmt.Errorf("conflicting package destination %s from %s and %s",
+			item.packagePath, previous.Source, source)
 	}
+	file := InventoryFile{
+		Source: source, RuntimePath: item.runtime, PackagePath: item.packagePath,
+		Checksum: checksum, Roots: []string{item.rootID},
+	}
+	resolver.files[item.runtime] = file
+	resolver.packages[item.packagePath] = file
 	return nil
 }
 
@@ -288,7 +313,7 @@ func (resolver *closureResolver) resolveYAML(item closureItem, data []byte) erro
 			return fmt.Errorf("%s contains unbounded glob reference %s",
 				logicalSource(item.ownership, item.source), reference)
 		}
-		ownership, source, runtime, err := resolver.resolveReference(item, reference)
+		ownership, source, runtime, packagePath, err := resolver.resolveReference(item, reference)
 		if err != nil {
 			return fmt.Errorf("%s references %s: %w", logicalSource(item.ownership, item.source), reference, err)
 		}
@@ -313,7 +338,7 @@ func (resolver *closureResolver) resolveYAML(item closureItem, data []byte) erro
 		}
 		lineage := append(append([]string(nil), item.lineage...), key)
 		resolver.queue = append(resolver.queue, closureItem{
-			ownership: ownership, source: source, runtime: runtime,
+			ownership: ownership, source: source, runtime: runtime, packagePath: packagePath,
 			rootID: item.rootID, lineage: lineage,
 		})
 	}
@@ -341,42 +366,46 @@ func (resolver *closureResolver) isRuntimeOwned(reference string) bool {
 	return false
 }
 
-func (resolver *closureResolver) resolveReference(item closureItem, reference string) (string, string, string, error) {
+func (resolver *closureResolver) resolveReference(item closureItem, reference string) (string, string, string, string, error) {
 	portable := filepath.ToSlash(strings.TrimSpace(reference))
 	if portable == "" || strings.Contains(portable, `\`) {
-		return "", "", "", errors.New("reference is empty or non-portable")
+		return "", "", "", "", errors.New("reference is empty or non-portable")
 	}
 	if strings.HasPrefix(portable, "agents/") {
 		source, err := cleanJoined("", portable)
 		if err != nil {
-			return "", "", "", err
+			return "", "", "", "", err
 		}
 		if ownership, mappedSource, declared, err := resolver.declaredRuntimeSource(source); declared || err != nil {
-			return ownership, mappedSource, source, err
+			return ownership, mappedSource, source, source, err
 		}
-		return "catalog", source, source, nil
+		return "catalog", source, source, source, nil
 	}
 	source, err := cleanJoined(path.Dir(item.source), portable)
 	if err != nil {
-		return "", "", "", err
+		return "", "", "", "", err
 	}
 	runtime, err := cleanJoined(path.Dir(item.runtime), portable)
 	if err != nil {
-		return "", "", "", err
+		return "", "", "", "", err
+	}
+	packagePath, err := cleanJoined(path.Dir(item.packagePath), portable)
+	if err != nil {
+		return "", "", "", "", err
 	}
 	const catalogRuntimePrefix = "applications/catalog/"
 	if strings.HasPrefix(runtime, catalogRuntimePrefix) {
 		catalogRelative := strings.TrimPrefix(runtime, catalogRuntimePrefix)
 		catalogSource, err := cleanJoined("agents", catalogRelative)
 		if err != nil {
-			return "", "", "", err
+			return "", "", "", "", err
 		}
-		return "catalog", catalogSource, runtime, nil
+		return "catalog", catalogSource, runtime, packagePath, nil
 	}
 	if ownership, mappedSource, declared, mappingErr := resolver.declaredRuntimeSource(runtime); mappingErr == nil && declared {
-		return ownership, mappedSource, runtime, nil
+		return ownership, mappedSource, runtime, packagePath, nil
 	}
-	return item.ownership, source, runtime, nil
+	return item.ownership, source, runtime, packagePath, nil
 }
 
 func (resolver *closureResolver) declaredRuntimeSource(runtime string) (string, string, bool, error) {

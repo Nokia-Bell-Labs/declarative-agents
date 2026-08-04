@@ -75,25 +75,41 @@ ui:
   assets:
     - id: documentation-curator-ux
       owner: documentation-curator
+      ownership: catalog
       source: agents/knowledge-manager/documentation-curator/ui/ux.json
       runtime_path: agents/knowledge-manager/documentation-curator/ui/ux.json
+      package_path: agents/knowledge-manager/documentation-curator/ui/ux.json
       rest_definition: agents/knowledge-manager/documentation-curator/rest.yaml
       shared_tokens: "canonical import: applications/catalog/ui/design-tokens.css"
     - id: documentation-curator-docs
       owner: documentation-curator
+      ownership: catalog
       source: agents/knowledge-manager/documentation-curator/ui/docs/dist
       runtime_path: agents/knowledge-manager/documentation-curator/ui/docs/dist
+      package_path: agents/knowledge-manager/documentation-curator/ui/docs/dist
       rest_definition: agents/knowledge-manager/documentation-curator/rest.yaml
       shared_tokens: "canonical import: applications/catalog/ui/design-tokens.css"
     - id: documentation-curator-monitor
       owner: documentation-curator
+      ownership: catalog
       source: agents/knowledge-manager/documentation-curator/ui/monitor/dist
       runtime_path: agents/knowledge-manager/documentation-curator/ui/monitor/dist
+      package_path: agents/knowledge-manager/documentation-curator/ui/monitor/dist
       rest_definition: agents/knowledge-manager/documentation-curator/rest.yaml
       shared_tokens: "canonical import: applications/catalog/ui/design-tokens.css"
     - id: collector
       owner: collector
+      ownership: catalog
       source: agents/collector/ui/dist
       runtime_path: agents/collector/ui/dist
+      package_path: agents/collector/ui/dist
       rest_definition: agents/collector/rest.yaml
       shared_tokens: "canonical import: applications/catalog/ui/design-tokens.css"
+package:
+  assets:
+    - id: catalog-docs
+      owner: documentation-curator
+      ownership: catalog
+      source: docs
+      runtime_path: docs
+      package_path: docs

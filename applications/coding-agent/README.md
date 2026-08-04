@@ -49,7 +49,9 @@ script, or another fake agent binary.
 
 `agents/application.yaml` is the Release 14 composition authority. It names the
 canonical planner, executor, critic session, and critic changed-workspace roots,
-plus local planner, executor, critic, and applier deployment roots. The three
+plus the canonical collector and local planner, executor, critic, and applier
+deployment roots. Its UI section also declares the collector's served `ui/dist`
+asset and package destination. The three
 serving wrappers live directly under `agents/<actor>/`; their shared lifecycle
 wrapper lives at `agents/role-server/`. This name records its explicit
 application ownership and purpose without inventing a `common` actor. The
@@ -75,7 +77,8 @@ absolute paths, globs in runtime references, symlinks, dangling references, and
 two sources targeting one destination fail packaging.
 
 `build/profiles/deployment-manifest.yaml` records the profile-free runtime
-contract and the sorted `critic`, `executor`, and `planner` shards. Each role
+contract and every sorted manifest deployment shard, including `collector`.
+Each role
 directory is an independent root mounted at `/profiles` and contains only its
 resolved closure. `build/profiles/manifests/<role>.yaml` lists the serving entry
 profile, exact reachable files, provenance, and deterministic ConfigMap
@@ -119,8 +122,8 @@ No coding-application value is added to the library.
 ## Capabilities
 
 The manifest records implemented runnable-module, managed-service, packaged,
-Helm-managed, and kind-demo capabilities with executable evidence. This
-application ships no UI, so `ui` is `not_applicable`.
+Helm-managed, kind-demo, and UI capabilities with executable evidence. The UI
+claim is the catalog collector surface deployed by this application.
 
 ## Core Helm topology
 

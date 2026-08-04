@@ -26,7 +26,9 @@ capabilities:
     evidence:
       - mage integration:helmSmoke
   ui:
-    status: not_applicable
+    status: implemented
+    evidence:
+      - go test ./magefiles -run '^Test(ManifestMutationControlsCollectorAssets|HelmCollectorServesUI)$'
 roots:
   - id: planner
     ownership: catalog
@@ -64,6 +66,11 @@ roots:
     ownership: local
     source: agents/applier/profile.yaml
     runtime_path: applications/coding-agent/applier/profile.yaml
+  - id: collector
+    ownership: catalog
+    source: agents/collector/profile.yaml
+    runtime_path: agents/collector/profile.yaml
+    compatible_release: v0.20260804.0
 runtime:
   mount_path: /profiles
   image_contains_profiles: false
@@ -89,3 +96,18 @@ deployment:
       workload: applier
       profile_path: applications/coding-agent/applier/profile.yaml
       mount_path: /profiles
+    - id: collector
+      root: collector
+      workload: collector
+      profile_path: agents/collector/profile.yaml
+      mount_path: /profiles
+ui:
+  assets:
+    - id: collector
+      owner: collector
+      ownership: catalog
+      source: agents/collector/ui/dist
+      runtime_path: agents/collector/ui/dist
+      package_path: agents/collector/ui/dist
+      rest_definition: agents/collector/rest.yaml
+      shared_tokens: "canonical import: applications/catalog/ui/design-tokens.css"

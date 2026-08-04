@@ -51,6 +51,7 @@ type Manifest struct {
 	Runtime       Runtime               `yaml:"runtime"`
 	Deployment    Deployment            `yaml:"deployment,omitempty"`
 	UI            UI                    `yaml:"ui,omitempty"`
+	Package       Package               `yaml:"package,omitempty"`
 }
 
 type Capability struct {
@@ -92,10 +93,27 @@ type UI struct {
 type UIAsset struct {
 	ID             string `yaml:"id"`
 	Owner          string `yaml:"owner"`
+	Ownership      string `yaml:"ownership"`
 	Source         string `yaml:"source"`
 	RuntimePath    string `yaml:"runtime_path"`
+	PackagePath    string `yaml:"package_path"`
 	RESTDefinition string `yaml:"rest_definition"`
 	SharedTokens   string `yaml:"shared_tokens"`
+}
+
+// Package declares opaque, non-profile assets shipped by a packaged
+// application. Profile and UI assets retain their richer declarations.
+type Package struct {
+	Assets []PackageAsset `yaml:"assets,omitempty"`
+}
+
+type PackageAsset struct {
+	ID          string `yaml:"id"`
+	Owner       string `yaml:"owner"`
+	Ownership   string `yaml:"ownership"`
+	Source      string `yaml:"source"`
+	RuntimePath string `yaml:"runtime_path"`
+	PackagePath string `yaml:"package_path"`
 }
 
 // Load parses one strict schema-versioned YAML document and validates all
@@ -176,7 +194,8 @@ func (manifest *Manifest) validate(options Options) error {
 	}
 
 	rootIDs := make(map[string]*Root, len(manifest.Roots))
-	runtimePaths := make(map[string]string, len(manifest.Roots)+len(manifest.UI.Assets))
+	runtimePaths := make(map[string]string, len(manifest.Roots)+len(manifest.UI.Assets)+len(manifest.Package.Assets))
+	packagePaths := make(map[string]string, len(manifest.UI.Assets)+len(manifest.Package.Assets))
 	for index := range manifest.Roots {
 		root := &manifest.Roots[index]
 		if !identifierPattern.MatchString(root.ID) {
@@ -234,7 +253,10 @@ func (manifest *Manifest) validate(options Options) error {
 	if err := manifest.validateDeployment(rootIDs); err != nil {
 		return err
 	}
-	if err := manifest.validateUI(appRoot, catalogRoot, rootIDs, runtimePaths); err != nil {
+	if err := manifest.validatePackage(appRoot, catalogRoot, rootIDs, runtimePaths, packagePaths); err != nil {
+		return err
+	}
+	if err := manifest.validateUI(appRoot, catalogRoot, rootIDs, runtimePaths, packagePaths); err != nil {
 		return err
 	}
 	if capabilityActive(manifest.Capabilities["packaged"]) && manifest.Runtime.MountPath == "" {
@@ -305,7 +327,60 @@ func (manifest *Manifest) validateDeployment(roots map[string]*Root) error {
 	return nil
 }
 
-func (manifest *Manifest) validateUI(appRoot, catalogRoot string, roots map[string]*Root, runtimePaths map[string]string) error {
+func (manifest *Manifest) validatePackage(
+	appRoot, catalogRoot string,
+	roots map[string]*Root,
+	runtimePaths, packagePaths map[string]string,
+) error {
+	if len(manifest.Package.Assets) > 0 && !capabilityActive(manifest.Capabilities["packaged"]) {
+		return errors.New("package assets require an applicable packaged capability")
+	}
+	seen := make(map[string]bool, len(manifest.Package.Assets))
+	for index := range manifest.Package.Assets {
+		asset := &manifest.Package.Assets[index]
+		if !identifierPattern.MatchString(asset.ID) || seen[asset.ID] {
+			return fmt.Errorf("package asset id %q is invalid or duplicated", asset.ID)
+		}
+		seen[asset.ID] = true
+		ownerRoot, ownership, err := manifest.assetOwner(asset.Owner, asset.Ownership, appRoot, catalogRoot, roots)
+		if err != nil {
+			return fmt.Errorf("package asset %s: %w", asset.ID, err)
+		}
+		asset.Ownership = ownership
+		asset.Source, err = cleanRelative(asset.Source)
+		if err != nil {
+			return fmt.Errorf("package asset %s source: %w", asset.ID, err)
+		}
+		asset.RuntimePath, err = cleanRelative(asset.RuntimePath)
+		if err != nil {
+			return fmt.Errorf("package asset %s runtime_path: %w", asset.ID, err)
+		}
+		asset.PackagePath, err = cleanRelative(asset.PackagePath)
+		if err != nil {
+			return fmt.Errorf("package asset %s package_path: %w", asset.ID, err)
+		}
+		if previous := runtimePaths[asset.RuntimePath]; previous != "" {
+			return fmt.Errorf("duplicate normalized runtime path %q for %s and package asset %s",
+				asset.RuntimePath, previous, asset.ID)
+		}
+		if previous := packagePaths[asset.PackagePath]; previous != "" {
+			return fmt.Errorf("duplicate normalized package path %q for %s and package asset %s",
+				asset.PackagePath, previous, asset.ID)
+		}
+		runtimePaths[asset.RuntimePath] = "package asset " + asset.ID
+		packagePaths[asset.PackagePath] = "package asset " + asset.ID
+		if _, err := securePath(ownerRoot, asset.Source, true); err != nil {
+			return fmt.Errorf("package asset %s source: %w", asset.ID, err)
+		}
+	}
+	return nil
+}
+
+func (manifest *Manifest) validateUI(
+	appRoot, catalogRoot string,
+	roots map[string]*Root,
+	runtimePaths, packagePaths map[string]string,
+) error {
 	if len(manifest.UI.Assets) > 0 {
 		ui, declared := manifest.Capabilities["ui"]
 		if !declared || ui.Status == "not_applicable" || ui.Status == "planned" {
@@ -321,17 +396,12 @@ func (manifest *Manifest) validateUI(appRoot, catalogRoot string, roots map[stri
 			return fmt.Errorf("UI asset id %q is invalid or duplicated", asset.ID)
 		}
 		seen[asset.ID] = true
-		ownerRoot := appRoot
-		if asset.Owner != manifest.Application {
-			root := roots[asset.Owner]
-			if root == nil {
-				return fmt.Errorf("UI asset %s has undeclared owner %q", asset.ID, asset.Owner)
-			}
-			if root.Ownership == "catalog" {
-				ownerRoot = catalogRoot
-			}
+		ownerRoot, ownership, err := manifest.assetOwner(
+			asset.Owner, asset.Ownership, appRoot, catalogRoot, roots)
+		if err != nil {
+			return fmt.Errorf("UI asset %s: %w", asset.ID, err)
 		}
-		var err error
+		asset.Ownership = ownership
 		asset.Source, err = cleanRelative(asset.Source)
 		if err != nil {
 			return fmt.Errorf("UI asset %s source: %w", asset.ID, err)
@@ -339,6 +409,10 @@ func (manifest *Manifest) validateUI(appRoot, catalogRoot string, roots map[stri
 		asset.RuntimePath, err = cleanRelative(asset.RuntimePath)
 		if err != nil {
 			return fmt.Errorf("UI asset %s runtime_path: %w", asset.ID, err)
+		}
+		asset.PackagePath, err = cleanRelative(asset.PackagePath)
+		if err != nil {
+			return fmt.Errorf("UI asset %s package_path: %w", asset.ID, err)
 		}
 		asset.RESTDefinition, err = cleanRelative(asset.RESTDefinition)
 		if err != nil {
@@ -351,6 +425,11 @@ func (manifest *Manifest) validateUI(appRoot, catalogRoot string, roots map[stri
 			return fmt.Errorf("duplicate normalized runtime path %q for %s and UI asset %s", asset.RuntimePath, previous, asset.ID)
 		}
 		runtimePaths[asset.RuntimePath] = "UI asset " + asset.ID
+		if previous := packagePaths[asset.PackagePath]; previous != "" {
+			return fmt.Errorf("duplicate normalized package path %q for %s and UI asset %s",
+				asset.PackagePath, previous, asset.ID)
+		}
+		packagePaths[asset.PackagePath] = "UI asset " + asset.ID
 		if _, err := securePath(ownerRoot, asset.Source, true); err != nil {
 			return fmt.Errorf("UI asset %s source: %w", asset.ID, err)
 		}
@@ -371,6 +450,30 @@ func (manifest *Manifest) validateUI(appRoot, catalogRoot string, roots map[stri
 		}
 	}
 	return nil
+}
+
+func (manifest *Manifest) assetOwner(
+	owner, ownership, appRoot, catalogRoot string,
+	roots map[string]*Root,
+) (string, string, error) {
+	ownerRoot := appRoot
+	expectedOwnership := "local"
+	if owner != manifest.Application {
+		root := roots[owner]
+		if root == nil {
+			return "", "", fmt.Errorf("has undeclared owner %q", owner)
+		}
+		expectedOwnership = root.Ownership
+		if expectedOwnership == "catalog" {
+			ownerRoot = catalogRoot
+		}
+	}
+	if ownership != expectedOwnership {
+		return "", "", fmt.Errorf(
+			"ownership %q does not match owner %q ownership %q",
+			ownership, owner, expectedOwnership)
+	}
+	return ownerRoot, expectedOwnership, nil
 }
 
 func yamlTemplateSafe(data []byte) []byte {

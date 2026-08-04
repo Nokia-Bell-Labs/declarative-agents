@@ -10,6 +10,7 @@ import (
 	"os/exec"
 	"path"
 	"path/filepath"
+	"regexp"
 	"sort"
 	"strings"
 
@@ -21,6 +22,8 @@ const (
 	profileManifestPath  = "agents/application.yaml"
 	defaultProfileOutput = "build/profiles"
 )
+
+var profileTemplatePattern = regexp.MustCompile(`\$\{[^}\r\n]+\}`)
 
 type applicationProfileManifest struct {
 	SchemaVersion int
@@ -36,12 +39,22 @@ type applicationProfileManifest struct {
 	Deployment struct {
 		Entries []profileReference
 	}
+	UIAssets []packageAssetReference
 }
 
 type profileReference struct {
 	Role        string `yaml:"role"`
+	Root        string `yaml:"root,omitempty"`
 	Source      string `yaml:"source"`
 	RuntimePath string `yaml:"runtime_path"`
+}
+
+type packageAssetReference struct {
+	ID          string
+	Owner       string
+	Source      string
+	RuntimePath string
+	PackagePath string
 }
 
 type packageSource struct {
@@ -154,7 +167,13 @@ func readApplicationProfileManifestWithCatalog(filename, catalogRoot string) (ap
 			runtimePath = root.RuntimePath
 		}
 		converted.Deployment.Entries = append(converted.Deployment.Entries, profileReference{
-			Role: entry.ID, Source: root.Source, RuntimePath: runtimePath,
+			Role: entry.ID, Root: entry.Root, Source: root.Source, RuntimePath: runtimePath,
+		})
+	}
+	for _, asset := range manifest.UI.Assets {
+		converted.UIAssets = append(converted.UIAssets, packageAssetReference{
+			ID: asset.ID, Owner: asset.Owner, Source: asset.Source,
+			RuntimePath: asset.RuntimePath, PackagePath: asset.PackagePath,
 		})
 	}
 	if converted.Runtime.MountPath != "/profiles" {
@@ -196,45 +215,7 @@ func validateDeploymentReferences(references []profileReference) error {
 	if len(references) == 0 {
 		return errors.New("application manifest has no deployment entries")
 	}
-	if err := validateProfileReferences(references, "deployment"); err != nil {
-		return err
-	}
-	want := map[string]profileReference{
-		"planner": {
-			Source: "agents/planner/profile.yaml", RuntimePath: "applications/coding-agent/planner/profile.yaml",
-		},
-		"executor": {
-			Source: "agents/executor/profile.yaml", RuntimePath: "applications/coding-agent/executor/profile.yaml",
-		},
-		"critic": {
-			Source: "agents/critic/profile.yaml", RuntimePath: "applications/coding-agent/critic/profile.yaml",
-		},
-		"applier": {
-			Source: "agents/applier/profile.yaml", RuntimePath: "applications/coding-agent/applier/profile.yaml",
-		},
-	}
-	for _, ref := range references {
-		expected, exists := want[ref.Role]
-		if !exists {
-			return fmt.Errorf("unsupported deployment entry %q", ref.Role)
-		}
-		if ref.Source != expected.Source {
-			return fmt.Errorf("deployment entry %s source %q, want %q", ref.Role, ref.Source, expected.Source)
-		}
-		if ref.RuntimePath != expected.RuntimePath {
-			return fmt.Errorf("deployment entry %s runtime_path %q, want %q", ref.Role, ref.RuntimePath, expected.RuntimePath)
-		}
-		delete(want, ref.Role)
-	}
-	if len(want) > 0 {
-		missing := make([]string, 0, len(want))
-		for role := range want {
-			missing = append(missing, role)
-		}
-		sort.Strings(missing)
-		return fmt.Errorf("application deployment missing entries: %s", strings.Join(missing, ", "))
-	}
-	return nil
+	return validateProfileReferences(references, "deployment")
 }
 
 func isCompatibleProfileRelease(version string) bool {
@@ -362,7 +343,7 @@ func (c *profileClosure) resolveYAMLReferences(asset closureAsset, filename stri
 		return fmt.Errorf("read profile asset %s: %w", asset.source, err)
 	}
 	var document yaml.Node
-	if err := yaml.Unmarshal(data, &document); err != nil {
+	if err := yaml.Unmarshal(profileTemplatePattern.ReplaceAll(data, []byte("manifest_value")), &document); err != nil {
 		return fmt.Errorf("parse profile asset %s: %w", asset.source, err)
 	}
 	refs, err := runtimeYAMLReferences(&document)
