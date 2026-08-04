@@ -190,6 +190,13 @@ func TestCollectorDefaultRenderStaysSelfContained(t *testing.T) {
 	if strings.Contains(render, "jaeger") {
 		t.Fatal("default collector render still references Jaeger")
 	}
+	const localCollector = "t-chatbot-mesh-collector:4317"
+	assertRenderedFlagEndpoint(t, render, "--otel-otlp-endpoint", localCollector)
+	assertRenderedFlagEndpoint(t, render, "--otel-metric-otlp-endpoint", localCollector)
+	if !strings.Contains(render,
+		`CHROMA_OPEN_TELEMETRY__ENDPOINT, value: "http://`+localCollector+`"`) {
+		t.Error("default production render does not send Chroma metrics to the local collector")
+	}
 	for _, forbidden := range []string{"otlp/external:", "resource/integration:", "test.run.id"} {
 		if strings.Contains(render, forbidden) {
 			t.Errorf("default production render contains integration-only %q", forbidden)
@@ -197,7 +204,7 @@ func TestCollectorDefaultRenderStaysSelfContained(t *testing.T) {
 	}
 }
 
-func TestCollectorKindOverlayExportsBothSignalsWithRunIdentity(t *testing.T) {
+func TestCollectorKindOverlayExportsMetricsDirectlyAndTracesLocally(t *testing.T) {
 	if _, err := exec.LookPath("helm"); err != nil {
 		t.Skip("helm not on PATH")
 	}
@@ -208,10 +215,15 @@ func TestCollectorKindOverlayExportsBothSignalsWithRunIdentity(t *testing.T) {
 		t.Fatalf("helm template kind overlay: %v\n%s", err, out)
 	}
 	render := string(out)
-	// Agent mode relays both signals through the declarative collector to the host
-	// ingress and tags each agent's telemetry with the integration run identity via
-	// OTEL_RESOURCE_ATTRIBUTES; metrics ride the same agent collector as traces
-	// (GH-1207, GH-1366).
+	const (
+		localCollector    = "t-chatbot-mesh-collector:4317"
+		externalCollector = "host.docker.internal:4317"
+	)
+	// Integration traces still spool in the declarative collector and use its
+	// declared relay. Agent and Chroma metrics go directly to the persistent host
+	// collector so evidence survives cluster teardown.
+	assertRenderedFlagEndpoint(t, render, "--otel-otlp-endpoint", localCollector)
+	assertRenderedFlagEndpoint(t, render, "--otel-metric-otlp-endpoint", externalCollector)
 	for _, want := range []string{
 		"COLLECTOR_RELAY_ENDPOINT",
 		`value: "host.docker.internal:4317"`,
@@ -223,7 +235,7 @@ func TestCollectorKindOverlayExportsBothSignalsWithRunIdentity(t *testing.T) {
 		"vcs.ref.head.revision=unknown",
 		"test.run.id=local-kind",
 		"CHROMA_OPEN_TELEMETRY__ENDPOINT",
-		`http://t-chatbot-mesh-collector:4317`,
+		`http://host.docker.internal:4317`,
 		"CHROMA_OPEN_TELEMETRY__SERVICE_NAME",
 		`value: "rag0-chroma"`,
 	} {
@@ -242,6 +254,31 @@ func TestCollectorKindOverlayExportsBothSignalsWithRunIdentity(t *testing.T) {
 	} {
 		if strings.Contains(render, notWant) {
 			t.Errorf("kind agent-mode render unexpectedly contains %q", notWant)
+		}
+	}
+}
+
+func assertRenderedFlagEndpoint(t *testing.T, render, flag, want string) {
+	t.Helper()
+	lines := strings.Split(render, "\n")
+	var got []string
+	for i, line := range lines {
+		if strings.TrimSpace(line) != `- "`+flag+`"` {
+			continue
+		}
+		if i+1 >= len(lines) {
+			t.Fatalf("rendered %s has no endpoint value", flag)
+		}
+		value := strings.TrimPrefix(strings.TrimSpace(lines[i+1]), "- ")
+		got = append(got, strings.Trim(value, `"`))
+	}
+	if len(got) == 0 {
+		t.Fatalf("render contains no %s exporters", flag)
+	}
+	for _, endpoint := range got {
+		if endpoint != want {
+			t.Errorf("rendered %s endpoint = %q, want %q (all values: %v)",
+				flag, endpoint, want, got)
 		}
 	}
 }

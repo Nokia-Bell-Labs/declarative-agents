@@ -30,10 +30,11 @@ test_cases:
       stages the chatbot and rag-server profiles into the chart ConfigMap, helm
       installs and waits for every Deployment and StatefulSet ready, port-forwards
       the chatbot chat Service, posts one chat turn and asserts a served answer,
-      and verifies collector spool identity and metrics evidence (each agent
-      reports a distinct service.name via --otel-service-name). Teardown deletes
-      the cluster in all paths; the target skips cleanly when the toolchain or
-      models are absent.
+      and verifies local collector trace-spool identity plus metrics sent directly
+      by each agent to the persistent host collector (each agent reports a distinct
+      service.name via --otel-service-name). The host retains run-correlated
+      telemetry evidence after teardown. Teardown deletes the cluster in all paths;
+      the target skips cleanly when the toolchain or models are absent.
 
       After manifest-closure provenance verification, the staged-only collector
       and observer UIs are archived into out-of-release ConfigMaps. The exact
@@ -62,6 +63,10 @@ test_cases:
       canonical_package_closure_complete: true
       required_images_host_pulled_and_kind_loaded: true
       node_registry_pull_required: false
+      trace_ingress: local_collector_agent
+      integration_metric_ingress: persistent_host_collector
+      run_correlated_metric_evidence_retained: true
+      owned_cluster_removed: true
     traces:
       - rel03.0-uc001-mesh-deployment S1
       - srd003-chatbot-deployment AC1
