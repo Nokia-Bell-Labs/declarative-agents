@@ -47,6 +47,12 @@ func (Integration) Tracer() error {
 		return err
 	}
 	for _, scenario := range suite.Scenarios {
+		if scenario.ExpectedTerminal == "failed" {
+			if err := runInvalidCriticEvidence(runtime, scenario); err != nil {
+				return fmt.Errorf("scenario %s: %w", scenario.Name, err)
+			}
+			continue
+		}
 		if err := runInterpreterEvidence(root, runtime, scenario); err != nil {
 			return fmt.Errorf("scenario %s: %w", scenario.Name, err)
 		}
@@ -134,8 +140,28 @@ func loadInterpreterSuite(root string) (interpreterSuite, error) {
 	if err != nil {
 		return suite, err
 	}
-	if suite.SchemaVersion != "prose-editor.tracer-scenarios/v1" || len(suite.Scenarios) != 3 {
+	required := map[string]string{
+		"happy":                              "locally_finalized",
+		"reject-then-accept":                 "locally_finalized",
+		"retry-exhausted":                    "kept_original",
+		"fault-wrong-hashes":                 "failed",
+		"fault-duplicate-missing-categories": "failed",
+		"fault-pass-with-stage":              "failed",
+		"fault-reject-without-stage":         "failed",
+		"fault-pass-with-reject-status":      "failed",
+		"fault-reject-with-passing-statuses": "failed",
+	}
+	if suite.SchemaVersion != "prose-editor.tracer-scenarios/v1" || len(suite.Scenarios) != len(required) {
 		return suite, errors.New("interpreter tracer fixture roster is not Release 00.1")
+	}
+	for _, scenario := range suite.Scenarios {
+		if terminal, ok := required[scenario.Name]; !ok || terminal != scenario.ExpectedTerminal {
+			return suite, fmt.Errorf("unexpected tracer scenario %q with terminal %q", scenario.Name, scenario.ExpectedTerminal)
+		}
+		delete(required, scenario.Name)
+	}
+	if len(required) != 0 {
+		return suite, fmt.Errorf("tracer fixture roster is missing %v", sortedKeys(required))
 	}
 	return suite, nil
 }
@@ -226,6 +252,61 @@ func runInterpreterEvidence(root string, runtime tracerRuntime, scenario interpr
 	if !sessionHasReplay(receipts, "replay") {
 		return errors.New("terminal interpreter replay produced no replay receipts")
 	}
+	return nil
+}
+
+func runInvalidCriticEvidence(runtime tracerRuntime, scenario interpreterScenario) error {
+	workspace, err := os.MkdirTemp("", "prose-editor-"+scenario.Name+"-*")
+	if err != nil {
+		return err
+	}
+	defer os.RemoveAll(workspace)
+
+	run, runErr := runAgentSession(runtime, scenario, workspace, "invalid-critic", "")
+	if runErr == nil {
+		return errors.New("invalid critic output did not fail the workflow machine")
+	}
+	if err := assertRootTerminal(workspace, run.Session, "failed"); err != nil {
+		return err
+	}
+	trace, err := os.ReadFile(run.Trace)
+	if err != nil {
+		return err
+	}
+	if !bytes.Contains(trace, []byte("final machine state: Failed")) {
+		return errors.New("invalid critic output did not fail the critic child")
+	}
+
+	var manifest recordedManifest
+	if err := readJSON(filepath.Join(workspace, "manifest.yaml"), &manifest); err != nil {
+		return err
+	}
+	for _, artifact := range manifest.Artifacts {
+		if artifact.Stage == "critique" || artifact.Stage == "final" {
+			return fmt.Errorf("invalid critic output persisted %s artifact %s", artifact.Stage, artifact.ID)
+		}
+	}
+	if manifest.Selected["critique"] != "" || manifest.Selected["final"] != "" {
+		return errors.New("invalid critic output entered accepted lineage")
+	}
+	for _, path := range []string{"40-critique.yaml", "final.md"} {
+		if _, err := os.Stat(filepath.Join(workspace, path)); !os.IsNotExist(err) {
+			return fmt.Errorf("invalid critic output materialized %s", path)
+		}
+	}
+	receipts, err := loadReceipts(workspace)
+	if err != nil {
+		return err
+	}
+	for _, receipt := range receipts {
+		if receipt.Session != run.Session {
+			continue
+		}
+		if receipt.Operation == "write-critique-attempt" || receipt.Operation == "materialize-final-chain" {
+			return fmt.Errorf("invalid critic output reached boundary operation %s", receipt.Operation)
+		}
+	}
+	fmt.Printf("interpreter scenario %s: workflow=Failed critique_persisted=false final_materialized=false\n", scenario.Name)
 	return nil
 }
 

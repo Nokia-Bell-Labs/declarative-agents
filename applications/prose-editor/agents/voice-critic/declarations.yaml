@@ -82,7 +82,7 @@ tools:
       system_prompt: |
         Return exactly one JSON object with verdict, responsible_stage,
         original_content_hash, candidate_content_hash, findings, and feedback.
-        Verdict is "pass" or "reject". A pass uses responsible_stage "none";
+        Verdict is "pass" or "reject". A pass uses responsible_stage "";
         a reject uses "structure". Findings must contain exactly these six
         categories once: semantic_preservation, structural_intent, voice_match,
         tightening_quality, unsupported_additions, anchor_copy_risk. Do not
@@ -116,7 +116,7 @@ tools:
     init: parse_structured
     visibility: internal
     category: word
-    description: Require exact hashes, all six findings, and tracer-stage verdict closure.
+    description: Require all six distinct findings and tracer-stage verdict closure.
     parameters: {type: object, properties: {}, additionalProperties: false}
     emits: [CriticEvaluationParsed, CriticEvaluationInvalid, CommandError]
     config:
@@ -132,7 +132,7 @@ tools:
           - feedback
         properties:
           verdict: {type: string, enum: [pass, reject]}
-          responsible_stage: {type: string, enum: [none, structure]}
+          responsible_stage: {type: string, enum: ["", structure]}
           original_content_hash: {type: string, pattern: "^[0-9a-f]{64}$"}
           candidate_content_hash: {type: string, pattern: "^[0-9a-f]{64}$"}
           findings:
@@ -157,11 +157,75 @@ tools:
               additionalProperties: false
           feedback: {type: string, maxLength: 4096}
         additionalProperties: false
+        allOf:
+          - properties:
+              findings:
+                allOf:
+                  - contains: {type: object, required: [category], properties: {category: {const: semantic_preservation}}}
+                  - contains: {type: object, required: [category], properties: {category: {const: structural_intent}}}
+                  - contains: {type: object, required: [category], properties: {category: {const: voice_match}}}
+                  - contains: {type: object, required: [category], properties: {category: {const: tightening_quality}}}
+                  - contains: {type: object, required: [category], properties: {category: {const: unsupported_additions}}}
+                  - contains: {type: object, required: [category], properties: {category: {const: anchor_copy_risk}}}
+          - if: {properties: {verdict: {const: pass}}, required: [verdict]}
+            then:
+              properties:
+                responsible_stage: {const: ""}
+                findings:
+                  items:
+                    properties: {status: {const: pass}}
+          - if: {properties: {verdict: {const: reject}}, required: [verdict]}
+            then:
+              properties:
+                responsible_stage: {const: structure}
+                findings:
+                  contains:
+                    type: object
+                    required: [status]
+                    properties: {status: {const: reject}}
       parsed: CriticEvaluationParsed
       unparsed: CriticEvaluationInvalid
     side_effects: []
     reversibility: {classification: reversible, undo: noop}
     undo: {strategy: noop, description: Parsing changes no state.}
+
+  - name: critic_original_hash_matches
+    type: builtin
+    init: value_predicate
+    visibility: internal
+    category: word
+    description: Bind the critic response original hash to the validated request.
+    parameters: {type: object, properties: {}, additionalProperties: false}
+    emits: [CriticOriginalHashMatched, CriticOriginalHashMismatched, CommandError]
+    config:
+      left: $from(critic_evaluation).original_content_hash
+      op: eq
+      right: $from(validated_critic_request).original_content_hash
+      operand_type: string
+      satisfied: CriticOriginalHashMatched
+      unsatisfied: CriticOriginalHashMismatched
+    side_effects: []
+    reversibility: {classification: reversible, undo: noop}
+    undo: {strategy: noop, description: Comparing hashes changes no state.}
+
+  - name: critic_candidate_hash_matches
+    type: builtin
+    init: value_predicate
+    visibility: internal
+    category: word
+    description: Bind the critic response candidate hash to the validated request.
+    parameters: {type: object, properties: {}, additionalProperties: false}
+    emits: [CriticCandidateHashMatched, CriticCandidateHashMismatched, CommandError]
+    config:
+      left: $from(critic_evaluation).candidate_content_hash
+      op: eq
+      right: $from(validated_critic_request).candidate_content_hash
+      operand_type: string
+      satisfied: CriticCandidateHashMatched
+      unsatisfied: CriticCandidateHashMismatched
+    side_effects: []
+    reversibility: {classification: reversible, undo: noop}
+    undo: {strategy: noop, description: Comparing hashes changes no state.}
 
   - name: critic_verdict_is_pass
     type: builtin

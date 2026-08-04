@@ -21,6 +21,8 @@ states:
   - EvaluatingCandidate
   - CapturingEvaluation
   - ParsingEvaluation
+  - CheckingOriginalHash
+  - CheckingCandidateHash
   - RoutingVerdict
   - ComposingPassResponse
   - ComposingRejectResponse
@@ -37,6 +39,10 @@ signals:
   - CriticEvaluationCaptured
   - CriticEvaluationParsed
   - CriticEvaluationInvalid
+  - CriticOriginalHashMatched
+  - CriticOriginalHashMismatched
+  - CriticCandidateHashMatched
+  - CriticCandidateHashMismatched
   - CriticPassed
   - CriticRejected
   - CriticResponsePassed
@@ -53,9 +59,15 @@ transitions:
   - {state: EvaluatingCandidate, signal: CommandError, next: Failed}
   - {state: CapturingEvaluation, signal: CriticEvaluationCaptured, next: ParsingEvaluation, action: parse_critic_evaluation, label: critic_evaluation}
   - {state: CapturingEvaluation, signal: CommandError, next: Failed}
-  - {state: ParsingEvaluation, signal: CriticEvaluationParsed, next: RoutingVerdict, action: critic_verdict_is_pass, label: critic_verdict_route}
+  - {state: ParsingEvaluation, signal: CriticEvaluationParsed, next: CheckingOriginalHash, action: critic_original_hash_matches, label: critic_original_hash_check}
   - {state: ParsingEvaluation, signal: CriticEvaluationInvalid, next: Failed}
   - {state: ParsingEvaluation, signal: CommandError, next: Failed}
+  - {state: CheckingOriginalHash, signal: CriticOriginalHashMatched, next: CheckingCandidateHash, action: critic_candidate_hash_matches, label: critic_candidate_hash_check}
+  - {state: CheckingOriginalHash, signal: CriticOriginalHashMismatched, next: Failed}
+  - {state: CheckingOriginalHash, signal: CommandError, next: Failed}
+  - {state: CheckingCandidateHash, signal: CriticCandidateHashMatched, next: RoutingVerdict, action: critic_verdict_is_pass, label: critic_verdict_route}
+  - {state: CheckingCandidateHash, signal: CriticCandidateHashMismatched, next: Failed}
+  - {state: CheckingCandidateHash, signal: CommandError, next: Failed}
   - {state: RoutingVerdict, signal: CriticPassed, next: ComposingPassResponse, action: compose_critic_pass_response, label: critic_response}
   - {state: RoutingVerdict, signal: CriticRejected, next: ComposingRejectResponse, action: compose_critic_reject_response, label: critic_response}
   - {state: RoutingVerdict, signal: CommandError, next: Failed}

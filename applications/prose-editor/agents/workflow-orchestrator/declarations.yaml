@@ -122,23 +122,73 @@ tools:
     init: parse_structured
     visibility: internal
     category: word
-    description: Validate the bounded critic verdict returned by the isolated child.
+    description: Validate the exact bounded critic evaluation returned by the isolated child.
     parameters: {type: object, properties: {}, additionalProperties: false}
     emits: [CriticResponseParsed, CriticResponseInvalid, CommandError]
     config:
       source: $from(critic_transport).response
       schema:
         type: object
-        required: [verdict, responsible_stage, findings]
+        required:
+          - verdict
+          - responsible_stage
+          - original_content_hash
+          - candidate_content_hash
+          - findings
+          - feedback
         properties:
           verdict: {type: string, enum: [pass, reject]}
-          responsible_stage: {type: string, enum: [none, structure]}
+          responsible_stage: {type: string, enum: ["", structure]}
+          original_content_hash: {type: string, pattern: "^[0-9a-f]{64}$"}
+          candidate_content_hash: {type: string, pattern: "^[0-9a-f]{64}$"}
           findings:
             type: array
             minItems: 6
             maxItems: 6
-            items: {type: object}
-        additionalProperties: true
+            items:
+              type: object
+              required: [category, status, summary]
+              properties:
+                category:
+                  type: string
+                  enum:
+                    - semantic_preservation
+                    - structural_intent
+                    - voice_match
+                    - tightening_quality
+                    - unsupported_additions
+                    - anchor_copy_risk
+                status: {type: string, enum: [pass, warn, reject]}
+                summary: {type: string, maxLength: 2048}
+              additionalProperties: false
+          feedback: {type: string, maxLength: 4096}
+        additionalProperties: false
+        allOf:
+          - properties:
+              findings:
+                allOf:
+                  - contains: {type: object, required: [category], properties: {category: {const: semantic_preservation}}}
+                  - contains: {type: object, required: [category], properties: {category: {const: structural_intent}}}
+                  - contains: {type: object, required: [category], properties: {category: {const: voice_match}}}
+                  - contains: {type: object, required: [category], properties: {category: {const: tightening_quality}}}
+                  - contains: {type: object, required: [category], properties: {category: {const: unsupported_additions}}}
+                  - contains: {type: object, required: [category], properties: {category: {const: anchor_copy_risk}}}
+          - if: {properties: {verdict: {const: pass}}, required: [verdict]}
+            then:
+              properties:
+                responsible_stage: {const: ""}
+                findings:
+                  items:
+                    properties: {status: {const: pass}}
+          - if: {properties: {verdict: {const: reject}}, required: [verdict]}
+            then:
+              properties:
+                responsible_stage: {const: structure}
+                findings:
+                  contains:
+                    type: object
+                    required: [status]
+                    properties: {status: {const: reject}}
       parsed: CriticResponseParsed
       unparsed: CriticResponseInvalid
     side_effects: []

@@ -59,13 +59,32 @@ type editorFixture struct {
 }
 
 type criticFixture struct {
-	Verdict          string `yaml:"verdict"`
-	ResponsibleStage string `yaml:"responsible_stage"`
-	Feedback         string `yaml:"feedback"`
-	Findings         []struct {
-		Category string `yaml:"category"`
-		Status   string `yaml:"status"`
-	} `yaml:"findings"`
+	Verdict              string                 `yaml:"verdict"`
+	ResponsibleStage     string                 `yaml:"responsible_stage"`
+	OriginalContentHash  string                 `yaml:"original_content_hash"`
+	CandidateContentHash string                 `yaml:"candidate_content_hash"`
+	Feedback             string                 `yaml:"feedback"`
+	Findings             []criticFixtureFinding `yaml:"findings"`
+}
+
+type criticFixtureFinding struct {
+	Category string `yaml:"category"`
+	Status   string `yaml:"status"`
+}
+
+type criticEvaluation struct {
+	Verdict              string          `json:"verdict"`
+	ResponsibleStage     string          `json:"responsible_stage"`
+	OriginalContentHash  string          `json:"original_content_hash"`
+	CandidateContentHash string          `json:"candidate_content_hash"`
+	Findings             []criticFinding `json:"findings"`
+	Feedback             string          `json:"feedback"`
+}
+
+type criticFinding struct {
+	Category string `json:"category"`
+	Status   string `json:"status"`
+	Summary  string `json:"summary"`
 }
 
 type structureCorpus struct {
@@ -359,7 +378,7 @@ func appendEvent(state manifest, occurrence int) string {
 	case 6:
 		return "critique_retry_manifested"
 	case 7:
-		if state.Selected["final"] != "" && state.LastCritic["verdict"] == "pass" {
+		if state.Selected["final"] != "" {
 			return "locally_finalized"
 		}
 		return "kept_original"
@@ -473,15 +492,25 @@ func (b *boundary) writeCritique(state *manifest, occurrence int, key string, in
 	if attempt > len(b.scenario.CriticResponses) {
 		return "", "", errors.New("critic attempt exceeds fixture roster")
 	}
-	var decoded map[string]any
-	if err := json.Unmarshal(input, &decoded); err != nil {
+	evaluation, err := decodeCriticEvaluation(input)
+	if err != nil {
 		return "", "", fmt.Errorf("decode critic child output: %w", err)
+	}
+	structure, ok := selectedArtifact(*state, "structure")
+	if replay {
+		structure, ok = artifactByStageAttempt(*state, "structure", attempt)
+	}
+	if !ok {
+		return "", "", fmt.Errorf("critique requires structure attempt %d", attempt)
+	}
+	if err := b.validateCriticEvaluation(*state, structure, evaluation); err != nil {
+		return "", "", fmt.Errorf("invalid critic child output: %w", err)
 	}
 	var fixture criticFixture
 	if err := readYAML(filepath.Join(b.fixtures, b.scenario.CriticResponses[attempt-1]), &fixture); err != nil {
 		return "", "", err
 	}
-	if decoded["verdict"] != fixture.Verdict {
+	if evaluation.Verdict != fixture.Verdict {
 		return "", "", errors.New("critic child verdict differs from deterministic model fixture")
 	}
 	sum := digest(input)
@@ -489,30 +518,21 @@ func (b *boundary) writeCritique(state *manifest, occurrence int, key string, in
 	if err := writeImmutable(filepath.Join(b.workspace, filepath.FromSlash(relative)), input); err != nil {
 		return "", "", err
 	}
-	structureID := state.Selected["structure"]
-	if replay {
-		structure, ok := artifactByStageAttempt(*state, "structure", attempt)
-		if !ok {
-			return "", "", fmt.Errorf("critique replay requires structure attempt %d", attempt)
-		}
-		structureID = structure.ID
-	}
+	structureID := structure.ID
 	if !replay {
-		status, _ := decoded["verdict"].(string)
 		id := artifactID("critique", attempt, sum)
 		state.Artifacts = append(state.Artifacts, artifact{
-			ID: id, Stage: "critique", Attempt: attempt, Status: status, Path: relative,
+			ID: id, Stage: "critique", Attempt: attempt, Status: evaluation.Verdict, Path: relative,
 			SHA256: sum, Parents: []string{state.Selected["original"], structureID},
 			Producer: "voice-critic",
 		})
 		state.Selected["critique"] = id
-		state.LastCritic = decoded
+		state.LastCritic = criticEvaluationMap(evaluation)
 		state.Events = append(state.Events, fmt.Sprintf("critique_attempt_%d_written", attempt))
 	} else {
-		status, _ := decoded["verdict"].(string)
 		want := artifact{
 			ID: artifactID("critique", attempt, sum), Stage: "critique", Attempt: attempt,
-			Status: status, Path: relative, SHA256: sum,
+			Status: evaluation.Verdict, Path: relative, SHA256: sum,
 			Parents: []string{state.Selected["original"], structureID}, Producer: "voice-critic",
 		}
 		if err := validateReplayArtifact(*state, want); err != nil {
@@ -523,9 +543,6 @@ func (b *boundary) writeCritique(state *manifest, occurrence int, key string, in
 }
 
 func (b *boundary) materializeFinal(state *manifest, key string, replay bool) (string, string, error) {
-	if state.LastCritic["verdict"] != "pass" {
-		return "", "", errors.New("finalization requires a passed critic verdict")
-	}
 	structure, ok := selectedArtifact(*state, "structure")
 	if !ok {
 		return "", "", errors.New("finalization requires selected structure")
@@ -534,13 +551,32 @@ func (b *boundary) materializeFinal(state *manifest, key string, replay bool) (s
 	if !ok || critique.Status != "pass" {
 		return "", "", errors.New("finalization requires selected passed critique")
 	}
+	if !equalStrings(critique.Parents, []string{state.Selected["original"], structure.ID}) {
+		return "", "", errors.New("selected critique does not bind the selected original and structure")
+	}
 	structureBytes, err := os.ReadFile(filepath.Join(b.workspace, filepath.FromSlash(structure.Path)))
 	if err != nil {
 		return "", "", err
 	}
+	if digest(structureBytes) != structure.SHA256 {
+		return "", "", errors.New("selected structure bytes differ from recorded hash")
+	}
 	critiqueBytes, err := os.ReadFile(filepath.Join(b.workspace, filepath.FromSlash(critique.Path)))
 	if err != nil {
 		return "", "", err
+	}
+	if digest(critiqueBytes) != critique.SHA256 {
+		return "", "", errors.New("selected critique bytes differ from recorded hash")
+	}
+	evaluation, err := decodeCriticEvaluation(critiqueBytes)
+	if err != nil {
+		return "", "", fmt.Errorf("decode selected critique: %w", err)
+	}
+	if err := b.validateCriticEvaluation(*state, structure, evaluation); err != nil {
+		return "", "", fmt.Errorf("finalization requires a valid critic evaluation: %w", err)
+	}
+	if evaluation.Verdict != "pass" {
+		return "", "", errors.New("finalization requires a passed critic verdict")
 	}
 	for path, data := range map[string][]byte{
 		"10-structure.md": structureBytes, "40-critique.yaml": critiqueBytes, "final.md": structureBytes,
@@ -727,14 +763,18 @@ func (b *boundary) chatResponse(body []byte, occurrence int) (any, error) {
 				"category": finding.Category, "status": finding.Status, "summary": "fixture-backed assessment",
 			})
 		}
-		responsible := fixture.ResponsibleStage
-		if responsible == "" {
-			responsible = "none"
+		originalHash := fixture.OriginalContentHash
+		if originalHash == "" {
+			originalHash, _ = childRequest["original_content_hash"].(string)
+		}
+		candidateHash := fixture.CandidateContentHash
+		if candidateHash == "" {
+			candidateHash, _ = childRequest["candidate_content_hash"].(string)
 		}
 		content, err = json.Marshal(map[string]any{
-			"verdict": fixture.Verdict, "responsible_stage": responsible,
-			"original_content_hash":  childRequest["original_content_hash"],
-			"candidate_content_hash": childRequest["candidate_content_hash"],
+			"verdict": fixture.Verdict, "responsible_stage": fixture.ResponsibleStage,
+			"original_content_hash":  originalHash,
+			"candidate_content_hash": candidateHash,
 			"findings":               findings, "feedback": fixture.Feedback,
 		})
 		if err != nil {
@@ -869,6 +909,120 @@ func (b *boundary) receipts() ([]receipt, error) {
 		values = append(values, value)
 	}
 	return values, scanner.Err()
+}
+
+func decodeCriticEvaluation(data []byte) (criticEvaluation, error) {
+	var evaluation criticEvaluation
+	decoder := json.NewDecoder(bytes.NewReader(data))
+	decoder.DisallowUnknownFields()
+	if err := decoder.Decode(&evaluation); err != nil {
+		return evaluation, err
+	}
+	if err := decoder.Decode(&struct{}{}); !errors.Is(err, io.EOF) {
+		if err == nil {
+			return evaluation, errors.New("critic output contains multiple JSON values")
+		}
+		return evaluation, err
+	}
+	return evaluation, nil
+}
+
+func (b *boundary) validateCriticEvaluation(
+	state manifest,
+	structure artifact,
+	evaluation criticEvaluation,
+) error {
+	original, ok := selectedArtifact(state, "original")
+	if !ok || original.Stage != "original" {
+		return errors.New("critic evaluation requires selected original")
+	}
+	if structure.Stage != "structure" || structure.ID == "" {
+		return errors.New("critic evaluation requires selected structure")
+	}
+	originalBytes, err := os.ReadFile(filepath.Join(b.workspace, filepath.FromSlash(original.Path)))
+	if err != nil {
+		return fmt.Errorf("read selected original: %w", err)
+	}
+	candidateBytes, err := os.ReadFile(filepath.Join(b.workspace, filepath.FromSlash(structure.Path)))
+	if err != nil {
+		return fmt.Errorf("read selected structure: %w", err)
+	}
+	originalHash := digest(originalBytes)
+	candidateHash := digest(candidateBytes)
+	if originalHash != original.SHA256 || candidateHash != structure.SHA256 {
+		return errors.New("selected artifact bytes differ from recorded hashes")
+	}
+	if evaluation.OriginalContentHash != originalHash {
+		return errors.New("critic original hash does not match selected artifact bytes")
+	}
+	if evaluation.CandidateContentHash != candidateHash {
+		return errors.New("critic candidate hash does not match selected artifact bytes")
+	}
+
+	required := map[string]bool{
+		"semantic_preservation": false,
+		"structural_intent":     false,
+		"voice_match":           false,
+		"tightening_quality":    false,
+		"unsupported_additions": false,
+		"anchor_copy_risk":      false,
+	}
+	if len(evaluation.Findings) != len(required) {
+		return fmt.Errorf("critic findings count = %d, want %d", len(evaluation.Findings), len(required))
+	}
+	rejects := 0
+	for _, finding := range evaluation.Findings {
+		seen, known := required[finding.Category]
+		if !known {
+			return fmt.Errorf("unknown critic finding category %q", finding.Category)
+		}
+		if seen {
+			return fmt.Errorf("duplicate critic finding category %q", finding.Category)
+		}
+		required[finding.Category] = true
+		switch finding.Status {
+		case "pass":
+		case "warn":
+		case "reject":
+			rejects++
+		default:
+			return fmt.Errorf("invalid critic finding status %q", finding.Status)
+		}
+	}
+	for category, seen := range required {
+		if !seen {
+			return fmt.Errorf("missing critic finding category %q", category)
+		}
+	}
+
+	switch evaluation.Verdict {
+	case "pass":
+		if evaluation.ResponsibleStage != "" {
+			return errors.New("passed critic evaluation must not name a responsible stage")
+		}
+		for _, finding := range evaluation.Findings {
+			if finding.Status != "pass" {
+				return errors.New("passed critic evaluation requires all findings to pass")
+			}
+		}
+	case "reject":
+		if evaluation.ResponsibleStage != "structure" {
+			return errors.New("Release 00.1 rejected evaluation must name structure as responsible stage")
+		}
+		if rejects == 0 {
+			return errors.New("rejected critic evaluation requires at least one rejected finding")
+		}
+	default:
+		return fmt.Errorf("invalid critic verdict %q", evaluation.Verdict)
+	}
+	return nil
+}
+
+func criticEvaluationMap(evaluation criticEvaluation) map[string]any {
+	data, _ := json.Marshal(evaluation)
+	var decoded map[string]any
+	_ = json.Unmarshal(data, &decoded)
+	return decoded
 }
 
 func selectedArtifact(state manifest, stage string) (artifact, bool) {
