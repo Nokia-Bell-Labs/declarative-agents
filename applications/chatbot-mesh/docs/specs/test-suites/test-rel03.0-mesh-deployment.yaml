@@ -64,7 +64,7 @@ test_cases:
   - use_case: rel03.0-uc001-mesh-deployment
     name: Chatbot topology and selected-target REST drift lock
     integration_target: mage integration:helmSmoke
-    go_test: go test ./magefiles -run '^TestChatbotRestCoGeneratedFromRagUnits$|^TestChatbotUIMonitoredAgentsCoGenerated$|^TestChatbotFanOutCoGeneratedForNRags$'
+    go_test: go test ./magefiles -run '^TestChatbotRestCoGeneratedFromRagUnits$|^TestChatbotUIMonitoredAgentsCoGenerated$|^TestChatbotFanOutCoGeneratedForNRags$|^TestRenderedProfileProjectionKeysExistInConfigMap$'
     status: implemented
     description: |
       Locks srd003 R2: ragUnits renders the chatbot's ordered topology declaration,
@@ -72,7 +72,10 @@ test_cases:
       request-machine.yaml and request-fanout-declarations.yaml remain packaged verbatim with
       one for_each and one rag_query. A three-RAG render changes only topology data
       and allowlisted/upstream hosts, retains one selected-target REST operation,
-      binds servers to 0.0.0.0, and passes the profile validation gate.
+      binds servers to 0.0.0.0, and passes the profile validation gate. The staged
+      chart render also proves every projected profiles-volume key exists in the
+      profiles ConfigMap data, including request-fanout-declarations.yaml, and
+      contains no request-fanout.yaml key or path.
     inputs:
       chart: applications/chatbot-mesh/helm/
       values_rag_list: [alpha, bravo, charlie]
@@ -83,6 +86,8 @@ test_cases:
       word_and_state_counts_independent_of_source_count: true
       no_drifted_or_stale_client: true
       rendered_profile_validates: true
+      projected_profile_keys_exist_in_configmap_data: true
+      legacy_request_fanout_name_absent: true
     traces:
       - rel03.0-uc001-mesh-deployment S2
       - srd003-chatbot-deployment AC2

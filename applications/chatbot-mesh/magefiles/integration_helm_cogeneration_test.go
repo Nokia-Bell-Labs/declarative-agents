@@ -9,6 +9,8 @@ import (
 	"path/filepath"
 	"strings"
 	"testing"
+
+	"gopkg.in/yaml.v3"
 )
 
 // TestChatbotFanOutCoGeneratedForNRags locks the source-count-independent
@@ -72,6 +74,110 @@ func TestChatbotFanOutCoGeneratedForNRags(t *testing.T) {
 		if strings.Contains(string(machine), indexed) || strings.Contains(string(fanout), indexed) {
 			t.Errorf("source-indexed fan-out name remains: %s", indexed)
 		}
+	}
+}
+
+func TestRenderedProfileProjectionKeysExistInConfigMap(t *testing.T) {
+	if _, err := exec.LookPath("helm"); err != nil {
+		t.Skip("helm not on PATH")
+	}
+	chart := findChartDir(t)
+	staged, cleanup, err := stageSmokeChart(chart, filepath.Dir(chart))
+	if err != nil {
+		t.Fatalf("stage chart: %v", err)
+	}
+	defer cleanup()
+
+	out, err := exec.Command("helm", "template", "t", staged).CombinedOutput()
+	if err != nil {
+		t.Fatalf("helm template: %v\n%s", err, out)
+	}
+	render := string(out)
+	for _, legacy := range []string{
+		"agents__chatbot__request-fanout.yaml",
+		"agents/chatbot/request-fanout.yaml",
+	} {
+		if strings.Contains(render, legacy) {
+			t.Errorf("rendered chart retains legacy profile reference %q", legacy)
+		}
+	}
+
+	type manifest struct {
+		Kind     string `yaml:"kind"`
+		Metadata struct {
+			Name string `yaml:"name"`
+		} `yaml:"metadata"`
+		Data map[string]string `yaml:"data"`
+		Spec struct {
+			Template struct {
+				Spec struct {
+					Volumes []struct {
+						Name      string `yaml:"name"`
+						ConfigMap struct {
+							Name  string `yaml:"name"`
+							Items []struct {
+								Key  string `yaml:"key"`
+								Path string `yaml:"path"`
+							} `yaml:"items"`
+						} `yaml:"configMap"`
+					} `yaml:"volumes"`
+				} `yaml:"spec"`
+			} `yaml:"template"`
+		} `yaml:"spec"`
+	}
+
+	var docs []manifest
+	var profilesName string
+	var profilesData map[string]string
+	for _, chunk := range strings.Split(render, "\n---") {
+		var doc manifest
+		if err := yaml.Unmarshal([]byte(chunk), &doc); err != nil {
+			continue
+		}
+		docs = append(docs, doc)
+		if doc.Kind == "ConfigMap" && strings.HasSuffix(doc.Metadata.Name, "-profiles") {
+			profilesName = doc.Metadata.Name
+			profilesData = doc.Data
+		}
+	}
+	if profilesName == "" || len(profilesData) == 0 {
+		t.Fatal("rendered chart has no populated profiles ConfigMap")
+	}
+
+	const (
+		fanoutKey  = "agents__chatbot__request-fanout-declarations.yaml"
+		fanoutPath = "agents/chatbot/request-fanout-declarations.yaml"
+	)
+	if _, ok := profilesData[fanoutKey]; !ok {
+		t.Errorf("profiles ConfigMap data is missing %s", fanoutKey)
+	}
+	var projected, fanoutProjected bool
+	for _, doc := range docs {
+		for _, volume := range doc.Spec.Template.Spec.Volumes {
+			if volume.Name != "profiles" || volume.ConfigMap.Name != profilesName {
+				continue
+			}
+			for _, item := range volume.ConfigMap.Items {
+				projected = true
+				if _, ok := profilesData[item.Key]; !ok {
+					t.Errorf("%s projects key %s, which is absent from %s data",
+						doc.Metadata.Name, item.Key, profilesName)
+				}
+				if item.Key == fanoutKey {
+					fanoutProjected = true
+					if item.Path != fanoutPath {
+						t.Errorf("%s projects %s at %s, want %s",
+							doc.Metadata.Name, fanoutKey, item.Path, fanoutPath)
+					}
+				}
+			}
+		}
+	}
+	if !projected {
+		t.Fatal("rendered workloads project no profiles ConfigMap items")
+	}
+	if !fanoutProjected {
+		t.Errorf("rendered workloads do not project %s", fanoutKey)
 	}
 }
 

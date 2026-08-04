@@ -39,6 +39,10 @@ func TestHelmPackageIsRepeatableAndExcludesGeneratedInputs(t *testing.T) {
 	if strings.Join(first, "\n") != strings.Join(second, "\n") {
 		t.Fatalf("repeat package inventory changed:\nfirst=%v\nsecond=%v", first, second)
 	}
+	const legacyFanout = "chatbot-mesh/profiles/agents/chatbot/request-fanout.yaml"
+	if containsArchiveFile(second, legacyFanout) {
+		t.Errorf("archive retains legacy runtime asset %s", legacyFanout)
+	}
 	for _, name := range second {
 		if strings.Contains(name, "chatbot-mesh/dist/") ||
 			strings.HasSuffix(name, "/profiles/stale.yaml") ||
@@ -51,6 +55,7 @@ func TestHelmPackageIsRepeatableAndExcludesGeneratedInputs(t *testing.T) {
 	for _, required := range []string{
 		"chatbot-mesh/templates/chatbot.yaml",
 		"chatbot-mesh/profiles/agents/chatbot/profile.yaml",
+		"chatbot-mesh/profiles/agents/chatbot/request-fanout-declarations.yaml",
 		"chatbot-mesh/profiles/applications/catalog/applier/apply-machine.yaml",
 		"chatbot-mesh/profiles/applications/catalog/applier/declarations.yaml",
 		"chatbot-mesh/profiles/applications/chatbot-mesh/applier/profile.yaml",
