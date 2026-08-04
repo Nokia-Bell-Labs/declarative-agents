@@ -243,9 +243,9 @@ func (b *boundary) run(operation string) error {
 	}
 	if !replay {
 		state.Applied[key] = true
-	}
-	if err := b.saveManifest(state); err != nil {
-		return err
+		if err := b.saveManifest(state); err != nil {
+			return err
+		}
 	}
 	if err := b.record(receipt{
 		Session: b.session, Operation: operation, Occurrence: occurrence, Status: "ok",
@@ -319,10 +319,11 @@ func (b *boundary) appendManifest(state *manifest, occurrence int, key string, r
 			state.Terminal = "KeptOriginal"
 			state.Selected["structure"] = ""
 			state.Selected["critique"] = ""
+			state.Selected["final"] = ""
 		}
 	}
 	requestPath := filepath.Join(b.workspace, ".tracer", "child-request.json")
-	if request, ok, err := b.requestForAppend(state, occurrence); err != nil {
+	if request, ok, err := b.requestForAppend(state, occurrence, replay); err != nil {
 		return "", err
 	} else if ok {
 		if err := writeProjection(requestPath, request); err != nil {
@@ -367,7 +368,7 @@ func appendEvent(state manifest, occurrence int) string {
 	}
 }
 
-func (b *boundary) requestForAppend(state *manifest, occurrence int) ([]byte, bool, error) {
+func (b *boundary) requestForAppend(state *manifest, occurrence int, replay bool) ([]byte, bool, error) {
 	switch {
 	case occurrence == 1:
 		data, err := os.ReadFile(filepath.Join(b.workspace, "00-original.md"))
@@ -386,9 +387,19 @@ func (b *boundary) requestForAppend(state *manifest, occurrence int) ([]byte, bo
 		if err != nil {
 			return nil, false, err
 		}
-		structure, ok := selectedArtifact(*state, "structure")
+		var structure artifact
+		var ok bool
+		if replay {
+			attempt := 1
+			if occurrence == 5 {
+				attempt = 2
+			}
+			structure, ok = artifactByStageAttempt(*state, "structure", attempt)
+		} else {
+			structure, ok = selectedArtifact(*state, "structure")
+		}
 		if !ok {
-			return nil, false, errors.New("critic request requires selected structure")
+			return nil, false, fmt.Errorf("critic request requires structure attempt for append occurrence %d", occurrence)
 		}
 		candidate, err := os.ReadFile(filepath.Join(b.workspace, filepath.FromSlash(structure.Path)))
 		if err != nil {
@@ -445,11 +456,13 @@ func (b *boundary) writeStructure(state *manifest, occurrence int, key string, i
 		state.Selected["structure"] = id
 		state.Events = append(state.Events, fmt.Sprintf("structure_attempt_%d_written", attempt))
 	} else {
-		for _, existing := range state.Artifacts {
-			if existing.Stage == "structure" && existing.Attempt == attempt && existing.SHA256 == sum {
-				state.Selected["structure"] = existing.ID
-				break
-			}
+		want := artifact{
+			ID: artifactID("structure", attempt, sum), Stage: "structure", Attempt: attempt,
+			Path: relative, SHA256: sum, Parents: []string{state.Selected["original"]},
+			Producer: "specialist-editor:structure", Retrieval: fixture.RetrievalIDs,
+		}
+		if err := validateReplayArtifact(*state, want); err != nil {
+			return "", "", err
 		}
 	}
 	return `{"written":true}`, sum, nil
@@ -476,25 +489,35 @@ func (b *boundary) writeCritique(state *manifest, occurrence int, key string, in
 	if err := writeImmutable(filepath.Join(b.workspace, filepath.FromSlash(relative)), input); err != nil {
 		return "", "", err
 	}
+	structureID := state.Selected["structure"]
+	if replay {
+		structure, ok := artifactByStageAttempt(*state, "structure", attempt)
+		if !ok {
+			return "", "", fmt.Errorf("critique replay requires structure attempt %d", attempt)
+		}
+		structureID = structure.ID
+	}
 	if !replay {
 		status, _ := decoded["verdict"].(string)
 		id := artifactID("critique", attempt, sum)
 		state.Artifacts = append(state.Artifacts, artifact{
 			ID: id, Stage: "critique", Attempt: attempt, Status: status, Path: relative,
-			SHA256: sum, Parents: []string{state.Selected["original"], state.Selected["structure"]},
+			SHA256: sum, Parents: []string{state.Selected["original"], structureID},
 			Producer: "voice-critic",
 		})
 		state.Selected["critique"] = id
 		state.LastCritic = decoded
 		state.Events = append(state.Events, fmt.Sprintf("critique_attempt_%d_written", attempt))
 	} else {
-		for _, existing := range state.Artifacts {
-			if existing.Stage == "critique" && existing.Attempt == attempt && existing.SHA256 == sum {
-				state.Selected["critique"] = existing.ID
-				break
-			}
+		status, _ := decoded["verdict"].(string)
+		want := artifact{
+			ID: artifactID("critique", attempt, sum), Stage: "critique", Attempt: attempt,
+			Status: status, Path: relative, SHA256: sum,
+			Parents: []string{state.Selected["original"], structureID}, Producer: "voice-critic",
 		}
-		state.LastCritic = decoded
+		if err := validateReplayArtifact(*state, want); err != nil {
+			return "", "", err
+		}
 	}
 	return `{"written":true}`, sum, nil
 }
@@ -856,6 +879,45 @@ func selectedArtifact(state manifest, stage string) (artifact, bool) {
 		}
 	}
 	return artifact{}, false
+}
+
+func artifactByStageAttempt(state manifest, stage string, attempt int) (artifact, bool) {
+	for _, candidate := range state.Artifacts {
+		if candidate.Stage == stage && candidate.Attempt == attempt {
+			return candidate, true
+		}
+	}
+	return artifact{}, false
+}
+
+func validateReplayArtifact(state manifest, want artifact) error {
+	for _, candidate := range state.Artifacts {
+		if candidate.ID != want.ID {
+			continue
+		}
+		if candidate.Stage != want.Stage || candidate.Attempt != want.Attempt ||
+			candidate.Path != want.Path || candidate.SHA256 != want.SHA256 ||
+			candidate.Producer != want.Producer ||
+			!equalStrings(candidate.Parents, want.Parents) ||
+			!equalStrings(candidate.Retrieval, want.Retrieval) ||
+			(want.Status != "" && candidate.Status != want.Status) {
+			return fmt.Errorf("replay artifact %s differs from recorded lineage", want.ID)
+		}
+		return nil
+	}
+	return fmt.Errorf("replay artifact %s is not recorded", want.ID)
+}
+
+func equalStrings(left, right []string) bool {
+	if len(left) != len(right) {
+		return false
+	}
+	for index := range left {
+		if left[index] != right[index] {
+			return false
+		}
+	}
+	return true
 }
 
 func readYAML(path string, value any) error {

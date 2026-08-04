@@ -189,6 +189,10 @@ func runInterpreterEvidence(root string, runtime tracerRuntime, scenario interpr
 	}
 	fmt.Printf("interpreter scenario %s: workflow=%s structure_children=%d critic_children=%d\n",
 		scenario.Name, expectedWorkflowTerminal(scenario), len(scenario.EditorResponses), len(scenario.CriticResponses))
+	manifestBefore, err := manifestSemantics(workspace)
+	if err != nil {
+		return err
+	}
 	before, err := immutableArtifactDigest(workspace)
 	if err != nil {
 		return err
@@ -207,6 +211,13 @@ func runInterpreterEvidence(root string, runtime tracerRuntime, scenario interpr
 	}
 	if !reflect.DeepEqual(before, after) {
 		return errors.New("terminal interpreter replay changed immutable artifacts")
+	}
+	manifestAfter, err := manifestSemantics(workspace)
+	if err != nil {
+		return err
+	}
+	if !reflect.DeepEqual(manifestBefore, manifestAfter) {
+		return errors.New("terminal interpreter replay changed manifest semantics")
 	}
 	receipts, err := loadReceipts(workspace)
 	if err != nil {
@@ -448,6 +459,9 @@ func validateInterpreterWorkspace(
 		manifest.SagaID != scenario.SagaID || manifest.Terminal != expectedTerminal {
 		return fmt.Errorf("manifest identity/terminal = %s/%s/%s", manifest.SchemaVersion, manifest.SagaID, manifest.Terminal)
 	}
+	if err := validateSelectedLineage(manifest, scenario); err != nil {
+		return err
+	}
 	structures, critiques, superseded := 0, 0, 0
 	for _, artifact := range manifest.Artifacts {
 		data, err := os.ReadFile(filepath.Join(workspace, filepath.FromSlash(artifact.Path)))
@@ -493,6 +507,26 @@ func validateInterpreterWorkspace(
 	return validateSessionReceipts(receipts, run.Session, scenario)
 }
 
+func validateSelectedLineage(manifest recordedManifest, scenario interpreterScenario) error {
+	if manifest.Selected["original"] == "" {
+		return errors.New("manifest has no selected original")
+	}
+	if scenario.ExpectedTerminal == "kept_original" {
+		for stage, id := range manifest.Selected {
+			if stage != "original" && id != "" {
+				return fmt.Errorf("KeptOriginal selected rejected %s artifact %s", stage, id)
+			}
+		}
+		return nil
+	}
+	for _, stage := range []string{"structure", "critique", "final"} {
+		if manifest.Selected[stage] == "" {
+			return fmt.Errorf("finalized manifest has no selected %s", stage)
+		}
+	}
+	return nil
+}
+
 func expectedWorkflowTerminal(scenario interpreterScenario) string {
 	return map[string]string{
 		"locally_finalized": "LocallyFinalized",
@@ -528,6 +562,18 @@ func validateSessionReceipts(receipts []recordedReceipt, session string, scenari
 		return errors.New("recorded boundary attempts do not match child-machine executions")
 	}
 	return nil
+}
+
+func manifestSemantics(workspace string) (any, error) {
+	data, err := os.ReadFile(filepath.Join(workspace, "manifest.yaml"))
+	if err != nil {
+		return nil, err
+	}
+	var value any
+	if err := json.Unmarshal(data, &value); err != nil {
+		return nil, err
+	}
+	return value, nil
 }
 
 func immutableArtifactDigest(workspace string) (map[string]string, error) {
