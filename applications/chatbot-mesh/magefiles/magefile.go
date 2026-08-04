@@ -243,9 +243,12 @@ func runSpecificationCritic(binary, specificationCriticProfile, root, coreRoot s
 		"--core-root", coreRoot,
 	)
 	cmd.Dir = root
-	var out bytes.Buffer
-	cmd.Stdout = io.MultiWriter(os.Stdout, &out)
-	cmd.Stderr = io.MultiWriter(os.Stderr, &out)
+	// os/exec drains stdout and stderr concurrently. Keep separate buffers:
+	// bytes.Buffer is not safe for concurrent writes, and sharing one here can
+	// lose the terminal marker while the same marker is still forwarded live.
+	var stdout, stderr bytes.Buffer
+	cmd.Stdout = io.MultiWriter(os.Stdout, &stdout)
+	cmd.Stderr = io.MultiWriter(os.Stderr, &stderr)
 	// A corpus with findings drives the specification critic to a failure terminal, which
 	// exits non-zero; that is a completed run reporting failure, not a broken
 	// invocation (srd018-cli-flag-contract R6). Only a run the binary could
@@ -253,7 +256,7 @@ func runSpecificationCritic(binary, specificationCriticProfile, root, coreRoot s
 	if runErr := cmd.Run(); !agentRunCompleted(runErr) {
 		return fmt.Errorf("specification-critic run failed: %w", runErr)
 	}
-	ok, err := specificationCriticSucceeded(out.String())
+	ok, err := specificationCriticSucceeded(combinedAgentReport(stdout.String(), stderr.String()))
 	switch {
 	case err != nil:
 		return fmt.Errorf("audit: %w; see the report above", err)
@@ -263,6 +266,10 @@ func runSpecificationCritic(binary, specificationCriticProfile, root, coreRoot s
 		fmt.Printf("audit: specification-critic profile %s completed with no errors\n", filepath.Base(specificationCriticProfile))
 		return nil
 	}
+}
+
+func combinedAgentReport(stdout, stderr string) string {
+	return stdout + "\n" + stderr
 }
 
 // specificationCriticSucceeded reads a clean/failing outcome from a specification-critic report. The

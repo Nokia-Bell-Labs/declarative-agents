@@ -66,6 +66,52 @@ func TestSpecificationCriticSucceeded(t *testing.T) {
 	}
 }
 
+func TestSpecificationCriticSucceededFromSplitStreams(t *testing.T) {
+	t.Parallel()
+	cases := []struct {
+		name    string
+		stdout  string
+		stderr  string
+		wantOK  bool
+		wantErr bool
+	}{
+		{
+			name:   "summary on stdout and terminal on stderr",
+			stdout: "All consistency checks passed.\nvalidate: 8 SRDs — OK\n",
+			stderr: "run complete: status=succeeded\nterminal state: succeeded\nfinal machine state: Passed\n",
+			wantOK: true,
+		},
+		{
+			name:   "terminal on stdout",
+			stdout: "terminal state: succeeded\n",
+			stderr: "final machine state: Passed\n",
+			wantOK: true,
+		},
+		{
+			name:   "failed marker in either stream wins",
+			stdout: "terminal state: succeeded\n",
+			stderr: "run complete: status=failed\nterminal state: failed\n",
+		},
+		{
+			name:    "neither stream has terminal marker",
+			stdout:  "All consistency checks passed.\n",
+			stderr:  "final machine state: Passed\n",
+			wantErr: true,
+		},
+	}
+	for _, tc := range cases {
+		t.Run(tc.name, func(t *testing.T) {
+			ok, err := specificationCriticSucceeded(combinedAgentReport(tc.stdout, tc.stderr))
+			if ok != tc.wantOK {
+				t.Errorf("ok = %v, want %v", ok, tc.wantOK)
+			}
+			if (err != nil) != tc.wantErr {
+				t.Errorf("err = %v, wantErr %v", err, tc.wantErr)
+			}
+		})
+	}
+}
+
 // TestResolveAuditToolsRequiresRuntimeAndValidator pins the self-governance gate:
 // a copied-out application that cannot reach the agent-core runtime or the specification-critic
 // validator profile must fail, not skip to a false green. Only when both tools
