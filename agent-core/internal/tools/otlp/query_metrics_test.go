@@ -101,7 +101,12 @@ func TestSpoolListMetricsSeedOverridesPageSize(t *testing.T) {
 
 func TestSpoolGetMetricByName(t *testing.T) {
 	path := filepath.Join(t.TempDir(), "metrics.ndjson")
-	spoolMetricBatch(t, path, metricRequest("chatbot", "dispatch_count", 3))
+	chatbotRequest := metricRequest("chatbot", "dispatch_count", 3)
+	chatbotRequest.ResourceMetrics[0].Resource.Attributes = append(
+		chatbotRequest.ResourceMetrics[0].Resource.Attributes,
+		stringAttribute("test.run.id", "run-detail-42"),
+	)
+	spoolMetricBatch(t, path, chatbotRequest)
 	spoolMetricBatch(t, path, metricRequest("rag0", "dispatch_count", 2))
 	spoolMetricBatch(t, path, metricRequest("dolt", "dss_rows", 1))
 
@@ -124,6 +129,11 @@ func TestSpoolGetMetricByName(t *testing.T) {
 	// Sorted by service: chatbot, rag0.
 	require.Equal(t, "chatbot", output.Records[0].Service)
 	require.Equal(t, "rag0", output.Records[1].Service)
+	require.Equal(t, []map[string]any{
+		{"Key": "integration.run_id", "Value": map[string]any{"Type": "STRING", "Value": "run-42"}},
+		{"Key": "service.name", "Value": map[string]any{"Type": "STRING", "Value": "chatbot"}},
+		{"Key": "test.run.id", "Value": map[string]any{"Type": "STRING", "Value": "run-detail-42"}},
+	}, output.Records[0].Resource)
 	require.NotNil(t, output.Records[0].Metric)
 }
 
