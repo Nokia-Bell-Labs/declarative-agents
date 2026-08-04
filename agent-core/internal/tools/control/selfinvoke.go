@@ -17,6 +17,8 @@ import (
 	"github.com/Nokia-Bell-Labs/declarative-agents/agent-core/internal/tools/undo"
 )
 
+const selfInvokeTraceAttributeLimit = 500
+
 // SelfInvokeBuilder constructs self-invocation commands.
 type SelfInvokeBuilder struct {
 	Config      execute.Config
@@ -145,12 +147,17 @@ func (c *selfInvokeCmd) traceResult(cfg execute.Config, result *execute.Result) 
 	if c.tracer == nil {
 		return
 	}
-	c.tracer.SetAttributes(
-		attribute.String("self_invoke.binary", cfg.Binary),
-		attribute.String("self_invoke.run_id", c.runID),
+	attrs := []attribute.KeyValue{
+		attribute.String("self_invoke.binary", modelllm.Truncate(cfg.Binary, selfInvokeTraceAttributeLimit)),
+		attribute.String("self_invoke.profile", modelllm.Truncate(cfg.Profile, selfInvokeTraceAttributeLimit)),
+		attribute.String("self_invoke.run_id", modelllm.Truncate(c.runID, selfInvokeTraceAttributeLimit)),
 		attribute.Int("self_invoke.exit_code", result.ExitCode),
-		attribute.String("self_invoke.output", modelllm.Truncate(result.Stdout, 500)),
-	)
+		attribute.String("self_invoke.output", modelllm.Truncate(result.Stdout, selfInvokeTraceAttributeLimit)),
+		attribute.String("self_invoke.stdout", modelllm.Truncate(result.Stdout, selfInvokeTraceAttributeLimit)),
+		attribute.String("self_invoke.stderr", modelllm.Truncate(result.Stderr, selfInvokeTraceAttributeLimit)),
+	}
+	c.tracer.SetAttributes(attrs...)
+	c.tracer.Event("self_invoke.result", attrs...)
 }
 
 func selfInvokeSignal(result *execute.Result) core.Signal {

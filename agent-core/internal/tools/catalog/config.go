@@ -221,8 +221,8 @@ func ValidateRunPointConfig(toolName string, cfg RunPointConfig) error {
 
 // ValidateParseStructuredConfig checks fields needed before schema compilation.
 func ValidateParseStructuredConfig(toolName string, cfg ParseStructuredConfig) error {
-	if _, _, ok := core.ParseFromSelector(cfg.Source); !ok {
-		return fmt.Errorf("tool %q config source must be a $from(label).path selector", toolName)
+	if _, _, ok := core.ParseFromSelector(cfg.Source); !ok && cfg.Source != "$.output" {
+		return fmt.Errorf("tool %q config source must be $.output or a $from(label).path selector", toolName)
 	}
 	if len(cfg.Schema) == 0 {
 		return fmt.Errorf("tool %q config requires schema", toolName)

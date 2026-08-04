@@ -53,9 +53,12 @@ invocation: |
                          against the profile file's directory.
 
   Runtime data flags.
-    --request            Request file. Evaluator suites, lifecycle history
-                         requests, rollback requests, and similar per-run data
-                         flow through this channel.
+    --request            Finite request file. On a non-resume run, cmd/agent
+                         reads the complete file as bytes and supplies those
+                         exact bytes as the initial Seed Result.Output.
+                         Evaluator suites, lifecycle history requests, rollback
+                         requests, and similar per-run data flow through this
+                         channel. An unreadable file is a startup error.
     --output             Output directory for artifacts such as eval results.
     --directory          Workspace root for file tools, exec tools, child
                          agents, and workspace restore.
@@ -65,6 +68,16 @@ invocation: |
     --resume-checkpoint  Run id to Load before re-entering the loop.
     --resume-signal      Signal used for the first resumed transition
                          (default: Approved).
+
+  Request and resume precedence.
+    With --request and without --resume-checkpoint, the initial signal and
+    InitialResult.Signal are Seed and InitialResult.Output is the complete
+    request-file content. Without --request, bootstrap remains unchanged: the
+    loop starts with its ordinary Seed and empty initial output. With
+    --resume-checkpoint, loaded Position and Execution take precedence over a
+    request Seed; LoadResume replaces InitialResult with the resume signal and
+    "Resume from checkpoint". Supplying --request does not merge new bytes into
+    resumed state.
 
   Diagnostic flags.
     --verbose-trace      Record boundary-tool input/output in OTel traces.
@@ -118,6 +131,22 @@ integration_telemetry: |
   OTel Logs are outside this runtime contract. Ollama calls are represented by
   agent-core GenAI client spans; the contract does not claim native Ollama
   server spans.
+
+process_result_contract: |
+  On a completed run, cmd/agent writes the latest non-empty machine
+  Result.Output to stdout as the terminal summary. The summary is capped at
+  1 MiB including the "... [terminal summary truncated]" marker. It is an
+  explicit program output channel, not a secret-redaction boundary; profiles
+  must keep sensitive values out of Result.Output. A run with no non-empty
+  result writes no summary.
+
+  cmd/agent writes "terminal state: <run-status>" and
+  "final machine state: <state-name>" to stderr. Success and deliberate
+  suspension exit 0; failed, budget-exceeded, and cancelled machine outcomes
+  exit 2. Startup or runtime errors that prevent a completed machine outcome
+  exit 1. Other diagnostics may also appear on stderr, so callers should use
+  the labeled lines and process exit status rather than treating stderr as a
+  two-line protocol.
 
 startup_sequence:
   - step: 1
@@ -198,7 +227,10 @@ startup_sequence:
       binary's startup path owns the single read used for budget defaults,
       emits validation, parse-error policy, and transition-table building.
       Execution starts in the initial state with a Seed signal and runs the
-      finite state machine to completion. Each transition fires its action's
+      finite state machine to completion. For non-resume CLI runs, --request
+      bytes are the initial Seed Result.Output; absence of --request preserves
+      the empty bootstrap output. Resume restores the checkpoint and replaces
+      that Seed result before re-entry. Each transition fires its action's
       Builder.Build(result).Execute(), producing a new Result with a Signal
       that drives the next transition. core.Loop terminates when a terminal
       state is reached or a budget limit is exceeded.
@@ -295,6 +327,14 @@ child_agent_boundaries: |
   internal/support/execute.Config and internal/tools/catalog.ChildAgentConfig
   are profile-only for child agent process boundaries. self_invoke aliases
   require profile at registration time.
+
+  Each self_invoke completion records self_invoke.profile,
+  self_invoke.run_id, self_invoke.exit_code, self_invoke.stdout, and
+  self_invoke.stderr on the current span and on a self_invoke.result event.
+  self_invoke.output remains the compatibility alias for stdout. stdout,
+  output, stderr, profile, run id, and binary each retain at most the first 500
+  bytes followed, when truncated, by a byte-count suffix. Exit code is an
+  integer attribute.
 
 lifecycle: |
   Lifecycle features are runtime ports around the same machine contract, not a

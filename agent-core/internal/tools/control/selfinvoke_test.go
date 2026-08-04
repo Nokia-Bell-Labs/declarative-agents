@@ -4,11 +4,14 @@ package control
 
 import (
 	"context"
+	"strings"
 	"testing"
 	"time"
 
 	"github.com/stretchr/testify/require"
+	"go.opentelemetry.io/otel/attribute"
 
+	"github.com/Nokia-Bell-Labs/declarative-agents/agent-core/internal/observability/tracing"
 	"github.com/Nokia-Bell-Labs/declarative-agents/agent-core/internal/runtime/core"
 	"github.com/Nokia-Bell-Labs/declarative-agents/agent-core/internal/support/execute"
 )
@@ -59,4 +62,66 @@ func TestSelfInvokeResolvesRequestAndOutputFromCommandState(t *testing.T) {
 	require.Equal(t, core.ToolDone, result.Signal)
 	require.Contains(t, result.Output, "--request suites/basic.yaml")
 	require.Contains(t, result.Output, "--output eval-results")
+}
+
+func TestSelfInvokeTraceRecordsBoundedChildResult(t *testing.T) {
+	recorder := &recordingTracer{}
+	cmd := &selfInvokeCmd{
+		runID: strings.Repeat("r", selfInvokeTraceAttributeLimit+10), tracer: recorder,
+	}
+	child := &execute.Result{
+		ExitCode: 2,
+		Stdout:   strings.Repeat("o", selfInvokeTraceAttributeLimit+20),
+		Stderr:   strings.Repeat("e", selfInvokeTraceAttributeLimit+30),
+	}
+	profile := strings.Repeat("p", selfInvokeTraceAttributeLimit+15)
+
+	cmd.traceResult(execute.Config{Binary: "agent", Profile: profile}, child)
+
+	require.Equal(t, "self_invoke.result", recorder.eventName)
+	for _, attrs := range [][]attribute.KeyValue{recorder.attributes, recorder.eventAttrs} {
+		values := attributeValues(attrs)
+		require.Equal(t, strings.Repeat("p", selfInvokeTraceAttributeLimit)+"... (15 more bytes)",
+			values["self_invoke.profile"].AsString())
+		require.Equal(t, strings.Repeat("r", selfInvokeTraceAttributeLimit)+"... (10 more bytes)",
+			values["self_invoke.run_id"].AsString())
+		require.Equal(t, int64(2), values["self_invoke.exit_code"].AsInt64())
+		require.Equal(t, strings.Repeat("o", selfInvokeTraceAttributeLimit)+"... (20 more bytes)",
+			values["self_invoke.output"].AsString())
+		require.Equal(t, strings.Repeat("o", selfInvokeTraceAttributeLimit)+"... (20 more bytes)",
+			values["self_invoke.stdout"].AsString())
+		require.Equal(t, strings.Repeat("e", selfInvokeTraceAttributeLimit)+"... (30 more bytes)",
+			values["self_invoke.stderr"].AsString())
+	}
+}
+
+type recordingTracer struct {
+	attributes []attribute.KeyValue
+	eventName  string
+	eventAttrs []attribute.KeyValue
+}
+
+func (r *recordingTracer) Push(string, ...attribute.KeyValue) (tracing.Tracer, func()) {
+	return r, func() {}
+}
+
+func (r *recordingTracer) Event(name string, attrs ...attribute.KeyValue) {
+	r.eventName = name
+	r.eventAttrs = append([]attribute.KeyValue(nil), attrs...)
+}
+
+func (r *recordingTracer) SetAttributes(attrs ...attribute.KeyValue) {
+	r.attributes = append([]attribute.KeyValue(nil), attrs...)
+}
+
+func (*recordingTracer) RecordError(error) {}
+
+func (*recordingTracer) Context() context.Context { return context.Background() }
+
+func attributeValues(attrs []attribute.KeyValue) map[string]attribute.Value {
+	values := make(map[string]attribute.Value, len(attrs))
+	for _, attr := range attrs {
+		values[string(attr.Key)] = attr.Value
+	}
+	return values
 }

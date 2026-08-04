@@ -49,6 +49,8 @@ var (
 const (
 	monitorLaunchCommandName = "launch_monitor_rest"
 	monitorServerName        = "monitor"
+	terminalSummaryMaxBytes  = 1 << 20
+	terminalSummaryTruncated = "... [terminal summary truncated]"
 )
 
 // Exit codes. A caller that runs an agent as a child process reads its
@@ -205,7 +207,11 @@ func runPrepared(prepared preparedRun) (err error) {
 	if err != nil {
 		return err
 	}
+	if result.Summary != "" {
+		fmt.Fprintln(os.Stdout, result.Summary)
+	}
 	fmt.Fprintf(os.Stderr, "terminal state: %s\n", result.Status)
+	fmt.Fprintf(os.Stderr, "final machine state: %s\n", result.FinalState)
 	runExitCode = exitCodeForStatus(result.Status)
 	prepared.Shutdown.Apply()
 	return nil
@@ -408,11 +414,31 @@ func buildPreparedRun(cmd *cobra.Command, resources runResources) (preparedRun, 
 		RunID: runID, Checkpoint: checkpoint.Checkpoint, MonitorRecorder: monitorRuntime.Recorder,
 		CommandStateObserver: commandStateSource,
 	})
+	if err := seedRequest(&params, cfg.Request); err != nil {
+		return preparedRun{}, closeBuildFailure(err, loopCancel, &checkpoints, resources.shutdownTelemetry)
+	}
 	return preparedRun{
 		Config: cfg, Params: params, State: st, Ctx: loopCtx,
 		Cancel: loopCancel, Shutdown: shutdown, checkpoints: checkpoints,
 		shutdownTelemetry: resources.shutdownTelemetry,
 	}, nil
+}
+
+// seedRequest makes the universal --request file the Seed result for ordinary
+// machine runs. This is the same request path propagated by self_invoke, so a
+// child profile can validate the supplied payload without a profile-specific
+// loader. Resume replaces this position from the checkpoint before dispatch.
+func seedRequest(params *core.LoopParams, path string) error {
+	if strings.TrimSpace(path) == "" {
+		return nil
+	}
+	data, err := os.ReadFile(path)
+	if err != nil {
+		return fmt.Errorf("read --request file: %w", err)
+	}
+	params.InitialSignal = core.Seed
+	params.InitialResult = core.Result{Signal: core.Seed, Output: string(data)}
+	return nil
 }
 
 func closeBuildFailure(primary error, cancel context.CancelFunc, checkpoints *checkpointResources, shutdownTelemetry func()) error {
@@ -531,10 +557,10 @@ func registerRuntimeTools(reg *core.Registry, builtins *toolregistry.BuiltinRegi
 }
 
 type loopParamDeps struct {
-	Machine         core.MachineSpec
-	State           *agentState
-	Registry        *core.Registry
-	Tracer          tracing.Tracer
+	Machine              core.MachineSpec
+	State                *agentState
+	Registry             *core.Registry
+	Tracer               tracing.Tracer
 	RunID                string
 	Checkpoint           core.Checkpoint
 	MonitorRecorder      monitor.RuntimeRecorder
@@ -548,17 +574,17 @@ func loopParams(cfg runtimeConfig, deps loopParamDeps) core.LoopParams {
 		Verbose:  cfg.VerboseTrace,
 	})
 	return core.LoopParams{
-		MachineFile:     cfg.Machine,
-		MachineSpec:     &deps.Machine,
-		RunID:           deps.RunID,
-		AgentName:       "agent",
-		ModelName:       deps.State.model,
-		ProviderName:    deps.State.providerName,
-		Trace:           deps.Tracer,
-		Budget:          runBudget(deps.Machine, deps.State),
-		ToolAction:      toolAction,
-		Registry:        deps.Registry,
-		Directory:       cfg.Directory,
+		MachineFile:          cfg.Machine,
+		MachineSpec:          &deps.Machine,
+		RunID:                deps.RunID,
+		AgentName:            "agent",
+		ModelName:            deps.State.model,
+		ProviderName:         deps.State.providerName,
+		Trace:                deps.Tracer,
+		Budget:               runBudget(deps.Machine, deps.State),
+		ToolAction:           toolAction,
+		Registry:             deps.Registry,
+		Directory:            cfg.Directory,
 		Checkpoint:           deps.Checkpoint,
 		MonitorRecorder:      deps.MonitorRecorder,
 		CommandStateObserver: deps.CommandStateObserver,
@@ -586,10 +612,21 @@ func defaultRunBudget() core.Budget {
 
 func cliResultReporter(rr core.RunResult, res core.Result) core.RunResult {
 	rr = monitorLaunchReporter(rr, res)
+	if strings.TrimSpace(res.Output) != "" {
+		rr.Summary = boundedTerminalSummary(res.Output)
+	}
 	if message := commandFailureMessage(res); message != "" {
 		fmt.Fprintln(os.Stderr, message)
 	}
 	return rr
+}
+
+func boundedTerminalSummary(output string) string {
+	if len(output) <= terminalSummaryMaxBytes {
+		return output
+	}
+	keep := terminalSummaryMaxBytes - len(terminalSummaryTruncated)
+	return output[:keep] + terminalSummaryTruncated
 }
 
 func commandFailureMessage(res core.Result) string {

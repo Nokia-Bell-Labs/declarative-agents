@@ -34,10 +34,10 @@ type ParseStructuredBuilder struct {
 	Unparsed core.Signal
 }
 
-func (b ParseStructuredBuilder) Build(_ core.Result) core.Command {
+func (b ParseStructuredBuilder) Build(previous core.Result) core.Command {
 	return &parseStructuredCmd{
 		name: b.ToolName, source: b.Source, schema: b.Schema,
-		parsed: b.Parsed, unparsed: b.Unparsed,
+		parsed: b.Parsed, unparsed: b.Unparsed, previous: previous.Output,
 	}
 }
 
@@ -45,6 +45,7 @@ type parseStructuredCmd struct {
 	name, source     string
 	schema           *jsonschema.Schema
 	parsed, unparsed core.Signal
+	previous         string
 	view             core.CommandStateView
 }
 
@@ -55,9 +56,15 @@ func (c *parseStructuredCmd) Undo(_ core.Result) core.Result          { return c
 var _ core.CommandStateAware = (*parseStructuredCmd)(nil)
 
 func (c *parseStructuredCmd) Execute() core.Result {
-	value, err := core.ResolveFromSelector(c.view, c.source)
-	if err != nil {
-		return c.fault(err)
+	var value interface{}
+	if c.source == "$.output" {
+		value = c.previous
+	} else {
+		resolved, err := core.ResolveFromSelector(c.view, c.source)
+		if err != nil {
+			return c.fault(err)
+		}
+		value = resolved
 	}
 	raw, ok := value.(string)
 	if !ok {
