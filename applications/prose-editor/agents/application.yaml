@@ -1,0 +1,61 @@
+schema_version: 1
+application: prose-editor
+ownership: composition-only
+module_status: audit_only
+capabilities:
+  runnable_module:
+    status: audit_only
+  managed_service:
+    status: planned
+  packaged:
+    status: planned
+  helm_managed:
+    status: planned
+  kind_demo:
+    status: planned
+  ui:
+    status: not_applicable
+roots:
+  - id: workflow-orchestrator
+    ownership: local
+    source: agents/workflow-orchestrator/profile.yaml
+    runtime_path: applications/prose-editor/workflow-orchestrator/profile.yaml
+    planned: true
+  - id: specialist-editor
+    ownership: local
+    source: agents/specialist-editor/profile.yaml
+    runtime_path: applications/prose-editor/specialist-editor/profile.yaml
+    planned: true
+  - id: voice-critic
+    ownership: local
+    source: agents/voice-critic/profile.yaml
+    runtime_path: applications/prose-editor/voice-critic/profile.yaml
+    planned: true
+  - id: corpus-ingest
+    ownership: local
+    source: agents/corpus-ingest/profile.yaml
+    runtime_path: applications/prose-editor/corpus-ingest/profile.yaml
+    planned: true
+  - id: structure-rag
+    ownership: local
+    source: agents/rag-server/structure-profile.yaml
+    runtime_path: applications/prose-editor/rag-server/structure-profile.yaml
+    planned: true
+  - id: voice-rag
+    ownership: local
+    source: agents/rag-server/voice-profile.yaml
+    runtime_path: applications/prose-editor/rag-server/voice-profile.yaml
+    planned: true
+  - id: tightening-rag
+    ownership: local
+    source: agents/rag-server/tightening-profile.yaml
+    runtime_path: applications/prose-editor/rag-server/tightening-profile.yaml
+    planned: true
+  - id: catalog-corpus-ingest
+    ownership: catalog
+    source: agents/knowledge-manager/corpus-ingest/profile.yaml
+    runtime_path: agents/knowledge-manager/corpus-ingest/profile.yaml
+    compatible_release: v0.20260803.0
+    planned: true
+runtime:
+  image_contains_profiles: false

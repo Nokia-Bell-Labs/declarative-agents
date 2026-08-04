@@ -1,0 +1,8 @@
+# Prose Editor audit configuration.
+#
+# Prose Editor is audit-only. This file declares only the ownership root needed
+# to validate its canonical catalog reference; it does not configure a runtime.
+# Relative paths are resolved from this application directory.
+
+# Catalog checkout containing the canonical corpus-ingest profile.
+# catalog_root: ../catalog

@@ -33,10 +33,13 @@ var applicationModules = []string{
 	"applications/agent-architecture",
 }
 
-// auditOnlyApplicationModules contains applications that participate in the
-// documentation gate before they
-// grow Go tests, stats, or build targets.
-var auditOnlyApplicationModules = []string{}
+// auditOnlyApplicationModules contains documentation-first applications whose
+// executable surface is limited to manifest/document audit and composition
+// accounting. They remain outside runnable, build, test, and release registries
+// until later runtime evidence supports promotion.
+var auditOnlyApplicationModules = []string{
+	"applications/prose-editor",
+}
 
 // auditParticipants lists every module the root audit gate dispatches to: the
 // platform submodules plus every application that owns a mage audit target.
@@ -46,12 +49,13 @@ func auditParticipants() []string {
 }
 
 // statsParticipants lists every module the root stats target dispatches to:
-// the platform submodules plus the application modules. The repo-wide agents total
-// sums only "agents" sections; composition-only modules may report a separate
-// application section without double-counting canonical agents (GH-754,
-// GH-947).
+// platform submodules, runnable applications, and audit-only applications that
+// report composition. The repo-wide agents total sums only "agents" sections;
+// composition-only modules may report a separate application section without
+// double-counting canonical agents (GH-754, GH-947).
 func statsParticipants() []string {
-	return append(append([]string{}, subModules...), applicationModules...)
+	participants := append(append([]string{}, subModules...), applicationModules...)
+	return append(participants, auditOnlyApplicationModules...)
 }
 
 type buildRunner func(string) error

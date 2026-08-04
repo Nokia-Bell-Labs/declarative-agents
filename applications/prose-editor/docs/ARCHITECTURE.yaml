@@ -15,7 +15,7 @@ overview:
     filesystem access. The critic independently evaluates the original and
     candidate and alone owns the consent-gated Pangram tool. Workproducts remain
     local and uncommitted until critic acceptance.
-  status: documentation_only_planned
+  status: audit_only
   scenario_flow: |
     ```mermaid
     flowchart LR
@@ -831,11 +831,13 @@ technology_choices:
 
 project_structure:
   foundation:
-    - {path: README.md, status: planned_documentation, role: Human entry point and status notice.}
-    - {path: docs/VISION.yaml, status: planned_documentation, role: Problem, goals, boundaries, and exclusions.}
-    - {path: docs/ARCHITECTURE.yaml, status: planned_documentation, role: Topology, flows, authority, and planned structure.}
-    - {path: docs/SPECIFICATIONS.yaml, status: planned_documentation, role: Planned corpus and traceability index.}
-    - {path: docs/road-map.yaml, status: planned_documentation, role: Release 00.0 plan and evidence status.}
+    - {path: README.md, status: audit_only, role: Human entry point and status notice.}
+    - {path: docs/VISION.yaml, status: audit_only, role: Problem, goals, boundaries, and exclusions.}
+    - {path: docs/ARCHITECTURE.yaml, status: audit_only, role: Topology, flows, authority, and planned structure.}
+    - {path: docs/SPECIFICATIONS.yaml, status: audit_only, role: Planned corpus and traceability index.}
+    - {path: docs/road-map.yaml, status: audit_only, role: Release plans and governance evidence status.}
+    - {path: agents/application.yaml, status: audit_only, role: Planned-root composition and capability authority.}
+    - {path: magefiles/magefile.go, status: audit_only, role: Manifest/document audit and composition-only stats.}
   planned_configuration:
     - {path: agents/workflow-orchestrator/, status: planned, role: Saga coordination, fixed exec declarations, and constrained JSON-emitting helper executable.}
     - {path: agents/specialist-editor/, status: planned, role: Parameterized editor profile with structure, voice, and style stage configurations, flat machines, declarations, and constrained non-shell report helpers.}
@@ -862,10 +864,14 @@ implementation_status:
     the specialist-editor machine (structure, voice, and style stages), and the
     voice-critic machine. The planned release use case and 30-case planned test suite close
     documentation traceability across all 195 requirement items and 64
-    acceptance criteria. Profiles, machines, tools, constrained orchestrator helper, services,
-    integration evidence, and root registrations remain planned.
-  overall: documentation_only_planned
+    acceptance criteria. The application now has an audit-only manifest, local
+    documentation audit, composition-only stats, and root audit/stats registration.
+    Profiles, machines, tools, constrained helpers, services, and runtime evidence
+    remain planned.
+  overall: audit_only
   progress:
+    - audit_only: agents/application.yaml declares only planned roots and capabilities; local and root audits validate it without creating a runtime surface.
+    - audit_only: Composition stats report zero contributed agents and one exact canonical corpus-ingest reference.
     - specified: srd001 service topology, role bindings, lifecycle, scaling, failure, interfaces, and authority.
     - specified: srd002 workspace schema, artifact lineage, manifest state, stage contracts, retries, recovery, and publication.
     - specified: srd003 tool words, factory reuse, ownership, signals, errors, effects, compensation, and authority closure.
@@ -877,8 +883,8 @@ implementation_status:
     - planned: RAG, Chroma, Ollama, GitHub CLI, and Pangram integrations.
     - planned: Persistent saga workspace, retries, recovery, and publication.
     - planned: Structural, boundary, failure, recovery, and end-to-end tests.
-  executable_evidence: none
-  registry_status: not_registered
+  executable_evidence: governance_only
+  registry_status: audit_only
 
 related_documents:
   - doc: docs/VISION.yaml
@@ -915,6 +921,8 @@ related_documents:
     purpose: Shared runnable-module contract; cited, not reproduced.
   - doc: ../../docs/specs/software-requirements/srd002-managed-application-services.yaml
     purpose: Shared managed-service contract; applicability remains planned.
+  - doc: ../../docs/specs/software-requirements/srd003-application-consistency.yaml
+    purpose: Shared audit-only manifest, status, ownership, README, and root-classification contract.
   - doc: ../../docs/specs/semantic-models/agent-role-realizations.yaml
     purpose: Canonical role and realization authority.
   - doc: ../../../agent-core/docs/specs/config-formats/machine-format.yaml

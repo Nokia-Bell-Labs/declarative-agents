@@ -79,6 +79,11 @@ releases:
   - version: "00.1"
     name: Tracer-bullet saga skeleton
     description: |
+      The audit-only governance prerequisite is implemented: Prose Editor owns
+      its planned-root application manifest, local documentation audit,
+      composition-only stats, and root audit/stats registration. This evidence
+      does not implement or partially satisfy the tracer runtime.
+
       Prove the end-to-end saga skeleton with the minimal runnable slice:
       workflow orchestrator, one specialist-editor stage (structure), critic
       verdict path (Pangram skipped), and local finalization. No voice or
@@ -91,7 +96,7 @@ releases:
     status: planned
     capability_status:
       documentation: specification_complete
-      runnable_module: planned
+      runnable_module: audit_only
       managed_service: not_planned_for_release
       packaged: not_planned_for_release
       helm_managed: not_planned_for_release
@@ -156,6 +161,10 @@ releases:
         reference: ../../docs/specs/software-requirements/srd002-managed-application-services.yaml
         status: available
         use: Cite applicable lifecycle and service obligations without copying them.
+      - id: applications-consistency-contract
+        reference: ../../docs/specs/software-requirements/srd003-application-consistency.yaml
+        status: available
+        use: Govern the audit-only manifest, status vocabulary, ownership, and root classification.
       - id: agent-role-realizations
         reference: ../../docs/specs/semantic-models/agent-role-realizations.yaml
         status: available
@@ -183,13 +192,15 @@ releases:
       failure_and_recovery_tests: planned
       end_to_end_test: planned
       publication_test: deferred_to_00_2
-      root_registration: intentionally_unchanged
-      executable_evidence: planned
+      root_registration: audit_only
+      executable_evidence: governance_only
     completion_gate: |
       The tracer saga runs end-to-end: source capture, structure edit via
       specialist-editor:structure and structure-rag, critic verdict without
       Pangram, bounded structure-stage retry, and local finalization with
-      immutable workproduct lineage. All 12 planned tests pass. SRD
+      immutable workproduct lineage. All 13 planned tests pass. The audit-only
+      governance evidence is a prerequisite and does not satisfy any runtime
+      case. SRD
       contradictions discovered during implementation are filed and reconciled
       before 00.2 scope is finalized.
 

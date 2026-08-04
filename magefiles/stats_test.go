@@ -34,6 +34,16 @@ func TestSumAgentsTotals(t *testing.T) {
 				"canonical_references": 1,
 				"canonical_profile": "applications/catalog/agents/knowledge-manager/documentation-curator/profile.yaml"
 			}}`),
+		"applications/prose-editor": json.RawMessage(`{
+			"application": {
+				"ownership": "composition-only",
+				"module_status": "audit_only",
+				"agents_contributed": 0,
+				"canonical_references": 1,
+				"canonical_profiles": [
+					"applications/catalog/agents/knowledge-manager/corpus-ingest/profile.yaml"
+				]
+			}}`),
 	}
 
 	var demo map[string]json.RawMessage
@@ -45,6 +55,16 @@ func TestSumAgentsTotals(t *testing.T) {
 	}
 	if _, exists := demo["agents"]; exists {
 		t.Fatal("Agent Architecture stats must report composition without an agents section")
+	}
+	var prose map[string]json.RawMessage
+	if err := json.Unmarshal(results["applications/prose-editor"], &prose); err != nil {
+		t.Fatal(err)
+	}
+	if _, exists := prose["application"]; !exists {
+		t.Fatal("Prose Editor stats must contain an application composition section")
+	}
+	if _, exists := prose["agents"]; exists {
+		t.Fatal("Prose Editor stats must report zero-agent composition without an agents section")
 	}
 	total, err := sumAgentsTotals(results)
 	if err != nil {
