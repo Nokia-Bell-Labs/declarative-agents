@@ -117,8 +117,9 @@ func runCodingApplierLive(roots integrationRoots) (result error) {
 		defer cancel()
 		return codingSmokeEnvironment{}.run(ctx, "kind", args...)
 	}
-	cluster, err := kindrig.EnsureCluster(
-		kindRun, codingApplierLiveCluster, kindConfig, 120*time.Second)
+	cluster, err := kindrig.EnsureClusterWithOptions(
+		kindRun, codingApplierLiveCluster, kindConfig, 120*time.Second,
+		codingApplierLiveEnsureOptions())
 	if err != nil {
 		return &codingHelmInfrastructureError{Step: "kind cluster acquisition", Cause: err}
 	}
@@ -182,6 +183,17 @@ func runCodingApplierLive(roots integrationRoots) (result error) {
 		"new revision, compensates a post-verify stall with a real helm rollback, and rejects a non-conforming patch "+
 		"against the real chart schema without touching it\n", images.Revision)
 	return nil
+}
+
+func codingApplierLiveEnsureOptions() kindrig.EnsureOptions {
+	return kindrig.EnsureOptions{
+		ReusePolicy: kindrig.RecreateUnhealthyOwnedCluster,
+		HealthRun: func(name string, args ...string) ([]byte, error) {
+			ctx, cancel := context.WithTimeout(context.Background(), codingHelmProbeTimeout)
+			defer cancel()
+			return codingSmokeEnvironment{}.run(ctx, name, args...)
+		},
+	}
 }
 
 // resolveCodingApplierImage names the applier image by the tested checkout's

@@ -9,7 +9,19 @@ import (
 	"strings"
 	"testing"
 	"time"
+
+	"github.com/Nokia-Bell-Labs/declarative-agents/magefiles/kindrig"
 )
+
+func TestCodingApplierLiveOwnsDedicatedClusterRecovery(t *testing.T) {
+	options := codingApplierLiveEnsureOptions()
+	if options.ReusePolicy != kindrig.RecreateUnhealthyOwnedCluster {
+		t.Fatalf("reuse policy = %v, want explicit owned-cluster recovery", options.ReusePolicy)
+	}
+	if options.HealthRun == nil {
+		t.Fatal("dedicated-cluster recovery must provide a bounded health runner")
+	}
+}
 
 func TestCodingApplierLiveInfrastructureHealthy(t *testing.T) {
 	var calls []string

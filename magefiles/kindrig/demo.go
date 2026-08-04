@@ -35,7 +35,17 @@ func DemoUp(
 	wait time.Duration,
 	deploy func(Cluster) error,
 ) error {
-	cluster, err := EnsureCluster(run, name, configPath, wait)
+	return demoUp(run, name, configPath, wait, EnsureOptions{}, deploy)
+}
+
+func demoUp(
+	run Runner,
+	name, configPath string,
+	wait time.Duration,
+	options EnsureOptions,
+	deploy func(Cluster) error,
+) error {
+	cluster, err := EnsureClusterWithOptions(run, name, configPath, wait, options)
 	if err != nil {
 		return err
 	}
