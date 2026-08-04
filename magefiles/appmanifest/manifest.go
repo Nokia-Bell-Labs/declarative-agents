@@ -25,6 +25,7 @@ const SchemaVersion = 1
 var (
 	identifierPattern    = regexp.MustCompile(`^[a-z0-9]+(?:-[a-z0-9]+)*$`)
 	compatibilityPattern = regexp.MustCompile(`^(?:(?:applications/catalog|agent-profiles)/)?v0\.[A-Za-z0-9][A-Za-z0-9._-]*$`)
+	templatePattern      = regexp.MustCompile(`\$\{[^}\r\n]+\}`)
 	knownStatuses        = stringSet("planned", "audit_only", "partial", "dependency_gated", "implemented", "not_applicable")
 	knownCapabilities    = stringSet("runnable_module", "managed_service", "packaged", "helm_managed", "kind_demo", "ui")
 )
@@ -362,11 +363,18 @@ func (manifest *Manifest) validateUI(appRoot, catalogRoot string, roots map[stri
 			return fmt.Errorf("UI asset %s rest_definition: %w", asset.ID, err)
 		}
 		var document yaml.Node
-		if yaml.Unmarshal(data, &document) != nil || !mappingKeyExists(&document, "static_assets") {
+		if err := yaml.Unmarshal(yamlTemplateSafe(data), &document); err != nil {
+			return fmt.Errorf("UI asset %s rest_definition: %w", asset.ID, err)
+		}
+		if !mappingKeyExists(&document, "static_assets") {
 			return fmt.Errorf("UI asset %s REST definition has no static_assets binding", asset.ID)
 		}
 	}
 	return nil
+}
+
+func yamlTemplateSafe(data []byte) []byte {
+	return templatePattern.ReplaceAll(data, []byte("manifest_value"))
 }
 
 func capabilityActive(capability Capability) bool {

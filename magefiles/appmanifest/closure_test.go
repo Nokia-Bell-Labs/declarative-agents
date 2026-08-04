@@ -93,6 +93,40 @@ func TestResolveRejectsDanglingEscapingSymlinkedAndCyclicReferences(t *testing.T
 	}
 }
 
+func TestResolveAllowsBoundedRESTRequestProfileCycle(t *testing.T) {
+	appRoot, catalogRoot := newApplicationRoot(t), t.TempDir()
+	writeFixtureFile(t, filepath.Join(catalogRoot, "agents/root/profile.yaml"),
+		"name: root\nrest_definitions: [rest.yaml]\n")
+	writeFixtureFile(t, filepath.Join(catalogRoot, "agents/root/rest.yaml"), `rest:
+  servers:
+    root:
+      address: ${BIND_HOST:-127.0.0.1}:${PORT:-18080}
+      endpoints:
+        request:
+          binding: machine_request
+          machine_request: {profile: request-profile.yaml, machine: request-machine.yaml}
+`)
+	writeFixtureFile(t, filepath.Join(catalogRoot, "agents/root/request-profile.yaml"),
+		"name: request\nmachine: request-machine.yaml\nrest_definitions: [rest.yaml]\n")
+	writeFixtureFile(t, filepath.Join(catalogRoot, "agents/root/request-machine.yaml"), "name: request\n")
+	manifest := closureManifest(Root{
+		ID: "root", Ownership: "catalog", Source: "agents/root/profile.yaml",
+		RuntimePath: "agents/root/profile.yaml", CompatibleRelease: "v0.20260803.0",
+	})
+	inventory, err := Resolve(manifest, Options{ApplicationRoot: appRoot, CatalogRoot: catalogRoot})
+	if err != nil {
+		t.Fatal(err)
+	}
+	for _, required := range []string{
+		"agents/root/profile.yaml", "agents/root/rest.yaml",
+		"agents/root/request-profile.yaml", "agents/root/request-machine.yaml",
+	} {
+		if inventoryFile(inventory, required).RuntimePath == "" {
+			t.Errorf("bounded REST closure missing %s", required)
+		}
+	}
+}
+
 func TestResolveRejectsConflictingDestinationContent(t *testing.T) {
 	appRoot, catalogRoot := newApplicationRoot(t), t.TempDir()
 	writeFixtureFile(t, filepath.Join(catalogRoot, "agents/a/profile.yaml"), "name: a\nmachine: machine.yaml\n")

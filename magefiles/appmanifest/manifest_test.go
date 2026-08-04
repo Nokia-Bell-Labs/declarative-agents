@@ -114,6 +114,27 @@ func TestLoadRejectsUnknownFieldsAndSymlinkedSources(t *testing.T) {
 	})
 }
 
+func TestLoadValidatesTemplatedRESTUIBinding(t *testing.T) {
+	appRoot, catalogRoot := manifestFixture(t)
+	writeFixtureFile(t, filepath.Join(appRoot, "agents/local/rest.yaml"), `rest:
+  limits:
+    query:
+      network:
+        ports: [${QUERY_PORT:-18193}]
+  servers:
+    local:
+      address: ${BIND_HOST:-127.0.0.1}:${QUERY_PORT:-18193}
+      endpoints:
+        ui:
+          binding: static_assets
+          static_assets: {root: agents/local/ui, index: index.html}
+`)
+	if _, err := Load(writeManifest(t, appRoot, validManifest()),
+		Options{ApplicationRoot: appRoot, CatalogRoot: catalogRoot}); err != nil {
+		t.Fatalf("templated REST definition was rejected: %v", err)
+	}
+}
+
 func TestLoadAllowsPlannedMissingRootOnlyForAuditOnlyModule(t *testing.T) {
 	appRoot, catalogRoot := manifestFixture(t)
 	manifest := validManifest()

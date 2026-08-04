@@ -15,13 +15,11 @@ import (
 	"sort"
 	"strings"
 
+	"github.com/Nokia-Bell-Labs/declarative-agents/magefiles/appmanifest"
 	"gopkg.in/yaml.v3"
 )
 
 const (
-	profilesMountPath        = "/profiles"
-	curatorProfileRuntime    = "agents/knowledge-manager/documentation-curator/profile.yaml"
-	collectorProfileRuntime  = "agents/collector/profile.yaml"
 	configMapPayloadLimit    = 900 * 1024
 	preparedManifestFilename = "prepared-manifest.yaml"
 	// The documentation-curator's browser UI and the catalog docs tree exceed the
@@ -36,80 +34,59 @@ const (
 	curatorAssetShardSize = 512 * 1024
 )
 
-// curatorAssetTree is one source directory staged into the curator asset archive
-// under a workspace-relative prefix. arcPrefix mirrors the paths the retired
-// image baked under /opt/curator-ui so untarring into --directory /work resolves
-// the curator profile's ui/*/dist static_assets roots and its docs/ document
-// root (GH-1261, GH-1293).
-type curatorAssetTree struct {
-	arcPrefix string
-	source    string
-}
-
-func curatorAssetSources(catalogRoot string) []curatorAssetTree {
-	return []curatorAssetTree{
-		{
-			arcPrefix: "agents/knowledge-manager/documentation-curator/ui",
-			source:    filepath.Join(catalogRoot, "agents", "knowledge-manager", "documentation-curator", "ui"),
-		},
-		{arcPrefix: "docs", source: filepath.Join(catalogRoot, "docs")},
-	}
-}
-
-// helmRoleSpecs names the two catalog-owned closures the chart mounts. Order is
-// the sorted order the prepared manifest and its validator expect.
-var helmRoleSpecs = []roleSpec{
-	{role: "collector", sourceRel: "agents/collector", profileRuntime: collectorProfileRuntime, uiSubdir: "ui/dist"},
-	{role: "curator", sourceRel: "agents/knowledge-manager/documentation-curator", profileRuntime: curatorProfileRuntime},
-}
-
-type roleSpec struct {
-	role           string
-	sourceRel      string
-	profileRuntime string
-	// uiSubdir, when set, is a subdirectory under sourceRel whose tree is staged
-	// recursively alongside the top-level closure files. The collector serves its
-	// trace UI from ui/dist (srd020 R7); it fits the ConfigMap payload limit, so
-	// it ships in the closure rather than being skipped like larger UI trees.
-	uiSubdir string
-}
-
 type preparedRole struct {
-	Role     string   `yaml:"role"`
-	Path     string   `yaml:"path"`
-	Profile  string   `yaml:"profile"`
-	Checksum string   `yaml:"checksum"`
-	Files    []string `yaml:"files"`
+	Role              string   `yaml:"role"`
+	Root              string   `yaml:"root"`
+	Path              string   `yaml:"path"`
+	Profile           string   `yaml:"profile"`
+	Ownership         string   `yaml:"ownership"`
+	Source            string   `yaml:"source"`
+	CompatibleRelease string   `yaml:"compatible_release,omitempty"`
+	UIRoots           []string `yaml:"ui_roots,omitempty"`
+	Checksum          string   `yaml:"checksum"`
+	Files             []string `yaml:"files"`
 }
 
 type preparedManifest struct {
-	SchemaVersion         int            `yaml:"schema_version"`
-	Application           string         `yaml:"application"`
-	MountPath             string         `yaml:"mount_path"`
-	ConfigMapPayloadLimit int            `yaml:"config_map_payload_limit_bytes"`
-	Roles                 []preparedRole `yaml:"roles"`
+	SchemaVersion         int                   `yaml:"schema_version"`
+	Application           string                `yaml:"application"`
+	CompositionManifest   string                `yaml:"composition_manifest"`
+	MountPath             string                `yaml:"mount_path"`
+	ConfigMapPayloadLimit int                   `yaml:"config_map_payload_limit_bytes"`
+	Roles                 []preparedRole        `yaml:"roles"`
+	ExternalUIRoots       []string              `yaml:"external_ui_roots,omitempty"`
+	Closure               appmanifest.Inventory `yaml:"closure"`
 }
 
-// HelmPrepare regenerates the catalog-owned curator and collector profile
-// closures and atomically stages them as the chart's only profile source under
-// helm/profiles, writing a checksum-bearing manifest the package target
-// validates (srd001 R2.1, R2.2).
+type preparedRolePlan struct {
+	role  preparedRole
+	files []appmanifest.InventoryFile
+}
+
+type compositionPlan struct {
+	manifest        appmanifest.Manifest
+	inventory       appmanifest.Inventory
+	roles           []preparedRolePlan
+	externalUIRoots []string
+}
+
+// HelmPrepare resolves all deployment entries from agents/application.yaml and
+// atomically stages their shared appmanifest closures under helm/profiles,
+// writing checksum and provenance metadata the package target validates
+// (srd001 R2.1, R2.2).
 func HelmPrepare() error {
 	resolved, err := resolveRootsFromWorkingDirectory()
 	if err != nil {
 		return err
 	}
 	chartRoot := filepath.Join(resolved.Application, "helm")
-	if err := prepareChartProfiles(resolved.Catalog, chartRoot); err != nil {
-		return err
-	}
-	if err := stageApplierProfile(resolved.Application, chartRoot); err != nil {
+	if err := prepareChartProfiles(resolved.Application, resolved.Catalog, chartRoot); err != nil {
 		return err
 	}
 	// Curator UI shards are no longer staged into the chart: they are provisioned
 	// out-of-release by the deploy/test tooling (GH-1402), so HelmPrepare only
 	// stages the profile closures the chart carries.
-	fmt.Printf("prepared curator and collector profile closures from %s\n", resolved.Catalog)
+	fmt.Printf("prepared manifest-declared profile closures from %s\n", resolved.Catalog)
 	return nil
 }
 
@@ -121,8 +98,8 @@ func HelmPrepare() error {
 // ConfigMap per shard (GH-1402); the curator init container concatenates the
 // mounted shards and unpacks them into /work (GH-1368; replaces the baked
 // /opt/curator-ui).
-func prepareCuratorAssets(catalogRoot, chartRoot string) error {
-	archive, err := buildCuratorAssetArchive(catalogRoot)
+func prepareCuratorAssets(applicationRoot, catalogRoot, chartRoot string) error {
+	archive, err := buildCuratorAssetArchive(applicationRoot, catalogRoot)
 	if err != nil {
 		return err
 	}
@@ -152,40 +129,76 @@ func prepareCuratorAssets(catalogRoot, chartRoot string) error {
 	return nil
 }
 
-// buildCuratorAssetArchive returns a deterministic gzip tarball of the curator
-// asset trees. Files are emitted in sorted order with fixed metadata and the
-// gzip header carries no name or timestamp, so identical inputs produce identical
-// bytes; GNU headers carry the long asset paths busybox tar reads on extraction.
-func buildCuratorAssetArchive(catalogRoot string) ([]byte, error) {
+// buildCuratorAssetArchive returns a deterministic gzip tarball of the UI files
+// the manifest-derived profile plan moved out of oversized ConfigMaps, plus the
+// catalog docs tree the curator serves. UI paths come only from the shared
+// appmanifest closure; there is no Helm-owned UI inventory.
+func buildCuratorAssetArchive(applicationRoot, catalogRoot string) ([]byte, error) {
+	plan, err := resolveCompositionPlan(applicationRoot, catalogRoot)
+	if err != nil {
+		return nil, err
+	}
+	external := make(map[string]bool, len(plan.externalUIRoots))
+	for _, id := range plan.externalUIRoots {
+		external[id] = true
+	}
+	type archiveAsset struct {
+		name   string
+		source string
+	}
+	var assets []archiveAsset
+	for _, file := range plan.inventory.Files {
+		include := false
+		for _, root := range file.Roots {
+			if external[root] {
+				include = true
+				break
+			}
+		}
+		if include {
+			source, err := inventorySourcePath(applicationRoot, catalogRoot, file.Source)
+			if err != nil {
+				return nil, err
+			}
+			assets = append(assets, archiveAsset{name: file.RuntimePath, source: source})
+		}
+	}
+	docsRoot := filepath.Join(catalogRoot, "docs")
+	docs, err := regularRelativeFiles(docsRoot)
+	if err != nil {
+		return nil, fmt.Errorf("read curator docs tree %s: %w", docsRoot, err)
+	}
+	for _, relative := range docs {
+		assets = append(assets, archiveAsset{
+			name:   "docs/" + relative,
+			source: filepath.Join(docsRoot, filepath.FromSlash(relative)),
+		})
+	}
+	sort.Slice(assets, func(i, j int) bool { return assets[i].name < assets[j].name })
+	if len(assets) == 0 {
+		return nil, fmt.Errorf("manifest declares no external curator assets")
+	}
+
 	var buffer bytes.Buffer
 	gz := gzip.NewWriter(&buffer)
 	writer := tar.NewWriter(gz)
-	for _, tree := range curatorAssetSources(catalogRoot) {
-		files, err := regularRelativeFiles(tree.source)
+	for _, asset := range assets {
+		data, err := os.ReadFile(asset.source)
 		if err != nil {
-			return nil, fmt.Errorf("read curator asset tree %s: %w", tree.source, err)
+			return nil, fmt.Errorf("read curator asset %s: %w", asset.name, err)
 		}
-		if len(files) == 0 {
-			return nil, fmt.Errorf("curator asset tree %s is empty", tree.source)
+		header := &tar.Header{
+			Name:     asset.name,
+			Mode:     0o644,
+			Size:     int64(len(data)),
+			Typeflag: tar.TypeReg,
+			Format:   tar.FormatGNU,
 		}
-		for _, rel := range files {
-			data, err := os.ReadFile(filepath.Join(tree.source, filepath.FromSlash(rel)))
-			if err != nil {
-				return nil, fmt.Errorf("read curator asset %s: %w", rel, err)
-			}
-			header := &tar.Header{
-				Name:     tree.arcPrefix + "/" + rel,
-				Mode:     0o644,
-				Size:     int64(len(data)),
-				Typeflag: tar.TypeReg,
-				Format:   tar.FormatGNU,
-			}
-			if err := writer.WriteHeader(header); err != nil {
-				return nil, fmt.Errorf("write curator asset header %s: %w", header.Name, err)
-			}
-			if _, err := writer.Write(data); err != nil {
-				return nil, fmt.Errorf("write curator asset body %s: %w", header.Name, err)
-			}
+		if err := writer.WriteHeader(header); err != nil {
+			return nil, fmt.Errorf("write curator asset header %s: %w", header.Name, err)
+		}
+		if _, err := writer.Write(data); err != nil {
+			return nil, fmt.Errorf("write curator asset body %s: %w", header.Name, err)
 		}
 	}
 	if err := writer.Close(); err != nil {
@@ -197,46 +210,14 @@ func buildCuratorAssetArchive(catalogRoot string) ([]byte, error) {
 	return buffer.Bytes(), nil
 }
 
-// stageApplierProfile stages the application-owned applier profile
-// (srd002-applier) into the chart alongside the catalog-owned curator and
-// collector closures: a flat family of files mounted at /profiles/agents/applier.
-// The applier is not a catalog-referenced role and is not regenerated from the
-// catalog, so it never enters the prepared manifest's role set; like the two
-// catalog closures it is a profile the chart carries under profiles/, and the
-// applier.yaml template renders it only when applier.enabled is set.
-func stageApplierProfile(appRoot, chartRoot string) error {
-	source := filepath.Join(appRoot, "agents", "applier")
-	destination := filepath.Join(chartRoot, "profiles", "applier", "agents", "applier")
-	if err := os.MkdirAll(destination, 0o755); err != nil {
-		return fmt.Errorf("stage applier profile: %w", err)
-	}
-	entries, err := os.ReadDir(source)
+// prepareChartProfiles resolves the shared application manifest closure, splits
+// it only by declared deployment entry, and atomically publishes those derived
+// role packages. No Helm-owned role or source inventory participates.
+func prepareChartProfiles(applicationRoot, catalogRoot, chartRoot string) error {
+	plan, err := resolveCompositionPlan(applicationRoot, catalogRoot)
 	if err != nil {
-		return fmt.Errorf("read applier profile: %w", err)
+		return err
 	}
-	for _, entry := range entries {
-		if entry.IsDir() {
-			continue
-		}
-		info, err := entry.Info()
-		if err != nil {
-			return err
-		}
-		data, err := os.ReadFile(filepath.Join(source, entry.Name()))
-		if err != nil {
-			return fmt.Errorf("read applier %s: %w", entry.Name(), err)
-		}
-		if err := os.WriteFile(filepath.Join(destination, entry.Name()), data, info.Mode().Perm()&fs.ModePerm); err != nil {
-			return fmt.Errorf("write applier %s: %w", entry.Name(), err)
-		}
-	}
-	return nil
-}
-
-// prepareChartProfiles stages every role closure into a temporary directory and
-// swaps it into helm/profiles in one rename, so a failed staging never leaves a
-// partial closure the chart would mount.
-func prepareChartProfiles(catalogRoot, chartRoot string) error {
 	if err := os.MkdirAll(chartRoot, 0o755); err != nil {
 		return err
 	}
@@ -246,45 +227,44 @@ func prepareChartProfiles(catalogRoot, chartRoot string) error {
 	}
 	defer func() { _ = os.RemoveAll(stage) }()
 
-	roles := make([]preparedRole, 0, len(helmRoleSpecs))
-	for _, spec := range helmRoleSpecs {
-		source := filepath.Join(catalogRoot, filepath.FromSlash(spec.sourceRel))
-		destination := filepath.Join(stage, spec.role, filepath.FromSlash(spec.sourceRel))
-		if err := stageTopLevelFiles(source, destination, spec.role); err != nil {
-			return err
-		}
-		if spec.uiSubdir != "" {
-			uiSource := filepath.Join(source, filepath.FromSlash(spec.uiSubdir))
-			uiDestination := filepath.Join(destination, filepath.FromSlash(spec.uiSubdir))
-			if err := stageSubtree(uiSource, uiDestination, spec.role); err != nil {
+	roles := make([]preparedRole, 0, len(plan.roles))
+	for _, rolePlan := range plan.roles {
+		roleRoot := filepath.Join(stage, rolePlan.role.Path)
+		for _, file := range rolePlan.files {
+			source, err := inventorySourcePath(applicationRoot, catalogRoot, file.Source)
+			if err != nil {
 				return err
 			}
+			destination := filepath.Join(roleRoot, filepath.FromSlash(file.RuntimePath))
+			if err := copyRegularFile(source, destination); err != nil {
+				return fmt.Errorf("stage role %s file %s: %w", rolePlan.role.Role, file.RuntimePath, err)
+			}
 		}
-		files, err := regularRelativeFiles(filepath.Join(stage, spec.role))
+		files, err := regularRelativeFiles(roleRoot)
 		if err != nil {
 			return err
 		}
 		if len(files) == 0 {
-			return fmt.Errorf("staged %s closure is empty", spec.role)
+			return fmt.Errorf("staged %s closure is empty", rolePlan.role.Role)
 		}
-		checksum, err := roleClosureChecksum(filepath.Join(stage, spec.role), files)
+		checksum, err := roleClosureChecksum(roleRoot, files)
 		if err != nil {
 			return err
 		}
-		roles = append(roles, preparedRole{
-			Role:     spec.role,
-			Path:     spec.role,
-			Profile:  spec.profileRuntime,
-			Checksum: checksum,
-			Files:    files,
-		})
+		role := rolePlan.role
+		role.Checksum = checksum
+		role.Files = files
+		roles = append(roles, role)
 	}
 	manifest := preparedManifest{
 		SchemaVersion:         1,
-		Application:           "agent-architecture",
-		MountPath:             profilesMountPath,
+		Application:           plan.manifest.Application,
+		CompositionManifest:   "agents/application.yaml",
+		MountPath:             plan.manifest.Runtime.MountPath,
 		ConfigMapPayloadLimit: configMapPayloadLimit,
 		Roles:                 roles,
+		ExternalUIRoots:       plan.externalUIRoots,
+		Closure:               plan.inventory,
 	}
 	if err := writeYAML(filepath.Join(stage, preparedManifestFilename), manifest); err != nil {
 		return err
@@ -299,76 +279,167 @@ func prepareChartProfiles(catalogRoot, chartRoot string) error {
 	return nil
 }
 
-// stageTopLevelFiles copies the regular files directly under source into
-// destination. Directories (the curator and collector UI trees) are skipped:
-// the mounted closure carries only the boot profile the runtime needs, not the
-// multi-megabyte browser assets that would overrun a ConfigMap.
-func stageTopLevelFiles(source, destination, role string) error {
-	entries, err := os.ReadDir(source)
+func resolveCompositionPlan(applicationRoot, catalogRoot string) (compositionPlan, error) {
+	options := appmanifest.Options{ApplicationRoot: applicationRoot, CatalogRoot: catalogRoot}
+	manifest, err := appmanifest.Load(
+		filepath.Join(applicationRoot, "agents", "application.yaml"), options)
 	if err != nil {
-		return fmt.Errorf("read %s closure %s: %w", role, source, err)
+		return compositionPlan{}, err
 	}
-	if err := os.MkdirAll(destination, 0o755); err != nil {
-		return err
+	inventory, err := appmanifest.Resolve(manifest, options)
+	if err != nil {
+		return compositionPlan{}, fmt.Errorf("resolve application composition: %w", err)
 	}
+	plan := compositionPlan{manifest: manifest, inventory: inventory}
+	roots := make(map[string]appmanifest.Root, len(manifest.Roots))
+	for _, root := range manifest.Roots {
+		roots[root.ID] = root
+	}
+	uiRootsByOwner := make(map[string][]string)
+	for _, asset := range manifest.UI.Assets {
+		uiRootsByOwner[asset.Owner] = append(uiRootsByOwner[asset.Owner], "ui-"+asset.ID)
+	}
+	entries := append([]appmanifest.DeploymentEntry(nil), manifest.Deployment.Entries...)
+	sort.Slice(entries, func(i, j int) bool { return entries[i].ID < entries[j].ID })
 	for _, entry := range entries {
-		if entry.IsDir() {
-			continue
+		root := roots[entry.Root]
+		uiRoots := uiRootsByOwner[entry.Root]
+		packageRoots := append([]string{entry.Root}, uiRoots...)
+		files := inventoryFilesForRoots(inventory, packageRoots)
+		if len(files) == 0 {
+			return compositionPlan{}, fmt.Errorf(
+				"deployment entry %s root %s resolved an empty closure", entry.ID, entry.Root)
 		}
-		info, err := entry.Info()
+		payload, err := inventoryPayload(applicationRoot, catalogRoot, files)
 		if err != nil {
-			return err
+			return compositionPlan{}, err
 		}
-		if info.Mode()&os.ModeSymlink != 0 {
-			return fmt.Errorf("%s closure entry %s is a symlink", role, entry.Name())
+		if payload > configMapPayloadLimit {
+			if len(uiRoots) == 0 {
+				return compositionPlan{}, fmt.Errorf(
+					"deployment entry %s payload %d exceeds limit %d and has no declared UI to externalize",
+					entry.ID, payload, configMapPayloadLimit)
+			}
+			files = excludeInventoryRoots(files, uiRoots)
+			if len(files) == 0 {
+				return compositionPlan{}, fmt.Errorf(
+					"deployment entry %s contains only external UI assets", entry.ID)
+			}
+			payload, err = inventoryPayload(applicationRoot, catalogRoot, files)
+			if err != nil {
+				return compositionPlan{}, err
+			}
+			if payload > configMapPayloadLimit {
+				return compositionPlan{}, fmt.Errorf(
+					"deployment entry %s ConfigMap payload %d exceeds limit %d after externalizing UI",
+					entry.ID, payload, configMapPayloadLimit)
+			}
+			plan.externalUIRoots = append(plan.externalUIRoots, uiRoots...)
 		}
-		if !info.Mode().IsRegular() {
-			continue
+		profile := entry.ProfilePath
+		if profile == "" {
+			profile = root.RuntimePath
 		}
-		data, err := os.ReadFile(filepath.Join(source, entry.Name()))
-		if err != nil {
-			return fmt.Errorf("read %s %s: %w", role, entry.Name(), err)
+		source := root.Source
+		if root.Ownership == "catalog" {
+			source = "catalog/" + source
+		} else {
+			source = "application/" + source
 		}
-		if err := os.WriteFile(filepath.Join(destination, entry.Name()), data, info.Mode().Perm()); err != nil {
-			return fmt.Errorf("write %s %s: %w", role, entry.Name(), err)
-		}
+		plan.roles = append(plan.roles, preparedRolePlan{
+			role: preparedRole{
+				Role: entry.ID, Root: entry.Root, Path: entry.ID, Profile: profile,
+				Ownership: root.Ownership, Source: source,
+				CompatibleRelease: root.CompatibleRelease,
+				UIRoots:           append([]string(nil), uiRoots...),
+			},
+			files: files,
+		})
 	}
-	return nil
+	sort.Strings(plan.externalUIRoots)
+	plan.externalUIRoots = uniqueStrings(plan.externalUIRoots)
+	return plan, nil
 }
 
-// stageSubtree copies the regular files under source into destination,
-// preserving the tree shape. It stages a served UI's built assets (srd020 R7)
-// into a role closure; symlinks are rejected the same way stageTopLevelFiles
-// rejects them so the archive carries no links.
-func stageSubtree(source, destination, role string) error {
-	return filepath.WalkDir(source, func(path string, entry fs.DirEntry, walkErr error) error {
-		if walkErr != nil {
-			return walkErr
+func inventoryFilesForRoots(inventory appmanifest.Inventory, roots []string) []appmanifest.InventoryFile {
+	var files []appmanifest.InventoryFile
+	for _, file := range inventory.Files {
+		for _, root := range roots {
+			if containsValue(file.Roots, root) {
+				files = append(files, file)
+				break
+			}
 		}
-		rel, err := filepath.Rel(source, path)
+	}
+	return files
+}
+
+func excludeInventoryRoots(files []appmanifest.InventoryFile, excluded []string) []appmanifest.InventoryFile {
+	var kept []appmanifest.InventoryFile
+	for _, file := range files {
+		exclude := false
+		for _, root := range excluded {
+			if containsValue(file.Roots, root) {
+				exclude = true
+				break
+			}
+		}
+		if !exclude {
+			kept = append(kept, file)
+		}
+	}
+	return kept
+}
+
+func inventoryPayload(applicationRoot, catalogRoot string, files []appmanifest.InventoryFile) (int, error) {
+	payload := 0
+	for _, file := range files {
+		source, err := inventorySourcePath(applicationRoot, catalogRoot, file.Source)
 		if err != nil {
-			return err
+			return 0, err
 		}
-		target := filepath.Join(destination, rel)
-		if entry.IsDir() {
-			return os.MkdirAll(target, 0o755)
-		}
-		info, err := entry.Info()
+		data, err := os.ReadFile(source)
 		if err != nil {
-			return err
+			return 0, err
 		}
-		if info.Mode()&os.ModeSymlink != 0 {
-			return fmt.Errorf("%s closure entry %s is a symlink", role, rel)
+		payload += len(strings.ReplaceAll(file.RuntimePath, "/", "__")) + len(data)
+	}
+	return payload, nil
+}
+
+func inventorySourcePath(applicationRoot, catalogRoot, logical string) (string, error) {
+	for prefix, root := range map[string]string{
+		"application/": applicationRoot,
+		"catalog/":     catalogRoot,
+	} {
+		if strings.HasPrefix(logical, prefix) {
+			relative := strings.TrimPrefix(logical, prefix)
+			return filepath.Join(root, filepath.FromSlash(relative)), nil
 		}
-		if !info.Mode().IsRegular() {
-			return nil
+	}
+	return "", fmt.Errorf("inventory source %q has no ownership prefix", logical)
+}
+
+func uniqueStrings(values []string) []string {
+	if len(values) < 2 {
+		return values
+	}
+	result := values[:1]
+	for _, value := range values[1:] {
+		if value != result[len(result)-1] {
+			result = append(result, value)
 		}
-		data, err := os.ReadFile(path)
-		if err != nil {
-			return fmt.Errorf("read %s %s: %w", role, rel, err)
+	}
+	return result
+}
+
+func containsValue(values []string, want string) bool {
+	for _, value := range values {
+		if value == want {
+			return true
 		}
-		return os.WriteFile(target, data, info.Mode().Perm())
-	})
+	}
+	return false
 }
 
 // validatePreparedProfiles rejects a staged closure whose manifest is stale,
@@ -379,17 +450,36 @@ func validatePreparedProfiles(profilesRoot string) error {
 	if err := readStrictYAML(filepath.Join(profilesRoot, preparedManifestFilename), &manifest); err != nil {
 		return err
 	}
-	if manifest.SchemaVersion != 1 || manifest.Application != "agent-architecture" ||
-		manifest.MountPath != profilesMountPath || manifest.ConfigMapPayloadLimit != configMapPayloadLimit {
+	if manifest.SchemaVersion != 1 || manifest.Application == "" ||
+		manifest.CompositionManifest != "agents/application.yaml" ||
+		manifest.MountPath == "" || manifest.ConfigMapPayloadLimit != configMapPayloadLimit ||
+		manifest.Closure.Application != manifest.Application {
 		return fmt.Errorf("prepared manifest has an invalid contract")
 	}
-	if len(manifest.Roles) != len(helmRoleSpecs) {
-		return fmt.Errorf("prepared manifest has %d roles, want %d", len(manifest.Roles), len(helmRoleSpecs))
+	if len(manifest.Roles) == 0 {
+		return fmt.Errorf("prepared manifest has no deployment roles")
 	}
-	for index, spec := range helmRoleSpecs {
-		role := manifest.Roles[index]
-		if role.Role != spec.role || role.Path != spec.role || role.Profile != spec.profileRuntime {
+	closureRoots := make(map[string]appmanifest.RootProvenance, len(manifest.Closure.Roots))
+	for _, root := range manifest.Closure.Roots {
+		closureRoots[root.ID] = root
+	}
+	closureFiles := make(map[string]appmanifest.InventoryFile, len(manifest.Closure.Files))
+	for _, file := range manifest.Closure.Files {
+		closureFiles[file.RuntimePath] = file
+	}
+	roleNames := make(map[string]bool, len(manifest.Roles))
+	for index, role := range manifest.Roles {
+		if role.Role == "" || role.Root == "" || role.Path != role.Role ||
+			role.Profile == "" || roleNames[role.Role] ||
+			(index > 0 && manifest.Roles[index-1].Role >= role.Role) {
 			return fmt.Errorf("prepared role %d is stale or malformed: %#v", index, role)
+		}
+		roleNames[role.Role] = true
+		provenance, exists := closureRoots[role.Root]
+		if !exists || provenance.Ownership != role.Ownership ||
+			provenance.Source != role.Source ||
+			provenance.CompatibleRelease != role.CompatibleRelease {
+			return fmt.Errorf("prepared role %s provenance does not match closure root %s", role.Role, role.Root)
 		}
 		if role.Checksum == "" {
 			return fmt.Errorf("prepared role %s has no checksum", role.Role)
@@ -404,6 +494,21 @@ func validatePreparedProfiles(profilesRoot string) error {
 		}
 		if !reflect.DeepEqual(actual, role.Files) {
 			return fmt.Errorf("prepared role %s files = %v, manifest = %v", role.Role, actual, role.Files)
+		}
+		for _, path := range actual {
+			file, exists := closureFiles[path]
+			allowedRoots := append([]string{role.Root}, role.UIRoots...)
+			traceable := false
+			for _, root := range allowedRoots {
+				if containsValue(file.Roots, root) {
+					traceable = true
+					break
+				}
+			}
+			if !exists || !traceable {
+				return fmt.Errorf("prepared role %s file %s is not traceable to root %s",
+					role.Role, path, role.Root)
+			}
 		}
 		checksum, err := roleClosureChecksum(roleRoot, actual)
 		if err != nil {
@@ -439,10 +544,12 @@ func validatePreparedProfiles(profilesRoot string) error {
 		names = append(names, entry.Name())
 	}
 	sort.Strings(names)
-	// The applier profile is application-owned and staged alongside the two
-	// catalog closures (stageApplierProfile); it carries no manifest role entry,
-	// so it appears only as a top-level directory here.
-	want := []string{"applier", "collector", "curator", preparedManifestFilename}
+	want := make([]string, 0, len(manifest.Roles)+1)
+	for _, role := range manifest.Roles {
+		want = append(want, role.Path)
+	}
+	want = append(want, preparedManifestFilename)
+	sort.Strings(want)
 	if !reflect.DeepEqual(names, want) {
 		return fmt.Errorf("staged profiles top-level entries = %v, want %v", names, want)
 	}

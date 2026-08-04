@@ -243,7 +243,7 @@ func (resolver *closureResolver) addFile(item closureItem, data []byte) error {
 
 func (resolver *closureResolver) resolveYAML(item closureItem, data []byte) error {
 	var document yaml.Node
-	if err := yaml.Unmarshal(data, &document); err != nil {
+	if err := yaml.Unmarshal(yamlTemplateSafe(data), &document); err != nil {
 		return fmt.Errorf("parse closure source %s: %w", logicalSource(item.ownership, item.source), err)
 	}
 	references := yamlReferences(&document)
@@ -265,6 +265,15 @@ func (resolver *closureResolver) resolveYAML(item closureItem, data []byte) erro
 		}
 		key := sourceKey(ownership, source)
 		if contains(item.lineage, key) {
+			// REST machine_request endpoints and their request profiles commonly
+			// refer back to one another. A repeated REST edge adds no file and is
+			// bounded by the visited set; cycles outside REST remain invalid.
+			currentBase, targetBase := path.Base(item.source), path.Base(source)
+			currentIsREST := currentBase == "rest.yaml" || strings.HasSuffix(currentBase, "-rest.yaml")
+			targetIsREST := targetBase == "rest.yaml" || strings.HasSuffix(targetBase, "-rest.yaml")
+			if currentIsREST || targetIsREST {
+				continue
+			}
 			return fmt.Errorf("cyclic closure reference: %s -> %s", strings.Join(item.lineage, " -> "), key)
 		}
 		lineage := append(append([]string(nil), item.lineage...), key)
@@ -346,11 +355,9 @@ func yamlReferences(document *yaml.Node) []string {
 				pathField := topLevelField ||
 					stringSet("profile", "subject_profile", "machine", "point_machine",
 						"point_tools", "point_tool_declarations", "includes")[key] ||
-					(key == "root" && contains(ancestors, "static_assets")) ||
 					(key == "path" && contains(ancestors, "openapi"))
 				if pathField {
-					allowDirectory := key == "root" ||
-						(topLevelField && (key == "tool_config_dirs" || key == "rest_config_dirs"))
+					allowDirectory := topLevelField && (key == "tool_config_dirs" || key == "rest_config_dirs")
 					references = append(references, referenceStrings(value, allowDirectory)...)
 				}
 				visit(value, depth+1, append(ancestors, key))

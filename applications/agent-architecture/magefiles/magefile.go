@@ -15,6 +15,7 @@ import (
 	"strings"
 	"time"
 
+	"github.com/Nokia-Bell-Labs/declarative-agents/magefiles/appmanifest"
 	"gopkg.in/yaml.v3"
 )
 
@@ -243,7 +244,17 @@ func Audit() error {
 
 // Stats emits composition ownership without an agents section.
 func Stats() error {
-	encoded, err := json.Marshal(newStatsOutput())
+	resolved, err := resolveRootsFromWorkingDirectory()
+	if err != nil {
+		return err
+	}
+	manifest, err := appmanifest.Load(
+		filepath.Join(resolved.Application, "agents", "application.yaml"),
+		appmanifest.Options{ApplicationRoot: resolved.Application, CatalogRoot: resolved.Catalog})
+	if err != nil {
+		return err
+	}
+	encoded, err := json.Marshal(newStatsOutput(manifest))
 	if err != nil {
 		return fmt.Errorf("encode Agent Architecture stats: %w", err)
 	}
@@ -526,6 +537,10 @@ func auditApplication(root string) error {
 		"canonical documentation-curator profile", "catalog_root"); err != nil {
 		return err
 	}
+	if _, err := appmanifest.Load(filepath.Join(root, "agents", "application.yaml"),
+		appmanifest.Options{ApplicationRoot: root, CatalogRoot: catalog}); err != nil {
+		return err
+	}
 	if _, err := os.Stat(filepath.Join(root, filepath.FromSlash(canonicalProfile))); !os.IsNotExist(err) {
 		return fmt.Errorf("application must not contain a copy of canonical profile %s", canonicalProfile)
 	}
@@ -677,11 +692,15 @@ func readYAML(path string, out any) error {
 	return nil
 }
 
-func newStatsOutput() statsOutput {
+func newStatsOutput(manifest appmanifest.Manifest) statsOutput {
 	var output statsOutput
 	output.Application.Ownership = "composition"
 	output.Application.AgentsContributed = 0
-	output.Application.CanonicalReferences = 2
+	for _, root := range manifest.Roots {
+		if root.Ownership == "catalog" && !root.Planned {
+			output.Application.CanonicalReferences++
+		}
+	}
 	output.Application.CanonicalProfile = "applications/catalog/" + canonicalProfile
 	return output
 }

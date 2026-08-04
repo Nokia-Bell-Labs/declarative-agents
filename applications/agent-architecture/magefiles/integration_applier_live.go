@@ -177,11 +177,7 @@ func stageApplierLiveChart(resolved roots) (string, func(), error) {
 		cleanup()
 		return "", nil, fmt.Errorf("stage source chart: %w", err)
 	}
-	if err := prepareChartProfiles(resolved.Catalog, chart); err != nil {
-		cleanup()
-		return "", nil, err
-	}
-	if err := stageApplierProfile(resolved.Application, chart); err != nil {
+	if err := prepareChartProfiles(resolved.Application, resolved.Catalog, chart); err != nil {
 		cleanup()
 		return "", nil, err
 	}

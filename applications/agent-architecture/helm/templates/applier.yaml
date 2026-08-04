@@ -220,7 +220,7 @@ spec:
             {{- toYaml .Values.containerSecurityContext | nindent 12 }}
           args:
             - "--profile"
-            - "/profiles/agents/applier/profile.yaml"
+            - {{ include "agent-architecture.roleProfile" (dict "root" . "role" "applier") | quote }}
             - "--directory"
             - "{{ .Values.applier.workDir }}"
             - "--otel-service-name"
