@@ -325,9 +325,40 @@ func executeFocusedGoTest(path, name string) error {
 		return err
 	}
 	pkg = "./" + filepath.ToSlash(pkg)
-	command := exec.Command("go", "test", pkg,
-		"-run", "^"+regexp.QuoteMeta(name)+"$", "-count=1", "-v", "-json")
-	command.Dir = module
+
+	tempDir, err := os.MkdirTemp("", "focused-go-test-*")
+	if err != nil {
+		return fmt.Errorf("focused Go test %s in %s: create stable test directory: %w",
+			name, pkg, err)
+	}
+	defer func() { _ = os.RemoveAll(tempDir) }()
+	binary := filepath.Join(tempDir, "focused.test")
+
+	compile := exec.Command("go", "test", "-c", "-o", binary, pkg)
+	compile.Dir = module
+	compileOutput, compileErr := compile.CombinedOutput()
+	if compileErr != nil {
+		return fmt.Errorf("focused Go test %s in %s failed to compile: %w: %s",
+			name, pkg, compileErr, strings.TrimSpace(string(compileOutput)))
+	}
+	if _, err := os.Stat(binary); err != nil {
+		if os.IsNotExist(err) && strings.Contains(string(compileOutput), "[no test files]") {
+			return noFocusedGoTestMatch(name, pkg)
+		}
+		return fmt.Errorf("focused Go test %s in %s compiled binary is unavailable: %w: %s",
+			name, pkg, err, strings.TrimSpace(string(compileOutput)))
+	}
+
+	// test2json executes the stable binary and retains the event stream used to
+	// prove the exact selected test ran. Running from the package directory
+	// matches the cwd provided by `go test`.
+	command := exec.Command("go", "tool", "test2json", "-t", "-p", pkg, binary,
+		"-test.run=^"+regexp.QuoteMeta(name)+"$",
+		"-test.count=1",
+		"-test.v=true",
+		"-test.timeout=10m",
+	)
+	command.Dir = filepath.Dir(path)
 	output, runErr := command.CombinedOutput()
 	result := scanFocusedGoTestJSON(output, name)
 	// A genuine test failure is the most specific signal: report it with the
@@ -346,15 +377,19 @@ func executeFocusedGoTest(path, name string) error {
 	// executed. Go reports "no tests to run" and exits 0 when -run matches
 	// nothing, which would otherwise pass as false-green evidence.
 	if !result.ran {
-		return fmt.Errorf("focused Go test %s in %s matched no executed test "+
-			"(\"no tests to run\"); the selector must name a real test in the package",
-			name, pkg)
+		return noFocusedGoTestMatch(name, pkg)
 	}
 	if !result.passed {
 		return fmt.Errorf("focused Go test %s in %s produced no pass result event",
 			name, pkg)
 	}
 	return nil
+}
+
+func noFocusedGoTestMatch(name, pkg string) error {
+	return fmt.Errorf("focused Go test %s in %s matched no executed test "+
+		"(\"no tests to run\"); the selector must name a real test in the package",
+		name, pkg)
 }
 
 // focusedGoTestResult summarizes what the go test2json stream proved about a

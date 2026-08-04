@@ -39,10 +39,10 @@ var nestedTestModules = []string{
 }
 
 // testTargets is the single registry of module directories the root Test gate
-// runs, each paired with its command. Platform sub-modules run through their
-// mage test target; application and standalone nested modules run through
-// `go test`. Every maintained non-fixture Go module must appear here exactly
-// once (TestEveryMaintainedGoModuleIsDispatchedExactlyOnce).
+// runs, each paired with its command. Platform sub-modules and the catalog run
+// through their Mage test target; other applications and standalone nested
+// modules run through `go test`. Every maintained non-fixture Go module must
+// appear here exactly once (TestEveryMaintainedGoModuleIsDispatchedExactlyOnce).
 func testTargets() []testTarget {
 	targets := make([]testTarget, 0,
 		len(subModules)+len(applicationModules)+len(nestedTestModules))
@@ -50,7 +50,13 @@ func testTargets() []testTarget {
 		targets = append(targets, testTarget{module: m, run: runMageTest})
 	}
 	for _, m := range applicationModules {
-		targets = append(targets, testTarget{module: m, run: runGoUnitTests})
+		run := runGoUnitTests
+		if m == "applications/catalog" {
+			// Catalog conformance uses its Mage runner so the test binary can be
+			// compiled to a stable path before execution (GH-1437).
+			run = runMageTest
+		}
+		targets = append(targets, testTarget{module: m, run: run})
 	}
 	for _, m := range nestedTestModules {
 		targets = append(targets, testTarget{module: m, run: runGoUnitTests})
@@ -59,8 +65,8 @@ func testTargets() []testTarget {
 }
 
 // Test runs unit tests for every participating module from the single
-// testTargets registry: platform sub-modules through their mage test target,
-// application and standalone nested modules through go test.
+// testTargets registry: platform sub-modules and the catalog through their Mage
+// test target, other applications and standalone nested modules through go test.
 func Test() error {
 	for _, target := range testTargets() {
 		if err := testSubModules([]string{target.module}, moduleHasGoTests, target.run); err != nil {

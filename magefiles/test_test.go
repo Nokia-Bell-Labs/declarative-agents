@@ -71,6 +71,19 @@ func TestSubModulesRunsModulesWithGoTests(t *testing.T) {
 	}
 }
 
+func TestCatalogTestTargetUsesMageRunner(t *testing.T) {
+	for _, target := range testTargets() {
+		if target.module != "applications/catalog" {
+			continue
+		}
+		if reflect.ValueOf(target.run).Pointer() != reflect.ValueOf(runMageTest).Pointer() {
+			t.Fatal("catalog test target does not use its stable-binary Mage runner")
+		}
+		return
+	}
+	t.Fatal("catalog test target is not registered")
+}
+
 func TestSubModulesWrapsRunnerError(t *testing.T) {
 	root := t.TempDir()
 	writeGoMod(t, filepath.Join(root, "agent-core"))
