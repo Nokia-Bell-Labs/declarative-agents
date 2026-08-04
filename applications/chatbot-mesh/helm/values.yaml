@@ -115,6 +115,11 @@ ollama:
 # agent's monitor surface, and serves a fleet-level UX at observer.localhost.
 observer:
   enabled: true
+  # Optional immutable UI archive provisioned outside Helm release storage.
+  # When set, the observer verifies and unpacks assets.tgz from this ConfigMap
+  # instead of rendering the built bundle into the release.
+  uiArchiveConfigMap: ""
+  uiArchiveChecksum: ""
   ports:
     control: 18201
     monitor: 18202
@@ -156,6 +161,11 @@ collector:
   # contrib option preserves the previous combined trace/metric gateway and the
   # pull-based Dolt Prometheus scrape.
   implementation: agent
+  # Optional immutable UI archive provisioned outside Helm release storage.
+  # The archive contains ui/dist at its root and is checksum-verified before
+  # extraction into the collector's /collector-ui working directory.
+  uiArchiveConfigMap: ""
+  uiArchiveChecksum: ""
   # Contrib image, used only when implementation: contrib. 0.127.0 ships a
   # statically linked arm64 binary. The 0.116.0 arm64 image is dynamically linked
   # against /lib/ld-linux-aarch64.so.1, which a distroless image does not carry,
@@ -200,7 +210,7 @@ applier:
   # Name of a ConfigMap carrying the packaged chart (a `chart.tgz` binaryData key)
   # that the applier's `helm upgrade chatbot-mesh /chart` word installs, mounted at
   # /chart rather than baked into the image (GH-1368). The deploy/test tooling
-  # provisions this ConfigMap out-of-release (kubectl apply) and passes its name via
+  # provisions this ConfigMap out-of-release (kubectl create) and passes its name via
   #   --set applier.chartArchiveConfigMap=<name>
   # It is kept out of the Helm release because the chart embeds the collector UI,
   # and carrying the archive in the release Secret overflowed the 1 MiB apiserver
