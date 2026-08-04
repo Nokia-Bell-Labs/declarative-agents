@@ -1,0 +1,3 @@
+schema_version: prose-editor.embedding-fixture/v1
+model: tracer-embedding
+vector: [0.125, 0.25, 0.5]

@@ -1007,12 +1007,19 @@ use_case_traces:
   - id: rel00.0-uc001-edit-document
     status: planned
     path: ../use-cases/rel00.0-uc001-edit-document.yaml
+  - id: rel00.1-uc001-tracer-saga
+    status: implemented
+    path: ../use-cases/rel00.1-uc001-tracer-saga.yaml
 
 test_suite_traces:
   - id: test-rel00.0-prose-editor
     status: planned
     path: ../test-suites/test-rel00.0-prose-editor.yaml
     acceptance_criteria: [AC1, AC2, AC3, AC4, AC5, AC6, AC7, AC8, AC9]
+  - id: test-rel00.1-prose-editor
+    status: implemented
+    path: ../test-suites/test-rel00.1-prose-editor.yaml
+    acceptance_criteria: [AC1, AC2, AC3, AC4]
 
 related_documents:
   - path: ../../ARCHITECTURE.yaml
@@ -1040,7 +1047,7 @@ related_documents:
 
 implementation_status:
   specification: specified
-  runtime: release_00_1_no_pangram_program_closure
+  runtime: release_00_1_no_pangram_deterministic_tracer
   profile: release_00_1_implemented
   machine: release_00_1_independent_critic_implemented
   tool_declarations: release_00_1_subset_implemented
@@ -1048,5 +1055,5 @@ implementation_status:
   rest_definitions: not_implemented
   model_declarations: release_00_1_implemented
   service: not_implemented
-  tests: structural_only
-  executable_evidence: program_closure
+  tests: structural_deterministic_responses_and_fault_injection
+  executable_evidence: deterministic_tracer

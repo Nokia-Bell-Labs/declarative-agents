@@ -1,0 +1,10 @@
+schema_version: prose-editor.editor-response/v1
+outcome: succeeded
+content: |
+  # Release notes
+
+  The tracer preserves every factual claim.
+
+  The ordered process captures an immutable source, retrieves structural guidance, asks an independent critic, and finalizes accepted prose locally.
+retrieval_ids: [structure-outline-001]
+producer: specialist-editor:structure

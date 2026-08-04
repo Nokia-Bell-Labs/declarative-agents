@@ -24,9 +24,9 @@ states:
   - RoutingVerdict
   - ComposingPassResponse
   - ComposingRejectResponse
-  - Passed
-  - Rejected
-  - Failed
+  - {name: Passed, run_status: succeeded}
+  - {name: Rejected, run_status: succeeded}
+  - {name: Failed, run_status: failed}
 terminal_states: [Passed, Rejected, Failed]
 signals:
   - Seed

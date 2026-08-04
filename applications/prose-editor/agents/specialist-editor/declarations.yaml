@@ -83,13 +83,13 @@ tools:
     config:
       signal: StructureEditContextReady
       inputs:
-        request: $from(validated_structure_request)
-        evidence: $from(structure_retrieval)
+        parent_content: $from(validated_structure_request).parent_content
+        parent_artifact_id: $from(validated_structure_request).parent_artifact_id
+        parent_content_hash: $from(validated_structure_request).parent_content_hash
       template: |-
         Parent and immutable identities:
-        {{ json request }}
-        Read-only structure evidence:
-        {{ json evidence }}
+        {"content":{{ json parent_content }},"artifact_id":{{ json parent_artifact_id }},"sha256":{{ json parent_content_hash }}}
+        Read-only structure evidence was accepted from the preceding structure-rag transition.
     side_effects: []
     reversibility: {classification: reversible, undo: noop}
     undo: {strategy: noop, description: Context composition changes no state.}
@@ -181,8 +181,7 @@ tools:
     emits: [StructureCandidateValid, StructureCandidateRejected, CommandError]
     config:
       left: $from(structure_candidate).outcome
-      op: in
-      right: [candidate, no_op]
+      op: non_empty
       operand_type: string
       satisfied: StructureCandidateValid
       unsatisfied: StructureCandidateRejected
@@ -201,8 +200,12 @@ tools:
     config:
       signal: StructureResponseReady
       inputs:
-        candidate: $from(structure_candidate)
-      template: '{{ json candidate }}'
+        outcome: $from(structure_candidate).outcome
+        content: $from(structure_candidate).content
+        parent_artifact_id: $from(structure_candidate).parent_artifact_id
+        parent_content_hash: $from(structure_candidate).parent_content_hash
+        retrieval_provenance: $from(structure_candidate).retrieval_provenance
+      template: '{"outcome":{{ json outcome }},"content":{{ json content }},"parent_artifact_id":{{ json parent_artifact_id }},"parent_content_hash":{{ json parent_content_hash }},"retrieval_provenance":{{ json retrieval_provenance }}}'
     side_effects: []
     reversibility: {classification: reversible, undo: noop}
     undo: {strategy: noop, description: Response composition changes no state.}

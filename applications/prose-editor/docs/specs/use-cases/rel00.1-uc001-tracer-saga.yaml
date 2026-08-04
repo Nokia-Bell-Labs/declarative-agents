@@ -1,8 +1,8 @@
 id: rel00.1-uc001-tracer-saga
 title: Tracer-Bullet Saga with Structure Stage and Local Finalization
 release: "00.1"
-status: partial
-runtime_status: program_closure
+status: implemented
+runtime_status: deterministic_tracer
 
 summary: |
   A human asks Prose Editor to edit one GitHub document at a selected revision,
@@ -18,10 +18,10 @@ summary: |
   to release 00.2. Every remote intent and accepted or rejected result is
   durable before the next action.
 
-  Release 00.1 now implements and structurally validates the declarative
-  profile, machine, tool, wrapper, role, and portable-manifest closure. The
-  deterministic end-to-end boundary fixture evidence remains unimplemented and
-  is not claimed by this status.
+  Release 00.1 implements and validates the declarative profile, machine, tool,
+  wrapper, role, and portable-manifest closure plus a deterministic end-to-end
+  boundary fixture. It claims local tracer behavior only, not managed services
+  or live external integrations.
 
 actor: |
   A human document owner who supplies repository, source path and revision,
@@ -200,19 +200,6 @@ touchpoints:
       F7 and F8 invoke the isolated critic with exact bytes, validate all six
       finding categories, close the responsible stage, and enforce withheld
       Pangram consent without any upload tasks.
-  - id: T7
-    component: telemetry contract
-    requirements:
-      - srd001-prose-editor-services R8.1
-      - srd001-prose-editor-services R8.2
-      - srd001-prose-editor-services R8.3
-    reason: |
-      The orchestrator, specialist-editor:structure, voice-critic, and
-      structure-rag accept the standard telemetry flags; the child invocations
-      in F4 and F7 propagate trace context through PropagateArgs so the tracer
-      saga renders as one connected trace, with spans emitted only through the
-      agent-core runtime and no environment-variable configuration.
-
 success_criteria:
   - id: S1
     criterion: |
@@ -223,7 +210,6 @@ success_criteria:
       - srd001-prose-editor-services AC1
       - srd001-prose-editor-services AC2
       - srd001-prose-editor-services AC3
-      - srd001-prose-editor-services AC8
   - id: S2
     criterion: |
       Exact immutable source, structure attempt, critique, finalized, and

@@ -56,6 +56,10 @@ type demoConfig struct {
 }
 
 type applicationStats struct {
+	Agents struct {
+		Total    tracerAgentMetrics            `json:"total"`
+		PerAgent map[string]tracerAgentMetrics `json:"per_agent"`
+	} `json:"agents"`
 	Application struct {
 		Ownership           string   `json:"ownership"`
 		ModuleStatus        string   `json:"module_status"`
@@ -66,7 +70,18 @@ type applicationStats struct {
 	} `json:"application"`
 }
 
-// Audit validates the audit-only tracer program closure and documentation corpus.
+type tracerAgentMetrics struct {
+	Agents      int `json:"agents,omitempty"`
+	States      int `json:"states"`
+	Transitions int `json:"transitions"`
+	Tools       int `json:"tools"`
+	YAML        struct {
+		Files int `json:"files"`
+		Lines int `json:"lines"`
+	} `json:"yaml"`
+}
+
+// Audit validates the runnable tracer program closure and documentation corpus.
 func Audit() error {
 	root, err := applicationRootFromWorkingDirectory()
 	if err != nil {
@@ -83,7 +98,7 @@ func Audit() error {
 	return nil
 }
 
-// Stats reports the audit-only executable program composition.
+// Stats reports the runnable tracer implementation and composition.
 func Stats() error {
 	root, err := applicationRootFromWorkingDirectory()
 	if err != nil {
@@ -93,7 +108,11 @@ func Stats() error {
 	if err != nil {
 		return err
 	}
-	encoded, err := json.Marshal(newStats(manifest))
+	stats, err := newStats(root, manifest)
+	if err != nil {
+		return err
+	}
+	encoded, err := json.Marshal(stats)
 	if err != nil {
 		return fmt.Errorf("encode Prose Editor stats: %w", err)
 	}
@@ -157,11 +176,11 @@ func loadApplicationManifest(root string) (appmanifest.Manifest, error) {
 func validateTracerManifest(manifest appmanifest.Manifest) error {
 	if manifest.Application != "prose-editor" ||
 		manifest.Ownership != "agent-owning" ||
-		manifest.ModuleStatus != "audit_only" {
-		return fmt.Errorf("application manifest identity/status is not audit-only Prose Editor tracer")
+		manifest.ModuleStatus != "implemented" {
+		return fmt.Errorf("application manifest identity/status is not runnable Prose Editor tracer")
 	}
 	wantCapabilities := map[string]string{
-		"runnable_module": "audit_only",
+		"runnable_module": "implemented",
 		"managed_service": "not_applicable",
 		"packaged":        "not_applicable",
 		"helm_managed":    "not_applicable",
@@ -179,7 +198,7 @@ func validateTracerManifest(manifest appmanifest.Manifest) error {
 	}
 	if manifest.Runtime.MountPath != "" || manifest.Runtime.ImageContainsProfiles ||
 		len(manifest.Deployment.Entries) != 0 || len(manifest.UI.Assets) != 0 {
-		return errors.New("audit-only manifest must not declare a runtime, deployment, or UI surface")
+		return errors.New("local-only tracer manifest must not declare a runtime mount, deployment, or UI surface")
 	}
 
 	var local, catalog []string
@@ -290,11 +309,11 @@ func auditStatusClaims(root string) error {
 	if err := readYAML(filepath.Join(root, "docs", "ARCHITECTURE.yaml"), &architecture); err != nil {
 		return err
 	}
-	if architecture.Overview.Status != "audit_only" ||
-		architecture.ImplementationStatus.Overall != "audit_only" ||
-		architecture.ImplementationStatus.RegistryStatus != "audit_only" ||
-		architecture.ImplementationStatus.ExecutableEvidence != "program_closure" {
-		return errors.New("architecture status must claim audit-only tracer program closure")
+	if architecture.Overview.Status != "implemented_release_00_1_tracer" ||
+		architecture.ImplementationStatus.Overall != "implemented_release_00_1_tracer" ||
+		architecture.ImplementationStatus.RegistryStatus != "runnable" ||
+		architecture.ImplementationStatus.ExecutableEvidence != "interpreter_driven_deterministic_tracer" {
+		return errors.New("architecture status must claim only the runnable interpreter-driven deterministic tracer")
 	}
 
 	var roadmap struct {
@@ -319,11 +338,11 @@ func auditStatusClaims(root string) error {
 			continue
 		}
 		foundRelease = true
-		if release.Status != "partial" ||
-			release.CapabilityStatus.RunnableModule != "audit_only" ||
-			release.EvidenceStatus.RootRegistration != "audit_only" ||
-			release.EvidenceStatus.ExecutableEvidence != "program_closure" {
-			return errors.New("road-map release 00.1 must report audit-only program closure")
+		if release.Status != "implemented" ||
+			release.CapabilityStatus.RunnableModule != "implemented" ||
+			release.EvidenceStatus.RootRegistration != "runnable" ||
+			release.EvidenceStatus.ExecutableEvidence != "interpreter_driven_deterministic_tracer" {
+			return errors.New("road-map release 00.1 must report runnable interpreter-driven tracer evidence")
 		}
 	}
 	if !foundRelease {
@@ -334,24 +353,38 @@ func auditStatusClaims(root string) error {
 		Status        string `yaml:"status"`
 		RuntimeStatus string `yaml:"runtime_status"`
 		TestCases     []struct {
-			CurrentEvidence string `yaml:"current_evidence"`
+			CurrentEvidence yaml.Node `yaml:"current_evidence"`
 		} `yaml:"test_cases"`
 	}
 	if err := readYAML(filepath.Join(
 		root, "docs", "specs", "test-suites", "test-rel00.1-prose-editor.yaml"), &suite); err != nil {
 		return err
 	}
-	if suite.Status != "partial" || suite.RuntimeStatus != "structural_only" {
-		return errors.New("release 00.1 tracer suite must report structural-only evidence")
+	if suite.Status != "implemented" || suite.RuntimeStatus != "interpreter_driven_deterministic_tracer" {
+		return errors.New("release 00.1 tracer suite must report interpreter-driven deterministic tracer evidence")
 	}
 	return nil
 }
 
-func newStats(manifest appmanifest.Manifest) applicationStats {
+func newStats(root string, manifest appmanifest.Manifest) (applicationStats, error) {
 	var result applicationStats
+	result.Agents.PerAgent = map[string]tracerAgentMetrics{}
 	result.Application.Ownership = manifest.Ownership
 	result.Application.ModuleStatus = manifest.ModuleStatus
 	result.Application.AgentsContributed = 3
+	for _, actor := range []string{"workflow-orchestrator", "specialist-editor", "voice-critic"} {
+		metrics, err := scanTracerAgent(filepath.Join(root, "agents", actor))
+		if err != nil {
+			return result, err
+		}
+		result.Agents.PerAgent[actor] = metrics
+		result.Agents.Total.Agents++
+		result.Agents.Total.States += metrics.States
+		result.Agents.Total.Transitions += metrics.Transitions
+		result.Agents.Total.Tools += metrics.Tools
+		result.Agents.Total.YAML.Files += metrics.YAML.Files
+		result.Agents.Total.YAML.Lines += metrics.YAML.Lines
+	}
 	for _, root := range manifest.Roots {
 		if root.Ownership == "catalog" {
 			result.Application.CanonicalReferences++
@@ -365,7 +398,47 @@ func newStats(manifest appmanifest.Manifest) applicationStats {
 	}
 	sort.Strings(result.Application.CanonicalProfiles)
 	sort.Strings(result.Application.ExecutableRoots)
-	return result
+	return result, nil
+}
+
+func scanTracerAgent(root string) (tracerAgentMetrics, error) {
+	var result tracerAgentMetrics
+	err := filepath.WalkDir(root, func(path string, entry os.DirEntry, walkErr error) error {
+		if walkErr != nil {
+			return walkErr
+		}
+		if entry.IsDir() || (!strings.HasSuffix(path, ".yaml") && !strings.HasSuffix(path, ".yml")) {
+			return nil
+		}
+		data, err := os.ReadFile(path)
+		if err != nil {
+			return err
+		}
+		result.YAML.Files++
+		result.YAML.Lines += bytes.Count(data, []byte{'\n'})
+		switch filepath.Base(path) {
+		case "machine.yaml":
+			var machine struct {
+				States      []yaml.Node `yaml:"states"`
+				Transitions []yaml.Node `yaml:"transitions"`
+			}
+			if err := yaml.Unmarshal(data, &machine); err != nil {
+				return err
+			}
+			result.States += len(machine.States)
+			result.Transitions += len(machine.Transitions)
+		case "tools.yaml":
+			var selection struct {
+				Tools []yaml.Node `yaml:"tools"`
+			}
+			if err := yaml.Unmarshal(data, &selection); err != nil {
+				return err
+			}
+			result.Tools += len(selection.Tools)
+		}
+		return nil
+	})
+	return result, err
 }
 
 func validateTracerProfileBoot(root string) error {

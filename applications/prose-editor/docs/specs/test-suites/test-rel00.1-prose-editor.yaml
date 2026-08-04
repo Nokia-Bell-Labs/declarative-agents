@@ -1,24 +1,22 @@
 id: test-rel00.1-prose-editor
 title: Prose Editor Release 00.1 Tracer Test Suite
 release: "00.1"
-test_case_count: 13
-status: partial
-runtime_status: structural_only
+test_case_count: 12
+status: implemented
+runtime_status: interpreter_driven_deterministic_tracer
 
 overview: |
-  This suite plans 13 tracer-scoped cases for rel00.1-uc001-tracer-saga,
-  covering the minimal runnable slice: orchestrator structure-critic graph,
-  structure-editor machine, critic without Pangram, tracer happy path,
-  structure-stage retry from critic rejection, source capture, workproduct
-  lineage, command errors, retry exhaustion, recovery at tracer saga cuts,
-  and the shared telemetry contract across the tracer services.
+  Twelve deterministic cases execute the shipped workflow-orchestrator,
+  specialist-editor, and voice-critic machines through agent-core and prove the
+  Release 00.1 source-capture, structure retrieval/edit, independent no-Pangram
+  criticism, one bounded structure retry, immutable lineage, restart recovery,
+  and local-finalization tracer. The prior
+  thirteenth telemetry-service case was inconsistent with this release: 00.1
+  ships local programs and a hermetic tracer, not served child processes.
+  Telemetry remains outside this release's executable claim.
 
-  Voice, style, Pangram, multi-stage retry, and publication cases remain in the
-  00.0 suite and become executable in release 00.2. Release 00.1 now supplies
-  structural Go evidence for profile loading, portable manifest closure,
-  machine/tool/authority closure, wrapper and role conformance, and agent-core
-  configuration boot. Deterministic boundary fixtures and end-to-end traces
-  remain unimplemented and are not claimed.
+  All boundary responses and corpora are immutable fixtures. No test requires
+  a live LLM, GitHub, Pangram, Helm, kind, Kubernetes, or network service.
 
 traces:
   - rel00.1-uc001-tracer-saga
@@ -30,155 +28,87 @@ traces:
   - srd008-voice-critic
 
 preconditions:
-  - The six Prose Editor SRDs and rel00.1-uc001-tracer-saga parse and retain status specified and planned respectively.
-  - Future runtime work supplies hermetic fixtures for GitHub, Chroma, Ollama, structure-rag, filesystem faults, checkpoint state, and process boundaries.
-  - Future tests use isolated repositories, temporary persistent output roots, fixed clocks, bounded payloads, redacted credentials, and no production external effects.
-  - Live dependency tests, if later added, remain opt-in and cannot substitute for hermetic boundary evidence.
-  - Current executable evidence is structural-only; scenario and fixture cases remain planned.
+  - The four shipped local profiles pass agent-core configuration validation.
+  - The gate executes workflow-orchestrator with agent-core and records each self-invoked child profile and terminal.
+  - prose-editor-tracer-boundary records every declared source, workproduct, RAG, embedding, and model operation.
+  - The deterministic fixture corpus under testdata/integration/tracer is read-only input.
+  - Every scenario runs in a fresh temporary persistent workspace.
+  - Retry limit is exactly one and source/attempt paths are content-addressed.
 
 test_cases:
   - id: TC001
-    use_case: rel00.1-uc001-tracer-saga
-    name: Documentation trace closure for the tracer release
-    status: partial
-    runtime_status: structural_verified
-    description: |
-      Parse all Prose Editor YAML; verify that the tracer use case, tracer test
-      suite, and road-map release 00.1 exist with correct IDs and paths; close
-      reciprocal references between the tracer use case touchpoints,
-      success criteria, and this test suite; verify that every requirement group
-      listed in road-map 00.1 requirement_subsets is covered by a tracer use
-      case touchpoint and at least one tracer test case; and distinguish
-      structural program evidence from unimplemented scenario evidence.
-    future_evidence:
-      type: go_test
-      path: applications/prose-editor/magefiles/tracer_trace_closure_test.go
-    current_evidence: magefiles/tracer_programs_test.go
-    expected:
-      yaml_documents_parse: true
-      tracer_use_case_exists: true
-      tracer_test_suite_exists: true
-      roadmap_00_1_exists: true
-      orphan_touchpoints_or_criteria: 0
-      runtime_evidence_claims: 0
+    name: Documentation trace closure and corrected roster
+    status: implemented
+    runtime_status: executable
+    current_evidence:
+      - magefiles/integration_tracer_test.go
+      - magefiles/tracer_programs_test.go
+    requirement_groups: [srd001 R1, srd001 R2, srd001 R3, srd001 R4, srd001 R5]
     traces:
       - rel00.1-uc001-tracer-saga S1
-      - rel00.1-uc001-tracer-saga S2
+      - srd001-prose-editor-services AC1
+      - srd001-prose-editor-services AC3
 
   - id: TC002
-    use_case: rel00.1-uc001-tracer-saga
     name: Orchestrator structure-critic-finalization graph proof
     status: implemented
-    runtime_status: structural_verified
-    description: |
-      Materialize the tracer-scoped factory-semantic expansion and prove state,
-      transition, signal, action, label, terminal, and bounded-cycle closure
-      for the structure-critic-finalization subgraph. Require three terminals
-      (locally_finalized, kept_original, failed), durable pre-action intent,
-      durable pre-progress results, and no path from rejection or infrastructure
-      failure into finalization without an accepted critic verdict.
-    future_evidence:
-      type: graph_proof
-      path: applications/prose-editor/magefiles/tracer_orchestrator_graph_test.go
-    current_evidence: magefiles/tracer_programs_test.go
+    runtime_status: executable
+    current_evidence:
+      - magefiles/integration_tracer_test.go
+      - magefiles/tracer_programs_test.go
+    requirement_groups: [srd004 R1, srd004 R3, srd004 R4]
     traces:
       - rel00.1-uc001-tracer-saga S4
       - srd004-workflow-orchestrator AC1
-      - srd004-workflow-orchestrator AC2
-      - srd004-workflow-orchestrator AC3
       - srd004-workflow-orchestrator AC4
-      - srd004-workflow-orchestrator AC5
 
   - id: TC003
-    use_case: rel00.1-uc001-tracer-saga
-    name: Structure-editor machine, retrieval, preservation, and authority proof
-    status: partial
-    runtime_status: structural_verified
-    description: |
-      Prove the flat structure-editor machine and exact factory closure, request
-      containment, structure-rag vector provenance, complete chunk provenance,
-      retrieval-before-edit reachability, one refinement bound, structure-only
-      operations, semantic preservation, four responses, unchanged fail-closed
-      bytes, and absence of persistence, verdict, Pangram, and GitHub authority.
-    future_evidence:
-      type: graph_and_fixture_test
-      path: applications/prose-editor/magefiles/tracer_structure_editor_test.go
-    current_evidence: magefiles/tracer_programs_test.go
+    name: Structure retrieval, candidate, preservation, and authority proof
+    status: implemented
+    runtime_status: executable
+    current_evidence:
+      - magefiles/integration_tracer_test.go
+      - magefiles/tracer_programs_test.go
+    requirement_groups: [srd005 R1, srd005 R2, srd005 R3, srd005 R4, srd005 R5, srd005 R6, srd005 R7]
     traces:
       - rel00.1-uc001-tracer-saga S5
       - srd005-specialist-editor AC1
       - srd005-specialist-editor AC2
-      - srd005-specialist-editor AC3
-      - srd005-specialist-editor AC4
-      - srd005-specialist-editor AC5
-      - srd005-specialist-editor AC6
       - srd005-specialist-editor AC7
 
   - id: TC004
-    use_case: rel00.1-uc001-tracer-saga
-    name: Critic machine without Pangram, six findings, and authority proof
-    status: partial
-    runtime_status: structural_verified
-    description: |
-      Prove flat factory closure, exact immutable inputs via hash, critic-owned
-      retrieval, all six finding categories validated, model parse and
-      deterministic validation, verdict and responsible-stage cardinality,
-      withheld consent dominance (no upload task submitted, no poll attempted),
-      response closure, and denied edit, filesystem, workproduct, corpus,
-      GitHub, and publication authority.
-    future_evidence:
-      type: graph_and_dataflow_test
-      path: applications/prose-editor/magefiles/tracer_voice_critic_test.go
-    current_evidence: magefiles/tracer_programs_test.go
+    name: Independent six-finding critic without Pangram
+    status: implemented
+    runtime_status: executable
+    current_evidence:
+      - magefiles/integration_tracer_test.go
+      - magefiles/tracer_programs_test.go
+    requirement_groups: [srd008 R1, srd008 R2, srd008 R3, srd008 R4, srd008 R5]
     traces:
       - rel00.1-uc001-tracer-saga S6
-      - srd008-voice-critic AC1
       - srd008-voice-critic AC2
       - srd008-voice-critic AC3
       - srd008-voice-critic AC4
 
   - id: TC005
-    use_case: rel00.1-uc001-tracer-saga
-    name: Tracer happy path from source capture through local finalization
-    status: planned
-    runtime_status: unimplemented
-    description: |
-      Drive one new tracer saga through request intent, full-commit source
-      capture, immutable original, accepted structure attempt, independent
-      critic pass without Pangram, finalized four-file chain (00-original.md,
-      10-structure.md, 40-critique.yaml, final.md), locally_finalized terminal
-      state, and finite exit. Assert exact state order, hashes, parents,
-      revisions, identities, and no branch, commit, push, or pull request
-      mutation.
-    future_evidence:
-      type: hermetic_end_to_end_trace
-      path: applications/prose-editor/tests/e2e/tracer-happy-path/trace.yaml
-    current_evidence: none
+    name: Happy path from source capture through local finalization
+    status: implemented
+    runtime_status: executable
+    current_evidence: [magefiles/integration_tracer_test.go]
+    requirement_groups: [srd002 R1, srd002 R2, srd002 R3, srd004 R2, srd004 R3, srd004 R6]
     traces:
       - rel00.1-uc001-tracer-saga S1
       - rel00.1-uc001-tracer-saga S2
-      - rel00.1-uc001-tracer-saga S4
-      - rel00.1-uc001-tracer-saga S5
-      - rel00.1-uc001-tracer-saga S6
       - rel00.1-uc001-tracer-saga S7
       - srd002-writing-saga-workproducts AC3
       - srd004-workflow-orchestrator AC3
 
   - id: TC006
-    use_case: rel00.1-uc001-tracer-saga
-    name: Critic semantic-preservation rejection triggers structure retry
-    status: planned
-    runtime_status: unimplemented
-    description: |
-      Inject a semantic defect in the structure attempt; require the critic to
-      produce a rejection with responsible_stage structure and a semantic
-      preservation finding; verify the orchestrator supersedes the rejected
-      structure attempt, replays the structure stage from the immutable
-      original, and re-invokes the critic on the new attempt.
-    future_evidence:
-      type: hermetic_scenario_trace
-      path: applications/prose-editor/tests/critic/tracer-semantic-structure/trace.yaml
-    current_evidence: none
+    name: Semantic-preservation rejection triggers one structure retry
+    status: implemented
+    runtime_status: executable
+    current_evidence: [magefiles/integration_tracer_test.go]
+    requirement_groups: [srd002 R4, srd004 R3, srd004 R4, srd008 R3, srd008 R4]
     traces:
       - rel00.1-uc001-tracer-saga S4
       - rel00.1-uc001-tracer-saga S6
@@ -186,19 +116,11 @@ test_cases:
       - srd008-voice-critic AC2
 
   - id: TC007
-    use_case: rel00.1-uc001-tracer-saga
-    name: Critic structural-intent rejection triggers structure retry
-    status: planned
-    runtime_status: unimplemented
-    description: |
-      Inject a structural-intent violation in the structure attempt; require
-      the critic to produce a rejection with responsible_stage structure and a
-      structural intent finding; verify the orchestrator supersedes the rejected
-      attempt, replays from the original, and re-invokes the critic.
-    future_evidence:
-      type: hermetic_scenario_trace
-      path: applications/prose-editor/tests/critic/tracer-structural-intent/trace.yaml
-    current_evidence: none
+    name: Structural-intent rejection triggers one structure retry
+    status: implemented
+    runtime_status: executable
+    current_evidence: [magefiles/integration_tracer_test.go]
+    requirement_groups: [srd002 R4, srd004 R3, srd004 R4, srd008 R3, srd008 R4]
     traces:
       - rel00.1-uc001-tracer-saga S4
       - rel00.1-uc001-tracer-saga S6
@@ -206,62 +128,36 @@ test_cases:
       - srd008-voice-critic AC2
 
   - id: TC008
-    use_case: rel00.1-uc001-tracer-saga
-    name: Source capture immutability and manifest lineage
-    status: planned
-    runtime_status: unimplemented
-    description: |
-      Capture one GitHub source; verify the immutable original is written
-      exactly once with correct SHA-256, byte length, repository, path, full
-      commit, and artifact identity in the manifest. Attempt a second capture
-      of the same source and verify idempotent reuse. Mutate the original file
-      after capture and verify fail-closed detection.
-    future_evidence:
-      type: go_test
-      path: applications/prose-editor/magefiles/tracer_source_capture_test.go
-    current_evidence: none
+    name: Source and attempt immutability with idempotent replay
+    status: implemented
+    runtime_status: executable
+    current_evidence: [magefiles/integration_tracer_test.go]
+    requirement_groups: [srd002 R1, srd002 R4, srd002 R5]
     traces:
       - rel00.1-uc001-tracer-saga S2
       - srd002-writing-saga-workproducts AC1
-      - srd002-writing-saga-workproducts AC2
+      - srd002-writing-saga-workproducts AC5
 
   - id: TC009
-    use_case: rel00.1-uc001-tracer-saga
-    name: Workproduct lineage for the tracer four-file chain
-    status: planned
-    runtime_status: unimplemented
-    description: |
-      After local finalization, verify that 00-original.md, 10-structure.md,
-      40-critique.yaml, and final.md exist at their fixed paths with correct
-      hashes, parents, and provenance in manifest.yaml. Verify append-only
-      manifest history contains all intents and results in state order. Verify
-      no voice, style, or publication workproducts exist.
-    future_evidence:
-      type: go_test
-      path: applications/prose-editor/magefiles/tracer_workproduct_lineage_test.go
-    current_evidence: none
+    name: Append-only manifest history and accepted lineage
+    status: implemented
+    runtime_status: executable
+    current_evidence: [magefiles/integration_tracer_test.go]
+    requirement_groups: [srd002 R2, srd002 R3, srd002 R5]
     traces:
       - rel00.1-uc001-tracer-saga S2
       - rel00.1-uc001-tracer-saga S7
+      - srd002-writing-saga-workproducts AC2
       - srd002-writing-saga-workproducts AC3
-      - srd002-writing-saga-workproducts AC4
-      - srd002-writing-saga-workproducts AC5
 
   - id: TC010
-    use_case: rel00.1-uc001-tracer-saga
-    name: Tracer tool vocabulary closure
+    name: Tool closure and fault-injection detection
     status: implemented
-    runtime_status: structural_verified
-    description: |
-      Compare every expanded action in the tracer flow against the tracer
-      subset of srd003 tool words. Prove fixed helper, operation, stable label,
-      fail-closed selector, side effect, and honest-effect closure for
-      orchestrator, structure-editor, and critic tool words. Reject voice,
-      style, Pangram, and publication tool words as unreachable in the tracer.
-    future_evidence:
-      type: go_test
-      path: applications/prose-editor/magefiles/tracer_tool_closure_test.go
-    current_evidence: magefiles/tracer_programs_test.go
+    runtime_status: executable
+    current_evidence:
+      - magefiles/integration_tracer_test.go
+      - magefiles/tracer_programs_test.go
+    requirement_groups: [srd003 R1, srd003 R2, srd003 R3, srd003 R4]
     traces:
       - rel00.1-uc001-tracer-saga S3
       - srd003-writing-agent-tools AC1
@@ -269,71 +165,44 @@ test_cases:
       - srd003-writing-agent-tools AC3
 
   - id: TC011
-    use_case: rel00.1-uc001-tracer-saga
-    name: Retry exhaustion converges to kept_original or failed
-    status: planned
-    runtime_status: unimplemented
-    description: |
-      Set a bounded retry policy of N attempts. Inject N consecutive critic
-      rejections with responsible_stage structure. Verify the orchestrator
-      exhausts the policy and enters kept_original or failed terminal state
-      without finalization. Verify no partial workproducts are finalized and
-      the original is preserved unchanged.
-    future_evidence:
-      type: hermetic_scenario_trace
-      path: applications/prose-editor/tests/e2e/tracer-retry-exhaustion/trace.yaml
-    current_evidence: none
+    name: Boundary command errors and retry exhaustion fail closed
+    status: implemented
+    runtime_status: executable
+    current_evidence: [magefiles/integration_tracer_test.go]
+    requirement_groups: [srd002 R4, srd004 R4]
     traces:
       - rel00.1-uc001-tracer-saga S4
-      - srd004-workflow-orchestrator AC4
+      - srd002-writing-saga-workproducts AC4
       - srd004-workflow-orchestrator AC5
 
   - id: TC012
-    use_case: rel00.1-uc001-tracer-saga
-    name: Recovery at every tracer saga persistence cut
-    status: planned
-    runtime_status: unimplemented
-    description: |
-      Kill and restart the orchestrator at each durable persistence point in
-      the tracer flow: after request intent, after source capture, after
-      structure intent, after structure result, after critique intent, after
-      critique result, and after finalization. At each cut, verify the
-      orchestrator resumes from the last durable state without re-executing
-      completed steps, without losing any persisted workproduct or manifest
-      entry, and without entering an invalid state.
-    future_evidence:
-      type: hermetic_scenario_trace
-      path: applications/prose-editor/tests/e2e/tracer-recovery/trace.yaml
-    current_evidence: none
+    name: Recovery at every durable cut and terminal replay
+    status: implemented
+    runtime_status: executable
+    current_evidence: [magefiles/integration_tracer_test.go]
+    requirement_groups: [srd002 R5, srd002 R7, srd004 R5]
     traces:
+      - rel00.1-uc001-tracer-saga S2
       - rel00.1-uc001-tracer-saga S4
-      - srd004-workflow-orchestrator AC4
-      - srd004-workflow-orchestrator AC5
+      - srd002-writing-saga-workproducts AC7
+      - srd004-workflow-orchestrator AC6
 
-  - id: TC013
-    use_case: rel00.1-uc001-tracer-saga
-    name: Tracer services accept the telemetry flags and join one saga trace
-    status: planned
-    runtime_status: unimplemented
-    description: |
-      Assert that the orchestrator, specialist-editor:structure, voice-critic,
-      and structure-rag accept --otel-log-file, --otel-parent-span,
-      --otel-otlp-endpoint, and --otel-service-name, and that no telemetry
-      value is read from an environment variable. Run the tracer happy path
-      with live export configured and verify the child invocations carry a
-      propagated traceparent built through PropagateArgs, each service reports
-      its own declared service.name, and the resulting spans form one
-      connected trace emitted only by the agent-core runtime.
-    future_evidence:
-      type: go_test
-      path: applications/prose-editor/magefiles/tracer_telemetry_contract_test.go
-    current_evidence: none
-    expected:
-      four_standard_flags_accepted_by_tracer_services: true
-      environment_variable_telemetry_configuration: 0
-      connected_tracer_trace_across_parent_and_children: true
-      distinct_service_names_per_role: true
-      spans_emitted_only_by_agent_core_runtime: true
-    traces:
-      - rel00.1-uc001-tracer-saga S1
-      - srd001-prose-editor-services AC8
+fault_injection:
+  mutable_lineage: TC008
+  critic_bypass: TC009
+  publication_attempt: TC010
+  missing_retry_bound: TC010
+  boundary_command_error: TC011
+  incorrect_recovery: TC012
+
+excluded_actions:
+  - commit
+  - push
+  - pull_request
+  - pangram
+  - voice_editor
+  - style_editor
+  - package
+  - helm
+  - kind
+  - kubectl

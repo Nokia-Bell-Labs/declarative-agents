@@ -22,19 +22,19 @@ func TestAuditApplicationParsesManifestAndDocumentation(t *testing.T) {
 	}
 }
 
-func TestTracerManifestRejectsRunnablePromotion(t *testing.T) {
+func TestTracerManifestRejectsAuditOnlyRegression(t *testing.T) {
 	root := realApplicationRoot(t)
 	manifest, err := loadApplicationManifest(root)
 	if err != nil {
 		t.Fatal(err)
 	}
 	capability := manifest.Capabilities["runnable_module"]
-	capability.Status = "implemented"
-	capability.Evidence = []string{"not valid for an audit-only module"}
+	capability.Status = "audit_only"
+	capability.Evidence = nil
 	manifest.Capabilities["runnable_module"] = capability
 	if err := validateTracerManifest(manifest); err == nil ||
 		!strings.Contains(err.Error(), "runnable_module") {
-		t.Fatalf("validateTracerManifest error = %v, want runnable status rejection", err)
+		t.Fatalf("validateTracerManifest error = %v, want audit-only regression rejection", err)
 	}
 }
 
@@ -50,15 +50,18 @@ func TestAuditYAMLDocumentsRejectsMalformedDocument(t *testing.T) {
 	}
 }
 
-func TestStatsReportExactCompositionWithoutAgents(t *testing.T) {
+func TestStatsReportRunnableAgentsAndExactComposition(t *testing.T) {
 	root := realApplicationRoot(t)
 	manifest, err := loadApplicationManifest(root)
 	if err != nil {
 		t.Fatal(err)
 	}
-	stats := newStats(manifest)
+	stats, err := newStats(root, manifest)
+	if err != nil {
+		t.Fatal(err)
+	}
 	if stats.Application.Ownership != "agent-owning" ||
-		stats.Application.ModuleStatus != "audit_only" ||
+		stats.Application.ModuleStatus != "implemented" ||
 		stats.Application.AgentsContributed != 3 {
 		t.Fatalf("application stats identity = %#v", stats.Application)
 	}
@@ -74,6 +77,9 @@ func TestStatsReportExactCompositionWithoutAgents(t *testing.T) {
 	if !reflect.DeepEqual(stats.Application.ExecutableRoots, wantRoots) {
 		t.Fatalf("executable roots = %v, want %v", stats.Application.ExecutableRoots, wantRoots)
 	}
+	if stats.Agents.Total.Agents != 3 || len(stats.Agents.PerAgent) != 3 {
+		t.Fatalf("runnable agent stats = %#v", stats.Agents)
+	}
 	encoded, err := json.Marshal(stats)
 	if err != nil {
 		t.Fatal(err)
@@ -82,8 +88,8 @@ func TestStatsReportExactCompositionWithoutAgents(t *testing.T) {
 	if err := json.Unmarshal(encoded, &document); err != nil {
 		t.Fatal(err)
 	}
-	if _, exists := document["agents"]; exists {
-		t.Fatal("audit-only composition stats unexpectedly contain an agents section")
+	if _, exists := document["agents"]; !exists {
+		t.Fatal("runnable Prose Editor stats are missing the agents section")
 	}
 }
 

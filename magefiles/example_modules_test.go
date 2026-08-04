@@ -58,25 +58,33 @@ func TestAgentArchitectureIsCompositionApplicationModule(t *testing.T) {
 	}
 }
 
-func TestProseEditorIsAuditOnlyAndNotRunnableOrReleased(t *testing.T) {
+func TestProseEditorIsRunnableButNotBuildManaged(t *testing.T) {
 	const module = "applications/prose-editor"
-	if !reflect.DeepEqual(auditOnlyApplicationModules, []string{module}) {
-		t.Fatalf("auditOnlyApplicationModules = %#v, want [%q]",
-			auditOnlyApplicationModules, module)
+	if len(auditOnlyApplicationModules) != 0 {
+		t.Fatalf("auditOnlyApplicationModules = %#v, want empty after tracer promotion",
+			auditOnlyApplicationModules)
 	}
-	if contains(applicationModules, module) || contains(subModules, module) {
-		t.Fatalf("Prose Editor entered a runnable/build registry: applications=%#v submodules=%#v",
+	if !contains(applicationModules, module) || contains(subModules, module) {
+		t.Fatalf("Prose Editor registry membership is wrong: applications=%#v submodules=%#v",
 			applicationModules, subModules)
 	}
+	foundTest := false
 	for _, target := range testTargets() {
 		if target.module == module {
-			t.Fatalf("audit-only Prose Editor entered runnable test targets: %#v", target)
+			foundTest = true
 		}
 	}
+	if !foundTest {
+		t.Fatal("runnable Prose Editor is missing from root test targets")
+	}
+	foundGate := false
 	for _, gate := range releaseGates("..") {
 		if gate.dir == filepath.Join("..", filepath.FromSlash(module)) {
-			t.Fatalf("audit-only Prose Editor entered release integration gates: %#v", gate)
+			foundGate = reflect.DeepEqual(gate.args, []string{"mage", "integration:all"})
 		}
+	}
+	if !foundGate {
+		t.Fatal("runnable Prose Editor is missing its release integration gate")
 	}
 }
 
@@ -108,12 +116,13 @@ func TestOrchestrationUsesStableApplicationPaths(t *testing.T) {
 		"applications/chatbot-mesh",
 		"applications/coding-agent",
 		"applications/agent-architecture",
+		"applications/prose-editor",
 	}
 	if !reflect.DeepEqual(applicationModules, wantApplications) {
 		t.Fatalf("applicationModules = %#v, want %#v", applicationModules, wantApplications)
 	}
-	if want := []string{"applications/prose-editor"}; !reflect.DeepEqual(auditOnlyApplicationModules, want) {
-		t.Fatalf("auditOnlyApplicationModules = %#v, want %#v", auditOnlyApplicationModules, want)
+	if len(auditOnlyApplicationModules) != 0 {
+		t.Fatalf("auditOnlyApplicationModules = %#v, want empty", auditOnlyApplicationModules)
 	}
 }
 

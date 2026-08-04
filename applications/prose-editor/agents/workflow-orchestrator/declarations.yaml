@@ -60,6 +60,7 @@ tools:
     emits: [ToolDone, ToolFailed, CommandError]
     config:
       profile: ../specialist-editor/profile.yaml
+      request_from: $from(capture_manifest).output
     side_effects:
       - {kind: child_agent_execution, target: specialist-editor-structure, state: candidate_observed}
     reversibility: {classification: irreversible, undo: record_observation}
@@ -74,6 +75,8 @@ tools:
     emits: [ToolDone, ToolFailed, CommandError]
     binary: prose-editor-tracer-boundary
     args: [write-structure-attempt]
+    stdin_source: $from(structure_child).content
+    stdin_max_bytes: 196608
     output_cap: 256
     output: {mode: structured, schema: {type: object}}
     side_effects:
@@ -91,6 +94,7 @@ tools:
     emits: [ToolDone, ToolFailed, CommandError]
     config:
       profile: ../voice-critic/profile.yaml
+      request_from: $from(structure_manifest).output
     side_effects:
       - {kind: child_agent_execution, target: voice-critic, state: verdict_observed}
     reversibility: {classification: irreversible, undo: record_observation}
@@ -169,6 +173,8 @@ tools:
     emits: [ToolDone, ToolFailed, CommandError]
     binary: prose-editor-tracer-boundary
     args: [write-critique-attempt]
+    stdin_source: $from(critic_transport).response
+    stdin_max_bytes: 262144
     output_cap: 256
     output: {mode: structured, schema: {type: object}}
     side_effects:

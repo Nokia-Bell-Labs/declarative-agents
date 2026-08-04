@@ -31,15 +31,14 @@ var applicationModules = []string{
 	"applications/chatbot-mesh",
 	"applications/coding-agent",
 	"applications/agent-architecture",
+	"applications/prose-editor",
 }
 
 // auditOnlyApplicationModules contains documentation-first applications whose
 // executable surface is limited to manifest/document audit and composition
 // accounting. They remain outside runnable, build, test, and release registries
 // until later runtime evidence supports promotion.
-var auditOnlyApplicationModules = []string{
-	"applications/prose-editor",
-}
+var auditOnlyApplicationModules = []string{}
 
 // auditParticipants lists every module the root audit gate dispatches to: the
 // platform submodules plus every application that owns a mage audit target.

@@ -42,9 +42,9 @@ states:
   - MaterializingFinal
   - ManifestingFinal
   - ManifestingKeptOriginal
-  - LocallyFinalized
-  - KeptOriginal
-  - Failed
+  - {name: LocallyFinalized, run_status: succeeded}
+  - {name: KeptOriginal, run_status: succeeded}
+  - {name: Failed, run_status: failed}
 terminal_states: [LocallyFinalized, KeptOriginal, Failed]
 signals:
   - Seed
@@ -71,10 +71,10 @@ transitions:
   - {state: ManifestingCritique, signal: ToolDone, next: RoutingCritic, action: critic_verdict_is_pass, label: critic_route}
   - {state: RoutingCritic, signal: CriticAccepted, next: MaterializingFinal, action: materialize_final_chain, label: final_chain}
   - {state: RoutingCritic, signal: CriticRejected, next: ManifestingRetry, action: append_manifest_revision, label: retry_manifest}
-  - {state: ManifestingRetry, signal: ToolDone, next: InvokingStructureRetry, action: invoke_structure_editor, label: structure_child_retry}
-  - {state: InvokingStructureRetry, signal: ToolDone, next: WritingStructureRetry, action: write_structure_attempt, label: structure_attempt_retry}
-  - {state: WritingStructureRetry, signal: ToolDone, next: ManifestingStructureRetry, action: append_manifest_revision, label: structure_manifest_retry}
-  - {state: ManifestingStructureRetry, signal: ToolDone, next: InvokingCriticRetry, action: invoke_voice_critic, label: critic_child_retry}
+  - {state: ManifestingRetry, signal: ToolDone, next: InvokingStructureRetry, action: invoke_structure_editor, label: structure_child}
+  - {state: InvokingStructureRetry, signal: ToolDone, next: WritingStructureRetry, action: write_structure_attempt, label: structure_attempt}
+  - {state: WritingStructureRetry, signal: ToolDone, next: ManifestingStructureRetry, action: append_manifest_revision, label: structure_manifest}
+  - {state: ManifestingStructureRetry, signal: ToolDone, next: InvokingCriticRetry, action: invoke_voice_critic, label: critic_child}
   - {state: InvokingCriticRetry, signal: ToolDone, next: CapturingCriticRetry, action: capture_critic_output, label: critic_transport}
   - {state: CapturingCriticRetry, signal: CriticOutputCaptured, next: ParsingCriticRetry, action: parse_critic_response, label: critic_response}
   - {state: ParsingCriticRetry, signal: CriticResponseParsed, next: WritingCritiqueRetry, action: write_critique_attempt, label: critique_attempt_retry}

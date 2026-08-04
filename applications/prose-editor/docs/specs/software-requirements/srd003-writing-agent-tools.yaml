@@ -2322,12 +2322,19 @@ use_case_traces:
   - id: rel00.0-uc001-edit-document
     status: planned
     path: ../use-cases/rel00.0-uc001-edit-document.yaml
+  - id: rel00.1-uc001-tracer-saga
+    status: implemented
+    path: ../use-cases/rel00.1-uc001-tracer-saga.yaml
 
 test_suite_traces:
   - id: test-rel00.0-prose-editor
     status: planned
     path: ../test-suites/test-rel00.0-prose-editor.yaml
     acceptance_criteria: [AC1, AC2, AC3, AC4, AC5, AC6, AC7]
+  - id: test-rel00.1-prose-editor
+    status: implemented
+    path: ../test-suites/test-rel00.1-prose-editor.yaml
+    acceptance_criteria: [AC1, AC2, AC3]
 
 related_documents:
   - path: ../../ARCHITECTURE.yaml
@@ -2357,7 +2364,7 @@ related_documents:
 
 implementation_status:
   specification: specified
-  runtime: release_00_1_program_closure_only
+  runtime: release_00_1_deterministic_tracer
   profiles: release_00_1_orchestrator_structure_critic_and_structure_rag
   machines: release_00_1_structurally_validated
   tool_declarations: release_00_1_subset_implemented
@@ -2369,5 +2376,5 @@ implementation_status:
   critic_helper: not_implemented
   rest_definitions: release_00_1_structure_subset_implemented
   services: not_implemented
-  tests: structural_only
-  executable_evidence: program_closure
+  tests: structural_boundary_and_fault_injection
+  executable_evidence: deterministic_tracer

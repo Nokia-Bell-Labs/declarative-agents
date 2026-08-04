@@ -9,17 +9,23 @@ obtains an independent critique, and publishes an accepted result once.
 
 ## Status
 
-The module status remains `audit_only`: Prose Editor is not in the root runnable
-or release registries. Release `00.1` now has an executable program closure for
+The module status is `implemented`: Prose Editor is in the root runnable and
+release-test registries. Release `00.1` has an executable program closure for
 the workflow orchestrator, structure-stage specialist editor, independent
 critic, and structure-RAG wrapper. Structural tests load the profiles, prove
 machine/tool/authority closure, resolve a portable manifest closure, and run
 agent-core `--validate-config` for every local profile.
 
 Release `00.1`, use case `rel00.1-uc001-tracer-saga`, and test suite
-`test-rel00.1-prose-editor` are partial and structural-only. Deterministic
-end-to-end fixture evidence, real boundary helpers, services, and root runnable
-promotion remain separate work.
+`test-rel00.1-prose-editor` are implemented through one deterministic,
+interpreter-driven local tracer gate. The gate builds agent-core, starts the
+shipped workflow-orchestrator profile, and observes its real `self_invoke`
+executions of the shipped specialist-editor and voice-critic profiles.
+Immutable fixtures supply only recorded source, RAG, and model boundaries while
+the machines decide capture, candidate creation, criticism, bounded retry,
+lineage, recovery, replay, and local finalization.
+Managed services, production external boundaries, and publication are not
+claimed.
 
 ## Composition
 
@@ -34,15 +40,14 @@ thin configuration wrapper over that canonical program.
 
 ## Capabilities
 
-- `runnable_module`: `audit_only`
+- `runnable_module`: `implemented`
 - `managed_service`: `not_applicable`
 - `packaged`: `not_applicable`
 - `helm_managed`: `not_applicable`
 - `kind_demo`: `not_applicable`
 - `ui`: `not_applicable`
 
-The runnable baseline is not claimed until deterministic tracer execution
-evidence exists.
+The runnable baseline is limited to the deterministic Release `00.1` tracer.
 
 ## Ownership Boundaries
 
@@ -59,13 +64,15 @@ publication, Helm, kind, or applier authority.
 ## Planned Entry Points
 
 The loadable program entry points are the four local roots named in
-`agents/application.yaml`. There is no run, package, Helm, integration, or demo
-target, and the application remains outside the root runnable registry.
+`agents/application.yaml`. The only integration target is the hermetic tracer;
+there is no run, managed-service, package, Helm, kind, or demo target.
 
-The only current Mage entry points are governance surfaces:
+Current Mage entry points are:
 
 - `mage audit`
 - `mage stats`
+- `mage integration:tracer`
+- `mage integration:all` (delegates only to `integration:tracer`)
 
 `demo.yaml` declares only the optional catalog ownership root used by those
 governance checks.
@@ -78,13 +85,17 @@ From `applications/prose-editor`:
 go test ./...
 mage audit
 mage stats
+mage integration:tracer
 ```
 
 The audit parses every local YAML document, validates and resolves the shared
 application manifest, checks role and authority closure, stages the portable
 profile closure, and validates all four local profiles through agent-core.
-Stats reports three application-owned role realizations and one canonical
-wrapper dependency without adding an `agents` total to the runnable registry.
+Stats reports three application-owned role realizations in the runnable agents
+total and one canonical wrapper dependency. The tracer records workflow and
+child-machine terminals, `self_invoke` profiles, and every deterministic
+boundary receipt; it records no publication, Pangram, voice/style, package,
+Helm, kind, or Kubernetes action.
 
 ## Documentation
 

@@ -12,7 +12,7 @@ rest:
       network:
         schemes: [http]
         hosts: [127.0.0.1, localhost]
-        ports: [11434]
+        ports: [11434, 18086]
     local_structure_rag:
       timeout: 15s
       read_timeout: 15s

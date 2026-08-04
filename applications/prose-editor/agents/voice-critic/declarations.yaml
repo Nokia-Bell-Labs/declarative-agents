@@ -50,10 +50,13 @@ tools:
     config:
       signal: CriticEvaluationContextReady
       inputs:
-        request: $from(validated_critic_request)
+        original_content: $from(validated_critic_request).original_content
+        original_content_hash: $from(validated_critic_request).original_content_hash
+        candidate_content: $from(validated_critic_request).candidate_content
+        candidate_content_hash: $from(validated_critic_request).candidate_content_hash
       template: |-
         Independently assess this immutable original and structure candidate:
-        {{ json request }}
+        {"original":{{ json original_content }},"original_sha256":{{ json original_content_hash }},"candidate":{{ json candidate_content }},"candidate_sha256":{{ json candidate_content_hash }}}
     side_effects: []
     reversibility: {classification: reversible, undo: noop}
     undo: {strategy: noop, description: Context composition changes no state.}
@@ -190,8 +193,13 @@ tools:
     config:
       signal: CriticResponsePassed
       inputs:
-        evaluation: $from(critic_evaluation)
-      template: '{{ json evaluation }}'
+        verdict: $from(critic_evaluation).verdict
+        responsible_stage: $from(critic_evaluation).responsible_stage
+        original_content_hash: $from(critic_evaluation).original_content_hash
+        candidate_content_hash: $from(critic_evaluation).candidate_content_hash
+        findings: $from(critic_evaluation).findings
+        feedback: $from(critic_evaluation).feedback
+      template: '{"verdict":{{ json verdict }},"responsible_stage":{{ json responsible_stage }},"original_content_hash":{{ json original_content_hash }},"candidate_content_hash":{{ json candidate_content_hash }},"findings":{{ json findings }},"feedback":{{ json feedback }}}'
     side_effects: []
     reversibility: {classification: reversible, undo: noop}
     undo: {strategy: noop, description: Response composition changes no state.}
@@ -207,8 +215,13 @@ tools:
     config:
       signal: CriticResponseRejected
       inputs:
-        evaluation: $from(critic_evaluation)
-      template: '{{ json evaluation }}'
+        verdict: $from(critic_evaluation).verdict
+        responsible_stage: $from(critic_evaluation).responsible_stage
+        original_content_hash: $from(critic_evaluation).original_content_hash
+        candidate_content_hash: $from(critic_evaluation).candidate_content_hash
+        findings: $from(critic_evaluation).findings
+        feedback: $from(critic_evaluation).feedback
+      template: '{"verdict":{{ json verdict }},"responsible_stage":{{ json responsible_stage }},"original_content_hash":{{ json original_content_hash }},"candidate_content_hash":{{ json candidate_content_hash }},"findings":{{ json findings }},"feedback":{{ json feedback }}}'
     side_effects: []
     reversibility: {classification: reversible, undo: noop}
     undo: {strategy: noop, description: Response composition changes no state.}

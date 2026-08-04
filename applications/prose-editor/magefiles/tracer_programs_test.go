@@ -161,7 +161,7 @@ func TestOrchestratorGraphHasOneBoundedStructureReplay(t *testing.T) {
 	criticInvocations := 0
 	for _, transition := range machine.Transitions {
 		if transition.Action == "invoke_structure_editor" &&
-			strings.Contains(strings.ToLower(transition.Label), "retry") {
+			strings.Contains(strings.ToLower(transition.Next), "retry") {
 			retryInvocations++
 		}
 		if transition.Action == "invoke_voice_critic" {

@@ -5,10 +5,10 @@ overview: |
   This index covers four Prose Editor releases. Release 00.0 is a
   documentation baseline: six specified SRDs, one planned full-scenario use
   case, and one 30-case planned test suite with reciprocal traces across all
-  195 requirement items and 64 acceptance criteria. Release 00.1 stages the
-  tracer-bullet saga skeleton: one tracer use case and one 13-case tracer
+  195 requirement items and 64 acceptance criteria. Release 00.1 implements the
+  tracer-bullet saga skeleton: one tracer use case and one corrected 12-case tracer
   test suite covering the orchestrator, structure stage, critic without
-  Pangram, local finalization, and the shared telemetry contract. Release
+  Pangram, immutable recovery, and local finalization. Release
   00.2 completes the remaining voice, style, Pangram, multi-stage retry, and
   publication paths. Release 00.3 packages and deploys the completed
   application: two planned SRDs for the role-closure package, Helm topology
@@ -29,10 +29,10 @@ roadmap_summary:
     evidence: Six SRDs, one planned use case, and one 30-case planned test suite are documented; no executable evidence exists.
   - version: "00.1"
     name: Tracer-bullet saga skeleton
-    use_cases_done: 0
+    use_cases_done: 1
     use_cases_total: 1
-    status: partial
-    evidence: Declarative programs, portable closure, authority checks, wrapper/role conformance, and profile boot are executable; deterministic scenario evidence remains planned.
+    status: implemented
+    evidence: Declarative programs, portable closure, profile boot, deterministic source/retrieval/editor/critic fixtures, immutable lineage, bounded retry, recovery, fault injection, and local finalization pass.
   - version: "00.2"
     name: Full multi-stage editing and publication
     use_cases_done: 0
@@ -50,22 +50,22 @@ foundation_document_index:
   - id: prose-editor-readme
     title: Prose Editor
     summary: Human entry point, workflow, dependencies, and documentation-only status.
-    status: documentation_only
+    status: implemented_release_00_1_tracer
     path: README.md
   - id: prose-editor
     title: Prose Editor Vision
     summary: Problem, goals, scenario, authority boundaries, success criteria, and exclusions.
-    status: documentation_only
+    status: implemented_release_00_1_tracer
     path: docs/VISION.yaml
   - id: architecture-prose-editor
     title: Prose Editor Architecture
     summary: Planned services, interfaces, flows, authority, technology, and source layout.
-    status: documentation_only
+    status: implemented_release_00_1_tracer
     path: docs/ARCHITECTURE.yaml
   - id: prose-editor-roadmap
     title: Prose Editor Road Map
     summary: Release 00.0 scope, dependencies, planned artifacts, and evidence status.
-    status: documentation_only
+    status: implemented_release_00_1_tracer
     path: docs/road-map.yaml
 
 srd_index:
@@ -147,7 +147,7 @@ use_case_index:
   - id: rel00.1-uc001-tracer-saga
     title: Tracer-Bullet Saga with Structure Stage and Local Finalization
     release: "00.1"
-    status: partial
+    status: implemented
     srds:
       - srd001-prose-editor-services
       - srd002-writing-saga-workproducts
@@ -185,8 +185,8 @@ test_suite_index:
   - id: test-rel00.1-prose-editor
     title: Prose Editor Release 00.1 Tracer Test Suite
     release: "00.1"
-    status: partial
-    test_case_count: 13
+    status: implemented
+    test_case_count: 12
     traces: [rel00.1-uc001-tracer-saga]
     srds:
       - srd001-prose-editor-services
@@ -213,7 +213,7 @@ coverage_gaps:
     description: |
       SRDs srd001 through srd008, two use cases (rel00.0-uc001-edit-document
       and rel00.1-uc001-tracer-saga), and two test suites (30-case 00.0 and
-      13-case 00.1 tracer) provide reciprocal documentation traces. All 195
+      12-case 00.1 tracer) provide reciprocal documentation traces. All 195
       requirement items map to SRD acceptance criteria and exact use-case
       touchpoints. Runtime implementation is staged across 00.1 (tracer
       skeleton) and 00.2 (full scenario).
@@ -226,12 +226,13 @@ coverage_gaps:
       must implement those declared emissions before any MachineSpec can
       validate; no runtime machine or executable conformance is claimed.
   - id: executable-application
-    status: partial
+    status: implemented_release_00_1_tracer
     description: |
       Release 00.1 profiles, machines, ToolDefs, canonical wrapper, structural
-      Mage tests, portable closure, and profile boot exist. Services, persistent
-      boundary helpers, deterministic end-to-end fixtures, external integration
-      evidence, and runnable-root registration remain planned.
+      Mage tests, portable closure, profile boot, deterministic end-to-end
+      fixtures, immutable application persistence, recovery, and runnable-root
+      registration exist. Managed services, production boundary helpers, and
+      external integration evidence remain outside Release 00.1.
   - id: external-dependency-evidence
     status: planned
     description: |
