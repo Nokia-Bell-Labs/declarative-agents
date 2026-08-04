@@ -14,14 +14,14 @@ traces:
 
 preconditions:
   - agent-core is available as core_root in demo.yaml or a sibling ../agent-core checkout.
-  - A kind cluster and docker/helm/kubectl are available for the on-cluster tracers, and the rel06.0 runtime image is loadable.
+  - A kind cluster and docker/helm/kubectl are available for the on-cluster tracers; required pod images are host-pullable and kind-loadable.
   - The application owns the deployment chart (applications/chatbot-mesh/helm) and the chatbot/RAG profiles named by the tracers.
 
 test_cases:
   - use_case: rel03.0-uc001-mesh-deployment
     name: Mesh Helm deployment smoke tracer on kind
     integration_target: mage integration:helmSmoke
-    go_test: go test ./magefiles -run '^TestSplitImageRef$|^TestAssertSmokeChatServedAcceptsAnswer$|^TestAssertSmokeChatServedRejectsEmptyAnswer$|^TestHelmSmokeSkipReasonMissingBinary$|^TestHelmInstallSmokePassesRunIdentityToGateway$|^TestHelmSmokeInstallReturnsCapturedOutput$'
+    go_test: go test ./magefiles -run '^TestSplitImageRef$|^TestKindDependencyImagesCoverEveryExternalPodImage$|^TestAssertSmokeChatServedAcceptsAnswer$|^TestAssertSmokeChatServedRejectsEmptyAnswer$|^TestHelmSmokeSkipReasonMissingBinary$|^TestHelmInstallSmokePassesRunIdentityToGateway$|^TestHelmSmokeInstallReturnsCapturedOutput$'
     status: implemented
     description: |
       Integration.HelmSmoke deploys the chatbot-mesh chart on a disposable kind
@@ -42,6 +42,10 @@ test_cases:
       install. Init-container checksum verification proves the mounted UI bytes
       still match the canonical package inventory; canonical packaging itself
       remains complete.
+
+      Every external pod image in the smoke topology is pulled by the host and
+      imported into kind before install, so a node never needs registry TLS for a
+      required dependency.
     inputs:
       chart: applications/chatbot-mesh/helm/
       values: applications/chatbot-mesh/helm/ci/kind-values.yaml
@@ -56,6 +60,8 @@ test_cases:
       external_ui_archives_out_of_release: [collector, observer]
       runtime_ui_inventory_verified: true
       canonical_package_closure_complete: true
+      required_images_host_pulled_and_kind_loaded: true
+      node_registry_pull_required: false
     traces:
       - rel03.0-uc001-mesh-deployment S1
       - srd003-chatbot-deployment AC1
@@ -95,7 +101,7 @@ test_cases:
   - use_case: rel03.0-uc001-mesh-deployment
     name: Mesh hot-swap tracer on kind
     integration_target: mage integration:helmSwap
-    go_test: go test ./magefiles -run '^TestChatbotFanOutCoGeneratedForNRags$|^TestHelmSwapInstallAndUpgradeUseThinReleaseArgs$|^TestHelmSwapReturnsCapturedOutput$'
+    go_test: go test ./magefiles -run '^TestChatbotFanOutCoGeneratedForNRags$|^TestKindDependencyImagesCoverEveryExternalPodImage$|^TestHelmFailureEvidenceIsBoundedAndNamesRootCauses$|^TestHelmSwapInstallAndUpgradeUseThinReleaseArgs$|^TestHelmSwapReturnsCapturedOutput$'
     status: implemented
     description: |
       Integration.HelmSwap proves the tiered-swap rollout mechanics on a kind
@@ -115,7 +121,11 @@ test_cases:
       names and checksums. Each revision is projected from its exact values
       vector before Helm; v1 and v2 release Secrets are then checked against the
       896 KiB budget, and the mounted inventory bytes are verified after each
-      revision.
+      revision. Swap now closes over the same host-pull/kind-load dependency set
+      as smoke before either revision, rather than allowing kind's containerd to
+      pull required images. On failure the bounded evidence bundle names image
+      pull, scheduling, PVC, probe, init-container, and workload-log causes before
+      owned-cluster cleanup.
     inputs:
       chart: applications/chatbot-mesh/helm/
       values_rag_list: [rag0, rag1, rag2]
@@ -132,6 +142,9 @@ test_cases:
       helm_release_revisions_checked: [1, 2]
       external_ui_archives_out_of_release: [collector, observer]
       runtime_ui_inventory_verified_each_revision: true
+      dependency_closure_equals_smoke: true
+      node_registry_pull_required: false
+      bounded_failure_evidence_before_cleanup: true
     traces:
       - rel03.0-uc001-mesh-deployment S3
       - srd003-chatbot-deployment AC3

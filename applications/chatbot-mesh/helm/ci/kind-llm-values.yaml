@@ -41,6 +41,14 @@ applier:
 # The in-cluster LLM tier: CPU-only small models (no GPU), tiny storage.
 ollama:
   enabled: true
+  # The integration host pulls the matching digest and imports this exact tag
+  # into kind after appending the host trust bundle to the pinned base image.
+  # TLS verification remains enabled for model pulls; a node never reaches the
+  # container registry or bypasses the host's trusted CA path.
+  image:
+    repository: declarative-agents/ollama
+    tag: "0.32.5-kind-trusted"
+    pullPolicy: Never
   models:
     embedding: all-minilm
     chat: ["qwen2.5:0.5b"]

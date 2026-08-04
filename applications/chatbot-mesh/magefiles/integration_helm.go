@@ -34,6 +34,9 @@ const (
 	helmClusterWait      = 120 * time.Second
 	helmReadyTimeout     = 90 * time.Second
 	helmSpanTimeout      = 60 * time.Second
+
+	helmFailureDiagnosticsTimeout = 30 * time.Second
+	helmEvidenceCommandTimeout    = 10 * time.Second
 )
 
 type chatbotIntegrationImages struct {
@@ -444,6 +447,114 @@ func smokeDependencyImages(chartDir string) ([]string, error) {
 		images = append(images, image.Repository+":"+image.Tag)
 	}
 	return append(images, smokeUtilityImage), nil
+}
+
+// swapDependencyImages deliberately closes over the same external pod-image set
+// as helmSmoke. Swap changes topology, not its dependency boundary.
+func swapDependencyImages(chartDir string) ([]string, error) {
+	return smokeDependencyImages(chartDir)
+}
+
+func pullIntegrationDependencyImages(
+	scenario string,
+	images []string,
+	run helmLLMCommandRunner,
+) error {
+	for _, image := range images {
+		source := image
+		if image == helmLLMOllamaImage {
+			source = helmLLMOllamaSourceImage
+		}
+		fmt.Printf("%s: preloading dependency image %s\n", scenario, source)
+		out, err := run("docker", "pull", "--platform", "linux/"+runtime.GOARCH, source)
+		if err != nil {
+			return fmt.Errorf("pull %s dependency %s: %w: %s",
+				scenario, source, err, strings.TrimSpace(string(out)))
+		}
+	}
+	return nil
+}
+
+func buildTrustedOllamaImage(image string) error {
+	caBundle, err := hostTrustedCABundle()
+	if err != nil {
+		return err
+	}
+	dir, err := os.MkdirTemp("", "chatbot-mesh-ollama-trust-*")
+	if err != nil {
+		return err
+	}
+	defer func() { _ = os.RemoveAll(dir) }()
+	if err := os.WriteFile(
+		filepath.Join(dir, "host-ca.pem"), caBundle, 0o644); err != nil {
+		return fmt.Errorf("write trusted Ollama CA bundle: %w", err)
+	}
+	if err := os.WriteFile(
+		filepath.Join(dir, "Dockerfile"),
+		[]byte(trustedOllamaDockerfile()), 0o644); err != nil {
+		return fmt.Errorf("write trusted Ollama Dockerfile: %w", err)
+	}
+	args := []string{
+		"build", "--platform", "linux/" + runtime.GOARCH,
+		"-t", image, ".",
+	}
+	cmd := exec.Command("docker", args...)
+	cmd.Dir = dir
+	cmd.Stdout, cmd.Stderr = os.Stderr, os.Stderr
+	if err := cmd.Run(); err != nil {
+		return fmt.Errorf("build trusted Ollama image %s: %w", image, err)
+	}
+	return nil
+}
+
+func trustedOllamaDockerfile() string {
+	return "FROM " + helmLLMOllamaSourceImage + "\n" +
+		"COPY host-ca.pem /tmp/host-ca.pem\n" +
+		"RUN cat /tmp/host-ca.pem >> /etc/ssl/certs/ca-certificates.crt && rm /tmp/host-ca.pem\n"
+}
+
+func hostTrustedCABundle() ([]byte, error) {
+	if path := strings.TrimSpace(os.Getenv("SSL_CERT_FILE")); path != "" {
+		data, err := os.ReadFile(path)
+		if err != nil {
+			return nil, fmt.Errorf("read SSL_CERT_FILE for trusted Ollama image: %w", err)
+		}
+		return data, nil
+	}
+	if runtime.GOOS == "darwin" {
+		out, err := exec.Command(
+			"security", "find-certificate", "-a", "-p",
+			"/Library/Keychains/System.keychain").CombinedOutput()
+		if err != nil {
+			return nil, fmt.Errorf(
+				"export macOS system trust for Ollama: %w: %s",
+				err, strings.TrimSpace(string(out)))
+		}
+		if len(bytes.TrimSpace(out)) == 0 {
+			return nil, fmt.Errorf("export macOS system trust for Ollama: empty certificate bundle")
+		}
+		return out, nil
+	}
+	for _, path := range []string{
+		"/etc/ssl/certs/ca-certificates.crt",
+		"/etc/pki/tls/certs/ca-bundle.crt",
+	} {
+		data, err := os.ReadFile(path)
+		if err == nil && len(bytes.TrimSpace(data)) > 0 {
+			return data, nil
+		}
+	}
+	return nil, fmt.Errorf(
+		"host CA bundle unavailable; set SSL_CERT_FILE to the trusted PEM bundle")
+}
+
+func loadIntegrationDependencyImages(cluster string, images []string) error {
+	for _, image := range images {
+		if err := loadSmokeDependencyImage(cluster, image); err != nil {
+			return err
+		}
+	}
+	return nil
 }
 
 func loadSmokeDependencyImage(cluster, image string) error {
@@ -923,7 +1034,7 @@ func (Integration) HelmSwap() error {
 	return runHelmSwap(coreRoot, profilesRoot, chartDir)
 }
 
-func runHelmSwap(coreRoot, profilesRoot, chartDir string) error {
+func runHelmSwap(coreRoot, profilesRoot, chartDir string) (result error) {
 	images, err := resolveChatbotIntegrationImages(profilesRoot)
 	if err != nil {
 		return err
@@ -952,21 +1063,49 @@ func runHelmSwap(coreRoot, profilesRoot, chartDir string) error {
 		return err
 	}
 	defer cleanupArchive()
+	dependencyImages, err := swapDependencyImages(chartDir)
+	if err != nil {
+		return err
+	}
+	if err := pullIntegrationDependencyImages(
+		"helmSwap", dependencyImages, runHelmSmokeCommand); err != nil {
+		return err
+	}
 
 	swapCluster, err := kindrig.EnsureCluster(kindrig.DefaultRun, helmSwapCluster, helmKindConfig(chartDir), helmClusterWait)
 	if err != nil {
 		return err
 	}
-	defer swapCluster.Release(kindrig.DefaultRun)
 	unbindKubeconfig, err := bindClusterKubeconfig(helmSwapCluster)
 	if err != nil {
+		swapCluster.Release(kindrig.DefaultRun)
 		return err
 	}
-	defer unbindKubeconfig()
+	evidenceDir := helmScenarioEvidenceDirectory(
+		profilesRoot, helmSwapCluster, images.Revision)
+	defer func() {
+		failed := result != nil
+		if failed {
+			diagnostics := captureHelmFailureDiagnostics(
+				evidenceDir, helmSwapRelease, runHelmDiagnosticCommand,
+				helmFailureDiagnosticsTimeout)
+			result = fmt.Errorf("%w\n%s", result, diagnostics)
+		}
+		swapCluster.ReleaseAfter(kindrig.DefaultRun, failed, kindrig.FailureEvidence{
+			Directory:  evidenceDir,
+			Namespaces: []string{"default"},
+			Run:        boundedHelmEvidenceRunner(helmEvidenceCommandTimeout),
+		})
+		unbindKubeconfig()
+	}()
 	if err := provisionExternalUIAssets(assets); err != nil {
 		return err
 	}
 	if err := loadKindImage(helmSwapCluster, images.Runtime); err != nil {
+		return err
+	}
+	if err := loadIntegrationDependencyImages(
+		helmSwapCluster, dependencyImages); err != nil {
 		return err
 	}
 
@@ -1070,7 +1209,11 @@ func assertSwapRepoint() error {
 	}
 	svc := helmSwapRelease + "-chatbot-mesh-rag0"
 	patch := `{"spec":{"selector":{"chatbot-mesh/rag-unit":"rag0","repointed":"true"}}}`
-	cmd := exec.Command("kubectl", "patch", "service", svc, "-p", patch)
+	// Helm 4 uses server-side apply for upgrades. Keep this intentional live
+	// selector drift under Helm's field manager so the following upgrade can
+	// reconcile it instead of conflicting with kubectl-patch ownership.
+	cmd := exec.Command("kubectl", "patch", "service", svc,
+		"--field-manager=helm", "-p", patch)
 	cmd.Stdout, cmd.Stderr = os.Stderr, os.Stderr
 	if err := cmd.Run(); err != nil {
 		return fmt.Errorf("repoint patch of %s: %w", svc, err)
@@ -1081,6 +1224,17 @@ func assertSwapRepoint() error {
 	}
 	if before != after {
 		return fmt.Errorf("repoint rolled the chatbot pod (%s -> %s); a Service selector change must not restart the chatbot (R3.1)", before, after)
+	}
+	// The next proof changes the Helm values rather than retaining this manual
+	// drift. Restore the chart-owned selector after observing the unchanged pod;
+	// otherwise Helm 4's server-side apply correctly rejects the later upgrade
+	// because the live selector still differs from the release manifest.
+	restore := `{"spec":{"selector":{"repointed":null}}}`
+	out, err := exec.Command("kubectl", "patch", "service", svc,
+		"--field-manager=helm", "-p", restore).CombinedOutput()
+	if err != nil {
+		return fmt.Errorf("restore selector of %s after repoint proof: %w: %s",
+			svc, err, strings.TrimSpace(string(out)))
 	}
 	return nil
 }
@@ -1167,11 +1321,14 @@ func assertSwapReplaceMiddleRag(
 		return err
 	}
 	for _, identity := range []string{"rag0", "rag2", "rag4"} {
-		if !strings.Contains(cm, "\n    "+identity+":") || !strings.Contains(cm, identity+"_query:") {
+		host := helmSwapRelease + "-chatbot-mesh-" + identity
+		if !strings.Contains(cm, identity+": http://"+host+":18087") ||
+			!strings.Contains(cm, "- "+host) {
 			return fmt.Errorf("middle-RAG replacement did not preserve %s in chatbot rest.yaml (R2/R3.2)", identity)
 		}
 	}
-	if strings.Contains(cm, "\n    rag1:") {
+	if strings.Contains(cm, "rag1:") ||
+		strings.Contains(cm, helmSwapRelease+"-chatbot-mesh-rag1") {
 		return fmt.Errorf("middle-RAG replacement left positional or removed client rag1 in chatbot rest.yaml (R2)")
 	}
 	genAfter, err := chatbotDeploymentGeneration()
@@ -1233,13 +1390,51 @@ const (
 	// Model pulls run on CPU inside kind. Installation deliberately does not use
 	// --wait: the integration observes the agent readiness transition around the
 	// suspended preload Job before allowing models to pull.
-	helmLLMInstallTimeout = 20 * time.Minute
-	helmLLMReadyTimeout   = 3 * time.Minute
+	helmLLMInstallTimeout       = 20 * time.Minute
+	helmLLMStartupTimeout       = 5 * time.Minute
+	helmLLMModelPreloadTimeout  = 20 * time.Minute
+	helmLLMWorkloadReadyTimeout = 5 * time.Minute
+
+	helmLLMOllamaImage       = "declarative-agents/ollama:0.32.5-kind-trusted"
+	helmLLMOllamaSourceImage = "ollama/ollama:0.32.5@sha256:4dea9fb511947e24a84237bb636b0203abcb2ff0d3fbc7b4ff865deb91362131"
 )
 
 // helmLLMModels are the CPU-only small models the kind LLM-tier values pull; the
 // assertion confirms /api/tags reports each one after preload.
 var helmLLMModels = []string{"all-minilm", "qwen2.5:0.5b"}
+
+func llmDependencyImages(chartDir string) ([]string, error) {
+	images, err := smokeDependencyImages(chartDir)
+	if err != nil {
+		return nil, err
+	}
+	var values struct {
+		Ollama struct {
+			Image struct {
+				Repository string `yaml:"repository"`
+				Tag        string `yaml:"tag"`
+				PullPolicy string `yaml:"pullPolicy"`
+			} `yaml:"image"`
+		} `yaml:"ollama"`
+	}
+	if err := readIntegrationYAML(
+		filepath.Join(chartDir, "ci", "kind-llm-values.yaml"),
+		"kind LLM values", &values); err != nil {
+		return nil, err
+	}
+	image := values.Ollama.Image.Repository + ":" + values.Ollama.Image.Tag
+	if image != helmLLMOllamaImage {
+		return nil, fmt.Errorf(
+			"kind LLM Ollama image = %q, want exact trusted image %q",
+			image, helmLLMOllamaImage)
+	}
+	if values.Ollama.Image.PullPolicy != "Never" {
+		return nil, fmt.Errorf(
+			"kind LLM Ollama pullPolicy = %q, want Never for kind-loaded image",
+			values.Ollama.Image.PullPolicy)
+	}
+	return append(images, image), nil
+}
 
 // HelmLLMTier deploys the chart with the in-cluster LLM tier enabled on a kind
 // cluster and proves the tier stands up: the Ollama StatefulSet becomes ready, the
@@ -1273,7 +1468,7 @@ func (Integration) HelmLLMTier() error {
 	return runHelmLLMTier(coreRoot, profilesRoot, chartDir)
 }
 
-func runHelmLLMTier(coreRoot, profilesRoot, chartDir string) error {
+func runHelmLLMTier(coreRoot, profilesRoot, chartDir string) (result error) {
 	images, err := resolveChatbotIntegrationImages(profilesRoot)
 	if err != nil {
 		return err
@@ -1297,21 +1492,54 @@ func runHelmLLMTier(coreRoot, profilesRoot, chartDir string) error {
 		return err
 	}
 	defer cleanupArchive()
+	dependencyImages, err := llmDependencyImages(chartDir)
+	if err != nil {
+		return err
+	}
+	if err := pullIntegrationDependencyImages(
+		"helmLLMTier", dependencyImages, runHelmLLMCommand); err != nil {
+		return err
+	}
+	fmt.Printf("helmLLMTier: building trusted Ollama runtime %s from %s\n",
+		helmLLMOllamaImage, helmLLMOllamaSourceImage)
+	if err := buildTrustedOllamaImage(helmLLMOllamaImage); err != nil {
+		return err
+	}
 
 	llmCluster, err := kindrig.EnsureCluster(kindrig.DefaultRun, helmLLMCluster, helmKindConfig(chartDir), helmClusterWait)
 	if err != nil {
 		return err
 	}
-	defer llmCluster.Release(kindrig.DefaultRun)
 	unbindKubeconfig, err := bindClusterKubeconfig(helmLLMCluster)
 	if err != nil {
+		llmCluster.Release(kindrig.DefaultRun)
 		return err
 	}
-	defer unbindKubeconfig()
+	evidenceDir := helmScenarioEvidenceDirectory(
+		profilesRoot, helmLLMCluster, images.Revision)
+	defer func() {
+		failed := result != nil
+		if failed {
+			diagnostics := captureHelmFailureDiagnostics(
+				evidenceDir, helmLLMRelease, runHelmDiagnosticCommand,
+				helmFailureDiagnosticsTimeout)
+			result = fmt.Errorf("%w\n%s", result, diagnostics)
+		}
+		llmCluster.ReleaseAfter(kindrig.DefaultRun, failed, kindrig.FailureEvidence{
+			Directory:  evidenceDir,
+			Namespaces: []string{"default"},
+			Run:        boundedHelmEvidenceRunner(helmEvidenceCommandTimeout),
+		})
+		unbindKubeconfig()
+	}()
 	if err := provisionExternalUIAssets(assets); err != nil {
 		return err
 	}
 	if err := loadKindImage(helmLLMCluster, images.Runtime); err != nil {
+		return err
+	}
+	if err := loadIntegrationDependencyImages(
+		helmLLMCluster, dependencyImages); err != nil {
 		return err
 	}
 	if err := helmInstallLLM(
@@ -1325,10 +1553,7 @@ func runHelmLLMTier(coreRoot, profilesRoot, chartDir string) error {
 
 	// Ollama must serve before the suspended preload Job can be resumed; agent
 	// readiness remains blocked until the transition proof below completes.
-	if err := kubectlRolloutStatus("statefulset", helmLLMRelease+"-chatbot-mesh-ollama", helmLLMReadyTimeout); err != nil {
-		return fmt.Errorf("ollama StatefulSet did not become ready: %w", err)
-	}
-	workloads, err := beginLLMPreloadTransition(runHelmLLMCommand)
+	workloads, err := beginObservedLLMPreload(runHelmLLMCommand)
 	if err != nil {
 		return err
 	}
@@ -1337,7 +1562,8 @@ func runHelmLLMTier(coreRoot, profilesRoot, chartDir string) error {
 	if err != nil {
 		return err
 	}
-	if err := assertLLMModelsLoaded(helmLLMTagsURL, helmLLMModels, helmLLMReadyTimeout); err != nil {
+	if err := assertLLMModelsLoaded(
+		helmLLMTagsURL, helmLLMModels, helmLLMModelPreloadTimeout); err != nil {
 		stopTags()
 		return err
 	}
@@ -1346,7 +1572,7 @@ func runHelmLLMTier(coreRoot, profilesRoot, chartDir string) error {
 		return err
 	}
 	if err := assertExternalUIAssetsMounted(
-		helmLLMRelease, assets, helmLLMReadyTimeout); err != nil {
+		helmLLMRelease, assets, helmLLMWorkloadReadyTimeout); err != nil {
 		return err
 	}
 
@@ -1487,16 +1713,23 @@ func beginLLMPreloadTransition(run helmLLMCommandRunner) ([]string, error) {
 		return nil, fmt.Errorf("resume preload Job: %w: %s", err, strings.TrimSpace(string(out)))
 	}
 	if out, err := run("kubectl", "wait", "--for=condition=complete", "job/"+job,
-		"--timeout", helmLLMReadyTimeout.String()); err != nil {
+		"--timeout", helmLLMModelPreloadTimeout.String()); err != nil {
 		return nil, fmt.Errorf("preload Job did not complete: %w: %s", err, strings.TrimSpace(string(out)))
 	}
 	return names, nil
 }
 
+func beginObservedLLMPreload(run helmLLMCommandRunner) ([]string, error) {
+	if err := waitForLLMStartup(run); err != nil {
+		return nil, fmt.Errorf("ollama StatefulSet did not become ready: %w", err)
+	}
+	return beginLLMPreloadTransition(run)
+}
+
 func finishLLMPreloadTransition(run helmLLMCommandRunner, workloads []string) error {
 	for _, name := range workloads {
 		if out, err := run("kubectl", "rollout", "status", "deployment/"+name,
-			"--timeout", helmLLMReadyTimeout.String()); err != nil {
+			"--timeout", helmLLMWorkloadReadyTimeout.String()); err != nil {
 			return fmt.Errorf("agent workload %s did not become ready after model preload: %w: %s",
 				name, err, strings.TrimSpace(string(out)))
 		}
@@ -1505,10 +1738,15 @@ func finishLLMPreloadTransition(run helmLLMCommandRunner, workloads []string) er
 	return nil
 }
 
-func kubectlRolloutStatus(kind, name string, timeout time.Duration) error {
-	cmd := exec.Command("kubectl", "rollout", "status", kind+"/"+name, "--timeout", timeout.String())
-	cmd.Stdout, cmd.Stderr = os.Stderr, os.Stderr
-	return cmd.Run()
+func waitForLLMStartup(run helmLLMCommandRunner) error {
+	name := helmLLMRelease + "-chatbot-mesh-ollama"
+	out, err := run("kubectl", "rollout", "status", "statefulset/"+name,
+		"--timeout", helmLLMStartupTimeout.String())
+	if err != nil {
+		return fmt.Errorf("rollout status statefulset/%s --timeout %s: %w: %s",
+			name, helmLLMStartupTimeout, err, strings.TrimSpace(string(out)))
+	}
+	return nil
 }
 
 // assertLLMModelsLoaded polls Ollama's /api/tags until every configured model is
@@ -1541,4 +1779,103 @@ func assertLLMModelsLoaded(tagsURL string, models []string, timeout time.Duratio
 		time.Sleep(3 * time.Second)
 	}
 	return lastErr
+}
+
+type helmDiagnosticRunner func(context.Context, string, ...string) ([]byte, error)
+
+var runHelmDiagnosticCommand helmDiagnosticRunner = func(
+	ctx context.Context,
+	name string,
+	args ...string,
+) ([]byte, error) {
+	return exec.CommandContext(ctx, name, args...).CombinedOutput()
+}
+
+type helmDiagnosticCommand struct {
+	label string
+	name  string
+	args  []string
+}
+
+func helmFailureDiagnosticCommands(release string) []helmDiagnosticCommand {
+	selector := "app.kubernetes.io/instance=" + release
+	return []helmDiagnosticCommand{
+		{label: "Helm status", name: "helm", args: []string{"status", release}},
+		{label: "pod and workload status", name: "kubectl", args: []string{
+			"get", "deploy,statefulset,job,pods,pvc", "-l", selector, "-o", "wide",
+		}},
+		{label: "persistent volume claims", name: "kubectl", args: []string{
+			"get", "pvc", "-o", "wide",
+		}},
+		{label: "events", name: "kubectl", args: []string{
+			"get", "events", "--sort-by=.metadata.creationTimestamp",
+		}},
+		{label: "container and init status", name: "kubectl", args: []string{
+			"get", "pods", "-l", selector, "-o", "json",
+		}},
+		{label: "pod scheduling and probes", name: "kubectl", args: []string{
+			"describe", "pods", "-l", selector,
+		}},
+		{label: "current container and init logs", name: "kubectl", args: []string{
+			"logs", "-l", selector, "--all-containers=true", "--prefix=true", "--tail=120",
+		}},
+		{label: "previous container and init logs", name: "kubectl", args: []string{
+			"logs", "-l", selector, "--all-containers=true", "--prefix=true", "--previous", "--tail=120",
+		}},
+	}
+}
+
+func collectHelmFailureDiagnostics(
+	release string,
+	run helmDiagnosticRunner,
+	timeout time.Duration,
+) string {
+	ctx, cancel := context.WithTimeout(context.Background(), timeout)
+	defer cancel()
+
+	var report strings.Builder
+	fmt.Fprintf(&report, "%s bounded diagnostics:", release)
+	for _, diagnostic := range helmFailureDiagnosticCommands(release) {
+		out, err := run(ctx, diagnostic.name, diagnostic.args...)
+		fmt.Fprintf(&report, "\n\n== %s ==\n%s",
+			diagnostic.label, strings.TrimSpace(string(out)))
+		if err != nil {
+			fmt.Fprintf(&report, "\n[diagnostic failed: %v]", err)
+		} else if ctx.Err() != nil {
+			fmt.Fprintf(&report, "\n[diagnostic failed: %v]", ctx.Err())
+		}
+	}
+	return report.String()
+}
+
+func captureHelmFailureDiagnostics(
+	directory string,
+	release string,
+	run helmDiagnosticRunner,
+	timeout time.Duration,
+) string {
+	report := collectHelmFailureDiagnostics(release, run, timeout)
+	if err := os.MkdirAll(directory, 0o755); err != nil {
+		return report + fmt.Sprintf(
+			"\n[write bounded diagnostics failed: create %s: %v]", directory, err)
+	}
+	path := filepath.Join(directory, "bounded-diagnostics.txt")
+	if err := os.WriteFile(path, []byte(report+"\n"), 0o644); err != nil {
+		return report + fmt.Sprintf(
+			"\n[write bounded diagnostics failed: %v]", err)
+	}
+	return report + "\n[evidence: " + path + "]"
+}
+
+func helmScenarioEvidenceDirectory(root, cluster, revision string) string {
+	return filepath.Join(root, "build", "kind-evidence",
+		cluster+"-"+revision+"-"+time.Now().UTC().Format("20060102T150405.000000000Z"))
+}
+
+func boundedHelmEvidenceRunner(timeout time.Duration) kindrig.CommandRunner {
+	return func(name string, args ...string) ([]byte, error) {
+		ctx, cancel := context.WithTimeout(context.Background(), timeout)
+		defer cancel()
+		return runHelmDiagnosticCommand(ctx, name, args...)
+	}
 }

@@ -3,6 +3,7 @@
 package main
 
 import (
+	"context"
 	"encoding/json"
 	"errors"
 	"net/http"
@@ -10,6 +11,7 @@ import (
 	"os"
 	"os/exec"
 	"path/filepath"
+	"runtime"
 	"slices"
 	"strings"
 	"testing"
@@ -49,6 +51,113 @@ func TestKindDependencyImagesCoverEveryExternalPodImage(t *testing.T) {
 	if !slices.Equal(smoke, wantSmoke) {
 		t.Fatalf("smoke dependencies = %v, want %v", smoke, wantSmoke)
 	}
+	swap, err := swapDependencyImages(chartDir)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if !slices.Equal(swap, wantSmoke) {
+		t.Fatalf("swap dependencies = %v, want smoke closure %v", swap, wantSmoke)
+	}
+}
+
+func TestHermeticDependencyPullUsesExactOllamaDigest(t *testing.T) {
+	var calls []string
+	run := func(name string, args ...string) ([]byte, error) {
+		calls = append(calls, name+" "+strings.Join(args, " "))
+		return nil, nil
+	}
+	images := []string{"busybox:1.36", helmLLMOllamaImage}
+	if err := pullIntegrationDependencyImages("helmLLMTier", images, run); err != nil {
+		t.Fatal(err)
+	}
+	want := []string{
+		"docker pull --platform linux/" + runtime.GOARCH + " busybox:1.36",
+		"docker pull --platform linux/" + runtime.GOARCH + " " + helmLLMOllamaSourceImage,
+	}
+	if !slices.Equal(calls, want) {
+		t.Fatalf("dependency delivery calls:\n got: %v\nwant: %v", calls, want)
+	}
+	dockerfile := trustedOllamaDockerfile()
+	for _, want := range []string{
+		"FROM " + helmLLMOllamaSourceImage,
+		">> /etc/ssl/certs/ca-certificates.crt",
+	} {
+		if !strings.Contains(dockerfile, want) {
+			t.Errorf("trusted Ollama Dockerfile missing %q:\n%s", want, dockerfile)
+		}
+	}
+	for _, forbidden := range []string{"insecure", "tls-verify=false", "GIT_SSL_NO_VERIFY"} {
+		if strings.Contains(strings.ToLower(dockerfile), strings.ToLower(forbidden)) {
+			t.Errorf("trusted Ollama Dockerfile disables TLS with %q:\n%s",
+				forbidden, dockerfile)
+		}
+	}
+}
+
+func TestHelmFailureEvidenceIsBoundedAndNamesRootCauses(t *testing.T) {
+	t.Run("diagnostic causes", func(t *testing.T) {
+		run := func(_ context.Context, name string, args ...string) ([]byte, error) {
+			command := name + " " + strings.Join(args, " ")
+			switch {
+			case strings.Contains(command, "get events"):
+				return []byte("FailedScheduling: insufficient memory\nFailedMount: PVC is Pending\nErrImagePull: x509 certificate signed by unknown authority"), nil
+			case strings.Contains(command, `-o json`):
+				return []byte(`{"status":{"initContainerStatuses":[{"name":"wait-for-llm-models","state":{"waiting":{"reason":"PodInitializing"}}}],"containerStatuses":[{"name":"ollama","state":{"waiting":{"reason":"ImagePullBackOff"}}}]}}`), nil
+			case strings.Contains(command, "describe pods"):
+				return []byte("Readiness probe failed: connection refused"), nil
+			case strings.Contains(command, "logs"):
+				return []byte("pulling qwen2.5:0.5b\nError: model pull failed"), nil
+			default:
+				return []byte("diagnostic output"), nil
+			}
+		}
+		dir := t.TempDir()
+		report := captureHelmFailureDiagnostics(
+			dir, helmLLMRelease, run, time.Second)
+		for _, want := range []string{
+			"bounded diagnostics",
+			"FailedScheduling",
+			"PVC is Pending",
+			"ErrImagePull",
+			"ImagePullBackOff",
+			"Readiness probe failed",
+			"model pull failed",
+			"initContainerStatuses",
+		} {
+			if !strings.Contains(report, want) {
+				t.Errorf("failure evidence missing %q:\n%s", want, report)
+			}
+		}
+		data, err := os.ReadFile(filepath.Join(dir, "bounded-diagnostics.txt"))
+		if err != nil {
+			t.Fatal(err)
+		}
+		if !strings.Contains(string(data), "container and init status") {
+			t.Fatalf("persisted evidence omits container/init status:\n%s", data)
+		}
+	})
+
+	t.Run("overall deadline", func(t *testing.T) {
+		calls := 0
+		run := func(ctx context.Context, _ string, _ ...string) ([]byte, error) {
+			calls++
+			<-ctx.Done()
+			return nil, ctx.Err()
+		}
+		started := time.Now()
+		report := collectHelmFailureDiagnostics(
+			helmSwapRelease, run, 5*time.Millisecond)
+		if elapsed := time.Since(started); elapsed > 200*time.Millisecond {
+			t.Fatalf("diagnostics took %s, want bounded completion", elapsed)
+		}
+		if calls != len(helmFailureDiagnosticCommands(helmSwapRelease)) {
+			t.Fatalf("diagnostic calls = %d, want %d",
+				calls, len(helmFailureDiagnosticCommands(helmSwapRelease)))
+		}
+		if !strings.Contains(report, "deadline exceeded") {
+			t.Fatalf("bounded diagnostics omit deadline evidence:\n%s", report)
+		}
+	})
 }
 
 func TestChatbotIntegrationImagesPropagateCheckoutRevision(t *testing.T) {

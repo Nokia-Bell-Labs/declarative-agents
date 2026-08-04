@@ -14,14 +14,14 @@ traces:
   - rel04.0-uc001-in-cluster-llm-tier
 
 preconditions:
-  - A CPU-only kind cluster and docker/helm/kubectl are available for the smoke path; the small models are pullable.
+  - A CPU-only kind cluster and docker/helm/kubectl are available for the smoke path; the exact Ollama image and small models are host-pullable.
   - The chart ships the Ollama subchart enabled by default with the model names declared once in values.
 
 test_cases:
   - use_case: rel04.0-uc001-in-cluster-llm-tier
     name: Default install answers a turn with no external LLM dependency
     integration_target: mage integration:helmLLMTier
-    go_test: go test ./magefiles -run '^TestHelmLLMTierInstallExposesTransition$|^TestHelmLLMTierInstallReturnsCapturedOutput$'
+    go_test: go test ./magefiles -run '^TestKindLLMDependenciesIncludeExactOllamaImage$|^TestHelmLLMTierInstallExposesTransition$|^TestHelmLLMTierInstallReturnsCapturedOutput$|^TestLLMStartupFailureIncludesCommandOutput$'
     status: implemented
     description: |
       helm install with defaults on a kind cluster deploys the Ollama subchart with
@@ -36,6 +36,17 @@ test_cases:
       against that thin chart before Helm, the v1 release Secret is checked
       against the 896 KiB safety budget after install, and init-container
       checksums verify the mounted UIs against the canonical package inventory.
+
+      The host pulls every smoke dependency plus the digest-verified
+      ollama/ollama:0.32.5 source digest, derives the kind-only
+      declarative-agents/ollama:0.32.5-kind-trusted runtime by appending the host
+      trust bundle, and imports every runtime tag into kind before the
+      no-`--wait` install. TLS verification remains enabled for model pulls.
+      Ollama uses imagePullPolicy Never, so neither the StatefulSet nor preload
+      Job reaches a container registry from the node. Startup, model-preload, and
+      post-preload workload readiness have separate bounds. Failure evidence
+      records pod/workload/PVC status, events, container and init state, probes,
+      and model-pull logs before owned-cluster cleanup.
     inputs:
       chart: applications/chatbot-mesh/helm/
       values: defaults (ollama.enabled=true)
@@ -50,6 +61,14 @@ test_cases:
       external_ui_archives_out_of_release: [collector, observer]
       runtime_ui_inventory_verified: true
       canonical_package_closure_complete: true
+      exact_ollama_image: declarative-agents/ollama:0.32.5-kind-trusted
+      exact_ollama_source_digest: sha256:4dea9fb511947e24a84237bb636b0203abcb2ff0d3fbc7b4ff865deb91362131
+      model_registry_tls_verification_enabled: true
+      model_registry_uses_host_trust_bundle: true
+      required_images_host_pulled_and_kind_loaded: true
+      node_registry_pull_required: false
+      phased_readiness_bounds: [ollama_startup, model_preload, agent_workloads]
+      bounded_failure_evidence_before_cleanup: true
     traces:
       - rel04.0-uc001-in-cluster-llm-tier S1
       - srd003-chatbot-deployment AC6
@@ -82,15 +101,20 @@ test_cases:
   - use_case: rel04.0-uc001-in-cluster-llm-tier
     name: Preload controls the observed agent readiness transition
     integration_target: mage integration:helmLLMTier
-    go_test: go test ./magefiles -run 'Test(LLMPreloadReadinessTransition|HelmLLMTierInstallExposesTransition)'
+    go_test: go test ./magefiles -run 'Test(LLMPreloadReadinessTransition|LLMStartupFailureIncludesCommandOutput|HelmLLMTierInstallExposesTransition)'
     status: implemented
     description: |
       Install without Helm --wait and hold the preload Job suspended while
-      observing chatbot and RAG workloads unready. Resume preload, assert every
-      configured model appears, then observe each workload become ready.
+      observing chatbot and RAG workloads unready. First observe the Ollama
+      StatefulSet ready under its startup bound; only then resume preload under
+      the model-pull bound, assert all-minilm and qwen2.5:0.5b appear, and observe
+      each workload become ready under the separate workload bound.
     expected:
       agents_not_ready_before_preload: true
+      ollama_ready_before_preload_resume: true
+      configured_models_observed: [all-minilm, "qwen2.5:0.5b"]
       agents_ready_after_preload: true
+      startup_model_and_workload_timeouts_are_distinct: true
     traces:
       - rel04.0-uc001-in-cluster-llm-tier S2
       - rel04.0-uc001-in-cluster-llm-tier S3
