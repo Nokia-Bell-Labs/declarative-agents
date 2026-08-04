@@ -78,7 +78,7 @@ srd_index:
     path: docs/specs/software-requirements/srd001-helm-deployment.yaml
   - id: srd002-applier
     title: Declarative Applier Agent
-    status: planned
+    status: implemented
     path: docs/specs/software-requirements/srd002-applier.yaml
 
 external_requirement_references:

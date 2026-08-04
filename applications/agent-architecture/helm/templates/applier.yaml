@@ -35,7 +35,7 @@ data:
   {{- range $path, $_ := $applierFiles }}
   {{- $key := $path | trimPrefix "profiles/applier/" | replace "/" "__" }}
   {{ $key }}: |-
-  {{- if eq $key "agents__applier__exec-declarations.yaml" }}
+  {{- if eq $key "applications__agent-architecture__applier__exec-declarations.yaml" }}
     {{- /* Rewrite the applier exec args' placeholder coordinates to the installed
           release so an applier installed under any release name targets its own
           release, namespace, and collector Deployment rather than a baked

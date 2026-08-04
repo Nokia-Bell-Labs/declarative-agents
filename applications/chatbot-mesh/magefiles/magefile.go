@@ -171,10 +171,21 @@ func Audit() error {
 	}
 	defer cleanupCorpusRuntime()
 	sourceCorpusProfile := filepath.Join(root, filepath.FromSlash(chromaIngestProfile))
+	applierChart, cleanupApplierRuntime, err := stagePackageChart(
+		filepath.Join(root, "helm"), root, catalogRoot)
+	if err != nil {
+		return err
+	}
+	defer cleanupApplierRuntime()
+	sourceApplierProfile := filepath.Join(root, "agents", "applier", "profile.yaml")
 	for index, profile := range profiles {
 		if filepath.Clean(profile) == sourceCorpusProfile {
 			profiles[index] = filepath.Join(
 				corpusRuntime, filepath.FromSlash(chromaIngestProfile))
+		}
+		if filepath.Clean(profile) == sourceApplierProfile {
+			profiles[index] = filepath.Join(
+				applierChart, "profiles", "applications", "chatbot-mesh", "applier", "profile.yaml")
 		}
 	}
 	if err := bootSmokeProfiles(defaultSmokeRun, binary, coreRoot, profiles); err != nil {

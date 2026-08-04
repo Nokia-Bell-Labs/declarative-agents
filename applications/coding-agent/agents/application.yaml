@@ -32,22 +32,22 @@ roots:
     ownership: catalog
     source: agents/planner/profile.yaml
     runtime_path: agents/planner/profile.yaml
-    compatible_release: v0.20260730.0
+    compatible_release: v0.20260804.0
   - id: executor
     ownership: catalog
     source: agents/executor/profile.yaml
     runtime_path: agents/executor/profile.yaml
-    compatible_release: v0.20260730.0
+    compatible_release: v0.20260804.0
   - id: critic
     ownership: catalog
     source: agents/critic/profile.yaml
     runtime_path: agents/critic/profile.yaml
-    compatible_release: v0.20260730.0
+    compatible_release: v0.20260804.0
   - id: critic-workspace
     ownership: catalog
     source: agents/critic/profile-workspace.yaml
     runtime_path: agents/critic/profile-workspace.yaml
-    compatible_release: v0.20260730.0
+    compatible_release: v0.20260804.0
   - id: coding-planner-server
     ownership: local
     source: agents/planner/profile.yaml

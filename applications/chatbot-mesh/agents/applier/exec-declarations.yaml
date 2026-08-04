@@ -128,7 +128,7 @@ tools:
         state_after_failure: the release is rolled back to its prior revision
     relationships:
       after: [helm_dry_run]
-      before: [kubectl_rollout_status]
+      before: [verify_rollout]
       overlaps:
         - tool: helm_dry_run
           difference: helm_upgrade applies and rolls the release; helm_dry_run only renders and validates.
@@ -179,7 +179,7 @@ tools:
         message_shape: <captured helm output>
         state_after_failure: the release may remain on the failed revision and needs operator attention
     relationships:
-      after: [helm_upgrade, kubectl_rollout_status]
+      after: [helm_upgrade, verify_rollout]
     undo:
       strategy: irreversible
       description: A rollback is itself a one-way compensating action; reversing it requires a new explicit rollout.
@@ -358,7 +358,7 @@ tools:
       strategy: noop
       description: An object read mutates nothing.
 
-  - name: kubectl_rollout_status
+  - name: verify_rollout
     type: exec
     binary: kubectl
     args: [rollout, status, deployment/chatbot-mesh-chatbot, --namespace, default, --timeout, 120s]

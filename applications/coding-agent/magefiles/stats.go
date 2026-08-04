@@ -38,7 +38,7 @@ type codingApplicationStats struct {
 }
 
 // Stats reports application composition without adding an "agents" section.
-// Canonical planner, executor, and critic implementations are counted once by
+// Canonical planner, executor, critic, and applier implementations are counted once by
 // applications/catalog; this target makes their reuse and the owned serving profiles
 // visible without adding them to the repository-wide agents_total.
 func Stats() error {

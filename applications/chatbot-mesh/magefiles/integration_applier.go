@@ -40,10 +40,20 @@ func (Integration) Applier() error {
 		return err
 	}
 	coreRoot := demoCoreRoot(profilesRoot)
+	catalogRoot, err := resolveCatalogRoot("chatbot-mesh applier integration", profilesRoot)
+	if err != nil {
+		return err
+	}
 	if err := requireProfilePaths(profilesRoot,
-		"agents/applier/profile.yaml", "agents/applier/apply-machine.yaml",
-		"agents/applier/rollout-machine.yaml", "agents/applier/state-machine.yaml",
+		"agents/applier/profile.yaml", "agents/applier/apply-profile.yaml",
+		"agents/applier/rollout-profile.yaml", "agents/applier/state-machine.yaml",
 		"agents/applier/exec-declarations.yaml",
+	); err != nil {
+		return err
+	}
+	if err := requireProfilePaths(catalogRoot,
+		"agents/applier/profile.yaml", "agents/applier/machine.yaml",
+		"agents/applier/apply-machine.yaml", "agents/applier/rollout-machine.yaml",
 	); err != nil {
 		return err
 	}
@@ -51,7 +61,12 @@ func (Integration) Applier() error {
 		fmt.Printf("SKIP applier: agent-core checkout not found at %s (set core_root in demo.yaml)\n", coreRoot)
 		return nil
 	}
-	return runApplierIntegration(profilesRoot, coreRoot)
+	chart, cleanup, err := stagePackageChart(filepath.Join(profilesRoot, "helm"), profilesRoot, catalogRoot)
+	if err != nil {
+		return err
+	}
+	defer cleanup()
+	return runApplierIntegration(filepath.Join(chart, "profiles"), coreRoot)
 }
 
 func runApplierIntegration(profilesRoot, coreRoot string) error {
@@ -75,7 +90,7 @@ func runApplierIntegration(profilesRoot, coreRoot string) error {
 
 	stop, err := startDetachedAgentWithEnv(agentLaunch{
 		Binary: binary, ProfilesRoot: profilesRoot, CoreRoot: coreRoot,
-		Profile: "agents/applier/profile.yaml", TracePath: trace,
+		Profile: "applications/chatbot-mesh/applier/profile.yaml", TracePath: trace,
 		// The workspace the values file lands in, and the same value the
 		// deployment sets from workMountPath (GH-737). Without it write_overrides
 		// resolves /work against a workspace that does not contain it and every

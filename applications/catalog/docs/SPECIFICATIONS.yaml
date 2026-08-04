@@ -379,6 +379,13 @@ srd_index:
       only; the profile, UX, and realization rows are the adoption implementation.
     status: planned
     path: docs/specs/software-requirements/srd021-observer.yaml
+  - id: srd022-applier
+    title: Canonical Deployment Applier Family
+    summary: Shared lifecycle host, request-machine sequencing, name-only
+      selections, and ToolDefs used by three application-owned wrappers whose
+      endpoints, charts, rollout commands, and authority remain local.
+    status: implemented
+    path: docs/specs/software-requirements/srd022-applier.yaml
 
 config_format_index: []
 
@@ -608,6 +615,12 @@ use_case_index:
       /query/spans/breakdown, and links exemplar spans into the waterfall.
     status: implemented
     path: docs/specs/use-cases/rel15.0-uc001-explore-panel.yaml
+  - id: rel16.0-uc001-applier-family
+    title: Three applications compose one canonical applier family
+    summary: Catalog-owned lifecycle and request machines are packaged with
+      thin application wrappers that retain local deployment authority.
+    status: implemented
+    path: docs/specs/use-cases/rel16.0-uc001-applier-family.yaml
   - id: rel99.0-uc001-observer-family
     title: The observer is a catalog-owned family adopted across applications
     summary: The fleet observer becomes a catalog-owned family generalized from
@@ -749,6 +762,12 @@ test_suite_index:
       UI route declaration, and uiDist reproducibility.
     status: implemented
     path: docs/specs/test-suites/test-rel15.0-explore.yaml
+  - id: test-rel16.0-applier
+    title: Canonical Applier Family Conformance
+    summary: Boot, machine, wrapper, duplicate, package, application, and
+      statistics evidence for the promoted applier family.
+    status: implemented
+    path: docs/specs/test-suites/test-rel16.0-applier.yaml
   - id: test-rel99.0-observer
     title: Test Suite for Release 99.0 Observer Family Promotion
     summary: Specification-graph cases for the generalized observer-family SRD,

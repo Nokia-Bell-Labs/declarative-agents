@@ -165,6 +165,12 @@ func TestRepositoryMeshOwnershipClassifiesCorpusIngestAsComposition(t *testing.T
 		"agents/knowledge-manager/corpus-ingest" {
 		t.Fatalf("repository composition = %+v", stats.Composition)
 	}
+	if _, exists := stats.Agents.PerAgent["applier"]; exists {
+		t.Fatal("repository applier wrapper counted as local implementation")
+	}
+	if stats.Composition.PerWrapper["applier"].CanonicalProgram != "agents/applier" {
+		t.Fatalf("repository applier composition = %+v", stats.Composition)
+	}
 	if stats.Agents.Total.Agents != len(stats.Agents.PerAgent) {
 		t.Fatalf("agent total %d != per-agent count %d",
 			stats.Agents.Total.Agents, len(stats.Agents.PerAgent))

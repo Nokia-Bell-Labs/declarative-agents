@@ -609,6 +609,7 @@ func copyApplicationFixture(t *testing.T) string {
 		"agents/knowledge-manager/documentation-curator",
 		"agents/collector",
 		"agents/lifecycle-exit",
+		"agents/applier",
 	} {
 		copyTree(t,
 			filepath.Join(source, "..", "catalog", filepath.FromSlash(relative)),

@@ -1,0 +1,9 @@
+name: agent-architecture-applier-apply-request
+machine: ../../catalog/applier/apply-machine.yaml
+tools:
+  - ../../catalog/applier/apply-tools.yaml
+tool_declarations:
+  - ../../catalog/applier/apply-declarations.yaml
+  - exec-declarations.yaml
+rest_definitions:
+  - rest.yaml

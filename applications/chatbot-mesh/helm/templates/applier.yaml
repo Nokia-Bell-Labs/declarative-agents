@@ -172,7 +172,7 @@ spec:
           imagePullPolicy: {{ .Values.applier.image.pullPolicy }}
           args:
             - "--profile"
-            - "{{ .Values.profiles.mountPath }}/agents/applier/profile.yaml"
+            - "{{ .Values.profiles.mountPath }}/applications/chatbot-mesh/applier/profile.yaml"
             - "--directory"
             - "{{ .Values.profiles.workMountPath }}"
             {{- with include "chatbot-mesh.otlpEndpoint" . }}

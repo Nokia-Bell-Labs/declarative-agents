@@ -1,9 +1,9 @@
 name: applier-apply-request
 machine: apply-machine.yaml
 tools:
-  - request-tools-apply.yaml
+  - apply-tools.yaml
 tool_declarations:
-  - request-declarations.yaml
-  - exec-declarations.yaml
+  - apply-declarations.yaml
+  - standalone-declarations.yaml
 rest_definitions:
   - rest.yaml

@@ -28,12 +28,10 @@ func applierStateEndpoint(t *testing.T) rolloutEndpoint {
 func applierStateMachine(t *testing.T) rolloutMachine {
 	t.Helper()
 	endpoint := applierStateEndpoint(t)
-	if endpoint.MachineRequest.Machine == "" {
-		t.Fatal("state endpoint names no machine")
+	if endpoint.MachineRequest.Profile == "" {
+		t.Fatal("state endpoint names no request profile")
 	}
-	var machine rolloutMachine
-	readIntakeYAML(t, agentDir(t, "applier")+"/"+endpoint.MachineRequest.Machine, &machine)
-	return machine
+	return applierMachineFromProfile(t, endpoint.MachineRequest.Profile)
 }
 
 // TestApplierStateMachineReachesTwoTerminals proves the machine reaches Read and

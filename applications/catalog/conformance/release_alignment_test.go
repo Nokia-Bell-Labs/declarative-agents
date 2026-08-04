@@ -97,15 +97,16 @@ func TestAlignmentMigrationReleaseAndConsumerPins(t *testing.T) {
 		} `yaml:"roots"`
 	}
 	readRoleYAML(t, "../coding-agent/agents/application.yaml", &coding)
+	const applierRelease = "v0.20260804.0"
 	var catalogRoots int
 	for _, root := range coding.Roots {
 		if root.Ownership != "catalog" {
 			continue
 		}
 		catalogRoots++
-		if root.CompatibleRelease != current.RootRelease {
+		if root.CompatibleRelease != applierRelease {
 			t.Errorf("coding-agent compatible_release = %q, want canonical %q",
-				root.CompatibleRelease, current.RootRelease)
+				root.CompatibleRelease, applierRelease)
 		}
 	}
 	if catalogRoots != 4 {
@@ -115,9 +116,9 @@ func TestAlignmentMigrationReleaseAndConsumerPins(t *testing.T) {
 		Annotations map[string]string `yaml:"annotations"`
 	}
 	readRoleYAML(t, "../chatbot-mesh/helm/Chart.yaml", &chart)
-	if chart.Annotations["declarative-agents.nokia.com/catalog-compatible-release"] != current.Release {
+	if chart.Annotations["declarative-agents.nokia.com/catalog-compatible-release"] != applierRelease {
 		t.Errorf("chatbot-mesh catalog release annotation = %q, want %q",
-			chart.Annotations["declarative-agents.nokia.com/catalog-compatible-release"], current.Release)
+			chart.Annotations["declarative-agents.nokia.com/catalog-compatible-release"], applierRelease)
 	}
 }
 

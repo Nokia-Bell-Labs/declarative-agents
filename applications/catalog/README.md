@@ -96,6 +96,15 @@ v1; new consumers must use canonical paths. The complete
 application-local identity migration and exact release pair are recorded in
 `docs/migrations/v0.20260727.0-agent-role-realization-alignment.yaml`.
 
+The canonical applier family at `agents/applier/` owns lifecycle hosting,
+request-machine sequencing, name-only selections, and shared lifecycle and
+workspace-write ToolDefs. Chatbot Mesh, Coding Agent, and Agent Architecture
+compose it through local wrappers. Their chart names, schema paths, release and
+Deployment coordinates, rollout commands, REST endpoints, RBAC, and caller
+authority remain application-owned. The coordinated promotion and root `v0.*`
+compatibility record is
+`docs/migrations/v0.20260804.0-applier-family.yaml`.
+
 The rig-subject and `testdata/conformance/` REST/control/lifecycle fixtures are
 different: they exercise `agent-core` behavior and remain internal scaffolding
 in their current paths. They are not shipped catalog members. A future

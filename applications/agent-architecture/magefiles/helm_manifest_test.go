@@ -47,6 +47,18 @@ func TestPreparedProfilesFollowManifest(t *testing.T) {
 			role.Source != "application/agents/applier/profile.yaml") {
 			t.Fatalf("applier provenance = %#v, want application-owned root", role)
 		}
+		if role.Role == "applier" {
+			for _, required := range []string{
+				"applications/catalog/applier/apply-machine.yaml",
+				"applications/catalog/applier/declarations.yaml",
+				"applications/agent-architecture/applier/profile.yaml",
+				"applications/agent-architecture/applier/exec-declarations.yaml",
+			} {
+				if !containsValue(role.Files, required) {
+					t.Errorf("applier package misses canonical/local closure member %s", required)
+				}
+			}
+		}
 	}
 }
 

@@ -36,21 +36,21 @@ roots:
     ownership: catalog
     source: agents/knowledge-manager/documentation-curator/profile.yaml
     runtime_path: agents/knowledge-manager/documentation-curator/profile.yaml
-    compatible_release: v0.20260803.0
+    compatible_release: v0.20260804.0
   - id: collector
     ownership: catalog
     source: agents/collector/profile.yaml
     runtime_path: agents/collector/profile.yaml
-    compatible_release: v0.20260803.0
+    compatible_release: v0.20260804.0
   - id: lifecycle-exit
     ownership: catalog
     source: agents/lifecycle-exit/profile.yaml
     runtime_path: agents/lifecycle-exit/profile.yaml
-    compatible_release: v0.20260803.0
+    compatible_release: v0.20260804.0
   - id: applier
     ownership: local
     source: agents/applier/profile.yaml
-    runtime_path: agents/applier/profile.yaml
+    runtime_path: applications/agent-architecture/applier/profile.yaml
 runtime:
   mount_path: /profiles
   image_contains_profiles: false
@@ -69,7 +69,7 @@ deployment:
     - id: applier
       root: applier
       workload: applier
-      profile_path: agents/applier/profile.yaml
+      profile_path: applications/agent-architecture/applier/profile.yaml
       mount_path: /profiles
 ui:
   assets:

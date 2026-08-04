@@ -1,0 +1,90 @@
+# Safe standalone defaults used only by the catalog profile's chart-independent
+# conformance surface. Application wrappers replace every word in this file with
+# chart-, release-, namespace-, and Deployment-specific declarations.
+tools:
+  - name: helm_dry_run
+    type: exec
+    binary: sh
+    args: [-c, "exit 0"]
+    category: boundary
+    visibility: internal
+    description: Standalone validation double.
+    emits: [ToolDone, ToolFailed]
+    side_effects: [{kind: child_process, state: read_only, target: conformance_double}]
+    reversibility: {classification: reversible, undo: noop, requires_confirmation: false}
+    undo: {strategy: noop, description: The standalone validation double mutates nothing.}
+    errors: [{signal: ToolFailed, condition: The standalone command fails, state_after_failure: No external state changed.}]
+
+  - name: helm_upgrade
+    type: exec
+    binary: sh
+    args: [-c, "exit 0"]
+    category: boundary
+    visibility: internal
+    description: Standalone apply double.
+    emits: [ToolDone, ToolFailed]
+    side_effects: [{kind: child_process, state: simulated, target: conformance_double}]
+    reversibility: {classification: compensatable, undo: helm_rollback, requires_confirmation: false}
+    undo: {strategy: compensating_action, description: The standalone rollback double represents compensation.}
+    errors: [{signal: ToolFailed, condition: The standalone command fails, state_after_failure: No external state changed.}]
+
+  - name: verify_rollout
+    type: exec
+    binary: sh
+    args: [-c, "exit 0"]
+    category: boundary
+    visibility: internal
+    description: Standalone rollout verification double.
+    emits: [ToolDone, ToolFailed]
+    side_effects: [{kind: child_process, state: read_only, target: conformance_double}]
+    reversibility: {classification: reversible, undo: noop, requires_confirmation: false}
+    undo: {strategy: noop, description: The standalone verification double mutates nothing.}
+    errors: [{signal: ToolFailed, condition: The standalone command fails, state_after_failure: No external state changed.}]
+
+  - name: helm_rollback
+    type: exec
+    binary: sh
+    args: [-c, "exit 0"]
+    category: boundary
+    visibility: internal
+    description: Standalone compensation double.
+    emits: [ToolDone, ToolFailed]
+    side_effects: [{kind: child_process, state: simulated, target: conformance_double}]
+    reversibility: {classification: irreversible, undo: irreversible, requires_confirmation: true}
+    undo: {strategy: irreversible, description: Compensation is terminal for the standalone request.}
+    errors: [{signal: ToolFailed, condition: The standalone command fails, state_after_failure: No external state changed.}]
+
+  - name: kubectl_rollout_poll
+    type: exec
+    binary: sh
+    args: [-c, "exit 0"]
+    category: boundary
+    visibility: internal
+    description: Standalone bounded rollout poll double.
+    emits: [ToolDone, ToolFailed]
+    side_effects: [{kind: child_process, state: read_only, target: conformance_double}]
+    reversibility: {classification: reversible, undo: noop, requires_confirmation: false}
+    undo: {strategy: noop, description: The standalone poll double mutates nothing.}
+    errors: [{signal: ToolFailed, condition: The standalone command reports an incomplete rollout, state_after_failure: No external state changed.}]
+
+  - name: kubectl_get_rollout_counts
+    type: exec
+    binary: sh
+    args: [-c, 'printf ''{"ready":1,"desired":1,"revision":1}''']
+    category: boundary
+    visibility: internal
+    description: Standalone rollout count read double.
+    emits: [ToolDone, ToolFailed]
+    output:
+      description: Deterministic standalone rollout counts.
+      schema:
+        type: object
+        properties:
+          ready: {type: integer}
+          desired: {type: integer}
+          revision: {type: integer}
+        required: [ready, desired, revision]
+    side_effects: [{kind: child_process, state: read_only, target: conformance_double}]
+    reversibility: {classification: reversible, undo: noop, requires_confirmation: false}
+    undo: {strategy: noop, description: The standalone count read mutates nothing.}
+    errors: [{signal: ToolFailed, condition: The standalone command fails, state_after_failure: No external state changed.}]

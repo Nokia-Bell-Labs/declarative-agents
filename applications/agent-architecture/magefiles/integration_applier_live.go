@@ -328,7 +328,8 @@ func assertApplierChartArchiveCarriesProfiles(archive string) error {
 	for _, key := range []string{
 		"documentation-curator__profile.yaml",
 		"agents__collector__profile.yaml",
-		"agents__applier__profile.yaml",
+		"applications__agent-architecture__applier__profile.yaml",
+		"applications__catalog__applier__machine.yaml",
 	} {
 		if !strings.Contains(render, key) {
 			return fmt.Errorf("the packaged applier chart renders no %s; an apply would replace the live "+

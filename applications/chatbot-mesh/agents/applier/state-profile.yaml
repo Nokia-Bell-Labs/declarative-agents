@@ -1,0 +1,8 @@
+name: mesh-applier-state-request
+machine: state-machine.yaml
+tools:
+  - state-tools.yaml
+tool_declarations:
+  - exec-declarations.yaml
+rest_definitions:
+  - rest.yaml

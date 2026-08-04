@@ -1,0 +1,34 @@
+name: applier-rollout-request
+purpose: |-
+  Read one application-selected Deployment rollout without confusing a broken
+  cluster read with an in-progress rollout. A bounded status poll selects the
+  complete or progressing path, then a second read supplies replica counts and
+  proves the Deployment is reachable. Applications own the selected Deployment,
+  namespace, command arguments, endpoint, and response mapping.
+initial_state: AwaitingRequest
+budget:
+  max_iterations: 5
+states:
+  - {name: AwaitingRequest, meaning: Seeded by an application-owned rollout endpoint.}
+  - {name: Polling, meaning: Reading the selected Deployment rollout status.}
+  - {name: ReadingComplete, meaning: The rollout is complete; reading the counts.}
+  - {name: ReadingProgressing, meaning: The rollout is incomplete; reading the counts.}
+  - {name: Complete, meaning: Terminal. The rollout is complete.}
+  - {name: Progressing, meaning: Terminal. The rollout is still progressing.}
+  - {name: Unavailable, meaning: Terminal. The selected Deployment could not be read.}
+terminal_states:
+  - Complete
+  - Progressing
+  - Unavailable
+signals:
+  - {name: Seed, trigger: An application-owned endpoint starts a request-scoped read.}
+  - {name: ToolDone, trigger: The status or counts read completed.}
+  - {name: ToolFailed, trigger: The status was incomplete or the counts read failed.}
+transitions:
+  - {state: AwaitingRequest,    signal: Seed,       next: Polling,            action: kubectl_rollout_poll}
+  - {state: Polling,            signal: ToolDone,   next: ReadingComplete,    action: kubectl_get_rollout_counts}
+  - {state: Polling,            signal: ToolFailed, next: ReadingProgressing, action: kubectl_get_rollout_counts}
+  - {state: ReadingComplete,    signal: ToolDone,   next: Complete}
+  - {state: ReadingComplete,    signal: ToolFailed, next: Unavailable}
+  - {state: ReadingProgressing, signal: ToolDone,   next: Progressing}
+  - {state: ReadingProgressing, signal: ToolFailed, next: Unavailable}

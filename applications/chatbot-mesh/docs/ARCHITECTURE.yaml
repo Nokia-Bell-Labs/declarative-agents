@@ -108,7 +108,7 @@ role_realization_alignment:
       canonical_role_sub_role: Executor / Actuation Agent and Change Manager.
       retained_or_proposed_name: Retain descriptive actor/workload `applier`; Applier is not a canonical role.
       authority_boundary: Creator-only caller; authors no desired state and receives no runtime transport authority.
-      evidence: [agents/applier/apply-machine.yaml, helm/templates/applier.yaml]
+      evidence: [../catalog/agents/applier/apply-machine.yaml, agents/applier/exec-declarations.yaml, helm/templates/applier.yaml]
       migration_impact: Documentation alignment only.
     - current_actor: collector
       implemented_responsibility: Receive, inspect, spool, and optionally relay bounded OTLP trace batches.

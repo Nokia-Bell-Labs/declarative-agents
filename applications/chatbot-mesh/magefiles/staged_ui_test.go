@@ -39,7 +39,7 @@ func renderedProfileKeys(t *testing.T) []string {
 	}
 	var keys []string
 	for _, m := range configMapKeyRE.FindAllStringSubmatch(string(out), -1) {
-		if strings.HasPrefix(m[1], "agents__") {
+		if strings.HasPrefix(m[1], "agents__") || strings.HasPrefix(m[1], "applications__") {
 			keys = append(keys, m[1])
 		}
 	}
@@ -242,6 +242,9 @@ func TestStagedProfilesKeepWhatAnAgentRuns(t *testing.T) {
 	keys := renderedProfileKeys(t)
 	for _, agent := range []string{"chatbot", "rag-server", "provisioning-workflow-orchestrator", "creator", "applier"} {
 		want := "agents__" + agent + "__profile.yaml"
+		if agent == "applier" {
+			want = "applications__chatbot-mesh__applier__profile.yaml"
+		}
 		var found bool
 		for _, key := range keys {
 			if key == want {

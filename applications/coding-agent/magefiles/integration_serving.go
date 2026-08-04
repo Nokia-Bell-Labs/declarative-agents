@@ -205,6 +205,13 @@ func stageServingProfileTree(roots integrationRoots) (string, func(), error) {
 		cleanup()
 		return "", nil, fmt.Errorf("assemble #847 profile closure: %w", err)
 	}
+	if err := copyTree(
+		filepath.Join(roots.Profiles, "agents", "applier"),
+		filepath.Join(root, "applications", "catalog", "applier"),
+	); err != nil {
+		cleanup()
+		return "", nil, fmt.Errorf("stage canonical applier runtime projection: %w", err)
+	}
 	destination := filepath.Join(root, "applications", "coding-agent")
 	if err := copyTree(filepath.Join(roots.Application, "agents"), destination); err != nil {
 		cleanup()

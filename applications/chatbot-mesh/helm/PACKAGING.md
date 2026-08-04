@@ -36,11 +36,10 @@ resolved files and needs no profile checkout at runtime.
 
 `Chart.yaml` records
 `declarative-agents.nokia.com/catalog-compatible-release:
-applications/catalog/v0.20260730.0` as retained legacy migration evidence. The
-composition manifest uses the current root `v0.20260730.0` compatibility
-identifier for each catalog-owned root. Both forms are compatibility pins, not
-claims that an arbitrary source checkout is the immutable release. The exact
-canonical and legacy catalog tags are published atomically from `main` after
+v0.20260804.0`. The composition manifest uses the same current root
+`v0.20260804.0` compatibility identifier for each catalog-owned root. The value
+is a compatibility pin, not a claim that an arbitrary source checkout is the
+immutable release. The exact root catalog tag is published from `main` after
 merge; packaging on this branch stages the reviewed checkout and does not create release tags.
 
 The chatbot and observer UIs contribute their built runtime entries, not their

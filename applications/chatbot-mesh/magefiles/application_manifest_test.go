@@ -32,7 +32,7 @@ func TestApplicationManifestDeclaresExactProductionRoots(t *testing.T) {
 			local = append(local, root.Source)
 		case "catalog":
 			catalog = append(catalog, root.Source)
-			if root.CompatibleRelease != "v0.20260730.0" {
+			if root.CompatibleRelease != "v0.20260804.0" {
 				t.Errorf("catalog root %s compatibility = %q", root.ID, root.CompatibleRelease)
 			}
 		default:

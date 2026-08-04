@@ -401,6 +401,35 @@ roles:
       - Confirm the query surface serves bounded reads from the spool.
       - Confirm shutdown ordering stops query before monitor before control.
 
+  - id: deployment-applier
+    title: Deployment applier
+    profile_path: agents/applier/profile.yaml
+    actor_boundary: decided values document, application-owned rollout commands, and lifecycle callers
+    inputs:
+      - decided values content
+      - fixed workspace path from the trusted request binding
+      - application-owned REST and rollout configuration
+    selected_tool_families:
+      - lifecycle REST host
+      - workspace file write
+      - validate, apply, verify, and rollback boundaries
+      - rollout status reads
+    runtime_dependencies:
+      - agent-core REST and lifecycle tools
+      - application-owned Helm and kubectl ToolDefs
+    outputs:
+      - applied, rejected, rolled-back, or failed apply outcome
+      - complete, progressing, or unavailable rollout read
+      - controlled listener shutdown
+    outcomes:
+      - Done
+      - Failed
+    checks:
+      - Confirm the catalog closure boots with chart-independent standalone boundaries.
+      - Confirm consumers reference canonical machines, selections, and shared ToolDefs.
+      - Confirm chart, release, namespace, Deployment, endpoint, and authority choices remain application-owned.
+      - Confirm every verification failure reaches explicit rollback compensation.
+
 relocated_application_roles:
   - id: provisioning-workflow-orchestrator
     status: relocated

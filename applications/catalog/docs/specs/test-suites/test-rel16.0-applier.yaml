@@ -1,0 +1,44 @@
+id: test-rel16.0-applier
+title: Canonical Applier Family Conformance
+status: implemented
+use_cases: [rel16.0-uc001-applier-family]
+
+cases:
+  - id: applier-catalog-closure
+    verifies: [S1]
+    command: mage validate
+    assertions:
+      - The catalog applier profile and request variants pass agent-core strict configuration validation.
+      - The apply and rollout selections are name-only.
+  - id: applier-machine-contract
+    verifies: [S1, S3, S4, S5]
+    command: go test ./conformance -run '^TestCanonicalApplier'
+    assertions:
+      - Validate precedes apply and verify.
+      - Verification failure reaches rollback.
+      - Terminal outcomes remain distinct.
+  - id: applier-wrapper-ownership
+    verifies: [S2, S6]
+    command: go test ./conformance -run '^TestApplierPromotion'
+    assertions:
+      - Every wrapper references canonical machines and shared ToolDefs.
+      - REST and exec declarations remain local.
+      - No promoted asset has an application-local byte copy.
+  - id: applier-consumers
+    verifies: [S2, S3, S4, S5, S6]
+    command: mage audit
+    assertions:
+      - Fake, render, authority, package, rollout, and rollback tests pass in all consumers.
+      - Applicable live kind tests remain dependency gated.
+  - id: applier-statistics
+    verifies: [S6]
+    command: mage stats
+    assertions:
+      - Catalog counts applier once.
+      - Application appliers are composition wrappers and contribute no additional canonical agent.
+
+requirements_traced:
+  - srd022-applier AC1
+  - srd022-applier AC2
+  - srd022-applier AC3
+  - srd022-applier AC4

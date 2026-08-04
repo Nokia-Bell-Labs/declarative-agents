@@ -457,10 +457,16 @@ func assertApplierChartArchiveCarriesProfiles(archive string) error {
 	render := string(out)
 	for _, agent := range []string{"chatbot", "rag-server", "provisioning-workflow-orchestrator", "creator", "applier"} {
 		key := "agents__" + agent + "__profile.yaml"
+		if agent == "applier" {
+			key = "applications__chatbot-mesh__applier__profile.yaml"
+		}
 		if !strings.Contains(render, key) {
 			return fmt.Errorf("the chart the applier mounts at /chart renders no %s; an apply would replace the "+
 				"live profiles ConfigMap with one missing it, and that agent would not come back from a restart", key)
 		}
+	}
+	if !strings.Contains(render, "applications__catalog__applier__machine.yaml") {
+		return fmt.Errorf("the chart the applier mounts at /chart omits the canonical applier machine")
 	}
 	fmt.Println("applierLive: the chart the applier mounts at /chart renders every agent profile")
 	return nil

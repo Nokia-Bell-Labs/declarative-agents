@@ -36,10 +36,12 @@ role_groups:
     profiles:
       - executor
       - planner
+      - deployment-applier
     summary: |
-      Production work covers task planning and coding. Planner decomposes
-      requirements and invokes executor. Executor edits a target workspace,
-      then lets machine-declared validation decide the terminal outcome.
+      Production work covers task planning, coding, and deployment actuation.
+      Planner decomposes requirements and invokes executor. Executor edits a
+      target workspace, while applier realizes a caller-decided deployment
+      change through application-owned rollout boundaries.
   - id: evaluation_work
     profiles:
       - critic
@@ -151,6 +153,12 @@ dependency_directions:
     kind: configured_boundary
     meaning: REST profile definitions describe trusted outbound and inbound HTTP
       boundaries.
+  - from: deployment-applier
+    to: application-owned rollout boundaries
+    kind: configured_deployment_actuation
+    meaning: Applier supplies lifecycle and compensation sequencing while each
+      application supplies chart, release, namespace, Deployment, endpoint, and
+      authority configuration.
 
 actor_boundaries:
   - profile: executor
@@ -160,6 +168,14 @@ actor_boundaries:
       - validation commands
     boundary: LLM responses choose selected tools; filesystem and validation
       commands mutate or inspect the workspace.
+  - profile: deployment-applier
+    actors:
+      - authorized apply caller
+      - application rollout boundary
+      - lifecycle caller
+    boundary: The catalog machine sequences request hosting, validation, apply,
+      verification, and compensation. Applications retain every deployment
+      coordinate, endpoint, and authorization decision.
   - profile: critic
     actors:
       - suite author

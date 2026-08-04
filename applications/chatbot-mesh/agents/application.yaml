@@ -51,7 +51,7 @@ roots:
   - id: applier
     ownership: local
     source: agents/applier/profile.yaml
-    runtime_path: agents/applier/profile.yaml
+    runtime_path: applications/chatbot-mesh/applier/profile.yaml
   - id: observer
     ownership: local
     source: agents/observer/profile.yaml
@@ -64,12 +64,12 @@ roots:
     ownership: catalog
     source: agents/knowledge-manager/corpus-ingest/profile.yaml
     runtime_path: agents/knowledge-manager/corpus-ingest/profile.yaml
-    compatible_release: v0.20260730.0
+    compatible_release: v0.20260804.0
   - id: collector
     ownership: catalog
     source: agents/collector/profile.yaml
     runtime_path: agents/collector/profile.yaml
-    compatible_release: v0.20260730.0
+    compatible_release: v0.20260804.0
 runtime:
   mount_path: /profiles
   image_contains_profiles: false
@@ -98,7 +98,7 @@ deployment:
     - id: applier
       root: applier
       workload: applier
-      profile_path: agents/applier/profile.yaml
+      profile_path: applications/chatbot-mesh/applier/profile.yaml
       mount_path: /profiles
     - id: observer
       root: observer

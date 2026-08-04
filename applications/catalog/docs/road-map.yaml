@@ -803,6 +803,37 @@ releases:
       - cd ../.. && mage uiDist
       - cd ../.. && mage audit
 
+  - id: "16.0"
+    title: Canonical applier family
+    status: implemented
+    dependencies:
+      - applications Release 14.0 application consistency contract
+      - manifest-derived closure and normalized application actor trees
+    planned_work:
+      - {gh: 1420, title: "Promote one canonical applier family and migrate application wrappers", estimated_loc: "600 canonical production, 500 test"}
+    specification:
+      srd: srd022-applier
+      status: implemented
+    migration: docs/migrations/v0.20260804.0-applier-family.yaml
+    use_cases:
+      - id: rel16.0-uc001-applier-family
+        title: Three applications compose one canonical applier family
+        status: implemented
+    test_suites:
+      - id: test-rel16.0-applier
+        title: Canonical applier family conformance
+        status: implemented
+    proof:
+      - mage validate
+      - mage conformance
+      - go test ./conformance -run Applier
+      - cd ../.. && mage audit
+    success_markers:
+      - Lifecycle, apply, and rollout-read machines have one catalog owner.
+      - Application wrappers retain REST and deployment authority.
+      - Package provenance distinguishes canonical and local closure members.
+      - Duplicate and statistics audits prevent copied forks and double counting.
+
   - id: "99.0"
     title: Observer family promotion
     status: planned

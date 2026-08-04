@@ -127,6 +127,33 @@ func TestResolveAllowsBoundedRESTRequestProfileCycle(t *testing.T) {
 	}
 }
 
+func TestResolveMapsApplicationCatalogRuntimeReferencesWithoutExtraRoot(t *testing.T) {
+	appRoot, catalogRoot := newApplicationRoot(t), t.TempDir()
+	writeFixtureFile(t, filepath.Join(appRoot, "agents/applier/profile.yaml"), `name: wrapper
+machine: ../../catalog/applier/machine.yaml
+tools: [../../catalog/applier/tools.yaml]
+`)
+	writeFixtureFile(t, filepath.Join(catalogRoot, "agents/applier/machine.yaml"), "name: canonical-applier\n")
+	writeFixtureFile(t, filepath.Join(catalogRoot, "agents/applier/tools.yaml"), "tools: [apply]\n")
+	manifest := closureManifest(Root{
+		ID: "applier", Ownership: "local", Source: "agents/applier/profile.yaml",
+		RuntimePath: "applications/fixture-app/applier/profile.yaml",
+	})
+	inventory, err := Resolve(manifest, Options{ApplicationRoot: appRoot, CatalogRoot: catalogRoot})
+	if err != nil {
+		t.Fatal(err)
+	}
+	for runtime, source := range map[string]string{
+		"applications/catalog/applier/machine.yaml": "catalog/agents/applier/machine.yaml",
+		"applications/catalog/applier/tools.yaml":   "catalog/agents/applier/tools.yaml",
+	} {
+		if got := inventoryFile(inventory, runtime); got.Source != source ||
+			!reflect.DeepEqual(got.Roots, []string{"applier"}) {
+			t.Errorf("%s provenance = %#v, want source %s on applier root", runtime, got, source)
+		}
+	}
+}
+
 func TestResolveRejectsConflictingDestinationContent(t *testing.T) {
 	appRoot, catalogRoot := newApplicationRoot(t), t.TempDir()
 	writeFixtureFile(t, filepath.Join(catalogRoot, "agents/a/profile.yaml"), "name: a\nmachine: machine.yaml\n")

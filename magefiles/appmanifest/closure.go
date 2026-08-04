@@ -364,6 +364,15 @@ func (resolver *closureResolver) resolveReference(item closureItem, reference st
 	if err != nil {
 		return "", "", "", err
 	}
+	const catalogRuntimePrefix = "applications/catalog/"
+	if strings.HasPrefix(runtime, catalogRuntimePrefix) {
+		catalogRelative := strings.TrimPrefix(runtime, catalogRuntimePrefix)
+		catalogSource, err := cleanJoined("agents", catalogRelative)
+		if err != nil {
+			return "", "", "", err
+		}
+		return "catalog", catalogSource, runtime, nil
+	}
 	if ownership, mappedSource, declared, mappingErr := resolver.declaredRuntimeSource(runtime); mappingErr == nil && declared {
 		return ownership, mappedSource, runtime, nil
 	}

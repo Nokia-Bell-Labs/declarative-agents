@@ -298,6 +298,23 @@ bindings:
       sub_roles: [telemetry-collector]
       domain: observability
       execution_scope: server
+    - actor: deployment-applier
+      profile: applications/catalog/agents/applier/profile.yaml
+      classification: role_realization
+      primary_role: executor
+      sub_roles: [actuation-agent, change-manager]
+      domain: deployment
+      execution_scope: service-and-request
+    - actor: applier-apply-request
+      profile: applications/catalog/agents/applier/apply-profile.yaml
+      classification: configuration_variant
+      inherits: deployment-applier
+      execution_scope: request
+    - actor: applier-rollout-request
+      profile: applications/catalog/agents/applier/rollout-profile.yaml
+      classification: configuration_variant
+      inherits: deployment-applier
+      execution_scope: rollout-read
     - actor: lifecycle-exit
       profile: applications/catalog/agents/lifecycle-exit/profile.yaml
       classification: infrastructure_adapter
@@ -327,9 +344,9 @@ bindings:
       deployment_form: server
     - actor: applier
       profile: applications/coding-agent/agents/applier/profile.yaml
-      classification: role_realization
-      primary_role: executor
-      sub_roles: [actuation-agent, change-manager]
+      classification: wrapper
+      inherits: deployment-applier
+      inheritance_target: applications/catalog/agents/applier/profile.yaml
       domain: deployment
       decision:
         current_actor: applier
@@ -338,10 +355,22 @@ bindings:
         retained_or_proposed_name: Retain applier as a descriptive actor and Helm workload name; Applier is not a canonical role.
         authority_boundary: An authorized operator or CI caller supplies the decided patch; the applier authors no values and receives no runtime transport authority, and the serving roles hold no deployment CLI.
         evidence:
-          - applications/coding-agent/agents/applier/apply-machine.yaml
+          - applications/catalog/agents/applier/apply-machine.yaml
           - applications/coding-agent/agents/applier/exec-declarations.yaml
           - applications/coding-agent/helm/templates/applier.yaml
-        migration_impact: GH-1417 moved the local actor to agents/applier, derived its package/runtime destination from the Release 14 application manifest, and preserved the Executor / Actuation Agent binding.
+        migration_impact: GH-1420 replaced the local machine and shared ToolDef copies with a wrapper over the canonical catalog applier while preserving local rollout commands and authority.
+    - actor: coding-applier-apply-request
+      profile: applications/coding-agent/agents/applier/apply-profile.yaml
+      classification: wrapper
+      inherits: applier-apply-request
+      inheritance_target: applications/catalog/agents/applier/apply-profile.yaml
+      execution_scope: request
+    - actor: coding-applier-rollout-request
+      profile: applications/coding-agent/agents/applier/rollout-profile.yaml
+      classification: wrapper
+      inherits: applier-rollout-request
+      inheritance_target: applications/catalog/agents/applier/rollout-profile.yaml
+      execution_scope: rollout-read
 
   chatbot_mesh:
     - actor: chatbot
@@ -444,9 +473,9 @@ bindings:
         migration_impact: None; the actor and workload name remain semantically compatible with canonical Creator.
     - actor: applier
       profile: applications/chatbot-mesh/agents/applier/profile.yaml
-      classification: role_realization
-      primary_role: executor
-      sub_roles: [actuation-agent, change-manager]
+      classification: wrapper
+      inherits: deployment-applier
+      inheritance_target: applications/catalog/agents/applier/profile.yaml
       domain: deployment
       decision:
         current_actor: applier
@@ -455,10 +484,28 @@ bindings:
         retained_or_proposed_name: Retain applier as a descriptive actor and Helm workload name; Applier is not a canonical role.
         authority_boundary: The creator is the only apply caller; the applier authors no desired state and receives no runtime transport authority.
         evidence:
-          - applications/chatbot-mesh/agents/applier/apply-machine.yaml
+          - applications/catalog/agents/applier/apply-machine.yaml
           - applications/chatbot-mesh/agents/applier/exec-declarations.yaml
           - applications/chatbot-mesh/helm/templates/applier.yaml
-        migration_impact: None; documentation must replace claims of an Applier role with Executor / Actuation Agent.
+        migration_impact: GH-1420 replaced the local machine and shared ToolDef copies with a wrapper over the canonical catalog applier while preserving the mesh state endpoint, rollout commands, and creator-only authority.
+    - actor: mesh-applier-apply-request
+      profile: applications/chatbot-mesh/agents/applier/apply-profile.yaml
+      classification: wrapper
+      inherits: applier-apply-request
+      inheritance_target: applications/catalog/agents/applier/apply-profile.yaml
+      execution_scope: request
+    - actor: mesh-applier-rollout-request
+      profile: applications/chatbot-mesh/agents/applier/rollout-profile.yaml
+      classification: wrapper
+      inherits: applier-rollout-request
+      inheritance_target: applications/catalog/agents/applier/rollout-profile.yaml
+      execution_scope: rollout-read
+    - actor: mesh-applier-state-request
+      profile: applications/chatbot-mesh/agents/applier/state-profile.yaml
+      classification: configuration_variant
+      inherits: deployment-applier
+      inheritance_target: applications/catalog/agents/applier/profile.yaml
+      execution_scope: mesh-state-read
     - actor: observer
       profile: applications/chatbot-mesh/agents/observer/profile.yaml
       classification: role_realization
@@ -481,9 +528,9 @@ bindings:
   agent_architecture:
     - actor: applier
       profile: applications/agent-architecture/agents/applier/profile.yaml
-      classification: role_realization
-      primary_role: executor
-      sub_roles: [actuation-agent, change-manager]
+      classification: wrapper
+      inherits: deployment-applier
+      inheritance_target: applications/catalog/agents/applier/profile.yaml
       domain: deployment
       decision:
         current_actor: applier
@@ -492,10 +539,22 @@ bindings:
         retained_or_proposed_name: Retain applier as a descriptive actor and Helm workload name; Applier is not a canonical role.
         authority_boundary: A standalone actuator; an authorized operator or CI caller supplies the decided patch, the applier authors no values and receives no runtime transport authority, and the curator and collector hold no deployment CLI.
         evidence:
-          - applications/agent-architecture/agents/applier/apply-machine.yaml
+          - applications/catalog/agents/applier/apply-machine.yaml
           - applications/agent-architecture/agents/applier/exec-declarations.yaml
           - applications/agent-architecture/helm/templates/applier.yaml
-        migration_impact: None; documentation describes applier as Executor / Actuation Agent.
+        migration_impact: GH-1420 replaced the local machine and shared ToolDef copies with a wrapper over the canonical catalog applier while preserving collector-only rollout verification and local authority.
+    - actor: agent-architecture-applier-apply-request
+      profile: applications/agent-architecture/agents/applier/apply-profile.yaml
+      classification: wrapper
+      inherits: applier-apply-request
+      inheritance_target: applications/catalog/agents/applier/apply-profile.yaml
+      execution_scope: request
+    - actor: agent-architecture-applier-rollout-request
+      profile: applications/agent-architecture/agents/applier/rollout-profile.yaml
+      classification: wrapper
+      inherits: applier-rollout-request
+      inheritance_target: applications/catalog/agents/applier/rollout-profile.yaml
+      execution_scope: rollout-read
 
 deployment_realizations:
   chatbot_mesh:

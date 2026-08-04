@@ -230,6 +230,13 @@ func stageDeploymentSource(appRoot, profilesRoot string) (string, func(), error)
 		return "", nil, fmt.Errorf("stage canonical agent sources: %w", err)
 	}
 	if err := copySourceTreeStrict(
+		filepath.Join(profilesRoot, "agents", "applier"),
+		filepath.Join(stage, "applications", "catalog", "applier"),
+	); err != nil {
+		cleanup()
+		return "", nil, fmt.Errorf("stage canonical applier runtime projection: %w", err)
+	}
+	if err := copySourceTreeStrict(
 		filepath.Join(appRoot, "agents"),
 		filepath.Join(stage, "applications", "coding-agent"),
 	); err != nil {

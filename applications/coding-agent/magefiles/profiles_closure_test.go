@@ -234,8 +234,8 @@ func TestCodingApplicationManifestStagesEveryMountedProfile(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	if manifest.Catalog.CompatibleRelease != "v0.20260730.0" {
-		t.Fatalf("coding-agent compatible_release = %q, want collector-family release",
+	if manifest.Catalog.CompatibleRelease != "v0.20260804.0" {
+		t.Fatalf("coding-agent compatible_release = %q, want applier-family release",
 			manifest.Catalog.CompatibleRelease)
 	}
 	profilesRoot := filepath.Clean(filepath.Join(appRoot, "..", "catalog"))
@@ -305,19 +305,11 @@ func TestCodingApplicationAgentsContainOnlyCompositionAndServingAssets(t *testin
 	}
 	want := []string{
 		"application.yaml",
-		"applier/apply-machine.yaml",
-		"applier/declarations.yaml",
+		"applier/apply-profile.yaml",
 		"applier/exec-declarations.yaml",
-		"applier/machine.yaml",
 		"applier/profile.yaml",
-		"applier/request-declarations.yaml",
-		"applier/request-profile-apply.yaml",
-		"applier/request-profile-rollout.yaml",
-		"applier/request-tools-apply.yaml",
-		"applier/request-tools-rollout.yaml",
 		"applier/rest.yaml",
-		"applier/rollout-machine.yaml",
-		"applier/tools.yaml",
+		"applier/rollout-profile.yaml",
 		"critic/profile.yaml",
 		"critic/rest.yaml",
 		"executor/profile.yaml",

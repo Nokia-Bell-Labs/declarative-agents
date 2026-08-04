@@ -72,7 +72,7 @@ func TestApplierMutationUndoContractsStaySemanticallyAligned(t *testing.T) {
 		file, name, classification, strategy, payload string
 		confirmation                                  bool
 	}
-	decls := filepath.Join(agentDir(t, "applier"), "declarations.yaml")
+	decls := filepath.Join("..", "..", "catalog", "agents", "applier", "declarations.yaml")
 	execFile := filepath.Join(agentDir(t, "applier"), "exec-declarations.yaml")
 	cases := []expectedContract{
 		{decls, "await_applier_control", "reversible", "queue_event_restore", "rest_await_event", false},

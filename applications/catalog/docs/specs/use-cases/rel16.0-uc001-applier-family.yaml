@@ -1,0 +1,42 @@
+id: rel16.0-uc001-applier-family
+title: Three applications compose one canonical applier family
+status: implemented
+
+actors:
+  - catalog applier
+  - chatbot-mesh wrapper
+  - coding-agent wrapper
+  - agent-architecture wrapper
+  - authorized application caller
+
+preconditions:
+  - The catalog applier profile closes against agent-core shared tools.
+  - Each application manifest declares the canonical applier and one local wrapper.
+  - Each wrapper owns its REST and rollout declarations.
+
+flow:
+  - id: S1
+    action: The catalog boots the chart-independent applier profile and validates the host, apply, and rollout-read machines.
+  - id: S2
+    action: An application wrapper hosts its local endpoint and binds a decided values document to the canonical apply machine.
+  - id: S3
+    action: The machine writes and validates the document before invoking the application-owned apply command.
+  - id: S4
+    action: The application-owned verify word checks every local rollout target.
+  - id: S5
+    action: A failed verification invokes the application-owned rollback and reaches RolledBack only when compensation succeeds.
+  - id: S6
+    action: Packaging records canonical and local sources, and audits reject a copied promoted asset.
+
+postconditions:
+  - One catalog family owns reusable applier behavior.
+  - Application wrappers retain endpoint, chart, rollout, and authorization authority.
+  - Validation and compensation outcomes remain explicit.
+
+requirements_traced:
+  - srd022-applier R1
+  - srd022-applier R2
+  - srd022-applier R3
+  - srd022-applier R4
+  - srd022-applier R5
+  - srd003-application-consistency R5

@@ -167,7 +167,8 @@ func chatbotPackagePath(manifest appmanifest.Manifest, runtimePath string) (stri
 		path.IsAbs(runtimePath) {
 		return "", fmt.Errorf("invalid closure runtime path %q", runtimePath)
 	}
-	if strings.HasPrefix(runtimePath, "agents/") {
+	if strings.HasPrefix(runtimePath, "agents/") ||
+		strings.HasPrefix(runtimePath, "applications/") {
 		mountRoot := strings.TrimPrefix(path.Clean(manifest.Runtime.MountPath), "/")
 		if mountRoot == "" || mountRoot == "." {
 			return "", fmt.Errorf("manifest mount path %q has no package root", manifest.Runtime.MountPath)

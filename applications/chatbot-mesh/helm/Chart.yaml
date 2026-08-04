@@ -13,4 +13,4 @@ maintainers:
 sources:
   - https://github.com/Nokia-Bell-Labs/declarative-agents
 annotations:
-  declarative-agents.nokia.com/catalog-compatible-release: applications/catalog/v0.20260730.0
+  declarative-agents.nokia.com/catalog-compatible-release: v0.20260804.0

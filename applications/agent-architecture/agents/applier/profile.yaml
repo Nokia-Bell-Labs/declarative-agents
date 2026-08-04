@@ -1,9 +1,9 @@
 name: applier
-machine: machine.yaml
+machine: ../../catalog/applier/machine.yaml
 tools:
-  - tools.yaml
+  - ../../catalog/applier/tools.yaml
 tool_declarations:
-  - declarations.yaml
+  - ../../catalog/applier/declarations.yaml
   - /opt/agent-core/tools/builtin/lifecycle/exit-agent.yaml
 rest_definitions:
   - rest.yaml
