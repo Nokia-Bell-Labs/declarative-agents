@@ -8,8 +8,8 @@ because `helm/profiles/` is gitignored:
   regenerated from the pinned catalog checkout by `mage helmPrepare` and recorded in
   a checksum-bearing `prepared-manifest.yaml`.
 - `profiles/applier/` is the application-owned composition-wrapper closure over
-  the canonical catalog applier. It is selected by the manifest's `applier`
-  deployment entry and mounted when `applier.enabled` is set.
+  the canonical catalog applier. It is selected by the manifest's `applier` deployment entry
+  and mounted when `applier.enabled` is set.
 
 The same composition manifest declares all four UI assets and the opaque
 catalog `docs/` package asset with ownership, runtime, and package paths. When

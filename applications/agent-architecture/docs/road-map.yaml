@@ -215,8 +215,9 @@ releases:
       plane, so there is no creator, orchestrator, or panel; the applier image
       carrying the CLIs is a recorded divergence from the profile-free image
       contract. The profile, chart resources, recording-fake tracer, schema
-      tests, and prerequisite-gated live target are checked in. The applier stays
-      application-local pending GH-1420.
+      tests, and prerequisite-gated live target are checked in. The
+      application-local applier wrapper composes the canonical catalog applier
+      while retaining chart-specific REST, command, schema, and rollout bindings.
     status: implemented
     application_srds:
       - srd002-applier
