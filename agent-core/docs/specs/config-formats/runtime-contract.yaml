@@ -188,15 +188,17 @@ startup_sequence:
     implementation: registry.RegisterUnifiedTools
 
   - step: 5
-    name: Load machine and validate tool signal contracts
+    name: Load machine and validate selected tool wiring
     description: |
       Before entering the loop, cmd/agent loads and validates the machine spec
-      from the resolved profile machine path. Validation extracts budget
-      defaults and checks declared tool emits metadata for tools used as named
-      transition actions. Emitted signals must be declared by the machine. Each
-      emitted signal must also have a transition from the action target state
-      unless that target state is terminal.
-    implementation: core.LoadMachineSpec, catalog.ValidateToolEmits
+      from the resolved profile machine path. Every literal transition action
+      must name a ToolDef selected by the profile; empty actions and $tool are
+      the only exceptions. Validation also extracts budget defaults and checks
+      declared tool emits metadata for selected tools used as named transition
+      actions. Emitted signals must be declared by the machine. Each emitted
+      signal must also have a transition from the action target state unless
+      that target state is terminal.
+    implementation: core.LoadMachineSpec, catalog.ValidateMachineActions, catalog.ValidateToolEmits
 
   - step: 6
     name: Configure the checkpoint port
@@ -479,7 +481,8 @@ invariants:
     settings are boundary-tool config.
   - Integration launchers dual-export file and OTLP evidence, stamp bounded run
     identity, and assign stable role-based service names.
-  - Machine files reference tools by name; tools are resolved from the registry.
+  - Machine files reference tools by name; every named action is selected by the
+    active profile before tools are resolved from the registry.
   - Named action tools may declare emitted signals with emits; declared emits
     are checked against the machine's signal and transition contract at startup.
   - Nested machine paths are declarative (read from tool config).

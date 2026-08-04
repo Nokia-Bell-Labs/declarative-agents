@@ -219,10 +219,11 @@ func runPrepared(prepared preparedRun) (err error) {
 
 // validateConfig loads the profile, machine spec, tool definitions, and REST
 // definitions and runs the same validation the runtime performs at startup
-// (ValidateDefinition per REST file during load, ValidateToolEmits over the
-// machine, and ValidateReceiptContracts over the selected ToolDefs), then
-// returns without binding servers or running the loop. A nil return exits 0; a
-// load or validation error propagates to cobra and exits 1.
+// (selected machine actions, ValidateDefinition per REST file during load,
+// ValidateToolEmits over the machine, and ValidateReceiptContracts over the
+// selected ToolDefs), then returns without binding servers or running the loop.
+// A nil return exits 0; a load or validation error propagates to cobra and exits
+// 1.
 //
 // The chatbot deployment runs this as an init-container so an invalid rendered
 // rest.yaml fails the rollout before the agent serves (srd015 R2.2). The
@@ -340,10 +341,14 @@ func loadRunResources() (runResources, error) {
 }
 
 // validateRuntimeToolWiring is the ordinary startup boundary. It rejects
-// machine/tool signal mismatches, incomplete parse-retry routes, and reversible
-// effects without receipt-consuming undo. Full six-section contract
-// completeness remains an authoring and specification-audit concern.
+// unselected named actions, machine/tool signal mismatches, incomplete
+// parse-retry routes, and reversible effects without receipt-consuming undo.
+// Full six-section contract completeness remains an authoring and
+// specification-audit concern.
 func validateRuntimeToolWiring(machine core.MachineSpec, defs []catalog.ToolDef) error {
+	if err := catalog.ValidateMachineActions(machine, defs); err != nil {
+		return err
+	}
 	if err := catalog.ValidateParseRetryWiring(machine, defs); err != nil {
 		return err
 	}
