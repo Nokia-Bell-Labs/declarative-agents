@@ -91,13 +91,25 @@ func TestAlignmentMigrationReleaseAndConsumerPins(t *testing.T) {
 	}
 
 	var coding struct {
-		AgentProfiles struct {
+		Roots []struct {
+			Ownership         string `yaml:"ownership"`
 			CompatibleRelease string `yaml:"compatible_release"`
-		} `yaml:"agent_profiles"`
+		} `yaml:"roots"`
 	}
 	readRoleYAML(t, "../coding-agent/agents/application.yaml", &coding)
-	if coding.AgentProfiles.CompatibleRelease != current.Release {
-		t.Errorf("coding-agent compatible_release = %q, want %q", coding.AgentProfiles.CompatibleRelease, current.Release)
+	var catalogRoots int
+	for _, root := range coding.Roots {
+		if root.Ownership != "catalog" {
+			continue
+		}
+		catalogRoots++
+		if root.CompatibleRelease != current.RootRelease {
+			t.Errorf("coding-agent compatible_release = %q, want canonical %q",
+				root.CompatibleRelease, current.RootRelease)
+		}
+	}
+	if catalogRoots != 4 {
+		t.Errorf("coding-agent catalog roots = %d, want planner, executor, critic, and critic-workspace", catalogRoots)
 	}
 	var chart struct {
 		Annotations map[string]string `yaml:"annotations"`

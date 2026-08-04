@@ -11,15 +11,14 @@ import (
 )
 
 type applicationManifestStats struct {
-	AgentProfiles struct {
-		References []struct {
-			Role string `yaml:"role"`
-		} `yaml:"references"`
-	} `yaml:"agent_profiles"`
+	Roots []struct {
+		ID        string `yaml:"id"`
+		Ownership string `yaml:"ownership"`
+	} `yaml:"roots"`
 	Deployment struct {
-		ServingProfiles []struct {
-			Role string `yaml:"role"`
-		} `yaml:"serving_profiles"`
+		Entries []struct {
+			ID string `yaml:"id"`
+		} `yaml:"entries"`
 	} `yaml:"deployment"`
 	Runtime struct {
 		ImageContainsProfiles bool `yaml:"image_contains_profiles"`
@@ -67,13 +66,19 @@ func collectCodingApplicationStats(path string) (codingApplicationStats, error) 
 	}
 
 	result.Application.Ownership = "composition"
-	result.Application.CanonicalReferences = len(manifest.AgentProfiles.References)
-	for _, reference := range manifest.AgentProfiles.References {
-		result.Application.CanonicalRoles = append(result.Application.CanonicalRoles, reference.Role)
+	for _, root := range manifest.Roots {
+		if root.Ownership != "catalog" {
+			continue
+		}
+		result.Application.CanonicalReferences++
+		result.Application.CanonicalRoles = append(result.Application.CanonicalRoles, root.ID)
 	}
-	result.Application.ServingProfiles = len(manifest.Deployment.ServingProfiles)
-	for _, profile := range manifest.Deployment.ServingProfiles {
-		result.Application.ServingRoles = append(result.Application.ServingRoles, profile.Role)
+	for _, entry := range manifest.Deployment.Entries {
+		if entry.ID == "applier" {
+			continue
+		}
+		result.Application.ServingProfiles++
+		result.Application.ServingRoles = append(result.Application.ServingRoles, entry.ID)
 	}
 	result.Application.ProfileFreeRuntime = !manifest.Runtime.ImageContainsProfiles
 	return result, nil

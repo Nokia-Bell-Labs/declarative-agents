@@ -5,26 +5,25 @@ The `profiles/` subtree is staged into the chart and projected into each agent a
 `templates/_helpers.tpl` and `templates/profiles-configmaps.yaml`). It is gitignored,
 so every packaging path regenerates and stages it.
 
-`mage helmPrepare` and `mage helm:package` stage three families of profile:
+`mage helmPrepare` and `mage helm:package` stage the manifest-derived deployment
+closures plus the catalog collector:
 
 ```
-serving deployment package (#875)                 -> profiles/{planner,executor,critic}/ + profiles/manifests/
+agents/application.yaml deployment entries        -> profiles/{planner,executor,critic,applier}/ + profiles/manifests/
 applications/catalog/agents/collector/            -> profiles/collector/agents/collector/
-applications/coding-agent/agents/serving/applier/ -> profiles/applier/agents/applier/
 ```
 
-The serving roles flow through the deterministic `deployment.serving_profiles`
-package: `Package` resolves each role's reference closure, partitions it into
-ConfigMap-sized shards, and writes a per-role manifest under `profiles/manifests/`
-that `templates/profiles-configmaps.yaml` and `_helpers.tpl` read.
+`Package` validates the shared Release 14 manifest, resolves each deployment
+entry's reference closure, partitions it into ConfigMap-sized shards, and writes
+a per-entry manifest under `profiles/manifests/`. The serving templates consume
+the planner, executor, and critic manifests; the privileged applier template
+consumes the applier shard.
 
-The collector and applier are special-cased, mirroring each other: both are staged as
-a flat family of files mounted at `/profiles/agents/<name>/`, and neither is a
-canonical serving role, so neither enters the serving package. The applier is the
-srd006 deployment-plane actuator; its 13 profile files (the lifecycle profile, the
-apply and rollout request profiles, the two request machines, the helm and kubectl
-exec declarations, and the REST definitions) are self-contained, referencing one
-another by bare filename and resolved relative to the mounted profile at runtime.
+Only the collector remains separately staged because it is catalog-owned
+observability support rather than an application deployment entry. The local
+applier is rooted at `agents/applier/profile.yaml`, packaged at
+`/profiles/applications/coding-agent/applier/profile.yaml`, and retains its
+self-contained relative request-machine references.
 
 ## Exec placeholder rewrite
 
@@ -39,8 +38,8 @@ bare release tokens because the deployment names contain the release-chart name.
 
 ## Package target
 
-`mage helm:package` stages only the classified chart source inventory plus the three
-profile families above. Prior `dist/` archives and generated `profiles/` content are
+`mage helm:package` stages only the classified chart source inventory, generated
+manifest deployment shards, and collector profile. Prior `dist/` archives and generated `profiles/` content are
 excluded even when packaging is repeated in a dirty checkout. Before publishing, the
 target lints and renders the supported values matrix (every `schema-fixtures/valid-*`
 merged over `values.yaml`), compares the archive against the exact staged-file

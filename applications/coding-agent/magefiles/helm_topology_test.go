@@ -23,7 +23,9 @@ func TestHelmPrepareStagesPackageAsOnlyProfileSource(t *testing.T) {
 	}
 	for _, rel := range []string{
 		"deployment-manifest.yaml",
+		"manifests/applier.yaml",
 		"manifests/planner.yaml",
+		"applier/applications/coding-agent/applier/profile.yaml",
 		"planner/applications/coding-agent/planner/profile.yaml",
 		"executor/applications/coding-agent/executor/profile.yaml",
 		"critic/applications/coding-agent/critic/profile.yaml",

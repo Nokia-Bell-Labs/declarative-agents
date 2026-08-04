@@ -82,26 +82,37 @@ func TestFreshWorkspaceIsPortableAndIsolated(t *testing.T) {
 }
 
 func TestPackagedIntegrationRootsDoNotObserveCheckoutMutations(t *testing.T) {
-	appRoot := t.TempDir()
+	appRoot := filepath.Join(t.TempDir(), "test")
 	profilesRoot := t.TempDir()
 	writeTestFile(t, filepath.Join(appRoot, "agents", "application.yaml"), `schema_version: 1
 application: test
-agent_profiles:
-  compatible_release: applications/catalog/v0.test
-  references:
-    - {role: executor, source: agents/executor/profile.yaml, runtime_path: agents/executor/profile.yaml}
-    - {role: planner, source: agents/planner/profile.yaml, runtime_path: agents/planner/profile.yaml}
-    - {role: critic, source: agents/critic/profile.yaml, runtime_path: agents/critic/profile.yaml}
-    - {role: critic-workspace, source: agents/critic/profile-workspace.yaml, runtime_path: agents/critic/profile-workspace.yaml}
+ownership: fixture
+module_status: implemented
+capabilities:
+  runnable_module: {status: implemented, evidence: [test]}
+  packaged: {status: implemented, evidence: [test]}
+roots:
+  - {id: executor, ownership: catalog, source: agents/executor/profile.yaml, runtime_path: agents/executor/profile.yaml, compatible_release: v0.test}
+  - {id: planner, ownership: catalog, source: agents/planner/profile.yaml, runtime_path: agents/planner/profile.yaml, compatible_release: v0.test}
+  - {id: critic, ownership: catalog, source: agents/critic/profile.yaml, runtime_path: agents/critic/profile.yaml, compatible_release: v0.test}
+  - {id: critic-workspace, ownership: catalog, source: agents/critic/profile-workspace.yaml, runtime_path: agents/critic/profile-workspace.yaml, compatible_release: v0.test}
+  - {id: coding-planner-server, ownership: local, source: agents/planner/profile.yaml, runtime_path: applications/coding-agent/planner/profile.yaml}
+  - {id: coding-executor-server, ownership: local, source: agents/executor/profile.yaml, runtime_path: applications/coding-agent/executor/profile.yaml}
+  - {id: coding-critic-server, ownership: local, source: agents/critic/profile.yaml, runtime_path: applications/coding-agent/critic/profile.yaml}
+  - {id: applier, ownership: local, source: agents/applier/profile.yaml, runtime_path: applications/coding-agent/applier/profile.yaml}
 runtime:
   mount_path: /profiles
   image_contains_profiles: false
 deployment:
-  serving_profiles:
-    - {role: planner, source: agents/serving/planner/profile.yaml, runtime_path: applications/coding-agent/planner/profile.yaml}
-    - {role: executor, source: agents/serving/executor/profile.yaml, runtime_path: applications/coding-agent/executor/profile.yaml}
-    - {role: critic, source: agents/serving/critic/profile.yaml, runtime_path: applications/coding-agent/critic/profile.yaml}
+  entries:
+    - {id: planner, root: coding-planner-server}
+    - {id: executor, root: coding-executor-server}
+    - {id: critic, root: coding-critic-server}
+    - {id: applier, root: applier}
 `)
+	for _, actor := range []string{"planner", "executor", "critic", "applier"} {
+		writeTestFile(t, filepath.Join(appRoot, "agents", actor, "profile.yaml"), "name: "+actor+"\n")
+	}
 	sourceProfile := filepath.Join(profilesRoot, "agents", "executor", "profile.yaml")
 	writeTestFile(t, sourceProfile, "name: packaged-executor\n")
 	writeTestFile(t, filepath.Join(profilesRoot, "agents", "planner", "profile.yaml"), "name: packaged-planner\n")

@@ -1,9 +1,9 @@
 name: coding-executor-server
-machine: ../common/machine.yaml
+machine: ../role-server/machine.yaml
 tools:
-  - ../common/tools.yaml
+  - ../role-server/tools.yaml
 tool_declarations:
-  - ../common/declarations.yaml
+  - ../role-server/declarations.yaml
   - /opt/agent-core/tools/builtin/lifecycle/exit-agent.yaml
 rest_definitions:
   - rest.yaml

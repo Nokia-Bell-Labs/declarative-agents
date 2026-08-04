@@ -51,9 +51,9 @@ roadmap_summary:
     status: implemented
   - version: "08.0"
     name: Declarative applier agent
-    use_cases_done: 0
+    use_cases_done: 1
     use_cases_total: 1
-    status: planned
+    status: implemented
 
 foundation_document_index:
   - id: coding-agent-example
@@ -96,7 +96,7 @@ srd_index:
     path: docs/specs/software-requirements/srd005-live-helm-smoke.yaml
   - id: srd006-applier
     title: Declarative Applier Agent
-    status: planned
+    status: implemented
     path: docs/specs/software-requirements/srd006-applier.yaml
 
 library_srd_references:
@@ -166,7 +166,7 @@ use_case_index:
   - id: rel08.0-uc001-declarative-applier
     title: The Applier Agent Validates, Applies, and Verifies a Coding-Chart Values Change
     release: "08.0"
-    status: planned
+    status: implemented
     test_suite: test-rel08.0-applier
     path: docs/specs/use-cases/rel08.0-uc001-declarative-applier.yaml
 
@@ -222,7 +222,7 @@ test_suite_index:
 
 coverage_gaps:
   - id: kubernetes-deployment
-    status: partially_implemented
+    status: partial
     description: |
       The one-container-per-agent Helm topology is implemented. Strict values
       schema, packaged-chart validation, and bounded single-node kind evidence

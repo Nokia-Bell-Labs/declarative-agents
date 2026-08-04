@@ -1,6 +1,6 @@
 id: srd006-applier
 title: Declarative Applier Agent
-status: planned
+status: implemented
 
 context: |
   The applier is the coding application's deployment-plane actuator: a standalone

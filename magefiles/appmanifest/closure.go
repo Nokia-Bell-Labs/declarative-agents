@@ -264,6 +264,12 @@ func (resolver *closureResolver) resolveYAML(item closureItem, data []byte) erro
 			return fmt.Errorf("%s references %s: %w", logicalSource(item.ownership, item.source), reference, err)
 		}
 		key := sourceKey(ownership, source)
+		// Machine configuration inventories may name the current machine or
+		// point_machine for observability. The file is already present and this
+		// direct self-edge adds no closure member.
+		if key == sourceKey(item.ownership, item.source) {
+			continue
+		}
 		if contains(item.lineage, key) {
 			// REST machine_request endpoints and their request profiles commonly
 			// refer back to one another. A repeated REST edge adds no file and is
@@ -353,8 +359,9 @@ func yamlReferences(document *yaml.Node) []string {
 					"machine", "tools", "tool_declarations", "tool_config_dirs",
 					"rest_definitions", "rest_config_dirs")[key]
 				pathField := topLevelField ||
-					stringSet("profile", "subject_profile", "machine", "point_machine",
+					stringSet("profile", "subject_profile", "point_machine",
 						"point_tools", "point_tool_declarations", "includes")[key] ||
+					(key == "machine" && contains(ancestors, "machine_request")) ||
 					(key == "path" && contains(ancestors, "openapi"))
 				if pathField {
 					allowDirectory := topLevelField && (key == "tool_config_dirs" || key == "rest_config_dirs")

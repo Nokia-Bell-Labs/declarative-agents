@@ -25,9 +25,9 @@ func validatePreparedPackage(root string, extraEntries ...string) error {
 		deployment.ConfigMapPayloadLimit != configMapPayloadLimit {
 		return fmt.Errorf("invalid deployment manifest contract")
 	}
-	wantRoles := []string{"critic", "executor", "planner"}
+	wantRoles := []string{"applier", "critic", "executor", "planner"}
 	if len(deployment.Shards) != len(wantRoles) {
-		return fmt.Errorf("deployment manifest has %d shards, want 3", len(deployment.Shards))
+		return fmt.Errorf("deployment manifest has %d shards, want 4", len(deployment.Shards))
 	}
 	for index, shard := range deployment.Shards {
 		role := wantRoles[index]
@@ -48,10 +48,9 @@ func validatePreparedPackage(root string, extraEntries ...string) error {
 	for _, entry := range entries {
 		names = append(names, entry.Name())
 	}
-	// The resolver package carries exactly the three #875 role shards; the
-	// staged chart adds the catalog collector profile as an extra entry
-	// (GH-1162).
-	wantEntries := append([]string{"critic", "deployment-manifest.yaml", "executor", "manifests", "planner"}, extraEntries...)
+	// The resolver package carries every manifest deployment entry; the staged
+	// chart adds the catalog collector profile as an extra entry (GH-1162).
+	wantEntries := append([]string{"applier", "critic", "deployment-manifest.yaml", "executor", "manifests", "planner"}, extraEntries...)
 	sort.Strings(wantEntries)
 	if !reflect.DeepEqual(names, wantEntries) {
 		return fmt.Errorf("profile package top-level entries = %v, want %v", names, wantEntries)

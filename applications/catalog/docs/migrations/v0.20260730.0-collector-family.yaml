@@ -40,4 +40,4 @@ consumers:
   - path: applications/chatbot-mesh/helm/Chart.yaml
     field: annotations.declarative-agents.nokia.com/catalog-compatible-release
   - path: applications/coding-agent/agents/application.yaml
-    field: agent_profiles.compatible_release
+    field: "roots[].compatible_release (ownership: catalog)"

@@ -4,15 +4,15 @@ rest:
     none: {type: none}
   limits:
     role_request:
-      timeout: 5m
-      read_timeout: 5m
-      max_request_bytes: 65536
-      max_response_bytes: 65536
+      timeout: 15m
+      read_timeout: 15m
+      max_request_bytes: 1048576
+      max_response_bytes: 1048576
       redirect: {mode: none}
       network:
         schemes: [http]
         hosts: [127.0.0.1, localhost]
-        ports: [18220]
+        ports: [18210]
         allow_public_listener: true
     role_control:
       timeout: 30s
@@ -23,29 +23,31 @@ rest:
       network:
         schemes: [http]
         hosts: [127.0.0.1, localhost]
-        ports: [18221]
+        ports: [18211]
         allow_public_listener: true
   servers:
     role_requests:
-      address: ${CRITIC_BIND_HOST:-127.0.0.1}:18220
+      address: ${EXECUTOR_BIND_HOST:-127.0.0.1}:18210
       limits_ref: role_request
       shutdown: {timeout: 10s, drain_policy: drain_then_stop}
       endpoints:
-        review:
+        execute:
           method: POST
-          path: /api/v1/review
+          path: /api/v1/execute
           binding: machine_request
           request:
             body_schema:
               type: object
-              required: [workspace_id]
+              required: [task, workspace_id]
               properties:
+                task: {type: string, min_length: 1}
                 workspace_id: {type: string, min_length: 1}
           machine_request:
-            profile: ../../../agents/critic/profile-workspace.yaml
-            timeout: 5m
+            profile: agents/executor/profile.yaml
+            timeout: 15m
             request:
               body:
+                task: $.task
                 workspace_id: $.workspace_id
             response:
               terminal_states:
@@ -53,24 +55,21 @@ rest:
                   status: 200
                   content_type: application/json
                   body:
-                    verdict: accepted
-                    accepted: "true"
-                Rejected:
+                    status: succeeded
+                Failed:
                   status: 422
                   content_type: application/json
                   body:
-                    verdict: rejected
-                    accepted: "false"
-                Failed:
-                  status: 500
+                    status: failed
+                BudgetExceeded:
+                  status: 422
                   content_type: application/json
                   body:
-                    verdict: error
-                    accepted: "false"
+                    status: budget_exceeded
     role_control:
-      address: ${CRITIC_BIND_HOST:-127.0.0.1}:18221
+      address: ${EXECUTOR_BIND_HOST:-127.0.0.1}:18211
       limits_ref: role_control
-      queue: {name: critic_control, capacity: 8, timeout: 30s}
+      queue: {name: executor_control, capacity: 8, timeout: 30s}
       shutdown: {timeout: 5s, drain_policy: drain_then_stop}
       endpoints:
         health:

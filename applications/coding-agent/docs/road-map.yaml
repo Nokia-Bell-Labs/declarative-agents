@@ -154,20 +154,20 @@ releases:
       serving roles carry none, and its apply surface is network-gated off the
       serving and collector pods. The coding application runs no control plane, so
       there is no creator, orchestrator, or panel; the applier image carrying the
-      CLIs is a recorded divergence from the profile-free image contract. Specs land
-      first; the profile, chart resources, and integration targets follow in later
-      sub-issues.
-    status: planned
+      CLIs is a recorded divergence from the profile-free image contract. The
+      profile, chart resources, fake-boundary tests, and live integration target
+      are implemented.
+    status: implemented
     application_srds:
       - srd006-applier
     use_cases:
       - id: rel08.0-uc001-declarative-applier
         summary: An operator or CI caller submits a decided values patch that the applier validates, applies, verifies, and rolls back on failure.
-        status: planned
+        status: implemented
     test_suites:
       - id: test-rel08.0-applier
         summary: Recording-fake terminal coverage, real chart-schema rejection, applier-only CLI authority, broken-read classification, and a live on-cluster rollout and rollback.
-        status: planned
+        status: implemented
 
   - version: "99.0"
     name: Fleet observer adoption

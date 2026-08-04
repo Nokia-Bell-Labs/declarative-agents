@@ -10,19 +10,21 @@ import (
 )
 
 func TestCollectCodingApplicationStatsReportsCompositionWithoutAgents(t *testing.T) {
-	manifest := `agent_profiles:
-  references:
-    - role: planner
-    - role: executor
-    - role: critic
-    - role: critic-workspace
+	manifest := `roots:
+  - {id: planner, ownership: catalog}
+  - {id: executor, ownership: catalog}
+  - {id: critic, ownership: catalog}
+  - {id: critic-workspace, ownership: catalog}
+  - {id: coding-planner-server, ownership: local}
+  - {id: applier, ownership: local}
 runtime:
   image_contains_profiles: false
 deployment:
-  serving_profiles:
-    - role: planner
-    - role: executor
-    - role: critic
+  entries:
+    - id: planner
+    - id: executor
+    - id: critic
+    - id: applier
 `
 	path := filepath.Join(t.TempDir(), "application.yaml")
 	if err := os.WriteFile(path, []byte(manifest), 0o600); err != nil {
@@ -58,7 +60,7 @@ deployment:
 
 func TestCollectCodingApplicationStatsRejectsInvalidManifest(t *testing.T) {
 	path := filepath.Join(t.TempDir(), "application.yaml")
-	if err := os.WriteFile(path, []byte("agent_profiles: ["), 0o600); err != nil {
+	if err := os.WriteFile(path, []byte("roots: ["), 0o600); err != nil {
 		t.Fatal(err)
 	}
 	if _, err := collectCodingApplicationStats(path); err == nil {

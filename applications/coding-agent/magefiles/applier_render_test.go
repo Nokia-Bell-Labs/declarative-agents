@@ -8,17 +8,16 @@ import (
 	"testing"
 )
 
-// applierExecBlock returns the agents__applier__exec-declarations.yaml value from
-// a rendered profiles ConfigMap, up to the next ConfigMap key (machine.yaml sorts
-// immediately after exec-declarations.yaml).
+// applierExecBlock returns the normalized applier exec-declarations value from
+// a rendered profiles ConfigMap, up to the next ConfigMap key.
 func applierExecBlock(rendered string) string {
-	const marker = "agents__applier__exec-declarations.yaml:"
+	const marker = "applications__coding-agent__applier__exec-declarations.yaml:"
 	i := strings.Index(rendered, marker)
 	if i < 0 {
 		return ""
 	}
 	rest := rendered[i:]
-	if j := strings.Index(rest, "agents__applier__machine.yaml:"); j > 0 {
+	if j := strings.Index(rest, "applications__coding-agent__applier__machine.yaml:"); j > 0 {
 		return rest[:j]
 	}
 	return rest

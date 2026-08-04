@@ -6,6 +6,7 @@ import (
 	"os"
 	"path/filepath"
 	"reflect"
+	"sort"
 	"strings"
 	"testing"
 
@@ -16,11 +17,26 @@ func TestDeploymentPackageContainsExactRoleClosures(t *testing.T) {
 	root, manifest, cleanup := packageCanonicalDeployment(t)
 	defer cleanup()
 	want := map[string][]string{
+		"applier": {
+			"applications/coding-agent/applier/apply-machine.yaml",
+			"applications/coding-agent/applier/declarations.yaml",
+			"applications/coding-agent/applier/exec-declarations.yaml",
+			"applications/coding-agent/applier/machine.yaml",
+			"applications/coding-agent/applier/profile.yaml",
+			"applications/coding-agent/applier/request-declarations.yaml",
+			"applications/coding-agent/applier/request-profile-apply.yaml",
+			"applications/coding-agent/applier/request-profile-rollout.yaml",
+			"applications/coding-agent/applier/request-tools-apply.yaml",
+			"applications/coding-agent/applier/request-tools-rollout.yaml",
+			"applications/coding-agent/applier/rest.yaml",
+			"applications/coding-agent/applier/rollout-machine.yaml",
+			"applications/coding-agent/applier/tools.yaml",
+		},
 		"planner": {
 			"agents/planner/llm/default.yaml",
-			"applications/coding-agent/common/declarations.yaml",
-			"applications/coding-agent/common/machine.yaml",
-			"applications/coding-agent/common/tools.yaml",
+			"applications/coding-agent/role-server/declarations.yaml",
+			"applications/coding-agent/role-server/machine.yaml",
+			"applications/coding-agent/role-server/tools.yaml",
 			"applications/coding-agent/planner/profile.yaml",
 			"applications/coding-agent/planner/request-declarations.yaml",
 			"applications/coding-agent/planner/request-machine.yaml",
@@ -33,9 +49,9 @@ func TestDeploymentPackageContainsExactRoleClosures(t *testing.T) {
 			"agents/executor/machine.yaml",
 			"agents/executor/profile.yaml",
 			"agents/executor/tools.yaml",
-			"applications/coding-agent/common/declarations.yaml",
-			"applications/coding-agent/common/machine.yaml",
-			"applications/coding-agent/common/tools.yaml",
+			"applications/coding-agent/role-server/declarations.yaml",
+			"applications/coding-agent/role-server/machine.yaml",
+			"applications/coding-agent/role-server/tools.yaml",
 			"applications/coding-agent/executor/profile.yaml",
 			"applications/coding-agent/executor/rest.yaml",
 		},
@@ -44,9 +60,9 @@ func TestDeploymentPackageContainsExactRoleClosures(t *testing.T) {
 			"agents/critic/profile-workspace.yaml",
 			"agents/critic/tools-workspace.yaml",
 			"agents/critic/workspace-exec.yaml",
-			"applications/coding-agent/common/declarations.yaml",
-			"applications/coding-agent/common/machine.yaml",
-			"applications/coding-agent/common/tools.yaml",
+			"applications/coding-agent/role-server/declarations.yaml",
+			"applications/coding-agent/role-server/machine.yaml",
+			"applications/coding-agent/role-server/tools.yaml",
 			"applications/coding-agent/critic/profile.yaml",
 			"applications/coding-agent/critic/rest.yaml",
 		},
@@ -55,6 +71,7 @@ func TestDeploymentPackageContainsExactRoleClosures(t *testing.T) {
 		t.Fatalf("shards = %d, want %d", len(manifest.Shards), len(want))
 	}
 	for role, expected := range want {
+		sort.Strings(expected)
 		roleManifest := readRolePackageManifest(t, filepath.Join(root, "manifests", role+".yaml"))
 		if !reflect.DeepEqual(roleManifest.Files, expected) {
 			t.Errorf("%s files:\n got %#v\nwant %#v", role, roleManifest.Files, expected)
@@ -151,7 +168,7 @@ func TestConfigMapPartitionRejectsEncodedKeyConflict(t *testing.T) {
 func TestDeploymentSourceRejectsSymlink(t *testing.T) {
 	app := t.TempDir()
 	profiles := t.TempDir()
-	writeTestFile(t, filepath.Join(app, "agents/serving/planner/profile.yaml"), "name: planner\n")
+	writeTestFile(t, filepath.Join(app, "agents/planner/profile.yaml"), "name: planner\n")
 	writeTestFile(t, filepath.Join(profiles, "outside.yaml"), "name: outside\n")
 	if err := os.MkdirAll(filepath.Join(profiles, "agents"), 0o755); err != nil {
 		t.Fatal(err)
@@ -176,13 +193,13 @@ func TestDeploymentServingReferenceRejectsDanglingAsset(t *testing.T) {
 	}
 }
 
-func TestDeploymentServingReferencesRequireCanonicalApplicationPaths(t *testing.T) {
+func TestDeploymentReferencesRequireNormalizedApplicationPaths(t *testing.T) {
 	references := []profileReference{
 		{Role: "planner", Source: "agents/copied-planner/profile.yaml", RuntimePath: "applications/coding-agent/planner/profile.yaml"},
-		{Role: "executor", Source: "agents/serving/executor/profile.yaml", RuntimePath: "applications/coding-agent/executor/profile.yaml"},
-		{Role: "critic", Source: "agents/serving/critic/profile.yaml", RuntimePath: "applications/coding-agent/critic/profile.yaml"},
+		{Role: "executor", Source: "agents/executor/profile.yaml", RuntimePath: "applications/coding-agent/executor/profile.yaml"},
+		{Role: "critic", Source: "agents/critic/profile.yaml", RuntimePath: "applications/coding-agent/critic/profile.yaml"},
 	}
-	if err := validateServingReferences(references); err == nil ||
+	if err := validateDeploymentReferences(references); err == nil ||
 		!strings.Contains(err.Error(), "source") {
 		t.Fatalf("non-canonical serving source error = %v", err)
 	}

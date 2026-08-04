@@ -99,11 +99,14 @@ func absoluteOwnerPath(value, startupCWD, fallback string) (string, error) {
 // disposable package. Live stages execute only from this returned root, so
 // later checkout mutations cannot alter an in-flight proof.
 func packageIntegrationRoots(roots integrationRoots) (integrationRoots, func(), error) {
-	manifest, err := readApplicationProfileManifest(filepath.Join(roots.Application, filepath.FromSlash(profileManifestPath)))
+	manifest, err := readApplicationProfileManifestWithCatalog(
+		filepath.Join(roots.Application, filepath.FromSlash(profileManifestPath)),
+		roots.Profiles,
+	)
 	if err != nil {
 		return integrationRoots{}, nil, err
 	}
-	source, err := inspectPackageSource(roots.Profiles, manifest.AgentProfiles.CompatibleRelease)
+	source, err := inspectPackageSource(roots.Profiles, manifest.Catalog.CompatibleRelease)
 	if err != nil {
 		return integrationRoots{}, nil, err
 	}

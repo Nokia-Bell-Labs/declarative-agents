@@ -71,7 +71,7 @@ func PackageValidate() error {
 	if err != nil {
 		return err
 	}
-	source, err := inspectPackageSource(roots.Profiles, manifest.AgentProfiles.CompatibleRelease)
+	source, err := inspectPackageSource(roots.Profiles, manifest.Catalog.CompatibleRelease)
 	if err != nil {
 		return err
 	}
@@ -99,7 +99,7 @@ func PackageValidate() error {
 	if err := bootSmokeProfiles(binary, roots.Core, profiles); err != nil {
 		return err
 	}
-	fmt.Printf("package validation passed for %d serving role shards\n", len(shards))
+	fmt.Printf("package validation passed for %d deployment shards\n", len(shards))
 	return nil
 }
 
@@ -125,7 +125,7 @@ func packageServingDeployment(
 	}
 	defer func() { _ = os.RemoveAll(stage) }()
 
-	references := append([]profileReference(nil), manifest.Deployment.ServingProfiles...)
+	references := append([]profileReference(nil), manifest.Deployment.Entries...)
 	sort.Slice(references, func(i, j int) bool { return references[i].Role < references[j].Role })
 	shards := make([]deploymentShard, 0, len(references))
 	for _, ref := range references {
@@ -230,11 +230,11 @@ func stageDeploymentSource(appRoot, profilesRoot string) (string, func(), error)
 		return "", nil, fmt.Errorf("stage canonical agent sources: %w", err)
 	}
 	if err := copySourceTreeStrict(
-		filepath.Join(appRoot, "agents", "serving"),
+		filepath.Join(appRoot, "agents"),
 		filepath.Join(stage, "applications", "coding-agent"),
 	); err != nil {
 		cleanup()
-		return "", nil, fmt.Errorf("stage application serving sources: %w", err)
+		return "", nil, fmt.Errorf("stage application actor sources: %w", err)
 	}
 	return stage, cleanup, nil
 }

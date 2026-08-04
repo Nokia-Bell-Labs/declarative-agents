@@ -13,6 +13,7 @@ import (
 	"sort"
 	"strings"
 
+	"github.com/Nokia-Bell-Labs/declarative-agents/magefiles/appmanifest"
 	"gopkg.in/yaml.v3"
 )
 
@@ -22,19 +23,19 @@ const (
 )
 
 type applicationProfileManifest struct {
-	SchemaVersion int    `yaml:"schema_version"`
-	Application   string `yaml:"application"`
-	AgentProfiles struct {
-		CompatibleRelease string             `yaml:"compatible_release"`
-		References        []profileReference `yaml:"references"`
-	} `yaml:"agent_profiles"`
+	SchemaVersion int
+	Application   string
+	Catalog       struct {
+		CompatibleRelease string
+		References        []profileReference
+	}
 	Runtime struct {
-		MountPath             string `yaml:"mount_path"`
-		ImageContainsProfiles bool   `yaml:"image_contains_profiles"`
-	} `yaml:"runtime"`
+		MountPath             string
+		ImageContainsProfiles bool
+	}
 	Deployment struct {
-		ServingProfiles []profileReference `yaml:"serving_profiles"`
-	} `yaml:"deployment"`
+		Entries []profileReference
+	}
 }
 
 type profileReference struct {
@@ -92,7 +93,7 @@ func Package() error {
 		return err
 	}
 	output := demoProfilesOutput(appRoot)
-	source, err := inspectPackageSource(profilesRoot, manifest.AgentProfiles.CompatibleRelease)
+	source, err := inspectPackageSource(profilesRoot, manifest.Catalog.CompatibleRelease)
 	if err != nil {
 		return err
 	}
@@ -100,47 +101,75 @@ func Package() error {
 	if err != nil {
 		return err
 	}
-	fmt.Printf("packaged %d serving role shards in %s from %s %s\n", len(shards), output, source.Kind, source.Revision)
+	fmt.Printf("packaged %d deployment shards in %s from %s %s\n", len(shards), output, source.Kind, source.Revision)
 	return nil
 }
 
 func readApplicationProfileManifest(filename string) (applicationProfileManifest, error) {
-	var manifest applicationProfileManifest
-	data, err := os.ReadFile(filename)
+	applicationRoot := filepath.Dir(filepath.Dir(filename))
+	return readApplicationProfileManifestWithCatalog(
+		filename, filepath.Clean(filepath.Join(applicationRoot, "..", "catalog")))
+}
+
+func readApplicationProfileManifestWithCatalog(filename, catalogRoot string) (applicationProfileManifest, error) {
+	var converted applicationProfileManifest
+	applicationRoot := filepath.Dir(filepath.Dir(filename))
+	manifest, err := appmanifest.Load(filename, appmanifest.Options{
+		ApplicationRoot: applicationRoot,
+		CatalogRoot:     catalogRoot,
+	})
 	if err != nil {
-		return manifest, fmt.Errorf("read application profile manifest: %w", err)
+		return converted, err
 	}
-	if err := yaml.Unmarshal(data, &manifest); err != nil {
-		return manifest, fmt.Errorf("parse application profile manifest: %w", err)
+	if _, err := appmanifest.Resolve(manifest, appmanifest.Options{
+		ApplicationRoot: applicationRoot,
+		CatalogRoot:     catalogRoot,
+	}); err != nil {
+		return converted, fmt.Errorf("resolve application manifest: %w", err)
 	}
-	if manifest.SchemaVersion != 1 {
-		return manifest, fmt.Errorf("unsupported application profile manifest schema %d", manifest.SchemaVersion)
+
+	converted.SchemaVersion = manifest.SchemaVersion
+	converted.Application = manifest.Application
+	converted.Runtime.MountPath = manifest.Runtime.MountPath
+	converted.Runtime.ImageContainsProfiles = manifest.Runtime.ImageContainsProfiles
+	roots := make(map[string]appmanifest.Root, len(manifest.Roots))
+	for _, root := range manifest.Roots {
+		roots[root.ID] = root
+		if root.Ownership != "catalog" {
+			continue
+		}
+		if converted.Catalog.CompatibleRelease == "" {
+			converted.Catalog.CompatibleRelease = root.CompatibleRelease
+		} else if converted.Catalog.CompatibleRelease != root.CompatibleRelease {
+			return converted, errors.New("catalog roots must use one compatible_release")
+		}
+		converted.Catalog.References = append(converted.Catalog.References, profileReference{
+			Role: root.ID, Source: root.Source, RuntimePath: root.RuntimePath,
+		})
 	}
-	if strings.TrimSpace(manifest.Application) == "" {
-		return manifest, errors.New("application profile manifest has no application")
+	for _, entry := range manifest.Deployment.Entries {
+		root := roots[entry.Root]
+		runtimePath := entry.ProfilePath
+		if runtimePath == "" {
+			runtimePath = root.RuntimePath
+		}
+		converted.Deployment.Entries = append(converted.Deployment.Entries, profileReference{
+			Role: entry.ID, Source: root.Source, RuntimePath: runtimePath,
+		})
 	}
-	if !isCompatibleProfileRelease(manifest.AgentProfiles.CompatibleRelease) {
-		return manifest, fmt.Errorf(
-			"compatible_release %q must match v0.*, applications/catalog/v0.*, or agent-profiles/v0.*",
-			manifest.AgentProfiles.CompatibleRelease,
-		)
+	if converted.Runtime.MountPath != "/profiles" {
+		return converted, fmt.Errorf("runtime mount_path %q must preserve the mounted-profile contract at /profiles", converted.Runtime.MountPath)
 	}
-	if manifest.Runtime.MountPath != "/profiles" {
-		return manifest, fmt.Errorf("runtime mount_path %q must preserve the mounted-profile contract at /profiles", manifest.Runtime.MountPath)
+	if len(converted.Catalog.References) == 0 {
+		return converted, errors.New("application manifest has no catalog profile roots")
 	}
-	if manifest.Runtime.ImageContainsProfiles {
-		return manifest, errors.New("runtime image must remain profile-free")
+	if err := validateProfileReferences(converted.Catalog.References, "profile"); err != nil {
+		return converted, err
 	}
-	if len(manifest.AgentProfiles.References) == 0 {
-		return manifest, errors.New("application profile manifest has no profile references")
+	if err := validateDeploymentReferences(converted.Deployment.Entries); err != nil {
+		return converted, err
 	}
-	if err := validateProfileReferences(manifest.AgentProfiles.References, "profile"); err != nil {
-		return manifest, err
-	}
-	if err := validateServingReferences(manifest.Deployment.ServingProfiles); err != nil {
-		return manifest, err
-	}
-	return manifest, nil
+	return converted, nil
 }
 
 func validateProfileReferences(references []profileReference, kind string) error {
@@ -163,34 +192,37 @@ func validateProfileReferences(references []profileReference, kind string) error
 	return nil
 }
 
-func validateServingReferences(references []profileReference) error {
+func validateDeploymentReferences(references []profileReference) error {
 	if len(references) == 0 {
-		return errors.New("application profile manifest has no deployment serving profiles")
+		return errors.New("application manifest has no deployment entries")
 	}
-	if err := validateProfileReferences(references, "serving profile"); err != nil {
+	if err := validateProfileReferences(references, "deployment"); err != nil {
 		return err
 	}
 	want := map[string]profileReference{
 		"planner": {
-			Source: "agents/serving/planner/profile.yaml", RuntimePath: "applications/coding-agent/planner/profile.yaml",
+			Source: "agents/planner/profile.yaml", RuntimePath: "applications/coding-agent/planner/profile.yaml",
 		},
 		"executor": {
-			Source: "agents/serving/executor/profile.yaml", RuntimePath: "applications/coding-agent/executor/profile.yaml",
+			Source: "agents/executor/profile.yaml", RuntimePath: "applications/coding-agent/executor/profile.yaml",
 		},
 		"critic": {
-			Source: "agents/serving/critic/profile.yaml", RuntimePath: "applications/coding-agent/critic/profile.yaml",
+			Source: "agents/critic/profile.yaml", RuntimePath: "applications/coding-agent/critic/profile.yaml",
+		},
+		"applier": {
+			Source: "agents/applier/profile.yaml", RuntimePath: "applications/coding-agent/applier/profile.yaml",
 		},
 	}
 	for _, ref := range references {
 		expected, exists := want[ref.Role]
 		if !exists {
-			return fmt.Errorf("unsupported deployment serving role %q", ref.Role)
+			return fmt.Errorf("unsupported deployment entry %q", ref.Role)
 		}
 		if ref.Source != expected.Source {
-			return fmt.Errorf("serving profile role %s source %q, want %q", ref.Role, ref.Source, expected.Source)
+			return fmt.Errorf("deployment entry %s source %q, want %q", ref.Role, ref.Source, expected.Source)
 		}
 		if ref.RuntimePath != expected.RuntimePath {
-			return fmt.Errorf("serving profile role %s runtime_path %q, want %q", ref.Role, ref.RuntimePath, expected.RuntimePath)
+			return fmt.Errorf("deployment entry %s runtime_path %q, want %q", ref.Role, ref.RuntimePath, expected.RuntimePath)
 		}
 		delete(want, ref.Role)
 	}
@@ -200,7 +232,7 @@ func validateServingReferences(references []profileReference) error {
 			missing = append(missing, role)
 		}
 		sort.Strings(missing)
-		return fmt.Errorf("deployment serving profiles missing roles: %s", strings.Join(missing, ", "))
+		return fmt.Errorf("application deployment missing entries: %s", strings.Join(missing, ", "))
 	}
 	return nil
 }
@@ -222,7 +254,7 @@ func assembleProfileClosure(manifest applicationProfileManifest, sourceRoot, out
 		sourceRoot: filepath.Clean(sourceRoot),
 		assets:     make(map[string]string),
 	}
-	for _, ref := range manifest.AgentProfiles.References {
+	for _, ref := range manifest.Catalog.References {
 		sourcePath, err := cleanRelativeProfilePath(ref.Source)
 		if err != nil {
 			return nil, fmt.Errorf("profile role %s source: %w", ref.Role, err)
@@ -510,7 +542,7 @@ func writeProfilePackage(manifest applicationProfileManifest, sourceRoot string,
 		Application:   manifest.Application,
 		Source:        source,
 		MountPath:     manifest.Runtime.MountPath,
-		Profiles:      append([]profileReference(nil), manifest.AgentProfiles.References...),
+		Profiles:      append([]profileReference(nil), manifest.Catalog.References...),
 		Files:         destinations,
 	}
 	data, err := yaml.Marshal(metadata)

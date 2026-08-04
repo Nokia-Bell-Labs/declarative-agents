@@ -35,10 +35,8 @@ func TestHelmReadmeInstallsOnlyPackagedArtifacts(t *testing.T) {
 	}
 }
 
-// TestHelmPackagingDocumentsTheApplierStaging proves PACKAGING.md records the two
-// invariants the applier packaging path rests on: it is staged as a flat family
-// under profiles/applier/agents/applier/, and its exec placeholder coordinates
-// are rewritten to the installed release at render time.
+// TestHelmPackagingDocumentsTheApplierStaging proves PACKAGING.md records the
+// manifest-derived applier shard and its installed-release rewrite.
 func TestHelmPackagingDocumentsTheApplierStaging(t *testing.T) {
 	data, err := os.ReadFile(filepath.Join(findChartDir(t), "PACKAGING.md"))
 	if err != nil {
@@ -46,7 +44,8 @@ func TestHelmPackagingDocumentsTheApplierStaging(t *testing.T) {
 	}
 	packaging := string(data)
 	for _, required := range []string{
-		"profiles/applier/agents/applier/",
+		"profiles/{planner,executor,critic,applier}/",
+		"applications/coding-agent/applier/profile.yaml",
 		"exec-declarations.yaml",
 		"Release.Name",
 	} {

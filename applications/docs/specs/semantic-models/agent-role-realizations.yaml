@@ -306,27 +306,27 @@ bindings:
 
   coding_agent:
     - actor: coding-planner-server
-      profile: applications/coding-agent/agents/serving/planner/profile.yaml
+      profile: applications/coding-agent/agents/planner/profile.yaml
       classification: wrapper
       inherits: planner
       deployment_form: server
     - actor: coding-planner-request
-      profile: applications/coding-agent/agents/serving/planner/request-profile.yaml
+      profile: applications/coding-agent/agents/planner/request-profile.yaml
       classification: wrapper
       inherits: coding-planner-server
       execution_scope: request
     - actor: coding-executor-server
-      profile: applications/coding-agent/agents/serving/executor/profile.yaml
+      profile: applications/coding-agent/agents/executor/profile.yaml
       classification: wrapper
       inherits: executor
       deployment_form: server
     - actor: coding-critic-server
-      profile: applications/coding-agent/agents/serving/critic/profile.yaml
+      profile: applications/coding-agent/agents/critic/profile.yaml
       classification: wrapper
       inherits: critic-workspace
       deployment_form: server
     - actor: applier
-      profile: applications/coding-agent/agents/serving/applier/profile.yaml
+      profile: applications/coding-agent/agents/applier/profile.yaml
       classification: role_realization
       primary_role: executor
       sub_roles: [actuation-agent, change-manager]
@@ -338,10 +338,10 @@ bindings:
         retained_or_proposed_name: Retain applier as a descriptive actor and Helm workload name; Applier is not a canonical role.
         authority_boundary: An authorized operator or CI caller supplies the decided patch; the applier authors no values and receives no runtime transport authority, and the serving roles hold no deployment CLI.
         evidence:
-          - applications/coding-agent/agents/serving/applier/apply-machine.yaml
-          - applications/coding-agent/agents/serving/applier/exec-declarations.yaml
+          - applications/coding-agent/agents/applier/apply-machine.yaml
+          - applications/coding-agent/agents/applier/exec-declarations.yaml
           - applications/coding-agent/helm/templates/applier.yaml
-        migration_impact: None; documentation describes applier as Executor / Actuation Agent.
+        migration_impact: GH-1417 moved the local actor to agents/applier, derived its package/runtime destination from the Release 14 application manifest, and preserved the Executor / Actuation Agent binding.
 
   chatbot_mesh:
     - actor: chatbot

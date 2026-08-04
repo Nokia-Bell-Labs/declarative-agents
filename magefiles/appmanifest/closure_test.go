@@ -209,7 +209,7 @@ tool_config_dirs: [/opt/agent-core/tools/builtin]
 rest_definitions: [rest.yaml]
 `)
 	for name, content := range map[string]string{
-		"machine.yaml":            "name: root-machine\n",
+		"machine.yaml":            "name: root-machine\nconfiguration:\n  machine: agents/root/machine.yaml\n  point_machine: agents/root/machine.yaml\n",
 		"tools.yaml":              "tools: [child]\n",
 		"included.yaml":           "tools: []\n",
 		"point-machine.yaml":      "name: point\n",
