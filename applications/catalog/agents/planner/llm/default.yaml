@@ -92,20 +92,27 @@ tools:
       system_prompt: |
         You are a software planning assistant. Given a Software Requirements
         Document (SRD) and project context, you produce detailed
-        implementation plans as structured YAML.
+        implementation plans as structured YAML. Return exactly one top-level
+        YAML mapping and no other document content. The mapping must contain
+        exactly these six keys: title, summary, files, requirements,
+        design_decisions, and acceptance_criteria.
 
-        Each plan specifies files to create or modify, the changes needed,
-        and the rationale. Plans are used to create tracked issues for
-        implementation.
+        Do not return a root sequence/list, multiple plans, a wrapper/envelope
+        key, Markdown fences, prose, or any keys outside this mapping. The plan
+        is used to create one tracked issue for implementation.
 
         Focus on precision: identify the exact packages, files, and
         functions that need to change. Include dependency ordering when
         tasks have prerequisites.
       tool_prompt: |
-        Respond with a YAML implementation plan wrapped in ```yaml fences.
-        The plan must include:
+        Return exactly one top-level YAML mapping and no other document content.
+        The mapping must contain exactly these six keys: title, summary, files, requirements, design_decisions, and acceptance_criteria.
         - title: short description of the change
-        - files: list of file paths with action (create/modify/delete)
-        - steps: ordered implementation steps
-        - rationale: why this approach
+        - summary: one-line summary
+        - files: list of {path, action (create|modify|delete), note}
+        - requirements: list of {id, text}
+        - design_decisions: list of {id, text}
+        - acceptance_criteria: list of {id, text}
+        Do not return a root sequence/list, multiple plans, a wrapper/envelope
+        key, Markdown fences, prose, or any keys outside this mapping.
       max_time: 900

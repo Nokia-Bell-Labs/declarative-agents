@@ -5,27 +5,28 @@ package main
 import (
 	"bytes"
 	"context"
-	"encoding/json"
 	"errors"
 	"fmt"
 	"io/fs"
-	"net/http"
 	"os"
 	"os/exec"
 	"path/filepath"
+	"regexp"
 	"strings"
+	"syscall"
 	"time"
 
 	"github.com/Nokia-Bell-Labs/declarative-agents/applications/catalog/catalogroot"
 )
 
 const (
-	canonicalOllamaURL = "http://localhost:11434"
-	canonicalModel     = "qwen3.6:35b-mlx"
-	liveStageTimeout   = 15 * time.Minute
+	canonicalModel           = "qwen3.6:35b-mlx"
+	releaseModelCallTimeout  = 30 * time.Second
+	childAgentRunTimeout     = 10 * time.Minute
+	outerEmergencyTimeout    = 12 * time.Minute
+	processGroupCleanupGrace = 3 * time.Second
+	traceDiagnosticLimit     = 32 * 1024
 )
-
-var prerequisiteHTTPClient = &http.Client{Timeout: 3 * time.Second}
 
 type integrationRoots struct {
 	Application string
@@ -38,6 +39,15 @@ type agentRun struct {
 	ExitCode   int
 	Trace      string
 	FinalState string
+	LastState  string
+	LastTool   string
+	Phase      string
+}
+
+type agentRunOptions struct {
+	Timeout      time.Duration
+	CleanupGrace time.Duration
+	Env          []string
 }
 
 func resolveIntegrationRoots() (integrationRoots, error) {
@@ -124,17 +134,10 @@ func packageIntegrationRoots(roots integrationRoots) (integrationRoots, func(), 
 	return roots, cleanup, nil
 }
 
-// liveSkipReason keeps the application targets optional. It checks the exact
-// model selected by the canonical planner and executor profiles, rather than
-// treating any reachable Ollama installation as sufficient.
+// liveSkipReason keeps the application targets optional while release evidence
+// supplies its own deterministic Ollama-compatible model boundary.
 func liveSkipReason(roots integrationRoots, extraBinaries ...string) string {
-	if probe := strings.TrimSpace(loadDemoConfigOrEmpty(roots.Application).OllamaURL); probe != "" && probe != canonicalOllamaURL {
-		return fmt.Sprintf("demo.yaml ollama_url=%s does not match canonical profile endpoint %s", probe, canonicalOllamaURL)
-	}
-	if reason := baseIntegrationSkipReason(roots, extraBinaries...); reason != "" {
-		return reason
-	}
-	return ollamaSkipReason(prerequisiteHTTPClient, canonicalOllamaURL, canonicalModel)
+	return baseIntegrationSkipReason(roots, extraBinaries...)
 }
 
 func baseIntegrationSkipReason(roots integrationRoots, extraBinaries ...string) string {
@@ -158,32 +161,6 @@ func baseIntegrationSkipReason(roots integrationRoots, extraBinaries ...string) 
 		}
 	}
 	return ""
-}
-
-func ollamaSkipReason(client *http.Client, baseURL, model string) string {
-	resp, err := client.Get(strings.TrimRight(baseURL, "/") + "/api/tags")
-	if err != nil {
-		return fmt.Sprintf("Ollama not reachable at %s: %v", baseURL, err)
-	}
-	defer func() { _ = resp.Body.Close() }()
-	if resp.StatusCode != http.StatusOK {
-		return fmt.Sprintf("Ollama tags endpoint returned %d", resp.StatusCode)
-	}
-	var payload struct {
-		Models []struct {
-			Name  string `json:"name"`
-			Model string `json:"model"`
-		} `json:"models"`
-	}
-	if err := json.NewDecoder(resp.Body).Decode(&payload); err != nil {
-		return fmt.Sprintf("decode Ollama tags: %v", err)
-	}
-	for _, installed := range payload.Models {
-		if installed.Name == model || installed.Model == model {
-			return ""
-		}
-	}
-	return fmt.Sprintf("Ollama model %q not pulled", model)
 }
 
 func buildAgent(coreRoot string) (string, func(), error) {
@@ -247,6 +224,15 @@ func freshWorkspace(appRoot string) (string, func(), error) {
 }
 
 func runBuiltAgent(binary, profilesRoot, coreRoot, profile, workspace string, extraArgs ...string) (agentRun, error) {
+	return runBuiltAgentWithOptions(
+		binary, profilesRoot, coreRoot, profile, workspace, agentRunOptions{}, extraArgs...)
+}
+
+func runBuiltAgentWithOptions(
+	binary, profilesRoot, coreRoot, profile, workspace string,
+	options agentRunOptions,
+	extraArgs ...string,
+) (agentRun, error) {
 	trace := filepath.Join(filepath.Dir(workspace), filepath.Base(profile)+".trace.ndjson")
 	args := []string{
 		"--profile", filepath.Join(profilesRoot, filepath.FromSlash(profile)),
@@ -255,24 +241,50 @@ func runBuiltAgent(binary, profilesRoot, coreRoot, profile, workspace string, ex
 		"--otel-log-file", trace,
 	}
 	args = append(args, extraArgs...)
-	ctx, cancel := context.WithTimeout(context.Background(), liveStageTimeout)
+	timeout := options.Timeout
+	if timeout <= 0 {
+		timeout = outerEmergencyTimeout
+	}
+	cleanupGrace := options.CleanupGrace
+	if cleanupGrace <= 0 {
+		cleanupGrace = processGroupCleanupGrace
+	}
+	ctx, cancel := context.WithTimeout(context.Background(), timeout)
 	defer cancel()
-	cmd := exec.CommandContext(ctx, binary, args...)
+	cmd := exec.Command(binary, args...)
 	cmd.Dir = profilesRoot
+	cmd.Env = append(os.Environ(), options.Env...)
+	cmd.SysProcAttr = &syscall.SysProcAttr{Setpgid: true}
+	cmd.WaitDelay = cleanupGrace
 	var output bytes.Buffer
 	cmd.Stdout, cmd.Stderr = &output, &output
-	err := cmd.Run()
+	if err := cmd.Start(); err != nil {
+		return agentRun{}, fmt.Errorf("start agent: %w", err)
+	}
+	done := make(chan error, 1)
+	go func() { done <- cmd.Wait() }()
+	var err error
+	timedOut := false
+	select {
+	case err = <-done:
+	case <-ctx.Done():
+		timedOut = true
+		err = terminateProcessGroup(cmd.Process.Pid, done, cleanupGrace)
+	}
 	run := agentRun{Output: output.String()}
 	if data, readErr := os.ReadFile(trace); readErr == nil {
-		run.FinalState = traceFinalState(string(data))
-		const traceDiagnosticLimit = 32 * 1024
+		run.FinalState, run.LastState, run.LastTool = traceRunPosition(string(data))
 		if len(data) > traceDiagnosticLimit {
 			data = data[len(data)-traceDiagnosticLimit:]
 		}
 		run.Trace = string(data)
 	}
-	if ctx.Err() != nil {
-		return run, fmt.Errorf("%s exceeded live stage timeout %s: %w", profile, liveStageTimeout, ctx.Err())
+	run.Phase = inferRunPhase(profile, run.LastState, run.LastTool, run.Output)
+	if timedOut {
+		run.ExitCode = -1
+		return run, fmt.Errorf(
+			"%s exceeded outer emergency deadline %s during %s (last state=%q, last tool=%q): %w\nstdout/stderr:\n%s\ntrace tail:\n%s",
+			profile, timeout, run.Phase, run.LastState, run.LastTool, ctx.Err(), run.Output, run.Trace)
 	}
 	if err == nil {
 		return run, nil
@@ -282,16 +294,88 @@ func runBuiltAgent(binary, profilesRoot, coreRoot, profile, workspace string, ex
 		run.ExitCode = exitErr.ExitCode()
 		return run, nil
 	}
-	return run, fmt.Errorf("start agent: %w", err)
+	return run, fmt.Errorf("wait for agent: %w\nstdout/stderr:\n%s\ntrace tail:\n%s", err, run.Output, run.Trace)
+}
+
+func terminateProcessGroup(pid int, done <-chan error, grace time.Duration) error {
+	_ = syscall.Kill(-pid, syscall.SIGTERM)
+	timer := time.NewTimer(grace)
+	defer timer.Stop()
+	var waitErr error
+	reaped := false
+	select {
+	case waitErr = <-done:
+		reaped = true
+	case <-timer.C:
+	}
+	// The group can retain a child after its leader exits, so always send the
+	// final group kill after grace rather than treating leader exit as cleanup.
+	if reaped {
+		<-timer.C
+	}
+	_ = syscall.Kill(-pid, syscall.SIGKILL)
+	if reaped {
+		return waitErr
+	}
+	return <-done
 }
 
 func traceFinalState(trace string) string {
-	for _, state := range []string{"Succeeded", "Failed", "BudgetExceeded", "Completed", "Stalled", "Paused", "Done", "Rejected"} {
-		if strings.Contains(trace, `"Key":"run.final_state","Value":{"Type":"STRING","Value":"`+state+`"}`) {
-			return state
+	final, _, _ := traceRunPosition(trace)
+	return final
+}
+
+var traceStringAttribute = regexp.MustCompile(
+	`"Key":"([^"]+)","Value":\{"Type":"STRING","Value":"([^"]*)"\}`,
+)
+
+func traceRunPosition(trace string) (finalState, lastState, lastTool string) {
+	for _, match := range traceStringAttribute.FindAllStringSubmatch(trace, -1) {
+		key, value := match[1], match[2]
+		switch key {
+		case "run.final_state":
+			finalState = value
+			lastState = value
+		case "final_state":
+			if finalState == "" {
+				finalState = value
+			}
+			lastState = value
+		case "to_state", "state":
+			lastState = value
+		case "gen_ai.tool.name", "tool.name":
+			lastTool = value
 		}
 	}
-	return ""
+	if finalState != "" {
+		return finalState, lastState, lastTool
+	}
+	for _, state := range []string{"Succeeded", "Failed", "BudgetExceeded", "Completed", "Stalled", "Paused", "Done", "Rejected"} {
+		if strings.Contains(trace, `"Key":"run.final_state","Value":{"Type":"STRING","Value":"`+state+`"}`) {
+			return state, state, lastTool
+		}
+	}
+	return "", lastState, lastTool
+}
+
+func inferRunPhase(profile, state, tool, output string) string {
+	combined := strings.ToLower(state + " " + tool + " " + output)
+	switch {
+	case strings.Contains(combined, "invokingexecutor") ||
+		strings.Contains(combined, "self_invoke") ||
+		strings.Contains(combined, "invoke_executor"):
+		return "child executor"
+	case strings.Contains(profile, "planner") &&
+		(strings.Contains(combined, "planinvoking") || strings.Contains(combined, "invoke_llm")):
+		return "planner model"
+	case strings.Contains(profile, "executor") &&
+		(strings.Contains(combined, "composing") || strings.Contains(combined, "invoke_llm")):
+		return "executor model"
+	case strings.Contains(profile, "critic"):
+		return "critic oracle"
+	default:
+		return "agent run"
+	}
 }
 
 func requireSuccessfulExecutor(workspace string, run agentRun) error {

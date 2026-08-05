@@ -472,6 +472,27 @@ test_cases:
       - srd004-planner AC4
 
   - family: planner
+    name: Planner canonical output contract and first response
+    status: implemented
+    test: conformance/planner_test.go TestPlannerCanonicalPlanFirstResponse
+    coverage: shipped-behavioral
+    coverage_note: |
+      Uses a deterministic Ollama protocol fixture and the shipped planner
+      prompt, model, and parser boundaries; only the successful post-parse
+      transition is bounded. The paired
+      magefiles/planner_wiring_test.go
+      TestPlannerPromptLayersRequestCanonicalPlanDocument test statically
+      checks the composed user, system, and tool prompt layers.
+    description: |
+      Asserts every profile-owned prompt layer requests exactly one top-level
+      YAML mapping with the six parser-owned ImplementationPlan fields and
+      rejects root sequences, multiple plans, and wrapper envelopes. Serves one
+      canonical mapping, observes one invoke_llm and one successful parse_plan,
+      and proves report_parse_error does not run.
+    traces:
+      - srd004-planner AC5
+
+  - family: planner
     name: Planner shipped-profile terminal task execution
     status: implemented
     test: conformance/planner_test.go TestPlannerShippedProfileTerminalExecution

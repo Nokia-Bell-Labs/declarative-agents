@@ -235,6 +235,34 @@ tool_declarations: [../local-helper/declarations.yaml]
 	}
 }
 
+func TestResolveMapsRelocatedLocalReferenceToDeclaredCatalogRoot(t *testing.T) {
+	appRoot, catalogRoot := newApplicationRoot(t), t.TempDir()
+	writeFixtureFile(t, filepath.Join(appRoot, "agents/local/profile.yaml"), `name: local
+machine: ../../../agents/library/machine.yaml
+`)
+	writeFixtureFile(t, filepath.Join(catalogRoot, "agents/library/profile.yaml"), "name: library\n")
+	writeFixtureFile(t, filepath.Join(catalogRoot, "agents/library/machine.yaml"), "name: library-machine\n")
+	manifest := closureManifest(
+		Root{ID: "local", Ownership: "local", Source: "agents/local/profile.yaml",
+			RuntimePath: "applications/fixture-app/local/profile.yaml"},
+		Root{ID: "library", Ownership: "catalog", Source: "agents/library/profile.yaml",
+			RuntimePath: "agents/library/profile.yaml", CompatibleRelease: "v0.20260803.0"},
+	)
+
+	inventory, err := Resolve(manifest, Options{
+		ApplicationRoot: appRoot,
+		CatalogRoot:     catalogRoot,
+	})
+	if err != nil {
+		t.Fatal(err)
+	}
+	got := inventoryFile(inventory, "agents/library/machine.yaml")
+	if got.Source != "catalog/agents/library/machine.yaml" ||
+		!reflect.DeepEqual(got.Roots, []string{"local"}) {
+		t.Fatalf("relocated catalog reference provenance = %#v", got)
+	}
+}
+
 func TestResolveIsByteDeterministic(t *testing.T) {
 	appRoot, catalogRoot, manifest := completeClosureFixture(t)
 	var previous []byte

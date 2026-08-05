@@ -78,6 +78,22 @@ func TestPlannerVariantsRouteParseRetriesExplicitly(t *testing.T) {
 		t.Fatal(`planner selection is missing "report_parse_error"`)
 	}
 
+	var declarations plannerDeclarations
+	readPlannerYAML(t, "builtin.yaml", &declarations)
+	var report plannerDeclaration
+	for _, declaration := range declarations.Tools {
+		if declaration.Name == "report_parse_error" {
+			report = declaration
+			break
+		}
+	}
+	if report.Init != "report_parse_error" {
+		t.Fatalf("report_parse_error init = %q, want report_parse_error", report.Init)
+	}
+	if got := report.Config["response_contract"]; got != "implementation_plan_yaml" {
+		t.Fatalf("report_parse_error response_contract = %#v, want implementation_plan_yaml", got)
+	}
+
 	for _, file := range []string{"machine.yaml", "machine-plan-only.yaml"} {
 		t.Run(file, func(t *testing.T) {
 			var machine plannerMachine
@@ -126,6 +142,51 @@ func TestPlannerVariantsComposeProfileOwnedPrompts(t *testing.T) {
 	inputs, _ := compose.Config["inputs"].(map[string]any)
 	if inputs["retry_context"] != "$from(failure_context).output" {
 		t.Fatalf("retry context selector = %#v", inputs["retry_context"])
+	}
+}
+
+func TestPlannerPromptLayersRequestCanonicalPlanDocument(t *testing.T) {
+	var builtin plannerDeclarations
+	readPlannerYAML(t, "builtin.yaml", &builtin)
+	var llm plannerDeclarations
+	readPlannerYAML(t, filepath.Join("llm", "default.yaml"), &llm)
+
+	prompts := make(map[string]string)
+	for _, declaration := range builtin.Tools {
+		if declaration.Name == "compose_planner_prompt" {
+			prompts["composed user prompt"], _ = declaration.Config["template"].(string)
+		}
+	}
+	for _, declaration := range llm.Tools {
+		if declaration.Name == "invoke_llm" {
+			prompts["system prompt"], _ = declaration.Config["system_prompt"].(string)
+			prompts["tool prompt"], _ = declaration.Config["tool_prompt"].(string)
+		}
+	}
+
+	if len(prompts) != 3 {
+		t.Fatalf("planner prompt layers = %d, want composed, system, and tool prompts", len(prompts))
+	}
+	for name, prompt := range prompts {
+		t.Run(name, func(t *testing.T) {
+			normalized := strings.Join(strings.Fields(prompt), " ")
+			for _, required := range []string{
+				"exactly one top-level YAML mapping",
+				"exactly these six keys: title, summary, files, requirements, design_decisions, and acceptance_criteria",
+				"root sequence/list",
+				"multiple plans",
+				"wrapper/envelope",
+			} {
+				if !strings.Contains(normalized, required) {
+					t.Errorf("%s omits %q:\n%s", name, required, prompt)
+				}
+			}
+			for _, incompatible := range []string{"- steps:", "- rationale:"} {
+				if strings.Contains(prompt, incompatible) {
+					t.Errorf("%s retains incompatible schema field %q:\n%s", name, incompatible, prompt)
+				}
+			}
+		})
 	}
 }
 

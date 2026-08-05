@@ -189,6 +189,19 @@ func TestHelmCollectorServesUI(t *testing.T) {
 	}
 }
 
+func TestHelmCollectorProjectsRequestMachine(t *testing.T) {
+	chart := preparedTestChart(t)
+	render := helmTemplate(t, chart)
+	for _, want := range []string{
+		"agents__collector__query-machine.yaml",
+		"path: agents/collector/query-machine.yaml",
+	} {
+		if !strings.Contains(render, want) {
+			t.Errorf("collector request-machine render missing %q", want)
+		}
+	}
+}
+
 func TestHelmCollectorMountFollowsGeneratedManifest(t *testing.T) {
 	chart := preparedTestChart(t)
 	manifestPath := filepath.Join(chart, "profiles", "manifests", "collector.yaml")

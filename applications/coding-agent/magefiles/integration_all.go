@@ -8,13 +8,11 @@ import (
 )
 
 // All runs every integration target this application owns and prints a
-// pass/fail/skip summary, returning an error when any target fails. Each target
-// self-skips (returns nil after printing SKIP) when an optional live
-// prerequisite -- Docker, kind, Helm, or a local model server -- is missing, so
-// the aggregate is portable to a machine without them while still exercising
-// and gating every runnable target on capable hosts. This aggregate is what
-// lets the released application participate in the repository release gate
-// rather than being tagged without its own integration evidence (GH-1343).
+// pass/fail/skip summary, returning an error when any target fails. Composite
+// targets replace their component targets in this aggregate so release evidence
+// is not generated repeatedly; executorLive, plannerDelegation, and criticGate
+// remain independently addressable. Each aggregate target self-skips when an
+// optional Docker, kind, or Helm prerequisite is missing.
 func (i Integration) All() error {
 	targets := []struct {
 		name string
@@ -23,9 +21,6 @@ func (i Integration) All() error {
 		{"servingHealth", i.ServingHealth},
 		{"servingRemote", i.ServingRemote},
 		{"helmSmoke", i.HelmSmoke},
-		{"executorLive", i.ExecutorLive},
-		{"plannerDelegation", i.PlannerDelegation},
-		{"criticGate", i.CriticGate},
 		{"codingLoop", i.CodingLoop},
 		{"applier", i.Applier},
 		{"applierLive", i.ApplierLive},

@@ -11,6 +11,7 @@ import (
 	"path"
 	"path/filepath"
 	"regexp"
+	"slices"
 	"sort"
 	"strings"
 
@@ -392,14 +393,15 @@ func runtimeYAMLReferences(document *yaml.Node) ([]string, error) {
 		"profile": true, "point_machine": true, "point_tools": true,
 		"point_tool_declarations": true, "includes": true,
 	}
-	var visit func(*yaml.Node, int) error
-	visit = func(node *yaml.Node, depth int) error {
+	var visit func(*yaml.Node, int, []string) error
+	visit = func(node *yaml.Node, depth int, ancestors []string) error {
 		if node.Kind != yaml.MappingNode {
 			return nil
 		}
 		for i := 0; i+1 < len(node.Content); i += 2 {
 			key, value := node.Content[i].Value, node.Content[i+1]
-			isReference := nestedKeys[key] || (depth == 0 && topLevelKeys[key])
+			isReference := nestedKeys[key] || (depth == 0 && topLevelKeys[key]) ||
+				(key == "machine" && slices.Contains(ancestors, "machine_request"))
 			if isReference {
 				if values, ok := referenceScalars(value); ok {
 					for _, value := range values {
@@ -409,26 +411,31 @@ func runtimeYAMLReferences(document *yaml.Node) ([]string, error) {
 					}
 				}
 			}
-			if err := visitNestedMappings(value, depth+1, visit); err != nil {
+			if err := visitNestedMappings(value, depth+1, append(ancestors, key), visit); err != nil {
 				return err
 			}
 		}
 		return nil
 	}
-	if err := visit(root, 0); err != nil {
+	if err := visit(root, 0, nil); err != nil {
 		return nil, err
 	}
 	sort.Strings(refs)
 	return compactStrings(refs), nil
 }
 
-func visitNestedMappings(node *yaml.Node, depth int, visit func(*yaml.Node, int) error) error {
+func visitNestedMappings(
+	node *yaml.Node,
+	depth int,
+	ancestors []string,
+	visit func(*yaml.Node, int, []string) error,
+) error {
 	switch node.Kind {
 	case yaml.MappingNode:
-		return visit(node, depth)
+		return visit(node, depth, ancestors)
 	case yaml.SequenceNode, yaml.DocumentNode:
 		for _, child := range node.Content {
-			if err := visitNestedMappings(child, depth, visit); err != nil {
+			if err := visitNestedMappings(child, depth, ancestors, visit); err != nil {
 				return err
 			}
 		}

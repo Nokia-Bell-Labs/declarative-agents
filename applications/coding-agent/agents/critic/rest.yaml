@@ -42,7 +42,8 @@ rest:
               properties:
                 workspace_id: {type: string, min_length: 1}
           machine_request:
-            profile: agents/critic/profile-workspace.yaml
+            # Normalizes to profile: agents/critic/profile-workspace.yaml under /profiles.
+            profile: ../../../agents/critic/profile-workspace.yaml
             timeout: 5m
             request:
               body:
