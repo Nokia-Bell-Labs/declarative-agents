@@ -3,12 +3,14 @@
 package conformance
 
 import (
+	"encoding/json"
 	"fmt"
 	"net/http"
 	"net/http/httptest"
 	"os"
 	"path/filepath"
 	"strings"
+	"sync/atomic"
 	"testing"
 
 	"gopkg.in/yaml.v3"
@@ -18,6 +20,23 @@ import (
 // (agents/planner/llm/default.yaml). The behavioral shipped-profile run gates on
 // this model being served by Ollama.
 const plannerModel = "qwen3.6:35b-mlx"
+
+const plannerFirstResponseFixture = `title: Align planner prompts
+summary: Make every planner prompt request the parser-owned plan schema.
+files:
+  - path: applications/catalog/agents/planner/builtin.yaml
+    action: modify
+    note: Declare the canonical output document.
+requirements:
+  - id: R1
+    text: Request one top-level implementation-plan mapping.
+design_decisions:
+  - id: D1
+    text: Keep response-shape policy in profile-owned prompts.
+acceptance_criteria:
+  - id: AC1
+    text: The first model response parses without retry.
+`
 
 // machineTransition is one transition row of a shipped machine.yaml, enough to
 // assert the wiring the conformance tests care about.
@@ -154,6 +173,95 @@ func TestPlannerRetryPolicyWiring(t *testing.T) {
 				requireTransition(t, machine.Transitions, "QueryingRemainingWork", "WorkRemaining", "Completed", "")
 			}
 		})
+	}
+}
+
+// TestPlannerCanonicalPlanFirstResponse serves one deterministic response with
+// the complete profile-owned ImplementationPlan schema. The shipped load,
+// extraction, prompt composition, model boundary, and parse_plan word remain in
+// control; only the post-parse transition is bounded to a successful terminal.
+func TestPlannerCanonicalPlanFirstResponse(t *testing.T) {
+	var document yaml.Node
+	if err := yaml.Unmarshal([]byte(plannerFirstResponseFixture), &document); err != nil {
+		t.Fatalf("unmarshal planner response fixture: %v", err)
+	}
+	if len(document.Content) != 1 || document.Content[0].Kind != yaml.MappingNode {
+		t.Fatalf("planner response root kind = %v, want exactly one mapping", document.Content)
+	}
+	root := document.Content[0]
+	fields := make(map[string]bool)
+	for index := 0; index < len(root.Content); index += 2 {
+		fields[root.Content[index].Value] = true
+	}
+	wantFields := []string{
+		"title", "summary", "files", "requirements",
+		"design_decisions", "acceptance_criteria",
+	}
+	if len(fields) != len(wantFields) {
+		t.Fatalf("planner response fields = %v, want exactly %v", fields, wantFields)
+	}
+	for _, field := range wantFields {
+		if !fields[field] {
+			t.Errorf("planner response omits canonical field %q", field)
+		}
+	}
+
+	var chatCalls atomic.Int32
+	ollama := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		w.Header().Set("Content-Type", "application/json")
+		switch {
+		case r.Method == http.MethodGet && r.URL.Path == "/api/tags":
+			_, _ = w.Write([]byte(`{"models":[{"name":"qwen3.6:35b-mlx"}]}`))
+		case r.Method == http.MethodPost && r.URL.Path == "/api/chat":
+			chatCalls.Add(1)
+			_ = json.NewEncoder(w).Encode(map[string]any{
+				"message": map[string]string{
+					"role":    "assistant",
+					"content": plannerFirstResponseFixture,
+				},
+				"eval_count":        24,
+				"prompt_eval_count": 48,
+			})
+		default:
+			http.NotFound(w, r)
+		}
+	}))
+	defer ollama.Close()
+
+	profile := CopyShippedProfile(t, filepath.Join("agents", "planner", "profile.yaml"), map[string]string{
+		"http://localhost:11434": ollama.URL,
+		`- state: PlanParsing
+  signal: PlanReady
+  next: IssueFormatting
+  action: format_issue
+  label: issue_input`: `- state: PlanParsing
+  signal: PlanReady
+  next: Completed`,
+	})
+	coreRoot := RequireCoreRoot(t)
+	workspace := filepath.Join(coreRoot, "pkg", "spec", "testdata", "valid")
+	result := Run(t, RunConfig{Profile: profile, Directory: workspace})
+
+	result.RequireExit(t, 0)
+	result.RequireNoErrorSpans(t)
+	result.RequireTerminalState(t, "Completed")
+	result.RequireToolSpans(t,
+		"load_graph", "extract_task", "compose_planner_prompt", "parse_plan",
+	)
+	if got := len(result.Spans.Named("chat " + plannerModel)); got == 0 {
+		t.Fatalf("missing invoke_llm chat span; span names: %v", result.Spans.Names())
+	}
+	if got := chatCalls.Load(); got != 1 {
+		t.Fatalf("model response count = %d, want exactly one first response", got)
+	}
+	if got := len(result.Spans.Named("execute_tool parse_plan")); got != 1 {
+		t.Fatalf("parse_plan span count = %d, want exactly one", got)
+	}
+	if got := len(result.Spans.Named("execute_tool report_parse_error")); got != 0 {
+		t.Fatalf("report_parse_error ran after canonical first response: %d spans", got)
+	}
+	if _, _, ok := result.Spans.FindEvent("pipeline.plan_parsed"); !ok {
+		t.Fatalf("no pipeline.plan_parsed event; span names: %v\noutput:\n%s", result.Spans.Names(), result.Output)
 	}
 }
 

@@ -129,6 +129,51 @@ func TestPlannerVariantsComposeProfileOwnedPrompts(t *testing.T) {
 	}
 }
 
+func TestPlannerPromptLayersRequestCanonicalPlanDocument(t *testing.T) {
+	var builtin plannerDeclarations
+	readPlannerYAML(t, "builtin.yaml", &builtin)
+	var llm plannerDeclarations
+	readPlannerYAML(t, filepath.Join("llm", "default.yaml"), &llm)
+
+	prompts := make(map[string]string)
+	for _, declaration := range builtin.Tools {
+		if declaration.Name == "compose_planner_prompt" {
+			prompts["composed user prompt"], _ = declaration.Config["template"].(string)
+		}
+	}
+	for _, declaration := range llm.Tools {
+		if declaration.Name == "invoke_llm" {
+			prompts["system prompt"], _ = declaration.Config["system_prompt"].(string)
+			prompts["tool prompt"], _ = declaration.Config["tool_prompt"].(string)
+		}
+	}
+
+	if len(prompts) != 3 {
+		t.Fatalf("planner prompt layers = %d, want composed, system, and tool prompts", len(prompts))
+	}
+	for name, prompt := range prompts {
+		t.Run(name, func(t *testing.T) {
+			normalized := strings.Join(strings.Fields(prompt), " ")
+			for _, required := range []string{
+				"exactly one top-level YAML mapping",
+				"exactly these six keys: title, summary, files, requirements, design_decisions, and acceptance_criteria",
+				"root sequence/list",
+				"multiple plans",
+				"wrapper/envelope",
+			} {
+				if !strings.Contains(normalized, required) {
+					t.Errorf("%s omits %q:\n%s", name, required, prompt)
+				}
+			}
+			for _, incompatible := range []string{"- steps:", "- rationale:"} {
+				if strings.Contains(prompt, incompatible) {
+					t.Errorf("%s retains incompatible schema field %q:\n%s", name, incompatible, prompt)
+				}
+			}
+		})
+	}
+}
+
 func TestPlannerVariantsClassifyEmptyExtractionThroughRemainingWork(t *testing.T) {
 	for _, test := range []struct {
 		file  string

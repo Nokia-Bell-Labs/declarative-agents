@@ -253,13 +253,16 @@ tools:
         {{ retry_context }}
 
         ## Output Format
-        Return ONLY a YAML implementation plan with:
+        Return exactly one top-level YAML mapping and no other document content.
+        The mapping must contain exactly these six keys: title, summary, files, requirements, design_decisions, and acceptance_criteria.
         - title: concise task title
-        - summary: one-line summary (optional)
+        - summary: one-line summary
         - files: list of {path, action (create|modify|delete), note}
         - requirements: list of {id, text}
-        - design_decisions: list of {id, text} (optional)
+        - design_decisions: list of {id, text}
         - acceptance_criteria: list of {id, text}
+        Do not return a root sequence/list, multiple plans, a wrapper/envelope
+        key, Markdown fences, prose, or any keys outside this mapping.
 
   - name: increment_retry
     type: exec

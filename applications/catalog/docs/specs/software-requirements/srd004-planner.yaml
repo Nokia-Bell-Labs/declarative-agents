@@ -32,6 +32,7 @@ requirements:
       - R1.3: Issue materialization must be a visible format, write, tracker exec, and result-recording sentence; the profile declaration selects the tracker binary, arguments, parameter sources, and output contract.
       - R1.4: Validation retry increment, retry-limit comparison, explicit exhausted-task failure, task completion, and remaining-work routing must be visible machine states and transitions composed from focused words; labelled command state is the sole retry counter.
       - R1.5: Planner persona, user-prompt sections, and output instructions must be profile-owned; prompt-neutral task and SRD projection plus labelled prior validation failure must feed the same declared prompt composition on initial and retry attempts.
+      - R1.6: Every planner prompt layer must request exactly one top-level YAML mapping containing only title, summary, files, requirements, design_decisions, and acceptance_criteria; root sequences, multiple plans, and wrapper envelopes must be rejected rather than normalized.
   R2:
     title: Inputs, tools, and runtime dependencies
     items:
@@ -62,6 +63,9 @@ acceptance_criteria:
   - id: AC4
     criterion: Full and pass-through planner machines expose retry and graph-completion policy while preserving successful, exhausted, and blocked outcomes.
     traces: [R1.4, R3.1, R3.2]
+  - id: AC5
+    criterion: Profile and conformance tests prove the canonical planner prompt schema and parse a deterministic canonical first response without entering parse retry.
+    traces: [R1.5, R1.6]
 
 depends_on:
   - srd_id: srd001-agent-functional-blocks
@@ -79,4 +83,5 @@ diagrams:
       R2 --> AC2["AC2: Inputs, tools, dependencies named"]
       R3 --> AC3["AC3: Outputs and outcomes checkable"]
       R1 --> AC4["AC4: Visible retry and completion policy"]
+      R1 --> AC5["AC5: Canonical first response parses"]
     ```
