@@ -3,12 +3,17 @@
 package main
 
 import (
+	"context"
 	"encoding/json"
 	"fmt"
+	"net/http"
+	"net/http/httptest"
 	"os"
 	"os/exec"
 	"path/filepath"
 	"strings"
+	"sync"
+	"time"
 
 	"github.com/magefile/mage/mg"
 )
@@ -21,6 +26,9 @@ type Integration mg.Namespace
 func (Integration) ExecutorLive() error {
 	roots, err := resolveIntegrationRoots()
 	if err != nil {
+		return err
+	}
+	if err := validateReleaseDeadlines(); err != nil {
 		return err
 	}
 	if reason := liveSkipReason(roots); reason != "" {
@@ -42,14 +50,19 @@ func (Integration) ExecutorLive() error {
 		return err
 	}
 	defer cleanupWorkspace()
-	run, err := runBuiltAgent(binary, roots.Profiles, roots.Core, "agents/executor/profile.yaml", workspace)
+	model := newReleaseCodingModel()
+	defer model.Close()
+	run, err := runBuiltAgentWithOptions(
+		binary, roots.Profiles, roots.Core, "agents/executor/profile.yaml", workspace,
+		releaseAgentRunOptions(model.URL),
+	)
 	if err != nil {
 		return err
 	}
 	if err := requireSuccessfulExecutor(workspace, run); err != nil {
 		return err
 	}
-	fmt.Println("integration:executorLive PASS - canonical executor changed the greet workspace and go test ./... passed")
+	fmt.Println("integration:executorLive PASS - canonical executor used the deterministic Ollama-compatible boundary, changed the greet workspace, and passed go test ./...")
 	return nil
 }
 
@@ -60,6 +73,9 @@ func (Integration) ExecutorLive() error {
 func (Integration) PlannerDelegation() error {
 	roots, err := resolveIntegrationRoots()
 	if err != nil {
+		return err
+	}
+	if err := validateReleaseDeadlines(); err != nil {
 		return err
 	}
 	if reason := liveSkipReason(roots, "bd"); reason != "" {
@@ -76,25 +92,22 @@ func (Integration) PlannerDelegation() error {
 		return err
 	}
 	defer cleanupBinary()
-	const attempts = 1
-	var failures []string
-	for attempt := 1; attempt <= attempts; attempt++ {
-		_, cleanupWorkspace, err := producePlannerCandidate(roots, binary)
-		if err != nil {
-			failures = append(failures, fmt.Sprintf("attempt %d: %v", attempt, err))
-			if attempt < attempts {
-				fmt.Printf("plannerDelegation: attempt %d/%d did not complete; retrying from a fresh workspace\n", attempt, attempts)
-			}
-			continue
-		}
-		cleanupWorkspace()
-		fmt.Println("integration:plannerDelegation PASS - canonical planner materialized a local task and delegated to the real canonical executor")
-		return nil
+	model := newReleaseCodingModel()
+	defer model.Close()
+	_, cleanupWorkspace, err := producePlannerCandidate(roots, binary, model.URL)
+	if err != nil {
+		return err
 	}
-	return fmt.Errorf("planner did not complete in %d bounded attempts:\n%s", attempts, strings.Join(failures, "\n"))
+	cleanupWorkspace()
+	plannerCalls, _ := model.invocationCounts()
+	if plannerCalls != 1 {
+		return fmt.Errorf("planner model invocations = %d, want exactly 1", plannerCalls)
+	}
+	fmt.Println("integration:plannerDelegation PASS - canonical planner used one deterministic model response, materialized a local task, and delegated to the real canonical executor")
+	return nil
 }
 
-func producePlannerCandidate(roots integrationRoots, binary string) (string, func(), error) {
+func producePlannerCandidate(roots integrationRoots, binary, modelURL string) (string, func(), error) {
 	workspace, cleanupWorkspace, err := freshWorkspace(roots.Application)
 	if err != nil {
 		return "", nil, err
@@ -103,8 +116,11 @@ func producePlannerCandidate(roots integrationRoots, binary string) (string, fun
 		cleanupWorkspace()
 		return "", nil, err
 	}
-	run, err := runBuiltAgent(binary, roots.Profiles, roots.Core, "agents/planner/profile.yaml", workspace,
-		"--child-agent-binary", binary, "--verbose-trace")
+	run, err := runBuiltAgentWithOptions(
+		binary, roots.Profiles, roots.Core, "agents/planner/profile.yaml", workspace,
+		releaseAgentRunOptions(modelURL),
+		"--child-agent-binary", binary, "--verbose-trace",
+	)
 	if err != nil {
 		cleanupWorkspace()
 		return "", nil, err
@@ -153,11 +169,9 @@ func requireGreetingAndTests(workspace string) error {
 	return nil
 }
 
-// CriticGate gives the canonical changed-workspace critic two existing
-// candidates and maps only its machine-readable verdicts to application
-// outcomes. When the live planner is available, the accepted candidate is the
-// actual workspace it produced; otherwise the target records the clean Stage B
-// skip and uses the deterministic conforming candidate fixture.
+// CriticGate independently gives the canonical changed-workspace critic two
+// deterministic fixtures. It never invokes the planner; CodingLoop owns the
+// exact Stage B workspace handoff used by the composite Stage C proof.
 func (Integration) CriticGate() error {
 	roots, err := resolveIntegrationRoots()
 	if err != nil {
@@ -178,11 +192,18 @@ func (Integration) CriticGate() error {
 	}
 	defer cleanupBinary()
 
-	accepted, cleanupAccepted, acceptedSource, err := acceptedCriticCandidate(roots, binary)
+	accepted, cleanupAccepted, err := freshCandidateFixture(roots.Application, "accepted")
 	if err != nil {
 		return err
 	}
 	defer cleanupAccepted()
+	if err := runCriticGate(binary, roots, accepted, "deterministic conforming fixture"); err != nil {
+		return err
+	}
+	return nil
+}
+
+func runCriticGate(binary string, roots integrationRoots, accepted, acceptedSource string) error {
 	rejected, cleanupRejected, err := freshCandidateFixture(roots.Application, "rejected")
 	if err != nil {
 		return err
@@ -212,17 +233,6 @@ func (Integration) CriticGate() error {
 	fmt.Printf("integration:criticGate PASS - canonical critic accepted the %s candidate -> Succeeded and rejected the non-conforming candidate -> Failed\n",
 		acceptedSource)
 	return nil
-}
-
-func acceptedCriticCandidate(roots integrationRoots, binary string) (string, func(), string, error) {
-	if reason := liveSkipReason(roots, "bd"); reason == "" {
-		workspace, cleanup, err := producePlannerCandidate(roots, binary)
-		return workspace, cleanup, "Stage B planner", err
-	} else {
-		fmt.Printf("SKIP criticGate Stage B candidate: %s; using deterministic conforming fixture\n", reason)
-	}
-	workspace, cleanup, err := freshCandidateFixture(roots.Application, "accepted")
-	return workspace, cleanup, "deterministic conforming fixture", err
 }
 
 func freshCandidateFixture(appRoot, name string) (string, func(), error) {
@@ -306,16 +316,204 @@ func applicationOutcome(verdict canonicalCriticVerdict) (string, error) {
 	}
 }
 
-// CodingLoop runs the three independently addressable stages in order.
-func (i Integration) CodingLoop() error {
-	if err := i.ExecutorLive(); err != nil {
+type codingLoopStageFunctions struct {
+	executor func() error
+	planner  func() (string, func(), error)
+	critic   func(string) error
+}
+
+func runCodingLoopStages(stages codingLoopStageFunctions) error {
+	if err := stages.executor(); err != nil {
 		return fmt.Errorf("stage A executorLive: %w", err)
 	}
-	if err := i.PlannerDelegation(); err != nil {
+	workspace, cleanupWorkspace, err := stages.planner()
+	if err != nil {
 		return fmt.Errorf("stage B plannerDelegation: %w", err)
 	}
-	if err := i.CriticGate(); err != nil {
+	defer cleanupWorkspace()
+	if err := stages.critic(workspace); err != nil {
 		return fmt.Errorf("stage C criticGate: %w", err)
 	}
 	return nil
+}
+
+// CodingLoop runs all three stages while retaining the exact Stage B workspace
+// until Stage C has reviewed it.
+func (i Integration) CodingLoop() error {
+	roots, err := resolveIntegrationRoots()
+	if err != nil {
+		return err
+	}
+	if err := validateReleaseDeadlines(); err != nil {
+		return err
+	}
+	if reason := liveSkipReason(roots, "bd", "sh"); reason != "" {
+		fmt.Printf("SKIP codingLoop: %s\n", reason)
+		return nil
+	}
+	roots, cleanupProfiles, err := packageIntegrationRoots(roots)
+	if err != nil {
+		return err
+	}
+	defer cleanupProfiles()
+	binary, cleanupBinary, err := buildAgent(roots.Core)
+	if err != nil {
+		return err
+	}
+	defer cleanupBinary()
+	model := newReleaseCodingModel()
+	defer model.Close()
+
+	err = runCodingLoopStages(codingLoopStageFunctions{
+		executor: i.ExecutorLive,
+		planner: func() (string, func(), error) {
+			workspace, cleanup, err := producePlannerCandidate(roots, binary, model.URL)
+			if err != nil {
+				return "", nil, err
+			}
+			plannerCalls, _ := model.invocationCounts()
+			if plannerCalls != 1 {
+				cleanup()
+				return "", nil, fmt.Errorf("planner model invocations = %d, want exactly 1", plannerCalls)
+			}
+			return workspace, cleanup, nil
+		},
+		critic: func(workspace string) error {
+			return runCriticGate(binary, roots, workspace, "exact Stage B workspace")
+		},
+	})
+	if err != nil {
+		return err
+	}
+	plannerCalls, _ := model.invocationCounts()
+	if plannerCalls != 1 {
+		return fmt.Errorf("composite planner model invocations = %d, want exactly 1", plannerCalls)
+	}
+	fmt.Println("integration:codingLoop PASS - Stage C reviewed the exact retained Stage B workspace after one planner model invocation")
+	return nil
+}
+
+func validateReleaseDeadlines() error {
+	if releaseModelCallTimeout >= childAgentRunTimeout {
+		return fmt.Errorf("release deadline hierarchy: model call %s must be less than child run %s",
+			releaseModelCallTimeout, childAgentRunTimeout)
+	}
+	if childAgentRunTimeout+processGroupCleanupGrace >= outerEmergencyTimeout {
+		return fmt.Errorf("release deadline hierarchy: child run %s plus cleanup grace %s must be less than outer emergency %s",
+			childAgentRunTimeout, processGroupCleanupGrace, outerEmergencyTimeout)
+	}
+	return nil
+}
+
+func releaseAgentRunOptions(modelURL string) agentRunOptions {
+	return agentRunOptions{
+		Timeout:      outerEmergencyTimeout,
+		CleanupGrace: processGroupCleanupGrace,
+		Env:          []string{"OLLAMA_URL=" + modelURL},
+	}
+}
+
+type releaseCodingModel struct {
+	*httptest.Server
+	mu            sync.Mutex
+	plannerCalls  int
+	executorCalls int
+	callTimeout   time.Duration
+	responseDelay time.Duration
+}
+
+func newReleaseCodingModel() *releaseCodingModel {
+	return newReleaseCodingModelWithTiming(releaseModelCallTimeout, 0)
+}
+
+func newReleaseCodingModelWithTiming(callTimeout, responseDelay time.Duration) *releaseCodingModel {
+	model := &releaseCodingModel{callTimeout: callTimeout, responseDelay: responseDelay}
+	mux := http.NewServeMux()
+	mux.HandleFunc("/api/tags", func(w http.ResponseWriter, _ *http.Request) {
+		writeServingJSON(w, map[string]any{"models": []map[string]string{{"name": canonicalModel}}})
+	})
+	mux.HandleFunc("/api/chat", model.chat)
+	model.Server = httptest.NewServer(mux)
+	return model
+}
+
+func (model *releaseCodingModel) chat(w http.ResponseWriter, request *http.Request) {
+	ctx, cancel := context.WithTimeout(request.Context(), model.callTimeout)
+	defer cancel()
+
+	var body struct {
+		Messages []struct {
+			Content string `json:"content"`
+		} `json:"messages"`
+	}
+	if err := json.NewDecoder(request.Body).Decode(&body); err != nil {
+		http.Error(w, err.Error(), http.StatusBadRequest)
+		return
+	}
+	planner := false
+	for _, message := range body.Messages {
+		if strings.Contains(message.Content, "implementation planner for a Go software project") ||
+			strings.Contains(message.Content, "software planning assistant") ||
+			strings.Contains(message.Content, "# Implementation Planning") {
+			planner = true
+			break
+		}
+	}
+
+	model.mu.Lock()
+	if planner {
+		model.plannerCalls++
+	} else {
+		model.executorCalls++
+	}
+	executorCall := model.executorCalls
+	model.mu.Unlock()
+
+	if model.responseDelay > 0 {
+		timer := time.NewTimer(model.responseDelay)
+		defer timer.Stop()
+		select {
+		case <-timer.C:
+		case <-ctx.Done():
+			w.Header().Set("Content-Type", "application/json")
+			w.WriteHeader(http.StatusGatewayTimeout)
+			_, _ = w.Write([]byte(`{"error":"deterministic model call deadline exceeded"}`))
+			return
+		}
+	}
+
+	content := `title: Implement greeting
+summary: Implement the SRD greeting and validate the workspace.
+files:
+  - path: greet.go
+    action: modify
+    note: Return the required greeting.
+requirements:
+  - id: R1
+    text: Return the required greeting.
+design_decisions:
+  - id: D1
+    text: Make the smallest source-only change.
+acceptance_criteria:
+  - id: AC1
+    text: go test ./... passes.
+`
+	if !planner {
+		if executorCall == 1 {
+			content = `[tool_call]{"tool":"edit","parameters":{"path":"greet.go","old_string":"func Hello(name string) string {\n\treturn \"\"\n}","new_string":"func Hello(name string) string {\n\treturn \"Hello, \" + name + \"!\"\n}"}}[/tool_call]`
+		} else {
+			content = `[tool_call]{"tool":"done","parameters":{"summary":"implemented greeting and ready for validation"}}[/tool_call]`
+		}
+	}
+	writeServingJSON(w, map[string]any{
+		"message":           map[string]string{"role": "assistant", "content": content},
+		"eval_count":        1,
+		"prompt_eval_count": 1,
+	})
+}
+
+func (model *releaseCodingModel) invocationCounts() (planner, executor int) {
+	model.mu.Lock()
+	defer model.mu.Unlock()
+	return model.plannerCalls, model.executorCalls
 }
