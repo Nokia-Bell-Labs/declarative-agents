@@ -8,6 +8,7 @@ import (
 	"fmt"
 	"io/fs"
 	"os"
+	"path"
 	"path/filepath"
 	"reflect"
 	"regexp"
@@ -104,6 +105,11 @@ func TestApplicationActorGrammar(t *testing.T) {
 		t.Run(application, func(t *testing.T) {
 			appRoot := release14ApplicationRoot(application)
 			manifest := loadRelease14Manifest(t, application)
+			inventory, err := appmanifest.Resolve(manifest, release14ManifestOptions(application))
+			if err != nil {
+				t.Fatal(err)
+			}
+			resolver := newRelease14ReferenceResolver(appRoot, release14CatalogRoot(), inventory)
 			for _, root := range manifest.Roots {
 				if strings.Contains(root.Source, "/tests/") {
 					t.Errorf("fixture root %s entered production composition", root.Source)
@@ -114,7 +120,7 @@ func TestApplicationActorGrammar(t *testing.T) {
 					t.Errorf("fixture profile %s entered deployment", entry.ProfilePath)
 				}
 			}
-			err := filepath.WalkDir(filepath.Join(appRoot, "agents"),
+			err = filepath.WalkDir(filepath.Join(appRoot, "agents"),
 				func(filename string, entry fs.DirEntry, walkErr error) error {
 					if walkErr != nil {
 						return walkErr
@@ -133,11 +139,66 @@ func TestApplicationActorGrammar(t *testing.T) {
 						t.Errorf("%s has a non-normalized profile name", relativeToRepo(filename))
 						return nil
 					}
-					validateRelease14Profile(t, appRoot, filename)
+					validateRelease14Profile(t, filename, resolver)
 					return nil
 				})
 			if err != nil {
 				t.Fatal(err)
+			}
+		})
+	}
+}
+
+func TestResolveRelease14ReferenceUsesDeclaredRuntimeMappings(t *testing.T) {
+	resolver, profile, catalogTarget := release14ReferenceResolverFixture(t)
+
+	resolved, external, err := resolver.resolve(profile, "../../../agents/library/default.yaml")
+	if err != nil {
+		t.Fatal(err)
+	}
+	if resolved != catalogTarget || !external {
+		t.Fatalf("relocated reference = (%q, %t), want (%q, true)",
+			resolved, external, catalogTarget)
+	}
+
+	resolved, external, err = resolver.resolve(profile, "machine.yaml")
+	if err != nil {
+		t.Fatal(err)
+	}
+	if resolved != filepath.Join(filepath.Dir(profile), "machine.yaml") || external {
+		t.Fatalf("source-relative reference = (%q, %t)", resolved, external)
+	}
+
+	if _, external, err = resolver.resolve(profile, "/opt/agent-core/tools/builtin/llm"); err != nil || !external {
+		t.Fatalf("runtime-owned reference = (external %t, error %v)", external, err)
+	}
+}
+
+func TestResolveRelease14ReferenceRejectsUnsafeReferences(t *testing.T) {
+	resolver, profile, _ := release14ReferenceResolverFixture(t)
+	link := filepath.Join(filepath.Dir(profile), "linked-machine.yaml")
+	if err := os.Symlink("machine.yaml", link); err != nil {
+		t.Fatal(err)
+	}
+
+	tests := []struct {
+		name, reference, want string
+	}{
+		{"undeclared traversal", "../../../agents/undeclared/default.yaml", "outside declared runtime roots"},
+		{"glob", "configs/*.yaml", "unbounded glob"},
+		{"runtime glob", "/opt/agent-core/tools/*.yaml", "unbounded glob"},
+		{"absolute", "/tmp/machine.yaml", "disallowed absolute"},
+		{"non-runtime opt", "/opt/other/machine.yaml", "disallowed absolute"},
+		{"opt traversal", "/opt/agent-core/../other/machine.yaml", "disallowed absolute"},
+		{"windows absolute", "C:/tmp/machine.yaml", "disallowed absolute"},
+		{"symlink", "linked-machine.yaml", "symlink"},
+		{"dangling", "missing.yaml", "dangling reference"},
+	}
+	for _, test := range tests {
+		t.Run(test.name, func(t *testing.T) {
+			if _, _, err := resolver.resolve(profile, test.reference); err == nil ||
+				!strings.Contains(err.Error(), test.want) {
+				t.Fatalf("resolve(%q) error = %v, want %q", test.reference, err, test.want)
 			}
 		})
 	}
@@ -384,6 +445,48 @@ func TestRelease14ApplicationMatrix(t *testing.T) {
 	}
 }
 
+func release14ReferenceResolverFixture(t *testing.T) (release14ReferenceResolver, string, string) {
+	t.Helper()
+	applicationRoot := filepath.Join(t.TempDir(), "fixture")
+	catalogRoot := t.TempDir()
+	profile := filepath.Join(applicationRoot, "agents", "local", "request-profile.yaml")
+	machine := filepath.Join(applicationRoot, "agents", "local", "machine.yaml")
+	catalogTarget := filepath.Join(catalogRoot, "agents", "library", "default.yaml")
+	for filename, content := range map[string]string{
+		profile:       "name: request\n",
+		machine:       "name: machine\n",
+		catalogTarget: "name: default\n",
+	} {
+		if err := os.MkdirAll(filepath.Dir(filename), 0o755); err != nil {
+			t.Fatal(err)
+		}
+		if err := os.WriteFile(filename, []byte(content), 0o644); err != nil {
+			t.Fatal(err)
+		}
+	}
+	inventory := appmanifest.Inventory{
+		Roots: []appmanifest.RootProvenance{
+			{
+				Ownership: "local", Source: "application/agents/local/profile.yaml",
+				RuntimePath: "applications/fixture/local/profile.yaml",
+			},
+			{
+				Ownership: "catalog", Source: "catalog/agents/library/profile.yaml",
+				RuntimePath: "agents/library/profile.yaml",
+			},
+		},
+		Files: []appmanifest.InventoryFile{{
+			Source:      "application/agents/local/request-profile.yaml",
+			RuntimePath: "applications/fixture/local/request-profile.yaml",
+		}, {
+			Source:      "catalog/agents/library/default.yaml",
+			RuntimePath: "agents/library/default.yaml",
+		}},
+	}
+	return newRelease14ReferenceResolver(applicationRoot, catalogRoot, inventory),
+		profile, catalogTarget
+}
+
 func loadRelease14Manifest(t *testing.T, application string) appmanifest.Manifest {
 	t.Helper()
 	manifest, err := appmanifest.Load(
@@ -431,7 +534,7 @@ func discoverPrimaryLocalProfiles(t *testing.T, applicationRoot string) []string
 	return profiles
 }
 
-func validateRelease14Profile(t *testing.T, applicationRoot, filename string) {
+func validateRelease14Profile(t *testing.T, filename string, resolver release14ReferenceResolver) {
 	t.Helper()
 	var profile struct {
 		Machine          string   `yaml:"machine"`
@@ -442,11 +545,11 @@ func validateRelease14Profile(t *testing.T, applicationRoot, filename string) {
 	readRelease14YAML(t, filename, &profile)
 	if profile.Machine == "" {
 		t.Errorf("%s has no machine", relativeToRepo(filename))
-	} else if _, external, err := resolveRelease14Reference(applicationRoot, filename, profile.Machine); err != nil && !external {
+	} else if _, external, err := resolver.resolve(filename, profile.Machine); err != nil && !external {
 		t.Error(err)
 	}
 	for _, reference := range profile.Tools {
-		path, external, err := resolveRelease14Reference(applicationRoot, filename, reference)
+		path, external, err := resolver.resolve(filename, reference)
 		if err != nil {
 			t.Error(err)
 			continue
@@ -471,7 +574,7 @@ func validateRelease14Profile(t *testing.T, applicationRoot, filename string) {
 		}
 	}
 	for _, reference := range profile.ToolDeclarations {
-		path, external, err := resolveRelease14Reference(applicationRoot, filename, reference)
+		path, external, err := resolver.resolve(filename, reference)
 		if err != nil {
 			t.Error(err)
 			continue
@@ -482,7 +585,7 @@ func validateRelease14Profile(t *testing.T, applicationRoot, filename string) {
 		}
 	}
 	for _, reference := range profile.RESTDefinitions {
-		path, external, err := resolveRelease14Reference(applicationRoot, filename, reference)
+		path, external, err := resolver.resolve(filename, reference)
 		if err != nil {
 			t.Error(err)
 		} else if !external && !strings.HasSuffix(filepath.Base(path), "rest.yaml") {
@@ -492,42 +595,159 @@ func validateRelease14Profile(t *testing.T, applicationRoot, filename string) {
 	}
 }
 
-func resolveRelease14Reference(applicationRoot, profile, reference string) (string, bool, error) {
-	if filepath.IsAbs(reference) {
-		if strings.HasPrefix(filepath.ToSlash(reference), "/opt/agent-core/") {
-			return "", true, nil
-		}
+type release14ReferenceResolver struct {
+	applicationRoot string
+	catalogRoot     string
+	sourceRuntimes  map[string][]string
+	runtimeSources  map[string]string
+}
+
+func newRelease14ReferenceResolver(applicationRoot, catalogRoot string,
+	inventory appmanifest.Inventory,
+) release14ReferenceResolver {
+	resolver := release14ReferenceResolver{
+		applicationRoot: applicationRoot,
+		catalogRoot:     catalogRoot,
+		sourceRuntimes:  make(map[string][]string),
+		runtimeSources:  make(map[string]string),
+	}
+	for _, file := range inventory.Files {
+		resolver.sourceRuntimes[file.Source] = append(
+			resolver.sourceRuntimes[file.Source], file.RuntimePath)
+		resolver.runtimeSources[file.RuntimePath] = file.Source
+	}
+	for source := range resolver.sourceRuntimes {
+		sort.Strings(resolver.sourceRuntimes[source])
+	}
+	return resolver
+}
+
+func (resolver release14ReferenceResolver) resolve(profile, reference string) (string, bool, error) {
+	portable := filepath.ToSlash(strings.TrimSpace(reference))
+	if portable == "" || strings.Contains(portable, `\`) {
+		return "", false, fmt.Errorf("%s has empty or non-portable reference %s",
+			relativeToRepo(profile), reference)
+	}
+	if strings.ContainsAny(portable, "*?[") {
+		return "", false, fmt.Errorf("%s has unbounded glob reference %s",
+			relativeToRepo(profile), reference)
+	}
+	cleanPortable := path.Clean(portable)
+	if cleanPortable == "/opt/agent-core" || strings.HasPrefix(cleanPortable, "/opt/agent-core/") {
+		return "", true, nil
+	}
+	windowsAbsolute := len(portable) >= 3 &&
+		((portable[0] >= 'a' && portable[0] <= 'z') ||
+			(portable[0] >= 'A' && portable[0] <= 'Z')) &&
+		portable[1] == ':' && portable[2] == '/'
+	if path.IsAbs(portable) || filepath.IsAbs(reference) || windowsAbsolute {
 		return "", false, fmt.Errorf("%s has disallowed absolute reference %s",
 			relativeToRepo(profile), reference)
 	}
-	if strings.HasPrefix(filepath.ToSlash(reference), "agents/") {
-		catalog := filepath.Join(release14CatalogRoot(), filepath.FromSlash(reference))
-		if info, err := os.Stat(catalog); err == nil && info.Mode().IsRegular() {
-			return catalog, true, nil
+	profileSource, err := filepath.Rel(resolver.applicationRoot, profile)
+	if err != nil || escapesRelease14Root(profileSource) {
+		return "", false, fmt.Errorf("%s is outside its application root", relativeToRepo(profile))
+	}
+	profileSource = "application/" + filepath.ToSlash(profileSource)
+
+	sourceRelative := filepath.Clean(filepath.Join(
+		filepath.Dir(strings.TrimPrefix(profileSource, "application/")),
+		filepath.FromSlash(portable),
+	))
+	sourceMissing := false
+	if !strings.HasPrefix(portable, "agents/") && !escapesRelease14Root(sourceRelative) {
+		if filename, exists, err := resolver.regularSourceFile("application/" + filepath.ToSlash(sourceRelative)); err != nil {
+			return "", false, fmt.Errorf("%s has unsafe reference %s: %w",
+				relativeToRepo(profile), reference, err)
+		} else if exists {
+			return filename, false, nil
+		} else {
+			sourceMissing = true
 		}
 	}
-	candidate := filepath.Clean(filepath.Join(filepath.Dir(profile), filepath.FromSlash(reference)))
-	if info, err := os.Stat(candidate); err == nil && info.Mode().IsRegular() {
-		return candidate, false, nil
+
+	runtimeTargets := make(map[string]bool)
+	for _, profileRuntime := range resolver.sourceRuntimes[profileSource] {
+		var runtime string
+		if strings.HasPrefix(portable, "agents/") {
+			runtime = path.Clean(portable)
+		} else {
+			runtime = path.Clean(path.Join(path.Dir(profileRuntime), portable))
+		}
+		if runtime == "." || runtime == ".." || strings.HasPrefix(runtime, "../") || path.IsAbs(runtime) {
+			continue
+		}
+		runtimeTargets[runtime] = true
 	}
-	slash := filepath.ToSlash(reference)
-	var catalogRelative string
-	if index := strings.Index(slash, "catalog/"); index >= 0 {
-		catalogRelative = "agents/" + strings.TrimPrefix(slash[index+len("catalog/"):], "agents/")
-	} else {
-		relative, err := filepath.Rel(filepath.Join(applicationRoot, "agents"), candidate)
-		if err == nil && relative != ".." && !strings.HasPrefix(relative, ".."+string(filepath.Separator)) {
-			catalogRelative = "agents/" + filepath.ToSlash(relative)
+	targets := make([]string, 0, len(runtimeTargets))
+	for runtime := range runtimeTargets {
+		targets = append(targets, runtime)
+	}
+	sort.Strings(targets)
+	for _, runtime := range targets {
+		source, declared := resolver.runtimeSources[runtime]
+		if !declared {
+			continue
+		}
+		filename, exists, err := resolver.regularSourceFile(source)
+		if err != nil {
+			return "", false, fmt.Errorf("%s has unsafe reference %s: %w",
+				relativeToRepo(profile), reference, err)
+		}
+		if exists {
+			return filename, strings.HasPrefix(source, "catalog/"), nil
 		}
 	}
-	if catalogRelative != "" {
-		catalog := filepath.Join(release14CatalogRoot(), filepath.FromSlash(catalogRelative))
-		if info, err := os.Stat(catalog); err == nil && info.Mode().IsRegular() {
-			return catalog, true, nil
-		}
+	if sourceMissing {
+		return "", false, fmt.Errorf("%s has dangling reference %s",
+			relativeToRepo(profile), reference)
+	}
+	if len(runtimeTargets) > 0 {
+		return "", false, fmt.Errorf("%s has reference %s outside declared runtime roots",
+			relativeToRepo(profile), reference)
 	}
 	return "", false, fmt.Errorf("%s has dangling reference %s",
 		relativeToRepo(profile), reference)
+}
+
+func (resolver release14ReferenceResolver) regularSourceFile(source string) (string, bool, error) {
+	var root, relative string
+	switch {
+	case strings.HasPrefix(source, "application/"):
+		root, relative = resolver.applicationRoot, strings.TrimPrefix(source, "application/")
+	case strings.HasPrefix(source, "catalog/"):
+		root, relative = resolver.catalogRoot, strings.TrimPrefix(source, "catalog/")
+	default:
+		return "", false, fmt.Errorf("source %s has no declared ownership", source)
+	}
+	if relative == "" || path.IsAbs(relative) || escapesRelease14Root(filepath.FromSlash(relative)) {
+		return "", false, fmt.Errorf("source %s escapes its ownership root", source)
+	}
+	current := filepath.Clean(root)
+	var info fs.FileInfo
+	for _, component := range strings.Split(filepath.FromSlash(relative), string(filepath.Separator)) {
+		current = filepath.Join(current, component)
+		var err error
+		info, err = os.Lstat(current)
+		if os.IsNotExist(err) {
+			return "", false, nil
+		}
+		if err != nil {
+			return "", false, err
+		}
+		if info.Mode()&os.ModeSymlink != 0 {
+			return "", false, fmt.Errorf("source %s contains symlink %s", source, component)
+		}
+	}
+	if !info.Mode().IsRegular() {
+		return "", false, fmt.Errorf("source %s is not a regular file", source)
+	}
+	return current, true, nil
+}
+
+func escapesRelease14Root(relative string) bool {
+	return filepath.IsAbs(relative) || relative == ".." ||
+		strings.HasPrefix(relative, ".."+string(filepath.Separator))
 }
 
 func inventoryRootIDs(inventory appmanifest.Inventory) map[string]bool {
