@@ -5,10 +5,107 @@ package main
 import (
 	"encoding/json"
 	"math"
+	"net/http"
+	"os"
+	"path/filepath"
 	"slices"
 	"strings"
 	"testing"
 )
+
+func TestSeedRagServerCorpusUsesDeterministicDirectOperations(t *testing.T) {
+	root := t.TempDir()
+	corpusDir := filepath.Join(root, chromaCorpusFixture, "corpus")
+	if err := os.MkdirAll(corpusDir, 0o755); err != nil {
+		t.Fatal(err)
+	}
+	wantIDs := []string{"spec-driven-development.md", "chroma-corpus-agents.md"}
+	wantPaths := []string{"spec-driven-development.md", "chroma-corpus-agents.md"}
+	if len(ragServerSeedFiles) != len(wantPaths) {
+		t.Fatalf("seed manifest has %d files, want %d", len(ragServerSeedFiles), len(wantPaths))
+	}
+	wantDocs := []string{"spec fixture\n", "chroma fixture\n"}
+	for i, fixture := range ragServerSeedFiles {
+		if fixture.id != wantIDs[i] || fixture.path != wantPaths[i] {
+			t.Fatalf("seed file %d = (%q, %q), want (%q, %q)",
+				i, fixture.id, fixture.path, wantIDs[i], wantPaths[i])
+		}
+		if err := os.WriteFile(filepath.Join(corpusDir, fixture.path), []byte(wantDocs[i]), 0o644); err != nil {
+			t.Fatal(err)
+		}
+	}
+	if err := os.WriteFile(filepath.Join(corpusDir, "unselected.md"), []byte("must not be embedded"), 0o644); err != nil {
+		t.Fatal(err)
+	}
+
+	var embedded []string
+	var addPayload struct {
+		IDs        []string    `json:"ids"`
+		Documents  []string    `json:"documents"`
+		Embeddings [][]float64 `json:"embeddings"`
+	}
+	collectionRequests := 0
+	err := seedRagServerCorpusWithOperations(root, "embed-model", ragServerSeedOperations{
+		embed: func(model, text string) ([]float64, error) {
+			if model != "embed-model" {
+				t.Fatalf("embedding model = %q, want embed-model", model)
+			}
+			embedded = append(embedded, text)
+			return []float64{float64(len(embedded)), 2, 3}, nil
+		},
+		request: func(method, url, body string) ([]byte, int, error) {
+			if method != http.MethodPost {
+				t.Fatalf("request method = %q, want POST", method)
+			}
+			collectionRequests++
+			if collectionRequests == 1 {
+				if !strings.HasSuffix(url, "/collections") {
+					t.Fatalf("collection URL = %q", url)
+				}
+				if body != `{"name":"corpus","get_or_create":true}` {
+					t.Fatalf("collection body = %s", body)
+				}
+				return []byte(`{"id":"fixture-collection"}`), http.StatusCreated, nil
+			}
+			if !strings.HasSuffix(url, "/collections/fixture-collection/add") {
+				t.Fatalf("add URL = %q", url)
+			}
+			if err := json.Unmarshal([]byte(body), &addPayload); err != nil {
+				t.Fatalf("decode add payload: %v", err)
+			}
+			return nil, http.StatusCreated, nil
+		},
+	})
+	if err != nil {
+		t.Fatalf("seedRagServerCorpusWithOperations: %v", err)
+	}
+	if collectionRequests != 2 {
+		t.Fatalf("Chroma requests = %d, want create/get then add", collectionRequests)
+	}
+	if !slices.Equal(embedded, wantDocs) || !slices.Equal(addPayload.Documents, wantDocs) {
+		t.Fatalf("seeded documents = %q / %q, want fixed manifest %q", embedded, addPayload.Documents, wantDocs)
+	}
+	if !slices.Equal(addPayload.IDs, wantIDs) {
+		t.Fatalf("seed ids = %v, want %v", addPayload.IDs, wantIDs)
+	}
+	for i, vector := range addPayload.Embeddings {
+		if len(vector) != 3 {
+			t.Fatalf("embedding %d dimension = %d, want 3", i, len(vector))
+		}
+	}
+}
+
+func TestRagServerSetupHasNoModelDrivenIngestDependency(t *testing.T) {
+	source, err := os.ReadFile("integration_ragserver.go")
+	if err != nil {
+		t.Fatal(err)
+	}
+	for _, forbidden := range []string{"runChromaIngest(", "chromaRequiredModels("} {
+		if strings.Contains(string(source), forbidden) {
+			t.Errorf("rag-server setup contains model-driven ingest dependency %q", forbidden)
+		}
+	}
+}
 
 func TestParseRagQueryResponseChunksAndMetadata(t *testing.T) {
 	body := []byte(`{
