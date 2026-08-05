@@ -14,14 +14,14 @@ traces:
 
 preconditions:
   - agent-core is available as core_root in demo.yaml or a sibling ../agent-core checkout.
-  - A kind cluster and docker/helm/kubectl are available for the on-cluster tracers, and the rel06.0 runtime image is loadable.
+  - A kind cluster and docker/helm/kubectl are available for the on-cluster tracers; required pod images are host-pullable and kind-loadable.
   - The application owns the deployment chart (applications/chatbot-mesh/helm) and the chatbot/RAG profiles named by the tracers.
 
 test_cases:
   - use_case: rel03.0-uc001-mesh-deployment
     name: Mesh Helm deployment smoke tracer on kind
     integration_target: mage integration:helmSmoke
-    go_test: go test ./magefiles -run '^TestSplitImageRef$|^TestAssertSmokeChatServedAcceptsAnswer$|^TestAssertSmokeChatServedRejectsEmptyAnswer$|^TestHelmSmokeSkipReasonMissingBinary$'
+    go_test: go test ./magefiles -run '^TestSplitImageRef$|^TestKindDependencyImagesCoverEveryExternalPodImage$|^TestAssertSmokeChatServedAcceptsAnswer$|^TestAssertSmokeChatServedRejectsEmptyAnswer$|^TestHelmSmokeSkipReasonMissingBinary$|^TestHelmInstallSmokePassesRunIdentityToGateway$|^TestHelmSmokeInstallReturnsCapturedOutput$'
     status: implemented
     description: |
       Integration.HelmSmoke deploys the chatbot-mesh chart on a disposable kind
@@ -30,10 +30,23 @@ test_cases:
       stages the chatbot and rag-server profiles into the chart ConfigMap, helm
       installs and waits for every Deployment and StatefulSet ready, port-forwards
       the chatbot chat Service, posts one chat turn and asserts a served answer,
-      and verifies collector spool identity and metrics evidence (each agent
-      reports a distinct service.name via --otel-service-name). Teardown deletes
-      the cluster in all paths; the target skips cleanly when the toolchain or
-      models are absent.
+      and verifies local collector trace-spool identity plus metrics sent directly
+      by each agent to the persistent host collector (each agent reports a distinct
+      service.name via --otel-service-name). The host retains run-correlated
+      telemetry evidence after teardown. Teardown deletes the cluster in all paths;
+      the target skips cleanly when the toolchain or models are absent.
+
+      After manifest-closure provenance verification, the staged-only collector
+      and observer UIs are archived into out-of-release ConfigMaps. The exact
+      install values are rendered against a packaged thin chart before Helm, and
+      the v1 release Secret is checked against the 896 KiB safety budget after
+      install. Init-container checksum verification proves the mounted UI bytes
+      still match the canonical package inventory; canonical packaging itself
+      remains complete.
+
+      Every external pod image in the smoke topology is pulled by the host and
+      imported into kind before install, so a node never needs registry TLS for a
+      required dependency.
     inputs:
       chart: applications/chatbot-mesh/helm/
       values: applications/chatbot-mesh/helm/ci/kind-values.yaml
@@ -43,6 +56,17 @@ test_cases:
       chat_turn_served: true
       spans_from_multiple_services: true
       skips_clean_without_toolchain: true
+      projected_release_secret_max_bytes: 917504
+      actual_release_secret_max_bytes: 917504
+      external_ui_archives_out_of_release: [collector, observer]
+      runtime_ui_inventory_verified: true
+      canonical_package_closure_complete: true
+      required_images_host_pulled_and_kind_loaded: true
+      node_registry_pull_required: false
+      trace_ingress: local_collector_agent
+      integration_metric_ingress: persistent_host_collector
+      run_correlated_metric_evidence_retained: true
+      owned_cluster_removed: true
     traces:
       - rel03.0-uc001-mesh-deployment S1
       - srd003-chatbot-deployment AC1
@@ -51,7 +75,7 @@ test_cases:
   - use_case: rel03.0-uc001-mesh-deployment
     name: Chatbot topology and selected-target REST drift lock
     integration_target: mage integration:helmSmoke
-    go_test: go test ./magefiles -run '^TestChatbotRestCoGeneratedFromRagUnits$|^TestChatbotUIMonitoredAgentsCoGenerated$|^TestChatbotFanOutCoGeneratedForNRags$'
+    go_test: go test ./magefiles -run '^TestChatbotRestCoGeneratedFromRagUnits$|^TestChatbotUIMonitoredAgentsCoGenerated$|^TestChatbotFanOutCoGeneratedForNRags$|^TestRenderedProfileProjectionKeysExistInConfigMap$'
     status: implemented
     description: |
       Locks srd003 R2: ragUnits renders the chatbot's ordered topology declaration,
@@ -59,7 +83,10 @@ test_cases:
       request-machine.yaml and request-fanout-declarations.yaml remain packaged verbatim with
       one for_each and one rag_query. A three-RAG render changes only topology data
       and allowlisted/upstream hosts, retains one selected-target REST operation,
-      binds servers to 0.0.0.0, and passes the profile validation gate.
+      binds servers to 0.0.0.0, and passes the profile validation gate. The staged
+      chart render also proves every projected profiles-volume key exists in the
+      profiles ConfigMap data, including request-fanout-declarations.yaml, and
+      contains no request-fanout.yaml key or path.
     inputs:
       chart: applications/chatbot-mesh/helm/
       values_rag_list: [alpha, bravo, charlie]
@@ -70,6 +97,8 @@ test_cases:
       word_and_state_counts_independent_of_source_count: true
       no_drifted_or_stale_client: true
       rendered_profile_validates: true
+      projected_profile_keys_exist_in_configmap_data: true
+      legacy_request_fanout_name_absent: true
     traces:
       - rel03.0-uc001-mesh-deployment S2
       - srd003-chatbot-deployment AC2
@@ -77,7 +106,7 @@ test_cases:
   - use_case: rel03.0-uc001-mesh-deployment
     name: Mesh hot-swap tracer on kind
     integration_target: mage integration:helmSwap
-    go_test: go test ./magefiles -run '^TestChatbotFanOutCoGeneratedForNRags$'
+    go_test: go test ./magefiles -run '^TestChatbotFanOutCoGeneratedForNRags$|^TestKindDependencyImagesCoverEveryExternalPodImage$|^TestHelmFailureEvidenceIsBoundedAndNamesRootCauses$|^TestHelmSwapInstallAndUpgradeUseThinReleaseArgs$|^TestHelmSwapReturnsCapturedOutput$'
     status: implemented
     description: |
       Integration.HelmSwap proves the tiered-swap rollout mechanics on a kind
@@ -92,6 +121,16 @@ test_cases:
       from the replacement pod. It needs docker/kind/helm/kubectl but no installed
       Ollama models; it skips cleanly when the toolchain is absent and deletes a
       cluster it created in all paths.
+
+      Both install and upgrade use the same external collector/observer archive
+      names and checksums. Each revision is projected from its exact values
+      vector before Helm; v1 and v2 release Secrets are then checked against the
+      896 KiB budget, and the mounted inventory bytes are verified after each
+      revision. Swap now closes over the same host-pull/kind-load dependency set
+      as smoke before either revision, rather than allowing kind's containerd to
+      pull required images. On failure the bounded evidence bundle names image
+      pull, scheduling, PVC, probe, init-container, and workload-log causes before
+      owned-cluster cleanup.
     inputs:
       chart: applications/chatbot-mesh/helm/
       values_rag_list: [rag0, rag1, rag2]
@@ -103,6 +142,14 @@ test_cases:
       later_rag_identity_does_not_drift: true
       active_turn_completes_before_old_pod_exits: true
       replacement_pod_serves_next_turn: true
+      projected_release_secret_max_bytes: 917504
+      actual_release_secret_max_bytes: 917504
+      helm_release_revisions_checked: [1, 2]
+      external_ui_archives_out_of_release: [collector, observer]
+      runtime_ui_inventory_verified_each_revision: true
+      dependency_closure_equals_smoke: true
+      node_registry_pull_required: false
+      bounded_failure_evidence_before_cleanup: true
     traces:
       - rel03.0-uc001-mesh-deployment S3
       - srd003-chatbot-deployment AC3

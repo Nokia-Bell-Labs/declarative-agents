@@ -65,7 +65,7 @@ packaged copy is used verbatim and the chart passes per-pod environment. SPA
 assets under `agents/chatbot/ui/app/dist` (~216 KiB) fit within the 1 MiB ConfigMap limit
 alongside the rest of the profile.
 
-## Applier live release budget
+## Live release assets and budget
 
 Helm stores a release by JSON-encoding it, gzip-compressing it, and base64
 encoding the result into `Secret.data.release`; Kubernetes validates that inner
@@ -73,7 +73,11 @@ encoded value against its 1 MiB Secret limit. The chart files and rendered
 manifests therefore both charge immutable files that a template copies into a
 ConfigMap.
 
-The applier live tier keeps three immutable archives outside release storage:
+Live integration releases may keep immutable archives outside release storage.
+The shared externalization path currently moves the collector and observer UIs
+for the applier live tier; later tiers can use the same release-parameterized
+helpers without changing the canonical package. Applier live keeps three
+archives outside its release:
 
 - the packaged chart in `<release>-applier-chart`, referenced only by
   `applier.chartArchiveConfigMap` (never supplied with `--set-file`);
@@ -82,29 +86,32 @@ The applier live tier keeps three immutable archives outside release storage:
 - the observer UI in the checksum-addressed ConfigMap named by
   `observer.uiArchiveConfigMap`.
 
-The live staging path verifies every UI file against
+For the selected release name, live staging verifies every UI file against
 `provenance/application-closure.yaml`, creates deterministic `assets.tgz`
 archives, removes only those verified UI files from the staged chart, and
-pre-creates the ConfigMaps with `kubectl create`. Each workload receives the
-archive through an explicit volume, verifies `uiArchiveChecksum`, and unpacks it
-at its explicitly configured serving root (`/collector-ui` or `/observer-ui`);
-the observer keeps this writable staging mount beside its read-only `/profiles`
-mount so it cannot mask the profile itself. Pod annotations bind rollouts to the
-archive checksum. An archive-internal checksum manifest verifies every extracted
-file against the manifest-derived package inventory before the workload starts.
+pre-creates release-prefixed, checksum-addressed ConfigMaps with `kubectl
+create`. Each workload receives the archive through an explicit volume, verifies
+`uiArchiveChecksum`, and unpacks it at its explicitly configured serving root
+(`/collector-ui` or `/observer-ui`); the observer keeps this writable staging
+mount beside its read-only `/profiles` mount so it cannot mask the profile
+itself. Pod annotations bind rollouts to the archive checksum. An
+archive-internal checksum manifest verifies every extracted file against the
+manifest-derived package inventory before the workload starts.
 
 The checked-in defaults remain empty, so the ordinary packaged chart stays
 self-contained and renders its UI ConfigMaps in-release. Deploy tooling that
 sets an external archive name must also set its 64-character SHA-256 checksum
 and pre-create a ConfigMap with an `assets.tgz` key.
 
-Before any ConfigMap or Helm release is created, the live path renders the exact
-install inputs and measures chart files, values, and manifests using Helm's
-gzip/base64 storage behavior. It adds a 64 KiB projection allowance and requires
-the result to remain at or below 896 KiB, reserving at least 128 KiB below
-Kubernetes' 1 MiB limit. The package test records both the release-resident
-baseline and externalized measurements and fails deterministically on budget
-regression.
+Before any ConfigMap or Helm release is created, each adopting live path passes
+its release name and exact install value arguments to the shared projection. The
+projection renders those inputs and measures chart files, values, and manifests
+using Helm's gzip/base64 storage behavior. It adds a 64 KiB projection allowance
+and requires the result to remain at or below 896 KiB, reserving at least 128 KiB
+below Kubernetes' 1 MiB limit. Post-install assertions apply the same budget to
+the selected release's actual Helm Secrets and reject any stored external
+archive. The package test records both the release-resident baseline and
+externalized measurements and fails deterministically on budget regression.
 
 `mage helm:package` stages only the classified chart source inventory plus the
 manifest-derived runtime assets and provenance. Prior `dist/` archives and

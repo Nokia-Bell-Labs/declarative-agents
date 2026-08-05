@@ -119,7 +119,7 @@ requirements:
       - R9.1: "`otlp_receiver_launch` SHALL register the OTLP MetricsService Export operation on the same gRPC listener as the TraceService, and SHALL decode `ExportMetricsServiceRequest` batches with `go.opentelemetry.io/proto/otlp` without translating transport payloads in the handler."
       - R9.2: Receiver state SHALL hold complete OTLP metric export requests as batches under the same bounded FIFO and drop discipline as trace batches, and the drop policy SHALL report dropped batch and data-point counts in bounded diagnostics.
       - R9.3: A declared spool word SHALL append received metric batches as complete NDJSON lines carrying resource attributes, scope, metric name, and data points, under the same lock and bounded rotation as the trace spool, and SHALL NOT leave a partial line.
-      - R9.4: Declared read-only query words SHALL list and fetch spooled metrics by run identity and metric name, mirroring the trace query words.
+      - R9.4: Declared read-only query words SHALL list and fetch spooled metrics by metric name, and each fetched detail record SHALL return its decoded resource attributes unchanged, including `service.name` and `test.run.id`, so callers can identify the originating integration run while preserving the service and metric payload.
       - R9.5: Trace intake, spool, relay, and query behavior SHALL remain unchanged; metric words SHALL NOT alter span records or the stdouttrace shape.
 
 non_goals:
@@ -161,7 +161,7 @@ acceptance_criteria:
     traces: [R0.2, R0.3, R0.4, R3.7, R3.8, R3.9, R3.10, R5.1, R5.2, R5.4, R5.5]
 
   - id: AC8
-    criterion: The receiver accepts an OTLP/gRPC metric export into the same bounded queue, spools it as NDJSON with resource and metric identity intact under bounded rotation, and serves it back through declared read-only query words, leaving trace intake, spool, relay, and query behavior unchanged.
+    criterion: The receiver accepts an OTLP/gRPC metric export into the same bounded queue, spools it as NDJSON with resource and metric identity intact under bounded rotation, and serves it back through declared read-only query words whose detail records preserve resource attributes such as `service.name` and `test.run.id`, leaving trace intake, spool, relay, and query behavior unchanged.
     traces: [R9.1, R9.2, R9.3, R9.4, R9.5]
 
 depends_on:

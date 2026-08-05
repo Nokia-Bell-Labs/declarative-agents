@@ -17,36 +17,45 @@ import (
 const (
 	ragServerProfile = "agents/rag-server/profile.yaml"
 
-	ragQueryURL      = "http://127.0.0.1:18085/api/v1/rag/query"
-	ragControlHealth = "http://127.0.0.1:18086/api/lifecycle/health"
-	ragControlExit   = "http://127.0.0.1:18086/api/lifecycle/exit"
-	ragMonitorState  = "http://127.0.0.1:18087/monitor/state"
-	ollamaEmbedURL   = "http://127.0.0.1:11434/api/embeddings"
+	ragServerCollection = "corpus"
+	ragQueryURL         = "http://127.0.0.1:18085/api/v1/rag/query"
+	ragControlHealth    = "http://127.0.0.1:18086/api/lifecycle/health"
+	ragControlExit      = "http://127.0.0.1:18086/api/lifecycle/exit"
+	ragMonitorState     = "http://127.0.0.1:18087/monitor/state"
+	ollamaEmbedURL      = "http://127.0.0.1:11434/api/embeddings"
 )
 
+var ragServerSeedFiles = []struct {
+	id   string
+	path string
+}{
+	{"spec-driven-development.md", "spec-driven-development.md"},
+	{"chroma-corpus-agents.md", "chroma-corpus-agents.md"},
+}
+
 // RagServer proves the persistent RAG service end to end. It starts a Chroma
-// container, seeds a collection by running the ingest profile, launches the
-// rag-server as a long-running subprocess, then acts as the caller: it embeds a
-// query at Ollama to obtain a matching-dimension vector, posts it to the
-// machine_request query endpoint, and asserts the returned chunks and
-// embedding-model metadata, a mapped rejection for a wrong-dimension vector, and
-// a reachable monitor view. It requests a graceful lifecycle exit and asserts
-// the process stops. The target skips (does not fail) when Docker or Ollama with
-// the configured models is unavailable, matching Integration.Chroma.
+// container, deterministically embeds and writes the two serving fixtures,
+// launches the rag-server as a long-running subprocess, then acts as the caller:
+// it embeds a query at Ollama to obtain a matching-dimension vector, posts it to
+// the machine_request query endpoint, and asserts the returned chunks and
+// embedding-model metadata, a mapped rejection for a wrong-dimension vector,
+// and a reachable monitor view. It requests a graceful lifecycle exit and
+// asserts the process stops. The target skips (does not fail) when Docker or
+// Ollama with the configured embedding model is unavailable.
 func (Integration) RagServer() error {
 	profilesRoot, err := os.Getwd()
 	if err != nil {
 		return err
 	}
 	coreRoot := demoCoreRoot(profilesRoot)
-	if err := requireProfilePaths(profilesRoot, ragServerProfile, chromaIngestProfile, corpusRestAsset); err != nil {
+	if err := requireProfilePaths(profilesRoot, ragServerProfile, corpusRestAsset); err != nil {
 		return err
 	}
-	requiredModels, err := chromaRequiredModels(profilesRoot)
+	embedModel, err := chromaEmbedModelFromConfig(profilesRoot)
 	if err != nil {
 		return fmt.Errorf("invalid shipped RAG model config: %w", err)
 	}
-	if reason := chromaOllamaSkipReasonForModels(requiredModels); reason != "" {
+	if reason := chromaOllamaSkipReasonForModels([]string{embedModel}); reason != "" {
 		fmt.Printf("SKIP ragServer: %s\n", reason)
 		return nil
 	}
@@ -54,10 +63,10 @@ func (Integration) RagServer() error {
 		fmt.Println("SKIP ragServer: docker not found on PATH")
 		return nil
 	}
-	return runRagServerIntegration(profilesRoot, coreRoot)
+	return runRagServerIntegration(profilesRoot, coreRoot, embedModel)
 }
 
-func runRagServerIntegration(profilesRoot, coreRoot string) error {
+func runRagServerIntegration(profilesRoot, coreRoot, embedModel string) error {
 	binary, err := buildAgent(coreRoot)
 	if err != nil {
 		return err
@@ -73,16 +82,13 @@ func runRagServerIntegration(profilesRoot, coreRoot string) error {
 	}
 	defer stopChromaContainer(containerID)
 
-	// Seed the served collection through the ingest profile.
-	if err := runChromaIngest(binary, profilesRoot, coreRoot); err != nil {
-		return err
+	// Seed exactly the shipped serving fixture. Integration.Chroma independently
+	// proves the canonical model-driven corpus-ingest workflow.
+	if err := seedRagServerCorpus(profilesRoot, embedModel); err != nil {
+		return fmt.Errorf("seed rag-server corpus: %w", err)
 	}
 
 	// Embed a query at Ollama so the query vector matches the corpus dimension.
-	embedModel, err := chromaEmbedModelFromConfig(profilesRoot)
-	if err != nil {
-		return err
-	}
 	vector, err := ollamaEmbedQuery(embedModel, "What does the corpus describe?")
 	if err != nil {
 		return fmt.Errorf("embed query vector: %w", err)
@@ -125,6 +131,81 @@ func runRagServerIntegration(profilesRoot, coreRoot string) error {
 	stopped = true
 
 	fmt.Println("integration:ragServer PASS - vector-in query returned chunks with embedding-model metadata, wrong-dimension rejected, monitor reachable, graceful exit")
+	return nil
+}
+
+type ragServerSeedOperations struct {
+	embed   func(model, text string) ([]float64, error)
+	request func(method, url, body string) ([]byte, int, error)
+}
+
+func seedRagServerCorpus(profilesRoot, embedModel string) error {
+	return seedRagServerCorpusWithOperations(profilesRoot, embedModel, ragServerSeedOperations{
+		embed:   ollamaEmbedQuery,
+		request: requestHTTP,
+	})
+}
+
+// seedRagServerCorpusWithOperations reads a fixed manifest rather than asking a
+// model to select files. It embeds the exact canonical fixture documents with
+// the configured model and writes those vectors directly to the served Chroma
+// collection. Embedding every document and the query with one model preserves
+// the collection's vector-dimension contract.
+func seedRagServerCorpusWithOperations(profilesRoot, embedModel string, ops ragServerSeedOperations) error {
+	base := "http://127.0.0.1:8000/api/v2/tenants/default_tenant/databases/default_database/collections"
+	data, status, err := ops.request(http.MethodPost, base,
+		fmt.Sprintf(`{"name":%q,"get_or_create":true}`, ragServerCollection))
+	if err != nil {
+		return err
+	}
+	if status != http.StatusOK && status != http.StatusCreated {
+		return fmt.Errorf("resolve %s collection: status %d: %s", ragServerCollection, status, data)
+	}
+	var collection struct {
+		ID string `json:"id"`
+	}
+	if err := json.Unmarshal(data, &collection); err != nil {
+		return fmt.Errorf("decode collection id: %w", err)
+	}
+
+	ids := make([]string, 0, len(ragServerSeedFiles))
+	documents := make([]string, 0, len(ragServerSeedFiles))
+	embeddings := make([][]float64, 0, len(ragServerSeedFiles))
+	dimension := 0
+	for _, fixture := range ragServerSeedFiles {
+		content, err := os.ReadFile(filepath.Join(
+			profilesRoot, chromaCorpusFixture, "corpus", fixture.path))
+		if err != nil {
+			return fmt.Errorf("read rag-server fixture %s: %w", fixture.path, err)
+		}
+		vector, err := ops.embed(embedModel, string(content))
+		if err != nil {
+			return fmt.Errorf("embed rag-server fixture %s: %w", fixture.path, err)
+		}
+		if dimension == 0 {
+			dimension = len(vector)
+		} else if len(vector) != dimension {
+			return fmt.Errorf("fixture %s embedding dimension = %d, want %d",
+				fixture.path, len(vector), dimension)
+		}
+		ids = append(ids, fixture.id)
+		documents = append(documents, string(content))
+		embeddings = append(embeddings, vector)
+	}
+	payload, err := json.Marshal(map[string]interface{}{
+		"ids": ids, "documents": documents, "embeddings": embeddings,
+	})
+	if err != nil {
+		return err
+	}
+	addData, addStatus, err := ops.request(
+		http.MethodPost, base+"/"+collection.ID+"/add", string(payload))
+	if err != nil {
+		return err
+	}
+	if addStatus/100 != 2 {
+		return fmt.Errorf("add to %s: status %d: %s", ragServerCollection, addStatus, addData)
+	}
 	return nil
 }
 

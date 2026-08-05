@@ -201,7 +201,8 @@ test_cases:
       spool_list_metrics aggregates spooled records into per-name summaries with
       record and data-point counts and the contributing services, paginated
       deterministically. spool_get_metric returns every record for one metric
-      name with service identity and data points, read-only.
+      name with its decoded resource attributes unchanged, including service.name
+      and test.run.id, plus the service projection and data points, read-only.
     inputs:
       metrics:
         - {name: dispatch_count, services: [chatbot, rag0], data_points: [3, 2]}
@@ -211,6 +212,9 @@ test_cases:
       dispatch_count_records: 2
       dispatch_count_data_points: 5
       dispatch_count_services: [chatbot, rag0]
+      dispatch_count_resource:
+        service.name: chatbot
+        test.run.id: run-detail-42
     traces:
       - rel11.0-uc001-otlp-receiver-await S7
       - srd042-otlp-receiver-tools AC8

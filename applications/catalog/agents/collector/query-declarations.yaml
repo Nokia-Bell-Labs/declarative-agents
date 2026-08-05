@@ -118,7 +118,7 @@ tools:
     goals: [Return all records for one metric name, Read across active and rotated spool files]
     requirements:
       input: [Path comes from trusted config; metric_name comes from the request seed]
-      output: [Output includes metric_name, records, record_count, data_point_count, skipped_lines]
+      output: [Output includes metric_name, records, record_count, data_point_count, skipped_lines; each record includes unchanged decoded resource attributes such as service.name and test.run.id]
       errors: [An unreadable spool or missing metric_name emits CommandError]
     non_goals: [Does not aggregate across metric names or mutate records]
     parameters: {type: object, properties: {}}
@@ -128,7 +128,27 @@ tools:
         type: object
         properties:
           metric_name: {type: string}
-          records: {type: array}
+          records:
+            type: array
+            items:
+              type: object
+              properties:
+                name: {type: string}
+                type: {type: string}
+                unit: {type: string}
+                data_point_count: {type: integer}
+                service: {type: string}
+                resource:
+                  type: array
+                  description: Decoded OTLP resource attributes preserved unchanged from the spool record, including service.name and test.run.id when present.
+                  items:
+                    type: object
+                    properties:
+                      Key: {type: string}
+                      Value: {type: object}
+                    required: [Key, Value]
+                metric: {type: object}
+              required: [name, type, unit, data_point_count, service, resource, metric]
           record_count: {type: integer}
           data_point_count: {type: integer}
           skipped_lines: {type: integer}

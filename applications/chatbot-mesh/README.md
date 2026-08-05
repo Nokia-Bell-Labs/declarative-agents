@@ -139,8 +139,12 @@ contract — agent-core expands `${VAR:-default}` references in mounted
 declarations (srd013 R5.6/R5.7) — so the magefile sets them the same way a
 Helm chart sets pod env. The magefile's own configuration comes from
 `demo.yaml`, never from the environment: `inference_timeout` bounds one model
-call in the integration tracers, and `integration_otlp_endpoint` points
-integration launches at a live OTLP ingress (empty keeps them file-only).
+call made directly by an integration tracer. It does not bound the canonical
+Chroma corpus-ingest agent, whose profile-owned calls may each take 300 seconds.
+`chroma_ingest_timeout` instead bounds that complete multi-call ingest run
+(default `20m`), including startup, embedding, Chroma writes, and terminal
+verification. `integration_otlp_endpoint` points integration launches at a live
+OTLP ingress (empty keeps them file-only).
 
 The shared ENG01 operator verbs are:
 

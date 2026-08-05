@@ -24,23 +24,40 @@ preconditions:
 
 test_cases:
   - use_case: rel00.0-uc001-rag-server-query
-    name: RAG server vector-in query tracer
-    integration_target: mage integration:ragServer
-    go_test: go test ./magefiles -run '^TestParseRagQueryResponseChunksAndMetadata$|^TestParseRagQueryResponseEmptyChunks$|^TestParseRagQueryResponseNoIDs$|^TestRagQueryBodyMarshalsVector$|^TestCorpusIngestApplicationDirectoryContainsOnlyWrapperAndREST$|^TestCorpusIngestRuntimeStagesCanonicalLibraryProgram$|^TestChartStagesCanonicalCorpusIngestReference$'
+    name: Canonical corpus ingest proof
+    integration_target: mage integration:chroma
+    go_test: go test ./magefiles -run '^TestCorpusIngestApplicationDirectoryContainsOnlyWrapperAndREST$|^TestCorpusIngestRuntimeStagesCanonicalLibraryProgram$|^TestChartStagesCanonicalCorpusIngestReference$'
     status: implemented
     description: |
-      Integration.RagServer starts a Chroma container, seeds a collection through
-      the mesh wrapper around the canonical library ingest profile, launches the rag-server as a long-running
-      subprocess, embeds a query at Ollama for a matching-dimension vector, posts
-      it to the machine_request query endpoint, and asserts the returned chunks
-      with record ids and distances, the embedding-model metadata, a mapped 400
-      for a wrong-dimension vector, a reachable monitor current_state, and a
-      graceful lifecycle exit. Verified end to end against live Docker and Ollama;
-      skips cleanly without them. No query embedding or LLM answering happens in
-      the RAG server.
+      Integration.Chroma independently proves the canonical model-driven
+      corpus-ingest profile: it selects the shipped fixture files, embeds their
+      contents, writes the corpus collection, and verifies the live collection
+      count. RAG serving targets consume deterministic fixtures and do not repeat
+      this ingest proof.
+    expected:
+      canonical_ingest_reaches_chroma: true
+
+  - use_case: rel00.0-uc001-rag-server-query
+    name: RAG server vector-in query tracer
+    integration_target: mage integration:ragServer
+    go_test: go test ./magefiles -run '^TestSeedRagServerCorpusUsesDeterministicDirectOperations$|^TestRagServerSetupHasNoModelDrivenIngestDependency$|^TestParseRagQueryResponseChunksAndMetadata$|^TestValidateAlignment$|^TestParseRagQueryResponseEmptyChunks$|^TestParseRagQueryResponseNoIDs$|^TestRagQueryBodyMarshalsVector$'
+    status: implemented
+    description: |
+      Integration.RagServer starts a Chroma container and deterministically
+      embeds and writes the two shipped corpus documents directly to the corpus
+      collection. This bounded serving fixture has no model-driven file-selection
+      step; the independent integration:chroma target above owns that proof. The
+      target launches the rag-server as a long-running subprocess, embeds a query
+      at Ollama for a matching-dimension vector, posts it to the machine_request
+      query endpoint, and asserts the returned chunks with record ids and
+      distances, the embedding-model metadata, a mapped 400 for a wrong-dimension
+      vector, a reachable monitor current_state, and a graceful lifecycle exit.
+      Verified end to end against live Docker and Ollama; skips cleanly without
+      them. No query embedding or LLM answering happens in the RAG server.
     inputs:
       rag_profile: agents/rag-server/profile.yaml
       chroma_rest: agents/rag-server/rest.yaml
+      serving_fixture: testdata/integration/chroma-corpus/corpus
       query_embeddings: Ollama-embedded query vector
       n_results: 3
     scenario_critic_evidence:
@@ -53,6 +70,7 @@ test_cases:
       chunks_with_ids_and_distances: true
       metadata_names_embedding_model: true
       no_llm_answer_step: true
+      no_model_driven_file_selection: true
     traces:
       - rel00.0-uc001-rag-server-query S1
       - rel00.0-uc001-rag-server-query S2

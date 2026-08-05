@@ -143,7 +143,7 @@ func applierLiveSkipReason(coreRoot string) string {
 	return ""
 }
 
-func runApplierLive(coreRoot, profilesRoot string) error {
+func runApplierLive(coreRoot, profilesRoot string) (result error) {
 	images, err := resolveChatbotIntegrationImages(profilesRoot)
 	if err != nil {
 		return err
@@ -158,7 +158,7 @@ func runApplierLive(coreRoot, profilesRoot string) error {
 		return err
 	}
 	defer cleanupChart()
-	assets, cleanupAssets, err := externalizeApplierLiveUIs(staged)
+	assets, cleanupAssets, err := externalizeUIAssets(staged, applierLiveRelease)
 	if err != nil {
 		return err
 	}
@@ -215,12 +215,29 @@ func runApplierLive(coreRoot, profilesRoot string) error {
 	if err != nil {
 		return err
 	}
-	defer cluster.Release(kindrig.DefaultRun)
-	unbindKubeconfig, err := bindClusterKubeconfig(applierLiveCluster)
+	evidenceDir := helmScenarioEvidenceDirectory(
+		profilesRoot, applierLiveCluster, images.Revision)
+	var unbindKubeconfig func()
+	defer func() {
+		failed := result != nil
+		if failed && cluster.Created {
+			diagnostics := captureApplierLiveDiagnostics(
+				evidenceDir, runApplierLiveCommand, applierLiveDiagnosticsTimeout)
+			result = fmt.Errorf("%w\n%s", result, diagnostics)
+		}
+		cluster.ReleaseAfter(kindrig.DefaultRun, failed, kindrig.FailureEvidence{
+			Directory:  evidenceDir,
+			Namespaces: []string{"default"},
+			Run:        boundedHelmEvidenceRunner(helmEvidenceCommandTimeout),
+		})
+		if unbindKubeconfig != nil {
+			unbindKubeconfig()
+		}
+	}()
+	unbindKubeconfig, err = bindClusterKubeconfig(applierLiveCluster)
 	if err != nil {
 		return err
 	}
-	defer unbindKubeconfig()
 
 	if err := loadKindImage(applierLiveCluster, images.Applier); err != nil {
 		return err
@@ -237,19 +254,25 @@ func runApplierLive(coreRoot, profilesRoot string) error {
 	if err := helmInstallApplierLive(staged, chartArchive, images.Runtime, images.Applier, assets); err != nil {
 		return err
 	}
-	if err := waitApplierDeploymentReady(); err != nil {
+	// Check the object the API server actually accepted before readiness can
+	// obscure a release-storage regression behind a Deployment timeout.
+	if err := assertHelmReleaseSecrets(applierLiveRelease, chartArchive, assets); err != nil {
 		return err
 	}
-	if err := assertApplierLiveAssetsMounted(assets); err != nil {
+	if err := waitApplierLiveInitialReadiness(
+		runApplierLiveCommand, waitApplierDeploymentReady); err != nil {
 		return err
 	}
-	if err := assertApplierReleaseSecrets(chartArchive, assets); err != nil {
+	if err := assertExternalUIAssetsMounted(applierLiveRelease, assets, applierReadyWait); err != nil {
+		return err
+	}
+	if err := assertHelmReleaseSecrets(applierLiveRelease, chartArchive, assets); err != nil {
 		return err
 	}
 	if err := assertApplierServesItsSurface(profilesRoot); err != nil {
 		return err
 	}
-	if err := assertApplierReleaseSecrets(chartArchive, assets); err != nil {
+	if err := assertHelmReleaseSecrets(applierLiveRelease, chartArchive, assets); err != nil {
 		return err
 	}
 	fmt.Printf("integration:applierLive PASS - revision %s the applier runs on kind from an image built on the runtime "+
@@ -300,10 +323,11 @@ const applierLiveChartConfigMap = applierLiveRelease + "-applier-chart"
 // (GH-1407). This mirrors the GH-1402 curator-UI shard provisioning.
 func helmInstallApplierLive(
 	chartPath, chartArchive, runtimeImage, applierImage string,
-	assets []applierLiveAsset,
+	assets []externalUIAsset,
 ) error {
-	measured, err := measureApplierReleaseBudget(
-		chartPath, chartArchive, runtimeImage, applierImage, assets)
+	valueArgs := applierLiveValueArgs(chartPath, runtimeImage, applierImage, assets)
+	measured, err := measureHelmReleaseBudget(
+		applierLiveRelease, chartPath, chartArchive, valueArgs)
 	if err != nil {
 		return err
 	}
@@ -312,12 +336,12 @@ func helmInstallApplierLive(
 		return err
 	}
 	for _, asset := range assets {
-		if err := provisionApplierLiveAsset(asset); err != nil {
+		if err := provisionExternalUIAsset(asset); err != nil {
 			return err
 		}
 	}
 	args := append([]string{"install", applierLiveRelease, chartPath},
-		applierLiveValueArgs(chartPath, runtimeImage, applierImage, assets)...)
+		valueArgs...)
 	args = append(args, "--timeout", helmInstallTimeout.String())
 	cmd := exec.Command("helm", args...)
 	cmd.Stdout, cmd.Stderr = os.Stderr, os.Stderr
@@ -325,6 +349,29 @@ func helmInstallApplierLive(
 		return fmt.Errorf("helm install %s: %w", applierLiveRelease, err)
 	}
 	return nil
+}
+
+// applierLiveValueArgs is the exact values vector shared by the pre-install
+// release projection and Helm install. General external-asset arguments are
+// appended to the applier tier's own chart, image, and LLM settings.
+func applierLiveValueArgs(
+	chartPath, runtimeImage, applierImage string,
+	assets []externalUIAsset,
+) []string {
+	repo, tag := splitImageRef(runtimeImage)
+	applierRepo, applierTag := splitImageRef(applierImage)
+	args := []string{
+		"--values", filepath.Join(chartPath, "ci", "kind-values.yaml"),
+		"--values", filepath.Join(chartPath, "ci", "kind-applier-values.yaml"),
+		"--set", "applier.chartArchiveConfigMap=" + applierLiveChartConfigMap,
+		"--set", "image.repository=" + repo,
+		"--set-string", "image.tag=" + tag,
+		"--set", "image.pullPolicy=Never",
+		"--set", "applier.image.repository=" + applierRepo,
+		"--set-string", "applier.image.tag=" + applierTag,
+		"--set", "llm.externalURL=http://host.docker.internal:11434",
+	}
+	return append(args, externalUIAssetValueArgs(assets)...)
 }
 
 // provisionApplierChartConfigMap creates the out-of-release ConfigMap carrying the

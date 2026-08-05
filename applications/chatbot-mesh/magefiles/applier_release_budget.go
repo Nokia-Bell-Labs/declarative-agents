@@ -23,29 +23,29 @@ import (
 )
 
 const (
-	kubernetesSecretLimit             = 1 << 20
-	applierReleaseRequiredMargin      = 128 << 10
-	applierReleaseBudget              = kubernetesSecretLimit - applierReleaseRequiredMargin
-	applierReleaseProjectionAllowance = 64 << 10
-	applierAssetConfigMapBudget       = 900 << 10
+	kubernetesSecretLimit          = 1 << 20
+	helmReleaseRequiredMargin      = 128 << 10
+	helmReleaseBudget              = kubernetesSecretLimit - helmReleaseRequiredMargin
+	helmReleaseProjectionAllowance = 64 << 10
+	externalUIAssetConfigMapBudget = 900 << 10
 )
 
-type applierLiveAssetFile struct {
+type externalUIAssetFile struct {
 	PackagePath string
 	ArchivePath string
 	MountedPath string
 	Checksum    string
 }
 
-type applierLiveAsset struct {
+type externalUIAsset struct {
 	Component     string
 	Archive       string
 	ConfigMapName string
 	Checksum      string
-	Files         []applierLiveAssetFile
+	Files         []externalUIAssetFile
 }
 
-type applierReleaseMeasurements struct {
+type helmReleaseMeasurements struct {
 	ChartArchiveBytes    int
 	ChartFilesBytes      int
 	ChartEncodedBytes    int
@@ -58,7 +58,7 @@ type applierReleaseMeasurements struct {
 	RequiredMarginBytes  int
 }
 
-func (m applierReleaseMeasurements) String() string {
+func (m helmReleaseMeasurements) String() string {
 	return fmt.Sprintf(
 		"chart_archive(out-of-release)=%d chart_files(raw=%d encoded=%d) "+
 			"manifest(raw=%d encoded=%d) values(raw=%d encoded=%d) "+
@@ -69,13 +69,17 @@ func (m applierReleaseMeasurements) String() string {
 	)
 }
 
-// externalizeApplierLiveUIs turns the two largest immutable duplicated release
-// contributors into deterministic archives. The source files are removed from
-// the staged chart only after their package-inventory checksums have been
-// verified and the archives have been written. Helm therefore stores neither
-// the UI chart files nor rendered UI ConfigMaps, while the workloads mount the
-// same inventory bytes through explicitly named out-of-release ConfigMaps.
-func externalizeApplierLiveUIs(chart string) ([]applierLiveAsset, func(), error) {
+// externalizeUIAssets turns the two largest immutable duplicated release
+// contributors into deterministic archives for releaseName. The source files
+// are removed from the staged chart only after their package-inventory
+// checksums have been verified and the archives have been written. Helm
+// therefore stores neither the UI chart files nor rendered UI ConfigMaps, while
+// the workloads mount the same inventory bytes through explicitly named
+// out-of-release ConfigMaps.
+func externalizeUIAssets(chart, releaseName string) ([]externalUIAsset, func(), error) {
+	if strings.TrimSpace(releaseName) == "" {
+		return nil, nil, fmt.Errorf("external UI asset release name is empty")
+	}
 	data, err := os.ReadFile(filepath.Join(chart, filepath.FromSlash(chatbotClosureProvenance)))
 	if err != nil {
 		return nil, nil, fmt.Errorf("read staged closure provenance: %w", err)
@@ -84,7 +88,7 @@ func externalizeApplierLiveUIs(chart string) ([]applierLiveAsset, func(), error)
 	if err := yaml.Unmarshal(data, &provenance); err != nil {
 		return nil, nil, fmt.Errorf("decode staged closure provenance: %w", err)
 	}
-	dir, err := os.MkdirTemp("", "chatbot-mesh-applier-assets-*")
+	dir, err := os.MkdirTemp("", "chatbot-mesh-external-assets-*")
 	if err != nil {
 		return nil, nil, err
 	}
@@ -102,9 +106,10 @@ func externalizeApplierLiveUIs(chart string) ([]applierLiveAsset, func(), error)
 			mountedRoot: "/observer-ui/",
 		},
 	}
-	assets := make([]applierLiveAsset, 0, len(specs))
+	assets := make([]externalUIAsset, 0, len(specs))
 	for _, spec := range specs {
-		asset, err := writeApplierLiveAsset(chart, dir, provenance, spec.component, spec.prefix, spec.mountedRoot)
+		asset, err := writeExternalUIAsset(
+			chart, dir, provenance, releaseName, spec.component, spec.prefix, spec.mountedRoot)
 		if err != nil {
 			cleanup()
 			return nil, nil, err
@@ -120,18 +125,18 @@ func externalizeApplierLiveUIs(chart string) ([]applierLiveAsset, func(), error)
 	return assets, cleanup, nil
 }
 
-func writeApplierLiveAsset(
+func writeExternalUIAsset(
 	chart, dir string,
 	provenance chatbotPackageProvenance,
-	component, prefix, mountedRoot string,
-) (applierLiveAsset, error) {
-	asset := applierLiveAsset{Component: component}
+	releaseName, component, prefix, mountedRoot string,
+) (externalUIAsset, error) {
+	asset := externalUIAsset{Component: component}
 	for _, file := range provenance.Files {
 		if !strings.HasPrefix(file.PackagePath, prefix) {
 			continue
 		}
 		relative := strings.TrimPrefix(file.PackagePath, prefix)
-		asset.Files = append(asset.Files, applierLiveAssetFile{
+		asset.Files = append(asset.Files, externalUIAssetFile{
 			PackagePath: file.PackagePath,
 			ArchivePath: relative,
 			MountedPath: mountedRoot + relative,
@@ -154,16 +159,16 @@ func writeApplierLiveAsset(
 	}
 	sum := sha256.Sum256(archive)
 	asset.Checksum = hex.EncodeToString(sum[:])
-	if len(archive) > applierAssetConfigMapBudget {
+	if len(archive) > externalUIAssetConfigMapBudget {
 		return asset, fmt.Errorf("%s UI archive is %d bytes, over ConfigMap budget %d",
-			component, len(archive), applierAssetConfigMapBudget)
+			component, len(archive), externalUIAssetConfigMapBudget)
 	}
 	asset.ConfigMapName = fmt.Sprintf("%s-%s-ui-%s",
-		applierLiveRelease, component, asset.Checksum[:12])
+		releaseName, component, asset.Checksum[:12])
 	return asset, nil
 }
 
-func writeDeterministicAssetArchive(chart string, asset applierLiveAsset) (result error) {
+func writeDeterministicAssetArchive(chart string, asset externalUIAsset) (result error) {
 	file, err := os.Create(asset.Archive)
 	if err != nil {
 		return err
@@ -227,23 +232,8 @@ func writeDeterministicAssetArchive(chart string, asset applierLiveAsset) (resul
 	return gz.Close()
 }
 
-func applierLiveValueArgs(
-	chartPath, runtimeImage, applierImage string,
-	assets []applierLiveAsset,
-) []string {
-	repo, tag := splitImageRef(runtimeImage)
-	applierRepo, applierTag := splitImageRef(applierImage)
-	args := []string{
-		"--values", filepath.Join(chartPath, "ci", "kind-values.yaml"),
-		"--values", filepath.Join(chartPath, "ci", "kind-applier-values.yaml"),
-		"--set", "applier.chartArchiveConfigMap=" + applierLiveChartConfigMap,
-		"--set", "image.repository=" + repo,
-		"--set-string", "image.tag=" + tag,
-		"--set", "image.pullPolicy=Never",
-		"--set", "applier.image.repository=" + applierRepo,
-		"--set-string", "applier.image.tag=" + applierTag,
-		"--set", "llm.externalURL=http://host.docker.internal:11434",
-	}
+func externalUIAssetValueArgs(assets []externalUIAsset) []string {
+	args := make([]string, 0, len(assets)*4)
 	for _, asset := range assets {
 		args = append(args,
 			"--set", asset.Component+".uiArchiveConfigMap="+asset.ConfigMapName,
@@ -253,27 +243,29 @@ func applierLiveValueArgs(
 	return args
 }
 
-type applierBudgetFile struct {
+type helmReleaseBudgetFile struct {
 	Name string `json:"name"`
 	Data []byte `json:"data"`
 }
 
-func measureApplierReleaseBudget(
-	chartPath, chartArchive, runtimeImage, applierImage string,
-	assets []applierLiveAsset,
-) (applierReleaseMeasurements, error) {
-	var measured applierReleaseMeasurements
+func measureHelmReleaseBudget(
+	releaseName, chartPath, chartArchive string,
+	valueArgs []string,
+) (helmReleaseMeasurements, error) {
+	var measured helmReleaseMeasurements
+	if strings.TrimSpace(releaseName) == "" {
+		return measured, fmt.Errorf("Helm release budget name is empty")
+	}
 	archiveData, err := os.ReadFile(chartArchive)
 	if err != nil {
 		return measured, err
 	}
 	measured.ChartArchiveBytes = len(archiveData)
-	valueArgs := applierLiveValueArgs(chartPath, runtimeImage, applierImage, assets)
-	renderArgs := append([]string{"template", applierLiveRelease, chartPath}, valueArgs...)
+	renderArgs := append([]string{"template", releaseName, chartPath}, valueArgs...)
 	manifest, err := exec.Command("helm", renderArgs...).CombinedOutput()
 	if err != nil {
-		return measured, fmt.Errorf("render applier release budget: %w: %s",
-			err, strings.TrimSpace(string(manifest)))
+		return measured, fmt.Errorf("render Helm release budget for %s: %w: %s",
+			releaseName, err, strings.TrimSpace(string(manifest)))
 	}
 	if bytes.Contains(manifest, []byte("chart.tgz:")) ||
 		bytes.Contains(manifest, []byte(base64.StdEncoding.EncodeToString(archiveData))) {
@@ -309,17 +301,7 @@ func measureApplierReleaseBudget(
 	if err != nil {
 		return measured, err
 	}
-	projection, err := json.Marshal(struct {
-		Name      string              `json:"name"`
-		Namespace string              `json:"namespace"`
-		Version   int                 `json:"version"`
-		Chart     []applierBudgetFile `json:"chart"`
-		Config    string              `json:"config"`
-		Manifest  string              `json:"manifest"`
-	}{
-		Name: applierLiveRelease, Namespace: "default", Version: 1,
-		Chart: chartFiles, Config: string(valuesPayload), Manifest: string(manifest),
-	})
+	projection, err := helmReleaseProjection(releaseName, chartFiles, valuesPayload, manifest)
 	if err != nil {
 		return measured, err
 	}
@@ -327,9 +309,9 @@ func measureApplierReleaseBudget(
 	if err != nil {
 		return measured, err
 	}
-	measured.ProjectedSecretBytes = projected + applierReleaseProjectionAllowance
-	measured.BudgetBytes = applierReleaseBudget
-	measured.RequiredMarginBytes = applierReleaseRequiredMargin
+	measured.ProjectedSecretBytes = projected + helmReleaseProjectionAllowance
+	measured.BudgetBytes = helmReleaseBudget
+	measured.RequiredMarginBytes = helmReleaseRequiredMargin
 	if measured.ProjectedSecretBytes > measured.BudgetBytes {
 		return measured, fmt.Errorf(
 			"projected Helm release Secret exceeds safe budget before install: %s",
@@ -338,7 +320,25 @@ func measureApplierReleaseBudget(
 	return measured, nil
 }
 
-func releaseBudgetChartFiles(archive string) ([]applierBudgetFile, error) {
+func helmReleaseProjection(
+	releaseName string,
+	chartFiles []helmReleaseBudgetFile,
+	valuesPayload, manifest []byte,
+) ([]byte, error) {
+	return json.Marshal(struct {
+		Name      string                  `json:"name"`
+		Namespace string                  `json:"namespace"`
+		Version   int                     `json:"version"`
+		Chart     []helmReleaseBudgetFile `json:"chart"`
+		Config    string                  `json:"config"`
+		Manifest  string                  `json:"manifest"`
+	}{
+		Name: releaseName, Namespace: "default", Version: 1,
+		Chart: chartFiles, Config: string(valuesPayload), Manifest: string(manifest),
+	})
+}
+
+func releaseBudgetChartFiles(archive string) ([]helmReleaseBudgetFile, error) {
 	file, err := os.Open(archive)
 	if err != nil {
 		return nil, err
@@ -350,7 +350,7 @@ func releaseBudgetChartFiles(archive string) ([]applierBudgetFile, error) {
 	}
 	defer func() { _ = gz.Close() }()
 	reader := tar.NewReader(gz)
-	var files []applierBudgetFile
+	var files []helmReleaseBudgetFile
 	for {
 		header, err := reader.Next()
 		if err == io.EOF {
@@ -366,7 +366,7 @@ func releaseBudgetChartFiles(archive string) ([]applierBudgetFile, error) {
 		if err != nil {
 			return nil, err
 		}
-		files = append(files, applierBudgetFile{Name: header.Name, Data: data})
+		files = append(files, helmReleaseBudgetFile{Name: header.Name, Data: data})
 	}
 	sort.Slice(files, func(i, j int) bool { return files[i].Name < files[j].Name })
 	return files, nil
@@ -411,7 +411,7 @@ func helmEncodedSize(data []byte) (int, error) {
 	return base64.StdEncoding.EncodedLen(compressed.Len()), nil
 }
 
-func provisionApplierLiveAsset(asset applierLiveAsset) error {
+func provisionExternalUIAsset(asset externalUIAsset) error {
 	del := exec.Command("kubectl", "delete", "configmap", asset.ConfigMapName, "--ignore-not-found")
 	del.Stdout, del.Stderr = os.Stderr, os.Stderr
 	if err := del.Run(); err != nil {
@@ -428,14 +428,18 @@ func provisionApplierLiveAsset(asset applierLiveAsset) error {
 	return nil
 }
 
-func assertApplierLiveAssetsMounted(assets []applierLiveAsset) error {
+func assertExternalUIAssetsMounted(
+	releaseName string,
+	assets []externalUIAsset,
+	readyWait time.Duration,
+) error {
 	for _, asset := range assets {
-		deployment := "deployment/" + applierLiveRelease + "-chatbot-mesh-" + asset.Component
-		selector := "app.kubernetes.io/instance=" + applierLiveRelease +
+		deployment := "deployment/" + releaseName + "-chatbot-mesh-" + asset.Component
+		selector := "app.kubernetes.io/instance=" + releaseName +
 			",app.kubernetes.io/component=" + asset.Component
 		wait := exec.Command("kubectl", "wait", "pod", "-l", selector,
 			"--for=jsonpath={.status.phase}=Running",
-			"--timeout", applierReadyWait.String())
+			"--timeout", readyWait.String())
 		if out, err := wait.CombinedOutput(); err != nil {
 			return fmt.Errorf("%s did not start for mounted asset verification: %w: %s",
 				deployment, err, strings.TrimSpace(string(out)))
@@ -455,8 +459,8 @@ func assertApplierLiveAssetsMounted(assets []applierLiveAsset) error {
 		if err := assertAssetContainerStable(selector, asset.Component); err != nil {
 			return err
 		}
-		fmt.Printf("applierLive: mounted %s UI matches %d manifest-inventory files (%s)\n",
-			asset.Component, len(asset.Files), asset.Checksum)
+		fmt.Printf("%s: mounted %s UI matches %d manifest-inventory files (%s)\n",
+			releaseName, asset.Component, len(asset.Files), asset.Checksum)
 	}
 	return nil
 }
@@ -496,7 +500,10 @@ func assertAssetContainerStable(selector, component string) error {
 	return nil
 }
 
-func assertApplierReleaseSecrets(chartArchive string, assets []applierLiveAsset) error {
+func assertHelmReleaseSecrets(
+	releaseName, chartArchive string,
+	assets []externalUIAsset,
+) error {
 	archive, err := os.ReadFile(chartArchive)
 	if err != nil {
 		return err
@@ -510,10 +517,24 @@ func assertApplierReleaseSecrets(chartArchive string, assets []applierLiveAsset)
 		forbidden = append(forbidden, []byte(base64.StdEncoding.EncodeToString(data)))
 	}
 	out, err := exec.Command("kubectl", "get", "secret",
-		"-l", "owner=helm,name="+applierLiveRelease, "-o", "json").CombinedOutput()
+		"-l", "owner=helm,name="+releaseName, "-o", "json").CombinedOutput()
 	if err != nil {
 		return fmt.Errorf("read Helm release Secrets: %w: %s", err, strings.TrimSpace(string(out)))
 	}
+	count, largest, err := inspectHelmReleaseSecrets(releaseName, out, forbidden)
+	if err != nil {
+		return err
+	}
+	fmt.Printf("%s: %d Helm release Secrets checked; largest data.release=%d bytes, margin=%d bytes\n",
+		releaseName, count, largest, kubernetesSecretLimit-largest)
+	return nil
+}
+
+func inspectHelmReleaseSecrets(
+	releaseName string,
+	secretList []byte,
+	forbidden [][]byte,
+) (int, int, error) {
 	var list struct {
 		Items []struct {
 			Metadata struct {
@@ -522,41 +543,40 @@ func assertApplierReleaseSecrets(chartArchive string, assets []applierLiveAsset)
 			Data map[string]string `json:"data"`
 		} `json:"items"`
 	}
-	if err := json.Unmarshal(out, &list); err != nil {
-		return fmt.Errorf("decode Helm release Secret list: %w", err)
+	if err := json.Unmarshal(secretList, &list); err != nil {
+		return 0, 0, fmt.Errorf("decode Helm release Secret list: %w", err)
 	}
 	if len(list.Items) == 0 {
-		return fmt.Errorf("no Helm release Secrets found for %s", applierLiveRelease)
+		return 0, 0, fmt.Errorf("no Helm release Secrets found for %s", releaseName)
 	}
 	largest := 0
 	for _, item := range list.Items {
 		stored, err := base64.StdEncoding.DecodeString(item.Data["release"])
 		if err != nil {
-			return fmt.Errorf("decode Kubernetes Secret %s: %w", item.Metadata.Name, err)
+			return 0, 0, fmt.Errorf("decode Kubernetes Secret %s: %w", item.Metadata.Name, err)
 		}
 		if len(stored) > largest {
 			largest = len(stored)
 		}
-		if len(stored) > applierReleaseBudget {
-			return fmt.Errorf("Helm release Secret %s data.release is %d bytes, over safe budget %d",
-				item.Metadata.Name, len(stored), applierReleaseBudget)
+		if len(stored) > helmReleaseBudget {
+			return 0, 0, fmt.Errorf("Helm release Secret %s data.release is %d bytes, over safe budget %d",
+				item.Metadata.Name, len(stored), helmReleaseBudget)
 		}
 		releaseJSON, err := decodeHelmRelease(stored)
 		if err != nil {
-			return fmt.Errorf("decode Helm release %s: %w", item.Metadata.Name, err)
+			return 0, 0, fmt.Errorf("decode Helm release %s: %w", item.Metadata.Name, err)
 		}
 		for _, encoded := range forbidden {
 			if bytes.Contains(releaseJSON, encoded) {
-				return fmt.Errorf("Helm release %s stores an out-of-release archive", item.Metadata.Name)
+				return 0, 0, fmt.Errorf(
+					"Helm release %s stores an out-of-release archive", item.Metadata.Name)
 			}
 		}
 		if bytes.Contains(releaseJSON, []byte("chart.tgz:")) {
-			return fmt.Errorf("Helm release %s stores chart archive bytes", item.Metadata.Name)
+			return 0, 0, fmt.Errorf("Helm release %s stores chart archive bytes", item.Metadata.Name)
 		}
 	}
-	fmt.Printf("applierLive: %d Helm release Secrets checked; largest data.release=%d bytes, margin=%d bytes\n",
-		len(list.Items), largest, kubernetesSecretLimit-largest)
-	return nil
+	return len(list.Items), largest, nil
 }
 
 func decodeHelmRelease(stored []byte) ([]byte, error) {

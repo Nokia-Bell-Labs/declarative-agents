@@ -159,12 +159,13 @@ type metricSummary struct {
 }
 
 type metricDetail struct {
-	Name           string          `json:"name"`
-	Type           string          `json:"type"`
-	Unit           string          `json:"unit"`
-	DataPointCount int             `json:"data_point_count"`
-	Service        string          `json:"service"`
-	Metric         json.RawMessage `json:"metric"`
+	Name           string           `json:"name"`
+	Type           string           `json:"type"`
+	Unit           string           `json:"unit"`
+	DataPointCount int              `json:"data_point_count"`
+	Service        string           `json:"service"`
+	Resource       []map[string]any `json:"resource"`
+	Metric         json.RawMessage  `json:"metric"`
 }
 
 func paginateMetrics(summaries []metricSummary, cfg QueryListMetricsConfig) (page []metricSummary, total, offset, pageSize int) {
@@ -204,6 +205,7 @@ func matchMetricRecords(records []metricRecord, name string) []metricDetail {
 			Name: record.Name, Type: record.Type, Unit: record.Unit,
 			DataPointCount: record.DataPointCount,
 			Service:        serviceFromRecordResource(record.Resource),
+			Resource:       record.Resource,
 			Metric:         record.Metric,
 		})
 	}

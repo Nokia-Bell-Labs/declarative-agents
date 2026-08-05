@@ -6,6 +6,8 @@ import (
 	"fmt"
 	"os"
 	"os/exec"
+	"path/filepath"
+	"runtime"
 	"strings"
 	"time"
 
@@ -39,13 +41,59 @@ const (
 	policyMeshNS      = "mesh"
 	policyIngressNS   = "traefik"
 	policyRelease     = "rel"
-	// calicoManifest is pinned: an unpinned CNI would let the proof's meaning
-	// drift with an upstream release.
-	calicoManifest = "https://raw.githubusercontent.com/projectcalico/calico/v3.28.2/manifests/calico.yaml"
+	calicoVersion     = "v3.32.1"
+	// calicoManifest is pinned to the immutable commit behind the v3.32.1 tag:
+	// an unpinned CNI would let the proof's meaning drift with an upstream release.
+	calicoManifestCommit = "0ca9d1b93644778cafdf1812f3dda02ac0c361e8"
+	calicoManifest       = "https://raw.githubusercontent.com/projectcalico/calico/" +
+		calicoManifestCommit + "/manifests/calico.yaml"
+	policyProbeImageRepository = "docker.io/library/busybox"
+	policyProbeImageVersion    = "1.36"
 	// policyKindConfig is the checked-in cluster configuration: default CNI
 	// disabled so Calico can take over, node image pinned (eng01).
 	policyKindConfig = "testdata/kind-policy-config.yaml"
 )
+
+type calicoImage struct {
+	Component  string
+	Repository string
+	Digests    map[string]string
+}
+
+// calicoImages is the complete image set named by the pinned calico.yaml.
+// Digests are the architecture-specific manifests beneath each v3.32.1
+// multi-platform index, so Docker verifies the exact bytes kind receives.
+var calicoImages = []calicoImage{
+	{
+		Component:  "cni",
+		Repository: "quay.io/calico/cni",
+		Digests: map[string]string{
+			"amd64": "sha256:3ef9bbb3fdb2b3194dff57d7d8496d5e18247afb59606dfc694ab88ed1fa9f86",
+			"arm64": "sha256:f83ba4048763b8dbfa95f65b5094e8fb08b7326ce8d465111bb9da416ecb6bdb",
+		},
+	},
+	{
+		Component:  "node",
+		Repository: "quay.io/calico/node",
+		Digests: map[string]string{
+			"amd64": "sha256:c061070a27292f8152ae6a0582078eb9059d1b6ed5e57c2052e5c22534734240",
+			"arm64": "sha256:9da8e32d2d6f9405be1985f258842bfc808bbf5aca51091bdef8110fca722a1b",
+		},
+	},
+	{
+		Component:  "kube-controllers",
+		Repository: "quay.io/calico/kube-controllers",
+		Digests: map[string]string{
+			"amd64": "sha256:df00967cbd6d88e1ff3123e1598895845622e2987928b4ebd9d8ac49aefe00c3",
+			"arm64": "sha256:afa3429708de65af587ede22064a7abddf57082edd368066c24781e3b2d30cb5",
+		},
+	},
+}
+
+var policyProbeImageDigests = map[string]string{
+	"amd64": "sha256:b7f3d86d6e84fc17718c48bcde1450807faa2d56704205c697b4bd5df7b9e29f",
+	"arm64": "sha256:bd44eb136a95dcc8dc58995e43abc40a413f2e8e3d4a2aae6bccbe94686acb05",
+}
 
 // reachability is the observable a probe produces. It is deliberately two-valued:
 // the assertions care whether a connection completed, not why it did not.
@@ -147,13 +195,56 @@ func policyProofSkipReason() string {
 	return ""
 }
 
-func runPolicyProof(chartDir string) error {
-	cluster, err := ensurePolicyCluster()
-	if err != nil {
-		return err
-	}
-	defer cluster.Release(kindrig.DefaultRun)
+type policyProofExecution struct {
+	acquire func() (kindrig.Cluster, error)
+	release func(kindrig.Cluster, bool)
+	prove   func(string) error
+}
 
+func runPolicyProof(chartDir string) error {
+	evidence := policyFailureEvidence(chartDir, kindrig.DefaultCommandRun)
+	return executePolicyProof(chartDir, policyProofExecution{
+		acquire: ensurePolicyCluster,
+		release: func(cluster kindrig.Cluster, failed bool) {
+			cluster.ReleaseAfter(kindrig.DefaultRun, failed, evidence)
+		},
+		prove: provePolicyBoundary,
+	})
+}
+
+func policyFailureEvidence(
+	chartDir string,
+	run kindrig.CommandRunner,
+) kindrig.FailureEvidence {
+	return kindrig.FailureEvidence{
+		Directory: policyEvidenceDirectory(chartDir),
+		Namespaces: []string{
+			"kube-system",
+			policyMeshNS,
+			policyIngressNS,
+		},
+		Run: policyDiagnosticRunner(run),
+	}
+}
+
+// executePolicyProof registers cleanup before it observes bootstrapErr. Cluster
+// creation can succeed before Calico delivery fails, in which case acquire
+// deliberately returns an owned Cluster alongside the error.
+func executePolicyProof(
+	chartDir string,
+	execution policyProofExecution,
+) (result error) {
+	cluster, bootstrapErr := execution.acquire()
+	defer func() {
+		execution.release(cluster, result != nil)
+	}()
+	if bootstrapErr != nil {
+		return bootstrapErr
+	}
+	return execution.prove(chartDir)
+}
+
+func provePolicyBoundary(chartDir string) error {
 	if err := assertPolicyEnforcementActive(); err != nil {
 		return err
 	}
@@ -164,6 +255,26 @@ func runPolicyProof(chartDir string) error {
 		return err
 	}
 	return assertPolicyProbes()
+}
+
+func policyEvidenceDirectory(chartDir string) string {
+	return filepath.Join(
+		filepath.Dir(chartDir),
+		"build",
+		"kind-evidence",
+		policyKindCluster+"-"+time.Now().UTC().Format("20060102T150405.000000000Z"),
+	)
+}
+
+// policyDiagnosticRunner binds kindrig's generic kubectl evidence commands to
+// this proof's cluster rather than trusting the ambient current context.
+func policyDiagnosticRunner(run kindrig.CommandRunner) kindrig.CommandRunner {
+	return func(name string, args ...string) ([]byte, error) {
+		if name == "kubectl" {
+			args = append([]string{"--context", policyKubeContext()}, args...)
+		}
+		return run(name, args...)
+	}
 }
 
 // ensurePolicyCluster reuses or creates the policy cluster. It uses its own name
@@ -178,11 +289,23 @@ func runPolicyProof(chartDir string) error {
 // reused cluster that enforces differently is not, which is why the printed notice
 // names the risk.
 func ensurePolicyCluster() (kindrig.Cluster, error) {
+	return ensurePolicyClusterWith(
+		kindrig.DefaultRun,
+		kindrig.DefaultCommandRun,
+		runtime.GOARCH,
+	)
+}
+
+func ensurePolicyClusterWith(
+	kindRun kindrig.Runner,
+	commandRun kindrig.CommandRunner,
+	arch string,
+) (kindrig.Cluster, error) {
 	// The node stays NotReady until a CNI lands, so a Ready wait here would always
 	// time out (wait 0). A reused cluster is nevertheless API-health checked by
 	// EnsureCluster before it is returned.
 	cluster, err := kindrig.EnsureCluster(
-		kindrig.DefaultRun, policyKindCluster, policyKindConfig, 0)
+		kindRun, policyKindCluster, policyKindConfig, 0)
 	if err != nil {
 		return kindrig.Cluster{}, err
 	}
@@ -194,17 +317,150 @@ func ensurePolicyCluster() (kindrig.Cluster, error) {
 	}
 
 	fmt.Printf("policyProof: created %s with the default CNI disabled\n", policyKindCluster)
-	fmt.Println("policyProof: installing Calico")
-	if err := kubectlPolicy("apply", "-f", calicoManifest); err != nil {
-		return cluster, fmt.Errorf("install calico: %w", err)
+	fmt.Printf("policyProof: installing Calico %s from locally loaded images\n", calicoVersion)
+	if err := installCalico(commandRun, cluster.Name, arch); err != nil {
+		return cluster, err
 	}
-	if err := kubectlPolicy("-n", "kube-system", "rollout", "status", "daemonset/calico-node", "--timeout=300s"); err != nil {
-		return cluster, fmt.Errorf("calico rollout: %w", err)
-	}
-	if err := kubectlPolicy("wait", "--for=condition=Ready", "node", "--all", "--timeout=300s"); err != nil {
-		return cluster, fmt.Errorf("node ready: %w", err)
+	fmt.Printf("policyProof: loading the policy probe image into %s\n", cluster.Name)
+	if err := preloadPolicyProbeImage(commandRun, cluster.Name, arch); err != nil {
+		return cluster, err
 	}
 	return cluster, nil
+}
+
+func installCalico(run kindrig.CommandRunner, cluster, arch string) error {
+	if strings.TrimSpace(cluster) == "" {
+		return fmt.Errorf("install Calico %s: kind cluster name is required", calicoVersion)
+	}
+	for _, image := range calicoImages {
+		source, runtimeImage, err := calicoImageRefs(image, arch)
+		if err != nil {
+			return err
+		}
+		commands := [][]string{
+			{"docker", "pull", "--platform", "linux/" + arch, source},
+			{"docker", "tag", source, runtimeImage},
+			{"kind", "load", "docker-image", runtimeImage, "--name", cluster},
+		}
+		for _, command := range commands {
+			if err := runCalicoCommand(
+				run, image.Component, command[0], command[1:]...,
+			); err != nil {
+				return err
+			}
+		}
+	}
+
+	contextArgs := []string{"--context", "kind-" + cluster}
+	commands := []struct {
+		component string
+		args      []string
+	}{
+		{
+			component: "manifest",
+			args:      append(contextArgs, "apply", "-f", calicoManifest),
+		},
+		{
+			component: "node rollout",
+			args: append(contextArgs, "-n", "kube-system", "rollout", "status",
+				"daemonset/calico-node", "--timeout=300s"),
+		},
+		{
+			component: "kube-controllers rollout",
+			args: append(contextArgs, "-n", "kube-system", "rollout", "status",
+				"deployment/calico-kube-controllers", "--timeout=300s"),
+		},
+		{
+			component: "node readiness",
+			args: append(contextArgs, "wait", "--for=condition=Ready", "node",
+				"--all", "--timeout=300s"),
+		},
+	}
+	for _, command := range commands {
+		if err := runCalicoCommand(run, command.component, "kubectl", command.args...); err != nil {
+			return err
+		}
+	}
+	return nil
+}
+
+func calicoImageRefs(image calicoImage, arch string) (source, runtimeImage string, err error) {
+	digest, ok := image.Digests[arch]
+	if !ok {
+		return "", "", fmt.Errorf(
+			"install Calico %s %s: no pinned digest for linux/%s",
+			calicoVersion, image.Component, arch,
+		)
+	}
+	runtimeImage = image.Repository + ":" + calicoVersion
+	return runtimeImage + "@" + digest, runtimeImage, nil
+}
+
+func runCalicoCommand(
+	run kindrig.CommandRunner,
+	component, name string,
+	args ...string,
+) error {
+	output, err := run(name, args...)
+	if err == nil {
+		return nil
+	}
+	command := strings.TrimSpace(name + " " + strings.Join(args, " "))
+	if detail := strings.TrimSpace(string(output)); detail != "" {
+		return fmt.Errorf(
+			"install Calico %s %s: %s: %w: %s",
+			calicoVersion, component, command, err, detail,
+		)
+	}
+	return fmt.Errorf(
+		"install Calico %s %s: %s: %w",
+		calicoVersion, component, command, err,
+	)
+}
+
+func preloadPolicyProbeImage(
+	run kindrig.CommandRunner,
+	cluster, arch string,
+) error {
+	source, runtimeImage, err := policyProbeImageRefs(arch)
+	if err != nil {
+		return err
+	}
+	commands := [][]string{
+		{"docker", "pull", "--platform", "linux/" + arch, source},
+		{"docker", "tag", source, runtimeImage},
+		{"kind", "load", "docker-image", runtimeImage, "--name", cluster},
+	}
+	for _, command := range commands {
+		output, commandErr := run(command[0], command[1:]...)
+		if commandErr == nil {
+			continue
+		}
+		invocation := strings.Join(command, " ")
+		if detail := strings.TrimSpace(string(output)); detail != "" {
+			return fmt.Errorf(
+				"load policy probe image %s: %s: %w: %s",
+				runtimeImage, invocation, commandErr, detail,
+			)
+		}
+		return fmt.Errorf(
+			"load policy probe image %s: %s: %w",
+			runtimeImage, invocation, commandErr,
+		)
+	}
+	return nil
+}
+
+func policyProbeImageRefs(arch string) (source, runtimeImage string, err error) {
+	digest, ok := policyProbeImageDigests[arch]
+	if !ok {
+		return "", "", fmt.Errorf(
+			"load policy probe image %s:%s: no pinned digest for linux/%s",
+			policyProbeImageRepository, policyProbeImageVersion, arch,
+		)
+	}
+	runtimeImage = policyProbeImageRepository + ":" + policyProbeImageVersion
+	return runtimeImage + "@" + digest, runtimeImage, nil
 }
 
 // assertPolicyEnforcementActive proves the cluster actually enforces NetworkPolicy
@@ -365,7 +621,8 @@ func httpdPod(ns, name, portName string, port int, labels map[string]string) str
 	for k, v := range labels {
 		fmt.Fprintf(&b, "    %s: %s\n", k, v)
 	}
-	fmt.Fprintf(&b, "spec:\n  containers:\n    - name: srv\n      image: busybox:1.36\n")
+	fmt.Fprintf(&b, "spec:\n  containers:\n    - name: srv\n      image: %s\n", policyProbeImageRepository+":"+policyProbeImageVersion)
+	b.WriteString("      imagePullPolicy: Never\n")
 	fmt.Fprintf(&b, "      command: [\"sh\",\"-c\",\"mkdir -p /w && echo %s > /w/index.html && httpd -f -p %d -h /w\"]\n", name, port)
 	fmt.Fprintf(&b, "      ports:\n        - {name: %s, containerPort: %d}\n", portName, port)
 	return b.String()
@@ -377,7 +634,8 @@ func sleeperPod(ns, name string, labels map[string]string) string {
 	for k, v := range labels {
 		fmt.Fprintf(&b, "    %s: %s\n", k, v)
 	}
-	b.WriteString("spec:\n  containers:\n    - name: c\n      image: busybox:1.36\n      command: [\"sleep\",\"3600\"]\n")
+	fmt.Fprintf(&b, "spec:\n  containers:\n    - name: c\n      image: %s\n", policyProbeImageRepository+":"+policyProbeImageVersion)
+	b.WriteString("      imagePullPolicy: Never\n      command: [\"sleep\",\"3600\"]\n")
 	return b.String()
 }
 

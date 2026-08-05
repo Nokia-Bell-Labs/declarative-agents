@@ -3,12 +3,15 @@
 package main
 
 import (
+	"context"
 	"encoding/json"
+	"errors"
 	"net/http"
 	"net/http/httptest"
 	"os"
 	"os/exec"
 	"path/filepath"
+	"runtime"
 	"slices"
 	"strings"
 	"testing"
@@ -48,6 +51,113 @@ func TestKindDependencyImagesCoverEveryExternalPodImage(t *testing.T) {
 	if !slices.Equal(smoke, wantSmoke) {
 		t.Fatalf("smoke dependencies = %v, want %v", smoke, wantSmoke)
 	}
+	swap, err := swapDependencyImages(chartDir)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if !slices.Equal(swap, wantSmoke) {
+		t.Fatalf("swap dependencies = %v, want smoke closure %v", swap, wantSmoke)
+	}
+}
+
+func TestHermeticDependencyPullUsesExactOllamaDigest(t *testing.T) {
+	var calls []string
+	run := func(name string, args ...string) ([]byte, error) {
+		calls = append(calls, name+" "+strings.Join(args, " "))
+		return nil, nil
+	}
+	images := []string{"busybox:1.36", helmLLMOllamaImage}
+	if err := pullIntegrationDependencyImages("helmLLMTier", images, run); err != nil {
+		t.Fatal(err)
+	}
+	want := []string{
+		"docker pull --platform linux/" + runtime.GOARCH + " busybox:1.36",
+		"docker pull --platform linux/" + runtime.GOARCH + " " + helmLLMOllamaSourceImage,
+	}
+	if !slices.Equal(calls, want) {
+		t.Fatalf("dependency delivery calls:\n got: %v\nwant: %v", calls, want)
+	}
+	dockerfile := trustedOllamaDockerfile()
+	for _, want := range []string{
+		"FROM " + helmLLMOllamaSourceImage,
+		">> /etc/ssl/certs/ca-certificates.crt",
+	} {
+		if !strings.Contains(dockerfile, want) {
+			t.Errorf("trusted Ollama Dockerfile missing %q:\n%s", want, dockerfile)
+		}
+	}
+	for _, forbidden := range []string{"insecure", "tls-verify=false", "GIT_SSL_NO_VERIFY"} {
+		if strings.Contains(strings.ToLower(dockerfile), strings.ToLower(forbidden)) {
+			t.Errorf("trusted Ollama Dockerfile disables TLS with %q:\n%s",
+				forbidden, dockerfile)
+		}
+	}
+}
+
+func TestHelmFailureEvidenceIsBoundedAndNamesRootCauses(t *testing.T) {
+	t.Run("diagnostic causes", func(t *testing.T) {
+		run := func(_ context.Context, name string, args ...string) ([]byte, error) {
+			command := name + " " + strings.Join(args, " ")
+			switch {
+			case strings.Contains(command, "get events"):
+				return []byte("FailedScheduling: insufficient memory\nFailedMount: PVC is Pending\nErrImagePull: x509 certificate signed by unknown authority"), nil
+			case strings.Contains(command, `-o json`):
+				return []byte(`{"status":{"initContainerStatuses":[{"name":"wait-for-llm-models","state":{"waiting":{"reason":"PodInitializing"}}}],"containerStatuses":[{"name":"ollama","state":{"waiting":{"reason":"ImagePullBackOff"}}}]}}`), nil
+			case strings.Contains(command, "describe pods"):
+				return []byte("Readiness probe failed: connection refused"), nil
+			case strings.Contains(command, "logs"):
+				return []byte("pulling qwen2.5:0.5b\nError: model pull failed"), nil
+			default:
+				return []byte("diagnostic output"), nil
+			}
+		}
+		dir := t.TempDir()
+		report := captureHelmFailureDiagnostics(
+			dir, helmLLMRelease, run, time.Second)
+		for _, want := range []string{
+			"bounded diagnostics",
+			"FailedScheduling",
+			"PVC is Pending",
+			"ErrImagePull",
+			"ImagePullBackOff",
+			"Readiness probe failed",
+			"model pull failed",
+			"initContainerStatuses",
+		} {
+			if !strings.Contains(report, want) {
+				t.Errorf("failure evidence missing %q:\n%s", want, report)
+			}
+		}
+		data, err := os.ReadFile(filepath.Join(dir, "bounded-diagnostics.txt"))
+		if err != nil {
+			t.Fatal(err)
+		}
+		if !strings.Contains(string(data), "container and init status") {
+			t.Fatalf("persisted evidence omits container/init status:\n%s", data)
+		}
+	})
+
+	t.Run("overall deadline", func(t *testing.T) {
+		calls := 0
+		run := func(ctx context.Context, _ string, _ ...string) ([]byte, error) {
+			calls++
+			<-ctx.Done()
+			return nil, ctx.Err()
+		}
+		started := time.Now()
+		report := collectHelmFailureDiagnostics(
+			helmSwapRelease, run, 5*time.Millisecond)
+		if elapsed := time.Since(started); elapsed > 200*time.Millisecond {
+			t.Fatalf("diagnostics took %s, want bounded completion", elapsed)
+		}
+		if calls != len(helmFailureDiagnosticCommands(helmSwapRelease)) {
+			t.Fatalf("diagnostic calls = %d, want %d",
+				calls, len(helmFailureDiagnosticCommands(helmSwapRelease)))
+		}
+		if !strings.Contains(report, "deadline exceeded") {
+			t.Fatalf("bounded diagnostics omit deadline evidence:\n%s", report)
+		}
+	})
 }
 
 func TestChatbotIntegrationImagesPropagateCheckoutRevision(t *testing.T) {
@@ -80,6 +190,13 @@ func TestCollectorDefaultRenderStaysSelfContained(t *testing.T) {
 	if strings.Contains(render, "jaeger") {
 		t.Fatal("default collector render still references Jaeger")
 	}
+	const localCollector = "t-chatbot-mesh-collector:4317"
+	assertRenderedFlagEndpoint(t, render, "--otel-otlp-endpoint", localCollector)
+	assertRenderedFlagEndpoint(t, render, "--otel-metric-otlp-endpoint", localCollector)
+	if !strings.Contains(render,
+		`CHROMA_OPEN_TELEMETRY__ENDPOINT, value: "http://`+localCollector+`"`) {
+		t.Error("default production render does not send Chroma metrics to the local collector")
+	}
 	for _, forbidden := range []string{"otlp/external:", "resource/integration:", "test.run.id"} {
 		if strings.Contains(render, forbidden) {
 			t.Errorf("default production render contains integration-only %q", forbidden)
@@ -87,7 +204,7 @@ func TestCollectorDefaultRenderStaysSelfContained(t *testing.T) {
 	}
 }
 
-func TestCollectorKindOverlayExportsBothSignalsWithRunIdentity(t *testing.T) {
+func TestCollectorKindOverlayExportsMetricsDirectlyAndTracesLocally(t *testing.T) {
 	if _, err := exec.LookPath("helm"); err != nil {
 		t.Skip("helm not on PATH")
 	}
@@ -98,10 +215,15 @@ func TestCollectorKindOverlayExportsBothSignalsWithRunIdentity(t *testing.T) {
 		t.Fatalf("helm template kind overlay: %v\n%s", err, out)
 	}
 	render := string(out)
-	// Agent mode relays both signals through the declarative collector to the host
-	// ingress and tags each agent's telemetry with the integration run identity via
-	// OTEL_RESOURCE_ATTRIBUTES; metrics ride the same agent collector as traces
-	// (GH-1207, GH-1366).
+	const (
+		localCollector    = "t-chatbot-mesh-collector:4317"
+		externalCollector = "host.docker.internal:4317"
+	)
+	// Integration traces still spool in the declarative collector and use its
+	// declared relay. Agent and Chroma metrics go directly to the persistent host
+	// collector so evidence survives cluster teardown.
+	assertRenderedFlagEndpoint(t, render, "--otel-otlp-endpoint", localCollector)
+	assertRenderedFlagEndpoint(t, render, "--otel-metric-otlp-endpoint", externalCollector)
 	for _, want := range []string{
 		"COLLECTOR_RELAY_ENDPOINT",
 		`value: "host.docker.internal:4317"`,
@@ -113,7 +235,7 @@ func TestCollectorKindOverlayExportsBothSignalsWithRunIdentity(t *testing.T) {
 		"vcs.ref.head.revision=unknown",
 		"test.run.id=local-kind",
 		"CHROMA_OPEN_TELEMETRY__ENDPOINT",
-		`http://t-chatbot-mesh-collector:4317`,
+		`http://host.docker.internal:4317`,
 		"CHROMA_OPEN_TELEMETRY__SERVICE_NAME",
 		`value: "rag0-chroma"`,
 	} {
@@ -132,6 +254,31 @@ func TestCollectorKindOverlayExportsBothSignalsWithRunIdentity(t *testing.T) {
 	} {
 		if strings.Contains(render, notWant) {
 			t.Errorf("kind agent-mode render unexpectedly contains %q", notWant)
+		}
+	}
+}
+
+func assertRenderedFlagEndpoint(t *testing.T, render, flag, want string) {
+	t.Helper()
+	lines := strings.Split(render, "\n")
+	var got []string
+	for i, line := range lines {
+		if strings.TrimSpace(line) != `- "`+flag+`"` {
+			continue
+		}
+		if i+1 >= len(lines) {
+			t.Fatalf("rendered %s has no endpoint value", flag)
+		}
+		value := strings.TrimPrefix(strings.TrimSpace(lines[i+1]), "- ")
+		got = append(got, strings.Trim(value, `"`))
+	}
+	if len(got) == 0 {
+		t.Fatalf("render contains no %s exporters", flag)
+	}
+	for _, endpoint := range got {
+		if endpoint != want {
+			t.Errorf("rendered %s endpoint = %q, want %q (all values: %v)",
+				flag, endpoint, want, got)
 		}
 	}
 }
@@ -223,6 +370,7 @@ nodes:
 }
 
 func TestHelmInstallSmokePassesRunIdentityToGateway(t *testing.T) {
+	chart, chartArchive, assets := stageThinIntegrationChart(t, helmRelease)
 	var command []string
 	run := func(name string, args ...string) ([]byte, error) {
 		command = append([]string{name}, args...)
@@ -234,8 +382,24 @@ func TestHelmInstallSmokePassesRunIdentityToGateway(t *testing.T) {
 		Commit:       "abc123",
 	}
 	image := "declarative-agents/agent-core:0123456789ab"
-	if err := helmInstallSmokeWithRunner("/chart", image, telemetry, run); err != nil {
+	if err := helmInstallSmokeWithRunner(
+		chart, chartArchive, image, telemetry, assets, run); err != nil {
 		t.Fatal(err)
+	}
+	valueArgs := helmSmokeValueArgs(chart, image, telemetry, assets)
+	wantCommand := append([]string{"helm", "install", helmRelease, chart}, valueArgs...)
+	wantCommand = append(wantCommand, "--wait", "--timeout", helmInstallTimeout.String())
+	if !slices.Equal(command, wantCommand) {
+		t.Fatalf("helm command:\n got: %#v\nwant: %#v", command, wantCommand)
+	}
+	measured, err := measureHelmReleaseBudget(
+		helmRelease, chart, chartArchive, valueArgs)
+	if err != nil {
+		t.Fatalf("smoke release budget: %v", err)
+	}
+	if measured.ProjectedSecretBytes > helmReleaseBudget {
+		t.Fatalf("smoke projected release = %d, budget = %d",
+			measured.ProjectedSecretBytes, helmReleaseBudget)
 	}
 	joined := strings.Join(command, " ")
 	for _, want := range []string{
@@ -248,6 +412,162 @@ func TestHelmInstallSmokePassesRunIdentityToGateway(t *testing.T) {
 	} {
 		if !strings.Contains(joined, want) {
 			t.Errorf("helm command missing %q: %s", want, joined)
+		}
+	}
+	assertExternalAssetArgs(t, joined, assets)
+}
+
+func TestHelmSmokeInstallReturnsCapturedOutput(t *testing.T) {
+	chart, chartArchive, assets := stageThinIntegrationChart(t, helmRelease)
+	err := helmInstallSmokeWithRunner(
+		chart,
+		chartArchive,
+		"declarative-agents/agent-core:smoke-output",
+		helmTelemetryIdentity{
+			OTLPEndpoint: "host.docker.internal:4317",
+			RunID:        "run-output",
+			Commit:       "abc123",
+		},
+		assets,
+		func(string, ...string) ([]byte, error) {
+			return []byte("controlled smoke Helm output"), errors.New("controlled failure")
+		},
+	)
+	if err == nil || !strings.Contains(err.Error(), "controlled smoke Helm output") {
+		t.Fatalf("smoke install error = %v, want captured Helm output", err)
+	}
+}
+
+func TestHelmSwapInstallAndUpgradeUseThinReleaseArgs(t *testing.T) {
+	chart, chartArchive, assets := stageThinIntegrationChart(t, helmSwapRelease)
+	image := "declarative-agents/agent-core:swap-budget"
+	tests := []struct {
+		verb  string
+		extra []string
+	}{
+		{
+			verb: "install",
+			extra: []string{
+				"--set", "llm.externalURL=http://host.docker.internal:12345",
+				"--set", "llm.port=12345",
+				"--set", "ragUnits[1].name=rag1",
+				"--set", "ragUnits[1].description=Second integration corpus",
+				"--set", "ragUnits[1].collection=corpus1",
+				"--set", "ragUnits[1].embeddingModel=qwen3-embedding:8b",
+				"--set", "ragUnits[1].replicas=1",
+				"--set", "ragUnits[2].name=rag2",
+				"--set", "ragUnits[2].description=Third integration corpus",
+				"--set", "ragUnits[2].collection=corpus2",
+				"--set", "ragUnits[2].embeddingModel=qwen3-embedding:8b",
+				"--set", "ragUnits[2].replicas=1",
+			},
+		},
+		{
+			verb: "upgrade",
+			extra: []string{
+				"--set", "llm.externalURL=http://host.docker.internal:12345",
+				"--set", "llm.port=12345",
+				"--set", "ragUnits[1].name=rag2",
+				"--set", "ragUnits[1].description=Replacement integration corpus",
+				"--set", "ragUnits[1].collection=corpus2",
+				"--set", "ragUnits[1].embeddingModel=qwen3-embedding:8b",
+				"--set", "ragUnits[1].replicas=1",
+				"--set", "ragUnits[2].name=rag4",
+				"--set", "ragUnits[2].description=Additional integration corpus",
+				"--set", "ragUnits[2].collection=corpus4",
+				"--set", "ragUnits[2].embeddingModel=qwen3-embedding:8b",
+				"--set", "ragUnits[2].replicas=1",
+			},
+		},
+	}
+	for _, tc := range tests {
+		t.Run(tc.verb, func(t *testing.T) {
+			var command []string
+			err := helmSwapDeployWithRunner(
+				chart, chartArchive, image, tc.verb, tc.extra, assets,
+				func(name string, args ...string) ([]byte, error) {
+					command = append([]string{name}, args...)
+					return nil, nil
+				},
+			)
+			if err != nil {
+				t.Fatal(err)
+			}
+			valueArgs := helmSwapValueArgs(chart, image, tc.extra, assets)
+			want := append([]string{"helm", tc.verb, helmSwapRelease, chart}, valueArgs...)
+			want = append(want, "--wait", "--timeout", helmInstallTimeout.String())
+			if !slices.Equal(command, want) {
+				t.Fatalf("%s command:\n got: %#v\nwant: %#v", tc.verb, command, want)
+			}
+			measured, err := measureHelmReleaseBudget(
+				helmSwapRelease, chart, chartArchive, valueArgs)
+			if err != nil {
+				t.Fatalf("%s release budget: %v", tc.verb, err)
+			}
+			if measured.ProjectedSecretBytes > helmReleaseBudget {
+				t.Fatalf("%s projected release = %d, budget = %d",
+					tc.verb, measured.ProjectedSecretBytes, helmReleaseBudget)
+			}
+			assertExternalAssetArgs(t, strings.Join(command, " "), assets)
+		})
+	}
+}
+
+func TestHelmSwapReturnsCapturedOutput(t *testing.T) {
+	chart, chartArchive, assets := stageThinIntegrationChart(t, helmSwapRelease)
+	err := helmSwapDeployWithRunner(
+		chart,
+		chartArchive,
+		"declarative-agents/agent-core:swap-output",
+		"upgrade",
+		[]string{"--set", "llm.externalURL=http://host.docker.internal:12345"},
+		assets,
+		func(string, ...string) ([]byte, error) {
+			return []byte("controlled swap Helm output"), errors.New("controlled failure")
+		},
+	)
+	if err == nil || !strings.Contains(err.Error(), "controlled swap Helm output") {
+		t.Fatalf("swap upgrade error = %v, want captured Helm output", err)
+	}
+}
+
+func stageThinIntegrationChart(
+	t *testing.T,
+	releaseName string,
+) (string, string, []externalUIAsset) {
+	t.Helper()
+	if _, err := exec.LookPath("helm"); err != nil {
+		t.Skip("helm not on PATH")
+	}
+	chartDir := findChartDir(t)
+	staged, cleanupChart, err := stageSmokeChart(chartDir, filepath.Dir(chartDir))
+	if err != nil {
+		t.Fatal(err)
+	}
+	t.Cleanup(cleanupChart)
+	assets, cleanupAssets, err := externalizeUIAssets(staged, releaseName)
+	if err != nil {
+		t.Fatal(err)
+	}
+	t.Cleanup(cleanupAssets)
+	archive, cleanupArchive, err := packageApplierChart(staged)
+	if err != nil {
+		t.Fatal(err)
+	}
+	t.Cleanup(cleanupArchive)
+	return staged, archive, assets
+}
+
+func assertExternalAssetArgs(t *testing.T, command string, assets []externalUIAsset) {
+	t.Helper()
+	for _, asset := range assets {
+		for _, want := range []string{
+			asset.Component + ".uiArchiveConfigMap=" + asset.ConfigMapName,
+			asset.Component + ".uiArchiveChecksum=" + asset.Checksum,
+		} {
+			if !strings.Contains(command, want) {
+				t.Errorf("helm command missing external asset argument %q: %s", want, command)
+			}
 		}
 	}
 }

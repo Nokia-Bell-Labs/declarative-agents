@@ -109,6 +109,47 @@ func TestKindLLMModelsReachDeployedDeclarations(t *testing.T) {
 	}
 }
 
+func TestKindLLMDependenciesIncludeExactOllamaImage(t *testing.T) {
+	chart := findChartDir(t)
+	smoke, err := smokeDependencyImages(chart)
+	if err != nil {
+		t.Fatal(err)
+	}
+	llm, err := llmDependencyImages(chart)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if len(llm) != len(smoke)+1 {
+		t.Fatalf("LLM dependencies = %v, want smoke closure plus Ollama", llm)
+	}
+	if got := llm[len(llm)-1]; got != helmLLMOllamaImage {
+		t.Fatalf("LLM Ollama image = %q, want %q", got, helmLLMOllamaImage)
+	}
+	for _, want := range []string{"0.32.5", "@sha256:"} {
+		if !strings.Contains(helmLLMOllamaSourceImage, want) {
+			t.Errorf("trusted Ollama source %q missing %q",
+				helmLLMOllamaSourceImage, want)
+		}
+	}
+
+	out, err := exec.Command("helm", "template", "t", chart,
+		"--values", filepath.Join(chart, "ci", "kind-llm-values.yaml"),
+	).CombinedOutput()
+	if err != nil {
+		t.Fatalf("helm template: %v\n%s", err, out)
+	}
+	render := string(out)
+	if count := strings.Count(
+		render,
+		`image: "declarative-agents/ollama:0.32.5-kind-trusted"`,
+	); count != 2 {
+		t.Fatalf("exact Ollama image rendered %d times, want StatefulSet and preload Job", count)
+	}
+	if count := strings.Count(render, "imagePullPolicy: Never"); count < 2 {
+		t.Fatalf("kind LLM render has %d Never pull policies, want both Ollama pods", count)
+	}
+}
+
 // expectedGatedWorkloads names the agent workloads that must wait on the LLM
 // preload under the chart defaults: the chatbot and one rag-server per declared
 // ragUnit, each named <release>-chatbot-mesh-<unit> as rag-units.yaml renders it.
@@ -255,7 +296,7 @@ func TestLLMPreloadReadinessTransitionSequence(t *testing.T) {
 		}
 	}
 
-	workloads, err := beginLLMPreloadTransition(run)
+	workloads, err := beginObservedLLMPreload(run)
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -267,18 +308,46 @@ func TestLLMPreloadReadinessTransitionSequence(t *testing.T) {
 	}
 	sequence := strings.Join(calls, "\n")
 	for _, ordered := range []string{
+		"rollout status statefulset/llm-chatbot-mesh-ollama --timeout " + helmLLMStartupTimeout.String(),
 		"get job/llm-chatbot-mesh-ollama-preload",
 		"get deployment",
 		"patch job/llm-chatbot-mesh-ollama-preload",
-		"wait --for=condition=complete",
-		"rollout status deployment/llm-chatbot-mesh-chatbot",
-		"rollout status deployment/llm-chatbot-mesh-rag0",
+		"wait --for=condition=complete job/llm-chatbot-mesh-ollama-preload --timeout " + helmLLMModelPreloadTimeout.String(),
+		"rollout status deployment/llm-chatbot-mesh-chatbot --timeout " + helmLLMWorkloadReadyTimeout.String(),
+		"rollout status deployment/llm-chatbot-mesh-rag0 --timeout " + helmLLMWorkloadReadyTimeout.String(),
 	} {
 		index := strings.Index(sequence, ordered)
 		if index < 0 {
 			t.Fatalf("command sequence missing %q:\n%s", ordered, sequence)
 		}
 		sequence = sequence[index+len(ordered):]
+	}
+}
+
+func TestLLMStartupFailureIncludesCommandOutput(t *testing.T) {
+	_, err := beginObservedLLMPreload(func(
+		name string,
+		args ...string,
+	) ([]byte, error) {
+		call := name + " " + strings.Join(args, " ")
+		if strings.Contains(call, "rollout status statefulset/") {
+			return []byte("0 of 1 updated replicas are available; readiness probe failed"),
+				errors.New("controlled startup timeout")
+		}
+		t.Fatalf("preload command ran before Ollama startup: %s", call)
+		return nil, nil
+	})
+	if err == nil {
+		t.Fatal("startup failure unexpectedly passed")
+	}
+	for _, want := range []string{
+		"ollama StatefulSet did not become ready",
+		"readiness probe failed",
+		helmLLMStartupTimeout.String(),
+	} {
+		if !strings.Contains(err.Error(), want) {
+			t.Errorf("startup error missing %q: %v", want, err)
+		}
 	}
 }
 
@@ -335,24 +404,59 @@ func TestLLMPreloadReadinessTransitionDiagnostics(t *testing.T) {
 }
 
 func TestHelmLLMTierInstallExposesTransition(t *testing.T) {
-	var command string
+	chart, chartArchive, assets := stageThinIntegrationChart(t, helmLLMRelease)
+	var command []string
+	image := "declarative-agents/agent-core:0123456789ab"
 	err := helmInstallLLMWithRunner(
-		"/chart", "declarative-agents/agent-core:0123456789ab",
+		chart, chartArchive, image, assets,
 		func(name string, args ...string) ([]byte, error) {
-			command = name + " " + strings.Join(args, " ")
+			command = append([]string{name}, args...)
 			return nil, nil
 		})
 	if err != nil {
 		t.Fatal(err)
 	}
-	if strings.Contains(command, " --wait") {
-		t.Fatalf("helm install hides readiness transition behind --wait: %s", command)
+	valueArgs := helmLLMValueArgs(chart, image, assets)
+	want := append([]string{"helm", "install", helmLLMRelease, chart}, valueArgs...)
+	want = append(want, "--timeout", helmLLMInstallTimeout.String())
+	if strings.Join(command, "\x00") != strings.Join(want, "\x00") {
+		t.Fatalf("LLM install command:\n got: %#v\nwant: %#v", command, want)
 	}
-	if !strings.Contains(command, "--set ollama.preload.suspend=true") {
-		t.Fatalf("helm install does not suspend preload for observation: %s", command)
+	joined := strings.Join(command, " ")
+	if strings.Contains(joined, " --wait") {
+		t.Fatalf("helm install hides readiness transition behind --wait: %s", joined)
 	}
-	if !strings.Contains(command, "--set-string image.tag=0123456789ab") {
-		t.Fatalf("helm install omits commit-addressed image: %s", command)
+	if !strings.Contains(joined, "--set ollama.preload.suspend=true") {
+		t.Fatalf("helm install does not suspend preload for observation: %s", joined)
+	}
+	if !strings.Contains(joined, "--set-string image.tag=0123456789ab") {
+		t.Fatalf("helm install omits commit-addressed image: %s", joined)
+	}
+	assertExternalAssetArgs(t, joined, assets)
+	measured, err := measureHelmReleaseBudget(
+		helmLLMRelease, chart, chartArchive, valueArgs)
+	if err != nil {
+		t.Fatalf("LLM-tier release budget: %v", err)
+	}
+	if measured.ProjectedSecretBytes > helmReleaseBudget {
+		t.Fatalf("LLM-tier projected release = %d, budget = %d",
+			measured.ProjectedSecretBytes, helmReleaseBudget)
+	}
+}
+
+func TestHelmLLMTierInstallReturnsCapturedOutput(t *testing.T) {
+	chart, chartArchive, assets := stageThinIntegrationChart(t, helmLLMRelease)
+	err := helmInstallLLMWithRunner(
+		chart,
+		chartArchive,
+		"declarative-agents/agent-core:llm-output",
+		assets,
+		func(string, ...string) ([]byte, error) {
+			return []byte("controlled LLM Helm output"), errors.New("controlled failure")
+		},
+	)
+	if err == nil || !strings.Contains(err.Error(), "controlled LLM Helm output") {
+		t.Fatalf("LLM install error = %v, want captured Helm output", err)
 	}
 }
 
