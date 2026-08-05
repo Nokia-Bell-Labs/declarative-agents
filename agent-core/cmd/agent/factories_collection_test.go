@@ -44,6 +44,12 @@ func TestCollectionFactoriesRejectMalformedConfigAtRegistration(t *testing.T) {
 				"parsed": "Parsed", "unparsed": "Unparsed",
 			}},
 		},
+		{
+			name: "report_parse_error",
+			def: catalog.ToolDef{Name: "report_parse_error", Type: "builtin", Init: "report_parse_error", Config: map[string]interface{}{
+				"response_contract": "unknown",
+			}},
+		},
 	}
 	for _, tc := range tests {
 		t.Run(tc.name, func(t *testing.T) {
@@ -73,6 +79,9 @@ func TestCollectionFactoriesRegisterValidConfig(t *testing.T) {
 			"source": "$from(response).value",
 			"schema": map[string]interface{}{"type": "array", "items": map[string]interface{}{"type": "string"}},
 			"parsed": "Parsed", "unparsed": "Unparsed",
+		}},
+		{Name: "report_parse_error", Type: "builtin", Init: "report_parse_error", Config: map[string]interface{}{
+			"response_contract": "implementation_plan_yaml",
 		}},
 	}
 	for _, def := range defs {

@@ -3,6 +3,38 @@
 # Loaded through agents/planner/profile.yaml tool_declarations.
 
 tools:
+  - name: report_parse_error
+    type: builtin
+    init: report_parse_error
+    visibility: internal
+    emits: [ToolDone, BudgetExhausted]
+    description: "Report an invalid implementation plan back to the LLM for correction."
+    category: word
+    problem: "The planner retry loop must request the YAML document that parse_plan consumes."
+    goals:
+      - "Request one canonical ImplementationPlan YAML mapping after a parse failure."
+      - "Keep response-shape policy declarative and separate from planner identity."
+    requirements:
+      input:
+        - "must consume the parse_plan failure from the prior result"
+      output:
+        - "must emit ToolDone with exact ImplementationPlan YAML correction feedback"
+      errors:
+        - "must emit BudgetExhausted when the declared parse retry limit is reached"
+    non_goals:
+      - "Does not parse the corrected response or choose the next workflow state."
+    side_effects:
+      - kind: command_state
+        description: "Increments the parse retry counter and emits BudgetExhausted at the configured limit."
+    reversibility:
+      classification: reversible
+      undo: parse_retry_counter_restore
+    undo:
+      strategy: parse_retry_counter_restore
+      description: "Restores the parse retry counter snapshot captured before reporting the parse error."
+    config:
+      response_contract: implementation_plan_yaml
+
   - name: seed_passthrough_plan
     type: builtin
     init: seed_passthrough_plan

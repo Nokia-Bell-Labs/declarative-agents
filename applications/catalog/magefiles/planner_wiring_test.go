@@ -78,6 +78,22 @@ func TestPlannerVariantsRouteParseRetriesExplicitly(t *testing.T) {
 		t.Fatal(`planner selection is missing "report_parse_error"`)
 	}
 
+	var declarations plannerDeclarations
+	readPlannerYAML(t, "builtin.yaml", &declarations)
+	var report plannerDeclaration
+	for _, declaration := range declarations.Tools {
+		if declaration.Name == "report_parse_error" {
+			report = declaration
+			break
+		}
+	}
+	if report.Init != "report_parse_error" {
+		t.Fatalf("report_parse_error init = %q, want report_parse_error", report.Init)
+	}
+	if got := report.Config["response_contract"]; got != "implementation_plan_yaml" {
+		t.Fatalf("report_parse_error response_contract = %#v, want implementation_plan_yaml", got)
+	}
+
 	for _, file := range []string{"machine.yaml", "machine-plan-only.yaml"} {
 		t.Run(file, func(t *testing.T) {
 			var machine plannerMachine

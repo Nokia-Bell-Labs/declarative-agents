@@ -93,6 +93,12 @@ type ParseStructuredConfig struct {
 	Unparsed string                 `json:"unparsed"`
 }
 
+// ReportParseErrorConfig selects the response contract requested after an LLM
+// response fails parsing.
+type ReportParseErrorConfig struct {
+	ResponseContract string `json:"response_contract"`
+}
+
 // CheckpointHistoryConfig holds config for checkpoint_history.
 type CheckpointHistoryConfig struct {
 	Checkpoint string `json:"checkpoint"`

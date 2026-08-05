@@ -155,8 +155,36 @@ func TestReportParseError(t *testing.T) {
 	res := cmd.Execute()
 
 	assert.Equal(t, core.ToolDone, res.Signal)
-	assert.Contains(t, res.Output, "invalid")
-	assert.Contains(t, res.Output, "malformed JSON")
+	assert.Equal(t,
+		"Your previous response was invalid. malformed JSON: unexpected EOF\n\n"+
+			"Please respond with a single JSON object: {\"tool\": \"<tool_name>\", \"parameters\": {<params>}}",
+		res.Output,
+	)
+}
+
+func TestReportParseError_ImplementationPlanYAMLFeedback(t *testing.T) {
+	builder := &ReportParseErrorBuilder{
+		Tracer:           noopTracer(),
+		ResponseContract: ParseErrorResponseContractImplementationPlanYAML,
+	}
+	cmd := builder.Build(core.Result{Output: "parse plan: missing required field: requirements (list is empty)"})
+	res := cmd.Execute()
+
+	assert.Equal(t, core.ToolDone, res.Signal)
+	assert.Equal(t,
+		"Your previous response was invalid. parse plan: missing required field: requirements (list is empty)\n\n"+
+			"Please respond with exactly one top-level YAML mapping and no other document content. "+
+			"The mapping must contain exactly these six keys: title, summary, files, requirements, "+
+			"design_decisions, and acceptance_criteria. Do not return a root sequence/list, multiple "+
+			"plans, a wrapper/envelope key, Markdown fences, prose, or any keys outside this mapping.",
+		res.Output,
+	)
+}
+
+func TestParseErrorResponseContractValueRejectsUnknownValue(t *testing.T) {
+	_, err := ParseErrorResponseContractValue("planner")
+
+	require.ErrorContains(t, err, `unknown response_contract "planner"`)
 }
 
 func TestReportParseError_EmitsBudgetExhaustedAtRetryLimit(t *testing.T) {

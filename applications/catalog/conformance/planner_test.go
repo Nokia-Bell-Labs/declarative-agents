@@ -265,6 +265,89 @@ func TestPlannerCanonicalPlanFirstResponse(t *testing.T) {
 	}
 }
 
+// TestPlannerInvalidThenCanonicalPlan proves the shipped planner's declared
+// response contract corrects one invalid response in the parse_plan domain.
+// The second model turn must receive the exact YAML mapping feedback and the
+// canonical response must reach PlanReady without another correction.
+func TestPlannerInvalidThenCanonicalPlan(t *testing.T) {
+	const wantFeedback = "Your previous response was invalid. parse plan: missing required field: requirements (list is empty)\n\n" +
+		"Please respond with exactly one top-level YAML mapping and no other document content. " +
+		"The mapping must contain exactly these six keys: title, summary, files, requirements, " +
+		"design_decisions, and acceptance_criteria. Do not return a root sequence/list, multiple " +
+		"plans, a wrapper/envelope key, Markdown fences, prose, or any keys outside this mapping."
+
+	var chatCalls atomic.Int32
+	var correction atomic.Value
+	ollama := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		w.Header().Set("Content-Type", "application/json")
+		switch {
+		case r.Method == http.MethodGet && r.URL.Path == "/api/tags":
+			_, _ = w.Write([]byte(`{"models":[{"name":"qwen3.6:35b-mlx"}]}`))
+		case r.Method == http.MethodPost && r.URL.Path == "/api/chat":
+			var request struct {
+				Messages []struct {
+					Role    string `json:"role"`
+					Content string `json:"content"`
+				} `json:"messages"`
+			}
+			if err := json.NewDecoder(r.Body).Decode(&request); err != nil {
+				t.Errorf("decode planner chat request: %v", err)
+			}
+			call := chatCalls.Add(1)
+			content := "title: Missing required lists\n"
+			if call == 2 {
+				for index := len(request.Messages) - 1; index >= 0; index-- {
+					if request.Messages[index].Role == "user" {
+						correction.Store(request.Messages[index].Content)
+						break
+					}
+				}
+				content = plannerFirstResponseFixture
+			}
+			_ = json.NewEncoder(w).Encode(map[string]any{
+				"message":    map[string]string{"role": "assistant", "content": content},
+				"eval_count": 24, "prompt_eval_count": 48,
+			})
+		default:
+			http.NotFound(w, r)
+		}
+	}))
+	defer ollama.Close()
+
+	profile := CopyShippedProfile(t, filepath.Join("agents", "planner", "profile.yaml"), map[string]string{
+		"http://localhost:11434": ollama.URL,
+		`- state: PlanParsing
+  signal: PlanReady
+  next: IssueFormatting
+  action: format_issue
+  label: issue_input`: `- state: PlanParsing
+  signal: PlanReady
+  next: Completed`,
+	})
+	coreRoot := RequireCoreRoot(t)
+	workspace := filepath.Join(coreRoot, "pkg", "spec", "testdata", "valid")
+	result := Run(t, RunConfig{Profile: profile, Directory: workspace})
+
+	result.RequireExit(t, 0)
+	result.RequireNoErrorSpans(t)
+	result.RequireTerminalState(t, "Completed")
+	if got := chatCalls.Load(); got != 2 {
+		t.Fatalf("model response count = %d, want invalid response plus one correction", got)
+	}
+	if got := correction.Load(); got != wantFeedback {
+		t.Fatalf("planner correction feedback:\n%v\nwant:\n%s", got, wantFeedback)
+	}
+	if got := len(result.Spans.Named("execute_tool parse_plan")); got != 2 {
+		t.Fatalf("parse_plan span count = %d, want invalid plus canonical parse", got)
+	}
+	if got := len(result.Spans.Named("execute_tool report_parse_error")); got != 1 {
+		t.Fatalf("report_parse_error span count = %d, want exactly one correction", got)
+	}
+	if _, _, ok := result.Spans.FindEvent("pipeline.plan_parsed"); !ok {
+		t.Fatalf("canonical correction did not reach PlanReady; output:\n%s", result.Output)
+	}
+}
+
 // TestPlannerConformance runs the shipped planner profile against agent-core's
 // valid spec fixture and asserts the requirement-graph boundary from the trace:
 // load_graph reads the corpus and builds the requirement graph into pipeline

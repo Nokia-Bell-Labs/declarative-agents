@@ -235,12 +235,6 @@ func parseResponseFactory(st *agentState) toolregistry.BuiltinFactory {
 	}
 }
 
-func reportParseErrorFactory(st *agentState) toolregistry.BuiltinFactory {
-	return func(def catalog.ToolDef, vars map[string]string) (core.Builder, error) {
-		return &toollm.ReportParseErrorBuilder{Tracer: st.tracer, Retry: st.parseRetries}, nil
-	}
-}
-
 func resetHistoryFactory(st *agentState) toolregistry.BuiltinFactory {
 	return func(def catalog.ToolDef, vars map[string]string) (core.Builder, error) {
 		return &toollm.ResetHistoryBuilder{History: st.conversation, Tracer: st.tracer}, nil
