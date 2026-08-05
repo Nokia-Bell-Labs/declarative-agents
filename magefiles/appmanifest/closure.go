@@ -381,10 +381,6 @@ func (resolver *closureResolver) resolveReference(item closureItem, reference st
 		}
 		return "catalog", source, source, source, nil
 	}
-	source, err := cleanJoined(path.Dir(item.source), portable)
-	if err != nil {
-		return "", "", "", "", err
-	}
 	runtime, err := cleanJoined(path.Dir(item.runtime), portable)
 	if err != nil {
 		return "", "", "", "", err
@@ -392,6 +388,13 @@ func (resolver *closureResolver) resolveReference(item closureItem, reference st
 	packagePath, err := cleanJoined(path.Dir(item.packagePath), portable)
 	if err != nil {
 		return "", "", "", "", err
+	}
+	source, sourceErr := cleanJoined(path.Dir(item.source), portable)
+	if sourceErr != nil {
+		if ownership, mappedSource, declared, mappingErr := resolver.declaredRuntimeSource(runtime); declared || mappingErr != nil {
+			return ownership, mappedSource, runtime, packagePath, mappingErr
+		}
+		return "", "", "", "", sourceErr
 	}
 	const catalogRuntimePrefix = "applications/catalog/"
 	if strings.HasPrefix(runtime, catalogRuntimePrefix) {

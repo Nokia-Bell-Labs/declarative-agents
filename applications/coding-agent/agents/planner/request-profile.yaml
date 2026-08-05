@@ -6,7 +6,7 @@ tool_config_dirs:
   - /opt/agent-core/tools/builtin/planner
   - /opt/agent-core/tools/builtin/llm
 tool_declarations:
-  - agents/planner/llm/default.yaml
+  - ../../../agents/planner/llm/default.yaml
   - request-declarations.yaml
 rest_definitions:
   - rest.yaml

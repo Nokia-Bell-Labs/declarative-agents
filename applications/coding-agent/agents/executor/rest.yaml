@@ -43,7 +43,8 @@ rest:
                 task: {type: string, min_length: 1}
                 workspace_id: {type: string, min_length: 1}
           machine_request:
-            profile: agents/executor/profile.yaml
+            # Normalizes to profile: agents/executor/profile.yaml under /profiles.
+            profile: ../../../agents/executor/profile.yaml
             timeout: 15m
             request:
               body:
