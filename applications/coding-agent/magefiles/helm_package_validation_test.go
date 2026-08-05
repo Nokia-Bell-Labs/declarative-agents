@@ -263,7 +263,7 @@ func TestHelmPackageArchiveIsSelfContained(t *testing.T) {
 	}
 }
 
-func TestHelmPackageArchiveContainsCollectorProfile(t *testing.T) {
+func TestHelmPackageArchiveContainsCollectorQueryMachine(t *testing.T) {
 	if _, err := exec.LookPath("helm"); err != nil {
 		t.Skip("helm not on PATH")
 	}
@@ -275,13 +275,13 @@ func TestHelmPackageArchiveContainsCollectorProfile(t *testing.T) {
 		t.Fatal(err)
 	}
 	names := chartArchiveFileNames(t, archive)
-	want := "coding-agent/profiles/collector/agents/collector/profile.yaml"
+	want := "coding-agent/profiles/collector/agents/collector/query-machine.yaml"
 	for _, name := range names {
 		if name == want {
 			return
 		}
 	}
-	t.Fatalf("archive misses the staged collector profile %s:\n%s", want, strings.Join(names, "\n"))
+	t.Fatalf("archive misses the collector request machine %s:\n%s", want, strings.Join(names, "\n"))
 }
 
 func TestHelmPackageTwiceExcludesPriorDistAndGeneratedProfiles(t *testing.T) {

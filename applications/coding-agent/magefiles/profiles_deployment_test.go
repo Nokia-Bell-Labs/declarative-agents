@@ -23,6 +23,7 @@ func TestDeploymentPackageContainsExactRoleClosures(t *testing.T) {
 			"agents/collector/machine.yaml",
 			"agents/collector/profile.yaml",
 			"agents/collector/query-declarations.yaml",
+			"agents/collector/query-machine.yaml",
 			"agents/collector/rest.yaml",
 			"agents/collector/tools.yaml",
 			"agents/collector/ui/dist/assets/index-5A82fh-G.js",

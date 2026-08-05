@@ -56,6 +56,41 @@ tool_config_dirs:
 	}
 }
 
+func TestProfileClosureResolvesNestedRequestMachineAndBoundsProfileCycle(t *testing.T) {
+	root := t.TempDir()
+	writeTestFile(t, filepath.Join(root, "agents/collector/profile.yaml"), `name: collector
+rest_definitions: [rest.yaml]
+`)
+	writeTestFile(t, filepath.Join(root, "agents/collector/rest.yaml"), `rest:
+  servers:
+    collector:
+      endpoints:
+        traces:
+          binding: machine_request
+          machine_request:
+            profile: profile.yaml
+            machine: query-machine.yaml
+`)
+	writeTestFile(t, filepath.Join(root, "agents/collector/query-machine.yaml"), "name: collector-query\n")
+
+	closure := &profileClosure{sourceRoot: root, assets: map[string]string{}}
+	if err := closure.enqueue("agents/collector/profile.yaml", "agents/collector/profile.yaml"); err != nil {
+		t.Fatal(err)
+	}
+	if err := closure.resolve(); err != nil {
+		t.Fatalf("resolve request-machine closure: %v", err)
+	}
+	got := sortedAssetDestinations(closure.assets)
+	want := []string{
+		"agents/collector/profile.yaml",
+		"agents/collector/query-machine.yaml",
+		"agents/collector/rest.yaml",
+	}
+	if !reflect.DeepEqual(got, want) {
+		t.Fatalf("request-machine closure files = %#v, want %#v", got, want)
+	}
+}
+
 func TestProfileClosureRejectsDanglingReference(t *testing.T) {
 	root := t.TempDir()
 	writeTestFile(t, filepath.Join(root, "agents/planner/profile.yaml"), "name: planner\nmachine: missing.yaml\n")
