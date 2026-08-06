@@ -6,6 +6,7 @@ import (
 	"net/http"
 	"net/http/httptest"
 	"net/url"
+	"strconv"
 	"testing"
 
 	"github.com/stretchr/testify/require"
@@ -82,6 +83,83 @@ func TestRESTClient_HostSelectorRejectsUnsafeValuesBeforeIO(t *testing.T) {
 			require.Equal(t, core.CommandError, result.Signal, result.Output)
 			require.ErrorContains(t, result.Err, tc.message)
 			require.Contains(t, result.Output, `"failure_stage":"target_resolution"`)
+		})
+	}
+}
+
+// TestRESTClient_PortSelectorResolvesPerItemPort proves a fleet whose targets do
+// not share one port reaches each target's own port, taken from a labeled prior
+// output as a string or a JSON number (srd028 R14.6).
+func TestRESTClient_PortSelectorResolvesPerItemPort(t *testing.T) {
+	t.Parallel()
+
+	tests := []struct {
+		name string
+		port func(port string) string
+	}{
+		{name: "label string", port: func(port string) string { return `"` + port + `"` }},
+		{name: "json number", port: func(port string) string { return port }},
+	}
+	for _, tc := range tests {
+		t.Run(tc.name, func(t *testing.T) {
+			t.Parallel()
+			var requests int
+			server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, req *http.Request) {
+				requests++
+				require.Equal(t, "/monitor/state", req.URL.Path)
+				writeJSON(w, http.StatusOK, map[string]interface{}{"current_state": "Serving"})
+			}))
+			defer server.Close()
+
+			host, port := splitServerAuthority(t, server.URL)
+			def := portSelectorDefinition(t, []int{atoiPort(t, port)})
+			op := resolveThreadingOp(t, def, "agent_monitor", "read_state")
+			cmd := threadingCommand(op, core.Result{})
+			cmd.(core.CommandStateAware).SetCommandState(discoveredPodPortState(host, tc.port(port)))
+
+			result := cmd.Execute()
+			require.Equal(t, core.Signal("Polled"), result.Signal, result.Output)
+			require.Equal(t, 1, requests)
+			require.Contains(t, result.Output, `"selected_authority":"http://`+host+":"+port)
+		})
+	}
+}
+
+// TestRESTClient_PortSelectorRejectsUnusablePorts proves a resolved port that is
+// malformed, out of range, or outside the client's declared ports allowlist is
+// rejected before any request (srd028 R14.6, R2.6).
+func TestRESTClient_PortSelectorRejectsUnusablePorts(t *testing.T) {
+	t.Parallel()
+
+	tests := []struct {
+		name    string
+		port    string
+		allowed []int
+		message string
+	}{
+		{name: "non numeric", port: `"monitor"`, message: `want a port in 1-65535`},
+		{name: "out of range", port: `"70000"`, message: `want a port in 1-65535`},
+		{name: "zero", port: `"0"`, message: `want a port in 1-65535`},
+		{name: "fractional number", port: `18082.5`, message: "want a whole port number"},
+		{name: "wrong type", port: `true`, message: "want a port string or number"},
+		{name: "outside allowlist", port: `"18099"`, allowed: []int{18082}, message: `port "18099" is not allowed`},
+	}
+	for _, tc := range tests {
+		t.Run(tc.name, func(t *testing.T) {
+			t.Parallel()
+			server := httptest.NewServer(http.HandlerFunc(func(http.ResponseWriter, *http.Request) {
+				t.Fatal("request must not be sent for an unusable resolved port")
+			}))
+			defer server.Close()
+
+			def := portSelectorDefinition(t, tc.allowed)
+			op := resolveThreadingOp(t, def, "agent_monitor", "read_state")
+			cmd := threadingCommand(op, core.Result{})
+			cmd.(core.CommandStateAware).SetCommandState(discoveredPodPortState("127.0.0.1", tc.port))
+
+			result := cmd.Execute()
+			require.Equal(t, core.CommandError, result.Signal, result.Output)
+			require.ErrorContains(t, result.Err, tc.message)
 		})
 	}
 }
@@ -167,7 +245,32 @@ func TestRESTClient_HostSelectorRejectionTable(t *testing.T) {
 				op.BaseURLHostSelector = ""
 				op.BaseURLSelector = "$from(discover_pods).base_url"
 			},
-			message: "base_url_scheme and base_url_port require base_url_host_selector",
+			message: "require base_url_host_selector",
+		},
+		{
+			name: "both port forms",
+			mutate: func(op *Operation) {
+				op.BaseURLPortSelector = "$from(discover_pods).port"
+			},
+			message: "declares both base_url_port and base_url_port_selector",
+		},
+		{
+			name: "current-value port selector",
+			mutate: func(op *Operation) {
+				op.BaseURLPort = ""
+				op.BaseURLPortSelector = "$.port"
+			},
+			message: "base_url_port_selector \"$.port\" must be a $from(label).path selector",
+		},
+		{
+			name: "port selector without host selector",
+			mutate: func(op *Operation) {
+				op.BaseURLHostSelector = ""
+				op.BaseURLPort = ""
+				op.BaseURLSelector = "$from(discover_pods).base_url"
+				op.BaseURLPortSelector = "$from(discover_pods).port"
+			},
+			message: "require base_url_host_selector",
 		},
 	}
 	for _, tc := range tests {
@@ -209,6 +312,51 @@ func hostSelectorDefinition(t *testing.T, configuredURL, port string, auth AuthP
 	}
 	require.NoError(t, ValidateDefinition(def))
 	return def
+}
+
+// portSelectorDefinition declares a monitor read whose host and port both come
+// from the discovery step, with allowed narrowing the client's port allowlist.
+func portSelectorDefinition(t *testing.T, allowed []int) Definition {
+	t.Helper()
+	def := Definition{
+		Version: "v1",
+		Auth:    map[string]AuthProfile{"none": {Type: authNone}},
+		Limits:  map[string]LimitProfile{"test": {Network: NetworkPolicy{Ports: allowed}}},
+		Clients: map[string]Client{"agent_monitor": {
+			BaseURL: "http://127.0.0.1:1", AuthRef: "none", LimitsRef: "test",
+			Operations: map[string]Operation{"read_state": {
+				Method:              http.MethodGet,
+				Path:                "/monitor/state",
+				BaseURLSource:       bodySourceCommandState,
+				BaseURLHostSelector: "$from(discover_pods).ip",
+				BaseURLPortSelector: "$from(discover_pods).port",
+				BaseURLScheme:       "http",
+				Params:              RequestBinding{BodySource: bodySourceNone},
+				Success:             StatusMapping{Status: []int{200}, Signal: "Polled"},
+				SideEffects:         []SideEffect{{Kind: "external_api", State: "read_only"}},
+				Reversibility:       Reversibility{Classification: "reversible", Undo: "noop"},
+			}},
+		}},
+	}
+	require.NoError(t, ValidateDefinition(def))
+	return def
+}
+
+// discoveredPodPortState views a discovery step that published both the per-item
+// host and its port, the shape a pod label carries. rawPort is JSON, so a test
+// can present the port as a string or a number.
+func discoveredPodPortState(host, rawPort string) core.CommandStateView {
+	return core.NewCommandStateView(core.Execution{{
+		CommandName: "discover_pods",
+		Result:      commandStateDigest(`{"ip":"` + host + `","port":` + rawPort + `}`),
+	}})
+}
+
+func atoiPort(t *testing.T, port string) int {
+	t.Helper()
+	number, err := strconv.Atoi(port)
+	require.NoError(t, err)
+	return number
 }
 
 // discoveredPodState views one prior discovery step whose output carries the

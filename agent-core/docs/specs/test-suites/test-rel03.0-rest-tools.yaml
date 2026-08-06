@@ -176,6 +176,36 @@ test_cases:
       - srd028-rest-client-tools AC14
 
   - use_case: rel03.0-uc001-rest-client-sync
+    name: Trusted operation resolves a composed target port per item
+    go_test: TestRESTClient_PortSelectorResolvesPerItemPort
+    status: done
+    description: |
+      A fleet whose targets do not share one port publishes each target's port
+      beside its address, as a Kubernetes label string or a JSON number. A
+      configured read operation resolves that port through
+      base_url_port_selector and reaches each target's own port. Configuration
+      still bounds the reachable ports: a resolved port outside the client's
+      limits.network.ports allowlist is refused, and a malformed, fractional,
+      wrongly typed, or out-of-range port fails before network I/O. Declaring
+      both port forms, or a port selector without a host selector, is rejected
+      at load.
+    inputs:
+      base_url_source: command_state
+      base_url_host_selector: $from(discover_pods).ip
+      base_url_port_selector: $from(discover_pods).port
+      operation_path: /monitor/state
+    expected:
+      string_and_number_ports_resolve: true
+      per_item_authority_reported: true
+      port_outside_allowlist_refused: true
+      malformed_port_rejected_before_io: true
+      both_port_forms_rejected_at_load: true
+    traces:
+      - rel03.0-uc001-rest-client-sync S1
+      - srd027-rest-tool-runtime AC2
+      - srd028-rest-client-tools AC15
+
+  - use_case: rel03.0-uc001-rest-client-sync
     name: REST client threads declared params from the previous Result
     go_test: TestRESTClient_ThreadsPreviousResultParams
     status: done

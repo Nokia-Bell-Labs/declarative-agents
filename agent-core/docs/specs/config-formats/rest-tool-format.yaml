@@ -177,10 +177,23 @@ schema:
         type: string
         required: false
         description: |
-          Port for a host composed through base_url_host_selector. Must be
-          1-65535 and is omitted when unset, leaving the scheme default. The
-          port is trusted operation config, never taken from the resolved
-          value. Rejected without base_url_host_selector.
+          Literal port for a host composed through base_url_host_selector. Must
+          be 1-65535 and is omitted when unset, leaving the scheme default.
+          Mutually exclusive with base_url_port_selector; rejected without
+          base_url_host_selector.
+      - field: base_url_port_selector
+        type: string
+        required: false
+        description: |
+          A $from(<label>).<path> selector resolving the composed port per item,
+          for a fleet whose targets do not share one port (for example each
+          agent's own monitor port, published beside its address). Accepts a
+          string or a whole JSON number in 1-65535; another type, a fractional
+          or out-of-range value is rejected before network I/O. The composed
+          authority must still satisfy the client's limits.network.ports
+          allowlist, so configuration bounds the reachable ports and the
+          selector only chooses among them. Mutually exclusive with
+          base_url_port; rejected without base_url_host_selector.
       - field: allow_auth_on_selected_authority
         type: bool
         required: false
@@ -1560,10 +1573,13 @@ validation_rules:
       $from(<label>).<path> form, never both. A base_url_selector value MUST be
       an absolute HTTP or HTTPS URL without user information. A
       base_url_host_selector value MUST be a bare host or IP, and is composed
-      with base_url_scheme (http or https, default http) and the optional
-      base_url_port (1-65535); base_url_scheme and base_url_port are invalid
+      with base_url_scheme (http or https, default http) and a port from either
+      base_url_port (a 1-65535 literal) or base_url_port_selector (resolved per
+      item as a string or whole JSON number in 1-65535), never both.
+      base_url_scheme, base_url_port, and base_url_port_selector are invalid
       without base_url_host_selector. Either form MUST pass the operation's
-      network, redirect, and credential-scope policies before network I/O.
+      network, redirect, and credential-scope policies before network I/O, so a
+      resolved port outside the client's ports allowlist is refused.
       Runtime input_mapping authority fields remain forbidden.
 
 invalid_examples:

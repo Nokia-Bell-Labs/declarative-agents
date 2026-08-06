@@ -52,9 +52,13 @@ type Operation struct {
 	// BaseURLScheme and BaseURLPort into the request base URL, for a target
 	// discovered per item rather than published as a whole URL (srd028 R14.6).
 	// It is mutually exclusive with BaseURLSelector.
-	BaseURLHostSelector string                 `yaml:"base_url_host_selector,omitempty"`
-	BaseURLScheme       string                 `yaml:"base_url_scheme,omitempty"`
-	BaseURLPort         string                 `yaml:"base_url_port,omitempty"`
+	BaseURLHostSelector string `yaml:"base_url_host_selector,omitempty"`
+	BaseURLScheme       string `yaml:"base_url_scheme,omitempty"`
+	BaseURLPort         string `yaml:"base_url_port,omitempty"`
+	// BaseURLPortSelector resolves the composed authority's port from command
+	// state, for a fleet whose targets do not share one port. The client's
+	// network ports allowlist still authorizes the result (srd028 R14.6).
+	BaseURLPortSelector string                 `yaml:"base_url_port_selector,omitempty"`
 	AllowSelectedAuth   bool                   `yaml:"allow_auth_on_selected_authority,omitempty"`
 	Params              RequestBinding         `yaml:"params,omitempty"`
 	Body                map[string]interface{} `yaml:"body,omitempty"`

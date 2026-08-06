@@ -6,7 +6,6 @@ import (
 	"fmt"
 	"net"
 	"net/http"
-	"strconv"
 	"strings"
 	"time"
 
@@ -325,14 +324,31 @@ func validateHostSelectorTarget(name string, operation Operation) error {
 	default:
 		return fmt.Errorf("operation %q has unsupported base_url_scheme %q", name, operation.BaseURLScheme)
 	}
+	return validateComposedPort(name, operation)
+}
+
+// validateComposedPort accepts one port form: a declared literal or a selector
+// resolved per item (srd028 R14.6).
+func validateComposedPort(name string, operation Operation) error {
+	if operation.BaseURLPort != "" && operation.BaseURLPortSelector != "" {
+		return fmt.Errorf(
+			"operation %q declares both base_url_port and base_url_port_selector; declare one", name)
+	}
+	if operation.BaseURLPortSelector != "" {
+		if _, _, ok := core.ParseFromSelector(operation.BaseURLPortSelector); !ok {
+			return fmt.Errorf("operation %q base_url_port_selector %q must be a $from(label).path selector under base_url_source command_state", name, operation.BaseURLPortSelector)
+		}
+		return nil
+	}
 	return validateBaseURLPort(name, operation.BaseURLPort)
 }
 
 // validateComposedTargetFields rejects a declared scheme or port without the
 // host selector they compose with.
 func validateComposedTargetFields(name string, operation Operation) error {
-	if operation.BaseURLScheme != "" || operation.BaseURLPort != "" {
-		return fmt.Errorf("operation %q base_url_scheme and base_url_port require base_url_host_selector", name)
+	if operation.BaseURLScheme != "" || operation.BaseURLPort != "" || operation.BaseURLPortSelector != "" {
+		return fmt.Errorf(
+			"operation %q base_url_scheme, base_url_port, and base_url_port_selector require base_url_host_selector", name)
 	}
 	return nil
 }
@@ -341,8 +357,7 @@ func validateBaseURLPort(name, port string) error {
 	if port == "" {
 		return nil
 	}
-	number, err := strconv.Atoi(port)
-	if err != nil || number < 1 || number > 65535 {
+	if !portInRange(port) {
 		return fmt.Errorf("operation %q has invalid base_url_port %q", name, port)
 	}
 	return nil

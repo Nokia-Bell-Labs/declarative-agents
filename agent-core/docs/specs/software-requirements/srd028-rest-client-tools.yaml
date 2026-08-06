@@ -163,7 +163,8 @@ requirements:
       - R14.3: A selected target SHALL be rejected before network I/O when the selector is missing, unresolved, empty, non-string, malformed, relative, carries user information, uses a non-HTTP scheme, or violates configured network or redirect policy.
       - R14.4: Configured credentials SHALL NOT be sent to a selected authority different from the configured client authority unless the trusted operation explicitly sets allow_auth_on_selected_authority.
       - R14.5: REST results and traces SHALL identify the selected scheme, host, and port without recording user information, query values, or credentials.
-      - R14.6: A configured operation MAY instead declare a base_url_host_selector in $from(<label>).<path> form that resolves to a bare host or IP, composed with the operation's declared base_url_scheme (http or https, default http) and optional base_url_port into the request base URL. This addresses a target discovered per item, for example a pod address a prior discovery step listed, which is published as an address rather than a whole URL. The two selector forms SHALL be mutually exclusive. The resolved value SHALL be rejected when it carries a scheme, credential, port, path, query, fragment, whitespace, or control character, so composition cannot widen transport authority; scheme and port SHALL come only from trusted operation config. An unsupported scheme or a port outside 1-65535 SHALL be rejected at load, and the composed URL SHALL pass the same R14.3 and R14.4 validation as a whole selected URL.
+      - R14.6: A configured operation MAY instead declare a base_url_host_selector in $from(<label>).<path> form that resolves to a bare host or IP, composed with the operation's declared base_url_scheme (http or https, default http) and a port into the request base URL. This addresses a target discovered per item, for example a pod address a prior discovery step listed, which is published as an address rather than a whole URL. The two selector forms SHALL be mutually exclusive. The resolved host SHALL be rejected when it carries a scheme, credential, port, path, query, fragment, whitespace, or control character, so composition cannot widen transport authority. The scheme SHALL come only from trusted operation config; an unsupported scheme SHALL be rejected at load, and the composed URL SHALL pass the same R14.3 and R14.4 validation as a whole selected URL.
+      - R14.7: The composed port SHALL come from either a declared base_url_port literal or a base_url_port_selector in $from(<label>).<path> form, never both, and either form requires base_url_host_selector. A port selector serves a fleet whose targets do not share one port, where the port is published per item alongside the address. A literal outside 1-65535 SHALL be rejected at load. A resolved port SHALL be accepted as a string or a whole JSON number and SHALL be rejected before network I/O when it is another type, fractional, non-numeric, or outside 1-65535. A resolved port SHALL NOT widen destination authority; the composed authority SHALL still satisfy the client's configured network ports allowlist, so configuration bounds the reachable ports and the selector only chooses among them (R2.6).
 
 non_goals:
   - Defining inbound REST server tools; see srd029-rest-server-tools.
@@ -281,6 +282,10 @@ acceptance_criteria:
     criterion: A trusted REST operation composes its base URL from a base_url_host_selector resolving to a bare host or IP plus a declared scheme and port, reaches the composed authority through one dispatch, rejects a resolved value carrying a scheme, credential, port, path, or query before network I/O, rejects both selector forms on one operation, and rejects an unsupported scheme or out-of-range port at load.
     traces: [R14.6, R14.3, R14.4, R2.4, R2.6]
 
+  - id: AC15
+    criterion: A trusted REST operation resolves the composed authority's port per item through base_url_port_selector, accepting a string or whole JSON number and reaching each target's own port; a malformed, fractional, wrongly typed, or out-of-range port fails before network I/O, a port outside the client's configured ports allowlist is refused, and both port forms or a port selector without a host selector are rejected at load.
+    traces: [R14.7, R14.6, R2.6]
+
 depends_on:
   - srd_id: srd001-core-types
     symbols_used: [Command, Result, Signal, Builder]
@@ -323,6 +328,16 @@ implementation_status:
       TestRESTClient_HostSelectorRejectsUnsafeValuesBeforeIO,
       TestResolveOperationBaseURLComposesAuthority, and
       TestRESTClient_HostSelectorRejectionTable.
+    - >-
+      Per-item composed ports (R14.7): base_url_port_selector resolves the
+      composed authority's port from command state for a fleet whose targets do
+      not share one port, accepting a label string or a whole JSON number.
+      resolvedBaseURLPort and selectedPortString range-check the value before
+      composition, validateComposedPort keeps the literal and selector forms
+      mutually exclusive at load, and the composed authority still passes the
+      client's network ports allowlist, so configuration bounds the reachable
+      ports. Covered by TestRESTClient_PortSelectorResolvesPerItemPort and
+      TestRESTClient_PortSelectorRejectsUnusablePorts.
     - Command-state parameter threading (R13): body_source command_state consumption through request_binding.input_mapping $from(<label>).<path> selectors resolved against the injected core CommandStateView (clientCmd implements core.CommandStateAware). selectCommandStateParams looks up the labeled step's output, decodes it, and walks the dotted path; a miss returns a typed error naming the label. validateBodySource accepts command_state; validateRequestBinding enforces V32 (a $from selector only under command_state, a $. selector only under previous_result) plus the R12.4 declared-target and transport-authority rejections; the no-store rejection is enforced at runtime (R13.5). previous_result threading is unchanged. Covered by TestRESTClient_CommandStateThreadsNonAdjacentStep, TestRESTClient_CommandStateDuplicateLabelMostRecentWins, TestRESTClient_CommandStateMissNamesLabel, TestRESTClient_CommandStateNoViewConfiguredRejected, and TestRESTClient_CommandStateRejectionTable.
   partial:
     - Lifecycle profile wiring must still choose when to inject a REST CompensationExecutor into checkpoint rollback. Profile injection stays outside the REST client tool contract.
