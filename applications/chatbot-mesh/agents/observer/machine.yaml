@@ -17,7 +17,10 @@ states:
   - {name: Discovering, meaning: Polling the Kubernetes API for mesh agent pods.}
   - {name: ListingDeployments, meaning: Listing the release Deployments for the topology view.}
   - {name: ListingServices, meaning: Listing the release Services for the topology view.}
-  - {name: PollingAgents, meaning: Polling each discovered agent's monitor endpoints.}
+  - {name: PollingMachines, meaning: Reading each discovered agent's declared machine.}
+  - {name: PollingStates, meaning: Reading each discovered agent's current run state.}
+  - {name: PollingTools, meaning: Reading each discovered agent's tool vocabulary.}
+  - {name: PollingEvents, meaning: Reading each discovered agent's recent run events.}
   - {name: PollingMetrics, meaning: Polling metrics.k8s.io for per-pod CPU and memory.}
   - {name: AwaitingControl, meaning: Waiting a bounded interval before the next discovery cycle.}
   - {name: Exiting, meaning: Routing lifecycle exit.}
@@ -33,6 +36,10 @@ signals:
   - {name: DeploymentsListed, trigger: Kubernetes API returned a Deployment list.}
   - {name: ServicesListed, trigger: Kubernetes API returned a Service list.}
   - {name: MetricsPolled, trigger: metrics.k8s.io returned pod resource usage.}
+  - {name: AgentMonitorRead, trigger: One agent's monitor endpoint returned a payload.}
+  - {name: MachinesPolled, trigger: Declared machines read across the discovered pods.}
+  - {name: StatesPolled, trigger: Run states read across the discovered pods.}
+  - {name: ToolsPolled, trigger: Tool vocabularies read across the discovered pods.}
   - {name: AgentsPolled, trigger: All reachable agents polled for this cycle.}
   - {name: AwaitTimedOut, trigger: Bounded control wait elapsed; start next cycle.}
   - {name: ExitRequested, trigger: Lifecycle control event.}
@@ -50,10 +57,116 @@ transitions:
   - {state: Discovering, signal: CommandError, next: ListingDeployments, action: list_mesh_deployments}
   - {state: ListingDeployments, signal: DeploymentsListed, next: ListingServices, action: list_mesh_services}
   - {state: ListingDeployments, signal: CommandError, next: ListingServices, action: list_mesh_services}
-  - {state: ListingServices, signal: ServicesListed, next: PollingAgents, action: poll_agent_monitors}
-  - {state: ListingServices, signal: CommandError, next: PollingAgents, action: poll_agent_monitors}
-  - {state: PollingAgents, signal: AgentsPolled, next: PollingMetrics, action: poll_pod_metrics}
-  - {state: PollingAgents, signal: CommandError, next: PollingMetrics, action: poll_pod_metrics}
+  # Monitor fan-in. Each pass expands one monitor read over the pods discovered
+  # this cycle, so a REST dispatch stays at one request (srd028 R5.8) and the
+  # iteration is visible here rather than hidden in a compound word (srd028
+  # R1.5).
+  #
+  # An unreachable agent must degrade only itself (srd008 R2.3), so CommandError
+  # is listed in continue_on: the iteration continues past it. continue_on reads
+  # as continuation, not success, and it is the only classification that keeps
+  # going — abort_on halts the pass and stops polling the remaining pods, and the
+  # emits contract requires every emitted signal to appear in one of the two
+  # lists. Because the join then counts every dispatched item as succeeded, its
+  # succeeded and failed counts are not the reachable split; each agent's
+  # reachability is its own item's recorded result signal, which the join keeps
+  # per item.
+  #
+  # Each join declares its own label because every join executes under the
+  # command name for_each.join and the fleet allowlist must address the four
+  # separately.
+  - state: ListingServices
+    signal: ServicesListed
+    next: PollingMachines
+    action: read_agent_machine
+    label: agent_machine
+    for_each: &machine_fanin
+      items: $from(discover_mesh_pods).mapped.pods
+      as: pod
+      mode: parallel
+      max_concurrency: 4
+      failure: collect_all
+      continue_on: [AgentMonitorRead, CommandError]
+      join:
+        next: PollingMachines
+        label: agent_machine_fanin
+        signals: {all_success: MachinesPolled, partial: MachinesPolled, failed: MachinesPolled, empty: MachinesPolled}
+  - state: ListingServices
+    signal: CommandError
+    next: PollingMachines
+    action: read_agent_machine
+    label: agent_machine
+    for_each: *machine_fanin
+  # A failed iterator setup — discovery degraded, so the pod list never
+  # resolved — lands here as CommandError. Both outcomes continue the cycle.
+  - state: PollingMachines
+    signal: MachinesPolled
+    next: PollingStates
+    action: read_agent_state
+    label: agent_state
+    for_each: &state_fanin
+      items: $from(discover_mesh_pods).mapped.pods
+      as: pod
+      mode: parallel
+      max_concurrency: 4
+      failure: collect_all
+      continue_on: [AgentMonitorRead, CommandError]
+      join:
+        next: PollingStates
+        label: agent_state_fanin
+        signals: {all_success: StatesPolled, partial: StatesPolled, failed: StatesPolled, empty: StatesPolled}
+  - state: PollingMachines
+    signal: CommandError
+    next: PollingStates
+    action: read_agent_state
+    label: agent_state
+    for_each: *state_fanin
+  - state: PollingStates
+    signal: StatesPolled
+    next: PollingTools
+    action: read_agent_tools
+    label: agent_tools
+    for_each: &tools_fanin
+      items: $from(discover_mesh_pods).mapped.pods
+      as: pod
+      mode: parallel
+      max_concurrency: 4
+      failure: collect_all
+      continue_on: [AgentMonitorRead, CommandError]
+      join:
+        next: PollingTools
+        label: agent_tools_fanin
+        signals: {all_success: ToolsPolled, partial: ToolsPolled, failed: ToolsPolled, empty: ToolsPolled}
+  - state: PollingStates
+    signal: CommandError
+    next: PollingTools
+    action: read_agent_tools
+    label: agent_tools
+    for_each: *tools_fanin
+  - state: PollingTools
+    signal: ToolsPolled
+    next: PollingEvents
+    action: read_agent_events
+    label: agent_events
+    for_each: &events_fanin
+      items: $from(discover_mesh_pods).mapped.pods
+      as: pod
+      mode: parallel
+      max_concurrency: 4
+      failure: collect_all
+      continue_on: [AgentMonitorRead, CommandError]
+      join:
+        next: PollingEvents
+        label: agent_events_fanin
+        signals: {all_success: AgentsPolled, partial: AgentsPolled, failed: AgentsPolled, empty: AgentsPolled}
+  - state: PollingTools
+    signal: CommandError
+    next: PollingEvents
+    action: read_agent_events
+    label: agent_events
+    for_each: *events_fanin
+  - {state: PollingEvents, signal: AgentsPolled, next: PollingMetrics, action: poll_pod_metrics}
+  - {state: PollingEvents, signal: CommandError, next: PollingMetrics, action: poll_pod_metrics}
   - {state: PollingMetrics, signal: MetricsPolled, next: AwaitingControl, action: await_observer_control}
   - {state: PollingMetrics, signal: CommandError, next: AwaitingControl, action: await_observer_control}
   - {state: AwaitingControl, signal: AwaitTimedOut, next: Discovering, action: discover_mesh_pods}

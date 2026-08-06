@@ -21,16 +21,35 @@ const (
 	observerStatePath   = "/monitor/state"
 	observerMachinePath = "/monitor/machine"
 	observerFleetPath   = "/monitor/fleet"
+
+	// observerMonitorReadSignal is the signal a monitor fan-in item emits when it
+	// read its agent's endpoint; any other signal marks that agent unreachable.
+	observerMonitorReadSignal = "AgentMonitorRead"
 )
 
 // observerFleetLabels are the command_state labels the fleet view exposes, one
-// per aggregation step, addressed by command name (GH-1270).
+// per aggregation step. The discovery steps are addressed by command name
+// (GH-1270); the four monitor fan-in steps are for_each joins that all execute
+// under the command name for_each.join, so each is addressed by its declared
+// join label instead (GH-1319).
 var observerFleetLabels = []string{
 	"discover_mesh_pods",
 	"list_mesh_deployments",
 	"list_mesh_services",
-	"poll_agent_monitors",
+	"agent_machine_fanin",
+	"agent_state_fanin",
+	"agent_tools_fanin",
+	"agent_events_fanin",
 	"poll_pod_metrics",
+}
+
+// observerFanInLabels are the monitor fan-in join labels, the subset whose
+// entries carry per-pod outcomes.
+var observerFanInLabels = []string{
+	"agent_machine_fanin",
+	"agent_state_fanin",
+	"agent_tools_fanin",
+	"agent_events_fanin",
 }
 
 // Observer proves the observer agent boots, serves its monitor surface, and
@@ -138,6 +157,22 @@ func (Integration) Observer() error {
 			return fmt.Errorf("observer fleet view missing declared label %q: %v", label, fleet)
 		}
 	}
+	// This scenario points the kube client at a non-routable address, so
+	// discovery degrades and the fan-in never resolves a pod list: its join
+	// entries stay null rather than failing the cycle. When a cycle did fan in,
+	// the join's reachable and unreachable counts must cover every dispatched
+	// item (srd008 R2.3).
+	for _, label := range observerFanInLabels {
+		items, reachable, unreachable, ok := observerFanInCounts(fleet, label)
+		if !ok {
+			continue
+		}
+		if reachable+unreachable != items {
+			return fmt.Errorf(
+				"observer fan-in %q reports %d reachable + %d unreachable for %d items",
+				label, reachable, unreachable, items)
+		}
+	}
 
 	req, _ := http.NewRequest(http.MethodPost,
 		controlURL+observerExitPath,
@@ -154,7 +189,7 @@ func (Integration) Observer() error {
 			return fmt.Errorf("observer exit: %w\n%s", err, output.String())
 		}
 	}
-	fmt.Printf("integration:observer passed in %s: observer booted, monitor surface verified, clean exit\n",
+	fmt.Printf("integration:observer passed in %s: observer booted, monitor and fan-in surface verified, clean exit\n",
 		time.Since(start).Round(time.Millisecond))
 	return nil
 }
@@ -195,26 +230,75 @@ func observerFleetLabelsView(monitorURL string) (map[string]interface{}, error) 
 // fleet view's discover_mesh_pods entry, returning 0 when the label has no
 // recorded step or its output is unavailable. The REST client exposes the
 // operation's response.output result under `mapped`, so the pod list lives at
-// output.mapped.pods (GH-1302). Per-agent monitor fan-in (poll_agent_monitors)
-// is a single static endpoint and is tracked separately.
+// output.mapped.pods (GH-1302).
 func observerFleetDiscoveredPods(labels map[string]interface{}) int {
-	entry, ok := labels["discover_mesh_pods"].(map[string]interface{})
+	mapped, ok := observerLabelOutput(labels, "discover_mesh_pods")
 	if !ok {
 		return 0
 	}
-	output, ok := entry["output"].(map[string]interface{})
+	nested, ok := mapped["mapped"].(map[string]interface{})
 	if !ok {
 		return 0
 	}
-	mapped, ok := output["mapped"].(map[string]interface{})
-	if !ok {
-		return 0
-	}
-	pods, ok := mapped["pods"].([]interface{})
+	pods, ok := nested["pods"].([]interface{})
 	if !ok {
 		return 0
 	}
 	return len(pods)
+}
+
+// observerLabelOutput returns one fleet label's recorded output, reporting false
+// when the step is absent or its output did not cross the redaction boundary.
+func observerLabelOutput(labels map[string]interface{}, label string) (map[string]interface{}, bool) {
+	entry, ok := labels[label].(map[string]interface{})
+	if !ok {
+		return nil, false
+	}
+	output, ok := entry["output"].(map[string]interface{})
+	if !ok {
+		return nil, false
+	}
+	return output, true
+}
+
+// observerFanInCounts reads one monitor fan-in join's per-item outcomes and
+// splits them into reachable and unreachable agents. The split comes from each
+// item's own result signal, not the join's succeeded and failed counts: the
+// fan-in lists CommandError in continue_on so one unreachable agent cannot halt
+// the pass (srd008 R2.3), which makes the join count every dispatched item as
+// succeeded (GH-1319).
+func observerFanInCounts(labels map[string]interface{}, label string) (items, reachable, unreachable int, ok bool) {
+	output, found := observerLabelOutput(labels, label)
+	if !found {
+		return 0, 0, 0, false
+	}
+	entries, found := output["items"].([]interface{})
+	if !found {
+		return 0, 0, 0, false
+	}
+	for _, entry := range entries {
+		if observerItemReachable(entry) {
+			reachable++
+			continue
+		}
+		unreachable++
+	}
+	return len(entries), reachable, unreachable, true
+}
+
+// observerItemReachable reports whether one fan-in item read its agent's monitor
+// endpoint, which the item's recorded result signal states.
+func observerItemReachable(entry interface{}) bool {
+	item, ok := entry.(map[string]interface{})
+	if !ok {
+		return false
+	}
+	result, ok := item["result"].(map[string]interface{})
+	if !ok {
+		return false
+	}
+	signal, _ := result["signal"].(string)
+	return signal == observerMonitorReadSignal
 }
 
 // observerHasRunState checks whether the monitor state response contains a

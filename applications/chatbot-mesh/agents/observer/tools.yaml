@@ -4,7 +4,10 @@ tools:
   - discover_mesh_pods
   - list_mesh_deployments
   - list_mesh_services
-  - poll_agent_monitors
+  - read_agent_machine
+  - read_agent_state
+  - read_agent_tools
+  - read_agent_events
   - poll_pod_metrics
   - await_observer_control
   - exit_agent

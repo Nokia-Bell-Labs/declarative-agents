@@ -131,11 +131,34 @@ implementation_status:
     - >-
       The aggregated fleet payload is exposed on a readable monitor surface
       through the srd033 R7 command_state view: the observer serves a
-      /monitor/fleet endpoint whose labels allowlist names the five aggregation
+      /monitor/fleet endpoint whose labels allowlist names the aggregation
       steps, and the UX unwraps that per-label envelope into the agents,
       deployments, services, and pod_metrics it renders, degrading to the empty
       view when a step has no output yet (GH-1270).
+    - >-
+      Monitor fan-in (R2.1, R2.3) is realized as four MachineSpec for_each
+      passes, one per monitor endpoint, each expanding a single-request read word
+      (read_agent_machine, read_agent_state, read_agent_tools,
+      read_agent_events) over the pods discovered this cycle. Iteration lives in
+      the machine rather than a compound word, so one REST dispatch performs one
+      request (srd028 R5.8, R1.5). Each pass targets a pod by composing its
+      address and its own monitor port out of the discovered pod object (srd028
+      R14.6, R14.7); every agent publishes that port as the dot-free monitorPort
+      pod label because container ports sit in an array the selector grammar
+      cannot address, and the observer's client port allowlist authorizes the
+      resolved value. Each pass declares its own join label, so the four joins
+      are separately addressable in the fleet allowlist. CommandError is listed
+      in continue_on so one unreachable agent degrades only itself; each agent's
+      reachability is therefore its own item's recorded result signal rather than
+      the join's succeeded and failed counts. integration:observer proves the
+      four join labels are served and that a cycle whose discovery degrades
+      still exits cleanly (GH-1319).
   planned:
+    - >-
+      Rendering the fleet cast list from the four fan-in joins, so the UX shows a
+      card per discovered agent with its machine, tools, state, and events and
+      distinguishes reachable from unreachable (R3.1, R3.3). The UX still reads
+      the retired single-label shape.
     - >-
       The observer profile, machine, tools, declarations, REST definitions, UX
       assets, Helm template (Deployment, Service, ServiceAccount, Role,

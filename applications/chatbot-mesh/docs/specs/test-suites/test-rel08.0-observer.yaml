@@ -33,10 +33,30 @@ test_cases:
     traces: [rel08.0-uc001-mesh-observer S1, srd008-observer-agent AC1]
 
   - use_case: rel08.0-uc001-mesh-observer
+    name: Observer serves four monitor fan-in joins and survives degraded discovery
+    integration_target: mage integration:observer
+    status: done
+    description: |
+      The observer's monitor fan-in is four MachineSpec for_each passes, one per
+      monitor endpoint, each expanding a single-request read word over the
+      discovered pods. The profile validates that grammar at load, and the served
+      /monitor/fleet view carries all four join labels beside the discovery
+      labels. With the kube client pointed at a non-routable address the pod list
+      never resolves, so the fan-in records nothing and the cycle still proceeds
+      to metrics, waits, and exits cleanly rather than failing.
+    expected:
+      four_join_labels_served: true
+      one_request_per_dispatch: true
+      degraded_discovery_does_not_fail_cycle: true
+      per_item_counts_consistent: true
+      clean_lifecycle_exit: true
+    traces: [rel08.0-uc001-mesh-observer S2, srd008-observer-agent AC2]
+
+  - use_case: rel08.0-uc001-mesh-observer
     name: Observer polls agent monitor endpoints and aggregates fleet data
     integration_target: mage integration:rig
     status: planned
-    description: For each discovered agent, the observer polls /monitor/machine, /monitor/state, /monitor/tools, and /monitor/events and returns valid JSON. An unreachable agent does not prevent polling others.
+    description: For each discovered agent, the observer polls /monitor/machine, /monitor/state, /monitor/tools, and /monitor/events and returns valid JSON. An unreachable agent does not prevent polling others. This is the cluster-verified case; the fan-in grammar and its degraded path are covered above.
     expected:
       machine_spec_returned: true
       current_state_returned: true

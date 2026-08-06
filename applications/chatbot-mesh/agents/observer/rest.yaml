@@ -46,8 +46,22 @@ rest:
       max_request_bytes: 0
       max_response_bytes: 1048576
       redirect: {mode: none}
+      # The fan-in dials a discovered pod address, so the host cannot be an
+      # allowlist. The port is what configuration bounds: each pod publishes its
+      # own monitor port as a label, and this allowlist authorizes the result, so
+      # a relabelled pod cannot redirect the observer at an arbitrary port
+      # (srd028 R14.7). The set mirrors the chart's per-component monitor ports;
+      # a port changed in values.yaml must be changed here too.
       network:
         schemes: [http]
+        ports:
+          - 18082  # chatbot
+          - 18087  # rag-server
+          - 18092  # applier
+          - 18102  # provisioning-workflow-orchestrator
+          - 18112  # creator
+          - 18192  # collector
+          - 18202  # observer
 
   servers:
     observer_control:
@@ -78,14 +92,25 @@ rest:
         openapi:       {method: GET, path: /monitor/openapi, binding: static_metadata, monitor_view: openapi}
         # The fleet view exposes each aggregation step's latest declared output
         # (pods, Deployments, Services, per-agent fan-in, pod metrics) through the
-        # command_state monitor view. The transitions carry no authored label, so
-        # the allowlist addresses the steps by command name (srd033 R7, GH-1270).
+        # command_state monitor view. The discovery steps carry no authored label,
+        # so the allowlist addresses them by command name (srd033 R7, GH-1270).
+        # The four fan-in steps are for_each joins, which all execute under the
+        # command name for_each.join, so each declares its own join label and the
+        # allowlist names those labels instead (GH-1319).
         fleet:
           method: GET
           path: /monitor/fleet
           binding: read_state
           monitor_view: command_state
-          labels: [discover_mesh_pods, list_mesh_deployments, list_mesh_services, poll_agent_monitors, poll_pod_metrics]
+          labels:
+            - discover_mesh_pods
+            - list_mesh_deployments
+            - list_mesh_services
+            - agent_machine_fanin
+            - agent_state_fanin
+            - agent_tools_fanin
+            - agent_events_fanin
+            - poll_pod_metrics
         fleet_ui:
           method: GET
           path: /ui/{path...}
@@ -187,19 +212,82 @@ rest:
             undo: noop
 
     agent_monitor:
-      base_url: ${AGENT_MONITOR_BASE_URL:-http://127.0.0.1:18084}
+      # Every operation selects its own target from the discovered pod, so this
+      # configured base_url is never dialed; it stays a non-routable loopback so
+      # a missing selector fails closed instead of reaching a real service.
+      base_url: http://127.0.0.1:1
       auth_ref: none
       limits_ref: agent_monitor_client
+      # One operation per monitor endpoint, each a single GET, because a REST
+      # dispatch performs at most one request (srd028 R5.8). The machine's
+      # for_each expands each operation over the discovered pods, so iteration
+      # stays visible in MachineSpec (srd028 R1.5). Each pod's address and
+      # monitor port come from the pod object the iterator binds as `pod`
+      # (srd028 R14.6, R14.7). No operation declares response.output: the whole
+      # monitor payload is already the Result output's body, which the join
+      # exposes per item as result.structured_output.body.
       operations:
-        poll_fleet:
+        read_agent_machine:
           method: GET
-          path: /monitor/state
+          path: /monitor/machine
+          base_url_source: command_state
+          base_url_host_selector: $from(pod).status.podIP
+          base_url_port_selector: $from(pod).metadata.labels.monitorPort
+          base_url_scheme: http
           params:
             body_source: none
-          success: {status: [200], signal: AgentsPolled}
-          response:
-            output:
-              state: $.body
+          success: {status: [200], signal: AgentMonitorRead}
+          side_effects:
+            - kind: external_api
+              target: agent.monitor
+              state: read_only
+          reversibility:
+            classification: reversible
+            undo: noop
+        read_agent_state:
+          method: GET
+          path: /monitor/state
+          base_url_source: command_state
+          base_url_host_selector: $from(pod).status.podIP
+          base_url_port_selector: $from(pod).metadata.labels.monitorPort
+          base_url_scheme: http
+          params:
+            body_source: none
+          success: {status: [200], signal: AgentMonitorRead}
+          side_effects:
+            - kind: external_api
+              target: agent.monitor
+              state: read_only
+          reversibility:
+            classification: reversible
+            undo: noop
+        read_agent_tools:
+          method: GET
+          path: /monitor/tools
+          base_url_source: command_state
+          base_url_host_selector: $from(pod).status.podIP
+          base_url_port_selector: $from(pod).metadata.labels.monitorPort
+          base_url_scheme: http
+          params:
+            body_source: none
+          success: {status: [200], signal: AgentMonitorRead}
+          side_effects:
+            - kind: external_api
+              target: agent.monitor
+              state: read_only
+          reversibility:
+            classification: reversible
+            undo: noop
+        read_agent_events:
+          method: GET
+          path: /monitor/events
+          base_url_source: command_state
+          base_url_host_selector: $from(pod).status.podIP
+          base_url_port_selector: $from(pod).metadata.labels.monitorPort
+          base_url_scheme: http
+          params:
+            body_source: none
+          success: {status: [200], signal: AgentMonitorRead}
           side_effects:
             - kind: external_api
               target: agent.monitor
