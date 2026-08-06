@@ -145,6 +145,37 @@ test_cases:
       - srd028-rest-client-tools AC13
 
   - use_case: rel03.0-uc001-rest-client-sync
+    name: Trusted operation composes a target from a discovered host
+    go_test: TestRESTClient_HostSelectorComposesSelectedAuthority
+    status: done
+    description: |
+      A discovery word records a bare host or IP under a labeled command output,
+      the shape a listing endpoint returns for a per-item target. A configured
+      read operation selects that address through base_url_host_selector and
+      composes it with the declared base_url_scheme and base_url_port into the
+      request base URL, then performs one normal REST dispatch. Scheme and port
+      come only from trusted config: a resolved value carrying a scheme,
+      credential, port, path, or query is rejected before network I/O, both
+      selector forms on one operation are rejected, and an unsupported scheme or
+      out-of-range port is rejected at load.
+    inputs:
+      configured_base_url: http://127.0.0.1:1
+      base_url_source: command_state
+      base_url_host_selector: $from(discover_pods).ip
+      base_url_scheme: http
+      operation_path: /monitor/state
+    expected:
+      composed_authority_reported: true
+      unsafe_host_rejected_before_io: true
+      both_selector_forms_rejected: true
+      invalid_scheme_or_port_rejected_at_load: true
+      ipv6_literal_bracketed: true
+    traces:
+      - rel03.0-uc001-rest-client-sync S1
+      - srd027-rest-tool-runtime AC2
+      - srd028-rest-client-tools AC14
+
+  - use_case: rel03.0-uc001-rest-client-sync
     name: REST client threads declared params from the previous Result
     go_test: TestRESTClient_ThreadsPreviousResultParams
     status: done

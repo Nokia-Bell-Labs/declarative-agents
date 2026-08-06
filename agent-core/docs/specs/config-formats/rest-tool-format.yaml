@@ -154,6 +154,33 @@ schema:
           A $from(<label>).<path> selector resolving to an absolute HTTP or
           HTTPS URL. This is operation configuration, not a runtime parameter;
           input_mapping remains forbidden from setting transport authority.
+          Mutually exclusive with base_url_host_selector.
+      - field: base_url_host_selector
+        type: string
+        required: false
+        description: |
+          A $from(<label>).<path> selector resolving to a bare host or IP, for a
+          target a prior step discovered as an address rather than a whole URL
+          (for example a pod address). The resolved value is composed with
+          base_url_scheme and base_url_port. A value carrying a scheme,
+          credential, port, path, query, fragment, whitespace, or control
+          character is rejected before network I/O. Mutually exclusive with
+          base_url_selector; requires base_url_source command_state.
+      - field: base_url_scheme
+        type: string
+        required: false
+        description: |
+          Scheme for a host composed through base_url_host_selector. Accepts
+          http or https and defaults to http. Rejected without
+          base_url_host_selector.
+      - field: base_url_port
+        type: string
+        required: false
+        description: |
+          Port for a host composed through base_url_host_selector. Must be
+          1-65535 and is omitted when unset, leaving the scheme default. The
+          port is trusted operation config, never taken from the resolved
+          value. Rejected without base_url_host_selector.
       - field: allow_auth_on_selected_authority
         type: bool
         required: false
@@ -1528,11 +1555,16 @@ validation_rules:
     rule: $.path and $from(label).path selectors MUST use the shared dotted-path grammar; empty components, whitespace or control characters, malformed parentheses, and empty labels or paths are invalid.
   - id: V36
     rule: |
-      base_url_source, when present, MUST be command_state and MUST carry a
-      base_url_selector in $from(<label>).<path> form. The selected value MUST
-      be an absolute HTTP or HTTPS URL without user information and MUST pass
-      the operation's network, redirect, and credential-scope policies before
-      network I/O. Runtime input_mapping authority fields remain forbidden.
+      base_url_source, when present, MUST be command_state and MUST carry
+      either a base_url_selector or a base_url_host_selector in
+      $from(<label>).<path> form, never both. A base_url_selector value MUST be
+      an absolute HTTP or HTTPS URL without user information. A
+      base_url_host_selector value MUST be a bare host or IP, and is composed
+      with base_url_scheme (http or https, default http) and the optional
+      base_url_port (1-65535); base_url_scheme and base_url_port are invalid
+      without base_url_host_selector. Either form MUST pass the operation's
+      network, redirect, and credential-scope policies before network I/O.
+      Runtime input_mapping authority fields remain forbidden.
 
 invalid_examples:
   ambiguous_resource_operation: |

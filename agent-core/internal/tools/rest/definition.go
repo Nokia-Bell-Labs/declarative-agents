@@ -43,22 +43,29 @@ type Resource struct {
 
 // Operation defines one outbound REST operation.
 type Operation struct {
-	OpenAPIOperationID string                 `yaml:"openapi_operation_id,omitempty"`
-	Method             string                 `yaml:"method,omitempty"`
-	Path               string                 `yaml:"path,omitempty"`
-	BaseURLSource      string                 `yaml:"base_url_source,omitempty"`
-	BaseURLSelector    string                 `yaml:"base_url_selector,omitempty"`
-	AllowSelectedAuth  bool                   `yaml:"allow_auth_on_selected_authority,omitempty"`
-	Params             RequestBinding         `yaml:"params,omitempty"`
-	Body               map[string]interface{} `yaml:"body,omitempty"`
-	Success            StatusMapping          `yaml:"success"`
-	Failures           []StatusMapping        `yaml:"failures,omitempty"`
-	ResponseRef        string                 `yaml:"response_ref,omitempty"`
-	Response           ResponseMapping        `yaml:"response,omitempty"`
-	SideEffects        []SideEffect           `yaml:"side_effects,omitempty"`
-	Reversibility      Reversibility          `yaml:"reversibility,omitempty"`
-	Compensation       map[string]interface{} `yaml:"compensation,omitempty"`
-	Async              *AsyncClientConfig     `yaml:"async,omitempty"`
+	OpenAPIOperationID string `yaml:"openapi_operation_id,omitempty"`
+	Method             string `yaml:"method,omitempty"`
+	Path               string `yaml:"path,omitempty"`
+	BaseURLSource      string `yaml:"base_url_source,omitempty"`
+	BaseURLSelector    string `yaml:"base_url_selector,omitempty"`
+	// BaseURLHostSelector selects a bare host or IP that is composed with
+	// BaseURLScheme and BaseURLPort into the request base URL, for a target
+	// discovered per item rather than published as a whole URL (srd028 R14.6).
+	// It is mutually exclusive with BaseURLSelector.
+	BaseURLHostSelector string                 `yaml:"base_url_host_selector,omitempty"`
+	BaseURLScheme       string                 `yaml:"base_url_scheme,omitempty"`
+	BaseURLPort         string                 `yaml:"base_url_port,omitempty"`
+	AllowSelectedAuth   bool                   `yaml:"allow_auth_on_selected_authority,omitempty"`
+	Params              RequestBinding         `yaml:"params,omitempty"`
+	Body                map[string]interface{} `yaml:"body,omitempty"`
+	Success             StatusMapping          `yaml:"success"`
+	Failures            []StatusMapping        `yaml:"failures,omitempty"`
+	ResponseRef         string                 `yaml:"response_ref,omitempty"`
+	Response            ResponseMapping        `yaml:"response,omitempty"`
+	SideEffects         []SideEffect           `yaml:"side_effects,omitempty"`
+	Reversibility       Reversibility          `yaml:"reversibility,omitempty"`
+	Compensation        map[string]interface{} `yaml:"compensation,omitempty"`
+	Async               *AsyncClientConfig     `yaml:"async,omitempty"`
 }
 
 // StatusMapping maps HTTP statuses to grammar signals and response shaping.
