@@ -327,29 +327,39 @@ func splitHostPort(addr string) (host, port string, err error) {
 	return addr[:idx], addr[idx+1:], nil
 }
 
+// observerKindFleet summarizes one fan-in cycle observed on a kind cluster: the
+// pods discovery listed, and how many of them the monitor fan-in reached.
+type observerKindFleet struct {
+	Pods        int
+	Items       int
+	Reachable   int
+	Unreachable int
+}
+
 // observerKindIntegration runs against a live kind cluster to verify kube API
 // discovery and monitor fan-in. TestObserverKindIntegration is its skip-guarded
 // caller (GH-1226), gated on the -kind-kube-api-url go-test flag.
-func observerKindIntegration(applicationRoot, coreRoot, kubeAPIURL, namespace, labelSelector string) (int, error) {
+func observerKindIntegration(applicationRoot, coreRoot, kubeAPIURL, namespace, labelSelector string) (observerKindFleet, error) {
+	var fleetSummary observerKindFleet
 	binary, err := buildAgent(coreRoot)
 	if err != nil {
-		return 0, err
+		return fleetSummary, err
 	}
 
 	controlAddr, err := freeLoopbackAddr()
 	if err != nil {
-		return 0, err
+		return fleetSummary, err
 	}
 	monitorAddr, err := freeLoopbackAddr()
 	if err != nil {
-		return 0, err
+		return fleetSummary, err
 	}
 	_, controlPort, _ := splitHostPort(controlAddr)
 	_, monitorPort, _ := splitHostPort(monitorAddr)
 
 	workDir, err := os.MkdirTemp("", "observer-kind-*")
 	if err != nil {
-		return 0, err
+		return fleetSummary, err
 	}
 	defer func() { _ = os.RemoveAll(workDir) }()
 
@@ -373,7 +383,7 @@ func observerKindIntegration(applicationRoot, coreRoot, kubeAPIURL, namespace, l
 	var output bytes.Buffer
 	cmd.Stdout, cmd.Stderr = &output, &output
 	if err := cmd.Start(); err != nil {
-		return 0, fmt.Errorf("start observer: %w", err)
+		return fleetSummary, fmt.Errorf("start observer: %w", err)
 	}
 	defer func() {
 		if cmd.ProcessState == nil {
@@ -386,7 +396,7 @@ func observerKindIntegration(applicationRoot, coreRoot, kubeAPIURL, namespace, l
 	monitorURL := "http://" + monitorAddr
 
 	if err := waitHTTPStatus(controlURL+observerHealthPath, http.StatusOK, 30*time.Second); err != nil {
-		return 0, fmt.Errorf("observer health: %w\n%s", err, output.String())
+		return fleetSummary, fmt.Errorf("observer health: %w\n%s", err, output.String())
 	}
 
 	// Allow two poll cycles for discovery + fan-in.
@@ -394,9 +404,13 @@ func observerKindIntegration(applicationRoot, coreRoot, kubeAPIURL, namespace, l
 
 	fleet, err := observerFleetLabelsView(monitorURL)
 	if err != nil {
-		return 0, fmt.Errorf("observer fleet: %w\n%s", err, output.String())
+		return fleetSummary, fmt.Errorf("observer fleet: %w\n%s", err, output.String())
 	}
-	discovered := observerFleetDiscoveredPods(fleet)
+	fleetSummary.Pods = observerFleetDiscoveredPods(fleet)
+	// The state fan-in is the liveness pass, so its per-item outcomes are the
+	// reachable split the fleet cards render (srd008 R3.3, GH-1319).
+	items, reachable, unreachable, _ := observerFanInCounts(fleet, "agent_state_fanin")
+	fleetSummary.Items, fleetSummary.Reachable, fleetSummary.Unreachable = items, reachable, unreachable
 
 	req, _ := http.NewRequest(http.MethodPost,
 		controlURL+observerExitPath,
@@ -408,5 +422,5 @@ func observerKindIntegration(applicationRoot, coreRoot, kubeAPIURL, namespace, l
 	}
 	_ = cmd.Wait()
 
-	return discovered, nil
+	return fleetSummary, nil
 }

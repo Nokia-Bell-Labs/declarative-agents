@@ -66,13 +66,31 @@ test_cases:
     traces: [rel08.0-uc001-mesh-observer S2, srd008-observer-agent AC2]
 
   - use_case: rel08.0-uc001-mesh-observer
+    name: Fleet UX renders a card per pod from the four fan-in joins
+    go_test: cd agents/observer/ui && npm test
+    status: done
+    description: |
+      fleetData zips the four monitor fan-in joins into one card per discovered
+      pod, joining them on the pod name each item carries, and maps each
+      endpoint's payload to the shape the card reads. A pod whose state read
+      failed renders unreachable while the others render normally, even though
+      the join counts every dispatched item as succeeded. Absent or unavailable
+      joins yield the empty fleet view rather than an exception.
+    expected:
+      card_per_pod: true
+      machine_tools_state_events_mapped: true
+      pod_name_keys_resource_lookup: true
+      failed_state_read_renders_unreachable: true
+      absent_joins_degrade_to_empty: true
+    traces: [rel08.0-uc001-mesh-observer S2, rel08.0-uc001-mesh-observer S3, srd008-observer-agent AC3]
+
+  - use_case: rel08.0-uc001-mesh-observer
     name: Fleet UX serves and displays agent cards
     integration_target: mage demo:up
     status: planned
-    description: The observer UX is reachable at its .localhost URL and renders a card per agent showing machine name, tools, state, and events. The page auto-refreshes.
+    description: The observer UX is reachable at its .localhost URL and renders a card per agent showing machine name, tools, state, and events. The page auto-refreshes. This is the served-and-reachable case; the rendering itself is covered above.
     expected:
       ux_reachable: true
-      card_per_agent: true
       auto_refresh: true
     traces: [rel08.0-uc001-mesh-observer S2, rel08.0-uc001-mesh-observer S3, srd008-observer-agent AC3]
 
