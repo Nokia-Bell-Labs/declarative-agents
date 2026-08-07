@@ -24,6 +24,11 @@ spec:
       labels:
         {{- include "chatbot-mesh.selectorLabels" . | nindent 8 }}
         app.kubernetes.io/component: chatbot
+        # The observer's monitor fan-in reads this pod's monitor port from a
+        # label, because a pod's container ports live in an array the
+        # command-state selector grammar cannot address (srd008 R2.1, GH-1319).
+        # The key carries no dot so the dotted selector can reach it.
+        monitorPort: {{ .Values.chatbot.ports.monitor | quote }}
       annotations:
         # Roll the chatbot when its co-generated profile ConfigMap changes, so a
         # values-driven RAG add/remove re-renders the profile and rolls the pod

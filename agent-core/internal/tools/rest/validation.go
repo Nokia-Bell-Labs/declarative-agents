@@ -273,21 +273,94 @@ func validateOperation(name string, operation Operation, mutatingResource bool, 
 func validateBaseURLSource(name string, operation Operation) error {
 	switch operation.BaseURLSource {
 	case "":
-		if operation.BaseURLSelector != "" {
-			return fmt.Errorf("operation %q base_url_selector requires base_url_source command_state", name)
-		}
-		if operation.AllowSelectedAuth {
-			return fmt.Errorf("operation %q allow_auth_on_selected_authority requires base_url_source command_state", name)
-		}
-		return nil
+		return validateStaticBaseURLTarget(name, operation)
 	case bodySourceCommandState:
-		if _, _, ok := core.ParseFromSelector(operation.BaseURLSelector); !ok {
-			return fmt.Errorf("operation %q base_url_selector %q must be a $from(label).path selector under base_url_source command_state", name, operation.BaseURLSelector)
-		}
-		return nil
+		return validateSelectedBaseURLTarget(name, operation)
 	default:
 		return fmt.Errorf("operation %q has unsupported base_url_source %q", name, operation.BaseURLSource)
 	}
+}
+
+// validateStaticBaseURLTarget rejects target-selection fields on an operation
+// that keeps its client's configured base_url (srd028 R14.1).
+func validateStaticBaseURLTarget(name string, operation Operation) error {
+	if operation.BaseURLSelector != "" {
+		return fmt.Errorf("operation %q base_url_selector requires base_url_source command_state", name)
+	}
+	if operation.BaseURLHostSelector != "" {
+		return fmt.Errorf("operation %q base_url_host_selector requires base_url_source command_state", name)
+	}
+	if err := validateComposedTargetFields(name, operation); err != nil {
+		return err
+	}
+	if operation.AllowSelectedAuth {
+		return fmt.Errorf("operation %q allow_auth_on_selected_authority requires base_url_source command_state", name)
+	}
+	return nil
+}
+
+// validateSelectedBaseURLTarget accepts exactly one selector form: a whole URL
+// or a bare host composed with a declared scheme and port (srd028 R14.1, R14.6).
+func validateSelectedBaseURLTarget(name string, operation Operation) error {
+	if operation.BaseURLSelector != "" && operation.BaseURLHostSelector != "" {
+		return fmt.Errorf(
+			"operation %q declares both base_url_selector and base_url_host_selector; declare one", name)
+	}
+	if operation.BaseURLHostSelector != "" {
+		return validateHostSelectorTarget(name, operation)
+	}
+	if _, _, ok := core.ParseFromSelector(operation.BaseURLSelector); !ok {
+		return fmt.Errorf("operation %q base_url_selector %q must be a $from(label).path selector under base_url_source command_state", name, operation.BaseURLSelector)
+	}
+	return validateComposedTargetFields(name, operation)
+}
+
+func validateHostSelectorTarget(name string, operation Operation) error {
+	if _, _, ok := core.ParseFromSelector(operation.BaseURLHostSelector); !ok {
+		return fmt.Errorf("operation %q base_url_host_selector %q must be a $from(label).path selector under base_url_source command_state", name, operation.BaseURLHostSelector)
+	}
+	switch operation.BaseURLScheme {
+	case "", "http", "https":
+	default:
+		return fmt.Errorf("operation %q has unsupported base_url_scheme %q", name, operation.BaseURLScheme)
+	}
+	return validateComposedPort(name, operation)
+}
+
+// validateComposedPort accepts one port form: a declared literal or a selector
+// resolved per item (srd028 R14.6).
+func validateComposedPort(name string, operation Operation) error {
+	if operation.BaseURLPort != "" && operation.BaseURLPortSelector != "" {
+		return fmt.Errorf(
+			"operation %q declares both base_url_port and base_url_port_selector; declare one", name)
+	}
+	if operation.BaseURLPortSelector != "" {
+		if _, _, ok := core.ParseFromSelector(operation.BaseURLPortSelector); !ok {
+			return fmt.Errorf("operation %q base_url_port_selector %q must be a $from(label).path selector under base_url_source command_state", name, operation.BaseURLPortSelector)
+		}
+		return nil
+	}
+	return validateBaseURLPort(name, operation.BaseURLPort)
+}
+
+// validateComposedTargetFields rejects a declared scheme or port without the
+// host selector they compose with.
+func validateComposedTargetFields(name string, operation Operation) error {
+	if operation.BaseURLScheme != "" || operation.BaseURLPort != "" || operation.BaseURLPortSelector != "" {
+		return fmt.Errorf(
+			"operation %q base_url_scheme, base_url_port, and base_url_port_selector require base_url_host_selector", name)
+	}
+	return nil
+}
+
+func validateBaseURLPort(name, port string) error {
+	if port == "" {
+		return nil
+	}
+	if !portInRange(port) {
+		return fmt.Errorf("operation %q has invalid base_url_port %q", name, port)
+	}
+	return nil
 }
 
 func validateStatusMappings(name string, operation Operation) error {

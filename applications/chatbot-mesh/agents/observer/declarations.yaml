@@ -160,7 +160,7 @@ tools:
         state_after_failure: Discovery result is empty; polling falls back to next cycle.
     relationships:
       after: [launch_observer_monitor]
-      before: [poll_agent_monitors]
+      before: [read_agent_machine]
     config:
       rest_ref: kube_api
       operation: list_pods
@@ -258,7 +258,7 @@ tools:
         state_after_failure: Topology omits Services this cycle; the loop proceeds.
     relationships:
       after: [list_mesh_deployments]
-      before: [poll_agent_monitors]
+      before: [read_agent_machine]
     config:
       rest_ref: kube_api
       operation: list_services
@@ -307,54 +307,49 @@ tools:
         condition: The metrics API is absent (no metrics-server) or the read fails.
         state_after_failure: Resource usage is reported as unavailable; topology and fan-in are unaffected.
     relationships:
-      after: [poll_agent_monitors]
+      after: [read_agent_events]
       before: [await_observer_control]
     config:
       rest_ref: kube_api
       operation: list_pod_metrics
 
-  - name: poll_agent_monitors
+  # One word per monitor endpoint. Each reads one endpoint on one discovered pod,
+  # and the machine's for_each expands it over the pod set, so a REST dispatch
+  # stays at one request (srd028 R5.8) and the iteration stays visible in
+  # MachineSpec rather than hidden inside a compound word (srd028 R1.5). The
+  # for_each join aggregates the per-pod outcomes and its succeeded and failed
+  # counts are the reachable and unreachable counts the fleet view reports.
+  - name: read_agent_machine
     type: builtin
     init: rest_client_get
     category: boundary
-    description: Poll each discovered agent's monitor endpoints and aggregate the fleet view.
-    problem: The fleet view needs current machine spec, state, tools, and events from every running agent.
+    description: Read one discovered agent's declared machine from its monitor surface.
+    problem: The fleet view needs each running agent's declared machine to show what program it is executing.
     goals:
-      - For each discovered pod, GET /monitor/machine, /monitor/state, /monitor/tools, and /monitor/events.
-      - Aggregate results into the fleet data set served by the observer's UX.
-      - Degrade gracefully for unreachable agents.
+      - GET /monitor/machine on the pod the iterator selected.
+      - Return the machine payload for that agent's fleet entry.
     requirements:
       input:
-        - The discovered pod list from the preceding discovery step.
+        - The iterator binds one discovered pod supplying its address and monitor port.
       output:
-        - Output reports per-agent machine spec, state, tools, and events.
+        - Output reports the agent's declared machine payload.
       errors:
-        - Per-agent failures degrade that agent; they do not fail the poll.
-        - A total fan-in failure emits CommandError.
+        - An unreachable or slow agent emits CommandError, degrading only that agent.
     non_goals:
+      - Does not iterate the pod set; the machine's for_each does.
       - Does not consume SSE streams (srd008 R2.4).
     parameters:
       type: object
       properties: {}
-    emits: [AgentsPolled, CommandError]
+    emits: [AgentMonitorRead, CommandError]
     output:
-      description: Aggregated fleet monitor data.
+      description: One agent's declared machine.
       schema:
         type: object
         properties:
-          agents:
-            type: array
-            items:
-              type: object
-              properties:
-                name: {type: string}
-                reachable: {type: boolean}
-                machine: {type: object}
-                state: {type: object}
-                tools: {type: object}
-                events: {type: array}
-          reachable_count: {type: integer}
-          unreachable_count: {type: integer}
+          status: {type: integer}
+          body: {type: object}
+          selected_authority: {type: string}
     side_effects:
       - kind: external_api
         target: agent.monitor
@@ -367,13 +362,169 @@ tools:
       description: Read-only operation; no undo needed.
     errors:
       - signal: CommandError
-        condition: Total fan-in failure when no agent is reachable.
-        state_after_failure: Fleet view shows all agents as unreachable.
+        condition: Network, timeout, target resolution, or mapping failure for this agent.
+        state_after_failure: The fan-in records this agent as unreachable and continues with the others.
     relationships:
       after: [discover_mesh_pods]
+      before: [read_agent_state]
     config:
       rest_ref: agent_monitor
-      operation: poll_fleet
+      operation: read_agent_machine
+
+  - name: read_agent_state
+    type: builtin
+    init: rest_client_get
+    category: boundary
+    description: Read one discovered agent's current run state from its monitor surface.
+    problem: The fleet view needs each agent's live run state to show what it is doing right now.
+    goals:
+      - GET /monitor/state on the pod the iterator selected.
+      - Return the run snapshot for that agent's fleet entry.
+    requirements:
+      input:
+        - The iterator binds one discovered pod supplying its address and monitor port.
+      output:
+        - Output reports the agent's run snapshot, diagnostics, and recent errors.
+      errors:
+        - An unreachable or slow agent emits CommandError, degrading only that agent.
+    non_goals:
+      - Does not iterate the pod set; the machine's for_each does.
+      - Does not consume SSE streams (srd008 R2.4).
+    parameters:
+      type: object
+      properties: {}
+    emits: [AgentMonitorRead, CommandError]
+    output:
+      description: One agent's run state.
+      schema:
+        type: object
+        properties:
+          status: {type: integer}
+          body: {type: object}
+          selected_authority: {type: string}
+    side_effects:
+      - kind: external_api
+        target: agent.monitor
+        state: read_only
+    reversibility:
+      classification: reversible
+      undo: noop
+    undo:
+      strategy: noop
+      description: Read-only operation; no undo needed.
+    errors:
+      - signal: CommandError
+        condition: Network, timeout, target resolution, or mapping failure for this agent.
+        state_after_failure: The fan-in records this agent as unreachable and continues with the others.
+    relationships:
+      after: [read_agent_machine]
+      before: [read_agent_tools]
+    config:
+      rest_ref: agent_monitor
+      operation: read_agent_state
+
+  - name: read_agent_tools
+    type: builtin
+    init: rest_client_get
+    category: boundary
+    description: Read one discovered agent's tool vocabulary from its monitor surface.
+    problem: The fleet view needs each agent's declared tools to show the vocabulary it can execute.
+    goals:
+      - GET /monitor/tools on the pod the iterator selected.
+      - Return the tool list for that agent's fleet entry.
+    requirements:
+      input:
+        - The iterator binds one discovered pod supplying its address and monitor port.
+      output:
+        - Output reports the agent's declared tool list.
+      errors:
+        - An unreachable or slow agent emits CommandError, degrading only that agent.
+    non_goals:
+      - Does not iterate the pod set; the machine's for_each does.
+      - Does not consume SSE streams (srd008 R2.4).
+    parameters:
+      type: object
+      properties: {}
+    emits: [AgentMonitorRead, CommandError]
+    output:
+      description: One agent's tool vocabulary.
+      schema:
+        type: object
+        properties:
+          status: {type: integer}
+          body: {type: object}
+          selected_authority: {type: string}
+    side_effects:
+      - kind: external_api
+        target: agent.monitor
+        state: read_only
+    reversibility:
+      classification: reversible
+      undo: noop
+    undo:
+      strategy: noop
+      description: Read-only operation; no undo needed.
+    errors:
+      - signal: CommandError
+        condition: Network, timeout, target resolution, or mapping failure for this agent.
+        state_after_failure: The fan-in records this agent as unreachable and continues with the others.
+    relationships:
+      after: [read_agent_state]
+      before: [read_agent_events]
+    config:
+      rest_ref: agent_monitor
+      operation: read_agent_tools
+
+  - name: read_agent_events
+    type: builtin
+    init: rest_client_get
+    category: boundary
+    description: Read one discovered agent's recent run events from its monitor surface.
+    problem: The fleet view needs each agent's recent events to show the path it has taken.
+    goals:
+      - GET /monitor/events on the pod the iterator selected.
+      - Return the recent event list for that agent's fleet entry.
+    requirements:
+      input:
+        - The iterator binds one discovered pod supplying its address and monitor port.
+      output:
+        - Output reports the agent's recent run events.
+      errors:
+        - An unreachable or slow agent emits CommandError, degrading only that agent.
+    non_goals:
+      - Does not iterate the pod set; the machine's for_each does.
+      - Does not consume SSE streams (srd008 R2.4).
+    parameters:
+      type: object
+      properties: {}
+    emits: [AgentMonitorRead, CommandError]
+    output:
+      description: One agent's recent run events.
+      schema:
+        type: object
+        properties:
+          status: {type: integer}
+          body: {type: object}
+          selected_authority: {type: string}
+    side_effects:
+      - kind: external_api
+        target: agent.monitor
+        state: read_only
+    reversibility:
+      classification: reversible
+      undo: noop
+    undo:
+      strategy: noop
+      description: Read-only operation; no undo needed.
+    errors:
+      - signal: CommandError
+        condition: Network, timeout, target resolution, or mapping failure for this agent.
+        state_after_failure: The fan-in records this agent as unreachable and continues with the others.
+    relationships:
+      after: [read_agent_tools]
+    config:
+      rest_ref: agent_monitor
+      operation: read_agent_events
 
   - name: await_observer_control
     type: builtin

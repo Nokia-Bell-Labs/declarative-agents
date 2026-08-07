@@ -77,6 +77,12 @@ spec:
       labels:
         {{- include "chatbot-mesh.selectorLabels" . | nindent 8 }}
         app.kubernetes.io/component: observer
+        # The observer's monitor fan-in reads this pod's monitor port from a
+        # label, because a pod's container ports live in an array the
+        # command-state selector grammar cannot address (srd008 R2.1, GH-1319).
+        # The key carries no dot so the dotted selector can reach it. The
+        # observer discovers itself, so it carries the label too.
+        monitorPort: {{ .Values.observer.ports.monitor | quote }}
       {{- if $uiArchive }}
       annotations:
         checksum/observer-ui-archive: {{ required "observer.uiArchiveChecksum is required with observer.uiArchiveConfigMap" .Values.observer.uiArchiveChecksum | quote }}

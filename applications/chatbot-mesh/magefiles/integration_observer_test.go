@@ -226,13 +226,28 @@ func TestObserverKindIntegration(t *testing.T) {
 	if !agentCoreAvailable(coreRoot) {
 		t.Skipf("agent-core checkout not found at %s", coreRoot)
 	}
-	discovered, err := observerKindIntegration(
+	fleet, err := observerKindIntegration(
 		applicationRoot, coreRoot, *kindKubeAPIURL, *kindNamespace, *kindLabelSelector,
 	)
 	if err != nil {
 		t.Fatalf("observer kind integration: %v", err)
 	}
-	if discovered == 0 {
-		t.Errorf("observer discovered 0 pods on the kind cluster; want at least one")
+	if fleet.Pods == 0 {
+		t.Fatalf("observer discovered 0 pods on the kind cluster; want at least one")
+	}
+	// The fan-in dispatches one read per discovered pod, so a short item list
+	// means the iteration did not cover the pod set.
+	if fleet.Items != fleet.Pods {
+		t.Errorf("observer fanned in %d items for %d discovered pods; want one per pod",
+			fleet.Items, fleet.Pods)
+	}
+	if fleet.Reachable+fleet.Unreachable != fleet.Items {
+		t.Errorf("observer fan-in split %d reachable + %d unreachable over %d items",
+			fleet.Reachable, fleet.Unreachable, fleet.Items)
+	}
+	// The observer discovers itself and carries its own monitor-port label, so at
+	// least one agent must be reachable on a healthy cluster.
+	if fleet.Reachable == 0 {
+		t.Errorf("observer reached 0 of %d discovered agents; want at least itself", fleet.Items)
 	}
 }

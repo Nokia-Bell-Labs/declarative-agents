@@ -37,6 +37,11 @@ spec:
         {{- include "chatbot-mesh.selectorLabels" $root | nindent 8 }}
         app.kubernetes.io/component: rag-server
         chatbot-mesh/rag-unit: {{ $unit.name }}
+        # The observer's monitor fan-in reads this pod's monitor port from a
+        # label, because a pod's container ports live in an array the
+        # command-state selector grammar cannot address (srd008 R2.1, GH-1319).
+        # The key carries no dot so the dotted selector can reach it.
+        monitorPort: {{ $root.Values.ragServer.ports.monitor | quote }}
     spec:
       {{- if $root.Values.ollama.enabled }}
       # Do not start an in-cluster RAG agent until the chart-owned preload Job
