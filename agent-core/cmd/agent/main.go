@@ -208,7 +208,7 @@ func runPrepared(prepared preparedRun) (err error) {
 		return err
 	}
 	if result.Summary != "" {
-		fmt.Fprintln(os.Stdout, result.Summary)
+		_, _ = fmt.Fprintln(os.Stdout, result.Summary)
 	}
 	fmt.Fprintf(os.Stderr, "terminal state: %s\n", result.Status)
 	fmt.Fprintf(os.Stderr, "final machine state: %s\n", result.FinalState)
