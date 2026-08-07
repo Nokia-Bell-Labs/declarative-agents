@@ -29,14 +29,14 @@ func TestLiveCommandStateSource_ExposesLatestAppliedOutput(t *testing.T) {
 
 	source := NewLiveCommandStateSource()
 	source.ObserveCommandState(Execution{
-		appliedEntry("poll_fleet", "rest_client_get", `{"agents":[{"name":"a"}]}`, "PollingAgents", ToolDone, 3),
+		appliedEntry("polled_step", "rest_client_get", `{"agents":[{"name":"a"}]}`, "Polling", ToolDone, 3),
 	})
 
-	entry, found := source.LookupCommandState("poll_fleet")
+	entry, found := source.LookupCommandState("polled_step")
 	require.True(t, found)
 	require.True(t, entry.Available)
 	require.Equal(t, `{"agents":[{"name":"a"}]}`, entry.Output)
-	require.Equal(t, "PollingAgents", entry.State)
+	require.Equal(t, "Polling", entry.State)
 	require.Equal(t, string(ToolDone), entry.Signal)
 	require.Equal(t, 3, entry.Iteration)
 

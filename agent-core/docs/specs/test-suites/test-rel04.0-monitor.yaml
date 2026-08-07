@@ -363,8 +363,8 @@ test_cases:
       yet should return an explicit absent entry rather than an error. Receipts
       should be absent, and the handler should read only, executing no tools.
     inputs:
-      declared_labels: [poll_agent_monitors, list_mesh_deployments, unrecorded_label]
-      recorded_labels: [poll_agent_monitors, list_mesh_deployments]
+      declared_labels: [polled_fleet_step, list_mesh_deployments, unrecorded_label]
+      recorded_labels: [polled_fleet_step, list_mesh_deployments]
     expected:
       response_keyed_by_declared_labels: true
       entry_carries_declared_output: true

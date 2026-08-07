@@ -245,9 +245,15 @@ func TestObserverKindIntegration(t *testing.T) {
 		t.Errorf("observer fan-in split %d reachable + %d unreachable over %d items",
 			fleet.Reachable, fleet.Unreachable, fleet.Items)
 	}
-	// The observer discovers itself and carries its own monitor-port label, so at
-	// least one agent must be reachable on a healthy cluster.
-	if fleet.Reachable == 0 {
-		t.Errorf("observer reached 0 of %d discovered agents; want at least itself", fleet.Items)
-	}
+	// Reachability is deliberately not asserted here. This runs the observer as a
+	// host process against a proxied kube API, so it can discover pods, but the
+	// monitor reads target pod addresses and a kind pod CIDR is not routable from
+	// the host: every other kind integration reaches workloads through kubectl
+	// port-forward for the same reason. Measured on a healthy demo cluster, the
+	// host-run observer discovers 6 pods and reaches 0 of them, while the
+	// in-cluster observer on that same cluster reaches every agent. Reachability
+	// therefore belongs to the in-cluster fleet view, which srd008 AC2 covers
+	// through the demo (GH-1474).
+	t.Logf("host-run observer: discovered %d pods, fanned in %d items, %d reachable from the host",
+		fleet.Pods, fleet.Items, fleet.Reachable)
 }

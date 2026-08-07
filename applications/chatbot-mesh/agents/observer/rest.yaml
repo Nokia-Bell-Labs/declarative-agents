@@ -143,7 +143,17 @@ rest:
           path: /api/v1/namespaces/${OBSERVER_NAMESPACE:-default}/pods
           params:
             query:
-              labelSelector: ${OBSERVER_LABEL_SELECTOR:-app.kubernetes.io/instance=chatbot-mesh}
+              # Agent pods, not every pod in the release (srd008 R1.1). The
+              # release selector alone also matches the infrastructure the mesh
+              # runs on -- the Dolt and Chroma StatefulSets -- which serve no
+              # monitor surface, so the fan-in reported them as permanently
+              # unreachable agents. Requiring the monitor-port label every agent
+              # publishes selects exactly the pods that have a monitor surface to
+              # read. The requirement is composed here rather than added to
+              # OBSERVER_LABEL_SELECTOR because the Deployment, Service, and pod
+              # metrics queries share that value and carry no such label
+              # (GH-1474).
+              labelSelector: ${OBSERVER_LABEL_SELECTOR:-app.kubernetes.io/instance=chatbot-mesh},monitorPort
             body_source: none
           success: {status: [200], signal: PodsDiscovered}
           response:
