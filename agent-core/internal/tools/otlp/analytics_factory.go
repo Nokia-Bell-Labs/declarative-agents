@@ -81,10 +81,10 @@ func spanBreakdownFactory() toolregistry.BuiltinFactory {
 		return SpanBreakdownBuilder{
 			ToolName: def.Name,
 			Config: SpanBreakdownConfig{
-				Path:        resolveSpoolPath(raw.Path, vars),
-				Baseline:    spanFilter{Attrs: map[string]string{}},
-				Selection:   spanFilter{Attrs: map[string]string{}},
-				TopN:        raw.TopN, MaxTopN: raw.MaxTopN,
+				Path:      resolveSpoolPath(raw.Path, vars),
+				Baseline:  spanFilter{Attrs: map[string]string{}},
+				Selection: spanFilter{Attrs: map[string]string{}},
+				TopN:      raw.TopN, MaxTopN: raw.MaxTopN,
 				ExemplarCap: raw.ExemplarCap,
 			},
 		}, nil

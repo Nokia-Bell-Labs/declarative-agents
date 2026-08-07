@@ -102,7 +102,9 @@ func TestListTracesPageSizeCap(t *testing.T) {
 	}.Build(core.Result{}).Execute()
 
 	require.Equal(t, core.Signal("TracesListed"), result.Signal)
-	var output struct{ PageSize int `json:"page_size"` }
+	var output struct {
+		PageSize int `json:"page_size"`
+	}
 	require.NoError(t, json.Unmarshal([]byte(result.Output), &output))
 	require.Equal(t, 5, output.PageSize)
 }

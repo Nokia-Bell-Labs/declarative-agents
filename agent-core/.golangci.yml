@@ -42,6 +42,14 @@ linters:
 # unchecked f.Close rotate between runs and the reported set is both incomplete
 # and non-deterministic. Zero disables the caps so the gate is complete and
 # reproducible.
+# gofmt is a formatter in the v2 schema, so it is declared here rather than in
+# linters.enable, where it would be ignored. magefiles/format_test.go is the gate
+# that fails a build, because mage lint is not part of the release recipe
+# (GH-1477).
+formatters:
+  enable:
+    - gofmt
+
 issues:
   max-issues-per-linter: 0
   max-same-issues: 0

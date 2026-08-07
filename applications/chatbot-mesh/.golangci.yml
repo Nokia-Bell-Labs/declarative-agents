@@ -21,6 +21,14 @@ linters:
         linters:
           - forbidigo
 
+# gofmt is a formatter in the v2 schema, so it is declared here rather than in
+# linters.enable, where it would be ignored. magefiles/format_test.go is the gate
+# that fails a build, because mage lint is not part of the release recipe
+# (GH-1477).
+formatters:
+  enable:
+    - gofmt
+
 issues:
   max-issues-per-linter: 0
   max-same-issues: 0

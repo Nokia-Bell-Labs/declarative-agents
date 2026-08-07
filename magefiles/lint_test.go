@@ -32,6 +32,11 @@ type golangciConfig struct {
 			} `yaml:"rules"`
 		} `yaml:"exclusions"`
 	} `yaml:"linters"`
+	// Formatters is a sibling of Linters in the v2 schema, not a member of
+	// linters.enable, which is why enabling gofmt there would be ignored.
+	Formatters struct {
+		Enable []string `yaml:"enable"`
+	} `yaml:"formatters"`
 }
 
 func TestLintModulesCoverRepositoryGoModules(t *testing.T) {
@@ -67,14 +72,7 @@ func TestLintModulesCoverRepositoryGoModules(t *testing.T) {
 func TestForbidigoConfigsRejectProcessEnvAndPermitTestStaging(t *testing.T) {
 	for _, module := range lintModuleDirs {
 		t.Run(module, func(t *testing.T) {
-			data, err := os.ReadFile(filepath.Join("..", filepath.FromSlash(module), ".golangci.yml"))
-			if err != nil {
-				t.Fatal(err)
-			}
-			var config golangciConfig
-			if err := yaml.Unmarshal(data, &config); err != nil {
-				t.Fatal(err)
-			}
+			config := readGolangciConfig(t, module)
 			if config.Version != "2" || !slices.Contains(config.Linters.Enable, "forbidigo") {
 				t.Fatalf("config version/enabled = %q/%v, want v2 forbidigo", config.Version, config.Linters.Enable)
 			}
@@ -107,6 +105,39 @@ func TestLintDispatchesEveryModule(t *testing.T) {
 	if !reflect.DeepEqual(got, lintModuleDirs) {
 		t.Fatalf("linted modules = %#v, want %#v", got, lintModuleDirs)
 	}
+}
+
+// TestFormatterConfigsEnableGofmt keeps the declared policy and the enforced
+// rule the same rule. Formatting was enforced nowhere because the configs pin an
+// explicit linter set and never declared a formatter, and gofmt cannot be
+// declared in linters.enable: it is a formatter in the v2 schema, so that entry
+// would be ignored rather than rejected. magefiles/format_test.go is what fails
+// a build; this asserts the configs agree with it (GH-1477).
+func TestFormatterConfigsEnableGofmt(t *testing.T) {
+	for _, module := range lintModuleDirs {
+		t.Run(module, func(t *testing.T) {
+			config := readGolangciConfig(t, module)
+			if !slices.Contains(config.Formatters.Enable, "gofmt") {
+				t.Fatalf("formatters.enable = %v, want gofmt", config.Formatters.Enable)
+			}
+			if slices.Contains(config.Linters.Enable, "gofmt") {
+				t.Fatal("gofmt belongs in formatters.enable; under linters.enable it is ignored")
+			}
+		})
+	}
+}
+
+func readGolangciConfig(t *testing.T, module string) golangciConfig {
+	t.Helper()
+	data, err := os.ReadFile(filepath.Join("..", filepath.FromSlash(module), ".golangci.yml"))
+	if err != nil {
+		t.Fatal(err)
+	}
+	var config golangciConfig
+	if err := yaml.Unmarshal(data, &config); err != nil {
+		t.Fatal(err)
+	}
+	return config
 }
 
 func excludesForbidigoTests(config golangciConfig) bool {
