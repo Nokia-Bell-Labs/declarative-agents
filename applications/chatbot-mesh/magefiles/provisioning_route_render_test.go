@@ -3,7 +3,6 @@
 package main
 
 import (
-	"os/exec"
 	"strings"
 	"testing"
 
@@ -66,21 +65,10 @@ type renderedDoc struct {
 // multi-document output.
 func renderMesh(t *testing.T, sets ...string) []renderedDoc {
 	t.Helper()
-	if _, err := exec.LookPath("helm"); err != nil {
-		t.Skip("helm not on PATH")
-	}
-	chartDir := findChartDir(t)
-	args := []string{"template", "rel", chartDir}
-	for _, s := range sets {
-		args = append(args, "--set", s)
-	}
-	out, err := exec.Command("helm", args...).CombinedOutput()
-	if err != nil {
-		t.Fatalf("helm template: %v\n%s", err, out)
-	}
+	out := helmTemplateOutput(t, sets...)
 
 	var docs []renderedDoc
-	for _, chunk := range strings.Split(string(out), "\n---") {
+	for _, chunk := range strings.Split(out, "\n---") {
 		var doc renderedDoc
 		if err := yaml.Unmarshal([]byte(chunk), &doc); err != nil {
 			continue // a chunk that is not a manifest, such as the NOTES preamble

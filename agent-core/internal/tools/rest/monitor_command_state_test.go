@@ -49,11 +49,11 @@ func commandStateServer(name string, maxBytes int, labels []string) ServerDefini
 func TestMonitorREST_CommandStateView(t *testing.T) {
 	t.Parallel()
 
-	def := commandStateServer("fleet", 0, []string{"poll_agent_monitors", "list_mesh_deployments", "unrecorded_label"})
+	def := commandStateServer("fleet", 0, []string{"polled_fleet_step", "list_mesh_deployments", "unrecorded_label"})
 	def.Monitor = MonitorState{CommandState: commandStateSource(
 		core.Entry{
-			CommandName: "poll_agent_monitors", Label: "poll_agent_monitors",
-			ToState: "PollingAgents", Signal: core.ToolDone, Iteration: 4,
+			CommandName: "polled_fleet_step", Label: "polled_fleet_step",
+			ToState: "Polling", Signal: core.ToolDone, Iteration: 4,
 			Receipt: "opaque-receipt", Result: appliedDigest(`{"agents":[{"name":"chatbot","reachable":true}]}`),
 		},
 		core.Entry{
@@ -71,9 +71,9 @@ func TestMonitorREST_CommandStateView(t *testing.T) {
 
 	labels := getJSON(t, baseURL+"/monitor/fleet")["labels"].(map[string]interface{})
 
-	poll := labels["poll_agent_monitors"].(map[string]interface{})
+	poll := labels["polled_fleet_step"].(map[string]interface{})
 	require.Equal(t, true, poll["available"])
-	require.Equal(t, "PollingAgents", poll["state"])
+	require.Equal(t, "Polling", poll["state"])
 	require.Equal(t, string(core.ToolDone), poll["signal"])
 	require.Equal(t, float64(4), poll["iteration"])
 	agents := poll["output"].(map[string]interface{})["agents"].([]interface{})
@@ -126,7 +126,7 @@ func TestMonitorCommandStateView_ValidationRejectsMisuse(t *testing.T) {
 		})
 	}
 
-	valid := Endpoint{Binding: bindingReadState, MonitorView: monitorViewCommandState, Labels: []string{"poll_fleet"}}
+	valid := Endpoint{Binding: bindingReadState, MonitorView: monitorViewCommandState, Labels: []string{"polled_step"}}
 	require.NoError(t, validateMonitorView("endpoint", valid))
 }
 
