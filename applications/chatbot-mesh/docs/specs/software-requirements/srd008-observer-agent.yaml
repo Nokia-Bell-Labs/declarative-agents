@@ -165,18 +165,45 @@ implementation_status:
       fan-in continues past CommandError and so counts every dispatched item as
       succeeded. An absent or unavailable join leaves its fields empty instead of
       failing the view (GH-1319).
+    - >-
+      Discovery selects agent pods, not every pod in the release (R1.1). The
+      release selector alone also matched the infrastructure the mesh runs on --
+      the Dolt and Chroma StatefulSets -- which serve no monitor surface, so the
+      fan-in reported two permanently unreachable agents. The pod query composes
+      the release selector with the monitor-port label every agent publishes, so
+      it selects exactly the pods that have a monitor surface. The requirement is
+      composed in the pod operation rather than added to the shared selector value
+      because the Deployment, Service, and pod-metrics queries reuse that value
+      and carry no such label, and it introduces no environment variable (R1.6,
+      GH-1474).
+    - >-
+      Discovery and monitor fan-in are proven on the kind demo (AC1, AC2). On a
+      running demo cluster the observer discovers its agent pods through the
+      kubectl-proxy sidecar and reads every one of them: measured across the four
+      passes, four discovered agents on four distinct ports -- chatbot 18082,
+      rag-server 18087, collector 18192, observer 18202 -- each returning HTTP 200
+      from a composed pod address. Discovery follows membership as it changes,
+      tracking pod replacement across restarts and shrinking to three agents and
+      back when a Deployment scales to zero and returns. A member whose monitor
+      read fails degrades alone: with two unreadable members present the other
+      four continued reporting and the cycle advanced past iteration 1462.
+      Resource polling degrades as R6.2 requires -- the kind demo registers no
+      metrics.k8s.io API, so poll_pod_metrics reports its 404 and the cycle
+      proceeds to the next stage unaffected (GH-1474).
   planned:
     - >-
-      The observer profile, machine, tools, declarations, REST definitions, UX
-      assets, Helm template (Deployment, Service, ServiceAccount, Role,
-      RoleBinding, Ingress), and integration test proving discovery and monitor
-      fan-in against the kind demo rig.
+      Automated cluster coverage of fan-in reachability. The observer's
+      monitor reads target pod addresses, and a kind pod CIDR is not routable
+      from the host, so TestObserverKindIntegration -- which runs the observer as
+      a host process -- can assert discovery and per-pod fan-in coverage but not
+      reachability: on a healthy demo cluster it discovers every agent and reaches
+      none of them, while the in-cluster observer on that same cluster reaches all
+      of them. Reachability is proven today by reading the in-cluster observer's
+      fleet view, which is a manual demo step rather than a gate.
     - >-
-      Topology discovery (Deployments, Services) and metrics.k8s.io PodMetrics
-      resource polling, with the UX rendering the deployment layout and per-pod
-      CPU and memory, degrading explicitly when the metrics API is absent.
+      Per-pod CPU and memory values in the UX. The absent-metrics path is proven
+      on the kind demo, which registers no metrics.k8s.io API; the populated path
+      needs a cluster running metrics-server.
     - >-
-      End-to-end kube discovery on the kind demo: the observer's kube_api
-      service-account-token credential and list_pods request rendering fail on
-      the cluster, so discovery returns no agents. Tracked separately from the
-      monitor-exposure work of GH-1270.
+      A fleet view observed updating during a live chat turn, which is what the
+      rel08.0 use case ends at.
