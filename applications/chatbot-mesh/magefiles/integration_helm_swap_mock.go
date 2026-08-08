@@ -7,8 +7,8 @@ import (
 	"fmt"
 	"net"
 	"net/http"
+	"strings"
 	"sync"
-	"sync/atomic"
 	"time"
 )
 
@@ -22,7 +22,7 @@ type helmSwapLLMMock struct {
 	server        *http.Server
 	listener      net.Listener
 	answerStarted chan struct{}
-	chatCalls     atomic.Int64
+	answerDelay   time.Duration
 	delayOnce     sync.Once
 }
 
@@ -34,6 +34,7 @@ func startHelmSwapLLMMock() (*helmSwapLLMMock, error) {
 	mock := &helmSwapLLMMock{
 		listener:      listener,
 		answerStarted: make(chan struct{}),
+		answerDelay:   helmSwapAnswerDelay,
 	}
 	mux := http.NewServeMux()
 	mux.HandleFunc("/api/tags", mock.serveTags)
@@ -77,13 +78,31 @@ func (m *helmSwapLLMMock) serveEmbedding(w http.ResponseWriter, _ *http.Request)
 	writeHelmSwapJSON(w, map[string]any{"embedding": []float64{0.11, 0.22, 0.33, 0.44}})
 }
 
-func (m *helmSwapLLMMock) serveChat(w http.ResponseWriter, _ *http.Request) {
-	call := m.chatCalls.Add(1)
-	content := `{"tool":"invoke_llm_fast"}`
-	if call%2 == 0 {
+func (m *helmSwapLLMMock) serveChat(w http.ResponseWriter, request *http.Request) {
+	var body struct {
+		Messages []struct {
+			Content string `json:"content"`
+		} `json:"messages"`
+	}
+	if err := json.NewDecoder(request.Body).Decode(&body); err != nil {
+		http.Error(w, err.Error(), http.StatusBadRequest)
+		return
+	}
+	var prompts strings.Builder
+	for _, message := range body.Messages {
+		prompts.WriteString(message.Content)
+		prompts.WriteByte('\n')
+	}
+	content := "[tool_call]\n" +
+		`{"tool":"invoke_llm_fast","parameters":{}}` +
+		"\n[/tool_call]"
+	switch text := prompts.String(); {
+	case strings.Contains(text, "You select which declared RAG sources"):
+		content = `{"names":["rag0"]}`
+	case strings.Contains(text, "You are a chatbot that answers"):
 		m.delayOnce.Do(func() {
 			close(m.answerStarted)
-			time.Sleep(helmSwapAnswerDelay)
+			time.Sleep(m.answerDelay)
 		})
 		content = "The mesh remained available while its RAG topology changed."
 	}

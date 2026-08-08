@@ -119,13 +119,19 @@ func TestSpoolGetMetricByName(t *testing.T) {
 	var output struct {
 		MetricName     string         `json:"metric_name"`
 		Records        []metricDetail `json:"records"`
+		Total          int            `json:"total"`
 		RecordCount    int            `json:"record_count"`
 		DataPointCount int            `json:"data_point_count"`
+		Offset         int            `json:"offset"`
+		PageSize       int            `json:"page_size"`
 	}
 	require.NoError(t, json.Unmarshal([]byte(result.Output), &output))
 	require.Equal(t, "dispatch_count", output.MetricName)
+	require.Equal(t, 2, output.Total)
 	require.Equal(t, 2, output.RecordCount)
 	require.Equal(t, 5, output.DataPointCount)
+	require.Equal(t, 0, output.Offset)
+	require.Equal(t, 20, output.PageSize)
 	// Sorted by service: chatbot, rag0.
 	require.Equal(t, "chatbot", output.Records[0].Service)
 	require.Equal(t, "rag0", output.Records[1].Service)
@@ -135,6 +141,80 @@ func TestSpoolGetMetricByName(t *testing.T) {
 		{"Key": "test.run.id", "Value": map[string]any{"Type": "STRING", "Value": "run-detail-42"}},
 	}, output.Records[0].Resource)
 	require.NotNil(t, output.Records[0].Metric)
+}
+
+func TestSpoolGetMetricPagination(t *testing.T) {
+	path := filepath.Join(t.TempDir(), "metrics.ndjson")
+	for _, service := range []string{"a", "b", "c", "d"} {
+		spoolMetricBatch(t, path, metricRequest(service, "hits", 1))
+	}
+	result := GetMetricBuilder{
+		ToolName: "spool_get_metric",
+		Config: QueryGetMetricConfig{
+			Path: path, MetricName: "hits",
+			PageSize: 2, MaxPageSize: 3, Offset: 1,
+		},
+	}.Build(core.Result{}).Execute()
+	var output struct {
+		Records     []metricDetail `json:"records"`
+		Total       int            `json:"total"`
+		RecordCount int            `json:"record_count"`
+		Offset      int            `json:"offset"`
+		PageSize    int            `json:"page_size"`
+	}
+	require.NoError(t, json.Unmarshal([]byte(result.Output), &output))
+	require.Equal(t, 4, output.Total)
+	require.Equal(t, 2, output.RecordCount)
+	require.Equal(t, 1, output.Offset)
+	require.Equal(t, 2, output.PageSize)
+	require.Equal(t, "b", output.Records[0].Service)
+	require.Equal(t, "c", output.Records[1].Service)
+}
+
+func TestSpoolGetMetricSeedCapsAndFinalPage(t *testing.T) {
+	path := filepath.Join(t.TempDir(), "metrics.ndjson")
+	for _, service := range []string{"a", "b", "c", "d"} {
+		spoolMetricBatch(t, path, metricRequest(service, "hits", 1))
+	}
+	seed := core.Result{Output: `{"parameters":{"metric_name":"hits","page_size":99,"offset":3}}`}
+	result := GetMetricBuilder{
+		ToolName: "spool_get_metric",
+		Config: QueryGetMetricConfig{
+			Path: path, PageSize: 20, MaxPageSize: 2,
+		},
+	}.Build(seed).Execute()
+	var output struct {
+		Records  []metricDetail `json:"records"`
+		Total    int            `json:"total"`
+		Offset   int            `json:"offset"`
+		PageSize int            `json:"page_size"`
+	}
+	require.NoError(t, json.Unmarshal([]byte(result.Output), &output))
+	require.Equal(t, 4, output.Total)
+	require.Equal(t, 3, output.Offset)
+	require.Equal(t, 2, output.PageSize)
+	require.Len(t, output.Records, 1)
+	require.Equal(t, "d", output.Records[0].Service)
+}
+
+func TestSpoolGetMetricOffsetPastEndIsEmpty(t *testing.T) {
+	path := filepath.Join(t.TempDir(), "metrics.ndjson")
+	spoolMetricBatch(t, path, metricRequest("svc", "hits", 1))
+	result := GetMetricBuilder{
+		ToolName: "spool_get_metric",
+		Config: QueryGetMetricConfig{
+			Path: path, MetricName: "hits", PageSize: 1, MaxPageSize: 2, Offset: 9,
+		},
+	}.Build(core.Result{}).Execute()
+	var output struct {
+		Records []metricDetail `json:"records"`
+		Total   int            `json:"total"`
+		Offset  int            `json:"offset"`
+	}
+	require.NoError(t, json.Unmarshal([]byte(result.Output), &output))
+	require.Equal(t, 1, output.Total)
+	require.Equal(t, 1, output.Offset)
+	require.Empty(t, output.Records)
 }
 
 func TestSpoolGetMetricSeedAndErrors(t *testing.T) {

@@ -82,8 +82,11 @@ type QueryListMetricsToolConfig struct {
 
 // QueryGetMetricToolConfig is the declared spool_get_metric configuration.
 type QueryGetMetricToolConfig struct {
-	Path       string `json:"path"`
-	MetricName string `json:"metric_name"`
+	Path        string `json:"path"`
+	MetricName  string `json:"metric_name"`
+	PageSize    int    `json:"page_size"`
+	MaxPageSize int    `json:"max_page_size"`
+	Offset      int    `json:"offset"`
 }
 
 // RegisterFactories registers receiver lifecycle factories over one shared state.
@@ -401,7 +404,10 @@ func queryGetMetricFactory() toolregistry.BuiltinFactory {
 		}
 		return GetMetricBuilder{
 			ToolName: def.Name,
-			Config:   QueryGetMetricConfig{Path: path, MetricName: raw.MetricName},
+			Config: QueryGetMetricConfig{
+				Path: path, MetricName: raw.MetricName,
+				PageSize: raw.PageSize, MaxPageSize: raw.MaxPageSize, Offset: raw.Offset,
+			},
 		}, nil
 	}
 }

@@ -187,7 +187,7 @@ use_case_index:
   - id: rel08.0-uc001-mesh-observer
     title: The Observer Agent Discovers the Mesh and Shows a Fleet View
     release: "08.0"
-    status: planned
+    status: implemented
     test_suite: test-rel08.0-observer
     path: docs/specs/use-cases/rel08.0-uc001-mesh-observer.yaml
 

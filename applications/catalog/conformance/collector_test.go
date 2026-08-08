@@ -500,7 +500,7 @@ func TestCollectorQueryGetMetric(t *testing.T) {
 	server := Serve(t, ServeConfig{Profile: profilePath, Env: collectorEnv(receiverAddr)})
 	server.WaitHealthy("http://"+controlAddr+"/api/lifecycle/health", 15*time.Second)
 
-	resp, err := http.Get("http://" + queryAddr + "/query/metrics/dispatch_count")
+	resp, err := http.Get("http://" + queryAddr + "/query/metrics/dispatch_count?page_size=1&offset=1")
 	if err != nil {
 		t.Fatalf("GET /query/metrics/dispatch_count: %v", err)
 	}
@@ -512,8 +512,11 @@ func TestCollectorQueryGetMetric(t *testing.T) {
 	var getResult struct {
 		MetricName     string            `json:"metric_name"`
 		Records        []json.RawMessage `json:"records"`
+		Total          int               `json:"total"`
 		RecordCount    int               `json:"record_count"`
 		DataPointCount int               `json:"data_point_count"`
+		Offset         int               `json:"offset"`
+		PageSize       int               `json:"page_size"`
 	}
 	if err := json.NewDecoder(resp.Body).Decode(&getResult); err != nil {
 		t.Fatalf("decode metric get response: %v", err)
@@ -521,11 +524,18 @@ func TestCollectorQueryGetMetric(t *testing.T) {
 	if getResult.MetricName != "dispatch_count" {
 		t.Errorf("metric_name = %q, want %q", getResult.MetricName, "dispatch_count")
 	}
-	if getResult.RecordCount != 2 {
-		t.Errorf("record_count = %d, want 2", getResult.RecordCount)
+	if getResult.Total != 2 {
+		t.Errorf("total = %d, want 2", getResult.Total)
 	}
-	if getResult.DataPointCount != 5 {
-		t.Errorf("data_point_count = %d, want 5", getResult.DataPointCount)
+	if getResult.RecordCount != 1 {
+		t.Errorf("record_count = %d, want 1", getResult.RecordCount)
+	}
+	if getResult.Offset != 1 || getResult.PageSize != 1 {
+		t.Errorf("page = offset %d size %d, want offset 1 size 1",
+			getResult.Offset, getResult.PageSize)
+	}
+	if getResult.DataPointCount == 0 {
+		t.Error("page data_point_count = 0")
 	}
 
 	if status := server.Post("http://"+controlAddr+"/api/lifecycle/exit", `{"reason":"conformance"}`); status != http.StatusAccepted {

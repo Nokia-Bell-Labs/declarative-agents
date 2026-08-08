@@ -558,6 +558,25 @@ func stageThinIntegrationChart(
 	return staged, archive, assets
 }
 
+func TestStagedCollectorMetricDetailIsPaginated(t *testing.T) {
+	staged, _, _ := stageThinIntegrationChart(t, "metric-pagination")
+	path := filepath.Join(staged, "profiles", "agents", "collector", "rest.yaml")
+	data, err := os.ReadFile(path)
+	if err != nil {
+		t.Fatal(err)
+	}
+	for _, want := range []string{
+		"query: {page_size: {type: integer}, offset: {type: integer}}",
+		"query: {page_size: $.page_size, offset: $.offset}",
+		"total: $.total",
+		"page_size: $.page_size",
+	} {
+		if !strings.Contains(string(data), want) {
+			t.Errorf("staged collector rest definition missing %q", want)
+		}
+	}
+}
+
 func assertExternalAssetArgs(t *testing.T, command string, assets []externalUIAsset) {
 	t.Helper()
 	for _, asset := range assets {
@@ -604,6 +623,38 @@ func TestCollectSharedMetricsEvidenceRetainsAgentAndDolt(t *testing.T) {
 		!containsString(evidence.DoltMetrics, "dss_concurrent_queries") {
 		t.Fatalf("metric evidence missing: agent=%v dolt=%v",
 			evidence.AgentMetrics, evidence.DoltMetrics)
+	}
+}
+
+func TestCollectorMetricHasRunIDScansBoundedPages(t *testing.T) {
+	var offsets []string
+	collector := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		offsets = append(offsets, r.URL.Query().Get("offset"))
+		offset := r.URL.Query().Get("offset")
+		record := json.RawMessage(`{"resource":[{"key":"test.run.id","value":"old-run"}]}`)
+		offsetValue := 0
+		if offset == "20" {
+			record = json.RawMessage(`{"resource":[{"key":"test.run.id","value":"wanted-run"}]}`)
+			offsetValue = 20
+		}
+		_ = json.NewEncoder(w).Encode(map[string]any{
+			"records":   []json.RawMessage{record},
+			"total":     21,
+			"offset":    offsetValue,
+			"page_size": 20,
+		})
+	}))
+	defer collector.Close()
+
+	found, err := collectorMetricHasRunID(collector.URL, "dispatch_count", "wanted-run")
+	if err != nil {
+		t.Fatal(err)
+	}
+	if !found {
+		t.Fatal("run id on the second metric-detail page was not found")
+	}
+	if !slices.Equal(offsets, []string{"0", "20"}) {
+		t.Fatalf("offsets = %v, want [0 20]", offsets)
 	}
 }
 

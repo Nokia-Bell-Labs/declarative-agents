@@ -195,14 +195,15 @@ test_cases:
 
   - use_case: rel11.0-uc001-otlp-receiver-await
     name: Metric query lists by name and reads back one metric's records
-    go_test: go test ./internal/tools/otlp -run 'TestSpool(ListMetricsSummaries|GetMetricByName)'
+    go_test: go test ./internal/tools/otlp -run 'TestSpool(ListMetricsSummaries|GetMetric(ByName|Pagination|SeedCapsAndFinalPage|OffsetPastEndIsEmpty))'
     status: implemented
     description: |
       spool_list_metrics aggregates spooled records into per-name summaries with
       record and data-point counts and the contributing services, paginated
-      deterministically. spool_get_metric returns every record for one metric
-      name with its decoded resource attributes unchanged, including service.name
-      and test.run.id, plus the service projection and data points, read-only.
+      deterministically. spool_get_metric returns a config-capped page for one
+      metric name with total, offset, and page size; each record preserves its
+      decoded resource attributes unchanged, including service.name and
+      test.run.id, plus the service projection and data points, read-only.
     inputs:
       metrics:
         - {name: dispatch_count, services: [chatbot, rag0], data_points: [3, 2]}
@@ -211,6 +212,8 @@ test_cases:
       list_total: 2
       dispatch_count_records: 2
       dispatch_count_data_points: 5
+      detail_page_size_capped: true
+      final_and_empty_pages_bounded: true
       dispatch_count_services: [chatbot, rag0]
       dispatch_count_resource:
         service.name: chatbot

@@ -190,20 +190,27 @@ implementation_status:
       Resource polling degrades as R6.2 requires -- the kind demo registers no
       metrics.k8s.io API, so poll_pod_metrics reports its 404 and the cycle
       proceeds to the next stage unaffected (GH-1474).
-  planned:
     - >-
-      Automated cluster coverage of fan-in reachability. The observer's
-      monitor reads target pod addresses, and a kind pod CIDR is not routable
-      from the host, so TestObserverKindIntegration -- which runs the observer as
-      a host process -- can assert discovery and per-pod fan-in coverage but not
-      reachability: on a healthy demo cluster it discovers every agent and reaches
-      none of them, while the in-cluster observer on that same cluster reaches all
-      of them. Reachability is proven today by reading the in-cluster observer's
-      fleet view, which is a manual demo step rather than a gate.
+      integration:helmSmoke provides automated in-cluster fan-in evidence
+      (R2.1, R2.3). It reads coherent fleet cycles through the observer Service,
+      matches discovery to the release pods carrying monitorPort, and proves
+      each of four joins contains exactly one HTTP-200 AgentMonitorRead per
+      discovered agent with the selected podIP:monitorPort authority. It then
+      relabels only the observer to an authorized but unserved port and proves
+      the other agents remain reachable through a later metrics step, restoring
+      the label on every path (GH-1486).
     - >-
-      Per-pod CPU and memory values in the UX. The absent-metrics path is proven
-      on the kind demo, which registers no metrics.k8s.io API; the populated path
-      needs a cluster running metrics-server.
+      integration:helmSmoke installs a pinned, test-only metrics-server and
+      proves populated PodMetrics for every discovered agent (R6.1). The UI sums
+      CPU and memory quantities across all containers, including the observer's
+      agent and kube-proxy containers, and renders the aggregate on the pod card.
+      The persistent demo still proves the independent absent-API degradation
+      path (R6.2). metrics-server remains cluster test infrastructure, not an
+      application chart dependency (GH-1488, GH-1489).
     - >-
-      A fleet view observed updating during a live chat turn, which is what the
-      rel08.0 use case ends at.
+      integration:helmSwap proves the fleet updates during a live chat turn
+      (R3.2, AC3). Its deterministic model mock holds the actual answer request
+      while a newer observer snapshot shows the chatbot run and event clock
+      advance into the answer path and rag0 record its query transition, with
+      both agents reachable. Request classification uses prompt content rather
+      than call-order parity (GH-1487).

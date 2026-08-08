@@ -3,13 +3,16 @@
 package main
 
 import (
+	"crypto/sha256"
 	"fmt"
 	"io"
+	"io/fs"
 	"net"
 	"net/http"
 	"os"
 	"os/exec"
 	"path/filepath"
+	"sort"
 	"strconv"
 	"strings"
 	"syscall"
@@ -24,21 +27,25 @@ import (
 // them in its spool, so no docker-compose stack, contrib collector, or
 // Prometheus backend is required; kind remains the only Docker consumer.
 const (
-	observabilityStateDir  = "observability/.run"
-	observabilityPidFile   = "collector.pid"
-	observabilityLogFile   = "collector.log"
-	observabilitySpoolDir  = "spool"
-	collectorProfileRel    = "agents/collector/profile.yaml"
-	observabilityStartWait = 20 * time.Second
-	observabilityStopWait  = 15 * time.Second
+	observabilityStateDir   = "observability/.run"
+	observabilityPidFile    = "collector.pid"
+	observabilityLogFile    = "collector.log"
+	observabilitySourceFile = "collector.source"
+	observabilitySpoolDir   = "spool"
+	collectorProfileRel     = "agents/collector/profile.yaml"
+	observabilityStartWait  = 20 * time.Second
+	observabilityStopWait   = 15 * time.Second
 )
 
 var (
-	startCollectorProcess   = startCollector
-	stopCollectorProcess    = stopCollector
-	checkObservability      = observabilityHealth
-	checkObservabilityPort  = portAvailable
-	collectorAlreadyRunning = collectorRunning
+	startCollectorProcess       = startCollector
+	stopCollectorProcess        = stopCollector
+	checkObservability          = observabilityHealth
+	checkObservabilityPort      = portAvailable
+	collectorAlreadyRunning     = collectorRunning
+	currentCollectorFingerprint = collectorSourceFingerprint
+	readCollectorFingerprint    = readSourceFingerprint
+	writeCollectorFingerprint   = writeSourceFingerprint
 )
 
 // Observability runs the persistent collector-agent ingress as a host process.
@@ -48,9 +55,21 @@ type Observability mg.Namespace
 
 // Up starts the collector-agent ingress or reuses an already healthy one.
 func (Observability) Up() error {
+	fingerprint, err := currentCollectorFingerprint()
+	if err != nil {
+		return err
+	}
 	if checkObservability() == nil {
-		fmt.Println("collector ingress already healthy; reusing it")
-		return nil
+		stored, readErr := readCollectorFingerprint()
+		if readErr == nil && stored == fingerprint {
+			fmt.Println("collector ingress already healthy and source-matched; reusing it")
+			return nil
+		}
+		fmt.Printf("collector ingress is healthy but stale (stored %q, current %q); restarting and preserving its spool\n",
+			stored, fingerprint)
+		if err := stopCollectorProcess(); err != nil {
+			return err
+		}
 	}
 	if !collectorAlreadyRunning() {
 		for _, port := range observabilityPorts() {
@@ -60,6 +79,10 @@ func (Observability) Up() error {
 		}
 	}
 	if err := startCollectorProcess(); err != nil {
+		return err
+	}
+	if err := writeCollectorFingerprint(fingerprint); err != nil {
+		_ = stopCollectorProcess()
 		return err
 	}
 	return waitObservabilityHealthy(observabilityStartWait)
@@ -188,8 +211,25 @@ func collectorEnviron(spoolDir string) []string {
 func stopCollector() error {
 	pid, running := readCollectorPid()
 	if !running {
-		fmt.Println("collector ingress is not running")
-		return nil
+		if checkObservability() != nil {
+			fmt.Println("collector ingress is not running")
+			return nil
+		}
+		// A healthy collector launched from another worktree has no PID in this
+		// checkout's state directory. Its lifecycle route is still authoritative,
+		// so stop it there and wait for the shared ports to close (GH-1492).
+		if err := postCollectorExit(); err != nil {
+			return fmt.Errorf("stop untracked collector ingress: %w", err)
+		}
+		deadline := time.Now().Add(observabilityStopWait)
+		for time.Now().Before(deadline) {
+			if checkObservability() != nil {
+				return nil
+			}
+			time.Sleep(250 * time.Millisecond)
+		}
+		return fmt.Errorf("untracked collector ingress remained healthy after %s",
+			observabilityStopWait)
 	}
 	if err := postCollectorExit(); err != nil {
 		fmt.Printf("warning: collector exit request failed (%v); signalling the process\n", err)
@@ -304,6 +344,107 @@ func waitObservabilityHealthy(timeout time.Duration) error {
 		time.Sleep(250 * time.Millisecond)
 	}
 	return fmt.Errorf("collector ingress did not become healthy within %s: %w", timeout, lastErr)
+}
+
+// collectorSourceFingerprint hashes the production runtime source plus the
+// collector's catalog closure. A healthy process may be reused only when this
+// identity matches what was recorded at launch (GH-1492).
+func collectorSourceFingerprint() (string, error) {
+	root, err := os.Getwd()
+	if err != nil {
+		return "", err
+	}
+	coreRoot := demoCoreRoot(root)
+	catalogRoot, err := resolveCatalogRoot("observability fingerprint", root)
+	if err != nil {
+		return "", err
+	}
+	paths := []struct {
+		name string
+		path string
+	}{
+		{"agent-core", coreRoot},
+		{"collector", filepath.Join(catalogRoot, "agents", "collector")},
+	}
+	type sourceFile struct{ logical, path string }
+	var files []sourceFile
+	for _, root := range paths {
+		path := root.path
+		if err := filepath.WalkDir(path, func(file string, entry fs.DirEntry, err error) error {
+			if err != nil {
+				return err
+			}
+			if entry.IsDir() {
+				if file != path && skipCollectorFingerprintDir(entry.Name()) {
+					return filepath.SkipDir
+				}
+				return nil
+			}
+			if collectorFingerprintFile(entry.Name()) {
+				relative, err := filepath.Rel(path, file)
+				if err != nil {
+					return err
+				}
+				files = append(files, sourceFile{
+					logical: filepath.ToSlash(filepath.Join(root.name, relative)),
+					path:    file,
+				})
+			}
+			return nil
+		}); err != nil {
+			return "", err
+		}
+	}
+	sort.Slice(files, func(i, j int) bool { return files[i].logical < files[j].logical })
+	hash := sha256.New()
+	for _, file := range files {
+		data, err := os.ReadFile(file.path)
+		if err != nil {
+			return "", err
+		}
+		_, _ = fmt.Fprintf(hash, "%s\x00", file.logical)
+		_, _ = hash.Write(data)
+	}
+	return fmt.Sprintf("sha256:%x", hash.Sum(nil)), nil
+}
+
+func skipCollectorFingerprintDir(name string) bool {
+	switch name {
+	case ".git", "bin", "build", "generated-files", "node_modules", "testdata":
+		return true
+	}
+	return false
+}
+
+func collectorFingerprintFile(name string) bool {
+	if strings.HasSuffix(name, "_test.go") {
+		return false
+	}
+	switch filepath.Ext(name) {
+	case ".go", ".yaml", ".yml":
+		return true
+	}
+	return name == "go.mod" || name == "go.sum"
+}
+
+func readSourceFingerprint() (string, error) {
+	data, err := os.ReadFile(filepath.Join(observabilityStateDir, observabilitySourceFile))
+	if err != nil {
+		return "", err
+	}
+	return strings.TrimSpace(string(data)), nil
+}
+
+func writeSourceFingerprint(fingerprint string) error {
+	stateDir := observabilityStateDir
+	if err := os.MkdirAll(stateDir, 0o755); err != nil {
+		return err
+	}
+	path := filepath.Join(stateDir, observabilitySourceFile)
+	if err := os.WriteFile(path, []byte(fingerprint+"\n"), 0o644); err != nil {
+		return fmt.Errorf("write collector source fingerprint: %w", err)
+	}
+	return nil
 }
 
 func commandOutput(name string, args ...string) (string, error) {

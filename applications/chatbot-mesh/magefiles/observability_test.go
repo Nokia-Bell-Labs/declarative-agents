@@ -21,6 +21,75 @@ func TestObservabilityUpReusesHealthyIngress(t *testing.T) {
 	}
 }
 
+func TestObservabilityUpRestartsHealthyStaleIngress(t *testing.T) {
+	restoreObservabilityHooks(t)
+	checkObservability = func() error { return nil }
+	currentCollectorFingerprint = func() (string, error) { return "current", nil }
+	readCollectorFingerprint = func() (string, error) { return "old", nil }
+	stopped, started, wrote := false, false, ""
+	stopCollectorProcess = func() error {
+		stopped = true
+		checkObservability = func() error { return errors.New("stopped") }
+		return nil
+	}
+	startCollectorProcess = func() error {
+		started = true
+		checkObservability = func() error { return nil }
+		return nil
+	}
+	writeCollectorFingerprint = func(value string) error {
+		wrote = value
+		return nil
+	}
+
+	if err := (Observability{}).Up(); err != nil {
+		t.Fatal(err)
+	}
+	if !stopped || !started || wrote != "current" {
+		t.Fatalf("restart = stopped %v started %v wrote %q", stopped, started, wrote)
+	}
+}
+
+func TestObservabilityUpRestartsWhenFingerprintIsMissing(t *testing.T) {
+	restoreObservabilityHooks(t)
+	checkObservability = func() error { return nil }
+	readCollectorFingerprint = func() (string, error) {
+		return "", errors.New("fingerprint missing")
+	}
+	stops, starts := 0, 0
+	stopCollectorProcess = func() error {
+		stops++
+		checkObservability = func() error { return errors.New("stopped") }
+		return nil
+	}
+	startCollectorProcess = func() error {
+		starts++
+		checkObservability = func() error { return nil }
+		return nil
+	}
+	if err := (Observability{}).Up(); err != nil {
+		t.Fatal(err)
+	}
+	if stops != 1 || starts != 1 {
+		t.Fatalf("stops/starts = %d/%d, want 1/1", stops, starts)
+	}
+}
+
+func TestObservabilityUpStopsOnStaleRestartFailure(t *testing.T) {
+	restoreObservabilityHooks(t)
+	checkObservability = func() error { return nil }
+	readCollectorFingerprint = func() (string, error) { return "old", nil }
+	stopCollectorProcess = func() error { return errors.New("controlled stop failure") }
+	startCollectorProcess = func() error {
+		t.Fatal("collector started after stale process failed to stop")
+		return nil
+	}
+	err := (Observability{}).Up()
+	if err == nil || !strings.Contains(err.Error(), "controlled stop failure") {
+		t.Fatalf("error = %v, want controlled stop failure", err)
+	}
+}
+
 func TestObservabilityUpChecksPortsAndStarts(t *testing.T) {
 	restoreObservabilityHooks(t)
 	healthCalls := 0
@@ -130,11 +199,20 @@ func restoreObservabilityHooks(t *testing.T) {
 	health := checkObservability
 	port := checkObservabilityPort
 	running := collectorAlreadyRunning
+	current := currentCollectorFingerprint
+	read := readCollectorFingerprint
+	write := writeCollectorFingerprint
+	currentCollectorFingerprint = func() (string, error) { return "current", nil }
+	readCollectorFingerprint = func() (string, error) { return "current", nil }
+	writeCollectorFingerprint = func(string) error { return nil }
 	t.Cleanup(func() {
 		startCollectorProcess = start
 		stopCollectorProcess = stop
 		checkObservability = health
 		checkObservabilityPort = port
 		collectorAlreadyRunning = running
+		currentCollectorFingerprint = current
+		readCollectorFingerprint = read
+		writeCollectorFingerprint = write
 	})
 }

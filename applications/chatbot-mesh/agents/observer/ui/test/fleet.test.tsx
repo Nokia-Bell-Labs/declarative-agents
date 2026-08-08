@@ -45,6 +45,27 @@ test("preserves observer monitor routes and command-state contract", () => {
   assert.deepEqual(metricsByPod(data.podMetrics)["observer-0"], { cpu: "2m", memory: "8Mi" });
 });
 
+test("aggregates Kubernetes quantities across every pod container", () => {
+  const metrics = metricsByPod([
+    {
+      metadata: { name: "observer-0" },
+      containers: [
+        { usage: { cpu: "500000n", memory: "1Mi" } },
+        { usage: { cpu: "500u", memory: "512Ki" } },
+      ],
+    },
+    {
+      metadata: { name: "chatbot-0" },
+      containers: [
+        { usage: { cpu: "1m", memory: "1M" } },
+        { usage: { cpu: "0.001", memory: "500K" } },
+      ],
+    },
+  ]);
+  assert.deepEqual(metrics["observer-0"], { cpu: "1m", memory: "1536Ki" });
+  assert.deepEqual(metrics["chatbot-0"], { cpu: "2m", memory: "1500K" });
+});
+
 test("zips the four monitor fan-in joins into one agent per pod", () => {
   const data = fleetData({
     labels: {
@@ -159,4 +180,28 @@ test("renders the fleet shell, topology, agents, and degraded metrics", () => {
   ]) {
     assert.match(html, new RegExp(expected.replace(/[.*+?^${}()|[\]\\]/g, "\\$&")));
   }
+});
+
+test("renders populated aggregate pod metrics on the agent card", () => {
+  const snapshot: FleetSnapshot = {
+    status: "connected",
+    observerState: "observing",
+    data: {
+      agents: [{ name: "observer-0", reachable: true, state: "AwaitingControl" }],
+      pods: [],
+      deployments: [],
+      services: [],
+      podMetrics: [{
+        metadata: { name: "observer-0" },
+        containers: [
+          { usage: { cpu: "500000n", memory: "1Mi" } },
+          { usage: { cpu: "500u", memory: "512Ki" } },
+        ],
+      }],
+    },
+  };
+  const html = renderToStaticMarkup(<FleetView snapshot={snapshot} />);
+  assert.match(html, /cpu 1m/);
+  assert.match(html, /mem 1536Ki/);
+  assert.doesNotMatch(html, /metrics unavailable/);
 });

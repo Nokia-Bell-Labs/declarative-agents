@@ -75,4 +75,4 @@ out_of_scope:
   - Controlling or reconfiguring agents from the observer UX.
 
 test_suite_trace: test-rel08.0-observer
-status: planned
+status: implemented

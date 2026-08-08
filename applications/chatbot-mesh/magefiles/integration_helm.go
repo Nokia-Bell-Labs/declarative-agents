@@ -6,6 +6,7 @@ import (
 	"bytes"
 	"context"
 	"encoding/json"
+	"errors"
 	"fmt"
 	"net/http"
 	"net/url"
@@ -15,6 +16,7 @@ import (
 	"regexp"
 	"runtime"
 	"sort"
+	"strconv"
 	"strings"
 	"time"
 
@@ -178,6 +180,9 @@ func collectorControlBase() string {
 }
 
 func requireSharedObservability(timeout time.Duration) error {
+	if err := (Observability{}).Up(); err != nil {
+		return fmt.Errorf("start source-matched shared observability: %w", err)
+	}
 	checks := []string{
 		collectorControlBase() + "/api/lifecycle/health",
 		collectorQueryBase() + "/query/traces",
@@ -335,6 +340,17 @@ func runHelmSmoke(coreRoot, profilesRoot, chartDir string) (result error) {
 	}
 	defer unbindKubeconfig()
 
+	cleanupMetrics, err := kindrig.InstallMetricsServer(
+		kindrig.DefaultCommandRun, helmKindCluster)
+	if err != nil {
+		return err
+	}
+	defer func() {
+		if cleanupMetrics != nil {
+			result = errors.Join(result, cleanupMetrics())
+		}
+	}()
+
 	if err := provisionExternalUIAssets(assets); err != nil {
 		return err
 	}
@@ -355,6 +371,17 @@ func runHelmSmoke(coreRoot, profilesRoot, chartDir string) (result error) {
 	if err := assertExternalUIAssetsMounted(helmRelease, assets, helmReadyTimeout); err != nil {
 		return err
 	}
+
+	stopObserver, err := kubectlPortForward(
+		"svc/"+helmRelease+"-chatbot-mesh-observer", 18202)
+	if err != nil {
+		return err
+	}
+	defer func() {
+		if stopObserver != nil {
+			stopObserver()
+		}
+	}()
 
 	stop, err := kubectlPortForward("svc/"+helmRelease+"-chatbot-mesh-chatbot", 18080, 18081)
 	if err != nil {
@@ -387,8 +414,22 @@ func runHelmSmoke(coreRoot, profilesRoot, chartDir string) (result error) {
 		collectorQueryBase(), telemetry, helmSpanTimeout); err != nil {
 		return err
 	}
+	if err := assertObserverHelmFleet(
+		observerHelmMonitorURL, helmRelease, helmReadyTimeout); err != nil {
+		return err
+	}
+	if err := assertObserverFleetPodMetrics(
+		observerHelmMonitorURL, helmReadyTimeout); err != nil {
+		return err
+	}
 	stop()
 	stop = nil
+	stopObserver()
+	stopObserver = nil
+	if err := cleanupMetrics(); err != nil {
+		return err
+	}
+	cleanupMetrics = nil
 	cluster.ReleaseAfter(kindrig.DefaultRun, false, kindrig.FailureEvidence{})
 	released = true
 	if err := verifySharedMetricsEvidence(
@@ -949,21 +990,56 @@ func collectSharedMetricsEvidence(
 	// In agent mode the declarative collector has no Prometheus scrape, so the
 	// in-cluster Dolt metric path is retired (GH-1366); Dolt dss_* metrics are
 	// recorded when present (opt-in contrib) but no longer required.
-	records, status, err := requestHTTP(http.MethodGet,
-		queryBase+"/query/metrics/"+url.PathEscape(agentMetric), "")
+	found, err := collectorMetricHasRunID(queryBase, agentMetric, telemetry.RunID)
 	if err != nil {
 		return evidence, err
 	}
-	if status != http.StatusOK {
-		return evidence, fmt.Errorf("collector /query/metrics/%s status %d: %s",
-			agentMetric, status, strings.TrimSpace(string(records)))
-	}
-	if !strings.Contains(string(records), telemetry.RunID) {
+	if !found {
 		return evidence, fmt.Errorf("collector metric %s records lack run id %s", agentMetric, telemetry.RunID)
 	}
 	sort.Strings(evidence.AgentMetrics)
 	sort.Strings(evidence.DoltMetrics)
 	return evidence, nil
+}
+
+func collectorMetricHasRunID(queryBase, metricName, runID string) (bool, error) {
+	const pageSize = 20
+	for offset := 0; ; offset += pageSize {
+		query := url.Values{
+			"page_size": {strconv.Itoa(pageSize)},
+			"offset":    {strconv.Itoa(offset)},
+		}
+		data, status, err := requestHTTP(http.MethodGet,
+			queryBase+"/query/metrics/"+url.PathEscape(metricName)+"?"+query.Encode(), "")
+		if err != nil {
+			return false, err
+		}
+		if status != http.StatusOK {
+			return false, fmt.Errorf("collector /query/metrics/%s status %d: %s",
+				metricName, status, strings.TrimSpace(string(data)))
+		}
+		var page struct {
+			Records  []json.RawMessage `json:"records"`
+			Total    int               `json:"total"`
+			Offset   int               `json:"offset"`
+			PageSize int               `json:"page_size"`
+		}
+		if err := json.Unmarshal(data, &page); err != nil {
+			return false, fmt.Errorf("decode collector metric %s page: %w", metricName, err)
+		}
+		for _, record := range page.Records {
+			if strings.Contains(string(record), runID) {
+				return true, nil
+			}
+		}
+		if offset+len(page.Records) >= page.Total {
+			return false, nil
+		}
+		if len(page.Records) == 0 {
+			return false, fmt.Errorf("collector metric %s returned an empty page before total %d",
+				metricName, page.Total)
+		}
+	}
 }
 
 type collectorMetricSummary struct {
@@ -1264,10 +1340,25 @@ func assertSwapReplaceMiddleRag(
 	if err := waitHTTPStatus(helmHealthURL, http.StatusOK, helmReadyTimeout); err != nil {
 		return fmt.Errorf("chatbot did not become reachable before warm swap: %w", err)
 	}
+	stopObserver, err := kubectlPortForward(
+		"svc/"+helmSwapRelease+"-chatbot-mesh-observer", 18202)
+	if err != nil {
+		return err
+	}
+	defer stopObserver()
+	baseline, err := observerTurnBaselineSnapshot(
+		observerHelmMonitorURL, helmReadyTimeout)
+	if err != nil {
+		return fmt.Errorf("observer live-turn baseline: %w", err)
+	}
 	turnResult := make(chan error, 1)
 	go func() { turnResult <- assertSmokeChatServed(helmChatURL) }()
 	if err := llmMock.waitForAnswer(helmReadyTimeout); err != nil {
 		return err
+	}
+	if err := waitObserverLiveTurn(
+		observerHelmMonitorURL, baseline, helmReadyTimeout); err != nil {
+		return fmt.Errorf("observer live-turn evidence: %w", err)
 	}
 
 	extra := append(llmMock.helmArgs(),

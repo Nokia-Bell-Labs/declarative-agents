@@ -174,6 +174,73 @@ export function fleetData(response: FleetResponse): FleetData {
   };
 }
 
+const cpuQuantityFactors: Record<string, number> = {
+  n: 1,
+  u: 1_000,
+  m: 1_000_000,
+  "": 1_000_000_000,
+};
+
+const memoryQuantityFactors: Record<string, number> = {
+  "": 1,
+  k: 1_000,
+  K: 1_000,
+  M: 1_000_000,
+  G: 1_000_000_000,
+  T: 1_000_000_000_000,
+  Ki: 1_024,
+  Mi: 1_048_576,
+  Gi: 1_073_741_824,
+  Ti: 1_099_511_627_776,
+};
+
+function parseQuantity(value: string, factors: Record<string, number>): number | undefined {
+  const match = /^([0-9]+(?:\.[0-9]+)?)([A-Za-z]*)$/.exec(value.trim());
+  if (!match) return undefined;
+  const factor = factors[match[2]];
+  if (factor === undefined) return undefined;
+  const parsed = Number(match[1]) * factor;
+  return Number.isFinite(parsed) ? parsed : undefined;
+}
+
+function sumQuantities(
+  values: Array<string | undefined>,
+  factors: Record<string, number>,
+): number | undefined {
+  if (!values.length) return undefined;
+  let total = 0;
+  for (const value of values) {
+    if (!value) return undefined;
+    const parsed = parseQuantity(value, factors);
+    if (parsed === undefined) return undefined;
+    total += parsed;
+  }
+  return total;
+}
+
+function formatCPU(nanocores: number | undefined): string | undefined {
+  if (nanocores === undefined) return undefined;
+  for (const [factor, suffix] of [[1_000_000_000, ""], [1_000_000, "m"], [1_000, "u"]] as const) {
+    if (nanocores >= factor && nanocores % factor === 0) {
+      return `${nanocores / factor}${suffix}`;
+    }
+  }
+  return `${Math.round(nanocores)}n`;
+}
+
+function formatMemory(bytes: number | undefined): string | undefined {
+  if (bytes === undefined) return undefined;
+  for (const [factor, suffix] of [
+    [1_099_511_627_776, "Ti"], [1_073_741_824, "Gi"],
+    [1_048_576, "Mi"], [1_024, "Ki"],
+    [1_000_000_000_000, "T"], [1_000_000_000, "G"],
+    [1_000_000, "M"], [1_000, "K"],
+  ] as const) {
+    if (bytes >= factor && bytes % factor === 0) return `${bytes / factor}${suffix}`;
+  }
+  return `${Math.round(bytes)}`;
+}
+
 export function metricsByPod(items: PodMetric[]): Record<string, ResourceUsage> {
   const result: Record<string, ResourceUsage> = {};
   for (const item of items) {
@@ -183,13 +250,15 @@ export function metricsByPod(items: PodMetric[]): Record<string, ResourceUsage> 
       result[name] = { cpu: item.cpu, memory: item.memory };
       continue;
     }
-    let cpu: string | undefined;
-    let memory: string | undefined;
-    for (const container of item.containers ?? []) {
-      cpu ??= container.usage?.cpu;
-      memory ??= container.usage?.memory;
-    }
-    result[name] = { cpu, memory };
+    const containers = item.containers ?? [];
+    result[name] = {
+      cpu: formatCPU(sumQuantities(
+        containers.map((container) => container.usage?.cpu), cpuQuantityFactors,
+      )),
+      memory: formatMemory(sumQuantities(
+        containers.map((container) => container.usage?.memory), memoryQuantityFactors,
+      )),
+    };
   }
   return result;
 }
