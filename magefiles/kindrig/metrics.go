@@ -81,7 +81,11 @@ func InstallMetricsServer(run CommandRunner, cluster string) (func() error, erro
 func metricsAPIStatus(run CommandRunner) (string, error) {
 	out, err := run("kubectl", "get", "apiservice", metricsAPIService,
 		"-o", `jsonpath={.status.conditions[?(@.type=="Available")].status}`)
-	return strings.TrimSpace(string(out)), err
+	status := strings.TrimSpace(string(out))
+	if err != nil {
+		return status, fmt.Errorf("%w: %s", err, status)
+	}
+	return status, nil
 }
 
 func metricsServerImage(arch string) (string, error) {
