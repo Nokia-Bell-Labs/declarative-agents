@@ -114,6 +114,11 @@ func releaseGates(root string) []releaseGate {
 	catalogRoot := filepath.Join(root, catalogModule)
 	gates := []releaseGate{
 		{name: "root audit", dir: root, args: []string{"mage", "audit"}},
+		// Lint gates a release from GH-1479 on. It could not before: the policy
+		// had never run, and its first run reported findings, which GH-1481
+		// cleared. It sits early because it is the cheapest gate here, and a
+		// policy violation should not wait behind the integration aggregates.
+		{name: "root lint", dir: root, args: []string{"mage", "lint"}},
 		// DA_RELEASE_GATE makes the UI reproducibility gate treat a missing npm
 		// as fatal rather than a developer skip (GH-1349), so a release cannot
 		// pass without rebuilding shipped UIs and auditing their dependencies.

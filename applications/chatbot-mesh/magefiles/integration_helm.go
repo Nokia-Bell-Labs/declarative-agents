@@ -514,6 +514,7 @@ func trustedOllamaDockerfile() string {
 }
 
 func hostTrustedCABundle() ([]byte, error) {
+	//nolint:forbidigo // SSL_CERT_FILE is the OS and Go convention naming the host CA bundle; honoring it is reading a third-party contract, not repository configuration (GH-1481).
 	if path := strings.TrimSpace(os.Getenv("SSL_CERT_FILE")); path != "" {
 		data, err := os.ReadFile(path)
 		if err != nil {

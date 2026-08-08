@@ -165,56 +165,56 @@ func applierLiveDiagnosticCommands() []applierLiveDiagnosticCommand {
 	}
 	return []applierLiveDiagnosticCommand{
 		shared["Helm status"],
-		applierLiveDiagnosticCommand{
+		{
 			label: "Helm history", name: "helm",
 			args: []string{"history", applierLiveRelease},
 		},
-		applierLiveDiagnosticCommand{
+		{
 			label: "actual release Secret sizes", name: "kubectl",
 			args: []string{
 				"get", "secret", "-l", "owner=helm,name=" + applierLiveRelease,
 				"-o", `go-template={{range .items}}{{.metadata.name}}{{"\t"}}{{index .data "release" | base64decode | len}}{{"\n"}}{{end}}`,
 			},
 		},
-		applierLiveDiagnosticCommand{
+		{
 			label: "applier Deployment ReplicaSet and pod status", name: "kubectl",
 			args: []string{
 				"get", "deployment,replicaset,pod", "-l", applierSelector, "-o", "wide",
 			},
 		},
 		shared["container and init status"],
-		applierLiveDiagnosticCommand{
+		{
 			label: "applier pod scheduling probes and termination", name: "kubectl",
 			args: []string{"describe", "pods", "-l", applierSelector},
 		},
 		shared["events"],
-		applierLiveDiagnosticCommand{
+		{
 			label: "stage-chart init logs", name: "kubectl",
 			args: []string{"logs", "-l", applierSelector, "-c", "stage-chart", "--tail=120"},
 		},
-		applierLiveDiagnosticCommand{
+		{
 			label: "current applier logs", name: "kubectl",
 			args: []string{"logs", "-l", applierSelector, "-c", "applier", "--tail=120"},
 		},
-		applierLiveDiagnosticCommand{
+		{
 			label: "previous applier logs", name: "kubectl",
 			args: []string{"logs", "-l", applierSelector, "-c", "applier", "--previous", "--tail=120"},
 		},
-		applierLiveDiagnosticCommand{
+		{
 			label: "node capacity and allocatable resources", name: "kubectl",
 			args: []string{
 				"get", "nodes", "-o",
 				"custom-columns=NAME:.metadata.name,CAPACITY_CPU:.status.capacity.cpu,CAPACITY_MEMORY:.status.capacity.memory,ALLOCATABLE_CPU:.status.allocatable.cpu,ALLOCATABLE_MEMORY:.status.allocatable.memory,ALLOCATABLE_PODS:.status.allocatable.pods",
 			},
 		},
-		applierLiveDiagnosticCommand{
+		{
 			label: "chart ConfigMap archive key", name: "kubectl",
 			args: []string{
 				"get", "configmap", applierLiveChartConfigMap, "-o",
 				`go-template={{.metadata.name}}{{"\n"}}{{range $key, $value := .binaryData}}{{$key}}{{"\t"}}{{len $value}}{{"\n"}}{{end}}`,
 			},
 		},
-		applierLiveDiagnosticCommand{
+		{
 			label: "applier Service and endpoints", name: "kubectl",
 			args: []string{
 				"get", "service/" + deployment, "endpoints/" + deployment, "-o", "wide",

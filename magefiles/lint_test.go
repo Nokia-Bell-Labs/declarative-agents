@@ -129,7 +129,11 @@ func TestFormatterConfigsEnableGofmt(t *testing.T) {
 
 func readGolangciConfig(t *testing.T, module string) golangciConfig {
 	t.Helper()
-	data, err := os.ReadFile(filepath.Join("..", filepath.FromSlash(module), ".golangci.yml"))
+	root, err := findRepositoryRoot()
+	if err != nil {
+		t.Fatal(err)
+	}
+	data, err := os.ReadFile(filepath.Join(root, filepath.FromSlash(module), ".golangci.yml"))
 	if err != nil {
 		t.Fatal(err)
 	}

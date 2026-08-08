@@ -52,7 +52,14 @@ func RequireLiveModel(t *testing.T, baseURL, model string) time.Duration {
 	return timeout
 }
 
+// ollamaURLFromEnvironment mirrors the ${OLLAMA_URL:-http://localhost:11434}
+// expansion the profiles under test perform at load, so the gate probes the
+// endpoint the declaration will actually resolve. A flag would let the two
+// disagree, which is the failure this reproduces rather than prevents. This is
+// the same sanctioned mirroring as the chatbot-mesh Chroma preflight (srd013
+// R5.6/R5.7, GH-1481).
 func ollamaURLFromEnvironment() string {
+	//nolint:forbidigo // Mirrors srd013 R5.6/R5.7 declaration expansion so the gate and the profile resolve one endpoint.
 	if configured := strings.TrimSpace(os.Getenv("OLLAMA_URL")); configured != "" {
 		return strings.TrimRight(configured, "/")
 	}

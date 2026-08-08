@@ -191,11 +191,22 @@ func main() {
 	}
 }
 
+// loadBoundary takes its per-run configuration from the environment because this
+// binary is a grandchild, not a command a person runs. The tracer integration
+// launches the agent, and the agent runs this binary as a declared exec tool whose
+// argv is fixed in YAML -- args: [capture-source] and its siblings. The workspace,
+// fixture, session, scenario, and fault values belong to one integration run, so
+// putting them in argv would mean writing run-specific values into declarations
+// that do not own them, expanded from the environment anyway. The environment is
+// the channel that reaches a grandchild without that (GH-1481).
 func loadBoundary() (*boundary, error) {
 	b := &boundary{
+		//nolint:forbidigo // Per-run values the integration passes through the agent to this exec-tool grandchild; see the note above.
 		workspace: strings.TrimSpace(os.Getenv(workspaceEnv)),
-		fixtures:  strings.TrimSpace(os.Getenv(fixturesEnv)),
-		session:   strings.TrimSpace(os.Getenv(sessionEnv)),
+		//nolint:forbidigo // Per-run fixture root from the same parent contract.
+		fixtures: strings.TrimSpace(os.Getenv(fixturesEnv)),
+		//nolint:forbidigo // Per-run session identifier from the same parent contract.
+		session: strings.TrimSpace(os.Getenv(sessionEnv)),
 	}
 	if b.workspace == "" || b.fixtures == "" || b.session == "" {
 		return nil, fmt.Errorf("%s, %s, and %s are required", workspaceEnv, fixturesEnv, sessionEnv)
@@ -207,6 +218,7 @@ func loadBoundary() (*boundary, error) {
 	if err := yaml.Unmarshal(data, &b.suite); err != nil {
 		return nil, err
 	}
+	//nolint:forbidigo // Selects the scenario for this run from the same parent contract as the fields above.
 	name := strings.TrimSpace(os.Getenv(scenarioEnv))
 	for _, candidate := range b.suite.Scenarios {
 		if candidate.Name == name {
@@ -926,8 +938,12 @@ func (b *boundary) httpModelOccurrence(model string) int {
 	return count
 }
 
+// faults reports whether this run injects a fault at this operation occurrence.
+// The selector comes from the environment for the same reason the fields in
+// loadBoundary do: it is a per-run value the integration passes through the agent.
 func (b *boundary) faults(operation string, occurrence int) bool {
 	want := operation + ":" + strconv.Itoa(occurrence)
+	//nolint:forbidigo // Per-run fault selector from the parent contract described on loadBoundary.
 	return strings.TrimSpace(os.Getenv(faultEnv)) == want
 }
 

@@ -253,11 +253,22 @@ func Kubeconfig(run Runner, name string) (string, func(), error) {
 // subprocess that inherits the environment) at the given kubeconfig by setting
 // KUBECONFIG. It returns a restore func that reinstates the prior value, so a
 // scenario's cluster binding does not leak past its own lifetime.
+// The three process-environment calls below are the one deviation from the
+// go-style ban that this rig keeps. The sanctioned form is adding KUBECONFIG on
+// an exec.Cmd, and the constitution names KUBECONFIG among the entries a child
+// contract may carry; binding it process-wide is the same intent applied to every
+// child at once. It stays that way because the alternative is threading the path
+// onto every helm, kubectl, and kind invocation in this rig and in the
+// applications that drive it, which is a wide change to code that gates releases.
+// GH-1482 tracks that refactor (GH-1481).
 func BindKubeconfig(path string) func() {
+	//nolint:forbidigo // GH-1341 binds every child kubectl/helm/kind off an ambient context; see the note above.
 	previous, had := os.LookupEnv("KUBECONFIG")
+	//nolint:forbidigo // GH-1341: the binding must reach children that inherit the environment.
 	_ = os.Setenv("KUBECONFIG", path)
 	return func() {
 		if had {
+			//nolint:forbidigo // Restoring the prior value is what keeps the binding scoped to its caller.
 			_ = os.Setenv("KUBECONFIG", previous)
 			return
 		}

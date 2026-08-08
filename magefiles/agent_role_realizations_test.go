@@ -261,11 +261,15 @@ func TestAgentRoleRealizationMeshCritics(t *testing.T) {
 
 func repositoryRoot(t *testing.T) string {
 	t.Helper()
-	root, err := filepath.Abs("..")
+	root, err := findRepositoryRoot()
 	if err != nil {
 		t.Fatal(err)
 	}
-	return root
+	absolute, err := filepath.Abs(root)
+	if err != nil {
+		t.Fatal(err)
+	}
+	return absolute
 }
 
 func readRealizationModel(t *testing.T) realizationModel {

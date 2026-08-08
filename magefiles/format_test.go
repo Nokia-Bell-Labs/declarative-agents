@@ -3,10 +3,9 @@
 package main
 
 import (
-	"bytes"
-	"go/format"
 	"io/fs"
 	"os"
+	"os/exec"
 	"path/filepath"
 	"slices"
 	"strings"
@@ -18,32 +17,79 @@ import (
 // section from linters, so no formatting rule was enabled anywhere and two
 // unformatted files sat on main unnoticed (GH-1477).
 //
-// The module configs now declare the gofmt formatter, and this is the check that
+// The module configs declare the gofmt formatter, and this is the check that
 // fails a build. It lives here as a test for the same reason the go-style size
 // limits do in agent-core internal/gostyle: `mage lint` is not part of the
 // release recipe and needs a golangci-lint major version matching the configs,
-// while `mage test` runs on every release. Comparing against go/format keeps the
-// verdict independent of whichever gofmt binary is on PATH.
+// while `mage test` runs on every release.
+//
+// It runs the gofmt shipped with the Go toolchain that compiles this test, found
+// through GOROOT rather than PATH, so the verdict tracks the toolchain instead of
+// whichever gofmt happens to come first. -s is passed because the golangci-lint
+// gofmt formatter simplifies by default, and a gate weaker than the policy it
+// claims to enforce is worse than no gate: the first version of this check
+// compared against go/format, which has no simplify pass, and it silently
+// accepted a file the declared policy rejects (GH-1479).
 
-// TestEveryModuleIsGofmtClean reports every Go file whose source differs from its
-// gofmt form, across the same modules the lint policy covers.
+// TestEveryModuleIsGofmtClean reports every Go file gofmt would rewrite, across
+// the same modules the lint policy covers.
 func TestEveryModuleIsGofmtClean(t *testing.T) {
+	gofmt := toolchainGofmt(t)
 	for _, module := range lintModuleDirs {
 		t.Run(module, func(t *testing.T) {
-			for _, path := range moduleGoFiles(t, module) {
-				assertGofmtClean(t, path)
+			files := moduleGoFiles(t, module)
+			if len(files) == 0 {
+				t.Fatalf("%s has no Go files to judge", module)
+			}
+			for _, path := range gofmtWouldRewrite(t, gofmt, files) {
+				t.Errorf("%s is not gofmt-clean; run: gofmt -s -w %s", path, path)
 			}
 		})
 	}
+}
+
+// toolchainGofmt returns the gofmt belonging to the Go toolchain in use.
+func toolchainGofmt(t *testing.T) string {
+	t.Helper()
+	out, err := exec.Command("go", "env", "GOROOT").Output()
+	if err != nil {
+		t.Fatalf("go env GOROOT: %v", err)
+	}
+	path := filepath.Join(strings.TrimSpace(string(out)), "bin", "gofmt")
+	if _, err := os.Stat(path); err != nil {
+		t.Fatalf("the Go toolchain has no gofmt at %s: %v", path, err)
+	}
+	return path
+}
+
+// gofmtWouldRewrite lists the files gofmt -s would change. -l prints exactly
+// those paths and nothing for clean input.
+func gofmtWouldRewrite(t *testing.T, gofmt string, files []string) []string {
+	t.Helper()
+	out, err := exec.Command(gofmt, append([]string{"-s", "-l"}, files...)...).CombinedOutput()
+	if err != nil {
+		t.Fatalf("gofmt -s -l: %v\n%s", err, out)
+	}
+	var listed []string
+	for _, line := range strings.Split(string(out), "\n") {
+		if trimmed := strings.TrimSpace(line); trimmed != "" {
+			listed = append(listed, trimmed)
+		}
+	}
+	return listed
 }
 
 // moduleGoFiles lists the Go files one module owns. A nested module is walked
 // under its own entry instead, so no file is judged twice.
 func moduleGoFiles(t *testing.T, module string) []string {
 	t.Helper()
-	root := filepath.Join("..", filepath.FromSlash(module))
+	repoRoot, err := findRepositoryRoot()
+	if err != nil {
+		t.Fatal(err)
+	}
+	root := filepath.Join(repoRoot, filepath.FromSlash(module))
 	var files []string
-	err := filepath.WalkDir(root, func(path string, entry fs.DirEntry, err error) error {
+	err = filepath.WalkDir(root, func(path string, entry fs.DirEntry, err error) error {
 		if err != nil {
 			return err
 		}
@@ -78,26 +124,15 @@ func skipFormatDir(path, name string) bool {
 }
 
 func isLintModule(path string) bool {
-	rel, err := filepath.Rel("..", path)
+	root, err := findRepositoryRoot()
+	if err != nil {
+		return false
+	}
+	rel, err := filepath.Rel(root, path)
 	if err != nil {
 		return false
 	}
 	return slices.Contains(lintModuleDirs, filepath.ToSlash(rel))
-}
-
-func assertGofmtClean(t *testing.T, path string) {
-	t.Helper()
-	source, err := os.ReadFile(path)
-	if err != nil {
-		t.Fatal(err)
-	}
-	formatted, err := format.Source(source)
-	if err != nil {
-		t.Fatalf("%s does not parse: %v", path, err)
-	}
-	if !bytes.Equal(source, formatted) {
-		t.Errorf("%s is not gofmt-clean; run: gofmt -w %s", path, path)
-	}
 }
 
 // TestGofmtGateCoversNestedModulesExactlyOnce pins the walk itself. agent-core
@@ -120,15 +155,29 @@ func TestGofmtGateCoversNestedModulesExactlyOnce(t *testing.T) {
 	}
 }
 
-// TestGofmtGateRejectsUnformattedSource proves the comparison has teeth, so a
-// silent pass cannot come from the check never finding a difference.
-func TestGofmtGateRejectsUnformattedSource(t *testing.T) {
-	unformatted := []byte("package main\nfunc main()  {\nx := 1\n_ = x\n}\n")
-	formatted, err := format.Source(unformatted)
-	if err != nil {
+// TestGofmtGateSimplifies is the regression guard for GH-1479. A composite
+// literal repeating its element type is formatted correctly but not simplified:
+// plain gofmt accepts it and gofmt -s rewrites it. The gate must reject it,
+// because the module configs enable the formatter with simplify on. Asserting
+// both halves is what pins the gate to the declared policy rather than to
+// whichever is more convenient.
+func TestGofmtGateSimplifies(t *testing.T) {
+	source := "package fixture\n\ntype pair struct{ a int }\n\nvar pairs = []pair{pair{a: 1}}\n"
+	dir := t.TempDir()
+	path := filepath.Join(dir, "fixture.go")
+	if err := os.WriteFile(path, []byte(source), 0o600); err != nil {
 		t.Fatal(err)
 	}
-	if bytes.Equal(unformatted, formatted) {
-		t.Fatal("go/format accepted deliberately unformatted source")
+	gofmt := toolchainGofmt(t)
+
+	if rewritten := gofmtWouldRewrite(t, gofmt, []string{path}); len(rewritten) == 0 {
+		t.Error("gofmt -s accepted a composite literal that repeats its element type")
+	}
+	plain, err := exec.Command(gofmt, "-l", path).CombinedOutput()
+	if err != nil {
+		t.Fatalf("gofmt -l: %v\n%s", err, plain)
+	}
+	if strings.TrimSpace(string(plain)) != "" {
+		t.Errorf("the fixture is meant to be gofmt-clean without -s, but gofmt -l listed it:\n%s", plain)
 	}
 }
