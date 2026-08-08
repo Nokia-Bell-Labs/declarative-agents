@@ -279,14 +279,14 @@ releases:
       99.0), this mesh observer rebinds to the catalog family and srd008 becomes
       the mesh-local generalization source, retaining the descriptive observer
       actor name via the historical_aliases pattern (GH-1247).
-    status: planned
+    status: done
     srds:
       - srd008-observer-agent
     use_cases:
       - id: rel08.0-uc001-mesh-observer
         summary: The observer discovers every mesh agent and the deployment topology, polls monitor surfaces and per-pod resource usage, and displays a fleet view that updates during a live chat turn.
-        status: planned
+        status: implemented
     test_suites:
       - id: test-rel08.0-observer
         summary: Profile validation, kube discovery, monitor fan-in, topology grouping, per-pod resource usage, fleet UX, RBAC proof, and lifecycle exit.
-        status: planned
+        status: implemented

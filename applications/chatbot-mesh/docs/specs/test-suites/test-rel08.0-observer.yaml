@@ -12,7 +12,8 @@ preconditions:
 test_cases:
   - use_case: rel08.0-uc001-mesh-observer
     name: Observer profile validates
-    status: planned
+    integration_target: mage audit
+    status: implemented
     description: The observer profile loads and every action, signal, declaration, REST client, REST server route, and monitor route validates. Boot smoke passes.
     expected:
       profile_loads: true
@@ -63,17 +64,14 @@ test_cases:
 
   - use_case: rel08.0-uc001-mesh-observer
     name: Observer polls agent monitor endpoints and aggregates fleet data
-    integration_target: mage demo:up
-    status: done
+    integration_target: mage integration:helmSmoke
+    status: implemented
     description: |
-      On the demo cluster each of the four passes reads every discovered agent
-      from a composed pod address: four agents on four distinct monitor ports —
-      chatbot 18082, rag-server 18087, collector 18192, observer 18202 — each
-      returning HTTP 200, and each pass reporting one item per discovered pod. A
-      member whose monitor read fails degrades alone: with two unreadable members
-      present the remaining four kept reporting and the cycle advanced past
-      iteration 1462. Reachability is read per item rather than from the join
-      counts, because the fan-in continues past CommandError.
+      Helm smoke reads the in-cluster observer and proves each of the four joins
+      contains every discovered agent exactly once with AgentMonitorRead, HTTP
+      200, and the pod's selected authority. It then gives only the observer an
+      authorized but unserved monitor port and proves every other member remains
+      reachable while a complete later cycle advances through metrics.
     expected:
       machine_spec_returned: true
       current_state_returned: true
@@ -121,7 +119,8 @@ test_cases:
 
   - use_case: rel08.0-uc001-mesh-observer
     name: Observer RBAC is namespace-scoped and read-only
-    status: planned
+    go_test: go test ./magefiles -run TestObserverRBACRender
+    status: implemented
     description: The rendered Helm template creates a Role (not ClusterRole) with only get and list verbs on pods, services, deployments, and metrics.k8s.io pod metrics in the release namespace.
     expected:
       role_not_cluster_role: true
@@ -132,9 +131,10 @@ test_cases:
 
   - use_case: rel08.0-uc001-mesh-observer
     name: Observer discovers topology and the UX groups pods by Deployment and Service
-    integration_target: mage integration:rig
-    status: planned
-    description: The observer lists the release Deployments and Services alongside pods; the fleet view groups each pod under its owning Deployment and the Service fronting it, matching the running topology within one poll. Configuration uses declarations and flags with no environment variable.
+    integration_target: mage demo:up
+    go_test: cd agents/observer/ui && npm test
+    status: done
+    description: The retained demo observation proves the observer lists the release Deployments and Services alongside pods; the UI test proves the fleet view groups each pod under its owning Deployment and fronting Service. Configuration uses declarations and flags with no new environment variable. This case stays manual rather than attributing topology equality to Helm smoke, whose automated observer proof currently covers pods and fan-in.
     expected:
       deployments_discovered: true
       services_discovered: true
@@ -144,9 +144,15 @@ test_cases:
 
   - use_case: rel08.0-uc001-mesh-observer
     name: Observer shows per-pod resource usage and degrades when metrics are absent
-    integration_target: mage integration:rig
-    status: planned
-    description: The observer polls metrics.k8s.io PodMetrics and shows each pod's CPU and memory on its card. When the cluster has no metrics-server, topology and monitor fan-in still render and each card shows an explicit "metrics unavailable" state rather than failing.
+    integration_target: mage integration:helmSmoke
+    go_test: cd agents/observer/ui && npm test
+    status: implemented
+    description: |
+      Helm smoke installs pinned test-only metrics-server and proves every
+      discovered agent has populated CPU and memory. The UI sums all container
+      quantities into pod totals and renders them. The persistent demo and UI
+      tests retain the absent-metrics behavior: topology and fan-in render while
+      cards show "metrics unavailable".
     expected:
       cpu_and_memory_per_pod: true
       metrics_unavailable_state_when_absent: true
@@ -155,11 +161,23 @@ test_cases:
 
   - use_case: rel08.0-uc001-mesh-observer
     name: Observer lifecycle exit stops cleanly
-    integration_target: mage integration:rig
-    status: planned
+    integration_target: mage integration:observer
+    status: implemented
     description: A lifecycle exit request stops the discovery loop, monitor, and control servers. The observer reaches terminal Done.
     expected:
       discovery_stopped: true
       monitor_stopped: true
       terminal_state_done: true
     traces: [rel08.0-uc001-mesh-observer S4, srd008-observer-agent AC4]
+
+  - use_case: rel08.0-uc001-mesh-observer
+    name: Fleet updates during a deterministic live chat turn
+    integration_target: mage integration:helmSwap
+    status: implemented
+    description: Helm swap holds the actual answer-model request open and proves newer in-cluster observer state and event entries for the chatbot and rag0 before rollout, while both remain reachable.
+    expected:
+      chatbot_state_advanced: true
+      chatbot_answer_path_event: true
+      rag_query_event: true
+      both_agents_reachable: true
+    traces: [rel08.0-uc001-mesh-observer S3, srd008-observer-agent AC3]
