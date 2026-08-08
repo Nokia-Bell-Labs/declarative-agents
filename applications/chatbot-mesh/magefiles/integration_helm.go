@@ -357,6 +357,17 @@ func runHelmSmoke(coreRoot, profilesRoot, chartDir string) (result error) {
 		return err
 	}
 
+	stopObserver, err := kubectlPortForward(
+		"svc/"+helmRelease+"-chatbot-mesh-observer", 18202)
+	if err != nil {
+		return err
+	}
+	defer func() {
+		if stopObserver != nil {
+			stopObserver()
+		}
+	}()
+
 	stop, err := kubectlPortForward("svc/"+helmRelease+"-chatbot-mesh-chatbot", 18080, 18081)
 	if err != nil {
 		return err
@@ -388,8 +399,14 @@ func runHelmSmoke(coreRoot, profilesRoot, chartDir string) (result error) {
 		collectorQueryBase(), telemetry, helmSpanTimeout); err != nil {
 		return err
 	}
+	if err := assertObserverHelmFleet(
+		observerHelmMonitorURL, helmRelease, helmReadyTimeout); err != nil {
+		return err
+	}
 	stop()
 	stop = nil
+	stopObserver()
+	stopObserver = nil
 	cluster.ReleaseAfter(kindrig.DefaultRun, false, kindrig.FailureEvidence{})
 	released = true
 	if err := verifySharedMetricsEvidence(
