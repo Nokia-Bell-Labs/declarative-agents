@@ -24,6 +24,7 @@ type observerFleetPod struct {
 	Name        string
 	IP          string
 	Component   string
+	RagUnit     string
 	MonitorPort string
 }
 
@@ -32,6 +33,7 @@ type observerFleetItem struct {
 	Signal            string
 	Status            int
 	SelectedAuthority string
+	Body              map[string]interface{}
 }
 
 type observerFleetCycle struct {
@@ -95,6 +97,9 @@ func waitObserverFleetCycle(
 				if err == nil {
 					return cycle, nil
 				}
+			} else if err == nil {
+				err = fmt.Errorf("discovery iteration %d has not advanced past %d",
+					cycle.Iterations["discover_mesh_pods"], after)
 			}
 		}
 		last = err
@@ -217,6 +222,7 @@ func decodeObserverItem(value interface{}) (observerFleetItem, error) {
 			item.Status = int(status)
 		}
 		item.SelectedAuthority, _ = structured["selected_authority"].(string)
+		item.Body, _ = structured["body"].(map[string]interface{})
 	}
 	return item, nil
 }
@@ -233,6 +239,7 @@ func decodeObserverPod(value interface{}) (observerFleetPod, error) {
 		Name:        stringValue(metadata["name"]),
 		IP:          stringValue(status["podIP"]),
 		Component:   stringValue(labels[observerComponentLabel]),
+		RagUnit:     stringValue(labels["chatbot-mesh/rag-unit"]),
 		MonitorPort: stringValue(labels[observerMonitorLabel]),
 	}
 	if pod.Name == "" || pod.IP == "" || pod.MonitorPort == "" {

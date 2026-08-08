@@ -1337,10 +1337,25 @@ func assertSwapReplaceMiddleRag(
 	if err := waitHTTPStatus(helmHealthURL, http.StatusOK, helmReadyTimeout); err != nil {
 		return fmt.Errorf("chatbot did not become reachable before warm swap: %w", err)
 	}
+	stopObserver, err := kubectlPortForward(
+		"svc/"+helmSwapRelease+"-chatbot-mesh-observer", 18202)
+	if err != nil {
+		return err
+	}
+	defer stopObserver()
+	baseline, err := observerTurnBaselineSnapshot(
+		observerHelmMonitorURL, helmReadyTimeout)
+	if err != nil {
+		return fmt.Errorf("observer live-turn baseline: %w", err)
+	}
 	turnResult := make(chan error, 1)
 	go func() { turnResult <- assertSmokeChatServed(helmChatURL) }()
 	if err := llmMock.waitForAnswer(helmReadyTimeout); err != nil {
 		return err
+	}
+	if err := waitObserverLiveTurn(
+		observerHelmMonitorURL, baseline, helmReadyTimeout); err != nil {
+		return fmt.Errorf("observer live-turn evidence: %w", err)
 	}
 
 	extra := append(llmMock.helmArgs(),
