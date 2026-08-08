@@ -6,6 +6,7 @@ import (
 	"bytes"
 	"context"
 	"encoding/json"
+	"errors"
 	"fmt"
 	"net/http"
 	"net/url"
@@ -336,6 +337,17 @@ func runHelmSmoke(coreRoot, profilesRoot, chartDir string) (result error) {
 	}
 	defer unbindKubeconfig()
 
+	cleanupMetrics, err := kindrig.InstallMetricsServer(
+		kindrig.DefaultCommandRun, helmKindCluster)
+	if err != nil {
+		return err
+	}
+	defer func() {
+		if cleanupMetrics != nil {
+			result = errors.Join(result, cleanupMetrics())
+		}
+	}()
+
 	if err := provisionExternalUIAssets(assets); err != nil {
 		return err
 	}
@@ -403,10 +415,18 @@ func runHelmSmoke(coreRoot, profilesRoot, chartDir string) (result error) {
 		observerHelmMonitorURL, helmRelease, helmReadyTimeout); err != nil {
 		return err
 	}
+	if err := assertObserverFleetPodMetrics(
+		observerHelmMonitorURL, helmReadyTimeout); err != nil {
+		return err
+	}
 	stop()
 	stop = nil
 	stopObserver()
 	stopObserver = nil
+	if err := cleanupMetrics(); err != nil {
+		return err
+	}
+	cleanupMetrics = nil
 	cluster.ReleaseAfter(kindrig.DefaultRun, false, kindrig.FailureEvidence{})
 	released = true
 	if err := verifySharedMetricsEvidence(
