@@ -27,12 +27,10 @@ type lintRunner func(string) error
 // that cannot read the config schema fails with installation guidance rather than
 // a schema error from inside the first module's run (GH-1479).
 //
-// Lint is not a release gate today, which is a temporary state rather than a
-// policy: the decision is to gate it. It cannot be gated while the policy still
-// reports findings, and running it for the first time surfaced twelve forbidigo
-// violations that each need a judgment about refactoring versus a declared
-// exception. GH-1481 resolves those; adding Lint to the release recipe is the
-// last step of GH-1479 and happens once it reports clean.
+// Lint is a release gate, wired into the recipe in Tag. It could not be one
+// before: the policy had never actually run, and its first run reported twelve
+// forbidigo findings, which GH-1481 resolved by refactoring or annotating each
+// site. The go-style constitution lists every annotated site (GH-1479).
 func Lint() error {
 	if err := checkGolangciLint(); err != nil {
 		return err

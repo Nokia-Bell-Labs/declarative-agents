@@ -467,6 +467,7 @@ func tracerEnvironment(
 	scenario interpreterScenario,
 	workspace, session, fault string,
 ) []string {
+	//nolint:forbidigo // Reads PATH only to prepend the build directory for the child, which the go-style constitution allows as a PATH prepend on a child contract (GH-1481).
 	path := runtime.buildDir + string(os.PathListSeparator) + os.Getenv("PATH")
 	modelAddress := runtime.modelListener.Addr().String()
 	ragAddress := runtime.ragListener.Addr().String()

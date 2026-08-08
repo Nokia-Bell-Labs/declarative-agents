@@ -322,6 +322,7 @@ func TestReleaseGatesMatchDocumentedContract(t *testing.T) {
 	got := releaseGates(root)
 	want := []releaseGate{
 		{name: "root audit", dir: root, args: []string{"mage", "audit"}},
+		{name: "root lint", dir: root, args: []string{"mage", "lint"}},
 		{name: "root test", dir: root, args: []string{"mage", "test"},
 			env: []string{uiDistReleaseEnv + "=1"}},
 		{name: "agent-core integration", dir: "/release/agent-core",

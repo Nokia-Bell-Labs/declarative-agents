@@ -108,8 +108,26 @@ configuration:
   - Use typed config structs when decoding ToolDef config.
   - Keep compatibility paths explicit and tested.
   - The forbidigo gate enforces the process-environment read/write ban in every non-fixture Go module, including standalone magefiles modules. Production and Mage code SHALL NOT call os.Getenv, os.LookupEnv, or os.Setenv; _test.go files are excluded because tests may stage environment for child and re-exec helpers.
-  - The two annotated contract sites are internal/support/envexpand/envexpand.go, where os.LookupEnv expands ${VAR:-default} references in mounted declarations as required by srd013 R5.6/R5.7, and applications/chatbot-mesh/magefiles/integration_chroma.go, whose preflight mirrors that expansion before runtime loading.
-  - os.Environ is allowed for child-process inheritance. A caller may add environment entries on an exec.Cmd when a declared or third-party child contract requires them, including PATH prepends, KUBECONFIG, DOLT_ROOT_PATH, CGO_ENABLED, GOOS, DOCKER_BUILDKIT, and BD_NON_INTERACTIVE; those values do not authorize reading process environment as an application configuration channel.
+  - 'Every annotated contract site carries an inline //nolint:forbidigo naming the
+    contract that forces it. The gate reported nothing until GH-1479 made mage lint
+    runnable, so this list is the complete set as of that run, in four groups.
+    Declaration expansion mirrored outside the runtime (srd013 R5.6/R5.7):
+    internal/support/envexpand/envexpand.go expands ${VAR:-default} in mounted
+    declarations; applications/chatbot-mesh/magefiles/integration_chroma.go mirrors
+    that expansion in its preflight; applications/catalog/conformance/ollama.go
+    mirrors ${OLLAMA_URL:-...} so a live gate probes the endpoint the profile
+    resolves rather than one a flag chose. A third-party convention:
+    applications/chatbot-mesh/magefiles/integration_helm.go reads SSL_CERT_FILE, the
+    OS and Go name for the host CA bundle. Values a parent sets on a child it owns:
+    magefiles/uidist.go reads the release-gate variable magefiles/tag.go sets on the
+    gate it launches, and applications/prose-editor/cmd/prose-editor-tracer-boundary
+    reads its per-run workspace, fixtures, session, scenario, and fault because the
+    tracer integration reaches it through the agent, which runs it as a declared
+    exec tool whose argv is fixed in YAML. One deviation, not a contract:
+    magefiles/kindrig BindKubeconfig sets KUBECONFIG on the process rather than on
+    each exec.Cmd, so one binding covers every helm, kubectl, and kind child;
+    GH-1482 tracks moving it onto the commands.'
+  - os.Environ is allowed for child-process inheritance. A caller may add environment entries on an exec.Cmd when a declared or third-party child contract requires them, including PATH prepends, KUBECONFIG, DOLT_ROOT_PATH, CGO_ENABLED, GOOS, DOCKER_BUILDKIT, and BD_NON_INTERACTIVE; those values do not authorize reading process environment as an application configuration channel. Reading one of those values back is sanctioned only where it is the child half of a contract a parent in this repository owns, or a third-party convention, and only with the annotation above.
 tool_language:
   rules:
   - MachineSpec owns workflow sequencing.

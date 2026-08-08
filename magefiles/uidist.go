@@ -38,7 +38,12 @@ type uiRunner func(string, string, ...string) error
 
 // releaseModeEnabled reports whether UIDist is running as part of a release
 // gate, in which case skipping a required prerequisite is not permitted.
+// Both halves of this contract live in the repository: Tag sets the variable on
+// the child gate's environment, and this is the child reading it. That is why the
+// read is sanctioned rather than replaced by a flag -- the value crosses a process
+// boundary the parent owns (GH-1481).
 func releaseModeEnabled() bool {
+	//nolint:forbidigo // Reads the release-gate flag Tag sets on this process's environment.
 	return strings.TrimSpace(os.Getenv(uiDistReleaseEnv)) != ""
 }
 
