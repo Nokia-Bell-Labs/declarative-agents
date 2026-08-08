@@ -180,6 +180,9 @@ func collectorControlBase() string {
 }
 
 func requireSharedObservability(timeout time.Duration) error {
+	if err := (Observability{}).Up(); err != nil {
+		return fmt.Errorf("start source-matched shared observability: %w", err)
+	}
 	checks := []string{
 		collectorControlBase() + "/api/lifecycle/health",
 		collectorQueryBase() + "/query/traces",
