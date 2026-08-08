@@ -113,12 +113,12 @@ tools:
     category: boundary
     visibility: internal
     emits: [MetricRetrieved, CommandError]
-    description: Read all spooled records for one metric name from the collector metric spool.
-    problem: A metric detail view needs per-record data points and resource identity by name.
-    goals: [Return all records for one metric name, Read across active and rotated spool files]
+    description: Read one bounded page of spooled records for a metric name.
+    problem: A long-lived metric spool grows without bound, so an unpaginated detail response eventually exceeds the REST response-size limit.
+    goals: [Return paginated records for one metric name, Cap page size in config, Read across active and rotated spool files]
     requirements:
-      input: [Path comes from trusted config; metric_name comes from the request seed]
-      output: [Output includes metric_name, records, record_count, data_point_count, skipped_lines; each record includes unchanged decoded resource attributes such as service.name and test.run.id]
+      input: [Path and page defaults come from trusted config; metric_name, page_size, and offset may come from the request seed]
+      output: [Output includes metric_name, records, total, record_count, data_point_count, offset, page_size, skipped_lines; each record includes unchanged decoded resource attributes such as service.name and test.run.id]
       errors: [An unreadable spool or missing metric_name emits CommandError]
     non_goals: [Does not aggregate across metric names or mutate records]
     parameters: {type: object, properties: {}}
@@ -150,7 +150,10 @@ tools:
                 metric: {type: object}
               required: [name, type, unit, data_point_count, service, resource, metric]
           record_count: {type: integer}
+          total: {type: integer}
           data_point_count: {type: integer}
+          offset: {type: integer}
+          page_size: {type: integer}
           skipped_lines: {type: integer}
     side_effects:
       - {kind: filesystem_read, target: collector metric spool, state: read_only}
@@ -161,6 +164,9 @@ tools:
     config:
       path: ${COLLECTOR_METRICS_SPOOL_PATH:-metrics/collector.ndjson}
       metric_name: ""
+      page_size: 20
+      max_page_size: 100
+      offset: 0
 
   - name: query_span_stats
     type: builtin

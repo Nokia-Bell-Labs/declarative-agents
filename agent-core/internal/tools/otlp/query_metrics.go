@@ -29,8 +29,11 @@ type QueryListMetricsConfig struct {
 
 // QueryGetMetricConfig configures single-metric detail reads.
 type QueryGetMetricConfig struct {
-	Path       string
-	MetricName string
+	Path        string
+	MetricName  string
+	PageSize    int
+	MaxPageSize int
+	Offset      int
 }
 
 // ListMetricsBuilder constructs paginated metric list commands.
@@ -61,12 +64,19 @@ type GetMetricBuilder struct {
 }
 
 // Build creates one get-metric command. When previous carries a
-// machine_request seed, metric_name overrides the config value.
+// machine_request seed, metric_name, page_size, and offset override config
+// defaults.
 func (b GetMetricBuilder) Build(previous core.Result) core.Command {
 	cfg := b.Config
 	if p := seedParams(previous); p != nil {
 		if v, _ := p["metric_name"].(string); v != "" {
 			cfg.MetricName = v
+		}
+		if v, ok := seedInt(p, "page_size"); ok && v > 0 {
+			cfg.PageSize = v
+		}
+		if v, ok := seedInt(p, "offset"); ok {
+			cfg.Offset = v
 		}
 	}
 	return &getMetricCommand{toolName: b.ToolName, config: cfg}
@@ -127,16 +137,21 @@ func (c *getMetricCommand) Execute() core.Result {
 		return receiverError(c.Name(), fmt.Errorf("%s: %w", c.Name(), err))
 	}
 	matched := matchMetricRecords(records, c.config.MetricName)
+	page, total, offset, pageSize := paginateMetricDetails(matched, c.config)
 
 	output := struct {
 		MetricName     string         `json:"metric_name"`
 		Records        []metricDetail `json:"records"`
+		Total          int            `json:"total"`
 		RecordCount    int            `json:"record_count"`
 		DataPointCount int            `json:"data_point_count"`
+		Offset         int            `json:"offset"`
+		PageSize       int            `json:"page_size"`
 		SkippedLines   int            `json:"skipped_lines"`
 	}{
-		MetricName: c.config.MetricName, Records: matched,
-		RecordCount: len(matched), DataPointCount: sumDetailDataPoints(matched), SkippedLines: skipped,
+		MetricName: c.config.MetricName, Records: page, Total: total,
+		RecordCount: len(page), DataPointCount: sumDetailDataPoints(page),
+		Offset: offset, PageSize: pageSize, SkippedLines: skipped,
 	}
 	encoded, err := json.Marshal(output)
 	if err != nil {
@@ -193,6 +208,36 @@ func paginateMetrics(summaries []metricSummary, cfg QueryListMetricsConfig) (pag
 		end = total
 	}
 	return summaries[offset:end], total, offset, pageSize
+}
+
+func paginateMetricDetails(
+	records []metricDetail,
+	cfg QueryGetMetricConfig,
+) (page []metricDetail, total, offset, pageSize int) {
+	pageSize = cfg.PageSize
+	if pageSize <= 0 {
+		pageSize = defaultPageSize
+	}
+	maxPage := cfg.MaxPageSize
+	if maxPage <= 0 {
+		maxPage = defaultMaxPageSize
+	}
+	if pageSize > maxPage {
+		pageSize = maxPage
+	}
+	total = len(records)
+	offset = cfg.Offset
+	if offset < 0 {
+		offset = 0
+	}
+	if offset > total {
+		offset = total
+	}
+	end := offset + pageSize
+	if end > total {
+		end = total
+	}
+	return records[offset:end], total, offset, pageSize
 }
 
 func matchMetricRecords(records []metricRecord, name string) []metricDetail {

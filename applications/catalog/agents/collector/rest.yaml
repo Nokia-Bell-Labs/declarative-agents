@@ -130,6 +130,7 @@ rest:
           path: /query/metrics/{metric_name}
           request:
             path: {metric_name: {type: string}}
+            query: {page_size: {type: integer}, offset: {type: integer}}
           binding: machine_request
           machine_request:
             profile: profile.yaml
@@ -138,12 +139,13 @@ rest:
             timeout: 10s
             request:
               path: {metric_name: $.metric_name}
+              query: {page_size: $.page_size, offset: $.offset}
             response:
               terminal_states:
                 MetricReady:
                   status: 200
                   content_type: application/json
-                  body: {metric_name: $.metric_name, records: $.records, record_count: $.record_count, data_point_count: $.data_point_count}
+                  body: {metric_name: $.metric_name, records: $.records, total: $.total, record_count: $.record_count, data_point_count: $.data_point_count, offset: $.offset, page_size: $.page_size}
                 Failed: {status: 500, content_type: application/json, body: {error: spool_read_error}}
         span_stats:
           method: GET
