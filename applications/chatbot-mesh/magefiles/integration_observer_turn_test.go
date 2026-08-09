@@ -24,7 +24,48 @@ func TestObserverTurnBaselineAndLiveSnapshot(t *testing.T) {
 		t.Fatal(err)
 	}
 	live = true
-	if err := waitObserverLiveTurn(server.URL, baseline, time.Second); err != nil {
+	if err := waitObserverLiveTurn(server.URL, "", baseline, time.Second); err != nil {
+		t.Fatal(err)
+	}
+}
+
+func TestObserverLiveTurnUsesDurableTraceAfterRagEventEviction(t *testing.T) {
+	var live bool
+	monitor := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, _ *http.Request) {
+		labels := observerTurnFixture(live)
+		if live {
+			removeRagQueryEvent(labels)
+		}
+		_ = json.NewEncoder(w).Encode(map[string]interface{}{"labels": labels})
+	}))
+	defer monitor.Close()
+	collector := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		if r.URL.Path == "/query/traces" {
+			_ = json.NewEncoder(w).Encode(observerTraceList{
+				Traces: []observerTraceSummary{{
+					TraceID: "trace-live", RootService: "chatbot",
+					StartTime: time.Now().UTC(),
+				}},
+				Total: 1, PageSize: 100,
+			})
+			return
+		}
+		_ = json.NewEncoder(w).Encode(map[string]interface{}{
+			"trace_id": "trace-live",
+			"spans": []map[string]interface{}{
+				{"service": "chatbot", "name": "execute_tool rag_query"},
+			},
+		})
+	}))
+	defer collector.Close()
+
+	baseline, err := observerTurnBaselineSnapshot(monitor.URL, time.Second)
+	if err != nil {
+		t.Fatal(err)
+	}
+	live = true
+	if err := waitObserverLiveTurn(
+		monitor.URL, collector.URL, baseline, time.Second); err != nil {
 		t.Fatal(err)
 	}
 }
@@ -118,4 +159,11 @@ func setObserverItemBody(value interface{}, body map[string]interface{}) {
 	result := item["result"].(map[string]interface{})
 	structured := result["structured_output"].(map[string]interface{})
 	structured["body"] = body
+}
+
+func removeRagQueryEvent(labels map[string]interface{}) {
+	entry := labels["agent_events_fanin"].(map[string]interface{})
+	output := entry["output"].(map[string]interface{})
+	items := output["items"].([]interface{})
+	setObserverItemBody(items[1], observerEventsFixture(false, "rag0"))
 }

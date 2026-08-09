@@ -174,10 +174,21 @@ test_cases:
     name: Fleet updates during a deterministic live chat turn
     integration_target: mage integration:helmSwap
     status: implemented
-    description: Helm swap holds the actual answer-model request open and proves newer in-cluster observer state and event entries for the chatbot and rag0 before rollout, while both remain reachable.
+    description: |
+      Helm swap holds the actual answer-model request open and proves newer
+      in-cluster observer state and event entries before rollout, while the
+      chatbot and rag0 remain reachable. The chatbot answer-path tuple must
+      remain in its fleet entry. Rag activity accepts that query tuple when it
+      remains in the bounded recent-event window; after eviction, the shared
+      collector must retain a post-baseline chatbot trace carrying the completed
+      `execute_tool rag_query` span. The held answer boundary follows that tool,
+      so reaching both proves the selected RAG request returned.
+      The observer fan-in iteration and reachability still have to advance, so
+      durable trace evidence supplements rather than replaces the fleet proof.
     expected:
       chatbot_state_advanced: true
       chatbot_answer_path_event: true
-      rag_query_event: true
+      rag_query_proven: true
+      rag_query_event_or_trace_after_eviction: true
       both_agents_reachable: true
     traces: [rel08.0-uc001-mesh-observer S3, srd008-observer-agent AC3]
