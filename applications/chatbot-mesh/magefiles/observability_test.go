@@ -4,8 +4,11 @@ package main
 
 import (
 	"errors"
+	"os"
+	"path/filepath"
 	"strings"
 	"testing"
+	"time"
 )
 
 func TestObservabilityUpReusesHealthyIngress(t *testing.T) {
@@ -87,6 +90,128 @@ func TestObservabilityUpStopsOnStaleRestartFailure(t *testing.T) {
 	err := (Observability{}).Up()
 	if err == nil || !strings.Contains(err.Error(), "controlled stop failure") {
 		t.Fatalf("error = %v, want controlled stop failure", err)
+	}
+}
+
+func TestObservabilityUpPreservesSpoolDuringStaleRestart(t *testing.T) {
+	restoreObservabilityHooks(t)
+	t.Chdir(t.TempDir())
+	spool := filepath.Join(observabilityStateDir, observabilitySpoolDir,
+		"traces", "collector.ndjson")
+	if err := os.MkdirAll(filepath.Dir(spool), 0o755); err != nil {
+		t.Fatal(err)
+	}
+	const evidence = "retained trace evidence\n"
+	if err := os.WriteFile(spool, []byte(evidence), 0o644); err != nil {
+		t.Fatal(err)
+	}
+	checkObservability = func() error { return nil }
+	readCollectorFingerprint = func() (string, error) { return "old", nil }
+	stopCollectorProcess = func() error {
+		assertFileContent(t, spool, evidence)
+		checkObservability = func() error { return errors.New("stopped") }
+		return nil
+	}
+	startCollectorProcess = func() error {
+		assertFileContent(t, spool, evidence)
+		checkObservability = func() error { return nil }
+		return nil
+	}
+
+	if err := (Observability{}).Up(); err != nil {
+		t.Fatal(err)
+	}
+	assertFileContent(t, spool, evidence)
+}
+
+func TestDiscoverUntrackedCollectorRequiresOneVerifiedOwner(t *testing.T) {
+	restoreObservabilityHooks(t)
+	collectorCommandOutput = func(name string, args ...string) (string, error) {
+		if name == "lsof" {
+			return "4242\n", nil
+		}
+		return "/tmp/agent --profile /repo/applications/catalog/agents/collector/profile.yaml\n", nil
+	}
+	pid, err := discoverUntrackedCollector()
+	if err != nil {
+		t.Fatal(err)
+	}
+	if pid != 4242 {
+		t.Fatalf("pid = %d, want 4242", pid)
+	}
+}
+
+func TestDiscoverUntrackedCollectorRejectsDifferentOwners(t *testing.T) {
+	restoreObservabilityHooks(t)
+	collectorCommandOutput = func(name string, args ...string) (string, error) {
+		if name != "lsof" {
+			t.Fatal("process command must not be read after owner mismatch")
+		}
+		if strings.Contains(strings.Join(args, " "), ":"+collectorControlPortDefault) {
+			return "4343\n", nil
+		}
+		return "4242\n", nil
+	}
+	_, err := discoverUntrackedCollector()
+	if err == nil || !strings.Contains(err.Error(), "different owners") {
+		t.Fatalf("error = %v, want different owners", err)
+	}
+}
+
+func TestDiscoverUntrackedCollectorRejectsUnrelatedProcess(t *testing.T) {
+	restoreObservabilityHooks(t)
+	collectorCommandOutput = func(name string, args ...string) (string, error) {
+		if name == "lsof" {
+			return "4242\n", nil
+		}
+		return "/usr/bin/python unrelated_server.py\n", nil
+	}
+	_, err := discoverUntrackedCollector()
+	if err == nil || !strings.Contains(err.Error(), "does not run the collector profile") {
+		t.Fatalf("error = %v, want collector profile refusal", err)
+	}
+}
+
+func TestStopCollectorSignalsVerifiedUntrackedProcessAfterTimeout(t *testing.T) {
+	restoreObservabilityHooks(t)
+	t.Chdir(t.TempDir())
+	checkObservability = func() error { return nil }
+	findUntrackedCollector = func() (int, error) { return 4242, nil }
+	requestCollectorExit = func() error { return nil }
+	collectorProcessAlive = func(int) bool { return true }
+	untrackedCollectorStopWait = time.Millisecond
+	signalled := 0
+	terminateCollectorProcess = func(pid int) error {
+		signalled = pid
+		return nil
+	}
+
+	if err := stopCollector(); err != nil {
+		t.Fatal(err)
+	}
+	if signalled != 4242 {
+		t.Fatalf("signalled pid = %d, want 4242", signalled)
+	}
+}
+
+func TestStopCollectorDoesNotTouchAmbiguousUntrackedOwner(t *testing.T) {
+	restoreObservabilityHooks(t)
+	t.Chdir(t.TempDir())
+	checkObservability = func() error { return nil }
+	findUntrackedCollector = func() (int, error) {
+		return 0, errors.New("different owners")
+	}
+	requestCollectorExit = func() error {
+		t.Fatal("ambiguous owner must not receive lifecycle request")
+		return nil
+	}
+	terminateCollectorProcess = func(int) error {
+		t.Fatal("ambiguous owner must not be signalled")
+		return nil
+	}
+	err := stopCollector()
+	if err == nil || !strings.Contains(err.Error(), "different owners") {
+		t.Fatalf("error = %v, want different owners", err)
 	}
 }
 
@@ -202,6 +327,12 @@ func restoreObservabilityHooks(t *testing.T) {
 	current := currentCollectorFingerprint
 	read := readCollectorFingerprint
 	write := writeCollectorFingerprint
+	find := findUntrackedCollector
+	request := requestCollectorExit
+	alive := collectorProcessAlive
+	terminate := terminateCollectorProcess
+	output := collectorCommandOutput
+	stopWait := untrackedCollectorStopWait
 	currentCollectorFingerprint = func() (string, error) { return "current", nil }
 	readCollectorFingerprint = func() (string, error) { return "current", nil }
 	writeCollectorFingerprint = func(string) error { return nil }
@@ -214,5 +345,22 @@ func restoreObservabilityHooks(t *testing.T) {
 		currentCollectorFingerprint = current
 		readCollectorFingerprint = read
 		writeCollectorFingerprint = write
+		findUntrackedCollector = find
+		requestCollectorExit = request
+		collectorProcessAlive = alive
+		terminateCollectorProcess = terminate
+		collectorCommandOutput = output
+		untrackedCollectorStopWait = stopWait
 	})
+}
+
+func assertFileContent(t *testing.T, path, want string) {
+	t.Helper()
+	data, err := os.ReadFile(path)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if string(data) != want {
+		t.Fatalf("%s = %q, want %q", path, data, want)
+	}
 }

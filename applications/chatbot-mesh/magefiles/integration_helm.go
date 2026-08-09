@@ -1357,7 +1357,7 @@ func assertSwapReplaceMiddleRag(
 		return err
 	}
 	if err := waitObserverLiveTurn(
-		observerHelmMonitorURL, baseline, helmReadyTimeout); err != nil {
+		observerHelmMonitorURL, collectorQueryBase(), baseline, helmReadyTimeout); err != nil {
 		return fmt.Errorf("observer live-turn evidence: %w", err)
 	}
 

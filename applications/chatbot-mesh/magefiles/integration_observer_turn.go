@@ -3,7 +3,10 @@
 package main
 
 import (
+	"encoding/json"
 	"fmt"
+	"net/http"
+	"net/url"
 	"time"
 )
 
@@ -14,6 +17,7 @@ type observerTurnBaseline struct {
 	ChatbotUpdatedAt string
 	ChatbotEventTime string
 	RagEventTime     string
+	CapturedAt       time.Time
 }
 
 type observerTurnSnapshot struct {
@@ -51,6 +55,7 @@ func observerTurnBaselineSnapshot(
 			ChatbotUpdatedAt: updated,
 			ChatbotEventTime: latestObserverEventTime(snapshot.ChatbotEvents),
 			RagEventTime:     latestObserverEventTime(snapshot.RagEvents),
+			CapturedAt:       time.Now().UTC(),
 		}
 		return nil
 	})
@@ -62,6 +67,7 @@ func observerTurnBaselineSnapshot(
 // holds the actual answer-model request open.
 func waitObserverLiveTurn(
 	monitorURL string,
+	collectorQueryURL string,
 	baseline observerTurnBaseline,
 	timeout time.Duration,
 ) error {
@@ -86,14 +92,115 @@ func waitObserverLiveTurn(
 			return fmt.Errorf("chatbot has no newer ParsingTier -> Answering event; recent=%s",
 				observerEventSummary(snapshot.ChatbotEvents))
 		}
-		if !observerEventAfter(snapshot.RagEvents,
-			baseline.RagEventTime, "QueryResponded", "ResolvingCollection", "Querying") {
-			return fmt.Errorf("rag0 has no newer ResolvingCollection -> Querying event")
+		ragEvent := observerEventAfter(snapshot.RagEvents,
+			baseline.RagEventTime, "QueryResponded", "ResolvingCollection", "Querying")
+		traceProof := false
+		var traceErr error
+		if !ragEvent {
+			traceProof, traceErr = observerTraceHasSpanSince(
+				collectorQueryURL, baseline.CapturedAt,
+				"chatbot", "execute_tool rag_query")
 		}
-		fmt.Printf("helmSwap: observer live-turn PASS - chatbot %s and rag0 query events advanced in fleet entry %d\n",
-			state, snapshot.EventsIteration)
+		if !ragEvent && !traceProof {
+			return fmt.Errorf(
+				"rag0 query has neither a retained fleet event nor a durable rag_query span: recent=%s trace=%v",
+				observerEventSummary(snapshot.RagEvents), traceErr)
+		}
+		evidence := "durable collector trace"
+		if ragEvent {
+			evidence = "retained query event"
+		}
+		fmt.Printf("helmSwap: observer live-turn PASS - chatbot %s advanced, rag0 query proven by %s in fleet entry %d\n",
+			state, evidence, snapshot.EventsIteration)
 		return nil
 	})
+}
+
+type observerTraceSummary struct {
+	TraceID     string    `json:"trace_id"`
+	RootService string    `json:"root_service"`
+	StartTime   time.Time `json:"start_time"`
+}
+
+type observerTraceList struct {
+	Traces   []observerTraceSummary `json:"traces"`
+	Total    int                    `json:"total"`
+	Offset   int                    `json:"offset"`
+	PageSize int                    `json:"page_size"`
+}
+
+type observerTraceDetail struct {
+	Spans []struct {
+		Service string `json:"service"`
+		Name    string `json:"name"`
+	} `json:"spans"`
+}
+
+// observerTraceHasSpanSince searches the collector's durable trace index for a
+// post-baseline chatbot span proving the RAG request completed. The held answer
+// boundary occurs after rag_query returns, so this persisted tool span backs up
+// the observer's bounded recent-event window without requiring request-machine
+// spans that the rag0 monitor does not export.
+func observerTraceHasSpanSince(
+	queryURL string,
+	after time.Time,
+	service string,
+	spanName string,
+) (bool, error) {
+	const pageSize = 100
+	client := &http.Client{Timeout: 5 * time.Second}
+	for offset := 0; ; offset += pageSize {
+		values := url.Values{
+			"offset":    {fmt.Sprint(offset)},
+			"page_size": {fmt.Sprint(pageSize)},
+		}
+		var list observerTraceList
+		if err := observerTraceGetJSON(client,
+			queryURL+"/query/traces?"+values.Encode(), &list); err != nil {
+			return false, err
+		}
+		reachedBaseline := false
+		for _, summary := range list.Traces {
+			if summary.StartTime.Before(after) {
+				reachedBaseline = true
+				continue
+			}
+			if summary.RootService != "chatbot" {
+				continue
+			}
+			var detail observerTraceDetail
+			if err := observerTraceGetJSON(client,
+				queryURL+"/query/traces/"+url.PathEscape(summary.TraceID), &detail); err != nil {
+				continue
+			}
+			for _, span := range detail.Spans {
+				if span.Service == service && span.Name == spanName {
+					return true, nil
+				}
+			}
+		}
+		if reachedBaseline || offset+len(list.Traces) >= list.Total ||
+			len(list.Traces) == 0 {
+			return false, fmt.Errorf(
+				"no post-baseline trace contains %s span %q (searched %d of %d)",
+				service, spanName, offset+len(list.Traces), list.Total)
+		}
+	}
+}
+
+func observerTraceGetJSON(client *http.Client, endpoint string, target interface{}) error {
+	resp, err := client.Get(endpoint)
+	if err != nil {
+		return err
+	}
+	defer func() { _ = resp.Body.Close() }()
+	if resp.StatusCode != http.StatusOK {
+		return fmt.Errorf("GET %s status %s", endpoint, resp.Status)
+	}
+	if err := json.NewDecoder(resp.Body).Decode(target); err != nil {
+		return fmt.Errorf("decode %s: %w", endpoint, err)
+	}
+	return nil
 }
 
 func waitObserverTurnSnapshot(
