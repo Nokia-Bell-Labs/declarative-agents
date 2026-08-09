@@ -4,6 +4,27 @@ Profile-driven runtime and design patterns for declarative, tool-augmented LLM a
 
 Most agent frameworks bind workflow logic to the code, so any loop change forces a binary rebuild. The YAML profile defines the agent — its tools, states, transitions, signals, budgets — and a single runtime executes whatever loop it receives. Altering the workflow is a configuration edit; a new agent needs no new binary. The companion white paper, *Design Patterns for Declarative Agents*, lists eleven patterns for building dependable agents this way.
 
+## Quickstart
+
+The quickest start is a packaged application from [`applications/`](applications/) — every subdirectory there is a runnable composition. This one starts the canonical documentation-curator and serves its UI, with Go and Mage as the only tools required:
+
+```bash
+cd applications/agent-architecture
+mage run
+```
+
+To validate and run one agent directly from its YAML profile:
+
+```bash
+cd agent-core
+mage build      # compiles cmd/ binaries into bin/
+export AGENT_CATALOG_ROOT=../applications/catalog
+bin/agent --profile "$AGENT_CATALOG_ROOT/agents/executor/profile.yaml" --validate-config
+bin/agent --profile "$AGENT_CATALOG_ROOT/agents/executor/profile.yaml" --core-root .
+```
+
+`--validate-config` reads the profile, machine, and tool definitions, then exits without serving — the same boot smoke the audit gates run over every shipped profile. Swap `executor` for any profile under [`applications/catalog/agents/`](applications/catalog/agents/).
+
 ## Modules
 
 | Directory | Description |
