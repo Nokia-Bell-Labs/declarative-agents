@@ -4,6 +4,7 @@ package main
 
 import (
 	"net"
+	"net/http"
 	"strings"
 	"testing"
 )
@@ -36,6 +37,33 @@ func TestControlPlaneBodyIsClean(t *testing.T) {
 		if controlPlaneBodyIsClean(body) {
 			t.Errorf("dirty[%d] %v should carry a transport-authority field", i, body)
 		}
+	}
+}
+
+func TestDynamicFakeDeploymentAPIStartsWhileDefaultPortIsOccupied(t *testing.T) {
+	reservation, err := net.Listen("tcp", cpDeploymentAPIAddr)
+	if err == nil {
+		defer func() { _ = reservation.Close() }()
+	} else {
+		// An ambient listener reproduces the release failure just as well as the
+		// reservation this test normally owns.
+		t.Logf("default port already occupied: %v", err)
+	}
+	stop, apiURL, err := startFakeDeploymentAPI(&deploymentAPIRecorder{})
+	if err != nil {
+		t.Fatal(err)
+	}
+	defer stop()
+	if strings.HasSuffix(apiURL, ":18090") {
+		t.Fatalf("dynamic fake API reused the production default: %s", apiURL)
+	}
+	resp, err := http.Get(apiURL + "/provisioning/api/state")
+	if err != nil {
+		t.Fatalf("dynamic fake API is unreachable: %v", err)
+	}
+	_ = resp.Body.Close()
+	if resp.StatusCode != http.StatusOK {
+		t.Errorf("dynamic fake API status = %d, want 200", resp.StatusCode)
 	}
 }
 

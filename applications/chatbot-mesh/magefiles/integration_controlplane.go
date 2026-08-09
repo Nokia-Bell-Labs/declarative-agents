@@ -70,23 +70,40 @@ func runControlPlaneIntegration(profilesRoot, coreRoot string) error {
 	}
 	defer func() { _ = os.Remove(binary) }()
 
-	// The fake deployment API records the creator's calls so the test can assert the
-	// authority boundary. The creator's default DEPLOYMENT_API_URL is this address.
+	// The fake deployment API records the creator's calls so the test can assert
+	// the authority boundary. It owns an ephemeral loopback port rather than the
+	// production applier default (:18090), so ambient listeners and other live
+	// integrations cannot make this proof fail (GH-1494).
 	rec := &deploymentAPIRecorder{}
-	stopAPI, err := startFakeDeploymentAPI(rec)
+	stopAPI, deploymentAPIURL, err := startFakeDeploymentAPI(rec)
 	if err != nil {
 		return fmt.Errorf("controlPlane requires fake deployment API: %w", err)
 	}
 	defer stopAPI()
+	_, deploymentAPIPort, err := net.SplitHostPort(
+		strings.TrimPrefix(deploymentAPIURL, "http://"))
+	if err != nil {
+		return fmt.Errorf("controlPlane fake deployment API URL %q: %w",
+			deploymentAPIURL, err)
+	}
 
-	// Start the creator first (the provisioning-workflow-orchestrator delegates to it). Its default
-	// CREATOR_URL/DEPLOYMENT_API_URL reach this test's ports, so no env is needed.
+	// Start the creator first (the provisioning-workflow-orchestrator delegates
+	// to it). The test supplies the fake URL through the creator's declared
+	// DEPLOYMENT_API_URL contract; the shipped default remains unchanged.
 	creatorTrace, creatorCleanup, err := chromaTraceFile("controlplane-creator")
 	if err != nil {
 		return err
 	}
 	defer creatorCleanup()
-	stopCreator, err := startDetachedAgent(binary, profilesRoot, coreRoot, "agents/creator/profile.yaml", creatorTrace)
+	stopCreator, err := startDetachedAgentWithEnv(agentLaunch{
+		Binary: binary, ProfilesRoot: profilesRoot, CoreRoot: coreRoot,
+		Profile: "agents/creator/profile.yaml", TracePath: creatorTrace,
+		Env: []string{
+			"DEPLOYMENT_API_URL=" + deploymentAPIURL,
+			"DEPLOYMENT_API_PORT=" + deploymentAPIPort,
+		},
+		GracefulWait: 15 * time.Second,
+	})
 	if err != nil {
 		return err
 	}
@@ -133,7 +150,10 @@ func runControlPlaneIntegration(profilesRoot, coreRoot string) error {
 		return fmt.Errorf("apply intent request failed: %w", err)
 	}
 	if status != http.StatusOK {
-		return fmt.Errorf("apply intent status = %d, want 200: %s", status, data)
+		return fmt.Errorf(
+			"apply intent status = %d, want 200: %s (deployment API %s calls apply=%d rollout=%d state=%d)",
+			status, data, deploymentAPIURL,
+			rec.applyCount(), rec.rolloutCount(), rec.stateCount())
 	}
 	var resp struct {
 		Status string `json:"status"`
@@ -285,12 +305,15 @@ func (r *deploymentAPIRecorder) endpointAuthorityField() string {
 	return r.badField
 }
 
-// startFakeDeploymentAPI binds the deployment API's default address (:18090, the
-// applier's apply port) and answers the apply and rollout paths the creator drives,
-// recording each call. It returns a
-// stop function, or an error if the port is already bound.
-func startFakeDeploymentAPI(rec *deploymentAPIRecorder) (func(), error) {
-	return startFakeDeploymentAPIOnAddr(rec, cpDeploymentAPIAddr)
+// startFakeDeploymentAPI binds an isolated loopback port and returns the URL the
+// creator under test must use. The production default remains :18090.
+func startFakeDeploymentAPI(rec *deploymentAPIRecorder) (func(), string, error) {
+	listener, err := net.Listen("tcp", "127.0.0.1:0")
+	if err != nil {
+		return nil, "", fmt.Errorf("bind dynamic fake deployment API: %w", err)
+	}
+	stop := serveFakeDeploymentAPI(rec, listener)
+	return stop, "http://" + listener.Addr().String(), nil
 }
 
 func startFakeDeploymentAPIOnAddr(rec *deploymentAPIRecorder, address string) (func(), error) {
@@ -298,6 +321,10 @@ func startFakeDeploymentAPIOnAddr(rec *deploymentAPIRecorder, address string) (f
 	if err != nil {
 		return nil, fmt.Errorf("bind fake deployment API on %s: %w", address, err)
 	}
+	return serveFakeDeploymentAPI(rec, listener), nil
+}
+
+func serveFakeDeploymentAPI(rec *deploymentAPIRecorder, listener net.Listener) func() {
 	mux := http.NewServeMux()
 	mux.HandleFunc("/provisioning/api/apply", func(w http.ResponseWriter, req *http.Request) {
 		var body map[string]interface{}
@@ -353,7 +380,7 @@ func startFakeDeploymentAPIOnAddr(rec *deploymentAPIRecorder, address string) (f
 	return func() {
 		_ = srv.Close()
 		_ = listener.Close()
-	}, nil
+	}
 }
 
 func writeJSON(w http.ResponseWriter, obj map[string]interface{}) {
