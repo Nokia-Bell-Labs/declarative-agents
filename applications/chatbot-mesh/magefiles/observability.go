@@ -46,6 +46,12 @@ var (
 	currentCollectorFingerprint = collectorSourceFingerprint
 	readCollectorFingerprint    = readSourceFingerprint
 	writeCollectorFingerprint   = writeSourceFingerprint
+	findUntrackedCollector      = discoverUntrackedCollector
+	requestCollectorExit        = postCollectorExit
+	collectorProcessAlive       = processAlive
+	terminateCollectorProcess   = terminateCollectorProcessGroup
+	collectorCommandOutput      = commandOutput
+	untrackedCollectorStopWait  = observabilityStopWait
 )
 
 // Observability runs the persistent collector-agent ingress as a host process.
@@ -216,22 +222,30 @@ func stopCollector() error {
 			return nil
 		}
 		// A healthy collector launched from another worktree has no PID in this
-		// checkout's state directory. Its lifecycle route is still authoritative,
-		// so stop it there and wait for the shared ports to close (GH-1492).
-		if err := postCollectorExit(); err != nil {
-			return fmt.Errorf("stop untracked collector ingress: %w", err)
+		// checkout's state directory. Verify that one collector process owns every
+		// shared listener before asking it to exit; this gives us a safe bounded
+		// signal fallback when an older lifecycle implementation accepts the
+		// request but remains alive (GH-1496).
+		pid, err := findUntrackedCollector()
+		if err != nil {
+			return fmt.Errorf("identify untracked collector ingress: %w", err)
 		}
-		deadline := time.Now().Add(observabilityStopWait)
+		if err := requestCollectorExit(); err != nil {
+			fmt.Printf("warning: untracked collector exit request failed (%v); signalling the verified process\n", err)
+			return terminateCollectorProcess(pid)
+		}
+		deadline := time.Now().Add(untrackedCollectorStopWait)
 		for time.Now().Before(deadline) {
-			if checkObservability() != nil {
+			if !collectorProcessAlive(pid) {
 				return nil
 			}
 			time.Sleep(250 * time.Millisecond)
 		}
-		return fmt.Errorf("untracked collector ingress remained healthy after %s",
-			observabilityStopWait)
+		fmt.Printf("warning: untracked collector pid %d remained alive after %s; signalling its process group\n",
+			pid, untrackedCollectorStopWait)
+		return terminateCollectorProcess(pid)
 	}
-	if err := postCollectorExit(); err != nil {
+	if err := requestCollectorExit(); err != nil {
 		fmt.Printf("warning: collector exit request failed (%v); signalling the process\n", err)
 	}
 	deadline := time.Now().Add(observabilityStopWait)
@@ -248,6 +262,81 @@ func stopCollector() error {
 		_ = syscall.Kill(-pid, syscall.SIGKILL)
 	}
 	return clearCollectorPid()
+}
+
+// discoverUntrackedCollector returns the single process that owns every
+// configured collector listener. It refuses ambiguous ownership and verifies
+// the process command before stopCollector is allowed to signal it.
+func discoverUntrackedCollector() (int, error) {
+	pid := 0
+	for _, port := range observabilityPorts() {
+		owners, err := listenerPIDs(port.value)
+		if err != nil {
+			return 0, fmt.Errorf("%s port %s: %w", port.name, port.value, err)
+		}
+		if len(owners) != 1 {
+			return 0, fmt.Errorf("%s port %s has %d listener owners, want one",
+				port.name, port.value, len(owners))
+		}
+		if pid != 0 && owners[0] != pid {
+			return 0, fmt.Errorf("collector listeners have different owners: pid %d and pid %d",
+				pid, owners[0])
+		}
+		pid = owners[0]
+	}
+	command, err := collectorCommandOutput("ps", "-p", strconv.Itoa(pid), "-o", "command=")
+	if err != nil {
+		return 0, fmt.Errorf("read pid %d command: %w", pid, err)
+	}
+	command = filepath.ToSlash(strings.TrimSpace(command))
+	if !strings.Contains(command, "--profile") ||
+		!strings.Contains(command, collectorProfileRel) {
+		return 0, fmt.Errorf("pid %d does not run the collector profile: %s", pid, command)
+	}
+	return pid, nil
+}
+
+func listenerPIDs(port string) ([]int, error) {
+	output, err := collectorCommandOutput("lsof", "-nP", "-t", "-iTCP:"+port, "-sTCP:LISTEN")
+	if err != nil {
+		return nil, fmt.Errorf("list listener processes: %w", err)
+	}
+	seen := make(map[int]struct{})
+	var pids []int
+	for _, line := range strings.Fields(output) {
+		pid, err := strconv.Atoi(line)
+		if err != nil {
+			return nil, fmt.Errorf("parse listener pid %q: %w", line, err)
+		}
+		if _, exists := seen[pid]; exists {
+			continue
+		}
+		seen[pid] = struct{}{}
+		pids = append(pids, pid)
+	}
+	sort.Ints(pids)
+	return pids, nil
+}
+
+func terminateCollectorProcessGroup(pid int) error {
+	if err := syscall.Kill(-pid, syscall.SIGTERM); err != nil && err != syscall.ESRCH {
+		return fmt.Errorf("terminate collector process group %d: %w", pid, err)
+	}
+	deadline := time.Now().Add(time.Second)
+	for time.Now().Before(deadline) {
+		if !processAlive(pid) {
+			return nil
+		}
+		time.Sleep(50 * time.Millisecond)
+	}
+	if err := syscall.Kill(-pid, syscall.SIGKILL); err != nil && err != syscall.ESRCH {
+		return fmt.Errorf("kill collector process group %d: %w", pid, err)
+	}
+	time.Sleep(50 * time.Millisecond)
+	if processAlive(pid) {
+		return fmt.Errorf("collector process group %d remained alive after SIGKILL", pid)
+	}
+	return nil
 }
 
 func postCollectorExit() error {
