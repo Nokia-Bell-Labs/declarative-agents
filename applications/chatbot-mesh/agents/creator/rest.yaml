@@ -17,7 +17,9 @@ rest:
         # sets PROVISIONER_HOST to the provisioner Service DNS name, defaulting to
         # loopback locally.
         hosts: [${PROVISIONER_HOST:-127.0.0.1}]
-        ports: [18090]
+        # The production chart leaves this at 18090. Integrations may allocate an
+        # isolated fake API port through the same declared child contract.
+        ports: [${DEPLOYMENT_API_PORT:-18090}]
     local_chroma_client:
       # The creator reads the collection count before and after the child to report
       # that run's contribution (srd005 R3.1). Read-only: the corpus-ingest child
