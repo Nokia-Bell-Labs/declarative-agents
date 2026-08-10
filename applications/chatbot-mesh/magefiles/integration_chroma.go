@@ -32,6 +32,7 @@ const (
 	chromaReuseProbeTimeout = 2 * time.Second
 	ollamaVersionURL        = "http://127.0.0.1:11434/api/version"
 	ollamaTagsURL           = "http://127.0.0.1:11434/api/tags"
+	ollamaProcessesURL      = "http://127.0.0.1:11434/api/ps"
 )
 
 // Chroma proves the corpus-ingest profile against a live Chroma server run from
@@ -49,7 +50,8 @@ func (Integration) Chroma() error {
 	if err := requireProfilePaths(profilesRoot, chromaIngestProfile, corpusRestAsset); err != nil {
 		return err
 	}
-	requiredModels, err := chromaRequiredModels(profilesRoot)
+	chatModel := demoChromaIntegrationChatModel(profilesRoot)
+	requiredModels, err := chromaRequiredModelsForChat(profilesRoot, chatModel)
 	if err != nil {
 		return fmt.Errorf("invalid shipped Chroma model config: %w", err)
 	}
@@ -61,7 +63,7 @@ func (Integration) Chroma() error {
 		fmt.Println("SKIP chroma: docker not found on PATH")
 		return nil
 	}
-	return runChromaIntegration(profilesRoot, coreRoot)
+	return runChromaIntegration(profilesRoot, coreRoot, chatModel)
 }
 
 // Seed loads the application corpus into a running Chroma through the mesh wrapper
@@ -99,7 +101,7 @@ func Seed() error {
 		return err
 	}
 	defer func() { _ = os.Remove(binary) }()
-	if err := runChromaIngest(binary, profilesRoot, coreRoot); err != nil {
+	if err := runChromaIngest(binary, profilesRoot, coreRoot, ""); err != nil {
 		return err
 	}
 	fmt.Println("seed: corpus ingested into Chroma")
@@ -127,15 +129,24 @@ func chromaOllamaSkipReasonForModels(required []string) string {
 // the profile's declarations. Reading them from the config keeps it the single
 // source of truth for the skip gate.
 func chromaRequiredModels(profilesRoot string) ([]string, error) {
+	return chromaRequiredModelsForChat(profilesRoot, "")
+}
+
+func chromaRequiredModelsForChat(
+	profilesRoot, selectedChatModel string,
+) ([]string, error) {
 	set := map[string]bool{}
 	embed, err := chromaEmbedModelFromConfig(profilesRoot)
 	if err != nil {
 		return nil, err
 	}
 	set[embed] = true
-	chat, err := chromaChatModelFromConfig(profilesRoot, "corpus-ingest")
-	if err != nil {
-		return nil, err
+	chat := strings.TrimSpace(selectedChatModel)
+	if chat == "" {
+		chat, err = chromaChatModelFromConfig(profilesRoot, "corpus-ingest")
+		if err != nil {
+			return nil, err
+		}
 	}
 	set[chat] = true
 	models := make([]string, 0, len(set))
@@ -259,7 +270,7 @@ func fetchChromaOllamaModels() ([]string, error) {
 	return names, nil
 }
 
-func runChromaIntegration(profilesRoot, coreRoot string) error {
+func runChromaIntegration(profilesRoot, coreRoot, chatModel string) error {
 	binary, err := buildAgent(coreRoot)
 	if err != nil {
 		return err
@@ -274,7 +285,7 @@ func runChromaIntegration(profilesRoot, coreRoot string) error {
 		return err
 	}
 	defer stopChromaContainer(containerID)
-	if err := runChromaIngest(binary, profilesRoot, coreRoot); err != nil {
+	if err := runChromaIngest(binary, profilesRoot, coreRoot, chatModel); err != nil {
 		return err
 	}
 	fmt.Println("integration:chroma PASS - ingest loaded the corpus and the collection count verified documents were written")
@@ -354,7 +365,7 @@ func stopChromaContainer(containerID string) {
 	_ = exec.Command("docker", "rm", "-f", containerID).Run()
 }
 
-func runChromaIngest(binary, profilesRoot, coreRoot string) error {
+func runChromaIngest(binary, profilesRoot, coreRoot, chatModel string) error {
 	corpusDir := filepath.Join(profilesRoot, chromaCorpusFixture, "corpus")
 	ingestTimeout := demoChromaIngestTimeout(profilesRoot)
 	runtimeRoot, cleanupRuntime, err := stageCorpusIngestRuntime(profilesRoot)
@@ -368,8 +379,15 @@ func runChromaIngest(binary, profilesRoot, coreRoot string) error {
 	}
 	defer cleanup()
 	profile := filepath.Join(runtimeRoot, chromaIngestProfile)
-	if err := runChromaAgent(binary, runtimeRoot, coreRoot, profile, corpusDir, trace, ingestTimeout); err != nil {
-		return fmt.Errorf("chroma ingest run failed: %w", err)
+	if err := runChromaAgent(
+		binary, runtimeRoot, coreRoot, profile, corpusDir, trace, ingestTimeout,
+		chatModel); err != nil {
+		model := strings.TrimSpace(chatModel)
+		if model == "" {
+			model = "profile default"
+		}
+		return fmt.Errorf("chroma ingest run failed with chat model %q: %w\n%s",
+			model, err, chromaOllamaProcessDiagnostics())
 	}
 	if err := assertChromaIngestTrace(trace); err != nil {
 		return err
@@ -418,7 +436,11 @@ func stageCorpusIngestRuntime(meshRoot string) (string, func(), error) {
 	return stage, cleanup, nil
 }
 
-func runChromaAgent(binary, profilesRoot, coreRoot, profile, directory, tracePath string, timeout time.Duration) error {
+func runChromaAgent(
+	binary, profilesRoot, coreRoot, profile, directory, tracePath string,
+	timeout time.Duration,
+	chatModel string,
+) error {
 	args := []string{
 		"--profile", profile,
 		"--directory", directory,
@@ -432,12 +454,77 @@ func runChromaAgent(binary, profilesRoot, coreRoot, profile, directory, tracePat
 		func(ctx context.Context) ([]byte, error) {
 			cmd := exec.CommandContext(ctx, binary, append(args, telemetryArgs...)...)
 			cmd.Dir = profilesRoot
-			cmd.Env = append(os.Environ(), resourceEnv)
+			cmd.Env = chromaChildEnvironment(
+				os.Environ(), resourceEnv, strings.TrimSpace(chatModel))
 			// CombinedOutput calls Wait after CommandContext kills the child, so
 			// timeout reporting cannot race process reaping or runtime cleanup.
 			return cmd.CombinedOutput()
 		},
 	)
+}
+
+func chromaChildEnvironment(
+	inherited []string,
+	resourceEnv, chatModel string,
+) []string {
+	overrides := map[string]string{
+		"OTEL_RESOURCE_ATTRIBUTES": resourceEnv,
+	}
+	if chatModel != "" {
+		overrides["CORPUS_CHAT_MODEL"] = "CORPUS_CHAT_MODEL=" + chatModel
+	}
+	environment := make([]string, 0, len(inherited)+len(overrides))
+	for _, entry := range inherited {
+		key, _, _ := strings.Cut(entry, "=")
+		if _, replaced := overrides[key]; replaced {
+			continue
+		}
+		environment = append(environment, entry)
+	}
+	environment = append(environment, resourceEnv)
+	if chatModel != "" {
+		environment = append(environment, "CORPUS_CHAT_MODEL="+chatModel)
+	}
+	return environment
+}
+
+func chromaOllamaProcessDiagnostics() string {
+	client := &http.Client{Timeout: 2 * time.Second}
+	response, err := client.Get(ollamaProcessesURL)
+	if err != nil {
+		return fmt.Sprintf("Ollama loaded-model diagnostics unavailable: %v", err)
+	}
+	defer func() { _ = response.Body.Close() }()
+	if response.StatusCode != http.StatusOK {
+		return fmt.Sprintf("Ollama loaded-model diagnostics returned %s",
+			response.Status)
+	}
+	var result struct {
+		Models []struct {
+			Name          string `json:"name"`
+			Model         string `json:"model"`
+			ContextLength int    `json:"context_length"`
+			SizeVRAM      int64  `json:"size_vram"`
+		} `json:"models"`
+	}
+	if err := json.NewDecoder(response.Body).Decode(&result); err != nil {
+		return fmt.Sprintf("Ollama loaded-model diagnostics could not decode: %v",
+			err)
+	}
+	if len(result.Models) == 0 {
+		return "Ollama loaded models: none"
+	}
+	details := make([]string, 0, len(result.Models))
+	for _, model := range result.Models {
+		name := model.Name
+		if name == "" {
+			name = model.Model
+		}
+		details = append(details, fmt.Sprintf(
+			"%s(context=%d,vram=%d)", name, model.ContextLength, model.SizeVRAM))
+	}
+	sort.Strings(details)
+	return "Ollama loaded models: " + strings.Join(details, ", ")
 }
 
 // chromaAgentRun is the context-aware command boundary for the canonical ingest.
