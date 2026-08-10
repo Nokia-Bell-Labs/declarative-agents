@@ -215,64 +215,75 @@ func runApplierLive(coreRoot, profilesRoot string) (result error) {
 	if err != nil {
 		return err
 	}
+	commands, cleanupCommands, err := kindrig.ClusterCommands(
+		kindrig.CaptureRun, cluster.Name)
+	if err != nil {
+		cluster.Release(kindrig.DefaultRun)
+		return err
+	}
+	contextRun := applierLiveCommandRunner(commands.RunContext)
 	evidenceDir := helmScenarioEvidenceDirectory(
 		profilesRoot, applierLiveCluster, images.Revision)
-	var unbindKubeconfig func()
 	defer func() {
 		failed := result != nil
 		if failed && cluster.Created {
 			diagnostics := captureApplierLiveDiagnostics(
-				evidenceDir, runApplierLiveCommand, applierLiveDiagnosticsTimeout)
+				evidenceDir, contextRun, applierLiveDiagnosticsTimeout)
 			result = fmt.Errorf("%w\n%s", result, diagnostics)
 		}
-		cluster.ReleaseAfter(kindrig.DefaultRun, failed, kindrig.FailureEvidence{
+		cluster.ReleaseAfter(commands.KindRun, failed, kindrig.FailureEvidence{
 			Directory:  evidenceDir,
 			Namespaces: []string{"default"},
-			Run:        boundedHelmEvidenceRunner(helmEvidenceCommandTimeout),
+			Run: boundedHelmEvidenceRunnerWith(
+				helmDiagnosticRunner(commands.RunContext), helmEvidenceCommandTimeout),
 		})
-		if unbindKubeconfig != nil {
-			unbindKubeconfig()
-		}
+		cleanupCommands()
 	}()
-	unbindKubeconfig, err = bindClusterKubeconfig(applierLiveCluster)
-	if err != nil {
-		return err
-	}
 
-	if err := loadKindImage(applierLiveCluster, images.Applier); err != nil {
+	if err := loadKindImageWithCommands(
+		commands, applierLiveCluster, images.Applier); err != nil {
 		return err
 	}
-	if err := loadKindImage(applierLiveCluster, images.Runtime); err != nil {
+	if err := loadKindImageWithCommands(
+		commands, applierLiveCluster, images.Runtime); err != nil {
 		return err
 	}
 	for _, image := range dependencyImages {
-		if err := loadSmokeDependencyImage(applierLiveCluster, image); err != nil {
+		if err := loadSmokeDependencyImageWithCommands(
+			commands, applierLiveCluster, image); err != nil {
 			return err
 		}
 	}
 
-	if err := helmInstallApplierLive(staged, chartArchive, images.Runtime, images.Applier, assets); err != nil {
+	if err := helmInstallApplierLive(
+		commands.Run, staged, chartArchive, images.Runtime, images.Applier, assets); err != nil {
 		return err
 	}
 	// Check the object the API server actually accepted before readiness can
 	// obscure a release-storage regression behind a Deployment timeout.
-	if err := assertHelmReleaseSecrets(applierLiveRelease, chartArchive, assets); err != nil {
+	if err := assertHelmReleaseSecretsWithRunner(
+		commands.Run, applierLiveRelease, chartArchive, assets); err != nil {
 		return err
 	}
 	if err := waitApplierLiveInitialReadiness(
-		runApplierLiveCommand, waitApplierDeploymentReady); err != nil {
+		contextRun, func() error {
+			return waitApplierDeploymentReady(commands.Run)
+		}); err != nil {
 		return err
 	}
-	if err := assertExternalUIAssetsMounted(applierLiveRelease, assets, applierReadyWait); err != nil {
+	if err := assertExternalUIAssetsMountedWithRunner(
+		commands.Run, applierLiveRelease, assets, applierReadyWait); err != nil {
 		return err
 	}
-	if err := assertHelmReleaseSecrets(applierLiveRelease, chartArchive, assets); err != nil {
+	if err := assertHelmReleaseSecretsWithRunner(
+		commands.Run, applierLiveRelease, chartArchive, assets); err != nil {
 		return err
 	}
-	if err := assertApplierServesItsSurface(profilesRoot); err != nil {
+	if err := assertApplierServesItsSurface(commands, profilesRoot); err != nil {
 		return err
 	}
-	if err := assertHelmReleaseSecrets(applierLiveRelease, chartArchive, assets); err != nil {
+	if err := assertHelmReleaseSecretsWithRunner(
+		commands.Run, applierLiveRelease, chartArchive, assets); err != nil {
 		return err
 	}
 	fmt.Printf("integration:applierLive PASS - revision %s the applier runs on kind from an image built on the runtime "+
@@ -322,6 +333,7 @@ const applierLiveChartConfigMap = applierLiveRelease + "-applier-chart"
 // (values plus a rendered binaryData ConfigMap) stored it twice and overflowed
 // (GH-1407). This mirrors the GH-1402 curator-UI shard provisioning.
 func helmInstallApplierLive(
+	run helmLLMCommandRunner,
 	chartPath, chartArchive, runtimeImage, applierImage string,
 	assets []externalUIAsset,
 ) error {
@@ -332,21 +344,20 @@ func helmInstallApplierLive(
 		return err
 	}
 	fmt.Printf("applierLive: release budget PASS - %s\n", measured.String())
-	if err := provisionApplierChartConfigMap(chartArchive); err != nil {
+	if err := provisionApplierChartConfigMap(run, chartArchive); err != nil {
 		return err
 	}
 	for _, asset := range assets {
-		if err := provisionExternalUIAsset(asset); err != nil {
+		if err := provisionExternalUIAssetWithRunner(run, asset); err != nil {
 			return err
 		}
 	}
 	args := append([]string{"install", applierLiveRelease, chartPath},
 		valueArgs...)
 	args = append(args, "--timeout", helmInstallTimeout.String())
-	cmd := exec.Command("helm", args...)
-	cmd.Stdout, cmd.Stderr = os.Stderr, os.Stderr
-	if err := cmd.Run(); err != nil {
-		return fmt.Errorf("helm install %s: %w", applierLiveRelease, err)
+	if out, err := run("helm", args...); err != nil {
+		return fmt.Errorf("helm install %s: %w: %s",
+			applierLiveRelease, err, strings.TrimSpace(string(out)))
 	}
 	return nil
 }
@@ -382,17 +393,19 @@ func applierLiveValueArgs(
 // in a last-applied-configuration annotation, and the base64 chart tarball
 // (~0.5 MiB) blows past the 256 KiB annotation limit. A pre-delete keeps it
 // idempotent when the kind cluster is reused.
-func provisionApplierChartConfigMap(chartArchive string) error {
-	del := exec.Command("kubectl", "delete", "configmap", applierLiveChartConfigMap, "--ignore-not-found")
-	del.Stdout, del.Stderr = os.Stderr, os.Stderr
-	if err := del.Run(); err != nil {
-		return fmt.Errorf("clear stale applier chart ConfigMap %s: %w", applierLiveChartConfigMap, err)
+func provisionApplierChartConfigMap(
+	run helmLLMCommandRunner,
+	chartArchive string,
+) error {
+	if out, err := run(
+		"kubectl", "delete", "configmap", applierLiveChartConfigMap, "--ignore-not-found"); err != nil {
+		return fmt.Errorf("clear stale applier chart ConfigMap %s: %w: %s",
+			applierLiveChartConfigMap, err, strings.TrimSpace(string(out)))
 	}
-	create := exec.Command("kubectl", "create", "configmap", applierLiveChartConfigMap,
-		"--from-file=chart.tgz="+chartArchive)
-	create.Stdout, create.Stderr = os.Stderr, os.Stderr
-	if err := create.Run(); err != nil {
-		return fmt.Errorf("create applier chart ConfigMap %s: %w", applierLiveChartConfigMap, err)
+	if out, err := run("kubectl", "create", "configmap", applierLiveChartConfigMap,
+		"--from-file=chart.tgz="+chartArchive); err != nil {
+		return fmt.Errorf("create applier chart ConfigMap %s: %w: %s",
+			applierLiveChartConfigMap, err, strings.TrimSpace(string(out)))
 	}
 	return nil
 }
@@ -401,13 +414,12 @@ func provisionApplierChartConfigMap(chartArchive string) error {
 // use --wait: the chatbot needs an LLM this tier does not require, so blocking on
 // the whole mesh would make the applier's own readiness depend on something
 // unrelated to it.
-func waitApplierDeploymentReady() error {
+func waitApplierDeploymentReady(run helmLLMCommandRunner) error {
 	deployment := "deployment/" + applierLiveRelease + "-chatbot-mesh-applier"
-	cmd := exec.Command("kubectl", "rollout", "status", deployment,
-		"--timeout", applierReadyWait.String())
-	cmd.Stdout, cmd.Stderr = os.Stderr, os.Stderr
-	if err := cmd.Run(); err != nil {
-		return fmt.Errorf("the applier Deployment never became ready: %w", err)
+	if out, err := run("kubectl", "rollout", "status", deployment,
+		"--timeout", applierReadyWait.String()); err != nil {
+		return fmt.Errorf("the applier Deployment never became ready: %w: %s",
+			err, strings.TrimSpace(string(out)))
 	}
 	return nil
 }
@@ -578,8 +590,12 @@ const applierDeclaredHelmMajor = "3"
 // the rollout read runs two kubectl words against the cluster's own API, using
 // the ServiceAccount the chart binds, so a working read is evidence about RBAC,
 // the kubeconfig the pod gets, and the counts word's go-template all at once.
-func assertApplierServesItsSurface(profilesRoot string) error {
-	stop, err := kubectlPortForward("svc/"+applierLiveRelease+"-chatbot-mesh-applier", 18090, 18091)
+func assertApplierServesItsSurface(
+	commands kindrig.Commands,
+	profilesRoot string,
+) error {
+	stop, err := kubectlPortForwardWithCommands(
+		commands, "svc/"+applierLiveRelease+"-chatbot-mesh-applier", 18090, 18091)
 	if err != nil {
 		return err
 	}
@@ -600,16 +616,23 @@ func assertApplierServesItsSurface(profilesRoot string) error {
 
 	// The apply path, which is what the fake-CLI tracer cannot reach: a real
 	// helm upgrade against a real release (GH-747).
-	if err := runApplierLiveApplyStep(runApplierLiveCommand, "upgrade",
-		func() error { return assertLiveApplyChangesTheRelease(profilesRoot) }); err != nil {
+	contextRun := applierLiveCommandRunner(commands.RunContext)
+	if err := runApplierLiveApplyStep(contextRun, "upgrade",
+		func() error {
+			return assertLiveApplyChangesTheRelease(commands.Run, profilesRoot)
+		}); err != nil {
 		return err
 	}
-	if err := runApplierLiveApplyStep(runApplierLiveCommand, "rollback",
-		func() error { return assertLiveRollbackRestoresTheRelease(profilesRoot) }); err != nil {
+	if err := runApplierLiveApplyStep(contextRun, "rollback",
+		func() error {
+			return assertLiveRollbackRestoresTheRelease(commands.Run, profilesRoot)
+		}); err != nil {
 		return err
 	}
-	if err := runApplierLiveApplyStep(runApplierLiveCommand, "schema rejection",
-		func() error { return assertLiveSchemaRejection(profilesRoot) }); err != nil {
+	if err := runApplierLiveApplyStep(contextRun, "schema rejection",
+		func() error {
+			return assertLiveSchemaRejection(commands.Run, profilesRoot)
+		}); err != nil {
 		return err
 	}
 
@@ -666,8 +689,11 @@ func assertLiveRolloutBody(body []byte, status int) error {
 // revision -- the applier's helm_upgrade ran in-cluster against the release,
 // re-rendering the co-generated topology (srd006 R2.2), so a revision that did
 // not move means nothing was applied whatever the response said.
-func assertLiveApplyChangesTheRelease(profilesRoot string) error {
-	before, err := helmReleaseRevision(applierLiveRelease)
+func assertLiveApplyChangesTheRelease(
+	run helmLLMCommandRunner,
+	profilesRoot string,
+) error {
+	before, err := helmReleaseRevision(run, applierLiveRelease)
 	if err != nil {
 		return err
 	}
@@ -688,7 +714,7 @@ func assertLiveApplyChangesTheRelease(profilesRoot string) error {
 		return fmt.Errorf("apply did not report applied: %s", body)
 	}
 
-	after, err := helmReleaseRevision(applierLiveRelease)
+	after, err := helmReleaseRevision(run, applierLiveRelease)
 	if err != nil {
 		return err
 	}
@@ -709,12 +735,15 @@ func assertLiveApplyChangesTheRelease(profilesRoot string) error {
 // Helm rollback creates a new release revision; it does not move the revision
 // number backwards. Restoration is proved by comparing the computed release
 // values and by waiting for the chatbot Deployment to become ready again.
-func assertLiveRollbackRestoresTheRelease(profilesRoot string) error {
-	beforeRevision, err := helmReleaseRevision(applierLiveRelease)
+func assertLiveRollbackRestoresTheRelease(
+	run helmLLMCommandRunner,
+	profilesRoot string,
+) error {
+	beforeRevision, err := helmReleaseRevision(run, applierLiveRelease)
 	if err != nil {
 		return err
 	}
-	beforeValues, err := helmReleaseValues(applierLiveRelease)
+	beforeValues, err := helmReleaseValues(run, applierLiveRelease)
 	if err != nil {
 		return err
 	}
@@ -737,7 +766,7 @@ func assertLiveRollbackRestoresTheRelease(profilesRoot string) error {
 		}
 	}
 
-	afterRevision, err := helmReleaseRevision(applierLiveRelease)
+	afterRevision, err := helmReleaseRevision(run, applierLiveRelease)
 	if err != nil {
 		return err
 	}
@@ -745,7 +774,7 @@ func assertLiveRollbackRestoresTheRelease(profilesRoot string) error {
 		return fmt.Errorf("release revision moved from %d to %d, want an upgrade and a rollback revision",
 			beforeRevision, afterRevision)
 	}
-	afterValues, err := helmReleaseValues(applierLiveRelease)
+	afterValues, err := helmReleaseValues(run, applierLiveRelease)
 	if err != nil {
 		return err
 	}
@@ -757,8 +786,8 @@ func assertLiveRollbackRestoresTheRelease(profilesRoot string) error {
 	}
 
 	deployment := "deployment/" + applierLiveRelease + "-chatbot-mesh-chatbot"
-	cmd := exec.Command("kubectl", "rollout", "status", deployment, "--timeout", applierReadyWait.String())
-	if out, err := cmd.CombinedOutput(); err != nil {
+	if out, err := run(
+		"kubectl", "rollout", "status", deployment, "--timeout", applierReadyWait.String()); err != nil {
 		return fmt.Errorf("chatbot Deployment did not recover after rollback: %w\n%s", err, out)
 	}
 	fmt.Printf("applierLive: real helm rollback restored revision %d values in new revision %d and recovered the chatbot\n",
@@ -769,8 +798,11 @@ func assertLiveRollbackRestoresTheRelease(profilesRoot string) error {
 // assertLiveSchemaRejection closes the loop GH-732 opened with a local dry-run:
 // the same non-conforming document, now against a real release on a cluster.
 // The release must not move -- a rejected patch applies nothing (srd006 R2.1).
-func assertLiveSchemaRejection(profilesRoot string) error {
-	before, err := helmReleaseRevision(applierLiveRelease)
+func assertLiveSchemaRejection(
+	run helmLLMCommandRunner,
+	profilesRoot string,
+) error {
+	before, err := helmReleaseRevision(run, applierLiveRelease)
 	if err != nil {
 		return err
 	}
@@ -788,7 +820,7 @@ func assertLiveSchemaRejection(profilesRoot string) error {
 	if !strings.Contains(string(body), "validate_rejected") {
 		return fmt.Errorf("the rejection did not report validate_rejected: %s", body)
 	}
-	after, err := helmReleaseRevision(applierLiveRelease)
+	after, err := helmReleaseRevision(run, applierLiveRelease)
 	if err != nil {
 		return err
 	}
@@ -819,8 +851,8 @@ func applierValuesPatch(profilesRoot, fixture string) (string, error) {
 
 // helmReleaseRevision reads the release's current revision, which is what a real
 // upgrade moves and a rejected patch leaves alone.
-func helmReleaseRevision(release string) (int, error) {
-	out, err := exec.Command("helm", "get", "metadata", release, "-o", "json").CombinedOutput()
+func helmReleaseRevision(run helmLLMCommandRunner, release string) (int, error) {
+	out, err := run("helm", "get", "metadata", release, "-o", "json")
 	if err != nil {
 		return 0, fmt.Errorf("helm get metadata %s: %w\n%s", release, err, out)
 	}
@@ -835,8 +867,11 @@ func helmReleaseRevision(release string) (int, error) {
 
 // helmReleaseValues reads the fully computed values so a rollback is compared
 // by released state, not by its ever-increasing numeric revision.
-func helmReleaseValues(release string) (map[string]any, error) {
-	out, err := exec.Command("helm", "get", "values", release, "--all", "-o", "json").CombinedOutput()
+func helmReleaseValues(
+	run helmLLMCommandRunner,
+	release string,
+) (map[string]any, error) {
+	out, err := run("helm", "get", "values", release, "--all", "-o", "json")
 	if err != nil {
 		return nil, fmt.Errorf("helm get values %s: %w\n%s", release, err, out)
 	}

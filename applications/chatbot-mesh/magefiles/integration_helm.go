@@ -85,30 +85,6 @@ func loadKindImageWithCommands(
 	return kindrig.LoadImage(ctx, commands.KindRunContext, cluster, image)
 }
 
-func loadKindImage(cluster, image string) error {
-	ctx, cancel := context.WithTimeout(context.Background(), helmImageLoadTimeout)
-	defer cancel()
-	return kindrig.LoadImage(ctx, kindrig.DefaultRunContext, cluster, image)
-}
-
-// bindClusterKubeconfig pins every subsequent Helm/kubectl/port-forward
-// subprocess to the named kind cluster's own kubeconfig. Because EnsureCluster
-// reuses a pre-existing cluster without switching contexts, and the raw kubectl
-// and helm invocations here inherit the ambient environment, an unrelated
-// current context could otherwise be the target of a live mutation (GH-1341).
-// The returned cleanup restores the prior KUBECONFIG and removes the temp file.
-func bindClusterKubeconfig(cluster string) (func(), error) {
-	path, cleanup, err := kindrig.Kubeconfig(kindrig.CaptureRun, cluster)
-	if err != nil {
-		return nil, err
-	}
-	restore := kindrig.BindKubeconfig(path)
-	return func() {
-		restore()
-		cleanup()
-	}, nil
-}
-
 // HelmSmoke deploys the chatbot-mesh chart on a disposable kind cluster with the
 // ci values and proves the mesh stands up, serves a chat turn, and exports spans
 // from more than one service. It gates on docker, kind, helm, and kubectl and on
@@ -651,33 +627,6 @@ func loadSmokeDependencyImageWithCommands(
 	return nil
 }
 
-func loadSmokeDependencyImage(cluster, image string) error {
-	save := exec.Command("docker", "save", image)
-	stream, err := save.StdoutPipe()
-	if err != nil {
-		return err
-	}
-	node := cluster + "-control-plane"
-	load := exec.Command("docker", "exec", "-i", node, "ctr", "--namespace=k8s.io",
-		"images", "import", "--platform=linux/"+runtime.GOARCH, "--snapshotter=overlayfs", "-")
-	load.Stdin = stream
-	var output bytes.Buffer
-	load.Stdout, load.Stderr = &output, &output
-	if err := load.Start(); err != nil {
-		return err
-	}
-	if err := save.Run(); err != nil {
-		_ = load.Process.Kill()
-		_ = load.Wait()
-		return fmt.Errorf("save smoke dependency %s: %w", image, err)
-	}
-	if err := load.Wait(); err != nil {
-		return fmt.Errorf("load smoke dependency %s: %w: %s",
-			image, err, strings.TrimSpace(output.String()))
-	}
-	return nil
-}
-
 // buildSmokeRuntimeImage builds the linux agent binary from the local agent-core
 // checkout and bakes it into a minimal runtime image tagged for kind, so the
 // smoke test runs the code under test rather than a published image. The image
@@ -876,24 +825,6 @@ func kubectlPortForwardWithCommands(
 		args = append(args, fmt.Sprintf("%d:%d", p, p))
 	}
 	cmd := commands.Command("kubectl", args...)
-	cmd.Stdout, cmd.Stderr = os.Stderr, os.Stderr
-	if err := cmd.Start(); err != nil {
-		return nil, fmt.Errorf("kubectl port-forward %s: %w", target, err)
-	}
-	return func() {
-		if cmd.Process != nil {
-			_ = cmd.Process.Kill()
-		}
-		_ = cmd.Wait()
-	}, nil
-}
-
-func kubectlPortForward(target string, ports ...int) (func(), error) {
-	args := []string{"port-forward", target}
-	for _, p := range ports {
-		args = append(args, fmt.Sprintf("%d:%d", p, p))
-	}
-	cmd := exec.Command("kubectl", args...)
 	cmd.Stdout, cmd.Stderr = os.Stderr, os.Stderr
 	if err := cmd.Start(); err != nil {
 		return nil, fmt.Errorf("kubectl port-forward %s: %w", target, err)

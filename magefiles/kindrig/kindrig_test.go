@@ -610,6 +610,23 @@ func TestKubeconfigRejectsEmptyAndErrors(t *testing.T) {
 	}
 }
 
+func TestKubeconfigKindOutputIsPrivate(t *testing.T) {
+	for _, test := range []struct {
+		args    []string
+		private bool
+	}{
+		{[]string{"get", "kubeconfig", "--name", "demo"}, true},
+		{[]string{"get", "clusters"}, false},
+		{[]string{"create", "cluster", "--name", "demo"}, false},
+		{[]string{"export", "logs", "/tmp/logs", "--name", "demo"}, false},
+	} {
+		if got := privateKindOutput(test.args); got != test.private {
+			t.Errorf("privateKindOutput(%v) = %t, want %t",
+				test.args, got, test.private)
+		}
+	}
+}
+
 func TestCommandsForKubeconfigDecoratesOnlyChildren(t *testing.T) {
 	t.Setenv("KUBECONFIG", "/ambient/context")
 	commands, err := CommandsForKubeconfig("/cluster/config")
@@ -654,20 +671,6 @@ func TestCommandsExecuteWithBoundKubeconfig(t *testing.T) {
 	if got := os.Getenv("KUBECONFIG"); got != "/ambient/context" {
 		t.Fatalf("parent KUBECONFIG = %q after child, want ambient value", got)
 	}
-}
-
-func TestBindKubeconfigCompatibilitySetsAndRestores(t *testing.T) {
-	t.Run("restores a prior value", func(t *testing.T) {
-		t.Setenv("KUBECONFIG", "/ambient/context")
-		restore := BindKubeconfig("/cluster/config")
-		if got := os.Getenv("KUBECONFIG"); got != "/cluster/config" {
-			t.Fatalf("KUBECONFIG = %q, want /cluster/config", got)
-		}
-		restore()
-		if got := os.Getenv("KUBECONFIG"); got != "/ambient/context" {
-			t.Fatalf("restored KUBECONFIG = %q, want /ambient/context", got)
-		}
-	})
 }
 
 // TestReusedClusterCommandsIgnoreAmbientContext is the isolation regression:

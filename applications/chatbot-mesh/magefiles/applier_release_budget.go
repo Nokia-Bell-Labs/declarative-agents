@@ -428,10 +428,6 @@ func provisionExternalUIAssetWithRunner(
 	return nil
 }
 
-func provisionExternalUIAsset(asset externalUIAsset) error {
-	return provisionExternalUIAssetWithRunner(runHelmSmokeCommand, asset)
-}
-
 func assertExternalUIAssetsMountedWithRunner(
 	run helmLLMCommandRunner,
 	releaseName string,
@@ -468,15 +464,6 @@ func assertExternalUIAssetsMountedWithRunner(
 			releaseName, asset.Component, len(asset.Files), asset.Checksum)
 	}
 	return nil
-}
-
-func assertExternalUIAssetsMounted(
-	releaseName string,
-	assets []externalUIAsset,
-	readyWait time.Duration,
-) error {
-	return assertExternalUIAssetsMountedWithRunner(
-		runHelmSmokeCommand, releaseName, assets, readyWait)
 }
 
 func assertAssetContainerStable(
@@ -546,14 +533,6 @@ func assertHelmReleaseSecretsWithRunner(
 	fmt.Printf("%s: %d Helm release Secrets checked; largest data.release=%d bytes, margin=%d bytes\n",
 		releaseName, count, largest, kubernetesSecretLimit-largest)
 	return nil
-}
-
-func assertHelmReleaseSecrets(
-	releaseName, chartArchive string,
-	assets []externalUIAsset,
-) error {
-	return assertHelmReleaseSecretsWithRunner(
-		runHelmSmokeCommand, releaseName, chartArchive, assets)
 }
 
 func inspectHelmReleaseSecrets(

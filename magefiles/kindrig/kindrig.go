@@ -110,6 +110,9 @@ func (c Commands) KindRunContext(
 	args ...string,
 ) ([]byte, error) {
 	cmd := c.CommandContext(ctx, "kind", args...)
+	if privateKindOutput(args) {
+		return cmd.CombinedOutput()
+	}
 	var buf bytes.Buffer
 	cmd.Stdout = io.MultiWriter(os.Stderr, &buf)
 	cmd.Stderr = io.MultiWriter(os.Stderr, &buf)
@@ -161,7 +164,8 @@ type FailureEvidence struct {
 }
 
 // DefaultRun streams kind's output so a multi-minute create still reports
-// progress live, while also capturing it for the caller.
+// progress live, while also capturing it for the caller. Kubeconfig output is
+// credential material and remains capture-only.
 func DefaultRun(args ...string) ([]byte, error) {
 	return DefaultRunContext(context.Background(), args...)
 }
@@ -169,11 +173,18 @@ func DefaultRun(args ...string) ([]byte, error) {
 // DefaultRunContext streams and captures a context-bound kind subcommand.
 func DefaultRunContext(ctx context.Context, args ...string) ([]byte, error) {
 	cmd := exec.CommandContext(ctx, "kind", args...)
+	if privateKindOutput(args) {
+		return cmd.CombinedOutput()
+	}
 	var buf bytes.Buffer
 	cmd.Stdout = io.MultiWriter(os.Stderr, &buf)
 	cmd.Stderr = io.MultiWriter(os.Stderr, &buf)
 	err := cmd.Run()
 	return buf.Bytes(), err
+}
+
+func privateKindOutput(args []string) bool {
+	return len(args) >= 2 && args[0] == "get" && args[1] == "kubeconfig"
 }
 
 // DefaultCommandRun executes a diagnostic command in the current environment.
@@ -340,24 +351,6 @@ func Kubeconfig(run Runner, name string) (string, func(), error) {
 		return "", nil, fmt.Errorf("write kind kubeconfig %s: %w", name, err)
 	}
 	return path, func() { _ = os.RemoveAll(dir) }, nil
-}
-
-// BindKubeconfig is the process-scoped compatibility path for callers not yet
-// migrated to ClusterCommands. GH-1507 and GH-1508 remove those callers and
-// this function in the same epic.
-func BindKubeconfig(path string) func() {
-	//nolint:forbidigo // Temporary GH-1482 compatibility; final caller migration removes this function.
-	previous, had := os.LookupEnv("KUBECONFIG")
-	//nolint:forbidigo // Temporary GH-1482 compatibility; final caller migration decorates each exec.Cmd.
-	_ = os.Setenv("KUBECONFIG", path)
-	return func() {
-		if had {
-			//nolint:forbidigo // Temporary GH-1482 compatibility restores the caller's prior value.
-			_ = os.Setenv("KUBECONFIG", previous)
-			return
-		}
-		_ = os.Unsetenv("KUBECONFIG")
-	}
 }
 
 // Release deletes the cluster only when this run created it. A cleanup failure
