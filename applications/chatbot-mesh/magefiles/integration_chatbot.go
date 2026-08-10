@@ -98,7 +98,9 @@ func runChatbotIntegration(profilesRoot, coreRoot string) error {
 	defer stopChromaContainer(containerID)
 
 	// Seed rag0's collection (the ingest fixture) and rag1's disjoint collection.
-	if err := runChromaIngest(binary, profilesRoot, coreRoot); err != nil {
+	if err := runChromaIngest(
+		binary, profilesRoot, coreRoot,
+		demoChromaIntegrationChatModel(profilesRoot)); err != nil {
 		return err
 	}
 	embedModel, err := chromaEmbedModelFromConfig(profilesRoot)
@@ -667,6 +669,7 @@ func chatbotRequiredModels(profilesRoot string) ([]string, error) {
 		return nil, err
 	}
 	set[ingestEmbed] = true
+	set[demoChromaIntegrationChatModel(profilesRoot)] = true
 	embed, err := chatbotEmbedModelFromConfig(profilesRoot)
 	if err != nil {
 		return nil, err

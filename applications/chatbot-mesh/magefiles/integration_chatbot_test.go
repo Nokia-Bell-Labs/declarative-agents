@@ -196,7 +196,10 @@ func TestChatbotRequiredModelsUseDeploymentEnvironment(t *testing.T) {
 	if err != nil {
 		t.Fatalf("chatbotRequiredModels: %v", err)
 	}
-	want := []string{"chatbot-deep", "chatbot-embed", "chatbot-fast", "chatbot-tier", "corpus-embed"}
+	want := []string{
+		"chatbot-deep", "chatbot-embed", "chatbot-fast", "chatbot-tier",
+		"corpus-embed", "qwen2.5:3b",
+	}
 	if !reflect.DeepEqual(got, want) {
 		t.Fatalf("required models = %v, want environment-selected %v", got, want)
 	}

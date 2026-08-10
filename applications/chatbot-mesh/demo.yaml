@@ -29,3 +29,9 @@
 # profile-owned model calls that may each legally take 300 seconds. Defaults to
 # 20m, leaving bounded time for startup, embedding, writes, and verification.
 # chroma_ingest_timeout: 20m
+
+# Chat model used only by `mage integration:chroma`. The canonical corpus-ingest
+# profile keeps its own ornith:9b default for operator runs; the integration
+# selects this smaller bounded evidence model through the declared
+# CORPUS_CHAT_MODEL child contract. Defaults to qwen2.5:3b.
+# chroma_integration_chat_model: qwen2.5:3b

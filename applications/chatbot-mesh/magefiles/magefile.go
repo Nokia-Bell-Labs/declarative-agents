@@ -53,6 +53,10 @@ type demoConfig struct {
 	// per-request inference bound. Empty means the shipped default.
 	ChromaIngestTimeout string `yaml:"chroma_ingest_timeout"`
 
+	// ChromaIntegrationChatModel is the bounded evidence model passed to the
+	// canonical corpus-ingest child. It does not change that profile's default.
+	ChromaIntegrationChatModel string `yaml:"chroma_integration_chat_model"`
+
 	// IntegrationOTLPEndpoint is where integration launches export live
 	// telemetry when the target does not choose an endpoint itself. Empty
 	// keeps those launches file-only.
@@ -62,7 +66,10 @@ type demoConfig struct {
 // chromaIngestTimeoutDefault allows the two-document fixture's three legal
 // 300-second model calls to complete, with five minutes left for startup,
 // embedding, Chroma writes, and terminal verification.
-const chromaIngestTimeoutDefault = 20 * time.Minute
+const (
+	chromaIngestTimeoutDefault        = 20 * time.Minute
+	chromaIntegrationChatModelDefault = "qwen2.5:3b"
+)
 
 // loadDemoConfig reads demo.yaml from the application root. A missing file is the
 // zero-configuration path and yields an empty config, not an error.
@@ -108,6 +115,15 @@ func chromaIngestTimeoutFrom(config demoConfig) time.Duration {
 		return chromaIngestTimeoutDefault
 	}
 	return parsed
+}
+
+func demoChromaIntegrationChatModel(applicationRoot string) string {
+	model := strings.TrimSpace(
+		loadDemoConfigOrEmpty(applicationRoot).ChromaIntegrationChatModel)
+	if model == "" {
+		return chromaIntegrationChatModelDefault
+	}
+	return model
 }
 
 // demoCoreRoot resolves the agent-core checkout: demo.yaml core_root when set

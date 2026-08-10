@@ -143,8 +143,11 @@ call made directly by an integration tracer. It does not bound the canonical
 Chroma corpus-ingest agent, whose profile-owned calls may each take 300 seconds.
 `chroma_ingest_timeout` instead bounds that complete multi-call ingest run
 (default `20m`), including startup, embedding, Chroma writes, and terminal
-verification. `integration_otlp_endpoint` points integration launches at a live
-OTLP ingress (empty keeps them file-only).
+verification. `chroma_integration_chat_model` selects the bounded evidence
+model for `integration:chroma` (default `qwen2.5:3b`) through the canonical
+profile's declared `CORPUS_CHAT_MODEL` child contract; it does not change that
+profile's `ornith:9b` operator default. `integration_otlp_endpoint` points
+integration launches at a live OTLP ingress (empty keeps them file-only).
 
 The shared ENG01 operator verbs are:
 

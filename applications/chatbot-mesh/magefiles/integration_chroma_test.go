@@ -47,6 +47,44 @@ func TestChromaIngestTimeoutRejectsUnusableValues(t *testing.T) {
 	}
 }
 
+func TestDemoChromaIntegrationChatModelDefaultAndOverride(t *testing.T) {
+	t.Run("default", func(t *testing.T) {
+		if got := demoChromaIntegrationChatModel(t.TempDir()); got != "qwen2.5:3b" {
+			t.Fatalf("default integration chat model = %q, want qwen2.5:3b", got)
+		}
+	})
+	t.Run("override", func(t *testing.T) {
+		root := t.TempDir()
+		writeDemoConfig(t, root, "chroma_integration_chat_model: qwen2.5:0.5b")
+		if got := demoChromaIntegrationChatModel(root); got != "qwen2.5:0.5b" {
+			t.Fatalf("overridden integration chat model = %q", got)
+		}
+	})
+}
+
+func TestChromaChildEnvironmentReplacesAmbientModel(t *testing.T) {
+	got := chromaChildEnvironment([]string{
+		"PATH=/usr/bin",
+		"CORPUS_CHAT_MODEL=ornith:9b",
+		"OTEL_RESOURCE_ATTRIBUTES=old",
+	}, "OTEL_RESOURCE_ATTRIBUTES=test.run.id=run-1", "qwen2.5:3b")
+	joined := strings.Join(got, "\n")
+	for _, want := range []string{
+		"PATH=/usr/bin",
+		"CORPUS_CHAT_MODEL=qwen2.5:3b",
+		"OTEL_RESOURCE_ATTRIBUTES=test.run.id=run-1",
+	} {
+		if strings.Count(joined, want) != 1 {
+			t.Errorf("environment %v contains %q %d times, want once",
+				got, want, strings.Count(joined, want))
+		}
+	}
+	if strings.Contains(joined, "ornith:9b") ||
+		strings.Contains(joined, "OTEL_RESOURCE_ATTRIBUTES=old") {
+		t.Fatalf("environment retained replaced values: %v", got)
+	}
+}
+
 func TestRunChromaAgentTimeoutDiagnosis(t *testing.T) {
 	t.Parallel()
 	err := runChromaAgentWithTimeout(10*time.Millisecond, func(ctx context.Context) ([]byte, error) {
@@ -179,6 +217,21 @@ func TestChromaRequiredModelsUseDeploymentEnvironment(t *testing.T) {
 	want := []string{"all-minilm", "qwen2.5:0.5b"}
 	if len(got) != len(want) || got[0] != want[0] || got[1] != want[1] {
 		t.Fatalf("required models = %v, want environment-selected %v", got, want)
+	}
+}
+
+func TestChromaRequiredModelsUseDeclaredIntegrationOverride(t *testing.T) {
+	t.Setenv("CORPUS_CHAT_MODEL", "ornith:9b")
+	t.Setenv("CORPUS_EMBEDDING_MODEL", "all-minilm")
+	root := filepath.Dir(findChartDir(t))
+	got, err := chromaRequiredModelsForChat(root, "qwen2.5:3b")
+	if err != nil {
+		t.Fatalf("chromaRequiredModelsForChat: %v", err)
+	}
+	want := []string{"all-minilm", "qwen2.5:3b"}
+	if len(got) != len(want) || got[0] != want[0] || got[1] != want[1] {
+		t.Fatalf("required models = %v, want declared integration selection %v",
+			got, want)
 	}
 }
 
