@@ -7,7 +7,6 @@ import (
 	"errors"
 	"fmt"
 	"os"
-	"os/exec"
 	"path/filepath"
 	"strings"
 	"time"
@@ -20,13 +19,9 @@ const (
 
 // applierLiveCommandRunner is the context-aware command boundary for live
 // infrastructure probes and diagnostics. Tests supply deterministic runners;
-// production uses exec.CommandContext so every probe remains bounded even when
-// Docker Desktop or the Kubernetes API has stopped answering.
+// production supplies kindrig.Commands.RunContext so every probe is both
+// kubeconfig-bound and bounded when the Kubernetes API stops answering.
 type applierLiveCommandRunner func(context.Context, string, ...string) ([]byte, error)
-
-func runApplierLiveCommand(ctx context.Context, name string, args ...string) ([]byte, error) {
-	return exec.CommandContext(ctx, name, args...).CombinedOutput()
-}
 
 // applierLiveInfrastructureError distinguishes an unavailable host API or pod
 // network/API path from a failure of the applier machine or its Helm assertions.

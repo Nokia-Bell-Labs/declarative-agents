@@ -7,6 +7,7 @@ import (
 	"errors"
 	"fmt"
 	"os"
+	"os/exec"
 	"path/filepath"
 	"strings"
 	"testing"
@@ -609,36 +610,74 @@ func TestKubeconfigRejectsEmptyAndErrors(t *testing.T) {
 	}
 }
 
-func TestBindKubeconfigSetsAndRestores(t *testing.T) {
-	t.Run("restores a prior value", func(t *testing.T) {
-		t.Setenv("KUBECONFIG", "/ambient/context")
-		restore := BindKubeconfig("/cluster/config")
-		if got := os.Getenv("KUBECONFIG"); got != "/cluster/config" {
-			t.Fatalf("KUBECONFIG = %q, want /cluster/config", got)
+func TestKubeconfigKindOutputIsPrivate(t *testing.T) {
+	for _, test := range []struct {
+		args    []string
+		private bool
+	}{
+		{[]string{"get", "kubeconfig", "--name", "demo"}, true},
+		{[]string{"get", "clusters"}, false},
+		{[]string{"create", "cluster", "--name", "demo"}, false},
+		{[]string{"export", "logs", "/tmp/logs", "--name", "demo"}, false},
+	} {
+		if got := privateKindOutput(test.args); got != test.private {
+			t.Errorf("privateKindOutput(%v) = %t, want %t",
+				test.args, got, test.private)
 		}
-		restore()
-		if got := os.Getenv("KUBECONFIG"); got != "/ambient/context" {
-			t.Fatalf("restored KUBECONFIG = %q, want /ambient/context", got)
-		}
-	})
-
-	t.Run("unsets when there was no prior value", func(t *testing.T) {
-		t.Setenv("KUBECONFIG", "seed") // ensure a known baseline for t.Setenv restore
-		_ = os.Unsetenv("KUBECONFIG")
-		restore := BindKubeconfig("/cluster/config")
-		restore()
-		if _, had := os.LookupEnv("KUBECONFIG"); had {
-			t.Fatal("KUBECONFIG must be unset when there was no prior value")
-		}
-	})
+	}
 }
 
-// TestReusedClusterBindsAwayFromAmbientContext is the isolation regression:
+func TestCommandsForKubeconfigDecoratesOnlyChildren(t *testing.T) {
+	t.Setenv("KUBECONFIG", "/ambient/context")
+	commands, err := CommandsForKubeconfig("/cluster/config")
+	if err != nil {
+		t.Fatal(err)
+	}
+	for _, cmd := range []*exec.Cmd{
+		commands.Command("kubectl", "get", "pods"),
+		commands.CommandContext(context.Background(), "helm", "list"),
+	} {
+		if got := kubeconfigEntry(cmd.Env); got != "/cluster/config" {
+			t.Fatalf("%s child KUBECONFIG = %q, want /cluster/config", cmd.Path, got)
+		}
+	}
+	if got := os.Getenv("KUBECONFIG"); got != "/ambient/context" {
+		t.Fatalf("parent KUBECONFIG = %q, want unchanged ambient value", got)
+	}
+	if _, err := CommandsForKubeconfig("  "); err == nil {
+		t.Fatal("empty kubeconfig path must fail")
+	}
+}
+
+func TestCommandsExecuteWithBoundKubeconfig(t *testing.T) {
+	if os.Getenv("KINDRIG_COMMAND_CHILD") == "1" {
+		fmt.Printf("child-kubeconfig=%s\n", os.Getenv("KUBECONFIG"))
+		return
+	}
+	t.Setenv("KUBECONFIG", "/ambient/context")
+	commands, err := CommandsForKubeconfig("/cluster/config")
+	if err != nil {
+		t.Fatal(err)
+	}
+	cmd := commands.Command(os.Args[0], "-test.run=TestCommandsExecuteWithBoundKubeconfig")
+	cmd.Env = append(cmd.Env, "KINDRIG_COMMAND_CHILD=1")
+	out, err := cmd.CombinedOutput()
+	if err != nil {
+		t.Fatalf("child command: %v: %s", err, out)
+	}
+	if !strings.Contains(string(out), "child-kubeconfig=/cluster/config\n") {
+		t.Fatalf("child output does not carry bound KUBECONFIG: %q", out)
+	}
+	if got := os.Getenv("KUBECONFIG"); got != "/ambient/context" {
+		t.Fatalf("parent KUBECONFIG = %q after child, want ambient value", got)
+	}
+}
+
+// TestReusedClusterCommandsIgnoreAmbientContext is the isolation regression:
 // even when a named cluster already exists (reuse) and the ambient KUBECONFIG
-// points at an unrelated cluster, generating and binding the cluster's own
-// kubeconfig routes subsequent commands to it rather than the ambient context
-// (GH-1341).
-func TestReusedClusterBindsAwayFromAmbientContext(t *testing.T) {
+// points at an unrelated cluster, every subsequent child receives the reused
+// cluster's generated kubeconfig and the parent stays unchanged (GH-1341).
+func TestReusedClusterCommandsIgnoreAmbientContext(t *testing.T) {
 	ambient := filepath.Join(t.TempDir(), "ambient-kubeconfig")
 	if err := os.WriteFile(ambient, []byte("apiVersion: v1\nkind: Config\n# unrelated cluster\n"), 0o600); err != nil {
 		t.Fatalf("write ambient kubeconfig: %v", err)
@@ -658,22 +697,30 @@ func TestReusedClusterBindsAwayFromAmbientContext(t *testing.T) {
 		t.Fatal("pre-existing cluster must be reused, not created")
 	}
 
-	path, cleanup, err := Kubeconfig(kind.run, cluster.Name)
+	commands, cleanup, err := ClusterCommands(kind.run, cluster.Name)
 	if err != nil {
-		t.Fatalf("kubeconfig: %v", err)
+		t.Fatalf("cluster commands: %v", err)
 	}
 	defer cleanup()
-	restore := BindKubeconfig(path)
-	defer restore()
 
-	if got := os.Getenv("KUBECONFIG"); got != path {
-		t.Fatalf("bound KUBECONFIG = %q, want the cluster's %q (not ambient %q)", got, path, ambient)
+	path := kubeconfigEntry(commands.Command("kubectl", "get", "pods").Env)
+	if path == "" || path == ambient {
+		t.Fatalf("child KUBECONFIG = %q, want generated cluster config not %q", path, ambient)
 	}
-	if os.Getenv("KUBECONFIG") == ambient {
-		t.Fatal("commands would still target the ambient context")
+	if data, err := os.ReadFile(path); err != nil ||
+		!strings.Contains(string(data), "da-chatbot-mesh-smoke") {
+		t.Fatalf("child kubeconfig %q does not identify reused cluster: %q, %v", path, data, err)
 	}
-	restore()
 	if got := os.Getenv("KUBECONFIG"); got != ambient {
-		t.Fatalf("after restore KUBECONFIG = %q, want ambient %q", got, ambient)
+		t.Fatalf("parent KUBECONFIG = %q, want unchanged ambient %q", got, ambient)
 	}
+}
+
+func kubeconfigEntry(environment []string) string {
+	for _, entry := range environment {
+		if strings.HasPrefix(entry, "KUBECONFIG=") {
+			return strings.TrimPrefix(entry, "KUBECONFIG=")
+		}
+	}
+	return ""
 }

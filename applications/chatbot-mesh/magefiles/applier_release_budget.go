@@ -411,24 +411,25 @@ func helmEncodedSize(data []byte) (int, error) {
 	return base64.StdEncoding.EncodedLen(compressed.Len()), nil
 }
 
-func provisionExternalUIAsset(asset externalUIAsset) error {
-	del := exec.Command("kubectl", "delete", "configmap", asset.ConfigMapName, "--ignore-not-found")
-	del.Stdout, del.Stderr = os.Stderr, os.Stderr
-	if err := del.Run(); err != nil {
-		return fmt.Errorf("clear stale %s UI ConfigMap %s: %w",
-			asset.Component, asset.ConfigMapName, err)
+func provisionExternalUIAssetWithRunner(
+	run helmLLMCommandRunner,
+	asset externalUIAsset,
+) error {
+	if out, err := run(
+		"kubectl", "delete", "configmap", asset.ConfigMapName, "--ignore-not-found"); err != nil {
+		return fmt.Errorf("clear stale %s UI ConfigMap %s: %w: %s",
+			asset.Component, asset.ConfigMapName, err, strings.TrimSpace(string(out)))
 	}
-	create := exec.Command("kubectl", "create", "configmap", asset.ConfigMapName,
-		"--from-file=assets.tgz="+asset.Archive)
-	create.Stdout, create.Stderr = os.Stderr, os.Stderr
-	if err := create.Run(); err != nil {
-		return fmt.Errorf("create %s UI ConfigMap %s: %w",
-			asset.Component, asset.ConfigMapName, err)
+	if out, err := run("kubectl", "create", "configmap", asset.ConfigMapName,
+		"--from-file=assets.tgz="+asset.Archive); err != nil {
+		return fmt.Errorf("create %s UI ConfigMap %s: %w: %s",
+			asset.Component, asset.ConfigMapName, err, strings.TrimSpace(string(out)))
 	}
 	return nil
 }
 
-func assertExternalUIAssetsMounted(
+func assertExternalUIAssetsMountedWithRunner(
+	run helmLLMCommandRunner,
 	releaseName string,
 	assets []externalUIAsset,
 	readyWait time.Duration,
@@ -437,17 +438,17 @@ func assertExternalUIAssetsMounted(
 		deployment := "deployment/" + releaseName + "-chatbot-mesh-" + asset.Component
 		selector := "app.kubernetes.io/instance=" + releaseName +
 			",app.kubernetes.io/component=" + asset.Component
-		wait := exec.Command("kubectl", "wait", "pod", "-l", selector,
+		out, err := run("kubectl", "wait", "pod", "-l", selector,
 			"--for=jsonpath={.status.phase}=Running",
 			"--timeout", readyWait.String())
-		if out, err := wait.CombinedOutput(); err != nil {
+		if err != nil {
 			return fmt.Errorf("%s did not start for mounted asset verification: %w: %s",
 				deployment, err, strings.TrimSpace(string(out)))
 		}
 		jsonPath := fmt.Sprintf(
 			`jsonpath={.items[0].status.initContainerStatuses[?(@.name=="stage-%s-ui")].state.terminated.exitCode}`,
 			asset.Component)
-		out, err := exec.Command("kubectl", "get", "pod", "-l", selector, "-o", jsonPath).CombinedOutput()
+		out, err = run("kubectl", "get", "pod", "-l", selector, "-o", jsonPath)
 		if err != nil {
 			return fmt.Errorf("read %s mounted asset verification: %w: %s",
 				asset.Component, err, strings.TrimSpace(string(out)))
@@ -456,7 +457,7 @@ func assertExternalUIAssetsMounted(
 			return fmt.Errorf("%s mounted asset verifier exit = %q, want 0",
 				asset.Component, strings.TrimSpace(string(out)))
 		}
-		if err := assertAssetContainerStable(selector, asset.Component); err != nil {
+		if err := assertAssetContainerStable(run, selector, asset.Component); err != nil {
 			return err
 		}
 		fmt.Printf("%s: mounted %s UI matches %d manifest-inventory files (%s)\n",
@@ -465,9 +466,12 @@ func assertExternalUIAssetsMounted(
 	return nil
 }
 
-func assertAssetContainerStable(selector, component string) error {
+func assertAssetContainerStable(
+	run helmLLMCommandRunner,
+	selector, component string,
+) error {
 	time.Sleep(3 * time.Second)
-	out, err := exec.Command("kubectl", "get", "pod", "-l", selector, "-o", "json").CombinedOutput()
+	out, err := run("kubectl", "get", "pod", "-l", selector, "-o", "json")
 	if err != nil {
 		return fmt.Errorf("inspect %s pod after asset staging: %w: %s",
 			component, err, strings.TrimSpace(string(out)))
@@ -492,15 +496,16 @@ func assertAssetContainerStable(selector, component string) error {
 		if status.Name != component || status.RestartCount == 0 {
 			continue
 		}
-		logs, _ := exec.Command("kubectl", "logs", "-l", selector,
-			"-c", component, "--previous", "--tail=100").CombinedOutput()
+		logs, _ := run("kubectl", "logs", "-l", selector,
+			"-c", component, "--previous", "--tail=100")
 		return fmt.Errorf("%s restarted after asset staging (%d restarts): %s",
 			component, status.RestartCount, strings.TrimSpace(string(logs)))
 	}
 	return nil
 }
 
-func assertHelmReleaseSecrets(
+func assertHelmReleaseSecretsWithRunner(
+	run helmLLMCommandRunner,
 	releaseName, chartArchive string,
 	assets []externalUIAsset,
 ) error {
@@ -516,8 +521,8 @@ func assertHelmReleaseSecrets(
 		}
 		forbidden = append(forbidden, []byte(base64.StdEncoding.EncodeToString(data)))
 	}
-	out, err := exec.Command("kubectl", "get", "secret",
-		"-l", "owner=helm,name="+releaseName, "-o", "json").CombinedOutput()
+	out, err := run("kubectl", "get", "secret",
+		"-l", "owner=helm,name="+releaseName, "-o", "json")
 	if err != nil {
 		return fmt.Errorf("read Helm release Secrets: %w: %s", err, strings.TrimSpace(string(out)))
 	}

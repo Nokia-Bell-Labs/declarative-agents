@@ -35,6 +35,103 @@ type ContextRunner func(context.Context, ...string) ([]byte, error)
 // environment.
 type CommandRunner func(name string, args ...string) ([]byte, error)
 
+// Commands constructs subprocesses bound to one cluster kubeconfig. The
+// kubeconfig is immutable command authority: every child receives it on its own
+// exec.Cmd, while the parent process environment remains unchanged.
+type Commands struct {
+	kubeconfig string
+}
+
+// CommandsForKubeconfig validates path and returns a per-command environment.
+func CommandsForKubeconfig(path string) (Commands, error) {
+	path = strings.TrimSpace(path)
+	if path == "" {
+		return Commands{}, fmt.Errorf("kindrig commands: kubeconfig path is required")
+	}
+	return Commands{kubeconfig: path}, nil
+}
+
+// ClusterCommands fetches a named kind cluster's kubeconfig and returns the
+// command environment plus a cleanup for its private temporary file.
+func ClusterCommands(run Runner, name string) (Commands, func(), error) {
+	path, cleanup, err := Kubeconfig(run, name)
+	if err != nil {
+		return Commands{}, nil, err
+	}
+	commands, err := CommandsForKubeconfig(path)
+	if err != nil {
+		cleanup()
+		return Commands{}, nil, err
+	}
+	return commands, cleanup, nil
+}
+
+// Command constructs a child with the cluster kubeconfig and inherited host
+// environment. Any ambient KUBECONFIG entry is replaced only in the child.
+func (c Commands) Command(name string, args ...string) *exec.Cmd {
+	cmd := exec.Command(name, args...)
+	cmd.Env = c.childEnvironment()
+	return cmd
+}
+
+// CommandContext is Command with context cancellation and deadlines.
+func (c Commands) CommandContext(
+	ctx context.Context,
+	name string,
+	args ...string,
+) *exec.Cmd {
+	cmd := exec.CommandContext(ctx, name, args...)
+	cmd.Env = c.childEnvironment()
+	return cmd
+}
+
+// Run executes a captured host command against the bound cluster.
+func (c Commands) Run(name string, args ...string) ([]byte, error) {
+	return c.Command(name, args...).CombinedOutput()
+}
+
+// RunContext executes a captured, context-bound host command.
+func (c Commands) RunContext(
+	ctx context.Context,
+	name string,
+	args ...string,
+) ([]byte, error) {
+	return c.CommandContext(ctx, name, args...).CombinedOutput()
+}
+
+// KindRun streams and captures one kind subcommand against the bound cluster.
+func (c Commands) KindRun(args ...string) ([]byte, error) {
+	return c.KindRunContext(context.Background(), args...)
+}
+
+// KindRunContext is the context-bound form of KindRun.
+func (c Commands) KindRunContext(
+	ctx context.Context,
+	args ...string,
+) ([]byte, error) {
+	cmd := c.CommandContext(ctx, "kind", args...)
+	if privateKindOutput(args) {
+		return cmd.CombinedOutput()
+	}
+	var buf bytes.Buffer
+	cmd.Stdout = io.MultiWriter(os.Stderr, &buf)
+	cmd.Stderr = io.MultiWriter(os.Stderr, &buf)
+	err := cmd.Run()
+	return buf.Bytes(), err
+}
+
+func (c Commands) childEnvironment() []string {
+	environment := os.Environ()
+	bound := make([]string, 0, len(environment)+1)
+	for _, entry := range environment {
+		if strings.HasPrefix(entry, "KUBECONFIG=") {
+			continue
+		}
+		bound = append(bound, entry)
+	}
+	return append(bound, "KUBECONFIG="+c.kubeconfig)
+}
+
 // ReusePolicy controls what EnsureClusterWithOptions may do when kind lists the
 // requested cluster but its Kubernetes API is unhealthy.
 type ReusePolicy uint8
@@ -67,7 +164,8 @@ type FailureEvidence struct {
 }
 
 // DefaultRun streams kind's output so a multi-minute create still reports
-// progress live, while also capturing it for the caller.
+// progress live, while also capturing it for the caller. Kubeconfig output is
+// credential material and remains capture-only.
 func DefaultRun(args ...string) ([]byte, error) {
 	return DefaultRunContext(context.Background(), args...)
 }
@@ -75,11 +173,18 @@ func DefaultRun(args ...string) ([]byte, error) {
 // DefaultRunContext streams and captures a context-bound kind subcommand.
 func DefaultRunContext(ctx context.Context, args ...string) ([]byte, error) {
 	cmd := exec.CommandContext(ctx, "kind", args...)
+	if privateKindOutput(args) {
+		return cmd.CombinedOutput()
+	}
 	var buf bytes.Buffer
 	cmd.Stdout = io.MultiWriter(os.Stderr, &buf)
 	cmd.Stderr = io.MultiWriter(os.Stderr, &buf)
 	err := cmd.Run()
 	return buf.Bytes(), err
+}
+
+func privateKindOutput(args []string) bool {
+	return len(args) >= 2 && args[0] == "get" && args[1] == "kubeconfig"
 }
 
 // DefaultCommandRun executes a diagnostic command in the current environment.
@@ -225,10 +330,9 @@ func CaptureRun(args ...string) ([]byte, error) {
 
 // Kubeconfig fetches the named cluster's kubeconfig via `kind get kubeconfig`
 // and writes it to a private temporary file, returning its path and a cleanup
-// func. Binding every Helm/kubectl/port-forward subprocess to this file (see
-// BindKubeconfig) is what keeps a reused, pre-existing cluster's commands off
-// the ambient current context, which can point at an unrelated cluster and
-// cause a live integration to mutate it (GH-1341).
+// func. ClusterCommands binds every Helm/kubectl/port-forward subprocess to
+// this file, keeping a reused cluster's commands off an unrelated ambient
+// current context (GH-1341).
 func Kubeconfig(run Runner, name string) (string, func(), error) {
 	out, err := run("get", "kubeconfig", "--name", name)
 	if err != nil {
@@ -247,33 +351,6 @@ func Kubeconfig(run Runner, name string) (string, func(), error) {
 		return "", nil, fmt.Errorf("write kind kubeconfig %s: %w", name, err)
 	}
 	return path, func() { _ = os.RemoveAll(dir) }, nil
-}
-
-// BindKubeconfig points the process (and thus every child kubectl/helm/kind
-// subprocess that inherits the environment) at the given kubeconfig by setting
-// KUBECONFIG. It returns a restore func that reinstates the prior value, so a
-// scenario's cluster binding does not leak past its own lifetime.
-// The three process-environment calls below are the one deviation from the
-// go-style ban that this rig keeps. The sanctioned form is adding KUBECONFIG on
-// an exec.Cmd, and the constitution names KUBECONFIG among the entries a child
-// contract may carry; binding it process-wide is the same intent applied to every
-// child at once. It stays that way because the alternative is threading the path
-// onto every helm, kubectl, and kind invocation in this rig and in the
-// applications that drive it, which is a wide change to code that gates releases.
-// GH-1482 tracks that refactor (GH-1481).
-func BindKubeconfig(path string) func() {
-	//nolint:forbidigo // GH-1341 binds every child kubectl/helm/kind off an ambient context; see the note above.
-	previous, had := os.LookupEnv("KUBECONFIG")
-	//nolint:forbidigo // GH-1341: the binding must reach children that inherit the environment.
-	_ = os.Setenv("KUBECONFIG", path)
-	return func() {
-		if had {
-			//nolint:forbidigo // Restoring the prior value is what keeps the binding scoped to its caller.
-			_ = os.Setenv("KUBECONFIG", previous)
-			return
-		}
-		_ = os.Unsetenv("KUBECONFIG")
-	}
 }
 
 // Release deletes the cluster only when this run created it. A cleanup failure
