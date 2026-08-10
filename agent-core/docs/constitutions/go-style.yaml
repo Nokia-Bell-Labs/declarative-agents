@@ -123,10 +123,10 @@ configuration:
     gate it launches, and applications/prose-editor/cmd/prose-editor-tracer-boundary
     reads its per-run workspace, fixtures, session, scenario, and fault because the
     tracer integration reaches it through the agent, which runs it as a declared
-    exec tool whose argv is fixed in YAML. One deviation, not a contract:
-    magefiles/kindrig BindKubeconfig sets KUBECONFIG on the process rather than on
-    each exec.Cmd, so one binding covers every helm, kubectl, and kind child;
-    GH-1482 tracks moving it onto the commands.'
+    exec tool whose argv is fixed in YAML. One temporary deviation, not a
+    contract: magefiles/kindrig BindKubeconfig sets KUBECONFIG on the process
+    for callers that GH-1507 and GH-1508 migrate to per-command environments;
+    GH-1482 removes the compatibility function and this exception.'
   - os.Environ is allowed for child-process inheritance. A caller may add environment entries on an exec.Cmd when a declared or third-party child contract requires them, including PATH prepends, KUBECONFIG, DOLT_ROOT_PATH, CGO_ENABLED, GOOS, DOCKER_BUILDKIT, and BD_NON_INTERACTIVE; those values do not authorize reading process environment as an application configuration channel. Reading one of those values back is sanctioned only where it is the child half of a contract a parent in this repository owns, or a third-party convention, and only with the annotation above.
 tool_language:
   rules:
