@@ -7,7 +7,6 @@ import (
 	"errors"
 	"fmt"
 	"net/http"
-	"os/exec"
 	"sort"
 	"strings"
 	"time"
@@ -45,8 +44,12 @@ type observerFleetCycle struct {
 // assertObserverHelmFleet proves the in-cluster observer reaches every agent,
 // then gives only the observer pod a wrong-but-authorized monitor port and proves
 // the other agents keep reporting through a complete later cycle (srd008 R2.3).
-func assertObserverHelmFleet(monitorURL, release string, timeout time.Duration) (result error) {
-	actual, err := observerReleaseMonitorPods(release)
+func assertObserverHelmFleet(
+	run helmLLMCommandRunner,
+	monitorURL, release string,
+	timeout time.Duration,
+) (result error) {
+	actual, err := observerReleaseMonitorPods(run, release)
 	if err != nil {
 		return err
 	}
@@ -60,11 +63,12 @@ func assertObserverHelmFleet(monitorURL, release string, timeout time.Duration) 
 	if err != nil {
 		return err
 	}
-	if err := labelObserverPod(observer.Name, "18082"); err != nil {
+	if err := labelObserverPod(run, observer.Name, "18082"); err != nil {
 		return err
 	}
 	defer func() {
-		result = errors.Join(result, labelObserverPod(observer.Name, observer.MonitorPort))
+		result = errors.Join(
+			result, labelObserverPod(run, observer.Name, observer.MonitorPort))
 	}()
 	_, err = waitObserverFleetCycle(
 		monitorURL, healthy.Iterations["poll_pod_metrics"], timeout,
@@ -308,9 +312,12 @@ func assertDegradedObserverCycle(cycle observerFleetCycle, observerName string) 
 	return nil
 }
 
-func observerReleaseMonitorPods(release string) (map[string]observerFleetPod, error) {
+func observerReleaseMonitorPods(
+	run helmLLMCommandRunner,
+	release string,
+) (map[string]observerFleetPod, error) {
 	selector := observerInstanceLabel + "=" + release
-	out, err := exec.Command("kubectl", "get", "pods", "-l", selector, "-o", "json").CombinedOutput()
+	out, err := run("kubectl", "get", "pods", "-l", selector, "-o", "json")
 	if err != nil {
 		return nil, fmt.Errorf("list release pods: %w: %s", err, strings.TrimSpace(string(out)))
 	}
@@ -362,10 +369,9 @@ func fleetPodByComponent(cycle observerFleetCycle, component string) (observerFl
 	return observerFleetPod{}, fmt.Errorf("fleet has no component %q", component)
 }
 
-func labelObserverPod(name, port string) error {
-	out, err := exec.Command(
-		"kubectl", "label", "pod", name, observerMonitorLabel+"="+port, "--overwrite",
-	).CombinedOutput()
+func labelObserverPod(run helmLLMCommandRunner, name, port string) error {
+	out, err := run(
+		"kubectl", "label", "pod", name, observerMonitorLabel+"="+port, "--overwrite")
 	if err != nil {
 		return fmt.Errorf("label observer pod %s=%s: %w: %s",
 			observerMonitorLabel, port, err, strings.TrimSpace(string(out)))

@@ -87,30 +87,34 @@ func (Demo) Up() error {
 	}
 	config := filepath.Join(chartDir, "ci", "kind-demo-config.yaml")
 	return kindrig.DemoUp(kindrig.DefaultRun, chatbotDemoCluster, config,
-		120*time.Second, func(kindrig.Cluster) error {
-			if err := loadKindImage(chatbotDemoCluster, images.Runtime); err != nil {
-				return err
-			}
-			for _, image := range dependencies {
-				if err := loadSmokeDependencyImage(chatbotDemoCluster, image); err != nil {
-					return err
-				}
-			}
-			if err := kindrig.InstallIngress(kindrig.DefaultCommandRun, chatbotDemoCluster); err != nil {
-				return err
-			}
-			// EnsureCluster reuses a pre-existing demo cluster without switching
-			// contexts, so pin the kubeconfig before any kubectl or helm mutation
-			// rather than trusting the ambient current context (GH-1341).
-			unbindKubeconfig, err := bindClusterKubeconfig(chatbotDemoCluster)
+		120*time.Second, func(cluster kindrig.Cluster) error {
+			commands, cleanupCommands, err := kindrig.ClusterCommands(
+				kindrig.CaptureRun, cluster.Name)
 			if err != nil {
 				return err
 			}
-			defer unbindKubeconfig()
-			if err := provisionExternalUIAssets(assets); err != nil {
+			defer cleanupCommands()
+			if err := loadKindImageWithCommands(
+				commands, chatbotDemoCluster, images.Runtime); err != nil {
 				return err
 			}
-			if err := installDemoRelease(staged, chartArchive, images.Runtime, assets); err != nil {
+			for _, image := range dependencies {
+				if err := loadSmokeDependencyImageWithCommands(
+					commands, chatbotDemoCluster, image); err != nil {
+					return err
+				}
+			}
+			// EnsureCluster reuses a pre-existing demo cluster without switching
+			// contexts, so each kubectl, Helm, and kind child carries the generated
+			// kubeconfig rather than trusting the ambient current context (GH-1341).
+			if err := kindrig.InstallIngress(commands.Run, chatbotDemoCluster); err != nil {
+				return err
+			}
+			if err := provisionExternalUIAssets(commands.Run, assets); err != nil {
+				return err
+			}
+			if err := installDemoRelease(
+				commands.Run, staged, chartArchive, images.Runtime, assets); err != nil {
 				return err
 			}
 			if err := waitHTTPStatus("http://"+chatbotDemoHost+"/",
@@ -150,7 +154,11 @@ func demoValueArgs(staged, image string, assets []externalUIAsset) []string {
 // cluster, then upgrades or installs. Without the gate an over-budget release
 // reaches the API server and fails there as an opaque Secret size error, after
 // the cluster and images are already built (GH-1475).
-func installDemoRelease(staged, chartArchive, image string, assets []externalUIAsset) error {
+func installDemoRelease(
+	run helmLLMCommandRunner,
+	staged, chartArchive, image string,
+	assets []externalUIAsset,
+) error {
 	valueArgs := demoValueArgs(staged, image, assets)
 	measured, err := measureHelmReleaseBudget(chatbotDemoRelease, staged, chartArchive, valueArgs)
 	if err != nil {
@@ -159,7 +167,7 @@ func installDemoRelease(staged, chartArchive, image string, assets []externalUIA
 	fmt.Printf("demo: release budget PASS - %s\n", measured.String())
 	args := append([]string{"upgrade", "--install", chatbotDemoRelease, staged}, valueArgs...)
 	args = append(args, "--wait", "--timeout", helmLLMInstallTimeout.String())
-	if output, err := exec.Command("helm", args...).CombinedOutput(); err != nil {
+	if output, err := run("helm", args...); err != nil {
 		return fmt.Errorf("helm demo install: %w: %s", err, strings.TrimSpace(string(output)))
 	}
 	return nil
