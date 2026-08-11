@@ -2,10 +2,10 @@ id: rel03.0-uc002-rest-client-async
 title: Grammar sends and awaits an asynchronous REST client operation
 
 summary: |
-  An agent profile needs to submit outbound REST work without blocking the
-  grammar. The profile uses rest_client_send for submission. It either awaits
-  that request's in-process completion once, or authors remote readiness as
-  repeated one-shot REST probes separated by declared delay states.
+  An agent profile needs to submit outbound REST work without hiding its
+  acceptance boundary. The profile uses rest_client_send for one submission
+  transaction, then reads that stored result once or authors remote readiness
+  as repeated one-shot REST probes separated by declared delay states.
 
 actor: Agent profile author configuring asynchronous outbound REST work
 
@@ -20,12 +20,12 @@ flow:
   - F4: rest_client_send validates input, submits the configured request, records AsyncRequest state, and emits RESTAccepted or CommandError.
   - F5: MachineSpec routes RESTAccepted to PrepareLocalContext and routes CommandError to retry or failure handling.
   - F6: The grammar performs local work while the remote request is pending.
-  - F7: For in-process completion, MachineSpec dispatches rest_client_await with the request ID or correlation token.
+  - F7: To consume the stored submission result, MachineSpec dispatches rest_client_await with the request ID or correlation token.
   - F8: For remote readiness, MachineSpec dispatches one configured REST read probe, routes not-ready to a lifecycle delay, and retries through explicit transitions and budget.
   - F9: MachineSpec routes completion, missing, timeout or exhaustion, and infrastructure signals explicitly.
 
 touchpoints:
-  - T1: "srd027-rest-tool-runtime R5.3, R5.5, R5.6, R5.7 -- non-blocking send and await use request state and declared signals"
+  - T1: "srd027-rest-tool-runtime R5.3, R5.5, R5.6, R5.7 -- accepted send and await use request state and declared signals"
   - T2: "srd028-rest-client-tools R5.1, R5.2, R5.3, R5.4, R5.5, R5.6, R5.7 -- async client words define send, await, request ID, signals, and state retention"
   - T3: "srd028-rest-client-tools R8.1, R8.2, R8.3, R8.4, R8.5 -- idempotency and retry metadata are configured"
   - T4: "srd028-rest-client-tools R10.6, R10.7 -- undo expectations for send and await are explicit"
@@ -39,7 +39,7 @@ success_criteria:
       - srd027-rest-tool-runtime AC5
       - srd028-rest-client-tools AC5
   - id: S2
-    criterion: The send result contains request ID, operation ID, idempotency metadata, and correlation metadata.
+    criterion: The send result contains request ID, operation ID, accepted status, idempotency metadata, correlation metadata, and any configured compensation receipt.
     traces:
       - srd028-rest-client-tools AC5
   - id: S3

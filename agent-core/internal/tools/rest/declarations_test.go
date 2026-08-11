@@ -117,7 +117,7 @@ var restRuntimeOutputProperties = map[string]map[string]bool{
 	InitClientInvoke: responseOutputProperties,
 	InitClientSend: {
 		"request_id": true, "operation_id": true, "rest_ref": true, "resource": true,
-		"idempotency_token": true, "correlation": true, "submitted_payload": true,
+		"idempotency_token": true, "correlation": true, "submitted_payload": true, "status": true,
 	},
 	InitClientAwait: {
 		"request_id": true, "operation_id": true, "correlation": true,

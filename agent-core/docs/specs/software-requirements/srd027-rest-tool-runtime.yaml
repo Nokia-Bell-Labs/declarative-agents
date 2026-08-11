@@ -71,7 +71,7 @@ requirements:
     items:
       - R5.1: A blocking REST word MAY fuse send plus await or launch plus await into one Execute call.
       - R5.2: A blocking REST word SHALL return one Result after response, request input, timeout, cancellation, or shutdown.
-      - R5.3: A non-blocking REST send word SHALL start outbound work and return a sent signal without waiting for the final response.
+      - R5.3: An asynchronous REST send word SHALL wait for its HTTP submission response, return a sent signal only when that response matches the configured success mapping, and SHALL NOT wait for later remote domain completion.
       - R5.4: A non-blocking REST launch word SHALL bind or activate server behavior and return a launched signal without waiting for inbound input.
       - R5.5: An await REST word SHALL receive completed REST client responses from request state or inbound REST server events from a shared inbox.
       - R5.6: Await words SHALL declare all signals they can emit in the machine state where they run.

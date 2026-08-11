@@ -361,8 +361,9 @@ test_cases:
     status: done
     description: |
       Dispatch rest_client_send for an async operation and confirm the command
-      returns before final completion. AsyncRequest state is stored by request
-      ID, then RESTAccepted carries correlation metadata back to the grammar.
+      waits for the submission response. AsyncRequest state is stored by request
+      ID only after an accepted status, then RESTAccepted carries status and
+      correlation metadata plus the remote compensation receipt back to the grammar.
     inputs:
       operation: create_payment
       async_config:
@@ -374,7 +375,8 @@ test_cases:
       request_state_written: true
       request_id_present: true
       idempotency_metadata_present: true
-      final_response_waited_for: false
+      submission_response_waited_for: true
+      compensation_receipt_present: true
     traces:
       - rel03.0-uc002-rest-client-async S1
       - rel03.0-uc002-rest-client-async S2

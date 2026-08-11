@@ -35,14 +35,28 @@ func NewAsyncState() *AsyncState {
 	return &AsyncState{requests: map[string]*AsyncRequest{}}
 }
 
+// CheckAdd rejects a duplicate request before its outbound submission runs.
+func (s *AsyncState) CheckAdd(request *AsyncRequest) error {
+	s.mu.Lock()
+	defer s.mu.Unlock()
+	return s.checkAdd(request)
+}
+
 // Add records a pending async request.
 func (s *AsyncState) Add(request *AsyncRequest) error {
 	s.mu.Lock()
 	defer s.mu.Unlock()
+	if err := s.checkAdd(request); err != nil {
+		return err
+	}
+	s.requests[request.RequestID] = request
+	return nil
+}
+
+func (s *AsyncState) checkAdd(request *AsyncRequest) error {
 	if _, exists := s.requests[request.RequestID]; exists {
 		return fmt.Errorf("async request %q already exists", request.RequestID)
 	}
-	s.requests[request.RequestID] = request
 	return nil
 }
 

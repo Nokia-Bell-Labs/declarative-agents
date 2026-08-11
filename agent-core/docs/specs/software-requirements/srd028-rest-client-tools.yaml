@@ -69,10 +69,10 @@ requirements:
   R5:
     title: Asynchronous client words
     items:
-      - R5.1: rest_client_send SHALL start one configured outbound operation and return before the final response when the operation is declared asynchronous.
+      - R5.1: rest_client_send SHALL complete the configured HTTP submission transaction before returning, while leaving the remote operation's later domain completion to rest_client_await when the operation is declared asynchronous.
       - R5.2: rest_client_send SHALL emit RESTAccepted or CommandError.
-      - R5.3: rest_client_send output SHALL include request ID, operation ID, idempotency token when configured, submitted payload summary, and correlation metadata.
-      - R5.4: rest_client_send SHALL store async operation state in command state or shared request state indexed by request ID.
+      - R5.3: rest_client_send output SHALL include request ID, operation ID, accepted HTTP status, idempotency token when configured, submitted payload summary, and correlation metadata.
+      - R5.4: rest_client_send SHALL store async operation state in command state or shared request state indexed by request ID only after the submission status matches the configured success mapping.
       - R5.5: rest_client_await SHALL wait for completion of a previously sent REST operation by request ID, correlation token, or configured operation state.
       - R5.6: rest_client_await SHALL emit RESTResponded, RESTDomainFailed, RESTMissing, RESTAwaitTimedOut, or CommandError.
       - R5.7: rest_client_await SHALL consume or update async operation state according to configured retention policy.
@@ -126,7 +126,7 @@ requirements:
       - R10.3: rest_client_create undo SHOULD use a configured delete or deactivate compensation when the created resource ID is available.
       - R10.4: rest_client_delete undo SHOULD use a configured restore or recreate compensation when the prior state is available.
       - R10.5: rest_client_invoke undo SHALL be noop unless the operation declares a compensating action.
-      - R10.6: rest_client_send undo SHALL record async request metadata and compensation state when the submitted operation can be cancelled or compensated.
+      - R10.6: rest_client_send SHALL return a rollback receipt containing async request metadata and compensation state when the submitted operation can be cancelled or compensated; rest_client_await SHALL NOT duplicate that remote-effect receipt.
       - R10.7: rest_client_await undo SHALL be noop unless await mutates command state that can be restored.
       - R10.8: Irreversible REST client operations SHOULD require confirmation before affecting user data, external services, or shared infrastructure.
 

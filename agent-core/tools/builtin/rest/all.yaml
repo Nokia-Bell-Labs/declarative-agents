@@ -339,6 +339,7 @@ tools:
         properties:
           request_id: {type: string}
           operation_id: {type: string}
+          status: {type: integer}
           correlation: {type: string}
           idempotency_token: {type: string}
     side_effects:

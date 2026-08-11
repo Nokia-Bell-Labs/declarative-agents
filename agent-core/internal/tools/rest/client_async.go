@@ -17,14 +17,33 @@ func (c clientCmd) sendAsync(request *http.Request) core.Result {
 	if c.asyncState == nil {
 		c.asyncState = NewAsyncState()
 	}
-	if err := c.asyncState.Add(requestState); err != nil {
+	if err := c.asyncState.CheckAdd(requestState); err != nil {
 		return clientOperationError(c.toolName, "async_state", err, c.operation)
 	}
-	go c.completeAsync(request, requestState)
+	completion := c.executeRequest(request)
+	if completion.Signal == core.CommandError {
+		return completion
+	}
+	if completion.Signal != core.Signal(c.operation.Operation.Success.Signal) {
+		err := fmt.Errorf("submission returned non-success signal %q", completion.Signal)
+		return clientOperationError(c.toolName, "submission_rejected", err, c.operation)
+	}
+	receipt := completion.Receipt
+	metrics := completion.Metrics
+	completion.Receipt = ""
+	completion.Metrics = nil
+	requestState.Done <- completion
+	if err := c.asyncState.Add(requestState); err != nil {
+		result := clientOperationError(c.toolName, "async_state", err, c.operation)
+		result.Receipt = receipt
+		return result
+	}
 	return core.Result{
 		Signal:      core.Signal("RESTAccepted"),
 		CommandName: c.toolName,
-		Output:      jsonOutput(asyncAcceptedOutput(requestState)),
+		Output:      jsonOutput(asyncAcceptedOutput(requestState, completion)),
+		Receipt:     receipt,
+		Metrics:     metrics,
 	}
 }
 
@@ -74,10 +93,6 @@ func (c clientCmd) awaitRequest() (*AsyncRequest, error) {
 	return nil, fmt.Errorf("request_id or correlation is required")
 }
 
-func (c clientCmd) completeAsync(request *http.Request, state *AsyncRequest) {
-	state.Done <- c.executeRequest(request)
-}
-
 func (c clientCmd) asyncRequest(async *AsyncClientConfig) *AsyncRequest {
 	requestID := asyncValue(async.RequestID, c.params)
 	if requestID == "" {
@@ -103,8 +118,8 @@ func (c clientCmd) awaitTimeout() time.Duration {
 	return parseDuration(c.operation.Operation.Async.Timeout, defaultAwaitTimeout)
 }
 
-func asyncAcceptedOutput(request *AsyncRequest) map[string]interface{} {
-	return map[string]interface{}{
+func asyncAcceptedOutput(request *AsyncRequest, completion core.Result) map[string]interface{} {
+	output := map[string]interface{}{
 		"request_id":        request.RequestID,
 		"operation_id":      request.OperationID,
 		"rest_ref":          request.RestRef,
@@ -113,6 +128,10 @@ func asyncAcceptedOutput(request *AsyncRequest) map[string]interface{} {
 		"correlation":       request.Correlation,
 		"submitted_payload": request.SubmittedPayload,
 	}
+	if status, ok := decodeRESTResultOutput(completion.Output)["status"]; ok {
+		output["status"] = status
+	}
+	return output
 }
 
 func asyncTimeoutOutput(request *AsyncRequest) map[string]interface{} {
