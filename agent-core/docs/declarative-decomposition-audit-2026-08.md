@@ -279,7 +279,15 @@ Filed by this audit. Completed by the consolidation slice.
 
 | Issue | Axis | Target | Hidden contract boundary |
 |---|---|---|---|
-| _(none yet)_ | | | |
+| GH-1528 | compound-tool, orchestration | `internal/tools/rest` | Declared side effect and rollback receipt execute in a detached goroutine after the word returns |
+| GH-1529 | orchestration | `internal/tools/rest` | Cancellation: dispatch cannot bound the effect it started |
+| GH-1530 | expressiveness, visibility | `internal/tools/rest` | Emitted-signal contract unenforced between operation config and ToolDef |
+| GH-1531 | visibility | `internal/tools/rest` | Undo declared noop while implemented; declared output keys the word never emits |
+| GH-1532 | contract enforcement | `internal/tools/rest` | Approval boundary: declared auth gate with no enforcement code |
+| GH-1533 | orchestration | `internal/tools/service` | Reaping the started process set: a rollback boundary no word owns |
+| GH-1534 | compound-tool | `internal/tools/service` | Partial rollback boundary inside one word |
+| GH-1535 | visibility | `internal/tools/service` | Published outputs the retry loop depends on are undeclared |
+| GH-1536 | declared tool reuse | `internal/tools/service` | Registered inits with no declaration; a duplicate domain operation |
 
 ## Rejected candidates
 
@@ -289,6 +297,19 @@ later recurrence should not refile these without new evidence.
 | Candidate | Slice | Failed question | Reason |
 |---|---|---|---|
 | Move `catalog-test-evidence` behind a declared word | Baseline | Q1 contract scope | Build/test support with no agent caller; its only non-test invoker is a Mage target. Excluded by the scope boundary. |
+| Lower non-CIDR REST client operations to a `curl` exec word | REST/service | Q2 behavioral equivalence | GH-1385, already judged defective. Typed transport, the credential-scope gate (`client_target.go:195-214`), secret redaction out of error text (`client_response.go:238-251`), traceparent injection, and the staged error taxonomy do not survive a CLI boundary. |
+| Replace the Go mock HTTP server with a bound mock CLI | REST/service | Q2 behavioral equivalence | GH-1386, already judged defective. `mock.go` is the srd039 fixture surface, loaded at server launch so a malformed fixture fails the launch. |
+| Split `rest_server_stop` because it shuts down and drains | REST/service | Q1 contract scope | One shutdown transaction with one rollback boundary (relaunch). Drain counts are reporting, not a second selectable operation. |
+| Decompose `doWithRetry` into machine states | REST/service | Q1 contract scope | Same-request transport retry inside one protocol transaction, sanctioned by srd028 R5.8 and the GH-1379 resolution. The cancellation defect is filed as GH-1529; the decomposition reading is not supported. |
+| Decompose `awaitMatching` and `waitAnySource` loops | REST/service | Q1 contract scope | A single wait for one matching event, parking non-matching events so another filter can see them. No delay and no repeated domain operation. |
+| Treat `handleMachineRequest` running a nested machine as hidden orchestration | REST/service | Q1 contract scope | This is the declarative answer, not a violation: the handler runs the MachineSpec the endpoint declares, and `validateMachineResponses` rejects a response map the machine cannot produce. |
+| Treat the monitor view packages as an Article D4 violation | REST/service | Q7 exception accuracy | D4 governs documentation and never names monitor. The surface is specified by srd033 G1-G6, every view is a read, and which endpoints exist is profile config. The view vocabulary being a closed Go enum is noted but is the same pattern as every other closed set in the package. |
+| Decompose the SIGTERM/bounded-wait/SIGKILL walk in `child.stop` | REST/service | Q1 contract scope | One atomic termination walk. |
+| Externalize scenario directory traversal in `discovery.go` | REST/service | Q2 behavioral equivalence | Traversal inside one atomic discovery word. Same shape as GH-1384, already reversed. |
+| Drive the serving-profile conformance harness through rest and service words | REST/service | Q1 contract scope | GH-1388, already judged defective. Replacing an independent observer with the system under test's own words makes conformance circular. |
+| Replace `runOneValidator`'s child-agent spawn with a CLI | REST/service | Q2 behavioral equivalence | One process run plus result mapping through the shared `execute.RunAgent` path. The typed `ValidatorOutcome`, timeout enforcement, and OTLP endpoint propagation have no equivalent. |
+| Split the twelve-way `init` switch in either package's `ExecuteContext` | REST/service | Q1 contract scope | `init` is bound per-ToolDef at factory time and is not agent-selectable. Standard builtin-registry shape. |
+| Split `collect_scenario_verdict`, reused by four ToolDefs | REST/service | Q1 contract scope | The config selects reason text, not a distinct domain operation. All four record exactly one verdict, and each is separately declared with an `overlaps` note. |
 | Externalize the prose-editor tracer boundary | Baseline | Q5 declarative visibility, inverted | Already bound declaratively as six atomic exec ToolDefs with declared side effects, reversibility, and undo. |
 | Treat the tool-contract completeness gap as a decomposition finding | Baseline | Q1 contract scope | A validation-coverage defect, not hidden workflow. Filed as GH-1525 and carried as repository work in this epic. |
 
@@ -324,3 +345,37 @@ Reconciling the declared-word count against `mage audit` surfaced one
 repository defect, filed as GH-1525: the tool-contract completeness check has
 no live caller, so 66 of 102 declared words are incomplete against the
 pattern's own standard without any check reporting it.
+
+### REST and service -- GH-1519
+
+Complete. Audited `internal/tools/rest` (8,301 lines, 26 files) and
+`internal/tools/service` (1,631 lines, 6 files) in full, plus their 45 and 4
+test files.
+
+Nine of the eleven declared REST words and ten of the twelve service inits are
+atomic. The package is in better decompositional shape than its size suggests:
+the health-retry loop, the async send/await grammar, and the scenario pipeline
+are all genuinely sequenced by MachineSpec rather than by Go.
+
+Nine findings filed (GH-1528 through GH-1536). They cluster in three groups
+rather than one: effects that escape their declaring dispatch (GH-1528,
+GH-1529, GH-1533, GH-1534), declarations that do not describe their
+implementation (GH-1530, GH-1531, GH-1535, GH-1536), and one declared
+enforcement point with no enforcement code (GH-1532). Only the first group is
+decomposition in the classic sense; the second is the more common failure here,
+and it matters because the pattern's whole claim is that the declaration is the
+program.
+
+Thirteen candidates rejected, recorded above. Six of them restate proposals the
+previous run filed and GH-1410 reversed.
+
+Tests: `go test ./internal/tools/rest/... ./internal/tools/service/...` passes
+(3.4s and 4.0s).
+
+Prior findings verified against current code: GH-882 HELD (runtime target
+selection with all safety gates intact), GH-1102 HELD (the polling loop is gone
+and `await_operation` is rejected at load with a migration message), GH-886 HELD
+(no `net/http` import remains in the service package; probe and retry are
+machine states), GH-1379 PARTIAL (backoff landed, cancellation is inert --
+filed as GH-1529), GH-1385 and GH-1386 correctly not implemented, GH-1388 not
+applicable to these packages.
