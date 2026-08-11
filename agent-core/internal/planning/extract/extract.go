@@ -118,8 +118,3 @@ func buildTask(nodes []*graph.Node) *Task {
 		Release: first.Release,
 	}
 }
-
-// HintSRD returns the current traversal hint (last SRD worked on).
-func (e *Extractor) HintSRD() string {
-	return e.hintSRD
-}

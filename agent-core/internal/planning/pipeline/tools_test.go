@@ -265,21 +265,6 @@ func TestRemainingWorkBuilder_ReportsBlockedGraphWithoutMutation(t *testing.T) {
 	require.Equal(t, graph.Executing, node.Status)
 }
 
-func TestMarshalPipelineTask(t *testing.T) {
-	t.Parallel()
-	task := &extract.Task{
-		ID:      "test-1",
-		SRDID:   "srd001",
-		Weight:  5,
-		NodeIDs: []string{"n1", "n2"},
-	}
-
-	result := marshalPipelineTask(task, "issue-abc")
-	assert.Contains(t, result, `"task_id":"test-1"`)
-	assert.Contains(t, result, `"issue_id":"issue-abc"`)
-	assert.Contains(t, result, `"nodes":2`)
-}
-
 // Verify that the pipeline state struct matches the test helper's expectations.
 func TestMinimalState_GraphHasNodes(t *testing.T) {
 	t.Parallel()

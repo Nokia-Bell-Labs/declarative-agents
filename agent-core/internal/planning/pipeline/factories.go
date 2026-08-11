@@ -15,12 +15,10 @@ import (
 
 // FactoryDeps holds the dependencies needed by pipeline tool factories.
 type FactoryDeps struct {
-	Directory        string
-	ChildAgentBinary string
-	CoreRoot         string
-	Tracer           tracing.Tracer
-	Ctx              context.Context
-	ParseRetries     *toollm.ParseErrorRetryTracker
+	Directory    string
+	Tracer       tracing.Tracer
+	Ctx          context.Context
+	ParseRetries *toollm.ParseErrorRetryTracker
 }
 
 type passThroughPlanConfig struct {

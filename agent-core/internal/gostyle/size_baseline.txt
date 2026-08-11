@@ -20,7 +20,6 @@ func:internal/evaluation/eval_session.go:DiscoverSamples
 func:internal/evaluation/eval_session.go:ParseSuiteConfig
 func:internal/evaluation/eval_tools.go:Execute
 func:internal/model/llm/ollama/adapter.go:Chat
-func:internal/planning/extract/output.go:BuildOutputTasks
 func:internal/planning/graph/graph.go:addReleaseEdges
 func:internal/planning/pipeline/factories.go:RegisterFactories
 func:internal/runtime/core/dolt_checkpoint.go:Save

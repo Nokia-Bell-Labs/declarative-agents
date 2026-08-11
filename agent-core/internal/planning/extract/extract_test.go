@@ -109,7 +109,6 @@ func TestExtractNext_DFSAffinity(t *testing.T) {
 	task1 := ext.ExtractNext(g, 5)
 	require.NotNil(t, task1)
 	assert.Equal(t, "srd001-auth", task1.SRDID)
-	assert.Equal(t, "srd001-auth", ext.HintSRD())
 
 	markTaskDone(t, g, task1)
 

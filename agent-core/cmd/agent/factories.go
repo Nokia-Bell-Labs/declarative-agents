@@ -415,12 +415,10 @@ func registerSpecValidationFactories(st *agentState) toolregistry.FactoryRegistr
 func registerPlanningFactories(st *agentState) toolregistry.FactoryRegistrar {
 	return func(br *toolregistry.BuiltinRegistry) {
 		pipeline.RegisterFactories(br, pipeline.FactoryDeps{
-			Directory:        st.directory,
-			ChildAgentBinary: st.childAgentBinary,
-			CoreRoot:         st.coreRoot,
-			Tracer:           st.tracer,
-			Ctx:              st.ctx,
-			ParseRetries:     st.parseRetries,
+			Directory:    st.directory,
+			Tracer:       st.tracer,
+			Ctx:          st.ctx,
+			ParseRetries: st.parseRetries,
 		})
 	}
 }
