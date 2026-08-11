@@ -9,6 +9,7 @@ import (
 	"path/filepath"
 	"reflect"
 	"strings"
+	"sync"
 	"testing"
 	"time"
 )
@@ -321,24 +322,24 @@ func TestReleaseGatesMatchDocumentedContract(t *testing.T) {
 	root := "/release"
 	got := releaseGates(root)
 	want := []releaseGate{
-		{name: "root audit", dir: root, args: []string{"mage", "audit"}},
-		{name: "root lint", dir: root, args: []string{"mage", "lint"}},
+		{name: "root audit", dir: root, args: []string{"mage", "audit"}, stage: 0, lane: "root"},
+		{name: "root lint", dir: root, args: []string{"mage", "lint"}, stage: 1, lane: "root"},
 		{name: "root test", dir: root, args: []string{"mage", "test"},
-			env: []string{uiDistReleaseEnv + "=1"}},
+			env: []string{uiDistReleaseEnv + "=1"}, stage: 2, lane: "root"},
 		{name: "agent-core integration", dir: "/release/agent-core",
-			args: []string{"mage", "integration:all"}},
+			args: []string{"mage", "integration:all"}, stage: 3, lane: "agent-core"},
 		{name: "catalog integration", dir: "/release/applications/catalog",
-			args: []string{"mage", "integration:all"}},
+			args: []string{"mage", "integration:all"}, stage: 3, lane: "catalog"},
 		{name: "catalog conformance", dir: "/release/applications/catalog",
-			args: []string{"mage", "conformance"}},
+			args: []string{"mage", "conformance"}, stage: 3, lane: "catalog"},
 		{name: "applications/chatbot-mesh integration", dir: "/release/applications/chatbot-mesh",
-			args: []string{"mage", "integration:all"}},
+			args: []string{"mage", "integration:all"}, stage: 4, lane: "applications/chatbot-mesh"},
 		{name: "applications/coding-agent integration", dir: "/release/applications/coding-agent",
-			args: []string{"mage", "integration:all"}},
+			args: []string{"mage", "integration:all"}, stage: 4, lane: "applications/coding-agent"},
 		{name: "applications/agent-architecture integration", dir: "/release/applications/agent-architecture",
-			args: []string{"mage", "integration:all"}},
+			args: []string{"mage", "integration:all"}, stage: 4, lane: "applications/chatbot-mesh"},
 		{name: "applications/prose-editor integration", dir: "/release/applications/prose-editor",
-			args: []string{"mage", "integration:all"}},
+			args: []string{"mage", "integration:all"}, stage: 4, lane: "applications/prose-editor"},
 	}
 	if !reflect.DeepEqual(got, want) {
 		t.Fatalf("release gates = %#v, want %#v", got, want)
@@ -371,14 +372,11 @@ func TestRootTestReleaseGateSignalsReleaseMode(t *testing.T) {
 func TestReleaseGatesCoverEveryApplicationModule(t *testing.T) {
 	gates := releaseGates("/release")
 	for _, mod := range applicationModules {
-		wantGate := releaseGate{
-			name: mod + " integration",
-			dir:  filepath.Join("/release", filepath.FromSlash(mod)),
-			args: []string{"mage", "integration:all"},
-		}
 		found := false
 		for _, g := range gates {
-			if reflect.DeepEqual(g, wantGate) {
+			if g.name == mod+" integration" &&
+				g.dir == filepath.Join("/release", filepath.FromSlash(mod)) &&
+				reflect.DeepEqual(g.args, []string{"mage", "integration:all"}) {
 				found = true
 				break
 			}
@@ -387,6 +385,58 @@ func TestReleaseGatesCoverEveryApplicationModule(t *testing.T) {
 			t.Fatalf("release gates missing integration:all participant for application module %q; gates = %#v",
 				mod, gates)
 		}
+	}
+}
+
+func TestExecuteReleaseStageRunsIndependentLanesConcurrently(t *testing.T) {
+	gates := []releaseGate{
+		{name: "a1", lane: "a"},
+		{name: "b1", lane: "b"},
+		{name: "a2", lane: "a"},
+	}
+	started := make(chan string, len(gates))
+	release := make(chan struct{})
+	done := make(chan error, 1)
+	var mu sync.Mutex
+	var running, maxRunning int
+	var calls []string
+
+	go func() {
+		done <- executeReleaseStage(gates, 2, func(gate releaseGate) error {
+			mu.Lock()
+			calls = append(calls, gate.name)
+			running++
+			if running > maxRunning {
+				maxRunning = running
+			}
+			mu.Unlock()
+			started <- gate.name
+			if gate.name != "a2" {
+				<-release
+			}
+			mu.Lock()
+			running--
+			mu.Unlock()
+			return nil
+		})
+	}()
+
+	first, second := <-started, <-started
+	if got := map[string]bool{first: true, second: true}; !got["a1"] || !got["b1"] {
+		t.Fatalf("first concurrent gates = %q, %q; want a1 and b1", first, second)
+	}
+	close(release)
+	if err := <-done; err != nil {
+		t.Fatal(err)
+	}
+	mu.Lock()
+	defer mu.Unlock()
+	if maxRunning != 2 {
+		t.Fatalf("maximum concurrent gates = %d, want 2", maxRunning)
+	}
+	a1, a2 := slicesIndex(calls, "a1"), slicesIndex(calls, "a2")
+	if a1 < 0 || a2 < 0 || a1 >= a2 {
+		t.Fatalf("shared lane order = %v, want a1 before a2", calls)
 	}
 }
 
@@ -409,6 +459,15 @@ func TestExecuteReleaseGatesStopsAtFailure(t *testing.T) {
 	if !reflect.DeepEqual(ran, []string{"audit", "test"}) {
 		t.Fatalf("ran gates = %v, want stop after test", ran)
 	}
+}
+
+func slicesIndex(values []string, want string) int {
+	for index, value := range values {
+		if value == want {
+			return index
+		}
+	}
+	return -1
 }
 
 func TestNextRevisionFromTags(t *testing.T) {

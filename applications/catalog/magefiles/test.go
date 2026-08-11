@@ -44,14 +44,16 @@ type conformanceOptions struct {
 
 type catalogTestMode struct {
 	nonConformance bool
+	runConformance bool
 	conformance    conformanceOptions
 }
 
-// Test runs Go unit tests for the catalog.
+// Test runs non-conformance Go unit tests for the catalog. The repository
+// release owns deterministic conformance as a separate gate, so keeping it out
+// of Test avoids compiling and executing the exact same suite twice.
 func Test() error {
 	return runCatalogTestMode(catalogTestMode{
 		nonConformance: true,
-		conformance:    conformanceOptions{live: false},
 	})
 }
 
@@ -60,7 +62,8 @@ func Test() error {
 // when the caller's shell has retained the live-conformance opt-in.
 func Conformance() error {
 	return runCatalogTestMode(catalogTestMode{
-		conformance: conformanceOptions{live: false},
+		runConformance: true,
+		conformance:    conformanceOptions{live: false},
 	})
 }
 
@@ -70,6 +73,7 @@ func Conformance() error {
 // per-run timeout with -args -live=true -live-timeout=<duration>.
 func LiveConformance() error {
 	return runCatalogTestMode(catalogTestMode{
+		runConformance: true,
 		conformance: conformanceOptions{
 			live:        true,
 			liveTimeout: defaultLiveTimeout,
@@ -90,12 +94,19 @@ func runCatalogTestMode(mode catalogTestMode) error {
 		mkdirTemp:   os.MkdirTemp,
 		removeAll:   os.RemoveAll,
 	}
+	return runner.runMode(mode)
+}
+
+func (runner catalogTestRunner) runMode(mode catalogTestMode) error {
 	if mode.nonConformance {
 		if err := runner.runNonConformance(); err != nil {
 			return err
 		}
 	}
-	return runner.runConformance(mode.conformance)
+	if mode.runConformance {
+		return runner.runConformance(mode.conformance)
+	}
+	return nil
 }
 
 func executeCatalogCommand(invocation catalogCommand) error {

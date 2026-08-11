@@ -129,6 +129,22 @@ func TestGolangciLintCacheIsStableAndCheckoutScoped(t *testing.T) {
 	}
 }
 
+func TestGolangciLintModuleCachesAreIndependent(t *testing.T) {
+	cacheRoot := t.TempDir()
+	checkout := filepath.Join(t.TempDir(), "declarative-agents")
+	core := golangciLintModuleCacheDir(cacheRoot, checkout, "agent-core")
+	catalog := golangciLintModuleCacheDir(cacheRoot, checkout, "applications/catalog")
+	if core == catalog {
+		t.Fatalf("independent modules share lint cache %q", core)
+	}
+	base := golangciLintCacheDir(cacheRoot, checkout)
+	for _, path := range []string{core, catalog} {
+		if !strings.HasPrefix(path, base+string(filepath.Separator)) {
+			t.Errorf("module cache %q is outside checkout cache %q", path, base)
+		}
+	}
+}
+
 func TestLintCommandEnvironmentReplacesAmbientCache(t *testing.T) {
 	got := lintCommandEnvironment([]string{
 		"PATH=/usr/bin",
@@ -161,14 +177,15 @@ func TestGolangciLintCommandUsesCheckoutCache(t *testing.T) {
 	if cmd.Dir != filepath.Join(root, "magefiles") {
 		t.Fatalf("command dir = %q, want checkout magefiles", cmd.Dir)
 	}
-	if !reflect.DeepEqual(cmd.Args[1:], []string{"run", "./..."}) {
+	if !reflect.DeepEqual(cmd.Args[1:], []string{"run", "--allow-parallel-runners", "./..."}) {
 		t.Fatalf("command args = %v", cmd.Args)
 	}
 	cacheRoot, err := os.UserCacheDir()
 	if err != nil {
 		t.Fatal(err)
 	}
-	want := "GOLANGCI_LINT_CACHE=" + golangciLintCacheDir(cacheRoot, root)
+	want := "GOLANGCI_LINT_CACHE=" +
+		golangciLintModuleCacheDir(cacheRoot, root, "magefiles")
 	if !slices.Contains(cmd.Env, want) {
 		t.Fatalf("command environment lacks %q: %v", want, cmd.Env)
 	}

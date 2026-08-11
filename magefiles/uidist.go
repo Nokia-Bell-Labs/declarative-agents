@@ -26,6 +26,7 @@ var uiSearchRoots = []string{
 const (
 	uiAuditLevel          = "high"
 	canonicalUITokensPath = "applications/catalog/ui/design-tokens.css"
+	uiConcurrency         = 3
 )
 
 // uiDistReleaseEnv is set by the release gate so UIDist treats a missing npm as
@@ -88,11 +89,14 @@ func UIDist() error {
 	if len(uis) == 0 {
 		return fmt.Errorf("uiDist found no shipped UIs to check under %v", uiSearchRoots)
 	}
-	for _, dir := range uis {
+	if err := runBounded(uis, uiConcurrency, func(dir string) error {
 		fmt.Printf("=== ui reproducibility: %s ===\n", dir)
 		if err := rebuildAndDiffUI(dir); err != nil {
 			return err
 		}
+		return nil
+	}); err != nil {
+		return err
 	}
 	fmt.Printf("uiDist PASS: %d shipped UI dist tree(s) reproduce from a clean source build\n", len(uis))
 	return nil
@@ -187,7 +191,9 @@ func rebuildAndDiffUIWithRunner(appDir string, run uiRunner) error {
 	if err != nil {
 		return err
 	}
-	if err := run(build, "npm", "ci"); err != nil {
+	// npm ci's implicit audit duplicates the two explicit policy audits below.
+	// Keep the clean install while preferring the shared download cache.
+	if err := run(build, "npm", "ci", "--no-audit", "--prefer-offline"); err != nil {
 		return fmt.Errorf("%s: npm ci failed: %w", appDir, err)
 	}
 	if err := auditUIDependencies(build, run); err != nil {
