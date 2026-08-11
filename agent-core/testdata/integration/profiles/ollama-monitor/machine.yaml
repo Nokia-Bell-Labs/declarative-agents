@@ -32,7 +32,7 @@ signals:
   - {name: CommandError}
   - {name: BudgetExhausted}
 transitions:
-  - {state: Idle, signal: Seed, next: StartingMonitor, action: launch_monitor_rest}
+  - {state: Idle, signal: Seed, next: StartingMonitor, action: launch_monitor_rest, label: monitor, report_output: $.address}
   - {state: StartingMonitor, signal: ServerLaunched, next: Composing, action: invoke_llm}
   - {state: StartingMonitor, signal: CommandError, next: Failed}
   - {state: Composing, signal: LLMResponded, next: Parsing, action: parse_response}

@@ -41,7 +41,7 @@ transitions:
   - {state: Idle,              signal: Seed,           next: LaunchingRequests, action: launch_rag_requests}
   - {state: LaunchingRequests, signal: ServerLaunched, next: LaunchingControl,   action: launch_rag_control}
   - {state: LaunchingRequests, signal: CommandError,   next: Failed}
-  - {state: LaunchingControl,  signal: ServerLaunched, next: LaunchingMonitor,   action: launch_monitor_rest}
+  - {state: LaunchingControl,  signal: ServerLaunched, next: LaunchingMonitor,   action: launch_monitor_rest, label: monitor, report_output: $.address}
   - {state: LaunchingControl,  signal: CommandError,   next: Failed}
   - {state: LaunchingMonitor,  signal: ServerLaunched, next: AwaitingControl,    action: await_rag_control}
   - {state: LaunchingMonitor,  signal: CommandError,   next: Failed}

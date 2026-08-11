@@ -48,8 +48,6 @@ var (
 
 const (
 	agentVersion             = "v0.0.0-dev"
-	monitorLaunchCommandName = "launch_monitor_rest"
-	monitorServerName        = "monitor"
 	terminalSummaryMaxBytes  = 1 << 20
 	terminalSummaryTruncated = "... [terminal summary truncated]"
 )
@@ -646,7 +644,7 @@ func defaultRunBudget() core.Budget {
 }
 
 func cliResultReporter(rr core.RunResult, res core.Result) core.RunResult {
-	rr = monitorLaunchReporter(rr, res)
+	reportOperatorOutput(res)
 	if strings.TrimSpace(res.Output) != "" {
 		rr.Summary = boundedTerminalSummary(res.Output)
 	}
@@ -682,27 +680,15 @@ func commandFailureMessage(res core.Result) string {
 	return fmt.Sprintf("%s failed: %s", name, detail)
 }
 
-func monitorLaunchReporter(rr core.RunResult, res core.Result) core.RunResult {
-	if res.CommandName != monitorLaunchCommandName || res.Signal != core.Signal("ServerLaunched") {
-		return rr
+func reportOperatorOutput(res core.Result) {
+	if res.OperatorReport == nil {
+		return
 	}
-	if address := monitorLaunchAddress(res.Output); address != "" {
-		fmt.Fprintf(os.Stderr, "monitor address: %s\n", address)
+	field := res.OperatorReport.Field
+	if res.OperatorReport.Label != "" {
+		field = res.OperatorReport.Label + " " + field
 	}
-	return rr
-}
-
-func monitorLaunchAddress(output string) string {
-	var decoded map[string]interface{}
-	if err := json.Unmarshal([]byte(output), &decoded); err != nil {
-		return ""
-	}
-	server, _ := decoded["server"].(string)
-	address, _ := decoded["address"].(string)
-	if server != monitorServerName {
-		return ""
-	}
-	return address
+	fmt.Fprintf(os.Stderr, "%s: %s\n", field, res.OperatorReport.Value)
 }
 
 func (st *agentState) snapshotConversation() (json.RawMessage, error) {

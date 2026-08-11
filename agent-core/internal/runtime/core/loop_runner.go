@@ -26,6 +26,8 @@ type loopRunner struct {
 	iteration         int
 	start             time.Time
 	taskCompletedSig  Signal
+	reportOutput      string
+	reportLabel       string
 	checkpoint        Checkpoint
 	checkpointEnabled bool
 	execution         Execution
@@ -172,6 +174,9 @@ func (r *loopRunner) applyBudget() {
 func (r *loopRunner) nextTransition() (State, Command, Signal, string, MetricLabels, error) {
 	transitionSignal := r.signal
 	commandStateLabel := transitionCommandStateLabel(r.params.MachineSpec, r.state, transitionSignal)
+	r.reportOutput, r.reportLabel = transitionReportPolicy(
+		r.params.MachineSpec, r.state, transitionSignal,
+	)
 	labels := transitionMetricLabels(r.params.MachineSpec, r.state, transitionSignal)
 	nextState, cmd, err := r.sm.Step(r.state, transitionSignal, r.result)
 	if err != nil {
@@ -182,18 +187,6 @@ func (r *loopRunner) nextTransition() (State, Command, Signal, string, MetricLab
 	)
 	r.recordTransition(nextState)
 	return nextState, cmd, transitionSignal, commandStateLabel, labels, nil
-}
-
-func transitionCommandStateLabel(spec *MachineSpec, state State, signal Signal) string {
-	if spec == nil {
-		return ""
-	}
-	for _, transition := range spec.Transitions {
-		if transition.State == string(state) && transition.Signal == string(signal) {
-			return transition.Label
-		}
-	}
-	return ""
 }
 
 func (r *loopRunner) stopForUnhandledTransition(err error) bool {
@@ -390,6 +383,7 @@ func (r *loopRunner) dispatchContext(labels MetricLabels) monitor.DispatchContex
 }
 
 func (r *loopRunner) accumulateResult() {
+	applyOperatorReport(r)
 	accumulateCost(&r.run, r.result)
 	if r.result.Err != nil {
 		r.run.LastError = r.result.Err

@@ -63,6 +63,29 @@ func TestMachineCommandTimeoutRoutesRecoveryAndContinues(t *testing.T) {
 	require.Equal(t, core.ToolDone, result.Events[1].Signal)
 }
 
+func TestOperatorReportIsGenericAndPreservesMonitorLine(t *testing.T) {
+	output, err := captureStderr(t, func() error {
+		reportOperatorOutput(core.Result{
+			CommandName: "differently_named_monitor_word",
+			OperatorReport: &core.OperatorReport{
+				Label: "monitor", Field: "address", Value: "127.0.0.1:9090",
+			},
+		})
+		return nil
+	})
+	require.NoError(t, err)
+	require.Equal(t, "monitor address: 127.0.0.1:9090\n", output)
+}
+
+func TestOperatorReportOmissionPrintsNothing(t *testing.T) {
+	output, err := captureStderr(t, func() error {
+		reportOperatorOutput(core.Result{CommandName: "silent"})
+		return nil
+	})
+	require.NoError(t, err)
+	require.Empty(t, output)
+}
+
 type timeoutBuilder struct{}
 
 func (timeoutBuilder) Build(core.Result) core.Command { return timeoutCommand{} }

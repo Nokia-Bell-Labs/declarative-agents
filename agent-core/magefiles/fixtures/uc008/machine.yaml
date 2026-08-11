@@ -39,6 +39,8 @@ transitions:
     signal: Seed
     next: StartingMonitor
     action: launch_monitor_rest
+    label: monitor
+    report_output: $.address
     metric_labels:
       route_group: monitor
   - state: StartingMonitor

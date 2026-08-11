@@ -145,19 +145,26 @@ type OutputRedaction struct {
 
 // Result carries the output of a Command execution.
 type Result struct {
-	Output      string
-	Redaction   OutputRedaction
-	Signal      Signal
-	State       State
-	Cost        Cost
-	Err         error
-	CommandName string
-	Metrics     *ToolMetrics // nil when tool doesn't report metrics
+	Output         string
+	Redaction      OutputRedaction
+	Signal         Signal
+	State          State
+	Cost           Cost
+	Err            error
+	CommandName    string
+	Metrics        *ToolMetrics // nil when tool doesn't report metrics
+	OperatorReport *OperatorReport
 	// Receipt is an opaque, tool-owned string encoded by the originating tool
 	// and persisted verbatim on the execution Entry. The engine and every
 	// checkpoint adapter treat it as opaque and never parse it
 	// (srd035-checkpoint-port R3).
 	Receipt string
+}
+
+type OperatorReport struct {
+	Label string
+	Field string
+	Value string
 }
 
 // SpanOverride allows Commands to customize the Dispatch span name and

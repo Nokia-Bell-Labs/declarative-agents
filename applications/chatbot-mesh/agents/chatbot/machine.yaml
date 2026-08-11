@@ -40,7 +40,7 @@ transitions:
   - {state: Idle,              signal: Seed,           next: LaunchingRequests, action: launch_chat_requests}
   - {state: LaunchingRequests, signal: ServerLaunched, next: LaunchingControl,   action: launch_chatbot_control}
   - {state: LaunchingRequests, signal: CommandError,   next: Failed}
-  - {state: LaunchingControl,  signal: ServerLaunched, next: LaunchingMonitor,   action: launch_monitor_rest}
+  - {state: LaunchingControl,  signal: ServerLaunched, next: LaunchingMonitor,   action: launch_monitor_rest, label: monitor, report_output: $.address}
   - {state: LaunchingControl,  signal: CommandError,   next: Failed}
   - {state: LaunchingMonitor,  signal: ServerLaunched, next: AwaitingControl,    action: await_chatbot_control}
   - {state: LaunchingMonitor,  signal: CommandError,   next: Failed}
