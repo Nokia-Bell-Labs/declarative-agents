@@ -273,9 +273,73 @@ and `agent-core/internal/runtime/core/machine.go`.
 Two capabilities deferred by earlier audits have since shipped: data-driven
 iteration and fork-join (GH-883) and bounded parallel `for_each` (GH-1095).
 
+## Summary
+
+The audit covered all 48,513 production Go lines across 30 packages and both
+application modules, in seven slices. It filed 50 issues and recorded 71
+rejected candidates.
+
+| Slice | Scope | Production lines | Filed |
+|---|---|---|---|
+| Baseline (GH-1518) | executables, declarations, format | -- | 1 (GH-1525) |
+| REST and service (GH-1519) | 2 packages | 9,932 | 9 |
+| Remaining tools (GH-1520) | 10 packages | ~8,500 | 11 |
+| Runtime and root (GH-1521) | runtime, cmd, support | 7,487 | 10 |
+| Spec and planning (GH-1522) | 5 packages | 8,151 | 7 |
+| Telemetry and model (GH-1523) | 9 packages | ~11,400 | 8 |
+| Applications (GH-1524) | 2 modules | 2,938 | 4 |
+
+The 71 rejected candidates include the 7 defective findings GH-1410 reversed,
+recorded so a later recurrence recognizes a repeat proposal.
+
+### What the audit found
+
+**The decomposition itself is largely sound.** Across roughly 200 words and
+30 packages, the audit found five genuine compound-contract or hidden-workflow
+findings: `rest_client_send` (GH-1528), `extract_task` (GH-1560),
+`spool_span_stats` (GH-1572), `init_eval_session` (GH-1570), and the tracer
+boundary's receipt counter (GH-1575). Several constructs that look like
+violations are the pattern working correctly, and most of the 71 rejected
+candidates failed on that basis -- including every proposal resembling the
+four that GH-1410 reversed.
+
+**The dominant failure mode is enforcement, not decomposition.** The
+declaration is meant to be the program, and across the library it frequently
+is not: 66 of 102 declared words are incomplete against the pattern's own
+six-section standard with no check reporting it (GH-1525); 12 of 29 ToolDef
+fields are read at runtime and never validated, three of them fail-open
+(GH-1541); output schemas describe words other than the ones declaring them
+(GH-1543); and the rollback engine reads no declared reversibility tier at all
+(GH-1539).
+
+**The most serious single finding is GH-1539.** The three-tier reversibility
+model the Tool Contract pattern is built on is unreachable: the walk classifies
+by runtime accident, and 18 shipped exec words -- including the core `commit`
+word -- turn any rollback that crosses them into a reported failure. The corpus
+linter mandates the exact `undo.strategy` token the exec runtime rejects.
+
+**Prior findings mostly held.** Of 25 verified: 20 HELD, 5 PARTIAL
+(GH-1099, GH-1377, GH-1379, GH-1393, GH-1087), 1 regressed in scope
+(GH-1376). No prior fix was found to have been reverted or undone.
+
+### Coverage
+
+Complete for production Go. Every package in the baseline inventory was read
+in full by the slice that owned it, and every slice recorded its test result.
+No axis was left uncompleted.
+
+Two limits worth recording for the next recurrence. First, the audit read
+declarations against implementations but could not check them mechanically --
+no test in the repository compares a word's declared output schema, emitted
+signals, or undo strategy against what its Go does, which is why that class
+appears in five separate findings. Second, declaration resolution order was
+traced for the planner profile specifically and not for every profile naming
+`agent-core/tools/builtin.yaml`, so the runtime impact of GH-1562's undo
+contradiction on non-planner agents is unquantified.
+
 ## Accepted findings
 
-Filed by this audit. Completed by the consolidation slice.
+Filed by this audit. 60 findings across seven slices.
 
 | Issue | Axis | Target | Hidden contract boundary |
 |---|---|---|---|
@@ -324,6 +388,10 @@ Filed by this audit. Completed by the consolidation slice.
 | GH-1572 | compound-tool | `internal/tools/otlp` | Two independent analytical results behind one signal |
 | GH-1573 | declared tool reuse | `internal/evaluation` | Sample layout, convergence policy, and undeclared effects owned by Go |
 | GH-1574 | declared tool reuse | `evaluation`, `otlp`, `observability`, `model` | Dead surface, incl. the probe GH-1375 made unreachable |
+| GH-1575 | orchestration | `applications/prose-editor` | Workflow position and terminal state recomputed from a receipt count |
+| GH-1576 | orchestration, visibility | `applications/prose-editor` | The child-agent invocation contract, composed in Go |
+| GH-1577 | visibility | `applications/prose-editor` | A word declaring read-only that creates durable state |
+| GH-1578 | maintainability | `applications/prose-editor` | Not a decomposition finding; ordinary defects found while auditing |
 
 ## Rejected candidates
 
@@ -396,6 +464,11 @@ later recurrence should not refile these without new evidence.
 | Treat the four standard dispatch metrics as policy in Go | Telemetry | Q1 contract scope | Runtime-owned dispatch instrumentation, explicitly modeled as such, and tool-supplied bindings extend it through `RecorderConfig.Bindings`. The mechanism for profile-supplied metrics exists and is used. |
 | Treat `internal/observability` as carrying an application-specific concern | Telemetry | Q7 exception accuracy | Same rigor as the REST monitor question, same answer. `telemetry` is OTel setup and W3C traceparent, `tracing` is a four-method port plus a noop, `genai` is a semconv constant table, `monitor` is a schema-validated store whose vocabulary comes from `RecorderConfig`. The two application-flavored `Snapshot` booleans are dead code (GH-1574), not a D4 violation. |
 | Treat the OTLP and monitor timeout/limit defaults as policy leaks | Telemetry | Q1 contract scope | Each is a fallback for a value the declaration exposes and the shipped declarations set. A declared knob with a Go default is the pattern working -- which is why GH-1570's ten-minute point timeout *is* filed: it is not exposed in the config block at all. |
+| Drive the serving-profile conformance harness through rest and service words | Applications | Q1 contract scope | GH-1388, already reversed. Replacing the independent process/HTTP observer with the system under test's own words makes conformance circular and discards the process-death watchdog at `conformance/serve.go:136-140`, `:180-193`. The file states this itself at `:29-32`. |
+| Audit `conformance/harness.go`, `otel.go`, `dolt.go`, `ollama.go` | Applications | Q1 contract scope | Test-support harness; the harness is not the product under audit. Every entry point takes `*testing.T`. |
+| Audit `catalogroot/root.go` and `agentbuild/build.go` | Applications | Q1 contract scope | Build/test support. `catalogroot` has only magefile callers; `agentbuild` is one `go build` shared by a magefile and the harness. |
+| Externalize the prose-editor tracer boundary | Applications | Q5 declarative visibility, inverted | Already bound as six atomic exec ToolDefs. GH-1575 and GH-1576 refine *what* crosses the boundary; they do not propose replacing it. |
+| Replace the `serve` fixture double inside the tracer binary | Applications | Q2 behavioral equivalence | The deterministic model and RAG stub for a hermetic gate, invoked only from `magefiles/integration_tracer.go:512`. No equivalence or provisioning story for replacing it. Its co-location with product code is noted in GH-1578, not filed as decomposition. |
 | Externalize the prose-editor tracer boundary | Baseline | Q5 declarative visibility, inverted | Already bound declaratively as six atomic exec ToolDefs with declared side effects, reversibility, and undo. |
 | Treat the tool-contract completeness gap as a decomposition finding | Baseline | Q1 contract scope | A validation-coverage defect, not hidden workflow. Filed as GH-1525 and carried as repository work in this epic. |
 
@@ -659,3 +732,36 @@ HELD, GH-1375 HELD, GH-1096 HELD with one qualification -- the machine
 sequencing `load_otlp_batch` and `relay_spans` ships as an integration-test
 profile rather than an application profile, which satisfies srd008 R7.1/R7.2
 as written but is worth recording.
+
+### Application Go and consolidation -- GH-1524
+
+Complete. Audited the ten non-test production Go files in
+`applications/catalog` (1,741 lines) and `applications/prose-editor` (1,197).
+
+Nine of the ten are out of scope and are recorded above as rejected
+candidates. The result worth stating plainly: **the catalog module ships no
+production Go at all.** Its 1,741 lines are conformance harness, build recipe,
+and root resolution -- every entry point takes a `*testing.T` or is called only
+from a Mage target. `conformance/serve.go` is the independent process and HTTP
+observer that GH-1388 proposed replacing and GH-1410 reversed; it is not
+refiled.
+
+The one production-runtime file is the prose-editor tracer boundary, and it is
+simultaneously the audit's best and worst example. Best: it is reached only
+through six declared exec ToolDefs, each one atomic operation with declared
+side effects, reversibility tier, and undo strategy, and `materialize_final_chain`
+matches its declaration exactly. Worst: `append_manifest_revision` is bound
+eight times with eight labels and passes no parameters, so the Go recomputes
+its workflow position by counting receipts and assigns the run's terminal state
+itself.
+
+Four findings filed (GH-1575 through GH-1578), one of them explicitly
+maintainability rather than decomposition.
+
+Tests: both application modules pass, including the 64-second catalog
+conformance suite.
+
+Consolidation: every filed finding was re-checked against the eight-question
+gate before this slice closed. None was withdrawn. The Accepted Findings and
+Rejected Candidates registers above are complete, and the audit summary at the
+top of this file records coverage against the `mage stats` totals.
