@@ -71,6 +71,11 @@ tools:
     undo:
       strategy: parse_retry_counter_restore
       description: "Restores the parse retry counter snapshot captured before reporting the parse error."
+    config:
+      feedback_template: |-
+        Your previous response was invalid. {{error}}
+
+        Please respond with a single JSON object: {"tool": "<tool_name>", "parameters": {<params>}}
 
   - name: reset_history
     type: builtin
@@ -113,6 +118,8 @@ tools:
     undo:
       strategy: noop
       description: "The nudge only changes the command output passed to the next transition."
+    config:
+      nudge_text: "The file was modified successfully. IMPORTANT: You MUST call the read tool on the modified file to see its current contents before making any further edits. Do not assume you know what the file looks like — re-read it now."
 
   - name: done
     type: builtin

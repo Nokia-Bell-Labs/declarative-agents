@@ -11,14 +11,9 @@ import (
 	"github.com/Nokia-Bell-Labs/declarative-agents/agent-core/internal/runtime/core"
 )
 
-// RereadNudge is appended after edits so the model reads current file content.
-const RereadNudge = `The file was modified successfully. ` +
-	`IMPORTANT: You MUST call the read tool on the modified file to see ` +
-	`its current contents before making any further edits. Do not assume ` +
-	`you know what the file looks like — re-read it now.`
-
 type nudgeRereadCmd struct {
 	editResult string
+	nudgeText  string
 	tracer     tracing.Tracer
 }
 
@@ -30,7 +25,7 @@ func (n *nudgeRereadCmd) Execute() core.Result {
 	defer done()
 	child.SetAttributes(attribute.String("edit_result", n.editResult))
 	return core.Result{
-		Signal: core.ToolDone, Output: fmt.Sprintf("%s\n\n%s", n.editResult, RereadNudge),
+		Signal: core.ToolDone, Output: fmt.Sprintf("%s\n\n%s", n.editResult, n.nudgeText),
 		CommandName: n.Name(),
 	}
 }
@@ -38,8 +33,9 @@ func (n *nudgeRereadCmd) Execute() core.Result {
 // NudgeRereadBuilder constructs nudge_reread commands.
 type NudgeRereadBuilder struct {
 	Tracer tracing.Tracer
+	Text   string
 }
 
 func (b *NudgeRereadBuilder) Build(r core.Result) core.Command {
-	return &nudgeRereadCmd{editResult: r.Output, tracer: b.Tracer}
+	return &nudgeRereadCmd{editResult: r.Output, nudgeText: b.Text, tracer: b.Tracer}
 }

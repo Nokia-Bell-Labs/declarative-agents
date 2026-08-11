@@ -38,7 +38,7 @@ requirements:
       - R1.1: read tool reads file contents with optional line range (startLine, endLine). With raw set, it returns the file's exact bytes with no line-number prefixes, so a request-machine can serve a file verbatim as an HTTP body (the agent-facing line-numbered form would corrupt such a payload).
       - R1.2: write tool creates or overwrites a file at a validated path.
       - R1.3: edit tool performs search-and-replace operations on files.
-      - R1.4: find tool searches file contents using ripgrep with workspace confinement.
+      - R1.4: find tool searches file contents using ripgrep with workspace confinement and honors its ToolDef output_cap; the shipped declaration selects 200 lines.
       - R1.5: list_files is a declared exec word that uses GNU find to list directory contents in deterministic tree order, does not follow symlinks, honors max_depth, and caps output at 200 lines.
       - R1.6: All file tools confine requested paths to the workspace root; Go builtins use ValidatePath and the list_files exec declaration resolves and checks its working directory before invoking find.
 
@@ -55,7 +55,7 @@ requirements:
     items:
       - R3.1: invoke_llm assembles messages via PromptAssembler, calls Chat, and appends the response to the conversation.
       - R3.2: parse_response extracts tool calls from LLM output using a ResponseParser. The "done" tool call is recognised inside parse_response at the LLM pipeline level to signal TaskCompleted. DoneBuilder also exists as a standalone builtin (see R9.2).
-      - R3.3: report_parse_error feeds parse failure feedback back to the LLM, classifying the error via ClassifyParseError.
+      - R3.3: report_parse_error feeds parse failure feedback back to the LLM, classifying the error via ClassifyParseError and rendering profile-owned feedback_template text.
       - R3.4: reset_history clears the Conversation for a fresh LLM context, emitting the previous message count as a span attribute.
       - R3.5: invoke_llm checks ContextLimit; if estimated tokens exceed the limit it returns CommandError before calling Chat.
       - R3.6: invoke_llm supports CallTimeout (per-call context deadline) and NumCtx (Ollama context window size forwarded via ChatOptions).
@@ -103,7 +103,7 @@ requirements:
   R9:
     title: Nudge and done tools
     items:
-      - R9.1: nudge_reread appends a re-read instruction after file edits to prompt the model to verify changes.
+      - R9.1: nudge_reread appends the profile-owned nudge_text after file edits to prompt the model to verify changes.
       - R9.2: done is a standalone builtin tool that signals TaskCompleted with a summary message.
 
   R10:

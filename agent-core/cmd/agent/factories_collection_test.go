@@ -9,6 +9,9 @@ import (
 
 	"github.com/Nokia-Bell-Labs/declarative-agents/agent-core/internal/runtime/core"
 	"github.com/Nokia-Bell-Labs/declarative-agents/agent-core/internal/tools/catalog"
+	"github.com/Nokia-Bell-Labs/declarative-agents/agent-core/internal/tools/control"
+	"github.com/Nokia-Bell-Labs/declarative-agents/agent-core/internal/tools/filesystem"
+	toollm "github.com/Nokia-Bell-Labs/declarative-agents/agent-core/internal/tools/llm"
 	toolregistry "github.com/Nokia-Bell-Labs/declarative-agents/agent-core/internal/tools/registry"
 )
 
@@ -69,6 +72,36 @@ func TestCollectionFactoriesRejectMalformedConfigAtRegistration(t *testing.T) {
 	}
 }
 
+func TestProfilePolicyReachesBuiltinBuilders(t *testing.T) {
+	t.Parallel()
+
+	filesystemFactories := toolregistry.NewBuiltinRegistry()
+	registerFilesystemFactories()(filesystemFactories)
+	findFactory, ok := filesystemFactories.Resolve("file_find")
+	require.True(t, ok)
+	findBuilder, err := findFactory(catalog.ToolDef{OutputCap: 17}, map[string]string{"directory": "/tmp"})
+	require.NoError(t, err)
+	require.Equal(t, 17, findBuilder.(*filesystem.FindBuilder).OutputLineCap)
+
+	llmFactories := toolregistry.NewBuiltinRegistry()
+	registerLLMFactories(&agentState{})(llmFactories)
+	nudgeFactory, ok := llmFactories.Resolve("nudge_reread")
+	require.True(t, ok)
+	nudgeBuilder, err := nudgeFactory(catalog.ToolDef{
+		Name: "nudge", Config: map[string]interface{}{"nudge_text": "custom reread"},
+	}, nil)
+	require.NoError(t, err)
+	require.Equal(t, "custom reread", nudgeBuilder.(*control.NudgeRereadBuilder).Text)
+
+	reportFactory, ok := llmFactories.Resolve("report_parse_error")
+	require.True(t, ok)
+	reportBuilder, err := reportFactory(catalog.ToolDef{
+		Name: "report", Config: map[string]interface{}{"feedback_template": "fix {{error}}"},
+	}, nil)
+	require.NoError(t, err)
+	require.Equal(t, "fix {{error}}", reportBuilder.(*toollm.ReportParseErrorBuilder).FeedbackTemplate)
+}
+
 func TestCollectionFactoriesRegisterValidConfig(t *testing.T) {
 	defs := []catalog.ToolDef{
 		{Name: "partition", Type: "builtin", Init: "partition", Config: map[string]interface{}{
@@ -92,7 +125,7 @@ func TestCollectionFactoriesRegisterValidConfig(t *testing.T) {
 			"parsed": "Parsed", "unparsed": "Unparsed",
 		}},
 		{Name: "report_parse_error", Type: "builtin", Init: "report_parse_error", Config: map[string]interface{}{
-			"response_contract": "implementation_plan_yaml",
+			"feedback_template": "Correct {{error}} as YAML.",
 		}},
 	}
 	for _, def := range defs {

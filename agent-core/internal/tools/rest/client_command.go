@@ -171,17 +171,16 @@ func (c *clientCmd) hasRESTCompensation() bool {
 
 func (c *clientCmd) restUndoPayload() undo.BoundaryCompensationPayload {
 	return undo.BoundaryCompensationPayload{BoundaryCompensation: undo.BoundaryCompensation{
-		Strategy:         c.restCompensationStrategy(),
-		Reason:           restCompensationDescription,
-		Requires:         []string{"rest_ref", "operation", "compensation"},
-		RestRef:          c.operation.RestRef,
-		Resource:         c.operation.Resource,
-		Operation:        c.operation.OperationName,
-		Parameters:       cloneRESTParams(c.params),
-		ResourceID:       c.restResourceID(),
-		RequestID:        c.restRequestID(),
-		IdempotencyToken: c.restIdempotencyToken(),
-		Compensation:     c.operation.Operation.Compensation,
+		Strategy: c.restCompensationStrategy(),
+		Reason:   restCompensationDescription,
+		Requires: []string{"rest_ref", "operation", "compensation"},
+		Data: map[string]interface{}{
+			"rest_ref": c.operation.RestRef, "resource": c.operation.Resource,
+			"operation": c.operation.OperationName, "parameters": cloneRESTParams(c.params),
+			"resource_id": c.restResourceID(), "request_id": c.restRequestID(),
+			"idempotency_token": c.restIdempotencyToken(),
+			"compensation":      c.operation.Operation.Compensation,
+		},
 	}}
 }
 
@@ -258,12 +257,14 @@ func (e CompensationExecutor) resolveCompensationOperation(
 	if e.Definitions == nil {
 		return ClientOperationDefinition{}, fmt.Errorf("REST compensation definitions are not configured")
 	}
-	operationName, ok := compensation.Compensation["operation"].(string)
+	configured := compensationMap(compensation.Data, "compensation")
+	operationName, ok := configured["operation"].(string)
 	if !ok || operationName == "" {
 		return ClientOperationDefinition{}, fmt.Errorf("REST compensation operation is not configured")
 	}
 	return e.Definitions.ResolveClientOperation(ClientToolConfig{
-		RestRef: compensation.RestRef, Resource: compensation.Resource, Operation: operationName,
+		RestRef:  stringMapValue(compensation.Data, "rest_ref"),
+		Resource: stringMapValue(compensation.Data, "resource"), Operation: operationName,
 	})
 }
 
@@ -277,15 +278,27 @@ func compensationToolName(commandName string) string {
 func compensationRuntimeParams(compensation undo.BoundaryCompensation, binding RequestBinding) map[string]interface{} {
 	params := map[string]interface{}{}
 	declared := declaredParamNames(binding)
-	copyCompensationParams(params, compensation.Parameters)
-	copyCompensationParams(params, compensation.Compensation["parameters"])
-	setCompensationParam(params, declared, "resource_id", compensation.ResourceID)
-	setCompensationParam(params, declared, "id", compensation.ResourceID)
-	setCompensationParam(params, declared, "number", compensation.ResourceID)
-	copyCompensationParam(params, declared, "request_id", compensation.RequestID)
-	copyCompensationParam(params, declared, "idempotency_token", compensation.IdempotencyToken)
+	copyCompensationParams(params, compensation.Data["parameters"])
+	configured := compensationMap(compensation.Data, "compensation")
+	copyCompensationParams(params, configured["parameters"])
+	resourceID := stringMapValue(compensation.Data, "resource_id")
+	setCompensationParam(params, declared, "resource_id", resourceID)
+	setCompensationParam(params, declared, "id", resourceID)
+	setCompensationParam(params, declared, "number", resourceID)
+	copyCompensationParam(params, declared, "request_id", stringMapValue(compensation.Data, "request_id"))
+	copyCompensationParam(params, declared, "idempotency_token", stringMapValue(compensation.Data, "idempotency_token"))
 	dropUndeclaredCompensationParams(params, declared)
 	return map[string]interface{}{"parameters": params}
+}
+
+func compensationMap(values map[string]interface{}, key string) map[string]interface{} {
+	mapped, _ := values[key].(map[string]interface{})
+	return mapped
+}
+
+func stringMapValue(values map[string]interface{}, key string) string {
+	value, _ := values[key].(string)
+	return value
 }
 
 func cloneRESTParams(params map[string]interface{}) map[string]interface{} {

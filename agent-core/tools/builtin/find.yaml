@@ -3,6 +3,7 @@ tools:
   type: builtin
   category: word
   init: file_find
+  output_cap: 200
   emits:
   - ToolDone
   - ToolFailed

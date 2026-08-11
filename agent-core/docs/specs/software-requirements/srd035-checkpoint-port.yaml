@@ -58,6 +58,7 @@ requirements:
       - R3.2: The Receipt SHALL be encoded by the originating tool; the engine and every checkpoint adapter SHALL treat it as opaque and SHALL NOT parse or interpret it.
       - R3.3: The Receipt SHALL serialize as a JSON string, or as null (or an omitted field) when a tool returns no receipt, such as a read-only tool.
       - R3.4: Save and Load SHALL round-trip the Receipt verbatim, preserving its exact bytes.
+      - R3.5: Shared boundary helpers SHALL expose only strategy, reason, requirements, and an opaque family-owned data map; adding family-specific compensation data SHALL NOT extend a cross-family typed union.
 
   R4:
     title: Conversation and domain policy in the typed snapshot
@@ -114,7 +115,7 @@ acceptance_criteria:
 
   - id: AC3
     criterion: Each Entry carries an opaque Receipt that adapters persist and restore verbatim, serialized as a JSON string or null, and the engine never interprets it.
-    traces: [R3.1, R3.2, R3.3, R3.4]
+    traces: [R3.1, R3.2, R3.3, R3.4, R3.5]
 
   - id: AC4
     criterion: Conversation folds into the typed snapshot and is restored on Load; no separate conversation snapshot hook or conversation store path remains.

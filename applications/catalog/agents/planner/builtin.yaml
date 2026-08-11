@@ -36,7 +36,10 @@ tools:
       strategy: parse_retry_counter_restore
       description: "Restores the parse retry counter snapshot captured before reporting the parse error."
     config:
-      response_contract: implementation_plan_yaml
+      feedback_template: |-
+        Your previous response was invalid. {{error}}
+
+        Please respond with exactly one top-level YAML mapping and no other document content. The mapping must contain exactly these six keys: title, summary, files, requirements, design_decisions, and acceptance_criteria. Do not return a root sequence/list, multiple plans, a wrapper/envelope key, Markdown fences, prose, or any keys outside this mapping.
 
   - name: seed_passthrough_plan
     type: builtin

@@ -46,3 +46,8 @@ tools:
     description: Plain-text feedback requesting a corrected model response.
     schema:
       type: string
+  config:
+    feedback_template: |-
+      Your previous response was invalid. {{error}}
+
+      Please respond with a single JSON object: {"tool": "<tool_name>", "parameters": {<params>}}

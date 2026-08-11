@@ -113,8 +113,9 @@ func TestRESTServer_StopPersistsRelaunchCompensation(t *testing.T) {
 	require.NoError(t, err)
 	require.True(t, ok)
 	require.Equal(t, "server_shutdown_or_user_action_compensation", compensation.Strategy)
-	require.Equal(t, "control", compensation.RestRef)
-	require.Equal(t, float64(2), compensation.Compensation["drained_events"])
+	require.Equal(t, "control", compensation.Data["rest_ref"])
+	details := compensation.Data["compensation"].(map[string]interface{})
+	require.Equal(t, float64(2), details["drained_events"])
 	require.Equal(t, []string{"machine_owned_server_relaunch"}, compensation.Requires)
 
 	undoResult := builder.BuildReverser().Undo(core.Result{Receipt: result.Receipt})

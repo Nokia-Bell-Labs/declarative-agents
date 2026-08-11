@@ -90,8 +90,8 @@ func TestPlannerVariantsRouteParseRetriesExplicitly(t *testing.T) {
 	if report.Init != "report_parse_error" {
 		t.Fatalf("report_parse_error init = %q, want report_parse_error", report.Init)
 	}
-	if got := report.Config["response_contract"]; got != "implementation_plan_yaml" {
-		t.Fatalf("report_parse_error response_contract = %#v, want implementation_plan_yaml", got)
+	if got, _ := report.Config["feedback_template"].(string); !strings.Contains(got, "exactly these six keys") {
+		t.Fatalf("report_parse_error feedback_template does not declare the implementation-plan contract: %#v", got)
 	}
 
 	for _, file := range []string{"machine.yaml", "machine-plan-only.yaml"} {

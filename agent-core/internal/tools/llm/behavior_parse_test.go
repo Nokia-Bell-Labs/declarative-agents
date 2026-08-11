@@ -150,7 +150,11 @@ func TestParseResponse_FixNewlines(t *testing.T) {
 }
 
 func TestReportParseError(t *testing.T) {
-	builder := &ReportParseErrorBuilder{Tracer: noopTracer()}
+	builder := &ReportParseErrorBuilder{
+		Tracer: noopTracer(),
+		FeedbackTemplate: "Your previous response was invalid. {{error}}\n\n" +
+			"Please respond with a single JSON object: {\"tool\": \"<tool_name>\", \"parameters\": {<params>}}",
+	}
 	cmd := builder.Build(core.Result{Output: "malformed JSON: unexpected EOF"})
 	res := cmd.Execute()
 
@@ -164,8 +168,12 @@ func TestReportParseError(t *testing.T) {
 
 func TestReportParseError_ImplementationPlanYAMLFeedback(t *testing.T) {
 	builder := &ReportParseErrorBuilder{
-		Tracer:           noopTracer(),
-		ResponseContract: ParseErrorResponseContractImplementationPlanYAML,
+		Tracer: noopTracer(),
+		FeedbackTemplate: "Your previous response was invalid. {{error}}\n\n" +
+			"Please respond with exactly one top-level YAML mapping and no other document content. " +
+			"The mapping must contain exactly these six keys: title, summary, files, requirements, " +
+			"design_decisions, and acceptance_criteria. Do not return a root sequence/list, multiple " +
+			"plans, a wrapper/envelope key, Markdown fences, prose, or any keys outside this mapping.",
 	}
 	cmd := builder.Build(core.Result{Output: "parse plan: missing required field: requirements (list is empty)"})
 	res := cmd.Execute()
@@ -181,10 +189,12 @@ func TestReportParseError_ImplementationPlanYAMLFeedback(t *testing.T) {
 	)
 }
 
-func TestParseErrorResponseContractValueRejectsUnknownValue(t *testing.T) {
-	_, err := ParseErrorResponseContractValue("planner")
-
-	require.ErrorContains(t, err, `unknown response_contract "planner"`)
+func TestReportParseError_ProfileSuppliesDifferentFeedback(t *testing.T) {
+	builder := &ReportParseErrorBuilder{
+		Tracer: noopTracer(), FeedbackTemplate: "Custom correction for {{error}}.",
+	}
+	result := builder.Build(core.Result{Output: "bad shape"}).Execute()
+	require.Equal(t, "Custom correction for bad shape.", result.Output)
 }
 
 func TestReportParseError_EmitsBudgetExhaustedAtRetryLimit(t *testing.T) {

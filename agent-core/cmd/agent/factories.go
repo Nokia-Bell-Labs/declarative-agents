@@ -3,6 +3,7 @@
 package main
 
 import (
+	"fmt"
 	"os"
 	"path/filepath"
 
@@ -115,11 +116,13 @@ func registerFilesystemFactories() toolregistry.FactoryRegistrar {
 			{"file_edit", func(root string, metrics core.MetricConfig) core.Builder {
 				return &filesystem.EditBuilder{Root: root, Metrics: metrics}
 			}},
-			{"file_find", func(root string, _ core.MetricConfig) core.Builder { return &filesystem.FindBuilder{Root: root} }},
 		}
 		for _, entry := range fileFactories {
 			registerFileFactory(br, entry.init, entry.builder)
 		}
+		br.Register("file_find", func(def catalog.ToolDef, vars map[string]string) (core.Builder, error) {
+			return &filesystem.FindBuilder{Root: vars["directory"], OutputLineCap: def.OutputCap}, nil
+		})
 		registerResourceFactories(br)
 	}
 }
@@ -163,7 +166,16 @@ func registerLLMFactories(st *agentState) toolregistry.FactoryRegistrar {
 		br.Register("report_parse_error", reportParseErrorFactory(st))
 		br.Register("reset_history", resetHistoryFactory(st))
 		br.Register("nudge_reread", func(def catalog.ToolDef, vars map[string]string) (core.Builder, error) {
-			return &control.NudgeRereadBuilder{Tracer: st.tracer}, nil
+			var cfg struct {
+				Text string `json:"nudge_text"`
+			}
+			if err := catalog.DecodeToolConfig(def, &cfg); err != nil {
+				return nil, err
+			}
+			if cfg.Text == "" {
+				return nil, fmt.Errorf("tool %q config nudge_text is required", def.Name)
+			}
+			return &control.NudgeRereadBuilder{Tracer: st.tracer, Text: cfg.Text}, nil
 		})
 		br.Register("done", func(def catalog.ToolDef, vars map[string]string) (core.Builder, error) {
 			return control.DoneBuilder{}, nil

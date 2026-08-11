@@ -99,7 +99,7 @@ type ParseStructuredConfig struct {
 // ReportParseErrorConfig selects the response contract requested after an LLM
 // response fails parsing.
 type ReportParseErrorConfig struct {
-	ResponseContract string `json:"response_contract"`
+	FeedbackTemplate string `json:"feedback_template"`
 }
 
 // CheckpointHistoryConfig holds config for checkpoint_history.

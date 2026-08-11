@@ -4,6 +4,7 @@ package llm
 
 import (
 	"fmt"
+	"strings"
 
 	"go.opentelemetry.io/otel/attribute"
 
@@ -14,38 +15,11 @@ import (
 
 type reportParseErrorCmd struct {
 	errorText        string
-	responseContract ParseErrorResponseContract
+	feedbackTemplate string
 	tracer           tracing.Tracer
 	retry            *ParseErrorRetryTracker
 	prevRetries      int
 	hasSnapshot      bool
-}
-
-// ParseErrorResponseContract selects the response shape requested after a
-// parsing failure. The zero value preserves the historical tool-call JSON
-// correction for existing profiles.
-type ParseErrorResponseContract string
-
-const (
-	ParseErrorResponseContractToolCallJSON           ParseErrorResponseContract = "tool_call_json"
-	ParseErrorResponseContractImplementationPlanYAML ParseErrorResponseContract = "implementation_plan_yaml"
-)
-
-// ParseErrorResponseContractValue validates a declared response contract.
-func ParseErrorResponseContractValue(value string) (ParseErrorResponseContract, error) {
-	switch contract := ParseErrorResponseContract(value); contract {
-	case "", ParseErrorResponseContractToolCallJSON:
-		return ParseErrorResponseContractToolCallJSON, nil
-	case ParseErrorResponseContractImplementationPlanYAML:
-		return contract, nil
-	default:
-		return "", fmt.Errorf(
-			"unknown response_contract %q (want %q or %q)",
-			value,
-			ParseErrorResponseContractToolCallJSON,
-			ParseErrorResponseContractImplementationPlanYAML,
-		)
-	}
 }
 
 func (r *reportParseErrorCmd) Name() string { return "report_parse_error" }
@@ -64,7 +38,7 @@ func (r *reportParseErrorCmd) Execute() core.Result {
 	if sig == core.BudgetExhausted {
 		res = core.Result{Signal: sig, Output: fmt.Sprintf("parse error retry limit reached: %s", r.errorText)}
 	} else {
-		res = core.Result{Signal: core.ToolDone, Output: parseFeedback(r.errorText, r.responseContract)}
+		res = core.Result{Signal: core.ToolDone, Output: parseFeedback(r.errorText, r.feedbackTemplate)}
 	}
 	if r.hasSnapshot {
 		res.Receipt = encodeRetryReceipt(r.prevRetries)
@@ -72,17 +46,8 @@ func (r *reportParseErrorCmd) Execute() core.Result {
 	return res
 }
 
-func parseFeedback(errorText string, contract ParseErrorResponseContract) string {
-	prefix := fmt.Sprintf("Your previous response was invalid. %s\n\n", errorText)
-	if contract == ParseErrorResponseContractImplementationPlanYAML {
-		return prefix +
-			"Please respond with exactly one top-level YAML mapping and no other document content. " +
-			"The mapping must contain exactly these six keys: title, summary, files, requirements, " +
-			"design_decisions, and acceptance_criteria. Do not return a root sequence/list, multiple " +
-			"plans, a wrapper/envelope key, Markdown fences, prose, or any keys outside this mapping."
-	}
-	return prefix +
-		"Please respond with a single JSON object: {\"tool\": \"<tool_name>\", \"parameters\": {<params>}}"
+func parseFeedback(errorText, template string) string {
+	return strings.ReplaceAll(template, "{{error}}", errorText)
 }
 
 // Undo restores the parse-retry counter, preferring the tool-owned receipt on
@@ -111,14 +76,12 @@ func (r *reportParseErrorCmd) Undo(prior core.Result) core.Result {
 type ReportParseErrorBuilder struct {
 	Tracer           tracing.Tracer
 	Retry            *ParseErrorRetryTracker
-	ResponseContract ParseErrorResponseContract
+	FeedbackTemplate string
 }
 
 func (b *ReportParseErrorBuilder) Build(res core.Result) core.Command {
 	return &reportParseErrorCmd{
-		errorText:        res.Output,
-		responseContract: b.ResponseContract,
-		tracer:           b.Tracer,
-		retry:            b.Retry,
+		errorText: res.Output, feedbackTemplate: b.FeedbackTemplate,
+		tracer: b.Tracer, retry: b.Retry,
 	}
 }

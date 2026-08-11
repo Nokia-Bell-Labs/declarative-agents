@@ -99,10 +99,12 @@ func lifecycleReverterWithRESTReceipt(t *testing.T) *fakeReverter {
 	receipt := undo.EncodeBoundaryReceipt(undo.BoundaryCompensationPayload{
 		BoundaryCompensation: undo.BoundaryCompensation{
 			Strategy: "restore",
-			RestRef:  "github", Resource: "issue", Operation: "set",
-			Parameters:   map[string]interface{}{"owner": "acme", "repo": "agent-core", "number": "1", "title": "new"},
-			ResourceID:   "1",
-			Compensation: map[string]interface{}{"operation": "set", "parameters": map[string]interface{}{"title": "restored"}},
+			Data: map[string]interface{}{
+				"rest_ref": "github", "resource": "issue", "operation": "set",
+				"parameters":   map[string]interface{}{"owner": "acme", "repo": "agent-core", "number": "1", "title": "new"},
+				"resource_id":  "1",
+				"compensation": map[string]interface{}{"operation": "set", "parameters": map[string]interface{}{"title": "restored"}},
+			},
 		},
 	})
 	require.NotEmpty(t, receipt)
