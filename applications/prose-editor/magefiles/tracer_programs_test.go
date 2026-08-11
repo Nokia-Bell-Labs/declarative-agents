@@ -44,13 +44,43 @@ type toolSelection struct {
 
 type declarationFile struct {
 	Tools []struct {
-		Name        string `yaml:"name"`
-		Type        string `yaml:"type"`
-		Init        string `yaml:"init"`
+		Name          string `yaml:"name"`
+		Type          string `yaml:"type"`
+		Init          string `yaml:"init"`
+		Reversibility struct {
+			Classification string `yaml:"classification"`
+		} `yaml:"reversibility"`
+		Undo struct {
+			Strategy string   `yaml:"strategy"`
+			Requires []string `yaml:"requires"`
+		} `yaml:"undo"`
 		SideEffects []struct {
 			Kind string `yaml:"kind"`
 		} `yaml:"side_effects"`
 	} `yaml:"tools"`
+}
+
+func TestSelfInvokeWordsDeclareCompensationContract(t *testing.T) {
+	root := realApplicationRoot(t)
+	var declarations declarationFile
+	readTestYAML(t, filepath.Join(
+		root, "agents/workflow-orchestrator/declarations.yaml",
+	), &declarations)
+	for _, tool := range declarations.Tools {
+		if tool.Init != "self_invoke" {
+			continue
+		}
+		if tool.Reversibility.Classification != "compensatable" {
+			t.Errorf("%s classification = %q", tool.Name, tool.Reversibility.Classification)
+		}
+		if tool.Undo.Strategy != "child_agent_workspace_restore" {
+			t.Errorf("%s undo strategy = %q", tool.Name, tool.Undo.Strategy)
+		}
+		want := []string{"child_workspace_ref", "child_trace"}
+		if !reflect.DeepEqual(tool.Undo.Requires, want) {
+			t.Errorf("%s undo requires = %v, want %v", tool.Name, tool.Undo.Requires, want)
+		}
+	}
 }
 
 func TestTracerManifestClosureIsPortableAndExact(t *testing.T) {

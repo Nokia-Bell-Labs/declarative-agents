@@ -63,8 +63,13 @@ tools:
       request_from: $from(capture_manifest).output
     side_effects:
       - {kind: child_agent_execution, target: specialist-editor-structure, state: candidate_observed}
-    reversibility: {classification: irreversible, undo: record_observation}
-    undo: {strategy: noop, description: Preserve the parent and retain child execution evidence.}
+    reversibility: {classification: compensatable, undo: child_agent_workspace_restore}
+    undo:
+      strategy: child_agent_workspace_restore
+      description: Restore child workspace artifacts or retain explicit compensation work.
+      payload: boundary_compensation
+      captures: [child_profile, child_run_id, artifact_paths]
+      requires: [child_workspace_ref, child_trace]
 
   - name: write_structure_attempt
     type: exec
@@ -97,8 +102,13 @@ tools:
       request_from: $from(structure_manifest).output
     side_effects:
       - {kind: child_agent_execution, target: voice-critic, state: verdict_observed}
-    reversibility: {classification: irreversible, undo: record_observation}
-    undo: {strategy: noop, description: Retain the independent verdict observation.}
+    reversibility: {classification: compensatable, undo: child_agent_workspace_restore}
+    undo:
+      strategy: child_agent_workspace_restore
+      description: Restore child workspace artifacts or retain explicit compensation work.
+      payload: boundary_compensation
+      captures: [child_profile, child_run_id, artifact_paths]
+      requires: [child_workspace_ref, child_trace]
 
   - name: capture_critic_output
     type: builtin

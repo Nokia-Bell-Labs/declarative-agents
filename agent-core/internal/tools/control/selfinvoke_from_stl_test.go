@@ -11,6 +11,7 @@ import (
 
 	"github.com/Nokia-Bell-Labs/declarative-agents/agent-core/internal/runtime/core"
 	"github.com/Nokia-Bell-Labs/declarative-agents/agent-core/internal/support/execute"
+	"github.com/Nokia-Bell-Labs/declarative-agents/agent-core/internal/tools/undo"
 )
 
 func TestSelfInvokeBuilder_Build(t *testing.T) {
@@ -110,10 +111,22 @@ func TestSelfInvokeBuilder_ExtraArgs(t *testing.T) {
 	assert.Contains(t, result.Output, "/workspace")
 }
 
-func TestSelfInvokeToolSpec(t *testing.T) {
+func TestSelfInvokeUndoMatchesCompensatableReceipt(t *testing.T) {
 	t.Parallel()
-	spec := SelfInvokeToolSpec()
+	cmd := (&SelfInvokeBuilder{
+		Config: execute.Config{Binary: "true", Profile: "child/profile.yaml"},
+		Ctx:    context.Background(),
+	}).Build(core.Result{Output: `{"parameters":{"run_id":"child-42"}}`})
+	result := cmd.Execute()
+	assert.Equal(t, core.ToolDone, result.Signal)
+	assert.NotEmpty(t, result.Receipt)
+	compensation, ok, err := undo.DecodeBoundaryReceipt(result.Receipt)
+	assert.NoError(t, err)
+	assert.True(t, ok)
+	assert.Equal(t, "child_agent_workspace_restore", compensation.Strategy)
+	assert.Equal(t, []string{"child_workspace_ref", "child_trace"}, compensation.Requires)
 
-	assert.Equal(t, "self_invoke", spec.Name)
-	assert.Equal(t, core.Internal, spec.Visibility)
+	undone := cmd.Undo(result)
+	assert.Equal(t, core.CompensationRequired, undone.Signal)
+	assert.NoError(t, undone.Err)
 }

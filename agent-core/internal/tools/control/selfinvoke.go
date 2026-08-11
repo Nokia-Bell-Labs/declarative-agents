@@ -166,8 +166,3 @@ func selfInvokeSignal(result *execute.Result) core.Signal {
 	}
 	return core.ToolFailed
 }
-
-// SelfInvokeToolSpec returns the ToolSpec for the self_invoke command.
-func SelfInvokeToolSpec() core.ToolSpec {
-	return core.ToolSpec{Name: "self_invoke", Visibility: core.Internal}
-}
