@@ -111,7 +111,7 @@ func init() {
 	f.StringVar(&flagOutput, "output", "", "output directory for eval results (default: eval-results)")
 	f.StringVar(&flagDoltDSN, "dolt-dsn", "", "MySQL-wire DSN to a dolt sql-server for the persistent checkpoint backend (default: no persistence)")
 	f.StringVar(&flagResumeCheckpoint, "resume-checkpoint", "", "checkpoint ID to resume from")
-	f.StringVar(&flagResumeSignal, "resume-signal", string(core.Approved), "signal to feed the state machine when resuming")
+	f.StringVar(&flagResumeSignal, "resume-signal", "", "resume signal override (default: machine resume_signal, then Approved)")
 	f.StringVar(&flagChildAgent, "child-agent-binary", "", "path to the child agent binary the evaluator launches (default: agent, resolved from PATH)")
 	f.BoolVar(&flagValidateConfig, "validate-config", false, "load and validate the profile, machine, and REST definitions, then exit 0 (valid) or 1 (invalid) without serving; for a rollout preflight (srd015 R2.2)")
 
@@ -607,6 +607,7 @@ func loopParams(cfg runtimeConfig, deps loopParamDeps) core.LoopParams {
 		ProviderName:         deps.State.providerName,
 		Trace:                deps.Tracer,
 		Budget:               runBudget(deps.Machine, deps.State),
+		CommandTimeout:       deps.Machine.BudgetSpec.CommandTimeoutDuration(),
 		ToolAction:           toolAction,
 		Registry:             deps.Registry,
 		Directory:            cfg.Directory,

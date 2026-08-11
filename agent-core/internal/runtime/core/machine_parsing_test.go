@@ -6,6 +6,7 @@ import (
 	"fmt"
 	"strings"
 	"testing"
+	"time"
 
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
@@ -45,7 +46,7 @@ func TestParseMachineSpecRejectsDuplicateGrammarEntries(t *testing.T) {
 	}{
 		{
 			name:    "state name",
-			input:   strings.Replace(validYAML, "states: [Idle, Running, Done, Error]", "states: [Idle, Running, Done, Error, Running]", 1),
+			input:   strings.Replace(validYAML, "terminal_states:", "  - Running\nterminal_states:", 1),
 			wantErr: `states[4]: duplicate name "Running"`,
 		},
 		{
@@ -217,6 +218,52 @@ transitions:
 
 	_, err = ParseMachineSpec([]byte(fmt.Sprintf(base, "run_status: succeeded", "run_status: succeeded")))
 	require.ErrorContains(t, err, `states[0].run_status: state "Idle" is not terminal`)
+}
+
+func TestParseMachineSpecDeclarativeRuntimePolicy(t *testing.T) {
+	t.Parallel()
+	spec, err := ParseMachineSpec([]byte(`
+name: policy
+initial_state: Idle
+summary_signal: Done
+resume_signal: ResumeRequested
+budget: {max_iterations: 3, command_timeout: 2s}
+states: [Idle, Finished]
+terminal_states: [Finished]
+signals: [Seed, Done, ResumeRequested]
+transitions:
+  - {state: Idle, signal: Seed, next: Finished, action: finish, report_output: $.address}
+`))
+	require.NoError(t, err)
+	require.Equal(t, "Done", spec.SummarySignal)
+	require.Equal(t, "ResumeRequested", spec.ResumeSignal)
+	require.Equal(t, 2*time.Second, spec.BudgetSpec.CommandTimeoutDuration())
+	require.Equal(t, "$.address", spec.Transitions[0].ReportOutput)
+}
+
+func TestParseMachineSpecRejectsInvalidRuntimePolicy(t *testing.T) {
+	t.Parallel()
+	base := `
+name: policy
+initial_state: Idle
+%s
+states: [Idle, Finished]
+terminal_states: [Finished]
+signals: [Seed, Done]
+transitions:
+  - {state: Idle, signal: Seed, next: Finished%s}
+`
+	cases := []struct{ policy, transition, want string }{
+		{"summary_signal: Missing", "", `summary_signal "Missing" not in signals list`},
+		{"resume_signal: Missing", "", `resume_signal "Missing" not in signals list`},
+		{"budget: {command_timeout: never}", "", `budget.command_timeout`},
+		{"", ", action: finish, report_output: $from(other).address", `must be a $.path selector`},
+		{"", ", report_output: $.address", `report_output requires an action`},
+	}
+	for _, tc := range cases {
+		_, err := ParseMachineSpec([]byte(fmt.Sprintf(base, tc.policy, tc.transition)))
+		require.ErrorContains(t, err, tc.want)
+	}
 }
 
 func TestParseMachineSpec_MetricLabels(t *testing.T) {

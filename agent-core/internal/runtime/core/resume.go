@@ -57,7 +57,7 @@ func LoadResume(params LoopParams) (ResumeState, error) {
 	}
 	sig := params.InitialSignal
 	if sig == "" {
-		sig = Approved
+		sig = resumeSignal(params.MachineSpec)
 	}
 	params.InitialState = pos.CurrentState
 	params.InitialSignal = sig
@@ -77,6 +77,13 @@ func LoadResume(params LoopParams) (ResumeState, error) {
 	return ResumeState{
 		Params: params, Position: pos, Execution: exec, Finalized: finalized,
 	}, nil
+}
+
+func resumeSignal(machine *MachineSpec) Signal {
+	if machine != nil && machine.ResumeSignal != "" {
+		return Signal(machine.ResumeSignal)
+	}
+	return Approved
 }
 
 // validateResumeCompatibility rejects a checkpoint the current machine cannot

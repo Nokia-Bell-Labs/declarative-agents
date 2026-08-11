@@ -87,6 +87,22 @@ schema:
       The state the machine enters on startup. Must reference a state
       present in the states list.
 
+  - field: summary_signal
+    type: string
+    required: false
+    description: |
+      Signal whose Result.Output becomes RunResult.summary. Must name a declared
+      signal. Defaults to TaskCompleted for compatibility; diagnostics report
+      when the default is used.
+
+  - field: resume_signal
+    type: string
+    required: false
+    description: |
+      Signal used when a checkpoint resumes without an operator
+      --resume-signal override. Must name a declared signal. Defaults to
+      Approved for compatibility; diagnostics report when the default is used.
+
   - field: budget
     type: object
     required: false
@@ -98,7 +114,8 @@ schema:
         description: |
           Maximum number of state transitions before halting. When
           exceeded, the machine transitions via the BudgetExhausted
-          signal.
+          signal. The documented compatibility default is 100; diagnostics
+          report when it is omitted.
       - field: max_tokens
         type: int
         description: |
@@ -110,6 +127,12 @@ schema:
           Wall-clock time limit (e.g. "5m0s"). Enforced via
           context.WithTimeout — when elapsed, the loop terminates
           with StatusCancelled (not BudgetExhausted).
+      - field: command_timeout
+        type: duration string
+        description: |
+          Positive per-dispatch timeout applied to every command in this
+          machine. Omission preserves the compatibility behavior of no
+          per-command timeout and produces a diagnostic.
       - field: max_consecutive_parse_errors
         type: int
         description: |
@@ -226,6 +249,14 @@ schema:
           When omitted, the step remains addressable by its executed command
           name. On a $tool transition, label remains the stable authored
           address while command_name records the tool selected at runtime.
+      - field: report_output
+        type: string
+        required: false
+        description: |
+          Operator-facing field selected from this action's Result.Output using
+          the canonical $.path grammar (for example $.address). Requires an
+          action. The CLI may report the selected scalar without hard-coding a
+          command name.
       - field: metric_labels
         type: object
         status: planned

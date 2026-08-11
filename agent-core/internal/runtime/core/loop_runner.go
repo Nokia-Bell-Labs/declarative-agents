@@ -61,7 +61,7 @@ func newLoopRunner(sm *StateMachine, p LoopParams, tr tracing.Tracer, ctx contex
 		run:               p.InitialRun,
 		iteration:         p.InitialRun.Iterations,
 		start:             time.Now(),
-		taskCompletedSig:  taskCompletedSignal(p.Hooks),
+		taskCompletedSig:  taskCompletedSignal(p),
 		checkpoint:        resolveCheckpoint(p.Checkpoint),
 		checkpointEnabled: checkpointPersistenceEnabled(p.Checkpoint),
 		execution:         cloneExecution(p.InitialExecution),
@@ -92,11 +92,14 @@ func initialSignalResult(p LoopParams) (Signal, Result) {
 	return p.InitialSignal, res
 }
 
-func taskCompletedSignal(hooks LoopHooks) Signal {
-	if hooks.TaskCompletedSignal == "" {
-		return "TaskCompleted"
+func taskCompletedSignal(params LoopParams) Signal {
+	if params.Hooks.TaskCompletedSignal != "" {
+		return params.Hooks.TaskCompletedSignal
 	}
-	return hooks.TaskCompletedSignal
+	if params.MachineSpec != nil && params.MachineSpec.SummarySignal != "" {
+		return Signal(params.MachineSpec.SummarySignal)
+	}
+	return TaskCompleted
 }
 
 func (r *loopRunner) recordStart() {

@@ -10,7 +10,14 @@ import (
 const validYAML = `
 name: test-machine
 initial_state: Idle
-states: [Idle, Running, Done, Error]
+summary_signal: Finished
+resume_signal: Start
+budget: {max_iterations: 100, command_timeout: 1m}
+states:
+  - Idle
+  - Running
+  - {name: Done, run_status: succeeded}
+  - {name: Error, run_status: failed}
 terminal_states: [Done, Error]
 signals: [Start, Finished, Failed]
 transitions:
