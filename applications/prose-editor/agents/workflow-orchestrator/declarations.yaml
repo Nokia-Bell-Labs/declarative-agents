@@ -13,9 +13,12 @@ tools:
       mode: structured
       schema: {type: object}
     side_effects:
-      - {kind: external_api, target: configured_source_repository, state: read_only}
-    reversibility: {classification: reversible, undo: noop}
-    undo: {strategy: noop, description: Source capture is read-only.}
+      - {kind: filesystem_read, target: PROSE_TRACER_FIXTURES source fixture, state: read_only}
+      - {kind: filesystem_write, target: .tracer/captured-source.md, state: immutable}
+      - {kind: filesystem_write, target: manifest.yaml, state: projected}
+      - {kind: filesystem_write, target: boundary-receipts.jsonl, state: append_only}
+    reversibility: {classification: irreversible, undo: preserve_captured_source}
+    undo: {strategy: irreversible, description: Preserve the immutable capture, manifest projection, and boundary receipt.}
 
   - name: write_original
     type: exec
@@ -29,7 +32,9 @@ tools:
     output_cap: 256
     output: {mode: structured, schema: {type: object}}
     side_effects:
-      - {kind: filesystem_write, target: workproducts/00-original.md, state: immutable}
+      - {kind: filesystem_write, target: 00-original.md, state: immutable}
+      - {kind: filesystem_write, target: manifest.yaml, state: projected}
+      - {kind: filesystem_write, target: boundary-receipts.jsonl, state: append_only}
     reversibility: {classification: irreversible, undo: preserve_original}
     undo: {strategy: noop, description: The immutable original is preserved on compensation.}
 
@@ -45,8 +50,11 @@ tools:
     output_cap: 256
     output: {mode: structured, schema: {type: object}}
     side_effects:
-      - {kind: filesystem_write, target: workproducts/manifest-history, state: append_only}
-      - {kind: filesystem_write, target: workproducts/manifest.yaml, state: projected}
+      - {kind: filesystem_write, target: manifest-history, state: append_only}
+      - {kind: filesystem_write, target: manifest.yaml, state: projected}
+      - {kind: filesystem_write, target: .tracer/child-request.json, state: projected}
+      - {kind: state_mutation, target: manifest artifact selection, state: superseded_and_cleared}
+      - {kind: filesystem_write, target: boundary-receipts.jsonl, state: append_only}
     reversibility: {classification: compensatable, undo: append_corrective_revision}
     undo: {strategy: compensating_action, description: Append a corrective revision; never rewrite history.}
 
@@ -85,7 +93,9 @@ tools:
     output_cap: 256
     output: {mode: structured, schema: {type: object}}
     side_effects:
-      - {kind: filesystem_write, target: workproducts/attempts/structure, state: immutable}
+      - {kind: filesystem_write, target: attempts/structure, state: immutable}
+      - {kind: filesystem_write, target: manifest.yaml, state: projected}
+      - {kind: filesystem_write, target: boundary-receipts.jsonl, state: append_only}
     reversibility: {classification: irreversible, undo: append_supersession}
     undo: {strategy: compensating_action, description: Supersede by manifest revision without deleting bytes.}
 
@@ -238,7 +248,10 @@ tools:
     output_cap: 256
     output: {mode: structured, schema: {type: object}}
     side_effects:
-      - {kind: filesystem_write, target: workproducts/attempts/critique, state: immutable}
+      - {kind: filesystem_write, target: attempts/critique, state: immutable}
+      - {kind: state_mutation, target: manifest.last_critic, state: recorded}
+      - {kind: filesystem_write, target: manifest.yaml, state: projected}
+      - {kind: filesystem_write, target: boundary-receipts.jsonl, state: append_only}
     reversibility: {classification: irreversible, undo: append_supersession}
     undo: {strategy: compensating_action, description: Supersede by manifest revision without deleting bytes.}
 
@@ -254,8 +267,10 @@ tools:
     output_cap: 256
     output: {mode: structured, schema: {type: object}}
     side_effects:
-      - {kind: filesystem_write, target: workproducts/10-structure.md, state: immutable}
-      - {kind: filesystem_write, target: workproducts/40-critique.yaml, state: immutable}
-      - {kind: filesystem_write, target: workproducts/final.md, state: immutable}
+      - {kind: filesystem_write, target: 10-structure.md, state: immutable}
+      - {kind: filesystem_write, target: 40-critique.yaml, state: immutable}
+      - {kind: filesystem_write, target: final.md, state: immutable}
+      - {kind: filesystem_write, target: manifest.yaml, state: projected}
+      - {kind: filesystem_write, target: boundary-receipts.jsonl, state: append_only}
     reversibility: {classification: irreversible, undo: preserve_and_block}
     undo: {strategy: noop, description: Reuse matching files and block on any mismatch.}

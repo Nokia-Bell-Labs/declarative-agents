@@ -9,6 +9,30 @@ import (
 	"testing"
 )
 
+func TestCaptureSourceCreatesImmutableWorkspaceArtifact(t *testing.T) {
+	workspace := t.TempDir()
+	fixtures := t.TempDir()
+	if err := os.WriteFile(filepath.Join(fixtures, "source.md"), []byte("source\n"), 0o644); err != nil {
+		t.Fatal(err)
+	}
+	var suite fixtureSuite
+	suite.Source.File = "source.md"
+	boundary := boundary{workspace: workspace, fixtures: fixtures, suite: suite}
+	state := manifest{}
+
+	if _, _, err := boundary.captureSource(&state, "capture", false); err != nil {
+		t.Fatal(err)
+	}
+	path := filepath.Join(workspace, ".tracer", "captured-source.md")
+	info, err := os.Stat(path)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if got := info.Mode().Perm(); got != 0o444 {
+		t.Fatalf("capture mode = %o, want 444", got)
+	}
+}
+
 func TestValidateCriticEvaluationBindsArtifactsAndCrossFields(t *testing.T) {
 	workspace := t.TempDir()
 	originalBytes := []byte("immutable original\n")

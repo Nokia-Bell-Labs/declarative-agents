@@ -55,7 +55,9 @@ type declarationFile struct {
 			Requires []string `yaml:"requires"`
 		} `yaml:"undo"`
 		SideEffects []struct {
-			Kind string `yaml:"kind"`
+			Kind   string `yaml:"kind"`
+			Target string `yaml:"target"`
+			State  string `yaml:"state"`
 		} `yaml:"side_effects"`
 	} `yaml:"tools"`
 }
@@ -81,6 +83,57 @@ func TestSelfInvokeWordsDeclareCompensationContract(t *testing.T) {
 			t.Errorf("%s undo requires = %v, want %v", tool.Name, tool.Undo.Requires, want)
 		}
 	}
+}
+
+func TestTracerBoundaryWordsDeclareEveryTouchedArtifact(t *testing.T) {
+	root := realApplicationRoot(t)
+	var declarations declarationFile
+	readTestYAML(t, filepath.Join(
+		root, "agents/workflow-orchestrator/declarations.yaml",
+	), &declarations)
+	for _, tool := range declarations.Tools {
+		expected, tracked := tracerBoundaryTargets[tool.Name]
+		if !tracked {
+			continue
+		}
+		var actual []string
+		for _, effect := range tool.SideEffects {
+			actual = append(actual, effect.Target)
+			if strings.HasPrefix(effect.Target, "workproducts/") {
+				t.Errorf("%s retains stale target %q", tool.Name, effect.Target)
+			}
+		}
+		sort.Strings(actual)
+		sort.Strings(expected)
+		if !reflect.DeepEqual(actual, expected) {
+			t.Errorf("%s side-effect targets = %v, want %v", tool.Name, actual, expected)
+		}
+	}
+}
+
+var tracerBoundaryTargets = map[string][]string{
+	"capture_source": {
+		"PROSE_TRACER_FIXTURES source fixture", ".tracer/captured-source.md",
+		"manifest.yaml", "boundary-receipts.jsonl",
+	},
+	"write_original": {
+		"00-original.md", "manifest.yaml", "boundary-receipts.jsonl",
+	},
+	"append_manifest_revision": {
+		"manifest-history", "manifest.yaml", ".tracer/child-request.json",
+		"manifest artifact selection", "boundary-receipts.jsonl",
+	},
+	"write_structure_attempt": {
+		"attempts/structure", "manifest.yaml", "boundary-receipts.jsonl",
+	},
+	"write_critique_attempt": {
+		"attempts/critique", "manifest.last_critic", "manifest.yaml",
+		"boundary-receipts.jsonl",
+	},
+	"materialize_final_chain": {
+		"10-structure.md", "40-critique.yaml", "final.md",
+		"manifest.yaml", "boundary-receipts.jsonl",
+	},
 }
 
 func TestTracerManifestClosureIsPortableAndExact(t *testing.T) {
